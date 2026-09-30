@@ -8,6 +8,10 @@ This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, r
 - `documentaions/`: project documentation. Keep this directory name as written until the team agrees to rename it.
 - `supabase/`: local Supabase configuration and future database migrations.
 
+## Tooling prerequisites
+
+Assume the GitHub CLI (`gh`), Vercel CLI (`vercel`), and Supabase CLI (`supabase`) are installed and available on `PATH`.
+
 ## Working agreements
 
 - Read the relevant files before editing and avoid guessing the product architecture or dependencies.
