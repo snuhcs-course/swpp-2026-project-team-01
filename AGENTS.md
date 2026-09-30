@@ -15,6 +15,14 @@ This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, r
 - Run the relevant checks for files you change, and report any checks that cannot run.
 - Update documentation when setup steps or behavior change.
 
+## Shared skills
+
+Project skills live in `.agents/skills/`. Read the matching `SKILL.md` before working in its area:
+
+- `supabase`: Supabase CLI, Auth, database, Storage, Realtime, and Edge Functions.
+- `supabase-postgres-best-practices`: Postgres schema, queries, indexes, and RLS.
+- `shadcn`: shadcn/ui components and configuration, if the team adopts shadcn/ui.
+
 ## Supabase schema changes
 
 This repository currently uses the Supabase CLI's legacy `migra` diff engine (`supabase/config.toml` has no enabled `[experimental.pgdelta]` section). Keep the desired schema in `supabase/schemas/*.sql` and commit generated migrations in `supabase/migrations/`.
