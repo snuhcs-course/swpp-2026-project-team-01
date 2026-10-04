@@ -1,0 +1,21 @@
+# Tasks
+
+## 1. Decisions and reproducible probes
+
+- [x] 1.1 Record runtime, web/npm/shadcn, model, guest recovery, expiry, language, online-link, and host-confirmation decisions; verify the compatibility report names exact defaults and limitations.
+- [x] 1.2 Add sanitized read-only provider probes and captured results; verify Supabase Auth/JWKS/OAuth discovery, AgentMail inbox access, Photon project/line access, Seoul Routes modes, and synthetic OpenAI schema results with `python3 scripts/p0/probe_providers.py --routes --model`.
+- [x] 1.3 Record official OAuth/MCP, Photon transport, Calendar scope, AgentMail webhook/idempotency, and structured-output contracts; verify every selected behavior links its primary source and distinguishes candidate versions from runtime-tested versions.
+- [x] 1.4 Record installed/available versions and individual status for Dots, Muse, Instinct, ChatGPT, Codex, Claude, and Claude Code; verify no untested client is marked compatible and all clients retain authenticated web confirmation as baseline.
+
+## 2. Actual client and conversation compatibility gates
+
+- [ ] 2.1 Enable the intended Supabase OAuth/DCR configuration and test a minimal application MCP tool in an actual browser client and terminal client; verify discovery, registration, redirects, token audience, refresh, revocation, and application-owned grants with captured evidence.
+- [ ] 2.2 Exercise requester and host roles in all seven named clients; verify permissions, current-proposal confirmation, stale decisions, and denied/revoked access with actual client versions recorded.
+- [ ] 2.3 Exercise Photon SDK authentication and a controlled conversation through the selected Node/Bun bridge; verify runtime compatibility, routing, delivery, and explicit web confirmation continuation.
+- [ ] 2.4 Exercise AgentMail signature verification, reply threading, and uncertain-send recovery with dedicated identities; verify raw-body signatures, replay rejection, and idempotency-window handling.
+
+## 3. Calendar and phase evidence
+
+- [ ] 3.1 Complete actual host and requester Google consent/refresh and controlled Calendar reads/writes; verify separate scopes, callback binding, reconnect behavior, and exact deployment redirect URLs.
+- [ ] 3.2 Validate Routes coverage for intended geography and travel modes using controlled physical itineraries; verify missing estimates are unresolved and both adjacent directions fit with host margins.
+- [x] 3.3 Record P0 exit evidence and blockers in the owning implementation/provider documentation; verify fixture probes are not presented as actual client, human-consent, messaging, or Calendar booking success.

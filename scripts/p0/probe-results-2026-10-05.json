@@ -1,0 +1,60 @@
+{
+  "supabase_auth": {
+    "http_status": 200,
+    "version": "v2.197.0"
+  },
+  "supabase_oauth_discovery": {
+    "http_status": 404,
+    "authorization_code": false,
+    "pkce_s256": false,
+    "dynamic_registration_advertised": false,
+    "error_code": "feature_disabled"
+  },
+  "supabase_jwks": {
+    "http_status": 200,
+    "algorithms": [
+      "ES256"
+    ]
+  },
+  "agentmail_inbox_access": {
+    "http_status": 200,
+    "inbox_count": 1,
+    "configured_inbox_visible": true
+  },
+  "photon_project_access": {
+    "exit_code": 0,
+    "project_matches": true
+  },
+  "photon_lines": {
+    "exit_code": 0,
+    "line_count": 0
+  },
+  "seoul_routes_drive": {
+    "http_status": 200,
+    "route_count": 0,
+    "duration": null,
+    "distance_meters": null,
+    "error_status": null
+  },
+  "seoul_routes_walk": {
+    "http_status": 200,
+    "route_count": 0,
+    "duration": null,
+    "distance_meters": null,
+    "error_status": null
+  },
+  "seoul_routes_transit": {
+    "http_status": 200,
+    "route_count": 1,
+    "duration": "512s",
+    "distance_meters": 1562,
+    "error_status": null
+  },
+  "openai_structured_response": {
+    "http_status": 200,
+    "model": "gpt-4o-mini-2024-07-18",
+    "response_status": "completed",
+    "synthetic_contract_passed": true,
+    "error_code": null
+  }
+}
