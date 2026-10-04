@@ -18,6 +18,26 @@ Use Supabase CLI **2.119.0** for this repository and confirm it with `supabase -
 
 Use OpenSpec CLI **1.14.0** with the core profile and Codex integration. Install it with `brew install openspec` (macOS) or `npm install -g @fission-ai/openspec@1.14.0` (Node.js 20.19.0+), then verify with `openspec --version`. Initialize a fresh checkout with `openspec init --tools codex --profile core`. After a coordinated CLI upgrade, run `openspec update` in this repository and review the generated skill changes.
 
+## Domain and DNS
+
+The product is **Find Me a Time**, and its purchased domain is **findmeatime.com**. Cloudflare is the registrar and authoritative DNS provider. Keep Cloudflare nameservers while the domain is registered there; app hosting can use Vercel independently.
+
+Use the official Cloudflare CLI, `cf` (also available as `cloudflare`), for DNS management. The verified version is **1.0.0-beta.12**. Install with `npm install --global cf@1.0.0-beta.12` using Node.js 22.18+, and check with `cf --version`. Since the CLI is in beta, verify command syntax after upgrades.
+
+- Authenticate with `cf auth login`, then verify with `cf auth whoami`. For non-interactive automation, use `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; scope the token to the required account, zone, and permissions. Keep tokens, local authentication files, and `.cloudflare/` CLI caches out of Git.
+- Discover commands with `cf cli search "create a DNS record"`, using only the action and resource type in search queries. Inspect the selected command's `--help` or `cf schema` output for arguments and request fields.
+- Inspect the zone with `cf zones list --name findmeatime.com` and existing records with `cf dns records list --zone findmeatime.com`. Retrieve account and zone IDs from the authenticated account rather than guessing them.
+- Create records with `cf dns records create --zone findmeatime.com --body '<JSON>'`. Preview changes with `--dry-run`, using the actual zone ID instead of the domain name because dry runs do not resolve names. Preserve unrelated records, including email and verification records. Re-read records after a change to verify the resulting state.
+
+For Vercel deployments:
+
+1. Identify the intended Vercel team and project, then attach the domain with `vercel domains add findmeatime.com <project-name>` in that scope.
+2. Run `vercel domains inspect findmeatime.com` to obtain the exact required DNS records. Use its current values rather than copying generic IP addresses or CNAME targets.
+3. Apply those records through `cf`, with `proxied: false` for Vercel web records (DNS only). `vercel dns` does not manage records hosted on Cloudflare nameservers.
+4. Verify with `vercel domains inspect findmeatime.com`, DNS lookup, and an HTTPS request to the expected deployment. An active Cloudflare zone alone does not establish that the app is connected.
+
+References: [Cloudflare CLI setup](https://developers.cloudflare.com/cf/get-started/), [DNS management](https://developers.cloudflare.com/cf/get-started/resources/), and [Vercel custom domains](https://vercel.com/docs/domains/set-up-custom-domain).
+
 ## Working agreements
 
 - Read the relevant files before editing and avoid guessing the product architecture or dependencies.
