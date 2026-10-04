@@ -16,9 +16,9 @@
 
 - [x] 3.1 Add transactional queue publication, bounded internal workers, ownership/fencing, and Cron recovery; verify rollback, duplicate redelivery, terminated ownership, and lost wake-up tests.
 - [x] 3.2 Add provider test doubles and scoped diagnostics; verify secrets/private content are absent from returned errors and logs and production does not select doubles implicitly.
-- [ ] 3.3 Add lint, typecheck, unit/database tests, web build, and CI; verify the same documented commands pass locally and in CI.
+- [x] 3.3 Add lint, typecheck, unit/database tests, web build, and CI; verify the same documented commands pass locally and in CI.
 - [x] 3.4 Record P1 exit evidence in the implementation plan; verify a clean checkout starts, builds, rebuilds migrations, and drains a saved internal job.
 
 ## Verified evidence
 
-2026-10-05: clean `npm ci`, `npm run check`, reviewed pg-delta migration, `supabase db reset --local`, and 29/29 pgTAP tests pass. Actual local Edge health returns 200 and the authenticated worker drains a persisted ping (`claimed: 1, completed: 1`). CI configuration is committed; a remote CI run remains pending (task 3.3). The local suite currently includes 16 independently implemented P3 evaluator tests, excluded from the P1 commit.
+2026-10-05: clean `npm ci`, `npm run check`, reviewed pg-delta migration, `supabase db reset --local`, and 29/29 pgTAP tests pass. Actual local Edge health returns 200 and the authenticated worker drains a persisted ping (`claimed: 1, completed: 1`). GitHub Actions run 37239080874 on commit 8d32364 passes both application and database jobs, including clean Linux npm ci/build and full migration reset. The local suite currently includes 16 independently implemented P3 evaluator tests, excluded from the P1 commit.
