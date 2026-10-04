@@ -27,6 +27,13 @@ Project skills live in `.agents/skills/`. Read the matching `SKILL.md` before wo
 - `supabase-postgres-best-practices`: Postgres schema, queries, indexes, and RLS.
 - `shadcn`: shadcn/ui components and configuration, if the team adopts shadcn/ui.
 
+## OpenSpec
+
+Use OpenSpec as the versioned product specification and change-planning record for this repository. Keep `openspec/specs/` as the current agreed behavior and architecture reference. Keep active proposals and their `proposal.md`, `specs/`, `design.md`, and `tasks.md` together under `openspec/changes/`; archive completed changes after syncing their spec deltas.
+
+Commit relevant OpenSpec artifacts in the same branch and review as the code they describe. OpenSpec files are shared project documentation even when some teammates do not use the CLI. Do not put credentials, tokens, local machine paths, or other secrets in OpenSpec files.
+
+Initialize OpenSpec once per clone with `openspec init --tools codex` when a root is absent. Generated integration files under `.agents/skills/openspec-*/` and `.agents/skills/.openspec-target` are local tooling and remain ignored; do not force-add them. Do not create separate stores for this repository unless the user explicitly asks.
 ## Supabase schema changes
 
 This repository enables Supabase CLI's `pg-delta` engine in `[experimental.pgdelta]` in `supabase/config.toml`. Use declarative schemas in `supabase/schemas/` (the default `pgdelta` schema directory) as the source of truth and commit generated migrations in `supabase/migrations/`. The legacy `[db.migrations].schema_paths` setting is not used by `pg-delta`.

@@ -1,13 +1,56 @@
 "use client";
+
 import Link from "next/link";
-import { useEffect, useState } from "react";
-type Slot = { label: string; reason: string; rank: number };
-type Request = { id: string; requester_name: string; requester_email: string; purpose: string; duration_minutes: number; location: string; candidate_slots: Slot[]; status: string; created_at: string };
-type Share = { id: string; created_at: string; meeting_requests: Request[] };
+import { useCallback, useEffect, useState } from "react";
+import { readJsonResponse } from "@/lib/client-json";
+import CalendarView, { type CalendarData, shortDate } from "./calendar-view";
+import LinkManager from "./link-manager";
+import ReceivedRequests, { type Share } from "./received-requests";
+import styles from "./owner.module.css";
+
 export default function OwnerDashboard({ email }: { email: string }) {
-  const [shares, setShares] = useState<Share[]>([]); const [link, setLink] = useState(""); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
-  async function load() { const response = await fetch("/api/requests", { cache: "no-store" }); const result = await response.json(); if (response.ok) setShares(result.links ?? []); else setError(result.error ?? "요청을 불러오지 못했습니다."); }
-  useEffect(() => { const timer = window.setTimeout(() => { void load(); }, 0); return () => window.clearTimeout(timer); }, []);
-  async function createLink() { setBusy(true); setError(""); try { const response = await fetch("/api/share", { method: "POST" }); const result = await response.json(); if (!response.ok) throw new Error(result.error); setLink(result.url); await navigator.clipboard.writeText(result.url); await load(); } catch (cause) { setError(cause instanceof Error ? cause.message : "링크를 만들지 못했습니다."); } finally { setBusy(false); } }
-  return <main className="min-h-screen bg-[#f7f7fb] px-5 py-10"><div className="mx-auto max-w-5xl"><header className="flex flex-wrap items-center justify-between gap-4"><Link href="/" className="text-xl font-bold">Caltalk<span className="text-indigo-600">.</span></Link><span className="text-sm text-slate-600">연결된 캘린더 · {email}</span></header><section className="mt-10 rounded-3xl bg-white p-7 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-5"><div><p className="text-sm font-bold tracking-widest text-indigo-600">OWNER DASHBOARD</p><h1 className="mt-2 text-3xl font-semibold">미팅 요청을 확인하세요</h1><p className="mt-2 text-slate-600">요청 링크를 공유하면 상대방이 양쪽 캘린더에 맞는 시간을 요청할 수 있어요.</p></div><button onClick={createLink} disabled={busy} className="rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white disabled:opacity-60">{busy ? "링크 만드는 중…" : "요청 링크 만들기"}</button></div>{link && <div className="mt-5 break-all rounded-xl bg-indigo-50 p-4 text-sm text-indigo-900">링크를 클립보드에 복사했어요: <a className="underline" href={link}>{link}</a></div>}{error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}</section><section className="mt-8"><h2 className="text-xl font-semibold">요청 링크와 받은 요청</h2>{shares.length === 0 ? <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-600">아직 요청 링크가 없습니다. 먼저 링크를 만들어 상대방에게 공유해 주세요.</div> : <div className="mt-4 space-y-4">{shares.map((share) => <article key={share.id} className="rounded-2xl bg-white p-6 shadow-sm"><h3 className="font-semibold">링크 · {new Date(share.created_at).toLocaleDateString("ko-KR")}</h3>{share.meeting_requests.length === 0 ? <p className="mt-3 text-sm text-slate-500">아직 들어온 요청이 없습니다.</p> : <div className="mt-4 space-y-4">{share.meeting_requests.map((request) => <div key={request.id} className="border-t border-slate-100 pt-4"><div className="flex flex-wrap justify-between gap-2"><h4 className="font-semibold">{request.purpose}</h4><span className="text-sm text-slate-500">{request.duration_minutes}분 · {request.location || "장소 미정"}</span></div><p className="mt-1 text-sm text-slate-600">{request.requester_name} · {request.requester_email}</p><div className="mt-3 grid gap-3 md:grid-cols-3">{(request.candidate_slots ?? []).map((slot) => <div key={slot.label} className="rounded-xl bg-slate-50 p-4"><p className="font-medium">{slot.rank}순위 · {slot.label}</p><p className="mt-2 text-sm text-slate-600">{slot.reason}</p></div>)}</div><p className="mt-3 text-xs text-slate-500">후보 추천 상태 · 일정은 아직 확정되지 않았습니다.</p></div>)}</div>}</article>)}</div>}</section></div></main>;
+  const [calendar, setCalendar] = useState<CalendarData | null>(null);
+  const [calendarLoading, setCalendarLoading] = useState(true);
+  const [calendarError, setCalendarError] = useState("");
+  const [shares, setShares] = useState<Share[]>([]);
+  const [requestError, setRequestError] = useState("");
+
+  const loadCalendar = useCallback(async () => {
+    setCalendarLoading(true); setCalendarError("");
+    try { setCalendar(await readJsonResponse<CalendarData>(await fetch("/api/calendar/events", { cache: "no-store" }), "캘린더를 불러오지 못했습니다.")); }
+    catch (cause) { setCalendarError(cause instanceof Error ? cause.message : "캘린더를 불러오지 못했습니다."); }
+    finally { setCalendarLoading(false); }
+  }, []);
+  const loadRequests = useCallback(async () => {
+    try {
+      const result = await readJsonResponse<{ links: Share[] }>(await fetch("/api/requests", { cache: "no-store" }), "요청을 불러오지 못했습니다.");
+      setShares(result.links); setRequestError("");
+    } catch (cause) { setRequestError(cause instanceof Error ? cause.message : "요청을 불러오지 못했습니다."); }
+  }, []);
+  useEffect(() => {
+    const timer = setTimeout(() => { void loadCalendar(); void loadRequests(); }, 0);
+    return () => clearTimeout(timer);
+  }, [loadCalendar, loadRequests]);
+
+  return <main className={styles.shell}>
+    <header className={styles.header}><Link href="/owner" className={styles.brand}>Caltalk<span>.</span></Link><div className={styles.account}><i /><span>Google Calendar 연결 · {email}</span></div></header>
+    <div className={styles.layout}>
+      <aside className={styles.sidebar} aria-label="메뉴와 미팅 조건">
+        <nav><a href="#my-calendar">▦ 내 캘린더</a><a href="#share-links">↗ 요청 링크</a><a href="#received-requests">▤ 받은 요청</a></nav>
+        <section className={styles.rules}><h2>내 미팅 조건</h2><dl>
+          <div><dt>후보를 찾는 기간</dt><dd>내일부터 14일{calendar && <><br /><span className={styles.muted}>{shortDate(calendar.period.start)}<br />– {shortDate(calendar.period.end)}</span></>}</dd></div>
+          <div><dt>가능한 요일과 시간</dt><dd>월요일 – 금요일<br />09:00 – 20:00</dd></div>
+          <div><dt>주말 · 공휴일</dt><dd>토·일 제외<br /><span className={styles.muted}>공휴일은 별도로 제외하지 않아요.</span></dd></div>
+          <div><dt>캘린더에 표시하는 빈 시간</dt><dd>30분 이상<br /><span className={styles.muted}>시작 시각은 30분 간격<br />전후 일정과 15분 여유</span></dd></div>
+          <div><dt>요청을 받을 때의 이동 여유</dt><dd>대면 장소가 다르면 45분<br /><span className={styles.muted}>같거나 미정이면 15분<br />온라인 ↔ 대면은 15분<br />온라인끼리는 0분</span></dd></div>
+          <div><dt>기준 시간대</dt><dd>서울 · Asia/Seoul</dd></div>
+        </dl><p className={styles.ruleNote}>현재는 기본 규칙으로 계산합니다. AI 모델은 아직 연결하지 않았어요. 개인 조건과 가능 시간 수정은 다음 단계에서 제공할 예정입니다.</p></section>
+      </aside>
+      <div className={styles.content}>
+        <section id="my-calendar"><div className={styles.welcome}><p className={styles.eyebrow}>YOUR TIME, AT A GLANCE</p><h1>내 일정과 미팅 가능한 시간</h1><p>캘린더를 확인하고, 편한 시간을 요청 링크로 공유하세요.</p></div><CalendarView data={calendar} loading={calendarLoading} error={calendarError} onRefresh={() => void loadCalendar()} /></section>
+        <LinkManager calendar={calendar} onChange={() => { void loadRequests(); void loadCalendar(); }} />
+        <section id="received-requests">{requestError && <p className={styles.error} role="alert">{requestError} <button onClick={() => void loadRequests()}>다시 불러오기</button></p>}<ReceivedRequests shares={shares} /></section>
+      </div>
+    </div>
+  </main>;
 }

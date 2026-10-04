@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { appUrl, consumeOAuthState, encryptToken, setSession, supabaseAdmin } from "@/lib/server/auth";
+import { appUrl, consumeOAuthState, encryptToken, OWNER_WRITE_SCOPE, setSession, supabaseAdmin } from "@/lib/server/auth";
+import { linkIsOpen } from "@/lib/availability";
 
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
     const origin = process.env.APP_URL!;
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code, client_id: process.env.GOOGLE_CLIENT_ID!, client_secret: process.env.GOOGLE_CLIENT_SECRET!, redirect_uri: `${origin.replace(/\/$/, "")}/api/auth/google/callback`, grant_type: "authorization_code" }), cache: "no-store" });
     if (!tokenResponse.ok) throw new Error("Google token exchange failed");
-    const token = await tokenResponse.json() as { access_token: string; refresh_token?: string };
+    const token = await tokenResponse.json() as { access_token: string; refresh_token?: string; scope?: string };
     const profileResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { authorization: `Bearer ${token.access_token}` }, cache: "no-store" });
     if (!profileResponse.ok) throw new Error("Google profile lookup failed");
     const profile = await profileResponse.json() as { sub?: string; email?: string; email_verified?: boolean };
@@ -23,7 +24,9 @@ export async function GET(request: Request) {
       const { data: old } = await db.from("owner_calendars").select("encrypted_refresh_token").eq("google_sub", profile.sub).maybeSingle();
       const refresh = token.refresh_token ? encryptToken(token.refresh_token) : old?.encrypted_refresh_token;
       if (!refresh) throw new Error("Google did not return a refresh token");
-      const { error } = await db.from("owner_calendars").upsert({ google_sub: profile.sub, email: profile.email, encrypted_refresh_token: refresh, updated_at: new Date().toISOString() });
+      const scopes = (token.scope ?? "").split(" ");
+      const calendarWriteEnabled = scopes.some((scope) => [OWNER_WRITE_SCOPE, "https://www.googleapis.com/auth/calendar.events", "https://www.googleapis.com/auth/calendar"].includes(scope));
+      const { error } = await db.from("owner_calendars").upsert({ google_sub: profile.sub, email: profile.email, encrypted_refresh_token: refresh, calendar_write_enabled: calendarWriteEnabled, updated_at: new Date().toISOString() });
       if (error) throw error;
       await setSession({ sub: profile.sub, email: profile.email, role: "owner" });
       return NextResponse.redirect(appUrl("/owner"));
@@ -31,8 +34,8 @@ export async function GET(request: Request) {
     if (!context.shareCode) throw new Error("Missing share link");
     const { createHash } = await import("node:crypto");
     const codeHash = createHash("sha256").update(context.shareCode).digest("hex");
-    const { data: share } = await db.from("share_links").select("id").eq("code_hash", codeHash).eq("active", true).maybeSingle();
-    if (!share) return NextResponse.redirect(appUrl("/?calendar_error=invalid_link"));
+    const { data: share } = await db.from("share_links").select("id,active,deleted_at,availability_end").eq("code_hash", codeHash).maybeSingle();
+    if (!share || !linkIsOpen(share)) return NextResponse.redirect(appUrl("/?calendar_error=invalid_link"));
     const { data: old } = await db.from("requester_calendars").select("encrypted_refresh_token").eq("share_link_id", share.id).eq("google_sub", profile.sub).maybeSingle();
     const refresh = token.refresh_token ? encryptToken(token.refresh_token) : old?.encrypted_refresh_token;
     if (!refresh) throw new Error("Google did not return a refresh token");
