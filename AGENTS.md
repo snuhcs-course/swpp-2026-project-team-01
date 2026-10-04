@@ -5,7 +5,7 @@ This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, r
 ## Repository layout
 
 - `apps/`: application code. Add app-specific setup and test instructions when an app is created.
-- `documentations/`: project documentation.
+- `documentations/`: project documentation, starting with `0_one_pager.md`.
 - `supabase/`: local Supabase configuration and future database migrations.
 
 ## Tooling prerequisites
