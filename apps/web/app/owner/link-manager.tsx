@@ -59,7 +59,7 @@ export default function LinkManager({ calendar, onChange }: { calendar: Calendar
     setBusy(true); setError(""); setMessage("");
     try {
       await readJsonResponse(await fetch(`/api/share/${link.id}`, { method: deleting ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" }, ...(deleting ? {} : { body: JSON.stringify({ active: !link.active }) }) }), "링크를 변경하지 못했습니다.");
-      if (deleting) { setSelectedId(null); setMessage("링크를 삭제했어요. 이미 받은 요청은 그대로 보관됩니다."); }
+      if (deleting) { setSelectedId(null); setMessage("링크를 삭제했어요. 이 링크와 받은 요청은 목록에서 숨겨집니다."); }
       else setMessage(link.active ? "링크를 닫았어요. 새 요청을 받지 않습니다." : "링크를 다시 열었어요.");
       setConfirmDelete(false); await load(); onChange();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "링크를 변경하지 못했습니다."); }
@@ -89,7 +89,7 @@ export default function LinkManager({ calendar, onChange }: { calendar: Calendar
         {selected.availability_windows || calendar ? <><MiniWeekCalendar key={selected.id} windows={selected.availability_windows ?? calendar?.windows ?? []} /><details><summary className={styles.muted}>공개 시간 목록 보기</summary><WindowList windows={selected.availability_windows ?? calendar?.windows ?? []} /></details></> : <p className={styles.muted}>캘린더를 불러오면 가능 시간을 확인할 수 있습니다.</p>}
         <h4>이 링크로 들어온 요청 · {selected.meeting_requests.length}</h4>
         {selected.meeting_requests.length ? <ul className={styles.requesters}>{selected.meeting_requests.map((request) => <RequestApproval key={request.id} request={request} canWrite={canWrite} sharedBusy={busy} onBusy={setBusy} onChange={async () => { await load(); onChange(); }} />)}</ul> : <p className={styles.muted}>아직 들어온 요청이 없어요.</p>}
-        <div className={styles.deleteArea}>{confirmDelete ? <><p>이 링크를 삭제할까요? 다시 열 수 없으며, 이미 받은 요청은 남습니다.</p><div className={styles.row}><button className={styles.danger} disabled={busy} onClick={() => void change(selected, true)}>{busy ? "처리 중…" : "삭제하기"}</button><button className={styles.secondary} disabled={busy} onClick={() => setConfirmDelete(false)}>취소</button></div></> : <button className={styles.danger} disabled={busy} onClick={() => setConfirmDelete(true)}>링크 삭제</button>}</div>
+        <div className={styles.deleteArea}>{confirmDelete ? <><p>이 링크를 삭제할까요? 다시 열 수 없으며, 이 링크로 받은 요청도 목록에서 숨겨집니다. 기록은 보관됩니다.</p><div className={styles.row}><button className={styles.danger} disabled={busy} onClick={() => void change(selected, true)}>{busy ? "처리 중…" : "삭제하기"}</button><button className={styles.secondary} disabled={busy} onClick={() => setConfirmDelete(false)}>취소</button></div></> : <button className={styles.danger} disabled={busy} onClick={() => setConfirmDelete(true)}>링크 삭제</button>}</div>
       </article> : <div className={styles.detailPlaceholder}>링크를 선택하면 공개 시간과 요청자를 확인할 수 있어요.</div>}
     </div>}
     <dialog className={styles.dialog} ref={dialog} aria-labelledby="create-link-title" onCancel={(event) => { if (busy) event.preventDefault(); }}>

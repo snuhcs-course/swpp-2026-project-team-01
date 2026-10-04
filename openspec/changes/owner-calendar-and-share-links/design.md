@@ -33,7 +33,7 @@ GET /api/share와 PATCH/DELETE /api/share/[id]는 서명된 소유자 세션과 
 
 ### 닫기와 삭제
 
-닫기는 active=false, 다시 열기는 active=true로 변경한다. 삭제는 deleted_at과 active=false를 저장하며 링크 목록에서 숨긴다. 기존 요청은 GET /api/requests에 남는다. 공개 페이지, 요청자 OAuth 콜백, 요청 제출에서 상태·삭제·만료를 확인한다. DB BEFORE INSERT 트리거는 해당 링크에 FOR SHARE 잠금을 잡고 상태를 확인하여 닫기/삭제 중 이미 진행된 요청도 직렬화한다.
+닫기는 active=false, 다시 열기는 active=true로 변경한다. 삭제는 deleted_at과 active=false를 저장하며 링크 목록에서 숨긴다. 기존 요청은 DB에 보존하되 GET /api/requests는 deleted_at이 null인 링크만 반환한다. 화면 제목은 “받은 요청”이며 링크 삭제 후 목록을 다시 조회한다. 일시적으로 닫힌 링크의 요청은 계속 표시한다. 공개 페이지, 요청자 OAuth 콜백, 요청 제출에서 상태·삭제·만료를 확인한다. DB BEFORE INSERT 트리거는 해당 링크에 FOR SHARE 잠금을 잡고 상태를 확인하여 닫기/삭제 중 이미 진행된 요청도 직렬화한다.
 
 ## Risks / Trade-offs
 

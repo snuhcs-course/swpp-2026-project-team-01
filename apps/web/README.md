@@ -45,7 +45,7 @@ Requesters grant read-only calendar-event access. Owners additionally grant `cal
 
 중복 클릭은 DB의 소유자별 처리 제한으로 막습니다. 요청 UUID 기반 Google 이벤트 ID를 사용하고, 결과가 불분명하면 **등록 결과 확인 / 재시도**로 기존 일정을 찾아 DB 상태를 복구합니다. 다른 시간이 중복 등록되지 않도록 처리 중인 후보는 고정합니다. 등록된 이벤트가 외부에서 변경/삭제되면 확인 필요 상태로 남기고 자동으로 다시 만들지 않습니다. 외부 Google 편집과 일정 생성 사이의 경쟁까지 원자적으로 막을 수는 없습니다.
 
-링크 삭제는 기존 요청을 보존합니다. 등록 중인 요청이 있는 링크는 먼저 등록 결과를 확인한 뒤 삭제합니다. 실제 초대는 사용자가 수락 버튼을 눌렀을 때만 발송합니다.
+링크를 삭제하면 해당 링크와 받은 요청은 목록에서 숨겨지며, 기존 기록은 DB에 보존됩니다. 일시적으로 닫은 링크의 요청은 계속 표시됩니다. 등록 중인 요청이 있는 링크는 먼저 등록 결과를 확인한 뒤 삭제합니다. 실제 초대는 사용자가 수락 버튼을 눌렀을 때만 발송합니다.
 
 ### Implementation map
 
@@ -67,7 +67,7 @@ Requesters grant read-only calendar-event access. Owners additionally grant `cal
 
 ## Checks
 
-The owner inbox reads `GET /api/requests`, which returns `{ "links": [...] }` for the signed-in owner's share links and meeting requests. Anonymous and requester sessions receive a JSON `401` error. Database failures return a JSON `500` error, and the dashboard displays an error message instead of crashing on empty or invalid responses.
+The owner inbox reads `GET /api/requests`, which returns `{ "links": [...] }` for the signed-in owner's non-deleted share links and meeting requests (including paused links). Anonymous and requester sessions receive a JSON `401` error. Database failures return a JSON `500` error, and the dashboard displays an error message instead of crashing on empty or invalid responses.
 
 ```bash
 pnpm lint
