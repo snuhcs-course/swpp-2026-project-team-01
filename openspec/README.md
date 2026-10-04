@@ -14,7 +14,7 @@
 
 ## Current Decisions
 
-- Next.js 웹 앱을 로컬에서 실행하고 기존 Supabase 프로젝트를 사용합니다.
+- Next.js 웹 앱은 로컬 개발과 Vercel 팀원 테스트 배포를 함께 사용하며 기존 개인 Supabase 프로젝트를 공유합니다. 테스트 주소는 https://caltalk-mvp.vercel.app 이며 Google 배포 리디렉션 URI 등록이 남아 있습니다. 배포 설정과 남은 작업은 [팀원 테스트 배포 안내](../documentaions/team-test-deployment.md)를 따릅니다.
 - Google Calendar 연동을 우선합니다. 시간 추천은 규칙 기반이며 LLM은 연결하지 않았습니다.
 - 기본 범위는 서울 시간 기준 내일부터 14일, 평일 09:00–20:00입니다. 새 링크에서 범위를 좁힐 수 있습니다.
 - 새 링크의 길이는 호스트가 결정하며 선택한 정확한 시간만 공개합니다. 이전 링크는 기존 동작을 유지합니다.

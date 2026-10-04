@@ -2,7 +2,7 @@
 
 외부 미팅이 잦은 직장인(VC, 스타트업 대표, 영업직 등)을 위한 일정 조율 웹앱입니다. 호스트가 가능한 시간을 링크로 공유하고, 요청자가 Google Calendar를 연결해 미팅을 요청하면 양쪽 일정을 확인한 뒤 호스트가 최종 수락하는 흐름을 구현했습니다.
 
-> **현재 웹앱은 개발자 PC의 로컬 환경에서 실행합니다.** 접속 주소는 `http://localhost:3000`이며, 외부에서 접속할 수 있는 서버에는 배포하지 않았습니다. 데이터베이스는 Supabase 클라우드 프로젝트를 사용합니다. 이 브랜치는 팀 검토를 위한 first MVP입니다.
+> **로컬 개발 환경과 팀원 테스트용 배포 환경을 함께 사용합니다.** 테스트 주소는 https://caltalk-mvp.vercel.app 이며, 로컬 주소는 `http://localhost:3000`입니다. 두 환경은 기존 개인 Supabase 클라우드 DB를 공유합니다. 배포는 완료했으며 Google 로그인용 배포 주소 등록이 남아 있습니다. [설정 및 테스트 안내](documentaions/team-test-deployment.md)를 참고하세요.
 
 ## 구현된 주요 기능
 
@@ -44,11 +44,12 @@
 | 웹 화면 및 서버 API | Next.js 16.3.8 · React 19 · TypeScript |
 | 스타일 | Tailwind CSS 4 |
 | 개발 실행 | 로컬 PC에서 `pnpm dev`, `http://localhost:3000` |
+| 팀원 테스트 배포 | Vercel · https://caltalk-mvp.vercel.app · Node.js 22.x |
 | 데이터베이스 | Supabase 클라우드의 PostgreSQL |
 | 로그인·캘린더 연결 | 앱에서 Google OAuth와 Google Calendar API를 직접 사용 |
 | 패키지 관리 | pnpm 11.19.0 |
 
-로컬 주소로 만든 요청 링크는 다른 사람의 PC에서 그대로 접속할 수 없습니다. 현재는 같은 PC에서 계정과 브라우저 세션을 구분해 흐름을 확인하는 환경입니다.
+로컬 주소로 만든 요청 링크는 다른 사람의 PC에서 그대로 접속할 수 없습니다. 팀원에게는 배포 사이트에서 생성하거나 다시 복사한 링크를 공유합니다. Google 배포 주소와 테스트 사용자 등록 후 실제 미팅 흐름을 확인해야 합니다.
 
 ## Supabase 사용 현황
 
