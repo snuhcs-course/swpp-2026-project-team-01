@@ -1,3 +1,4 @@
+import { DomainError } from "@/contracts/common"
 import { ZodError, type ZodType } from "zod"
 import { ChatError } from "./services/chat"
 import { BookingError, type BookingErrorCode } from "./services/booking"
@@ -35,6 +36,7 @@ export async function handle(fn: () => Promise<Response> | Response): Promise<Re
   try {
     return await fn()
   } catch (e) {
+    if (e instanceof DomainError) return Response.json({ code: e.code, message: e.message }, {status: e.code === "unauthenticated" ? 401 : e.code === "csrf_failed" || e.code === "forbidden" ? 403 : 409})
     if (e instanceof BookingError || e instanceof ChatError) {
       logEvent("api.rejected", { code: e.code })
       return fail(e.code, e.message)
@@ -44,7 +46,7 @@ export async function handle(fn: () => Promise<Response> | Response): Promise<Re
       logEvent("api.llm_error", { status: e.status })
       return Response.json({ code: "llm_unavailable", message: "AI 응답을 받지 못했어요" }, { status: 502 })
     }
-    console.error(e)
+    logEvent("api.internal_error", {})
     return Response.json({ code: "internal", message: "서버 오류가 발생했어요" }, { status: 500 })
   }
 }

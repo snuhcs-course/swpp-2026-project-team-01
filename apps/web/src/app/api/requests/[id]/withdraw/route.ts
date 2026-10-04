@@ -1,12 +1,7 @@
-import { handle, type Ctx } from "@/server/api"
-import { currentUser, db, now } from "@/server/context"
-import { withdrawRequest } from "@/server/services/booking"
-
-export function POST(_req: Request, ctx: Ctx<{ id: string }>) {
-  return handle(async () => {
-    const { id } = await ctx.params
-    const user = await currentUser()
-    const result = await withdrawRequest(db(), id, user.id, now())
-    return Response.json({ ok: true, ...(result ?? {}) })
-  })
-}
+import {requireActor} from '@/server/session'
+import {db,llm} from '@/server/context'
+import {makeContext} from '@/server/runtime'
+import {commandBody,handleCommand,jsonResult,operationKey} from '@/server/command-api'
+import {requestDecisionSchema} from '@/contracts/booking'
+import {decideRequest} from '@/server/services/booking-commands'
+export function POST(req:Request,{params}:{params:Promise<{id:string}>}){return handleCommand(async()=>{const actor=await requireActor(req),{id}=await params;return jsonResult(await decideRequest(makeContext(db()),actor.id,id,'withdraw',await commandBody(req,requestDecisionSchema),operationKey(req)))})}

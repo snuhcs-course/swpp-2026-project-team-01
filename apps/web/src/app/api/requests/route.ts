@@ -1,21 +1,7 @@
-import { z } from "zod"
-import { body, handle } from "@/server/api"
-import { currentUser, db, now } from "@/server/context"
-import { createRequest } from "@/server/services/booking"
-
-const schema = z.object({
-  hostId: z.string(),
-  startMs: z.number().int(),
-  placeId: z.string(),
-  meetingTypeId: z.string(),
-  message: z.string(),
-})
-
-export function POST(req: Request) {
-  return handle(async () => {
-    const input = await body(req, schema)
-    const client = await currentUser()
-    const row = await createRequest(db(), { ...input, clientId: client.id }, now())
-    return Response.json({ id: row.id, status: row.status }, { status: 201 })
-  })
-}
+import {requireActor} from '@/server/session'
+import {db,llm} from '@/server/context'
+import {makeContext} from '@/server/runtime'
+import {commandBody,handleCommand,jsonResult,operationKey} from '@/server/command-api'
+import {createRequestSchema} from '@/contracts/booking'
+import {requestMeeting} from '@/server/services/booking-commands'
+export function POST(req:Request){return handleCommand(async()=>{const actor=await requireActor(req);return jsonResult(await requestMeeting(makeContext(db()),actor.id,await commandBody(req,createRequestSchema),operationKey(req)),201)})}

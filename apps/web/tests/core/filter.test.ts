@@ -200,3 +200,40 @@ describe("pickDiverse (button candidates)", () => {
     expect(d.top.map((x) => x.slot.startMs)).toEqual([T("2026-10-05", "12:00"), T("2026-10-05", "13:00"), T("2026-10-05", "14:00")])
   })
 })
+
+// T11: exact participant scoring has no epsilon or score summation.
+describe("rankForParticipants", () => {
+  const empty = { weekdays: null, startTime: null, meetingMode: null, slack: null }
+  it("host_breaks_only_exact_client_ties", async () => {
+    const { rankForParticipants } = await import("@/core/filter")
+    const host = { ...empty, meetingMode: { value: "offline" as const, strength: "strong" as const } }
+    const a = { ...slot("2026-10-05", "10:00"), slackMs: 3_630_000 }
+    const b = { ...slot("2026-10-05", "10:00", NEAR.id), slackMs: 3_600_000 }
+    const ranked = rankForParticipants([b, a], { slack: { strength: "weak" } }, host, PLACES)
+    expect(ranked.map(r => r.slot.placeId)).toEqual([ONLINE.id, NEAR.id])
+    expect(ranked[0].clientScoreUnits! - ranked[1].clientScoreUnits!).toBe(90_000)
+    expect(ranked[1].hostScoreUnits).toBe(72_000_000)
+    expect(rankForParticipants([b, { ...a, slackMs: b.slackMs }], { slack: { strength: "weak" } }, host, PLACES)[0].slot.placeId).toBe(NEAR.id)
+  })
+  it("explicit latest precedes host preference and keeps nearest date first", async () => {
+    const { rankForParticipants } = await import("@/core/filter")
+    const host = { ...empty, meetingMode: { value: "offline" as const, strength: "strong" as const } }
+    const data = [slot("2026-10-05", "10:00", NEAR.id), slot("2026-10-05", "14:00"), slot("2026-10-06", "20:00", NEAR.id)]
+    expect(rankForParticipants(data, { order: "latest" }, host, PLACES).map(r => r.slot.startMs)).toEqual([T("2026-10-05", "14:00"), T("2026-10-05", "10:00"), T("2026-10-06", "20:00")])
+  })
+  it("location scores once; unavailable soft modes do not remove slots", async () => {
+    const { rankForParticipants } = await import("@/core/filter")
+    const { resolvePreferences } = await import("@/core/preferences")
+    const snapshot = { ...empty, meetingMode: { value: "online" as const, strength: "strong" as const } }
+    const client = resolvePreferences(snapshot, { location: { state: "override", value: { placeIds: [NEAR.id], strength: "weak" } } })
+    const ranked = rankForParticipants([slot("2026-10-05", "10:00"), slot("2026-10-05", "10:00", NEAR.id)], client, empty, PLACES)
+    expect(ranked.map(r => r.clientScoreUnits)).toEqual([21_600_000, 0])
+    expect(rankForParticipants([slot("2026-10-05", "10:00", NEAR.id)], resolvePreferences(snapshot, {}), empty, [NEAR])).toHaveLength(1)
+    expect(rankForParticipants(week, { meetingMode: { value: "offline", strength: "must" } }, empty, PLACES)).toHaveLength(5)
+  })
+  it("clamps exact slack to zero and 120 minutes", async () => {
+    const { rankForParticipants } = await import("@/core/filter")
+    const ranked = rankForParticipants([-30_000, 9_000_000].map(slackMs => ({ ...slot("2026-10-05", "10:00"), slackMs })), { slack: { strength: "strong" } }, empty, PLACES)
+    expect(ranked.map(r => r.clientScoreUnits)).toEqual([72_000_000, 0])
+  })
+})

@@ -1,5 +1,5 @@
 import type { AvailabilityRule } from "./types"
-import { kstParts } from "./time"
+import { kstDayStart, kstParts, MIN_MS } from "./time"
 
 export const DEFAULT_START_MIN = 8 * 60
 export const DEFAULT_END_MIN = 22 * 60
@@ -13,13 +13,21 @@ export function defaultRules(): AvailabilityRule[] {
   }))
 }
 
-/** True when [startMs, endMs) lies inside one day's availability window (KST). */
+/** Whole half-open interval must fit the union of this day's enabled windows. */
 export function fitsRules(rules: AvailabilityRule[], startMs: number, endMs: number): boolean {
-  const s = kstParts(startMs)
-  const e = kstParts(endMs - 1)
-  if (s.year !== e.year || s.month !== e.month || s.day !== e.day) return false
-  const rule = rules.find((r) => r.weekday === s.weekday)
-  if (!rule || !rule.enabled) return false
-  const endMin = s.minuteOfDay + Math.round((endMs - startMs) / 60000)
-  return s.minuteOfDay >= rule.startMin && endMin <= rule.endMin
+  if (!Number.isSafeInteger(startMs) || !Number.isSafeInteger(endMs) || endMs <= startMs) return false
+  const dayStart = kstDayStart(startMs)
+  if (endMs > dayStart + 1440 * MIN_MS) return false
+  const weekday = kstParts(startMs).weekday
+  const start = (startMs - dayStart) / MIN_MS
+  const end = (endMs - dayStart) / MIN_MS
+  const windows = rules.filter(r => r.enabled && r.weekday === weekday).sort((a, b) => a.startMin - b.startMin)
+  let covered = start
+  for (const window of windows) {
+    if (window.endMin <= covered) continue
+    if (window.startMin > covered) return false
+    covered = window.endMin
+    if (covered >= end) return true
+  }
+  return false
 }

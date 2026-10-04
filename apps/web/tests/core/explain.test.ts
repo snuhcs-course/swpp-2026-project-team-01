@@ -79,3 +79,31 @@ describe("basisSentence", () => {
     expect(basisSentence(basis, { added: [], replaced: [], removed: [] }, 3)).toBe("조건 점수가 높은 순, 같으면 이른 시각 순 기준으로 후보 3개를 골랐어요.")
   })
 })
+
+describe("participant recommendation facts", () => {
+  const empty = { weekdays: null, startTime: null, meetingMode: null, slack: null }
+  it("reports provenance and real host tie breaks without private calendar details", async () => {
+    const { resolvePreferences } = await import("@/core/preferences")
+    const { rankForParticipants } = await import("@/core/filter")
+    const filter = resolvePreferences({ ...empty, meetingMode: { value: "online", strength: "weak" } }, {})
+    const data = [slot("2026-10-05", "10:00"), slot("2026-10-06", "10:00")]
+    const ranked = rankForParticipants(data, filter, { ...empty, weekdays: { value: [2], strength: "strong" } }, PLACES)
+    const basis = selectionBasis({ top: ranked, ranked, filter, chips: filterChips(filter, PLACES, [T30]), places: PLACES, label: r => String(r.slot.startMs) })
+    expect(basis.sources?.location).toBe("inherit")
+    expect(basis.hostTieBreakUsed).toBe(true)
+    expect(basis.options[0]).toMatchObject({ matched: ["온라인"], missed: [], clientScoreUnits: 21_600_000, hostScoreUnits: 72_000_000, hostTieBreakUsed: true })
+    const explicit = rankForParticipants(data, { ...filter, order: "earliest" }, { ...empty, weekdays: { value: [2], strength: "strong" } }, PLACES)
+    expect(selectionBasis({ top: explicit, ranked: explicit, filter: { ...filter, order: "earliest" }, chips: [], label: r => String(r.slot.startMs) }).hostTieBreakUsed).toBe(false)
+  })
+  it("distinguishes unmet soft preferences from must producing no results", async () => {
+    const { rankForParticipants } = await import("@/core/filter")
+    const { summarize } = await import("@/core/summary")
+    const data = [slot("2026-10-05", "10:00", NEAR.id)]
+    const soft = { meetingMode: { value: "online" as const, strength: "strong" as const } }
+    const hard = { meetingMode: { value: "online" as const, strength: "must" as const } }
+    expect(summarize(rankForParticipants(data, soft, empty, PLACES), soft, data, PLACES).outcome).toBe("preference_mismatch")
+    const result = summarize(rankForParticipants(data, hard, empty, PLACES), hard, data, PLACES)
+    expect(result.outcome).toBe("must_no_results")
+    expect(result.relax.places).toBe(1)
+  })
+})

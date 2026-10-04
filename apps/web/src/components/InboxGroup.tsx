@@ -3,48 +3,51 @@
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import type { RequestView } from "@/server/services/booking"
-import { call } from "./api"
-import { StatusBadge } from "./StatusBadge"
+import {z} from 'zod'
+import {request} from './api'
+import {useMutationOperation} from './hooks/useMutationOperation'
+import {requestViewSchema} from '@/contracts/booking'
+const previewSchema=z.object({requestId:z.string(),revision:z.number(),affectedIds:z.array(z.string()),impactToken:z.string()})
+const acceptedSchema=z.object({request:requestViewSchema,declinedIds:z.array(z.string()),eventIds:z.array(z.string())})
+import { RequestSummary } from "./RequestCard"
+import { Alert, Button, cardClass, cn, Spinner } from "./ui"
 
 export function InboxGroup({ group }: { group: RequestView[] }) {
   const router = useRouter()
   const [confirming, setConfirming] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [loading,setLoading]=useState(false)
+  const [preview,setPreview]=useState<z.infer<typeof previewSchema>|null>(null)
+  const op=useMutationOperation<unknown>()
+  const busy=loading||op.pending
+  const done=(res:Awaited<ReturnType<typeof op.run>>)=>{if(res?.ok){setConfirming(null);setPreview(null);router.refresh()}else if(res){setError(res.error.message);if(res.error.code==='accept_impact_changed'){setConfirming(null);setPreview(null)}}}
+  async function prepare(id:string){setLoading(true);setError(null);const result=await request('GET',`/api/requests/${id}/accept-preview`,previewSchema);setLoading(false);if(result.ok){setPreview(result.data);setConfirming(id)}else setError(result.error.message)}
 
   async function act(id: string, action: "accept" | "decline") {
-    setBusy(true)
     setError(null)
-    const res = await call("POST", `/api/requests/${id}/${action}`)
-    setBusy(false)
-    setConfirming(null)
-    if (!res.ok) return setError(res.error)
-    router.refresh()
+    const row=group.find(r=>r.id===id)!
+    done(await op.run({method:'POST',url:`/api/requests/${id}/${action}`,kind:`request.${action}`,payload:action==='accept'?{expectedRevision:preview?.revision,impactToken:preview?.impactToken}:{expectedRevision:row.revision},schema:action==='accept'?acceptedSchema:requestViewSchema}))
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4">
-      {group.length > 1 && <p className="mb-2 text-xs font-medium text-amber-800">같은 시간대에 {group.length}건이 겹쳐 있어요. 하나를 수락하면 나머지는 자동 거절돼요.</p>}
-      {error && <p role="alert" className="mb-2 text-sm text-rose-700">{error}</p>}
-      <ul className="divide-y divide-slate-100">
+    <section className={cn(cardClass, "p-4 sm:p-5", group.length > 1 && "border-l-4 border-l-warn")}>
+      {group.length > 1 && <p className="mb-3 text-small font-semibold text-warn-ink">같은 시간대에 {group.length}건이 겹쳐 있어요. 하나를 수락하면 나머지는 자동 거절돼요.</p>}
+      {op.phase==='reconciling'&&<Button size="sm" className="mb-3" onClick={()=>void op.recover().then(done)}>처리 결과 확인</Button>}
+      {error && <Alert tone="danger" role="alert" className="mb-3">{error}</Alert>}
+      <ul className="divide-y divide-border">
         {group.map((r) => (
-          <li key={r.id} className="py-3 first:pt-0 last:pb-0">
-            <div className="flex items-center justify-between">
-              <span className="font-medium">{r.clientName}</span>
-              <StatusBadge status={r.status} />
-            </div>
-            <p className="mt-1 text-sm">{r.label}</p>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{r.message}</p>
+          <li key={r.id} className="py-4 first:pt-0 last:pb-0">
+            <RequestSummary name={r.clientName} label={r.label} status={r.status} message={r.message} />
             {confirming === r.id ? (
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-                <span>{group.length > 1 ? `겹치는 요청 ${group.length - 1}건은 자동 거절됩니다.` : "이 요청을 수락할까요?"}</span>
-                <button type="button" disabled={busy} onClick={() => act(r.id, "accept")} className="rounded-md bg-emerald-600 px-3 py-1 text-white disabled:opacity-40">확인</button>
-                <button type="button" disabled={busy} onClick={() => setConfirming(null)} className="rounded-md border border-slate-300 px-3 py-1">취소</button>
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-control bg-surface-sunken p-3 text-small">
+                <span className="mr-auto font-medium text-ink">{preview?.affectedIds.length ? `겹치는 요청 ${preview.affectedIds.length}건은 자동 거절됩니다.` : "이 요청을 수락할까요?"}</span>
+                <Button size="sm" variant="primary" disabled={busy} onClick={() => act(r.id, "accept")}>{op.pending&&<Spinner/>}확인</Button>
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirming(null)}>취소</Button>
               </div>
             ) : (
-              <div className="mt-2 flex gap-2">
-                <button type="button" disabled={busy} onClick={() => setConfirming(r.id)} className="rounded-md bg-emerald-600 px-3 py-1 text-sm text-white disabled:opacity-40">수락</button>
-                <button type="button" disabled={busy} onClick={() => act(r.id, "decline")} className="rounded-md border border-slate-300 px-3 py-1 text-sm disabled:opacity-40">거절</button>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button variant="primary" disabled={busy} onClick={() => void prepare(r.id)}>{loading&&<Spinner/>}수락</Button>
+                <Button disabled={busy} onClick={() => act(r.id, "decline")}>거절</Button>
               </div>
             )}
           </li>
