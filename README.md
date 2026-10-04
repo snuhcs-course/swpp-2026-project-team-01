@@ -12,10 +12,12 @@ Team: SNU SWPP Project Team 01
 - Coordinate requests through booking links, email, or agents without requiring requesters to create an account.
 - Require the host's approval of the current proposal before booking.
 
-See the [project one-pager](documentations/0_one_pager.md) for the target users, product scope, and principles.
+See the [project one-pager](documentations/01_one_pager.md) for the target users, product scope, and principles.
 
 ## Repository layout
 
 - `apps/`: application code.
 - `documentations/`: project documentation and research.
 - `supabase/`: local Supabase configuration and database migrations.
+
+See the [planned repository structure](documentations/technical_specification/02_repo_structure.md) for the web/CLI apps, Supabase Edge Functions, shared modules, and test layout.

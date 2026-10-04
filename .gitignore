@@ -1,0 +1,7 @@
+# Local credentials
+.env
+.env.*
+!.env.example
+
+# Local Cloudflare CLI cache
+.cloudflare/

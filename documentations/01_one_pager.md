@@ -4,6 +4,8 @@
 
 Domain: [findmeatime.com](https://findmeatime.com)
 
+Launch: publishing your own booking link and receiving meeting requests is invite-only, with a waitlist for prospective hosts. Requesters can contact an active host without an account or invitation and optionally connect Google Calendar for availability checks.
+
 ## Users
 
 ### Who
