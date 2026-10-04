@@ -5,3 +5,12 @@
 
 # Local Cloudflare CLI cache
 .cloudflare/
+
+# JavaScript, Deno, deployment and verification outputs
+node_modules/
+dist/
+.vercel/
+.local/
+test-results/
+playwright-report/
+*.tsbuildinfo

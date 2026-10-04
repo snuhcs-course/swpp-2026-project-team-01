@@ -1,6 +1,6 @@
 # Find Me a Time — Implementation Plan
 
-Status: P0 investigation recorded; P1 foundation verification in progress\
+Status: P0 investigation recorded; P1 implemented and locally verified; remote CI pending\
 Date: 2026-10-05\
 Basis: [PRD](../02_product_requirements.md), [technical specification](../03_technical_specification.md), [backend architecture](01_backend_architecture.md), [repository structure](02_repo_structure.md), and [provider setup](03_provider_setup.md).
 
@@ -17,7 +17,7 @@ The repository now includes React/Vite with shadcn preset `b6rtA2Hmi`, a Hono/De
 | Phase | Current status | Evidence / remaining gate |
 |---|---|---|
 | P0 | Investigation recorded; live integration gates open | [Compatibility report](05_compatibility_report.md) records actual provider probes, chosen versions/defaults, unavailable OAuth server, and untested client, messaging, and Calendar journeys. These are not marked passed. |
-| P1 | Foundation implemented; runtime verification in progress | `npm run check`: typecheck, lint, 24 Deno tests, production web build pass. Generated pg-delta foundation plus runtime initializer reset locally; 29 pgTAP tests pass. Actual deployed-style worker smoke is being verified. Remote CI has not run. |
+| P1 | Foundation implemented and locally verified | `npm run check`: typecheck, lint, 24 Deno tests, production web build pass. Generated pg-delta foundation plus runtime initializer reset locally; 29 pgTAP tests pass. Actual local Edge worker drained a persisted job (`claimed: 1, completed: 1`); clean `npm ci` passes. Remote CI has not run. |
 | P2 | Planned | Admission and Google Calendar changes have strict-valid proposals/specifications/tasks. |
 | P3 | Planned; pure evaluator implemented | 16 deterministic scheduling tests pass within the foundation suite; request persistence and integration remain to be implemented. |
 | P4 | Planned | Durable approval and booking change has strict-valid proposal/specifications/tasks; no production booking write is enabled. |
