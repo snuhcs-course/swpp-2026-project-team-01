@@ -15,6 +15,8 @@ export interface Connection {
   scopes: string[];
   conflictCalendarIds: string[];
   bookingCalendarId: string | null;
+  updatedAt?: string;
+  providerSubject?: string;
 }
 export function createOAuth(
   env: Environment,
@@ -128,7 +130,7 @@ export function createOAuth(
     async credential(
       target: { hostId: string } | { requestId: string },
     ): Promise<{ connection: Connection; credential: GoogleCredential }> {
-      const connection = await db.command<Connection>('connection_read', worker(), target);
+      let connection = await db.command<Connection>('connection_read', worker(), target);
       if (!connection?.encryptedCredential) throw new DomainError('reconnect_required', 409);
       let credential = await decryptSecret<GoogleCredential>(
         connection.encryptedCredential,
@@ -139,7 +141,15 @@ export function createOAuth(
         await db.command('token_update', worker(), {
           connectionId: connection.connectionId,
           encryptedCredential: await encryptSecret(credential, encryptionKey()),
+          expectedUpdatedAt: connection.updatedAt,
+          providerSubject: connection.providerSubject,
         });
+        connection = await db.command<Connection>('connection_read', worker(), target);
+        if (!connection.encryptedCredential) throw new DomainError('reconnect_required', 409);
+        credential = await decryptSecret<GoogleCredential>(
+          connection.encryptedCredential,
+          encryptionKey(),
+        );
       }
       return { connection, credential };
     },

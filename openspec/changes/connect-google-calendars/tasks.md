@@ -20,4 +20,4 @@
 
 Production callback registration saved and re-read in the Google console: https://findmeatime.com/api/google/callback; localhost callback http://localhost:5173/api/google/callback. Existing Supabase Auth callback preserved. Deployed callback responds400 to missing requiredstate/cookie; no live consent success claimed.
 
-P3 continuation evidence:189 local database checks and24 web fixture checks pass, including request-bound connection state, denial/manual continuation, stale async results and privacy. Actual Google grant/refresh remains task2.4.
+P3 continuation evidence: 189 local database checks and 24 web fixture checks pass, including request-bound connection state, denial/manual continuation, stale async results and privacy. Actual Google grant/refresh remains task 2.4.

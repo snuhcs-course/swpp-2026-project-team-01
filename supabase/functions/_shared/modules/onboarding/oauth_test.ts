@@ -2,6 +2,7 @@ import { createOAuth } from './oauth.ts';
 import type { Database } from '../../database.ts';
 import type { Environment } from '../../env.ts';
 import type { GoogleProvider } from '../../providers/google.ts';
+import { encryptSecret } from '../../security.ts';
 const env: Environment = {
   supabaseUrl: 'https://test.supabase.co',
   appOrigin: 'https://findmeatime.com',
@@ -16,6 +17,42 @@ const env: Environment = {
 function assert(value: unknown) {
   if (!value) throw new Error('Assertion failed');
 }
+Deno.test('credential refresh echoes captured version and re-reads exact current credential metadata', async () => {
+  const old = {
+    accessToken: 'old',
+    refreshToken: 'refresh',
+    expiresAt: '2000-01-01T00:00:00Z',
+    scope: 'read',
+  };
+  const fresh = { ...old, accessToken: 'fresh', expiresAt: '2099-01-01T00:00:00Z' };
+  const encryptedOld = await encryptSecret(old, env.encryptionKey!);
+  const encryptedFresh = await encryptSecret(fresh, env.encryptionKey!);
+  let reads = 0;
+  let captured: Record<string, unknown> = {};
+  const db = {
+    command: (operation: string, _actor: unknown, input: Record<string, unknown>) => {
+      if (operation === 'token_update') {
+        captured = input;
+        return Promise.resolve({ ok: true });
+      }
+      reads++;
+      return Promise.resolve({
+        connectionId: 'connection',
+        encryptedCredential: reads === 1 ? encryptedOld : encryptedFresh,
+        providerSubject: 'subject',
+        updatedAt: reads === 1 ? '2030-01-01T00:00:00Z' : '2030-01-01T00:01:00Z',
+      });
+    },
+  } as unknown as Database;
+  const google = { refresh: () => Promise.resolve(fresh) } as unknown as GoogleProvider;
+  const result = await createOAuth(env, db, google).credential({ hostId: 'host' });
+  assert(
+    reads === 2 && captured.expectedUpdatedAt === '2030-01-01T00:00:00Z' &&
+      captured.providerSubject === 'subject' &&
+      result.connection.updatedAt === '2030-01-01T00:01:00Z' &&
+      result.credential.accessToken === 'fresh',
+  );
+});
 Deno.test('OAuth state and browser binding are hashed and PKCE is independent', async () => {
   let input: Record<string, unknown> = {};
   const db = {

@@ -23,4 +23,4 @@
 
 ## Verification evidence
 
-2026-10-05: 21 deterministic scheduling tests plus typed provider, ranking, deadline and API tests pass. Runtime uses an18-second shared provider deadline, twelve Routes calls maximum and six-second ranking maximum; ranking accepts only complete permutations of feasible IDs. Reviewed P3 migration resets locally with189 database checks. Real RPC and24 browser fixture checks demonstrate candidate selection, private explicit exceptions and guest redaction. P4 dispatch revalidation and controlled live requester consent remain separate gates; task3.3 remains open.
+2026-10-05: 21 deterministic scheduling tests plus typed provider, ranking, deadline and API tests pass. Runtime uses an 18-second shared provider deadline, twelve Routes calls maximum and six-second ranking maximum; ranking accepts only complete permutations of feasible IDs. Reviewed P3 migration resets locally with 189 database checks. Real RPC and 24 browser fixture checks demonstrate candidate selection, private explicit exceptions and guest redaction. P4 dispatch revalidation and controlled live requester consent remain separate gates; task 3.3 remains open.

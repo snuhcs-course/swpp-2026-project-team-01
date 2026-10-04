@@ -9,6 +9,7 @@ export interface Actor {
   email?: string;
   requestId?: string;
   tokenHash?: string;
+  confirmationSource?: 'authenticated_web';
 }
 export interface Database {
   command<T = unknown>(operation: string, actor: Actor, input: Record<string, unknown>): Promise<T>;

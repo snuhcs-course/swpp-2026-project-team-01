@@ -26,20 +26,20 @@ no hard constraints, requester agreement or host approval.
 
 Required runtime configuration:
 
-| Variable                                                  | Use                                                                                        |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `APP_ORIGIN`                                              | Exact web origin allowed by CORS and used in callback/email links                          |
-| `SUPABASE_URL`                                            | Supabase project endpoint                                                                  |
-| `FMAT_SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY` | Privileged RPC/Auth client; publishable keys are rejected                                  |
-| `WORKER_SECRET`                                           | At least 32 characters; worker endpoint guard                                              |
-| `TOKEN_ENCRYPTION_KEY`                                    | Base64-encoded 32-byte AES/HMAC key for credentials, retry tokens and delivery payloads    |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                | OAuth with PKCE and single-use browser-bound state                                         |
-| `GOOGLE_ROUTES_API_KEY` or `GOOGLE_MAPS_API_KEY`          | Travel estimates; unavailable estimates remain unresolved                                  |
-| `OPENAI_API_KEY`                                          | Optional bounded structured intent extraction; no decision authority                       |
-| `OPENAI_MODEL`                                            | Defaults to `gpt-4o-mini-2024-07-18`                                                       |
-| `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID`                 | Optional fixed-template delivery adapter; inbox ID is an existing authorized sending inbox |
-| `TRANSACTIONAL_EMAIL_ENABLED`                             | Defaults false; true permits user-requested verification/recovery emails                   |
-| `EXTERNAL_SENDS_ENABLED`                                  | Defaults false; separate switch for booking notification delivery                          |
+| Variable                                                  | Use                                                                                                                         |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `APP_ORIGIN`                                              | Exact web origin allowed by CORS and used in callback/email links                                                           |
+| `SUPABASE_URL`                                            | Supabase project endpoint                                                                                                   |
+| `FMAT_SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY` | Privileged RPC/Auth client; publishable keys are rejected                                                                   |
+| `WORKER_SECRET`                                           | At least 32 characters; worker endpoint guard                                                                               |
+| `TOKEN_ENCRYPTION_KEY`                                    | Base64-encoded 32-byte AES/HMAC key for credentials, retry tokens and delivery payloads                                     |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                | OAuth with PKCE and single-use browser-bound state                                                                          |
+| `GOOGLE_ROUTES_API_KEY` or `GOOGLE_MAPS_API_KEY`          | Travel estimates; unavailable estimates remain unresolved                                                                   |
+| `OPENAI_API_KEY`                                          | Optional bounded structured intent extraction; no decision authority                                                        |
+| `OPENAI_MODEL`                                            | Defaults to `gpt-4o-mini-2024-07-18`                                                                                        |
+| `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID`                 | Optional fixed-template delivery adapter; inbox ID is an existing authorized sending inbox                                  |
+| `TRANSACTIONAL_EMAIL_ENABLED`                             | Defaults false; true permits user-requested verification/recovery emails                                                    |
+| `EXTERNAL_SENDS_ENABLED`                                  | Defaults false; permits AgentMail booking confirmation emails only; approved Calendar inserts still send Google invitations |
 
 Contact codes and recovery tokens contain 256 bits of authority and expire after 15 minutes.
 Initiation returns only `pending`; verification requires the stored challenge, current contact,
@@ -54,8 +54,23 @@ and is never blindly resent after that horizon. Expired/revoked challenges stop 
 uncertainty if dispatch had started. Disabling delivery suppresses only work that has never been
 dispatched.
 
-Google Calendar writes are not registered in the P3 worker. The booking module is integrated only in
-its separately gated implementation phase.
+The P4 worker registers booking and reconciliation jobs. SQL reserves a host and freezes the event
+ID, payload, proposal version, provider account and calendar before dispatch. Final fresh validation
+reads the selected conflict calendars plus the frozen booking destination, checks its current
+writer/owner permission, intersects requester busy times and applies travel context. Local confirmed
+receipts also block conflicts while Google reads catch up. Normal evaluation and booking validation
+use the same receipt merge; explicit SQL meeting mode prevents online links from implying physical
+whereabouts. SQL compares fresh credential timestamps/provider account, request/rules versions and
+the job lease before permitting the exact frozen write. Token refresh uses the captured credential
+timestamp/account as a compare-and-swap guard and re-reads stored metadata afterward.
+
+Only the authenticated host approval route adds `confirmationSource: authenticated_web`, and it
+requires explicit confirmation of the exact proposal version. Google insertion uses
+`sendUpdates=all`, the approved attendee set and the saved event ID. An uncertain write retains its
+reservation and reconciles with GET of that same calendar/event; no replacement ID is generated. The
+reconciliation adapter validates association and all frozen visible event fields before recording
+confirmation. Booking notifications use independent delivery jobs and remain off unless
+`EXTERNAL_SENDS_ENABLED=true`.
 
 Local RPC integration uses fake Google/model providers against the disposable database:
 

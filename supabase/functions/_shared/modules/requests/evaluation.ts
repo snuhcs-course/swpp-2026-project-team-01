@@ -7,6 +7,7 @@ import { createGoogle } from '../../providers/google.ts';
 import { deadlineFetcher, type Fetcher } from '../../providers/transport.ts';
 import { type CandidateRanker, createCandidateRanker } from '../../providers/ranking.ts';
 import { evaluateCandidates, evaluateSlot, type SchedulingInput } from '../scheduling/index.ts';
+import { type ConfirmedBooking, withLocalBookings } from '../scheduling/local_bookings.ts';
 import type {
   HostRules,
   MeetingDetails,
@@ -21,6 +22,7 @@ export interface EvaluationSnapshot {
   rules: HostRules;
   details: MeetingDetails;
   requesterConnection: boolean;
+  localBookings?: ConfirmedBooking[];
   privateSchedulingContext?: Pick<
     SchedulingInput,
     'physicalContext' | 'candidatePhysicalLocation' | 'manualTravelAllowances'
@@ -64,13 +66,14 @@ export function createEvaluator(
       const reader = calendars || createCalendarReader(fetcher);
       const { connection, credential } = await provider.credential({ hostId: snapshot.hostId });
       if (!connection.conflictCalendarIds.length) throw new DomainError('reconnect_required', 409);
-      const hostEvents = await reader.hostEvents(
+      const providerEvents = await reader.hostEvents(
         credential,
         connection.conflictCalendarIds,
         start,
         end,
         snapshot.rules.timezone,
       );
+      const hostEvents = withLocalBookings(providerEvents, snapshot.localBookings || []);
       let requesterBusy: TimeWindow[] = [];
       if (snapshot.requesterConnection) {
         const requester = await provider.credential({ requestId });

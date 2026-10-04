@@ -276,7 +276,7 @@ export function requestsRoutes(
     } catch (error) {
       if (
         !(error instanceof DomainError) ||
-        !['not_found', 'request_closed', 'request_expired'].includes(error.code)
+        !['not_found', 'request_closed', 'request_expired', 'rate_limited'].includes(error.code)
       ) throw error;
     }
     return c.json({ status: 'pending' });
@@ -359,6 +359,24 @@ export function requestsRoutes(
         ...clientInput,
         rulesVersion: evidence.rulesVersion,
         idempotencyKey,
+      }),
+    );
+  });
+  app.post('/requests/:id/approve', async (c) => {
+    const requestId = c.req.param('id');
+    const actor = await actorFor(c.req.raw, db, requestId, true);
+    const input = await jsonInput(c.req.raw);
+    if (
+      input.confirmed !== true || !Number.isInteger(input.proposalVersion) ||
+      Number(input.proposalVersion) < 1
+    ) throw new DomainError('human_confirmation_required');
+    return c.json(
+      await db.command('host_approve', { ...actor, confirmationSource: 'authenticated_web' }, {
+        requestId,
+        proposalVersion: input.proposalVersion,
+        expectedRevision: revision(input),
+        confirmed: true,
+        idempotencyKey: mutationKey(c.req.raw),
       }),
     );
   });

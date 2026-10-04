@@ -91,6 +91,17 @@ Deno.test('recovery response is neutral for unavailable request and mismatched c
   });
   assert(response.status === 200 && (await response.json()).status === 'pending');
 });
+Deno.test('recovery throttling remains neutral instead of identifying the stored contact', async () => {
+  const db = {
+    command: () => Promise.reject(new DomainError('rate_limited', 429)),
+  } as unknown as Database;
+  const response = await api(db).request(`/requests/${id}/recover`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ email: 'requester@example.com' }),
+  });
+  assert(response.status === 200 && (await response.json()).status === 'pending');
+});
 Deno.test('proposal retry returns cached result before any new provider call', async () => {
   let evaluated = false;
   const db = {
@@ -142,4 +153,36 @@ Deno.test('private preference exception cannot waive a newly discovered hard con
     }),
   });
   assert(response.status === 409 && !saved);
+});
+Deno.test('approval source is set only from verified host route and explicit current version', async () => {
+  let captured: unknown;
+  const db = {
+    host: () => Promise.resolve({ kind: 'host', id: 'host', email: 'verified@example.com' }),
+    command: (operation: string, actor: unknown, input: unknown) => {
+      captured = { operation, actor, input };
+      return Promise.resolve({ status: 'booking' });
+    },
+  } as unknown as Database;
+  const response = await api(db).request(`/requests/${id}/approve`, {
+    method: 'POST',
+    headers: { ...headers, Authorization: 'Bearer verified-host' },
+    body: JSON.stringify({
+      expectedRevision: 5,
+      proposalVersion: 2,
+      confirmed: true,
+      confirmationSource: 'agent',
+      actor: { kind: 'operator' },
+    }),
+  });
+  assert(
+    response.status === 200 && JSON.stringify(captured).includes('authenticated_web') &&
+      !JSON.stringify(captured).includes('operator') && !JSON.stringify(captured).includes('agent'),
+  );
+  captured = undefined;
+  const missing = await api(db).request(`/requests/${id}/approve`, {
+    method: 'POST',
+    headers: { ...headers, Authorization: 'Bearer verified-host' },
+    body: JSON.stringify({ expectedRevision: 5, proposalVersion: 2, confirmed: false }),
+  });
+  assert(missing.status === 400 && captured === undefined);
 });

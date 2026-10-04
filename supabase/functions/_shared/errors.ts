@@ -43,6 +43,17 @@ const statuses: Record<string, number> = {
   rate_limited: 429,
   delivery_reconciliation_required: 409,
   evaluation_incomplete: 503,
+  human_confirmation_required: 400,
+  agreement_required: 409,
+  contact_not_verified: 409,
+  feasibility_stale: 409,
+  host_busy: 409,
+  calendar_conflict: 409,
+  booking_uncertain: 409,
+  booking_terminal: 409,
+  invalid_provider_evidence: 400,
+  job_still_active: 409,
+  proposal_stale: 409,
 };
 export function databaseError(message: string): DomainError {
   const normalized = message.toLowerCase();

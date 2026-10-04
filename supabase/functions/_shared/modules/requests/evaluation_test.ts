@@ -2,6 +2,7 @@ import { createEvaluator, type EvaluationSnapshot } from './evaluation.ts';
 import type { Environment } from '../../env.ts';
 import type { Database } from '../../database.ts';
 import { DomainError } from '../../errors.ts';
+import { withLocalBookings } from '../scheduling/local_bookings.ts';
 const slot = { start: '2030-06-01T09:00:00Z', end: '2030-06-01T09:30:00Z' };
 const env = { appOrigin: 'https://findmeatime.com' } as Environment;
 function snapshot(): EvaluationSnapshot {
@@ -174,4 +175,83 @@ Deno.test('expired route budget remains unresolved and requests a resolution act
     !saved?.unresolved ||
     !JSON.stringify(saved.privateDiagnostics).includes('evaluation_unresolved')
   ) throw new Error('Deadline produced false no-match');
+});
+Deno.test('trusted online receipt removes physical inference without requesting Routes', async () => {
+  const value = snapshot();
+  value.requesterConnection = false;
+  value.localBookings = [{
+    payload: { id: 'previous', location: 'https://video.example.com/host' },
+    startsAt: '2030-06-01T08:00:00Z',
+    endsAt: '2030-06-01T08:30:00Z',
+    mode: 'online',
+    calendarId: 'work',
+  }];
+  let saved: Record<string, unknown> | undefined;
+  const db = {
+    command: (operation: string, _actor: unknown, input: Record<string, unknown>) => {
+      if (operation === 'evaluation_read') return Promise.resolve(value);
+      saved = input;
+      return Promise.resolve({ candidates: input.candidates });
+    },
+  } as unknown as Database;
+  const result = await createEvaluator({ ...env, routesKey: 'synthetic' }, db, oauth, {
+    hostEvents: () =>
+      Promise.resolve([{
+        id: 'work:previous',
+        start: value.localBookings![0].startsAt,
+        end: value.localBookings![0].endsAt,
+        mode: 'in_person' as const,
+        location: 'https://video.example.com/host',
+        physicalLocation: 'https://video.example.com/host',
+      }]),
+    requesterBusy: () => Promise.resolve([]),
+  }, {
+    fetcher: () => {
+      throw new Error('Online receipt requested Routes');
+    },
+  }).evaluate('request', 4, 'evaluation-key');
+  if (result.candidates.length !== 1 || saved?.unresolved) {
+    throw new Error('Trusted online mode was lost during normal evaluation');
+  }
+});
+Deno.test('confirmed receipt blocks availability while Calendar event reads lag', async () => {
+  const value = snapshot();
+  value.requesterConnection = false;
+  value.localBookings = [{
+    payload: { id: 'previous', location: 'Host link' },
+    startsAt: slot.start,
+    endsAt: slot.end,
+    mode: 'online',
+    calendarId: 'work',
+  }];
+  const db = {
+    command: (operation: string, _actor: unknown, input: Record<string, unknown>) =>
+      Promise.resolve(operation === 'evaluation_read' ? value : { candidates: input.candidates }),
+  } as unknown as Database;
+  const result = await createEvaluator(env, db, oauth, {
+    hostEvents: () => Promise.resolve([]),
+    requesterBusy: () => Promise.resolve([]),
+  }).evaluate('request', 4, 'evaluation-key');
+  if (result.candidates.length) throw new Error('Provider lag omitted a confirmed busy interval');
+});
+Deno.test('moved provider event preserves the frozen receipt interval and explicit mode', () => {
+  const events = [{
+    id: 'work:previous',
+    start: '2030-06-01T10:00:00Z',
+    end: '2030-06-01T10:30:00Z',
+    mode: 'in_person' as const,
+    physicalLocation: 'https://video.example.com/host',
+  }];
+  const merged = withLocalBookings(events, [{
+    payload: { id: 'previous', location: 'Host link' },
+    startsAt: slot.start,
+    endsAt: slot.end,
+    mode: 'online',
+    calendarId: 'work',
+  }]);
+  if (
+    merged.length !== 2 ||
+    merged.some((event) => event.mode !== 'online' || event.physicalLocation) ||
+    merged[1].start !== slot.start || events[0].mode !== 'in_person'
+  ) throw new Error('Frozen receipt lost or provider input mutated');
 });
