@@ -21,6 +21,39 @@ Use Supabase CLI **2.119.0** for this repository and confirm it with `supabase -
 - Run the relevant checks for files you change, and report any checks that cannot run.
 - Update documentation when setup steps or behavior change.
 
+## Commit messages
+
+Use Conventional Commit types with the Lore Commit Protocol. Start every commit message with `type(scope): intent`; the scope is optional. Keep the intent concise, use an imperative verb, and explain why the change is needed.
+
+Types:
+
+- `feat`: new functionality.
+- `fix`: bug correction.
+- `docs`: documentation.
+- `refactor`: code restructuring without behavior changes.
+- `test`: tests.
+- `build`: dependencies or build tooling.
+- `ci`: CI configuration.
+- `chore`: other maintenance.
+- `perf`: performance improvements.
+- `revert`: reversing a commit.
+
+Use a short scope naming the affected area, such as `supabase`, `product`, or `git`. Example: `docs(supabase): align schema guidance with pg-delta`.
+
+Add an optional body for rationale and git-native Lore trailers when they provide decision context:
+
+```text
+Constraint: <external constraint that shaped the decision>
+Rejected: <alternative considered> | <reason for rejection>
+Confidence: <low|medium|high>
+Scope-risk: <narrow|moderate|broad>
+Directive: <forward-looking warning for future modifiers>
+Tested: <what was verified>
+Not-tested: <known gaps in verification>
+```
+
+Use `Rejected:` to record alternatives future modifiers should not revisit and `Directive:` for warnings. Include only trailers that add useful context.
+
 ## Shared skills
 
 Project skills live in `.agents/skills/`. Read the matching `SKILL.md` before working in its area:
