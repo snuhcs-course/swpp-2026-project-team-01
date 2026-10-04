@@ -1,6 +1,6 @@
 # Find Me a Time — Implementation Plan
 
-Status: P0 investigation recorded; P1–P3 deployed; live Calendar gates open\
+Status: P0 investigation recorded; P1–P4 deployed; live Calendar gates open\
 Date: 2026-10-05\
 Basis: [PRD](../02_product_requirements.md), [technical specification](../03_technical_specification.md), [backend architecture](01_backend_architecture.md), [repository structure](02_repo_structure.md), and [provider setup](03_provider_setup.md).
 
@@ -20,7 +20,7 @@ The repository now includes React/Vite with shadcn preset `b6rtA2Hmi`, a Hono/De
 | P1 | Verified and deployed | `npm run check`: typecheck, lint, 24 Deno tests, production web build pass. Generated pg-delta foundation plus runtime initializer reset locally; 29 pgTAP tests pass. Actual local Edge worker drained a persisted job (`claimed: 1, completed: 1`); clean `npm ci` passes. GitHub Actions run 37239080874 passes both application and database jobs. Production HTTPS and API health return 200; authenticated worker and recurring Cron are installed. |
 | P2 | Deployed; live Calendar consent gate open | Full P1/P2 migration chain resets locally and 66 pgTAP checks pass; scoped onboarding tests and GitHub Actions run 37239720301 pass. Production callbacks and Auth return URLs are registered; actual Google consent/refresh remains unverified. |
 | P3 | Verified locally and deployed | Reviewed pg-delta migration rebuilds P1–P3 with 189 pgTAP checks passing. The full application check passes typecheck, lint, 85 Deno tests (including 18 P4 adapter tests), and web build. Real local RPC integration covers account-free creation, feasible candidate ranking/selection, current-version agreement, private exceptions/redaction, stale evaluation rejection and withdrawal, with injected providers. All 24 browser checks pass; production build dpl_F6BT1GRE1JwppQnpPz5LzLVoCT3P serves findmeatime.com, API health 200 and worker 200. |
-| P4 | Verified locally; deployment in progress | Full migration reset and 291 SQL checks (102 booking) pass; 101 Deno tests, typecheck/lint/build and actual local RPC booking runtime pass. Fault injection verifies one stable event identity through lost response, immediate not-found, reconciliation, credential/lease fencing, and notification failure. Exhausted prepared-job recovery is reviewed and verified. Controlled live Calendar M2 remains open. |
+| P4 | Verified locally and deployed; live Calendar M2 open | Full migration reset and 291 SQL checks (102 booking) pass; 101 Deno tests, typecheck/lint/build and actual local RPC booking runtime pass. Fault injection verifies one stable event identity through lost response, immediate not-found, reconciliation, credential/lease fencing, and notification failure. Exhausted prepared-job recovery is reviewed and verified. Frozen commit `86296d1` deployed API/worker and web (`dpl_6ahRhaReQPAegQXCtrm2kmjK4FyS`); production health/access checks and recurring persisted-job completion pass. GitHub Actions run 37242545049 passes application, full reset/291 SQL checks, and both real local RPC runners. Controlled live Calendar M2 remains open. |
 
 | Prepared | Evidence and remaining work |
 |---|---|

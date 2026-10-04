@@ -15,6 +15,7 @@ Start with the one-pager and product requirements, read the user-experience docu
 | [Host setup and invitation operations](technical_specification/06_host_setup.md) | Controlled invitations, resumable setup, Calendar scopes/callbacks and remaining live gates. |
 | [Request and booking runtime](technical_specification/07_request_and_booking_runtime.md) | Request authority, feasibility, durable booking recovery, runtime switches and verification boundaries. |
 | [Provider setup](technical_specification/03_provider_setup.md) | Development skills, messaging CLI credentials, verified provisioning, and remaining integration checks. |
+| [Compatibility investigation](technical_specification/05_compatibility_report.md) | Captured provider probes, chosen defaults, and unverified live/client gates. |
 | [Implementation plan](technical_specification/04_implementation_plan.md) | Delivery phases, dependencies, team responsibilities, and release verification gates. |
 | [Competitive landscape](business/competitor_research.md) | Source-backed competitor research, comparison boundaries, and suggested benchmark scenarios. |
 
@@ -37,6 +38,9 @@ documentations/
     02_repo_structure.md
     03_provider_setup.md
     04_implementation_plan.md
+  05_compatibility_report.md
+  06_host_setup.md
+  07_request_and_booking_runtime.md
   business/
     competitor_research.md
 ```

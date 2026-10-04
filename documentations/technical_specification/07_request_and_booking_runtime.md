@@ -93,4 +93,12 @@ Output is an allowlisted acknowledgement, not proof that a Calendar event exists
 
 Actual CLI/RPC verification passed on controlled local request `36de7ed3-227d-47a0-beca-679e48c2824d`: a live prepared job rejected retry with `JOB_STILL_ACTIVE`; a conclusively blocked undispatched attempt allowed retry; a synthetic dispatched/uncertain attempt rejected retry with `BOOKING_UNCERTAIN`; reconciliation of that saved attempt was accepted. The guest receipt remained pending booking with no fabricated event. The fixture used synthetic trusted host/worker actors and real service-only SQL commands, no direct status override, Google transport, or external message. Syntax/help, thirteen mocked argument/target/key/operation/output checks, and documentation links also passed.
 
-Still pending: P4 production deployment evidence, actual authenticated browser approval journey, and controlled live Calendar consent/refresh/create/lost-response reconciliation. A local RPC integration result can prove local transactions and recovery behavior with injected providers; it cannot satisfy the live Calendar M2 gate.
+Still pending: actual authenticated browser approval journey, and controlled live Calendar consent/refresh/create/lost-response reconciliation. A local RPC integration result can prove local transactions and recovery behavior with injected providers; it cannot satisfy the live Calendar M2 gate.
+
+## P4 deployment evidence
+
+Commit `86296d1` was deployed from a frozen snapshot to the identified Supabase project `anelszynxtvxoxqvzgqt`; migration `20261004225750_approved_booking.sql` was previewed, applied, and followed by API/worker deployment. Vercel production deployment `dpl_6ahRhaReQPAegQXCtrm2kmjK4FyS` serves [findmeatime.com](https://findmeatime.com), with Cloudflare remaining authoritative DNS.
+
+Production verification returned website/API health 200, unknown-host 404, unauthenticated request/worker 401, and unbound Google callback 400. Recurring Cron processed persisted ping job `1fe69546-fcfc-4398-9a2f-2b933b12576d` in one attempt at `2026-10-04 23:08:00.961225 UTC`, without an immediate worker invocation. Worker/recovery/expiry/credential-cleanup schedules remain active. This proves deployed database/runtime wiring; the ping creates no Calendar event or message.
+
+[GitHub Actions run 37242545049](https://github.com/snuhcs-course/swpp-2026-project-team-01/actions/runs/37242545049) passed clean Linux application installation/typecheck/lint/101 Deno tests/build, complete local reset/291 SQL checks, and both request and booking RPC runners. Live Google consent, refresh and controlled Calendar M2 remain open; deployment does not mark those tests passed.
