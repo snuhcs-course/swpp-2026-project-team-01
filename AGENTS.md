@@ -5,7 +5,7 @@ This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, r
 ## Repository layout
 
 - `apps/`: application code. Add app-specific setup and test instructions when an app is created.
-- `documentaions/`: project documentation. Keep this directory name as written until the team agrees to rename it.
+- `documentations/`: project documentation.
 - `supabase/`: local Supabase configuration and future database migrations.
 
 ## Tooling prerequisites
