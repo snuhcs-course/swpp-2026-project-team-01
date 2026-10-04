@@ -13,7 +13,9 @@ function required(name: string): string {
   return value;
 }
 export function supabaseAdmin() {
-  return createClient(required("SUPABASE_URL"), required("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false, autoRefreshToken: false } });
+  const secretKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secretKey) throw new Error("Missing SUPABASE_SECRET_KEY");
+  return createClient(required("SUPABASE_URL"), secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 function hmac(value: string) { return createHmac("sha256", required("CALTALK_SESSION_SECRET")).update(value).digest("base64url"); }
 function signed(value: string) { return `${value}.${hmac(value)}`; }
