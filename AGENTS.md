@@ -5,7 +5,7 @@ This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, r
 ## Repository layout
 
 - `apps/`: application code. Add app-specific setup and test instructions when an app is created.
-- `documentations/`: product direction, release scope, research, and explanatory documentation, starting with `0_one_pager.md`.
+- `documentations/`: product direction, release scope, research, and explanatory documentation, starting with `01_one_pager.md`.
 - `openspec/specs/`: main capability specifications, with detailed behavior in `<capability>/spec.md`.
 - `openspec/changes/`: proposed behavior changes and archived implementation records.
 - `supabase/`: local Supabase configuration and future database migrations.
