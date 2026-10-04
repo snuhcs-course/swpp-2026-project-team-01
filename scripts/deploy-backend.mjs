@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -7,6 +7,9 @@ const project = process.env.SUPABASE_PROJECT_REF;
 if (!project || !process.env.SUPABASE_URL?.includes(project)) throw new Error('Identify the matching Supabase project before deployment');
 if (process.env.SUPABASE_SECRET_KEY?.startsWith('sb_publishable_')) {
   throw new Error('SUPABASE_SECRET_KEY must be a privileged key, not a publishable key');
+}
+if (readFileSync('supabase/.temp/project-ref', 'utf8').trim() !== project) {
+  throw new Error('Linked Supabase project does not match the identified deployment target');
 }
 const run = (args) => {
   const result = spawnSync('supabase', args, { stdio: 'inherit' });

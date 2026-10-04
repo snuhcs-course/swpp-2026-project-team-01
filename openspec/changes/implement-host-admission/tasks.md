@@ -1,0 +1,19 @@
+# Tasks
+
+## 1. Waitlist and invitation records
+
+- [x] 1.1 Implement validated deduplicated public waitlist commands/API and payload limits; verify repeated email enrollment produces one entry and neutral responses.
+- [x] 1.2 Implement operator-only hashed invitation issuance/revocation with verified-email binding and seven-day expiry; verify unauthorized issuance, expired tokens, revoked tokens, and secret-free responses.
+- [x] 1.3 Add desired SQL and generated reviewed migration for admission records; verify explicit privileges, local reset, and denied public database reads.
+- [ ] 1.4 Document operator invitation commands and expiry/revocation behavior in setup documentation; verify examples against controlled local identities.
+
+## 2. Redemption and resumable host setup
+
+- [x] 2.1 Implement atomic redemption and admission audit; verify same-account retry, recipient mismatch, token reuse, and concurrent account redemption tests.
+- [x] 2.2 Add host sign-in and resumable setup with confirmed timezone/rules and stable unique handles; verify missing fields, handle collision, interrupted setup, and owning-host access.
+- [x] 2.3 Enforce admission/readiness in shared setup, host connection, and publication commands; verify direct API bypass fails and uninvited requester intake remains allowed.
+- [ ] 2.4 Document setup requirements and update phase evidence; verify the M1 admitted-host journey once Calendar connection is available and retain explicit gaps if live consent cannot run.
+
+## Verification evidence
+
+2026-10-05: reviewed generated migration rebuilds the full local chain; 66 foundation/onboarding pgTAP checks pass. Scoped API/OAuth/Google/foundation suite passes 18 checks and Deno check/lint pass. Real Google consent, refresh, and M1 remain unchecked; requester consent persistence completes with P3.

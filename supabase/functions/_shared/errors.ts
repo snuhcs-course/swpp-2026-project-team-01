@@ -7,8 +7,24 @@ const statuses: Record<string, number> = {
   unauthorized: 401,
   forbidden: 403,
   not_admitted: 403,
+  host_not_admitted: 403,
+  invitation_invalid: 400,
+  oauth_state_invalid: 400,
+  insufficient_scopes: 403,
+  calendar_access_invalid: 400,
   not_found: 404,
   conflict: 409,
+  revision_conflict: 409,
+  proposal_conflict: 409,
+  request_closed: 409,
+  request_expired: 410,
+  stale_evaluation: 409,
+  booking_pending: 409,
+  details_required: 400,
+  candidate_invalid: 400,
+  contact_invalid: 400,
+  contact_required: 409,
+  not_feasible: 409,
   stale_revision: 409,
   stale_proposal: 409,
   invalid_state: 409,
@@ -16,13 +32,20 @@ const statuses: Record<string, number> = {
   invalid_invitation: 400,
   invalid_input: 400,
   invalid_token: 401,
+  idempotency_required: 400,
+  lease_lost: 409,
+  expired: 410,
+  invalid_oauth_state: 400,
+  invalid_scope: 403,
+  calendar_permission: 400,
   provider_unavailable: 503,
   reconnect_required: 409,
   rate_limited: 429,
 };
 export function databaseError(message: string): DomainError {
+  const normalized = message.toLowerCase();
   const code = Object.keys(statuses).find((code) =>
-    message === code || message.startsWith(code + ':')
+    normalized === code || normalized.startsWith(code + ':')
   );
   return new DomainError(code || 'internal_error', code ? statuses[code] : 500);
 }

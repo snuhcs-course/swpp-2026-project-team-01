@@ -17,6 +17,7 @@ export interface HostProfile {
   displayName: string;
   timezone: string;
   ready: boolean;
+  durationMinutes: number;
 }
 export interface SetupState {
   admitted: boolean;
@@ -49,6 +50,9 @@ export interface Proposal {
   purpose: string;
 }
 export interface RequestView {
+  contactVerified: boolean;
+  calendarConnected?: boolean;
+  privateMessages?: RequestView['messages'];
   id: string;
   hostId: string;
   revision: number;
