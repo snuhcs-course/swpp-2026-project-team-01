@@ -5,7 +5,7 @@
 - [x] 1.1 Implement authorized consent initiation, expiring single-use state, binding cookie, allowlisted returns, and callback validation; verify state replay, swapping, expiry, wrong browser, and denied consent tests.
 - [x] 1.2 Implement distinct host/requester scope contracts and AES-GCM protected server tokens; verify requester grants cannot reach host reads/writes and tokens never appear in DTOs/logs/model context.
 - [x] 1.3 Add grant/state desired SQL and reviewed migration; verify local reset and service-only secret access.
-- [ ] 1.4 Document exact callback URL, encryption-key setup, scopes, and Google Testing expiry; verify deployed callback reachability and actual registered URLs without exposing secrets.
+- [x] 1.4 Document exact callback URL, encryption-key setup, scopes, and Google Testing expiry; verify deployed callback reachability and actual registered URLs without exposing secrets.
 
 ## 2. Calendar selection and recovery
 
@@ -17,3 +17,5 @@
 ## Verification evidence
 
 2026-10-05: reviewed generated migration rebuilds the full local chain; 66 foundation/onboarding pgTAP checks pass. Scoped API/OAuth/Google/foundation suite passes 18 checks and Deno check/lint pass. Real Google consent, refresh, and M1 remain unchecked; requester consent persistence completes with P3.
+
+Production callback registration saved and re-read in the Google console: https://findmeatime.com/api/google/callback; localhost callback http://localhost:5173/api/google/callback. Existing Supabase Auth callback preserved. Deployed callback responds400 to missing requiredstate/cookie; no live consent success claimed.

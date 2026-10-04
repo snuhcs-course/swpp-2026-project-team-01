@@ -12,6 +12,7 @@ Start with the one-pager and product requirements, read the user-experience docu
 | [Technical specification](03_technical_specification.md) | Selected Supabase backend, architecture, data model, authorization, booking recovery, and verification plan. |
 | [Backend architecture](technical_specification/01_backend_architecture.md) | Edge Function roles and layout, shared modules, Queues/Cron processing, transactions, and operational recovery. |
 | [Repository structure](technical_specification/02_repo_structure.md) | Planned monorepo layout, interface entry points, capability modules, shared contracts, and test ownership. |
+| [Host setup and invitation operations](technical_specification/06_host_setup.md) | Controlled invitations, resumable setup, Calendar scopes/callbacks and remaining live gates. |
 | [Provider setup](technical_specification/03_provider_setup.md) | Development skills, messaging CLI credentials, verified provisioning, and remaining integration checks. |
 | [Implementation plan](technical_specification/04_implementation_plan.md) | Delivery phases, dependencies, team responsibilities, and release verification gates. |
 | [Competitive landscape](business/competitor_research.md) | Source-backed competitor research, comparison boundaries, and suggested benchmark scenarios. |

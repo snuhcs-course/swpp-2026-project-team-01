@@ -34,7 +34,7 @@ supabase db reset --local
 supabase functions serve --env-file .env
 ```
 
-In another terminal, create `apps/web/.env.local` with the local Supabase URL and publishable key printed by `supabase status`, then run `npm run dev`. Set `APP_ORIGIN=http://localhost:3000` and persist random `WORKER_SECRET` and a base64-encoded 32-byte `TOKEN_ENCRYPTION_KEY` in the ignored root `.env` before starting functions. Provider credentials remain backend-only. See [web setup](apps/web/README.md) for details.
+In another terminal, create `apps/web/.env.local` with the local Supabase URL and publishable key printed by `supabase status`, then run `npm run dev`. Set `APP_ORIGIN=http://localhost:5173` and persist random `WORKER_SECRET` and a base64-encoded 32-byte `TOKEN_ENCRYPTION_KEY` in the ignored root `.env` before starting functions. Provider credentials remain backend-only. See [web setup](apps/web/README.md) for details.
 
 Run `npm run check` for application typechecks, lint, tests and production build, and `npm run db:test` for the disposable local database tests. Database tests run inside rolled-back transactions and never target the hosted project.
 
