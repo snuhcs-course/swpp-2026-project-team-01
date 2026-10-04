@@ -10,6 +10,9 @@ export interface Environment {
   openaiModel: string;
   routesKey?: string;
   externalSends: boolean;
+  transactionalEmails?: boolean;
+  agentmailKey?: string;
+  agentmailInboxId?: string;
 }
 export function readEnvironment(get = (name: string) => Deno.env.get(name)): Environment {
   const required = (name: string, fallback?: string) => {
@@ -42,5 +45,8 @@ export function readEnvironment(get = (name: string) => Deno.env.get(name)): Env
     openaiModel: get('OPENAI_MODEL') || 'gpt-4o-mini-2024-07-18',
     routesKey: get('GOOGLE_ROUTES_API_KEY') || get('GOOGLE_MAPS_API_KEY'),
     externalSends: get('EXTERNAL_SENDS_ENABLED') === 'true',
+    transactionalEmails: get('TRANSACTIONAL_EMAIL_ENABLED') === 'true',
+    agentmailKey: get('AGENTMAIL_API_KEY'),
+    agentmailInboxId: get('AGENTMAIL_INBOX_ID'),
   };
 }

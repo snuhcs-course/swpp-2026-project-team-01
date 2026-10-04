@@ -3,6 +3,7 @@ import { Hono } from 'npm:hono@4.13.13';
 import type { Database } from '../_shared/database.ts';
 import type { Environment } from '../_shared/env.ts';
 import { onboardingRoutes } from './routes/onboarding.ts';
+import { requestsRoutes } from './routes/requests.ts';
 import { DomainError, errorResponse } from '../_shared/errors.ts';
 export function createApi(env: Environment, database: Database) {
   const app = new Hono();
@@ -28,6 +29,7 @@ export function createApi(env: Environment, database: Database) {
   app.onError((error) => errorResponse(error, crypto.randomUUID()));
   app.get('/health', (c) => c.json({ ok: true }));
   app.route('/', onboardingRoutes(env, database));
+  app.route('/', requestsRoutes(env, database));
   app.notFound(() => errorResponse(new DomainError('not_found', 404), crypto.randomUUID()));
   return app;
 }

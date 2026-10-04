@@ -25,10 +25,16 @@ const secrets = {
   OPENAI_MODEL: process.env.OPENAI_MODEL ?? 'gpt-4o-mini-2024-07-18',
   TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY,
   WORKER_SECRET: process.env.WORKER_SECRET,
+  AGENTMAIL_API_KEY: process.env.AGENTMAIL_API_KEY,
+  AGENTMAIL_INBOX_ID: process.env.AGENTMAIL_INBOX_ID,
+  TRANSACTIONAL_EMAIL_ENABLED: process.env.TRANSACTIONAL_EMAIL_ENABLED ?? 'false',
   EXTERNAL_SENDS_ENABLED: process.env.EXTERNAL_SENDS_ENABLED ?? 'false'
 };
 if (!secrets.TOKEN_ENCRYPTION_KEY || !secrets.WORKER_SECRET) {
   throw new Error('Persist TOKEN_ENCRYPTION_KEY and WORKER_SECRET in the ignored .env before deployment; never rotate them implicitly');
+}
+if (secrets.TRANSACTIONAL_EMAIL_ENABLED === 'true' && (!secrets.AGENTMAIL_API_KEY || !secrets.AGENTMAIL_INBOX_ID)) {
+  throw new Error('Transactional emails require an identified AgentMail inbox and runtime key');
 }
 const directory = mkdtempSync(join(tmpdir(), 'fmat-deploy-'));
 try {

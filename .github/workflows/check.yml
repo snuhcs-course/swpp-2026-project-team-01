@@ -23,6 +23,14 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.119.0
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.1
       - run: supabase start
       - run: supabase db reset --local
       - run: supabase test db
+      - name: Verify request journey through local RPCs
+        run: |
+          supabase status --output json > /tmp/fmat-local-status.json
+          chmod 600 /tmp/fmat-local-status.json
+          deno run --allow-read=/tmp/fmat-local-status.json --allow-net=127.0.0.1:54321 supabase/functions/_shared/modules/requests/local_integration.ts

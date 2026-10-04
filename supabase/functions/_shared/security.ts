@@ -87,3 +87,31 @@ export async function jsonInput(request: Request): Promise<Record<string, unknow
     throw new DomainError('invalid_input');
   }
 }
+/** Stable retry credentials derived with a dedicated domain label, never exposed encryption material. */
+export async function retryToken(keyText: string, domain: string, input: unknown): Promise<string> {
+  const raw = Uint8Array.from(atob(keyText), (c) => c.charCodeAt(0));
+  if (raw.length !== 32) throw new DomainError('provider_unavailable', 503);
+  const key = await crypto.subtle.importKey('raw', raw, { name: 'HMAC', hash: 'SHA-256' }, false, [
+    'sign',
+  ]);
+  const canonical = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(canonical);
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map((
+          [name, item],
+        ) => [name, canonical(item)]),
+      );
+    }
+    return value;
+  };
+  return base64url(
+    new Uint8Array(
+      await crypto.subtle.sign(
+        'HMAC',
+        key,
+        new TextEncoder().encode(JSON.stringify([domain, canonical(input)])),
+      ),
+    ),
+  );
+}

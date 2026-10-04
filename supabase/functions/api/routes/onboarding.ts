@@ -117,9 +117,15 @@ export function onboardingRoutes(env: Environment, db: Database, oauth = createO
     const requestId = c.req.param('id');
     const actor = await actorFor(c.req.raw, db, requestId);
     if (actor.kind !== 'guest') throw new DomainError('forbidden', 403);
+    const input = await jsonInput(c.req.raw);
+    if (!Number.isInteger(input.expectedRevision) || Number(input.expectedRevision) < 1) {
+      throw new DomainError('invalid_input');
+    }
+    await db.command('request_read', actor, { requestId });
     const prior = await oauth.credential({ requestId }).catch(() => null);
-    const result = await db.command('calendar_disconnect', actor, {
+    const result = await db.command('request_calendar_disconnect', actor, {
       requestId,
+      expectedRevision: input.expectedRevision,
       idempotencyKey: mutationKey(c.req.raw),
     });
     if (prior) await oauth.google.revoke(prior.credential).catch(() => undefined);

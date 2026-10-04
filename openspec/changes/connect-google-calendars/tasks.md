@@ -11,7 +11,7 @@
 
 - [x] 2.1 Implement calendar list, conflict selection, and writable booking-destination checks; verify read-only destination rejection and no silent primary-calendar fallback.
 - [x] 2.2 Implement bounded refresh, invalid-grant/revocation recovery, disconnect, and requester grant closure; verify failed reads never become empty calendars and disconnected grants lose authority.
-- [ ] 2.3 Add requester consent/resume UI and explicit manual-availability replacement; verify account-free continuation, cross-request rejection, interrupted consent, denial, and reconnect scenarios.
+- [x] 2.3 Add requester consent/resume UI and explicit manual-availability replacement; verify account-free continuation, cross-request rejection, interrupted consent, denial, and reconnect scenarios.
 - [ ] 2.4 Record live M1/AC-27 evidence with controlled user grants; verify actual consent, refresh, reads, and disconnect separately from deterministic fixtures.
 
 ## Verification evidence
@@ -19,3 +19,5 @@
 2026-10-05: reviewed generated migration rebuilds the full local chain; 66 foundation/onboarding pgTAP checks pass. Scoped API/OAuth/Google/foundation suite passes 18 checks and Deno check/lint pass. Real Google consent, refresh, and M1 remain unchecked; requester consent persistence completes with P3.
 
 Production callback registration saved and re-read in the Google console: https://findmeatime.com/api/google/callback; localhost callback http://localhost:5173/api/google/callback. Existing Supabase Auth callback preserved. Deployed callback responds400 to missing requiredstate/cookie; no live consent success claimed.
+
+P3 continuation evidence:189 local database checks and24 web fixture checks pass, including request-bound connection state, denial/manual continuation, stale async results and privacy. Actual Google grant/refresh remains task2.4.

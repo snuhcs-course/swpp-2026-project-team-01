@@ -12,7 +12,11 @@ export async function providerJson<T>(
 ): Promise<ProviderResponse<T>> {
   let response: Response;
   try {
-    response = await fetcher(url, { ...init, signal: AbortSignal.timeout(12000) });
+    const timeout = AbortSignal.timeout(12000);
+    response = await fetcher(url, {
+      ...init,
+      signal: init.signal ? AbortSignal.any([init.signal, timeout]) : timeout,
+    });
   } catch {
     throw new DomainError('provider_unavailable', 503);
   }
@@ -26,4 +30,16 @@ export async function providerJson<T>(
   } catch {
     throw new DomainError('provider_unavailable', 503);
   }
+}
+/** Every provider request in an evaluation shares the same finite wall-clock budget. */
+export function deadlineFetcher(deadlineAt: number, fetcher: Fetcher = fetch): Fetcher {
+  return (url, init = {}) => {
+    const remaining = deadlineAt - Date.now();
+    if (remaining <= 0) return Promise.reject(new DomainError('evaluation_incomplete', 503));
+    const deadline = AbortSignal.timeout(Math.ceil(remaining));
+    return fetcher(url, {
+      ...init,
+      signal: init.signal ? AbortSignal.any([init.signal, deadline]) : deadline,
+    });
+  };
 }

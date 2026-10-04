@@ -31,7 +31,7 @@ The Supabase changelog was fetched and scanned. Relevant implementation constrai
 
 ## Calendar, travel, email and model contracts
 
-Host consent requests Calendar list/read access and event writes separately from requester consent. Select the actual booking calendar and verify its write access; do not replace it silently with `primary`. `calendar.events` supports writes to accessible writable calendars; `calendar.events.owned` would exclude shared booking calendars. Requester grants use only `calendar.events.freebusy` and never enter a host-write adapter. [Calendar scopes](https://developers.google.com/workspace/calendar/api/auth).
+Host consent requests Calendar list/read access and event writes separately from requester consent. Select the actual booking calendar and verify its write access; do not replace it silently with `primary`. `calendar.events` supports writes to accessible writable calendars; `calendar.events.owned` would exclude shared booking calendars. Requester grants use only `calendar.freebusy` for their primary calendar availability and never enter a host-write adapter. [Calendar scopes](https://developers.google.com/workspace/calendar/api/auth).
 
 Before dispatch, persist one event ID derived from the durable booking identity, using lowercase hexadecimal UUID/hash characters without hyphens (a subset of Google's base32hex alphabet). Preserve the immutable calendar ID/event ID/payload across retries, and GET that identity after an uncertain insert. Verify request identity, current payload and non-cancelled event state before marking booked; duplicate-ID errors are not proof of success. Invitation policy is `sendUpdates=all` for verified recipients. Online meetings initially use a host-supplied HTTPS link; automatic Meet generation is excluded from this implementation decision. [Calendar insert contract](https://developers.google.com/workspace/calendar/api/v3/reference/events/insert).
 
@@ -51,7 +51,7 @@ These are selected contracts; capability tests and the phase records must prove 
 |---|---|
 | Invitation | Expires after seven days; recipient-bound, atomic single redemption |
 | Request expiry | Seven days or the requested window end, whichever is earlier |
-| Guest continuation | 256-bit random request-bound credential; store only its hash; maximum 30-day TTL; invalidate on terminal request state |
+| Guest continuation | 256-bit random request-bound credential; store only its hash; maximum 30-day TTL; revoke mutation, OAuth, and recovery authority on closure; allow the existing unexpired credential to read only a minimal final status/booking receipt |
 | Guest recovery | Recover only through verified contact, rotate credential and invalidate the previous token |
 | Online meeting | Host-supplied HTTPS link initially; no automatic Meet creation |
 | Language | English interface initially; English and Korean extraction inputs, with confirmation of extracted values |

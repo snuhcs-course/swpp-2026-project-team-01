@@ -1,4 +1,4 @@
-import type { Database } from '../_shared/database.ts';
+import type { Actor, Database } from '../_shared/database.ts';
 import type { Environment } from '../_shared/env.ts';
 import { DomainError, errorResponse } from '../_shared/errors.ts';
 import { constantTimeEqual } from '../_shared/security.ts';
@@ -9,7 +9,7 @@ export interface Job {
   leaseToken: string;
   attempts: number;
 }
-export type JobHandler = (job: Job) => Promise<void>;
+export type JobHandler = (job: Job, actor: Actor & { kind: 'worker'; id: string }) => Promise<void>;
 export function createWorker(
   env: Environment,
   database: Database,
@@ -28,14 +28,14 @@ export function createWorker(
         id: workerId,
       }, {
         workerId,
-        limit: 5,
+        limit: 1,
       });
       let completed = 0;
       for (const job of jobs) {
         try {
           if (job.kind !== 'ping') {
             if (!handlers[job.kind]) throw new DomainError('unsupported_job');
-            await handlers[job.kind](job);
+            await handlers[job.kind](job, { kind: 'worker', id: workerId });
           }
           await database.command('jobs_complete', { kind: 'worker', id: workerId }, {
             jobId: job.id,

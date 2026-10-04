@@ -41,6 +41,8 @@ const statuses: Record<string, number> = {
   provider_unavailable: 503,
   reconnect_required: 409,
   rate_limited: 429,
+  delivery_reconciliation_required: 409,
+  evaluation_incomplete: 503,
 };
 export function databaseError(message: string): DomainError {
   const normalized = message.toLowerCase();

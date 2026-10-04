@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc -b --pretty false",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:browser": "node tests/browser-smoke.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.8.0",

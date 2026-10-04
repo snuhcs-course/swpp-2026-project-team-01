@@ -73,30 +73,45 @@ Deno.test('body is bounded even when content length is missing', async () => {
 });
 Deno.test('worker completes ping and records handler failure without losing durable work', async () => {
   const calls: { operation: string; input: Record<string, unknown> }[] = [];
+  const queued = [
+    { id: 'ping-id', kind: 'ping', payload: {}, leaseToken: 'a', attempts: 1 },
+    { id: 'failing-id', kind: 'fault', payload: {}, leaseToken: 'b', attempts: 1 },
+  ];
   const db = {
     command: (operation: string, _actor: unknown, input: Record<string, unknown>) => {
       calls.push({ operation, input });
       return Promise.resolve(
         operation === 'jobs_claim'
           ? {
-            jobs: [
-              { id: 'ping-id', kind: 'ping', payload: {}, leaseToken: 'a', attempts: 1 },
-              { id: 'failing-id', kind: 'fault', payload: {}, leaseToken: 'b', attempts: 1 },
-            ],
+            jobs: queued.splice(0, Number(input.limit)),
           }
           : { ok: true },
       );
     },
   } as unknown as Database;
-  const response = await createWorker(env, db, {
-    fault: () => Promise.reject(new Error('do not log this secret')),
-  })(
+  let actualActorId = '';
+  const worker = createWorker(env, db, {
+    fault: (_job, actor) => {
+      actualActorId = actor.id;
+      return Promise.reject(new Error('do not log this secret'));
+    },
+  });
+  const invocation = () =>
     new Request('https://worker', {
       method: 'POST',
       headers: { 'X-Worker-Secret': env.workerSecret },
-    }),
-  );
+    });
+  const response = await worker(invocation());
+  const next = await worker(invocation());
   assert(response.status === 200);
+  assert(
+    next.status === 200 && (await response.json()).claimed === 1 &&
+      (await next.json()).claimed === 1,
+  );
+  const claims = calls.filter((call) => call.operation === 'jobs_claim');
+  assert(
+    claims.every((call) => call.input.limit === 1) && actualActorId === claims[1].input.workerId,
+  );
   assert(calls.some((call) => call.operation === 'jobs_complete' && call.input.leaseToken === 'a'));
   assert(
     calls.some((call) =>
