@@ -1,28 +1,84 @@
-# SNU-SWPP-Template
+# Caltalk · first MVP
 
-You can use the README file to showcase and promote your mobile app. The template provided below is just a starting point. Feel free to craft your README as you see fit. 
+외부 미팅이 잦은 직장인(VC, 스타트업 대표, 영업직 등)을 위한 일정 조율 웹앱입니다. 호스트가 가능한 시간을 링크로 공유하고, 요청자가 Google Calendar를 연결해 미팅을 요청하면 양쪽 일정을 확인한 뒤 호스트가 최종 수락하는 흐름을 구현했습니다.
 
-Please note that the README doesn't affect your grade and is not included in documentation(Wiki).
+> **현재 웹앱은 개발자 PC의 로컬 환경에서 실행합니다.** 접속 주소는 `http://localhost:3000`이며, 외부에서 접속할 수 있는 서버에는 배포하지 않았습니다. 데이터베이스는 Supabase 클라우드 프로젝트를 사용합니다. 이 브랜치는 팀 검토를 위한 first MVP입니다.
 
-# [Your Application Name]
+## 구현된 주요 기능
 
-[Short application description here]
+### Google Calendar 연결과 내 일정 확인
 
-![Application Screenshot](path_to_screenshot.png)
+- 호스트와 요청자가 각자의 Google 계정으로 캘린더를 연결합니다.
+- 호스트 홈에서 기본 캘린더의 일정을 주간 시간표로 확인하고, 실제 일정과 미팅 가능한 구간을 함께 볼 수 있습니다.
+- 왼쪽 메뉴에서 현재 적용 중인 미팅 조건을 확인할 수 있습니다.
 
-## Features
+### 요청 링크 생성과 관리
 
-- Feature 1: Brief description
-- Feature 2: Brief description
-- ...
+- 호스트가 링크 이름, 미팅 길이, 공개할 날짜·요일·시간 범위를 정합니다.
+- 조건에 맞는 후보를 최대 5개 제시하고, 그중 2개 이상을 선택해 링크를 만듭니다. 후보가 부족하면 이를 안내합니다.
+- 링크 상세에서 공개 시간을 작은 주간 시간표로 확인하고, 주소 복사·일시 닫기·다시 열기·삭제를 할 수 있습니다.
+- 삭제한 링크와 해당 요청은 화면 목록에서 숨기고 기록은 DB에 보관합니다. 일시적으로 닫은 링크의 요청은 계속 표시합니다.
 
-## Getting Started
+### 미팅 요청과 수락
 
-### Prerequisites
+- 요청자는 링크에서 Google Calendar를 연결하고 이름·미팅 목적·장소를 입력합니다. 미팅 길이는 호스트가 정한 값을 사용합니다.
+- 공개된 시간 중 양쪽 캘린더와 이동 여유 조건을 만족하는 후보를 최대 3개 저장합니다.
+- 호스트는 받은 요청을 확인하고, 링크 상세에서 후보 하나를 선택해 수락할 수 있습니다.
+- 수락 시 최신 일정을 다시 확인하고 호스트의 기본 Google Calendar에 일정을 생성합니다. 요청자 이메일을 참석자로 넣고 Google에 초대 알림 발송을 요청합니다.
+- 중복 등록 방지와 등록 결과 재확인 흐름을 구현했습니다. 실제 초대 메일 수신은 상대방의 Google 설정 등에 영향을 받으며, 앱에서 배달 여부를 추적하지는 않습니다.
 
-- Android Studio [version, e.g., 4.2.1]
-- Minimum Android SDK Version [e.g., 21]
+## 현재 추천 방식과 MVP 범위
 
-### Installation
+현재 후보 추천은 **규칙 기반이며 LLM이나 지도 API는 연결하지 않았습니다.**
 
-[Installation link here]
+- 기본 검색 범위: 서울 시간 기준 내일부터 14일, 월–금 09:00–20:00. 시작 시각은 30분 간격이며, 링크 생성 시 공개 범위를 더 좁힐 수 있습니다.
+- 일정 사이 여유: 장소가 같거나 미정이면 15분, 서로 다른 대면 장소면 45분, 온라인끼리는 0분, 온라인과 대면 사이에는 15분입니다. 실제 이동 경로를 계산한 시간은 아닙니다.
+- 개인 선호를 대화로 입력하는 기능, 조건·가능 시간 직접 편집, 공휴일 자동 제외, 여러 캘린더 통합은 아직 제공하지 않습니다.
+
+캘린더 조회와 요청 저장은 실제 연결 계정으로 동작을 확인했습니다. 일정 수락·초대 기능은 구현되어 있으나, 실제 초대 메일 수신까지의 전체 흐름은 추가 확인이 필요합니다.
+
+## 실행 환경
+
+| 항목 | 현재 구성 |
+| --- | --- |
+| 웹 화면 및 서버 API | Next.js 16.3.8 · React 19 · TypeScript |
+| 스타일 | Tailwind CSS 4 |
+| 개발 실행 | 로컬 PC에서 `pnpm dev`, `http://localhost:3000` |
+| 데이터베이스 | Supabase 클라우드의 PostgreSQL |
+| 로그인·캘린더 연결 | 앱에서 Google OAuth와 Google Calendar API를 직접 사용 |
+| 패키지 관리 | pnpm 11.19.0 |
+
+로컬 주소로 만든 요청 링크는 다른 사람의 PC에서 그대로 접속할 수 없습니다. 현재는 같은 PC에서 계정과 브라우저 세션을 구분해 흐름을 확인하는 환경입니다.
+
+## Supabase 사용 현황
+
+**팀에서 함께 사용하는 공용 Supabase 프로젝트를 찾지 못해, MVP 개발을 위해 개인적으로 프로젝트를 새로 만들어 연결했습니다.** 팀 공용 프로젝트나 별도의 개발 환경이 정해지면, 필요에 따라 그쪽으로 다시 설정할 예정입니다.
+
+Supabase는 현재 DB 용도로 사용합니다. 로그인은 Supabase Auth를 거치지 않고 Google OAuth와 앱 자체 세션으로 처리합니다.
+
+- `owner_calendars`: 호스트 계정과 캘린더 연결 정보.
+- `share_links`: 링크 이름, 공개 시간, 미팅 길이, 열림·닫힘·삭제 상태.
+- `requester_calendars`: 링크를 통해 연결한 요청자 계정 정보.
+- `meeting_requests`: 미팅 목적, 후보 시간, 수락·캘린더 등록 상태.
+
+DB는 Next.js 서버에서만 접근합니다. 테이블에 RLS를 적용하고 브라우저의 직접 접근 권한은 차단했으며, Google 연결 토큰은 암호화해 저장합니다. 스키마와 마이그레이션은 `supabase/schemas/`, `supabase/migrations/`에 관리합니다.
+
+추후 프로젝트를 옮길 때는 대상 프로젝트에 마이그레이션을 적용하고, 로컬 환경 변수의 Supabase 주소와 서버 키를 교체하면 됩니다. 기존 데이터와 계정 연결의 이전 여부는 별도로 결정해야 합니다.
+
+## 로컬 실행 안내
+
+Node.js 20.9 이상과 pnpm이 필요합니다. 저장소 루트에서 다음과 같이 실행합니다.
+
+```powershell
+cd apps/web
+pnpm install
+Copy-Item .env.example .env.local
+# .env.local에 Google OAuth, Supabase, 암호화·세션 키를 설정한 뒤 실행
+pnpm dev
+```
+
+`.env.local`이 이미 있다면 복사 단계를 건너뜁니다. 실행에 사용하는 키는 Git에 포함하지 않으며, 저장소를 내려받는 것만으로 개인 Supabase 프로젝트에 연결되지는 않습니다.
+
+Google OAuth에는 `http://localhost:3000/api/auth/google/callback`을 리디렉션 주소로 등록해야 합니다. 테스트 모드에서는 사용할 Google 계정을 테스트 사용자로 등록해야 하며, 호스트의 일정 수락에는 캘린더 일정 생성 권한 동의가 필요합니다.
+
+세부 환경 변수와 설정 방법은 [웹앱 실행 문서](apps/web/README.md)를 참고하세요. 현재 요구사항과 설계 변경 기록은 [OpenSpec](openspec/README.md)에 정리했습니다.
