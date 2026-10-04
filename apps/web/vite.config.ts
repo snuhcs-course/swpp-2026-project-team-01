@@ -8,14 +8,15 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:54321',
+      "/api": {
+        target: "http://127.0.0.1:54321",
         changeOrigin: true,
-        rewrite: path => path.replace(/^\/api/, '/functions/v1/api'),
+        rewrite: (path) => path.replace(/^\/api/, "/functions/v1/api"),
       },
     },
   },
   resolve: {
+    dedupe: ["react", "react-dom"],
     alias: {
       "@": resolve(import.meta.dirname, "./src"),
     },

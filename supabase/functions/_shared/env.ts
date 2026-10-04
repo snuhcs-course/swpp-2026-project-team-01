@@ -25,10 +25,14 @@ export function readEnvironment(get = (name: string) => Deno.env.get(name)): Env
   if (workerSecret.length < 32) {
     throw new Error('WORKER_SECRET must contain at least 32 characters');
   }
+  const serviceKey = get('FMAT_SUPABASE_SECRET_KEY') ||
+    required('SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEY');
+  if (serviceKey.startsWith('sb_publishable_')) {
+    throw new Error('Privileged Supabase key is required');
+  }
   return {
     supabaseUrl: required('SUPABASE_URL'),
-    serviceKey: get('FMAT_SUPABASE_SECRET_KEY') ||
-      required('SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEY'),
+    serviceKey,
     appOrigin: origin.origin,
     workerSecret,
     googleClientId: get('GOOGLE_CLIENT_ID'),

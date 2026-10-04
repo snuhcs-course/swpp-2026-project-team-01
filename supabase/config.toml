@@ -420,3 +420,6 @@ verify_jwt = false
 # The worker validates a separate internal secret and accepts no host/guest calls.
 [functions.worker]
 verify_jwt = false
+
+[experimental.webhooks]
+enabled = true

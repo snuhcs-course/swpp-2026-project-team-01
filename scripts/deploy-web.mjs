@@ -6,5 +6,5 @@ const args = [
   '--build-env', `VITE_SUPABASE_URL=${process.env.SUPABASE_URL}`,
   '--build-env', `VITE_SUPABASE_PUBLISHABLE_KEY=${process.env.SUPABASE_PUBLISHABLE_KEY}`
 ];
-const result = spawnSync('vercel', args, { cwd: 'apps/web', stdio: 'inherit' });
+const result = spawnSync('vercel', args, { cwd: '.', stdio: 'inherit' });
 process.exit(result.status ?? 1);

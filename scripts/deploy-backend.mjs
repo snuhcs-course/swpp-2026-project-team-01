@@ -5,6 +5,9 @@ import { spawnSync } from 'node:child_process';
 
 const project = process.env.SUPABASE_PROJECT_REF;
 if (!project || !process.env.SUPABASE_URL?.includes(project)) throw new Error('Identify the matching Supabase project before deployment');
+if (process.env.SUPABASE_SECRET_KEY?.startsWith('sb_publishable_')) {
+  throw new Error('SUPABASE_SECRET_KEY must be a privileged key, not a publishable key');
+}
 const run = (args) => {
   const result = spawnSync('supabase', args, { stdio: 'inherit' });
   if (result.status !== 0) throw new Error(`Supabase ${args[0]} failed`);
@@ -32,6 +35,8 @@ try {
   run(['db', 'push', '--linked', '--yes']);
   run(['secrets', 'set', '--project-ref', project, '--env-file', path]);
   run(['functions', 'deploy', 'api', 'worker', '--project-ref', project, '--use-api', '--no-verify-jwt']);
+  const runtime = spawnSync(process.execPath, ['scripts/install-worker-runtime.mjs'], { stdio: 'inherit', env: process.env });
+  if (runtime.status !== 0) throw new Error('Worker runtime installation failed');
 } finally {
   rmSync(directory, { recursive: true, force: true });
 }

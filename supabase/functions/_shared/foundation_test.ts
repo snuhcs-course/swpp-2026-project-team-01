@@ -113,3 +113,19 @@ Deno.test('browser preflight permits Supabase apikey header', async () => {
   assert(response.status === 204);
   assert(response.headers.get('access-control-allow-headers')?.includes('apikey'));
 });
+Deno.test('environment rejects mislabeled publishable key as privileged secret', async () => {
+  const { readEnvironment } = await import('./env.ts');
+  const values: Record<string, string> = {
+    APP_ORIGIN: env.appOrigin,
+    SUPABASE_URL: env.supabaseUrl,
+    FMAT_SUPABASE_SECRET_KEY: 'sb_publishable_public',
+    WORKER_SECRET: env.workerSecret,
+  };
+  let rejected = false;
+  try {
+    readEnvironment((name) => values[name]);
+  } catch {
+    rejected = true;
+  }
+  assert(rejected);
+});

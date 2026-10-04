@@ -7,6 +7,7 @@ alter default privileges in schema fmat revoke execute on functions from public,
 
 create extension if not exists pgmq;
 create extension if not exists pg_cron;
+create extension if not exists pg_net with schema extensions;
 
 create table fmat.audit_events (
   id bigint generated always as identity primary key,
@@ -259,3 +260,6 @@ revoke all on all sequences in schema fmat from public,anon,authenticated,servic
 revoke execute on all functions in schema fmat from public,anon,authenticated,service_role;
 revoke execute on function public.fmat_command(text,jsonb,jsonb) from public,anon,authenticated;
 grant execute on function public.fmat_command(text,jsonb,jsonb) to service_role;
+
+-- Declare extension-managed runtime objects so later pg-delta diffs preserve them.
+select fmat.install_runtime();
