@@ -150,3 +150,32 @@ describe("computeSlots — slack and performance", () => {
     expect(elapsed).toBeLessThan(1000)
   })
 })
+
+describe("normalized inputs", () => {
+  it("uses busy independently of travel and preserves sub-minute slack", () => {
+    const host = { ...person(), busyIntervals: [{ startMs: T(D, "08:00"), endMs: T(D, "09:00") - 30_000 }], travelAnchors: [] }
+    const s = slots(host, person())
+    expect(startsOf(s, D, ONLINE.id, T30.id)).not.toContain("08:30")
+    const selected = s.find(x => x.startMs === T(D, "09:00") && x.placeId === SPECIAL.id)
+    expect(selected).toMatchObject({ slackMs: 30_000, slackMin: 0.5 })
+  })
+  it("uses the union of multiple windows without crossing a lunch gap", () => {
+    const host = { ...person(), windows: [{ weekday: 1, startMin: 540, endMin: 570 }, { weekday: 1, startMin: 570, endMin: 720 }, { weekday: 1, startMin: 780, endMin: 900 }] }
+    const s = slots(host, person())
+    expect(startsOf(s, D, ONLINE.id, T60.id)).toEqual(["09:00", "09:30", "10:00", "10:30", "11:00", "13:00", "13:30", "14:00"])
+    expect(slots({ ...host, windows: [] }, person())).toEqual([])
+  })
+  it("does not round a millisecond outside a window into availability", async () => {
+    const { fitsRules } = await import("@/core/availability")
+    expect(fitsRules(person().rules, T(D, "21:30"), T(D, "22:00") + 1)).toBe(false)
+    expect(fitsRules(person().rules, T(D, "10:00"), T(D, "10:00"))).toBe(false)
+  })
+  it("uses outside-horizon neighbours for travel without emitting out-of-range meetings", () => {
+    const host = { ...person([ev("2026-12-04", "00:00", "01:00", "office")]), windows: Array.from({ length: 7 }, (_, weekday) => ({ weekday, startMin: 0, endMin: 1440 })) }
+    const client = { ...person(), windows: host.windows }
+    const s = slots(host, client)
+    expect(s.every(x => x.endMs <= T("2026-12-04", "00:00"))).toBe(true)
+    expect(startsOf(s, "2026-12-03", SPECIAL.id, T30.id)).not.toContain("23:00")
+    expect(startsOf(s, "2026-12-03", ONLINE.id, T30.id)).toContain("23:30")
+  })
+})

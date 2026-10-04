@@ -1,7 +1,7 @@
 import type { Chip } from "./chips"
-import { matchesDimension } from "./filter"
+import { matchesDimension, clientUnits, hostUnits } from "./filter"
 import { MIN_BUTTON_GAP_MIN } from "./options"
-import type { Filter, FilterKey, RankedSlot } from "./types"
+import type { EffectiveConditions, Place, Filter, FilterKey, RankedSlot } from "./types"
 
 const SOFT_WORD = { strong: "강하게 선호", weak: "약하게 선호" } as const
 const DIMENSIONS: FilterKey[] = ["dateRange", "weekdays", "timeOfDay", "places", "meetingTypes"]
@@ -37,10 +37,15 @@ export interface OptionBasis {
   /** Soft preferences this slot satisfies / misses, by condition text. */
   matched: string[]
   missed: string[]
+  clientScoreUnits?: number
+  hostScoreUnits?: number
+  hostTieBreakUsed?: boolean
   slackMin: number
 }
 
 export interface SelectionBasis {
+  sources?: EffectiveConditions["sources"]
+  hostTieBreakUsed?: boolean
   /** Conditions every option satisfies (strength "must"). */
   must: string[]
   /** Soft conditions used for scoring, with how strongly they were asked for. */
@@ -56,14 +61,19 @@ export interface SelectionBasis {
 export function selectionBasis(input: {
   top: RankedSlot[]
   ranked: RankedSlot[]
-  filter: Filter
+  filter: EffectiveConditions
+  places?: Place[]
   chips: Chip[]
   label: (r: RankedSlot) => string
 }): SelectionBasis {
   const { top, ranked, filter, chips } = input
   const soft = chips.filter((c) => DIMENSIONS.includes(c.key) && (c.strength === "strong" || c.strength === "weak"))
   const plain = ranked.slice(0, top.length)
+  const tieUsed = (r: RankedSlot) => ranked.some(other => other !== r && clientUnits(other) === clientUnits(r)
+    && (!filter.order || other.slot.startMs === r.slot.startMs) && hostUnits(other) < hostUnits(r))
   return {
+    sources: filter.sources,
+    hostTieBreakUsed: top.some(tieUsed),
     must: chips.filter((c) => c.strength === "must").map((c) => c.text),
     preferred: chips.filter((c) => c.strength === "strong" || c.strength === "weak").map((c) => `${c.text}(${SOFT_WORD[c.strength as "strong" | "weak"]})`),
     order: describeOrder(filter),
@@ -71,8 +81,11 @@ export function selectionBasis(input: {
     minGapMin: MIN_BUTTON_GAP_MIN,
     options: top.map((r) => ({
       label: input.label(r),
-      matched: soft.filter((c) => matchesDimension(r.slot, filter, c.key)).map((c) => c.text),
-      missed: soft.filter((c) => !matchesDimension(r.slot, filter, c.key)).map((c) => c.text),
+      clientScoreUnits: r.clientScoreUnits,
+      hostScoreUnits: r.hostScoreUnits,
+      hostTieBreakUsed: tieUsed(r),
+      matched: soft.filter((c) => matchesDimension(r.slot, filter, c.key, input.places)).map((c) => c.text),
+      missed: soft.filter((c) => !matchesDimension(r.slot, filter, c.key, input.places)).map((c) => c.text),
       slackMin: Math.round(r.slot.slackMin),
     })),
   }

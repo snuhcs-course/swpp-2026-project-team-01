@@ -1,13 +1,6 @@
-import { z } from "zod"
-import { body, handle, type Ctx } from "@/server/api"
-import { currentUser, db, llm, now } from "@/server/context"
-import { runTurn } from "@/server/services/chat"
-
-export function POST(req: Request, ctx: Ctx<{ id: string }>) {
-  return handle(async () => {
-    const { id } = await ctx.params
-    const { text } = await body(req, z.object({ text: z.string().trim().min(1).max(500) }))
-    const user = await currentUser()
-    return Response.json(await runTurn(db(), llm(), { conversationId: id, clientId: user.id, text }, now()))
-  })
-}
+import {DomainError} from '@/contracts/common'
+import {handleCommand} from '@/server/command-api'
+import {requireActor} from '@/server/session'
+const retired=(req:Request)=>handleCommand(async()=>{await requireActor(req);throw new DomainError('invalid_input','예약 화면에서 새 탐색을 시작해 주세요')})
+export const POST=retired
+export const DELETE=retired

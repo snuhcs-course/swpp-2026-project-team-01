@@ -1,5 +1,5 @@
 import { formatKstDateTime, weekdayKo } from "./time"
-import type { Filter, FilterKey, MeetingType, Place, Slot, Strength } from "./types"
+import type { EffectiveConditions, Filter, FilterKey, MeetingType, Place, Slot, Strength } from "./types"
 
 export interface Chip {
   key: FilterKey
@@ -26,7 +26,7 @@ function weekdaysLabel(days: number[]): string {
 
 const md = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`
 
-export function filterChips(filter: Filter, places: Place[], types: MeetingType[]): Chip[] {
+export function filterChips(filter: EffectiveConditions, places: Place[], types: MeetingType[]): Chip[] {
   const chips: Chip[] = []
   const push = (key: FilterKey, text: string, strength: Strength | null) =>
     chips.push({ key, text, strength, label: strength ? `${text} · ${STRENGTH_LABEL[strength]}` : text })
@@ -40,6 +40,7 @@ export function filterChips(filter: Filter, places: Place[], types: MeetingType[
   if (filter.places) {
     push("places", filter.places.placeIds.map((id) => places.find((p) => p.id === id)?.name ?? id).join("·"), filter.places.strength)
   }
+  if (filter.meetingMode) push("places", filter.meetingMode.value === "online" ? "온라인" : "오프라인", filter.meetingMode.strength)
   if (filter.meetingTypes) {
     push("meetingTypes", filter.meetingTypes.ids.map((id) => types.find((t) => t.id === id)?.name ?? id).join("·"), filter.meetingTypes.strength)
   }

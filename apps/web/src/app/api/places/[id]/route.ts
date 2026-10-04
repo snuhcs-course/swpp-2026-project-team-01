@@ -9,13 +9,13 @@ export function PATCH(req: Request, ctx: Ctx<{ id: string }>) {
   return handle(async () => {
     const { id } = await ctx.params
     const input = await body(req, schema)
-    return (await updatePlace(db(), (await currentUser()).id, id, input)) ? Response.json({ ok: true }) : fail("not_found", "장소를 찾을 수 없어요")
+    return (await updatePlace(db(), (await currentUser(req)).id, id, input)) ? Response.json({ ok: true }) : fail("not_found", "장소를 찾을 수 없어요")
   })
 }
 
-export function DELETE(_req: Request, ctx: Ctx<{ id: string }>) {
+export function DELETE(req: Request, ctx: Ctx<{ id: string }>) {
   return handle(async () => {
     const { id } = await ctx.params
-    return (await deletePlace(db(), (await currentUser()).id, id)) ? Response.json({ ok: true }) : fail("not_found", "장소를 찾을 수 없어요")
+    return (await deletePlace(db(), (await currentUser(req)).id, id)) ? Response.json({ ok: true }) : fail("not_found", "장소를 찾을 수 없어요")
   })
 }

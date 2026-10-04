@@ -3,20 +3,20 @@ import { logEvent } from "@/server/log"
 
 const env = process.env as Record<string, string | undefined>
 const original = env.NODE_ENV
-afterEach(() => {
+afterEach(async () => {
   env.NODE_ENV = original
   delete env.LOG_LEVEL
   vi.restoreAllMocks()
 })
 
 describe("logEvent", () => {
-  it("is silent under test", () => {
+  it("is silent under test", async () => {
     const spy = vi.spyOn(console, "log").mockImplementation(() => {})
     logEvent("x", { a: 1 })
     expect(spy).not.toHaveBeenCalled()
   })
 
-  it("prints one JSON object per line otherwise, and can be silenced", () => {
+  it("prints one JSON object per line otherwise, and can be silenced", async () => {
     const spy = vi.spyOn(console, "log").mockImplementation(() => {})
     env.NODE_ENV = "development"
     logEvent("chat.turn", { count: 3 })

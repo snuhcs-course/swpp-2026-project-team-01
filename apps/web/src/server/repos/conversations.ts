@@ -30,7 +30,7 @@ const toRow = (r: typeof schema.conversations.$inferSelect): ConversationRow => 
   id: r.id,
   clientId: r.clientId,
   hostId: r.hostId,
-  filter: JSON.parse(r.filterJson) as Filter,
+  filter: Object.fromEntries(Object.entries(JSON.parse(r.filterJson) as Record<string, { state: string; value?: unknown }>).filter(([, entry]) => entry.state === "override").map(([key, entry]) => [key, entry.value])) as Filter,
 })
 
 export async function getConversation(db: Db, id: string): Promise<ConversationRow | undefined> {
@@ -50,7 +50,9 @@ export async function getOrCreateConversation(db: Db, clientId: string, hostId: 
 }
 
 export async function saveFilter(db: Db, id: string, filter: Filter): Promise<void> {
-  await db.update(schema.conversations).set({ filterJson: JSON.stringify(filter) }).where(eq(schema.conversations.id, id))
+  await db.update(schema.conversations)
+    .set({ filterJson: JSON.stringify(Object.fromEntries(Object.entries(filter).map(([key, value]) => [key, { state: "override", value }]))) })
+    .where(eq(schema.conversations.id, id))
 }
 
 export async function listMessages(db: Db, conversationId: string): Promise<MessageView[]> {

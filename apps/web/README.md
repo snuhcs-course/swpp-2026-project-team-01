@@ -32,7 +32,9 @@ npm test                  # 단위·서버 테스트 (서버 테스트는 PGlite
 
 스키마는 리포 루트 `supabase/schemas/scheduler.sql`에 있고, 바꿀 때는 루트 `AGENTS.md`의 "Supabase schema changes" 절차를 따른다. `src/server/db/schema.ts`(Drizzle)도 같이 맞춘다.
 
-개발 서버와 `npm start`는 `127.0.0.1`에만 열린다(인증이 없는 데모라서). 서버 로그는 JSON 한 줄씩 나오고 `LOG_LEVEL=silent`로 끌 수 있다.
+`npm run dev:mock`은 데모 모드 인스턴스를 3100 포트에서 따로 띄운다(`.next-mock`에 빌드되어 실제 모드 인스턴스와 나란히 실행 가능). 데모 모드에서 Calendar 연결은 Google 대신 계정별 예시 일정을 가져온다.
+
+개발 서버와 `npm start`는 `127.0.0.1`에만 열린다. 서버 로그는 JSON 한 줄씩 나오고 `LOG_LEVEL=silent`로 끌 수 있다.
 
 ## 환경 변수
 | 이름 | 설명 |
@@ -41,6 +43,10 @@ npm test                  # 단위·서버 테스트 (서버 테스트는 PGlite
 | `OLLAMA_API_KEY_1..3` | Ollama Cloud 키. 401/403/429 응답 시 다음 키로 로테이션 |
 | `OLLAMA_MODEL` | 기본 `gemma4:31b` |
 | `DATABASE_URL` | Postgres 연결 문자열. 로컬은 `supabase status`의 DB URL, 원격은 Supabase transaction pooler(6543) URL |
+| `APP_MODE` | `demo`(기본, 시드 계정·사용자 전환·예시 Calendar) 또는 `real`(Google 로그인·Calendar 읽기). DB는 한 번 모드에 묶이며 섞어 쓸 수 없다 |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` | real 모드 전용. 리디렉션 URI는 Google Cloud console에 등록한 값과 같아야 한다 |
+| `TOKEN_ENCRYPTION_KEY` / `IMPACT_SIGNING_KEY` | real 모드 전용 32바이트 키(`openssl rand -hex 32`) |
+| `DATABASE_POOL_MAX` | 선택. 연결 풀 크기(기본 5) |
 
 ## 데모 시나리오
 데모 전에 `npm run db:reset`으로 오늘 날짜 기준 데이터를 새로 만든다. 상단 "현재 사용자"로 역할을 바꾼다.

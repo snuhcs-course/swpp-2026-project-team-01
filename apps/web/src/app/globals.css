@@ -1,1 +1,186 @@
 @import "tailwindcss";
+
+/*
+ * Design direction — "시간표 노트 (timetable ledger)"
+ * A calm, cool-paper working surface with one deep teal "calendar ink" accent.
+ * Times are always tabular figures; time ranges are drawn on a 24h track.
+ * Raw values live on :root so the dark theme can swap them; @theme inline
+ * exposes them to Tailwind as utilities (bg-surface, text-ink, ring-focus …).
+ */
+
+:root {
+  color-scheme: light;
+  --canvas: #f3f5f7;
+  --surface: #ffffff;
+  --surface-sunken: #eef1f4;
+  --surface-raised: #ffffff;
+  --ink: #131a22;
+  --ink-soft: #33404d;
+  --muted: #5b6876;
+  --subtle: #687482;
+  --border: #dbe1e7;
+  --border-strong: #808d9b;
+
+  --primary: #0b6670;
+  --primary-hover: #08525a;
+  --primary-ink: #ffffff;
+  --primary-soft: #e3f1f2;
+  --primary-soft-ink: #0a4c53;
+
+  --success: #1f7a45;
+  --success-soft: #e5f4ea;
+  --success-ink: #155a32;
+  --warn: #9a5800;
+  --warn-soft: #fdf3e1;
+  --warn-ink: #6d3f00;
+  --danger: #b4232f;
+  --danger-soft: #fceaec;
+  --danger-ink: #8a1822;
+
+  --track-work: #c9d2db;
+  --focus: #0b6670;
+  --shadow-color: 215 30% 20%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --canvas: #0f1419;
+    --surface: #161d24;
+    --surface-sunken: #11171d;
+    --surface-raised: #1c242d;
+    --ink: #e7edf2;
+    --ink-soft: #c5cfd8;
+    --muted: #9aa7b4;
+    --subtle: #7f8c99;
+    --border: #2a3540;
+    --border-strong: #64727f;
+
+    --primary: #4fb8c1;
+    --primary-hover: #74cad1;
+    --primary-ink: #04252a;
+    --primary-soft: #143036;
+    --primary-soft-ink: #9adbe0;
+
+    --success: #5cc48a;
+    --success-soft: #13291d;
+    --success-ink: #9fe0b9;
+    --warn: #e2a64a;
+    --warn-soft: #2d2412;
+    --warn-ink: #f2cf94;
+    --danger: #f07a83;
+    --danger-soft: #331a1d;
+    --danger-ink: #f7b3b8;
+
+    --track-work: #34414e;
+    --focus: #74cad1;
+    --shadow-color: 210 40% 2%;
+  }
+}
+
+@theme inline {
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-raised: var(--surface-raised);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-ink: var(--primary-ink);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-soft-ink: var(--primary-soft-ink);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-ink: var(--success-ink);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-ink: var(--warn-ink);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-ink: var(--danger-ink);
+  --color-track-work: var(--track-work);
+  --color-focus: var(--focus);
+
+  /* Type scale (rem, 16px root): caption 13 · small 14 · body 15 · lead 17 · h3 18 · h2 20 · h1 26 · display 32 */
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.25rem;
+  --text-small: 0.875rem;
+  --text-small--line-height: 1.375rem;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.5rem;
+  --text-lead: 1.0625rem;
+  --text-lead--line-height: 1.625rem;
+  --text-h3: 1.125rem;
+  --text-h3--line-height: 1.625rem;
+  --text-h2: 1.25rem;
+  --text-h2--line-height: 1.75rem;
+  --text-h1: 1.625rem;
+  --text-h1--line-height: 2.125rem;
+  --text-display: 2rem;
+  --text-display--line-height: 2.5rem;
+
+  /* Radius: controls 8 · cards 12 · sheets 16 */
+  --radius-control: 0.5rem;
+  --radius-card: 0.75rem;
+  --radius-sheet: 1rem;
+
+  --shadow-card: 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 1px 1px hsl(var(--shadow-color) / 0.04);
+  --shadow-raised: 0 8px 24px -8px hsl(var(--shadow-color) / 0.18), 0 2px 6px hsl(var(--shadow-color) / 0.08);
+  --shadow-bar: 0 -6px 20px -10px hsl(var(--shadow-color) / 0.25);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    /* Korean reads better when words are not split mid-syllable-cluster. */
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  h1, h2, h3 {
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  input[type="checkbox"], input[type="radio"] {
+    accent-color: var(--primary);
+  }
+  summary {
+    cursor: pointer;
+  }
+  ::selection {
+    background: var(--primary-soft);
+    color: var(--primary-soft-ink);
+  }
+}
+
+@layer utilities {
+  /* Times and dates line up in columns. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

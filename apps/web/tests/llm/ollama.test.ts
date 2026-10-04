@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ModelOutputError, OllamaClient, OllamaHttpError, classifyFailure, extractJson, ollamaConfigFromEnv } from "@/llm/ollama"
+import { ModelOutputError, ModelTruncatedError, OllamaClient, OllamaHttpError, classifyFailure, extractJson, ollamaConfigFromEnv } from "@/llm/ollama"
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } })
@@ -113,5 +113,16 @@ describe("classifyFailure", () => {
     expect(classifyFailure(new OllamaHttpError(402))).toBe("unavailable")
     expect(classifyFailure(new TypeError("fetch failed"))).toBe("unavailable")
     expect(classifyFailure(new Error("aborted"))).toBe("unavailable")
+  })
+  it("reports structured output cut off by the token limit as a distinct failure", async () => {
+    const { c } = client(() => jsonResponse(200, { message: { role: "assistant", content: '{"a":[1,' }, done_reason: "length" }))
+    const error = await c.chat([{ role: "user", content: "u" }], { json: true }).catch(e => e)
+    expect(error).toBeInstanceOf(ModelTruncatedError)
+    expect(error).toBeInstanceOf(ModelOutputError)
+    expect(classifyFailure(error)).toBe("unparseable")
+  })
+  it("does not treat a length stop as an error for free-text calls", async () => {
+    const { c } = client(() => jsonResponse(200, { message: { role: "assistant", content: "partial text" }, done_reason: "length" }))
+    expect(await c.chat([{ role: "user", content: "u" }])).toBe("partial text")
   })
 })

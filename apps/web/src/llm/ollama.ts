@@ -46,6 +46,14 @@ export class ModelOutputError extends Error {
   }
 }
 
+/** The model hit the output-token limit mid-answer. Retrying the same input at temperature 0 cannot help; shrink the request. */
+export class ModelTruncatedError extends ModelOutputError {
+  constructor() {
+    super("model output was cut off by the token limit")
+    this.name = "ModelTruncatedError"
+  }
+}
+
 export type LlmFailure = "unavailable" | "unparseable"
 
 /** Bad model output is "unparseable"; anything else (HTTP status, timeout, network) is "unavailable". */
@@ -91,10 +99,13 @@ export class OllamaClient implements ChatClient {
 
     const keys = this.orderedKeys()
     if (keys.length === 0) throw new OllamaHttpError(401)
+    const deadline = Date.now() + (this.config.timeoutMs ?? 20_000)
     let lastStatus = 500
     for (let i = 0; i < keys.length; i += 1) {
+      const remaining = deadline - Date.now()
+      if (remaining <= 0) throw new Error("LLM request deadline exceeded")
       const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), this.config.timeoutMs ?? 60_000)
+      const timer = setTimeout(() => controller.abort(), remaining)
       try {
         const response = await this.fetchFn(this.config.apiUrl, {
           method: "POST",
@@ -106,6 +117,8 @@ export class OllamaClient implements ChatClient {
         if (RETRYABLE_KEY_STATUSES.has(response.status) && i + 1 < keys.length) continue
         if (!response.ok) throw new OllamaHttpError(response.status)
         const data = (await response.json()) as Record<string, unknown>
+        // Structured output that stopped on the token limit is never complete, however parseable it looks.
+        if ((options.json ?? false) && data.done_reason === "length") throw new ModelTruncatedError()
         return messageContent(data)
       } finally {
         clearTimeout(timer)

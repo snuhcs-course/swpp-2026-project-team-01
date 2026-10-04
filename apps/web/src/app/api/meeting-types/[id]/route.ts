@@ -9,13 +9,13 @@ export function PATCH(req: Request, ctx: Ctx<{ id: string }>) {
   return handle(async () => {
     const { id } = await ctx.params
     const input = await body(req, schema)
-    return (await updateMeetingType(db(), (await currentUser()).id, id, input)) ? Response.json({ ok: true }) : fail("not_found", "양식을 찾을 수 없어요")
+    return (await updateMeetingType(db(), (await currentUser(req)).id, id, input)) ? Response.json({ ok: true }) : fail("not_found", "양식을 찾을 수 없어요")
   })
 }
 
-export function DELETE(_req: Request, ctx: Ctx<{ id: string }>) {
+export function DELETE(req: Request, ctx: Ctx<{ id: string }>) {
   return handle(async () => {
     const { id } = await ctx.params
-    return (await deleteMeetingType(db(), (await currentUser()).id, id)) ? Response.json({ ok: true }) : fail("not_found", "양식을 찾을 수 없어요")
+    return (await deleteMeetingType(db(), (await currentUser(req)).id, id)) ? Response.json({ ok: true }) : fail("not_found", "양식을 찾을 수 없어요")
   })
 }

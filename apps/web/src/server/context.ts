@@ -1,7 +1,9 @@
-import { cookies } from "next/headers"
+import {redirect} from "next/navigation"
+import {DomainError} from "@/contracts/common"
+import { requireActor } from "./session"
 import { ollamaConfigFromEnv, OllamaClient } from "@/llm/ollama"
 import { getDb, type Db } from "./db/client"
-import { listUsers, type UserRow } from "./repos/users"
+import { getUser, type UserRow } from "./repos/users"
 
 export const USER_COOKIE = "uid"
 
@@ -9,13 +11,10 @@ export function db(): Db {
   return getDb()
 }
 
-/** The user chosen in the header switcher; falls back to the first seeded user. */
-export async function currentUser(): Promise<UserRow> {
-  // Read cookies first: it makes the route dynamic, so `next build` never queries the database.
-  const id = (await cookies()).get(USER_COOKIE)?.value
-  const users = await listUsers(getDb())
-  if (users.length === 0) throw new Error("No users. Run `npm run db:reset`.")
-  return users.find((u) => u.id === id) ?? users[0]
+/** Verified session in real mode; demo switching is explicitly isolated. */
+export async function currentUser(request?: Request): Promise<UserRow> {
+  const actor = await requireActor(request).catch(e=>{if(!request&&e instanceof DomainError&&e.code==="unauthenticated")redirect("/login");throw e})
+  return (await getUser(getDb(), actor.id))!
 }
 
 const g = globalThis as unknown as { __mvpLlm?: OllamaClient }

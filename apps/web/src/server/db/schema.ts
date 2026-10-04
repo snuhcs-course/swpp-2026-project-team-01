@@ -1,4 +1,7 @@
-import { boolean, integer, pgTable, primaryKey, text, unique } from "drizzle-orm/pg-core"
+import { boolean, integer, pgTable, primaryKey, text } from "drizzle-orm/pg-core"
+
+// Typed access for the original MVP tables. The newer tables (profiles, operations, calendars, searches...) are read and written
+// with raw SQL (./sql.ts). Everything is defined in supabase/schemas/scheduler.sql, which this file must mirror.
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
@@ -22,6 +25,8 @@ export const places = pgTable("places", {
   hostId: text("host_id").notNull(),
   kind: text("kind", { enum: ["office_near", "special", "online"] }).notNull(),
   name: text("name").notNull(),
+  revision: integer("revision").notNull().default(0),
+  active: integer("active").notNull().default(1),
 })
 
 export const meetingTypes = pgTable("meeting_types", {
@@ -29,6 +34,8 @@ export const meetingTypes = pgTable("meeting_types", {
   hostId: text("host_id").notNull(),
   name: text("name").notNull(),
   durationMin: integer("duration_min").notNull(),
+  revision: integer("revision").notNull().default(0),
+  active: integer("active").notNull().default(1),
 })
 
 export const events = pgTable("events", {
@@ -41,22 +48,20 @@ export const events = pgTable("events", {
   placeRef: text("place_ref"),
   source: text("source", { enum: ["seed", "manual", "booking"] }).notNull(),
   requestId: text("request_id"),
+  revision: integer("revision").notNull().default(0),
 })
 
-export const conversations = pgTable(
-  "conversations",
-  {
-    id: text("id").primaryKey(),
-    clientId: text("client_id").notNull(),
-    hostId: text("host_id").notNull(),
-    filterJson: text("filter_json").notNull(),
-  },
-  (t) => [unique().on(t.clientId, t.hostId)],
-)
-
-export const messages = pgTable("messages", {
+// The original chat API (/api/conversations) rides on the per-visit booking search tables.
+export const conversations = pgTable("booking_searches", {
   id: text("id").primaryKey(),
-  conversationId: text("conversation_id").notNull(),
+  clientId: text("client_id").notNull(),
+  hostId: text("host_id").notNull(),
+  filterJson: text("overrides_json").notNull(),
+})
+
+export const messages = pgTable("search_messages", {
+  id: text("id").primaryKey(),
+  conversationId: text("search_id").notNull(),
   role: text("role", { enum: ["user", "assistant"] }).notNull(),
   content: text("content").notNull(),
   optionsJson: text("options_json"),
@@ -75,4 +80,10 @@ export const requests = pgTable("requests", {
   status: text("status", { enum: ["pending", "accepted", "declined", "withdrawn"] }).notNull(),
   createdAt: text("created_at").notNull(),
   decidedAt: text("decided_at"),
+  revision: integer("revision").notNull().default(0),
+  searchId: text("search_id"),
+  durationMinSnapshot: integer("duration_min_snapshot"),
+  meetingTypeNameSnapshot: text("meeting_type_name_snapshot"),
+  placeSnapshotJson: text("place_snapshot_json"),
+  definitionState: text("definition_state").notNull().default("unconfirmed"),
 })

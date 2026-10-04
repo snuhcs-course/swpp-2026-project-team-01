@@ -27,6 +27,12 @@ export async function insertRequest(
     status: "pending",
     createdAt: new Date(nowMs).toISOString(),
     decidedAt: null,
+    revision: 0,
+    searchId: null,
+    durationMinSnapshot: null,
+    meetingTypeNameSnapshot: null,
+    placeSnapshotJson: null,
+    definitionState: "unconfirmed",
   }
   await db.insert(schema.requests).values(row)
   return row

@@ -1,11 +1,11 @@
-import { applyFilter } from "./filter"
+import { applyFilter, clientUnits, hostUnits, compareMeaningful, matchesDimension, strengthOf } from "./filter"
 import { kstDateString, kstParts, kstWeekStart } from "./time"
-import type { Filter, RankedSlot, Slot, Summary } from "./types"
+import type { EffectiveConditions, Place, Filter, RankedSlot, Slot, Summary } from "./types"
 
 const RELAXABLE = ["dateRange", "weekdays", "timeOfDay", "places", "meetingTypes"] as const
 const EPS = 1e-9
 
-export function summarize(ranked: RankedSlot[], filter: Filter, allSlots: Slot[]): Summary {
+export function summarize(ranked: RankedSlot[], filter: EffectiveConditions, allSlots: Slot[], places: Place[] = []): Summary {
   const byWeek = new Map<string, number>()
   const byWeekday = [0, 0, 0, 0, 0, 0, 0]
   const byTimeOfDay = { morning: 0, afternoon: 0, evening: 0 }
@@ -30,21 +30,28 @@ export function summarize(ranked: RankedSlot[], filter: Filter, allSlots: Slot[]
   }
 
   const topScore = ranked.length > 0 ? ranked[0].score : null
-  const tieCountAtTop = topScore === null ? 0 : ranked.filter((r) => Math.abs(r.score - topScore) < EPS).length
+  const tieCountAtTop = topScore === null ? 0 : ranked.filter((r) => compareMeaningful(r, ranked[0], filter) === 0).length
 
   const relax: Summary["relax"] = {}
   if (ranked.length === 0) {
     for (const key of RELAXABLE) {
-      const f = filter[key]
+      const f = key === "places" ? filter.places ?? filter.meetingMode : filter[key]
       if (f && f.strength === "must") {
         const without = { ...filter }
         delete without[key]
-        relax[key] = applyFilter(allSlots, without).length
+        if (key === "places") delete without.meetingMode
+        relax[key] = applyFilter(allSlots, without, places).length
       }
     }
   }
 
   return {
+    outcome: !ranked.length ? (allSlots.length ? "must_no_results" : "no_availability") : ranked.some(r => RELAXABLE.every(k => {
+      const strength = strengthOf(filter, k)
+      return strength !== "strong" && strength !== "weak" || matchesDimension(r.slot, filter, k, places)
+    })) ? "available" : "preference_mismatch",
+    topClientScoreUnits: ranked.length ? clientUnits(ranked[0]) : null,
+    topHostScoreUnits: ranked.length ? hostUnits(ranked[0]) : null,
     count: ranked.length,
     firstDate: first,
     lastDate: last,

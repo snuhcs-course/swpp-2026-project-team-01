@@ -29,6 +29,7 @@ export class BookingError extends Error {
 export const MESSAGE_MAX = 500
 
 export interface RequestView {
+  revision: number
   id: string
   clientId: string
   clientName: string
@@ -135,9 +136,10 @@ export async function acceptRequest(db: Db, requestId: string, hostId: string, n
 async function toView(db: Db, r: RequestRow, nowMs: number): Promise<RequestView> {
   const { places, meetingTypes } = await computeNames(db, r.hostId)
   const startMs = Date.parse(r.startAt)
-  const placeName = places.get(r.placeId) ?? "(삭제된 장소)"
-  const typeName = meetingTypes.get(r.meetingTypeId) ?? "(삭제된 양식)"
+  const placeName = (r.placeSnapshotJson ? JSON.parse(r.placeSnapshotJson).name as string : null) ?? places.get(r.placeId) ?? "(삭제된 장소)"
+  const typeName = r.meetingTypeNameSnapshot ?? meetingTypes.get(r.meetingTypeId) ?? "(삭제된 양식)"
   return {
+    revision: r.revision,
     id: r.id,
     clientId: r.clientId,
     clientName: (await getUser(db, r.clientId))?.name ?? r.clientId,

@@ -7,6 +7,12 @@ export const SLOT_STEP_MIN = 30
 export const HORIZON_DAYS = 60
 export const MIN_LEAD_HOURS = 2
 
+/** Half-open interval of epoch milliseconds. */
+export interface TimeRange {
+  fromMs: number
+  toMs: number
+}
+
 const WEEKDAY_KO = ["일", "월", "화", "수", "목", "금", "토"]
 
 export interface KstParts {
