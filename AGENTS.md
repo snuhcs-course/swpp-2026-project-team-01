@@ -61,6 +61,22 @@ OpenSpec validation checks artifact structure and specification consistency; it 
 
 Reference: [OpenSpec quickstart](https://openspec.dev/docs/quickstart).
 
+## Git workflow and pull requests
+
+The four-person team uses GitHub Flow: `main` -> short-lived working branch -> pull request -> review and checks -> merge -> branch deletion. Keep `main` ready to deploy as application code is added; use working branches for incomplete work.
+
+- Create each working branch from the latest `main` and give it one bounded purpose. Use descriptive names such as `feat/booking-approval` or `docs/development-workflow`; Codex-created branches use the `codex/` prefix.
+- Keep PRs small and separate unrelated changes. Describe the resulting behavior, rationale, and validation, including any checks that could not run. Reflect new changes on `main` regularly and resolve conflicts before merging.
+- All changes to `main` go through a PR. Require approval from at least one teammate other than the author and passing relevant CI checks before merging. Until relevant CI exists, run the applicable local checks and record the results and gaps in the PR.
+- Configure GitHub branch protection or rulesets to enforce the review and required checks on `main`.
+- Use **Squash and merge** by default so each PR becomes one logical commit on `main`. Use the commit-message format below for the PR title and final squash message, and preserve useful Lore decision context in the final message.
+- Use **Rebase and merge** as an exception when the PR's individual commits are already meaningful, independently reviewable, and worth retaining. Ordinary PRs do not need merge commits.
+- Delete the working branch after merging and start the next task from the latest `main`, especially after a squash merge. Coordinate with teammates before rewriting history on shared branches.
+
+Use this workflow without a permanent `develop` branch. Reconsider Git Flow or release branches if the project needs concurrent supported versions or a separate release-stabilization period.
+
+References: [GitHub Flow](https://docs.github.com/en/get-started/using-github/github-flow) and [PR merge methods](https://docs.github.com/en/pull-requests/reference/pull-request-merges).
+
 ## Commit messages
 
 Use Conventional Commit types with the Lore Commit Protocol. Start every commit message with `type(scope): intent`; the scope is optional. Keep the intent concise, use an imperative verb, and explain why the change is needed.
