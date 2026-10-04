@@ -29,6 +29,18 @@ Separately labelled synthetic, fresh context-bound 20-minute host allowances dem
 
 The [read-only SDK probe](../../scripts/p0/photon_transport_probe.mjs) imports exact `@spectrum-ts/core` and `@spectrum-ts/imessage` 12.10.1 packages installed only under ignored `.local/photon-transport-probe/node_modules`. Run `node scripts/p0/photon_transport_probe.mjs` after installing those exact scratch dependencies. It reads ignored credentials, disables telemetry, and looks up availability for a random reserved `example.invalid` address without sending or reading a message. [Captured results](../../scripts/p0/photon-transport-probe-results-2026-10-05.json) distinguish successful SDK initialization from the denied provider RPC. The configured project loaded metadata with `name`, `profile`, and `slug`; the runtime omitted the `id` declared by its type, so the probe cannot assert ID equality from that response. The read-only call reached the provider and returned gRPC `PERMISSION_DENIED` (7), and shutdown completed. A nonzero probe exit is expected for this captured denial. Task 2.3 remains open: no authorized conversation or delivery was tested.
 
+### Isolated OAuth baseline
+
+The [OAuth harness](../../scripts/p0/oauth-probe.mjs), [probe server](../../scripts/p0/mcp-probe-server.mjs), and [terminal baseline](../../scripts/p0/mcp-probe-client.mjs) exercise a separate disposable local Auth project, `fmat-p0-oauth-probe`, on API port 55321, with a loopback-only identity consent page and diagnostic MCP resource on port 8788. Production and the normal local project are unchanged. Credentials, authorization codes, tokens and probe grants stay in ignored `.local/p0-oauth` files with mode 0600. The server provides one read-only diagnostic tool; it is a compatibility harness, not the product's P5 permission or MCP implementation.
+
+[Captured baseline evidence](../../scripts/p0/oauth-probe-results-2026-10-05.json) records actual Chrome consent for browser and terminal harness journeys. DCR, S256 PKCE, code exchange, ES256 signature, issuer, client ID, subject/UserInfo binding, and rotating refresh all succeeded. Default initial and refreshed tokens retained `aud=authenticated` despite the requested MCP resource; strict MCP initialization returned 401, and application grants stayed inactive. Revoking each OAuth grant returned 204, subsequent refresh returned 400, and UserInfo with the old access token returned 403. The local gateway's standards discovery path returned 404; the issuer-local fallback returned 200. These outcomes are recorded separately.
+
+Actual Codex CLI 0.154.0 completed DCR, synthetic identity consent and OAuth login using a temporary configuration override. Its final browser receipt rendered `ERR_BLOCKED_BY_CLIENT` after the CLI had received and exchanged the code; the CLI reported successful login. Logout removed its credentials, and its server-side fixture grant was revoked. This attempt did not exercise actual Codex tool calls or refresh, so it does not mark client compatibility passed.
+
+An isolated [Postgres audience hook](../../scripts/p0/oauth-probe-audience-hook.sql), installed by the guarded [hook helper](../../scripts/p0/oauth-probe-hook.mjs), assigns the fixed loopback MCP audience only to explicitly allowlisted OAuth client IDs. Regular sign-in and unknown clients retain `authenticated`. Fresh browser and terminal harness journeys issued and refreshed correctly signed resource-audience tokens, matching UserInfo subjects and client IDs; MCP initialization, notification, tool listing and diagnostic calls passed. OAuth revocation denied refresh and UserInfo, and revoked application grants denied the diagnostic tool. Actual signed-token negative checks rejected normal sign-in tokens, unallowlisted clients and a client-ID mismatch. All fixture OAuth/application grants were revoked after testing.
+
+The [negative suite](../../scripts/p0/oauth-probe-negatives.mjs) also measured a limitation: a mapped client requesting another resource still received the fixed MCP audience and could initialize MCP, while its absent application grant denied the tool. This follows Supabase's documented client-specific audience hook pattern, but it does not enforce RFC 8707 resource selection. Production authorization needs resource enforcement, production consent, application grant persistence and full named-client tool journeys before the compatibility gate can pass. Reproduction is documented in the [isolated probe guide](../../scripts/p0/oauth-probe-README.md). [Token security and custom audience hooks](https://supabase.com/docs/guides/auth/oauth-server/token-security).
+
 ## Runtime and interface decisions
 
 - Web: React, Vite, TypeScript and npm, hosted on Vercel. The requested shadcn preset `b6rtA2Hmi` uses Nova, olive/green, Inter, large controls and Lucide icons; the web implementation owns installation/version evidence.
@@ -70,7 +82,7 @@ These are selected contracts; capability tests and the phase records must prove 
 
 ## Required client matrix and remaining gates
 
-No application MCP endpoint existed when these probes ran. Therefore none of the seven has passed discovery → registration → authorization → tool calls → refresh → revocation → proposal confirmation. Installed software and vendor documentation do not prove a journey.
+A local diagnostic MCP harness now exists. No production application MCP endpoint or complete named-client journey has been verified. None of the seven has passed discovery → registration → authorization → tool calls → refresh → revocation → proposal confirmation. Installed software and vendor documentation do not prove a journey.
 
 | Required client | Available evidence | Actual application journey | Confirmation baseline |
 |---|---|---|---|
@@ -78,7 +90,7 @@ No application MCP endpoint existed when these probes ran. Therefore none of the
 | Muse | macOS app 1.0, build 1070843164 installed | Untested; no application server/client grant | Authenticated web |
 | Instinct | Not found in standard app directories; no tested remote session | Untested; client session unavailable | Authenticated web |
 | ChatGPT | macOS app 26.930.31730, build 12947 installed | Untested; connector entitlement/settings and browser flow not exercised | Authenticated web |
-| Codex | CLI 0.154.0 available; this task runs in Codex App | Untested; no application MCP OAuth flow | Authenticated web |
+| Codex | CLI 0.154.0; actual isolated fixture DCR/consent/token login and logout succeeded | Partial local OAuth evidence; actual tool calls, refresh and proposal confirmation untested | Authenticated web |
 | Claude | macOS app 1.40609.0 installed | Untested; custom connector flow not exercised | Authenticated web |
 | Claude Code | CLI 2.1.252 available | Untested; no application MCP OAuth flow | Authenticated web |
 

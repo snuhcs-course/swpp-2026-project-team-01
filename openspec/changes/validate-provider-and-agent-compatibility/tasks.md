@@ -9,7 +9,7 @@
 
 ## 2. Actual client and conversation compatibility gates
 
-- [ ] 2.1 Enable the intended Supabase OAuth/DCR configuration and test a minimal application MCP tool in an actual browser client and terminal client; verify discovery, registration, redirects, token audience, refresh, revocation, and application-owned grants with captured evidence.
+- [ ] 2.1 Enable the intended Supabase OAuth/DCR configuration and test a minimal application MCP tool in an actual browser client and terminal client; verify discovery, registration, redirects, token audience, refresh, revocation, and application-owned grants with captured evidence. Isolated browser/terminal harnesses passed code/refresh/revoke and read-only MCP calls with a client-bound audience hook; actual Codex CLI login passed. `scripts/p0/oauth-probe-results-2026-10-05.json` also captures default-audience rejection and missing requested-resource enforcement. Production configuration and complete named-client tool journeys remain open.
 - [ ] 2.2 Exercise requester and host roles in all seven named clients; verify permissions, current-proposal confirmation, stale decisions, and denied/revoked access with actual client versions recorded.
 - [ ] 2.3 Exercise Photon SDK authentication and a controlled conversation through the selected Node/Bun bridge; verify runtime compatibility, routing, delivery, and explicit web confirmation continuation.
 - [ ] 2.4 Exercise AgentMail signature verification, reply threading, and uncertain-send recovery with dedicated identities; verify raw-body signatures, replay rejection, and idempotency-window handling.
