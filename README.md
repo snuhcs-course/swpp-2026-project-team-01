@@ -1,28 +1,23 @@
-# SNU-SWPP-Template
+# Find Me a Time
 
-You can use the README file to showcase and promote your mobile app. The template provided below is just a starting point. Feel free to craft your README as you see fit. 
+An AI scheduling agent for external one-to-one meetings. It negotiates times and books only with host approval.
 
-Please note that the README doesn't affect your grade and is not included in documentation(Wiki).
+Domain: [findmeatime.com](https://findmeatime.com)
 
-# [Your Application Name]
+Team: SNU SWPP Project Team 01
 
-[Short application description here]
+## Planned experience
 
-![Application Screenshot](path_to_screenshot.png)
+- Find suitable times using Google Calendar, host preferences, and location and travel constraints.
+- Coordinate requests through booking links, email, or agents without requiring requesters to create an account.
+- Require the host's approval of the current proposal before booking.
 
-## Features
+See the [project one-pager](documentations/01_one_pager.md) for the target users, product scope, and principles.
 
-- Feature 1: Brief description
-- Feature 2: Brief description
-- ...
+## Repository layout
 
-## Getting Started
+- `apps/`: application code.
+- `documentations/`: project documentation and research.
+- `supabase/`: local Supabase configuration and database migrations.
 
-### Prerequisites
-
-- Android Studio [version, e.g., 4.2.1]
-- Minimum Android SDK Version [e.g., 21]
-
-### Installation
-
-[Installation link here]
+See the [planned repository structure](documentations/technical_specification/02_repo_structure.md) for the web/CLI apps, Supabase Edge Functions, shared modules, and test layout.
