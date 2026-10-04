@@ -5,7 +5,9 @@ This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, r
 ## Repository layout
 
 - `apps/`: application code. Add app-specific setup and test instructions when an app is created.
-- `documentations/`: project documentation.
+- `documentations/`: product direction, release scope, research, and explanatory documentation, starting with `0_one_pager.md`.
+- `openspec/specs/`: main capability specifications, with detailed behavior in `<capability>/spec.md`.
+- `openspec/changes/`: proposed behavior changes and archived implementation records.
 - `supabase/`: local Supabase configuration and future database migrations.
 
 ## Tooling prerequisites
@@ -14,12 +16,30 @@ Assume the GitHub CLI (`gh`), Vercel CLI (`vercel`), and Supabase CLI (`supabase
 
 Use Supabase CLI **2.119.0** for this repository and confirm it with `supabase --version`. Coordinate CLI upgrades across the team and recheck the schema workflow when upgrading.
 
+Use OpenSpec CLI **1.14.0** with the core profile and Codex integration. Install it with `brew install openspec` (macOS) or `npm install -g @fission-ai/openspec@1.14.0` (Node.js 20.19.0+), then verify with `openspec --version`. Initialize a fresh checkout with `openspec init --tools codex --profile core`. After a coordinated CLI upgrade, run `openspec update` in this repository and review the generated skill changes.
+
 ## Working agreements
 
 - Read the relevant files before editing and avoid guessing the product architecture or dependencies.
 - Keep secrets, credentials, and local environment files out of Git. Add examples when configuration needs to be shared.
 - Run the relevant checks for files you change, and report any checks that cannot run.
 - Update documentation when setup steps or behavior change.
+
+## Documentation and specifications
+
+Keep the documents complementary rather than duplicating the same requirements:
+
+- `documentations/` owns product purpose, audience, release scope, research, and explanations such as architecture overviews. The one-pager and PRD describe product intent; link to capability specs for detailed behavior.
+- `openspec/specs/<capability>/spec.md` owns the current agreed behavioral contract for that capability, including requirements and observable scenarios. Keep it aligned with completed, verified changes.
+- `openspec/changes/<change-name>/` owns proposed deltas, their rationale, technical decisions when needed, and implementation tasks. Pending requirements stay here until the change is completed and archived into the main specs.
+
+Use OpenSpec for substantial feature or behavior changes. Routine documentation edits, maintenance, and small fixes that preserve existing behavior do not need a new proposal. Start with a bounded change, review its requirements, implement and test it, then archive it to update the main specs. Do not promote unresolved PRD decisions or draft requirements into settled specifications.
+
+If product documents and capability specs disagree, resolve the discrepancy explicitly before implementing the affected behavior. Update the owning document and its links instead of silently choosing one interpretation or maintaining conflicting copies.
+
+OpenSpec validation checks artifact structure and specification consistency; it does not prove the implementation works. Run relevant automated tests and review the code before treating a change as complete. Keep `openspec/config.yaml`, specifications, change artifacts, and generated project skills in Git.
+
+Reference: [OpenSpec quickstart](https://openspec.dev/docs/quickstart).
 
 ## Commit messages
 
@@ -61,6 +81,7 @@ Project skills live in `.agents/skills/`. Read the matching `SKILL.md` before wo
 - `supabase`: Supabase CLI, Auth, database, Storage, Realtime, and Edge Functions.
 - `supabase-postgres-best-practices`: Postgres schema, queries, indexes, and RLS.
 - `shadcn`: shadcn/ui components and configuration, if the team adopts shadcn/ui.
+- `openspec-*`: generated core workflows for exploring, proposing, applying, and archiving behavior changes.
 
 ## Supabase schema changes
 

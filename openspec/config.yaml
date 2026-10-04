@@ -1,0 +1,15 @@
+schema: spec-driven
+
+context: |
+  Follow AGENTS.md, especially its documentation and specification ownership rules.
+  Keep product direction and release scope in documentations/, detailed capability
+  behavior in openspec/specs/, and proposed deltas in openspec/changes/.
+  Unresolved PRD decisions remain proposals; do not silently treat them as agreed requirements.
+
+rules:
+  proposal:
+    - Link relevant product documents and existing capability specs; identify unresolved decisions explicitly.
+  specs:
+    - Specify observable behavior and testable scenarios; reference product documents instead of duplicating their narrative.
+  tasks:
+    - Include relevant tests for changed behavior and updates to the owning documents.
