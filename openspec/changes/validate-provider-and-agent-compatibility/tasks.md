@@ -17,5 +17,5 @@
 ## 3. Calendar and phase evidence
 
 - [ ] 3.1 Complete actual host and requester Google consent/refresh and controlled Calendar reads/writes; verify separate scopes, callback binding, reconnect behavior, and exact deployment redirect URLs.
-- [ ] 3.2 Validate Routes coverage for intended geography and travel modes using controlled physical itineraries; verify missing estimates are unresolved and both adjacent directions fit with host margins.
+- [x] 3.2 Validate Routes coverage for intended geography and travel modes using controlled physical itineraries; verify missing estimates are unresolved and both adjacent directions fit with host margins. Public Seoul landmark evidence is in `scripts/p0/travel-evaluator-results-2026-10-05.json`: 12 live Routes calls through the actual evaluator, both directions, 10-minute margins, ample/tight gaps, unresolved DRIVE/WALK, and separately labelled synthetic manual allowances.
 - [x] 3.3 Record P0 exit evidence and blockers in the owning implementation/provider documentation; verify fixture probes are not presented as actual client, human-consent, messaging, or Calendar booking success.

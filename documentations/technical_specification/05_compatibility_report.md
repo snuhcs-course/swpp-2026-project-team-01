@@ -12,11 +12,22 @@ Run `python3 scripts/p0/probe_providers.py` from the repository root. Add `--rou
 | OAuth-specific discovery | `/.well-known/oauth-authorization-server/auth/v1`: HTTP 404, `feature_disabled` | OAuth server/DCR must be enabled before client testing |
 | Supabase signing keys | JWKS HTTP 200, ES256 | Issued user/client token validation, audience and revoked-grant rejection |
 | AgentMail pod application key | HTTP 200, one inbox, configured development inbox visible | Webhook verification, delivery, reply threading, uncertain-send recovery |
-| Photon CLI project access | Project matches configured ID; assigned-line list empty | SDK authentication, shared-pool test-user routing and actual delivery |
+| Photon CLI project access | Project matches configured ID; assigned-line list empty | Shared-pool test-user routing and actual delivery |
+| Photon Node SDK transport | Node 24.15.0, Spectrum core/iMessage 12.10.1 initialized and loaded project metadata; read-only gRPC returned `PERMISSION_DENIED` (7); client stopped cleanly | Authorized transport, controlled conversation, routing and delivery |
 | Google Routes, Seoul City Hall → Seoul Station | DRIVE and WALK: HTTP 200 with no routes. TRANSIT: one route, latest captured estimate 512 seconds, 1,562 metres | Coverage for other routes/modes, time-specific traffic and estimate freshness |
 | OpenAI Responses | HTTP 200, completed; pinned `gpt-4o-mini-2024-07-18` returned exact synthetic 30-minute online-meeting schema | Korean extraction quality, injection resistance, refusals and ranking quality |
 
 Generic OpenID metadata also returned HTTP 200 and advertised code/PKCE S256. That generic endpoint is available while the OAuth server feature is disabled; it cannot establish MCP OAuth readiness. No Calendar grant/refresh token was present in the P0 credential inventory, so actual consent, refresh, Calendar reads/writes and lost-response reconciliation were not exercised.
+
+### Travel evaluator probe
+
+The [controlled itinerary probe](../../scripts/p0/travel-evaluator-probe.ts) calls the actual Routes adapter and scheduling evaluator for Seoul City Hall → Seoul Station → N Seoul Tower. [Captured results](../../scripts/p0/travel-evaluator-results-2026-10-05.json) contain 12 live Routes calls, both adjacent directions, a 30-minute meeting, 10-minute host margins, and separate 120-minute and 15-minute gaps. TRANSIT returned durations for both legs: ample gaps passed and tight gaps failed. DRIVE and WALK returned no routes; both legs remained unresolved rather than becoming zero-minute trips. Google's coverage table marks driving and walking directions unavailable for South Korea. This evidence establishes the tested geography's limitation, not coverage everywhere. [Google coverage table](https://developers.google.com/maps/coverage).
+
+Separately labelled synthetic, fresh context-bound 20-minute host allowances demonstrate the manual fallback for missing DRIVE/WALK estimates: ample gaps pass and tight gaps still fail. They do not represent provider estimates or an actual human confirmation. Reproduce with `FMAT_LIVE_TRAVEL_PROBE=1 deno run --env-file=.env --allow-env=FMAT_LIVE_TRAVEL_PROBE,GOOGLE_ROUTES_API_KEY,GOOGLE_MAPS_API_KEY --allow-net=routes.googleapis.com scripts/p0/travel-evaluator-probe.ts`. A run consumes at most 12 normal billable Routes calls.
+
+### Photon transport probe
+
+The [read-only SDK probe](../../scripts/p0/photon_transport_probe.mjs) imports exact `@spectrum-ts/core` and `@spectrum-ts/imessage` 12.10.1 packages installed only under ignored `.local/photon-transport-probe/node_modules`. Run `node scripts/p0/photon_transport_probe.mjs` after installing those exact scratch dependencies. It reads ignored credentials, disables telemetry, and looks up availability for a random reserved `example.invalid` address without sending or reading a message. [Captured results](../../scripts/p0/photon-transport-probe-results-2026-10-05.json) distinguish successful SDK initialization from the denied provider RPC. The configured project loaded metadata with `name`, `profile`, and `slug`; the runtime omitted the `id` declared by its type, so the probe cannot assert ID equality from that response. The read-only call reached the provider and returned gRPC `PERMISSION_DENIED` (7), and shutdown completed. A nonzero probe exit is expected for this captured denial. Task 2.3 remains open: no authorized conversation or delivery was tested.
 
 ## Runtime and interface decisions
 

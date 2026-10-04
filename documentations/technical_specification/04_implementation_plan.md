@@ -25,7 +25,7 @@ The repository now includes React/Vite with shadcn preset `b6rtA2Hmi`, a Hono/De
 | Prepared | Evidence and remaining work |
 |---|---|
 | Supabase project and local credentials | Project reference is configured; application access, migrations, Auth flows, and deployed functions still need verification. |
-| Google Cloud, Calendar OAuth credentials, and Routes key | Calendar and Routes APIs enabled. OAuth client credentials passed a negative-control check; a sample Routes request returned a duration and distance. Calendar consent, reads/writes, redirect URLs, and target-region routing remain untested. |
+| Google Cloud, Calendar OAuth credentials, and Routes key | Calendar and Routes APIs enabled. OAuth client credentials passed a negative-control check; registered callbacks were re-read. The controlled Seoul itinerary tested both adjacent directions through the actual evaluator: TRANSIT passed ample gaps and failed tight gaps with buffers; DRIVE/WALK stayed unresolved. Calendar consent, refresh and reads/writes remain untested. See the compatibility report for captured evidence. |
 | OpenAI API key | Present locally; choose and test the model and structured-result contract. |
 | AgentMail and Photon | See the provider setup record for verified provisioning and untested delivery. Their credentials do not establish application integration or Edge runtime compatibility. |
 | Development tools | Supabase CLI 2.119.0, OpenSpec CLI 1.14.0, provider CLIs, and shared skills. Confirm local Docker/runtime readiness during foundation work. |
