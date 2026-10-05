@@ -2,7 +2,7 @@
 
 외부 미팅이 잦은 직장인(VC, 스타트업 대표, 영업직 등)을 위한 일정 조율 웹앱입니다. 호스트가 가능한 시간을 링크로 공유하고, 요청자가 Google Calendar를 연결해 미팅을 요청하면 양쪽 일정을 확인한 뒤 호스트가 최종 수락하는 흐름을 구현했습니다.
 
-> **로컬 개발 환경과 팀원 테스트용 배포 환경을 함께 사용합니다.** 테스트 주소는 https://caltalk-mvp.vercel.app 이며, 로컬 주소는 `http://localhost:3000`입니다. 두 환경은 기존 개인 Supabase 클라우드 DB를 공유합니다. 배포는 완료했으며 Google 로그인용 배포 주소 등록이 남아 있습니다. [설정 및 테스트 안내](documentaions/team-test-deployment.md)를 참고하세요.
+> **로컬 개발 환경과 팀원 테스트용 배포 환경을 함께 사용합니다.** 테스트 주소는 https://caltalk-mvp.vercel.app 이며, 로컬 주소는 `http://localhost:3000`입니다. 두 환경은 기존 개인 Supabase 클라우드 DB를 공유합니다. 배포와 Google 로그인용 배포 주소 등록을 완료했습니다. 실제 계정으로 로그인한 이후의 전체 미팅 흐름은 추가 확인이 필요합니다. [설정 및 테스트 안내](documentaions/team-test-deployment.md)를 참고하세요.
 
 ## 구현된 주요 기능
 

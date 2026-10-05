@@ -76,4 +76,4 @@ pnpm build
 
 ## 팀원 테스트 배포
 
-https://caltalk-mvp.vercel.app 에 Vercel CLI로 배포했습니다. 기존 개인 Supabase DB를 로컬 환경과 공유합니다. Google 배포 리디렉션 URI 등록과 실제 로그인 이후 흐름 확인이 남아 있습니다. [배포 설정 및 다음 작업](../../documentaions/team-test-deployment.md)을 참고하세요.
+https://caltalk-mvp.vercel.app 에 Vercel CLI로 배포했습니다. 기존 개인 Supabase DB를 로컬 환경과 공유합니다. Google 배포 리디렉션 URI 등록을 완료했으며 주소 불일치 오류가 해소된 것을 확인했습니다. 실제 로그인 이후의 전체 미팅 흐름 확인은 남아 있습니다. [배포 설정 및 다음 작업](../../documentaions/team-test-deployment.md)을 참고하세요.
