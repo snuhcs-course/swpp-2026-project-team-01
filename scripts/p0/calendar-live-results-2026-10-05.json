@@ -1,0 +1,29 @@
+{
+  "checked_at": "2026-10-05T06:09:45.100533+00:00",
+  "window": {
+    "start": "2026-10-06T14:00:00+09:00",
+    "end": "2026-10-06T14:30:00+09:00",
+    "timezone": "Asia/Seoul"
+  },
+  "live_checks": {
+    "account_free_request_created": true,
+    "host_calendar_feasibility_read": true,
+    "feasible_candidate_count": 1,
+    "current_proposal_prepared": true,
+    "verification_provider_accepted": true,
+    "verification_delivery_job_complete": true,
+    "requester_contact_verified": false,
+    "requester_agreed": false,
+    "host_approved": false,
+    "calendar_event_created": false
+  },
+  "remaining": [
+    "requester_contact_verification",
+    "requester_google_consent",
+    "explicit_current_proposal_agreement",
+    "explicit_host_approval",
+    "live_calendar_event_creation",
+    "lost_response_recovery"
+  ],
+  "conclusion": "Actual host Calendar feasibility and a current proposal verified. Verification email accepted by provider; recipient possession, agreement, approval and booking remain separate pending steps."
+}

@@ -1,0 +1,81 @@
+{
+  "date": "2026-10-05",
+  "scope": [
+    "website host setup conversation",
+    "requester conversation",
+    "private iMessage setup bridge"
+  ],
+  "checks": {
+    "application": {
+      "typecheck": true,
+      "lint": true,
+      "deno_tests_passed": 147,
+      "node_tests_passed": 11,
+      "production_build": true
+    },
+    "database": {
+      "complete_local_reset": true,
+      "sql_assertions_passed": 394,
+      "private_turns_serialized": true,
+      "unlink_dispatch_lock": true,
+      "post_unlink_authorization_rejected": true
+    },
+    "bridge": {
+      "tests_passed": 23,
+      "external_messages_sent": 0,
+      "validated_provider_id_preserved_after_acknowledgement_loss": true,
+      "blind_resend": false
+    },
+    "browser": {
+      "setup_areas": 14,
+      "setup_mutations": 9,
+      "requester_areas": 10,
+      "requester_mutations": 24,
+      "existing_areas": 25,
+      "existing_mutations": 17,
+      "workspace_areas": 9,
+      "widths": [
+        1440,
+        390,
+        320
+      ]
+    },
+    "cross_channel": {
+      "actual_local_auth_rpc_http": true,
+      "fixture_google_and_model": true,
+      "private_link_and_browser_opt_in": true,
+      "web_imessage_web_resume": true,
+      "stale_review_rejected": true,
+      "ready_profile": true,
+      "external_messages_sent": 0
+    },
+    "openspec_strict": true
+  },
+  "bundle": {
+    "entry_js_kb": 225.11,
+    "entry_gzip_kb": 70.92,
+    "eager_js_kb_approx": 324,
+    "lazy_chat_js_kb": 654.05,
+    "lazy_chunk_size_warning": true
+  },
+  "visual_review": {
+    "iteration": 6,
+    "score": 93,
+    "verdict": "pass",
+    "limitation": "Installed visual-verdict skill shim has no referenced full body; screenshot/manual review fallback recorded in ignored OMX state."
+  },
+  "production": {
+    "deployment_pending": true,
+    "bridge_enabled": false,
+    "new_server_proposed": "Fly.io",
+    "hosting_account_billing_choice_pending": true,
+    "real_linked_host_journey_verified": false
+  },
+  "live_calendar": {
+    "controlled_proposal_prepared": true,
+    "requester_contact_verified": false,
+    "requester_agreement": false,
+    "host_approval": false,
+    "event_created": false
+  }
+}

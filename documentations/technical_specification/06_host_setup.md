@@ -124,3 +124,24 @@ A subsequent operator-issued invitation for the user-designated controlled host 
 
 Production Google callbacks were subsequently saved and re-read in the intended client console: the exact production and localhost5173 callbacks above are registered, preserving the original Supabase Auth callback. This proves registration, not human consent or Calendar reads.
 
+## Conversational setup
+
+The primary `/host/setup` surface is a durable website conversation built with the official AI Elements Conversation, Message, PromptInput and Suggestion components, adapted to the existing Base UI shadcn preset `b6rtA2Hmi`. Authenticated, admitted hosts can describe scheduling preferences, inspect a concrete settings review and explicitly save it. The structured controls remain available for recovery and precise calendar choices. Signing in and redeeming an invitation precede private chat access; Google consent still opens in the browser.
+
+One private host conversation owns the transcript, conversation revision, draft revision and settings review. Reloading or returning from consent reads that state from the server. Text interpretation updates a draft only; it cannot approve a meeting or create an event. Incomplete or ambiguous settings produce a question. Unsupported rules and model failures leave saved rules unchanged. Sensitive credentials, linking proofs and URL fragments are filtered from transcripts and model input. Calendar choices use actual authorized calendar IDs, and duplicate names or insufficient write permission require the protected website controls.
+
+Choose **Confirm and save proposed settings** on the current review. A different chat turn or saved rules version invalidates that review, including a turn received on the other channel. Readiness still requires admission, confirmed rules, an active Google grant, selected conflict calendars and a writable booking destination. Shareable links appear only after those checks pass.
+
+### Private iMessage linking and recovery
+
+Website chat remains available while the Photon bridge is disabled. Its enabled flag defaults false; credentials alone do not enable it. When the persistent runtime is operational, **Link iMessage** creates a short-lived challenge in the authenticated browser. The host sends the displayed `LINK` instruction in a private iMessage conversation, returns to the website, checks the masked sender and explicitly confirms the binding. Sending the instruction alone does not opt in. Challenges expire, are single-use, and cannot bind another browser account, sender or group conversation.
+
+An unlinked sender can instead start in iMessage and receive a short-lived browser continuation. After browser authentication and admission, a fresh challenge must be sent from that same private sender and confirmed in the browser. The continuation does not grant private data access, and long-lived credentials are never put in a URL.
+
+Linked hosts resume the same draft and transcript in either channel. In iMessage, `CONFIRM` followed by the exact current review number saves that review; a plain “yes” does not. Google consent and protected calendar selection continue in the authenticated website. **Unlink iMessage** revokes the binding and blocks future private processing or dispatch; relinking requires new proofs. Unknown delivery outcomes remain uncertain and are never blindly resent.
+
+See the [bridge runtime and new-server deployment guide](../../apps/photon-bridge/README.md) and [pending capability change](../../openspec/changes/conversational-host-setup/proposal.md). A new server is required; the Fly.io configuration is prepared, with account/billing selection still pending. Production linked-host onboarding remains an unchecked acceptance gate.
+
+## Real host setup evidence (2026-10-05)
+
+The controlled host completed invitation redemption, browser-bound Google consent, actual authorized calendar listing, calendar selection and confirmed rules. The authenticated browser showed all five setup steps complete and the public booking profile returned ready. A read-only production query verified recipient-bound redemption, the saved OAuth exchange, encrypted active host credentials, required host scopes and selected calendars without exposing tokens or calendar content. [Sanitized M1 evidence](../../scripts/p0/host-setup-live-results-2026-10-05.json). Natural-expiry refresh, disconnect/reconnect, requester consent and live event creation remain separate unchecked gates.

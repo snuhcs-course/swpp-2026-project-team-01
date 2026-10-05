@@ -13,7 +13,7 @@ Make the personal agent the primary entry point for agent users: paste `Let me u
 
 Publishing a booking link and receiving requests as a host is waitlist/invite-only; connecting Google Calendar as a requester is available without an invitation. The public root skill explains this and directs users without access to web waitlist entry or invitation redemption. Existing admitted hosts resume setup normally. Requesters using an active host's link remain account-free and do not need invitations. They can optionally connect Google Calendar through a separate browser consent flow to check availability; this does not enroll them as hosts.
 
-Build one responsive web application for mobile and desktop. Web handles host setup, full request management, connection settings, and recovery, while the public booking page lets requesters coordinate without an account. A native mobile app is outside the initial release.
+Build one responsive web application for mobile and desktop. Website chat and linked private iMessage guide host setup through the same durable draft and explicit settings review. Sign-in, invitations and Google consent continue in the browser. Web also handles full request management, connection settings, and recovery, while the public booking page lets requesters coordinate without an account. A native mobile app is outside the initial release.
 
 For hosts who use iMessage, make the linked private conversation their main day-to-day channel for request summaries, discussion, and decisions. Hosts can instead use web or a supported personal agent. Channel choice should not require repeating a conversation or maintaining a second request.
 
@@ -101,3 +101,14 @@ Three permissions remain distinct: Google Calendar authorization lets our servic
 
 All channels inherit the PRD's privacy and lifecycle rules. Changed proposals require fresh approval; stale messages and retries cannot duplicate bookings. A delivered message, read receipt, requester agreement, or unconfirmed calendar write must never be reported as a confirmed meeting.
 
+## Implemented website conversation slice
+
+The [host setup guide](../technical_specification/06_host_setup.md#conversational-setup) describes the
+website preference chat, exact settings review and private iMessage linking contract. The bridge has
+local fixture evidence and a prepared server configuration; a production linked-host journey still
+requires provisioned runtime and separate live verification. Website setup works while it is disabled.
+
+The [requester conversation guide](../technical_specification/07_request_and_booking_runtime.md#website-requester-conversation)
+describes review/apply, evaluation, candidate selection and exact-proposal agreement on the protected
+request page. Free text has no agreement or approval authority. These bounded implementations do not
+establish the broader email, MCP, CLI or full iMessage scheduling journeys in the design above.

@@ -203,7 +203,7 @@ declare v_request fmat.requests;
 begin
   case p_operation
   when 'mutation_replay' then
-    if p_input->>'operation' not in ('proposal_create','proposal_revise','manual_allowance_save','preference_exception_save') or p_input->>'operation' is null then raise exception 'INVALID_INPUT'; end if;
+    if p_input->>'operation' not in ('proposal_create','proposal_revise','manual_allowance_save','preference_exception_save','details_update') or p_input->>'operation' is null then raise exception 'INVALID_INPUT'; end if;
     perform fmat.request_authorize(p_input->>'operation',p_actor,p_input);
   when 'request_create' then
     if p_actor->>'kind' is distinct from 'public' then raise exception 'FORBIDDEN'; end if;
@@ -232,12 +232,14 @@ declare v_request fmat.requests; v_host fmat.hosts; v_details jsonb; v_id uuid; 
 begin
   perform fmat.request_authorize(p_operation,p_actor,p_input);
   if p_operation='mutation_replay' then
-    if jsonb_typeof(p_input->'clientInput') is distinct from 'object' or exists(select 1 from jsonb_object_keys(p_input->'clientInput') k where k not in ('requestId','expectedRevision','start','end','mode','location','edge','durationMinutes','confirmed','proposalVersion','reason','idempotencyKey')) then raise exception 'INVALID_INPUT'; end if;
+    if jsonb_typeof(p_input->'clientInput') is distinct from 'object' or exists(select 1 from jsonb_object_keys(p_input->'clientInput') k where k not in ('requestId','expectedRevision','start','end','mode','location','edge','durationMinutes','confirmed','proposalVersion','reason','idempotencyKey','patch','reviewedRevision')) then raise exception 'INVALID_INPUT'; end if;
     if p_input->'clientInput'->>'requestId' is distinct from p_input->>'requestId' then raise exception 'INVALID_INPUT'; end if;
     v_scope:=p_actor->>'kind'||':'||coalesce(p_actor->>'id',p_actor->>'tokenHash');
     select * into v_replay from fmat.idempotency where actor_scope=v_scope and operation=p_input->>'operation' and key=p_input->>'idempotencyKey';
     if not found or v_replay.result is null then return jsonb_build_object('found',false); end if;
-    if ((case when p_input->>'operation'='manual_allowance_save' then v_replay.input->'clientInput' else v_replay.input end) @> (p_input->'clientInput')) is not true then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
+    if p_input->>'operation'='details_update' then
+      if v_replay.input->'clientInput' is distinct from p_input->'clientInput' then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
+    elsif ((case when p_input->>'operation'='manual_allowance_save' then v_replay.input->'clientInput' else v_replay.input end) @> (p_input->'clientInput')) is not true then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
     return jsonb_build_object('found',true,'result',v_replay.result);
   end if;
   if p_operation='request_create' then

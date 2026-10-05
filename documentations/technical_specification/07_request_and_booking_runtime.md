@@ -26,6 +26,28 @@ Provider calls share a single **18-second deadline** per evaluation, including O
 
 The database caps model claims at eight per request. Extraction receives bounded requester fields, validates a strict JSON shape, and treats English/Korean messages as untrusted data. Refusals, malformed output, and unavailable model access preserve explicit form-based continuation. Model output supplies suggestions, never agreement, human approval, private-data authority, or Calendar commands.
 
+## Website requester conversation
+
+The account-free protected request page uses the official AI Elements transcript and prompt input.
+A requester can describe changes to purpose, mode, location or availability. A message saves shared
+conversation text and may return a revision-bound advisory review. Choose **Apply these changes**
+to update those fields explicitly. Identity and duration remain in their existing structured workflow.
+The review is transient; after reloading, ask again or use the details controls. Saved details and
+conversation messages remain durable.
+
+Next choose **Check availability**, review actual evaluated candidates, and choose **Review this
+time**. The resulting exact proposal shows its date, start/end, timezone, duration, mode, location,
+purpose and requester. Check the displayed agreement box and choose **Agree and send to host**.
+Candidate selection is invalidated by a newer request revision; agreement confirmation is invalidated
+by a changed proposal version. Host approval is still separate. A message such as “yes” or “book it”
+cannot select a time, express agreement, approve or book. Model clarification cannot assert booking
+or approval. Failed submissions preserve the typed message and retry identity.
+
+The host's private notes/conversation stay separate from this shared transcript. Changes use the same
+ownership, revision, feasibility and idempotency guards as the structured controls. A lost response
+from applying a review can be retried with the identical key and patch; altered fields or window
+order/cardinality conflict, and a stale review with a new key cannot overwrite newer details.
+
 ## Approval, frozen dispatch, and reconciliation
 
 Host approval is a separate authenticated web action. The HTTP adapter supplies server-attributed confirmation source; SQL requires that source, explicit confirmation, owning host, current revision/proposal, requester agreement, and verified contact. Google consent and agent permission do not supply meeting approval.

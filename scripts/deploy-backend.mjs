@@ -27,6 +27,9 @@ const secrets = {
   OPENAI_MODEL: process.env.OPENAI_MODEL ?? 'gpt-4o-mini-2024-07-18',
   TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY,
   WORKER_SECRET: process.env.WORKER_SECRET,
+  PHOTON_BRIDGE_ENABLED: process.env.PHOTON_BRIDGE_ENABLED ?? 'false',
+  PHOTON_BRIDGE_SECRET: process.env.PHOTON_BRIDGE_SECRET,
+  PHOTON_CONTACT_URL: process.env.PHOTON_CONTACT_URL,
   AGENTMAIL_API_KEY: process.env.AGENTMAIL_API_KEY,
   AGENTMAIL_INBOX_ID: process.env.AGENTMAIL_INBOX_ID,
   CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID,
@@ -39,6 +42,15 @@ if (!secrets.TOKEN_ENCRYPTION_KEY || !secrets.WORKER_SECRET) {
   throw new Error(
     'Persist TOKEN_ENCRYPTION_KEY and WORKER_SECRET in the ignored .env before deployment; never rotate them implicitly',
   );
+}
+if (
+  (secrets.PHOTON_BRIDGE_SECRET &&
+    (secrets.PHOTON_BRIDGE_SECRET.length < 32 ||
+      secrets.PHOTON_BRIDGE_SECRET === secrets.WORKER_SECRET ||
+      secrets.PHOTON_BRIDGE_SECRET === process.env.SUPABASE_SECRET_KEY)) ||
+  (secrets.PHOTON_BRIDGE_ENABLED === 'true' && !secrets.PHOTON_BRIDGE_SECRET)
+) {
+  throw new Error('Enabled Photon bridge requires a separate PHOTON_BRIDGE_SECRET');
 }
 if (secrets.TRANSACTIONAL_EMAIL_ENABLED === 'true' || secrets.EXTERNAL_SENDS_ENABLED === 'true') {
   if (

@@ -226,6 +226,19 @@ async function routeWorkspace(context, hostJwt) {
         assert.match(req.headers()["idempotency-key"], /^[a-f0-9-]{36}$/)
         mutations.push({ path, body: req.postDataJSON() })
       }
+      if (path === "/host/setup/conversation") {
+        return fulfill(route, {
+          id: "fixture-conversation",
+          revision: 1,
+          turns: [],
+          draft: null,
+          review: null,
+          setup: setupState,
+          channelLink: null,
+        })
+      }
+      if (path === "/host/imessage/link")
+        return fulfill(route, { available: false, link: null, challenge: null })
       if (path === "/host/setup" && req.method() === "GET") {
         return fulfill(route, setupState)
       }
@@ -393,7 +406,9 @@ try {
   watchErrors(desktop)
   setupState = structuredClone(states.unadmitted)
   await desktop.goto(`${origin}/host/setup`)
-  await desktop.getByRole("heading", { name: "Your workspace" }).waitFor()
+  await desktop
+    .getByRole("heading", { name: "Your calendar, in conversation" })
+    .waitFor()
   await desktop.getByText("0 of 5 steps complete.", { exact: false }).waitFor()
   await desktop
     .getByRole("heading", { name: "A spot for your calendar" })
@@ -414,12 +429,17 @@ try {
   setupState = structuredClone(states.admitted)
   await desktop.reload()
   await desktop.getByText("2 of 5 steps complete.", { exact: false }).waitFor()
+  await desktop.getByRole("button", { name: "Use settings editor" }).click()
   await desktop
     .getByRole("heading", { name: "Your scheduling rules" })
     .waitFor()
-  await desktop.getByRole("heading", { name: "Your calendars" }).waitFor()
+  await desktop
+    .getByRole("heading", { name: "Your calendars" })
+    .first()
+    .waitFor()
   await desktop
     .getByRole("button", { name: "Connect Google Calendar" })
+    .first()
     .waitFor()
   await desktop.getByLabel("Display name").fill("Dodo Park")
   const setupMutationsBeforeSave = mutations.filter(
@@ -442,6 +462,7 @@ try {
   await desktop.reload()
   await desktop.getByText("5 of 5 steps complete.", { exact: false }).waitFor()
   await desktop.getByText("Booking link ready", { exact: true }).waitFor()
+  await desktop.getByRole("button", { name: "Use settings editor" }).click()
   await desktop.getByText(`${origin}/dodo`, { exact: true }).waitFor()
   const bookingDestination = desktop.getByLabel("Booking destination")
   await bookingDestination.waitFor()
@@ -450,6 +471,7 @@ try {
     await bookingDestination.locator('option[value="primary"]').textContent(),
     "Primary calendar"
   )
+  await desktop.getByRole("button", { name: "Close settings editor" }).click()
   await assertNoOverflow(desktop, "Ready desktop workspace")
   await desktop.screenshot({
     path: "test-results/workspace/setup-ready-desktop.png",
@@ -496,7 +518,9 @@ try {
   watchErrors(mobile)
   setupState = structuredClone(states.ready)
   await mobile.goto(`${origin}/host/setup`)
-  await mobile.getByRole("heading", { name: "Your workspace" }).waitFor()
+  await mobile
+    .getByRole("heading", { name: "Your calendar, in conversation" })
+    .waitFor()
   const sidebarToggle = mobile.getByRole("button", { name: "Toggle Sidebar" })
   await sidebarToggle.click()
   const sidebarDialog = mobile.getByRole("dialog", { name: "Sidebar" })
@@ -537,7 +561,9 @@ try {
   watchErrors(narrow)
   setupState = structuredClone(states.ready)
   await narrow.goto(`${origin}/host/setup`)
-  await narrow.getByRole("heading", { name: "Your workspace" }).waitFor()
+  await narrow
+    .getByRole("heading", { name: "Your calendar, in conversation" })
+    .waitFor()
   await narrow.getByRole("button", { name: "Toggle Sidebar" }).click()
   await narrow
     .getByTitle(

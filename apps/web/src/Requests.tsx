@@ -64,6 +64,27 @@ import {
   MessageScrollerItem,
   MessageScrollerButton,
 } from "@/components/ui/message-scroller"
+import {
+  Conversation as AIConversation,
+  ConversationContent as AIConversationContent,
+  ConversationEmptyState as AIConversationEmptyState,
+  ConversationScrollButton as AIConversationScrollButton,
+} from "@/components/ai-elements/conversation"
+import {
+  Message as AIMessage,
+  MessageContent as AIMessageContent,
+  MessageResponse as AIMessageResponse,
+} from "@/components/ai-elements/message"
+import {
+  PromptInput,
+  PromptInputProvider,
+  usePromptInputController,
+  PromptInputBody,
+  PromptInputFooter,
+  PromptInputSubmit,
+  PromptInputTextarea,
+} from "@/components/ai-elements/prompt-input"
+import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion"
 
 const closed = ["booked", "declined", "withdrawn", "expired"]
 const statusLabels: Record<string, string> = {
@@ -142,7 +163,7 @@ export function Inbox() {
   ).length
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">
@@ -421,7 +442,7 @@ function RequestDetail({
   if (resource.loading) return <Loading />
   if (resource.error && !resource.data)
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex min-w-0 flex-col gap-6">
         <ErrorState error={resource.error} retry={resource.refresh} />
         {!host && <Recovery id={id} onRecovered={onRecovered} />}
       </div>
@@ -434,23 +455,28 @@ function RequestDetail({
   const mutation = (
     operation: string,
     body: Record<string, unknown> = {},
-    after?: () => void
-  ) =>
-    action.run(
-      (key) =>
-        api<RequestView>(`/requests/${id}/${operation}`, {
-          token,
-          idempotencyKey: key,
-          body: { ...body, expectedRevision: request.revision },
-        }),
-      (value) => {
-        resource.setData(value)
-        after?.()
-      },
-      JSON.stringify([operation, body, request.revision])
-    )
+    after?: (value: RequestView) => void
+  ) => {
+    let completed = false
+    return action
+      .run(
+        (key) =>
+          api<RequestView>(`/requests/${id}/${operation}`, {
+            token,
+            idempotencyKey: key,
+            body: { ...body, expectedRevision: request.revision },
+          }),
+        (value) => {
+          completed = true
+          resource.setData(value)
+          after?.(value)
+        },
+        JSON.stringify([operation, body, request.revision])
+      )
+      .then(() => completed)
+  }
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <div className="flex flex-col gap-4">
         <Button
           variant="ghost"
@@ -537,7 +563,7 @@ function RequestDetail({
         </Notice>
       )}
       <div className="grid items-start gap-6 lg:grid-cols-[1.2fr_1fr]">
-        <div className="flex flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-6">
           {!host && mutable && (
             <Verification
               request={request}
@@ -545,7 +571,7 @@ function RequestDetail({
               onChanged={resource.setData}
             />
           )}
-          {request.proposal && (
+          {host && request.proposal && (
             <ProposalReview
               key={`${request.revision}-${host}`}
               request={request}
@@ -560,7 +586,7 @@ function RequestDetail({
                 Request overview
               </CardTitle>
               <CardDescription>
-                The original meeting details from the requester.
+                The current meeting details from the requester.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
@@ -609,14 +635,6 @@ function RequestDetail({
               </p>
             </CardFooter>
           </Card>
-          {!host && mutable && (
-            <Candidates
-              key={`candidates-${request.revision}`}
-              request={request}
-              pending={action.pending}
-              mutate={mutation}
-            />
-          )}
           {!host && mutable && (
             <DetailsEditor
               key={`details-${request.revision}`}
@@ -670,8 +688,8 @@ function RequestDetail({
             </Card>
           )}
         </div>
-        <div className="flex flex-col gap-6">
-          <Conversation
+        <div className="flex min-w-0 flex-col gap-6">
+          <RequestConversation
             request={request}
             host={host}
             mutable={mutable}
@@ -679,7 +697,7 @@ function RequestDetail({
             mutate={mutation}
           />
           {host && (
-            <Conversation
+            <RequestConversation
               privateChat
               request={request}
               host={host}
@@ -802,7 +820,7 @@ function ProposalReview({
   mutate: (
     operation: string,
     body?: Record<string, unknown>,
-    after?: () => void
+    after?: (value: RequestView) => void
   ) => void
 }) {
   const [confirmed, setConfirmed] = useState(false)
@@ -897,76 +915,6 @@ function ProposalReview({
     </Card>
   )
 }
-function Candidates({
-  request,
-  pending,
-  mutate,
-}: {
-  request: RequestView
-  pending: boolean
-  mutate: (
-    operation: string,
-    body?: Record<string, unknown>,
-    after?: () => void
-  ) => void
-}) {
-  const [choice, setChoice] = useState("")
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle role="heading" aria-level={2}>
-          Find your time
-        </CardTitle>
-        <CardDescription>
-          We check calendar conflicts, focus time, and travel before offering an
-          option.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {request.candidates.length ? (
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="candidate">Feasible options</FieldLabel>
-              <NativeSelect
-                id="candidate"
-                value={choice}
-                onChange={(e) => setChoice(e.target.value)}
-              >
-                <NativeSelectOption value="">Choose a time</NativeSelectOption>
-                {request.candidates.map((candidate, i) => (
-                  <NativeSelectOption key={candidate.start} value={String(i)}>
-                    {timeLabel(candidate, request.details.timezone)}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </Field>
-            <Button
-              disabled={!choice || pending}
-              onClick={() =>
-                mutate("proposal", { ...request.candidates[Number(choice)] })
-              }
-            >
-              Create proposal
-            </Button>
-          </FieldGroup>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            {request.nextAction === "resolve_availability"
-              ? "No options are proven yet. Travel or availability needs clarification with the host. Update your windows or check again after clarification."
-              : "No options have been found yet. Check your availability or add a wider window below."}
-          </p>
-        )}
-        <Button
-          variant="outline"
-          disabled={pending}
-          onClick={() => mutate("evaluate")}
-        >
-          Check availability
-        </Button>
-      </CardContent>
-    </Card>
-  )
-}
 function HostRevision({
   request,
   pending,
@@ -977,7 +925,7 @@ function HostRevision({
   mutate: (
     operation: string,
     body?: Record<string, unknown>,
-    after?: () => void
+    after?: (value: RequestView) => void
   ) => void
 }) {
   const [mode, setMode] = useState(
@@ -1061,7 +1009,19 @@ function HostRevision({
     </Card>
   )
 }
-function Conversation({
+interface RequestConversationReview {
+  reviewedRevision: number
+  clarification: string
+  patch: Partial<
+    Pick<RequestView["details"], "purpose" | "mode" | "location" | "windows">
+  >
+}
+type RequestMutation = (
+  operation: string,
+  body?: Record<string, unknown>,
+  after?: (value: RequestView) => void
+) => Promise<boolean> | void
+function RequestConversation({
   request,
   host,
   mutable,
@@ -1074,30 +1034,389 @@ function Conversation({
   privateChat?: boolean
   mutable: boolean
   pending: boolean
-  mutate: (
-    operation: string,
-    body?: Record<string, unknown>,
-    after?: () => void
-  ) => void
+  mutate: RequestMutation
+}) {
+  if (privateChat)
+    return (
+      <PrivateHostConversation
+        request={request}
+        mutable={mutable}
+        pending={pending}
+        mutate={mutate}
+      />
+    )
+  return (
+    <PromptInputProvider>
+      <SharedRequestConversation
+        request={request}
+        host={host}
+        mutable={mutable}
+        pending={pending}
+        mutate={mutate}
+      />
+    </PromptInputProvider>
+  )
+}
+function SharedRequestConversation({
+  request,
+  host,
+  mutable,
+  pending,
+  mutate,
+}: {
+  request: RequestView
+  host: boolean
+  mutable: boolean
+  pending: boolean
+  mutate: RequestMutation
+}) {
+  const { value: text, setInput: setText } =
+    usePromptInputController().textInput
+  const [selection, setSelection] = useState<{
+    revision: number
+    value: string
+  } | null>(null)
+  const choice = selection?.revision === request.revision ? selection.value : ""
+  const [agreementVersion, setAgreementVersion] = useState<number | null>(null)
+  const [review, setReview] = useState<RequestConversationReview | null>(
+    () =>
+      (
+        request as RequestView & {
+          conversationReview?: RequestConversationReview
+        }
+      ).conversationReview ?? null
+  )
+  const reviewIsCurrent = review?.reviewedRevision === request.revision
+  const proposal = request.proposal
+  const quickPrompts = [
+    "I need a different day",
+    "Change this to an online meeting",
+    "Show me what happens next",
+  ]
+  return (
+    <Card className="min-w-0">
+      <CardHeader>
+        <CardTitle role="heading" aria-level={2}>
+          Scheduling conversation
+        </CardTitle>
+        <CardDescription>
+          {host
+            ? "Shared request conversation. Private review notes appear separately."
+            : "Describe changes in your own words, then review every action before it changes your request."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex min-w-0 flex-col gap-5">
+        <div className="h-96 overflow-hidden rounded-xl border bg-muted/20">
+          <AIConversation>
+            {request.messages.length === 0 ? (
+              <AIConversationEmptyState
+                title="Ready when you are"
+                description="Tell the scheduling assistant what you want to change or ask what happens next."
+              />
+            ) : (
+              <AIConversationContent>
+                {request.messages.map((message) => {
+                  const from =
+                    message.role === "requester" ? "user" : "assistant"
+                  return (
+                    <AIMessage from={from} key={message.id}>
+                      <AIMessageContent>
+                        <p className="text-xs font-medium text-muted-foreground">
+                          {message.role === "requester"
+                            ? request.details.requesterName
+                            : message.role === "assistant"
+                              ? "Scheduling assistant"
+                              : "Host"}
+                        </p>
+                        <AIMessageResponse>{message.text}</AIMessageResponse>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(message.createdAt).toLocaleString()}
+                        </p>
+                      </AIMessageContent>
+                    </AIMessage>
+                  )
+                })}
+              </AIConversationContent>
+            )}
+            <AIConversationScrollButton />
+          </AIConversation>
+        </div>
+        {!host && mutable && review && (
+          <Card size="sm" className="border-primary/30 bg-primary/5">
+            <CardHeader>
+              <Badge variant="outline" className="w-fit">
+                Review before applying
+              </Badge>
+              <CardTitle role="heading" aria-level={3}>
+                Suggested request changes
+              </CardTitle>
+              <CardDescription>{review.clarification}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <dl className="grid gap-3 text-sm">
+                {review.patch.purpose && (
+                  <div>
+                    <dt className="text-muted-foreground">Purpose</dt>
+                    <dd className="font-medium">{review.patch.purpose}</dd>
+                  </div>
+                )}
+                {review.patch.mode && (
+                  <div>
+                    <dt className="text-muted-foreground">Meeting format</dt>
+                    <dd className="font-medium">
+                      {review.patch.mode === "online" ? "Online" : "In person"}
+                    </dd>
+                  </div>
+                )}
+                {review.patch.location !== undefined && (
+                  <div>
+                    <dt className="text-muted-foreground">Location</dt>
+                    <dd className="font-medium">
+                      {review.patch.location || "No location"}
+                    </dd>
+                  </div>
+                )}
+                {review.patch.windows?.map((window, index) => (
+                  <div key={`${window.start}-${window.end}`}>
+                    <dt className="text-muted-foreground">
+                      Availability {index + 1}
+                    </dt>
+                    <dd className="font-medium">
+                      {timeLabel(window, request.details.timezone)}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              {!reviewIsCurrent && (
+                <Notice error>
+                  This review is out of date because the request changed. Send
+                  the details again to create a current review.
+                </Notice>
+              )}
+            </CardContent>
+            <CardFooter className="flex flex-wrap gap-2">
+              <Button
+                disabled={pending || !reviewIsCurrent}
+                onClick={() =>
+                  mutate(
+                    "conversation-review",
+                    {
+                      reviewedRevision: review.reviewedRevision,
+                      confirmed: true,
+                      patch: review.patch,
+                    },
+                    () => setReview(null)
+                  )
+                }
+              >
+                Apply these changes
+              </Button>
+              <Button variant="ghost" onClick={() => setReview(null)}>
+                Keep current details
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
+        {!host && mutable && !proposal && (
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle role="heading" aria-level={3}>
+                Find a time
+              </CardTitle>
+              <CardDescription>
+                Availability is checked against the current reviewed request.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              {request.candidates.length > 0 && (
+                <Field>
+                  <FieldLabel htmlFor="conversation-candidate">
+                    Feasible options
+                  </FieldLabel>
+                  <NativeSelect
+                    id="conversation-candidate"
+                    value={choice}
+                    onChange={(event) =>
+                      setSelection({
+                        revision: request.revision,
+                        value: event.target.value,
+                      })
+                    }
+                  >
+                    <NativeSelectOption value="">
+                      Choose a time
+                    </NativeSelectOption>
+                    {request.candidates.map((candidate, index) => (
+                      <NativeSelectOption
+                        key={candidate.start}
+                        value={String(index)}
+                      >
+                        {timeLabel(candidate, request.details.timezone)}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </Field>
+              )}
+            </CardContent>
+            <CardFooter className="flex flex-wrap gap-2">
+              {request.candidates.length > 0 && (
+                <Button
+                  disabled={!choice || pending}
+                  onClick={() =>
+                    mutate("proposal", {
+                      ...request.candidates[Number(choice)],
+                    })
+                  }
+                >
+                  Review this time
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                disabled={pending}
+                onClick={() => mutate("evaluate")}
+              >
+                Check availability
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
+        {!host && mutable && proposal && !request.requesterAgreed && (
+          <Card size="sm" className="border-primary/30 bg-primary/5">
+            <CardHeader>
+              <Badge variant="outline" className="w-fit">
+                Proposal {proposal.version}
+              </Badge>
+              <CardTitle role="heading" aria-level={3}>
+                {timeLabel(proposal, proposal.timezone)}
+              </CardTitle>
+              <CardDescription>
+                {proposal.mode === "online" ? "Online" : "In person"}
+                {proposal.location && ` · ${proposal.location}`}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <p className="text-sm">
+                {proposal.requesterName} · {proposal.purpose}
+              </p>
+              <Field orientation="horizontal">
+                <Checkbox
+                  id={`conversation-agree-${proposal.version}`}
+                  checked={agreementVersion === proposal.version}
+                  onCheckedChange={(value) =>
+                    setAgreementVersion(
+                      value === true ? proposal.version : null
+                    )
+                  }
+                />
+                <FieldLabel htmlFor={`conversation-agree-${proposal.version}`}>
+                  I agree to proposal {proposal.version} with this exact time,
+                  format, location, and purpose.
+                </FieldLabel>
+              </Field>
+            </CardContent>
+            <CardFooter>
+              <Button
+                disabled={
+                  pending ||
+                  agreementVersion !== proposal.version ||
+                  !request.contactVerified
+                }
+                onClick={() =>
+                  mutate("agree", { proposalVersion: proposal.version })
+                }
+              >
+                Agree and send to host
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
+        {!host && request.requesterAgreed && proposal && (
+          <Notice>
+            You agreed to proposal {proposal.version}. The host must still
+            approve it before booking begins.
+          </Notice>
+        )}
+        {!host && mutable && (
+          <>
+            <Suggestions className="min-w-0 max-w-full">
+              {quickPrompts.map((prompt) => (
+                <Suggestion
+                  key={prompt}
+                  suggestion={prompt}
+                  onClick={setText}
+                  disabled={pending}
+                />
+              ))}
+            </Suggestions>
+            <PromptInput
+              aria-label="Scheduling message"
+              onSubmit={async ({ text: submitted }) => {
+                const message = submitted.trim()
+                if (!message) return
+                const completed = await mutate(
+                  "messages",
+                  { text: message },
+                  (value) => {
+                    const next = (
+                      value as RequestView & {
+                        conversationReview?: RequestConversationReview
+                      }
+                    ).conversationReview
+                    setReview(next ?? null)
+                  }
+                )
+                if (completed === false)
+                  throw new Error(
+                    "Your message could not be saved. Please retry."
+                  )
+              }}
+            >
+              <PromptInputBody>
+                <PromptInputTextarea
+                  aria-label="Your scheduling message"
+                  maxLength={4000}
+                  placeholder="Tell me what you want to change or ask what happens next"
+                  disabled={pending}
+                />
+              </PromptInputBody>
+              <PromptInputFooter>
+                <span className="text-xs text-muted-foreground">
+                  Review is required before details or decisions change.
+                </span>
+                <PromptInputSubmit
+                  disabled={pending || !text.trim()}
+                  status={pending ? "submitted" : undefined}
+                />
+              </PromptInputFooter>
+            </PromptInput>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+function PrivateHostConversation({
+  request,
+  mutable,
+  pending,
+  mutate,
+}: {
+  request: RequestView
+  mutable: boolean
+  pending: boolean
+  mutate: RequestMutation
 }) {
   const [text, setText] = useState("")
-  const messages = privateChat
-    ? (request.privateMessages ?? [])
-    : request.messages
+  const messages = request.privateMessages ?? []
   return (
     <Card>
       <CardHeader>
         <CardTitle role="heading" aria-level={2}>
-          {privateChat
-            ? "Private host conversation"
-            : "Scheduling conversation"}
+          Private host conversation
         </CardTitle>
         <CardDescription>
-          {privateChat
-            ? "Only you and the scheduling assistant can see this discussion."
-            : host
-              ? "Shared request conversation. Private review notes appear separately."
-              : "Share missing details or ask for alternatives."}
+          Only you and the scheduling assistant can see this discussion.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
@@ -1106,7 +1425,7 @@ function Conversation({
             <EmptyHeader>
               <EmptyTitle>Ready when you are</EmptyTitle>
               <EmptyDescription>
-                Your scheduling conversation will appear here.
+                Private review notes will appear here.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -1122,43 +1441,19 @@ function Conversation({
                         messageId={message.id}
                       >
                         <Message
-                          align={
-                            (
-                              privateChat
-                                ? message.role === "host"
-                                : message.role === "requester"
-                            )
-                              ? "end"
-                              : "start"
-                          }
+                          align={message.role === "host" ? "end" : "start"}
                         >
                           <MessageContent>
                             <MessageHeader>
-                              {message.role === "requester"
-                                ? request.details.requesterName
-                                : message.role === "assistant"
-                                  ? "Scheduling assistant"
-                                  : "Host"}
+                              {message.role === "assistant"
+                                ? "Scheduling assistant"
+                                : "Host"}
                             </MessageHeader>
                             <Bubble
                               variant={
-                                (
-                                  privateChat
-                                    ? message.role === "host"
-                                    : message.role === "requester"
-                                )
-                                  ? "default"
-                                  : "muted"
+                                message.role === "host" ? "default" : "muted"
                               }
-                              align={
-                                (
-                                  privateChat
-                                    ? message.role === "host"
-                                    : message.role === "requester"
-                                )
-                                  ? "end"
-                                  : "start"
-                              }
+                              align={message.role === "host" ? "end" : "start"}
                             >
                               <BubbleContent className="break-words whitespace-pre-wrap">
                                 {message.text}
@@ -1178,36 +1473,28 @@ function Conversation({
             </MessageScrollerProvider>
           </div>
         )}
-        {(!host || privateChat) && mutable && (
+        {mutable && (
           <form
-            onSubmit={(e) => {
-              e.preventDefault()
+            onSubmit={(event) => {
+              event.preventDefault()
               if (!text.trim()) return
-              mutate(
-                privateChat ? "private-messages" : "messages",
-                { text: text.trim() },
-                () => setText("")
+              mutate("private-messages", { text: text.trim() }, () =>
+                setText("")
               )
             }}
           >
             <FieldGroup>
               <Field>
-                <FieldLabel
-                  htmlFor={privateChat ? "private-message" : "message"}
-                >
-                  {privateChat ? "Private message" : "Your message"}
+                <FieldLabel htmlFor="private-message">
+                  Private message
                 </FieldLabel>
                 <Textarea
-                  id={privateChat ? "private-message" : "message"}
+                  id="private-message"
                   value={text}
                   maxLength={4000}
                   required
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder={
-                    privateChat
-                      ? "What should I consider for this request?"
-                      : "Could we look at next week instead?"
-                  }
+                  onChange={(event) => setText(event.target.value)}
+                  placeholder="What should I consider for this request?"
                 />
               </Field>
               <Submit pending={pending}>Send message</Submit>

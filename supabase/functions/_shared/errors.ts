@@ -54,6 +54,18 @@ const statuses: Record<string, number> = {
   invalid_provider_evidence: 400,
   job_still_active: 409,
   proposal_stale: 409,
+  link_not_found: 404,
+  challenge_invalid: 400,
+  link_conflict: 409,
+  provider_message_conflict: 409,
+  outbound_conflict: 409,
+  conversation_stale: 409,
+  review_stale: 409,
+  draft_stale: 409,
+  rules_stale: 409,
+  inbound_not_found: 404,
+  inbound_not_processed: 409,
+  inbound_out_of_order: 409,
 };
 export function databaseError(message: string): DomainError {
   const normalized = message.toLowerCase();

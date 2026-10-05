@@ -1,3 +1,4 @@
+import { instant } from '../../_shared/modules/scheduling/time.ts';
 // deno-lint-ignore no-import-prefix
 import { Hono } from 'npm:hono@4.13.13';
 import { actorFor, type Database } from '../../_shared/database.ts';
@@ -5,10 +6,90 @@ import type { Environment } from '../../_shared/env.ts';
 import { DomainError } from '../../_shared/errors.ts';
 import { encryptSecret, hashToken, jsonInput, retryToken } from '../../_shared/security.ts';
 import { createEvaluator } from '../../_shared/modules/requests/evaluation.ts';
-import { createIntentExtractor } from '../../_shared/providers/model.ts';
+import { createIntentExtractor, type SchedulingIntent } from '../../_shared/providers/model.ts';
 import { travelAllowanceContext } from '../../_shared/modules/scheduling/index.ts';
 import { mutationKey } from './onboarding.ts';
 import type { RequestView } from '../../../../packages/contracts/index.ts';
+type ConversationReviewPatch = Partial<
+  Pick<RequestView['details'], 'purpose' | 'mode' | 'location' | 'windows'>
+>;
+export interface ConversationReview {
+  reviewedRevision: number;
+  clarification: string;
+  patch: ConversationReviewPatch;
+}
+function conversationPatch(
+  intent: SchedulingIntent,
+  current: RequestView['details'],
+): ConversationReviewPatch {
+  const patch: ConversationReviewPatch = {};
+  if (intent.purpose !== null && intent.purpose !== current.purpose) patch.purpose = intent.purpose;
+  if (intent.mode !== null && intent.mode !== current.mode) patch.mode = intent.mode;
+  if (intent.location !== null && intent.location !== current.location) {
+    patch.location = intent.location;
+  }
+  if (
+    intent.windows.length &&
+    JSON.stringify(intent.windows) !== JSON.stringify(current.windows)
+  ) patch.windows = intent.windows;
+  return patch;
+}
+function reviewedPatch(input: unknown, current: RequestView['details']): ConversationReviewPatch {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new DomainError('invalid_input');
+  }
+  const value = input as Record<string, unknown>;
+  const allowed = ['location', 'mode', 'purpose', 'windows'];
+  const keys = Object.keys(value);
+  if (!keys.length || keys.some((key) => !allowed.includes(key))) {
+    throw new DomainError('invalid_input');
+  }
+  const patch: ConversationReviewPatch = {};
+  if ('purpose' in value) {
+    if (
+      typeof value.purpose !== 'string' || value.purpose.trim().length < 5 ||
+      value.purpose.length > 2000
+    ) throw new DomainError('invalid_input');
+    patch.purpose = value.purpose.trim();
+  }
+  if ('mode' in value) {
+    if (!['online', 'in_person'].includes(String(value.mode))) {
+      throw new DomainError('invalid_input');
+    }
+    patch.mode = value.mode as 'online' | 'in_person';
+  }
+  if ('location' in value) {
+    if (typeof value.location !== 'string' || value.location.length > 500) {
+      throw new DomainError('invalid_input');
+    }
+    patch.location = value.location.trim();
+  }
+  if ('windows' in value) {
+    if (!Array.isArray(value.windows) || !value.windows.length || value.windows.length > 8) {
+      throw new DomainError('invalid_input');
+    }
+    const windows = value.windows as { start?: unknown; end?: unknown }[];
+    const invalidWindow = windows.some((window) => {
+      if (
+        !window || typeof window !== 'object' || Array.isArray(window) ||
+        Object.keys(window).some((key) => !['start', 'end'].includes(key)) ||
+        typeof window.start !== 'string' || typeof window.end !== 'string'
+      ) return true;
+      try {
+        return instant(window.start) <= Date.now() ||
+          instant(window.end) - instant(window.start) < current.durationMinutes * 60000;
+      } catch {
+        return true;
+      }
+    });
+    if (invalidWindow) throw new DomainError('invalid_input');
+    patch.windows = windows as { start: string; end: string }[];
+  }
+  if ((patch.mode ?? current.mode) === 'in_person' && !(patch.location ?? current.location)) {
+    throw new DomainError('invalid_input');
+  }
+  return patch;
+}
 export function requestsRoutes(
   env: Environment,
   db: Database,
@@ -75,29 +156,41 @@ export function requestsRoutes(
       idempotencyKey,
     });
     if (actor.kind !== 'guest' || !env.openaiKey) return c.json(request);
-    const budget = await db.command<{ allowed: boolean }>('model_claim', worker(), {
-      requestId,
-      expectedRevision: request.revision,
-    });
-    if (!budget.allowed) return c.json(request);
-    const intent = await extract(input.text, request.details);
-    if (!intent) return c.json(request);
-    // Extracted fields are suggestions only; requester changes use the explicit details form.
-    const text = intent.intent === 'availability' || intent.intent === 'details'
-      ? 'Review the meeting details and availability fields, then apply any changes before evaluating times.'
-      : intent.intent === 'question'
-      ? 'Choose from the evaluated times, or update the availability fields to search again. Agreement and host approval are separate steps.'
-      : 'Please provide the meeting purpose, availability, timezone, mode and location in the meeting details.';
     try {
-      return c.json(
-        await db.command('assistant_message_save', worker(), {
-          requestId,
-          expectedRevision: request.revision,
-          text,
-          extraction: intent,
-          idempotencyKey: `${idempotencyKey}_assistant`,
-        }),
-      );
+      const budget = await db.command<{ allowed: boolean }>('model_claim', worker(), {
+        requestId,
+        expectedRevision: request.revision,
+      });
+      if (!budget.allowed) return c.json(await db.command('request_read', actor, { requestId }));
+      const intent = await extract(input.text, request.details);
+      if (!intent) return c.json(request);
+      const patch = conversationPatch(intent, request.details);
+      const text = intent.intent === 'availability' || intent.intent === 'details'
+        ? Object.keys(patch).length
+          ? 'I found scheduling details to review. Check each proposed change below before applying it.'
+          : intent.clarification
+        : intent.intent === 'question'
+        ? 'Choose from the evaluated times, or update the availability fields to search again. Agreement and host approval are separate steps.'
+        : 'Please provide the meeting purpose, availability, timezone, mode and location in the meeting details.';
+      const saved = await db.command<RequestView>('assistant_message_save', worker(), {
+        requestId,
+        expectedRevision: request.revision,
+        text,
+        extraction: intent,
+        idempotencyKey: `${idempotencyKey}_assistant`,
+      });
+      return c.json({
+        ...saved,
+        ...(Object.keys(patch).length
+          ? {
+            conversationReview: {
+              reviewedRevision: saved.revision,
+              clarification: intent.clarification,
+              patch,
+            } satisfies ConversationReview,
+          }
+          : {}),
+      });
     } catch (error) {
       if (
         !(error instanceof DomainError) ||
@@ -105,6 +198,43 @@ export function requestsRoutes(
       ) throw error;
       return c.json(await db.command('request_read', actor, { requestId }));
     }
+  });
+  app.post('/requests/:id/conversation-review', async (c) => {
+    const requestId = c.req.param('id');
+    const actor = await actorFor(c.req.raw, db, requestId);
+    if (actor.kind !== 'guest') throw new DomainError('forbidden', 403);
+    const input = await jsonInput(c.req.raw);
+    const expectedRevision = revision(input);
+    if (
+      input.confirmed !== true || !Number.isInteger(input.reviewedRevision) ||
+      Number(input.reviewedRevision) !== expectedRevision
+    ) throw new DomainError('human_confirmation_required');
+    const idempotencyKey = mutationKey(c.req.raw);
+    const clientInput = {
+      requestId,
+      expectedRevision,
+      reviewedRevision: input.reviewedRevision,
+      confirmed: true,
+      patch: input.patch,
+    };
+    const replay = await db.command<{ found: boolean; result?: RequestView }>(
+      'mutation_replay',
+      actor,
+      { requestId, operation: 'details_update', idempotencyKey, clientInput },
+    );
+    if (replay.found) return c.json(replay.result);
+    const request = await db.command<RequestView>('request_read', actor, { requestId });
+    if (request.revision !== expectedRevision) throw new DomainError('revision_conflict', 409);
+    const patch = reviewedPatch(input.patch, request.details);
+    return c.json(
+      await db.command('details_update', actor, {
+        requestId,
+        details: { ...request.details, ...patch },
+        expectedRevision,
+        clientInput,
+        idempotencyKey,
+      }),
+    );
   });
   app.post('/requests/:id/details', async (c) => {
     const requestId = c.req.param('id');

@@ -1,11 +1,20 @@
 import { CalendarDays } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Host } from "./Host"
+import { lazy, Suspense } from "react"
 import { Landing } from "./Landing"
 import { Requester } from "./Requester"
-import { Inbox, RequestPage } from "./Requests"
 import { ServiceNotices } from "@/components/service-notices"
-import { Notice } from "@/lib/ui"
+import { Loading, Notice } from "@/lib/ui"
+
+const Host = lazy(() =>
+  import("./Host").then((module) => ({ default: module.Host }))
+)
+const Inbox = lazy(() =>
+  import("./Requests").then((module) => ({ default: module.Inbox }))
+)
+const RequestPage = lazy(() =>
+  import("./Requests").then((module) => ({ default: module.RequestPage }))
+)
 
 export default function App() {
   const path = location.pathname.split("/").filter(Boolean)
@@ -40,7 +49,19 @@ export default function App() {
         <a href="#main" className="sr-only focus:not-sr-only">
           Skip to content
         </a>
-        {content}
+        <Suspense
+          fallback={
+            <main
+              id="main"
+              tabIndex={-1}
+              className="mx-auto w-full max-w-6xl px-5 py-10"
+            >
+              <Loading />
+            </main>
+          }
+        >
+          {content}
+        </Suspense>
       </>
     )
   return (
@@ -72,7 +93,7 @@ export default function App() {
         className="mx-auto flex max-w-6xl flex-col gap-6 px-5 py-10"
       >
         <ServiceNotices />
-        {content}
+        <Suspense fallback={<Loading />}>{content}</Suspense>
       </main>
       <footer className="mx-auto flex max-w-6xl flex-wrap justify-between gap-3 px-5 py-8 text-sm text-muted-foreground">
         <p>Made for the meetings worth making time for.</p>

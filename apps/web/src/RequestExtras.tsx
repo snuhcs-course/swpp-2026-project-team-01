@@ -257,7 +257,7 @@ export function DetailsEditor({
   mutate: (
     operation: string,
     body?: Record<string, unknown>,
-    after?: () => void
+    after?: (value: RequestView) => void
   ) => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -490,7 +490,7 @@ export function PrivateTravel({
   mutate: (
     operation: string,
     body?: Record<string, unknown>,
-    after?: () => void
+    after?: (value: RequestView) => void
   ) => void
 }) {
   const privateView = request as RequestView & {

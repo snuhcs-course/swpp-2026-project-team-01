@@ -94,3 +94,244 @@ Deno.test('calendar destination permissions come from provider rather than calle
     JSON.stringify(captured).includes('reader') && !JSON.stringify(captured).includes('owner'),
   );
 });
+Deno.test('setup transcript is host-authenticated and body host claims are ignored', async () => {
+  let called = false;
+  const db = {
+    command: () => {
+      called = true;
+      return Promise.resolve({});
+    },
+  } as unknown as Database;
+  const response = await createApi(env, db).request('/host/setup/conversation');
+  assert(response.status === 401 && !called);
+});
+Deno.test('bridge requires dedicated secret before reading provider inputs', async () => {
+  let called = false;
+  const db = {
+    command: () => {
+      called = true;
+      return Promise.resolve({});
+    },
+  } as unknown as Database;
+  const enabled = {
+    ...env,
+    photonBridgeEnabled: true,
+    photonBridgeSecret: 'bridge-secret-'.repeat(4),
+  };
+  for (const authorization of ['Bearer ordinary-web-jwt', 'Bearer ' + env.workerSecret]) {
+    const response = await createApi(enabled, db).request('/internal/setup/imessage/resume', {
+      method: 'POST',
+      headers: { Authorization: authorization, 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    assert(response.status === 401 && !called);
+  }
+});
+Deno.test('bridge cursor maps safe persisted sequence and exact private message rejects forged groups', async () => {
+  const calls: { op: string; input: Record<string, unknown> }[] = [];
+  const db = {
+    command: (op: string, _actor: unknown, input: Record<string, unknown>) => {
+      calls.push({ op, input });
+      return Promise.resolve({ lastSequence: '42' });
+    },
+  } as unknown as Database;
+  const enabled = {
+    ...env,
+    photonBridgeEnabled: true,
+    photonBridgeSecret: 'bridge-secret-'.repeat(4),
+  };
+  const headers = {
+    Authorization: 'Bearer ' + enabled.photonBridgeSecret,
+    'Content-Type': 'application/json',
+  };
+  const resume = await createApi(enabled, db).request('/internal/setup/imessage/resume', {
+    method: 'POST',
+    headers,
+    body: '{}',
+  });
+  assert(
+    resume.status === 200 && (await resume.json()).lastSequence === 42 &&
+      calls[0].input.provider === 'imessage',
+  );
+  const rejected = await createApi(enabled, db).request('/internal/setup/imessage/inbound', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      sender: '+821012345678',
+      conversationId: 'any;+;group',
+      service: 'iMessage',
+      providerMessageId: 'fixture',
+      body: 'Hello',
+      createdAt: '2030-01-01T00:00:00Z',
+    }),
+  });
+  assert(rejected.status === 400 && calls.length === 1);
+});
+Deno.test('link proof is hashed and browser challenge retry is stable', async () => {
+  const captures: Record<string, unknown>[] = [];
+  const db = {
+    host: () => Promise.resolve({ kind: 'host', id: 'verified-host' }),
+    command: (_op: string, _actor: unknown, input: Record<string, unknown>) => {
+      captures.push(input);
+      return Promise.resolve({
+        challengeId: '11111111-1111-4111-8111-111111111111',
+        expiresAt: '2030-01-01',
+      });
+    },
+  } as unknown as Database;
+  const enabled = {
+    ...env,
+    photonBridgeEnabled: true,
+    photonBridgeSecret: 'bridge-secret-'.repeat(4),
+  };
+  const headers = {
+    Authorization: 'Bearer host-session',
+    'Content-Type': 'application/json',
+    'Idempotency-Key': 'stable-challenge',
+  };
+  const request = () =>
+    createApi(enabled, db).request('/host/imessage/link/start', {
+      method: 'POST',
+      headers,
+      body: '{}',
+    });
+  const one = await (await request()).json();
+  const two = await (await request()).json();
+  assert(one.challengeSecret === two.challengeSecret && one.browserProof === two.browserProof);
+  assert(
+    !JSON.stringify(captures).includes(one.challengeSecret) &&
+      !JSON.stringify(captures).includes(one.browserProof),
+  );
+});
+Deno.test('permanent invalid linking challenge is rejected without blocking bridge replay', async () => {
+  const { DomainError } = await import('../../_shared/errors.ts');
+  const db = {
+    command: (op: string) => {
+      assert(op === 'setup_link_challenge_claim');
+      return Promise.reject(new DomainError('challenge_invalid'));
+    },
+  } as unknown as Database;
+  const enabled = {
+    ...env,
+    photonBridgeEnabled: true,
+    photonBridgeSecret: 'bridge-secret-'.repeat(4),
+  };
+  const response = await createApi(enabled, db).request('/internal/setup/imessage/inbound', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + enabled.photonBridgeSecret,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sequence: 1,
+      providerMessageId: 'fixture',
+      conversationId: 'any;-;+821012345678',
+      sender: '+821012345678',
+      service: 'iMessage',
+      body: 'LINK 11111111-1111-4111-8111-111111111111 ' + 'x'.repeat(64),
+      createdAt: '2030-01-01T00:00:00Z',
+    }),
+  });
+  assert(response.status === 200 && (await response.json()).disposition === 'rejected');
+});
+Deno.test('outbound authorization requires active scoped authority and maps persisted fenced intent', async () => {
+  const { DomainError } = await import('../../_shared/errors.ts');
+  const enabled = {
+    ...env,
+    photonBridgeEnabled: true,
+    photonBridgeSecret: 'bridge-secret-'.repeat(4),
+  };
+  const request = (db: Database) =>
+    createApi(enabled, db).request('/internal/setup/imessage/outbound/authorize', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + enabled.photonBridgeSecret,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ intentId: '11111111-1111-4111-8111-111111111111', hostId: 'forged' }),
+    });
+  const active = {
+    command: (_op: string, _actor: unknown, input: Record<string, unknown>) => {
+      assert(!('hostId' in input));
+      return Promise.resolve({
+        action: 'reconcile',
+        conversationId: 'private',
+        clientMessageId: 'stable',
+      });
+    },
+  } as unknown as Database;
+  const allowed = await (await request(active)).json();
+  assert(allowed.authorized === true && allowed.clientMessageId === 'stable');
+  const revoked = {
+    command: () => Promise.reject(new DomainError('link_not_found')),
+  } as unknown as Database;
+  assert((await (await request(revoked)).json()).authorized === false);
+});
+Deno.test('processed inbound recovers original confirmation reply after crash before outbox', async () => {
+  const calls: string[] = [];
+  let reply = '';
+  const original = {
+    revision: 3,
+    turns: [{ text: 'Settings confirmed.' }],
+    review: { revision: 1, status: 'confirmed' },
+    draft: null,
+  };
+  const db = {
+    command: (op: string, _actor: unknown, input: Record<string, unknown>) => {
+      calls.push(op);
+      if (op === 'setup_channel_authorize') {
+        return Promise.resolve({
+          conversationId: 'owned-conversation',
+        });
+      }
+      if (op === 'setup_provider_inbound_record') {
+        return Promise.resolve({
+          inboundId: '11111111-1111-4111-8111-111111111111',
+          duplicate: true,
+          processed: true,
+          existingOutbound: false,
+          result: original,
+        });
+      }
+      if (op === 'setup_conversation_read') {
+        return Promise.resolve({
+          revision: 9,
+          turns: [{ text: 'Newer unrelated draft' }],
+          review: { revision: 2, status: 'pending' },
+          draft: null,
+        });
+      }
+      if (op === 'setup_provider_outbound_prepare') {
+        reply = String(input.text);
+        return Promise.resolve({});
+      }
+      throw new Error('Unexpected remutation: ' + op);
+    },
+  } as unknown as Database;
+  const enabled = {
+    ...env,
+    photonBridgeEnabled: true,
+    photonBridgeSecret: 'bridge-secret-'.repeat(4),
+  };
+  const response = await createApi(enabled, db).request('/internal/setup/imessage/inbound', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + enabled.photonBridgeSecret,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sequence: 1,
+      providerMessageId: 'fixture-confirm',
+      conversationId: 'any;-;+821012345678',
+      sender: '+821012345678',
+      service: 'iMessage',
+      body: 'CONFIRM 1',
+      createdAt: '2030-01-01T00:00:00Z',
+    }),
+  });
+  assert(
+    response.status === 200 && reply.includes('Settings confirmed.') &&
+      !reply.includes('Newer unrelated draft') && !calls.includes('setup_review_confirm') &&
+      !calls.includes('setup_turn_append'),
+  );
+});

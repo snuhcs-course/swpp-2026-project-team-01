@@ -100,3 +100,60 @@ This creates unique synthetic host/request fixtures locally, verifies proposal s
 exceptions, agreement and stale-result rejection, then withdraws the request. The runner rejects
 remote project URLs and prints no credentials.
 
+## Private host setup conversation
+
+All website paths below are under `/api`; the Edge Function base is `/functions/v1/api`.
+Host routes validate a current Supabase Auth JWT and host admission. Mutations require an
+`Idempotency-Key`; client-provided host IDs cannot select another account. The DTO is
+`SetupConversationState` in `packages/contracts/index.ts`: conversation ID/revision, ordered turns,
+versioned draft/review, current `SetupState`, active channel-link summary and optional masked challenge.
+It contains no Google credentials or link secrets. A draft is not saved scheduling authority.
+
+| Route | Input / result |
+|---|---|
+| `GET /host/setup/conversation` | Read the owning host's persisted conversation and setup state |
+| `POST /host/setup/conversation/messages` | `text`, UUID `clientTurnId`, `expectedRevision`; append host/assistant turns and advisory draft |
+| `POST /host/setup/conversation/confirm` | `confirmed:true`, `expectedRevision`, `reviewRevision`, `expectedDraftRevision`, `expectedRulesVersion`; save the exact current review |
+| `GET /host/imessage/link` | Runtime availability, service contact URL, link and masked challenge summary |
+| `POST /host/imessage/link/start` | Optional short-lived continuation ID/secret; returns single-use challenge and browser proof for the current host |
+| `POST /host/imessage/link/confirm` | Challenge ID and browser proof after private sender proof; explicitly opt in |
+| `POST /host/imessage/unlink` | Current link ID; revoke private channel authority |
+
+The returned challenge/browser proofs belong only to the protected linking response; never put
+those values in logs, examples, model input or transcripts. Existing Google and calendar-selection
+routes retain browser binding and writable-destination checks. Conversation confirmation saves
+settings only. Admission, Calendar authorization and host approval of a meeting remain distinct.
+
+`PHOTON_BRIDGE_ENABLED` defaults false. Enabled internal routes under
+`/internal/setup/imessage/*` require a dedicated `PHOTON_BRIDGE_SECRET` of at least 32 characters,
+separate from worker and Supabase credentials. `PHOTON_CONTACT_URL` optionally supplies the verified
+service `imessage:`/`sms:` recipient without query or fragment. Internal operations accept provider,
+sender and private-conversation identities; SQL resolves the current linked host under locks.
+The service has no public host-ID override or general worker authority. Inbound records persist exact
+result snapshots before outbound preparation, and durable checkpoints advance only after terminal
+handling. Outbound preparation, claim, final authorization and provider outcome recording fence
+revocation and suppress blind resend after uncertain dispatch. See [runtime configuration](../../apps/photon-bridge/README.md).
+
+## Requester conversation reviews
+
+`POST /requests/:id/messages` may return `conversationReview` with `reviewedRevision`, clarification
+and a patch of purpose, mode, location or windows. It does not apply the patch or express agreement.
+`POST /requests/:id/conversation-review` requires the owning `X-Request-Token`, explicit
+`confirmed:true`, equal `expectedRevision` and `reviewedRevision`, and the reviewed patch. Identity,
+duration and authority fields are rejected. Exact retries return the stored result even after a later
+revision; changed patch/array identity with the same key conflicts. Review data is transient: after a
+reload, ask again or use structured details. Evaluating times, selecting a candidate and agreeing to
+the displayed current proposal still use their separate guarded routes.
+
+Local cross-channel setup verification uses actual loopback Auth/RPC/HTTP and in-process Google/model fixtures:
+
+```sh
+supabase status --output json > /tmp/fmat-local-status.json
+chmod 600 /tmp/fmat-local-status.json
+deno run --allow-read=/tmp/fmat-local-status.json --allow-env --allow-net=127.0.0.1:54321 supabase/functions/_shared/modules/onboarding/local_conversation_integration.ts
+python3 scripts/tests/setup-concurrency.py
+```
+
+The integration runner refuses a remote API URL, creates unique synthetic local records and sends no
+external messages. The two-session concurrency probe uses the named local Docker database only and
+cleans up its own unique fixture. These checks prove local behavior, not live consent or transport.

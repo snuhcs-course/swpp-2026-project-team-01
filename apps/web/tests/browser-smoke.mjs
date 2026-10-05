@@ -299,7 +299,7 @@ await page.getByText("Discuss a wider product idea", { exact: true }).waitFor()
 await page.getByRole("button", { name: "Check availability" }).click()
 await page.getByLabel("Feasible options").waitFor()
 await page.getByLabel("Feasible options").selectOption("0")
-await page.getByRole("button", { name: "Create proposal" }).click()
+await page.getByRole("button", { name: "Review this time" }).click()
 await page.getByRole("button", { name: "Agree and send to host" }).waitFor()
 assert.equal(
   await page
@@ -331,7 +331,7 @@ await page.getByRole("button", { name: "Verify contact" }).click()
 await page.getByText("Contact verified", { exact: true }).waitFor()
 await page
   .getByRole("checkbox", {
-    name: "I agree to proposal 1 with these exact details.",
+    name: "I agree to proposal 1 with this exact time, format, location, and purpose.",
   })
   .waitFor()
 assert.equal(
@@ -342,7 +342,7 @@ assert.equal(
 )
 await page
   .getByRole("checkbox", {
-    name: "I agree to proposal 1 with these exact details.",
+    name: "I agree to proposal 1 with this exact time, format, location, and purpose.",
   })
   .check()
 delayNextRead = true
@@ -353,7 +353,7 @@ await page
   .first()
   .waitFor()
 await delayedRead
-await page.getByText("Requester agreed", { exact: true }).waitFor()
+await page.getByText(/You agreed to proposal 1. The host must still/).waitFor()
 assert.equal(await page.getByText("Booked", { exact: true }).count(), 0)
 assert.equal(
   await page.getByText("Private review notes", { exact: true }).count(),
@@ -803,7 +803,10 @@ request = {
 }
 await page.reload()
 await page.getByText("Clarify availability", { exact: true }).waitFor()
-await page.getByText("No options are proven yet.", { exact: false }).waitFor()
+await page.getByRole("heading", { name: "Find a time", exact: true }).waitFor()
+await page
+  .getByRole("button", { name: "Check availability", exact: true })
+  .waitFor()
 assert.equal(
   await page.getByText("resolve_availability", { exact: true }).count(),
   0

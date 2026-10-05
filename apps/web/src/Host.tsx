@@ -43,6 +43,10 @@ import { WorkspaceShell } from "@/components/workspace-shell"
 import { ServiceNotices } from "@/components/service-notices"
 import { cn } from "@/lib/utils"
 import {
+  SetupConversation,
+  captureIMessageContinuation,
+} from "./SetupConversation"
+import {
   CalendarCheck2,
   CalendarClock,
   CheckCircle2,
@@ -68,6 +72,7 @@ export function Host({ children }: { children?: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(Boolean(supabase))
   useEffect(() => {
+    captureIMessageContinuation()
     if (!supabase) return
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
@@ -295,10 +300,11 @@ function Workspace() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-semibold tracking-tight">
-            Your workspace
+            Your calendar, in conversation
           </h1>
           <p className="text-muted-foreground">
-            Set your boundaries, then share one link for new meeting requests.
+            Tell us your preferences, connect Google, and share your booking
+            link.
           </p>
         </div>
         <Badge variant={resource.data.profile?.ready ? "default" : "secondary"}>
@@ -308,13 +314,27 @@ function Workspace() {
         </Badge>
       </div>
       <ReadinessChecklist setup={resource.data} />
-      {!resource.data.admitted ? (
-        <Admission onSaved={resource.setData} />
-      ) : (
-        <>
-          <Setup initial={resource.data} onSaved={resource.setData} />
-          <InboxGate ready={resource.data.profile?.ready ?? false} />
-        </>
+      <SetupConversation
+        initial={resource.data}
+        onSaved={resource.setData}
+        protectedActions={
+          resource.data.admitted ? (
+            resource.data.profile &&
+            resource.data.rules &&
+            !resource.data.profile.ready ? (
+              <CalendarSetup
+                initial={resource.data}
+                onSaved={resource.setData}
+              />
+            ) : null
+          ) : (
+            <Admission onSaved={resource.setData} />
+          )
+        }
+        recovery={<Setup initial={resource.data} onSaved={resource.setData} />}
+      />
+      {resource.data.admitted && (
+        <InboxGate ready={resource.data.profile?.ready ?? false} />
       )}
     </div>
   )
@@ -767,6 +787,12 @@ function CalendarSetup({
   )
   const [conflictIds, setConflictIds] = useState(initial.conflictCalendarIds)
   const [bookingId, setBookingId] = useState(initial.bookingCalendarId ?? "")
+  const calendarLabel = (calendar: CalendarOption) =>
+    calendars.data?.calendars.filter(
+      (value) => value.summary === calendar.summary
+    ).length !== 1
+      ? `${calendar.summary} (${calendar.primary ? "primary" : calendar.id})`
+      : calendar.summary
   const calendarSelectionSaved =
     initial.conflictCalendarIds.length > 0 && Boolean(initial.bookingCalendarId)
   return (
@@ -842,7 +868,7 @@ function CalendarSetup({
                         }
                       />
                       <FieldLabel htmlFor={`calendar-${calendar.id}`}>
-                        {calendar.summary}
+                        {calendarLabel(calendar)}
                       </FieldLabel>
                     </Field>
                   ))}
@@ -865,7 +891,7 @@ function CalendarSetup({
                     .filter((c) => ["owner", "writer"].includes(c.accessRole))
                     .map((c) => (
                       <NativeSelectOption key={c.id} value={c.id}>
-                        {c.summary}
+                        {calendarLabel(c)}
                       </NativeSelectOption>
                     ))}
                 </NativeSelect>

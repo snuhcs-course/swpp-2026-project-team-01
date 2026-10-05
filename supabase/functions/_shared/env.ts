@@ -14,6 +14,9 @@ export interface Environment {
   cloudflareAccountId?: string;
   cloudflareEmailToken?: string;
   cloudflareEmailFrom?: string;
+  photonBridgeSecret?: string;
+  photonBridgeEnabled?: boolean;
+  photonContactUrl?: string;
   agentmailKey?: string;
   agentmailInboxId?: string;
 }
@@ -36,6 +39,25 @@ export function readEnvironment(get = (name: string) => Deno.env.get(name)): Env
   if (serviceKey.startsWith('sb_publishable_')) {
     throw new Error('Privileged Supabase key is required');
   }
+  const photonBridgeSecret = get('PHOTON_BRIDGE_SECRET');
+  const photonBridgeEnabled = get('PHOTON_BRIDGE_ENABLED') === 'true';
+  const photonContactUrl = get('PHOTON_CONTACT_URL');
+  if (
+    photonContactUrl &&
+    !/^(?:imessage|sms):(?:\/\/)?(?:\+[1-9]\d{7,14}|[^\s@/?#]+@[^\s@/?#]+\.[^\s@/?#]+)$/.test(
+      photonContactUrl,
+    )
+  ) {
+    throw new Error('PHOTON_CONTACT_URL must identify a private iMessage or SMS recipient');
+  }
+  if (
+    (photonBridgeSecret &&
+      (photonBridgeSecret.length < 32 || photonBridgeSecret === workerSecret ||
+        photonBridgeSecret === serviceKey)) ||
+    (photonBridgeEnabled && !photonBridgeSecret)
+  ) {
+    throw new Error('Enabled Photon bridge requires a separate secret of at least 32 characters');
+  }
   return {
     supabaseUrl: required('SUPABASE_URL'),
     serviceKey,
@@ -52,6 +74,9 @@ export function readEnvironment(get = (name: string) => Deno.env.get(name)): Env
     cloudflareAccountId: get('CLOUDFLARE_ACCOUNT_ID'),
     cloudflareEmailToken: get('CLOUDFLARE_EMAIL_API_TOKEN'),
     cloudflareEmailFrom: get('CLOUDFLARE_EMAIL_FROM'),
+    photonBridgeSecret,
+    photonBridgeEnabled,
+    photonContactUrl,
     agentmailKey: get('AGENTMAIL_API_KEY'),
     agentmailInboxId: get('AGENTMAIL_INBOX_ID'),
   };

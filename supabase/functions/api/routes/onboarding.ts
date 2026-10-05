@@ -5,6 +5,8 @@ import { actorFor } from '../../_shared/database.ts';
 import type { Environment } from '../../_shared/env.ts';
 import { DomainError } from '../../_shared/errors.ts';
 import { hashToken, jsonInput } from '../../_shared/security.ts';
+import { imessageBridgeRoutes } from '../../_shared/modules/onboarding/conversation-bridge.ts';
+import { createSetupConversation } from '../../_shared/modules/onboarding/conversation.ts';
 import { createOAuth } from '../../_shared/modules/onboarding/oauth.ts';
 export function mutationKey(request: Request): string {
   const key = request.headers.get('Idempotency-Key');
@@ -15,6 +17,102 @@ export function mutationKey(request: Request): string {
 }
 export function onboardingRoutes(env: Environment, db: Database, oauth = createOAuth(env, db)) {
   const app = new Hono();
+  const conversation = createSetupConversation(env, db, undefined, async (actor) => {
+    const { credential } = await oauth.credential({ hostId: actor.id! });
+    return await oauth.google.calendars(credential);
+  });
+  app.route('/internal/setup/imessage', imessageBridgeRoutes(env, db, conversation));
+  app.get(
+    '/host/setup/conversation',
+    async (c) => c.json(await conversation.read(await actorFor(c.req.raw, db, undefined, true))),
+  );
+  app.post('/host/setup/conversation/messages', async (c) => {
+    const actor = await actorFor(c.req.raw, db, undefined, true);
+    const input = await jsonInput(c.req.raw);
+    return c.json(
+      await conversation.append(actor, { ...input, idempotencyKey: mutationKey(c.req.raw) }),
+    );
+  });
+  app.post('/host/setup/conversation/confirm', async (c) => {
+    const actor = await actorFor(c.req.raw, db, undefined, true);
+    const input = await jsonInput(c.req.raw);
+    return c.json(
+      await conversation.confirm(actor, { ...input, idempotencyKey: mutationKey(c.req.raw) }),
+    );
+  });
+  app.get('/host/imessage/link', async (c) => {
+    const state = await conversation.read(await actorFor(c.req.raw, db, undefined, true));
+    return c.json({
+      available: !!env.photonBridgeEnabled,
+      contactUrl: env.photonContactUrl || null,
+      link: state.channelLink,
+      challenge: state.linkChallenge
+        ? { ...state.linkChallenge, senderLabel: state.linkChallenge.maskedSender }
+        : null,
+    });
+  });
+  app.post('/host/imessage/link/start', async (c) => {
+    const actor = await actorFor(c.req.raw, db, undefined, true);
+    if (!env.photonBridgeEnabled) throw new DomainError('provider_unavailable', 503);
+    const input = await jsonInput(c.req.raw);
+    if (
+      (input.continuationId !== undefined &&
+        (typeof input.continuationId !== 'string' ||
+          !/^[a-f\d-]{36}$/i.test(input.continuationId))) ||
+      (input.continuationSecret !== undefined &&
+        (typeof input.continuationSecret !== 'string' ||
+          !/^[A-Za-z\d_-]{32,128}$/.test(input.continuationSecret)))
+    ) throw new DomainError('invalid_input');
+    const key = mutationKey(c.req.raw);
+    const challengeSecret = await hashToken(
+      `link-challenge:${env.photonBridgeSecret}:${actor.id}:${key}`,
+    );
+    const browserProof = await hashToken(
+      `link-browser:${env.photonBridgeSecret}:${actor.id}:${key}`,
+    );
+    const result = await db.command<Record<string, unknown>>('setup_link_challenge_start', actor, {
+      continuationId: input.continuationId,
+      continuationSecretHash: typeof input.continuationSecret === 'string'
+        ? await hashToken(input.continuationSecret)
+        : undefined,
+      challengeSecretHash: await hashToken(challengeSecret),
+      browserProofHash: await hashToken(browserProof),
+      idempotencyKey: mutationKey(c.req.raw),
+    });
+    return c.json({
+      ...result,
+      challengeSecret,
+      browserProof,
+      challengeText: `LINK ${result.challengeId} ${challengeSecret}`,
+      contactUrl: env.photonContactUrl || null,
+    });
+  });
+  app.post('/host/imessage/link/confirm', async (c) => {
+    const actor = await actorFor(c.req.raw, db, undefined, true);
+    const input = await jsonInput(c.req.raw);
+    if (
+      typeof input.challengeId !== 'string' || typeof input.browserProof !== 'string' ||
+      input.browserProof.length < 32 || input.browserProof.length > 128
+    ) throw new DomainError('invalid_input');
+    return c.json(
+      await db.command('setup_link_confirm', actor, {
+        challengeId: input.challengeId,
+        browserProofHash: await hashToken(input.browserProof),
+        idempotencyKey: mutationKey(c.req.raw),
+      }),
+    );
+  });
+  app.post('/host/imessage/unlink', async (c) => {
+    const actor = await actorFor(c.req.raw, db, undefined, true);
+    const input = await jsonInput(c.req.raw);
+    return c.json(
+      await db.command('setup_link_unlink', actor, {
+        linkId: input.linkId,
+        idempotencyKey: mutationKey(c.req.raw),
+      }),
+    );
+  });
+
   app.post('/waitlist', async (c) => {
     const input = await jsonInput(c.req.raw);
     if (

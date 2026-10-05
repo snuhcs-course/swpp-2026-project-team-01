@@ -144,3 +144,28 @@ Deno.test('environment rejects mislabeled publishable key as privileged secret',
   }
   assert(rejected);
 });
+Deno.test('Photon bridge is disabled by default and cannot reuse privileged credentials', async () => {
+  const { readEnvironment } = await import('./env.ts');
+  const values: Record<string, string> = {
+    APP_ORIGIN: env.appOrigin,
+    SUPABASE_URL: env.supabaseUrl,
+    FMAT_SUPABASE_SECRET_KEY: 'server-key-with-at-least-32-characters',
+    WORKER_SECRET: env.workerSecret,
+  };
+  assert(readEnvironment((name) => values[name]).photonBridgeEnabled === false);
+  for (const secret of ['', 'short', env.workerSecret, values.FMAT_SUPABASE_SECRET_KEY]) {
+    let rejected = false;
+    try {
+      readEnvironment((name) =>
+        ({ ...values, PHOTON_BRIDGE_ENABLED: 'true', PHOTON_BRIDGE_SECRET: secret })[name]
+      );
+    } catch {
+      rejected = true;
+    }
+    assert(rejected);
+  }
+  const configured = readEnvironment((name) =>
+    ({ ...values, PHOTON_BRIDGE_ENABLED: 'true', PHOTON_BRIDGE_SECRET: 'b'.repeat(48) })[name]
+  );
+  assert(configured.photonBridgeEnabled && configured.photonBridgeSecret === 'b'.repeat(48));
+});

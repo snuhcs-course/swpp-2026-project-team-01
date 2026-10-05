@@ -28,6 +28,60 @@ export interface SetupState {
   bookingCalendarId: string | null;
   nextAction: string;
 }
+export interface SetupSettings {
+  handle: string | null;
+  displayName: string | null;
+  rules: HostRules | null;
+}
+export interface SetupConversationTurn {
+  id: string;
+  sequence: number;
+  role: 'host' | 'assistant' | 'system';
+  channel: 'web' | 'imessage' | 'system';
+  text: string;
+  createdAt: string;
+}
+export interface SetupDraftSettings {
+  handle: string | null;
+  displayName: string | null;
+  rules: Partial<HostRules> | null;
+}
+export interface SetupDraft {
+  revision: number;
+  baseRulesVersion: number;
+  settings: SetupDraftSettings;
+  unresolved: string[];
+  status: 'active' | 'superseded' | 'confirmed';
+  createdAt: string;
+}
+export interface SetupReview {
+  revision: number;
+  draftRevision: number;
+  settings: SetupSettings;
+  status: 'pending' | 'confirmed' | 'superseded';
+  createdAt: string;
+}
+export interface SetupChannelLink {
+  id: string;
+  provider: 'imessage';
+  linkedAt: string;
+}
+export interface SetupChannelChallenge {
+  id: string;
+  expiresAt: string;
+  claimed: boolean;
+  maskedSender: string | null;
+}
+export interface SetupConversationState {
+  id: string;
+  revision: number;
+  turns: SetupConversationTurn[];
+  draft: SetupDraft | null;
+  review: SetupReview | null;
+  setup: SetupState;
+  channelLink: SetupChannelLink | null;
+  linkChallenge?: SetupChannelChallenge | null;
+}
 export interface MeetingDetails {
   requesterName: string;
   requesterEmail: string;
