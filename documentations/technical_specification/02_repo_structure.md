@@ -17,12 +17,22 @@ apps/
       App.tsx                    # Route selection and shared app shell
       Landing.tsx                # Public waitlist and entry
       Host.tsx                   # Sign-in and resumable setup
+      SetupConversation.tsx      # Durable host setup chat
       Requester.tsx              # Account-free intake/continuation
       Requests.tsx               # Host inbox and review
       RequestExtras.tsx          # Consent, recovery and related controls
       components/ui/             # shadcn preset b6rtA2Hmi components
+      components/ai-elements/    # Official conversation primitives
       lib/                       # API client and shared web helpers
     tests/browser-smoke.mjs
+    README.md
+  photon-bridge/                 # Separate Node 24 project, not a root npm workspace
+    src/                        # Photon subscription, scoped backend calls and health
+    test/                       # Provider fixtures; no external messages
+    Dockerfile
+    fly.toml                    # Reserved Fly app; Machine deployment pending
+    package.json
+    package-lock.json
     README.md
 
 supabase/
@@ -76,14 +86,15 @@ Module/provider tests live beside the code they exercise. Web checks, local RPC 
 | CLI (planned) | `apps/cli` | Call the HTTP API with role-appropriate credentials and return structured results; existing operator scripts are separate. |
 | HTTP API | `supabase/functions/api` | Validate inputs, resolve access, invoke shared operations and handle Calendar consent callbacks; public skill documents remain planned. |
 | Remote MCP (planned) | `supabase/functions/mcp` | Map tool calls to the same shared operations with OAuth and request-scoped authorization. |
-| Email and iMessage inputs (planned) | `supabase/functions/webhooks` | Verify provider origin, persist deduplicated inputs, and enqueue processing. |
+| Email and general iMessage scheduling inputs (planned) | `supabase/functions/webhooks` | Verify provider origin, persist deduplicated inputs, and enqueue processing. |
+| Private iMessage host setup | `apps/photon-bridge` | Node 24 Photon transport into scoped setup commands; Fly app reserved, server deployment pending. |
 | Queued work | `supabase/functions/worker` | Consume bounded batches for conversation processing, booking, reconciliation, and delivery. |
 
-Email and iMessage are adapters, so they do not require separate apps. ChatGPT, Codex, Claude, Claude Code, Dots, Muse, and Instinct use shared interfaces; record their differences in compatibility tests and connection guidance. Add client-specific code only for a demonstrated compatibility need.
+Email and iMessage remain adapters to the shared command boundary. The implemented private iMessage setup adapter has a separate Node process because Photon uses a persistent gRPC connection. ChatGPT, Codex, Claude, Claude Code, Dots, Muse, and Instinct use shared interfaces; record their differences in compatibility tests and connection guidance. Add client-specific code only for a demonstrated compatibility need.
 
-API and worker entry points run as Supabase Edge Functions on TypeScript/Deno, with Hono for routing. Proposed MCP/webhook adapters share the application boundary; direct Photon Spectrum requires the selected narrow Node/Bun bridge because its gRPC transport does not fit strict worker isolates. The planned product CLI uses the HTTP API. Actual MCP and iMessage compatibility remains open.
+API and worker entry points run as Supabase Edge Functions on TypeScript/Deno, with Hono for routing. Proposed MCP/webhook adapters share the application boundary; direct Photon Spectrum uses the implemented narrow Node 24 bridge because its persistent gRPC transport needs its own runtime. The planned product CLI uses the HTTP API. Complete MCP client journeys and real linked-host iMessage onboarding remain open; the controlled Photon transport probe passed separately.
 
-Supabase Queues and PostgreSQL preserve work between invocations. Cron triggers drains and recovery. Queue consumers follow the [job and recovery design](01_backend_architecture.md#8-jobs-inbox-and-outbox); no separate always-on backend application is part of the initial layout.
+Supabase Queues and PostgreSQL preserve work between invocations. Cron triggers drains and recovery. Queue consumers follow the [job and recovery design](01_backend_architecture.md#8-jobs-inbox-and-outbox); the Photon setup bridge is the only separate always-running process currently implemented, with production hosting still pending.
 
 ## 3. Module and dependency boundaries
 

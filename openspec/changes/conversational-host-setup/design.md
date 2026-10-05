@@ -48,7 +48,7 @@ Enforce one active host per channel identity and one active private iMessage lin
 
 Create a separate Node 24 service using pinned tested Spectrum versions, not a long-running gRPC stream inside a Supabase Edge request. The bridge receives provider events, rejects untrusted shapes/group contexts, and calls authenticated internal onboarding endpoints. Store provider IDs with unique constraints and serialize turns by host conversation. Persist outgoing reply intent before send, assign stable clientMessageId, disable blind retries, and reconcile uncertain outcomes before any resend. Verify only authorized linked conversation history; no global message-history sweeps. Record provider acceptance separately from delivery and user replies.
 
-Keep scheduling logic and database access behind the application command boundary; the bridge gets narrowly scoped service authentication and no direct arbitrary host operation surface. Deployment must supply a persistent existing Node runtime, restart policy, health status, and secret injection. A dedicated container service can run locally for integration tests; production destination selection is a rollout prerequisite, not evidence that iMessage is shipped.
+Keep scheduling logic and database access behind the application command boundary; the bridge gets narrowly scoped service authentication and no direct arbitrary host operation surface. Deployment must supply a persistent Node runtime, restart policy, health status, and secret injection. Fly.io is the selected target: app `fmat-photon-bridge` is reserved in `personal`, with one proposed shared CPU/512 MB Machine in Tokyo and auto-stop disabled. CLI authentication, strict configuration validation and the local container health checks pass. No Machine is deployed; recurring spend, billing readiness and production recovery checks remain pending. The [runbook](../../../apps/photon-bridge/README.md) owns operational commands and pricing. Reserving an app is not evidence that iMessage is shipped.
 
 ## Risks / Trade-offs
 
@@ -72,4 +72,4 @@ Rollback disables chat/bridge entry and restores structured setup without deleti
 
 ## Open Questions
 
-Which existing persistent Node hosting environment will run the bridge? Resolve before deployment; local implementation and deterministic verification can proceed without provisioning a new paid service.
+Fly.io resolves the hosting-provider choice. Recurring server spend and billing readiness still need confirmation before provisioning. Production health/restart recovery and an authorized real linked-host onboarding journey remain unverified. Fly's limited trial does not provide continuous free operation; see the runtime runbook for its current limits.

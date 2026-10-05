@@ -187,8 +187,11 @@ The bridge passes 23 tests without external messages. The approximately 324 kB e
 defers its 654 kB chat runtime; the lazy chunk-size warning remains. [Sanitized evidence](../../scripts/p0/conversation-results-2026-10-05.json).
 
 Requester conversation is archived into the meeting-requests contract. Host setup remains an open
-change: a new persistent server is required, Fly configuration is prepared, and hosting account/billing
-selection plus real linked-host onboarding are pending. This bounded setup bridge does not implement
+change: Fly CLI `0.4.111` is authenticated and `fmat-photon-bridge` is reserved in the `personal`
+organization. Strict configuration validation and the local Linux/amd64 Node 24 container checks
+pass, but no Fly Machines are deployed. Recurring spend, billing readiness, deployment/restart
+verification and real linked-host onboarding are pending. See the [preparation evidence](../../scripts/p0/fly-bridge-preparation-2026-10-05.json)
+and [runtime/pricing guide](../../apps/photon-bridge/README.md#flyio-cli-setup-app-reserved-server-not-deployed). This bounded setup bridge does not implement
 full P6 iMessage scheduling, and these fixtures do not close the remaining P0 live client or Calendar
 M2 gates.
 

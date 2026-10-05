@@ -1,4 +1,4 @@
-# Proposed app name; reserve it in the intended Fly organization before deploying.
+# App reserved in the personal organization; no Machine deployed as of 2026-10-05.
 app = "fmat-photon-bridge"
 primary_region = "nrt"
 kill_signal = "SIGTERM"

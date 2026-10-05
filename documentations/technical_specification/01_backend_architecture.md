@@ -10,12 +10,14 @@ This document expands the technical specification into backend boundaries, reque
 
 Use a modular TypeScript backend on Supabase Edge Functions, with Deno and Hono. API functions handle interactive requests; worker functions consume durable jobs in bounded batches. They share domain code and Supabase PostgreSQL state. These are execution roles, not always-on processes. PostgreSQL and Supabase Queues preserve work across function termination; Supabase Cron triggers recurring drains and recovery sweeps.
 
-Supabase PostgreSQL, Auth, Edge Functions, Queues, and Cron supply the implemented backend. React/Vite/npm with shadcn preset `b6rtA2Hmi` runs on Vercel, and OpenAI supplies validated extraction/ranking. Cloudflare Email Service is the transactional sender for application and Supabase Auth mail; AgentMail retains managed conversation inboxes and threading. Direct Photon Spectrum through a narrow Node/Bun bridge is the selected iMessage direction. Complete MCP authorization/client journeys, actual Google consent/Calendar M1/M2, and production messaging integration remain open; the isolated AgentMail received-parent/signature/recovery gate passed. Backend alternatives are deferred as recorded in the [backend decision](../03_technical_specification.md#backend-decision).
+Supabase PostgreSQL, Auth, Edge Functions, Queues, and Cron supply the implemented backend. React/Vite/npm with shadcn preset `b6rtA2Hmi` runs on Vercel, and OpenAI supplies validated extraction/ranking. Cloudflare Email Service is the transactional sender for application and Supabase Auth mail; AgentMail retains managed conversation inboxes and threading. A narrow Node 24 Photon bridge implements private iMessage host setup, with Fly.io selected for its persistent runtime. The CLI is authenticated and the app name reserved; no server is deployed. [Runtime and hosting status](../../apps/photon-bridge/README.md). Host Calendar M1 readiness is verified; remaining Calendar M2 checks, complete MCP client journeys and production messaging integration remain open; the isolated AgentMail received-parent/signature/recovery gate passed. Backend alternatives are deferred as recorded in the [backend decision](../03_technical_specification.md#backend-decision).
 
 ```mermaid
 flowchart LR
     U["Web, MCP clients, CLI"]
-    P["Cloudflare Email Service,<br/>AgentMail, and iMessage providers"]
+    P["Cloudflare Email Service<br/>and AgentMail"]
+    PH["Photon iMessage"]
+    B["Node 24 setup bridge<br/>Fly server pending"]
     subgraph API[API Edge Functions]
         E["Entry adapters<br/>HTTP, MCP, webhooks, public skills"]
         A["Identity and authorization"]
@@ -33,6 +35,8 @@ flowchart LR
     L[Model adapter]
     U <--> E
     P -->|Signed webhook| E
+    PH <-->|Persistent gRPC| B
+    B -->|Scoped internal setup HTTP| E
     E --> A
     A --> S
     S --> D

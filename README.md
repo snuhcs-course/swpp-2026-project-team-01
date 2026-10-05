@@ -22,6 +22,21 @@ See the [project one-pager](documentations/01_one_pager.md) for the target users
 
 See the [planned repository structure](documentations/technical_specification/02_repo_structure.md) for the web/CLI apps, Supabase Edge Functions, shared modules, and test layout.
 
+## Hosting status
+
+The website and backend are deployed. iMessage host setup is implemented but its server is not running yet.
+
+| Service | Provider | Current status |
+|---|---|---|
+| Website | Vercel | Live at `findmeatime.com` |
+| Auth, database, API and booking worker | Supabase | Deployed |
+| Photon iMessage setup bridge | Fly.io | CLI authenticated and app reserved; no Machines deployed |
+
+The bridge uses one proposed 512 MB Node 24 server in Tokyo. Recurring spend, billing readiness,
+production deployment and real linked-host verification remain pending. Fly's limited trial is not
+an ongoing free hosting plan. See the [bridge deployment and pricing guide](apps/photon-bridge/README.md#flyio-cli-setup-app-reserved-server-not-deployed)
+and [implementation milestones](documentations/technical_specification/04_implementation_plan.md).
+
 ## Local development
 
 Use Node.js 24, npm 11, Deno 2.9.1, Docker, Supabase CLI 2.119.0 and OpenSpec CLI 1.14.0.

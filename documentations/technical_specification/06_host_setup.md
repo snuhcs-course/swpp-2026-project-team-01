@@ -140,7 +140,7 @@ An unlinked sender can instead start in iMessage and receive a short-lived brows
 
 Linked hosts resume the same draft and transcript in either channel. In iMessage, `CONFIRM` followed by the exact current review number saves that review; a plain “yes” does not. Google consent and protected calendar selection continue in the authenticated website. **Unlink iMessage** revokes the binding and blocks future private processing or dispatch; relinking requires new proofs. Unknown delivery outcomes remain uncertain and are never blindly resent.
 
-See the [bridge runtime and new-server deployment guide](../../apps/photon-bridge/README.md) and [pending capability change](../../openspec/changes/conversational-host-setup/proposal.md). A new server is required; the Fly.io configuration is prepared, with account/billing selection still pending. Production linked-host onboarding remains an unchecked acceptance gate.
+See the [bridge runtime and new-server deployment guide](../../apps/photon-bridge/README.md) and [pending capability change](../../openspec/changes/conversational-host-setup/proposal.md). Fly CLI `0.4.111` is authenticated and `fmat-photon-bridge` is reserved, with configuration and local-container checks recorded in the [preparation evidence](../../scripts/p0/fly-bridge-preparation-2026-10-05.json). No Fly Machine is running. Recurring spend, billing readiness, server deployment and production linked-host onboarding remain pending; the website continues to show the iMessage unavailable fallback.
 
 ## Real host setup evidence (2026-10-05)
 
