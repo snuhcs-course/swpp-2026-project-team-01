@@ -4,7 +4,7 @@ import { getCalendarEvents, getSession, jsonError, refreshGoogleAccessToken, slo
 import { CalendarWriteError, findGoogleBooking, insertGoogleBooking, type GoogleBooking } from "@/lib/server/google-booking";
 
 export const dynamic = "force-dynamic";
-type Booking = { id: string; status: string; requester_calendar_id: string; requester_email: string; requester_name: string; purpose: string; location: string; confirmed_start: string; confirmed_end: string; google_event_id: string; google_event_url: string | null };
+type Booking = { id: string; status: string; requester_calendar_id: string | null; request_mode: "google" | "manual"; requester_email: string; requester_name: string; purpose: string; location: string; confirmed_start: string; confirmed_end: string; google_event_id: string; google_event_url: string | null };
 const claimMessages: Record<string, string> = {
   request_not_found: "요청을 찾을 수 없습니다.", request_not_pending: "수락할 수 없는 요청입니다.",
   other_approval_pending: "다른 요청의 일정 등록이 아직 처리 중입니다. ‘등록 결과 확인’을 먼저 눌러 완료해 주세요.",
@@ -42,9 +42,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!event) {
       const from = new Date(Date.parse(booking.confirmed_start) - 86_400_000);
       const until = new Date(Date.parse(booking.confirmed_end) + 86_400_000);
-      const { data: requester, error: requesterError } = await db.from("requester_calendars").select("encrypted_refresh_token").eq("id", booking.requester_calendar_id).single();
-      if (requesterError || !requester) throw new Error("requester_calendar_missing");
-      const [ownerEvents, requesterEvents] = await Promise.all([getCalendarEvents(owner.encrypted_refresh_token, from, until), getCalendarEvents(requester.encrypted_refresh_token, from, until)]);
+      const ownerEvents = await getCalendarEvents(owner.encrypted_refresh_token, from, until);
+      let requesterEvents: Awaited<ReturnType<typeof getCalendarEvents>> = [];
+      if (booking.request_mode !== "manual") {
+        if (!booking.requester_calendar_id) throw new Error("requester_calendar_missing");
+        const { data: requester, error: requesterError } = await db.from("requester_calendars").select("encrypted_refresh_token,google_sub").eq("id", booking.requester_calendar_id).single();
+        if (requesterError || !requester) throw new Error("requester_calendar_missing");
+        const {data: currentConnection} = await db.from("owner_calendars").select("encrypted_refresh_token").eq("google_sub",requester.google_sub).not("account_id","is",null).maybeSingle();
+        requesterEvents = await getCalendarEvents(currentConnection?.encrypted_refresh_token ?? requester.encrypted_refresh_token, from, until);
+      }
       if (Date.parse(booking.confirmed_start) <= Date.now() || !slotIsAvailable([...ownerEvents, ...requesterEvents], new Date(booking.confirmed_start), new Date(booking.confirmed_end), booking.location)) {
         throw new Error("new_conflict");
       }

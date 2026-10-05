@@ -1,9 +1,5 @@
-# meeting-approval Specification
+## MODIFIED Requirements
 
-## Purpose
-호스트가 들어온 요청의 후보 하나를 명시적으로 수락하면 본인의 Google Calendar에 일정을 생성하고 요청자에게 Google 일정 초대를 전달하도록 한다.
-
-## Requirements
 ### Requirement: Explicit owner approval
 시스템은 소유자의 쓰기 권한과 요청 소유권을 확인하고 후보 중 하나를 선택해 수락하도록 SHALL 해야 한다. 생성 전에 자동 요청은 양쪽 최신 캘린더, 수동 요청은 호스트 최신 캘린더의 충돌과 이동 여유를 재확인 SHALL 해야 한다. 수동 요청은 요청자 캘린더와 입력한 이메일의 소유 여부를 확인하지 못했음을 표시 SHALL 해야 한다.
 
@@ -34,10 +30,3 @@
 #### Scenario: Concurrent approvals
 - **WHEN** 같은 소유자가 여러 수락을 동시에 시도한다
 - **THEN** 소유자별로 하나의 confirming 요청만 허용하고 임대 및 시도 식별자로 중복 실행을 제어한다
-
-### Requirement: Invitation delivery wording
-시스템은 수락 시 저장된 요청자 이메일을 참석자로 넣어 Google에 초대 알림 발송을 요청 SHALL 해야 한다. 실제 이메일 배달과 상대 캘린더 자동 반영을 보장한다고 표시하지 SHALL 않아야 한다.
-
-#### Scenario: Recipient invitation settings
-- **WHEN** 소유자에게 등록 완료를 표시한다
-- **THEN** 초대 알림을 요청했다는 결과를 표시하고 상대의 설정에 따라 초대 수락이 필요할 수 있음을 설명한다

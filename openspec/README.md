@@ -27,3 +27,10 @@
 초기 Google 연결과 양쪽 일정 조회·요청 저장은 실제 연결로 확인했고, 사용자가 요청 제출 성공을 확인했습니다. 새 화면 전체의 브라우저 조작, 추가 쓰기 권한 동의, 실제 Google 일정 생성 및 초대 이메일 수신은 아직 검증하지 않았습니다. 구현 완료와 실제 발송 검증을 구분합니다. 초기 변경의 전체 브라우저 검증 작업은 미완료로 남깁니다.
 
 변경 기록은 아직 보관 처리(archive)하지 않았습니다. 후속 변경을 반영한 delta 사양과 최신 사양을 함께 동기화했으며, 초기 proposal/design의 당시 범위는 후속 변경 안내와 함께 보존합니다.
+
+## 계정 및 수동 요청 추가
+
+- [caltalk-accounts](specs/caltalk-accounts/spec.md): 이메일 계정, 세션 갱신, Google 연결 재사용과 소유권 검증.
+- [manual-meeting-requests](specs/manual-meeting-requests/spec.md): 가입·캘린더 연결 없이 공개 후보 선택, 수동 요청 표시와 호스트 일정 재검사.
+- 변경 기록: `changes/persistent-accounts-and-manual-requests/`. 현재 사양에는 새 동작을 동기화했습니다. 과거 변경 기록보다 현재 사양과 이 후속 변경이 우선합니다.
+- 구현·원격 마이그레이션 적용·Vercel 배포 및 정적 검사는 완료했습니다. 일반 팀원 가입용 SMTP, 실제 인증·초대 흐름 확인, Docker 복구 후 로컬 DB reset은 남아 있어 변경을 archive하지 않습니다.

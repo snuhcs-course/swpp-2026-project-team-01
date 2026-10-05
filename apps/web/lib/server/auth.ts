@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { getAccount } from "./account";
 import { NextResponse } from "next/server";
 import { insideWindows, seoulDay, type TimeWindow } from "@/lib/availability";
 
@@ -34,6 +35,12 @@ export async function setSession(session: AppSession) {
   });
 }
 export async function getSession(): Promise<AppSession | null> {
+  const account = await getAccount();
+  if (account) {
+    const { data, error } = await supabaseAdmin().from("owner_calendars").select("google_sub,email").eq("account_id", account.id).maybeSingle();
+    if (error || !data) return null;
+    return { sub: data.google_sub, email: data.email, role: "owner" };
+  }
   const value = (await cookies()).get(cookieName)?.value;
   if (!value) return null;
   try {
@@ -45,12 +52,13 @@ export async function getSession(): Promise<AppSession | null> {
 }
 export async function clearSession() { (await cookies()).delete(cookieName); }
 export async function beginOAuthState(role: AppSession["role"], shareCode?: string) {
+  const account = await getAccount();
   const nonce = randomBytes(24).toString("base64url");
-  const payload = Buffer.from(JSON.stringify({ nonce, role, shareCode, issuedAt: Date.now() })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ nonce, role, shareCode, accountId: account?.id ?? null, issuedAt: Date.now() })).toString("base64url");
   (await cookies()).set(stateCookieName, signed(payload), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 600 });
   return signed(nonce);
 }
-export async function consumeOAuthState(state: string): Promise<{ role: AppSession["role"]; shareCode?: string } | null> {
+export async function consumeOAuthState(state: string): Promise<{ role: AppSession["role"]; shareCode?: string; accountId?: string | null } | null> {
   const stateNonce = verify(state);
   const jar = await cookies();
   const cookie = jar.get(stateCookieName)?.value;
@@ -58,13 +66,13 @@ export async function consumeOAuthState(state: string): Promise<{ role: AppSessi
   const payload = verify(cookie);
   if (!payload) return null;
   try {
-    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { nonce: string; role: string; shareCode?: string; issuedAt: number };
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { nonce: string; role: string; shareCode?: string; accountId?: string | null; issuedAt: number };
     const a = Buffer.from(parsed.nonce); const b = Buffer.from(stateNonce);
     if (a.length !== b.length || !timingSafeEqual(a, b) || Date.now() - parsed.issuedAt > 10 * 60 * 1000) return null;
     if (parsed.role !== "owner" && parsed.role !== "requester") return null;
     if (parsed.shareCode && !/^[A-Za-z0-9_-]{20,100}$/.test(parsed.shareCode)) return null;
     jar.delete(stateCookieName);
-    return { role: parsed.role, shareCode: parsed.shareCode };
+    return { role: parsed.role, shareCode: parsed.shareCode, accountId: parsed.accountId };
   } catch { return null; }
 }
 export const OWNER_WRITE_SCOPE = "https://www.googleapis.com/auth/calendar.events.owned";

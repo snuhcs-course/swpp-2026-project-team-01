@@ -13,7 +13,7 @@ export async function GET() {
   try {
     const { data, error } = await supabaseAdmin().from("share_links").select(`
       id,name,active,created_at,encrypted_code,availability_start,availability_end,availability_windows,meeting_duration_minutes,publication_settings,
-      meeting_requests(id,requester_name,requester_email,purpose,created_at,duration_minutes,location,candidate_slots,status,confirmed_start,confirmed_end,google_event_url)
+      meeting_requests(id,request_mode,requester_name,requester_email,purpose,created_at,duration_minutes,location,candidate_slots,status,confirmed_start,confirmed_end,google_event_url)
     `).eq("owner_google_sub", session.sub).is("deleted_at", null).order("created_at", { ascending: false });
     if (error) throw error;
     const links = (data ?? []).map(({ encrypted_code, ...link }) => {

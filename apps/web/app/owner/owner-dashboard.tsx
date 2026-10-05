@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import SignOut from "../account/sign-out";
 import { useCallback, useEffect, useState } from "react";
 import { readJsonResponse } from "@/lib/client-json";
 import CalendarView, { type CalendarData, shortDate } from "./calendar-view";
@@ -33,7 +34,7 @@ export default function OwnerDashboard({ email }: { email: string }) {
   }, [loadCalendar, loadRequests]);
 
   return <main className={styles.shell}>
-    <header className={styles.header}><Link href="/owner" className={styles.brand}>Caltalk<span>.</span></Link><div className={styles.account}><i /><span>Google Calendar 연결 · {email}</span></div></header>
+    <header className={styles.header}><Link href="/owner" className={styles.brand}>Caltalk<span>.</span></Link><div className={styles.account}><i /><span>Google Calendar 연결 · {email}</span><Link href="/account">내 계정</Link><SignOut/></div></header>
     <div className={styles.layout}>
       <aside className={styles.sidebar} aria-label="메뉴와 미팅 조건">
         <nav><a href="#my-calendar">▦ 내 캘린더</a><a href="#share-links">↗ 요청 링크</a><a href="#received-requests">▤ 받은 요청</a></nav>

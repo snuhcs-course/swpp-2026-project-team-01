@@ -30,7 +30,7 @@ Google Auth Platform → **Audience(대상)** → **Test users(테스트 사용�
 
 ### 3. 팀원과 확인할 흐름
 
-호스트 Google 연결 → 요청 링크 생성 → 다른 계정으로 링크 접속 및 Google 연결 → 요청 제출 → 호스트가 후보 수락 → 캘린더 등록·초대 수신을 확인합니다. 이 단계에서 수락 버튼을 누르면 실제 Google 일정과 초대가 만들어집니다. 호스트·요청자가 같은 PC를 사용한다면 서로 다른 브라우저 프로필이나 시크릿 창으로 세션을 구분합니다.
+호스트 로그인·Google 최초 연결 → 요청 링크 생성 → 다른 브라우저에서 링크 접속 → Google 자동 확인 또는 연동 없이 시간 선택 → 요청 제출 → 호스트가 후보 수락 → 캘린더 등록·초대 수신을 확인합니다. 이 단계에서 수락 버튼을 누르면 실제 Google 일정과 초대가 만들어집니다. 호스트·요청자가 같은 PC를 사용한다면 서로 다른 브라우저 프로필이나 시크릿 창으로 세션을 구분합니다.
 
 ## 배포 설정과 재배포
 
@@ -44,7 +44,7 @@ vercel deploy --prod --yes --scope swpp-2026
 
 - 배포 서버: Next.js, Node.js 22.x. 앱 폴더 자체를 업로드하므로 Vercel Root Directory는 별도 하위 경로 없이 사용합니다.
 - `APP_URL`: `https://caltalk-mvp.vercel.app`.
-- Google 클라이언트 ID/Secret, Supabase URL/서버 Secret, 토큰 암호화 키, 세션 키는 사용자 승인 후 해당 Vercel 프로젝트의 서버 환경 변수로 등록했습니다. 문서·GitHub에는 값을 포함하지 않습니다.
+- Google 클라이언트 ID/Secret, Supabase URL/서버 Secret/공개 Auth 키, 토큰 암호화 키, 세션 키는 사용자 승인 후 해당 Vercel 프로젝트의 서버 환경 변수로 등록했습니다. 문서·GitHub에는 값을 포함하지 않습니다.
 - 로컬 `.env.local`의 `APP_URL`은 localhost로 유지합니다. `.env.local`과 `.vercel`은 Git과 소스 배포에서 제외됩니다.
 - 기존 DB의 암호화된 연결 정보를 사용하므로 `TOKEN_ENCRYPTION_KEY`를 임의로 교체하면 기존 토큰을 읽을 수 없습니다.
 - Supabase 공용 프로젝트가 정해지면 마이그레이션과 환경 변수 변경으로 이전하며, 기존 데이터와 연결의 이전 범위는 별도로 합의합니다.
@@ -52,3 +52,11 @@ vercel deploy --prod --yes --scope swpp-2026
 ## 남은 확인
 
 실제 계정으로 로그인한 뒤 양쪽 캘린더 조회, 요청 저장, 수락 및 초대 수신까지 배포 환경에서 확인해야 합니다. 현재 배포 성공을 전체 미팅 흐름의 검증 완료로 간주하지 않습니다.
+
+## 계정·수동 요청 배포 추가 (2026-10-05)
+
+Caltalk 이메일 계정, 저장된 Google 연결 재사용, 무연동 시간 선택 기능을 같은 주소에 배포했습니다. 계정 연결·요청 모드 마이그레이션은 기존 개인 Supabase에 적용했습니다. `SUPABASE_PUBLISHABLE_KEY`를 Vercel에 등록하고 Supabase Auth의 Site URL 및 로컬/배포 인증 복귀 URL도 반영했습니다.
+
+**남은 설정: 일반 팀원 회원가입용 SMTP.** 이메일 확인을 계속 요구합니다. 기본 발송 서비스는 Supabase 조직에 허용된 이메일 등 제약이 있으므로 일반 팀원 가입이 모두 가능하다고 간주하면 안 됩니다. 기존 Google 로그인과 무연동 요청은 이 설정을 기다릴 필요가 없습니다. [쉬운 사용법과 SMTP 안내](accounts-and-manual-requests.md)를 참고하세요.
+
+타입 검사·lint·로컬 빌드 및 Vercel 빌드는 통과했습니다. 새 계정 생성/인증 메일 수신/실제 Google 초대 발송은 수행하지 않았습니다. 로컬 Docker 엔진이 Windows 소켓 접근 오류로 시작되지 않아 로컬 DB reset 검증은 남아 있습니다. 마이그레이션 SQL 검토와 원격 dry-run 후 적용하고 컬럼·제약·RLS 상태를 조회했습니다.

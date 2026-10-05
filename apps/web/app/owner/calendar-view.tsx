@@ -45,7 +45,7 @@ export default function CalendarView({ data, loading, error, onRefresh }: { data
       <div className={styles.row}><span className={styles.muted}>주간 · 서울 시간</span><button className={styles.secondary} onClick={onRefresh} disabled={loading}>{loading ? "불러오는 중…" : "새로고침"}</button></div>
     </div>
     <div className={styles.legend}><span><i className={styles.blueDot} />Google 일정</span><span><i className={styles.greenDot} />미팅 가능 시간</span><span className={styles.muted}>기본 캘린더 · 일정 조회</span></div>
-    {error && <div role="alert" className={styles.error}>{error} <a href="/api/auth/google/start?role=owner">다시 연결</a></div>}
+    {error && <div role="alert" className={styles.error}>{error} <a href="/api/auth/google/start?role=owner&reconnect=1">다시 연결</a></div>}
     {!data ? <div className={styles.empty}>{loading ? "Google Calendar의 일정을 불러오고 있어요…" : "캘린더를 불러오면 일정과 미팅 가능한 시간이 여기에 표시됩니다."}</div> : <>
       <div className={styles.calendarScroll} ref={scroll} aria-busy={loading}>
         <div className={styles.calendarGrid}>

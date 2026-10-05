@@ -22,7 +22,7 @@ Create a Supabase project, then apply `supabase/schemas/caltalk.sql` through the
 
 Set the variables shown in `.env.example` in `.env.local`. `SUPABASE_SECRET_KEY` and `GOOGLE_CLIENT_SECRET` are server-only secrets; never use a `NEXT_PUBLIC_` prefix or commit `.env.local`. Generate the session and encryption keys with a cryptographically secure random generator. Configure the deployed app's matching production URL in `APP_URL` and as an additional Google redirect URI.
 
-Requesters grant read-only calendar-event access. Owners additionally grant `calendar.events.owned` to create events on their own calendar after explicit approval. Existing owners must reconnect once and approve this additional permission. No Gmail scope or extra email service is required. It stores encrypted refresh tokens and hashes share codes. New links also store an encrypted copy of the code so the owner can copy the URL again. Scheduling reads event start/end/location and busy/free state. The owner's private calendar view additionally reads titles, event IDs and all-day state; titles are not stored or exposed to requesters. Existing event attendees are not read. The app creates events only through the owner approval endpoint; it passes the stored requester email as an attendee and `sendUpdates=all`. Location buffers are a simple heuristic (same/unknown location 15 minutes; different physical location 45 minutes; online-to-online 0 minutes; online-to-physical 15 minutes), not a travel-time estimate.
+Requesters grant read-only calendar-event access. Owners additionally grant `calendar.events.owned` to create events on their own calendar after explicit approval. Existing owners must reconnect once and approve this additional permission. Google meeting invitations require no Gmail scope or extra email service. Caltalk signup verification emails use Supabase Auth and require a configured SMTP service for general team signups. It stores encrypted refresh tokens and hashes share codes. New links also store an encrypted copy of the code so the owner can copy the URL again. Scheduling reads event start/end/location and busy/free state. The owner's private calendar view additionally reads titles, event IDs and all-day state; titles are not stored or exposed to requesters. Existing event attendees are not read. The app creates events only through the owner approval endpoint; it passes the stored requester email as an attendee and `sendUpdates=all`. Location buffers are a simple heuristic (same/unknown location 15 minutes; different physical location 45 minutes; online-to-online 0 minutes; online-to-physical 15 minutes), not a travel-time estimate.
 
 ## Owner home and request links
 
@@ -35,13 +35,13 @@ Requesters grant read-only calendar-event access. Owners additionally grant `cal
 1. 이름, 미팅 길이(30/45/60/90/120/180/240분), 공개할 날짜·평일·하루 중 시간 범위를 입력합니다. 기본 조건(내일부터 14일, 평일 09:00–20:00) 안에서 범위를 좁힐 수 있습니다.
 2. 최신 내 캘린더에서 해당 길이가 들어가는 후보를 최대 5개 추천받습니다. 후보는 날짜를 분산하고 서로 겹치지 않게 선택합니다. 가능 시간이 부족하면 실제 개수를 안내합니다.
 3. 후보 중 2개 이상 선택하면 선택한 정확한 시간만 링크에 저장됩니다. 미리보기는 15분 동안 유효하며 생성 직전에 새 충돌을 다시 확인합니다.
-4. 요청자는 호스트가 정한 미팅 길이를 바꾸지 못합니다. 제출 시 선택된 시간 중 양쪽 캘린더와 장소 조건을 만족하는 후보만 저장합니다.
+4. 요청자는 호스트가 정한 미팅 길이를 바꾸지 못합니다. 자동 제출은 선택된 시간 중 양쪽 캘린더와 장소 조건을 만족하는 후보만 저장합니다. 수동 제출은 호스트 캘린더만 확인하고 요청자가 1–3개를 직접 선택합니다.
 
 링크 상세에는 작은 주간 시간표와 시간 목록, 요청자, 주소 복사, 열기/닫기/삭제가 표시됩니다. 공개 시간은 자동 연장되지 않습니다. 이전 버전 링크는 기존 구간·요청자 길이 선택 동작을 유지하며, 최초 버전의 해시만 저장된 링크는 URL 재복사를 지원하지 않습니다.
 
 ### 요청 수락과 초대
 
-링크 상세의 ‘이 링크로 들어온 요청’에서 후보 하나를 선택하고 **수락하고 초대 보내기**를 누릅니다. 기존 연결은 **일정 등록 권한 연결**을 눌러 같은 호스트 계정으로 추가 동의해야 합니다. 양쪽 최신 캘린더를 다시 확인한 뒤 호스트 기본 캘린더에 일정을 생성하고 요청자 이메일을 참석자로 넣습니다. Google에 모든 참석자의 초대 알림을 발송하도록 요청합니다. 상대 계정의 초대 설정·스팸 분류에 따라 실제 수신과 자동 캘린더 반영은 달라질 수 있으며, 앱은 이메일 배달을 추적하지 않습니다.
+링크 상세의 ‘이 링크로 들어온 요청’에서 후보 하나를 선택하고 **수락하고 초대 보내기**를 누릅니다. 기존 연결은 **일정 등록 권한 연결**을 눌러 같은 호스트 계정으로 추가 동의해야 합니다. 자동 요청은 양쪽 최신 캘린더, 수동 요청은 호스트 최신 캘린더만 다시 확인한 뒤 호스트 기본 캘린더에 일정을 생성하고 요청자 이메일을 참석자로 넣습니다. Google에 모든 참석자의 초대 알림을 발송하도록 요청합니다. 상대 계정의 초대 설정·스팸 분류에 따라 실제 수신과 자동 캘린더 반영은 달라질 수 있으며, 앱은 이메일 배달을 추적하지 않습니다.
 
 중복 클릭은 DB의 소유자별 처리 제한으로 막습니다. 요청 UUID 기반 Google 이벤트 ID를 사용하고, 결과가 불분명하면 **등록 결과 확인 / 재시도**로 기존 일정을 찾아 DB 상태를 복구합니다. 다른 시간이 중복 등록되지 않도록 처리 중인 후보는 고정합니다. 등록된 이벤트가 외부에서 변경/삭제되면 확인 필요 상태로 남기고 자동으로 다시 만들지 않습니다. 외부 Google 편집과 일정 생성 사이의 경쟁까지 원자적으로 막을 수는 없습니다.
 
@@ -77,3 +77,16 @@ pnpm build
 ## 팀원 테스트 배포
 
 https://caltalk-mvp.vercel.app 에 Vercel CLI로 배포했습니다. 기존 개인 Supabase DB를 로컬 환경과 공유합니다. Google 배포 리디렉션 URI 등록을 완료했으며 주소 불일치 오류가 해소된 것을 확인했습니다. 실제 로그인 이후의 전체 미팅 흐름 확인은 남아 있습니다. [배포 설정 및 다음 작업](../../documentaions/team-test-deployment.md)을 참고하세요.
+
+## Caltalk 계정과 무연동 요청
+
+`/login`에서 이메일·비밀번호 계정을 만들고 인증 메일을 확인합니다. `/account`에서 Google을 최초 연결하면 이후 로그인 시 저장된 연결을 사용합니다. Google 권한이 취소되거나 테스트 모드 토큰이 만료되면 재연결이 필요합니다. 비밀번호 재설정과 계정 삭제 화면은 이번 변경 범위에 포함하지 않았습니다.
+
+Auth에는 서버 키와 별도로 `SUPABASE_PUBLISHABLE_KEY`가 필요합니다. Supabase Auth Site URL 및 Redirect URLs와 SMTP를 설정해야 합니다. [설정 및 남은 작업](../../documentaions/accounts-and-manual-requests.md)을 따릅니다.
+
+요청 링크의 **연동 없이 시간 선택**은 가입·Google 연결 없이 사용합니다. 호스트에게 수동 요청 표시가 나타나며, 수락 전에는 일정이나 초대가 만들어지지 않습니다.
+
+- `app/login/`, `app/account/`, `app/api/account/`: 계정 화면과 인증 API.
+- `lib/server/account.ts`, `proxy.ts`: Supabase Auth 쿠키·신원 확인·세션 갱신.
+- `app/request/[code]/request-method.tsx`, `manual-request-form.tsx`: 자동/수동 선택과 공개 후보 선택.
+- `app/api/requests/manual/route.ts`, `lib/server/manual-request.ts`: 공개 후보 조회·호스트 일정 재확인·수동 요청 저장.
