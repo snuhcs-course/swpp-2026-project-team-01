@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "CalTalk",
+    "slug": "caltalk",
+    "scheme": "caltalk",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "web": { "bundler": "metro", "name": "CalTalk" },
+    "plugins": ["expo-router"]
+  }
+}
