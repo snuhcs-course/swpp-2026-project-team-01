@@ -76,6 +76,18 @@ describe('calendar atomic snapshots', () => {
     await expect(sync(f, 'other-sync')).rejects.toMatchObject({ code: 'calendar_busy' })
     release(); await work
   })
+  it('drops snapshots nothing refers to after a later import, keeping the one an analysis used', async () => {
+    const f = (await setup())
+    await sync(f, 'first'); await sync(f, 'second'); await sync(f, 'third', 'future')
+    expect(await f.sqlite.prepare('SELECT count(*) n FROM calendar_snapshots').get()).toEqual({ n: 2 })   // current analysis + current schedule
+    const analysed = (await readCalendarConnection(f.ctx.db, 'owner')).analysis!.snapshotId
+    await f.sqlite.prepare("INSERT INTO analysis_runs(id,user_id,snapshot_id,annotation_revision,from_at,to_at,status,coverage_json,summary_json) VALUES ('run','owner',?,0,1,2,'complete','{}','{}')").run(analysed)
+    await sync(f, 'fourth')
+    const left = (await f.sqlite.prepare('SELECT id FROM calendar_snapshots ORDER BY id').all()).map((r: { id: string }) => r.id)
+    expect(left).toContain(analysed)                                   // an analysis still refers to it
+    expect(left).toHaveLength(2)
+    expect(await f.sqlite.prepare('SELECT count(*) n FROM imported_events WHERE snapshot_id NOT IN (SELECT id FROM calendar_snapshots)').get()).toEqual({ n: 0 })
+  })
   it('fails the entire collection on a page or item budget breach', async () => {
     const f = (await setup())
     f.respond(url => ({ items: [], nextPageToken: String(Number(url.searchParams.get('pageToken') ?? 0) + 1) }))
