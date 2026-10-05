@@ -54,15 +54,35 @@ describe('calendar and onboarding screens', () => {
     expect(await screen.findByText(/일정을 가져와 저장했어요/)).toBeInTheDocument()
     expect(fetcher.mock.calls.map(c => c[0]).slice(0, 2)).toEqual(['/api/calendar/selection', '/api/calendar/sync'])
   })
-  it('starts the AI setup after saving, and skips re-importing when nothing changed', async () => {
+  const ev = (id: string, title: string, over: Record<string, unknown> = {}) => ({ eventId: id, title, startAt: 1, endAt: 2, allDay: false, startDate: null, endDate: null, timezone: null, revision: 0, sourceFingerprint: 'f' + id, patch: {}, needsConfirmation: false, locationKind: 'none', classification: 'unknown', aiClassification: null, ...over })
+  it('after saving, shows the imported events grouped by category and by place before closing', async () => {
+    const events = [ev('a', '투자 심의', { aiClassification: 'business', locationKind: 'office' }), ev('b', '헬스장', { classification: 'personal', locationKind: 'place' }), ev('c', '커피챗')]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(ok(sync)).mockResolvedValueOnce(ok(connected)).mockResolvedValueOnce(ok(events)))
+    render(<CalendarSettings initial={connected} mode="real" />)
+    fireEvent.click(screen.getByText('저장하기'))                   // imports again, then shows the review
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(await screen.findByText('투자 심의')).toBeInTheDocument()
+    expect(screen.getAllByText('1건')).toHaveLength(3)             // 업무 · 개인 · 확인 필요
+    fireEvent.click(screen.getByRole('tab', { name: '장소별' }))
+    expect(screen.getAllByText('1건')).toHaveLength(3)             // 회사 · 직접 지정 · 알 수 없음 hold one each
+    fireEvent.click(screen.getByText('확인했어요'))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(push).not.toHaveBeenCalled()
+  })
+  it('starts the AI setup: saves, lets the AI classify, shows the review, then continues to the profile screen', async () => {
     const fetcher = vi.fn()
+      .mockResolvedValueOnce(ok(draft))
+      .mockResolvedValueOnce(ok({ ...draft, revision: 1, messages: [{ id: 'a', role: 'assistant', content: '분석했어요', createdAt: 1, interpretFailed: false }] }))
+      .mockResolvedValueOnce(ok([ev('a', '투자 심의', { aiClassification: 'business' })]))
     vi.stubGlobal('fetch', fetcher)
     render(<CalendarSettings initial={connected} mode="real" />)
     fireEvent.click(screen.getByText('AI로 설정 시작하기'))
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/onboarding?analyze=1'))
-    expect(fetcher).not.toHaveBeenCalled()          // already saved and imported with this selection
-    expect(screen.queryByText('시간 프로필 설정하기')).toBeNull()
-    expect(screen.queryByText('가져온 일정 확인·보정')).toBeNull()
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(fetcher.mock.calls.map(c => c[0]).slice(0, 2)).toEqual(['/api/profile-drafts', '/api/profile-drafts/draft-1/analyze'])
+    expect(push).not.toHaveBeenCalled()                            // the user checks first
+    fireEvent.click(await screen.findByText('확인했어요 · AI 설정 계속'))
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/onboarding'))
+    expect(fetcher).toHaveBeenCalledTimes(3)                       // nothing was corrected, so no second analysis
   })
   it('lets a demo account connect its example calendar, never offering Google', async () => {
     const listed = { ...connected, status: 'needs_refresh', analysis: null, schedule: null, selectionRevision: 0, sources: [{ id: 'mock', name: '예시 캘린더', selected: false, timeZone: 'Asia/Seoul', access: 'detail' }] }

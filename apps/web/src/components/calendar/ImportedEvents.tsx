@@ -10,7 +10,7 @@ import {CLASS_LABEL,LOCATION_LABEL,formatEventRange} from './format'
 export {formatEventRange}
 const eventSchema=importedEventViewSchema
 type Event=ImportedEventView
-function EventEditor({event,hidden}:{event:Event;hidden:boolean}){
+export function EventEditor({event,hidden,onChange}:{event:Event;hidden:boolean;onChange?:(e:Event)=>void}){
  const [saved,setSaved]=useState(event)
  const range=formatEventRange(event)
  return <li hidden={hidden} className="rounded-control border border-border bg-surface">
@@ -29,7 +29,7 @@ function EventEditor({event,hidden}:{event:Event;hidden:boolean}){
     {saved.needsConfirmation&&<span className="sm:hidden"><Badge tone="warn">확인</Badge></span>}
     <ChevronDownIcon className="shrink-0 text-muted transition-transform group-open:rotate-180"/>
    </summary>
-   <div className="border-t border-border px-3 pt-3 pb-4"><EventAnnotationForm saved={saved} onSaved={setSaved}/></div>
+   <div className="border-t border-border px-3 pt-3 pb-4"><EventAnnotationForm saved={saved} onSaved={e=>{setSaved(e);onChange?.(e)}}/></div>
   </details>
  </li>
 }
