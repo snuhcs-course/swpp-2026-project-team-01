@@ -37,9 +37,12 @@ Required runtime configuration:
 | `GOOGLE_ROUTES_API_KEY` or `GOOGLE_MAPS_API_KEY`          | Travel estimates; unavailable estimates remain unresolved                                                                   |
 | `OPENAI_API_KEY`                                          | Optional bounded structured intent extraction; no decision authority                                                        |
 | `OPENAI_MODEL`                                            | Defaults to `gpt-4o-mini-2024-07-18`                                                                                        |
-| `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID`                 | Optional fixed-template delivery adapter; inbox ID is an existing authorized sending inbox                                  |
-| `TRANSACTIONAL_EMAIL_ENABLED`                             | Defaults false; true permits user-requested verification/recovery emails                                                    |
-| `EXTERNAL_SENDS_ENABLED`                                  | Defaults false; permits AgentMail booking confirmation emails only; approved Calendar inserts still send Google invitations |
+| `CLOUDFLARE_ACCOUNT_ID`                                   | Cloudflare account that owns the onboarded Email Service sending domain                                                     |
+| `CLOUDFLARE_EMAIL_API_TOKEN`                              | Runtime Email Sending token for Cloudflare's send API; keep separate from operator credentials                             |
+| `CLOUDFLARE_EMAIL_FROM`                                   | `no-reply@findmeatime.com`; verified From address frozen with each new transactional dispatch                               |
+| `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID`                 | Legacy pending-send compatibility and future managed conversation inboxes/threading                                        |
+| `TRANSACTIONAL_EMAIL_ENABLED`                             | Defaults false; true permits user-requested verification/recovery emails through Cloudflare Email Service                  |
+| `EXTERNAL_SENDS_ENABLED`                                  | Defaults false; permits Cloudflare booking confirmation emails; approved Calendar inserts still send Google invitations    |
 
 Contact codes and recovery tokens contain 256 bits of authority and expire after 15 minutes.
 Initiation returns only `pending`; verification requires the stored challenge, current contact,
@@ -47,12 +50,26 @@ request credential and revision. The provider does not grant verified status. Re
 `#recovery`; verification links use `#verify` and still require the existing protected continuation.
 The web app removes those fragments after reading.
 
-Delivery jobs freeze encrypted recipient/body/inbox evidence before send. A provider idempotency key
-is derived from the persisted outbox identity and kept on every retry. AgentMail retains send
-idempotency for 24 hours; the worker stops retries at 23 hours. Uncertain delivery remains visible
-and is never blindly resent after that horizon. Expired/revoked challenges stop sending, preserving
-uncertainty if dispatch had started. Disabling delivery suppresses only work that has never been
-dispatched.
+New delivery jobs freeze encrypted recipient/body plus the Cloudflare account and From address before
+send. Cloudflare Email Service does not document a request idempotency key, so once dispatch is
+persisted the worker does not replay that send automatically; an ambiguous result remains visible as
+uncertain. Historical AgentMail pending sends keep their persisted provider identity and stable key,
+with retries stopping at 23 hours before AgentMail's 24-hour idempotency horizon. Expired/revoked
+challenges stop sending, preserving uncertainty if dispatch had started. Disabling delivery suppresses
+only work that has never been dispatched.
+
+Supabase Auth remains the authentication provider. Configure its custom SMTP transport through
+Cloudflare at `smtp.mx.cloudflare.net:465` with implicit TLS, username `api_token`, and the Email
+Sending token as the password. Preview the intended configuration, then apply it explicitly:
+
+```sh
+node --env-file=.env scripts/configure-email-smtp.mjs
+node --env-file=.env scripts/configure-email-smtp.mjs --apply
+```
+
+`--apply` requires `SUPABASE_ACCESS_TOKEN`. This is an operator-only Management API credential, not a
+function runtime secret. See [Cloudflare SMTP](https://developers.cloudflare.com/email-service/api/send-emails/smtp/)
+and [Supabase custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp).
 
 The P4 worker registers booking and reconciliation jobs. SQL reserves a host and freezes the event
 ID, payload, proposal version, provider account and calendar before dispatch. Final fresh validation
@@ -82,3 +99,4 @@ deno run --allow-read=/tmp/fmat-local-status.json --allow-net=127.0.0.1:54321 su
 This creates unique synthetic host/request fixtures locally, verifies proposal selection, private
 exceptions, agreement and stale-result rejection, then withdraws the request. The runner rejects
 remote project URLs and prints no credentials.
+

@@ -2,7 +2,12 @@ import type { Actor, Database } from '../../database.ts';
 import type { Environment } from '../../env.ts';
 import { DomainError } from '../../errors.ts';
 import { decryptSecret, encryptSecret, hashToken } from '../../security.ts';
-import { createEmailSender, type PreparedEmail, type SendResult } from '../../providers/email.ts';
+import {
+  createAgentMailEmailSender,
+  createCloudflareEmailSender,
+  type PreparedEmail,
+  type SendResult,
+} from '../../providers/email.ts';
 import type { Job } from '../../../worker/app.ts';
 export interface DeliverySnapshot {
   id: string;
@@ -23,6 +28,36 @@ export interface DeliverySnapshot {
   encryptedPrepared?: string | null;
   providerInboxId?: string | null;
 }
+
+const CLOUDFLARE_IDENTITY_PREFIX = 'cloudflare:';
+
+function validCloudflareIdentityParts(accountId: string, from: string): boolean {
+  return /^[0-9a-f]{32}$/.test(accountId) && /^[^\s@:]+@[^\s@:]+$/.test(from);
+}
+
+function cloudflareIdentity(accountId: string, from: string): string {
+  if (!validCloudflareIdentityParts(accountId, from)) {
+    throw new DomainError('provider_unavailable', 503);
+  }
+  const identity = `${CLOUDFLARE_IDENTITY_PREFIX}${accountId}:${from}`;
+  if (identity.length > 300) throw new DomainError('provider_unavailable', 503);
+  return identity;
+}
+
+function parseCloudflareIdentity(
+  identity: string,
+): { accountId: string; from: string } | undefined {
+  if (!identity.startsWith(CLOUDFLARE_IDENTITY_PREFIX)) return undefined;
+  const separator = identity.indexOf(':', CLOUDFLARE_IDENTITY_PREFIX.length);
+  if (separator < 0) throw new DomainError('invalid_state', 409);
+  const accountId = identity.slice(CLOUDFLARE_IDENTITY_PREFIX.length, separator);
+  const from = identity.slice(separator + 1);
+  if (!validCloudflareIdentityParts(accountId, from) || identity.length > 300) {
+    throw new DomainError('invalid_state', 409);
+  }
+  return { accountId, from };
+}
+
 export function createDeliveryHandler(
   env: Environment,
   db: Database,
@@ -46,12 +81,28 @@ export function createDeliveryHandler(
       });
       return;
     }
-    if (!env.agentmailKey || !env.agentmailInboxId || !env.encryptionKey) {
-      throw new DomainError('provider_unavailable', 503);
-    }
-    // Never cross the documented provider idempotency horizon on an uncertain send.
+    if (!env.encryptionKey) throw new DomainError('provider_unavailable', 503);
     if (
-      snapshot.firstDispatchAt && Date.now() - Date.parse(snapshot.firstDispatchAt) >= 23 * 3600000
+      (!!snapshot.encryptedPrepared !== !!snapshot.providerInboxId) ||
+      (snapshot.firstDispatchAt && (!snapshot.encryptedPrepared || !snapshot.providerInboxId))
+    ) throw new DomainError('invalid_state', 409);
+    const frozenCloudflare = snapshot.providerInboxId
+      ? parseCloudflareIdentity(snapshot.providerInboxId)
+      : undefined;
+    if (snapshot.providerInboxId?.includes(':') && !frozenCloudflare) {
+      throw new DomainError('invalid_state', 409);
+    }
+    if (frozenCloudflare && snapshot.firstDispatchAt) {
+      await db.command('delivery_record', actor, {
+        ...input,
+        outcome: 'uncertain',
+        errorCode: 'email_replay_unsafe',
+      });
+      return;
+    }
+    if (
+      !frozenCloudflare && snapshot.providerInboxId && snapshot.firstDispatchAt &&
+      Date.now() - Date.parse(snapshot.firstDispatchAt) >= 23 * 3600000
     ) {
       await db.command('delivery_record', actor, {
         ...input,
@@ -96,10 +147,13 @@ export function createDeliveryHandler(
           }\n\nReview the meeting at ${env.appOrigin}/requests/${snapshot.payload.requestId}.`,
         };
       } else throw new DomainError('unsupported_delivery');
+      if (
+        !env.cloudflareAccountId || !env.cloudflareEmailToken || !env.cloudflareEmailFrom
+      ) throw new DomainError('provider_unavailable', 503);
       snapshot = await db.command<DeliverySnapshot>('delivery_dispatch', actor, {
         ...input,
         encryptedPrepared: await encryptSecret(email, env.encryptionKey),
-        providerInboxId: env.agentmailInboxId,
+        providerInboxId: cloudflareIdentity(env.cloudflareAccountId, env.cloudflareEmailFrom),
       });
     } else {
       snapshot = await db.command<DeliverySnapshot>('delivery_dispatch', actor, input);
@@ -111,11 +165,28 @@ export function createDeliveryHandler(
       throw new DomainError('invalid_state', 409);
     }
     const email = await decryptSecret<PreparedEmail>(snapshot.encryptedPrepared, env.encryptionKey);
-    const result = await (sender || createEmailSender(env.agentmailKey))(
-      snapshot.providerInboxId,
-      `fmat-${await hashToken(snapshot.dedupeKey)}`,
-      email,
-    );
+    const identity = parseCloudflareIdentity(snapshot.providerInboxId);
+    let result: SendResult;
+    if (identity) {
+      if (
+        !env.cloudflareAccountId || !env.cloudflareEmailToken || !env.cloudflareEmailFrom ||
+        identity.accountId !== env.cloudflareAccountId || identity.from !== env.cloudflareEmailFrom
+      ) throw new DomainError('provider_unavailable', 503);
+      result = sender
+        ? await sender(snapshot.providerInboxId, '', email)
+        : await createCloudflareEmailSender(
+          identity.accountId,
+          env.cloudflareEmailToken,
+          identity.from,
+        )(email);
+    } else {
+      if (!env.agentmailKey) throw new DomainError('provider_unavailable', 503);
+      result = await (sender || createAgentMailEmailSender(env.agentmailKey))(
+        snapshot.providerInboxId,
+        `fmat-${await hashToken(snapshot.dedupeKey)}`,
+        email,
+      );
+    }
     if (result.kind === 'sent') {
       await db.command('delivery_record', actor, {
         ...input,

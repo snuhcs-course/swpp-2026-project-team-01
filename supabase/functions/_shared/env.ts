@@ -11,6 +11,9 @@ export interface Environment {
   routesKey?: string;
   externalSends: boolean;
   transactionalEmails?: boolean;
+  cloudflareAccountId?: string;
+  cloudflareEmailToken?: string;
+  cloudflareEmailFrom?: string;
   agentmailKey?: string;
   agentmailInboxId?: string;
 }
@@ -46,6 +49,9 @@ export function readEnvironment(get = (name: string) => Deno.env.get(name)): Env
     routesKey: get('GOOGLE_ROUTES_API_KEY') || get('GOOGLE_MAPS_API_KEY'),
     externalSends: get('EXTERNAL_SENDS_ENABLED') === 'true',
     transactionalEmails: get('TRANSACTIONAL_EMAIL_ENABLED') === 'true',
+    cloudflareAccountId: get('CLOUDFLARE_ACCOUNT_ID'),
+    cloudflareEmailToken: get('CLOUDFLARE_EMAIL_API_TOKEN'),
+    cloudflareEmailFrom: get('CLOUDFLARE_EMAIL_FROM'),
     agentmailKey: get('AGENTMAIL_API_KEY'),
     agentmailInboxId: get('AGENTMAIL_INBOX_ID'),
   };

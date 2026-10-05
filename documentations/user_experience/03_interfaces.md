@@ -23,7 +23,7 @@ Also offer a private host–assistant email conversation, with final approval th
 
 | Interface | Who uses it | Main responsibility | Access and approval |
 |---|---|---|---|
-| Waitlist and invitation web flow | Prospective host | Join the waitlist, see pending access, redeem an invitation, and resume onboarding. | Waitlist entry grants no host access; invitation redemption binds admission to a verified account. Email invitation delivery is proposed; exact delivery policy remains open. |
+| Waitlist and invitation web flow | Prospective host | Join the waitlist, see pending access, redeem an invitation, and resume onboarding. | Waitlist entry grants no host access; invitation redemption binds admission to a verified account. Remote operator-issued invitations use Cloudflare email from `no-reply@findmeatime.com`, with an explicit manual-delivery option. |
 | Public skill documents | Host or requester through a personal agent | Root `/SKILL.md` guides onboarding; `/{host}/SKILL.md` guides requesting that host. | Public instructions only; tools still enforce role-specific access, consent, and approval. |
 | Public booking web page | Requester | Intake, optional Google Calendar connection/disconnection, clarification, feasible options, negotiation, agreement, and status. | No account required; continuation is limited to the request. Cannot approve for the host. |
 | Host web workspace | Host | Calendar and rule setup, request inbox, private discussion, proposal review, connection management, and recovery. | Authenticated and admitted host access; explicit approval of the displayed current proposal. |
@@ -79,7 +79,7 @@ The host should be able to email the scheduling assistant as part of managing a 
 
 For the proposed initial email experience, a reply such as “Approve” directs the host to web review rather than recording approval. Inline email approval can be considered later after identity and proposal binding are designed and tested. A typed sender address, forwarded thread, quoted approval, or newly added recipient is not sufficient authority for private access or host actions. When verification or context is uncertain, move the action to authenticated web review.
 
-AgentMail is the recommended provider for the email adapter, with Resend as a viable alternative. The address scheme, reply verification, thread linking, unlinking behavior, and delivery recovery still need design. This is request-specific scheduling assistance; it does not require general access to the host's inbox.
+AgentMail is the provider for managed conversational inboxes, threads, and replies. Cloudflare Email Service separately sends fixed transactional verification, recovery, and booking messages, including Supabase Auth mail through custom SMTP. The conversational address scheme, reply verification, thread linking, unlinking behavior, and recovery still need design. This is request-specific scheduling assistance; it does not require general access to the host's inbox.
 
 ## Personal agents and authorization
 
@@ -93,10 +93,11 @@ Three permissions remain distinct: Google Calendar authorization lets our servic
 
 ## Integration choices and scope
 
-- **Email:** Recommend AgentMail for managed inboxes and multi-turn conversations; Resend also supports receiving and threaded replies. Integrate one provider behind the email adapter, and map its inbox/thread/message IDs to application-owned conversations. Keep private host threads separate from requester threads. See the [email provider design](../03_technical_specification.md#email-provider-direction).
+- **Email:** Use Cloudflare Email Service for transactional verification, recovery, booking, and Supabase Auth custom SMTP. Use AgentMail for managed inboxes and multi-turn conversations, mapping its inbox/thread/message IDs to application-owned conversations. Keep private host threads separate from requester threads. See the [email provider design](../03_technical_specification.md#email-provider-direction).
 - **iMessage:** Evaluate Photon directly or Mastra with Photon, as described in the [PRD dependencies](../02_product_requirements.md#10-dependencies-and-open-decisions). Transport or framework approval mechanisms must still enforce the product's explicit host-confirmation rule.
 - **Mobile:** Use responsive web for the initial release. Consider a native app later if pilot evidence shows recurring needs that existing channels cannot meet.
 - **Agent-to-agent coordination:** The current service can coordinate requester and host agents through shared scheduling state. A separate agent-to-agent protocol endpoint is not currently a release requirement.
 - **Delivery order:** Web is the setup and recovery foundation; MCP is the primary personal-agent interface and CLI complements it. Channel delivery order and client support details still need agreement, without silently dropping the PRD's required integrations. Host email remains the scope extension identified above.
 
 All channels inherit the PRD's privacy and lifecycle rules. Changed proposals require fresh approval; stale messages and retries cannot duplicate bookings. A delivered message, read receipt, requester agreement, or unconfirmed calendar write must never be reported as a confirmed meeting.
+

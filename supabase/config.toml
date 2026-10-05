@@ -233,15 +233,17 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
+# Local development captures mail with local_smtp. Production Auth uses Cloudflare;
+# apply only SMTP settings with scripts/configure-email-smtp.mjs, not a full config push.
+# To opt in to real Cloudflare delivery locally, uncomment this block explicitly.
 # [auth.email.smtp]
 # enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# host = "smtp.mx.cloudflare.net"
+# port = 465
+# user = "api_token"
+# pass = "env(CLOUDFLARE_EMAIL_API_TOKEN)"
+# admin_email = "env(CLOUDFLARE_EMAIL_FROM)"
+# sender_name = "Find Me a Time"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

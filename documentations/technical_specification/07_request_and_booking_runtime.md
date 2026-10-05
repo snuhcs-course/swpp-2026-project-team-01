@@ -42,18 +42,24 @@ Audited `booking_reconcile` work observes the saved attempt. `booking_retry` rec
 
 An exhausted `prepared` attempt can be retired only when it has no dispatch timestamp or provider evidence and no pending or currently leased booking/reconciliation job. Retirement marks that attempt blocked and releases its reservation atomically. A withdrawn/closed/expired request retires without recreation; an expired booking request also closes and revokes guest authority. Changed proposal, revision, rules, calendar, contact, or connection prerequisites retire the attempt and return the request to negotiation for a fresh review. Only unchanged current decisions and recorded human approval permit preparation of another attempt. The audit records retirement/retry; the durable request event identity remains stable. A live job or uncertain/dispatched write is not eligible for this recovery path.
 
-Confirmation commits booked state, reservation release, and audience-safe outbox work atomically. Delivery has its own frozen encrypted recipient/body/inbox evidence and retry identity. Failed notification delivery preserves booked state and cannot create another event. AgentMail retries stop before its twenty-four-hour idempotency horizon; uncertain sends remain visible after that limit.
+Confirmation commits booked state, reservation release, and audience-safe outbox work atomically. Delivery has its own frozen encrypted recipient/body/provider evidence. Failed notification delivery preserves booked state and cannot create another event. New Cloudflare deliveries freeze the account and From address before dispatch. Because Cloudflare Email Service does not document a request idempotency key, a persisted Cloudflare dispatch is never replayed automatically; a lost or ambiguous result remains visible as uncertain. Historical AgentMail pending sends retain their stable key and stop retries at 23 hours, before AgentMail's documented 24-hour idempotency horizon.
 
 The two email switches serve distinct operations:
 
 | Runtime setting | Enabled action |
 |---|---|
-| `TRANSACTIONAL_EMAIL_ENABLED=true` | User-requested contact verification/recovery messages |
-| `EXTERNAL_SENDS_ENABLED=true` | Booking confirmation delivery |
+| `TRANSACTIONAL_EMAIL_ENABLED=true` | User-requested contact verification/recovery messages through Cloudflare Email Service |
+| `EXTERNAL_SENDS_ENABLED=true` | Booking confirmation delivery through Cloudflare Email Service |
 
-Both default false. Switching off a delivery that may already have dispatched preserves uncertainty. Missing delivery configuration never becomes fabricated sent status. This fixed-template delivery adapter does not implement the P6 conversational email/iMessage channels.
+Both default false. Runtime delivery also requires `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, and `CLOUDFLARE_EMAIL_FROM`. Switching off a delivery that may already have dispatched preserves uncertainty. Missing delivery configuration never becomes fabricated sent status. Supabase Auth uses the same provider through separately configured custom SMTP; `SUPABASE_ACCESS_TOKEN` is only for operator configuration and is not a runtime mail credential. This fixed-template delivery adapter does not implement the AgentMail conversational email or iMessage channels.
 
 ## Verification and local integration
+
+### Cloudflare sender rollout — 2026-10-05
+
+Cloudflare Email Service credentials were deployed to project `anelszynxtvxoxqvzgqt`, and the changed worker was deployed as active version **10** (bundle SHA-256 `9a27ad03661350454d263c5fe10974b974b2fc583441154a4158f154e8629cc4`). Only the worker code was deployed; no migrations or web release were needed. AgentMail credentials and existing delivery switches were preserved. Post-deployment checks returned `401` for an unauthenticated worker call and `200` for the public API health route.
+
+`npm run check` passed typechecking, lint, 113 backend tests, four SMTP configuration tests, and the web build. New tests cover Cloudflare recipient acceptance, suppression/bounce/partial responses, lost responses, dispatch replay refusal, frozen identities, missing configuration, and legacy AgentMail retry behavior. The sender domain DNS, SMTP token authentication, and Supabase Auth configuration readback passed as recorded in [provider setup](03_provider_setup.md#cloudflare-email-service). No live email was sent; inbox delivery remains unverified. The existing web bundle-size warning remains unrelated to this sender change.
 
 The latest P3/P4 verification includes **101 backend Deno tests** and **291 SQL assertions**, including **102 booking assertions**, after resetting the complete generated migration chain locally. The earlier P3 snapshot passed 46 backend tests, 21 scheduling tests, and 189 SQL assertions. Real local P3 RPC integration passed request creation, evaluation/ranking, proposal selection, agreement, private preference exceptions, guest projection privacy, stale revision rejection/exception invalidation, and withdrawal. These are separate verification surfaces, not deployed browser/provider compatibility or a claim that every pending requirement is complete.
 

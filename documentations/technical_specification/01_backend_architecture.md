@@ -10,12 +10,12 @@ This document expands the technical specification into backend boundaries, reque
 
 Use a modular TypeScript backend on Supabase Edge Functions, with Deno and Hono. API functions handle interactive requests; worker functions consume durable jobs in bounded batches. They share domain code and Supabase PostgreSQL state. These are execution roles, not always-on processes. PostgreSQL and Supabase Queues preserve work across function termination; Supabase Cron triggers recurring drains and recovery sweeps.
 
-Supabase PostgreSQL, Auth, Edge Functions, Queues, and Cron supply the implemented backend. React/Vite/npm with shadcn preset `b6rtA2Hmi` runs on Vercel, and OpenAI supplies validated extraction/ranking. AgentMail supports fixed-template delivery; direct Photon Spectrum through a narrow Node/Bun bridge is the selected iMessage direction. Complete MCP authorization/client journeys, actual Google consent/Calendar M1/M2, and controlled iMessage conversations remain open; the isolated AgentMail received-parent/signature/recovery gate passed. Backend alternatives are deferred as recorded in the [backend decision](../03_technical_specification.md#backend-decision).
+Supabase PostgreSQL, Auth, Edge Functions, Queues, and Cron supply the implemented backend. React/Vite/npm with shadcn preset `b6rtA2Hmi` runs on Vercel, and OpenAI supplies validated extraction/ranking. Cloudflare Email Service is the transactional sender for application and Supabase Auth mail; AgentMail retains managed conversation inboxes and threading. Direct Photon Spectrum through a narrow Node/Bun bridge is the selected iMessage direction. Complete MCP authorization/client journeys, actual Google consent/Calendar M1/M2, and production messaging integration remain open; the isolated AgentMail received-parent/signature/recovery gate passed. Backend alternatives are deferred as recorded in the [backend decision](../03_technical_specification.md#backend-decision).
 
 ```mermaid
 flowchart LR
     U["Web, MCP clients, CLI"]
-    P["AgentMail and iMessage providers"]
+    P["Cloudflare Email Service,<br/>AgentMail, and iMessage providers"]
     subgraph API[API Edge Functions]
         E["Entry adapters<br/>HTTP, MCP, webhooks, public skills"]
         A["Identity and authorization"]
@@ -210,11 +210,12 @@ For notification dispatch, recheck recipient authorization and suppress obsolete
 | Identity/OAuth | Validate sessions and tokens, bind client grants, and expose revocation checks. No provider login claim supplies meeting approval. |
 | Google Calendar | Read authorized host context and optional requester availability under distinct grants; create the frozen attempt only through the host booking calendar, and retrieve its event for reconciliation. |
 | Google Routes | Estimate travel between adjacent physical commitments; combine estimates with host buffers and surface missing or unsupported routes without assuming zero travel. |
+| Cloudflare Email Service | Send frozen transactional verification, recovery, booking, and Supabase Auth messages from an onboarded domain. Do not automatically replay an application delivery after persisted dispatch. |
 | AgentMail | Receive authenticated event notifications, retrieve messages, and send/reply to explicitly validated recipients. Map inbox/thread/message IDs to our records. |
 | iMessage transport | Receive and send messages for verified private host conversations; channel identity and proposal confirmation remain application checks. |
 | Model | Return validated extraction/ranking results from audience-scoped context. No direct credentials or booking authority. |
 
-Use AgentMail's provider-specific details from the [email design](../03_technical_specification.md#email-provider-direction). Resend can implement the same application-facing responsibilities if selected later. The adapter should not expose provider-specific thread behavior as a scheduling invariant.
+Use the provider-specific boundaries from the [email design](../03_technical_specification.md#email-provider-direction): Cloudflare handles transactional sending and Supabase Auth custom SMTP; AgentMail handles managed conversational inboxes and threads. The adapters should not expose provider-specific delivery or thread behavior as a scheduling invariant.
 
 Host email remains a proposed scope extension. The architecture permits a private host conversation, but implementing it still requires aligned requirements and web-based final approval. Dots, Muse, Instinct, ChatGPT, Codex, Claude, and Claude Code connect through the same backend operations; each needs separate discovery, authorization, and confirmation testing.
 

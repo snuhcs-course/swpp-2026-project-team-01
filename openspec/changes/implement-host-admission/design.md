@@ -8,7 +8,7 @@ See proposal.md. P1 supplies service-only transactional commands; Supabase Auth 
 
 **Goals:** one admission guard across HTTP/database paths, atomic recipient-bound redemption, and resumable setup.
 
-**Non-Goals:** public host signup, invitation delivery automation, agent OAuth consent, and requester signup.
+**Non-Goals:** public host signup, bulk invitation campaigns, agent OAuth consent, and requester signup. Operator invitation email delivery is added separately by the Cloudflare invitation change; issuance and verified redemption authority stay here.
 
 ## Decisions
 

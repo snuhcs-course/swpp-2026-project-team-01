@@ -9,7 +9,7 @@
     "build": "npm run build --workspace apps/web",
     "typecheck": "npm run typecheck --workspace apps/web && deno task check",
     "lint": "npm run lint --workspace apps/web && deno lint supabase/functions packages/contracts",
-    "test": "deno task test",
+    "test": "deno task test && node --test scripts/configure-email-smtp.test.mjs scripts/manage-invitations.test.mjs",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
     "db:test": "node scripts/db-tests.mjs",
     "deploy:backend": "node --env-file=.env scripts/deploy-backend.mjs",
