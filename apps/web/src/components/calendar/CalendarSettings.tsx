@@ -16,7 +16,7 @@ const sameSet=(a:string[],b:string[])=>a.length===b.length&&a.every(x=>b.include
 const pick=(v:CalendarConnectionView)=>{const saved=v.sources.filter(s=>s.selected).map(s=>s.id);return saved.length?saved:v.sources.filter(s=>s.access==='detail').map(s=>s.id)}
 export function CalendarSettings({initial,mode}:{initial:CalendarConnectionView;mode:'demo'|'real'}) {
  const [view,setView]=useState(initial),[selected,setSelected]=useState(pick(initial)),[error,setError]=useState<string|null>(null),[imported,setImported]=useState(false)
- const router=useRouter(),[starting,setStarting]=useState(false),[review,setReview]=useState<null|'save'|'ai'>(null),[stage,setStage]=useState<string|null>(null)
+ const router=useRouter(),[starting,setStarting]=useState(false),[review,setReview]=useState(false),[stage,setStage]=useState<string|null>(null)
  const draftOp=useMutationOperation<ProfileDraftView>(),analyzed=useRef<ProfileDraftView|null>(null)
  const op=useMutationOperation<CalendarConnectionView>(),sync=useMutationOperation<unknown>()
  const apply=(v:CalendarConnectionView)=>{setView(v);setSelected(pick(v))}
@@ -47,7 +47,6 @@ export function CalendarSettings({initial,mode}:{initial:CalendarConnectionView;
   if(r?.ok)setImported(true)
   return !!r?.ok
  }
- const save=async()=>{if(await importSelected())setReview('save')}
  // Import, let the AI read the past eight weeks, then show what it made of them before moving on to the hours.
  const analyze=async(draft:ProfileDraftView)=>{const r=await draftOp.run({method:'POST',url:`/api/profile-drafts/${encodeURIComponent(draft.draftId)}/analyze`,kind:'profile.draft.analyze',payload:{expectedRevision:draft.revision},schema:profileDraftViewSchema});if(r?.ok){analyzed.current=r.data;return true}if(r)setError(r.error.message);return false}
  const startWithAi=async()=>{
@@ -58,10 +57,9 @@ export function CalendarSettings({initial,mode}:{initial:CalendarConnectionView;
   if(!d?.ok){if(d)setError(d.error.message);setStarting(false);setStage(null);return}
   const ok=d.data.messages.length>0?(analyzed.current=d.data,true):await analyze(d.data)
   setStarting(false);setStage(null)
-  if(ok)setReview('ai')
+  if(ok)setReview(true)
  }
  const finishReview=async(changed:boolean)=>{
-  if(review==='save'){setReview(null);return}
   // Corrections change what the AI should see, so it reads the history again before the profile screen opens.
   if(changed&&analyzed.current){setStarting(true);setStage('보정한 내용으로 다시 분석하는 중…');await analyze(analyzed.current);setStarting(false);setStage(null)}
   router.push('/onboarding')
@@ -97,16 +95,16 @@ export function CalendarSettings({initial,mode}:{initial:CalendarConnectionView;
     </fieldset>
     {view.sources.length>0&&<div className="mt-4 space-y-3 border-t border-border pt-4">
      <div className="flex flex-wrap items-center gap-2">
-      <Button disabled={busy||starting||selected.length===0} onClick={()=>void save()}>{sync.pending&&!starting&&<Spinner/>}저장하기</Button>
+      <Button disabled={busy||starting||selected.length===0} onClick={()=>void importSelected()}>{sync.pending&&!starting&&<Spinner/>}저장하기</Button>
       <Button variant="primary" disabled={busy||starting||selected.length===0} onClick={()=>void startWithAi()}>{starting&&<Spinner/>}AI로 설정 시작하기</Button>
       <Button variant="danger" disabled={busy||starting} onClick={()=>void act('disconnect','calendar.disconnect',{expectedSelectionRevision:view.selectionRevision})}>연결 해제 · 가져온 정보 삭제</Button>
      </div>
      {stage&&<p role="status" className="flex items-center gap-2 text-small text-ink-soft"><Spinner/>{stage}</p>}
-     <p className="text-small text-muted">저장하기는 선택한 캘린더의 일정을 가져와 저장하고, 가져온 내용을 확인할 수 있게 보여 줘요. AI로 설정 시작하기는 저장한 뒤 AI가 지난 8주 일정을 분류하고, 그 결과를 확인한 다음 시간 프로필 설정으로 이어가요. 미팅 가능 시간은 직접 확인해야 확정돼요.</p>
+     <p className="text-small text-muted">저장하기는 선택한 캘린더의 일정을 가져와 저장해요. AI로 설정 시작하기는 저장한 뒤 AI가 지난 8주 일정을 분류하고, 그 결과를 확인한 다음 시간 프로필 설정으로 이어가요. 미팅 가능 시간은 직접 확인해야 확정돼요.</p>
      {selected.length===0&&<p className="text-small text-muted">가져올 캘린더를 하나 이상 선택해 주세요.</p>}
     </div>}
    </Card>
   </div>
- {review&&<ImportReviewDialog confirmLabel={review==='ai'?'확인했어요 · AI 설정 계속':'확인했어요'} onConfirm={c=>void finishReview(c)} onClose={()=>setReview(null)}/>}
+ {review&&<ImportReviewDialog confirmLabel="확인했어요 · AI 설정 계속" onConfirm={c=>void finishReview(c)} onClose={()=>setReview(false)}/>}
  </div>
 }
