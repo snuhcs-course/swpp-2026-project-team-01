@@ -9,6 +9,7 @@ import type { ServiceContext } from '../runtime'
 import { all, insertMany, lock, one, run, type Db } from '../db/client'
 import type { CalendarProvider } from '../providers/google-calendar'
 import { beginOperation,finishOperation,failOperation,runOperation } from './operations'
+import { logEvent } from '../log'
 interface Connection {id:string;user_id:string;status:string;revision:number;selection_revision:number;generation:number;analysis_snapshot_id:string|null;schedule_snapshot_id:string|null}
 interface Source {id:string;provider_calendar_id:string;name:string;timezone:string|null;access_role:string;selected:number}
 // Readers take the executor (`ctx.db` or the open transaction). `forUpdate` locks the connection row until the transaction ends,
@@ -127,7 +128,14 @@ function convert(raw:unknown,s:Source):CalendarSourceInput|null {
  const instant=(value:string|undefined)=>value&&/(Z|[+-]\d{2}:\d{2})$/.test(value)?Date.parse(value):NaN
  let startMs:number,endMs:number
  try{startMs=allDay?zonedDateStart(allDay.startDate,allDay.timeZone):instant(e.start?.dateTime);endMs=allDay?zonedDateStart(allDay.endDate,allDay.timeZone):instant(e.end?.dateTime)}catch{throw new DomainError('calendar_fetch_failed','일정 시간대를 확인할 수 없어요',true)}
- if(!Number.isSafeInteger(startMs)||!Number.isSafeInteger(endMs)||startMs>=endMs)throw new DomainError('calendar_fetch_failed','일정 시간 범위를 확인할 수 없어요',true)
+ // A zero-length entry (a deadline marker, a reminder) takes no time: nothing to block or to analyse, so it is left out.
+ if(Number.isSafeInteger(startMs)&&startMs===endMs)return null
+ if(!Number.isSafeInteger(startMs)||!Number.isSafeInteger(endMs)||startMs>endMs){
+  // Shape only — never the title or the times themselves — so a failing import can be diagnosed from the logs.
+  const kind=(d?:{date?:string;dateTime?:string})=>d?.dateTime?(/(Z|[+-]\d{2}:\d{2})$/.test(d.dateTime)?'dateTime':'dateTime-no-offset'):d?.date?'date':'none'
+  logEvent('calendar.event_invalid_time',{start:kind(e.start),end:kind(e.end),order:Number.isSafeInteger(startMs)&&Number.isSafeInteger(endMs)?'end-before-start':'unparsed',recurring:!!e.recurringEventId})
+  throw new DomainError('calendar_fetch_failed','일정 시간 범위를 확인할 수 없어요',true)
+ }
  const hasOnlineLink=!!(e.hangoutLink||e.conferenceData),responseStatus=e.attendees?.find(a=>a.self)?.responseStatus
  return {sourceKey:JSON.stringify([s.provider_calendar_id,e.id]),title:e.summary,startMs,endMs,allDay,iCalUID:e.iCalUID,recurringEventId:e.recurringEventId,originalStartTime:e.originalStartTime?.dateTime??e.originalStartTime?.date,status:e.status,transparency:e.transparency,responseStatus,eventType:(['workingLocation','focusTime','outOfOffice'].includes(e.eventType??'')?e.eventType:'default') as CalendarSourceInput['eventType'],hasOnlineLink,kind:hasOnlineLink&&!e.location?'online':'none',placeRef:e.location??null}
 }

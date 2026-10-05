@@ -88,6 +88,19 @@ describe('calendar atomic snapshots', () => {
     expect(left).toHaveLength(2)
     expect(await f.sqlite.prepare('SELECT count(*) n FROM imported_events WHERE snapshot_id NOT IN (SELECT id FROM calendar_snapshots)').get()).toEqual({ n: 0 })
   })
+  it('leaves zero-length entries out instead of failing the import', async () => {
+    const f = (await setup())
+    f.respond(url => url.pathname.endsWith('/freeBusy') ? { calendars: { b: { busy: [] } } }
+      : { items: [event('marker', { start: { dateTime: '2026-10-06T00:00:00Z' }, end: { dateTime: '2026-10-06T00:00:00Z' } }), event('real')] })
+    await sync(f)
+    expect((await f.sqlite.prepare('SELECT provider_event_id id FROM imported_events').all()).map((r: { id: string }) => r.id)).toEqual(['real'])
+  })
+  it('still refuses an entry that ends before it starts', async () => {
+    const f = (await setup())
+    f.respond(url => url.pathname.endsWith('/freeBusy') ? { calendars: { b: { busy: [] } } }
+      : { items: [event('broken', { start: { dateTime: '2026-10-06T02:00:00Z' }, end: { dateTime: '2026-10-06T01:00:00Z' } })] })
+    await expect(sync(f)).rejects.toMatchObject({ code: 'calendar_fetch_failed' })
+  })
   it('fails the entire collection on a page or item budget breach', async () => {
     const f = (await setup())
     f.respond(url => ({ items: [], nextPageToken: String(Number(url.searchParams.get('pageToken') ?? 0) + 1) }))
