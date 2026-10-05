@@ -10,6 +10,7 @@ import { logEvent,roundMs } from '../log'
 import { readCalendarConnection,readScheduleSources } from './calendar-sync'
 import { getDraft } from './profile'
 import { beginOperation,finishOperation,failOperation } from './operations'
+import { describeHistory } from '@/core/briefing'
 export async function analyzeDraft(ctx:ServiceContext,userId:string,input:AnalyzeDraftInput,op:OperationMeta):Promise<ProfileDraftView> {
  const {draftId,...body}=input,parsed=analyzeDraftSchema.parse(body),claim=await beginOperation(ctx,userId,'profile.draft.analyze',{draftId,...parsed},op)
  if(claim.replay)return claim.result as ProfileDraftView
@@ -51,9 +52,7 @@ export async function analyzeDraft(ctx:ServiceContext,userId:string,input:Analyz
    const id=ctx.id(),evidence=ctx.id()
    await run(tx,'INSERT INTO analysis_runs(id,user_id,snapshot_id,annotation_revision,from_at,to_at,status,coverage_json,summary_json) VALUES (?,?,?,?,?,?,?,?,?)',[id,userId,snapshot.snapshotId,annotation,fromMs,toMs,summary.coverage.partial?'partial':'complete',JSON.stringify(summary.coverage),JSON.stringify(summary)])
    await run(tx,'INSERT INTO analysis_evidence(id,analysis_id,aggregation_rule_json,observation_count,from_at,to_at) VALUES (?,?,?,?,?,?)',[evidence,id,JSON.stringify({rule:'business-starts-within-history',version:1}),summary.counts.business,fromMs,toMs])
-   const weekdays=summary.businessByWeekday.map((count,day)=>({count,day})).filter(d=>d.count).sort((a,b)=>b.count-a.count).slice(0,3)
-   const late=summary.lateBusinessEventIds.length?` 저녁 업무 일정도 ${summary.lateBusinessEventIds.length}건 있었지만, 앞으로 그 시간에 미팅을 허용한다는 뜻은 아니에요.`:''
-   const text=`지난 8주 일정 ${summary.coverage.eligible}건 중 업무 ${summary.counts.business}건, 개인 ${summary.counts.personal}건, 확인 필요 ${summary.counts.unknown}건을 관찰했어요.${summary.coverage.partial?` AI가 분류하지 못한 일정 ${summary.coverage.eligible-summary.coverage.classified}건은 확인 필요에 포함돼 있어요.`:''}${weekdays.length?` 업무 일정은 ${weekdays.map(d=>weekdayKo(d.day)+'요일 '+d.count+'건').join(', ')}에 있었어요. 이 요일을 선호하시나요?`: '일정만으로 근무시간과 선호를 알기 어려워요. 직접 알려 주세요.'}${late} 실제 근무시간과 미팅 허용 시간은 직접 확인해 주세요.`
+   const text=describeHistory(summary)
    await run(tx,"INSERT INTO draft_messages(id,draft_id,operation_id,role,content,evidence_id,created_at) VALUES (?,?,?,'assistant',?,?,?)",[ctx.id(),draftId,claim.id,text,evidence,ctx.clock.now()])
    await run(tx,'UPDATE profile_drafts SET analysis_id=?,revision=revision+1,updated_at=? WHERE id=?',[id,ctx.clock.now(),draftId])
    return getDraft(tx,userId,draftId)
