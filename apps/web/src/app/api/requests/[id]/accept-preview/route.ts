@@ -3,4 +3,4 @@ import {db,llm} from '@/server/context'
 import {makeContext} from '@/server/runtime'
 import {commandBody,handleCommand,jsonResult,operationKey} from '@/server/command-api'
 import {previewAccept} from '@/server/services/booking-commands'
-export function GET(req:Request,{params}:{params:Promise<{id:string}>}){return handleCommand(async()=>{const actor=await requireActor(req),{id}=await params;return jsonResult(previewAccept(makeContext(db()),actor.id,id))})}
+export function GET(req:Request,{params}:{params:Promise<{id:string}>}){return handleCommand(async()=>{const actor=await requireActor(req),{id}=await params;return jsonResult(await previewAccept(makeContext(db()),actor.id,id))})}

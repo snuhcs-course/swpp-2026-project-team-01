@@ -35,20 +35,35 @@ describe('calendar and onboarding screens', () => {
   it('shows a failed sync as an error rather than as an empty calendar', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(fail('calendar_fetch_failed', 'Calendar를 가져오지 못했어요')).mockResolvedValueOnce(ok(connected)))
     render(<CalendarSettings initial={connected} mode="real" />)
-    fireEvent.click(screen.getByText('선택한 일정 가져오기'))
+    fireEvent.click(screen.getByText('선택한 캘린더 다시 가져오기'))
     expect(await screen.findByRole('alert')).toHaveTextContent('Calendar를 가져오지 못했어요')
     expect(screen.queryByText('일정이 없습니다')).toBeNull()
   })
+  it('shows a linked Google account as connected (button disabled) and saves the choice together with the import', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(ok({ ...connected, selectionRevision: 2, sources: [{ ...connected.sources[0], selected: true }, { id: 'work', name: '업무', selected: true, timeZone: 'Asia/Seoul', access: 'detail' }] }))
+      .mockResolvedValueOnce(ok(sync)).mockResolvedValueOnce(ok(connected))
+    vi.stubGlobal('fetch', fetcher)
+    render(<CalendarSettings initial={{ ...connected, sources: [connected.sources[0], { id: 'work', name: '업무', selected: false, timeZone: 'Asia/Seoul', access: 'detail' }] }} mode="real" />)
+    expect(screen.getByRole('button', { name: 'Google Calendar 연결됨' })).toBeDisabled()
+    fireEvent.click(screen.getByLabelText(/^업무/))
+    fireEvent.click(screen.getByText('선택한 캘린더 다시 가져오기'))
+    expect(await screen.findByText(/일정을 가져와 저장했어요/)).toBeInTheDocument()
+    expect(fetcher.mock.calls.map(c => c[0]).slice(0, 2)).toEqual(['/api/calendar/selection', '/api/calendar/sync'])
+  })
   it('lets a demo account connect its example calendar, never offering Google', async () => {
-    const fetcher = vi.fn().mockResolvedValueOnce(ok({ ...connected, status: 'needs_refresh', sources: [], analysis: null, schedule: null }))
+    const listed = { ...connected, status: 'needs_refresh', analysis: null, schedule: null, selectionRevision: 0, sources: [{ id: 'mock', name: '예시 캘린더', selected: false, timeZone: 'Asia/Seoul', access: 'detail' }] }
+    const fetcher = vi.fn().mockResolvedValueOnce(ok({ ...connected, status: 'needs_refresh', sources: [], analysis: null, schedule: null })).mockResolvedValueOnce(ok(listed))
     vi.stubGlobal('fetch', fetcher)
     render(<CalendarSettings initial={{ ...connected, status: 'manual', sources: [], analysis: null, schedule: null }} mode="demo" />)
     expect(screen.queryByText('Google Calendar 연결')).toBeNull()
-    expect(screen.queryByText('캘린더 목록 불러오기')).toBeNull()      // nothing to list before the example calendar is attached
+    expect(screen.queryByText('캘린더 목록 새로고침')).toBeNull()      // nothing to list before the example calendar is attached
     fireEvent.click(screen.getByText('예시 Calendar 연결'))
     expect(await screen.findByText(/Google에는 접속하지 않아요/)).toBeInTheDocument()
     expect(fetcher.mock.calls[0][0]).toBe('/api/calendar/mock-connect')
-    expect(screen.getByText('캘린더 목록 불러오기')).toBeInTheDocument()
+    expect(await screen.findByText('예시 캘린더')).toBeInTheDocument()          // the list follows the connection without another click
+    expect(fetcher.mock.calls[1][0]).toBe('/api/calendar/catalog')
+    expect(screen.getByText('선택한 캘린더 가져오기')).toBeEnabled()
   })
   it('keeps the event editor values when a save fails and reports the error', async () => {
     const event = { eventId: 'e1', title: '주간 회의', startAt: 1, endAt: 2, allDay: false, startDate: null, endDate: null, timezone: null, revision: 0, sourceFingerprint: 'f', patch: {}, needsConfirmation: false, locationKind: 'none', classification: 'unknown', aiClassification: null }

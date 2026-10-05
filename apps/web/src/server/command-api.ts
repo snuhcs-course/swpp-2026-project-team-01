@@ -2,7 +2,7 @@ import { ZodError, type ZodType } from "zod"
 import { DomainError, type OperationMeta } from "@/contracts/common"
 import { operationMetaSchema } from "@/contracts/operations"
 import { logEvent } from "./log"
-export function jsonResult<T>(data:T,status=200):Response {
+export function jsonResult<T>(data:T extends PromiseLike<unknown>?never:T,status=200):Response {
  return Response.json({ok:true,data,meta:{}},{status,headers:{"Cache-Control":"private, no-store"}})
 }
 export function operationKey(request:Request):OperationMeta { return operationMetaSchema.parse({key:request.headers.get("Idempotency-Key")}) }
