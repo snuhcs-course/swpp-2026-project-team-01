@@ -1,10 +1,9 @@
-# Spec Delta
+# host-admission Specification
 
 ## Purpose
-
 Control access to calendar hosting through verified single-use invitations while preserving public waitlist and account-free requester journeys.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Public deduplicated waitlist
 The service SHALL accept a validated email and optional name without host admission and deduplicate repeated enrollment without exposing other applicants.
@@ -15,6 +14,10 @@ The service SHALL accept a validated email and optional name without host admiss
 
 ### Requirement: Operator-controlled invitations
 Only an authorized operator SHALL issue or revoke host invitations. Invitations SHALL target one verified email, expire seven days after issuance, and remain unusable after revocation.
+
+#### Scenario: Readable invitation code
+- **WHEN** an operator issues a host invitation
+- **THEN** the recipient receives a sixteen-character, 80-bit random invitation code in four groups, separate from the setup URL; only its hash is persisted, and code possession without the matching verified account does not grant admission
 
 #### Scenario: Unauthorized issuance
 - **WHEN** a requester or ordinary host attempts to issue an invitation

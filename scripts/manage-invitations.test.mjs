@@ -4,13 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, test } from 'node:test';
-import { manageInvitation } from './manage-invitations.mjs';
+import { generateInvitationCode, manageInvitation } from './manage-invitations.mjs';
 
 const project = 'abcdefghijklmnopqrst';
 const invitationId = '11111111-2222-4333-8444-555555555555';
 const fixedNow = Date.parse('2026-10-05T00:00:00.000Z');
 const expiresAt = new Date(fixedNow + 7 * 86400000 - 60000).toISOString();
-const token = 'private-invitation-token';
+const code = '0123-4567-89AB-CDEF';
 const remoteEnv = {
   SUPABASE_PROJECT_REF: project,
   SUPABASE_URL: `https://${project}.supabase.co`,
@@ -41,7 +41,7 @@ function options(overrides = {}) {
     linkedProject: project,
     receiptDirectory: receipt.url,
     now: () => fixedNow,
-    makeToken: () => token,
+    makeCode: () => code,
     makeIdempotencyKey: () => 'idempotency-key',
     ...overrides,
   };
@@ -52,7 +52,7 @@ function rpcResult(init) {
   assert.equal(request.p_operation, 'invite_issue');
   assert.equal(request.p_input.email, 'host@example.com');
   assert.equal(request.p_input.expiresAt, expiresAt);
-  assert.ok(!JSON.stringify(request).includes(token));
+  assert.ok(!JSON.stringify(request).includes(code));
   return Response.json({ invitationId, email: 'host@example.com', expiresAt });
 }
 
@@ -72,11 +72,11 @@ test('remote issue persists a private receipt before exactly one Cloudflare send
       const message = JSON.parse(init.body);
       assert.equal(message.from, 'no-reply@findmeatime.com');
       assert.deepEqual(message.to, ['host@example.com']);
-      assert.match(message.text, /Invitation token: private-invitation-token/);
+      assert.match(message.text, /Invitation code: 0123-4567-89AB-CDEF/);
       assert.match(message.text, /valid for up to seven days/);
       assert.match(message.text, /same email address \(host@example\.com\)/);
       assert.match(message.text, /Setup URL: https:\/\/findmeatime\.com\/host\/setup/);
-      assert.ok(!message.text.includes(`setup?token=${token}`));
+      assert.ok(!message.text.includes(`setup?code=${code}`));
       return Response.json({
         success: true,
         result: { message_id: 'cf-message', delivered: [], queued: ['host@example.com'], permanent_bounces: [], suppressed_recipients: [] },
@@ -86,10 +86,10 @@ test('remote issue persists a private receipt before exactly one Cloudflare send
 
   assert.equal(calls.length, 2);
   assert.equal(result.emailDelivery.status, 'sent');
-  assert.equal(result.token, token);
+  assert.equal(result.code, code);
   const receiptAfter = JSON.parse(readFileSync(join(receipt.directory, `${invitationId}.json`), 'utf8'));
   assert.equal(receiptAfter.dispatch.status, 'sent');
-  assert.equal(receiptAfter.invitation.token, token);
+  assert.equal(receiptAfter.invitation.code, code);
   assert.equal(receiptAfter.sender.from, 'no-reply@findmeatime.com');
 });
 
@@ -155,7 +155,7 @@ test('rejected invitation issue does not send email', async () => {
   assert.equal(calls, 1);
 });
 
-test('lost and suppressed send outcomes retain the issued token without retrying', async () => {
+test('lost and suppressed send outcomes retain the issued code without retrying', async () => {
   for (const mode of ['lost', 'suppressed']) {
     let sendCalls = 0;
     const result = await manageInvitation(options({
@@ -170,13 +170,13 @@ test('lost and suppressed send outcomes retain the issued token without retrying
       },
     }));
     assert.equal(sendCalls, 1);
-    assert.equal(result.token, token);
+    assert.equal(result.code, code);
     assert.equal(result.emailDelivery.status, mode === 'lost' ? 'uncertain' : 'rejected');
     assert.ok(!JSON.stringify(result.emailDelivery).includes('secret'));
   }
 });
 
-test('receipt failure retains recovery token and prevents send', async () => {
+test('receipt failure retains recovery code and prevents send', async () => {
   const root = mkdtempSync(join(tmpdir(), 'fmat-receipt-block-'));
   temporaryDirectories.push(root);
   const blockingPath = join(root, 'not-a-directory');
@@ -191,7 +191,7 @@ test('receipt failure retains recovery token and prevents send', async () => {
     },
   }));
   assert.equal(emailCalls, 0);
-  assert.equal(result.token, token);
+  assert.equal(result.code, code);
   assert.deepEqual(result.emailDelivery, { status: 'not-sent', code: 'receipt_write_failed' });
 });
 
@@ -209,7 +209,23 @@ test('an existing receipt is never reused for another send', async () => {
     },
   }));
   assert.equal(emailCalls, 0);
-  assert.equal(result.token, token);
+  assert.equal(result.code, code);
   assert.equal(result.emailDelivery.code, 'receipt_write_failed');
   assert.equal(readFileSync(join(receipt.directory, `${invitationId}.json`), 'utf8'), '{"existing":true}\n');
+});
+
+test('invitation codes encode 80 random bits as 16 readable characters', () => {
+  assert.equal(generateInvitationCode(Buffer.alloc(10)), '0000-0000-0000-0000');
+  assert.equal(generateInvitationCode(Buffer.alloc(10, 255)), 'ZZZZ-ZZZZ-ZZZZ-ZZZZ');
+  assert.match(generateInvitationCode(), /^(?:[0-9A-HJKMNP-TV-Z]{4}-){3}[0-9A-HJKMNP-TV-Z]{4}$/);
+  assert.throws(() => generateInvitationCode(Buffer.alloc(9)), /ten random bytes/);
+});
+
+test('invalid generated code fails before invitation issuance', async () => {
+  let calls = 0;
+  await assert.rejects(manageInvitation(options({
+    makeCode: () => '1234',
+    fetcher: () => { calls += 1; throw new Error('unexpected'); },
+  })), /invalid code/);
+  assert.equal(calls, 0);
 });

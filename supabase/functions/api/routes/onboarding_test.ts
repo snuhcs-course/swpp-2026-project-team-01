@@ -1,6 +1,7 @@
 import { createApi } from '../app.ts';
 import type { Database } from '../../_shared/database.ts';
 import type { Environment } from '../../_shared/env.ts';
+import { hashToken } from '../../_shared/security.ts';
 const env: Environment = {
   supabaseUrl: 'https://test.supabase.co',
   appOrigin: 'https://findmeatime.com',
@@ -61,6 +62,44 @@ Deno.test('invitation plaintext is hashed before service command', async () => {
   });
   assert(response.status === 200 && !JSON.stringify(captured).includes(token));
   assert(JSON.stringify(captured).includes('tokenHash'));
+});
+Deno.test('short invitation code is canonicalized before hashing', async () => {
+  let captured: Record<string, unknown> | undefined;
+  const db = {
+    host: () => Promise.resolve({ kind: 'host', id: 'host-id', email: 'verified@example.com' }),
+    command: (_operation: string, _actor: unknown, input: Record<string, unknown>) => {
+      captured = input;
+      return Promise.resolve({ admitted: true });
+    },
+  } as unknown as Database;
+  const response = await createApi(env, db).request('/host/invitations/redeem', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer verified-jwt',
+      'Content-Type': 'application/json',
+      'Idempotency-Key': 'invite-code-key',
+    },
+    body: JSON.stringify({ code: 'oI23 4567 89ab cdef' }),
+  });
+  assert(response.status === 200);
+  assert(captured?.tokenHash === await hashToken('0123-4567-89AB-CDEF'));
+});
+Deno.test('malformed short invitation code is rejected before redemption', async () => {
+  let called = false;
+  const db = {
+    host: () => Promise.resolve({ kind: 'host', id: 'host-id', email: 'verified@example.com' }),
+    command: () => { called = true; return Promise.resolve({ admitted: true }); },
+  } as unknown as Database;
+  const response = await createApi(env, db).request('/host/invitations/redeem', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer verified-jwt',
+      'Content-Type': 'application/json',
+      'Idempotency-Key': 'bad-invite-code-key',
+    },
+    body: JSON.stringify({ code: '1234' }),
+  });
+  assert(response.status === 400 && !called);
 });
 Deno.test('calendar destination permissions come from provider rather than caller input', async () => {
   const { onboardingRoutes } = await import('./onboarding.ts');

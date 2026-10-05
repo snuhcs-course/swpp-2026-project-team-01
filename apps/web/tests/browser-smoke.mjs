@@ -274,14 +274,18 @@ await page.screenshot({
 })
 await page.goto(`${origin}/dodo`)
 await page.getByRole("heading", { name: "Meet with Dodo" }).waitFor()
-await page.getByLabel("Your name", { exact: true }).fill("Alex")
-await page.getByLabel("Email address").fill("alex@example.com")
-await page
+await page.getByRole("button", { name: "Request details" }).click()
+const intakeDialog = page.getByRole("dialog", { name: "Request details" })
+await intakeDialog.getByLabel("Your name", { exact: true }).fill("Alex")
+await intakeDialog.getByLabel("Email address").fill("alex@example.com")
+await intakeDialog
   .getByLabel("What would you like to discuss?")
   .fill("Discuss a product idea")
-await page.getByLabel("Window 1 starts").fill("2026-11-05T12:00")
-await page.getByLabel("Window 1 ends").fill("2026-11-05T17:00")
-await page.getByRole("button", { name: "Start a meeting request" }).click()
+await intakeDialog.getByLabel("Window 1 starts").fill("2026-11-05T12:00")
+await intakeDialog.getByLabel("Window 1 ends").fill("2026-11-05T17:00")
+await intakeDialog
+  .getByRole("button", { name: "Start a meeting request" })
+  .click()
 await page.waitForURL("**/requests/fixture-request")
 await page.getByRole("heading", { name: "Your meeting request" }).waitFor()
 assert.equal(
@@ -290,12 +294,14 @@ assert.equal(
   ),
   "protected-fixture-token"
 )
+await page.getByRole("button", { name: "Request settings" }).click()
 await page
   .getByRole("button", { name: "Edit details and availability" })
   .click()
 await page.getByLabel("Meeting purpose").fill("Discuss a wider product idea")
 await page.getByRole("button", { name: "Save updated details" }).click()
 await page.getByText("Discuss a wider product idea", { exact: true }).waitFor()
+await page.getByRole("button", { name: "Close" }).click()
 await page.getByRole("button", { name: "Check availability" }).click()
 await page.getByLabel("Feasible options").waitFor()
 await page.getByLabel("Feasible options").selectOption("0")
@@ -307,16 +313,7 @@ assert.equal(
     .isDisabled(),
   true
 )
-const verificationPosition = await page
-  .getByRole("button", { name: "Request verification code" })
-  .boundingBox()
-const agreementPosition = await page
-  .getByRole("button", { name: "Agree and send to host" })
-  .boundingBox()
-assert.ok(
-  verificationPosition.y < agreementPosition.y,
-  "Contact verification must appear before the disabled agreement action"
-)
+await page.getByRole("button", { name: "Request settings" }).click()
 await page.getByRole("button", { name: "Request verification code" }).click()
 await page
   .getByText("Verification delivery is pending.", { exact: false })
@@ -329,6 +326,7 @@ assert.equal(
 )
 await page.getByRole("button", { name: "Verify contact" }).click()
 await page.getByText("Contact verified", { exact: true }).waitFor()
+await page.getByRole("button", { name: "Close" }).click()
 await page
   .getByRole("checkbox", {
     name: "I agree to proposal 1 with this exact time, format, location, and purpose.",
@@ -542,7 +540,10 @@ const hostPage = await hostContext.newPage()
 hostPage.on("pageerror", (error) => errors.push(error.message))
 await hostPage.goto(`${origin}/host/requests/fixture-request`)
 await hostPage.getByRole("heading", { name: "Meeting with Alex" }).waitFor()
-await hostPage.getByText("Host secret preference", { exact: true }).waitFor()
+assert.equal(
+  await hostPage.getByText("Host secret preference", { exact: true }).count(),
+  0
+)
 await hostPage
   .getByLabel("Private message", { exact: true })
   .fill("Only the host should see this question")
@@ -607,23 +608,23 @@ await page.evaluate(() =>
   localStorage.removeItem("fmat-request:fixture-request")
 )
 await page.reload()
-await page.getByLabel("Request email address").fill("alex@example.com")
-await page.getByRole("button", { name: "Request a recovery link" }).click()
-await page
-  .getByText(
-    "If these details match an active request, recovery delivery is pending.",
-    { exact: false }
-  )
-  .waitFor()
+await page.getByText("This request is private.", { exact: false }).waitFor()
 assert.equal(
   await page.getByRole("heading", { name: "Your meeting request" }).count(),
   0
 )
+assert.equal(await page.getByRole("textbox").count(), 0)
+const recoveryRedeemsBefore = mutations.filter((mutation) =>
+  mutation.path.endsWith("/recovery/redeem")
+).length
 await page.goto(`${origin}/requests/fixture-request#recovery=one-time-recovery`)
-await page
-  .getByRole("button", { name: "Restore access from this protected link" })
-  .click()
 await page.getByRole("heading", { name: "Your meeting request" }).waitFor()
+assert.equal(
+  mutations.filter((mutation) => mutation.path.endsWith("/recovery/redeem"))
+    .length,
+  recoveryRedeemsBefore + 1,
+  "A protected recovery link must be redeemed exactly once"
+)
 assert.equal(
   await page.evaluate(() =>
     localStorage.getItem("fmat-request:fixture-request")
@@ -638,6 +639,7 @@ request = {
   hostApproved: false,
 }
 await hostPage.goto(`${origin}/host/requests/fixture-request`)
+await hostPage.getByRole("button", { name: "Request settings" }).click()
 await hostPage
   .getByRole("button", { name: "Review private travel details" })
   .click()
@@ -734,7 +736,9 @@ assert.equal(
   await hostPage.getByText("Saved for proposal", { exact: false }).count(),
   0
 )
+await hostPage.getByRole("button", { name: "Close" }).click()
 await hostPage.getByRole("button", { name: "Refresh status" }).click()
+await hostPage.getByRole("button", { name: "Request settings" }).click()
 await hostPage
   .getByRole("checkbox", {
     name: "I confirm this private preference exception for proposal 2 with these exact details.",

@@ -7,6 +7,18 @@ import { createCloudflareEmailSender } from '../supabase/functions/_shared/provi
 
 const invitationIdPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const productionSender = 'no-reply@findmeatime.com';
+const codeAlphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+export function generateInvitationCode(bytes = randomBytes(10)) {
+  if (bytes.length !== 10) throw new Error('Invitation code requires ten random bytes');
+  let value = 0n;
+  for (const byte of bytes) value = (value << 8n) | BigInt(byte);
+  let characters = '';
+  for (let shift = 75n; shift >= 0n; shift -= 5n) {
+    characters += codeAlphabet[Number((value >> shift) & 31n)];
+  }
+  return characters.match(/.{4}/g).join('-');
+}
 
 function containsControlCharacter(value) {
   return [...value].some((character) => {
@@ -26,7 +38,7 @@ Linked remote project (loads server-only credentials from the ignored .env):
   node --env-file=.env scripts/manage-invitations.mjs revoke --project-ref REF --operator-id OPERATOR --invitation-id UUID
 
 Remote issue sends once through Cloudflare by default. Use --no-email for explicit manual delivery.
-Issue output retains the one-time token and setup URL for private operator recovery.
+Issue output retains the one-time invitation code and setup URL for private operator recovery.
 --app-origin defaults to http://localhost:5173 locally and APP_ORIGIN remotely.
 Remote calls require matching SUPABASE_PROJECT_REF, SUPABASE_URL, and CLI link cache.
 SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY must be a server-only privileged key.`;
@@ -55,7 +67,7 @@ function cloudflareIdentity(env) {
   };
 }
 
-function prepareInvitationEmail(email, token, expiresAt, setupUrl) {
+function prepareInvitationEmail(email, code, expiresAt, setupUrl) {
   return {
     to: [email],
     subject: 'Your Find Me a Time host invitation',
@@ -63,11 +75,11 @@ function prepareInvitationEmail(email, token, expiresAt, setupUrl) {
       'You have been invited to host meetings with Find Me a Time.',
       '',
       `Setup URL: ${setupUrl}`,
-      `Invitation token: ${token}`,
+      `Invitation code: ${code}`,
       `Expires: ${expiresAt} (valid for up to seven days)`,
       '',
-      `Sign in with this same email address (${email}) and enter the invitation token during setup.`,
-      'The token is intentionally separate from the setup URL.',
+      `Sign in with this same email address (${email}) and enter the invitation code during setup.`,
+      'The code is intentionally separate from the setup URL.',
     ].join('\n'),
   };
 }
@@ -105,7 +117,7 @@ export async function manageInvitation({
   linkedProject,
   receiptDirectory = new URL('../.local/invitations/', import.meta.url),
   now = () => Date.now(),
-  makeToken = () => randomBytes(32).toString('base64url'),
+  makeCode = generateInvitationCode,
   makeIdempotencyKey = randomUUID,
 } = {}) {
   const { values, positionals } = parseArgs({
@@ -176,11 +188,17 @@ export async function manageInvitation({
     throw new Error('Use an exact HTTPS app origin remotely or localhost/127.0.0.1:5173 locally');
   }
 
-  const token = operation === 'issue' ? makeToken() : undefined;
+  const code = operation === 'issue' ? makeCode() : undefined;
+  if (operation === 'issue' && (
+    typeof code !== 'string' ||
+    !/^(?:[0-9A-HJKMNP-TV-Z]{4}-){3}[0-9A-HJKMNP-TV-Z]{4}$/.test(code)
+  )) {
+    throw new Error('Invitation code generator returned an invalid code');
+  }
   const issuedAt = now();
   // One minute below the seven-day maximum tolerates modest operator/server clock skew.
   const input = operation === 'issue'
-    ? { email, tokenHash: createHash('sha256').update(token).digest('hex'), expiresAt: new Date(issuedAt + 7 * 86400000 - 60000).toISOString() }
+    ? { email, tokenHash: createHash('sha256').update(code).digest('hex'), expiresAt: new Date(issuedAt + 7 * 86400000 - 60000).toISOString() }
     : { invitationId };
   input.idempotencyKey = makeIdempotencyKey();
   let response;
@@ -192,7 +210,7 @@ export async function manageInvitation({
       signal: AbortSignal.timeout(15000),
       redirect: 'error',
     });
-  } catch { throw new Error('RPC outcome is unknown; inspect the operator audit before repeating. No token has been disclosed'); }
+  } catch { throw new Error('RPC outcome is unknown; inspect the operator audit before repeating. No code has been disclosed'); }
   let result;
   try { result = await response.json(); } catch { throw new Error(`RPC returned unreadable data (HTTP ${response.status}); inspect the operator audit before repeating`); }
   if (!response.ok) {
@@ -208,10 +226,10 @@ export async function manageInvitation({
   }
 
   const setupUrl = `${app.origin}/host/setup`;
-  const output = { invitationId: result.invitationId, email, expiresAt: result.expiresAt, token, setupUrl };
+  const output = { invitationId: result.invitationId, email, expiresAt: result.expiresAt, code, setupUrl };
   if (!shouldEmail) return { ...output, emailDelivery: { status: 'manual' } };
 
-  const prepared = prepareInvitationEmail(email, token, result.expiresAt, setupUrl);
+  const prepared = prepareInvitationEmail(email, code, result.expiresAt, setupUrl);
   const receipt = {
     version: 1,
     invitation: output,

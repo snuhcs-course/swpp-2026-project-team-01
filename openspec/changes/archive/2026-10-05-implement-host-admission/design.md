@@ -13,7 +13,7 @@ See proposal.md. P1 supplies service-only transactional commands; Supabase Auth 
 ## Decisions
 
 - Normalize waitlist emails, enforce uniqueness, and return the same neutral pending response on retries. Limit payloads and rate-limit public intake instead of exposing applicant lookup.
-- Restrict issuance/revocation to configured operator identities verified by the server. Generate 256-bit random invitation secrets, store hashes, and bind recipient email plus a seven-day expiry. Token possession alone is insufficient.
+- Restrict issuance/revocation to configured operator identities verified by the server. Generate 80-bit random, sixteen-character invitation codes in four readable groups; store only their hashes and bind recipient email plus a seven-day expiry. Code possession alone is insufficient. Accept already-issued legacy long tokens during redemption so a rollout does not invalidate pending invitations.
 - Lock the invitation during redemption; check verified Supabase email, expiry, revocation, and consumption, then admit and audit atomically. Same-account retries return saved setup; mismatched accounts cannot alter consumption.
 - Store host setup independently of invitation redemption so interrupted setup resumes. Require confirmed rules/timezone and verified conflict/booking selections for public readiness. Admission checks sit inside shared commands rather than only route middleware.
 - Assign lowercase validated unique handles to stable host IDs. Initial handles are immutable, so a cached link cannot become another host's identity; later rename requires its own alias/tombstone policy.

@@ -28,7 +28,7 @@ The database caps model claims at eight per request. Extraction receives bounded
 
 ## Website requester conversation
 
-The account-free protected request page uses the official AI Elements transcript and prompt input.
+The account-free protected request page uses the official AI Elements transcript and prompt input as its primary workspace. Current availability, proposal, and decision artifacts put explicit buttons beside the relevant conversation turn; structured editing lives in a secondary settings surface. The private request link restores continuation authority automatically. The request page has no credential-paste or recovery controls, and a bare request URL reveals no private details.
 A requester can describe changes to purpose, mode, location or availability. A message saves shared
 conversation text and may return a revision-bound advisory review. Choose **Apply these changes**
 to update those fields explicitly. Identity and duration remain in their existing structured workflow.
@@ -121,7 +121,7 @@ Output is an allowlisted acknowledgement, not proof that a Calendar event exists
 
 Actual CLI/RPC verification passed on controlled local request `36de7ed3-227d-47a0-beca-679e48c2824d`: a live prepared job rejected retry with `JOB_STILL_ACTIVE`; a conclusively blocked undispatched attempt allowed retry; a synthetic dispatched/uncertain attempt rejected retry with `BOOKING_UNCERTAIN`; reconciliation of that saved attempt was accepted. The guest receipt remained pending booking with no fabricated event. The fixture used synthetic trusted host/worker actors and real service-only SQL commands, no direct status override, Google transport, or external message. Syntax/help, thirteen mocked argument/target/key/operation/output checks, and documentation links also passed.
 
-Still pending: actual authenticated browser approval journey, and controlled live Calendar consent/refresh/create/lost-response reconciliation. A local RPC integration result can prove local transactions and recovery behavior with injected providers; it cannot satisfy the live Calendar M2 gate.
+The controlled production requester completed browser Google free/busy consent on 2026-10-05, checked the available October 6, 14:00–14:30 KST slot, and explicitly agreed to proposal version 2. The request showed **Awaiting host approval**; no event had been created at that checkpoint. Host approval and controlled live Calendar create, natural refresh, and lost-response reconciliation remain pending. A local RPC integration result can prove local transactions and recovery behavior with injected providers; it cannot satisfy the live Calendar M2 gate.
 
 ## P4 deployment evidence
 
@@ -129,4 +129,4 @@ Commit `86296d1` was deployed from a frozen snapshot to the identified Supabase 
 
 Production verification returned website/API health 200, unknown-host 404, unauthenticated request/worker 401, and unbound Google callback 400. Recurring Cron processed persisted ping job `1fe69546-fcfc-4398-9a2f-2b933b12576d` in one attempt at `2026-10-04 23:08:00.961225 UTC`, without an immediate worker invocation. Worker/recovery/expiry/credential-cleanup schedules remain active. This proves deployed database/runtime wiring; the ping creates no Calendar event or message.
 
-[GitHub Actions run 37242545049](https://github.com/snuhcs-course/swpp-2026-project-team-01/actions/runs/37242545049) passed clean Linux application installation/typecheck/lint/101 Deno tests/build, complete local reset/291 SQL checks, and both request and booking RPC runners. Live Google consent, refresh and controlled Calendar M2 remain open; deployment does not mark those tests passed.
+[GitHub Actions run 37242545049](https://github.com/snuhcs-course/swpp-2026-project-team-01/actions/runs/37242545049) passed clean Linux application installation/typecheck/lint/101 Deno tests/build, complete local reset/291 SQL checks, and both request and booking RPC runners. The later live requester consent and agreement above do not by themselves prove refresh or controlled Calendar M2 booking.

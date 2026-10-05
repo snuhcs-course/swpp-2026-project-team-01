@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { RequestView, TimeWindow } from "../../../packages/contracts/index"
 import { api, rememberRequest, requestToken } from "@/lib/api"
 import {
@@ -11,7 +11,6 @@ import {
   useResource,
 } from "@/lib/ui"
 import {
-  Recovery,
   Verification,
   DetailsEditor,
   PrivateTravel,
@@ -47,8 +46,16 @@ import {
   Clock3,
   MapPin,
   RefreshCw,
+  Settings2,
   Video,
 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Message,
   MessageContent,
@@ -345,68 +352,61 @@ export function RequestPage({
   const [recoveryToken, setRecoveryToken] = useState(() =>
     new URLSearchParams(location.hash.slice(1)).get("recovery")
   )
+  const [recoveryError, setRecoveryError] = useState("")
+  const recoveryAttempt = useRef<{ token: string; key: string } | null>(null)
+  useEffect(() => {
+    if (host || token || !recoveryToken) return
+    if (recoveryAttempt.current?.token === recoveryToken) return
+    const attempt = {
+      token: recoveryToken,
+      key: crypto.randomUUID(),
+    }
+    recoveryAttempt.current = attempt
+    history.replaceState(null, "", `${location.pathname}${location.search}`)
+    api<{ request: RequestView; token: string }>(
+      `/requests/${id}/recovery/redeem`,
+      {
+        body: { token: recoveryToken },
+        idempotencyKey: attempt.key,
+      }
+    )
+      .then((value) => {
+        rememberRequest(id, value.token)
+        setToken(value.token)
+      })
+      .catch((error) => {
+        setRecoveryError(
+          error instanceof Error ? error.message : "Recovery failed."
+        )
+      })
+  }, [host, id, recoveryToken, token])
   useEffect(() => {
     const handleFragment = () => {
       if (host) return
       const fragment = new URLSearchParams(location.hash.slice(1))
-      setRecoveryToken(fragment.get("recovery"))
       const received = fragment.get("token")
       if (received) {
         rememberRequest(id, received)
         setToken(received)
+        setRecoveryToken(null)
         history.replaceState(null, "", `${location.pathname}${location.search}`)
+        return
       }
+      const recovery = fragment.get("recovery")
+      if (!token && recovery) setRecoveryToken(recovery)
     }
     window.addEventListener("hashchange", handleFragment)
     return () => window.removeEventListener("hashchange", handleFragment)
-  }, [host, id])
-  const recovered = (value: { request: RequestView; token: string }) => {
-    rememberRequest(id, value.token)
-    setToken(value.token)
-    setRecoveryToken(null)
-    history.replaceState(null, "", `${location.pathname}${location.search}`)
-  }
-  if (!host && recoveryToken)
-    return (
-      <Recovery id={id} recoveryToken={recoveryToken} onRecovered={recovered} />
-    )
+  }, [host, id, token])
   if (!host && !token)
     return (
-      <div className="mx-auto flex w-full max-w-lg flex-col gap-6">
-        <Card className="mx-auto w-full max-w-lg">
-          <CardHeader>
-            <CardTitle role="heading" aria-level={2}>
-              Continue your request
-            </CardTitle>
-            <CardDescription>
-              Open your protected continuation link, or paste its request
-              credential below. Your email address alone cannot unlock a
-              request.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                const value = String(new FormData(e.currentTarget).get("token"))
-                rememberRequest(id, value)
-                setToken(value)
-              }}
-            >
-              <FieldGroup>
-                <TextField
-                  label="Request credential"
-                  name="token"
-                  type="password"
-                  required
-                  autoComplete="off"
-                />
-                <Button type="submit">Open request</Button>
-              </FieldGroup>
-            </form>
-          </CardContent>
-        </Card>
-        <Recovery id={id} onRecovered={recovered} />
+      <div className="mx-auto flex w-full max-w-lg flex-col gap-3">
+        <Notice>
+          {recoveryToken && !recoveryError
+            ? "Restoring your private request…"
+            : "This request is private. Open its protected continuation link to continue."}
+        </Notice>
+        {recoveryError && <Notice error>{recoveryError}</Notice>}
       </div>
     )
   return (
@@ -415,7 +415,6 @@ export function RequestPage({
       id={id}
       host={host}
       token={host ? undefined : token}
-      onRecovered={recovered}
     />
   )
 }
@@ -423,13 +422,12 @@ function RequestDetail({
   id,
   host,
   token,
-  onRecovered,
 }: {
   id: string
   host: boolean
   token?: string
-  onRecovered: (value: { request: RequestView; token: string }) => void
 }) {
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const resource = useResource<RequestView>(
     `/requests/${encodeURIComponent(id)}`,
     token
@@ -444,7 +442,6 @@ function RequestDetail({
     return (
       <div className="flex min-w-0 flex-col gap-6">
         <ErrorState error={resource.error} retry={resource.refresh} />
-        {!host && <Recovery id={id} onRecovered={onRecovered} />}
       </div>
     )
   if (!resource.data)
@@ -511,10 +508,16 @@ function RequestDetail({
               </span>
             </div>
           </div>
-          <Button variant="outline" onClick={resource.refresh}>
-            <RefreshCw data-icon="inline-start" />
-            Refresh status
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setSettingsOpen(true)}>
+              <Settings2 data-icon="inline-start" />
+              Request settings
+            </Button>
+            <Button variant="outline" onClick={resource.refresh}>
+              <RefreshCw data-icon="inline-start" />
+              Refresh status
+            </Button>
+          </div>
         </div>
       </div>
       {action.error && (
@@ -562,132 +565,7 @@ function RequestDetail({
           )}
         </Notice>
       )}
-      <div className="grid items-start gap-6 lg:grid-cols-[1.2fr_1fr]">
-        <div className="flex min-w-0 flex-col gap-6">
-          {!host && mutable && (
-            <Verification
-              request={request}
-              token={token}
-              onChanged={resource.setData}
-            />
-          )}
-          {host && request.proposal && (
-            <ProposalReview
-              key={`${request.revision}-${host}`}
-              request={request}
-              host={host}
-              pending={action.pending}
-              mutate={mutation}
-            />
-          )}
-          <Card>
-            <CardHeader>
-              <CardTitle role="heading" aria-level={2}>
-                Request overview
-              </CardTitle>
-              <CardDescription>
-                The current meeting details from the requester.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <dl className="grid gap-4 text-sm sm:grid-cols-2">
-                <div className="flex flex-col gap-1">
-                  <dt className="text-muted-foreground">Requester</dt>
-                  <dd className="font-medium">
-                    {request.details.requesterName}
-                  </dd>
-                  <dd className="break-all text-muted-foreground">
-                    {request.details.requesterEmail}
-                  </dd>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <dt className="text-muted-foreground">Duration</dt>
-                  <dd className="font-medium">
-                    {request.details.durationMinutes} minutes
-                  </dd>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <dt className="text-muted-foreground">Meeting format</dt>
-                  <dd className="flex items-start gap-2 font-medium">
-                    {request.details.mode === "online" ? (
-                      <Video className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                    ) : (
-                      <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                    )}
-                    <span className="break-words">
-                      {request.details.mode === "online"
-                        ? "Online"
-                        : "In person"}
-                      {request.details.location &&
-                        ` · ${request.details.location}`}
-                    </span>
-                  </dd>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <dt className="text-muted-foreground">Timezone</dt>
-                  <dd className="font-medium">{request.details.timezone}</dd>
-                </div>
-              </dl>
-            </CardContent>
-            <CardFooter>
-              <p className="text-sm text-muted-foreground">
-                Proposed times are not reserved until booking is confirmed.
-              </p>
-            </CardFooter>
-          </Card>
-          {!host && mutable && (
-            <DetailsEditor
-              key={`details-${request.revision}`}
-              request={request}
-              pending={action.pending}
-              mutate={mutation}
-            />
-          )}
-          {host && mutable && (
-            <HostRevision
-              request={request}
-              pending={action.pending}
-              mutate={mutation}
-            />
-          )}
-          {host && request.proposal && (
-            <PreferenceException
-              key={`exception-${request.revision}`}
-              request={request}
-              mutable={mutable}
-              pending={action.pending}
-              mutate={mutation}
-            />
-          )}
-          {host && mutable && (
-            <PrivateTravel
-              key={`travel-${request.revision}`}
-              request={request}
-              pending={action.pending}
-              mutate={mutation}
-            />
-          )}
-          {host && (request.privateNotes || request.exceptions?.length) && (
-            <Card>
-              <CardHeader>
-                <Badge variant="secondary">Only you can see this</Badge>
-                <CardTitle role="heading" aria-level={2}>
-                  Private review notes
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                {request.privateNotes && (
-                  <p className="text-sm whitespace-pre-wrap">
-                    {request.privateNotes}
-                  </p>
-                )}
-                {request.exceptions?.map((exception, i) => (
-                  <Notice key={i}>{exception}</Notice>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-        </div>
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
         <div className="flex min-w-0 flex-col gap-6">
           <RequestConversation
             request={request}
@@ -706,99 +584,201 @@ function RequestDetail({
               mutate={mutation}
             />
           )}
-          {!host && mutable && (
-            <Card>
-              <CardHeader>
-                <CardTitle role="heading" aria-level={2}>
-                  Your availability
-                </CardTitle>
-                <CardDescription>
-                  Use the windows you shared, or connect Google Calendar to
-                  check your availability. You can disconnect at any time.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <Button
-                  disabled={action.pending}
-                  onClick={() =>
-                    action.run(
-                      (key) =>
-                        api<{ url: string }>(`/requests/${id}/google/connect`, {
-                          token,
-                          body: { expectedRevision: request.revision },
-                          idempotencyKey: key,
-                        }),
-                      (value) => location.assign(value.url),
-                      "google-connect"
-                    )
-                  }
-                >
-                  Connect Google Calendar
-                </Button>
-                {request.calendarConnected && (
-                  <Badge variant="secondary">
-                    Calendar availability connected
-                  </Badge>
-                )}
-                {request.calendarConnected && (
+        </div>
+        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <DialogContent className="flex max-h-[90svh] max-w-4xl flex-col gap-0 overflow-hidden p-0">
+            <DialogHeader className="p-6 pb-4">
+              <DialogTitle>Request settings</DialogTitle>
+              <DialogDescription>
+                Review exact details, calendar access, private constraints, and
+                request actions.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex max-h-[70svh] min-w-0 flex-col gap-6 overflow-y-auto px-6 pb-6">
+              {!host && mutable && (
+                <Verification
+                  request={request}
+                  token={token}
+                  onChanged={resource.setData}
+                />
+              )}
+              <Card>
+                <CardHeader>
+                  <CardTitle role="heading" aria-level={2}>
+                    Request overview
+                  </CardTitle>
+                  <CardDescription>
+                    The current meeting details from the requester.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <dl className="grid gap-4 text-sm sm:grid-cols-2">
+                    <div className="flex flex-col gap-1">
+                      <dt className="text-muted-foreground">Requester</dt>
+                      <dd className="font-medium">
+                        {request.details.requesterName}
+                      </dd>
+                      <dd className="break-all text-muted-foreground">
+                        {request.details.requesterEmail}
+                      </dd>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <dt className="text-muted-foreground">Duration</dt>
+                      <dd className="font-medium">
+                        {request.details.durationMinutes} minutes
+                      </dd>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <dt className="text-muted-foreground">Meeting format</dt>
+                      <dd className="flex items-start gap-2 font-medium">
+                        {request.details.mode === "online" ? (
+                          <Video className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                        )}
+                        <span className="break-words">
+                          {request.details.mode === "online"
+                            ? "Online"
+                            : "In person"}
+                          {request.details.location &&
+                            ` · ${request.details.location}`}
+                        </span>
+                      </dd>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <dt className="text-muted-foreground">Timezone</dt>
+                      <dd className="font-medium">
+                        {request.details.timezone}
+                      </dd>
+                    </div>
+                  </dl>
+                </CardContent>
+                <CardFooter>
+                  <p className="text-sm text-muted-foreground">
+                    Proposed times are not reserved until booking is confirmed.
+                  </p>
+                </CardFooter>
+              </Card>
+              {!host && mutable && (
+                <DetailsEditor
+                  key={`details-${request.revision}`}
+                  request={request}
+                  pending={action.pending}
+                  mutate={mutation}
+                />
+              )}
+              {host && mutable && (
+                <HostRevision
+                  request={request}
+                  pending={action.pending}
+                  mutate={mutation}
+                />
+              )}
+              {host && request.proposal && (
+                <PreferenceException
+                  key={`exception-${request.revision}`}
+                  request={request}
+                  mutable={mutable}
+                  pending={action.pending}
+                  mutate={mutation}
+                />
+              )}
+              {host && mutable && (
+                <PrivateTravel
+                  key={`travel-${request.revision}`}
+                  request={request}
+                  pending={action.pending}
+                  mutate={mutation}
+                />
+              )}
+              {host && (request.privateNotes || request.exceptions?.length) && (
+                <Card>
+                  <CardHeader>
+                    <Badge variant="secondary">Only you can see this</Badge>
+                    <CardTitle role="heading" aria-level={2}>
+                      Private review notes
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-3">
+                    {request.privateNotes && (
+                      <p className="text-sm whitespace-pre-wrap">
+                        {request.privateNotes}
+                      </p>
+                    )}
+                    {request.exceptions?.map((exception, i) => (
+                      <Notice key={i}>{exception}</Notice>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+              {!host && mutable && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle role="heading" aria-level={2}>
+                      Your availability
+                    </CardTitle>
+                    <CardDescription>
+                      Use the windows you shared, or connect Google Calendar to
+                      check your availability. You can disconnect at any time.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-3">
+                    <Button
+                      disabled={action.pending}
+                      onClick={() =>
+                        action.run(
+                          (key) =>
+                            api<{ url: string }>(
+                              `/requests/${id}/google/connect`,
+                              {
+                                token,
+                                body: { expectedRevision: request.revision },
+                                idempotencyKey: key,
+                              }
+                            ),
+                          (value) => location.assign(value.url),
+                          "google-connect"
+                        )
+                      }
+                    >
+                      Connect Google Calendar
+                    </Button>
+                    {request.calendarConnected && (
+                      <Badge variant="secondary">
+                        Calendar availability connected
+                      </Badge>
+                    )}
+                    {request.calendarConnected && (
+                      <Button
+                        variant="outline"
+                        disabled={action.pending}
+                        onClick={() => mutation("calendar/disconnect")}
+                      >
+                        Disconnect calendar access
+                      </Button>
+                    )}
+                    <p className="text-sm text-muted-foreground">
+                      Denied or failed consent keeps this request open. You can
+                      continue with manual availability.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+              {mutable && (
+                <div className="flex justify-end">
                   <Button
-                    variant="outline"
+                    variant="destructive"
                     disabled={action.pending}
-                    onClick={() => mutation("calendar/disconnect")}
+                    onClick={() => mutation(host ? "decline" : "withdraw")}
                   >
-                    Disconnect calendar access
+                    {host ? "Decline request" : "Withdraw request"}
                   </Button>
-                )}
-                <p className="text-sm text-muted-foreground">
-                  Denied or failed consent keeps this request open. You can
-                  continue with manual availability.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-          {!host && (
-            <Card>
-              <CardHeader>
-                <CardTitle role="heading" aria-level={2}>
-                  Keep your continuation link
-                </CardTitle>
-                <CardDescription>
-                  This private link grants access only to this request. Store it
-                  somewhere safe and share it only with your authorized agent.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    action.run(
-                      () =>
-                        navigator.clipboard.writeText(
-                          `${location.origin}/requests/${id}#token=${encodeURIComponent(token ?? "")}`
-                        ),
-                      () => {},
-                      "copy"
-                    )
-                  }
-                >
-                  Copy protected link
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
-      {mutable && (
-        <div className="flex justify-end">
-          <Button
-            variant="destructive"
-            disabled={action.pending}
-            onClick={() => mutation(host ? "decline" : "withdraw")}
-          >
-            {host ? "Decline request" : "Withdraw request"}
-          </Button>
-        </div>
-      )}
       {host && request.deliveryStatus && (
         <p className="text-sm text-muted-foreground">
           Notification status: {request.deliveryStatus}. Confirmed booking
@@ -1141,6 +1121,15 @@ function SharedRequestConversation({
             <AIConversationScrollButton />
           </AIConversation>
         </div>
+        {host && proposal && (
+          <ProposalReview
+            key={`${request.revision}-${host}`}
+            request={request}
+            host={host}
+            pending={pending}
+            mutate={mutate}
+          />
+        )}
         {!host && mutable && review && (
           <Card size="sm" className="border-primary/30 bg-primary/5">
             <CardHeader>
@@ -1315,7 +1304,7 @@ function SharedRequestConversation({
                 </FieldLabel>
               </Field>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex-col items-start gap-2">
               <Button
                 disabled={
                   pending ||
@@ -1328,6 +1317,12 @@ function SharedRequestConversation({
               >
                 Agree and send to host
               </Button>
+              {!request.contactVerified && (
+                <p className="text-xs text-muted-foreground">
+                  Verify your email in Request settings before sending your
+                  agreement.
+                </p>
+              )}
             </CardFooter>
           </Card>
         )}
@@ -1339,7 +1334,7 @@ function SharedRequestConversation({
         )}
         {!host && mutable && (
           <>
-            <Suggestions className="min-w-0 max-w-full">
+            <Suggestions className="max-w-full min-w-0">
               {quickPrompts.map((prompt) => (
                 <Suggestion
                   key={prompt}

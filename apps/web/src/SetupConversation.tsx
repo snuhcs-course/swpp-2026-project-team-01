@@ -34,6 +34,20 @@ import {
 } from "@/components/ai-elements/prompt-input"
 import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion"
 import { CheckCircle2, MessageCircle, Settings2 } from "lucide-react"
+import {
+  Artifact,
+  ArtifactContent,
+  ArtifactDescription,
+  ArtifactHeader,
+  ArtifactTitle,
+} from "@/components/ai-elements/artifact"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 type LinkState = {
   contactUrl?: string | null
@@ -80,11 +94,13 @@ export function SetupConversation({
   initial,
   onSaved,
   protectedActions,
+  statusArtifact,
   recovery,
 }: {
   initial: SetupState
   onSaved: (setup: SetupState) => void
   protectedActions: ReactNode
+  statusArtifact?: ReactNode
   recovery: ReactNode
 }) {
   const resource = useResource<SetupConversationState>(
@@ -93,10 +109,12 @@ export function SetupConversation({
   const [showEditor, setShowEditor] = useState(false)
   const refreshConversation = resource.refresh
   const state = initial.admitted ? resource.data : null
-  const setup = initial
   useEffect(() => {
     if (state) onSaved(state.setup)
   }, [state, onSaved])
+  useEffect(() => {
+    if (initial.admitted) refreshConversation()
+  }, [initial.admitted, initial.nextAction, initial.profile?.ready, refreshConversation])
   useEffect(() => {
     if (!initial.admitted) return
     const refresh = () => {
@@ -113,112 +131,93 @@ export function SetupConversation({
   }, [initial.admitted, refreshConversation])
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_19rem]">
-        <Card className="min-w-0 py-0">
-          <CardHeader className="border-b py-5">
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle role="heading" aria-level={2}>
-                Let’s set up your calendar
-              </CardTitle>
-              <Badge variant="secondary">Private conversation</Badge>
-            </div>
-            <CardDescription>
-              Tell us how you like to meet. Review each change before it becomes
-              a scheduling rule.
-            </CardDescription>
-          </CardHeader>
-          {!initial.admitted ? (
-            <CardContent className="flex flex-col gap-5 py-6">
-              <Message from="assistant">
-                <MessageContent>
-                  Welcome. Start by accepting the invitation sent to your
-                  verified email. Then we can set up your meeting preferences
-                  together.
-                </MessageContent>
-              </Message>
-              {protectedActions}
-            </CardContent>
-          ) : resource.loading ? (
-            <CardContent className="py-6">
-              <Loading />
-            </CardContent>
-          ) : resource.error || !state ? (
-            <CardContent className="py-6">
-              <ErrorState
-                error={
-                  resource.error ||
-                  "Your setup conversation could not be loaded."
-                }
-                retry={resource.refresh}
-              />
-            </CardContent>
-          ) : (
-            <PromptInputProvider>
-              <SetupDialogue
-                state={state}
-                onChange={resource.setData}
-                refresh={resource.refresh}
-                protectedActions={showEditor ? null : protectedActions}
-              />
-            </PromptInputProvider>
+      <Card className="min-w-0 py-0">
+        <CardHeader className="border-b py-5">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle role="heading" aria-level={2}>
+              Let’s set up your calendar
+            </CardTitle>
+            <Badge variant="secondary">Private conversation</Badge>
+          </div>
+          <CardDescription>
+            Tell us how you like to meet. Review each change before it becomes a
+            scheduling rule.
+          </CardDescription>
+        </CardHeader>
+        {!initial.admitted ? (
+          <CardContent className="flex flex-col gap-5 py-6">
+            <Message from="assistant">
+              <MessageContent>
+                Welcome. Start by accepting the invitation sent to your verified
+                email. Then we can set up your meeting preferences together.
+              </MessageContent>
+            </Message>
+            {statusArtifact}
+            {protectedActions}
+          </CardContent>
+        ) : resource.loading ? (
+          <CardContent className="py-6">
+            <Loading />
+          </CardContent>
+        ) : resource.error || !state ? (
+          <CardContent className="py-6">
+            <ErrorState
+              error={
+                resource.error || "Your setup conversation could not be loaded."
+              }
+              retry={resource.refresh}
+            />
+          </CardContent>
+        ) : (
+          <PromptInputProvider>
+            <SetupDialogue
+              state={state}
+              onChange={resource.setData}
+              refresh={resource.refresh}
+              protectedActions={showEditor ? null : protectedActions}
+              statusArtifact={statusArtifact}
+            />
+          </PromptInputProvider>
+        )}
+        <CardFooter className="flex flex-wrap justify-between gap-3 border-t py-4">
+          <p className="text-xs text-muted-foreground">
+            Every meeting still needs your explicit approval.
+          </p>
+          {initial.admitted && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowEditor(true)}
+            >
+              <Settings2 data-icon="inline-start" />
+              Setup settings
+            </Button>
           )}
-          <CardFooter className="flex flex-wrap justify-between gap-3 border-t py-4">
-            <p className="text-xs text-muted-foreground">
-              Every meeting still needs your explicit approval.
-            </p>
-            {initial.admitted && (
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-expanded={showEditor}
-                aria-controls="setup-structured-editor"
-                onClick={() => setShowEditor((v) => !v)}
-              >
-                <Settings2 data-icon="inline-start" />
-                {showEditor ? "Close settings editor" : "Use settings editor"}
-              </Button>
-            )}
-          </CardFooter>
-        </Card>
-        <div className="flex min-w-0 flex-col gap-5">
-          <Card>
-            <CardHeader>
-              <CardTitle role="heading" aria-level={2}>
-                Your next step
-              </CardTitle>
-              <CardDescription>
-                {setup.profile?.ready
-                  ? "Your booking link is ready to share."
-                  : nextStep(setup.nextAction)}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {setup.profile?.ready && (
-                <Button
-                  render={<a href={`/${setup.profile.handle}`} />}
-                  nativeButton={false}
-                  variant="outline"
-                >
-                  Open your booking link
-                </Button>
-              )}
-              <p className="text-sm text-muted-foreground">
-                Google sign-in and calendar consent happen in your browser. Your
-                chat resumes here afterward.
-              </p>
-            </CardContent>
-          </Card>
-          {initial.admitted && <IMessageSetup />}
-        </div>
-      </div>
-      {showEditor && (
-        <div id="setup-structured-editor" className="flex flex-col gap-4">
-          <Notice>
-            Use these controls whenever you prefer to edit exact values or the
-            assistant is unavailable.
-          </Notice>
-          {recovery}
-        </div>
+        </CardFooter>
+      </Card>
+      {initial.admitted && (
+        <Dialog open={showEditor} onOpenChange={setShowEditor}>
+          <DialogContent className="flex max-h-[90svh] max-w-4xl flex-col gap-0 overflow-hidden p-0">
+            <DialogHeader className="p-6 pb-4">
+              <DialogTitle>Setup settings</DialogTitle>
+              <DialogDescription>
+                Edit exact values, manage calendar access, or connect another
+                private channel.
+              </DialogDescription>
+            </DialogHeader>
+            <div
+              id="setup-structured-editor"
+              className="flex max-h-[70svh] flex-col gap-5 overflow-y-auto px-6 pb-6"
+            >
+              <Notice>
+                These controls are available when you need exact values. Your
+                conversation remains the primary setup workspace.
+              </Notice>
+              {recovery}
+              <IMessageSetup />
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )
@@ -249,11 +248,13 @@ function SetupDialogue({
   onChange,
   refresh,
   protectedActions,
+  statusArtifact,
 }: {
   state: SetupConversationState
   onChange: (state: SetupConversationState) => void
   refresh: () => void
   protectedActions: ReactNode
+  statusArtifact?: ReactNode
 }) {
   const controller = usePromptInputController()
   const [pending, setPending] = useState(false)
@@ -339,6 +340,34 @@ function SetupDialogue({
             />
           )}
           {protectedActions}
+          {statusArtifact}
+          <Artifact>
+            <ArtifactHeader>
+              <div className="flex flex-col gap-1">
+                <ArtifactTitle>Your next step</ArtifactTitle>
+                <ArtifactDescription>
+                  {state.setup.profile?.ready
+                    ? "Your booking link is ready to share."
+                    : nextStep(state.setup.nextAction)}
+                </ArtifactDescription>
+              </div>
+            </ArtifactHeader>
+            <ArtifactContent className="flex flex-col gap-3">
+              {state.setup.profile?.ready && (
+                <Button
+                  render={<a href={`/${state.setup.profile.handle}`} />}
+                  nativeButton={false}
+                  variant="outline"
+                >
+                  Open your booking link
+                </Button>
+              )}
+              <p className="text-sm text-muted-foreground">
+                Google sign-in and calendar consent happen in your browser. Your
+                chat resumes here afterward.
+              </p>
+            </ArtifactContent>
+          </Artifact>
           {pending && (
             <p
               role="status"

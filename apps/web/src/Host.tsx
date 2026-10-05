@@ -43,6 +43,13 @@ import { WorkspaceShell } from "@/components/workspace-shell"
 import { ServiceNotices } from "@/components/service-notices"
 import { cn } from "@/lib/utils"
 import {
+  Artifact,
+  ArtifactContent,
+  ArtifactDescription,
+  ArtifactHeader,
+  ArtifactTitle,
+} from "@/components/ai-elements/artifact"
+import {
   SetupConversation,
   captureIMessageContinuation,
 } from "./SetupConversation"
@@ -313,10 +320,10 @@ function Workspace() {
             : "Setup in progress"}
         </Badge>
       </div>
-      <ReadinessChecklist setup={resource.data} />
       <SetupConversation
         initial={resource.data}
         onSaved={resource.setData}
+        statusArtifact={<ReadinessChecklist setup={resource.data} />}
         protectedActions={
           resource.data.admitted ? (
             resource.data.profile &&
@@ -384,19 +391,19 @@ function ReadinessChecklist({ setup }: { setup: SetupState }) {
   const completeCount = steps.filter((step) => step.complete).length
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle role="heading" aria-level={2}>
-          Setup progress
-        </CardTitle>
-        <CardDescription>
-          {completeCount} of {steps.length} steps complete.{" "}
-          {setup.profile?.ready
-            ? "You’re ready to receive meeting requests."
-            : "Connecting Google alone does not publish your booking link."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Artifact>
+      <ArtifactHeader>
+        <div className="flex flex-col gap-1">
+          <ArtifactTitle>Setup progress</ArtifactTitle>
+          <ArtifactDescription>
+            {completeCount} of {steps.length} steps complete.{" "}
+            {setup.profile?.ready
+              ? "You’re ready to receive meeting requests."
+              : "Connecting Google alone does not publish your booking link."}
+          </ArtifactDescription>
+        </div>
+      </ArtifactHeader>
+      <ArtifactContent>
         <ol
           className={cn(
             "grid gap-4 sm:grid-cols-2 xl:grid-cols-5",
@@ -430,8 +437,8 @@ function ReadinessChecklist({ setup }: { setup: SetupState }) {
             </li>
           ))}
         </ol>
-      </CardContent>
-    </Card>
+      </ArtifactContent>
+    </Artifact>
   )
 }
 function Admission({ onSaved }: { onSaved: (value: SetupState) => void }) {
@@ -468,7 +475,9 @@ function Admission({ onSaved }: { onSaved: (value: SetupState) => void }) {
           <FieldGroup>
             <TextField
               name="invitation"
-              label="Invitation token"
+              label="Invitation code"
+              description="Enter the 16-character code, for example XXXX-XXXX-XXXX-XXXX."
+              placeholder="XXXX-XXXX-XXXX-XXXX"
               required
               value={token}
               onChange={(e) => setToken(e.target.value)}
@@ -506,7 +515,7 @@ function Setup({
   const [saved, setSaved] = useState(false)
   return (
     <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.75fr)]">
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader>
           <CardTitle role="heading" aria-level={2}>
             Your scheduling rules

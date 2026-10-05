@@ -453,6 +453,8 @@ try {
   )
   await page.getByRole("button", { name: "Save calendar selection" }).click()
   await page.getByText("Booking link ready", { exact: true }).waitFor()
+  await page.getByRole("button", { name: "Open your booking link" }).waitFor()
+  await page.getByRole("button", { name: "Setup settings" }).click()
   await page.getByText("Not available yet", { exact: true }).waitFor()
   assert.equal(
     await page
@@ -460,9 +462,9 @@ try {
       .count(),
     0
   )
-  await page.getByRole("button", { name: "Use settings editor" }).click()
   await page.getByRole("heading", { name: "Your scheduling rules" }).waitFor()
-  await page.getByRole("button", { name: "Close settings editor" }).click()
+  await page.getByRole("button", { name: "Close" }).click()
+  await page.getByRole("dialog").waitFor({ state: "hidden" })
   await page.screenshot({
     path: "test-results/setup-conversation/ready-desktop.png",
     fullPage: true,
@@ -477,6 +479,7 @@ try {
   await page.goto(
     `${origin}/host/setup#imessage=${continuationId}&proof=${continuationSecret}`
   )
+  await page.getByRole("button", { name: "Setup settings" }).click()
   await page
     .getByRole("button", { name: "Link iMessage", exact: true })
     .waitFor()
@@ -501,6 +504,7 @@ try {
     false
   )
   await page.reload()
+  await page.getByRole("button", { name: "Setup settings" }).click()
   await page
     .getByRole("button", { name: "Confirm this iMessage account", exact: true })
     .click()

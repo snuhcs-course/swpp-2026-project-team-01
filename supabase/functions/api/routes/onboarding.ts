@@ -143,12 +143,19 @@ export function onboardingRoutes(env: Environment, db: Database, oauth = createO
   app.post('/host/invitations/redeem', async (c) => {
     const actor = await actorFor(c.req.raw, db, undefined, true);
     const input = await jsonInput(c.req.raw);
-    if (typeof input.token !== 'string' || input.token.length < 32 || input.token.length > 256) {
+    const supplied = input.code ?? input.token;
+    if (typeof supplied !== 'string') {
       throw new DomainError('invalid_input');
     }
+    const compactCode = supplied.toUpperCase().replace(/[ -]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+    const code = /^[0-9A-HJKMNP-TV-Z]{16}$/.test(compactCode)
+      ? compactCode.match(/.{4}/g)!.join('-')
+      : undefined;
+    const secret = code ?? (supplied.length >= 32 && supplied.length <= 256 ? supplied : undefined);
+    if (!secret) throw new DomainError('invalid_input');
     return c.json(
       await db.command('invite_redeem', actor, {
-        tokenHash: await hashToken(input.token),
+        tokenHash: await hashToken(secret),
         idempotencyKey: mutationKey(c.req.raw),
       }),
     );

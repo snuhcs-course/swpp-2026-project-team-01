@@ -429,7 +429,7 @@ try {
   setupState = structuredClone(states.admitted)
   await desktop.reload()
   await desktop.getByText("2 of 5 steps complete.", { exact: false }).waitFor()
-  await desktop.getByRole("button", { name: "Use settings editor" }).click()
+  await desktop.getByRole("button", { name: "Setup settings" }).click()
   await desktop
     .getByRole("heading", { name: "Your scheduling rules" })
     .waitFor()
@@ -452,6 +452,7 @@ try {
     setupMutationsBeforeSave + 1,
     "The redesigned setup form must still save exactly once"
   )
+  await desktop.getByRole("button", { name: "Close" }).click()
   assert.equal(
     mutations.at(-1).body.displayName,
     "Dodo Park",
@@ -462,7 +463,7 @@ try {
   await desktop.reload()
   await desktop.getByText("5 of 5 steps complete.", { exact: false }).waitFor()
   await desktop.getByText("Booking link ready", { exact: true }).waitFor()
-  await desktop.getByRole("button", { name: "Use settings editor" }).click()
+  await desktop.getByRole("button", { name: "Setup settings" }).click()
   await desktop.getByText(`${origin}/dodo`, { exact: true }).waitFor()
   const bookingDestination = desktop.getByLabel("Booking destination")
   await bookingDestination.waitFor()
@@ -471,7 +472,7 @@ try {
     await bookingDestination.locator('option[value="primary"]').textContent(),
     "Primary calendar"
   )
-  await desktop.getByRole("button", { name: "Close settings editor" }).click()
+  await desktop.getByRole("button", { name: "Close" }).click()
   await assertNoOverflow(desktop, "Ready desktop workspace")
   await desktop.screenshot({
     path: "test-results/workspace/setup-ready-desktop.png",
@@ -606,6 +607,7 @@ try {
     watchErrors(requester)
     await requester.goto(`${origin}/dodo`)
     await requester.getByRole("heading", { name: "Meet with Dodo" }).waitFor()
+    await requester.getByRole("button", { name: "Request details" }).click()
     await requester.getByLabel("Your name", { exact: true }).waitFor()
     await requester.getByLabel("Email address").waitFor()
     await requester

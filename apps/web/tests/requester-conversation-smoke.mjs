@@ -304,6 +304,9 @@ async function runFlow(width) {
   await page
     .getByRole("button", { name: "Check availability", exact: true })
     .click()
+  await page.waitForFunction(
+    () => document.querySelector("#conversation-candidate")?.value === ""
+  )
   assert.equal(
     await page.getByRole("combobox", { name: "Feasible options" }).inputValue(),
     ""
