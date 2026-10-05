@@ -11,7 +11,7 @@ Start with the one-pager and product requirements, read the user-experience docu
 | [Interfaces](user_experience/03_interfaces.md) | Web, email, iMessage, personal-agent clients, MCP, CLI, and shared API responsibilities, including the proposed host email extension. |
 | [Technical specification](03_technical_specification.md) | Selected Supabase backend, architecture, data model, authorization, booking recovery, and verification plan. |
 | [Backend architecture](technical_specification/01_backend_architecture.md) | Edge Function roles and layout, shared modules, Queues/Cron processing, transactions, and operational recovery. |
-| [Repository structure](technical_specification/02_repo_structure.md) | Planned monorepo layout, interface entry points, capability modules, shared contracts, and test ownership. |
+| [Repository structure](technical_specification/02_repo_structure.md) | Current monorepo layout, proposed interface additions, shared contracts, and test ownership. |
 | [Host setup and invitation operations](technical_specification/06_host_setup.md) | Controlled invitations, resumable setup, Calendar scopes/callbacks and remaining live gates. |
 | [Request and booking runtime](technical_specification/07_request_and_booking_runtime.md) | Request authority, feasibility, durable booking recovery, runtime switches and verification boundaries. |
 | [Provider setup](technical_specification/03_provider_setup.md) | Development skills, messaging CLI credentials, verified provisioning, and remaining integration checks. |
@@ -19,7 +19,7 @@ Start with the one-pager and product requirements, read the user-experience docu
 | [Implementation plan](technical_specification/04_implementation_plan.md) | Delivery phases, dependencies, team responsibilities, and release verification gates. |
 | [Competitive landscape](business/competitor_research.md) | Source-backed competitor research, comparison boundaries, and suggested benchmark scenarios. |
 
-Supabase PostgreSQL, Auth, Edge Functions (TypeScript/Deno with Hono), Queues, and Cron are the selected backend stack. The PRD, user-experience documents, and remaining technical designs are drafts for team review, not evidence of implemented features. Journeys explain the experience and stories express user needs; both reference the PRD rather than introduce independent acceptance contracts. The interface overview marks proposed extensions that still need PRD requirements. Research distinguishes vendor claims from verified behavior and product hypotheses.
+The repository implements a React/Vite npm workspace with shadcn preset `b6rtA2Hmi`, shared contracts, a Hono/Deno API and worker, declarative PostgreSQL schemas/migrations, and CI. Vercel serves the web app at findmeatime.com; Supabase supplies Auth, database, Queues, and Cron. The [runtime guide](technical_specification/07_request_and_booking_runtime.md), [host setup guide](technical_specification/06_host_setup.md), and [implementation plan](technical_specification/04_implementation_plan.md) record implemented behavior and evidence. Live Calendar M1/M2, complete named-client MCP journeys, and controlled iMessage conversations remain open. The PRD, user-experience documents, and remaining technical designs retain draft release behavior; their presence alone does not prove implementation. Journeys explain the experience and stories express user needs; both reference the PRD rather than introduce independent acceptance contracts. The interface overview marks proposed extensions that still need PRD requirements. Research distinguishes vendor claims from verified behavior and product hypotheses.
 
 ## Directory layout
 
@@ -38,9 +38,9 @@ documentations/
     02_repo_structure.md
     03_provider_setup.md
     04_implementation_plan.md
-  05_compatibility_report.md
-  06_host_setup.md
-  07_request_and_booking_runtime.md
+    05_compatibility_report.md
+    06_host_setup.md
+    07_request_and_booking_runtime.md
   business/
     competitor_research.md
 ```

@@ -1,16 +1,16 @@
 # Find Me a Time — Backend Architecture
 
-Status: Supabase backend selected; detailed design pending implementation\
+Status: API/worker foundation and P1–P4 runtime implemented; live and later-adapter gates remain open\
 Date: 2026-10-05\
 Basis: [Technical specification](../03_technical_specification.md), [PRD](../02_product_requirements.md), and [interfaces](../user_experience/03_interfaces.md)
 
-This document expands the technical specification into backend boundaries, request processing, persistence, and worker responsibilities. It applies the selected Supabase backend and does not claim that services are deployed. The PRD owns product scope; the technical specification records the backend decision and deferred alternatives. Implementation contracts and tasks belong in bounded OpenSpec changes under the [repository workflow](../../AGENTS.md#documentation-and-specifications).
+This document expands the technical specification into backend boundaries, request processing, persistence, and worker responsibilities. The Hono/Deno API, worker, declarative schemas and CI are implemented and deployed; the [runtime guide](07_request_and_booking_runtime.md) and [implementation plan](04_implementation_plan.md) record evidence and pending live gates. MCP and conversational webhook surfaces below remain later adapter designs. The PRD owns product scope; the technical specification records the backend decision and deferred alternatives. Implementation contracts and tasks belong in bounded OpenSpec changes under the [repository workflow](../../AGENTS.md#documentation-and-specifications).
 
 ## 1. Deployment shape
 
 Use a modular TypeScript backend on Supabase Edge Functions, with Deno and Hono. API functions handle interactive requests; worker functions consume durable jobs in bounded batches. They share domain code and Supabase PostgreSQL state. These are execution roles, not always-on processes. PostgreSQL and Supabase Queues preserve work across function termination; Supabase Cron triggers recurring drains and recovery sweeps.
 
-Supabase PostgreSQL, Auth, Edge Functions, Queues, and Cron are selected for the initial backend. Validate MCP authorization and each target client before release. AgentMail remains recommended for email; Photon directly versus Mastra with Photon, the model/provider, and web hosting remain open. Backend alternatives are deferred as recorded in the [backend decision](../03_technical_specification.md#backend-decision).
+Supabase PostgreSQL, Auth, Edge Functions, Queues, and Cron supply the implemented backend. React/Vite/npm with shadcn preset `b6rtA2Hmi` runs on Vercel, and OpenAI supplies validated extraction/ranking. AgentMail supports fixed-template delivery; direct Photon Spectrum through a narrow Node/Bun bridge is the selected iMessage direction. Complete MCP authorization/client journeys, actual Google consent/Calendar M1/M2, and controlled messaging conversations remain open. Backend alternatives are deferred as recorded in the [backend decision](../03_technical_specification.md#backend-decision).
 
 ```mermaid
 flowchart LR
@@ -65,17 +65,17 @@ The public skill routes do not require host credentials. Protected operations do
 
 Application services coordinate modules for a use case. A request adapter does not write another module's records directly, and a background handler does not bypass authorization by calling a repository helper. Use the same transition functions for web, MCP, CLI, and messaging inputs.
 
-The [repository structure](02_repo_structure.md) defines the planned layout: thin API, MCP, webhook, and worker entry points under `supabase/functions`, shared capability modules under `_shared`, and web/CLI clients under `apps`. Keep application operations and their rules together within each capability; extract client-safe contracts only when multiple consumers need them. Provider credentials and privileged persistence stay inside the backend.
+The [repository structure](02_repo_structure.md) records the current web/API/worker, shared capability modules and contracts, along with planned MCP, webhook and product CLI additions. Keep application operations and their rules together within each capability; extract client-safe contracts only when multiple consumers need them. Provider credentials and privileged persistence stay inside the backend.
 
 The repository structure also owns public skill document placement and route mapping. Preserve the promised `findmeatime.com/SKILL.md` and `/{host}/SKILL.md` entry URLs independently of deployment paths.
 
 ## 3. Entry surfaces
 
-| Surface | Processing responsibility |
+| Surface | Processing responsibility (MCP, public skills and conversational webhooks remain planned) |
 |---|---|
 | `GET /SKILL.md` | Serve versioned onboarding instructions for “Let me use findmeatime.com/SKILL.md for my scheduling”. |
 | `GET /{host}/SKILL.md` | Resolve a public host handle and serve requester instructions for “Let me schedule a meeting with findmeatime.com/dodo/SKILL.md”. |
-| Application HTTP API | Validate web/CLI inputs, resolve identity, invoke commands/queries, and return structured results. Route names remain to be specified. |
+| Application HTTP API | Validate web/CLI inputs, resolve identity, invoke commands/queries, and return structured results. Implemented route and command names are recorded in the [backend contract](../../scripts/backend-contract.md). |
 | Remote MCP endpoint | Expose permitted tools and map tool calls to the same application commands. OAuth discovery and consent follow the selected authorization implementation. |
 | Calendar and identity callbacks | Validate provider callback context and associate host grants with the initiating account/setup flow, or requester availability grants with the authorized request continuation. Requester calendar consent does not require host admission. |
 | Email and iMessage webhooks | Authenticate provider origin, persist deduplicated input, acknowledge durable receipt, and queue processing. |
@@ -147,7 +147,7 @@ Keep calendar reads behind the availability adapter and creation behind the book
 
 ## 7. Approval to booking
 
-The approval handler verifies trusted evidence for the current proposal. A client having permission to submit decisions does not let it invent human confirmation. Web confirmation and verified channel confirmation both produce evidence checked by the same domain service; clients without a reliable confirmation path use authenticated web review.
+The approval handler verifies trusted evidence for the current proposal. A client having permission to submit decisions does not let it invent human confirmation. P0–P4 accepts only explicit authenticated web confirmation. Verified channel/client confirmation remains a later design requiring attributable human evidence; clients without that mechanism use authenticated web review.
 
 ```mermaid
 sequenceDiagram
@@ -237,4 +237,4 @@ Verify this architecture with:
 - Admission tests for waitlist deduplication, invalid/expired/revoked/reused and concurrent invitation redemption, operator-only issuance, direct host-setup bypass attempts, and continued account-free requester access.
 - Requester calendar tests for browser callback/request binding, denied/revoked consent, disconnection, read failure, changed busy intervals before booking, private-data isolation, and manual/agent availability fallback.
 
-Map these tests to the [PRD acceptance scenarios](../02_product_requirements.md#9-end-to-end-release-acceptance-scenarios). Before implementing each module, resolve its relevant [open technical decisions](../03_technical_specification.md#11-open-technical-decisions), including queue tuning, permission mapping, setup defaults, package compatibility, and provider recovery policies. This document adds no dependencies, database schema, deployment, or runtime verification claim.
+Map these tests to the [PRD acceptance scenarios](../02_product_requirements.md#9-end-to-end-release-acceptance-scenarios). Existing automated tests, migration rebuilds, deployment checks and remaining live gates are recorded in the [implementation plan](04_implementation_plan.md) and [runtime guide](07_request_and_booking_runtime.md). Resolve the relevant [remaining technical decisions](../03_technical_specification.md#11-open-technical-decisions) before extending the affected area.

@@ -1,33 +1,33 @@
 # Find Me a Time — Technical Specification
 
-Status: Supabase backend selected; detailed design pending implementation\
+Status: P1–P4 implementation and deployment recorded; live provider and client gates remain open\
 Date: 2026-10-05\
 Basis: [PRD](02_product_requirements.md), [user journeys](user_experience/01_user_journeys.md), and [interfaces](user_experience/03_interfaces.md)
 
-This first technical design describes component boundaries, data ownership, authorization, and reliable scheduling. It is not an implementation report or settled capability specification. Detailed behavior and implementation tasks should move through [OpenSpec](../openspec/config.yaml); completed and verified behavior belongs in main capability specs.
+This architecture overview describes component boundaries, data ownership, authorization, and reliable scheduling. Current implementation, deployment evidence, and remaining live gates are recorded in the [runtime guide](technical_specification/07_request_and_booking_runtime.md) and [implementation plan](technical_specification/04_implementation_plan.md). Draft channel and agent designs remain release direction. Detailed behavior and implementation tasks move through [OpenSpec](../openspec/config.yaml); completed and verified behavior belongs in main capability specs.
 
 ## 1. Scope and foundation
 
 The system coordinates one host and one external requester, checks Google Calendar and host rules, negotiates a proposal, and books only after requester agreement and explicit host approval of the current proposal. All channels use the same request state.
 
-The repository currently contains an empty application directory and [local Supabase configuration](../supabase/config.toml), with PostgreSQL 17, pg-delta enabled, and the OAuth server disabled. No scheduling application or product schema has been implemented. This is a repository observation, not a deployment inspection.
+The repository contains a React/Vite web app, shared TypeScript contracts, Hono/Deno API and worker functions, declarative PostgreSQL schemas with reviewed pg-delta migrations, and CI. Vercel serves findmeatime.com and the Supabase API/worker are deployed. The [local Supabase configuration](../supabase/config.toml) uses PostgreSQL 17 and pg-delta; the production OAuth server remains disabled. See the [repository structure](technical_specification/02_repo_structure.md) and [phase evidence](technical_specification/04_implementation_plan.md) for paths and verification boundaries.
 
 | Area | Design direction | Decision status |
 |---|---|---|
-| Application | Modular TypeScript backend on Supabase Edge Functions, using the Deno runtime and Hono routing; one responsive web application. | Backend selected. Web framework and package versions remain open. |
+| Application | React/Vite npm workspace with shadcn preset `b6rtA2Hmi`; TypeScript/Deno backend with Hono routing. | Implemented; dependencies and lockfiles are committed. |
 | Database and host identity | Supabase PostgreSQL and Auth, with server-enforced ownership and application-owned client grants. | Selected. MCP OAuth compatibility must be verified before release. |
-| Agent access | Remote MCP plus a thin CLI over the same scheduling API. | Required PRD direction. |
-| Async work | Supabase Queues, bounded worker Edge Functions, and Supabase Cron for recurring drains and recovery sweeps. | Selected. Batch sizes, visibility timeouts, retry limits, and schedules remain to be tested. |
-| Calendar | Server-side Google Calendar adapter with separate host event and requester availability grants. | Credentials configured locally; user consent and application integration remain unverified. |
-| Travel | Server-side Google Routes API estimates plus host-defined buffers. | Selected for the requested map-based travel checks; sample API call passed. Supported geography/modes and scheduling integration remain to be validated. |
-| Messaging | AgentMail recommended for conversational email; opt-in host iMessage through Photon directly or Mastra with Photon. | Validate AgentMail integration; Resend remains an alternative. iMessage framework selection open. |
-| Hosting | Supabase hosts API, MCP, webhook, and worker functions. Web hosting is separate; Vercel remains a candidate. | Backend hosting selected; no deployment is implied. |
+| Agent access | Remote MCP plus a thin CLI over the same scheduling API. | Product adapters remain pending; isolated P0 diagnostics do not establish production compatibility. |
+| Async work | Supabase Queues, bounded worker Edge Functions, and Supabase Cron for recurring drains and recovery sweeps. | Implemented with bounded claims/fencing and recurring recovery; fixture tests and a production persisted ping are recorded. Pilot tuning remains open. |
+| Calendar | Server-side Google Calendar adapter with separate host event and requester availability grants. | Consent, refresh, scoped reads, booking and reconciliation code implemented and fixture-tested; actual user grants and live M1/M2 remain unverified. |
+| Travel | Server-side Google Routes API estimates plus host-defined buffers. | Actual evaluator probes cover both Seoul travel legs and margins; DRIVE/WALK no-route results remain unresolved. Coverage beyond tested cases is unverified. |
+| Messaging | AgentMail fixed-template delivery adapter; conversational email remains later work. Direct Photon Spectrum through a narrow Node/Bun bridge is selected for iMessage. | Controlled AgentMail probe evidence is partial; distinct-identity conversations and actual Photon delivery remain open. |
+| Hosting | Vercel serves the React/Vite web app; Supabase hosts API and worker functions. | Deployed at findmeatime.com. Product MCP and messaging webhook endpoints remain pending. |
 
 Native mobile apps, group meetings, non-Google calendars, and automated post-booking changes remain outside the initial release. Private host email remains the proposed extension described in the interface overview; reconcile its PRD requirements before implementing it.
 
 ### Backend decision
 
-Decision on 2026-10-05: use Supabase for the initial backend—PostgreSQL, Auth, Edge Functions with TypeScript/Deno and Hono, Queues, and Cron. This keeps identity, persistence, and job infrastructure together and avoids operating an always-on API/worker service for the initial workload. The decision is accepted; implementation and release verification are still pending.
+Decision on 2026-10-05: use Supabase for the initial backend—PostgreSQL, Auth, Edge Functions with TypeScript/Deno and Hono, Queues, and Cron. This keeps identity, persistence, and job infrastructure together and avoids operating an always-on API/worker service for the initial workload. The API/worker foundation is implemented and deployed; remaining live provider and client verification is tracked separately.
 
 | Option | Decision | Reconsider when |
 |---|---|---|
@@ -121,7 +121,7 @@ The root skill's setup tools require explicitly granted onboarding/configuration
 
 Host web sessions identify the account; every operation checks resource ownership and permission on the server. Client-supplied host IDs and request IDs are not authority. Protect cookie-authenticated mutations against cross-site requests. Opening a URL never records approval.
 
-Public booking links expose only intended public host information and intake. Proposed requester continuation uses high-entropy, request-scoped credentials, stored as hashes with expiry and revocation metadata. Verify contact ownership before linking existing history or allowing outbound actions that could impersonate another requester. The exact verification point and recovery flow remain design decisions; no requester account is required.
+Public booking links expose only intended public host information and intake. Implemented requester continuation uses 256-bit request-scoped credentials stored as hashes, with a maximum thirty-day lifetime. Closure revokes mutation, OAuth, and recovery authority while retaining only minimal terminal status and confirmed-booking receipt reads until credential expiry. Contact verification protects recovery and attendee identity; no requester account is required. See the [meeting-request specification](../openspec/specs/meeting-requests/spec.md) and [runtime guide](technical_specification/07_request_and_booking_runtime.md).
 
 Host-private and requester-visible data use separate response schemas and access paths. Do not return private fields and rely on a client to hide them. Enforce the same separation in notifications, model context, traces, and errors.
 
@@ -131,7 +131,7 @@ The initial release uses a public waitlist and invite-only calendar hosting: pub
 
 Waitlist submission collects only the contact information needed for admission, deduplicates repeat entries, and does not connect a calendar or publish a booking link. Return a neutral confirmation without exposing whether another person's address is registered or invited. Root skill instructions provide waitlist/redemption guidance; setup status distinguishes access pending from admitted-but-incomplete setup and ready hosting.
 
-Invite issuance is restricted to authorized operators. The proposed redemption design uses a high-entropy token stored as a hash, expiry and revocation metadata, and a verified recipient/account binding. Redeem atomically so concurrent attempts cannot admit multiple accounts; retries by the same admitted account resume safely. Invitation secrets stay out of model context and logs. Invitation delivery, lifetime, recipient matching, and operator tooling remain implementation decisions; invitation emails are separate from meeting invitations and host approval.
+Invite issuance is restricted to authorized operators. Implemented redemption uses a high-entropy token stored as a hash, expiry and revocation metadata, and a verified recipient/account binding. Redeem atomically so concurrent attempts cannot admit multiple accounts; retries by the same admitted account resume safely. Invitation secrets stay out of model context and logs. Invitations expire after seven days and bind a verified recipient; operator issuance/revocation tooling is implemented in `scripts/manage-invitations.mjs`. Automated invitation delivery remains later work; invitation emails are separate from meeting invitations and host approval. See the [host setup guide](technical_specification/06_host_setup.md).
 
 ### MCP OAuth and CLI
 
@@ -145,7 +145,7 @@ The CLI calls the scheduling API directly and provides structured JSON results a
 
 Requesters may connect Google Calendar for availability without a Find Me a Time account or host admission. Keep this provider authorization separate from host login, host admission, and MCP OAuth. Start consent only from an authorized request continuation; bind the callback to that request and browser session with validated OAuth state. Never attach credentials using a caller-supplied request ID alone. Web, email, and agents can offer the browser continuation; provider tokens never pass through chat or client tool arguments.
 
-Use least-privilege availability access for requester-selected calendars. Store encrypted credential references under a requester/request-scoped connection, separate from host calendar connections. Prevent cross-request reuse without fresh verified authorization. Expose connection status and a disconnect action through the protected continuation. Finalize scopes, token lifetime, cleanup after request closure, and revocation behavior before implementation.
+Use least-privilege availability access for requester-selected calendars. Store encrypted credential references under a requester/request-scoped connection, separate from host calendar connections. Prevent cross-request reuse without fresh verified authorization. Expose connection status and a disconnect action through the protected continuation. The implemented host/requester scope, closure, disconnect, and refresh boundaries are documented in the [host setup guide](technical_specification/06_host_setup.md); actual user consent and refresh remain live gates.
 
 Combine authorized requester busy intervals with host calendar/rule checks. Read required connected calendars again before booking; a requester conflict returns to negotiation and changed proposals require renewed agreement and approval. Denied, revoked, or failed requester access never means free time: pause dependent scheduling and offer reconnection or explicit replacement with manual/agent-supplied availability. Do not expose private requester event details to the host or model; derived availability is sufficient for this path.
 
@@ -155,7 +155,7 @@ Requester consent neither expresses agreement nor authorizes calendar writes. Cr
 
 Approval evidence binds the host, request, current proposal version, canonical approved-details digest, decision, timestamp, and trusted confirmation path. The approval digest includes applicable private exceptions; requester agreement binds only shared meeting details.
 
-Accept a deliberate authenticated web action, a verified private iMessage reply with explicit current-proposal intent, or a personal-agent integration with a tested human-confirmation mechanism. Until that mechanism exists for a client, return an authenticated web confirmation action. An agent-supplied `approved: true`, quoted conversation, OAuth token, or model assertion is not evidence of human approval. Possession of a confirmation link does not complete the confirmation.
+P0–P4 currently accepts only a deliberate authenticated web action. The later channel/client design permits a verified private iMessage reply with explicit current-proposal intent or a personal-agent integration only after its human-confirmation mechanism is tested. Until that mechanism exists for a client, return an authenticated web confirmation action. An agent-supplied `approved: true`, quoted conversation, OAuth token, or model assertion is not evidence of human approval. Possession of a confirmation link does not complete the confirmation.
 
 Ambiguous replies require clarification. Stale replies cannot approve a new version. For proposed host email, final approval takes place in authenticated web review. An OAuth connection authorizes operations, not blanket approval of meetings.
 
@@ -239,7 +239,7 @@ Authenticate webhooks with the chosen provider's documented mechanism, persist d
 
 Channel binding requires verified identity and request context. Matching names, subject lines, thread IDs, or forwarded content do not grant private history access. Keep host-private and requester-shared conversations separate; choose recipients from verified bindings rather than reply-all headers.
 
-iMessage requires opt-in, linked host identity, private conversation checks, unlinking, and current-proposal confirmation. Photon directly and Mastra with Photon remain the [PRD integration options](02_product_requirements.md#10-dependencies-and-open-decisions); framework approval mechanics do not replace host approval. If host email is adopted, use a separate private conversation and final authenticated web approval.
+iMessage requires opt-in, linked host identity, private conversation checks, unlinking, and current-proposal confirmation. The [P0 compatibility decisions](technical_specification/05_compatibility_report.md) select direct Photon Spectrum through a narrow Node/Bun bridge from the PRD options; actual conversation evidence remains open. Framework approval mechanics do not replace host approval. If host email is adopted, use a separate private conversation and final authenticated web approval.
 
 Outbox records include version, audience, verified recipient, and stable delivery key. Recheck authorization before sending private content and suppress obsolete pending summaries. Retry transient failures with bounded backoff and jitter; exhausted work stays visible for recovery. Delivery retries cannot trigger booking again.
 
@@ -279,22 +279,22 @@ The [implementation plan](technical_specification/04_implementation_plan.md) own
 | Skill entry and onboarding | Both pasted prompts in every named client; invited/existing hosts, pending waitlist access, duplicate submissions, invalid/concurrent invite redemption, direct admission bypass attempts, interrupted consent, unknown handles, and unsupported capabilities. | FR-33–FR-35; AC-23–AC-26. |
 | End-to-end/accessibility | Account-free intake, clarification, agreement, host revision/approval/decline, invitation, phone layout, keyboard use, and readable errors. | AC-01, AC-04, AC-12; PRD section 8. |
 
-Use dedicated provider test accounts as well as mocks. Model evaluations cannot substitute for authority or booking tests. Record dependency and tested client versions. This document has no runtime implementation evidence.
+Use dedicated provider test accounts as well as mocks. Model evaluations cannot substitute for authority or booking tests. Record dependency and tested client versions. The [runtime guide](technical_specification/07_request_and_booking_runtime.md), [compatibility report](technical_specification/05_compatibility_report.md), and [implementation plan](technical_specification/04_implementation_plan.md) distinguish existing automated/deployment evidence from pending live consent, Calendar booking, and client/channel journeys.
 
 ## 11. Open technical decisions
 
-| Decision | Needed before implementing the area |
+| Area | Remaining decision or verification |
 |---|---|
-| Web and deployment details | Choose the web framework/hosting, pin Deno-compatible package versions, and define routing, environments, and deployment checks for the selected Supabase backend. |
+| Web and deployment details | React/Vite/npm, shadcn `b6rtA2Hmi`, Hono/Deno and Vercel are implemented with committed lockfiles and routing. Broader preview/production rollout policy remains open. |
 | Job execution tuning | Validate batch/concurrency limits, visibility timeouts, provider deadlines, retry/quarantine policy, Cron cadence, and queue-age targets. |
-| AI integration | Choose and evaluate the model/provider and Deno-compatible SDK; validate structured results and private-data handling. |
+| AI integration | OpenAI strict extraction/ranking is implemented with deterministic validation and bounded input. Continue evaluating model quality and pilot data handling. |
 | OAuth and confirmation | Verify resource audience, permissions, registration, refresh/revocation, direct-data isolation, and attributable human confirmation per client. |
 | Skill entry and setup | Markdown format/version, per-client fetch/connection/resumption, minimum settings, setup permissions, handle lifecycle, and unavailable-host behavior. |
-| Host admission | Finalize minimal waitlist fields, invitation delivery/lifetime, verified recipient binding, operator permissions/tooling, abuse controls, and retention. Host admission is distinct from authentication and agent grants. |
-| Guest access | Define contact verification, token lifetime/recovery, request linking, forwarding behavior, and abuse limits. |
-| Calendar | Separate host write/context scopes from requester availability scopes; finalize requester credential binding, lifetime, disconnect, and fallback. Define invitation behavior, meeting-link creation, stable IDs, and reconciliation/retry policy. |
+| Host admission | Seven-day verified-recipient invitations and operator tooling are implemented. Live M1, invitation delivery automation, pilot abuse controls and retention remain open. |
+| Guest access | Request-bound tokens and verified-contact recovery are implemented. Broader channel linking/forwarding and pilot abuse policies remain open. |
+| Calendar | Implemented separate grant boundaries, host-supplied links, stable event IDs and reconciliation need controlled live consent/refresh and Calendar M1/M2 evidence. |
 | Rules and concurrency | Hard/preference classification, travel defaults, rule edits during booking, and recovery of blocked reservations. |
-| Messaging | Validate AgentMail against the email workflow, with Resend as an alternative; finalize inbox/address allocation, sender binding, retention, webhook/delivery recovery, and unlinking. Select direct Photon versus Mastra with Photon independently. |
+| Messaging | Complete distinct-identity AgentMail conversation and direct Photon transport/delivery evidence; finalize conversational inbox/address allocation, sender binding, retention and unlinking. |
 | Host email | Align PRD, journeys, stories, and acceptance scenarios before implementation. |
 | Pilot | Retention/deletion, AI-provider data handling, backup/recovery, performance targets, cost limits, and operator ownership. |
 

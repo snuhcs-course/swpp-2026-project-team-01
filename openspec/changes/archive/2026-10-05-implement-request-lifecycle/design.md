@@ -12,7 +12,7 @@ See proposal.md and `scripts/backend-contract.md`. P2 supplies ready hosts and o
 
 ## Decisions
 
-- Generate a 256-bit continuation token at creation; store only its hash and return it once. The browser keeps it out of ordinary query/logging paths and uses `X-Request-Token`. Bind to exactly one request, cap TTL at thirty days, and revoke on terminal state.
+- Generate a 256-bit continuation token at creation; store only its hash and return it once. The browser keeps it out of ordinary query/logging paths and uses `X-Request-Token`. Bind to exactly one request and cap TTL at thirty days. Terminal state revokes mutation, OAuth, and recovery authority; the existing unexpired credential retains only minimal terminal status and confirmed-booking receipt reads, excluding private discussion and historical provider context.
 - Verify original contact before issuing/rotating replacement guest credentials and invalidate previous authority. A submitted email or matching name is not verification. Intake may gather details before verified recovery exists, but attendee invitations require verified contacts.
 - PostgreSQL locks current request state and checks expected revision/idempotency. Each material revision inserts immutable proposal details, advances version/revision, and invalidates old agreement/approval. Responses are projected for host or guest at the boundary; do not delete private keys after serializing a generic entity.
 - Expire still-actionable requests at the earlier of seven days or the last requested window end. Booking uncertainty is never expired into false noncreation. Decline/withdraw/expiry are terminal; later contact starts a new or explicit refresh journey.
