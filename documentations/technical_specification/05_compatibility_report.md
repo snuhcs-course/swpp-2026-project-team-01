@@ -55,6 +55,18 @@ An isolated [Postgres audience hook](../../scripts/p0/oauth-probe-audience-hook.
 
 The [negative suite](../../scripts/p0/oauth-probe-negatives.mjs) also measured a limitation: a mapped client requesting another resource still received the fixed MCP audience and could initialize MCP, while its absent application grant denied the tool. This follows Supabase's documented client-specific audience hook pattern, but it does not enforce RFC 8707 resource selection. Production authorization needs resource enforcement, production consent, application grant persistence and full named-client tool journeys before the compatibility gate can pass. Reproduction is documented in the [isolated probe guide](../../scripts/p0/oauth-probe-README.md). [Token security and custom audience hooks](https://supabase.com/docs/guides/auth/oauth-server/token-security).
 
+### Resource enforcement source assessment
+
+A read-only production recheck on 2026-10-05 returned Auth `v2.197.0`, OAuth discovery `404 feature_disabled` at both discovery paths, and ES256 signing keys. A counts-only database query found zero active host or requester Calendar grants. Website and API health returned 200; Cloudflare nameservers remained authoritative. These observations establish current configuration, not successful consent or client compatibility.
+
+Source inspection of Auth `v2.197.0` (commit `4eee58f296d9698a1c2c0ae14d7a0b379c7622d3`) explains why enabling OAuth and configuring the existing audience hook cannot close resource enforcement:
+
+- Authorization accepts and stores a syntactically valid resource. The public authorization-details response omits it, so the consent frontend alone cannot validate that parameter. [Authorization handlers](https://github.com/supabase/auth/blob/4eee58f296d9698a1c2c0ae14d7a0b379c7622d3/internal/api/oauthserver/authorize.go).
+- The form-encoded token parser omits `resource`. The authorization-code resource comparison therefore does not receive that form value; the refresh handler also does not enforce a requested resource. [Token handlers](https://github.com/supabase/auth/blob/4eee58f296d9698a1c2c0ae14d7a0b379c7622d3/internal/api/oauthserver/handlers.go).
+- Access-token generation starts from the user's audience. The custom-token hook input does not expose the requested resource, so a fixed client audience mapping cannot validate token-request resource selection. [Token service](https://github.com/supabase/auth/blob/4eee58f296d9698a1c2c0ae14d7a0b379c7622d3/internal/tokens/service.go), [hook input](https://github.com/supabase/auth/blob/4eee58f296d9698a1c2c0ae14d7a0b379c7622d3/internal/hooks/v0hooks/v0hooks.go).
+
+The same four source files and OAuth configuration fields were unchanged in inspected upstream commit `ce9a8eee0cc042be8c7a42981a7ddae631e41d91`. This is a static source assessment; no new token-exchange or refresh journey was run for these findings. The earlier captured wrong-resource probe remains the live evidence. Production readiness requires a verified provider implementation or an explicit reviewed authorization design change that enforces the resource through authorization, exchange and refresh. A frontend check, JSON-only exchange, or audience-hook installation alone cannot satisfy that gate. P0 tasks 2.1 and 2.2 remain unchecked.
+
 ## Runtime and interface decisions
 
 - Web: React, Vite, TypeScript and npm, hosted on Vercel. The requested shadcn preset `b6rtA2Hmi` uses Nova, olive/green, Inter, large controls and Lucide icons; the web implementation owns installation/version evidence.
