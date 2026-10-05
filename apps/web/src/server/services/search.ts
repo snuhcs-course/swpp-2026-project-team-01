@@ -14,6 +14,7 @@ import { all, one, run, type Db } from '../db/client'
 import type { ServiceContext } from '../runtime'
 import { beginOperation,finishOperation,failOperation } from './operations'
 import { getProfile,emptyProfile } from './profile'
+import { canBook } from './contacts'
 import { computeBookable } from './schedule'
 import { preflightCalendars,checkReceipts,dataBasis } from './preflight'
 interface SearchRow{id:string;client_id:string;host_id:string;revision:number;inherited_profile_version:number|null;inherited_preferences_json:string;overrides_json:string;initial_reply_state:string;last_result_json:string|null;data_basis_json:string|null}
@@ -52,6 +53,7 @@ export async function createSearch(ctx:ServiceContext,userId:string,input:Create
  if(claim.replay)return claim.result as SearchView
  try {
   if(parsed.hostId===userId)throw new DomainError('invalid_input','자기 자신에게 예약할 수 없어요')
+  if(!(await canBook(ctx,userId,parsed.hostId)))throw new DomainError('not_found','호스트를 찾을 수 없어요. 상대의 예약 링크로 먼저 연락처에 추가해 주세요')
   if(!(await one(ctx.db,'SELECT id FROM users WHERE id=?',[parsed.hostId])))throw new DomainError('not_found','호스트를 찾을 수 없어요')
   // Reserve one resource before remote calls. Retrying this operation resumes the same search.
   const searchId=claim.resourceId??ctx.id()

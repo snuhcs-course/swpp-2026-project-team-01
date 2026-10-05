@@ -2,6 +2,9 @@ import { HostSettings } from "@/components/HostSettings"
 import { Alert, Badge, PageHeader } from "@/components/ui"
 import { currentUser, db } from "@/server/context"
 import { listMeetingTypes, listPlaces } from "@/server/repos/hosting"
+import { inviteToken } from "@/server/services/contacts"
+import { readServerConfig } from "@/server/config"
+import { InviteLinkCard } from "@/components/InviteLink"
 export const metadata = { title: '호스트 설정' }
 
 export default async function HostSettingsPage() {
@@ -22,6 +25,7 @@ export default async function HostSettingsPage() {
           현재 예약을 받을 수 없어요. 장소와 미팅 양식을 각각 하나 이상 등록해 주세요.
         </Alert>
       )}
+      {readServerConfig().mode === "real" && <InviteLinkCard token={await inviteToken(db(), me.id)} />}
       <HostSettings key={me.id} places={places} types={types} />
     </div>
   )

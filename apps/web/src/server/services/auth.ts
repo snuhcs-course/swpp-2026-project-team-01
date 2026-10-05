@@ -29,7 +29,8 @@ const invalid = () => new DomainError("invalid_input", "인증 요청이 만료�
 // Only collection/static destinations are allowed, so redirects cannot disclose private resource IDs.
 const RETURN_PATHS = new Set(["/", "/calendar", "/book", "/requests", "/settings", "/settings/calendars", "/onboarding", "/onboarding/review"])
 function safeReturnPath(path: string): string {
-  if (!RETURN_PATHS.has(path)) throw new DomainError("invalid_input", "허용된 앱 내부 경로로 이동해 주세요")
+  // A booking link brings the visitor back to the same link after sign-in.
+  if (!RETURN_PATHS.has(path) && !/^\/invite\/[A-Za-z0-9_-]{24}$/.test(path)) throw new DomainError("invalid_input", "허용된 앱 내부 경로로 이동해 주세요")
   return path
 }
 function connection(ctx: SessionContext, userId: string): Promise<Connection | undefined> {

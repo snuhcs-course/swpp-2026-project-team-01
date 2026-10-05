@@ -14,7 +14,7 @@ export const TABLES = [
   "imported_busy_intervals", "imported_events", "calendar_snapshots", "calendar_sync_runs", "calendar_sources", "calendar_connections",
   "service_leases", "search_messages", "mutation_operations", "oauth_attempts", "sessions", "auth_identities",
   "messages", "conversations", "events", "requests", "booking_searches", "meeting_types", "places", "availability_rules",
-  "profile_versions", "storage_settings", "users",
+  "contacts", "profile_versions", "storage_settings", "users",
 ]
 
 /** Deletes every row, keeping the tables. */

@@ -15,7 +15,9 @@ create table users (
   host_settings_revision integer not null default 0,
   annotation_revision integer not null default 0,
   calendar_use_state text not null default 'not_connected',
-  calendar_use_revision integer not null default 0
+  calendar_use_revision integer not null default 0,
+  -- Secret part of the person's booking link (/invite/<token>); replaced when the link is renewed.
+  invite_token text unique
 );
 
 -- Immutable, numbered snapshots of a confirmed meeting-time profile.
@@ -401,6 +403,15 @@ create table draft_messages (
 );
 create index draft_messages_order on draft_messages (draft_id, created_at, id);
 
+-- People someone can book: added in both directions when one opens the other's booking link.
+create table contacts (
+  owner_id text not null references users (id) on delete cascade,
+  contact_id text not null references users (id) on delete cascade,
+  created_at bigint not null,
+  primary key (owner_id, contact_id),
+  check (owner_id <> contact_id)
+);
+
 alter table users enable row level security;
 alter table profile_versions enable row level security;
 alter table availability_rules enable row level security;
@@ -430,10 +441,11 @@ alter table analysis_runs enable row level security;
 alter table analysis_evidence enable row level security;
 alter table profile_drafts enable row level security;
 alter table draft_messages enable row level security;
+alter table contacts enable row level security;
 
 revoke all on table
   users, profile_versions, availability_rules, places, meeting_types, booking_searches, requests, events, conversations, messages,
   search_messages, mutation_operations, service_leases, storage_settings, auth_identities, sessions, oauth_attempts,
   calendar_connections, calendar_sources, calendar_sync_runs, calendar_snapshots, imported_events, imported_busy_intervals,
-  event_annotations, event_classifications, analysis_runs, analysis_evidence, profile_drafts, draft_messages
+  event_annotations, event_classifications, analysis_runs, analysis_evidence, profile_drafts, draft_messages, contacts
   from anon, authenticated;
