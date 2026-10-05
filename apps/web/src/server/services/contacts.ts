@@ -42,8 +42,7 @@ export async function contactIds(db: Db, userId: string): Promise<Set<string>> {
   return new Set((await all<{ contact_id: string }>(db, "SELECT contact_id FROM contacts WHERE owner_id=?", [userId])).map((r) => r.contact_id))
 }
 
-/** Real accounts book only people they are connected with; the demo keeps every seeded account visible. */
-export async function canBook(ctx: Pick<ServiceContext, "db" | "config">, clientId: string, hostId: string): Promise<boolean> {
-  if (ctx.config.mode === "demo") return true
+/** People book only those they are connected with, in the demo as well (its seed connects some accounts in advance). */
+export async function canBook(ctx: Pick<ServiceContext, "db">, clientId: string, hostId: string): Promise<boolean> {
   return !!(await one(ctx.db, "SELECT 1 FROM contacts WHERE owner_id=? AND contact_id=?", [clientId, hostId]))
 }

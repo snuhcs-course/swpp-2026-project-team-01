@@ -9,34 +9,35 @@ const real = (db: Awaited<ReturnType<typeof freshDb>>["db"]) => makeContext(db, 
 
 it("gives each person one stable link and adds both people when it is opened", async () => {
   const { db } = await freshDb(), ctx = real(db)
-  const token = await inviteToken(db, U.host)
+  const token = await inviteToken(db, U.host2)
   expect(token).toMatch(INVITE_TOKEN)
-  expect(await inviteToken(db, U.host)).toBe(token)
-  expect(await inviter(db, token)).toMatchObject({ id: U.host })
-  expect(await acceptInvite(ctx, U.jiho, token)).toMatchObject({ hostId: U.host })
+  expect(await inviteToken(db, U.host2)).toBe(token)
+  expect(await inviter(db, token)).toMatchObject({ id: U.host2 })
+  expect(await acceptInvite(ctx, U.jiho, token)).toMatchObject({ hostId: U.host2 })
   await acceptInvite(ctx, U.jiho, token)                                  // opening it twice changes nothing
-  expect([...await contactIds(db, U.jiho)]).toEqual([U.host])
-  expect([...await contactIds(db, U.host)]).toEqual([U.jiho])
+  expect(await contactIds(db, U.jiho)).toEqual(new Set([U.host, U.host2]))
+  expect(await contactIds(db, U.host2)).toEqual(new Set([U.jiho]))
 })
 
 it("rejects your own link, unknown links and replaced links", async () => {
   const { db } = await freshDb(), ctx = real(db)
-  const token = await inviteToken(db, U.host)
-  await expect(acceptInvite(ctx, U.host, token)).rejects.toMatchObject({ code: "invalid_input" })
+  const token = await inviteToken(db, U.host2)
+  await expect(acceptInvite(ctx, U.host2, token)).rejects.toMatchObject({ code: "invalid_input" })
   await expect(acceptInvite(ctx, U.jiho, "x".repeat(24))).rejects.toMatchObject({ code: "not_found" })
   await expect(acceptInvite(ctx, U.jiho, "../../etc")).rejects.toMatchObject({ code: "not_found" })
-  const renewed = await renewInviteToken(db, U.host)
+  const renewed = await renewInviteToken(db, U.host2)
   await expect(acceptInvite(ctx, U.jiho, token)).rejects.toMatchObject({ code: "not_found" })
-  expect(await acceptInvite(ctx, U.jiho, renewed)).toMatchObject({ hostId: U.host })
+  expect(await acceptInvite(ctx, U.jiho, renewed)).toMatchObject({ hostId: U.host2 })
 })
 
-it("lets real accounts book only their contacts; the demo keeps everyone bookable", async () => {
+it("books only contacts; the demo seed connects 김민준 with both clients and leaves 이서연 to be added by link", async () => {
   const { db } = await freshDb(), ctx = real(db)
-  expect(await canBook(ctx, U.jiho, U.host)).toBe(false)
-  expect(await canBook(makeContext(db, { now: () => NOW }, { mode: "demo", allowReset: true }), U.jiho, U.host)).toBe(true)
-  await expect(createSearch(ctx, U.jiho, { hostId: U.host }, { key: "stranger" })).rejects.toMatchObject({ code: "not_found" })
-  await acceptInvite(ctx, U.jiho, await inviteToken(db, U.host))
   expect(await canBook(ctx, U.jiho, U.host)).toBe(true)
+  expect(await canBook(ctx, U.hana, U.host)).toBe(true)
+  expect(await canBook(ctx, U.jiho, U.host2)).toBe(false)
+  await expect(createSearch(ctx, U.jiho, { hostId: U.host2 }, { key: "stranger" })).rejects.toMatchObject({ code: "not_found" })
+  await acceptInvite(ctx, U.jiho, await inviteToken(db, U.host2))
+  expect(await canBook(ctx, U.jiho, U.host2)).toBe(true)
 })
 
 it("allows signing in from a booking link and coming back to it", () => {

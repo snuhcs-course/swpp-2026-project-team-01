@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, primaryKey, text } from "drizzle-orm/pg-core"
+import { bigint, boolean, integer, pgTable, primaryKey, text } from "drizzle-orm/pg-core"
 
 // Typed access for the original MVP tables. The newer tables (profiles, operations, calendars, searches...) are read and written
 // with raw SQL (./sql.ts). Everything is defined in supabase/schemas/scheduler.sql, which this file must mirror.
@@ -86,4 +86,10 @@ export const requests = pgTable("requests", {
   meetingTypeNameSnapshot: text("meeting_type_name_snapshot"),
   placeSnapshotJson: text("place_snapshot_json"),
   definitionState: text("definition_state").notNull().default("unconfirmed"),
+})
+
+export const contacts = pgTable("contacts", {
+  ownerId: text("owner_id").notNull(),
+  contactId: text("contact_id").notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
 })
