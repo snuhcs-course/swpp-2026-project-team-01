@@ -20,7 +20,7 @@ The repository contains a React/Vite web app, shared TypeScript contracts, Hono/
 | Async work | Supabase Queues, bounded worker Edge Functions, and Supabase Cron for recurring drains and recovery sweeps. | Implemented with bounded claims/fencing and recurring recovery; fixture tests and a production persisted ping are recorded. Pilot tuning remains open. |
 | Calendar | Server-side Google Calendar adapter with separate host event and requester availability grants. | Consent, refresh, scoped reads, booking and reconciliation code implemented and fixture-tested; actual user grants and live M1/M2 remain unverified. |
 | Travel | Server-side Google Routes API estimates plus host-defined buffers. | Actual evaluator probes cover both Seoul travel legs and margins; DRIVE/WALK no-route results remain unresolved. Coverage beyond tested cases is unverified. |
-| Messaging | AgentMail fixed-template delivery adapter; conversational email remains later work. Direct Photon Spectrum through a narrow Node/Bun bridge is selected for iMessage. | Controlled AgentMail probe evidence is partial; distinct-identity conversations and actual Photon delivery remain open. |
+| Messaging | AgentMail fixed-template delivery adapter; conversational email remains later work. Direct Photon Spectrum through a narrow Node/Bun bridge is selected for iMessage. | Controlled distinct-identity AgentMail signatures, received-parent replies and uncertain-send recovery passed. Production conversational integration and actual Photon delivery remain open. |
 | Hosting | Vercel serves the React/Vite web app; Supabase hosts API and worker functions. | Deployed at findmeatime.com. Product MCP and messaging webhook endpoints remain pending. |
 
 Native mobile apps, group meetings, non-Google calendars, and automated post-booking changes remain outside the initial release. Private host email remains the proposed extension described in the interface overview; reconcile its PRD requirements before implementing it.
@@ -294,7 +294,7 @@ Use dedicated provider test accounts as well as mocks. Model evaluations cannot 
 | Guest access | Request-bound tokens and verified-contact recovery are implemented. Broader channel linking/forwarding and pilot abuse policies remain open. |
 | Calendar | Implemented separate grant boundaries, host-supplied links, stable event IDs and reconciliation need controlled live consent/refresh and Calendar M1/M2 evidence. |
 | Rules and concurrency | Hard/preference classification, travel defaults, rule edits during booking, and recovery of blocked reservations. |
-| Messaging | Complete distinct-identity AgentMail conversation and direct Photon transport/delivery evidence; finalize conversational inbox/address allocation, sender binding, retention and unlinking. |
+| Messaging | Controlled distinct-identity AgentMail evidence passed; complete direct Photon transport/delivery and production conversational integration, inbox/address allocation, sender binding, retention and unlinking. |
 | Host email | Align PRD, journeys, stories, and acceptance scenarios before implementation. |
 | Pilot | Retention/deletion, AI-provider data handling, backup/recovery, performance targets, cost limits, and operator ownership. |
 

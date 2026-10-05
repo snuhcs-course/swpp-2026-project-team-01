@@ -15,8 +15,8 @@ jobs:
         with:
           deno-version: v2.9.1
       - run: npm ci
-      - name: Verify isolated messaging probe guards
-        run: node --test scripts/p0/agentmail-probe.test.mjs scripts/p0/agentmail-webhook.test.mjs
+      - name: Verify isolated OAuth and messaging probe guards
+        run: node --test scripts/p0/*.test.mjs
       - run: npm run check
   database:
     runs-on: ubuntu-latest
