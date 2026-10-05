@@ -1,11 +1,11 @@
 "use client"
 import {useEffect,useRef,useState} from 'react'
-import Link from 'next/link'
+import {useRouter} from 'next/navigation'
 import {calendarConnectionViewSchema,syncViewSchema,type CalendarConnectionView} from '@/contracts/calendar'
 import {useMutationOperation} from '@/components/hooks/useMutationOperation'
 import {request} from '@/components/api'
 import {GoogleConnect} from '@/components/GoogleConnect'
-import {Alert,Button,Card,Checkbox,CheckIcon,PageHeader,SectionHeader,Spinner,Stepper,StatusPill,buttonClass,type Tone} from '@/components/ui'
+import {Alert,Button,Card,Checkbox,CheckIcon,PageHeader,SectionHeader,Spinner,Stepper,StatusPill,type Tone} from '@/components/ui'
 const labels={manual:'직접 설정 사용',connected:'일정 반영 중',needs_refresh:'일정을 가져와 주세요',reconnect_required:'권한 재연결 필요',decision_required:'Calendar 없이 계속할지 선택해 주세요'}
 const tones:Record<keyof typeof labels,Tone>={manual:'neutral',connected:'success',needs_refresh:'warn',reconnect_required:'danger',decision_required:'warn'}
 const STEPS=['연결','캘린더 선택','일정 가져오기','시간 프로필']
@@ -14,6 +14,7 @@ const sameSet=(a:string[],b:string[])=>a.length===b.length&&a.every(x=>b.include
 const pick=(v:CalendarConnectionView)=>{const saved=v.sources.filter(s=>s.selected).map(s=>s.id);return saved.length?saved:v.sources.filter(s=>s.access==='detail').map(s=>s.id)}
 export function CalendarSettings({initial,mode}:{initial:CalendarConnectionView;mode:'demo'|'real'}) {
  const [view,setView]=useState(initial),[selected,setSelected]=useState(pick(initial)),[error,setError]=useState<string|null>(null),[imported,setImported]=useState(false)
+ const router=useRouter(),[starting,setStarting]=useState(false)
  const op=useMutationOperation<CalendarConnectionView>(),sync=useMutationOperation<unknown>()
  const apply=(v:CalendarConnectionView)=>{setView(v);setSelected(pick(v))}
  const refresh=async()=>{const r=await request('GET','/api/calendar',calendarConnectionViewSchema);if(r.ok)apply(r.data)}
@@ -31,19 +32,25 @@ export function CalendarSettings({initial,mode}:{initial:CalendarConnectionView;
  useEffect(()=>{if(autoListed.current||!linked||needsReconnect||view.sources.length>0)return;autoListed.current=true;void act('catalog','calendar.catalog',{})},[])  // eslint-disable-line react-hooks/exhaustive-deps
  const connectMock=async()=>{const v=await act('mock-connect','calendar.mock.connect',{});if(v&&v.sources.length===0)await act('catalog','calendar.catalog',{})}
  // One action: save the choice if it changed, then import with the revision that save produced.
- const importSelected=async()=>{
+ const importSelected=async(force=true)=>{
   setError(null);setImported(false)
   let current=view
-  if(!sameSet(selected,view.sources.filter(s=>s.selected).map(s=>s.id))){const v=await act('selection','calendar.selection',{expectedSelectionRevision:view.selectionRevision,calendarIds:selected});if(!v)return;current=v}
+  const changed=!sameSet(selected,view.sources.filter(s=>s.selected).map(s=>s.id))
+  if(!force&&!changed&&hasImport)return true   // already saved and imported with this selection
+  if(changed){const v=await act('selection','calendar.selection',{expectedSelectionRevision:view.selectionRevision,calendarIds:selected});if(!v)return false;current=v}
   const r=await sync.run({method:'POST',url:'/api/calendar/sync',kind:'calendar.sync.full',payload:{expectedSelectionRevision:current.selectionRevision},schema:syncViewSchema})
-  if(r&&!r.ok){setError(r.error.message)}else if(r?.ok)setImported(true)
   await refresh()
+  if(r&&!r.ok){setError(r.error.message);return false}
+  if(r?.ok)setImported(true)
+  return !!r?.ok
  }
+ // The AI analysis itself runs on the profile screen; this just makes sure the calendar is saved first and hands over.
+ const startWithAi=async()=>{setStarting(true);if(await importSelected(false))router.push('/onboarding?analyze=1');else setStarting(false)}
  return <div className="space-y-6">
   <PageHeader eyebrow="설정" title="Calendar 연결" description="선택한 캘린더를 읽어 기존 일정과 겹치지 않게 준비해요. 과거 8주 관찰과 앞으로 60일의 일정을 사용해요." actions={<StatusPill role="status" tone={tones[view.status]} busy={busy}>{labels[view.status]}</StatusPill>} className="mb-0"/>
   <Stepper steps={STEPS} current={step} label="Calendar 연결 단계"/>
   {error&&<Alert tone="danger" role="alert">{error}</Alert>}
-  {imported&&!error&&<Alert tone="success" role="status">일정을 가져와 저장했어요. 다음으로 시간 프로필을 설정해 주세요.</Alert>}
+  {imported&&!error&&<Alert tone="success" role="status">일정을 가져와 저장했어요.</Alert>}
   {(op.phase==='reconciling'||sync.phase==='reconciling')&&<div className="flex flex-wrap gap-2">{op.phase==='reconciling'&&<Button onClick={()=>void op.recover().then(accept)}>작업 결과 확인</Button>}{sync.phase==='reconciling'&&<Button onClick={()=>void sync.recover().then(refresh)}>가져오기 결과 확인</Button>}</div>}
   <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
    <Card className="space-y-4">
@@ -69,15 +76,15 @@ export function CalendarSettings({initial,mode}:{initial:CalendarConnectionView;
      <div className="divide-y divide-border">{view.sources.map(s=><Checkbox key={s.id} checked={selected.includes(s.id)} onChange={e=>setSelected(e.target.checked?[...selected,s.id]:selected.filter(id=>id!==s.id))} label={s.name} description={`${s.access==='busy'?'바쁜 시간만':'일정 정보'} · ${s.timeZone}`}/>)}</div>
     </fieldset>
     {view.sources.length>0&&<div className="mt-4 space-y-3 border-t border-border pt-4">
-     <h3 className="text-h3 font-semibold text-ink">3. 일정 가져오기</h3>
      <div className="flex flex-wrap items-center gap-2">
-      <Button variant="primary" disabled={busy||selected.length===0} onClick={()=>void importSelected()}>{sync.pending&&<Spinner/>}{hasImport?'선택한 캘린더 다시 가져오기':'선택한 캘린더 가져오기'}</Button>
-      <Button variant="danger" disabled={busy} onClick={()=>void act('disconnect','calendar.disconnect',{expectedSelectionRevision:view.selectionRevision})}>연결 해제 · 가져온 정보 삭제</Button>
+      <Button disabled={busy||starting||selected.length===0} onClick={()=>void importSelected()}>{sync.pending&&!starting&&<Spinner/>}저장하기</Button>
+      <Button variant="primary" disabled={busy||starting||selected.length===0} onClick={()=>void startWithAi()}>{starting&&<Spinner/>}AI로 설정 시작하기</Button>
+      <Button variant="danger" disabled={busy||starting} onClick={()=>void act('disconnect','calendar.disconnect',{expectedSelectionRevision:view.selectionRevision})}>연결 해제 · 가져온 정보 삭제</Button>
      </div>
+     <p className="text-small text-muted">저장하기는 선택한 캘린더의 일정을 가져와 저장해요. AI로 설정 시작하기는 저장한 뒤 지난 8주 일정을 AI가 살펴보며 시간 프로필 설정을 이어가요. 미팅 가능 시간은 직접 확인해야 확정돼요.</p>
      {selected.length===0&&<p className="text-small text-muted">가져올 캘린더를 하나 이상 선택해 주세요.</p>}
     </div>}
    </Card>
   </div>
-  <p><Link href="/onboarding" className={hasImport?buttonClass('primary'):buttonClass('link')}>시간 프로필 설정하기</Link></p>
  </div>
 }

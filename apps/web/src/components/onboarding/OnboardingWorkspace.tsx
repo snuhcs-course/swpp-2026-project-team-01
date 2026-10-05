@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { profileDraftViewSchema, profileViewSchema, type ProfileDraftView, type ProfileView } from '@/contracts/profile'
 import { useMutationOperation } from '@/components/hooks/useMutationOperation'
@@ -11,7 +11,7 @@ import { OnboardingChat } from './OnboardingChat'
 import { WeekSchedule } from './WeekSchedule'
 import { Alert, Button, buttonClass, Card, CheckIcon, SectionHeader, Spinner, StatusPill, Stepper } from '@/components/ui'
 
-export function OnboardingWorkspace({ initialDraft, initialReview = false, onReview, onComplete }: { initialDraft: ProfileDraftView; initialReview?: boolean; onReview?: (id: string) => void; onComplete?: () => void }) {
+export function OnboardingWorkspace({ initialDraft, initialReview = false, autoAnalyze = false, onReview, onComplete }: { initialDraft: ProfileDraftView; initialReview?: boolean; autoAnalyze?: boolean; onReview?: (id: string) => void; onComplete?: () => void }) {
   const draft = useDraftAutosave(initialDraft)
   const ai = useMutationOperation<ProfileDraftView>()
   const confirm = useMutationOperation<ProfileView>()
@@ -47,6 +47,9 @@ export function OnboardingWorkspace({ initialDraft, initialReview = false, onRev
     const saved = draft.current.current.saved
     await processAI(await ai.run({method:'POST',url:`/api/profile-drafts/${encodeURIComponent(saved.draftId)}/analyze`,kind:'profile.draft.analyze',payload:{expectedRevision:saved.revision},schema:profileDraftViewSchema}))
   }
+  // Started from the calendar screen: run the observation once. It only summarizes the past; the user still confirms the hours.
+  const autoRan = useRef(false)
+  useEffect(() => { if (autoAnalyze && ready && !autoRan.current && draft.current.current.saved.messages.length === 0) { autoRan.current = true; void analyze() } }, [autoAnalyze, ready])  // eslint-disable-line react-hooks/exhaustive-deps
   const showReview = async () => {
     if (preparingRef.current || !ready) return
     preparingRef.current = true; setPreparing(true)
