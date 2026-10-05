@@ -4,6 +4,8 @@ import { currentUser, db } from "@/server/context"
 import { listMeetingTypes, listPlaces } from "@/server/repos/hosting"
 import { inviteToken } from "@/server/services/contacts"
 import { InviteLinkCard } from "@/components/InviteLink"
+import { HostSuggestions } from "@/components/HostSuggestions"
+import { hostSuggestions } from "@/server/services/host-suggestions"
 export const metadata = { title: '호스트 설정' }
 
 export default async function HostSettingsPage() {
@@ -25,6 +27,7 @@ export default async function HostSettingsPage() {
         </Alert>
       )}
       <InviteLinkCard token={await inviteToken(db(), me.id)} />
+      <HostSuggestions key={me.id} suggestions={await hostSuggestions(db(), me.id)} />
       <HostSettings key={me.id} places={places} types={types} />
     </div>
   )
