@@ -1,0 +1,17 @@
+{
+  "checked_at": "2026-10-05T03:34:11.358674+00:00",
+  "environment": "linked_production",
+  "operation": "invite_issue",
+  "checks": {
+    "one_invitation": true,
+    "operator_matches": true,
+    "recipient_matches": true,
+    "token_hash_matches": true,
+    "unused_active": true,
+    "valid_expiry": true
+  },
+  "verified": true,
+  "messages_sent": 0,
+  "calendar_consent_verified": false,
+  "m1_gate_closed": false
+}
