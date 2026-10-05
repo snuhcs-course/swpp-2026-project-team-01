@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { CalendarDays, Clock3, ShieldCheck } from "lucide-react"
 import type {
   HostProfile,
   MeetingDetails,
@@ -36,6 +37,7 @@ import {
 } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Separator } from "@/components/ui/separator"
 
 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
 export function Requester({ handle }: { handle: string }) {
@@ -56,17 +58,69 @@ export function Requester({ handle }: { handle: string }) {
       </Notice>
     )
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-      <div>
-        <Badge variant="secondary">No account needed</Badge>
-        <h1 className="mt-4 text-4xl font-semibold tracking-tight">
-          Meet with {host.data.displayName}
-        </h1>
-        <p className="mt-3 text-muted-foreground">
-          Tell us a little about the meeting. We’ll find options and send your
-          choice for review.
+    <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.5fr)] lg:gap-12">
+      <aside className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-8">
+        <div
+          className="flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground"
+          aria-hidden="true"
+        >
+          <CalendarDays className="size-6" />
+        </div>
+        <div>
+          <Badge variant="secondary">No account needed</Badge>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight break-words sm:text-4xl">
+            Meet with {host.data.displayName}
+          </h1>
+          <p className="mt-3 leading-relaxed text-muted-foreground">
+            A good conversation starts here. Share what you have in mind and
+            when you’re free. We’ll help find a time that works.
+          </p>
+        </div>
+        <p className="flex items-center gap-2 text-sm">
+          <Clock3 className="size-4 text-muted-foreground" aria-hidden="true" />
+          {host.data.durationMinutes}-minute meeting
         </p>
-      </div>
+        <Separator />
+        <div className="hidden flex-col gap-5 lg:flex">
+          <h2 className="text-sm font-medium">What happens next</h2>
+          <ol className="flex flex-col gap-5">
+            {[
+              [
+                "Share your availability",
+                "Start with a few windows that work for you.",
+              ],
+              [
+                "Choose a proposal",
+                "Review the exact time and meeting details.",
+              ],
+              [
+                "Wait for host approval",
+                "We’ll confirm once the calendar event is booked.",
+              ],
+            ].map(([title, description], index) => (
+              <li key={title} className="flex gap-3">
+                <span
+                  className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium"
+                  aria-hidden="true"
+                >
+                  {index + 1}
+                </span>
+                <div>
+                  <p className="text-sm font-medium">{title}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                    {description}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+            <ShieldCheck className="size-4 shrink-0" aria-hidden="true" />
+            Private calendar details stay private. Nothing is booked until both
+            people agree and the host approves.
+          </p>
+        </div>
+      </aside>
       <Intake host={host.data} />
     </div>
   )
@@ -77,7 +131,7 @@ function Intake({ host }: { host: HostProfile }) {
   const action = useAction()
   const duration = host.durationMinutes
   return (
-    <Card>
+    <Card className="min-w-0">
       <CardHeader>
         <CardTitle role="heading" aria-level={2}>
           What do you have in mind?

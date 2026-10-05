@@ -298,6 +298,25 @@ await page.getByRole("button", { name: "Save updated details" }).click()
 await page.getByText("Discuss a wider product idea", { exact: true }).waitFor()
 await page.getByRole("button", { name: "Check availability" }).click()
 await page.getByLabel("Feasible options").waitFor()
+await page.getByLabel("Feasible options").selectOption("0")
+await page.getByRole("button", { name: "Create proposal" }).click()
+await page.getByRole("button", { name: "Agree and send to host" }).waitFor()
+assert.equal(
+  await page
+    .getByRole("button", { name: "Agree and send to host" })
+    .isDisabled(),
+  true
+)
+const verificationPosition = await page
+  .getByRole("button", { name: "Request verification code" })
+  .boundingBox()
+const agreementPosition = await page
+  .getByRole("button", { name: "Agree and send to host" })
+  .boundingBox()
+assert.ok(
+  verificationPosition.y < agreementPosition.y,
+  "Contact verification must appear before the disabled agreement action"
+)
 await page.getByRole("button", { name: "Request verification code" }).click()
 await page
   .getByText("Verification delivery is pending.", { exact: false })
@@ -310,8 +329,6 @@ assert.equal(
 )
 await page.getByRole("button", { name: "Verify contact" }).click()
 await page.getByText("Contact verified", { exact: true }).waitFor()
-await page.getByLabel("Feasible options").selectOption("0")
-await page.getByRole("button", { name: "Create proposal" }).click()
 await page
   .getByRole("checkbox", {
     name: "I agree to proposal 1 with these exact details.",
@@ -856,6 +873,7 @@ console.log(
         "recovery remains pending until one-time credential redeemed and rotated",
         "private host messages stay in host-only UI",
         "verification uses current returned revision and becomes verified only after confirm",
+        "required contact verification precedes the disabled agreement action",
         "exact proposal agreement requires checkbox",
         "agreement remains pending host approval",
         "private host notes absent in guest",

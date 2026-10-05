@@ -10,7 +10,8 @@
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc -b --pretty false",
     "preview": "vite preview",
-    "test:browser": "node tests/browser-smoke.mjs"
+    "test:browser": "node tests/browser-smoke.mjs",
+    "test:workspace": "node tests/workspace-smoke.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.8.0",

@@ -38,6 +38,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
+import { Input } from "@/components/ui/input"
+import {
+  ArrowLeft,
+  CalendarCheck,
+  CalendarClock,
+  CheckCircle2,
+  Clock3,
+  MapPin,
+  RefreshCw,
+  Video,
+} from "lucide-react"
 import {
   Message,
   MessageContent,
@@ -65,6 +76,26 @@ const statusLabels: Record<string, string> = {
   withdrawn: "Withdrawn",
   expired: "Expired",
 }
+const nextActionLabels: Record<string, string> = {
+  resolve_availability: "Clarify availability",
+  provide_availability: "Add availability",
+  verify_contact: "Verify your contact",
+  review_proposal: "Review the proposed time",
+  await_requester: "Waiting for requester agreement",
+  await_host: "Waiting for host approval",
+  approve: "Approve the proposed time",
+  book: "Complete the booking",
+  none: "No action needed",
+}
+
+function nextActionLabel(nextAction: string) {
+  return (
+    nextActionLabels[nextAction] ??
+    nextAction
+      .replaceAll("_", " ")
+      .replace(/^./, (character) => character.toUpperCase())
+  )
+}
 export function timeLabel(window: TimeWindow, timezone: string) {
   const formatter = new Intl.DateTimeFormat("en", {
     timeZone: timezone,
@@ -79,6 +110,7 @@ export function timeLabel(window: TimeWindow, timezone: string) {
 }
 export function Inbox() {
   const requests = useResource<{ requests: RequestView[] }>("/host/requests")
+  const [query, setQuery] = useState("")
   if (requests.loading) return <Loading />
   if (requests.error || !requests.data)
     return (
@@ -87,9 +119,31 @@ export function Inbox() {
         retry={requests.refresh}
       />
     )
+  const allRequests = requests.data.requests
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+  const filteredRequests = normalizedQuery
+    ? allRequests.filter((request) =>
+        [
+          request.details.requesterName,
+          request.details.requesterEmail,
+          request.details.purpose,
+          statusLabels[request.status],
+        ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery))
+      )
+    : allRequests
+  const awaitingApproval = allRequests.filter(
+    (request) => request.status === "awaiting_approval"
+  ).length
+  const active = allRequests.filter(
+    (request) => !closed.includes(request.status)
+  ).length
+  const booked = allRequests.filter(
+    (request) => request.status === "booked"
+  ).length
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">
             Your meeting inbox
@@ -99,10 +153,57 @@ export function Inbox() {
           </p>
         </div>
         <Button variant="outline" onClick={requests.refresh}>
+          <RefreshCw data-icon="inline-start" />
           Refresh
         </Button>
       </div>
-      {!requests.data.requests.length && (
+      {!!allRequests.length && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <CardDescription>Awaiting approval</CardDescription>
+                <CalendarClock className="size-4 text-muted-foreground" />
+              </div>
+              <CardTitle className="text-3xl">{awaitingApproval}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Ready for your final decision.
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <CardDescription>Active requests</CardDescription>
+                <Clock3 className="size-4 text-muted-foreground" />
+              </div>
+              <CardTitle className="text-3xl">{active}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Still gathering, negotiating, or booking.
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <CardDescription>Booked</CardDescription>
+                <CheckCircle2 className="size-4 text-muted-foreground" />
+              </div>
+              <CardTitle className="text-3xl">{booked}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Confirmed meetings in this inbox.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      {!allRequests.length && (
         <Empty>
           <EmptyHeader>
             <EmptyTitle>A little breathing room</EmptyTitle>
@@ -116,43 +217,90 @@ export function Inbox() {
           </Button>
         </Empty>
       )}
-      <div className="grid gap-4 md:grid-cols-2">
-        {requests.data.requests.map((request) => (
-          <Card key={request.id}>
-            <CardHeader>
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <CardTitle role="heading" aria-level={2}>
-                  {request.details.requesterName}
-                </CardTitle>
-                <Badge
-                  variant={
-                    request.status === "booked" ? "default" : "secondary"
-                  }
-                >
-                  {statusLabels[request.status]}
-                </Badge>
-              </div>
-              <CardDescription>{request.details.purpose}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm">
-                {request.proposal
-                  ? timeLabel(request.proposal, request.proposal.timezone)
-                  : `${request.details.durationMinutes} minutes · ${request.details.mode === "online" ? "Online" : "In person"}`}
-              </p>
-            </CardContent>
-            <CardFooter>
-              <Button
-                variant="outline"
-                render={<a href={`/host/requests/${request.id}`} />}
-                nativeButton={false}
-              >
-                Review request
-              </Button>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+      {!!allRequests.length && (
+        <Card>
+          <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-col gap-1.5">
+              <CardTitle role="heading" aria-level={2}>
+                Requests
+              </CardTitle>
+              <CardDescription>
+                Open a request to review the details and choose the next step.
+              </CardDescription>
+            </div>
+            <Field className="w-full sm:max-w-xs">
+              <FieldLabel htmlFor="request-search" className="sr-only">
+                Search requests
+              </FieldLabel>
+              <Input
+                id="request-search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search requests"
+              />
+            </Field>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {filteredRequests.map((request) => (
+              <Card key={request.id} size="sm">
+                <CardHeader className="gap-3 sm:flex sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <CardTitle role="heading" aria-level={3}>
+                      {request.details.requesterName}
+                    </CardTitle>
+                    <CardDescription className="line-clamp-2">
+                      {request.details.purpose}
+                    </CardDescription>
+                  </div>
+                  <Badge
+                    variant={
+                      request.status === "booked" ? "default" : "secondary"
+                    }
+                  >
+                    {statusLabels[request.status]}
+                  </Badge>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-start gap-2 text-sm">
+                    {request.proposal ? (
+                      <CalendarCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    ) : request.details.mode === "online" ? (
+                      <Video className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <span>
+                      {request.proposal
+                        ? timeLabel(request.proposal, request.proposal.timezone)
+                        : `${request.details.durationMinutes} minutes · ${request.details.mode === "online" ? "Online" : "In person"}`}
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    render={<a href={`/host/requests/${request.id}`} />}
+                    nativeButton={false}
+                  >
+                    Review request
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+            {!filteredRequests.length && (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>No matching requests</EmptyTitle>
+                  <EmptyDescription>
+                    Try another name, email, purpose, or status.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <Button variant="outline" onClick={() => setQuery("")}>
+                  Clear search
+                </Button>
+              </Empty>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
@@ -303,27 +451,45 @@ function RequestDetail({
     )
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Badge
-            variant={request.status === "booked" ? "default" : "secondary"}
-          >
-            {statusLabels[request.status]}
-          </Badge>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight">
-            {host
-              ? `Meeting with ${request.details.requesterName}`
-              : "Your meeting request"}
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            {request.nextAction === "resolve_availability"
-              ? "Clarify availability"
-              : request.nextAction}
-          </p>
-        </div>
-        <Button variant="outline" onClick={resource.refresh}>
-          Refresh status
+      <div className="flex flex-col gap-4">
+        <Button
+          variant="ghost"
+          className="w-fit"
+          render={<a href={host ? "/host/inbox" : "/"} />}
+          nativeButton={false}
+        >
+          <ArrowLeft data-icon="inline-start" />
+          {host ? "Back to inbox" : "Back to Find Me a Time"}
         </Button>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                variant={request.status === "booked" ? "default" : "secondary"}
+              >
+                {statusLabels[request.status]}
+              </Badge>
+            </div>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight">
+              {host
+                ? `Meeting with ${request.details.requesterName}`
+                : "Your meeting request"}
+            </h1>
+            <p className="mt-2 max-w-2xl text-muted-foreground">
+              {request.details.purpose}
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Badge variant="outline">Next step</Badge>
+              <span className="text-sm font-medium">
+                {nextActionLabel(request.nextAction)}
+              </span>
+            </div>
+          </div>
+          <Button variant="outline" onClick={resource.refresh}>
+            <RefreshCw data-icon="inline-start" />
+            Refresh status
+          </Button>
+        </div>
       </div>
       {action.error && (
         <Notice error>
@@ -372,38 +538,6 @@ function RequestDetail({
       )}
       <div className="grid items-start gap-6 lg:grid-cols-[1.2fr_1fr]">
         <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle role="heading" aria-level={2}>
-                Meeting details
-              </CardTitle>
-              <CardDescription>{request.details.purpose}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-3 text-sm">
-                <dt className="text-muted-foreground">Requester</dt>
-                <dd>
-                  {request.details.requesterName}
-                  <br />
-                  {request.details.requesterEmail}
-                </dd>
-                <dt className="text-muted-foreground">Length</dt>
-                <dd>{request.details.durationMinutes} minutes</dd>
-                <dt className="text-muted-foreground">Where</dt>
-                <dd className="break-words">
-                  {request.details.mode === "online" ? "Online" : "In person"}
-                  {request.details.location && ` · ${request.details.location}`}
-                </dd>
-                <dt className="text-muted-foreground">Timezone</dt>
-                <dd>{request.details.timezone}</dd>
-              </dl>
-            </CardContent>
-            <CardFooter>
-              <p className="text-sm text-muted-foreground">
-                Proposed times are not reserved until booking is confirmed.
-              </p>
-            </CardFooter>
-          </Card>
           {!host && mutable && (
             <Verification
               request={request}
@@ -420,6 +554,61 @@ function RequestDetail({
               mutate={mutation}
             />
           )}
+          <Card>
+            <CardHeader>
+              <CardTitle role="heading" aria-level={2}>
+                Request overview
+              </CardTitle>
+              <CardDescription>
+                The original meeting details from the requester.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <dl className="grid gap-4 text-sm sm:grid-cols-2">
+                <div className="flex flex-col gap-1">
+                  <dt className="text-muted-foreground">Requester</dt>
+                  <dd className="font-medium">
+                    {request.details.requesterName}
+                  </dd>
+                  <dd className="break-all text-muted-foreground">
+                    {request.details.requesterEmail}
+                  </dd>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <dt className="text-muted-foreground">Duration</dt>
+                  <dd className="font-medium">
+                    {request.details.durationMinutes} minutes
+                  </dd>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <dt className="text-muted-foreground">Meeting format</dt>
+                  <dd className="flex items-start gap-2 font-medium">
+                    {request.details.mode === "online" ? (
+                      <Video className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="break-words">
+                      {request.details.mode === "online"
+                        ? "Online"
+                        : "In person"}
+                      {request.details.location &&
+                        ` · ${request.details.location}`}
+                    </span>
+                  </dd>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <dt className="text-muted-foreground">Timezone</dt>
+                  <dd className="font-medium">{request.details.timezone}</dd>
+                </div>
+              </dl>
+            </CardContent>
+            <CardFooter>
+              <p className="text-sm text-muted-foreground">
+                Proposed times are not reserved until booking is confirmed.
+              </p>
+            </CardFooter>
+          </Card>
           {!host && mutable && (
             <Candidates
               key={`candidates-${request.revision}`}
@@ -620,10 +809,29 @@ function ProposalReview({
   const proposal = request.proposal!
   const mutable =
     !closed.includes(request.status) && request.status !== "booking"
+  const decisionLabel = closed.includes(request.status)
+    ? statusLabels[request.status]
+    : request.status === "booking"
+      ? "Booking pending"
+      : host
+        ? request.requesterAgreed && !request.hostApproved
+          ? "Ready for your approval"
+          : request.hostApproved
+            ? "Host approved"
+            : "Waiting for requester"
+        : !request.requesterAgreed
+          ? "Your agreement is needed"
+          : "Agreement sent"
   return (
-    <Card>
+    <Card className="bg-linear-to-t from-primary/5 to-card">
       <CardHeader>
-        <Badge variant="outline">Proposal {proposal.version}</Badge>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Badge variant="outline">
+            <CalendarCheck />
+            Proposal {proposal.version}
+          </Badge>
+          <Badge variant="secondary">{decisionLabel}</Badge>
+        </div>
         <CardTitle role="heading" aria-level={2}>
           {timeLabel(proposal, proposal.timezone)}
         </CardTitle>

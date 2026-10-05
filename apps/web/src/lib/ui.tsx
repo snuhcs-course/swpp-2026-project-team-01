@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import { api } from "./api"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
@@ -36,12 +36,14 @@ export function Loading() {
 export function Submit({
   pending,
   children,
+  variant,
 }: {
   pending: boolean
   children: ReactNode
+  variant?: React.ComponentProps<typeof Button>["variant"]
 }) {
   return (
-    <Button type="submit" disabled={pending}>
+    <Button type="submit" disabled={pending} variant={variant}>
       {pending && <Spinner data-icon="inline-start" />}
       {children}
     </Button>
@@ -55,12 +57,24 @@ export function TextField({
   label: string
   description?: string
 }) {
-  const id = props.id ?? props.name
+  const generatedId = useId()
+  const id = props.id ?? generatedId
+  const descriptionId = description ? `${id}-description` : undefined
   return (
-    <Field>
+    <Field data-disabled={props.disabled} data-invalid={props["aria-invalid"]}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Input {...props} id={id} />
-      {description && <FieldDescription>{description}</FieldDescription>}
+      <Input
+        {...props}
+        id={id}
+        aria-describedby={
+          [props["aria-describedby"], descriptionId]
+            .filter(Boolean)
+            .join(" ") || undefined
+        }
+      />
+      {description && (
+        <FieldDescription id={descriptionId}>{description}</FieldDescription>
+      )}
     </Field>
   )
 }
