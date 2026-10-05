@@ -1,0 +1,21 @@
+{
+  "checked_at": "2026-10-05T04:33:48.063Z",
+  "run_id": "da0f8948-19ed-4d99-a170-aab0cba9c1e7",
+  "mode": "send_once",
+  "target_binding_verified": true,
+  "message_sha256": "fe082e93b41c3f7e64c72a424189734861ad63d03b4d1f03ee8f584faf697850",
+  "initialized": true,
+  "available": true,
+  "send_attempts": 1,
+  "send_status": "provider_accepted",
+  "message_id_sha256": "be82dd1048471a155c4c297301ad315891ee5a0966073c00dafb708b23c6637a",
+  "reply_matched": true,
+  "reply_message_id_sha256": "f227451edb474d1014f0fc2c731d0ea7ad9833d32fee4b217d7fd3aea57e56b0",
+  "cleanup_stopped": true,
+  "accepted_at": "2026-10-05T04:33:54.524Z",
+  "reply_observed_at": "2026-10-05T04:34:18.400Z",
+  "finished_at": "2026-10-05T04:34:18.415Z",
+  "duration_ms": 30352,
+  "authorization": "Fresh explicit user authorization for exactly one new message; prior dispatch intent preserved and this attempt uses a separate exclusive dispatch intent.",
+  "conclusion": "Controlled iMessage send and exact inbound reply verified. This proves the bounded transport conversation, not application routing or web booking confirmation."
+}
