@@ -76,9 +76,10 @@ the measured runs; the actual completed diagnostic calls remained verifiable.
 [Captured native evidence](oauth-probe-native-results-2026-10-05.json) records
 one successful diagnostic call and one post-revocation denial, no other completed
 tools, credential removal, zero remaining fixture OAuth grants and shutdown of
-the isolated stack/server. Actual Codex token refresh, full product requester/host
-roles, production resource enforcement and browser named-client journeys remain
-untested. P0 tasks 2.1 and 2.2 stay open.
+the isolated stack/server. This first capture predates the separate natural-expiry
+refresh measurement below. Full product requester/host roles, production resource
+enforcement and browser named-client journeys remain untested. P0 tasks 2.1 and
+2.2 stay open.
 
 ```bash
 node --test scripts/p0/oauth-probe-native.test.mjs
@@ -87,3 +88,70 @@ supabase stop --workdir .local/p0-oauth --project-id fmat-p0-oauth-probe
 
 Stop only the owned loopback server and isolated stack, preserving volumes and
 all other local projects. Do not use `--all` or `--no-backup` for this cleanup.
+
+## Natural-expiry refresh check
+
+Use a fresh task-unique client for this separate measurement. Back up the private
+isolated `config.toml`, stop only `fmat-p0-oauth-probe`, set its `auth.jwt_expiry`
+to 300 seconds, and restart that isolated stack. Verify its live Auth container
+uses `GOTRUE_JWT_EXP=300`. This follows the five-minute minimum recommended by
+the [Supabase session guide](https://supabase.com/docs/guides/auth/sessions).
+Do not shorten production or normal local-stack sessions.
+
+```bash
+node scripts/p0/oauth-probe-codex.mjs initialize --new-run
+```
+
+New-run initialization refuses a live previous login or a pending/active client.
+It saves the previous run in a private immutable snapshot before creating a
+fresh name. Complete the same DCR, identity-only synthetic consent and activation
+steps above. Then:
+
+```bash
+node scripts/p0/oauth-probe-codex.mjs exec allowed
+node scripts/p0/oauth-probe-codex.mjs evidence allowed
+node scripts/p0/oauth-probe-refresh.mjs snapshot before
+```
+
+Preserve the first exec capture path. The server writes a private per-client
+token-observation file only after verifying the signature, issuer, audience,
+client, expiry and exact fixture subject. It records token hashes and signed
+issue/expiry times, never bearer tokens. Wait past the first observation's actual
+`expiresAt`; verify the owned server remains live while waiting. Do not edit
+Codex credentials, run another login, refresh this client's token through a
+helper, or advance clocks. After natural expiry:
+
+```bash
+node scripts/p0/oauth-probe-codex.mjs exec allowed
+node scripts/p0/oauth-probe-codex.mjs evidence allowed
+node scripts/p0/oauth-probe-refresh.mjs snapshot after
+node scripts/p0/oauth-probe-refresh.mjs prove --before BEFORE_FILE --after AFTER_FILE
+```
+
+The proof requires exactly two successful diagnostic observations with a newer
+verified access token after expiry, the same OAuth session/client/fixture/scopes,
+updated session refresh state, and a matching `token_refreshed` audit timestamp.
+GoTrue 2.197.0's database-token path rotates a linked parent/child token row while
+its session counter remains null. The snapshot verifies that relationship,
+revocation and issue times without returning token or parent values. A supported
+counter-based path instead requires the counter to advance. Audit entries are
+fixture-scoped; the exact OAuth session record independently binds the refresh
+to this client. Database timestamps are explicitly normalized to UTC. A new
+login, unchanged token, different session, ambiguous or invalid dates, or missing
+refresh evidence fails the proof. See the versioned [OAuth handler](https://github.com/supabase/auth/blob/v2.197.0/internal/api/oauthserver/handlers.go)
+and [token service](https://github.com/supabase/auth/blob/v2.197.0/internal/tokens/service.go).
+
+Capture both actual MCP calls separately from the refresh proof. Revoke the
+fixture's OAuth/application grant, log out the exact task-unique Codex server,
+stop the owned server and isolated stack, and restore the backed-up configuration.
+If the fixture's browser session has also expired, authenticate only that same
+synthetic identity for cleanup after capturing the after-snapshot. Never use a
+personal account or another OAuth client to supply evidence.
+
+[Captured natural-expiry evidence](oauth-probe-native-refresh-results-2026-10-05.json)
+records two successful actual Codex calls, verified same-session refresh and complete
+cleanup. The first verifier failed because it assumed a counter update and parsed
+a timezone-less field as local time. Its original captures are preserved; the
+corrected verifier uses provider row-rotation evidence and a new UTC-normalized
+read-only snapshot. This closes the isolated Codex refresh gap, while P0 tasks
+2.1 and 2.2 remain open for their full production/client requirements.

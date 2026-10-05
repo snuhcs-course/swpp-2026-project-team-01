@@ -1,0 +1,95 @@
+{
+  "checkedAt": "2026-10-05T01:27:07.948Z",
+  "scope": "Actual Codex CLI natural-expiry refresh against isolated synthetic OAuth/MCP fixture",
+  "status": "controlled_native_refresh_passed",
+  "codexVersion": "codex-cli 0.154.0",
+  "authImage": "public.ecr.aws/supabase/gotrue:v2.197.0",
+  "isolatedJwtExpirySeconds": 300,
+  "productionConfigurationChanged": false,
+  "normalLocalConfigurationChanged": false,
+  "personalCalendarAccessed": false,
+  "requestedIdentityScopes": [
+    "openid",
+    "email",
+    "profile",
+    "offline_access"
+  ],
+  "requestedResource": "http://127.0.0.1:8788/mcp",
+  "clientOAuthLoginCount": 1,
+  "codexCredentialRecordsManuallyChanged": false,
+  "clientTokensRefreshedByHelper": false,
+  "clocksChanged": false,
+  "browserCallbackReceipt": "ERR_BLOCKED_BY_CLIENT after CLI code exchange; no bypass",
+  "actualCompletedDiagnosticCalls": 2,
+  "otherCompletedTools": 0,
+  "calls": [
+    {
+      "capturedAt": "2026-10-05T01:14:18.221Z",
+      "codexVersion": "codex-cli 0.154.0",
+      "exitStatus": 0,
+      "completedDiagnosticCalls": 1,
+      "bindingChecks": {
+        "issuer": "http://127.0.0.1:55321/auth/v1",
+        "audience": "http://127.0.0.1:8788/mcp",
+        "grant": "diagnostic.read",
+        "issuerMatches": true,
+        "audienceMatches": true,
+        "grantMatches": true,
+        "clientMatches": true,
+        "fixtureSubjectMatches": true
+      }
+    },
+    {
+      "capturedAt": "2026-10-05T01:19:43.873Z",
+      "codexVersion": "codex-cli 0.154.0",
+      "exitStatus": 0,
+      "completedDiagnosticCalls": 1,
+      "bindingChecks": {
+        "issuer": "http://127.0.0.1:55321/auth/v1",
+        "audience": "http://127.0.0.1:8788/mcp",
+        "grant": "diagnostic.read",
+        "issuerMatches": true,
+        "audienceMatches": true,
+        "grantMatches": true,
+        "clientMatches": true,
+        "fixtureSubjectMatches": true
+      }
+    }
+  ],
+  "refresh": {
+    "proven": true,
+    "accessTokenChanged": true,
+    "naturalExpiryReached": true,
+    "firstIssuedAtUtc": "2026-10-05T01:13:50.000Z",
+    "firstExpiredAtUtc": "2026-10-05T01:18:50.000Z",
+    "secondIssuedAtUtc": "2026-10-05T01:19:23.000Z",
+    "sameOAuthSession": true,
+    "sameClientFixtureAndIdentityScopes": true,
+    "refreshTokenStorage": "rotated-database-row",
+    "linkedSameSessionParentChildRotations": 1,
+    "refreshTokenCounterBefore": null,
+    "refreshTokenCounterAfter": null,
+    "tokenRefreshedAuditDelta": 1,
+    "auditScope": "fixture user; independently correlated with exact client OAuth session and row rotation",
+    "databaseTimestampsExplicitUtc": true
+  },
+  "verificationCorrections": [
+    "Initial verifier incorrectly required a counter update for the database-token path; provider source and linked token-row rotation supply the correct proof.",
+    "Original timestamp-without-zone capture retained; a new read-only snapshot normalized PostgreSQL UTC timestamps explicitly."
+  ],
+  "cleanup": {
+    "oauthGrantRevokedHttpStatus": 204,
+    "remainingFixtureOAuthGrants": 0,
+    "applicationGrantActive": false,
+    "clientCredentialsRemoved": true,
+    "isolatedStackStoppedWithBackup": true,
+    "ownedProbeServerStopped": true,
+    "originalIsolatedJwtExpiryRestoredSeconds": 3600,
+    "normalLocalStackPreserved": true,
+    "fixtureBrowserSessionRenewedOnlyAfterEvidenceForCleanup": true
+  },
+  "actualProductRequesterHostJourneysTested": false,
+  "productionResourceEnforcementProven": false,
+  "p0Task2_1Complete": false,
+  "p0Task2_2Complete": false
+}

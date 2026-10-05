@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { readJson, scratch, writePrivateJson } from "./oauth-probe-lib.mjs";
 import {
+  assertCodexRunReplacementAllowed,
   codexLoginArgs,
   extractCodexFailureEvidence,
   extractCodexMcpEvidence,
@@ -58,6 +59,43 @@ async function loadRun({ create = false } = {}) {
   return run;
 }
 
+async function createFreshRun() {
+  const existing = await readJson(runConfigFile);
+  const registry = await readJson(registryFile, { clients: [] });
+  const priorPid = existing?.loginPidFile
+    ? await readJson(existing.loginPidFile)
+    : null;
+  assertCodexRunReplacementAllowed({
+    run: existing,
+    registry,
+    loginRunning: processRunning(priorPid?.pid),
+  });
+  let snapshotFile = null;
+  if (existing?.name) {
+    snapshotFile = path.join(
+      scratch,
+      `oauth-native-codex-run-snapshot-${existing.name}-${captureName("replaced")}.json`,
+    );
+    const handle = await open(snapshotFile, "wx", 0o600);
+    await handle.writeFile(`${JSON.stringify(existing, null, 2)}\n`);
+    await handle.close();
+    await chmod(snapshotFile, 0o600);
+  }
+  let name;
+  do {
+    name = `fmat_p0_native_${randomBytes(5).toString("hex")}`;
+  } while (registry.clients?.some((client) => client.name === name));
+  const run = {
+    version: 1,
+    name,
+    mcpUrl,
+    createdAt: new Date().toISOString(),
+    priorRunSnapshot: snapshotFile,
+  };
+  await writePrivateJson(runConfigFile, run);
+  return run;
+}
+
 async function updateRun(patch) {
   const run = await loadRun();
   const updated = { ...run, ...patch };
@@ -100,13 +138,18 @@ async function guardName(run, { allowSameClient = true } = {}) {
     throw new Error("ACTIVE_OR_PENDING_NATIVE_NAME_CONFLICT");
 }
 
-async function initialize() {
-  const run = await loadRun({ create: true });
+async function initialize({ newRun = false } = {}) {
+  const run = newRun
+    ? await createFreshRun()
+    : await loadRun({ create: true });
   await guardName(run);
   return {
     name: run.name,
     mcpUrl: run.mcpUrl,
     runConfigFile: path.relative(process.cwd(), runConfigFile),
+    priorRunSnapshot: run.priorRunSnapshot
+      ? path.relative(process.cwd(), run.priorRunSnapshot)
+      : null,
   };
 }
 
@@ -388,7 +431,8 @@ async function logout() {
 
 try {
   let result;
-  if (command === "initialize") result = await initialize();
+  if (command === "initialize")
+    result = await initialize({ newRun: process.argv.includes("--new-run") });
   else if (command === "start-login") result = await startLogin();
   else if (command === "login-status") result = await loginStatus();
   else if (command === "stop-login") result = await stopLogin();
@@ -398,7 +442,7 @@ try {
   else if (command === "logout") result = await logout();
   else {
     console.log(`Usage:
-  node scripts/p0/oauth-probe-codex.mjs initialize
+  node scripts/p0/oauth-probe-codex.mjs initialize [--new-run]
   node scripts/p0/oauth-probe-codex.mjs start-login
   node scripts/p0/oauth-probe-codex.mjs login-status
   node scripts/p0/oauth-probe-codex.mjs stop-login

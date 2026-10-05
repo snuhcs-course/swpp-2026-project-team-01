@@ -1,17 +1,211 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  assertCodexRunReplacementAllowed,
   codexLoginArgs,
   exactStringSet,
   extractCodexFailureEvidence,
   extractCodexMcpEvidence,
   identityScopes,
+  proveCodexRefresh,
   validatePendingAuthorization,
 } from "./oauth-probe-native-guards.mjs";
 
 const clientId = "123e4567-e89b-42d3-a456-426614174000";
 const serverName = "fmat_p0_native_0123456789";
 const fixtureUserId = "67a1eb2e-e91e-4662-a06f-642fab1e3954";
+
+test("new native run preserves active and pending client lifecycles", () => {
+  const run = { name: serverName };
+  assert.throws(
+    () =>
+      assertCodexRunReplacementAllowed({
+        run,
+        registry: { clients: [{ name: serverName, status: "active" }] },
+        loginRunning: false,
+      }),
+    /OLD_NATIVE_CLIENT_MUST_BE_REVOKED_OR_INACTIVE/,
+  );
+  assert.throws(
+    () =>
+      assertCodexRunReplacementAllowed({
+        run,
+        registry: { clients: [{ name: serverName, status: "revoked" }] },
+        loginRunning: true,
+      }),
+    /CODEX_LOGIN_ALREADY_RUNNING/,
+  );
+  assert.doesNotThrow(() =>
+    assertCodexRunReplacementAllowed({
+      run,
+      registry: { clients: [{ name: serverName, status: "revoked" }] },
+      loginRunning: false,
+    }),
+  );
+});
+
+test("refresh proof requires token rotation on the same audited OAuth session after expiry", () => {
+  const checks = {
+    algorithm: true,
+    signature: true,
+    issuer: true,
+    audience: true,
+    client: true,
+    expiry: true,
+    subject: true,
+  };
+  const observation = {
+    serverName,
+    clientId,
+    fixtureUserId,
+    issuer: "http://127.0.0.1:55321/auth/v1",
+    audience: "http://127.0.0.1:8788/mcp",
+    verificationChecks: checks,
+    method: "tools/call",
+    tool: "diagnostic.read",
+    applicationGrantActive: true,
+  };
+  const before = {
+    capturedAt: "2026-10-05T01:04:00.000Z",
+    serverName,
+    clientId,
+    fixtureUserId,
+    authSession: {
+      id: "223e4567-e89b-42d3-a456-426614174000",
+      oauthClientId: clientId,
+      userId: fixtureUserId,
+      refreshedAt: null,
+      refreshTokenCounter: null,
+      scopes: "openid email profile offline_access",
+    },
+    tokenRefreshedAuditCount: 2,
+    latestTokenRefreshedAt: "2026-10-05T00:00:00.000Z",
+  };
+  const after = {
+    ...before,
+    evidenceSchemaVersion: 2,
+    timestampNormalization: "database-utc-rfc3339",
+    capturedAt: "2026-10-05T01:06:00.000Z",
+    authSession: {
+      ...before.authSession,
+      refreshedAt: "2026-10-05T01:05:02.000Z",
+      refreshTokenCounter: null,
+    },
+    refreshTokenState: {
+      rowCount: 2,
+      activeCount: 1,
+      revokedCount: 1,
+      parentLinkedCount: 1,
+      linkedRotationCount: 1,
+      linkedParentCreatedAt: "2026-10-05T01:02:00.000Z",
+      linkedParentRevokedAt: "2026-10-05T01:05:02.000Z",
+      linkedChildCreatedAt: "2026-10-05T01:05:02.000Z",
+    },
+    tokenRefreshedAuditCount: 3,
+    latestTokenRefreshedEvent: {
+      id: "323e4567-e89b-42d3-a456-426614174000",
+      actorId: fixtureUserId,
+      action: "token_refreshed",
+      logType: "token",
+      createdAt: "2026-10-05T01:05:02.000Z",
+    },
+  };
+  const observations = [
+    {
+      ...observation,
+      observedAt: "2026-10-05T01:03:00.000Z",
+      tokenSha256: "a".repeat(64),
+      issuedAt: 1791162000,
+      expiresAt: 1791162300,
+    },
+    {
+      ...observation,
+      observedAt: "2026-10-05T01:05:02.000Z",
+      tokenSha256: "b".repeat(64),
+      issuedAt: 1791162302,
+      expiresAt: 1791162602,
+    },
+  ];
+  assert.equal(proveCodexRefresh({ before, after, observations }).proven, true);
+  assert.throws(
+    () =>
+      proveCodexRefresh({
+        before,
+        after: {
+          ...after,
+          authSession: { ...after.authSession, id: "different-session" },
+        },
+        observations,
+      }),
+    /EXACT_OAUTH_SESSION_CONTINUITY_NOT_PROVEN/,
+  );
+  assert.throws(
+    () =>
+      proveCodexRefresh({
+        before,
+        after,
+        observations: [
+          observations[0],
+          { ...observations[1], observedAt: "2026-10-05T01:04:59.000Z" },
+        ],
+      }),
+    /NATURAL_ACCESS_TOKEN_EXPIRY_NOT_REACHED/,
+  );
+  assert.throws(
+    () =>
+      proveCodexRefresh({
+        before,
+        after,
+        observations: [
+          observations[0],
+          {
+            ...observations[1],
+            audience: `prefix-${observations[1].audience}`,
+          },
+        ],
+      }),
+    /STRICT_VERIFIED_TOKEN_OBSERVATIONS_REQUIRED/,
+  );
+  assert.throws(
+    () =>
+      proveCodexRefresh({
+        before: { ...before, capturedAt: "not-a-date" },
+        after,
+        observations,
+      }),
+    /TOKEN_OBSERVATION_WINDOW_INVALID/,
+  );
+  assert.throws(
+    () =>
+      proveCodexRefresh({
+        before,
+        after: {
+          ...after,
+          authSession: {
+            ...after.authSession,
+            refreshedAt: "2026-10-05T01:05:02.000000",
+          },
+        },
+        observations,
+      }),
+    /AUTH_SESSION_REFRESH_NOT_PROVEN/,
+  );
+  assert.throws(
+    () =>
+      proveCodexRefresh({
+        before,
+        after: {
+          ...after,
+          refreshTokenState: {
+            ...after.refreshTokenState,
+            linkedRotationCount: 0,
+          },
+        },
+        observations,
+      }),
+    /AUTH_SESSION_REFRESH_NOT_PROVEN/,
+  );
+});
 
 function authorizationUrl(overrides = {}) {
   const url = new URL(

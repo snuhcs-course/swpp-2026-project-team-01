@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { createServer } from "node:http";
+import { createHash } from "node:crypto";
+import { appendFile } from "node:fs/promises";
 import path from "node:path";
 import {
   activeApplicationGrant,
@@ -233,6 +235,36 @@ const server = createServer(async (request, response) => {
         resource,
         tool,
       });
+      const nativeClient = (nativeRegistry.clients ?? []).find(
+        (client) => client.clientId === verification.claims.client_id,
+      );
+      if (
+        nativeClient &&
+        /^fmat_p0_native_[0-9a-f]{10}$/.test(nativeClient.name) &&
+        verification.claims.sub === fixture.userId
+      ) {
+        // Capture verified token identity without retaining the bearer token.
+        // This supplies independent evidence for native-client refresh probes.
+        await appendFile(
+          path.join(scratch, `native-token-observations-${nativeClient.name}.jsonl`),
+          `${JSON.stringify({
+            observedAt: new Date().toISOString(),
+            serverName: nativeClient.name,
+            clientId: verification.claims.client_id,
+            fixtureUserId: verification.claims.sub,
+            tokenSha256: createHash("sha256").update(token).digest("hex"),
+            issuedAt: decodeJwt(token).payload.iat,
+            expiresAt: verification.claims.exp,
+            issuer: verification.claims.iss,
+            audience: verification.claims.aud,
+            verificationChecks: verification.checks,
+            method,
+            tool,
+            applicationGrantActive: Boolean(grant),
+          })}\n`,
+          { mode: 0o600 },
+        );
+      }
       if (!grant)
         return send(response, 403, { error: "application_grant_denied" });
       return send(response, 200, {

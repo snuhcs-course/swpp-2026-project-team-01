@@ -4,6 +4,199 @@ export const isolatedIssuer = `${authOrigin}/auth/v1`;
 export const mcpResource = "http://127.0.0.1:8788/mcp";
 export const identityScopes = ["email", "offline_access", "openid", "profile"];
 
+export function assertCodexRunReplacementAllowed({
+  run,
+  registry,
+  loginRunning,
+}) {
+  if (!run?.name) return;
+  if (loginRunning) throw new Error("CODEX_LOGIN_ALREADY_RUNNING");
+  const client = registry?.clients?.find(
+    (candidate) => candidate.name === run.name,
+  );
+  if (client && ["pending", "active"].includes(client.status))
+    throw new Error("OLD_NATIVE_CLIENT_MUST_BE_REVOKED_OR_INACTIVE");
+}
+
+export function proveCodexRefresh({ before, after, observations }) {
+  if (!before || !after || !Array.isArray(observations))
+    throw new Error("REFRESH_EVIDENCE_REQUIRED");
+  if (
+    before.serverName !== after.serverName ||
+    before.clientId !== after.clientId ||
+    before.fixtureUserId !== after.fixtureUserId
+  )
+    throw new Error("REFRESH_IDENTITY_CHANGED");
+  if (observations.length !== 2)
+    throw new Error("EXACTLY_TWO_TOKEN_OBSERVATIONS_REQUIRED");
+  const [first, second] = observations;
+  const exactObservation = (observation) =>
+    observation.serverName === before.serverName &&
+    observation.clientId === before.clientId &&
+    observation.fixtureUserId === before.fixtureUserId &&
+    observation.issuer === isolatedIssuer &&
+    (observation.audience === mcpResource ||
+      (Array.isArray(observation.audience) &&
+        observation.audience.includes(mcpResource))) &&
+    /^[0-9a-f]{64}$/.test(observation.tokenSha256 ?? "") &&
+    observation.method === "tools/call" &&
+    observation.tool === "diagnostic.read" &&
+    observation.applicationGrantActive === true &&
+    [
+      "algorithm",
+      "signature",
+      "issuer",
+      "audience",
+      "client",
+      "expiry",
+      "subject",
+    ].every((name) => observation.verificationChecks?.[name] === true);
+  if (!exactObservation(first) || !exactObservation(second))
+    throw new Error("STRICT_VERIFIED_TOKEN_OBSERVATIONS_REQUIRED");
+  if (
+    first.tokenSha256 === second.tokenSha256 ||
+    !Number.isInteger(first.issuedAt) ||
+    !Number.isInteger(second.issuedAt) ||
+    second.issuedAt <= first.issuedAt ||
+    !Number.isInteger(first.expiresAt) ||
+    !Number.isInteger(second.expiresAt) ||
+    second.expiresAt <= first.expiresAt
+  )
+    throw new Error("NEWER_ACCESS_TOKEN_NOT_PROVEN");
+  if (Date.parse(second.observedAt) < first.expiresAt * 1000)
+    throw new Error("NATURAL_ACCESS_TOKEN_EXPIRY_NOT_REACHED");
+  const firstObserved = Date.parse(first.observedAt);
+  const secondObserved = Date.parse(second.observedAt);
+  const beforeCapturedAt = Date.parse(before.capturedAt);
+  const afterCapturedAt = Date.parse(after.capturedAt);
+  const utcInstant = (value) =>
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(value) &&
+    Number.isFinite(Date.parse(value));
+  if (
+    !utcInstant(first.observedAt) ||
+    !utcInstant(second.observedAt) ||
+    !utcInstant(before.capturedAt) ||
+    !utcInstant(after.capturedAt) ||
+    !Number.isFinite(firstObserved) ||
+    !Number.isFinite(secondObserved) ||
+    !Number.isFinite(beforeCapturedAt) ||
+    !Number.isFinite(afterCapturedAt) ||
+    afterCapturedAt <= beforeCapturedAt ||
+    firstObserved > beforeCapturedAt ||
+    secondObserved <= beforeCapturedAt ||
+    secondObserved > afterCapturedAt
+  )
+    throw new Error("TOKEN_OBSERVATION_WINDOW_INVALID");
+  const beforeSession = before.authSession;
+  const afterSession = after.authSession;
+  if (
+    !beforeSession?.id ||
+    beforeSession.id !== afterSession?.id ||
+    beforeSession.oauthClientId !== before.clientId ||
+    afterSession.oauthClientId !== after.clientId ||
+    beforeSession.userId !== before.fixtureUserId ||
+    afterSession.userId !== after.fixtureUserId
+  )
+    throw new Error("EXACT_OAUTH_SESSION_CONTINUITY_NOT_PROVEN");
+  if (
+    !exactStringSet(
+      String(beforeSession.scopes ?? "")
+        .split(/\s+/)
+        .filter(Boolean),
+      identityScopes,
+    ) ||
+    !exactStringSet(
+      String(afterSession.scopes ?? "")
+        .split(/\s+/)
+        .filter(Boolean),
+      identityScopes,
+    )
+  )
+    throw new Error("EXACT_OAUTH_SESSION_SCOPES_NOT_PROVEN");
+  const beforeRefreshedAt = Date.parse(beforeSession.refreshedAt);
+  const afterRefreshedAt = Date.parse(afterSession.refreshedAt);
+  const refreshTokens = after.refreshTokenState;
+  const linkedParentCreatedAt = Date.parse(
+    refreshTokens?.linkedParentCreatedAt,
+  );
+  const linkedParentRevokedAt = Date.parse(
+    refreshTokens?.linkedParentRevokedAt,
+  );
+  const linkedChildCreatedAt = Date.parse(
+    refreshTokens?.linkedChildCreatedAt,
+  );
+  const rotatedLegacyRefreshState =
+    beforeSession.refreshTokenCounter === null &&
+    beforeSession.refreshedAt === null &&
+    afterSession.refreshTokenCounter === null &&
+    refreshTokens?.rowCount === 2 &&
+    refreshTokens.activeCount === 1 &&
+    refreshTokens.revokedCount === 1 &&
+    refreshTokens.parentLinkedCount === 1 &&
+    refreshTokens.linkedRotationCount === 1 &&
+    utcInstant(refreshTokens.linkedParentCreatedAt) &&
+    utcInstant(refreshTokens.linkedParentRevokedAt) &&
+    utcInstant(refreshTokens.linkedChildCreatedAt) &&
+    linkedParentCreatedAt <= beforeCapturedAt &&
+    linkedParentRevokedAt > beforeCapturedAt &&
+    linkedChildCreatedAt > beforeCapturedAt &&
+    Math.abs(linkedChildCreatedAt - second.issuedAt * 1000) <=
+      15_000 &&
+    Math.abs(linkedParentRevokedAt - second.issuedAt * 1000) <=
+      15_000;
+  const advancedExistingRefreshState =
+    Number.isInteger(beforeSession.refreshTokenCounter) &&
+    Number.isInteger(afterSession.refreshTokenCounter) &&
+    afterSession.refreshTokenCounter > beforeSession.refreshTokenCounter &&
+    Number.isFinite(beforeRefreshedAt) &&
+    Number.isFinite(afterRefreshedAt) &&
+    afterRefreshedAt > beforeRefreshedAt;
+  if (
+    after.evidenceSchemaVersion !== 2 ||
+    after.timestampNormalization !== "database-utc-rfc3339" ||
+    !utcInstant(afterSession.refreshedAt) ||
+    (!rotatedLegacyRefreshState && !advancedExistingRefreshState) ||
+    !Number.isFinite(afterRefreshedAt) ||
+    Math.abs(afterRefreshedAt - second.issuedAt * 1000) > 15_000
+  )
+    throw new Error("AUTH_SESSION_REFRESH_NOT_PROVEN");
+  const latestAudit = after.latestTokenRefreshedEvent;
+  const latestAuditAt = Date.parse(latestAudit?.createdAt);
+  if (
+    !Number.isInteger(before.tokenRefreshedAuditCount) ||
+    !Number.isInteger(after.tokenRefreshedAuditCount) ||
+    after.tokenRefreshedAuditCount !== before.tokenRefreshedAuditCount + 1 ||
+    !/^[0-9a-f-]{36}$/i.test(latestAudit?.id ?? "") ||
+    latestAudit?.actorId !== before.fixtureUserId ||
+    latestAudit?.action !== "token_refreshed" ||
+    latestAudit?.logType !== "token" ||
+    !utcInstant(latestAudit?.createdAt) ||
+    !Number.isFinite(latestAuditAt) ||
+    latestAuditAt <= beforeCapturedAt ||
+    Math.abs(latestAuditAt - second.issuedAt * 1000) > 15_000
+  )
+    throw new Error("TOKEN_REFRESHED_AUDIT_NOT_PROVEN");
+  return {
+    proven: true,
+    serverName: before.serverName,
+    clientId: before.clientId,
+    fixtureUserId: before.fixtureUserId,
+    authSessionId: beforeSession.id,
+    accessTokenChanged: true,
+    firstIssuedAt: first.issuedAt,
+    firstExpiresAt: first.expiresAt,
+    secondIssuedAt: second.issuedAt,
+    secondExpiresAt: second.expiresAt,
+    refreshTokenCounterBefore: beforeSession.refreshTokenCounter,
+    refreshTokenCounterAfter: afterSession.refreshTokenCounter,
+    refreshTokenStorage:
+      rotatedLegacyRefreshState ? "rotated-database-row" : "session-counter",
+    tokenRefreshedAuditDelta:
+      after.tokenRefreshedAuditCount - before.tokenRefreshedAuditCount,
+  };
+}
+
 export function codexLoginArgs({ name, mcpUrl: requestedMcpUrl }) {
   if (!/^fmat_p0_native_[0-9a-f]{10}$/.test(name))
     throw new Error("PERSISTED_TASK_UNIQUE_NATIVE_NAME_REQUIRED");
