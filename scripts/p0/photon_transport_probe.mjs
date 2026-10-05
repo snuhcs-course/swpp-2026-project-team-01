@@ -188,12 +188,18 @@ main().catch((error) => {
       checked_at: new Date().toISOString(),
       runtime: { node: process.version },
     };
+  // Emit only a known provider-policy classification, never the raw message:
+  // provider errors can contain recipient handles or authentication details.
+  const targetNotAllowed =
+    error instanceof Error &&
+    /target not allowed for this project/iu.test(error.message);
   result.error = {
     name: error instanceof Error ? error.name : "UnknownError",
     code: typeof error?.code === "string" ? error.code : undefined,
     grpc_code: typeof error?.grpcCode === "number" ? error.grpcCode : undefined,
-    category:
-      error instanceof Error && /_timeout$/u.test(error.message)
+    category: targetNotAllowed
+      ? "target_not_allowed_for_project"
+      : error instanceof Error && /_timeout$/u.test(error.message)
         ? error.message
         : "probe_failed",
   };
@@ -202,6 +208,7 @@ main().catch((error) => {
   }
   if (result.transport && error?.grpcCode === 7) {
     result.transport.permission_denied = true;
+    result.transport.target_not_allowed = targetNotAllowed;
     if (result.project_authentication) {
       result.project_authentication.stage = "read_only_rpc_denied";
     }
