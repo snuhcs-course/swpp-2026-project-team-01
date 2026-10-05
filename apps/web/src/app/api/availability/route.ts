@@ -13,7 +13,7 @@ const rule = z.object({
 const schema = z.object({ rules: z.array(rule).length(7) })
 
 export function GET(req: Request) {
-  return handle(async () => Response.json({ rules: getRules(db(), (await currentUser(req)).id) }))
+  return handle(async () => Response.json({ rules: await getRules(db(), (await currentUser(req)).id) }))
 }
 
 export function PUT(req: Request) {

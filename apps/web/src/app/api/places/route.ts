@@ -9,12 +9,12 @@ const placeSchema = z.object({
 })
 
 export function GET(req: Request) {
-  return handle(async () => Response.json({ places: listPlaces(db(), (await currentUser(req)).id) }))
+  return handle(async () => Response.json({ places: await listPlaces(db(), (await currentUser(req)).id) }))
 }
 
 export function POST(req: Request) {
   return handle(async () => {
     const input = await body(req, placeSchema)
-    return Response.json({ place: addPlace(db(), (await currentUser(req)).id, input) }, { status: 201 })
+    return Response.json({ place: await addPlace(db(), (await currentUser(req)).id, input) }, { status: 201 })
   })
 }
