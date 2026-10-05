@@ -61,6 +61,16 @@ OpenSpec validation checks artifact structure and specification consistency; it 
 
 Reference: [OpenSpec quickstart](https://openspec.dev/docs/quickstart).
 
+## Git branch conventions
+
+- `main` is the integration branch. Use a topic branch and a pull request for changes; do not commit directly to `main`.
+- Name new branches `<type>/<short-description>`, using the commit types below and lowercase letters, digits, and hyphens within each segment. Examples: `fix/booking-timezone` and `docs/branch-conventions`. Do not use the `codex/` prefix. Follow an explicit user-provided branch name when given.
+- Keep each branch focused on one feature, fix, or documentation task. When implementing an OpenSpec change, reuse its change name as the description where practical, such as `feat/connect-google-calendars`.
+- Start new, independent work from the latest `origin/main` after fetching. Continue an existing task on its existing branch; use another base only when the task explicitly depends on it.
+- Inspect the current branch and working tree before switching or creating branches. Preserve unrelated local changes; use a separate worktree when isolation is needed. Do not rename an existing branch just to match this convention.
+- Keep shared branch history intact. Do not force-push or rebase a shared branch without explicit authorization.
+- Delete a topic branch after its pull request is merged and its work is no longer needed. Do not delete branches with unmerged work or active worktrees.
+
 ## Commit messages
 
 Use Conventional Commit types with the Lore Commit Protocol. Start every commit message with `type(scope): intent`; the scope is optional. Keep the intent concise, use an imperative verb, and explain why the change is needed.
