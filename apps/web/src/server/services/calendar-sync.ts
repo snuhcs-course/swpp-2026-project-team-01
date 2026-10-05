@@ -190,9 +190,9 @@ export async function syncCalendar(ctx:ServiceContext,userId:string,input:SyncIn
 export async function readScheduleSources(db:Db,userId:string,scope:'schedule'|'analysis'='schedule'):Promise<CalendarSourceInput[]> {
  const c=await connection(db,userId,false);if(!c||c.status==='disconnected')return []
  const snapshot=scope==='schedule'?c.schedule_snapshot_id:c.analysis_snapshot_id;if(!snapshot)return []
- const rows=await all<{field_fingerprints_json:string}>(db,'SELECT e.field_fingerprints_json FROM imported_events e JOIN calendar_sources s ON s.connection_id=? AND s.provider_calendar_id=e.calendar_id AND s.selected=1 WHERE e.snapshot_id=?',[c.id,snapshot])
- const result:CalendarSourceInput[]=[]
- for(const row of rows){const source=JSON.parse(row.field_fingerprints_json).source as CalendarSourceInput;const [calendarId,eventId]=JSON.parse(source.sourceKey) as string[];const annotation=await one<AnnotationProjection>(db,'SELECT * FROM event_annotations WHERE connection_id=? AND calendar_id=? AND provider_event_id=?',[c.id,calendarId,eventId]);result.push(projectAnnotation(row.field_fingerprints_json,annotation))}
+ // The user's supplements come back in the same query: this runs for both people on every candidate computation.
+ const rows=await all<{field_fingerprints_json:string;a_fields:string|null;a_values:string|null;a_revision:number|null}>(db,'SELECT e.field_fingerprints_json,a.field_fingerprints_json a_fields,a.values_json a_values,a.revision a_revision FROM imported_events e JOIN calendar_sources s ON s.connection_id=? AND s.provider_calendar_id=e.calendar_id AND s.selected=1 LEFT JOIN event_annotations a ON a.connection_id=s.connection_id AND a.calendar_id=e.calendar_id AND a.provider_event_id=e.provider_event_id WHERE e.snapshot_id=?',[c.id,snapshot])
+ const result:CalendarSourceInput[]=rows.map(row=>projectAnnotation(row.field_fingerprints_json,row.a_fields===null?undefined:{field_fingerprints_json:row.a_fields,values_json:row.a_values!,revision:row.a_revision!}))
  const busy=await all<{id:string;start_at:number;end_at:number}>(db,'SELECT b.* FROM imported_busy_intervals b JOIN calendar_sources s ON s.connection_id=? AND s.provider_calendar_id=b.calendar_id AND s.selected=1 WHERE b.snapshot_id=?',[c.id,snapshot])
  return result.concat(busy.map(b=>({sourceKey:b.id,startMs:b.start_at,endMs:b.end_at,eventType:'freeBusy' as const})))
 }

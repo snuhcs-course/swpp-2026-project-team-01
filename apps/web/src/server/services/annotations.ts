@@ -9,12 +9,17 @@ interface EventRow{id:string;connection_id:string;calendar_id:string;provider_ev
 async function event(db:Db,userId:string,id:string){const row=await one<EventRow>(db,`SELECT e.*,c.id connection_id FROM imported_events e JOIN calendar_connections c ON (e.snapshot_id=c.analysis_snapshot_id OR e.snapshot_id=c.schedule_snapshot_id) JOIN calendar_sources s ON s.connection_id=c.id AND s.provider_calendar_id=e.calendar_id WHERE c.user_id=? AND e.id=? AND s.selected=1 AND c.status<>'disconnected'`,[userId,id]);if(!row)throw new DomainError('not_found','가져온 일정을 찾을 수 없어요');return row}
 function annotation(db:Db,e:EventRow){return one<AnnotationProjection>(db,'SELECT * FROM event_annotations WHERE connection_id=? AND calendar_id=? AND provider_event_id=?',[e.connection_id,e.calendar_id,e.provider_event_id])}
 /** The newest AI proposal for exactly this content under the current labelling rules, whichever model produced it. Never an authority: the user's own value wins. */
-async function aiClassification(db:Db,e:EventRow):Promise<'business'|'personal'|'unknown'|null>{
- const row=await one<{p:string}>(db,'SELECT proposal_json p FROM event_classifications WHERE connection_id=? AND calendar_id=? AND provider_event_id=? AND content_fingerprint=? AND schema_version=? ORDER BY seq DESC LIMIT 1',[e.connection_id,e.calendar_id,e.provider_event_id,e.content_fingerprint,CLASSIFICATION_SCHEMA_VERSION])
- if(!row)return null
- try{const value=JSON.parse(row.p).classification;return value==='business'||value==='personal'||value==='unknown'?value:null}catch{return null}
+const AI_SQL='SELECT proposal_json FROM event_classifications k WHERE k.connection_id=c.id AND k.calendar_id=e.calendar_id AND k.provider_event_id=e.provider_event_id AND k.content_fingerprint=e.content_fingerprint AND k.schema_version=? ORDER BY k.seq DESC LIMIT 1'
+function parseAi(p:string|null):'business'|'personal'|'unknown'|null{
+ if(!p)return null
+ try{const value=JSON.parse(p).classification;return value==='business'||value==='personal'||value==='unknown'?value:null}catch{return null}
 }
-async function toView(db:Db,e:EventRow){const a=await annotation(db,e),source=projectAnnotation(e.field_fingerprints_json,a),patch=a?JSON.parse(a.values_json):{},fields=JSON.parse(e.field_fingerprints_json),old=a?JSON.parse(a.field_fingerprints_json):fields;return {eventId:e.id,title:e.title??'제목 없음',startAt:e.start_at,endAt:e.end_at,allDay:!!e.all_day,startDate:e.start_date,endDate:e.end_date,timezone:e.timezone,revision:a?.revision??0,sourceFingerprint:e.content_fingerprint,patch,needsConfirmation:!!a&&((patch.locationKind&&old.location!==fields.location)||(patch.classification&&old.classification!==fields.classification)),locationKind:source.confirmedLocation?.kind??source.kind??'none',classification:source.userClassification??'unknown',aiClassification:await aiClassification(db,e)}}
+async function aiClassification(db:Db,e:EventRow){
+ const row=await one<{p:string}>(db,'SELECT proposal_json p FROM event_classifications WHERE connection_id=? AND calendar_id=? AND provider_event_id=? AND content_fingerprint=? AND schema_version=? ORDER BY seq DESC LIMIT 1',[e.connection_id,e.calendar_id,e.provider_event_id,e.content_fingerprint,CLASSIFICATION_SCHEMA_VERSION])
+ return parseAi(row?.p??null)
+}
+async function toView(db:Db,e:EventRow){return viewOf(e,await annotation(db,e),await aiClassification(db,e))}
+function viewOf(e:EventRow,a:AnnotationProjection|undefined,ai:'business'|'personal'|'unknown'|null){const source=projectAnnotation(e.field_fingerprints_json,a),patch=a?JSON.parse(a.values_json):{},fields=JSON.parse(e.field_fingerprints_json),old=a?JSON.parse(a.field_fingerprints_json):fields;return {eventId:e.id,title:e.title??'제목 없음',startAt:e.start_at,endAt:e.end_at,allDay:!!e.all_day,startDate:e.start_date,endDate:e.end_date,timezone:e.timezone,revision:a?.revision??0,sourceFingerprint:e.content_fingerprint,patch,needsConfirmation:!!a&&((patch.locationKind&&old.location!==fields.location)||(patch.classification&&old.classification!==fields.classification)),locationKind:source.confirmedLocation?.kind??source.kind??'none',classification:source.userClassification??'unknown',aiClassification:ai}}
 /** One owned event for the detail panel: what the source provided (read-only) beside the user's supplement. */
 export async function getImportedEventDetail(ctx:ServiceContext,userId:string,eventId:string):Promise<ImportedEventDetail>{
  const e=await event(ctx.db,userId,eventId)
@@ -25,9 +30,14 @@ export async function getImportedEventDetail(ctx:ServiceContext,userId:string,ev
  return {...await toView(ctx.db,e),detail:{calendarName:name,status:e.status==='tentative'?'tentative':'confirmed',busy:!!e.busy,providedLocation:(source.placeRef??e.location)||null,providedKind:kind,onlineLink:!!source.hasOnlineLink}}
 }
 export async function listImportedEvents(ctx:ServiceContext,userId:string){
- const rows=await all<{id:string}>(ctx.db,`SELECT e.id FROM imported_events e JOIN calendar_connections c ON (e.snapshot_id=c.schedule_snapshot_id OR e.snapshot_id=c.analysis_snapshot_id) JOIN calendar_sources s ON s.connection_id=c.id AND s.provider_calendar_id=e.calendar_id WHERE c.user_id=? AND s.selected=1 AND c.status<>'disconnected' ORDER BY e.start_at DESC LIMIT 500`,[userId])
+ // One query for the whole list, supplements and newest AI proposal included: the database can be a long round trip away.
+ const rows=await all<EventRow&{a_fields:string|null;a_values:string|null;a_revision:number|null;ai:string|null}>(ctx.db,`SELECT e.*,c.id connection_id,a.field_fingerprints_json a_fields,a.values_json a_values,a.revision a_revision,(${AI_SQL}) ai
+  FROM imported_events e JOIN calendar_connections c ON (e.snapshot_id=c.schedule_snapshot_id OR e.snapshot_id=c.analysis_snapshot_id)
+  JOIN calendar_sources s ON s.connection_id=c.id AND s.provider_calendar_id=e.calendar_id
+  LEFT JOIN event_annotations a ON a.connection_id=c.id AND a.calendar_id=e.calendar_id AND a.provider_event_id=e.provider_event_id
+  WHERE c.user_id=? AND s.selected=1 AND c.status<>'disconnected' ORDER BY e.start_at DESC LIMIT 500`,[CLASSIFICATION_SCHEMA_VERSION,userId])
  const seen=new Set<string>(),views=[]
- for(const r of rows){const e=await event(ctx.db,userId,r.id),key=JSON.stringify([e.calendar_id,e.provider_event_id]);if(seen.has(key))continue;seen.add(key);views.push(await toView(ctx.db,e))}
+ for(const e of rows){const key=JSON.stringify([e.calendar_id,e.provider_event_id]);if(seen.has(key))continue;seen.add(key);views.push(viewOf(e,e.a_fields===null?undefined:{field_fingerprints_json:e.a_fields,values_json:e.a_values!,revision:e.a_revision!},parseAi(e.ai)))}
  return views
 }
 export function saveAnnotation(ctx:ServiceContext,userId:string,input:SaveAnnotationInput,op:OperationMeta){const {eventId,...body}=input,parsed=annotationSchema.parse(body);return runOperation(ctx,userId,'calendar.annotation',{eventId,...parsed},op,async tx=>{
