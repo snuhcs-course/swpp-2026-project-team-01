@@ -43,7 +43,7 @@ References: [Cloudflare CLI setup](https://developers.cloudflare.com/cf/get-star
 - Read the relevant files before editing and avoid guessing the product architecture or dependencies.
 - Keep secrets, credentials, and local environment files out of Git. Add examples when configuration needs to be shared.
 - Run the relevant checks for files you change, and report any checks that cannot run.
-- Update documentation when setup steps or behavior change.
+- For every feature change, check whether product, UX, technical, setup, or API documentation needs updating. Update the owning documents in the same change when behavior or setup changes; if no update is needed, say why in the final report.
 
 ## Documentation and specifications
 
