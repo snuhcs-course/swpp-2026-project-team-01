@@ -3,7 +3,7 @@ import { idSchema } from "./common"
 export const returnPathSchema = z.string().max(2048).refine(path => {
   if (!path.startsWith("/") || path.startsWith("//") || /[\\\s\u0000-\u001f]/.test(path) || /%(?:2f|5c|0[ad])/i.test(path)) return false
   const pathname = path.split(/[?#]/)[0]
-  return pathname === "/" || ["/calendar", "/book", "/requests", "/settings", "/onboarding"].some(p => pathname === p || pathname.startsWith(p + "/"))
+  return pathname === "/" || /^\/invite\/[A-Za-z0-9_-]{24}$/.test(pathname) || ["/calendar", "/book", "/requests", "/settings", "/onboarding"].some(p => pathname === p || pathname.startsWith(p + "/"))
 }, "앱 내부의 복귀 경로를 지정해 주세요")
 export const authStartSchema = z.strictObject({ purpose: z.enum(["login", "calendar"]), returnPath: returnPathSchema })
 export type AuthStartInput = z.infer<typeof authStartSchema>
