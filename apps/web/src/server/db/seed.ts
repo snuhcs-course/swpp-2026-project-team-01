@@ -114,6 +114,11 @@ export async function seed(db: Db, nowMs: number): Promise<void> {
         }
       }
     }
+    // 김민준 already knows both clients. 이서연 knows no one, so the demo can show adding someone through a booking link.
+    const now = nowMs
+    for (const [a, b] of [[SEED_USERS.minjun.id, SEED_USERS.jiho.id], [SEED_USERS.minjun.id, SEED_USERS.hana.id]]) {
+      await tx.insert(schema.contacts).values([{ ownerId: a, contactId: b, createdAt: now }, { ownerId: b, contactId: a, createdAt: now }])
+    }
     for (const key of ["minjun", "seoyeon"] as const) {
       const hostId = SEED_USERS[key].id
       for (const p of HOSTING[key].places) await tx.insert(schema.places).values({ id: randomUUID(), hostId, kind: p.kind, name: p.name })

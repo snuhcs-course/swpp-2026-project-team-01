@@ -8,6 +8,7 @@ import {createDraft,patchDraft,confirmProfile} from '@/server/services/profile'
 type Fixture=Awaited<ReturnType<typeof searchFixture>>
 async function addClient(f:Fixture,id:string){
  ;(await f.sqlite.prepare('INSERT INTO users(id,name) VALUES (?,?)').run(id,id))
+ ;(await f.sqlite.prepare("INSERT INTO contacts(owner_id,contact_id,created_at) VALUES (?,'host',0),('host',?,0)").run(id,id))
  const draft=await createDraft(f.ctx,id,{purpose:'onboarding'},{key:'draft'})
  const patched=await patchDraft(f.ctx,id,{draftId:draft.draftId,expectedRevision:0,patch:{meetingWindows:[1,2,3,4,5].map(weekday=>({weekday,startMin:540,endMin:1080})),preferences:{weekdays:null,startTime:null,meetingMode:{value:'online',strength:'strong'},slack:null}},topicConfirmations:{work:'confirmed',meetingWindows:'confirmed',preferences:'confirmed'}},{key:'patch'})
  await confirmProfile(f.ctx,id,{draftId:draft.draftId,expectedRevision:patched.revision,baseProfileVersion:null},{key:'confirm'})

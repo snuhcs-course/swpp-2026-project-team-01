@@ -5,7 +5,7 @@ import {makeContext} from '@/server/runtime'
 import {createSearch,changeConditions,readSearch} from '@/server/services/search'
 import {createDraft,patchDraft,confirmProfile} from '@/server/services/profile'
 export async function searchFixture(){
- const store=await emptyDb();(await store.sqlite.exec("INSERT INTO users(id,name) VALUES ('client','Client'),('host','Host');INSERT INTO places(id,host_id,kind,name) VALUES ('online','host','online','Online');INSERT INTO meeting_types(id,host_id,name,duration_min) VALUES ('short','host','Short',30)"))
+ const store=await emptyDb();(await store.sqlite.exec("INSERT INTO users(id,name) VALUES ('client','Client'),('host','Host');INSERT INTO places(id,host_id,kind,name) VALUES ('online','host','online','Online');INSERT INTO meeting_types(id,host_id,name,duration_min) VALUES ('short','host','Short',30);INSERT INTO contacts(owner_id,contact_id,created_at) VALUES ('client','host',0),('host','client',0)"))
  const ctx=makeContext(store.db,{now:()=>Date.parse('2026-10-05T00:00:00+09:00')})
  for(const user of ['client','host']){
   const draft=await createDraft(ctx,user,{purpose:'onboarding'},{key:'draft'})
