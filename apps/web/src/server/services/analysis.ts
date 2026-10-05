@@ -53,6 +53,8 @@ export async function analyzeDraft(ctx:ServiceContext,userId:string,input:Analyz
    await run(tx,'INSERT INTO analysis_runs(id,user_id,snapshot_id,annotation_revision,from_at,to_at,status,coverage_json,summary_json) VALUES (?,?,?,?,?,?,?,?,?)',[id,userId,snapshot.snapshotId,annotation,fromMs,toMs,summary.coverage.partial?'partial':'complete',JSON.stringify(summary.coverage),JSON.stringify(summary)])
    await run(tx,'INSERT INTO analysis_evidence(id,analysis_id,aggregation_rule_json,observation_count,from_at,to_at) VALUES (?,?,?,?,?,?)',[evidence,id,JSON.stringify({rule:'business-starts-within-history',version:1}),summary.counts.business,fromMs,toMs])
    const text=describeHistory(summary)
+   // Each analysis starts the conversation over: earlier replies were about the previous reading of the calendar.
+   await run(tx,'DELETE FROM draft_messages WHERE draft_id=?',[draftId])
    await run(tx,"INSERT INTO draft_messages(id,draft_id,operation_id,role,content,evidence_id,created_at) VALUES (?,?,?,'assistant',?,?,?)",[ctx.id(),draftId,claim.id,text,evidence,ctx.clock.now()])
    await run(tx,'UPDATE profile_drafts SET analysis_id=?,revision=revision+1,updated_at=? WHERE id=?',[id,ctx.clock.now(),draftId])
    return getDraft(tx,userId,draftId)

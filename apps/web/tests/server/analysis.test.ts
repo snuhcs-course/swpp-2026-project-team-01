@@ -3,6 +3,7 @@ import { fixture, event } from '../fixtures/google-calendar-provider'
 import { syncCalendar } from '@/server/services/calendar-sync'
 import { createDraft } from '@/server/services/profile'
 import { analyzeDraft } from '@/server/services/analysis'
+import { onboardingTurn } from '@/server/services/onboarding'
 import type { ChatClient } from '@/llm/ollama'
 
 const fixtures: Awaited<ReturnType<typeof fixture>>[] = []
@@ -35,6 +36,20 @@ describe('history analysis', () => {
     expect(first.messages.at(-1)?.content).not.toContain('분류하지 못한')
     await analyzeDraft(f.ctx, 'owner', { draftId: draft.draftId, expectedRevision: first.revision }, { key: 'a2' })
     expect(calls).toHaveLength(1)
+  })
+  it('answers a question about the analysis from its results, and a new analysis starts the conversation over', async () => {
+    const { f, draft } = await setup()
+    f.ctx.llm = model([])
+    const analysed = await analyzeDraft(f.ctx, 'owner', { draftId: draft.draftId, expectedRevision: draft.revision }, { key: 'a1' })
+    const asked = await onboardingTurn(f.ctx, 'owner', { draftId: draft.draftId, expectedRevision: analysed.revision, text: '내 근무시간은 어떻게 생각했어' }, { key: 't1' })
+    const reply = asked.messages.at(-1)!.content
+    expect(reply).toContain('업무로 분류된 일정이 1건뿐이라 근무시간은 짐작하기 어려워요')
+    expect(reply).not.toContain('해석하지 못했어요')
+    expect(asked.values).toEqual(analysed.values)                       // a question changes no setting
+    expect(asked.messages).toHaveLength(3)
+    const again = await analyzeDraft(f.ctx, 'owner', { draftId: draft.draftId, expectedRevision: asked.revision }, { key: 'a2' })
+    expect(again.messages).toHaveLength(1)
+    expect(again.messages[0].content).toContain('지난 8주 일정')
   })
   it('does not reuse a proposal cached under older labelling rules', async () => {
     const { f, draft } = await setup(), calls: { items: number }[] = []

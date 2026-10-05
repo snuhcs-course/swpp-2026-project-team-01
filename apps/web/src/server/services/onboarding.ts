@@ -1,7 +1,8 @@
+import { historyQuestion, answerFromHistory } from '@/core/briefing'
 import { DomainError, type OperationMeta } from '@/contracts/common'
 import { onboardingTurnSchema, type OnboardingTurnInput, type ProfileDraftView } from '@/contracts/profile'
 import { interpretOnboarding, explainOnboarding } from '@/llm/onboarding'
-import { lock, run } from '../db/client'
+import { lock, run , one } from '../db/client'
 import type { ServiceContext } from '../runtime'
 import { getDraft } from './profile'
 import { beginOperation, finishOperation, failOperation } from './operations'
@@ -15,7 +16,10 @@ export async function onboardingTurn(ctx:ServiceContext, actorId:string, input:O
   const client=ctx.llm ?? {chat:async()=>{throw new Error('Unavailable')}}
   const interpreted=await interpretOnboarding(client,{text:parsed.text,values:draft.values})
   const topics={...draft.topics};for(const topic of interpreted.confirmedTopics)topics[topic]='confirmed'
-  const reply=await explainOnboarding(client,{values:interpreted.values,topics,changed:interpreted.changed,interpretFailed:interpreted.failed})
+  const asked=historyQuestion(parsed.text)
+  const analysis=asked?await one<{summary_json:string}>(ctx.db,'SELECT r.summary_json FROM analysis_runs r JOIN profile_drafts d ON d.analysis_id=r.id WHERE d.id=?',[draftId]):undefined
+  const answer=asked?answerFromHistory(analysis?JSON.parse(analysis.summary_json):null,asked):undefined
+  const reply=await explainOnboarding(client,{values:interpreted.values,topics,changed:interpreted.changed,interpretFailed:interpreted.failed,answer})
   return await finishOperation(ctx,claim,async tx=>{
    await lock(tx,`profile:${actorId}`)
    if(ctx.clock.now()-claim.startedAt>=90000)throw new DomainError('operation_timeout','시간이 초과됐어요. 다시 시도해 주세요',true)

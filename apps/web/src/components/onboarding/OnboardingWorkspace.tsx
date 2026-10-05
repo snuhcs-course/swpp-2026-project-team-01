@@ -99,7 +99,7 @@ export function OnboardingWorkspace({ initialDraft, initialReview = false, autoA
     </Card> : <div className="grid items-start gap-6 lg:grid-cols-2">
       <Card><SectionHeader title="직접 설정" description="입력하면 잠시 뒤 초안에 자동 저장돼요." /><ProfileEditor form={draft.state.form} onChange={draft.edit} /></Card>
       <div className="space-y-5">
-        {calendarImported && <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-dashed border-border-strong px-4 py-3"><p className="text-small text-muted">{analyzed ? '일정을 다시 가져왔다면 분석도 새로 할 수 있어요' : 'Calendar에서 가져온 지난 8주 일정을 AI가 살펴봐요'}</p><Button size="sm" disabled={!ready} onClick={() => void analyze()}>{ai.pending ? <><Spinner />분석 중…</> : analyzed ? '다시 분석' : '가져온 일정 분석하기'}</Button></div>}
+        {calendarImported && <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-dashed border-border-strong px-4 py-3"><p className="text-small text-muted">{analyzed ? '다시 분석하면 대화가 새로 시작돼요. 입력한 설정은 그대로예요.' : 'Calendar에서 가져온 지난 8주 일정을 AI가 살펴봐요'}</p><Button size="sm" disabled={!ready} onClick={() => void analyze()}>{ai.pending ? <><Spinner />분석 중…</> : analyzed ? '다시 분석' : '가져온 일정 분석하기'}</Button></div>}
         <OnboardingChat messages={draft.state.saved.messages} text={text} onText={setText} onSend={() => void send()} disabled={!ready} pending={ai.pending} />
         <WeekSchedule values={parsed.success ? parsed.data : draft.state.saved.values} />
         {!parsed.success && <p className="text-caption text-warn-ink">잘못된 입력은 주간표에 적용하지 않았어요. 마지막 저장값을 표시해요.</p>}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { analyzeHistory, resolveClassification, type AnalysisEvent } from "@/core/analysis"
-import { describeHistory } from "@/core/briefing"
+import { answerFromHistory, describeHistory, historyQuestion } from "@/core/briefing"
 import { DAY_MS } from "@/core/time"
 const toMs = Date.parse("2026-10-05T00:00:00+09:00")
 const range = { fromMs: toMs - 56 * DAY_MS, toMs }
@@ -70,5 +70,19 @@ describe("estimates from past business events", () => {
     expect(summary.estimate.workHours).toBeNull()
     expect(summary.estimate.basedOn).toBe(3)
     expect(describeHistory(summary)).toContain("추정하기는 어려워요")
+  })
+})
+
+describe("questions about the analysis", () => {
+  it("recognizes questions and their topic, and leaves statements alone", () => {
+    expect(historyQuestion("내 근무시간은 어떻게 생각했어")).toEqual(["work"])
+    expect(historyQuestion("미팅은 주로 언제 했어?")).toEqual(["meeting"])
+    expect(historyQuestion("분석 결과 알려줘")).toEqual(["work", "meeting", "place"])
+    expect(historyQuestion("평일 10시부터 6시까지 미팅 가능해요")).toBeNull()
+  })
+  it("answers only from the stored analysis", () => {
+    expect(answerFromHistory(null, ["work"])).toContain("아직 가져온 일정을 분석하지 않았어요")
+    const old = { counts: { business: 2, personal: 0, unknown: 0 } } as unknown as Parameters<typeof answerFromHistory>[0]
+    expect(answerFromHistory(old, ["work"])).toContain("다시 분석")
   })
 })
