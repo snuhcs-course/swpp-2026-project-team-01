@@ -13,6 +13,8 @@ import {
   writePrivateJson,
 } from "./oauth-probe-lib.mjs";
 
+process.umask(0o077);
+
 const origin = process.env.P0_PROBE_ORIGIN ?? "http://127.0.0.1:8788";
 const parsedOrigin = new URL(origin);
 if (!/^127\.0\.0\.1$|^localhost$/.test(parsedOrigin.hostname))
@@ -156,7 +158,17 @@ const server = createServer(async (request, response) => {
           readJson(journeyFile(name)),
         ),
       );
-      const state = journey.find(
+      const nativeRegistry = await readJson(
+        path.join(scratch, "oauth-native-clients.json"),
+        { clients: [] },
+      );
+      const nativeStates = (nativeRegistry.clients ?? []).map((client) => ({
+        authBase,
+        resource: client.resource,
+        discovery: client.discovery,
+        client: { client_id: client.clientId },
+      }));
+      const state = [...journey, ...nativeStates].find(
         (candidate) =>
           candidate?.client?.client_id ===
           (() => {
@@ -199,6 +211,12 @@ const server = createServer(async (request, response) => {
                 name: "diagnostic.read",
                 description: "Return allowlisted OAuth binding diagnostics",
                 inputSchema: { type: "object", additionalProperties: false },
+                annotations: {
+                  readOnlyHint: true,
+                  destructiveHint: false,
+                  idempotentHint: true,
+                  openWorldHint: false,
+                },
               },
             ],
           },

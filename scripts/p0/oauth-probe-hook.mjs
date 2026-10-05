@@ -4,8 +4,11 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { journeyFile, readJson, root, scratch } from "./oauth-probe-lib.mjs";
 
+process.umask(0o077);
+
 const container = "supabase_db_fmat-p0-oauth-probe";
 const resource = "http://127.0.0.1:8788/mcp";
+const nativeClientsFile = path.join(scratch, "oauth-native-clients.json");
 const command = process.argv[2] ?? "help";
 
 async function guardLocalTarget() {
@@ -93,6 +96,35 @@ if (command === "install") {
     requestedResource: state.resource,
     mappedResource: resource,
   };
+} else if (command === "allow-native") {
+  await guardLocalTarget();
+  const nameIndex = process.argv.indexOf("--name");
+  const name = nameIndex >= 0 ? process.argv[nameIndex + 1] : null;
+  const registry = await readJson(nativeClientsFile, { clients: [] });
+  const client = registry.clients?.find((candidate) => candidate.name === name);
+  if (
+    !client ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      client.clientId,
+    ) ||
+    client.resource !== resource ||
+    client.status !== "pending"
+  )
+    throw new Error("VALID_PENDING_NATIVE_CLIENT_REQUIRED");
+  const registered = Number(
+    psql(
+      "select count(*) from auth.oauth_clients where id = :'client_id'::uuid;",
+      { client_id: client.clientId },
+    ),
+  );
+  if (registered !== 1) throw new Error("REGISTERED_AUTH_CLIENT_REQUIRED");
+  psql(
+    `insert into p0_probe.oauth_client_resources(client_id, resource)
+     values (:'client_id'::uuid, :'resource')
+     on conflict (client_id) do update set resource = excluded.resource;`,
+    { client_id: client.clientId, resource },
+  );
+  result = { allowed: true, name, clientId: client.clientId, resource };
 } else if (command === "verify") {
   await guardLocalTarget();
   const output = psql(
@@ -104,6 +136,7 @@ if (command === "install") {
   node scripts/p0/oauth-probe-hook.mjs install
   node scripts/p0/oauth-probe-hook.mjs allow --journey browser|terminal
   node scripts/p0/oauth-probe-hook.mjs allow-fixed-resource --journey browser|terminal
+  node scripts/p0/oauth-probe-hook.mjs allow-native --name NAME
   node scripts/p0/oauth-probe-hook.mjs verify
 
 The command refuses targets other than the isolated 55321/55322 probe stack.`);
