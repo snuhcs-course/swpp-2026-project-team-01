@@ -30,7 +30,7 @@ apps/
     src/                        # Photon subscription, scoped backend calls and health
     test/                       # Provider fixtures; no external messages
     Dockerfile
-    fly.toml                    # Reserved Fly app; Machine deployment pending
+    fly.toml                    # Fly singleton deployed in Tokyo
     package.json
     package-lock.json
     README.md
@@ -87,7 +87,7 @@ Module/provider tests live beside the code they exercise. Web checks, local RPC 
 | HTTP API | `supabase/functions/api` | Validate inputs, resolve access, invoke shared operations and handle Calendar consent callbacks; public skill documents remain planned. |
 | Remote MCP (planned) | `supabase/functions/mcp` | Map tool calls to the same shared operations with OAuth and request-scoped authorization. |
 | Email and general iMessage scheduling inputs (planned) | `supabase/functions/webhooks` | Verify provider origin, persist deduplicated inputs, and enqueue processing. |
-| Private iMessage host setup | `apps/photon-bridge` | Node 24 Photon transport into scoped setup commands; Fly app reserved, server deployment pending. |
+| Private iMessage host setup | `apps/photon-bridge` | Node 24 Photon transport into scoped setup commands; Fly singleton deployed; live linked-host journey pending. |
 | Queued work | `supabase/functions/worker` | Consume bounded batches for conversation processing, booking, reconciliation, and delivery. |
 
 Email and iMessage remain adapters to the shared command boundary. The implemented private iMessage setup adapter has a separate Node process because Photon uses a persistent gRPC connection. ChatGPT, Codex, Claude, Claude Code, Dots, Muse, and Instinct use shared interfaces; record their differences in compatibility tests and connection guidance. Add client-specific code only for a demonstrated compatibility need.

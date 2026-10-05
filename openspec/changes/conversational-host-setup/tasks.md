@@ -31,7 +31,7 @@
 - [x] 5.1 Add the narrow Node 24 bridge with pinned Spectrum 12.10.1 dependencies, scoped backend authentication, bounded operations, and clean shutdown; verify startup/reconnect/health and reject forged events, groups, and unlinked identities using fixtures.
 - [x] 5.2 Add durable provider-ID deduplication, per-conversation turn ordering, outbound intent/clientMessageId and outcome reconciliation; verify restart, duplicate/out-of-order messages, lost acknowledgements, and no blind resend.
 - [x] 5.3 Recheck admission/link authority before processing and dispatch; verify unlink races and cross-host attempts cannot read or modify setup or send private replies.
-- [ ] 5.4 Add container/runtime setup documentation and identify and provision a persistent production hosting target before deployment; verify secret injection, restart recovery, health checks, and an honest website fallback when the bridge is unavailable.
+- [x] 5.4 Add container/runtime setup documentation and identify and provision a persistent production hosting target before deployment; verify secret injection, restart recovery, health checks, and an honest website fallback when the bridge is unavailable.
 
 ## 6. Cross-channel acceptance
 
@@ -46,6 +46,6 @@
 - Website fixtures cover host setup 14 areas/9mutations and requester 10 areas/24mutations; existing browser 25 areas/17mutations andworkspace 9 areas pass. Desktop,390px and320px layout checks pass.
 - Manual visual verdict iteration6 scored 93/pass in `.omx/state/conversational-host-setup/ralph-progress.json`. The installed visual-verdict skill is a shim without its referenced full body; the accessible screenshot/review fallback and this limitation are recorded.
 - Landing/public intake eager JavaScript is approximately 324 kB (entry225.11kB);654.05kB chat runtime is deferred. The remaining lazy chunk size warning is visible.
-- Fly CLI `0.4.111` is authenticated and `fmat-photon-bridge` is reserved in `personal`; strict configuration validation and the local Linux/amd64 Node 24 container checks pass (`/health` 200, disabled `/ready` 503). The [preparation evidence](../../../scripts/p0/fly-bridge-preparation-2026-10-05.json) confirms zero Machines. Task 5.4 remains unchecked for recurring spend/billing readiness, deployment, secret injection and production recovery verification; the real linked-host journey and archive remain pending.
+- Fly CLI `0.4.111` is authenticated. One 512 MB Machine runs in Tokyo with auto-stop disabled and restart policy `always`; the dedicated credential is present in Fly and Supabase. Production `/ready` and Fly health checks pass, the backend scoped resume returns 200, unauthenticated access returns 401, and readiness recovers after a Machine restart. The [live evidence](../../../scripts/p0/fly-bridge-live-results-2026-10-05.json) closes task 5.4. The real linked-host journey and archive remain pending.
 
-- Production website/API/database rollout succeeded for release `d6d1a62`; the authenticated host chat and preserved 5/5 readiness were checked in the actual browser. Disabled bridge middleware returns 503 and the website fallback is visible. This deployment does not complete tasks 5.4 or 6.2.
+- Production website/API/database rollout succeeded for release `d6d1a62`; the authenticated host chat and preserved 5/5 readiness were checked in the actual browser. Disabled bridge middleware returns 503 and the website fallback is visible. That earlier web/backend deployment did not complete tasks 5.4 or 6.2; the later Fly deployment closes 5.4 only.

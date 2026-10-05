@@ -1,4 +1,4 @@
-# App reserved in the personal organization; no Machine deployed as of 2026-10-05.
+# Production singleton in personal/nrt deployed 2026-10-05; preserve --ha=false on deploy.
 app = "fmat-photon-bridge"
 primary_region = "nrt"
 kill_signal = "SIGTERM"

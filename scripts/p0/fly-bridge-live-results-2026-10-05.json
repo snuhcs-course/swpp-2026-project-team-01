@@ -1,0 +1,38 @@
+{
+  "capturedAtUtc": "2026-10-05T10:05:09.497447+00:00",
+  "app": "fmat-photon-bridge",
+  "flyOrg": "personal",
+  "machineCount": 1,
+  "machineId": "857555b44e0528",
+  "region": "nrt",
+  "state": "started",
+  "imageDigest": "sha256:888151f0672dbb345f424bab1792269945b39ad6408a7591156c5c7195d7c8ab",
+  "cpuKind": "shared",
+  "cpus": 1,
+  "memoryMb": 512,
+  "autoStop": false,
+  "restartPolicy": "always",
+  "flyCheckStatus": "passing",
+  "publicReadyHttpStatus": 200,
+  "publicReadyBody": {
+    "ready": true
+  },
+  "backendScopedResumeHttpStatus": 200,
+  "backendWithoutBearerHttpStatus": 401,
+  "restartRecovery": "fly machine restart 857555b44e0528 exited 0 and reported healthy 1/1; post-restart public /ready returned 200",
+  "pricingEstimate": {
+    "calculatorRegion": "nrt",
+    "sharedCpus": 1,
+    "ramMb": 512,
+    "machines": 1,
+    "hoursPerMonth": 730,
+    "volumesGb": 0,
+    "computeUsd": 0.91,
+    "memoryUsd": 3.92,
+    "totalUsd": 4.83,
+    "excludes": "traffic and taxes",
+    "url": "https://fly.io/calculator/"
+  },
+  "liveHostImessageJourneyVerified": false,
+  "manualMessageSentDuringDeploymentVerification": false
+}

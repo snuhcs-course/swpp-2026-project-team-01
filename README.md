@@ -24,17 +24,15 @@ See the [planned repository structure](documentations/technical_specification/02
 
 ## Hosting status
 
-The website and backend are deployed. iMessage host setup is implemented but its server is not running yet.
+The website, backend, and Photon iMessage host-setup bridge are deployed. A real linked-host onboarding journey still needs verification.
 
 | Service | Provider | Current status |
 |---|---|---|
 | Website | Vercel | Live at `findmeatime.com` |
 | Auth, database, API and booking worker | Supabase | Deployed |
-| Photon iMessage setup bridge | Fly.io | CLI authenticated and app reserved; no Machines deployed |
+| Photon iMessage setup bridge | Fly.io | One 512 MB Machine running in Tokyo; readiness passes |
 
-The bridge uses one proposed 512 MB Node 24 server in Tokyo. Recurring spend, billing readiness,
-production deployment and real linked-host verification remain pending. Fly's limited trial is not
-an ongoing free hosting plan. See the [bridge deployment and pricing guide](apps/photon-bridge/README.md#flyio-cli-setup-app-reserved-server-not-deployed)
+The bridge uses one continuously running 512 MB Node 24 server in Tokyo. Fly's calculator estimates $4.83/month for compute before traffic and taxes. The real linked-host journey is still pending. See the [bridge deployment and pricing guide](apps/photon-bridge/README.md#flyio-bridge-deployment)
 and [implementation milestones](documentations/technical_specification/04_implementation_plan.md).
 
 ## Local development
