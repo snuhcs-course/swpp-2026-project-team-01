@@ -177,6 +177,8 @@ export async function syncCalendar(ctx:ServiceContext,userId:string,input:SyncIn
    await insertMany(tx,'imported_busy_intervals',['id','snapshot_id','calendar_id','start_at','end_at'],busy.map(b=>[ctx.id(),snapshotId,b.calendarId,b.start,b.end]))
    await run(tx,`UPDATE calendar_connections SET generation=?,schedule_snapshot_id=?,${scope==='full'?'analysis_snapshot_id=?,':''}revision=revision+1 WHERE id=?`,scope==='full'?[generation,snapshotId,snapshotId,base.id]:[generation,snapshotId,base.id])
    await run(tx,"UPDATE calendar_sync_runs SET status='succeeded',revision=revision+1 WHERE id=?",[runId])
+   // Older snapshots nothing points at any more would otherwise pile up with every import. Keep any an analysis was built on.
+   await run(tx,'DELETE FROM calendar_snapshots s WHERE s.connection_id=? AND s.id NOT IN (SELECT x FROM (SELECT schedule_snapshot_id x FROM calendar_connections WHERE id=? UNION SELECT analysis_snapshot_id FROM calendar_connections WHERE id=?) p WHERE x IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM analysis_runs a WHERE a.snapshot_id=s.id)',[base.id,base.id,base.id])
    await run(tx,"UPDATE users SET calendar_use_state='connected',calendar_use_revision=calendar_use_revision+1,schedule_revision=schedule_revision+1 WHERE id=?",[userId])
    return (await view(tx,snapshotId))!
   })
