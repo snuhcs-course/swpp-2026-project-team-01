@@ -9,12 +9,12 @@ const schema = z.object({
 })
 
 export function GET(req: Request) {
-  return handle(async () => Response.json({ meetingTypes: listMeetingTypes(db(), (await currentUser(req)).id) }))
+  return handle(async () => Response.json({ meetingTypes: await listMeetingTypes(db(), (await currentUser(req)).id) }))
 }
 
 export function POST(req: Request) {
   return handle(async () => {
     const input = await body(req, schema)
-    return Response.json({ meetingType: addMeetingType(db(), (await currentUser(req)).id, input) }, { status: 201 })
+    return Response.json({ meetingType: await addMeetingType(db(), (await currentUser(req)).id, input) }, { status: 201 })
   })
 }

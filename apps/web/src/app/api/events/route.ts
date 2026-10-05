@@ -15,7 +15,7 @@ const schema = z.object({
 })
 
 export function GET(req: Request) {
-  return handle(async () => Response.json({ events: listEvents(db(), (await currentUser(req)).id) }))
+  return handle(async () => Response.json({ events: await listEvents(db(), (await currentUser(req)).id) }))
 }
 
 export function POST(req: Request) {
@@ -26,7 +26,7 @@ export function POST(req: Request) {
     const e = parseHm(input.end)
     if (day === null || s === null || e === null || e <= s) throw new BookingError("invalid", "날짜와 시간을 확인해 주세요 (끝 시각이 시작보다 늦어야 해요)")
     const user = await currentUser(req)
-    const id = addEvent(db(), user.id, {
+    const id = await addEvent(db(), user.id, {
       title: input.title,
       startMs: day + s * MIN_MS,
       endMs: day + e * MIN_MS,
