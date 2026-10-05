@@ -36,10 +36,10 @@ export async function lock(db: Db, ...keys: string[]): Promise<void> {
   for (const key of [...new Set(keys)].sort()) await db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`)
 }
 /** Multi-row INSERT in chunks (one network round trip per chunk instead of per row). `columns` are trusted constants, never user input. */
-export async function insertMany(db: Db, table: string, columns: readonly string[], rows: readonly (readonly unknown[])[], chunk = 200): Promise<void> {
+export async function insertMany(db: Db, table: string, columns: readonly string[], rows: readonly (readonly unknown[])[], chunk = 200, suffix = ""): Promise<void> {
   for (let i = 0; i < rows.length; i += chunk) {
     const part = rows.slice(i, i + chunk)
     const one = `(${columns.map(() => "?").join(",")})`
-    await run(db, `INSERT INTO ${table}(${columns.join(",")}) VALUES ${part.map(() => one).join(",")}`, part.flat())
+    await run(db, `INSERT INTO ${table}(${columns.join(",")}) VALUES ${part.map(() => one).join(",")}${suffix ? ` ${suffix}` : ""}`, part.flat())
   }
 }

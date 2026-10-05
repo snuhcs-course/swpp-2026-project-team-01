@@ -15,12 +15,15 @@ const GROUPS:Record<View,{keys:string[];of:(e:Event)=>string;label:Record<string
  place:{keys:['office','place','online','none'],of:e=>e.locationKind,label:LOCATION_LABEL},
 }
 /** After an import: look through what was brought in, grouped by category or by place, fix anything wrong, then continue. */
-export function ImportReviewDialog({confirmLabel,onConfirm,onClose}:{confirmLabel:string;onConfirm:(changed:boolean)=>void;onClose:()=>void}){
+/** `analysisWindow` is the span the AI classifies (the eight weeks before the import); categories are only meaningful there. */
+export function ImportReviewDialog({confirmLabel,analysisWindow,onConfirm,onClose}:{confirmLabel:string;analysisWindow?:{fromMs:number;toMs:number};onConfirm:(changed:boolean)=>void;onClose:()=>void}){
  const [events,setEvents]=useState<Event[]|null>(null),[error,setError]=useState<string|null>(null),[view,setView]=useState<View>('class'),[changed,setChanged]=useState(false)
  const ref=useRef<HTMLDivElement>(null)
  useEffect(()=>{void request('GET','/api/imported-events',z.array(importedEventViewSchema)).then(r=>{if(r.ok)setEvents(r.data);else setError(r.error.message)})},[])
  useEffect(()=>{ref.current?.focus();const key=(e:KeyboardEvent)=>{if(e.key==='Escape')onClose()};document.addEventListener('keydown',key);return()=>document.removeEventListener('keydown',key)},[onClose])
  const g=GROUPS[view]
+ const inWindow=(e:Event)=>!analysisWindow||(e.startAt>=analysisWindow.fromMs&&e.startAt<analysisWindow.toMs)
+ const shown=events?.filter(e=>view==='place'||inWindow(e))??null
  const update=(e:Event)=>{setChanged(true);setEvents(list=>list?.map(x=>x.eventId===e.eventId?e:x)??null)}
  return <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 sm:items-center sm:p-6" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
   <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="import-review-title" className="flex max-h-[92dvh] w-full max-w-3xl flex-col rounded-t-card bg-surface shadow-xl outline-none sm:rounded-card">
@@ -31,9 +34,10 @@ export function ImportReviewDialog({confirmLabel,onConfirm,onClose}:{confirmLabe
    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
     {error&&<Alert tone="danger" role="alert">{error}</Alert>}
     {!events&&!error&&<p className="flex items-center gap-2 text-small text-muted"><Spinner/>일정을 불러오는 중…</p>}
+    {view==='class'&&events&&events.length>0&&<p className="text-small text-muted">분류는 AI가 살펴본 지난 8주 일정만 보여요. 앞으로의 일정은 장소별에서 확인해요.</p>}
     {events&&events.length===0&&<p className="rounded-control border border-dashed border-border-strong px-4 py-6 text-center text-small text-muted">가져온 일정이 없어요.</p>}
-    {events&&events.length>0&&g.keys.map(key=>{const list=events.filter(e=>g.of(e)===key);return <details key={key} open={list.length>0&&list.length<=8} className="rounded-control border border-border">
-     <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-2 px-3 py-2 font-medium text-ink"><span>{g.label[key]}{view==='class'&&key==='unknown'&&<span className="ml-2 text-caption font-normal text-muted">AI도 판단하지 못했거나 아직 분류 전</span>}</span><Badge tone={list.length?'primary':'neutral'}>{list.length}건</Badge></summary>
+    {shown&&events&&events.length>0&&g.keys.map(key=>{const list=shown.filter(e=>g.of(e)===key);return <details key={key} open={list.length>0&&list.length<=8} className="rounded-control border border-border">
+     <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-2 px-3 py-2 font-medium text-ink"><span>{g.label[key]}{view==='class'&&key==='unknown'&&<span className="ml-2 text-caption font-normal text-muted">AI가 업무·개인을 판단하지 못한 일정</span>}</span><Badge tone={list.length?'primary':'neutral'}>{list.length}건</Badge></summary>
      <ul className="space-y-2 border-t border-border p-2">{list.length===0?<li className="px-2 py-3 text-small text-muted">해당하는 일정이 없어요.</li>:list.map(e=><EventEditor key={`${e.eventId}-${e.revision}`} event={e} hidden={false} onChange={update}/>)}</ul>
     </details>})}
    </div>

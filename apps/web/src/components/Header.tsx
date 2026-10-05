@@ -3,6 +3,7 @@ import Link from "next/link"
 import { currentUser, db, now } from "@/server/context"
 import { listUsers } from "@/server/repos/users"
 import { pendingCount } from "@/server/services/booking"
+import { LogoutButton } from "./LogoutButton"
 import { NavMenu, type NavGroup } from "./NavMenu"
 import { UserSwitcher } from "./UserSwitcher"
 
@@ -38,6 +39,7 @@ export async function Header() {
           {user.name.slice(0, 1)}
         </span>
         {user.name}
+        <LogoutButton />
       </span>
     )
   return (

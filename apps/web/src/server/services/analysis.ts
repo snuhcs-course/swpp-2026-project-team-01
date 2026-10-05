@@ -5,7 +5,7 @@ import { analyzeHistory,type AnalysisEvent } from '@/core/analysis'
 import { DAY_MS,kstDayStart,weekdayKo } from '@/core/time'
 import { classifyEvents,CLASSIFICATION_SCHEMA_VERSION } from '@/llm/classify'
 import type { ServiceContext } from '../runtime'
-import { all, lock, one, run } from '../db/client'
+import { all, insertMany, lock, one, run } from '../db/client'
 import { logEvent,roundMs } from '../log'
 import { readCalendarConnection,readScheduleSources } from './calendar-sync'
 import { getDraft } from './profile'
@@ -23,11 +23,15 @@ export async function analyzeDraft(ctx:ServiceContext,userId:string,input:Analyz
   const cacheRows=await all<{connection_id:string;calendar_id:string;provider_event_id:string;content_fingerprint:string;field_fingerprints_json:string}>(ctx.db,'SELECT c.id connection_id,e.calendar_id,e.provider_event_id,e.content_fingerprint,e.field_fingerprints_json FROM imported_events e JOIN calendar_connections c ON c.analysis_snapshot_id=e.snapshot_id WHERE c.user_id=?',[userId])
   const model=(ctx.llm as {model?:string}|undefined)?.model??'unconfigured'
   const fresh:AnalysisEvent[]=[]
+  // Every cached proposal for this model and labelling version in one query (the database may be far away; never one query per event).
+  const cacheKey=(r:{connection_id:string;calendar_id:string;provider_event_id:string;content_fingerprint:string})=>JSON.stringify([r.connection_id,r.calendar_id,r.provider_event_id,r.content_fingerprint])
+  const cache=new Map((await all<{connection_id:string;calendar_id:string;provider_event_id:string;content_fingerprint:string;proposal_json:string}>(ctx.db,'SELECT connection_id,calendar_id,provider_event_id,content_fingerprint,proposal_json FROM event_classifications WHERE user_id=? AND model_version=? AND schema_version=?',[userId,model,CLASSIFICATION_SCHEMA_VERSION])).map(r=>[cacheKey(r),r.proposal_json]))
+  const sourceKeyOf=new Map(cacheRows.map(row=>[row,JSON.parse(row.field_fingerprints_json).source.sourceKey as string]))
   for(const event of events){
    if(event.userClassification!==undefined)continue
-   const source=cacheRows.find(row=>event.sourceKeys.includes(JSON.parse(row.field_fingerprints_json).source.sourceKey))
-   const cached=source?await one<{proposal_json:string}>(ctx.db,'SELECT proposal_json FROM event_classifications WHERE user_id=? AND connection_id=? AND calendar_id=? AND provider_event_id=? AND content_fingerprint=? AND model_version=? AND schema_version=?',[userId,source.connection_id,source.calendar_id,source.provider_event_id,source.content_fingerprint,model,CLASSIFICATION_SCHEMA_VERSION]):undefined
-   if(cached)event.classification=JSON.parse(cached.proposal_json).classification
+   const source=cacheRows.find(row=>event.sourceKeys.includes(sourceKeyOf.get(row)!))
+   const cached=source?cache.get(cacheKey(source)):undefined
+   if(cached)event.classification=JSON.parse(cached).classification
    else fresh.push(event)
   }
   for(let offset=0;ctx.llm&&offset<Math.min(fresh.length,120)&&ctx.clock.now()-claim.startedAt<65000;offset+=40){
@@ -42,9 +46,8 @@ export async function analyzeDraft(ctx:ServiceContext,userId:string,input:Analyz
    const latest=await readCalendarConnection(tx,userId),current=await getDraft(tx,userId,draftId)
    if(latest.analysis?.snapshotId!==snapshot.snapshotId||latest.status!=='connected'||(await annotationNow(tx))!==annotation)throw new DomainError('source_changed','분석 근거가 변경됐어요')
    if(current.revision!==draft.revision||current.status!=='active')throw new DomainError('revision_conflict','초안이 변경됐어요')
-   for(const event of fresh.filter(e=>e.classification!==undefined))for(const source of cacheRows.filter(row=>event.sourceKeys.includes(JSON.parse(row.field_fingerprints_json).source.sourceKey))){
-    await run(tx,'INSERT INTO event_classifications(id,user_id,connection_id,calendar_id,provider_event_id,content_fingerprint,model_version,schema_version,proposal_json) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING',[ctx.id(),userId,source.connection_id,source.calendar_id,source.provider_event_id,source.content_fingerprint,model,CLASSIFICATION_SCHEMA_VERSION,JSON.stringify({classification:event.classification})])
-   }
+   const proposals=fresh.filter(e=>e.classification!==undefined).flatMap(event=>cacheRows.filter(row=>event.sourceKeys.includes(sourceKeyOf.get(row)!)).map(source=>[ctx.id(),userId,source.connection_id,source.calendar_id,source.provider_event_id,source.content_fingerprint,model,CLASSIFICATION_SCHEMA_VERSION,JSON.stringify({classification:event.classification})]))
+   await insertMany(tx,'event_classifications',['id','user_id','connection_id','calendar_id','provider_event_id','content_fingerprint','model_version','schema_version','proposal_json'],proposals,200,'ON CONFLICT DO NOTHING')
    const id=ctx.id(),evidence=ctx.id()
    await run(tx,'INSERT INTO analysis_runs(id,user_id,snapshot_id,annotation_revision,from_at,to_at,status,coverage_json,summary_json) VALUES (?,?,?,?,?,?,?,?,?)',[id,userId,snapshot.snapshotId,annotation,fromMs,toMs,summary.coverage.partial?'partial':'complete',JSON.stringify(summary.coverage),JSON.stringify(summary)])
    await run(tx,'INSERT INTO analysis_evidence(id,analysis_id,aggregation_rule_json,observation_count,from_at,to_at) VALUES (?,?,?,?,?,?)',[evidence,id,JSON.stringify({rule:'business-starts-within-history',version:1}),summary.counts.business,fromMs,toMs])

@@ -6,6 +6,7 @@ import { currentUser, db, now } from "@/server/context"
 import { inbox, type RequestView } from "@/server/services/booking"
 import { makeContext } from "@/server/runtime"
 import { conflictingRequestIds } from "@/server/services/schedule-view"
+import { listMeetingTypes, listPlaces } from "@/server/repos/hosting"
 import { weekIndexFor } from "@/core/week"
 export const metadata = { title: '받은 요청함' }
 
@@ -31,6 +32,7 @@ function Done({ title, items, conflicts = {} }: { title: string; items: RequestV
 export default async function InboxPage() {
   const me = await currentUser()
   const box = await inbox(db(), me.id, now())
+  const hosting = (await listPlaces(db(), me.id)).length > 0 && (await listMeetingTypes(db(), me.id)).length > 0
   const clash = new Set(await conflictingRequestIds(makeContext(db()), me.id))
   const conflicts = Object.fromEntries(box.accepted.filter((r) => clash.has(r.id)).map((r) => [r.id, `/calendar?w=${weekIndexFor(r.startMs, now())}`]))
   return (
@@ -41,8 +43,8 @@ export default async function InboxPage() {
           compact
           icon={<CheckIcon size={20} />}
           title="대기 중인 요청이 없어요."
-          description="장소와 미팅 양식을 등록해 두면 다른 사람이 나에게 요청을 보낼 수 있어요."
-          actions={<Link href="/settings/host" className={buttonClass("secondary", "sm")}>호스트 설정</Link>}
+          description={hosting ? "새 요청이 오면 여기에 표시돼요." : "장소와 미팅 양식을 등록해 두면 다른 사람이 나에게 요청을 보낼 수 있어요."}
+          actions={hosting ? undefined : <Link href="/settings/host" className={buttonClass("secondary", "sm")}>호스트 설정</Link>}
         />
       ) : (
         <div className="space-y-3">

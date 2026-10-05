@@ -78,6 +78,14 @@ describe("basisSentence", () => {
   it("still reads naturally with no conditions at all", () => {
     expect(basisSentence(basis, { added: [], replaced: [], removed: [] }, 3)).toBe("조건 점수가 높은 순, 같으면 이른 시각 순 기준으로 후보 3개를 골랐어요.")
   })
+  it("names a shown candidate that misses a preference the others meet", () => {
+    const option = (label: string, missed: string[]) => ({ label, matched: [], missed, slackMin: 60 })
+    const mixed = { ...basis, preferred: ["화·목(강하게 선호)"], options: [option("10월 13일(화) 17:30", []), option("10월 16일(금) 17:00", ["화·목(강하게 선호)"])] }
+    expect(basisSentence(mixed, { added: [], replaced: [], removed: [] }, 2)).toContain("10월 16일(금) 17:00 후보는 화·목(강하게 선호) 조건에 맞지 않아요.")
+    // When every candidate misses it, the reply already says no time matched the preferences; no per-candidate list.
+    const allShort = { ...mixed, options: mixed.options.map(o => ({ ...o, missed: ["화·목(강하게 선호)"] })) }
+    expect(basisSentence(allShort, { added: [], replaced: [], removed: [] }, 2)).not.toContain("후보는")
+  })
 })
 
 describe("participant recommendation facts", () => {

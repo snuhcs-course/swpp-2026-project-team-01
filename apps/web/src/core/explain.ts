@@ -101,5 +101,8 @@ export function basisSentence(basis: SelectionBasis, changes: ChipChanges, shown
   if (basis.preferred.length > 0) parts.push(`${basis.preferred.join(", ")} 조건에 맞는 것을 앞에 두고`)
   const distinct = basis.diversified ? `서로 ${basis.minGapMin}분 이상 떨어진 ` : ""
   parts.push(`${basis.order} 기준으로 ${distinct}후보 ${shown}개를 골랐어요.`)
+  // When only some of the shown candidates fall short, say which and of what; a ranking that quietly mixes them reads as a mistake.
+  const options = basis.options.slice(0, shown), short = options.filter((o) => o.missed.length > 0)
+  if (short.length > 0 && short.length < options.length) for (const o of short) parts.push(`${o.label} 후보는 ${o.missed.join(", ")} 조건에 맞지 않아요.`)
   return parts.join(" ")
 }

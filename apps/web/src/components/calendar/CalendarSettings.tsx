@@ -7,6 +7,7 @@ import {request} from '@/components/api'
 import {GoogleConnect} from '@/components/GoogleConnect'
 import {profileDraftViewSchema,type ProfileDraftView} from '@/contracts/profile'
 import {ImportReviewDialog} from './ImportReviewDialog'
+import {DAY_MS,kstDayStart} from '@/core/time'
 import {Alert,Button,Card,Checkbox,CheckIcon,PageHeader,SectionHeader,Spinner,Stepper,StatusPill,type Tone} from '@/components/ui'
 const labels={manual:'직접 설정 사용',connected:'일정 반영 중',needs_refresh:'일정을 가져와 주세요',reconnect_required:'권한 재연결 필요',decision_required:'Calendar 없이 계속할지 선택해 주세요'}
 const tones:Record<keyof typeof labels,Tone>={manual:'neutral',connected:'success',needs_refresh:'warn',reconnect_required:'danger',decision_required:'warn'}
@@ -55,7 +56,7 @@ export function CalendarSettings({initial,mode}:{initial:CalendarConnectionView;
   setStage('AI가 일정을 분류하는 중이에요 (최대 1분)')
   const d=await draftOp.run({method:'POST',url:'/api/profile-drafts',kind:'profile.draft.create',payload:{purpose:'onboarding'},schema:profileDraftViewSchema})
   if(!d?.ok){if(d)setError(d.error.message);setStarting(false);setStage(null);return}
-  const ok=d.data.messages.length>0?(analyzed.current=d.data,true):await analyze(d.data)
+  const ok=d.data.messages.some(m=>m.role==='assistant'&&!!m.evidenceIds?.length)?(analyzed.current=d.data,true):await analyze(d.data)
   setStarting(false);setStage(null)
   if(ok)setReview(true)
  }
@@ -76,7 +77,7 @@ export function CalendarSettings({initial,mode}:{initial:CalendarConnectionView;
     {mode==='real'
      ?linked&&!needsReconnect
       ?<Button disabled aria-label="Google Calendar 연결됨"><CheckIcon/>Google Calendar 연결됨</Button>
-      :<GoogleConnect purpose="calendar" returnPath="/settings/calendars" label={needsReconnect?'Google Calendar 다시 연결':undefined}/>
+      :<div className="flex flex-wrap items-center gap-3"><GoogleConnect purpose="calendar" returnPath="/settings/calendars" label={needsReconnect?'Google Calendar 다시 연결':undefined}/>{!needsReconnect&&<a href="/onboarding" className="text-small font-medium text-primary underline-offset-4 hover:underline">Calendar 없이 직접 설정하기</a>}</div>
      :canMockConnect
       ?<Button variant="primary" disabled={busy} onClick={()=>void connectMock()}>{busy&&<Spinner/>}예시 Calendar 연결</Button>
       :<p className="flex items-center gap-1.5 rounded-control bg-surface-sunken px-3 py-2.5 text-small text-ink-soft"><CheckIcon/>예시 Calendar 연결됨 · Google에는 접속하지 않아요</p>}
@@ -105,6 +106,6 @@ export function CalendarSettings({initial,mode}:{initial:CalendarConnectionView;
     </div>}
    </Card>
   </div>
- {review&&<ImportReviewDialog confirmLabel="확인했어요 · AI 설정 계속" onConfirm={c=>void finishReview(c)} onClose={()=>setReview(false)}/>}
+ {review&&<ImportReviewDialog confirmLabel="확인했어요 · AI 설정 계속" analysisWindow={view.analysis?{fromMs:kstDayStart(view.analysis.startedAt)-56*DAY_MS,toMs:kstDayStart(view.analysis.startedAt)}:undefined} onConfirm={c=>void finishReview(c)} onClose={()=>setReview(false)}/>}
  </div>
 }

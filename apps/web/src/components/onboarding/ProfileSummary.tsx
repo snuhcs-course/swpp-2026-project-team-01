@@ -16,6 +16,6 @@ export function ProfileSummary({ draft }: { draft: ProfileDraftView }) {
       {rows.map(([k, v]) => <div key={k} className="contents"><dt className="text-small text-muted">{k}</dt><dd className="font-medium text-ink tabular">{v}</dd></div>)}
     </dl>
     <WeekSchedule values={draft.values} />
-    <p className="text-caption text-muted">저장된 초안 revision <span className="tabular">{draft.revision}</span>. 최종 적용 전까지 확정 프로필은 바뀌지 않아요.</p>
+    <p className="text-caption text-muted">초안은 저장돼 있어요. 확정하기 전까지는 현재 적용 중인 프로필이 바뀌지 않아요.</p>
   </div>
 }

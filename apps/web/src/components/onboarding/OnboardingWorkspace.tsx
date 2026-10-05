@@ -11,7 +11,7 @@ import { OnboardingChat } from './OnboardingChat'
 import { WeekSchedule } from './WeekSchedule'
 import { Alert, Button, buttonClass, Card, CheckIcon, SectionHeader, Spinner, StatusPill, Stepper } from '@/components/ui'
 
-export function OnboardingWorkspace({ initialDraft, initialReview = false, autoAnalyze = false, onReview, onComplete }: { initialDraft: ProfileDraftView; initialReview?: boolean; autoAnalyze?: boolean; onReview?: (id: string) => void; onComplete?: () => void }) {
+export function OnboardingWorkspace({ initialDraft, initialReview = false, autoAnalyze = false, calendarImported = false, onReview, onComplete }: { initialDraft: ProfileDraftView; initialReview?: boolean; autoAnalyze?: boolean; calendarImported?: boolean; onReview?: (id: string) => void; onComplete?: () => void }) {
   const draft = useDraftAutosave(initialDraft)
   const ai = useMutationOperation<ProfileDraftView>()
   const confirm = useMutationOperation<ProfileView>()
@@ -48,8 +48,10 @@ export function OnboardingWorkspace({ initialDraft, initialReview = false, autoA
     await processAI(await ai.run({method:'POST',url:`/api/profile-drafts/${encodeURIComponent(saved.draftId)}/analyze`,kind:'profile.draft.analyze',payload:{expectedRevision:saved.revision},schema:profileDraftViewSchema}))
   }
   // Started from the calendar screen: run the observation once. It only summarizes the past; the user still confirms the hours.
+  // An analysis message carries its evidence; once one exists the AI has already read the calendar for this draft.
+  const analyzed = draft.state.saved.messages.some(m => m.role === 'assistant' && !!m.evidenceIds?.length)
   const autoRan = useRef(false)
-  useEffect(() => { if (autoAnalyze && ready && !autoRan.current && draft.current.current.saved.messages.length === 0) { autoRan.current = true; void analyze() } }, [autoAnalyze, ready])  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (autoAnalyze && ready && !autoRan.current && !analyzed) { autoRan.current = true; void analyze() } }, [autoAnalyze, ready])  // eslint-disable-line react-hooks/exhaustive-deps
   const showReview = async () => {
     if (preparingRef.current || !ready) return
     preparingRef.current = true; setPreparing(true)
@@ -97,7 +99,7 @@ export function OnboardingWorkspace({ initialDraft, initialReview = false, autoA
     </Card> : <div className="grid items-start gap-6 lg:grid-cols-2">
       <Card><SectionHeader title="직접 설정" description="입력하면 잠시 뒤 초안에 자동 저장돼요." /><ProfileEditor form={draft.state.form} onChange={draft.edit} /></Card>
       <div className="space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-dashed border-border-strong px-4 py-3"><p className="text-small text-muted">Calendar에서 가져온 일정이 있다면</p><Button size="sm" disabled={!ready} onClick={() => void analyze()}>가져온 일정에서 선호 단서 찾기</Button></div>
+        {calendarImported && <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-dashed border-border-strong px-4 py-3"><p className="text-small text-muted">{analyzed ? '일정을 다시 가져왔다면 분석도 새로 할 수 있어요' : 'Calendar에서 가져온 지난 8주 일정을 AI가 살펴봐요'}</p><Button size="sm" disabled={!ready} onClick={() => void analyze()}>{ai.pending ? <><Spinner />분석 중…</> : analyzed ? '다시 분석' : '가져온 일정 분석하기'}</Button></div>}
         <OnboardingChat messages={draft.state.saved.messages} text={text} onText={setText} onSend={() => void send()} disabled={!ready} pending={ai.pending} />
         <WeekSchedule values={parsed.success ? parsed.data : draft.state.saved.values} />
         {!parsed.success && <p className="text-caption text-warn-ink">잘못된 입력은 주간표에 적용하지 않았어요. 마지막 저장값을 표시해요.</p>}

@@ -16,8 +16,8 @@ export async function getDraft(db:Db,actorId:string,draftId:string):Promise<Prof
  const row=await one<DraftRow>(db,"SELECT * FROM profile_drafts WHERE id=? AND user_id=?",[draftId,actorId])
  if(!row) throw new DomainError("not_found","설정 초안을 찾을 수 없어요")
  const values=profileValuesSchema.parse(JSON.parse(row.values_json))
- const messages=await all<{id:string;role:"user"|"assistant";content:string;created_at:number}>(db,"SELECT id,role,content,created_at FROM draft_messages WHERE draft_id=? ORDER BY created_at,id",[draftId])
- return {draftId:row.id,revision:row.revision,baseProfileVersion:row.base_profile_version,values,topics:topicsSchema.parse(JSON.parse(row.topic_confirmations_json)),status:row.status,updatedAt:row.updated_at,fieldErrors:{...validateProfile(values).fieldErrors},messages:messages.map(m=>({id:m.id,role:m.role,content:m.content,createdAt:m.created_at}))}
+ const messages=await all<{id:string;role:"user"|"assistant";content:string;created_at:number;evidence_id:string|null}>(db,"SELECT id,role,content,created_at,evidence_id FROM draft_messages WHERE draft_id=? ORDER BY created_at,id",[draftId])
+ return {draftId:row.id,revision:row.revision,baseProfileVersion:row.base_profile_version,values,topics:topicsSchema.parse(JSON.parse(row.topic_confirmations_json)),status:row.status,updatedAt:row.updated_at,fieldErrors:{...validateProfile(values).fieldErrors},messages:messages.map(m=>({id:m.id,role:m.role,content:m.content,createdAt:m.created_at,...(m.evidence_id?{evidenceIds:[m.evidence_id]}:{})}))}
 }
 export async function currentDraft(db:Db,actorId:string):Promise<ProfileDraftView|null> {
  const row=await one<{id:string}>(db,"SELECT id FROM profile_drafts WHERE user_id=? AND status='active'",[actorId])

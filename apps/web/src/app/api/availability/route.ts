@@ -21,7 +21,7 @@ export function PUT(req: Request) {
     const { rules } = await body(req, schema)
     if (new Set(rules.map((r) => r.weekday)).size !== 7) throw new BookingError("invalid", "요일이 중복되었어요")
     if (rules.some((r) => r.enabled && r.startMin >= r.endMin)) throw new BookingError("invalid", "끝 시각이 시작 시각보다 늦어야 해요")
-    saveRules(db(), (await currentUser(req)).id, rules)
+    await saveRules(db(), (await currentUser(req)).id, rules)
     return Response.json({ ok: true })
   })
 }

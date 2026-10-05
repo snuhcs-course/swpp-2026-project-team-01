@@ -91,7 +91,9 @@ export async function acceptMeeting(ctx:ServiceContext,userId:string,input:Accep
    await run(tx,"UPDATE requests SET status='accepted',revision=revision+1,decided_at=? WHERE id=?",[decided,r.id])
    for(const a of affected)await run(tx,"UPDATE requests SET status='declined',revision=revision+1,decided_at=? WHERE id=?",[decided,a.id])
    const eventIds:string[]=[]
-   for(const participant of [r.client_id,r.host_id]){const id=ctx.id();eventIds.push(id);await run(tx,"INSERT INTO events(id,user_id,title,start_at,end_at,location_kind,place_ref,source,request_id) VALUES (?,?,?,?,?,?,?,'booking',?)",[id,participant,`미팅 · ${type.name}`,r.start_at,r.end_at,place.kind==='online'?'online':'place',place.kind==='online'?null:place.id,r.id]);await run(tx,'UPDATE users SET schedule_revision=schedule_revision+1 WHERE id=?',[participant])}
+   // Each calendar entry names the other person, so the calendar alone says who the meeting is with.
+   const names=new Map((await all<{id:string;name:string}>(tx,'SELECT id,name FROM users WHERE id IN (?,?)',[r.client_id,r.host_id])).map(u=>[u.id,u.name]))
+   for(const participant of [r.client_id,r.host_id]){const other=participant===r.client_id?r.host_id:r.client_id,id=ctx.id();eventIds.push(id);await run(tx,"INSERT INTO events(id,user_id,title,start_at,end_at,location_kind,place_ref,source,request_id) VALUES (?,?,?,?,?,?,?,'booking',?)",[id,participant,`미팅 · ${names.get(other)??'상대'} · ${type.name}`,r.start_at,r.end_at,place.kind==='online'?'online':'place',place.kind==='online'?null:place.id,r.id]);await run(tx,'UPDATE users SET schedule_revision=schedule_revision+1 WHERE id=?',[participant])}
    return {request:view(ctx,await owned(tx,userId,r.id)),declinedIds:affected.map(a=>a.id),eventIds}
   })
  }catch(e){await failOperation(ctx,claim,e);throw e}

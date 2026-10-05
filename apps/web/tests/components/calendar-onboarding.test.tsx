@@ -64,21 +64,23 @@ describe('calendar and onboarding screens', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(fetcher).toHaveBeenCalledTimes(2)
   })
+  const past = { startAt: 20 * 86_400_000, endAt: 20 * 86_400_000 + 1 }
   it('starts the AI setup: saves, lets the AI classify, shows the review, then continues to the profile screen', async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(ok(draft))
       .mockResolvedValueOnce(ok({ ...draft, revision: 1, messages: [{ id: 'a', role: 'assistant', content: '분석했어요', createdAt: 1, interpretFailed: false }] }))
-      .mockResolvedValueOnce(ok([ev('a', '투자 심의', { aiClassification: 'business', locationKind: 'office' }), ev('b', '헬스장', { classification: 'personal', locationKind: 'place' }), ev('c', '커피챗')]))
+      .mockResolvedValueOnce(ok([ev('a', '투자 심의', { aiClassification: 'business', locationKind: 'office', ...past }), ev('b', '헬스장', { classification: 'personal', locationKind: 'place', ...past }), ev('c', '커피챗', past), ev('d', '다음 달 워크숍', { startAt: 40 * 86_400_000, endAt: 40 * 86_400_000 + 1 })]))
     vi.stubGlobal('fetch', fetcher)
-    render(<CalendarSettings initial={connected} mode="real" />)
+    render(<CalendarSettings initial={{ ...connected, analysis: { ...sync, startedAt: 30 * 86_400_000 } }} mode="real" />)
     fireEvent.click(screen.getByText('AI로 설정 시작하기'))
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
     expect(fetcher.mock.calls.map(c => c[0]).slice(0, 2)).toEqual(['/api/profile-drafts', '/api/profile-drafts/draft-1/analyze'])
     expect(push).not.toHaveBeenCalled()                            // the user checks first
     expect(await screen.findByText('투자 심의')).toBeInTheDocument()
-    expect(screen.getAllByText('1건')).toHaveLength(3)             // 업무 · 개인 · 확인 필요
+    expect(screen.getAllByText('1건')).toHaveLength(3)             // 업무 · 개인 · 확인 필요: the future workshop is not part of the analysis
+    expect(screen.queryByText('다음 달 워크숍')).toBeNull()
     fireEvent.click(screen.getByRole('tab', { name: '장소별' }))
-    expect(screen.getAllByText('1건')).toHaveLength(3)             // 회사 · 직접 지정 · 알 수 없음
+    expect(screen.getAllByText(/^[12]건$/).map(n => n.textContent)).toEqual(['1건', '1건', '2건'])   // 회사 · 직접 지정 · 알 수 없음 (future included)
     fireEvent.click(await screen.findByText('확인했어요 · AI 설정 계속'))
     await waitFor(() => expect(push).toHaveBeenCalledWith('/onboarding'))
     expect(fetcher).toHaveBeenCalledTimes(3)                       // nothing was corrected, so no second analysis
