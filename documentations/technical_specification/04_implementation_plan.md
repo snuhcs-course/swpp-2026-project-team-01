@@ -191,3 +191,10 @@ change: a new persistent server is required, Fly configuration is prepared, and 
 selection plus real linked-host onboarding are pending. This bounded setup bridge does not implement
 full P6 iMessage scheduling, and these fixtures do not close the remaining P0 live client or Calendar
 M2 gates.
+
+The reviewed release `d6d1a62` is deployed on `https://findmeatime.com`; production migration
+`20261005062543_setup_conversations.sql`, API/worker deployment and worker schedule installation
+succeeded. HTTPS and API health checks pass. The actual signed-in host workspace shows the new
+conversation and preserves 5/5 readiness. Its iMessage section shows the unavailable-service fallback,
+and the disabled internal bridge route returns 503. No persistent bridge server or live Calendar
+event was created by this rollout.

@@ -47,3 +47,5 @@
 - Manual visual verdict iteration6 scored 93/pass in `.omx/state/conversational-host-setup/ralph-progress.json`. The installed visual-verdict skill is a shim without its referenced full body; the accessible screenshot/review fallback and this limitation are recorded.
 - Landing/public intake eager JavaScript is approximately 324 kB (entry225.11kB);654.05kB chat runtime is deferred. The remaining lazy chunk size warning is visible.
 - New server requested; Fly configuration is proposed. Hosting account/billing choice and a real linked-host iMessage journey remain pending, so this change is not archived.
+
+- Production website/API/database rollout succeeded for release `d6d1a62`; the authenticated host chat and preserved 5/5 readiness were checked in the actual browser. Disabled bridge middleware returns 503 and the website fallback is visible. This deployment does not complete tasks 5.4 or 6.2.

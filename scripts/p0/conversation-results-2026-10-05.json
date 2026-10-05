@@ -65,11 +65,29 @@
     "limitation": "Installed visual-verdict skill shim has no referenced full body; screenshot/manual review fallback recorded in ignored OMX state."
   },
   "production": {
-    "deployment_pending": true,
+    "deployment_pending": false,
     "bridge_enabled": false,
     "new_server_proposed": "Fly.io",
     "hosting_account_billing_choice_pending": true,
-    "real_linked_host_journey_verified": false
+    "real_linked_host_journey_verified": false,
+    "checked_at": "2026-10-05T06:55:56.141218+00:00",
+    "release_commit": "d6d1a62",
+    "supabase_project": "anelszynxtvxoxqvzgqt",
+    "migration_applied": "20261005062543_setup_conversations.sql",
+    "api_and_worker_deployed": true,
+    "worker_schedule_installed": true,
+    "vercel_deployment_id": "dpl_AA7yNhkWfcfzb1CuVM6CzBEWcusE",
+    "vercel_deployment_url": "https://findmeatime-r5w2gfqee-justdodos-projects.vercel.app",
+    "domain": "https://findmeatime.com",
+    "domain_https_ok": true,
+    "api_health_ok": true,
+    "production_entry_asset": "/assets/index-DeAcZtPc.js",
+    "production_entry_sha256": "7287ac91793c518a4f3001899ad275295180191a70217c8d74117cbdf13cee8f",
+    "authenticated_host_chat_visible": true,
+    "existing_host_readiness_preserved": true,
+    "website_imessage_offline_fallback_visible": true,
+    "disabled_bridge_resume_status": 503,
+    "new_server_provisioned": false
   },
   "live_calendar": {
     "controlled_proposal_prepared": true,
