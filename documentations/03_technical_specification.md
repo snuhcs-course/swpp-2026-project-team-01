@@ -241,6 +241,8 @@ Channel binding requires verified identity and request context. Matching names, 
 
 iMessage requires opt-in, linked host identity, private conversation checks, unlinking, and current-proposal confirmation. The [P0 compatibility decisions](technical_specification/05_compatibility_report.md) select direct Photon Spectrum through a narrow Node/Bun bridge from the PRD options; actual conversation evidence remains open. Framework approval mechanics do not replace host approval. If host email is adopted, use a separate private conversation and final authenticated web approval.
 
+Photon supports outbound conversation initiation, but its deliverability guidance favors the host sending the first message during optional channel setup. The [provider setup notes](technical_specification/03_provider_setup.md#first-message-and-host-onboarding) record the recommended onboarding flow, recipient policy, and default initiation quota. Bind the conversation to the authenticated host before enabling private notifications; inbound contact alone is not host authorization.
+
 Outbox records include version, audience, verified recipient, and stable delivery key. Recheck authorization before sending private content and suppress obsolete pending summaries. Retry transient failures with bounded backoff and jitter; exhausted work stays visible for recovery. Delivery retries cannot trigger booking again.
 
 Test Dots, Muse, Instinct, ChatGPT, Codex, Claude, and Claude Code separately for requester and host workflows, including discovery, connection, OAuth, continuation, and human confirmation. Do not assume every client has terminal access or supports the same MCP features. A separate agent-to-agent protocol endpoint is not a current release requirement.
