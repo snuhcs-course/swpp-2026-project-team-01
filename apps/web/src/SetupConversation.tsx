@@ -114,7 +114,12 @@ export function SetupConversation({
   }, [state, onSaved])
   useEffect(() => {
     if (initial.admitted) refreshConversation()
-  }, [initial.admitted, initial.nextAction, initial.profile?.ready, refreshConversation])
+  }, [
+    initial.admitted,
+    initial.nextAction,
+    initial.profile?.ready,
+    refreshConversation,
+  ])
   useEffect(() => {
     if (!initial.admitted) return
     const refresh = () => {
@@ -137,7 +142,16 @@ export function SetupConversation({
             <CardTitle role="heading" aria-level={2}>
               Let’s set up your calendar
             </CardTitle>
-            <Badge variant="secondary">Private conversation</Badge>
+            {initial.admitted && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Setup settings"
+                onClick={() => setShowEditor(true)}
+              >
+                <Settings2 aria-hidden="true" />
+              </Button>
+            )}
           </div>
           <CardDescription>
             Tell us how you like to meet. Review each change before it becomes a
@@ -179,21 +193,6 @@ export function SetupConversation({
             />
           </PromptInputProvider>
         )}
-        <CardFooter className="flex flex-wrap justify-between gap-3 border-t py-4">
-          <p className="text-xs text-muted-foreground">
-            Every meeting still needs your explicit approval.
-          </p>
-          {initial.admitted && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowEditor(true)}
-            >
-              <Settings2 data-icon="inline-start" />
-              Setup settings
-            </Button>
-          )}
-        </CardFooter>
       </Card>
       {initial.admitted && (
         <Dialog open={showEditor} onOpenChange={setShowEditor}>
@@ -298,7 +297,7 @@ function SetupDialogue({
   return (
     <>
       <Conversation
-        className="h-[min(54svh,34rem)] min-h-64 flex-none"
+        className="h-[min(55svh,32rem)] min-h-72 flex-none md:h-[min(68svh,42rem)]"
         aria-label="Host setup conversation"
       >
         <ConversationContent className="gap-5 p-5 md:p-6">

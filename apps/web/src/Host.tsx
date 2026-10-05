@@ -303,23 +303,7 @@ function Workspace() {
       />
     )
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Your calendar, in conversation
-          </h1>
-          <p className="text-muted-foreground">
-            Tell us your preferences, connect Google, and share your booking
-            link.
-          </p>
-        </div>
-        <Badge variant={resource.data.profile?.ready ? "default" : "secondary"}>
-          {resource.data.profile?.ready
-            ? "Booking link ready"
-            : "Setup in progress"}
-        </Badge>
-      </div>
+    <div className="mx-auto w-full max-w-4xl">
       <SetupConversation
         initial={resource.data}
         onSaved={resource.setData}
@@ -340,9 +324,6 @@ function Workspace() {
         }
         recovery={<Setup initial={resource.data} onSaved={resource.setData} />}
       />
-      {resource.data.admitted && (
-        <InboxGate ready={resource.data.profile?.ready ?? false} />
-      )}
     </div>
   )
 }
@@ -955,31 +936,6 @@ function CalendarSetup({
           assumed to be free.
         </p>
       </CardFooter>
-    </Card>
-  )
-}
-function InboxGate({ ready }: { ready: boolean }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle role="heading" aria-level={2}>
-          Meeting requests
-        </CardTitle>
-        <CardDescription>
-          {ready
-            ? "Review, revise, or approve a current proposal."
-            : "Complete admission, rules, and calendar selection to publish your link."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button
-          render={<a href="/host/inbox" />}
-          nativeButton={false}
-          variant="outline"
-        >
-          Open inbox
-        </Button>
-      </CardContent>
     </Card>
   )
 }

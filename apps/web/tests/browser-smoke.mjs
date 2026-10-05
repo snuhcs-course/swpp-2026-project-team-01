@@ -273,7 +273,7 @@ await page.screenshot({
   fullPage: true,
 })
 await page.goto(`${origin}/dodo`)
-await page.getByRole("heading", { name: "Meet with Dodo" }).waitFor()
+await page.getByRole("heading", { name: "Plan with Dodo" }).waitFor()
 await page.getByRole("button", { name: "Request details" }).click()
 const intakeDialog = page.getByRole("dialog", { name: "Request details" })
 await intakeDialog.getByLabel("Your name", { exact: true }).fill("Alex")
@@ -544,6 +544,7 @@ assert.equal(
   await hostPage.getByText("Host secret preference", { exact: true }).count(),
   0
 )
+await hostPage.getByRole("button", { name: "Private", exact: true }).click()
 await hostPage
   .getByLabel("Private message", { exact: true })
   .fill("Only the host should see this question")
@@ -553,6 +554,7 @@ await hostPage
 await hostPage
   .getByText("Only the host should see this question", { exact: true })
   .waitFor()
+await hostPage.getByRole("button", { name: "Shared", exact: true }).click()
 assert.equal(
   await hostPage
     .getByRole("button", { name: "Approve this proposal" })
@@ -582,6 +584,7 @@ assert.equal(
   ),
   false
 )
+await hostPage.getByRole("button", { name: "Private", exact: true }).click()
 await hostPage
   .getByText("Only the host should see this question", { exact: true })
   .scrollIntoViewIfNeeded()

@@ -1,4 +1,4 @@
-import { CalendarDays } from "lucide-react"
+import { CalendarDays, Settings2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { lazy, Suspense } from "react"
 import { Landing } from "./Landing"
@@ -63,6 +63,37 @@ export default function App() {
           {content}
         </Suspense>
       </>
+    )
+  if (path.length)
+    return (
+      <div className="min-h-svh bg-background">
+        <a href="#main" className="sr-only focus:not-sr-only">
+          Skip to content
+        </a>
+        <header className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <a href="/" className="flex min-w-0 items-center gap-2 font-semibold">
+            <CalendarDays aria-hidden="true" className="text-primary" />
+            <span className="truncate">Find Me a Time</span>
+          </a>
+          <Button
+            render={<a href="/host" />}
+            nativeButton={false}
+            variant="ghost"
+            size="icon"
+            aria-label="Host workspace"
+          >
+            <Settings2 aria-hidden="true" />
+          </Button>
+        </header>
+        <main
+          id="main"
+          tabIndex={-1}
+          className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-4 pb-6 sm:px-6"
+        >
+          <ServiceNotices />
+          <Suspense fallback={<Loading />}>{content}</Suspense>
+        </main>
+      </div>
     )
   return (
     <div className="min-h-svh">

@@ -242,7 +242,7 @@ async function runFlow(width) {
   const navigation = page.goto(`${origin}/requests/chat-request`)
   await page.locator("#main").getByLabel("Loading", { exact: true }).waitFor()
   assert.equal(await page.locator('a[href="#main"]').count(), 1)
-  await page.getByRole("navigation", { name: "Main navigation" }).waitFor()
+  await page.getByRole("link", { name: "Find Me a Time" }).waitFor()
   releaseRouteModule()
   await navigation
   await page.getByRole("heading", { name: "Scheduling conversation" }).waitFor()

@@ -407,24 +407,27 @@ try {
   setupState = structuredClone(states.unadmitted)
   await desktop.goto(`${origin}/host/setup`)
   await desktop
-    .getByRole("heading", { name: "Your calendar, in conversation" })
+    .getByRole("heading", { name: "Let’s set up your calendar" })
     .waitFor()
   await desktop.getByText("0 of 5 steps complete.", { exact: false }).waitFor()
   await desktop
     .getByRole("heading", { name: "A spot for your calendar" })
     .waitFor()
+  assert.equal(await desktop.getByRole("complementary").count(), 0)
+  await desktop.getByRole("button", { name: "Open workspace menu" }).click()
   assert.equal(
     await desktop
-      .getByRole("link", { name: "Meeting inbox" })
+      .getByRole("menuitem", { name: "Meeting inbox" })
       .getAttribute("href"),
     "/host/inbox"
   )
   assert.equal(
     await desktop
-      .getByRole("link", { name: "Scheduling setup" })
+      .getByRole("menuitem", { name: "Setup conversation" })
       .getAttribute("href"),
     "/host/setup"
   )
+  await desktop.keyboard.press("Escape")
 
   setupState = structuredClone(states.admitted)
   await desktop.reload()
@@ -462,7 +465,9 @@ try {
   setupState = structuredClone(states.ready)
   await desktop.reload()
   await desktop.getByText("5 of 5 steps complete.", { exact: false }).waitFor()
-  await desktop.getByText("Booking link ready", { exact: true }).waitFor()
+  await desktop
+    .getByText("Your booking link is ready to share.", { exact: true })
+    .waitFor()
   await desktop.getByRole("button", { name: "Setup settings" }).click()
   await desktop.getByText(`${origin}/dodo`, { exact: true }).waitFor()
   const bookingDestination = desktop.getByLabel("Booking destination")
@@ -473,6 +478,9 @@ try {
     "Primary calendar"
   )
   await desktop.getByRole("button", { name: "Close" }).click()
+  await desktop
+    .getByRole("dialog", { name: "Setup settings" })
+    .waitFor({ state: "hidden" })
   await assertNoOverflow(desktop, "Ready desktop workspace")
   await desktop.screenshot({
     path: "test-results/workspace/setup-ready-desktop.png",
@@ -482,9 +490,10 @@ try {
   const setupMutationsBeforeNavigation = mutations.filter(
     (mutation) => mutation.path === "/host/setup"
   ).length
-  await desktop.getByRole("link", { name: "Meeting inbox" }).click()
+  await desktop.getByRole("button", { name: "Open workspace menu" }).click()
+  await desktop.getByRole("menuitem", { name: "Meeting inbox" }).click()
   await desktop.waitForURL("**/host/inbox")
-  await desktop.getByRole("heading", { name: "Your meeting inbox" }).waitFor()
+  await desktop.getByRole("heading", { name: "Meeting inbox" }).waitFor()
   await desktop.getByText("Alex Morgan", { exact: true }).waitFor()
   await desktop.getByText("Jordan Lee", { exact: true }).waitFor()
   await desktop.getByText("Min Park", { exact: true }).waitFor()
@@ -494,7 +503,7 @@ try {
     setupMutationsBeforeNavigation,
     "Workspace navigation must not submit the setup form"
   )
-  const search = desktop.getByLabel("Search requests")
+  const search = desktop.getByLabel("Search conversations")
   await search.fill("taylor")
   await desktop.getByText("Taylor Kim", { exact: true }).waitFor()
   assert.equal(
@@ -502,8 +511,10 @@ try {
     0
   )
   await search.fill("no-person-matches-this")
-  await desktop.getByText("No matching requests", { exact: true }).waitFor()
-  await desktop.getByRole("button", { name: "Clear search" }).click()
+  await desktop
+    .getByText("No conversations match that search.", { exact: true })
+    .waitFor()
+  await search.fill("")
   await desktop.getByText("Alex Morgan", { exact: true }).waitFor()
   await assertNoOverflow(desktop, "Desktop meeting inbox")
   await desktop.screenshot({
@@ -520,26 +531,21 @@ try {
   setupState = structuredClone(states.ready)
   await mobile.goto(`${origin}/host/setup`)
   await mobile
-    .getByRole("heading", { name: "Your calendar, in conversation" })
+    .getByRole("heading", { name: "Let’s set up your calendar" })
     .waitFor()
-  const sidebarToggle = mobile.getByRole("button", { name: "Toggle Sidebar" })
-  await sidebarToggle.click()
-  const sidebarDialog = mobile.getByRole("dialog", { name: "Sidebar" })
-  await sidebarDialog.waitFor()
-  await sidebarDialog.getByRole("link", { name: "Meeting inbox" }).waitFor()
-  await mobile.waitForTimeout(300)
+  const menuToggle = mobile.getByRole("button", { name: "Open workspace menu" })
+  await menuToggle.focus()
+  await menuToggle.press("Enter")
+  await mobile.getByRole("menuitem", { name: "Meeting inbox" }).waitFor()
   await mobile.screenshot({
-    path: "test-results/workspace/sidebar-mobile.png",
+    path: "test-results/workspace/menu-mobile.png",
     animations: "disabled",
   })
   await mobile.keyboard.press("Escape")
-  await sidebarDialog.waitFor({ state: "hidden" })
-  assert.equal(
-    await sidebarToggle.evaluate(
-      (element) => element === document.activeElement
-    ),
-    true,
-    "Closing the mobile workspace menu must return focus to its trigger"
+  await mobile.waitForFunction(
+    () =>
+      document.activeElement?.getAttribute("aria-label") ===
+      "Open workspace menu"
   )
   await assertNoOverflow(mobile, "Mobile ready workspace")
   await mobile.screenshot({
@@ -547,7 +553,7 @@ try {
     fullPage: true,
   })
   await mobile.goto(`${origin}/host/inbox`)
-  await mobile.getByRole("heading", { name: "Your meeting inbox" }).waitFor()
+  await mobile.getByRole("heading", { name: "Meeting inbox" }).waitFor()
   await assertNoOverflow(mobile, "Mobile meeting inbox")
   await mobile.screenshot({
     path: "test-results/workspace/inbox-mobile.png",
@@ -563,9 +569,9 @@ try {
   setupState = structuredClone(states.ready)
   await narrow.goto(`${origin}/host/setup`)
   await narrow
-    .getByRole("heading", { name: "Your calendar, in conversation" })
+    .getByRole("heading", { name: "Let’s set up your calendar" })
     .waitFor()
-  await narrow.getByRole("button", { name: "Toggle Sidebar" }).click()
+  await narrow.getByRole("button", { name: "Open workspace menu" }).click()
   await narrow
     .getByTitle(
       "host-with-a-very-long-workspace-address@calendar-coordination.example"
@@ -606,7 +612,7 @@ try {
     const requester = await requesterContext.newPage()
     watchErrors(requester)
     await requester.goto(`${origin}/dodo`)
-    await requester.getByRole("heading", { name: "Meet with Dodo" }).waitFor()
+    await requester.getByRole("heading", { name: "Plan with Dodo" }).waitFor()
     await requester.getByRole("button", { name: "Request details" }).click()
     await requester.getByLabel("Your name", { exact: true }).waitFor()
     await requester.getByLabel("Email address").waitFor()
@@ -627,12 +633,12 @@ try {
       {
         passed: [
           "desktop, mobile, and dark sign-in layouts render without overflow",
-          "workspace sidebar links point to the setup and inbox routes",
+          "floating workspace menu links point to the setup and inbox routes",
           "unadmitted, admitted, and ready setup states explain their progress",
           "the redesigned scheduling form saves once with the current values",
           "workspace navigation cannot accidentally submit setup",
-          "inbox shows real status groups and supports search and no-results recovery",
-          "mobile sidebar closes on Escape and restores trigger focus",
+          "inbox shows request artifacts and supports search",
+          "mobile menu closes on Escape and restores trigger focus",
           "320px workspace contains a long account email without horizontal overflow",
           "requester intake renders at desktop and mobile sizes without overflow",
         ],
@@ -643,7 +649,7 @@ try {
           "test-results/workspace/sign-in-dark.png",
           "test-results/workspace/setup-ready-desktop.png",
           "test-results/workspace/inbox-desktop.png",
-          "test-results/workspace/sidebar-mobile.png",
+          "test-results/workspace/menu-mobile.png",
           "test-results/workspace/setup-ready-mobile.png",
           "test-results/workspace/inbox-mobile.png",
           "test-results/workspace/requester-intake-desktop.png",

@@ -29,6 +29,7 @@ The database caps model claims at eight per request. Extraction receives bounded
 ## Website requester conversation
 
 The account-free protected request page uses the official AI Elements transcript and prompt input as its primary workspace. Current availability, proposal, and decision artifacts put explicit buttons beside the relevant conversation turn; structured editing lives in a secondary settings surface. The private request link restores continuation authority automatically. The request page has no credential-paste or recovery controls, and a bare request URL reveals no private details.
+The requester intake and request detail use a centered conversation without dashboard panels or a page-level sidebar. Request status, next action, and decision artifacts appear in the transcript. The host inbox is a searchable list of conversation artifacts; on a request, a labeled switch displays either the shared scheduling discussion or the host-only private discussion. Exact details remain available through the settings icon. On phone widths, the transcript scrolls independently of the composer.
 A requester can describe changes to purpose, mode, location or availability. A message saves shared
 conversation text and may return a revision-bound advisory review. Choose **Apply these changes**
 to update those fields explicitly. Identity and duration remain in their existing structured workflow.

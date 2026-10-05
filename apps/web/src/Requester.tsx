@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { CalendarDays, Clock3, Settings2, ShieldCheck } from "lucide-react"
+import { Settings2 } from "lucide-react"
 import type {
   HostProfile,
   MeetingDetails,
@@ -18,7 +18,6 @@ import {
   useResource,
 } from "@/lib/ui"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   Card,
   CardHeader,
@@ -37,7 +36,6 @@ import {
 } from "@/components/ui/field"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { Separator } from "@/components/ui/separator"
 import {
   Conversation,
   ConversationContent,
@@ -86,71 +84,7 @@ export function Requester({ handle }: { handle: string }) {
       </Notice>
     )
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
-      <aside className="flex min-w-0 flex-col gap-5">
-        <div
-          className="flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground"
-          aria-hidden="true"
-        >
-          <CalendarDays className="size-6" />
-        </div>
-        <div>
-          <Badge variant="secondary">No account needed</Badge>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight break-words sm:text-4xl">
-            Meet with {host.data.displayName}
-          </h1>
-          <p className="mt-3 leading-relaxed text-muted-foreground">
-            A good conversation starts here. Share what you have in mind and
-            when you’re free. We’ll help find a time that works.
-          </p>
-        </div>
-        <p className="flex items-center gap-2 text-sm">
-          <Clock3 className="size-4 text-muted-foreground" aria-hidden="true" />
-          {host.data.durationMinutes}-minute meeting
-        </p>
-        <div className="hidden">
-          <Separator />
-        </div>
-        <div className="sr-only">
-          <h2 className="text-sm font-medium">What happens next</h2>
-          <ol className="flex flex-col gap-5">
-            {[
-              [
-                "Share your availability",
-                "Start with a few windows that work for you.",
-              ],
-              [
-                "Choose a proposal",
-                "Review the exact time and meeting details.",
-              ],
-              [
-                "Wait for host approval",
-                "We’ll confirm once the calendar event is booked.",
-              ],
-            ].map(([title, description], index) => (
-              <li key={title} className="flex gap-3">
-                <span
-                  className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium"
-                  aria-hidden="true"
-                >
-                  {index + 1}
-                </span>
-                <div>
-                  <p className="text-sm font-medium">{title}</p>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    {description}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
-          <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
-            <ShieldCheck className="size-4 shrink-0" aria-hidden="true" />
-            Private calendar details stay private. Nothing is booked until both
-            people agree and the host approves.
-          </p>
-        </div>
-      </aside>
+    <div className="mx-auto w-full max-w-4xl">
       <Intake host={host.data} />
     </div>
   )
@@ -175,13 +109,15 @@ function Intake({ host }: { host: HostProfile }) {
           </CardDescription>
         </CardHeader>
         <Conversation
-          className="h-[min(54svh,34rem)] min-h-80 flex-none"
+          className="h-[min(55svh,32rem)] min-h-72 flex-none md:h-[min(68svh,42rem)]"
           aria-label="New meeting request conversation"
         >
           <ConversationContent className="gap-5 p-5 md:p-6">
             <Message from="assistant">
               <MessageContent>
-                What would you like to discuss with {host.displayName}?
+                What would you like to discuss with {host.displayName}? Tell me
+                what you have in mind and when you’re free. No account is
+                needed.
               </MessageContent>
             </Message>
             {purpose && (

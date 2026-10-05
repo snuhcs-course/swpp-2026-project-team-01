@@ -452,7 +452,9 @@ try {
     0
   )
   await page.getByRole("button", { name: "Save calendar selection" }).click()
-  await page.getByText("Booking link ready", { exact: true }).waitFor()
+  await page
+    .getByText("Your booking link is ready to share.", { exact: true })
+    .waitFor()
   await page.getByRole("button", { name: "Open your booking link" }).waitFor()
   await page.getByRole("button", { name: "Setup settings" }).click()
   await page.getByText("Not available yet", { exact: true }).waitFor()

@@ -41,9 +41,6 @@ import { Input } from "@/components/ui/input"
 import {
   ArrowLeft,
   CalendarCheck,
-  CalendarClock,
-  CheckCircle2,
-  Clock3,
   MapPin,
   RefreshCw,
   Settings2,
@@ -74,7 +71,6 @@ import {
 import {
   Conversation as AIConversation,
   ConversationContent as AIConversationContent,
-  ConversationEmptyState as AIConversationEmptyState,
   ConversationScrollButton as AIConversationScrollButton,
 } from "@/components/ai-elements/conversation"
 import {
@@ -92,6 +88,13 @@ import {
   PromptInputTextarea,
 } from "@/components/ai-elements/prompt-input"
 import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion"
+import {
+  Artifact,
+  ArtifactContent,
+  ArtifactDescription,
+  ArtifactHeader,
+  ArtifactTitle,
+} from "@/components/ai-elements/artifact"
 
 const closed = ["booked", "declined", "withdrawn", "expired"]
 const statusLabels: Record<string, string> = {
@@ -162,174 +165,96 @@ export function Inbox() {
   const awaitingApproval = allRequests.filter(
     (request) => request.status === "awaiting_approval"
   ).length
-  const active = allRequests.filter(
-    (request) => !closed.includes(request.status)
-  ).length
-  const booked = allRequests.filter(
-    (request) => request.status === "booked"
-  ).length
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Your meeting inbox
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            The details you need. The final call is yours.
-          </p>
+    <Card className="mx-auto w-full max-w-4xl min-w-0 py-0">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b py-4">
+        <div className="flex flex-col gap-1">
+          <CardTitle role="heading" aria-level={1}>
+            Meeting inbox
+          </CardTitle>
+          <CardDescription>Your scheduling conversations</CardDescription>
         </div>
-        <Button variant="outline" onClick={requests.refresh}>
-          <RefreshCw data-icon="inline-start" />
-          Refresh
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Refresh inbox"
+          onClick={requests.refresh}
+        >
+          <RefreshCw aria-hidden="true" />
         </Button>
-      </div>
-      {!!allRequests.length && (
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-3">
-                <CardDescription>Awaiting approval</CardDescription>
-                <CalendarClock className="size-4 text-muted-foreground" />
-              </div>
-              <CardTitle className="text-3xl">{awaitingApproval}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Ready for your final decision.
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-3">
-                <CardDescription>Active requests</CardDescription>
-                <Clock3 className="size-4 text-muted-foreground" />
-              </div>
-              <CardTitle className="text-3xl">{active}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Still gathering, negotiating, or booking.
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-3">
-                <CardDescription>Booked</CardDescription>
-                <CheckCircle2 className="size-4 text-muted-foreground" />
-              </div>
-              <CardTitle className="text-3xl">{booked}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Confirmed meetings in this inbox.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-      {!allRequests.length && (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>A little breathing room</EmptyTitle>
-            <EmptyDescription>
-              New meeting requests will appear here. Share your booking link
-              when your setup is ready.
-            </EmptyDescription>
-          </EmptyHeader>
-          <Button render={<a href="/host" />} nativeButton={false}>
-            Review setup
-          </Button>
-        </Empty>
-      )}
-      {!!allRequests.length && (
-        <Card>
-          <CardHeader className="gap-4 sm:flex sm:flex-row sm:items-end sm:justify-between">
-            <div className="flex flex-col gap-1.5">
-              <CardTitle role="heading" aria-level={2}>
-                Requests
-              </CardTitle>
-              <CardDescription>
-                Open a request to review the details and choose the next step.
-              </CardDescription>
-            </div>
-            <Field className="w-full sm:max-w-xs">
-              <FieldLabel htmlFor="request-search" className="sr-only">
-                Search requests
-              </FieldLabel>
-              <Input
-                id="request-search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search requests"
-              />
-            </Field>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {filteredRequests.map((request) => (
-              <Card key={request.id} size="sm">
-                <CardHeader className="gap-3 sm:flex sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <CardTitle role="heading" aria-level={3}>
-                      {request.details.requesterName}
-                    </CardTitle>
-                    <CardDescription className="line-clamp-2">
-                      {request.details.purpose}
-                    </CardDescription>
-                  </div>
-                  <Badge
-                    variant={
-                      request.status === "booked" ? "default" : "secondary"
-                    }
-                  >
-                    {statusLabels[request.status]}
-                  </Badge>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex min-w-0 items-start gap-2 text-sm">
-                    {request.proposal ? (
-                      <CalendarCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                    ) : request.details.mode === "online" ? (
-                      <Video className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                    ) : (
-                      <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                    )}
-                    <span>
-                      {request.proposal
-                        ? timeLabel(request.proposal, request.proposal.timezone)
-                        : `${request.details.durationMinutes} minutes · ${request.details.mode === "online" ? "Online" : "In person"}`}
-                    </span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    render={<a href={`/host/requests/${request.id}`} />}
-                    nativeButton={false}
-                  >
-                    Review request
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-            {!filteredRequests.length && (
-              <Empty>
-                <EmptyHeader>
-                  <EmptyTitle>No matching requests</EmptyTitle>
-                  <EmptyDescription>
-                    Try another name, email, purpose, or status.
-                  </EmptyDescription>
-                </EmptyHeader>
-                <Button variant="outline" onClick={() => setQuery("")}>
-                  Clear search
+      </CardHeader>
+      <AIConversation
+        className="h-[min(55svh,32rem)] min-h-72 flex-none md:h-[min(68svh,42rem)]"
+        aria-label="Meeting inbox conversation"
+      >
+        <AIConversationContent className="gap-5 p-5 md:p-6">
+          <AIMessage from="assistant">
+            <AIMessageContent>
+              {allRequests.length === 0
+                ? "No meeting requests yet. Share your booking link when you’re ready."
+                : awaitingApproval > 0
+                  ? `${awaitingApproval} ${awaitingApproval === 1 ? "request needs" : "requests need"} your approval. Choose a conversation to review the current proposal.`
+                  : "Choose a conversation to review the details or continue scheduling."}
+            </AIMessageContent>
+          </AIMessage>
+          {filteredRequests.map((request) => (
+            <Artifact key={request.id}>
+              <ArtifactHeader>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <ArtifactTitle>{request.details.requesterName}</ArtifactTitle>
+                  <ArtifactDescription className="line-clamp-2">
+                    {request.details.purpose}
+                  </ArtifactDescription>
+                </div>
+                <Badge
+                  variant={
+                    request.status === "booked" ? "default" : "secondary"
+                  }
+                >
+                  {statusLabels[request.status]}
+                </Badge>
+              </ArtifactHeader>
+              <ArtifactContent className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  {request.proposal
+                    ? timeLabel(request.proposal, request.proposal.timezone)
+                    : `${request.details.durationMinutes} minutes · ${request.details.mode === "online" ? "Online" : "In person"}`}
+                </p>
+                <Button
+                  variant="outline"
+                  render={<a href={`/host/requests/${request.id}`} />}
+                  nativeButton={false}
+                >
+                  Open conversation
                 </Button>
-              </Empty>
-            )}
-          </CardContent>
-        </Card>
-      )}
-    </div>
+              </ArtifactContent>
+            </Artifact>
+          ))}
+          {!!allRequests.length && !filteredRequests.length && (
+            <AIMessage from="assistant">
+              <AIMessageContent>
+                No conversations match that search.
+              </AIMessageContent>
+            </AIMessage>
+          )}
+        </AIConversationContent>
+        <AIConversationScrollButton />
+      </AIConversation>
+      <CardFooter className="border-t py-4">
+        <Field>
+          <FieldLabel htmlFor="request-search" className="sr-only">
+            Search conversations
+          </FieldLabel>
+          <Input
+            id="request-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search conversations"
+          />
+        </Field>
+      </CardFooter>
+    </Card>
   )
 }
 export function RequestPage({
@@ -428,6 +353,9 @@ function RequestDetail({
   token?: string
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [conversationView, setConversationView] = useState<
+    "shared" | "private"
+  >("shared")
   const resource = useResource<RequestView>(
     `/requests/${encodeURIComponent(id)}`,
     token
@@ -473,51 +401,51 @@ function RequestDetail({
       .then(() => completed)
   }
   return (
-    <div className="flex min-w-0 flex-col gap-6">
-      <div className="flex flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="sr-only">
+          {host
+            ? `Meeting with ${request.details.requesterName}`
+            : "Your meeting request"}
+        </h1>
         <Button
           variant="ghost"
-          className="w-fit"
+          size="icon"
           render={<a href={host ? "/host/inbox" : "/"} />}
           nativeButton={false}
+          aria-label={host ? "Back to inbox" : "Back to Find Me a Time"}
         >
-          <ArrowLeft data-icon="inline-start" />
-          {host ? "Back to inbox" : "Back to Find Me a Time"}
+          <ArrowLeft aria-hidden="true" />
         </Button>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge
-                variant={request.status === "booked" ? "default" : "secondary"}
-              >
-                {statusLabels[request.status]}
-              </Badge>
-            </div>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight">
-              {host
-                ? `Meeting with ${request.details.requesterName}`
-                : "Your meeting request"}
-            </h1>
-            <p className="mt-2 max-w-2xl text-muted-foreground">
-              {request.details.purpose}
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <Badge variant="outline">Next step</Badge>
-              <span className="text-sm font-medium">
-                {nextActionLabel(request.nextAction)}
-              </span>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setSettingsOpen(true)}>
-              <Settings2 data-icon="inline-start" />
-              Request settings
-            </Button>
-            <Button variant="outline" onClick={resource.refresh}>
-              <RefreshCw data-icon="inline-start" />
-              Refresh status
-            </Button>
-          </div>
+        {host && (
+          <ToggleGroup
+            value={[conversationView]}
+            onValueChange={(value) =>
+              setConversationView(value[0] === "private" ? "private" : "shared")
+            }
+            aria-label="Conversation visibility"
+          >
+            <ToggleGroupItem value="shared">Shared</ToggleGroupItem>
+            <ToggleGroupItem value="private">Private</ToggleGroupItem>
+          </ToggleGroup>
+        )}
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Refresh status"
+            onClick={resource.refresh}
+          >
+            <RefreshCw aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Request settings"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings2 aria-hidden="true" />
+          </Button>
         </div>
       </div>
       {action.error && (
@@ -565,16 +493,17 @@ function RequestDetail({
           )}
         </Notice>
       )}
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+      <div className="flex w-full flex-col gap-3">
         <div className="flex min-w-0 flex-col gap-6">
-          <RequestConversation
-            request={request}
-            host={host}
-            mutable={mutable}
-            pending={action.pending}
-            mutate={mutation}
-          />
-          {host && (
+          {conversationView === "shared" || !host ? (
+            <RequestConversation
+              request={request}
+              host={host}
+              mutable={mutable}
+              pending={action.pending}
+              mutate={mutation}
+            />
+          ) : (
             <RequestConversation
               privateChat
               request={request}
@@ -1086,252 +1015,286 @@ function SharedRequestConversation({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex min-w-0 flex-col gap-5">
-        <div className="h-96 overflow-hidden rounded-xl border bg-muted/20">
-          <AIConversation>
-            {request.messages.length === 0 ? (
-              <AIConversationEmptyState
-                title="Ready when you are"
-                description="Tell the scheduling assistant what you want to change or ask what happens next."
-              />
-            ) : (
-              <AIConversationContent>
-                {request.messages.map((message) => {
-                  const from =
-                    message.role === "requester" ? "user" : "assistant"
-                  return (
-                    <AIMessage from={from} key={message.id}>
-                      <AIMessageContent>
-                        <p className="text-xs font-medium text-muted-foreground">
-                          {message.role === "requester"
-                            ? request.details.requesterName
-                            : message.role === "assistant"
-                              ? "Scheduling assistant"
-                              : "Host"}
-                        </p>
-                        <AIMessageResponse>{message.text}</AIMessageResponse>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(message.createdAt).toLocaleString()}
-                        </p>
-                      </AIMessageContent>
-                    </AIMessage>
-                  )
-                })}
-              </AIConversationContent>
-            )}
-            <AIConversationScrollButton />
-          </AIConversation>
-        </div>
-        {host && proposal && (
-          <ProposalReview
-            key={`${request.revision}-${host}`}
-            request={request}
-            host={host}
-            pending={pending}
-            mutate={mutate}
-          />
-        )}
-        {!host && mutable && review && (
-          <Card size="sm" className="border-primary/30 bg-primary/5">
-            <CardHeader>
-              <Badge variant="outline" className="w-fit">
-                Review before applying
-              </Badge>
-              <CardTitle role="heading" aria-level={3}>
-                Suggested request changes
-              </CardTitle>
-              <CardDescription>{review.clarification}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <dl className="grid gap-3 text-sm">
-                {review.patch.purpose && (
-                  <div>
-                    <dt className="text-muted-foreground">Purpose</dt>
-                    <dd className="font-medium">{review.patch.purpose}</dd>
-                  </div>
-                )}
-                {review.patch.mode && (
-                  <div>
-                    <dt className="text-muted-foreground">Meeting format</dt>
-                    <dd className="font-medium">
-                      {review.patch.mode === "online" ? "Online" : "In person"}
-                    </dd>
-                  </div>
-                )}
-                {review.patch.location !== undefined && (
-                  <div>
-                    <dt className="text-muted-foreground">Location</dt>
-                    <dd className="font-medium">
-                      {review.patch.location || "No location"}
-                    </dd>
-                  </div>
-                )}
-                {review.patch.windows?.map((window, index) => (
-                  <div key={`${window.start}-${window.end}`}>
-                    <dt className="text-muted-foreground">
-                      Availability {index + 1}
-                    </dt>
-                    <dd className="font-medium">
-                      {timeLabel(window, request.details.timezone)}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-              {!reviewIsCurrent && (
-                <Notice error>
-                  This review is out of date because the request changed. Send
-                  the details again to create a current review.
-                </Notice>
-              )}
-            </CardContent>
-            <CardFooter className="flex flex-wrap gap-2">
-              <Button
-                disabled={pending || !reviewIsCurrent}
-                onClick={() =>
-                  mutate(
-                    "conversation-review",
-                    {
-                      reviewedRevision: review.reviewedRevision,
-                      confirmed: true,
-                      patch: review.patch,
-                    },
-                    () => setReview(null)
-                  )
-                }
-              >
-                Apply these changes
-              </Button>
-              <Button variant="ghost" onClick={() => setReview(null)}>
-                Keep current details
-              </Button>
-            </CardFooter>
-          </Card>
-        )}
-        {!host && mutable && !proposal && (
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle role="heading" aria-level={3}>
-                Find a time
-              </CardTitle>
-              <CardDescription>
-                Availability is checked against the current reviewed request.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {request.candidates.length > 0 && (
-                <Field>
-                  <FieldLabel htmlFor="conversation-candidate">
-                    Feasible options
-                  </FieldLabel>
-                  <NativeSelect
-                    id="conversation-candidate"
-                    value={choice}
-                    onChange={(event) =>
-                      setSelection({
-                        revision: request.revision,
-                        value: event.target.value,
-                      })
-                    }
-                  >
-                    <NativeSelectOption value="">
-                      Choose a time
-                    </NativeSelectOption>
-                    {request.candidates.map((candidate, index) => (
-                      <NativeSelectOption
-                        key={candidate.start}
-                        value={String(index)}
-                      >
-                        {timeLabel(candidate, request.details.timezone)}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                </Field>
-              )}
-            </CardContent>
-            <CardFooter className="flex flex-wrap gap-2">
-              {request.candidates.length > 0 && (
-                <Button
-                  disabled={!choice || pending}
-                  onClick={() =>
-                    mutate("proposal", {
-                      ...request.candidates[Number(choice)],
-                    })
+        <AIConversation
+          className="h-[min(55svh,32rem)] min-h-72 flex-none rounded-xl border bg-muted/20 md:h-[min(68svh,42rem)]"
+          aria-label="Scheduling conversation transcript"
+        >
+          <AIConversationContent className="gap-5 p-5 md:p-6">
+            <AIMessage from="assistant">
+              <AIMessageContent>
+                {request.messages.length === 0
+                  ? "Tell me what you want to change, or ask what happens next."
+                  : "Here is the current request and its next step."}
+              </AIMessageContent>
+            </AIMessage>
+            <Artifact>
+              <ArtifactHeader>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <ArtifactTitle>
+                    {host
+                      ? `Meeting with ${request.details.requesterName}`
+                      : "Your meeting request"}
+                  </ArtifactTitle>
+                  <ArtifactDescription className="line-clamp-2">
+                    {request.details.purpose}
+                  </ArtifactDescription>
+                </div>
+                <Badge
+                  variant={
+                    request.status === "booked" ? "default" : "secondary"
                   }
                 >
-                  Review this time
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                disabled={pending}
-                onClick={() => mutate("evaluate")}
-              >
-                Check availability
-              </Button>
-            </CardFooter>
-          </Card>
-        )}
-        {!host && mutable && proposal && !request.requesterAgreed && (
-          <Card size="sm" className="border-primary/30 bg-primary/5">
-            <CardHeader>
-              <Badge variant="outline" className="w-fit">
-                Proposal {proposal.version}
-              </Badge>
-              <CardTitle role="heading" aria-level={3}>
-                {timeLabel(proposal, proposal.timezone)}
-              </CardTitle>
-              <CardDescription>
-                {proposal.mode === "online" ? "Online" : "In person"}
-                {proposal.location && ` · ${proposal.location}`}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              <p className="text-sm">
-                {proposal.requesterName} · {proposal.purpose}
-              </p>
-              <Field orientation="horizontal">
-                <Checkbox
-                  id={`conversation-agree-${proposal.version}`}
-                  checked={agreementVersion === proposal.version}
-                  onCheckedChange={(value) =>
-                    setAgreementVersion(
-                      value === true ? proposal.version : null
-                    )
-                  }
-                />
-                <FieldLabel htmlFor={`conversation-agree-${proposal.version}`}>
-                  I agree to proposal {proposal.version} with this exact time,
-                  format, location, and purpose.
-                </FieldLabel>
-              </Field>
-            </CardContent>
-            <CardFooter className="flex-col items-start gap-2">
-              <Button
-                disabled={
-                  pending ||
-                  agreementVersion !== proposal.version ||
-                  !request.contactVerified
-                }
-                onClick={() =>
-                  mutate("agree", { proposalVersion: proposal.version })
-                }
-              >
-                Agree and send to host
-              </Button>
-              {!request.contactVerified && (
-                <p className="text-xs text-muted-foreground">
-                  Verify your email in Request settings before sending your
-                  agreement.
-                </p>
-              )}
-            </CardFooter>
-          </Card>
-        )}
-        {!host && request.requesterAgreed && proposal && (
-          <Notice>
-            You agreed to proposal {proposal.version}. The host must still
-            approve it before booking begins.
-          </Notice>
-        )}
+                  {statusLabels[request.status]}
+                </Badge>
+              </ArtifactHeader>
+              <ArtifactContent className="text-sm">
+                <span className="text-muted-foreground">Next step · </span>
+                <span className="font-medium">
+                  {nextActionLabel(request.nextAction)}
+                </span>
+              </ArtifactContent>
+            </Artifact>
+            {request.messages.map((message) => {
+              const from = message.role === "requester" ? "user" : "assistant"
+              return (
+                <AIMessage from={from} key={message.id}>
+                  <AIMessageContent>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {message.role === "requester"
+                        ? request.details.requesterName
+                        : message.role === "assistant"
+                          ? "Scheduling assistant"
+                          : "Host"}
+                    </p>
+                    <AIMessageResponse>{message.text}</AIMessageResponse>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(message.createdAt).toLocaleString()}
+                    </p>
+                  </AIMessageContent>
+                </AIMessage>
+              )
+            })}
+            {host && proposal && (
+              <ProposalReview
+                key={`${request.revision}-${host}`}
+                request={request}
+                host={host}
+                pending={pending}
+                mutate={mutate}
+              />
+            )}
+            {!host && mutable && review && (
+              <Card size="sm" className="border-primary/30 bg-primary/5">
+                <CardHeader>
+                  <Badge variant="outline" className="w-fit">
+                    Review before applying
+                  </Badge>
+                  <CardTitle role="heading" aria-level={3}>
+                    Suggested request changes
+                  </CardTitle>
+                  <CardDescription>{review.clarification}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <dl className="grid gap-3 text-sm">
+                    {review.patch.purpose && (
+                      <div>
+                        <dt className="text-muted-foreground">Purpose</dt>
+                        <dd className="font-medium">{review.patch.purpose}</dd>
+                      </div>
+                    )}
+                    {review.patch.mode && (
+                      <div>
+                        <dt className="text-muted-foreground">
+                          Meeting format
+                        </dt>
+                        <dd className="font-medium">
+                          {review.patch.mode === "online"
+                            ? "Online"
+                            : "In person"}
+                        </dd>
+                      </div>
+                    )}
+                    {review.patch.location !== undefined && (
+                      <div>
+                        <dt className="text-muted-foreground">Location</dt>
+                        <dd className="font-medium">
+                          {review.patch.location || "No location"}
+                        </dd>
+                      </div>
+                    )}
+                    {review.patch.windows?.map((window, index) => (
+                      <div key={`${window.start}-${window.end}`}>
+                        <dt className="text-muted-foreground">
+                          Availability {index + 1}
+                        </dt>
+                        <dd className="font-medium">
+                          {timeLabel(window, request.details.timezone)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                  {!reviewIsCurrent && (
+                    <Notice error>
+                      This review is out of date because the request changed.
+                      Send the details again to create a current review.
+                    </Notice>
+                  )}
+                </CardContent>
+                <CardFooter className="flex flex-wrap gap-2">
+                  <Button
+                    disabled={pending || !reviewIsCurrent}
+                    onClick={() =>
+                      mutate(
+                        "conversation-review",
+                        {
+                          reviewedRevision: review.reviewedRevision,
+                          confirmed: true,
+                          patch: review.patch,
+                        },
+                        () => setReview(null)
+                      )
+                    }
+                  >
+                    Apply these changes
+                  </Button>
+                  <Button variant="ghost" onClick={() => setReview(null)}>
+                    Keep current details
+                  </Button>
+                </CardFooter>
+              </Card>
+            )}
+            {!host && mutable && !proposal && (
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle role="heading" aria-level={3}>
+                    Find a time
+                  </CardTitle>
+                  <CardDescription>
+                    Availability is checked against the current reviewed
+                    request.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3">
+                  {request.candidates.length > 0 && (
+                    <Field>
+                      <FieldLabel htmlFor="conversation-candidate">
+                        Feasible options
+                      </FieldLabel>
+                      <NativeSelect
+                        id="conversation-candidate"
+                        value={choice}
+                        onChange={(event) =>
+                          setSelection({
+                            revision: request.revision,
+                            value: event.target.value,
+                          })
+                        }
+                      >
+                        <NativeSelectOption value="">
+                          Choose a time
+                        </NativeSelectOption>
+                        {request.candidates.map((candidate, index) => (
+                          <NativeSelectOption
+                            key={candidate.start}
+                            value={String(index)}
+                          >
+                            {timeLabel(candidate, request.details.timezone)}
+                          </NativeSelectOption>
+                        ))}
+                      </NativeSelect>
+                    </Field>
+                  )}
+                </CardContent>
+                <CardFooter className="flex flex-wrap gap-2">
+                  {request.candidates.length > 0 && (
+                    <Button
+                      disabled={!choice || pending}
+                      onClick={() =>
+                        mutate("proposal", {
+                          ...request.candidates[Number(choice)],
+                        })
+                      }
+                    >
+                      Review this time
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() => mutate("evaluate")}
+                  >
+                    Check availability
+                  </Button>
+                </CardFooter>
+              </Card>
+            )}
+            {!host && mutable && proposal && !request.requesterAgreed && (
+              <Card size="sm" className="border-primary/30 bg-primary/5">
+                <CardHeader>
+                  <Badge variant="outline" className="w-fit">
+                    Proposal {proposal.version}
+                  </Badge>
+                  <CardTitle role="heading" aria-level={3}>
+                    {timeLabel(proposal, proposal.timezone)}
+                  </CardTitle>
+                  <CardDescription>
+                    {proposal.mode === "online" ? "Online" : "In person"}
+                    {proposal.location && ` · ${proposal.location}`}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3">
+                  <p className="text-sm">
+                    {proposal.requesterName} · {proposal.purpose}
+                  </p>
+                  <Field orientation="horizontal">
+                    <Checkbox
+                      id={`conversation-agree-${proposal.version}`}
+                      checked={agreementVersion === proposal.version}
+                      onCheckedChange={(value) =>
+                        setAgreementVersion(
+                          value === true ? proposal.version : null
+                        )
+                      }
+                    />
+                    <FieldLabel
+                      htmlFor={`conversation-agree-${proposal.version}`}
+                    >
+                      I agree to proposal {proposal.version} with this exact
+                      time, format, location, and purpose.
+                    </FieldLabel>
+                  </Field>
+                </CardContent>
+                <CardFooter className="flex-col items-start gap-2">
+                  <Button
+                    disabled={
+                      pending ||
+                      agreementVersion !== proposal.version ||
+                      !request.contactVerified
+                    }
+                    onClick={() =>
+                      mutate("agree", { proposalVersion: proposal.version })
+                    }
+                  >
+                    Agree and send to host
+                  </Button>
+                  {!request.contactVerified && (
+                    <p className="text-xs text-muted-foreground">
+                      Verify your email in Request settings before sending your
+                      agreement.
+                    </p>
+                  )}
+                </CardFooter>
+              </Card>
+            )}
+            {!host && request.requesterAgreed && proposal && (
+              <Notice>
+                You agreed to proposal {proposal.version}. The host must still
+                approve it before booking begins.
+              </Notice>
+            )}
+          </AIConversationContent>
+          <AIConversationScrollButton />
+        </AIConversation>
         {!host && mutable && (
           <>
             <Suggestions className="max-w-full min-w-0">
