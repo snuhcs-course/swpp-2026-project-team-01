@@ -8,7 +8,7 @@ The scheduling backend is part of the full source rebuild. This document defines
 
 ## 1. Deployment shape
 
-Use Supabase Auth and PostgreSQL for identity and durable application state. Next.js and eve are the proposed web/conversation direction, subject to the checks in the [backend decision](../03_technical_specification.md#backend-decision). API placement, eve persistence, job transport, worker hosting and recovery scheduling remain open. Supabase Edge Functions, Queues and Cron describe the former deployment, not mandatory replacement boundaries.
+Use Supabase Auth and PostgreSQL for identity and durable application state. Next.js and eve are the proposed web/conversation direction, subject to the checks in the [backend decision](../03_technical_specification.md#backend-decision). Follow the eve chat template: root `agent/`, Next.js in `apps/web/`, and separately built eve/web services composed through root `vercel.ts`. Shared server-only domain modules live in root `lib/server/`. The runtime spike verifies cross-runtime module compatibility, persistence, job transport, background execution and recovery scheduling; add a worker or bridge deployment only for an evidenced requirement. Supabase Edge Functions, Queues and Cron describe the former deployment, not mandatory replacement boundaries.
 
 Separate interactive commands, conversation execution and durable external effects as logical responsibilities. They may share modules or deployment infrastructure once the runtime spike establishes compatibility. Human waits live in durable state; request connections and process memory are not their source of truth.
 
@@ -57,7 +57,7 @@ Public skill documents are read-only guidance. Protected operations require thei
 
 Application services coordinate modules for a use case. A request adapter does not write another module's records directly, and a background handler does not bypass authorization by calling a repository helper. Use the same transition functions for web, MCP, CLI, and messaging inputs.
 
-Keep application operations and their rules together within each capability; extract client-safe contracts only when multiple consumers need them. Provider credentials and privileged persistence stay inside the backend.
+Keep application operations and their rules together within each capability under `lib/server/`: identity, onboarding, scheduling (including request lifecycle/proposals), booking and delivery. Infrastructure lives in its `providers/`, `db/` and `jobs/` modules. Eve tools and every channel entry invoke these same operations. Provider credentials and privileged persistence stay server-only. Client-safe schemas live in `lib/contracts/`; share these source modules between the agent and web builds without a new package, and extract a package only when independent packaging is required. See the [source organization](02_frontend_architecture.md#source-organization) for the canonical layout.
 
 The [page list](../user_experience/04_page_list.md#supporting-routes-and-surfaces) records proposed public routes and skill-document surfaces. Preserve the promised `findmeatime.com/SKILL.md` and `/{host}/SKILL.md` entry URLs independently of deployment paths.
 
@@ -67,7 +67,7 @@ The [page list](../user_experience/04_page_list.md#supporting-routes-and-surface
 |---|---|
 | `GET /SKILL.md` | Serve versioned onboarding instructions for “Let me use findmeatime.com/SKILL.md for my scheduling”. |
 | `GET /{host}/SKILL.md` | Resolve a public host handle and serve requester instructions for “Let me schedule a meeting with findmeatime.com/dodo/SKILL.md”. |
-| Application HTTP API | Validate web/CLI inputs, resolve identity, invoke commands/queries, and return structured results. Rebuild schemas together with `packages/contracts/`; the [former backend contract](../../scripts/backend-contract.md) is reference evidence, not endpoint compatibility scope. |
+| Application HTTP API | Validate web/CLI inputs, resolve identity, invoke commands/queries, and return structured results. Define client-safe input/output schemas in `lib/contracts/`; the [former backend contract](../../scripts/backend-contract.md) is reference evidence, not endpoint compatibility scope. |
 | Remote MCP endpoint | Expose permitted tools and map tool calls to the same application commands. OAuth discovery and consent follow the selected authorization implementation. |
 | Calendar and identity callbacks | Validate provider callback context and associate host grants with the initiating account/setup flow, or requester availability grants with the authorized request continuation. Requester calendar consent does not require host admission. |
 | Email events and iMessage ingress | Authenticate provider origin/transport, persist deduplicated input, acknowledge durable receipt and dispatch authorized processing. |

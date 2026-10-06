@@ -16,9 +16,14 @@ See the [project one-pager](documentations/01_one_pager.md) for the target users
 
 ## Repository layout
 
-- `apps/`: application code.
+- `agent/`: planned root eve definitions, instructions, tools and channels.
+- `apps/web/`: planned Next.js routes, components and web-specific adapters.
+- `lib/`: planned shared client-safe contracts and server-only scheduling capabilities.
+- `tests/`: planned integration and browser tests; unit tests live beside modules.
 - `documentations/`: project documentation and research.
-- `supabase/`: local Supabase configuration and database migrations.
+- `supabase/`: local configuration, declarative schemas, migrations and database tests.
+- `openspec/`: behavioral specifications and bounded implementation changes.
+- `scripts/`: repository and operator tooling.
 
 See the [frontend architecture](documentations/technical_specification/02_frontend_architecture.md) for the proposed web structure and [backend architecture](documentations/technical_specification/01_backend_architecture.md) for backend module responsibilities.
 

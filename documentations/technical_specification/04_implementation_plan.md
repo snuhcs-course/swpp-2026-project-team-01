@@ -14,6 +14,7 @@ Deliver a working one-to-one scheduling service: a host chats with the agent at 
 | MVP host audience | Target iPhone/iMessage hosts; recommend linked iMessage for everyday interaction, with web or iMessage onboarding and verified browser handoffs. Linking stays opt-in and web remains available. Defer Android-specific flows/testing and substitute notification channels; do not block public requesters by device. | [Audience and scope](../02_product_requirements.md#target-users) |
 | One host chat page | Admission, setup, request selection/review and settings are cards, states or dialogs inside `/app`; authentication and provider consent return there. | [Page model](../user_experience/04_page_list.md#primary-pages) |
 | Requester journey | No product account required; public intake leads to protected `/booking/[bookingId]`. Closed access is limited to permitted status/receipt, not an unlimited transcript. | [Booking destination](../user_experience/04_page_list.md#requester-booking-destination) |
+| Repository structure | Follow the eve chat template: root `agent/`, `apps/web/` with `app/`, `components/` and web-specific `lib/`, and root shared `lib/contracts/` and `lib/server/`. Build eve/web separately and compose through root `vercel.ts`; defer extra packages and worker/bridge apps. | [Source organization](02_frontend_architecture.md#source-organization) |
 | Runtime and model | Next.js App Router with eve, conditional on Phase 1 passing; direct OpenAI via `eve/models/openai`, with server-only `OPENAI_API_KEY` and an explicitly verified native model ID. | [Frontend architecture](02_frontend_architecture.md#scope-and-decisions), [OpenAI setup](03_provider_setup.md#openai-model-access-through-eve) |
 | Identity and durable domain state | Supabase Auth/PostgreSQL; selected rebuild project `mriseqztcwmezvtawnbo`. Application code owns authorization and scheduling decisions. | [Project record](03_provider_setup.md#selected-rebuild-supabase-project), [backend boundaries](01_backend_architecture.md#2-module-boundaries) |
 | Channels | AgentMail requester conversations, Photon Spectrum host iMessage, Cloudflare transactional/Auth mail. Verify actual adapter compatibility. | [Provider setup](03_provider_setup.md), [provider boundaries](01_backend_architecture.md#9-provider-boundaries) |
@@ -21,6 +22,18 @@ Deliver a working one-to-one scheduling service: a host chats with the agent at 
 | Source replacement | Rebuild in final paths, preserve unrelated local work, secrets, external resources and applied migration history. No old transcript/link migration or parallel replacement app. | [Replacement boundary](04_implementation_plan.md#2-execution-rules-and-source-ownership) |
 
 Exclude Android-specific UX/testing, SMS/WhatsApp and Android-substitute host proposal-notification email, native mobile apps, group scheduling, non-Google calendars, general inbox management, host conversation email and automated post-booking reschedule/cancel. The [PRD release scope](../02_product_requirements.md#3-proposed-initial-release-scope) owns any later change.
+
+### Reference repositories
+
+Use these references during Phase 1 and the relevant UI/channel slices. The [source organization](02_frontend_architecture.md#source-organization) is our intended layout; repository examples do not override product routes, application authorization or provider decisions.
+
+| Reference | Role in this rebuild | Boundary |
+|---|---|---|
+| [eve chat template](https://github.com/vercel/eve/tree/main/apps/templates/eve-chat-template) | Primary structural and runtime reference: root `agent/`, `apps/web/`, separate eve/Next.js builds and root `vercel.ts` composition, plus conversation transport and streaming. | Follow the verified template and installed-version docs for exact APIs; retain our Supabase identity and session authorization. |
+| [personal-agent template](https://github.com/vercel/eve/tree/main/apps/templates/personal-agent-template) | Reference for agent organization, tools, connections and channel-linking concepts during onboarding and messaging work. | Its web app uses Nuxt; borrow channel/connection concepts without adopting its frontend framework. Verify Photon compatibility and our own user/channel bindings. |
+| [Vercel chatbot](https://github.com/vercel/chatbot) | UI reference for conversation rendering, composer behavior, streaming feedback and artifact interactions. | Adapt useful interaction patterns; retain our single `/app` chat, scheduling-specific artifacts and eve runtime. Do not copy its auth, database, sidebar or runtime wholesale. |
+
+Record the reference commit SHAs, selected package versions and any adapted patterns when implementation starts; `main` links are moving references. Use direct OpenAI through eve as already selected. Reference repositories do not add dependencies or services by themselves.
 
 ## 2. Execution rules and source ownership
 
@@ -36,12 +49,15 @@ Before deleting source, record the current branch/status and preserve the outsta
 
 | Target | Treatment |
 |---|---|
-| `apps/web/` | Former Vite source removed. Build Next.js routes, host/requester conversation UI, server entry boundaries and tests. |
-| `packages/contracts/` | Rebuild shared input/action/projection schemas; avoid exposing database rows or raw provider types. |
+| `agent/` | Follow eve entrypoint conventions; keep instructions, tools, channels and supported connection definitions here. Tools delegate to shared authorized operations. |
+| `apps/web/` | Former Vite source removed. Build Next.js `app/`, `components/` and web-specific `lib/` following the reference template. |
+| Root `lib/` | Share browser-safe schemas in `lib/contracts/` and server-only capabilities in `lib/server/` between eve and web. Verify both builds; defer independent packages. |
+| Root `tests/` | Cross-module/runtime integration and browser e2e tests; unit tests remain beside modules and database tests remain under Supabase. |
+| Root `package.json`, `vercel.ts` | Orchestrate separate eve/web builds and compose their services; adapt reference commands to npm. |
 | `supabase/functions/` | Former Hono/Deno source removed. Rebuild API and worker responsibilities in the runtime locations selected in Phase 1. |
 | `supabase/schemas/`, `supabase/tests/` | Implement desired schema, isolation and concurrency tests; preserve behavior, not old table shapes. |
 | `supabase/migrations/` | Preserve existing history and add reviewed migrations generated from the desired schema. |
-| `apps/photon-bridge/` | Former source removed; Fly configuration archived. Add a bridge only if the Photon integration requires a separate process after Phase 1. |
+| Optional `apps/worker/` or `apps/photon-bridge/` | Defer creation until Phase 1 demonstrates a separate-process requirement. Former bridge source is removed and Fly configuration is archived. |
 | Root/app manifests, lockfiles, `.github/workflows/check.yml`, `scripts/` | Keep install, typecheck, lint, tests, build and deployment commands coherent with each implemented slice. |
 | `documentations/`, `openspec/` | Retain product requirements and settled behavior; update design/setup documents and record fresh evidence in bounded changes. Historical test success is not replacement verification. |
 | Infrastructure configuration, local secrets and external resources | Preserve and adapt deliberately; keep secrets out of tracked source and do not infer remote deletion authority from source replacement. |
@@ -88,11 +104,11 @@ References: [repository change workflow](../../AGENTS.md#documentation-and-speci
 Work:
 
 - Configure the reconstruction deployment at `https://release.findmeatime.com` following [provider setup](03_provider_setup.md#reconstruction-deployment-origin). Verify domain attachment, DNS, TLS and origin configuration before remote callback tests; preserve root-domain and mail records.
-- Build the smallest Next.js/eve integration directly in `apps/web/`, using the eve chat template as the integration reference and the other templates only for the documented concepts. Pin the dependency set verified on Node.js 24/npm; keep Supabase identity in control.
+- Build the smallest integration with root `agent/`, Next.js in `apps/web/` and shared root `lib/`, following the [reference repositories](#reference-repositories) and [source organization](02_frontend_architecture.md#source-organization). Pin the dependency set verified on Node.js 24/npm; keep Supabase identity in control.
 - Wire the direct OpenAI provider; verify the selected model and account entitlement. Keep keys server-side and fail clearly on missing credentials, rate limits and exhausted credits. A model failure must not advance scheduling state.
 - Exercise two hosts and two request-scoped requesters. Verify session creation/read/list/stream/resume and every exposed mutation against actor, resource and audience. Inspect per-user memory scoping if memory is enabled; disable it until isolation is proven.
 - Kill/restart the runtime mid-turn and after a tool commit; reconnect the browser. Verify authorized output recovery and one domain effect despite repeated tool execution. Test revocation while a stream/session exists.
-- Choose and record eve persistence, API/tool placement, job transport, recovery scheduler, worker hosting, execution limits and required server secrets. Prefer the tested Next.js co-deployment arrangement where supported; do not assume old Edge Functions/Cron or a new external queue is necessary.
+- Choose and record eve persistence, API/tool placement, job transport, recovery scheduler, background execution, execution limits and required server secrets. Build shared `lib/server/` modules in both eve and Next.js and verify the root `vercel.ts` service composition. Verify client-safe contract imports cannot expose server modules or credentials. Create an additional worker/bridge only for a demonstrated requirement; do not assume old Edge Functions/Cron or a new external queue is necessary.
 - Test the native eve Photon adapter against the selected Spectrum transport contract; choose it only if compatible, otherwise specify the narrow bridge boundary.
 - Run an early OAuth compatibility spike for protected MCP access: discovery, issuer/resource audience, registration, PKCE, refresh and revocation. Record client-specific gaps before finalizing access contracts; a successful browser Supabase login is insufficient.
 

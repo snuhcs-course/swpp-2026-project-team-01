@@ -36,7 +36,7 @@ flowchart TD
   Projection --> Web
 ```
 
-This is a responsibility diagram, not a claim that all components run inside Next.js. Start by testing the template's supported co-deployment arrangement; do not add a second hosting service merely to mirror the diagram. Browser traffic uses same-origin application endpoints. Provider webhooks and credentials remain server-side.
+This is a responsibility diagram, not a claim that all components run inside Next.js. Test the reference template's separately built eve and Next.js services composed through root `vercel.ts`; do not infer that eve runs inside Next.js or add another worker merely to mirror the diagram. Browser traffic uses same-origin application endpoints. Provider webhooks and credentials remain server-side.
 
 | Layer | Owns | Does not own |
 |---|---|---|
@@ -48,33 +48,66 @@ This is a responsibility diagram, not a claim that all components run inside Nex
 
 ## Source organization
 
-Proposed frontend structure, directly under its final workspace path:
+Follow the eve chat template's outer layout: root `agent/`, Next.js under `apps/web/`, and a root build/deployment configuration. Root `lib/` holds our shared scheduling code and contracts; these product-specific modules are our addition to the template. Keep the database, documentation and specification directories already present in this repository.
 
 ```text
-apps/web/
-  app/
-    (public)/                  # landing and public host entry
-    (auth)/                    # sign-in and callback surfaces
-    (host)/app/page.tsx        # single host-agent chat with contextual controls
-    (requester)/booking/[bookingId]/ # protected requester conversation and receipt
-    connect/                  # validated personal-agent consent surface
-    connections/              # browser consent callbacks
-    api/                      # narrowly scoped server handlers
-  components/
-    ui/                       # accessible presentation primitives
-    conversation/             # transcript, composer, stream status
-    artifacts/                # typed scheduling cards and action states
-    navigation/               # compact menu and discussion switch
-  features/
-    auth/ admission/ setup/ requests/ inbox/ connections/
-  lib/
-    client/                   # same-origin API and stream adapters
-    server/                   # server-only identity and backend adapters
-  tests/                      # feature, browser and boundary coverage
-packages/contracts/           # rebuilt application schemas and projections
+agent/
+  agent.ts                    # eve definition
+  instructions.md
+  tools/                      # thin adapters to authorized application operations
+  channels/                   # web and messaging channel integration
+  connections/                # supported eve connection definitions when needed
+apps/
+  web/
+    app/                      # thin Next.js routes
+      (public)/               # landing, [handle] and public skill entry
+      (auth)/                 # sign-in and Auth callback
+      (host)/app/              # single host-agent chat
+      (guest)/booking/[bookingId]/
+      connect/                # personal-agent consent
+      connections/            # Calendar callbacks
+      api/                    # web endpoints; eve ingress follows runtime routing
+    components/
+      ui/
+      conversation/
+      artifacts/              # typed scheduling cards
+      onboarding/
+    lib/                      # web-specific auth, client and runtime adapters
+    public/
+    next.config.ts
+lib/
+  contracts/                  # client-safe inputs, actions and projections
+  server/                     # shared server-only application code
+    identity/                 # permissions, channel links, session ownership
+    onboarding/
+    scheduling/               # request lifecycle, availability, proposals, travel
+    booking/                  # approval validation, event creation, reconciliation
+    delivery/                 # outbound messages and recovery
+    providers/                # Google, Photon, AgentMail and Cloudflare
+    db/
+    jobs/
+tests/
+  integration/                # domain, runtime and channel boundaries
+  e2e/                        # complete browser journeys
+supabase/
+  config.toml
+  schemas/
+  migrations/
+  tests/
+documentations/
+openspec/
+scripts/
+package.json                  # root orchestration for eve and web builds
+vercel.ts                     # compose eve and the Next.js web service
 ```
 
-Route groups organize source without adding URL segments. Features own their view models, user interactions and tests; route files compose them. Shared primitives stay free of scheduling rules. Keep server-only modules out of client imports and enforce this in build/lint checks. Exact eve agent entrypoints and build files follow the tested template rather than an invented directory convention. Do not create a generic framework wrapper or duplicate eve's session engine.
+The reference builds eve and Next.js separately and composes them with `withEve` in root `vercel.ts`. Follow that integration shape and verify it in Phase 1; sharing one repository or Vercel project does not mean eve executes inside the Next.js runtime. Keep npm as our selected package manager rather than copying the template's pnpm commands. Exact SDK APIs, mounts, import aliases and build commands follow the pinned, tested template version.
+
+Route groups organize source without adding URL segments. Route files authenticate, validate and delegate; web-specific UI and interaction code lives in `apps/web/`. Unit tests sit beside their modules, shared integration tests live in root `tests/integration/`, and browser tests in root `tests/e2e/`. Avoid a separate `src/features/` hierarchy until the UI needs it.
+
+Eve tools and web, iMessage, email, MCP and CLI entry adapters invoke the same `lib/server/` operations. Keep scheduling decisions and authorization in ordinary testable application code. Shared modules must work in both the eve and web server builds; keep Next.js request/cookie adapters in `apps/web/lib/` and pass verified actor/context into application operations. Agent instructions and channel handlers do not implement separate booking rules. `lib/contracts/` contains browser-safe schemas only; forbid client imports of `lib/server/`, including indirect barrel exports, and test that boundary in both builds.
+
+Root `lib/` is shared source, not a separately published package. Defer `packages/contracts/` until independent packaging is actually required. Add `apps/worker/` or a new `apps/photon-bridge/` implementation only when runtime/channel tests demonstrate a need beyond the template's existing eve/web services. Existing placeholder directories and historical bridge documentation do not establish a package or service requirement. Do not wrap or duplicate eve's session engine.
 
 ## Rendering and state ownership
 
