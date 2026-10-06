@@ -56,13 +56,13 @@ try {
   }
   const stream = await fetch(`${eve}/eve/v1/session/test/stream`);
   assert.equal(stream.status, 401);
-  for (const [method, path] of [['POST', '/api/conversations'], ['GET', '/api/conversations/test'],
+  for (const [method, path] of [['POST', '/api/internal/conversations/dispatch'], ['POST', '/api/conversations'], ['GET', '/api/conversations/test'],
     ['POST', '/api/conversations/test/messages'], ['GET', '/api/conversations/test/stream']]) {
     const response = await fetch(eve + path, { method });
     assert.equal(response.status, 401, `${method} ${path} must reject anonymous access`);
     assert.match(response.headers.get('cache-control'), /no-store/u);
   }
-  console.log('PASS: built web health/page/headers and all eleven conversation/session routes reject anonymous access.');
+  console.log('PASS: built web health/page/headers and all twelve conversation/session routes reject anonymous access.');
 } finally {
   await Promise.all(children.map(async (child) => {
     if (child.exitCode !== null) return;

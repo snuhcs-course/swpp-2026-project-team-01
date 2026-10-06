@@ -6,6 +6,7 @@ import { RuntimeMessages, type RuntimeAuth } from '../../lib/server/identity/run
 import { deliverMessage, settleMessage, type DeliveryState } from '../../lib/server/identity/runtime-delivery.ts';
 import { privateHeaders, privateRoute, readJson, requestCredential } from '../../lib/server/identity/request-credential.ts';
 import { authorizedStream } from '../../lib/server/identity/runtime-stream.ts';
+import { dispatchPending, requireDispatchSecret } from '../../lib/server/identity/runtime-dispatch.ts';
 import { ApplicationError } from '../../lib/server/errors.ts';
 
 const conversations = new Conversations(), messages = new RuntimeMessages();
@@ -22,6 +23,17 @@ export default defineChannel({
     'session.failed': (event, channel) => settleMessage(channel.state, event.sessionId, 'failed'),
   },
   routes: [
+    POST<DeliveryState>('/api/internal/conversations/dispatch', (request, { from, resolveSession }) => privateRoute(async () => {
+      requireDispatchSecret(request);
+      const result = await dispatchPending(async (scope, text, auth, sessionId) => {
+        if (sessionId) {
+          const session = await resolveSession(scope);
+          if (!session || session.id !== sessionId) throw new ApplicationError('RECONCILIATION_PENDING', 409);
+        }
+        await from(scope).send(text, {auth, state:{seen:{},active:null}, title:'Scheduling conversation'});
+      });
+      return Response.json(result, {headers:privateHeaders});
+    })),
     POST('/api/conversations', (request) => privateRoute(async () => {
       const credential = await requestCredential(request);
       const grant = await conversations.open(credential, await readJson(request));

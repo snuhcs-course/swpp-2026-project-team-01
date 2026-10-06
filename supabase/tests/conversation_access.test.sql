@@ -122,6 +122,21 @@ select is(jsonb_array_length(pg_temp.runtime('shared1','inspect')->'messages'),1
 select is(jsonb_array_length(pg_temp.runtime('private1','inspect')->'messages'),0,'host-private transcript remains separate from shared inbox');
 select lives_ok($$select pg_temp.runtime('shared1','accept','{"clientId":"84000000-0000-4000-8000-000000000002","text":"second participant after settled turn"}')$$,'next participant may speak after prior turn settles');
 
+select ok(not has_function_privilege('anon','public.fmat_runtime_dispatch(text,jsonb)','EXECUTE'),'dispatch RPC is not public');
+select ok(not has_function_privilege('service_role','fmat.wake_runtime_dispatch()','EXECUTE'),'service cannot read scheduler secrets through wake function');
+update fmat.runtime_messages set next_dispatch_at=now()-interval '1 second' where status='pending';
+insert into fixture values ('claim',public.fmat_runtime_dispatch('claim','{}')->0);
+select is(jsonb_array_length(public.fmat_runtime_dispatch('claim','{}')),0,'live dispatch lease prevents overlapping claim');
+select throws_ok($$select public.fmat_runtime_dispatch('finish',pg_temp.f('claim')||'{"leaseToken":"84000000-0000-4000-8000-000000000099","outcome":"sent"}')$$,'P0001','LEASE_LOST','wrong worker cannot acknowledge dispatch');
+update fmat.runtime_messages set dispatch_until=now()-interval '1 second' where status='pending';
+insert into fixture values ('reclaim',public.fmat_runtime_dispatch('claim','{}')->0);
+select isnt(pg_temp.f('claim')->>'leaseToken',pg_temp.f('reclaim')->>'leaseToken','expired lease produces a new fence');
+select throws_ok($$select public.fmat_runtime_dispatch('finish',pg_temp.f('claim')||'{"outcome":"sent"}')$$,'P0001','LEASE_LOST','old worker is fenced after reclaim');
+select lives_ok($$select public.fmat_runtime_dispatch('finish',pg_temp.f('reclaim')||'{"outcome":"sent"}')$$,'new worker records dispatch');
+select is((select status from fmat.runtime_messages where id=(pg_temp.f('reclaim')->>'messageId')::uuid),'pending','transport acknowledgment does not manufacture turn completion');
+select is(jsonb_array_length(public.fmat_runtime_dispatch('claim','{}')),0,'acknowledged transport retries are delayed');
+select is(fmat.wake_runtime_dispatch(),null::bigint,'unconfigured scheduler performs no network request');
+
 update auth.sessions set not_after=now()-interval '1 second' where id='81000000-0000-4000-8000-000000000001';
 select throws_ok($$select pg_temp.check_grant('setup1')$$,'P0001','UNAUTHORIZED','session expiry interrupts existing execution grant');
 update auth.sessions set not_after=null where id='81000000-0000-4000-8000-000000000001';

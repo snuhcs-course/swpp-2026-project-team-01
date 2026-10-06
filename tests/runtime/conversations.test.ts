@@ -37,7 +37,7 @@ test('real eve ingress binds request authority, deduplicates input and recovers 
     // lease. Accelerate expiration only in this isolated crash-test process;
     // production retains its default lease and never imports this fixture.
     WORKFLOW_INLINE_OWNERSHIP_LEASE_SECONDS:'5',
-    FMAT_TEST_MARKER:marker, OPENAI_API_KEY:'', NODE_ENV:'development'};
+    RUNTIME_DISPATCH_SECRET:'a'.repeat(64), FMAT_TEST_MARKER:marker, OPENAI_API_KEY:'', NODE_ENV:'development'};
   let child: ChildProcess | undefined, serverLog='';
   async function start(resume=false) {
     child=spawn(process.execPath,[join(root,'node_modules/eve/bin/eve.js'),'dev','--no-ui','--no-default-extensions','--host','127.0.0.1','--port',String(port),...(resume?['--resume']:[])],{cwd:fixture,env,stdio:['ignore','pipe','pipe'],detached:true});
@@ -86,8 +86,14 @@ test('real eve ingress binds request authority, deduplicates input and recovers 
     controller.abort();
     assert.match(output,/Reply 1:/u); assert.doesNotMatch(output,/p_grant_id|tokenHash|tool-committed/u);
     const cursor=(JSON.parse(output.trim().split('\n').at(-1)!) as {cursor:number}).cursor;
-    const next=await post(`/api/conversations/${scope}/messages`,{clientId:randomUUID(),text:'Continue the same request.'});
-    assert.equal(next.status,202,await next.clone().text());
+    // Simulate process death after inbox commit and before from().send(): no
+    // browser retry occurs. The authenticated sweep must recover this input.
+    await sql.query(`select public.fmat_runtime_message('accept',(select id from fmat.conversation_grants where conversation_id='${scope}' limit 1),'${scope}','${JSON.stringify({clientId:randomUUID(),text:'Continue the same request.'})}'::jsonb);
+      update fmat.runtime_messages set next_dispatch_at=now()-interval '1 second' where conversation_id='${scope}' and status='pending';`);
+    assert.equal((await fetch(origin+'/api/internal/conversations/dispatch',{method:'POST'})).status,401);
+    const recovered=await fetch(origin+'/api/internal/conversations/dispatch',{method:'POST',headers:{authorization:'Bearer '+'a'.repeat(64)}});
+    assert.equal(recovered.status,200,await recovered.clone().text());
+    assert.deepEqual(await recovered.json(),{claimed:1,sent:1});
     await waitUntil(async()=>await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}' and status='completed';`)==='2','Continuation did not finish');
     const resumedController=new AbortController();
     const resumed=await fetch(`${origin}/api/conversations/${scope}/stream?cursor=${cursor}`,{headers:headers(),signal:resumedController.signal});

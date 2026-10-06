@@ -9,6 +9,7 @@ export default await withEve({
     },
   },
   routes: [
+    { src: '^/api/internal/conversations/dispatch$', destination: { type: 'service', service: 'eve' } },
     { src: '^/api/conversations(?:/.*)?$', destination: { type: 'service', service: 'eve' } },
     { src: '^(.*)$', destination: { type: 'service', service: 'web' } },
   ],

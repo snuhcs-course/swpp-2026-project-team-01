@@ -73,6 +73,12 @@ Automatic recovery between database acceptance and runtime dispatch, managed Ver
 
 Deployed code commit `3237895` on 2026-10-07. The reviewed tenth migration was applied to `mriseqztcwmezvtawnbo`; the follow-up dry run is current and remote security advisors report no issues. The inbox RPC remains service-only and browser roles cannot read its table. Vercel deployment `dpl_7ec7sqDp9io9E1woJ3CbEtFJyp8Z` (`https://findmeatime-release-ki6ln2ukb-justdodos-projects.vercel.app`) is `READY` at `https://release.findmeatime.com`. Three public page/health probes return 200; all eleven default/custom private route probes return 401 without credentials. `releaseReady` remains false. Upload preflight checked 162 regular source files against 16 configured secret values and found none; local credential/state files were excluded. No additional provider consumer was enabled.
 
+## Accepted-message dispatch recovery
+
+Local verification on 2026-10-07: two additional migrations add leased dispatch metadata and a minute Supabase Cron wake-up. Recovery scans the authoritative inbox, so it covers a crash between acceptance and runtime send without needing a queue publication. Claims use `FOR UPDATE SKIP LOCKED`, five rows per sweep and 90-second leases. Completion uses the lease token; an expired worker cannot acknowledge a new claim. Transport acknowledgment leaves the turn pending, with a five-minute retry delay until the runtime receipt settles. Current-grant denial retires pending input without starting model work. Canonical runtime identity still prevents silent replacement.
+
+`npm run test:conversations` now simulates accepted input without any send and verifies recovery through the authenticated endpoint, preserving the second-message stream and cursor. The complete local reset passes 523 database assertions; 20 app and four SMTP tests pass. The schedule is inert until its two environment-specific Vault entries exist. These checks do not certify managed Workflow crash latency, the remaining session controls or full product journeys.
+
 ## Initial production runtime deployment
 
 On 2026-10-07, deployed commit `7b3085b` to Vercel project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`) in `justdodos-projects`. The checkout is explicitly linked to this project; the existing root-domain project is preserved.
