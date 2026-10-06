@@ -25,7 +25,7 @@ Verify DNS, TLS, the expected deployment, Auth/Calendar returns, generated links
 
 ## Selected rebuild Supabase project
 
-Use **FindMeATime2**, project **`mriseqztcwmezvtawnbo`**: [project dashboard](https://supabase.com/dashboard/project/mriseqztcwmezvtawnbo). The CLI link was restored and matched against `SUPABASE_PROJECT_REF` and `SUPABASE_URL` on 2026-10-07. The initially empty project now has all fourteen migrations through `20261006230858_calendar_consent`. A subsequent dry run reports no pending migrations, and the remote security advisor reports no issues. Reconfirm the target before each remote operation.
+Use **FindMeATime2**, project **`mriseqztcwmezvtawnbo`**: [project dashboard](https://supabase.com/dashboard/project/mriseqztcwmezvtawnbo). The CLI link was restored and matched against `SUPABASE_PROJECT_REF` and `SUPABASE_URL` on 2026-10-07. The initially empty project now has all fifteen migrations through `20261006232914_calendar_selection`. A subsequent dry run reports no pending migrations, and the remote security advisor reports no issues. Reconfirm the target before each remote operation.
 
 Verify schema, Auth, SMTP and provider configuration against this project independently. Follow the [schema workflow](../../AGENTS.md#supabase-schema-changes), review migration SQL and run `supabase db push --dry-run` before a remote push. Never reset a remote database for local setup.
 
