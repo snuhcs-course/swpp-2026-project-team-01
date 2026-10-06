@@ -1,7 +1,7 @@
 # Frontend architecture
 
 Date: 2026-10-06
-Status: runtime and browser access foundation implemented on 2026-10-07; conversation UI and scheduling journeys in progress
+Status: runtime, protected browser conversations and bound Calendar consent implemented on 2026-10-07; guided setup and scheduling journeys in progress
 Companion: [Page list](../user_experience/04_page_list.md)
 
 ## Scope and decisions
@@ -48,7 +48,7 @@ This is a responsibility diagram, not a claim that all components run inside Nex
 
 ## Source organization
 
-The runtime entrypoints, separate build scripts and browser access routes now exist. The tree below remains the target structure; Calendar, scheduling artifacts and conversation UI are still being implemented. The [evidence ledger](05_rebuild_evidence.md) records which parts have executable verification.
+The runtime entrypoints, separate build scripts and browser access routes now exist. The tree below remains the target structure; Calendar selection, guided setup and scheduling artifacts are still being implemented. The [evidence ledger](05_rebuild_evidence.md) records which parts have executable verification.
 
 Follow the eve chat template's outer layout: root `agent/`, Next.js under `apps/web/`, and a root build/deployment configuration. Root `lib/` holds our shared scheduling code and contracts; these product-specific modules are our addition to the template. Keep the database, documentation and specification directories already present in this repository.
 
@@ -135,11 +135,11 @@ Resolve a conversation from verified actor, application resource and discussion 
 
 Protect every exposed eve create, read/list, stream, continue, cancel, compact, clear, reset and input/action route. Check ownership and current grants at the server boundary and again on scoped tool execution. Do not expose an unprotected raw eve endpoint around these checks. A channel's trace audience setting is not an application permission check. Eve's [authentication documentation](https://eve.dev/docs/guides/auth-and-route-protection) explicitly assigns session ownership authorization to the application.
 
-The current adapter uses `/api/conversations` for open, snapshot, message and NDJSON stream operations; default eve session/control routes remain denied. Accepted inputs carry a stable client UUID, with one pending input per scope. The database freezes input and the delivery hook binds its canonical runtime session. Checkpointed channel state deduplicates replay. Streams omit raw tool, reasoning and auth metadata, recheck access per event and while idle, and expose an absolute cursor for reconnect. A leased inbox dispatcher supplies automatic wake-up recovery. Connecting the browser conversation UI and remaining controls is still in progress; see the [evidence ledger](05_rebuild_evidence.md).
+The current adapter uses `/api/conversations` for open, snapshot, message and NDJSON stream operations; default eve session/control routes remain denied. Accepted inputs carry a stable client UUID, with one pending input per scope. The database freezes input and the delivery hook binds its canonical runtime session. Checkpointed channel state deduplicates replay. Streams omit raw tool, reasoning and auth metadata, recheck access per event and while idle, and expose an absolute cursor for reconnect. A leased inbox dispatcher supplies automatic wake-up recovery. The browser conversation gateway is connected; scheduling controls remain in progress; see the [evidence ledger](05_rebuild_evidence.md).
 
 Browser access currently uses `/api/browser/*` Route Handlers. Supabase PKCE authentication returns to `/auth/callback`; session/refresh and verifier cookies are HttpOnly, SameSite=Lax and Secure on HTTPS, with the `__Host-` prefix for production Auth cookies. Only Route Handlers create the server Auth client and write refreshed cookies. `getSession` supplies the raw token; original-token verification and current `auth.sessions` checks establish authority. Browser JavaScript receives neither access nor refresh tokens. This server-only cookie strategy differs from the browser-client pattern in the [Supabase SSR guide](https://supabase.com/docs/guides/auth/server-side/advanced-guide).
 
-Private requester fragments are removed immediately and exchanged for a request-specific HttpOnly cookie after server validation. Each read checks current request authority; cookie expiry cannot extend the database grant. All browser mutations require the configured same origin and bounded JSON; private responses use `private, no-store` and vary on cookies. The service-only browser RPC derives host identity/email from current Auth records and exposes narrow admission and request-state projections. It cannot approve proposals or return model history. Calendar consent/context restoration and the conversation gateway remain separate pending work.
+Private requester fragments are removed immediately and exchanged for a request-specific HttpOnly cookie after server validation. Each read checks current request authority; cookie expiry cannot extend the database grant. All browser mutations require the configured same origin and bounded JSON; private responses use `private, no-store` and vary on cookies. The service-only browser RPC derives host identity/email from current Auth records and exposes narrow admission and request-state projections. It cannot approve proposals or return model history. The conversation gateway forwards verified credentials to allowlisted application runtime routes. Calendar start/callback/status/disconnect now bind consent to the initiating browser and original current principal; exact host/request returns restore the authorized workspace. Calendar selection, refresh and availability reads remain pending.
 
 ## Guided guest intake
 
