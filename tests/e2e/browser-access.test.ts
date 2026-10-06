@@ -7,6 +7,7 @@ import {randomUUID,createHash,randomBytes} from 'node:crypto';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {startBrowserRuntime} from '../runtime/fixture-server.ts';
 import {chromium} from '@playwright/test';
+import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
 import {LocalSql} from '../integration/local-sql.ts';
 
 test('browser access verifies email, invitation, logout, and request cookies without leaking credentials', {timeout:300000}, async()=>{
@@ -14,7 +15,7 @@ test('browser access verifies email, invitation, logout, and request cookies wit
   assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
   const origin='http://localhost:3000';
   const runtime=await startBrowserRuntime(local,origin);
-  const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','apps/web','-p','3000'],{env:{...process.env,GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64'),APP_ORIGIN:origin,EVE_LOCAL_ORIGIN:runtime.origin,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY},stdio:['ignore','pipe','pipe']});
+  const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','apps/web','-p','3000'],{env:{...process.env,NODE_OPTIONS:'--import='+new URL('./google-fixture.mjs',import.meta.url).href,GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64'),APP_ORIGIN:origin,EVE_LOCAL_ORIGIN:runtime.origin,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY},stdio:['ignore','pipe','pipe']});
   let log='';child.stdout.on('data',v=>log+=v);child.stderr.on('data',v=>log+=v);
   const sql=new LocalSql();const email=`browser-${randomUUID()}@example.test`,invitation=randomUUID(),requestId=randomUUID();
   const token=randomBytes(32).toString('base64url'),code='ABCDEFGHIJKLMNOP';let userId:string|undefined,callback='';
@@ -60,6 +61,32 @@ test('browser access verifies email, invitation, logout, and request cookies wit
     assert.equal(await page.getByText('Google connection saved.',{exact:true}).count(),0,'A forged return query cannot claim verified connection');
     await page.getByRole('region',{name:'Google Calendar connection'}).scrollIntoViewIfNeeded();
     await page.screenshot({path:'.local/rebuild/browser-screenshots/calendar-connection.png',fullPage:true});
+    // Actual browser routes + local database, with Google metadata fixture at the outbound HTTP boundary.
+    const calendarCipher=new TokenCipher({TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64')});
+    const encryptedCalendar=calendarCipher.seal({accessToken:'browser-calendar-fixture',refreshToken:'browser-refresh-fixture',expiresAt:Date.now()+3600000,subject:'browser-google',scopes:['openid','email','https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events']},'google:host:'+userId);
+    await sql.query(`insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential) values('host','${userId}','browser-google',array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],'${encryptedCalendar}');`);
+    await page.reload();const choices=page.getByRole('region',{name:'Calendar choices'});await choices.getByRole('checkbox').first().waitFor();
+    assert.equal(await choices.getByRole('checkbox',{checked:true}).count(),0,'No conflicts silently selected');
+    assert.equal(await choices.getByRole('radio',{checked:true}).count(),0,'Primary is never a silent destination');
+    assert.equal(await choices.getByRole('radio',{name:'My calendar (read-only)',exact:true}).isDisabled(),true);
+    assert.equal(await choices.getByRole('button',{name:'Confirm calendar choices'}).isDisabled(),true);
+    const catalog=await context.request.get(origin+'/api/browser/calendar/list');assert.equal(catalog.status(),200);assert.match(catalog.headers()['cache-control'],/private.*no-store/u);const catalogData=await catalog.json();
+    assert.ok(!JSON.stringify(catalogData).includes('browser-calendar-fixture'));assert.ok(!JSON.stringify(catalogData).includes('encryptedCredential'));
+    const invalidChoice={generation:catalogData.generation,rulesVersion:catalogData.rulesVersion,conflictCalendarIds:['personal@example.test'],bookingCalendarId:'readonly@example.test'};
+    assert.equal((await context.request.post(origin+'/api/browser/calendar/select',{headers:{origin:'https://wrong.test'},data:invalidChoice})).status(),403);
+    assert.equal((await context.request.post(origin+'/api/browser/calendar/select',{headers:{origin},data:invalidChoice})).status(),400);
+    await choices.getByRole('checkbox').first().focus();await page.keyboard.press('Space');assert.equal(await choices.getByRole('checkbox').first().isChecked(),true);
+    await choices.getByRole('radio',{name:'My calendar',exact:true}).check();await choices.getByRole('button',{name:'Confirm calendar choices'}).click();
+    await choices.getByRole('status').filter({hasText:'Calendar choices saved.'}).waitFor();
+    assert.equal(await sql.query(`select booking_calendar_id from fmat.hosts where id='${userId}';`),'personal@example.test');
+    await page.reload();await choices.getByRole('checkbox',{checked:true}).waitFor();assert.equal(await choices.getByRole('radio',{checked:true}).count(),1);
+    assert.notEqual(await choices.getByRole('radio',{checked:true}).evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)','Selected booking destination has a visible filled state');
+    await choices.scrollIntoViewIfNeeded();await page.screenshot({path:'.local/rebuild/browser-screenshots/calendar-choices-desktop.png',fullPage:true});
+    await page.setViewportSize({width:390,height:844});await choices.scrollIntoViewIfNeeded();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.local/rebuild/browser-screenshots/calendar-choices-mobile.png',fullPage:true});
+    await page.setViewportSize({width:320,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await page.setViewportSize({width:1280,height:900});await page.evaluate(()=>{document.documentElement.style.zoom='2';});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.evaluate(()=>{document.documentElement.style.zoom='';});
+    await page.getByRole('button',{name:'Disconnect Google',exact:true}).click();await page.getByRole('status').filter({hasText:'Google access has been disconnected'}).waitFor();assert.equal(await choices.count(),0);
+    assert.equal((await context.request.get(origin+'/api/browser/calendar/list')).status(),409);
     const composer=page.getByLabel('Message your scheduling assistant');
     await composer.fill('Help me plan a focused week.');await page.getByRole('button',{name:'Send',exact:true}).click();
     await page.getByText('Reply 1: Help me plan a focused week.',{exact:true}).waitFor();
@@ -130,7 +157,7 @@ test('browser access verifies email, invitation, logout, and request cookies wit
     await browser.close();await runtime.stop();if(child.exitCode===null){const closed=once(child,'close');child.kill('SIGTERM');await closed;}await writeFile('.local/rebuild/browser-server.log',log);
     userId ||= await sql.query(`select id from auth.users where email='${email}';`);
     const cleanupId=userId||'00000000-0000-4000-8000-000000000000';
-    await sql.query(`delete from fmat.audit_events where subject_id in(select id::text from fmat.oauth_exchanges where actor->>'id'='${cleanupId}' or actor->>'requestId'='${requestId}');delete from fmat.oauth_exchanges where actor->>'id'='${cleanupId}' or actor->>'requestId'='${requestId}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.conversation_scopes where host_id='${cleanupId}';delete from fmat.request_history where request_id='${requestId}';delete from fmat.requests where id='${requestId}';delete from fmat.idempotency where actor_scope='host:${cleanupId}' or input->>'email'='${email}';delete from fmat.audit_events where subject_id in ('${cleanupId}','${invitation}');delete from fmat.hosts where id='${cleanupId}';delete from fmat.invitations where id='${invitation}';delete from fmat.waitlist where email='${email}';`).finally(()=>sql.close());
+    await sql.query(`delete from fmat.audit_events where subject_id in(select id::text from fmat.oauth_exchanges where actor->>'id'='${cleanupId}' or actor->>'requestId'='${requestId}');delete from fmat.oauth_exchanges where actor->>'id'='${cleanupId}' or actor->>'requestId'='${requestId}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.conversation_scopes where host_id='${cleanupId}';delete from fmat.request_history where request_id='${requestId}';delete from fmat.requests where id='${requestId}';delete from fmat.idempotency where actor_scope='host:${cleanupId}' or input->>'email'='${email}';delete from fmat.audit_events where subject_id in ('${cleanupId}','${invitation}');delete from fmat.calendar_connections where principal_id='${userId}';delete from fmat.hosts where id='${cleanupId}';delete from fmat.invitations where id='${invitation}';delete from fmat.waitlist where email='${email}';`).finally(()=>sql.close());
     if(userId)await fetch(local.API_URL+'/auth/v1/admin/users/'+userId,{method:'DELETE',headers:adminHeaders});
   }
 });

@@ -176,3 +176,13 @@ All cases start pending for the replacement. Baseline SQL or former deployment r
 ## Phase exits
 
 Phases 0–9 remain open until their complete exit conditions are evidenced. Current progress is recorded in each owning change; installing tools or writing this ledger does not complete a runtime or release gate.
+
+## Explicit host calendar choices
+
+Local verification on 2026-10-07: host Calendar listing and explicit conflict/booking selections run through cookie-authenticated routes and a service-only RPC. Confirmation re-fetches current Google access roles, rejects read-only or missing destinations and never falls back to primary. Auth, connection generation and setup revision are rechecked after provider work. Refresh preserves omitted refresh material, keeps credentials encrypted and cannot overwrite a newer grant. Guest callers cannot use this host adapter.
+
+The fifteenth generated migration adds the connection generation and narrow access RPC and updates consent generation. Review confirms the repeated event-ID constraint is identical and the recovery cron/history are preserved. A complete disposable local reset passes 579 assertions across nine SQL suites; local security advisors report no issues. Thirty app and four SMTP tests pass, six real-Auth/database integration tests pass, and separate eve/web builds pass. Integration tests pause provider operations and verify reconnect/disconnect/logout fence their results; Google HTTP/refresh responses remain deterministic fixtures.
+
+The browser fixture covers the actual list/select routes, explicit keyboard choices, read-only rejection, current selection persistence, duplicate calendar names and disconnect. Its outbound Google list response is synthetic and loaded only by the isolated test process. Initial visual review found invisible radio selection caused by generated checked-state selectors; selectors were corrected for installed Radix and a visible-state assertion was added. Actual Google grants, availability reads, requester recovery and complete scheduling/release gates remain open.
+
+Visual verdict after correction: pass for desktop 1280px and phone 390px, with readable choices and a visible selected booking destination. Browser checks pass 320px reflow, keyboard choice and CSS 200% magnification. Actual iPhone Safari/native zoom remains pending. Task 2.1 is complete; task 2.2 remains open because requester refresh/read recovery is not complete. All phase exits and AC acceptance cases remain open.

@@ -10,6 +10,7 @@ import { privateHeaders, readJson } from '../../../../../../lib/server/identity/
 import { browserSession, guestCookieName } from '../../../../lib/session.ts';
 import { calendarCommands, calendarCookie, calendarCredential } from '../../../../lib/calendar-browser.ts';
 import { conversationGateway } from '../../../../lib/conversation-gateway.ts';
+import { CalendarSelection } from '../../../../../../lib/server/calendar/selection.ts';
 
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -36,6 +37,14 @@ async function handle(request:NextRequest,{params}:Context) {
     }
     session=browserSession(request);
     if(action==='conversations'||action.startsWith('conversations/'))return session.finish(await conversationGateway(request,(await params).action,session));
+    if(action==='calendar/list'&&request.method==='GET') {
+      const {credential}=await session.host();
+      return session.finish(json(await new CalendarSelection().list(credential)));
+    }
+    if(action==='calendar/select'&&request.method==='POST') {
+      const {credential}=await session.host();
+      return session.finish(json(await new CalendarSelection().select(credential,await readJson(request))));
+    }
     if(action==='calendar/status'&&request.method==='GET') {
       const requestId=request.nextUrl.searchParams.get('requestId');
       return session.finish(json(await calendarCommands.status(await calendarCredential(request,session,requestId?{requestId}:{}))));

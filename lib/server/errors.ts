@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { ErrorCode } from '../contracts/errors.ts';
 
 const messages: Record<ErrorCode, string> = {
+  CALENDAR_ACCESS_INVALID: 'Choose available calendars for conflicts and a calendar you can write to for bookings.',
   OAUTH_STATE_INVALID: 'This connection link expired or belongs to another browser. Start again from your workspace.',
   RECONNECT_REQUIRED: 'Calendar access could not be confirmed. Reconnect Google and grant the requested permissions.',
   CONSENT_LIMIT: 'Too many connection attempts. Please wait ten minutes before trying again.',
