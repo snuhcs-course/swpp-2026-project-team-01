@@ -20,12 +20,13 @@ const domainErrors: Record<string, [ErrorCode, number]> = {
   IDEMPOTENCY_CONFLICT: ['IDEMPOTENCY_CONFLICT', 409],
   REVISION_CONFLICT: ['STALE_REVISION', 409], PROPOSAL_CONFLICT: ['STALE_REVISION', 409],
   REQUEST_CLOSED: ['NOT_FOUND', 404], REQUEST_EXPIRED: ['NOT_FOUND', 404],
+  CONVERSATION_BUSY: ['CONVERSATION_BUSY', 409], CONVERSATION_LIMIT: ['CONVERSATION_LIMIT', 429],
 };
 
 export class Database {
   constructor(private readonly env = process.env, private readonly fetcher: Fetch = fetch) {}
 
-  async rpc(name: 'fmat_command' | 'fmat_conversation_access' | 'fmat_conversation_check' | 'fmat_conversation_tool', parameters: Record<string, unknown>): Promise<unknown> {
+  async rpc(name: 'fmat_command' | 'fmat_conversation_access' | 'fmat_conversation_check' | 'fmat_conversation_tool' | 'fmat_runtime_message', parameters: Record<string, unknown>): Promise<unknown> {
     const origin = supabaseOrigin(this.env);
     const key = requiredEnv('SUPABASE_SECRET_KEY', this.env);
     const headers: Record<string, string> = { apikey: key, 'content-type': 'application/json' };

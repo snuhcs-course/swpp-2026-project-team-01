@@ -3,11 +3,8 @@ import { z } from 'zod';
 import { conversationTool } from '../../contracts/conversation-tools.ts';
 import { Database } from '../database/client.ts';
 import { ApplicationError } from '../errors.ts';
+import { runtimeAuth } from './runtime-messages.ts';
 
-const executionAuth = z.object({
-  authenticator: z.literal('fmat-conversation'), principalType: z.literal('user'),
-  principalId: z.uuid(), attributes: z.object({ conversationId: z.uuid() }),
-});
 const callIdentity = z.strictObject({
   sessionId: z.string().min(1).max(200), callId: z.string().min(1).max(200),
 });
@@ -19,16 +16,17 @@ export class ConversationTools {
   constructor(private readonly database = new Database()) {}
 
   async execute(currentAuth: unknown, call: unknown, command: unknown): Promise<unknown> {
-    const auth = executionAuth.safeParse(currentAuth);
+    const auth = runtimeAuth.safeParse(currentAuth);
     if (!auth.success) throw new ApplicationError('UNAUTHORIZED', 401);
     const identity = callIdentity.safeParse(call);
     const parsed = conversationTool.safeParse(command);
     if (!identity.success || !parsed.success) throw new ApplicationError('INVALID_INPUT', 400);
     const { operation, input } = parsed.data;
-    // The model cannot choose a fresh retry key. A replay of the same durable
-    // call uses the same key; changed arguments fail the database fingerprint.
+    // An interrupted model step can regenerate different call IDs. Permit one
+    // mutation of each kind per accepted message; retries use that same key,
+    // even if the model changes its call ID or re-reads a newer revision.
     const idempotencyKey = 'eve:' + createHash('sha256').update(JSON.stringify([
-      auth.data.attributes.conversationId, identity.data.sessionId, identity.data.callId,
+      auth.data.attributes.conversationId, auth.data.attributes.messageId, operation,
     ])).digest('hex');
     return this.database.rpc('fmat_conversation_tool', {
       p_grant_id: auth.data.principalId, p_conversation_id: auth.data.attributes.conversationId,

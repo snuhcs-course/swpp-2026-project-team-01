@@ -8,5 +8,8 @@ export default await withEve({
       buildCommand: 'node ../../node_modules/next/dist/bin/next build',
     },
   },
-  routes: [{ src: '^(.*)$', destination: { type: 'service', service: 'web' } }],
+  routes: [
+    { src: '^/api/conversations(?:/.*)?$', destination: { type: 'service', service: 'eve' } },
+    { src: '^(.*)$', destination: { type: 'service', service: 'web' } },
+  ],
 });

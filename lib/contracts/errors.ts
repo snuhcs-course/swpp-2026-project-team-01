@@ -4,6 +4,7 @@ export const errorCode = z.enum([
   'UNAUTHORIZED', 'FORBIDDEN', 'NOT_FOUND', 'INVALID_INPUT', 'STALE_REVISION',
   'IDEMPOTENCY_CONFLICT', 'HOST_NOT_ADMITTED', 'CONFIGURATION_UNAVAILABLE',
   'PROVIDER_UNAVAILABLE', 'RECONCILIATION_PENDING', 'INTERNAL_ERROR',
+  'CONVERSATION_BUSY', 'CONVERSATION_LIMIT',
 ]);
 export type ErrorCode = z.infer<typeof errorCode>;
 export const errorResponse = z.object({

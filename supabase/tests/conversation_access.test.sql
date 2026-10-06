@@ -102,6 +102,26 @@ select is(pg_temp.tool('shared1','details_update',pg_temp.f('detailsInput')),pg_
 select is(pg_temp.tool('guestgrant1','request_read')->>'revision','3','shared mutation and replay advance revision once');
 select ok((select current_proposal_version is null and requester_agreed_version is null and host_approved_version is null from fmat.requests where id='83000000-0000-4000-8000-000000000001'),'changed details invalidate proposal and both decisions');
 
+create function pg_temp.runtime(text,text,jsonb default '{}') returns jsonb language sql as $$
+  select public.fmat_runtime_message($2,(pg_temp.f($1)->>'grantId')::uuid,(pg_temp.f($1)->>'conversationId')::uuid,$3)
+$$;
+select ok(not has_table_privilege('authenticated','fmat.runtime_messages','SELECT'),'browser cannot read inbox directly');
+select ok(not has_function_privilege('anon','public.fmat_runtime_message(text,uuid,uuid,jsonb)','EXECUTE'),'anonymous cannot dispatch runtime messages');
+insert into fixture values ('runtimeInput','{"clientId":"84000000-0000-4000-8000-000000000001","text":"frozen requester message"}');
+insert into fixture values ('runtimeReceipt',pg_temp.runtime('guestgrant1','accept',pg_temp.f('runtimeInput')));
+select is(pg_temp.runtime('guestgrant1','accept',pg_temp.f('runtimeInput')),pg_temp.f('runtimeReceipt'),'accepted input retries preserve receipt identity');
+select throws_ok($$select pg_temp.runtime('guestgrant1','accept',pg_temp.f('runtimeInput')||'{"text":"changed"}')$$,'P0001','IDEMPOTENCY_CONFLICT','client message ID cannot change text');
+select throws_ok($$select pg_temp.runtime('shared1','accept',pg_temp.f('runtimeInput'))$$,'P0001','CONVERSATION_BUSY','another participant cannot coalesce into active caller turn');
+select is(pg_temp.runtime('guestgrant1','deliver',jsonb_build_object('messageId',pg_temp.f('runtimeReceipt')->>'id','sessionId','runtime-owner'))->>'text','frozen requester message','delivery reads frozen authorized input');
+select throws_ok($$select pg_temp.runtime('guestgrant1','deliver',jsonb_build_object('messageId',pg_temp.f('runtimeReceipt')->>'id','sessionId','replacement-session'))$$,'P0001','FORBIDDEN','terminated or competing workflow cannot replace bound history');
+select throws_ok($$select pg_temp.runtime('shared1','deliver',jsonb_build_object('messageId',pg_temp.f('runtimeReceipt')->>'id','sessionId','runtime-owner'))$$,'P0001','NOT_FOUND','other actor cannot replay message under its own authority');
+select throws_ok($$select pg_temp.runtime('guestgrant1','settle',jsonb_build_object('messageId',pg_temp.f('runtimeReceipt')->>'id','sessionId','wrong','status','completed'))$$,'P0001','FORBIDDEN','wrong runtime cannot manufacture completion');
+select lives_ok($$select pg_temp.runtime('guestgrant1','settle',jsonb_build_object('messageId',pg_temp.f('runtimeReceipt')->>'id','sessionId','runtime-owner','status','completed'))$$,'bound runtime records receipt');
+select is(pg_temp.runtime('guestgrant1','accept',pg_temp.f('runtimeInput'))->>'status','completed','acknowledgment loss returns settled receipt');
+select is(jsonb_array_length(pg_temp.runtime('shared1','inspect')->'messages'),1,'authorized host shared history sees accepted requester message once');
+select is(jsonb_array_length(pg_temp.runtime('private1','inspect')->'messages'),0,'host-private transcript remains separate from shared inbox');
+select lives_ok($$select pg_temp.runtime('shared1','accept','{"clientId":"84000000-0000-4000-8000-000000000002","text":"second participant after settled turn"}')$$,'next participant may speak after prior turn settles');
+
 update auth.sessions set not_after=now()-interval '1 second' where id='81000000-0000-4000-8000-000000000001';
 select throws_ok($$select pg_temp.check_grant('setup1')$$,'P0001','UNAUTHORIZED','session expiry interrupts existing execution grant');
 update auth.sessions set not_after=null where id='81000000-0000-4000-8000-000000000001';

@@ -21,7 +21,8 @@
     "test:app": "tsx --test lib/server/identity/*.test.ts",
     "test:runtime": "node scripts/smoke-runtime.mjs",
     "verify:model": "node --import tsx --env-file-if-exists=.env scripts/verify-model.mjs",
-    "test:integration": "tsx --test tests/integration/*.test.ts"
+    "test:integration": "tsx --test tests/integration/*.test.ts",
+    "test:conversations": "tsx --test tests/runtime/*.test.ts"
   },
   "type": "module",
   "dependencies": {

@@ -5,7 +5,7 @@ import { createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 
 // Tests built production servers without credentials or a model call. Keep the
-// deny-all expectation until application-owned session authorization replaces it.
+// default runtime routes closed and custom routes authenticated.
 const children = [];
 async function unusedPort() {
   const server = createServer();
@@ -56,7 +56,13 @@ try {
   }
   const stream = await fetch(`${eve}/eve/v1/session/test/stream`);
   assert.equal(stream.status, 401);
-  console.log('PASS: built web health/page/headers and all seven eve session/stream routes reject anonymous access.');
+  for (const [method, path] of [['POST', '/api/conversations'], ['GET', '/api/conversations/test'],
+    ['POST', '/api/conversations/test/messages'], ['GET', '/api/conversations/test/stream']]) {
+    const response = await fetch(eve + path, { method });
+    assert.equal(response.status, 401, `${method} ${path} must reject anonymous access`);
+    assert.match(response.headers.get('cache-control'), /no-store/u);
+  }
+  console.log('PASS: built web health/page/headers and all eleven conversation/session routes reject anonymous access.');
 } finally {
   await Promise.all(children.map(async (child) => {
     if (child.exitCode !== null) return;

@@ -7,7 +7,7 @@ import { ApplicationError } from '../errors.ts';
 const auth = {
   authenticator: 'fmat-conversation', principalType: 'user',
   principalId: '81000000-0000-4000-8000-000000000001',
-  attributes: { conversationId: '82000000-0000-4000-8000-000000000001' },
+  attributes: { conversationId: '82000000-0000-4000-8000-000000000001', messageId: '83000000-0000-4000-8000-000000000001' },
 };
 const call = { sessionId: 'runtime-session', callId: 'durable-call-1' };
 const command = { operation: 'private_note_save', input: { expectedRevision: 1, text: 'Private preference' } };
@@ -43,7 +43,9 @@ test('durable call retry uses the same server-derived key and rechecks authority
   await tools.execute(auth, { ...call, callId: 'durable-call-2' }, command);
   assert.deepEqual(bodies[0], bodies[1]);
   assert.equal(bodies[0].p_input.idempotencyKey, bodies[2].p_input.idempotencyKey, 'changed input must conflict under the same key');
-  assert.notEqual(bodies[0].p_input.idempotencyKey, bodies[3].p_input.idempotencyKey);
+  assert.equal(bodies[0].p_input.idempotencyKey, bodies[3].p_input.idempotencyKey, 'regenerated model call cannot repeat the message mutation');
+  await tools.execute({ ...auth, attributes: { ...auth.attributes, messageId: '83000000-0000-4000-8000-000000000002' } }, call, command);
+  assert.notEqual(bodies[0].p_input.idempotencyKey, bodies[4].p_input.idempotencyKey);
   assert.equal(bodies[0].p_grant_id, auth.principalId);
   assert.equal(bodies[0].p_conversation_id, auth.attributes.conversationId);
   assert.equal('p_actor' in bodies[0], false);
