@@ -25,7 +25,7 @@ Verify DNS, TLS, the expected deployment, Auth/Calendar returns, generated links
 
 ## Selected rebuild Supabase project
 
-Use **FindMeATime2**, project **`mriseqztcwmezvtawnbo`**: [project dashboard](https://supabase.com/dashboard/project/mriseqztcwmezvtawnbo). The CLI link was restored and matched against `SUPABASE_PROJECT_REF` and `SUPABASE_URL` on 2026-10-07. The initially empty project now has all eight migrations through `20261006205721_conversation_access`. A subsequent dry run reports no pending migrations, and the remote security advisor reports no issues. Reconfirm the target before each remote operation.
+Use **FindMeATime2**, project **`mriseqztcwmezvtawnbo`**: [project dashboard](https://supabase.com/dashboard/project/mriseqztcwmezvtawnbo). The CLI link was restored and matched against `SUPABASE_PROJECT_REF` and `SUPABASE_URL` on 2026-10-07. The initially empty project now has all nine migrations through `20261006211854_conversation_tools`. A subsequent dry run reports no pending migrations, and the remote security advisor reports no issues. Reconfirm the target before each remote operation.
 
 Verify schema, Auth, SMTP and provider configuration against this project independently. Follow the [schema workflow](../../AGENTS.md#supabase-schema-changes), review migration SQL and run `supabase db push --dry-run` before a remote push. Never reset a remote database for local setup.
 
@@ -113,4 +113,4 @@ Inspect Google OAuth publishing and verification status and demonstrate actual r
 
 Use `http://localhost:3000` as the web origin and keep browser API calls same-origin. Keep local and remote privileged credentials separate and disable external sends in local fixtures.
 
-Run `npm ci` and `npm run check` for the current documentation and SMTP-tooling checks. The scaffold has no application dev/build command yet; add those with the runtime implementation. Use the [Supabase schema workflow](../../AGENTS.md#supabase-schema-changes) to replay migrations and run `npm run db:test` against a disposable local stack. Integration readiness requires the [implementation plan's checks](04_implementation_plan.md#compatibility-gates), beyond these repository checks.
+Run `npm ci` and `npm run check` for documentation, application typechecks and unit tests. `npm run build` builds eve and Next.js separately; `npm run test:runtime` checks their production servers. See [local development](../../README.md#local-development) for environment and composed-server commands. Use the [Supabase schema workflow](../../AGENTS.md#supabase-schema-changes) to replay migrations, then run `npm run db:test` and `npm run test:integration` against the disposable local stack. Integration readiness requires the [implementation plan's checks](04_implementation_plan.md#compatibility-gates), beyond these repository checks.
