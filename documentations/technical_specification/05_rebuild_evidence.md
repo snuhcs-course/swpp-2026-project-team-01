@@ -71,6 +71,8 @@ The first crash-test attempts timed out after 30 seconds. Inspection of the pinn
 
 Automatic recovery between database acceptance and runtime dispatch, managed Vercel recovery, complete host/private/shared runtime switching, browser credential exchange, remaining runtime controls and full product journeys are still pending. No foundation task or phase exit is marked complete by this slice.
 
+Deployed code commit `3237895` on 2026-10-07. The reviewed tenth migration was applied to `mriseqztcwmezvtawnbo`; the follow-up dry run is current and remote security advisors report no issues. The inbox RPC remains service-only and browser roles cannot read its table. Vercel deployment `dpl_7ec7sqDp9io9E1woJ3CbEtFJyp8Z` (`https://findmeatime-release-ki6ln2ukb-justdodos-projects.vercel.app`) is `READY` at `https://release.findmeatime.com`. Three public page/health probes return 200; all eleven default/custom private route probes return 401 without credentials. `releaseReady` remains false. Upload preflight checked 162 regular source files against 16 configured secret values and found none; local credential/state files were excluded. No additional provider consumer was enabled.
+
 ## Initial production runtime deployment
 
 On 2026-10-07, deployed commit `7b3085b` to Vercel project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`) in `justdodos-projects`. The checkout is explicitly linked to this project; the existing root-domain project is preserved.
