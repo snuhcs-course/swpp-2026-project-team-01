@@ -1,4 +1,8 @@
+> Historical baseline: application code and executable probes were removed on 2026-10-07. Commands below are not runnable from this checkout; source remains in Git history and the private removal checkpoint.
+
 # P0–P4 implementation contract
+
+> Pre-launch rebuild (2026-10-06): this guide describes the former implementation. The scheduling API and shared contracts is in the [source replacement scope](../documentations/technical_specification/04_implementation_plan.md); its commands, endpoints and historical checks do not establish the replacement architecture or readiness. Update this guide with the replacement implementation.
 
 API origin is `<SUPABASE_URL>/functions/v1/api`; all paths below are relative.
 All JSON uses camelCase, with shared audience-safe types in `packages/contracts/index.ts`.

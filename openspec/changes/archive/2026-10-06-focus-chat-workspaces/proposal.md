@@ -23,4 +23,4 @@ None.
 
 ## Impact
 
-This changes the React/Vite web layout and its browser fixtures. Scheduling APIs, permissions, and booking semantics are unchanged. See [interface direction](../../../documentations/user_experience/03_interfaces.md) and the existing [chat-workspaces spec](../../specs/chat-workspaces/spec.md).
+This changes the React/Vite web layout and its browser fixtures. Scheduling APIs, permissions, and booking semantics are unchanged. See [interface direction](../../../../documentations/user_experience/03_interfaces.md) and the existing [chat-workspaces spec](../../../specs/chat-workspaces/spec.md).

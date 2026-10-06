@@ -23,6 +23,6 @@ None.
 
 ## Impact
 
-Provider scripts, setup evidence, backend-contract documentation, and [implementation plan P0](../../../documentations/technical_specification/04_implementation_plan.md). Basis: [PRD client and approval requirements](../../../documentations/02_product_requirements.md), [technical specification](../../../documentations/03_technical_specification.md), and [provider setup](../../../documentations/technical_specification/03_provider_setup.md).
+Provider scripts, setup evidence, backend-contract documentation. Basis: [PRD client and approval requirements](../../../documentations/02_product_requirements.md), [technical specification](../../../documentations/03_technical_specification.md), and [provider setup](../../../documentations/technical_specification/03_provider_setup.md).
 
 Actual Dots, Muse, Instinct, ChatGPT, Codex, Claude, and Claude Code OAuth tests and controlled Photon/AgentMail conversations remain unresolved until evidence is captured. This proposal does not claim P5/P6 implementation or release-wide compatibility.

@@ -1,3 +1,5 @@
+> Historical baseline: application code and executable probes were removed on 2026-10-07. Commands below are not runnable from this checkout; source remains in Git history and the private removal checkpoint.
+
 # Controlled AgentMail P0 probe
 
 This probe is phaseable so fixture ownership can be reviewed before any email is sent. It uses exactly two newly created inboxes in the existing **Find Me a Time Development** pod. It never targets a human-provided address, never deletes an existing resource, and never requests an upgrade or paid resource.

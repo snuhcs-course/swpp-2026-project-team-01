@@ -1,202 +1,302 @@
-# Find Me a Time — Implementation Plan
+# Rebuild implementation plan
 
-Status: P0 investigation recorded; P1–P4 deployed; live Calendar gates open\
-Date: 2026-10-05\
-Basis: [PRD](../02_product_requirements.md), [technical specification](../03_technical_specification.md), [backend architecture](01_backend_architecture.md), [repository structure](02_repo_structure.md), and [provider setup](03_provider_setup.md).
+Date: 2026-10-06
+Status: source removal completed on 2026-10-07; replacement implementation has not started
+Scope: full application-source rebuild in the main checkout on `feat/reconstruct-application`
 
-Build a working web scheduling flow first, then connect personal agents, email, and iMessage to the same operations. Investigate integration risks at the start so the web milestone does not hide a release blocker. Intermediate milestones are development checkpoints; the initial release still includes all required channels and named agent clients.
+## 1. Outcome and fixed decisions
 
-This document owns sequencing and completion evidence. Each substantial capability needs a bounded OpenSpec change with observable scenarios, design decisions, implementation tasks, and tests. The proposed change names below are planning labels, not existing proposals or approved specifications. Archive only completed, verified changes into main capability specs.
+Deliver a working one-to-one scheduling service: a host chats with the agent at `/app`, a requester starts at `/{handle}` and continues at `/booking/[bookingId]`, and one calendar event is confirmed only after current requester agreement and attributable host approval. Email, iMessage and personal-agent clients operate on the same authorized application state. This plan owns rebuild scope and delivery sequence; the [page list](../user_experience/04_page_list.md) and [PRD](../02_product_requirements.md) own the experience and product requirements.
 
-## 1. Starting point and scope
-
-The repository now includes React/Vite with shadcn preset `b6rtA2Hmi`, a Hono/Deno API, provider boundaries, private command/schema infrastructure, durable jobs, and executable checks. Capability implementation is tracked below and in the owning OpenSpec changes.
-
-### Execution evidence (2026-10-05)
-
-| Phase | Current status | Evidence / remaining gate |
+| Decision | Implementation constraint | Owning reference |
 |---|---|---|
-| P0 | Investigation recorded; live integration gates open | [Compatibility report](05_compatibility_report.md) records provider/travel probes, defaults, isolated OAuth code/refresh/revoke and client-bound audience prototype results, plus actual Codex diagnostic-tool success and revoked-grant denial. A separate actual Codex natural-expiry refresh probe passed; requested-resource enforcement remains open. The distinct product-controlled AgentMail pair passed received-parent replies, inbox-local threading, same-key recovery, changed-payload 409, and six signed sent/delivered/received callbacks; P0 task 2.4 is complete. Production OAuth, complete named-client journeys, Photon conversation and Calendar gates remain open. |
-| P1 | Verified and deployed | `npm run check`: typecheck, lint, 24 Deno tests, production web build pass. Generated pg-delta foundation plus runtime initializer reset locally; 29 pgTAP tests pass. Actual local Edge worker drained a persisted job (`claimed: 1, completed: 1`); clean `npm ci` passes. GitHub Actions run 37239080874 passes both application and database jobs. Production HTTPS and API health return 200; authenticated worker and recurring Cron are installed. |
-| P2 | Deployed; M1 verified; Calendar lifecycle gates open | Full P1/P2 migration chain resets locally and 66 pgTAP checks pass; scoped onboarding tests and GitHub Actions run 37239720301 pass. Real invitation redemption, browser Google consent, protected credentials, authorized calendar listing, selected calendars and a ready public profile passed on October 5: [M1 evidence](../../scripts/p0/host-setup-live-results-2026-10-05.json). Refresh, disconnect/reconnect and requester consent remain unverified. |
-| P3 | Verified locally and deployed | Reviewed pg-delta migration rebuilds P1–P3 with 189 pgTAP checks passing. The full application check passes typecheck, lint, 85 Deno tests (including 18 P4 adapter tests), and web build. Real local RPC integration covers account-free creation, feasible candidate ranking/selection, current-version agreement, private exceptions/redaction, stale evaluation rejection and withdrawal, with injected providers. All 24 browser checks pass; production build dpl_F6BT1GRE1JwppQnpPz5LzLVoCT3P serves findmeatime.com, API health 200 and worker 200. |
-| P4 | Verified locally and deployed; live Calendar M2 open | Full migration reset and 291 SQL checks (102 booking) pass; 101 Deno tests, typecheck/lint/build and actual local RPC booking runtime pass. Fault injection verifies one stable event identity through lost response, immediate not-found, reconciliation, credential/lease fencing, and notification failure. Exhausted prepared-job recovery is reviewed and verified. Frozen commit `86296d1` deployed API/worker and web (`dpl_6ahRhaReQPAegQXCtrm2kmjK4FyS`); production health/access checks and recurring persisted-job completion pass. GitHub Actions run 37242545049 passes application, full reset/291 SQL checks, and both real local RPC runners. The October 6, 14:00–14:30 KST controlled request passed actual host Calendar feasibility and has a current proposal. Verification delivery was accepted by the email provider; requester possession, agreement, explicit host approval and the Calendar write remain pending: [live evidence](../../scripts/p0/calendar-live-results-2026-10-05.json). |
+| Reconstruction origin | Deploy the rebuilt app at `https://release.findmeatime.com`, paired with Supabase project `mriseqztcwmezvtawnbo`. Use that origin for generated links, Auth returns and provider callbacks; domain/DNS readiness requires fresh verification. | [Deployment setup](03_provider_setup.md#reconstruction-deployment-origin) |
+| MVP host audience | Target iPhone/iMessage hosts; recommend linked iMessage for everyday interaction, with web or iMessage onboarding and verified browser handoffs. Linking stays opt-in and web remains available. Defer Android-specific flows/testing and substitute notification channels; do not block public requesters by device. | [Audience and scope](../02_product_requirements.md#target-users) |
+| One host chat page | Admission, setup, request selection/review and settings are cards, states or dialogs inside `/app`; authentication and provider consent return there. | [Page model](../user_experience/04_page_list.md#primary-pages) |
+| Requester journey | No product account required; public intake leads to protected `/booking/[bookingId]`. Closed access is limited to permitted status/receipt, not an unlimited transcript. | [Booking destination](../user_experience/04_page_list.md#requester-booking-destination) |
+| Runtime and model | Next.js App Router with eve, conditional on Phase 1 passing; direct OpenAI via `eve/models/openai`, with server-only `OPENAI_API_KEY` and an explicitly verified native model ID. | [Frontend architecture](02_frontend_architecture.md#scope-and-decisions), [OpenAI setup](03_provider_setup.md#openai-model-access-through-eve) |
+| Identity and durable domain state | Supabase Auth/PostgreSQL; selected rebuild project `mriseqztcwmezvtawnbo`. Application code owns authorization and scheduling decisions. | [Project record](03_provider_setup.md#selected-rebuild-supabase-project), [backend boundaries](01_backend_architecture.md#2-module-boundaries) |
+| Channels | AgentMail requester conversations, Photon Spectrum host iMessage, Cloudflare transactional/Auth mail. Verify actual adapter compatibility. | [Provider setup](03_provider_setup.md), [provider boundaries](01_backend_architecture.md#9-provider-boundaries) |
+| Client access | Remote MCP and thin CLI; verify Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code individually. | [Interfaces](../user_experience/03_interfaces.md), PRD FR-24–25 and FR-29–34 |
+| Source replacement | Rebuild in final paths, preserve unrelated local work, secrets, external resources and applied migration history. No old transcript/link migration or parallel replacement app. | [Replacement boundary](04_implementation_plan.md#2-execution-rules-and-source-ownership) |
 
-| Prepared | Evidence and remaining work |
+Exclude Android-specific UX/testing, SMS/WhatsApp and Android-substitute host proposal-notification email, native mobile apps, group scheduling, non-Google calendars, general inbox management, host conversation email and automated post-booking reschedule/cancel. The [PRD release scope](../02_product_requirements.md#3-proposed-initial-release-scope) owns any later change.
+
+## 2. Execution rules and source ownership
+
+Source-removal update (2026-10-07): the owner explicitly requested clearing the former application before reconstruction. The [removal record](../archive/2026-10-07-source-removal.md) records the verified checkpoint, passed former-app/bridge baseline checks and behavior-to-phase mapping. The old web/backend/bridge runtime and contracts are now removed. SQL schemas, migrations, pgTAP tests and independent SMTP tooling remain as the database/infrastructure baseline; this does not complete all Phase 0 specification work.
+
+The product has not launched. On 2026-10-06 the owner confirmed a full application-source rebuild, explicitly including the Supabase scheduling backend, and authorized replacement of superseded source. Supabase remains infrastructure; the former backend implementation is not a retained dependency. This authorization does not extend to deleting remote databases, provider resources or local secrets.
+
+The reconstruction branch is `feat/reconstruct-application` in the main project directory. At branch creation, refreshed `origin/main` contained only the early repository skeleton, so the branch retained the developed `dodo/mvp-2` baseline at `5c4af31`. The checkout also retained uncommitted onboarding, iMessage OTP, contracts, schema and documentation work without deletion or stashing. Reconcile its intended behavior with current requirements before replacing the corresponding source.
+
+Build directly in final workspace paths. No `apps/web-next` cutover, old UI/API compatibility, development transcript/private-link migration, production pilot or legacy dual-consumer rollback is required. New authorization, callbacks, recovery and scheduling guarantees still require fresh verification. Preserve infrastructure configuration and historical evidence, and fence old consumers before controlled provider tests. The proposed six-digit iMessage flow must be reconciled through the owning OpenSpec change before implementation.
+
+Before deleting source, record the current branch/status and preserve the outstanding working-tree changes in a recoverable local checkpoint that excludes secrets. Map retained behavioral assertions to the replacement tests. Then replace obsolete source in bounded slices; do not keep the former application running as a second product or require its test harness to fit the new architecture. A failing baseline is recorded, not misrepresented as a replacement regression.
+
+| Target | Treatment |
 |---|---|
-| Supabase project and local credentials | Project reference is configured; application access, migrations, Auth flows, and deployed functions still need verification. |
-| Google Cloud, Calendar OAuth credentials, and Routes key | Calendar and Routes APIs enabled. OAuth client credentials passed a negative-control check; registered callbacks were re-read. The controlled Seoul itinerary tested both adjacent directions through the actual evaluator: TRANSIT passed ample gaps and failed tight gaps with buffers; DRIVE/WALK stayed unresolved. Calendar consent, refresh and reads/writes remain untested. See the compatibility report for captured evidence. |
-| OpenAI API key | Present locally; choose and test the model and structured-result contract. |
-| Cloudflare Email Service, AgentMail and Photon | Cloudflare's `findmeatime.com` DNS is ready, scoped SMTP login returned 235 without sending, and Supabase Auth SMTP readback matches the intended configuration. A controlled requester verification message was accepted by Cloudflare and its durable delivery job completed; recipient verification and actual Supabase Auth delivery remain unverified. See the provider setup and compatibility records for controlled AgentMail and Photon evidence. |
-| Development tools | Supabase CLI 2.119.0, OpenSpec CLI 1.14.0, provider CLIs, and shared skills. Confirm local Docker/runtime readiness during foundation work. |
+| `apps/web/` | Former Vite source removed. Build Next.js routes, host/requester conversation UI, server entry boundaries and tests. |
+| `packages/contracts/` | Rebuild shared input/action/projection schemas; avoid exposing database rows or raw provider types. |
+| `supabase/functions/` | Former Hono/Deno source removed. Rebuild API and worker responsibilities in the runtime locations selected in Phase 1. |
+| `supabase/schemas/`, `supabase/tests/` | Implement desired schema, isolation and concurrency tests; preserve behavior, not old table shapes. |
+| `supabase/migrations/` | Preserve existing history and add reviewed migrations generated from the desired schema. |
+| `apps/photon-bridge/` | Former source removed; Fly configuration archived. Add a bridge only if the Photon integration requires a separate process after Phase 1. |
+| Root/app manifests, lockfiles, `.github/workflows/check.yml`, `scripts/` | Keep install, typecheck, lint, tests, build and deployment commands coherent with each implemented slice. |
+| `documentations/`, `openspec/` | Retain product requirements and settled behavior; update design/setup documents and record fresh evidence in bounded changes. Historical test success is not replacement verification. |
+| Infrastructure configuration, local secrets and external resources | Preserve and adapt deliberately; keep secrets out of tracked source and do not infer remote deletion authority from source replacement. |
 
-Carry these boundaries through every phase: only hosting a calendar is invite-only; requesters can request meetings and optionally connect Google Calendar without an invitation or product account. Google consent, MCP OAuth, requester agreement, and explicit host approval are separate permissions. Calendar writes use the host's selected booking calendar.
+The current [root scripts](../../package.json) and CI check documentation and retained infrastructure tooling. App typecheck, lint, tests and build must be restored with the replacement; archived application checks are historical only.
 
-The latest product direction includes map-based travel-time calculation. The PRD and technical specification are aligned in this change: estimate both adjacent trips and add host buffers. Missing estimates require clarification or a confirmed manual allowance. Native apps, group scheduling, automated post-booking changes, and agent-generated host approval remain excluded. Host email is a proposed extension and needs its own scope decision before implementation.
+Use one owner for shared contracts/schema changes and one integrator for manifests/CI. Independent UI, provider and test work may run in parallel after their interfaces are agreed. Continue on the existing branch in the main directory; do not create a worktree for this plan.
 
-## 2. Dependencies and milestones
+## 3. Delivery sequence
 
-```mermaid
-flowchart TD
-    P0["P0: Compatibility and contract decisions"] --> P1["P1: Repository and backend foundation"]
-    P1 --> P2["P2: Host admission and calendar connections"]
-    P2 --> P3["P3: Web intake and feasible proposals"]
-    P3 --> P4["P4: Approval and durable booking"]
-    P3 --> P5["P5: MCP, CLI, and public skills"]
-    P3 --> P6["P6: Email and host iMessage"]
-    P4 --> P7["P7: Cross-channel release verification"]
-    P5 --> P7
-    P6 --> P7
-    P7 --> Pilot["Invite-only host pilot"]
-```
+Phases are dependency gates, not fixed calendar estimates. Each phase ends with runnable evidence and a small reviewable change. Pending product decisions belong in the relevant OpenSpec change, with a resolution before dependent implementation.
 
-P5 and P6 can implement adapters after shared contracts stabilize in P3. Their end-to-end booking checks depend on P4. Provider experiments in P0 should use disposable fixtures; avoid building independent scheduling logic for each channel.
-
-| Milestone | Demonstrable result |
-|---|---|
-| M1 — Connected host, after P2 | An invited host completes web setup; an uninvited account cannot publish a booking link. |
-| M2 — Web booking, after P4 | An account-free requester and invited host complete one approved meeting, including recovery from a lost Calendar response. |
-| M3 — All required interfaces, after P5/P6 | Agents, email, and iMessage operate on the same request and proposal versions. |
-| M4 — Pilot, after P7 | Acceptance evidence, operator recovery, and provider configurations satisfy the release gates. |
-
-## 3. Implementation phases
-
-### P0 — Resolve integration risks and contracts
-
-Proposed change: `validate-provider-and-agent-compatibility`. This phase precedes production implementation of the affected adapters.
-
-- Verify Supabase OAuth with a minimal remote MCP tool in the actual client versions: discovery, registration, redirect handling, token audience, refresh, revocation, and application-owned grants. Start with a browser-oriented client and a terminal client, then record results for all seven required clients.
-- Determine how each host client obtains attributable confirmation of a specific proposal. Use authenticated web confirmation when the client cannot supply reliable human confirmation; a model-supplied `approved` field is insufficient.
-- Exercise Photon authentication and a controlled test conversation. Validate its documented Node-compatible gRPC transport against the chosen runtime. Record direct Photon versus Mastra and the transport/deployment decision; if Edge execution cannot support it, design a narrow Node/Bun messaging bridge while retaining Supabase as the scheduling backend.
-- Complete controlled Cloudflare transactional and Supabase Auth delivery tests against the configured sending domain and custom SMTP settings. Validate AgentMail webhook verification, reply threading, and uncertain-send handling using dedicated test identities. Keep Cloudflare transactional mail separate from AgentMail conversation inboxes; decide inbox allocation and contact verification before binding conversations to requests.
-- Test Google consent and token refresh, Calendar read/write permissions, and Routes coverage for the intended geography and travel modes. Keep host event scopes separate from requester free/busy scopes. Select callback URLs before editing the OAuth client configuration.
-- Choose the web framework/hosting, package manager, MCP library, model, and compatible package versions. Specify guest token recovery, invitation expiry, request expiry, online meeting-link behavior, and supported language coverage in the owning changes.
-
-**Exit evidence:** a recorded decision and reproducible check for each risk. An unsupported required client or transport remains an explicit blocker with a proposed resolution, not an implicit scope reduction. Independent foundation work can continue while an adapter-specific blocker is investigated.
-
-### P1 — Establish the repository and backend foundation
-
-Proposed change: `establish-application-foundation`. Depends on P0's runtime and web choices.
-
-- Create the first real files under `apps/web`, `supabase/functions`, and shared modules following the repository structure. Introduce `packages/contracts` when a second consumer needs it; keep secrets and server-only entities outside client contracts.
-- Implement environment validation, provider adapters with test doubles, scoped logs, and stable error/command envelopes. Define idempotency and expected-revision semantics before client mutations.
-- Create initial desired SQL under `supabase/schemas/`, with explicit privileges, constraints, and RLS where data is exposed. Add later capability tables with their owning phases rather than guessing the entire schema now.
-- Add local checks and CI for formatting/lint, typechecking, meaningful unit/database tests, and web builds. Establish separate preview/test provider identities and default external sends off.
-- Verify a bounded worker and durable queue publication in a transaction, internal invocation authorization, and Cron recovery. Use jobs for persisted work; never rely on an open request or `waitUntil()` for durability.
-
-**Exit evidence:** a fresh checkout starts locally, builds, and passes foundation CI. Generate migrations with `supabase db schema declarative sync --name <name> --no-apply`, review the SQL, and rebuild only the disposable local database with `supabase db reset --local`. No remote migration is implied by a local reset.
-
-### P2 — Implement host admission and calendar connections
-
-Proposed changes: `implement-host-admission`, `connect-google-calendars`. Depends on P1.
-
-- Implement public waitlist intake, operator-controlled invitation issuance, verified recipient binding, atomic redemption, and resumable host onboarding. Enforce admission in shared operations so direct API access cannot bypass web restrictions.
-- Add host sign-in, calendar selection, booking-destination permissions, confirmed rules, timezone, handle assignment, and connection recovery. Publish a host only after admission and minimum setup are complete.
-- Implement Google callbacks with validated state and browser/session binding, refresh-token encryption, refresh/revocation handling, disconnect, and bounded token retention. Keep encryption key management separate from stored token rows.
-- Add request-scoped requester consent without requiring a host account. Complete its intake-to-consent-to-resume journey in P3. Denied or revoked consent offers explicit manual/agent availability or reconnection.
-
-**Exit evidence:** M1 works through web. Tests reject expired/reused invitations, concurrent redemption by different accounts, cross-host access, callback swapping, and requester grants used for host writes. Credential failures never appear as an empty calendar. Coverage: FR-01–FR-04, FR-35–FR-36; AC-09–AC-10, AC-26–AC-27.
-
-### P3 — Build web intake, feasibility, and proposal negotiation
-
-Proposed changes: `implement-request-lifecycle`, `evaluate-calendar-and-travel-feasibility`. Depends on P2.
-
-- Add public host discovery, account-free intake, protected continuation, contact verification, and the phone-friendly host inbox. Implement the PRD lifecycle with immutable proposals, audience-specific views, revision checks, and closed-state guards.
-- Collect and normalize purpose, participants, date window, timezone, duration, mode, and location. Intersect host constraints with manually supplied, agent-supplied, or connected requester availability.
-- Implement deterministic interval checks, focus rules, and travel estimates for previous commitment → candidate → next commitment. Account for travel mode, departure context, estimate freshness, and host margins. Define when a new estimate invalidates feasibility; never turn a missing route into zero travel.
-- Add structured AI extraction and ranking only around valid domain operations. Recheck state/rule versions before saving asynchronous results. Keep private event locations, notes, and host reasoning out of requester output and model contexts that do not need them.
-- Support no-match clarification, private preference exceptions, requester agreement, host revisions, decline, and withdrawal. Confirmation controls identify the exact proposal version.
-
-**Exit evidence:** a requester can reach a complete agreed proposal and host review without an account. No Calendar write is enabled yet. Tests cover DST, adjacent travel in both directions, missing routes, private-data isolation, prompt injection, stale asynchronous results, revision invalidation, and interrupted requester consent. Coverage: FR-05–FR-17, FR-19, FR-36; AC-01–AC-04, AC-10–AC-13, AC-27.
-
-### P4 — Add explicit approval and recoverable booking
-
-Proposed change: `book-approved-proposals-reliably`. Depends on P3 and P1's durable job infrastructure.
-
-- Persist attributable host approval separately from requester agreement. Both must refer to current details; host revisions invalidate the appropriate decisions.
-- Implement one durable booking identity per request, immutable dispatch payloads, provider-valid stable event IDs, per-host reservations, worker leases, and transactional state/job/outbox updates.
-- Re-read required calendars, rules, and travel feasibility before dispatch; reject conflicts or changed prerequisites. Create the event only in the host booking calendar, with the selected invitation/meeting-link policy.
-- Reconcile uncertain writes before retrying. A lease timeout does not release a possibly occupied reservation. Confirm Booked only from verified provider evidence, then deliver notifications independently.
-- Add audited operator actions for reconnecting, reconciling, and retrying definitive failures. Do not offer a manual switch that bypasses approval or marks an uncertain write successful.
-
-**Exit evidence:** M2 passes with a dedicated Calendar test account. Fault injection covers success with a lost response, process termination around each external boundary, duplicate queue delivery, competing requests, stale approval, changed requester availability, withdrawal races, missed wake-ups, and notification failure. A confirmed booking remains booked when delivery fails. Coverage: FR-17–FR-23; AC-04, AC-06–AC-10, AC-13.
-
-### P5 — Add agent onboarding, remote MCP, and CLI
-
-Proposed changes: `expose-authorized-agent-operations`, `publish-scheduling-skills`. Contract work starts after P3; booking verification requires P4.
-
-- Expose stateless Streamable HTTP MCP and a thin CLI over shared operations. Implement the P0 OAuth design, application grants, consent/revocation controls, CLI credential storage, structured output, and stable errors.
-- Keep guest submission and continuation request-scoped. Never distribute host credentials, Google tokens, or Supabase privileged keys to personal agents.
-- Publish `/SKILL.md` and `/{host}/SKILL.md` from service-controlled templates and allowlisted public host fields. Preserve waitlist/invitation checks and resumable browser consent; reading Markdown does not grant authorization.
-- Test both exact pasted prompts from the PRD. Resolve supported connection steps per client; report unsupported steps honestly and preserve the same request through web continuations.
-
-**Exit evidence:** requester and host cases pass separately in Dots, Muse, Instinct, ChatGPT, Codex, Claude, and Claude Code. Record versions and confirmation mechanisms. Test expired/revoked/wrong-audience grants, direct privilege bypass, stale decisions, unknown/unavailable hosts, and interrupted setup. Coverage: FR-18, FR-24–FR-25, FR-29–FR-35; AC-14–AC-15, AC-19–AC-26.
-
-### P6 — Add requester email and host iMessage
-
-Proposed changes: `integrate-requester-email`, `integrate-host-imessage`. Depends on P0's transport decisions and P3's contracts; booking verification requires P4.
-
-- Deploy signature-verifying receivers and durably save deduplicated inbound events before acknowledging them. Resolve actor, request, and audience before model interpretation. Provider thread IDs and sender display names are not authorization.
-- Use Cloudflare Email Service for transactional verification, recovery, and booking messages, and configure Supabase Auth to use its authenticated SMTP endpoint. Freeze the Cloudflare account, From address, recipient, and body before application dispatch; after persisted dispatch, an uncertain Cloudflare result remains visible and is not replayed automatically. Keep historical AgentMail pending sends on their existing bounded 23-hour retry policy.
-- Implement AgentMail conversational intake/replies, verified web continuation, recipient selection, and conversation delivery records. Provider recovery never retries booking.
-- Implement host iMessage opt-in, identity verification, private conversations, unlinking, proposal-specific summaries, clarification, revision, approval, and decline. Ambiguous replies and unreliable confirmation paths use authenticated web review.
-- Register actual AgentMail receiver URLs and webhook secrets after deployment. Recheck the configured Cloudflare sending-domain records without disturbing unrelated DNS and mail routing, then capture controlled transactional/Auth delivery evidence. Use the development pod and controlled messaging identities for conversation tests.
-
-**Exit evidence:** M3 passes across web ↔ email, web ↔ iMessage, and agent ↔ web/email. Test spoofed senders, forwarded messages, groups, replay/out-of-order delivery, obsolete summaries, unlinking, and concurrent decisions. Private host conversations cannot leak into requester threads. Coverage: FR-08, FR-26–FR-28; AC-05–AC-06, AC-11, AC-14, AC-16–AC-18.
-
-### P7 — Verify the complete release and prepare the pilot
-
-Proposed change: `verify-invite-only-pilot`. Depends on P4–P6.
-
-- Execute AC-01–AC-27 and every required client journey on the intended deployment. Attach reproducible evidence and failures to the owning changes; mocks alone do not establish live-provider compatibility.
-- Verify mobile layouts, keyboard operation, labeled controls, consent recovery, readable pending/error states, and post-booking scope messaging. Exercise non-admitted hosts and account-free requesters throughout.
-- Rehearse queue recovery, blocked reservation handling, token revocation, backups/restoration, and release rollback without destructive schema rollback. Confirm webhook replay protection and secret/log redaction in deployed configuration.
-- Set pilot limits and operator ownership for job age, provider latency/errors, unresolved writes, delivery failure, abuse, and cost. Finalize retention/deletion and provider data handling. Collect booking conversion and coordination baselines without claiming unmeasured targets.
-- Identify the intended Supabase environment before reviewing remote migrations with `supabase db push --dry-run`; deploy through the reviewed release process. Keep Cloudflare DNS authoritative and verify the chosen web host's actual records and HTTPS routes.
-
-**Exit evidence:** all acceptance scenarios pass, each required client has evidence, and no unresolved authority, duplication, or privacy failures remain in the release suite. Operator recovery is demonstrated. Production OAuth configuration/verification and messaging-domain requirements are satisfied where applicable. Passing tests is not a guarantee that external Calendar races cannot occur.
-
-## 4. Team ownership and change discipline
-
-Suggested responsibilities for the four-person team; assign people before implementation. Ownership is by module and contract, not by independent channel state machines.
-
-| Responsibility | Primary scope | Coordination point |
+| Phase | Deliverable | Depends on |
 |---|---|---|
-| Web and onboarding | Responsive UI, admission/setup views, consent continuation, accessibility | Shared identity and operation contracts |
-| Scheduling and persistence | Desired SQL/migrations, proposals, constraints, approval, booking/jobs/recovery | Booking guards and transactional boundaries |
-| Calendar and messaging | Google Calendar/Routes, email, iMessage, provider fixtures | Scoped credentials and normalized adapter outcomes |
-| Agent interfaces and release evidence | MCP OAuth, CLI, public skills, client compatibility, CI/E2E coordination | Audience-safe contracts and confirmation evidence |
+| 0 | Baseline, preservation and bounded change map | Current docs |
+| 1 | Tested runtime, model, persistence, worker and OAuth decisions | 0 |
+| 2 | Domain contracts, schema, identity and durable execution foundation | 1 |
+| 3 | Host admission and setup inside `/app` | 2 |
+| 4 | Requester intake, availability and proposal review in web | 3 |
+| 5 | Approval, reliable booking, receipt and transactional delivery | 4 |
+| 6 | AgentMail requester continuity | 2, 4; booking verification needs 5 |
+| 7 | Photon host linking and iMessage continuity | 1, 3; booking verification needs 5 |
+| 8 | MCP/CLI and all named-client journeys | OAuth decision in 1, contracts in 2; full verification needs 5–7 |
+| 9 | Release hardening, deployment and acceptance evidence | 3–8 |
 
-Review each bounded OpenSpec change before implementing its behavior. Use short-lived branches and reviewed PRs; include the relevant AC IDs, actual test commands/results, migration review, and remaining gaps. Tests are owned by each capability author, with another teammate reviewing sensitive authorization and booking paths. Sync completed behavior into main specs when archiving the change.
+After Phase 5, the first complete web booking path should work. That is an integration milestone, not completion of the release: email, iMessage and named clients remain required. Adapter development in Phases 6–8 may overlap once shared contracts are stable.
 
-The first implementation change should resolve P0's compatibility questions and capture the foundation decisions. Do not start with a general-purpose agent loop, all channel adapters at once, or a production Calendar write path before approval and recovery guards exist.
+### Phase 0 — Capture the baseline and reconcile specifications
 
-## Conversational website rollout (2026-10-05)
+Work:
 
-Host setup now uses a durable website chat and exact settings review; requester chat exposes explicit
-review/apply, availability evaluation, candidate selection and current-proposal agreement. Both use
-the requested official AI Elements components and preserve shadcn preset `b6rtA2Hmi`. Account,
-invitation, Calendar and meeting-decision guards remain in the shared command boundary.
+- Record tracked/untracked changes, running development consumers, retained resources and the authorized source-deletion scope. Preserve pending six-digit iMessage work as reference before replacement.
+- Capture baseline check outcomes and extract behavior cases for admission, scoped access, setup review, proposal revision, booking uncertainty and channel replay. Add missing boundary regression cases before removing the old implementation of those guarantees.
+- Create a bounded rebuild-foundation OpenSpec change. Map later slices to existing active changes or new bounded changes; avoid duplicate task ownership.
+- Reconcile active `connect-google-calendars`, `evaluate-calendar-and-travel-feasibility`, `book-approved-proposals-reliably`, `conversational-host-setup` and `validate-provider-and-agent-compatibility` work. Their old completed tasks stay dated historical evidence; new rebuild tasks start unverified.
+- Capture the single `/app` surface, requester booking route, invitation receipt behavior and browser-entered iMessage OTP as explicit proposed deltas where needed. Do not rewrite archived evidence or mark main capability specs implemented in advance.
 
-The full local check passes 147 Deno tests, 11 Node tests, typecheck, lint and build. Complete local
-reset passes 394 SQL assertions; a separate two-session check verifies private-turn serialization and
-unlink/dispatch fencing. The local Auth/RPC/HTTP runner passes website→private iMessage→website
-resumption with fixture model/Google transports. Browser fixtures pass setup 14 areas/9 mutations,
-requester 10 areas/24 mutations, existing 25 areas/17 mutations and workspace 9 areas, including 320px widths.
-The bridge passes 23 tests without external messages. The approximately 324 kB eager website bundle
-defers its 654 kB chat runtime; the lazy chunk-size warning remains. [Sanitized evidence](../../scripts/p0/conversation-results-2026-10-05.json).
+Exit: a source/checkpoint inventory, behavior-to-test map and non-overlapping OpenSpec task map exist. Outstanding spec/document disagreements are resolved for the foundation slice. Validate changed OpenSpec artifacts using the repository's pinned CLI.
 
-Requester conversation is archived into the meeting-requests contract. Host setup remains an open
-change: Fly CLI `0.4.111` is authenticated and one 512 MB Machine runs in Tokyo. Strict
-configuration validation, local container checks, production readiness and restart recovery pass.
-The real linked-host onboarding journey remains pending. See the [live evidence](../../scripts/p0/fly-bridge-live-results-2026-10-05.json)
-and [runtime/pricing guide](../../apps/photon-bridge/README.md#flyio-bridge-deployment). This bounded setup bridge does not implement
-full P6 iMessage scheduling, and these fixtures do not close the remaining P0 live client or Calendar
-M2 gates.
+References: [repository change workflow](../../AGENTS.md#documentation-and-specifications), [active changes](../../openspec/changes/), [rebuild boundary](04_implementation_plan.md#2-execution-rules-and-source-ownership).
 
-The reviewed release `d6d1a62` is deployed on `https://findmeatime.com`; production migration
-`20261005062543_setup_conversations.sql`, API/worker deployment and worker schedule installation
-succeeded. HTTPS and API health checks pass. The actual signed-in host workspace shows the new
-conversation and preserves 5/5 readiness. Its iMessage section shows the unavailable-service fallback,
-and the disabled internal bridge route returns 503. No persistent bridge server or live Calendar
-event was created by this rollout.
+### Phase 1 — Prove the runtime and settle deployment decisions
+
+Work:
+
+- Configure the reconstruction deployment at `https://release.findmeatime.com` following [provider setup](03_provider_setup.md#reconstruction-deployment-origin). Verify domain attachment, DNS, TLS and origin configuration before remote callback tests; preserve root-domain and mail records.
+- Build the smallest Next.js/eve integration directly in `apps/web/`, using the eve chat template as the integration reference and the other templates only for the documented concepts. Pin the dependency set verified on Node.js 24/npm; keep Supabase identity in control.
+- Wire the direct OpenAI provider; verify the selected model and account entitlement. Keep keys server-side and fail clearly on missing credentials, rate limits and exhausted credits. A model failure must not advance scheduling state.
+- Exercise two hosts and two request-scoped requesters. Verify session creation/read/list/stream/resume and every exposed mutation against actor, resource and audience. Inspect per-user memory scoping if memory is enabled; disable it until isolation is proven.
+- Kill/restart the runtime mid-turn and after a tool commit; reconnect the browser. Verify authorized output recovery and one domain effect despite repeated tool execution. Test revocation while a stream/session exists.
+- Choose and record eve persistence, API/tool placement, job transport, recovery scheduler, worker hosting, execution limits and required server secrets. Prefer the tested Next.js co-deployment arrangement where supported; do not assume old Edge Functions/Cron or a new external queue is necessary.
+- Test the native eve Photon adapter against the selected Spectrum transport contract; choose it only if compatible, otherwise specify the narrow bridge boundary.
+- Run an early OAuth compatibility spike for protected MCP access: discovery, issuer/resource audience, registration, PKCE, refresh and revocation. Record client-specific gaps before finalizing access contracts; a successful browser Supabase login is insufficient.
+
+Exit: a repeatable build/deployment smoke check and recorded runtime/OAuth decision document, with passing isolation and recovery tests. Pin a concrete model ID and document actual secret loading. Any failure that invalidates eve gets an explicit architecture decision before broad implementation; do not introduce a second agent engine silently.
+
+References: [runtime decision](../03_technical_specification.md#backend-decision), [session protection](02_frontend_architecture.md#identity-and-conversation-selection), [durable work](01_backend_architecture.md#8-jobs-inbox-and-outbox), [compatibility evidence](../archive/2026-10-06-compatibility_report.md).
+
+### Phase 2 — Build contracts, identity, schema and durable effects
+
+Work:
+
+- Define typed commands, viewer-specific queries and events for admission/setup, requests, proposals, explicit decisions, conversations, provider ingress, delivery and booking. Require resource/revision/idempotency information on applicable actions.
+- Implement Supabase host identity/admission, request-scoped guest credentials and verified conversation/channel bindings. Authorize before querying eve or executing a tool; a session ID is not a credential.
+- Model immutable proposal versions, agreement/approval evidence, one booking identity per request, attempt history, host reservations, inbox deduplication and outbox/jobs. Keep eve transcript persistence distinct from domain records.
+- Implement atomic state/audit/work commits, lease/fencing and recovery sweeps. Define recovery for a crash between eve accepting a message and the app recording dispatch acknowledgment.
+- Add database constraints, grants/RLS and narrow privileged access. Generate new migrations through pg-delta; preserve applied history. Rebuild the identified disposable local database and run cross-user/concurrency tests.
+- Update root scripts and CI to execute the replacement checks, including a separate local database job and browser job. Retire obsolete test commands only after their behavior coverage is mapped.
+
+Exit: cross-host/request access fails; duplicate commands return consistent results; stale revisions fail; state and jobs commit atomically; expired leases/lost wake-ups recover without repeated effects. The migration chain rebuilds locally and its desired schema matches the checked-in files.
+
+References: [module boundaries](01_backend_architecture.md#2-module-boundaries), [transactions](01_backend_architecture.md#5-persistence-and-concurrency), [schema workflow](../../AGENTS.md#supabase-schema-changes).
+
+### Phase 3 — Deliver host setup in the single `/app` chat
+
+Work:
+
+- Implement the public `/` landing page with product explanation, sign-in/become-host entry and account-free waitlist submission. Deduplicate repeated submissions without granting hosting access.
+- Implement sign-in and safe callback return to `/app`; display waitlist/invitation controls before admission without private agent history. Provide operator-only invitation issuance/revocation and Cloudflare invitation/Auth email configuration for the selected project.
+- Make the agent guide every onboarding stage and its recovery, with server-verified next actions. Propose missing preferences before asking for manual input; apply explicit-choice/evidence/starter-default precedence, label provenance, respect corrections/dismissals and ask one unresolved question at a time. Verify both rich-context and no-history paths through inline iMessage connection or skip and completion under AC-28.
+- Resume the host conversation and draft, render typed connection/settings review cards, and support exact-value dialogs during model failures. Confirm drafts explicitly before saving policy.
+- Implement host Google consent, minimum required scopes, encrypted server-side tokens, refresh/revocation, conflict-calendar selection and writable booking destination. Return from consent to the original authorized context in `/app`.
+- Add guided onboarding cards and explainable recommendations: suggest calendar roles from metadata, let the host choose a disclosed bounded scan, derive schedule/location summaries, then offer editable meeting windows and place/mode preferences. Resolve scan period/freshness and minimized evidence contracts before implementation; keep inference read-only and suggestions private until current explicit settings confirmation.
+- Explicitly ask transportation and extra travel buffer after location for in-person/either hosts; support a per-trip policy, skip online-only and verify route mode, journey duration and buffer remain distinct.
+- Explicitly ask host meeting-mode/location preferences during onboarding, with suggested choices, online-only venue skip, reuse of prior answers and a **Decide per meeting** option. Verify final review cannot treat inferred/default location preferences as an explicit answer.
+- Verify rich, sparse, mixed-timezone and recurring-event fixtures; partial/revoked reads, duplicate names, read-only destinations, malicious event text, missing locations and stale results must preserve manual setup and confirmed rules. Review the calendar cards, weekly preview, location cards and final review on desktop/mobile with keyboard and reduced-motion checks.
+- Publish a unique public handle and valid booking/skill links only after readiness checks. Reserve application/operational route names, including `app` and `booking`.
+- Keep request selection, settings and connection management inside `/app`; no host subpages. Provide mobile/keyboard navigation and truthful empty/loading/error states.
+
+Exit: an unauthenticated visitor can join the waitlist, and repeated submission creates no duplicate entry or hosting access. An invited host signs in, redeems once, resumes `/app`, connects Calendar, explicitly confirms rules and receives a working public link. Reload/consent/model failure preserves progress; expired/replayed/concurrent invitation redemption and direct admission bypass fail. Unadmitted accounts retain sign-out/revocation access.
+
+References: [single host page](../user_experience/04_page_list.md#primary-pages), [host setup](02_frontend_architecture.md#host-setup-conversation), PRD AC-23, AC-25–26, AC-28. Calendar-informed onboarding must pass AC-28 before this phase exits.
+
+### Phase 4 — Deliver requester negotiation and host review on web
+
+Work:
+
+- Implement public `/{handle}` intake and creation of a request-scoped continuation at `/booking/[bookingId]`; exchange private-link credentials securely and remove secrets from URLs after exchange. Define expiry, recovery and revocation without requiring requester signup.
+- Offer optional Google identity with validated name/email prefill and inline manual name/email entry; verify contact before trusted recovery/invitation use. Keep request authority separate from identity and Calendar grants. Use browser-detected IANA timezone with a visible selector, retain explicit choices, and avoid redundant confirmation prompts; test DST, account switching and bound callback resumption.
+- Collect/clarify contact, purpose, duration, availability, timezone, mode and location. Build candidate cards, alternatives, withdrawal and versioned requester agreement.
+- Implement optional requester Calendar availability with separate minimum scopes, selected calendars and request-bound consent. Failed reads pause dependent scheduling until reconnection or explicit manual/agent availability replaces them.
+- Apply deterministic host/requester busy intervals, rules, focus blocks, duration and buffers before model ranking. For physical meetings check both travel legs with Google Routes; missing locations or failed routes require clarification or an explicitly confirmed manual allowance.
+- Surface selected requests/current proposals inside `/app`; preserve private versus shared projections and display explicit revision-bound decision controls. Request IDs supplied by UI or notification entry always undergo authorization.
+
+Exit: two independent host/requester pairs negotiate without cross-reading history or private Calendar details. Test ambiguous dates/DST, no-match, unsupported travel, invalid model output, stale candidate/proposal results, requester Calendar denial/revocation and withdrawal. Both pages show the same authoritative proposal version.
+
+References: [requester destination](../user_experience/04_page_list.md#requester-booking-destination), [availability processing](01_backend_architecture.md#6-conversation-and-availability-processing), PRD AC-01–05, AC-12–13, AC-27.
+
+### Phase 5 — Complete approval, booking and invitations
+
+Work:
+
+- Record explicit host confirmation of the current proposal, including any permitted exceptions, independently of model prose. Require current requester agreement; revisions invalidate applicable prior decisions.
+- Implement the booking worker: coordinate per-host reservations, re-read required calendars, recheck versions, persist exact destination/payload/event ID before dispatch and reconcile uncertain outcomes against that same event.
+- Distinguish pre-dispatch rejection, pending/uncertain write, confirmed booking and delivery failure. Lease expiry cannot release an uncertain reservation or justify a new event identity.
+- Produce one confirmed-event receipt and transactional outbox. Align HTML/plain email, Calendar invitation and protected receipt on final details, **View booking**, and **Join meeting** where valid. Keep service email sender distinct from the Calendar organizer.
+- Keep credentials and private history out of shared Calendar descriptions; RSVP metadata is not approval. Define provider invitation versus application email delivery ownership. If emitting ICS, verify stable association and no duplicate event alongside provider invitations.
+
+Exit: a controlled full web journey produces one confirmed event and consistent receipt/invitations. Inject crashes before/after dispatch, successful create with lost response, stale approvals, concurrent requests, duplicate approval and failed confirmation delivery. Uncertainty stays visible, and delivery retry never creates a second event. Closed requester credentials expose only the permitted status/receipt until expiry; no automatic reschedule/cancel is added.
+
+References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking), [invitation presentation](../user_experience/03_interfaces.md#booking-confirmation-email-and-calendar-invitation), PRD AC-06–11, AC-13.
+
+### Phase 6 — Add requester email continuity
+
+Work:
+
+- Finalize AgentMail inbox allocation, provider authentication, sender evidence, request/thread mapping and allowed recipients. Store and deduplicate authenticated ingress before acknowledgment.
+- Dispatch to the requester's authorized eve context and share domain state with their protected web conversation. Unknown/forwarded/ambiguous threads must not unlock an existing request.
+- Implement bounded reply/notification delivery, frozen recipients/payloads, retry identity and uncertain-send recovery using verified provider capabilities. Keep transactional mail in the Cloudflare adapter.
+
+Exit: a controlled multi-turn email request continues on web and returns to email with the same proposal/status. Delayed/replayed messages, changed recipients, revocation, restart during dispatch and lost send responses do not leak data or repeat domain effects. Record actual received/replied/delivered evidence separately from provider acceptance.
+
+References: [email direction](01_backend_architecture.md#email-provider-direction), [inbox/outbox](01_backend_architecture.md#8-jobs-inbox-and-outbox), PRD AC-01, AC-05, AC-09–11.
+
+### Phase 7 — Add verified host iMessage continuity
+
+Work:
+
+- Implement the Spectrum adapter/bridge chosen in Phase 1 and scoped server authorization. Verify shared-pool target policy and actual sender route before live tests.
+- Render iMessage linking directly in `/app` chat: Connect/Maybe later, inline phone entry, inline protected verification and server-verified connected state. Preserve retry/expiry/change-number and reload recovery without a settings dialog, route change or code in conversation/model/analytics data.
+- From `/app`, send a short-lived six-digit code to the chosen private iMessage number; verify it in the initiating browser. Never return the code in a web response or model context. Add expiry, attempt/resend limits, replay protection, opt-in, conflict handling and unlinking.
+- Resume the same host identity across web/private iMessage, with explicit request selection when ambiguous. Keep host-private context distinct from requester history and group conversations unauthorized.
+- Implement current-proposal review/revise/decline and attributable approval. Ambiguous or stale replies require clarification or authenticated review in `/app`; generic agent/tool approval is insufficient.
+- Offer the optional contact card from the verified sender route; contact saving does not grant identity or consent.
+
+Exit: a linked host completes controlled private review, revision, fresh approval and a separate decline case. Wrong sender/browser/code, expired/replayed challenges, group input and unlinking deny access. Replayed approval after restart yields no second booking; a messaging outage leaves `/app` usable.
+
+References: [linking direction](02_frontend_architecture.md#host-setup-conversation), [Photon evidence and limitations](03_provider_setup.md#photon), PRD AC-16–18.
+
+### Phase 8 — Deliver skill entry, MCP, CLI and named clients
+
+Work:
+
+- Serve `/SKILL.md` and `/{handle}/SKILL.md` with public instructions, versioning, missing-client recovery and no private state. Preserve both agreed paste-to-agent entry journeys.
+- Implement the OAuth server/resource checks selected in Phase 1, bounded grants and grant/deny consent at `/connect/authorize`. Keep Google consent, application authorization, host admission and proposal approval distinct.
+- Implement MCP tools and a thin machine-readable CLI over the same domain commands; support account-free request grants and authenticated host scopes. No client receives provider tokens or privileged database credentials.
+- Record a compatibility row for each of Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code: tested version, discovery, connection, requester/host onboarding, continuation, refresh/revocation, current-proposal decision and recovery. Use direct host confirmation when in-client attribution cannot be established.
+
+Exit: each named client passes its applicable requester and host journeys against the replacement. Wrong-audience/expired tokens, insufficient grants, revoked access, Google tokens masquerading as app credentials and fabricated host consent fail. Missing support is an explicit release gap, not inferred success from another MCP client.
+
+References: [public skill entry](01_backend_architecture.md#public-skill-entry-documents), [interfaces](../user_experience/03_interfaces.md), PRD AC-14–15, AC-19–25.
+
+### Phase 9 — Harden, deploy and close release gates
+
+Work:
+
+- Select/document concrete rate limits, model-turn/spend caps, timeouts, retention/deletion, backup/restore policy, operational ownership and performance targets. Resolve remaining release decisions below before claiming readiness.
+- Add redacted diagnostics for stale decisions, aged jobs, blocked reservations, uncertain writes, channel failures and authorization denials. Provide audited recovery without letting operators manufacture approval or booking success.
+- Separate local, preview and release configuration. Identify the selected Supabase and Vercel targets before deployment; keep previews from sending live mail/messages by default. Review new migrations with `supabase db push --dry-run` before an authorized remote push; never reset a remote project for the rebuild.
+- Replace obsolete deployment scripts and READMEs. Verify current Vercel tooling before using it; upgrade the outdated CLI with `npm i -g vercel@latest` and record the verified version during deployment preparation.
+- Identify and fence former development consumers before enabling replacement channel processing. Do not require a legacy dual-run pilot, but verify one active consumer per intended transport and recoverable deployment configuration.
+- Configure the actual Auth/Google callbacks and webhook endpoints for the replacement, verify HTTPS/domain setup and provider credentials, then run controlled end-to-end journeys. Record any external-action authorization needed at that point rather than treating this planning document as deployment approval.
+- Archive only completed, verified OpenSpec changes, sync their settled behavior to main specs and publish a release evidence matrix with unresolved items explicitly named.
+
+Exit: all phase evidence and required client/provider journeys pass against the selected deployment, current migrations rebuild locally, no unresolved duplicate-processing/authorization/booking-uncertainty defects remain, and runbooks explain recovery. A passed build or historical provider probe alone cannot satisfy this gate.
+
+References: [operations](01_backend_architecture.md#10-operations-and-verification), [project selection](03_provider_setup.md#selected-rebuild-supabase-project), [domain/deployment guidance](../../AGENTS.md#domain-and-dns).
+
+## 4. Decisions with deadlines
+
+Resolve these inside the owning change; the plan does not invent product defaults or claim provider support.
+
+| Decision | Required by | Evidence or recorded result |
+|---|---|---|
+| eve storage, runtime/worker placement, recovery transport and execution limits | End of 1 | Build/deploy/restart/repeated-tool tests and recorded selected topology |
+| Model ID, direct billing route and model failure policy | End of 1 | Direct-provider call, selected entitlement and safe failure results; never print keys |
+| OAuth server, resource-audience enforcement and registration/client constraints | End of 1 | Early compatibility results and implementable grant/refresh/revocation contracts |
+| Guest continuation/recovery, inbox dispatch receipt and per-user memory policy | Before 2 is complete | Explicit credential/session boundaries plus replay/revocation/isolation tests |
+| Waitlist fields, rule defaults/classification, handle lifecycle and initial languages | Before 3–4 behavior is finalized | PRD/OpenSpec decision with UI and domain acceptance cases |
+| Travel modes/geography, estimate freshness, manual allowance, proposal expiry and follow-up limits | Before 4 exits | Deterministic policy and no-match/expiry/unsupported-region tests |
+| Online meeting link source and invitation/ICS ownership | Before 5 exits | Approved final proposal matches actual created event and one-event invitation tests |
+| AgentMail allocation/sender binding and Spectrum line/hosting/linking details | Before 6–7 exit | Controlled routing, delivery and restart/revocation evidence |
+| Numeric performance/cost limits, retention/deletion and backup/recovery ownership | Before 9 exits | Measured checks and operational runbook |
+
+See the complete [PRD open decisions](../02_product_requirements.md#10-dependencies-and-open-decisions) and [technical decisions](01_backend_architecture.md#open-technical-decisions). If a decision changes agreed release scope, update those owners explicitly.
+
+### Carried-forward compatibility gates
+
+The [archived report](../archive/2026-10-06-compatibility_report.md) preserves dated evidence from the former implementation. It does not verify the selected rebuild project. The following unresolved findings remain active release work:
+
+| Gate | Recorded limitation | Phase and required replacement evidence |
+|---|---|---|
+| OAuth resource enforcement | The former Auth v2.197.0 probe issued `aud=authenticated`; a fixed-client audience hook allowed a client requesting another resource to receive the MCP audience. Source review found missing resource handling through form token exchange/refresh and no requested resource in hook input. Production discovery was disabled at capture. | Phase 1 must verify discovery and resource enforcement across authorization, code exchange and refresh, including wrong-resource negatives. A frontend-only check, fixed hook or JSON-only exchange does not close this gap. Phase 8 must then prove actual product grants/revocation and client journeys. |
+| Named clients | Codex's isolated diagnostic/refresh tests passed; none of the seven clients completed the rebuilt requester/host workflow. Dots and Instinct sessions were unavailable during the former inventory. | Phase 8 needs available test sessions and independent evidence for all seven products; installed apps or a shared MCP protocol are insufficient. |
+| Cloudflare/Auth delivery | DNS, SMTP login/sender acceptance and old project settings were checked; those probes did not establish actual transactional or Auth delivery. | Phases 3, 5 and 9 must configure the selected project and prove controlled inbox delivery and recovery. |
+| Google consent and Calendar | Dated controlled host/requester journeys exist, but natural-expiry refresh, disconnect/reconnect and rebuilt read/write/reconciliation are unverified. Callback registration alone proves no consent. | Phases 3–5 must register replacement callbacks, inspect publishing/verification status, verify separate host/requester scopes and refresh/revocation, then complete reliable booking. |
+| Routes coverage | Seoul DRIVE/WALK probes returned no route; one TRANSIT fixture passed. Neither result establishes supported geographic coverage. | Phase 4 verifies chosen geography/modes and both travel legs; missing estimates require clarification or an explicitly confirmed manual allowance, never zero travel. |
+| AgentMail | Controlled signed callbacks, reply threading and idempotent retries passed; actual 24-hour key expiration and application verified-contact continuation were not proved. | Phase 6 must prove identity-bound continuation, durable dispatch and uncertain-send recovery, including attempts outside the provider's verified idempotency window. |
+| Photon | Controlled private transport/contact-card delivery passed; native eve/Spectrum compatibility, application identity/routing and six-digit linking remain unverified. Native profile sharing/device-side display were not established. | Phases 1 and 7 verify adapter choice, target policy, linked-host flow, restart/unlink behavior and web continuation. Optional name/contact display is not proof of identity or a prerequisite for basic web setup. |
+| Model behavior | The historical strict-schema probe proved access for one model snapshot only. | Phase 1 verifies the chosen direct OpenAI model; Phase 4 tests refusal/incomplete/invalid outputs and private-data filtering without advancing domain state. |
+
+The archive also records prior defaults: seven-day/window-end request expiry, 256-bit hashed guest credentials with verified-contact rotation and maximum 30-day lifetime, host-supplied HTTPS meeting links, English UI with English/Korean extraction, and web confirmation until another channel proves attribution. Preserve settled capability requirements; reconcile any conflict with the PRD's open decisions in the owning change before implementation. Do not silently discard these records or treat an old provider pin as a new dependency selection.
+
+## 5. Verification and completion evidence
+
+Create fresh tests as each slice lands; do not defer isolation or recovery tests to the final phase. Use deterministic fixtures for failure injection and real controlled accounts for provider acceptance. Tests assert scheduling outcomes and authorization, not framework internals.
+
+| Layer | Required evidence |
+|---|---|
+| Static/build | Replacement typecheck, lint, server/client secret-boundary checks and production build on the pinned runtime. |
+| Domain/contracts | Revision/deduplication rules, explicit decisions, time/DST and travel feasibility, audience projections and invalid model output. |
+| Database | pg-delta migration review, complete disposable local reset, grants/RLS, cross-user denial, atomic state/outbox, concurrent booking reservations. |
+| Runtime/effects | Session ownership and scoped memory, stream reconnect, process termination, duplicate tool execution, lost wake-up, expired lease and ambiguous provider writes/sends. |
+| Browser | iPhone Safari/iMessage handoffs and desktop web, with tested browser/OS versions recorded; Android-specific device testing is deferred. One host page at `/app`, contextual settings/request selection, authorized return/reload, public intake/private booking receipt, mobile widths, 200% zoom and keyboard/focus behavior. Use the required visual-verdict loop during UI implementation. |
+| Providers | Live host/requester Google consent and refresh, Routes cases, one event plus consistent invitations, Cloudflare Auth/transactional delivery, AgentMail multi-turn flow and linked private iMessage. |
+| Agent clients | Separate evidence for all seven named products, both skill prompts, OAuth grant/revocation and role-specific current-proposal decisions. |
+| Operations | Selected environment identification, consumer fencing, backups/recovery procedure, redacted observability and enforced limits. |
+
+Use the following coverage map when assigning concrete tests:
+
+| Layer | Evidence required | PRD coverage |
+|---|---|---|
+| Domain | Timezones/DST, feasibility, travel, preferences, immutable revisions, current decisions, and closed-state guards. | AC-02–AC-04, AC-07, AC-12–AC-13. |
+| Authorization and database | Host/guest isolation, direct API bypass attempts, restricted workflow writes, revoked grants, requester calendar consent/callback binding and disconnect, and audience-safe responses. | AC-10–AC-11, AC-19–AC-21, AC-27. |
+| Booking fault injection | Concurrent approvals, competing requests, Runtime termination after dispatch, lost success responses, duplicate work delivery, missed wake-ups, scheduled recovery, and delivery failure after creation. | AC-06–AC-09, AC-13, AC-18. |
+| Channel and agent contracts | Channel transitions, spoofed identity, ambiguous/stale replies, webhook replay, MCP/CLI parity, and every named client. | AC-05, AC-11, AC-14–AC-22. |
+| Skill entry and onboarding | Both pasted prompts in every named client; invited/existing hosts, pending waitlist access, duplicate submissions, invalid/concurrent invite redemption, direct admission bypass attempts, interrupted consent, unknown handles, unsupported capabilities, selected-calendar analysis, editable time/location suggestions and manual fallback. | FR-02, FR-04, FR-33–FR-35; AC-23–AC-26, AC-28. |
+| Agent session runtime | Build/deployment, verified actor/session binding, cross-audience denial, authorized stream replay/reconnect, restart recovery and tool retries without duplicate effects. | Cross-cutting rebuild gates. |
+| End-to-end/accessibility | Account-free intake, clarification, agreement, host revision/approval/decline, invitation, phone layout, keyboard use, and readable errors. | AC-01, AC-04, AC-12; PRD section 8. |
+
+Maintain a PRD acceptance matrix for **AC-01 through AC-28**, linking each case to replacement tests and any required live evidence. Record test date, dependency/client versions and environment; never include private tokens, attendee details or raw transcripts in tracked evidence.
+
+Command contract: preserve useful root entrypoints such as `npm run check` and `npm run db:test`, but update what they execute for the chosen runtime. Add a documented browser check and include all retained packages/bridge checks in CI. For database changes, verify Supabase CLI **2.119.0**, generate with `supabase db schema declarative sync --name <name> --no-apply`, review SQL, then use `supabase start`, `supabase db reset --local` and database tests on the identified disposable local stack. Verify OpenSpec CLI **1.14.0** and validate each changed artifact. Exact replacement test/deploy commands must be recorded when implemented, not guessed from the old Deno/Vite scripts.
+
+## 6. Risks and mitigations
+
+| Risk | Mitigation and release check |
+|---|---|
+| Template/runtime mismatch consumes the rebuild | Bounded Phase 1 with explicit pass/fail evidence before expanding the application; documented alternative decision if it fails. |
+| One chat surface is mistaken for one shared authorization context | Server-owned actor/resource/audience selection, separate host/requester histories, two-host/two-requester and memory isolation tests. |
+| Model or framework approval bypasses domain checks | Typed authorized tools, immutable proposals and independent human confirmation; reject synthetic/stale consent. |
+| Calendar succeeds while the worker loses the response | Persist event identity and frozen payload before dispatch; retain reservation and reconcile before another create. |
+| Email/iMessage dispatch or tool replay duplicates work | Durable inbox/outbox, scoped idempotency and provider-aware uncertain-send recovery; crash tests at acceptance/acknowledgment boundaries. |
+| Old and new deployments both process events | Inventory and fence consumers before controlled tests, then verify active transport ownership. |
+| Rebuilding schemas destroys recoverable work or applied history | Checkpoint the dirty checkout, retain migration history and secrets, generate new migrations and never reset remote state. |
+| Late client or product-policy gaps block launch | OAuth spike in Phase 1, explicit decision deadlines, independent named-client evidence and no silent scope reduction. |
+
+Planning is complete when this sequence is documented and checked. Product completion requires the phase exits and release evidence above; this plan itself does not certify implementation.

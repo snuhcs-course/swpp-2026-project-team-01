@@ -27,4 +27,4 @@ None.
 
 Host approval UI, Calendar creation/reconciliation adapter, request decisions, booking/reservation/outbox schema, durable workers, operator recovery, and tests. Depends on P1 durable jobs and P3 lifecycle/feasibility.
 
-Basis: [implementation plan P4](../../../documentations/technical_specification/04_implementation_plan.md), [PRD FR-17–FR-23 and AC-04, AC-06–AC-10, AC-13](../../../documentations/02_product_requirements.md), [reconciliation design](../../../documentations/03_technical_specification.md), and [backend contract](../../../scripts/backend-contract.md). P5/P6 client/channel approval and delivery adapters remain later work; P4 evidence must distinguish fixtures from a controlled live Calendar case.
+Basis: [PRD FR-17–FR-23 and AC-04, AC-06–AC-10, AC-13](../../../documentations/02_product_requirements.md), [reconciliation design](../../../documentations/03_technical_specification.md), and [backend contract](../../../scripts/backend-contract.md). P5/P6 client/channel approval and delivery adapters remain later work; P4 evidence must distinguish fixtures from a controlled live Calendar case.

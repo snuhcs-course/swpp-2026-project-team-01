@@ -1,5 +1,7 @@
 # Tasks
 
+> Rebuild update (2026-10-07): calendar-informed guided onboarding below is pending implementation. The [rebuild plan](../../../documentations/technical_specification/04_implementation_plan.md) and [frontend architecture](../../../documentations/technical_specification/02_frontend_architecture.md) supersede former Vite/source-preservation and fixed deployment assumptions. Historical checked tasks and deployment evidence do not verify the replacement or the new scan/recommendation flow.
+
 ## 1. Persistent setup conversations
 
 - [x] 1.1 Add host-owned conversation/turn/draft/review contracts and private declarative tables with revision and deduplication constraints; generate a migration and verify a complete local reset plus cross-host and public-role denial tests.
@@ -25,6 +27,7 @@
 - [x] 4.1 Add expiring single-use challenges and active channel bindings with explicit browser opt-in/unlink; verify proof of both sides, wrong sender, wrong browser, conflict, expiry, replay, rate limiting, and revocation with database/API tests.
 - [x] 4.2 Implement web-initiated and iMessage-initiated linking handoffs without long-lived credentials in URLs; verify an unlinked sender sees no private host data and Google consent starts in the authenticated browser.
 - [x] 4.3 Document linking, revocation, recovery, and consent continuation; verify the documented flow works locally with provider fixtures and no real messages are sent by unit tests.
+- [ ] 4.4 Replace the default website LINK challenge with a six-digit outbound iMessage code. Persist one fenced outbound intent, hash the code, bind it to the requesting browser and chosen private identity, limit guesses, and preserve the inbound-first continuation. Verify SQL/API/web fixtures and document the changed user journey.
 
 ## 5. Photon bridge and durable delivery
 
@@ -38,6 +41,19 @@
 - [x] 6.1 Run end-to-end fixture onboarding from invitation through confirmed rules, calendar selection, and ready link across website and iMessage; verify cross-channel resumption and stale-confirmation conflicts against the same persisted state.
 - [ ] 6.2 With controlled-user message authorization and actual Google consent, verify one real linked-host onboarding journey and browser return; record transport, routing, consent, and readiness evidence separately without claiming booking completion.
 - [ ] 6.3 Run relevant database, API, frontend and bridge checks plus strict OpenSpec validation; review the diff for unrelated email changes and secrets, update phase evidence, and archive only when implementation and required verification are complete.
+
+## 7. Calendar-informed guided onboarding — rebuild delta (pending)
+
+- [ ] 7.1 Define the host-authorized scan input/result contract, bounded date range and freshness limits, metadata-only calendar recommendations and private derived-summary schema; document how selections, grants and cross-channel draft revisions invalidate analysis/reviews.
+- [ ] 7.2 Implement read-only analysis of selected calendars and deterministic recurrence, timezone/DST, all-day/cancelled/free-event handling; test sparse/partial/revoked reads, duplicate names, read-only booking targets, injected event text and cross-host isolation without external sends.
+- [ ] 7.3 Generate explained meeting-window and location/mode suggestions from minimized evidence; verify edit/dismiss/manual paths, uncertainty, no inferred home/work labels or public addresses, and no policy changes before current explicit confirmation.
+- [ ] 7.4 Build polished connection/calendar cards, real scan states, accessible weekly preview, location cards and final review in `/app`; verify reload, consent return, stale results and current-review actions. Run the required visual-verdict loop for each visual iteration plus mobile, keyboard, zoom and reduced-motion checks.
+- [ ] 7.5 Verify AC-28 with deterministic fixtures and a controlled host's authorized Google scan; record fresh rebuild evidence separately from the historical checks below. Run relevant backend/frontend tests, build checks and strict OpenSpec validation before marking these tasks complete.
+
+- [ ] 7.6 Implement inline iMessage phone/code/connected cards in `/app` chat after settings review; verify keyboard/mobile use, no required modal/navigation, skip/retry/expiry/change-number behavior, safe reload and no verification code in transcript/model/analytics or persisted card state. Existing historical linking checks do not close this new presentation requirement.
+- [ ] 7.7 Implement end-to-end agent guidance and suggestion-first preference generation: explicit-choice/evidence/default precedence, field provenance, corrections/dismissals, one-question clarification, protected entry and consent/linking handoffs. Verify AC-28 with rich context, no history, conflicts, interrupted setup and model failure; no guessed value may bypass verification or current settings confirmation.
+- [ ] 7.8 Add the explicit mode/location onboarding question with suggested choices, prior-answer reuse, online-only venue skip and per-meeting location policy. Verify rich-calendar suggestions cannot bypass an explicit answer and final settings validation requires the applicable answer; actual booking location/travel guards remain in force.
+- [ ] 7.9 Add explicit transportation and extra-buffer questions after location for in-person/either hosts; verify supported mode/per-trip choices, prior-answer reuse, online-only skip, final review and separate route/buffer values. Test unsupported regional routing and per-leg resolution without silent substitution or zero-travel fallback.
 
 ## Verification record (2026-10-05)
 

@@ -10,7 +10,7 @@ Launch: publishing your own booking link and receiving meeting requests is invit
 
 ### Who
 
-VC investors, founders, and professors who schedule frequent external one-to-one meetings across locations and time zones.
+VC investors, founders, and professors who schedule frequent external one-to-one meetings across locations and time zones. The MVP targets hosts who use an iPhone and iMessage. Hosts can start setup in web or iMessage, use browser handoffs for sign-in and Google consent, and continue everyday scheduling in their linked private conversation. Web remains available throughout.
 
 ### Who not
 

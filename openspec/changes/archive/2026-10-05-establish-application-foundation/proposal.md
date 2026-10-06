@@ -26,6 +26,6 @@ None; the main capability inventory is empty.
 
 Affected paths: `apps/web`, `packages/contracts`, `supabase/functions`, `supabase/schemas`, generated `supabase/migrations`, root tooling, and CI. Hosting is Vercel for web and Supabase for backend. Provider calls remain server-side.
 
-Basis: [implementation plan P1](../../../../documentations/technical_specification/04_implementation_plan.md), [backend architecture](../../../../documentations/technical_specification/01_backend_architecture.md), [PRD](../../../../documentations/02_product_requirements.md), and [backend contract](../../../../scripts/backend-contract.md).
+Basis: [backend architecture](../../../../documentations/technical_specification/01_backend_architecture.md), [PRD](../../../../documentations/02_product_requirements.md), and [backend contract](../../../../scripts/backend-contract.md).
 
 P0 selects runtime and web choices; actual seven-client OAuth compatibility and messaging transports remain separately recorded gaps. This foundation does not claim those adapters work.

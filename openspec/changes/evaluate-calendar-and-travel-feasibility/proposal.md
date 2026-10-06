@@ -25,4 +25,4 @@ None.
 
 Calendar/Routes adapters, scheduling evaluation, versioned candidate persistence, rule configuration, private host controls, and tests. Depends on P2 connections and P3 lifecycle; P4 reuses the same feasibility checks before dispatch.
 
-Basis: [implementation plan P3](../../../documentations/technical_specification/04_implementation_plan.md), [PRD FR-05–FR-17 and AC-02–AC-03, AC-12, AC-27](../../../documentations/02_product_requirements.md), [technical availability design](../../../documentations/03_technical_specification.md), and [backend contract](../../../scripts/backend-contract.md). Route coverage must be reported by tested geography/mode; unsupported coverage remains a visible clarification condition.
+Basis: [PRD FR-05–FR-17 and AC-02–AC-03, AC-12, AC-27](../../../documentations/02_product_requirements.md), [technical availability design](../../../documentations/03_technical_specification.md), and [backend contract](../../../scripts/backend-contract.md). Route coverage must be reported by tested geography/mode; unsupported coverage remains a visible clarification condition.

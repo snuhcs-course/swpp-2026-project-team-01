@@ -20,8 +20,8 @@ Host setup and meeting requests now support conversation, but the workspaces sti
 
 ### Modified Capabilities
 
-None. The existing [meeting-requests spec](../../specs/meeting-requests/spec.md) and pending [conversational-host-setup change](../conversational-host-setup/specs/conversational-host-setup/spec.md) retain their authority and data contracts.
+None. The existing [meeting-requests spec](../../../specs/meeting-requests/spec.md) and pending [conversational-host-setup change](../../conversational-host-setup/specs/conversational-host-setup/spec.md) retain their authority and data contracts.
 
 ## Impact
 
-The React/Vite website, its browser checks, and [interface guidance](../../../documentations/user_experience/03_interfaces.md) change. Existing AI Elements, shadcn preset `b6rtA2Hmi`, server APIs, stored conversations, and approval guards remain in use. No database migration or new model/provider permission is required.
+The React/Vite website, its browser checks, and [interface guidance](../../../../documentations/user_experience/03_interfaces.md) change. Existing AI Elements, shadcn preset `b6rtA2Hmi`, server APIs, stored conversations, and approval guards remain in use. No database migration or new model/provider permission is required.

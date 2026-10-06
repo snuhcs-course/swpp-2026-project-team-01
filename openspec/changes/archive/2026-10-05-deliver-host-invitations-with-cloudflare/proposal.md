@@ -23,4 +23,4 @@ None.
 
 ## Impact
 
-[Operator invitation CLI and setup guide](../../../../documentations/technical_specification/06_host_setup.md), sender environment, Cloudflare DNS, and Supabase Auth SMTP. [Existing email authority and delivery requirements](../../../specs/email-delivery/spec.md) remain in force. No schema, public issuance endpoint, or UI change is required.
+[Operator invitation CLI and setup guide](../../../../documentations/technical_specification/03_provider_setup.md#host-invitation-operations), sender environment, Cloudflare DNS, and Supabase Auth SMTP. [Existing email authority and delivery requirements](../../../specs/email-delivery/spec.md) remain in force. No schema, public issuance endpoint, or UI change is required.

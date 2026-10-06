@@ -1,11 +1,11 @@
 # Find Me a Time — User Stories
 
 Status: Draft for team review\
-Date: 2026-10-05\
+Date: 2026-10-06\
 Source: [Product requirements](../02_product_requirements.md)\
 Companion: [User journeys and flows](01_user_journeys.md)
 
-These draft stories are not implementation claims. J IDs reference the companion journeys; FR/AC IDs reference PRD acceptance criteria. PRD decisions remain open; order is not priority.
+These draft stories are not implementation claims. J IDs reference the companion journeys; FR/AC IDs reference PRD acceptance criteria. PRD decisions remain open; order is not priority. The [implementation plan](../technical_specification/04_implementation_plan.md) rebuilds the full application source, including the scheduling backend, while retaining these user needs and identifiers.
 
 ## Host setup
 
@@ -17,15 +17,15 @@ J-01; FR-01; AC-10.
 
 ### US-02 — Choose calendars
 
-As a host, I want to select Google Calendars for conflicts and booking, so that scheduling reflects my commitments and places meetings correctly.
+As a host, I want the assistant to recommend which Google Calendars to check and where to create bookings, explain why, and let me change the choices, so that setup is easy while scheduling reflects my commitments.
 
-J-01; FR-02.
+J-01; FR-02; AC-28.
 
 ### US-03 — Control rules
 
-As a host, I want to inspect and edit availability, timezone, duration, focus time, preferences, and travel buffers, so that the assistant uses rules I understand and control.
+As a host, I want the assistant to guide every onboarding step and suggest my preferences first, using calendars I choose to analyze or clearly labeled starter defaults, so that I can review and adjust calendar choices, timezone, meeting windows, duration, buffers and locations without starting from a blank form.
 
-J-01; FR-04.
+J-01; FR-04; AC-28.
 
 ### US-04 — Recover calendar access
 
@@ -122,6 +122,8 @@ J-07; FR-09, FR-17, FR-19; AC-04.
 As a host, I want to opt into a verified private iMessage conversation and unlink it later, so that only my linked identity receives private summaries and can act for me.
 
 J-01, J-06; FR-26; AC-17.
+
+The page design proposes linking through a six-digit code delivered to the private iMessage conversation and confirmed in the authenticated browser. That interaction remains a proposed OpenSpec delta, not settled or verified behavior.
 
 ### US-19 — Decide through iMessage
 

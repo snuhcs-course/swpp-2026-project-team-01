@@ -1,3 +1,5 @@
+> Historical baseline: application code and executable probes were removed on 2026-10-07. Commands below are not runnable from this checkout; source remains in Git history and the private removal checkpoint.
+
 # Controlled Photon conversation probe
 
 This P0 diagnostic uses the existing project and the exact Spectrum core/iMessage 12.10.1 scratch dependencies under ignored `.local/photon-transport-probe/node_modules`. It does not implement the P6 channel or authorize a booking. Obtain explicit authorization for the recipient and the fixed single test message before running the send mode. Register the actual iMessage handle as a project User without an onboarding invite.

@@ -1,3 +1,5 @@
+> Historical baseline: application code and executable probes were removed on 2026-10-07. Commands below are not runnable from this checkout; source remains in Git history and the private removal checkpoint.
+
 # Paired AgentMail webhook probe
 
 This receiver is dedicated to the two product-controlled identities frozen in

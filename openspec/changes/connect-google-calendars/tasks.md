@@ -14,6 +14,11 @@
 - [x] 2.3 Add requester consent/resume UI and explicit manual-availability replacement; verify account-free continuation, cross-request rejection, interrupted consent, denial, and reconnect scenarios.
 - [ ] 2.4 Record live M1/AC-27 evidence with controlled user grants; verify actual consent, refresh, reads, and disconnect separately from deterministic fixtures.
 
+## 3. Guest identity and timezone refinement (pending rebuild)
+
+- [ ] 3.1 Define identity-only Google adapter/callback and browser-bound intake/request continuation; implement verified name/email prefill, manual/alternate email verification and skip without mandatory product signup. Verify wrong-browser/request rejection, account switching, no email-based request takeover and no implicit Calendar grant or host admission.
+- [ ] 3.2 Implement guided inline guest contact actions and a detected/explicit IANA timezone selector; test DST, absent/conflicting context, changed display zones, callback/reload preservation and no redundant confirmation question. Keep optional Calendar connection and manual availability separate and verify both end-to-end paths with controlled accounts.
+
 ## Verification evidence
 
 2026-10-05: reviewed generated migration rebuilds the full local chain; 66 foundation/onboarding pgTAP checks pass. Scoped API/OAuth/Google/foundation suite passes 18 checks and Deno check/lint pass. Live evidence was originally pending; requester consent persistence completes with P3.

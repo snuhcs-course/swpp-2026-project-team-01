@@ -29,4 +29,4 @@ None.
 - Scheduling-intent model schema and validation.
 - The existing `meeting-requests` capability; booking authority and host approval remain unchanged.
 
-Related product direction: [product requirements](../../../documentations/02_product_requirements.md) and [request and booking runtime](../../../documentations/technical_specification/07_request_and_booking_runtime.md).
+Related product direction: [product requirements](../../../../documentations/02_product_requirements.md) and [chat workspace specification](../../../../openspec/specs/chat-workspaces/spec.md).

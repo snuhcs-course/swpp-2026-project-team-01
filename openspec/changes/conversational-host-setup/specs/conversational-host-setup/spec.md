@@ -61,9 +61,25 @@ Setup chat SHALL direct hosts to verified browser steps for sign-in, invitation 
 ### Requirement: Verified private iMessage identity
 The service SHALL bind a private iMessage identity to an authenticated admitted host only after fresh proof of control of both sides. Group messages, forwarded challenges, expired challenges, and mismatched senders SHALL not authorize linking or setup access. Unlinking SHALL revoke subsequent channel authority.
 
+#### Scenario: Inline website linking
+- **WHEN** an admitted host chooses Connect iMessage during `/app` onboarding
+- **THEN** the conversation renders inline phone entry and Send code, followed by a protected code input and Confirm and link, and shows connected only after server verification, without a separate page or settings dialog
+
+#### Scenario: Safe inline verification and recovery
+- **WHEN** the host enters a verification code, reloads, changes the phone number, encounters expiry/delivery failure or chooses Maybe later
+- **THEN** typed endpoints process verification outside the chat/model path, no code is stored in transcript, analytics or persisted card state, and inline recovery or continued web onboarding remains available without claiming a connection; change-number invalidates the old challenge
+
 #### Scenario: Successful link
-- **WHEN** an admitted signed-in host completes a short-lived single-use challenge from the same private iMessage identity and explicitly confirms the link in that browser
+- **WHEN** an admitted signed-in host receives a six-digit code in the chosen private iMessage conversation and enters it in the same browser that requested the code
 - **THEN** future authenticated provider messages from that linked identity can access only that host's setup conversation
+
+#### Scenario: Code delivery and guessing
+- **WHEN** the host requests a link code or enters a wrong, expired, or previously used code
+- **THEN** the browser never receives the code itself, the message is dispatched only to the chosen private identity through a durable intent, and bounded failed attempts cannot establish a link
+
+#### Scenario: iMessage-first continuation
+- **WHEN** an unlinked private sender starts a conversation before opening the website
+- **THEN** the browser continuation remains bound to that sender and requires a fresh private challenge and authenticated browser confirmation
 
 #### Scenario: Replayed or transferred challenge
 - **WHEN** a consumed challenge is replayed or its private-conversation binding differs from the sender completing it
@@ -94,3 +110,82 @@ Setup SHALL report readiness and share a booking link only when current admissio
 #### Scenario: Missing permission or unrelated instruction
 - **WHEN** calendar permission is missing or chat asks to bypass admission or book an event during setup
 - **THEN** setup reports the relevant next action without bypassing guards or creating an event
+
+### Requirement: Guided onboarding action cards
+The website SHALL guide admitted hosts inside `/app` through Google connection, calendar choices, optional analysis, suggestion review and explicit settings confirmation with accessible in-chat actions. It SHALL show one primary next action, compact progress and editable completed steps without requiring separate setup pages or a long form.
+
+#### Scenario: Guided connection and return
+- **WHEN** a host chooses Connect Google Calendar and completes browser consent
+- **THEN** verified server state resumes the same conversation with actual calendar cards, readable account/access labels, explained recommendations and editable selections, rather than claiming settings are already saved
+
+#### Scenario: Mobile and keyboard review
+- **WHEN** a host reviews calendars, weekly windows and location cards on a narrow screen, with a keyboard or with reduced motion enabled
+- **THEN** controls and the composer remain reachable, selection is not conveyed by color alone, the weekly view has a text equivalent, and focus/progress survives edits, reload and consent return
+
+### Requirement: Calendar-informed setup suggestions
+After verified host consent, the service SHALL recommend calendar roles from authorized metadata and stated intent, and SHALL let the host select calendars for a disclosed bounded analysis before reading their events. It SHALL use selected calendar evidence to suggest meeting windows and, where supported, location/mode preferences with reasons and uncertainty. Suggestions SHALL remain editable private drafts until explicit current-review confirmation.
+
+#### Scenario: Useful calendar patterns
+- **WHEN** a host analyzes selected calendars containing recurring commitments, free intervals and usable location information
+- **THEN** the assistant presents suggested meeting windows and candidate location/mode preferences, identifies the analysis scope/timezone and evidence limits, and offers use, edit, dismiss or manual choices without claiming that observed gaps or repeated places are the host's preferences
+
+#### Scenario: Calendar permissions and distinct roles
+- **WHEN** available calendars include duplicate names or a read-only shared calendar
+- **THEN** selection uses actual authorized IDs with distinguishing labels, conflict-check recommendations remain separate from the writable booking destination, and no unselected calendar is scanned or silently activated
+
+#### Scenario: Sparse or failed evidence
+- **WHEN** selected calendars contain little history, missing/ambiguous locations, partial results or a failed/revoked read
+- **THEN** the assistant explains the limitation, asks for missing preferences and offers retry or manual setup without interpreting failure as free time, inventing venues or overwriting confirmed settings
+
+#### Scenario: Private and untrusted source data
+- **WHEN** calendar events contain private titles, attendees, addresses or instructions addressed to an agent
+- **THEN** only necessary derived summaries enter model context, source text cannot issue instructions, candidate locations remain host-private, and no observed address is labeled home/work or published as a meeting preference without the host's explicit choice
+
+#### Scenario: Changed sources and confirmation
+- **WHEN** calendar selection, permission, refreshed analysis or a setup revision changes before an old scan result or settings review is applied
+- **THEN** dependent results/reviews are invalidated and current authorization is checked; neither an old suggestion nor an earlier use action saves settings, approves a meeting or creates an event
+
+### Requirement: Agent-led onboarding with suggestions first
+The agent SHALL guide every onboarding stage and recovery using authorized server state, including access, admission, Google consent, calendar selection, preference review, inline iMessage linking or skip, and completion. It SHALL propose missing preferences before asking for manual input, prioritizing explicit choices and confirmed settings, then authorized evidence, then clearly labeled starter defaults. It SHALL ask one focused question when a required detail cannot be safely suggested or a conflict remains, and SHALL require current explicit confirmation before saving settings.
+
+#### Scenario: Start without preferences
+- **WHEN** an admitted host begins setup without describing their scheduling preferences
+- **THEN** the agent guides connection and analysis, proposes supported calendar roles, timezone, windows, duration, buffers and mode/location choices with editable actions, and distinguishes evidence-based suggestions from starter defaults rather than presenting an empty questionnaire
+
+#### Scenario: Sparse context and correction
+- **WHEN** evidence is sparse or the host corrects or dismisses a suggestion
+- **THEN** the agent labels defaults honestly, prioritizes the correction in the draft, preserves confirmed settings until explicit save, and asks only the next unresolved question without repeatedly presenting the dismissed guess absent new evidence or a user request
+
+#### Scenario: Browser return and channel handoff
+- **WHEN** the host returns from sign-in or Google consent, resumes on a verified linked channel, or encounters an onboarding failure
+- **THEN** the agent reads authorized current progress and presents the next permitted action or recovery without repeating completed questions, exposing private state before admission, or guessing identity, consent, verification codes, exact addresses or approval
+
+### Requirement: Explicit host location preference
+During onboarding the agent SHALL explicitly ask whether the host prefers online, in-person or either, unless an explicit answer is already available. For in-person/either it SHALL ask for preferred areas/venues or an explicit per-meeting decision. Suggestions MAY accompany the question but SHALL not count as the host's answer. Final settings confirmation SHALL require the applicable explicit preference answer; online-only SHALL not require a physical venue.
+
+#### Scenario: Suggested venue still requires an answer
+- **WHEN** calendar analysis suggests a meeting mode or frequent venue and the host has not stated a preference
+- **THEN** the agent asks the mode/location question with editable choices and cannot complete final settings confirmation using inferred or preselected answers
+
+#### Scenario: Online-only or per-meeting location
+- **WHEN** the host chooses online-only, or chooses in-person/either and Decide per meeting
+- **THEN** onboarding records that explicit choice without requiring a fixed physical venue, while actual booking proposals still require their applicable location and travel checks
+
+#### Scenario: Preference already stated
+- **WHEN** the host has explicitly provided the applicable mode/location preference in the authorized conversation or confirmed settings
+- **THEN** the agent includes that answer in the editable final review without asking the same question again or replacing it with a calendar inference
+
+### Requirement: Explicit transportation and travel buffer preferences
+For hosts accepting in-person meetings, onboarding SHALL ask how they usually travel and confirm an extra travel buffer separately from estimated journey duration, unless explicit answers already exist. The host SHALL choose a supported mode or an explicit per-trip policy; inferred habits or preselected defaults SHALL not count as answers. Online-only onboarding SHALL skip these questions. Final settings review SHALL include applicable transportation and buffer choices.
+
+#### Scenario: Suggested transportation requires confirmation
+- **WHEN** an in-person/either host has no explicit travel preferences
+- **THEN** the agent asks for transportation mode or Depends on the trip, then offers an editable extra-buffer suggestion and records the host's explicit answers before final settings confirmation without treating calendar addresses as proof of travel habits
+
+#### Scenario: Per-trip or unsupported routing
+- **WHEN** the host chooses Depends on the trip or routing is unavailable for the chosen mode/region
+- **THEN** onboarding retains the explicit policy and physical scheduling resolves each necessary leg's mode or manual allowance before offering candidates, without assuming zero travel or silently substituting another mode
+
+#### Scenario: Online-only or existing preferences
+- **WHEN** the host selects online-only meetings or has already stated their applicable mode and buffer
+- **THEN** the agent skips unnecessary questions and includes applicable existing choices in the editable final review

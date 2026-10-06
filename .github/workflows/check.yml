@@ -3,7 +3,7 @@ on:
   push:
   pull_request:
 jobs:
-  application:
+  repository:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -11,19 +11,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.9.1
       - run: npm ci
-      - name: Verify isolated OAuth and messaging probe guards
-        run: node --test scripts/p0/*.test.mjs
-      - run: npm run check
-      - name: Install isolated Photon bridge dependencies
-        run: npm ci
-        working-directory: apps/photon-bridge
-      - name: Verify Photon bridge without external messages
+      - name: Check documentation and retained infrastructure tooling
         run: npm run check
-        working-directory: apps/photon-bridge
   database:
     runs-on: ubuntu-latest
     steps:
@@ -31,21 +21,7 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.119.0
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.9.1
       - run: supabase start
       - run: supabase db reset --local
-      - run: supabase test db
-      - name: Verify request journey through local RPCs
-        run: |
-          supabase status --output json > /tmp/fmat-local-status.json
-          chmod 600 /tmp/fmat-local-status.json
-          deno run --allow-read=/tmp/fmat-local-status.json --allow-net=127.0.0.1:54321 supabase/functions/_shared/modules/requests/local_integration.ts
-      - name: Verify cross-channel host setup through local Auth and RPCs
-        run: deno run --allow-read=/tmp/fmat-local-status.json --allow-env --allow-net=127.0.0.1:54321 supabase/functions/_shared/modules/onboarding/local_conversation_integration.ts
-      - name: Verify booking recovery through local RPCs
-        env:
-          FMAT_LOCAL_INTEGRATION: '1'
-          FMAT_LOCAL_STATUS_FILE: /tmp/fmat-local-status.json
-        run: deno run --allow-env=FMAT_LOCAL_INTEGRATION,FMAT_LOCAL_SUPABASE_URL,FMAT_LOCAL_SERVICE_ROLE_KEY,FMAT_LOCAL_STATUS_FILE --allow-read=/tmp/fmat-local-status.json --allow-net=127.0.0.1:54321,localhost:54321 scripts/tests/booking-integration.ts
+      - name: Verify preserved database baseline
+        run: supabase test db

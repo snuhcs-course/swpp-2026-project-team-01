@@ -20,35 +20,22 @@ See the [project one-pager](documentations/01_one_pager.md) for the target users
 - `documentations/`: project documentation and research.
 - `supabase/`: local Supabase configuration and database migrations.
 
-See the [planned repository structure](documentations/technical_specification/02_repo_structure.md) for the web/CLI apps, Supabase Edge Functions, shared modules, and test layout.
+See the [frontend architecture](documentations/technical_specification/02_frontend_architecture.md) for the proposed web structure and [backend architecture](documentations/technical_specification/01_backend_architecture.md) for backend module responsibilities.
 
-## Hosting status
+## Rebuild status
 
-The website, backend, and Photon iMessage host-setup bridge are deployed. A real linked-host onboarding journey still needs verification.
+The product is pre-launch. A full application-source rebuild is planned on `feat/reconstruct-application` in the main checkout, including the web, agent integration, Supabase scheduling backend, contracts and channel integration. Supabase remains selected infrastructure. Next.js with eve is the proposed direction, subject to build, authorization and recovery checks.
 
-| Service | Provider | Current status |
-|---|---|---|
-| Website | Vercel | Live at `findmeatime.com` |
-| Auth, database, API and booking worker | Supabase | Deployed |
-| Photon iMessage setup bridge | Fly.io | One 512 MB Machine running in Tokyo; readiness passes |
+The selected rebuild Supabase project is **`mriseqztcwmezvtawnbo`**. The main checkout is linked to this project, and its ignored root environment contains matching project credentials. See the [project connection status](documentations/technical_specification/03_provider_setup.md#selected-rebuild-supabase-project) before any deployment.
 
-The bridge uses one continuously running 512 MB Node 24 server in Tokyo. Fly's calculator estimates $4.83/month for compute before traffic and taxes. The real linked-host journey is still pending. See the [bridge deployment and pricing guide](apps/photon-bridge/README.md#flyio-bridge-deployment)
-and [implementation milestones](documentations/technical_specification/04_implementation_plan.md).
+Start with the [implementation plan](documentations/technical_specification/04_implementation_plan.md), [page list](documentations/user_experience/04_page_list.md) and [documentation index](documentations/README.md). The replacement is not implemented or verified by these documentation changes.
+
+Earlier Vercel, Supabase and Fly.io deployments and provider probes are historical development evidence. Their historical status is recorded in [provider setup](documentations/technical_specification/03_provider_setup.md) and the [archived compatibility report](documentations/archive/2026-10-06-compatibility_report.md). Track unresolved checks in the [implementation gates](documentations/technical_specification/04_implementation_plan.md#carried-forward-compatibility-gates). Preserve external resources and secrets, and prevent competing development consumers before controlled provider testing.
 
 ## Local development
 
-Use Node.js 24, npm 11, Deno 2.9.1, Docker, Supabase CLI 2.119.0 and OpenSpec CLI 1.14.0.
+The former web app, backend runtime, contracts and Photon bridge implementation have been removed. There is no runnable application or deployment command until the reconstruction is implemented. The target is **`https://release.findmeatime.com`**; local browser callbacks use **`http://localhost:3000`**. See the [source-removal record](documentations/archive/2026-10-07-source-removal.md) for scope, recovery and retained behavior checks.
 
-```sh
-npm ci
-cp .env.example .env
-supabase start
-supabase db reset --local
-supabase functions serve --env-file .env
-```
+Use Node.js 24, npm 11, Supabase CLI 2.119.0 and OpenSpec CLI 1.14.0. Run `npm ci` and `npm run check` for documentation links, retained script syntax and SMTP configuration tests. These checks do not build or validate a replacement app. App typecheck, lint, tests and build must return with the new implementation.
 
-In another terminal, create `apps/web/.env.local` with the local Supabase URL and publishable key printed by `supabase status`, then run `npm run dev`. Set `APP_ORIGIN=http://localhost:5173` and persist random `WORKER_SECRET` and a base64-encoded 32-byte `TOKEN_ENCRYPTION_KEY` in the ignored root `.env` before starting functions. Provider credentials remain backend-only. See [web setup](apps/web/README.md) for details.
-
-Run `npm run check` for application typechecks, lint, tests and production build, and `npm run db:test` for the disposable local database tests. Database tests run inside rolled-back transactions and never target the hosted project.
-
-The API has public intake routes and validates protected host/request credentials internally. The worker accepts only its internal secret. Workflow tables remain private behind a service-only command RPC. External delivery is disabled by default in local/preview configuration.
+The SQL schemas, migrations and database tests are preserved as a baseline; they are not the final rebuilt schema. With a disposable local Supabase stack running, `npm run db:test` checks that baseline. Follow the [pg-delta schema workflow](AGENTS.md#supabase-schema-changes) when replacing it; do not erase migration history or generate a migration from an accidentally empty desired schema.

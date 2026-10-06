@@ -25,4 +25,4 @@ None; this adds the first admission contract.
 
 Web authentication/setup, API admission routes, private host records, invitation/waitlist desired SQL, generated migrations, and tests. Depends on `establish-application-foundation`; calendar readiness is supplied by `connect-google-calendars`.
 
-Basis: [implementation plan P2](../../../documentations/technical_specification/04_implementation_plan.md), [PRD FR-01–FR-04 and FR-35](../../../documentations/02_product_requirements.md), [backend architecture](../../../documentations/technical_specification/01_backend_architecture.md), and [backend contract](../../../scripts/backend-contract.md). Retention and broader pilot abuse policies remain P7 decisions; token expiry and operator-only issuance are resolved here.
+Basis: [PRD FR-01–FR-04 and FR-35](../../../../documentations/02_product_requirements.md), [backend architecture](../../../../documentations/technical_specification/01_backend_architecture.md), and [backend contract](../../../../scripts/backend-contract.md). Retention and broader pilot abuse policies remain P7 decisions; token expiry and operator-only issuance are resolved here.

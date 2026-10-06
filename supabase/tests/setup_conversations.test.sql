@@ -49,6 +49,7 @@ select is(pg_temp.item('ambiguous')->'review'->>'status','confirmed','ambiguous 
 select throws_ok($$select pg_temp.cmd('setup_review_confirm','host','{"expectedRevision":4,"reviewRevision":1,"expectedDraftRevision":3,"expectedRulesVersion":1}')$$,'P0001','REVIEW_STALE','previous confirmed review cannot authorize new draft');
 select throws_ok($$select pg_temp.cmd('setup_channel_authorize','worker',pg_temp.item('channel'))$$,'P0001','LINK_NOT_FOUND','unlinked private sender has no host authority');
 insert into setup_fixture values('challenge',pg_temp.cmd('setup_link_challenge_start','host',jsonb_build_object('challengeSecretHash',repeat('a',64),'browserProofHash',repeat('b',64))));
+select is(pg_temp.cmd('setup_conversation_read','host')->'linkChallenge'->>'method','link','legacy inbound challenge remains a link proof');
 select throws_ok($$select pg_temp.cmd('setup_link_confirm','host',jsonb_build_object('challengeId',pg_temp.item('challenge')->>'challengeId','browserProofHash',repeat('b',64)))$$,'P0001','CHALLENGE_INVALID','browser confirmation requires fresh private sender proof');
 select throws_ok($$select pg_temp.cmd('setup_link_challenge_claim','worker',pg_temp.item('channel')||jsonb_build_object('challengeId',pg_temp.item('challenge')->>'challengeId','challengeSecretHash',repeat('a',64),'isGroup',true))$$,'P0001','FORBIDDEN','group conversation cannot claim host link');
 select throws_ok($$select pg_temp.cmd('setup_link_challenge_claim','worker',pg_temp.item('channel')||jsonb_build_object('challengeId',pg_temp.item('challenge')->>'challengeId','challengeSecretHash',repeat('f',64)))$$,'P0001','CHALLENGE_INVALID','wrong code cannot claim private link');
@@ -91,6 +92,67 @@ select throws_ok($$select pg_temp.cmd('setup_provider_outbound_prepare','worker'
 select throws_ok($$select pg_temp.cmd('setup_provider_outbound_authorize','worker',jsonb_build_object('intentId',pg_temp.item('queued')->>'outboundId'))$$,'P0001','LINK_NOT_FOUND','unlink blocks final send authorization');
 select throws_ok($$select pg_temp.cmd('setup_conversation_read','worker',pg_temp.item('channel'))$$,'P0001','LINK_NOT_FOUND','unlinked channel cannot read private state');
 select is(pg_temp.cmd('setup_conversation_read','host')->'channelLink','null'::jsonb,'website retains conversation after unlink');
+-- Browser-started OTP sends exactly one six-digit code to the intended private recipient.
+update fmat.setup_channel_challenges set created_at=now()-interval '2 minutes',expires_at=now()+interval '8 minutes' where host_id=(pg_temp.item('host')->>'id')::uuid;
+insert into setup_fixture values('otpChallenge',pg_temp.cmd('setup_link_challenge_start','host',jsonb_build_object(
+  'method','otp','challengeId','00000000-0000-4000-8000-000000000101','recipientId','+821025742625',
+  'challengeSecretHash',repeat('1',64),'browserProofHash',repeat('2',64),
+  'clientMessageId','00000000-0000-4000-8000-000000000102','replyText','Find Me a Time code: 123456')));
+select is(pg_temp.item('otpChallenge')->>'method','otp','browser can start an outbound OTP challenge');
+select is(pg_temp.cmd('setup_link_challenge_start','host',jsonb_build_object(
+  'method','otp','challengeId','00000000-0000-4000-8000-000000000101','recipientId','+821025742625',
+  'challengeSecretHash',repeat('1',64),'browserProofHash',repeat('2',64),
+  'clientMessageId','00000000-0000-4000-8000-000000000102','replyText','Find Me a Time code: 123456'))->>'challengeId',pg_temp.item('otpChallenge')->>'challengeId','exact OTP start retry returns the original challenge before rate limiting');
+select is((select count(*)::text from fmat.setup_provider_outbound where challenge_id=(pg_temp.item('otpChallenge')->>'challengeId')::uuid),'1','exact OTP start retry does not duplicate the provider send');
+select throws_ok($$select pg_temp.cmd('setup_link_challenge_start','host',jsonb_build_object(
+  'method','otp','challengeId','00000000-0000-4000-8000-000000000101','recipientId','+821025742625',
+  'challengeSecretHash',repeat('1',64),'browserProofHash',repeat('2',64),
+  'clientMessageId','00000000-0000-4000-8000-000000000102','replyText','Changed OTP text'))$$,'P0001','IDEMPOTENCY_CONFLICT','OTP start retry cannot change delivery content');
+select is(pg_temp.cmd('setup_conversation_read','host')->'linkChallenge'->>'maskedSender','+8…25','OTP view masks the intended recipient');
+select is(pg_temp.cmd('setup_conversation_read','host')->'linkChallenge'->>'deliveryStatus','prepared','OTP view exposes durable delivery status');
+select throws_ok($$select pg_temp.cmd('setup_link_challenge_claim','worker',pg_temp.item('channel')||jsonb_build_object('challengeId',pg_temp.item('otpChallenge')->>'challengeId','challengeSecretHash',repeat('1',64)))$$,'P0001','CHALLENGE_INVALID','inbound LINK proof cannot claim an outbound OTP challenge');
+insert into setup_fixture values('otpDispatch',pg_temp.cmd('setup_provider_outbound_claim','worker','{"provider":"imessage"}'));
+select is(pg_temp.item('otpDispatch')->>'action','dispatch','OTP outbox authorizes one provider send');
+select is(pg_temp.item('otpDispatch')->>'conversationId','any;-;+821025742625','OTP targets the expected Photon conversation identifier');
+select is(pg_temp.cmd('setup_provider_outbound_claim','worker','{"provider":"imessage"}')->>'action','none','uncertain OTP is not sent twice');
+select is(pg_temp.cmd('setup_provider_outbound_authorize','worker',jsonb_build_object('intentId',pg_temp.item('otpDispatch')->>'intentId'))->>'action','reconcile','OTP authorization preserves uncertain-send fencing');
+select is(pg_temp.cmd('setup_provider_outbound_record','worker',jsonb_build_object('intentId',pg_temp.item('otpDispatch')->>'intentId','outcome','accepted','providerReference','otp-provider-1'))->>'status','accepted','OTP provider acceptance is durable');
+select is(pg_temp.cmd('setup_conversation_read','host')->'linkChallenge'->>'deliveryStatus','accepted','OTP view follows provider delivery state');
+select is(pg_temp.cmd('setup_link_confirm','host',jsonb_build_object('challengeId',pg_temp.item('otpChallenge')->>'challengeId','codeHash',repeat('3',64),'browserProofHash',repeat('2',64)))->>'remainingAttempts','4','wrong OTP decrements the durable attempt budget');
+select throws_ok($$select pg_temp.cmd('setup_link_confirm','host',jsonb_build_object('challengeId',pg_temp.item('otpChallenge')->>'challengeId','codeHash',repeat('1',64),'browserProofHash',repeat('f',64)))$$,'P0001','CHALLENGE_INVALID','correct OTP cannot move to a different browser proof');
+insert into setup_fixture values('otpLinked',pg_temp.cmd('setup_link_confirm','host',jsonb_build_object('challengeId',pg_temp.item('otpChallenge')->>'challengeId','codeHash',repeat('1',64),'browserProofHash',repeat('2',64))));
+select is(pg_temp.cmd('setup_channel_authorize','worker','{"provider":"imessage","senderId":"+821025742625","privateConversationId":"any;-;+821025742625","isGroup":false}')->>'hostId',pg_temp.item('host')->>'id','correct OTP binds the exact expected sender and conversation');
+-- A second host cannot claim a recipient that is already actively linked, and recipient sends are rate limited across hosts.
+select pg_temp.cmd('invite_issue','operator',jsonb_build_object('email','other-setup@example.com','tokenHash',repeat('8',64),'expiresAt',now()+interval '1 day'));
+select pg_temp.cmd('invite_redeem','other',jsonb_build_object('tokenHash',repeat('8',64)));
+select throws_ok($$select pg_temp.cmd('setup_link_challenge_start','other',jsonb_build_object('method','otp','challengeId','00000000-0000-4000-8000-000000000103','recipientId','+821025742625','challengeSecretHash',repeat('4',64),'browserProofHash',repeat('5',64),'clientMessageId','00000000-0000-4000-8000-000000000104','replyText','Find Me a Time code: 654321'))$$,'P0001','RATE_LIMITED','recipient OTP sends are rate limited across hosts');
+update fmat.setup_channel_challenges set created_at=now()-interval '2 minutes',expires_at=now()+interval '8 minutes' where id=(pg_temp.item('otpChallenge')->>'challengeId')::uuid;
+insert into setup_fixture values('conflictChallenge',pg_temp.cmd('setup_link_challenge_start','other',jsonb_build_object('method','otp','challengeId','00000000-0000-4000-8000-000000000103','recipientId','+821025742625','challengeSecretHash',repeat('4',64),'browserProofHash',repeat('5',64),'clientMessageId','00000000-0000-4000-8000-000000000104','replyText','Find Me a Time code: 654321')));
+insert into setup_fixture values('conflictDispatch',pg_temp.cmd('setup_provider_outbound_claim','worker','{"provider":"imessage"}'));
+select pg_temp.cmd('setup_provider_outbound_record','worker',jsonb_build_object('intentId',pg_temp.item('conflictDispatch')->>'intentId','outcome','accepted'));
+select throws_ok($$select pg_temp.cmd('setup_link_confirm','other',jsonb_build_object('challengeId',pg_temp.item('conflictChallenge')->>'challengeId','codeHash',repeat('4',64),'browserProofHash',repeat('5',64)))$$,'P0001','LINK_CONFLICT','OTP cannot rebind an actively linked sender to another host');
+update fmat.setup_channel_challenges set created_at=now()-interval '11 minutes',expires_at=now()-interval '1 minute' where id=(pg_temp.item('conflictChallenge')->>'challengeId')::uuid;
+select throws_ok($$select pg_temp.cmd('setup_link_confirm','other',jsonb_build_object('challengeId',pg_temp.item('conflictChallenge')->>'challengeId','codeHash',repeat('4',64),'browserProofHash',repeat('5',64)))$$,'P0001','CHALLENGE_INVALID','expired OTP cannot link a sender');
+-- Five wrong codes lock a challenge without rolling back its attempt counter.
+insert into setup_fixture values('lockedChallenge',pg_temp.cmd('setup_link_challenge_start','other',jsonb_build_object('method','otp','challengeId','00000000-0000-4000-8000-000000000105','recipientId','+821055555555','challengeSecretHash',repeat('6',64),'browserProofHash',repeat('7',64),'clientMessageId','00000000-0000-4000-8000-000000000106','replyText','Find Me a Time code: 111111')));
+insert into setup_fixture values('lockedDispatch',pg_temp.cmd('setup_provider_outbound_claim','worker','{"provider":"imessage"}'));
+select pg_temp.cmd('setup_provider_outbound_record','worker',jsonb_build_object('intentId',pg_temp.item('lockedDispatch')->>'intentId','outcome','accepted'));
+select is(pg_temp.cmd('setup_link_confirm','other',jsonb_build_object('challengeId',pg_temp.item('lockedChallenge')->>'challengeId','codeHash',repeat('0',64),'browserProofHash',repeat('7',64)))->>'remainingAttempts','4','first wrong OTP leaves four attempts');
+select is(pg_temp.cmd('setup_link_confirm','other',jsonb_build_object('challengeId',pg_temp.item('lockedChallenge')->>'challengeId','codeHash',repeat('0',64),'browserProofHash',repeat('7',64)))->>'remainingAttempts','3','second wrong OTP leaves three attempts');
+select is(pg_temp.cmd('setup_link_confirm','other',jsonb_build_object('challengeId',pg_temp.item('lockedChallenge')->>'challengeId','codeHash',repeat('0',64),'browserProofHash',repeat('7',64)))->>'remainingAttempts','2','third wrong OTP leaves two attempts');
+select is(pg_temp.cmd('setup_link_confirm','other',jsonb_build_object('challengeId',pg_temp.item('lockedChallenge')->>'challengeId','codeHash',repeat('0',64),'browserProofHash',repeat('7',64)))->>'remainingAttempts','1','fourth wrong OTP leaves one attempt');
+select is(pg_temp.cmd('setup_link_confirm','other',jsonb_build_object('challengeId',pg_temp.item('lockedChallenge')->>'challengeId','codeHash',repeat('0',64),'browserProofHash',repeat('7',64)))->>'remainingAttempts','0','fifth wrong OTP locks the challenge');
+select is(pg_temp.cmd('setup_link_confirm','other',jsonb_build_object('challengeId',pg_temp.item('lockedChallenge')->>'challengeId','codeHash',repeat('6',64),'browserProofHash',repeat('7',64)))->>'status','invalid_code','correct code cannot bypass OTP lockout');
+-- Failed provider delivery fences confirmation, and uncertainty is reconciled rather than resent.
+update fmat.setup_channel_challenges set created_at=now()-interval '2 minutes',expires_at=now()+interval '8 minutes' where id=(pg_temp.item('lockedChallenge')->>'challengeId')::uuid;
+insert into setup_fixture values('failedChallenge',pg_temp.cmd('setup_link_challenge_start','other',jsonb_build_object('method','otp','challengeId','00000000-0000-4000-8000-000000000107','recipientId','+821066666666','challengeSecretHash',repeat('8',64),'browserProofHash',repeat('9',64),'clientMessageId','00000000-0000-4000-8000-000000000108','replyText','Find Me a Time code: 222222')));
+insert into setup_fixture values('failedDispatch',pg_temp.cmd('setup_provider_outbound_claim','worker','{"provider":"imessage"}'));
+select is(pg_temp.cmd('setup_provider_outbound_claim','worker','{"provider":"imessage"}')->>'action','none','uncertain failed-path OTP is not duplicated');
+update fmat.setup_provider_outbound set updated_at=now()-interval '31 seconds' where id=(pg_temp.item('failedDispatch')->>'intentId')::uuid;
+select is(pg_temp.cmd('setup_provider_outbound_claim','worker','{"provider":"imessage"}')->>'action','reconcile','stale uncertain OTP requires provider reconciliation');
+select is(pg_temp.cmd('setup_provider_outbound_record','worker',jsonb_build_object('intentId',pg_temp.item('failedDispatch')->>'intentId','outcome','failed','errorCode','provider_rejected'))->>'status','failed','failed OTP delivery is durable');
+select throws_ok($$select pg_temp.cmd('setup_link_confirm','other',jsonb_build_object('challengeId',pg_temp.item('failedChallenge')->>'challengeId','codeHash',repeat('8',64),'browserProofHash',repeat('9',64)))$$,'P0001','CHALLENGE_INVALID','failed outbound OTP cannot authorize a link');
+select pg_temp.cmd('setup_link_unlink','host',jsonb_build_object('linkId',pg_temp.item('otpLinked')->'channelLink'->>'id'));
 select is(pg_temp.cmd('setup_bridge_resume','worker','{"provider":"imessage"}')->'lastSequence','null'::jsonb,'new bridge has no checkpoint');
 select is(pg_temp.cmd('setup_bridge_checkpoint','worker','{"provider":"imessage","providerSequence":"101","disposition":"ignored_group"}')->>'lastSequence','101','ignored private events still durably advance cursor');
 select is(pg_temp.cmd('setup_bridge_checkpoint','worker','{"provider":"imessage","providerSequence":"100"}')->>'lastSequence','101','older provider event cannot move checkpoint backwards');

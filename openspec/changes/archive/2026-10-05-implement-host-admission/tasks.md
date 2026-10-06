@@ -19,7 +19,7 @@
 
 2026-10-05: reviewed generated migration rebuilds the full local chain; 66 foundation/onboarding pgTAP checks pass. Scoped API/OAuth/Google/foundation suite passes 18 checks and Deno check/lint pass. Real Google consent, refresh, and M1 remain unchecked; requester consent persistence completes with P3.
 
-Operator CLI verified against actual local RPC: hash-only 256-bit token, seven-day expiry, verified-recipient redemption/retry, recipient mismatch, revocation and denied re-use. No invitation messages sent. Setup guide: documentations/technical_specification/06_host_setup.md.
+Operator CLI verified against actual local RPC: hash-only 256-bit token, seven-day expiry, verified-recipient redemption/retry, recipient mismatch, revocation and denied re-use. No invitation messages sent. Setup guide: documentations/technical_specification/03_provider_setup.md#host-invitation-operations.
 
 2026-10-05 code UX update: new invitations use sixteen Crockford Base32 characters grouped as `XXXX-XXXX-XXXX-XXXX` (80 random bits). The API canonicalizes case and separators before hashing and still accepts previously issued long tokens. CLI and route tests cover code generation, hash-only transmission, email copy, and redemption normalization; the prior live token test remains historical evidence.
 
