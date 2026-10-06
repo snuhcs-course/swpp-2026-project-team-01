@@ -41,6 +41,12 @@ Verified locally on 2026-10-07, Node 24.21.0/npm 11.19.0:
 
 These results complete the initial build slice only. No user journey or release acceptance case is certified by them.
 
+## Conversation access foundation (local)
+
+Verified on 2026-10-07: the additive `conversation_access` migration rebuilds locally with all eight migrations; seven pgTAP suites now pass 466 assertions (42 new conversation-access cases). Tests cover two-host/two-request separation, private/shared scopes, revoked/rotated/expired credentials, logout, admission revocation, guest closure and the separate receipt boundary. pg-delta also emitted an identical drop/re-add of the existing booking event-ID check; review confirmed its range and alphabet are unchanged and no data/table is removed.
+
+Ten application unit tests and four SMTP tests pass. A real local Supabase Auth integration test creates/removes a synthetic user, checks original-token verification, denies unadmitted access and direct authenticated RPC invocation, and confirms logout invalidates an otherwise unexpired execution credential. Public runtime session endpoints remain closed until authorized ingress, stream and tool adapters are complete. The new schema and shared modules do not yet certify foundation tasks 2.1–2.2 or any complete release case.
+
 ## Initial production runtime deployment
 
 On 2026-10-07, deployed commit `7b3085b` to Vercel project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`) in `justdodos-projects`. The checkout is explicitly linked to this project; the existing root-domain project is preserved.

@@ -1,4 +1,4 @@
--- Private domain state. The sole Data API entry point is the service-only command RPC.
+-- Private domain state. Data API access uses narrow service-only command/access RPCs.
 create schema if not exists fmat;
 revoke all on schema fmat from public, anon, authenticated, service_role;
 alter default privileges in schema fmat revoke all on tables from public, anon, authenticated, service_role;

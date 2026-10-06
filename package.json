@@ -20,7 +20,8 @@
     "typecheck": "next typegen apps/web && tsc --noEmit && tsc --noEmit -p apps/web/tsconfig.json",
     "test:app": "tsx --test lib/server/identity/*.test.ts",
     "test:runtime": "node scripts/smoke-runtime.mjs",
-    "verify:model": "node --import tsx --env-file-if-exists=.env scripts/verify-model.mjs"
+    "verify:model": "node --import tsx --env-file-if-exists=.env scripts/verify-model.mjs",
+    "test:integration": "tsx --test tests/integration/*.test.ts"
   },
   "type": "module",
   "dependencies": {
