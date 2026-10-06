@@ -8,7 +8,7 @@ Keep credentials in the ignored root `.env` with file mode `0600`. Share names t
 
 Use **`https://release.findmeatime.com`** with Supabase project **`mriseqztcwmezvtawnbo`**. Domain attachment, DNS, callbacks and HTTPS readiness require deployment verification.
 
-Runtime deployment verified on 2026-10-07: Vercel team `justdodos-projects`, project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`), Node 24. The main checkout is linked to this release project. Root-domain hosting remains in the existing `findmeatime` project. `APP_ORIGIN=https://release.findmeatime.com` and `OPENAI_MODEL=gpt-6-luna` are configured for production; provider credentials and callbacks must be configured as their protected adapters land. Local development uses `APP_ORIGIN=http://localhost:3000`.
+Runtime deployment verified on 2026-10-07: Vercel team `justdodos-projects`, project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`), Node 24. The main checkout is linked to this release project. Root-domain hosting remains in the existing `findmeatime` project. Production config includes `APP_ORIGIN=https://release.findmeatime.com`, `OPENAI_MODEL=gpt-6-luna`, the selected Supabase URL/keys and the server-only OpenAI key. Other provider credentials and callbacks must be configured as their protected adapters land. Local development uses `APP_ORIGIN=http://localhost:3000`.
 
 Cloudflare serves the DNS-only `A release.findmeatime.com 76.76.21.21` record requested by Vercel's inspection on that date. All 13 preexisting DNS records were preserved, including mail records; Cloudflare nameservers remain authoritative. HTTPS `/`, `/api/health` and `/eve/v1/health` return 200, and anonymous session creation returns 401. The app health response deliberately reports `releaseReady: false`.
 
@@ -25,7 +25,7 @@ Verify DNS, TLS, the expected deployment, Auth/Calendar returns, generated links
 
 ## Selected rebuild Supabase project
 
-Use **FindMeATime2**, project **`mriseqztcwmezvtawnbo`**: [project dashboard](https://supabase.com/dashboard/project/mriseqztcwmezvtawnbo). Local configuration identifies this project, but CLI link metadata was absent at rebuild inventory. Before remote operations, explicitly link and confirm that the CLI link, `SUPABASE_PROJECT_REF` and `SUPABASE_URL` identify the same project.
+Use **FindMeATime2**, project **`mriseqztcwmezvtawnbo`**: [project dashboard](https://supabase.com/dashboard/project/mriseqztcwmezvtawnbo). The CLI link was restored and matched against `SUPABASE_PROJECT_REF` and `SUPABASE_URL` on 2026-10-07. The initially empty project now has all eight migrations through `20261006205721_conversation_access`. A subsequent dry run reports no pending migrations, and the remote security advisor reports no issues. Reconfirm the target before each remote operation.
 
 Verify schema, Auth, SMTP and provider configuration against this project independently. Follow the [schema workflow](../../AGENTS.md#supabase-schema-changes), review migration SQL and run `supabase db push --dry-run` before a remote push. Never reset a remote database for local setup.
 

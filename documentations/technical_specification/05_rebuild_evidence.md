@@ -47,6 +47,12 @@ Verified on 2026-10-07: the additive `conversation_access` migration rebuilds lo
 
 Ten application unit tests and four SMTP tests pass. A real local Supabase Auth integration test creates/removes a synthetic user, checks original-token verification, denies unadmitted access and direct authenticated RPC invocation, and confirms logout invalidates an otherwise unexpired execution credential. Public runtime session endpoints remain closed until authorized ingress, stream and tool adapters are complete. The new schema and shared modules do not yet certify foundation tasks 2.1–2.2 or any complete release case.
 
+### Remote schema and deployment
+
+Commit `2af4cef` adds the access boundary. On 2026-10-07, verified `FindMeATime2` (`mriseqztcwmezvtawnbo`, active, us-west-1), restored the CLI link, and confirmed the remote project had zero Auth users and no `fmat` schema. Reviewed `supabase db push --dry-run`, then applied the eight locally tested migrations with `supabase db push --yes`. No remote reset or test-user creation was performed. The follow-up dry run is current; remote security advisors report no issues. Remote grant inspection confirms anonymous access and ordinary authenticated execution access are false, while service execution access is true.
+
+Production deployment `dpl_365B9d3LvJJLnP4rSjcHtBpMNgPP` at `https://findmeatime-release-i3vcbmon4-justdodos-projects.vercel.app` is `READY` and aliased to `https://release.findmeatime.com`. Added only the selected Supabase URL/keys and direct OpenAI key to the verified Vercel production project through stdin; no credential values are recorded here. All three public page/health probes return 200 and all seven anonymous eve session/stream probes return 401 after deployment. Application session adapters remain pending, so this is still a foundation deployment rather than a completed scheduling service.
+
 ## Initial production runtime deployment
 
 On 2026-10-07, deployed commit `7b3085b` to Vercel project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`) in `justdodos-projects`. The checkout is explicitly linked to this project; the existing root-domain project is preserved.
