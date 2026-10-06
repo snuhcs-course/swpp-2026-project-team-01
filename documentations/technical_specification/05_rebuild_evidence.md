@@ -95,6 +95,10 @@ Migration review caught a proposed cron unschedule because the named recovery jo
 
 Selected-project Auth callback and Cloudflare SMTP configuration were applied through a sparse CLI config and verified by readback with no declared differences. Existing Google Auth/MFA settings were preserved. Production inbox delivery remains pending; local Mailpit delivery is separate evidence.
 
+Deployed code commit `7c38bfc` on 2026-10-07. All thirteen migrations are current on `mriseqztcwmezvtawnbo`; the remote security advisor reports no issues. The browser RPC is denied to anonymous/ordinary authenticated roles and granted to the service role. The existing minute recovery cron remains active. Vercel deployment `dpl_9kE48XNAXuaYB38RUpF9LWWNU1bC` (`https://findmeatime-release-5ceipk06w-justdodos-projects.vercel.app`) is `READY` at `https://release.findmeatime.com`. Five public page/health probes return 200; fourteen private browser/runtime probes return 401. Cross-origin Auth submission returns 403 before sending email, and an invalid Auth callback stays on the release origin. Chromium renders the production sign-in page at phone width without horizontal overflow. Upload preflight checked 178 regular files against 12 configured credential values and found no matches.
+
+Foundation task 3.1 is complete for the authenticated/protected route shells, safe Auth return, request credential exchange, CSRF, reload and private caching. Browser chat, Calendar consent/context restoration and complete scheduling journeys remain pending in their owning tasks; all AC and phase-exit gates remain open. The configured AgentMail inbox is readable, but CLI 1.9.0 returns `403 missing_permission` for webhook inspection because the runtime key lacks `webhook_read`. No production Auth email was sent into that mailbox while its consumer isolation is unverified.
+
 ## Initial production runtime deployment
 
 On 2026-10-07, deployed commit `7b3085b` to Vercel project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`) in `justdodos-projects`. The checkout is explicitly linked to this project; the existing root-domain project is preserved.

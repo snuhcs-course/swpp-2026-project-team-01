@@ -25,7 +25,7 @@ Verify DNS, TLS, the expected deployment, Auth/Calendar returns, generated links
 
 ## Selected rebuild Supabase project
 
-Use **FindMeATime2**, project **`mriseqztcwmezvtawnbo`**: [project dashboard](https://supabase.com/dashboard/project/mriseqztcwmezvtawnbo). The CLI link was restored and matched against `SUPABASE_PROJECT_REF` and `SUPABASE_URL` on 2026-10-07. The initially empty project now has all nine migrations through `20261006211854_conversation_tools`. A subsequent dry run reports no pending migrations, and the remote security advisor reports no issues. Reconfirm the target before each remote operation.
+Use **FindMeATime2**, project **`mriseqztcwmezvtawnbo`**: [project dashboard](https://supabase.com/dashboard/project/mriseqztcwmezvtawnbo). The CLI link was restored and matched against `SUPABASE_PROJECT_REF` and `SUPABASE_URL` on 2026-10-07. The initially empty project now has all thirteen migrations through `20261006221555_browser_access`. A subsequent dry run reports no pending migrations, and the remote security advisor reports no issues. Reconfirm the target before each remote operation.
 
 Verify schema, Auth, SMTP and provider configuration against this project independently. Follow the [schema workflow](../../AGENTS.md#supabase-schema-changes), review migration SQL and run `supabase db push --dry-run` before a remote push. Never reset a remote database for local setup.
 
@@ -65,6 +65,8 @@ References: [Cloudflare Email Service](https://developers.cloudflare.com/email-s
 AgentMail owns requester conversational inboxes and threads. Configure `AGENTMAIL_API_KEY`, `AGENTMAIL_POD_ID` and `AGENTMAIL_INBOX_ID` for the intended application resources. Use narrowly scoped `inbox_read`, `message_read` and `message_send` permissions; reserve provisioning and webhook administration for operator credentials.
 
 Store the receiver signing secret as `AGENTMAIL_WEBHOOK_SECRET`; it is distinct from the API key. Verify signed ingestion, sender binding, request/thread mapping, deduplication, replies and uncertain-send recovery under the [compatibility gates](04_implementation_plan.md#compatibility-gates).
+
+Inspection on 2026-10-07 with installed CLI 1.9.0 confirms that the configured development inbox is readable. The configured runtime key cannot list webhooks (`403 missing_permission`, missing `webhook_read`). Use an appropriately scoped operator credential to establish consumer ownership and webhook configuration; do not broaden the runtime key or send private Auth links into an inbox whose consumers are unverified.
 
 References: [AgentMail quickstart](https://docs.agentmail.to/quickstart), [webhook verification](https://www.agentmail.to/docs/webhook-verification).
 

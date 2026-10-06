@@ -38,9 +38,9 @@ Record the reference commit SHAs, selected package versions and any adapted patt
 
 ## 2. Execution rules and source ownership
 
-Directory-scaffold update (2026-10-07): root `agent/`, shared `lib/`, `tests/` and Next.js directories under `apps/web/` now exist with ownership notes and tracked placeholders. The unused `packages/` placeholder was removed. No runtime entrypoints, application dependencies, build configuration or replacement tests were added; the runtime spike remains pending.
+Implementation update (2026-10-07): root `agent/`, shared `lib/`, `tests/` and Next.js under `apps/web/` now contain the runtime, authorized conversation adapters and browser access foundation. Separate builds, CI and local recovery/browser tests are implemented. The unused `packages/` placeholder was removed. The [evidence ledger](05_rebuild_evidence.md) records deployed slices and remaining runtime, provider and complete-journey gates.
 
-The product has not launched. Rebuild the full application, including its scheduling backend, on `feat/reconstruct-application` in the main project directory. The source scaffold is ready; SQL schemas, migrations, database tests and independent SMTP tooling remain. Preserve local changes, secrets, external resources and migration history. Local source recovery is available in the ignored `.local/rebuild/pre-removal-2026-10-07/` checkpoint.
+The product has not launched. Rebuild the full application, including its scheduling backend, on `feat/reconstruct-application` in the main project directory. Foundation implementation extends the retained SQL schemas, migrations, database tests and independent SMTP tooling. Preserve local changes, secrets, external resources and migration history. Local source recovery is available in the ignored `.local/rebuild/pre-removal-2026-10-07/` checkpoint.
 
 Build directly in final workspace paths. No development transcript/link migration or parallel replacement application is required. Check for competing remote consumers before controlled provider tests. Implement and verify current requirements through the owning OpenSpec changes; do not treat retained database assets as proof of rebuilt application behavior.
 
