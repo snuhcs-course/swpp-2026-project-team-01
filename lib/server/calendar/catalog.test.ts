@@ -34,3 +34,11 @@ test('Refresh preserves omitted refresh material and scopes but rejects invalid 
   failure={response:{data:{error:'invalid_grant'}}};await assert.rejects(provider.refresh(original),code('RECONNECT_REQUIRED'));
   failure=new Error('private response');await assert.rejects(provider.refresh(original),code('PROVIDER_UNAVAILABLE'));
 });
+
+test('Requester refresh permits only availability/list scopes and preserves a valid guest grant',async t=>{
+  const original={accessToken:'old',refreshToken:'refresh',subject:'subject',expiresAt:1,scopes:[...calendarScopes.guest]};
+  let scopes=calendarScopes.guest.join(' ');
+  t.mock.method(OAuth2Client.prototype,'refreshAccessToken',async()=>({credentials:{access_token:'new',expiry_date:Date.now()+3600000,scope:scopes}}));
+  const provider=new GoogleCalendarProvider(env);assert.equal((await provider.refresh(original,'guest')).accessToken,'new');
+  scopes+=' https://www.googleapis.com/auth/calendar.events';await assert.rejects(provider.refresh(original,'guest'),code('RECONNECT_REQUIRED'));
+});

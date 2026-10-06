@@ -64,9 +64,10 @@ begin
     end if;
     if v_exchange.consumed_at is null then raise exception 'OAUTH_STATE_INVALID'; end if;
     select array_agg(value) into v_scopes from jsonb_array_elements_text(p_input->'scopes');
-    if v_kind='guest' and exists(select 1 from unnest(v_scopes) s where s not in ('openid','email','https://www.googleapis.com/auth/userinfo.email','https://www.googleapis.com/auth/calendar.freebusy')) then raise exception 'INSUFFICIENT_SCOPES'; end if;
+    if v_kind='guest' and exists(select 1 from unnest(v_scopes) s where s not in ('openid','email','https://www.googleapis.com/auth/userinfo.email','https://www.googleapis.com/auth/calendar.events.freebusy','https://www.googleapis.com/auth/calendar.calendarlist.readonly')) then raise exception 'INSUFFICIENT_SCOPES'; end if;
     v_result:=fmat.onboarding_request_dispatch('credential_save','{"kind":"worker","id":"calendar-consent"}',p_input);
-    update fmat.calendar_connections set generation=gen_random_uuid(),guest_authority_key=case when v_kind='guest' then v_credential->>'tokenHash' else null end where id=(v_result->>'connectionId')::uuid;
+    update fmat.calendar_connections set generation=gen_random_uuid(),selected_calendar_ids='{}',guest_authority_key=case when v_kind='guest' then v_credential->>'tokenHash' else null end where id=(v_result->>'connectionId')::uuid;
+    if v_kind='guest' then update fmat.requests set availability_mode='calendar',availability_failed=false where id=v_principal; end if;
     return jsonb_build_object('connected',true);
   elsif p_operation='disconnect' then
     if v_kind='host' then perform fmat.onboarding_command('calendar_disconnect',v_actor,'{}');

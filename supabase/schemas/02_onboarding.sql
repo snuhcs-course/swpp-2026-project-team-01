@@ -242,7 +242,7 @@ begin
     else v_principal:=(v_exchange.actor->>'requestId')::uuid; perform fmat.authorize_guest(v_exchange.actor,v_principal); end if;
     select array_agg(value) into v_scopes from jsonb_array_elements_text(p_input->'scopes');
     if v_kind='host' and not coalesce(v_scopes @> array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],false) then raise exception 'INSUFFICIENT_SCOPES'; end if;
-    if v_kind='guest' and not coalesce(v_scopes @> array['https://www.googleapis.com/auth/calendar.freebusy'],false) then raise exception 'INSUFFICIENT_SCOPES'; end if;
+    if v_kind='guest' and not coalesce(v_scopes @> array['https://www.googleapis.com/auth/calendar.events.freebusy','https://www.googleapis.com/auth/calendar.calendarlist.readonly'],false) then raise exception 'INSUFFICIENT_SCOPES'; end if;
     if v_kind='guest' and v_scopes && array['https://www.googleapis.com/auth/calendar.events','https://www.googleapis.com/auth/calendar'] then raise exception 'INSUFFICIENT_SCOPES'; end if;
     if length(coalesce(p_input->>'encryptedCredential',''))<20 or length(coalesce(p_input->>'providerSubject','')) not between 1 and 300 then raise exception 'INVALID_INPUT'; end if;
     insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential)

@@ -6,18 +6,19 @@ import {ApplicationError} from '../errors.ts';
 import {calendarScopes,tokenBundle,type TokenBundle} from './google.ts';
 export type CalendarEntry=z.infer<typeof calendarEntry>;
 export interface CalendarProvider {
-  refresh(bundle:TokenBundle):Promise<TokenBundle>;
+  refresh(bundle:TokenBundle,kind?:'host'|'guest'):Promise<TokenBundle>;
   list(accessToken:string):Promise<CalendarEntry[]>;
 }
 export class GoogleCalendarProvider implements CalendarProvider {
   constructor(private readonly env=process.env,private readonly fetcher:typeof fetch=fetch){}
-  async refresh(bundle:TokenBundle):Promise<TokenBundle>{
+  async refresh(bundle:TokenBundle,kind:'host'|'guest'='host'):Promise<TokenBundle>{
     const client=new OAuth2Client({clientId:requiredEnv('GOOGLE_CLIENT_ID',this.env),clientSecret:requiredEnv('GOOGLE_CLIENT_SECRET',this.env),transporterOptions:{timeout:10_000,retry:false}});
     client.setCredentials({refresh_token:bundle.refreshToken});
     try{
       const {credentials}=await client.refreshAccessToken();
       const refreshed=tokenBundle.parse({...bundle,accessToken:credentials.access_token,refreshToken:credentials.refresh_token??bundle.refreshToken,expiresAt:credentials.expiry_date,scopes:credentials.scope?.split(' ').filter(Boolean)??bundle.scopes});
-      if(refreshed.expiresAt<=Date.now()+30_000||calendarScopes.host.filter(s=>s.startsWith('https:')).some(s=>!refreshed.scopes.includes(s)))throw new ApplicationError('RECONNECT_REQUIRED',409);
+      if(refreshed.expiresAt<=Date.now()+30_000||calendarScopes[kind].filter(s=>s.startsWith('https:')).some(s=>!refreshed.scopes.includes(s)))throw new ApplicationError('RECONNECT_REQUIRED',409);
+      if(kind==='guest'&&refreshed.scopes.some(s=>![...calendarScopes.guest,'https://www.googleapis.com/auth/userinfo.email'].includes(s)))throw new ApplicationError('RECONNECT_REQUIRED',409);
       return refreshed;
     }catch(error){
       const response=error as {response?:{data?:{error?:string};status?:number}};

@@ -10,6 +10,7 @@ import { privateHeaders, readJson } from '../../../../../../lib/server/identity/
 import { browserSession, guestCookieName } from '../../../../lib/session.ts';
 import { calendarCommands, calendarCookie, calendarCredential } from '../../../../lib/calendar-browser.ts';
 import { conversationGateway } from '../../../../lib/conversation-gateway.ts';
+import { RequesterAvailability } from '../../../../../../lib/server/calendar/requester-availability.ts';
 import { CalendarSelection } from '../../../../../../lib/server/calendar/selection.ts';
 
 export const dynamic='force-dynamic';
@@ -37,6 +38,19 @@ async function handle(request:NextRequest,{params}:Context) {
     }
     session=browserSession(request);
     if(action==='conversations'||action.startsWith('conversations/'))return session.finish(await conversationGateway(request,(await params).action,session));
+    if(action.startsWith('availability/')&&['status','list','select','manual','check'].includes(action.slice(13))) {
+      const operation=action.slice(13),service=new RequesterAvailability();
+      if(request.method==='GET'&&(operation==='status'||operation==='list')) {
+        const requestId=z.uuid().parse(request.nextUrl.searchParams.get('requestId'));
+        const credential=await calendarCredential(request,session,{requestId});
+        return session.finish(json(await service[operation](credential)));
+      }
+      if(request.method==='POST'&&['select','manual','check'].includes(operation)) {
+        const {requestId,input}=z.strictObject({requestId:z.uuid(),input:z.unknown()}).parse(await readJson(request));
+        const credential=await calendarCredential(request,session,{requestId});
+        return session.finish(json(operation==='check'?await service.check(credential):await service[operation as 'select'|'manual'](credential,input)));
+      }
+    }
     if(action==='calendar/list'&&request.method==='GET') {
       const {credential}=await session.host();
       return session.finish(json(await new CalendarSelection().list(credential)));

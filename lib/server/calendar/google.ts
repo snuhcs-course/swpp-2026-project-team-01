@@ -4,7 +4,7 @@ import {z} from 'zod';
 import {applicationOrigin,requiredEnv} from '../config.ts';
 import {ApplicationError} from '../errors.ts';
 
-export const calendarScopes={host:['openid','email','https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],guest:['openid','email','https://www.googleapis.com/auth/calendar.freebusy']} as const;
+export const calendarScopes={host:['openid','email','https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],guest:['openid','email','https://www.googleapis.com/auth/calendar.events.freebusy','https://www.googleapis.com/auth/calendar.calendarlist.readonly']} as const;
 export const tokenBundle=z.object({accessToken:z.string().min(1),refreshToken:z.string().min(1),expiresAt:z.number().finite().positive(),subject:z.string().min(1).max(300),scopes:z.array(z.string())});
 export type TokenBundle=z.infer<typeof tokenBundle>;
 export interface GoogleConsent {

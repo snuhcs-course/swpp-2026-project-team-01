@@ -81,3 +81,14 @@ Guest intake SHALL use detected browser IANA timezone for initial time display u
 #### Scenario: Detection and explicit correction
 - **WHEN** a guest views candidates, changes the display timezone and returns from Google authorization
 - **THEN** the explicit timezone persists, candidate instants remain unchanged and rendered offsets reflect each date, without repeating the timezone question
+
+### Requirement: Requester calendar selection and explicit manual replacement
+A request-scoped guest SHALL choose availability calendars using narrow list-metadata and free/busy permissions without event-detail or write access. Confirmed selections and manual replacement SHALL invalidate prior scheduling results and decisions. Disconnect alone SHALL not switch Calendar-dependent requests to assumed manual availability. Explicit replacement SHALL save the requester's confirmed time windows and timezone and remove the local grant.
+
+#### Scenario: Calendar failure followed by manual replacement
+- **WHEN** a required requester read fails and the requester explicitly confirms manual windows
+- **THEN** Calendar-dependent scheduling remains paused until replacement succeeds, old credentials are removed, and stale read results cannot override the new request revision
+
+#### Scenario: Partial provider response
+- **WHEN** any selected calendar or requested range is absent, malformed or reports an error
+- **THEN** the whole required read fails and no partial response is reported as complete availability

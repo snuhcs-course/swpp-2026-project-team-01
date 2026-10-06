@@ -1,0 +1,12 @@
+import {z} from 'zod';
+import {calendarEntry} from './calendar.ts';
+export const instant=z.iso.datetime({offset:true});
+export const interval=z.strictObject({start:instant,end:instant}).refine(v=>Date.parse(v.end)>Date.parse(v.start),'End must follow start.');
+export const availabilityWindows=z.array(interval).min(1).max(30).refine(w=>w.every(v=>Date.parse(v.end)-Date.parse(v.start)<=31*86400000),'Each window must be at most 31 days.');
+export const requesterSelection=z.strictObject({generation:z.uuid(),revision:z.number().int().positive(),calendarIds:z.array(z.string().min(1).max(1024)).min(1).max(50)});
+export const manualAvailability=z.strictObject({revision:z.number().int().positive(),confirmed:z.literal(true),timezone:z.string().min(1).max(100),windows:availabilityWindows});
+export const availabilityState=z.object({revision:z.number().int().positive(),mode:z.enum(['calendar','manual']),connected:z.boolean(),failed:z.boolean(),selectedCalendarIds:z.array(z.string()),timezone:z.string(),windows:z.array(interval)});
+export const requesterCatalog=z.object({generation:z.uuid(),revision:z.number().int().positive(),calendars:z.array(calendarEntry),selectedCalendarIds:z.array(z.string())});
+export type AvailabilityState=z.infer<typeof availabilityState>;
+export type RequesterCatalog=z.infer<typeof requesterCatalog>;
+export type Interval=z.infer<typeof interval>;

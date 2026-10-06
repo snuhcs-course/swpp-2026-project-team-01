@@ -83,7 +83,7 @@ begin
     or length(coalesce(p_details->>'requesterName',''))>200 or length(coalesce(p_details->>'purpose',''))>5000 or length(coalesce(p_details->>'location',''))>2000
     or length(v_email)>254 or (v_email<>'' and v_email !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$')
     or (coalesce(p_details->>'timezone','')<>'' and not exists(select 1 from pg_catalog.pg_timezone_names where name=p_details->>'timezone'))
-    or (p_details ? 'durationMinutes' and coalesce((p_details->>'durationMinutes')::integer,0) not between 5 and 240)
+    or (p_details ? 'durationMinutes' and p_details->'durationMinutes'<>'null'::jsonb and coalesce((p_details->>'durationMinutes')::integer,0) not between 5 and 240)
     or coalesce(p_details->>'mode','') not in ('','online','in_person') then raise exception 'INVALID_INPUT'; end if;
   for v_window in select value from jsonb_array_elements(v_windows) loop
     if coalesce(v_window->>'start','') !~ '(Z|[+-][0-9]{2}:[0-9]{2})$' or coalesce(v_window->>'end','') !~ '(Z|[+-][0-9]{2}:[0-9]{2})$'
@@ -266,7 +266,7 @@ begin
   if p_operation='evaluation_read' then
     if not fmat.host_ready(v_host) then raise exception 'RECONNECT_REQUIRED'; end if;
     return jsonb_build_object('requestId',v_request.id,'hostId',v_request.host_id,'revision',v_request.revision,'details',v_request.details,'rules',v_host.rules,'rulesVersion',v_host.rules_version,'privateSchedulingContext',v_request.private_scheduling_context,
-      'requesterConnection',exists(select 1 from fmat.calendar_connections where principal_kind='guest' and principal_id=v_request.id and revoked_at is null));
+      'requesterAvailabilityMode',v_request.availability_mode,'requesterAvailabilityFailed',v_request.availability_failed,'requesterConnection',exists(select 1 from fmat.calendar_connections where principal_kind='guest' and principal_id=v_request.id and revoked_at is null));
   end if;
   if p_operation not in ('contact_recover','contact_redeem') then
     if (p_input->>'expectedRevision')::integer is distinct from v_request.revision then raise exception 'REVISION_CONFLICT'; end if;
@@ -318,6 +318,7 @@ begin
       contact_verified_email=case when v_details->>'requesterEmail'=details->>'requesterEmail' then contact_verified_email else null end where id=v_request.id;
     update fmat.contact_challenges set consumed_at=now() where request_id=v_request.id and consumed_at is null and email<>v_details->>'requesterEmail';
   when 'candidates_save' then
+    if v_request.availability_mode='calendar' and (v_request.availability_failed or not exists(select 1 from fmat.calendar_connections where principal_kind='guest' and principal_id=v_request.id and revoked_at is null and guest_authority_key=v_request.token_hash and cardinality(selected_calendar_ids)>0)) then raise exception 'RECONNECT_REQUIRED'; end if;
     if (p_input->>'rulesVersion')::integer is distinct from v_host.rules_version or not fmat.host_ready(v_host) then raise exception 'STALE_EVALUATION'; end if;
     if jsonb_typeof(p_input->'candidates') is distinct from 'array' or jsonb_array_length(p_input->'candidates')>300 or jsonb_typeof(coalesce(p_input->'privateDiagnostics','[]'::jsonb)) is distinct from 'array' or jsonb_typeof(coalesce(p_input->'privateTravelChecks','[]'::jsonb)) is distinct from 'array' then raise exception 'INVALID_INPUT'; end if;
     for v_details in select value from jsonb_array_elements(p_input->'candidates') loop

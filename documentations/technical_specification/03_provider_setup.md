@@ -107,7 +107,7 @@ Begin consent through a same-origin endpoint with short-lived, single-use state 
 | Principal | Requested Google scopes | Authority |
 |---|---|---|
 | Host | `openid`, `email`, `calendar.readonly`, `calendar.events` | Read selected host context; create events only in the selected writable destination after current agreement and approval. |
-| Requester | `openid`, `email`, `calendar.freebusy` | Availability for one authorized request; no host admission or event creation. |
+| Requester | `openid`, `email`, `calendar.events.freebusy`, `calendar.calendarlist.readonly` | Calendar chooser metadata and availability for one authorized request; no event details, host admission or event creation. |
 
 Calendar scope names use the `https://www.googleapis.com/auth/` prefix. Verify requested and granted scopes through live consent. Host Calendar scopes are broader than creation-only permission; selected-calendar and approval restrictions are enforced by application policy. Requester event details, Gmail access and host conversational email require separate scope decisions.
 
@@ -132,3 +132,5 @@ The release database runs `fmat-runtime-dispatch` every minute. `fmat.wake_runti
 The named `cron.schedule` definition also belongs in `supabase/schemas/11_runtime_dispatch.sql`. pg-delta tracks named jobs: omitting it from desired schema can emit `cron.unschedule` during an unrelated migration. Keep the original installer migration as history and review generated cron operations alongside grants and destructive SQL.
 
 Provision Vault only after verifying the intended deployment, then verify the protected endpoint and an actual scheduled wake-up. Previews and disposable local databases leave these entries absent. Do not copy release Vault entries into a preview. To stop recovery during an incident, disable this named cron job; preserve inbox rows and their canonical session IDs. Restore the matching deployment/credential, re-enable the job, and inspect `dispatch_error`, `dispatch_attempts`, `next_dispatch_at` and turn status. A sent transport is not a completed turn. Do not replace a bound workflow to clear a stuck message; reconcile it explicitly. Rotate the Vault and Vercel values together and redeploy before resuming the job.
+
+Requester selection requires the narrow Calendar-list scope in addition to availability. Existing grants issued with only `calendar.freebusy` must reconnect before listing/reads. Configure the consent screen for the requested scopes before live acceptance; registering a callback or having a secret does not verify the grant. [Google scope definitions](https://developers.google.com/workspace/calendar/api/auth) distinguish availability-only and list-only access from event reads/writes.
