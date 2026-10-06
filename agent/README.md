@@ -12,4 +12,6 @@ Run `npm run dev:eve`, `npm run build:eve` or `npm run start:eve` from the repos
 
 Separate eve and Next.js builds are composed by root `vercel.ts`. Managed Vercel Workflow persistence is the intended deployment topology; restart, revocation and repeated-tool recovery gates remain pending. No separate worker or Photon bridge is introduced before compatibility evidence requires it.
 
+The first authored tools read the current request/setup, save host-private notes and update shared request details. They use `ctx.session.auth.current`, never the session initiator, and delegate to the atomic conversation-tool RPC. They cannot confirm policy, agreement, approval, travel exceptions or provider outcomes. HTTP conversation ingress remains closed while durable dispatch and stream adapters are implemented; compiling these tools does not establish a working chat journey.
+
 See the [source organization](../documentations/technical_specification/02_frontend_architecture.md#source-organization), [implementation plan](../documentations/technical_specification/04_implementation_plan.md) and [evidence ledger](../documentations/technical_specification/05_rebuild_evidence.md).

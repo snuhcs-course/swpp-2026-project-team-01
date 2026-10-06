@@ -136,10 +136,29 @@ returns jsonb language plpgsql security definer set search_path='' as $$
 declare v_actor jsonb; v_scope fmat.conversation_scopes; v_grant fmat.conversation_grants; v_writable boolean;
 begin
   select * into v_grant from fmat.conversation_grants where id=p_grant_id and conversation_id=p_conversation_id;
-  if not found or v_grant.revoked_at is not null or v_grant.expires_at<=now() then raise exception 'UNAUTHORIZED'; end if;
-  v_actor:=fmat.credential_actor(v_grant.credential);
+  if not found or v_grant.revoked_at is not null or v_grant.expires_at<=clock_timestamp() then raise exception 'UNAUTHORIZED'; end if;
   select * into v_scope from fmat.conversation_scopes where id=v_grant.conversation_id;
+  -- Match request-command lock order. Keep revocation and the eventual tool
+  -- effect serialized in this transaction, including an idempotent replay.
+  perform 1 from fmat.requests where id=v_scope.request_id for update;
+  perform 1 from fmat.hosts where id=v_scope.host_id for share;
+  if v_grant.actor_kind='host' then
+    perform 1 from auth.users where id=(v_grant.credential->>'subject')::uuid for share;
+    perform 1 from auth.sessions where id=(v_grant.credential->>'sessionId')::uuid for share;
+  end if;
+  select * into v_scope from fmat.conversation_scopes where id=p_conversation_id for share;
+  select * into v_grant from fmat.conversation_grants where id=p_grant_id and conversation_id=p_conversation_id for share;
+  if not found or v_grant.revoked_at is not null or v_grant.expires_at<=clock_timestamp() then raise exception 'UNAUTHORIZED'; end if;
+  v_actor:=fmat.credential_actor(v_grant.credential);
   v_writable:=fmat.authorize_conversation(v_scope,v_actor);
+  -- A transaction may have waited for another writer. Recheck time-based
+  -- authority against wall time after locks, not its earlier transaction time.
+  if v_grant.actor_kind='host' and exists(select 1 from auth.sessions
+    where id=(v_grant.credential->>'sessionId')::uuid and not_after<=clock_timestamp()) then raise exception 'UNAUTHORIZED'; end if;
+  if exists(select 1 from fmat.requests where id=v_scope.request_id and status<>'booking' and expires_at<=clock_timestamp()) then
+    if v_grant.actor_kind='guest' then raise exception 'REQUEST_EXPIRED'; end if;
+    v_writable:=false;
+  end if;
   return fmat.conversation_projection(v_scope,v_grant,v_writable)||jsonb_build_object('actor',v_actor);
 end;
 $$;

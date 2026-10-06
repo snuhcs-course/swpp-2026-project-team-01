@@ -64,6 +64,44 @@ select throws_ok($$select pg_temp.access('open','guest1','{"audience":"host_setu
 select throws_ok($$select public.fmat_conversation_check((pg_temp.f('guestgrant1')->>'grantId')::uuid,(pg_temp.f('guestgrant2')->>'conversationId')::uuid)$$,'P0001','UNAUTHORIZED','grant cannot move to another scope');
 select throws_ok($$select public.fmat_conversation_access('open',pg_temp.f('guest1')||jsonb_build_object('tokenHash',repeat('c',64)),'{"audience":"request_shared","requestId":"83000000-0000-4000-8000-000000000001"}')$$,'P0001','NOT_FOUND','wrong guest credential cannot open history');
 
+create function pg_temp.tool(text,text,jsonb default '{}') returns jsonb language sql as $$
+  select public.fmat_conversation_tool((pg_temp.f($1)->>'grantId')::uuid,(pg_temp.f($1)->>'conversationId')::uuid,$2,$3)
+$$;
+select ok(not has_function_privilege('authenticated','public.fmat_conversation_tool(uuid,uuid,text,jsonb)','EXECUTE'),'browser cannot call execution tool RPC');
+select ok(not has_function_privilege('anon','public.fmat_conversation_tool(uuid,uuid,text,jsonb)','EXECUTE'),'anonymous cannot call execution tool RPC');
+select ok(has_function_privilege('service_role','public.fmat_conversation_tool(uuid,uuid,text,jsonb)','EXECUTE'),'authored server tools can execute');
+select is(pg_temp.tool('setup1','setup_read')->>'admitted','true','private setup can read own settings');
+select throws_ok($$select pg_temp.tool('guestgrant1','setup_read')$$,'P0001','FORBIDDEN','requester cannot read host rules');
+select throws_ok($$select pg_temp.tool('shared1','setup_read')$$,'P0001','FORBIDDEN','host shared context cannot read private rules');
+select throws_ok($$select pg_temp.tool('setup1','request_read')$$,'P0001','FORBIDDEN','setup cannot choose an arbitrary request');
+select throws_ok($$select pg_temp.tool('guestgrant1','request_read','{"requestId":"83000000-0000-4000-8000-000000000002"}')$$,'P0001','INVALID_INPUT','tool resource cannot be overridden');
+select throws_ok($$select pg_temp.tool('guestgrant1','request_read','{"actor":{"kind":"host"}}')$$,'P0001','INVALID_INPUT','model cannot supply actor authority');
+select throws_ok($$select pg_temp.tool('private1','host_approve','{"confirmed":true}')$$,'P0001','FORBIDDEN','model cannot manufacture host approval');
+select throws_ok($$select pg_temp.tool('guestgrant1','requester_agree')$$,'P0001','FORBIDDEN','model cannot manufacture requester agreement');
+select throws_ok($$select pg_temp.tool('setup1','setup_save')$$,'P0001','FORBIDDEN','model cannot confirm saved policy');
+select throws_ok($$select pg_temp.tool('private1','manual_allowance_save')$$,'P0001','FORBIDDEN','model cannot confirm a travel exception');
+select throws_ok($$select pg_temp.tool('private1','booking_record_outcome')$$,'P0001','FORBIDDEN','model cannot manufacture provider success');
+select throws_ok($$select pg_temp.tool('shared1','private_note_save','{}')$$,'P0001','FORBIDDEN','host private writes unavailable in shared context');
+select throws_ok($$select pg_temp.tool('guestgrant1','private_note_save','{}')$$,'P0001','FORBIDDEN','requester cannot save private host notes');
+insert into fixture values ('noteInput',jsonb_build_object('text','private-only sentinel','expectedRevision',1,'idempotencyKey','note-tool-1'));
+insert into fixture values ('noteResult',pg_temp.tool('private1','private_note_save',pg_temp.f('noteInput')));
+select is(pg_temp.f('noteResult')->>'privateNotes','private-only sentinel','private note saved under verified host authority');
+select is(pg_temp.tool('private1','private_note_save',pg_temp.f('noteInput')),pg_temp.f('noteResult'),'lost result replay returns exact committed result');
+select is((select count(*)::integer from fmat.request_messages where request_id='83000000-0000-4000-8000-000000000001'),1,'retry has one note effect');
+select throws_ok($$select pg_temp.tool('private1','private_note_save',pg_temp.f('noteInput')||'{"text":"different"}')$$,'P0001','IDEMPOTENCY_CONFLICT','changed replay payload rejected');
+select throws_ok($$select pg_temp.tool('private1','private_note_save',pg_temp.f('noteInput')||'{"idempotencyKey":"new-stale-call"}')$$,'P0001','REVISION_CONFLICT','new stale call rejected');
+select ok(not(pg_temp.tool('shared1','request_read') ?| array['privateNotes','privateMessages','privateSchedulingContext','privateDiagnostics','privateTravelChecks','history']),'host shared read omits every private projection');
+select ok(pg_temp.tool('guestgrant1','request_read')::text not like '%private-only sentinel%','private note is absent from guest context');
+insert into fixture values ('detailsInput',jsonb_build_object('details','{"purpose":"shared purpose"}'::jsonb,'expectedRevision',2,'idempotencyKey','details-tool-1'));
+select throws_ok($$select pg_temp.tool('private1','details_update',pg_temp.f('detailsInput'))$$,'P0001','FORBIDDEN','private discussion cannot silently publish shared details');
+update fmat.requests set current_proposal_version=1,requester_agreed_version=1,host_approved_version=1 where id='83000000-0000-4000-8000-000000000001';
+insert into fixture values ('detailsResult',pg_temp.tool('shared1','details_update',pg_temp.f('detailsInput')));
+select is(pg_temp.f('detailsResult')->'details'->>'purpose','shared purpose','host shared details updated');
+select ok(pg_temp.f('detailsResult')::text not like '%private-only sentinel%','host shared mutation excludes private result');
+select is(pg_temp.tool('shared1','details_update',pg_temp.f('detailsInput')),pg_temp.f('detailsResult'),'cached host result is scrubbed on replay too');
+select is(pg_temp.tool('guestgrant1','request_read')->>'revision','3','shared mutation and replay advance revision once');
+select ok((select current_proposal_version is null and requester_agreed_version is null and host_approved_version is null from fmat.requests where id='83000000-0000-4000-8000-000000000001'),'changed details invalidate proposal and both decisions');
+
 update auth.sessions set not_after=now()-interval '1 second' where id='81000000-0000-4000-8000-000000000001';
 select throws_ok($$select pg_temp.check_grant('setup1')$$,'P0001','UNAUTHORIZED','session expiry interrupts existing execution grant');
 update auth.sessions set not_after=null where id='81000000-0000-4000-8000-000000000001';
@@ -76,11 +114,14 @@ select throws_ok($$select pg_temp.check_grant('guestgrant1')$$,'P0001','NOT_FOUN
 update fmat.hosts set revoked_at=null where id='80000000-0000-4000-8000-000000000001';
 update fmat.requests set token_hash=repeat('c',64) where id='83000000-0000-4000-8000-000000000001';
 select throws_ok($$select pg_temp.check_grant('guestgrant1')$$,'P0001','NOT_FOUND','rotated guest token invalidates existing runtime grant');
+select throws_ok($$select pg_temp.tool('guestgrant1','request_read')$$,'P0001','NOT_FOUND','tool checks fresh guest rotation');
 update fmat.requests set token_hash=repeat('a',64),token_revoked_at=now() where id='83000000-0000-4000-8000-000000000001';
 select throws_ok($$select pg_temp.check_grant('guestgrant1')$$,'P0001','NOT_FOUND','guest revocation interrupts existing runtime authority');
 update fmat.requests set token_revoked_at=null,status='booked' where id='83000000-0000-4000-8000-000000000001';
 select throws_ok($$select pg_temp.check_grant('guestgrant1')$$,'P0001','NOT_FOUND','closed requester retains no unlimited conversation access');
 select is((pg_temp.check_grant('private1')->>'readOnly')::boolean,true,'host closed history is read-only');
+select lives_ok($$select pg_temp.tool('private1','request_read')$$,'host may read closed private context');
+select throws_ok($$select pg_temp.tool('private1','private_note_save',pg_temp.f('noteInput'))$$,'P0001','REQUEST_CLOSED','closed request prevents old tool mutation replay');
 select lives_ok($$select fmat.authorize_guest_receipt(pg_temp.f('guest1'),'83000000-0000-4000-8000-000000000001')$$,'closed receipt access remains independently available');
 update fmat.requests set status='gathering' where id='83000000-0000-4000-8000-000000000001';
 
@@ -90,6 +131,7 @@ select throws_ok($$select pg_temp.access('authorize','guest1',jsonb_build_object
 select lives_ok($$select pg_temp.check_grant('shared1')$$,'revoking guest grant preserves independently authorized host grant');
 delete from auth.sessions where id='81000000-0000-4000-8000-000000000001';
 select throws_ok($$select pg_temp.check_grant('shared1')$$,'P0001','UNAUTHORIZED','logout immediately invalidates runtime execution despite unexpired JWT');
+select throws_ok($$select pg_temp.tool('private1','private_note_save',pg_temp.f('noteInput'))$$,'P0001','UNAUTHORIZED','logout blocks even an already committed tool replay');
 select lives_ok($$select pg_temp.check_grant('setup2')$$,'another host remains authorized');
 update fmat.conversation_scopes set revoked_at=now() where id=(pg_temp.f('guestgrant2')->>'conversationId')::uuid;
 select throws_ok($$select pg_temp.check_grant('guestgrant2')$$,'P0001','NOT_FOUND','scope retirement prevents continuation');

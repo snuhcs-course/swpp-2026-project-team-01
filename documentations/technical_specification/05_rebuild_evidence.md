@@ -53,6 +53,12 @@ Commit `2af4cef` adds the access boundary. On 2026-10-07, verified `FindMeATime2
 
 Production deployment `dpl_365B9d3LvJJLnP4rSjcHtBpMNgPP` at `https://findmeatime-release-i3vcbmon4-justdodos-projects.vercel.app` is `READY` and aliased to `https://release.findmeatime.com`. Added only the selected Supabase URL/keys and direct OpenAI key to the verified Vercel production project through stdin; no credential values are recorded here. All three public page/health probes return 200 and all seven anonymous eve session/stream probes return 401 after deployment. Application session adapters remain pending, so this is still a foundation deployment rather than a completed scheduling service.
 
+## Conversation tool execution (local)
+
+Verified on 2026-10-07: the ninth migration adds the service-only conversation-tool RPC and serializes its authorization with the command effect. Three authored eve tools expose scoped context reads, private notes and shared detail updates. They use the active caller, derive retry identity from the durable call and cannot record human decisions or provider outcomes. Shared results exclude private fields on both first execution and cached replay.
+
+The complete local migration reset and seven pgTAP suites pass 499 assertions. Thirteen application unit tests and four SMTP tests pass. Four integration tests cover real Supabase Auth plus independent PostgreSQL transactions for tool-before-logout, logout-before-tool and expiry during a lock wait. The concurrency tests observe actual blocking locks before releasing either transaction. Separate eve/web builds and built-server anonymous-denial smoke checks pass. These tests establish the tool/database boundary, not process-crash recovery or a complete conversation journey; authorized ingress, durable dispatch acknowledgment and stream replay remain pending.
+
 ## Initial production runtime deployment
 
 On 2026-10-07, deployed commit `7b3085b` to Vercel project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`) in `justdodos-projects`. The checkout is explicitly linked to this project; the existing root-domain project is preserved.

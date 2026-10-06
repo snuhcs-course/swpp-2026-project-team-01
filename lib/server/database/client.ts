@@ -25,7 +25,7 @@ const domainErrors: Record<string, [ErrorCode, number]> = {
 export class Database {
   constructor(private readonly env = process.env, private readonly fetcher: Fetch = fetch) {}
 
-  async rpc(name: 'fmat_command' | 'fmat_conversation_access' | 'fmat_conversation_check', parameters: Record<string, unknown>): Promise<unknown> {
+  async rpc(name: 'fmat_command' | 'fmat_conversation_access' | 'fmat_conversation_check' | 'fmat_conversation_tool', parameters: Record<string, unknown>): Promise<unknown> {
     const origin = supabaseOrigin(this.env);
     const key = requiredEnv('SUPABASE_SECRET_KEY', this.env);
     const headers: Record<string, string> = { apikey: key, 'content-type': 'application/json' };

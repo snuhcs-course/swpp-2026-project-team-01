@@ -1,0 +1,20 @@
+import { z } from 'zod';
+
+const revision = z.number().int().nonnegative();
+const window = z.strictObject({ start: z.iso.datetime({ offset: true }), end: z.iso.datetime({ offset: true }) });
+export const requestDetails = z.strictObject({
+  requesterName: z.string().max(200), requesterEmail: z.union([z.email().max(254), z.literal('')]),
+  purpose: z.string().max(5000), durationMinutes: z.number().int().min(5).max(240).optional(),
+  timezone: z.string().max(100), windows: z.array(window).max(30),
+  mode: z.enum(['', 'online', 'in_person']), location: z.string().max(2000),
+});
+export const privateNoteInput = z.strictObject({ expectedRevision: revision, text: z.string().trim().min(1).max(10_000) });
+export const detailsUpdateInput = z.strictObject({ expectedRevision: revision, details: requestDetails });
+
+// No actor, request ID, execution grant, or human decision in model input.
+export const conversationTool = z.discriminatedUnion('operation', [
+  z.strictObject({ operation: z.literal('setup_read'), input: z.strictObject({}) }),
+  z.strictObject({ operation: z.literal('request_read'), input: z.strictObject({}) }),
+  z.strictObject({ operation: z.literal('private_note_save'), input: privateNoteInput }),
+  z.strictObject({ operation: z.literal('details_update'), input: detailsUpdateInput }),
+]);
