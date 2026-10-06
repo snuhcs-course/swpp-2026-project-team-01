@@ -1,12 +1,18 @@
 # Provider setup
 
-Configure the rebuild for the [implementation plan](04_implementation_plan.md). This document owns credentials, deployment origins and provider setup; capability specs own behavior, and the plan owns integration acceptance gates. No application runtime is available yet.
+Configure the rebuild for the [implementation plan](04_implementation_plan.md). This document owns credentials, deployment origins and provider setup; capability specs own behavior, and the plan owns integration acceptance gates. The initial eve/web runtime is deployed; scheduling and provider integrations remain under implementation.
 
 Keep credentials in the ignored root `.env` with file mode `0600`. Share names through [`.env.example`](../../.env.example), never values. Provision deployment secrets separately; local environment files do not configure remote services. Keep server and operator credentials out of browser bundles, model context and logs.
 
 ## Reconstruction deployment origin
 
 Use **`https://release.findmeatime.com`** with Supabase project **`mriseqztcwmezvtawnbo`**. Domain attachment, DNS, callbacks and HTTPS readiness require deployment verification.
+
+Runtime deployment verified on 2026-10-07: Vercel team `justdodos-projects`, project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`), Node 24. The main checkout is linked to this release project. Root-domain hosting remains in the existing `findmeatime` project. `APP_ORIGIN=https://release.findmeatime.com` and `OPENAI_MODEL=gpt-6-luna` are configured for production; provider credentials and callbacks must be configured as their protected adapters land. Local development uses `APP_ORIGIN=http://localhost:3000`.
+
+Cloudflare serves the DNS-only `A release.findmeatime.com 76.76.21.21` record requested by Vercel's inspection on that date. All 13 preexisting DNS records were preserved, including mail records; Cloudflare nameservers remain authoritative. HTTPS `/`, `/api/health` and `/eve/v1/health` return 200, and anonymous session creation returns 401. The app health response deliberately reports `releaseReady: false`.
+
+Deploy from the linked repository root with `vercel deploy --prod --scope justdodos-projects`; inspect the project first. `vercel.ts` composes independently built web/eve services. `.vercelignore` excludes credentials and generated local state; inspect uploads with `vercel deploy --prod --dry --json` before changing that boundary. See the [evidence ledger](05_rebuild_evidence.md) for current limitations.
 
 - Attach the subdomain to the intended Vercel project. Obtain exact DNS requirements with `vercel domains inspect release.findmeatime.com`, then apply DNS-only records through Cloudflare. Preserve root-domain, mail and unrelated records.
 - Set the application origin and Supabase Auth Site URL to the release origin. Allow `https://release.findmeatime.com/auth/callback` as the application return; the provider-side Supabase Auth callback is a separate URL belonging to the selected project.
@@ -19,7 +25,7 @@ Verify DNS, TLS, the expected deployment, Auth/Calendar returns, generated links
 
 ## Selected rebuild Supabase project
 
-Use **FindMeATime2**, project **`mriseqztcwmezvtawnbo`**: [project dashboard](https://supabase.com/dashboard/project/mriseqztcwmezvtawnbo). The main checkout is linked to this project. Before remote operations, confirm that the CLI link, `SUPABASE_PROJECT_REF` and `SUPABASE_URL` identify the same project.
+Use **FindMeATime2**, project **`mriseqztcwmezvtawnbo`**: [project dashboard](https://supabase.com/dashboard/project/mriseqztcwmezvtawnbo). Local configuration identifies this project, but CLI link metadata was absent at rebuild inventory. Before remote operations, explicitly link and confirm that the CLI link, `SUPABASE_PROJECT_REF` and `SUPABASE_URL` identify the same project.
 
 Verify schema, Auth, SMTP and provider configuration against this project independently. Follow the [schema workflow](../../AGENTS.md#supabase-schema-changes), review migration SQL and run `supabase db push --dry-run` before a remote push. Never reset a remote database for local setup.
 
@@ -31,7 +37,7 @@ Check each CLI's help before provider operations. Provider CLIs do not automatic
 
 ## OpenAI model access through eve
 
-Use eve's direct OpenAI provider, `openai(...)` from `eve/models/openai`, with server-side `OPENAI_API_KEY` and an explicit `OPENAI_MODEL`. Select and verify the native model ID during the runtime spike. Direct API calls use the intended OpenAI API organization's billing and applicable credits; ChatGPT/Codex subscription usage does not fund this API-key path.
+Use eve's direct OpenAI provider, `openai(...)` from `eve/models/openai`, with server-side `OPENAI_API_KEY` and an explicit `OPENAI_MODEL`. The initial verified model is `gpt-6-luna`; `npm run verify:model` checks a synthetic structured tool call through the installed eve provider. Direct API calls use the intended OpenAI API organization's billing and applicable credits; ChatGPT/Codex subscription usage does not fund this API-key path.
 
 A Gateway model string is a different routing choice. Verify direct provider routing, secret loading, model access and handling of authentication, rate-limit and exhausted-credit errors before claiming readiness. Failed model operations must not record scheduling success or approval. See [eve model configuration](https://github.com/vercel/eve/blob/d97f2a689299f7de74227b77450359c571a02dc9/docs/agent-config.md#L20-L48) and [OpenAI spend limits](https://developers.openai.com/api/docs/guides/spend-limits).
 
