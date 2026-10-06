@@ -15,6 +15,7 @@ Reconstruction target: **`https://release.findmeatime.com`**, using Supabase pro
 | [Interfaces](user_experience/03_interfaces.md) | Web, email, iMessage, personal-agent clients, MCP, CLI, and shared API responsibilities, including the proposed host email extension. |
 | [Page list](user_experience/04_page_list.md) | Proposed canonical web routes, audiences, in-chat action cards, connection surfaces, page states and requirement coverage for the rebuild. |
 | [Frontend architecture](technical_specification/02_frontend_architecture.md) | Proposed Next.js/eve boundaries, feature organization, state ownership, typed actions, identity, streaming and verification against the rebuilt backend. |
+| [Rebuild evidence](technical_specification/05_rebuild_evidence.md) | Current resource inventory, change ownership and AC-01–AC-28 acceptance ledger. |
 | [Implementation plan](technical_specification/04_implementation_plan.md) | Dependency-ordered rebuild phases, source ownership, decision deadlines and replacement acceptance evidence. |
 | [Technical specification](03_technical_specification.md) | Concise architecture overview, system guarantees and links to detailed design owners. |
 | [Backend architecture](technical_specification/01_backend_architecture.md) | Replacement domain/runtime boundaries, authorized commands, transactions, durable effects and recovery; deployment placement remains open. |
