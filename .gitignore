@@ -17,3 +17,4 @@ playwright-report/
 .output/
 .next/
 apps/web/next-env.d.ts
+.vercel
