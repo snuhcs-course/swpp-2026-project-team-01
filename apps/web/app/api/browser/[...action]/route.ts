@@ -8,8 +8,10 @@ import { guestCredential } from '../../../../../../lib/server/identity/credentia
 import { requireSameOrigin } from '../../../../../../lib/server/identity/http.ts';
 import { privateHeaders, readJson } from '../../../../../../lib/server/identity/request-credential.ts';
 import { browserSession, guestCookieName } from '../../../../lib/session.ts';
+import { conversationGateway } from '../../../../lib/conversation-gateway.ts';
 
 export const dynamic='force-dynamic';
+export const maxDuration=60;
 const commands=new BrowserCommands();
 const browserHeaders={...privateHeaders,'cache-control':'private, no-store',vary:'Cookie'};
 type Context={params:Promise<{action:string[]}>};
@@ -32,6 +34,7 @@ async function handle(request:NextRequest,{params}:Context) {
       return json(await commands.guest(guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??'')));
     }
     session=browserSession(request);
+    if(action==='conversations'||action.startsWith('conversations/'))return session.finish(await conversationGateway(request,(await params).action,session));
     if(action==='auth/start'&&request.method==='POST') {
       const {email}=emailInput.parse(await readJson(request));
       const {error}=await session.client.auth.signInWithOtp({email,options:{emailRedirectTo:applicationOrigin()+'/auth/callback'}});

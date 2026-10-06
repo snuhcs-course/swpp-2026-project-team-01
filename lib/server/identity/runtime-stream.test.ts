@@ -14,6 +14,9 @@ test('stream projection omits reasoning, tools, secrets and raw provider errors'
     assert.deepEqual(projectRuntimeEvent({ type, data: { secret: 'private-sentinel' }, meta: { id: 'private-sentinel' } }, 3), { cursor: 3, type: 'cursor' });
   }
   assert.equal(JSON.stringify(projectRuntimeEvent({ type: 'turn.failed', data: { message: 'private-sentinel' } }, 4)).includes('private-sentinel'), false);
+  const user=projectRuntimeEvent({type:'message.received',data:{message:'A safe input',turnId:'turn-1',sequence:1,parts:[{secret:'private-sentinel'}],auth:'private-sentinel'}},5);
+  assert.equal(user.type,'user');assert.equal(user.text,'A safe input');assert.equal(user.turnId,'turn-1');
+  assert.equal(JSON.stringify(user).includes('private-sentinel'),false);
   assert.equal(projectRuntimeEvent({ type: 'message.appended', data: { messageDelta: 'Visible text' } }, 5).text, 'Visible text');
 });
 

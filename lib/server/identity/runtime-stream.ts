@@ -8,6 +8,7 @@ export function projectRuntimeEvent(value: unknown, cursor: number): Record<stri
   const data = event?.data ?? {};
   const base = { cursor, id: event?.meta?.id };
   const position = { turnId: data.turnId, stepIndex: data.stepIndex, sequence: data.sequence };
+  if (event.type === 'message.received' && typeof data.message === 'string') return { ...base, type: 'user', ...position, text: data.message };
   if (event.type === 'message.appended' && typeof data.messageDelta === 'string') return { ...base, type: 'text', ...position, text: data.messageDelta };
   if (event.type === 'message.completed' && typeof data.message === 'string') return { ...base, type: 'message', ...position, text: data.message };
   if (['turn.started','step.started','turn.completed','turn.cancelled','session.waiting','session.completed'].includes(event.type ?? '')) {

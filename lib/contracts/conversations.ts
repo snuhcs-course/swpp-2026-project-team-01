@@ -12,3 +12,18 @@ export const conversationView = z.object({
   requestId: z.uuid().nullable(), readOnly: z.boolean(),
 });
 export type ConversationView = z.infer<typeof conversationView>;
+
+export const incomingMessage = z.strictObject({ clientId:z.uuid(), text:z.string().min(1).max(10_000).refine(v=>v.trim().length>0) });
+export const messageReceipt = z.object({ messageId:z.uuid(), status:z.enum(['pending','completed','failed']) });
+export const conversationSnapshot = conversationView.extend({messages:z.array(z.object({
+  id:z.uuid(),text:z.string(),status:z.enum(['pending','completed','failed']),createdAt:z.string(),mine:z.boolean(),
+}))});
+export type ConversationSnapshot = z.infer<typeof conversationSnapshot>;
+
+const position={cursor:z.number().int().positive(),id:z.string().optional(),turnId:z.string().optional(),stepIndex:z.number().int().optional(),sequence:z.number().int().optional()};
+export const conversationEvent=z.discriminatedUnion('type',[
+  z.object({...position,type:z.enum(['user','text','message']),text:z.string()}),
+  z.object({...position,type:z.enum(['cursor','turn.started','step.started','turn.completed','turn.cancelled','session.waiting','session.completed','failed'])}),
+  z.object({type:z.literal('error'),error:z.object({code:z.string(),message:z.string()})}),
+]);
+export type ConversationEvent=z.infer<typeof conversationEvent>;

@@ -99,6 +99,14 @@ Deployed code commit `7c38bfc` on 2026-10-07. All thirteen migrations are curren
 
 Foundation task 3.1 is complete for the authenticated/protected route shells, safe Auth return, request credential exchange, CSRF, reload and private caching. Browser chat, Calendar consent/context restoration and complete scheduling journeys remain pending in their owning tasks; all AC and phase-exit gates remain open. The configured AgentMail inbox is readable, but CLI 1.9.0 returns `403 missing_permission` for webhook inspection because the runtime key lacks `webhook_read`. No production Auth email was sent into that mailbox while its consumer isolation is unverified.
 
+## Browser conversation transport
+
+Verified locally on 2026-10-07: admitted `/app` hosts and active `/booking/[bookingId]` requesters can send, stream and replay their authorized conversation through a cookie-authenticated web gateway. The gateway allowlists application routes, rejects arbitrary upstreams/framework controls, forwards current server-verified credentials and removes runtime-only fields. Absolute cursors deduplicate replay; completed text replaces partial blocks; retry after a lost acknowledgment uses the same message ID. Revocation aborts the reader and clears rendered history; closed requester access returns to the permitted receipt. Shared messages use a neutral participant label rather than claiming sender attribution.
+
+Validation: `npm run check` passes 24 application and four SMTP tests, including gateway credential/route boundaries and transcript replay. Separate web/eve builds and production-server anonymous-denial smoke tests pass. The actual-eve process-kill fixture still verifies one committed tool effect and scheduled lost-dispatch recovery. The Chromium browser journey now uses a real isolated eve channel with a deterministic model and verifies host/requester messages, reload, one input after a lost POST acknowledgment, dropped-stream replay without duplicates, host/shared history separation and revocation while connected. CI runs that same fixture. No migration is introduced in this slice.
+
+Visual verdict: pass for conversation rendering at desktop 1280×900, phone 390×844, 320px reflow and CSS 200% magnification. Labels remain readable and the existing keyboard focus checks pass. Native browser zoom, iPhone Safari/iMessage handoff and complete scheduling controls remain unverified. shadcn `radix-nova` components, `@shadcn/react` 0.3.1, AI Elements suggestions and Tailwind 4.3.3 are pinned/configured for the web application. Calendar setup, proposal decisions, provider journeys and full phase/acceptance gates remain open.
+
 ## Initial production runtime deployment
 
 On 2026-10-07, deployed commit `7b3085b` to Vercel project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`) in `justdodos-projects`. The checkout is explicitly linked to this project; the existing root-domain project is preserved.

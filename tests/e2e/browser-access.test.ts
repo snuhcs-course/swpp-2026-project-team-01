@@ -5,14 +5,16 @@ import {once} from 'node:events';
 import {setTimeout as delay} from 'node:timers/promises';
 import {randomUUID,createHash,randomBytes} from 'node:crypto';
 import {mkdir,writeFile} from 'node:fs/promises';
+import {startBrowserRuntime} from '../runtime/fixture-server.ts';
 import {chromium} from '@playwright/test';
 import {LocalSql} from '../integration/local-sql.ts';
 
-test('browser access verifies email, invitation, logout, and request cookies without leaking credentials', {timeout:180000}, async()=>{
+test('browser access verifies email, invitation, logout, and request cookies without leaking credentials', {timeout:300000}, async()=>{
   const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
   assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
   const origin='http://localhost:3000';
-  const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','apps/web','-p','3000'],{env:{...process.env,APP_ORIGIN:origin,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY},stdio:['ignore','pipe','pipe']});
+  const runtime=await startBrowserRuntime(local,origin);
+  const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','apps/web','-p','3000'],{env:{...process.env,APP_ORIGIN:origin,EVE_LOCAL_ORIGIN:runtime.origin,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY},stdio:['ignore','pipe','pipe']});
   let log='';child.stdout.on('data',v=>log+=v);child.stderr.on('data',v=>log+=v);
   const sql=new LocalSql();const email=`browser-${randomUUID()}@example.test`,invitation=randomUUID(),requestId=randomUUID();
   const token=randomBytes(32).toString('base64url'),code='ABCDEFGHIJKLMNOP';let userId:string|undefined,callback='';
@@ -42,8 +44,35 @@ test('browser access verifies email, invitation, logout, and request cookies wit
     const row=await sql.query(`select id from auth.users where email='${email}';`);assert.match(row,/^[a-f0-9-]{36}$/u);userId=row;
     await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invitation}','${email}','${createHash('sha256').update(code).digest('hex')}',now()+interval '1 day','browser-test');`);
     await page.getByLabel('Invitation code').fill('ZZZZ-ZZZZ-ZZZZ-ZZZZ');await page.getByRole('button',{name:'Use invitation'}).click();await page.getByRole('alert').filter({hasText:'This invitation cannot be used'}).waitFor();
-    await page.getByLabel('Invitation code').fill('ABCD-EFGH-IJKL-MNOP');await page.getByRole('button',{name:'Use invitation'}).click();await page.getByRole('heading',{name:'Host access confirmed'}).waitFor();
-    await page.reload();await page.getByRole('heading',{name:'Host access confirmed'}).waitFor();
+    await page.getByLabel('Invitation code').fill('ABCD-EFGH-IJKL-MNOP');await page.getByRole('button',{name:'Use invitation'}).click();await page.getByRole('heading',{name:'Welcome to your workspace.'}).waitFor();
+    await page.reload();await page.getByRole('heading',{name:'Welcome to your workspace.'}).waitFor();
+    const composer=page.getByLabel('Message your scheduling assistant');
+    await composer.fill('Help me plan a focused week.');await page.getByRole('button',{name:'Send',exact:true}).click();
+    await page.getByText('Reply 1: Help me plan a focused week.',{exact:true}).waitFor();
+    await page.reload();await page.getByText('Reply 1: Help me plan a focused week.',{exact:true}).waitFor();
+    // Lose only the browser acknowledgment: the server still accepted the input.
+    let lost=false;
+    await page.route('**/api/browser/conversations/*/messages',async route=>{if(lost)return route.continue();lost=true;await route.fetch();await route.abort('failed');});
+    await composer.fill('A second question after reconnect.');await page.getByRole('button',{name:'Send',exact:true}).click();
+    await page.getByRole('button',{name:'Retry same message'}).waitFor();await page.getByRole('button',{name:'Retry same message'}).click();
+    await page.getByText('Reply 2: A second question after reconnect.',{exact:true}).waitFor();
+    await page.unroute('**/api/browser/conversations/*/messages');
+    assert.equal(await sql.query(`select count(*) from fmat.runtime_messages m join fmat.conversation_scopes c on c.id=m.conversation_id where c.host_id='${userId}' and c.audience='host_setup';`),'2','Uncertain acknowledgment retries the same input');
+    // Replay after a dropped stream reconstructs each message exactly once.
+    let dropped=false;
+    await page.route('**/api/browser/conversations/*/stream?*',async route=>{if(dropped)return route.continue();dropped=true;await route.abort('failed');});
+    await page.reload();await page.getByText('Reply 2: A second question after reconnect.',{exact:true}).waitFor();
+    assert.equal(await page.getByText('Reply 1: Help me plan a focused week.',{exact:true}).count(),1);
+    assert.equal(await page.locator('.chat-text').count(),4);
+    await page.unroute('**/api/browser/conversations/*/stream?*');
+    await page.screenshot({path:'.local/rebuild/browser-screenshots/chat-desktop.png',fullPage:true});
+    await page.setViewportSize({width:390,height:844});await page.screenshot({path:'.local/rebuild/browser-screenshots/chat-mobile.png',fullPage:true});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await page.setViewportSize({width:320,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await page.setViewportSize({width:1280,height:900});await page.evaluate(()=>{document.documentElement.style.zoom='2';});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await page.screenshot({path:'.local/rebuild/browser-screenshots/chat-css-zoom-200.png',fullPage:true});
+    await page.evaluate(()=>{document.documentElement.style.zoom='';});
     assert.equal(await page.evaluate(()=>document.cookie),'');
     const cookies=await context.cookies();assert.ok(cookies.some(c=>c.name.startsWith('fmat-auth')&&c.httpOnly&&c.sameSite==='Lax'));
     const hostResponse=await context.request.get(origin+'/api/browser/host/state');assert.equal(hostResponse.status(),200);assert.match(hostResponse.headers()['cache-control'],/private.*no-store/u);
@@ -61,8 +90,12 @@ test('browser access verifies email, invitation, logout, and request cookies wit
     const guestResponse=await context.request.get(origin+'/api/browser/guest/state?requestId='+requestId);assert.match(guestResponse.headers()['cache-control'],/private.*no-store/u);
     assert.ok((await context.cookies()).some(c=>c.name==='fmat-request-'+requestId&&c.httpOnly&&c.sameSite==='Lax'));
     const other=await browser.newContext();const denied=await other.request.get(origin+'/api/browser/guest/state?requestId='+requestId);assert.equal(denied.status(),401);await other.close();
+    await composer.fill('A private requester question.');await page.getByRole('button',{name:'Send',exact:true}).click();
+    await page.getByText('Reply 1: A private requester question.',{exact:true}).waitFor();
+    assert.equal(await page.getByText('Help me plan a focused week.',{exact:true}).count(),0,'Host setup never enters requester history');
+    await page.reload();await page.getByText('Reply 1: A private requester question.',{exact:true}).waitFor();
     await sql.query(`update fmat.requests set status='declined',token_revoked_at=now() where id='${requestId}';`);
-    await page.reload();await page.getByRole('heading',{name:'Meeting status'}).waitFor();assert.equal(await page.getByText('A protected discussion').count(),0);
+    await page.getByRole('heading',{name:'Meeting status'}).waitFor();assert.equal(await page.locator('.chat-text').count(),0,'Revocation removes existing transcript without a reload');assert.equal(await page.getByText('A protected discussion').count(),0);
     await page.setViewportSize({width:390,height:844});await page.goto(origin+'/app');await page.getByLabel('Email address').waitFor();
     await page.screenshot({path:'.local/rebuild/browser-screenshots/host-mobile.png',fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
@@ -77,10 +110,10 @@ test('browser access verifies email, invitation, logout, and request cookies wit
     assert.equal(await sql.query(`select count(*) from fmat.waitlist where email='${email}';`),'1');
   }finally{
     await page.screenshot({path:'.local/rebuild/browser-screenshots/last-state.png',fullPage:true}).catch(()=>{});
-    await browser.close();if(child.exitCode===null){const closed=once(child,'close');child.kill('SIGTERM');await closed;}await writeFile('.local/rebuild/browser-server.log',log);
+    await browser.close();await runtime.stop();if(child.exitCode===null){const closed=once(child,'close');child.kill('SIGTERM');await closed;}await writeFile('.local/rebuild/browser-server.log',log);
     userId ||= await sql.query(`select id from auth.users where email='${email}';`);
     const cleanupId=userId||'00000000-0000-4000-8000-000000000000';
-    await sql.query(`delete from fmat.request_history where request_id='${requestId}';delete from fmat.requests where id='${requestId}';delete from fmat.idempotency where actor_scope='host:${cleanupId}' or input->>'email'='${email}';delete from fmat.audit_events where subject_id in ('${cleanupId}','${invitation}');delete from fmat.hosts where id='${cleanupId}';delete from fmat.invitations where id='${invitation}';delete from fmat.waitlist where email='${email}';`).finally(()=>sql.close());
+    await sql.query(`delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.conversation_scopes where host_id='${cleanupId}';delete from fmat.request_history where request_id='${requestId}';delete from fmat.requests where id='${requestId}';delete from fmat.idempotency where actor_scope='host:${cleanupId}' or input->>'email'='${email}';delete from fmat.audit_events where subject_id in ('${cleanupId}','${invitation}');delete from fmat.hosts where id='${cleanupId}';delete from fmat.invitations where id='${invitation}';delete from fmat.waitlist where email='${email}';`).finally(()=>sql.close());
     if(userId)await fetch(local.API_URL+'/auth/v1/admin/users/'+userId,{method:'DELETE',headers:adminHeaders});
   }
 });

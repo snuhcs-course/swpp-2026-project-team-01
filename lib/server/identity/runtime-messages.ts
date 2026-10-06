@@ -3,7 +3,8 @@ import { Database } from '../database/client.ts';
 import { ApplicationError } from '../errors.ts';
 import type { ConversationGrant } from './conversations.ts';
 
-export const incomingMessage = z.strictObject({ clientId: z.uuid(), text: z.string().min(1).max(10_000).refine(v => v.trim().length > 0) });
+import { incomingMessage } from '../../contracts/conversations.ts';
+export { incomingMessage } from '../../contracts/conversations.ts';
 const receipt = z.object({ id: z.uuid(), text: z.string(), status: z.enum(['pending', 'completed', 'failed']) });
 export const runtimeAuth = z.object({
   authenticator: z.literal('fmat-conversation'), principalType: z.literal('user'), principalId: z.uuid(),

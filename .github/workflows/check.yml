@@ -48,5 +48,5 @@ jobs:
           NEXT_TELEMETRY_DISABLED: '1'
       - name: Install browser test runtime
         run: npx playwright install --with-deps chromium
-      - name: Verify browser authentication and private request access
+      - name: Verify browser access, conversation replay and revocation
         run: npm run test:browser
