@@ -17,6 +17,7 @@ const domainErrors: Record<string, [ErrorCode, number]> = {
   UNAUTHORIZED: ['UNAUTHORIZED', 401], FORBIDDEN: ['FORBIDDEN', 403],
   NOT_FOUND: ['NOT_FOUND', 404], HOST_NOT_ADMITTED: ['HOST_NOT_ADMITTED', 403],
   INVALID_INPUT: ['INVALID_INPUT', 400], IDEMPOTENCY_REQUIRED: ['INVALID_INPUT', 400],
+  INVITATION_INVALID: ['INVITATION_INVALID', 400],
   IDEMPOTENCY_CONFLICT: ['IDEMPOTENCY_CONFLICT', 409],
   REVISION_CONFLICT: ['STALE_REVISION', 409], PROPOSAL_CONFLICT: ['STALE_REVISION', 409],
   REQUEST_CLOSED: ['NOT_FOUND', 404], REQUEST_EXPIRED: ['NOT_FOUND', 404],
@@ -26,7 +27,7 @@ const domainErrors: Record<string, [ErrorCode, number]> = {
 export class Database {
   constructor(private readonly env = process.env, private readonly fetcher: Fetch = fetch) {}
 
-  async rpc(name: 'fmat_command' | 'fmat_conversation_access' | 'fmat_conversation_check' | 'fmat_conversation_tool' | 'fmat_runtime_message' | 'fmat_runtime_dispatch', parameters: Record<string, unknown>): Promise<unknown> {
+  async rpc(name: 'fmat_command' | 'fmat_conversation_access' | 'fmat_conversation_check' | 'fmat_conversation_tool' | 'fmat_runtime_message' | 'fmat_runtime_dispatch' | 'fmat_browser_command', parameters: Record<string, unknown>): Promise<unknown> {
     const origin = supabaseOrigin(this.env);
     const key = requiredEnv('SUPABASE_SECRET_KEY', this.env);
     const headers: Record<string, string> = { apikey: key, 'content-type': 'application/json' };

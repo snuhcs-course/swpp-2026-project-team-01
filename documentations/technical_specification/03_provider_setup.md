@@ -54,6 +54,10 @@ node --env-file=.env scripts/configure-email-smtp.mjs --apply
 
 The tool requires matching project reference, URL and CLI link. Apply mode also requires operator-only `SUPABASE_ACCESS_TOKEN`, rejects an overriding Send Email Auth Hook and verifies settings by readback. Configuration readback does not prove inbox delivery; verify controlled Auth and transactional messages through the deployed application.
 
+On 2026-10-07, the selected project's Auth Site URL, release/local `/auth/callback` allowlist and Cloudflare SMTP were configured through authenticated Supabase CLI 2.119.0. A sparse config in an ignored work directory declared only `[auth].site_url`, `additional_redirect_urls` and `[auth.email.smtp]`; the SMTP password references `env(CLOUDFLARE_EMAIL_API_TOKEN)`. `supabase config diff --workdir <sparse-workdir> --project-ref mriseqztcwmezvtawnbo --output-format json` previews declared changes, and `supabase config push` with the same target/workdir applies them. Load the token into that process environment without printing it. CLI authentication can use its existing login; the repository SMTP script separately requires a Management API token.
+
+Inspect the diff before pushing: undeclared remote-only settings must remain untouched, including Google Auth and MFA. Do not push the full local-development config to production. Readback found no declared differences; this confirms callback/SMTP configuration, while controlled production Auth inbox delivery remains unverified. Local browser tests use Mailpit and do not establish Cloudflare delivery.
+
 References: [Cloudflare Email Service](https://developers.cloudflare.com/email-service/), [Cloudflare SMTP](https://developers.cloudflare.com/email-service/api/send-emails/smtp/), [Supabase custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp).
 
 ## AgentMail
@@ -118,5 +122,7 @@ Run `npm ci` and `npm run check` for documentation, application typechecks and u
 ## Runtime inbox recovery scheduler
 
 The release database runs `fmat-runtime-dispatch` every minute. `fmat.wake_runtime_dispatch()` sends an HTTP request only when pending input is due and both Vault entries exist: `fmat_runtime_dispatch_url` (the verified origin plus `/api/internal/conversations/dispatch`) and `fmat_runtime_dispatch_secret` (64 lowercase hex characters). The same secret is the server-only `RUNTIME_DISPATCH_SECRET` on the selected Vercel production project. Use a dedicated random secret; never reuse provider keys or store secret literals in cron commands/migrations. Follow the [Supabase Cron/HTTP/Vault pattern](https://supabase.com/docs/guides/functions/schedule-functions).
+
+The named `cron.schedule` definition also belongs in `supabase/schemas/11_runtime_dispatch.sql`. pg-delta tracks named jobs: omitting it from desired schema can emit `cron.unschedule` during an unrelated migration. Keep the original installer migration as history and review generated cron operations alongside grants and destructive SQL.
 
 Provision Vault only after verifying the intended deployment, then verify the protected endpoint and an actual scheduled wake-up. Previews and disposable local databases leave these entries absent. Do not copy release Vault entries into a preview. To stop recovery during an incident, disable this named cron job; preserve inbox rows and their canonical session IDs. Restore the matching deployment/credential, re-enable the job, and inspect `dispatch_error`, `dispatch_attempts`, `next_dispatch_at` and turn status. A sent transport is not a completed turn. Do not replace a bound workflow to clear a stuck message; reconcile it explicitly. Rotate the Vault and Vercel values together and redeploy before resuming the job.

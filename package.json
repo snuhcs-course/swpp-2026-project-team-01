@@ -22,10 +22,13 @@
     "test:runtime": "node scripts/smoke-runtime.mjs",
     "verify:model": "node --import tsx --env-file-if-exists=.env scripts/verify-model.mjs",
     "test:integration": "tsx --test tests/integration/*.test.ts",
-    "test:conversations": "tsx --test tests/runtime/*.test.ts"
+    "test:conversations": "tsx --test tests/runtime/*.test.ts",
+    "test:browser": "tsx --test tests/e2e/*.test.ts"
   },
   "type": "module",
   "dependencies": {
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.117.2",
     "ai": "7.0.105",
     "eve": "0.71.3",
     "next": "16.4.0",
@@ -34,6 +37,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/node": "25.9.5",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",

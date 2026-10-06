@@ -63,3 +63,7 @@ begin
 end;
 $$;
 revoke all on function fmat.wake_runtime_dispatch() from public,anon,authenticated,service_role;
+
+-- pg-delta tracks named cron definitions; retain this alongside its installer
+-- migration so later unrelated diffs cannot unschedule recovery.
+select cron.schedule('fmat-runtime-dispatch','* * * * *','select fmat.wake_runtime_dispatch();');

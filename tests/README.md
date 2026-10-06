@@ -6,6 +6,8 @@ These directories reserve the replacement integration and browser test locations
 - `runtime/`: isolated actual-eve fixtures with deterministic model output and real database effects.
 - `e2e/`: complete browser journeys against the rebuilt application.
 
+`npm run test:browser` requires a built web application, local Supabase/Mailpit, Chromium (`npx playwright install chromium`) and free port 3000. It verifies email PKCE sign-in, invalid/valid invitation redemption, reload, logout including a copied session, callback replay, forged cookies, private-link exchange, cross-browser denial, closed-state privacy and deduplicated waitlist submission. It checks no-store responses, HttpOnly cookies, keyboard focus, 320/390px reflow and CSS 200% magnification. Screenshots stay in ignored `.local/rebuild/browser-screenshots/`. CSS magnification does not certify native browser zoom or actual iPhone Safari/iMessage handoffs; those release checks remain pending. The fixture rejects non-loopback Supabase targets and sends email only to local Mailpit.
+
 Keep unit tests beside their modules and database tests in `supabase/tests/`. Run `npm run check` for types, HTTP security, documentation and SMTP tests. After `npm run build`, run `npm run test:runtime` for health, response headers and anonymous denial at every exposed eve session endpoint. Run `npm run db:test` against the disposable local Supabase stack. The evidence ledger distinguishes the implemented authorization/recovery checks from outstanding browser and provider journeys; do not count empty directories as coverage.
 
 See the [implementation plan](../documentations/technical_specification/04_implementation_plan.md).

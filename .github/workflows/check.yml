@@ -41,3 +41,12 @@ jobs:
         run: npm run test:integration
       - name: Verify authorized eve conversations and process-kill recovery
         run: npm run test:conversations
+      - name: Build browser application
+        run: npm run build:web
+        env:
+          OPENAI_MODEL: gpt-6-luna
+          NEXT_TELEMETRY_DISABLED: '1'
+      - name: Install browser test runtime
+        run: npx playwright install --with-deps chromium
+      - name: Verify browser authentication and private request access
+        run: npm run test:browser

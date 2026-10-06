@@ -83,6 +83,18 @@ Deployed code commit `e07fe44` on 2026-10-07. All twelve migrations are current 
 
 The actual `fmat-runtime-dispatch` cron tick at **2026-10-07 07:08 KST** reached the production endpoint and retired a synthetic message with an already-revoked grant as `failed` / `ACCESS_REVOKED`, with no runtime session created. No manual dispatch was invoked after inserting this fixture. Cron records show success; exact synthetic inbox/grant/scope/host/invitation rows were removed afterward. This proves the scheduled HTTP path and revocation guard, while the local deterministic fixture proves delivery to eve after a lost send. Neither substitutes for managed Workflow process-crash evidence. Upload preflight checked 167 regular source files against 17 configured secrets and found none.
 
+## Browser access foundation
+
+Verified locally on 2026-10-07: `/app` now supports email PKCE sign-in, waitlist submission, invitation redemption, reload and sign-out. `/booking/[bookingId]` exchanges a private fragment for a request-specific HttpOnly cookie and loads only the authorized state. The service-only browser RPC checks current Auth sessions and derives email from Auth records. Same-origin JSON mutations, private/no-store responses and server-only cookie refresh keep credentials out of browser JavaScript. The browser conversation and Calendar/setup controls remain pending.
+
+The thirteenth migration rebuilds locally; seven pgTAP suites pass 531 assertions, including narrow browser-role permissions, identity derivation, expiry and cross-request denial. Twenty application tests, four SMTP tests and four Auth/concurrency integration tests pass. Playwright 1.63.0 with Chromium 153.0.8010.12 passes the actual local Auth/Mailpit → invitation → reload → logout journey, copied-session revocation, callback replay, forged cookies, private-link exchange/reload, separate-browser denial, closed-request privacy and waitlist deduplication. CI now installs Chromium and runs this browser test.
+
+Visual verdict: pass for the access forms at desktop 1280×900 and phone 390×844, with readable labels, visible keyboard focus and no horizontal overflow at 320/390px. CSS 200% magnification also remains readable; native browser zoom and actual iPhone Safari/iMessage handoffs remain unverified. Test screenshots are local ignored artifacts. A same-path fragment-navigation bug was found and fixed; a response sequence guard prevents an older link exchange from replacing the current state.
+
+Migration review caught a proposed cron unschedule because the named recovery job was missing from desired schema. The unapplied draft was discarded, the named schedule was added to its owning desired-schema file, and `20261006221555_browser_access.sql` was regenerated without the removal. Applied history is unchanged. The generated SQL adds one service-only browser RPC and repeats the existing, identical event-ID check constraint. Local security advisors report no issues. No complete phase exit or release acceptance case is certified by this access slice.
+
+Selected-project Auth callback and Cloudflare SMTP configuration were applied through a sparse CLI config and verified by readback with no declared differences. Existing Google Auth/MFA settings were preserved. Production inbox delivery remains pending; local Mailpit delivery is separate evidence.
+
 ## Initial production runtime deployment
 
 On 2026-10-07, deployed commit `7b3085b` to Vercel project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`) in `justdodos-projects`. The checkout is explicitly linked to this project; the existing root-domain project is preserved.

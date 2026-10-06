@@ -42,6 +42,14 @@ select throws_ok($$select public.fmat_conversation_access('identity',pg_temp.f('
 select throws_ok($$select public.fmat_conversation_access('open','{"kind":"operator"}','{"audience":"host_setup"}')$$,'P0001','UNAUTHORIZED','operator claims cannot become conversation identity');
 select throws_ok($$select pg_temp.access('open','host3','{"audience":"host_setup"}')$$,'P0001','HOST_NOT_ADMITTED','unadmitted sign-in cannot open private history');
 
+select ok(not has_function_privilege('authenticated','public.fmat_browser_command(text,jsonb,jsonb)','EXECUTE'),'browser cannot supply credential JSON to the service RPC');
+select is(public.fmat_browser_command('host_state',pg_temp.f('host1'),'{}')->>'email','one@access.test','browser state derives verified email from Auth');
+select is(public.fmat_browser_command('host_state',pg_temp.f('host3'),'{}')->>'admitted','false','uninvited verified account gets only admission state');
+select ok(not(public.fmat_browser_command('host_state',pg_temp.f('host1'),'{}') ?| array['rules','credential','sessionId']),'browser access projection omits private configuration and authority');
+select throws_ok($$select public.fmat_browser_command('host_state',pg_temp.f('guest1'),'{}')$$,'P0001','FORBIDDEN','guest cannot query host admission');
+select throws_ok($$select public.fmat_browser_command('host_approve',pg_temp.f('host1'),'{}')$$,'P0001','FORBIDDEN','browser access adapter cannot dispatch arbitrary commands');
+select throws_ok($$select public.fmat_browser_command('guest_state',pg_temp.f('guest1')||jsonb_build_object('requestId','83000000-0000-4000-8000-000000000002'),'{}')$$,'P0001','NOT_FOUND','guest state cannot cross request boundary');
+
 insert into fixture values ('setup1',pg_temp.access('open','host1','{"audience":"host_setup"}')),
 ('setup2',pg_temp.access('open','host2','{"audience":"host_setup"}')),
 ('private1',pg_temp.access('open','host1','{"audience":"host_private","requestId":"83000000-0000-4000-8000-000000000001"}')),
@@ -138,6 +146,7 @@ select is(jsonb_array_length(public.fmat_runtime_dispatch('claim','{}')),0,'ackn
 select is(fmat.wake_runtime_dispatch(),null::bigint,'unconfigured scheduler performs no network request');
 
 update auth.sessions set not_after=now()-interval '1 second' where id='81000000-0000-4000-8000-000000000001';
+select throws_ok($$select public.fmat_browser_command('host_state',pg_temp.f('host1'),'{}')$$,'P0001','UNAUTHORIZED','browser state denies an expired Auth session');
 select throws_ok($$select pg_temp.check_grant('setup1')$$,'P0001','UNAUTHORIZED','session expiry interrupts existing execution grant');
 update auth.sessions set not_after=null where id='81000000-0000-4000-8000-000000000001';
 update auth.users set banned_until=now()+interval '1 day' where id='80000000-0000-4000-8000-000000000001';
