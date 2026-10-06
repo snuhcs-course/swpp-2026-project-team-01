@@ -8,6 +8,7 @@ import { guestCredential } from '../../../../../../lib/server/identity/credentia
 import { requireSameOrigin } from '../../../../../../lib/server/identity/http.ts';
 import { privateHeaders, readJson } from '../../../../../../lib/server/identity/request-credential.ts';
 import { browserSession, guestCookieName } from '../../../../lib/session.ts';
+import { calendarCommands, calendarCookie, calendarCredential } from '../../../../lib/calendar-browser.ts';
 import { conversationGateway } from '../../../../lib/conversation-gateway.ts';
 
 export const dynamic='force-dynamic';
@@ -35,6 +36,18 @@ async function handle(request:NextRequest,{params}:Context) {
     }
     session=browserSession(request);
     if(action==='conversations'||action.startsWith('conversations/'))return session.finish(await conversationGateway(request,(await params).action,session));
+    if(action==='calendar/status'&&request.method==='GET') {
+      const requestId=request.nextUrl.searchParams.get('requestId');
+      return session.finish(json(await calendarCommands.status(await calendarCredential(request,session,requestId?{requestId}:{}))));
+    }
+    if((action==='calendar/start'||action==='calendar/disconnect')&&request.method==='POST') {
+      const credential=await calendarCredential(request,session,await readJson(request));
+      if(action==='calendar/disconnect')return session.finish(json(await calendarCommands.disconnect(credential)));
+      const started=await calendarCommands.start(credential),secure=applicationOrigin().startsWith('https:');
+      const response=json({url:started.url});
+      response.cookies.set(calendarCookie(started.state,secure),started.binding,{httpOnly:true,secure,sameSite:'lax',path:'/',maxAge:600});
+      return session.finish(response);
+    }
     if(action==='auth/start'&&request.method==='POST') {
       const {email}=emailInput.parse(await readJson(request));
       const {error}=await session.client.auth.signInWithOtp({email,options:{emailRedirectTo:applicationOrigin()+'/auth/callback'}});

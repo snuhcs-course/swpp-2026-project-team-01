@@ -14,6 +14,8 @@ export function supabaseOrigin(env = process.env): string {
 }
 
 const domainErrors: Record<string, [ErrorCode, number]> = {
+  OAUTH_STATE_INVALID: ['OAUTH_STATE_INVALID', 400], RECONNECT_REQUIRED: ['RECONNECT_REQUIRED', 409],
+  INSUFFICIENT_SCOPES: ['RECONNECT_REQUIRED', 409], CONSENT_LIMIT: ['CONSENT_LIMIT', 429],
   UNAUTHORIZED: ['UNAUTHORIZED', 401], FORBIDDEN: ['FORBIDDEN', 403],
   NOT_FOUND: ['NOT_FOUND', 404], HOST_NOT_ADMITTED: ['HOST_NOT_ADMITTED', 403],
   INVALID_INPUT: ['INVALID_INPUT', 400], IDEMPOTENCY_REQUIRED: ['INVALID_INPUT', 400],
@@ -27,7 +29,7 @@ const domainErrors: Record<string, [ErrorCode, number]> = {
 export class Database {
   constructor(private readonly env = process.env, private readonly fetcher: Fetch = fetch) {}
 
-  async rpc(name: 'fmat_command' | 'fmat_conversation_access' | 'fmat_conversation_check' | 'fmat_conversation_tool' | 'fmat_runtime_message' | 'fmat_runtime_dispatch' | 'fmat_browser_command', parameters: Record<string, unknown>): Promise<unknown> {
+  async rpc(name: 'fmat_command' | 'fmat_conversation_access' | 'fmat_conversation_check' | 'fmat_conversation_tool' | 'fmat_runtime_message' | 'fmat_runtime_dispatch' | 'fmat_browser_command' | 'fmat_calendar_consent', parameters: Record<string, unknown>): Promise<unknown> {
     const origin = supabaseOrigin(this.env);
     const key = requiredEnv('SUPABASE_SECRET_KEY', this.env);
     const headers: Record<string, string> = { apikey: key, 'content-type': 'application/json' };

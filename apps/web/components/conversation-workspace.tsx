@@ -2,6 +2,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { ArrowUpIcon, RefreshCwIcon } from 'lucide-react';
 import { useConversation, type ChatTarget } from '../lib/use-conversation.ts';
+import { CalendarConnection } from './calendar-connection.tsx';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Field, FieldGroup, FieldLabel, FieldDescription } from './ui/field';
@@ -22,8 +23,9 @@ export function ConversationWorkspace({target,onAccessLost}:{target:ChatTarget;o
         <MessageScrollerViewport aria-label="Conversation">
           <MessageScrollerContent className="p-2 md:p-4">
             <MessageScrollerItem messageId="welcome">
-              <Alert><AlertTitle>{host?'A place to plan your meetings':'Let’s work out the details'}</AlertTitle><AlertDescription>{host?'Tell me about the meetings you want to make room for. Calendar connection and settings review are the next steps being added.':'Share your purpose, availability and meeting preferences. Details can be saved here; proposal and booking controls are still being added.'}</AlertDescription></Alert>
+              <Alert><AlertTitle>{host?'A place to plan your meetings':'Let’s work out the details'}</AlertTitle><AlertDescription>{host?'Tell me about the meetings you want to make room for. Connect your calendar below, then we’ll work through your meeting preferences.':'Share your purpose, availability and meeting preferences. Details can be saved here; proposal and booking controls are still being added.'}</AlertDescription></Alert>
             </MessageScrollerItem>
+            {host||('guest' in target&&target.guest)?<MessageScrollerItem messageId="calendar-connection"><CalendarConnection requestId={'guest' in target&&target.guest?target.requestId:undefined}/></MessageScrollerItem>:null}
             {chat.messages.map(message=><MessageScrollerItem key={message.id} messageId={message.id} scrollAnchor={message.role==='user'}>
               <Message align={message.role==='user'?'end':'start'}><MessageContent><MessageHeader>{message.role==='user'?(target.audience==='request_shared'?'Meeting participant':'You'):'Find Me a Time'}</MessageHeader><Bubble variant={message.role==='user'?'secondary':'ghost'} align={message.role==='user'?'end':'start'}><BubbleContent><span className="chat-text">{message.text}</span></BubbleContent></Bubble></MessageContent></Message>
             </MessageScrollerItem>)}

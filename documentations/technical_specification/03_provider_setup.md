@@ -8,7 +8,7 @@ Keep credentials in the ignored root `.env` with file mode `0600`. Share names t
 
 Use **`https://release.findmeatime.com`** with Supabase project **`mriseqztcwmezvtawnbo`**. Domain attachment, DNS, callbacks and HTTPS readiness require deployment verification.
 
-Runtime deployment verified on 2026-10-07: Vercel team `justdodos-projects`, project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`), Node 24. The main checkout is linked to this release project. Root-domain hosting remains in the existing `findmeatime` project. Production config includes `APP_ORIGIN=https://release.findmeatime.com`, `OPENAI_MODEL=gpt-6-luna`, the selected Supabase URL/keys and the server-only OpenAI key. Other provider credentials and callbacks must be configured as their protected adapters land. Local development uses `APP_ORIGIN=http://localhost:3000`.
+Runtime deployment verified on 2026-10-07: Vercel team `justdodos-projects`, project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`), Node 24. The main checkout is linked to this release project. Root-domain hosting remains in the existing `findmeatime` project. Production config includes `APP_ORIGIN=https://release.findmeatime.com`, `OPENAI_MODEL=gpt-6-luna`, the selected Supabase URL/keys and the server-only OpenAI key. Google client credentials and the preserved token-encryption key are now configured as production-only secrets. Other provider credentials and callbacks must be configured as their protected adapters land. Local development uses `APP_ORIGIN=http://localhost:3000`.
 
 Cloudflare serves the DNS-only `A release.findmeatime.com 76.76.21.21` record requested by Vercel's inspection on that date. All 13 preexisting DNS records were preserved, including mail records; Cloudflare nameservers remain authoritative. HTTPS `/`, `/api/health` and `/eve/v1/health` return 200, and anonymous session creation returns 401. The app health response deliberately reports `releaseReady: false`.
 
@@ -25,7 +25,7 @@ Verify DNS, TLS, the expected deployment, Auth/Calendar returns, generated links
 
 ## Selected rebuild Supabase project
 
-Use **FindMeATime2**, project **`mriseqztcwmezvtawnbo`**: [project dashboard](https://supabase.com/dashboard/project/mriseqztcwmezvtawnbo). The CLI link was restored and matched against `SUPABASE_PROJECT_REF` and `SUPABASE_URL` on 2026-10-07. The initially empty project now has all thirteen migrations through `20261006221555_browser_access`. A subsequent dry run reports no pending migrations, and the remote security advisor reports no issues. Reconfirm the target before each remote operation.
+Use **FindMeATime2**, project **`mriseqztcwmezvtawnbo`**: [project dashboard](https://supabase.com/dashboard/project/mriseqztcwmezvtawnbo). The CLI link was restored and matched against `SUPABASE_PROJECT_REF` and `SUPABASE_URL` on 2026-10-07. The initially empty project now has all fourteen migrations through `20261006230858_calendar_consent`. A subsequent dry run reports no pending migrations, and the remote security advisor reports no issues. Reconfirm the target before each remote operation.
 
 Verify schema, Auth, SMTP and provider configuration against this project independently. Follow the [schema workflow](../../AGENTS.md#supabase-schema-changes), review migration SQL and run `supabase db push --dry-run` before a remote push. Never reset a remote database for local setup.
 
@@ -113,7 +113,11 @@ Calendar scope names use the `https://www.googleapis.com/auth/` prefix. Verify r
 
 Request offline access with `access_type=offline` and `prompt=consent`. Encrypt refresh credentials server-side and persist the encryption key in ignored secret storage; key rotation requires an explicit migration. Revoked or unusable grants and failed reads require reconnection, never an empty-calendar result. Optional requester consent denial permits manual availability.
 
-Inspect Google OAuth publishing and verification status and demonstrate actual refresh continuity; Testing-mode Calendar refresh tokens may be short-lived. References: [Calendar scopes](https://developers.google.com/workspace/calendar/api/auth), [free/busy authorization](https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query), [OAuth web flow](https://developers.google.com/identity/protocols/oauth2/web-server), [token expiration](https://developers.google.com/identity/protocols/oauth2).
+The exact configured web client in Google Cloud project `findmeatime` was inspected on 2026-10-07. Both `https://release.findmeatime.com/connections/google/callback` and `http://localhost:3000/connections/google/callback` were added and saved, then verified by reopening the client. The three existing callbacks were preserved. Audience is External, publishing status is In production, and Google reports that verification is required (one user against a 100-user unverified cap). Registration does not prove a successful grant or refresh.
+
+The new server adapter uses `google-auth-library` 11.1.0, S256 PKCE and a nonce-bound signed ID token with the configured client audience and verified email. AES-256-GCM binds pending verifier/nonce data to its state hash and token bundles to their host/request principal. `TOKEN_ENCRYPTION_KEY` must be exactly 32 bytes encoded as canonical base64; preserve the existing key across deployments. Missing, changed or corrupt keys fail closed. Start and save both check the original current Auth session or guest credential. Consent is limited to ten starts per principal per ten minutes; a new start or disconnect invalidates older unfinished attempts.
+
+Demonstrate actual refresh continuity before completing Calendar acceptance; Testing-mode Calendar refresh tokens may be short-lived. References: [Calendar scopes](https://developers.google.com/workspace/calendar/api/auth), [free/busy authorization](https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query), [OAuth web flow](https://developers.google.com/identity/protocols/oauth2/web-server), [token expiration](https://developers.google.com/identity/protocols/oauth2).
 
 ## Local setup and verification
 

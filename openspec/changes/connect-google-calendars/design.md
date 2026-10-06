@@ -35,3 +35,9 @@ Initialize the displayed timezone from browser IANA context unless the guest alr
 ## Migration Plan
 
 Add grants and consent-state schema, generate/review migrations, deploy callback endpoint, register its exact URL, and test controlled host/requester consent. Configure web allowed origins and Supabase Auth URLs. Rollback preserves grant isolation and clears invalid pending states without exposing tokens.
+
+## Implemented consent boundary (2026-10-07)
+
+`fmat_calendar_consent` is callable only by the service role and derives authority from original verified credentials. It locks current authority before consuming/saving single-use consent, fences older attempts on restart/disconnect, and checks revocation again after the external exchange. Host setup returns to `/app`; request consent returns to its exact `/booking/[bookingId]`. The browser receives an authorization URL and safe status only. The official Google SDK verifies signed OIDC claims; PKCE and nonce bind the exchange. AES-GCM authenticated context binds secrets to state or principal. The new desired schema and fourteenth migration preserve historical migrations.
+
+Local database, real-Auth/integration and browser fixtures verify consent denial/replay/isolation and revocation during exchange. Exact release/local callbacks are registered. Calendar listing, selection, refresh, availability reads, explicit manual replacement, guest identity-only entry and live Google acceptance remain separate unfinished tasks.

@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type { ErrorCode } from '../contracts/errors.ts';
 
 const messages: Record<ErrorCode, string> = {
+  OAUTH_STATE_INVALID: 'This connection link expired or belongs to another browser. Start again from your workspace.',
+  RECONNECT_REQUIRED: 'Calendar access could not be confirmed. Reconnect Google and grant the requested permissions.',
+  CONSENT_LIMIT: 'Too many connection attempts. Please wait ten minutes before trying again.',
   UNAUTHORIZED: 'Sign in or use your private request link to continue.',
   FORBIDDEN: 'This action is not available for your account.',
   NOT_FOUND: 'This resource is unavailable.',

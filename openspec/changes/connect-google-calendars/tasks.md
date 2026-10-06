@@ -1,12 +1,12 @@
 # Tasks
 
-All tasks describe replacement implementation and verification; none is complete.
+Tasks describe replacement implementation and verification. Completed consent tasks have local evidence in the rebuild ledger; live Calendar acceptance remains pending.
 
 ## 1. Bound consent and protected credentials
 
-- [ ] 1.1 Implement authorized consent initiation, expiring single-use state, binding cookie, allowlisted returns, and callback validation; verify state replay, swapping, expiry, wrong browser, and denied consent tests.
-- [ ] 1.2 Implement distinct host/requester scope contracts and AES-GCM protected server tokens; verify requester grants cannot reach host reads/writes and tokens never appear in DTOs/logs/model context.
-- [ ] 1.3 Add grant/state desired SQL and reviewed migration; verify local reset and service-only secret access.
+- [x] 1.1 Implement authorized consent initiation, expiring single-use state, binding cookie, allowlisted returns, and callback validation; verify state replay, swapping, expiry, wrong browser, and denied consent tests.
+- [x] 1.2 Implement distinct host/requester scope contracts and AES-GCM protected server tokens; verify requester grants cannot reach host reads/writes and tokens never appear in DTOs/logs/model context.
+- [x] 1.3 Add grant/state desired SQL and reviewed migration; verify local reset and service-only secret access.
 - [ ] 1.4 Document exact callback URL, encryption-key setup, scopes, and Google Testing expiry; verify deployed callback reachability and actual registered URLs without exposing secrets.
 
 ## 2. Calendar selection and recovery
