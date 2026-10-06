@@ -27,6 +27,20 @@ Updated: 2026-10-07. This ledger tracks the entire [implementation plan](04_impl
 | agent access (change to create before implementation) | Public skills, MCP OAuth, CLI, scoped grants and discovery |
 | release hardening (change to create before implementation) | Operational limits/runbooks, final deployment and full completion audit |
 
+## Runtime foundation evidence
+
+Verified locally on 2026-10-07, Node 24.21.0/npm 11.19.0:
+
+- Pinned eve 0.71.3, Next.js 16.4.0, React 19.2.8, AI SDK 7.0.105 and Zod 4.4.3. Separate `npm run build:eve` and `npm run build:web` pass; root `vercel.ts` follows the peer-service template. Deployed service composition is still unverified.
+- `npm ci`, `npm run check`, `npm run build` and `npm run test:runtime` pass. The smoke test starts the production outputs, checks web health/security headers and verifies anonymous denial at all seven eve session/stream endpoints. CI now executes these commands without provider credentials. Deny-all is temporary; actor/session ownership and recovery tests remain outstanding.
+- Supabase CLI 2.119.0: all six retained pgTAP suites pass, 424 assertions. This proves the retained baseline on the local stack, not rebuilt application acceptance.
+- `npm run verify:model` calls direct OpenAI through `eve/models/openai`, using native ID `gpt-6-luna`, low reasoning, a synthetic prompt and a required structured tool call. The call passed (56 input / 18 output tokens), with no scheduling tool execution. The selected model has a documented 1,050,000-token context window; metadata is explicit to avoid dependence on AI Gateway discovery. See [official model documentation](https://developers.openai.com/api/docs/models/gpt-6-luna).
+- Missing/unapproved model configuration fails closed. Runtime refusal, quota/rate-limit, invalid-output and interrupted-turn behavior still need application-level verification. Only the current model is accepted until another is explicitly verified.
+- A scan of 215 generated eve/web output files found none of the 15 configured secret values. Source-level client/server import enforcement remains to be added.
+- Intended production persistence is managed Vercel Workflow; application authorization, grants, scheduling state and durable effects remain Supabase-owned. Shared memory and default agent tools are disabled. No extra worker/bridge is justified yet; restart/repeated-tool and Photon compatibility tests must settle that decision.
+
+These results complete the initial build slice only. No live deployment, user journey or release acceptance case is certified by them.
+
 ## Acceptance matrix
 
 All cases start pending for the replacement. Baseline SQL or former deployment results do not certify these cases. Owners refer to the table above.

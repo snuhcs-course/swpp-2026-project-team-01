@@ -1,0 +1,14 @@
+:root { color-scheme: light; --ink: #24352d; --paper: #f7f8f2; --muted: #647269; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: Arial, Helvetica, sans-serif; }
+a { color: inherit; }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid #397758; outline-offset: 5px; }
+.landing { min-height: 100svh; padding: clamp(24px, 5vw, 72px); display: flex; flex-direction: column; }
+.wordmark { display: inline-flex; align-self: flex-start; align-items: center; gap: 14px; font-weight: 650; text-decoration: none; letter-spacing: -.04em; font-size: 22px; }
+.wordmark span { background: #e0e9cf; border-radius: 50%; width: 34px; height: 34px; display: grid; place-items: center; }
+.intro { margin: auto; padding: 90px 0; width: min(100%, 980px); }
+.eyebrow { text-transform: uppercase; letter-spacing: .17em; font-size: 11px; font-weight: 600; }
+h1 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(46px, 7.3vw, 102px); line-height: 1.06; letter-spacing: -.055em; margin: 28px 0; }
+.description { color: var(--muted); max-width: 430px; font-size: 19px; line-height: 1.6; }
+.release-note { max-width: 440px; margin-top: 40px; font-size: 14px; line-height: 1.6; color: var(--muted); border-left: 2px solid #bbccac; padding-left: 16px; }
+footer { font-size: 12px; color: var(--muted); }

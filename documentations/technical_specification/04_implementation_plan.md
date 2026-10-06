@@ -1,7 +1,7 @@
 # Rebuild implementation plan
 
 Date: 2026-10-06
-Status: source removal and agreed directory scaffold completed on 2026-10-07; replacement runtime/application implementation has not started
+Status: source removal and scaffold completed on 2026-10-07; foundation and runtime implementation are in progress, with phase gates tracked in the [evidence ledger](05_rebuild_evidence.md)
 Scope: full application-source rebuild in the main checkout on `feat/reconstruct-application`
 
 ## 1. Outcome and fixed decisions
@@ -58,7 +58,7 @@ Build directly in final workspace paths. No development transcript/link migratio
 | `documentations/`, `openspec/` | Retain product requirements and settled behavior; update design/setup documents and record fresh evidence in bounded changes. |
 | Infrastructure configuration, local secrets and external resources | Preserve and adapt deliberately; keep secrets out of tracked source and do not infer remote deletion authority from source replacement. |
 
-The current [root scripts](../../package.json) and CI check documentation and retained infrastructure tooling. App typecheck, lint, tests and build must be restored with the replacement..
+The current [root scripts](../../package.json) and CI check documentation, retained infrastructure tooling, replacement TypeScript and initial HTTP security tests. Separate eve/web builds and a production-server smoke test are restored; full domain, browser and provider coverage remains required.
 
 Use one owner for shared contracts/schema changes and one integrator for manifests/CI. Independent UI, provider and test work may run in parallel after their interfaces are agreed. Continue on the existing branch in the main directory; do not create a worktree for this plan.
 

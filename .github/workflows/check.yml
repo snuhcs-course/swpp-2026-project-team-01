@@ -5,6 +5,9 @@ on:
 jobs:
   repository:
     runs-on: ubuntu-latest
+    env:
+      OPENAI_MODEL: gpt-6-luna
+      NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -12,8 +15,12 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Check documentation and retained infrastructure tooling
+      - name: Check documentation, application types and unit tests
         run: npm run check
+      - name: Build independent eve and web services
+        run: npm run build
+      - name: Smoke test production servers
+        run: npm run test:runtime
   database:
     runs-on: ubuntu-latest
     steps:

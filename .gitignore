@@ -13,3 +13,7 @@ dist/
 test-results/
 playwright-report/
 *.tsbuildinfo
+.eve/
+.output/
+.next/
+apps/web/next-env.d.ts

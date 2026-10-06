@@ -9,7 +9,7 @@
 
 - [ ] 2.1 Implement typed principals, scoped operation contracts, revision/idempotency guards and safe errors; verify cross-host/request denial, forged actors, conflicting retry keys and stale revisions.
 - [ ] 2.2 Implement application-owned session bindings and guard every exposed runtime route/tool, including revocation; verify two-host/two-request isolation, shared/private switching and replay/restart recovery.
-- [ ] 2.3 Restore CI typecheck, application tests and separate production builds with pinned dependencies; document and execute clean install/build checks.
+- [x] 2.3 Restore CI typecheck, application tests and separate production builds with pinned dependencies; document and execute clean install/build checks.
 - [ ] 2.4 Verify retained migrations on the disposable local database and implement required additive schema changes; verify atomic command/work commits and service-only access.
 
 ## 3. Web foundation and integration

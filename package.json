@@ -2,13 +2,44 @@
   "name": "find-me-a-time",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "npm@11.12.1",
+  "packageManager": "npm@11.19.0",
   "scripts": {
     "check:docs": "node scripts/check-documentation.mjs",
-    "lint": "node --check scripts/check-documentation.mjs && node --check scripts/configure-email-smtp.mjs && node --check scripts/configure-email-smtp.test.mjs",
+    "lint": "node --check scripts/check-documentation.mjs && node --check scripts/configure-email-smtp.mjs && node --check scripts/configure-email-smtp.test.mjs && node --check scripts/smoke-runtime.mjs && node --check scripts/verify-model.mjs",
     "test": "node --test scripts/configure-email-smtp.test.mjs",
-    "check": "npm run lint && npm run check:docs && npm test",
-    "db:test": "supabase test db"
+    "check": "npm run lint && npm run check:docs && npm run typecheck && npm test && npm run test:app",
+    "db:test": "supabase test db",
+    "dev": "vercel dev --local",
+    "dev:web": "next dev apps/web",
+    "dev:eve": "eve dev",
+    "build:eve": "eve build",
+    "build:web": "next build apps/web",
+    "build": "npm run build:eve && npm run build:web",
+    "start:web": "next start apps/web",
+    "start:eve": "eve start",
+    "typecheck": "next typegen apps/web && tsc --noEmit && tsc --noEmit -p apps/web/tsconfig.json",
+    "test:app": "tsx --test lib/server/identity/*.test.ts",
+    "test:runtime": "node scripts/smoke-runtime.mjs",
+    "verify:model": "node --import tsx --env-file-if-exists=.env scripts/verify-model.mjs"
   },
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "ai": "7.0.105",
+    "eve": "0.71.3",
+    "next": "16.4.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "25.9.5",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "tsx": "4.21.0",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  }
 }

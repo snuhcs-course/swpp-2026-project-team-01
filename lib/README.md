@@ -1,6 +1,6 @@
 # Shared application source
 
-This directory is shared source for the eve and web server builds, not a published package. Only the directory scaffold exists.
+This directory is shared source for the eve and web server builds, not a published package. Initial modules implement safe errors, origin/return validation and the verified model configuration; domain operations are being reconstructed.
 
 - `contracts/`: browser-safe input schemas, actions and authorized projections.
 - `server/`: shared identity, onboarding, scheduling, booking, delivery, provider, database and job modules.
