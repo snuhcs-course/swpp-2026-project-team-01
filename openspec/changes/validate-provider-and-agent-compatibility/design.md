@@ -2,30 +2,31 @@
 
 ## Context
 
-See proposal.md for the compatibility problem. Provisioning is documented, but seven-client OAuth, user Calendar grants, and controlled messaging conversations need actual runtime evidence. P0 records limits rather than replacing them with mock success.
+See [proposal.md](proposal.md). Deploy the reconstruction at `https://release.findmeatime.com` with Supabase project `mriseqztcwmezvtawnbo`. Current target structure is root `agent/`, Next.js in `apps/web/`, shared `lib/contracts/` and `lib/server/`, and separately built eve/web services composed through root `vercel.ts`.
 
 ## Goals / Non-Goals
 
-**Goals:** make implementation choices concrete, run safe negative/fixture provider probes, and retain a traceable compatibility matrix.
+**Goals:** verify runtime choices and integration limits using reproducible, sanitized evidence from the actual reconstruction environment.
 
-**Non-Goals:** implement P5/P6 clients/channels or claim live consent from credential-only probes.
+**Non-Goals:** use a credential-presence check as live product evidence, implement channel scheduling inside adapters or assert client approval from model text.
 
 ## Decisions
 
-- React/Vite/npm with shadcn preset `b6rtA2Hmi` supplies the responsive web app; Vercel serves its assets. Supabase Deno/Hono, PostgreSQL 17, Queues, and Cron remain the scheduling backend.
-- OpenAI structured extraction/ranking uses a tested strict JSON contract around deterministic domain logic. The model cannot approve meetings or bypass rules.
-- Only explicit authenticated web confirmation supplies P0–P4 host approval. Personal-agent approval requires later attributable human-confirmation evidence; ordinary model fields do not qualify.
-- Invites expire in seven days. Requests expire at the earlier of seven days or requested-window end. Guest tokens are request-bound, capped at thirty days, and revoked on closure; recovery verifies original contact. English and Korean intake are supported; online meeting URLs are supplied and confirmed by hosts.
-- Use credential-presence, authenticated read, disposable fixture, and live end-to-end evidence as distinct result types. Each check records date, actual versions, procedure, safe output, and gaps. Never store raw secrets, user tokens, or private conversation bodies in reports.
-- For Photon, select direct Spectrum transport through a narrow Node/Bun bridge rather than introducing Mastra scheduling logic. Its documented Node-compatible gRPC boundary excludes strict worker isolates; transport proof remains required before delivery is enabled.
-- Preserve the seven named clients individually in the matrix. Supabase OAuth being disabled is an explicit P5 prerequisite, not authority to silently substitute a different token protocol.
+- Follow the eve chat template's outer structure and installed-version API documentation. Pin reference revisions and dependencies during the runtime spike. Verify direct OpenAI access through eve with an entitled native model ID; failures cannot advance domain state.
+- Application modules own authorization, identity/session mapping, scheduling rules, approval and durable effects. Verify host/request isolation on session create/read/list/stream/resume/tool paths and after revocation. Choose persistence, worker/recovery placement and execution limits through failure tests before dependent implementation.
+- Test native eve Photon against the actual project credentials and SDK transport contract first. Create a separate bridge only if a demonstrated incompatibility requires it; no fixed Fly.io or transport-version assumption.
+- Record credential presence, authenticated reads, deterministic fixtures and live end-to-end journeys separately. Each result names date, actual versions, procedure, sanitized outcome and gaps. Never store raw secrets, user tokens or private conversation bodies.
+- Test Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code individually. OAuth discovery/registration, PKCE, resource audience, refresh, revocation and application-owned grants all need evidence. Authenticated web confirmation is the baseline; client-native approval requires attributable current human-confirmation evidence.
+- Google Calendar checks cover separate host/requester scopes, current callback binding, refresh/revocation and controlled creation/reconciliation. Routes checks report geography and mode; missing estimates remain unresolved. AgentMail and Photon checks distinguish provider acceptance, delivery and actual replies, including uncertain-send recovery.
+- Keep product expiry, recovery, language and online-link policies in the [PRD](../../../documentations/02_product_requirements.md) and [backend architecture](../../../documentations/technical_specification/01_backend_architecture.md); probes verify those policies rather than inventing alternatives.
 
 ## Risks / Trade-offs
 
-- [No interactive client/user grant available] → Mark untested cases incomplete and continue independent P1–P4 implementation.
-- [Routes returns no routes for a geography/mode] → Preserve unresolved travel and offer confirmed manual allowances; never infer zero travel.
-- [Credential probe mistaken for integration] → Separate probe status from live consent/write/webhook/conversation evidence.
+- Interactive consent/client unavailable → keep that named gate open and continue independent implementation.
+- Provider capability differs from a template → verify actual versions/credentials and record the selected boundary before adopting it.
+- Fixture mistaken for live integration → label evidence type and require separate controlled product journeys.
+- Travel coverage gap → preserve clarification/manual allowance behavior, never infer zero travel.
 
-## Migration Plan
+## Execution and verification
 
-Commit reproducible scripts and sanitized result artifacts with runtime decisions. Deploy callback endpoints through their owning phases before editing provider URLs. Keep live test writes and sends limited to controlled identities. Changes to providers remain auditable in setup documentation.
+Start with the smallest runtime and read-only probes, then fixtures for invalid/revoked/duplicate cases, then controlled consent and end-to-end journeys. Deploy and verify callbacks at the reconstruction origin before updating external registrations. Limit live sends/writes to authorized controlled identities. Keep current setup and the implementation plan aligned with verified outcomes, while recording unresolved gates explicitly. No compatibility task closes solely because a SDK call or transport probe succeeds.

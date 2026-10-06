@@ -2,7 +2,7 @@
 
 Start with the one-pager and product requirements, read the user-experience documents, then continue to the technical specification and backend/frontend architecture. Numbering is local to each directory.
 
-For the pre-launch rebuild, start with the [implementation plan](technical_specification/04_implementation_plan.md), [page list](user_experience/04_page_list.md) and [frontend architecture](technical_specification/02_frontend_architecture.md). The rebuild includes the Supabase scheduling backend source. Existing runtime and deployment reports describe the former implementation, not verified replacement behavior.
+For the pre-launch rebuild, start with the [implementation plan](technical_specification/04_implementation_plan.md), [page list](user_experience/04_page_list.md) and [frontend architecture](technical_specification/02_frontend_architecture.md). The rebuild includes the Supabase scheduling backend source.
 
 Reconstruction target: **`https://release.findmeatime.com`**, using Supabase project **`mriseqztcwmezvtawnbo`**. See [deployment setup](technical_specification/03_provider_setup.md#reconstruction-deployment-origin); selecting this target does not establish live deployment readiness.
 
@@ -18,14 +18,10 @@ Reconstruction target: **`https://release.findmeatime.com`**, using Supabase pro
 | [Implementation plan](technical_specification/04_implementation_plan.md) | Dependency-ordered rebuild phases, source ownership, decision deadlines and replacement acceptance evidence. |
 | [Technical specification](03_technical_specification.md) | Concise architecture overview, system guarantees and links to detailed design owners. |
 | [Backend architecture](technical_specification/01_backend_architecture.md) | Replacement domain/runtime boundaries, authorized commands, transactions, durable effects and recovery; deployment placement remains open. |
-| [Provider setup](technical_specification/03_provider_setup.md) | Provider configuration, host invitation operations, Google consent, dated provisioning evidence and integration checks. |
+| [Provider setup](technical_specification/03_provider_setup.md) | Provider configuration, host invitation operations, Google consent, integration configuration and verification. |
 | [Competitive landscape](business/competitor_research.md) | Source-backed competitor research, comparison boundaries, and suggested benchmark scenarios. |
 
-The existing application and deployment evidence describe the pre-rebuild baseline. Host setup behavior lives in the UX and architecture documents; operator instructions live in provider setup; [OpenSpec changes](../openspec/changes/) own capability implementation tasks and historical records. The PRD owns release scope, UX documents explain the experience, and architecture documents own design boundaries. None of these documents alone proves the replacement is implemented or verified.
-
-## Archived evidence
-
-The [compatibility and former setup report](archive/2026-10-06-compatibility_report.md) preserves dated probes and historical procedures. Unresolved findings remain in the [active implementation gates](technical_specification/04_implementation_plan.md#carried-forward-compatibility-gates). The archive does not establish replacement readiness.
+Product and architecture documents describe the target implementation. OpenSpec owns behavioral contracts and pending changes; only fresh verification establishes rebuild readiness.
 
 ## Directory layout
 
@@ -45,8 +41,6 @@ documentations/
     02_frontend_architecture.md
     03_provider_setup.md
     04_implementation_plan.md
-  archive/
-    2026-10-06-compatibility_report.md
   business/
     competitor_research.md
 ```
@@ -65,4 +59,4 @@ See [agent guidance](../AGENTS.md) for the repository's documentation and change
 
 Add or update links when documents are created, moved, or renamed. Keep product intent in the one-pager and PRD, and put supporting research in `business/` with sources and research dates.
 
-Use two-digit prefixes starting at `01` for ordered documents within each directory, followed by a concise lowercase snake_case name. Keep `README.md` as the unnumbered index. Research files use descriptive names without sequence numbers; archived reports use date-prefixed names. Filename numbering does not change stable requirement, acceptance, journey, or story IDs.
+Use two-digit prefixes starting at `01` for ordered documents within each directory, followed by a concise lowercase snake_case name. Keep `README.md` as the unnumbered index. Research files use descriptive names without sequence numbers. Filename numbering does not change stable requirement, acceptance, journey, or story IDs.

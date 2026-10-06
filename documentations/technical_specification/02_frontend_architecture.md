@@ -1,7 +1,7 @@
 # Frontend architecture
 
 Date: 2026-10-06
-Status: proposed reconstruction architecture; not implemented
+Status: directory scaffold created on 2026-10-07; runtime and application implementation pending
 Companion: [Page list](../user_experience/04_page_list.md)
 
 ## Scope and decisions
@@ -47,6 +47,8 @@ This is a responsibility diagram, not a claim that all components run inside Nex
 | Channel adapters | Provider verification, deduplicated ingestion, sender/thread bindings and delivery integration | Granting host authority from a display name or quoted message |
 
 ## Source organization
+
+The directories below are scaffolded with tracked placeholders and ownership notes. `agent.ts`, `instructions.md`, `next.config.ts`, `vercel.ts` and eve/web build scripts remain runtime-spike work; their appearance in this target tree does not mean they already exist. No application dependencies were installed for scaffolding.
 
 Follow the eve chat template's outer layout: root `agent/`, Next.js under `apps/web/`, and a root build/deployment configuration. Root `lib/` holds our shared scheduling code and contracts; these product-specific modules are our addition to the template. Keep the database, documentation and specification directories already present in this repository.
 
@@ -107,7 +109,7 @@ Route groups organize source without adding URL segments. Route files authentica
 
 Eve tools and web, iMessage, email, MCP and CLI entry adapters invoke the same `lib/server/` operations. Keep scheduling decisions and authorization in ordinary testable application code. Shared modules must work in both the eve and web server builds; keep Next.js request/cookie adapters in `apps/web/lib/` and pass verified actor/context into application operations. Agent instructions and channel handlers do not implement separate booking rules. `lib/contracts/` contains browser-safe schemas only; forbid client imports of `lib/server/`, including indirect barrel exports, and test that boundary in both builds.
 
-Root `lib/` is shared source, not a separately published package. Defer `packages/contracts/` until independent packaging is actually required. Add `apps/worker/` or a new `apps/photon-bridge/` implementation only when runtime/channel tests demonstrate a need beyond the template's existing eve/web services. Existing placeholder directories and historical bridge documentation do not establish a package or service requirement. Do not wrap or duplicate eve's session engine.
+Root `lib/` is shared source, not a separately published package. Defer `packages/contracts/` until independent packaging is actually required. Add `apps/worker/` or a new `apps/photon-bridge/` implementation only when runtime/channel tests demonstrate a need beyond the template's existing eve/web services. Directory placeholders do not establish a package or service requirement. Do not wrap or duplicate eve's session engine.
 
 ## Rendering and state ownership
 
@@ -179,7 +181,7 @@ The **Confirm and save proposed settings** action applies only to the current re
 
 Sensitive credentials, linking proofs and URL fragments stay out of transcripts/model input. Website setup remains usable during a Photon outage. An iMessage setup decision must establish human intent for the exact current review; an ambiguous “yes” requires clarification or authenticated web review. An iMessage-first browser continuation is short-lived and conveys no host authority by itself. Unlinking blocks further private processing/dispatch; unknown delivery outcomes are not blindly resent.
 
-See the [host journey](../user_experience/01_user_journeys.md#j-01--host-setup), [provider consent configuration](03_provider_setup.md#google-calendar-consent-configuration) and [pending linking change](../../openspec/changes/conversational-host-setup/proposal.md). These are replacement requirements, not evidence that the old setup implementation is retained.
+See the [host journey](../user_experience/01_user_journeys.md#j-01--host-setup), [provider consent configuration](03_provider_setup.md#google-calendar-consent-configuration) and [pending linking change](../../openspec/changes/conversational-host-setup/proposal.md).
 
 ### Agent-led guidance and suggestion-first preferences
 

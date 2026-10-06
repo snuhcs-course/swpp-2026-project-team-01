@@ -5,10 +5,10 @@
   "packageManager": "npm@11.12.1",
   "scripts": {
     "check:docs": "node scripts/check-documentation.mjs",
-    "lint": "node --check scripts/check-documentation.mjs && node --check scripts/configure-email-smtp.mjs && node --check scripts/configure-email-smtp.test.mjs && node --check scripts/db-tests.mjs",
+    "lint": "node --check scripts/check-documentation.mjs && node --check scripts/configure-email-smtp.mjs && node --check scripts/configure-email-smtp.test.mjs",
     "test": "node --test scripts/configure-email-smtp.test.mjs",
     "check": "npm run lint && npm run check:docs && npm test",
-    "db:test": "node scripts/db-tests.mjs"
+    "db:test": "supabase test db"
   },
   "type": "module"
 }

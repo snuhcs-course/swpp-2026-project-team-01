@@ -93,7 +93,7 @@ The service SHALL bind a private iMessage identity to an authenticated admitted 
 The service SHALL process each inbound provider message once logically, preserve per-conversation order, recheck authority before mutation and outbound dispatch, and distinguish accepted, delivered, failed, and uncertain outbound states without blind resends.
 
 #### Scenario: Duplicate inbound delivery
-- **WHEN** Photon replays a message after a bridge restart
+- **WHEN** Photon replays a message after a channel runtime restart
 - **THEN** the saved operation result is reused without a second settings mutation or duplicate reply job
 
 #### Scenario: Lost send response

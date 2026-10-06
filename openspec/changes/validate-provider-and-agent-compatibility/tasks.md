@@ -1,21 +1,25 @@
 # Tasks
 
-## 1. Decisions and reproducible probes
+All tasks describe reconstruction checks and decisions; none is complete. Follow the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md#compatibility-gates).
 
-- [x] 1.1 Record runtime, web/npm/shadcn, model, guest recovery, expiry, language, online-link, and host-confirmation decisions; verify the compatibility report names exact defaults and limitations.
-- [x] 1.2 Add sanitized read-only provider probes and captured results; verify Supabase Auth/JWKS/OAuth discovery, AgentMail inbox access, Photon project/line access, Seoul Routes modes, and synthetic OpenAI schema results with `python3 scripts/p0/probe_providers.py --routes --model`.
-- [x] 1.3 Record official OAuth/MCP, Photon transport, Calendar scope, AgentMail webhook/idempotency, and structured-output contracts; verify every selected behavior links its primary source and distinguishes candidate versions from runtime-tested versions.
-- [x] 1.4 Record installed/available versions and individual status for Dots, Muse, Instinct, ChatGPT, Codex, Claude, and Claude Code; verify no untested client is marked compatible and all clients retain authenticated web confirmation as baseline.
+## 1. Runtime and repeatable checks
 
-## 2. Actual client and conversation compatibility gates
+- [ ] 1.1 Pin reference commits, runtime/dependency versions and direct OpenAI model configuration; verify separate eve/Next.js builds, shared `lib/` boundaries and root `vercel.ts` composition with a deployed smoke test.
+- [ ] 1.2 Select eve persistence, worker/recovery placement and execution limits; verify two-host/two-request isolation, revocation, restart mid-turn and repeated tool execution without duplicate domain effects.
+- [ ] 1.3 Add sanitized read-only and deterministic provider probes; verify Supabase Auth/discovery, Google/Routes, AgentMail, Photon, Cloudflare mail and OpenAI contracts without treating credential presence as product readiness.
+- [ ] 1.4 Document verified runtime, callbacks, provider contracts and recovery limitations in the owning architecture/setup docs; confirm exact reconstruction origin and selected Supabase project without revealing secrets.
 
-- [ ] 2.1 Enable the intended Supabase OAuth/DCR configuration and test a minimal application MCP tool in an actual browser client and terminal client; verify discovery, registration, redirects, token audience, refresh, revocation, and application-owned grants with captured evidence. Isolated browser/terminal harnesses passed code/refresh/revoke and read-only MCP calls with a client-bound audience hook; actual Codex CLI login, bound diagnostic tool call, post-revocation application-grant denial and logout passed in `scripts/p0/oauth-probe-native-results-2026-10-05.json`. Actual Codex natural-expiry refresh passed with same-session token-row rotation and provider audit evidence in `scripts/p0/oauth-probe-native-refresh-results-2026-10-05.json`. Product role/proposal journeys remain untested. `scripts/p0/oauth-probe-results-2026-10-05.json` also captures default-audience rejection and missing requested-resource enforcement. Production configuration and complete named-client tool journeys remain open.
-- [ ] 2.2 Exercise requester and host roles in all seven named clients; verify permissions, current-proposal confirmation, stale decisions, and denied/revoked access with actual client versions recorded.
-- [ ] 2.3 Exercise Photon SDK authentication and a controlled conversation through the selected Node/Bun bridge; verify runtime compatibility, routing, delivery, and explicit web confirmation continuation.
-- [x] 2.4 Exercise AgentMail signature verification, reply threading, and uncertain-send recovery with dedicated identities; verify raw-body signatures, replay rejection, and idempotency-window handling. Two distinct product-controlled inboxes passed exact received-parent replies, inbox-local threading, same-key send/reply recovery and changed-payload 409. Six actual signed sent/delivered/received callbacks passed signature/replay/restart checks; task-owned webhook deletion and receiver/tunnel shutdown were verified. Frozen-payload and conservative 24-hour deadline guards are tested; actual elapsed provider key expiration is not claimed. Evidence: `scripts/p0/agentmail-distinct-probe-results-2026-10-05.json` and `scripts/p0/agentmail-paired-webhook-results-2026-10-05.json`.
+## 2. Personal-agent compatibility
 
-## 3. Calendar and phase evidence
+- [ ] 2.1 Configure and test protected MCP OAuth discovery, registration, PKCE, issuer/resource audience, refresh and revocation in browser and terminal paths; verify application-owned grants and captured negative cases.
+- [ ] 2.2 Exercise Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code separately using their actual versions; verify requester/host permissions, current-proposal confirmation, stale decisions and revoked access.
+- [ ] 2.3 Document client-by-client results and limitations; verify untested clients stay open and no model field substitutes for human approval.
 
-- [ ] 3.1 Complete actual host and requester Google consent/refresh and controlled Calendar reads/writes; verify separate scopes, callback binding, reconnect behavior, and exact deployment redirect URLs.
-- [x] 3.2 Validate Routes coverage for intended geography and travel modes using controlled physical itineraries; verify missing estimates are unresolved and both adjacent directions fit with host margins. Public Seoul landmark evidence is in `scripts/p0/travel-evaluator-results-2026-10-05.json`: 12 live Routes calls through the actual evaluator, both directions, 10-minute margins, ample/tight gaps, unresolved DRIVE/WALK, and separately labelled synthetic manual allowances.
-- [x] 3.3 Record P0 exit evidence and blockers in the owning implementation/provider documentation; verify fixture probes are not presented as actual client, human-consent, messaging, or Calendar booking success.
+## 3. Messaging and provider journeys
+
+- [ ] 3.1 Test native eve Photon authentication and controlled inbound/reply routing; verify signatures/provider identity, private host linking, delivery/restart recovery and web confirmation continuation. Document any evidence-based bridge requirement before creating one.
+- [ ] 3.2 Exercise AgentMail raw-body signature verification, replay rejection, received-parent reply threading, idempotency windows and uncertain-send recovery with dedicated identities; verify changed-payload conflicts and sanitized evidence.
+- [ ] 3.3 Test Cloudflare transactional/Auth mail against the selected Supabase project and reconstruction links; verify sender setup, accepted/delivered distinction and contact-safe failure handling.
+- [ ] 3.4 Complete actual host/requester Google consent, refresh, disconnect/reconnect, controlled reads and Calendar booking reconciliation; verify separate scopes, browser callback binding and exact event identity after a lost response.
+- [ ] 3.5 Validate Routes for intended geography/modes and both adjacent trip directions with host margins; verify unknown/no-route/failure and explicit manual allowances remain distinct.
+- [ ] 3.6 Update current provider setup and implementation gates with dated sanitized results; verify no fixture, credential probe or transport-only check is claimed as a full product journey.

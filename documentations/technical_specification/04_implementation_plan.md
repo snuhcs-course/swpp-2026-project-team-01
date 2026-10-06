@@ -1,7 +1,7 @@
 # Rebuild implementation plan
 
 Date: 2026-10-06
-Status: source removal completed on 2026-10-07; replacement implementation has not started
+Status: source removal and agreed directory scaffold completed on 2026-10-07; replacement runtime/application implementation has not started
 Scope: full application-source rebuild in the main checkout on `feat/reconstruct-application`
 
 ## 1. Outcome and fixed decisions
@@ -17,7 +17,8 @@ Deliver a working one-to-one scheduling service: a host chats with the agent at 
 | Repository structure | Follow the eve chat template: root `agent/`, `apps/web/` with `app/`, `components/` and web-specific `lib/`, and root shared `lib/contracts/` and `lib/server/`. Build eve/web separately and compose through root `vercel.ts`; defer extra packages and worker/bridge apps. | [Source organization](02_frontend_architecture.md#source-organization) |
 | Runtime and model | Next.js App Router with eve, conditional on Phase 1 passing; direct OpenAI via `eve/models/openai`, with server-only `OPENAI_API_KEY` and an explicitly verified native model ID. | [Frontend architecture](02_frontend_architecture.md#scope-and-decisions), [OpenAI setup](03_provider_setup.md#openai-model-access-through-eve) |
 | Identity and durable domain state | Supabase Auth/PostgreSQL; selected rebuild project `mriseqztcwmezvtawnbo`. Application code owns authorization and scheduling decisions. | [Project record](03_provider_setup.md#selected-rebuild-supabase-project), [backend boundaries](01_backend_architecture.md#2-module-boundaries) |
-| Channels | AgentMail requester conversations, Photon Spectrum host iMessage, Cloudflare transactional/Auth mail. Verify actual adapter compatibility. | [Provider setup](03_provider_setup.md), [provider boundaries](01_backend_architecture.md#9-provider-boundaries) |
+| Transactional and Auth email | **Cloudflare Email Service** for invitations, contact verification, recovery and booking confirmations from `no-reply@findmeatime.com`; configure Supabase Auth custom SMTP through Cloudflare. | [Cloudflare setup](03_provider_setup.md#cloudflare-email-service), [email contract](../../openspec/specs/email-delivery/spec.md) |
+| Conversation channels | AgentMail requester inboxes, threads and replies; Photon Spectrum host iMessage. Verify actual adapter compatibility. | [Provider setup](03_provider_setup.md), [provider boundaries](01_backend_architecture.md#9-provider-boundaries) |
 | Client access | Remote MCP and thin CLI; verify Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code individually. | [Interfaces](../user_experience/03_interfaces.md), PRD FR-24–25 and FR-29–34 |
 | Source replacement | Rebuild in final paths, preserve unrelated local work, secrets, external resources and applied migration history. No old transcript/link migration or parallel replacement app. | [Replacement boundary](04_implementation_plan.md#2-execution-rules-and-source-ownership) |
 
@@ -37,32 +38,27 @@ Record the reference commit SHAs, selected package versions and any adapted patt
 
 ## 2. Execution rules and source ownership
 
-Source-removal update (2026-10-07): the owner explicitly requested clearing the former application before reconstruction. The [removal record](../archive/2026-10-07-source-removal.md) records the verified checkpoint, passed former-app/bridge baseline checks and behavior-to-phase mapping. The old web/backend/bridge runtime and contracts are now removed. SQL schemas, migrations, pgTAP tests and independent SMTP tooling remain as the database/infrastructure baseline; this does not complete all Phase 0 specification work.
+Directory-scaffold update (2026-10-07): root `agent/`, shared `lib/`, `tests/` and Next.js directories under `apps/web/` now exist with ownership notes and tracked placeholders. The unused `packages/` placeholder was removed. No runtime entrypoints, application dependencies, build configuration or replacement tests were added; the runtime spike remains pending.
 
-The product has not launched. On 2026-10-06 the owner confirmed a full application-source rebuild, explicitly including the Supabase scheduling backend, and authorized replacement of superseded source. Supabase remains infrastructure; the former backend implementation is not a retained dependency. This authorization does not extend to deleting remote databases, provider resources or local secrets.
+The product has not launched. Rebuild the full application, including its scheduling backend, on `feat/reconstruct-application` in the main project directory. The source scaffold is ready; SQL schemas, migrations, database tests and independent SMTP tooling remain. Preserve local changes, secrets, external resources and migration history. Local source recovery is available in the ignored `.local/rebuild/pre-removal-2026-10-07/` checkpoint.
 
-The reconstruction branch is `feat/reconstruct-application` in the main project directory. At branch creation, refreshed `origin/main` contained only the early repository skeleton, so the branch retained the developed `dodo/mvp-2` baseline at `5c4af31`. The checkout also retained uncommitted onboarding, iMessage OTP, contracts, schema and documentation work without deletion or stashing. Reconcile its intended behavior with current requirements before replacing the corresponding source.
-
-Build directly in final workspace paths. No `apps/web-next` cutover, old UI/API compatibility, development transcript/private-link migration, production pilot or legacy dual-consumer rollback is required. New authorization, callbacks, recovery and scheduling guarantees still require fresh verification. Preserve infrastructure configuration and historical evidence, and fence old consumers before controlled provider tests. The proposed six-digit iMessage flow must be reconciled through the owning OpenSpec change before implementation.
-
-Before deleting source, record the current branch/status and preserve the outstanding working-tree changes in a recoverable local checkpoint that excludes secrets. Map retained behavioral assertions to the replacement tests. Then replace obsolete source in bounded slices; do not keep the former application running as a second product or require its test harness to fit the new architecture. A failing baseline is recorded, not misrepresented as a replacement regression.
+Build directly in final workspace paths. No development transcript/link migration or parallel replacement application is required. Check for competing remote consumers before controlled provider tests. Implement and verify current requirements through the owning OpenSpec changes; do not treat retained database assets as proof of rebuilt application behavior.
 
 | Target | Treatment |
 |---|---|
 | `agent/` | Follow eve entrypoint conventions; keep instructions, tools, channels and supported connection definitions here. Tools delegate to shared authorized operations. |
-| `apps/web/` | Former Vite source removed. Build Next.js `app/`, `components/` and web-specific `lib/` following the reference template. |
+| `apps/web/` | Build Next.js `app/`, `components/` and web-specific `lib/` following the reference template. |
 | Root `lib/` | Share browser-safe schemas in `lib/contracts/` and server-only capabilities in `lib/server/` between eve and web. Verify both builds; defer independent packages. |
 | Root `tests/` | Cross-module/runtime integration and browser e2e tests; unit tests remain beside modules and database tests remain under Supabase. |
 | Root `package.json`, `vercel.ts` | Orchestrate separate eve/web builds and compose their services; adapt reference commands to npm. |
-| `supabase/functions/` | Former Hono/Deno source removed. Rebuild API and worker responsibilities in the runtime locations selected in Phase 1. |
 | `supabase/schemas/`, `supabase/tests/` | Implement desired schema, isolation and concurrency tests; preserve behavior, not old table shapes. |
 | `supabase/migrations/` | Preserve existing history and add reviewed migrations generated from the desired schema. |
-| Optional `apps/worker/` or `apps/photon-bridge/` | Defer creation until Phase 1 demonstrates a separate-process requirement. Former bridge source is removed and Fly configuration is archived. |
+| Optional `apps/worker/` or `apps/photon-bridge/` | Defer creation until Phase 1 demonstrates a separate-process requirement. |
 | Root/app manifests, lockfiles, `.github/workflows/check.yml`, `scripts/` | Keep install, typecheck, lint, tests, build and deployment commands coherent with each implemented slice. |
-| `documentations/`, `openspec/` | Retain product requirements and settled behavior; update design/setup documents and record fresh evidence in bounded changes. Historical test success is not replacement verification. |
+| `documentations/`, `openspec/` | Retain product requirements and settled behavior; update design/setup documents and record fresh evidence in bounded changes. |
 | Infrastructure configuration, local secrets and external resources | Preserve and adapt deliberately; keep secrets out of tracked source and do not infer remote deletion authority from source replacement. |
 
-The current [root scripts](../../package.json) and CI check documentation and retained infrastructure tooling. App typecheck, lint, tests and build must be restored with the replacement; archived application checks are historical only.
+The current [root scripts](../../package.json) and CI check documentation and retained infrastructure tooling. App typecheck, lint, tests and build must be restored with the replacement..
 
 Use one owner for shared contracts/schema changes and one integrator for manifests/CI. Independent UI, provider and test work may run in parallel after their interfaces are agreed. Continue on the existing branch in the main directory; do not create a worktree for this plan.
 
@@ -72,7 +68,7 @@ Phases are dependency gates, not fixed calendar estimates. Each phase ends with 
 
 | Phase | Deliverable | Depends on |
 |---|---|---|
-| 0 | Baseline, preservation and bounded change map | Current docs |
+| 0 | Resource inventory, verification scope and bounded change map | Current docs |
 | 1 | Tested runtime, model, persistence, worker and OAuth decisions | 0 |
 | 2 | Domain contracts, schema, identity and durable execution foundation | 1 |
 | 3 | Host admission and setup inside `/app` | 2 |
@@ -85,17 +81,17 @@ Phases are dependency gates, not fixed calendar estimates. Each phase ends with 
 
 After Phase 5, the first complete web booking path should work. That is an integration milestone, not completion of the release: email, iMessage and named clients remain required. Adapter development in Phases 6–8 may overlap once shared contracts are stable.
 
-### Phase 0 — Capture the baseline and reconcile specifications
+### Phase 0 — Reconcile specifications and verification scope
 
 Work:
 
-- Record tracked/untracked changes, running development consumers, retained resources and the authorized source-deletion scope. Preserve pending six-digit iMessage work as reference before replacement.
-- Capture baseline check outcomes and extract behavior cases for admission, scoped access, setup review, proposal revision, booking uncertainty and channel replay. Add missing boundary regression cases before removing the old implementation of those guarantees.
+- Record tracked/untracked changes, existing remote consumers and retained resources; preserve unrelated work and credentials.
+- Map current admission, scoped access, setup review, proposal revision, booking uncertainty and channel replay requirements to replacement tests.
 - Create a bounded rebuild-foundation OpenSpec change. Map later slices to existing active changes or new bounded changes; avoid duplicate task ownership.
-- Reconcile active `connect-google-calendars`, `evaluate-calendar-and-travel-feasibility`, `book-approved-proposals-reliably`, `conversational-host-setup` and `validate-provider-and-agent-compatibility` work. Their old completed tasks stay dated historical evidence; new rebuild tasks start unverified.
-- Capture the single `/app` surface, requester booking route, invitation receipt behavior and browser-entered iMessage OTP as explicit proposed deltas where needed. Do not rewrite archived evidence or mark main capability specs implemented in advance.
+- Reconcile active `connect-google-calendars`, `evaluate-calendar-and-travel-feasibility`, `book-approved-proposals-reliably`, `conversational-host-setup` and `validate-provider-and-agent-compatibility` work. Rebuild tasks start unverified and require fresh completion evidence.
+- Capture the single `/app` surface, requester booking route, invitation receipt behavior and browser-entered iMessage OTP as explicit proposed deltas where needed. Do not mark main capability specs implemented in advance.
 
-Exit: a source/checkpoint inventory, behavior-to-test map and non-overlapping OpenSpec task map exist. Outstanding spec/document disagreements are resolved for the foundation slice. Validate changed OpenSpec artifacts using the repository's pinned CLI.
+Exit: a resource inventory, behavior-to-test map and non-overlapping OpenSpec task map exist. Outstanding spec/document disagreements are resolved for the foundation slice. Validate changed OpenSpec artifacts using the repository's pinned CLI.
 
 References: [repository change workflow](../../AGENTS.md#documentation-and-specifications), [active changes](../../openspec/changes/), [rebuild boundary](04_implementation_plan.md#2-execution-rules-and-source-ownership).
 
@@ -104,7 +100,7 @@ References: [repository change workflow](../../AGENTS.md#documentation-and-speci
 Work:
 
 - Configure the reconstruction deployment at `https://release.findmeatime.com` following [provider setup](03_provider_setup.md#reconstruction-deployment-origin). Verify domain attachment, DNS, TLS and origin configuration before remote callback tests; preserve root-domain and mail records.
-- Build the smallest integration with root `agent/`, Next.js in `apps/web/` and shared root `lib/`, following the [reference repositories](#reference-repositories) and [source organization](02_frontend_architecture.md#source-organization). Pin the dependency set verified on Node.js 24/npm; keep Supabase identity in control.
+- Build the smallest integration with root `agent/`, Next.js in `apps/web/` and shared root `lib/`, following the [reference repositories](04_implementation_plan.md#reference-repositories) and [source organization](02_frontend_architecture.md#source-organization). Pin the dependency set verified on Node.js 24/npm; keep Supabase identity in control.
 - Wire the direct OpenAI provider; verify the selected model and account entitlement. Keep keys server-side and fail clearly on missing credentials, rate limits and exhausted credits. A model failure must not advance scheduling state.
 - Exercise two hosts and two request-scoped requesters. Verify session creation/read/list/stream/resume and every exposed mutation against actor, resource and audience. Inspect per-user memory scoping if memory is enabled; disable it until isolation is proven.
 - Kill/restart the runtime mid-turn and after a tool commit; reconnect the browser. Verify authorized output recovery and one domain effect despite repeated tool execution. Test revocation while a stream/session exists.
@@ -114,7 +110,7 @@ Work:
 
 Exit: a repeatable build/deployment smoke check and recorded runtime/OAuth decision document, with passing isolation and recovery tests. Pin a concrete model ID and document actual secret loading. Any failure that invalidates eve gets an explicit architecture decision before broad implementation; do not introduce a second agent engine silently.
 
-References: [runtime decision](../03_technical_specification.md#backend-decision), [session protection](02_frontend_architecture.md#identity-and-conversation-selection), [durable work](01_backend_architecture.md#8-jobs-inbox-and-outbox), [compatibility evidence](../archive/2026-10-06-compatibility_report.md).
+References: [runtime decision](../03_technical_specification.md#backend-decision), [session protection](02_frontend_architecture.md#identity-and-conversation-selection), [durable work](01_backend_architecture.md#8-jobs-inbox-and-outbox).
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
@@ -173,7 +169,7 @@ Work:
 - Record explicit host confirmation of the current proposal, including any permitted exceptions, independently of model prose. Require current requester agreement; revisions invalidate applicable prior decisions.
 - Implement the booking worker: coordinate per-host reservations, re-read required calendars, recheck versions, persist exact destination/payload/event ID before dispatch and reconcile uncertain outcomes against that same event.
 - Distinguish pre-dispatch rejection, pending/uncertain write, confirmed booking and delivery failure. Lease expiry cannot release an uncertain reservation or justify a new event identity.
-- Produce one confirmed-event receipt and transactional outbox. Align HTML/plain email, Calendar invitation and protected receipt on final details, **View booking**, and **Join meeting** where valid. Keep service email sender distinct from the Calendar organizer.
+- Produce one confirmed-event receipt and a Cloudflare Email Service transactional outbox. Align HTML/plain email, Calendar invitation and protected receipt on final details, **View booking**, and **Join meeting** where valid. Keep service email sender distinct from the Calendar organizer.
 - Keep credentials and private history out of shared Calendar descriptions; RSVP metadata is not approval. Define provider invitation versus application email delivery ownership. If emitting ICS, verify stable association and no duplicate event alongside provider invitations.
 
 Exit: a controlled full web journey produces one confirmed event and consistent receipt/invitations. Inject crashes before/after dispatch, successful create with lost response, stale approvals, concurrent requests, duplicate approval and failed confirmation delivery. Uncertainty stays visible, and delivery retry never creates a second event. Closed requester credentials expose only the permitted status/receipt until expiry; no automatic reschedule/cancel is added.
@@ -205,7 +201,7 @@ Work:
 
 Exit: a linked host completes controlled private review, revision, fresh approval and a separate decline case. Wrong sender/browser/code, expired/replayed challenges, group input and unlinking deny access. Replayed approval after restart yields no second booking; a messaging outage leaves `/app` usable.
 
-References: [linking direction](02_frontend_architecture.md#host-setup-conversation), [Photon evidence and limitations](03_provider_setup.md#photon), PRD AC-16–18.
+References: [linking direction](02_frontend_architecture.md#host-setup-conversation), [Photon configuration](03_provider_setup.md#photon), PRD AC-16–18.
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
@@ -232,7 +228,7 @@ Work:
 - Configure the actual Auth/Google callbacks and webhook endpoints for the replacement, verify HTTPS/domain setup and provider credentials, then run controlled end-to-end journeys. Record any external-action authorization needed at that point rather than treating this planning document as deployment approval.
 - Archive only completed, verified OpenSpec changes, sync their settled behavior to main specs and publish a release evidence matrix with unresolved items explicitly named.
 
-Exit: all phase evidence and required client/provider journeys pass against the selected deployment, current migrations rebuild locally, no unresolved duplicate-processing/authorization/booking-uncertainty defects remain, and runbooks explain recovery. A passed build or historical provider probe alone cannot satisfy this gate.
+Exit: all phase evidence and required client/provider journeys pass against the selected deployment, current migrations rebuild locally, no unresolved duplicate-processing/authorization/booking-uncertainty defects remain, and runbooks explain recovery. A passed build alone cannot satisfy this gate.
 
 References: [operations](01_backend_architecture.md#10-operations-and-verification), [project selection](03_provider_setup.md#selected-rebuild-supabase-project), [domain/deployment guidance](../../AGENTS.md#domain-and-dns).
 
@@ -254,22 +250,22 @@ Resolve these inside the owning change; the plan does not invent product default
 
 See the complete [PRD open decisions](../02_product_requirements.md#10-dependencies-and-open-decisions) and [technical decisions](01_backend_architecture.md#open-technical-decisions). If a decision changes agreed release scope, update those owners explicitly.
 
-### Carried-forward compatibility gates
+### Compatibility gates
 
-The [archived report](../archive/2026-10-06-compatibility_report.md) preserves dated evidence from the former implementation. It does not verify the selected rebuild project. The following unresolved findings remain active release work:
+Each gate requires fresh evidence from the selected rebuild deployment. Credential availability and isolated transport success do not prove product compatibility.
 
-| Gate | Recorded limitation | Phase and required replacement evidence |
+| Gate | Required evidence | Phase |
 |---|---|---|
-| OAuth resource enforcement | The former Auth v2.197.0 probe issued `aud=authenticated`; a fixed-client audience hook allowed a client requesting another resource to receive the MCP audience. Source review found missing resource handling through form token exchange/refresh and no requested resource in hook input. Production discovery was disabled at capture. | Phase 1 must verify discovery and resource enforcement across authorization, code exchange and refresh, including wrong-resource negatives. A frontend-only check, fixed hook or JSON-only exchange does not close this gap. Phase 8 must then prove actual product grants/revocation and client journeys. |
-| Named clients | Codex's isolated diagnostic/refresh tests passed; none of the seven clients completed the rebuilt requester/host workflow. Dots and Instinct sessions were unavailable during the former inventory. | Phase 8 needs available test sessions and independent evidence for all seven products; installed apps or a shared MCP protocol are insufficient. |
-| Cloudflare/Auth delivery | DNS, SMTP login/sender acceptance and old project settings were checked; those probes did not establish actual transactional or Auth delivery. | Phases 3, 5 and 9 must configure the selected project and prove controlled inbox delivery and recovery. |
-| Google consent and Calendar | Dated controlled host/requester journeys exist, but natural-expiry refresh, disconnect/reconnect and rebuilt read/write/reconciliation are unverified. Callback registration alone proves no consent. | Phases 3–5 must register replacement callbacks, inspect publishing/verification status, verify separate host/requester scopes and refresh/revocation, then complete reliable booking. |
-| Routes coverage | Seoul DRIVE/WALK probes returned no route; one TRANSIT fixture passed. Neither result establishes supported geographic coverage. | Phase 4 verifies chosen geography/modes and both travel legs; missing estimates require clarification or an explicitly confirmed manual allowance, never zero travel. |
-| AgentMail | Controlled signed callbacks, reply threading and idempotent retries passed; actual 24-hour key expiration and application verified-contact continuation were not proved. | Phase 6 must prove identity-bound continuation, durable dispatch and uncertain-send recovery, including attempts outside the provider's verified idempotency window. |
-| Photon | Controlled private transport/contact-card delivery passed; native eve/Spectrum compatibility, application identity/routing and six-digit linking remain unverified. Native profile sharing/device-side display were not established. | Phases 1 and 7 verify adapter choice, target policy, linked-host flow, restart/unlink behavior and web continuation. Optional name/contact display is not proof of identity or a prerequisite for basic web setup. |
-| Model behavior | The historical strict-schema probe proved access for one model snapshot only. | Phase 1 verifies the chosen direct OpenAI model; Phase 4 tests refusal/incomplete/invalid outputs and private-data filtering without advancing domain state. |
+| OAuth resource enforcement | Discovery, registration, PKCE, issuer/audience checks during code exchange and refresh, wrong-resource negatives, revocation and application grants. | 1, 8 |
+| Named clients | Complete host/requester journeys and permission checks separately for Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code. | 8 |
+| Cloudflare/Auth delivery | Selected-project SMTP/runtime configuration and controlled invitation, Auth, recovery and receipt inbox delivery. | 3, 5, 9 |
+| Google Calendar | Exact callbacks, publishing status, separate host/requester grants, refresh, disconnect/reconnect, scoped reads and reliable event creation/reconciliation. | 3–5 |
+| Routes coverage | Supported geography/modes and both travel legs; missing estimates require clarification or a confirmed manual allowance, never zero travel. | 4 |
+| AgentMail | Signed/deduplicated ingestion, verified-contact continuation, reply threading and uncertain-send recovery, including the provider's verified idempotency-window limits. | 6 |
+| Photon | Native-channel compatibility or justified bridge, target policy, private host binding, six-digit linking, replay/restart/unlink and browser continuation. Display names/contact cards are not identity proof. | 1, 7 |
+| Model behavior | Direct OpenAI model/entitlement, safe secret loading, refusals, incomplete/invalid outputs, rate-limit/credit failures and private-data filtering without advancing domain state. | 1, 4 |
 
-The archive also records prior defaults: seven-day/window-end request expiry, 256-bit hashed guest credentials with verified-contact rotation and maximum 30-day lifetime, host-supplied HTTPS meeting links, English UI with English/Korean extraction, and web confirmation until another channel proves attribution. Preserve settled capability requirements; reconcile any conflict with the PRD's open decisions in the owning change before implementation. Do not silently discard these records or treat an old provider pin as a new dependency selection.
+Preserve settled capability requirements, including expiry, scoped guest credentials and explicit approval; reconcile any disagreement with PRD open decisions in the owning change before implementation.
 
 ## 5. Verification and completion evidence
 
@@ -300,7 +296,7 @@ Use the following coverage map when assigning concrete tests:
 
 Maintain a PRD acceptance matrix for **AC-01 through AC-28**, linking each case to replacement tests and any required live evidence. Record test date, dependency/client versions and environment; never include private tokens, attendee details or raw transcripts in tracked evidence.
 
-Command contract: preserve useful root entrypoints such as `npm run check` and `npm run db:test`, but update what they execute for the chosen runtime. Add a documented browser check and include all retained packages/bridge checks in CI. For database changes, verify Supabase CLI **2.119.0**, generate with `supabase db schema declarative sync --name <name> --no-apply`, review SQL, then use `supabase start`, `supabase db reset --local` and database tests on the identified disposable local stack. Verify OpenSpec CLI **1.14.0** and validate each changed artifact. Exact replacement test/deploy commands must be recorded when implemented, not guessed from the old Deno/Vite scripts.
+Command contract: preserve useful root entrypoints such as `npm run check` and `npm run db:test`, but update what they execute for the chosen runtime. Add a documented browser check and include all retained packages/bridge checks in CI. For database changes, verify Supabase CLI **2.119.0**, generate with `supabase db schema declarative sync --name <name> --no-apply`, review SQL, then use `supabase start`, `supabase db reset --local` and database tests on the identified disposable local stack. Verify OpenSpec CLI **1.14.0** and validate each changed artifact. Record exact test and deployment commands when implemented.
 
 ## 6. Risks and mitigations
 

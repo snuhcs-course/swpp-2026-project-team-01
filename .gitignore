@@ -1,12 +1,11 @@
 # Local credentials
-.env
-.env.*
+.env*
 !.env.example
 
 # Local Cloudflare CLI cache
 .cloudflare/
 
-# JavaScript, Deno, deployment and verification outputs
+# Dependencies, deployment and verification outputs
 node_modules/
 dist/
 .vercel/
@@ -14,5 +13,3 @@ dist/
 test-results/
 playwright-report/
 *.tsbuildinfo
-.vercel
-.env*

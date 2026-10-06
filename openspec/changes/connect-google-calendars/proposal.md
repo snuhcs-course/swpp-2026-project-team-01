@@ -2,7 +2,7 @@
 
 ## Why
 
-Scheduling must use authorized host context and optionally intersect requester availability without granting guests host privileges. P2 needs browser-bound consent, explicit calendar permissions, protected token storage, and recoverable connection failures.
+Scheduling must use authorized host context and optionally intersect requester availability without granting guests host privileges. Calendar integration needs browser-bound consent, explicit calendar permissions, protected token storage, and recoverable connection failures.
 
 ## What Changes
 
@@ -24,6 +24,6 @@ None.
 
 ## Impact
 
-Google OAuth callback and adapters, server secret configuration, grant records, setup UI, guest continuation, and tests. Depends on foundation and host admission. Requester end-to-end continuation completes with request lifecycle in P3; this change supplies its grant boundary.
+Google OAuth callback and adapters, server secret configuration, grant records, setup UI, guest continuation, and tests. Depends on foundation and host admission. Requester end-to-end continuation depends on the request lifecycle; this change supplies its grant boundary.
 
-Basis: [PRD FR-36 and AC-27](../../../documentations/02_product_requirements.md), [Google access design](../../../documentations/03_technical_specification.md), and [backend contract](../../../scripts/backend-contract.md). Live consent and refresh results must be recorded separately from fixture tests; OAuth production verification remains a deployment/release dependency.
+Basis: [PRD FR-36 and AC-27](../../../documentations/02_product_requirements.md), [Google access design](../../../documentations/03_technical_specification.md), and [backend architecture](../../../documentations/technical_specification/01_backend_architecture.md). Live consent and refresh results must be recorded separately from fixture tests; OAuth production verification remains a deployment/release dependency.

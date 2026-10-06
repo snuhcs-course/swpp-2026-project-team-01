@@ -2,7 +2,7 @@
 
 ## Why
 
-Calendar gaps alone do not prove a meeting fits host focus rules, requester availability, or travel between physical commitments. P3 needs deterministic candidate evaluation and explicit clarification when route or location context is missing.
+Calendar gaps alone do not prove a meeting fits host focus rules, requester availability, or travel between physical commitments. Scheduling evaluation needs deterministic candidate evaluation and explicit clarification when route or location context is missing.
 
 ## What Changes
 
@@ -23,6 +23,6 @@ None.
 
 ## Impact
 
-Calendar/Routes adapters, scheduling evaluation, versioned candidate persistence, rule configuration, private host controls, and tests. Depends on P2 connections and P3 lifecycle; P4 reuses the same feasibility checks before dispatch.
+Calendar/Routes adapters, scheduling evaluation, versioned candidate persistence, rule configuration, private host controls, and tests. Depends on Calendar connections and request lifecycle; booking reuses the same feasibility checks before dispatch.
 
-Basis: [PRD FR-05–FR-17 and AC-02–AC-03, AC-12, AC-27](../../../documentations/02_product_requirements.md), [technical availability design](../../../documentations/03_technical_specification.md), and [backend contract](../../../scripts/backend-contract.md). Route coverage must be reported by tested geography/mode; unsupported coverage remains a visible clarification condition.
+Basis: [PRD FR-05–FR-17 and AC-02–AC-03, AC-12, AC-27](../../../documentations/02_product_requirements.md), [technical availability design](../../../documentations/03_technical_specification.md), and [backend architecture](../../../documentations/technical_specification/01_backend_architecture.md). Route coverage must be reported by tested geography/mode; unsupported coverage remains a visible clarification condition.

@@ -2,7 +2,9 @@
 
 ## Context
 
-See proposal.md. P3 request lifecycle supplies normalized details and revisions; P2 grants supply host event context and requester free/busy. P0 measured Seoul DRIVE/WALK returning no routes, so missing travel cannot be assumed feasible.
+See [proposal.md](proposal.md). Request lifecycle supplies normalized details and revisions; Calendar grants supply authorized host event context and requester free/busy. Missing travel must remain unresolved.
+
+Follow the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md): root `agent/`, Next.js in `apps/web/`, shared contracts and authorized server operations in root `lib/`, and separately built eve/web services composed through root `vercel.ts`. The reconstruction target is `https://release.findmeatime.com` with Supabase project `mriseqztcwmezvtawnbo`. Runtime and provider compatibility require fresh verification.
 
 ## Goals / Non-Goals
 
@@ -17,7 +19,7 @@ See proposal.md. P3 request lifecycle supplies normalized details and revisions;
 - For physical candidates, compute previous-event endpoint to meeting and meeting to next-event endpoint. Persist travel mode, departure context, locations/context fingerprints, timestamps, estimates, and explicit allowance source. Recompute before booking; cached estimates must match current context and bounded freshness.
 - Google Routes adapter returns success, no-route, unsupported, or failure explicitly. A missing location or estimate creates a clarification. An authenticated host can confirm a manual allowance for one relevant leg/context; changing context invalidates it. Both legs add host margin and must fit.
 - Split hard constraints from preferences. Exceptions are explicit current host decisions and remain private; they cannot waive busy/focus hard conflicts or final approval.
-- Model structured ranking accepts only deterministic candidate IDs. Check response validity and freshness before `candidates_save` with expected request/rule versions. A model-generated interval never expands the candidate set.
+- Model structured ranking accepts only deterministic candidate IDs. Check response validity and freshness before saving candidates against expected request/rule versions. A model-generated interval never expands the candidate set.
 
 ## Risks / Trade-offs
 
@@ -27,4 +29,4 @@ See proposal.md. P3 request lifecycle supplies normalized details and revisions;
 
 ## Migration Plan
 
-Extend rules and candidate context desired SQL and command shapes. Add pure interval/travel tests and provider fixtures, then deployed evaluation without enabling writes. P4 reuses the exact evaluator; do not introduce separate booking feasibility logic.
+Extend rules and candidate context desired SQL and command shapes. Add pure interval/travel tests and provider fixtures, then deployed evaluation without enabling writes. Booking reuses the exact evaluator; do not introduce separate booking feasibility logic.

@@ -32,7 +32,7 @@ function headings(markdown) {
 }
 
 const files = [path.join(root, 'README.md')];
-for (const directory of ['documentations', 'openspec', 'apps', 'scripts', 'supabase']) {
+for (const directory of ['documentations', 'openspec', 'agent', 'apps', 'lib', 'tests', 'scripts', 'supabase']) {
   files.push(...await markdownFiles(path.join(root, directory)));
 }
 

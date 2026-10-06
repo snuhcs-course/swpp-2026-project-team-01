@@ -2,7 +2,7 @@
 
 ## Why
 
-A current requester agreement and explicit host approval must create one recoverable Calendar booking even when workers stop or provider responses are lost. P4 needs durable identities, reservations, revalidation, and honest pending states before enabling calendar writes.
+A current requester agreement and explicit host approval must create one recoverable Calendar booking even when workers stop or provider responses are lost. The booking path needs durable identities, reservations, revalidation, and honest pending states before enabling calendar writes.
 
 ## What Changes
 
@@ -25,6 +25,6 @@ None.
 
 ## Impact
 
-Host approval UI, Calendar creation/reconciliation adapter, request decisions, booking/reservation/outbox schema, durable workers, operator recovery, and tests. Depends on P1 durable jobs and P3 lifecycle/feasibility.
+Host approval UI, Calendar creation/reconciliation adapter, request decisions, booking/reservation/outbox schema, durable workers, operator recovery, and tests. Depends on durable jobs, request lifecycle and feasibility.
 
-Basis: [PRD FR-17–FR-23 and AC-04, AC-06–AC-10, AC-13](../../../documentations/02_product_requirements.md), [reconciliation design](../../../documentations/03_technical_specification.md), and [backend contract](../../../scripts/backend-contract.md). P5/P6 client/channel approval and delivery adapters remain later work; P4 evidence must distinguish fixtures from a controlled live Calendar case.
+Basis: [PRD FR-17–FR-23 and AC-04, AC-06–AC-10, AC-13](../../../documentations/02_product_requirements.md), [reconciliation design](../../../documentations/03_technical_specification.md), and [backend architecture](../../../documentations/technical_specification/01_backend_architecture.md). Client/channel approval and delivery adapters remain separate work; Booking evidence must distinguish fixtures from a controlled live Calendar case.

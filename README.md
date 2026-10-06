@@ -16,10 +16,10 @@ See the [project one-pager](documentations/01_one_pager.md) for the target users
 
 ## Repository layout
 
-- `agent/`: planned root eve definitions, instructions, tools and channels.
-- `apps/web/`: planned Next.js routes, components and web-specific adapters.
-- `lib/`: planned shared client-safe contracts and server-only scheduling capabilities.
-- `tests/`: planned integration and browser tests; unit tests live beside modules.
+- `agent/`: scaffold for root eve definitions, instructions, tools and channels.
+- `apps/web/`: scaffold for Next.js routes, components and web-specific adapters.
+- `lib/`: scaffold for shared client-safe contracts and server-only scheduling capabilities.
+- `tests/`: scaffold for integration and browser tests; unit tests live beside modules.
 - `documentations/`: project documentation and research.
 - `supabase/`: local configuration, declarative schemas, migrations and database tests.
 - `openspec/`: behavioral specifications and bounded implementation changes.
@@ -35,11 +35,17 @@ The selected rebuild Supabase project is **`mriseqztcwmezvtawnbo`**. The main ch
 
 Start with the [implementation plan](documentations/technical_specification/04_implementation_plan.md), [page list](documentations/user_experience/04_page_list.md) and [documentation index](documentations/README.md). The replacement is not implemented or verified by these documentation changes.
 
-Earlier Vercel, Supabase and Fly.io deployments and provider probes are historical development evidence. Their historical status is recorded in [provider setup](documentations/technical_specification/03_provider_setup.md) and the [archived compatibility report](documentations/archive/2026-10-06-compatibility_report.md). Track unresolved checks in the [implementation gates](documentations/technical_specification/04_implementation_plan.md#carried-forward-compatibility-gates). Preserve external resources and secrets, and prevent competing development consumers before controlled provider testing.
+Track unresolved provider/client checks in the [implementation gates](documentations/technical_specification/04_implementation_plan.md#compatibility-gates). Preserve external resources and secrets, and prevent competing consumers before controlled provider testing.
+
+## Email delivery
+
+Use **Cloudflare Email Service** for host invitations, contact verification, recovery and booking confirmations, sent from `no-reply@findmeatime.com`. Supabase Auth also sends authentication email through **Cloudflare custom SMTP**. **AgentMail** handles conversational scheduling inboxes, threads and replies. See [email setup](documentations/technical_specification/03_provider_setup.md#cloudflare-email-service).
 
 ## Local development
 
-The former web app, backend runtime, contracts and Photon bridge implementation have been removed. There is no runnable application or deployment command until the reconstruction is implemented. The target is **`https://release.findmeatime.com`**; local browser callbacks use **`http://localhost:3000`**. See the [source-removal record](documentations/archive/2026-10-07-source-removal.md) for scope, recovery and retained behavior checks.
+The agreed directory scaffold is now in place, with tracked placeholders and ownership notes. Runtime entrypoints, application code, dependencies and build/deployment configuration remain Phase 1 work.
+
+The former web app, backend runtime, contracts and Photon bridge implementation have been removed. There is no runnable application or deployment command until the reconstruction is implemented. The target is **`https://release.findmeatime.com`**; local browser callbacks use **`http://localhost:3000`**. Local source recovery remains available in the ignored `.local/rebuild/pre-removal-2026-10-07/` checkpoint.
 
 Use Node.js 24, npm 11, Supabase CLI 2.119.0 and OpenSpec CLI 1.14.0. Run `npm ci` and `npm run check` for documentation links, retained script syntax and SMTP configuration tests. These checks do not build or validate a replacement app. App typecheck, lint, tests and build must return with the new implementation.
 

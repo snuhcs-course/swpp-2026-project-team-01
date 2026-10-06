@@ -15,7 +15,7 @@ New transactional emails SHALL use Cloudflare Email Service. Supabase Auth SHALL
 
 #### Scenario: Cloudflare configuration unavailable
 - **WHEN** an enabled new delivery lacks required Cloudflare configuration
-- **THEN** no message is sent through AgentMail, Resend, or a default sender as fallback
+- **THEN** no message is sent through AgentMail or a default sender as fallback
 
 #### Scenario: Authentication email
 - **WHEN** the production Auth sender is activated
@@ -35,7 +35,7 @@ The system SHALL freeze sender identity and content before dispatch. Previously 
 - **WHEN** a Cloudflare send may have succeeded but its response is lost
 - **THEN** a later job records uncertainty without issuing another send
 
-#### Scenario: Legacy delivery survives provider switch
+#### Scenario: Conversational delivery retry
 - **WHEN** an uncertain AgentMail delivery is retried within its supported horizon
 - **THEN** its original inbox, payload, and idempotency identity are retained
 
@@ -61,6 +61,6 @@ Successful remote operator invitation issuance SHALL deliver the issued credenti
 ### Requirement: Selected product sender domain
 New production authentication, invitation, and transactional messages SHALL use `no-reply@findmeatime.com`. Existing dispatched messages SHALL retain their original immutable sender identity. AgentMail conversational inboxes SHALL remain available.
 
-#### Scenario: New message after domain change
+#### Scenario: Production message prepared
 - **WHEN** a new production authentication, invitation, or transactional email is prepared
 - **THEN** the configured sender is `no-reply@findmeatime.com`

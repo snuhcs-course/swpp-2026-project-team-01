@@ -33,7 +33,7 @@ The website SHALL open host setup and request management on the relevant convers
 - **THEN** no request details or chat appear, and the page directs the requester to use their private request link without credential-paste or recovery controls
 
 ### Requirement: Contextual artifacts and actions
-The website SHALL present draft changes, calendar choices, candidate times, current proposals, and decision status as reviewable artifacts in the relevant conversation. Available actions SHALL be labeled, keyboard-operable buttons adjacent to the artifact and SHALL invoke the existing authorized commands with current revisions.
+The website SHALL present draft changes, calendar choices, candidate times, current proposals, and decision status as reviewable artifacts in the relevant conversation. Available actions SHALL be labeled, keyboard-operable buttons adjacent to the artifact and SHALL invoke the authorized commands with current revisions.
 
 #### Scenario: Review a candidate
 - **WHEN** a requester receives feasible candidate times

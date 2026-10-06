@@ -6,7 +6,7 @@ Basis: [implementation plan](technical_specification/04_implementation_plan.md),
 
 The pre-launch rebuild replaces the web, agent integration, scheduling backend, contracts and channel integration source. Supabase remains selected infrastructure; the former API and worker implementation is not a retained dependency. Build directly in the final workspace paths on `feat/reconstruct-application` in the main checkout. Follow the eve chat template with root `agent/`, Next.js under `apps/web/`, shared contracts and server-only capabilities in root `lib/`, and separate eve/web builds composed through root `vercel.ts`. Keep database assets under `supabase/`; defer additional packages and worker/bridge apps until independent packaging or runtime requirements justify them. The [source organization](technical_specification/02_frontend_architecture.md#source-organization) owns the layout.
 
-This document describes the target system. [Capability specifications](../openspec/specs/) retain agreed behavior; bounded [OpenSpec changes](../openspec/changes/) must resolve proposed deltas before implementation. The [implementation plan](technical_specification/04_implementation_plan.md#carried-forward-compatibility-gates) tracks unresolved provider/client gates; historical evidence is archived separately.
+This document describes the target system. [Capability specifications](../openspec/specs/) retain agreed behavior; bounded [OpenSpec changes](../openspec/changes/) must resolve proposed deltas before implementation. The [implementation plan](technical_specification/04_implementation_plan.md#compatibility-gates) tracks unresolved provider/client gates..
 
 ## 1. Scope and foundation
 
@@ -21,7 +21,8 @@ The system coordinates one host and one external requester, checks Google Calend
 | Scheduling backend | Shared commands, audience-specific queries, deterministic feasibility, explicit decisions and reliable booking. | Required responsibilities; API/worker placement and durable job implementation remain open. |
 | Agent access | Remote MCP and a thin CLI over shared scheduling operations. | Required release scope; authorization and each named client need independent verification. |
 | Calendar and travel | Separate Google Calendar grants for host events and requester availability; Google Routes plus confirmed buffers. | Provider direction retained; replacement adapters and controlled journeys need verification. |
-| Messaging | AgentMail requester conversation email, Photon Spectrum host iMessage, Cloudflare transactional mail and Supabase Auth SMTP. | Provider direction retained; implementations are replaceable. Native eve Photon compatibility with Spectrum credentials is unverified. |
+| Transactional and Auth email | **Cloudflare Email Service**, sending host invitations, contact verification, recovery and booking confirmations from `no-reply@findmeatime.com`; Supabase Auth uses Cloudflare custom SMTP. | Selected provider; verify delivery against the rebuild project. See [email setup](technical_specification/03_provider_setup.md#cloudflare-email-service). |
+| Conversation channels | AgentMail for requester email inboxes, threads and replies; Photon Spectrum for host iMessage. | Selected providers; native eve Photon compatibility with Spectrum credentials requires verification. |
 | Hosting | Vercel at `https://release.findmeatime.com` for the proposed Next.js web app; selected Supabase project `mriseqztcwmezvtawnbo` for identity/data. See [deployment setup](technical_specification/03_provider_setup.md#reconstruction-deployment-origin). | Exact eve persistence, compute, worker and Spectrum bridge deployment must be settled by the runtime spike. |
 
 Native mobile apps, group meetings, non-Google calendars and automated post-booking changes remain outside the initial release. Private host email is a proposed extension, not an accepted requirement.
@@ -80,8 +81,7 @@ Confirmation email, Calendar invitation and protected receipt describe the same 
 | Phases, open decisions, compatibility gates, acceptance mapping and release evidence | [Implementation plan](technical_specification/04_implementation_plan.md) |
 | Product intent and acceptance; user experience | [PRD](02_product_requirements.md), [journeys](user_experience/01_user_journeys.md), [user stories](user_experience/02_user_stories.md), [interfaces](user_experience/03_interfaces.md), [page list](user_experience/04_page_list.md) |
 | Agreed behavior and proposed deltas | [Capability specifications](../openspec/specs/) and [OpenSpec changes](../openspec/changes/) |
-| Dated provider/client probes and former setup procedures | [Archived compatibility evidence](archive/2026-10-06-compatibility_report.md) |
 
 ## 6. Delivery and verification
 
-The [implementation plan](technical_specification/04_implementation_plan.md) is the execution entry point. It owns decision deadlines and fresh acceptance evidence across domain, database, runtime, browser, providers and every named agent client. Historical tests and archived deployments do not establish replacement readiness. Resolve scope in the PRD and technical decisions in the owning change; promote behavior into main capability specs only after implementation and verification.
+The [implementation plan](technical_specification/04_implementation_plan.md) is the execution entry point. It owns decision deadlines and fresh acceptance evidence across domain, database, runtime, browser, providers and every named agent client. Verify each capability against the rebuilt deployment. Resolve scope in the PRD and technical decisions in the owning change; promote behavior into main capability specs only after implementation and verification.

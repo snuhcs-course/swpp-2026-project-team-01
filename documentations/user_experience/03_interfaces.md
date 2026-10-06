@@ -7,7 +7,7 @@ Companion: [User journeys and flows](01_user_journeys.md)
 
 This document explains which interfaces people and personal agents use, what each interface is for, and how they connect to the same scheduling workflow. It describes intended product design, not implemented integrations. The PRD owns release requirements and acceptance criteria.
 
-Reconstruction design (2026-10-06): the [page list](04_page_list.md) defines the proposed new web routes and contextual actions. The [frontend architecture](../technical_specification/02_frontend_architecture.md) proposes Next.js/eve against a rebuilt scheduling backend. The [implementation plan](../technical_specification/04_implementation_plan.md) makes the former web and backend implementation historical reference rather than a compatibility boundary. The page list also records the newer six-digit iMessage linking proposal for OpenSpec reconciliation before implementation.
+Reconstruction design (2026-10-06): the [page list](04_page_list.md) defines the proposed new web routes and contextual actions. The [frontend architecture](../technical_specification/02_frontend_architecture.md) proposes Next.js/eve against a rebuilt scheduling backend. The [implementation plan](../technical_specification/04_implementation_plan.md) defines the delivery phases and verification gates. The page list also records the newer six-digit iMessage linking proposal for OpenSpec reconciliation before implementation.
 
 ## Channel direction
 
@@ -124,6 +124,6 @@ All channels inherit the PRD's privacy and lifecycle rules. Changed proposals re
 
 ## Reconstruction status
 
-The [chat workspace specification](../../openspec/specs/chat-workspaces/spec.md) owns the agreed contextual-artifact and explicit-decision behavior. The [page list](04_page_list.md) describes the proposed replacement host and requester workspaces. The [archived setup evidence](../archive/2026-10-06-compatibility_report.md#former-host-setup-evidence-2026-10-05) contains useful former-implementation evidence, but its source layout, endpoint shapes, legacy `LINK` behavior, local fixtures, and deployment status do not verify or constrain the replacement.
+The [chat workspace specification](../../openspec/specs/chat-workspaces/spec.md) owns the agreed contextual-artifact and explicit-decision behavior. The [page list](04_page_list.md) describes the proposed replacement host and requester workspaces.
 
 The replacement must verify website setup, requester conversation, email, MCP, CLI, and full iMessage journeys independently. Unconfirmed web chat text has no agreement or approval authority; channel decisions require the verified, current-proposal confirmation mechanism described above. Existing provider resources and credentials may be reused deliberately, but old deployment success cannot be carried forward as replacement evidence.
