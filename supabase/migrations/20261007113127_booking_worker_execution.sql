@@ -1,148 +1,14 @@
-create table fmat.host_approvals (
-  id uuid primary key default gen_random_uuid(),
-  request_id uuid not null references fmat.requests(id),
-  proposal_version integer not null,
-  host_id uuid not null references fmat.hosts(id),
-  source text not null check(source='authenticated_web'),
-  approved_revision integer not null,
-  created_at timestamptz not null default now(),
-  foreign key(request_id,proposal_version) references fmat.proposals(request_id,version)
-);
-create index host_approvals_request_idx on fmat.host_approvals(request_id,proposal_version);
-alter table fmat.host_approvals enable row level security;
+SET local check_function_bodies = off;
 
--- A request retains one provider-valid event identity across conclusively noncreating attempts.
-create table fmat.booking_identities (
-  request_id uuid primary key references fmat.requests(id),
-  event_id text not null unique check(length(event_id) between 5 and 1024 and event_id ~ '^[0-9a-v]+$'),
-  created_at timestamptz not null default now()
-);
-alter table fmat.booking_identities enable row level security;
-
-create table fmat.booking_attempts (
-  id uuid primary key default gen_random_uuid(),
-  request_id uuid not null references fmat.booking_identities(request_id),
-  host_id uuid not null references fmat.hosts(id),
-  proposal_version integer not null,
-  approval_id uuid not null references fmat.host_approvals(id),
-  expected_revision integer not null,
-  rules_version integer not null,
-  connection_id uuid not null references fmat.calendar_connections(id),
-  connection_provider_subject text not null,
-  calendar_id text not null,
-  event_id text not null,
-  payload jsonb not null,
-  payload_fingerprint text not null,
-  starts_at timestamptz not null,
-  ends_at timestamptz not null,
-  phase text not null default 'prepared' check(phase in ('prepared','dispatched','uncertain','confirmed','noncreating','blocked','conflict')),
-  dispatched_at timestamptz,
-  confirmed_at timestamptz,
-  reconciliation_count integer not null default 0,
-  reason text,
-  provider_evidence jsonb,
-  created_at timestamptz not null default clock_timestamp(),
-  updated_at timestamptz not null default now(),
-  foreign key(request_id,proposal_version) references fmat.proposals(request_id,version),
-  check(starts_at<ends_at)
-);
-create unique index booking_attempts_active_request_idx on fmat.booking_attempts(request_id) where phase not in ('noncreating','blocked');
-create index booking_attempts_host_interval_idx on fmat.booking_attempts(host_id,starts_at,ends_at) where phase='confirmed';
-alter table fmat.booking_attempts enable row level security;
-
-create table fmat.host_reservations (
-  host_id uuid primary key references fmat.hosts(id),
-  attempt_id uuid not null unique references fmat.booking_attempts(id),
-  created_at timestamptz not null default now()
-);
-alter table fmat.host_reservations enable row level security;
-
--- Freeze every provider-visible field; even a new owner cannot mutate a possibly sent payload.
-create or replace function fmat.protect_booking_snapshot()
-returns trigger language plpgsql set search_path='' as $$
-begin
-  if row(new.request_id,new.host_id,new.proposal_version,new.approval_id,new.expected_revision,new.rules_version,new.connection_id,new.connection_provider_subject,new.calendar_id,new.event_id,new.payload,new.payload_fingerprint,new.starts_at,new.ends_at)
-    is distinct from row(old.request_id,old.host_id,old.proposal_version,old.approval_id,old.expected_revision,old.rules_version,old.connection_id,old.connection_provider_subject,old.calendar_id,old.event_id,old.payload,old.payload_fingerprint,old.starts_at,old.ends_at)
-    then raise exception 'BOOKING_SNAPSHOT_IMMUTABLE'; end if;
-  if old.phase in ('dispatched','uncertain','conflict') and new.phase in ('prepared','blocked') then raise exception 'BOOKING_UNCERTAIN'; end if;
-  if old.phase='confirmed' and new.phase<>'confirmed' then raise exception 'BOOKING_TERMINAL'; end if;
-  return new;
-end;
-$$;
-create trigger protect_booking_snapshot before update on fmat.booking_attempts for each row execute function fmat.protect_booking_snapshot();
-
-create or replace function fmat.withdraw_allowed(p_request_id uuid)
-returns boolean language sql stable set search_path='' as $$
-  select not exists(select 1 from fmat.booking_attempts where request_id=p_request_id and phase in ('dispatched','uncertain','conflict','confirmed'));
-$$;
-
-create or replace function fmat.require_job_lease(p_actor jsonb,p_job_id uuid,p_lease_token uuid)
-returns fmat.jobs language plpgsql set search_path='' as $$
-declare v_job fmat.jobs;
-begin
-  if p_actor->>'kind' is distinct from 'worker' or coalesce(p_actor->>'id','')='' then raise exception 'FORBIDDEN'; end if;
-  select * into v_job from fmat.jobs where id=p_job_id for update;
-  if not found or v_job.status<>'running' or v_job.lease_token is distinct from p_lease_token
-    or v_job.worker_id is distinct from p_actor->>'id' or v_job.lease_until<=clock_timestamp() then raise exception 'LEASE_LOST'; end if;
-  if v_job.kind not in ('booking','booking_reconcile') then raise exception 'FORBIDDEN'; end if;
-  return v_job;
-end;
-$$;
-
-create or replace function fmat.booking_snapshot(p_attempt fmat.booking_attempts)
-returns jsonb language sql stable set search_path='' as $$
-  select jsonb_build_object('attemptId',p_attempt.id,'requestId',p_attempt.request_id,'hostId',p_attempt.host_id,
-    'proposalVersion',p_attempt.proposal_version,'calendarId',p_attempt.calendar_id,'eventId',p_attempt.event_id,'payload',p_attempt.payload,'phase',p_attempt.phase,
-    'expectedRevision',p_attempt.expected_revision,'rulesVersion',p_attempt.rules_version,'connectionId',p_attempt.connection_id,'connectionProviderSubject',p_attempt.connection_provider_subject,'payloadFingerprint',p_attempt.payload_fingerprint,
-    'localBookings',(select coalesce(jsonb_agg(jsonb_build_object('payload',a.payload,'startsAt',a.starts_at,'endsAt',a.ends_at,'mode',p.details->>'mode','calendarId',a.calendar_id)),'[]'::jsonb) from fmat.booking_attempts a join fmat.proposals p on p.request_id=a.request_id and p.version=a.proposal_version
-      where a.host_id=p_attempt.host_id and a.phase='confirmed' and a.id<>p_attempt.id and a.ends_at>now()));
-$$;
-
-create or replace function fmat.prepare_booking(p_request fmat.requests,p_approval_id uuid)
-returns uuid language plpgsql set search_path='' as $$
-declare v_host fmat.hosts; v_proposal fmat.proposals; v_connection fmat.calendar_connections;
-  v_id uuid:=gen_random_uuid(); v_event_id text; v_payload jsonb;
-begin
-  select * into strict v_host from fmat.hosts where id=p_request.host_id for share;
-  select * into v_connection from fmat.calendar_connections where principal_kind='host' and principal_id=p_request.host_id and revoked_at is null for share;
-  if not found then raise exception 'RECONNECT_REQUIRED'; end if;
-  if not fmat.host_ready(v_host) or p_request.host_availability_failed or (p_request.availability_mode='calendar' and p_request.availability_failed) then raise exception 'RECONNECT_REQUIRED'; end if;
-  select * into strict v_proposal from fmat.proposals where request_id=p_request.id and version=p_request.current_proposal_version;
-  if v_proposal.rules_version<>v_host.rules_version then raise exception 'FEASIBILITY_STALE'; end if;
-  if p_request.contact_verified_email is distinct from lower(v_proposal.details->>'requesterEmail') then raise exception 'CONTACT_NOT_VERIFIED'; end if;
-  insert into fmat.booking_identities(request_id,event_id) values(p_request.id,'fmat'||replace(gen_random_uuid()::text,'-','')) on conflict(request_id) do nothing;
-  select event_id into strict v_event_id from fmat.booking_identities where request_id=p_request.id;
-  v_payload:=jsonb_build_object('id',v_event_id,'summary','Meeting: '||left(v_proposal.details->>'purpose',100),
-    'description','Requested by '||(v_proposal.details->>'requesterName')||E'\n'||(v_proposal.details->>'purpose'),
-    'location',v_proposal.details->>'location',
-    'start',jsonb_build_object('dateTime',v_proposal.details->>'start','timeZone',v_proposal.details->>'timezone'),
-    'end',jsonb_build_object('dateTime',v_proposal.details->>'end','timeZone',v_proposal.details->>'timezone'),
-    'attendees',(select jsonb_agg(jsonb_build_object('email',e)) from (select distinct lower(v_proposal.details->>'requesterEmail') e union select lower(v_host.email)) attendees),
-    'extendedProperties',jsonb_build_object('private',jsonb_build_object('fmatRequestId',p_request.id::text,'fmatAttemptId',v_id::text,'fmatProposalVersion',p_request.current_proposal_version::text)));
-  insert into fmat.booking_attempts(id,request_id,host_id,proposal_version,approval_id,expected_revision,rules_version,connection_id,connection_provider_subject,calendar_id,event_id,payload,payload_fingerprint,starts_at,ends_at)
-    values(v_id,p_request.id,p_request.host_id,p_request.current_proposal_version,p_approval_id,p_request.revision,v_host.rules_version,v_connection.id,v_connection.provider_subject,v_host.booking_calendar_id,v_event_id,v_payload,
-      encode(sha256(convert_to(v_payload::text,'UTF8')),'hex'),(v_proposal.details->>'start')::timestamptz,(v_proposal.details->>'end')::timestamptz);
-  perform fmat.enqueue_job('booking','booking:'||v_id::text,jsonb_build_object('requestId',p_request.id,'attemptId',v_id));
-  return v_id;
-end;
-$$;
-
-create or replace function fmat.booking_authorize(p_operation text,p_actor jsonb,p_input jsonb)
-returns void language plpgsql set search_path='' as $$
-begin
-  if p_operation='host_approve' then
-    perform fmat.require_host(p_actor,true);
-    perform fmat.require_request(p_actor,(p_input->>'requestId')::uuid);
-  elsif p_operation in ('booking_load','booking_dispatch','booking_record_outcome') then
-    if p_actor->>'kind' is distinct from 'worker' or coalesce(p_actor->>'id','')='' then raise exception 'FORBIDDEN'; end if;
-  elsif p_operation in ('booking_retry','booking_reconcile') then
-    if p_actor->>'kind' is distinct from 'operator' or coalesce(p_actor->>'id','')='' then raise exception 'FORBIDDEN'; end if;
-  else raise exception 'UNKNOWN_OPERATION'; end if;
-end;
-$$;
-
-create or replace function fmat.booking_command(p_operation text,p_actor jsonb,p_input jsonb)
-returns jsonb language plpgsql set search_path='' as $$
+CREATE OR REPLACE FUNCTION fmat.booking_command (
+  p_operation text,
+  p_actor     jsonb,
+  p_input     jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
 declare v_request fmat.requests; v_host fmat.hosts; v_proposal fmat.proposals; v_attempt fmat.booking_attempts;
   v_job fmat.jobs; v_connection fmat.calendar_connections; v_approval_id uuid; v_id uuid; v_outcome text; v_recipient jsonb; v_outbox_id uuid;
   v_job_request_id uuid; v_existing_attempt_id uuid;
@@ -331,90 +197,151 @@ begin
   perform fmat.audit('booking_'||v_outcome,p_actor,v_attempt.id::text,jsonb_build_object('reason',left(p_input->>'reason',100)));
   return jsonb_build_object('ok',true);
 end;
-$$;
+$function$;
 
-create or replace function fmat.dispatch_command(p_operation text,p_actor jsonb,p_input jsonb)
-returns jsonb language plpgsql set search_path='' as $$
-declare v_result jsonb; v_connection fmat.calendar_connections; v_host fmat.hosts; v_start timestamptz; v_end timestamptz;
+CREATE OR REPLACE FUNCTION fmat.wake_booking_worker()
+  RETURNS bigint
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare url text; secret text;
 begin
-  if p_operation like 'jobs_%' or p_operation='foundation_ping' then return fmat.foundation_command(p_operation,p_actor,p_input); end if;
-  if p_operation in ('host_approve','booking_load','booking_dispatch','booking_record_outcome','booking_retry','booking_reconcile') then return fmat.booking_command(p_operation,p_actor,p_input); end if;
-  if fmat.is_delivery_operation(p_operation) then return fmat.delivery_command(p_operation,p_actor,p_input); end if;
-  if fmat.is_request_operation(p_operation) then
-    v_result:=fmat.request_command(p_operation,p_actor,p_input);
-    if p_operation='evaluation_read' then
-      select * into strict v_host from fmat.hosts where id=(v_result->>'hostId')::uuid;
-      select min((w->>'start')::timestamptz)-interval '1 day',max((w->>'end')::timestamptz)+interval '1 day'
-        into v_start,v_end from jsonb_array_elements(v_result->'details'->'windows') w;
-      v_result:=v_result||jsonb_build_object('localBookings',(select coalesce(jsonb_agg(jsonb_build_object('payload',a.payload,
-        'startsAt',a.starts_at,'endsAt',a.ends_at,'mode',p.details->>'mode','calendarId',a.calendar_id) order by a.starts_at,a.id),'[]'::jsonb)
-        from fmat.booking_attempts a join fmat.proposals p on p.request_id=a.request_id and p.version=a.proposal_version
-        where a.host_id=v_host.id and a.request_id<>(v_result->>'requestId')::uuid and a.phase='confirmed'
-          and (a.calendar_id=any(v_host.conflict_calendar_ids) or a.calendar_id=v_host.booking_calendar_id)
-          and a.starts_at<v_end and a.ends_at>v_start));
-    end if;
-    return v_result;
-  end if;
-  if p_operation='connection_read' then
-    -- Keep encrypted bundle and metadata from the same credential revision.
-    perform 1 from fmat.calendar_connections where principal_kind=case when p_input ? 'hostId' then 'host' else 'guest' end
-      and principal_id=coalesce(p_input->>'hostId',p_input->>'requestId')::uuid for share;
-  elsif p_operation='token_update' then
-    select * into v_connection from fmat.calendar_connections where id=(p_input->>'connectionId')::uuid for update;
-    if not found or v_connection.revoked_at is not null then raise exception 'RECONNECT_REQUIRED'; end if;
-    if v_connection.provider_subject is distinct from p_input->>'providerSubject' then raise exception 'RECONNECT_REQUIRED'; end if;
-    if v_connection.updated_at is distinct from (p_input->>'expectedUpdatedAt')::timestamptz then raise exception 'FEASIBILITY_STALE'; end if;
-  end if;
-  v_result:=fmat.onboarding_request_dispatch(p_operation,p_actor,p_input);
-  if p_operation in ('connection_read','token_update') then
-    select * into v_connection from fmat.calendar_connections where id=coalesce(v_result->>'connectionId',p_input->>'connectionId')::uuid;
-    if found then v_result:=v_result||jsonb_build_object('updatedAt',v_connection.updated_at,'providerSubject',v_connection.provider_subject); end if;
-  end if;
-  return v_result;
+ if not exists(select 1 from fmat.jobs j where kind in ('booking','booking_reconcile')
+  and ((status='pending' and available_at<=clock_timestamp()) or (status='running' and lease_until<=clock_timestamp()))
+  and exists(select 1 from fmat.booking_attempts a join fmat.web_approval_decisions d on d.approval_id=a.approval_id where a.id::text=j.payload->>'attemptId' and a.request_id::text=j.payload->>'requestId')) then return null;end if;
+ select decrypted_secret into url from vault.decrypted_secrets where name='fmat_booking_dispatch_url';
+ select decrypted_secret into secret from vault.decrypted_secrets where name='fmat_runtime_dispatch_secret';
+ if url is null or secret is null then return null;end if;
+ if url !~ '^https://[^/]+/api/internal/booking/dispatch$' or secret !~ '^[a-f0-9]{64}$' then raise exception 'INVALID_DISPATCH_CONFIGURATION';end if;
+ return net.http_post(url:=url,headers:=jsonb_build_object('Content-Type','application/json','Authorization','Bearer '||secret),body:='{}',timeout_milliseconds:=120000);
 end;
-$$;
-create or replace function fmat.authorize_command(p_operation text,p_actor jsonb,p_input jsonb)
-returns void language plpgsql set search_path='' as $$
-begin
-  if p_operation like 'jobs_%' or p_operation='foundation_ping' then
-    if p_actor->>'kind' not in ('worker','operator') or coalesce(p_actor->>'id','')='' then raise exception 'FORBIDDEN'; end if;
-  elsif p_operation in ('host_approve','booking_load','booking_dispatch','booking_record_outcome','booking_retry','booking_reconcile') then perform fmat.booking_authorize(p_operation,p_actor,p_input);
-  elsif fmat.is_delivery_operation(p_operation) then perform fmat.delivery_authorize(p_actor);
-  elsif fmat.is_request_operation(p_operation) then perform fmat.request_authorize(p_operation,p_actor,p_input);
-  else perform fmat.onboarding_request_authorize(p_operation,p_actor,p_input);
-  end if;
-end;
-$$;
-create or replace function public.fmat_command(p_operation text,p_actor jsonb,p_input jsonb)
-returns jsonb language plpgsql security definer set search_path='' as $$
-declare v_scope text; v_key text; v_record fmat.idempotency; v_result jsonb; v_identity_input jsonb;
-begin
-  if p_operation in ('candidates_save','proposal_create','proposal_revise','requester_agree','requester_withdraw','host_decline','manual_allowance_save','preference_exception_save')
-    or (p_operation='mutation_replay' and p_input->>'operation' in ('proposal_create','proposal_revise','requester_withdraw','host_decline','manual_allowance_save','preference_exception_save')) then raise exception 'FORBIDDEN';end if;
-  if jsonb_typeof(p_actor) is distinct from 'object' or jsonb_typeof(p_input) is distinct from 'object'
-    or p_actor->>'kind' is null or p_actor->>'kind' not in ('host','guest','worker','operator','public') then raise exception 'INVALID_INPUT'; end if;
-  perform fmat.authorize_command(p_operation,p_actor,p_input);
-  if p_operation like 'jobs_%' or p_operation in ('oauth_consume','credential_save','token_update','oauth_cleanup','host_public','setup_read','calendar_read','requests_list','request_read','connection_read','evaluation_read','candidates_save','extraction_save','assistant_message_save','model_claim','request_expire','mutation_replay','delivery_load','delivery_dispatch','delivery_record','booking_load','booking_dispatch','booking_record_outcome') then return fmat.dispatch_command(p_operation,p_actor,p_input); end if;
-  v_key:=p_input->>'idempotencyKey';
-  if v_key is null or length(v_key) not between 1 and 200 then raise exception 'IDEMPOTENCY_REQUIRED'; end if;
-  v_scope:=coalesce(p_actor->>'kind','')||':'||coalesce(p_actor->>'id',p_actor->>'tokenHash',p_actor->>'email','public');
-  v_identity_input:=case when p_operation='oauth_start' then jsonb_build_object('context',p_input->'context','idempotencyKey',v_key) when p_operation='contact_start' then p_input-'encryptedCode' when p_operation='contact_recover' then p_input-'encryptedToken' when p_operation='manual_allowance_save' then jsonb_set(p_input,'{allowance}',(p_input->'allowance')-'confirmedAt') else p_input end;
-  insert into fmat.idempotency(actor_scope,operation,key,input) values(v_scope,p_operation,v_key,v_identity_input) on conflict do nothing;
-  select * into strict v_record from fmat.idempotency where actor_scope=v_scope and operation=p_operation and key=v_key for update;
-  if v_record.input<>v_identity_input then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
-  if v_record.result is not null then
-    if p_operation='oauth_start' and not exists(select 1 from fmat.oauth_exchanges where id=(v_record.result->>'exchangeId')::uuid and consumed_at is null and expires_at>now()) then raise exception 'OAUTH_STATE_INVALID'; end if;
-    if p_operation='request_create' and not exists(select 1 from fmat.requests r join fmat.hosts h on h.id=r.host_id where r.id=(v_record.result->>'id')::uuid and r.token_hash=p_input->>'tokenHash' and r.token_revoked_at is null and r.expires_at>now() and fmat.host_ready(h)) then raise exception 'REQUEST_CLOSED'; end if;
-    if p_operation='contact_redeem' and not exists(select 1 from fmat.requests where id=(p_input->>'requestId')::uuid and token_hash=p_input->>'newTokenHash' and token_revoked_at is null and expires_at>now()) then raise exception 'CONTACT_INVALID'; end if;
-    return v_record.result;
-  end if;
-  v_result:=fmat.dispatch_command(p_operation,p_actor,p_input);
-  update fmat.idempotency set result=v_result where actor_scope=v_scope and operation=p_operation and key=v_key;
-  return v_result;
-end;
-$$;
-revoke all on all tables in schema fmat from public,anon,authenticated,service_role;
-revoke execute on all functions in schema fmat from public,anon,authenticated,service_role;
+$function$;
 
-revoke execute on function public.fmat_command(text,jsonb,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_command(text,jsonb,jsonb) to service_role;
+CREATE OR REPLACE FUNCTION public.fmat_booking_worker (
+  p_operation text,
+  p_lease     jsonb,
+  p_input     jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare j fmat.jobs; r fmat.requests; h fmat.hosts; a fmat.booking_attempts; c fmat.calendar_connections;
+ actor jsonb; outcome text; evidence jsonb; recipient jsonb; outbox_id uuid;
+begin
+ if p_operation is null or p_operation not in ('claim','load','access','refresh','record','complete','retry')
+  or jsonb_typeof(p_lease) is distinct from 'object' or jsonb_typeof(p_input) is distinct from 'object'
+  or length(coalesce(p_lease->>'workerId','')) not between 1 and 200 then raise exception 'INVALID_INPUT';end if;
+ actor:=jsonb_build_object('kind','worker','id',p_lease->>'workerId');
+ if p_operation='claim' then
+  if p_input<>'{}' or exists(select 1 from jsonb_object_keys(p_lease) k where k<>'workerId') then raise exception 'INVALID_INPUT';end if;
+  select * into j from fmat.jobs job where kind in ('booking','booking_reconcile')
+   and ((status='pending' and available_at<=clock_timestamp()) or (status='running' and lease_until<=clock_timestamp()))
+   and exists(select 1 from fmat.booking_attempts attempt join fmat.web_approval_decisions decision on decision.approval_id=attempt.approval_id
+     where attempt.id::text=job.payload->>'attemptId' and attempt.request_id::text=job.payload->>'requestId')
+   order by available_at,created_at,id limit 1 for update skip locked;
+  if not found then return jsonb_build_object('job',null);end if;
+  if j.attempts>=j.max_attempts then
+   update fmat.jobs set status='dead',lease_token=null,lease_until=null,worker_id=null,last_error='RETRY_EXHAUSTED',updated_at=clock_timestamp() where id=j.id;
+   perform fmat.audit('booking_job_exhausted',actor,j.id::text);
+   return jsonb_build_object('job',null);
+  end if;
+  update fmat.jobs set status='running',attempts=attempts+1,worker_id=actor->>'id',lease_token=gen_random_uuid(),lease_until=clock_timestamp()+interval '90 seconds',updated_at=clock_timestamp() where id=j.id returning * into j;
+  return jsonb_build_object('job',jsonb_build_object('workerId',j.worker_id,'jobId',j.id,'leaseToken',j.lease_token));
+ end if;
+ if not(p_lease ?& array['jobId','leaseToken']) or exists(select 1 from jsonb_object_keys(p_lease) k where k not in ('workerId','jobId','leaseToken')) then raise exception 'INVALID_INPUT';end if;
+ j:=fmat.require_job_lease(actor,(p_lease->>'jobId')::uuid,(p_lease->>'leaseToken')::uuid);
+ select * into r from fmat.requests where id=(j.payload->>'requestId')::uuid for update;
+ if not found then raise exception 'NOT_FOUND';end if;
+ select * into h from fmat.hosts where id=r.host_id for update;
+ select * into a from fmat.booking_attempts where id=(j.payload->>'attemptId')::uuid and request_id=r.id;
+ if not found or not exists(select 1 from fmat.web_approval_decisions where approval_id=a.approval_id and request_id=r.id and host_id=h.id) then raise exception 'FORBIDDEN';end if;
+ if p_operation in ('access','refresh') then
+  if a.phase not in ('prepared','dispatched','uncertain','conflict') then raise exception 'BOOKING_UNCERTAIN';end if;
+  perform 1 from auth.users where id=h.id for share;
+  if h.revoked_at is not null or not exists(select 1 from auth.users where id=h.id and deleted_at is null and email_confirmed_at is not null and (banned_until is null or banned_until<=clock_timestamp())) then raise exception 'RECONNECT_REQUIRED';end if;
+  select * into c from fmat.calendar_connections where principal_kind='host' and principal_id=h.id and revoked_at is null for update;
+  if not found or c.provider_subject<>a.connection_provider_subject or (a.phase='prepared' and c.id<>a.connection_id)
+   or not(c.scopes @> array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events']) then raise exception 'RECONNECT_REQUIRED';end if;
+ end if;
+ -- All paths share job -> request -> host -> account/connection -> attempt.
+ select * into a from fmat.booking_attempts where id=a.id for update;
+ perform fmat.require_job_lease(actor,j.id,j.lease_token);
+ if p_operation in ('load','access','complete') and p_input<>'{}' then raise exception 'INVALID_INPUT';end if;
+ if p_operation='load' then return fmat.booking_snapshot(a);end if;
+ if p_operation='access' then
+  return jsonb_build_object('hostId',h.id,'connectionId',c.id,'providerSubject',c.provider_subject,'encryptedCredential',c.encrypted_credential);
+ elsif p_operation='refresh' then
+  if exists(select 1 from jsonb_object_keys(p_input) k where k not in ('connectionId','previousCredential','encryptedCredential'))
+   or c.id is distinct from (p_input->>'connectionId')::uuid or c.encrypted_credential is distinct from p_input->>'previousCredential' then raise exception 'REVISION_CONFLICT';end if;
+  if length(coalesce(p_input->>'encryptedCredential','')) not between 20 and 131072 then raise exception 'INVALID_INPUT';end if;
+  update fmat.calendar_connections set encrypted_credential=p_input->>'encryptedCredential',updated_at=clock_timestamp() where id=c.id;
+  return jsonb_build_object('refreshed',true);
+ elsif p_operation='retry' then
+  if exists(select 1 from jsonb_object_keys(p_input) k where k<>'errorCode') or coalesce(p_input->>'errorCode','') not in ('PROVIDER_UNAVAILABLE','RECONNECT_REQUIRED','BOOKING_BUSY','STALE_REVISION','INTERNAL_ERROR') then raise exception 'INVALID_INPUT';end if;
+  return fmat.foundation_command('jobs_fail',actor,p_input||jsonb_build_object('jobId',j.id,'leaseToken',j.lease_token));
+ elsif p_operation='complete' then
+  if a.phase not in ('confirmed','blocked','noncreating') then raise exception 'BOOKING_UNCERTAIN';end if;
+  return fmat.foundation_command('jobs_complete',actor,jsonb_build_object('jobId',j.id,'leaseToken',j.lease_token,'result',jsonb_build_object('outcome',a.phase)));
+ end if;
+ if exists(select 1 from jsonb_object_keys(p_input) k where k not in ('outcome','reason','evidence')) then raise exception 'INVALID_INPUT';end if;
+ outcome:=p_input->>'outcome';evidence:=p_input->'evidence';
+ if outcome='blocked' then
+  if a.phase<>'prepared' or coalesce(p_input->>'reason','') not in ('checks_conflict','checks_clarification','stale_preconditions','authority_unavailable') then raise exception 'BOOKING_UNCERTAIN';end if;
+  update fmat.booking_attempts set phase='blocked',reason=p_input->>'reason',updated_at=clock_timestamp() where id=a.id;
+  delete from fmat.host_reservations where attempt_id=a.id;
+  if r.status='booking' then
+   update fmat.requests set status=case when fmat.details_complete(details) then 'negotiating' else 'gathering' end,revision=revision+1,
+    current_proposal_version=null,requester_agreed_version=null,host_approved_version=null,availability_check_id=null,availability_check_started_at=null,updated_at=clock_timestamp() where id=r.id;
+  end if;
+ else
+  if a.phase not in ('dispatched','uncertain','conflict') or not exists(select 1 from fmat.booking_dispatches where attempt_id=a.id) then raise exception 'BOOKING_UNCERTAIN';end if;
+  if outcome='noncreating' then
+   if a.phase<>'dispatched' or coalesce(p_input->>'reason','') not in ('provider_bad_request','permission_denied','calendar_not_found')
+    or not exists(select 1 from fmat.booking_dispatches where attempt_id=a.id and job_id=j.id and lease_token=j.lease_token) then raise exception 'INVALID_PROVIDER_EVIDENCE';end if;
+   update fmat.booking_attempts set phase='noncreating',reason=p_input->>'reason',updated_at=clock_timestamp() where id=a.id;
+   delete from fmat.host_reservations where attempt_id=a.id;
+   update fmat.requests set status='awaiting_approval',revision=revision+1,updated_at=clock_timestamp() where id=r.id;
+  elsif outcome in ('uncertain','conflict') then
+   if length(coalesce(p_input->>'reason','')) not between 1 and 100 then raise exception 'INVALID_INPUT';end if;
+   update fmat.booking_attempts set phase=outcome,reason=p_input->>'reason',reconciliation_count=reconciliation_count+1,updated_at=clock_timestamp() where id=a.id returning * into a;
+   if outcome='uncertain' and a.reconciliation_count<=20 then
+    perform fmat.enqueue_job('booking_reconcile','reconcile:'||a.id::text||':'||a.reconciliation_count::text,jsonb_build_object('requestId',r.id,'attemptId',a.id),clock_timestamp()+make_interval(secs=>least(3600,(15*power(2,least(a.reconciliation_count,8)))::integer)));
+   end if;
+  elsif outcome='confirmed' then
+   if jsonb_typeof(evidence) is distinct from 'object' or exists(select 1 from jsonb_object_keys(evidence) k where k not in ('calendarId','eventId','payloadFingerprint','eventUrl','etag'))
+    or evidence->>'calendarId' is distinct from a.calendar_id or evidence->>'eventId' is distinct from a.event_id or evidence->>'payloadFingerprint' is distinct from a.payload_fingerprint
+    or length(coalesce(evidence->>'etag','')) not between 1 and 1024
+    or (evidence->>'eventUrl' is not null and evidence->>'eventUrl' !~ '^https://www\.google\.com/calendar/') then raise exception 'INVALID_PROVIDER_EVIDENCE';end if;
+   update fmat.booking_attempts set phase='confirmed',confirmed_at=clock_timestamp(),provider_evidence=evidence,updated_at=clock_timestamp() where id=a.id;
+   update fmat.requests set status='booked',event=jsonb_build_object('id',a.event_id,'url',evidence->>'eventUrl'),revision=revision+1,updated_at=clock_timestamp() where id=r.id;
+   delete from fmat.host_reservations where attempt_id=a.id;
+   for recipient in select jsonb_build_object('audience','requester','email',r.contact_verified_email) union all select jsonb_build_object('audience','host','email',h.email) loop
+    insert into fmat.outbox(dedupe_key,audience,recipient,payload) values('booking-confirmed:'||r.id::text||':'||(recipient->>'audience'),recipient->>'audience',jsonb_build_object('email',recipient->>'email'),
+     jsonb_build_object('type','booking_confirmed','requestId',r.id,'proposalVersion',a.proposal_version,'eventId',a.event_id,'eventUrl',evidence->>'eventUrl')) on conflict(dedupe_key) do nothing returning id into outbox_id;
+    if outbox_id is not null then perform fmat.enqueue_job('delivery','delivery:'||outbox_id::text,jsonb_build_object('outboxId',outbox_id));end if;
+   end loop;
+  else raise exception 'INVALID_INPUT';end if;
+ end if;
+ insert into fmat.request_history(request_id,revision,operation,actor,proposal_version) select id,revision,'booking_'||outcome,actor,a.proposal_version from fmat.requests where id=r.id;
+ perform fmat.audit('booking_'||outcome,actor,a.id::text,jsonb_build_object('reason',p_input->>'reason'));
+ -- Outcome, follow-up work and acknowledgment commit together. Expiry rolls
+ -- back all local changes, leaving the frozen attempt for another owner.
+ perform fmat.foundation_command('jobs_complete',actor,jsonb_build_object('jobId',j.id,'leaseToken',j.lease_token,'result',jsonb_build_object('outcome',outcome)));
+ return jsonb_build_object('recorded',true);
+end;
+$function$;
+
+REVOKE ALL ON FUNCTION "public"."fmat_booking_worker"(text, jsonb, jsonb) FROM PUBLIC, "anon", "authenticated";
+
+REVOKE ALL ON FUNCTION "fmat"."wake_booking_worker"() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION "public"."fmat_booking_worker"(text, jsonb, jsonb) FROM "postgres";
+
+GRANT EXECUTE ON FUNCTION "public"."fmat_booking_worker"(text, jsonb, jsonb) TO "postgres";
+
+GRANT EXECUTE ON FUNCTION "public"."fmat_booking_worker"(text, jsonb, jsonb) TO "service_role";
+
+SELECT cron.schedule_in_database('fmat-booking-dispatch', '* * * * *', 'select fmat.wake_booking_worker();', 'postgres', NULL, true);

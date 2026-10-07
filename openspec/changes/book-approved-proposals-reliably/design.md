@@ -44,9 +44,16 @@ The current browser RPC derives its host/session attribution from verified Auth 
 
 `booking_checks` binds each fresh evaluation to an attempt, job, lease token and check ID. The server reads the Calendar catalog and verifies the explicit frozen destination is writable before recording its check time and reading busy intervals. A new lease must start a new check. Only the frozen candidate can be assessed. Shared token refresh, interval, travel and preference logic persists private evidence; revoked authority or changed context during network reads cannot save stale results. A definitive pre-dispatch read failure blocks that prepared attempt, releases its reservation and clears obsolete proposal decisions. This path cannot evaluate dispatched/uncertain attempts; reconciliation must preserve their identity and reservation.
 
-The current step provides fresh evaluation and its lease-bound evidence. The runner, dispatch consuming that evidence, reconciliation, scheduler and live provider acceptance remain pending; an evaluation receipt alone does not authorize Calendar insertion.
+Fresh evaluation supplies lease-bound evidence to the dispatch cutoff. The worker below composes evaluation, dispatch and recovery; an evaluation receipt alone does not authorize Calendar insertion.
 
 
 ## Saved-evidence dispatch cutoff
 
 The dedicated dispatch RPC rechecks current booking authority/context and consumes the exact lease/check/basis-bound candidate evidence. Both the evidence and writable-destination check have a 30-second dispatch freshness limit. The attempt, job, lease token, check and evaluation are recorded in immutable `booking_dispatches` before the frozen attempt becomes dispatched. Exactly one transaction returns a positive dispatch receipt; replay or another owner cannot receive a second insertion grant. A lost response requires lookup of the saved event identity. The generic feasibility-boolean dispatch path is denied for rebuilt web approvals. This gate remains separate from provider execution, reconciliation and completion.
+
+
+## Bounded worker execution
+
+The authenticated internal route claims one web-approved job and executes the shared evaluator, current host credential access, dispatch gate and frozen transport. Recovery of any dispatched/uncertain/conflicting attempt performs lookup only. Atomic outcome persistence acknowledges the lease with booked state, reservation release and audience-separated outbox records; expiry rolls back all local completion changes. Original-dispatch ownership is required for definitive noncreation. Operator recovery obtains the host lock before attempts/reservations, matching worker order. A real blocked-lock regression checks that an operator waiting for the host has not locked the attempt.
+
+The private minute scheduler reads a separately provisioned booking URL and existing dispatch secret from Vault. It is inert without configuration and wakes only eligible due work. Unknown lookup results keep reservations through bounded reconciliation; conflicts and exhausted jobs require audited recovery. Delivery execution, complete operator retry coverage and controlled live provider acceptance remain open.

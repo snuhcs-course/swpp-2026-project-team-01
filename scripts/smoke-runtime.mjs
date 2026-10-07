@@ -53,6 +53,9 @@ try {
   assert.equal(photon.status,401,'Photon receiver rejects unsigned delivery before database access');
   assert.match(photon.headers.get('cache-control'),/no-store/u);
 
+  const bookingDispatch = await fetch(web+'/api/internal/booking/dispatch',{method:'POST'});
+  assert.equal(bookingDispatch.status,401,'Booking worker rejects anonymous dispatch');
+  assert.match(bookingDispatch.headers.get('cache-control'),/no-store/u);
   const photonDispatch = await fetch(web+'/api/internal/photon/dispatch',{method:'POST'});
   assert.equal(photonDispatch.status,401,'Code worker rejects anonymous dispatch');
   assert.match(photonDispatch.headers.get('cache-control'),/no-store/u);
