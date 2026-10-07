@@ -25,7 +25,8 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
  const windows=[{start:at('10:00'),end:at('12:00')}],details={requesterName:'Fixture',requesterEmail:'requester@example.test',purpose:'Fixture',durationMinutes:30,timezone:'UTC',windows,mode:'online',location:''};
  const rules={timezone:'UTC',availability:[{days:[0,1,2,3,4,5,6],start:'00:00',end:'23:59'}],focusBlocks:[],bufferMinutes:10,durationMinutes:30,preferences:'Private host preference',travelMode:'NONE',meetingMode:'online',locationPolicy:'per_meeting',locations:[],travelBufferMinutes:0};
  const calls:{party:string;ids:string[];windows:unknown}[]=[];let failure:'host'|'guest'|null=null,refreshes=0,gate:()=>Promise<void>=async()=>{},gatedParty:'host'|'guest'='host';
- let eventGate=async()=>{},routeGate=async()=>{},eventFailure=false,inboundSeconds=600,outboundSeconds=600,eventReads=0;
+ let eventGate=async()=>{},routeGate=async()=>{},saveGate=async()=>{},eventFailure=false,inboundSeconds=600,outboundSeconds=600,eventReads=0;
+ const originalRpc=database.rpc.bind(database);database.rpc=async(name,parameters)=>{if(name==='fmat_availability_evaluation'&&parameters.p_operation==='evidence_save')await saveGate();return originalRpc(name,parameters);};
  const routeCalls:RouteRequest[]=[],candidate={start:at('11:00'),end:at('11:30')};
  const commitment=(id:string,start:string,end:string):TravelCommitment=>({id,calendarId:'host-calendar',eventId:id,version:'v1',interval:{start:at(start),end:at(end)},location:{address:id}});
  let neighbors=[commitment('previous','10:00','10:30'),commitment('next','12:10','12:30')];
@@ -67,19 +68,53 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   await sql.query(`update fmat.requests set details=jsonb_set(jsonb_set(details,'{mode}','"in_person"'),'{location}','"Meeting venue"'),revision=revision+1 where id='${requestId}';update fmat.hosts set rules=rules||'{"travelMode":"DRIVE","travelBufferMinutes":5}',rules_version=rules_version+1 where id='${host}';`);
   const physical=async()=>service.read(credential,{requestId,revision:await revision(),candidate});
   const fits=await physical();assert.equal(fits.candidateEvaluation?.interval,'fits');assert.equal(fits.candidateEvaluation?.travel?.status,'fits');assert.equal(routeCalls.length,2);assert.deepEqual(routeCalls.map(r=>r.departureTime).sort(),[day+'T10:40:00Z',day+'T11:40:00Z']);
+  assert.equal(fits.persisted?.status,'checks_passed');assert.equal(fits.persisted?.complete,false);
+  const savedInput={...fits.context,rulesVersion:fits.rulesVersion,evidence:{candidate,...fits.candidateEvaluation,preferences:'pending',complete:false}};
+  const retries=await Promise.all(Array.from({length:8},()=>database.rpc('fmat_availability_evaluation',{p_operation:'evidence_save',p_credential:credential,p_input:savedInput}))) as {evaluationId:string}[];
+  assert.ok(retries.every(r=>r.evaluationId===fits.persisted!.evaluationId));
+  assert.equal(await sql.query(`select count(*) from fmat.candidate_evaluations where check_id='${fits.context.checkId}';`),'1','Concurrent retries retain one immutable evidence row');
+  assert.equal(await sql.query(`select has_table_privilege('anon','fmat.candidate_evaluations','SELECT')||','||has_table_privilege('authenticated','fmat.candidate_evaluations','SELECT')||','||(select relrowsecurity from pg_class where oid='fmat.candidate_evaluations'::regclass);`),'false,false,true');
+  await sql.query(`do $$ begin update fmat.candidate_evaluations set status='clarification' where id='${fits.persisted!.evaluationId}';raise exception 'fixture mutable evidence';exception when raise_exception then if sqlerrm<>'IMMUTABLE_EVALUATION' then raise;end if;end $$;`);
+  assert.equal(await sql.query(`select evidence->>'preferences'='pending' and evidence->>'complete'='false' and private_context->'rules'->>'preferences'='Private host preference' and not(private_context::text like '%host-access%' or private_context::text like '%encryptedCredential%') from fmat.candidate_evaluations where id='${fits.persisted!.evaluationId}';`),'t');
+  const evidenceTarget={requestId,revision:await revision(),evaluationId:fits.persisted!.evaluationId};
+  assert.deepEqual(await service.evidence(credential,evidenceTarget),fits.persisted);assert.deepEqual(await service.evidence(hostCredential,evidenceTarget),fits.persisted);
+  assert.ok(!JSON.stringify(await service.evidence(credential,evidenceTarget)).includes('previous'));
+  await assert.rejects(database.rpc('fmat_availability_evaluation',{p_operation:'evidence_save',p_credential:credential,p_input:{...savedInput,evidence:{...savedInput.evidence,preferences:'pending',complete:true}}}),code('INVALID_INPUT'));
+  await assert.rejects(database.rpc('fmat_availability_evaluation',{p_operation:'evidence_save',p_credential:credential,p_input:{...savedInput,evidence:{...savedInput.evidence,contextFingerprint:'b'.repeat(64)}}}),code('IDEMPOTENCY_CONFLICT'));
+  await assert.rejects(service.evidence(guestCredential(randomUUID(),token),evidenceTarget),code('NOT_FOUND'));
+  await assert.rejects(service.evidence(guestCredential(requestId,randomBytes(32).toString('base64url')),evidenceTarget),code('NOT_FOUND'));
+  // Expiry and authority are checked for reads and retries, not just the initial save.
+  const started=await sql.query(`select availability_check_started_at from fmat.requests where id='${requestId}';`);
+  await sql.query(`update fmat.requests set availability_check_started_at=now()-interval '6 minutes' where id='${requestId}';`);
+  await assert.rejects(service.evidence(credential,evidenceTarget),code('STALE_REVISION'));
+  await assert.rejects(database.rpc('fmat_availability_evaluation',{p_operation:'evidence_save',p_credential:credential,p_input:savedInput}),code('STALE_REVISION'));
+  await sql.query(`update fmat.requests set availability_check_started_at='${started}',token_revoked_at=now() where id='${requestId}';`);
+  await assert.rejects(service.evidence(credential,evidenceTarget),code('NOT_FOUND'));
+  await assert.rejects(database.rpc('fmat_availability_evaluation',{p_operation:'evidence_save',p_credential:credential,p_input:savedInput}),code('NOT_FOUND'));
+  await sql.query(`update fmat.requests set token_revoked_at=null where id='${requestId}';update fmat.hosts set rules_version=rules_version+1 where id='${host}';`);
+  await assert.rejects(service.evidence(credential,evidenceTarget),code('STALE_REVISION'));
+  await sql.query(`update fmat.hosts set rules_version=rules_version-1 where id='${host}';`);
   const privateReceipt=await service.check(credential,{requestId,revision:await revision(),candidate});assert.deepEqual(Object.keys(privateReceipt).sort(),['checked','checkedAt','complete','revision']);assert.equal(privateReceipt.complete,false);
+  await assert.rejects(service.evidence(credential,evidenceTarget),code('STALE_REVISION'),'A newer read supersedes old evidence even without a request edit');
+  await assert.rejects(database.rpc('fmat_availability_evaluation',{p_operation:'evidence_save',p_credential:credential,p_input:savedInput}),code('STALE_REVISION'));
   inboundSeconds=1501;assert.equal((await physical()).candidateEvaluation?.travel?.legs[0].status,'conflict');inboundSeconds=600;outboundSeconds=1501;assert.equal((await physical()).candidateEvaluation?.travel?.legs[1].status,'conflict');outboundSeconds=600;
   const firstContext=fits.candidateEvaluation?.contextFingerprint;neighbors[0].version='v2';assert.notEqual((await physical()).candidateEvaluation?.contextFingerprint,firstContext);assert.equal(routeCalls.length,10,'Changed provider context causes fresh route calls');
   const retained=neighbors;neighbors=[];assert.equal((await physical()).candidateEvaluation?.travel?.status,'clarification');neighbors=retained;
-  async function pausedTravel(stage:'events'|'routes',mutate:()=>Promise<unknown>,expected='STALE_REVISION'){
-   let entered!:()=>void,release!:()=>void;const arrived=new Promise<void>(r=>entered=r),waiting=new Promise<void>(r=>release=r);const wait=async()=>{entered();await waiting;};if(stage==='events')eventGate=wait;else routeGate=wait;
-   const rejected=assert.rejects(physical(),code(expected));await arrived;try{await mutate();}finally{release();}await rejected;eventGate=async()=>{};routeGate=async()=>{};
+  async function pausedTravel(stage:'events'|'routes'|'save',mutate:()=>Promise<unknown>,expected='STALE_REVISION'){
+   let entered!:()=>void,release!:()=>void;const arrived=new Promise<void>(r=>entered=r),waiting=new Promise<void>(r=>release=r);const wait=async()=>{entered();await waiting;};if(stage==='events')eventGate=wait;else if(stage==='routes')routeGate=wait;else saveGate=wait;
+   const rejected=assert.rejects(physical(),code(expected));await arrived;try{await mutate();}finally{release();}await rejected;eventGate=async()=>{};routeGate=async()=>{};saveGate=async()=>{};
   }
   await pausedTravel('events',()=>sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${host}';`));
   await pausedTravel('routes',()=>sql.query(`update fmat.requests set revision=revision+1 where id='${requestId}';`));
   await pausedTravel('routes',()=>sql.query(`update fmat.calendar_connections set generation=gen_random_uuid() where principal_id='${host}';`));
   await pausedTravel('events',()=>sql.query(`update fmat.requests set token_revoked_at=now() where id='${requestId}';`),'NOT_FOUND');await sql.query(`update fmat.requests set token_revoked_at=null where id='${requestId}';`);
   eventFailure=true;await assert.rejects(physical(),code('PROVIDER_UNAVAILABLE'));assert.equal(await flags(),'true,false');eventFailure=false;await physical();assert.equal(await flags(),'false,false');
+  await pausedTravel('save',()=>sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${host}';`));
+  await pausedTravel('save',()=>sql.query(`update fmat.requests set revision=revision+1 where id='${requestId}';`));
+  await pausedTravel('save',()=>sql.query(`update fmat.requests set availability_check_started_at=now()-interval '6 minutes' where id='${requestId}';`));
+  await pausedTravel('save',()=>sql.query(`update fmat.requests set token_revoked_at=now() where id='${requestId}';`),'NOT_FOUND');await sql.query(`update fmat.requests set token_revoked_at=null where id='${requestId}';`);
+  await pausedTravel('save',()=>sql.query(`update fmat.requests set private_scheduling_context='{"physicalContext":[]}' where id='${requestId}';`));
+  assert.equal(await sql.query(`select count(*) from fmat.candidate_evaluations where request_id='${requestId}' and check_id=(select availability_check_id from fmat.requests where id='${requestId}');`),'0','Changed context after successful reads rejects asynchronous persistence');
   const previousReads=eventReads;const invalid=await service.read(credential,{requestId,revision:await revision(),candidate:{start:at('10:00'),end:at('10:30')}});assert.equal(invalid.candidateEvaluation?.interval,'conflict');assert.equal(eventReads,previousReads);
   await sql.query(`update fmat.requests set details=jsonb_set(jsonb_set(details,'{mode}','"online"'),'{location}','""'),revision=revision+1 where id='${requestId}';update fmat.hosts set rules=rules||'{"travelMode":"NONE","travelBufferMinutes":0}',rules_version=rules_version+1 where id='${host}';`);
   assert.equal((await physical()).candidateEvaluation?.travel?.status,'fits');assert.equal(eventReads,previousReads,'Online candidates do not read private event locations');
@@ -127,6 +162,6 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   await check(); // A request-bound guest does not depend on the host browser session.
   await sql.query(`update fmat.requests set token_revoked_at=now() where id='${requestId}';`);await assert.rejects(check(),code('NOT_FOUND'));
  }finally{
-  if(host){await sql.query(`set session_replication_role=replica;delete from fmat.booking_attempts where host_id='${host}';delete from fmat.host_approvals where host_id='${host}';delete from fmat.booking_identities where request_id in('${otherRequest}','${farRequest}');delete from fmat.proposals where request_id in('${otherRequest}','${farRequest}');delete from fmat.audit_events where subject_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.calendar_connections where principal_id in('${host}','${requestId}');delete from fmat.request_history where request_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';set session_replication_role=origin;`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers});assert.equal(removed.status,200);}sql.close();
+  if(host){await sql.query(`set session_replication_role=replica;delete from fmat.candidate_evaluations where request_id='${requestId}';delete from fmat.booking_attempts where host_id='${host}';delete from fmat.host_approvals where host_id='${host}';delete from fmat.booking_identities where request_id in('${otherRequest}','${farRequest}');delete from fmat.proposals where request_id in('${otherRequest}','${farRequest}');delete from fmat.audit_events where subject_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.calendar_connections where principal_id in('${host}','${requestId}');delete from fmat.request_history where request_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';set session_replication_role=origin;`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers});assert.equal(removed.status,200);}sql.close();
  }
 });

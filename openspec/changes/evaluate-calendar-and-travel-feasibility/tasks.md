@@ -7,7 +7,7 @@ Tasks describe replacement implementation and verification. Completed pure-core 
 
 - [x] 1.1 Implement half-open interval checks, daily IANA-timezone rules, focus/busy/buffers, duration, and requester intersections; verify DST, ambiguous/nonexistent input, boundary overlaps, and both parties' busy cases.
 - [x] 1.2 Implement typed Calendar reads that distinguish denied/revoked/failed reads from empty results; verify dependent evaluation pauses and explicit manual replacement restores only authorized availability.
-- [ ] 1.3 Persist candidate context/rule versions and protect asynchronous saves; verify request/rule changes reject stale candidates.
+- [x] 1.3 Persist candidate context/rule versions and protect asynchronous saves; verify request/rule changes reject stale candidates.
 - [x] 1.4 Document hard versus preference rules and timezone semantics; verify documented examples against deterministic tests.
 
 ## 2. Travel and private exceptions

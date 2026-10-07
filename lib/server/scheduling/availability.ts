@@ -12,8 +12,9 @@ import {GoogleCalendarProvider,type CalendarProvider} from '../calendar/catalog.
 import {GoogleFreeBusy,bufferedReadWindows,type FreeBusyProvider} from '../calendar/freebusy.ts';
 import {GoogleAdjacentEvents,adjacentContext,physicalLocation,unexplainedBusy,type AdjacentEventProvider,type TravelCommitment} from '../calendar/adjacent.ts';
 import {GoogleRoutes,type RoutesProvider} from '../routes/google.ts';
-import {evaluateTravel,type TravelEvaluation} from './travel.ts';
+import {evaluateTravel} from './travel.ts';
 import {evaluateIntervals,intervalFits} from './intervals.ts';
+import {candidateEvidence,evidenceReceipt,type CandidateAssessment} from './evidence.ts';
 
 const grant=z.object({principalId:z.uuid(),providerSubject:z.string(),encryptedCredential:z.string(),calendarIds:z.array(z.string()).min(1).max(50)});
 const snapshot=z.object({checkId:z.uuid(),basis:z.string().regex(/^[a-f0-9]{64}$/u),revision:z.number().int().positive(),rulesVersion:z.number().int().nonnegative(),
@@ -22,7 +23,8 @@ const snapshot=z.object({checkId:z.uuid(),basis:z.string().regex(/^[a-f0-9]{64}$
 
 /** Authorized interval and optional exact-candidate travel evaluation.
  * Private snapshots never leave the server; check() exposes only a receipt.
- * Persistence, preferences and approval remain separate required gates. */
+ * Exact assessments persist privately; preferences, publication and approval
+ * remain separate required gates. */
 export class AvailabilityEvaluation {
  constructor(private readonly database=new Database(),private readonly env=process.env,private readonly provider:CalendarProvider=new GoogleCalendarProvider(env),private readonly freebusy:FreeBusyProvider=new GoogleFreeBusy(),private readonly events:AdjacentEventProvider=new GoogleAdjacentEvents(),private readonly routes:RoutesProvider=new GoogleRoutes(env)){}
  private call(operation:string,credential:Credential,input:unknown){requireCredential(credential);return this.database.rpc('fmat_availability_evaluation',{p_operation:operation,p_credential:credential,p_input:input});}
@@ -67,7 +69,7 @@ export class AvailabilityEvaluation {
   const {timezone,availability,focusBlocks,bufferMinutes}=state.rules;
   const evaluation=evaluateIntervals({now:new Date().toISOString(),requesterTimezone:state.details.timezone,durationMinutes:state.details.durationMinutes,
     windows,requesterAvailability:windows,requesterBusy,hostBusy:[...hostBusy,...state.localBookings],rules:{timezone,availability,focusBlocks,bufferMinutes}});
-  let candidateEvaluation:{interval:'fits'|'conflict'|'clarification';travel:TravelEvaluation|null;contextFingerprint:string|null}|null=null;
+  let candidateEvaluation:CandidateAssessment|null=null;
   if(target.candidate){
    candidateEvaluation={interval:evaluation.status==='clarification'?'clarification':intervalFits(evaluation,target.candidate)?'fits':'conflict',travel:null,contextFingerprint:null};
    if(candidateEvaluation.interval==='fits'&&['online','in_person'].includes(state.details.mode??'')){
@@ -84,7 +86,10 @@ export class AvailabilityEvaluation {
    }
   }
   const receipt=availabilityCheckReceipt.parse({...await this.call('success',credential,context) as object,complete:false});
-  return {receipt,evaluation,candidateEvaluation,context,rulesVersion:state.rulesVersion};
+  const evidence=candidateEvaluation&&target.candidate?candidateEvidence.parse({candidate:target.candidate,...candidateEvaluation,preferences:'pending',complete:false}):null;
+  const persisted=evidence?evidenceReceipt.parse(await this.call('evidence_save',credential,{...context,rulesVersion:state.rulesVersion,evidence})):null;
+  return {receipt,evaluation,candidateEvaluation,persisted,context,rulesVersion:state.rulesVersion};
  }
  async check(credential:Credential,input:unknown){return (await this.read(credential,input)).receipt;}
+ async evidence(credential:Credential,input:unknown){const target=z.strictObject({requestId:z.uuid(),revision:z.number().int().positive(),evaluationId:z.uuid()}).parse(input);return evidenceReceipt.parse(await this.call('evidence_read',credential,target));}
 }

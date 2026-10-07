@@ -1,10 +1,54 @@
--- Short-lived read attempts, not feasible candidates or human decisions.
-alter table fmat.requests add column availability_check_id uuid;
-alter table fmat.requests add column availability_check_started_at timestamptz;
-alter table fmat.requests add column host_availability_failed boolean not null default false;
+SET local check_function_bodies = off;
 
-create or replace function public.fmat_availability_evaluation(p_operation text,p_credential jsonb,p_input jsonb)
-returns jsonb language plpgsql security definer set search_path='' as $$
+CREATE TABLE "fmat"."candidate_evaluations" (
+  "id"               uuid                     NOT NULL DEFAULT gen_random_uuid(),
+  "request_id"       uuid                     NOT NULL,
+  "check_id"         uuid                     NOT NULL,
+  "request_revision" integer                  NOT NULL,
+  "rules_version"    integer                  NOT NULL,
+  "basis"            text                     NOT NULL,
+  "candidate_key"    text                     NOT NULL,
+  "candidate"        jsonb                    NOT NULL,
+  "status"           text                     NOT NULL,
+  "evidence"         jsonb                    NOT NULL,
+  "private_context"  jsonb                    NOT NULL,
+  "evaluated_at"     timestamp with time zone NOT NULL,
+  "expires_at"       timestamp with time zone NOT NULL,
+  CONSTRAINT "candidate_evaluations_basis_check" CHECK ((basis ~ '^[a-f0-9]{64}$'::text)),
+  CONSTRAINT "candidate_evaluations_candidate_check" CHECK (((jsonb_typeof(candidate) = 'object'::text) AND (candidate ?& ARRAY['start'::text, 'end'::text]))),
+  CONSTRAINT "candidate_evaluations_candidate_key_check" CHECK ((candidate_key ~ '^[a-f0-9]{64}$'::text)),
+  CONSTRAINT "candidate_evaluations_check" CHECK ((expires_at > evaluated_at)),
+  CONSTRAINT "candidate_evaluations_evidence_check"
+    CHECK
+    (((jsonb_typeof(evidence) = 'object'::text) AND (((evidence -> 'complete'::text) = 'false'::jsonb) IS TRUE) AND (((evidence ->> 'preferences'::text) = 'pending'::text) IS TRUE)
+    AND (octet_length((evidence)::text) <= 65536))),
+  CONSTRAINT "candidate_evaluations_pkey" PRIMARY KEY (id),
+  CONSTRAINT "candidate_evaluations_private_context_check" CHECK (((jsonb_typeof(private_context) = 'object'::text) AND (octet_length((private_context)::text) <= 262144))),
+  CONSTRAINT "candidate_evaluations_request_id_check_id_candidate_key_key" UNIQUE (request_id, check_id, candidate_key),
+  CONSTRAINT "candidate_evaluations_request_revision_check" CHECK ((request_revision > 0)),
+  CONSTRAINT "candidate_evaluations_rules_version_check" CHECK ((rules_version >= 0)),
+  CONSTRAINT "candidate_evaluations_status_check" CHECK ((status = ANY (ARRAY['checks_passed'::text, 'conflict'::text, 'clarification'::text])))
+);
+
+ALTER TABLE "fmat"."candidate_evaluations"
+  ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION fmat.reject_candidate_evaluation_update()
+  RETURNS TRIGGER
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$ begin raise exception 'IMMUTABLE_EVALUATION'; end; $function$;
+
+CREATE OR REPLACE FUNCTION public.fmat_availability_evaluation (
+  p_operation  text,
+  p_credential jsonb,
+  p_input      jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare v_actor jsonb; v_request fmat.requests; v_host fmat.hosts;
   v_host_connection fmat.calendar_connections; v_guest_connection fmat.calendar_connections; v_connection fmat.calendar_connections;
   v_basis text; v_bookings jsonb; v_commitments jsonb; v_check uuid;
@@ -141,6 +185,14 @@ begin
   end if;
   raise exception 'FORBIDDEN';
 end;
-$$;
-revoke all on function public.fmat_availability_evaluation(text,jsonb,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_availability_evaluation(text,jsonb,jsonb) to service_role;
+$function$;
+
+ALTER TABLE "fmat"."candidate_evaluations"
+  ADD CONSTRAINT "candidate_evaluations_request_id_fkey" FOREIGN KEY (request_id) REFERENCES fmat.requests(id) ON DELETE CASCADE;
+
+CREATE INDEX candidate_evaluations_request_idx ON fmat.candidate_evaluations USING btree (request_id, evaluated_at DESC);
+
+CREATE TRIGGER candidate_evaluations_immutable
+  BEFORE UPDATE ON fmat.candidate_evaluations
+  FOR EACH ROW
+  EXECUTE FUNCTION fmat.reject_candidate_evaluation_update();

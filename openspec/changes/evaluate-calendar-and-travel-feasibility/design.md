@@ -52,3 +52,9 @@ Controlled public-route probes returned transit only for the tested Seoul pair a
 ## Authorized exact-candidate travel (2026-10-07)
 
 The request evaluator now composes interval checks, selected host event acquisition and both Routes trips under its existing authorization/freshness fence. It reads a bounded 31-day margin, conservatively retains unknown boundary context, reconciles unexplained free/busy, includes confirmed local bookings and focus blocks, and hashes minimized event versions with request/rule context. Empty coverage is not proof of a starting location. The browser still receives only `complete: false`; the private intermediate result is available for candidate persistence and later booking revalidation. This implements the acquisition/evaluation portion of task 2.2 without claiming that task 1.3 or proposal integration is complete.
+
+## Private candidate persistence (2026-10-07)
+
+Task 1.3 persists exact interval/time/travel evidence with request/rule versions and the private context used. The service-only ledger rechecks current authority, superseding attempt, expiry and all relevant local context after provider work. Immutable identical retries return one row; changed retries and stale reads/saves fail. Evidence includes sanitized route requests/results and server-derived private rules/context without provider credentials or raw Calendar responses.
+
+The initial ledger explicitly records pending preferences and incomplete feasibility, and does not publish into legacy candidate/proposal state. Task 2.3 owns manual allowances and private exceptions; task 2.4 still needs their records. Tasks 3.1–3.3 must complete filtering/ranking, connect current complete evidence to proposals and reuse evaluation before booking.
