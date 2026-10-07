@@ -13,12 +13,14 @@ import {GoogleFreeBusy,bufferedReadWindows,type FreeBusyProvider} from '../calen
 import {GoogleAdjacentEvents,adjacentContext,physicalLocation,unexplainedBusy,type AdjacentEventProvider,type TravelCommitment} from '../calendar/adjacent.ts';
 import {GoogleRoutes,type RoutesProvider} from '../routes/google.ts';
 import {verifiedTravelAllowance} from '../../contracts/travel-allowance.ts';
+import {verifiedPreferenceDecision} from '../../contracts/preference-decision.ts';
+import {evaluatePreferences} from './preferences.ts';
 import {evaluateTravel} from './travel.ts';
 import {evaluateIntervals,intervalFits} from './intervals.ts';
 import {candidateEvidence,evidenceReceipt,type CandidateAssessment} from './evidence.ts';
 
 const grant=z.object({principalId:z.uuid(),providerSubject:z.string(),encryptedCredential:z.string(),calendarIds:z.array(z.string()).min(1).max(50)});
-const snapshot=z.object({travelBasis:z.string().regex(/^[a-f0-9]{64}$/u),allowances:z.array(verifiedTravelAllowance).max(20),checkId:z.uuid(),basis:z.string().regex(/^[a-f0-9]{64}$/u),revision:z.number().int().positive(),rulesVersion:z.number().int().nonnegative(),
+const snapshot=z.object({preferenceDecisions:z.array(verifiedPreferenceDecision).max(30),travelBasis:z.string().regex(/^[a-f0-9]{64}$/u),allowances:z.array(verifiedTravelAllowance).max(20),checkId:z.uuid(),basis:z.string().regex(/^[a-f0-9]{64}$/u),revision:z.number().int().positive(),rulesVersion:z.number().int().nonnegative(),
  details:z.object({windows:intervalFeasibilityInput.shape.windows,timezone:intervalFeasibilityInput.shape.requesterTimezone,durationMinutes:intervalFeasibilityInput.shape.durationMinutes,mode:z.string().optional(),location:z.string().optional()}),
  rules:intervalFeasibilityInput.shape.rules.loose(),localBookings:z.array(schedulingInterval),localCommitments:z.array(z.object({id:z.uuid(),calendarId:z.string(),eventId:z.string(),version:z.string(),interval:schedulingInterval,location:z.string().nullable()})).max(10000),mode:z.enum(['manual','calendar']),host:grant,guest:grant.nullable()});
 
@@ -87,8 +89,9 @@ export class AvailabilityEvaluation {
     candidateEvaluation.travel=await evaluateTravel(candidateEvaluation.travelContext,{estimate:async request=>{await assertCurrent();const result=await this.routes.estimate(request);await assertCurrent();return result;}},{allowances:state.allowances});
    }
   }
+  if(candidateEvaluation&&target.candidate)candidateEvaluation.preferences=evaluatePreferences({basis:state.travelBasis,candidate:target.candidate,details:state.details,rules:setupRules.parse(state.rules)},state.preferenceDecisions);
   const receipt=availabilityCheckReceipt.parse({...await this.call('success',credential,context) as object,complete:false});
-  const evidence=candidateEvaluation&&target.candidate?candidateEvidence.parse({candidate:target.candidate,...candidateEvaluation,preferences:'pending',complete:false}):null;
+  const evidence=candidateEvaluation&&target.candidate?candidateEvidence.parse({candidate:target.candidate,...candidateEvaluation,complete:false}):null;
   const persisted=evidence?evidenceReceipt.parse(await this.call('evidence_save',credential,{...context,rulesVersion:state.rulesVersion,evidence})):null;
   return {receipt,evaluation,candidateEvaluation,persisted,context,rulesVersion:state.rulesVersion};
  }

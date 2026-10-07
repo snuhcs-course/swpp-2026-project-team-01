@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {randomUUID,randomBytes,createHash} from 'node:crypto';
+import {PreferenceDecisions} from '../../lib/server/scheduling/preference-decisions.ts';
 import {TravelAllowances} from '../../lib/server/scheduling/allowances.ts';
 import {AvailabilityEvaluation} from '../../lib/server/scheduling/availability.ts';
 import {RequesterAvailability} from '../../lib/server/calendar/requester-availability.ts';
@@ -70,18 +71,18 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   await sql.query(`update fmat.requests set details=jsonb_set(jsonb_set(details,'{mode}','"in_person"'),'{location}','"Meeting venue"'),revision=revision+1 where id='${requestId}';update fmat.hosts set rules=rules||'{"travelMode":"DRIVE","travelBufferMinutes":5}',rules_version=rules_version+1 where id='${host}';`);
   const physical=async()=>service.read(credential,{requestId,revision:await revision(),candidate});
   const fits=await physical();assert.equal(fits.candidateEvaluation?.interval,'fits');assert.equal(fits.candidateEvaluation?.travel?.status,'fits');assert.equal(routeCalls.length,2);assert.deepEqual(routeCalls.map(r=>r.departureTime).sort(),[day+'T10:40:00Z',day+'T11:40:00Z']);
-  assert.equal(fits.persisted?.status,'checks_passed');assert.equal(fits.persisted?.complete,false);
-  const savedInput={...fits.context,rulesVersion:fits.rulesVersion,evidence:{candidate,...fits.candidateEvaluation,preferences:'pending',complete:false}};
+  assert.equal(fits.persisted?.status,'clarification');assert.equal(fits.persisted?.complete,false);
+  const savedInput={...fits.context,rulesVersion:fits.rulesVersion,evidence:{candidate,...fits.candidateEvaluation,complete:false}};
   const retries=await Promise.all(Array.from({length:8},()=>database.rpc('fmat_availability_evaluation',{p_operation:'evidence_save',p_credential:credential,p_input:savedInput}))) as {evaluationId:string}[];
   assert.ok(retries.every(r=>r.evaluationId===fits.persisted!.evaluationId));
   assert.equal(await sql.query(`select count(*) from fmat.candidate_evaluations where check_id='${fits.context.checkId}';`),'1','Concurrent retries retain one immutable evidence row');
   assert.equal(await sql.query(`select has_table_privilege('anon','fmat.candidate_evaluations','SELECT')||','||has_table_privilege('authenticated','fmat.candidate_evaluations','SELECT')||','||(select relrowsecurity from pg_class where oid='fmat.candidate_evaluations'::regclass);`),'false,false,true');
   await sql.query(`do $$ begin update fmat.candidate_evaluations set status='clarification' where id='${fits.persisted!.evaluationId}';raise exception 'fixture mutable evidence';exception when raise_exception then if sqlerrm<>'IMMUTABLE_EVALUATION' then raise;end if;end $$;`);
-  assert.equal(await sql.query(`select evidence->>'preferences'='pending' and evidence->>'complete'='false' and private_context->'rules'->>'preferences'='Private host preference' and not(private_context::text like '%host-access%' or private_context::text like '%encryptedCredential%') from fmat.candidate_evaluations where id='${fits.persisted!.evaluationId}';`),'t');
+  assert.equal(await sql.query(`select evidence->'preferences'->>'status'='requires_confirmation' and evidence->>'complete'='false' and private_context->'rules'->>'preferences'='Private host preference' and not(private_context::text like '%host-access%' or private_context::text like '%encryptedCredential%') from fmat.candidate_evaluations where id='${fits.persisted!.evaluationId}';`),'t');
   const evidenceTarget={requestId,revision:await revision(),evaluationId:fits.persisted!.evaluationId};
   assert.deepEqual(await service.evidence(credential,evidenceTarget),fits.persisted);assert.deepEqual(await service.evidence(hostCredential,evidenceTarget),fits.persisted);
   assert.ok(!JSON.stringify(await service.evidence(credential,evidenceTarget)).includes('previous'));
-  await assert.rejects(database.rpc('fmat_availability_evaluation',{p_operation:'evidence_save',p_credential:credential,p_input:{...savedInput,evidence:{...savedInput.evidence,preferences:'pending',complete:true}}}),code('INVALID_INPUT'));
+  await assert.rejects(database.rpc('fmat_availability_evaluation',{p_operation:'evidence_save',p_credential:credential,p_input:{...savedInput,evidence:{...savedInput.evidence,complete:true}}}),code('INVALID_INPUT'));
   await assert.rejects(database.rpc('fmat_availability_evaluation',{p_operation:'evidence_save',p_credential:credential,p_input:{...savedInput,evidence:{...savedInput.evidence,contextFingerprint:'b'.repeat(64)}}}),code('IDEMPOTENCY_CONFLICT'));
   await assert.rejects(service.evidence(guestCredential(randomUUID(),token),evidenceTarget),code('NOT_FOUND'));
   await assert.rejects(service.evidence(guestCredential(requestId,randomBytes(32).toString('base64url')),evidenceTarget),code('NOT_FOUND'));
@@ -153,6 +154,36 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   await sql.query(`update fmat.requests set details=jsonb_set(jsonb_set(details,'{mode}','"online"'),'{location}','""'),revision=revision+1 where id='${requestId}';update fmat.hosts set rules=rules||'{"travelMode":"NONE","travelBufferMinutes":0}',rules_version=rules_version+1 where id='${host}';`);
   assert.equal((await physical()).candidateEvaluation?.travel?.status,'fits');assert.equal(eventReads,previousReads,'Online candidates do not read private event locations');
   assert.equal(await sql.query(`select candidates='[]' and current_proposal_version is null from fmat.requests where id='${requestId}';`),'t');
+  const preferences=new PreferenceDecisions(database),preferenceEvidence=await physical();
+  assert.equal(preferenceEvidence.candidateEvaluation?.preferences?.status,'requires_confirmation');assert.equal(preferenceEvidence.persisted?.status,'clarification');
+  const preferenceInput={requestId,revision:await revision(),evaluationId:preferenceEvidence.persisted!.evaluationId,confirmed:true as const,idempotencyKey:randomUUID(),choice:{key:'additional' as const,classification:'preference' as const,decision:'exception' as const,reason:'Private exception reason'}};
+  await assert.rejects(preferences.confirm(credential,preferenceInput),code('FORBIDDEN'));
+  await assert.rejects(preferences.confirm({...hostCredential},preferenceInput),code('UNAUTHORIZED'));
+  await assert.rejects(database.rpc('fmat_preference_decision',{p_operation:'confirm',p_credential:{kind:'worker',id:'model'},p_input:preferenceInput}),code('FORBIDDEN'));
+  await assert.rejects(database.rpc('fmat_preference_decision',{p_operation:'confirm',p_credential:hostCredential,p_input:{...preferenceInput,choice:{...preferenceInput.choice,key:'busy'}}}),code('INVALID_INPUT'));
+  const preferenceReplies=await Promise.all(Array.from({length:8},()=>preferences.confirm(hostCredential,preferenceInput)));assert.ok(preferenceReplies.every(r=>r.decisionId===preferenceReplies[0].decisionId));assert.equal(await revision(),preferenceInput.revision+1);
+  assert.equal(await sql.query(`select count(*) from fmat.preference_decisions where request_id='${requestId}';`),'1');
+  assert.equal(await sql.query(`select has_table_privilege('anon','fmat.preference_decisions','SELECT')||','||has_table_privilege('authenticated','fmat.preference_decisions','SELECT')||','||has_function_privilege('authenticated','public.fmat_preference_decision(text,jsonb,jsonb)','EXECUTE');`),'false,false,false');
+  await sql.query(`do $$ begin update fmat.preference_decisions set value='{}' where request_id='${requestId}';raise exception 'fixture mutable preference';exception when raise_exception then if sqlerrm<>'IMMUTABLE_PREFERENCE' then raise;end if;end $$;`);
+  const preferenceFit=await physical();assert.equal(preferenceFit.candidateEvaluation?.preferences?.status,'satisfied');assert.equal(preferenceFit.persisted?.status,'checks_passed');assert.equal(preferenceFit.persisted?.complete,false);
+  const preferenceGuestView=await database.rpc('fmat_browser_command',{p_operation:'guest_state',p_credential:credential,p_input:{}});assert.ok(!JSON.stringify(preferenceGuestView).includes('Private exception reason'));assert.ok(!JSON.stringify(preferenceGuestView).includes(preferenceReplies[0].decisionId));
+  const conflicting=await service.read(credential,{requestId,revision:await revision(),candidate:{start:at('10:00'),end:at('10:30')}});
+  await assert.rejects(preferences.confirm(hostCredential,{...preferenceInput,revision:await revision(),evaluationId:conflicting.persisted!.evaluationId,idempotencyKey:randomUUID()}),code('INVALID_INPUT'));
+  const revokeChoice={requestId,revision:await revision(),decisionId:preferenceReplies[0].decisionId,idempotencyKey:randomUUID()};const revokedChoice=await preferences.revoke(hostCredential,revokeChoice);assert.deepEqual(await preferences.revoke(hostCredential,revokeChoice),revokedChoice);assert.equal((await physical()).candidateEvaluation?.preferences?.status,'requires_confirmation');
+  await assert.rejects(preferences.confirm(hostCredential,preferenceInput),code('STALE_REVISION'));
+  const stalePreferenceEvidence=await physical();await sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${host}';`);
+  await assert.rejects(preferences.confirm(hostCredential,{...preferenceInput,revision:await revision(),evaluationId:stalePreferenceEvidence.persisted!.evaluationId,idempotencyKey:randomUUID()}),code('STALE_REVISION'));
+  await sql.query(`update fmat.requests set details=jsonb_set(jsonb_set(details,'{mode}','"in_person"'),'{location}','"Meeting venue"'),revision=revision+1 where id='${requestId}';update fmat.hosts set rules=rules||'{"travelMode":"DRIVE","locationPolicy":"preferred","locations":["Other venue"]}',rules_version=rules_version+1 where id='${host}';`);
+  inboundSeconds=1501;const travelConflict=await physical();assert.equal(travelConflict.candidateEvaluation?.travel?.status,'conflict');
+  await assert.rejects(preferences.confirm(hostCredential,{...preferenceInput,revision:await revision(),evaluationId:travelConflict.persisted!.evaluationId,idempotencyKey:randomUUID(),choice:{...preferenceInput.choice,key:'meeting_mode'}}),code('INVALID_INPUT'));inboundSeconds=600;
+  for(const key of ['meeting_mode','location','additional'] as const){
+   const source=await physical();assert.equal(source.candidateEvaluation?.preferences?.checks.find(c=>c.key===key)?.status,'unresolved');
+   await preferences.confirm(hostCredential,{...preferenceInput,revision:await revision(),evaluationId:source.persisted!.evaluationId,idempotencyKey:randomUUID(),choice:{...preferenceInput.choice,key,decision:key==='additional'?'satisfied':'exception'}});
+  }
+  const allPreferences=await physical();assert.equal(allPreferences.candidateEvaluation?.preferences?.status,'satisfied');assert.equal(allPreferences.persisted?.status,'checks_passed');
+  assert.equal(allPreferences.candidateEvaluation?.preferences?.checks.filter(c=>c.status==='exception').length,2);
+  await sql.query(`update fmat.requests set details=jsonb_set(jsonb_set(details,'{mode}','"online"'),'{location}','""'),revision=revision+1 where id='${requestId}';update fmat.hosts set rules=rules||'{"travelMode":"NONE","locationPolicy":"per_meeting","locations":[]}',rules_version=rules_version+1 where id='${host}';`);
+  assert.equal((await physical()).candidateEvaluation?.preferences?.status,'requires_confirmation','Changed details/rules invalidate earlier preference decisions');
   await reconnect();
   await paused(()=>sql.query(`update fmat.requests set revision=revision+1,details=jsonb_set(details,'{purpose}','"Changed"') where id='${requestId}';`));
   await paused(()=>sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${host}';`));
@@ -196,6 +227,6 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   await check(); // A request-bound guest does not depend on the host browser session.
   await sql.query(`update fmat.requests set token_revoked_at=now() where id='${requestId}';`);await assert.rejects(check(),code('NOT_FOUND'));
  }finally{
-  if(host){await sql.query(`set session_replication_role=replica;delete from fmat.travel_allowances where request_id='${requestId}';delete from fmat.candidate_evaluations where request_id='${requestId}';delete from fmat.booking_attempts where host_id='${host}';delete from fmat.host_approvals where host_id='${host}';delete from fmat.booking_identities where request_id in('${otherRequest}','${farRequest}');delete from fmat.proposals where request_id in('${otherRequest}','${farRequest}');delete from fmat.audit_events where subject_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.calendar_connections where principal_id in('${host}','${requestId}');delete from fmat.request_history where request_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';set session_replication_role=origin;`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers});assert.equal(removed.status,200);}sql.close();
+  if(host){await sql.query(`set session_replication_role=replica;delete from fmat.preference_decisions where request_id='${requestId}';delete from fmat.travel_allowances where request_id='${requestId}';delete from fmat.candidate_evaluations where request_id='${requestId}';delete from fmat.booking_attempts where host_id='${host}';delete from fmat.host_approvals where host_id='${host}';delete from fmat.booking_identities where request_id in('${otherRequest}','${farRequest}');delete from fmat.proposals where request_id in('${otherRequest}','${farRequest}');delete from fmat.audit_events where subject_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.calendar_connections where principal_id in('${host}','${requestId}');delete from fmat.request_history where request_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';set session_replication_role=origin;`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers});assert.equal(removed.status,200);}sql.close();
  }
 });

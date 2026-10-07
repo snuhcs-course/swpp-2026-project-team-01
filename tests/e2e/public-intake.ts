@@ -65,8 +65,8 @@ export async function verifyPublicIntake(browser:Browser,origin:string,sql:Local
   const revision=(await replaced.json()).revision,data={audience:'guest',requestId:id,revision};
   assert.equal((await context.request.post(origin+'/api/browser/scheduling/check',{headers:{origin:'https://wrong.test'},data})).status(),403);
   assert.equal((await context.request.post(origin+'/api/browser/scheduling/check',{headers:{origin},data:{...data,audience:'host'}})).status(),401);
-  for(const action of ['confirm','revoke']){
-    const endpoint=origin+'/api/browser/scheduling/allowances/'+action;
+  for(const category of ['allowances','preferences'])for(const action of ['confirm','revoke']){
+    const endpoint=origin+'/api/browser/scheduling/'+category+'/'+action;
     assert.equal((await context.request.post(endpoint,{headers:{origin:'https://wrong.test'},data:{}})).status(),403);
     const denied=await context.request.post(endpoint,{headers:{origin},data:{}});assert.equal(denied.status(),401);assert.match(denied.headers()['cache-control'],/no-store/);
   }

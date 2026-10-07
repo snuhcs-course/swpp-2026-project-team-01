@@ -1,10 +1,60 @@
--- Short-lived read attempts, not feasible candidates or human decisions.
-alter table fmat.requests add column availability_check_id uuid;
-alter table fmat.requests add column availability_check_started_at timestamptz;
-alter table fmat.requests add column host_availability_failed boolean not null default false;
+SET local check_function_bodies = off;
 
-create or replace function public.fmat_availability_evaluation(p_operation text,p_credential jsonb,p_input jsonb)
-returns jsonb language plpgsql security definer set search_path='' as $$
+ALTER TABLE "fmat"."candidate_evaluations"
+  DROP CONSTRAINT "candidate_evaluations_evidence_check";
+
+CREATE TABLE "fmat"."preference_decisions" (
+  "id"                  uuid                     NOT NULL DEFAULT gen_random_uuid(),
+  "request_id"          uuid                     NOT NULL,
+  "evaluation_id"       uuid                     NOT NULL,
+  "host_id"             uuid                     NOT NULL,
+  "session_id"          uuid                     NOT NULL,
+  "idempotency_key"     uuid                     NOT NULL,
+  "input"               jsonb                    NOT NULL,
+  "result_revision"     integer                  NOT NULL,
+  "context_basis"       text                     NOT NULL,
+  "context_fingerprint" text                     NOT NULL,
+  "preference_key"      text                     NOT NULL,
+  "value"               jsonb                    NOT NULL,
+  "created_at"          timestamp with time zone NOT NULL DEFAULT clock_timestamp(),
+  "revoked_at"          timestamp with time zone,
+  "revoke_key"          uuid,
+  "revoke_input"        jsonb,
+  "revoke_revision"     integer,
+  CONSTRAINT "preference_decisions_context_basis_check" CHECK ((context_basis ~ '^[a-f0-9]{64}$'::text)),
+  CONSTRAINT "preference_decisions_context_fingerprint_check" CHECK ((context_fingerprint ~ '^[a-f0-9]{64}$'::text)),
+  CONSTRAINT "preference_decisions_pkey" PRIMARY KEY (id),
+  CONSTRAINT "preference_decisions_preference_key_check" CHECK ((preference_key = ANY (ARRAY['meeting_mode'::text, 'location'::text, 'additional'::text]))),
+  CONSTRAINT "preference_decisions_request_id_idempotency_key_key" UNIQUE (request_id, idempotency_key),
+  CONSTRAINT "preference_decisions_request_id_revoke_key_key" UNIQUE (request_id, revoke_key),
+  CONSTRAINT "preference_decisions_value_check" CHECK (((jsonb_typeof(value) = 'object'::text) AND (octet_length((value)::text) <= 8192)))
+);
+
+ALTER TABLE "fmat"."preference_decisions"
+  ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION fmat.protect_preference_decision()
+  RETURNS TRIGGER
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
+begin
+ if (to_jsonb(new)-'revoked_at'-'revoke_key'-'revoke_input'-'revoke_revision') is distinct from (to_jsonb(old)-'revoked_at'-'revoke_key'-'revoke_input'-'revoke_revision')
+  or old.revoked_at is not null then raise exception 'IMMUTABLE_PREFERENCE';end if;
+ return new;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.fmat_availability_evaluation (
+  p_operation  text,
+  p_credential jsonb,
+  p_input      jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare v_actor jsonb; v_request fmat.requests; v_host fmat.hosts;
   v_host_connection fmat.calendar_connections; v_guest_connection fmat.calendar_connections; v_connection fmat.calendar_connections;
   v_basis text; v_travel_basis text; v_bookings jsonb; v_commitments jsonb; v_check uuid;
@@ -157,6 +207,109 @@ begin
   end if;
   raise exception 'FORBIDDEN';
 end;
-$$;
-revoke all on function public.fmat_availability_evaluation(text,jsonb,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_availability_evaluation(text,jsonb,jsonb) to service_role;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.fmat_preference_decision (
+  p_operation  text,
+  p_credential jsonb,
+  p_input      jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare r fmat.requests; a fmat.preference_decisions; e fmat.candidate_evaluations; actor jsonb; current_basis text; leg jsonb; v jsonb; result_id uuid; next_revision integer;
+begin
+ if p_credential->>'kind' is distinct from 'host' then raise exception 'FORBIDDEN';end if;
+ if jsonb_typeof(p_input) is distinct from 'object' then raise exception 'INVALID_INPUT';end if;
+ select * into r from fmat.requests where id=(p_input->>'requestId')::uuid for update;
+ if not found then raise exception 'NOT_FOUND';end if;
+ actor:=fmat.calendar_actor(p_credential);perform fmat.require_request(actor,r.id);
+ -- Reuse the evaluator's authority, account, connection and locking checks.
+ current_basis:=public.fmat_availability_evaluation('current_context',p_credential,jsonb_build_object('requestId',r.id,'revision',r.revision))->>'travelBasis';
+ if p_operation='confirm' then
+  select * into a from fmat.preference_decisions where request_id=r.id and idempotency_key=(p_input->>'idempotencyKey')::uuid;
+  if found then
+   if a.input<>p_input then raise exception 'IDEMPOTENCY_CONFLICT';end if;
+   if a.revoked_at is not null or a.context_basis<>current_basis or a.result_revision<>r.revision then raise exception 'REVISION_CONFLICT';end if;
+   return jsonb_build_object('requestId',r.id,'revision',a.result_revision,'decisionId',a.id,'revoked',false,'complete',false);
+  end if;
+ end if;
+ if p_operation='confirm' then
+  perform public.fmat_availability_evaluation('evidence_read',p_credential,p_input);
+  select * into strict e from fmat.candidate_evaluations where id=(p_input->>'evaluationId')::uuid and request_id=r.id;
+  if p_input->'confirmed' is distinct from 'true'::jsonb or p_input->>'idempotencyKey' is null
+   or exists(select 1 from jsonb_object_keys(p_input) k where k not in ('requestId','revision','evaluationId','confirmed','idempotencyKey','choice')) then raise exception 'INVALID_INPUT';end if;
+  v:=p_input->'choice';
+  if jsonb_typeof(v) is distinct from 'object' or coalesce(v->>'key','') not in ('meeting_mode','location','additional')
+   or v->>'classification' is distinct from 'preference' or coalesce(v->>'decision','') not in ('satisfied','exception')
+   or (v->>'key'<>'additional' and v->>'decision'<>'exception')
+   or length(trim(coalesce(v->>'reason',''))) not between 1 and 2000 or octet_length(v::text)>8192
+   or exists(select 1 from jsonb_object_keys(v) k where k not in ('key','classification','decision','reason')) then raise exception 'INVALID_INPUT';end if;
+  -- A preference decision never resolves hard interval or travel failures.
+  if e.evidence->>'interval' is distinct from 'fits' or e.evidence->'travel'->>'status' is distinct from 'fits'
+   or jsonb_typeof(e.evidence->'preferences') is distinct from 'object' then raise exception 'INVALID_INPUT';end if;
+  select c into leg from jsonb_array_elements(e.evidence->'preferences'->'checks') c where c->>'key'=v->>'key';
+  if leg->>'status' is distinct from 'unresolved' then raise exception 'INVALID_INPUT';end if;
+  if (select count(*) from fmat.preference_decisions where request_id=r.id)>=200 then raise exception 'CONVERSATION_LIMIT';end if;
+  if (select count(*) from fmat.preference_decisions where request_id=r.id and context_basis=current_basis and revoked_at is null)>=30 then raise exception 'CONVERSATION_LIMIT';end if;
+  next_revision:=r.revision+1;
+  update fmat.preference_decisions set revoked_at=clock_timestamp() where request_id=r.id and context_fingerprint=e.evidence->'preferences'->>'contextFingerprint' and preference_key=v->>'key' and revoked_at is null;
+  insert into fmat.preference_decisions(request_id,evaluation_id,host_id,session_id,idempotency_key,input,result_revision,context_basis,context_fingerprint,preference_key,value)
+   values(r.id,e.id,r.host_id,(p_credential->>'sessionId')::uuid,(p_input->>'idempotencyKey')::uuid,p_input,next_revision,current_basis,e.evidence->'preferences'->>'contextFingerprint',v->>'key',v) returning id into result_id;
+ elsif p_operation='revoke' then
+  if p_input->>'idempotencyKey' is null or exists(select 1 from jsonb_object_keys(p_input) k where k not in ('requestId','revision','decisionId','idempotencyKey')) then raise exception 'INVALID_INPUT';end if;
+  select * into a from fmat.preference_decisions where request_id=r.id and id=(p_input->>'decisionId')::uuid;
+  if not found then raise exception 'NOT_FOUND';end if;
+  if a.revoke_key=(p_input->>'idempotencyKey')::uuid then
+   if a.revoke_input<>p_input then raise exception 'IDEMPOTENCY_CONFLICT';end if;
+   if a.revoke_revision<>r.revision then raise exception 'REVISION_CONFLICT';end if;
+   return jsonb_build_object('requestId',r.id,'revision',a.revoke_revision,'decisionId',a.id,'revoked',true,'complete',false);
+  end if;
+  if (p_input->>'revision')::integer is distinct from r.revision or a.revoked_at is not null then raise exception 'REVISION_CONFLICT';end if;
+  next_revision:=r.revision+1;result_id:=a.id;
+  update fmat.preference_decisions set revoked_at=clock_timestamp(),revoke_key=(p_input->>'idempotencyKey')::uuid,revoke_input=p_input,revoke_revision=next_revision where id=a.id;
+ else raise exception 'FORBIDDEN';end if;
+ update fmat.requests set revision=next_revision,candidates='[]',private_diagnostics='[]',private_travel_checks='[]',current_proposal_version=null,requester_agreed_version=null,host_approved_version=null,evaluated_at=null,evaluated_rules_version=null,
+  availability_check_id=null,availability_check_started_at=null,status=case when fmat.details_complete(details) then 'negotiating' else 'gathering' end,updated_at=clock_timestamp() where id=r.id;
+ insert into fmat.request_history(request_id,revision,operation,actor) values(r.id,next_revision,'preference_decision_'||p_operation,actor);
+ perform fmat.audit('preference_decision_'||p_operation,actor,r.id::text);
+ return jsonb_build_object('requestId',r.id,'revision',next_revision,'decisionId',result_id,'revoked',p_operation='revoke','complete',false);
+end;
+$function$;
+
+REVOKE ALL ON FUNCTION "public"."fmat_preference_decision"(text, jsonb, jsonb) FROM PUBLIC, "anon", "authenticated";
+
+ALTER TABLE "fmat"."candidate_evaluations"
+  ADD CONSTRAINT "candidate_evaluations_evidence_check"
+    CHECK
+    (((jsonb_typeof(evidence) = 'object'::text) AND (((evidence -> 'complete'::text) = 'false'::jsonb) IS TRUE) AND ((((evidence ->> 'preferences'::text) = 'pending'::text) OR
+    (jsonb_typeof((evidence -> 'preferences'::text)) = 'object'::text)) IS TRUE) AND (octet_length((evidence)::text) <= 65536)));
+
+ALTER TABLE "fmat"."preference_decisions"
+  ADD CONSTRAINT "preference_decisions_evaluation_id_fkey" FOREIGN KEY (evaluation_id) REFERENCES fmat.candidate_evaluations(id) ON DELETE CASCADE;
+
+ALTER TABLE "fmat"."preference_decisions"
+  ADD CONSTRAINT "preference_decisions_host_id_fkey" FOREIGN KEY (host_id) REFERENCES fmat.hosts(id);
+
+ALTER TABLE "fmat"."preference_decisions"
+  ADD CONSTRAINT "preference_decisions_request_id_fkey" FOREIGN KEY (request_id) REFERENCES fmat.requests(id) ON DELETE CASCADE;
+
+CREATE INDEX preference_decisions_evaluation_idx ON fmat.preference_decisions USING btree (evaluation_id);
+
+CREATE INDEX preference_decisions_host_idx ON fmat.preference_decisions USING btree (host_id);
+
+CREATE INDEX preference_decisions_request_context_idx ON fmat.preference_decisions USING btree (request_id, context_basis)
+  WHERE (revoked_at IS NULL);
+
+CREATE TRIGGER preference_decisions_immutable
+  BEFORE UPDATE ON fmat.preference_decisions
+  FOR EACH ROW
+  EXECUTE FUNCTION fmat.protect_preference_decision();
+
+REVOKE ALL ON FUNCTION "public"."fmat_preference_decision"(text, jsonb, jsonb) FROM "postgres";
+
+GRANT EXECUTE ON FUNCTION "public"."fmat_preference_decision"(text, jsonb, jsonb) TO "postgres";
+
+GRANT EXECUTE ON FUNCTION "public"."fmat_preference_decision"(text, jsonb, jsonb) TO "service_role";

@@ -9,7 +9,7 @@ create table fmat.candidate_evaluations (
   candidate_key text not null check(candidate_key ~ '^[a-f0-9]{64}$'),
   candidate jsonb not null check(jsonb_typeof(candidate)='object' and candidate ?& array['start','end']),
   status text not null check(status in ('checks_passed','conflict','clarification')),
-  evidence jsonb not null check(jsonb_typeof(evidence)='object' and (evidence->'complete'='false'::jsonb) is true and (evidence->>'preferences'='pending') is true and octet_length(evidence::text)<=65536),
+  evidence jsonb not null check(jsonb_typeof(evidence)='object' and (evidence->'complete'='false'::jsonb) is true and ((evidence->>'preferences'='pending') or jsonb_typeof(evidence->'preferences')='object') is true and octet_length(evidence::text)<=65536),
   private_context jsonb not null check(jsonb_typeof(private_context)='object' and octet_length(private_context::text)<=262144),
   evaluated_at timestamptz not null,
   expires_at timestamptz not null check(expires_at>evaluated_at),

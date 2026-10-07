@@ -1,0 +1,10 @@
+import {z} from 'zod';
+export const preferenceKey=z.enum(['meeting_mode','location','additional']);
+export const preferenceChoice=z.strictObject({key:preferenceKey,classification:z.literal('preference'),decision:z.enum(['satisfied','exception']),reason:z.string().trim().min(1).max(2000)}).refine(v=>v.key==='additional'||v.decision==='exception','A conflicting configured preference requires an exception.');
+export const confirmPreference=z.strictObject({requestId:z.uuid(),revision:z.number().int().positive(),evaluationId:z.uuid(),confirmed:z.literal(true),idempotencyKey:z.uuid(),choice:preferenceChoice});
+export const revokePreference=z.strictObject({requestId:z.uuid(),revision:z.number().int().positive(),decisionId:z.uuid(),idempotencyKey:z.uuid()});
+export const preferenceReceipt=z.strictObject({requestId:z.uuid(),revision:z.number().int().positive(),decisionId:z.uuid(),revoked:z.boolean(),complete:z.literal(false)});
+export const verifiedPreferenceDecision=preferenceChoice.safeExtend({id:z.uuid(),contextFingerprint:z.string().regex(/^[a-f0-9]{64}$/u)});
+export const preferenceEvaluation=z.strictObject({contextFingerprint:z.string().regex(/^[a-f0-9]{64}$/u),status:z.enum(['satisfied','requires_confirmation']),checks:z.array(z.strictObject({key:preferenceKey,status:z.enum(['satisfied','unresolved','exception']),decisionId:z.uuid().optional()})).length(3)}).refine(v=>new Set(v.checks.map(c=>c.key)).size===3).refine(v=>v.status===(v.checks.some(c=>c.status==='unresolved')?'requires_confirmation':'satisfied'));
+export type PreferenceEvaluation=z.infer<typeof preferenceEvaluation>;
+export type VerifiedPreferenceDecision=z.infer<typeof verifiedPreferenceDecision>;
