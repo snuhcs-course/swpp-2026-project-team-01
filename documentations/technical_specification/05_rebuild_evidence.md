@@ -12,6 +12,16 @@ Updated: 2026-10-07. This ledger tracks the entire [implementation plan](04_impl
 - Local application origin still points to the root domain and needs release-specific configuration. AgentMail and iMessage webhook secrets are not yet configured locally. Existing remote channel consumers remain unverified; do not enable competing receivers before inspection.
 - eve reference commit: `cebbc9b611be2b0eda728c731f675f592b57b100`. Both eve templates come from that checkout; no template auth/database is copied.
 
+## Photon transport foundation (2026-10-07)
+
+The installed eve 0.71.3 Photon adapter was exercised with synthetic signed messages and an isolated downstream promise. It verifies signatures but returns HTTP 200 before that promise completes; replay calls the downstream processor again. Its `postMessage` path supplies no application-owned send identity. This selects an application-owned receiver/outbox boundary within the existing service graph. It does not establish live Spectrum send/reconciliation compatibility or justify a separate bridge process.
+
+`POST /api/providers/photon` now verifies bounded raw bytes, timestamp, receiver identity and consistent private routing, then awaits a service-only database receipt. New private receiver/inbox tables provide project/message deduplication, immutable routing/content, receipt ordering and atomic inbox/job creation. The registry defaults disabled; no inbox creates host, link, execution or booking authority. The additional migration preserves all prior history; pg-delta also repeats the unchanged booking event-ID constraint, as in earlier migrations.
+
+Local verification: `npm run check` passes 61 application/provider tests and 4 SMTP tests; separate eve/web builds and built-runtime smoke pass, including unsigned Photon denial. The full disposable migration reset and 13 pgTAP suites pass 738 assertions. Ten integration tests pass, including eight concurrent signed retries, a lost database response after commit and observed lock contention against receiver disablement. Local advisors report no findings; all 12 OpenSpec items pass strict validation. UI/browser code was unchanged in this slice, so the existing browser suite was not rerun locally. All four prior extracted-answer code/evidence CI runs completed successfully.
+
+Read-only Spectrum inspection returned HTTP 200 and zero registered webhooks for the configured project. This does not establish absence of independent streaming consumers, target eligibility or delivery. No webhook was registered and no external message was sent. Linking, private-authority dispatch, outbound recovery and live acceptance remain pending; setup task 4.3 and all phase/release gates remain open.
+
 ## Change ownership
 
 | Owner | Responsibility |

@@ -72,7 +72,13 @@ References: [AgentMail quickstart](https://docs.agentmail.to/quickstart), [webho
 
 ## Photon
 
-Configure `PHOTON_PROJECT_ID` and `PHOTON_PROJECT_SECRET` for the intended project. These local names map to the SDK's `projectId` and `projectSecret`. For native eve webhook integration, configure the adapter's `webhookSecret` using the server-only `IMESSAGE_WEBHOOK_SECRET`; verify its signature handling during the runtime spike.
+Configure `PHOTON_PROJECT_ID` and `PHOTON_PROJECT_SECRET` for the intended project. These local names map to the SDK's `projectId` and `projectSecret`. The application-owned receiver is `POST /api/providers/photon`, using server-only `PHOTON_WEBHOOK_ID` and `IMESSAGE_WEBHOOK_SECRET`. The corresponding project/receiver must also be enabled in private `fmat.photon_receivers`; an absent, disabled or mismatched registry returns 503 and stores nothing.
+
+The installed eve 0.71.3 native-adapter spike (`tests/providers/photon-native.test.ts`) verifies its signature path but observes HTTP 200 before downstream processing completes. Its send API also supplies no application-owned retry identity. Use the application receiver and durable domain work before dispatching to eve, with a separate application-owned outbound intent. A separate process is not currently justified. Recheck these observations when upgrading eve.
+
+The receiver checks the original bytes and five-minute signature window, rejects transferred receiver IDs and conflicting route copies, and accepts only private inbound text. It stores minimized sender/space/line/message evidence and a job atomically before HTTP acknowledgment. IDs remain opaque; project/message deduplication survives retries and rejects changed payloads. An inbox receipt grants no host, session, settings or booking authority. Jobs carry only the private inbox reference. Subsequent processing must recheck current link/admission and preserve receipt order before using the existing authorized conversation runtime.
+
+Do not register/enable this receiver until linking, outbound recovery and consumer ownership are verified. The current deployment can contain this transport foundation while the registry remains empty. Live ingress, host linking and delivery are still unverified; local signed fixtures establish only the receiver boundary. See [Photon event format](https://photon.codes/docs/webhooks/events) and [signature verification](https://photon.codes/docs/webhooks/verifying-signatures).
 
 Verify target eligibility and actual sender routing for each controlled recipient. Do not infer an iMessage handle from Google email or assume one public sender number for shared-pool conversations. Validate Node runtime compatibility and recovery before deciding whether a separate bridge is necessary.
 

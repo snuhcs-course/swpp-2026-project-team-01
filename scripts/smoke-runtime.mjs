@@ -18,7 +18,10 @@ async function unusedPort() {
 async function start(args, port, health) {
   const child = spawn(process.execPath, args, {
     env: { ...process.env, NODE_ENV: 'production', PORT: String(port),
-      HOST: '127.0.0.1', OPENAI_MODEL: 'gpt-6-luna', NEXT_TELEMETRY_DISABLED: '1' },
+      HOST: '127.0.0.1', OPENAI_MODEL: 'gpt-6-luna', NEXT_TELEMETRY_DISABLED: '1',
+      PHOTON_PROJECT_ID:'10000000-0000-4000-8000-000000000001',
+      PHOTON_WEBHOOK_ID:'20000000-0000-4000-8000-000000000001',
+      IMESSAGE_WEBHOOK_SECRET:'synthetic-runtime-webhook-secret' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   children.push(child);
@@ -46,6 +49,9 @@ try {
   assert.equal(page.headers.get('referrer-policy'), 'no-referrer');
   assert.equal(page.status, 200);
   assert.ok((await page.text()).includes('<title>Find Me a Time</title>'), 'Web service serves the application');
+  const photon = await fetch(web+'/api/providers/photon',{method:'POST',headers:{'content-type':'application/json'},body:'{}'});
+  assert.equal(photon.status,401,'Photon receiver rejects unsigned delivery before database access');
+  assert.match(photon.headers.get('cache-control'),/no-store/u);
 
   const eve = await start(['.output/server/index.mjs'], await unusedPort(), '/eve/v1/health');
   for (const path of ['/session', '/session/test', ...['cancel', 'compact', 'clear', 'reset'].map((action) => `/session/test/${action}`)]) {
@@ -62,7 +68,7 @@ try {
     assert.equal(response.status, 401, `${method} ${path} must reject anonymous access`);
     assert.match(response.headers.get('cache-control'), /no-store/u);
   }
-  console.log('PASS: built web health/page/headers and all twelve conversation/session routes reject anonymous access.');
+  console.log('PASS: built web health/page/headers, unsigned Photon denial and all twelve conversation/session routes reject anonymous access.');
 } finally {
   await Promise.all(children.map(async (child) => {
     if (child.exitCode !== null) return;
