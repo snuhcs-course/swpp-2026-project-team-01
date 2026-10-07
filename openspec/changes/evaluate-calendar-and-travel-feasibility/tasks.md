@@ -20,6 +20,6 @@ Tasks describe replacement implementation and verification. Completed pure-core 
 
 ## 3. Ranking and proposal integration
 
-- [ ] 3.1 Implement structured ranking over already-valid candidate IDs; verify model suggestions cannot invent intervals, waive constraints, or overwrite stale results.
+- [x] 3.1 Implement structured ranking over already-valid candidate IDs; verify model suggestions cannot invent intervals, waive constraints, or overwrite stale results.
 - [ ] 3.2 Wire evaluation/no-match clarification and private host exception UI to request lifecycle; verify account-free requester can select a feasible current proposal without seeing private rules.
 - [ ] 3.3 Record AC-02/AC-03/AC-12/AC-27 integration evidence and expose the same evaluator for booking revalidation; verify changed requester availability and travel context block later dispatch.

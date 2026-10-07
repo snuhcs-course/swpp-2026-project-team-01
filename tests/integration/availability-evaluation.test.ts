@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {randomUUID,randomBytes,createHash} from 'node:crypto';
+import {CandidateRanking,type RankingInput} from '../../lib/server/scheduling/ranking.ts';
 import {PreferenceDecisions} from '../../lib/server/scheduling/preference-decisions.ts';
 import {TravelAllowances} from '../../lib/server/scheduling/allowances.ts';
 import {AvailabilityEvaluation} from '../../lib/server/scheduling/availability.ts';
@@ -184,6 +185,49 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   assert.equal(allPreferences.candidateEvaluation?.preferences?.checks.filter(c=>c.status==='exception').length,2);
   await sql.query(`update fmat.requests set details=jsonb_set(jsonb_set(details,'{mode}','"online"'),'{location}','""'),revision=revision+1 where id='${requestId}';update fmat.hosts set rules=rules||'{"travelMode":"NONE","locationPolicy":"per_meeting","locations":[]}',rules_version=rules_version+1 where id='${host}';`);
   assert.equal((await physical()).candidateEvaluation?.preferences?.status,'requires_confirmation','Changed details/rules invalidate earlier preference decisions');
+  // One real Calendar acquisition feeds multiple exact assessments under one
+  // superseding attempt. Only fully checked rows enter structured ranking.
+  const batch=async()=>service.batch(credential,{requestId,revision:await revision(),sampling:{stepMinutes:15,limit:3}});
+  const rankTarget=(b:Awaited<ReturnType<typeof batch>>)=>({requestId,revision:b.context.revision,checkId:b.context.checkId,basis:b.context.basis});
+  let rankCalls=0,rankGate=async()=>{},rankResponse:(input:RankingInput)=>unknown=input=>({orderedIds:input.candidates.map(c=>c.id).reverse()});
+  const ranker=new CandidateRanking(database,{async rank(input){rankCalls++;assert.deepEqual(Object.keys(input).sort(),['candidates','timezone']);assert.ok(!JSON.stringify(input).includes('Private'));await rankGate();return rankResponse(input);}});
+  const unresolvedBatch=await batch();assert.equal(unresolvedBatch.results.length,3);assert.equal(unresolvedBatch.truncated,true);
+  assert.ok(unresolvedBatch.results.every(r=>r.persisted.status==='clarification'));
+  const emptyRanking=await ranker.rank(credential,rankTarget(unresolvedBatch));assert.deepEqual(emptyRanking.orderedIds,[]);assert.equal(rankCalls,0,'Unresolved preferences never reach the model');
+  await sql.query(`update fmat.hosts set rules=jsonb_set(rules,'{preferences}','""'),rules_version=rules_version+1 where id='${host}';`);
+  const beforeBatchReads=calls.length,validBatch=await batch();assert.equal(calls.length,beforeBatchReads+1,'Batch shares the host free/busy read');assert.ok(validBatch.results.every(r=>r.persisted.status==='checks_passed'));
+  const target=rankTarget(validBatch),ranked=await ranker.rank(credential,target);assert.equal(ranked.orderedIds.length,3);assert.equal(ranked.complete,false);assert.equal(rankCalls,1);
+  assert.deepEqual(await ranker.rank(credential,target),ranked);assert.equal(rankCalls,1,'Saved ranking retry performs no model call');
+  const rankingSnapshot=await database.rpc('fmat_candidate_ranking',{p_operation:'read',p_credential:credential,p_input:target}) as {fingerprint:string};
+  const rankSave={...target,fingerprint:rankingSnapshot.fingerprint,orderedIds:ranked.orderedIds};
+  const rankRetries=await Promise.all(Array.from({length:8},()=>database.rpc('fmat_candidate_ranking',{p_operation:'save',p_credential:credential,p_input:rankSave})));assert.ok(rankRetries.every(r=>JSON.stringify(r)===JSON.stringify(rankRetries[0])));
+  await assert.rejects(database.rpc('fmat_candidate_ranking',{p_operation:'save',p_credential:credential,p_input:{...rankSave,orderedIds:[...ranked.orderedIds].reverse()}}),code('IDEMPOTENCY_CONFLICT'));
+  for(const orderedIds of [[ranked.orderedIds[0],ranked.orderedIds[0],ranked.orderedIds[0]],[randomUUID(),...ranked.orderedIds.slice(1)],[],[...ranked.orderedIds,randomUUID()]])await assert.rejects(database.rpc('fmat_candidate_ranking',{p_operation:'save',p_credential:credential,p_input:{...rankSave,orderedIds}}),code('INVALID_INPUT'));
+  assert.equal(await sql.query(`select has_table_privilege('authenticated','fmat.candidate_rankings','SELECT')||','||has_function_privilege('anon','public.fmat_candidate_ranking(text,jsonb,jsonb)','EXECUTE')||','||has_function_privilege('authenticated','public.fmat_candidate_ranking(text,jsonb,jsonb)','EXECUTE');`),'false,false,false');
+  await assert.rejects(ranker.rank({...credential},target),code('UNAUTHORIZED'));await assert.rejects(ranker.rank(guestCredential(requestId,randomBytes(32).toString('base64url')),target),code('NOT_FOUND'));
+  await sql.query(`do $$ begin update fmat.candidate_rankings set ordered_ids='[]' where id='${ranked.rankingId}';raise exception 'fixture mutable ranking';exception when raise_exception then if sqlerrm<>'IMMUTABLE_EVALUATION' then raise;end if;end $$;`);
+  assert.equal(await sql.query(`select candidates='[]' and current_proposal_version is null from fmat.requests where id='${requestId}';`),'t','Private ranking cannot publish a proposal');
+  const malformedBatch=await batch();rankResponse=()=>({orderedIds:[randomUUID()]});await assert.rejects(ranker.rank(credential,rankTarget(malformedBatch)),code('PROVIDER_UNAVAILABLE'));assert.equal(await sql.query(`select count(*) from fmat.candidate_rankings where check_id='${malformedBatch.context.checkId}';`),'0');
+  rankResponse=input=>({orderedIds:input.candidates.map(c=>c.id).reverse()});
+  async function staleRank(mutate:()=>Promise<unknown>,expected='STALE_REVISION'){
+   const source=await batch();let enter!:()=>void,release!:()=>void;const arrived=new Promise<void>(r=>enter=r),wait=new Promise<void>(r=>release=r);rankGate=async()=>{enter();await wait;};
+   const rejected=assert.rejects(ranker.rank(credential,rankTarget(source)),code(expected));await arrived;try{await mutate();}finally{release();}await rejected;rankGate=async()=>{};
+   assert.equal(await sql.query(`select count(*) from fmat.candidate_rankings where check_id='${source.context.checkId}';`),'0','Stale model result creates no ranking');
+  }
+  // Adding even excluded evidence changes the frozen set. A model reply
+  // from the prior manifest must not replace it.
+  const growingBatch=await batch(),growingTarget=rankTarget(growingBatch);
+  const growingSnapshot=await database.rpc('fmat_candidate_ranking',{p_operation:'read',p_credential:credential,p_input:growingTarget}) as {fingerprint:string};
+  const blockedCandidate={start:at('10:00'),end:at('10:30')};
+  const excluded=await database.rpc('fmat_availability_evaluation',{p_operation:'evidence_save',p_credential:credential,p_input:{...growingTarget,candidate:blockedCandidate,rulesVersion:growingBatch.rulesVersion,evidence:{candidate:blockedCandidate,interval:'conflict',contextFingerprint:null,travel:null,preferences:'pending',complete:false}}}) as {evaluationId:string};
+  await assert.rejects(database.rpc('fmat_candidate_ranking',{p_operation:'save',p_credential:credential,p_input:{...growingTarget,fingerprint:growingSnapshot.fingerprint,orderedIds:growingBatch.results.map(r=>r.persisted.evaluationId)}}),code('STALE_REVISION'));
+  const afterGrowth=await database.rpc('fmat_candidate_ranking',{p_operation:'read',p_credential:credential,p_input:growingTarget}) as {fingerprint:string;input:RankingInput};assert.equal(afterGrowth.input.candidates.length,3);assert.ok(afterGrowth.input.candidates.every(c=>c.id!==excluded.evaluationId));
+  await assert.rejects(database.rpc('fmat_candidate_ranking',{p_operation:'save',p_credential:credential,p_input:{...growingTarget,fingerprint:afterGrowth.fingerprint,orderedIds:[excluded.evaluationId,...afterGrowth.input.candidates.slice(1).map(c=>c.id)]}}),code('INVALID_INPUT'));
+  await staleRank(()=>sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${host}';`));
+  await staleRank(()=>sql.query(`update fmat.requests set revision=revision+1 where id='${requestId}';`));
+  await staleRank(()=>sql.query(`update fmat.requests set availability_check_started_at=now()-interval '6 minutes' where id='${requestId}';`));
+  await staleRank(()=>check());
+  await staleRank(()=>sql.query(`update fmat.requests set token_revoked_at=now() where id='${requestId}';`),'NOT_FOUND');await sql.query(`update fmat.requests set token_revoked_at=null where id='${requestId}';`);
   await reconnect();
   await paused(()=>sql.query(`update fmat.requests set revision=revision+1,details=jsonb_set(details,'{purpose}','"Changed"') where id='${requestId}';`));
   await paused(()=>sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${host}';`));
@@ -227,6 +271,6 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   await check(); // A request-bound guest does not depend on the host browser session.
   await sql.query(`update fmat.requests set token_revoked_at=now() where id='${requestId}';`);await assert.rejects(check(),code('NOT_FOUND'));
  }finally{
-  if(host){await sql.query(`set session_replication_role=replica;delete from fmat.preference_decisions where request_id='${requestId}';delete from fmat.travel_allowances where request_id='${requestId}';delete from fmat.candidate_evaluations where request_id='${requestId}';delete from fmat.booking_attempts where host_id='${host}';delete from fmat.host_approvals where host_id='${host}';delete from fmat.booking_identities where request_id in('${otherRequest}','${farRequest}');delete from fmat.proposals where request_id in('${otherRequest}','${farRequest}');delete from fmat.audit_events where subject_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.calendar_connections where principal_id in('${host}','${requestId}');delete from fmat.request_history where request_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';set session_replication_role=origin;`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers});assert.equal(removed.status,200);}sql.close();
+  if(host){await sql.query(`set session_replication_role=replica;delete from fmat.candidate_rankings where request_id='${requestId}';delete from fmat.preference_decisions where request_id='${requestId}';delete from fmat.travel_allowances where request_id='${requestId}';delete from fmat.candidate_evaluations where request_id='${requestId}';delete from fmat.booking_attempts where host_id='${host}';delete from fmat.host_approvals where host_id='${host}';delete from fmat.booking_identities where request_id in('${otherRequest}','${farRequest}');delete from fmat.proposals where request_id in('${otherRequest}','${farRequest}');delete from fmat.audit_events where subject_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.calendar_connections where principal_id in('${host}','${requestId}');delete from fmat.request_history where request_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';set session_replication_role=origin;`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers});assert.equal(removed.status,200);}sql.close();
  }
 });

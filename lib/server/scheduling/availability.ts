@@ -16,9 +16,10 @@ import {verifiedTravelAllowance} from '../../contracts/travel-allowance.ts';
 import {verifiedPreferenceDecision} from '../../contracts/preference-decision.ts';
 import {evaluatePreferences} from './preferences.ts';
 import {evaluateTravel} from './travel.ts';
-import {evaluateIntervals,intervalFits} from './intervals.ts';
+import {evaluateIntervals,intervalFits,sampleIntervals} from './intervals.ts';
 import {candidateEvidence,evidenceReceipt,type CandidateAssessment} from './evidence.ts';
 
+const batchOptions=z.strictObject({stepMinutes:z.number().int().min(1).max(240),limit:z.number().int().min(1).max(30)});
 const grant=z.object({principalId:z.uuid(),providerSubject:z.string(),encryptedCredential:z.string(),calendarIds:z.array(z.string()).min(1).max(50)});
 const snapshot=z.object({preferenceDecisions:z.array(verifiedPreferenceDecision).max(30),travelBasis:z.string().regex(/^[a-f0-9]{64}$/u),allowances:z.array(verifiedTravelAllowance).max(20),checkId:z.uuid(),basis:z.string().regex(/^[a-f0-9]{64}$/u),revision:z.number().int().positive(),rulesVersion:z.number().int().nonnegative(),
  details:z.object({windows:intervalFeasibilityInput.shape.windows,timezone:intervalFeasibilityInput.shape.requesterTimezone,durationMinutes:intervalFeasibilityInput.shape.durationMinutes,mode:z.string().optional(),location:z.string().optional()}),
@@ -31,8 +32,12 @@ const snapshot=z.object({preferenceDecisions:z.array(verifiedPreferenceDecision)
 export class AvailabilityEvaluation {
  constructor(private readonly database=new Database(),private readonly env=process.env,private readonly provider:CalendarProvider=new GoogleCalendarProvider(env),private readonly freebusy:FreeBusyProvider=new GoogleFreeBusy(),private readonly events:AdjacentEventProvider=new GoogleAdjacentEvents(),private readonly routes:RoutesProvider=new GoogleRoutes(env)){}
  private call(operation:string,credential:Credential,input:unknown){requireCredential(credential);return this.database.rpc('fmat_availability_evaluation',{p_operation:operation,p_credential:credential,p_input:input});}
- async read(credential:Credential,input:unknown){
-  const target=availabilityCheckInput.parse(input);
+ async read(credential:Credential,input:unknown){return this.evaluate(credential,availabilityCheckInput.parse(input));}
+ async batch(credential:Credential,input:unknown){
+  const parsed=availabilityCheckInput.omit({candidate:true}).extend({sampling:batchOptions}).parse(input);
+  return this.evaluate(credential,{requestId:parsed.requestId,revision:parsed.revision},parsed.sampling);
+ }
+ private async evaluate(credential:Credential,target:z.infer<typeof availabilityCheckInput>,sampling?:z.infer<typeof batchOptions>){
   const state=snapshot.parse(await this.call('start',credential,{...target,checkId:randomUUID()}));
   const context={...target,checkId:state.checkId,basis:state.basis},cipher=new TokenCipher(this.env);
   const windows=state.details.windows;let hostAccessToken='';
@@ -72,28 +77,36 @@ export class AvailabilityEvaluation {
   const {timezone,availability,focusBlocks,bufferMinutes}=state.rules;
   const evaluation=evaluateIntervals({now:new Date().toISOString(),requesterTimezone:state.details.timezone,durationMinutes:state.details.durationMinutes,
     windows,requesterAvailability:windows,requesterBusy,hostBusy:[...hostBusy,...state.localBookings],rules:{timezone,availability,focusBlocks,bufferMinutes}});
-  let candidateEvaluation:CandidateAssessment|null=null;
-  if(target.candidate){
-   candidateEvaluation={interval:evaluation.status==='clarification'?'clarification':intervalFits(evaluation,target.candidate)?'fits':'conflict',travel:null,contextFingerprint:null};
+  const sampled=sampling?sampleIntervals(evaluation,sampling):{intervals:target.candidate?[target.candidate]:[],truncated:false};
+  const assessments:{candidate:z.infer<typeof schedulingInterval>;assessment:CandidateAssessment}[]=[];
+  for(const candidate of sampled.intervals){
+   const candidateEvaluation:CandidateAssessment={interval:evaluation.status==='clarification'?'clarification':intervalFits(evaluation,candidate)?'fits':'conflict',travel:null,contextFingerprint:null};
    if(candidateEvaluation.interval==='fits'&&['online','in_person'].includes(state.details.mode??'')){
     const assertCurrent=async()=>{await this.call('check',credential,context);};
     let commitments:TravelCommitment[]=[];
     if(state.details.mode==='in_person'){
-     try{await assertCurrent();commitments=await this.events.read(hostAccessToken,state.host.calendarIds,target.candidate,assertCurrent);await assertCurrent();}
+     try{await assertCurrent();commitments=await this.events.read(hostAccessToken,state.host.calendarIds,candidate,assertCurrent);await assertCurrent();}
      catch(error){if(!(error instanceof ApplicationError)||['RECONNECT_REQUIRED','PROVIDER_UNAVAILABLE'].includes(error.code))await this.call('failure',credential,{...context,party:'host'});throw error instanceof ApplicationError?error:new ApplicationError('PROVIDER_UNAVAILABLE',503);}
      commitments.push(...unexplainedBusy(hostBusy,commitments),...state.localCommitments.map(c=>({...c,location:physicalLocation(c.location??undefined)})),...state.rules.focusBlocks.map((interval,i)=>({id:'focus-'+i,calendarId:'rules',eventId:'focus-'+i,version:String(state.rulesVersion),interval,location:null})));
     }
-    const adjacent=adjacentContext(target.candidate,commitments,state.travelBasis),rules=setupRules.pick({travelMode:true,travelBufferMinutes:true}).strip().parse(state.rules);
+    const adjacent=adjacentContext(candidate,commitments,state.travelBasis),rules=setupRules.pick({travelMode:true,travelBufferMinutes:true}).strip().parse(state.rules);
     candidateEvaluation.contextFingerprint=adjacent.fingerprint;
-    candidateEvaluation.travelContext={contextFingerprint:adjacent.fingerprint,candidate:target.candidate,meetingMode:state.details.mode as 'online'|'in_person',location:physicalLocation(state.details.location),previous:adjacent.previous,next:adjacent.next,mode:rules.travelMode,bufferMinutes:state.rules.bufferMinutes,travelBufferMinutes:rules.travelBufferMinutes};
+    candidateEvaluation.travelContext={contextFingerprint:adjacent.fingerprint,candidate,meetingMode:state.details.mode as 'online'|'in_person',location:physicalLocation(state.details.location),previous:adjacent.previous,next:adjacent.next,mode:rules.travelMode,bufferMinutes:state.rules.bufferMinutes,travelBufferMinutes:rules.travelBufferMinutes};
     candidateEvaluation.travel=await evaluateTravel(candidateEvaluation.travelContext,{estimate:async request=>{await assertCurrent();const result=await this.routes.estimate(request);await assertCurrent();return result;}},{allowances:state.allowances});
    }
+   candidateEvaluation.preferences=evaluatePreferences({basis:state.travelBasis,candidate,details:state.details,rules:setupRules.parse(state.rules)},state.preferenceDecisions);
+   assessments.push({candidate,assessment:candidateEvaluation});
   }
-  if(candidateEvaluation&&target.candidate)candidateEvaluation.preferences=evaluatePreferences({basis:state.travelBasis,candidate:target.candidate,details:state.details,rules:setupRules.parse(state.rules)},state.preferenceDecisions);
   const receipt=availabilityCheckReceipt.parse({...await this.call('success',credential,context) as object,complete:false});
-  const evidence=candidateEvaluation&&target.candidate?candidateEvidence.parse({candidate:target.candidate,...candidateEvaluation,complete:false}):null;
-  const persisted=evidence?evidenceReceipt.parse(await this.call('evidence_save',credential,{...context,rulesVersion:state.rulesVersion,evidence})):null;
-  return {receipt,evaluation,candidateEvaluation,persisted,context,rulesVersion:state.rulesVersion};
+  const results=[];
+  for(const {candidate,assessment} of assessments){
+   const evidence=candidateEvidence.parse({candidate,...assessment,complete:false});
+   const persisted=evidenceReceipt.parse(await this.call('evidence_save',credential,{...context,candidate,rulesVersion:state.rulesVersion,evidence}));
+   results.push({candidate,assessment,persisted});
+  }
+  // A later save/read can race an earlier one; recheck after the entire batch.
+  await this.call('check',credential,context);
+  return {receipt,evaluation,candidateEvaluation:target.candidate?results[0].assessment:null,persisted:target.candidate?results[0].persisted:null,context,rulesVersion:state.rulesVersion,results,truncated:sampled.truncated};
  }
  async check(credential:Credential,input:unknown){return (await this.read(credential,input)).receipt;}
  async evidence(credential:Credential,input:unknown){const target=z.strictObject({requestId:z.uuid(),revision:z.number().int().positive(),evaluationId:z.uuid()}).parse(input);return evidenceReceipt.parse(await this.call('evidence_read',credential,target));}
