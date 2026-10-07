@@ -114,6 +114,8 @@ The existing server-only PKCE verifier/session cookies remain HttpOnly, SameSite
 
 References: [Supabase Google login](https://supabase.com/docs/guides/auth/social-login/auth-google), [Auth configuration API](https://supabase.com/docs/reference/api/v1-update-auth-service-config).
 
+Verified on 2026-10-07 for code `02a8ba0`: the sparse policy changed one hosted Auth property; a fresh diff has no declared differences, and public Auth settings report `google: true`, `email: false`. The deployed login start redirects through the selected Supabase project to Google using only identity scopes and the intended callback. This verifies configuration and redirect wiring; it does not certify completed live account consent.
+
 ## Google Calendar consent configuration
 
 Configure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` on the server. Register `/connections/google/callback` on the release origin and `http://localhost:3000` for direct Calendar consent. Supabase Auth returns use `/auth/callback` instead. Preserve unrelated registered callbacks until their consumers are identified.

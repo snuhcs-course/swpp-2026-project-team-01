@@ -133,7 +133,7 @@ Incremental completion (2026-10-07; the full phase exit remains open):
 
 - [x] Replace the host email-login form and endpoint with Google-only identity sign-in; retain waitlist email, invitation admission and separate Calendar consent.
 - [x] Verify local Google PKCE exchange, wrong-browser/replayed/cancelled returns, CSRF, logout, invitation and account-free requester regressions; pass application checks, separate builds and runtime smoke tests.
-- [ ] Deploy Google-only sign-in and verify hosted Google enabled/email disabled, production redirect and cookie boundaries.
+- [x] Deploy Google-only sign-in and verify hosted Google enabled/email disabled, production redirect and cookie boundaries (`02a8ba0`; deployment `dpl_B3iDknA8E4b7NpeiGoqvQdRSsbs3`; [evidence](05_rebuild_evidence.md#google-only-mvp-login-update--2026-10-07)).
 - [ ] Complete controlled live Google login and actual iPhone acceptance, followed by the remaining host-setup phase exit below.
 
 Work:
