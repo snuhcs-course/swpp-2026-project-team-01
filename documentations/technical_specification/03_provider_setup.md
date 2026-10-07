@@ -166,3 +166,16 @@ Final text is checkpointed by eve and inserted into `fmat.photon_replies` in the
 `PhotonHandoffs` uses `TOKEN_ENCRYPTION_KEY` to protect short-lived continuation tokens with a project/intent-specific encryption context. Its service-only `fmat_photon_handoff` RPC owns preparation, route validation, lease claims, post-preflight authorization, result recording and private token resolution. It uses the existing Photon project/transport credentials and `APP_ORIGIN`; no new secret is introduced. The handoff expires fifteen minutes after the signed receipt, and retries do not extend it. Never log the link fragment or ciphertext.
 
 `POST /api/internal/photon/handoffs` requires the existing runtime dispatch bearer secret, prepares up to five unlinked receipts and claims up to five outgoing intents. The minute `fmat-photon-handoffs` sweep uses the existing Vault runtime URL/secret only when an enabled receiver has pending work. `/app` now exchanges the fragment into browser-bound HttpOnly continuation, preserves it through sign-in/admission and requires a fresh OTP in the original private conversation. No new provider secret is introduced. Keep the production receiver inactive until controlled live recipient eligibility, device delivery and actual iPhone/browser handoff acceptance are verified; local synthetic sends do not prove those gates.
+
+## Google Routes
+
+Set server-only `GOOGLE_MAPS_API_KEY` for the intended Routes-enabled Google Cloud project. It is separate from Google Calendar OAuth grants. The adapter calls only `https://routes.googleapis.com/directions/v2:computeRoutes`, places the key in `X-Goog-Api-Key`, uses a bounded field mask and a ten-second deadline, and makes no automatic retry. Production configuration must be provisioned separately from the ignored local environment. On 2026-10-07 the existing credential was added as a production-only Secret to verified Vercel project `findmeatime-release`; readback confirmed the named Secret entry without exposing its value.
+
+A controlled probe on 2026-10-07 at 05:45 UTC used public landmark coordinates, with departure 2026-10-08 at 05:45 UTC. It made eight requests with the configured local server credential. These results apply only to the tested endpoint pair, mode and departure; they do not establish country-wide coverage or deployed scheduling acceptance.
+
+| Endpoint pair | DRIVE | TRANSIT | WALK | BICYCLE |
+|---|---|---|---|---|
+| Seoul City Hall `(37.5663, 126.9779)` → Seoul Station `(37.5547, 126.9706)` | No route | Estimate returned | No route | No route |
+| Times Square `(40.7580, -73.9855)` → Grand Central `(40.7527, -73.9772)`, New York | Estimate returned | Estimate returned | Estimate returned | Estimate returned |
+
+No-route, unsupported/partial locations, past departure contexts, transit departures beyond 100 days and provider failures remain unresolved. Reconnect/configuration recovery or a later explicit host-confirmed, context-bound manual allowance is required as appropriate; the application must not substitute zero or switch modes. Manual allowance persistence/UI and the complete physical booking journey remain pending. See the [transit constraints](https://developers.google.com/maps/documentation/routes/transit-route) and [travel core](01_backend_architecture.md#routes-adapter-and-adjacent-trip-core).

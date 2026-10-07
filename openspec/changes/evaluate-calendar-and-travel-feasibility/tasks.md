@@ -12,7 +12,7 @@ Tasks describe replacement implementation and verification. Completed pure-core 
 
 ## 2. Travel and private exceptions
 
-- [ ] 2.1 Implement Google Routes adapter with selected travel mode, departure context, deadlines, and explicit no-route/failure outputs; verify unsupported geography/mode routes remain unresolved.
+- [x] 2.1 Implement Google Routes adapter with selected travel mode, departure context, deadlines, and explicit no-route/failure outputs; verify unsupported geography/mode routes remain unresolved.
 - [ ] 2.2 Implement previous-to-candidate and candidate-to-next travel with margins and context freshness; verify each direction independently excludes insufficient gaps and changed context requires recomputation.
 - [ ] 2.3 Add explicit authenticated manual leg allowances and private preference exceptions bound to current details/rules; verify no hard-conflict waiver, no implicit model exception, and guest redaction.
 - [ ] 2.4 Add desired SQL/migration for evaluation context and exception records; verify local reset, constraints, and service-only access.
