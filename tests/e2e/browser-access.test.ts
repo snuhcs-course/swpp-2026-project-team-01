@@ -236,7 +236,17 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     assert.equal(await sql.query(`select count(*) from fmat.waitlist where email='${email}';`),'1');
     await verifyNoHistory(browser,origin,local,sql);
   }catch(error){
-    await writeFile('.local/rebuild/photon-browser-failure.log',String(error instanceof Error?error.stack:error));throw error;
+    await writeFile('.local/rebuild/photon-browser-failure.log',String(error instanceof Error?error.stack:error));
+    // Capture control state without cookies, tokens, URLs or entered content.
+    const controls=await page.locator('[aria-label="Private scheduling review"]').evaluateAll(regions=>regions.map(region=>({
+      busy:region.getAttribute('aria-busy'),forms:Array.from(region.querySelectorAll('form')).map(form=>({
+        name:form.getAttribute('aria-label'),
+        choices:Array.from(form.querySelectorAll('[role="radio"],[role="checkbox"]')).map(element=>({role:element.getAttribute('role'),checked:element.getAttribute('aria-checked'),disabled:element.matches(':disabled'),value:element.getAttribute('value')})),
+        reasons:Array.from(form.querySelectorAll('textarea')).map(element=>({length:element.value.length,disabled:element.disabled})),
+        submit:Array.from(form.querySelectorAll('button[type="submit"]')).map(element=>({disabled:element.matches(':disabled')})),
+      })),
+    }))).catch(()=>[]);
+    await writeFile('.local/rebuild/browser-control-failure.json',JSON.stringify(controls,null,2));throw error;
   }finally{
     await page.screenshot({path:'.local/rebuild/browser-screenshots/last-state.png',fullPage:true}).catch(()=>{});
     await browser.close();await runtime.stop();if(child.exitCode===null){const closed=once(child,'close');child.kill('SIGTERM');await closed;}await writeFile('.local/rebuild/browser-server.log',log);

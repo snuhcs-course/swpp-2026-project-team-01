@@ -49,4 +49,14 @@ jobs:
       - name: Install browser test runtime
         run: npx playwright install --with-deps chromium
       - name: Verify browser access, conversation replay and revocation
+        id: browser
         run: npm run test:browser
+      - name: Preserve synthetic browser failure evidence
+        if: failure() && steps.browser.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failure-${{ github.run_id }}
+          retention-days: 7
+          path: |
+            .local/rebuild/browser-control-failure.json
+            .local/rebuild/browser-screenshots/last-state.png
