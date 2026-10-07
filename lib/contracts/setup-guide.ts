@@ -1,5 +1,6 @@
 import type {SetupState,SetupPatch} from './setup.ts';
-export type SetupStep='connect'|'calendars'|'refresh'|'analysis'|'analysis_review'|'profile'|'schedule'|'mode'|'location'|'transport'|'travel_buffer'|'clarification'|'review'|'confirmed';
+import {draftAnswers} from './setup-answers.ts';
+export type SetupStep='connect'|'calendars'|'refresh'|'analysis'|'analysis_review'|'profile'|'schedule'|'answers_review'|'mode'|'location'|'transport'|'travel_buffer'|'clarification'|'review'|'confirmed';
 export type SetupGuide={step:SetupStep;question:string;completed:string[];total:number};
 export function setupGuide(state:SetupState):SetupGuide{
  const s=state.draft?.settings??state.confirmed,r=s.rules??{},p=state.draft?.provenance??{};
@@ -15,6 +16,7 @@ export function setupGuide(state:SetupState):SetupGuide{
  if(state.analysisStatus==='ready')return result('analysis_review','Your Calendar suggestions are ready. Review them below before choosing new defaults.');
  if(!s.handle||!s.displayName)return result('profile','What name and booking name would you like people to see?');
  if(!steps[4][1])return result('schedule','Would this meeting week work for you?');
+ if(draftAnswers(state).length)return result('answers_review','Review the answers already in your draft. You do not need to enter them again.');
  if(!explicit('meetingMode'))return result('mode','Do you prefer online meetings, in-person meetings, or either?');
  if(r.meetingMode!=='online'){
   if(!explicit('locationPolicy')||r.locationPolicy==='preferred'&&(!explicit('locations')||!r.locations?.length))return result('location','Where do you prefer to meet? You can decide per meeting.');

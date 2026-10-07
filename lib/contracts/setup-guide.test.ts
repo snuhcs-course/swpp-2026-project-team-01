@@ -15,7 +15,7 @@ test('suggestions preserve known values and disappear after a persisted dismissa
 });
 test('no-history defaults are proposals and cannot satisfy explicit mode or travel',()=>{
  const s=fixture();s.progress.analysisDecided=true;s.draft!.settings.rules=scheduleSuggestion(s,'UTC')!.patch.rules;
- assert.equal(setupGuide(s).step,'mode');s.draft!.settings.rules!.meetingMode='either';s.draft!.provenance['rules.meetingMode']='assistant';assert.equal(setupGuide(s).step,'mode');
+ assert.equal(setupGuide(s).step,'mode');s.draft!.settings.rules!.meetingMode='either';s.draft!.provenance['rules.meetingMode']='assistant';assert.equal(setupGuide(s).step,'answers_review');assert.equal(setupGuide(s).completed.includes('Meeting mode'),false);
  s.draft!.provenance['rules.meetingMode']='host';assert.equal(setupGuide(s).step,'location');
  Object.assign(s.draft!.settings.rules!,{locationPolicy:'per_meeting',travelMode:'PER_TRIP',travelBufferMinutes:15});s.draft!.provenance['rules.locationPolicy']='host';assert.equal(setupGuide(s).step,'transport');
  s.draft!.provenance['rules.travelMode']='host';assert.equal(setupGuide(s).step,'travel_buffer');s.draft!.provenance['rules.travelBufferMinutes']='host';assert.equal(setupGuide(s).step,'review');

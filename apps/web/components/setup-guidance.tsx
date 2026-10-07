@@ -4,6 +4,7 @@ import {setupGuide,scheduleSuggestion} from '../../../lib/contracts/setup-guide.
 import type {SetupState,SetupPatch} from '../../../lib/contracts/setup.ts';
 import {Button} from './ui/button';
 import {Alert,AlertTitle,AlertDescription} from './ui/alert';
+import {SetupAnswers} from './setup-answers';
 type EditStep='profile'|'schedule'|'mode'|'location'|'transport'|'travel_buffer';
 const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const modes={online:'Online only',in_person:'In person',either:'Either'};
@@ -17,6 +18,7 @@ export function SetupGuidance({state,disabled,editing,onEdit,onProgress,onUse,on
   <p className="text-sm">{guide.completed.length} of {guide.total} preference steps complete{guide.completed.length?' · '+guide.completed.join(' · '):''}</p>
   <p ref={heading} tabIndex={-1}>{guide.question}</p>
   {!editing?<>
+   {guide.step==='answers_review'?<SetupAnswers key={state.revision} state={state} disabled={disabled} onUse={onUse} onEdit={onEdit}/>:null}
    {guide.step==='analysis'?<Button variant="outline" className="h-auto min-h-11 whitespace-normal" disabled={disabled} onClick={()=>onProgress('skip_analysis')}>Skip analysis and choose preferences</Button>:null}
    {guide.step==='profile'?<Button disabled={disabled} onClick={()=>onEdit('profile')}>Choose my booking profile</Button>:null}
    {guide.step==='schedule'?suggestion&&r?<Alert><AlertTitle>Suggested meeting week</AlertTitle><AlertDescription>
