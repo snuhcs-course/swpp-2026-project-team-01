@@ -14,6 +14,7 @@ import { RequesterAvailability } from '../../../../../../lib/server/calendar/req
 import { CalendarScans } from '../../../../../../lib/server/calendar/scans.ts';
 import { HostSetup } from '../../../../../../lib/server/setup/commands.ts';
 import { CalendarSelection } from '../../../../../../lib/server/calendar/selection.ts';
+import { imessageBrowser } from '../../../../lib/imessage-browser.ts';
 
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -39,6 +40,10 @@ async function handle(request:NextRequest,{params}:Context) {
       return json(await commands.guest(guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??'')));
     }
     session=browserSession(request);
+    if(action.startsWith('imessage/')&&['read','bind','start','verify','cancel','skip','unlink'].includes(action.slice(9))){
+      const {credential}=await session.host();
+      return session.finish(await imessageBrowser(request,action.slice(9),credential));
+    }
     if(action==='conversations'||action.startsWith('conversations/'))return session.finish(await conversationGateway(request,(await params).action,session));
     if(action.startsWith('availability/')&&['status','list','select','manual','check'].includes(action.slice(13))) {
       const operation=action.slice(13),service=new RequesterAvailability();

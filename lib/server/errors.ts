@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type { ErrorCode } from '../contracts/errors.ts';
 
 const messages: Record<ErrorCode, string> = {
+  CHALLENGE_INVALID: 'This verification expired or is unavailable in this browser. Request a new code.',
+  LINK_CONFLICT: 'An iMessage link already exists for this account or number. Unlink it before trying again.',
+  IMESSAGE_LIMIT: 'Too many verification requests. Wait before requesting another code.',
   EXPLICIT_CHOICE_CONFLICT: 'An explicit preference already exists. Ask the host to edit that choice before replacing it.',
   HANDLE_UNAVAILABLE: 'This booking name is already in use. Choose another.',
   CALENDAR_ACCESS_INVALID: 'A calendar choice no longer has the required access. Reload your calendars and choose again.',

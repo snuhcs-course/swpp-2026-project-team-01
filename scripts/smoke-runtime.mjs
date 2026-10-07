@@ -53,6 +53,10 @@ try {
   assert.equal(photon.status,401,'Photon receiver rejects unsigned delivery before database access');
   assert.match(photon.headers.get('cache-control'),/no-store/u);
 
+  const photonDispatch = await fetch(web+'/api/internal/photon/dispatch',{method:'POST'});
+  assert.equal(photonDispatch.status,401,'Code worker rejects anonymous dispatch');
+  assert.match(photonDispatch.headers.get('cache-control'),/no-store/u);
+
   const eve = await start(['.output/server/index.mjs'], await unusedPort(), '/eve/v1/health');
   for (const path of ['/session', '/session/test', ...['cancel', 'compact', 'clear', 'reset'].map((action) => `/session/test/${action}`)]) {
     const response = await fetch(`${eve}/eve/v1${path}`, {
