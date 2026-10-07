@@ -182,6 +182,7 @@ Incremental completion (full phase exit remains open):
 - [x] Deploy the verified transport step and check production regressions (`6a9a146`; deployment `dpl_HjWETgpGgMuj5R64buNozSyLN4X3`; [evidence](05_rebuild_evidence.md#frozen-calendar-booking-transport--2026-10-07)). Explicit approval, fenced worker dispatch and live booking acceptance remain in the work below.
 - [x] Implement and verify exact-version authenticated web approval, immutable replay, a separate confirmation card and atomic pending-booking job creation.
 - [x] Reject expired booking workers after lock waits and at dispatch; verify six real lease-expiry scenarios, a full 54-migration local rebuild, 1,012 SQL assertions and 19 integration tests. Full worker revalidation and execution remain open.
+- [x] Deploy the lease fencing migration to the selected production database and verify expired-owner rejection, unchanged job status, private worker access and zero remaining probe records (`1d8a277`; [evidence](05_rebuild_evidence.md#booking-lease-expiry-after-lock-waits--2026-10-07)).
 - [x] Deploy the browser approval step and verify selected production schema/API boundaries (`1c9e0ed`; deployment `dpl_41zwLcJcs5EWn59vhTbHTJq8gMPE`; [evidence](05_rebuild_evidence.md#exact-version-browser-host-approval--2026-10-07)).
 
 Work:
