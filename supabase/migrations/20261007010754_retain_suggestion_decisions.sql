@@ -1,88 +1,18 @@
-alter table fmat.setup_drafts add column provenance jsonb not null default '{}' check(jsonb_typeof(provenance)='object');
+SET local check_function_bodies = off;
 
--- Validate both partial drafts and final reviews at the database boundary.
-create or replace function fmat.validate_setup_patch(p_patch jsonb)
-returns void language plpgsql set search_path='' as $$
-declare r jsonb; item jsonb; k text;
-begin
- if jsonb_typeof(p_patch) is distinct from 'object' or p_patch='{}' or exists(select 1 from jsonb_object_keys(p_patch) x where x not in ('handle','displayName','rules')) then raise exception 'INVALID_INPUT'; end if;
- if p_patch ? 'handle' and (jsonb_typeof(p_patch->'handle') is distinct from 'string' or p_patch->>'handle' !~ '^[a-z][a-z0-9-]{2,39}$' or p_patch->>'handle' in ('host','requests','api','operator','auth','skills','app','booking','connections','connect','_next','favicon','robots','sitemap')) then raise exception 'INVALID_INPUT'; end if;
- if p_patch ? 'displayName' and (jsonb_typeof(p_patch->'displayName') is distinct from 'string' or length(trim(p_patch->>'displayName')) not between 1 and 120) then raise exception 'INVALID_INPUT'; end if;
- if not p_patch ? 'rules' then return; end if;
- r:=p_patch->'rules';
- if jsonb_typeof(r) is distinct from 'object' or exists(select 1 from jsonb_object_keys(r) x where x not in ('timezone','durationMinutes','availability','focusBlocks','bufferMinutes','travelMode','homeLocation','preferences','meetingMode','locationPolicy','locations','travelBufferMinutes')) then raise exception 'INVALID_INPUT'; end if;
- if r ? 'timezone' and (jsonb_typeof(r->'timezone') is distinct from 'string' or not exists(select 1 from pg_catalog.pg_timezone_names where name=r->>'timezone')) then raise exception 'INVALID_INPUT'; end if;
- foreach k in array array['durationMinutes','bufferMinutes','travelBufferMinutes'] loop
-  if r ? k and (jsonb_typeof(r->k) is distinct from 'number' or r->>k !~ '^[0-9]+$' or (r->>k)::numeric not between case when k='durationMinutes' then 5 else 0 end and 240) then raise exception 'INVALID_INPUT'; end if;
- end loop;
- if r ? 'meetingMode' and coalesce(r->>'meetingMode','') not in ('online','in_person','either') then raise exception 'INVALID_INPUT'; end if;
- if r ? 'locationPolicy' and coalesce(r->>'locationPolicy','') not in ('per_meeting','preferred') then raise exception 'INVALID_INPUT'; end if;
- if r ? 'travelMode' and coalesce(r->>'travelMode','') not in ('DRIVE','TRANSIT','WALK','BICYCLE','PER_TRIP','NONE') then raise exception 'INVALID_INPUT'; end if;
- foreach k in array array['homeLocation','preferences'] loop
-  if r ? k and (jsonb_typeof(r->k) is distinct from 'string' or length(r->>k)>case when k='homeLocation' then 2000 else 5000 end) then raise exception 'INVALID_INPUT'; end if;
- end loop;
- if r ? 'locations' then
-  if jsonb_typeof(r->'locations') is distinct from 'array' or jsonb_array_length(r->'locations')>10 then raise exception 'INVALID_INPUT'; end if;
-  for item in select value from jsonb_array_elements(r->'locations') loop
-   if jsonb_typeof(item) is distinct from 'string' or length(trim(item#>>'{}')) not between 1 and 500 then raise exception 'INVALID_INPUT'; end if;
-  end loop;
- end if;
- if r ? 'availability' then
-  if jsonb_typeof(r->'availability') is distinct from 'array' or jsonb_array_length(r->'availability') not between 1 and 21 then raise exception 'INVALID_INPUT'; end if;
-  for item in select value from jsonb_array_elements(r->'availability') loop
-   if jsonb_typeof(item) is distinct from 'object' or exists(select 1 from jsonb_object_keys(item) x where x not in ('days','start','end')) or jsonb_typeof(item->'days') is distinct from 'array' or jsonb_array_length(item->'days') not between 1 and 7
-    or coalesce(item->>'start','') !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' or coalesce(item->>'end','') !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' or item->>'start'>=item->>'end' then raise exception 'INVALID_INPUT'; end if;
-   if exists(select 1 from jsonb_array_elements(item->'days') d where jsonb_typeof(d) is distinct from 'number' or d::text !~ '^[0-6]$') then raise exception 'INVALID_INPUT'; end if;
-  end loop;
- end if;
- if r ? 'focusBlocks' then
-  if jsonb_typeof(r->'focusBlocks') is distinct from 'array' or jsonb_array_length(r->'focusBlocks')>100 then raise exception 'INVALID_INPUT'; end if;
-  for item in select value from jsonb_array_elements(r->'focusBlocks') loop
-   if jsonb_typeof(item) is distinct from 'object' or exists(select 1 from jsonb_object_keys(item) x where x not in ('start','end')) or coalesce(item->>'start','') !~ '(Z|[+-][0-9]{2}:[0-9]{2})$' or coalesce(item->>'end','') !~ '(Z|[+-][0-9]{2}:[0-9]{2})$' or (item->>'start')::timestamptz>=(item->>'end')::timestamptz then raise exception 'INVALID_INPUT'; end if;
-  end loop;
- end if;
-exception when invalid_text_representation or datetime_field_overflow or invalid_datetime_format or numeric_value_out_of_range then raise exception 'INVALID_INPUT';
-end;
-$$;
+ALTER TABLE "fmat"."booking_identities"
+  DROP CONSTRAINT "booking_identities_event_id_check";
 
-create or replace function fmat.setup_missing(p_settings jsonb,p_provenance jsonb,p_unresolved text[])
-returns text[] language plpgsql stable set search_path='' as $$
-declare missing text[]:=coalesce(p_unresolved,'{}'); r jsonb:=coalesce(nullif(p_settings->'rules','null'),'{}'); k text;
-begin
- foreach k in array array['displayName','handle'] loop if coalesce(p_settings->>k,'')='' then missing:=array_append(missing,k); end if; end loop;
- foreach k in array array['timezone','durationMinutes','availability','focusBlocks','bufferMinutes','preferences','meetingMode'] loop if not r ? k then missing:=array_append(missing,k); end if; end loop;
- if p_provenance->>'rules.meetingMode' is distinct from 'host' then missing:=array_append(missing,'Choose online, in-person or either.'); end if;
- if r->>'meetingMode' in ('in_person','either') then
-  foreach k in array array['locationPolicy','travelMode','travelBufferMinutes'] loop
-   if not r ? k or p_provenance->>('rules.'||k) is distinct from 'host' then missing:=array_append(missing,k); end if;
-  end loop;
-  if r->>'travelMode'='NONE' then missing:=array_append(missing,'Choose transportation or decide per trip.'); end if;
-  if r->>'locationPolicy'='preferred' and (coalesce(jsonb_array_length(r->'locations'),0)=0 or p_provenance->>'rules.locations' is distinct from 'host') then missing:=array_append(missing,'Choose preferred areas or venues.'); end if;
- end if;
- return missing;
-end;
-$$;
-
-create or replace function fmat.host_setup_view(p_host uuid)
-returns jsonb language plpgsql set search_path='' as $$
-declare c fmat.setup_conversations; d fmat.setup_drafts; r fmat.setup_reviews; h fmat.hosts; g fmat.calendar_connections; missing text[];
-begin
- select * into strict h from fmat.hosts where id=p_host and revoked_at is null;
- c:=fmat.ensure_setup_conversation(p_host);
- select * into d from fmat.setup_drafts where conversation_id=c.id order by revision desc limit 1;
- select * into r from fmat.setup_reviews where conversation_id=c.id order by revision desc limit 1;
- select * into g from fmat.calendar_connections where principal_kind='host' and principal_id=p_host and revoked_at is null;
- missing:=fmat.setup_missing(d.settings,d.provenance,d.unresolved);
- return jsonb_build_object('analysisStatus',fmat.calendar_scan_view(p_host)->'scan'->'status','progress',jsonb_build_object('analysisDecided',c.analysis_decided,'dismissedSuggestions',to_jsonb(c.dismissed_suggestions)),'revision',c.revision,'rulesVersion',h.rules_version,'calendarGeneration',g.generation,'calendarSelected',g.id is not null and cardinality(h.conflict_calendar_ids)>0 and h.booking_calendar_id is not null,
-  'confirmed',jsonb_build_object('handle',h.handle,'displayName',h.display_name,'rules',h.rules),
-  'draft',case when d.revision is null then null else jsonb_build_object('revision',d.revision,'baseRulesVersion',d.base_rules_version,'settings',d.settings,'provenance',d.provenance,'origins',d.origins,'unresolved',to_jsonb(missing),'clarifications',to_jsonb(d.unresolved),'status',d.status) end,
-  'review',case when r.revision is null or d.base_rules_version<>h.rules_version then null else jsonb_build_object('revision',r.revision,'draftRevision',r.draft_revision,'settings',r.settings,'status',r.status) end,
-  'nextAction',case when g.id is null then 'connect_calendar' when cardinality(h.conflict_calendar_ids)=0 or h.booking_calendar_id is null then 'select_calendars' when d.revision is null then 'complete_preferences' when d.status='confirmed' and d.settings=jsonb_build_object('handle',h.handle,'displayName',h.display_name,'rules',h.rules) then 'settings_confirmed' when d.base_rules_version<>h.rules_version then 'refresh_draft' when cardinality(missing)>0 then 'complete_preferences' when r.status='pending' then 'confirm_review' else 'complete_preferences' end);
-end;
-$$;
-
-create or replace function fmat.host_setup_operation(p_operation text,p_actor jsonb,p_input jsonb,p_source text)
-returns jsonb language plpgsql set search_path='' as $$
+CREATE OR REPLACE FUNCTION fmat.host_setup_operation (
+  p_operation text,
+  p_actor     jsonb,
+  p_input     jsonb,
+  p_source    text
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
 declare h fmat.hosts; c fmat.setup_conversations; d fmat.setup_drafts; r fmat.setup_reviews; g fmat.calendar_connections; record fmat.idempotency; settings jsonb; provenance jsonb; origins jsonb; starter_fields text[]; patch jsonb; missing text[]; unresolved text[]; k text; val jsonb; draft_revision integer; review_revision integer; sequence integer;
 begin
  if p_source not in ('host','assistant') or jsonb_typeof(p_input) is distinct from 'object' then raise exception 'INVALID_INPUT'; end if;
@@ -185,17 +115,7 @@ begin
  return fmat.host_setup_view(h.id);
 exception when unique_violation then raise exception 'HANDLE_UNAVAILABLE';
 end;
-$$;
+$function$;
 
-create or replace function public.fmat_host_setup(p_operation text,p_credential jsonb,p_input jsonb)
-returns jsonb language plpgsql security definer set search_path='' as $$
-declare actor jsonb;
-begin
- if p_credential->>'kind' is distinct from 'host' then raise exception 'FORBIDDEN'; end if;
- actor:=fmat.calendar_actor(p_credential);
- return fmat.host_setup_operation(p_operation,actor,p_input,'host');
-end;
-$$;
-revoke all on function public.fmat_host_setup(text,jsonb,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_host_setup(text,jsonb,jsonb) to service_role;
-revoke all on function fmat.host_setup_operation(text,jsonb,jsonb,text),fmat.host_setup_view(uuid),fmat.validate_setup_patch(jsonb),fmat.setup_missing(jsonb,jsonb,text[]) from public,anon,authenticated,service_role;
+ALTER TABLE "fmat"."booking_identities"
+  ADD CONSTRAINT "booking_identities_event_id_check" CHECK ((((length(event_id) >= 5) AND (length(event_id) <= 1024)) AND (event_id ~ '^[0-9a-v]+$'::text)));

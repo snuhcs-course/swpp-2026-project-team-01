@@ -1,5 +1,5 @@
 import type {SetupState,SetupPatch} from './setup.ts';
-export type SetupStep='connect'|'calendars'|'refresh'|'analysis'|'profile'|'schedule'|'mode'|'location'|'transport'|'travel_buffer'|'clarification'|'review'|'confirmed';
+export type SetupStep='connect'|'calendars'|'refresh'|'analysis'|'analysis_review'|'profile'|'schedule'|'mode'|'location'|'transport'|'travel_buffer'|'clarification'|'review'|'confirmed';
 export type SetupGuide={step:SetupStep;question:string;completed:string[];total:number};
 export function setupGuide(state:SetupState):SetupGuide{
  const s=state.draft?.settings??state.confirmed,r=s.rules??{},p=state.draft?.provenance??{};
@@ -12,6 +12,7 @@ export function setupGuide(state:SetupState):SetupGuide{
  if(state.nextAction==='refresh_draft')return result('refresh','Your calendar or saved settings changed. Refresh your draft before reviewing it.');
  if(state.nextAction==='settings_confirmed')return result('confirmed','Your meeting preferences are confirmed.');
  if(!state.progress.analysisDecided)return result('analysis','Would you like suggestions from selected calendars, or choose preferences yourself?');
+ if(state.analysisStatus==='ready')return result('analysis_review','Your Calendar suggestions are ready. Review them below before choosing new defaults.');
  if(!s.handle||!s.displayName)return result('profile','What name and booking name would you like people to see?');
  if(!steps[4][1])return result('schedule','Would this meeting week work for you?');
  if(!explicit('meetingMode'))return result('mode','Do you prefer online meetings, in-person meetings, or either?');
@@ -23,9 +24,9 @@ export function setupGuide(state:SetupState):SetupGuide{
  if(state.draft?.clarifications.length)return result('clarification',state.draft.clarifications[0]);
  return result('review','Review the exact values below, then confirm when they are right.');
 }
-export function scheduleSuggestion(state:SetupState,timezone:string):{patch:SetupPatch;defaults:string[]}|null{
+export function scheduleSuggestion(state:SetupState,timezone:string):{patch:SetupPatch;defaults:string[];starterFields:string[]}|null{
  if(state.progress.dismissedSuggestions.includes('schedule'))return null;
  const rules=state.draft?.settings.rules??state.confirmed.rules??{},defaults:string[]=[];
  const value=<T>(name:string,existing:T|undefined,fallback:T)=>{if(existing!==undefined)return existing;defaults.push(name);return fallback;};
- return {patch:{rules:{timezone:value('timezone',rules.timezone,timezone),durationMinutes:value('meeting length',rules.durationMinutes,30),availability:value('meeting windows',rules.availability,[{days:[1,2,3,4,5],start:'13:00',end:'17:00'}]),bufferMinutes:value('meeting buffer',rules.bufferMinutes,10),focusBlocks:value('focus blocks',rules.focusBlocks,[]),preferences:value('other preferences',rules.preferences,'')}},defaults};
+ return {patch:{rules:{timezone:value('timezone',rules.timezone,timezone),durationMinutes:value('meeting length',rules.durationMinutes,30),availability:value('meeting windows',rules.availability,[{days:[1,2,3,4,5],start:'13:00',end:'17:00'}]),bufferMinutes:value('meeting buffer',rules.bufferMinutes,10),focusBlocks:value('focus blocks',rules.focusBlocks,[]),preferences:value('other preferences',rules.preferences,'')}},defaults,starterFields:defaults.map(name=>({'timezone':'timezone','meeting length':'durationMinutes','meeting windows':'availability','meeting buffer':'bufferMinutes','focus blocks':'focusBlocks','other preferences':'preferences'})[name]!)};
 }

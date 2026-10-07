@@ -8,3 +8,13 @@ export const analysisDecision=z.strictObject({scanId:z.uuid(),expectedRevision:z
 export type AnalysisScope=z.infer<typeof analysisScope>;
 export type AnalysisSummary=z.infer<typeof analysisSummary>;
 export type AnalysisState=z.infer<typeof analysisState>;
+
+const selectedPlace=z.strictObject({index:z.number().int().min(0).max(4).optional(),label:z.string().trim().min(1).max(500)});
+export const analysisApplication=analysisDecision.extend({
+ schedule:z.boolean().optional(),windows:z.array(weeklyWindow).min(1).max(21).optional(),meetingMode:z.enum(['online','in_person','either']).optional(),
+ location:z.discriminatedUnion('policy',[
+  z.strictObject({policy:z.literal('per_meeting')}),
+  z.strictObject({policy:z.literal('preferred'),places:z.array(selectedPlace).min(1).max(10).refine(values=>new Set(values.map(v=>v.label)).size===values.length,'Choose each place once.').refine(values=>{const indices=values.flatMap(v=>v.index===undefined?[]:[v.index]);return new Set(indices).size===indices.length;},'Choose each candidate once.')}),
+ ]).optional(),
+}).refine(v=>v.schedule!==false||v.windows===undefined,'Window edits require schedule application.').refine(v=>v.meetingMode!=='online'||v.location===undefined,'Online meetings do not use physical places.');
+export type AnalysisApplication=z.infer<typeof analysisApplication>;

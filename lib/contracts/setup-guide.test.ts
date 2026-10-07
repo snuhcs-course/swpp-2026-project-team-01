@@ -26,3 +26,8 @@ test('online skips physical questions and current known choices are reused',()=>
  s.draft!.clarifications=['Which week?','Which time?'];assert.equal(setupGuide(s).question,'Which week?');s.nextAction='refresh_draft';assert.equal(setupGuide(s).step,'refresh');
  s.nextAction='settings_confirmed';assert.equal(setupGuide(s).step,'confirmed');
 });
+
+test('current ready Calendar evidence takes precedence over starter suggestions in the guide',()=>{
+ const s=fixture();s.progress.analysisDecided=true;s.analysisStatus='ready';assert.equal(setupGuide(s).step,'analysis_review');
+ for(const status of ['failed','stale','expired','dismissed'] as const){s.analysisStatus=status;assert.equal(setupGuide(s).step,'schedule');}
+});

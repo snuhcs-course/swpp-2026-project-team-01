@@ -24,8 +24,8 @@ test('calendar analysis fences provider work, preserves choices, dismisses repea
   await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invitation}','${email}','${createHash('sha256').update(invitation).digest('hex')}',now()+interval '1 day','setup-test');insert into fmat.hosts(id,email,invitation_id,conflict_calendar_ids,booking_calendar_id) values('${host}','${email}','${invitation}',array['mine'],'mine');`);
   const encrypted=cipher.seal({accessToken:'setup-private',refreshToken:'setup-refresh',subject:'fixture',scopes:[...calendarScopes.host],expiresAt:Date.now()+3600000},'google:host:'+host);
   await sql.query(`insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential) values('host','${host}','fixture',array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],'${encrypted}');`);
-  const day=new Date().toISOString().slice(0,10),end=new Date(Date.now()+28*86400000).toISOString().slice(0,10);let eventReads=0;
-  const events={async read(_token:string,scope:{calendarIds:string[]}){eventReads++;await gate();return scope.calendarIds.map(id=>({id,timezone:'UTC',events:[]}));}};
+  const day=new Date().toISOString().slice(0,10),end=new Date(Date.now()+28*86400000).toISOString().slice(0,10);let eventReads=0,rich=false;
+  const events={async read(_token:string,scope:{calendarIds:string[]}){eventReads++;await gate();return scope.calendarIds.map(id=>({id,timezone:'UTC',events:rich?Array.from({length:8},(_,i)=>({id:'event-'+i,start:{dateTime:new Date(Date.now()+i*86400000).toISOString()},end:{dateTime:new Date(Date.now()+i*86400000+3600000).toISOString()},location:'Library meeting room'})):[]}));}};
   const metadata={async refresh(bundle:Parameters<TokenCipher['seal']>[0]){return bundle as never;},async list(){return [{id:'mine',name:'Calendar',accessRole:role,primary:true,timeZone:'UTC',color:null}];}};
   const scans=new CalendarScans(database,env,metadata,events);
   const draft=await setup.draft(credential,{expectedRevision:0,patch:{displayName:'Private explicit',rules:{timezone:'UTC',durationMinutes:45}},unresolved:[],idempotencyKey:randomUUID()});
@@ -36,7 +36,7 @@ test('calendar analysis fences provider work, preserves choices, dismisses repea
   let state=await setup.read(credential);assert.equal(state.revision,draft.revision+1);
   await setup.draft(credential,{expectedRevision:state.revision,patch:{displayName:'Corrected explicit'},unresolved:[],idempotencyKey:randomUUID()});release();await rejected;gate=async()=>{};
   assert.equal((await scans.read(credential)).scan!.status,'stale');
-  const start=await choice(),ready=await scans.start(credential,start);assert.equal(ready.scan!.status,'ready');assert.equal(ready.scan!.summary!.windowSource,'starter');
+  const start=await choice(),ready=await scans.start(credential,start);assert.equal(ready.scan!.status,'ready');assert.equal(ready.scan!.summary!.windowSource,'starter');assert.equal((await setup.read(credential)).analysisStatus,'ready');
   const reads=eventReads;assert.equal((await scans.start(credential,start)).scan!.id,ready.scan!.id);assert.equal(eventReads,reads);
   const apply={scanId:ready.scan!.id,expectedRevision:ready.scan!.revision,idempotencyKey:randomUUID()};role='freeBusyReader';await assert.rejects(scans.apply(credential,apply),code('CALENDAR_ACCESS_INVALID'));role='owner';assert.equal((await scans.apply(credential,apply)).scan!.status,'applied');await scans.apply(credential,apply);
   state=await setup.read(credential);assert.equal(state.draft!.settings.rules!.durationMinutes,45);assert.equal(state.draft!.settings.displayName,'Corrected explicit');assert.ok(state.draft!.settings.rules!.availability);assert.equal(state.confirmed.rules,null);assert.equal(state.review,null,'mode inference cannot create final review');
@@ -50,6 +50,15 @@ test('calendar analysis fences provider work, preserves choices, dismisses repea
   const revoked=scans.start(credential,await choice()),revokedFailure=assert.rejects(revoked,code('STALE_REVISION'));await enteredAgain;
   await sql.query(`update fmat.calendar_connections set generation=gen_random_uuid() where principal_id='${host}';`);release();await revokedFailure;gate=async()=>{};
   assert.equal((await scans.read(credential)).scan!.status,'stale','reconnected source cannot publish earlier scan');
+  await sql.query(`update fmat.calendar_scans set created_at=created_at-interval '2 minutes' where host_id='${host}';`);rich=true;
+  const richScan=await scans.start(credential,await choice());assert.equal(richScan.scan!.status,'ready');assert.equal(richScan.scan!.summary!.locations[0].label,'Library meeting room');
+  const edited={scanId:richScan.scan!.id,expectedRevision:richScan.scan!.revision,idempotencyKey:randomUUID(),schedule:false,meetingMode:'either' as const,location:{policy:'preferred' as const,places:[{index:0,label:'Library lounge'}]}};
+  await assert.rejects(scans.apply(credential,{...edited,location:{policy:'preferred',places:[{index:4,label:'Unseen'}]}}),code('INVALID_INPUT'));
+  await assert.rejects(scans.apply(credential,{...edited,schedule:true,windows:[{days:[1],start:'01:00',end:'02:00'}]}),code('EXPLICIT_CHOICE_CONFLICT'));
+  assert.equal((await scans.apply(credential,edited)).scan!.status,'applied');await scans.apply(credential,edited);
+  state=await setup.read(credential);assert.deepEqual(state.draft!.settings.rules!.locations,['Library lounge']);assert.equal(state.draft!.origins['rules.locations'].source,'calendar_edited');assert.equal(state.draft!.origins['rules.availability'].source,'starter');assert.equal(state.draft!.origins['rules.durationMinutes'].source,'host');assert.equal(state.confirmed.rules,null);
+  const origins=state.draft!.origins;
+  state=await setup.draft(credential,{expectedRevision:state.revision,patch:{rules:{travelMode:'PER_TRIP',travelBufferMinutes:15}},unresolved:[],idempotencyKey:randomUUID()});assert.deepEqual(state.draft!.origins['rules.locations'],origins['rules.locations']);
   assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where host_id='${host}';`),'0');
   const logout=await fetch(local.API_URL+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+token}});assert.equal(logout.status,204);await assert.rejects(scans.read(credential),code('UNAUTHORIZED'));
  }finally{

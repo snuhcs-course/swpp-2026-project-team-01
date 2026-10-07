@@ -83,12 +83,18 @@ select throws_ok($$select pg_temp.setup('progress','host2','{"expectedRevision":
 select throws_ok($$select fmat.host_setup_operation('progress',jsonb_build_object('kind','host','id','80000000-0000-4000-8000-000000000002','email','two@access.test'),'{"expectedRevision":2,"choice":"dismiss_mode","idempotencyKey":"model-choice"}','assistant')$$,'P0001','FORBIDDEN','model cannot manufacture skip or dismissal');
 select lives_ok($$select pg_temp.setup('progress','host2','{"expectedRevision":2,"choice":"dismiss_schedule","idempotencyKey":"dismiss"}')$$,'dismiss schedule');
 select is(pg_temp.setup('read','host2')->'progress'->'dismissedSuggestions','["schedule"]'::jsonb,'dismissal persists');
+select throws_ok($$select fmat.host_setup_operation('draft',jsonb_build_object('kind','host','id','80000000-0000-4000-8000-000000000002','email','two@access.test'),'{"expectedRevision":3,"patch":{"rules":{"durationMinutes":45}},"unresolved":[],"idempotencyKey":"dismissed-model"}','assistant')$$,'P0001','EXPLICIT_CHOICE_CONFLICT','model cannot reintroduce dismissed schedule guesses');
 select is(pg_temp.setup('read','host2')->'draft'->>'revision','1','guidance never changes draft');
 select is(pg_temp.setup('read','host2')->'confirmed'->>'handle',null,'guidance never saves policy');
 select lives_ok($$select pg_temp.setup('progress','host2','{"expectedRevision":3,"choice":"offer_schedule","idempotencyKey":"offer"}')$$,'host can explicitly ask for suggestions again');
 select is(pg_temp.setup('read','host2')->'progress'->'dismissedSuggestions','[]'::jsonb,'explicit request restores suggestions');
 select throws_ok($$select pg_temp.setup('progress','guest1','{"expectedRevision":4,"choice":"skip_analysis","idempotencyKey":"guest"}')$$,'P0001','FORBIDDEN','guest cannot change host progress');
 select is((select count(*)::text from fmat.booking_attempts),'0','guidance creates no booking effects');
+select throws_ok($$select pg_temp.setup('draft','host2','{"expectedRevision":4,"patch":{"rules":{"durationMinutes":45}},"unresolved":[],"starterFields":["durationMinutes"],"idempotencyKey":"false-default"}')$$,'P0001','INVALID_INPUT','nondefault value cannot claim starter origin');
+insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('82000000-0000-4000-8000-000000000003','unadmitted@access.test',repeat('3',64),now()+interval '1 day','fixture');
+insert into fmat.hosts(id,email,invitation_id) values('80000000-0000-4000-8000-000000000003','unadmitted@access.test','82000000-0000-4000-8000-000000000003');
+select lives_ok($$select pg_temp.setup('draft','host3','{"expectedRevision":0,"patch":{"rules":{"durationMinutes":30}},"unresolved":[],"starterFields":["durationMinutes"],"idempotencyKey":"accept-default"}')$$,'host accepts actual starter');
+select is(pg_temp.setup('read','host3')->'draft'->'origins'->'rules.durationMinutes'->>'source','starter','accepted starter retains its source separately from human authority');
 update auth.sessions set not_after=clock_timestamp()-interval '1 second' where id='81000000-0000-4000-8000-000000000001';
 select throws_ok($$select pg_temp.setup('read','host1')$$,'P0001','UNAUTHORIZED','expired Auth session denies draft read');
 select * from finish();rollback;

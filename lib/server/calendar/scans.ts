@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {analysisInput,analysisDecision,analysisState,analysisSummary,type AnalysisScope} from '../../contracts/calendar-analysis.ts';
+import {analysisInput,analysisDecision,analysisApplication,analysisState,analysisSummary,type AnalysisScope} from '../../contracts/calendar-analysis.ts';
 import {Database} from '../database/client.ts';
 import {requireCredential,type Credential} from '../identity/credentials.ts';
 import {ApplicationError} from '../errors.ts';
@@ -26,7 +26,7 @@ export class CalendarScans{
  }
  async dismiss(credential:Credential,input:unknown){return analysisState.parse(await this.call('dismiss',credential,analysisDecision.parse(input)));}
  async apply(credential:Credential,input:unknown){
-  const choice=analysisDecision.parse(input),current=await this.read(credential);
+  const choice=analysisApplication.parse(input),current=await this.read(credential);
   if(current.scan?.id!==choice.scanId)throw new ApplicationError('STALE_REVISION',409);
   // A completed retry remains a database-authorized replay. New application rechecks metadata.
   if(current.scan.status==='ready')await this.available(credential,current.scan.scope);
