@@ -42,3 +42,10 @@ The preset’s light-mode muted foreground is darkened to OKLCH lightness 0.54 s
 ### Incoming private iMessage links
 
 `/app#imessage=<id>.<token>` strips its fragment immediately and exchanges it after establishing a separate HttpOnly browser proof. A bounded HttpOnly continuation cookie survives sign-in and invitation redemption. Before admission, only the masked original number and next sign-in action appear. Once admitted, an inline **Send verification code** action is available before settings confirmation. It sends a fresh OTP to the immutable originating conversation, capped by the original fifteen-minute entry deadline. Browser, Auth session, receiver, expiry and revocation are rechecked server-side. Codes stay outside chat/model/storage; token possession cannot grant host access. Skip/cancel/link completion clears the continuation cookie. A lost exchange can retry by reopening the original private link in the same browser; a transferred link cannot rebind to another browser.
+
+
+### Booking confirmation email
+
+The protected receipt shows the organizer returned by Google, separately from the transactional sender. Email-only requester links at `/booking/[bookingId]#receipt=<token>` exchange for an HttpOnly receipt cookie, clear the fragment and work after reload without granting conversation or scheduling access. Host **View booking** links select the request in `/app?request=<id>`. Receipt access ends on original credential expiry, rotation or verified-recipient change.
+
+`POST /api/internal/booking/delivery` is a server-secret-only worker entrypoint. It uses the frozen Cloudflare adapter and encrypted SQL ledger; never call it from a browser or retry a possibly dispatched message manually. Configure its separate Vault wake-up URL only after inspecting pending work. See [provider setup](../../documentations/technical_specification/03_provider_setup.md#booking-confirmation-email-worker).

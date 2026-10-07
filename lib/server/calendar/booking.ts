@@ -20,7 +20,7 @@ export type BookingTransportSnapshot=z.infer<typeof bookingTransportSnapshot>;
 const access=z.strictObject({principalKind:z.literal('host'),providerSubject:z.string().min(1),accessToken:z.string().min(1).regex(/^[^\r\n]+$/u),scopes:z.array(z.string()).refine(s=>s.includes('https://www.googleapis.com/auth/calendar.events'))});
 export type BookingAccess=z.infer<typeof access>;
 export type BookingProviderOutcome=
- |{outcome:'confirmed';evidence:{calendarId:string;eventId:string;payloadFingerprint:string;eventUrl:string|null;etag:string}}
+ |{outcome:'confirmed';evidence:{calendarId:string;eventId:string;payloadFingerprint:string;eventUrl:string|null;etag:string;organizer:{email:string}}}
  |{outcome:'uncertain'|'conflict';reason:string}
  |{outcome:'noncreating';reason:'provider_bad_request'|'permission_denied'|'calendar_not_found'};
 
@@ -66,7 +66,7 @@ async function boundedJson(response:Response):Promise<unknown>{
 function verifyEvent(snapshot:BookingTransportSnapshot,body:unknown):BookingProviderOutcome{
  const time=z.object({dateTime:z.iso.datetime({offset:true}),timeZone:z.string().optional(),date:z.string().optional()});
  const event=z.object({id:z.string(),status:z.enum(['confirmed','tentative','cancelled']),etag:z.string().min(1),summary:z.string(),description:z.string(),location:z.string(),
-  start:time,end:time,attendees:z.array(z.object({email:z.email(),additionalGuests:z.number().optional(),resource:z.boolean().optional(),optional:z.boolean().optional()})).max(200),
+  organizer:z.object({email:z.email()}),start:time,end:time,attendees:z.array(z.object({email:z.email(),additionalGuests:z.number().optional(),resource:z.boolean().optional(),optional:z.boolean().optional()})).max(200),
   attendeesOmitted:z.boolean().optional(),recurrence:z.array(z.string()).optional(),recurringEventId:z.string().optional(),eventType:z.string().optional(),transparency:z.string().optional(),guestsCanModify:z.boolean().optional(),
   extendedProperties:z.object({private:z.record(z.string(),z.string())}),htmlLink:z.string().optional(),
  }).safeParse(body);
@@ -82,5 +82,5 @@ function verifyEvent(snapshot:BookingTransportSnapshot,body:unknown):BookingProv
  if(!matches)return {outcome:'conflict',reason:'event_snapshot_mismatch'};
  let eventUrl:string|null=null;
  if(actual.htmlLink){try{const url=new URL(actual.htmlLink);if(url.protocol==='https:'&&url.hostname==='www.google.com'&&!url.username&&!url.password&&!url.port&&url.pathname.startsWith('/calendar/'))eventUrl=url.href;}catch{/* A malformed optional link cannot expose provider text. */}}
- return {outcome:'confirmed',evidence:{calendarId:snapshot.calendarId,eventId:snapshot.eventId,payloadFingerprint:snapshot.payloadFingerprint,eventUrl,etag:actual.etag}};
+ return {outcome:'confirmed',evidence:{calendarId:snapshot.calendarId,eventId:snapshot.eventId,payloadFingerprint:snapshot.payloadFingerprint,eventUrl,etag:actual.etag,organizer:{email:actual.organizer.email}}};
 }

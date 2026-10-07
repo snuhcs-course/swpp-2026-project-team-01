@@ -15,7 +15,7 @@ export async function verifyBookingWorker(database:Database,env:NodeJS.ProcessEn
   if(init?.method==='POST'){
    inserts++;assert.equal(path.searchParams.get('sendUpdates'),'all');
    if(mode==='rejected')return Response.json({error:{code:403,errors:[{reason:'forbidden'}]}},{status:403});
-   const payload=JSON.parse(String(init.body)),event={...payload,status:'confirmed',etag:'fixture-etag',htmlLink:'https://www.google.com/calendar/event?eid=fixture'};events.set(payload.id,event);
+   const payload=JSON.parse(String(init.body)),event={...payload,organizer:{email:'selected-calendar@example.test'},status:'confirmed',etag:'fixture-etag',htmlLink:'https://www.google.com/calendar/event?eid=fixture'};events.set(payload.id,event);
    if(mode==='lease_expired')await sql.query(`update fmat.jobs set lease_until=clock_timestamp()-interval '1 second' where id='${activeJob}';`);
    if(mode==='lost_insert')throw new Error('fixture successful insert response lost');
    return Response.json(event);

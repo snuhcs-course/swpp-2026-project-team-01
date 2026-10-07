@@ -62,3 +62,12 @@ The private minute scheduler reads a separately provisioned booking URL and exis
 ## Protected receipt projection
 
 The receipt read locks the request before current host authority or guest token checks. Closed-state guest authority is limited to the receipt until the token expires; rotation denies the old token. Projection requires matching confirmed attempt/provider/request event association and reads immutable payload/proposal details rather than mutable request drafts. It excludes all private scheduling evidence and transcript data, returning only the viewing audience's email status. A shared host/requester card refreshes status, distinguishes uncertainty from confirmation, clears details on denial, and permits HTTPS join links without URL credentials. Calendar links are restricted to the saved Google Calendar destination. Full delivery and actual organizer presentation remain task 3.2.
+
+
+## Transactional booking email
+
+Persist a separate encrypted message and receipt-token hash per participant outbox record. Freeze the Cloudflare account, fixed service sender, recipient, subject, HTML and plain text before a fenced dispatch. Recheck the confirmed snapshot and recipient authority while holding request/host locks. A changed prepared basis suppresses the message. Only the transaction that first persists dispatch returns permission to send; a lost acknowledgement never grants a second send. A duplicate job defers while the original sender lease is live, then preserves uncertainty if acceptance cannot be established. Email outcomes never update booking state or enqueue Calendar work.
+
+Use the organizer returned in matching Google event evidence; never substitute the host's primary address or the service sender. HTML and text share the frozen meeting fields. Host View booking links retain the single `/app` workspace and select the request; requester links open the canonical booking route with an independent receipt-only fragment token. The receipt credential is bound to the current parent token, verified recipient and original expiry, and cannot authorize chat, scheduling changes or provider consent.
+
+The private delivery scheduler requires its own Vault URL and the existing dispatch secret. Deployment acceptance must inspect pending work before activation, verify private-route guards, and distinguish synthetic transport evidence from real inbox receipt.

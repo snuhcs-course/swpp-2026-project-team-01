@@ -22,7 +22,7 @@ import {TravelAllowances} from '../../../../../../lib/server/scheduling/allowanc
 import {SchedulingPublication} from '../../../../../../lib/server/scheduling/publication.ts';
 import {AvailabilityEvaluation} from '../../../../../../lib/server/scheduling/availability.ts';
 import {availabilityCheckInput} from '../../../../../../lib/contracts/availability-evaluation.ts';
-import {BookingReceipt} from '../../../../../../lib/server/booking/receipt.ts';
+import {BookingReceipt,bookingReceiptCredential} from '../../../../../../lib/server/booking/receipt.ts';
 import {BookingApproval} from '../../../../../../lib/server/booking/approval.ts';
 import {RequestLifecycle} from '../../../../../../lib/server/scheduling/lifecycle.ts';
 import {PrivateReview} from '../../../../../../lib/server/scheduling/private-review.ts';
@@ -48,12 +48,19 @@ async function handle(request:NextRequest,{params}:Context) {
       const {requestId,token}=guestExchange.parse(await readJson(request));
       const state=await commands.guest(guestCredential(requestId,token));
       const response=json(state);
+      response.cookies.delete('fmat-receipt-'+requestId);
       response.cookies.set(guestCookieName(requestId),token,{httpOnly:true,secure:applicationOrigin().startsWith('https:'),sameSite:'lax',path:'/',maxAge:30*86400});
       return response;
     }
     if(action==='guest/state'&&request.method==='GET') {
       const requestId=z.uuid().parse(request.nextUrl.searchParams.get('requestId'));
       return json(await commands.guest(guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??'')));
+    }
+    if(action==='booking-receipt/exchange'&&request.method==='POST') {
+      const {requestId,token}=guestExchange.parse(await readJson(request));
+      const state=await new BookingReceipt().read(bookingReceiptCredential(requestId,token),{requestId}),response=json(state);
+      response.cookies.set('fmat-receipt-'+requestId,token,{httpOnly:true,secure:applicationOrigin().startsWith('https:'),sameSite:'lax',path:'/',maxAge:30*86400});
+      return response;
     }
     if(action==='request-review/read'&&request.method==='GET') {
       const requestId=z.uuid().parse(request.nextUrl.searchParams.get('requestId'));
@@ -72,7 +79,8 @@ async function handle(request:NextRequest,{params}:Context) {
     }
     if(action==='booking-receipt'&&request.method==='GET') {
       const {requestId,audience}=z.strictObject({requestId:z.uuid(),audience:z.enum(['host','guest'])}).parse(Object.fromEntries(request.nextUrl.searchParams));
-      const credential=audience==='host'?(await session.host()).credential:guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??'');
+      const receiptToken=audience==='guest'?request.cookies.get('fmat-receipt-'+requestId)?.value:undefined;
+      const credential=audience==='host'?(await session.host()).credential:receiptToken?bookingReceiptCredential(requestId,receiptToken):guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??'');
       return session.finish(json(await new BookingReceipt().read(credential,{requestId})));
     }
     if(action==='booking-approval/state'&&request.method==='GET') {

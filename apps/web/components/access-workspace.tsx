@@ -61,9 +61,10 @@ export function BookingWorkspace({requestId}:{requestId:string}) {
     function load() {
       const current=++sequence;
       setLoading(true);setState(null);setError('');
-      const fragment=new URLSearchParams(location.hash.slice(1)),token=fragment.get('token');
+      const fragment=new URLSearchParams(location.hash.slice(1)),token=fragment.get('token'),receiptToken=fragment.get('receipt');
       if(location.hash)history.replaceState(null,'',location.pathname+location.search);
-      if(token||request.current?.id!==requestId)request.current={id:requestId,task:token?api('guest/exchange',{requestId,token}):api('guest/state?requestId='+encodeURIComponent(requestId))};
+      const receiptState=(value:{requestId:string;status:string;closed:boolean})=>({requestId:value.requestId,status:value.status,closed:value.closed,title:null,proposal:null});
+      if(token||receiptToken||request.current?.id!==requestId)request.current={id:requestId,task:receiptToken?api('booking-receipt/exchange',{requestId,token:receiptToken}).then(receiptState):token?api('guest/exchange',{requestId,token}):api('guest/state?requestId='+encodeURIComponent(requestId)).catch(()=>api('booking-receipt?audience=guest&requestId='+encodeURIComponent(requestId)).then(receiptState))};
       request.current!.task.then(data=>{if(active&&current===sequence)setState(guestState.parse(data));}).catch(()=>{if(active&&current===sequence){setState(null);setError('Open the private link sent to you to continue. This page address alone does not unlock your meeting.');}}).finally(()=>{if(active&&current===sequence)setLoading(false);});
     }
     load();addEventListener('hashchange',load);

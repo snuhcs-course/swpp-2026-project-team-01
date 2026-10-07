@@ -83,9 +83,11 @@ begin
     perform fmat.enqueue_job('booking_reconcile','reconcile:'||a.id::text||':'||a.reconciliation_count::text,jsonb_build_object('requestId',r.id,'attemptId',a.id),clock_timestamp()+make_interval(secs=>least(3600,(15*power(2,least(a.reconciliation_count,8)))::integer)));
    end if;
   elsif outcome='confirmed' then
-   if jsonb_typeof(evidence) is distinct from 'object' or exists(select 1 from jsonb_object_keys(evidence) k where k not in ('calendarId','eventId','payloadFingerprint','eventUrl','etag'))
+   if jsonb_typeof(evidence) is distinct from 'object' or exists(select 1 from jsonb_object_keys(evidence) k where k not in ('calendarId','eventId','payloadFingerprint','eventUrl','etag','organizer'))
     or evidence->>'calendarId' is distinct from a.calendar_id or evidence->>'eventId' is distinct from a.event_id or evidence->>'payloadFingerprint' is distinct from a.payload_fingerprint
     or length(coalesce(evidence->>'etag','')) not between 1 and 1024
+    or jsonb_typeof(evidence->'organizer') is distinct from 'object' or coalesce(evidence->'organizer'->>'email','') !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'
+    or exists(select 1 from jsonb_object_keys(evidence->'organizer') k where k<>'email')
     or (evidence->>'eventUrl' is not null and evidence->>'eventUrl' !~ '^https://www\.google\.com/calendar/') then raise exception 'INVALID_PROVIDER_EVIDENCE';end if;
    update fmat.booking_attempts set phase='confirmed',confirmed_at=clock_timestamp(),provider_evidence=evidence,updated_at=clock_timestamp() where id=a.id;
    update fmat.requests set status='booked',event=jsonb_build_object('id',a.event_id,'url',evidence->>'eventUrl'),revision=revision+1,updated_at=clock_timestamp() where id=r.id;

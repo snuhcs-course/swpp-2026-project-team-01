@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {bookingJoinUrl,confirmedBookingReceipt,bookingReceiptState} from './booking-receipt.ts';
-const receipt={confirmedAt:'2030-01-01T00:00:00Z',title:'Meeting',purpose:'Discussion',start:'2030-01-02T10:00:00Z',end:'2030-01-02T10:30:00Z',timezone:'UTC',mode:'online' as const,location:'https://meet.example.test/room',participants:[{email:'guest@example.test'}],calendarUrl:null};
+const receipt={confirmedAt:'2030-01-01T00:00:00Z',title:'Meeting',purpose:'Discussion',start:'2030-01-02T10:00:00Z',end:'2030-01-02T10:30:00Z',timezone:'UTC',mode:'online' as const,location:'https://meet.example.test/room',participants:[{email:'guest@example.test'}],calendarUrl:null,organizer:null};
 test('Receipt joining links cannot execute scripts, disclose URL credentials or turn a physical location into a join action',()=>{
  assert.equal(bookingJoinUrl(receipt),receipt.location);
  for(const location of ['javascript:alert(1)','data:text/html,test','http://meet.example.test','https://user:secret@meet.example.test','/relative'])assert.equal(bookingJoinUrl({...receipt,location}),null);

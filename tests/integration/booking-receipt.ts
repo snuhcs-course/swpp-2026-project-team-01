@@ -31,6 +31,7 @@ export async function verifyBookingReceipt(db:Database,requestId:string,host:Cre
   await sql.query(`update fmat.hosts set revoked_at=clock_timestamp() where id='${host.subject}';`);await assert.rejects(service.read(host,target),denied('HOST_NOT_ADMITTED'));await sql.query(`update fmat.hosts set revoked_at=null where id='${host.subject}';`);
   // Without matching persisted provider evidence no confirmed receipt is exposed.
   const event=await sql.query(`select event::text from fmat.requests where id='${requestId}';`);await sql.query(`update fmat.requests set event='{"id":"wrong"}' where id='${requestId}';`);assert.equal((await service.read(guest,target)).receipt,null);await sql.query(`update fmat.requests set event='${event.replaceAll("'","''")}' where id='${requestId}';`);
+  await sql.query(`update fmat.outbox set status='pending' where payload->>'requestId'='${requestId}';`);
   assert.equal(await sql.query(`select has_function_privilege('anon','public.fmat_booking_receipt(jsonb,jsonb)','EXECUTE')||','||has_function_privilege('authenticated','public.fmat_booking_receipt(jsonb,jsonb)','EXECUTE')||','||has_function_privilege('service_role','fmat.confirmed_booking_receipt(uuid)','EXECUTE');`),'false,false,false');
  }finally{sql.close();}
 }

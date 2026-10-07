@@ -6,10 +6,17 @@ const auth:BookingAccess={principalKind:'host',providerSubject:'host-google',acc
 function snapshot():BookingTransportSnapshot{return {requestId,attemptId,proposalVersion:2,calendarId:'selected/calendar+id@example.com',eventId:'fmat123abc',connectionProviderSubject:'host-google',phase:'dispatched',payloadFingerprint:'a'.repeat(64),payload:{id:'fmat123abc',summary:'Meeting: Review',description:'Requested by Guest\nReview',location:'https://meet.example.com/review',start:{dateTime:'2030-01-01T10:00:00.000000001Z',timeZone:'Asia/Seoul'},end:{dateTime:'2030-01-01T10:30:00.000000001Z',timeZone:'Asia/Seoul'},attendees:[{email:'guest@example.com'},{email:'host@example.com'}],extendedProperties:{private:{fmatRequestId:requestId,fmatAttemptId:attemptId,fmatProposalVersion:'2'}}}};}
 function event(){return {...snapshot().payload,status:'confirmed',etag:'"version-1"',htmlLink:'https://www.google.com/calendar/event?eid=public-event',organizer:{email:'calendar-owner@example.com'},privateProviderField:'must not escape'};}
 const error=(status:number,reason:string)=>Response.json({error:{code:status,message:'private provider detail',errors:[{reason}]}},{status});
+test('Missing or invalid Calendar organizer cannot produce confirmed evidence',async()=>{
+ for(const organizer of [undefined,null,{}, {email:'invalid'}, {email:'no-reply@'}]){
+  const provider=new GoogleBookingProvider(async()=>Response.json({...event(),organizer}));
+  assert.equal((await provider.insert(auth,snapshot())).outcome,'uncertain');
+  assert.equal((await provider.reconcile(auth,snapshot())).outcome,'uncertain');
+ }
+});
 test('Calendar insert uses only the frozen selected destination/payload and returns minimized matching evidence',async()=>{
  let count=0;
  const provider=new GoogleBookingProvider(async(url,init)=>{count++;const target=new URL(String(url));assert.equal(target.origin,'https://www.googleapis.com');assert.equal(target.pathname,'/calendar/v3/calendars/selected%2Fcalendar%2Bid%40example.com/events');assert.equal(target.search,'?sendUpdates=all');assert.equal(init?.method,'POST');assert.equal(init?.redirect,'error');assert.equal(init?.cache,'no-store');assert.ok(init?.signal);assert.deepEqual(JSON.parse(init!.body as string),snapshot().payload);assert.equal(new Headers(init?.headers).get('authorization'),'Bearer private-token');return Response.json(event());});
- const result=await provider.insert(auth,snapshot());assert.deepEqual(result,{outcome:'confirmed',evidence:{calendarId:snapshot().calendarId,eventId:snapshot().eventId,payloadFingerprint:'a'.repeat(64),eventUrl:event().htmlLink,etag:'"version-1"'}});assert.equal(count,1);assert.doesNotMatch(JSON.stringify(result),/privateProviderField|guest@example|private-token/);
+ const result=await provider.insert(auth,snapshot());assert.deepEqual(result,{outcome:'confirmed',evidence:{calendarId:snapshot().calendarId,eventId:snapshot().eventId,payloadFingerprint:'a'.repeat(64),eventUrl:event().htmlLink,etag:'"version-1"',organizer:{email:'calendar-owner@example.com'}}});assert.equal(count,1);assert.doesNotMatch(JSON.stringify(result),/privateProviderField|guest@example|private-token/);
 });
 test('A lost successful insert response reconciles the same event without another POST',async()=>{
  let stored:ReturnType<typeof event>|undefined,posts=0,gets=0;

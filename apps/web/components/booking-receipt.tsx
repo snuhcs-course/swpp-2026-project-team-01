@@ -35,6 +35,7 @@ export function BookingReceiptCard({requestId,audience,onStatus}:{requestId:stri
      <div><dt>Timezone</dt><dd>{receipt.timezone}</dd></div>
      <div><dt>Duration</dt><dd>{(Date.parse(receipt.end)-Date.parse(receipt.start))/60000} minutes</dd></div>
      <div><dt>{receipt.mode==='online'?'Meeting link':'Location'}</dt><dd className="wrap-anywhere">{receipt.location}</dd></div>
+     {receipt.organizer?<div><dt>Calendar organizer</dt><dd className="wrap-anywhere">{receipt.organizer.email}</dd></div>:null}
      <div><dt>Participants</dt><dd><ul>{receipt.participants.map(person=><li className="wrap-anywhere" key={person.email}>{person.email}</li>)}</ul></dd></div>
     </dl>
     <p role="status">{state?.emailStatus?deliveryText[state.emailStatus]:''} Your booking remains confirmed regardless of email delivery.</p>

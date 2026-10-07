@@ -213,3 +213,12 @@ Each authenticated invocation handles at most one job; duplicate wakes are safe 
 
 
 On 2026-10-07, worker code `02d8823` was deployed Ready and the URL above was provisioned after an empty-queue inspection. The authenticated idle endpoint and the first post-activation minute cron run passed. Production migration history contains 57 matching versions. No live Calendar event was used for this activation check; see the [worker evidence](05_rebuild_evidence.md#automatic-booking-worker--2026-10-07).
+
+
+### Booking confirmation email worker
+
+The delivery adapter requires `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, `CLOUDFLARE_EMAIL_FROM=no-reply@findmeatime.com`, `TOKEN_ENCRYPTION_KEY` and the existing application/database configuration. The token needs Email Sending access for the selected account. Missing configuration cannot claim work. Sender/account fallback and automatic resend after persisted dispatch are forbidden.
+
+The minute scheduler `fmat-booking-delivery` calls private `fmat.wake_booking_delivery()`. Provision Vault `fmat_booking_delivery_url=https://release.findmeatime.com/api/internal/booking/delivery` only after deploying and verifying the authenticated endpoint and inspecting pending recipients. It reuses `fmat_runtime_dispatch_secret`; never print that secret. Without the delivery URL the scheduler is inert. Verify cron execution and endpoint status separately from actual inbox delivery.
+
+An uncertain message retains its frozen identity and requires investigation; changing a job lease must not resend it. Expired final attempts receive a recovery claim that resolves local status without authorizing another send. A retry exhausted before any dispatch marks the message failed. No delivery recovery operation creates a Calendar event.

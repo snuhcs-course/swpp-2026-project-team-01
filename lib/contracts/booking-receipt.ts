@@ -4,7 +4,7 @@ import {requestLifecycleState,requestLifecycleTarget} from './request-lifecycle.
 export const receiptTarget=requestLifecycleTarget;
 export const confirmedBookingReceipt=z.strictObject({
  confirmedAt:z.string(),title:z.string(),purpose:z.string(),start:z.iso.datetime({offset:true}),end:z.iso.datetime({offset:true}),timezone:ianaTimezone,
- mode:z.enum(['online','in_person']),location:z.string(),participants:z.array(z.strictObject({email:z.email()})).min(1).max(2),
+ organizer:z.strictObject({email:z.email()}).nullable().default(null),mode:z.enum(['online','in_person']),location:z.string(),participants:z.array(z.strictObject({email:z.email()})).min(1).max(2),
  calendarUrl:z.string().url().refine(value=>{const url=new URL(value);return url.protocol==='https:'&&url.hostname==='www.google.com'&&!url.username&&!url.password&&url.pathname.startsWith('/calendar/');}).nullable(),
 });
 export const bookingReceiptState=z.strictObject({requestId:z.uuid(),revision:z.number().int().positive(),status:requestLifecycleState.shape.status,closed:z.boolean(),receipt:confirmedBookingReceipt.nullable(),emailStatus:z.enum(['pending','sending','sent','uncertain','failed','suppressed']).nullable()});

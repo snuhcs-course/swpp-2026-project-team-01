@@ -13,7 +13,7 @@ begin
  select * into strict p from fmat.proposals where request_id=r.id and version=a.proposal_version;
  return jsonb_build_object('confirmedAt',a.confirmed_at,'title',a.payload->>'summary','purpose',p.details->>'purpose',
   'start',a.payload->'start'->>'dateTime','end',a.payload->'end'->>'dateTime','timezone',a.payload->'start'->>'timeZone',
-  'mode',p.details->>'mode','location',a.payload->>'location','participants',a.payload->'attendees',
+  'organizer',coalesce(a.provider_evidence->'organizer','null'::jsonb),'mode',p.details->>'mode','location',a.payload->>'location','participants',a.payload->'attendees',
   'calendarUrl',case when a.provider_evidence->>'eventUrl' ~ '^https://www\.google\.com/calendar/' then a.provider_evidence->>'eventUrl' else null end);
 end;
 $$;
@@ -30,6 +30,12 @@ begin
   actor:=fmat.calendar_actor(p_credential);
   if actor->>'id' is distinct from r.host_id::text then raise exception 'NOT_FOUND';end if;
   viewer_audience:='host';
+ elsif p_credential->>'kind'='booking_receipt' then
+  if r.status<>'booked' or p_credential->>'requestId' is distinct from r.id::text or not exists(
+   select 1 from fmat.booking_deliveries d join fmat.outbox o on o.id=d.outbox_id where d.request_id=r.id and d.receipt_token_hash=p_credential->>'tokenHash'
+    and d.dispatched_at is not null and d.parent_token_hash=r.token_hash and d.receipt_expires_at>clock_timestamp() and r.token_expires_at>clock_timestamp()
+    and o.audience='requester' and lower(o.recipient->>'email')=lower(r.contact_verified_email) and o.status in ('sending','sent','uncertain')) then raise exception 'NOT_FOUND';end if;
+  viewer_audience:='requester';
  elsif p_credential->>'kind'='guest' then
   if p_credential->>'requestId' is distinct from r.id::text or p_credential->>'tokenHash' is distinct from r.token_hash or r.token_expires_at<=clock_timestamp()
    or (r.token_revoked_at is not null and r.status not in ('booked','declined','withdrawn','expired')) then raise exception 'NOT_FOUND';end if;
