@@ -100,15 +100,54 @@ select throws_ok($$select pg_temp.tool('private1','private_note_save',pg_temp.f(
 select throws_ok($$select pg_temp.tool('private1','private_note_save',pg_temp.f('noteInput')||'{"idempotencyKey":"new-stale-call"}')$$,'P0001','REVISION_CONFLICT','new stale call rejected');
 select ok(not(pg_temp.tool('shared1','request_read') ?| array['privateNotes','privateMessages','privateSchedulingContext','privateDiagnostics','privateTravelChecks','history']),'host shared read omits every private projection');
 select ok(pg_temp.tool('guestgrant1','request_read')::text not like '%private-only sentinel%','private note is absent from guest context');
-insert into fixture values ('detailsInput',jsonb_build_object('details','{"purpose":"shared purpose"}'::jsonb,'expectedRevision',2,'idempotencyKey','details-tool-1'));
-select throws_ok($$select pg_temp.tool('private1','details_update',pg_temp.f('detailsInput'))$$,'P0001','FORBIDDEN','private discussion cannot silently publish shared details');
+insert into fixture values ('detailsInput',jsonb_build_object('patch','{"purpose":"shared purpose"}'::jsonb,'clarifications','[]'::jsonb,'expectedRevision',2,'idempotencyKey','details-tool-1'));
+select throws_ok($$select pg_temp.tool('guestgrant1','details_update',pg_temp.f('detailsInput'))$$,'P0001','FORBIDDEN','legacy model mutation cannot bypass review');
+select throws_ok($$select pg_temp.tool('private1','details_propose',pg_temp.f('detailsInput'))$$,'P0001','FORBIDDEN','private discussion cannot publish shared drafts');
+select throws_ok($$select pg_temp.tool('shared1','details_propose',pg_temp.f('detailsInput'))$$,'P0001','FORBIDDEN','host cannot impersonate requester extraction');
+select throws_ok($$select pg_temp.tool('guestgrant1','details_propose',pg_temp.f('detailsInput')||'{"confirmed":true}')$$,'P0001','INVALID_INPUT','model cannot add human confirmation');
 update fmat.requests set current_proposal_version=1,requester_agreed_version=1,host_approved_version=1 where id='83000000-0000-4000-8000-000000000001';
-insert into fixture values ('detailsResult',pg_temp.tool('shared1','details_update',pg_temp.f('detailsInput')));
-select is(pg_temp.f('detailsResult')->'details'->>'purpose','shared purpose','host shared details updated');
-select ok(pg_temp.f('detailsResult')::text not like '%private-only sentinel%','host shared mutation excludes private result');
-select is(pg_temp.tool('shared1','details_update',pg_temp.f('detailsInput')),pg_temp.f('detailsResult'),'cached host result is scrubbed on replay too');
-select is(pg_temp.tool('guestgrant1','request_read')->>'revision','3','shared mutation and replay advance revision once');
-select ok((select current_proposal_version is null and requester_agreed_version is null and host_approved_version is null from fmat.requests where id='83000000-0000-4000-8000-000000000001'),'changed details invalidate proposal and both decisions');
+insert into fixture values ('detailsResult',pg_temp.tool('guestgrant1','details_propose',pg_temp.f('detailsInput')));
+select is(pg_temp.f('detailsResult')->'review'->'details'->>'purpose','shared purpose','extracted purpose is reviewable');
+select ok(pg_temp.f('detailsResult')::text not like '%private-only sentinel%','draft excludes private data');
+select is(pg_temp.tool('guestgrant1','details_propose',pg_temp.f('detailsInput')),pg_temp.f('detailsResult'),'post-commit replay returns same review');
+select is(pg_temp.tool('guestgrant1','request_read')->>'revision','2','suggestion and replay leave saved revision unchanged');
+select ok((select current_proposal_version=1 and requester_agreed_version=1 and host_approved_version=1 from fmat.requests where id='83000000-0000-4000-8000-000000000001'),'draft does not invalidate existing decisions');
+select is(pg_temp.tool('guestgrant1','request_read')->'review'->>'id',pg_temp.f('detailsResult')->'review'->>'id','model read includes current draft');
+select throws_ok($$select pg_temp.tool('guestgrant1','details_propose',pg_temp.f('detailsInput')||'{"patch":{"purpose":"changed retry"}}')$$,'P0001','IDEMPOTENCY_CONFLICT','same message cannot replace committed draft');
+select throws_ok($$select pg_temp.tool('guestgrant1','apply',pg_temp.f('detailsInput'))$$,'P0001','FORBIDDEN','model cannot apply review');
+select ok(not has_table_privilege('authenticated','fmat.request_detail_reviews','SELECT'),'draft ledger is private');
+select ok(not has_function_privilege('anon','public.fmat_request_detail_review(text,jsonb,jsonb)','EXECUTE'),'review RPC is service only');
+insert into fixture values ('reviewDecision',jsonb_build_object('reviewId',pg_temp.f('detailsResult')->'review'->>'id','expectedRevision',2,'confirmed',true,'idempotencyKey',gen_random_uuid()));
+select throws_ok($$select public.fmat_request_detail_review('apply',pg_temp.f('guest2'),pg_temp.f('reviewDecision'))$$,'P0001','NOT_FOUND','cross-request decision denied');
+select throws_ok($$select public.fmat_request_detail_review('apply',pg_temp.f('host1'),pg_temp.f('reviewDecision'))$$,'P0001','FORBIDDEN','host cannot apply requester review');
+select throws_ok($$select public.fmat_request_detail_review('apply',pg_temp.f('guest1'),pg_temp.f('reviewDecision')||'{"confirmed":false}')$$,'P0001','INVALID_INPUT','explicit confirmation required');
+select lives_ok($$select public.fmat_request_detail_review('apply',pg_temp.f('guest1'),pg_temp.f('reviewDecision'))$$,'current explicit requester action applies draft');
+select lives_ok($$select public.fmat_request_detail_review('apply',pg_temp.f('guest1'),pg_temp.f('reviewDecision'))$$,'lost apply response is recoverable');
+select is(pg_temp.tool('guestgrant1','request_read')->>'revision','3','application and replay advance revision once');
+select is(pg_temp.tool('guestgrant1','request_read')->'details'->>'purpose','shared purpose','reviewed value is authoritative');
+select ok((select current_proposal_version is null and requester_agreed_version is null and host_approved_version is null from fmat.requests where id='83000000-0000-4000-8000-000000000001'),'applied details invalidate proposal and both decisions');
+select throws_ok($$select public.fmat_request_detail_review('dismiss',pg_temp.f('guest1'),pg_temp.f('reviewDecision'))$$,'P0001','IDEMPOTENCY_CONFLICT','decision retry cannot change action');
+select is(public.fmat_request_detail_review('read',pg_temp.f('guest1'),'{}')->'review'->>'status','applied','reload recovers applied review');
+insert into fixture values ('ambiguous',pg_temp.tool('guestgrant1','details_propose','{"patch":{"purpose":"new purpose"},"clarifications":["Which timezone?"],"expectedRevision":3,"idempotencyKey":"ambiguous"}'));
+insert into fixture values ('ambiguousDecision',jsonb_build_object('reviewId',pg_temp.f('ambiguous')->'review'->>'id','expectedRevision',3,'confirmed',true,'idempotencyKey',gen_random_uuid()));
+select throws_ok($$select public.fmat_request_detail_review('apply',pg_temp.f('guest1'),pg_temp.f('ambiguousDecision'))$$,'P0001','INVALID_INPUT','unresolved ambiguity cannot be applied');
+select lives_ok($$select public.fmat_request_detail_review('dismiss',pg_temp.f('guest1'),pg_temp.f('ambiguousDecision'))$$,'requester may dismiss unresolved suggestions');
+select is(pg_temp.tool('guestgrant1','request_read')->>'revision','3','dismiss leaves details unchanged');
+insert into fixture values ('staleDraft',pg_temp.tool('guestgrant1','details_propose','{"patch":{"purpose":"stale purpose"},"clarifications":[],"expectedRevision":3,"idempotencyKey":"stale-draft"}'));
+insert into fixture values ('staleDecision',jsonb_build_object('reviewId',pg_temp.f('staleDraft')->'review'->>'id','expectedRevision',3,'confirmed',true,'idempotencyKey',gen_random_uuid()));
+select lives_ok($$select pg_temp.tool('private1','private_note_save','{"text":"later note","expectedRevision":3,"idempotencyKey":"later-note"}')$$,'another edit advances request revision');
+select throws_ok($$select public.fmat_request_detail_review('apply',pg_temp.f('guest1'),pg_temp.f('staleDecision'))$$,'P0001','REVISION_CONFLICT','stale review cannot overwrite later state');
+select lives_ok($$select public.fmat_request_detail_review('dismiss',pg_temp.f('guest1'),pg_temp.f('staleDecision'))$$,'stale review can be dismissed without editing scheduling state');
+
+update fmat.requests set contact_verified_email='old@request.test',details=details||'{"requesterEmail":"old@request.test"}',availability_mode='calendar',availability_failed=true where id='83000000-0000-4000-8000-000000000001';
+insert into fixture values ('emailDraft',pg_temp.tool('guestgrant1','details_propose','{"patch":{"requesterEmail":"new@request.test"},"clarifications":[],"expectedRevision":4,"idempotencyKey":"email-draft"}'));
+insert into fixture values ('emailDecision',jsonb_build_object('reviewId',pg_temp.f('emailDraft')->'review'->>'id','expectedRevision',4,'confirmed',true,'idempotencyKey',gen_random_uuid()));
+select lives_ok($$select public.fmat_request_detail_review('apply',pg_temp.f('guest1'),pg_temp.f('emailDecision'))$$,'contact change requires explicit current review');
+select ok((select contact_verified_email is null and availability_mode='calendar' and availability_failed from fmat.requests where id='83000000-0000-4000-8000-000000000001'),'email change clears verification and never removes failed Calendar dependency');
+insert into fixture values ('olderDraft',pg_temp.tool('guestgrant1','details_propose','{"patch":{"purpose":"older"},"clarifications":[],"expectedRevision":5,"idempotencyKey":"older-draft"}'));
+insert into fixture values ('newerDraft',pg_temp.tool('guestgrant1','details_propose','{"patch":{"purpose":"newer"},"clarifications":[],"expectedRevision":5,"idempotencyKey":"newer-draft"}'));
+select is((select count(*)::integer from fmat.request_detail_reviews where request_id='83000000-0000-4000-8000-000000000001' and status='pending'),1,'only one current pending draft');
+select throws_ok($$select public.fmat_request_detail_review('apply',pg_temp.f('guest1'),jsonb_build_object('reviewId',pg_temp.f('olderDraft')->'review'->>'id','expectedRevision',5,'confirmed',true,'idempotencyKey',gen_random_uuid()))$$,'P0001','REVISION_CONFLICT','superseded draft cannot be applied');
 
 create function pg_temp.runtime(text,text,jsonb default '{}') returns jsonb language sql as $$
   select public.fmat_runtime_message($2,(pg_temp.f($1)->>'grantId')::uuid,(pg_temp.f($1)->>'conversationId')::uuid,$3)
@@ -159,6 +198,8 @@ update fmat.hosts set revoked_at=null where id='80000000-0000-4000-8000-00000000
 update fmat.requests set token_hash=repeat('c',64) where id='83000000-0000-4000-8000-000000000001';
 select throws_ok($$select pg_temp.check_grant('guestgrant1')$$,'P0001','NOT_FOUND','rotated guest token invalidates existing runtime grant');
 select throws_ok($$select pg_temp.tool('guestgrant1','request_read')$$,'P0001','NOT_FOUND','tool checks fresh guest rotation');
+select throws_ok($$select public.fmat_request_detail_review('read',pg_temp.f('guest1'),'{}')$$,'P0001','NOT_FOUND','rotated continuation cannot read review');
+select throws_ok($$select public.fmat_request_detail_review('apply',pg_temp.f('guest1'),pg_temp.f('emailDecision'))$$,'P0001','NOT_FOUND','rotated continuation cannot replay applied decision');
 update fmat.requests set token_hash=repeat('a',64),token_revoked_at=now() where id='83000000-0000-4000-8000-000000000001';
 select throws_ok($$select pg_temp.check_grant('guestgrant1')$$,'P0001','NOT_FOUND','guest revocation interrupts existing runtime authority');
 update fmat.requests set token_revoked_at=null,status='booked' where id='83000000-0000-4000-8000-000000000001';
@@ -166,6 +207,7 @@ select throws_ok($$select pg_temp.check_grant('guestgrant1')$$,'P0001','NOT_FOUN
 select is((pg_temp.check_grant('private1')->>'readOnly')::boolean,true,'host closed history is read-only');
 select lives_ok($$select pg_temp.tool('private1','request_read')$$,'host may read closed private context');
 select throws_ok($$select pg_temp.tool('private1','private_note_save',pg_temp.f('noteInput'))$$,'P0001','REQUEST_CLOSED','closed request prevents old tool mutation replay');
+select throws_ok($$select public.fmat_request_detail_review('read',pg_temp.f('guest1'),'{}')$$,'P0001','NOT_FOUND','closed request hides drafts and full details');
 select lives_ok($$select fmat.authorize_guest_receipt(pg_temp.f('guest1'),'83000000-0000-4000-8000-000000000001')$$,'closed receipt access remains independently available');
 update fmat.requests set status='gathering' where id='83000000-0000-4000-8000-000000000001';
 

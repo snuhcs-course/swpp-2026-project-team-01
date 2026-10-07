@@ -16,6 +16,7 @@ import { HostSetup } from '../../../../../../lib/server/setup/commands.ts';
 import { CalendarSelection } from '../../../../../../lib/server/calendar/selection.ts';
 import {imessageEntryBrowser} from '../../../../lib/imessage-entry-browser.ts';
 import { imessageBrowser } from '../../../../lib/imessage-browser.ts';
+import {RequestReview} from '../../../../../../lib/server/identity/request-review.ts';
 import { intakeBrowser } from '../../../../lib/intake-browser.ts';
 
 export const dynamic='force-dynamic';
@@ -41,6 +42,14 @@ async function handle(request:NextRequest,{params}:Context) {
     if(action==='guest/state'&&request.method==='GET') {
       const requestId=z.uuid().parse(request.nextUrl.searchParams.get('requestId'));
       return json(await commands.guest(guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??'')));
+    }
+    if(action==='request-review/read'&&request.method==='GET') {
+      const requestId=z.uuid().parse(request.nextUrl.searchParams.get('requestId'));
+      return json(await new RequestReview().read(guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??'')));
+    }
+    if(['request-review/apply','request-review/dismiss'].includes(action)&&request.method==='POST') {
+      const {requestId,input}=z.strictObject({requestId:z.uuid(),input:z.unknown()}).parse(await readJson(request));
+      return json(await new RequestReview().decide(action==='request-review/apply'?'apply':'dismiss',guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??''),input));
     }
     if(action.startsWith('imessage-entry/'))return await imessageEntryBrowser(request,action.slice(15));
     session=browserSession(request);

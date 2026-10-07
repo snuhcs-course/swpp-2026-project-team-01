@@ -22,7 +22,7 @@ test('real eve ingress binds request authority, deduplicates input and recovers 
   for (const [target, source] of Object.entries({
     'agent/agent.ts':'tests/runtime/fixture-agent.ts', 'agent/channels/eve.ts':'agent/channels/eve.ts',
     'agent/channels/conversations.ts':'agent/channels/conversations.ts',
-    'agent/tools/update_request_details.ts':'tests/runtime/fixture-update-tool.ts',
+    'agent/tools/propose_request_details.ts':'tests/runtime/fixture-update-tool.ts',
   })) await writeFile(join(fixture,target), `export { default } from ${JSON.stringify(resolve(source))};\n`);
   const build = spawn(process.execPath,[join(root,'node_modules/eve/bin/eve.js'),'build','--skip-sandbox-prewarm'], { cwd:fixture,stdio:['ignore','pipe','pipe'] });
   let buildLog=''; build.stdout.on('data', x=>buildLog+=x); build.stderr.on('data',x=>buildLog+=x);
@@ -72,12 +72,13 @@ test('real eve ingress binds request authority, deduplicates input and recovers 
     const message={clientId:randomUUID(),text:'save: a post-commit recovery test'};
     const sent=await post(`/api/conversations/${scope}/messages`,message); assert.equal(sent.status,202,await sent.clone().text());
     await waitUntil(async()=>{try{await access(marker);return true;}catch{return false;}},'Tool did not reach commit');
-    assert.equal(await sql.query(`select revision from fmat.requests where id='${requests[0]}';`),'2');
+    assert.equal(await sql.query(`select revision from fmat.requests where id='${requests[0]}';`),'1');
     assert.equal((await post(`/api/conversations/${scope}/messages`,{...message,text:'conflicting retry'})).status,409);
     await stop(); await writeFile(marker+'.release','resume'); await start(true);
     const retry=await post(`/api/conversations/${scope}/messages`,message); assert.equal(retry.status,202,await retry.clone().text());
     await waitUntil(async()=>await sql.query(`select status from fmat.runtime_messages where conversation_id='${scope}';`)==='completed','Runtime failed to recover after kill');
-    assert.equal(await sql.query(`select revision from fmat.requests where id='${requests[0]}';`),'2','interrupted tool commits one effect despite regenerated call ID');
+    assert.equal(await sql.query(`select revision from fmat.requests where id='${requests[0]}';`),'1','draft does not change scheduling details');
+    assert.equal(await sql.query(`select count(*) from fmat.request_detail_reviews where request_id='${requests[0]}' and status='pending' and proposed_details->>'purpose'='save: a post-commit recovery test';`),'1','interrupted tool creates one review despite regenerated call ID');
     assert.equal((await post(`/api/conversations/${scope}/messages`,message)).status,200);
     const controller=new AbortController();
     const stream=await fetch(`${origin}/api/conversations/${scope}/stream`,{headers:headers(),signal:controller.signal}); assert.equal(stream.status,200);

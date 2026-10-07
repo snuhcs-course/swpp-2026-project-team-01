@@ -16,9 +16,9 @@ export default defineAgent({
       return {toolCalls:[{id:randomUUID(),name:state?'update_setup_draft':'read_context',input:state?{expectedRevision:state.revision,patch:{rules:describedRules},unresolved:[]}:{context:'setup'}}]};
     }
     if (lastUserMessage?.startsWith('save:') && !toolResults.some(result => !result.isError &&
-      (result.output as { details?: { purpose?: string } })?.details?.purpose === lastUserMessage)) {
-      return { toolCalls: [{ id: randomUUID(), name: 'update_request_details', input: { expectedRevision: 1,
-        details: { requesterName: '', requesterEmail: '', purpose: lastUserMessage, timezone: '', windows: [], mode: '', location: '' },
+      (result.output as { review?: { details?: { purpose?: string } } })?.review?.details?.purpose === lastUserMessage)) {
+      return { toolCalls: [{ id: randomUUID(), name: 'propose_request_details', input: { expectedRevision: 1,
+        patch: { purpose: lastUserMessage }, clarifications: [],
       } }] };
     }
     return `Reply ${userMessageCount}: ${lastUserMessage}`;

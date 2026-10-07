@@ -30,6 +30,34 @@ export async function verifyPublicIntake(browser:Browser,origin:string,sql:Local
    assert.equal((await other.request.get(origin+'/api/browser/guest/state?requestId='+id)).status(),401);
    assert.equal((await other.request.post(origin+'/api/browser/intake/resume',{headers:{origin},data:{handle,attemptId:attempt}})).status(),401);
   }finally{await other.close();}
+  // A real eve tool stores a review; a lost browser decision response cannot
+  // duplicate the domain mutation or silently treat model prose as approval.
+  await page.getByLabel('Message your scheduling assistant').fill('save: A reviewed discussion');
+  await page.getByRole('button',{name:'Send',exact:true}).click();
+  await page.getByRole('button',{name:'Apply suggested details'}).waitFor();
+  await page.getByRole('status').filter({hasText:'Your conversation is saved.'}).waitFor();
+  await page.getByRole('button',{name:'Apply suggested details'}).focus();
+  assert.equal(await sql.query(`select revision from fmat.requests where id='${id}';`),'1');
+  assert.equal(await sql.query(`select details->>'purpose' from fmat.requests where id='${id}';`),'연구 이야기');
+  await page.locator('[aria-label="Review suggested details"]').evaluate(e=>e.scrollIntoView({block:'start'}));
+  await page.screenshot({path:'.local/rebuild/browser-screenshots/request-review-desktop.png',fullPage:true});
+  await page.evaluate(()=>{document.documentElement.style.zoom='2';});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.local/rebuild/browser-screenshots/request-review-zoom.png',fullPage:true});await page.evaluate(()=>{document.documentElement.style.zoom='';});
+  await page.setViewportSize({width:320,height:844});
+  await page.locator('[aria-label="Review suggested details"]').evaluate(e=>e.scrollIntoView({block:'start'}));
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  assert.ok(await page.getByRole('button',{name:'Apply suggested details'}).evaluate(e=>e.getBoundingClientRect().height>=44));
+  await page.screenshot({path:'.local/rebuild/browser-screenshots/request-review-mobile.png',fullPage:true});
+  await page.getByRole('button',{name:'Apply suggested details'}).focus();await page.keyboard.press('Tab');
+  assert.equal(await page.getByRole('button',{name:'Dismiss suggestions'}).evaluate(e=>e===document.activeElement),true);
+  assert.equal((await context.request.post(origin+'/api/browser/request-review/apply',{headers:{origin:'https://wrong.test'},data:{requestId:id,input:{}}})).status(),403);
+  let lostReview=false;await page.route('**/api/browser/request-review/apply',async route=>{if(lostReview)return route.continue();lostReview=true;const result=await route.fetch();assert.equal(result.status(),200);await route.abort('failed');});
+  await page.getByRole('button',{name:'Apply suggested details'}).click();await page.getByRole('button',{name:'Retry same action'}).waitFor();
+  await page.getByRole('button',{name:'Retry same action'}).click();await page.getByText('Suggested details applied.',{exact:true}).waitFor();await page.getByRole('heading',{name:'save: A reviewed discussion',exact:true}).waitFor();
+  assert.equal(await sql.query(`select revision from fmat.requests where id='${id}';`),'2');
+  assert.equal(await sql.query(`select count(*) from fmat.request_history where request_id='${id}' and operation='details_update';`),'1');
+  assert.equal(await sql.query(`select details->>'requesterName' from fmat.requests where id='${id}';`),'요청자','partial suggestion preserves other fields');
+  await page.reload();await page.getByText('Suggested details applied.',{exact:true}).waitFor();
+  await page.setViewportSize({width:1280,height:900});await page.screenshot({path:'.local/rebuild/browser-screenshots/request-review-applied.png',fullPage:true});
   await page.goto(origin+'/'+handle);await page.getByRole('link',{name:'Continue my request'}).waitFor();assert.equal(await page.getByRole('link',{name:'Continue my request'}).getAttribute('href'),'/booking/'+id);
   await page.reload();await page.getByRole('link',{name:'Continue my request'}).waitFor();
   await sql.query(`update fmat.requests set status='withdrawn',token_revoked_at=now() where id='${id}';`);
