@@ -2,6 +2,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { ArrowUpIcon, RefreshCwIcon } from 'lucide-react';
 import { useConversation, type ChatTarget } from '../lib/use-conversation.ts';
+import {SchedulingReview} from './scheduling-review.tsx';
 import {RequestDetailReview} from './request-detail-review.tsx';
 import { HostSetup } from './host-setup.tsx';
 import { CalendarConnection } from './calendar-connection.tsx';
@@ -16,6 +17,9 @@ import { Suggestion, Suggestions } from './ai-elements/suggestion';
 
 export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{target:ChatTarget;onAccessLost:()=>void;onRequestChanged?:()=>void}) {
   const chat=useConversation(target,onAccessLost),[draft,setDraft]=useState(''),id=useId(),input=useRef<HTMLTextAreaElement>(null);
+  const [requestRevision,setRequestRevision]=useState(0);
+  function requestChanged(){setRequestRevision(value=>value+1);onRequestChanged?.();}
+  function ask(text:string){setDraft(text);input.current?.focus();}
   const [followMessages,setFollowMessages]=useState(true),[followSequence,setFollowSequence]=useState(0);
   function followLatest(){setFollowMessages(true);setFollowSequence(value=>value+1);}
   const host=target.audience==='host_setup';
@@ -28,10 +32,11 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
         <MessageScrollerViewport aria-label="Conversation" className="scroll-py-2">
           <MessageScrollerContent className="p-2 md:p-4">
             <MessageScrollerItem messageId="welcome">
-              <Alert><AlertTitle>{host?'A place to plan your meetings':'Let’s work out the details'}</AlertTitle><AlertDescription>{host?'Tell me about the meetings you want to make room for. Connect your calendar below, then we’ll work through your meeting preferences.':'Share your purpose, availability and meeting preferences. Details can be saved here; proposal and booking controls are still being added.'}</AlertDescription></Alert>
+              <Alert><AlertTitle>{host?'A place to plan your meetings':'Let’s work out the details'}</AlertTitle><AlertDescription>{host?'Tell me about the meetings you want to make room for. Connect your calendar below, then we’ll work through your meeting preferences.':'Share your purpose, availability and meeting preferences. Review saved details, explore meeting times and agree to a current proposal here. Booking still requires host approval.'}</AlertDescription></Alert>
             </MessageScrollerItem>
             {host||('guest' in target&&target.guest)?<MessageScrollerItem messageId="calendar-connection" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><CalendarConnection requestId={'guest' in target&&target.guest?target.requestId:undefined}/></MessageScrollerItem>:null}
-            {'guest' in target&&target.guest?<MessageScrollerItem messageId="request-details" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><RequestDetailReview requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onSaved={onRequestChanged}/></MessageScrollerItem>:null}
+            {'guest' in target&&target.guest?<MessageScrollerItem messageId="request-details" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><RequestDetailReview requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onSaved={requestChanged}/></MessageScrollerItem>:null}
+            {'guest' in target&&target.guest?<MessageScrollerItem messageId="meeting-options" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><SchedulingReview requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onChanged={onRequestChanged} onAsk={ask}/></MessageScrollerItem>:null}
             {host?<MessageScrollerItem messageId="host-setup" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><HostSetup refreshKey={chat.messages.length+':'+chat.working} disabled={chat.denied||chat.working}/></MessageScrollerItem>:null}
             {chat.messages.map(message=><MessageScrollerItem key={message.id} messageId={message.id}>
               <Message align={message.role==='user'?'end':'start'}><MessageContent><MessageHeader>{message.role==='user'?(target.audience==='request_shared'?'Meeting participant':'You'):'Find Me a Time'}</MessageHeader><Bubble variant={message.role==='user'?'secondary':'ghost'} align={message.role==='user'?'end':'start'}><BubbleContent><span className="chat-text">{message.text}</span></BubbleContent></Bubble></MessageContent></Message>
