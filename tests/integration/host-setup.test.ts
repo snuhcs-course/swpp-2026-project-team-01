@@ -1,0 +1,51 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
+import {randomBytes,randomUUID,createHash} from 'node:crypto';
+import {HostSetup} from '../../lib/server/setup/commands.ts';
+import {CalendarSelection} from '../../lib/server/calendar/selection.ts';
+import {calendarScopes} from '../../lib/server/calendar/google.ts';
+import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
+import {Database} from '../../lib/server/database/client.ts';
+import {verifyHostToken,guestCredential} from '../../lib/server/identity/credentials.ts';
+import {ApplicationError} from '../../lib/server/errors.ts';
+import {LocalSql} from './local-sql.ts';
+const code=(value:string)=>(error:unknown)=>error instanceof ApplicationError&&error.code===value;
+test('host setup uses current authority, explicit review, provider permission and idempotent recovery',async()=>{
+ const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
+ const env={...process.env,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY,TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64')};
+ const headers={apikey:local.SERVICE_ROLE_KEY,authorization:'Bearer '+local.SERVICE_ROLE_KEY,'content-type':'application/json'},sql=new LocalSql(),email=randomUUID()+'@example.test',password=randomUUID()+randomUUID(),invitation=randomUUID();let host='';
+ const database=new Database(env),cipher=new TokenCipher(env);let role:'owner'|'reader'='owner',reads=0,gate:()=>Promise<void>=async()=>{};
+ const calendars=new CalendarSelection(database,env,{async refresh(bundle){return bundle;},async list(){reads++;await gate();return [{id:'mine',name:'Calendar',accessRole:role,primary:true,timeZone:'Asia/Seoul',color:null}];}}),setup=new HostSetup(database,calendars);
+ try{
+  const create=await fetch(local.API_URL+'/auth/v1/admin/users',{method:'POST',headers,body:JSON.stringify({email,password,email_confirm:true})});assert.equal(create.status,200);host=(await create.json()).id;
+  const login=await fetch(local.API_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:local.ANON_KEY,'content-type':'application/json'},body:JSON.stringify({email,password})});const token=(await login.json()).access_token,credential=await verifyHostToken(token,{env});
+  await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invitation}','${email}','${createHash('sha256').update(invitation).digest('hex')}',now()+interval '1 day','setup-test');insert into fmat.hosts(id,email,invitation_id,conflict_calendar_ids,booking_calendar_id) values('${host}','${email}','${invitation}',array['mine'],'mine');`);
+  const encrypted=cipher.seal({accessToken:'setup-private',refreshToken:'setup-refresh',subject:'fixture',scopes:[...calendarScopes.host],expiresAt:Date.now()+3600000},'google:host:'+host);
+  await sql.query(`insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential) values('host','${host}','fixture',array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],'${encrypted}');`);
+  const initial=await setup.read(credential);assert.equal(initial.revision,0);assert.ok(!JSON.stringify(initial).includes('setup-private'));
+  await assert.rejects(setup.read(guestCredential(randomUUID(),randomBytes(32).toString('base64url'))),code('FORBIDDEN'));
+  const draft={expectedRevision:0,idempotencyKey:randomUUID(),patch:{displayName:'Fixture',handle:'fixture-'+host.slice(0,8),rules:{timezone:'Asia/Seoul',durationMinutes:30,availability:[{days:[1,2,3,4,5],start:'13:00',end:'17:00'}],focusBlocks:[],bufferMinutes:10,preferences:'',meetingMode:'online' as const}},unresolved:[]};
+  let state=await setup.draft(credential,draft);assert.ok(state.review);assert.equal(state.confirmed.handle,null);assert.equal((await setup.draft(credential,draft)).revision,1);
+  const confirmation=()=>({expectedRevision:state.revision,draftRevision:state.review!.draftRevision,reviewRevision:state.review!.revision,rulesVersion:state.rulesVersion,calendarGeneration:state.calendarGeneration!,confirmed:true as const,idempotencyKey:randomUUID()});
+  const staleConfirmation=confirmation();
+  await sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${host}';`);
+  assert.equal((await setup.read(credential)).nextAction,'refresh_draft');
+  await assert.rejects(setup.draft(credential,{expectedRevision:state.revision,patch:{displayName:'Keep my answers'},unresolved:[],idempotencyKey:randomUUID()}),code('STALE_REVISION'));
+  await assert.rejects(setup.rebase(credential,{expectedRevision:state.revision,rulesVersion:state.rulesVersion,idempotencyKey:randomUUID()}),code('STALE_REVISION'));
+  const latest=await setup.read(credential),refresh={expectedRevision:latest.revision,rulesVersion:latest.rulesVersion,idempotencyKey:randomUUID()};
+  state=await setup.rebase(credential,refresh);assert.deepEqual(state.draft!.settings,latest.draft!.settings);assert.deepEqual(state.draft!.provenance,latest.draft!.provenance);assert.equal(state.confirmed.handle,null);
+  assert.equal((await setup.rebase(credential,refresh)).revision,state.revision);
+  await assert.rejects(setup.confirm(credential,staleConfirmation),code('STALE_REVISION'));
+  role='reader';await assert.rejects(setup.confirm(credential,confirmation()),code('CALENDAR_ACCESS_INVALID'));role='owner';
+  let release!:()=>void,entered!:()=>void;const arrived=new Promise<void>(r=>entered=r),wait=new Promise<void>(r=>release=r);gate=async()=>{entered();await wait;};
+  const pending=setup.confirm(credential,confirmation()),rejected=assert.rejects(pending,code('STALE_REVISION'));await arrived;
+  state=await setup.draft(credential,{expectedRevision:state.revision,patch:{rules:{durationMinutes:45}},unresolved:[],idempotencyKey:randomUUID()});release();await rejected;gate=async()=>{};
+  const confirm=confirmation(),saved=await setup.confirm(credential,confirm);assert.equal(saved.confirmed.rules?.durationMinutes,45);assert.equal(saved.nextAction,'settings_confirmed');
+  const before=reads;assert.equal((await setup.confirm(credential,confirm)).rulesVersion,saved.rulesVersion);assert.equal(reads,before,'confirmed retry requires current Auth but no second provider dispatch');
+  assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where host_id='${host}';`),'0');
+  const logout=await fetch(local.API_URL+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+token}});assert.equal(logout.status,204);await assert.rejects(setup.read(credential),code('UNAUTHORIZED'));await assert.rejects(setup.confirm(credential,confirm),code('UNAUTHORIZED'));
+ }finally{
+  if(host){await sql.query(`delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.audit_events where subject_id='${host}';delete from fmat.calendar_connections where principal_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);}await sql.close();
+ }
+});

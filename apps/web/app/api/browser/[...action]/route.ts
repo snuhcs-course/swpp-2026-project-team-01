@@ -11,6 +11,7 @@ import { browserSession, guestCookieName } from '../../../../lib/session.ts';
 import { calendarCommands, calendarCookie, calendarCredential } from '../../../../lib/calendar-browser.ts';
 import { conversationGateway } from '../../../../lib/conversation-gateway.ts';
 import { RequesterAvailability } from '../../../../../../lib/server/calendar/requester-availability.ts';
+import { HostSetup } from '../../../../../../lib/server/setup/commands.ts';
 import { CalendarSelection } from '../../../../../../lib/server/calendar/selection.ts';
 
 export const dynamic='force-dynamic';
@@ -50,6 +51,11 @@ async function handle(request:NextRequest,{params}:Context) {
         const credential=await calendarCredential(request,session,{requestId});
         return session.finish(json(operation==='check'?await service.check(credential):await service[operation as 'select'|'manual'](credential,input)));
       }
+    }
+    if(['setup/read','setup/draft','setup/rebase','setup/confirm'].includes(action)) {
+      const {credential}=await session.host(),service=new HostSetup();
+      if(action==='setup/read'&&request.method==='GET')return session.finish(json(await service.read(credential)));
+      if(request.method==='POST'&&action!=='setup/read')return session.finish(json(await service[action==='setup/draft'?'draft':action==='setup/rebase'?'rebase':'confirm'](credential,await readJson(request))));
     }
     if(action==='calendar/list'&&request.method==='GET') {
       const {credential}=await session.host();

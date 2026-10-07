@@ -78,7 +78,7 @@ $$;
 select ok(not has_function_privilege('authenticated','public.fmat_conversation_tool(uuid,uuid,text,jsonb)','EXECUTE'),'browser cannot call execution tool RPC');
 select ok(not has_function_privilege('anon','public.fmat_conversation_tool(uuid,uuid,text,jsonb)','EXECUTE'),'anonymous cannot call execution tool RPC');
 select ok(has_function_privilege('service_role','public.fmat_conversation_tool(uuid,uuid,text,jsonb)','EXECUTE'),'authored server tools can execute');
-select is(pg_temp.tool('setup1','setup_read')->>'admitted','true','private setup can read own settings');
+select is(pg_temp.tool('setup1','setup_read') ? 'confirmed',true,'private setup can read own confirmed settings and draft');
 select throws_ok($$select pg_temp.tool('guestgrant1','setup_read')$$,'P0001','FORBIDDEN','requester cannot read host rules');
 select throws_ok($$select pg_temp.tool('shared1','setup_read')$$,'P0001','FORBIDDEN','host shared context cannot read private rules');
 select throws_ok($$select pg_temp.tool('setup1','request_read')$$,'P0001','FORBIDDEN','setup cannot choose an arbitrary request');

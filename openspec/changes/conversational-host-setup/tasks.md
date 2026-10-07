@@ -1,13 +1,13 @@
 # Tasks
 
-All tasks describe replacement implementation and verification; none is complete. Follow the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md).
+Tasks describe replacement implementation and verification. Private draft persistence, protected admission/Calendar continuation and contract documentation are verified; full guided analysis, cross-channel setup and live acceptance remain open. Follow the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md).
 
 ## 1. Authorized state and shared operations
 
-- [ ] 1.1 Define host-owned conversation, turn, draft/review contracts and private persistence in root `lib/` and Supabase; verify migrations, cross-host/public denial, deduplication and revision constraints.
+- [x] 1.1 Define host-owned conversation, turn, draft/review contracts and private persistence in root `lib/` and Supabase; verify migrations, cross-host/public denial, deduplication and revision constraints.
 - [ ] 1.2 Implement shared authorized read/turn/review-confirm operations called by eve tools and web actions; test idempotency conflicts, ambiguous/invalid model output, stale cross-channel review and no booking authority.
-- [ ] 1.3 Implement protected admission and Google continuation; test interrupted/denied/swapped callbacks, authoritative resume, no false readiness and no secrets in context/transcripts.
-- [ ] 1.4 Update backend/frontend documentation with the implemented contracts and recovery behavior; verify descriptions match executable operations.
+- [x] 1.3 Implement protected admission and Google continuation; test interrupted/denied/swapped callbacks, authoritative resume, no false readiness and no secrets in context/transcripts.
+- [x] 1.4 Update backend/frontend documentation with the implemented contracts and recovery behavior; verify descriptions match executable operations.
 
 ## 2. Guided preferences and Calendar analysis
 

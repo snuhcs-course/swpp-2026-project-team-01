@@ -61,6 +61,12 @@ Keep application operations and their rules together within each capability unde
 
 The [page list](../user_experience/04_page_list.md#supporting-routes-and-surfaces) records proposed public routes and skill-document surfaces. Preserve the promised `findmeatime.com/SKILL.md` and `/{host}/SKILL.md` entry URLs independently of deployment paths.
 
+### Implemented host setup drafts
+
+`lib/contracts/setup.ts` and `lib/server/setup/commands.ts` expose private read, partial draft, explicit refresh and current-review confirmation. The service-only `fmat_host_setup` derives an admitted host from current Auth; eve uses the same private SQL operations through `fmat_conversation_tool` with assistant provenance. Host/conversation locks, immutable idempotency inputs and revision checks serialize changes. Drafts and reviews use the retained setup tables, with field provenance; they never mutate confirmed policy before explicit confirmation. Assistant suggestions cannot overwrite explicit host choices, supply applicable human mode/location/travel answers or confirm policy.
+
+A rules/calendar change hides stale reviews. A protected refresh retains answers/provenance and creates a review against the current rules version; ordinary stale edits fail without resetting answers. Confirmation re-fetches Google calendar metadata and write permission, then atomically rechecks draft/review/conversation/rules/grant versions. A committed confirmation replay requires current Auth but avoids another provider read or save. No setup operation grants booking authority. Full Calendar analysis and linked-channel setup remain pending.
+
 ## 3. Entry surfaces
 
 | Surface | Replacement responsibility (all require implementation and verification) |

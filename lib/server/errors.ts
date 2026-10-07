@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { ErrorCode } from '../contracts/errors.ts';
 
 const messages: Record<ErrorCode, string> = {
+  EXPLICIT_CHOICE_CONFLICT: 'An explicit preference already exists. Ask the host to edit that choice before replacing it.',
+  HANDLE_UNAVAILABLE: 'This booking name is already in use. Choose another.',
   CALENDAR_ACCESS_INVALID: 'A calendar choice no longer has the required access. Reload your calendars and choose again.',
   OAUTH_STATE_INVALID: 'This connection link expired or belongs to another browser. Start again from your workspace.',
   RECONNECT_REQUIRED: 'Calendar access could not be confirmed. Reconnect Google and grant the requested permissions.',

@@ -243,3 +243,9 @@ Use correlation IDs and timings for request, conversation, message, command and 
 ## Remaining design decisions
 
 Backend design must finalize new schema/command interfaces, API/worker placement, durable effect processing, provider ingestion/delivery, requester credential recovery, OAuth consent hosting and client support. The runtime check must settle eve persistence/deployment, event-to-projection reconciliation, live update transport and dependency versions. These do not reopen the confirmed full-source rebuild boundary. Host email, native apps, general inbox management and automated post-booking changes remain outside this frontend design unless product scope changes.
+
+## Implemented draft and review controls
+
+The `/app` setup card calls protected `GET /api/browser/setup/read` and POST `/draft`, `/rebase`, `/confirm`. Current server state supplies confirmed settings, the private draft, unresolved questions and the review. Profile, schedule, mode, location and travel editors stay inside the chat and capture their starting revision. An uncertain save retries its frozen input/key; explicit reload discards the pending local action and reads authoritative state. Consent denial and page reload preserve server drafts.
+
+Online-only omits physical preferences; in-person/either requires explicit location policy, transportation (including per trip) and extra travel buffer. Starter schedule defaults are labeled and editable. Applicable values cannot become explicit answers through assistant inference. A ready review has one primary confirmation action. Stale rules/calendar choices show a refresh action that preserves draft answers and requires review again. Full Calendar scan/suggestion cards, preset alignment and inline iMessage linking remain unfinished; settings confirmation alone does not advertise a working booking link.

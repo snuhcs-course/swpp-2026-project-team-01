@@ -12,7 +12,10 @@ begin
   when 'setup_read' then
     if v_access->>'audience' not in ('host_setup','host_private') or v_actor->>'kind'<>'host' then raise exception 'FORBIDDEN'; end if;
     if p_input<>'{}'::jsonb then raise exception 'INVALID_INPUT'; end if;
-    return public.fmat_command('setup_read',v_actor,'{}');
+    return fmat.host_setup_operation('read',v_actor,'{}','assistant');
+  when 'setup_draft' then
+    if v_access->>'audience'<>'host_setup' or v_actor->>'kind'<>'host' then raise exception 'FORBIDDEN'; end if;
+    return fmat.host_setup_operation('draft',v_actor,p_input,'assistant');
   when 'request_read' then
     if v_request_id is null then raise exception 'FORBIDDEN'; end if;
     if p_input<>'{}'::jsonb then raise exception 'INVALID_INPUT'; end if;

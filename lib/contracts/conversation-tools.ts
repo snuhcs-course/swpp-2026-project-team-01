@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {draftInput} from './setup.ts';
 
 const revision = z.number().int().nonnegative();
 const window = z.strictObject({ start: z.iso.datetime({ offset: true }), end: z.iso.datetime({ offset: true }) });
@@ -13,6 +14,7 @@ export const detailsUpdateInput = z.strictObject({ expectedRevision: revision, d
 
 // No actor, request ID, execution grant, or human decision in model input.
 export const conversationTool = z.discriminatedUnion('operation', [
+  z.strictObject({ operation: z.literal('setup_draft'), input: draftInput }),
   z.strictObject({ operation: z.literal('setup_read'), input: z.strictObject({}) }),
   z.strictObject({ operation: z.literal('request_read'), input: z.strictObject({}) }),
   z.strictObject({ operation: z.literal('private_note_save'), input: privateNoteInput }),

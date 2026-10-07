@@ -130,7 +130,7 @@ begin
   if jsonb_typeof(p_rules) is distinct from 'object' or not exists(select 1 from pg_catalog.pg_timezone_names where name=p_rules->>'timezone')
     or coalesce((p_rules->>'durationMinutes')::integer,0) not between 5 and 240
     or coalesce((p_rules->>'bufferMinutes')::integer,-1) not between 0 and 240
-    or coalesce(p_rules->>'travelMode','') not in ('DRIVE','TRANSIT','WALK','BICYCLE')
+    or coalesce(p_rules->>'travelMode','') not in ('DRIVE','TRANSIT','WALK','BICYCLE','PER_TRIP','NONE')
     or jsonb_typeof(p_rules->'availability') is distinct from 'array' or jsonb_array_length(p_rules->'availability')=0
     or jsonb_typeof(p_rules->'focusBlocks') is distinct from 'array'
     or jsonb_typeof(p_rules->'preferences') is distinct from 'string' or length(p_rules->>'preferences')>5000 then raise exception 'INVALID_INPUT'; end if;
@@ -207,7 +207,7 @@ begin
   when 'setup_read','calendar_read' then return fmat.setup_view(fmat.require_host(p_actor,false));
   when 'setup_save' then
     v_host_id:=fmat.require_host(p_actor,true);
-    if coalesce(p_input->>'handle','') !~ '^[a-z][a-z0-9-]{2,39}$' or p_input->>'handle' in ('host','requests','api','operator','auth','skills')
+    if coalesce(p_input->>'handle','') !~ '^[a-z][a-z0-9-]{2,39}$' or p_input->>'handle' in ('host','requests','api','operator','auth','skills','app','booking','connections','connect','_next','favicon','robots','sitemap')
       or length(trim(coalesce(p_input->>'displayName',''))) not between 1 and 120 then raise exception 'INVALID_INPUT'; end if;
     perform fmat.validate_rules(p_input->'rules');
     update fmat.hosts set handle=p_input->>'handle',display_name=trim(p_input->>'displayName'),rules=p_input->'rules',rules_version=rules_version+1,updated_at=now() where id=v_host_id;
