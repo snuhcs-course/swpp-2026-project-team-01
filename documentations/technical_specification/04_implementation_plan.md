@@ -181,7 +181,7 @@ Incremental completion (full phase exit remains open):
 - [x] Implement and verify frozen Calendar insert/reconciliation transport with exact event identity, minimized evidence and conservative uncertain-write outcomes.
 - [x] Deploy the verified transport step and check production regressions (`6a9a146`; deployment `dpl_HjWETgpGgMuj5R64buNozSyLN4X3`; [evidence](05_rebuild_evidence.md#frozen-calendar-booking-transport--2026-10-07)). Explicit approval, fenced worker dispatch and live booking acceptance remain in the work below.
 - [x] Implement and verify exact-version authenticated web approval, immutable replay, a separate confirmation card and atomic pending-booking job creation.
-- [ ] Deploy the browser approval step and verify selected production schema/API boundaries.
+- [x] Deploy the browser approval step and verify selected production schema/API boundaries (`1c9e0ed`; deployment `dpl_41zwLcJcs5EWn59vhTbHTJq8gMPE`; [evidence](05_rebuild_evidence.md#exact-version-browser-host-approval--2026-10-07)).
 
 Work:
 
