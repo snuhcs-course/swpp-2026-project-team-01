@@ -46,6 +46,8 @@ Local verification uses Chromium 153.0.8010.12 through Playwright 1.63.0, real d
 
 Final visual verdict: pass for phone/code/action readability at 320px, desktop 1280px and 200% CSS magnification, reduced motion, visible keyboard focus, non-overlapping controls and no horizontal overflow. Actual iPhone Safari/native zoom and live private delivery remain unverified. Setup tasks 3.1 and 3.3 are complete, bringing the change to 8/20. Full cross-channel setup, public-link readiness, complete AC-28 and every phase/release exit remain open. The receiver remains inactive.
 
+Deployed code `d5913ff` as `dpl_5zBnQiKbJhmqbVcfufpAg1h3KJcs` (`https://findmeatime-release-q7tpbperb-justdodos-projects.vercel.app`), verified Ready and aliased to `https://release.findmeatime.com`. The Vercel project/scope were reidentified before deployment. Upload preflight checked 302 regular files against 12 configured credential values with no matches. No database migration or receiver configuration changed. Production web/eve health return 200; all seven anonymous linking actions return 401 with no-store, cross-origin start returns 403, the internal worker denies anonymous calls and the unconfigured Photon receiver returns 503. Production landing/Auth screenshots pass 320px and 1280px reflow with Inter loaded. These public probes send no Auth email, iMessage or Calendar event. Code CI runs `37563438371` and `37563434087` remain in progress at evidence capture; release readiness remains false.
+
 ## Change ownership
 
 | Owner | Responsibility |
