@@ -94,6 +94,15 @@ Not-tested: <known gaps in verification>
 
 Use `Rejected:` to record alternatives future modifiers should not revisit and `Directive:` for warnings. Include only trailers that add useful context.
 
+## AI usage records
+
+Each task is one branch, and each task reports the Claude Code and Codex tokens spent on it.
+
+- One-time setup per clone: `git config core.hooksPath .githooks`. The pre-commit hook then runs `node scripts/ai-usage.mjs record --stage` on every commit, which reads the local Claude Code and Codex logs (CLI and desktop app) and updates `ai-usage/<branch>/<git user.email>.json`. It stores token counts only, never prompts.
+- Usage is attributed by the working directory and by which branch that worktree had checked out at the time, so run agents inside the repository (or its worktrees). The post-checkout hook logs every branch switch and `git worktree add` to `.git/ai-usage-branches.log`, so usage in worktrees that were later removed still counts; set up the hooks before creating task worktrees. Cloud sessions (Claude Code on the web, Codex cloud) leave no local logs and are not recorded.
+- Usage after the last commit is picked up by the next commit. Commit once more before asking for review if agents ran since.
+- Do not edit `ai-usage/` files by hand. `node scripts/ai-usage.mjs report [branch]` prints the table; the `AI usage` workflow posts it as a comment on each pull request.
+
 ## Shared skills
 
 Project skills live in `.agents/skills/`. Read the matching `SKILL.md` before working in its area:

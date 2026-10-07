@@ -1,0 +1,5 @@
+#!/bin/sh
+# Logs which branch this worktree has checked out, for scripts/ai-usage.mjs.
+# The log lives in the common .git directory so it survives `git worktree remove`.
+branch=$(git branch --show-current)
+printf '%s\t%s\t%s\n' "$(date +%s)" "$(pwd -P)" "${branch:-HEAD}" >> "$(git rev-parse --git-common-dir)/ai-usage-branches.log"
