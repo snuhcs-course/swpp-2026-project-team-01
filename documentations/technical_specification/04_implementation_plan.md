@@ -178,6 +178,8 @@ References: [requester destination](../user_experience/04_page_list.md#requester
 
 Incremental completion (full phase exit remains open):
 
+- [x] Implement and unit-test the Cloudflare transactional transport with a fixed sender/account, bounded responses, intended-recipient acceptance evidence and no automatic retry after uncertain responses. Durable booking delivery, live inbox acceptance and production activation remain open.
+
 - [x] Implement and verify the protected host/requester confirmed receipt from the frozen booking snapshot, with audience-specific delivery status, safe links, expiry/rotation enforcement and browser reflow coverage. Full notification delivery remains open.
 - [x] Deploy the protected receipt API/UI and verify production authority boundaries and 40 HTTP regressions (`a4105bc`; deployment `dpl_7dnnS7WAEs2F8yu5uHjx5n4kpoms`; [evidence](05_rebuild_evidence.md#protected-confirmed-receipt--2026-10-07)).
 
