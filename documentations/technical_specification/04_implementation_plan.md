@@ -159,7 +159,7 @@ References: [single host page](../user_experience/04_page_list.md#primary-pages)
 Incremental completion (full phase exit remains open):
 
 - [x] Implement and verify explicit requester withdrawal and host decline, including minimal closure status, lost-response recovery and booking uncertainty (1,004 SQL assertions, 18 integration tests, browser/recovery checks).
-- [ ] Deploy request closure and verify the selected production database/API boundaries.
+- [x] Deploy request closure and verify the selected production database/API boundaries (`3e5db21`; deployment `dpl_5Y2wqC5PujgFL3GHUqtim1kjDw8u`; [evidence](05_rebuild_evidence.md#explicit-withdrawal-and-decline--2026-10-07)).
 
 Work:
 
