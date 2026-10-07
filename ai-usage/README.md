@@ -103,6 +103,7 @@ Claude와 Codex(OpenAI)는 토큰을 세는 방식이 다릅니다. OpenAI는 ca
 - **repo 밖에서 연 세션.** 예를 들어 상위 폴더에서 에이전트를 열고 repo 파일을 고친 경우입니다. 어느 repo 작업인지 알 수 없어서 빠집니다. 에이전트는 반드시 repo 폴더 안에서 여세요.
 - **별도 clone이나 다른 repo에서 한 작업.**
 - **클라우드 세션**: Claude Code on the web, Codex cloud. 로컬에 로그가 남지 않습니다.
+- **agent time 중 일부 turn.** Claude Code는 turn이 끝날 때 `turn_duration`을 남기는데, 중간에 중단한 turn에도 남는지는 확인하지 못했습니다. 남지 않는다면 그 turn의 시간은 빠집니다(토큰은 그대로 집계됩니다). Codex는 중단된 turn도 시작 시각부터 계산합니다.
 - **로컬 로그가 지워진 경우.** Claude Code는 오래된 로그를 자동으로 지웁니다(`cleanupPeriodDays`). 한 번 커밋된 기록은 로그가 지워진 뒤에도 유지됩니다.
 
 ## 파일 구성
@@ -115,7 +116,7 @@ Claude와 Codex(OpenAI)는 토큰을 세는 방식이 다릅니다. OpenAI는 ca
 | `.github/workflows/ai-usage.yml` | PR에 집계 표를 댓글로 게시 |
 | `ai-usage/<branch>/<email>.json` | 기록 파일. 직접 수정하지 마세요. 다음 커밋 때 다시 계산됩니다 |
 
-API 가격표는 `scripts/ai-usage.mjs` 위쪽의 `PRICES`에 있습니다. 출처 링크와 확인 날짜가 함께 적혀 있습니다. 새 모델을 쓰거나 가격이 바뀌면 그 부분만 고치면 됩니다. 기록 파일에는 토큰 수만 저장되므로, 다시 기록하지 않아도 `report`에 바로 반영됩니다.
+API 가격표는 `scripts/ai-usage.mjs` 위쪽의 `PRICES`에 있습니다. 출처 링크와 확인 날짜가 함께 적혀 있습니다. 새 모델을 쓰거나 가격이 바뀌면 그 부분만 고치면 됩니다. 기록 파일에는 가격이 아니라 토큰 수와 시간이 저장되므로, 다시 기록하지 않아도 `report`에 바로 반영됩니다.
 
 ## 문제 해결
 
