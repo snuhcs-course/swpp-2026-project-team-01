@@ -86,7 +86,7 @@ References: [Photon CLI skill](../../.agents/skills/photon-cli/SKILL.md), [routi
 
 ### First message and host onboarding
 
-The proposed host flow offers **Connect iMessage** inside authenticated chat: enter a private number, receive a six-digit code in that conversation, then enter it in a protected browser input to confirm the link. Keep code values out of model context, transcripts and logs. Neither requesting a code nor receiving an inbound message establishes host authority, notification consent or proposal approval.
+The implemented browser card offers **Connect iMessage** after settings confirmation inside authenticated chat: enter a private number, receive a six-digit code in that conversation, then enter it in a protected browser input to confirm the link. Keep code values out of model context, transcripts and logs. Neither requesting a code nor receiving an inbound message establishes host authority, notification consent or proposal approval.
 
 Verify live delivery and shared-pool eligibility before enabling the flow. Offer web continuation when linking fails. The [host setup conversation](02_frontend_architecture.md#host-setup-conversation) and [pending OpenSpec change](../../openspec/changes/conversational-host-setup/proposal.md) own the UX and authorization contract. See [Photon deliverability guidance](https://photon.codes/docs/best-practices/imessage-deliverability).
 

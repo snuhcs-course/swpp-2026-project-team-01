@@ -3,6 +3,10 @@ const originalFetch=globalThis.fetch;
 let unavailableReads=0;
 globalThis.fetch=async(input,init)=>{
   const url=new URL(input instanceof Request?input.url:String(input));
+  if(url.origin==='https://spectrum.photon.codes'){
+    if(url.pathname!==`/projects/${process.env.PHOTON_PROJECT_ID}/imessage/tokens`)return new Response(null,{status:401});
+    return Response.json({succeed:true,data:{type:'shared',token:'browser-photon-fixture',expiresIn:300}});
+  }
   if(url.origin==='https://www.googleapis.com'&&url.pathname==='/calendar/v3/users/me/calendarList'){
     const headers=new Headers(init?.headers??(input instanceof Request?input.headers:undefined));
     if(!['Bearer browser-calendar-fixture','Bearer browser-requester-fixture'].includes(headers.get('authorization')))return new Response(null,{status:401});

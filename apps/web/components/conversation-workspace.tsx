@@ -24,7 +24,7 @@ export function ConversationWorkspace({target,onAccessLost}:{target:ChatTarget;o
     <MessageScrollerProvider autoScroll={followMessages}>
       <FollowSentMessage sequence={followSequence}/>
       <MessageScroller>
-        <MessageScrollerViewport aria-label="Conversation">
+        <MessageScrollerViewport aria-label="Conversation" className="scroll-py-2">
           <MessageScrollerContent className="p-2 md:p-4">
             <MessageScrollerItem messageId="welcome">
               <Alert><AlertTitle>{host?'A place to plan your meetings':'Let’s work out the details'}</AlertTitle><AlertDescription>{host?'Tell me about the meetings you want to make room for. Connect your calendar below, then we’ll work through your meeting preferences.':'Share your purpose, availability and meeting preferences. Details can be saved here; proposal and booking controls are still being added.'}</AlertDescription></Alert>
@@ -36,7 +36,9 @@ export function ConversationWorkspace({target,onAccessLost}:{target:ChatTarget;o
             </MessageScrollerItem>)}
           </MessageScrollerContent>
         </MessageScrollerViewport>
-        <MessageScrollerButton aria-label="Jump to latest message" onClick={followLatest}/>
+        <div className="flex shrink-0 justify-end p-1">
+          <MessageScrollerButton aria-label="Jump to latest message" onClick={followLatest} size="sm" className="static min-h-11 translate-x-0 data-[direction=end]:data-[active=false]:translate-y-0">Latest message</MessageScrollerButton>
+        </div>
       </MessageScroller>
     </MessageScrollerProvider>
     <div className="conversation-controls">

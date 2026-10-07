@@ -38,6 +38,7 @@
     "cn": "0.4.0",
     "eve": "0.71.3",
     "google-auth-library": "11.1.0",
+    "input-otp": "1.5.0",
     "lucide-react": "1.52.0",
     "next": "16.4.0",
     "nice-grpc": "2.1.16",

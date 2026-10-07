@@ -248,13 +248,13 @@ Backend design must finalize new schema/command interfaces, API/worker placement
 
 The `/app` setup card calls protected `GET /api/browser/setup/read` and POST `/draft`, `/rebase`, `/confirm`, `/progress`. Current server state supplies confirmed settings, the private draft, unresolved questions and the review. Profile, schedule, mode, location and travel editors stay inside the chat and capture their starting revision. An uncertain save retries its frozen input/key; explicit reload discards the pending local action and reads authoritative state. Consent denial and page reload preserve server drafts.
 
-Online-only omits physical preferences; in-person/either requires explicit location policy, transportation (including per trip) and extra travel buffer. Starter schedule defaults are labeled and editable. Applicable values cannot become explicit answers through assistant inference. A ready review has one primary confirmation action. Stale rules/calendar choices show a refresh action that preserves draft answers and requires review again. Preset alignment and inline iMessage linking remain unfinished; settings confirmation alone does not advertise a working booking link.
+Online-only omits physical preferences; in-person/either requires explicit location policy, transportation (including per trip) and extra travel buffer. Starter schedule defaults are labeled and editable. Applicable values cannot become explicit answers through assistant inference. A ready review has one primary confirmation action. Stale rules/calendar choices show a refresh action that preserves draft answers and requires review again. The selected preset and inline iMessage linking controls are implemented; settings confirmation alone does not advertise a working booking link.
 
 ## Implemented Calendar suggestion cards
 
 An optional in-chat card discloses scan scope and limits before reading selected calendars. Calendar role descriptions suggest the primary calendar as a starting point without silently selecting it; read-only calendars remain valid analysis sources but cannot become booking destinations. Scan results display dates/timezone, a weekly text preview, explained gaps or labeled defaults, evidence limitations and private quoted place candidates. Use/dismiss/reload/manual controls preserve explicit preferences; using a schedule changes only a draft. Observations do not answer mode/location or transportation questions. Results poll private server state every 30 seconds and never poll Google automatically.
 
-The deterministic browser journey covers failure/reload/retry/application and narrow-screen action containment. Preset alignment, complete cross-channel pacing, iMessage continuation and live AC-28 remain unfinished.
+The deterministic browser journey covers failure/reload/retry/application and narrow-screen action containment. Complete cross-channel pacing, linked iMessage conversation and live AC-28 remain unfinished.
 
 ## Implemented focused setup guidance
 
@@ -275,3 +275,11 @@ Supported mode/location/transport/buffer values extracted into the current draft
 Selection uses the existing revision/idempotency-protected draft action and preserves derivation separately from host provenance. It does not save settings. Final confirmation remains a separate exact-review action. Reload or a new draft revision resets unsubmitted checkbox state, and accepted answers are reused on resume. A lost response retries the same selection intent. This browser review also works without a model connection after extraction has been persisted; actual linked iMessage equivalence remains pending.
 
 Focusing Calendar or setup controls pauses automatic conversation following. Replayed user messages do not create forced scroll anchors that can pull a focused control off screen. Sending a new message or choosing **Jump to latest message** explicitly resumes following; ordinary transcript scrolling continues through the installed scroller's public API.
+
+### Inline iMessage connection card
+
+After current settings confirmation, the chat renders `IMessageLink` with optional connection or persisted skip. Phone/code forms call only protected browser endpoints. They never append input to the composer, model messages, setup turns or browser storage. The code clears on submit and is absent after reload; uncertain retry retains only its attempt ID and a transient digest that requires re-entering the same value. A wrong code returns focus to an invalid, empty input. Start retries retain the original recipient/request identity until a verified response or explicit status refresh.
+
+Masked challenge/link state refreshes every ten seconds while visible and on window focus. Mutation generations reject stale background responses. Expiry, attempt limits, wrong-browser guidance, delivery failure, cooldown, change-number, skip and confirmed unlink remain inline. Provider acceptance is distinct from delivery, and disabled configuration keeps web continuation available. These controls use the selected olive/green/Inter shadcn preset; the six code slots have a 44px height. Actual iPhone handoffs and live linked conversation remain separate acceptance gates.
+
+The preset’s light-mode muted foreground is darkened to OKLCH lightness 0.54 so small helper text reaches at least 4.5:1 against both white and muted surfaces. The latest-message control occupies its own chat footer, with a 44px target, so it cannot obscure inline actions. The message-scroller primitive continues to own scroll state and inactive-control behavior.

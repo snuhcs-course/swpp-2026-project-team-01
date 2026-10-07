@@ -8,6 +8,7 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {startBrowserRuntime} from '../runtime/fixture-server.ts';
 import {chromium} from '@playwright/test';
 import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
+import {photonProject} from './setup-imessage.ts';
 import {verifyNoHistory} from './setup-no-history.ts';
 import {LocalSql} from '../integration/local-sql.ts';
 
@@ -16,7 +17,7 @@ test('browser access verifies email, invitation, logout, and request cookies wit
   assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
   const origin='http://localhost:3000';
   const runtime=await startBrowserRuntime(local,origin);
-  const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','apps/web','-p','3000'],{env:{...process.env,NODE_OPTIONS:'--import='+new URL('./google-fixture.mjs',import.meta.url).href,GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64'),APP_ORIGIN:origin,EVE_LOCAL_ORIGIN:runtime.origin,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY},stdio:['ignore','pipe','pipe']});
+  const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','apps/web','-p','3000'],{env:{...process.env,NODE_OPTIONS:'--import='+new URL('./google-fixture.mjs',import.meta.url).href,PHOTON_PROJECT_ID:photonProject,PHOTON_PROJECT_SECRET:'browser-photon-fixture',GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64'),APP_ORIGIN:origin,EVE_LOCAL_ORIGIN:runtime.origin,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY},stdio:['ignore','pipe','pipe']});
   let log='';child.stdout.on('data',v=>log+=v);child.stderr.on('data',v=>log+=v);
   const sql=new LocalSql();const email=`browser-${randomUUID()}@example.test`,invitation=randomUUID(),requestId=randomUUID();
   const token=randomBytes(32).toString('base64url'),code='ABCDEFGHIJKLMNOP';let userId:string|undefined,callback='';

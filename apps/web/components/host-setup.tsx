@@ -4,6 +4,7 @@ import {setupState,setupPatch,type SetupState,type SetupPatch} from '../../../li
 import {setupGuide} from '../../../lib/contracts/setup-guide.ts';
 import {SetupGuidance} from './setup-guidance';
 import {CalendarAnalysis} from './calendar-analysis';
+import {IMessageLink} from './imessage-link';
 import {Button} from './ui/button';
 import {Input} from './ui/input';
 import {Textarea} from './ui/textarea';
@@ -36,6 +37,7 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
   <FieldSet><FieldLegend>Your meeting setup</FieldLegend><FieldDescription>Preferences stay private drafts until you confirm the exact review. You can describe them in chat or edit a step here.</FieldDescription>
    {!state?<p role="status">Loading setup…</p>:<>
     {guide?<SetupGuidance state={state} disabled={locked} editing={!!editor} onEdit={openEditor} onProgress={progress} onUse={suggest} onResolve={()=>void mutate('draft',{expectedRevision:state.revision,patch:{rules:{}},unresolved:state.draft?.clarifications.slice(1)??[]})}/>:null}
+    {state.nextAction==='settings_confirmed'?<IMessageLink/>:null}
     <CalendarAnalysis setup={state} disabled={locked} onSkip={()=>progress('skip_analysis')} onChange={refreshAfterAnalysis}/>
     <p>{state.nextAction==='settings_confirmed'?'Your settings are confirmed.':state.calendarSelected?'Calendar choices are saved. Let’s review your preferences.':'Connect Google and confirm calendar choices above. You can draft preferences meanwhile.'}</p>
     {settings?.displayName?<p>{settings.displayName}{settings.handle?' · '+settings.handle:''}</p>:null}

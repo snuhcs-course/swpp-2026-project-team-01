@@ -19,9 +19,9 @@ Tasks describe replacement implementation and verification. Private draft persis
 
 ## 3. Next.js chat and action cards
 
-- [ ] 3.1 Integrate verified AI Elements primitives with the selected shadcn preset and eve transport in `apps/web/`; verify production build, authorization and persisted reload/resume.
+- [x] 3.1 Integrate verified AI Elements primitives with the selected shadcn preset and eve transport in `apps/web/`; verify production build, authorization and persisted reload/resume.
 - [ ] 3.2 Render connection/calendar cards, true scan states, editable weekly preview, location/travel actions and final review inside `/app`; test keyboard/mobile/zoom/reduced-motion behavior and structured recovery during model failure.
-- [ ] 3.3 Implement inline phone/code/connected states with skip, retry, expiry and change-number; verify protected fields never enter model, transcript, analytics or persisted card state.
+- [x] 3.3 Implement inline phone/code/connected states with skip, retry, expiry and change-number; verify protected fields never enter model, transcript, analytics or persisted card state.
 - [ ] 3.4 Run the required visual review loop and update interface documentation; verify completed steps remain editable and consent return retains focus/current progress.
 
 ## 4. Private iMessage proof and transport
