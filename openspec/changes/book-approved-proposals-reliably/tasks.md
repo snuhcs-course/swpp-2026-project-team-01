@@ -8,7 +8,7 @@ Tasks describe replacement implementation and verification; completion is tracke
 - [x] 1.1 Add attributable explicit authenticated web approval for exact current version/revision and separate requester agreement records; verify stale approval, changed details, arbitrary client confirmation, and concurrent decisions.
 - [ ] 1.2 Add one durable booking identity per request, immutable attempts, provider-valid stable IDs, consistent host/request lock ordering, reservations, and fenced ownership; verify uniqueness and competing host requests.
 - [ ] 1.3 Add desired SQL and reviewed migration for decisions/attempts/reservations/outbox; verify local reset, service-only guards, atomic publication, and preserved uncertain records.
-- [ ] 1.4 Document approval evidence and dispatch cutoff in owning technical/setup documentation; verify UI communicates pending booking and no client/model field is accepted as human evidence.
+- [x] 1.4 Document approval evidence and dispatch cutoff in owning technical/setup documentation; verify UI communicates pending booking and no client/model field is accepted as human evidence.
 
 ## 2. Revalidated dispatch and reconciliation
 

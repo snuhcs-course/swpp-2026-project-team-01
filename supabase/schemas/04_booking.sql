@@ -273,6 +273,9 @@ begin
     if v_request.expires_at<=clock_timestamp() or v_attempt.starts_at<=clock_timestamp()
       or (p_input->'feasibility'->>'checkedAt')::timestamptz<clock_timestamp()-interval '30 seconds'
       then raise exception 'FEASIBILITY_STALE'; end if;
+    -- Rebuilt web approvals must consume saved lease-bound evidence through
+    -- fmat_booking_dispatch; a caller-supplied feasibility flag is insufficient.
+    if exists(select 1 from fmat.web_approval_decisions where approval_id=v_attempt.approval_id) then raise exception 'FEASIBILITY_STALE';end if;
     update fmat.booking_attempts set phase='dispatched',dispatched_at=clock_timestamp(),updated_at=clock_timestamp() where id=v_attempt.id;
     perform fmat.audit(p_operation,p_actor,v_attempt.id::text);
     return jsonb_build_object('dispatched',true);

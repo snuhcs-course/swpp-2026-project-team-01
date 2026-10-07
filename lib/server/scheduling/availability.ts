@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {bookingLease} from '../booking/dispatch.ts';
 import {z} from 'zod';
 import {availabilityCheckInput,availabilityCheckReceipt} from '../../contracts/availability-evaluation.ts';
 import {intervalFeasibilityInput,schedulingInterval} from '../../contracts/interval-feasibility.ts';
@@ -21,7 +22,6 @@ import {candidateEvidence,evidenceReceipt,type CandidateAssessment} from './evid
 
 const batchOptions=z.strictObject({stepMinutes:z.number().int().min(1).max(240),limit:z.number().int().min(1).max(30)});
 const grant=z.object({principalId:z.uuid(),providerSubject:z.string(),encryptedCredential:z.string(),calendarIds:z.array(z.string()).min(1).max(50)});
-const bookingLease=z.strictObject({workerId:z.string().min(1).max(200),jobId:z.uuid(),leaseToken:z.uuid()});
 const snapshot=z.object({bookingCalendarId:z.string().min(1).nullable().optional(),preferenceDecisions:z.array(verifiedPreferenceDecision).max(30),travelBasis:z.string().regex(/^[a-f0-9]{64}$/u),allowances:z.array(verifiedTravelAllowance).max(20),checkId:z.uuid(),basis:z.string().regex(/^[a-f0-9]{64}$/u),revision:z.number().int().positive(),rulesVersion:z.number().int().nonnegative(),
  details:z.object({windows:intervalFeasibilityInput.shape.windows,timezone:intervalFeasibilityInput.shape.requesterTimezone,durationMinutes:intervalFeasibilityInput.shape.durationMinutes,mode:z.string().optional(),location:z.string().optional()}),
  rules:intervalFeasibilityInput.shape.rules.loose(),localBookings:z.array(schedulingInterval),localCommitments:z.array(z.object({id:z.uuid(),calendarId:z.string(),eventId:z.string(),version:z.string(),interval:schedulingInterval,location:z.string().nullable()})).max(10000),mode:z.enum(['manual','calendar']),host:grant,guest:grant.nullable()});
