@@ -5,36 +5,36 @@
     "claude:50d3ca4f-4e09-450b-8483-224033f25b8b": {
       "agent": "claude-code",
       "client": "cli",
-      "agent_ms": 828414,
+      "agent_ms": 1039665,
       "models": {
         "claude-opus-5-5": {
-          "input": 122,
-          "cache_read": 12254726,
+          "input": 136,
+          "cache_read": 14263448,
           "cache_write_5m": 0,
-          "cache_write_1h": 97051,
-          "output": 70940,
+          "cache_write_1h": 106032,
+          "output": 76119,
           "reasoning": 0
         }
       },
       "first": "2026-10-07T10:11:26.530Z",
-      "last": "2026-10-07T11:01:09.029Z"
+      "last": "2026-10-07T11:06:28.285Z"
     },
     "claude:e153ed14-44aa-4812-8215-15243ca8a24f": {
       "agent": "claude-code",
       "client": "cli",
-      "agent_ms": 85544,
+      "agent_ms": 109966,
       "models": {
         "claude-opus-5-5": {
-          "input": 16,
-          "cache_read": 489342,
+          "input": 24,
+          "cache_read": 809759,
           "cache_write_5m": 0,
-          "cache_write_1h": 23985,
-          "output": 8167,
+          "cache_write_1h": 32859,
+          "output": 10158,
           "reasoning": 0
         }
       },
       "first": "2026-10-07T10:56:34.289Z",
-      "last": "2026-10-07T11:01:16.085Z"
+      "last": "2026-10-07T11:04:27.218Z"
     }
   }
 }
