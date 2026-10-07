@@ -275,7 +275,11 @@ function collectCodex(repo, since, emit, touch) {
   }
 }
 
-const duration = (ms) => `${Math.floor(ms / 3_600_000)}h ${String(Math.round((ms % 3_600_000) / 60_000)).padStart(2, "0")}m`;
+const duration = (ms) => {
+  // Round to whole minutes before splitting, so 59m 30s reads 1h 00m rather than 0h 60m.
+  const minutes = Math.round(ms / 60_000);
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;
+};
 const tokens = (u) => (u.input ?? 0) + (u.cache_read ?? 0) + (u.cache_write_5m ?? 0) + (u.cache_write_1h ?? 0) + (u.output ?? 0);
 
 // A detached HEAD shows up as "HEAD" (ledger) or a commit hash (reflog).
