@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { ErrorCode } from '../contracts/errors.ts';
 
 const messages: Record<ErrorCode, string> = {
+  CONTACT_NOT_VERIFIED: 'The requester must verify their contact email before booking.',
   CHALLENGE_INVALID: 'This verification expired or is unavailable in this browser. Request a new code.',
   LINK_CONFLICT: 'An iMessage link already exists for this account or number. Unlink it before trying again.',
   IMESSAGE_LIMIT: 'Too many verification requests. Wait before requesting another code.',

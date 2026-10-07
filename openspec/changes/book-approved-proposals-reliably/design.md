@@ -32,3 +32,7 @@ Follow the [implementation plan](../../../documentations/technical_specification
 ## Migration Plan
 
 Add approval evidence, booking attempts, reservations, and confirmation records to desired SQL; generate/review migrations and rebuild local schema. Deploy read/reconciliation paths and run fault fixtures before enabling inserts. Run one controlled live Calendar booking case with lost-response recovery evidence. Roll back application versions without erasing uncertain attempts or deleting created events.
+
+## Browser approval adapter
+
+The current browser RPC derives its host/session attribution from verified Auth credentials, accepts only the exact request revision/proposal/confirmation/retry identity, and checks the current proposal evidence context plus requester agreement and verified contact. An immutable web decision supplements historical approvals. It atomically queues the existing saved booking attempt, while provider success remains a separate worker responsibility. Read-only pending status and exact retry recovery stay available without granting transcript or provider authority. The UI displays the exact proposal in a separate confirmation card and treats unknown responses as status-recovery work.

@@ -22,6 +22,7 @@ import {TravelAllowances} from '../../../../../../lib/server/scheduling/allowanc
 import {SchedulingPublication} from '../../../../../../lib/server/scheduling/publication.ts';
 import {AvailabilityEvaluation} from '../../../../../../lib/server/scheduling/availability.ts';
 import {availabilityCheckInput} from '../../../../../../lib/contracts/availability-evaluation.ts';
+import {BookingApproval} from '../../../../../../lib/server/booking/approval.ts';
 import {RequestLifecycle} from '../../../../../../lib/server/scheduling/lifecycle.ts';
 import {PrivateReview} from '../../../../../../lib/server/scheduling/private-review.ts';
 import {HostRequests} from '../../../../../../lib/server/identity/host-requests.ts';
@@ -67,6 +68,14 @@ async function handle(request:NextRequest,{params}:Context) {
       const {credential}=await session.host(),service=new HostRequests();
       const input=Object.fromEntries(request.nextUrl.searchParams);
       return session.finish(json(await service[action==='host/requests'?'list':'read'](credential,input)));
+    }
+    if(action==='booking-approval/state'&&request.method==='GET') {
+      const {credential}=await session.host();
+      return session.finish(json(await new BookingApproval().read(credential,Object.fromEntries(request.nextUrl.searchParams))));
+    }
+    if(action==='booking-approval/approve'&&request.method==='POST') {
+      const {credential}=await session.host();
+      return session.finish(json(await new BookingApproval().approve(credential,await readJson(request))));
     }
     if(action==='request-lifecycle/state'&&request.method==='GET') {
       const {requestId,audience}=z.strictObject({requestId:z.uuid(),audience:z.enum(['host','guest'])}).parse(Object.fromEntries(request.nextUrl.searchParams));

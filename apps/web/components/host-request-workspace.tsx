@@ -1,6 +1,7 @@
 'use client';
 import {useCallback,useEffect,useId,useRef,useState,type FormEvent} from 'react';
 import {hostRequestPage,hostRequestSummary,hostRequestTarget,type HostRequestPage,type HostRequestSummary} from '../../../lib/contracts/host-requests.ts';
+import {BookingApprovalCard} from './booking-approval.tsx';
 import {RequestLifecycleCard} from './request-lifecycle.tsx';
 import {ConversationWorkspace} from './conversation-workspace.tsx';
 import {Button} from './ui/button';
@@ -42,7 +43,7 @@ export function HostRequestWorkspace({onAccessLost}:{onAccessLost:()=>void}){
   const target=current.current;if(!target)return;
   const ticket=++sequence.current;
   try{const result=hostRequestSummary.parse(await read('request?'+new URLSearchParams({requestId:target.requestId})));
-   if(ticket!==sequence.current)return;setSelected(result);setError('');
+   if(ticket!==sequence.current)return;setSelected(previous=>previous?.requestId===result.requestId&&previous.revision>result.revision?previous:result);setError('');
   }catch(cause){if(ticket!==sequence.current)return;setSelected(null);setError(cause instanceof Error?cause.message:'Could not open this request.');
    if([401,403].includes((cause as {status?:number}).status??0))onDenied.current();
   }finally{if(ticket===sequence.current)setLoading(false);}
@@ -66,7 +67,8 @@ export function HostRequestWorkspace({onAccessLost}:{onAccessLost:()=>void}){
    </RadioGroup></FieldSet>}</CardContent>
    <CardFooter><p>{selection.audience==='host_private'?'This discussion is private to you and your assistant.':'Messages in this discussion are visible to the requester. Keep private calendar details in host review.'}</p></CardFooter>
   </Card>:null}
-  {active&&!active.closed&&selection?<RequestLifecycleCard key={selection.requestId+'closure'} requestId={selection.requestId} audience="host" onStatus={next=>setSelected(previous=>previous?.requestId===next.requestId?{...previous,status:next.status,closed:next.closed,revision:next.revision}:previous)}/>:null}
+  {active&&!active.closed&&selection?<RequestLifecycleCard key={selection.requestId+'closure'} requestId={selection.requestId} audience="host" refreshKey={active.revision} onStatus={next=>setSelected(previous=>previous?.requestId===next.requestId&&next.revision>=previous.revision?{...previous,status:next.status,closed:next.closed,revision:next.revision}:previous)}/>:null}
+  {active&&!active.closed&&selection?<BookingApprovalCard key={selection.requestId+'approval'} requestId={selection.requestId} onStatus={next=>setSelected(previous=>previous?.requestId===next.requestId&&next.revision>=previous.revision?{...previous,status:next.status,revision:next.revision,closed:['booked','withdrawn','declined','expired'].includes(next.status)}:previous)}/>:null}
   {initialized&&!selection?<ConversationWorkspace key="host_setup" target={{audience:'host_setup'}} onAccessLost={onAccessLost}/>:active&&!active.closed&&active.status!=='booking'&&selection?<ConversationWorkspace key={selection.requestId+selection.audience} target={selection} onAccessLost={()=>{sequence.current++;setSelected(null);setError('Access to this discussion has ended. Refresh the request to check your access.');}} onRequestChanged={()=>void refresh()}/>:null}
  </div>;
 }

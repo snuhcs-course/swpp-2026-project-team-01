@@ -20,6 +20,7 @@ const domainErrors: Record<string, [ErrorCode, number]> = {
   INSUFFICIENT_SCOPES: ['RECONNECT_REQUIRED', 409], CONSENT_LIMIT: ['CONSENT_LIMIT', 429], CALENDAR_ACCESS_INVALID: ['CALENDAR_ACCESS_INVALID', 400],
   EXPLICIT_CHOICE_CONFLICT: ['EXPLICIT_CHOICE_CONFLICT', 409], HANDLE_UNAVAILABLE: ['HANDLE_UNAVAILABLE', 409],
   UNAUTHORIZED: ['UNAUTHORIZED', 401], FORBIDDEN: ['FORBIDDEN', 403],
+  CONTACT_NOT_VERIFIED: ['CONTACT_NOT_VERIFIED', 409],
   BOOKING_PENDING: ['RECONCILIATION_PENDING', 409],
   NOT_FOUND: ['NOT_FOUND', 404], HOST_NOT_ADMITTED: ['HOST_NOT_ADMITTED', 403],
   INVALID_INPUT: ['INVALID_INPUT', 400], IDEMPOTENCY_REQUIRED: ['INVALID_INPUT', 400],
@@ -33,7 +34,7 @@ const domainErrors: Record<string, [ErrorCode, number]> = {
 export class Database {
   constructor(private readonly env = process.env, private readonly fetcher: Fetch = fetch) {}
 
-  async rpc(name: 'fmat_request_lifecycle' | 'fmat_private_review' | 'fmat_host_requests' | 'fmat_scheduling' | 'fmat_candidate_ranking' | 'fmat_preference_decision' | 'fmat_travel_allowance' | 'fmat_availability_evaluation' | 'fmat_command' | 'fmat_conversation_access' | 'fmat_conversation_check' | 'fmat_conversation_tool' | 'fmat_runtime_message' | 'fmat_runtime_dispatch' | 'fmat_browser_command' | 'fmat_calendar_consent' | 'fmat_calendar_access' | 'fmat_requester_availability' | 'fmat_request_detail_review' | 'fmat_host_setup' | 'fmat_calendar_scan' | 'fmat_photon_ingress' | 'fmat_photon_link' | 'fmat_photon_link_delivery' | 'fmat_photon_dispatch' | 'fmat_photon_reply_delivery' | 'fmat_photon_handoff' | 'fmat_photon_handoff_browser' | 'fmat_public_intake', parameters: Record<string, unknown>): Promise<unknown> {
+  async rpc(name: 'fmat_booking_approval' | 'fmat_request_lifecycle' | 'fmat_private_review' | 'fmat_host_requests' | 'fmat_scheduling' | 'fmat_candidate_ranking' | 'fmat_preference_decision' | 'fmat_travel_allowance' | 'fmat_availability_evaluation' | 'fmat_command' | 'fmat_conversation_access' | 'fmat_conversation_check' | 'fmat_conversation_tool' | 'fmat_runtime_message' | 'fmat_runtime_dispatch' | 'fmat_browser_command' | 'fmat_calendar_consent' | 'fmat_calendar_access' | 'fmat_requester_availability' | 'fmat_request_detail_review' | 'fmat_host_setup' | 'fmat_calendar_scan' | 'fmat_photon_ingress' | 'fmat_photon_link' | 'fmat_photon_link_delivery' | 'fmat_photon_dispatch' | 'fmat_photon_reply_delivery' | 'fmat_photon_handoff' | 'fmat_photon_handoff_browser' | 'fmat_public_intake', parameters: Record<string, unknown>): Promise<unknown> {
     const origin = supabaseOrigin(this.env);
     const key = requiredEnv('SUPABASE_SECRET_KEY', this.env);
     const headers: Record<string, string> = { apikey: key, 'content-type': 'application/json' };

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {verifyBookingApproval} from './booking-approval.ts';
 import {verifyScheduling} from './scheduling.ts';
 import {verifyHostRequests} from './host-requests.ts';
 import {verifyPrivateReview} from './private-review.ts';
@@ -100,6 +101,7 @@ export async function verifyPublicIntake(browser:Browser,origin:string,sql:Local
   await page.getByLabel('Your name').fill('Another requester');await page.getByLabel('Email address').fill('another@example.test');await page.getByLabel('What would you like to discuss?').fill('A second discussion');lost=false;
   await page.getByRole('button',{name:'Continue to my conversation'}).click();await page.getByRole('button',{name:'Retry this request'}).waitFor();await page.reload();await page.getByRole('link',{name:'Continue my request'}).waitFor();assert.notEqual(await page.getByRole('link',{name:'Continue my request'}).getAttribute('href'),'/booking/'+id);
   assert.equal(await sql.query(`select count(*) from fmat.requests where host_id='${host}';`),'2','reload after a lost response recovers the committed second request');
+  await verifyBookingApproval(hostPage,page,sql,host);
   await page.goto(origin+'/unknown-booking-host');await page.getByRole('alert').waitFor();assert.equal(await page.getByLabel('Your name').count(),0);await page.screenshot({path:'.local/rebuild/browser-screenshots/intake-unavailable.png',fullPage:true});
  }finally{await context.close();}
 }

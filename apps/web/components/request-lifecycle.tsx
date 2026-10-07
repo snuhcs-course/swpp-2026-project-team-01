@@ -6,7 +6,7 @@ import {Card,CardHeader,CardTitle,CardDescription,CardContent,CardFooter} from '
 import {Alert,AlertTitle,AlertDescription} from './ui/alert';
 
 type Decision={requestId:string;revision:number;confirmed:true;idempotencyKey:string};
-export function RequestLifecycleCard({requestId,audience,onStatus}:{requestId:string;audience:'host'|'guest';onStatus:(state:RequestLifecycleState)=>void}){
+export function RequestLifecycleCard({requestId,audience,onStatus,refreshKey}:{refreshKey?:number;requestId:string;audience:'host'|'guest';onStatus:(state:RequestLifecycleState)=>void}){
  const [state,setState]=useState<RequestLifecycleState|null>(null),[confirmation,setConfirmation]=useState<number|null>(null);
  const [pending,setPending]=useState<Decision|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const decision=useRef(pending);decision.current=pending;
@@ -37,6 +37,7 @@ export function RequestLifecycleCard({requestId,audience,onStatus}:{requestId:st
  // Parent keys this component by audience and request; action recovery owns the read lock.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[]);
+ useEffect(()=>{if(live.current)void refresh();},[refreshKey]);
  async function closeRequest(){
   if(inFlight.current)return;
   const input=pending??(confirmation!==null?{requestId,revision:confirmation,confirmed:true as const,idempotencyKey:crypto.randomUUID()}:null);if(!input)return;
