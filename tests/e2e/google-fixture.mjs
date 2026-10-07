@@ -29,7 +29,7 @@ globalThis.fetch=async(input,init)=>{
     if(new Headers(init?.headers).get('authorization')!=='Bearer browser-calendar-fixture')return new Response(null,{status:401});
     if(decodeURIComponent(url.pathname).includes('unavailable@example.test'))return new Response(null,{status:503});
     const start=new Date(url.searchParams.get('timeMin'));
-    return Response.json({timeZone:'Asia/Seoul',accessRole:'owner',items:Array.from({length:8},(_,i)=>({id:'instance-'+i,start:{dateTime:new Date(start.getTime()+(i+1)*86400000+9*3600000).toISOString()},end:{dateTime:new Date(start.getTime()+(i+1)*86400000+10*3600000).toISOString()},location:'Library meeting room'}))});
+    return Response.json({timeZone:'Asia/Seoul',accessRole:'owner',items:Array.from({length:8},(_,i)=>({id:'instance-'+i,etag:'fixture-v1',start:{dateTime:new Date(start.getTime()+(i+1)*86400000+9*3600000).toISOString()},end:{dateTime:new Date(start.getTime()+(i+1)*86400000+10*3600000).toISOString()},location:'Library meeting room'}))});
   }
   if(url.origin==='https://www.googleapis.com'&&url.pathname==='/calendar/v3/freeBusy'){
     if(!['Bearer browser-requester-fixture','Bearer browser-calendar-fixture'].includes(new Headers(init?.headers).get('authorization')))return new Response(null,{status:401});

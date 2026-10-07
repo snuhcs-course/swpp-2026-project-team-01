@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {randomBytes,randomUUID,createHash} from 'node:crypto';
 import {HostRequests} from '../../lib/server/identity/host-requests.ts';
+import {PrivateReview} from '../../lib/server/scheduling/private-review.ts';
 import {Database} from '../../lib/server/database/client.ts';
 import {verifyHostToken,guestCredential,type Credential} from '../../lib/server/identity/credentials.ts';
 import {ApplicationError} from '../../lib/server/errors.ts';
@@ -29,6 +30,7 @@ test('host navigation bounds and redacts lists, scopes selected requests, and re
   const second=await service.list(a.credential,{...first.nextCursor});assert.equal(second.requests.length,5);assert.equal(second.nextCursor,null);
   assert.equal(new Set([...first.requests,...second.requests].map(row=>row.requestId)).size,35);
   const other=(await service.list(b.credential,{})).requests[0];await assert.rejects(service.read(a.credential,{requestId:other.requestId}),code('NOT_FOUND'));await assert.rejects(service.read(a.credential,{requestId:randomUUID()}),code('NOT_FOUND'));
+  await assert.rejects(new PrivateReview(database).read(a.credential,{requestId:other.requestId}),code('NOT_FOUND'));
   const tampered=await service.list(a.credential,{beforeId:other.requestId,beforeCreatedAt:other.createdAt});assert.ok(tampered.requests.every(row=>row.requestId!==other.requestId));
   const match=await service.list(a.credential,{search:'100% _ 연구'});assert.equal(match.requests.length,1);assert.equal((await service.list(a.credential,{search:'PERSON'})).requests.length,30);assert.equal((await service.list(a.credential,{search:'absent'})).requests.length,0);
   const id=first.requests[0].requestId;assert.deepEqual(await service.read(a.credential,{requestId:id}),first.requests[0]);

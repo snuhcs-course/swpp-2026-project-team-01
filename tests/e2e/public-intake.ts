@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {verifyScheduling} from './scheduling.ts';
 import {verifyHostRequests} from './host-requests.ts';
+import {verifyPrivateReview} from './private-review.ts';
 import type {Browser,Page} from '@playwright/test';
 import type {LocalSql} from '../integration/local-sql.ts';
 export async function verifyPublicIntake(browser:Browser,origin:string,sql:LocalSql,host:string,hostPage:Page){
@@ -84,6 +85,7 @@ export async function verifyPublicIntake(browser:Browser,origin:string,sql:Local
   const exactCheck=await context.request.post(origin+'/api/browser/scheduling/check',{headers:{origin},data:{...data,candidate}});assert.equal(exactCheck.status(),200);assert.deepEqual(Object.keys(await exactCheck.json()).sort(),['checked','checkedAt','complete','revision']);
   assert.equal(await sql.query(`select candidates='[]' and current_proposal_version is null from fmat.requests where id='${id}';`),'t');
   await verifyScheduling(page,sql,id,host,()=>verifyHostRequests(hostPage,page,sql,id,host));
+  await verifyPrivateReview(hostPage,page,sql,id,host);
   await page.goto(origin+'/'+handle);await page.getByRole('link',{name:'Continue my request'}).waitFor();assert.equal(await page.getByRole('link',{name:'Continue my request'}).getAttribute('href'),'/booking/'+id);
   await page.reload();await page.getByRole('link',{name:'Continue my request'}).waitFor();
   await sql.query(`update fmat.requests set status='withdrawn',token_revoked_at=now() where id='${id}';`);

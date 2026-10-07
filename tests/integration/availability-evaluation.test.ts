@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {randomUUID,randomBytes,createHash} from 'node:crypto';
+import {PrivateReview} from '../../lib/server/scheduling/private-review.ts';
 import {SchedulingPublication} from '../../lib/server/scheduling/publication.ts';
 import {CandidateRanking,type RankingInput} from '../../lib/server/scheduling/ranking.ts';
 import {PreferenceDecisions} from '../../lib/server/scheduling/preference-decisions.ts';
@@ -273,6 +274,41 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   await sql.query(`update fmat.hosts set rules=jsonb_set(rules,'{preferences}','"Private unresolved preference"'),rules_version=rules_version+1 where id='${host}';`);
   const unresolvedPublication=await publication.evaluate(credential,{requestId,revision:await revision()});assert.equal(unresolvedPublication.availability,'clarification');assert.deepEqual(unresolvedPublication.publication!.candidates,[]);assert.ok(!JSON.stringify(unresolvedPublication).includes('Private unresolved'));assert.equal(unresolvedPublication.proposal,null);
 
+  const privateReview=new PrivateReview(database,service);
+  await assert.rejects(privateReview.read(credential,{requestId}),code('FORBIDDEN'));
+  await assert.rejects(privateReview.read({...hostCredential},{requestId}),code('UNAUTHORIZED'));
+  await assert.rejects(privateReview.read(hostCredential,{requestId:randomUUID()}),code('NOT_FOUND'));
+  const privateInitial=await privateReview.read(hostCredential,{requestId});assert.equal(privateInitial.availability,'idle');
+  const privateBatch=await privateReview.evaluate(hostCredential,{requestId,revision:await revision()});assert.equal(privateBatch.availability,'current');assert.ok(privateBatch.candidates.length>0);assert.equal(privateBatch.candidates[0].canConfirmPreferences,true);
+  assert.deepEqual(await privateReview.read(hostCredential,{requestId}),privateBatch);
+  const completedInput=JSON.parse(await sql.query(`select jsonb_build_object('requestId',request_id,'revision',request_revision,'checkId',check_id,'basis',basis,'truncated',${privateBatch.truncated}) from fmat.candidate_evaluations where id='${privateBatch.candidates[0].id}';`));
+  const completed=()=>database.rpc('fmat_private_review',{p_operation:'complete',p_credential:hostCredential,p_input:completedInput});
+  const completedRetries=await Promise.all(Array.from({length:8},completed));assert.ok(completedRetries.every(result=>JSON.stringify(result)===JSON.stringify(completedRetries[0])));
+  assert.equal(await sql.query(`select count(*) from fmat.private_review_checks where request_id='${requestId}';`),'1');
+  await assert.rejects(database.rpc('fmat_private_review',{p_operation:'complete',p_credential:hostCredential,p_input:{...completedInput,truncated:!privateBatch.truncated}}),code('IDEMPOTENCY_CONFLICT'));
+  await sql.query(`do $$ begin update fmat.private_review_checks set truncated=not truncated where request_id='${requestId}';raise exception 'mutable private check';exception when raise_exception then if sqlerrm<>'IMMUTABLE_EVALUATION' then raise;end if;end $$;`);
+  assert.ok(!JSON.stringify(privateBatch).includes('encryptedCredential'));assert.ok(!JSON.stringify(privateBatch).includes('host-calendar'));assert.ok(!JSON.stringify(privateBatch).includes('contextFingerprint'));
+  assert.equal(await sql.query(`select has_function_privilege('anon','public.fmat_private_review(text,jsonb,jsonb)','EXECUTE')||','||has_function_privilege('authenticated','public.fmat_private_review(text,jsonb,jsonb)','EXECUTE')||','||has_table_privilege('authenticated','fmat.private_review_checks','SELECT');`),'false,false,false');
+  const privateCandidate=privateBatch.candidates[0];
+  const privateDecision=await preferences.confirm(hostCredential,{requestId,revision:privateBatch.revision,evaluationId:privateCandidate.id,confirmed:true,idempotencyKey:randomUUID(),choice:{key:'additional',classification:'preference',decision:'satisfied',reason:'Private review reason'}});
+  const afterDecision=await privateReview.read(hostCredential,{requestId});assert.equal(afterDecision.availability,'stale');assert.deepEqual(afterDecision.candidates,[]);assert.ok(afterDecision.preferences.some(p=>p.id===privateDecision.decisionId));
+  const privateRecheck=await privateReview.evaluate(hostCredential,{requestId,revision:afterDecision.revision,candidate:privateCandidate.interval});assert.equal(privateRecheck.candidates[0].status,'checks_passed');
+  await preferences.revoke(hostCredential,{requestId,revision:privateRecheck.revision,decisionId:privateDecision.decisionId,idempotencyKey:randomUUID()});assert.ok(!(await privateReview.read(hostCredential,{requestId})).preferences.some(p=>p.id===privateDecision.decisionId));
+  const expiredReview=await privateReview.evaluate(hostCredential,{requestId,revision:await revision(),candidate:privateCandidate.interval});
+  // A private batch is complete only for its captured evidence manifest.
+  const markerId=await sql.query(`select id from fmat.private_review_checks where request_id='${requestId}' order by created_at desc limit 1;`);
+  await sql.query(`set session_replication_role=replica;update fmat.private_review_checks set evaluation_ids='{}' where id='${markerId}';set session_replication_role=origin;`);
+  assert.equal((await privateReview.read(hostCredential,{requestId})).availability,'stale');
+  await sql.query(`set session_replication_role=replica;update fmat.private_review_checks set evaluation_ids=array['${expiredReview.candidates[0].id}'::uuid] where id='${markerId}';set session_replication_role=origin;`);
+  await sql.query(`update fmat.requests set availability_check_started_at=now()-interval '6 minutes' where id='${requestId}';`);assert.equal((await privateReview.read(hostCredential,{requestId})).availability,'stale');
+  await assert.rejects(preferences.confirm(hostCredential,{requestId,revision:expiredReview.revision,evaluationId:expiredReview.candidates[0].id,confirmed:true,idempotencyKey:randomUUID(),choice:{key:'additional',classification:'preference',decision:'exception',reason:'Stale'}}),code('STALE_REVISION'));
+  await privateReview.evaluate(hostCredential,{requestId,revision:await revision(),candidate:privateCandidate.interval});await sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${host}';`);assert.equal((await privateReview.read(hostCredential,{requestId})).availability,'stale');
+  await sql.query(`update fmat.requests set details=details||'{"mode":"in_person","location":"Meeting venue"}',revision=revision+1 where id='${requestId}';`);routeUnavailable=true;hostBusyOverride=[];
+  const privateTravel=await privateReview.evaluate(hostCredential,{requestId,revision:await revision(),candidate});assert.equal(privateTravel.candidates[0].travel[0].canConfirm,true);assert.equal(privateTravel.candidates[0].travel[0].boundary.timeLocked,true);assert.equal(privateTravel.candidates[0].travel[0].boundary.locationLocked,true);assert.equal(privateTravel.candidates[0].canConfirmPreferences,false);
+  assert.ok(!JSON.stringify(privateTravel).includes('eventId'));assert.ok(!JSON.stringify(privateTravel).includes('contextFingerprint'));
+  routeUnavailable=false;hostBusyOverride=null;
+  await sql.query(`update fmat.requests set details=details||'{"mode":"online","location":"https://meet.example.test/private-review"}',revision=revision+1 where id='${requestId}';`);
+
   await reconnect();
   await paused(()=>sql.query(`update fmat.requests set revision=revision+1,details=jsonb_set(details,'{purpose}','"Changed"') where id='${requestId}';`));
   await paused(()=>sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${host}';`));
@@ -313,9 +349,10 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
    await locker.query('commit;');const result=await observedWait;assert.ok('value' in result);assert.equal(result.value,'released');
   }finally{await locker.query('rollback;').catch(()=>{});await bookingWait?.catch(()=>{});locker.close();waiter.close();}
   await paused(async()=>{const logout=await fetch(local.API_URL+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+authToken}});assert.equal(logout.status,204);},'UNAUTHORIZED',hostCredential);
+  await assert.rejects(privateReview.read(hostCredential,{requestId}),code('UNAUTHORIZED'));
   await check(); // A request-bound guest does not depend on the host browser session.
   await sql.query(`update fmat.requests set token_revoked_at=now() where id='${requestId}';`);await assert.rejects(check(),code('NOT_FOUND'));
  }finally{
-  if(host){await sql.query(`set session_replication_role=replica;delete from fmat.scheduling_decisions where request_id='${requestId}';delete from fmat.proposal_evidence where request_id='${requestId}';delete from fmat.candidate_publications where request_id='${requestId}';delete from fmat.proposals where request_id='${requestId}';delete from fmat.candidate_rankings where request_id='${requestId}';delete from fmat.preference_decisions where request_id='${requestId}';delete from fmat.travel_allowances where request_id='${requestId}';delete from fmat.candidate_evaluations where request_id='${requestId}';delete from fmat.booking_attempts where host_id='${host}';delete from fmat.host_approvals where host_id='${host}';delete from fmat.booking_identities where request_id in('${otherRequest}','${farRequest}');delete from fmat.proposals where request_id in('${otherRequest}','${farRequest}');delete from fmat.audit_events where subject_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.calendar_connections where principal_id in('${host}','${requestId}');delete from fmat.request_history where request_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';set session_replication_role=origin;`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers});assert.equal(removed.status,200);}sql.close();
+  if(host){await sql.query(`set session_replication_role=replica;delete from fmat.private_review_checks where request_id='${requestId}';delete from fmat.scheduling_decisions where request_id='${requestId}';delete from fmat.proposal_evidence where request_id='${requestId}';delete from fmat.candidate_publications where request_id='${requestId}';delete from fmat.proposals where request_id='${requestId}';delete from fmat.candidate_rankings where request_id='${requestId}';delete from fmat.preference_decisions where request_id='${requestId}';delete from fmat.travel_allowances where request_id='${requestId}';delete from fmat.candidate_evaluations where request_id='${requestId}';delete from fmat.booking_attempts where host_id='${host}';delete from fmat.host_approvals where host_id='${host}';delete from fmat.booking_identities where request_id in('${otherRequest}','${farRequest}');delete from fmat.proposals where request_id in('${otherRequest}','${farRequest}');delete from fmat.audit_events where subject_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.calendar_connections where principal_id in('${host}','${requestId}');delete from fmat.request_history where request_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';set session_replication_role=origin;`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers});assert.equal(removed.status,200);}sql.close();
  }
 });
