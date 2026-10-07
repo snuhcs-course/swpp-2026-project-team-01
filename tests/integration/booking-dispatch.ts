@@ -33,7 +33,8 @@ export async function verifyBookingDispatch(database:Database,env:NodeJS.Process
   await sql.query(`update fmat.booking_checks set destination_checked_at=clock_timestamp() where attempt_id='${a.saved.attemptId}';`);
   assert.equal(await sql.query(`select count(*) from fmat.booking_dispatches where attempt_id='${a.saved.attemptId}';`),'0');
   // Age actual evidence without bypassing its immutable-row trigger.
-  await delay(Math.max(0,31_000-(Date.now()-Date.parse(checked.receipt.checkedAt))));
+  const untilStale=Number(await sql.query(`select greatest(0,ceil(extract(epoch from (evaluated_at+interval '31 seconds'-clock_timestamp()))*1000)) from fmat.candidate_evaluations where id='${checked.persisted!.evaluationId}';`));
+  await delay(untilStale);
   await sql.query(`update fmat.booking_checks set destination_checked_at=clock_timestamp() where attempt_id='${a.saved.attemptId}';`);
   await assert.rejects(dispatch.dispatch(a.lease,input));
   const fresh=await evaluator.readForBooking(a.lease,a.target),current={...input,checkId:fresh.context.checkId,basis:fresh.context.basis,evaluationId:fresh.persisted!.evaluationId};
