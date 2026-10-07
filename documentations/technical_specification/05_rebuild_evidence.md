@@ -56,6 +56,10 @@ Local evidence: all 33 migrations rebuilt with Supabase 2.119.0; 15 SQL suites p
 
 The last inline-linking code/evidence CI runs (`37563438371`, `37563434087`, `37563660835`, `37563657328`) all completed successfully. No UI behavior changed in this slice, so the full browser visual journey was not rerun locally. Full onboarding, inbound-first continuation, conversational outbound reconciliation and live iMessage acceptance remain open. The setup change remains 8/20; the production receiver must remain inactive and release readiness remains false.
 
+Deployed code `e520d82` as `dpl_HThWC5X3jcpvkhZGaPzZwWBF28Ze` (`https://findmeatime-release-3d0aelm2s-justdodos-projects.vercel.app`), verified Ready and aliased to `https://release.findmeatime.com`. Reidentified the Vercel owner/project and active Supabase project `mriseqztcwmezvtawnbo`, reviewed the one-migration remote dry run and applied it; all 33 migrations are current. Remote security advisors report no findings. A rollback-only production SQL probe passed link proof, frozen receipt processing, duplicate input/draft suppression, iMessage attribution and unlink revocation. The first attempt failed during temporary CLI authentication before database execution; the sequential retry passed. Internal dispatch is denied to anonymous/authenticated roles, allowed to service execution, and its recovery schedule is active. Post-rollback counts are zero for receivers, inbox receipts, links and channel grants. No webhook or live message was created.
+
+Upload preflight checked 308 regular files against 12 configured credential values with no matches. Production web/eve health return 200; anonymous worker/link access and cross-origin start are denied, while the unconfigured receiver returns a redacted no-store 503. Release readiness remains false. Code CI runs `37565130313` and `37565127269` remain in progress at evidence capture. The full release objective and remaining cross-channel/provider gates are unchanged.
+
 ## Change ownership
 
 | Owner | Responsibility |
