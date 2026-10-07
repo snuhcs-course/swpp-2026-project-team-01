@@ -11,8 +11,8 @@ Tasks describe replacement implementation and verification. Private draft persis
 
 ## 2. Guided preferences and Calendar analysis
 
-- [ ] 2.1 Define selected-calendar scan inputs, bounded range, normalization, freshness and minimized summaries; verify selected scopes and revisions invalidate stale scans/reviews.
-- [ ] 2.2 Implement deterministic read-only analysis; test recurrence, DST/all-day/free/cancelled events, sparse/partial/revoked reads, duplicate names, read-only destinations, malicious source text and cross-host isolation.
+- [x] 2.1 Define selected-calendar scan inputs, bounded range, normalization, freshness and minimized summaries; verify selected scopes and revisions invalidate stale scans/reviews.
+- [x] 2.2 Implement deterministic read-only analysis; test recurrence, DST/all-day/free/cancelled events, sparse/partial/revoked reads, duplicate names, read-only destinations, malicious source text and cross-host isolation.
 - [ ] 2.3 Implement explicit-choice/evidence/default precedence, provenance, edits/dismissals and focused clarification; test rich/no-history paths and no settings mutation before current confirmation.
 - [ ] 2.4 Ask explicit mode/location, transportation and extra buffer with applicable skips and per-meeting/per-trip choices; test prior-answer reuse, inference cannot answer, unsupported routing and separate route/buffer values.
 - [ ] 2.5 Document scan limits, suggestions and manual recovery; verify PRD AC-28 fixtures and an authorized controlled Calendar scan.

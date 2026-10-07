@@ -11,6 +11,7 @@ import { browserSession, guestCookieName } from '../../../../lib/session.ts';
 import { calendarCommands, calendarCookie, calendarCredential } from '../../../../lib/calendar-browser.ts';
 import { conversationGateway } from '../../../../lib/conversation-gateway.ts';
 import { RequesterAvailability } from '../../../../../../lib/server/calendar/requester-availability.ts';
+import { CalendarScans } from '../../../../../../lib/server/calendar/scans.ts';
 import { HostSetup } from '../../../../../../lib/server/setup/commands.ts';
 import { CalendarSelection } from '../../../../../../lib/server/calendar/selection.ts';
 
@@ -51,6 +52,11 @@ async function handle(request:NextRequest,{params}:Context) {
         const credential=await calendarCredential(request,session,{requestId});
         return session.finish(json(operation==='check'?await service.check(credential):await service[operation as 'select'|'manual'](credential,input)));
       }
+    }
+    if(['analysis/read','analysis/start','analysis/apply','analysis/dismiss'].includes(action)) {
+      const {credential}=await session.host(),service=new CalendarScans();
+      if(action==='analysis/read'&&request.method==='GET')return session.finish(json(await service.read(credential)));
+      if(request.method==='POST'&&action!=='analysis/read')return session.finish(json(await service[action==='analysis/start'?'start':action==='analysis/apply'?'apply':'dismiss'](credential,await readJson(request))));
     }
     if(['setup/read','setup/draft','setup/rebase','setup/confirm'].includes(action)) {
       const {credential}=await session.host(),service=new HostSetup();

@@ -10,7 +10,7 @@ const grantSchema=z.object({connectionId:z.uuid(),generation:z.uuid(),principalI
 export class CalendarSelection {
   constructor(private readonly database=new Database(),private readonly env=process.env,private readonly provider:CalendarProvider=new GoogleCalendarProvider(env)){}
   private call(operation:string,credential:Credential,input:unknown){requireCredential(credential);if(credential.kind!=='host')throw new ApplicationError('FORBIDDEN',403);return this.database.rpc('fmat_calendar_access',{p_operation:operation,p_credential:credential,p_input:input});}
-  private async current(credential:Credential){
+  async current(credential:Credential){
     const grant=grantSchema.parse(await this.call('read',credential,{})),cipher=new TokenCipher(this.env),context='google:host:'+grant.principalId;
     let bundle=tokenBundle.parse(cipher.open(grant.encryptedCredential,context));
     if(bundle.expiresAt<=Date.now()+60_000){

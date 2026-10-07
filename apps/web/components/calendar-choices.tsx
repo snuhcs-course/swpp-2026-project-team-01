@@ -39,7 +39,7 @@ export function CalendarChoices({disabled}:{disabled:boolean}){
     {catalog?<FieldGroup>
       <FieldSet disabled={disabled||saving}>
         <FieldLegend>Calendars to check for conflicts</FieldLegend>
-        <FieldDescription>Choose up to 50 calendars whose busy times should block meetings.</FieldDescription>
+        <FieldDescription>Choose up to 50 calendars whose busy times should block meetings. Your primary calendar is a suggested starting point; include shared calendars only when they represent your commitments.</FieldDescription>
         {unavailable?<p role="alert">A saved calendar is no longer available with the required access. Review your choices and select a replacement.</p>:null}
         {catalog.calendars.length===0?<p>No calendars are available. Reconnect Google with an account that has calendars.</p>:null}
         {catalog.calendars.map((calendar,index)=><Field key={calendar.id} orientation="horizontal">
@@ -53,7 +53,7 @@ export function CalendarChoices({disabled}:{disabled:boolean}){
       </FieldSet>
       <FieldSet disabled={disabled||saving}>
         <FieldLegend id={id+'-destination'}>Calendar for confirmed bookings</FieldLegend>
-        <FieldDescription>Choose where approved meetings will be created. Read-only calendars cannot receive bookings.</FieldDescription>
+        <FieldDescription>Choose where approved meetings will be created. Read-only calendars cannot receive bookings. A writable primary calendar is a suggested destination; choose the calendar you want to organize meetings from.</FieldDescription>
         <RadioGroup aria-labelledby={id+'-destination'} value={booking} disabled={disabled||saving} onValueChange={value=>{setBooking(value);setNotice('');}}>
           {catalog.calendars.map((calendar,index)=><Field key={calendar.id} orientation="horizontal" data-disabled={!writable(calendar.accessRole)}>
             <RadioGroupItem id={id+'-booking-'+index} value={calendar.id} disabled={!writable(calendar.accessRole)}/>

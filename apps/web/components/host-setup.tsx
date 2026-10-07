@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useId,useRef,useState,type FormEvent} from 'react';
 import {setupState,setupPatch,type SetupState,type SetupPatch} from '../../../lib/contracts/setup.ts';
+import {CalendarAnalysis} from './calendar-analysis';
 import {Button} from './ui/button';
 import {Input} from './ui/input';
 import {Textarea} from './ui/textarea';
@@ -33,6 +34,7 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
  return <section role="region" aria-label="Your meeting setup" className="flex min-w-0 flex-col gap-4" aria-busy={busy}>
   <FieldSet><FieldLegend>Your meeting setup</FieldLegend><FieldDescription>Preferences stay private drafts until you confirm the exact review. You can describe them in chat or edit a step here.</FieldDescription>
    {!state?<p role="status">Loading setup…</p>:<>
+    <CalendarAnalysis setup={state} disabled={locked} onChange={()=>setReload(n=>n+1)}/>
     <p>{state.nextAction==='settings_confirmed'?'Your settings are confirmed.':state.calendarSelected?'Calendar choices are saved. Let’s review your preferences.':'Connect Google and confirm calendar choices above. You can draft preferences meanwhile.'}</p>
     {settings?.displayName?<p>{settings.displayName}{settings.handle?' · '+settings.handle:''}</p>:null}
     {rules?.timezone?<p>{rules.durationMinutes??'—'} minute meetings · {rules.timezone} · {rules.bufferMinutes??'—'} minute meeting buffer</p>:null}

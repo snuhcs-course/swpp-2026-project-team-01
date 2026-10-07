@@ -1,8 +1,35 @@
--- Model tools receive an execution reference captured by authenticated ingress.
--- They cannot supply an actor, resource ID, decision, or privileged operation.
-create or replace function public.fmat_conversation_tool(
-  p_grant_id uuid,p_conversation_id uuid,p_operation text,p_input jsonb
-) returns jsonb language plpgsql security definer set search_path='' as $$
+SET local check_function_bodies = off;
+
+ALTER TABLE "fmat"."booking_identities"
+  DROP CONSTRAINT "booking_identities_event_id_check";
+
+CREATE OR REPLACE FUNCTION fmat.calendar_scan_model_view (
+  p_host uuid
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
+declare result jsonb:=fmat.calendar_scan_view(p_host);
+begin
+ if result->'scan'='null'::jsonb then return result;end if;
+ result:=jsonb_set(result,'{scan,scope}',(result->'scan'->'scope'-'calendarIds')||jsonb_build_object('calendarCount',jsonb_array_length(result->'scan'->'scope'->'calendarIds')));
+ if result->'scan'->'summary'<>'null'::jsonb then result:=jsonb_set(result,'{scan,summary}',result->'scan'->'summary'-'locations');end if;
+ return result;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.fmat_conversation_tool (
+  p_grant_id        uuid,
+  p_conversation_id uuid,
+  p_operation       text,
+  p_input           jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare v_access jsonb; v_actor jsonb; v_input jsonb; v_result jsonb; v_request_id uuid;
 begin
   v_access:=public.fmat_conversation_check(p_grant_id,p_conversation_id);
@@ -54,6 +81,9 @@ begin
   end if;
   return v_result;
 end;
-$$;
-revoke execute on function public.fmat_conversation_tool(uuid,uuid,text,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_conversation_tool(uuid,uuid,text,jsonb) to service_role;
+$function$;
+
+ALTER TABLE "fmat"."booking_identities"
+  ADD CONSTRAINT "booking_identities_event_id_check" CHECK ((((length(event_id) >= 5) AND (length(event_id) <= 1024)) AND (event_id ~ '^[0-9a-v]+$'::text)));
+
+REVOKE ALL ON FUNCTION "fmat"."calendar_scan_model_view"(uuid) FROM PUBLIC;
