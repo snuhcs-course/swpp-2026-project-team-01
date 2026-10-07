@@ -18,10 +18,13 @@ import {imessageEntryBrowser} from '../../../../lib/imessage-entry-browser.ts';
 import { imessageBrowser } from '../../../../lib/imessage-browser.ts';
 import {RequestReview} from '../../../../../../lib/server/identity/request-review.ts';
 import {AvailabilityEvaluation} from '../../../../../../lib/server/scheduling/availability.ts';
+import {availabilityCheckInput} from '../../../../../../lib/contracts/availability-evaluation.ts';
 import { intakeBrowser } from '../../../../lib/intake-browser.ts';
 
 export const dynamic='force-dynamic';
-export const maxDuration=60;
+// Refresh, two availability reads, adjacent events and Routes retain separate
+// bounded deadlines; allow their combined authorized evaluation to finish.
+export const maxDuration=120;
 const commands=new BrowserCommands();
 const browserHeaders={...privateHeaders,'cache-control':'private, no-store',vary:'Cookie'};
 type Context={params:Promise<{action:string[]}>};
@@ -55,9 +58,10 @@ async function handle(request:NextRequest,{params}:Context) {
     if(action.startsWith('imessage-entry/'))return await imessageEntryBrowser(request,action.slice(15));
     session=browserSession(request);
     if(action==='scheduling/check'&&request.method==='POST') {
-      const {audience,requestId,revision}=z.strictObject({audience:z.enum(['host','guest']),requestId:z.uuid(),revision:z.number().int().positive()}).parse(await readJson(request));
+      const {audience,...input}=availabilityCheckInput.extend({audience:z.enum(['host','guest'])}).parse(await readJson(request));
+      const {requestId}=input;
       const credential=audience==='host'?(await session.host()).credential:guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??'');
-      return session.finish(json(await new AvailabilityEvaluation().check(credential,{requestId,revision})));
+      return session.finish(json(await new AvailabilityEvaluation().check(credential,input)));
     }
     if(action.startsWith('imessage/')&&['read','bind','start','continue','verify','cancel','skip','unlink'].includes(action.slice(9))){
       const {credential}=await session.host();

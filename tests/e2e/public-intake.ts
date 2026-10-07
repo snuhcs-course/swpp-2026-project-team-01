@@ -67,6 +67,8 @@ export async function verifyPublicIntake(browser:Browser,origin:string,sql:Local
   assert.equal((await context.request.post(origin+'/api/browser/scheduling/check',{headers:{origin},data:{...data,audience:'host'}})).status(),401);
   const checked=await context.request.post(origin+'/api/browser/scheduling/check',{headers:{origin},data});assert.equal(checked.status(),200);assert.match(checked.headers()['cache-control'],/private.*no-store/);
   const receipt=await checked.json();assert.deepEqual(Object.keys(receipt).sort(),['checked','checkedAt','complete','revision']);assert.equal(receipt.checked,true);assert.equal(receipt.complete,false);
+  const candidate={start:windows[0].start,end:new Date(Date.parse(windows[0].start)+30*60000).toISOString()};
+  const exactCheck=await context.request.post(origin+'/api/browser/scheduling/check',{headers:{origin},data:{...data,candidate}});assert.equal(exactCheck.status(),200);assert.deepEqual(Object.keys(await exactCheck.json()).sort(),['checked','checkedAt','complete','revision']);
   assert.equal(await sql.query(`select candidates='[]' and current_proposal_version is null from fmat.requests where id='${id}';`),'t');
   await page.goto(origin+'/'+handle);await page.getByRole('link',{name:'Continue my request'}).waitFor();assert.equal(await page.getByRole('link',{name:'Continue my request'}).getAttribute('href'),'/booking/'+id);
   await page.reload();await page.getByRole('link',{name:'Continue my request'}).waitFor();

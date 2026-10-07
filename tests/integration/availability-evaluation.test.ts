@@ -10,22 +10,29 @@ import {Database} from '../../lib/server/database/client.ts';
 import {guestCredential,verifyHostToken,type Credential} from '../../lib/server/identity/credentials.ts';
 import {ApplicationError} from '../../lib/server/errors.ts';
 import {LocalSql} from './local-sql.ts';
+import {routeFingerprint} from '../../lib/server/routes/google.ts';
+import type {RouteRequest} from '../../lib/contracts/travel.ts';
+import type {TravelCommitment} from '../../lib/server/calendar/adjacent.ts';
 const code=(value:string)=>(error:unknown)=>error instanceof ApplicationError&&error.code===value;
 
 test('Authorized availability joins both calendars, pauses failures, and fences edits, revocation, competing reads and current accounts',async()=>{
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
  const env={...process.env,APP_ORIGIN:'http://localhost:3000',SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY,TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64')};
  const headers={apikey:local.SERVICE_ROLE_KEY,authorization:'Bearer '+local.SERVICE_ROLE_KEY,'content-type':'application/json'};
- const sql=new LocalSql(),email=randomUUID()+'@example.test',password=randomUUID()+randomUUID(),invite=randomUUID(),requestId=randomUUID(),otherRequest=randomUUID(),token=randomBytes(32).toString('base64url'),hash=createHash('sha256').update(token).digest('hex');
+ const sql=new LocalSql(),email=randomUUID()+'@example.test',password=randomUUID()+randomUUID(),invite=randomUUID(),requestId=randomUUID(),otherRequest=randomUUID(),farRequest=randomUUID(),token=randomBytes(32).toString('base64url'),hash=createHash('sha256').update(token).digest('hex');
  const credential=guestCredential(requestId,token),database=new Database(env),cipher=new TokenCipher(env);let host='',hostCredential:Credential,authToken='';
  const day=new Date(Date.now()+2*86400000).toISOString().slice(0,10),at=(time:string)=>day+'T'+time+':00.000Z';
  const windows=[{start:at('10:00'),end:at('12:00')}],details={requesterName:'Fixture',requesterEmail:'requester@example.test',purpose:'Fixture',durationMinutes:30,timezone:'UTC',windows,mode:'online',location:''};
  const rules={timezone:'UTC',availability:[{days:[0,1,2,3,4,5,6],start:'00:00',end:'23:59'}],focusBlocks:[],bufferMinutes:10,durationMinutes:30,preferences:'Private host preference',travelMode:'NONE',meetingMode:'online',locationPolicy:'per_meeting',locations:[],travelBufferMinutes:0};
  const calls:{party:string;ids:string[];windows:unknown}[]=[];let failure:'host'|'guest'|null=null,refreshes=0,gate:()=>Promise<void>=async()=>{},gatedParty:'host'|'guest'='host';
+ let eventGate=async()=>{},routeGate=async()=>{},eventFailure=false,inboundSeconds=600,outboundSeconds=600,eventReads=0;
+ const routeCalls:RouteRequest[]=[],candidate={start:at('11:00'),end:at('11:30')};
+ const commitment=(id:string,start:string,end:string):TravelCommitment=>({id,calendarId:'host-calendar',eventId:id,version:'v1',interval:{start:at(start),end:at(end)},location:{address:id}});
+ let neighbors=[commitment('previous','10:00','10:30'),commitment('next','12:10','12:30')];
  const service=new AvailabilityEvaluation(database,env,{async refresh(bundle){refreshes++;return {...bundle,expiresAt:Date.now()+3600000};},async list(){return [];}},{async read(access,ids,ranges){
   const party=access==='host-access'?'host':'guest';calls.push({party,ids,windows:ranges});if(party===gatedParty)await gate();if(failure===party)throw new ApplicationError('PROVIDER_UNAVAILABLE',503);
   return party==='host'?[{start:at('10:00'),end:at('10:30')}]:[{start:at('11:00'),end:at('11:30')}];
- }});
+ }},{async read(access,ids,_candidate,assertCurrent){eventReads++;assert.equal(access,'host-access');assert.deepEqual(ids,['host-calendar']);await assertCurrent();await eventGate();if(eventFailure)throw new ApplicationError('PROVIDER_UNAVAILABLE',503);return structuredClone(neighbors);}},{async estimate(request){routeCalls.push(request);await routeGate();return {status:'success',fingerprint:routeFingerprint(request),checkedAt:new Date().toISOString(),departureTime:request.departureTime,durationNanoseconds:(BigInt('address' in request.origin&&request.origin.address==='previous'?inboundSeconds:outboundSeconds)*1000000000n).toString(),distanceMeters:500};}});
  const manual=new RequesterAvailability(database,env);
  const revision=async()=>Number(await sql.query(`select revision from fmat.requests where id='${requestId}';`));
  const check=async(actor=credential)=>service.read(actor,{requestId,revision:await revision()});
@@ -55,6 +62,28 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   await manual.manual(credential,{revision:await revision(),confirmed:true,timezone:'UTC',windows});assert.equal(await flags(),'true,false','Manual requester replacement cannot clear a host failure');
   await assert.rejects(database.rpc('fmat_command',{p_operation:'candidates_save',p_actor:{kind:'worker',id:'test'},p_input:{requestId,expectedRevision:await revision(),rulesVersion:1,candidates:[]}}),code('RECONNECT_REQUIRED'));
   failure=null;const manualResult=await check();assert.equal(await flags(),'false,false');assert.deepEqual(manualResult.evaluation.windows,[{start:day+'T10:40:00Z',end:day+'T12:00:00Z'}]);
+  // This is the actual authorized request evaluator with private neighboring
+  // events, not a separately constructed pure travel fixture.
+  await sql.query(`update fmat.requests set details=jsonb_set(jsonb_set(details,'{mode}','"in_person"'),'{location}','"Meeting venue"'),revision=revision+1 where id='${requestId}';update fmat.hosts set rules=rules||'{"travelMode":"DRIVE","travelBufferMinutes":5}',rules_version=rules_version+1 where id='${host}';`);
+  const physical=async()=>service.read(credential,{requestId,revision:await revision(),candidate});
+  const fits=await physical();assert.equal(fits.candidateEvaluation?.interval,'fits');assert.equal(fits.candidateEvaluation?.travel?.status,'fits');assert.equal(routeCalls.length,2);assert.deepEqual(routeCalls.map(r=>r.departureTime).sort(),[day+'T10:40:00Z',day+'T11:40:00Z']);
+  const privateReceipt=await service.check(credential,{requestId,revision:await revision(),candidate});assert.deepEqual(Object.keys(privateReceipt).sort(),['checked','checkedAt','complete','revision']);assert.equal(privateReceipt.complete,false);
+  inboundSeconds=1501;assert.equal((await physical()).candidateEvaluation?.travel?.legs[0].status,'conflict');inboundSeconds=600;outboundSeconds=1501;assert.equal((await physical()).candidateEvaluation?.travel?.legs[1].status,'conflict');outboundSeconds=600;
+  const firstContext=fits.candidateEvaluation?.contextFingerprint;neighbors[0].version='v2';assert.notEqual((await physical()).candidateEvaluation?.contextFingerprint,firstContext);assert.equal(routeCalls.length,10,'Changed provider context causes fresh route calls');
+  const retained=neighbors;neighbors=[];assert.equal((await physical()).candidateEvaluation?.travel?.status,'clarification');neighbors=retained;
+  async function pausedTravel(stage:'events'|'routes',mutate:()=>Promise<unknown>,expected='STALE_REVISION'){
+   let entered!:()=>void,release!:()=>void;const arrived=new Promise<void>(r=>entered=r),waiting=new Promise<void>(r=>release=r);const wait=async()=>{entered();await waiting;};if(stage==='events')eventGate=wait;else routeGate=wait;
+   const rejected=assert.rejects(physical(),code(expected));await arrived;try{await mutate();}finally{release();}await rejected;eventGate=async()=>{};routeGate=async()=>{};
+  }
+  await pausedTravel('events',()=>sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${host}';`));
+  await pausedTravel('routes',()=>sql.query(`update fmat.requests set revision=revision+1 where id='${requestId}';`));
+  await pausedTravel('routes',()=>sql.query(`update fmat.calendar_connections set generation=gen_random_uuid() where principal_id='${host}';`));
+  await pausedTravel('events',()=>sql.query(`update fmat.requests set token_revoked_at=now() where id='${requestId}';`),'NOT_FOUND');await sql.query(`update fmat.requests set token_revoked_at=null where id='${requestId}';`);
+  eventFailure=true;await assert.rejects(physical(),code('PROVIDER_UNAVAILABLE'));assert.equal(await flags(),'true,false');eventFailure=false;await physical();assert.equal(await flags(),'false,false');
+  const previousReads=eventReads;const invalid=await service.read(credential,{requestId,revision:await revision(),candidate:{start:at('10:00'),end:at('10:30')}});assert.equal(invalid.candidateEvaluation?.interval,'conflict');assert.equal(eventReads,previousReads);
+  await sql.query(`update fmat.requests set details=jsonb_set(jsonb_set(details,'{mode}','"online"'),'{location}','""'),revision=revision+1 where id='${requestId}';update fmat.hosts set rules=rules||'{"travelMode":"NONE","travelBufferMinutes":0}',rules_version=rules_version+1 where id='${host}';`);
+  assert.equal((await physical()).candidateEvaluation?.travel?.status,'fits');assert.equal(eventReads,previousReads,'Online candidates do not read private event locations');
+  assert.equal(await sql.query(`select candidates='[]' and current_proposal_version is null from fmat.requests where id='${requestId}';`),'t');
   await reconnect();
   await paused(()=>sql.query(`update fmat.requests set revision=revision+1,details=jsonb_set(details,'{purpose}','"Changed"') where id='${requestId}';`));
   await paused(()=>sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${host}';`));
@@ -70,6 +99,10 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   await paused(()=>sql.query(`update auth.users set banned_until=now()+interval '1 day' where id='${host}';`),'NOT_FOUND');await sql.query(`update auth.users set banned_until=null where id='${host}';`);
   // A local confirmed write is included before Google catches up, and its
   // appearance during the provider read invalidates the frozen snapshot.
+  const farApproval=randomUUID();
+  await paused(()=>sql.query(`insert into fmat.requests(id,host_id,details,token_hash,expires_at) values('${farRequest}','${host}','${JSON.stringify(details)}','${createHash('sha256').update(farRequest).digest('hex')}',now()+interval '3 days');insert into fmat.proposals(request_id,version,details,rules_version) values('${farRequest}',1,'{}',1);insert into fmat.host_approvals(id,request_id,proposal_version,host_id,source,approved_revision) values('${farApproval}','${farRequest}',1,'${host}','authenticated_web',1);insert into fmat.booking_identities(request_id,event_id) values('${farRequest}','fmat456');insert into fmat.booking_attempts(request_id,host_id,proposal_version,approval_id,expected_revision,rules_version,connection_id,connection_provider_subject,calendar_id,event_id,payload,payload_fingerprint,starts_at,ends_at,phase) select '${farRequest}','${host}',1,'${farApproval}',1,1,id,'fixture-host','booking','fmat456','{}','fixture','${at('08:00')}','${at('09:00')}','confirmed' from fmat.calendar_connections where principal_id='${host}';`));
+  const neighborSnapshot=await database.rpc('fmat_availability_evaluation',{p_operation:'start',p_credential:credential,p_input:{requestId,revision:await revision(),checkId:randomUUID()}}) as {localBookings:unknown[];localCommitments:unknown[]};
+  assert.equal(neighborSnapshot.localBookings.length,0);assert.equal(neighborSnapshot.localCommitments.length,1,'A confirmed neighboring write outside the busy range still fences provider work');
   const approval=randomUUID();
   await paused(()=>sql.query(`insert into fmat.requests(id,host_id,details,token_hash,expires_at) values('${otherRequest}','${host}','${JSON.stringify(details)}','${createHash('sha256').update(otherRequest).digest('hex')}',now()+interval '3 days');insert into fmat.proposals(request_id,version,details,rules_version) values('${otherRequest}',1,'{}',1);insert into fmat.host_approvals(id,request_id,proposal_version,host_id,source,approved_revision) values('${approval}','${otherRequest}',1,'${host}','authenticated_web',1);insert into fmat.booking_identities(request_id,event_id) values('${otherRequest}','fmat123');insert into fmat.booking_attempts(request_id,host_id,proposal_version,approval_id,expected_revision,rules_version,connection_id,connection_provider_subject,calendar_id,event_id,payload,payload_fingerprint,starts_at,ends_at,phase) select '${otherRequest}','${host}',1,'${approval}',1,1,id,'fixture-host','booking','fmat123','{}','fixture','${at('11:25')}','${at('12:00')}','confirmed' from fmat.calendar_connections where principal_id='${host}';`));
   const blocked=await check();assert.deepEqual(blocked.evaluation.windows,[]);
@@ -94,6 +127,6 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   await check(); // A request-bound guest does not depend on the host browser session.
   await sql.query(`update fmat.requests set token_revoked_at=now() where id='${requestId}';`);await assert.rejects(check(),code('NOT_FOUND'));
  }finally{
-  if(host){await sql.query(`set session_replication_role=replica;delete from fmat.booking_attempts where host_id='${host}';delete from fmat.host_approvals where host_id='${host}';delete from fmat.booking_identities where request_id='${otherRequest}';delete from fmat.proposals where request_id='${otherRequest}';delete from fmat.audit_events where subject_id in('${requestId}','${otherRequest}');delete from fmat.calendar_connections where principal_id in('${host}','${requestId}');delete from fmat.request_history where request_id in('${requestId}','${otherRequest}');delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';set session_replication_role=origin;`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers});assert.equal(removed.status,200);}sql.close();
+  if(host){await sql.query(`set session_replication_role=replica;delete from fmat.booking_attempts where host_id='${host}';delete from fmat.host_approvals where host_id='${host}';delete from fmat.booking_identities where request_id in('${otherRequest}','${farRequest}');delete from fmat.proposals where request_id in('${otherRequest}','${farRequest}');delete from fmat.audit_events where subject_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.calendar_connections where principal_id in('${host}','${requestId}');delete from fmat.request_history where request_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';set session_replication_role=origin;`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers});assert.equal(removed.status,200);}sql.close();
  }
 });
