@@ -24,10 +24,13 @@ begin
   if jsonb_typeof(p_input) is distinct from 'object' then raise exception 'INVALID_INPUT'; end if;
   if p_operation='settle' then
     -- A runtime may record completion after the originating grant expires.
-    -- This branch cannot read content, grant access, or perform domain effects.
+    -- Reply preparation separately requires current private-channel authority.
     select * into v_scope from fmat.conversation_scopes where id=p_conversation_id;
     if v_scope.runtime_session_id is null or v_scope.runtime_session_id is distinct from p_input->>'sessionId' then raise exception 'FORBIDDEN'; end if;
     if p_input->>'status' is null or p_input->>'status' not in ('completed','failed') then raise exception 'INVALID_INPUT'; end if;
+    -- Commit an eligible private reply in the same transaction as completion.
+    -- A failed write leaves the input pending for checkpoint-based recovery.
+    perform fmat.photon_reply_prepare(p_grant_id,p_conversation_id,p_input);
     update fmat.runtime_messages set status=p_input->>'status',settled_at=clock_timestamp()
       where id=(p_input->>'messageId')::uuid and conversation_id=p_conversation_id and grant_id=p_grant_id and status='pending';
     return jsonb_build_object('recorded',true);

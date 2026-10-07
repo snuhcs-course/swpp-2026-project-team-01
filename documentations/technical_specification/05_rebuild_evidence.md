@@ -2,6 +2,16 @@
 
 Updated: 2026-10-07. This ledger tracks the entire [implementation plan](04_implementation_plan.md); an empty evidence cell is incomplete, not a passed gate.
 
+## Durable private iMessage replies (2026-10-07)
+
+The real eve channel now captures final assistant text in its checkpoint and commits one frozen private reply together with input settlement. Repeated completion cannot replace it. Failed/empty output offers browser recovery, and overlong output links to the full web history. Web inputs create no iMessage reply. Service-only claims freeze the exact inbound route, persist uncertainty before sending and recheck current authority after preflight. Expired leases and lost acknowledgments reconcile the same provider reference without another send; unknown references remain uncertain. Revocation suppresses work without fabricating a provider result, and terminal/revoked intents clear private text. The dedicated reply cron/Next.js route reuse current Vault credentials and the pinned Photon transport.
+
+The complete 34-migration disposable local rebuild passes. All 886 assertions across 16 SQL suites, 12 real Auth/database integrations, 70 app/provider and four SMTP tests pass. Separate eve/web builds, built-server smoke (including anonymous reply-worker denial), actual runtime process-kill recovery and the complete browser journey pass. Local security advisors report no issues; all 12 OpenSpec items pass strict validation. The SQL suites and committed integration fixtures run sequentially to avoid contaminating global SQL fixture assertions. The generated migration repeats the unchanged booking-event constraint; applied history is preserved.
+
+A production-channel eve fixture forces settlement to fail before SQL commit, waits for completed output, kills/restarts the runtime and recovers the same saved reply without another mock-model call. Concurrent reply workers lose a committed result acknowledgment and reconcile once without resending. A separate private reply is paused during provider preflight; unlink then prevents sending and removes its body. Other assertions retain one private draft, canonical web continuation, no iMessage reply for web-only input and no policy/booking effect. These are local synthetic transport fixtures, not live device delivery. Task 4.4 is complete for this implemented recovery contract; the setup change is 9/20, with inbound-first linking, complete cross-channel setup and controlled live acceptance still open. All phase/release acceptance gates remain open.
+
+The four preceding linked-input code/evidence CI runs (`37565130313`, `37565127269`, `37565536215`, `37565532240`) completed successfully. Production deployment evidence for this slice follows after verification.
+
 ## Inventory
 
 - Baseline commit: `fcd473d`, clean `feat/reconstruct-application` at start. No existing open PR on that branch.

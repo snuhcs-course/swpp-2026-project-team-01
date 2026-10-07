@@ -1,5 +1,6 @@
 import { defineAgent } from 'eve';
 import { mockModel } from 'eve/evals';
+import {appendFileSync} from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import {describedPreferences,describedReply,describedRules} from './setup-preferences.ts';
 
@@ -7,6 +8,7 @@ import {describedPreferences,describedReply,describedRules} from './setup-prefer
 export default defineAgent({
   defaultTools: false, tool: false, modelContextWindowTokens: 100_000,
   model: mockModel(({ lastUserMessage, userMessageCount, toolResults }) => {
+    if(process.env.FMAT_FIXTURE_MODEL_LOG)appendFileSync(process.env.FMAT_FIXTURE_MODEL_LOG,'call\n');
     if(lastUserMessage===describedPreferences){
       const outputs=toolResults.filter(result=>!result.isError).map(result=>result.output as {revision?:number;draft?:{settings?:{rules?:{travelMode?:string}}}});
       if(outputs.some(output=>output.draft?.settings?.rules?.travelMode==='TRANSIT'))return describedReply;

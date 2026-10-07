@@ -326,6 +326,14 @@ Claims carry lease/ownership metadata and attempt counts. Retry transient failur
 
 For notification dispatch, recheck recipient authorization and suppress obsolete pending summaries. Persist provider references and retry identity. An uncertain send must be reconciled under the provider's capabilities and idempotency window; do not assume that retrying always avoids duplicate email. Maintain separate requester and host-private outbox entries even when they refer to the same request.
 
+### Private iMessage reply outbox
+
+The eve channel captures only final (`finishReason=stop`) assistant text in checkpointed per-input state. Settlement atomically records input completion and one immutable `photon_replies` intent for an accepted linked receipt. Web inputs produce no iMessage intent. Failed or empty final output produces a fixed browser-recovery message; overlong replies use a Unicode-safe 4,000-character limit and a link to `/app`. A failed settlement leaves the input pending; the input recovery sweep resends the same input to eve, whose checkpoint retries settlement without invoking the model again. A later failure notification cannot replace checkpointed completion.
+
+Reply claims serialize with current host authority, freeze the inbound recipient/line/private space and persist uncertainty before sending. Each intent UUID is the transport message ID; active two-minute leases fence workers. Current link, receiver, admission, account and one-hour receipt-grant authority are checked at claim and again after provider preflight. Uncertain or prepared earlier replies hold later replies on that route; other hosts can proceed. Known acceptance permits the next reply. A lost response or expired lease permits only read-only reconciliation of the original reference, never another send. Reconciliation without a reference stays uncertain. Acceptance is not device delivery, and a failed poll cannot erase known acceptance. Revocation suppresses further work without claiming an unknown provider result; delivered, failed and revoked records discard the private reply body.
+
+The minute `fmat-photon-replies` sweep uses a separate authenticated `/api/internal/photon/replies` route within the existing Next.js service. It claims at most five intents, each in a separate transaction, then handles their transport work concurrently. Missing Vault configuration means no wake-up network call. Runtime checkpoint and SQL outbox are distinct durable stores; the pending input is their recovery link. Live provider acceptance remains a separate gate.
+
 ## 9. Provider boundaries
 
 | Integration | Narrow application-facing responsibility |

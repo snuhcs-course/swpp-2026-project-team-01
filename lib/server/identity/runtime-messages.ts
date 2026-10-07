@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Database } from '../database/client.ts';
+import { formatPhotonReply } from '../photon/reply-text.ts';
 import { ApplicationError } from '../errors.ts';
 import type { ConversationGrant } from './conversations.ts';
 
@@ -35,10 +36,10 @@ export class RuntimeMessages {
       p_input: { messageId: auth.attributes.messageId, sessionId },
     }));
   }
-  async settle(auth: RuntimeAuth, sessionId: string, status: 'completed' | 'failed') {
+  async settle(auth: RuntimeAuth, sessionId: string, status: 'completed' | 'failed', reply?: string) {
     await this.database.rpc('fmat_runtime_message', {
       p_operation: 'settle', p_grant_id: auth.principalId, p_conversation_id: auth.attributes.conversationId,
-      p_input: { messageId: auth.attributes.messageId, sessionId, status },
+      p_input: { messageId: auth.attributes.messageId, sessionId, status, ...(reply?{reply:formatPhotonReply(reply)}:{}) },
     });
   }
 }

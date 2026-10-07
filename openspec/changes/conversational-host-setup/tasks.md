@@ -29,7 +29,7 @@ Tasks describe replacement implementation and verification. Private draft persis
 - [ ] 4.1 Implement browser-bound expiring hashed OTP challenges and durable code intents; test wrong browser/sender, guesses, expiry, replay, delivery failure, number change and single-use consumption.
 - [ ] 4.2 Implement inbound-first continuation, one-to-one identity linking and unlink; verify login/admission plus fresh private proof, conflict handling, groups rejected and queued/outbound revocation.
 - [ ] 4.3 Complete native eve Photon compatibility testing and implement the selected adapter boundary; verify signed/verified ingress, sender-to-host/session mapping, ordering and durable deduplication. Create a separate bridge only if the spike demonstrates necessity.
-- [ ] 4.4 Implement scoped outbound delivery/reconciliation; test restarts, lost acknowledgement, stale authority and no blind resend, and document actual runtime/secrets/recovery without exposing values.
+- [x] 4.4 Implement scoped outbound delivery/reconciliation; test restarts, lost acknowledgement, stale authority and no blind resend, and document actual runtime/secrets/recovery without exposing values.
 
 ## 5. Cross-channel acceptance
 

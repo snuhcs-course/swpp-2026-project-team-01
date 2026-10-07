@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { conversationView } from '../../lib/contracts/conversations.ts';
 import { Conversations } from '../../lib/server/identity/conversations.ts';
 import { RuntimeMessages, type RuntimeAuth } from '../../lib/server/identity/runtime-messages.ts';
-import { deliverMessage, settleMessage, type DeliveryState } from '../../lib/server/identity/runtime-delivery.ts';
+import { deliverMessage, settleMessage, captureReply, type DeliveryState } from '../../lib/server/identity/runtime-delivery.ts';
 import { privateHeaders, privateRoute, readJson, requestCredential } from '../../lib/server/identity/request-credential.ts';
 import { authorizedStream } from '../../lib/server/identity/runtime-stream.ts';
 import { dispatchPending, requireDispatchSecret } from '../../lib/server/identity/runtime-dispatch.ts';
@@ -17,6 +17,7 @@ export default defineChannel({
   deliver: (_payload, channel) => deliverMessage(channel.session.auth.current, channel.session.id,
     channel.session.continuation?.token, channel.state),
   events: {
+    'message.completed': (event, channel) => captureReply(channel.state, event.message, event.finishReason, event.stepIndex, event.sequence),
     'turn.completed': (_event, channel, ctx) => settleMessage(channel.state, ctx.session.id, 'completed'),
     'turn.failed': (_event, channel, ctx) => settleMessage(channel.state, ctx.session.id, 'failed'),
     'turn.cancelled': (_event, channel, ctx) => settleMessage(channel.state, ctx.session.id, 'failed'),

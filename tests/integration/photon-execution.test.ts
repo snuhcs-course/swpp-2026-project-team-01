@@ -2,6 +2,9 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {randomUUID,randomBytes,createHash,createHmac} from 'node:crypto';
+import {mkdir,mkdtemp,writeFile,readFile,access} from 'node:fs/promises';
+import {resolve,join} from 'node:path';
+import {dispatchPhotonReplies} from '../../lib/server/photon/replies.ts';
 import {setTimeout as delay} from 'node:timers/promises';
 import {Database} from '../../lib/server/database/client.ts';
 import {verifyHostToken} from '../../lib/server/identity/credentials.ts';
@@ -13,9 +16,9 @@ import {photonWebhook} from '../../lib/server/photon/webhook.ts';
 import {browserProof} from '../../lib/server/photon/proof.ts';
 import {LocalSql} from './local-sql.ts';
 import {startBrowserRuntime} from '../runtime/fixture-server.ts';
-import {describedPreferences} from '../runtime/setup-preferences.ts';
+import {describedPreferences,describedReply} from '../runtime/setup-preferences.ts';
 
-test('signed linked input executes once in the real eve setup session and loses authority after unlink',{timeout:120_000},async()=>{
+test('signed linked input executes once in the real eve setup session and loses authority after unlink',{timeout:180_000},async()=>{
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
  assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
  const project=randomUUID(),receiver=randomUUID(),secret=randomBytes(32).toString('hex'),dispatchSecret=randomBytes(32).toString('hex');
@@ -51,9 +54,51 @@ test('signed linked input executes once in the real eve setup session and loses 
   await assert.rejects(()=>dispatchPhotonInputs(lost,env));
   const replay=await Promise.all([dispatchPhotonInputs(db,env),dispatchPhotonInputs(db,env)]);assert.equal(replay.reduce((n,r)=>n+r.accepted,0),0);
   assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}';`),'1');
-  runtime=await startBrowserRuntime(local,'http://fixture.local',dispatchSecret);
+  await mkdir('.local/rebuild',{recursive:true});
+  const faultDir=await mkdtemp(resolve('.local/rebuild/photon-reply-fault-'));
+  const marker=join(faultDir,'settlement-blocked'),release=join(faultDir,'release'),modelCalls=join(faultDir,'model-calls'),preload=join(faultDir,'preload.mjs');
+  await writeFile(preload,`import {existsSync,writeFileSync} from 'node:fs';
+const original=globalThis.fetch;
+globalThis.fetch=async(input,init)=>{
+ const url=typeof input==='string'?input:input instanceof URL?input.href:input.url;
+ if(url.endsWith('/rest/v1/rpc/fmat_runtime_message')&&typeof init?.body==='string'){
+  const body=JSON.parse(init.body);
+  if(body.p_operation==='settle'&&body.p_input.reply&&!existsSync(${JSON.stringify(release)})){
+   writeFileSync(${JSON.stringify(marker)},'blocked');
+   return Response.json({message:'synthetic precommit outage'},{status:503});
+  }
+ }
+ return original(input,init);
+};`);
+  runtime=await startBrowserRuntime(local,'http://127.0.0.1:3000',dispatchSecret,{preload,modelCallLog:modelCalls});
   const dispatch=()=>fetch(runtime!.origin+'/api/internal/conversations/dispatch',{method:'POST',headers:{authorization:'Bearer '+dispatchSecret}});
-  const response=await dispatch();assert.equal(response.status,200);assert.equal((await response.json()).sent,1);await settled(scope);
+  const response=await dispatch();assert.equal(response.status,200);assert.equal((await response.json()).sent,1);
+  // Observe the finished durable turn while its SQL settlement is unavailable.
+  const stream=await fetch(runtime.origin+'/api/conversations/'+scope+'/stream',{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(30_000)});
+  assert.equal(stream.status,200);const reader=stream.body!.getReader();let output='';
+  try{while(!output.includes('session.waiting')){const next=await reader.read();if(next.done)break;output+=new TextDecoder().decode(next.value);}}finally{await reader.cancel();}
+  assert.match(output,/session.waiting/u);assert.ok(output.includes(describedReply));await access(marker);
+  assert.equal(await sql.query(`select status from fmat.runtime_messages where conversation_id='${scope}';`),'pending');
+  assert.equal(await sql.query(`select count(*) from fmat.photon_replies where project_id='${project}';`),'0');
+  const callsBefore=await readFile(modelCalls,'utf8');
+  await runtime.stop();await writeFile(release,'resume');await runtime.restart();
+  await sql.query(`update fmat.runtime_messages set next_dispatch_at=clock_timestamp()-interval '1 second',dispatch_until=null,dispatch_token=null where conversation_id='${scope}';`);
+  assert.equal((await dispatch()).status,200);await settled(scope);
+  assert.equal(await readFile(modelCalls,'utf8'),callsBefore,'restart settles saved output without another model invocation');
+  assert.equal(await sql.query(`select text from fmat.photon_replies where project_id='${project}';`),describedReply);
+  assert.equal(await sql.query(`select count(*) from fmat.photon_replies where project_id='${project}';`),'1');
+  // Lose the provider-result database acknowledgment after committing it.
+  let sends=0,reconciles=0;const replyId=await sql.query(`select id from fmat.photon_replies where project_id='${project}';`);
+  const replyProvider={async send(route:{line:string;spaceId:string},recipient:string,text:string,id:string,authorize:()=>Promise<void>){
+   await authorize();sends++;assert.equal(route.spaceId,'any;-;'+phone);assert.equal(recipient,phone);assert.equal(text,describedReply);assert.equal(id,replyId);
+   return {status:'accepted' as const,providerReference:'fixture-reply-guid'};
+  },async reconcile(_route:unknown,reference:string|null){reconciles++;assert.equal(reference,'fixture-reply-guid');return {status:'delivered' as const,providerReference:reference};}};
+  const lostFinish=new Database(env,async(input,init)=>{const response=await fetch(input,init);if(JSON.parse(String(init?.body)).p_operation==='finish'){assert.equal(response.status,200);await response.text();throw new Error('Lost committed reply acknowledgment');}return response;});
+  await Promise.all([dispatchPhotonReplies(lostFinish,env,replyProvider),dispatchPhotonReplies(lostFinish,env,replyProvider)]);
+  assert.equal(sends,1,'concurrent workers dispatch one frozen reply');
+  await sql.query(`update fmat.photon_replies set checked_at=clock_timestamp()-interval '31 seconds' where project_id='${project}';`);
+  await dispatchPhotonReplies(db,env,replyProvider);assert.equal(sends,1);assert.equal(reconciles,1);
+  assert.equal(await sql.query(`select status||':'||(text is null)::text from fmat.photon_replies where id='${replyId}';`),'delivered:true');
   assert.equal(await sql.query(`select status from fmat.runtime_messages where conversation_id='${scope}';`),'completed');
   assert.equal(await sql.query(`select count(*) from fmat.setup_drafts d join fmat.setup_conversations c on c.id=d.conversation_id where c.host_id='${host}';`),'1');
   assert.equal(await sql.query(`select channel from fmat.setup_turns t join fmat.setup_conversations c on c.id=t.conversation_id where c.host_id='${host}';`),'imessage');
@@ -63,6 +108,15 @@ test('signed linked input executes once in the real eve setup session and loses 
   const view=await fetch(runtime.origin+'/api/conversations/'+scope,{headers:webHeaders});assert.equal(view.status,200);assert.equal((await view.json()).messages[0].text,describedPreferences);
   const web=await fetch(runtime.origin+`/api/conversations/${scope}/messages`,{method:'POST',headers:webHeaders,body:JSON.stringify({clientId:randomUUID(),text:'Continue from the browser.'})});assert.equal(web.status,202);await settled(scope);
   assert.equal(await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${scope}';`),session,'web resumes the same runtime session');
+  assert.equal(await sql.query(`select count(*) from fmat.photon_replies where project_id='${project}';`),'1','web continuation does not send an iMessage reply');
+  assert.equal((await photonWebhook(request('reply-before-unlink','A second private turn.'),{env,database:db})).status,200);
+  await dispatchPhotonInputs(db,env);assert.equal((await dispatch()).status,200);await settled(scope);
+  let preflightReady!:()=>void,releasePreflight!:()=>void;
+  const ready=new Promise<void>(resolve=>preflightReady=resolve),paused=new Promise<void>(resolve=>releasePreflight=resolve);
+  const revokedSend=dispatchPhotonReplies(db,env,{async send(_route,_phone,_text,_id,authorize){
+   preflightReady();await paused;await authorize();assert.fail('revoked reply reached provider send');
+  },async reconcile(){assert.fail('prepared reply must use preflight');}});
+  await ready;
   // A real concurrent unlink transaction wins while dispatch waits for the
   // host lock. The processor must inspect the newly committed link state.
   assert.equal((await photonWebhook(request('queued','Queued synthetic preference'),{env,database:db})).status,200);
@@ -71,9 +125,10 @@ test('signed linked input executes once in the real eve setup session and loses 
   for(let n=0;n<100;n++){blocked=await sql.query(`select exists(select 1 from pg_stat_activity where ${pid}=any(pg_blocking_pids(pid)));`)==='t';if(blocked)break;await delay(20);}
   assert.equal(blocked,true,'observed real host lock wait');
   await holder.query(`update fmat.photon_links set revoked_at=clock_timestamp() where id='${linked.link.id}';commit;`);
-  assert.equal((await waiting).revoked,1);
+  assert.equal((await waiting).revoked,1);releasePreflight();await revokedSend;
+  assert.equal(await sql.query(`select r.revoked_at is not null and r.text is null from fmat.photon_replies r join fmat.photon_inbox i on i.id=r.inbox_id where i.project_id='${project}' and i.message_id='reply-before-unlink';`),'t','unlink after provider preflight suppresses private send');
   assert.equal(await sql.query(`select processing_outcome from fmat.photon_inbox where project_id='${project}' and message_id='queued';`),'revoked');
-  assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}';`),'2');
+  assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}';`),'3');
   // Accepted grants cannot be reused after unlink, even though the host's
   // independent web session remains authorized.
   const phoneGrant=await sql.query(`select grant_id from fmat.runtime_messages where conversation_id='${scope}' order by created_at limit 1;`);
@@ -82,7 +137,7 @@ test('signed linked input executes once in the real eve setup session and loses 
   assert.equal(await sql.query(`select count(*) from fmat.setup_drafts d join fmat.setup_conversations c on c.id=d.conversation_id where c.host_id='${host}';`),'1');
  }finally{
   await holder.query('rollback;');await runtime?.stop();
-  if(host){await sql.query(`delete from fmat.queue_publications p using fmat.jobs j,fmat.photon_inbox i where p.job_id=j.id and j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from pgmq.q_fmat_jobs q using fmat.jobs j,fmat.photon_inbox i where q.message->>'jobId'=j.id::text and j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from fmat.jobs j using fmat.photon_inbox i where j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from fmat.photon_inbox where project_id='${project}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_scopes where host_id='${host}';delete from fmat.photon_links where project_id='${project}';delete from fmat.photon_link_challenges where project_id='${project}';delete from fmat.photon_receivers where project_id='${project}';delete from fmat.audit_events where actor->>'id'='${host}';delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);}
+  if(host){await sql.query(`delete from fmat.queue_publications p using fmat.jobs j,fmat.photon_inbox i where p.job_id=j.id and j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from pgmq.q_fmat_jobs q using fmat.jobs j,fmat.photon_inbox i where q.message->>'jobId'=j.id::text and j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from fmat.jobs j using fmat.photon_inbox i where j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from fmat.photon_replies where project_id='${project}';delete from fmat.photon_inbox where project_id='${project}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_scopes where host_id='${host}';delete from fmat.photon_links where project_id='${project}';delete from fmat.photon_link_challenges where project_id='${project}';delete from fmat.photon_receivers where project_id='${project}';delete from fmat.audit_events where actor->>'id'='${host}';delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);}
   sql.close();holder.close();
  }
 });
