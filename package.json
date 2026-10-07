@@ -18,7 +18,7 @@
     "start:web": "next start apps/web",
     "start:eve": "eve start",
     "typecheck": "next typegen apps/web && tsc --noEmit && tsc --noEmit -p apps/web/tsconfig.json",
-    "test:app": "tsx --test lib/contracts/*.test.ts lib/server/identity/*.test.ts lib/server/calendar/*.test.ts lib/server/photon/*.test.ts apps/web/lib/*.test.ts tests/providers/*.test.ts",
+    "test:app": "tsx --test lib/contracts/*.test.ts lib/server/identity/*.test.ts lib/server/calendar/*.test.ts lib/server/scheduling/*.test.ts lib/server/photon/*.test.ts apps/web/lib/*.test.ts tests/providers/*.test.ts",
     "test:runtime": "node scripts/smoke-runtime.mjs",
     "verify:model": "node --import tsx --env-file-if-exists=.env scripts/verify-model.mjs",
     "test:integration": "tsx --test tests/integration/*.test.ts",

@@ -30,3 +30,9 @@ Follow the [implementation plan](../../../documentations/technical_specification
 ## Migration Plan
 
 Extend rules and candidate context desired SQL and command shapes. Add pure interval/travel tests and provider fixtures, then deployed evaluation without enabling writes. Booking reuses the exact evaluator; do not introduce separate booking feasibility logic.
+
+## Interval implementation (2026-10-07)
+
+The pure time-filtering stage now lives in `lib/server/scheduling/intervals.ts`, with strict snapshot contracts and a shared browser-safe local-time converter. It intersects continuous requester and host windows, subtracts both parties' busy intervals and host focus blocks, expands host busy/focus boundaries by the confirmed general buffer, and checks elapsed duration. General buffer, route duration and extra travel buffer remain separate. Weekly windows use actual local dates and reject ambiguous/nonexistent boundaries. Nanosecond comparisons avoid rounding away small overlaps. Explicit sampling spacing/caps affect presentation only; a shared exact-interval check remains available for later booking revalidation.
+
+The [backend interval explanation](../../../documentations/technical_specification/01_backend_architecture.md#deterministic-interval-core) records tested boundary/DST examples and the required padded Calendar-read coverage. Provider acquisition, versioned persistence, preference/travel evaluation and proposal UI are still separate unfinished tasks. No time-only result may be presented as a fully feasible candidate.
