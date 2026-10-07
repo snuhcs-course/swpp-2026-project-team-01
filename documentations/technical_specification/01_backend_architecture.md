@@ -334,6 +334,12 @@ Reply claims serialize with current host authority, freeze the inbound recipient
 
 The minute `fmat-photon-replies` sweep uses a separate authenticated `/api/internal/photon/replies` route within the existing Next.js service. It claims at most five intents, each in a separate transaction, then handles their transport work concurrently. Missing Vault configuration means no wake-up network call. Runtime checkpoint and SQL outbox are distinct durable stores; the pending input is their recovery link. Live provider acceptance remains a separate gate.
 
+### Unlinked iMessage entry
+
+`PhotonHandoffs` and the private `fmat_photon_handoffs` ledger prepare one bounded onboarding continuation from a signed, canonical private receipt. Preparation atomically completes its ingress job/publication and cannot create a conversation grant, model turn, host link or booking. A later link suppresses older unlinked traffic. Tokens are random 256-bit secrets stored as hashes plus project/intent-bound encrypted material; they expire fifteen minutes after receipt. Per-sender limits permit one continuation per five minutes and five per hour. The fixed reply never echoes incoming text or reveals account state. Dispatch uses the same frozen-route, stable-ID, uncertainty-first transport rules as other Photon intents.
+
+The server-only resolver returns route/expiry metadata after current receiver, private-route, token and lifetime checks. It grants no host authority. This foundation remains disconnected from HTTP dispatch and cron until browser proof binding and fresh authenticated OTP completion are implemented; the eventual `/app` fragment exchange must not treat a forwarded continuation as account proof. Task 4.2 and complete iMessage-first acceptance remain open.
+
 ## 9. Provider boundaries
 
 | Integration | Narrow application-facing responsibility |

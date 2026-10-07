@@ -2,6 +2,16 @@
 
 Updated: 2026-10-07. This ledger tracks the entire [implementation plan](04_implementation_plan.md); an empty evidence cell is incomplete, not a passed gate.
 
+## Unlinked private continuation foundation (2026-10-07)
+
+The new private handoff ledger and server service create one encrypted, fifteen-minute setup continuation from a fresh signed unlinked receipt. Recipient, private space and receiver are fixed; preparation also completes the ingress job and publication. Per-sender limits, changed-receiver/current-link checks and expiry prevent obsolete issuance. The fixed reply carries a fragment token, never incoming text or host data. Delivery uses stable IDs, current authorization, fenced leases and reconciliation without resend. The resolver exposes only server-side route metadata and grants no host authority.
+
+The complete 35-migration disposable rebuild, 930 SQL assertions across 17 suites, 13 Auth/database integrations, 70 app/provider plus four SMTP tests, separate builds, built-server smoke and actual eve crash recovery pass. Local advisors report no issues. The final focused integration additionally verifies receiver disablement during provider preflight. UI/browser behavior is unchanged, so the complete browser journey is covered by the preceding slice and green CI for `22a2c35`. Generated SQL preserves prior history and repeats only the existing unchanged booking-event constraint alongside the handoff changes.
+
+The preceding reply code/evidence CI runs failed on an early 204 stream response before session binding. Commit `22a2c35` waits for that legitimate asynchronous boundary; both full CI runs `37567549976` and `37567545550` passed. The crash/recovery assertions remain unchanged.
+
+This is a foundation within task 4.2, not completed iMessage-first onboarding. There is no automatic handoff endpoint or cron wiring yet. Browser exchange, browser proof binding, authenticated admission and fresh private OTP verification remain next, followed by controlled live acceptance. Host setup remains 9/20 and all complete phase/AC gates remain open. Production deployment evidence follows verification.
+
 ## Durable private iMessage replies (2026-10-07)
 
 The real eve channel now captures final assistant text in its checkpoint and commits one frozen private reply together with input settlement. Repeated completion cannot replace it. Failed/empty output offers browser recovery, and overlong output links to the full web history. Web inputs create no iMessage reply. Service-only claims freeze the exact inbound route, persist uncertainty before sending and recheck current authority after preflight. Expired leases and lost acknowledgments reconcile the same provider reference without another send; unknown references remain uncertain. Revocation suppresses work without fabricating a provider result, and terminal/revoked intents clear private text. The dedicated reply cron/Next.js route reuse current Vault credentials and the pinned Photon transport.
