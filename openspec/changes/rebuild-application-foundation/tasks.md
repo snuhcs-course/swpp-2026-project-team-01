@@ -17,3 +17,4 @@
 - [x] 3.1 Implement authenticated `/app` and account-free protected booking route shells, safe returns and request credential exchange; verify authorization, CSRF, reload and no private shared cache.
 - [ ] 3.2 Integrate existing admission/request contracts with authorized application operations and document their adapters; verify direct bypass, stale action and closed-receipt tests.
 - [ ] 3.3 Complete foundation acceptance evidence and update owning documentation; verify runtime compatibility evidence separately and leave incomplete release scenarios pending.
+- [ ] 3.4 Replace email login with Google-only MVP host sign-in; verify PKCE, CSRF, fixed returns, cancellation, replay, invitation admission, retained waitlist and account-free requester access; document provider configuration and distinguish fixture evidence from live Google acceptance.

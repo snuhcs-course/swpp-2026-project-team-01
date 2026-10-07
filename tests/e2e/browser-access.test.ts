@@ -14,7 +14,7 @@ import {verifyPublicIntake} from './public-intake.ts';
 import {verifyNoHistory} from './setup-no-history.ts';
 import {LocalSql} from '../integration/local-sql.ts';
 
-test('browser access verifies email, invitation, logout, and request cookies without leaking credentials', {timeout:300000}, async()=>{
+test('browser access verifies Google PKCE, invitation, logout, and request cookies without leaking credentials', {timeout:300000}, async()=>{
   const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
   assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
   const origin='http://localhost:3000';
@@ -30,24 +30,34 @@ test('browser access verifies email, invitation, logout, and request cookies wit
   await mkdir('.local/rebuild/browser-screenshots',{recursive:true});
   try {
     for(let i=0;i<100;i++){assert.equal(child.exitCode,null,log.slice(-2000));try{if((await fetch(origin+'/api/health')).ok)break;}catch{}await delay(100);}
-    await page.goto(origin+'/app');await page.getByLabel('Email address').waitFor();
+    await page.goto(origin+'/app');await page.getByRole('button',{name:'Continue with Google'}).waitFor();
+    assert.equal(await page.getByLabel('Email address').count(),0,'No email login field');
     await page.keyboard.press('Tab');assert.equal(await page.getByRole('link',{name:'Find Me a Time'}).evaluate(e=>e===document.activeElement),true);
-    await page.keyboard.press('Tab');assert.equal(await page.getByLabel('Email address').evaluate(e=>e===document.activeElement),true);
-    await page.keyboard.press('Tab');assert.equal(await page.getByRole('button',{name:'Email me a sign-in link'}).evaluate(e=>e===document.activeElement),true);
-    assert.notEqual(await page.getByRole('button',{name:'Email me a sign-in link'}).evaluate(e=>getComputedStyle(e).outlineStyle),'none');
+    await page.keyboard.press('Tab');assert.equal(await page.getByRole('button',{name:'Continue with Google'}).evaluate(e=>e===document.activeElement),true);
+    assert.notEqual(await page.getByRole('button',{name:'Continue with Google'}).evaluate(e=>getComputedStyle(e).outlineStyle),'none');
     await page.screenshot({path:'.local/rebuild/browser-screenshots/host-desktop.png',fullPage:true});
     const csrf=await context.request.post(origin+'/api/browser/auth/start',{headers:{origin:'https://wrong.test'},data:{email}});assert.equal(csrf.status(),403);
+    for(const data of [{email},{provider:'github'},{redirectTo:'https://wrong.test'}])assert.equal((await context.request.post(origin+'/api/browser/auth/start',{headers:{origin},data})).status(),400);
+    await page.goto(origin+'/auth/callback?error=access_denied&error_description=private-provider-error&next=https://wrong.test');
+    await page.getByRole('alert').filter({hasText:'Google sign-in wasn’t completed'}).waitFor();assert.equal(new URL(page.url()).pathname,'/app');assert.equal(new URL(page.url()).search,'');assert.equal(await page.getByText('private-provider-error').count(),0);
     entry=await beginIMessageEntry(page,context,local,sql);
-    await page.getByLabel('Email address').fill(email);await page.getByRole('button',{name:'Email me a sign-in link'}).click();
-    await page.getByRole('status').filter({hasText:'Check your email'}).waitFor();
-    let link='';
-    for(let n=0;n<50;n++){
-      const list=await fetch(local.MAILPIT_URL+'/api/v1/messages').then(r=>r.json());
-      const found=list.messages.find((m:{To:{Address:string}[]})=>m.To.some(to=>to.Address===email));
-      if(found){const mail=await fetch(local.MAILPIT_URL+'/api/v1/message/'+found.ID).then(r=>r.json());link=mail.Text.match(/https?:\/\/[^\s<>]+\/auth\/v1\/verify[^\s<>]+/u)?.[0]??'';if(link)break;}await delay(100);
-    }
-    assert.ok(link,'Local Auth email contains a sign-in link');
-    await page.goto(link);await page.getByRole('heading',{name:'Your invitation, please.'}).waitFor();
+    // Fixture only at the completed Google-provider boundary. Real local Auth
+    // still validates PKCE, issues the session and enforces one-time code use.
+    const created=await fetch(local.API_URL+'/auth/v1/admin/users',{method:'POST',headers:adminHeaders,body:JSON.stringify({email,email_confirm:true,app_metadata:{provider:'google',providers:['google']}})});
+    assert.equal(created.status,200);userId=(await created.json()).id;
+    await page.route(local.API_URL+'/auth/v1/authorize?*',async route=>{
+      const authorize=new URL(route.request().url());
+      assert.equal(authorize.searchParams.get('provider'),'google');assert.equal(authorize.searchParams.get('redirect_to'),origin+'/auth/callback');assert.equal(authorize.searchParams.get('code_challenge_method'),'s256');assert.equal(authorize.searchParams.get('prompt'),'select_account');
+      assert.deepEqual(authorize.searchParams.get('scopes')?.split(' '),['openid','email','profile']);
+      const challenge=authorize.searchParams.get('code_challenge')!;assert.match(challenge,/^[A-Za-z0-9_-]{43}$/u);
+      const authCode=randomUUID();
+      await sql.query(`insert into auth.flow_state(id,user_id,auth_code,code_challenge_method,code_challenge,provider_type,provider_access_token,provider_refresh_token,authentication_method,created_at,updated_at,auth_code_issued_at) values('${randomUUID()}','${userId}','${authCode}','s256','${challenge}','google','','','oauth',now(),now(),now());`);
+      callback=origin+'/auth/callback?code='+authCode;
+      const wrong=await browser.newContext();const rejected=await wrong.request.get(callback,{maxRedirects:0});assert.equal(rejected.headers().location,origin+'/app?auth=expired');assert.equal((await wrong.request.get(origin+'/api/browser/host/state')).status(),401);await wrong.close();
+      await route.fulfill({status:302,headers:{location:callback}});
+    });
+    await page.getByRole('button',{name:'Continue with Google'}).click();await page.getByRole('heading',{name:'Your invitation, please.'}).waitFor();
+    await page.unroute(local.API_URL+'/auth/v1/authorize?*');
     assert.equal((await context.request.post(origin+'/api/browser/imessage/continue',{headers:{origin},data:{idempotencyKey:randomUUID()}})).status(),403,'Sign-in alone cannot start private proof');
     const row=await sql.query(`select id from auth.users where email='${email}';`);assert.match(row,/^[a-f0-9-]{36}$/u);userId=row;
     await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invitation}','${email}','${createHash('sha256').update(code).digest('hex')}',now()+interval '1 day','browser-test');`);
@@ -172,7 +182,7 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     const cookies=await context.cookies();assert.ok(cookies.some(c=>c.name.startsWith('fmat-auth')&&c.httpOnly&&c.sameSite==='Lax'));
     const hostResponse=await context.request.get(origin+'/api/browser/host/state');assert.equal(hostResponse.status(),200);assert.match(hostResponse.headers()['cache-control'],/private.*no-store/u);
     const copied=await browser.newContext();await copied.addCookies(cookies);
-    await page.getByRole('button',{name:'Sign out'}).click();await page.getByLabel('Email address').waitFor();
+    await page.getByRole('button',{name:'Sign out'}).click();await page.getByRole('button',{name:'Continue with Google'}).waitFor();
     assert.equal((await context.request.get(origin+'/api/browser/host/state')).status(),401);
     assert.equal((await copied.request.get(origin+'/api/browser/host/state')).status(),401,'Logout invalidates a copied, unexpired session');await copied.close();
     assert.ok(callback);const replay=await context.request.get(callback,{maxRedirects:0});assert.equal(replay.status(),303);assert.equal(replay.headers().location,origin+'/app?auth=expired');
@@ -212,7 +222,7 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     await page.reload();await page.getByText('Reply 1: A private requester question.',{exact:true}).waitFor();
     await sql.query(`update fmat.requests set status='declined',token_revoked_at=now() where id='${requestId}';`);
     await page.getByRole('heading',{name:'Meeting status'}).waitFor();assert.equal(await page.locator('.chat-text').count(),0,'Revocation removes existing transcript without a reload');assert.equal(await page.getByText('A protected discussion').count(),0);
-    await page.setViewportSize({width:390,height:844});await page.goto(origin+'/app');await page.getByLabel('Email address').waitFor();
+    await page.setViewportSize({width:390,height:844});await page.goto(origin+'/app');await page.getByRole('button',{name:'Continue with Google'}).waitFor();
     await page.screenshot({path:'.local/rebuild/browser-screenshots/host-mobile.png',fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     await page.setViewportSize({width:320,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);

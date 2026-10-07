@@ -46,6 +46,8 @@ Release acceptance requires zero unauthorized bookings, duplicate events, and pr
 
 ### Included
 
+- Google-only host login for the MVP through Supabase Auth. Do not offer email/password, email OTP or magic-link login. Google identity does not grant Calendar access or host admission; requesters retain account-free access. Waitlist, invitations, contact verification, recovery and booking emails retain their separate purposes.
+
 - One host and one external requester per meeting.
 - Hosting a calendar—publishing your own booking link and receiving meeting requests—is invite-only, with a waitlist for prospective hosts. Requesters do not need an invitation to request meetings or optionally connect Google Calendar.
 - Google Calendar connection, host-selected calendars for conflict checking, and a designated calendar for booking. Requesters can optionally connect their Google Calendar for availability checks without host admission or a product account.

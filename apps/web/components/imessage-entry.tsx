@@ -27,7 +27,7 @@ export function IMessageEntry({admitted}:{admitted:boolean}){
    pending.current.then(data=>{
     if(!active||version!==sequence)return;
     const state=data===null?null:handoffState.parse(data);setFailed(false);
-    setMessage(state?`Continue linking iMessage ${state.maskedPhone}. Sign in with your invited email, then request a fresh code in the original conversation.`:'');
+    setMessage(state?`Continue linking iMessage ${state.maskedPhone}. Sign in with the Google account your invitation was sent to, then request a fresh code in the original conversation.`:'');
     window.dispatchEvent(new Event('fmat-imessage-entry'));
    }).catch(error=>{if(active&&version===sequence){setFailed(true);setMessage(error instanceof Error?error.message:'Your private link could not be verified.');}});
   }

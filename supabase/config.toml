@@ -217,6 +217,8 @@ web3 = 30
 # secret = ""
 
 [auth.email]
+# Local-only admin/password fixtures use this provider. Hosted MVP auth uses
+# auth-mvp.toml to disable email login and enable identity-only Google sign-in.
 # Allow/disallow new user signups via email to your project.
 enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email

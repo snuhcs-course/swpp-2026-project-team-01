@@ -5,7 +5,7 @@ export async function GET(request:NextRequest) {
   const origin=applicationOrigin();
   const session=browserSession(request);
   const code=request.nextUrl.searchParams.get('code');
-  if(code&&code.length<=2000) {
+  if(!request.nextUrl.searchParams.has('error')&&code&&code.length<=2000) {
     try {
       const {error}=await session.client.auth.exchangeCodeForSession(code);
       if(!error)return session.finish(NextResponse.redirect(origin+'/app',303));

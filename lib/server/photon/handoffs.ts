@@ -50,7 +50,7 @@ export class PhotonHandoffs {
      const {token}=z.object({token:secret}).parse(new TokenCipher(this.env).open(item.encryptedToken,this.context(item.handoffId)));
      const url=applicationOrigin(this.env)+'/app#imessage='+item.handoffId+'.'+token;
      result=await this.transport.send({line:item.line,spaceId:item.spaceId},item.phone,
-      `Continue setting up Find Me a Time: ${url}\nThis private link expires 15 minutes after your message. Sign in with your invited email, then verify a fresh code here to link your number. Do not forward the link or code.`,
+      `Continue setting up Find Me a Time: ${url}\nThis private link expires 15 minutes after your message. Sign in with the Google account your invitation was sent to, then verify a fresh code here to link your number. Do not forward the link or code.`,
       item.handoffId,async()=>{await this.call('authorize',lease);});
     }else result=await this.transport.reconcile({line:item.line,spaceId:item.spaceId},item.providerReference);
    }catch(error){if(error instanceof ApplicationError&&[401,403,404].includes(error.status))result={status:'revoked',providerReference:item.providerReference};}

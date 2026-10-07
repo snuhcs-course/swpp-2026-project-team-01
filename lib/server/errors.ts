@@ -22,7 +22,7 @@ const messages: Record<ErrorCode, string> = {
   PROVIDER_UNAVAILABLE: 'A connected service is unavailable. Please try again.',
   RECONCILIATION_PENDING: 'The outcome is being checked. Do not submit a replacement.',
   INTERNAL_ERROR: 'The action could not be completed. Please try again.',
-  INVITATION_INVALID: 'This invitation cannot be used. Check the code and sign in with the invited email.',
+  INVITATION_INVALID: 'This invitation cannot be used. Check the code and sign in with the invited Google account.',
   CONVERSATION_BUSY: 'The previous message is still being processed. Reconnect to see its progress.',
   CONVERSATION_LIMIT: 'This conversation has reached its message limit.',
 };

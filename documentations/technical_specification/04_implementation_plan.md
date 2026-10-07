@@ -16,8 +16,8 @@ Deliver a working one-to-one scheduling service: a host chats with the agent at 
 | Requester journey | No product account required; public intake leads to protected `/booking/[bookingId]`. Closed access is limited to permitted status/receipt, not an unlimited transcript. | [Booking destination](../user_experience/04_page_list.md#requester-booking-destination) |
 | Repository structure | Follow the eve chat template: root `agent/`, `apps/web/` with `app/`, `components/` and web-specific `lib/`, and root shared `lib/contracts/` and `lib/server/`. Build eve/web separately and compose through root `vercel.ts`; defer extra packages and worker/bridge apps. | [Source organization](02_frontend_architecture.md#source-organization) |
 | Runtime and model | Next.js App Router with eve, conditional on Phase 1 passing; direct OpenAI via `eve/models/openai`, with server-only `OPENAI_API_KEY` and an explicitly verified native model ID. | [Frontend architecture](02_frontend_architecture.md#scope-and-decisions), [OpenAI setup](03_provider_setup.md#openai-model-access-through-eve) |
-| Identity and durable domain state | Supabase Auth/PostgreSQL; selected rebuild project `mriseqztcwmezvtawnbo`. Application code owns authorization and scheduling decisions. | [Project record](03_provider_setup.md#selected-rebuild-supabase-project), [backend boundaries](01_backend_architecture.md#2-module-boundaries) |
-| Transactional and Auth email | **Cloudflare Email Service** for invitations, contact verification, recovery and booking confirmations from `no-reply@findmeatime.com`; configure Supabase Auth custom SMTP through Cloudflare. | [Cloudflare setup](03_provider_setup.md#cloudflare-email-service), [email contract](../../openspec/specs/email-delivery/spec.md) |
+| Identity and durable domain state | Google-only host login through Supabase Auth; no email login. Supabase PostgreSQL; selected rebuild project `mriseqztcwmezvtawnbo`. Application code owns authorization and scheduling decisions. | [Project record](03_provider_setup.md#selected-rebuild-supabase-project), [backend boundaries](01_backend_architecture.md#2-module-boundaries) |
+| Transactional and Auth email | **Cloudflare Email Service** for invitations, contact verification, recovery and booking confirmations from `no-reply@findmeatime.com`; retain Cloudflare SMTP for applicable Auth notifications; MVP login is Google-only. | [Cloudflare setup](03_provider_setup.md#cloudflare-email-service), [email contract](../../openspec/specs/email-delivery/spec.md) |
 | Conversation channels | AgentMail requester inboxes, threads and replies; Photon Spectrum host iMessage. Verify actual adapter compatibility. | [Provider setup](03_provider_setup.md), [provider boundaries](01_backend_architecture.md#9-provider-boundaries) |
 | Client access | Remote MCP and thin CLI; verify Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code individually. | [Interfaces](../user_experience/03_interfaces.md), PRD FR-24–25 and FR-29–34 |
 | Source replacement | Rebuild in final paths, preserve unrelated local work, secrets, external resources and applied migration history. No old transcript/link migration or parallel replacement app. | [Replacement boundary](04_implementation_plan.md#2-execution-rules-and-source-ownership) |
@@ -129,10 +129,17 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 ### Phase 3 — Deliver host setup in the single `/app` chat
 
+Incremental completion (2026-10-07; the full phase exit remains open):
+
+- [x] Replace the host email-login form and endpoint with Google-only identity sign-in; retain waitlist email, invitation admission and separate Calendar consent.
+- [x] Verify local Google PKCE exchange, wrong-browser/replayed/cancelled returns, CSRF, logout, invitation and account-free requester regressions; pass application checks, separate builds and runtime smoke tests.
+- [ ] Deploy Google-only sign-in and verify hosted Google enabled/email disabled, production redirect and cookie boundaries.
+- [ ] Complete controlled live Google login and actual iPhone acceptance, followed by the remaining host-setup phase exit below.
+
 Work:
 
 - Implement the public `/` landing page with product explanation, sign-in/become-host entry and account-free waitlist submission. Deduplicate repeated submissions without granting hosting access.
-- Implement sign-in and safe callback return to `/app`; display waitlist/invitation controls before admission without private agent history. Provide operator-only invitation issuance/revocation and Cloudflare invitation/Auth email configuration for the selected project.
+- Implement Google-only sign-in (remove email login) and safe callback return to `/app`; display waitlist/invitation controls before admission without private agent history. Provide operator-only invitation issuance/revocation and Cloudflare invitation email and Google Auth provider configuration for the selected project.
 - Make the agent guide every onboarding stage and its recovery, with server-verified next actions. Propose missing preferences before asking for manual input; apply explicit-choice/evidence/starter-default precedence, label provenance, respect corrections/dismissals and ask one unresolved question at a time. Verify both rich-context and no-history paths through inline iMessage connection or skip and completion under AC-28.
 - Resume the host conversation and draft, render typed connection/settings review cards, and support exact-value dialogs during model failures. Confirm drafts explicitly before saving policy.
 - Implement host Google consent, minimum required scopes, encrypted server-side tokens, refresh/revocation, conflict-calendar selection and writable booking destination. Return from consent to the original authorized context in `/app`.
@@ -258,7 +265,7 @@ Each gate requires fresh evidence from the selected rebuild deployment. Credenti
 |---|---|---|
 | OAuth resource enforcement | Discovery, registration, PKCE, issuer/audience checks during code exchange and refresh, wrong-resource negatives, revocation and application grants. | 1, 8 |
 | Named clients | Complete host/requester journeys and permission checks separately for Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code. | 8 |
-| Cloudflare/Auth delivery | Selected-project SMTP/runtime configuration and controlled invitation, Auth, recovery and receipt inbox delivery. | 3, 5, 9 |
+| Cloudflare/Auth delivery | Selected-project Google-only login, disabled email login, and controlled invitation, recovery and receipt inbox delivery. | 3, 5, 9 |
 | Google Calendar | Exact callbacks, publishing status, separate host/requester grants, refresh, disconnect/reconnect, scoped reads and reliable event creation/reconciliation. | 3–5 |
 | Routes coverage | Supported geography/modes and both travel legs; missing estimates require clarification or a confirmed manual allowance, never zero travel. | 4 |
 | AgentMail | Signed/deduplicated ingestion, verified-contact continuation, reply threading and uncertain-send recovery, including the provider's verified idempotency-window limits. | 6 |
@@ -278,7 +285,7 @@ Create fresh tests as each slice lands; do not defer isolation or recovery tests
 | Database | pg-delta migration review, complete disposable local reset, grants/RLS, cross-user denial, atomic state/outbox, concurrent booking reservations. |
 | Runtime/effects | Session ownership and scoped memory, stream reconnect, process termination, duplicate tool execution, lost wake-up, expired lease and ambiguous provider writes/sends. |
 | Browser | iPhone Safari/iMessage handoffs and desktop web, with tested browser/OS versions recorded; Android-specific device testing is deferred. One host page at `/app`, contextual settings/request selection, authorized return/reload, public intake/private booking receipt, mobile widths, 200% zoom and keyboard/focus behavior. Use the required visual-verdict loop during UI implementation. |
-| Providers | Live host/requester Google consent and refresh, Routes cases, one event plus consistent invitations, Cloudflare Auth/transactional delivery, AgentMail multi-turn flow and linked private iMessage. |
+| Providers | Live host/requester Google consent and refresh, Routes cases, one event plus consistent invitations, Google sign-in and Cloudflare transactional delivery, AgentMail multi-turn flow and linked private iMessage. |
 | Agent clients | Separate evidence for all seven named products, both skill prompts, OAuth grant/revocation and role-specific current-proposal decisions. |
 | Operations | Selected environment identification, consumer fencing, backups/recovery procedure, redacted observability and enforced limits. |
 

@@ -10,6 +10,7 @@ The application source has been removed and only scaffolds remain. The rebuild n
 - Implement the selected single host `/app` workspace and protected requester `/booking/[bookingId]` route through the existing chat-workspace contract.
 - Track each release acceptance scenario and allocate implementation to one owning change.
 - Restore pinned install, typecheck, test and build commands, preserving migration history.
+- Replace host email-link sign-in with Google-only MVP authentication; retain account-free requester access, invitation admission and separate Calendar consent.
 
 ## Capabilities
 

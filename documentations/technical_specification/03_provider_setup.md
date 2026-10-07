@@ -43,7 +43,7 @@ A Gateway model string is a different routing choice. Verify direct provider rou
 
 ## Cloudflare Email Service
 
-**Cloudflare Email Service is the selected transactional email provider** for host invitations, contact verification, recovery and booking confirmations. It also provides custom SMTP for Supabase Auth email. Runtime configuration uses `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN` and `CLOUDFLARE_EMAIL_FROM=no-reply@findmeatime.com`. Scope the token to Email Sending in the intended account and verify the sending domain's required DNS records.
+**Cloudflare Email Service is the selected transactional email provider** for host invitations, contact verification, recovery and booking confirmations. Retained custom SMTP supports applicable Supabase Auth notifications; Google-only MVP login does not send sign-in emails. Runtime configuration uses `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN` and `CLOUDFLARE_EMAIL_FROM=no-reply@findmeatime.com`. Scope the token to Email Sending in the intended account and verify the sending domain's required DNS records.
 
 Supabase Auth SMTP uses `smtp.mx.cloudflare.net`, port `465`, implicit TLS, username `api_token` and the Email Sending token as password. The retained configuration tool supports a redacted preview and explicit application:
 
@@ -52,11 +52,11 @@ node --env-file=.env scripts/configure-email-smtp.mjs
 node --env-file=.env scripts/configure-email-smtp.mjs --apply
 ```
 
-The tool requires matching project reference, URL and CLI link. Apply mode also requires operator-only `SUPABASE_ACCESS_TOKEN`, rejects an overriding Send Email Auth Hook and verifies settings by readback. Configuration readback does not prove inbox delivery; verify controlled Auth and transactional messages through the deployed application.
+The tool requires matching project reference, URL and CLI link. Apply mode also requires operator-only `SUPABASE_ACCESS_TOKEN`, rejects an overriding Send Email Auth Hook and verifies settings by readback. Configuration readback does not prove inbox delivery; verify controlled transactional messages through the deployed application. Google login requires its own browser acceptance.
 
 On 2026-10-07, the selected project's Auth Site URL, release/local `/auth/callback` allowlist and Cloudflare SMTP were configured through authenticated Supabase CLI 2.119.0. A sparse config in an ignored work directory declared only `[auth].site_url`, `additional_redirect_urls` and `[auth.email.smtp]`; the SMTP password references `env(CLOUDFLARE_EMAIL_API_TOKEN)`. `supabase config diff --workdir <sparse-workdir> --project-ref mriseqztcwmezvtawnbo --output-format json` previews declared changes, and `supabase config push` with the same target/workdir applies them. Load the token into that process environment without printing it. CLI authentication can use its existing login; the repository SMTP script separately requires a Management API token.
 
-Inspect the diff before pushing: undeclared remote-only settings must remain untouched, including Google Auth and MFA. Do not push the full local-development config to production. Readback found no declared differences; this confirms callback/SMTP configuration, while controlled production Auth inbox delivery remains unverified. Local browser tests use Mailpit and do not establish Cloudflare delivery.
+Inspect the diff before pushing: undeclared remote-only settings must remain untouched, including Google Auth and MFA. Do not push the full local-development config to production. Readback found no declared differences; this confirms callback/SMTP configuration, while controlled production transactional inbox delivery remains unverified. Local provider fixtures do not establish Cloudflare delivery.
 
 References: [Cloudflare Email Service](https://developers.cloudflare.com/email-service/), [Cloudflare SMTP](https://developers.cloudflare.com/email-service/api/send-emails/smtp/), [Supabase custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp).
 
@@ -103,6 +103,16 @@ Implement operator issuance and revocation against the [host-admission contract]
 The operator boundary must identify the intended project and operator, reject public credentials and prevent ordinary hosts or guests from issuing invitations. Remote issuance uses configured Cloudflare delivery unless manual delivery is explicitly selected; local issuance and revocation do not send email.
 
 Persist private dispatch intent before sending, keep one-time codes out of URLs/logs and reconcile uncertain outcomes without automatic resend or reissuance. Invitation revocation blocks redemption; revoking existing host access is a separate operation.
+
+## Google-only MVP host login
+
+Use Supabase Auth Google OAuth with identity scopes `openid email profile`; request Calendar access later through the separate connection flow. Register `https://mriseqztcwmezvtawnbo.supabase.co/auth/v1/callback` on the Google web OAuth client. Supabase then redirects to the allowlisted application return `https://release.findmeatime.com/auth/callback`. Local live Google development additionally needs `http://127.0.0.1:54321/auth/v1/callback` on that client and `http://localhost:3000/auth/callback` in local Auth settings. Keep direct `/connections/google/callback` registrations for Calendar consent.
+
+The sparse [hosted MVP Auth policy](../../supabase/auth-mvp.toml) declares Google enabled and email login disabled, without modifying SMTP, Site URL, callback allowlists, MFA or other provider settings. With CLI **2.119.0**, `[auth.email].enable_signup = false` maps to Management API `external_email_enabled = false`; do not disable global Auth signup, which would also prevent new Google users. Copy the policy to an ignored work directory as `supabase/config.toml`, load `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` into the CLI environment without printing them, then inspect `supabase config diff --workdir <workdir> --project-ref mriseqztcwmezvtawnbo --output-format json`. Apply with `supabase config push` against the same identified target and workdir, then repeat the diff and read `/auth/v1/settings` to verify Google enabled and email disabled. Never push the complete local fixture configuration to the hosted project.
+
+The existing server-only PKCE verifier/session cookies remain HttpOnly, SameSite=Lax and Secure on HTTPS. Start accepts no email, provider override or return URL. Callback failure/cancellation returns a readable Google retry state at `/app`; login alone does not redeem an invitation. Use the Google account with the invited email. Existing identity and invitation records are preserved; request authority is never inferred from email matching. Local tests seed a completed Google provider result and use real local Auth for PKCE and session verification; live Google account selection/consent still needs separate acceptance evidence.
+
+References: [Supabase Google login](https://supabase.com/docs/guides/auth/social-login/auth-google), [Auth configuration API](https://supabase.com/docs/reference/api/v1-update-auth-service-config).
 
 ## Google Calendar consent configuration
 

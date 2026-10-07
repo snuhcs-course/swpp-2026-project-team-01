@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z, ZodError } from 'zod';
-import { emailInput, guestExchange } from '../../../../../../lib/contracts/browser.ts';
+import { guestExchange } from '../../../../../../lib/contracts/browser.ts';
 import { applicationOrigin } from '../../../../../../lib/server/config.ts';
 import { ApplicationError, publicError } from '../../../../../../lib/server/errors.ts';
 import { BrowserCommands } from '../../../../../../lib/server/identity/browser-commands.ts';
@@ -149,10 +149,13 @@ async function handle(request:NextRequest,{params}:Context) {
       return session.finish(response);
     }
     if(action==='auth/start'&&request.method==='POST') {
-      const {email}=emailInput.parse(await readJson(request));
-      const {error}=await session.client.auth.signInWithOtp({email,options:{emailRedirectTo:applicationOrigin()+'/auth/callback'}});
-      if(error)throw new ApplicationError('PROVIDER_UNAVAILABLE',503);
-      return session.finish(json({sent:true}));
+      z.strictObject({}).parse(await readJson(request));
+      const {data,error}=await session.client.auth.signInWithOAuth({provider:'google',options:{
+        redirectTo:applicationOrigin()+'/auth/callback',skipBrowserRedirect:true,
+        scopes:'openid email profile',queryParams:{prompt:'select_account'},
+      }});
+      if(error||!data.url)throw new ApplicationError('PROVIDER_UNAVAILABLE',503);
+      return session.finish(json({url:data.url}));
     }
     if(action==='auth/logout'&&request.method==='POST') {
       const {error}=await session.client.auth.signOut({scope:'local'});

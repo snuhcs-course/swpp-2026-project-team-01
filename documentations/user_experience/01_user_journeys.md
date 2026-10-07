@@ -8,7 +8,7 @@ A journey describes a person's goal and experience across channels; a flow descr
 
 ## Interfaces used in the journey
 
-The booking link works for people and supported requester agents. Hosts can start by pasting the root skill prompt into their personal agent. Host access is invite-only: users without access join the waitlist; invited hosts redeem access through web before calendar setup. Admitted hosts use browser sign-in/consent when needed, then choose where to review requests. Direct web setup remains available. Here, **Web** includes mobile and desktop browsers; a separate native app is outside the initial release.
+The booking link works for people and supported requester agents. Hosts can start by pasting the root skill prompt into their personal agent. Host access is invite-only: users without access join the waitlist; invited hosts redeem access through web before calendar setup. Hosts sign in with Google in the browser; email login is outside the MVP. Admitted hosts use separate provider consent when needed, then choose where to review requests. Direct web setup remains available. Here, **Web** includes mobile and desktop browsers; a separate native app is outside the initial release.
 
 ```mermaid
 flowchart LR
