@@ -65,6 +65,11 @@ export async function verifyPublicIntake(browser:Browser,origin:string,sql:Local
   const revision=(await replaced.json()).revision,data={audience:'guest',requestId:id,revision};
   assert.equal((await context.request.post(origin+'/api/browser/scheduling/check',{headers:{origin:'https://wrong.test'},data})).status(),403);
   assert.equal((await context.request.post(origin+'/api/browser/scheduling/check',{headers:{origin},data:{...data,audience:'host'}})).status(),401);
+  for(const action of ['confirm','revoke']){
+    const endpoint=origin+'/api/browser/scheduling/allowances/'+action;
+    assert.equal((await context.request.post(endpoint,{headers:{origin:'https://wrong.test'},data:{}})).status(),403);
+    const denied=await context.request.post(endpoint,{headers:{origin},data:{}});assert.equal(denied.status(),401);assert.match(denied.headers()['cache-control'],/no-store/);
+  }
   const checked=await context.request.post(origin+'/api/browser/scheduling/check',{headers:{origin},data});assert.equal(checked.status(),200);assert.match(checked.headers()['cache-control'],/private.*no-store/);
   const receipt=await checked.json();assert.deepEqual(Object.keys(receipt).sort(),['checked','checkedAt','complete','revision']);assert.equal(receipt.checked,true);assert.equal(receipt.complete,false);
   const candidate={start:windows[0].start,end:new Date(Date.parse(windows[0].start)+30*60000).toISOString()};

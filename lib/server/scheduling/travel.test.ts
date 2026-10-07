@@ -43,3 +43,31 @@ test('A past trip cannot be reused as proof of a future trip from an assumed cur
 test('Explicit per-trip choices preserve different inbound and outbound modes',async()=>{
  const value=input();value.mode='PER_TRIP';value.inboundMode='WALK';value.outboundMode='BICYCLE';const {provider,calls}=fixture();assert.equal((await evaluateTravel(value,provider,{now})).status,'fits');assert.deepEqual(calls.map(c=>c.mode),['WALK','BICYCLE']);
 });
+
+test('Explicit manual allowances replace unavailable estimates per leg and preserve both buffers',async()=>{
+ const {travelLegFingerprint}=await import('./travel.ts');const value=input(),id='00000000-0000-4000-8000-000000000001';
+ const allowance={id,direction:'inbound' as const,contextFingerprint:travelLegFingerprint(value,'inbound'),durationMinutes:45,mode:'WALK' as const,boundary:{at:at('09:00'),location:{placeId:'previous'}},reason:'Explicit host estimate'};
+ const {provider,calls}=fixture();const result=await evaluateTravel(value,provider,{now,allowances:[allowance]});assert.equal(result.status,'fits');assert.equal(calls.length,1);assert.equal(result.legs[0].manualAllowanceId,id);assert.equal(result.legs[0].requiredNanoseconds,'3000000000000');assert.equal(result.legs[0].request?.mode,'WALK');
+ const tooLong=await evaluateTravel(value,provider,{now,allowances:[{...allowance,durationMinutes:46}]});assert.equal(tooLong.legs[0].status,'conflict');assert.equal(tooLong.legs[0].reason,'insufficient_gap');
+});
+test('Unknown neighbors require explicit manual endpoint and boundary; changed context rejects reuse',async()=>{
+ const {travelLegFingerprint}=await import('./travel.ts');const value=input();value.previous={kind:'unknown'};value.next={kind:'unknown'};
+ const allowances=(['inbound','outbound'] as const).map(direction=>({id:direction==='inbound'?'00000000-0000-4000-8000-000000000001':'00000000-0000-4000-8000-000000000002',direction,contextFingerprint:travelLegFingerprint(value,direction),durationMinutes:30,mode:'TRANSIT' as const,boundary:{at:at(direction==='inbound'?'09:00':'11:30'),location:{placeId:direction}},reason:'Host supplied context'}));
+ const {provider,calls}=fixture();assert.equal((await evaluateTravel(value,provider,{now,allowances})).status,'fits');assert.equal(calls.length,0);
+ value.contextFingerprint='b'.repeat(64);assert.equal((await evaluateTravel(value,provider,{now,allowances})).status,'clarification');
+});
+test('Manual inputs cannot change a known boundary or location, waive overlaps or assume past departures',async()=>{
+ const {travelLegFingerprint}=await import('./travel.ts');
+ for(const kind of ['boundary','location','overlap','past'] as const){
+  const value=input();if(kind==='overlap'&&value.previous.kind==='commitment')value.previous.interval.end=at('10:01');
+  const allowance={id:'00000000-0000-4000-8000-000000000001',direction:'inbound' as const,contextFingerprint:travelLegFingerprint(value,'inbound'),durationMinutes:1,mode:'DRIVE' as const,boundary:{at:at(kind==='boundary'?'08:00':kind==='overlap'?'10:01':'09:00'),location:{placeId:kind==='location'?'invented':'previous'}},reason:'Test'};
+  const result=await evaluateTravel(value,fixture().provider,{now:kind==='past'?Date.parse(at('09:11')):now,allowances:[allowance]});assert.notEqual(result.legs[0].status,'fits');if(kind==='overlap')assert.equal(result.legs[0].status,'conflict');
+ }
+});
+
+test('A past origin is replaced only by an explicit current place and time without enlarging a known gap',async()=>{
+ const {travelLegFingerprint}=await import('./travel.ts');const value=input(),later=Date.parse(at('09:20'));
+ const allowance={id:'00000000-0000-4000-8000-000000000001',direction:'inbound' as const,contextFingerprint:travelLegFingerprint(value,'inbound'),durationMinutes:20,mode:'WALK' as const,boundary:{at:at('09:21'),location:{placeId:'explicit-current-origin'}},reason:'Host confirms current location and available time'};
+ const result=await evaluateTravel(value,fixture().provider,{now:later,allowances:[allowance]});assert.equal(result.legs[0].status,'fits');assert.equal(result.legs[0].request?.departureTime,at('09:31'));assert.deepEqual(result.legs[0].request?.origin,allowance.boundary.location);
+ const past=await evaluateTravel(value,fixture().provider,{now:later,allowances:[{...allowance,boundary:{...allowance.boundary,at:at('09:00')}}]});assert.equal(past.legs[0].status,'clarification');
+});

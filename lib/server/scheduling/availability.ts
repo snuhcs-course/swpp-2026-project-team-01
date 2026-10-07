@@ -12,12 +12,13 @@ import {GoogleCalendarProvider,type CalendarProvider} from '../calendar/catalog.
 import {GoogleFreeBusy,bufferedReadWindows,type FreeBusyProvider} from '../calendar/freebusy.ts';
 import {GoogleAdjacentEvents,adjacentContext,physicalLocation,unexplainedBusy,type AdjacentEventProvider,type TravelCommitment} from '../calendar/adjacent.ts';
 import {GoogleRoutes,type RoutesProvider} from '../routes/google.ts';
+import {verifiedTravelAllowance} from '../../contracts/travel-allowance.ts';
 import {evaluateTravel} from './travel.ts';
 import {evaluateIntervals,intervalFits} from './intervals.ts';
 import {candidateEvidence,evidenceReceipt,type CandidateAssessment} from './evidence.ts';
 
 const grant=z.object({principalId:z.uuid(),providerSubject:z.string(),encryptedCredential:z.string(),calendarIds:z.array(z.string()).min(1).max(50)});
-const snapshot=z.object({checkId:z.uuid(),basis:z.string().regex(/^[a-f0-9]{64}$/u),revision:z.number().int().positive(),rulesVersion:z.number().int().nonnegative(),
+const snapshot=z.object({travelBasis:z.string().regex(/^[a-f0-9]{64}$/u),allowances:z.array(verifiedTravelAllowance).max(20),checkId:z.uuid(),basis:z.string().regex(/^[a-f0-9]{64}$/u),revision:z.number().int().positive(),rulesVersion:z.number().int().nonnegative(),
  details:z.object({windows:intervalFeasibilityInput.shape.windows,timezone:intervalFeasibilityInput.shape.requesterTimezone,durationMinutes:intervalFeasibilityInput.shape.durationMinutes,mode:z.string().optional(),location:z.string().optional()}),
  rules:intervalFeasibilityInput.shape.rules.loose(),localBookings:z.array(schedulingInterval),localCommitments:z.array(z.object({id:z.uuid(),calendarId:z.string(),eventId:z.string(),version:z.string(),interval:schedulingInterval,location:z.string().nullable()})).max(10000),mode:z.enum(['manual','calendar']),host:grant,guest:grant.nullable()});
 
@@ -80,9 +81,10 @@ export class AvailabilityEvaluation {
      catch(error){if(!(error instanceof ApplicationError)||['RECONNECT_REQUIRED','PROVIDER_UNAVAILABLE'].includes(error.code))await this.call('failure',credential,{...context,party:'host'});throw error instanceof ApplicationError?error:new ApplicationError('PROVIDER_UNAVAILABLE',503);}
      commitments.push(...unexplainedBusy(hostBusy,commitments),...state.localCommitments.map(c=>({...c,location:physicalLocation(c.location??undefined)})),...state.rules.focusBlocks.map((interval,i)=>({id:'focus-'+i,calendarId:'rules',eventId:'focus-'+i,version:String(state.rulesVersion),interval,location:null})));
     }
-    const adjacent=adjacentContext(target.candidate,commitments,state.basis),rules=setupRules.pick({travelMode:true,travelBufferMinutes:true}).strip().parse(state.rules);
+    const adjacent=adjacentContext(target.candidate,commitments,state.travelBasis),rules=setupRules.pick({travelMode:true,travelBufferMinutes:true}).strip().parse(state.rules);
     candidateEvaluation.contextFingerprint=adjacent.fingerprint;
-    candidateEvaluation.travel=await evaluateTravel({contextFingerprint:adjacent.fingerprint,candidate:target.candidate,meetingMode:state.details.mode as 'online'|'in_person',location:physicalLocation(state.details.location),previous:adjacent.previous,next:adjacent.next,mode:rules.travelMode,bufferMinutes:state.rules.bufferMinutes,travelBufferMinutes:rules.travelBufferMinutes},{estimate:async request=>{await assertCurrent();const result=await this.routes.estimate(request);await assertCurrent();return result;}});
+    candidateEvaluation.travelContext={contextFingerprint:adjacent.fingerprint,candidate:target.candidate,meetingMode:state.details.mode as 'online'|'in_person',location:physicalLocation(state.details.location),previous:adjacent.previous,next:adjacent.next,mode:rules.travelMode,bufferMinutes:state.rules.bufferMinutes,travelBufferMinutes:rules.travelBufferMinutes};
+    candidateEvaluation.travel=await evaluateTravel(candidateEvaluation.travelContext,{estimate:async request=>{await assertCurrent();const result=await this.routes.estimate(request);await assertCurrent();return result;}},{allowances:state.allowances});
    }
   }
   const receipt=availabilityCheckReceipt.parse({...await this.call('success',credential,context) as object,complete:false});

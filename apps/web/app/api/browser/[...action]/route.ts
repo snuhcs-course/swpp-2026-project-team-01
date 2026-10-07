@@ -17,6 +17,7 @@ import { CalendarSelection } from '../../../../../../lib/server/calendar/selecti
 import {imessageEntryBrowser} from '../../../../lib/imessage-entry-browser.ts';
 import { imessageBrowser } from '../../../../lib/imessage-browser.ts';
 import {RequestReview} from '../../../../../../lib/server/identity/request-review.ts';
+import {TravelAllowances} from '../../../../../../lib/server/scheduling/allowances.ts';
 import {AvailabilityEvaluation} from '../../../../../../lib/server/scheduling/availability.ts';
 import {availabilityCheckInput} from '../../../../../../lib/contracts/availability-evaluation.ts';
 import { intakeBrowser } from '../../../../lib/intake-browser.ts';
@@ -62,6 +63,10 @@ async function handle(request:NextRequest,{params}:Context) {
       const {requestId}=input;
       const credential=audience==='host'?(await session.host()).credential:guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??'');
       return session.finish(json(await new AvailabilityEvaluation().check(credential,input)));
+    }
+    if(['scheduling/allowances/confirm','scheduling/allowances/revoke'].includes(action)&&request.method==='POST') {
+      const {credential}=await session.host(),service=new TravelAllowances();
+      return session.finish(json(await service[action.endsWith('/confirm')?'confirm':'revoke'](credential,await readJson(request))));
     }
     if(action.startsWith('imessage/')&&['read','bind','start','continue','verify','cancel','skip','unlink'].includes(action.slice(9))){
       const {credential}=await session.host();
