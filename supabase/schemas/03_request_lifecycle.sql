@@ -230,6 +230,8 @@ returns jsonb language plpgsql set search_path='' as $$
 declare v_request fmat.requests; v_host fmat.hosts; v_details jsonb; v_id uuid; v_start timestamptz; v_end timestamptz; v_proposal jsonb; v_version integer;
   v_challenge fmat.contact_challenges; v_replay fmat.idempotency; v_scope text; v_hash text; v_encrypted text; v_purpose text; v_mode text; v_location text;
 begin
+  if p_operation in ('candidates_save','proposal_create','proposal_revise','requester_agree','manual_allowance_save','preference_exception_save')
+    or (p_operation='mutation_replay' and p_input->>'operation' in ('proposal_create','proposal_revise','manual_allowance_save','preference_exception_save')) then raise exception 'FORBIDDEN';end if;
   perform fmat.request_authorize(p_operation,p_actor,p_input);
   if p_operation='mutation_replay' then
     if jsonb_typeof(p_input->'clientInput') is distinct from 'object' or exists(select 1 from jsonb_object_keys(p_input->'clientInput') k where k not in ('requestId','expectedRevision','start','end','mode','location','edge','durationMinutes','confirmed','proposalVersion','reason','idempotencyKey','patch','reviewedRevision')) then raise exception 'INVALID_INPUT'; end if;
@@ -508,6 +510,8 @@ create or replace function public.fmat_command(p_operation text,p_actor jsonb,p_
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare v_scope text; v_key text; v_record fmat.idempotency; v_result jsonb; v_identity_input jsonb;
 begin
+  if p_operation in ('candidates_save','proposal_create','proposal_revise','requester_agree','manual_allowance_save','preference_exception_save')
+    or (p_operation='mutation_replay' and p_input->>'operation' in ('proposal_create','proposal_revise','manual_allowance_save','preference_exception_save')) then raise exception 'FORBIDDEN';end if;
   if jsonb_typeof(p_actor) is distinct from 'object' or jsonb_typeof(p_input) is distinct from 'object'
     or p_actor->>'kind' is null or p_actor->>'kind' not in ('host','guest','worker','operator','public') then raise exception 'INVALID_INPUT'; end if;
   perform fmat.authorize_command(p_operation,p_actor,p_input);

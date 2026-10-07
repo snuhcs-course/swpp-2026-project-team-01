@@ -4,6 +4,7 @@ create table fmat.candidate_rankings (
  request_id uuid not null references fmat.requests(id) on delete cascade,
  check_id uuid not null,
  request_revision integer not null check(request_revision>0),
+ basis text check(basis ~ '^[a-f0-9]{64}$'),
  fingerprint text not null check(fingerprint ~ '^[a-f0-9]{64}$'),
  ordered_ids jsonb not null check(jsonb_typeof(ordered_ids)='array' and jsonb_array_length(ordered_ids)<=30),
  created_at timestamptz not null default clock_timestamp(),
@@ -51,8 +52,8 @@ begin
    if saved.ordered_ids is distinct from p_input->'orderedIds' then raise exception 'IDEMPOTENCY_CONFLICT';end if;
   else
    if expires<=clock_timestamp() then raise exception 'REVISION_CONFLICT';end if;
-   insert into fmat.candidate_rankings(request_id,check_id,request_revision,fingerprint,ordered_ids,expires_at)
-    values(r.id,r.availability_check_id,r.revision,fingerprint,p_input->'orderedIds',expires) returning * into saved;
+   insert into fmat.candidate_rankings(request_id,check_id,request_revision,basis,fingerprint,ordered_ids,expires_at)
+    values(r.id,r.availability_check_id,r.revision,p_input->>'basis',fingerprint,p_input->'orderedIds',expires) returning * into saved;
   end if;
  end if;
  if saved.id is not null then result:=jsonb_build_object('rankingId',saved.id,'requestId',r.id,'revision',r.revision,'checkId',r.availability_check_id,'orderedIds',saved.ordered_ids,'expiresAt',saved.expires_at,'complete',false);end if;

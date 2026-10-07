@@ -1,0 +1,10 @@
+import {z} from 'zod';
+import {schedulingInterval} from './interval-feasibility.ts';
+import {ianaTimezone} from './time.ts';
+export const schedulingTarget=z.strictObject({requestId:z.uuid()});
+export const schedulingEvaluate=schedulingTarget.extend({revision:z.number().int().positive()});
+export const schedulingSelection=schedulingEvaluate.extend({publicationId:z.uuid(),candidateId:z.uuid(),confirmed:z.literal(true),idempotencyKey:z.uuid()});
+export const schedulingAgreement=schedulingEvaluate.extend({proposalVersion:z.number().int().positive(),confirmed:z.literal(true),idempotencyKey:z.uuid()});
+export const schedulingProposal=z.strictObject({version:z.number().int().positive(),start:z.string(),end:z.string(),timezone:ianaTimezone,mode:z.enum(['online','in_person']),location:z.string(),requesterName:z.string(),requesterEmail:z.string(),purpose:z.string()});
+export const schedulingState=z.strictObject({requestId:z.uuid(),revision:z.number().int().positive(),status:z.string(),detailsComplete:z.boolean(),availability:z.enum(['not_evaluated','available','clarification','no_candidates','stale','reconnect_required']),publication:z.strictObject({id:z.uuid(),expiresAt:z.string(),truncated:z.boolean(),candidates:z.array(z.strictObject({id:z.uuid(),interval:schedulingInterval})).max(30)}).nullable(),proposal:schedulingProposal.nullable(),requesterAgreed:z.boolean(),canAgree:z.boolean()});
+export type SchedulingState=z.infer<typeof schedulingState>;

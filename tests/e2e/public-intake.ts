@@ -70,6 +70,12 @@ export async function verifyPublicIntake(browser:Browser,origin:string,sql:Local
     assert.equal((await context.request.post(endpoint,{headers:{origin:'https://wrong.test'},data:{}})).status(),403);
     const denied=await context.request.post(endpoint,{headers:{origin},data:{}});assert.equal(denied.status(),401);assert.match(denied.headers()['cache-control'],/no-store/);
   }
+  for(const action of ['evaluate','select','agree']){
+    const endpoint=origin+'/api/browser/scheduling/'+action;
+    assert.equal((await context.request.post(endpoint,{headers:{origin:'https://wrong.test'},data})).status(),403);
+    const denied=await context.request.post(endpoint,{headers:{origin},data:{...data,audience:'host'}});assert.equal(denied.status(),401);assert.match(denied.headers()['cache-control'],/no-store/);
+  }
+  const schedulingState=await context.request.get(origin+'/api/browser/scheduling/state?audience=guest&requestId='+id);assert.equal(schedulingState.status(),200);assert.match(schedulingState.headers()['cache-control'],/no-store/);const scheduling=await schedulingState.json();assert.equal(scheduling.publication,null);assert.equal(scheduling.proposal,null);assert.equal(scheduling.canAgree,false);assert.ok(!JSON.stringify(scheduling).includes('privateSchedulingContext'));
   const checked=await context.request.post(origin+'/api/browser/scheduling/check',{headers:{origin},data});assert.equal(checked.status(),200);assert.match(checked.headers()['cache-control'],/private.*no-store/);
   const receipt=await checked.json();assert.deepEqual(Object.keys(receipt).sort(),['checked','checkedAt','complete','revision']);assert.equal(receipt.checked,true);assert.equal(receipt.complete,false);
   const candidate={start:windows[0].start,end:new Date(Date.parse(windows[0].start)+30*60000).toISOString()};

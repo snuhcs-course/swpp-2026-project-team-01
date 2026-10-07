@@ -19,6 +19,7 @@ import { imessageBrowser } from '../../../../lib/imessage-browser.ts';
 import {RequestReview} from '../../../../../../lib/server/identity/request-review.ts';
 import {PreferenceDecisions} from '../../../../../../lib/server/scheduling/preference-decisions.ts';
 import {TravelAllowances} from '../../../../../../lib/server/scheduling/allowances.ts';
+import {SchedulingPublication} from '../../../../../../lib/server/scheduling/publication.ts';
 import {AvailabilityEvaluation} from '../../../../../../lib/server/scheduling/availability.ts';
 import {availabilityCheckInput} from '../../../../../../lib/contracts/availability-evaluation.ts';
 import { intakeBrowser } from '../../../../lib/intake-browser.ts';
@@ -59,6 +60,17 @@ async function handle(request:NextRequest,{params}:Context) {
     }
     if(action.startsWith('imessage-entry/'))return await imessageEntryBrowser(request,action.slice(15));
     session=browserSession(request);
+    if(action==='scheduling/state'&&request.method==='GET') {
+      const {requestId,audience}=z.strictObject({requestId:z.uuid(),audience:z.enum(['host','guest'])}).parse(Object.fromEntries(request.nextUrl.searchParams));
+      const credential=audience==='host'?(await session.host()).credential:guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??'');
+      return session.finish(json(await new SchedulingPublication().read(credential,{requestId})));
+    }
+    if(['scheduling/evaluate','scheduling/select','scheduling/agree'].includes(action)&&request.method==='POST') {
+      const {audience,...input}=z.object({audience:z.enum(['host','guest']),requestId:z.uuid()}).loose().parse(await readJson(request));
+      const credential=audience==='host'?(await session.host()).credential:guestCredential(input.requestId,request.cookies.get(guestCookieName(input.requestId))?.value??'');
+      const operation=action.slice('scheduling/'.length) as 'evaluate'|'select'|'agree';
+      return session.finish(json(await new SchedulingPublication()[operation](credential,input)));
+    }
     if(action==='scheduling/check'&&request.method==='POST') {
       const {audience,...input}=availabilityCheckInput.extend({audience:z.enum(['host','guest'])}).parse(await readJson(request));
       const {requestId}=input;
