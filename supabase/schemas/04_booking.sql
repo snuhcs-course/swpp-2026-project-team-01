@@ -83,7 +83,7 @@ begin
   if p_actor->>'kind' is distinct from 'worker' or coalesce(p_actor->>'id','')='' then raise exception 'FORBIDDEN'; end if;
   select * into v_job from fmat.jobs where id=p_job_id for update;
   if not found or v_job.status<>'running' or v_job.lease_token is distinct from p_lease_token
-    or v_job.worker_id is distinct from p_actor->>'id' or v_job.lease_until<=now() then raise exception 'LEASE_LOST'; end if;
+    or v_job.worker_id is distinct from p_actor->>'id' or v_job.lease_until<=clock_timestamp() then raise exception 'LEASE_LOST'; end if;
   if v_job.kind not in ('booking','booking_reconcile') then raise exception 'FORBIDDEN'; end if;
   return v_job;
 end;
@@ -230,6 +230,8 @@ begin
   if not found then raise exception 'NOT_FOUND'; end if;
   select * into v_attempt from fmat.booking_attempts where id=(v_job.payload->>'attemptId')::uuid and request_id=v_request.id for update;
   if not found then raise exception 'NOT_FOUND'; end if;
+  -- A request/attempt lock can outlive the lease acquired above.
+  perform fmat.require_job_lease(p_actor,v_job.id,v_job.lease_token);
   if p_operation='booking_load' then
     if (p_input->>'requestId')::uuid is distinct from v_request.id then raise exception 'FORBIDDEN'; end if;
     if v_attempt.phase='prepared' then
@@ -237,6 +239,8 @@ begin
       select attempt_id into v_existing_attempt_id from fmat.host_reservations where host_id=v_attempt.host_id for update;
       if v_existing_attempt_id<>v_attempt.id then raise exception 'HOST_BUSY'; end if;
     end if;
+    -- Reservation contention can also consume the remaining lease.
+    perform fmat.require_job_lease(p_actor,v_job.id,v_job.lease_token);
     return fmat.booking_snapshot(v_attempt);
   end if;
   if (p_input->>'attemptId')::uuid is distinct from v_attempt.id then raise exception 'FORBIDDEN'; end if;
@@ -264,7 +268,12 @@ begin
     if exists(select 1 from fmat.booking_attempts a where a.host_id=v_attempt.host_id and a.phase='confirmed' and a.id<>v_attempt.id
       and a.starts_at-make_interval(mins=>(v_host.rules->>'bufferMinutes')::integer)<v_attempt.ends_at
       and a.ends_at+make_interval(mins=>(v_host.rules->>'bufferMinutes')::integer)>v_attempt.starts_at) then raise exception 'CALENDAR_CONFLICT'; end if;
-    update fmat.booking_attempts set phase='dispatched',dispatched_at=now(),updated_at=now() where id=v_attempt.id;
+    -- Recheck after all locks, immediately before the irreversible dispatch cutoff.
+    perform fmat.require_job_lease(p_actor,v_job.id,v_job.lease_token);
+    if v_request.expires_at<=clock_timestamp() or v_attempt.starts_at<=clock_timestamp()
+      or (p_input->'feasibility'->>'checkedAt')::timestamptz<clock_timestamp()-interval '30 seconds'
+      then raise exception 'FEASIBILITY_STALE'; end if;
+    update fmat.booking_attempts set phase='dispatched',dispatched_at=clock_timestamp(),updated_at=clock_timestamp() where id=v_attempt.id;
     perform fmat.audit(p_operation,p_actor,v_attempt.id::text);
     return jsonb_build_object('dispatched',true);
   end if;

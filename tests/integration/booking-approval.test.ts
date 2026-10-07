@@ -12,6 +12,7 @@ import {Database} from '../../lib/server/database/client.ts';
 import {verifyHostToken,guestCredential,type Credential} from '../../lib/server/identity/credentials.ts';
 import {ApplicationError} from '../../lib/server/errors.ts';
 import {LocalSql} from './local-sql.ts';
+import {verifyBookingLeaseCutoffs} from './booking-lease.ts';
 const code=(value:string)=>(error:unknown)=>error instanceof ApplicationError&&error.code===value;
 test('Web approval requires exact current host/session/proposal/agreement and commits one attributable approval and job',async()=>{
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
@@ -51,6 +52,7 @@ test('Web approval requires exact current host/session/proposal/agreement and co
   await assert.rejects(approval.approve(a.credential,{...input,revision:input.revision+1}),code('IDEMPOTENCY_CONFLICT'));await assert.rejects(approval.approve(a.credential,{...input,revision:input.revision+1,idempotencyKey:randomUUID()}),code('RECONCILIATION_PENDING'));
   assert.equal(await sql.query(`select has_function_privilege('anon','public.fmat_booking_approval(text,jsonb,jsonb)','EXECUTE')||','||has_function_privilege('authenticated','public.fmat_booking_approval(text,jsonb,jsonb)','EXECUTE')||','||has_function_privilege('service_role','public.fmat_booking_approval(text,jsonb,jsonb)','EXECUTE');`),'false,false,true');
   await sql.query(`do $$begin update fmat.web_approval_decisions set input='{}' where request_id='${r.id}';raise exception 'mutable fixture';exception when raise_exception then if sqlerrm<>'IMMUTABLE_EVALUATION' then raise;end if;end$$;`);
+  await verifyBookingLeaseCutoffs(r.id,a.id);
   const changed=await fixture();await changed.agree();await sql.query(`update fmat.requests set details=details||'{"purpose":"Changed"}' where id='${changed.id}';`);assert.equal((await approval.read(a.credential,{requestId:changed.id})).blocker,'proposal_stale');
   const racing=await fixture(),raceState=await racing.agree();await sql.query(`update fmat.requests set contact_verified_email='guest@example.test' where id='${racing.id}';`);
   const raceInput={requestId:racing.id,revision:raceState.revision,proposalVersion:raceState.proposal!.version,confirmed:true as const,idempotencyKey:randomUUID()};

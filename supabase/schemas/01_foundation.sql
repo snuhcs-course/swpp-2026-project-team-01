@@ -184,7 +184,7 @@ begin
         continue;
       end if;
       update fmat.jobs set status='running',attempts=attempts+1,worker_id=v_worker,
-        lease_token=gen_random_uuid(),lease_until=now()+interval '90 seconds',updated_at=now()
+        lease_token=gen_random_uuid(),lease_until=clock_timestamp()+interval '90 seconds',updated_at=now()
         where id=v_job.id returning * into v_job;
       v_jobs := v_jobs || jsonb_build_array(jsonb_build_object('id',v_job.id,'kind',v_job.kind,'payload',v_job.payload,'leaseToken',v_job.lease_token,'attempts',v_job.attempts,'recovery',v_recovery));
     end loop;
@@ -192,7 +192,7 @@ begin
   when 'jobs_complete','jobs_fail' then
     select * into v_job from fmat.jobs where id=(p_input->>'jobId')::uuid for update;
     if not found then raise exception 'NOT_FOUND'; end if;
-    if v_job.status <> 'running' or v_job.lease_token is distinct from (p_input->>'leaseToken')::uuid or v_job.worker_id is distinct from p_actor->>'id' or v_job.lease_until <= now() then raise exception 'LEASE_LOST'; end if;
+    if v_job.status <> 'running' or v_job.lease_token is distinct from (p_input->>'leaseToken')::uuid or v_job.worker_id is distinct from p_actor->>'id' or v_job.lease_until <= clock_timestamp() then raise exception 'LEASE_LOST'; end if;
     if p_operation='jobs_complete' then
       update fmat.jobs set status='complete',result=p_input->'result',lease_token=null,lease_until=null,worker_id=null,updated_at=now() where id=v_job.id;
     else
