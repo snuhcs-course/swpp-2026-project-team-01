@@ -29,6 +29,23 @@ export async function verifyBookingApproval(host:Page,guest:Page,sql:LocalSql,ho
   await card.getByRole('button',{name:'Check approval status',exact:true}).click();await card.getByText('Your approval is recorded. Booking still requires current availability checks and a confirmed Calendar event.',{exact:true}).waitFor();
   assert.deepEqual(inputs[0],inputs[1]);assert.equal(await sql.query(`select count(*) from fmat.host_approvals where request_id='${id}';`),'1');assert.equal(await sql.query(`select count(*) from fmat.jobs where kind='booking' and payload->>'requestId'='${id}';`),'1');
   await expect(host.getByLabel('Message your scheduling assistant')).toHaveCount(0);await host.reload();await card.getByText('Your approval is recorded. Booking still requires current availability checks and a confirmed Calendar event.',{exact:true}).waitFor();
+  // Synthetic persisted provider evidence exercises the real receipt API/UI;
+  // actual worker outcomes are separately covered by the integration suite.
+  const pendingReceipt=host.getByRole('region',{name:'Booking confirmation',exact:true});
+  await pendingReceipt.getByText('Booking in progress',{exact:true}).waitFor();
+  assert.equal(await pendingReceipt.getByRole('link',{name:'Join meeting',exact:true}).count(),0);
+  await sql.query(`update fmat.booking_attempts set phase='confirmed',confirmed_at=clock_timestamp(),provider_evidence=jsonb_build_object('calendarId',calendar_id,'eventId',event_id,'payloadFingerprint',payload_fingerprint,'etag','fixture','eventUrl','https://www.google.com/calendar/event?eid=fixture') where request_id='${id}';update fmat.requests set status='booked',event=jsonb_build_object('id',(select event_id from fmat.booking_attempts where request_id='${id}')),revision=revision+1,private_notes='receipt private sentinel' where id='${id}';`);
+  await pendingReceipt.getByRole('button',{name:'Check booking status',exact:true}).click();await pendingReceipt.getByText('Meeting confirmed',{exact:true}).waitFor();
+  await guest.goto(origin+'/booking/'+id);const receipt=guest.getByRole('region',{name:'Booking confirmation',exact:true});await receipt.getByText('Meeting confirmed',{exact:true}).waitFor();
+  await expect(receipt.getByRole('link',{name:'Join meeting',exact:true})).toHaveAttribute('href',details.location);
+  await expect(receipt.getByRole('link',{name:'Open in Google Calendar',exact:true})).toHaveAttribute('href','https://www.google.com/calendar/event?eid=fixture');
+  await expect(receipt.getByText(details.purpose,{exact:true})).toBeVisible();await expect(receipt.getByText('30 minutes',{exact:true})).toBeVisible();await expect(receipt.getByText(details.requesterEmail,{exact:true})).toBeVisible();
+  assert.equal(await guest.getByText('receipt private sentinel',{exact:true}).count(),0);await expect(guest.getByLabel('Message your scheduling assistant')).toHaveCount(0);
+  const receiptResponse=await guest.request.get(origin+'/api/browser/booking-receipt?audience=guest&requestId='+id);assert.equal(receiptResponse.status(),200);assert.match(receiptResponse.headers()['cache-control'],/no-store/);assert.doesNotMatch(await receiptResponse.text(),/private sentinel|tokenHash|encryptedCredential/);
+  await guest.setViewportSize({width:320,height:844});await receipt.scrollIntoViewIfNeeded();assert.equal(await guest.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await guest.screenshot({path:'.local/rebuild/browser-screenshots/receipt-mobile.png',fullPage:true});
+  await guest.setViewportSize({width:1280,height:1000});await guest.evaluate(()=>{document.documentElement.style.zoom='2';});assert.equal(await guest.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await guest.screenshot({path:'.local/rebuild/browser-screenshots/receipt-zoom.png',fullPage:true});await guest.evaluate(()=>{document.documentElement.style.zoom='';});
+  await sql.query(`update fmat.requests set token_expires_at=clock_timestamp()-interval '1 second' where id='${id}';`);
+  await receipt.getByRole('button',{name:'Check booking status',exact:true}).click();await receipt.getByRole('alert').waitFor();await expect(receipt.getByRole('link',{name:'Join meeting',exact:true})).toHaveCount(0);await expect(receipt.getByText(details.requesterEmail,{exact:true})).toHaveCount(0);
   await host.getByRole('button',{name:'Back to host chat',exact:true}).click();await host.getByRole('button',{name:'Disconnect Google',exact:true}).waitFor();
  }finally{
   await host.unroute('**/api/browser/booking-approval/approve');

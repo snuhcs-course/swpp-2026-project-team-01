@@ -15,6 +15,7 @@ import {LocalSql} from './local-sql.ts';
 import {verifyBookingLeaseCutoffs} from './booking-lease.ts';
 import {verifyBookingEvaluation} from './booking-evaluation.ts';
 import {verifyBookingDispatch} from './booking-dispatch.ts';
+import {verifyBookingReceipt} from './booking-receipt.ts';
 import {verifyBookingWorker} from './booking-worker.ts';
 const code=(value:string)=>(error:unknown)=>error instanceof ApplicationError&&error.code===value;
 test('Web approval requires exact current host/session/proposal/agreement and commits one attributable approval and job',async()=>{
@@ -65,11 +66,11 @@ test('Web approval requires exact current host/session/proposal/agreement and co
    const f=await fixture(),agreed=await f.agree();await sql.query(`update fmat.requests set contact_verified_email='guest@example.test' where id='${f.id}';`);
    await approval.approve(a.credential,{requestId:f.id,revision:agreed.revision,proposalVersion:agreed.proposal!.version,confirmed:true,idempotencyKey:randomUUID()});return f.id;
   });
-  let workerDay=3;
+  let workerDay=3;const workerGuests=new Map<string,Credential>();
   await verifyBookingWorker(db,env,b.id,async()=>{
-   const f=await fixture(b,workerDay++),agreed=await f.agree();await sql.query(`update fmat.requests set contact_verified_email='guest@example.test' where id='${f.id}';`);
+   const f=await fixture(b,workerDay++),agreed=await f.agree();workerGuests.set(f.id,f.guest);await sql.query(`update fmat.requests set contact_verified_email='guest@example.test' where id='${f.id}';`);
    await approval.approve(b.credential,{requestId:f.id,revision:agreed.revision,proposalVersion:agreed.proposal!.version,confirmed:true,idempotencyKey:randomUUID()});return f.id;
-  });
+  },requestId=>verifyBookingReceipt(db,requestId,b.credential,a.credential,workerGuests.get(requestId)!));
   const expired=await fixture(),expiredState=await expired.agree();await sql.query(`update fmat.requests set created_at=now()-interval '2 days',expires_at=now()-interval '1 second',contact_verified_email='guest@example.test' where id='${expired.id}';`);
   assert.equal((await approval.read(a.credential,{requestId:expired.id})).blocker,'closed');await assert.rejects(approval.approve(a.credential,{requestId:expired.id,revision:expiredState.revision,proposalVersion:1,confirmed:true,idempotencyKey:randomUUID()}),code('NOT_FOUND'));
   const savedCredential=await sql.query(`select encrypted_credential from fmat.calendar_connections where principal_id='${a.id}';`);

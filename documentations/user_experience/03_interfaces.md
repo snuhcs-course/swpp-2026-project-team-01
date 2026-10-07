@@ -127,3 +127,8 @@ All channels inherit the PRD's privacy and lifecycle rules. Changed proposals re
 The [chat workspace specification](../../openspec/specs/chat-workspaces/spec.md) owns the agreed contextual-artifact and explicit-decision behavior. The [page list](04_page_list.md) describes the proposed replacement host and requester workspaces.
 
 The replacement must verify website setup, requester conversation, email, MCP, CLI, and full iMessage journeys independently. Unconfirmed web chat text has no agreement or approval authority; channel decisions require the verified, current-proposal confirmation mechanism described above. Existing provider resources and credentials may be reused deliberately, but old deployment success cannot be carried forward as replacement evidence.
+
+
+### Implemented web confirmation receipt
+
+Once provider evidence confirms booking, the host's selected request and the requester's protected booking page display the same frozen title/purpose, start/end, duration, timezone, participant emails and location. Online HTTPS locations offer **Join meeting**; an allowlisted saved Calendar URL offers **Open in Google Calendar**. **Check booking status** refreshes confirmation and the viewer's own email status. Pending or failed email does not change the confirmed meeting. An uncertain Calendar write remains “Booking in progress” without a join action or confirmed receipt. Expired or rotated requester access removes the receipt on refresh and does not reveal the prior conversation. Confirmation email rendering/delivery and actual organizer presentation remain pending acceptance work.

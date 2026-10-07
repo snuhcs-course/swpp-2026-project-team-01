@@ -178,6 +178,9 @@ References: [requester destination](../user_experience/04_page_list.md#requester
 
 Incremental completion (full phase exit remains open):
 
+- [x] Implement and verify the protected host/requester confirmed receipt from the frozen booking snapshot, with audience-specific delivery status, safe links, expiry/rotation enforcement and browser reflow coverage. Full notification delivery remains open.
+- [ ] Deploy the protected receipt API/UI and verify production authority boundaries and HTTP regressions.
+
 - [x] Implement and locally verify automatic booking execution, exact-identity recovery, atomic completion/outbox and host-before-attempt operator locking; pass 57-migration reset, 1,012 SQL assertions, 19 integration tests, browser/recovery/runtime checks and both builds.
 - [x] Deploy the booking worker migration/endpoint, verify production guards and activate its inspected minute scheduler (`02d8823`; deployment `dpl_6nUUbnfkfCCXY9av81o32CzoAWjf`; [evidence](05_rebuild_evidence.md#automatic-booking-worker--2026-10-07)).
 

@@ -7,7 +7,7 @@ import {AvailabilityEvaluation} from '../../lib/server/scheduling/availability.t
 import {LocalSql} from './local-sql.ts';
 import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
 
-export async function verifyBookingWorker(database:Database,env:NodeJS.ProcessEnv,hostId:string,createApproved:()=>Promise<string>){
+export async function verifyBookingWorker(database:Database,env:NodeJS.ProcessEnv,hostId:string,createApproved:()=>Promise<string>,confirmed?:(requestId:string)=>Promise<void>){
  const sql=new LocalSql(),events=new Map<string,unknown>();let inserts=0,gets=0,mode='success',conflict=false,miss=false,activeJob='',refreshes=0;
  const calendar={async refresh(bundle:import('../../lib/server/calendar/google.ts').TokenBundle,kind?:'host'|'guest'){assert.equal(kind,'host');refreshes++;return {...bundle,expiresAt:Date.now()+3600000};},async list(){return [{id:'fixture-calendar',name:'fixture',accessRole:'owner' as const,primary:false,timeZone:'UTC',color:null}];}};
  const provider=new GoogleBookingProvider(async(url,init)=>{
@@ -35,7 +35,7 @@ export async function verifyBookingWorker(database:Database,env:NodeJS.ProcessEn
  try{
   // Actual selective claim and insertion through the verified HTTP adapter.
   const first=await createApproved(),firstJob=await job(first);await sql.query(`update fmat.jobs set available_at='2000-01-01' where id='${firstJob}';`);
-  assert.deepEqual(await worker().run(),{claimed:1,outcome:'confirmed'});assert.equal(inserts,1);await confirmations(first);
+  assert.deepEqual(await worker().run(),{claimed:1,outcome:'confirmed'});assert.equal(inserts,1);await confirmations(first);if(confirmed)await confirmed(first);
   const duplicate=await sql.query(`select fmat.enqueue_job('booking','worker-duplicate-${randomUUID()}',payload) from fmat.jobs where id='${firstJob}';`);
   assert.equal(await worker().process(await own(duplicate)),'complete');assert.equal(inserts,1);await confirmations(first);
   // Conflicting fresh availability cannot cross the dispatch cutoff.

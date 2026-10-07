@@ -18,6 +18,7 @@ async function unusedPort() {
 async function start(args, port, health) {
   const child = spawn(process.execPath, args, {
     env: { ...process.env, NODE_ENV: 'production', PORT: String(port),
+      APP_ORIGIN:`http://127.0.0.1:${port}`, SUPABASE_URL:'http://127.0.0.1:1', SUPABASE_PUBLISHABLE_KEY:'synthetic-public-key',
       HOST: '127.0.0.1', OPENAI_MODEL: 'gpt-6-luna', NEXT_TELEMETRY_DISABLED: '1',
       PHOTON_PROJECT_ID:'10000000-0000-4000-8000-000000000001',
       PHOTON_WEBHOOK_ID:'20000000-0000-4000-8000-000000000001',
@@ -53,6 +54,11 @@ try {
   assert.equal(photon.status,401,'Photon receiver rejects unsigned delivery before database access');
   assert.match(photon.headers.get('cache-control'),/no-store/u);
 
+  for (const audience of ['host','guest']) {
+    const receipt = await fetch(web+'/api/browser/booking-receipt?audience='+audience+'&requestId=00000000-0000-4000-8000-000000000001');
+    assert.equal(receipt.status,401,'Receipt rejects anonymous '+audience+' access');
+    assert.match(receipt.headers.get('cache-control'),/no-store/u);
+  }
   const bookingDispatch = await fetch(web+'/api/internal/booking/dispatch',{method:'POST'});
   assert.equal(bookingDispatch.status,401,'Booking worker rejects anonymous dispatch');
   assert.match(bookingDispatch.headers.get('cache-control'),/no-store/u);
