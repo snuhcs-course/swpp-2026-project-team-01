@@ -4,7 +4,7 @@
 //   node scripts/ai-usage.mjs record [--stage]   update ai-usage/<branch>/<user>.json from local agent logs
 //   node scripts/ai-usage.mjs report [branch]    print a Markdown usage table for a branch
 //
-// Only token counts are stored, never prompts or responses.
+// Only token counts and agent working time are stored, never prompts or responses.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -173,22 +173,34 @@ function collectClaude(repo, since, emit, touch) {
       touch(id);
       for (const d of jsonLines(text)) {
         const msg = d.message;
-        if (d.type !== "assistant" || !msg?.usage || !msg.model || msg.model === "<synthetic>") continue;
-        const key = `${msg.id}:${d.requestId}`;
+        const isUsage = d.type === "assistant" && msg?.usage && msg.model && msg.model !== "<synthetic>";
+        // turn_duration closes each user request; subagents run inside it, so their files have none.
+        const isTurn = d.type === "system" && d.subtype === "turn_duration";
+        if (!isUsage && !isTurn) continue;
+        const key = isUsage ? `${msg.id}:${d.requestId}` : d.uuid;
         if (seen.has(key)) continue;
         seen.add(key);
         // gitBranch in the log can be stale or "HEAD" after a mid-session cd, so the timeline decides.
         const ts = Date.parse(d.timestamp);
         const b = repo.branchOf(d.cwd, ts);
         if (b === undefined) continue;
+        const e = { agent: "claude-code", client: d.entrypoint, ts, b };
+        if (isTurn) {
+          emit(id, { ...e, ms: d.durationMs });
+          continue;
+        }
         const u = msg.usage;
         const write1h = u.cache_creation?.ephemeral_1h_input_tokens ?? 0;
-        emit(id, "claude-code", d.entrypoint, msg.model, ts, b, {
-          input: u.input_tokens ?? 0,
-          cache_read: u.cache_read_input_tokens ?? 0,
-          cache_write_5m: (u.cache_creation_input_tokens ?? 0) - write1h,
-          cache_write_1h: write1h,
-          output: u.output_tokens ?? 0,
+        emit(id, {
+          ...e,
+          model: msg.model,
+          usage: {
+            input: u.input_tokens ?? 0,
+            cache_read: u.cache_read_input_tokens ?? 0,
+            cache_write_5m: (u.cache_creation_input_tokens ?? 0) - write1h,
+            cache_write_1h: write1h,
+            output: u.output_tokens ?? 0,
+          },
         });
       }
     }
@@ -205,44 +217,65 @@ function collectCodex(repo, since, emit, touch) {
   for (const f of files) {
     const text = fs.readFileSync(f, "utf8");
     if (!repo.needles.some((n) => text.includes(n))) continue;
-    let id, client, metaGit, cwd, model, prevTotal;
+    let id, client, isSubagent, metaGit, cwd, model, prevTotal;
+    const started = new Map();
+    const branchOf = (ts) => {
+      const b = repo.branchOf(cwd, ts);
+      if (b !== undefined) return b;
+      if (metaGit?.repository_url && normalizeRemote(metaGit.repository_url) === repo.remote) return metaGit.branch;
+    };
     for (const d of jsonLines(text)) {
       const p = d.payload ?? {};
+      const ts = Date.parse(d.timestamp);
       if (d.type === "session_meta" && !id) {
         // Forked sessions repeat the parent's session_meta after their own; the first one is this session.
         id = "codex:" + p.id;
         touch(id);
         client = p.originator;
+        isSubagent = p.source?.subagent !== undefined;
         metaGit = p.git;
         cwd = p.cwd;
       } else if (d.type === "turn_context") {
         cwd = p.cwd ?? cwd;
         model = p.model ?? model;
+      } else if (p.type === "task_started") {
+        started.set(p.turn_id, p.started_at * 1000);
+      } else if ((p.type === "task_complete" || p.type === "turn_aborted") && !isSubagent) {
+        // Subagent turns run while a parent turn is waiting on them; counting them would double the time.
+        const ms = p.duration_ms ?? ts - started.get(p.turn_id);
+        const b = branchOf(ts);
+        if (b !== undefined && ms >= 0) emit(id, { agent: "codex", client, ts, b, ms });
       } else if (p.type === "token_count" && p.info) {
         const total = p.info.total_token_usage.total_tokens;
         // token_count is re-emitted with an unchanged total; count each turn once.
         if (total === prevTotal) continue;
         prevTotal = total;
-        const ts = Date.parse(d.timestamp);
-        let b = repo.branchOf(cwd, ts);
-        if (b === undefined && metaGit?.repository_url && normalizeRemote(metaGit.repository_url) === repo.remote) b = metaGit.branch;
+        const b = branchOf(ts);
         if (b === undefined || !model) continue;
         const u = p.info.last_token_usage;
         // OpenAI counts cached and cache-write tokens inside input_tokens; split them out.
         const cached = u.cached_input_tokens ?? 0;
         const written = u.cache_write_input_tokens ?? 0;
-        emit(id, "codex", client, model.replace(/^.*\//, ""), ts, b, {
-          input: u.input_tokens - cached - written,
-          cache_read: cached,
-          cache_write_5m: written,
-          output: u.output_tokens,
-          reasoning: u.reasoning_output_tokens ?? 0,
+        emit(id, {
+          agent: "codex",
+          client,
+          ts,
+          b,
+          model: model.replace(/^.*\//, ""),
+          usage: {
+            input: u.input_tokens - cached - written,
+            cache_read: cached,
+            cache_write_5m: written,
+            output: u.output_tokens,
+            reasoning: u.reasoning_output_tokens ?? 0,
+          },
         });
       }
     }
   }
 }
 
+const duration = (ms) => `${Math.floor(ms / 3_600_000)}h ${String(Math.round((ms % 3_600_000) / 60_000)).padStart(2, "0")}m`;
 const tokens = (u) => (u.input ?? 0) + (u.cache_read ?? 0) + (u.cache_write_5m ?? 0) + (u.cache_write_1h ?? 0) + (u.output ?? 0);
 
 // A detached HEAD shows up as "HEAD" (ledger) or a commit hash (reflog).
@@ -271,11 +304,15 @@ function record(stage) {
   const repo = repoContext(cwd);
   const events = {};
   const touched = new Set();
-  collectClaude(repo, since, (id, agent, client, model, ts, b, usage) => (events[id] ??= []).push({ agent, client, model, ts, b, usage }), (id) => touched.add(id));
-  collectCodex(repo, since, (id, agent, client, model, ts, b, usage) => (events[id] ??= []).push({ agent, client, model, ts, b, usage }), (id) => touched.add(id));
+  // Each event carries either token `usage` (with `model`) or the `ms` an agent spent on one user request.
+  const emit = (id, e) => (events[id] ??= []).push(e);
+  const touch = (id) => touched.add(id);
+  collectClaude(repo, since, emit, touch);
+  collectCodex(repo, since, emit, touch);
 
   const local = {};
   let unassigned = 0;
+  let unassignedMs = 0;
   for (const [id, list] of Object.entries(events)) {
     list.sort((a, c) => a.ts - c.ts);
     // Work done detached or on the base branch belongs to the branch the same session moves to next, if any.
@@ -284,18 +321,23 @@ function record(stage) {
       const e = list[i];
       if (!isDetached(e.b) && e.b !== base) next = e.b;
       else if (next) e.b = next;
-      else if (isDetached(e.b)) unassigned += tokens(e.usage);
+      else if (isDetached(e.b) && e.usage) unassigned += tokens(e.usage);
+      else if (isDetached(e.b)) unassignedMs += e.ms;
     }
     for (const e of list) {
       if (!names.has(e.b)) continue;
-      const s = (local[id] ??= { agent: e.agent, client: e.client ?? "unknown", models: {}, first: e.ts, last: e.ts });
-      const m = (s.models[e.model] ??= emptyUsage());
-      for (const f of FIELDS) m[f] += e.usage[f] ?? 0;
+      const s = (local[id] ??= { agent: e.agent, client: e.client ?? "unknown", agent_ms: 0, models: {}, first: e.ts, last: e.ts });
+      if (e.usage) {
+        const m = (s.models[e.model] ??= emptyUsage());
+        for (const f of FIELDS) m[f] += e.usage[f] ?? 0;
+      } else s.agent_ms += e.ms;
       s.first = Math.min(s.first, e.ts);
       s.last = Math.max(s.last, e.ts);
     }
   }
-  if (unassigned) console.error(`ai-usage: ${unassigned.toLocaleString("en-US")} tokens used on a detached HEAD could not be assigned to a branch`);
+  if (unassigned || unassignedMs) {
+    console.error(`ai-usage: ${unassigned.toLocaleString("en-US")} tokens and ${duration(unassignedMs)} of agent time on a detached HEAD could not be assigned to a branch`);
+  }
 
   // Files recorded under this branch's former names are folded into the current one.
   const fileOf = (b) => path.join(USAGE_DIR, b, `${userSlug(email)}.json`);
@@ -345,6 +387,7 @@ function report(branchArg) {
     return;
   }
   const rows = new Map();
+  const agentMs = new Map();
   const users = [];
   let sessionCount = 0;
   for (const f of files.sort()) {
@@ -352,6 +395,7 @@ function report(branchArg) {
     users.push(data.user);
     for (const s of Object.values(data.sessions)) {
       sessionCount++;
+      agentMs.set(s.agent, (agentMs.get(s.agent) ?? 0) + (s.agent_ms ?? 0));
       for (const [model, u] of Object.entries(s.models)) {
         const key = `${s.agent}\t${model}`;
         const r = (rows.set(key, rows.get(key) ?? emptyUsage()), rows.get(key));
@@ -364,6 +408,8 @@ function report(branchArg) {
     `### AI usage: \`${branch}\``,
     "",
     `Contributors: ${users.join(", ")} · Sessions: ${sessionCount}`,
+    "",
+    `Agent time: **${duration([...agentMs.values()].reduce((a, b) => a + b, 0))}** (${[...agentMs].sort().map(([a, ms]) => `${a} ${duration(ms)}`).join(", ")})`,
     "",
     "| Agent | Model | Input | Cache read | Cache write | Output (reasoning) | Total | API-equiv. USD |",
     "|---|---|--:|--:|--:|--:|--:|--:|",
@@ -388,6 +434,7 @@ function report(branchArg) {
     "",
     "Input excludes cached tokens for every agent, so the columns add up to Total. Reasoning is part of Output.",
     "API-equiv. USD is list-price API cost, not what subscriptions actually billed." + (unpriced ? " `n/a`: no price on file for that model." : ""),
+    "Agent time adds up the time agents spent working on each request; concurrent sessions add up, subagents are already inside their parent's time.",
   );
   console.log(out.join("\n"));
 }
