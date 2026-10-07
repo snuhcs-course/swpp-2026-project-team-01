@@ -59,7 +59,7 @@ The browser calls `HostSetup` and service-only `fmat_host_setup`; eve calls `fma
 
 Read projections separate confirmed settings, draft answers, original clarification questions, computed missing fields and the current review. Changes to confirmed rules or calendar selection hide stale reviews. Protected refresh requires current conversation/rules versions, preserves draft answers/provenance/questions and generates a new review; ordinary edits reject a stale base instead of discarding earlier answers. A fresh Google list checks selected IDs and destination write permission before confirmation, followed by atomic version/grant checks. Lost-confirmation replay reauthorizes the current host and does not save again. These operations create no booking work.
 
-Structured in-chat forms support profile, timezone, weekly windows, meeting buffer, explicit mode/location, per-trip transportation and separate extra travel buffer during model failure. They label starter defaults and preserve unresolved questions until the host explicitly resolves them. Full Calendar analysis, suggestion dismissal, preset alignment, public-link readiness and iMessage linking remain separate unfinished tasks.
+Structured in-chat forms support profile, timezone, weekly windows, meeting buffer, explicit mode/location, per-trip transportation and separate extra travel buffer during model failure. They label starter defaults and preserve unresolved questions until the host explicitly resolves them. Full suggestion provenance/location selection, preset alignment, public-link readiness and iMessage linking remain separate unfinished tasks.
 
 ### Bounded Calendar analysis contract
 
@@ -72,3 +72,7 @@ Scans bind current Auth/admission, connection generation, rules version and setu
 Model reads expose only scope dates/timezone/count, derived windows/counts and fixed limitation codes; observed places and calendar IDs are excluded. Models cannot select/scan/apply/dismiss through these operations. The browser offers retry, refresh, dismissal and manual edits without a provider-success claim. Full conversational suggestion presentation, rich location selection and live AC-28 remain acceptance work.
 
 API semantics follow the [Google events list reference](https://developers.google.com/workspace/calendar/api/v3/reference/events/list) and [event resource](https://developers.google.com/workspace/calendar/api/v3/reference/events), checked on 2026-10-07.
+
+### Focused guidance progress
+
+A shared browser-safe derivation supplies one next question to the UI and authorized model read. Host-only progress actions remember optional-analysis skip and schedule/mode dismissal/re-offering under current authority, revision and immutable idempotency identity. Scan start also persists the analysis choice; temporary summary deletion does not reset it. Existing scan evidence is backfilled separately from generated schema changes. These actions do not change settings. Schedule suggestions preserve existing values, label missing defaults, and offer use/adjust/manual paths; dismissed defaults are not repopulated in blank manual fields. Explicit physical location, transportation and extra buffer are paced separately, and the first clarification is resolved independently of later questions. Full rich-location/provenance and cross-channel acceptance remain open.

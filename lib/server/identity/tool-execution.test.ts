@@ -60,3 +60,11 @@ test('revoked execution returns a safe error without fallback to an unchecked do
   await assert.rejects(tools.execute(auth, call, command), errorCode('UNAUTHORIZED'));
   assert.equal(requests, 1);
 });
+
+test('authorized setup read gives model the same focused guide and remembered dismissals',async()=>{
+ const state={revision:2,rulesVersion:0,calendarGeneration:'80000000-0000-4000-8000-000000000001',calendarSelected:true,confirmed:{},draft:null,review:null,nextAction:'complete_preferences',progress:{analysisDecided:true,dismissedSuggestions:['schedule']}};
+ const tools=new ConversationTools(new Database(env,async()=>Response.json(state)));
+ const result=await tools.execute(auth,call,{operation:'setup_read',input:{}}) as typeof state&{guide:{step:string}};
+ assert.equal(result.guide.step,'profile');assert.deepEqual(result.progress,state.progress);
+ await assert.rejects(tools.execute(auth,call,{operation:'setup_progress',input:{choice:'skip_analysis'}}),errorCode('INVALID_INPUT'));
+});

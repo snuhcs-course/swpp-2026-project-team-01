@@ -73,7 +73,7 @@ begin
  select * into r from fmat.setup_reviews where conversation_id=c.id order by revision desc limit 1;
  select * into g from fmat.calendar_connections where principal_kind='host' and principal_id=p_host and revoked_at is null;
  missing:=fmat.setup_missing(d.settings,d.provenance,d.unresolved);
- return jsonb_build_object('revision',c.revision,'rulesVersion',h.rules_version,'calendarGeneration',g.generation,'calendarSelected',g.id is not null and cardinality(h.conflict_calendar_ids)>0 and h.booking_calendar_id is not null,
+ return jsonb_build_object('progress',jsonb_build_object('analysisDecided',c.analysis_decided,'dismissedSuggestions',to_jsonb(c.dismissed_suggestions)),'revision',c.revision,'rulesVersion',h.rules_version,'calendarGeneration',g.generation,'calendarSelected',g.id is not null and cardinality(h.conflict_calendar_ids)>0 and h.booking_calendar_id is not null,
   'confirmed',jsonb_build_object('handle',h.handle,'displayName',h.display_name,'rules',h.rules),
   'draft',case when d.revision is null then null else jsonb_build_object('revision',d.revision,'baseRulesVersion',d.base_rules_version,'settings',d.settings,'provenance',d.provenance,'unresolved',to_jsonb(missing),'clarifications',to_jsonb(d.unresolved),'status',d.status) end,
   'review',case when r.revision is null or d.base_rules_version<>h.rules_version then null else jsonb_build_object('revision',r.revision,'draftRevision',r.draft_revision,'settings',r.settings,'status',r.status) end,
@@ -98,14 +98,19 @@ begin
   end if;
   return null;
  end if;
- if p_operation not in ('draft','rebase','confirm') or (p_operation in ('rebase','confirm') and p_source<>'host') then raise exception 'FORBIDDEN'; end if;
+ if p_operation not in ('draft','rebase','confirm','progress') or (p_operation in ('rebase','confirm','progress') and p_source<>'host') then raise exception 'FORBIDDEN'; end if;
  if length(coalesce(p_input->>'idempotencyKey','')) not between 1 and 200 then raise exception 'INVALID_INPUT'; end if;
  insert into fmat.idempotency(actor_scope,operation,key,input) values('host:'||h.id,'setup_'||p_operation,p_input->>'idempotencyKey',p_input||jsonb_build_object('source',p_source)) on conflict do nothing;
  select * into strict record from fmat.idempotency where actor_scope='host:'||h.id and operation='setup_'||p_operation and key=p_input->>'idempotencyKey' for update;
  if record.input<>p_input||jsonb_build_object('source',p_source) then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
  if record.result is not null then return fmat.host_setup_view(h.id); end if;
  if jsonb_typeof(p_input->'expectedRevision') is distinct from 'number' or (p_input->>'expectedRevision')::integer is distinct from c.revision then raise exception 'REVISION_CONFLICT'; end if;
- if p_operation in ('draft','rebase') then
+ if p_operation='progress' then
+  if exists(select 1 from jsonb_object_keys(p_input) x where x not in ('expectedRevision','choice','idempotencyKey')) or coalesce(p_input->>'choice','') not in ('skip_analysis','dismiss_schedule','dismiss_mode','offer_schedule','offer_mode') then raise exception 'INVALID_INPUT';end if;
+  if p_input->>'choice'='skip_analysis' then update fmat.setup_conversations set analysis_decided=true where id=c.id;
+  elsif p_input->>'choice' in ('dismiss_schedule','dismiss_mode') then update fmat.setup_conversations set dismissed_suggestions=array(select distinct v from unnest(dismissed_suggestions||array[replace(p_input->>'choice','dismiss_','')])v) where id=c.id;
+  else update fmat.setup_conversations set dismissed_suggestions=array_remove(dismissed_suggestions,replace(p_input->>'choice','offer_','')) where id=c.id;end if;
+ elsif p_operation in ('draft','rebase') then
   if p_operation='draft' then
   if exists(select 1 from jsonb_object_keys(p_input) x where x not in ('expectedRevision','patch','unresolved','idempotencyKey')) then raise exception 'INVALID_INPUT'; end if;
   patch:=p_input->'patch';perform fmat.validate_setup_patch(patch);
@@ -159,7 +164,7 @@ begin
   update fmat.setup_reviews set status='confirmed',confirmed_at=clock_timestamp() where conversation_id=c.id and revision=r.revision;
  end if;
  select coalesce(max(t.sequence),0)+1 into sequence from fmat.setup_turns t where conversation_id=c.id;
- insert into fmat.setup_turns(id,conversation_id,sequence,role,channel,text) values(gen_random_uuid(),c.id,sequence,case when p_source='assistant' then 'assistant' else 'host' end,'web',case when p_operation='confirm' then 'Confirmed the current settings review.' else 'Updated the private setup draft. Settings are not saved until confirmed.' end);
+ insert into fmat.setup_turns(id,conversation_id,sequence,role,channel,text) values(gen_random_uuid(),c.id,sequence,case when p_source='assistant' then 'assistant' else 'host' end,'web',case when p_operation='confirm' then 'Confirmed the current settings review.' when p_operation='progress' then 'Updated setup guidance choices. Confirmed settings are unchanged.' else 'Updated the private setup draft. Settings are not saved until confirmed.' end);
  update fmat.setup_conversations set revision=revision+1,updated_at=clock_timestamp() where id=c.id;
  perform fmat.audit('setup_'||p_operation,p_actor,h.id::text);
  update fmat.idempotency set result='{"applied":true}' where actor_scope='host:'||h.id and operation='setup_'||p_operation and key=p_input->>'idempotencyKey';

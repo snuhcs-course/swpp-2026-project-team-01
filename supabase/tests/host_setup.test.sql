@@ -71,6 +71,24 @@ select throws_ok($$select pg_temp.tool('setup_confirm',pg_temp.f('confirm'))$$,'
 select throws_ok($$select fmat.host_setup_operation('rebase',jsonb_build_object('kind','host','id','80000000-0000-4000-8000-000000000001','email','one@access.test'),'{"expectedRevision":3,"rulesVersion":1,"idempotencyKey":"model-refresh"}','assistant')$$,'P0001','FORBIDDEN','assistant cannot refresh stale human choices');
 select lives_ok($$select fmat.host_setup_operation('draft',jsonb_build_object('kind','host','id','80000000-0000-4000-8000-000000000001','email','one@access.test'),'{"expectedRevision":3,"patch":{"displayName":"Private host"},"unresolved":[],"idempotencyKey":"echo-name"}','assistant')$$,'assistant may repeat a confirmed name without downgrading provenance');
 select throws_ok($$select fmat.host_setup_operation('draft',jsonb_build_object('kind','host','id','80000000-0000-4000-8000-000000000001','email','one@access.test'),'{"expectedRevision":4,"patch":{"displayName":"Overwritten"},"unresolved":[],"idempotencyKey":"replace-name"}','assistant')$$,'P0001','EXPLICIT_CHOICE_CONFLICT','repeating a host name never permits later model replacement');
+-- Host-only guidance choices persist without changing draft or saved rules.
+select is(pg_temp.setup('read','host2')->'progress','{"analysisDecided":false,"dismissedSuggestions":[]}'::jsonb,'new host has no inferred guidance choices');
+insert into fixture values('skip','{"expectedRevision":1,"choice":"skip_analysis","idempotencyKey":"skip"}');
+select lives_ok($$select pg_temp.setup('progress','host2',pg_temp.f('skip'))$$,'host may skip optional analysis');
+select is(pg_temp.setup('read','host2')->'progress'->>'analysisDecided','true','skip survives read');
+select lives_ok($$select pg_temp.setup('progress','host2',pg_temp.f('skip'))$$,'skip retry reuses its result');
+select is(pg_temp.setup('read','host2')->>'revision','2','skip replay has one effect');
+select throws_ok($$select pg_temp.setup('progress','host2',pg_temp.f('skip')||'{"choice":"dismiss_mode"}')$$,'P0001','IDEMPOTENCY_CONFLICT','same key cannot change guidance intent');
+select throws_ok($$select pg_temp.setup('progress','host2','{"expectedRevision":1,"choice":"dismiss_mode","idempotencyKey":"old-choice"}')$$,'P0001','REVISION_CONFLICT','stale guidance cannot advance conversation');
+select throws_ok($$select fmat.host_setup_operation('progress',jsonb_build_object('kind','host','id','80000000-0000-4000-8000-000000000002','email','two@access.test'),'{"expectedRevision":2,"choice":"dismiss_mode","idempotencyKey":"model-choice"}','assistant')$$,'P0001','FORBIDDEN','model cannot manufacture skip or dismissal');
+select lives_ok($$select pg_temp.setup('progress','host2','{"expectedRevision":2,"choice":"dismiss_schedule","idempotencyKey":"dismiss"}')$$,'dismiss schedule');
+select is(pg_temp.setup('read','host2')->'progress'->'dismissedSuggestions','["schedule"]'::jsonb,'dismissal persists');
+select is(pg_temp.setup('read','host2')->'draft'->>'revision','1','guidance never changes draft');
+select is(pg_temp.setup('read','host2')->'confirmed'->>'handle',null,'guidance never saves policy');
+select lives_ok($$select pg_temp.setup('progress','host2','{"expectedRevision":3,"choice":"offer_schedule","idempotencyKey":"offer"}')$$,'host can explicitly ask for suggestions again');
+select is(pg_temp.setup('read','host2')->'progress'->'dismissedSuggestions','[]'::jsonb,'explicit request restores suggestions');
+select throws_ok($$select pg_temp.setup('progress','guest1','{"expectedRevision":4,"choice":"skip_analysis","idempotencyKey":"guest"}')$$,'P0001','FORBIDDEN','guest cannot change host progress');
+select is((select count(*)::text from fmat.booking_attempts),'0','guidance creates no booking effects');
 update auth.sessions set not_after=clock_timestamp()-interval '1 second' where id='81000000-0000-4000-8000-000000000001';
 select throws_ok($$select pg_temp.setup('read','host1')$$,'P0001','UNAUTHORIZED','expired Auth session denies draft read');
 select * from finish();rollback;

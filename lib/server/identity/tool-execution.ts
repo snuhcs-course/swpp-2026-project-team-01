@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import {setupGuide} from '../../contracts/setup-guide.ts';
+import {setupState} from '../../contracts/setup.ts';
 import { conversationTool } from '../../contracts/conversation-tools.ts';
 import { Database } from '../database/client.ts';
 import { ApplicationError } from '../errors.ts';
@@ -28,10 +30,12 @@ export class ConversationTools {
     const idempotencyKey = 'eve:' + createHash('sha256').update(JSON.stringify([
       auth.data.attributes.conversationId, auth.data.attributes.messageId, operation,
     ])).digest('hex');
-    return this.database.rpc('fmat_conversation_tool', {
+    const result=await this.database.rpc('fmat_conversation_tool', {
       p_grant_id: auth.data.principalId, p_conversation_id: auth.data.attributes.conversationId,
       p_operation: operation,
       p_input: operation.endsWith('_read') ? input : { ...input, idempotencyKey },
     });
+    if(operation==='setup_read'){const state=setupState.parse(result);return {...state,guide:setupGuide(state)};}
+    return result;
   }
 }

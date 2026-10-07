@@ -56,7 +56,7 @@ begin
    if not exists(select 1 from jsonb_array_elements(p_input->'verifiedCalendars') x where x->>'id'=k and x->>'accessRole' in ('reader','writer','writerWithoutPrivateAccess','owner')) then raise exception 'CALENDAR_ACCESS_INVALID';end if;
   end loop;
   update fmat.setup_reviews set status='superseded' where conversation_id=c.id and status='pending';
-  update fmat.setup_conversations set revision=revision+1,updated_at=clock_timestamp() where id=c.id returning * into c;
+  update fmat.setup_conversations set analysis_decided=true,revision=revision+1,updated_at=clock_timestamp() where id=c.id returning * into c;
   insert into fmat.calendar_scans(host_id,input,key,generation,rules_version,revision,status) values(h.id,p_input-'verifiedCalendars'-'idempotencyKey',p_input->>'idempotencyKey',g.generation,h.rules_version,c.revision,'running') returning * into s;
   return jsonb_build_object('execute',true,'id',s.id,'state',fmat.calendar_scan_view(h.id));
  end if;
