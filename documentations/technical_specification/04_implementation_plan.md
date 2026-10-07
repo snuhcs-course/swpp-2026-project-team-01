@@ -176,6 +176,11 @@ References: [requester destination](../user_experience/04_page_list.md#requester
 
 ### Phase 5 — Complete approval, booking and invitations
 
+Incremental completion (full phase exit remains open):
+
+- [x] Implement and verify frozen Calendar insert/reconciliation transport with exact event identity, minimized evidence and conservative uncertain-write outcomes.
+- [ ] Deploy the verified transport step and check production regressions. Explicit approval, fenced worker dispatch and live booking acceptance remain in the work below.
+
 Work:
 
 - [ ] Record explicit host confirmation of the current proposal, including any permitted exceptions, independently of model prose. Require current requester agreement; revisions invalidate applicable prior decisions.
