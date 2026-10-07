@@ -16,6 +16,7 @@ git config core.hooksPath .githooks
 - Node.js가 `PATH`에 있어야 합니다. 의존성 설치는 없습니다.
 - `git config user.email`이 설정돼 있어야 합니다. 기록 파일 이름으로 쓰입니다.
 - **task용 branch나 worktree를 만들기 전에** 설정하세요. 설정 전에 만들었다가 지운 worktree의 사용량은 복구할 수 없습니다.
+- 이 도구가 들어오기 전에 만든 branch에는 main을 merge(또는 rebase)해 오세요. hook은 각 worktree에 체크아웃된 `.githooks/`에서 실행되므로, 그 파일이 없는 branch에서는 오류 없이 아무것도 기록되지 않습니다.
 
 ## 사용법
 
