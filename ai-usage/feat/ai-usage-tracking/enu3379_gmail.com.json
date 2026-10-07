@@ -1,0 +1,22 @@
+{
+  "branch": "feat/ai-usage-tracking",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:50d3ca4f-4e09-450b-8483-224033f25b8b": {
+      "agent": "claude-code",
+      "client": "cli",
+      "models": {
+        "claude-opus-5-5": {
+          "input": 82,
+          "cache_read": 7148675,
+          "cache_write_5m": 0,
+          "cache_write_1h": 66868,
+          "output": 48895,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-07T10:11:26.530Z",
+      "last": "2026-10-07T10:43:41.269Z"
+    }
+  }
+}
