@@ -74,8 +74,15 @@ globalThis.fetch=async(input,init)=>{
   const dispatch=()=>fetch(runtime!.origin+'/api/internal/conversations/dispatch',{method:'POST',headers:{authorization:'Bearer '+dispatchSecret}});
   const response=await dispatch();assert.equal(response.status,200);assert.equal((await response.json()).sent,1);
   // Observe the finished durable turn while its SQL settlement is unavailable.
-  const stream=await fetch(runtime.origin+'/api/conversations/'+scope+'/stream',{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(30_000)});
-  assert.equal(stream.status,200);const reader=stream.body!.getReader();let output='';
+  let stream:Response|undefined;
+  for(let n=0;n<300;n++){
+   stream=await fetch(runtime.origin+'/api/conversations/'+scope+'/stream',{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(30_000)});
+   if(stream.status!==204)break;
+   // Dispatch acceptance precedes canonical-session binding on slower runners.
+   // A 204 is an authorized not-yet-bound snapshot, not a failed turn.
+   await delay(100);
+  }
+  assert.equal(stream?.status,200);const reader=stream!.body!.getReader();let output='';
   try{while(!output.includes('session.waiting')){const next=await reader.read();if(next.done)break;output+=new TextDecoder().decode(next.value);}}finally{await reader.cancel();}
   assert.match(output,/session.waiting/u);assert.ok(output.includes(describedReply));await access(marker);
   assert.equal(await sql.query(`select status from fmat.runtime_messages where conversation_id='${scope}';`),'pending');
