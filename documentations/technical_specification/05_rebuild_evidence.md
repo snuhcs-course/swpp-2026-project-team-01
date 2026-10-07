@@ -22,6 +22,8 @@ Local verification: `npm run check` passes 61 application/provider tests and 4 S
 
 Read-only Spectrum inspection returned HTTP 200 and zero registered webhooks for the configured project. This does not establish absence of independent streaming consumers, target eligibility or delivery. No webhook was registered and no external message was sent. Linking, private-authority dispatch, outbound recovery and live acceptance remain pending; setup task 4.3 and all phase/release gates remain open.
 
+Code commit `0ea1040` is deployed as `dpl_FsQ34cBLb1v8FTMuDkzLvohzr1nj` at `https://release.findmeatime.com` (Vercel `READY`). After reviewing the single pending migration, applied it to verified project `mriseqztcwmezvtawnbo`; all 31 migrations are current and remote advisors report no issues. The RPC denies anonymous/authenticated execution and allows only service execution. A rollback-only remote probe passed duplicate/conflict and receiver-disable checks; follow-up counts confirm zero receiver, inbox and Photon job records. Web/eve health return 200 with release readiness still false. The unconfigured Photon endpoint returns a redacted 503 with `no-store`, so production has no active receiver. Upload preflight checked 285 regular files against 12 configured secrets with no matches. Code CI runs `37559224671` and `37559221180` are still in progress at this record.
+
 ## Change ownership
 
 | Owner | Responsibility |
