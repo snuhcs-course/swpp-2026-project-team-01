@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import type {Browser} from '@playwright/test';
+import type {LocalSql} from '../integration/local-sql.ts';
+export async function verifyPublicIntake(browser:Browser,origin:string,sql:LocalSql,host:string){
+ const handle='browser-'+host.slice(0,8),context=await browser.newContext({viewport:{width:1280,height:900},timezoneId:'America/New_York',reducedMotion:'reduce'}),page=await context.newPage();page.setDefaultTimeout(15000);
+ try{
+  await page.goto(origin+'/'+handle);await page.getByLabel('Your name',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Your timezone',{exact:true}).inputValue(),'America/New_York');
+  assert.equal((await context.request.get(origin+'/api/browser/host/state')).status(),401,'requester has no host account');
+  const profile=await context.request.get(origin+'/api/browser/intake/profile?handle='+handle);assert.equal(profile.status(),200);assert.match(profile.headers()['cache-control'],/private.*no-store/);assert.deepEqual(Object.keys(await profile.json()).sort(),['displayName','durationMinutes','handle','timezone']);
+  await page.getByLabel('Your name',{exact:true}).fill('요청자');await page.getByLabel('Email address',{exact:true}).fill('public-requester@example.test');await page.getByLabel('What would you like to discuss?',{exact:true}).fill('연구 이야기');await page.getByLabel('Your timezone',{exact:true}).fill('Asia/Seoul');
+  await page.screenshot({path:'.local/rebuild/browser-screenshots/intake-desktop.png',fullPage:true});
+  await page.setViewportSize({width:320,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  assert.ok(await page.getByRole('button',{name:'Continue to my conversation'}).evaluate(e=>e.getBoundingClientRect().height>=44));
+  await page.getByLabel('Your timezone').focus();await page.keyboard.press('Tab');assert.equal(await page.getByRole('button',{name:'Continue to my conversation'}).evaluate(e=>e===document.activeElement),true);
+  await page.screenshot({path:'.local/rebuild/browser-screenshots/intake-mobile.png',fullPage:true});
+  await page.setViewportSize({width:1280,height:900});await page.evaluate(()=>{document.documentElement.style.zoom='2';});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.local/rebuild/browser-screenshots/intake-zoom.png',fullPage:true});await page.evaluate(()=>{document.documentElement.style.zoom='';});
+  const binding=await context.request.post(origin+'/api/browser/intake/bind',{headers:{origin},data:{handle}}),attempt=(await binding.json()).attemptId;
+  assert.equal((await context.request.post(origin+'/api/browser/intake/create',{headers:{origin:'https://wrong.test'},data:{handle,attemptId:attempt,details:{}}})).status(),403);
+  let lost=false;await page.route('**/api/browser/intake/create',async route=>{if(lost)return route.continue();lost=true;const result=await route.fetch();assert.equal(result.status(),200);await route.abort('failed');});
+  await page.getByRole('button',{name:'Continue to my conversation'}).click();await page.getByRole('button',{name:'Retry this request'}).waitFor();assert.equal(await page.getByLabel('Your name').isDisabled(),true);
+  await page.getByRole('button',{name:'Retry this request'}).click();await page.waitForURL('**/booking/*');await page.getByRole('heading',{name:'연구 이야기',exact:true}).waitFor();
+  const id=new URL(page.url()).pathname.split('/').at(-1)!;assert.match(id,/^[a-f0-9-]{36}$/u);assert.equal(new URL(page.url()).hash,'');assert.equal(new URL(page.url()).search,'');
+  assert.equal(await sql.query(`select count(*) from fmat.requests where host_id='${host}';`),'1');
+  assert.equal(await sql.query(`select details->>'timezone' from fmat.requests where id='${id}';`),'Asia/Seoul');
+  assert.equal(await sql.query(`select contact_verified_email is null and status='gathering' from fmat.requests where id='${id}';`),'t');
+  const cookies=await context.cookies();assert.ok(cookies.filter(c=>c.name.startsWith('fmat-')).every(c=>c.httpOnly&&c.sameSite==='Lax'));
+  assert.equal(await page.evaluate(()=>document.cookie),'');assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
+  const other=await browser.newContext();try{
+   assert.equal((await other.request.get(origin+'/api/browser/guest/state?requestId='+id)).status(),401);
+   assert.equal((await other.request.post(origin+'/api/browser/intake/resume',{headers:{origin},data:{handle,attemptId:attempt}})).status(),401);
+  }finally{await other.close();}
+  await page.goto(origin+'/'+handle);await page.getByRole('link',{name:'Continue my request'}).waitFor();assert.equal(await page.getByRole('link',{name:'Continue my request'}).getAttribute('href'),'/booking/'+id);
+  await page.reload();await page.getByRole('link',{name:'Continue my request'}).waitFor();
+  await sql.query(`update fmat.requests set status='withdrawn',token_revoked_at=now() where id='${id}';`);
+  await page.reload();await page.getByRole('link',{name:'View request status'}).waitFor();await page.getByRole('link',{name:'View request status'}).click();await page.getByText('This request is closed. Conversation history and changes are no longer available.',{exact:true}).waitFor();assert.equal(await page.getByText('연구 이야기',{exact:true}).count(),0);
+  await page.goto(origin+'/'+handle);await page.getByRole('button',{name:'Start another request'}).click();await page.getByLabel('Your name').waitFor();
+  assert.equal((await context.request.post(origin+'/api/browser/intake/resume',{headers:{origin},data:{handle,attemptId:attempt}})).status(),409,'old tab cannot act on a new intake attempt');
+  assert.equal((await context.request.get(origin+'/api/browser/guest/state?requestId='+id)).status(),200,'new intake keeps old receipt cookie');
+  await page.getByLabel('Your name').fill('Another requester');await page.getByLabel('Email address').fill('another@example.test');await page.getByLabel('What would you like to discuss?').fill('A second discussion');lost=false;
+  await page.getByRole('button',{name:'Continue to my conversation'}).click();await page.getByRole('button',{name:'Retry this request'}).waitFor();await page.reload();await page.getByRole('link',{name:'Continue my request'}).waitFor();assert.notEqual(await page.getByRole('link',{name:'Continue my request'}).getAttribute('href'),'/booking/'+id);
+  assert.equal(await sql.query(`select count(*) from fmat.requests where host_id='${host}';`),'2','reload after a lost response recovers the committed second request');
+  await page.goto(origin+'/unknown-booking-host');await page.getByRole('alert').waitFor();assert.equal(await page.getByLabel('Your name').count(),0);await page.screenshot({path:'.local/rebuild/browser-screenshots/intake-unavailable.png',fullPage:true});
+ }finally{await context.close();}
+}

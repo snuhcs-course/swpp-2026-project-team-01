@@ -16,6 +16,7 @@ import { HostSetup } from '../../../../../../lib/server/setup/commands.ts';
 import { CalendarSelection } from '../../../../../../lib/server/calendar/selection.ts';
 import {imessageEntryBrowser} from '../../../../lib/imessage-entry-browser.ts';
 import { imessageBrowser } from '../../../../lib/imessage-browser.ts';
+import { intakeBrowser } from '../../../../lib/intake-browser.ts';
 
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -29,6 +30,7 @@ async function handle(request:NextRequest,{params}:Context) {
     if(request.method==='POST')requireSameOrigin(request,applicationOrigin());
     const json=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:browserHeaders});
     if(action==='waitlist'&&request.method==='POST')return json(await commands.waitlist(await readJson(request)));
+    if(action.startsWith('intake/'))return await intakeBrowser(request,action.slice(7));
     if(action==='guest/exchange'&&request.method==='POST') {
       const {requestId,token}=guestExchange.parse(await readJson(request));
       const state=await commands.guest(guestCredential(requestId,token));

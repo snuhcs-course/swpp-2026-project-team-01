@@ -1,0 +1,55 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
+import {randomUUID,randomBytes,createHash} from 'node:crypto';
+import {PublicIntake} from '../../lib/server/identity/public-intake.ts';
+import {BrowserCommands} from '../../lib/server/identity/browser-commands.ts';
+import {guestCredential} from '../../lib/server/identity/credentials.ts';
+import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
+import {calendarScopes} from '../../lib/server/calendar/google.ts';
+import {Database} from '../../lib/server/database/client.ts';
+import {ApplicationError} from '../../lib/server/errors.ts';
+import {LocalSql} from './local-sql.ts';
+const code=(value:string)=>(error:unknown)=>error instanceof ApplicationError&&error.code===value;
+test('account-free intake fences provider reads and recovers concurrent/lost submissions',async()=>{
+ const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
+ const env={...process.env,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64')};
+ const sql=new LocalSql(),database=new Database(env),host=randomUUID(),invite=randomUUID(),handle='intake-'+host.slice(0,8),email=host+'@example.test',token=randomBytes(32).toString('base64url');
+ const hash=createHash('sha256').update(token).digest('hex'),cipher=new TokenCipher(env);
+ let role:'owner'|'reader'='owner',reads=0,refreshes=0,gate:()=>Promise<void>=async()=>{};
+ const provider={async refresh(bundle:Parameters<import('../../lib/server/calendar/catalog.ts').CalendarProvider['refresh']>[0]){refreshes++;return {...bundle,expiresAt:Date.now()+3600000};},async list(){reads++;await gate();return [{id:'mine',name:'PRIVATE calendar',accessRole:role,primary:true,timeZone:'Asia/Seoul',color:null}];}};
+ const service=new PublicIntake(database,env,provider),details={requesterName:'요청자',requesterEmail:'requester@example.test',purpose:'함께 이야기하기',timezone:'Asia/Seoul',durationMinutes:30,windows:[]};
+ try{
+  const encrypted=cipher.seal({accessToken:'private-google-token',refreshToken:'private-google-refresh',expiresAt:Date.now()-1000,subject:'fixture',scopes:[...calendarScopes.host]},'google:host:'+host);
+  await sql.query(`insert into auth.users(id,email,email_confirmed_at) values('${host}','${email}',now());insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invite}','${email}','${createHash('sha256').update(invite).digest('hex')}',now()+interval '1 day','intake-test');insert into fmat.hosts(id,email,invitation_id,handle,display_name,rules,conflict_calendar_ids,booking_calendar_id) values('${host}','${email}','${invite}','${handle}','Public host','{"timezone":"Asia/Seoul","durationMinutes":30,"preferences":"PRIVATE"}',array['mine'],'mine');insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential) values('host','${host}','private-subject',array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],'${encrypted}');`);
+  assert.deepEqual(await service.profile(handle),{handle,displayName:'Public host',timezone:'Asia/Seoul',durationMinutes:30});assert.equal(refreshes,1);
+  const stored=await sql.query(`select encrypted_credential from fmat.calendar_connections where principal_id='${host}';`);assert.notEqual(stored,encrypted);assert.equal((cipher.open(stored,'google:host:'+host) as {refreshToken:string}).refreshToken,'private-google-refresh');
+  assert.equal(await service.resume(handle,token),null);
+  role='reader';await assert.rejects(service.create(handle,token,details),code('NOT_FOUND'));role='owner';
+  let release!:()=>void,entered!:()=>void;const arrived=new Promise<void>(r=>entered=r),wait=new Promise<void>(r=>release=r);gate=async()=>{entered();await wait;};
+  const pending=service.create(handle,token,details),rejected=assert.rejects(pending,code('STALE_REVISION'));await arrived;
+  await sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${host}';`);release();await rejected;gate=async()=>{};
+  let lost=true;
+  const unreliable=new PublicIntake({async rpc(name,params){const result=await database.rpc(name,params);if(lost&&params.p_operation==='create'){lost=false;throw new ApplicationError('PROVIDER_UNAVAILABLE',503);}return result;}},env,provider);
+  await assert.rejects(unreliable.create(handle,token,details),code('PROVIDER_UNAVAILABLE'));
+  const continuation=await service.resume(handle,token);assert.ok(continuation);assert.equal(continuation.closed,false);const before=reads;
+  const retries=await Promise.all(Array.from({length:8},()=>service.create(handle,token,details)));assert.ok(retries.every(r=>r.requestId===continuation.requestId));assert.equal(reads,before,'committed replay does not depend on another Google call');
+  assert.equal(await sql.query(`select count(*) from fmat.requests where host_id='${host}';`),'1');
+  assert.equal(await sql.query(`select count(*) from fmat.audit_events where operation='request_create' and subject_id='${continuation.requestId}';`),'1');
+  await assert.rejects(service.create(handle,token,{...details,purpose:'changed'}),code('IDEMPOTENCY_CONFLICT'));
+  assert.equal(await service.resume(handle,randomBytes(32).toString('base64url')),null);await assert.rejects(service.resume('another-host',token),code('NOT_FOUND'));
+  const commands=new BrowserCommands(database);assert.equal((await commands.guest(guestCredential(continuation.requestId,token))).title,details.purpose);
+  await assert.rejects(commands.guest(guestCredential(continuation.requestId,randomBytes(32).toString('base64url'))),code('NOT_FOUND'));
+  // Concurrent first submissions, not just already-committed replay.
+  const second=randomBytes(32).toString('base64url');const firsts=await Promise.all(Array.from({length:8},()=>service.create(handle,second,details)));assert.equal(new Set(firsts.map(r=>r.requestId)).size,1);
+  await sql.query(`update fmat.requests set status='withdrawn',token_revoked_at=now(),private_notes='PRIVATE' where id='${continuation.requestId}';`);
+  assert.equal((await service.resume(handle,token))?.closed,true);const receipt=await commands.guest(guestCredential(continuation.requestId,token));assert.equal(receipt.closed,true);assert.equal(receipt.title,null);
+  await sql.query(`update fmat.requests set token_expires_at=now()-interval '1 second' where id='${continuation.requestId}';`);await assert.rejects(service.resume(handle,token),code('NOT_FOUND'));
+  let releaseDisconnect!:()=>void,enteredDisconnect!:()=>void;const arrivedDisconnect=new Promise<void>(r=>enteredDisconnect=r),waitDisconnect=new Promise<void>(r=>releaseDisconnect=r);gate=async()=>{enteredDisconnect();await waitDisconnect;};
+  const revoked=service.create(handle,randomBytes(32).toString('base64url'),details),denied=assert.rejects(revoked,code('NOT_FOUND'));await arrivedDisconnect;await sql.query(`update fmat.calendar_connections set revoked_at=now(),encrypted_credential=null where principal_id='${host}';`);releaseDisconnect();await denied;gate=async()=>{};
+  assert.equal(await sql.query(`select count(*) from fmat.requests where host_id='${host}';`),'2');
+  const deniedRpc=await fetch(local.API_URL+'/rest/v1/rpc/fmat_public_intake',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+local.ANON_KEY,'content-type':'application/json'},body:JSON.stringify({p_operation:'context',p_token_hash:null,p_input:{handle}})});assert.ok([401,403].includes(deniedRpc.status));
+ }finally{
+  await sql.query(`delete from fmat.audit_events where subject_id in (select id::text from fmat.requests where host_id='${host}');delete from fmat.idempotency where operation='request_create' and input->>'handle'='${handle}';delete from fmat.requests where host_id='${host}';delete from fmat.calendar_connections where principal_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';delete from auth.users where id='${host}';`);await sql.close();
+ }
+});

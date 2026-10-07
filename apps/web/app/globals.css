@@ -95,6 +95,10 @@ button:disabled { cursor: wait; opacity: .6; }
 @media(max-width:480px) { .workspace {padding:24px;} .workspace .wordmark {font-size:18px;gap:8px;} .header-note {font-size:11px;} .workspace-content {padding:54px 0;} .workspace h1 {font-size:42px;} }
 
 .landing-action { max-width:330px; text-decoration:none; margin-top:30px; font-size:14px; }
+.intake-workspace [data-slot="button"], .intake-workspace [data-slot="input"] { min-height:44px; }
+.intake-workspace [data-slot="input"], .intake-workspace [data-slot="textarea"] { font-size:16px; }
+.intake-workspace h1 { overflow-wrap:anywhere; }
+.intake-workspace [data-slot="button"] { white-space:normal; height:auto; padding-block:12px; }
 
 .workspace-content:has(.conversation-workspace) { width:min(100%,780px); padding:36px 0; }
 .workspace:has(.conversation-workspace) h1 { font-size:clamp(32px,4vw,48px); }
