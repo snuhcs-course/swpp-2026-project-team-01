@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import {verifyScheduling} from './scheduling.ts';
-import type {Browser} from '@playwright/test';
+import {verifyHostRequests} from './host-requests.ts';
+import type {Browser,Page} from '@playwright/test';
 import type {LocalSql} from '../integration/local-sql.ts';
-export async function verifyPublicIntake(browser:Browser,origin:string,sql:LocalSql,host:string){
+export async function verifyPublicIntake(browser:Browser,origin:string,sql:LocalSql,host:string,hostPage:Page){
  const handle='browser-'+host.slice(0,8),context=await browser.newContext({viewport:{width:1280,height:900},timezoneId:'America/New_York',reducedMotion:'reduce'}),page=await context.newPage();page.setDefaultTimeout(15000);
  try{
   await page.goto(origin+'/'+handle);await page.getByLabel('Your name',{exact:true}).waitFor();
@@ -82,7 +83,7 @@ export async function verifyPublicIntake(browser:Browser,origin:string,sql:Local
   const candidate={start:windows[0].start,end:new Date(Date.parse(windows[0].start)+30*60000).toISOString()};
   const exactCheck=await context.request.post(origin+'/api/browser/scheduling/check',{headers:{origin},data:{...data,candidate}});assert.equal(exactCheck.status(),200);assert.deepEqual(Object.keys(await exactCheck.json()).sort(),['checked','checkedAt','complete','revision']);
   assert.equal(await sql.query(`select candidates='[]' and current_proposal_version is null from fmat.requests where id='${id}';`),'t');
-  await verifyScheduling(page,sql,id,host);
+  await verifyScheduling(page,sql,id,host,()=>verifyHostRequests(hostPage,page,sql,id,host));
   await page.goto(origin+'/'+handle);await page.getByRole('link',{name:'Continue my request'}).waitFor();assert.equal(await page.getByRole('link',{name:'Continue my request'}).getAttribute('href'),'/booking/'+id);
   await page.reload();await page.getByRole('link',{name:'Continue my request'}).waitFor();
   await sql.query(`update fmat.requests set status='withdrawn',token_revoked_at=now() where id='${id}';`);

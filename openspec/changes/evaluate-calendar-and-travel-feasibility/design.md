@@ -86,3 +86,7 @@ The old payload-trusting generic candidate/proposal/exception operations and the
 ## Requester scheduling cards
 
 The requester conversation renders current published intervals and exact proposal details with explicit selection and separate agreement. A shared-safe meeting summary is read atomically with the same request revision, avoiding mismatched timezone/mode/location displays. The UI preserves decision identity across uncertain responses, checks status before retries and refreshes on context changes, focus and expiry. No-match and clarification expose no private reasons. Alternative/change actions prepare user-editable conversation text. Task 3.2 remains open for private host controls and complete lifecycle UI; task 3.3 remains open for booking revalidation.
+
+## Host request navigation
+
+Task 3.2 now connects `/app` request selection to the existing authorized private/shared conversations and current scheduling projection. A dedicated service-only bounded summary query avoids exposing the legacy unbounded full-request projection. Cursor positions and URL request IDs remain untrusted selectors; current Auth/admission and ownership govern each read. The browser defaults to private review, switches audiences explicitly, clears prior local conversation state and reauthorizes on reload. Closed requests expose status without actions. This slice supplies host review context; task 3.2 stays open for private exception controls and complete lifecycle interaction, and task 3.3 still owns booking revalidation.

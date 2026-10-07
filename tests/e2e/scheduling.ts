@@ -3,7 +3,7 @@ import type {Page} from '@playwright/test';
 import type {LocalSql} from '../integration/local-sql.ts';
 
 /** Uses the real browser API/evaluator/SQL with provider fixtures in the test server. */
-export async function verifyScheduling(page:Page,sql:LocalSql,requestId:string,hostId:string){
+export async function verifyScheduling(page:Page,sql:LocalSql,requestId:string,hostId:string,reviewHost?:()=>Promise<void>){
  const panel=page.getByRole('region',{name:'Meeting options and proposal'});
  const original=await sql.query(`select rules::text from fmat.hosts where id='${hostId}';`);
  try{
@@ -31,6 +31,7 @@ export async function verifyScheduling(page:Page,sql:LocalSql,requestId:string,h
   assert.equal(await sql.query(`select status='awaiting_approval' and requester_agreed_version=1 and host_approved_version is null from fmat.requests where id='${requestId}';`),'t');assert.equal(await sql.query(`select count(*) from fmat.jobs where payload->>'requestId'='${requestId}' and kind like 'booking%';`),'0');
   await page.reload();await proposal.getByRole('button',{name:'Agreement saved'}).waitFor();
   await panel.getByRole('button',{name:'Choose this time'}).nth(1).click();await proposal.getByText('Proposal 2 · Review all details before agreeing',{exact:true}).waitFor();assert.equal(await sql.query(`select requester_agreed_version is null from fmat.requests where id='${requestId}';`),'t');
+  await reviewHost?.();
   // Refresh removes current consent when another actor changes the context.
   await sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${hostId}';`);await panel.getByRole('button',{name:'Refresh meeting',exact:true}).click();await proposal.getByText('Proposal needs a fresh review',{exact:true}).waitFor();assert.equal(await proposal.getByRole('button',{name:'Agree to this proposal'}).isDisabled(),true);assert.equal(await panel.getByRole('button',{name:'Choose this time'}).count(),0);
   await sql.query(`update fmat.hosts set rules=jsonb_set(rules,'{preferences}','"Private host preference - never shared"'),rules_version=rules_version+1 where id='${hostId}';`);

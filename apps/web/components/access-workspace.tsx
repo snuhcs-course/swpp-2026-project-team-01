@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {IMessageEntry} from './imessage-entry.tsx';
+import {HostRequestWorkspace} from './host-request-workspace.tsx';
 import { ConversationWorkspace } from './conversation-workspace.tsx';
 import { hostState, guestState, type HostState, type GuestState } from '../../../lib/contracts/browser.ts';
 
@@ -40,7 +41,7 @@ export function HostWorkspace() {
     <IMessageEntry admitted={host?.admitted??false}/><p className="eyebrow">A little less back and forth</p>
     <h1>{loading?'Getting your place ready.':host?.admitted?'Welcome to your workspace.':host?'Your invitation, please.':waitlist?'Make room for better meetings.':'Let’s find your time.'}</h1>
     <p className="workspace-description">{host?.admitted?'Your host access is active. Your calendar, preferences and final approval will guide each meeting.':host?'Enter the invitation code sent to your verified email. Signing in and host access are separate.':waitlist?'Hosting is opening by invitation. Join the list—no calendar connection needed.':'Sign in to set up your scheduling assistant. Every meeting stays subject to your final approval.'}</p>
-    {loading?<p role="status">Checking your access…</p>:host?.admitted?<><p className="signed-in">Signed in as <strong>{host.email}</strong></p><ConversationWorkspace target={{audience:'host_setup'}} onAccessLost={()=>{setHost(null);setError('Your conversation access has ended. Sign in again to check your access.');}}/></>:<form onSubmit={submit} className="access-form">
+    {loading?<p role="status">Checking your access…</p>:host?.admitted?<><p className="signed-in">Signed in as <strong>{host.email}</strong></p><HostRequestWorkspace onAccessLost={()=>{setHost(null);setError('Your conversation access has ended. Sign in again to check your access.');}}/></>:<form onSubmit={submit} className="access-form">
       {host?<><p className="signed-in">Signed in as <strong>{host.email}</strong></p><label htmlFor="invitation">Invitation code</label><input id="invitation" value={code} onChange={e=>setCode(e.target.value)} autoComplete="off" placeholder="ABCD-EFGH-IJKL-MNOP" maxLength={19} required spellCheck={false}/><p className="field-note">Use the code from your invitation. It stays outside the conversation.</p></>:<>{waitlist?<><label htmlFor="name">Name <span className="optional">(optional)</span></label><input id="name" value={name} onChange={e=>setName(e.target.value)} autoComplete="name" maxLength={200}/></>:null}<label htmlFor="email">Email address</label><input id="email" type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" maxLength={254} required/><p className="field-note">{waitlist?'We’ll use this address for your host invitation.':'Use the email address your invitation was sent to.'}</p></>}
       <button className="primary-button" disabled={busy}>{busy?'One moment…':host?'Use invitation':waitlist?'Join the waitlist':'Email me a sign-in link'}<span aria-hidden="true">↗</span></button>
       {!host?<button type="button" className="text-button secondary-choice" disabled={busy} onClick={()=>{setWaitlist(!waitlist);setNotice('');setError('');}}>{waitlist?'Already invited? Sign in':'Not invited yet? Join the waitlist'}</button>:null}

@@ -22,6 +22,7 @@ import {TravelAllowances} from '../../../../../../lib/server/scheduling/allowanc
 import {SchedulingPublication} from '../../../../../../lib/server/scheduling/publication.ts';
 import {AvailabilityEvaluation} from '../../../../../../lib/server/scheduling/availability.ts';
 import {availabilityCheckInput} from '../../../../../../lib/contracts/availability-evaluation.ts';
+import {HostRequests} from '../../../../../../lib/server/identity/host-requests.ts';
 import { intakeBrowser } from '../../../../lib/intake-browser.ts';
 
 export const dynamic='force-dynamic';
@@ -60,6 +61,11 @@ async function handle(request:NextRequest,{params}:Context) {
     }
     if(action.startsWith('imessage-entry/'))return await imessageEntryBrowser(request,action.slice(15));
     session=browserSession(request);
+    if(['host/requests','host/request'].includes(action)&&request.method==='GET') {
+      const {credential}=await session.host(),service=new HostRequests();
+      const input=Object.fromEntries(request.nextUrl.searchParams);
+      return session.finish(json(await service[action==='host/requests'?'list':'read'](credential,input)));
+    }
     if(action==='scheduling/state'&&request.method==='GET') {
       const {requestId,audience}=z.strictObject({requestId:z.uuid(),audience:z.enum(['host','guest'])}).parse(Object.fromEntries(request.nextUrl.searchParams));
       const credential=audience==='host'?(await session.host()).credential:guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??'');
