@@ -23,7 +23,7 @@ globalThis.fetch=async(input,init)=>{
     return Response.json({timeZone:'Asia/Seoul',accessRole:'owner',items:Array.from({length:8},(_,i)=>({id:'instance-'+i,start:{dateTime:new Date(start.getTime()+(i+1)*86400000+9*3600000).toISOString()},end:{dateTime:new Date(start.getTime()+(i+1)*86400000+10*3600000).toISOString()},location:'Library meeting room'}))});
   }
   if(url.origin==='https://www.googleapis.com'&&url.pathname==='/calendar/v3/freeBusy'){
-    if(new Headers(init?.headers).get('authorization')!=='Bearer browser-requester-fixture')return new Response(null,{status:401});
+    if(!['Bearer browser-requester-fixture','Bearer browser-calendar-fixture'].includes(new Headers(init?.headers).get('authorization')))return new Response(null,{status:401});
     const body=JSON.parse(init.body);return Response.json({timeMin:body.timeMin,timeMax:body.timeMax,calendars:Object.fromEntries(body.items.map(({id})=>[id,id==='unavailable@example.test'&&++unavailableReads%2===1?{errors:[{reason:'internalError'}],busy:[]}:{busy:[]}]))});
   }
   return originalFetch(input,init);

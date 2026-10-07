@@ -103,10 +103,10 @@ returns uuid language plpgsql set search_path='' as $$
 declare v_host fmat.hosts; v_proposal fmat.proposals; v_connection fmat.calendar_connections;
   v_id uuid:=gen_random_uuid(); v_event_id text; v_payload jsonb;
 begin
+  select * into strict v_host from fmat.hosts where id=p_request.host_id for share;
   select * into v_connection from fmat.calendar_connections where principal_kind='host' and principal_id=p_request.host_id and revoked_at is null for share;
   if not found then raise exception 'RECONNECT_REQUIRED'; end if;
-  select * into strict v_host from fmat.hosts where id=p_request.host_id for share;
-  if not fmat.host_ready(v_host) then raise exception 'RECONNECT_REQUIRED'; end if;
+  if not fmat.host_ready(v_host) or p_request.host_availability_failed or (p_request.availability_mode='calendar' and p_request.availability_failed) then raise exception 'RECONNECT_REQUIRED'; end if;
   select * into strict v_proposal from fmat.proposals where request_id=p_request.id and version=p_request.current_proposal_version;
   if v_proposal.rules_version<>v_host.rules_version then raise exception 'FEASIBILITY_STALE'; end if;
   if p_request.contact_verified_email is distinct from lower(v_proposal.details->>'requesterEmail') then raise exception 'CONTACT_NOT_VERIFIED'; end if;
@@ -194,8 +194,8 @@ begin
         -- Lock the host while deciding whether the original approval still permits
         -- recreation. Invalid prerequisites commit retirement without a failed
         -- prepare rolling back the reservation release.
-        select * into v_connection from fmat.calendar_connections where id=v_attempt.connection_id for share;
         select * into strict v_host from fmat.hosts where id=v_request.host_id for share;
+        select * into v_connection from fmat.calendar_connections where id=v_attempt.connection_id for share;
         select * into v_proposal from fmat.proposals where request_id=v_request.id and version=v_request.current_proposal_version;
         if v_request.status<>'booking' or v_request.revision<>v_attempt.expected_revision
           or v_request.current_proposal_version is distinct from v_attempt.proposal_version
@@ -246,8 +246,8 @@ begin
       or v_request.revision is distinct from (p_input->>'expectedRevision')::integer then raise exception 'STALE_REVISION'; end if;
     if v_request.current_proposal_version<>v_attempt.proposal_version or v_request.requester_agreed_version is distinct from v_attempt.proposal_version
       or v_request.host_approved_version is distinct from v_attempt.proposal_version then raise exception 'PROPOSAL_STALE'; end if;
-    select * into v_connection from fmat.calendar_connections where id=v_attempt.connection_id for share;
     select * into strict v_host from fmat.hosts where id=v_attempt.host_id for share;
+    select * into v_connection from fmat.calendar_connections where id=v_attempt.connection_id for share;
     if not fmat.host_ready(v_host) or v_host.booking_calendar_id is distinct from v_attempt.calendar_id
       or v_connection.id is null or v_connection.principal_kind<>'host' or v_connection.principal_id<>v_host.id or v_connection.revoked_at is not null
       or v_connection.provider_subject is distinct from v_attempt.connection_provider_subject then raise exception 'RECONNECT_REQUIRED'; end if;

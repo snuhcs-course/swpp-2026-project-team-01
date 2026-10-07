@@ -17,6 +17,7 @@ import { CalendarSelection } from '../../../../../../lib/server/calendar/selecti
 import {imessageEntryBrowser} from '../../../../lib/imessage-entry-browser.ts';
 import { imessageBrowser } from '../../../../lib/imessage-browser.ts';
 import {RequestReview} from '../../../../../../lib/server/identity/request-review.ts';
+import {AvailabilityEvaluation} from '../../../../../../lib/server/scheduling/availability.ts';
 import { intakeBrowser } from '../../../../lib/intake-browser.ts';
 
 export const dynamic='force-dynamic';
@@ -53,6 +54,11 @@ async function handle(request:NextRequest,{params}:Context) {
     }
     if(action.startsWith('imessage-entry/'))return await imessageEntryBrowser(request,action.slice(15));
     session=browserSession(request);
+    if(action==='scheduling/check'&&request.method==='POST') {
+      const {audience,requestId,revision}=z.strictObject({audience:z.enum(['host','guest']),requestId:z.uuid(),revision:z.number().int().positive()}).parse(await readJson(request));
+      const credential=audience==='host'?(await session.host()).credential:guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??'');
+      return session.finish(json(await new AvailabilityEvaluation().check(credential,{requestId,revision})));
+    }
     if(action.startsWith('imessage/')&&['read','bind','start','continue','verify','cancel','skip','unlink'].includes(action.slice(9))){
       const {credential}=await session.host();
       return session.finish(await imessageBrowser(request,action.slice(9),credential));

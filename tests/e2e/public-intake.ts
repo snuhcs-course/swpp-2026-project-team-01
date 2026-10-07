@@ -58,6 +58,16 @@ export async function verifyPublicIntake(browser:Browser,origin:string,sql:Local
   assert.equal(await sql.query(`select details->>'requesterName' from fmat.requests where id='${id}';`),'요청자','partial suggestion preserves other fields');
   await page.reload();await page.getByText('Suggested details applied.',{exact:true}).waitFor();
   await page.setViewportSize({width:1280,height:900});await page.screenshot({path:'.local/rebuild/browser-screenshots/request-review-applied.png',fullPage:true});
+  // The authorized browser check returns only a receipt; time filtering alone
+  // cannot create or offer candidates while travel/preferences are unfinished.
+  const windows=[{start:new Date(Date.now()+86400000).toISOString(),end:new Date(Date.now()+90000000).toISOString()}];
+  const replaced=await context.request.post(origin+'/api/browser/availability/manual',{headers:{origin},data:{requestId:id,input:{revision:2,confirmed:true,timezone:'Asia/Seoul',windows}}});assert.equal(replaced.status(),200);
+  const revision=(await replaced.json()).revision,data={audience:'guest',requestId:id,revision};
+  assert.equal((await context.request.post(origin+'/api/browser/scheduling/check',{headers:{origin:'https://wrong.test'},data})).status(),403);
+  assert.equal((await context.request.post(origin+'/api/browser/scheduling/check',{headers:{origin},data:{...data,audience:'host'}})).status(),401);
+  const checked=await context.request.post(origin+'/api/browser/scheduling/check',{headers:{origin},data});assert.equal(checked.status(),200);assert.match(checked.headers()['cache-control'],/private.*no-store/);
+  const receipt=await checked.json();assert.deepEqual(Object.keys(receipt).sort(),['checked','checkedAt','complete','revision']);assert.equal(receipt.checked,true);assert.equal(receipt.complete,false);
+  assert.equal(await sql.query(`select candidates='[]' and current_proposal_version is null from fmat.requests where id='${id}';`),'t');
   await page.goto(origin+'/'+handle);await page.getByRole('link',{name:'Continue my request'}).waitFor();assert.equal(await page.getByRole('link',{name:'Continue my request'}).getAttribute('href'),'/booking/'+id);
   await page.reload();await page.getByRole('link',{name:'Continue my request'}).waitFor();
   await sql.query(`update fmat.requests set status='withdrawn',token_revoked_at=now() where id='${id}';`);

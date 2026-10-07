@@ -23,3 +23,17 @@ test('Failure in a later free/busy range discards the entire result',async()=>{
  let calls=0;const provider=new GoogleFreeBusy(async(_url,init)=>{const input=JSON.parse(init?.body as string);if(++calls===2)throw new Error('private provider error');return Response.json({timeMin:input.timeMin,timeMax:input.timeMax,calendars:{one:{busy:[]}}});});
  await assert.rejects(provider.read('secret',['one'],[...windows,{start:'2030-02-01T00:00:00Z',end:'2030-02-02T00:00:00Z'}]),code('PROVIDER_UNAVAILABLE'));assert.equal(calls,2);
 });
+
+test('Padded maximum-length windows are split after merging and retain submillisecond busy boundaries',async()=>{
+ const {bufferedReadWindows}=await import('./freebusy.ts');
+ const ranges=bufferedReadWindows([{start:'2030-01-01T00:00:00Z',end:'2030-02-01T00:00:00Z'}],240);
+ assert.equal(ranges.length,2);assert.equal(ranges[0].start,'2029-12-31T20:00:00.000Z');assert.equal(ranges[1].end,'2030-02-01T04:00:00.000Z');
+ const calls:{timeMin:string;timeMax:string}[]=[];
+ const provider=new GoogleFreeBusy(async(_url,init)=>{const input=JSON.parse(init!.body as string);calls.push(input);assert.ok(Date.parse(input.timeMax)-Date.parse(input.timeMin)<=31*86400000);return Response.json({timeMin:input.timeMin,timeMax:input.timeMax,calendars:{one:{busy:calls.length===1?[{start:'2030-01-01T12:00:00.000000001Z',end:'2030-01-01T12:00:00.000000002Z'}]:[]}}});});
+ assert.deepEqual(await provider.read('secret',['one'],ranges),[{start:'2030-01-01T12:00:00.000000001Z',end:'2030-01-01T12:00:00.000000002Z'}]);assert.equal(calls.length,2);
+ assert.equal(calls[0].timeMax,calls[1].timeMin,'No uncovered instant between pages');
+});
+test('Denied or missing selected calendars require reconnection even when Google omits busy',async()=>{
+ for(const reason of ['notFound','forbidden'])await assert.rejects(new GoogleFreeBusy(async()=>Response.json({timeMin:start,timeMax:end,calendars:{one:{errors:[{reason}]}}})).read('secret',['one'],windows),code('RECONNECT_REQUIRED'));
+ await assert.rejects(new GoogleFreeBusy(async()=>Response.json({timeMin:start,timeMax:end,calendars:{one:{errors:[{reason:'futureUnknownError'}]}}})).read('secret',['one'],windows),code('PROVIDER_UNAVAILABLE'));
+});
