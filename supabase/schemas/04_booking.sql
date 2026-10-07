@@ -374,8 +374,8 @@ create or replace function public.fmat_command(p_operation text,p_actor jsonb,p_
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare v_scope text; v_key text; v_record fmat.idempotency; v_result jsonb; v_identity_input jsonb;
 begin
-  if p_operation in ('candidates_save','proposal_create','proposal_revise','requester_agree','manual_allowance_save','preference_exception_save')
-    or (p_operation='mutation_replay' and p_input->>'operation' in ('proposal_create','proposal_revise','manual_allowance_save','preference_exception_save')) then raise exception 'FORBIDDEN';end if;
+  if p_operation in ('candidates_save','proposal_create','proposal_revise','requester_agree','requester_withdraw','host_decline','manual_allowance_save','preference_exception_save')
+    or (p_operation='mutation_replay' and p_input->>'operation' in ('proposal_create','proposal_revise','requester_withdraw','host_decline','manual_allowance_save','preference_exception_save')) then raise exception 'FORBIDDEN';end if;
   if jsonb_typeof(p_actor) is distinct from 'object' or jsonb_typeof(p_input) is distinct from 'object'
     or p_actor->>'kind' is null or p_actor->>'kind' not in ('host','guest','worker','operator','public') then raise exception 'INVALID_INPUT'; end if;
   perform fmat.authorize_command(p_operation,p_actor,p_input);

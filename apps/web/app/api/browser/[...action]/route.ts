@@ -22,6 +22,7 @@ import {TravelAllowances} from '../../../../../../lib/server/scheduling/allowanc
 import {SchedulingPublication} from '../../../../../../lib/server/scheduling/publication.ts';
 import {AvailabilityEvaluation} from '../../../../../../lib/server/scheduling/availability.ts';
 import {availabilityCheckInput} from '../../../../../../lib/contracts/availability-evaluation.ts';
+import {RequestLifecycle} from '../../../../../../lib/server/scheduling/lifecycle.ts';
 import {PrivateReview} from '../../../../../../lib/server/scheduling/private-review.ts';
 import {HostRequests} from '../../../../../../lib/server/identity/host-requests.ts';
 import { intakeBrowser } from '../../../../lib/intake-browser.ts';
@@ -66,6 +67,17 @@ async function handle(request:NextRequest,{params}:Context) {
       const {credential}=await session.host(),service=new HostRequests();
       const input=Object.fromEntries(request.nextUrl.searchParams);
       return session.finish(json(await service[action==='host/requests'?'list':'read'](credential,input)));
+    }
+    if(action==='request-lifecycle/state'&&request.method==='GET') {
+      const {requestId,audience}=z.strictObject({requestId:z.uuid(),audience:z.enum(['host','guest'])}).parse(Object.fromEntries(request.nextUrl.searchParams));
+      const credential=audience==='host'?(await session.host()).credential:guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??'');
+      return session.finish(json(await new RequestLifecycle().read(credential,{requestId})));
+    }
+    if(['request-lifecycle/withdraw','request-lifecycle/decline'].includes(action)&&request.method==='POST') {
+      const input=z.object({requestId:z.uuid()}).loose().parse(await readJson(request));
+      const operation=action==='request-lifecycle/withdraw'?'withdraw':'decline';
+      const credential=operation==='decline'?(await session.host()).credential:guestCredential(input.requestId,request.cookies.get(guestCookieName(input.requestId))?.value??'');
+      return session.finish(json(await new RequestLifecycle()[operation](credential,input)));
     }
     if(action==='scheduling/private'&&request.method==='GET') {
       const {credential}=await session.host();

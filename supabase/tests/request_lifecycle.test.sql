@@ -107,15 +107,15 @@ select throws_ok($$select pg_temp.call('proposal_create','guest',pg_temp.fixture
 select lives_ok($$select pg_temp.call('model_claim','worker')$$,'model budget claim uses current request revision');
 select pg_temp.call('model_claim','worker') from generate_series(1,7);
 select is((pg_temp.call('model_claim','worker')->>'allowed')::boolean,false,'bounded model budget cannot exceed eight per request');
-insert into request_fixture values('withdraw-input',jsonb_build_object('requestId',pg_temp.fixture('request')->>'id','expectedRevision',(select revision from fmat.requests where token_hash=repeat('b',64)),'idempotencyKey','withdraw'));
-select lives_ok($$select public.fmat_command('requester_withdraw',pg_temp.fixture('guest'),pg_temp.fixture('withdraw-input'))$$,'withdrawal before booking closes request');
+insert into request_fixture values('withdraw-input',jsonb_build_object('requestId',pg_temp.fixture('request')->>'id','revision',(select revision from fmat.requests where token_hash=repeat('b',64)),'confirmed',true,'idempotencyKey',gen_random_uuid()));
+select lives_ok($$select public.fmat_request_lifecycle('withdraw',pg_temp.fixture('guest'),pg_temp.fixture('withdraw-input'))$$,'withdrawal before booking closes request');
 select is(pg_temp.call('request_read','host')->>'status','withdrawn','host sees terminal withdrawal');
 select is(pg_temp.call('request_read','guest')->>'status','withdrawn','unexpired request credential can read minimal closure receipt');
 select is(pg_temp.call('request_read','guest')->'messages','[]'::jsonb,'terminal receipt excludes previous shared discussion');
 select is(pg_temp.call('request_read','guest')->'details'->>'requesterEmail','','terminal receipt omits old contact data');
 select throws_ok($$select fmat.authorize_guest(pg_temp.fixture('guest'),(pg_temp.fixture('request')->>'id')::uuid)$$,'P0001','NOT_FOUND','closed receipt credential cannot start or complete Calendar OAuth');
 select throws_ok($$select pg_temp.call('contact_recover','public',jsonb_build_object('email','new@request.test','tokenHash',repeat('f',64),'encryptedToken',repeat('x',40)))$$,'P0001','NOT_FOUND','closure blocks new recovery authority');
-select throws_ok($$select public.fmat_command('requester_withdraw',pg_temp.fixture('guest'),pg_temp.fixture('withdraw-input'))$$,'P0001','REQUEST_CLOSED','cached guest mutation cannot bypass revoked terminal authority');
+select throws_ok($$select public.fmat_command('requester_withdraw',pg_temp.fixture('guest'),pg_temp.fixture('withdraw-input'))$$,'P0001','FORBIDDEN','retired guest mutation cannot bypass explicit closure authority');
 select throws_ok($$select pg_temp.call('proposal_create','host',pg_temp.fixture('slot'))$$,'P0001','FORBIDDEN','retired proposal route cannot reopen a terminal request');
 select throws_ok($$select public.fmat_command('request_create',pg_temp.fixture('public'),jsonb_build_object('handle','requesttest','details',pg_temp.fixture('details'),'tokenHash',repeat('a',64),'idempotencyKey','create'))$$,'P0001','REQUEST_CLOSED','public cached create cannot leak or revive rotated closed request');
 insert into request_fixture values('incomplete',public.fmat_command('request_create',pg_temp.fixture('public'),jsonb_build_object('handle','requesttest','details','{}'::jsonb,'tokenHash',repeat('d',64),'idempotencyKey','incomplete')));

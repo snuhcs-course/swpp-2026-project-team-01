@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import {RequestLifecycleCard} from './request-lifecycle.tsx';
 import {IMessageEntry} from './imessage-entry.tsx';
 import {HostRequestWorkspace} from './host-request-workspace.tsx';
 import { ConversationWorkspace } from './conversation-workspace.tsx';
@@ -52,6 +53,8 @@ export function HostWorkspace() {
 }
 export function BookingWorkspace({requestId}:{requestId:string}) {
   const [state,setState]=useState<GuestState|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(true);
+  const statusHeading=useRef<HTMLHeadingElement>(null);
+  useEffect(()=>{if(state?.closed)statusHeading.current?.focus();},[state?.closed]);
   const request=useRef<{id:string;task:Promise<unknown>}|null>(null);
   useEffect(()=>{let active=true,sequence=0;
     function load() {
@@ -67,7 +70,8 @@ export function BookingWorkspace({requestId}:{requestId:string}) {
   },[requestId]);
   return <Frame aside={<span className="header-note">Your meeting</span>}><p className="eyebrow">One meeting at a time</p><h1>{loading?'Finding your conversation.':error?'This link is private.':state?.status==='booked'?'A time to connect.':'Your meeting, in progress.'}</h1>
     {loading?<p role="status">Checking your private access…</p>:null}{error?<p className="workspace-description" role="alert">{error}</p>:null}
-    {state?<div className="access-card"><div><h2>{state.title||'Meeting status'}</h2><p className="status-label">{state.status.replaceAll('_',' ')}</p>{state.proposal?<><ProposalTime proposal={state.proposal}/>{state.proposal.location?<p>{state.proposal.location}</p>:null}</>:null}<p>{state.closed?'This request is closed. Conversation history and changes are no longer available.':'Your saved request is protected. Use the conversation below to discuss the details.'}</p></div></div>:null}
-    {state&&!state.closed?<ConversationWorkspace key={requestId} target={{audience:'request_shared',requestId,guest:true}} onRequestChanged={()=>{void api('guest/state?requestId='+encodeURIComponent(requestId)).then(data=>{const next=guestState.parse(data);setState(previous=>previous&&!previous.closed&&previous.requestId===requestId?next:previous);}).catch(()=>setError('Could not refresh your meeting status. Reload to check the current details.'));}} onAccessLost={()=>{setState(null);void api('guest/state?requestId='+encodeURIComponent(requestId)).then(data=>{const next=guestState.parse(data);if(next.closed)setState(next);else setError('Your conversation access has ended. Open a current private link to continue.');}).catch(()=>setError('Your conversation access has ended. Open a current private link to continue.'));}}/>:null}
+    {state?<div className="access-card"><div><h2 ref={statusHeading} tabIndex={-1}>{state.title||'Meeting status'}</h2><p className="status-label">{state.status.replaceAll('_',' ')}</p>{state.proposal?<><ProposalTime proposal={state.proposal}/>{state.proposal.location?<p>{state.proposal.location}</p>:null}</>:null}<p>{state.closed?'This request is closed. Conversation history and changes are no longer available.':'Your saved request is protected. Use the conversation below to discuss the details.'}</p></div></div>:null}
+    {state&&!state.closed?<RequestLifecycleCard key={requestId+'closure'} requestId={requestId} audience="guest" onStatus={next=>{setState(previous=>previous&&previous.requestId===next.requestId?{...previous,status:next.status,closed:next.closed,...(next.closed?{title:null,proposal:null}:{})}:previous);if(next.closed)void api('guest/state?requestId='+encodeURIComponent(requestId)).then(data=>{const receipt=guestState.parse(data);if(receipt.closed)setState(previous=>previous?.requestId===requestId?receipt:previous);}).catch(()=>{});}}/>:null}
+    {state&&!state.closed&&state.status!=='booking'?<ConversationWorkspace key={requestId} target={{audience:'request_shared',requestId,guest:true}} onRequestChanged={()=>{void api('guest/state?requestId='+encodeURIComponent(requestId)).then(data=>{const next=guestState.parse(data);setState(previous=>previous&&!previous.closed&&previous.requestId===requestId?next:previous);}).catch(()=>setError('Could not refresh your meeting status. Reload to check the current details.'));}} onAccessLost={()=>{setState(null);void api('guest/state?requestId='+encodeURIComponent(requestId)).then(data=>{const next=guestState.parse(data);if(next.closed)setState(next);else setError('Your conversation access has ended. Open a current private link to continue.');}).catch(()=>setError('Your conversation access has ended. Open a current private link to continue.'));}}/>:null}
   </Frame>;
 }

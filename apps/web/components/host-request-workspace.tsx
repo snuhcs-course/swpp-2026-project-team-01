@@ -1,6 +1,7 @@
 'use client';
 import {useCallback,useEffect,useId,useRef,useState,type FormEvent} from 'react';
 import {hostRequestPage,hostRequestSummary,hostRequestTarget,type HostRequestPage,type HostRequestSummary} from '../../../lib/contracts/host-requests.ts';
+import {RequestLifecycleCard} from './request-lifecycle.tsx';
 import {ConversationWorkspace} from './conversation-workspace.tsx';
 import {Button} from './ui/button';
 import {Card,CardHeader,CardTitle,CardDescription,CardContent,CardFooter} from './ui/card';
@@ -50,7 +51,7 @@ export function HostRequestWorkspace({onAccessLost}:{onAccessLost:()=>void}){
   addEventListener('focus',focus);document.addEventListener('visibilitychange',focus);const timer=setInterval(focus,30_000);
   return()=>{sequence.current++;clearInterval(timer);removeEventListener('focus',focus);document.removeEventListener('visibilitychange',focus);};
  },[selection,refresh]);
- useEffect(()=>{if(selected)heading.current?.focus();},[selected?.requestId,selection?.audience]);
+ useEffect(()=>{if(selected)heading.current?.focus();},[selected?.requestId,selected?.closed,selection?.audience]);
  const id=useId(),active=selected?.requestId===selection?.requestId?selected:null;
  return <div className="flex min-w-0 flex-col gap-4">
   <div className="flex flex-wrap gap-2"><Button variant="outline" className="min-h-11" aria-expanded={picker} aria-controls={id+'picker'} onClick={()=>setPicker(value=>!value)}>Meeting requests</Button>{selection?<Button variant="ghost" className="min-h-11" onClick={()=>choose(null)}>Back to host chat</Button>:null}</div>
@@ -65,7 +66,8 @@ export function HostRequestWorkspace({onAccessLost}:{onAccessLost:()=>void}){
    </RadioGroup></FieldSet>}</CardContent>
    <CardFooter><p>{selection.audience==='host_private'?'This discussion is private to you and your assistant.':'Messages in this discussion are visible to the requester. Keep private calendar details in host review.'}</p></CardFooter>
   </Card>:null}
-  {initialized&&!selection?<ConversationWorkspace key="host_setup" target={{audience:'host_setup'}} onAccessLost={onAccessLost}/>:active&&!active.closed&&selection?<ConversationWorkspace key={selection.requestId+selection.audience} target={selection} onAccessLost={()=>{sequence.current++;setSelected(null);setError('Access to this discussion has ended. Refresh the request to check your access.');}} onRequestChanged={()=>void refresh()}/>:null}
+  {active&&!active.closed&&selection?<RequestLifecycleCard key={selection.requestId+'closure'} requestId={selection.requestId} audience="host" onStatus={next=>setSelected(previous=>previous?.requestId===next.requestId?{...previous,status:next.status,closed:next.closed,revision:next.revision}:previous)}/>:null}
+  {initialized&&!selection?<ConversationWorkspace key="host_setup" target={{audience:'host_setup'}} onAccessLost={onAccessLost}/>:active&&!active.closed&&active.status!=='booking'&&selection?<ConversationWorkspace key={selection.requestId+selection.audience} target={selection} onAccessLost={()=>{sequence.current++;setSelected(null);setError('Access to this discussion has ended. Refresh the request to check your access.');}} onRequestChanged={()=>void refresh()}/>:null}
  </div>;
 }
 
