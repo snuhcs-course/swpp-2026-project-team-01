@@ -21,7 +21,8 @@ import {candidateEvidence,evidenceReceipt,type CandidateAssessment} from './evid
 
 const batchOptions=z.strictObject({stepMinutes:z.number().int().min(1).max(240),limit:z.number().int().min(1).max(30)});
 const grant=z.object({principalId:z.uuid(),providerSubject:z.string(),encryptedCredential:z.string(),calendarIds:z.array(z.string()).min(1).max(50)});
-const snapshot=z.object({preferenceDecisions:z.array(verifiedPreferenceDecision).max(30),travelBasis:z.string().regex(/^[a-f0-9]{64}$/u),allowances:z.array(verifiedTravelAllowance).max(20),checkId:z.uuid(),basis:z.string().regex(/^[a-f0-9]{64}$/u),revision:z.number().int().positive(),rulesVersion:z.number().int().nonnegative(),
+const bookingLease=z.strictObject({workerId:z.string().min(1).max(200),jobId:z.uuid(),leaseToken:z.uuid()});
+const snapshot=z.object({bookingCalendarId:z.string().min(1).nullable().optional(),preferenceDecisions:z.array(verifiedPreferenceDecision).max(30),travelBasis:z.string().regex(/^[a-f0-9]{64}$/u),allowances:z.array(verifiedTravelAllowance).max(20),checkId:z.uuid(),basis:z.string().regex(/^[a-f0-9]{64}$/u),revision:z.number().int().positive(),rulesVersion:z.number().int().nonnegative(),
  details:z.object({windows:intervalFeasibilityInput.shape.windows,timezone:intervalFeasibilityInput.shape.requesterTimezone,durationMinutes:intervalFeasibilityInput.shape.durationMinutes,mode:z.string().optional(),location:z.string().optional()}),
  rules:intervalFeasibilityInput.shape.rules.loose(),localBookings:z.array(schedulingInterval),localCommitments:z.array(z.object({id:z.uuid(),calendarId:z.string(),eventId:z.string(),version:z.string(),interval:schedulingInterval,location:z.string().nullable()})).max(10000),mode:z.enum(['manual','calendar']),host:grant,guest:grant.nullable()});
 
@@ -32,19 +33,23 @@ const snapshot=z.object({preferenceDecisions:z.array(verifiedPreferenceDecision)
 export class AvailabilityEvaluation {
  constructor(private readonly database=new Database(),private readonly env=process.env,private readonly provider:CalendarProvider=new GoogleCalendarProvider(env),private readonly freebusy:FreeBusyProvider=new GoogleFreeBusy(),private readonly events:AdjacentEventProvider=new GoogleAdjacentEvents(),private readonly routes:RoutesProvider=new GoogleRoutes(env)){}
  private call(operation:string,credential:Credential,input:unknown){requireCredential(credential);return this.database.rpc('fmat_availability_evaluation',{p_operation:operation,p_credential:credential,p_input:input});}
- async read(credential:Credential,input:unknown){return this.evaluate(credential,availabilityCheckInput.parse(input));}
+ async read(credential:Credential,input:unknown){return this.evaluate(availabilityCheckInput.parse(input),(operation,input)=>this.call(operation,credential,input));}
  async batch(credential:Credential,input:unknown){
   const parsed=availabilityCheckInput.omit({candidate:true}).extend({sampling:batchOptions}).parse(input);
-  return this.evaluate(credential,{requestId:parsed.requestId,revision:parsed.revision},parsed.sampling);
+  return this.evaluate({requestId:parsed.requestId,revision:parsed.revision},(operation,input)=>this.call(operation,credential,input),parsed.sampling);
  }
- private async evaluate(credential:Credential,target:z.infer<typeof availabilityCheckInput>,sampling?:z.infer<typeof batchOptions>){
-  const state=snapshot.parse(await this.call('start',credential,{...target,checkId:randomUUID()}));
+ async readForBooking(lease:unknown,input:unknown){
+  const authority=bookingLease.parse(lease),target=availabilityCheckInput.required({candidate:true}).parse(input);
+  return this.evaluate(target,(operation,input)=>this.database.rpc('fmat_booking_evaluation',{p_operation:operation,p_lease:authority,p_input:input}));
+ }
+ private async evaluate(target:z.infer<typeof availabilityCheckInput>,call:(operation:string,input:unknown)=>Promise<unknown>,sampling?:z.infer<typeof batchOptions>){
+  const state=snapshot.parse(await call('start',{...target,checkId:randomUUID()}));
   const context={...target,checkId:state.checkId,basis:state.basis},cipher=new TokenCipher(this.env);
   const windows=state.details.windows;let hostAccessToken='';
   const read=async(party:'host'|'guest',selected:z.infer<typeof grant>)=>{
    // Recheck before each external read as well as after it. Network I/O never
    // runs inside a database transaction or grants authority to a stale caller.
-   await this.call('check',credential,context);
+   await call('check',context);
    let bundle:TokenBundle;
    try{
     const encryptionContext='google:'+party+':'+selected.principalId;
@@ -57,18 +62,25 @@ export class AvailabilityEvaluation {
     if(bundle.expiresAt<=Date.now()+60_000){
      const refreshed=tokenBundle.parse(await this.provider.refresh(bundle,party));validate(refreshed);
      if(refreshed.expiresAt<=Date.now()+30_000)throw new ApplicationError('RECONNECT_REQUIRED',409);
-     await this.call('refresh',credential,{...context,party,previousCredential:selected.encryptedCredential,encryptedCredential:cipher.seal(refreshed,encryptionContext)});
+     await call('refresh',{...context,party,previousCredential:selected.encryptedCredential,encryptedCredential:cipher.seal(refreshed,encryptionContext)});
      bundle=refreshed;
     }
    }catch(error){
     // A stale authority error must not mark a newer request/connection failed.
     if(error instanceof ApplicationError&&!['RECONNECT_REQUIRED','PROVIDER_UNAVAILABLE'].includes(error.code))throw error;
-    await this.call('failure',credential,{...context,party});
+    await call('failure',{...context,party});
     throw error instanceof ApplicationError?error:new ApplicationError('RECONNECT_REQUIRED',409);
    }
-   await this.call('check',credential,context);
-   try{const busy=await this.freebusy.read(bundle.accessToken,selected.calendarIds,party==='host'?bufferedReadWindows(windows,state.rules.bufferMinutes):windows);if(party==='host')hostAccessToken=bundle.accessToken;return busy;}
-   catch(error){await this.call('failure',credential,{...context,party});throw error instanceof ApplicationError?error:new ApplicationError('PROVIDER_UNAVAILABLE',503);}
+   await call('check',context);
+   try{
+    if(party==='host'&&state.bookingCalendarId){
+     const calendars=await this.provider.list(bundle.accessToken);
+     await call('check',context);
+     if(!calendars.some(c=>c.id===state.bookingCalendarId&&['writer','writerWithoutPrivateAccess','owner'].includes(c.accessRole)))throw new ApplicationError('RECONNECT_REQUIRED',409);
+     await call('destination_checked',context);
+    }
+    const busy=await this.freebusy.read(bundle.accessToken,selected.calendarIds,party==='host'?bufferedReadWindows(windows,state.rules.bufferMinutes):windows);if(party==='host')hostAccessToken=bundle.accessToken;return busy;}
+   catch(error){await call('failure',{...context,party});throw error instanceof ApplicationError?error:new ApplicationError('PROVIDER_UNAVAILABLE',503);}
   };
   const hostBusy=await read('host',state.host);
   // An absent selected Calendar is never interpreted as manual availability.
@@ -82,11 +94,11 @@ export class AvailabilityEvaluation {
   for(const candidate of sampled.intervals){
    const candidateEvaluation:CandidateAssessment={interval:evaluation.status==='clarification'?'clarification':intervalFits(evaluation,candidate)?'fits':'conflict',travel:null,contextFingerprint:null};
    if(candidateEvaluation.interval==='fits'&&['online','in_person'].includes(state.details.mode??'')){
-    const assertCurrent=async()=>{await this.call('check',credential,context);};
+    const assertCurrent=async()=>{await call('check',context);};
     let commitments:TravelCommitment[]=[];
     if(state.details.mode==='in_person'){
      try{await assertCurrent();commitments=await this.events.read(hostAccessToken,state.host.calendarIds,candidate,assertCurrent);await assertCurrent();}
-     catch(error){if(!(error instanceof ApplicationError)||['RECONNECT_REQUIRED','PROVIDER_UNAVAILABLE'].includes(error.code))await this.call('failure',credential,{...context,party:'host'});throw error instanceof ApplicationError?error:new ApplicationError('PROVIDER_UNAVAILABLE',503);}
+     catch(error){if(!(error instanceof ApplicationError)||['RECONNECT_REQUIRED','PROVIDER_UNAVAILABLE'].includes(error.code))await call('failure',{...context,party:'host'});throw error instanceof ApplicationError?error:new ApplicationError('PROVIDER_UNAVAILABLE',503);}
      commitments.push(...unexplainedBusy(hostBusy,commitments),...state.localCommitments.map(c=>({...c,location:physicalLocation(c.location??undefined)})),...state.rules.focusBlocks.map((interval,i)=>({id:'focus-'+i,calendarId:'rules',eventId:'focus-'+i,version:String(state.rulesVersion),interval,location:null})));
     }
     const adjacent=adjacentContext(candidate,commitments,state.travelBasis),rules=setupRules.pick({travelMode:true,travelBufferMinutes:true}).strip().parse(state.rules);
@@ -97,15 +109,15 @@ export class AvailabilityEvaluation {
    candidateEvaluation.preferences=evaluatePreferences({basis:state.travelBasis,candidate,details:state.details,rules:setupRules.parse(state.rules)},state.preferenceDecisions);
    assessments.push({candidate,assessment:candidateEvaluation});
   }
-  const receipt=availabilityCheckReceipt.parse({...await this.call('success',credential,context) as object,complete:false});
+  const receipt=availabilityCheckReceipt.parse({...await call('success',context) as object,complete:false});
   const results=[];
   for(const {candidate,assessment} of assessments){
    const evidence=candidateEvidence.parse({candidate,...assessment,complete:false});
-   const persisted=evidenceReceipt.parse(await this.call('evidence_save',credential,{...context,candidate,rulesVersion:state.rulesVersion,evidence}));
+   const persisted=evidenceReceipt.parse(await call('evidence_save',{...context,candidate,rulesVersion:state.rulesVersion,evidence}));
    results.push({candidate,assessment,persisted});
   }
   // A later save/read can race an earlier one; recheck after the entire batch.
-  await this.call('check',credential,context);
+  await call('check',context);
   return {receipt,evaluation,candidateEvaluation:target.candidate?results[0].assessment:null,persisted:target.candidate?results[0].persisted:null,context,rulesVersion:state.rulesVersion,results,truncated:sampled.truncated};
  }
  async check(credential:Credential,input:unknown){return (await this.read(credential,input)).receipt;}

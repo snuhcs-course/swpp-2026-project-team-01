@@ -1,10 +1,27 @@
--- Short-lived read attempts, not feasible candidates or human decisions.
-alter table fmat.requests add column availability_check_id uuid;
-alter table fmat.requests add column availability_check_started_at timestamptz;
-alter table fmat.requests add column host_availability_failed boolean not null default false;
+SET local check_function_bodies = off;
 
-create or replace function fmat.evaluate_availability(p_operation text,p_credential jsonb,p_input jsonb,p_booking_lease jsonb)
-returns jsonb language plpgsql set search_path='' as $$
+CREATE TABLE "fmat"."booking_checks" (
+  "attempt_id"             uuid                     NOT NULL,
+  "job_id"                 uuid                     NOT NULL,
+  "lease_token"            uuid                     NOT NULL,
+  "check_id"               uuid                     NOT NULL,
+  "destination_checked_at" timestamp with time zone,
+  CONSTRAINT "booking_checks_pkey" PRIMARY KEY (attempt_id)
+);
+
+ALTER TABLE "fmat"."booking_checks"
+  ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION fmat.evaluate_availability (
+  p_operation     text,
+  p_credential    jsonb,
+  p_input         jsonb,
+  p_booking_lease jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
 declare v_job fmat.jobs; v_attempt fmat.booking_attempts; v_reservation uuid; v_actor jsonb; v_request fmat.requests; v_host fmat.hosts;
   v_host_connection fmat.calendar_connections; v_guest_connection fmat.calendar_connections; v_connection fmat.calendar_connections;
   v_basis text; v_travel_basis text; v_bookings jsonb; v_commitments jsonb; v_check uuid;
@@ -205,14 +222,56 @@ begin
   end if;
   raise exception 'FORBIDDEN';
 end;
-$$;
-revoke all on function fmat.evaluate_availability(text,jsonb,jsonb,jsonb) from public,anon,authenticated,service_role;
+$function$;
 
-create or replace function public.fmat_availability_evaluation(p_operation text,p_credential jsonb,p_input jsonb)
-returns jsonb language plpgsql security definer set search_path='' as $$
+CREATE OR REPLACE FUNCTION public.fmat_availability_evaluation (
+  p_operation  text,
+  p_credential jsonb,
+  p_input      jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 begin
   return fmat.evaluate_availability(p_operation,p_credential,p_input,null);
 end;
-$$;
-revoke all on function public.fmat_availability_evaluation(text,jsonb,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_availability_evaluation(text,jsonb,jsonb) to service_role;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.fmat_booking_evaluation (
+  p_operation text,
+  p_lease     jsonb,
+  p_input     jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+begin
+ if p_operation is null or p_operation not in ('start','check','refresh','failure','success','evidence_save','evidence_read','destination_checked')
+  or jsonb_typeof(p_lease) is distinct from 'object' or not(p_lease ?& array['workerId','jobId','leaseToken'])
+  or exists(select 1 from jsonb_object_keys(p_lease) k where k not in ('workerId','jobId','leaseToken'))
+  or length(coalesce(p_lease->>'workerId','')) not between 1 and 200 then raise exception 'INVALID_INPUT';end if;
+ return fmat.evaluate_availability(p_operation,null,p_input,p_lease);
+end;
+$function$;
+
+REVOKE ALL ON FUNCTION "public"."fmat_booking_evaluation"(text, jsonb, jsonb) FROM PUBLIC, "anon", "authenticated";
+
+ALTER TABLE "fmat"."booking_checks"
+  ADD CONSTRAINT "booking_checks_attempt_id_fkey" FOREIGN KEY (attempt_id) REFERENCES fmat.booking_attempts(id) ON DELETE CASCADE;
+
+ALTER TABLE "fmat"."booking_checks"
+  ADD CONSTRAINT "booking_checks_job_id_fkey" FOREIGN KEY (job_id) REFERENCES fmat.jobs(id);
+
+CREATE INDEX booking_checks_job_idx ON fmat.booking_checks USING btree (job_id);
+
+REVOKE ALL ON FUNCTION "fmat"."evaluate_availability"(text, jsonb, jsonb, jsonb) FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION "public"."fmat_booking_evaluation"(text, jsonb, jsonb) FROM "postgres";
+
+GRANT EXECUTE ON FUNCTION "public"."fmat_booking_evaluation"(text, jsonb, jsonb) TO "postgres";
+
+GRANT EXECUTE ON FUNCTION "public"."fmat_booking_evaluation"(text, jsonb, jsonb) TO "service_role";
