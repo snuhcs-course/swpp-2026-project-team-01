@@ -6,10 +6,10 @@ import {applicationOrigin} from '../config.ts';
 import {TokenCipher} from '../calendar/encryption.ts';
 import {browserProof,proofHash} from './proof.ts';
 import {PhotonTransport,type SendResult} from './transport.ts';
-import {phoneNumber} from '../../contracts/imessage.ts';
+import {phoneNumber,handoffProof} from '../../contracts/imessage.ts';
 
 const secret=z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
-export const handoffProof=z.strictObject({handoffId:z.uuid(),token:secret});
+
 const resolved=z.object({handoffId:z.uuid(),phone:phoneNumber,line:z.string().min(1),spaceId:z.string().min(1),expiresAt:z.string()}).strict();
 const intent=z.object({action:z.enum(['send','reconcile']),handoffId:z.uuid(),projectId:z.uuid(),phone:phoneNumber,line:z.string().min(1),spaceId:z.string().min(1),encryptedToken:z.string().nullable(),providerReference:z.string().nullable(),leaseToken:z.uuid()}).strict();
 const claim=z.union([z.object({action:z.enum(['idle','suppressed'])}).strict(),intent]);

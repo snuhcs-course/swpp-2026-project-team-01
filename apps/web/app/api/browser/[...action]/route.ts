@@ -14,6 +14,7 @@ import { RequesterAvailability } from '../../../../../../lib/server/calendar/req
 import { CalendarScans } from '../../../../../../lib/server/calendar/scans.ts';
 import { HostSetup } from '../../../../../../lib/server/setup/commands.ts';
 import { CalendarSelection } from '../../../../../../lib/server/calendar/selection.ts';
+import {imessageEntryBrowser} from '../../../../lib/imessage-entry-browser.ts';
 import { imessageBrowser } from '../../../../lib/imessage-browser.ts';
 
 export const dynamic='force-dynamic';
@@ -39,8 +40,9 @@ async function handle(request:NextRequest,{params}:Context) {
       const requestId=z.uuid().parse(request.nextUrl.searchParams.get('requestId'));
       return json(await commands.guest(guestCredential(requestId,request.cookies.get(guestCookieName(requestId))?.value??'')));
     }
+    if(action.startsWith('imessage-entry/'))return await imessageEntryBrowser(request,action.slice(15));
     session=browserSession(request);
-    if(action.startsWith('imessage/')&&['read','bind','start','verify','cancel','skip','unlink'].includes(action.slice(9))){
+    if(action.startsWith('imessage/')&&['read','bind','start','continue','verify','cancel','skip','unlink'].includes(action.slice(9))){
       const {credential}=await session.host();
       return session.finish(await imessageBrowser(request,action.slice(9),credential));
     }

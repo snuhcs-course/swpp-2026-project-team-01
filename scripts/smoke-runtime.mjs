@@ -59,6 +59,9 @@ try {
   const photonReplies = await fetch(web+'/api/internal/photon/replies',{method:'POST'});
   assert.equal(photonReplies.status,401,'Reply worker rejects anonymous dispatch');
   assert.match(photonReplies.headers.get('cache-control'),/no-store/u);
+  const photonHandoffs = await fetch(web+'/api/internal/photon/handoffs',{method:'POST'});
+  assert.equal(photonHandoffs.status,401,'Handoff worker rejects anonymous dispatch');
+  assert.match(photonHandoffs.headers.get('cache-control'),/no-store/u);
 
   const eve = await start(['.output/server/index.mjs'], await unusedPort(), '/eve/v1/health');
   for (const path of ['/session', '/session/test', ...['cancel', 'compact', 'clear', 'reset'].map((action) => `/session/test/${action}`)]) {

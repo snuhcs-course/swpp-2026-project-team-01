@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import {IMessageEntry} from './imessage-entry.tsx';
 import { ConversationWorkspace } from './conversation-workspace.tsx';
 import { hostState, guestState, type HostState, type GuestState } from '../../../lib/contracts/browser.ts';
 
@@ -24,7 +25,7 @@ export function HostWorkspace() {
   const [error,setError]=useState(''),[notice,setNotice]=useState(''),[waitlist,setWaitlist]=useState(false);
   const [email,setEmail]=useState(''),[name,setName]=useState(''),[code,setCode]=useState('');
   useEffect(()=>{let active=true;api('host/state').then(data=>{if(active)setHost(hostState.parse(data));}).catch(e=>{if(active&&e.status!==401)setError(e.message);}).finally(()=>{if(active)setLoading(false);});
-    if(new URLSearchParams(location.search).get('auth')==='expired'){setError('That sign-in link has expired or belongs to another browser. Request a fresh link here.');history.replaceState(null,'','/app');}
+    if(new URLSearchParams(location.search).get('auth')==='expired'){setError('That sign-in link has expired or belongs to another browser. Request a fresh link here.');history.replaceState(null,'','/app'+location.hash);}
     return()=>{active=false;};},[]);
   async function submit(event:FormEvent) {
     event.preventDefault();setBusy(true);setError('');setNotice('');
@@ -36,7 +37,7 @@ export function HostWorkspace() {
   }
   async function signOut(){setBusy(true);setError('');try{await api('auth/logout',{});setHost(null);setNotice('You’re signed out.');setCode('');}catch(e){setError(e instanceof Error?e.message:'Sign-out failed. Try again.');}finally{setBusy(false);}}
   return <Frame aside={host?<button className="text-button" onClick={signOut} disabled={busy}>Sign out</button>:<span className="header-note">Host workspace</span>}>
-    <p className="eyebrow">A little less back and forth</p>
+    <IMessageEntry admitted={host?.admitted??false}/><p className="eyebrow">A little less back and forth</p>
     <h1>{loading?'Getting your place ready.':host?.admitted?'Welcome to your workspace.':host?'Your invitation, please.':waitlist?'Make room for better meetings.':'Let’s find your time.'}</h1>
     <p className="workspace-description">{host?.admitted?'Your host access is active. Your calendar, preferences and final approval will guide each meeting.':host?'Enter the invitation code sent to your verified email. Signing in and host access are separate.':waitlist?'Hosting is opening by invitation. Join the list—no calendar connection needed.':'Sign in to set up your scheduling assistant. Every meeting stays subject to your final approval.'}</p>
     {loading?<p role="status">Checking your access…</p>:host?.admitted?<><p className="signed-in">Signed in as <strong>{host.email}</strong></p><ConversationWorkspace target={{audience:'host_setup'}} onAccessLost={()=>{setHost(null);setError('Your conversation access has ended. Sign in again to check your access.');}}/></>:<form onSubmit={submit} className="access-form">

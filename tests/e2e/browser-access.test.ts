@@ -8,6 +8,7 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {startBrowserRuntime} from '../runtime/fixture-server.ts';
 import {chromium} from '@playwright/test';
 import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
+import {beginIMessageEntry,cleanupIMessageEntry} from './imessage-entry.ts';
 import {photonProject} from './setup-imessage.ts';
 import {verifyNoHistory} from './setup-no-history.ts';
 import {LocalSql} from '../integration/local-sql.ts';
@@ -21,6 +22,7 @@ test('browser access verifies email, invitation, logout, and request cookies wit
   let log='';child.stdout.on('data',v=>log+=v);child.stderr.on('data',v=>log+=v);
   const sql=new LocalSql();const email=`browser-${randomUUID()}@example.test`,invitation=randomUUID(),requestId=randomUUID();
   const token=randomBytes(32).toString('base64url'),code='ABCDEFGHIJKLMNOP';let userId:string|undefined,callback='';
+  let entry:Awaited<ReturnType<typeof beginIMessageEntry>>|undefined;
   const browser=await chromium.launch();const context=await browser.newContext({viewport:{width:1280,height:900}});const page=await context.newPage();page.setDefaultTimeout(15000);page.setDefaultNavigationTimeout(20000);
   page.on('request',request=>{if(request.url().startsWith(origin+'/auth/callback?code='))callback=request.url();});
   const adminHeaders={apikey:local.SERVICE_ROLE_KEY,authorization:'Bearer '+local.SERVICE_ROLE_KEY,'content-type':'application/json'};
@@ -34,6 +36,7 @@ test('browser access verifies email, invitation, logout, and request cookies wit
     assert.notEqual(await page.getByRole('button',{name:'Email me a sign-in link'}).evaluate(e=>getComputedStyle(e).outlineStyle),'none');
     await page.screenshot({path:'.local/rebuild/browser-screenshots/host-desktop.png',fullPage:true});
     const csrf=await context.request.post(origin+'/api/browser/auth/start',{headers:{origin:'https://wrong.test'},data:{email}});assert.equal(csrf.status(),403);
+    entry=await beginIMessageEntry(page,context,local,sql);
     await page.getByLabel('Email address').fill(email);await page.getByRole('button',{name:'Email me a sign-in link'}).click();
     await page.getByRole('status').filter({hasText:'Check your email'}).waitFor();
     let link='';
@@ -44,11 +47,13 @@ test('browser access verifies email, invitation, logout, and request cookies wit
     }
     assert.ok(link,'Local Auth email contains a sign-in link');
     await page.goto(link);await page.getByRole('heading',{name:'Your invitation, please.'}).waitFor();
+    assert.equal((await context.request.post(origin+'/api/browser/imessage/continue',{headers:{origin},data:{idempotencyKey:randomUUID()}})).status(),403,'Sign-in alone cannot start private proof');
     const row=await sql.query(`select id from auth.users where email='${email}';`);assert.match(row,/^[a-f0-9-]{36}$/u);userId=row;
     await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invitation}','${email}','${createHash('sha256').update(code).digest('hex')}',now()+interval '1 day','browser-test');`);
     await page.getByLabel('Invitation code').fill('ZZZZ-ZZZZ-ZZZZ-ZZZZ');await page.getByRole('button',{name:'Use invitation'}).click();await page.getByRole('alert').filter({hasText:'This invitation cannot be used'}).waitFor();
     await page.getByLabel('Invitation code').fill('ABCD-EFGH-IJKL-MNOP');await page.getByRole('button',{name:'Use invitation'}).click();await page.getByRole('heading',{name:'Welcome to your workspace.'}).waitFor();
     await page.reload();await page.getByRole('heading',{name:'Welcome to your workspace.'}).waitFor();
+    await entry.finish(userId);await entry.cleanup();entry=undefined;
     const calendarStart=await context.request.post(origin+'/api/browser/calendar/start',{headers:{origin},data:{}});assert.equal(calendarStart.status(),200);
     const consentUrl=new URL((await calendarStart.json()).url),state=consentUrl.searchParams.get('state')!;
     assert.equal(consentUrl.origin,'https://accounts.google.com');assert.equal(consentUrl.searchParams.get('code_challenge_method'),'S256');
@@ -218,12 +223,15 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     const repeated=await context.request.post(origin+'/api/browser/waitlist',{headers:{origin},data:{email:' '+email.toUpperCase()+' ',name:'',idempotencyKey:randomUUID()}});assert.equal(repeated.status(),200);
     assert.equal(await sql.query(`select count(*) from fmat.waitlist where email='${email}';`),'1');
     await verifyNoHistory(browser,origin,local,sql);
+  }catch(error){
+    await writeFile('.local/rebuild/photon-browser-failure.log',String(error instanceof Error?error.stack:error));throw error;
   }finally{
     await page.screenshot({path:'.local/rebuild/browser-screenshots/last-state.png',fullPage:true}).catch(()=>{});
     await browser.close();await runtime.stop();if(child.exitCode===null){const closed=once(child,'close');child.kill('SIGTERM');await closed;}await writeFile('.local/rebuild/browser-server.log',log);
+    await cleanupIMessageEntry(sql).catch(()=>{});
     userId ||= await sql.query(`select id from auth.users where email='${email}';`);
     const cleanupId=userId||'00000000-0000-4000-8000-000000000000';
-    await sql.query(`delete from fmat.audit_events where subject_id in(select id::text from fmat.oauth_exchanges where actor->>'id'='${cleanupId}' or actor->>'requestId'='${requestId}');delete from fmat.oauth_exchanges where actor->>'id'='${cleanupId}' or actor->>'requestId'='${requestId}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.conversation_scopes where host_id='${cleanupId}';delete from fmat.request_history where request_id='${requestId}';delete from fmat.calendar_connections where principal_id='${requestId}';delete from fmat.requests where id='${requestId}';delete from fmat.idempotency where actor_scope='host:${cleanupId}' or input->>'email'='${email}';delete from fmat.audit_events where subject_id in ('${cleanupId}','${invitation}');delete from fmat.calendar_connections where principal_id in ('${userId}','${requestId}');delete from fmat.hosts where id='${cleanupId}';delete from fmat.invitations where id='${invitation}';delete from fmat.waitlist where email='${email}';`).finally(()=>sql.close());
+    await sql.query(`delete from fmat.audit_events where subject_id in(select id::text from fmat.oauth_exchanges where actor->>'id'='${cleanupId}' or actor->>'requestId'='${requestId}');delete from fmat.oauth_exchanges where actor->>'id'='${cleanupId}' or actor->>'requestId'='${requestId}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.conversation_scopes where host_id='${cleanupId}';delete from fmat.request_history where request_id='${requestId}';delete from fmat.calendar_connections where principal_id='${requestId}';delete from fmat.requests where id='${requestId}';delete from fmat.idempotency where actor_scope='host:${cleanupId}' or input->>'email'='${email}';delete from fmat.audit_events where subject_id in ('${cleanupId}','${invitation}');delete from fmat.calendar_connections where principal_id in ('${cleanupId}','${requestId}');delete from fmat.hosts where id='${cleanupId}';delete from fmat.invitations where id='${invitation}';delete from fmat.waitlist where email='${email}';`).finally(()=>sql.close());
     if(userId)await fetch(local.API_URL+'/auth/v1/admin/users/'+userId,{method:'DELETE',headers:adminHeaders});
   }
 });

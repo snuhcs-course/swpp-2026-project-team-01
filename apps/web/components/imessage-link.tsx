@@ -9,17 +9,18 @@ import {InputOTP,InputOTPGroup,InputOTPSlot} from './ui/input-otp';
 import {Field,FieldGroup,FieldLabel,FieldDescription} from './ui/field';
 import {Alert,AlertTitle,AlertDescription} from './ui/alert';
 
-export function IMessageLink(){
+export function IMessageLink({beforeSettings=false}:{beforeSettings?:boolean}){
  const [state,setState]=useState<IMessageState|null>(null),[editing,setEditing]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [now,setNow]=useState(()=>Date.now()),[notBefore,setNotBefore]=useState(0),[confirmUnlink,setConfirmUnlink]=useState(false);
  const sequence=useRef(0),mounted=useRef(false),operating=useRef(false),startIntent=useRef<{phone:string;idempotencyKey:string}|null>(null);
  // Keep only an attempt ID and digest for uncertain retries. Never retain the
  // submitted code in card state, storage, a transcript or model input.
  const verifyIntent=useRef<{challengeId:string;idempotencyKey:string;fingerprint:string}|null>(null);
+ const continuation=useRef<string|null>(null);
  const connected=useRef<HTMLParagraphElement>(null);
  function fail(value:unknown){
   if(value instanceof IMessageRequestError&&['UNAUTHORIZED','HOST_NOT_ADMITTED','FORBIDDEN'].includes(value.code??'')){
-   setState(null);setEditing(false);startIntent.current=null;verifyIntent.current=null;
+   setState(null);setEditing(false);startIntent.current=null;verifyIntent.current=null;continuation.current=null;
   }
   setError(value instanceof Error?value.message:'iMessage connection could not be confirmed.');
  }
@@ -32,8 +33,8 @@ export function IMessageLink(){
  useEffect(()=>{
   mounted.current=true;const controller=new AbortController();void read(controller.signal);
   const timer=setInterval(()=>{if(document.visibilityState==='visible')void read(controller.signal);},10_000);
-  const focus=()=>{if(document.visibilityState==='visible')void read(controller.signal);};window.addEventListener('focus',focus);
-  return()=>{mounted.current=false;sequence.current++;controller.abort();clearInterval(timer);window.removeEventListener('focus',focus);startIntent.current=null;verifyIntent.current=null;};
+  const focus=()=>{if(document.visibilityState==='visible')void read(controller.signal);};window.addEventListener('focus',focus);window.addEventListener('fmat-imessage-entry',focus);
+  return()=>{mounted.current=false;sequence.current++;controller.abort();clearInterval(timer);window.removeEventListener('focus',focus);window.removeEventListener('fmat-imessage-entry',focus);startIntent.current=null;verifyIntent.current=null;continuation.current=null;};
  },[]);
  useEffect(()=>{
   const until=Math.max(notBefore,Date.parse(state?.challenge?.expiresAt??'')||0);
@@ -54,7 +55,12 @@ export function IMessageLink(){
   if(startIntent.current&&startIntent.current.phone!==phone){setError('Retry the same number or check the current status before changing it.');return;}
   startIntent.current??={phone,idempotencyKey:crypto.randomUUID()};
   const next=await run(async()=>{await imessageCall('bind',{});return imessageCall('start',startIntent.current);});
-  if(next){startIntent.current=null;verifyIntent.current=null;setEditing(false);}
+  if(next){startIntent.current=null;verifyIntent.current=null;continuation.current=null;setEditing(false);}
+ }
+ async function continueEntry(){
+  continuation.current??=crypto.randomUUID();
+  const next=await run(()=>imessageCall('continue',{idempotencyKey:continuation.current}));
+  if(next){continuation.current=null;verifyIntent.current=null;setEditing(false);}
  }
  async function verify(code:string){
   if(!challenge)return;
@@ -69,15 +75,16 @@ export function IMessageLink(){
  async function changeNumber(){
   if(!challenge)return;
   const next=await run(()=>imessageCall('cancel',{challengeId:challenge.id}));
-  if(next){setNotBefore(Date.parse(challenge.retryAfter));startIntent.current=null;verifyIntent.current=null;setEditing(true);}
+  if(next){setNotBefore(Date.parse(challenge.retryAfter));startIntent.current=null;verifyIntent.current=null;continuation.current=null;setEditing(true);}
  }
  async function reload(){
   const next=await run(()=>imessageCall('read'));
-  if(next){startIntent.current=null;verifyIntent.current=null;if(next.challenge||next.link)setEditing(false);setNotice('Current iMessage status checked.');}
+  if(next){startIntent.current=null;verifyIntent.current=null;continuation.current=null;if(next.challenge||next.link)setEditing(false);setNotice('Current iMessage status checked.');}
  }
- async function skip(){const next=await run(()=>imessageCall('skip',{}));if(next){startIntent.current=null;verifyIntent.current=null;setEditing(false);setNotice('You can continue here on the web. Connect iMessage whenever you’re ready.');}}
+ async function skip(){const next=await run(()=>imessageCall('skip',{}));if(next){startIntent.current=null;verifyIntent.current=null;continuation.current=null;setEditing(false);setNotice('You can continue here on the web. Connect iMessage whenever you’re ready.');}}
  const canVerify=challenge?.sameBrowser&&['uncertain','accepted','delivered'].includes(status??'')&&state?.available;
  const messages={prepared:'Your code request is saved and waiting to send.',uncertain:'Delivery is not confirmed. If you received the code, enter it below.',accepted:'The messaging service accepted your code. Delivery is not confirmed yet.',delivered:'Your verification code was delivered.',failed:'The code could not be delivered. You can request a new code or continue on the web.',revoked:'This verification is no longer active.',expired:'This code has expired. Request a new code when you’re ready.',locked:'This code has reached its attempt limit. Request a new code or continue on the web.'};
+ if(beforeSettings&&!editing&&!state?.handoff&&!state?.challenge&&!state?.link)return null;
  return <section role="region" aria-label="Connect iMessage" className="flex min-w-0 flex-col gap-3" aria-busy={busy}>
   <h3 className="text-base font-medium">Continue in iMessage</h3>
   {!state?<p role="status">{error?'iMessage status is unavailable.':'Checking your iMessage connection…'}</p>:state.link?<>
@@ -90,6 +97,9 @@ export function IMessageLink(){
    {canVerify?<CodeForm key={challenge.id} disabled={locked} invalid={state.outcome==='invalid_code'&&!!error} onSubmit={verify} attempts={challenge.remainingAttempts}/>:null}
    {!['expired','locked','failed','revoked'].includes(status??'')?<p className="text-sm text-muted-foreground">Expires at {new Date(challenge.expiresAt).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}. {challenge.remainingAttempts} attempts remain.</p>:null}
    <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={locked||waitSeconds>0||!state.available} onClick={()=>void changeNumber()}>Request a new code</Button><Button variant="ghost" disabled={locked} onClick={()=>void changeNumber()}>Change number</Button><Button variant="ghost" disabled={locked} onClick={()=>void skip()}>Maybe later</Button></div>
+  </>:state.handoff?<>
+   <p>Link the private iMessage number {state.handoff.maskedPhone} that sent you here.</p><p>We’ll send a fresh six-digit code to that original conversation. Enter it here to confirm the link.</p>
+   <div className="flex flex-wrap gap-2"><Button disabled={locked||!state.available} onClick={()=>void continueEntry()}>Send verification code</Button><Button variant="outline" disabled={locked} onClick={()=>void skip()}>Maybe later</Button></div>
   </>:editing?<>
    <PhoneForm disabled={locked||!state.available||waitSeconds>0} initialPhone={startIntent.current?.phone??''} onSubmit={start}/>
    <Button variant="ghost" disabled={locked} onClick={()=>void skip()}>Maybe later</Button>

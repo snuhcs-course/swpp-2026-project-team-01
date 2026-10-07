@@ -14,6 +14,8 @@ create table fmat.photon_handoffs (
  created_at timestamptz not null default clock_timestamp(),
  expires_at timestamptz not null,
  revoked_at timestamptz,
+ browser_hash text check(browser_hash~'^[a-f0-9]{64}$'),
+ challenge_id uuid unique references fmat.photon_link_challenges(id) on delete cascade,
  check((lease_token is null)=(lease_until is null)),
  check(expires_at>created_at and expires_at<=created_at+interval '15 minutes')
 );
@@ -115,3 +117,81 @@ end;
 $$;
 revoke all on function public.fmat_photon_handoff(text,uuid,jsonb) from public,anon,authenticated;
 grant execute on function public.fmat_photon_handoff(text,uuid,jsonb) to service_role;
+
+-- Read without locking: callers hold the host/receiver locks before their
+-- challenge lock. Never introduce a challenge -> handoff lock inversion.
+create or replace function fmat.photon_handoff_challenge_valid(p_challenge uuid)
+returns boolean language sql volatile set search_path='' as $$
+ select not exists(select 1 from fmat.photon_handoffs h where h.challenge_id=p_challenge)
+ or exists(select 1 from fmat.photon_handoffs h
+  join fmat.photon_inbox i on i.id=h.inbox_id
+  join fmat.photon_receivers r on r.project_id=h.project_id
+  join fmat.photon_link_challenges c on c.id=h.challenge_id
+  where h.challenge_id=p_challenge and h.revoked_at is null and h.expires_at>clock_timestamp()
+   and h.status in ('uncertain','accepted','delivered') and r.enabled and r.receiver_id=i.receiver_id
+   and c.project_id=h.project_id and c.phone=i.sender_id and c.line=i.line and c.space_id=i.space_id
+   and c.browser_hash=h.browser_hash);
+$$;
+revoke all on function fmat.photon_handoff_challenge_valid(uuid) from public,anon,authenticated,service_role;
+
+create or replace function public.fmat_photon_handoff_browser(p_operation text,p_credential jsonb,p_project_id uuid,p_input jsonb)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare h fmat.photon_handoffs; c fmat.photon_link_challenges; route jsonb; actor jsonb; result jsonb;
+begin
+ if jsonb_typeof(p_input) is distinct from 'object' or coalesce(p_input->>'browserHash','')!~'^[a-f0-9]{64}$'
+  or p_operation not in ('exchange','read','start') then raise exception 'INVALID_INPUT';end if;
+ if p_operation='start' then
+  if p_credential->>'kind' is distinct from 'host' then raise exception 'FORBIDDEN';end if;
+  actor:=fmat.calendar_actor(p_credential);
+ end if;
+ -- Host (if any) -> receiver -> phone -> handoff. Resolve rechecks the frozen
+ -- private route and proof on every call, including a lost-response replay.
+ route:=public.fmat_photon_handoff('resolve',p_project_id,p_input);
+ select * into strict h from fmat.photon_handoffs where id=(route->>'handoffId')::uuid;
+ if h.browser_hash is null and p_operation='exchange' then
+  update fmat.photon_handoffs set browser_hash=p_input->>'browserHash' where id=h.id returning * into h;
+ end if;
+ if h.browser_hash is distinct from p_input->>'browserHash' then raise exception 'CHALLENGE_INVALID';end if;
+ if p_operation<>'start' then
+  return jsonb_build_object('maskedPhone','••••'||right(route->>'phone',4),'expiresAt',h.expires_at);
+ end if;
+ if h.challenge_id is not null then
+  select * into strict c from fmat.photon_link_challenges where id=h.challenge_id;
+  if c.host_id is distinct from (actor->>'id')::uuid or c.credential->>'sessionId' is distinct from p_credential->>'sessionId'
+   or c.request_key is distinct from (p_input->>'idempotencyKey')::uuid then raise exception 'CHALLENGE_INVALID';end if;
+  return fmat.photon_link_view(c.host_id,p_project_id,h.browser_hash,p_credential->>'sessionId');
+ end if;
+ -- A caller cannot attach a pre-existing browser-first challenge or replace
+ -- the originating sender/line with client-supplied fields.
+ if exists(select 1 from fmat.photon_link_challenges where host_id=(actor->>'id')::uuid and request_key=(p_input->>'idempotencyKey')::uuid) then raise exception 'IDEMPOTENCY_CONFLICT';end if;
+ result:=public.fmat_photon_link('start',p_credential,p_project_id,jsonb_build_object(
+  'phone',route->>'phone','line',route->>'line','spaceId',route->>'spaceId','browserHash',h.browser_hash,
+  'challengeId',p_input->>'challengeId','idempotencyKey',p_input->>'idempotencyKey',
+  'codeHash',p_input->>'codeHash','encryptedCode',p_input->>'encryptedCode'));
+ update fmat.photon_handoffs set challenge_id=(p_input->>'challengeId')::uuid where id=h.id;
+ update fmat.photon_link_challenges set expires_at=least(expires_at,h.expires_at) where id=(p_input->>'challengeId')::uuid;
+ return fmat.photon_link_view((actor->>'id')::uuid,p_project_id,h.browser_hash,p_credential->>'sessionId');
+end;
+$$;
+revoke all on function public.fmat_photon_handoff_browser(text,jsonb,uuid,jsonb) from public,anon,authenticated;
+grant execute on function public.fmat_photon_handoff_browser(text,jsonb,uuid,jsonb) to service_role;
+
+create or replace function fmat.wake_photon_handoffs()
+returns bigint language plpgsql security definer set search_path='' as $$
+declare v_url text;v_secret text;
+begin
+ if not exists(select 1 from fmat.photon_inbox i join fmat.photon_receivers r on r.project_id=i.project_id
+  where r.enabled and i.link_id is null and i.processed_at is null)
+  and not exists(select 1 from fmat.photon_handoffs h join fmat.photon_receivers r on r.project_id=h.project_id
+   where r.enabled and h.revoked_at is null and h.status in ('prepared','uncertain','accepted')
+    and (h.lease_until is null or h.lease_until<=clock_timestamp()) and (h.checked_at is null or h.checked_at<=clock_timestamp()-interval '30 seconds')) then return null;end if;
+ select decrypted_secret into v_url from vault.decrypted_secrets where name='fmat_runtime_dispatch_url';
+ select decrypted_secret into v_secret from vault.decrypted_secrets where name='fmat_runtime_dispatch_secret';
+ if v_url is null or v_secret is null then return null;end if;
+ if v_url !~ '^https://[^/]+/api/internal/conversations/dispatch$' or v_secret !~ '^[a-f0-9]{64}$' then raise exception 'INVALID_DISPATCH_CONFIGURATION';end if;
+ v_url:=replace(v_url,'/api/internal/conversations/dispatch','/api/internal/photon/handoffs');
+ return net.http_post(url:=v_url,headers:=jsonb_build_object('Content-Type','application/json','Authorization','Bearer '||v_secret),body:='{}'::jsonb,timeout_milliseconds:=60000);
+end;
+$$;
+revoke all on function fmat.wake_photon_handoffs() from public,anon,authenticated,service_role;
+select cron.schedule('fmat-photon-handoffs','* * * * *','select fmat.wake_photon_handoffs();');

@@ -4,7 +4,7 @@ import {errorResponse} from '../../../lib/contracts/errors.ts';
 export class IMessageRequestError extends Error {
  constructor(message:string,readonly code?:string){super(message);}
 }
-export async function imessageCall(action:'read'|'bind'|'start'|'verify'|'cancel'|'skip'|'unlink',input?:unknown,signal?:AbortSignal):Promise<IMessageState|null>{
+export async function imessageCall(action:'read'|'bind'|'start'|'continue'|'verify'|'cancel'|'skip'|'unlink',input?:unknown,signal?:AbortSignal):Promise<IMessageState|null>{
  let response:Response;
  try{response=await fetch('/api/browser/imessage/'+action,{method:action==='read'?'GET':'POST',cache:'no-store',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20_000)]):AbortSignal.timeout(20_000),
   headers:{'content-type':'application/json'},...(action==='read'?{}:{body:JSON.stringify(input??{})})});}
