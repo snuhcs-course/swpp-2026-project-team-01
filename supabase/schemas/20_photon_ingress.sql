@@ -49,8 +49,13 @@ begin
   -- Preserve receipt order within the provider conversation across concurrent
   -- deliveries. Provider timestamps are evidence, not a manufactured sequence.
   perform pg_advisory_xact_lock(hashtextextended(jsonb_build_array('photon-ingress',p_project_id,p_input->>'line',p_input->>'spaceId')::text,0));
-  insert into fmat.photon_inbox(project_id,message_id,sender_id,space_id,line,text,occurred_at)
-    values(p_project_id,p_input->>'messageId',p_input->>'senderId',p_input->>'spaceId',p_input->>'line',p_input->>'text',v_occurred)
+  -- Freeze authority at receipt. An old/unlinked message cannot inherit a
+  -- later link; every execution still checks that this exact link is active.
+  insert into fmat.photon_inbox(project_id,message_id,sender_id,space_id,line,text,occurred_at,receiver_id,link_id)
+    values(p_project_id,p_input->>'messageId',p_input->>'senderId',p_input->>'spaceId',p_input->>'line',p_input->>'text',v_occurred,p_receiver_id,
+      (select id from fmat.photon_links where project_id=p_project_id and phone=p_input->>'senderId'
+        and space_id=p_input->>'spaceId' and line=p_input->>'line' and revoked_at is null
+        and linked_at<=v_occurred and v_occurred<=clock_timestamp()+interval '5 minutes'))
     on conflict(project_id,message_id) do nothing returning id into v_new_id;
   select * into strict v_inbox from fmat.photon_inbox where project_id=p_project_id and message_id=p_input->>'messageId';
   if v_inbox.sender_id<>p_input->>'senderId' or v_inbox.space_id<>p_input->>'spaceId' or v_inbox.line<>p_input->>'line'
