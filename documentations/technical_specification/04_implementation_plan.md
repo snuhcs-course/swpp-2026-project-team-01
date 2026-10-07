@@ -179,7 +179,7 @@ References: [requester destination](../user_experience/04_page_list.md#requester
 Incremental completion (full phase exit remains open):
 
 - [x] Implement and verify frozen Calendar insert/reconciliation transport with exact event identity, minimized evidence and conservative uncertain-write outcomes.
-- [ ] Deploy the verified transport step and check production regressions. Explicit approval, fenced worker dispatch and live booking acceptance remain in the work below.
+- [x] Deploy the verified transport step and check production regressions (`6a9a146`; deployment `dpl_HjWETgpGgMuj5R64buNozSyLN4X3`; [evidence](05_rebuild_evidence.md#frozen-calendar-booking-transport--2026-10-07)). Explicit approval, fenced worker dispatch and live booking acceptance remain in the work below.
 
 Work:
 
