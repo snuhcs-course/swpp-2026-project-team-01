@@ -5,7 +5,7 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 ## 1. Authorized state and shared operations
 
 - [x] 1.1 Define host-owned conversation, turn, draft/review contracts and private persistence in root `lib/` and Supabase; verify migrations, cross-host/public denial, deduplication and revision constraints.
-- [ ] 1.2 Implement shared authorized read/turn/review-confirm operations called by eve tools and web actions; test idempotency conflicts, ambiguous/invalid model output, stale cross-channel review and no booking authority.
+- [x] 1.2 Implement shared authorized read/turn/review-confirm operations called by eve tools and web actions; test idempotency conflicts, ambiguous/invalid model output, stale cross-channel review and no booking authority.
 - [x] 1.3 Implement protected admission and Google continuation; test interrupted/denied/swapped callbacks, authoritative resume, no false readiness and no secrets in context/transcripts.
 - [x] 1.4 Update backend/frontend documentation with the implemented contracts and recovery behavior; verify descriptions match executable operations.
 

@@ -67,6 +67,8 @@ Read projections separate confirmed settings, draft answers, original clarificat
 
 Structured in-chat forms support profile, timezone, weekly windows, meeting buffer, explicit mode/location, per-trip transportation and separate extra travel buffer during model failure. They label starter defaults and preserve unresolved questions until the host explicitly resolves them. Public-link readiness and complete linked-channel acceptance remain unfinished. The selected preset and inline browser linking card are now implemented.
 
+The shared operations are now verified through actual eve calls from signed linked input: malformed output preserves state, ambiguous output retains clarification, a changed tool-call ID cannot bypass one mutation per message, and a later private draft invalidates the earlier web review. Only the host can confirm the current review in protected web controls; confirmation replay does not save twice or create booking work. These fixtures use injected providers and do not establish live Google/iPhone acceptance.
+
 ### Bounded Calendar analysis contract
 
 An explicit browser scan selects 1–10 authorized calendars, an IANA display timezone, and an exclusive-end 14–56-day range within 90 days of today. Its default UI range is the next 28 days and is disclosed before reading events. Analysis selection does not change conflict calendars or the booking destination. Event reads use `singleEvents=true` and complete pagination (250 per page, ten pages per calendar), with a 20-second deadline, 10,000-event total cap, 2 MiB per-page and 8 MiB total response limits. Any failed, inaccessible, malformed or truncated calendar produces no usable result. No additional OAuth scope is requested.

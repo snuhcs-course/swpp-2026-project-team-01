@@ -137,6 +137,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 ### Phase 3 — Deliver host setup in the single `/app` chat
 
+- [x] Complete host-setup task 1.2 with actual eve/private-ingress verification of invalid and ambiguous model output, one mutation per input, stale web reviews after private edits, explicit current confirmation and no booking authority. Verify web/MCP parity, runtime recovery and both browser suites; production shared-function bodies and permissions match local verification. [Evidence](05_rebuild_evidence.md#shared-web-and-imessage-setup-review-verification--2026-10-09).
+
 - [x] Deploy iMessage deadline fencing from `a2d863b` as migration `20261008203744_photon_link_deadlines.sql`; verify 95 matching migrations, both production function bodies/ACLs, rollback-only behavior, clean security advisors and 68 HTTP guards. [Evidence](05_rebuild_evidence.md#imessage-link-deadline-production-deployment).
 
 - [x] Complete host-setup task 4.1: verify browser-bound hashed codes and durable delivery, and reject Auth/code expiry during database lock waits. Verify the 95-migration rebuild, 1,532 SQL assertions, nine Photon integrations, application checks and both browser suites. [Evidence](05_rebuild_evidence.md#imessage-link-expiry-under-contention--2026-10-09).

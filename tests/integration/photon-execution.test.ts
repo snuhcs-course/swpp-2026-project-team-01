@@ -17,6 +17,7 @@ import {browserProof} from '../../lib/server/photon/proof.ts';
 import {LocalSql} from './local-sql.ts';
 import {startBrowserRuntime} from '../runtime/fixture-server.ts';
 import {describedPreferences,describedReply} from '../runtime/setup-preferences.ts';
+import {verifySharedSetupReview} from './setup-channel-review.ts';
 
 test('signed linked input executes once in the real eve setup session and loses authority after unlink',{timeout:180_000},async()=>{
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
@@ -130,6 +131,21 @@ globalThis.fetch=async(input,init)=>{
   assert.equal(await inputCalls(),callsBefore,'a different input cannot change the original input replay count');
   assert.equal(await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${scope}';`),session,'web resumes the same runtime session');
   assert.equal(await sql.query(`select count(*) from fmat.photon_replies where project_id='${project}';`),'1','web continuation does not send an iMessage reply');
+  await verifySharedSetupReview({sql,database:db,env,host,credential,scope,async turn(text){
+   const key=randomUUID();assert.equal((await photonWebhook(request(key,text),{env,database:db})).status,200);
+   assert.equal((await dispatchPhotonInputs(db,env)).accepted,1);assert.equal((await dispatch()).status,200);await settled(scope);
+   return sql.query(`select r.text from fmat.photon_replies r join fmat.photon_inbox i on i.id=r.inbox_id where i.project_id='${project}' and i.message_id='${key}';`);
+  }});
+  // Finish these additional replies through the real ordered worker so the
+  // following unlink test still pauses its own reply at provider preflight.
+  const sharedReplyIds=new Set<string>();
+  for(let n=0;n<3;n++)assert.equal((await dispatchPhotonReplies(db,env,{async send(route,recipient,_text,id,authorize){
+   await authorize();assert.equal(route.spaceId,'any;-;'+phone);assert.equal(recipient,phone);assert.ok(!sharedReplyIds.has(id));sharedReplyIds.add(id);
+   return {status:'delivered',providerReference:'fixture:'+id};
+  },async reconcile(){assert.fail('fresh fixture replies should not need reconciliation');}})).claimed,1);
+  assert.equal(sharedReplyIds.size,3);
+  const messagesBeforeUnlink=Number(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}';`));
+  const draftsBeforeUnlink=await sql.query(`select count(*) from fmat.setup_drafts d join fmat.setup_conversations c on c.id=d.conversation_id where c.host_id='${host}';`);
   assert.equal((await photonWebhook(request('reply-before-unlink','A second private turn.'),{env,database:db})).status,200);
   await dispatchPhotonInputs(db,env);assert.equal((await dispatch()).status,200);await settled(scope);
   let preflightReady!:()=>void,releasePreflight!:()=>void;
@@ -153,13 +169,13 @@ globalThis.fetch=async(input,init)=>{
   assert.equal((await waiting).revoked,1);releasePreflight();await revokedSend;
   assert.equal(await sql.query(`select r.revoked_at is not null and r.text is null from fmat.photon_replies r join fmat.photon_inbox i on i.id=r.inbox_id where i.project_id='${project}' and i.message_id='reply-before-unlink';`),'t','unlink after provider preflight suppresses private send');
   assert.equal(await sql.query(`select processing_outcome from fmat.photon_inbox where project_id='${project}' and message_id='queued';`),'revoked');
-  assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}';`),'3');
+  assert.equal(Number(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}';`)),messagesBeforeUnlink+1);
   // Accepted grants cannot be reused after unlink, even though the host's
   // independent web session remains authorized.
   const phoneGrant=await sql.query(`select grant_id from fmat.runtime_messages where conversation_id='${scope}' order by created_at limit 1;`);
   await assert.rejects(()=>conversations.checkExecution(phoneGrant,scope));await conversations.checkExecution(grant.grantId,scope);
   assert.equal((await photonWebhook(request('preferences'),{env,database:db})).status,200);await dispatchPhotonInputs(db,env);
-  assert.equal(await sql.query(`select count(*) from fmat.setup_drafts d join fmat.setup_conversations c on c.id=d.conversation_id where c.host_id='${host}';`),'1');
+  assert.equal(await sql.query(`select count(*) from fmat.setup_drafts d join fmat.setup_conversations c on c.id=d.conversation_id where c.host_id='${host}';`),draftsBeforeUnlink);
  }finally{
   await holder.query('rollback;');await runtime?.stop();
   if(host){await sql.query(`delete from fmat.queue_publications p using fmat.jobs j,fmat.photon_inbox i where p.job_id=j.id and j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from pgmq.q_fmat_jobs q using fmat.jobs j,fmat.photon_inbox i where q.message->>'jobId'=j.id::text and j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from fmat.jobs j using fmat.photon_inbox i where j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from fmat.photon_replies where project_id='${project}';delete from fmat.photon_inbox where project_id='${project}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_scopes where host_id='${host}';delete from fmat.photon_links where project_id='${project}';delete from fmat.photon_link_challenges where project_id='${project}';delete from fmat.photon_receivers where project_id='${project}';delete from fmat.audit_events where actor->>'id'='${host}';delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);}
