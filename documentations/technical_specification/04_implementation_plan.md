@@ -272,6 +272,8 @@ References: [requester destination](../user_experience/04_page_list.md#requester
 
 ### Phase 5 — Complete approval, booking and invitations
 
+- [x] Complete booking task 1.2: align retained host/attempt locks, verify real lock waits and expired ownership, and exercise overlapping approved requests through one pending insert and confirmed-local revalidation. Verify stable identities, immutable snapshots and scoped fixture cleanup with the 96-migration rebuild and 1,532 SQL assertions. [Evidence](05_rebuild_evidence.md#booking-identity-and-host-lock-acceptance--2026-10-09).
+
 - [x] Complete the operator recovery runbook acceptance (booking task 2.5): actual CLI replay, definite rejection/retry, lost successful insert response, initial not-found with retained reservation, and eventual same-event confirmation without replacement insertion or state-forcing. [Evidence](05_rebuild_evidence.md#operator-lost-response-recovery-acceptance--2026-10-09). Live Calendar and broader fault coverage remain open.
 
 Incremental completion (full phase exit remains open):
