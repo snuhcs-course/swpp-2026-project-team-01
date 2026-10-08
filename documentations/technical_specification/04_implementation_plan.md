@@ -326,6 +326,8 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+- [x] Deploy initial MCP transport (`2753753`; deployment `dpl_9Nh1NoY1JPKMjy5itXZhQpUEBcPH`) and verify Ready, eleven MCP/public-document checks, fourteen OAuth/browser guards and 28 retained public/login checks. Live granted tool calls remain open in task 1.3. [Evidence](05_rebuild_evidence.md#protected-mcp-transport--2026-10-08).
+
 - [x] Implement the initial protected `/mcp` transport with official SDK 2.3.1, current bearer authority, strict origins/uploads and safe structured tool results. Verify official-client round trips, real PostgREST rotation denial, 249 app/provider tests, both builds and two browser suites. Public skill text now identifies partial coverage; production grant acceptance, full workflow/CLI and named-client gates remain open. [Evidence](05_rebuild_evidence.md#protected-mcp-transport--2026-10-08).
 
 - [x] Define and test the internal seven-operation tool catalog with strict schemas, role discovery, scopes, retries and human-review descriptions. Create the full [MCP/CLI implementation change](../../openspec/changes/deliver-agent-tools-and-cli/tasks.md); public transport, complete workflow coverage and client acceptance remain open. [Evidence](05_rebuild_evidence.md#agent-tool-catalog--2026-10-08).
