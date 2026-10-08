@@ -252,6 +252,7 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 
 Incremental completion (full phase exit remains open):
 
+- [x] Implement the protected requester email-binding foundation: current verified-contact enrollment, encrypted replay recovery, independently authenticated binding, permanent invalidation and receipt-scoped authority references. Concurrent/lost-response and receiver/revocation integration cases and 1,019 SQL assertions pass. Browser controls, worker routing, deployment and positive live acceptance remain open in [the change tasks](../../openspec/changes/bind-requester-email/tasks.md).
 - [x] Deploy independent author-evidence primitives and the gRPC security patch (`715b72b`, `d40963b`; deployment `dpl_BbBDptFPYouJyuz5qAHQi5F1qFvM`); verify production regressions and disabled live ingress. [Evidence](05_rebuild_evidence.md#independent-agentmail-author-evidence--2026-10-08).
 - [x] Implement bounded raw-message retrieval and independent DKIM author evidence; verify cryptographic fixtures and the controlled live rejection of an unsigned Message-ID. This is domain evidence only; protected request/channel binding and positive live requester acceptance remain open.
 - [x] Deploy the message-reader increment and mailbox ambiguity correction (`006730b`, `04b33b6`; deployment `dpl_9crTVuUy75S8BpKBVxVdjsSZv7Qx`); verify retained production access guards and disabled ingress. [Evidence](05_rebuild_evidence.md#agentmail-full-message-reader--2026-10-08).

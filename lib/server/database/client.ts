@@ -14,6 +14,7 @@ export function supabaseOrigin(env = process.env): string {
 }
 
 const domainErrors: Record<string, [ErrorCode, number]> = {
+  EMAIL_LINK_LIMIT: ['EMAIL_LINK_LIMIT',429], EMAIL_LINK_CONFLICT: ['EMAIL_LINK_CONFLICT',409],
   CONTACT_LIMIT: ['CONTACT_LIMIT', 429],
   LEASE_LOST: ['BOOKING_LEASE_LOST', 409], HOST_BUSY: ['BOOKING_BUSY', 409],
   FEASIBILITY_STALE: ['STALE_REVISION', 409], PROPOSAL_STALE: ['STALE_REVISION', 409],
@@ -38,7 +39,7 @@ const domainErrors: Record<string, [ErrorCode, number]> = {
 export class Database {
   constructor(private readonly env = process.env, private readonly fetcher: Fetch = fetch) {}
 
-  async rpc(name: 'fmat_agentmail_ingress' | 'fmat_requester_identity' | 'fmat_contact_verification_delivery' | 'fmat_contact_verification' | 'fmat_booking_delivery' | 'fmat_booking_receipt' | 'fmat_booking_worker' | 'fmat_booking_dispatch' | 'fmat_booking_evaluation' | 'fmat_booking_approval' | 'fmat_request_lifecycle' | 'fmat_private_review' | 'fmat_host_requests' | 'fmat_scheduling' | 'fmat_candidate_ranking' | 'fmat_preference_decision' | 'fmat_travel_allowance' | 'fmat_availability_evaluation' | 'fmat_command' | 'fmat_conversation_access' | 'fmat_conversation_check' | 'fmat_conversation_tool' | 'fmat_runtime_message' | 'fmat_runtime_dispatch' | 'fmat_browser_command' | 'fmat_calendar_consent' | 'fmat_calendar_access' | 'fmat_requester_availability' | 'fmat_request_detail_review' | 'fmat_host_setup' | 'fmat_calendar_scan' | 'fmat_photon_ingress' | 'fmat_photon_link' | 'fmat_photon_link_delivery' | 'fmat_photon_dispatch' | 'fmat_photon_reply_delivery' | 'fmat_photon_handoff' | 'fmat_photon_handoff_browser' | 'fmat_public_intake', parameters: Record<string, unknown>): Promise<unknown> {
+  async rpc(name: 'fmat_requester_email_link' | 'fmat_requester_email_receipt' | 'fmat_agentmail_ingress' | 'fmat_requester_identity' | 'fmat_contact_verification_delivery' | 'fmat_contact_verification' | 'fmat_booking_delivery' | 'fmat_booking_receipt' | 'fmat_booking_worker' | 'fmat_booking_dispatch' | 'fmat_booking_evaluation' | 'fmat_booking_approval' | 'fmat_request_lifecycle' | 'fmat_private_review' | 'fmat_host_requests' | 'fmat_scheduling' | 'fmat_candidate_ranking' | 'fmat_preference_decision' | 'fmat_travel_allowance' | 'fmat_availability_evaluation' | 'fmat_command' | 'fmat_conversation_access' | 'fmat_conversation_check' | 'fmat_conversation_tool' | 'fmat_runtime_message' | 'fmat_runtime_dispatch' | 'fmat_browser_command' | 'fmat_calendar_consent' | 'fmat_calendar_access' | 'fmat_requester_availability' | 'fmat_request_detail_review' | 'fmat_host_setup' | 'fmat_calendar_scan' | 'fmat_photon_ingress' | 'fmat_photon_link' | 'fmat_photon_link_delivery' | 'fmat_photon_dispatch' | 'fmat_photon_reply_delivery' | 'fmat_photon_handoff' | 'fmat_photon_handoff_browser' | 'fmat_public_intake', parameters: Record<string, unknown>): Promise<unknown> {
     const origin = supabaseOrigin(this.env);
     const key = requiredEnv('SUPABASE_SECRET_KEY', this.env);
     const headers: Record<string, string> = { apikey: key, 'content-type': 'application/json' };
