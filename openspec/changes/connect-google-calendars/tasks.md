@@ -18,5 +18,7 @@ Tasks describe replacement implementation and verification. Completed consent ta
 
 ## 3. Guest identity and timezone
 
+- [x] 3.0 Implement the identity-only provider adapter; verify signed issuer/audience/nonce/expiry claims, authoritative versus third-party contact eligibility, token exclusion and single-attempt bounded transport. This does not complete browser/request binding or live identity acceptance.
+
 - [ ] 3.1 Define identity-only Google adapter/callback and browser-bound intake/request continuation; implement verified name/email prefill, manual/alternate email verification and skip without mandatory product signup. Verify wrong-browser/request rejection, account switching, no email-based request takeover and no implicit Calendar grant or host admission.
 - [ ] 3.2 Implement guided inline guest contact actions and a detected/explicit IANA timezone selector; test DST, absent/conflicting context, changed display zones, callback/reload preservation and no redundant confirmation question. Keep optional Calendar connection and manual availability separate and verify both end-to-end paths with controlled accounts.

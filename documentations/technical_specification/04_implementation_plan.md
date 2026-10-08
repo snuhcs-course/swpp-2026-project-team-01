@@ -176,6 +176,8 @@ Incremental completion (full phase exit remains open):
 
 - [x] Verify production browser → scheduled Cloudflare delivery → controlled inbox → browser code proof, with one dispatch and no booking authority; remove the isolated fixture, sync the behavioral spec and archive contact verification ([evidence](05_rebuild_evidence.md#controlled-live-contact-inbox-acceptance--2026-10-08)).
 
+- [x] Implement and test the identity-only requester Google provider adapter, including real signed-JWT verification and contact-authority distinctions. Browser/state binding, prefill, manual skip and live acceptance remain open ([design](../../openspec/changes/connect-google-calendars/design.md#requester-identity-adapter-2026-10-08)).
+
 - [x] Implement and verify explicit requester withdrawal and host decline, including minimal closure status, lost-response recovery and booking uncertainty (1,004 SQL assertions, 18 integration tests, browser/recovery checks).
 - [x] Deploy request closure and verify the selected production database/API boundaries (`3e5db21`; deployment `dpl_5Y2wqC5PujgFL3GHUqtim1kjDw8u`; [evidence](05_rebuild_evidence.md#explicit-withdrawal-and-decline--2026-10-07)).
 
