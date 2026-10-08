@@ -137,6 +137,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 ### Phase 3 — Deliver host setup in the single `/app` chat
 
+- [x] Exercise live Google host login and add a repeatable initial-redirect probe with four passing diagnostic tests. The live result is **blocked by `redirect_uri_mismatch`**; record the exact Supabase callback and required Google Cloud sign-in/configuration correction. This completes diagnosis, not login acceptance. [Evidence](05_rebuild_evidence.md#live-google-host-login-blocker-and-probe--2026-10-09).
+
 Incremental completion (2026-10-07; the full phase exit remains open):
 
 - [x] Replace the host email-login form and endpoint with Google-only identity sign-in; retain waitlist email, invitation admission and separate Calendar consent.

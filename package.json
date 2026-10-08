@@ -5,8 +5,8 @@
   "packageManager": "npm@11.19.0",
   "scripts": {
     "check:docs": "node scripts/check-documentation.mjs",
-    "lint": "node --check scripts/check-documentation.mjs && node --check scripts/configure-email-smtp.mjs && node --check scripts/configure-email-smtp.test.mjs && node --check scripts/smoke-runtime.mjs && node --check scripts/verify-model.mjs && node --check scripts/probe-oauth-compatibility.mjs",
-    "test": "node --test scripts/configure-email-smtp.test.mjs",
+    "lint": "node --check scripts/check-documentation.mjs && node --check scripts/configure-email-smtp.mjs && node --check scripts/configure-email-smtp.test.mjs && node --check scripts/smoke-runtime.mjs && node --check scripts/verify-model.mjs && node --check scripts/probe-oauth-compatibility.mjs && node --check scripts/probe-google-login.mjs && node --check scripts/probe-google-login.test.mjs",
+    "test": "node --test scripts/configure-email-smtp.test.mjs scripts/probe-google-login.test.mjs",
     "check": "npm run lint && npm run check:docs && npm run typecheck && npm test && npm run test:app",
     "db:test": "supabase test db",
     "dev": "vercel dev --local",
@@ -26,7 +26,8 @@
     "test:browser": "tsx --test tests/e2e/*.test.ts",
     "booking:recover": "node --import tsx scripts/booking-recovery.ts",
     "probe:oauth": "node scripts/probe-oauth-compatibility.mjs",
-    "fmat": "tsx scripts/fmat.ts"
+    "fmat": "tsx scripts/fmat.ts",
+    "probe:google-login": "node scripts/probe-google-login.mjs"
   },
   "type": "module",
   "dependencies": {
