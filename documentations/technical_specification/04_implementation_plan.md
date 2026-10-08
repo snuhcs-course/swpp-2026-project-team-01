@@ -139,6 +139,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 ### Phase 3 — Deliver host setup in the single `/app` chat
 
+- [x] Deploy confirmed-setup links from `67a2889` (`dpl_HdZN6Wgx2A8kMSaTbTougCFN9FQc`), independently verify Ready and the production alias, and pass 69 HTTP guards including protected readiness. [Evidence](05_rebuild_evidence.md#confirmed-setup-booking-links--2026-10-09).
+
 - [x] Implement confirmed-setup booking and agent-instruction links gated by current Calendar permissions and reauthorized setup revisions. Verify provider failures, logout/stale checks, browser recovery, mobile/zoom and keyboard behavior. Full admission/two-host/channel acceptance remains open. [Evidence](05_rebuild_evidence.md#confirmed-setup-booking-links--2026-10-09).
 
 - [x] Complete host-setup task 1.2 with actual eve/private-ingress verification of invalid and ambiguous model output, one mutation per input, stale web reviews after private edits, explicit current confirmation and no booking authority. Verify web/MCP parity, runtime recovery and both browser suites; production shared-function bodies and permissions match local verification. [Evidence](05_rebuild_evidence.md#shared-web-and-imessage-setup-review-verification--2026-10-09).
