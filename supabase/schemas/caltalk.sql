@@ -1,3 +1,4 @@
+-- AI provenance: OpenAI Codex; initially generated 2026-10-04 (Asia/Seoul); scope: file.
 create table public.owner_calendars (
   google_sub text primary key,
   account_id uuid unique references auth.users (id) on delete set null,

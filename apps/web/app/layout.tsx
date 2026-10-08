@@ -1,3 +1,4 @@
+// AI provenance: OpenAI Codex; initially generated 2026-10-04 (Asia/Seoul); scope: metadata.title, metadata.description, and html lang only.
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";

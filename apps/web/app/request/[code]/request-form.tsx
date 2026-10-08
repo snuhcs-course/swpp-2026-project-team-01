@@ -1,3 +1,4 @@
+// AI provenance: OpenAI Codex; initially generated 2026-10-04 (Asia/Seoul); scope: file.
 "use client";
 import { useState, type FormEvent } from "react";
 export default function RequestForm({ fixedDuration, code }: { fixedDuration: number | null; code: string }) {

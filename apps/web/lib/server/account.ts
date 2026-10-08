@@ -1,3 +1,4 @@
+// AI provenance: OpenAI Codex; initially generated 2026-10-05 (Asia/Seoul); scope: file.
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";

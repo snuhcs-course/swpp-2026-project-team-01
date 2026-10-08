@@ -1,3 +1,4 @@
+// AI provenance: OpenAI Codex; initially generated 2026-10-05 (Asia/Seoul); scope: file.
 "use client";
 import { useState, type FormEvent } from "react";
 import { readJsonResponse } from "@/lib/client-json";

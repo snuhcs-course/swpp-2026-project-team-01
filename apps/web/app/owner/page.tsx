@@ -1,3 +1,4 @@
+// AI provenance: OpenAI Codex; initially generated 2026-10-04 (Asia/Seoul); scope: file.
 import { redirect } from "next/navigation";
 import { getAccount } from "@/lib/server/account";
 import { getSession } from "@/lib/server/auth";

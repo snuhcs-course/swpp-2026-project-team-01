@@ -1,3 +1,4 @@
+-- AI provenance: OpenAI Codex; initially generated 2026-10-05 (Asia/Seoul); scope: file.
 -- Authenticated account bindings and optional manual meeting requests.
 -- Authored from the declarative schema because the local Docker engine could not start.
 begin;

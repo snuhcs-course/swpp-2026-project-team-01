@@ -1,3 +1,4 @@
+// AI provenance: OpenAI Codex; initially generated 2026-10-05 (Asia/Seoul); scope: file.
 export class CalendarWriteError extends Error {
   constructor(public status: number, public uncertain = false) { super("Google Calendar operation failed"); }
 }

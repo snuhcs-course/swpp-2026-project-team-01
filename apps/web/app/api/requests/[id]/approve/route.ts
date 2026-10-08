@@ -1,3 +1,4 @@
+// AI provenance: OpenAI Codex; initially generated 2026-10-05 (Asia/Seoul); scope: file.
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getCalendarEvents, getSession, jsonError, refreshGoogleAccessToken, slotIsAvailable, supabaseAdmin } from "@/lib/server/auth";

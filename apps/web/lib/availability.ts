@@ -1,3 +1,4 @@
+// AI provenance: OpenAI Codex; initially generated 2026-10-05 (Asia/Seoul); scope: file.
 /** All scheduling boundaries are in Asia/Seoul, regardless of the server timezone. */
 export type TimeWindow = { start: string; end: string };
 export type CalendarEvent = TimeWindow & { id: string; title: string; location: string; allDay: boolean; busy: boolean };

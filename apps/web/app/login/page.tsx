@@ -1,3 +1,4 @@
+// AI provenance: OpenAI Codex; initially generated 2026-10-05 (Asia/Seoul); scope: file.
 import Link from "next/link";
 import { safeNext } from "@/lib/server/account";
 import LoginForm from "./login-form";

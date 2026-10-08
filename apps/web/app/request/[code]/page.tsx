@@ -1,3 +1,4 @@
+// AI provenance: OpenAI Codex; initially generated 2026-10-04 (Asia/Seoul); scope: file.
 import Link from "next/link";
 import { createHash } from "node:crypto";
 import { getSession, supabaseAdmin } from "@/lib/server/auth";

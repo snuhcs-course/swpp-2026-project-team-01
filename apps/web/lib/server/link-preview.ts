@@ -1,3 +1,4 @@
+// AI provenance: OpenAI Codex; initially generated 2026-10-05 (Asia/Seoul); scope: file.
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { LinkOptions } from "@/lib/link-options";
 import type { TimeWindow } from "@/lib/availability";

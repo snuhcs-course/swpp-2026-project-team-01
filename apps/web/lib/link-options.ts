@@ -1,3 +1,4 @@
+// AI provenance: OpenAI Codex; initially generated 2026-10-05 (Asia/Seoul); scope: file.
 import { ownerAvailability, seoulDay, SEOUL_OFFSET, type TimeWindow } from "./availability";
 
 export const MEETING_DURATIONS = [30, 45, 60, 90, 120, 180, 240];
