@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {HostSetup} from '../../lib/server/setup/commands.ts';
+import type {CalendarProvider} from '../../lib/server/calendar/catalog.ts';
 import {CalendarSelection} from '../../lib/server/calendar/selection.ts';
-import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
+import {CalendarConsent} from '../../lib/server/calendar/consent.ts';
+import {PublicIntake} from '../../lib/server/identity/public-intake.ts';
 import {calendarScopes} from '../../lib/server/calendar/google.ts';
 import {ApplicationError} from '../../lib/server/errors.ts';
 import type {Credential} from '../../lib/server/identity/credentials.ts';
@@ -16,7 +18,8 @@ const errorCode=(code:string)=>(error:unknown)=>error instanceof ApplicationErro
 // The model is deterministic; Calendar metadata is an injected provider fixture.
 export async function verifySharedSetupReview(input:{sql:LocalSql;database:Database;env:NodeJS.ProcessEnv;host:string;credential:Credential;scope:string;turn:(text:string)=>Promise<string>}){
  const {sql,database,env,host,credential,scope,turn}=input;
- const calendars=new CalendarSelection(database,env,{async refresh(bundle){return bundle;},async list(){return [{id:'shared-setup',name:'Fixture calendar',accessRole:'owner' as const,primary:true,timeZone:'Asia/Seoul',color:null}];}});
+ const provider:CalendarProvider={async refresh(bundle){return bundle;},async list(){return [{id:'shared-setup',name:'Fixture calendar',accessRole:'owner' as const,primary:true,timeZone:'Asia/Seoul',color:null}];}};
+ const calendars=new CalendarSelection(database,env,provider);
  const setup=new HostSetup(database,calendars);
  let state=await setup.read(credential);
  const original=state;
@@ -27,10 +30,16 @@ export async function verifySharedSetupReview(input:{sql:LocalSql;database:Datab
  assert.deepEqual(state.draft?.clarifications,['Which afternoon hours?']);
  assert.equal(state.review,null,'unresolved extraction cannot create a confirmable review');
  assert.deepEqual(state.confirmed,original.confirmed);
- const encrypted=new TokenCipher(env).seal({accessToken:'shared-setup-fixture',refreshToken:'shared-setup-refresh',subject:'fixture',scopes:[...calendarScopes.host],expiresAt:Date.now()+3600_000},'google:host:'+host);
- await sql.query(`insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential) values('host','${host}','fixture',array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],'${encrypted}');
-  update fmat.hosts set conflict_calendar_ids=array['shared-setup'],booking_calendar_id='shared-setup' where id='${host}';`);
+ let verifier='',nonce='';
+ const consent=new CalendarConsent(database,env,{authorization(_kind,state,v,n){verifier=v;nonce=n;return 'https://accounts.google.com/o/oauth2/v2/auth?state='+state;},async exchange(_code,v,n,kind){assert.equal(v,verifier);assert.equal(n,nonce);return {accessToken:'shared-setup-fixture',refreshToken:'shared-setup-refresh',subject:'fixture',scopes:[...calendarScopes[kind]],expiresAt:Date.now()+3600_000};}});
  try{
+ const denied=await consent.start(credential);assert.equal((await consent.callback(denied.state,denied.binding,null,true)).result,'denied');
+ assert.deepEqual(await setup.read(credential),state,'Denied consent preserves the private draft');assert.equal((await consent.status(credential)).connected,false);
+ const started=await consent.start(credential);assert.equal((await consent.callback(started.state,started.binding,'fixture-code',false)).result,'connected');
+ const catalog=await calendars.list(credential);
+ await calendars.select(credential,{generation:catalog.generation,rulesVersion:catalog.rulesVersion,conflictCalendarIds:['shared-setup'],bookingCalendarId:'shared-setup'});
+ state=await setup.read(credential);
+ if(state.nextAction==='refresh_draft')state=await setup.rebase(credential,{expectedRevision:state.revision,rulesVersion:state.rulesVersion,idempotencyKey:randomUUID()});
   // Explicit web answers resolve ambiguity. Duration remains an assistant
   // suggestion, so a later private turn can revise it without overriding a choice.
   state=await setup.draft(credential,{expectedRevision:state.revision,idempotencyKey:randomUUID(),patch:{displayName:'Shared setup',handle:'shared-'+host.slice(0,8),rules:{meetingMode:'either',locationPolicy:'preferred',locations:['Library lounge'],travelMode:'TRANSIT',travelBufferMinutes:20}},unresolved:[]});
@@ -51,10 +60,16 @@ export async function verifySharedSetupReview(input:{sql:LocalSql;database:Datab
   const current=confirmation(state),saved=await setup.confirm(credential,current);
   assert.equal(saved.confirmed.rules?.durationMinutes,45);
   assert.equal(saved.nextAction,'settings_confirmed');
+  assert.deepEqual(await setup.readiness(credential),{ready:true,handle:saved.confirmed.handle});
+  const profile=await new PublicIntake(database,env,provider).profile(saved.confirmed.handle!);
+  assert.equal(profile.handle,saved.confirmed.handle);assert.deepEqual(Object.keys(profile).sort(),['displayName','durationMinutes','handle','timezone']);
   assert.equal((await setup.confirm(credential,current)).rulesVersion,saved.rulesVersion,'lost web response cannot save twice');
   assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where host_id='${host}';`),'0');
   assert.equal(await sql.query(`select count(*) from fmat.setup_turns t join fmat.setup_conversations c on c.id=t.conversation_id where c.host_id='${host}' and t.channel='imessage';`),'3','only valid private extractions create setup turns');
+  await consent.disconnect(credential);assert.equal((await setup.readiness(credential)).ready,false);
+  assert.deepEqual((await setup.read(credential)).confirmed,saved.confirmed,'Disconnect preserves confirmed settings but revokes readiness');
+  await assert.rejects(new PublicIntake(database,env,provider).profile(saved.confirmed.handle!),errorCode('NOT_FOUND'));
  }finally{
-  await sql.query(`delete from fmat.calendar_connections where principal_kind='host' and principal_id='${host}';`);
+  await sql.query(`delete from fmat.oauth_exchanges where actor->>'id'='${host}';delete from fmat.calendar_connections where principal_kind='host' and principal_id='${host}';`);
  }
 }

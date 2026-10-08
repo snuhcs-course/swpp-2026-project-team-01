@@ -17,23 +17,28 @@ import {browserProof} from '../../lib/server/photon/proof.ts';
 import {LocalSql} from './local-sql.ts';
 import {startBrowserRuntime} from '../runtime/fixture-server.ts';
 import {describedPreferences,describedReply} from '../runtime/setup-preferences.ts';
+import {InvitationOperator} from '../../lib/server/identity/invitation-operator.ts';
+import {BrowserCommands} from '../../lib/server/identity/browser-commands.ts';
+import {HostSetup} from '../../lib/server/setup/commands.ts';
+import {ApplicationError} from '../../lib/server/errors.ts';
+import {verifySetupIsolation} from './setup-host-isolation.ts';
 import {verifySharedSetupReview} from './setup-channel-review.ts';
 
 test('signed linked input executes once in the real eve setup session and loses authority after unlink',{timeout:180_000},async()=>{
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
  assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
  const project=randomUUID(),receiver=randomUUID(),secret=randomBytes(32).toString('hex'),dispatchSecret=randomBytes(32).toString('hex');
- const env={SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY,TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64'),PHOTON_PROJECT_ID:project,PHOTON_WEBHOOK_ID:receiver,IMESSAGE_WEBHOOK_SECRET:secret};
+ const env={APP_ORIGIN:'http://localhost:3000',INVITATION_CODE_KEY:randomBytes(32).toString('base64'),SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY,TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64'),PHOTON_PROJECT_ID:project,PHOTON_WEBHOOK_ID:receiver,IMESSAGE_WEBHOOK_SECRET:secret};
  const sql=new LocalSql(),holder=new LocalSql(),db=new Database(env),conversations=new Conversations(db);
  const headers={apikey:local.SERVICE_ROLE_KEY,authorization:'Bearer '+local.SERVICE_ROLE_KEY,'content-type':'application/json'};
- const email=randomUUID()+'@example.test',password=randomUUID()+randomUUID(),invitation=randomUUID(),phone='+155501'+String(Math.floor(Math.random()*9000)+1000),browser=browserProof();
- let host='',runtime:Awaited<ReturnType<typeof startBrowserRuntime>>|undefined;
+ const email=randomUUID()+'@example.test',password=randomUUID()+randomUUID(),operator='setup-'+randomUUID(),phone='+155501'+String(Math.floor(Math.random()*9000)+1000),browser=browserProof();
+ let host='',invitation:string=randomUUID(),runtime:Awaited<ReturnType<typeof startBrowserRuntime>>|undefined;
  const service=new HostIMessage(db,env,{async prepare(number){return {line:'shared',spaceId:'any;-;'+number};}});
  const providerInputs=new Map<string,string>();
- function request(key:string,text=describedPreferences){
-  const timestamp=String(Math.floor(Date.now()/1000)),space={id:'any;-;'+phone,platform:'imessage',type:'dm',phone:'shared'};
+ function request(key:string,text=describedPreferences,sender=phone){
+  const timestamp=String(Math.floor(Date.now()/1000)),space={id:'any;-;'+sender,platform:'imessage',type:'dm',phone:'shared'};
   let body=providerInputs.get(key);
-  if(!body){body=JSON.stringify({event:'messages',space,message:{id:key,platform:'imessage',direction:'inbound',timestamp:new Date().toISOString(),sender:{id:phone,platform:'imessage'},space,content:{type:'text',text}}});providerInputs.set(key,body);}
+  if(!body){body=JSON.stringify({event:'messages',space,message:{id:key,platform:'imessage',direction:'inbound',timestamp:new Date().toISOString(),sender:{id:sender,platform:'imessage'},space,content:{type:'text',text}}});providerInputs.set(key,body);}
   return new Request('https://fixture.invalid/api/providers/photon',{method:'POST',body,headers:{'content-type':'application/json','x-spectrum-webhook-id':receiver,'x-spectrum-timestamp':timestamp,'x-spectrum-signature':'v0='+createHmac('sha256',secret).update(`v0:${timestamp}:${body}`).digest('hex')}});
  }
  async function settled(scope:string){for(let n=0;n<200;n++){if(await sql.query(`select not exists(select 1 from fmat.runtime_messages where conversation_id='${scope}' and status='pending');`)==='t')return;await delay(50);}assert.fail('runtime turn did not settle');}
@@ -41,7 +46,14 @@ test('signed linked input executes once in the real eve setup session and loses 
   const created=await fetch(local.API_URL+'/auth/v1/admin/users',{method:'POST',headers,body:JSON.stringify({email,password,email_confirm:true})});assert.equal(created.status,200);host=(await created.json()).id;
   const login=await fetch(local.API_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:local.ANON_KEY,'content-type':'application/json'},body:JSON.stringify({email,password})});assert.equal(login.status,200);const token=(await login.json()).access_token;
   const credential=await verifyHostToken(token,{env});
-  await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invitation}','${email}','${createHash('sha256').update(invitation).digest('hex')}',now()+interval '1 day','photon-execution-test');insert into fmat.hosts(id,email,invitation_id) values('${host}','${email}','${invitation}');insert into fmat.photon_receivers(project_id,receiver_id,enabled) values('${project}','${receiver}',true);`);
+  const browserCommands=new BrowserCommands(db),invitations=new InvitationOperator(db,env);
+  assert.equal((await browserCommands.host(credential)).admitted,false);
+  await assert.rejects(new HostSetup(db).read(credential),(error:unknown)=>error instanceof ApplicationError&&error.code==='HOST_NOT_ADMITTED');
+  const issued=await invitations.issue({project:'local',operator,email,delivery:'manual',idempotencyKey:randomUUID()});invitation=issued.invitationId;
+  const privateInvite=await invitations.recover({project:'local',operator,invitationId:invitation}),redeem={code:privateInvite.code,idempotencyKey:randomUUID()};
+  assert.equal((await browserCommands.redeem(credential,redeem)).admitted,true);assert.equal((await browserCommands.redeem(credential,redeem)).admitted,true);
+  assert.equal((await browserCommands.host(credential)).calendarConnected,false);
+  await sql.query(`insert into fmat.photon_receivers(project_id,receiver_id,enabled) values('${project}','${receiver}',true);`);
   const started=await service.start(credential,browser,{phone,idempotencyKey:randomUUID()});let code='';
   await dispatchLinkCodes(db,env,{async send(_route,_phone,text){code=text.match(/code is (\d{6})/u)![1];return {status:'accepted',providerReference:'fixture'};},async reconcile(){return {status:'uncertain',providerReference:null};}});
   const linked=await service.verify(credential,browser,{challengeId:started.challenge!.id,code,idempotencyKey:randomUUID()});assert.ok(linked.link);
@@ -144,6 +156,11 @@ globalThis.fetch=async(input,init)=>{
    return {status:'delivered',providerReference:'fixture:'+id};
   },async reconcile(){assert.fail('fresh fixture replies should not need reconciliation');}})).claimed,1);
   assert.equal(sharedReplyIds.size,3);
+  await verifySetupIsolation({sql,db,env,local,host,credential,token,scope,origin:runtime.origin,service,async privateTurn(sender,text,otherScope){
+   const key=randomUUID();await delay(5);assert.equal((await photonWebhook(request(key,text,sender),{env,database:db})).status,200);
+   assert.equal((await dispatchPhotonInputs(db,env)).accepted,1);assert.equal((await dispatch()).status,200);await settled(otherScope);
+   return sql.query(`select r.text from fmat.photon_replies r join fmat.photon_inbox i on i.id=r.inbox_id where i.project_id='${project}' and i.message_id='${key}';`);
+  }});
   const messagesBeforeUnlink=Number(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}';`));
   const draftsBeforeUnlink=await sql.query(`select count(*) from fmat.setup_drafts d join fmat.setup_conversations c on c.id=d.conversation_id where c.host_id='${host}';`);
   assert.equal((await photonWebhook(request('reply-before-unlink','A second private turn.'),{env,database:db})).status,200);
@@ -178,7 +195,7 @@ globalThis.fetch=async(input,init)=>{
   assert.equal(await sql.query(`select count(*) from fmat.setup_drafts d join fmat.setup_conversations c on c.id=d.conversation_id where c.host_id='${host}';`),draftsBeforeUnlink);
  }finally{
   await holder.query('rollback;');await runtime?.stop();
-  if(host){await sql.query(`delete from fmat.queue_publications p using fmat.jobs j,fmat.photon_inbox i where p.job_id=j.id and j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from pgmq.q_fmat_jobs q using fmat.jobs j,fmat.photon_inbox i where q.message->>'jobId'=j.id::text and j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from fmat.jobs j using fmat.photon_inbox i where j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from fmat.photon_replies where project_id='${project}';delete from fmat.photon_inbox where project_id='${project}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_scopes where host_id='${host}';delete from fmat.photon_links where project_id='${project}';delete from fmat.photon_link_challenges where project_id='${project}';delete from fmat.photon_receivers where project_id='${project}';delete from fmat.audit_events where actor->>'id'='${host}';delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);}
+  if(host){await sql.query(`delete from fmat.queue_publications p using fmat.jobs j,fmat.photon_inbox i where p.job_id=j.id and j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from pgmq.q_fmat_jobs q using fmat.jobs j,fmat.photon_inbox i where q.message->>'jobId'=j.id::text and j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from fmat.jobs j using fmat.photon_inbox i where j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from fmat.photon_replies where project_id='${project}';delete from fmat.photon_inbox where project_id='${project}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_scopes where host_id='${host}';delete from fmat.photon_links where project_id='${project}';delete from fmat.photon_link_challenges where project_id='${project}';delete from fmat.photon_receivers where project_id='${project}';delete from fmat.audit_events where actor->>'id'='${host}';delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitation_deliveries where invitation_id='${invitation}';delete from fmat.invitations where id='${invitation}';delete from fmat.idempotency where actor_scope='invitation_operator:local:${operator}';delete from fmat.audit_events where subject_id='${invitation}';`);assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);}
   sql.close();holder.close();
  }
 });

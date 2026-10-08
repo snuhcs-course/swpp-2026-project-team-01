@@ -139,6 +139,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 ### Phase 3 — Deliver host setup in the single `/app` chat
 
+- [x] Verify admission, bound Calendar consent/selection, confirmed readiness and linked web/iMessage isolation through the actual services and runtime with two hosts. Private-channel readiness reporting remains the last deterministic task 5.1 gap. [Evidence](05_rebuild_evidence.md#admission-and-two-host-setup-journey--2026-10-09).
+
 - [x] Deploy confirmed-setup links from `67a2889` (`dpl_HdZN6Wgx2A8kMSaTbTougCFN9FQc`), independently verify Ready and the production alias, and pass 69 HTTP guards including protected readiness. [Evidence](05_rebuild_evidence.md#confirmed-setup-booking-links--2026-10-09).
 
 - [x] Implement confirmed-setup booking and agent-instruction links gated by current Calendar permissions and reauthorized setup revisions. Verify provider failures, logout/stale checks, browser recovery, mobile/zoom and keyboard behavior. Full admission/two-host/channel acceptance remains open. [Evidence](05_rebuild_evidence.md#confirmed-setup-booking-links--2026-10-09).
