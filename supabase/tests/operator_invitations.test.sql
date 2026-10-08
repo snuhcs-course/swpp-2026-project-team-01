@@ -24,6 +24,14 @@ select throws_ok($$select pg_temp.issue('{"origin":"https://attacker.test/?token
 select throws_ok($$select pg_temp.issue('{"email":"UPPER@example.test"}')$$,'P0001','INVALID_INPUT','recipient must be normalized');
 insert into invitation_fixture values('manual',pg_temp.issue());
 select is(pg_temp.item('manual')->>'status','active','issued invitation active');
+insert into invitation_fixture values('recovered',public.fmat_invitation_operator('recover','second-operator',jsonb_build_object('project','local','invitationId',pg_temp.item('manual')->>'invitationId')));
+select is(pg_temp.item('recovered')->>'operator','operator-test','recovery retains original derivation operator');
+select is(pg_temp.item('recovered')->>'idempotencyKey','e1000000-0000-4000-8000-000000000001','recovery retains original retry identity');
+select is(pg_temp.item('recovered')->>'tokenHash',repeat('a',64),'private recovery returns hash for in-memory derivation verification');
+select ok(not(pg_temp.item('recovered') ? 'code'),'database never returns a readable code');
+select throws_ok($$select public.fmat_invitation_operator('recover','op',jsonb_build_object('project','mriseqztcwmezvtawnbo','invitationId',pg_temp.item('manual')->>'invitationId'))$$,'P0001','NOT_FOUND','cross-project recovery denied');
+select throws_ok($$select public.fmat_invitation_operator('recover','op',jsonb_build_object('project','local','invitationId',pg_temp.item('manual')->>'invitationId','idempotencyKey','e1000000-0000-4000-8000-000000000009'))$$,'P0001','INVALID_INPUT','recovery cannot replace issue identity');
+
 select is(pg_temp.item('manual')->>'deliveryStatus','manual','manual issuance has no provider status');
 select is((select expires_at-created_at from fmat.invitations where id=(pg_temp.item('manual')->>'invitationId')::uuid),interval '7 days','expiry exactly seven days from database issuance');
 select is(pg_temp.issue(),pg_temp.item('manual'),'retry preserves original invitation and expiry');
@@ -42,9 +50,11 @@ select is((select count(*)::int from fmat.jobs where kind='invitation_delivery' 
 select throws_ok($$update fmat.invitation_deliveries set origin='https://changed.test' where invitation_id=(pg_temp.item('email')->>'invitationId')::uuid$$,'P0001','IMMUTABLE_DELIVERY','frozen origin cannot change');
 insert into invitation_fixture values('revoked',public.fmat_invitation_operator('revoke','operator-test',jsonb_build_object('project','mriseqztcwmezvtawnbo','invitationId',pg_temp.item('email')->>'invitationId','idempotencyKey','e1000000-0000-4000-8000-000000000003')));
 select is(pg_temp.item('revoked')->>'status','revoked','revocation blocks redemption');
+select throws_ok($$select public.fmat_invitation_operator('recover','op',jsonb_build_object('project','mriseqztcwmezvtawnbo','invitationId',pg_temp.item('email')->>'invitationId'))$$,'P0001','INVITATION_INVALID','revoked invitation cannot recover');
 select is(pg_temp.item('revoked')->>'deliveryStatus','suppressed','revocation suppresses undispatched delivery');
 select is(public.fmat_invitation_operator('revoke','operator-test',jsonb_build_object('project','mriseqztcwmezvtawnbo','invitationId',pg_temp.item('email')->>'invitationId','idempotencyKey','e1000000-0000-4000-8000-000000000003')),pg_temp.item('revoked'),'revocation retry is stable');
 update fmat.invitations set expires_at=clock_timestamp()-interval '1 second' where id=(pg_temp.item('manual')->>'invitationId')::uuid;
 select is(pg_temp.issue()->>'status','expired','issuance retry reads current expiry without reissuing');
+select throws_ok($$select public.fmat_invitation_operator('recover','op',jsonb_build_object('project','local','invitationId',pg_temp.item('manual')->>'invitationId'))$$,'P0001','INVITATION_INVALID','expired invitation cannot recover');
 select is((select count(*)::int from fmat.audit_events where operation='invitation_issue' and actor->>'id'='operator-test'),2,'retries do not repeat issue audit effects');
 select * from finish();rollback;

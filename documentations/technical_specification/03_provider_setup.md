@@ -98,13 +98,48 @@ Verify provider profile-sync support and device-side display before claiming tha
 
 ## Host invitation operations
 
-Implement operator issuance and revocation against the [host-admission contract](../../openspec/specs/host-admission/spec.md) and [email-delivery contract](../../openspec/specs/email-delivery/spec.md). No invitation CLI is currently implemented.
+Implement operator issuance and revocation against the [host-admission contract](../../openspec/specs/host-admission/spec.md) and [email-delivery contract](../../openspec/specs/email-delivery/spec.md). The repository CLI is `npm run --silent invitations --`; its operator label is audit attribution, while the configured service credential authorizes every database call.
 
-The operator boundary must identify the intended project and operator, reject public credentials and prevent ordinary hosts or guests from issuing invitations. Remote issuance uses configured Cloudflare delivery unless manual delivery is explicitly selected; local issuance and revocation do not send email.
+The operator boundary identifies the intended project and operator, rejects public credentials and prevents ordinary hosts or guests from issuing invitations. Remote issuance uses configured Cloudflare delivery unless manual delivery is explicitly selected; local issuance and revocation do not send email.
 
 Persist private dispatch intent before sending, keep one-time codes out of URLs/logs and reconcile uncertain outcomes without automatic resend or reissuance. Invitation revocation blocks redemption; revoking existing host access is a separate operation.
 
-The [operator invitation change](../../openspec/changes/deliver-operator-invitations/proposal.md) now has an internal strict command contract and versioned HMAC/Base32 code derivation. `INVITATION_CODE_KEY` is a dedicated canonical base64-encoded 32-byte server secret, separate from Calendar credential encryption. The derived code is stable for the normalized recipient, project, operator, retry identity and delivery mode; only its hash and derivation context belong in server state. Preserve this key while deliveries are outstanding; a changed key must fail hash verification rather than silently replacing a code. The dedicated service-only `fmat_invitation_operator` lifecycle now owns issue/status/revoke, database-generated seven-day expiry and immutable delivery intent. Exact retries return the same invitation and current status; old generic issuance/revocation operations are denied. Manual intent creates no job, while remote Cloudflare intent creates one durable delivery job. The internal delivery worker is implemented; the operator CLI, private manual output, deployed worker activation and controlled recipient acceptance remain pending. Do not invoke remote issuance for real recipients until those surfaces are complete.
+The [operator invitation change](../../openspec/changes/deliver-operator-invitations/proposal.md) now has an internal strict command contract and versioned HMAC/Base32 code derivation. `INVITATION_CODE_KEY` is a dedicated canonical base64-encoded 32-byte server secret, separate from Calendar credential encryption. The derived code is stable for the normalized recipient, project, operator, retry identity and delivery mode; only its hash and derivation context belong in server state. Preserve this key while deliveries are outstanding; a changed key must fail hash verification rather than silently replacing a code. The dedicated service-only `fmat_invitation_operator` lifecycle now owns issue/status/revoke, database-generated seven-day expiry and immutable delivery intent. Exact retries return the same invitation and current status; old generic issuance/revocation operations are denied. Manual intent creates no job, while remote Cloudflare intent creates one durable delivery job. The internal delivery worker and operator CLI with exclusive private manual output are implemented. Deployed worker activation and controlled recipient acceptance remain pending; remote Cloudflare issuance records pending delivery intent until activation.
+
+### Operator commands
+
+Supply `SUPABASE_URL`, `SUPABASE_SECRET_KEY` and the intended `APP_ORIGIN` in the process environment. Issuance and code recovery additionally require `INVITATION_CODE_KEY`. Remote Cloudflare issuance validates `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_FROM` and `CLOUDFLARE_EMAIL_API_TOKEN` before creating an invitation. Status/revocation need neither the code key nor provider configuration. The CLI rejects public credentials and mismatched endpoints before RPC; the database checks the actual service credential. Do not pass credentials or codes as command arguments.
+
+The examples assume the intended environment is already exported. Alternatively, invoke `node --env-file=/absolute/private/operator.env --import tsx scripts/invitations.ts` followed by the same arguments. Use a private environment file and keep it out of Git. Generate and retain a UUID retry key before issuance; retries must use the same project, issuing operator, recipient, mode and key.
+
+```sh
+npm run --silent invitations -- --help
+
+# Local issuance is manual-only and queues no email.
+# The output must be a new absolute path. Its directory must be owner-only 0700;
+# the CLI can create one missing final directory under existing safe parents.
+npm run --silent invitations -- issue --project local --operator dev-operator \
+  --email host@example.test --key "<issue-uuid>" \
+  --output /absolute/private/invitations/host.json
+
+# Remote default is Cloudflare. Use only an authorized recipient.
+npm run --silent invitations -- issue --project mriseqztcwmezvtawnbo \
+  --operator "<audit-id>" --email "<authorized-recipient>" --key "<issue-uuid>"
+
+npm run --silent invitations -- status --project mriseqztcwmezvtawnbo \
+  --operator "<audit-id>" --invitation "<invitation-uuid>"
+npm run --silent invitations -- revoke --project mriseqztcwmezvtawnbo \
+  --operator "<audit-id>" --invitation "<invitation-uuid>" --key "<revoke-uuid>"
+
+# Recover the same active invitation into a NEW private file; never resend.
+npm run --silent invitations -- recover --project mriseqztcwmezvtawnbo \
+  --operator "<audit-id>" --invitation "<invitation-uuid>" \
+  --output /absolute/private/invitations/recovered.json
+```
+
+For remote manual issuance, add `--delivery manual --output /absolute/private/invitations/host.json`. Manual files contain the recipient, original expiry, setup URL and separate grouped code, with mode 0600. Shared directories, symlink paths, existing files and changed file identity are rejected; the CLI does not overwrite or silently fix permissions. Normal JSON reports IDs, original expiry and current status; it omits the code and private derivation context.
+
+After a lost issuance reply, repeat the exact issue command with its retained key and a new private output path when needed. If issuance committed but writing failed, sanitized error JSON retains the retry key and, when known, invitation ID. Use `recover` for that ID or retry issuance with the same key; do not generate a new key to recover a lost result. An abrupt process kill may leave an empty or partial private artifact; inspect it locally and choose a new output path, since the CLI never overwrites an existing file. Recovery uses the original issuing context even when another authorized operator performs it. Revoked, expired, redeemed or changed-recipient invitations cannot be recovered. Recovery never renews expiry, changes delivery mode or invokes Cloudflare. Inspect the private artifact locally and deliver it only through the intended authorized channel; do not paste its code into chat, logs or URLs.
 
 ### Invitation delivery and recovery
 

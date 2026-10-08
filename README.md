@@ -41,6 +41,8 @@ Track unresolved provider/client checks in the [implementation gates](documentat
 
 Use **Cloudflare Email Service** for host invitations, contact verification, recovery and booking confirmations, sent from `no-reply@findmeatime.com`. MVP host login uses **Google only** through Supabase Auth; email login is disabled. Retained Cloudflare SMTP settings do not enable email sign-in. **AgentMail** handles conversational scheduling inboxes, threads and replies. See [email setup](documentations/technical_specification/03_provider_setup.md#cloudflare-email-service).
 
+Operator invitation commands are available through `npm run --silent invitations -- --help`. They require an explicit project and server credentials; manual codes are written only to new private files. See [host invitation operations](documentations/technical_specification/03_provider_setup.md#host-invitation-operations) for setup, exact retries and recovery. Worker activation and controlled email acceptance remain pending.
+
 ## Local development
 
 Use Node.js 24, npm 11, Supabase CLI 2.119.0 and OpenSpec CLI 1.14.0. Dependencies are pinned in `package-lock.json`.

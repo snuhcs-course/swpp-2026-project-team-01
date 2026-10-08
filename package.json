@@ -18,7 +18,7 @@
     "start:web": "next start apps/web",
     "start:eve": "eve start",
     "typecheck": "next typegen apps/web && tsc --noEmit && tsc --noEmit -p apps/web/tsconfig.json",
-    "test:app": "tsx --test lib/contracts/*.test.ts lib/server/identity/*.test.ts lib/server/email/*.test.ts lib/server/calendar/*.test.ts lib/server/booking/*.test.ts lib/server/scheduling/*.test.ts lib/server/routes/*.test.ts lib/server/photon/*.test.ts apps/web/lib/*.test.ts tests/providers/*.test.ts lib/server/oauth/*.test.ts lib/server/mcp/*.test.ts lib/cli/*.test.ts",
+    "test:app": "tsx --test lib/contracts/*.test.ts lib/server/identity/*.test.ts lib/server/email/*.test.ts lib/server/calendar/*.test.ts lib/server/booking/*.test.ts lib/server/scheduling/*.test.ts lib/server/routes/*.test.ts lib/server/photon/*.test.ts apps/web/lib/*.test.ts tests/providers/*.test.ts lib/server/oauth/*.test.ts lib/server/mcp/*.test.ts lib/cli/*.test.ts lib/operator/*.test.ts",
     "test:runtime": "node scripts/smoke-runtime.mjs",
     "verify:model": "node --import tsx --env-file-if-exists=.env scripts/verify-model.mjs",
     "test:integration": "tsx --test --test-concurrency=1 tests/integration/*.test.ts",
@@ -27,7 +27,8 @@
     "booking:recover": "node --import tsx scripts/booking-recovery.ts",
     "probe:oauth": "node scripts/probe-oauth-compatibility.mjs",
     "fmat": "tsx scripts/fmat.ts",
-    "probe:google-login": "node scripts/probe-google-login.mjs"
+    "probe:google-login": "node scripts/probe-google-login.mjs",
+    "invitations": "node --import tsx scripts/invitations.ts"
   },
   "type": "module",
   "dependencies": {

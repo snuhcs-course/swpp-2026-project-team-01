@@ -66,3 +66,7 @@ Refresh is coordinated across terminal processes. Before dispatch, the connectio
 Logout first disables local invocation, then revokes remotely and removes the file. If the network fails, the disabled file remains so an explicit logout retry can complete revocation. A crashed process's lock is never guessed stale or stolen. Use a new login connection and revoke the old grant in the browser rather than manually resuming an uncertain refresh.
 
 The callback listener closes after success, denial, timeout, cancellation or launcher failure. It returns only a generic status page and never displays authorization codes or tokens. `Ctrl-C` cancels a pending login. On systems without a working desktop browser launcher, use the service's browser workflow; headless copy/paste authorization is not implemented.
+
+## Operator tooling
+
+Invitation administration uses the separate server-credential command `npm run --silent invitations --`. It is not an MCP tool or a capability granted to host/requester agent clients. See [host invitation operations](03_provider_setup.md#host-invitation-operations) for issue/status/revoke/recover commands, environment binding and private output. This operator command exits 0 on success or 1 with sanitized JSON on failure; the personal-agent CLI exit-code table above does not apply.

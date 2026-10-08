@@ -11,5 +11,5 @@
 
 ## 3. Operator command and release
 
-- [ ] 3.1 Wire runnable issue/status/revoke/manual-recovery commands with explicit targets, private exclusive output and sanitized JSON; test actual commands, unsafe paths, missing configuration and retained retry identity, and document command examples.
+- [x] 3.1 Wire runnable issue/status/revoke/manual-recovery commands with explicit targets, private exclusive output and sanitized JSON; test actual commands, unsafe paths, missing configuration and retained retry identity, and document command examples.
 - [ ] 3.2 Run integration/build/browser checks, deploy reviewed schema/worker to identified production, verify controlled issuance/revocation and authorized recipient delivery with cleanup, record implementation-plan evidence and archive only after complete acceptance.
