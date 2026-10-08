@@ -252,6 +252,7 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 
 Incremental completion (full phase exit remains open):
 
+- [x] Deploy independent author-evidence primitives and the gRPC security patch (`715b72b`, `d40963b`; deployment `dpl_BbBDptFPYouJyuz5qAHQi5F1qFvM`); verify production regressions and disabled live ingress. [Evidence](05_rebuild_evidence.md#independent-agentmail-author-evidence--2026-10-08).
 - [x] Implement bounded raw-message retrieval and independent DKIM author evidence; verify cryptographic fixtures and the controlled live rejection of an unsigned Message-ID. This is domain evidence only; protected request/channel binding and positive live requester acceptance remain open.
 - [x] Deploy the message-reader increment and mailbox ambiguity correction (`006730b`, `04b33b6`; deployment `dpl_9crTVuUy75S8BpKBVxVdjsSZv7Qx`); verify retained production access guards and disabled ingress. [Evidence](05_rebuild_evidence.md#agentmail-full-message-reader--2026-10-08).
 - [x] Implement bounded full-message reads with exact receipt identity, restricted-label rejection, explicit unavailable text and untrusted address claims. Six contract tests and a controlled read-only provider probe pass; authorized dispatch and live continuity remain open.
