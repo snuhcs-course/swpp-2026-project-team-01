@@ -272,6 +272,8 @@ References: [requester destination](../user_experience/04_page_list.md#requester
 
 ### Phase 5 — Complete approval, booking and invitations
 
+- [x] Complete booking task 2.1 with a 15-scenario final revalidation matrix: 13 blocked prerequisite cases and successful requester-Calendar/in-person controls through actual approval and worker services. Verify no rejected case dispatches or publishes confirmations; full booking integration, 1,532 SQL assertions and application checks pass. [Evidence](05_rebuild_evidence.md#booking-final-revalidation-matrix--2026-10-09).
+
 - [x] Deploy the booking lock-order migration (`3e2ade9`, `20261008231233`) to FindMeATime2; verify 96 matching migrations, matching tested function/privileges, clean security advisors and 70 production HTTP guards. [Evidence](05_rebuild_evidence.md#booking-identity-and-host-lock-acceptance--2026-10-09).
 
 - [x] Complete booking task 1.2: align retained host/attempt locks, verify real lock waits and expired ownership, and exercise overlapping approved requests through one pending insert and confirmed-local revalidation. Verify stable identities, immutable snapshots and scoped fixture cleanup with the 96-migration rebuild and 1,532 SQL assertions. [Evidence](05_rebuild_evidence.md#booking-identity-and-host-lock-acceptance--2026-10-09).

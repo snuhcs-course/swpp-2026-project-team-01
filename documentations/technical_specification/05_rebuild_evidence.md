@@ -1674,3 +1674,21 @@ The booking fixture also now deletes only its queue messages/archive/publication
 
 
 Production deployment of `3e2ade9`: confirmed the linked target is **FindMeATime2**, `mriseqztcwmezvtawnbo`, `us-west-1`, then reviewed a dry run containing only migration `20261008231233_booking_host_lock_order.sql` and pushed it with Vault updates disabled. All 96 local/remote migration versions match. The deployed function hash (`77b8ee67f57f346758f3ed0edbc759a8`) and privilege projection exactly match tested local state: the public command remains service-only and its private implementation remains security-invoker. Remote security advisors report no issues. All 70 production HTTP guards pass; `releaseReady` remains false. This database-only deployment leaves the existing Vercel application artifact unchanged and performed no live Calendar write or notification send.
+
+
+## Booking final revalidation matrix — 2026-10-09
+
+Added `tests/integration/booking-revalidation.ts`, invoked by the full booking approval integration. Each case starts with a freshly published proposal, requester agreement and attributable authenticated host approval. The fixture creates a selected requester Calendar connection before proposal evaluation when required, and uses complete physical-neighbor fixtures plus valid initial route estimates before approving in-person meetings. It then runs the actual booking worker, persisted evaluator and dispatch boundary with controlled provider responses.
+
+| Final prerequisite | Verified cases and outcome |
+| --- | --- |
+| Availability | Newly busy host or requester interval blocks the saved attempt; the requester case proves its selected Calendar is read with its own credential. |
+| Grants | Revoked host or requester connection blocks creation. Host revocation during a busy read also prevents dispatch. |
+| Decisions and rules | Changed host rules or removed approval blocks creation. A rule change during concurrent route estimates cannot save usable stale evidence. |
+| Destination | Changed selected destination, absent catalog entry and read-only access each block creation without fallback. |
+| Travel | Fresh inbound/outbound estimates that exceed the gaps, or return no route, block an otherwise approved in-person meeting. Both legs are read. |
+| Positive controls | Valid requester Calendar availability and valid in-person travel each produce one confirmed event and two participant outbox records. |
+
+All 13 negative cases verify no provider insert, no dispatch receipt, a blocked immutable attempt, no remaining host reservation and no confirmation outbox. A catalog failure commits the blocked attempt inside evaluation, after which the worker returns `complete` to acknowledge the job; this is distinct from a confirmed booking. The two positive cases demonstrate the same path permits valid work. Existing dispatch tests additionally reject changed agreement, stale or cross-lease evidence, changed rules and revoked request authority after reads.
+
+Validation: the full booking integration passed in 57.9 seconds; all 1,532 SQL assertions in 33 files passed afterward without a reset. `npm run check` passed 316 application/provider tests, eight script tests, TypeScript, lint and documentation links. Test cleanup removes requester grants with their scoped requests. This completes booking task 2.1. No application or schema change was required; production remains on the verified 96-migration state from the preceding lock-order deployment. These are local provider fixtures, not live Google booking acceptance.
