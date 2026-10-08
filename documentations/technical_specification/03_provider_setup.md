@@ -104,6 +104,8 @@ The operator boundary must identify the intended project and operator, reject pu
 
 Persist private dispatch intent before sending, keep one-time codes out of URLs/logs and reconcile uncertain outcomes without automatic resend or reissuance. Invitation revocation blocks redemption; revoking existing host access is a separate operation.
 
+The [operator invitation change](../../openspec/changes/deliver-operator-invitations/proposal.md) now has an internal strict command contract and versioned HMAC/Base32 code derivation. `INVITATION_CODE_KEY` is a dedicated canonical base64-encoded 32-byte server secret, separate from Calendar credential encryption. The derived code is stable for the normalized recipient, project, operator, retry identity and delivery mode; only its hash and derivation context belong in server state. Preserve this key while deliveries are outstanding; a changed key must fail hash verification rather than silently replacing a code. No invitation RPC, CLI or delivery worker is activated by this internal module. Durable issuance, private manual output and Cloudflare delivery remain pending.
+
 ## Google-only MVP host login
 
 Use Supabase Auth Google OAuth with identity scopes `openid email profile`; request Calendar access later through the separate connection flow. Register `https://mriseqztcwmezvtawnbo.supabase.co/auth/v1/callback` on the Google web OAuth client. Supabase then redirects to the allowlisted application return `https://release.findmeatime.com/auth/callback`. Local live Google development additionally needs `http://127.0.0.1:54321/auth/v1/callback` on that client and `http://localhost:3000/auth/callback` in local Auth settings. Keep direct `/connections/google/callback` registrations for Calendar consent.
