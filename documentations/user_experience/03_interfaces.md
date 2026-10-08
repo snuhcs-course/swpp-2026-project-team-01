@@ -11,7 +11,7 @@ Reconstruction design (2026-10-06): the [page list](04_page_list.md) defines the
 
 ## Channel direction
 
-Make the personal agent the primary entry point for agent users: paste `Let me use findmeatime.com/SKILL.md for my scheduling` to become a host, or `Let me schedule a meeting with findmeatime.com/dodo/SKILL.md` to request a meeting. The agent guides the workflow and asks only for missing information, required consent, and decisions. These are planned URLs, not verified live endpoints.
+Make the personal agent the primary entry point for agent users: paste `Let me use findmeatime.com/SKILL.md for my scheduling` to become a host, or `Let me schedule a meeting with findmeatime.com/dodo/SKILL.md` to request a meeting. The agent guides the workflow and asks only for missing information, required consent, and decisions. The rebuilt application serves both paths on `https://release.findmeatime.com`; the root-domain URLs remain the intended launch entry points. The current documents provide browser continuation while protected MCP/CLI and named-client acceptance remain incomplete.
 
 Publishing a booking link and receiving requests as a host is waitlist/invite-only; connecting Google Calendar as a requester is available without an invitation. The public root skill explains this and directs users without access to web waitlist entry or invitation redemption. Existing admitted hosts resume setup normally. Requesters using an active host's link remain account-free and do not need invitations. They can optionally connect Google Calendar through a separate browser consent flow to check availability; this does not enroll them as hosts.
 

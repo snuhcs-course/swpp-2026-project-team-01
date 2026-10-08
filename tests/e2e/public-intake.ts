@@ -1,3 +1,4 @@
+import {verifyPublicSkill} from './public-skill.ts';
 import {verifyRequesterIdentity} from './requester-identity.ts';
 import assert from 'node:assert/strict';
 import {verifyBookingApproval} from './booking-approval.ts';
@@ -10,6 +11,7 @@ export async function verifyPublicIntake(browser:Browser,origin:string,sql:Local
  await verifyRequesterIdentity(browser,origin,sql,host);
  const handle='browser-'+host.slice(0,8),context=await browser.newContext({viewport:{width:1280,height:900},timezoneId:'America/New_York',reducedMotion:'reduce'}),page=await context.newPage();page.setDefaultTimeout(15000);
  try{
+  await verifyPublicSkill(context.request,origin,handle);
   await page.goto(origin+'/'+handle);await page.getByLabel('Your name',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Your timezone',{exact:true}).inputValue(),'America/New_York');
   assert.equal((await context.request.get(origin+'/api/browser/host/state')).status(),401,'requester has no host account');

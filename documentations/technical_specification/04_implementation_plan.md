@@ -277,6 +277,10 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+Incremental completion (full phase exit remains open):
+
+- [x] Implement versioned root and per-host public Markdown entry routes on the reconstruction origin, current public-readiness checks, encoded profile data and honest browser fallback. Verify GET/HEAD, neutral unavailable/retry responses, no cookies/cache, fixed-origin links and public-field projection. Root-domain promotion and protected client integration remain open.
+
 Work:
 
 - [ ] Serve `/SKILL.md` and `/{handle}/SKILL.md` with public instructions, versioning, missing-client recovery and no private state. Preserve both agreed paste-to-agent entry journeys.
