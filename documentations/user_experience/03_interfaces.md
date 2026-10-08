@@ -137,3 +137,9 @@ Once provider evidence confirms booking, the host's selected request and the req
 ### Withdrawal before Calendar dispatch
 
 An approved request can still show **Withdraw request** to its requester and **Decline request** to its host while its saved Calendar attempt is prepared and has no dispatch evidence. The card explains that Calendar creation has not started and the server will check again on confirmation. The existing explicit confirmation and same-decision retry remain usable in that state. Once dispatch may have begun, both actions disappear and the card explains that the outcome is pending; it never claims to cancel an existing event.
+
+## Protected requester email linking
+
+The private booking conversation offers **Continue by email** below contact verification. A requester with a verified current contact can create a private linking message and send it exactly as shown in a new thread from that address to the displayed inbox. The page remains pending until the authenticated message binds successfully. The linking text stays outside chat and browser storage, disappears after binding, unlinking or expiry, and is recoverable after reloading the protected page while still pending.
+
+**Check email link** refreshes status; **Unlink email** revokes the old thread even during a receiver outage. An uncertain command offers **Retry same linking action**, preserving its operation identity. Unavailable email always offers continuation in the private web conversation. The controls alone do not establish live channel readiness: worker routing and controlled end-to-end acceptance remain open in [the email-binding change](../../openspec/changes/bind-requester-email/tasks.md).

@@ -1,3 +1,5 @@
+import {RequesterEmailLinking} from '../../../../../../lib/server/agentmail/linking.ts';
+import {emailLinkTarget,emailLinkStart,emailLinkRevoke} from '../../../../../../lib/contracts/requester-email.ts';
 import {requesterIdentityBrowser} from '../../../../lib/requester-identity-browser.ts';
 import { NextRequest, NextResponse } from 'next/server';
 import { z, ZodError } from 'zod';
@@ -65,6 +67,15 @@ async function handle(request:NextRequest,{params}:Context) {
       const state=await new BookingReceipt().read(bookingReceiptCredential(requestId,token),{requestId}),response=json(state);
       response.cookies.set('fmat-receipt-'+requestId,token,{httpOnly:true,secure:applicationOrigin().startsWith('https:'),sameSite:'lax',path:'/',maxAge:30*86400});
       return response;
+    }
+    if(action==='requester-email/state'&&request.method==='GET') {
+      const input=emailLinkTarget.parse(Object.fromEntries(request.nextUrl.searchParams));
+      return json(await new RequesterEmailLinking().read(guestCredential(input.requestId,request.cookies.get(guestCookieName(input.requestId))?.value??''),input));
+    }
+    if(['requester-email/start','requester-email/revoke'].includes(action)&&request.method==='POST') {
+      const operation=action==='requester-email/start'?'start':'revoke';
+      const input=(operation==='start'?emailLinkStart:emailLinkRevoke).parse(await readJson(request));
+      return json(await new RequesterEmailLinking()[operation](guestCredential(input.requestId,request.cookies.get(guestCookieName(input.requestId))?.value??''),input));
     }
     if(action==='contact-verification/state'&&request.method==='GET') {
       const input=contactTarget.parse(Object.fromEntries(request.nextUrl.searchParams));

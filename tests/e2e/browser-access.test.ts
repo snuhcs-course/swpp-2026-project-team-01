@@ -1,3 +1,4 @@
+import {verifyRequesterEmail,emailInbox,emailReceiver} from './requester-email.ts';
 import {verifyConversationReconnect} from './conversation-reconnect.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,7 +21,7 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
   assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
   const origin='http://localhost:3000';
   const runtime=await startBrowserRuntime(local,origin);
-  const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','apps/web','-p','3000'],{env:{...process.env,NODE_OPTIONS:'--import='+new URL('./google-fixture.mjs',import.meta.url).href,OPENAI_API_KEY:'browser-ranking-fixture',OPENAI_MODEL:'gpt-6-luna',PHOTON_PROJECT_ID:photonProject,PHOTON_PROJECT_SECRET:'browser-photon-fixture',GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64'),APP_ORIGIN:origin,EVE_LOCAL_ORIGIN:runtime.origin,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY},stdio:['ignore','pipe','pipe']});
+  const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','apps/web','-p','3000'],{env:{...process.env,NODE_OPTIONS:'--import='+new URL('./google-fixture.mjs',import.meta.url).href,AGENTMAIL_INBOX_ID:emailInbox,AGENTMAIL_RECEIVER_ID:emailReceiver,OPENAI_API_KEY:'browser-ranking-fixture',OPENAI_MODEL:'gpt-6-luna',PHOTON_PROJECT_ID:photonProject,PHOTON_PROJECT_SECRET:'browser-photon-fixture',GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64'),APP_ORIGIN:origin,EVE_LOCAL_ORIGIN:runtime.origin,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY},stdio:['ignore','pipe','pipe']});
   let log='';child.stdout.on('data',v=>log+=v);child.stderr.on('data',v=>log+=v);
   const sql=new LocalSql();const email=`browser-${randomUUID()}@example.test`,invitation=randomUUID(),requestId=randomUUID();
   const token=randomBytes(32).toString('base64url'),code='ABCDEFGHIJKLMNOP';let userId:string|undefined,callback='';
@@ -197,6 +198,7 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     const guestResponse=await context.request.get(origin+'/api/browser/guest/state?requestId='+requestId);assert.match(guestResponse.headers()['cache-control'],/private.*no-store/u);
     assert.ok((await context.cookies()).some(c=>c.name==='fmat-request-'+requestId&&c.httpOnly&&c.sameSite==='Lax'));
     const other=await browser.newContext();const denied=await other.request.get(origin+'/api/browser/guest/state?requestId='+requestId);assert.equal(denied.status(),401);await other.close();
+    await verifyRequesterEmail(page,context,sql,requestId);
     const guestConsent=await context.request.post(origin+'/api/browser/calendar/start',{headers:{origin},data:{requestId}});assert.equal(guestConsent.status(),200);
     const guestConsentUrl=new URL((await guestConsent.json()).url);assert.deepEqual(guestConsentUrl.searchParams.get('scope')?.split(' '),['openid','email','https://www.googleapis.com/auth/calendar.events.freebusy','https://www.googleapis.com/auth/calendar.calendarlist.readonly']);
     await page.goto(origin+'/connections/google/callback?state='+guestConsentUrl.searchParams.get('state')+'&error=access_denied');await page.getByRole('status').filter({hasText:'Google connection was skipped.'}).waitFor();assert.equal(new URL(page.url()).pathname,'/booking/'+requestId);
