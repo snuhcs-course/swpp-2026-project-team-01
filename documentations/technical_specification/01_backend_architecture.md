@@ -733,7 +733,7 @@ These counts limit admission, not dollars, model calls within a turn, ranking ca
 
 ## Model execution allowance
 
-The [model execution change](../../openspec/changes/bound-model-execution/tasks.md) adds a private reservation ledger alongside conversation admission. Its database foundation is implemented; production model-path activation and runtime acceptance remain pending.
+The [model execution change](../../openspec/changes/bound-model-execution/tasks.md) adds a private reservation ledger alongside conversation admission. Its database foundation is deployed and verified; production model-path activation and runtime acceptance remain pending.
 
 Before each actual provider attempt, reserve 60 cents of conservative model allowance. A host account or requester request shares a 3,000-cent allowance across channels, scopes and replacement credentials; the service shares 30,000 cents. Each independent fixed 24-hour window starts at its first successful reservation after expiry. There are at most eight attempts per accepted conversation message and two per ranking check, shared across actors on that check. Daily rollover never resets the work count. These figures reserve capacity; they are not measured invoice totals or organization-wide spend controls. The versioned pricing assumptions are recorded in the [design](../../openspec/changes/bound-model-execution/design.md); review them whenever the model, pricing, provider adapter or allowed modalities change.
 
