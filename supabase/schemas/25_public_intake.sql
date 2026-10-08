@@ -5,7 +5,7 @@ returns jsonb language plpgsql security definer set search_path='' as $$
 declare h fmat.hosts; g fmat.calendar_connections; u auth.users; r fmat.requests;
  v_result jsonb; v_details jsonb; v_record fmat.idempotency; v_host uuid; v_state jsonb;
 begin
- if jsonb_typeof(p_input) is distinct from 'object' or coalesce(p_input->>'handle','') !~ '^[a-z][a-z0-9-]{2,39}$'
+ if jsonb_typeof(p_input) is distinct from 'object' or not fmat.valid_public_handle(p_input->>'handle')
   or p_operation is null or p_operation not in ('context','check','refresh','create','replay','resume') then raise exception 'INVALID_INPUT'; end if;
  if p_operation in ('create','replay','resume') then
   if coalesce(p_token_hash,'') !~ '^[0-9a-f]{64}$' then raise exception 'UNAUTHORIZED'; end if;

@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {publicHandle} from './handles.ts';
 const minute=z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/u);
 export const weeklyWindow=z.strictObject({days:z.array(z.number().int().min(0).max(6)).min(1).max(7),start:minute,end:minute}).refine(v=>v.start<v.end,'End must follow start.');
 const instantWindow=z.strictObject({start:z.iso.datetime({offset:true}),end:z.iso.datetime({offset:true})}).refine(v=>Date.parse(v.start)<Date.parse(v.end));
@@ -7,7 +8,7 @@ export const setupRules=z.strictObject({
  travelMode:z.enum(['DRIVE','TRANSIT','WALK','BICYCLE','PER_TRIP','NONE']),homeLocation:z.string().max(2000).optional(),preferences:z.string().max(5000),
  meetingMode:z.enum(['online','in_person','either']),locationPolicy:z.enum(['per_meeting','preferred']),locations:z.array(z.string().trim().min(1).max(500)).max(10),travelBufferMinutes:z.number().int().min(0).max(240),
 });
-export const setupPatch=z.strictObject({handle:z.string().regex(/^[a-z][a-z0-9-]{2,39}$/u).optional(),displayName:z.string().trim().min(1).max(120).optional(),rules:setupRules.partial().optional()}).refine(v=>Object.keys(v).length>0,'Supply at least one preference.');
+export const setupPatch=z.strictObject({handle:publicHandle.optional(),displayName:z.string().trim().min(1).max(120).optional(),rules:setupRules.partial().optional()}).refine(v=>Object.keys(v).length>0,'Supply at least one preference.');
 export const draftInput=z.strictObject({expectedRevision:z.number().int().nonnegative(),patch:setupPatch,unresolved:z.array(z.string().trim().min(1).max(200)).max(20)});
 export const starterField=z.enum(['timezone','durationMinutes','availability','bufferMinutes','focusBlocks','preferences','meetingMode','travelBufferMinutes']);
 export const browserDraftInput=draftInput.extend({idempotencyKey:z.uuid(),starterFields:z.array(starterField).max(8).refine(v=>new Set(v).size===v.length).optional()});

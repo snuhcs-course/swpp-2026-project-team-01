@@ -6,7 +6,7 @@ returns void language plpgsql set search_path='' as $$
 declare r jsonb; item jsonb; k text;
 begin
  if jsonb_typeof(p_patch) is distinct from 'object' or p_patch='{}' or exists(select 1 from jsonb_object_keys(p_patch) x where x not in ('handle','displayName','rules')) then raise exception 'INVALID_INPUT'; end if;
- if p_patch ? 'handle' and (jsonb_typeof(p_patch->'handle') is distinct from 'string' or p_patch->>'handle' !~ '^[a-z][a-z0-9-]{2,39}$' or p_patch->>'handle' in ('host','requests','api','operator','auth','skills','app','booking','connections','connect','_next','favicon','robots','sitemap')) then raise exception 'INVALID_INPUT'; end if;
+ if p_patch ? 'handle' and (jsonb_typeof(p_patch->'handle') is distinct from 'string' or not fmat.valid_public_handle(p_patch->>'handle')) then raise exception 'INVALID_INPUT'; end if;
  if p_patch ? 'displayName' and (jsonb_typeof(p_patch->'displayName') is distinct from 'string' or length(trim(p_patch->>'displayName')) not between 1 and 120) then raise exception 'INVALID_INPUT'; end if;
  if not p_patch ? 'rules' then return; end if;
  r:=p_patch->'rules';

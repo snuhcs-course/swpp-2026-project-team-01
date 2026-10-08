@@ -487,7 +487,7 @@ begin
       insert into fmat.setup_drafts(conversation_id,revision,base_rules_version,settings,unresolved) values(v_conversation.id,v_draft_revision,v_host.rules_version,v_settings,v_unresolved) returning * into v_draft;
       if cardinality(v_unresolved)=0 and coalesce(v_settings->>'handle','')<>'' and coalesce(v_settings->>'displayName','')<>'' and jsonb_typeof(v_settings->'rules')='object'
         and v_settings->'rules' ?& array['timezone','durationMinutes','availability','focusBlocks','bufferMinutes','travelMode','preferences'] then
-        if v_settings->>'handle' !~ '^[a-z][a-z0-9-]{2,39}$' or v_settings->>'handle' in ('host','requests','api','operator','auth','skills') or length(trim(v_settings->>'displayName')) not between 1 and 120 then raise exception 'INVALID_INPUT'; end if;
+        if not fmat.valid_public_handle(v_settings->>'handle') or length(trim(v_settings->>'displayName')) not between 1 and 120 then raise exception 'INVALID_INPUT'; end if;
         perform fmat.validate_rules(v_settings->'rules');
         select coalesce(max(revision),0)+1 into v_review_revision from fmat.setup_reviews where conversation_id=v_conversation.id;
         insert into fmat.setup_reviews(conversation_id,revision,draft_revision,settings) values(v_conversation.id,v_review_revision,v_draft_revision,v_settings);

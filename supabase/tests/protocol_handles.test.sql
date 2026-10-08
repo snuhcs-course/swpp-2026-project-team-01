@@ -1,0 +1,17 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select no_plan();
+insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('ad000000-0000-4000-8000-000000000001','handle@example.test',repeat('a',64),now()+interval '1 day','namespace-fixture');
+insert into fmat.hosts(id,email,invitation_id) values('ad000000-0000-4000-8000-000000000002','handle@example.test','ad000000-0000-4000-8000-000000000001');
+select ok((select handle is null from fmat.hosts where id='ad000000-0000-4000-8000-000000000002'),'incomplete host may have no handle');
+select ok(not fmat.valid_public_handle(h),'reserved name rejected: '||h) from unnest(array['host','requests','api','operator','auth','skills','app','booking','connections','connect','_next','favicon','robots','sitemap','mcp','oauth']) h;
+select throws_ok(format('update fmat.hosts set handle=%L where id=%L',h,'ad000000-0000-4000-8000-000000000002'),'23514','new row for relation "hosts" violates check constraint "hosts_handle_check"','storage rejects protocol name: '||h) from unnest(array['mcp','oauth']) h;
+select throws_ok(format('select fmat.validate_setup_patch(%L::jsonb)',jsonb_build_object('handle',h)::text),'P0001','INVALID_INPUT','draft/review rejects protocol name: '||h) from unnest(array['mcp','oauth']) h;
+select throws_ok(format('select public.fmat_public_intake(%L,null,%L::jsonb)','context',jsonb_build_object('handle',h)::text),'P0001','INVALID_INPUT','intake rejects protocol name: '||h) from unnest(array['mcp','oauth']) h;
+select lives_ok($$update fmat.hosts set handle='mcp-team' where id='ad000000-0000-4000-8000-000000000002'$$,'prefix-neighbor remains available');
+select is((select handle from fmat.hosts where id='ad000000-0000-4000-8000-000000000002'),'mcp-team','no name reassignment occurs');
+select lives_ok($$select fmat.validate_setup_patch('{"handle":"oauth-demo"}')$$,'nonreserved OAuth prefix accepted');
+select ok(not has_function_privilege(r,'fmat.valid_public_handle(text)','execute'),r||' cannot invoke private helper') from unnest(array['anon','authenticated','service_role']) r;
+select * from finish();
+rollback;

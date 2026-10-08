@@ -109,3 +109,6 @@ Cleanup attempts client deletion, user deletion and temporary container removal 
 
 
 `supabase/tests/agent_oauth_grants.test.sql` covers grant/deny and stable decision retries, single-use code binding, scope narrowing, refresh-family replay revocation, current host/session/request authority, private-table/RPC privileges, bounded lifetimes and projections. `tests/integration/agent-oauth-grants.test.ts` races consent, code exchange and refresh, then observes actual database lock waits before code/grant/session/JWT expiry, requester rotation and grant revocation. Its pending-client/authorization fixtures deliberately bypass only registry setup to avoid interfering with the registry suite's independent global-counter races; real lifecycle RPCs perform consent and exchanges. No synthetic grant produces meeting agreement or approval. This proves internal database lifecycle, not public browser OAuth or named-client compatibility.
+
+
+`handles.test.ts` and `protocol_handles.test.sql` verify matching application/protocol exclusions in setup, intake and host storage, retaining null incomplete handles and valid prefix neighbors. The built-route public-skill checks cover reserved host documents and GET/POST at `/mcp` and `/oauth`; 404 proves namespace exclusion, not an implemented MCP transport.

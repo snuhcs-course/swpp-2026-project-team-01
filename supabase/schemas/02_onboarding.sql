@@ -1,3 +1,11 @@
+-- Application/protocol namespaces cannot be assigned as host identities.
+create or replace function fmat.valid_public_handle(p_handle text)
+returns boolean language sql immutable set search_path='' as $$
+  select coalesce(p_handle ~ '^[a-z][a-z0-9-]{2,39}$' and p_handle not in
+    ('host','requests','api','operator','auth','skills','app','booking','connections','connect','_next','favicon','robots','sitemap','mcp','oauth'),false);
+$$;
+revoke execute on function fmat.valid_public_handle(text) from public,anon,authenticated,service_role;
+
 create table fmat.waitlist (
   email text primary key check (email=lower(email)),
   name text,
@@ -25,7 +33,7 @@ create table fmat.hosts (
   invitation_id uuid not null references fmat.invitations(id),
   admitted_at timestamptz not null default now(),
   revoked_at timestamptz,
-  handle text unique check(handle ~ '^[a-z][a-z0-9-]{2,39}$'),
+  handle text unique check(handle is null or fmat.valid_public_handle(handle)),
   display_name text,
   rules jsonb,
   rules_version integer not null default 0,
@@ -207,7 +215,7 @@ begin
   when 'setup_read','calendar_read' then return fmat.setup_view(fmat.require_host(p_actor,false));
   when 'setup_save' then
     v_host_id:=fmat.require_host(p_actor,true);
-    if coalesce(p_input->>'handle','') !~ '^[a-z][a-z0-9-]{2,39}$' or p_input->>'handle' in ('host','requests','api','operator','auth','skills','app','booking','connections','connect','_next','favicon','robots','sitemap')
+    if not fmat.valid_public_handle(p_input->>'handle')
       or length(trim(coalesce(p_input->>'displayName',''))) not between 1 and 120 then raise exception 'INVALID_INPUT'; end if;
     perform fmat.validate_rules(p_input->'rules');
     update fmat.hosts set handle=p_input->>'handle',display_name=trim(p_input->>'displayName'),rules=p_input->'rules',rules_version=rules_version+1,updated_at=now() where id=v_host_id;

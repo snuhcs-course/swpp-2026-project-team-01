@@ -1,6 +1,7 @@
 import {z} from 'zod';
 
-export const publicHandle=z.string().regex(/^[a-z][a-z0-9-]{2,39}$/u);
+import {publicHandle} from './handles.ts';
+export {publicHandle} from './handles.ts';
 const timezone=z.string().min(1).max(100).refine(value=>{try{new Intl.DateTimeFormat('en',{timeZone:value});return true;}catch{return false;}},'Choose a valid timezone.');
 // Partial intake is intentional: unresolved times and venue remain gathering.
 // Identity/contact claims never imply verified contact or Google authority.

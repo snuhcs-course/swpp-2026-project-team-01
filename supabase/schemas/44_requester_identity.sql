@@ -56,7 +56,7 @@ begin
  if coalesce(v_hash,'') !~ '^[a-f0-9]{64}$' then raise exception 'UNAUTHORIZED';end if;
  if v_kind='intake' then
   v_target:=p_authority->>'handle';
-  if coalesce(v_target,'') !~ '^[a-z][a-z0-9-]{2,39}$' then raise exception 'INVALID_INPUT';end if;
+  if not fmat.valid_public_handle(v_target) then raise exception 'INVALID_INPUT';end if;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('public-intake:'||v_hash,0));
   -- A submitted or rotated intake cannot be reused as an unbound identity draft.
   if exists(select 1 from fmat.requests where token_hash=v_hash) or exists(select 1 from fmat.idempotency where actor_scope='public:'||v_hash and operation='request_create' and result is not null) then raise exception 'NOT_FOUND';end if;

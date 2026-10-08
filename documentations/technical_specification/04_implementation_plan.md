@@ -326,6 +326,8 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+- [x] Reserve application/protocol handles across shared contracts, current/legacy setup, intake, requester identity and host storage after a zero-conflict production check. Verify the 80-migration rebuild, 29 namespace SQL assertions and built GET/POST/skill-document rejection at `/mcp` and `/oauth`. Full authorization task 2.1 remains open. [Evidence](05_rebuild_evidence.md#reserved-protocol-handles--2026-10-08).
+
 - [x] Deploy the three OAuth lifecycle migrations from `8da0888`; verify the 79-migration production chain, rollback-only resource/PKCE/code/refresh/revocation probes, zero retained probe records, clean advisors and retained public HTTP guards. Public authorization and client-operation activation remain open. [Evidence](05_rebuild_evidence.md#durable-agent-oauth-grants--2026-10-08).
 
 - [x] Implement the durable OAuth consent/grant/code/refresh lifecycle, current host/request authority, scope narrowing and replay revocation. Verify the 79-migration rebuild, 83 new SQL assertions and actual concurrent exchanges/rotations with expiry after lock waits. Authorization task 1.2 is complete; public routes, consent UI and operation integration remain open. [Evidence](05_rebuild_evidence.md#durable-agent-oauth-grants--2026-10-08).

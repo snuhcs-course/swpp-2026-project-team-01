@@ -22,3 +22,7 @@ test('Unavailable, invalid and changed targets never fall through to another hos
  const failed=await publicSkill('dodo',async()=>{throw new Error('secret provider details');},env);assert.equal(failed.status,503);assert.equal(failed.headers.get('retry-after'),'30');assert.ok(!(await failed.text()).includes('secret'));publicHeaders(failed);
  assert.equal((await publicSkill(undefined,undefined,{...env,APP_ORIGIN:'https://bad.test/?next=evil'})).status,503);
 });
+
+test('Protocol names cannot resolve or fetch a host skill profile',async()=>{
+ for(const handle of ['mcp','oauth'])assert.equal((await publicSkill(handle,async()=>{throw Error('must not fetch reserved host');},env)).status,404);
+});
