@@ -1,4 +1,5 @@
 'use client';
+import {cn} from 'cn';
 import {hostLoginTarget} from '../lib/host-login-target.ts';
 import {RequesterRecoveryCard,type RecoveryProof} from './requester-recovery.tsx';
 import {recoveryRedeem,recoveryStart} from '../../../lib/contracts/requester-recovery.ts';
@@ -16,8 +17,8 @@ async function api(path:string,body?:unknown) {
   if(!response.ok)throw Object.assign(new Error(data.error?.message??'Please try again.'),{status:response.status});
   return data;
 }
-function Frame({children,aside}:{children:React.ReactNode;aside?:React.ReactNode}) {
-  return <main className="workspace"><header className="workspace-header"><a className="wordmark" href="/">Find Me a Time<span aria-hidden="true">↗</span></a>{aside}</header>
+function Frame({children,aside,compact=false}:{children:React.ReactNode;aside?:React.ReactNode;compact?:boolean}) {
+  return <main className={cn("workspace",compact&&"workspace-host")}><header className="workspace-header"><a className="wordmark" href="/">Find Me a Time<span aria-hidden="true">↗</span></a>{aside}</header>
     <section className="workspace-content">{children}</section><footer>Your calendar. Your final say.</footer></main>;
 }
 function ProposalTime({proposal}:{proposal:NonNullable<GuestState['proposal']>}) {
@@ -42,10 +43,10 @@ export function HostWorkspace() {
     }catch(e){setError(e instanceof Error?e.message:'Please try again.');}finally{setBusy(false);}
   }
   async function signOut(){setBusy(true);setError('');try{await api('auth/logout',{});setHost(null);setNotice('You’re signed out.');setCode('');}catch(e){setError(e instanceof Error?e.message:'Sign-out failed. Try again.');}finally{setBusy(false);}}
-  return <Frame aside={host?<button className="text-button" onClick={signOut} disabled={busy}>Sign out</button>:<span className="header-note">Host workspace</span>}>
-    <IMessageEntry admitted={host?.admitted??false}/><p className="eyebrow">A little less back and forth</p>
+  return <Frame compact={!!host?.admitted} aside={host?<button className="text-button" onClick={signOut} disabled={busy}>Sign out</button>:<span className="header-note">Host workspace</span>}>
+    <IMessageEntry admitted={host?.admitted??false}/>{!host?.admitted?<p className="eyebrow">A little less back and forth</p>:null}
     <h1>{loading?'Getting your place ready.':host?.admitted?'Welcome to your workspace.':host?'Your invitation, please.':waitlist?'Make room for better meetings.':'Let’s find your time.'}</h1>
-    <p className="workspace-description">{host?.admitted?'Your host access is active. Your calendar, preferences and final approval will guide each meeting.':host?'Enter the invitation code sent to your verified email. Signing in and host access are separate.':waitlist?'Hosting is opening by invitation. Join the list—no calendar connection needed.':'Sign in to set up your scheduling assistant. Every meeting stays subject to your final approval.'}</p>
+    {!host?.admitted?<p className="workspace-description">{host?'Enter the invitation code sent to your verified email. Signing in and host access are separate.':waitlist?'Hosting is opening by invitation. Join the list—no calendar connection needed.':'Sign in to set up your scheduling assistant. Every meeting stays subject to your final approval.'}</p>:null}
     {loading?<p role="status">Checking your access…</p>:host?.admitted?<><p className="signed-in">Signed in as <strong>{host.email}</strong></p><HostRequestWorkspace onAccessLost={()=>{setHost(null);setError('Your conversation access has ended. Sign in again to check your access.');}}/></>:<form onSubmit={submit} className="access-form">
       {host?<><p className="signed-in">Signed in as <strong>{host.email}</strong></p><label htmlFor="invitation">Invitation code</label><input id="invitation" value={code} onChange={e=>setCode(e.target.value)} autoComplete="off" placeholder="ABCD-EFGH-IJKL-MNOP" maxLength={19} required spellCheck={false}/><p className="field-note">Use the code from your invitation. It stays outside the conversation.</p></>:waitlist?<><label htmlFor="name">Name <span className="optional">(optional)</span></label><input id="name" value={name} onChange={e=>setName(e.target.value)} autoComplete="name" maxLength={200}/><label htmlFor="email">Email address</label><input id="email" type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" maxLength={254} required/><p className="field-note">Use your Google account email for your host invitation.</p></>:<p className="field-note">Use the Google account your invitation was sent to. Calendar access is requested separately.</p>}
       <button className="primary-button" disabled={busy}>{busy?'One moment…':host?'Use invitation':waitlist?'Join the waitlist':'Continue with Google'}<span aria-hidden="true">↗</span></button>

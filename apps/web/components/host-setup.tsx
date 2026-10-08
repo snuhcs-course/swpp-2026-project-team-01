@@ -6,6 +6,7 @@ import {SetupGuidance} from './setup-guidance';
 import {CalendarAnalysis} from './calendar-analysis';
 import {IMessageLink} from './imessage-link';
 import {WeeklyPreview} from './weekly-preview';
+import {Collapsible,CollapsibleTrigger,CollapsibleContent} from './ui/collapsible';
 import {Button} from './ui/button';
 import {Input} from './ui/input';
 import {Textarea} from './ui/textarea';
@@ -21,6 +22,7 @@ const travelModes={DRIVE:'Drive',TRANSIT:'Public transit',WALK:'Walk',BICYCLE:'B
 async function call(action:string,input?:unknown,signal?:AbortSignal){const response=await fetch('/api/browser/setup/'+action,{method:input===undefined?'GET':'POST',cache:'no-store',signal:signal??AbortSignal.timeout(20_000),headers:{'content-type':'application/json'},...(input===undefined?{}:{body:JSON.stringify(input)})});const data=await response.json();if(!response.ok)throw new Error(data.error?.message??'Setup could not be saved. Try again.');return setupState.parse(data);}
 export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:boolean}){
  const [state,setState]=useState<SetupState|null>(null),[editor,setEditor]=useState<{section:Section;base:SetupState}|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[reload,setReload]=useState(0);
+ const [expanded,setExpanded]=useState(false);
  const editorOrigin=useRef<HTMLElement|null>(null),setupHeading=useRef<HTMLLegendElement>(null),savedNotice=useRef<HTMLParagraphElement>(null),restoreFocus=useRef<'origin'|'saved'|null>(null);
  useEffect(()=>{if(editor||busy||!restoreFocus.current)return;const target=restoreFocus.current==='saved'?savedNotice.current:editorOrigin.current;restoreFocus.current=null;if(target?.isConnected&&!target.matches(':disabled'))target.focus();else setupHeading.current?.focus();},[editor,busy,notice]);
  const pending=useRef<{action:string;input:Record<string,unknown>;identity:string}|null>(null);
@@ -33,6 +35,7 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
  }
  async function refreshAfterAnalysis(){setBusy(true);try{setState(await call('read'));setEditor(null);}finally{setBusy(false);}}
  const settings=state?.draft?.settings??state?.confirmed,rules=settings?.rules,locked=disabled||busy,guide=state?setupGuide(state):null;
+ const showReview=state?.review?.status==='pending'&&!!state.calendarGeneration&&state.calendarSelected;
  const openEditor=(section:Section)=>{if(state){editorOrigin.current=document.activeElement instanceof HTMLElement?document.activeElement:null;setEditor({section,base:state});}};
  const progress=(choice:string)=>{if(state)void mutate('progress',{expectedRevision:state.revision,choice});};
  const suggest=(patch:SetupPatch,starterFields?:string[])=>{if(state)void mutate('draft',{expectedRevision:state.revision,patch,...(starterFields?.length?{starterFields}:{}),unresolved:state.draft?.clarifications??[]});};
@@ -43,8 +46,11 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
     <IMessageLink beforeSettings={state.nextAction!=='settings_confirmed'}/>
     <CalendarAnalysis setup={state} disabled={locked} onSkip={()=>progress('skip_analysis')} onChange={refreshAfterAnalysis}/>
     <p>{state.nextAction==='settings_confirmed'?'Your settings are confirmed.':state.calendarSelected?'Calendar choices are saved. Let’s review your preferences.':'Connect Google and confirm calendar choices above. You can draft preferences meanwhile.'}</p>
-    {settings?.displayName?<p>{settings.displayName}{settings.handle?' · '+settings.handle:''}</p>:null}
+    {settings?.displayName?<p className="break-words">{settings.displayName}{settings.handle?' · '+settings.handle:''}</p>:null}
     {rules?.timezone?<p>{rules.durationMinutes??'—'} minute meetings · {rules.timezone} · {rules.bufferMinutes??'—'} minute meeting buffer</p>:null}
+    {settings?.displayName||rules?<Collapsible open={!editor&&(showReview||expanded)} onOpenChange={setExpanded} className="flex min-w-0 flex-col gap-3">
+     {!showReview?<CollapsibleTrigger asChild><Button className="min-h-11 h-auto whitespace-normal" variant="outline" disabled={locked||!!editor}>{expanded?'Hide preference details':'Show preference details'}</Button></CollapsibleTrigger>:<p>Review your complete draft below. These values are not confirmed yet.</p>}
+     <CollapsibleContent className="flex min-w-0 flex-col gap-3">
     {rules?.availability&&editor?.section!=='schedule'?<WeeklyPreview windows={rules.availability} timezone={rules.timezone} title={state.draft&&state.draft.status!=='confirmed'?'Your draft meeting week':'Your confirmed meeting week'}/>:null}
     {rules?.focusBlocks?.length?<p>Additional focus blocks: {rules.focusBlocks.map(w=>new Date(w.start).toLocaleString(undefined,{timeZone:rules.timezone})+' – '+new Date(w.end).toLocaleString(undefined,{timeZone:rules.timezone})).join('; ')}</p>:null}
     {rules?.meetingMode?<p>{modes[rules.meetingMode]}{rules.meetingMode!=='online'?' · '+(rules.locationPolicy==='per_meeting'?'Decide location per meeting':rules.locations?.join(', ')??'Choose locations'):''}</p>:null}
@@ -52,10 +58,12 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
     {rules?.preferences?<p>{rules.preferences}</p>:null}
     {state.draft&&Object.keys(state.draft.origins).length?<details><summary>Where these preferences came from</summary><ul className="flex flex-col gap-2">{Object.entries(state.draft.origins).map(([field,origin])=><li key={field}>{({timezone:'Meeting timezone',availability:'Weekly meeting windows',durationMinutes:'Meeting duration',bufferMinutes:'Meeting buffer',focusBlocks:'Focus time',preferences:'Other preferences',meetingMode:'Meeting mode',locationPolicy:'Location preference',locations:'Preferred places',travelMode:'Transportation',travelBufferMinutes:'Extra travel buffer',displayName:'Display name',handle:'Booking name'}[field.replace('rules.','')]??field.replace('rules.',''))} · {({host:'You entered or chose this',assistant:'Assistant suggestion',confirmed:'Previously confirmed',calendar:'Calendar suggestion you chose',calendar_edited:'Calendar suggestion you edited',starter:'Starter default you chose'})[origin.source]}{origin.startDate?' · '+origin.startDate+'–'+origin.endDate+' · '+origin.timezone:''}</li>)}</ul></details>:null}
     {state.draft&&Object.values(state.draft.provenance).includes('assistant')?<p>Some values are assistant suggestions. Review them before confirming.</p>:null}
+     </CollapsibleContent>
+    </Collapsible>:null}
     {state.nextAction==='refresh_draft'?<Alert><AlertTitle>Review your preferences again</AlertTitle><AlertDescription>Your calendar choices or saved settings changed. Your draft answers are preserved. Refresh the draft to review them against the current setup before confirming.</AlertDescription><Button disabled={locked} onClick={()=>void mutate('rebase',{expectedRevision:state.revision,rulesVersion:state.rulesVersion})}>Refresh my draft</Button></Alert>:null}
     <div className="flex flex-wrap gap-2">{(['profile','schedule','mode','location','travel'] as Section[]).filter(s=>rules?.meetingMode!=='online'||!['location','travel'].includes(s)).map(section=><Button key={section} variant="outline" disabled={locked||state.nextAction==='refresh_draft'} onClick={()=>openEditor(section)}>Edit {section}</Button>)}</div>
     {editor?<SetupEditor key={editor.section+':'+editor.base.revision} section={editor.section} state={editor.base} disabled={locked} onCancel={()=>{restoreFocus.current='origin';setEditor(null);}} onSave={(patch,unresolved)=>void mutate('draft',{expectedRevision:editor.base.revision,patch,unresolved})}/>:null}
-    {state.review?.status==='pending'&&state.calendarGeneration&&state.calendarSelected&&!editor?<Button className="h-auto min-h-11 whitespace-normal" disabled={locked} onClick={()=>void mutate('confirm',{expectedRevision:state.revision,draftRevision:state.review!.draftRevision,reviewRevision:state.review!.revision,rulesVersion:state.rulesVersion,calendarGeneration:state.calendarGeneration,confirmed:true})}>Confirm these meeting settings</Button>:null}
+    {showReview&&!editor?<Button className="h-auto min-h-11 whitespace-normal" disabled={locked} onClick={()=>void mutate('confirm',{expectedRevision:state.revision,draftRevision:state.review!.draftRevision,reviewRevision:state.review!.revision,rulesVersion:state.rulesVersion,calendarGeneration:state.calendarGeneration,confirmed:true})}>Confirm these meeting settings</Button>:null}
    </>}
   </FieldSet>
   <Button variant="ghost" disabled={locked} onClick={()=>{pending.current=null;setEditor(null);setError('');setReload(n=>n+1);}}>Reload setup</Button>

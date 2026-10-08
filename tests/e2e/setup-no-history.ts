@@ -1,3 +1,4 @@
+import {verifyCompactSetup} from './compact-setup.ts';
 import assert from 'node:assert/strict';
 import {randomUUID,createHash} from 'node:crypto';
 import {createServerClient} from '@supabase/ssr';
@@ -55,6 +56,8 @@ export async function verifyNoHistory(browser:Browser,origin:string,local:Record
    const accepted=await (await context.request.get(origin+'/api/browser/setup/read')).json();assert.equal(accepted.revision,extracted.revision+1,'Lost acknowledgement reuses the same selection intent');assert.equal(accepted.draft.provenance['rules.travelMode'],'host');assert.equal(accepted.draft.origins['rules.travelMode'].source,'assistant');assert.equal(accepted.confirmed.rules,null);
    await page.reload();await setup.getByRole('button',{name:'Confirm these meeting settings'}).waitFor();assert.equal(await answers.count(),0,'Chosen answers are reused without asking again');
   }
+  await expect(setup.getByRole('figure',{name:'Your draft meeting week'})).toBeVisible();await expect(setup.getByRole('button',{name:'Show preference details'})).toHaveCount(0);
+  if(flow==='no-history'){await page.setViewportSize({width:320,height:900});const caption=setup.getByRole('figure',{name:'Your draft meeting week'}).locator('figcaption');await caption.scrollIntoViewIfNeeded();await expect(caption).toBeInViewport();await page.screenshot({path:'.local/rebuild/browser-screenshots/compact-final-review-top.png'});const confirm=setup.getByRole('button',{name:'Confirm these meeting settings'});await confirm.focus();await expect(confirm).toBeInViewport();await page.screenshot({path:'.local/rebuild/browser-screenshots/compact-final-review-bottom.png'});await page.setViewportSize({width:1280,height:900});}
   await setup.getByRole('button',{name:'Confirm these meeting settings'}).waitFor();assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${host}';`),'t');await setup.getByRole('button',{name:'Confirm these meeting settings'}).click();await setup.getByRole('status').filter({hasText:'Settings confirmed.'}).waitFor();
   await page.reload();await setup.getByText('Your settings are confirmed.',{exact:true}).waitFor();
   const state=await (await context.request.get(origin+'/api/browser/setup/read')).json();
@@ -69,6 +72,7 @@ export async function verifyNoHistory(browser:Browser,origin:string,local:Record
   assert.equal(await sql.query(`select count(*) from fmat.calendar_scans where host_id='${host}';`),'0','Skipping analysis never scans events');assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where host_id='${host}';`),'0');
   if(flow==='described')await verifyIMessage(page,context,host,local,sql);
   else{const card=page.getByRole('region',{name:'Connect iMessage'});await card.getByRole('button',{name:'Maybe later',exact:true}).click();await card.getByText('You chose to continue on the web.',{exact:false}).waitFor();await page.reload();await card.getByText('You chose to continue on the web.',{exact:false}).waitFor();}
+  if(flow==='no-history')await verifyCompactSetup(page,context,origin);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await setup.scrollIntoViewIfNeeded();await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-'+flow+'.png',fullPage:true});
  }finally{
   await context.close();if(host){await sql.query(`delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.audit_events where subject_id='${host}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_scopes where host_id='${host}';delete from fmat.calendar_connections where principal_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);}

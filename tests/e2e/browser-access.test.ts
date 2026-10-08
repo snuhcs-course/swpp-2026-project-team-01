@@ -113,12 +113,15 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
     await choices.getByRole('radio',{name:'My calendar',exact:true}).check();await choices.getByRole('button',{name:'Confirm calendar choices'}).click();
     await choices.getByRole('status').filter({hasText:'Calendar choices saved.'}).waitFor();
     assert.equal(await sql.query(`select booking_calendar_id from fmat.hosts where id='${userId}';`),'personal@example.test');
-    await page.reload();await choices.getByRole('checkbox',{checked:true}).waitFor();assert.equal(await choices.getByRole('radio',{checked:true}).count(),1);
+    await expect(choices.getByRole('checkbox')).toHaveCount(0);await page.getByRole('region',{name:'Setup guide'}).getByRole('button',{name:'Skip analysis and choose preferences'}).waitFor();await expect(page.getByRole('region',{name:'Setup guide'}).getByText('Would you like suggestions from selected calendars, or choose preferences yourself?',{exact:true})).toBeFocused();
+    await page.reload();await choices.getByRole('button',{name:'Change calendar choices'}).click();await choices.getByRole('checkbox',{checked:true}).waitFor();assert.equal(await choices.getByRole('radio',{checked:true}).count(),1);
     assert.notEqual(await choices.getByRole('radio',{checked:true}).evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)','Selected booking destination has a visible filled state');
     await choices.scrollIntoViewIfNeeded();await page.screenshot({path:'.local/rebuild/browser-screenshots/calendar-choices-desktop.png',fullPage:true});
     await page.setViewportSize({width:390,height:844});await choices.scrollIntoViewIfNeeded();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.local/rebuild/browser-screenshots/calendar-choices-mobile.png',fullPage:true});
     await page.setViewportSize({width:320,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     await page.setViewportSize({width:1280,height:900});await page.evaluate(()=>{document.documentElement.style.zoom='2';});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.evaluate(()=>{document.documentElement.style.zoom='';});
+    await choices.getByRole('checkbox').first().uncheck();await choices.getByRole('button',{name:'Cancel calendar edits'}).click();await expect(choices.getByRole('button',{name:'Change calendar choices'})).toBeFocused();await expect(choices.getByRole('checkbox')).toHaveCount(0);
+    await choices.getByRole('button',{name:'Change calendar choices'}).click();await expect(choices.getByRole('checkbox').first()).toBeChecked();await choices.getByRole('button',{name:'Close without saving'}).click();
     const setup=page.getByRole('region',{name:'Your meeting setup'});
     await setup.getByRole('button',{name:'Reload setup'}).click();
     const guide=setup.getByRole('region',{name:'Setup guide'});
@@ -166,7 +169,7 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     await verifyPublicIntake(browser,origin,sql,userId,page);
     await verifyRequesterRecovery(browser,origin,sql,userId,local);
     await page.setViewportSize({width:1280,height:900});
-    await page.getByRole('button',{name:'Disconnect Google',exact:true}).click();await page.getByRole('status').filter({hasText:'Google access has been disconnected'}).waitFor();assert.equal(await choices.count(),0);
+    await page.getByRole('button',{name:'Manage Google connection',exact:true}).click();await page.getByRole('button',{name:'Disconnect Google',exact:true}).click();await page.getByRole('status').filter({hasText:'Google access has been disconnected'}).waitFor();assert.equal(await choices.count(),0);
     assert.equal((await context.request.get(origin+'/api/browser/calendar/list')).status(),409);
     await verifyConversationReconnect(page);
     const composer=page.getByLabel('Message your scheduling assistant');

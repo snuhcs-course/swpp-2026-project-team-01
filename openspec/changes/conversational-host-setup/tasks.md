@@ -1,6 +1,6 @@
 # Tasks
 
-Tasks describe replacement implementation and verification. Private draft persistence, protected admission/Calendar continuation and contract documentation are verified; full guided analysis, cross-channel setup and live acceptance remain open. Follow the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md).
+Tasks describe replacement implementation and verification. Private drafts, guided browser setup, focus recovery and protected admission/Calendar continuation are verified locally; cross-channel setup and controlled live acceptance remain open. Follow the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md).
 
 ## 1. Authorized state and shared operations
 
@@ -22,7 +22,7 @@ Tasks describe replacement implementation and verification. Private draft persis
 - [x] 3.1 Integrate verified AI Elements primitives with the selected shadcn preset and eve transport in `apps/web/`; verify production build, authorization and persisted reload/resume.
 - [x] 3.2 Render connection/calendar cards, true scan states, editable weekly preview, location/travel actions and final review inside `/app`; test keyboard/mobile/zoom/reduced-motion behavior and structured recovery during model failure.
 - [x] 3.3 Implement inline phone/code/connected states with skip, retry, expiry and change-number; verify protected fields never enter model, transcript, analytics or persisted card state.
-- [ ] 3.4 Run the required visual review loop and update interface documentation; verify completed steps remain editable and consent return retains focus/current progress.
+- [x] 3.4 Run the required visual review loop and update interface documentation; verify completed steps remain editable and consent return retains focus/current progress.
 
 ## 4. Private iMessage proof and transport
 
@@ -39,6 +39,6 @@ Tasks describe replacement implementation and verification. Private draft persis
 
 Task 2.4 acceptance: [requirement-by-requirement executable evidence](../../../documentations/technical_specification/05_rebuild_evidence.md#explicit-onboarding-preference-acceptance--2026-10-09), including the online-only, per-meeting/per-trip and reviewed chat-answer browser journeys. Live scan/channel gates remain in tasks 2.5 and 5.2.
 
-Task 3.2 acceptance: [in-chat cards and editable weekly preview](../../../documentations/technical_specification/05_rebuild_evidence.md#editable-weekly-preference-preview--2026-10-09). Broader focus/consent-return acceptance remains in task 3.4, with live Google/iPhone acceptance in task 5.2.
+Task 3.2 acceptance: [in-chat cards and editable weekly preview](../../../documentations/technical_specification/05_rebuild_evidence.md#editable-weekly-preference-preview--2026-10-09). Local focus/consent-return and compact-interface acceptance is verified in task 3.4; live Google/iPhone acceptance remains in task 5.2.
 
-Task 3.4 progress: [verified editing and consent-return focus](../../../documentations/technical_specification/05_rebuild_evidence.md#setup-editing-and-consent-return-focus--2026-10-09). The compact completed-card and whole-interface visual review remains open; this focus increment does not certify the full task.
+Task 3.4 acceptance: [compact interface and requirement-by-requirement evidence](../../../documentations/technical_specification/05_rebuild_evidence.md#compact-completed-setup-and-visual-acceptance--2026-10-09), together with the retained editor and consent-return tests. Actual Google/iPhone acceptance remains separate in task 5.2.

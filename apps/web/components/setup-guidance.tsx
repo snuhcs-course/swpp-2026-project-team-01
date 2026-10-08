@@ -15,7 +15,7 @@ export function SetupGuidance({state,disabled,editing,onEdit,onProgress,onUse,on
  const current=state.draft?.settings.rules??state.confirmed.rules,mode=current?.meetingMode??'either';
  const hasExtra=!!state.draft?.provenance['rules.travelBufferMinutes'],extra=hasExtra?current?.travelBufferMinutes??15:15;
  return <section aria-label="Setup guide" className="flex min-w-0 flex-col gap-3">
-  <p className="text-sm">{guide.completed.length} of {guide.total} preference steps complete{guide.completed.length?' · '+guide.completed.join(' · '):''}</p>
+  <details className="text-sm"><summary className="min-h-11 cursor-pointer py-2">{guide.completed.length} of {guide.total} preference steps complete</summary><p>{guide.completed.length?guide.completed.join(' · '):'Your completed steps will appear here.'}</p></details>
   <p ref={heading} tabIndex={-1}>{guide.question}</p>
   {!editing?<>
    {guide.step==='answers_review'?<SetupAnswers key={state.revision} state={state} disabled={disabled} onUse={onUse} onEdit={onEdit}/>:null}

@@ -81,7 +81,7 @@ export async function verifyPrivateReview(page:Page,guest:Page,sql:LocalSql,requ
   assert.equal(await sql.query(`select current_proposal_version is null and requester_agreed_version is null and host_approved_version is null from fmat.requests where id='${requestId}';`),'t');
   await guest.reload();assert.equal(await guest.getByText('Private endpoint',{exact:false}).count(),0);assert.equal(await guest.getByRole('region',{name:'Private scheduling review'}).count(),0);
   await review.getByRole('button',{name:'Revoke travel allowance'}).first().click();await review.getByText('Decision revoked and time rechecked.',{exact:true}).waitFor();assert.equal((await privateState()).candidates[0].status,'clarification');
-  await page.getByRole('button',{name:'Back to host chat',exact:true}).click();await page.getByRole('button',{name:'Disconnect Google',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Back to host chat',exact:true}).click();await page.getByRole('button',{name:'Manage Google connection',exact:true}).waitFor();
  }finally{
   await page.unroute('**/api/browser/scheduling/preferences/confirm');await page.unroute('**/api/browser/scheduling/preferences/revoke');
   await sql.query(`update fmat.hosts set rules='${original.replaceAll("'","''")}',rules_version=rules_version+1 where id='${host}';`);

@@ -153,3 +153,13 @@ button:disabled { cursor: wait; opacity: .6; }
 .weekly-preview-scale { display:flex; justify-content:space-between; margin-left:6rem; }
 .weekly-preview-track { position:relative; height:.5rem; margin-top:.25rem; border-radius:var(--radius); background:var(--muted); }
 .weekly-preview-window { position:absolute; height:100%; border-radius:var(--radius); background:var(--primary); }
+
+/* Keep admitted hosts close to their conversation instead of the access-page hero. */
+.workspace-host { padding:16px clamp(16px,4vw,48px); }
+.workspace-host .workspace-content { margin:0 auto; padding:16px 0; }
+.workspace.workspace-host h1 { font-size:24px; line-height:1.2; margin:8px 0; }
+.workspace-host .signed-in { margin:8px 0; }
+.workspace-host .conversation-workspace { margin-top:12px; gap:12px; }
+.workspace-host .conversation-controls { gap:12px; }
+.workspace-host .privacy-note { margin-top:12px; }
+.workspace-host .conversation-workspace [data-slot="message-scroller"] { height:clamp(280px,48svh,600px); }

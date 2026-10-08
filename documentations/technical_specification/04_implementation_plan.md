@@ -137,6 +137,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 ### Phase 3 — Deliver host setup in the single `/app` chat
 
+- [x] Compact completed Calendar/preferences/analysis cards and the admitted-host shell; refresh the next setup question after Calendar saves, retain explicit edit/cancel controls and force the complete review open before confirmation. Complete task 3.4 with keyboard, mobile, zoom, reduced-motion, recovery and consent-return evidence. [Evidence](05_rebuild_evidence.md#compact-completed-setup-and-visual-acceptance--2026-10-09).
+
 - [x] Deploy focus recovery from `08812c2` (`dpl_2v8HfWpbkjpTF3ut7jtF32s5pXxU`), independently verify the Ready release alias and 53 production HTTP guards. [Evidence](05_rebuild_evidence.md#focus-recovery-production-deployment).
 
 - [x] Restore visible keyboard focus when opening, cancelling and saving preference editors, and after authorized Calendar return status. Verify existing draft/progress survives denied consent and completed preferences remain editable. Broader compact-card/interface acceptance remains open in task 3.4. [Evidence](05_rebuild_evidence.md#setup-editing-and-consent-return-focus--2026-10-09).
