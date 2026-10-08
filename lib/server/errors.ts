@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { ErrorCode } from '../contracts/errors.ts';
 
 const messages: Record<ErrorCode, string> = {
+  MODEL_LIMIT: 'Model work reached a limit. You can still review saved state and use the meeting controls.',
   EMAIL_LINK_LIMIT: 'Wait before starting another email link.',
   EMAIL_LINK_CONFLICT: 'That email thread is already linked. Start a new email thread.',
   CONTACT_LIMIT: 'Wait before requesting another verification code.',

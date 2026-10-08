@@ -435,6 +435,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Implement the bounded provider-call wrapper with 128 KiB input, output caps, enforced standard/stateless options, mandatory per-attempt reservation and a 30-second generation/stream deadline; verify 11 deterministic tests including the installed Responses adapter. Durable accounting and production integration remain open in [the model execution change](../../openspec/changes/bound-model-execution/tasks.md).
+
 - [x] Deploy conversation admission budgets from `667b3dc` to `release.findmeatime.com` (`dpl_EDHhDbV2jDTJoHPY1B49u4ZMYFoc`); verify 93 matching migrations, clean security advisors, four matching function bodies, rollback-only quota acceptance and 48 public HTTP checks. [Evidence](05_rebuild_evidence.md#conversation-admission-budgets--2026-10-09).
 
 - [x] Implement and locally verify atomic conversation admission budgets across web, iMessage and requester email: 20/minute and 100/hour per principal; 200/minute and 2,000/hour service-wide. Preserve exact retries, authority/lease fencing and ordered channel deferral; verify browser wait-and-retry feedback. [Evidence](05_rebuild_evidence.md#conversation-admission-budgets--2026-10-09). Model spend and broader operational gates remain open.
