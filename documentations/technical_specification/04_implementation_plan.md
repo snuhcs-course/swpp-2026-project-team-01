@@ -100,6 +100,7 @@ References: [repository change workflow](../../AGENTS.md#documentation-and-speci
 Incremental completion (full phase exit remains open):
 
 - [x] Bound browser conversation headers/body/stream waits and make Reconnect now interrupt an in-flight read while preserving transcript cursor and message retry identity. Verify stalled HTTP fixtures, browser recovery, application checks, both builds and runtime restart recovery.
+- [x] Deploy interruptible conversation recovery and verify the Ready production alias and 43 HTTP regressions (`47ebfec`; deployment `dpl_HvM8qSvG8bQxHhkAbQa111yytZHz`; [evidence](05_rebuild_evidence.md#interruptible-browser-conversation-recovery--2026-10-08)).
 
 Work:
 
