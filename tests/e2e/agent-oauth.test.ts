@@ -6,7 +6,7 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {randomUUID,randomBytes} from 'node:crypto';
 import {mkdir} from 'node:fs/promises';
 import {generateKeyPair,exportJWK,createLocalJWKSet,jwtVerify} from 'jose';
-import {chromium} from '@playwright/test';
+import {chromium,expect} from '@playwright/test';
 import {LocalSql} from '../integration/local-sql.ts';
 import {oauthSecretHash} from '../../lib/server/oauth/service.ts';
 import {pkceChallenge} from '../../lib/server/oauth/protocol.ts';
@@ -46,7 +46,7 @@ test('public OAuth routes and explicit host/requester consent survive reload, lo
   const authorizationId=new URL(page.url()).searchParams.get('authorizationId')!;
   const wrong=await browser.newContext();assert.equal((await wrong.request.get(origin+'/api/browser/agent-oauth/state?authorizationId='+authorizationId)).status(),400);await wrong.close();
   assert.equal((await context.request.post(origin+'/api/browser/agent-oauth/decide',{headers:{origin:'https://evil.example'},data:{authorizationId,decision:'deny'}})).status(),403);
-  await page.getByRole('button',{name:'Continue with Google'}).click();await page.getByRole('button',{name:'Grant access',exact:true}).waitFor();await page.waitForFunction(()=>!Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Grant access')?.disabled);
+  await page.getByRole('button',{name:'Continue with Google'}).click();await page.getByRole('button',{name:'Grant access',exact:true}).waitFor();await expect(page.getByRole('button',{name:'Grant access',exact:true})).toBeEnabled();
   assert.equal(new URL(page.url()).pathname,'/connect/authorize');assert.equal(new URL(page.url()).searchParams.get('authorizationId'),authorizationId);assert.equal(await page.locator('script').filter({hasText:'alert(1)'}).count(),0);assert.ok((await page.textContent('body'))?.includes('Test <script>alert(1)</script> agent'));
   const cookies=await context.cookies();const binding=cookies.find(c=>c.name==='fmat-agent-'+authorizationId)!;assert.equal(binding.httpOnly,true);assert.equal(binding.sameSite,'Lax');assert.ok(!(await page.evaluate(()=>document.cookie)).includes(binding.value));
   await mkdir('.local/rebuild/browser-screenshots',{recursive:true});await page.screenshot({path:'.local/rebuild/browser-screenshots/agent-consent-desktop.png',fullPage:true});await page.setViewportSize({width:320,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.local/rebuild/browser-screenshots/agent-consent-mobile.png',fullPage:true});
