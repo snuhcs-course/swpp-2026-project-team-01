@@ -1,78 +1,16 @@
-create table fmat.photon_link_challenges (
- id uuid primary key,
- host_id uuid not null references fmat.hosts(id) on delete cascade,
- project_id uuid not null references fmat.photon_receivers(project_id),
- credential jsonb not null,
- browser_hash text not null check(browser_hash~'^[a-f0-9]{64}$'),
- phone text not null check(phone~'^\+[1-9][0-9]{7,14}$'),
- line text not null check(length(line) between 1 and 512),
- space_id text not null check(length(space_id) between 1 and 512),
- code_hash text not null check(code_hash~'^[a-f0-9]{64}$'),
- encrypted_code text,
- request_key uuid not null,
- failed_attempts integer not null default 0 check(failed_attempts between 0 and 5),
- delivery_status text not null default 'prepared' check(delivery_status in ('prepared','uncertain','accepted','delivered','failed','revoked')),
- provider_reference text,
- lease_token uuid,
- lease_until timestamptz,
- checked_at timestamptz,
- created_at timestamptz not null default statement_timestamp(),
- expires_at timestamptz not null default statement_timestamp()+interval '10 minutes',
- consumed_at timestamptz,
- revoked_at timestamptz,
- unique(host_id,request_key),
- check(expires_at>created_at and expires_at<=created_at+interval '10 minutes')
-);
-create index photon_link_challenges_host_idx on fmat.photon_link_challenges(host_id,created_at desc);
-create index photon_link_challenges_phone_idx on fmat.photon_link_challenges(project_id,phone,created_at desc);
-create index photon_link_challenges_pending_idx on fmat.photon_link_challenges(project_id,created_at) where consumed_at is null and revoked_at is null;
-alter table fmat.photon_link_challenges enable row level security;
-create table fmat.photon_links (
- id uuid primary key default gen_random_uuid(),
- host_id uuid not null references fmat.hosts(id) on delete cascade,
- project_id uuid not null references fmat.photon_receivers(project_id),
- phone text not null,
- line text not null,
- space_id text not null,
- challenge_id uuid not null unique references fmat.photon_link_challenges(id),
- linked_at timestamptz not null default clock_timestamp(),
- revoked_at timestamptz
-);
-create unique index photon_links_host_idx on fmat.photon_links(host_id) where revoked_at is null;
-create unique index photon_links_phone_idx on fmat.photon_links(project_id,phone) where revoked_at is null;
-alter table fmat.photon_links enable row level security;
-create table fmat.photon_link_attempts (
- challenge_id uuid not null references fmat.photon_link_challenges(id) on delete cascade,
- key uuid not null,
- code_hash text not null,
- outcome text not null check(outcome in ('invalid_code','linked')),
- primary key(challenge_id,key)
-);
-alter table fmat.photon_link_attempts enable row level security;
-create table fmat.photon_link_preferences (
- host_id uuid primary key references fmat.hosts(id) on delete cascade,
- skipped boolean not null default false
-);
-alter table fmat.photon_link_preferences enable row level security;
+SET local check_function_bodies = off;
 
-create or replace function fmat.photon_link_view(p_host uuid,p_project uuid,p_browser_hash text,p_session text)
-returns jsonb language plpgsql volatile set search_path='' as $$
-declare c fmat.photon_link_challenges; l fmat.photon_links;
-begin
- select * into l from fmat.photon_links where host_id=p_host and revoked_at is null;
- select * into c from fmat.photon_link_challenges where host_id=p_host and consumed_at is null and revoked_at is null order by created_at desc limit 1;
- return jsonb_build_object('available',exists(select 1 from fmat.photon_receivers where project_id=p_project and enabled),
- 'skipped',coalesce((select skipped from fmat.photon_link_preferences where host_id=p_host),false),
- 'link',case when l.id is null then null else jsonb_build_object('id',l.id,'maskedPhone','••••'||right(l.phone,4),'linkedAt',l.linked_at) end,
- 'challenge',case when c.id is null then null else jsonb_build_object('id',c.id,'maskedPhone','••••'||right(c.phone,4),
- 'expiresAt',c.expires_at,'retryAfter',c.created_at+interval '1 minute','remainingAttempts',5-c.failed_attempts,
- 'sameBrowser',coalesce(c.browser_hash=p_browser_hash and c.credential->>'sessionId'=p_session,false),
- 'status',case when c.expires_at<=clock_timestamp() then 'expired' when c.failed_attempts>=5 then 'locked' else c.delivery_status end) end);
-end;
-$$;
-
-create or replace function public.fmat_photon_link(p_operation text,p_credential jsonb,p_project_id uuid,p_input jsonb)
-returns jsonb language plpgsql security definer set search_path='' as $$
+CREATE OR REPLACE FUNCTION public.fmat_photon_link (
+  p_operation  text,
+  p_credential jsonb,
+  p_project_id uuid,
+  p_input      jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare actor jsonb; host uuid; c fmat.photon_link_challenges; a fmat.photon_link_attempts; l fmat.photon_links; outcome text;
 begin
  if p_credential->>'kind' is distinct from 'host' then raise exception 'FORBIDDEN'; end if;
@@ -141,12 +79,18 @@ begin
  else raise exception 'INVALID_INPUT'; end if;
  return fmat.photon_link_view(host,p_project_id,p_input->>'browserHash',p_credential->>'sessionId')||case when outcome is null then '{}'::jsonb else jsonb_build_object('outcome',outcome) end;
 end;
-$$;
-revoke all on function public.fmat_photon_link(text,jsonb,uuid,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_photon_link(text,jsonb,uuid,jsonb) to service_role;
+$function$;
 
-create or replace function public.fmat_photon_link_delivery(p_operation text,p_project_id uuid,p_input jsonb)
-returns jsonb language plpgsql security definer set search_path='' as $$
+CREATE OR REPLACE FUNCTION public.fmat_photon_link_delivery (
+  p_operation  text,
+  p_project_id uuid,
+  p_input      jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare c fmat.photon_link_challenges; actor jsonb; valid boolean; action text; result jsonb:='[]'; candidate uuid;
 begin
  if jsonb_typeof(p_input) is distinct from 'object' then raise exception 'INVALID_INPUT'; end if;
@@ -198,26 +142,5 @@ begin
  end if;
  raise exception 'INVALID_INPUT';
 end;
-$$;
-revoke all on function public.fmat_photon_link_delivery(text,uuid,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_photon_link_delivery(text,uuid,jsonb) to service_role;
+$function$;
 
--- Reuse the existing verified release origin and dispatch credential. This
--- schedules only due durable intents; an unconfigured local/preview does no I/O.
-create or replace function fmat.wake_photon_links()
-returns bigint language plpgsql security definer set search_path='' as $$
-declare v_url text; v_secret text;
-begin
- if not exists(select 1 from fmat.photon_link_challenges where consumed_at is null and revoked_at is null
-  and delivery_status in ('prepared','uncertain','accepted') and (lease_until is null or lease_until<=clock_timestamp())
-  and (checked_at is null or checked_at<clock_timestamp()-interval '30 seconds')) then return null; end if;
- select decrypted_secret into v_url from vault.decrypted_secrets where name='fmat_runtime_dispatch_url';
- select decrypted_secret into v_secret from vault.decrypted_secrets where name='fmat_runtime_dispatch_secret';
- if v_url is null or v_secret is null then return null; end if;
- if v_url !~ '^https://[^/]+/api/internal/conversations/dispatch$' or v_secret !~ '^[a-f0-9]{64}$' then raise exception 'INVALID_DISPATCH_CONFIGURATION'; end if;
- v_url:=replace(v_url,'/api/internal/conversations/dispatch','/api/internal/photon/dispatch');
- return net.http_post(url:=v_url,headers:=jsonb_build_object('Content-Type','application/json','Authorization','Bearer '||v_secret),body:='{}'::jsonb,timeout_milliseconds:=60000);
-end;
-$$;
-revoke all on function fmat.wake_photon_links() from public,anon,authenticated,service_role;
-select cron.schedule('fmat-photon-links','* * * * *','select fmat.wake_photon_links();');

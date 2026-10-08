@@ -49,6 +49,8 @@ select lives_ok($$select pg_temp.delivery('finish',pg_temp.f('reconcile')||'{"st
 select is(pg_temp.link('read',1,pg_temp.input(1))#>>'{challenge,status}','accepted','uncertain poll retains prior acceptance');
 select is(pg_temp.link('verify',1,pg_temp.input(1)||jsonb_build_object('idempotencyKey','b7000000-0000-4000-8000-000000000001'))->>'outcome','linked','correct code links once');
 select is(pg_temp.link('verify',1,pg_temp.input(1)||jsonb_build_object('idempotencyKey','b7000000-0000-4000-8000-000000000001'))->>'outcome','linked','lost verification acknowledgement reuses result');
+update fmat.photon_link_challenges set created_at=now()-interval '11 minutes',expires_at=now()-interval '1 minute' where id=(pg_temp.input(1)->>'challengeId')::uuid;
+select is(pg_temp.link('verify',1,pg_temp.input(1)||jsonb_build_object('idempotencyKey','b7000000-0000-4000-8000-000000000001'))->>'outcome','linked','expired consumed proof can recover its existing active link without creating another');
 select is((select count(*)::integer from fmat.photon_links),1,'only one link');
 select is((select encrypted_code from fmat.photon_link_challenges limit 1),null,'consumption erases encrypted code');
 select ok(pg_temp.link('read',1)::text not like '%15550100001%','browser state masks phone');
