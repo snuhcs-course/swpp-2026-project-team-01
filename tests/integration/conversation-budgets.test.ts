@@ -36,6 +36,9 @@ test('conversation admission serializes cross-scope ceilings and rechecks expiry
   assert.equal(serviceOutcomes.filter(s=>s==='accepted').length,2);assert.equal(serviceOutcomes.filter(s=>s==='CONVERSATION_RATE_LIMIT').length,6);
   // Restore host grants; intentionally exhaust a window and hold the global lock.
   await admin.query(`update fmat.runtime_messages set status='completed' where conversation_id in(select id from fmat.conversation_scopes where host_id=${q(host)});update fmat.conversation_grants set actor_kind='host',authority_key=${q(session)},credential=${q(JSON.stringify(credential))}::jsonb where conversation_id in(select id from fmat.conversation_scopes where host_id=${q(host)});update fmat.conversation_budgets set minute_used=20,minute_started_at=clock_timestamp()-interval '59.5 seconds' where name=${q('host:'+host)};update fmat.conversation_budgets set minute_used=0 where name='service';`);
+  // This scope may have won the guest race after losing the host race. Use a
+  // fresh input; replaying that winner correctly bypasses quota locks entirely.
+  scopes[denied].client=randomUUID();
   const name='quota-wait-'+randomUUID();await waiter.query(`set application_name=${q(name)};`);
   await locker.query("begin;select 1 from fmat.conversation_budgets where name='service' for update;");
   let pending=waiter.query(attempt(denied));await blocked(admin,name);await locker.query('select pg_sleep(0.7);commit;');
