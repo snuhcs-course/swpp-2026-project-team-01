@@ -13,4 +13,4 @@
 
 ## 3. Deployment and compatibility
 
-- [ ] 3.1 Provision release signing keys privately, deploy reviewed migrations/code and run real controlled browser/terminal authorization, token refresh and revoke with negative resource/audience/PKCE cases. Record public/private HTTP guards and cleanup, mark only verified plan steps, then archive/sync this change. Keep separate MCP/CLI and seven-client acceptance gates open until individually implemented and verified.
+- [x] 3.1 Provision release signing keys privately, deploy reviewed migrations/code and run real controlled browser/terminal authorization, token refresh and revoke with negative resource/audience/PKCE cases. Record public/private HTTP guards and cleanup, mark only verified plan steps, then archive/sync this change. Keep separate MCP/CLI and seven-client acceptance gates open until individually implemented and verified.

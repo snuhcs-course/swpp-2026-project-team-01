@@ -2,7 +2,7 @@
 
 ## Why
 
-Protected personal-agent access is required by the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md), but the pinned Supabase OAuth probe fails resource isolation. The app needs explicit client/resource grants without turning Google identity, a request link, or model prose into broader authority.
+Protected personal-agent access is required by the [implementation plan](../../../../documentations/technical_specification/04_implementation_plan.md), but the pinned Supabase OAuth probe fails resource isolation. The app needs explicit client/resource grants without turning Google identity, a request link, or model prose into broader authority.
 
 ## What Changes
 
@@ -19,7 +19,7 @@ Protected personal-agent access is required by the [implementation plan](../../.
 
 ### Modified Capabilities
 
-None. Preserve [verified commands](../../specs/application-commands/spec.md), [host admission](../../specs/host-admission/spec.md) and [request scope](../../specs/meeting-requests/spec.md).
+None. Preserve [verified commands](../../../specs/application-commands/spec.md), [host admission](../../../specs/host-admission/spec.md) and [request scope](../../../specs/meeting-requests/spec.md).
 
 ## Impact
 
