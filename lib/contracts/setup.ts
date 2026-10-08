@@ -22,3 +22,8 @@ export const setupState=z.object({analysisStatus:z.enum(['running','ready','fail
  review:z.object({revision:z.number().int().positive(),draftRevision:z.number().int().positive(),settings,status:z.enum(['pending','confirmed','superseded'])}).nullable(),nextAction:z.string()});
 export type SetupState=z.infer<typeof setupState>;
 export type SetupPatch=z.infer<typeof setupPatch>;
+export const setupReadiness=z.discriminatedUnion('ready',[
+ z.strictObject({ready:z.literal(false),reason:z.enum(['setup','calendar'])}),
+ z.strictObject({ready:z.literal(true),handle:publicHandle}),
+]);
+export type SetupReadiness=z.infer<typeof setupReadiness>;

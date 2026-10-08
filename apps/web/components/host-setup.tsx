@@ -6,6 +6,7 @@ import {SetupGuidance} from './setup-guidance';
 import {CalendarAnalysis} from './calendar-analysis';
 import {IMessageLink} from './imessage-link';
 import {WeeklyPreview} from './weekly-preview';
+import {SetupReadyLinks} from './setup-ready-links';
 import {Collapsible,CollapsibleTrigger,CollapsibleContent} from './ui/collapsible';
 import {Button} from './ui/button';
 import {Input} from './ui/input';
@@ -46,6 +47,7 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
     <IMessageLink beforeSettings={state.nextAction!=='settings_confirmed'}/>
     <CalendarAnalysis setup={state} disabled={locked} onSkip={()=>progress('skip_analysis')} onChange={refreshAfterAnalysis}/>
     <p>{state.nextAction==='settings_confirmed'?'Your settings are confirmed.':state.calendarSelected?'Calendar choices are saved. Let’s review your preferences.':'Connect Google and confirm calendar choices above. You can draft preferences meanwhile.'}</p>
+    {state.nextAction==='settings_confirmed'&&!locked?<SetupReadyLinks key={[refreshKey,reload,state.revision,state.rulesVersion,state.calendarGeneration].join(':')}/>:null}
     {settings?.displayName?<p className="break-words">{settings.displayName}{settings.handle?' · '+settings.handle:''}</p>:null}
     {rules?.timezone?<p>{rules.durationMinutes??'—'} minute meetings · {rules.timezone} · {rules.bufferMinutes??'—'} minute meeting buffer</p>:null}
     {settings?.displayName||rules?<Collapsible open={!editor&&(showReview||expanded)} onOpenChange={setExpanded} className="flex min-w-0 flex-col gap-3">

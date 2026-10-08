@@ -22,8 +22,8 @@ test('host setup uses current authority, explicit review, provider permission an
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
  const env={...process.env,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY,TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64')};
  const headers={apikey:local.SERVICE_ROLE_KEY,authorization:'Bearer '+local.SERVICE_ROLE_KEY,'content-type':'application/json'},sql=new LocalSql(),email=randomUUID()+'@example.test',password=randomUUID()+randomUUID(),invitation=randomUUID(),client=randomUUID(),authorization=randomUUID();let host='';
- const database=new Database(env),cipher=new TokenCipher(env);let role:'owner'|'reader'='owner',reads=0,gate:()=>Promise<void>=async()=>{};
- const calendars=new CalendarSelection(database,env,{async refresh(bundle){return bundle;},async list(){reads++;await gate();return [{id:'mine',name:'Calendar',accessRole:role,primary:true,timeZone:'Asia/Seoul',color:null}];}}),setup=new HostSetup(database,calendars);
+ const database=new Database(env),cipher=new TokenCipher(env);let role:'owner'|'reader'='owner',missing=false,unavailable=false,reads=0,gate:()=>Promise<void>=async()=>{};
+ const calendars=new CalendarSelection(database,env,{async refresh(bundle){return bundle;},async list(){reads++;await gate();if(unavailable)throw new ApplicationError('PROVIDER_UNAVAILABLE',503);return missing?[]:[{id:'mine',name:'Calendar',accessRole:role,primary:true,timeZone:'Asia/Seoul',color:null}];}}),setup=new HostSetup(database,calendars);
  try{
   const create=await fetch(local.API_URL+'/auth/v1/admin/users',{method:'POST',headers,body:JSON.stringify({email,password,email_confirm:true})});assert.equal(create.status,200);host=(await create.json()).id;
   const login=await fetch(local.API_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:local.ANON_KEY,'content-type':'application/json'},body:JSON.stringify({email,password})});const token=(await login.json()).access_token,credential=await verifyHostToken(token,{env});
@@ -44,6 +44,7 @@ test('host setup uses current authority, explicit review, provider permission an
   assert.equal((await tool('fmat_review_setup')).path,'/app');
   const initial=await setup.read(credential);assert.equal(initial.revision,0);assert.deepEqual(setupState.parse(await tool('fmat_get_setup')),initial);assert.ok(!JSON.stringify(initial).includes('setup-private'));
   await assert.rejects(setup.read(guestCredential(randomUUID(),randomBytes(32).toString('base64url'))),code('FORBIDDEN'));
+  assert.deepEqual(await setup.readiness(credential),{ready:false,reason:'setup'});assert.equal(reads,0,'Incomplete setup must not dispatch Calendar reads');
   const draft={expectedRevision:0,idempotencyKey:randomUUID(),patch:{displayName:'Fixture',handle:'fixture-'+host.slice(0,8),rules:{timezone:'Asia/Seoul',durationMinutes:30,availability:[{days:[1,2,3,4,5],start:'13:00',end:'17:00'}],focusBlocks:[],bufferMinutes:10,preferences:'',meetingMode:'online' as const}},unresolved:[]};
   let state=await agentDraft(draft);assert.equal(state.review,null,'An agent suggestion cannot supply the host meeting-mode choice');assert.equal(state.confirmed.handle,null);assert.equal((await agentDraft(draft)).revision,1);
   await toolError({expectedRevision:0,patch:{displayName:'Changed retry'},unresolved:[]},draft.idempotencyKey,'IDEMPOTENCY_CONFLICT');
@@ -71,12 +72,21 @@ test('host setup uses current authority, explicit review, provider permission an
   const pending=setup.confirm(credential,confirmation()),rejected=assert.rejects(pending,code('STALE_REVISION'));await arrived;
   state=await agentDraft({expectedRevision:state.revision,patch:{rules:{durationMinutes:45}},unresolved:[],idempotencyKey:randomUUID()});release();await rejected;gate=async()=>{};
   const confirm=confirmation(),saved=await setup.confirm(credential,confirm);assert.equal(saved.confirmed.rules?.durationMinutes,45);assert.equal(saved.nextAction,'settings_confirmed');assert.deepEqual(setupState.parse(await tool('fmat_get_setup')),saved);
+  assert.deepEqual(await setup.readiness(credential),{ready:true,handle:draft.patch.handle});
+  role='reader';assert.deepEqual(await setup.readiness(credential),{ready:false,reason:'calendar'});role='owner';
+  missing=true;assert.deepEqual(await setup.readiness(credential),{ready:false,reason:'calendar'});missing=false;
+  unavailable=true;await assert.rejects(setup.readiness(credential),code('PROVIDER_UNAVAILABLE'));unavailable=false;
   const before=reads;assert.equal((await setup.confirm(credential,confirm)).rulesVersion,saved.rulesVersion);assert.equal(reads,before,'confirmed retry requires current Auth but no second provider dispatch');
   assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where host_id='${host}';`),'0');
   const skip={expectedRevision:saved.revision,choice:'skip_analysis',idempotencyKey:randomUUID()};
-  const progressed=await setup.progress(credential,skip);assert.equal(progressed.progress.analysisDecided,true);assert.deepEqual(progressed.confirmed,saved.confirmed);assert.equal((await setup.progress(credential,skip)).revision,progressed.revision);
+  const readyArrived=new Promise<void>(r=>entered=r),readyWait=new Promise<void>(r=>release=r);gate=async()=>{entered();await readyWait;};
+  const readyPending=setup.readiness(credential),readyRejected=assert.rejects(readyPending,code('STALE_REVISION'));await readyArrived;
+  const progressed=await setup.progress(credential,skip);release();await readyRejected;gate=async()=>{};assert.equal(progressed.progress.analysisDecided,true);assert.deepEqual(progressed.confirmed,saved.confirmed);assert.equal((await setup.progress(credential,skip)).revision,progressed.revision);
   const dismissed=await setup.progress(credential,{expectedRevision:progressed.revision,choice:'dismiss_schedule',idempotencyKey:randomUUID()});assert.deepEqual(dismissed.progress.dismissedSuggestions,['schedule']);assert.deepEqual((await setup.read(credential)).progress,dismissed.progress);
-  const logout=await fetch(local.API_URL+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+token}});assert.equal(logout.status,204);await assert.rejects(setup.read(credential),code('UNAUTHORIZED'));await assert.rejects(setup.confirm(credential,confirm),code('UNAUTHORIZED'));assert.equal((await invoke('fmat_get_setup')).status,401);
+  assert.deepEqual(await setup.readiness(credential),{ready:true,handle:draft.patch.handle});
+  const logoutArrived=new Promise<void>(r=>entered=r),logoutWait=new Promise<void>(r=>release=r);gate=async()=>{entered();await logoutWait;};
+  const logoutPending=setup.readiness(credential),logoutRejected=assert.rejects(logoutPending,code('UNAUTHORIZED'));await logoutArrived;
+  const logout=await fetch(local.API_URL+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+token}});assert.equal(logout.status,204);release();await logoutRejected;gate=async()=>{};await assert.rejects(setup.read(credential),code('UNAUTHORIZED'));await assert.rejects(setup.confirm(credential,confirm),code('UNAUTHORIZED'));assert.equal((await invoke('fmat_get_setup')).status,401);
  }finally{
   if(host){await sql.query(`delete from fmat.oauth_refresh_tokens where grant_id in(select id from fmat.oauth_grants where client_id='${client}');delete from fmat.oauth_codes where grant_id in(select id from fmat.oauth_grants where client_id='${client}');delete from fmat.oauth_grants where client_id='${client}';delete from fmat.oauth_authorizations where client_id='${client}';delete from fmat.oauth_clients where id='${client}';delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.audit_events where subject_id='${host}';delete from fmat.calendar_connections where principal_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);}await sql.close();
  }

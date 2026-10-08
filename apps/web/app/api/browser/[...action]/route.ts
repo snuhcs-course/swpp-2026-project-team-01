@@ -188,10 +188,11 @@ async function handle(request:NextRequest,{params}:Context) {
       if(action==='analysis/read'&&request.method==='GET')return session.finish(json(await service.read(credential)));
       if(request.method==='POST'&&action!=='analysis/read')return session.finish(json(await service[action==='analysis/start'?'start':action==='analysis/apply'?'apply':'dismiss'](credential,await readJson(request))));
     }
-    if(['setup/read','setup/draft','setup/progress','setup/rebase','setup/confirm'].includes(action)) {
+    if(['setup/read','setup/readiness','setup/draft','setup/progress','setup/rebase','setup/confirm'].includes(action)) {
       const {credential}=await session.host(),service=new HostSetup();
       if(action==='setup/read'&&request.method==='GET')return session.finish(json(await service.read(credential)));
-      if(request.method==='POST'&&action!=='setup/read')return session.finish(json(await service[action==='setup/draft'?'draft':action==='setup/progress'?'progress':action==='setup/rebase'?'rebase':'confirm'](credential,await readJson(request))));
+      if(action==='setup/readiness'&&request.method==='GET')return session.finish(json(await service.readiness(credential)));
+      if(request.method==='POST'&&!['setup/read','setup/readiness'].includes(action))return session.finish(json(await service[action==='setup/draft'?'draft':action==='setup/progress'?'progress':action==='setup/rebase'?'rebase':'confirm'](credential,await readJson(request))));
     }
     if(action==='calendar/list'&&request.method==='GET') {
       const {credential}=await session.host();
