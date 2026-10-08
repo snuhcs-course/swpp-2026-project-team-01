@@ -1,4 +1,4 @@
-// AI provenance: OpenAI Codex; initially generated 2026-10-05 (Asia/Seoul); scope: file.
+// AI-generated with OpenAI Codex, 2026-10-05.
 "use client";
 type Slot = { label: string; reason: string; rank: number };
 type Request = { id: string; request_mode: 'google' | 'manual'; requester_name: string; requester_email: string; purpose: string; duration_minutes: number; location: string; candidate_slots: Slot[]; status: string; confirmed_start: string | null; google_event_url: string | null; created_at: string };

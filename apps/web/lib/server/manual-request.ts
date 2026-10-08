@@ -1,4 +1,4 @@
-// AI provenance: OpenAI Codex; initially generated 2026-10-05 (Asia/Seoul); scope: file.
+// AI-generated with OpenAI Codex, 2026-10-05.
 import { createHash } from "node:crypto";
 import { getCalendarEvents, labelSlot, slotIsAvailable, suggestSlots, supabaseAdmin } from "./auth";
 import { linkIsOpen, seoulDay, type TimeWindow } from "@/lib/availability";

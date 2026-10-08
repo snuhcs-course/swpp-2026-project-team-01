@@ -1,4 +1,4 @@
-// AI provenance: OpenAI Codex; initially generated 2026-10-05 (Asia/Seoul); scope: file.
+// AI-generated with OpenAI Codex, 2026-10-05.
 import { NextResponse } from "next/server";
 import { accountClient, safeNext, sameOrigin } from "@/lib/server/account";
 import { appUrl, clearSession, jsonError } from "@/lib/server/auth";

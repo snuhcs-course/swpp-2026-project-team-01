@@ -1,4 +1,4 @@
-// AI provenance: OpenAI Codex; initially generated 2026-10-05 (Asia/Seoul); scope: file.
+// AI-generated with OpenAI Codex, 2026-10-05.
 export async function readJsonResponse<T>(response: Response, fallback: string): Promise<T> {
   let result: unknown;
   try { result = await response.json(); } catch { throw new Error(fallback); }

@@ -1,4 +1,4 @@
-// AI provenance: OpenAI Codex; initially generated 2026-10-04 (Asia/Seoul); scope: file.
+// AI-generated with OpenAI Codex, 2026-10-04.
 "use client";
 
 import Link from "next/link";

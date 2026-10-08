@@ -1,4 +1,4 @@
-// AI provenance: OpenAI Codex; initially generated 2026-10-05 (Asia/Seoul); scope: file.
+// AI-generated with OpenAI Codex, 2026-10-05.
 "use client";
 import { useState, type FormEvent } from "react";
 import { defaultLinkOptions, MEETING_DURATIONS, type LinkOptions } from "@/lib/link-options";

@@ -1,4 +1,4 @@
-// AI provenance: OpenAI Codex; initially generated 2026-10-04 (Asia/Seoul); scope: file except supabaseAdmin() (generation source unverified).
+// AI-generated with OpenAI Codex, 2026-10-04. Scope: file except supabaseAdmin() (generation source unverified).
 import { createClient } from "@supabase/supabase-js";
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";

@@ -1,4 +1,4 @@
-// AI provenance: OpenAI Codex; initially generated 2026-10-04 (Asia/Seoul); scope: file.
+// AI-generated with OpenAI Codex, 2026-10-04.
 import { randomBytes, createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { appUrl, decryptToken, encryptToken, getCalendarEvents, getSession, jsonError, supabaseAdmin } from "@/lib/server/auth";
