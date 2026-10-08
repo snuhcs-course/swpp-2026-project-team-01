@@ -2,7 +2,7 @@
 
 ## Why
 
-Conversation admission is bounded, but one accepted input can still trigger repeated provider calls. Eve checks session token limits after a call and direct OpenAI does not establish the cost metadata needed by its dollar limit. Phase 9 of the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md) requires enforceable execution and spend limits.
+Conversation admission is bounded, but one accepted input can still trigger repeated provider calls. Eve checks session token limits after a call and direct OpenAI does not establish the cost metadata needed by its dollar limit. Phase 9 of the [implementation plan](../../../../documentations/technical_specification/04_implementation_plan.md) requires enforceable execution and spend limits.
 
 ## What Changes
 
@@ -19,7 +19,7 @@ Conversation admission is bounded, but one accepted input can still trigger repe
 
 ### Modified Capabilities
 
-None. The [chat workspace recovery contract](../../specs/chat-workspaces/spec.md) remains applicable.
+None. The [chat workspace recovery contract](../../../specs/chat-workspaces/spec.md) remains applicable.
 
 ## Impact
 

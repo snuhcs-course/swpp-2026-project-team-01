@@ -11,4 +11,4 @@
 
 ## 3. Release acceptance
 
-- [ ] 3.1 Pass the full relevant local checks and both service builds; deploy committed database/application changes to the identified production targets, verify matching migrations/definitions, rollback-only quota acceptance and public HTTP guards, and record evidence in the implementation plan before syncing/archive.
+- [x] 3.1 Pass the full relevant local checks and both service builds; deploy committed database/application changes to the identified production targets, verify matching migrations/definitions, rollback-only quota acceptance and public HTTP guards, and record evidence in the implementation plan before syncing/archive.

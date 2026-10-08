@@ -1,6 +1,6 @@
 # Reconstruction evidence ledger
 
-Updated: 2026-10-07. This ledger tracks the entire [implementation plan](04_implementation_plan.md); an empty evidence cell is incomplete, not a passed gate.
+Updated: 2026-10-09. This ledger tracks the entire [implementation plan](04_implementation_plan.md); an empty evidence cell is incomplete, not a passed gate.
 
 ## Unlinked private continuation foundation (2026-10-07)
 
@@ -1492,3 +1492,11 @@ The real runtime tests pass for post-commit process termination/recovery with re
 ### Admission lock-wait fixture correction
 
 The first full integration run after model activation passed 34/35 tests. The admission concurrency fixture reused the first host-race loser's message ID after a second guest race; that scope could win the second race, so the purported new lock-wait request was actually a completed retry and correctly bypassed quota locking. The fixture now generates a fresh client ID before testing the lock wait. The focused test passes with both observed lock waits and expiry/rollback assertions intact. This is a test correction; production admission behavior is unchanged, so no product/API documentation change is needed. The full suite is rerun before deployment.
+
+## Deployed model execution limits — 2026-10-09
+
+Source `0a69f56` (runtime integration `e8a645f` plus the admission-test correction) is deployed as `dpl_EBTshCB6ejSE4ge8qZJxCB4KrsEn`, independently inspected Ready at `https://findmeatime-release-9wc4o45r0-justdodos-projects.vercel.app` and aliased to `https://release.findmeatime.com`. Both services were built from a clean Git archive. The identified owner/project is `justdodos-projects/findmeatime-release`; upload preflight scanned 739 regular files against fourteen configured credential values with no matches.
+
+After correcting the reused message ID in the contention fixture, the full integration suite passes 35/35 tests (144.1 seconds). The source also passes 311 app/provider tests, eight script tests, typechecks, both local builds, all three real Eve runtime tests and both browser suites. No database definition changed in this increment: the prior 94-migration rebuild and 1,531 SQL assertions remain applicable. Fresh production verification confirms all 94 migrations match and the three model-reservation/ranking function bodies, security settings and privileges match local definitions. The rollback-only quota probe passed with zero retained users/invitations, and security advisors report no issues. All 34 fresh production HTTP guard checks pass.
+
+Task 3.1 is complete. The bounded model execution change is synced and archived with three requirements covering provider limits, durable allowance and authorized recovery. This verifies the deployed source and guarded boundaries, not a complete live Google/Calendar/iPhone or named-client journey. No human message was sent. `releaseReady` remains false; the implementation plan's broader acceptance and operations gates remain open.
