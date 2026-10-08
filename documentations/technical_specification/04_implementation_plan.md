@@ -326,6 +326,8 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+- [x] Update both public skill documents with real MCP and pinned source CLI login/discovery/call/logout instructions, requester intake prerequisites, retry/recovery and browser fallback. Verify both endpoints locally without private profile leakage. Live positive host-specific and personal-agent entry acceptance remain open in task 3.3. [Evidence](05_rebuild_evidence.md#public-cli-entry-instructions--2026-10-09).
+
 - [x] Wire the runnable CLI with ephemeral loopback browser login, private credential save/refresh, JSON MCP discovery/calls and revoke/remove logout. Verify listener cleanup and command lifecycle; document [commands and recovery](06_cli.md). Complete implementation tasks 3.1–3.2; production CLI journeys, public skill updates and named-client acceptance remain open. [Evidence](05_rebuild_evidence.md#runnable-cli-and-loopback-login--2026-10-09).
 
 - [x] Implement the CLI OAuth protocol layer: fixed issuer/resource metadata, exact loopback registration, S256/state, single-use exchange, signed-token validation, refresh and revocation. Verify invalid callbacks/claims and uncertain exchange; listener, command wiring and live acceptance remain open. [Evidence](05_rebuild_evidence.md#cli-oauth-protocol--2026-10-09).

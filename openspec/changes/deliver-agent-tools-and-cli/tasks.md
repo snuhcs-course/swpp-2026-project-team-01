@@ -23,6 +23,8 @@ The internal official-SDK transport and bounded command parser pass discovery, c
 
 - [x] 3.1 Implement JSON tool discovery/invocation over the same MCP resource, with bounded input, stable errors/exits and no credentials in argv/output; verify real SDK round trips and document runnable commands.
 - [x] 3.2 Implement browser PKCE login and private origin-separated credential storage, coordinated refresh and revoke/logout; verify wrong callback/state/issuer, parallel refresh, uncertain replies, permissions, cleanup and revoked calls, and document recovery.
+Both public documents now include pinned source CLI commands and browser fallback, with local endpoint tests. Positive live host-specific and personal-agent entry acceptance remain open.
+
 - [ ] 3.3 Update both public skill journeys to actual MCP/CLI setup and browser fallbacks; verify rendered Markdown, public-only projections and missing-client paths, then deploy and test both paste-to-agent entry paths.
 
 ## 4. Acceptance and release evidence
