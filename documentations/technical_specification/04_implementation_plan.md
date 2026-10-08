@@ -250,6 +250,10 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 
 ### Phase 6 — Add requester email continuity
 
+Incremental completion (full phase exit remains open):
+
+- [x] Verify AgentMail raw-body signatures with pinned Svix 2.7, five-minute freshness, one-MiB/five-second read bounds, inbox/thread isolation and minimized event/message locators. Test changed payloads, rotation signatures, omitted bodies and rejected delivery classes. Durable inbox deduplication, sender/request binding and live dispatch remain open.
+
 Work:
 
 - [ ] Finalize AgentMail inbox allocation, provider authentication, sender evidence, request/thread mapping and allowed recipients. Store and deduplicate authenticated ingress before acknowledgment.

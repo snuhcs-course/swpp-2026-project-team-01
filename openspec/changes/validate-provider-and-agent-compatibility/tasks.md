@@ -1,12 +1,13 @@
 # Tasks
 
-All tasks describe reconstruction checks and decisions; none is complete. Follow the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md#compatibility-gates).
+Tasks describe reconstruction checks and decisions. Incremental provider boundaries are distinguished from complete live compatibility gates. Follow the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md#compatibility-gates).
 
 ## 1. Runtime and repeatable checks
 
 - [ ] 1.1 Pin reference commits, runtime/dependency versions and direct OpenAI model configuration; verify separate eve/Next.js builds, shared `lib/` boundaries and root `vercel.ts` composition with a deployed smoke test.
 - [ ] 1.2 Select eve persistence, worker/recovery placement and execution limits; verify two-host/two-request isolation, revocation, restart mid-turn and repeated tool execution without duplicate domain effects.
 - [ ] 1.3 Add sanitized read-only and deterministic provider probes; verify Supabase Auth/discovery, Google/Routes, AgentMail, Photon, Cloudflare mail and OpenAI contracts without treating credential presence as product readiness.
+- [x] 1.3a Verify the AgentMail Svix transport boundary with pinned SDK, raw UTF-8 signatures, time/size/read bounds, inbox/thread isolation, minimized locators and signed-payload digest fixtures; document SDK behavior and omitted-body recovery. This does not complete durable deduplication, sender binding, dispatch or live webhook acceptance.
 - [ ] 1.4 Document verified runtime, callbacks, provider contracts and recovery limitations in the owning architecture/setup docs; confirm exact reconstruction origin and selected Supabase project without revealing secrets.
 
 ## 2. Personal-agent compatibility

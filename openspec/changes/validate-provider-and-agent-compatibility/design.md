@@ -30,3 +30,7 @@ See [proposal.md](proposal.md). Deploy the reconstruction at `https://release.fi
 ## Execution and verification
 
 Start with the smallest runtime and read-only probes, then fixtures for invalid/revoked/duplicate cases, then controlled consent and end-to-end journeys. Deploy and verify callbacks at the reconstruction origin before updating external registrations. Limit live sends/writes to authorized controlled identities. Keep current setup and the implementation plan aligned with verified outcomes, while recording unresolved gates explicitly. No compatibility task closes solely because a SDK call or transport probe succeeds.
+
+## AgentMail signature contract (2026-10-08)
+
+The pinned Svix 2.7 transport probe verifies raw UTF-8 content, then parses separately because the current SDK returns no payload. It emits only scoped event/message locators and a signed-body digest, preserving omitted-body events for a later authoritative read. Sender fields are not interpreted as verified identity. A future durable ingress must own replay/conflict rejection and acknowledge only after commit. No public receiver or provider registration is added by this probe; complete requester routing and live reply evidence remain required.
