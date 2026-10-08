@@ -122,6 +122,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Repair browser-fixture cleanup so host cascades remove setup history and booking/recovery jobs remove active/archived queue entries and publication rows. Verify both browser suites followed by all 1,532 SQL assertions without an intervening reset. [Evidence](05_rebuild_evidence.md#browser-fixture-cleanup-and-sequential-database-tests--2026-10-09).
+
 Work:
 
 - [ ] Define typed commands, viewer-specific queries and events for admission/setup, requests, proposals, explicit decisions, conversations, provider ingress, delivery and booking. Require resource/revision/idempotency information on applicable actions.

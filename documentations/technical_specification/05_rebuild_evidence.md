@@ -1587,3 +1587,12 @@ The added private replies pass through the ordered worker with an injected deliv
 These are deterministic integration fixtures with injected model/Calendar/message providers, not actual Google consent or live iPhone evidence. Current public setup, conversation-tool and private shared-operation function bodies, empty search paths, security flags and ACLs match production. This increment changes tests and evidence only; production runtime behavior is already deployed and requires no replacement build or migration.
 
 Fresh results: both focused setup integrations pass; all three actual-runtime suites pass; both browser suites pass in 74.8 seconds; `npm run check` passes type/lint/documentation checks, eight script tests and 311 application/provider tests. Host-setup task 1.2 is complete, bringing the change to 15 of 20 tasks. Full admission-to-readiness/two-host acceptance (5.1), native-provider acceptance and controlled Google/iPhone journeys remain open.
+
+
+# Browser fixture cleanup and sequential database tests — 2026-10-09
+
+Running the complete database suite after browser verification exposed orphaned local fixture state: thirty setup turns, unacknowledged publication rows and two queue messages whose jobs had been removed. The browser teardown disabled foreign-key triggers during fixture deletion, also disabling cascade cleanup. Three booking/recovery helpers deleted jobs without removing all their publication/queue records.
+
+The main browser teardown now restores the normal replication role before deleting its fixture host, allowing setup and other host-owned cascades to run. Booking approval, booking withdrawal and requester recovery delete active and archived queue messages plus publication rows for their exact fixture job IDs before deleting those jobs. No global queue cleanup or production data deletion is introduced.
+
+Verification rebuilt the disposable local 95-migration database to remove the already-orphaned test residue, then ran both browser suites (70.3 seconds), immediately followed by all 1,532 SQL assertions across 33 files with no reset in between. Both commands pass; typechecking and documentation checks also pass. This is test maintenance only and requires no production deployment or product/API behavior change. Shared setup acceptance is committed separately as `70e8655`.
