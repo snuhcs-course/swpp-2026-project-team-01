@@ -7,7 +7,7 @@
 
 ## 2. Delivery and browser flow
 
-- [ ] 2.1 Implement encrypted frozen Cloudflare verification delivery with delivery-only leases, recipient/challenge rechecks, one dispatch grant and conservative uncertain outcomes; test duplicate/crashed/expired workers and provider rejection/lost responses.
+- [x] 2.1 Implement encrypted frozen Cloudflare verification delivery with delivery-only leases, recipient/challenge rechecks, one dispatch grant and conservative uncertain outcomes; test duplicate/crashed/expired workers and provider rejection/lost responses.
 - [ ] 2.2 Add protected browser read/send/confirm routes and the requester card; verify exact command retry, reload, contact edits, expiry, keyboard/mobile layout and no email-login authority.
 - [ ] 2.3 Implement the private scheduler/endpoint and complete a local end-to-end request/code/confirmation/host-approval journey using synthetic delivery.
 

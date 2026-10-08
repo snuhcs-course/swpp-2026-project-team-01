@@ -65,6 +65,9 @@ try {
   const bookingDelivery = await fetch(web+'/api/internal/booking/delivery',{method:'POST'});
   assert.equal(bookingDelivery.status,401,'Booking email worker rejects anonymous dispatch');
   assert.match(bookingDelivery.headers.get('cache-control'),/no-store/u);
+  const contactDelivery = await fetch(web+'/api/internal/contact/delivery',{method:'POST'});
+  assert.equal(contactDelivery.status,401,'Contact email worker rejects anonymous dispatch');
+  assert.match(contactDelivery.headers.get('cache-control'),/no-store/u);
   const photonDispatch = await fetch(web+'/api/internal/photon/dispatch',{method:'POST'});
   assert.equal(photonDispatch.status,401,'Code worker rejects anonymous dispatch');
   assert.match(photonDispatch.headers.get('cache-control'),/no-store/u);

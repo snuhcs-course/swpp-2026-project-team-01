@@ -239,3 +239,11 @@ Replace the placeholders with the affected request, operator identity and a fres
 - If retirement reports `nextAction: review_proposal`, return to the participant review flow. Do not edit approval, attempt, reservation or request rows to force recovery. Confirm success from the protected receipt and verified provider evidence, not the command response.
 
 Recovery does not delete Calendar events, release uncertain reservations or retry confirmation email. Email delivery has its own saved outcome and identity. Local transport fixtures verify scheduling and recovery boundaries; controlled live Calendar recovery remains a separate release gate.
+
+## Requester verification email delivery
+
+The private `POST /api/internal/contact/delivery` endpoint uses the existing Cloudflare account/sender/token, `TOKEN_ENCRYPTION_KEY` and `RUNTIME_DISPATCH_SECRET`. Keep the encryption key stable while pending challenges or frozen messages exist. Each call claims one `contact_verification_delivery` job; it cannot claim booking jobs or verify contact itself.
+
+The minute scheduler `fmat-contact-verification-delivery` invokes private `fmat.wake_contact_verification_delivery()`. Provision Vault `fmat_contact_verification_delivery_url=https://release.findmeatime.com/api/internal/contact/delivery` only after the endpoint is deployed and pending recipients/jobs have been inspected. It reuses `fmat_runtime_dispatch_secret` and stays inert without its URL. Inspect cron execution separately from accepted provider submission and actual inbox receipt.
+
+Expired, consumed, superseded or contact/credential-changed challenges suppress unsent work. Unknown sends retain their immutable dispatch and must never be manually reset for resending. The requester may explicitly request a fresh code after the cooldown; the new challenge invalidates the old one. Verification is independent of Google-only host login, private-link recovery and proposal approval. The browser controls and controlled live inbox acceptance remain release gates.
