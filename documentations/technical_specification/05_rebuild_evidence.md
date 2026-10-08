@@ -1041,3 +1041,29 @@ All 207 application/provider tests pass, including 11 reply-transport tests. Cas
 Both eve and Next.js production builds pass; strict validation of the reply change passes and 345 documentation links validate. Database and browser flows are unchanged, so their previous evidence is retained rather than presented as a fresh run.
 
 Production verification: code `5636381`, deployment `dpl_DxsJ2S6TKhoFUeVG8gsDB5MHnrsT`, independently Ready and aliased to `https://release.findmeatime.com`. Both deployed services built from a Git archive excluding the unrelated competitor-research edit. Upload scanning covered 588 regular files against 13 configured credential values with zero matches. All 73 HTTP guards, the separate invalid-identity callback check and seven public-document checks pass. The actual `/api/providers/agentmail` route remains 503/no-store. An initial probe used the nonexistent `/api/webhooks/agentmail` path and got 404; correcting that probe verified the intended route without a runtime change. No migration or production receiver activation occurred. The full live task remains open and `releaseReady` remains false.
+
+# Local OAuth resource isolation spike — 2026-10-08
+
+Executed the retained `npm run probe:oauth` on Supabase CLI 2.119.0 and GoTrue v2.197.0, source commit `4eee58f296d9698a1c2c0ae14d7a0b379c7622d3`. A separate loopback-only Docker process shares the disposable local database/signing configuration and enables OAuth only in that process. Synthetic user creation confirms email locally without sending; tests call consent APIs directly. Hosted configuration and Google-only production login were untouched.
+
+| Probe | Observed result |
+|---|---|
+| Authorization-server discovery | S256 and plain advertised; code and refresh grants advertised |
+| Dynamic public-client registration | 201; fixed loopback callback |
+| Consent API | Exact client/callback/state round trip |
+| Wrong JSON code-exchange resource | 400 |
+| Wrong S256 verifier | 400 |
+| Wrong form code-exchange resource | **200 — isolation failure** |
+| Access token audience | **authenticated — not the requested MCP resource** |
+| Authorization code reuse | 400 |
+| Wrong-resource JSON refresh | **200 — isolation failure** |
+| Refreshed token audience | **authenticated — not the requested MCP resource** |
+| Refresh after grant revocation | 400 |
+
+The retained probe prints `resourceIsolationPassed: false` and exits 2. Pinned source review confirms the form parser omits Resource and refresh delegates without a resource constraint. Its assertion that this version returns 200 documents the observed negative compatibility result; it is not acceptance of that behavior for the application. Do not infer hosted-version behavior or complete client compatibility from this local process.
+
+Decision: reject stock Supabase OAuth as an unmodified protected-MCP boundary. Keep Supabase Google-only identity, but require explicit code/refresh resource binding, resource-specific tokens, current application grants, and protected-operation checks in the owning agent-access implementation. No MCP endpoint was exposed or authorization weakened. Compatibility task 2.1a is complete; full 2.1, requester grants, browser/terminal and all seven named-client gates remain open.
+
+Both exploratory and retained runs cleaned up their temporary processes and synthetic users. A separate local database check found zero matching users and two soft-deleted client tombstones, with no active probe clients. The main local stack remained running. This increment adds a local probe and decision evidence only; no application runtime, schema, hosted configuration or deployment changed. Production remains at the verified quotation-readback deployment.
+
+Validation: script syntax/lint passes, 350 documentation links validate, and strict OpenSpec validation passes. Refreshed task instructions confirm compatibility progress at 5/18 with only the new bounded spike marked complete. A follow-up local query confirms zero active matching OAuth clients.

@@ -14,6 +14,8 @@ Tasks describe reconstruction checks and decisions. Incremental provider boundar
 
 ## 2. Personal-agent compatibility
 
+- [x] 2.1a Probe pinned local Supabase OAuth discovery, public registration, S256/code replay, form/JSON resource checks, token audience, refresh and revocation. Record stock GoTrue v2.197.0 resource-isolation failures and reject it as an unmodified MCP authorization boundary; retain full task 2.1 until an enforcing implementation passes.
+
 - [ ] 2.1 Configure and test protected MCP OAuth discovery, registration, PKCE, issuer/resource audience, refresh and revocation in browser and terminal paths; verify application-owned grants and captured negative cases.
 - [ ] 2.2 Exercise Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code separately using their actual versions; verify requester/host permissions, current-proposal confirmation, stale decisions and revoked access.
 - [ ] 2.3 Document client-by-client results and limitations; verify untested clients stay open and no model field substitutes for human approval.

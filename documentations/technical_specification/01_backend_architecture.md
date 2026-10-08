@@ -111,6 +111,8 @@ Before sending an invitation, persist a protected dispatch intent and immutable 
 
 #### MCP OAuth and CLI
 
+Compatibility finding (2026-10-08): stock local GoTrue v2.197.0 does not enforce the required resource isolation in form code exchange or refresh and issues a generic audience. Do not use it unmodified as the MCP authorization boundary. Preserve Supabase Google identity while implementing explicit application client/resource/grant enforcement; [probe and setup constraints](03_provider_setup.md#protected-mcp-oauth-compatibility) record the evidence. Protected MCP remains unimplemented.
+
 Protected host MCP access uses OAuth authorization code flow with PKCE, protected-resource metadata, authorization-server discovery and resource-specific tokens. Validate issuer, signature, audience, expiry, the active client grant and requested permission on every operation. Keep permissions for reading, revising and submitting decisions distinct, and enforce revocation through current server-side grant state. Google Calendar credentials are never MCP credentials.
 
 The CLI calls the same application operations and returns structured results with meaningful exit codes. Its final interactive/headless login and credential storage need compatibility decisions. Guest MCP and CLI operations use request-scoped grants, never host or service credentials.

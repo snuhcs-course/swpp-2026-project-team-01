@@ -97,6 +97,8 @@ References: [repository change workflow](../../AGENTS.md#documentation-and-speci
 
 ### Phase 1 — Prove the runtime and settle deployment decisions
 
+- [x] Run the pinned local OAuth resource-isolation spike and retain a reproducible probe: unmodified GoTrue v2.197.0 fails wrong-resource form exchange/refresh and audience requirements despite passing PKCE/replay/revocation. Record the rejected boundary and required enforcement before MCP implementation. [Evidence](05_rebuild_evidence.md#local-oauth-resource-isolation-spike--2026-10-08). Full OAuth and named-client gates remain open.
+
 Incremental completion (full phase exit remains open):
 
 - [x] Scope Photon restart model-call evidence to the recovered input, verify distinct browser continuation does not affect that count, and pass the focused restart test plus all 26 concurrent integration tests. The historical CI failure lacks input attribution and remains inconclusive; full runtime/live gates stay open. [Evidence](05_rebuild_evidence.md#input-scoped-runtime-replay-evidence--2026-10-08).
