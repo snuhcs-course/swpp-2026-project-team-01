@@ -282,6 +282,8 @@ Supported mode/location/transport/buffer values extracted into the current draft
 
 Selection uses the existing revision/idempotency-protected draft action and preserves derivation separately from host provenance. It does not save settings. Final confirmation remains a separate exact-review action. Reload or a new draft revision resets unsubmitted checkbox state, and accepted answers are reused on resume. A lost response retries the same selection intent. This browser review also works without a model connection after extraction has been persisted; actual linked iMessage equivalence remains pending.
 
+`HostSetup` remembers the opening control in memory, focuses each editor legend on mount, returns to that control on cancel (with the setup heading as fallback), and focuses the saved-draft status after success. Failed edits remain open. `CalendarConnection` focuses the result only for a browser return after its authorized status read; denied or forged-success returns retain recovery wording, and failed reads focus the error. No focus target or draft value is added to browser storage or the consent URL.
+
 Focusing Calendar or setup controls pauses automatic conversation following. Replayed user messages do not create forced scroll anchors that can pull a focused control off screen. Sending a new message or choosing **Jump to latest message** explicitly resumes following; ordinary transcript scrolling continues through the installed scroller's public API.
 
 ### Inline iMessage connection card

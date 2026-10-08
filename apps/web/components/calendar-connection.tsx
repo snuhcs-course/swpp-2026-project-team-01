@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {calendarStatus,type CalendarStatus} from '../../../lib/contracts/calendar.ts';
 import {Alert,AlertTitle,AlertDescription} from './ui/alert';
 import {Button} from './ui/button';
@@ -11,9 +11,12 @@ async function call(action:string,requestId?:string){
 }
 export function CalendarConnection({requestId}:{requestId?:string}){
   const [status,setStatus]=useState<CalendarStatus|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+  const returnResult=useRef<string|null>(null),returned=useRef(false),resultStatus=useRef<HTMLParagraphElement>(null),resultError=useRef<HTMLParagraphElement>(null);
+  useEffect(()=>{if(!returned.current||(!notice&&!error))return;const target=error?resultError.current:resultStatus.current;if(target){returned.current=false;target.focus();}},[notice,error]);
   useEffect(()=>{let active=true;
-    const url=new URL(location.href),result=url.searchParams.get('calendar');
-    if(result){url.searchParams.delete('calendar');history.replaceState(null,'',url.pathname+url.search+url.hash);}
+    const url=new URL(location.href),result=url.searchParams.get('calendar')??returnResult.current;
+    returnResult.current=result;
+    if(result){returned.current=true;url.searchParams.delete('calendar');history.replaceState(null,'',url.pathname+url.search+url.hash);}
     void call('status',requestId).then(data=>{
       if(!active)return;
       const current=calendarStatus.parse(data);setStatus(current);
@@ -34,6 +37,6 @@ export function CalendarConnection({requestId}:{requestId?:string}){
     </div>
     {status?.connected&&!requestId?<CalendarChoices disabled={busy}/>:null}
     {requestId?<RequesterAvailability requestId={requestId} connected={status?.connected??false} disabled={busy} onManual={()=>setStatus({connected:false,kind:'guest',selected:false})}/>:null}
-    {notice?<p role="status" className="mt-2 text-sm">{notice}</p>:null}{error?<p role="alert" className="mt-2 text-sm text-destructive">{error}</p>:null}
+    {notice?<p ref={resultStatus} tabIndex={-1} role="status" className="mt-2 text-sm">{notice}</p>:null}{error?<p ref={resultError} tabIndex={-1} role="alert" className="mt-2 text-sm text-destructive">{error}</p>:null}
   </Alert>;
 }

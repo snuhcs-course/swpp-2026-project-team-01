@@ -53,7 +53,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--paper); color: var(--ink); }
 a { color: inherit; }
-a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--primary); outline-offset: 5px; }
+a:focus-visible, button:focus-visible, input:focus-visible, legend[tabindex="-1"]:focus-visible { outline: 3px solid var(--primary); outline-offset: 5px; }
 .landing { min-height: 100svh; padding: clamp(24px, 5vw, 72px); display: flex; flex-direction: column; }
 .wordmark { display: inline-flex; align-self: flex-start; align-items: center; gap: 14px; font-weight: 650; text-decoration: none; letter-spacing: -.04em; font-size: 22px; }
 .wordmark span { background: var(--accent); border-radius: 50%; width: 34px; height: 34px; display: grid; place-items: center; }

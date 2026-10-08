@@ -137,6 +137,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 ### Phase 3 — Deliver host setup in the single `/app` chat
 
+- [x] Restore visible keyboard focus when opening, cancelling and saving preference editors, and after authorized Calendar return status. Verify existing draft/progress survives denied consent and completed preferences remain editable. Broader compact-card/interface acceptance remains open in task 3.4. [Evidence](05_rebuild_evidence.md#setup-editing-and-consent-return-focus--2026-10-09).
+
 - [x] Deploy the editable weekly preview (`b47001b`; `dpl_5TnqM5kkUUKGwPjEKKZjCL4kagAk`); verify the Ready release alias and 53 public HTTP guards including protected setup/analysis/Calendar actions. [Evidence](05_rebuild_evidence.md#weekly-preview-production-deployment).
 
 - [x] Complete host-setup task 3.2 with connection/calendar/scan and review cards plus an editable weekly preview; verify keyboard, 320/390/768/1440px reflow, reduced motion, 200% magnification and structured edits during model failure. [Evidence](05_rebuild_evidence.md#editable-weekly-preference-preview--2026-10-09).

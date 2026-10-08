@@ -23,6 +23,9 @@ For hosts who use iMessage, make the linked private conversation their main day-
 
 Also offer a private host–assistant email conversation, with final approval through authenticated web review. This is a proposed extension from the latest product discussion: the current PRD and numbered journeys cover requester email, but do not yet specify host email requirements or acceptance scenarios. The email design below should be incorporated there before implementation.
 
+
+Host preference editors focus their title when opened from guidance or an **Edit** action. **Cancel edit** returns focus to the opening control; saving a draft focuses its result without claiming settings confirmation. Calendar consent returns focus to the verified connection result (or its recovery error), with the current server draft and completed preference choices preserved. The return URL alone cannot establish consent.
+
 ## Interface inventory
 
 | Interface | Who uses it | Main responsibility | Access and approval |

@@ -6,6 +6,7 @@ export async function verifyWeeklyPreview(page:Page,setup:Locator,context:Browse
  assert.equal(origin,'http://localhost:3000');
  const before=await (await context.request.get(origin+'/api/browser/setup/read')).json();
  const preview=setup.getByRole('figure',{name:'Your edited meeting week'});
+ await expect(setup.locator('legend').filter({hasText:/^Your meeting week$/})).toBeFocused();
  await preview.waitFor();assert.equal(await preview.getByRole('listitem').count(),7);
  const window=setup.getByRole('group',{name:'Window 1',exact:true});
  const start=window.getByLabel('Window start 1',{exact:true}),end=window.getByLabel('Window end 1',{exact:true});
@@ -38,8 +39,10 @@ export async function verifyWeeklyPreview(page:Page,setup:Locator,context:Browse
  await page.evaluate(()=>{document.documentElement.style.zoom='';});await page.setViewportSize({width:1280,height:900});
  await start.fill(oldStart);await end.fill(oldEnd);await sunday.setChecked(oldSunday);
  await setup.getByRole('button',{name:'Cancel edit'}).click();
+ await expect(setup.getByRole('button',{name:'Edit schedule',exact:true})).toBeFocused();
  const after=await (await context.request.get(origin+'/api/browser/setup/read')).json();assert.deepEqual(after.draft,before.draft,'Cancel preserves the existing draft');
  await setup.getByRole('button',{name:'Edit schedule',exact:true}).click();
+ await expect(setup.locator('legend').filter({hasText:/^Your meeting week$/})).toBeFocused();
  await expect(setup.getByLabel('Window start 1',{exact:true})).toHaveValue(oldStart);
  await page.emulateMedia({reducedMotion:'no-preference'});
 }
