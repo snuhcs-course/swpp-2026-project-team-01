@@ -272,6 +272,8 @@ References: [requester destination](../user_experience/04_page_list.md#requester
 
 ### Phase 5 — Complete approval, booking and invitations
 
+- [x] Complete booking task 2.4: verify authenticated Calendar disconnect/denied/wrong-account/original-account recovery, frozen destination after new selection, guarded retry and operator override denial. Rebuild all 96 migrations and pass booking/SQL checks with transactional fixture cleanup. [Evidence](05_rebuild_evidence.md#consent-based-booking-recovery--2026-10-09).
+
 - [x] Complete booking task 2.1 with a 15-scenario final revalidation matrix: 13 blocked prerequisite cases and successful requester-Calendar/in-person controls through actual approval and worker services. Verify no rejected case dispatches or publishes confirmations; full booking integration, 1,532 SQL assertions and application checks pass. [Evidence](05_rebuild_evidence.md#booking-final-revalidation-matrix--2026-10-09).
 
 - [x] Deploy the booking lock-order migration (`3e2ade9`, `20261008231233`) to FindMeATime2; verify 96 matching migrations, matching tested function/privileges, clean security advisors and 70 production HTTP guards. [Evidence](05_rebuild_evidence.md#booking-identity-and-host-lock-acceptance--2026-10-09).

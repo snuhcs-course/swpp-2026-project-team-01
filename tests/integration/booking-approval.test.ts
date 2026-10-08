@@ -83,7 +83,7 @@ test('Web approval requires exact current host/session/proposal/agreement and co
    await approval.approve(c.credential,{requestId:f.id,revision:agreed.revision,proposalVersion:agreed.proposal!.version,confirmed:true,idempotencyKey:randomUUID()});return {id:f.id,guest:f.guest};
   });
   let recoveryDay=3;
-  await verifyBookingRecovery(db,env,async()=>{
+  await verifyBookingRecovery(db,env,d.credential,async()=>{
    const f=await fixture(d,recoveryDay++),agreed=await f.agree();await sql.query(`update fmat.requests set contact_verified_email='guest@example.test' where id='${f.id}';`);
    await approval.approve(d.credential,{requestId:f.id,revision:agreed.revision,proposalVersion:agreed.proposal!.version,confirmed:true,idempotencyKey:randomUUID()});return f.id;
   });
@@ -114,13 +114,16 @@ test('Web approval requires exact current host/session/proposal/agreement and co
   await fetch(local.API_URL+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+a.token}});await assert.rejects(approval.approve(a.credential,input),code('UNAUTHORIZED'));
  }finally{
   await agent?.close();sql.close();const cleanup=new LocalSql();
-  // Remove only this fixture's transport records while their job and outbox
-  // associations still exist. Replica mode below suppresses FK cascades.
+  // Lock fixture jobs before removing their transport records, in the same
+  // transaction as job deletion. Recovery uses SKIP LOCKED and cannot republish
+  // into the cleanup gap. Replica mode below suppresses FK cascades.
+  await cleanup.query('begin;');
   for(const id of requests){
    const jobs=`select j.id from fmat.jobs j where j.payload->>'requestId'='${id}' or j.payload->>'outboxId' in(select id::text from fmat.outbox where payload->>'requestId'='${id}')`;
-   await cleanup.query(`delete from pgmq.q_fmat_jobs where message->>'jobId' in(select id::text from (${jobs}) fixture_jobs);delete from pgmq.a_fmat_jobs where message->>'jobId' in(select id::text from (${jobs}) fixture_jobs);delete from fmat.queue_publications where job_id in(${jobs});`);
+   await cleanup.query(`select id from fmat.jobs where id in(${jobs}) order by id for update;delete from pgmq.q_fmat_jobs where message->>'jobId' in(select id::text from (${jobs}) fixture_jobs);delete from pgmq.a_fmat_jobs where message->>'jobId' in(select id::text from (${jobs}) fixture_jobs);delete from fmat.queue_publications where job_id in(${jobs});`);
   }
   for(const id of requests){await cleanup.query(`set session_replication_role=replica;delete from fmat.calendar_connections where principal_kind='guest' and principal_id='${id}';delete from fmat.request_closures where request_id='${id}';delete from fmat.booking_deliveries where request_id='${id}';delete from fmat.idempotency where input->>'requestId'='${id}';delete from fmat.jobs where payload->>'outboxId' in(select id::text from fmat.outbox where payload->>'requestId'='${id}');delete from fmat.outbox where payload->>'requestId'='${id}';delete from fmat.booking_dispatches where attempt_id in(select id from fmat.booking_attempts where request_id='${id}');delete from fmat.booking_checks where attempt_id in(select id from fmat.booking_attempts where request_id='${id}');delete from fmat.jobs where payload->>'requestId'='${id}';delete from fmat.web_approval_decisions where request_id='${id}';delete from fmat.host_reservations where attempt_id in(select id from fmat.booking_attempts where request_id='${id}');delete from fmat.booking_attempts where request_id='${id}';delete from fmat.host_approvals where request_id='${id}';delete from fmat.booking_identities where request_id='${id}';delete from fmat.scheduling_decisions where request_id='${id}';delete from fmat.proposal_evidence where request_id='${id}';delete from fmat.proposals where request_id='${id}';delete from fmat.candidate_publications where request_id='${id}';delete from fmat.candidate_rankings where request_id='${id}';delete from fmat.candidate_evaluations where request_id='${id}';delete from fmat.request_history where request_id='${id}';delete from fmat.audit_events where subject_id='${id}';delete from fmat.requests where id='${id}';set session_replication_role=origin;`);}
-  for(const host of hosts){await cleanup.query(`delete from fmat.calendar_connections where principal_id='${host.id}';delete from fmat.hosts where id='${host.id}';delete from fmat.invitations where id='${host.invite}';`);await fetch(local.API_URL+'/auth/v1/admin/users/'+host.id,{method:'DELETE',headers});}cleanup.close();
+  await cleanup.query('commit;');
+  for(const host of hosts){await cleanup.query(`delete from fmat.audit_events where subject_id in(select id::text from fmat.oauth_exchanges where actor->>'id'='${host.id}');delete from fmat.oauth_exchanges where actor->>'id'='${host.id}';delete from fmat.calendar_connections where principal_id='${host.id}';delete from fmat.hosts where id='${host.id}';delete from fmat.invitations where id='${host.invite}';`);await fetch(local.API_URL+'/auth/v1/admin/users/'+host.id,{method:'DELETE',headers});}cleanup.close();
  }
 });

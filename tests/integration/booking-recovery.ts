@@ -1,3 +1,7 @@
+import {CalendarConsent} from '../../lib/server/calendar/consent.ts';
+import {CalendarSelection} from '../../lib/server/calendar/selection.ts';
+import {calendarScopes} from '../../lib/server/calendar/google.ts';
+import type {Credential} from '../../lib/server/identity/credentials.ts';
 import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
@@ -8,11 +12,12 @@ import {GoogleBookingProvider} from '../../lib/server/calendar/booking.ts';
 import {AvailabilityEvaluation} from '../../lib/server/scheduling/availability.ts';
 import {LocalSql} from './local-sql.ts';
 
-export async function verifyBookingRecovery(database:Database,env:NodeJS.ProcessEnv,createApproved:()=>Promise<string>){
+export async function verifyBookingRecovery(database:Database,env:NodeJS.ProcessEnv,host:Credential,createApproved:()=>Promise<string>){
  const sql=new LocalSql(),recovery=new BookingRecovery(database,env);let reject=true,inserts=0,loseResponse=false,miss=false,gets=0;const events=new Map<string,unknown>();
  const calendar={async refresh(bundle:import('../../lib/server/calendar/google.ts').TokenBundle){return {...bundle,expiresAt:Date.now()+3600000};},async list(){return [{id:'fixture-calendar',name:'fixture',accessRole:'owner' as const,primary:false,timeZone:'UTC',color:null}];}};
  const worker=new BookingWorker(database,env,new AvailabilityEvaluation(database,env,calendar,{async read(){return [];}}),new GoogleBookingProvider(async(url,init)=>{
   if(init?.method==='GET'){
+   assert.ok(new URL(String(url)).pathname.startsWith('/calendar/v3/calendars/fixture-calendar/events/'),'Reconnection must retain the dispatched destination');
    gets++;const id=decodeURIComponent(new URL(String(url)).pathname.split('/').at(-1)!);
    return miss||!events.has(id)?Response.json({error:{code:404,errors:[{reason:'notFound'}]}},{status:404}):Response.json(events.get(id));
   }
@@ -63,6 +68,39 @@ export async function verifyBookingRecovery(database:Database,env:NodeJS.Process
   const runCli=()=>JSON.parse(execFileSync(process.execPath,['--import','tsx','scripts/booking-recovery.ts','--project','local','--operator',reconcile.operator,'--request',uncertain,'--action','reconcile','--key',reconcile.idempotencyKey],{env:{...process.env,...env},encoding:'utf8'}));
   for(let i=0;i<2;i++){const result=runCli();assert.equal(result.ok,true);assert.equal('booked' in result,false);}
   assert.equal(await sql.query(`select count(*) from fmat.jobs where dedupe_key='${dedupe}';`),'1');
+  // Reconnect through the authenticated consent boundary, never by patching
+  // encrypted grants or restoring approval/attempt rows.
+  assert.equal(host.kind,'host');if(host.kind!=='host')throw new Error('Host fixture required');
+  let subject='wrong-provider-account',verifier='',nonce='';
+  const consentEnv={...env,APP_ORIGIN:'http://localhost:3000'};
+  const consent=new CalendarConsent(database,consentEnv,{
+   authorization(kind,state,v,n){assert.equal(kind,'host');verifier=v;nonce=n;return 'https://accounts.google.com/o/oauth2/v2/auth?state='+state;},
+   async exchange(_code,v,n,kind){assert.equal(kind,'host');assert.equal(v,verifier);assert.equal(n,nonce);return {accessToken:'reconnected-access',refreshToken:'reconnected-refresh',subject,expiresAt:Date.now()+3600000,scopes:[...calendarScopes.host]};},
+  });
+  async function retained(){
+   assert.equal(await sql.query(`select phase from fmat.booking_attempts where id='${attempt}';`),'uncertain');
+   assert.equal(await sql.query(`select count(*) from fmat.host_reservations where attempt_id='${attempt}';`),'1');
+   assert.equal(await sql.query(`select payload::text from fmat.booking_attempts where id='${attempt}';`),frozen);
+   assert.equal(await sql.query(`select count(*) from fmat.host_approvals where request_id='${uncertain}';`),'1');
+   assert.equal(await sql.query(`select count(*) from fmat.outbox where payload->>'requestId'='${uncertain}';`),'0');
+   assert.equal(inserts,before+1);assert.equal(gets,0);
+  }
+  assert.equal((await consent.disconnect(host)).connected,false);
+  assert.equal(await worker.process(await lease(uncertain,'booking_reconcile',dedupe)),'retry');await retained();
+  const denied=await consent.start(host);assert.equal((await consent.callback(denied.state,denied.binding,null,true)).result,'denied');
+  assert.equal((await consent.status(host)).connected,false);await retained();
+  const wrong=await consent.start(host);assert.equal((await consent.callback(wrong.state,wrong.binding,'wrong-account-code',false)).result,'connected');
+  assert.equal(await worker.process(await lease(uncertain,'booking_reconcile',dedupe)),'retry');await retained();
+  await assert.rejects(recovery.run(command(uncertain,'retry')));
+  await assert.rejects(recovery.run({...command(uncertain,'reconcile'),approved:true}));
+  await assert.rejects(recovery.run({...command(uncertain,'reconcile'),action:'confirm'}));
+  subject='google-'+host.subject;
+  const original=await consent.start(host);assert.equal((await consent.callback(original.state,original.binding,'original-account-code',false)).result,'connected');
+  // The host may select a different calendar for future bookings. Recovery
+  // still reads the original dispatched calendar and does not re-approve.
+  const selection=new CalendarSelection(database,consentEnv,{...calendar,async list(){return [{id:'new-calendar',name:'New destination',accessRole:'owner' as const,primary:false,timeZone:'UTC',color:null}];}});
+  const catalog=await selection.list(host);await selection.select(host,{generation:catalog.generation,rulesVersion:catalog.rulesVersion,conflictCalendarIds:['new-calendar'],bookingCalendarId:'new-calendar'});
+  await retained();
   miss=true;assert.equal(await worker.process(await lease(uncertain,'booking_reconcile',dedupe)),'uncertain');
   assert.equal(await sql.query(`select count(*) from fmat.host_reservations where attempt_id='${attempt}';`),'1');
   assert.equal(await sql.query(`select count(*) from fmat.outbox where payload->>'requestId'='${uncertain}';`),'0');
