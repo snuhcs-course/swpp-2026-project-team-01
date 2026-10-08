@@ -137,6 +137,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 ### Phase 3 — Deliver host setup in the single `/app` chat
 
+- [x] Deploy invitation delivery database fencing (`cc897b1`, `20261008172627`) and verify 89 matching migrations, rollback-only preparation/dispatch/outcome checks, zero retained invitations, clean advisors and 48 HTTP checks. Runtime activation remains open. [Evidence](05_rebuild_evidence.md#fenced-invitation-delivery--2026-10-09).
+
 - [x] Implement the invitation delivery worker with frozen code derivation, hash/fingerprint checks, current-validity and lease fencing, durable dispatch and no automatic resend. Verify the 89-migration rebuild, 1,459 SQL assertions, 32 integrations, 290 app/provider tests, clean advisors and both service builds. CLI, scheduler activation and live recipient acceptance remain open. [Evidence](05_rebuild_evidence.md#fenced-invitation-delivery--2026-10-09).
 
 - [x] Deploy the operator invitation lifecycle migration (`ba5450f`, `20261008171143`) to the selected production database; verify 88 matching migrations, rollback-only behavior, zero retained probe records, clean security advisors and 42 HTTP checks. [Evidence](05_rebuild_evidence.md#durable-operator-invitation-lifecycle--2026-10-09).
