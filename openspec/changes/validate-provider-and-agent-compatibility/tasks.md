@@ -8,6 +8,7 @@ Tasks describe reconstruction checks and decisions. Incremental provider boundar
 - [ ] 1.2 Select eve persistence, worker/recovery placement and execution limits; verify two-host/two-request isolation, revocation, restart mid-turn and repeated tool execution without duplicate domain effects.
 - [ ] 1.3 Add sanitized read-only and deterministic provider probes; verify Supabase Auth/discovery, Google/Routes, AgentMail, Photon, Cloudflare mail and OpenAI contracts without treating credential presence as product readiness.
 - [x] 1.3a Verify the AgentMail Svix transport boundary with pinned SDK, raw UTF-8 signatures, time/size/read bounds, inbox/thread isolation, minimized locators and signed-payload digest fixtures; document SDK behavior and omitted-body recovery. This does not complete durable deduplication, sender binding, dispatch or live webhook acceptance.
+- [x] 1.3b Implement and verify bounded AgentMail full-message reads against receipt identity, restricted delivery labels, explicit unavailable text states and untrusted address claims; cover redirect, malformed/oversized/stalled responses and a read-only controlled inbox probe. Sender/request binding and dispatch remain separate gates.
 - [ ] 1.4 Document verified runtime, callbacks, provider contracts and recovery limitations in the owning architecture/setup docs; confirm exact reconstruction origin and selected Supabase project without revealing secrets.
 
 ## 2. Personal-agent compatibility

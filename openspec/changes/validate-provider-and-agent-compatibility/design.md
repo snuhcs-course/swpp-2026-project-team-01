@@ -34,3 +34,7 @@ Start with the smallest runtime and read-only probes, then fixtures for invalid/
 ## AgentMail signature contract (2026-10-08)
 
 The pinned Svix 2.7 transport probe verifies raw UTF-8 content, then parses separately because the current SDK returns no payload. It emits only scoped event/message locators and a signed-body digest, preserving omitted-body events for a later authoritative read. Sender fields are not interpreted as verified identity. A future durable ingress must own replay/conflict rejection and acknowledge only after commit. No public receiver or provider registration is added by this probe; complete requester routing and live reply evidence remain required.
+
+## AgentMail message-read contract (2026-10-08)
+
+The full-message reader uses a fixed HTTPS origin, redirect rejection, a ten-second total deadline and a two-MiB response limit. It cross-checks receipt identifiers/time and received/restricted labels. Explicit extraction, full-text fallback and unavailable content are separate states; no preview/HTML fallback is allowed. Parsed addresses remain claims, arbitrary headers are excluded, and the reader cannot grant request authority. Six deterministic checks and a controlled read-only inbox probe verify this module; worker binding, execution and live continuity remain open.
