@@ -18,6 +18,10 @@ See [proposal](proposal.md). Runtime settlement already calls the Photon reply p
 - Centralize parent evidence lookup for receipt admission and later tool/runtime authorization. Accept either an earlier authenticated incoming receipt or an accepted reply whose original input has an earlier receipt order and whose first dispatch predates this receipt. Require identical link/receiver/inbox/thread; thread membership alone remains insufficient.
 - A private route uses the existing runtime dispatch secret and a minute scheduler. Public client roles cannot read the ledger or invoke its mutation RPC. No new secret or public message API is necessary.
 
+### Live reply readback correction
+
+The controlled reply probe established same-key/same-ID replay but found that the provider appends a parent quotation. Preserve existing POST payloads and keys. Inspection accepts either the exact frozen answer or that answer plus a complete quotation independently reconstructed from an exact-parent GET, including its original sender, UTC timestamp and full text. Verify parent inbox/thread/identity, sender and sole recipient; recheck authority before each GET and final acceptance. Unknown quote formats remain uncertain. Do not rely on extracted text, an answer prefix, or a new send endpoint. The separate explicit-header send probe lost thread/parent association and is rejected as a transport alternative. This is storage acceptance evidence, not live signed requester continuity or recipient delivery.
+
 ## Risks / Trade-offs
 
 - Acceptance acknowledgment can arrive after an inbound response → only recorded acceptance authorizes that parent; fail closed while evidence is missing.

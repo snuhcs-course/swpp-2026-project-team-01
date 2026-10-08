@@ -50,13 +50,39 @@ test('AgentMail readback requires the exact message, parent, recipient and froze
   assert.deepEqual(await new AgentMailReplyTransport(env,async()=>Response.json({...stored,...patch}),()=>now).inspect(reply,accepted.message_id,allow),{status:'uncertain',messageId:accepted.message_id});
  }
 });
-test('AgentMail quoted live reply remains uncertain even when extracted text matches',async()=>{
+test('AgentMail quoted reply without parent evidence stays uncertain despite matching extracted text',async()=>{
  // Live reply API readback appends the parent quotation. Extracted text is a
  // lossy provider projection, so it cannot prove the complete frozen body.
  const quoted={...stored,text:reply.text+'\n\nOn Thu, Oct 8, 2026 a requester wrote:\n\n> Earlier message',extracted_text:reply.text};
  let reads=0;const transport=new AgentMailReplyTransport(env,async(_url,init)=>{reads++;assert.equal(init?.method,'GET');return Response.json(quoted);},()=>now);
  assert.deepEqual(await transport.inspect(reply,accepted.message_id,allow),{status:'uncertain',messageId:accepted.message_id});
- assert.equal(reads,1);
+ assert.equal(reads,2);
+});
+test('AgentMail readback verifies the complete provider quotation against the exact authorized parent',async()=>{
+ const parent={inbox_id:reply.inboxId,thread_id:reply.threadId,message_id:reply.parentMessageId,from:'Guest <guest@example.test>',to:['Assistant <agent@example.test>'],timestamp:'2026-10-08T08:54:32Z',text:'First line\nSecond line',labels:['received']};
+ const quote='\n\nOn Thu, Oct 8, 2026 at 8:54 AM UTC Guest <guest@example.test> wrote:\n\n> First line\n> Second line';
+ const message={...stored,text:reply.text+quote,extracted_text:'untrusted extraction is ignored'};
+ const run=async(parentData:unknown,messageData:unknown=message)=>{
+  const reads:string[]=[];let checks=0;
+  const transport=new AgentMailReplyTransport(env,async(url,init)=>{assert.equal(init?.method,'GET');reads.push(String(url));return Response.json(reads.length===1?messageData:parentData);},()=>now);
+  const result=await transport.inspect(reply,accepted.message_id,async()=>{checks++;});
+  assert.equal(reads.length,2);assert.ok(reads[1].endsWith('/messages/'+encodeURIComponent(reply.parentMessageId)));
+  return {result,checks};
+ };
+ const positive=await run(parent);assert.deepEqual(positive.result,{status:'accepted',messageId:accepted.message_id,threadId:reply.threadId});assert.equal(positive.checks,3);
+ for(const patch of [{inbox_id:'other@example.test'},{message_id:'other'},{thread_id:'other'},{from:'Other <other@example.test>'},{from:'Guest\r\nBcc:other@example.test'},{to:['other@example.test']},{cc:['other@example.test']},{bcc:['other@example.test']},{text:'Changed parent'},{timestamp:'2026-10-08T08:55:32Z'},{timestamp:'2026-10-09T08:54:32Z'},{labels:[]},{labels:['received','spam']}]){
+  assert.equal((await run({...parent,...patch})).result.status,'uncertain');
+ }
+ for(const text of [reply.text+quote+'\nadditional text','Changed answer'+quote,reply.text+quote.replace('First line','Changed line'),reply.text+quote.replace('8:54 AM','08:54 AM')])assert.equal((await run(parent,{...message,text,extracted_text:reply.text})).result.status,'uncertain');
+});
+test('AgentMail readback rechecks authority before parent fetch and before accepting quoted content',async()=>{
+ const parent={inbox_id:reply.inboxId,thread_id:reply.threadId,message_id:reply.parentMessageId,from:'guest@example.test',to:[reply.inboxId],timestamp:'2026-10-08T08:54:00Z',text:'Earlier',labels:['received']};
+ const message={...stored,text:reply.text+'\n\nOn Thu, Oct 8, 2026 at 8:54 AM UTC guest@example.test wrote:\n\n> Earlier'};
+ for(const denyAt of [2,3]){
+  let reads=0,checks=0;const transport=new AgentMailReplyTransport(env,async(_url,init)=>{assert.equal(init?.method,'GET');reads++;return Response.json(reads===1?message:parent);},()=>now);
+  await assert.rejects(transport.inspect(reply,accepted.message_id,async()=>{if(++checks===denyAt)throw new ApplicationError('FORBIDDEN',403);}),errorCode('FORBIDDEN'));
+  assert.equal(reads,denyAt-1);
+ }
 });
 test('AgentMail missing and failed readback does not infer non-send or dispatch another message',async()=>{
  let calls=0;const transport=new AgentMailReplyTransport(env,async(_url,init)=>{calls++;assert.equal(init?.method,'GET');return new Response(null,{status:404});},()=>now);
