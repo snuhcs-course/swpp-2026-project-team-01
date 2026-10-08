@@ -1,4 +1,5 @@
 'use client';
+import {hostLoginTarget} from '../lib/host-login-target.ts';
 import {RequesterRecoveryCard,type RecoveryProof} from './requester-recovery.tsx';
 import {recoveryRedeem,recoveryStart} from '../../../lib/contracts/requester-recovery.ts';
 import {BookingReceiptCard} from './booking-receipt.tsx';
@@ -30,14 +31,14 @@ export function HostWorkspace() {
   const [error,setError]=useState(''),[notice,setNotice]=useState(''),[waitlist,setWaitlist]=useState(false);
   const [email,setEmail]=useState(''),[name,setName]=useState(''),[code,setCode]=useState('');
   useEffect(()=>{let active=true;api('host/state').then(data=>{if(active)setHost(hostState.parse(data));}).catch(e=>{if(active&&e.status!==401)setError(e.message);}).finally(()=>{if(active)setLoading(false);});
-    if(new URLSearchParams(location.search).get('auth')==='expired'){setError('Google sign-in wasn’t completed or has expired. Continue with Google again in this browser.');history.replaceState(null,'','/app'+location.hash);}
+    if(new URLSearchParams(location.search).get('auth')==='expired'){setError('Google sign-in wasn’t completed or has expired. Continue with Google again in this browser.');const url=new URL(location.href);url.searchParams.delete('auth');history.replaceState(null,'',url.pathname+url.search+url.hash);}
     return()=>{active=false;};},[]);
   async function submit(event:FormEvent) {
     event.preventDefault();setBusy(true);setError('');setNotice('');
     try {
       if(host){setHost(hostState.parse(await api('host/redeem',{code,idempotencyKey:crypto.randomUUID()})));setCode('');}
       else if(waitlist){await api('waitlist',{email,name,idempotencyKey:crypto.randomUUID()});setNotice('You’re on the list. We’ll be in touch when an invitation is available.');}
-      else {const {url}=await api('auth/start',{});window.location.assign(url);return;}
+      else {const query=new URLSearchParams(location.search),target=hostLoginTarget.safeParse({requestId:query.get('request'),audience:query.get('audience')??'host_private'});const {url}=await api('auth/start',target.success?{target:target.data}:{});window.location.assign(url);return;}
     }catch(e){setError(e instanceof Error?e.message:'Please try again.');}finally{setBusy(false);}
   }
   async function signOut(){setBusy(true);setError('');try{await api('auth/logout',{});setHost(null);setNotice('You’re signed out.');setCode('');}catch(e){setError(e instanceof Error?e.message:'Sign-out failed. Try again.');}finally{setBusy(false);}}

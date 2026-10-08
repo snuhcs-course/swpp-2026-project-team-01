@@ -1,3 +1,4 @@
+import {hostLoginStart,hostLoginCookie} from '../../../../lib/host-login-target.ts';
 import {agentOAuthBrowser} from '../../../../lib/agent-oauth-browser.ts';
 import {agentLoginReturnCookie} from '../../../../lib/agent-oauth-protocol.ts';
 import {recoveryBrowser} from '../../../../lib/recovery-browser.ts';
@@ -213,13 +214,16 @@ async function handle(request:NextRequest,{params}:Context) {
       return session.finish(response);
     }
     if(action==='auth/start'&&request.method==='POST') {
-      z.strictObject({}).parse(await readJson(request));
+      const login=hostLoginStart.parse(await readJson(request));
       const {data,error}=await session.client.auth.signInWithOAuth({provider:'google',options:{
         redirectTo:applicationOrigin()+'/auth/callback',skipBrowserRedirect:true,
         scopes:'openid email profile',queryParams:{prompt:'select_account'},
       }});
       if(error||!data.url)throw new ApplicationError('PROVIDER_UNAVAILABLE',503);
-      const response=json({url:data.url});response.cookies.delete(agentLoginReturnCookie());return session.finish(response);
+      const response=json({url:data.url}),secure=applicationOrigin().startsWith('https:');response.cookies.delete(agentLoginReturnCookie());
+      if(login.target)response.cookies.set(hostLoginCookie(secure),JSON.stringify(login.target),{httpOnly:true,secure,sameSite:'lax',path:'/',maxAge:600});
+      else response.cookies.delete(hostLoginCookie(secure));
+      return session.finish(response);
     }
     if(action==='auth/logout'&&request.method==='POST') {
       const {error}=await session.client.auth.signOut({scope:'local'});

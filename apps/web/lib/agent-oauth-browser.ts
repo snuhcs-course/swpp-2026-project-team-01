@@ -1,3 +1,4 @@
+import {hostLoginCookie} from './host-login-target.ts';
 import {NextRequest,NextResponse} from 'next/server';
 import {z} from 'zod';
 import {agentBrowserTarget,agentGrantTarget} from '../../../lib/contracts/agent-oauth.ts';
@@ -34,7 +35,7 @@ export async function agentOAuthBrowser(request:NextRequest,action:string){
    if(!state.scope.startsWith('host:'))throw new AgentOAuthError('invalid_request');
    const {data,error}=await session.client.auth.signInWithOAuth({provider:'google',options:{redirectTo:applicationOrigin()+'/auth/callback',skipBrowserRedirect:true,scopes:'openid email profile',queryParams:{prompt:'select_account'}}});
    if(error||!data.url)throw new ApplicationError('PROVIDER_UNAVAILABLE',503);
-   const response=json({url:data.url});response.cookies.set(agentLoginReturnCookie(),target.authorizationId,{httpOnly:true,secure:applicationOrigin().startsWith('https:'),sameSite:'lax',path:'/',maxAge:600});return response;
+   const response=json({url:data.url});response.cookies.delete(hostLoginCookie(applicationOrigin().startsWith('https:')));response.cookies.set(agentLoginReturnCookie(),target.authorizationId,{httpOnly:true,secure:applicationOrigin().startsWith('https:'),sameSite:'lax',path:'/',maxAge:600});return response;
   }
   if(action==='state'&&request.method==='GET'){
    const view={authorizationId:state.authorizationId,clientName:state.clientName,redirectUri:state.redirectUri,scope:state.scope,expiresAt:state.expiresAt,decision:state.decision};

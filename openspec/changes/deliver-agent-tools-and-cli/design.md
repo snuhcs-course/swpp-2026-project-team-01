@@ -27,6 +27,10 @@ See [proposal](proposal.md). OAuth discovery, consent, ES256 signing and grant e
 - Browser handoffs add interaction → necessary where attribution is unverified; preserve target and version and return to the same workflow.
 - Lost refresh replies revoke recovery ability → reauthorization rather than replay; document the outcome and serialize local refresh.
 
+## Host browser continuation
+
+Agent request handoffs select an authorized request in `/app`. If Google login is needed, the browser submits only a strict UUID/audience target, stored for ten minutes in an HttpOnly, SameSite=Lax cookie (Secure with the `__Host-` prefix on HTTPS). Callback success or cancellation reconstructs the local workspace path and consumes the cookie. Cancellation removes only the error marker so a retry retains the target. Generic return URLs and identity/provider overrides remain rejected. Agent authorization consent uses its existing separate browser-bound return and clears the workspace hint. The target grants no request access, and the workspace reloads current authorization and proposal state.
+
 ## Migration Plan
 
 Commit catalog, transport, domain expansions and CLI in reviewable increments with implementation-plan evidence. Validate local migrations, privileges, negative authorization, protocol/client tests and builds before deploying each activated surface. Inspect the selected Vercel/Supabase targets and migration dry run. Verify deployed challenges, real granted tool calls and revoked denial; roll back the web deployment if protocol exposure fails. Preserve additive migration history and disable new surfaces rather than restoring older authorization behavior. Keep all unrelated release gates open.

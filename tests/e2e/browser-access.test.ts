@@ -59,7 +59,16 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
       const wrong=await browser.newContext();const rejected=await wrong.request.get(callback,{maxRedirects:0});assert.equal(rejected.headers().location,origin+'/app?auth=expired');assert.equal((await wrong.request.get(origin+'/api/browser/host/state')).status(),401);await wrong.close();
       await route.fulfill({status:302,headers:{location:callback}});
     });
+    const reviewTarget={requestId:randomUUID(),audience:'host_private'},reviewPath='/app?request='+reviewTarget.requestId+'&audience=host_private';
+    await page.goto(origin+reviewPath);await page.getByRole('button',{name:'Continue with Google'}).waitFor();
+    // Denial retains the target for a retry without allowing an arbitrary URL.
+    assert.equal((await context.request.post(origin+'/api/browser/auth/start',{headers:{origin},data:{target:reviewTarget}})).status(),200);
+    const returnCookie=(await context.cookies()).find(c=>c.name==='fmat-host-return');assert.equal(returnCookie?.httpOnly,true);assert.equal(returnCookie?.sameSite,'Lax');
+    await page.goto(origin+'/auth/callback?error=access_denied');await page.getByRole('alert').filter({hasText:'Google sign-in wasn’t completed'}).waitFor();
+    assert.equal(new URL(page.url()).pathname+new URL(page.url()).search,reviewPath);assert.equal((await context.cookies()).some(c=>c.name==='fmat-host-return'),false);
     await page.getByRole('button',{name:'Continue with Google'}).click();await page.getByRole('heading',{name:'Your invitation, please.'}).waitFor();
+    assert.equal(new URL(page.url()).pathname+new URL(page.url()).search,reviewPath);assert.equal((await context.cookies()).some(c=>c.name==='fmat-host-return'),false);
+    await page.goto(origin+'/app');await page.getByRole('heading',{name:'Your invitation, please.'}).waitFor();
     await page.unroute(local.API_URL+'/auth/v1/authorize?*');
     assert.equal((await context.request.post(origin+'/api/browser/imessage/continue',{headers:{origin},data:{idempotencyKey:randomUUID()}})).status(),403,'Sign-in alone cannot start private proof');
     const row=await sql.query(`select id from auth.users where email='${email}';`);assert.match(row,/^[a-f0-9-]{36}$/u);userId=row;
