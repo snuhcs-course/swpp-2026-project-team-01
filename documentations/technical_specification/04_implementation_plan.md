@@ -326,6 +326,8 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+- [x] Implement public OAuth discovery/registration/authorization/token/revocation adapters and explicit host/requester consent with safe Google return, same-code response recovery and owner revocation. Verify the 81-migration rebuild, 1,312 SQL assertions, 235 app/provider tests, 29 isolated integration tests, both builds and two browser suites with desktop/mobile visual checks. Authorization tasks 2.1–2.2 are complete; signing-key activation and protected operations remain open. [Evidence](05_rebuild_evidence.md#public-oauth-routes-and-browser-consent--2026-10-08).
+
 - [x] Deploy internal OAuth HTTP/token-service adapters (`a36f571`; deployment `dpl_Gart61evCMuma3uGc2doweq8hL5K`); verify production Ready, retained 73 HTTP guards, eight namespace checks, seven public documents and disabled email ingress. Public OAuth activation remains open. [Evidence](05_rebuild_evidence.md#agent-oauth-http-and-token-service-adapter--2026-10-08).
 
 - [x] Implement bounded OAuth HTTP input/error handling and the internal code/refresh/revocation service. Verify strict streaming deadlines, hashed credentials, current-grant signing checks and committed replay denial through local PostgREST, plus application checks and both builds. Public route integration remains open. [Evidence](05_rebuild_evidence.md#agent-oauth-http-and-token-service-adapter--2026-10-08).

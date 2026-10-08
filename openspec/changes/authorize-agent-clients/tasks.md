@@ -7,8 +7,8 @@
 
 ## 2. Browser and protocol integration
 
-- [ ] 2.1 Reserve protocol route names after checking existing handle conflicts, then wire registration, discovery, JWKS, authorization, token and revocation routes to durable authority. Verify standard form transport, exact resource/client/callback/PKCE binding, strict errors, input budgets and no secret leakage; update API/setup docs.
-- [ ] 2.2 Implement accessible explicit host/requester consent and revocation at `/connect/authorize`, preserving safe Google return and account-free requester binding. Verify grant/deny, wrong browser, lost responses, reload and keyboard/mobile behavior; update UX docs.
+- [x] 2.1 Reserve protocol route names after checking existing handle conflicts, then wire registration, discovery, JWKS, authorization, token and revocation routes to durable authority. Verify standard form transport, exact resource/client/callback/PKCE binding, strict errors, input budgets and no secret leakage; update API/setup docs.
+- [x] 2.2 Implement accessible explicit host/requester consent and revocation at `/connect/authorize`, preserving safe Google return and account-free requester binding. Verify grant/deny, wrong browser, lost responses, reload and keyboard/mobile behavior; update UX docs.
 - [ ] 2.3 Add the internal agent credential adapter with per-operation scopes and current grant/underlying authority rechecks. Verify cross-host/request denial, closed/rotated/revoked access, no secret forwarding and no synthetic meeting approval; document MCP/CLI integration boundaries.
 
 ## 3. Deployment and compatibility

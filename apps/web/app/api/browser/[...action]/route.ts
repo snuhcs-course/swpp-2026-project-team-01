@@ -1,3 +1,5 @@
+import {agentOAuthBrowser} from '../../../../lib/agent-oauth-browser.ts';
+import {agentLoginReturnCookie} from '../../../../lib/agent-oauth-protocol.ts';
 import {recoveryBrowser} from '../../../../lib/recovery-browser.ts';
 import {RequesterEmailLinking} from '../../../../../../lib/server/agentmail/linking.ts';
 import {emailLinkTarget,emailLinkStart,emailLinkRevoke} from '../../../../../../lib/contracts/requester-email.ts';
@@ -48,6 +50,7 @@ async function handle(request:NextRequest,{params}:Context) {
     const action=(await params).action.join('/');
     if(request.method==='POST')requireSameOrigin(request,applicationOrigin());
     const json=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:browserHeaders});
+    if(action.startsWith('agent-oauth/'))return await agentOAuthBrowser(request,action.slice(12));
     if(action.startsWith('recovery/'))return await recoveryBrowser(request,action.slice(9));
     if(action==='waitlist'&&request.method==='POST')return json(await commands.waitlist(await readJson(request)));
     if(action.startsWith('requester-identity/'))return await requesterIdentityBrowser(request,action.slice(19));
@@ -216,7 +219,7 @@ async function handle(request:NextRequest,{params}:Context) {
         scopes:'openid email profile',queryParams:{prompt:'select_account'},
       }});
       if(error||!data.url)throw new ApplicationError('PROVIDER_UNAVAILABLE',503);
-      return session.finish(json({url:data.url}));
+      const response=json({url:data.url});response.cookies.delete(agentLoginReturnCookie());return session.finish(response);
     }
     if(action==='auth/logout'&&request.method==='POST') {
       const {error}=await session.client.auth.signOut({scope:'local'});

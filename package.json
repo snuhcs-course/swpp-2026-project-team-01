@@ -21,7 +21,7 @@
     "test:app": "tsx --test lib/contracts/*.test.ts lib/server/identity/*.test.ts lib/server/email/*.test.ts lib/server/calendar/*.test.ts lib/server/booking/*.test.ts lib/server/scheduling/*.test.ts lib/server/routes/*.test.ts lib/server/photon/*.test.ts apps/web/lib/*.test.ts tests/providers/*.test.ts lib/server/oauth/*.test.ts",
     "test:runtime": "node scripts/smoke-runtime.mjs",
     "verify:model": "node --import tsx --env-file-if-exists=.env scripts/verify-model.mjs",
-    "test:integration": "tsx --test tests/integration/*.test.ts",
+    "test:integration": "tsx --test --test-concurrency=1 tests/integration/*.test.ts",
     "test:conversations": "tsx --test tests/runtime/*.test.ts",
     "test:browser": "tsx --test tests/e2e/*.test.ts",
     "booking:recover": "node --import tsx scripts/booking-recovery.ts",

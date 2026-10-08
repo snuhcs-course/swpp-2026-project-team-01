@@ -51,6 +51,7 @@ export function HostWorkspace() {
       {!host?<button type="button" className="text-button secondary-choice" disabled={busy} onClick={()=>{setWaitlist(!waitlist);setNotice('');setError('');}}>{waitlist?'Already invited? Sign in':'Not invited yet? Join the waitlist'}</button>:null}
     </form>}
     {notice?<p className="notice" role="status">{notice}</p>:null}{error?<p className="error" role="alert">{error}</p>:null}
+    {host?.admitted?<p className="privacy-note"><a href="/connect/authorize">Manage agent permissions</a></p>:null}
     {!host&&!loading?<p className="privacy-note">Requesting a meeting? Use your host’s booking link. You don’t need a host account.</p>:null}
   </Frame>;
 }
@@ -87,7 +88,7 @@ export function BookingWorkspace({requestId}:{requestId:string}) {
     return()=>{active=false;removeEventListener('hashchange',load);};
   },[requestId,reload]);
   const finishRecovery=(message:string)=>{if(recoveryOwner.current!==requestId)return;pendingRecovery.current=null;setRecovery(null);request.current=null;setRecoveryNotice(message);setReload(value=>value+1);pageHeading.current?.focus();};
-  return <Frame aside={<span className="header-note">Your meeting</span>}><p className="eyebrow">One meeting at a time</p><h1 ref={pageHeading} tabIndex={-1}>{loading?'Finding your conversation.':recovery?'Restore your request.':error?'This link is private.':state?.status==='booked'?'A time to connect.':'Your meeting, in progress.'}</h1>
+  return <Frame aside={<span className="header-note">Your meeting</span>}>{state&&!state.closed?<p className="privacy-note"><a href={'/connect/authorize?requestId='+requestId}>Manage agent permissions</a></p>:null}<p className="eyebrow">One meeting at a time</p><h1 ref={pageHeading} tabIndex={-1}>{loading?'Finding your conversation.':recovery?'Restore your request.':error?'This link is private.':state?.status==='booked'?'A time to connect.':'Your meeting, in progress.'}</h1>
     {loading?<p role="status">Checking your private access…</p>:null}{error?<p className="workspace-description" role="alert">{error}</p>:null}
     {recoveryNotice?<p role="status">{recoveryNotice}</p>:null}
     {(recovery||(!loading&&!state&&recoveryStart.shape.requestId.safeParse(requestId).success))?<RequesterRecoveryCard key={requestId+':'+(recovery?.challengeId??'entry')} requestId={requestId} proof={recovery} onRecovered={()=>finishRecovery('Request access restored.')} onDiscard={message=>finishRecovery(message??'Recovery cancelled.')}/>:null}
