@@ -23,6 +23,6 @@ None.
 
 ## Impact
 
-Desired SQL/migrations, service-only verification/delivery operations, browser routes/card, scheduler and tests. Follows [PRD](../../../documentations/02_product_requirements.md), [meeting requests](../../specs/meeting-requests/spec.md) and [email delivery](../../specs/email-delivery/spec.md).
+Desired SQL/migrations, service-only verification/delivery operations, browser routes/card, scheduler and tests. Follows [PRD](../../../../documentations/02_product_requirements.md), [meeting requests](../../../specs/meeting-requests/spec.md) and [email delivery](../../../specs/email-delivery/spec.md).
 
 Credential recovery, optional requester Google identity and AgentMail conversations remain separately tracked obligations in the full implementation plan. Verification proves the current address only; it does not issue account sessions or replacement request credentials. No unresolved product decision is promoted by this change. Operational defaults (six-digit code, ten-minute expiry, five attempts, one-minute resend cooldown and five sends per request per hour) are recorded in design and verified by tests.

@@ -14,4 +14,4 @@
 ## 3. Deployment and evidence
 
 - [x] 3.1 Update product/UX/setup/technical owning documents, deploy reviewed schema/adapters, verify production guards and inspect pending work before scheduler activation.
-- [ ] 3.2 Record controlled live inbox acceptance separately from local fixtures; retain full-plan recovery and requester Google identity obligations and archive only after all required evidence exists.
+- [x] 3.2 Record controlled live inbox acceptance separately from local fixtures; retain full-plan recovery and requester Google identity obligations and archive only after all required evidence exists.
