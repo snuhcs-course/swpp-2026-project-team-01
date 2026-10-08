@@ -2,9 +2,16 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path=public,extensions;
 select no_plan();
+select is((select count(*)::int from cron.job where jobname='fmat-invitation-delivery' and active and schedule='* * * * *' and command='select fmat.wake_invitation_delivery();'),1,'one minute recovery schedule installed');
+select ok(not has_function_privilege('anon','fmat.wake_invitation_delivery()','EXECUTE'),'anonymous cannot wake private scheduler');
+select ok(not has_function_privilege('authenticated','fmat.wake_invitation_delivery()','EXECUTE'),'host sessions cannot wake private scheduler');
+select ok(not has_function_privilege('service_role','fmat.wake_invitation_delivery()','EXECUTE'),'service worker cannot read scheduler secrets');
+select is(fmat.wake_invitation_delivery(),null::bigint,'idle scheduler sends no request');
+
 create temporary table invitation_delivery_fixture(name text primary key,value jsonb);
 insert into invitation_delivery_fixture values('issue',public.fmat_invitation_operator('issue','delivery-sql','{"project":"abcdefghijklmnopqrst","email":"fixture@example.test","tokenHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","delivery":"cloudflare","origin":"https://fixture.example","accountId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","idempotencyKey":"e2000000-0000-4000-8000-000000000001"}'));
 create function pg_temp.item(n text) returns jsonb language sql as $$select value from invitation_delivery_fixture where name=n$$;
+select is(fmat.wake_invitation_delivery(),null::bigint,'unconfigured local scheduler sends no request even with pending invitation');
 insert into invitation_delivery_fixture values('lease',public.fmat_invitation_delivery('claim','{"workerId":"delivery-sql"}','{}')->'job');
 create function pg_temp.call(op text,input jsonb default '{}') returns jsonb language sql as $$select public.fmat_invitation_delivery(op,pg_temp.item('lease'),input)$$;
 select ok(not has_function_privilege('service_role','fmat.require_invitation_delivery_lease(jsonb)','EXECUTE'),'private lease helper is not exposed');
