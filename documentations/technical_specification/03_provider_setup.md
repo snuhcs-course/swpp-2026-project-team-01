@@ -222,3 +222,20 @@ The delivery adapter requires `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOK
 The minute scheduler `fmat-booking-delivery` calls private `fmat.wake_booking_delivery()`. Provision Vault `fmat_booking_delivery_url=https://release.findmeatime.com/api/internal/booking/delivery` only after deploying and verifying the authenticated endpoint and inspecting pending recipients. It reuses `fmat_runtime_dispatch_secret`; never print that secret. Without the delivery URL the scheduler is inert. Verify cron execution and endpoint status separately from actual inbox delivery.
 
 An uncertain message retains its frozen identity and requires investigation; changing a job lease must not resend it. Expired final attempts receive a recovery claim that resolves local status without authorizing another send. A retry exhausted before any dispatch marks the message failed. No delivery recovery operation creates a Calendar event.
+
+## Operator booking recovery
+
+Run `npm run booking:recover -- --help` from the repository. Supply `SUPABASE_URL` and `SUPABASE_SECRET_KEY` through the operator's secure environment; the command does not load local environment files automatically. The service key grants administrative authority. `--operator` is a stable audit label, not a login or permission grant. This command is deliberately absent from browser and agent tools.
+
+```sh
+npm run booking:recover -- --project mriseqztcwmezvtawnbo --operator operator-name --request REQUEST_UUID --action reconcile --key DECISION_UUID
+```
+
+Replace the placeholders with the affected request, operator identity and a fresh UUID for the recovery decision. The project must match the configured Supabase hostname; disposable local fixtures require `--project local`. Preserve the complete command and decision UUID in the incident record. If its response is lost, retry the identical command and key. An `ok` response acknowledges the saved recovery command, including replay; it does not claim the Calendar event is confirmed.
+
+- Use `reconcile` after possible dispatch, unknown outcomes or a mismatching event. The worker looks up the saved Calendar/event identity, verifies its association and payload, and keeps unresolved reservations. Never replace an event because an immediate lookup returns not-found.
+- Use `retry` only for definitive noncreation or exhausted undispatched work. Pending or live jobs reject replacement. The database retains the request's event identity and checks current decisions; the worker repeats feasibility and credential checks before dispatch. A changed or missing agreement/approval requires participant review rather than an operator override.
+- For revoked credentials, the host reconnects the original Google account through `/app`. Consent remains a host action. Reconciliation must use the original provider account and saved calendar/event; changing the destination cannot resolve an uncertain earlier write.
+- If retirement reports `nextAction: review_proposal`, return to the participant review flow. Do not edit approval, attempt, reservation or request rows to force recovery. Confirm success from the protected receipt and verified provider evidence, not the command response.
+
+Recovery does not delete Calendar events, release uncertain reservations or retry confirmation email. Email delivery has its own saved outcome and identity. Local transport fixtures verify scheduling and recovery boundaries; controlled live Calendar recovery remains a separate release gate.

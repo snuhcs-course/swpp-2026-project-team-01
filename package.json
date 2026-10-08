@@ -18,12 +18,13 @@
     "start:web": "next start apps/web",
     "start:eve": "eve start",
     "typecheck": "next typegen apps/web && tsc --noEmit && tsc --noEmit -p apps/web/tsconfig.json",
-    "test:app": "tsx --test lib/contracts/*.test.ts lib/server/identity/*.test.ts lib/server/email/*.test.ts lib/server/calendar/*.test.ts lib/server/scheduling/*.test.ts lib/server/routes/*.test.ts lib/server/photon/*.test.ts apps/web/lib/*.test.ts tests/providers/*.test.ts",
+    "test:app": "tsx --test lib/contracts/*.test.ts lib/server/identity/*.test.ts lib/server/email/*.test.ts lib/server/calendar/*.test.ts lib/server/booking/*.test.ts lib/server/scheduling/*.test.ts lib/server/routes/*.test.ts lib/server/photon/*.test.ts apps/web/lib/*.test.ts tests/providers/*.test.ts",
     "test:runtime": "node scripts/smoke-runtime.mjs",
     "verify:model": "node --import tsx --env-file-if-exists=.env scripts/verify-model.mjs",
     "test:integration": "tsx --test tests/integration/*.test.ts",
     "test:conversations": "tsx --test tests/runtime/*.test.ts",
-    "test:browser": "tsx --test tests/e2e/*.test.ts"
+    "test:browser": "tsx --test tests/e2e/*.test.ts",
+    "booking:recover": "node --import tsx scripts/booking-recovery.ts"
   },
   "type": "module",
   "dependencies": {

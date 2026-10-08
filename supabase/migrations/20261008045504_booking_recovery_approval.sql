@@ -1,10 +1,15 @@
--- Short-lived read attempts, not feasible candidates or human decisions.
-alter table fmat.requests add column availability_check_id uuid;
-alter table fmat.requests add column availability_check_started_at timestamptz;
-alter table fmat.requests add column host_availability_failed boolean not null default false;
+SET local check_function_bodies = off;
 
-create or replace function fmat.evaluate_availability(p_operation text,p_credential jsonb,p_input jsonb,p_booking_lease jsonb)
-returns jsonb language plpgsql set search_path='' as $$
+CREATE OR REPLACE FUNCTION fmat.evaluate_availability (
+  p_operation     text,
+  p_credential    jsonb,
+  p_input         jsonb,
+  p_booking_lease jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
 declare v_job fmat.jobs; v_attempt fmat.booking_attempts; v_reservation uuid; v_actor jsonb; v_request fmat.requests; v_host fmat.hosts;
   v_host_connection fmat.calendar_connections; v_guest_connection fmat.calendar_connections; v_connection fmat.calendar_connections;
   v_basis text; v_travel_basis text; v_bookings jsonb; v_commitments jsonb; v_check uuid;
@@ -233,14 +238,5 @@ begin
   end if;
   raise exception 'FORBIDDEN';
 end;
-$$;
-revoke all on function fmat.evaluate_availability(text,jsonb,jsonb,jsonb) from public,anon,authenticated,service_role;
+$function$;
 
-create or replace function public.fmat_availability_evaluation(p_operation text,p_credential jsonb,p_input jsonb)
-returns jsonb language plpgsql security definer set search_path='' as $$
-begin
-  return fmat.evaluate_availability(p_operation,p_credential,p_input,null);
-end;
-$$;
-revoke all on function public.fmat_availability_evaluation(text,jsonb,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_availability_evaluation(text,jsonb,jsonb) to service_role;

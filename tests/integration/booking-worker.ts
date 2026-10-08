@@ -1,3 +1,4 @@
+import {BookingRecovery} from '../../lib/server/booking/recovery.ts';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {Database} from '../../lib/server/database/client.ts';
@@ -80,6 +81,13 @@ export async function verifyBookingWorker(database:Database,env:NodeJS.ProcessEn
   const recovered=await own(cutoffJob);
   await assert.rejects(database.rpc('fmat_booking_worker',{p_operation:'record',p_lease:recovered,p_input:{outcome:'noncreating',reason:'permission_denied'}}));
   assert.equal(await worker().process(recovered),'uncertain');assert.equal(inserts,6);assert.equal(await reservation(cutoff),'1');
+  // The operator adapter can only schedule lookup for a possibly dispatched write.
+  const recoveryAdapter=new BookingRecovery(database,env),command={project:'local',operator:'worker-recovery-fixture',requestId:cutoff,action:'retry',idempotencyKey:randomUUID()};
+  await assert.rejects(recoveryAdapter.run(command));
+  const reconcile={...command,action:'reconcile',idempotencyKey:randomUUID()};
+  await recoveryAdapter.run(reconcile);await recoveryAdapter.run(reconcile);
+  assert.equal(await sql.query(`select count(*) from fmat.jobs where dedupe_key='operator-reconcile:'||(select id::text from fmat.booking_attempts where request_id='${cutoff}')||':${reconcile.idempotencyKey}';`),'1');
+  assert.equal(await reservation(cutoff),'1');assert.equal(inserts,6);
   // Keep that unresolved reservation: a second request must wait, not steal it.
   const waiting=await createApproved();assert.equal(await worker().process(await own(await job(waiting))),'retry');assert.equal(await phase(waiting),'prepared');assert.equal(await reservation(waiting),'0');assert.equal(inserts,6);
   assert.equal(await sql.query(`select has_function_privilege('anon','public.fmat_booking_worker(text,jsonb,jsonb)','EXECUTE')||','||has_function_privilege('authenticated','public.fmat_booking_worker(text,jsonb,jsonb)','EXECUTE')||','||has_function_privilege('service_role','fmat.wake_booking_worker()','EXECUTE');`),'false,false,false');

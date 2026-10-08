@@ -78,3 +78,10 @@ The private delivery scheduler requires its own Vault URL and the existing dispa
 Retire the earlier blanket prohibition on closing a prepared booking. The request lock is the serialization boundary: closure takes request, host and attempt locks, confirms there is no possible dispatch, blocks prepared work and releases its reservation atomically with the closure record. It deliberately takes no job lock, because dispatch owns the job before waiting for the request. Workers acknowledge blocked attempts without provider access. Host/guest authority is rechecked after waits.
 
 If dispatch wins, closure preserves the saved event identity and reservation and reports pending reconciliation. Missing/inconsistent booking evidence remains conservative. The UI relies on server `canWithdraw`/`canDecline` flags rather than treating every booking status as nonclosable; same-input recovery survives a still-prepared booking response. Deterministic integration races exercise both lock orders and withdrawal during provider reads.
+
+
+## Operator command adapter and approval continuity
+
+The service-key CLI pins an explicit Supabase project and permits only retry/reconcile with an operator audit identity and stable command UUID. Lost responses replay the existing database command; success acknowledges recovery scheduling, not Calendar creation. Host reconnection remains an authenticated consent action. No browser or model tool receives operator authority.
+
+Retry can advance a request revision while retaining the immutable human approval for the unchanged proposal. Final evaluation checks the attempt against the current request revision, the approval decision against its original approved revision, current agreement/approval versions, and current proposal context. It does not require a recovery revision to equal the historical approval revision and does not manufacture a new decision. All normal feasibility and dispatch checks still apply.
