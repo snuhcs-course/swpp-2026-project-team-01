@@ -69,6 +69,15 @@ test('Requester email linking preserves current authority across retries, signed
   const lostDispatchDb=new Database(env,async(url,init)=>{const response=await fetch(url,init);if(response.ok&&!lostDispatch&&JSON.parse(String(init?.body)).p_operation==='dispatch'){lostDispatch=true;throw new Error('lost committed dispatch');}return response;});
   assert.equal((await new RequesterEmailWorker(lostDispatchDb,env,service).run()).outcome,'lease_lost');assert.equal(lostDispatch,true);
   assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where client_id='${lostDispatchMessage.id}';`),'1');assert.equal((await worker.run()).outcome,'idle');
+  const ordered=await request(),orderedLink=await start(ordered),orderedBind=await receipt(orderedLink.linkingText!);assert.equal((await worker.run()).outcome,'linked');
+  const firstOrdered=await receipt('First in thread',orderedBind.thread),secondOrdered=await receipt('Second in thread',orderedBind.thread);
+  const claims=await Promise.all(Array.from({length:8},()=>db.rpc('fmat_requester_email_worker',{p_operation:'claim',p_receiver_id:receiver,p_inbox_id:inbox,p_lease:{workerId:randomUUID()},p_input:{}}))) as {job:{workerId:string;jobId:string;leaseToken:string}|null}[];
+  const only=claims.filter(value=>value.job);assert.equal(only.length,1);
+  assert.equal(await sql.query(`select payload->>'receiptId' from fmat.jobs where id='${only[0].job!.jobId}';`),firstOrdered.id);
+  assert.equal(await worker.process(only[0].job),'accepted');assert.equal((await worker.run()).outcome,'retry','An active runtime turn defers the next message');
+  await sql.query(`update fmat.runtime_messages set status='completed',settled_at=clock_timestamp() where client_id='${firstOrdered.id}';update fmat.jobs set available_at=clock_timestamp() where payload->>'receiptId'='${secondOrdered.id}';`);
+  assert.equal((await worker.run()).outcome,'accepted');
+  assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where client_id in('${firstOrdered.id}','${secondOrdered.id}');`),'2');
   const unverified=await request(false);await assert.rejects(start(unverified),code('CONTACT_NOT_VERIFIED'));
   const r=await request(),key=randomUUID(),starts=await Promise.all(Array.from({length:8},()=>start(r,key))),link=starts[0];
   assert.ok(starts.every(x=>x.linkId===link.linkId&&x.linkingText===link.linkingText));assert.equal(link.status,'pending');assert.ok(link.linkingText);assert.equal(await sql.query(`select count(*) from fmat.requester_email_links where request_id='${r.id}';`),'1');
