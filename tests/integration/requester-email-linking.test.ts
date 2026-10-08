@@ -2,6 +2,8 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {randomBytes,randomUUID,createHash,generateKeyPairSync,sign} from 'node:crypto';
+import {AgentMailReplyTransport} from '../../lib/server/agentmail/reply-transport.ts';
+import {dispatchRequesterEmailReply} from '../../lib/server/agentmail/replies.ts';
 import {RequesterEmailWorker} from '../../lib/server/agentmail/worker.ts';
 import {RequesterEmailLinking} from '../../lib/server/agentmail/linking.ts';
 import {AgentMailMessages} from '../../lib/server/agentmail/messages.ts';
@@ -55,6 +57,38 @@ test('Requester email linking preserves current authority across retries, signed
   assert.equal(await sql.query(`select count(*) from fmat.requester_email_replies where receipt_id='${wm.id}';`),'1');
   await settle('Changed after committed completion');
   assert.equal(await sql.query(`select text from fmat.requester_email_replies where id='${frozen.id}';`),frozen.text);
+  const replyCall=(operation:string,input:unknown={})=>db.rpc('fmat_requester_email_reply_delivery',{p_operation:operation,p_inbox_id:inbox,p_receiver_id:receiver,p_input:input});
+  const replyClaims=await Promise.all(Array.from({length:8},()=>replyCall('claim'))) as {action:string;leaseToken?:string;reply?:{id:string;firstAttemptAt:string}}[];
+  const oneReply=replyClaims.filter(item=>item.action==='send');assert.equal(oneReply.length,1,'Concurrent delivery claims have one owner');
+  const originalLease={replyId:oneReply[0].reply!.id,leaseToken:oneReply[0].leaseToken};
+  // Observe a real authority-lock wait and let the lease expire before release.
+  const replyLocker=new LocalSql();
+  try{
+   await sql.query(`update fmat.requester_email_replies set lease_until=clock_timestamp()+interval '250 milliseconds' where id='${frozen.id}';`);
+   const lockPid=await replyLocker.query(`begin;select pg_backend_pid();select 1 from fmat.requests where id='${wr.id}' for update;`);
+   const blockedAuthorization=assert.rejects(replyCall('authorize',originalLease),code('BOOKING_LEASE_LOST'));
+   let observed=false;
+   for(let n=0;n<100;n++){observed=await sql.query(`select exists(select 1 from pg_stat_activity where ${Number(lockPid.split('\n')[0])}=any(pg_blocking_pids(pid)));`)==='t';if(observed)break;await new Promise(resolve=>setTimeout(resolve,10));}
+   assert.equal(observed,true,'Reply authorization waited for current request authority');
+   await replyLocker.query('select pg_sleep(0.4);commit;');await blockedAuthorization;
+  }finally{await replyLocker.query('rollback;');replyLocker.close();}
+  // Simulate losing the committed claim response, then recover using its first attempt.
+  await sql.query(`update fmat.requester_email_replies set lease_until=clock_timestamp()-interval '1 second',checked_at=clock_timestamp()-interval '31 seconds' where id='${frozen.id}';`);
+  await assert.rejects(replyCall('authorize',originalLease),code('BOOKING_LEASE_LOST'));
+  const sends:{key:string;body:string}[]=[];const acceptedId='<'+randomUUID()+'@example.test>';
+  const transport=new AgentMailReplyTransport(env,async(_url,init)=>{
+   sends.push({key:new Headers(init?.headers).get('Idempotency-Key')!,body:String(init?.body)});
+   if(sends.length===1)throw new Error('provider accepted but response lost');
+   return Response.json({message_id:acceptedId,thread_id:wb.thread});
+  });
+  assert.equal((await dispatchRequesterEmailReply(db,env,transport)).outcome,'uncertain');
+  await sql.query(`update fmat.requester_email_replies set checked_at=clock_timestamp()-interval '31 seconds' where id='${frozen.id}';`);
+  let lostFinish=false;const lostFinishDb=new Database(env,async(url,init)=>{const response=await fetch(url,init);if(response.ok&&!lostFinish&&JSON.parse(String(init?.body)).p_operation==='finish'){lostFinish=true;throw new Error('lost committed reply acceptance');}return response;});
+  assert.equal((await dispatchRequesterEmailReply(lostFinishDb,env,transport)).outcome,'uncertain');assert.equal(lostFinish,true);
+  assert.deepEqual(sends[1],sends[0]);assert.equal(sends[0].key,'fmat-reply-'+frozen.id);assert.equal(JSON.parse(sends[0].body).text,frozen.text);
+  assert.equal((await dispatchRequesterEmailReply(db,env,transport)).outcome,'idle');assert.equal(sends.length,2,'Known acceptance is not sent again after lost finish');
+  const finalReply=JSON.parse(await sql.query(`select json_build_object('status',status,'message',provider_message_id,'firstAttemptAt',first_attempt_at) from fmat.requester_email_replies where id='${frozen.id}';`));
+  assert.equal(finalReply.status,'accepted');assert.equal(finalReply.message,acceptedId);assert.equal(Date.parse(finalReply.firstAttemptAt),Date.parse(oneReply[0].reply!.firstAttemptAt));
   await service.revoke(wr.guest,{requestId:wr.id,linkId:wl.linkId});await assert.rejects(check(),code('UNAUTHORIZED'));
   await assert.rejects(db.rpc('fmat_conversation_tool',{p_grant_id:execution.grant,p_conversation_id:execution.scope,p_operation:'request_read',p_input:{}}),code('UNAUTHORIZED'));
   // Restart after committed preparation must reuse saved evidence and body, never fetch a replacement body.
@@ -65,6 +99,20 @@ test('Requester email linking preserves current authority across retries, signed
   await sql.query(`update fmat.jobs set available_at=clock_timestamp() where payload->>'receiptId'='${restartMessage.id}';`);
   assert.equal((await new RequesterEmailWorker(db,env,{prepare:async()=>{throw new Error('must reuse verified input');}}).run()).outcome,'accepted');
   assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where client_id='${restartMessage.id}';`),'1');
+  // A provider-identity uniqueness wait must not let an expired finisher commit.
+  const restartExecution=JSON.parse(await sql.query(`select json_build_object('id',id,'grant',grant_id,'scope',conversation_id) from fmat.runtime_messages where client_id='${restartMessage.id}';`));
+  for(const operation of ['deliver','settle'])await db.rpc('fmat_runtime_message',{p_operation:operation,p_grant_id:restartExecution.grant,p_conversation_id:restartExecution.scope,p_input:{messageId:restartExecution.id,sessionId:'reply-restart-'+restartExecution.scope,...(operation==='settle'?{status:'completed',reply:'Saved restart response'}:{})}});
+  const collisionClaim=await replyCall('claim') as {leaseToken:string;reply:{id:string;threadId:string}};
+  const collisionLease={replyId:collisionClaim.reply.id,leaseToken:collisionClaim.leaseToken},collisionId='<'+randomUUID()+'@example.test>',collisionLocker=new LocalSql();
+  try{
+   await sql.query(`update fmat.requester_email_replies set lease_until=clock_timestamp()+interval '250 milliseconds' where id='${collisionLease.replyId}';`);
+   const pid=await collisionLocker.query(`begin;update fmat.requester_email_replies set provider_message_id='${collisionId}' where id='${frozen.id}';select pg_backend_pid();`);
+   const blockedFinish=assert.rejects(replyCall('finish',{...collisionLease,status:'accepted',messageId:collisionId,threadId:collisionClaim.reply.threadId}),code('BOOKING_LEASE_LOST'));
+   let observed=false;for(let n=0;n<100;n++){observed=await sql.query(`select exists(select 1 from pg_stat_activity where ${Number(pid)}=any(pg_blocking_pids(pid)));`)==='t';if(observed)break;await new Promise(resolve=>setTimeout(resolve,10));}
+   assert.equal(observed,true,'Finisher waited on provider identity uniqueness');
+   await collisionLocker.query('select pg_sleep(0.4);rollback;');await blockedFinish;
+   assert.equal(await sql.query(`select status from fmat.requester_email_replies where id='${collisionLease.replyId}';`),'uncertain','Expired finish rolled back its apparent acceptance');
+  }finally{await collisionLocker.query('rollback;');collisionLocker.close();}
   // A stale lease cannot bind a message, and the replacement lease can recover it.
   const stale=await request(),staleLink=await start(stale),staleReceipt=await receipt(staleLink.linkingText!);
   const claimed=await db.rpc('fmat_requester_email_worker',{p_operation:'claim',p_receiver_id:receiver,p_inbox_id:inbox,p_lease:{workerId:randomUUID()},p_input:{}}) as {job:{jobId:string;leaseToken:string;workerId:string}};
