@@ -1,3 +1,9 @@
+import {generateKeyPair,exportJWK} from 'jose';
+import {AgentOAuthTokens,type AgentTokenGrant} from '../../lib/server/oauth/tokens.ts';
+import {AgentCredentials} from '../../lib/server/oauth/credentials.ts';
+import {AgentOperations} from '../../lib/server/oauth/operations.ts';
+import {agentMcpHttp} from '../../lib/server/mcp/http.ts';
+import {setupState} from '../../lib/contracts/setup.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
@@ -10,11 +16,12 @@ import {Database} from '../../lib/server/database/client.ts';
 import {verifyHostToken,guestCredential} from '../../lib/server/identity/credentials.ts';
 import {ApplicationError} from '../../lib/server/errors.ts';
 import {LocalSql} from './local-sql.ts';
+const q=(value:string)=>"'"+value.replaceAll("'","''")+"'";
 const code=(value:string)=>(error:unknown)=>error instanceof ApplicationError&&error.code===value;
 test('host setup uses current authority, explicit review, provider permission and idempotent recovery',async()=>{
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
  const env={...process.env,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY,TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64')};
- const headers={apikey:local.SERVICE_ROLE_KEY,authorization:'Bearer '+local.SERVICE_ROLE_KEY,'content-type':'application/json'},sql=new LocalSql(),email=randomUUID()+'@example.test',password=randomUUID()+randomUUID(),invitation=randomUUID();let host='';
+ const headers={apikey:local.SERVICE_ROLE_KEY,authorization:'Bearer '+local.SERVICE_ROLE_KEY,'content-type':'application/json'},sql=new LocalSql(),email=randomUUID()+'@example.test',password=randomUUID()+randomUUID(),invitation=randomUUID(),client=randomUUID(),authorization=randomUUID();let host='';
  const database=new Database(env),cipher=new TokenCipher(env);let role:'owner'|'reader'='owner',reads=0,gate:()=>Promise<void>=async()=>{};
  const calendars=new CalendarSelection(database,env,{async refresh(bundle){return bundle;},async list(){reads++;await gate();return [{id:'mine',name:'Calendar',accessRole:role,primary:true,timeZone:'Asia/Seoul',color:null}];}}),setup=new HostSetup(database,calendars);
  try{
@@ -23,14 +30,36 @@ test('host setup uses current authority, explicit review, provider permission an
   await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invitation}','${email}','${createHash('sha256').update(invitation).digest('hex')}',now()+interval '1 day','setup-test');insert into fmat.hosts(id,email,invitation_id,conflict_calendar_ids,booking_calendar_id) values('${host}','${email}','${invitation}',array['mine'],'mine');`);
   const encrypted=cipher.seal({accessToken:'setup-private',refreshToken:'setup-refresh',subject:'fixture',scopes:[...calendarScopes.host],expiresAt:Date.now()+3600000},'google:host:'+host);
   await sql.query(`insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential) values('host','${host}','fixture',array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],'${encrypted}');`);
-  const initial=await setup.read(credential);assert.equal(initial.revision,0);assert.ok(!JSON.stringify(initial).includes('setup-private'));
+  const origin='https://release.findmeatime.com',resource=origin+'/mcp',binding='a'.repeat(64);
+  await sql.query(`insert into fmat.oauth_clients(id,name,redirect_uris,resource) values('${client}','Setup workflow fixture',array['https://client.example/cb'],'${resource}');
+    insert into fmat.oauth_authorizations(id,client_id,resource,redirect_uri,scope,code_challenge,state,browser_hash,created_at,expires_at) values('${authorization}','${client}','${resource}','https://client.example/cb','host:read host:write','${createHash('sha256').update('A'.repeat(43)).digest('base64url')}','state','${binding}',now(),now()+interval '10 minutes');
+    select public.fmat_oauth_consent('${authorization}','${binding}',${q(JSON.stringify(credential))}::jsonb,'grant','${createHash('sha256').update(randomUUID()).digest('hex')}');`);
+  const grant=JSON.parse(await sql.query(`select fmat.oauth_grant_projection(g) from fmat.oauth_grants g where authorization_id='${authorization}';`)) as AgentTokenGrant;
+  const pair=await generateKeyPair('ES256',{extractable:true}),agentEnv={...env,APP_ORIGIN:origin,AGENT_OAUTH_SIGNING_JWK:JSON.stringify({...await exportJWK(pair.privateKey),kid:'setup-workflow'})};
+  const access=await new AgentOAuthTokens(agentEnv).issue(grant,async()=>{}),mcp=agentMcpHttp(agentEnv,new AgentCredentials(agentEnv,database),new AgentOperations(database));
+  const invoke=(name:string,args:unknown={input:{}})=>mcp(new Request(resource,{method:'POST',headers:{authorization:'Bearer '+access,'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}})}));
+  async function tool(name:string,args:unknown={input:{}}){const response=await invoke(name,args);assert.equal(response.status,200);const body=await response.json();assert.equal(body.result?.isError,undefined,JSON.stringify(body));assert.ok(body.result?.structuredContent);assert.ok(!JSON.stringify(body).includes('setup-private'));assert.ok(!JSON.stringify(body).includes('setup-refresh'));return body.result.structuredContent.result;}
+  async function toolError(input:unknown,idempotencyKey:string,expected:string){const response=await invoke('fmat_draft_setup',{input,idempotencyKey});assert.equal(response.status,200);const body=await response.json();assert.equal(body.result.isError,true);assert.equal(JSON.parse(body.result.content[0].text).error.code,expected);}
+  const agentDraft=async(input:Parameters<HostSetup['draft']>[1])=>{const {idempotencyKey,...fields}=input as {idempotencyKey:string;[key:string]:unknown};return setupState.parse(await tool('fmat_draft_setup',{input:fields,idempotencyKey}));};
+  assert.equal((await tool('fmat_review_setup')).path,'/app');
+  const initial=await setup.read(credential);assert.equal(initial.revision,0);assert.deepEqual(setupState.parse(await tool('fmat_get_setup')),initial);assert.ok(!JSON.stringify(initial).includes('setup-private'));
   await assert.rejects(setup.read(guestCredential(randomUUID(),randomBytes(32).toString('base64url'))),code('FORBIDDEN'));
   const draft={expectedRevision:0,idempotencyKey:randomUUID(),patch:{displayName:'Fixture',handle:'fixture-'+host.slice(0,8),rules:{timezone:'Asia/Seoul',durationMinutes:30,availability:[{days:[1,2,3,4,5],start:'13:00',end:'17:00'}],focusBlocks:[],bufferMinutes:10,preferences:'',meetingMode:'online' as const}},unresolved:[]};
-  let state=await setup.draft(credential,draft);assert.ok(state.review);assert.equal(state.confirmed.handle,null);assert.equal((await setup.draft(credential,draft)).revision,1);
+  let state=await agentDraft(draft);assert.equal(state.review,null,'An agent suggestion cannot supply the host meeting-mode choice');assert.equal(state.confirmed.handle,null);assert.equal((await agentDraft(draft)).revision,1);
+  await toolError({expectedRevision:0,patch:{displayName:'Changed retry'},unresolved:[]},draft.idempotencyKey,'IDEMPOTENCY_CONFLICT');
+  assert.ok(state.draft?.unresolved.includes('Choose online, in-person or either.'));
+  assert.equal((await tool('fmat_review_setup')).requiresBrowser,true);
+  state=await setup.draft(credential,{expectedRevision:state.revision,patch:{rules:{meetingMode:'online'}},unresolved:[],idempotencyKey:randomUUID()});assert.ok(state.review);
+  assert.deepEqual(setupState.parse(await tool('fmat_get_setup')),state);
+  const forged=await invoke('fmat_draft_setup',{input:{expectedRevision:state.revision,patch:{displayName:'Forged'},unresolved:[],confirmed:true},idempotencyKey:randomUUID()});assert.equal((await forged.json()).result.isError,true);assert.deepEqual(await setup.read(credential),state);
   const confirmation=()=>({expectedRevision:state.revision,draftRevision:state.review!.draftRevision,reviewRevision:state.review!.revision,rulesVersion:state.rulesVersion,calendarGeneration:state.calendarGeneration!,confirmed:true as const,idempotencyKey:randomUUID()});
+  await toolError({expectedRevision:state.revision,patch:{rules:{meetingMode:'in_person'}},unresolved:[]},randomUUID(),'EXPLICIT_CHOICE_CONFLICT');
+  assert.deepEqual(await setup.read(credential),state);
   const staleConfirmation=confirmation();
   await sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${host}';`);
   assert.equal((await setup.read(credential)).nextAction,'refresh_draft');
+  assert.equal((await tool('fmat_get_setup')).nextAction,'refresh_draft');
+  await toolError({expectedRevision:state.revision,patch:{displayName:'Stale agent'},unresolved:[]},randomUUID(),'STALE_REVISION');
   await assert.rejects(setup.draft(credential,{expectedRevision:state.revision,patch:{displayName:'Keep my answers'},unresolved:[],idempotencyKey:randomUUID()}),code('STALE_REVISION'));
   await assert.rejects(setup.rebase(credential,{expectedRevision:state.revision,rulesVersion:state.rulesVersion,idempotencyKey:randomUUID()}),code('STALE_REVISION'));
   const latest=await setup.read(credential),refresh={expectedRevision:latest.revision,rulesVersion:latest.rulesVersion,idempotencyKey:randomUUID()};
@@ -40,15 +69,15 @@ test('host setup uses current authority, explicit review, provider permission an
   role='reader';await assert.rejects(setup.confirm(credential,confirmation()),code('CALENDAR_ACCESS_INVALID'));role='owner';
   let release!:()=>void,entered!:()=>void;const arrived=new Promise<void>(r=>entered=r),wait=new Promise<void>(r=>release=r);gate=async()=>{entered();await wait;};
   const pending=setup.confirm(credential,confirmation()),rejected=assert.rejects(pending,code('STALE_REVISION'));await arrived;
-  state=await setup.draft(credential,{expectedRevision:state.revision,patch:{rules:{durationMinutes:45}},unresolved:[],idempotencyKey:randomUUID()});release();await rejected;gate=async()=>{};
-  const confirm=confirmation(),saved=await setup.confirm(credential,confirm);assert.equal(saved.confirmed.rules?.durationMinutes,45);assert.equal(saved.nextAction,'settings_confirmed');
+  state=await agentDraft({expectedRevision:state.revision,patch:{rules:{durationMinutes:45}},unresolved:[],idempotencyKey:randomUUID()});release();await rejected;gate=async()=>{};
+  const confirm=confirmation(),saved=await setup.confirm(credential,confirm);assert.equal(saved.confirmed.rules?.durationMinutes,45);assert.equal(saved.nextAction,'settings_confirmed');assert.deepEqual(setupState.parse(await tool('fmat_get_setup')),saved);
   const before=reads;assert.equal((await setup.confirm(credential,confirm)).rulesVersion,saved.rulesVersion);assert.equal(reads,before,'confirmed retry requires current Auth but no second provider dispatch');
   assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where host_id='${host}';`),'0');
   const skip={expectedRevision:saved.revision,choice:'skip_analysis',idempotencyKey:randomUUID()};
   const progressed=await setup.progress(credential,skip);assert.equal(progressed.progress.analysisDecided,true);assert.deepEqual(progressed.confirmed,saved.confirmed);assert.equal((await setup.progress(credential,skip)).revision,progressed.revision);
   const dismissed=await setup.progress(credential,{expectedRevision:progressed.revision,choice:'dismiss_schedule',idempotencyKey:randomUUID()});assert.deepEqual(dismissed.progress.dismissedSuggestions,['schedule']);assert.deepEqual((await setup.read(credential)).progress,dismissed.progress);
-  const logout=await fetch(local.API_URL+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+token}});assert.equal(logout.status,204);await assert.rejects(setup.read(credential),code('UNAUTHORIZED'));await assert.rejects(setup.confirm(credential,confirm),code('UNAUTHORIZED'));
+  const logout=await fetch(local.API_URL+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+token}});assert.equal(logout.status,204);await assert.rejects(setup.read(credential),code('UNAUTHORIZED'));await assert.rejects(setup.confirm(credential,confirm),code('UNAUTHORIZED'));assert.equal((await invoke('fmat_get_setup')).status,401);
  }finally{
-  if(host){await sql.query(`delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.audit_events where subject_id='${host}';delete from fmat.calendar_connections where principal_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);}await sql.close();
+  if(host){await sql.query(`delete from fmat.oauth_refresh_tokens where grant_id in(select id from fmat.oauth_grants where client_id='${client}');delete from fmat.oauth_codes where grant_id in(select id from fmat.oauth_grants where client_id='${client}');delete from fmat.oauth_grants where client_id='${client}';delete from fmat.oauth_authorizations where client_id='${client}';delete from fmat.oauth_clients where id='${client}';delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.audit_events where subject_id='${host}';delete from fmat.calendar_connections where principal_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);}await sql.close();
  }
 });
