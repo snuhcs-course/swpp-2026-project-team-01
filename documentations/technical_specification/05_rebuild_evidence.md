@@ -1174,3 +1174,11 @@ The controlled fixture used a temporary Auth user/admitted host and request to i
 All 14 activated OAuth/browser protocol guards and 72 existing HTTP regression cases pass, plus the separate invalid requester-identity callback assertion. `/mcp` and bare `/oauth` remain 404; `releaseReady` remains false. The bounded authorization change is complete (6/6), synced to `agent-client-authorization` and archived. Public MCP/CLI tools, seven named clients, live host Google identity/Calendar and actual iPhone/iMessage acceptance remain distinct open gates.
 
 CI at source `239fb9e`: application run `37789289986` passed; database/browser run `37789298836` failed at `tests/e2e/private-review.ts:28` because the preferences checkbox click did not change its state. Its OAuth browser test passed. This broader private-review regression remains open; the live OAuth result does not resolve it.
+
+# Private-review CI failure diagnostics — 2026-10-08
+
+The failed CI artifact from `37789298836` contained no forms because the private-review fixture restored host rules before the outer failure handler captured controls. A normal local browser run passed; a temporary four-times CPU-throttled probe also passed 20 checkbox check/uncheck cycles. These passes do not establish a fix for the intermittent CI failure.
+
+The browser test now captures at most 100 pointer/focus/checked-state events, original-control geometry and attachment, current choice states, reason lengths and busy state immediately when the existing confirmation assertion fails. CI retains `.local/rebuild/private-checkbox-trace.json` with its other synthetic failure artifacts. No credentials, URLs, request IDs or entered text are included, and listeners are removed afterward. Original assertions still fail normally. Product behavior is unchanged; no production redeployment is required for this test/CI-only diagnostic step.
+
+The final instrumented browser journey, TypeScript checks and documentation-link checks pass locally. The checkbox cause and the broader release gate remain unresolved pending failure evidence from CI.

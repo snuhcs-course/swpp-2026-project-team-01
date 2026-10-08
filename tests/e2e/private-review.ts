@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {writeFile} from 'node:fs/promises';
 import {expect,type Page} from '@playwright/test';
 import {instantToLocalTime} from '../../lib/contracts/time.ts';
 import type {LocalSql} from '../integration/local-sql.ts';
@@ -25,7 +26,30 @@ export async function verifyPrivateReview(page:Page,guest:Page,sql:LocalSql,requ
   await check();
   const form=review.getByRole('form',{name:'Additional preferences decision'}),confirm=form.getByRole('button',{name:'Confirm preference and recheck'});
   await form.getByRole('radio',{name:'This time satisfies it'}).check();await form.getByLabel('Private reason',{exact:true}).fill('Private reason that must not reach the requester');assert.equal(await confirm.isDisabled(),true);
-  await form.getByRole('checkbox').check();await expect(confirm).toBeEnabled();assert.ok(await confirm.evaluate(e=>e.getBoundingClientRect().height>=44));
+  // Preserve evidence before this fixture's finally block invalidates its
+  // rules. No request IDs, cookies, URLs or entered text enter this trace.
+  // Keep this injected function as plain JavaScript so tsx's function-name
+  // helper does not become an undefined closure in the browser context.
+  await page.evaluate(`(()=>{
+   const element=document.querySelector('[aria-label="Additional preferences decision"] [role="checkbox"]');
+   if(!element)throw new Error('Missing diagnostic checkbox');
+   const trace=[];
+   const state=()=>{const rect=element.getBoundingClientRect();return {checked:element.getAttribute('aria-checked'),disabled:element.matches(':disabled'),connected:element.isConnected,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},at:performance.now()};};
+   const listen=(event)=>{if(trace.length>=100)return;const target=event.target;trace.push({event:event.type,target:target.tagName,role:target.getAttribute?.('role')??null,same:target===element,...(event instanceof MouseEvent?{x:event.clientX,y:event.clientY}:{}),...state()});};
+   const names=['pointerdown','pointerup','click','focus','blur'];for(const name of names)document.addEventListener(name,listen,true);
+   const observer=new MutationObserver(()=>{if(trace.length<100)trace.push({event:'mutation',...state()});});observer.observe(element,{attributes:true});
+   window.privateCheckboxDiagnostic={trace,state,stop:()=>{observer.disconnect();for(const name of names)document.removeEventListener(name,listen,true);}};
+  })()`);
+  try{await form.getByRole('checkbox').check();await expect(confirm).toBeEnabled();}
+  catch(error){
+   const diagnostic=await page.evaluate(()=>{
+    const probe=(window as unknown as {privateCheckboxDiagnostic:{trace:unknown[];state:()=>unknown}}).privateCheckboxDiagnostic;
+    const region=document.querySelector('[aria-label="Private scheduling review"]');
+    return {events:probe?.trace??[],original:probe?.state()??null,busy:region?.getAttribute('aria-busy'),forms:Array.from(region?.querySelectorAll('form')??[]).map(form=>({name:form.getAttribute('aria-label'),choices:Array.from(form.querySelectorAll('[role="radio"],[role="checkbox"]')).map(e=>({role:e.getAttribute('role'),checked:e.getAttribute('aria-checked'),disabled:e.matches(':disabled')})),reasonLengths:Array.from(form.querySelectorAll('textarea')).map(e=>e.value.length)}))};
+   });
+   await writeFile('.local/rebuild/private-checkbox-trace.json',JSON.stringify(diagnostic,null,2));throw error;
+  }finally{await page.evaluate(()=>(window as unknown as {privateCheckboxDiagnostic:{stop:()=>void}}).privateCheckboxDiagnostic?.stop()).catch(()=>{});}
+  assert.ok(await confirm.evaluate(e=>e.getBoundingClientRect().height>=44));
   await form.getByRole('checkbox').focus();await expect(form.getByRole('checkbox')).toBeFocused();await page.keyboard.press('Tab');await expect(confirm).toBeFocused();
   await visual('preference');
   let lost=false;await page.route('**/api/browser/scheduling/preferences/confirm',async route=>{if(lost)return route.continue();lost=true;const response=await route.fetch();assert.equal(response.status(),200);await route.abort('failed');});

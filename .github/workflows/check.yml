@@ -59,4 +59,5 @@ jobs:
           retention-days: 7
           path: |
             .local/rebuild/browser-control-failure.json
+            .local/rebuild/private-checkbox-trace.json
             .local/rebuild/browser-screenshots/last-state.png

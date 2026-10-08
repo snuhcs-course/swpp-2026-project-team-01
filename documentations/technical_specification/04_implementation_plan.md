@@ -373,6 +373,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Add bounded, sanitized private-review interaction evidence captured before fixture cleanup and retained by CI. The normal local browser run and a temporary four-times CPU-throttled 20-cycle checkbox probe passed; the intermittent CI checkbox failure remains unresolved.
+
 Work:
 
 - [ ] Select/document concrete rate limits, model-turn/spend caps, timeouts, retention/deletion, backup/restore policy, operational ownership and performance targets. Resolve remaining release decisions below before claiming readiness.
