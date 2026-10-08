@@ -51,6 +51,27 @@ select pg_temp.prepare(1,'guest','request:decide request:read request:write');se
 select pg_temp.prepare(2,'guest');select pg_temp.consent(2);
 select pg_temp.prepare(3,'host1','host:decide host:read host:write');select pg_temp.consent(3);
 select pg_temp.prepare(4,'host2','host:read');select pg_temp.consent(4);
+-- Internal transcript resolver: no browser credentials or execution grants minted.
+insert into fmat.conversation_scopes(host_id,request_id,audience,runtime_session_id)
+select 'a1000000-0000-4000-8000-000000000001',request_id,'request_shared','agent-shared-history' from fixture where n=1;
+insert into fmat.conversation_scopes(host_id,request_id,audience,runtime_session_id)
+select 'a1000000-0000-4000-8000-000000000001',request_id,'host_private','agent-private-history' from fixture where n=1;
+insert into fmat.conversation_scopes(host_id,audience,runtime_session_id) values('a1000000-0000-4000-8000-000000000001','host_setup','agent-setup-history');
+select is(pg_temp.op(1,'conversation_resolve',(select request_id from fixture where n=1),'{"audience":"request_shared"}')->>'sessionId','agent-shared-history','guest resolves only authorized shared runtime');
+select is(pg_temp.op(3,'conversation_resolve',null,'{"audience":"host_setup"}')->>'sessionId','agent-setup-history','host resolves setup runtime');
+select is(pg_temp.op(3,'conversation_resolve',(select request_id from fixture where n=1),'{"audience":"host_private"}')->>'sessionId','agent-private-history','host resolves private runtime');
+select throws_ok($$select pg_temp.op(1,'conversation_resolve',(select request_id from fixture where n=1),'{"audience":"host_private"}')$$,'P0001','FORBIDDEN','guest denied private audience');
+select throws_ok($$select pg_temp.op(1,'conversation_resolve',null,'{"audience":"host_setup"}')$$,'P0001','FORBIDDEN','guest denied setup audience');
+select throws_ok($$select pg_temp.op(2,'conversation_resolve',(select request_id from fixture where n=1),'{"audience":"request_shared"}')$$,'P0001','FORBIDDEN','foreign guest denied shared runtime');
+select throws_ok($$select pg_temp.op(4,'conversation_resolve',(select request_id from fixture where n=1),'{"audience":"request_shared"}')$$,'P0001','FORBIDDEN','foreign host denied shared runtime');
+select throws_ok($$select pg_temp.op(3,'conversation_resolve',null,'{"audience":"host_setup","sessionId":"forged"}')$$,'P0001','INVALID_INPUT','caller cannot choose runtime binding');
+select is(pg_temp.op(3,'conversation_resolve',null,'{"audience":"host_setup"}',null,'host:write')->>'error','invalid_scope','write scope cannot read transcript');
+select is(pg_temp.op(2,'conversation_resolve',(select request_id from fixture where n=2),'{"audience":"request_shared"}'),' {"conversationId":null,"sessionId":null}'::jsonb,'absent conversation stays absent without creating a scope');
+update fmat.conversation_scopes set revoked_at=now() where runtime_session_id='agent-private-history';
+select throws_ok($$select pg_temp.op(3,'conversation_resolve',(select request_id from fixture where n=1),'{"audience":"host_private"}')$$,'P0001','NOT_FOUND','revoked conversation binding cannot be resolved');
+update fmat.requests set status='withdrawn' where id=(select request_id from fixture where n=2);
+select throws_ok($$select pg_temp.op(3,'conversation_resolve',(select request_id from fixture where n=2),'{"audience":"request_shared"}')$$,'P0001','REQUEST_CLOSED','closed request offers no transcript resolution');
+update fmat.requests set status='negotiating' where id=(select request_id from fixture where n=2);
 select ok(not has_function_privilege(r,'fmat.host_request_page(uuid,jsonb)','execute'),r||' denied private list helper') from unnest(array['anon','authenticated','service_role']) r;
 select throws_ok($$select pg_temp.op(1,'requests_list')$$,'P0001','FORBIDDEN','requester cannot list host requests');
 select is(pg_temp.op(3,'requests_list',null,'{}',null,'host:write')->>'error','invalid_scope','write does not grant host discovery');

@@ -8,6 +8,7 @@ import {generateKeyPair,exportJWK} from 'jose';
 import {Database} from '../../lib/server/database/client.ts';
 import {AgentCredentials} from '../../lib/server/oauth/credentials.ts';
 import {AgentOAuthTokens,type AgentTokenGrant} from '../../lib/server/oauth/tokens.ts';
+import {AgentConversations} from '../../lib/server/oauth/conversations.ts';
 import {AgentOperations} from '../../lib/server/oauth/operations.ts';
 import {LocalSql} from './local-sql.ts';
 const q=(v:string)=>`'${v.replaceAll("'","''")}'`;
@@ -36,6 +37,7 @@ test('agent operations recheck revocation and expiry under domain and downstream
  try{
   await db.query(`insert into auth.users(id,email,email_confirmed_at) values(${q(host)},'oauth-concurrent@example.test',now());insert into auth.sessions(id,user_id) values(${q(session)},${q(host)});insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values(${q(invitation)},'oauth-concurrent@example.test',${q(hash(invitation))},now()+interval '1 day','oauth-concurrency');insert into fmat.hosts(id,email,invitation_id) values(${q(host)},'oauth-concurrent@example.test',${q(invitation)});insert into fmat.oauth_clients(id,name,redirect_uris,resource) values(${q(client)},'OAuth grant fixture',array[${q(redirect)}],${q(resource)});`);
   await wait.query(`set application_name=${q(waitName)};`);
+  await wait.query(`create function pg_temp.operation_error(sql text) returns text language plpgsql as $$begin execute sql;return 'NO_ERROR';exception when others then return SQLERRM;end$$;`);
   const hostGrant=await fixture('host'),guest=await fixture();
   const op=(f:Fixture,operation:string,request:string|null=f.request,input:unknown={},key:string|null=null,expiry=Math.floor(Date.now()/1000)+300)=>`select public.fmat_agent_operation(${q(f.grant)},${q(client)},${q(resource)},${q(f.request?'guest':'host')},${q(f.request??host)},${q(f.request?'request:read request:write':'host:read host:write')},${expiry},${q(operation)},${request?q(request):'null'},${q(JSON.stringify(input))}::jsonb,${key?q(key):'null'});`;
   assert.equal(parse(await db.query(op(guest,'request_read'))).id,guest.request);
@@ -67,6 +69,24 @@ test('agent operations recheck revocation and expiry under domain and downstream
   let listPending=wait.query(op(expiredList,'requests_list',null,{},null,Math.floor(Date.now()/1000)+2));
   await blocked(db,waitName);await lock.query('select pg_sleep(2.1);commit;');
   assert.equal(parse(await listPending).error,'invalid_token','list expiry after grant lock wait returns no summaries');
+  const historyId=randomUUID();
+  await db.query(`insert into fmat.conversation_scopes(id,host_id,request_id,audience,runtime_session_id) values(${q(historyId)},${q(host)},${q(guest.request!)},'request_shared','internal-history-fixture');`);
+  const histories=new AgentConversations(database);
+  assert.deepEqual(await histories.resolve(credential,{audience:'request_shared',requestId:guest.request}),{conversationId:historyId,sessionId:'internal-history-fixture'});
+  // The final authority check must cover waiting on the runtime binding lock.
+  await lock.query(`begin;select 1 from fmat.conversation_scopes where id=${q(historyId)} for update;`);
+  let historyPending=wait.query(op(guest,'conversation_resolve',guest.request,{audience:'request_shared'},null,Math.floor(Date.now()/1000)+2));
+  await blocked(db,waitName);await lock.query('select pg_sleep(2.1);commit;');
+  assert.equal(parse(await historyPending).error,'invalid_token','history binding wait cannot return an expired credential result');
+  await db.query(`update fmat.requests set expires_at=clock_timestamp()+interval '2 seconds' where id=${q(guest.request!)};`);
+  await lock.query(`begin;select 1 from fmat.conversation_scopes where id=${q(historyId)} for update;`);
+  historyPending=wait.query(`select pg_temp.operation_error(${q(op(hostGrant,'conversation_resolve',guest.request,{audience:'request_shared'}))});`);
+  await blocked(db,waitName);await lock.query('select pg_sleep(2.1);commit;');assert.equal(await historyPending,'REQUEST_CLOSED');
+  await db.query(`update fmat.requests set expires_at=clock_timestamp()+interval '1 day' where id=${q(guest.request!)};`);
+  await lock.query(`begin;update fmat.conversation_scopes set revoked_at=clock_timestamp() where id=${q(historyId)};`);
+  historyPending=wait.query(`select pg_temp.operation_error(${q(op(guest,'conversation_resolve',guest.request,{audience:'request_shared'}))});`);
+  await blocked(db,waitName);await lock.query('commit;');assert.equal(await historyPending,'NOT_FOUND');
+  await assert.rejects(histories.resolve(credential,{audience:'request_shared',requestId:guest.request}));
   // Contended request read must observe rotation committed before its lock.
   await lock.query(`begin;update fmat.requests set token_hash=${q(hash(randomUUID()))} where id=${q(guest.request!)};`);
   let pending=wait.query(op(guest,'request_read'));await blocked(db,waitName);await lock.query('commit;');
@@ -107,7 +127,7 @@ test('agent operations recheck revocation and expiry under domain and downstream
 
  }finally{
   await lock.query('rollback;').catch(()=>{});
-  await db.query(`delete from fmat.oauth_refresh_tokens where grant_id in(select id from fmat.oauth_grants where client_id=${q(client)});delete from fmat.oauth_codes where grant_id in(select id from fmat.oauth_grants where client_id=${q(client)});delete from fmat.oauth_grants where client_id=${q(client)};delete from fmat.oauth_authorizations where client_id=${q(client)};delete from fmat.oauth_clients where id=${q(client)};delete from fmat.setup_reviews where conversation_id in(select id from fmat.setup_conversations where host_id=${q(host)});delete from fmat.setup_drafts where conversation_id in(select id from fmat.setup_conversations where host_id=${q(host)});delete from fmat.setup_conversations where host_id=${q(host)};delete from fmat.requests where host_id=${q(host)};delete from fmat.hosts where id=${q(host)};delete from fmat.invitations where id=${q(invitation)};delete from auth.users where id=${q(host)};`);
+  await db.query(`delete from fmat.oauth_refresh_tokens where grant_id in(select id from fmat.oauth_grants where client_id=${q(client)});delete from fmat.oauth_codes where grant_id in(select id from fmat.oauth_grants where client_id=${q(client)});delete from fmat.oauth_grants where client_id=${q(client)};delete from fmat.oauth_authorizations where client_id=${q(client)};delete from fmat.oauth_clients where id=${q(client)};delete from fmat.setup_reviews where conversation_id in(select id from fmat.setup_conversations where host_id=${q(host)});delete from fmat.setup_drafts where conversation_id in(select id from fmat.setup_conversations where host_id=${q(host)});delete from fmat.setup_conversations where host_id=${q(host)};delete from fmat.conversation_scopes where host_id=${q(host)};delete from fmat.requests where host_id=${q(host)};delete from fmat.hosts where id=${q(host)};delete from fmat.invitations where id=${q(invitation)};delete from auth.users where id=${q(host)};`);
   for(const connection of [db,lock,wait,...peers])connection.close();
  }
 });

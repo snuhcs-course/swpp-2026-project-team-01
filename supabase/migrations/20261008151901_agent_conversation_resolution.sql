@@ -1,10 +1,23 @@
--- Only verified access claims from the internal agent adapter may call this
--- service-only boundary. Scope/authority remain transactional, not JWT-only.
-create or replace function public.fmat_agent_operation(
- p_grant_id uuid,p_client_id uuid,p_resource text,p_actor_kind text,p_actor_id uuid,
- p_scope text,p_token_expires_at bigint,p_operation text,p_request_id uuid,
- p_input jsonb,p_idempotency_key uuid default null
-) returns jsonb language plpgsql security definer set search_path='' as $$
+SET local check_function_bodies = off;
+
+CREATE OR REPLACE FUNCTION public.fmat_agent_operation (
+  p_grant_id         uuid,
+  p_client_id        uuid,
+  p_resource         text,
+  p_actor_kind       text,
+  p_actor_id         uuid,
+  p_scope            text,
+  p_token_expires_at bigint,
+  p_operation        text,
+  p_request_id       uuid,
+  p_input            jsonb,
+  p_idempotency_key  uuid   DEFAULT NULL::uuid
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare v_grant fmat.oauth_grants; v_request fmat.requests; v_actor jsonb; v_input jsonb; v_result jsonb; v_scope text; v_write boolean; v_conversation fmat.conversation_scopes;
 begin
  if p_operation is null or p_operation not in ('setup_read','setup_analysis_read','setup_draft','request_read','private_note_save','details_propose','decision_review','requests_list','conversation_resolve') then raise exception 'FORBIDDEN';end if;
@@ -105,6 +118,5 @@ begin
   return '{"error":"invalid_token"}';
  end;
  return v_result;
-end$$;
-revoke all on function public.fmat_agent_operation(uuid,uuid,text,text,uuid,text,bigint,text,uuid,jsonb,uuid) from public,anon,authenticated;
-grant execute on function public.fmat_agent_operation(uuid,uuid,text,text,uuid,text,bigint,text,uuid,jsonb,uuid) to service_role;
+end$function$;
+

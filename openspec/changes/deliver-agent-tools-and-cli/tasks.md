@@ -8,7 +8,7 @@
 
 ## 2. Complete scheduling coverage
 
-Host request discovery is implemented as an increment of task 2.1; the task stays open until audience-safe conversation reads are also verified.
+Host request discovery is implemented as an increment of task 2.1. The bounded history reader and internal audience resolver are being verified before mounting the runtime route; the task stays open until audience-safe conversation reads are also verified.
 
 - [ ] 2.1 Add bounded host request discovery and audience-safe conversation reads through the transactional boundary; verify pagination, cursor ownership, cross-host/request denial and revocation races, with schema/migration and tool documentation.
 - [ ] 2.2 Add requester availability and negotiation operations using existing domain version/retry semantics; verify stale and conflicting mutations, requester isolation and equivalent browser outcomes, and document each tool's authority.
