@@ -9,5 +9,5 @@
 ## 2. Delivery integration
 
 - [x] 2.1 Connect the existing transport through a typed worker, secret-protected route and scheduler. Verify exact-payload restart recovery, no send on denied authority, HTTP guards and provider tests; update provider setup instructions.
-- [ ] 2.2 Rebuild the full local migration chain, run relevant regressions and both builds, deploy reviewed migration/code, and verify production receiver fencing and private HTTP boundaries. Record dated evidence and implementation-plan checkboxes.
+- [x] 2.2 Rebuild the full local migration chain, run relevant regressions and both builds, deploy reviewed migration/code, and verify production receiver fencing and private HTTP boundaries. Record dated evidence and implementation-plan checkboxes.
 - [ ] 2.3 Verify controlled live same-thread reply and outgoing-parent continuation, including uncertain acknowledgment and revocation cases; record provider acceptance separately from actual recipient delivery, then sync/archive only verified requirements.

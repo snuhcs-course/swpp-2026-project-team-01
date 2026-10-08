@@ -258,6 +258,8 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 
 ### Phase 6 — Add requester email continuity
 
+- [x] Deploy accepted outgoing-parent continuation (`9f84641`; deployment `dpl_CAvyjbDtux1U1kD5yx2uvqP6CTwJ`); verify remote admission/execution, uncertainty and revocation denial, zero probe residue, clean advisors and 73 production HTTP guards. [Evidence](05_rebuild_evidence.md#accepted-outgoing-requester-email-parents--2026-10-08). Controlled live mailbox acceptance is the remaining reply-change gate.
+
 - [x] Accept signed requester continuations referencing provider-accepted service replies through one admission/execution provenance check. Verify current-link/inbox/receiver/thread isolation, earlier-source/first-attempt ordering, uncertain/unsent/suppressed denial and revocation with 1,108 SQL assertions and 26 integrations. Reconcile the pending binding spec; controlled live acceptance remains open.
 
 - [x] Deploy the fenced requester reply worker (`8c9bff4`; deployment `dpl_3yQUayzRiFee2aoNKUm5TYN7YJFE`), verify rollback-only remote recovery/lease/suppression, clean advisors, 73 HTTP guards and the installed scheduler with zero enabled receivers. [Evidence](05_rebuild_evidence.md#fenced-requester-email-reply-delivery--2026-10-08).
