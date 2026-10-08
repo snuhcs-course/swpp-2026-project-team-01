@@ -21,11 +21,12 @@ test('Requester email linking preserves current authority across retries, signed
  const providers={messages:new AgentMailMessages(env,async url=>{const id=decodeURIComponent(new URL(String(url)).pathname.split('/').at(-1)!);return Response.json(messages.get(id)!.json);}),raw:async(input:{messageId:string})=>messages.get(input.messageId)!.raw,author:(raw:Buffer,expected:{senderClaim:string;messageId:string})=>verifyAgentMailAuthor(raw,expected,{resolver:async()=>[[dnsRecord]]})};
  const service=new RequesterEmailLinking(db,env,providers);
  async function request(verified=true){const id=randomUUID(),token=randomBytes(32).toString('base64url');requests.push(id);await sql.query(`insert into fmat.requests(id,host_id,details,token_hash,contact_verified_email,expires_at) values('${id}','${host}','{"requesterEmail":"guest@example.test"}','${sha(token)}',${verified?"'guest@example.test'":'null'},clock_timestamp()+interval '1 day');`);return {id,token,guest:guestCredential(id,token)};}
- async function receipt(text:string,thread=randomUUID(),sender='guest@example.test'){
-  const id='<'+randomUUID()+'@example.test>',timestamp=new Date().toISOString(),body=text+'\r\n',from='From: '+sender,mid='Message-ID: '+id;
-  const unsigned=`DKIM-Signature: v=1; a=rsa-sha256; c=simple/simple; d=example.test; s=fixture; h=from:message-id; bh=${createHash('sha256').update(body).digest('base64')}; b=`;
-  const sig=sign('RSA-SHA256',Buffer.from(from+'\r\n'+mid+'\r\n'+unsigned),privateKey).toString('base64');
-  const raw=Buffer.from(unsigned+sig+'\r\n'+from+'\r\n'+mid+'\r\n\r\n'+body);
+ async function receipt(text:string,thread=randomUUID(),sender='guest@example.test',parentOverride?:string|null){
+  const parent=parentOverride===undefined?[...messages.entries()].reverse().find(([,m])=>m.json.thread_id===thread)?.[0]:parentOverride;
+  const id='<'+randomUUID()+'@example.test>',timestamp=new Date().toISOString(),body=text+'\r\n',from='From: '+sender,mid='Message-ID: '+id,to='To: '+inbox,reply=parent?'In-Reply-To: '+parent:null;
+  const unsigned=`DKIM-Signature: v=1; a=rsa-sha256; c=simple/simple; d=example.test; s=fixture; h=from:message-id:to${reply?':in-reply-to':''}; bh=${createHash('sha256').update(body).digest('base64')}; b=`;
+  const sig=sign('RSA-SHA256',Buffer.from(from+'\r\n'+mid+'\r\n'+to+'\r\n'+(reply?reply+'\r\n':'')+unsigned),privateKey).toString('base64');
+  const raw=Buffer.from(unsigned+sig+'\r\n'+from+'\r\n'+mid+'\r\n'+to+'\r\n'+(reply?reply+'\r\n':'')+'\r\n'+body);
   messages.set(id,{raw,json:{inbox_id:inbox,thread_id:thread,message_id:id,timestamp,labels:['received'],from:sender,to:[inbox],text,extracted_text:text}});
   const saved=await db.rpc('fmat_agentmail_ingress',{p_receiver_id:receiver,p_inbox_id:inbox,p_input:{deliveryId:randomUUID(),eventId:randomUUID(),inboxId:inbox,threadId:thread,messageId:id,occurredAt:timestamp,payloadHash:sha(raw.toString())}}) as {receiptId:string};
   return {id:saved.receiptId,messageId:id,thread};
@@ -90,6 +91,8 @@ test('Requester email linking preserves current authority across retries, signed
   await assert.rejects(service.authorize(before.id),code('NOT_FOUND'));await assert.rejects(service.authorize(bind.id),code('INVALID_INPUT'));
   const retryInDifferentThread=await receipt(link.linkingText!);await assert.rejects(service.bind(retryInDifferentThread.id),code('IDEMPOTENCY_CONFLICT'));
   const next=await receipt('A new request detail',bind.thread),authorized=await service.authorize(next.id);assert.equal(authorized.requestId,r.id);assert.equal('tokenHash' in authorized,false);assert.equal(authorized.text,'A new request detail');assert.deepEqual(await service.authorize(next.id),authorized);
+  const unrelatedParent=await receipt('Signed but unrelated parent',bind.thread,'guest@example.test','<unrelated@example.test>');await assert.rejects(service.authorize(unrelatedParent.id),code('NOT_FOUND'));
+  const missingParent=await receipt('Signed message without a reply parent',bind.thread,'guest@example.test',null);await assert.rejects(service.authorize(missingParent.id),code('NOT_FOUND'));
   const wrong=await receipt('Wrong sender',bind.thread,'other@example.test');await assert.rejects(service.authorize(wrong.id),code('NOT_FOUND'));
   const unknown=await receipt('Unknown thread');await assert.rejects(service.authorize(unknown.id),code('NOT_FOUND'));
   const other=await request(),otherLink=await start(other),cross=await receipt(otherLink.linkingText!,bind.thread);await assert.rejects(service.bind(cross.id),code('EMAIL_LINK_CONFLICT'));assert.equal((await service.read(other.guest,{requestId:other.id})).status,'pending');

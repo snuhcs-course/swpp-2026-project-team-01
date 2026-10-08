@@ -29,6 +29,8 @@ begin
   or r.token_revoked_at is not null or r.token_hash<>l.token_hash or r.status not in ('gathering','negotiating','awaiting_approval')
   or r.contact_verified_email is null or r.contact_verified_email is distinct from r.details->>'requesterEmail'
   or lower(r.contact_verified_email)<>l.email or evidence.author_email<>l.email
+  or evidence.recipient_email is distinct from lower(i.inbox_id)
+  or not exists(select 1 from fmat.agentmail_inbox parent join fmat.requester_email_evidence e on e.receipt_id=parent.id where parent.inbox_id=i.inbox_id and parent.receiver_id=i.receiver_id and parent.message_id=evidence.parent_message_id and parent.thread_id=i.thread_id and parent.received_order<i.received_order and e.link_id=l.id)
   or i.received_at<l.bound_at or i.received_order<=original.received_order then raise exception 'UNAUTHORIZED';end if;
  return jsonb_build_object('kind','guest','requestId',r.id,'tokenHash',r.token_hash,'channel','email');
 end;

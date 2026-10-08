@@ -29,6 +29,8 @@ create table fmat.requester_email_evidence (
  link_id uuid not null references fmat.requester_email_links(id),
  inbox_id text not null,
  author_email text not null,
+ recipient_email text,
+ parent_message_id text,
  raw_hash text not null check(raw_hash ~ '^[0-9a-f]{64}$'),
  signature_id text not null check(signature_id ~ '^[0-9a-f]{64}$'),
  created_at timestamptz not null default clock_timestamp(),
@@ -118,9 +120,9 @@ begin
   if p_input-array['receiptId']<>'{}'::jsonb then raise exception 'INVALID_INPUT';end if;
   return jsonb_build_object('inboxId',receipt.inbox_id,'messageId',receipt.message_id,'threadId',receipt.thread_id,'occurredAt',receipt.occurred_at);
  end if;
- if p_input-array['receiptId','linkId','proofHash','authorEmail','rawHash','signatureId']<>'{}'::jsonb
+ if p_input-array['receiptId','linkId','proofHash','authorEmail','rawHash','signatureId','recipientEmail','parentMessageId']<>'{}'::jsonb
   or coalesce(p_input->>'rawHash','') !~ '^[0-9a-f]{64}$' or coalesce(p_input->>'signatureId','') !~ '^[0-9a-f]{64}$'
-  or coalesce(p_input->>'authorEmail','')='' then raise exception 'INVALID_INPUT';end if;
+  or coalesce(p_input->>'authorEmail','')='' or p_input->>'recipientEmail' is distinct from lower(p_inbox_id) then raise exception 'INVALID_INPUT';end if;
  perform pg_advisory_xact_lock(hashtextextended(jsonb_build_array('requester-email-binding',p_inbox_id)::text,0));
  if p_operation='bind' then select * into l from fmat.requester_email_links where id=(p_input->>'linkId')::uuid;
  else select * into l from fmat.requester_email_links where inbox_id=p_inbox_id and thread_id=receipt.thread_id and state='linked';end if;
@@ -142,13 +144,16 @@ begin
  else
   select * into original from fmat.agentmail_inbox where id=l.bound_receipt_id;
   if l.state<>'linked' or receipt.received_at<l.bound_at or receipt.received_order<=original.received_order then raise exception 'NOT_FOUND';end if;
+  if not exists(select 1 from fmat.agentmail_inbox parent join fmat.requester_email_evidence e on e.receipt_id=parent.id
+   where parent.inbox_id=p_inbox_id and parent.receiver_id=p_receiver_id and parent.message_id=p_input->>'parentMessageId'
+    and parent.thread_id=l.thread_id and parent.received_order<receipt.received_order and e.link_id=l.id) then raise exception 'NOT_FOUND';end if;
  end if;
  select * into prior from fmat.requester_email_evidence where receipt_id=receipt.id;
  if found then
-  if prior.link_id<>l.id or prior.author_email<>p_input->>'authorEmail' or prior.raw_hash<>p_input->>'rawHash' or prior.signature_id<>p_input->>'signatureId' then raise exception 'IDEMPOTENCY_CONFLICT';end if;
+  if prior.link_id<>l.id or prior.author_email<>p_input->>'authorEmail' or prior.raw_hash<>p_input->>'rawHash' or prior.signature_id<>p_input->>'signatureId' or prior.recipient_email is distinct from p_input->>'recipientEmail' or prior.parent_message_id is distinct from p_input->>'parentMessageId' then raise exception 'IDEMPOTENCY_CONFLICT';end if;
  else
   if exists(select 1 from fmat.requester_email_evidence where inbox_id=p_inbox_id and signature_id=p_input->>'signatureId') then raise exception 'IDEMPOTENCY_CONFLICT';end if;
-  insert into fmat.requester_email_evidence(receipt_id,link_id,inbox_id,author_email,raw_hash,signature_id) values(receipt.id,l.id,p_inbox_id,p_input->>'authorEmail',p_input->>'rawHash',p_input->>'signatureId');
+  insert into fmat.requester_email_evidence(receipt_id,link_id,inbox_id,author_email,raw_hash,signature_id,recipient_email,parent_message_id) values(receipt.id,l.id,p_inbox_id,p_input->>'authorEmail',p_input->>'rawHash',p_input->>'signatureId',p_input->>'recipientEmail',p_input->>'parentMessageId');
  end if;
  if p_operation='bind' then return jsonb_build_object('status','linked','linkId',l.id);end if;
  -- Receipt-scoped references only. Downstream commands must recheck this link; never mint a general guest credential.

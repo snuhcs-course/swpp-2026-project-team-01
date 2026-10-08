@@ -29,7 +29,7 @@ Binding SHALL require a received message with matching one-time proof and indepe
 - **THEN** the existing binding is recovered without duplicating authority or effects
 
 ### Requirement: Current per-message authority
-Every email operation SHALL recheck current receiver, verified contact, request credential, expiry and lifecycle. Revocation, contact change, credential rotation or closure SHALL invalidate existing links. Receipts received before binding SHALL not acquire authority retroactively. Domain authentication alone SHALL not grant request access, agreement or host approval.
+Every email operation SHALL recheck current receiver, verified contact, request credential, expiry and lifecycle. Revocation, contact change, credential rotation or closure SHALL invalidate existing links. Receipts received before binding SHALL not acquire authority retroactively. Domain authentication alone SHALL not grant request access, agreement or host approval. The accepted signature SHALL cover the application recipient and, for continuation, the reply parent. That parent SHALL identify an earlier authenticated receipt in the same bound request thread. Provider thread grouping alone SHALL NOT confer continuation authority.
 
 #### Scenario: Delayed pre-binding message
 - **WHEN** an older receipt is processed after a thread is linked
@@ -38,6 +38,11 @@ Every email operation SHALL recheck current receiver, verified contact, request 
 #### Scenario: Contact changes away and back
 - **WHEN** the requester changes contact and later restores the former address
 - **THEN** the former email link remains revoked and requires new enrollment
+
+
+#### Scenario: Reassigned signed message
+- **WHEN** a valid signed author message is assigned to a bound provider thread but its signed recipient or reply parent does not identify that application thread
+- **THEN** it cannot become runtime input or acquire requester authority
 
 ### Requirement: Protected linking controls
 The protected booking page SHALL expose current link state, explicit enrollment, pending-message instructions and revocation. It SHALL preserve operation identity across uncertain responses, remove sensitive linking content after completion and direct unavailable verification to protected browser continuation.

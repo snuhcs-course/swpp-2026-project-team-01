@@ -34,9 +34,9 @@ export class RequesterEmailLinking{
   z.uuid().parse(receiptId);const config=this.config();
   const receipt=receiptSchema.parse(await this.db.rpc('fmat_requester_email_receipt',{p_operation:'read',...config,p_input:{receiptId}}));
   const message=await this.providers.messages.get(receipt),raw=await this.providers.raw(receipt);
-  const author=await this.providers.author(raw,{senderClaim:message.senderClaim,messageId:receipt.messageId});
+  const author=await this.providers.author(raw,{senderClaim:message.senderClaim,messageId:receipt.messageId,inboxId:receipt.inboxId});
   if(message.content.status!=='available')throw new ApplicationError('INVALID_INPUT',400);
-  return {config,text:message.content.text,proof:{receiptId,authorEmail:author.sender,rawHash:author.rawHash,signatureId:author.signatureId}};
+  return {config,text:message.content.text,proof:{receiptId,authorEmail:author.sender,rawHash:author.rawHash,signatureId:author.signatureId,recipientEmail:author.recipient,parentMessageId:author.replyParent}};
  }
  /** Independently verified provider input for the lease-bound worker. No guest credential is issued. */
  async prepare(receiptId:string){
