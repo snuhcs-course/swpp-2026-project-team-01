@@ -326,6 +326,8 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+- [x] Implement bounded OAuth HTTP input/error handling and the internal code/refresh/revocation service. Verify strict streaming deadlines, hashed credentials, current-grant signing checks and committed replay denial through local PostgREST, plus application checks and both builds. Public route integration remains open. [Evidence](05_rebuild_evidence.md#agent-oauth-http-and-token-service-adapter--2026-10-08).
+
 - [x] Deploy reserved protocol handles (`3d9da4f`; deployment `dpl_5LLZqERJxdkvdgGWzzGTc2iXrriT`) and verify the production 80-migration chain, storage guard, eight namespace checks and retained public/private HTTP guards. Protocol endpoint implementation remains open. [Evidence](05_rebuild_evidence.md#reserved-protocol-handles--2026-10-08).
 
 - [x] Reserve application/protocol handles across shared contracts, current/legacy setup, intake, requester identity and host storage after a zero-conflict production check. Verify the 80-migration rebuild, 29 namespace SQL assertions and built GET/POST/skill-document rejection at `/mcp` and `/oauth`. Full authorization task 2.1 remains open. [Evidence](05_rebuild_evidence.md#reserved-protocol-handles--2026-10-08).

@@ -3,7 +3,7 @@ import {z} from 'zod';
 import {applicationOrigin} from '../config.ts';
 
 export class AgentOAuthError extends Error {
- constructor(readonly code:'invalid_request'|'invalid_target'|'invalid_scope'|'unsupported_grant_type'|'invalid_grant'|'invalid_token',readonly status=400){super(code);}
+ constructor(readonly code:'invalid_request'|'invalid_target'|'invalid_scope'|'unsupported_grant_type'|'invalid_grant'|'invalid_token'|'invalid_client'|'invalid_client_metadata'|'rate_limited',readonly status=400){super(code);}
 }
 export const agentScopes=['host:read','host:write','host:decide','request:read','request:write','request:decide'] as const;
 export type AgentScope=typeof agentScopes[number];
@@ -64,7 +64,7 @@ export function parseTokenBody(raw:string,env=process.env){
  const form=decodeOAuthForm(raw),resource=requireResource(form.resource,env);
  // Public clients do not authenticate by secret; do not silently accept a
  // malformed confidential-client request as an unauthenticated public one.
- if(Object.hasOwn(form,'client_secret'))throw new AgentOAuthError('invalid_request');
+ if(['client_secret','client_assertion','client_assertion_type'].some(key=>Object.hasOwn(form,key)))throw new AgentOAuthError('invalid_request');
  if(form.grant_type==='authorization_code'){
   const parsed=codeRequest.safeParse(form);if(!parsed.success)throw new AgentOAuthError('invalid_request');
   return {...parsed.data,redirect_uri:validateRedirect(parsed.data.redirect_uri),resource};
@@ -74,4 +74,14 @@ export function parseTokenBody(raw:string,env=process.env){
   return {...parsed.data,resource,...(form.scope===undefined?{}:{scope:parseScopes(form.scope).join(' ')})};
  }
  throw new AgentOAuthError('unsupported_grant_type');
+}
+
+export function parseRevocationBody(raw:string,env=process.env){
+ const form=decodeOAuthForm(raw),resource=requireResource(form.resource,env);
+ if(['client_secret','client_assertion','client_assertion_type'].some(key=>Object.hasOwn(form,key)))throw new AgentOAuthError('invalid_request');
+ const parsed=z.object({client_id:z.uuid(),token:z.string().min(1).max(8192)}).safeParse(form);
+ if(!parsed.success)throw new AgentOAuthError('invalid_request');
+ // Hints are optional optimizations. Unknown credentials return the same neutral
+ // result; possession of a refresh credential is the only revocation proof.
+ return {...parsed.data,resource};
 }

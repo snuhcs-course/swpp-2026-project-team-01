@@ -112,3 +112,5 @@ Cleanup attempts client deletion, user deletion and temporary container removal 
 
 
 `handles.test.ts` and `protocol_handles.test.sql` verify matching application/protocol exclusions in setup, intake and host storage, retaining null incomplete handles and valid prefix neighbors. The built-route public-skill checks cover reserved host documents and GET/POST at `/mcp` and `/oauth`; 404 proves namespace exclusion, not an implemented MCP transport.
+
+`http.test.ts` checks streamed byte limits, strict media/UTF-8 decoding, total upload deadlines, abort/cancellation, no-store errors and alternate-auth rejection. `service.test.ts` checks hashed RPC arguments, configuration before consumption, exact authority rechecks and remaining signed lifetime. `tests/integration/agent-oauth-service.test.ts` uses the real local PostgREST boundary and ephemeral in-memory signing keys to issue, narrow and revoke tokens, reject wrong PKCE and confirm replay revocation remains committed after an error. It cleans up its own host/request/client fixtures and does not use remote credentials or public OAuth routes.
