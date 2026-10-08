@@ -326,6 +326,8 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+- [x] Define and test the internal seven-operation tool catalog with strict schemas, role discovery, scopes, retries and human-review descriptions. Create the full [MCP/CLI implementation change](../../openspec/changes/deliver-agent-tools-and-cli/tasks.md); public transport, complete workflow coverage and client acceptance remain open. [Evidence](05_rebuild_evidence.md#agent-tool-catalog--2026-10-08).
+
 - [x] Deploy OAuth routes/consent (`23c274c`; deployment `dpl_4yXumcqvU6g7CsYBc6XyfCcFsCXC`) and browser-management migration. Verify the 81-migration production chain, rollback-only owner/privilege checks, fourteen OAuth/browser guards and retained public/private checks. Signing keys and live agent grants remain unprovisioned; activation is still open. [Evidence](05_rebuild_evidence.md#public-oauth-routes-and-browser-consent--2026-10-08).
 
 - [x] Provision the production-only OAuth signing key, deploy activation, and complete controlled live requester browser/terminal deny/grant, exchange, refresh/narrowing, browser revocation and replay-family denial with negative resource/callback/PKCE and public-key audience/tamper checks. Remove fixtures and archive the verified authorization change. Public MCP/CLI, named-client and live host Google acceptance remain open. [Evidence](05_rebuild_evidence.md#live-agent-authorization--2026-10-08).

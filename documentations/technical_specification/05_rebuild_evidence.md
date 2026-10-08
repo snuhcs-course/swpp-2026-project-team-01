@@ -1182,3 +1182,12 @@ The failed CI artifact from `37789298836` contained no forms because the private
 The browser test now captures at most 100 pointer/focus/checked-state events, original-control geometry and attachment, current choice states, reason lengths and busy state immediately when the existing confirmation assertion fails. CI retains `.local/rebuild/private-checkbox-trace.json` with its other synthetic failure artifacts. No credentials, URLs, request IDs or entered text are included, and listeners are removed afterward. Original assertions still fail normally. Product behavior is unchanged; no production redeployment is required for this test/CI-only diagnostic step.
 
 The final instrumented browser journey, TypeScript checks and documentation-link checks pass locally. The checkbox cause and the broader release gate remain unresolved pending failure evidence from CI.
+
+
+# Agent tool catalog — 2026-10-08
+
+The internal catalog maps seven named tools to the existing transactional agent operations. Input schemas derive from the domain contracts and reject arbitrary actor, credential, operation and confirmation fields. Host/requester discovery differs; permission calculation preserves read/write/decide separation. Descriptions identify draft-only effects, stable retry keys and protected browser decision handoffs. Discovery metadata is not authorization and no public route uses the catalog yet.
+
+Four focused tests pass for role discovery, decision scope, exact mutation mapping, retry/revision validation, injected authority rejection, JSON-schema conversion and retained domain refinements. Application type checking and the full application check passed before the final schema-conversion test was added; that additional focused test also passed. The new OpenSpec change validates strictly and retains twelve tasks covering transport, full scheduling coverage, CLI lifecycle, public entry and production acceptance. Task 1.1 alone is complete. No runtime endpoint, database schema or production configuration changed in this increment.
+
+Diagnostic CI run `37792666272` completed successfully: database rebuild, integration, runtime recovery, browser suites, application checks, builds and smoke checks passed. This provides no failure trace and does not establish that the intermittent checkbox defect is fixed.

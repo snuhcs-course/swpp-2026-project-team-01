@@ -111,6 +111,8 @@ Before sending an invitation, persist a protected dispatch intent and immutable 
 
 #### MCP OAuth and CLI
 
+The pending [agent tools and CLI change](../../openspec/changes/deliver-agent-tools-and-cli/proposal.md) owns protected transport and workflow coverage. Its internal `lib/contracts/agent-tools.ts` catalog maps seven named tools to the existing strict agent-operation schemas, with role-specific discovery, required scopes, retry descriptions and explicit human-review handoffs. Discovery metadata grants no authority; transport must still invoke `AgentOperations`. The catalog is not yet mounted publicly, and request discovery, conversation, availability, negotiation and booking-status coverage remain tracked tasks.
+
 Compatibility finding (2026-10-08): stock local GoTrue v2.197.0 does not enforce the required resource isolation in form code exchange or refresh and issues a generic audience. Do not use it unmodified as the MCP authorization boundary. Preserve Supabase Google identity while implementing explicit application client/resource/grant enforcement; [probe and setup constraints](03_provider_setup.md#protected-mcp-oauth-compatibility) record the evidence. Protected MCP remains unimplemented.
 
 Protected host MCP access uses OAuth authorization code flow with PKCE, protected-resource metadata, authorization-server discovery and resource-specific tokens. Validate issuer, signature, audience, expiry, the active client grant and requested permission on every operation. Keep permissions for reading, revising and submitting decisions distinct, and enforce revocation through current server-side grant state. Google Calendar credentials are never MCP credentials.
