@@ -258,6 +258,8 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 
 ### Phase 6 — Add requester email continuity
 
+- [x] Deploy verified parent-quotation readback (`5636381`; deployment `dpl_DxsJ2S6TKhoFUeVG8gsDB5MHnrsT`) and verify Ready production, 73 HTTP guards, seven public documents and disabled ingress. [Evidence](05_rebuild_evidence.md#verified-agentmail-parent-quotation-readback--2026-10-08).
+
 - [x] Verify appended reply quotations against a separately fetched exact parent, preserving frozen sends and replay identity. Real stored-reply inspection now passes; forged or unavailable parent evidence stays uncertain. [Evidence](05_rebuild_evidence.md#verified-agentmail-parent-quotation-readback--2026-10-08). Full signed requester continuity remains open.
 
 - [x] Probe real reply acceptance and stable-key replay in the controlled project inbox; record the provider-added quotation that prevents exact-body readback. Add a regression preserving uncertainty. This does not complete live requester continuity. [Evidence](05_rebuild_evidence.md#live-agentmail-reply-compatibility-probe--2026-10-08).
