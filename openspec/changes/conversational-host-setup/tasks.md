@@ -20,7 +20,7 @@ Tasks describe replacement implementation and verification. Private draft persis
 ## 3. Next.js chat and action cards
 
 - [x] 3.1 Integrate verified AI Elements primitives with the selected shadcn preset and eve transport in `apps/web/`; verify production build, authorization and persisted reload/resume.
-- [ ] 3.2 Render connection/calendar cards, true scan states, editable weekly preview, location/travel actions and final review inside `/app`; test keyboard/mobile/zoom/reduced-motion behavior and structured recovery during model failure.
+- [x] 3.2 Render connection/calendar cards, true scan states, editable weekly preview, location/travel actions and final review inside `/app`; test keyboard/mobile/zoom/reduced-motion behavior and structured recovery during model failure.
 - [x] 3.3 Implement inline phone/code/connected states with skip, retry, expiry and change-number; verify protected fields never enter model, transcript, analytics or persisted card state.
 - [ ] 3.4 Run the required visual review loop and update interface documentation; verify completed steps remain editable and consent return retains focus/current progress.
 
@@ -38,3 +38,5 @@ Tasks describe replacement implementation and verification. Private draft persis
 - [ ] 5.3 Run relevant database/runtime/web checks and strict OpenSpec validation; verify AC-28 and update current status only from fresh replacement evidence.
 
 Task 2.4 acceptance: [requirement-by-requirement executable evidence](../../../documentations/technical_specification/05_rebuild_evidence.md#explicit-onboarding-preference-acceptance--2026-10-09), including the online-only, per-meeting/per-trip and reviewed chat-answer browser journeys. Live scan/channel gates remain in tasks 2.5 and 5.2.
+
+Task 3.2 acceptance: [in-chat cards and editable weekly preview](../../../documentations/technical_specification/05_rebuild_evidence.md#editable-weekly-preference-preview--2026-10-09). Broader focus/consent-return acceptance remains in task 3.4, with live Google/iPhone acceptance in task 5.2.

@@ -2,6 +2,7 @@
 import {useEffect,useId,useRef,useState,type FormEvent} from 'react';
 import {analysisApplication,type AnalysisApplication,type AnalysisState} from '../../../lib/contracts/calendar-analysis.ts';
 import type {SetupState} from '../../../lib/contracts/setup.ts';
+import {WeeklyPreview} from './weekly-preview';
 import {Button} from './ui/button';
 import {Input} from './ui/input';
 import {Textarea} from './ui/textarea';
@@ -31,6 +32,7 @@ export function ScanReview({scan,setup,disabled,onApply,onCancel}:{scan:Scan;set
  }
  return <form onSubmit={submit} aria-label="Review Calendar suggestions"><FieldSet disabled={disabled}><FieldLegend ref={heading} tabIndex={-1}>{({schedule:'Review your suggested week',mode:'How would you like to meet?',location:'Choose your meeting places',review:'Review these draft choices'})[step]}</FieldLegend><FieldGroup>
   {step==='schedule'?<>
+   {schedule?<WeeklyPreview windows={knownWindows?current.availability??[]:windows} timezone={knownWindows?current.timezone:scan.scope.timezone} title="Your suggested week preview"/>:null}
    <FieldDescription>{summary.windowSource==='calendar'?'These windows come from the bounded Calendar analysis. Edit them if needed.':'These are labeled starter windows for sparse evidence.'} Your existing explicit and confirmed values will be preserved.</FieldDescription>
    <Field orientation="horizontal"><Checkbox id={id+'schedule'} checked={schedule} onCheckedChange={v=>setSchedule(v===true)} disabled={!summary.windows.length}/><FieldLabel htmlFor={id+'schedule'}>Include suggested schedule</FieldLabel></Field>
    {knownWindows?<p>Your chosen weekly windows are preserved. Change them in Edit schedule if needed.</p>:schedule?windows.map((window,index)=><FieldSet key={index}><FieldLegend variant="label">Suggested window {index+1}</FieldLegend><div className="flex flex-wrap gap-3">{days.map((day,n)=><Field key={day} orientation="horizontal" className="w-auto"><Checkbox id={id+'day'+index+n} checked={window.days.includes(n)} onCheckedChange={v=>setWindows(all=>all.map((w,i)=>i===index?{...w,days:v?[...w.days,n].sort():w.days.filter(d=>d!==n)}:w))}/><FieldLabel htmlFor={id+'day'+index+n}>{day}</FieldLabel></Field>)}</div><Field><FieldLabel htmlFor={id+'start'+index}>Suggested start {index+1}</FieldLabel><Input type="time" id={id+'start'+index} value={window.start} onChange={e=>setWindows(all=>all.map((w,i)=>i===index?{...w,start:e.target.value}:w))} required/></Field><Field><FieldLabel htmlFor={id+'end'+index}>Suggested end {index+1}</FieldLabel><Input type="time" id={id+'end'+index} value={window.end} onChange={e=>setWindows(all=>all.map((w,i)=>i===index?{...w,end:e.target.value}:w))} required/></Field>{windows.length>1?<Button type="button" variant="ghost" onClick={()=>setWindows(all=>all.filter((_,i)=>i!==index))}>Remove suggested window {index+1}</Button>:null}</FieldSet>):null}
@@ -46,7 +48,7 @@ export function ScanReview({scan,setup,disabled,onApply,onCancel}:{scan:Scan;set
   </>:null}
   {step==='review'?<>
    <p>{schedule?'Include schedule suggestions in '+scan.scope.timezone+'. Existing choices win.':'Keep my current schedule unchanged.'}</p>
-   {schedule?(knownWindows?current.availability:windows)?.map((w,i)=><p key={i}>{w.days.map(d=>days[d]).join(', ')} · {w.start}–{w.end}</p>):null}
+   {schedule?<WeeklyPreview windows={knownWindows?current.availability??[]:windows} timezone={knownWindows?current.timezone:scan.scope.timezone} title="Your reviewed meeting week"/>:null}
    <p>{mode?modes[mode as keyof typeof modes]:''}{knownMode?' · Your existing choice':''}</p>
    {mode!=='online'?<p className="break-words">{knownLocation?'Existing location preference retained':policy==='per_meeting'?'Decide location per meeting':[...selected.map(i=>labels[i]),...manual.split('\n').filter(Boolean)].join(' · ')}</p>:null}
    <p>This updates only your private draft. Transportation, extra buffer and the final settings review remain separate.</p>

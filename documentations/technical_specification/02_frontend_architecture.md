@@ -216,6 +216,12 @@ Make setup feel like a composed conversation: a centered transcript, generous sp
 
 Recommendations are private, optional drafts. Retain provenance, scope and freshness in structured data so the UI can explain them without placing raw calendar events in chat. A selection, permission, scan or draft revision change invalidates dependent suggestions/reviews; offer refresh without silently replacing confirmed rules. See the [pending behavioral contract](../../openspec/changes/conversational-host-setup/specs/conversational-host-setup/spec.md#requirement-calendar-informed-setup-suggestions).
 
+### Weekly preference preview
+
+Calendar suggestions, their review, the saved draft summary and the manual schedule editor share a Monday-to-Sunday preview. Each day has exact time ranges and a static 24-hour bar; days without a chosen window are labeled explicitly. The timezone and recurring-preference description remain visible. This view does not report live Calendar availability or promise that a meeting can be booked.
+
+Editing days or times updates only the local preview until the existing draft action is submitted. Empty, reversed or otherwise unfinished ranges are omitted with readable guidance. The suggestion review preserves already chosen windows and their timezone. Cancelling discards local edits; using suggestions updates only the private draft and final confirmation remains separate. The preview adds no keyboard stops or animation and uses text equivalents for every graphical range. While a schedule editor is open, its preview replaces the duplicate summary view.
+
 ## Connection flows
 
 **Google Calendar:** an in-chat action requests a server-bound consent transaction, opens the browser flow and returns to the original draft/request. The server verifies OAuth state and the actor binding, exchanges credentials, then the UI refreshes connection status and calendar choices. Requester consent never creates a host account. Tokens remain server-side; disconnect/revocation invalidates dependent availability instead of implying free time.

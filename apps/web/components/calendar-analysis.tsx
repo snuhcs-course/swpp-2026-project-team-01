@@ -4,9 +4,9 @@ import {analysisState,type AnalysisState} from '../../../lib/contracts/calendar-
 import {calendarCatalog,type CalendarCatalog} from '../../../lib/contracts/calendar.ts';
 import type {SetupState} from '../../../lib/contracts/setup.ts';
 import {ScanReview} from './scan-review';
+import {WeeklyPreview} from './weekly-preview';
 import {Button} from './ui/button';import {Input} from './ui/input';import {Checkbox} from './ui/checkbox';
 import {Field,FieldLabel,FieldDescription,FieldSet,FieldLegend,FieldContent} from './ui/field';
-const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 async function call(action:string,input?:unknown){const response=await fetch('/api/browser/'+action,{method:input===undefined?'GET':'POST',cache:'no-store',signal:AbortSignal.timeout(55_000),headers:{'content-type':'application/json'},...(input===undefined?{}:{body:JSON.stringify(input)})});const data=await response.json();if(!response.ok)throw new Error(data.error?.message??'Calendar analysis is unavailable. Try again or edit your preferences.');return data;}
 export function CalendarAnalysis({setup,disabled,onChange,onSkip}:{setup:SetupState;disabled:boolean;onChange:()=>Promise<void>;onSkip:()=>void}){
  const id=useId(),[state,setState]=useState<AnalysisState|null>(null),[catalog,setCatalog]=useState<CalendarCatalog|null>(null),[reviewing,setReviewing]=useState(false),[form,setForm]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
@@ -29,7 +29,7 @@ export function CalendarAnalysis({setup,disabled,onChange,onSkip}:{setup:SetupSt
   {scan?<p role="status">{({running:'Analysis is running. Reload to check its result; after 90 seconds you can retry.',failed:'Analysis did not complete. No missing data is treated as free time. Retry or use manual preferences.',stale:'Calendar or setup changed. Run a fresh analysis or edit preferences manually.',expired:'These suggestions expired. Analyze again or use manual preferences.',dismissed:'Suggestions dismissed. The same result will stay dismissed unless its evidence changes.',applied:'Suggested preferences added to your draft. Explicit choices were preserved; settings still need confirmation.',ready:'Your private suggestions are ready.'})[scan.status]}</p>:null}
   {summary&&scan?<><p>{scan.scope.startDate}–{scan.scope.endDate} (end exclusive) · {scan.scope.timezone} · {scan.scope.calendarIds.length} selected calendars</p>
    <p>{summary.eventCount} busy event entries. {summary.windowSource==='calendar'?'Suggested two-hour gaps were clear on at least 75% of matching weekdays in the scanned range.':summary.windowSource==='starter'?'Sparse calendar evidence: these weekday afternoons are starter defaults.':'No consistent two-hour weekday gap was found; choose your own times.'} The search frame is weekdays 09:00–18:00. These are preferences to review, not reserved or guaranteed availability.</p>
-   {summary.windows.map((w,i)=><p key={i}>{w.days.map(d=>dayNames[d]).join(', ')} · {w.start}–{w.end}</p>)}
+   {!reviewing?<WeeklyPreview windows={summary.windows} timezone={scan.scope.timezone} title="Suggested meeting week"/>:null}
    <p>Starter defaults for missing fields: 30-minute meetings and a 10-minute meeting buffer. Existing explicit and confirmed values take precedence.</p>
    <p>{summary.onlineCount} entries include a video link; {summary.physicalCount} include a usable place. Choose Online, In person or Either in your mode step; observations do not answer for you.</p>
    {summary.locations.length?<><p>Repeated places, quoted from your selected calendars. These are private candidates, not inferred home/work or saved venues. Review suggestions to choose or edit a place, or decide per meeting.</p>{summary.locations.map((p,i)=><p key={i} className="break-words">“{p.label}” · {p.count} entries</p>)}</>:<p>No repeated usable location was found. Choose a place or decide per meeting.</p>}

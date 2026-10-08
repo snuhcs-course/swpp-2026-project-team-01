@@ -146,3 +146,10 @@ button:disabled { cursor: wait; opacity: .6; }
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.58 0.031 107.3);
 }
+
+/* Static recurring-preference preview: text labels remain the source of detail. */
+.weekly-preview { display:flex; flex-direction:column; gap:.75rem; min-width:0; margin:0; padding:1rem; border:1px solid var(--border); border-radius:var(--radius); }
+.weekly-preview-day { display:grid; grid-template-columns:5.5rem minmax(0,1fr); gap:.5rem; align-items:start; }
+.weekly-preview-scale { display:flex; justify-content:space-between; margin-left:6rem; }
+.weekly-preview-track { position:relative; height:.5rem; margin-top:.25rem; border-radius:var(--radius); background:var(--muted); }
+.weekly-preview-window { position:absolute; height:100%; border-radius:var(--radius); background:var(--primary); }

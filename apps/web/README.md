@@ -65,3 +65,5 @@ Requester email replies run through `POST /api/internal/agentmail/replies`, auth
 
 
 `POST /mcp` is the stateless protected agent resource. It uses application OAuth bearer credentials on every request, no browser cookies, bounded JSON bodies and the shared named tool catalog. Missing tokens return a discovery challenge. See [provider setup](../../documentations/technical_specification/03_provider_setup.md#protected-mcp-resource) for browser-origin configuration and current coverage limits. CLI and named-client acceptance remain unfinished.
+
+Setup uses `WeeklyPreview` for Calendar suggestions, reviewed choices, drafts and local schedule edits. Exact day/time text accompanies static bars, with explicit timezone and preference-only wording. Invalid unfinished form ranges are not drawn; preview changes never call the server. Existing draft and final-confirmation actions retain authority.

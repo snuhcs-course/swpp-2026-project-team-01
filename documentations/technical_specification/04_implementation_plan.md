@@ -137,6 +137,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 ### Phase 3 — Deliver host setup in the single `/app` chat
 
+- [x] Complete host-setup task 3.2 with connection/calendar/scan and review cards plus an editable weekly preview; verify keyboard, 320/390/768/1440px reflow, reduced motion, 200% magnification and structured edits during model failure. [Evidence](05_rebuild_evidence.md#editable-weekly-preference-preview--2026-10-09).
+
 - [x] Deploy and activate invitation delivery (`d9749ec`, deployment `dpl_DT1Jfi2qTF177x1DzaJRvbymDkwG`), configure the dedicated production key and verify 91 matching migrations, 53 HTTP checks, real CLI issuance/retry/recovery/revocation, one scheduled suppressed delivery and zero retained fixtures. Authorized mailbox acceptance remains open. [Evidence](05_rebuild_evidence.md#invitation-worker-endpoint-and-scheduler--2026-10-09).
 
 - [x] Implement the dispatch-secret-protected invitation endpoint and private minute scheduler; verify the 91-migration rebuild, 1,473 SQL assertions, 33 integrations, 297 app/provider tests, both builds and both browser suites. Production activation and authorized mailbox acceptance are tracked separately. [Evidence](05_rebuild_evidence.md#invitation-worker-endpoint-and-scheduler--2026-10-09).

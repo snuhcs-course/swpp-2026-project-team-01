@@ -5,6 +5,7 @@ import {setupGuide} from '../../../lib/contracts/setup-guide.ts';
 import {SetupGuidance} from './setup-guidance';
 import {CalendarAnalysis} from './calendar-analysis';
 import {IMessageLink} from './imessage-link';
+import {WeeklyPreview} from './weekly-preview';
 import {Button} from './ui/button';
 import {Input} from './ui/input';
 import {Textarea} from './ui/textarea';
@@ -42,7 +43,7 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
     <p>{state.nextAction==='settings_confirmed'?'Your settings are confirmed.':state.calendarSelected?'Calendar choices are saved. Let’s review your preferences.':'Connect Google and confirm calendar choices above. You can draft preferences meanwhile.'}</p>
     {settings?.displayName?<p>{settings.displayName}{settings.handle?' · '+settings.handle:''}</p>:null}
     {rules?.timezone?<p>{rules.durationMinutes??'—'} minute meetings · {rules.timezone} · {rules.bufferMinutes??'—'} minute meeting buffer</p>:null}
-    {rules?.availability?.map((w,i)=><p key={i}>{w.days.map(day=>days[day]).join(', ')}: {w.start}–{w.end}</p>)}
+    {rules?.availability&&editor?.section!=='schedule'?<WeeklyPreview windows={rules.availability} timezone={rules.timezone} title={state.draft&&state.draft.status!=='confirmed'?'Your draft meeting week':'Your confirmed meeting week'}/>:null}
     {rules?.focusBlocks?.length?<p>Additional focus blocks: {rules.focusBlocks.map(w=>new Date(w.start).toLocaleString(undefined,{timeZone:rules.timezone})+' – '+new Date(w.end).toLocaleString(undefined,{timeZone:rules.timezone})).join('; ')}</p>:null}
     {rules?.meetingMode?<p>{modes[rules.meetingMode]}{rules.meetingMode!=='online'?' · '+(rules.locationPolicy==='per_meeting'?'Decide location per meeting':rules.locations?.join(', ')??'Choose locations'):''}</p>:null}
     {rules?.meetingMode&&rules.meetingMode!=='online'?<p>{rules.travelMode&&rules.travelMode!=='NONE'?travelModes[rules.travelMode]:'Choose transportation'} · {rules.travelBufferMinutes??'—'} extra travel minutes, separate from journey time</p>:null}
@@ -70,6 +71,7 @@ function SetupEditor({section,state,disabled,onSave,onCancel}:{section:Section;s
  return <form onSubmit={submit}><FieldSet disabled={disabled}><FieldLegend>{titles[section]}</FieldLegend><FieldGroup>
   {section==='profile'?<><Field><FieldLabel htmlFor={id+'name'}>Display name</FieldLabel><Input id={id+'name'} value={name} maxLength={120} onChange={e=>setName(e.target.value)} required/></Field><Field><FieldLabel htmlFor={id+'handle'}>Booking name</FieldLabel><Input id={id+'handle'} value={handle} maxLength={40} pattern="[a-z][a-z0-9-]{2,39}" onChange={e=>setHandle(e.target.value)} required/><FieldDescription>3–40 lowercase letters, numbers or hyphens, starting with a letter.</FieldDescription></Field></>:null}
   {section==='schedule'?<>
+   <WeeklyPreview windows={windows} timezone={timezone} title="Your edited meeting week"/>
    {!manual?<FieldDescription>Without saved preferences, the suggested starting point is 30-minute meetings on weekday afternoons with a 10-minute meeting buffer. These are editable defaults, not Calendar analysis.</FieldDescription>:<FieldDescription>Your dismissed defaults stay hidden. Enter the missing values; existing choices are preserved.</FieldDescription>}
    <Field><FieldLabel htmlFor={id+'zone'}>Meeting timezone</FieldLabel><Input id={id+'zone'} value={timezone} onChange={e=>setTimezone(e.target.value)} required/></Field>
    <Field><FieldLabel htmlFor={id+'duration'}>Meeting duration (minutes)</FieldLabel><Input id={id+'duration'} type="number" min={5} max={240} value={duration} onChange={e=>setDuration(e.target.value===''?'':Number(e.target.value))} required/></Field>
