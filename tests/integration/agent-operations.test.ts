@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {agentMcpHttp} from '../../lib/server/mcp/http.ts';
 import assert from 'node:assert/strict';
 import {createHash,randomUUID} from 'node:crypto';
 import {setTimeout} from 'node:timers/promises';
@@ -44,12 +45,19 @@ test('agent operations recheck revocation and expiry under domain and downstream
   const database=new Database(env),projection=JSON.parse(await db.query(`select fmat.oauth_grant_projection(g) from fmat.oauth_grants g where id=${q(guest.grant)};`)) as AgentTokenGrant;
   const access=await new AgentOAuthTokens(env).issue(projection,async()=>{}),credential=await new AgentCredentials(env,database).verify(access),operations=new AgentOperations(database);
   assert.equal((await operations.execute(credential,{operation:'request_read',requestId:guest.request,input:{}}) as {id:string}).id,guest.request);
+  const mcp=agentMcpHttp(env,new AgentCredentials(env,database),operations);
+  const mcpRequest=(name='fmat_get_request',requestId=guest.request)=>new Request(resource,{method:'POST',headers:{authorization:'Bearer '+access,'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:{requestId,input:{}}}})});
+  const viaMcp=await mcp(mcpRequest());assert.equal(viaMcp.status,200);
+  assert.equal((await viaMcp.json()).result.structuredContent.result.id,guest.request);
+  const foreign=await mcp(mcpRequest('fmat_get_request',randomUUID()));assert.equal((await foreign.json()).result.isError,true);
+  assert.equal((await mcp(mcpRequest('fmat_review_decision'))).status,403);
   // Contended request read must observe rotation committed before its lock.
   await lock.query(`begin;update fmat.requests set token_hash=${q(hash(randomUUID()))} where id=${q(guest.request!)};`);
   let pending=wait.query(op(guest,'request_read'));await blocked(db,waitName);await lock.query('commit;');
   assert.equal(parse(await pending).error,'invalid_grant');
   assert.equal(await db.query(`select revoked_at is not null from fmat.oauth_grants where id=${q(guest.grant)};`),'t');
   await assert.rejects(operations.execute(credential,{operation:'request_read',requestId:guest.request,input:{}}));
+  assert.equal((await mcp(mcpRequest())).status,401,'MCP rejects the signed token after request authority rotation');
   // Token expires while waiting for the initial request lock: no data returned.
   const expiring=await fixture();
   await lock.query(`begin;select 1 from fmat.requests where id=${q(expiring.request!)} for update;`);

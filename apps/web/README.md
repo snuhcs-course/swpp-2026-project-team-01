@@ -62,3 +62,6 @@ Requester recovery uses `POST /api/browser/recovery/start` with request ID, prev
 
 
 Requester email replies run through `POST /api/internal/agentmail/replies`, authenticated with the runtime dispatch secret. The worker claims one frozen answer and uses a durable first-attempt deadline and stable AgentMail idempotency key. Anonymous calls are denied with no-store responses. Current receiver/request authority is rechecked before HTTP; acceptance is stored separately from delivery. Signed replies to accepted service answers reuse the same current request authorization as incoming-parent continuations. Controlled live activation remains tracked in the requester email reply change.
+
+
+`POST /mcp` is the stateless protected agent resource. It uses application OAuth bearer credentials on every request, no browser cookies, bounded JSON bodies and the shared named tool catalog. Missing tokens return a discovery challenge. See [provider setup](../../documentations/technical_specification/03_provider_setup.md#protected-mcp-resource) for browser-origin configuration and current coverage limits. CLI and named-client acceptance remain unfinished.

@@ -363,3 +363,10 @@ Protocol references: [client registration](https://www.rfc-editor.org/rfc/rfc759
 ### Agent operation integration
 
 The internal `AgentCredentials.verify` and `AgentOperations.execute` boundary is available for subsequent MCP/CLI integration. It verifies application tokens and routes only allowlisted setup/request operations through service-only `fmat_agent_operation`, with current authority and operation scope enforced in the domain transaction. Do not substitute ordinary browser credentials, forward bearer tokens into model inputs, or invoke domain RPCs directly from agent-supplied names. Decision permission opens an authenticated browser confirmation path; it does not create meeting approval. Public MCP tools and CLI delivery remain pending.
+
+
+## Protected MCP resource
+
+The application mounts `POST /mcp` using the official TypeScript server/client SDK packages pinned at 2.3.1. Native clients authenticate with an application OAuth Bearer token for the exact configured resource; Supabase/Google credentials and browser cookies do not grant tool access. Unauthenticated requests advertise `/.well-known/oauth-protected-resource/mcp`. The initial catalog covers seven operations; full scheduling coverage, CLI and individual named-client acceptance remain open in the [agent tools change](../../openspec/changes/deliver-agent-tools-and-cli/tasks.md).
+
+`MCP_ALLOWED_ORIGINS` is an optional JSON array of at most twenty exact canonical origins, for explicitly supported browser-based MCP clients. The configured application origin is always allowed; native clients may omit Origin. HTTPS is required except for literal local development origins accepted by application configuration. Do not add wildcard origins or enable credentialed CORS. The default empty list requires no new production environment variable. Connection recovery uses `/connect/authorize`; insufficient-scope responses identify the permission to request. GET and DELETE are unsupported (405 after authentication), and no MCP session ID is issued.

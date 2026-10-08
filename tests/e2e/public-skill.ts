@@ -7,6 +7,11 @@ export async function verifyPublicSkill(request:APIRequestContext,origin:string,
   if(status===200){assert.ok(body.includes('Instruction version:'));assert.ok(body.includes(origin));assert.ok(body.includes('not yet available'));}
   const head=await request.head(origin+path);assert.equal(head.status(),status);assert.equal((await head.body()).length,0);assert.equal(head.headers()['cache-control'],'no-store');
  }
- for(const name of ['mcp','oauth']){assert.equal((await request.get(origin+'/'+name)).status(),404);assert.equal((await request.post(origin+'/'+name,{data:{jsonrpc:'2.0',id:1,method:'initialize'}})).status(),404);}
+ for(const method of ['get','post'] as const){
+  assert.equal((await request[method](origin+'/oauth')).status(),404);
+  const response=await request[method](origin+'/mcp');assert.equal(response.status(),401);
+  assert.equal(response.headers()['www-authenticate'],'Bearer resource_metadata=\"'+origin+'/.well-known/oauth-protected-resource/mcp\"');
+  assert.equal(response.headers()['set-cookie'],undefined);assert.equal(response.headers()['cache-control'],'private, no-store');
+ }
  assert.equal((await request.post(origin+'/SKILL.md',{data:{approved:true}})).status(),405);
 }
