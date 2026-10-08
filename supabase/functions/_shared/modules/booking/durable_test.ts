@@ -1,3 +1,4 @@
+// AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 import type { Actor, Database } from '../../database.ts';
 import { createDurableBookingHandler } from './durable.ts';
 import type { BookingAttempt } from './index.ts';

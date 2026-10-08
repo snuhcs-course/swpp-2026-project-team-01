@@ -1,3 +1,4 @@
+// AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';

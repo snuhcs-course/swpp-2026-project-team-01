@@ -1,3 +1,4 @@
+-- AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 -- Disposable local P0 probe only. This is not an application migration.
 -- It demonstrates a fixed, client-bound audience allowlist using Supabase's
 -- official Postgres custom-access-token hook contract.

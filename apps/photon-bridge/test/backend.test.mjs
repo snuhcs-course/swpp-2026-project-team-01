@@ -1,3 +1,4 @@
+// AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createBackendClient } from '../src/backend.mjs';

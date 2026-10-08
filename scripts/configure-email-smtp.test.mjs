@@ -1,3 +1,4 @@
+// AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { configureEmailSmtp } from './configure-email-smtp.mjs';

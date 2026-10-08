@@ -1,3 +1,4 @@
+// AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 import { createBookingProvider } from './booking.ts';
 import type { BookingAttempt } from '../modules/booking/index.ts';
 const attempt: BookingAttempt = {

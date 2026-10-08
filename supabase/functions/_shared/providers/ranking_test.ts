@@ -1,3 +1,4 @@
+// AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 import { createCandidateRanker } from './ranking.ts';
 import type { Environment } from '../env.ts';
 const env = { openaiKey: 'synthetic', openaiModel: 'gpt-4o-mini-2024-07-18' } as Environment;

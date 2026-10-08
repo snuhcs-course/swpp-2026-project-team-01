@@ -1,3 +1,4 @@
+// AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 import type { HostEvent } from './index.ts';
 import { SchedulingInputError } from './time.ts';
 export interface ConfirmedBooking {

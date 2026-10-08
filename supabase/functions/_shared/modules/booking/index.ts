@@ -1,3 +1,4 @@
+// AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 /** Persisted Google payload. It contains only approved shared meeting information. */
 export interface EventPayload {
   id: string;

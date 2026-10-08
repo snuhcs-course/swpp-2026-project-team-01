@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";

@@ -1,3 +1,4 @@
+// AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 import type { TimeWindow } from '../../../../packages/contracts/index.ts';
 import type { Environment } from '../env.ts';
 import type { Fetcher } from './transport.ts';

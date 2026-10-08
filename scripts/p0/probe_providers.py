@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 """Reproduce P0 checks without sending messages or changing provider configuration.
 
 Uses the ignored root .env. Outputs only allowlisted diagnostics, never credentials

@@ -1,3 +1,4 @@
+// AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 import { createHmac } from "node:crypto";
 import { createReceiver, privateJson, verifyRawBody } from "./agentmail-webhook-lib.mjs";
 

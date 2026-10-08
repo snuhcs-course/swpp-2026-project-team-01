@@ -1,3 +1,4 @@
+// AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 const JSON_HEADERS = { 'content-type': 'application/json' };
 
 export class BackendError extends Error {

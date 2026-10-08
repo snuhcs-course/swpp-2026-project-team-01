@@ -1,3 +1,4 @@
+// AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 import { createHash } from "node:crypto";
 
 export class DistinctProbeError extends Error {

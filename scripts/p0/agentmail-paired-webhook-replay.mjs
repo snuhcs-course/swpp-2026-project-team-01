@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 
 import { createHash } from "node:crypto";
 import fs from "node:fs";

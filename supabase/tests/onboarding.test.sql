@@ -1,3 +1,4 @@
+-- AI-generated with Codex, 2026-10-05 (Asia/Seoul).
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path=public,extensions;
