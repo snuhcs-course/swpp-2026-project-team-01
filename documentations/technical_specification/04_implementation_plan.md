@@ -163,6 +163,8 @@ References: [single host page](../user_experience/04_page_list.md#primary-pages)
 
 Incremental completion (full phase exit remains open):
 
+- [x] Implement and locally verify the bounded requester contact-proof core: encrypted code/hash records, current guest/contact authority, attempt/cooldown/hourly limits, immutable replay, atomic verification and legacy bypass denial. Delivery worker, browser card and end-to-end contact acceptance remain open in [verify-requester-contact](../../openspec/changes/verify-requester-contact/tasks.md).
+
 - [x] Implement and verify explicit requester withdrawal and host decline, including minimal closure status, lost-response recovery and booking uncertainty (1,004 SQL assertions, 18 integration tests, browser/recovery checks).
 - [x] Deploy request closure and verify the selected production database/API boundaries (`3e5db21`; deployment `dpl_5Y2wqC5PujgFL3GHUqtim1kjDw8u`; [evidence](05_rebuild_evidence.md#explicit-withdrawal-and-decline--2026-10-07)).
 

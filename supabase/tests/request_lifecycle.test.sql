@@ -61,9 +61,12 @@ select lives_ok($$select pg_temp.call('details_update','guest',jsonb_build_objec
 select is(pg_temp.call('request_read','guest')->'proposal','null'::jsonb,'details change invalidates proposal');
 select is(pg_temp.call('request_read','guest')->'candidates','[]'::jsonb,'details change invalidates asynchronous candidate context');
 select ok((select expires_at=created_at+interval '7 days' from fmat.requests where token_hash=repeat('a',64)),'widened windows cannot extend beyond seven-day expiry');
-select throws_ok($$select pg_temp.call('contact_confirm','guest',jsonb_build_object('codeHash',repeat('f',64)))$$,'P0001','CONTACT_INVALID','asserting verified email without challenge is rejected');
+select throws_ok($$select pg_temp.call('contact_confirm','guest',jsonb_build_object('codeHash',repeat('f',64)))$$,'P0001','FORBIDDEN','legacy verification cannot bypass bounded proof');
 select is((pg_temp.call('request_read','guest')->>'contactVerified')::boolean,false,'submitted email is not verified');
-select lives_ok($$select pg_temp.call('contact_start','guest',jsonb_build_object('codeHash',repeat('c',64),'encryptedCode',repeat('x',40)))$$,'verification creates durable exact-email challenge');
+select throws_ok($$select pg_temp.call('contact_start','guest',jsonb_build_object('codeHash',repeat('c',64),'encryptedCode',repeat('x',40)))$$,'P0001','FORBIDDEN','legacy verification issuance is retired');
+-- Historical delivery rows remain readable; seed them through the private old
+-- implementation only for regression coverage, never through the public RPC.
+select fmat.request_command('contact_start',pg_temp.fixture('guest'),jsonb_build_object('requestId',pg_temp.fixture('request')->>'id','expectedRevision',(select revision from fmat.requests where id=(pg_temp.fixture('request')->>'id')::uuid),'codeHash',repeat('c',64),'encryptedCode',repeat('x',40)));
 select is((select count(*)::integer from fmat.outbox where payload->>'kind'='contact_verification' and recipient->>'email'='guest@request.test'),1,'verification outbox addresses original contact');
 select ok(not exists(select 1 from fmat.outbox where payload ?| array['code','token','codeHash']),'outbox holds encrypted verification secret');
 select is((select count(*)::integer from fmat.jobs where kind='contact_delivery'),1,'challenge and durable delivery job commit together');
@@ -83,10 +86,10 @@ select is((public.fmat_command('delivery_load',pg_temp.fixture('worker'),pg_temp
 select is((select status from fmat.outbox where id=(pg_temp.fixture('deliveryInput')->>'outboxId')::uuid),'uncertain','expired proof does not erase a possibly delivered message outcome');
 update fmat.contact_challenges set expires_at=now()+interval '15 minutes' where secret_hash=repeat('c',64);
 update fmat.outbox set status='sent' where id=(pg_temp.fixture('deliveryInput')->>'outboxId')::uuid;
-select throws_ok($$select pg_temp.call('contact_confirm','guest',jsonb_build_object('codeHash',repeat('d',64)))$$,'P0001','CONTACT_INVALID','wrong proof cannot verify original email');
-select lives_ok($$select pg_temp.call('contact_confirm','guest',jsonb_build_object('codeHash',repeat('c',64)))$$,'correct delivered proof verifies original email');
-select is((pg_temp.call('request_read','guest')->>'contactVerified')::boolean,true,'verification is explicit persisted fact');
-select throws_ok($$select pg_temp.call('contact_confirm','guest',jsonb_build_object('codeHash',repeat('c',64)))$$,'P0001','CONTACT_INVALID','proof cannot be reused as a new operation');
+select throws_ok($$select pg_temp.call('contact_confirm','guest',jsonb_build_object('codeHash',repeat('d',64)))$$,'P0001','FORBIDDEN','legacy proof cannot verify original email');
+select throws_ok($$select pg_temp.call('contact_confirm','guest',jsonb_build_object('codeHash',repeat('c',64)))$$,'P0001','FORBIDDEN','even a correct legacy proof cannot bypass bounded verification');
+select is((pg_temp.call('request_read','guest')->>'contactVerified')::boolean,false,'legacy endpoint cannot persist verification');
+select throws_ok($$select pg_temp.call('contact_confirm','guest',jsonb_build_object('codeHash',repeat('c',64)))$$,'P0001','FORBIDDEN','legacy proof cannot be reused as a new operation');
 select throws_ok($$select pg_temp.call('contact_recover','public',jsonb_build_object('email','different@request.test','tokenHash',repeat('e',64),'encryptedToken',repeat('x',40)))$$,'P0001','NOT_FOUND','different submitted recovery email cannot receive authority');
 select is(pg_temp.call('contact_recover','public',jsonb_build_object('email','guest@request.test','tokenHash',repeat('e',64),'encryptedToken',repeat('x',40))),'{"status":"pending"}'::jsonb,'matching claimed email only queues verification, never issues credential');
 select throws_ok($$select pg_temp.call('contact_redeem','public',jsonb_build_object('tokenHash',repeat('f',64),'newTokenHash',repeat('b',64)))$$,'P0001','CONTACT_INVALID','replacement credential requires delivered proof');

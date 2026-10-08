@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { ErrorCode } from '../contracts/errors.ts';
 
 const messages: Record<ErrorCode, string> = {
+  CONTACT_LIMIT: 'Wait before requesting another verification code.',
   BOOKING_LEASE_LOST: 'Another worker must recover this action.',
   BOOKING_BUSY: 'A previous booking for this host is still being resolved.',
   CONTACT_NOT_VERIFIED: 'The requester must verify their contact email before booking.',
