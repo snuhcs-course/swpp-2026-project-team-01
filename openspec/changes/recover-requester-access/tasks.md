@@ -3,7 +3,7 @@
 ## 1. Recovery authority
 
 - [x] 1.1 Implement private recovery issuance/redemption and server adapters; test generic outcomes, limits, concurrent/lost-response replay, permanent contact/credential invalidation, closure, wall-clock expiry and private grants. Update architecture documentation.
-- [ ] 1.2 Deploy the reviewed migration and adapter, verify remote rollback isolation and production regressions, and record evidence without exposing unfinished recovery routes.
+- [x] 1.2 Deploy the reviewed migration and adapter, verify remote rollback isolation and production regressions, and record evidence without exposing unfinished recovery routes.
 
 ## 2. Delivery and browser continuation
 
