@@ -326,6 +326,8 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+- [x] Add the private OAuth client registry, ten-minute browser-bound authorization attempts and atomic global/per-client budgets. Verify 73 new SQL assertions and real concurrent ceilings, expiry-after-lock and client-disablement tests. Grant/code/refresh lifecycle remains open under authorization task 1.2. [Evidence](05_rebuild_evidence.md#agent-oauth-registry-and-consent-attempts--2026-10-08).
+
 - [x] Deploy internal OAuth primitives (`f8de187`; deployment `dpl_E7ncuZJMsSaRESPB9Fjs3tutmny5`); verify Ready production, retained 73 HTTP guards, seven public documents, disabled email ingress and absent OAuth routes. Record the generic `/mcp` handle-shell collision for resolution before protocol activation. [Evidence](05_rebuild_evidence.md#agent-oauth-protocol-and-token-primitives--2026-10-08).
 
 - [x] Implement internal resource/redirect/scope/S256 parsers and ES256 access-token verification under [agent client authorization](../../openspec/changes/authorize-agent-clients/tasks.md). Verify foreign/altered/expired tokens, key rotation and current-authority callbacks with ten focused tests, full application checks and both builds. Public protocol routes and durable grants remain open. [Evidence](05_rebuild_evidence.md#agent-oauth-protocol-and-token-primitives--2026-10-08).
