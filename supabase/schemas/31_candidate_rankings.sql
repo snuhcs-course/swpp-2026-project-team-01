@@ -20,7 +20,7 @@ returns jsonb language plpgsql security definer set search_path='' as $$
 declare r fmat.requests; e fmat.candidate_evaluations; saved fmat.candidate_rankings;
  candidates jsonb:='[]'; ids jsonb:='[]'; manifest jsonb:='[]'; fingerprint text; expires timestamptz; result jsonb;
 begin
- if jsonb_typeof(p_input) is distinct from 'object' or p_operation not in ('read','save') then raise exception 'INVALID_INPUT';end if;
+ if jsonb_typeof(p_input) is distinct from 'object' or p_operation not in ('read','reserve','save') then raise exception 'INVALID_INPUT';end if;
  -- Reuse request -> host -> session -> connections lock order and all current
  -- authority/failure/context fences before inspecting any candidate evidence.
  perform public.fmat_availability_evaluation('check',p_credential,p_input);
@@ -42,6 +42,16 @@ begin
  fingerprint:=encode(sha256(convert_to(jsonb_build_object('basis',p_input->>'basis','checkId',r.availability_check_id,'manifest',manifest)::text,'UTF8')),'hex');
  select * into saved from fmat.candidate_rankings where request_id=r.id and check_id=r.availability_check_id;
  if saved.id is not null and (saved.fingerprint<>fingerprint or saved.expires_at<=clock_timestamp()) then raise exception 'REVISION_CONFLICT';end if;
+ if p_operation='reserve' then
+  if p_input->>'fingerprint' is distinct from fingerprint then raise exception 'REVISION_CONFLICT';end if;
+  -- A concurrent saved result must be read again; it cannot authorize another
+  -- provider attempt. Empty candidates are deterministic and need no model.
+  if saved.id is not null or jsonb_array_length(candidates)=0 then raise exception 'REVISION_CONFLICT';end if;
+  perform fmat.model_budget_reserve(p_credential->>'kind',case when p_credential->>'kind'='host' then r.host_id else r.id end,'ranking',r.availability_check_id);
+  perform public.fmat_availability_evaluation('check',p_credential,p_input);
+  if expires<=clock_timestamp() then raise exception 'REVISION_CONFLICT';end if;
+  return jsonb_build_object('reserved',true);
+ end if;
  if p_operation='save' then
   if p_input->>'fingerprint' is distinct from fingerprint then raise exception 'REVISION_CONFLICT';end if;
   if jsonb_typeof(p_input->'orderedIds') is distinct from 'array' then raise exception 'INVALID_INPUT';end if;

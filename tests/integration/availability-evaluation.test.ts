@@ -23,6 +23,7 @@ import {guestCredential,verifyHostToken,type Credential} from '../../lib/server/
 import {ApplicationError} from '../../lib/server/errors.ts';
 import {LocalSql} from './local-sql.ts';
 import {verifySchedulingStartCutoff} from './scheduling-start-cutoff.ts';
+import {verifyRankingBudget} from './model-ranking.ts';
 import {routeFingerprint} from '../../lib/server/routes/google.ts';
 import type {RouteRequest} from '../../lib/contracts/travel.ts';
 import type {TravelCommitment} from '../../lib/server/calendar/adjacent.ts';
@@ -206,6 +207,7 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   assert.ok(unresolvedBatch.results.every(r=>r.persisted.status==='clarification'));
   const emptyRanking=await ranker.rank(credential,rankTarget(unresolvedBatch));assert.deepEqual(emptyRanking.orderedIds,[]);assert.equal(rankCalls,0,'Unresolved preferences never reach the model');
   await sql.query(`update fmat.hosts set rules=jsonb_set(rules,'{preferences}','""'),rules_version=rules_version+1 where id='${host}';`);
+  await verifyRankingBudget(database,sql,credential,hostCredential,rankTarget(await batch()));
   const beforeBatchReads=calls.length,validBatch=await batch();assert.equal(calls.length,beforeBatchReads+1,'Batch shares the host free/busy read');assert.ok(validBatch.results.every(r=>r.persisted.status==='checks_passed'));
   const target=rankTarget(validBatch),ranked=await ranker.rank(credential,target);assert.equal(ranked.orderedIds.length,3);assert.equal(ranked.complete,false);assert.equal(rankCalls,1);
   assert.deepEqual(await ranker.rank(credential,target),ranked);assert.equal(rankCalls,1,'Saved ranking retry performs no model call');
