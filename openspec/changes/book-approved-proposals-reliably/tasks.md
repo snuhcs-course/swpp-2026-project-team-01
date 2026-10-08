@@ -22,5 +22,5 @@ Tasks describe replacement implementation and verification; completion is tracke
 
 - [x] 3.1 Commit provider-evidenced booked state, reservation release, and separate audience-safe confirmation records atomically; verify repeated completion, mismatched event evidence, and rollback boundaries.
 - [x] 3.2 Implement independent delivery status/retry records and web confirmation visibility; verify notification failure preserves booked status, retries create no event, recipients are rechecked, and unavailable channel adapters are not marked sent.
-- [ ] 3.3 Add fault-injection integration tests for duplicate delivery, every pre/post-dispatch termination boundary, withdrawal races, lost wake-ups, and competing reservations; verify at most one confirmed event identity.
+- [x] 3.3 Add fault-injection integration tests for duplicate delivery, every pre/post-dispatch termination boundary, withdrawal races, lost wake-ups, and competing reservations; verify at most one confirmed event identity.
 - [ ] 3.4 Run controlled live Calendar booking case with host/user consent and lost-response recovery, and document deployment evidence; verify one actual matching event and honest separation of live versus mocked results.

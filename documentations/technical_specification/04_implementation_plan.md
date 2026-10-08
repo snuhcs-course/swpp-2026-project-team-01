@@ -272,6 +272,8 @@ References: [requester destination](../user_experience/04_page_list.md#requester
 
 ### Phase 5 — Complete approval, booking and invitations
 
+- [x] Complete booking task 3.3: verify 43 actual process-crash/lost-wakeup cases, including blocked checks, definitive rejection, uncertain/conflicting evidence, retry persistence and reconciliation refresh. Combine with duplicate delivery, withdrawal/dispatch lock races and competing reservations to verify one event identity. [Evidence](05_rebuild_evidence.md#booking-failure-boundary-acceptance--2026-10-09). Live Calendar task 3.4 remains open.
+
 - [x] Add 23 actual worker-process crash/recovery cases across claim, evaluation, refresh, credential access, dispatch, insert, lookup, outcome persistence and duplicate acknowledgment, plus lost wake-up recovery. Verify one frozen identity and conservative uncertainty. Broader failure-branch termination coverage in task 3.3 and live task 3.4 remain open. [Evidence](05_rebuild_evidence.md#booking-worker-process-crash-matrix--2026-10-09).
 
 - [x] Complete booking task 1.3 by auditing desired SQL/migrations, the fresh 96-migration rebuild, transactional publication and uncertain-state tests. Verify matching local/production RLS and direct-access denial across 11 tables, plus six matching service-only booking RPC definitions. [Evidence](05_rebuild_evidence.md#booking-schema-acceptance-audit--2026-10-09).

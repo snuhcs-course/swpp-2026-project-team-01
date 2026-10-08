@@ -45,14 +45,16 @@ test('Web approval requires exact current host/session/proposal/agreement and co
   const guest=guestCredential(id,token);let state=await publication.evaluate(guest,{requestId:id,revision:1});state=await publication.select(guest,{requestId:id,revision:state.revision,publicationId:state.publication!.id,candidateId:state.publication!.candidates[0].id,confirmed:true,idempotencyKey:randomUUID()});
   return {id,guest,state,agree:async()=>publication.agree(guest,{requestId:id,revision:state.revision,proposalVersion:state.proposal!.version,confirmed:true,idempotencyKey:randomUUID()})};
  }
- try{
-  for(let i=0;i<9;i++){
+ async function createHost(){
    const email=randomUUID()+'@example.test',password=randomUUID()+randomUUID(),invite=randomUUID();const created=await fetch(local.API_URL+'/auth/v1/admin/users',{method:'POST',headers,body:JSON.stringify({email,password,email_confirm:true})});assert.equal(created.status,200);const id=(await created.json()).id;
    const login=await fetch(local.API_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:local.ANON_KEY,'content-type':'application/json'},body:JSON.stringify({email,password})});assert.equal(login.status,200);const token=(await login.json()).access_token,credential=await verifyHostToken(token,{env});hosts.push({id,invite,token,credential});
    const encrypted=cipher.seal({accessToken:'fixture-access',refreshToken:'fixture-refresh',subject:'google-'+id,expiresAt:Date.now()+3600000,scopes:[...calendarScopes.host]},'google:host:'+id);
    await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invite}','${email}','${createHash('sha256').update(invite).digest('hex')}',now()+interval '1 day','approval-test');insert into fmat.hosts(id,email,invitation_id,handle,display_name,rules,rules_version,conflict_calendar_ids,booking_calendar_id) values('${id}','${email}','${invite}','approval-${id.slice(0,8)}','Host','${JSON.stringify(rules)}',1,array['fixture-calendar'],'fixture-calendar');insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential) values('host','${id}','google-${id}',array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],'${encrypted}');`);
-  }
-  const [a,b,c,d,e,f,g,h,i]=hosts,r=await fixture();
+  return hosts.at(-1)!;
+ }
+ try{
+  for(let i=0;i<6;i++)await createHost();
+  const [a,b,c,d,e,f]=hosts,r=await fixture();
   assert.equal((await approval.read(a.credential,{requestId:r.id})).blocker,'agreement_required');
   await assert.rejects(approval.read(b.credential,{requestId:r.id}),code('NOT_FOUND'));await assert.rejects(approval.read(r.guest,{requestId:r.id}),code('FORBIDDEN'));await assert.rejects(approval.read({...a.credential},{requestId:r.id}),code('UNAUTHORIZED'));
   const agreed=await r.agree(),input={requestId:r.id,revision:agreed.revision,proposalVersion:agreed.proposal!.version,confirmed:true as const,idempotencyKey:randomUUID()};
@@ -99,9 +101,8 @@ test('Web approval requires exact current host/session/proposal/agreement and co
    const request=await fixture(f,revalidationDay++,true,kind),agreed=await request.agree();await sql.query(`update fmat.requests set contact_verified_email='guest@example.test' where id='${request.id}';`);
    await approval.approve(f.credential,{requestId:request.id,revision:agreed.revision,proposalVersion:agreed.proposal!.version,confirmed:true,idempotencyKey:randomUUID()});return request.id;
   });
-  let crashDay=3;
-  await verifyBookingCrashes(env,async group=>{
-   const owner=group==='cutoff'?h:group==='preinsert'?i:g,request=await fixture(owner,crashDay++,true),agreed=await request.agree();
+  await verifyBookingCrashes(env,async()=>{
+   const owner=await createHost(),request=await fixture(owner,3,true),agreed=await request.agree();
    await sql.query(`update fmat.requests set contact_verified_email='guest@example.test' where id='${request.id}';`);
    await approval.approve(owner.credential,{requestId:request.id,revision:agreed.revision,proposalVersion:agreed.proposal!.version,confirmed:true,idempotencyKey:randomUUID()});return request.id;
   });
