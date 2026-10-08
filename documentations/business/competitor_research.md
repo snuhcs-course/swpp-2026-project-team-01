@@ -2,6 +2,7 @@
 
 Research date: 2026-09-29  
 Openavail update: 2026-10-05  
+Howie update: 2026-10-08
 Scope: External meeting coordination, email scheduling assistants, booking platforms, and conversational calendar agents.
 
 This is a public-documentation review, not hands-on testing. Product descriptions are vendor claims; assessments of relevance and differentiation are our analysis. An accessible website does not establish successful onboarding, reliability, adoption, or retention. "Not verified" means the reviewed sources did not establish a capability, not that the product lacks it.
@@ -34,6 +35,10 @@ These findings weaken feature-level uniqueness claims. A more useful Find Me a T
 | **Ari / JustCC** | CC-email coordination with Google/Microsoft, time holds, rescheduling, and cancellation. [Product](https://justcc.to/) | Describes booking after mutual agreement; a separate host gate was not established. Ten meetings free in total; Basic $24/month, Premium $39/month. Current public offering, with adoption and reliability unverified. |
 
 Prices are published USD figures checked on the research date. Plans differ in meeting quotas, credits, seats, and billing period; these figures are not like-for-like estimates of cost per successful booking.
+
+### Howie
+
+Howie is an additional direct scheduling competitor. See the [dedicated Howie research](howie_research.md) for the dated feature inventory, official sources, pricing boundaries, approval questions, and comparative test cases. Include it in the practical benchmark below; its public descriptions have not been validated through a live trial.
 
 ### CalendarBridge AI Scheduling Assistant
 
