@@ -154,6 +154,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 - [x] Define the bounded operator invitation change and verify strict internal command inputs, environment binding and retry-stable 80-bit code derivation with four tests. Durable issuance, CLI and Cloudflare delivery remain pending. [Evidence](05_rebuild_evidence.md#operator-invitation-contracts--2026-10-09).
 - [x] Exercise live Google host login and add a repeatable initial-redirect probe with four passing diagnostic tests. The live result is **blocked by `redirect_uri_mismatch`**; record the exact Supabase callback and required Google Cloud sign-in/configuration correction. This completes diagnosis, not login acceptance. [Evidence](05_rebuild_evidence.md#live-google-host-login-blocker-and-probe--2026-10-09).
 
+- [x] Complete host-setup task 2.4: verify explicit mode/location/transport/buffer choices, reuse of reviewed chat answers, online-only skips, per-meeting/per-trip policy, unsupported-route clarification and separate buffers. Add the full online-only browser journey and record [acceptance evidence](05_rebuild_evidence.md#explicit-onboarding-preference-acceptance--2026-10-09); live scan/channel gates remain open.
+
 Incremental completion (2026-10-07; the full phase exit remains open):
 
 - [x] Replace the host email-login form and endpoint with Google-only identity sign-in; retain waitlist email, invitation admission and separate Calendar consent.

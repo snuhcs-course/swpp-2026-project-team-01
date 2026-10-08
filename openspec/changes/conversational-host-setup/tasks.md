@@ -14,7 +14,7 @@ Tasks describe replacement implementation and verification. Private draft persis
 - [x] 2.1 Define selected-calendar scan inputs, bounded range, normalization, freshness and minimized summaries; verify selected scopes and revisions invalidate stale scans/reviews.
 - [x] 2.2 Implement deterministic read-only analysis; test recurrence, DST/all-day/free/cancelled events, sparse/partial/revoked reads, duplicate names, read-only destinations, malicious source text and cross-host isolation.
 - [x] 2.3 Implement explicit-choice/evidence/default precedence, provenance, edits/dismissals and focused clarification; test rich/no-history paths and no settings mutation before current confirmation.
-- [ ] 2.4 Ask explicit mode/location, transportation and extra buffer with applicable skips and per-meeting/per-trip choices; test prior-answer reuse, inference cannot answer, unsupported routing and separate route/buffer values.
+- [x] 2.4 Ask explicit mode/location, transportation and extra buffer with applicable skips and per-meeting/per-trip choices; test prior-answer reuse, inference cannot answer, unsupported routing and separate route/buffer values.
 - [ ] 2.5 Document scan limits, suggestions and manual recovery; verify PRD AC-28 fixtures and an authorized controlled Calendar scan.
 
 ## 3. Next.js chat and action cards
@@ -36,3 +36,5 @@ Tasks describe replacement implementation and verification. Private draft persis
 - [ ] 5.1 Exercise admission through confirmed rules, calendar readiness and linked web/iMessage continuation using deterministic integration fixtures; verify stale reviews and two-host isolation.
 - [ ] 5.2 With controlled message authorization and actual Google consent, verify one complete onboarding and browser-return journey at the reconstruction origin; distinguish transport, consent, linking and readiness evidence from booking verification.
 - [ ] 5.3 Run relevant database/runtime/web checks and strict OpenSpec validation; verify AC-28 and update current status only from fresh replacement evidence.
+
+Task 2.4 acceptance: [requirement-by-requirement executable evidence](../../../documentations/technical_specification/05_rebuild_evidence.md#explicit-onboarding-preference-acceptance--2026-10-09), including the online-only, per-meeting/per-trip and reviewed chat-answer browser journeys. Live scan/channel gates remain in tasks 2.5 and 5.2.
