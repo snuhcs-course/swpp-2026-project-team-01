@@ -18,7 +18,7 @@ test('AgentMail does not infer blank or truncated content and never substitutes 
 test('AgentMail rejects changed identities, restricted labels and malformed sender evidence',async()=>{
  for(const patch of [{inbox_id:'other@example.test'},{thread_id:'other'},{message_id:'other'},{timestamp:'2026-10-09T00:00:00Z'}])await assert.rejects(service(patch).get(receipt),code('IDEMPOTENCY_CONFLICT'));
  for(const labels of [[],['sent'],['received','spam'],['received','blocked'],['received','unauthenticated'],['received','trash']])await assert.rejects(service({labels}).get(receipt),code('FORBIDDEN'));
- for(const from of ['a@example.test,b@example.test','a@example.test\r\nBcc: evil@example.test','ambiguous'])await assert.rejects(service({from}).get(receipt),code('PROVIDER_UNAVAILABLE'));
+ for(const from of ['a@example.test,b@example.test','a@example.test, <b@example.test>','a@example.test\r\nBcc: evil@example.test','ambiguous'])await assert.rejects(service({from}).get(receipt),code('PROVIDER_UNAVAILABLE'));
  await assert.rejects(service().get({...receipt,inboxId:'another@example.test'}),code('INVALID_INPUT'));
 });
 test('AgentMail read failures are sanitized and HTTP redirects are never followed',async()=>{

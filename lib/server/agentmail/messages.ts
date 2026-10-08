@@ -4,7 +4,7 @@ import {ApplicationError} from '../errors.ts';
 import type {AgentMailReceipt} from './webhook.ts';
 const opaque=z.string().min(1).max(512).refine(v=>!/[\u0000-\u0020\u007f]/u.test(v));
 const mailbox=z.string().max(998).transform(value=>{
- const trimmed=value.trim(),match=/^[^<>\r\n]*<([^<>\r\n]+)>$/u.exec(trimmed);
+ const trimmed=value.trim(),match=/^(?:"[^"\r\n]*"|[^<>,@"\r\n]*)\s*<([^<>\r\n]+)>$/u.exec(trimmed);
  return match?match[1]:trimmed;
 }).pipe(z.email().max(320)).transform(v=>v.toLowerCase());
 const messageSchema=z.object({
