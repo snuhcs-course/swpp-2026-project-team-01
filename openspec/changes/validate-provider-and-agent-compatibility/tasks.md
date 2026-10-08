@@ -14,7 +14,7 @@ Tasks describe reconstruction checks and decisions. Incremental provider boundar
 
 ## 2. Personal-agent compatibility
 
-The application-owned OAuth and initial MCP transport pass the controlled requester browser/terminal acceptance recorded in [live authorization](../../../documentations/technical_specification/05_rebuild_evidence.md#live-agent-authorization--2026-10-08) and [live MCP calls](../../../documentations/technical_specification/05_rebuild_evidence.md#live-requester-mcp-acceptance--2026-10-08). Task 2.1 covers that protocol boundary; actual named-client, host Google and complete scheduling journeys remain open.
+The application-owned OAuth and initial MCP transport pass the controlled requester browser/terminal acceptance recorded in [live authorization](../../../documentations/technical_specification/05_rebuild_evidence.md#live-agent-authorization--2026-10-08) and [live MCP calls](../../../documentations/technical_specification/05_rebuild_evidence.md#live-requester-mcp-acceptance--2026-10-08). The [actual requester CLI](../../../documentations/technical_specification/05_rebuild_evidence.md#live-requester-cli-acceptance--2026-10-09) also passes production browser consent, calls, refresh and revoke/logout on macOS. Task 2.1 covers that protocol boundary; actual named-client, host Google and complete scheduling journeys remain open.
 
 - [x] 2.1a Probe pinned local Supabase OAuth discovery, public registration, S256/code replay, form/JSON resource checks, token audience, refresh and revocation. Record stock GoTrue v2.197.0 resource-isolation failures and reject it as an unmodified MCP authorization boundary; retain full task 2.1 until an enforcing implementation passes.
 

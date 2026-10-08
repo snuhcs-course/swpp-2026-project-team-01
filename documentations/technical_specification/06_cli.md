@@ -1,6 +1,6 @@
 # Find Me a Time CLI
 
-The repository CLI supports browser authorization, JSON MCP discovery/calls and logout on macOS/Linux with Node 24 and the repository dependencies installed (`npm ci`). It calls the same protected service as personal-agent MCP clients. Local protocol/workflow tests pass; real production host/requester CLI acceptance and individual named-client acceptance remain tracked in [the implementation plan](04_implementation_plan.md#phase-8--deliver-skill-entry-mcp-cli-and-named-clients).
+The repository CLI supports browser authorization, JSON MCP discovery/calls and logout on macOS/Linux with Node 24 and the repository dependencies installed (`npm ci`). It calls the same protected service as personal-agent MCP clients. Local protocol/workflow tests and [controlled production requester CLI acceptance](05_rebuild_evidence.md#live-requester-cli-acceptance--2026-10-09) pass. Host CLI, complete current-proposal journeys and individual named-client acceptance remain tracked in [the implementation plan](04_implementation_plan.md#phase-8--deliver-skill-entry-mcp-cli-and-named-clients).
 
 ## Commands
 
