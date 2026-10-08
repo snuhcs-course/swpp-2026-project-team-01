@@ -258,6 +258,8 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 
 ### Phase 6 — Add requester email continuity
 
+- [x] Deploy atomic requester email reply capture (`ee4ca15`; deployment `dpl_3Vi6ofPGtPidC5FcjxmdwTYcgcH4`) and verify remote rollback-only immutability/suppression, zero remaining fixtures, clean security advisors and 72 production HTTP guards. [Evidence](05_rebuild_evidence.md#atomic-requester-email-reply-capture--2026-10-08).
+
 - [x] Implement atomic private reply capture at runtime settlement with frozen destinations/content, concurrent replay preservation, invalid-output rollback and revoked/expired suppression. Verify 73-migration rebuild, 1,059 SQL assertions, 26 integration tests, application checks, both builds and browser regression. Delivery claims, outgoing-parent continuation and live acceptance remain open in [the reply change](../../openspec/changes/deliver-requester-email-replies/tasks.md).
 
 Incremental completion (full phase exit remains open):
