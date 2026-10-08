@@ -1,3 +1,10 @@
+import {generateKeyPair,exportJWK} from 'jose';
+import {AgentOAuthTokens,type AgentTokenGrant} from '../../lib/server/oauth/tokens.ts';
+import {AgentCredentials} from '../../lib/server/oauth/credentials.ts';
+import {AgentOperations} from '../../lib/server/oauth/operations.ts';
+import {agentMcpHttp} from '../../lib/server/mcp/http.ts';
+import {RequestReview} from '../../lib/server/identity/request-review.ts';
+import {BookingReceipt} from '../../lib/server/booking/receipt.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
@@ -233,10 +240,24 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   await staleRank(()=>sql.query(`update fmat.requests set token_revoked_at=now() where id='${requestId}';`),'NOT_FOUND');await sql.query(`update fmat.requests set token_revoked_at=null where id='${requestId}';`);
   await sql.query(`update fmat.requests set details=jsonb_set(details,'{location}','"https://meet.example.test/fixture"'),revision=revision+1 where id='${requestId}';`);
   agentClient=JSON.parse(await sql.query(`select public.fmat_oauth_register('Candidate read fixture',array['http://127.0.0.1:55778/callback'],'http://localhost:3000/mcp');`)).clientId;
-  const agentAuthorization=JSON.parse(await sql.query(`select public.fmat_oauth_authorization_start('${JSON.stringify({clientId:agentClient,resource:'http://localhost:3000/mcp',redirectUri:'http://127.0.0.1:55778/callback',scope:'request:read',codeChallenge:'A'.repeat(43),codeChallengeMethod:'S256',state:'candidate-review',browserHash:'a'.repeat(64)})}');`)).authorizationId;
+  const agentAuthorization=JSON.parse(await sql.query(`select public.fmat_oauth_authorization_start('${JSON.stringify({clientId:agentClient,resource:'http://localhost:3000/mcp',redirectUri:'http://127.0.0.1:55778/callback',scope:'request:decide request:read request:write',codeChallenge:'A'.repeat(43),codeChallengeMethod:'S256',state:'candidate-review',browserHash:'a'.repeat(64)})}');`)).authorizationId;
+  assert.match(agentAuthorization,/^[a-f0-9-]{36}$/u);
   await sql.query(`select public.fmat_oauth_consent('${agentAuthorization}','${'a'.repeat(64)}','${JSON.stringify(credential)}','grant','${createHash('sha256').update(randomUUID()).digest('hex')}');`);
   agentGrant=await sql.query(`select id from fmat.oauth_grants where authorization_id='${agentAuthorization}';`);
-  const agentRead=()=>database.rpc('fmat_agent_operation',{p_grant_id:agentGrant,p_client_id:agentClient,p_resource:'http://localhost:3000/mcp',p_actor_kind:'guest',p_actor_id:requestId,p_scope:'request:read',p_token_expires_at:Math.floor(Date.now()/1000)+300,p_operation:'scheduling_read',p_request_id:requestId,p_input:{},p_idempotency_key:null});
+  const pair=await generateKeyPair('ES256',{extractable:true}),agentEnv={...env,AGENT_OAUTH_SIGNING_JWK:JSON.stringify({...await exportJWK(pair.privateKey),kid:'request-workflow'})};
+  const grant=JSON.parse(await sql.query(`select fmat.oauth_grant_projection(g) from fmat.oauth_grants g where id='${agentGrant}';`)) as AgentTokenGrant;
+  const access=await new AgentOAuthTokens(agentEnv).issue(grant,async()=>{}),mcp=agentMcpHttp(agentEnv,new AgentCredentials(agentEnv,database),new AgentOperations(database));
+  const invoke=(name:string,args:unknown={requestId,input:{}})=>mcp(new Request(env.APP_ORIGIN+'/mcp',{method:'POST',headers:{authorization:'Bearer '+access,'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}})}));
+  async function agentTool(name:string,args:unknown={requestId,input:{}}){const response=await invoke(name,args);assert.equal(response.status,200);const body=await response.json();assert.equal(body.result?.isError,undefined,JSON.stringify(body));assert.ok(body.result?.structuredContent);assert.doesNotMatch(JSON.stringify(body),/Private host preference|encryptedCredential|host-calendar|guest-calendar/);return body.result.structuredContent.result;}
+  const agentRead=()=>agentTool('fmat_get_scheduling');
+  const reviewService=new RequestReview(database),beforeDraft=await revision(),availabilityArgs={requestId,input:{expectedRevision:beforeDraft,timezone:'UTC',windows},idempotencyKey:randomUUID()};
+  const pendingAvailability=await agentTool('fmat_propose_availability',availabilityArgs);
+  assert.deepEqual(await agentTool('fmat_propose_availability',availabilityArgs),pendingAvailability);assert.equal(await revision(),beforeDraft);
+  const review=await reviewService.read(credential);assert.equal(review.review?.status,'pending');
+  await reviewService.decide('apply',credential,{reviewId:review.review!.id,expectedRevision:beforeDraft,confirmed:true,idempotencyKey:randomUUID()});
+  assert.equal((await agentTool('fmat_get_availability')).revision,await revision());
+  assert.equal((await agentTool('fmat_review_connections')).path,'/booking/'+requestId);
+  assert.equal(await sql.query(`select current_proposal_version is null and host_approved_version is null from fmat.requests where id='${requestId}';`),'t');
   const publication=new SchedulingPublication(database,service,ranker);
   const published=await publication.evaluate(credential,{requestId,revision:await revision()});assert.equal(published.availability,'available');assert.ok(published.publication!.candidates.length>1);assert.equal(published.proposal,null);assert.equal(published.requesterAgreed,false);
   assert.deepEqual(await agentRead(),await publication.read(credential,{requestId}),'agent candidate read uses the exact browser freshness projection');
@@ -250,13 +271,19 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   const selected=selections[0];assert.equal(selected.requesterAgreed,false);assert.equal(selected.canAgree,true);assert.equal(selected.proposal!.start,published.publication!.candidates[0].interval.start);
   assert.equal(await sql.query(`select count(*) from fmat.proposals where request_id='${requestId}';`),'1');
   await assert.rejects(publication.select(credential,{...selectInput,candidateId:published.publication!.candidates[1].id}),code('IDEMPOTENCY_CONFLICT'));
+  assert.deepEqual(await agentRead(),selected);
+  const decision=await agentTool('fmat_review_decision');assert.equal(decision.proposalVersion,selected.proposal!.version);assert.equal(decision.revision,selected.revision);assert.equal(decision.requiresHumanConfirmation,true);assert.equal(decision.path,'/booking/'+requestId);
+  const forged=await invoke('fmat_review_decision',{requestId,input:{confirmed:true}});assert.equal((await forged.json()).result.isError,true);assert.equal(await revision(),selected.revision);
   const agreeInput={requestId,revision:selected.revision,proposalVersion:selected.proposal!.version,confirmed:true as const,idempotencyKey:randomUUID()};
   await assert.rejects(publication.agree(hostCredential,agreeInput),code('FORBIDDEN'));
   await assert.rejects(publication.agree(credential,{...agreeInput,proposalVersion:99}),code('STALE_REVISION'));
   const agreements=await Promise.all(Array.from({length:8},()=>publication.agree(credential,agreeInput)));assert.ok(agreements.every(r=>r.requesterAgreed&&r.status==='awaiting_approval'&&r.revision===selected.revision+1));
   assert.equal(await sql.query(`select host_approved_version is null and status='awaiting_approval' from fmat.requests where id='${requestId}';`),'t');
   assert.equal(await sql.query(`select count(*) from fmat.jobs where payload->>'requestId'='${requestId}' and kind like 'booking%';`),'0');
-  const revised=await publication.select(hostCredential,{...selectInput,revision:await revision(),candidateId:published.publication!.candidates[1].id,idempotencyKey:randomUUID()});assert.equal(revised.proposal!.version,2);assert.equal(revised.requesterAgreed,false);
+  assert.deepEqual(await agentRead(),await publication.read(credential,{requestId}));
+  assert.deepEqual(await agentTool('fmat_get_booking_status'),await new BookingReceipt(database).read(credential,{requestId}));
+  assert.equal((await agentTool('fmat_get_booking_status')).receipt,null,'Requester agreement is not a confirmed booking');
+  const revised=await publication.select(hostCredential,{...selectInput,revision:await revision(),candidateId:published.publication!.candidates[1].id,idempotencyKey:randomUUID()});assert.equal(revised.proposal!.version,2);assert.equal(revised.requesterAgreed,false);assert.equal((await agentTool('fmat_review_decision')).proposalVersion,2);assert.deepEqual(await agentRead(),revised);
   await assert.rejects(publication.agree(credential,{...agreeInput,revision:revised.revision,idempotencyKey:randomUUID()}),code('STALE_REVISION'));
   await publication.agree(credential,{...agreeInput,revision:revised.revision,proposalVersion:2,idempotencyKey:randomUUID()});
   await sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${host}';`);
@@ -360,7 +387,7 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   await paused(async()=>{const logout=await fetch(local.API_URL+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+authToken}});assert.equal(logout.status,204);},'UNAUTHORIZED',hostCredential);
   await assert.rejects(privateReview.read(hostCredential,{requestId}),code('UNAUTHORIZED'));
   await check(); // A request-bound guest does not depend on the host browser session.
-  await sql.query(`update fmat.requests set token_revoked_at=now() where id='${requestId}';`);await assert.rejects(check(),code('NOT_FOUND'));
+  await sql.query(`update fmat.requests set token_revoked_at=now() where id='${requestId}';`);await assert.rejects(check(),code('NOT_FOUND'));assert.equal((await invoke('fmat_get_scheduling')).status,401);
  }finally{
   if(agentClient)await sql.query(`delete from fmat.oauth_codes where grant_id in(select id from fmat.oauth_grants where client_id='${agentClient}');delete from fmat.oauth_grants where client_id='${agentClient}';delete from fmat.oauth_authorizations where client_id='${agentClient}';delete from fmat.oauth_clients where id='${agentClient}';`);
   if(host){await sql.query(`set session_replication_role=replica;delete from fmat.private_review_checks where request_id='${requestId}';delete from fmat.scheduling_decisions where request_id='${requestId}';delete from fmat.proposal_evidence where request_id='${requestId}';delete from fmat.candidate_publications where request_id='${requestId}';delete from fmat.proposals where request_id='${requestId}';delete from fmat.candidate_rankings where request_id='${requestId}';delete from fmat.preference_decisions where request_id='${requestId}';delete from fmat.travel_allowances where request_id='${requestId}';delete from fmat.candidate_evaluations where request_id='${requestId}';delete from fmat.booking_attempts where host_id='${host}';delete from fmat.host_approvals where host_id='${host}';delete from fmat.booking_identities where request_id in('${otherRequest}','${farRequest}');delete from fmat.proposals where request_id in('${otherRequest}','${farRequest}');delete from fmat.audit_events where subject_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.calendar_connections where principal_id in('${host}','${requestId}');delete from fmat.request_history where request_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';set session_replication_role=origin;`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers});assert.equal(removed.status,200);}sql.close();

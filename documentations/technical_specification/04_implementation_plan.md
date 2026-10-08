@@ -326,6 +326,8 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+- [x] Verify signed MCP requester availability draft/retry through explicit browser application, safe candidate/proposal reads, current-version human handoff, agreement without booking, revised/stale state and request revocation. Local provider fixtures remain distinct from live booking and client acceptance; task 2.4 stays open. [Evidence](05_rebuild_evidence.md#signed-mcp-requester-review-workflow--2026-10-09).
+
 - [x] Verify the signed MCP host setup journey through agent draft/retry, explicit browser mode choice, stale review, provider permission recheck, concurrent agent revision, human confirmation, agent readback and logout revocation. This is local fixture evidence; complete task 2.4 and live host/provider acceptance remain open. [Evidence](05_rebuild_evidence.md#signed-mcp-host-setup-workflow--2026-10-09).
 
 - [x] Preserve the selected host request/audience through Google sign-in and cancellation using a bounded local continuation hint. Verify real local PKCE callback success, retry, cookie consumption and agent-consent regressions. Deployed `2ab8c5f` and verified eight new plus 56 retained production checks. Full workflow task 2.4 remains open. [Evidence](05_rebuild_evidence.md#host-login-handoff-continuation--2026-10-09).
