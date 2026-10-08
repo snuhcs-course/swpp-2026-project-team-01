@@ -58,6 +58,7 @@ begin
   v_result:=public.fmat_command('request_create',jsonb_build_object('kind','public','tokenHash',p_token_hash),
    jsonb_build_object('handle',h.handle,'details',p_input->'details','tokenHash',p_token_hash,'idempotencyKey','browser-intake'));
   select * into strict r from fmat.requests where id=(v_result->>'id')::uuid;
+  perform fmat.apply_intake_identity(r.id,h.handle,p_token_hash);
   return jsonb_build_object('requestId',r.id,'tokenExpiresAt',r.token_expires_at,'closed',false);
  end if;
  raise exception 'FORBIDDEN';
