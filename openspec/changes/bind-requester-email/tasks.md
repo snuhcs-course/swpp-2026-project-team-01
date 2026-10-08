@@ -3,7 +3,7 @@
 ## 1. Binding authority foundation
 
 - [x] 1.1 Implement private enrollment/link/evidence schema, permanent authority-change invalidation, service-only current-authority operations and server adapters that perform full-message/raw-signature checks outside transactions. Verify concurrent/lost-response enrollment and binding, conflicting/forwarded/old receipts, revocation/rotation/contact changes, limits and private grants.
-- [ ] 1.2 Deploy the reviewed foundation migration and server code, verify rollback-only remote isolation and existing production guards, and record the incremental completion without enabling live delivery.
+- [x] 1.2 Deploy the reviewed foundation migration and server code, verify rollback-only remote isolation and existing production guards, and record the incremental completion without enabling live delivery.
 
 ## 2. Protected controls and processing
 
