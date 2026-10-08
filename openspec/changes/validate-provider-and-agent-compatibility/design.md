@@ -38,3 +38,9 @@ The pinned Svix 2.7 transport probe verifies raw UTF-8 content, then parses sepa
 ## AgentMail message-read contract (2026-10-08)
 
 The full-message reader uses a fixed HTTPS origin, redirect rejection, a ten-second total deadline and a two-MiB response limit. It cross-checks receipt identifiers/time and received/restricted labels. Explicit extraction, full-text fallback and unavailable content are separate states; no preview/HTML fallback is allowed. Parsed addresses remain claims, arbitrary headers are excluded, and the reader cannot grant request authority. Six deterministic checks and a controlled read-only inbox probe verify this module; worker binding, execution and live continuity remain open.
+
+## AgentMail author evidence (2026-10-08)
+
+Provider received labels do not establish author-domain alignment: AgentMail documents accepting some DMARC failures under policy `none`. The independent verifier pins mailauth 7.1.1, requires a strict passing DKIM signature from the exact From domain, one unambiguous matching From, a matching signed Message-ID, complete body coverage without `l=`, valid signature time and a non-testing key (RSA minimum 2048 bits). Arbitrary authentication verdict headers are ignored. Raw download uses only the fixed API and observed `cdn.agentmail.to` origins without forwarding the API key; bounded DNS and body limits cap untrusted work.
+
+This authenticates domain-signed content, not application authority. Current verified contact and protected request/channel binding, receipt/replay identity and revocation checks remain mandatory. Unsupported signatures use protected web recovery rather than granting access. The existing controlled Cloudflare email has aligned full-body signatures but its Message-ID is unsigned, so the strict reader correctly rejects it; this is negative live evidence, not complete requester compatibility.
