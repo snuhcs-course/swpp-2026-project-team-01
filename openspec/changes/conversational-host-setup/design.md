@@ -40,7 +40,7 @@ For iMessage-first entry, bind the short-lived browser continuation to the origi
 
 Test eve's native Photon channel with the selected project and current SDK contract. Application-owned verified sender-to-host/session mapping remains mandatory. Persist/deduplicate provider IDs and outgoing intents, order turns by authorized conversation and distinguish acceptance, delivery, failure and uncertainty. A lost acknowledgement cannot trigger a fresh message identity or blind resend. Scope reconciliation to the authorized conversation.
 
-Only create a narrow persistent bridge if the runtime spike demonstrates it is necessary. In that case it receives scoped service credentials and delegates to application commands, with no arbitrary host-operation surface or embedded scheduling policy. Hosting selection remains a runtime gate, not an assumed Fly.io dependency.
+The installed native adapter returns acknowledgment before downstream commit and cannot accept the application's durable send identity. The selected Next.js receiver, database inbox/outbox, eve execution and pinned low-level Photon SDK satisfy those boundaries without another process; local protocol tests cover frozen protobuf identity, no automatic resend and reference-only reconciliation. The receiver also bounds body reads to 32 KiB/five seconds and cancels stalled/aborted streams. Only create a narrow persistent bridge if a later runtime spike demonstrates it is necessary. In that case it receives scoped service credentials and delegates to application commands, with no arbitrary host-operation surface or embedded scheduling policy. Hosting selection remains a runtime gate, not an assumed Fly.io dependency.
 
 ## Risks / Trade-offs
 

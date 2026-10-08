@@ -60,6 +60,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@grpc/proto-loader": "0.8.1",
     "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "25.9.5",

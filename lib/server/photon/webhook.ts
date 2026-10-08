@@ -33,16 +33,24 @@ export async function verifiedPhotonInput(request:Request, receiver:PhotonReceiv
     Math.abs(Math.floor(now/1000)-Number(timestamp))>300 || !/^v0=[a-fA-F0-9]{64}$/u.test(signature)) {
     throw new ApplicationError('UNAUTHORIZED',401);
   }
-  if(request.headers.get('content-type')?.split(';')[0].trim()!=='application/json')throw new ApplicationError('INVALID_INPUT',400);
-  if(Number(request.headers.get('content-length'))>32_768)throw new ApplicationError('INVALID_INPUT',413);
+  if(request.headers.get('content-type')?.split(';')[0].trim().toLowerCase()!=='application/json')throw new ApplicationError('INVALID_INPUT',400);
+  const contentLength=request.headers.get('content-length');
+  if(contentLength!==null&&(!/^\d+$/u.test(contentLength)||Number(contentLength)>32_768))throw new ApplicationError('INVALID_INPUT',413);
   const reader=request.body?.getReader();
   if(!reader)throw new ApplicationError('INVALID_INPUT',400);
-  const chunks:Uint8Array[]=[];let length=0;
+  const chunks:Uint8Array[]=[];let length=0,timedOut=false;
+  const cancel=()=>{void reader.cancel().catch(()=>{});};
+  const timer=setTimeout(()=>{timedOut=true;cancel();},5000);
+  request.signal.addEventListener('abort',cancel,{once:true});
   try {
-    for(;;){const {done,value}=await reader.read();if(done)break;length+=value.byteLength;
-      if(length>32_768){await reader.cancel();throw new ApplicationError('INVALID_INPUT',413);}chunks.push(value);}
+    if(request.signal.aborted){cancel();throw new ApplicationError('INVALID_INPUT',400);}
+    for(;;){const {done,value}=await reader.read();
+      if(timedOut)throw new ApplicationError('INVALID_INPUT',408);
+      if(request.signal.aborted)throw new ApplicationError('INVALID_INPUT',400);
+      if(done)break;length+=value.byteLength;
+      if(length>32_768){cancel();throw new ApplicationError('INVALID_INPUT',413);}chunks.push(value);}
   } catch(error){if(error instanceof ApplicationError)throw error;throw new ApplicationError('INVALID_INPUT',400);}
-  finally{reader.releaseLock();}
+  finally{clearTimeout(timer);request.signal.removeEventListener('abort',cancel);reader.releaseLock();}
   const raw=Buffer.concat(chunks), expected=createHmac('sha256',receiver.secret).update(`v0:${timestamp}:`).update(raw).digest();
   if(!timingSafeEqual(expected,Buffer.from(signature.slice(3),'hex')))throw new ApplicationError('UNAUTHORIZED',401);
   let value:unknown;try{value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(raw));}catch{throw new ApplicationError('INVALID_INPUT',400);}

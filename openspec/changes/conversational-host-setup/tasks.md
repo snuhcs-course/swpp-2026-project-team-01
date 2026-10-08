@@ -28,7 +28,7 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 
 - [x] 4.1 Implement browser-bound expiring hashed OTP challenges and durable code intents; test wrong browser/sender, guesses, expiry, replay, delivery failure, number change and single-use consumption.
 - [x] 4.2 Implement inbound-first continuation, one-to-one identity linking and unlink; verify login/admission plus fresh private proof, conflict handling, groups rejected and queued/outbound revocation.
-- [ ] 4.3 Complete native eve Photon compatibility testing and implement the selected adapter boundary; verify signed/verified ingress, sender-to-host/session mapping, ordering and durable deduplication. Create a separate bridge only if the spike demonstrates necessity.
+- [x] 4.3 Complete native eve Photon compatibility testing and implement the selected adapter boundary; verify signed/verified ingress, sender-to-host/session mapping, ordering and durable deduplication. Create a separate bridge only if the spike demonstrates necessity.
 - [x] 4.4 Implement scoped outbound delivery/reconciliation; test restarts, lost acknowledgement, stale authority and no blind resend, and document actual runtime/secrets/recovery without exposing values.
 
 ## 5. Cross-channel acceptance
@@ -44,3 +44,5 @@ Task 3.2 acceptance: [in-chat cards and editable weekly preview](../../../docume
 Task 3.4 acceptance: [compact interface and requirement-by-requirement evidence](../../../documentations/technical_specification/05_rebuild_evidence.md#compact-completed-setup-and-visual-acceptance--2026-10-09), together with the retained editor and consent-return tests. Actual Google/iPhone acceptance remains separate in task 5.2.
 
 Task 5.1 acceptance: [admission and two-host journey](../../../documentations/technical_specification/05_rebuild_evidence.md#admission-and-two-host-setup-journey--2026-10-09) and [current private-channel readiness](../../../documentations/technical_specification/05_rebuild_evidence.md#private-channel-readiness-and-cross-channel-acceptance--2026-10-09). Providers are controlled fixtures; actual Google/iPhone acceptance remains task 5.2.
+
+Task 4.3 acceptance: [installed native adapter and selected transport evidence](../../../documentations/technical_specification/05_rebuild_evidence.md#photon-adapter-boundary-acceptance--2026-10-09). No additional process is required. Live routing/device and controlled Google journeys remain task 5.2.

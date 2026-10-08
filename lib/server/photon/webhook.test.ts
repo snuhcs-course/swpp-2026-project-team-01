@@ -55,3 +55,23 @@ test('Photon waits for durable commit; retries failed commits and never returns 
   const denied=await photonWebhook(signed(),{env:{},now,database:{async rpc(){assert.fail('missing config must not persist');}}});
   assert.equal(denied.status,503);
 });
+
+test('Photon rejects malformed lengths and invalid UTF-8 before any inbox write',async()=>{
+ let writes=0;const database={async rpc(){writes++;return {};}};
+ for(const length of ['-1','no-length','1.5','32769'])assert.equal((await photonWebhook(signed(undefined,{headers:{'content-length':length}}),{env,now,database})).status,413);
+ const raw=Buffer.from([0xff,0xfe]),timestamp=String(now/1000),headers=new Headers(signed().headers);
+ headers.set('x-spectrum-signature','v0='+createHmac('sha256',receiver.secret).update(`v0:${timestamp}:`).update(raw).digest('hex'));
+ assert.equal((await photonWebhook(new Request('https://fixture.invalid',{method:'POST',headers,body:raw}),{env,now,database})).status,400);assert.equal(writes,0);
+});
+
+test('Photon cancels stalled and aborted bodies without awaiting a stuck source cancellation',{timeout:8000},async()=>{
+ let writes=0,cancelled=0;const database={async rpc(){writes++;return {};}};
+ function streamed(signal?:AbortSignal,oversized=false){
+  const body=new ReadableStream<Uint8Array>({start(controller){if(oversized)controller.enqueue(new Uint8Array(32769));},cancel(){cancelled++;return new Promise<void>(()=>{});}});
+  return new Request('https://fixture.invalid',{method:'POST',headers:signed().headers,body,duplex:'half',signal} as RequestInit);
+ }
+ const started=Date.now(),response=await photonWebhook(streamed(),{env,now,database});assert.equal(response.status,408);assert.ok(Date.now()-started<7000);assert.equal(cancelled,1);
+ assert.equal((await photonWebhook(streamed(undefined,true),{env,now,database})).status,413);assert.equal(cancelled,2);
+ const controller=new AbortController(),pending=photonWebhook(streamed(controller.signal),{env,now,database});controller.abort();assert.equal((await pending).status,400);assert.equal(cancelled,3);
+ const aborted=new AbortController();aborted.abort();assert.equal((await photonWebhook(streamed(aborted.signal),{env,now,database})).status,400);assert.equal(cancelled,4);assert.equal(writes,0);
+});

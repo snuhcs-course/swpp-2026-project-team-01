@@ -139,6 +139,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 ### Phase 3 — Deliver host setup in the single `/app` chat
 
+- [x] Complete native/selected Photon adapter acceptance (task 4.3): verify native acknowledgment/identity limitations, actual SDK protobuf identity and no resend, signed durable ingress, FIFO/deduplication, two-host runtime mapping and recovery. Add bounded/cancellable receiver reads. Host setup is 17/20; live-provider gates remain open. [Evidence](05_rebuild_evidence.md#photon-adapter-boundary-acceptance--2026-10-09).
+
 - [x] Deploy private-channel readiness from `b18a99b` (`dpl_JDhQNHtNZp9SsdNzH8SnokDXBnRf`); independently verify Ready, the production alias, both builds and 69 HTTP guards. [Evidence](05_rebuild_evidence.md#private-channel-readiness-and-cross-channel-acceptance--2026-10-09).
 
 - [x] Complete deterministic cross-channel acceptance (host-setup task 5.1): current private readiness links, actual invitation/Calendar services, signed iMessage/eve and browser continuation, stale review, two-host isolation and disconnect/unlink recovery. Host setup is 16/20; controlled live gates remain open. [Evidence](05_rebuild_evidence.md#private-channel-readiness-and-cross-channel-acceptance--2026-10-09).
