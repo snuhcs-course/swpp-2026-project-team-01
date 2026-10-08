@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {verifyPreparedWithdrawal} from './booking-withdrawal.ts';
 import {randomUUID,randomBytes,createHash} from 'node:crypto';
 import {expect,type Page} from '@playwright/test';
 import type {LocalSql} from '../integration/local-sql.ts';
@@ -67,6 +68,7 @@ export async function verifyBookingApproval(host:Page,guest:Page,sql:LocalSql,ho
   }finally{await emailContext.close();}
   await sql.query(`update fmat.requests set token_expires_at=clock_timestamp()-interval '1 second' where id='${id}';`);
   await receipt.getByRole('button',{name:'Check booking status',exact:true}).click();await receipt.getByRole('alert').waitFor();await expect(receipt.getByRole('link',{name:'Join meeting',exact:true})).toHaveCount(0);await expect(receipt.getByText(details.requesterEmail,{exact:true})).toHaveCount(0);
+  await verifyPreparedWithdrawal(host,guest,sql,hostId,{...details,windows:[{start:day+'T14:00:00Z',end:day+'T15:00:00Z'}]});
   await host.getByRole('button',{name:'Back to host chat',exact:true}).click();await host.getByRole('button',{name:'Disconnect Google',exact:true}).waitFor();
  }finally{
   await host.unroute('**/api/browser/booking-approval/approve');

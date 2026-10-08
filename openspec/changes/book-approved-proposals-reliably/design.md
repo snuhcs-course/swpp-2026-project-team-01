@@ -71,3 +71,10 @@ Persist a separate encrypted message and receipt-token hash per participant outb
 Use the organizer returned in matching Google event evidence; never substitute the host's primary address or the service sender. HTML and text share the frozen meeting fields. Host View booking links retain the single `/app` workspace and select the request; requester links open the canonical booking route with an independent receipt-only fragment token. The receipt credential is bound to the current parent token, verified recipient and original expiry, and cannot authorize chat, scheduling changes or provider consent.
 
 The private delivery scheduler requires its own Vault URL and the existing dispatch secret. Deployment acceptance must inspect pending work before activation, verify private-route guards, and distinguish synthetic transport evidence from real inbox receipt.
+
+
+## Closure competing with dispatch
+
+Retire the earlier blanket prohibition on closing a prepared booking. The request lock is the serialization boundary: closure takes request, host and attempt locks, confirms there is no possible dispatch, blocks prepared work and releases its reservation atomically with the closure record. It deliberately takes no job lock, because dispatch owns the job before waiting for the request. Workers acknowledge blocked attempts without provider access. Host/guest authority is rechecked after waits.
+
+If dispatch wins, closure preserves the saved event identity and reservation and reports pending reconciliation. Missing/inconsistent booking evidence remains conservative. The UI relies on server `canWithdraw`/`canDecline` flags rather than treating every booking status as nonclosable; same-input recovery survives a still-prepared booking response. Deterministic integration races exercise both lock orders and withdrawal during provider reads.

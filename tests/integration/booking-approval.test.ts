@@ -16,6 +16,7 @@ import {verifyBookingLeaseCutoffs} from './booking-lease.ts';
 import {verifyBookingEvaluation} from './booking-evaluation.ts';
 import {verifyBookingDispatch} from './booking-dispatch.ts';
 import {verifyBookingReceipt} from './booking-receipt.ts';
+import {verifyBookingWithdrawal} from './booking-withdrawal.ts';
 import {verifyBookingDelivery} from './booking-delivery.ts';
 import {verifyBookingWorker} from './booking-worker.ts';
 const code=(value:string)=>(error:unknown)=>error instanceof ApplicationError&&error.code===value;
@@ -34,13 +35,13 @@ test('Web approval requires exact current host/session/proposal/agreement and co
   return {id,guest,state,agree:async()=>publication.agree(guest,{requestId:id,revision:state.revision,proposalVersion:state.proposal!.version,confirmed:true,idempotencyKey:randomUUID()})};
  }
  try{
-  for(let i=0;i<2;i++){
+  for(let i=0;i<3;i++){
    const email=randomUUID()+'@example.test',password=randomUUID()+randomUUID(),invite=randomUUID();const created=await fetch(local.API_URL+'/auth/v1/admin/users',{method:'POST',headers,body:JSON.stringify({email,password,email_confirm:true})});assert.equal(created.status,200);const id=(await created.json()).id;
    const login=await fetch(local.API_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:local.ANON_KEY,'content-type':'application/json'},body:JSON.stringify({email,password})});assert.equal(login.status,200);const token=(await login.json()).access_token,credential=await verifyHostToken(token,{env});hosts.push({id,invite,token,credential});
    const encrypted=cipher.seal({accessToken:'fixture-access',refreshToken:'fixture-refresh',subject:'google-'+id,expiresAt:Date.now()+3600000,scopes:[...calendarScopes.host]},'google:host:'+id);
    await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invite}','${email}','${createHash('sha256').update(invite).digest('hex')}',now()+interval '1 day','approval-test');insert into fmat.hosts(id,email,invitation_id,handle,display_name,rules,rules_version,conflict_calendar_ids,booking_calendar_id) values('${id}','${email}','${invite}','approval-${id.slice(0,8)}','Host','${JSON.stringify(rules)}',1,array['fixture-calendar'],'fixture-calendar');insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential) values('host','${id}','google-${id}',array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],'${encrypted}');`);
   }
-  const [a,b]=hosts,r=await fixture();
+  const [a,b,c]=hosts,r=await fixture();
   assert.equal((await approval.read(a.credential,{requestId:r.id})).blocker,'agreement_required');
   await assert.rejects(approval.read(b.credential,{requestId:r.id}),code('NOT_FOUND'));await assert.rejects(approval.read(r.guest,{requestId:r.id}),code('FORBIDDEN'));await assert.rejects(approval.read({...a.credential},{requestId:r.id}),code('UNAUTHORIZED'));
   const agreed=await r.agree(),input={requestId:r.id,revision:agreed.revision,proposalVersion:agreed.proposal!.version,confirmed:true as const,idempotencyKey:randomUUID()};
@@ -67,6 +68,10 @@ test('Web approval requires exact current host/session/proposal/agreement and co
    const f=await fixture(),agreed=await f.agree();await sql.query(`update fmat.requests set contact_verified_email='guest@example.test' where id='${f.id}';`);
    await approval.approve(a.credential,{requestId:f.id,revision:agreed.revision,proposalVersion:agreed.proposal!.version,confirmed:true,idempotencyKey:randomUUID()});return f.id;
   });
+  await verifyBookingWithdrawal(db,env,c.credential,async()=>{
+   const f=await fixture(c),agreed=await f.agree();await sql.query(`update fmat.requests set contact_verified_email='guest@example.test' where id='${f.id}';`);
+   await approval.approve(c.credential,{requestId:f.id,revision:agreed.revision,proposalVersion:agreed.proposal!.version,confirmed:true,idempotencyKey:randomUUID()});return {id:f.id,guest:f.guest};
+  });
   let workerDay=3;const workerGuests=new Map<string,Credential>();
   await verifyBookingWorker(db,env,b.id,async()=>{
    const f=await fixture(b,workerDay++),agreed=await f.agree();workerGuests.set(f.id,f.guest);await sql.query(`update fmat.requests set contact_verified_email='guest@example.test' where id='${f.id}';`);
@@ -81,7 +86,7 @@ test('Web approval requires exact current host/session/proposal/agreement and co
   await fetch(local.API_URL+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+a.token}});await assert.rejects(approval.approve(a.credential,input),code('UNAUTHORIZED'));
  }finally{
   sql.close();const cleanup=new LocalSql();
-  for(const id of requests){await cleanup.query(`set session_replication_role=replica;delete from fmat.booking_deliveries where request_id='${id}';delete from fmat.idempotency where input->>'requestId'='${id}';delete from fmat.jobs where payload->>'outboxId' in(select id::text from fmat.outbox where payload->>'requestId'='${id}');delete from fmat.outbox where payload->>'requestId'='${id}';delete from fmat.booking_dispatches where attempt_id in(select id from fmat.booking_attempts where request_id='${id}');delete from fmat.booking_checks where attempt_id in(select id from fmat.booking_attempts where request_id='${id}');delete from fmat.jobs where payload->>'requestId'='${id}';delete from fmat.web_approval_decisions where request_id='${id}';delete from fmat.host_reservations where attempt_id in(select id from fmat.booking_attempts where request_id='${id}');delete from fmat.booking_attempts where request_id='${id}';delete from fmat.host_approvals where request_id='${id}';delete from fmat.booking_identities where request_id='${id}';delete from fmat.scheduling_decisions where request_id='${id}';delete from fmat.proposal_evidence where request_id='${id}';delete from fmat.proposals where request_id='${id}';delete from fmat.candidate_publications where request_id='${id}';delete from fmat.candidate_rankings where request_id='${id}';delete from fmat.candidate_evaluations where request_id='${id}';delete from fmat.request_history where request_id='${id}';delete from fmat.audit_events where subject_id='${id}';delete from fmat.requests where id='${id}';set session_replication_role=origin;`);}
+  for(const id of requests){await cleanup.query(`set session_replication_role=replica;delete from fmat.request_closures where request_id='${id}';delete from fmat.booking_deliveries where request_id='${id}';delete from fmat.idempotency where input->>'requestId'='${id}';delete from fmat.jobs where payload->>'outboxId' in(select id::text from fmat.outbox where payload->>'requestId'='${id}');delete from fmat.outbox where payload->>'requestId'='${id}';delete from fmat.booking_dispatches where attempt_id in(select id from fmat.booking_attempts where request_id='${id}');delete from fmat.booking_checks where attempt_id in(select id from fmat.booking_attempts where request_id='${id}');delete from fmat.jobs where payload->>'requestId'='${id}';delete from fmat.web_approval_decisions where request_id='${id}';delete from fmat.host_reservations where attempt_id in(select id from fmat.booking_attempts where request_id='${id}');delete from fmat.booking_attempts where request_id='${id}';delete from fmat.host_approvals where request_id='${id}';delete from fmat.booking_identities where request_id='${id}';delete from fmat.scheduling_decisions where request_id='${id}';delete from fmat.proposal_evidence where request_id='${id}';delete from fmat.proposals where request_id='${id}';delete from fmat.candidate_publications where request_id='${id}';delete from fmat.candidate_rankings where request_id='${id}';delete from fmat.candidate_evaluations where request_id='${id}';delete from fmat.request_history where request_id='${id}';delete from fmat.audit_events where subject_id='${id}';delete from fmat.requests where id='${id}';set session_replication_role=origin;`);}
   for(const host of hosts){await cleanup.query(`delete from fmat.calendar_connections where principal_id='${host.id}';delete from fmat.hosts where id='${host.id}';delete from fmat.invitations where id='${host.invite}';`);await fetch(local.API_URL+'/auth/v1/admin/users/'+host.id,{method:'DELETE',headers});}cleanup.close();
  }
 });

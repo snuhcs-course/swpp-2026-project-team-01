@@ -132,3 +132,8 @@ The replacement must verify website setup, requester conversation, email, MCP, C
 ### Implemented web confirmation receipt
 
 Once provider evidence confirms booking, the host's selected request and the requester's protected booking page display the same frozen title/purpose, start/end, duration, timezone, participant emails and location. Online HTTPS locations offer **Join meeting**; an allowlisted saved Calendar URL offers **Open in Google Calendar**. **Check booking status** refreshes confirmation and the viewer's own email status. Pending or failed email does not change the confirmed meeting. An uncertain Calendar write remains “Booking in progress” without a join action or confirmed receipt. Expired or rotated requester access removes the receipt on refresh and does not reveal the prior conversation. The receipt displays the actual Calendar organizer from provider evidence. Confirmation email and receipt-only links have local fault/browser coverage and verified production activation; controlled inbox acceptance still requires separate evidence.
+
+
+### Withdrawal before Calendar dispatch
+
+An approved request can still show **Withdraw request** to its requester and **Decline request** to its host while its saved Calendar attempt is prepared and has no dispatch evidence. The card explains that Calendar creation has not started and the server will check again on confirmation. The existing explicit confirmation and same-decision retry remain usable in that state. Once dispatch may have begun, both actions disappear and the card explains that the outcome is pending; it never claims to cancel an existing event.

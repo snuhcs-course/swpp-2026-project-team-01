@@ -1,19 +1,13 @@
--- Exact closure retries retain only minimal status, never transcript authority.
-create table fmat.request_closures (
- request_id uuid primary key references fmat.requests(id) on delete cascade,
- actor_scope text not null,
- key uuid not null,
- operation text not null check(operation in ('withdraw','decline')),
- input jsonb not null,
- result_revision integer not null check(result_revision>0),
- created_at timestamptz not null default clock_timestamp()
-);
-alter table fmat.request_closures enable row level security;
-revoke all on fmat.request_closures from public,anon,authenticated;
-create trigger request_closures_immutable before update on fmat.request_closures for each row execute function fmat.reject_candidate_evaluation_update();
+SET local check_function_bodies = off;
 
-create or replace function fmat.request_lifecycle_view(p_request_id uuid,p_kind text)
-returns jsonb language plpgsql set search_path='' as $$
+CREATE OR REPLACE FUNCTION fmat.request_lifecycle_view (
+  p_request_id uuid,
+  p_kind       text
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
 declare r fmat.requests; state text; closed boolean; can_close boolean;
 begin
  select * into strict r from fmat.requests where id=p_request_id;
@@ -30,11 +24,18 @@ begin
  return jsonb_build_object('requestId',r.id,'revision',r.revision,'status',state,'closed',closed,
   'canWithdraw',can_close and p_kind='guest','canDecline',can_close and p_kind='host');
 end;
-$$;
-revoke all on function fmat.request_lifecycle_view(uuid,text) from public,anon,authenticated,service_role;
+$function$;
 
-create or replace function public.fmat_request_lifecycle(p_operation text,p_credential jsonb,p_input jsonb)
-returns jsonb language plpgsql security definer set search_path='' as $$
+CREATE OR REPLACE FUNCTION public.fmat_request_lifecycle (
+  p_operation  text,
+  p_credential jsonb,
+  p_input      jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare r fmat.requests; actor jsonb; scope text; prior fmat.request_closures; result jsonb;
 begin
  if p_operation is null or p_operation not in ('read','withdraw','decline') or jsonb_typeof(p_input) is distinct from 'object' then raise exception 'INVALID_INPUT';end if;
@@ -85,6 +86,5 @@ begin
  perform fmat.audit('request_'||p_operation,actor,r.id::text);
  return fmat.request_lifecycle_view(r.id,p_credential->>'kind');
 end;
-$$;
-revoke all on function public.fmat_request_lifecycle(text,jsonb,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_request_lifecycle(text,jsonb,jsonb) to service_role;
+$function$;
+

@@ -178,6 +178,8 @@ References: [requester destination](../user_experience/04_page_list.md#requester
 
 Incremental completion (full phase exit remains open):
 
+- [x] Implement and locally verify withdrawal/decline until persisted Calendar dispatch, with atomic prepared-attempt retirement, reservation release, both deterministic lock races, expiry after waits and browser retry recovery. Verify the 60-migration rebuild, SQL/integration/application suites, builds and browser/recovery/runtime checks. Production verification is recorded separately.
+
 - [x] Implement and locally verify fenced booking-email delivery, independent failure/retry status, actual Calendar organizer and receipt-only email links. Verify 59-migration reset, 1,012 SQL assertions, 19 integrations, 150 app/provider tests, browser/recovery/runtime checks and email/receipt reflow. Controlled live inbox acceptance remains open.
 - [x] Deploy booking-email delivery and receipt-only links, verify production guards and 43 HTTP checks, and activate the inspected minute scheduler (`d332d48`; deployment `dpl_816vv1WL32XtHwCdwDS6JETPWqQW`; [evidence](05_rebuild_evidence.md#fenced-booking-confirmation-delivery--2026-10-07)).
 

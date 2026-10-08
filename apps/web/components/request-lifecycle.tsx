@@ -12,6 +12,7 @@ export function RequestLifecycleCard({requestId,audience,onStatus,refreshKey}:{r
  const decision=useRef(pending);decision.current=pending;
  const live=useRef(false),inFlight=useRef(false),current=useRef(state),notify=useRef(onStatus),controller=useRef<AbortController|null>(null),heading=useRef<HTMLDivElement>(null);
  current.current=state;notify.current=onStatus;
+ const canClose=(next:RequestLifecycleState)=>audience==='guest'?next.canWithdraw:next.canDecline;
  const verb=audience==='guest'?'Withdraw':'Decline',operation=audience==='guest'?'withdraw':'decline';
  function accept(next:RequestLifecycleState){
   if(!live.current)return;
@@ -26,7 +27,7 @@ export function RequestLifecycleCard({requestId,audience,onStatus,refreshKey}:{r
  }
  async function refresh(){
   if(inFlight.current)return;const activeController=controller.current!;inFlight.current=true;setBusy(true);
-  try{const next=await read();accept(next);if(live.current&&decision.current&&(next.closed||next.status==='booking'||next.revision!==decision.current.revision)){setPending(null);setConfirmation(null);}}catch(cause){if(live.current&&controller.current===activeController){setError(cause instanceof Error?cause.message:'Could not check this request.');setState(null);current.current=null;}}
+  try{const next=await read();accept(next);if(live.current&&decision.current&&(next.closed||!canClose(next)||next.revision!==decision.current.revision)){setPending(null);setConfirmation(null);}}catch(cause){if(live.current&&controller.current===activeController){setError(cause instanceof Error?cause.message:'Could not check this request.');setState(null);current.current=null;}}
   finally{if(controller.current===activeController){inFlight.current=false;if(live.current)setBusy(false);}}
  }
  useEffect(()=>{
@@ -52,15 +53,15 @@ export function RequestLifecycleCard({requestId,audience,onStatus,refreshKey}:{r
    // Read before offering a retry: closure may have committed after its response
    // was lost, or booking may have started. Never invent a cancellation result.
    try{const next=await read();accept(next);if(!live.current)return;
-    if(next.closed||next.status==='booking'||next.revision!==input.revision){setPending(null);setConfirmation(null);}
-    if(!next.closed&&next.status!=='booking')setError(next.revision!==input.revision?'The request changed. Review its current details before confirming again.':message);
+    if(next.closed||!canClose(next)||next.revision!==input.revision){setPending(null);setConfirmation(null);}
+    if(!next.closed&&canClose(next))setError(next.revision!==input.revision?'The request changed. Review its current details before confirming again.':message);
    }catch{if(live.current){setState(null);current.current=null;setError('The result is unknown. Check request status before making another decision.');}}
   }finally{inFlight.current=false;if(live.current)setBusy(false);}
  }
  const allowed=state&&(audience==='guest'?state.canWithdraw:state.canDecline),changed=confirmation!==null&&confirmation!==state?.revision;
  return <Card role="region" aria-label="Request status and closure"><CardHeader><CardTitle tabIndex={-1} ref={heading}>Request status</CardTitle><CardDescription>{state?state.status.replaceAll('_',' '):'Check the current status before closing this request.'}</CardDescription></CardHeader>
   <CardContent className="flex min-w-0 flex-col gap-3">
-   {state?.status==='booking'?<p role="status">Booking is being checked. A calendar event may already exist. Withdrawal and decline are unavailable while the outcome is uncertain.</p>:state?.closed?<p role="status">This request is closed. No further scheduling changes are available here.</p>:<p>{audience==='guest'?'You can withdraw this request before booking begins.':'You can decline this request before booking begins.'} Closing a request does not cancel an existing calendar event.</p>}
+   {state?.status==='booking'&&allowed?<p role="status">Calendar creation has not started. You can still {operation} this request; the server will check again when you confirm.</p>:state?.status==='booking'?<p role="status">Booking is being checked. A calendar event may already exist. Withdrawal and decline are unavailable while the outcome is uncertain.</p>:state?.closed?<p role="status">This request is closed. No further scheduling changes are available here.</p>:<p>{audience==='guest'?'You can withdraw this request before Calendar creation starts.':'You can decline this request before Calendar creation starts.'} Closing a request does not cancel an existing calendar event.</p>}
    {confirmation!==null&&allowed?<Alert><AlertTitle>{verb} this request?</AlertTitle><AlertDescription>This ends scheduling for this request. {changed?'The request has changed. Cancel and review its current details first.':'Confirm only if you want to close it.'}</AlertDescription></Alert>:null}
    {error?<Alert variant="destructive"><AlertTitle>Check request status</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>:null}
   </CardContent><CardFooter className="flex-wrap gap-2">
