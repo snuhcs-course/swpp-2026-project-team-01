@@ -25,7 +25,8 @@
     "test:conversations": "tsx --test tests/runtime/*.test.ts",
     "test:browser": "tsx --test tests/e2e/*.test.ts",
     "booking:recover": "node --import tsx scripts/booking-recovery.ts",
-    "probe:oauth": "node scripts/probe-oauth-compatibility.mjs"
+    "probe:oauth": "node scripts/probe-oauth-compatibility.mjs",
+    "fmat": "tsx scripts/fmat.ts"
   },
   "type": "module",
   "dependencies": {

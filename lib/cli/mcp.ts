@@ -5,7 +5,7 @@ const failures={
  STORAGE_UNSAFE:[7,'Credential storage is unavailable or has unsafe permissions.'],
  CONNECTION_BUSY:[8,'Another process holds this connection. Retry after it finishes; after a crash, sign in as a new connection.'],
  LOGOUT_INCOMPLETE:[9,'Remote revocation is unconfirmed. Retry logout; this local connection is disabled.'],
- INVALID_INPUT:[2,'Use tools, or call with a tool name and a JSON object on stdin.'],
+ INVALID_INPUT:[2,'Invalid arguments or input. Run with --help for supported commands.'],
  LOGIN_REQUIRED:[3,'Sign in again for this connection.'],
  INSUFFICIENT_SCOPE:[4,'Reconnect and grant the permissions required by this tool.'],
  TOOL_FAILED:[5,'The tool rejected this request. Review the current state before trying again.'],
@@ -27,6 +27,7 @@ export async function cliCommand(args:readonly string[],stdin:AsyncIterable<Uint
  if(args.length===1&&args[0]==='tools')return {kind:'tools'};
  if(args.length!==2||args[0]!=='call'||!/^fmat_[a-z_]{1,80}$/u.test(args[1]))throw new CliFailure('INVALID_INPUT');
  const chunks:Buffer[]=[];let size=0;
+ signal=AbortSignal.any([signal,AbortSignal.timeout(5000)]);
  const iterator=stdin[Symbol.asyncIterator]();
  try{
   while(true){
@@ -87,7 +88,7 @@ export async function invokeMcp(origin:string,accessToken:string,command:CliComm
  }catch(error){throw failure??(error instanceof CliFailure?error:new CliFailure('REMOTE_FAILURE'));}
  finally{await client.close().catch(()=>{});}
 }
-export async function runMcpCommand(command:CliCommand,connection:{origin:string;accessToken:string},stdout:(value:string)=>void,stderr:(value:string)=>void,fetcher:typeof fetch=fetch):Promise<number>{
- try{stdout(JSON.stringify(await invokeMcp(connection.origin,connection.accessToken,command,fetcher))+'\n');return 0;}
+export async function runMcpCommand(command:CliCommand,connection:{origin:string;accessToken:string},stdout:(value:string)=>void,stderr:(value:string)=>void,fetcher:typeof fetch=fetch,signal?:AbortSignal):Promise<number>{
+ try{stdout(JSON.stringify(await invokeMcp(connection.origin,connection.accessToken,command,fetcher,signal))+'\n');return 0;}
  catch(error){const safe=error instanceof CliFailure?error:new CliFailure('REMOTE_FAILURE');stderr(JSON.stringify({error:{code:safe.code,message:safe.message}})+'\n');return safe.exitCode;}
 }
