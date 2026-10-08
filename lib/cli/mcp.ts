@@ -1,7 +1,10 @@
 import {Client,StreamableHTTPClientTransport} from '@modelcontextprotocol/client';
 
-export type CliErrorCode='INVALID_INPUT'|'LOGIN_REQUIRED'|'INSUFFICIENT_SCOPE'|'TOOL_FAILED'|'REMOTE_FAILURE';
+export type CliErrorCode='INVALID_INPUT'|'LOGIN_REQUIRED'|'INSUFFICIENT_SCOPE'|'TOOL_FAILED'|'REMOTE_FAILURE'|'STORAGE_UNSAFE'|'CONNECTION_BUSY'|'LOGOUT_INCOMPLETE';
 const failures={
+ STORAGE_UNSAFE:[7,'Credential storage is unavailable or has unsafe permissions.'],
+ CONNECTION_BUSY:[8,'Another process holds this connection. Retry after it finishes; after a crash, sign in as a new connection.'],
+ LOGOUT_INCOMPLETE:[9,'Remote revocation is unconfirmed. Retry logout; this local connection is disabled.'],
  INVALID_INPUT:[2,'Use tools, or call with a tool name and a JSON object on stdin.'],
  LOGIN_REQUIRED:[3,'Sign in again for this connection.'],
  INSUFFICIENT_SCOPE:[4,'Reconnect and grant the permissions required by this tool.'],

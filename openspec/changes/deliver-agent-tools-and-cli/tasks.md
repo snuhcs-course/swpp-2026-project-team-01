@@ -19,7 +19,7 @@ Local signed MCP host setup now covers draft-to-human-confirmation and logout wi
 
 ## 3. Thin CLI and entry journeys
 
-The internal official-SDK transport and bounded command parser pass discovery, calls, authority denial, redirect and output-sanitization tests. Runnable entry and private credential lifecycle remain outstanding.
+The internal official-SDK transport and bounded command parser pass discovery, calls, authority denial, redirect and output-sanitization tests. Private POSIX storage now verifies isolation, atomic persistence, cross-process refresh coordination and durable uncertain outcomes. Runnable entry and browser/provider OAuth exchange remain outstanding.
 
 - [ ] 3.1 Implement JSON tool discovery/invocation over the same MCP resource, with bounded input, stable errors/exits and no credentials in argv/output; verify real SDK round trips and document runnable commands.
 - [ ] 3.2 Implement browser PKCE login and private origin-separated credential storage, coordinated refresh and revoke/logout; verify wrong callback/state/issuer, parallel refresh, uncertain replies, permissions, cleanup and revoked calls, and document recovery.
