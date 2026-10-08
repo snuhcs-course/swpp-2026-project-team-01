@@ -841,3 +841,15 @@ Validation: `npm run check` passes 170 application/provider and four SMTP tests,
 Deployment verified: code `7910387`, Vercel `dpl_HSgcyxzEwPDfz9PF4xbVL3Szw8Go`, independently Ready at the release alias. Upload inspection scanned 513 regular files against 13 configured credential values with zero matches. Seven public-document checks, 57 access guards and the separate invalid-identity callback check pass. POST to the unimplemented AgentMail route returns 404, so this deployment cannot acknowledge email before durable ingress exists. The release readiness flag remains false.
 
 The earlier diagnostic rerun 37740602544, attempt 2, completed successfully in both repository and database jobs. The original private-review checkbox failure is retained as an intermittent observation; no speculative UI fix or weakened assertion was applied.
+
+## AgentMail durable receiver — 2026-10-08
+
+Code `db5a454` adds the bounded HTTP receiver, private operator registry, minimized receipts/delivery identities and atomic receipt-reference jobs. Eight concurrent retries create one receipt and publication; conflicting event/message/delivery evidence rolls back. Publication failure leaves no receipt/job; lost responses retry safely. Disabled/replaced receiver generations reject even duplicates, while retained evidence keeps its original generation.
+
+Validation: disposable local rebuild; 22 SQL files / 1,019 assertions; focused real-database concurrency/lost-response/identity/grant checks; 173 application/provider and four SMTP tests; types/scripts/documentation checks; both builds; runtime smoke; strict OpenSpec validation. No browser UI changed, so the browser suite was not repeated.
+
+Migration `20261008072451_agentmail_ingress.sql` was reviewed and applied to `mriseqztcwmezvtawnbo` after a dry run. All 65 local/remote migration entries match. A rollback-only remote probe verified fresh receipt, identical retry, one publication and disabled receiver rejection; subsequent counts are zero for receiver registrations, receipts, deliveries and ingress jobs. Security advisors report no issues.
+
+Deployment `dpl_9P6GCBqaxExwosF5GHWsG7zrWxjU` is independently Ready at `https://release.findmeatime.com` (deployment URL `https://findmeatime-release-95kofxybt-justdodos-projects.vercel.app`). Upload scan: 525 regular files, 13 configured secret values, zero matches. Production passes 57 existing HTTP guards, the separate invalid-identity callback, seven public skill-document checks and the unconfigured AgentMail receiver's sanitized no-store 503. The initial ad hoc denial assertion used the wrong error-envelope shape; after reading the existing shared error contract, the corrected assertion passed without an application change.
+
+The operator registry remains empty and live AgentMail delivery is not enabled. Inbox allocation/consumer ownership, bounded full-message retrieval, verified sender/request binding, dispatch, replies and uncertain-send recovery remain required Phase 6 work. Release readiness remains false.

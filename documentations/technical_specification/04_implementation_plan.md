@@ -252,7 +252,8 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 
 Incremental completion (full phase exit remains open):
 
-- [x] Implement the fenced durable AgentMail receiver with atomic receipt/job publication, concurrent replay deduplication, conflicting identity rejection, lost-response recovery and private grants. Local rebuild, 1,019 SQL assertions and focused integration tests pass; production deployment and downstream routing remain open.
+- [x] Implement the fenced durable AgentMail receiver with atomic receipt/job publication, concurrent replay deduplication, conflicting identity rejection, lost-response recovery and private grants. Local rebuild, 1,019 SQL assertions and focused integration tests pass; downstream routing remains open.
+- [x] Deploy durable ingress and its additive migration; verify remote rollback isolation, empty production registry, security advisors and production denial/regression checks (`db5a454`; deployment `dpl_9P6GCBqaxExwosF5GHWsG7zrWxjU`; [evidence](05_rebuild_evidence.md#agentmail-durable-receiver--2026-10-08)).
 - [x] Verify AgentMail raw-body signatures with pinned Svix 2.7, five-minute freshness, one-MiB/five-second read bounds, inbox/thread isolation and minimized event/message locators. Test changed payloads, rotation signatures, omitted bodies and rejected delivery classes. Durable inbox deduplication, sender/request binding and live dispatch remain open.
 - [x] Deploy the tested AgentMail verification dependency/boundary without exposing an ingress endpoint; verify Ready production, retained public documents/access guards and no acknowledgment of unbound AgentMail events (`7910387`; deployment `dpl_HSgcyxzEwPDfz9PF4xbVL3Szw8Go`; [evidence](05_rebuild_evidence.md#agentmail-authenticated-transport-boundary--2026-10-08)).
 

@@ -7,4 +7,4 @@
 
 ## 2. Deployment evidence
 
-- [ ] 2.1 Run checks and both builds, deploy the reviewed migration and receiver, verify remote rollback isolation plus production denial/regression checks, and update the implementation plan with live ownership/routing gates still open.
+- [x] 2.1 Run checks and both builds, deploy the reviewed migration and receiver, verify remote rollback isolation plus production denial/regression checks, and update the implementation plan with live ownership/routing gates still open.
