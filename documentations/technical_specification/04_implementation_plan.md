@@ -326,7 +326,7 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
-- [x] Preserve the selected host request/audience through Google sign-in and cancellation using a bounded local continuation hint. Verify real local PKCE callback success, retry, cookie consumption and agent-consent regressions. Full workflow task 2.4 remains open. [Evidence](05_rebuild_evidence.md#host-login-handoff-continuation--2026-10-09).
+- [x] Preserve the selected host request/audience through Google sign-in and cancellation using a bounded local continuation hint. Verify real local PKCE callback success, retry, cookie consumption and agent-consent regressions. Deployed `2ab8c5f` and verified eight new plus 56 retained production checks. Full workflow task 2.4 remains open. [Evidence](05_rebuild_evidence.md#host-login-handoff-continuation--2026-10-09).
 
 - [x] Deploy MCP scheduling/booking review (`8f85611`; deployment `dpl_4V88mYo6hbVHFco4giff2G89PuUn`), verify 87 matching migrations, rollback-only domain checks, clean advisors and 56 HTTP checks. Full workflow/client acceptance remains open. [Evidence](05_rebuild_evidence.md#mcp-scheduling-and-booking-review--2026-10-09).
 
