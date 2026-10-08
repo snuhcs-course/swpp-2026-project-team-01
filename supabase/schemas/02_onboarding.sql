@@ -162,7 +162,8 @@ begin
   when 'setup_read','invite_redeem' then perform fmat.require_host(p_actor,false);
   when 'setup_save','calendar_read','calendar_save','calendar_disconnect' then perform fmat.require_host(p_actor,true);
   when 'invite_issue','invitation_create','invite_revoke' then
-    if p_actor->>'kind' is distinct from 'operator' or coalesce(p_actor->>'id','')='' then raise exception 'FORBIDDEN'; end if;
+    -- Legacy issuance/revocation cannot bypass the dedicated operator lifecycle.
+    raise exception 'FORBIDDEN';
   when 'oauth_start' then
     if p_actor->>'kind'='host' then perform fmat.require_host(p_actor,true);
     elsif p_actor->>'kind'='guest' then perform fmat.authorize_guest(p_actor,(p_actor->>'requestId')::uuid);

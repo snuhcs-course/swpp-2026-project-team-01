@@ -12,7 +12,7 @@ insert into onboarding_fixture values
  ('rules','{"timezone":"Asia/Seoul","durationMinutes":30,"availability":[{"days":[1,2,3,4,5],"start":"09:00","end":"18:00"}],"focusBlocks":[],"bufferMinutes":15,"travelMode":"TRANSIT","homeLocation":"private home","preferences":"private host preferences"}');
 create function pg_temp.actor(p_name text) returns jsonb language sql as $$select value from onboarding_fixture where name=p_name$$;
 create function pg_temp.command(p_op text,p_actor_name text,p_input jsonb default '{}') returns jsonb language sql as $$
-  select public.fmat_command(p_op,pg_temp.actor(p_actor_name),p_input||jsonb_build_object('idempotencyKey',gen_random_uuid()::text))
+  select case when p_actor_name='operator' and p_op='invite_issue' then public.fmat_invitation_operator('issue',pg_temp.actor(p_actor_name)->>'id',jsonb_build_object('project','local','email',p_input->>'email','tokenHash',p_input->>'tokenHash','delivery','manual','origin','http://localhost:3000','idempotencyKey',gen_random_uuid())) when p_actor_name='operator' and p_op='invite_revoke' then public.fmat_invitation_operator('revoke',pg_temp.actor(p_actor_name)->>'id',jsonb_build_object('project','local','invitationId',p_input->>'invitationId','idempotencyKey',gen_random_uuid())) else public.fmat_command(p_op,pg_temp.actor(p_actor_name),p_input||jsonb_build_object('idempotencyKey',gen_random_uuid()::text)) end
 $$;
 select ok(not has_table_privilege('anon','fmat.invitations','SELECT'),'invitation hashes unavailable to public clients');
 select ok(not has_table_privilege('authenticated','fmat.calendar_connections','SELECT'),'encrypted credentials unavailable even to authenticated clients');

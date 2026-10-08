@@ -12,7 +12,7 @@ insert into setup_fixture values
  ('channel','{"provider":"imessage","senderId":"+821012345678","privateConversationId":"private-channel","isGroup":false}');
 create function pg_temp.item(n text) returns jsonb language sql as $$select value from setup_fixture where name=n$$;
 create function pg_temp.cmd(op text,who text,input jsonb default '{}') returns jsonb language sql as $$
- select public.fmat_command(op,pg_temp.item(who),input||jsonb_build_object('idempotencyKey',gen_random_uuid()::text))
+ select case when who='operator' and op='invite_issue' then public.fmat_invitation_operator('issue',pg_temp.item(who)->>'id',jsonb_build_object('project','local','email',input->>'email','tokenHash',input->>'tokenHash','delivery','manual','origin','http://localhost:3000','idempotencyKey',gen_random_uuid())) when who='operator' and op='invite_revoke' then public.fmat_invitation_operator('revoke',pg_temp.item(who)->>'id',jsonb_build_object('project','local','invitationId',input->>'invitationId','idempotencyKey',gen_random_uuid())) else public.fmat_command(op,pg_temp.item(who),input||jsonb_build_object('idempotencyKey',gen_random_uuid()::text)) end
 $$;
 select ok(not has_table_privilege('authenticated','fmat.setup_turns','SELECT'),'authenticated clients cannot query private setup turns');
 select ok(not has_table_privilege('anon','fmat.setup_drafts','SELECT'),'public clients cannot query private drafts');
