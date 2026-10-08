@@ -6,4 +6,4 @@
 
 ## 2. Release verification
 
-- [ ] 2.1 Run application checks and both builds, deploy to the selected release project and verify root/unavailable-host GET/HEAD responses plus existing HTTP guards. Record deployment evidence and incremental plan completion while preserving root-domain, OAuth and named-client gates.
+- [x] 2.1 Run application checks and both builds, deploy to the selected release project and verify root/unavailable-host GET/HEAD responses plus existing HTTP guards. Record deployment evidence and incremental plan completion while preserving root-domain, OAuth and named-client gates.

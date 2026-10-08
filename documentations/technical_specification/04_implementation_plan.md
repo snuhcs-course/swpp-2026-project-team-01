@@ -280,6 +280,7 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 Incremental completion (full phase exit remains open):
 
 - [x] Implement versioned root and per-host public Markdown entry routes on the reconstruction origin, current public-readiness checks, encoded profile data and honest browser fallback. Verify GET/HEAD, neutral unavailable/retry responses, no cookies/cache, fixed-origin links and public-field projection. Root-domain promotion and protected client integration remain open.
+- [x] Deploy public skill entry and verify production GET/HEAD/POST behavior plus existing access guards (`df91af8`; deployment `dpl_JCbfDnWjD6B5xagyTdbgRKJ6sFX2`; [evidence](05_rebuild_evidence.md#public-agent-entry-documents--2026-10-08)).
 
 Work:
 
