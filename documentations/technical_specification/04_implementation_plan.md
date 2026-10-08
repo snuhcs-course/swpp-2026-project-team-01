@@ -365,6 +365,7 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 Incremental completion (full phase exit remains open):
 
+- [x] Add and verify the internal bounded runtime history reader, including captured-tail pagination, redacted events, cancellation and final authority checks. Agent authorization/routing and complete conversation-read acceptance remain open. [Evidence](05_rebuild_evidence.md#bounded-runtime-history-reader--2026-10-09).
 - [x] Deploy host request discovery (`0e1f80f`; `dpl_9xbo7CetrUmSrKVgJx9NhsmPCpLd`), verify 83 matching migrations, production rollback probes, clean advisors and MCP/OAuth HTTP guards. [Evidence](05_rebuild_evidence.md#agent-host-request-discovery--2026-10-09).
 - [x] Implement bounded MCP host request discovery with owned cursors, private-data redaction and current grant enforcement; verify pagination, browser parity, expiry and revocation races. Conversation reads and the full workflow remain open. [Evidence](05_rebuild_evidence.md#agent-host-request-discovery--2026-10-09).
 
