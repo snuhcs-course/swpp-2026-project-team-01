@@ -7,7 +7,7 @@ Deliver authentication and transactional messages using the selected sender whil
 ## Requirements
 
 ### Requirement: Separate transactional sending from conversations
-New transactional emails SHALL use Cloudflare Email Service. Supabase Auth SHALL retain authentication authority and use Cloudflare custom SMTP in production. AgentMail SHALL remain the conversational email provider. Missing Cloudflare configuration SHALL NOT fall back to another sender.
+New transactional emails SHALL use Cloudflare Email Service. Supabase Auth SHALL retain authentication authority with Google-only login for the MVP; email/password, email OTP and magic-link login SHALL NOT be offered. Cloudflare custom SMTP SHALL remain configured for applicable Auth notifications. AgentMail SHALL remain the conversational email provider. Missing Cloudflare configuration SHALL NOT fall back to another sender.
 
 #### Scenario: Transactional email requested
 - **WHEN** an enabled verification, recovery, or booking notification is dispatched
@@ -17,9 +17,13 @@ New transactional emails SHALL use Cloudflare Email Service. Supabase Auth SHALL
 - **WHEN** an enabled new delivery lacks required Cloudflare configuration
 - **THEN** no message is sent through AgentMail or a default sender as fallback
 
-#### Scenario: Authentication email
-- **WHEN** the production Auth sender is activated
-- **THEN** Supabase login links are delivered through Cloudflare SMTP without changing identity or session validation
+#### Scenario: MVP host login
+- **WHEN** a host signs in to the MVP
+- **THEN** authentication uses Google through Supabase Auth, with email login disabled and no emailed login link
+
+#### Scenario: Authentication notification
+- **WHEN** an applicable non-login Auth notification is sent in production
+- **THEN** it uses Cloudflare SMTP without enabling email login or changing identity or session validation
 
 ### Requirement: Evidence-based delivery outcomes
 The system SHALL record successful submission only with a provider message identity and affirmative acceptance for the intended recipients. Suppressed or bounced recipients SHALL NOT be marked successfully sent. Email submission SHALL NOT establish contact verification or change booking state.
