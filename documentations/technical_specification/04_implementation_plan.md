@@ -137,6 +137,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 ### Phase 3 — Deliver host setup in the single `/app` chat
 
+- [x] Deploy and activate invitation delivery (`d9749ec`, deployment `dpl_DT1Jfi2qTF177x1DzaJRvbymDkwG`), configure the dedicated production key and verify 91 matching migrations, 53 HTTP checks, real CLI issuance/retry/recovery/revocation, one scheduled suppressed delivery and zero retained fixtures. Authorized mailbox acceptance remains open. [Evidence](05_rebuild_evidence.md#invitation-worker-endpoint-and-scheduler--2026-10-09).
+
 - [x] Implement the dispatch-secret-protected invitation endpoint and private minute scheduler; verify the 91-migration rebuild, 1,473 SQL assertions, 33 integrations, 297 app/provider tests, both builds and both browser suites. Production activation and authorized mailbox acceptance are tracked separately. [Evidence](05_rebuild_evidence.md#invitation-worker-endpoint-and-scheduler--2026-10-09).
 
 - [x] Deploy operator invitation recovery (`beda1d4`, `20261008174101`), verify 90 matching migrations, rollback-only recovery/revocation isolation, actual CLI service authentication, clean advisors and 48 HTTP checks. No live invitation/email was created. [Evidence](05_rebuild_evidence.md#operator-invitation-cli-and-private-recovery--2026-10-09).
