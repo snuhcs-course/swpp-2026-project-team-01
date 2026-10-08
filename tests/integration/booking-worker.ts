@@ -8,7 +8,7 @@ import {AvailabilityEvaluation} from '../../lib/server/scheduling/availability.t
 import {LocalSql} from './local-sql.ts';
 import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
 
-export async function verifyBookingWorker(database:Database,env:NodeJS.ProcessEnv,hostId:string,createApproved:()=>Promise<string>,confirmed?:(requestId:string)=>Promise<void>){
+export async function verifyBookingWorker(database:Database,env:NodeJS.ProcessEnv,hostId:string,createApproved:()=>Promise<string>,confirmed?:(requestId:string)=>Promise<void>,observe?:(requestId:string,confirmed:boolean)=>Promise<void>){
  const sql=new LocalSql(),events=new Map<string,unknown>();let inserts=0,gets=0,mode='success',conflict=false,miss=false,activeJob='',refreshes=0;
  const calendar={async refresh(bundle:import('../../lib/server/calendar/google.ts').TokenBundle,kind?:'host'|'guest'){assert.equal(kind,'host');refreshes++;return {...bundle,expiresAt:Date.now()+3600000};},async list(){return [{id:'fixture-calendar',name:'fixture',accessRole:'owner' as const,primary:false,timeZone:'UTC',color:null}];}};
  const provider=new GoogleBookingProvider(async(url,init)=>{
@@ -36,21 +36,21 @@ export async function verifyBookingWorker(database:Database,env:NodeJS.ProcessEn
  try{
   // Actual selective claim and insertion through the verified HTTP adapter.
   const first=await createApproved(),firstJob=await job(first);await sql.query(`update fmat.jobs set available_at='2000-01-01' where id='${firstJob}';`);
-  assert.deepEqual(await worker().run(),{claimed:1,outcome:'confirmed'});assert.equal(inserts,1);await confirmations(first);if(confirmed)await confirmed(first);
+  assert.deepEqual(await worker().run(),{claimed:1,outcome:'confirmed'});assert.equal(inserts,1);await confirmations(first);await observe?.(first,true);if(confirmed)await confirmed(first);
   const duplicate=await sql.query(`select fmat.enqueue_job('booking','worker-duplicate-${randomUUID()}',payload) from fmat.jobs where id='${firstJob}';`);
   assert.equal(await worker().process(await own(duplicate)),'complete');assert.equal(inserts,1);await confirmations(first);
   // Conflicting fresh availability cannot cross the dispatch cutoff.
   const busy=await createApproved();conflict=true;assert.equal(await worker().process(await own(await job(busy))),'blocked');conflict=false;
   assert.equal(await phase(busy),'blocked');assert.equal(await reservation(busy),'0');assert.equal(inserts,1);
   // A definitive provider rejection frees only its original dispatched attempt.
-  const rejected=await createApproved();mode='rejected';assert.equal(await worker().process(await own(await job(rejected))),'noncreating');mode='success';assert.equal(await reservation(rejected),'0');assert.equal(await phase(rejected),'noncreating');assert.equal(inserts,2);
+  const rejected=await createApproved();mode='rejected';assert.equal(await worker().process(await own(await job(rejected))),'noncreating');mode='success';assert.equal(await reservation(rejected),'0');assert.equal(await phase(rejected),'noncreating');assert.equal(inserts,2);await observe?.(rejected,false);
   // A committed insert with a lost response is reconciled under the same ID.
-  const lost=await createApproved();mode='lost_insert';assert.equal(await worker().process(await own(await job(lost))),'uncertain');assert.equal(await reservation(lost),'1');assert.equal(inserts,3);
+  const lost=await createApproved();mode='lost_insert';assert.equal(await worker().process(await own(await job(lost))),'uncertain');assert.equal(await reservation(lost),'1');assert.equal(inserts,3);await observe?.(lost,false);
   const cipher=new TokenCipher(env),ciphertext=await sql.query(`select encrypted_credential from fmat.calendar_connections where principal_kind='host' and principal_id='${hostId}' and revoked_at is null;`);
   const expiredCipher=cipher.seal({...cipher.open(ciphertext,'google:host:'+hostId) as object,expiresAt:Date.now()-1000},'google:host:'+hostId);
   await sql.query(`update fmat.calendar_connections set encrypted_credential='${expiredCipher}' where principal_kind='host' and principal_id='${hostId}' and revoked_at is null;`);
-  miss=true;mode='success';assert.equal(await worker().process(await own(await job(lost,'booking_reconcile'))),'uncertain');assert.equal(await reservation(lost),'1');assert.equal(inserts,3);
-  miss=false;assert.equal(await worker().process(await own(await job(lost,'booking_reconcile'))),'confirmed');await confirmations(lost);assert.equal(inserts,3);assert.equal(gets,2);assert.equal(refreshes,1);
+  miss=true;mode='success';assert.equal(await worker().process(await own(await job(lost,'booking_reconcile'))),'uncertain');assert.equal(await reservation(lost),'1');assert.equal(inserts,3);await observe?.(lost,false);
+  miss=false;assert.equal(await worker().process(await own(await job(lost,'booking_reconcile'))),'confirmed');await confirmations(lost);await observe?.(lost,true);assert.equal(inserts,3);assert.equal(gets,2);assert.equal(refreshes,1);
   // Lease loss after the provider writes cannot authorize a replacement insert.
   const expired=await createApproved(),expiredJob=await job(expired);mode='lease_expired';const previous=await own(expiredJob);assert.equal(await worker().process(previous),'lease_lost');assert.equal(await phase(expired),'dispatched');assert.equal(await reservation(expired),'1');
   mode='success';assert.equal(await worker().process(await own(expiredJob)),'confirmed');await confirmations(expired);assert.equal(inserts,4);

@@ -326,6 +326,7 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+- [x] Verify signed MCP host/requester review and booking-status parity through human approval, uncertain provider writes, reconciliation and confirmation; verify closure denies the requester grant while preserving the browser receipt. Controlled local providers only; live acceptance remains open. [Evidence](05_rebuild_evidence.md#mcp-booking-outcome-workflow--2026-10-09).
 - [x] Deploy public MCP/source CLI instructions (`9535c80`; `dpl_HpRBaEM5C9Bd3732jABwq1D3sAhX`), verify Ready production, instruction version `2026-10-09.5` and 66 HTTP checks. Positive live host-profile and personal-agent acceptance remain open. [Evidence](05_rebuild_evidence.md#public-cli-entry-instructions--2026-10-09).
 - [x] Update both public skill documents with real MCP and pinned source CLI login/discovery/call/logout instructions, requester intake prerequisites, retry/recovery and browser fallback. Verify both endpoints locally without private profile leakage. Live positive host-specific and personal-agent entry acceptance remain open in task 3.3. [Evidence](05_rebuild_evidence.md#public-cli-entry-instructions--2026-10-09).
 

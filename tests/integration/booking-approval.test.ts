@@ -1,3 +1,4 @@
+import {bookingAgentProbe} from './booking-agent.ts';
 import {verifyBookingRecovery} from './booking-recovery.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,6 +27,7 @@ test('Web approval requires exact current host/session/proposal/agreement and co
  const env={SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY,TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64')};
  const headers={apikey:local.SERVICE_ROLE_KEY,authorization:'Bearer '+local.SERVICE_ROLE_KEY,'content-type':'application/json'},db=new Database(env),sql=new LocalSql(),cipher=new TokenCipher(env),approval=new BookingApproval(db);
  const hosts:{id:string;invite:string;token:string;credential:Credential}[]=[],requests:string[]=[];
+ let agent:Awaited<ReturnType<typeof bookingAgentProbe>>|undefined;
  const evaluation=new AvailabilityEvaluation(db,env,{async refresh(bundle){return bundle;},async list(){return [];}},{async read(){return [];}});
  const publication=new SchedulingPublication(db,evaluation,new CandidateRanking(db,{async rank(input){return {orderedIds:input.candidates.map(x=>x.id)};}}));
  const rules={timezone:'UTC',availability:[{days:[0,1,2,3,4,5,6],start:'00:00',end:'23:59'}],focusBlocks:[],bufferMinutes:0,durationMinutes:30,preferences:'',travelMode:'NONE',meetingMode:'online',locationPolicy:'per_meeting',locations:[],travelBufferMinutes:0};
@@ -78,11 +80,13 @@ test('Web approval requires exact current host/session/proposal/agreement and co
    const f=await fixture(d,recoveryDay++),agreed=await f.agree();await sql.query(`update fmat.requests set contact_verified_email='guest@example.test' where id='${f.id}';`);
    await approval.approve(d.credential,{requestId:f.id,revision:agreed.revision,proposalVersion:agreed.proposal!.version,confirmed:true,idempotencyKey:randomUUID()});return f.id;
   });
+  agent=await bookingAgentProbe(db,env,b.credential);
   let workerDay=3;const workerGuests=new Map<string,Credential>();
   await verifyBookingWorker(db,env,b.id,async()=>{
    const f=await fixture(b,workerDay++),agreed=await f.agree();workerGuests.set(f.id,f.guest);await sql.query(`update fmat.requests set contact_verified_email='guest@example.test' where id='${f.id}';`);
-   await approval.approve(b.credential,{requestId:f.id,revision:agreed.revision,proposalVersion:agreed.proposal!.version,confirmed:true,idempotencyKey:randomUUID()});return f.id;
-  },requestId=>verifyBookingReceipt(db,requestId,b.credential,a.credential,workerGuests.get(requestId)!));
+   await agent!.beforeApproval(f.id,f.guest);
+   await approval.approve(b.credential,{requestId:f.id,revision:agreed.revision,proposalVersion:agreed.proposal!.version,confirmed:true,idempotencyKey:randomUUID()});await agent!.observe(f.id,false);return f.id;
+  },requestId=>verifyBookingReceipt(db,requestId,b.credential,a.credential,workerGuests.get(requestId)!),(requestId,confirmed)=>agent!.observe(requestId,confirmed));
   await verifyBookingDelivery(db,env,b.id);
   const expired=await fixture(),expiredState=await expired.agree();await sql.query(`update fmat.requests set created_at=now()-interval '2 days',expires_at=now()-interval '1 second',contact_verified_email='guest@example.test' where id='${expired.id}';`);
   assert.equal((await approval.read(a.credential,{requestId:expired.id})).blocker,'closed');await assert.rejects(approval.approve(a.credential,{requestId:expired.id,revision:expiredState.revision,proposalVersion:1,confirmed:true,idempotencyKey:randomUUID()}),code('NOT_FOUND'));
@@ -91,7 +95,7 @@ test('Web approval requires exact current host/session/proposal/agreement and co
   await sql.query(`update fmat.hosts set revoked_at=now() where id='${a.id}';`);await assert.rejects(approval.approve(a.credential,input),code('HOST_NOT_ADMITTED'));await sql.query(`update fmat.hosts set revoked_at=null where id='${a.id}';`);
   await fetch(local.API_URL+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+a.token}});await assert.rejects(approval.approve(a.credential,input),code('UNAUTHORIZED'));
  }finally{
-  sql.close();const cleanup=new LocalSql();
+  await agent?.close();sql.close();const cleanup=new LocalSql();
   for(const id of requests){await cleanup.query(`set session_replication_role=replica;delete from fmat.request_closures where request_id='${id}';delete from fmat.booking_deliveries where request_id='${id}';delete from fmat.idempotency where input->>'requestId'='${id}';delete from fmat.jobs where payload->>'outboxId' in(select id::text from fmat.outbox where payload->>'requestId'='${id}');delete from fmat.outbox where payload->>'requestId'='${id}';delete from fmat.booking_dispatches where attempt_id in(select id from fmat.booking_attempts where request_id='${id}');delete from fmat.booking_checks where attempt_id in(select id from fmat.booking_attempts where request_id='${id}');delete from fmat.jobs where payload->>'requestId'='${id}';delete from fmat.web_approval_decisions where request_id='${id}';delete from fmat.host_reservations where attempt_id in(select id from fmat.booking_attempts where request_id='${id}');delete from fmat.booking_attempts where request_id='${id}';delete from fmat.host_approvals where request_id='${id}';delete from fmat.booking_identities where request_id='${id}';delete from fmat.scheduling_decisions where request_id='${id}';delete from fmat.proposal_evidence where request_id='${id}';delete from fmat.proposals where request_id='${id}';delete from fmat.candidate_publications where request_id='${id}';delete from fmat.candidate_rankings where request_id='${id}';delete from fmat.candidate_evaluations where request_id='${id}';delete from fmat.request_history where request_id='${id}';delete from fmat.audit_events where subject_id='${id}';delete from fmat.requests where id='${id}';set session_replication_role=origin;`);}
   for(const host of hosts){await cleanup.query(`delete from fmat.calendar_connections where principal_id='${host.id}';delete from fmat.hosts where id='${host.id}';delete from fmat.invitations where id='${host.invite}';`);await fetch(local.API_URL+'/auth/v1/admin/users/'+host.id,{method:'DELETE',headers});}cleanup.close();
  }
