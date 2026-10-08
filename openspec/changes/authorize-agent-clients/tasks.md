@@ -3,7 +3,7 @@
 ## 1. Protocol and durable authority
 
 - [x] 1.1 Implement strict resource/redirect/scope/PKCE parsing and bounded asymmetric token/key handling without exposing routes. Verify malformed/duplicate inputs, foreign/expired/altered tokens, key rotation and authority callbacks; update owning setup/architecture docs and both builds.
-- [ ] 1.2 Implement private client/consent/grant/code/refresh records, fixed budgets, current host/request authority checks and atomic rotation/revocation through additive migrations. Verify local rebuild, grants/RLS, concurrency, expiry-after-lock and replay tests; document lifecycle and limits.
+- [x] 1.2 Implement private client/consent/grant/code/refresh records, fixed budgets, current host/request authority checks and atomic rotation/revocation through additive migrations. Verify local rebuild, grants/RLS, concurrency, expiry-after-lock and replay tests; document lifecycle and limits.
 
 ## 2. Browser and protocol integration
 
