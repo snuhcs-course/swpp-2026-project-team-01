@@ -2,6 +2,8 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path=public,extensions;
 select no_plan();
+-- Isolate this rollback-only test from local browser fixture service usage.
+delete from fmat.conversation_budgets where name='service';
 
 insert into auth.users(id,email,email_confirmed_at) values
 ('80000000-0000-4000-8000-000000000001','one@access.test',now()),
@@ -83,6 +85,7 @@ select throws_ok($$select pg_temp.accept('newguestgrant')$$,'P0001','CONVERSATIO
 select throws_ok($$select pg_temp.accept('guest')$$,'P0001','NOT_FOUND','old requester authority cannot use quota');
 update fmat.conversation_budgets set minute_used=200 where name='service';
 select throws_ok($$select pg_temp.accept('other')$$,'P0001','CONVERSATION_RATE_LIMIT','service minute ceiling applies across principals');
+update fmat.conversation_budgets set minute_used=0,hour_used=0 where name='guest:83000000-0000-4000-8000-000000000001';
 update fmat.conversation_budgets set minute_used=0,hour_used=2000 where name='service';
 select throws_ok($$select pg_temp.accept('newguestgrant')$$,'P0001','CONVERSATION_RATE_LIMIT','service hourly ceiling applies across principals');
 update fmat.conversation_grants set revoked_at=clock_timestamp() where id=(pg_temp.f('setup')->>'grantId')::uuid;

@@ -2,7 +2,7 @@
 
 ## Why
 
-The [release plan](../../../documentations/technical_specification/04_implementation_plan.md) requires concrete enforced runtime limits. Lifetime conversation caps alone allow rapid model starts across scopes and channels.
+The [release plan](../../../../documentations/technical_specification/04_implementation_plan.md) requires concrete enforced runtime limits. Lifetime conversation caps alone allow rapid model starts across scopes and channels.
 
 ## What Changes
 
@@ -19,7 +19,7 @@ None.
 
 ### Modified Capabilities
 
-- `chat-workspaces`: bounded conversation admission and recoverable temporary throttling, extending [safe recovery](../../specs/chat-workspaces/spec.md).
+- `chat-workspaces`: bounded conversation admission and recoverable temporary throttling, extending [safe recovery](../../../specs/chat-workspaces/spec.md).
 
 ## Impact
 
