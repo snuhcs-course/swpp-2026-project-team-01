@@ -44,7 +44,7 @@ select is(public.fmat_oauth_authorization_start(pg_temp.input())->>'error','rate
 update fmat.oauth_clients set authorization_window_at=clock_timestamp()-interval '61 seconds';
 select ok(public.fmat_oauth_authorization_start(pg_temp.input()) ? 'authorizationId','per-client budget renews after window');
 select is((select authorization_count from fmat.oauth_clients),1,'renewed counter starts at one');
-update fmat.oauth_authorizations set created_at=clock_timestamp()-interval '11 minutes',expires_at=clock_timestamp()-interval '1 minute' where id=(select authorization_id from fixture);
+update fmat.oauth_authorizations set created_at=statement_timestamp()-interval '11 minutes',expires_at=statement_timestamp()-interval '1 minute' where id=(select authorization_id from fixture);
 select is(public.fmat_oauth_authorization_read(authorization_id,repeat('a',64))->>'error','invalid_request','expired browser consent denied') from fixture;
 update fmat.oauth_budgets set used=30,window_started_at=clock_timestamp() where name='registration';
 select is(public.fmat_oauth_register('blocked',array['https://client.example/cb'],'https://release.findmeatime.com/mcp')->>'error','rate_limited','registration global ceiling');
