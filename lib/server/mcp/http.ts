@@ -1,3 +1,4 @@
+import {relayAgentHistory} from '../oauth/history-relay.ts';
 import {McpServer,WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/server';
 import {z} from 'zod';
 import {agentToolsForActor,agentToolCommand,agentToolScope} from '../../contracts/agent-tools.ts';
@@ -65,7 +66,10 @@ export function agentMcpHttp(env=process.env,credentials:Pick<AgentCredentials,'
     outputSchema:z.object({result:z.unknown()}),annotations:tool.annotations,
    },async input=>{
     try{
-     const result=await operations.execute(credential,agentToolCommand(tool.name,input));
+     const command=agentToolCommand(tool.name,input);
+     const result=command.operation==='conversation_read'
+      ?await relayAgentHistory(command.input,authorization.slice(7),request.signal,env)
+      :await operations.execute(credential,command);
      const structuredContent={result};return {content:[{type:'text' as const,text:JSON.stringify(structuredContent)}],structuredContent};
     }catch(error){
      const safe=error instanceof AgentOAuthError?{error:{code:error.code,message:'Reconnect the agent and review its requested permissions.'}}:publicError(error).body;

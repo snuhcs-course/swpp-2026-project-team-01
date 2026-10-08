@@ -25,7 +25,7 @@ test('Official MCP client initializes, lists and invokes with separate request a
  const transport=new StreamableHTTPClientTransport(new URL(env.APP_ORIGIN+'/mcp'),{requestInit:{headers:{authorization:'Bearer '+f.token}},fetch:async(input,init)=>f.handle(new Request(input,init))});
  try{
   await client.connect(transport);
-  const tools=await client.listTools();assert.deepEqual(tools.tools.map(t=>t.name),['fmat_get_request','fmat_propose_request_details','fmat_review_decision']);
+  const tools=await client.listTools();assert.deepEqual(tools.tools.map(t=>t.name),['fmat_read_conversation','fmat_get_request','fmat_propose_request_details','fmat_review_decision']);
   const result=await client.callTool({name:'fmat_get_request',arguments:{requestId:f.grant.actorId,input:{}}});
   assert.deepEqual(result.structuredContent,{result:{requestId:f.grant.actorId,revision:1}});assert.equal(f.calls(),1);
   const wrong=await client.callTool({name:'fmat_get_request',arguments:{requestId:randomUUID(),input:{}}});assert.equal(wrong.isError,true);assert.equal(f.calls(),1);

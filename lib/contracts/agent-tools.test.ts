@@ -5,7 +5,7 @@ import {agentTools,agentToolsForActor,agentToolCommand,agentToolScope} from './a
 const requestId='10000000-0000-4000-8000-000000000001',idempotencyKey='20000000-0000-4000-8000-000000000001';
 
 test('Requester discovery excludes host setup and private notes; decision permission stays distinct',()=>{
- assert.deepEqual(agentToolsForActor('guest').map(t=>t.name),['fmat_get_request','fmat_propose_request_details','fmat_review_decision']);
+ assert.deepEqual(agentToolsForActor('guest').map(t=>t.name),['fmat_read_conversation','fmat_get_request','fmat_propose_request_details','fmat_review_decision']);
  assert.ok(!agentToolsForActor('host').some(t=>t.name==='fmat_propose_request_details'));
  const decision=agentTools.find(t=>t.name==='fmat_review_decision')!;
  assert.equal(agentToolScope(decision,'host'),'host:decide');assert.equal(agentToolScope(decision,'guest'),'request:decide');

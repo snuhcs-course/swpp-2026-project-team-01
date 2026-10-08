@@ -1,3 +1,4 @@
+import {agentHistoryHttp} from '../../lib/server/oauth/history-http.ts';
 import { defineChannel, GET, POST } from 'eve/channels';
 import { z } from 'zod';
 import { conversationView } from '../../lib/contracts/conversations.ts';
@@ -9,6 +10,7 @@ import { authorizedStream } from '../../lib/server/identity/runtime-stream.ts';
 import { dispatchPending, requireDispatchSecret } from '../../lib/server/identity/runtime-dispatch.ts';
 import { ApplicationError } from '../../lib/server/errors.ts';
 
+const historyHttp=agentHistoryHttp();
 const conversations = new Conversations(), messages = new RuntimeMessages();
 export default defineChannel({
   state: { seen: {}, active: null } as DeliveryState,
@@ -24,6 +26,7 @@ export default defineChannel({
     'session.failed': (event, channel) => settleMessage(channel.state, event.sessionId, 'failed'),
   },
   routes: [
+    POST('/api/agent/conversations/read', (request,{attachSession})=>historyHttp(request,attachSession)),
     POST<DeliveryState>('/api/internal/conversations/dispatch', (request, { from, resolveSession }) => privateRoute(async () => {
       requireDispatchSecret(request);
       const result = await dispatchPending(async (scope, text, auth, sessionId) => {

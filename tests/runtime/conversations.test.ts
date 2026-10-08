@@ -1,3 +1,8 @@
+import {generateKeyPair,exportJWK} from 'jose';
+import {AgentOAuthTokens,type AgentTokenGrant} from '../../lib/server/oauth/tokens.ts';
+import {agentMcpHttp} from '../../lib/server/mcp/http.ts';
+import {AgentCredentials} from '../../lib/server/oauth/credentials.ts';
+import {Database} from '../../lib/server/database/client.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
@@ -31,7 +36,8 @@ test('real eve ingress binds request authority, deduplicates input and recovers 
   const portServer=createServer(); portServer.listen(0,'127.0.0.1'); await once(portServer,'listening');
   const port=(portServer.address() as {port:number}).port; await new Promise<void>(r=>portServer.close(()=>r()));
   const origin=`http://127.0.0.1:${port}`, marker=join(fixture,'tool-committed');
-  const env={...process.env, SUPABASE_URL:local.API_URL, SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,
+  const key=await generateKeyPair('ES256',{extractable:true});
+  const env={...process.env, AGENT_OAUTH_SIGNING_JWK:JSON.stringify({...await exportJWK(key.privateKey),kid:'runtime-test'}), TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64'), SUPABASE_URL:local.API_URL, SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,
     SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY, APP_ORIGIN:origin, PORT:String(port), HOST:'127.0.0.1',
     // The bundled Workflow runtime defaults to an 860-second inline ownership
     // lease. Accelerate expiration only in this isolated crash-test process;
@@ -53,6 +59,7 @@ test('real eve ingress binds request authority, deduplicates input and recovers 
     const closed=once(child,'close'); process.kill(-child.pid!,'SIGKILL'); await closed;
   }
   const sql = new LocalSql(); const host=randomUUID(), invitation=randomUUID(), requests=[randomUUID(),randomUUID()];
+  let agentClient:string|undefined;
   const tokens=[randomBytes(32).toString('base64url'),randomBytes(32).toString('base64url')];
   const headers=(i=0)=>({ authorization:`Request ${tokens[i]}`, 'x-request-id':requests[i], 'content-type':'application/json' });
   const post=(path:string, body:unknown, i=0)=>fetch(origin+path,{method:'POST',headers:headers(i),body:JSON.stringify(body)});
@@ -106,10 +113,25 @@ test('real eve ingress binds request authority, deduplicates input and recovers 
     for(const line of resumedOutput.trim().split('\n')) assert.ok(JSON.parse(line).cursor>cursor);
     const snapshot=await fetch(`${origin}/api/conversations/${scope}`,{headers:headers()}); const view=await snapshot.json();
     assert.equal(view.messages.length,2); assert.equal('sessionId' in view,false); assert.equal('grantId' in view,false);
+    agentClient=JSON.parse(await sql.query(`select public.fmat_oauth_register('Runtime history fixture',array['http://127.0.0.1:55777/callback'],'${origin}/mcp');`)).clientId;
+    const authorization=JSON.parse(await sql.query(`select public.fmat_oauth_authorization_start('${JSON.stringify({clientId:agentClient,resource:origin+'/mcp',redirectUri:'http://127.0.0.1:55777/callback',scope:'request:read',codeChallenge:'A'.repeat(43),codeChallengeMethod:'S256',state:'runtime-test',browserHash:'a'.repeat(64)})}'::jsonb);`)).authorizationId;
+    await sql.query(`select public.fmat_oauth_consent('${authorization}','${'a'.repeat(64)}','${JSON.stringify({kind:'guest',requestId:requests[0],tokenHash:createHash('sha256').update(tokens[0]).digest('hex')})}'::jsonb,'grant','${'b'.repeat(64)}');`);
+    const agentGrant=JSON.parse(await sql.query(`select fmat.oauth_grant_projection(g) from fmat.oauth_grants g where authorization_id='${authorization}';`)) as AgentTokenGrant;
+    const bearer=await new AgentOAuthTokens(env).issue(agentGrant,async()=>{});
+    const mcp=agentMcpHttp(env,new AgentCredentials(env,new Database(env)));
+    const historyCall=(target:unknown,cursor?:string)=>mcp(new Request(origin+'/mcp',{method:'POST',headers:{authorization:'Bearer '+bearer,'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'fmat_read_conversation',arguments:{input:{target,cursor}}}})}));
+    const historyResponse=await historyCall({audience:'request_shared',requestId:requests[0]});assert.equal(historyResponse.status,200);
+    const historyJson=await historyResponse.json();assert.equal(historyJson.result.isError,undefined,JSON.stringify(historyJson));
+    const history=historyJson.result.structuredContent.result;assert.match(JSON.stringify(history.events),/Reply 1:/);assert.match(JSON.stringify(history.events),/Reply 2:/);
+    assert.doesNotMatch(JSON.stringify(history),/runtime_session_id|tokenHash|p_grant_id|action.result/);
+    assert.equal((await (await historyCall({audience:'host_private',requestId:requests[0]})).json()).result.isError,true);
+    assert.equal((await (await historyCall({audience:'request_shared',requestId:requests[1]},history.nextCursor)).json()).result.isError,true);
     await sql.query(`update fmat.requests set token_revoked_at=now() where id='${requests[0]}';`);
     assert.equal((await fetch(`${origin}/api/conversations/${scope}/stream`,{headers:headers()})).status,404);
+    assert.equal((await historyCall({audience:'request_shared',requestId:requests[0]},history.nextCursor)).status,401);
   } finally {
     await stop(); await writeFile(join(fixture,'server.log'),serverLog);
+    if(agentClient)await sql.query(`delete from fmat.oauth_codes where grant_id in(select id from fmat.oauth_grants where client_id='${agentClient}');delete from fmat.oauth_grants where client_id='${agentClient}';delete from fmat.oauth_authorizations where client_id='${agentClient}';delete from fmat.oauth_clients where id='${agentClient}';`);
     await sql.query(`delete from fmat.idempotency where actor_scope in (${tokens.map(t=>`'guest:${createHash('sha256').update(t).digest('hex')}'`).join(',')});
       delete from fmat.audit_events where subject_id in ('${requests[0]}','${requests[1]}');
       delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');
