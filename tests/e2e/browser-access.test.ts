@@ -166,7 +166,14 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     assert.equal((await context.request.get(origin+'/api/browser/calendar/list')).status(),409);
     await verifyConversationReconnect(page);
     const composer=page.getByLabel('Message your scheduling assistant');
+    await sql.query(`insert into fmat.conversation_budgets values('host:${userId}',clock_timestamp(),20,clock_timestamp(),20) on conflict(name) do update set minute_used=20,minute_started_at=clock_timestamp();`);
+    const throttled=page.waitForResponse(r=>r.url().includes('/conversations/')&&r.url().endsWith('/messages')&&r.request().method()==='POST');
     await composer.fill('Help me plan a focused week.');await page.getByRole('button',{name:'Send',exact:true}).click();
+    assert.equal((await throttled).status(),429);
+    await page.getByRole('alert').filter({hasText:'Too many messages right now'}).waitFor();
+    assert.equal(await composer.inputValue(),'Help me plan a focused week.');
+    await sql.query(`update fmat.conversation_budgets set minute_started_at=clock_timestamp()-interval '61 seconds' where name='host:${userId}';`);
+    await page.getByRole('button',{name:'Retry same message'}).click();
     await page.getByText('Reply 1: Help me plan a focused week.',{exact:true}).waitFor();
     await page.reload();await page.getByText('Reply 1: Help me plan a focused week.',{exact:true}).waitFor();
     // Lose only the browser acknowledgment: the server still accepted the input.

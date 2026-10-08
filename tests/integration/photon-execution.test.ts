@@ -50,6 +50,13 @@ test('signed linked input executes once in the real eve setup session and loses 
   await delay(5);
   const ingress=await Promise.all(Array.from({length:6},()=>photonWebhook(request('preferences'),{env,database:db})));
   assert.ok(ingress.every(r=>r.status===200));
+  // A web-consumed host budget also delays private iMessage input.
+  await sql.query(`insert into fmat.conversation_budgets values('host:${host}',clock_timestamp(),20,clock_timestamp(),20) on conflict(name) do update set minute_used=20,minute_started_at=clock_timestamp();`);
+  assert.deepEqual(await dispatchPhotonInputs(db,env),{accepted:0,revoked:0,limited:0});
+  assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}';`),'0');
+  assert.equal(await sql.query(`select j.status='pending' and j.available_at>clock_timestamp()+interval '55 seconds' and i.processed_at is null from fmat.jobs j join fmat.photon_inbox i on j.payload->>'inboxId'=i.id::text where i.project_id='${project}';`),'t');
+  assert.deepEqual(await dispatchPhotonInputs(db,env),{accepted:0,revoked:0,limited:0},'not reclaimed before delay');
+  await sql.query(`update fmat.conversation_budgets set minute_started_at=clock_timestamp()-interval '61 seconds' where name='host:${host}';update fmat.jobs set available_at=clock_timestamp() where payload->>'inboxId' in(select id::text from fmat.photon_inbox where project_id='${project}');`);
   const lost=new Database(env,async(...args)=>{const response=await fetch(...args);assert.equal(response.status,200);await response.text();throw new Error('Synthetic lost committed dispatch response');});
   await assert.rejects(()=>dispatchPhotonInputs(lost,env));
   const replay=await Promise.all([dispatchPhotonInputs(db,env),dispatchPhotonInputs(db,env)]);assert.equal(replay.reduce((n,r)=>n+r.accepted,0),0);
@@ -134,6 +141,10 @@ globalThis.fetch=async(input,init)=>{
   // A real concurrent unlink transaction wins while dispatch waits for the
   // host lock. The processor must inspect the newly committed link state.
   assert.equal((await photonWebhook(request('queued','Queued synthetic preference'),{env,database:db})).status,200);
+  await sql.query(`update fmat.conversation_budgets set minute_used=20,minute_started_at=clock_timestamp() where name='host:${host}';`);
+  assert.deepEqual(await dispatchPhotonInputs(db,env),{accepted:0,revoked:0,limited:0});
+  assert.equal(await sql.query(`select processed_at is null from fmat.photon_inbox where project_id='${project}' and message_id='queued';`),'t');
+  await sql.query(`update fmat.jobs set available_at=clock_timestamp() where payload->>'inboxId' in(select id::text from fmat.photon_inbox where project_id='${project}' and message_id='queued');`);
   const pid=Number((await holder.query(`begin;select pg_backend_pid();select id from fmat.hosts where id='${host}' for update;`)).split('\n')[0]);
   const waiting=dispatchPhotonInputs(db,env);let blocked=false;
   for(let n=0;n<100;n++){blocked=await sql.query(`select exists(select 1 from pg_stat_activity where ${pid}=any(pg_blocking_pids(pid)));`)==='t';if(blocked)break;await delay(20);}

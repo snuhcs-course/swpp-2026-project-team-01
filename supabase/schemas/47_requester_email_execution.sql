@@ -107,7 +107,12 @@ begin
    result:=public.fmat_runtime_message('accept',g.id,scope.id,jsonb_build_object('clientId',i.id,'text',i.verified_text));
    update fmat.runtime_messages set next_dispatch_at=clock_timestamp() where id=(result->>'id')::uuid and status='pending';outcome:='accepted';
   exception when raise_exception then
-   if sqlerrm='CONVERSATION_BUSY' then
+   if sqlerrm='CONVERSATION_RATE_LIMIT' then
+    if j.lease_until<=clock_timestamp() then raise exception 'LEASE_LOST';end if;
+    update fmat.jobs set status='pending',available_at=clock_timestamp()+interval '1 minute',attempts=greatest(0,attempts-1),
+     lease_token=null,lease_until=null,worker_id=null,last_error='CONVERSATION_RATE_LIMIT',updated_at=clock_timestamp() where id=j.id;
+    return jsonb_build_object('retry',true);
+   elsif sqlerrm='CONVERSATION_BUSY' then
     if j.attempts>=j.max_attempts then outcome:='limited';else return fmat.foundation_command('jobs_fail',actor,jsonb_build_object('jobId',j.id,'leaseToken',j.lease_token,'errorCode','CONVERSATION_BUSY'));end if;
    elsif sqlerrm in ('UNAUTHORIZED','NOT_FOUND','FORBIDDEN','REQUEST_CLOSED','REQUEST_EXPIRED') then outcome:='rejected';
    elsif sqlerrm='CONVERSATION_LIMIT' then outcome:='limited';else raise;end if;

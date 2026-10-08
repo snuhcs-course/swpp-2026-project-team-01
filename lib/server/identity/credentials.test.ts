@@ -88,3 +88,9 @@ test('browser conversation projection removes execution authority and private fi
     requestId, readOnly: false, grantId: sessionId, credential: { tokenHash: 'secret' }, actor: { email: 'private' } });
   assert.deepEqual(Object.keys(view).sort(), ['audience', 'conversationId', 'hostId', 'readOnly', 'requestId']);
 });
+
+test('temporary conversation quota errors map to safe retryable HTTP 429',async()=>{
+ const db=new Database(env,fakeFetch(()=>Response.json({message:'CONVERSATION_RATE_LIMIT',details:'private quota data'},{status:400})));
+ try{await db.rpc('fmat_runtime_message',{});assert.fail('expected throttle');}
+ catch(error){const response=publicError(error);assert.equal(response.status,429);assert.equal(response.body.error.code,'CONVERSATION_RATE_LIMIT');assert.match(response.body.error.message,/Wait at least a minute/);assert.doesNotMatch(JSON.stringify(response),/private quota/);}
+});

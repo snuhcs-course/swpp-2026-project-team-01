@@ -30,6 +30,7 @@ const messages: Record<ErrorCode, string> = {
   INTERNAL_ERROR: 'The action could not be completed. Please try again.',
   INVITATION_INVALID: 'This invitation cannot be used. Check the code and sign in with the invited Google account.',
   CONVERSATION_BUSY: 'The previous message is still being processed. Reconnect to see its progress.',
+  CONVERSATION_RATE_LIMIT: 'Too many messages right now. Wait at least a minute, then retry this message. You can still use the meeting controls.',
   CONVERSATION_LIMIT: 'This conversation has reached its message limit.',
 };
 export class ApplicationError extends Error {

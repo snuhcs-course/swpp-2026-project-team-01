@@ -57,6 +57,11 @@ begin
       if exists(select 1 from fmat.runtime_messages where conversation_id=p_conversation_id and status='pending') then raise exception 'CONVERSATION_BUSY'; end if;
       -- Bounded inbox/checkpoint growth; the runtime has independent token caps.
       if (select count(*) from fmat.runtime_messages where conversation_id=p_conversation_id)>=200 then raise exception 'CONVERSATION_LIMIT'; end if;
+      perform fmat.conversation_budget_charge(v_access->>'actorKind',
+        case when v_access->>'actorKind'='host' then v_scope.host_id else v_scope.request_id end);
+      -- Quota contention may outlast a grant, Auth session or request deadline.
+      v_access:=public.fmat_conversation_check(p_grant_id,p_conversation_id);
+      if (v_access->>'readOnly')::boolean then raise exception 'REQUEST_CLOSED'; end if;
       insert into fmat.runtime_messages(conversation_id,grant_id,client_id,text)
         values(p_conversation_id,p_grant_id,(p_input->>'clientId')::uuid,p_input->>'text') returning * into v_message;
     end if;

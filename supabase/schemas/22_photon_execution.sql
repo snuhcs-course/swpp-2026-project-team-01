@@ -73,7 +73,11 @@ begin
   update fmat.runtime_messages set next_dispatch_at=clock_timestamp() where id=(accepted->>'id')::uuid and status='pending';
   outcome:='accepted';
  exception when raise_exception then
-  if sqlerrm='CONVERSATION_BUSY' then return jsonb_build_object('outcome','busy');
+  if sqlerrm='CONVERSATION_RATE_LIMIT' then
+   update fmat.jobs set status='pending',available_at=clock_timestamp()+interval '1 minute',
+    lease_token=null,lease_until=null,worker_id=null,last_error='CONVERSATION_RATE_LIMIT',updated_at=clock_timestamp() where id=j.id;
+   return jsonb_build_object('outcome','busy');
+  elsif sqlerrm='CONVERSATION_BUSY' then return jsonb_build_object('outcome','busy');
   elsif sqlerrm in ('UNAUTHORIZED','NOT_FOUND','HOST_NOT_ADMITTED') then outcome:='revoked';
   elsif sqlerrm='CONVERSATION_LIMIT' then outcome:='limited';
   else raise; end if;

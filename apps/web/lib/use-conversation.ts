@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { conversationEvent, conversationSnapshot, conversationView, incomingMessage, messageReceipt, type ConversationSnapshot } from '../../../lib/contracts/conversations.ts';
-import {conversationJson as json} from './conversation-transport.ts';
+import {conversationJson as json,conversationSendFailure} from './conversation-transport.ts';
 import { emptyTranscript, reduceConversation } from './conversation-state.ts';
 
 export type ChatTarget={audience:'host_setup'}|{audience:'request_shared'|'host_private';requestId:string;guest?:boolean};
@@ -83,7 +83,7 @@ export function useConversation(target:ChatTarget,onAccessLost:()=>void) {
     }catch(cause){
       if(controller.signal.aborted)return false;
       if(accessLost(cause))deny();
-      else setSendError('The send could not be confirmed. Retry this same message to check its saved result.');
+      else setSendError(conversationSendFailure(cause));
       return false;
     }finally{inFlight.current=false;if(!controller.signal.aborted)setSending(false);}
   }

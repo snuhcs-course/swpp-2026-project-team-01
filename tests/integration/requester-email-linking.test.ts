@@ -1,4 +1,5 @@
 import {test} from 'node:test';
+import {setTimeout as delay} from 'node:timers/promises';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {randomBytes,randomUUID,createHash,generateKeyPairSync,sign} from 'node:crypto';
@@ -158,10 +159,41 @@ test('Requester email linking preserves current authority across retries, signed
   const claims=await Promise.all(Array.from({length:8},()=>db.rpc('fmat_requester_email_worker',{p_operation:'claim',p_receiver_id:receiver,p_inbox_id:inbox,p_lease:{workerId:randomUUID()},p_input:{}}))) as {job:{workerId:string;jobId:string;leaseToken:string}|null}[];
   const only=claims.filter(value=>value.job);assert.equal(only.length,1);
   assert.equal(await sql.query(`select payload->>'receiptId' from fmat.jobs where id='${only[0].job!.jobId}';`),firstOrdered.id);
-  assert.equal(await worker.process(only[0].job),'accepted');assert.equal((await worker.run()).outcome,'retry','An active runtime turn defers the next message');
+  await sql.query(`insert into fmat.conversation_budgets values('guest:${ordered.id}',clock_timestamp(),20,clock_timestamp(),20);`);
+  assert.equal(await worker.process(only[0].job),'retry');
+  assert.equal(await sql.query(`select status='pending' and attempts=0 and lease_token is null and available_at>clock_timestamp()+interval '55 seconds' from fmat.jobs where id='${only[0].job!.jobId}';`),'t','quota delay preserves failure attempts');
+  assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where client_id in('${firstOrdered.id}','${secondOrdered.id}');`),'0');
+  assert.equal((await worker.run()).outcome,'idle','later input cannot overtake delayed receipt');
+  await sql.query(`update fmat.jobs set available_at=clock_timestamp() where id='${only[0].job!.jobId}';`);
+  assert.equal((await worker.run()).outcome,'retry','repeated throttling does not consume failure attempts');
+  assert.equal(await sql.query(`select attempts from fmat.jobs where id='${only[0].job!.jobId}';`),'0');
+  // A quota wait cannot release or rewrite an email job after its lease expires.
+  await sql.query(`update fmat.jobs set available_at=clock_timestamp() where id='${only[0].job!.jobId}';`);
+  const expiring=await db.rpc('fmat_requester_email_worker',{p_operation:'claim',p_receiver_id:receiver,p_inbox_id:inbox,p_lease:{workerId:randomUUID()},p_input:{}}) as {job:{workerId:string;jobId:string;leaseToken:string}};
+  const quotaLocker=new LocalSql();
+  try{
+   const quotaPid=Number((await quotaLocker.query(`begin;select pg_backend_pid();select 1 from fmat.conversation_budgets where name='service' for update;`)).split('\n')[0]);
+   await sql.query(`update fmat.jobs set lease_until=clock_timestamp()+interval '0.5 seconds' where id='${expiring.job.jobId}';`);
+   const expiredProcess=worker.process(expiring.job);let observed=false;
+   for(let n=0;n<100;n++){observed=await sql.query(`select exists(select 1 from pg_stat_activity where ${quotaPid}=any(pg_blocking_pids(pid)));`)==='t';if(observed)break;await delay(10);}
+   assert.equal(observed,true,'email dispatch waited on shared quota');
+   await quotaLocker.query('select pg_sleep(0.7);commit;');
+   assert.equal(await expiredProcess,'lease_lost');
+   assert.equal(await sql.query(`select status='running' and attempts=1 and lease_token='${expiring.job.leaseToken}' from fmat.jobs where id='${expiring.job.jobId}';`),'t','expired lease cannot defer or refund its attempt');
+  }finally{await quotaLocker.query('rollback;');quotaLocker.close();}
+  await sql.query(`update fmat.conversation_budgets set minute_started_at=clock_timestamp()-interval '61 seconds' where name='guest:${ordered.id}';update fmat.jobs set available_at=clock_timestamp() where id='${only[0].job!.jobId}';`);
+  assert.equal((await worker.run()).outcome,'accepted');assert.equal((await worker.run()).outcome,'retry','An active runtime turn defers the next message');
   await sql.query(`update fmat.runtime_messages set status='completed',settled_at=clock_timestamp() where client_id='${firstOrdered.id}';update fmat.jobs set available_at=clock_timestamp() where payload->>'receiptId'='${secondOrdered.id}';`);
   assert.equal((await worker.run()).outcome,'accepted');
   assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where client_id in('${firstOrdered.id}','${secondOrdered.id}');`),'2');
+  const quotaRevoked=await request(),quotaLink=await start(quotaRevoked),quotaBind=await receipt(quotaLink.linkingText!);assert.equal((await worker.run()).outcome,'linked');
+  const quotaMessage=await receipt('Deferred before revocation',quotaBind.thread);
+  await sql.query(`insert into fmat.conversation_budgets values('guest:${quotaRevoked.id}',clock_timestamp(),20,clock_timestamp(),20);`);
+  assert.equal((await worker.run()).outcome,'retry');
+  await service.revoke(quotaRevoked.guest,{requestId:quotaRevoked.id,linkId:quotaLink.linkId});
+  await sql.query(`update fmat.jobs set available_at=clock_timestamp() where payload->>'receiptId'='${quotaMessage.id}';`);
+  assert.equal((await worker.run()).outcome,'rejected','revocation wins before deferred execution');
+  assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where client_id='${quotaMessage.id}';`),'0');
   const unverified=await request(false);await assert.rejects(start(unverified),code('CONTACT_NOT_VERIFIED'));
   const r=await request(),key=randomUUID(),starts=await Promise.all(Array.from({length:8},()=>start(r,key))),link=starts[0];
   assert.ok(starts.every(x=>x.linkId===link.linkId&&x.linkingText===link.linkingText));assert.equal(link.status,'pending');assert.ok(link.linkingText);assert.equal(await sql.query(`select count(*) from fmat.requester_email_links where request_id='${r.id}';`),'1');
