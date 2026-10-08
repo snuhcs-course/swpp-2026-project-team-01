@@ -1,12 +1,12 @@
 import { defineAgent } from 'eve';
 import { openai } from 'eve/models/openai';
 import { schedulingModel } from '../lib/server/model.ts';
+import { conversationModel } from '../lib/server/models/conversation.ts';
 
 const selected = schedulingModel();
 
 export default defineAgent({
-  model: openai(selected.id),
-  modelContextWindowTokens: selected.contextWindowTokens,
+  model: conversationModel(openai(selected.id), selected.contextWindowTokens),
   reasoning: 'low',
   defaultTools: false,
   tool: false,

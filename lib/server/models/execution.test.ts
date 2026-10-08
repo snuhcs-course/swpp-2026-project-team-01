@@ -16,10 +16,11 @@ const fixture=(options:ConstructorParameters<typeof MockLanguageModelV4>[0]={})=
 test('enforces options and reserves once per call while retaining lower output limits',async()=>{
  let reservations=0;const provider=fixture(),model=boundedModel(provider,async()=>{reservations++;});
  await model.doGenerate({prompt,maxOutputTokens:100_000,providerOptions:{openai:{serviceTier:'priority',store:true,previousResponseId:'remote',conversation:'remote',promptCacheOptions:{mode:'explicit'}}}});
- await model.doGenerate({prompt,maxOutputTokens:2048});
+ await model.doGenerate({prompt,maxOutputTokens:2048,providerOptions:{openai:{safetyIdentifier:'a'.repeat(64)}}});
  assert.equal(reservations,2);
  assert.equal(provider.doGenerateCalls[0].maxOutputTokens,4096);
  assert.equal(provider.doGenerateCalls[1].maxOutputTokens,2048);
+ assert.equal(provider.doGenerateCalls[1].providerOptions?.openai?.safetyIdentifier,'a'.repeat(64),'keep the framework hashed safety identifier');
  assert.deepEqual(provider.doGenerateCalls[0].providerOptions,{openai:{store:false,serviceTier:'default',reasoningEffort:'low',parallelToolCalls:false}});
  assert.ok(provider.doGenerateCalls[0].abortSignal);
 });

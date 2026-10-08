@@ -202,7 +202,7 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   const batch=async()=>service.batch(credential,{requestId,revision:await revision(),sampling:{stepMinutes:15,limit:3}});
   const rankTarget=(b:Awaited<ReturnType<typeof batch>>)=>({requestId,revision:b.context.revision,checkId:b.context.checkId,basis:b.context.basis});
   let rankCalls=0,rankGate=async()=>{},rankResponse:(input:RankingInput)=>unknown=input=>({orderedIds:input.candidates.map(c=>c.id).reverse()});
-  const ranker=new CandidateRanking(database,{async rank(input){rankCalls++;assert.deepEqual(Object.keys(input).sort(),['candidates','timezone']);assert.ok(!JSON.stringify(input).includes('Private'));await rankGate();return rankResponse(input);}});
+  const ranker=new CandidateRanking(database,{async rank(input,reserve){await reserve();rankCalls++;assert.deepEqual(Object.keys(input).sort(),['candidates','timezone']);assert.ok(!JSON.stringify(input).includes('Private'));await rankGate();return rankResponse(input);}});
   const unresolvedBatch=await batch();assert.equal(unresolvedBatch.results.length,3);assert.equal(unresolvedBatch.truncated,true);
   assert.ok(unresolvedBatch.results.every(r=>r.persisted.status==='clarification'));
   const emptyRanking=await ranker.rank(credential,rankTarget(unresolvedBatch));assert.deepEqual(emptyRanking.orderedIds,[]);assert.equal(rankCalls,0,'Unresolved preferences never reach the model');
@@ -210,7 +210,9 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   await verifyRankingBudget(database,sql,credential,hostCredential,rankTarget(await batch()));
   const beforeBatchReads=calls.length,validBatch=await batch();assert.equal(calls.length,beforeBatchReads+1,'Batch shares the host free/busy read');assert.ok(validBatch.results.every(r=>r.persisted.status==='checks_passed'));
   const target=rankTarget(validBatch),ranked=await ranker.rank(credential,target);assert.equal(ranked.orderedIds.length,3);assert.equal(ranked.complete,false);assert.equal(rankCalls,1);
+  assert.equal(await sql.query(`select attempts from fmat.model_work_attempts where name='ranking:${target.checkId}';`),'1');
   assert.deepEqual(await ranker.rank(credential,target),ranked);assert.equal(rankCalls,1,'Saved ranking retry performs no model call');
+  assert.equal(await sql.query(`select attempts from fmat.model_work_attempts where name='ranking:${target.checkId}';`),'1','Saved ranking retry consumes no further allowance');
   const rankingSnapshot=await database.rpc('fmat_candidate_ranking',{p_operation:'read',p_credential:credential,p_input:target}) as {fingerprint:string};
   const rankSave={...target,fingerprint:rankingSnapshot.fingerprint,orderedIds:ranked.orderedIds};
   const rankRetries=await Promise.all(Array.from({length:8},()=>database.rpc('fmat_candidate_ranking',{p_operation:'save',p_credential:credential,p_input:rankSave})));assert.ok(rankRetries.every(r=>JSON.stringify(r)===JSON.stringify(rankRetries[0])));

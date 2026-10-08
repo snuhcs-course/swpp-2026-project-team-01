@@ -33,9 +33,12 @@ function prepare(input:Call,outputLimit:number):Call {
   })} as Call['prompt'][number];
  });
  if(input.maxOutputTokens!==undefined&&(!Number.isSafeInteger(input.maxOutputTokens)||input.maxOutputTokens<1))throw limited();
+ const safety=input.providerOptions?.openai?.safetyIdentifier;
  return {...input,prompt,tools:input.tools?.map(tool=>({...tool,providerOptions:undefined})),
   maxOutputTokens:Math.min(input.maxOutputTokens??outputLimit,outputLimit),reasoning:'low',
-  providerOptions:{openai:{store:false,serviceTier:'default',reasoningEffort:'low',parallelToolCalls:false}},
+  providerOptions:{openai:{store:false,serviceTier:'default',reasoningEffort:'low',parallelToolCalls:false,
+   ...(typeof safety==='string'&&/^[a-f0-9]{64}$/u.test(safety)?{safetyIdentifier:safety}:{}),
+  }},
  };
 }
 

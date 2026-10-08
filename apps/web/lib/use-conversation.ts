@@ -6,6 +6,7 @@ import { emptyTranscript, reduceConversation } from './conversation-state.ts';
 
 export type ChatTarget={audience:'host_setup'}|{audience:'request_shared'|'host_private';requestId:string;guest?:boolean};
 type Failure=Error&{status?:number};
+const failedResponse='The response could not be completed. Your saved changes are preserved.';
 function accessLost(error:unknown){return [401,403,404].includes((error as Failure)?.status??0);}
 function wait(ms:number,signal:AbortSignal,wake:{current:()=>void}) {
   return new Promise<void>(resolve=>{const finish=()=>{clearTimeout(timer);signal.removeEventListener('abort',finish);resolve();};const timer=setTimeout(finish,ms);wake.current=finish;signal.addEventListener('abort',finish,{once:true});if(signal.aborted)finish();});
@@ -46,7 +47,7 @@ export function useConversation(target:ChatTarget,onAccessLost:()=>void) {
                 const event=conversationEvent.parse(JSON.parse(line));
                 if(event.type==='error')throw Object.assign(new Error(event.error.message),{status:['UNAUTHORIZED','FORBIDDEN','NOT_FOUND'].includes(event.error.code)?403:503});
                 state.current=reduceConversation(state.current,event);if(signal.aborted)return;setTranscript(state.current);
-                if(event.type==='failed')setError('The response could not be completed. Your saved changes are preserved.');
+                if(event.type==='failed')setError(failedResponse);
                 if(['turn.completed','turn.cancelled','session.waiting','session.completed','failed'].includes(event.type))await refresh(readSignal);
               }
             }
@@ -88,5 +89,5 @@ export function useConversation(target:ChatTarget,onAccessLost:()=>void) {
     }finally{inFlight.current=false;if(!controller.signal.aborted)setSending(false);}
   }
   return {messages:transcript.messages,working:transcript.working||snapshot?.messages.some(m=>m.status==='pending')===true,
-    ready:!!snapshot&&!denied,error,sendError,sending,denied,send,reconnect:()=>interruptRead.current()};
+    ready:!!snapshot&&!denied,error:error||(snapshot?.messages.at(-1)?.status==='failed'?failedResponse:''),sendError,sending,denied,send,reconnect:()=>interruptRead.current()};
 }

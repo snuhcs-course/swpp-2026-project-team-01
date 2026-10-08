@@ -7,7 +7,7 @@
 ## 2. Durable accounting
 
 - [x] 2.1 Add private work/principal/service counters and authorized conversation/ranking reservation RPCs; generate/review the migration and verify limits, retries, expiry, privileges and rollback using SQL and concurrent integration tests; document window and reservation semantics.
-- [ ] 2.2 Wire the production conversation and ranking paths to durable reservations, including compaction; verify real Eve execution/restart, failed-turn settlement, cached ranking reuse and structured browser recovery; update runtime documentation.
+- [x] 2.2 Wire the production conversation and ranking paths to durable reservations, including compaction; verify real Eve execution/restart, failed-turn settlement, cached ranking reuse and structured browser recovery; update runtime documentation.
 
 ## 3. Release acceptance
 

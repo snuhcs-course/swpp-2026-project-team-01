@@ -199,6 +199,22 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     await page.screenshot({path:'.local/rebuild/browser-screenshots/chat-css-zoom-200.png',fullPage:true});
     await page.evaluate(()=>{document.documentElement.style.zoom='';});
+    // A durable model denial settles the turn without disabling structured edits.
+    const allowance=await sql.query(`select reserved_cents from fmat.model_budgets where name='host:${userId}';`);
+    await sql.query(`update fmat.model_budgets set reserved_cents=3000 where name='host:${userId}';`);
+    await composer.fill('A model-limited browser question.');await page.getByRole('button',{name:'Send',exact:true}).click();
+    const failure=page.getByRole('alert').filter({hasText:'The response could not be completed. Your saved changes are preserved.'});
+    await failure.waitFor();
+    assert.equal(await sql.query(`select m.status from fmat.runtime_messages m join fmat.conversation_scopes c on c.id=m.conversation_id where c.host_id='${userId}' and m.text='A model-limited browser question.';`),'failed');
+    assert.equal(await sql.query(`select count(*) from fmat.model_work_attempts w join fmat.runtime_messages m on w.name='conversation:'||m.id::text join fmat.conversation_scopes c on c.id=m.conversation_id where c.host_id='${userId}' and m.text='A model-limited browser question.';`),'0');
+    await page.reload();await failure.waitFor();await page.getByRole('button',{name:'Reconnect now'}).click();await failure.waitFor();
+    await setup.getByRole('button',{name:'Edit schedule',exact:true}).click();
+    await setup.getByLabel('Meeting duration (minutes)').fill('45');
+    await setup.getByRole('button',{name:'Use these preferences in my draft'}).click();
+    await setup.getByRole('status').filter({hasText:'Draft updated.'}).waitFor();
+    const recovered=(await (await context.request.get(origin+'/api/browser/setup/read')).json()).draft;
+    assert.equal(recovered.settings.rules.durationMinutes,45,'Structured changes remain available after model exhaustion');
+    await sql.query(`update fmat.model_budgets set reserved_cents=${Number(allowance)} where name='host:${userId}';`);
     assert.equal(await page.evaluate(()=>document.cookie),'');
     const cookies=await context.cookies();assert.ok(cookies.some(c=>c.name.startsWith('fmat-auth')&&c.httpOnly&&c.sameSite==='Lax'));
     const hostResponse=await context.request.get(origin+'/api/browser/host/state');assert.equal(hostResponse.status(),200);assert.match(hostResponse.headers()['cache-control'],/private.*no-store/u);

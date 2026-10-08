@@ -435,6 +435,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Wire conversation, automatic compaction and ranking calls to durable model reservations; verify bounded loops, restart charges, failed settlement, cached ranking reuse and browser recovery with working structured edits. Application deployment remains open. [Evidence](05_rebuild_evidence.md#model-execution-runtime-integration--2026-10-09).
+
 - [x] Deploy the model reservation database foundation from `aa9802b` (`20261008191725`); verify 94 matching migrations, three matching function definitions/privileges, clean security advisors, rollback-only quota acceptance with zero retained fixtures, and 34 public HTTP guards. Production model-path activation is still pending. [Evidence](05_rebuild_evidence.md#durable-model-allowance-foundation--2026-10-09).
 
 - [x] Implement durable model reservations with eight attempts per conversation input, two per ranking check, and shared 24-hour principal/service allowances. Verify the 94-migration local rebuild, 1,531 SQL assertions, 35 integration tests including concurrent ceilings and expiry after lock waits, 310 app/provider tests, both builds and clean advisors. Production runtime activation remains open. [Evidence](05_rebuild_evidence.md#durable-model-allowance-foundation--2026-10-09).

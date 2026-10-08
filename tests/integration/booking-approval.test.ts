@@ -29,7 +29,7 @@ test('Web approval requires exact current host/session/proposal/agreement and co
  const hosts:{id:string;invite:string;token:string;credential:Credential}[]=[],requests:string[]=[];
  let agent:Awaited<ReturnType<typeof bookingAgentProbe>>|undefined;
  const evaluation=new AvailabilityEvaluation(db,env,{async refresh(bundle){return bundle;},async list(){return [];}},{async read(){return [];}});
- const publication=new SchedulingPublication(db,evaluation,new CandidateRanking(db,{async rank(input){return {orderedIds:input.candidates.map(x=>x.id)};}}));
+ const publication=new SchedulingPublication(db,evaluation,new CandidateRanking(db,{async rank(input,reserve){await reserve();return {orderedIds:input.candidates.map(x=>x.id)};}}));
  const rules={timezone:'UTC',availability:[{days:[0,1,2,3,4,5,6],start:'00:00',end:'23:59'}],focusBlocks:[],bufferMinutes:0,durationMinutes:30,preferences:'',travelMode:'NONE',meetingMode:'online',locationPolicy:'per_meeting',locations:[],travelBufferMinutes:0};
  async function fixture(host=hosts[0],days=2){
   const id=randomUUID(),token=randomBytes(32).toString('base64url'),day=new Date(Date.now()+days*86400000).toISOString().slice(0,10),details={requesterName:'Guest',requesterEmail:'guest@example.test',purpose:'Approved fixture',durationMinutes:30,timezone:'UTC',windows:[{start:day+'T09:00:00Z',end:day+'T10:00:00Z'}],mode:'online',location:'https://meet.example.test/approved'};requests.push(id);
