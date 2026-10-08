@@ -326,6 +326,8 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+- [x] Implement and verify the internal CLI MCP transport: bounded JSON input/output, official SDK discovery/invocation, fixed-origin bearer requests, sanitized exits, no redirect or mutation retry, and current revocation/scope failures. Runnable entry and credential lifecycle remain open in tasks 3.1–3.2. [Evidence](05_rebuild_evidence.md#cli-mcp-transport-foundation--2026-10-09).
+
 - [x] Verify signed MCP requester availability draft/retry through explicit browser application, safe candidate/proposal reads, current-version human handoff, agreement without booking, revised/stale state and request revocation. Local provider fixtures remain distinct from live booking and client acceptance; task 2.4 stays open. [Evidence](05_rebuild_evidence.md#signed-mcp-requester-review-workflow--2026-10-09).
 
 - [x] Verify the signed MCP host setup journey through agent draft/retry, explicit browser mode choice, stale review, provider permission recheck, concurrent agent revision, human confirmation, agent readback and logout revocation. This is local fixture evidence; complete task 2.4 and live host/provider acceptance remain open. [Evidence](05_rebuild_evidence.md#signed-mcp-host-setup-workflow--2026-10-09).
