@@ -258,6 +258,8 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 
 ### Phase 6 — Add requester email continuity
 
+- [x] Probe real reply acceptance and stable-key replay in the controlled project inbox; record the provider-added quotation that prevents exact-body readback. Add a regression preserving uncertainty. This does not complete live requester continuity. [Evidence](05_rebuild_evidence.md#live-agentmail-reply-compatibility-probe--2026-10-08).
+
 - [x] Deploy accepted outgoing-parent continuation (`9f84641`; deployment `dpl_CAvyjbDtux1U1kD5yx2uvqP6CTwJ`); verify remote admission/execution, uncertainty and revocation denial, zero probe residue, clean advisors and 73 production HTTP guards. [Evidence](05_rebuild_evidence.md#accepted-outgoing-requester-email-parents--2026-10-08). Controlled live mailbox acceptance is the remaining reply-change gate.
 
 - [x] Accept signed requester continuations referencing provider-accepted service replies through one admission/execution provenance check. Verify current-link/inbox/receiver/thread isolation, earlier-source/first-attempt ordering, uncertain/unsent/suppressed denial and revocation with 1,108 SQL assertions and 26 integrations. Reconcile the pending binding spec; controlled live acceptance remains open.

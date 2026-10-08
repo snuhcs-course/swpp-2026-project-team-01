@@ -50,6 +50,14 @@ test('AgentMail readback requires the exact message, parent, recipient and froze
   assert.deepEqual(await new AgentMailReplyTransport(env,async()=>Response.json({...stored,...patch}),()=>now).inspect(reply,accepted.message_id,allow),{status:'uncertain',messageId:accepted.message_id});
  }
 });
+test('AgentMail quoted live reply remains uncertain even when extracted text matches',async()=>{
+ // Live reply API readback appends the parent quotation. Extracted text is a
+ // lossy provider projection, so it cannot prove the complete frozen body.
+ const quoted={...stored,text:reply.text+'\n\nOn Thu, Oct 8, 2026 a requester wrote:\n\n> Earlier message',extracted_text:reply.text};
+ let reads=0;const transport=new AgentMailReplyTransport(env,async(_url,init)=>{reads++;assert.equal(init?.method,'GET');return Response.json(quoted);},()=>now);
+ assert.deepEqual(await transport.inspect(reply,accepted.message_id,allow),{status:'uncertain',messageId:accepted.message_id});
+ assert.equal(reads,1);
+});
 test('AgentMail missing and failed readback does not infer non-send or dispatch another message',async()=>{
  let calls=0;const transport=new AgentMailReplyTransport(env,async(_url,init)=>{calls++;assert.equal(init?.method,'GET');return new Response(null,{status:404});},()=>now);
  assert.deepEqual(await transport.inspect(reply,null,allow),{status:'uncertain',messageId:null});assert.equal(calls,0);
