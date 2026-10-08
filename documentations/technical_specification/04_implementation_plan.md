@@ -272,6 +272,8 @@ References: [requester destination](../user_experience/04_page_list.md#requester
 
 ### Phase 5 — Complete approval, booking and invitations
 
+- [x] Complete booking task 1.3 by auditing desired SQL/migrations, the fresh 96-migration rebuild, transactional publication and uncertain-state tests. Verify matching local/production RLS and direct-access denial across 11 tables, plus six matching service-only booking RPC definitions. [Evidence](05_rebuild_evidence.md#booking-schema-acceptance-audit--2026-10-09).
+
 - [x] Complete booking task 2.4: verify authenticated Calendar disconnect/denied/wrong-account/original-account recovery, frozen destination after new selection, guarded retry and operator override denial. Rebuild all 96 migrations and pass booking/SQL checks with transactional fixture cleanup. [Evidence](05_rebuild_evidence.md#consent-based-booking-recovery--2026-10-09).
 
 - [x] Complete booking task 2.1 with a 15-scenario final revalidation matrix: 13 blocked prerequisite cases and successful requester-Calendar/in-person controls through actual approval and worker services. Verify no rejected case dispatches or publishes confirmations; full booking integration, 1,532 SQL assertions and application checks pass. [Evidence](05_rebuild_evidence.md#booking-final-revalidation-matrix--2026-10-09).
