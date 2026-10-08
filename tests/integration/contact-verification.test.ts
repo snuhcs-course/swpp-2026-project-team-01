@@ -43,6 +43,12 @@ test('Contact proof is request-bound, attempt-limited and replayable without acc
   assert.equal(await sql.query(`select count(*) from fmat.audit_events where subject_id='${r.id}' and operation='contact_verified';`),'1');
   assert.equal(await sql.query(`select requester_agreed_version is null and host_approved_version is null and event is null and token_hash='${r.hash}' from fmat.requests where id='${r.id}';`),'t');
   assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where request_id='${r.id}';`),'0');
+  await sql.query(`update fmat.requests set status='withdrawn' where id='${r.id}';`);
+  await assert.rejects(service.confirm(r.guest,verify),errorCode('NOT_FOUND'));
+  const lostStart=await fixture(),lostStartInput=input(lostStart.id);let lostStartResponse=false;
+  const lostIssuer=new ContactVerification(new Database(env,async(url,init)=>{const response=await fetch(url,init);if(response.ok&&!lostStartResponse){lostStartResponse=true;throw new Error('lost committed code request response');}return response;}),env);
+  await assert.rejects(lostIssuer.start(lostStart.guest,lostStartInput));assert.equal(lostStartResponse,true);
+  await service.start(lostStart.guest,lostStartInput);assert.equal(await sql.query(`select count(*) from fmat.contact_verifications where request_id='${lostStart.id}';`),'1');
   const cross=await fixture();await assert.rejects(service.read(cross.guest,{requestId:r.id}),errorCode('NOT_FOUND'));
   // Authority/contact changes invalidate even an otherwise correct code.
   for(const change of ['email','rotation','revocation','token_expiry','request_expiry','closed','booking','challenge_expiry']){
@@ -60,6 +66,7 @@ test('Contact proof is request-bound, attempt-limited and replayable without acc
   }finally{lock.close();}
   const hourly=await fixture();for(let i=0;i<5;i++){await service.start(hourly.guest,input(hourly.id));await cool(hourly.id);}await assert.rejects(service.start(hourly.guest,input(hourly.id)),errorCode('CONTACT_LIMIT'));
   for(const op of ['contact_start','contact_confirm'])await assert.rejects(db.rpc('fmat_command',{p_operation:op,p_actor:{kind:'guest',requestId:hourly.id,tokenHash:hourly.hash},p_input:{requestId:hourly.id,idempotencyKey:randomUUID()}}),errorCode('FORBIDDEN'));
+  for(const operation of ['contact_start','contact_confirm'])await assert.rejects(db.rpc('fmat_command',{p_operation:'mutation_replay',p_actor:{kind:'guest',requestId:hourly.id,tokenHash:hourly.hash},p_input:{requestId:hourly.id,operation,idempotencyKey:randomUUID(),clientInput:{}}}),errorCode('FORBIDDEN'));
   assert.equal(await sql.query(`select has_function_privilege('anon','public.fmat_contact_verification(text,jsonb,jsonb)','execute')||','||has_function_privilege('authenticated','public.fmat_contact_verification(text,jsonb,jsonb)','execute')||','||has_function_privilege('service_role','public.fmat_contact_verification(text,jsonb,jsonb)','execute');`),'false,false,true');
   assert.equal(await sql.query(`select has_table_privilege('service_role','fmat.contact_verifications','select');`),'f');
  }finally{
