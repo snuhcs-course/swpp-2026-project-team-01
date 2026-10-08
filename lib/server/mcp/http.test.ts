@@ -29,6 +29,7 @@ test('Official MCP client initializes, lists and invokes with separate request a
   const result=await client.callTool({name:'fmat_get_request',arguments:{requestId:f.grant.actorId,input:{}}});
   assert.deepEqual(result.structuredContent,{result:{requestId:f.grant.actorId,revision:1}});assert.equal(f.calls(),1);
   const wrong=await client.callTool({name:'fmat_get_request',arguments:{requestId:randomUUID(),input:{}}});assert.equal(wrong.isError,true);assert.equal(f.calls(),1);
+  await assert.rejects(client.callTool({name:'fmat_get_setup',arguments:{input:{}}}),/not found/);assert.equal(f.calls(),1);
   f.revoke();await assert.rejects(client.listTools());assert.equal(f.calls(),1);
  }finally{await client.close();}
 });

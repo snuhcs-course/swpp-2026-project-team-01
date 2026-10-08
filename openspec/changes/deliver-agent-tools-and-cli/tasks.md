@@ -4,7 +4,7 @@
 
 - [x] 1.1 Define the typed catalog for the seven existing agent operations, with strict schemas, permissions, annotations and retry/handoff descriptions; verify mapping, role isolation and input rejection tests and document its internal status.
 - [x] 1.2 Pin the official SDK and mount stateless `/mcp` with bearer verification, metadata challenge, origin checks, bounded uploads and sanitized results; verify protocol initialization, tool listing/calls, invalid tokens/origins/bodies and current revocation through SDK integration tests, and update architecture/setup documentation.
-- [ ] 1.3 Deploy the verified transport to the selected release project; verify real browser-granted requester calls, resource/scope/target rejection and revoked denial, recording production evidence and retaining named-client gates.
+- [x] 1.3 Deploy the verified transport to the selected release project; verify real browser-granted requester calls, resource/scope/target rejection and revoked denial, recording production evidence and retaining named-client gates.
 
 ## 2. Complete scheduling coverage
 
