@@ -635,3 +635,9 @@ Recovery delivery now has a dedicated service-only lease/prepare/dispatch/record
 #### Requester reply transport boundary
 
 The AgentMail reply transport sends only a frozen single-recipient response to a saved received parent, with an application-owned reply UUID and unchanged first-attempt deadline. It requires a current-authority callback immediately before HTTP dispatch, rejects redirects and performs no automatic retry. A successful response establishes provider acceptance, not delivery. Exact stored-message readback can recover acceptance; absence or ambiguity never proves that nothing was sent. The durable reply ledger and runtime-output integration must own payload freezing, lease fencing, bounded same-key replay, revocation and authenticated delivery evidence before this adapter is enabled. See [provider constraints](03_provider_setup.md#agentmail-reply-transport).
+
+## Requester email reply capture
+
+Runtime settlement now prepares one private `requester_email_replies` record in the same transaction as completing an accepted requester email input. It freezes the verified recipient, receiver generation, inbox, link, thread, incoming parent and generated answer. Concurrent/replayed settlement preserves the first committed answer; invalid output rolls back completion so checkpoint recovery can retry. A failed or empty generation uses a bounded browser-continuation response. Revoked or expired authority records a suppressed tombstone without private text. Historical completed inputs cannot be backfilled with a newly supplied answer.
+
+The ledger has RLS, no direct client/service-role table grants and a private preparation helper. Capture creates neither provider acceptance nor delivery or scheduling decisions. Delivery claims, bounded retry, outgoing-parent authorization and live acceptance remain open in [the reply change](../../openspec/changes/deliver-requester-email-replies/tasks.md).

@@ -258,6 +258,8 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 
 ### Phase 6 — Add requester email continuity
 
+- [x] Implement atomic private reply capture at runtime settlement with frozen destinations/content, concurrent replay preservation, invalid-output rollback and revoked/expired suppression. Verify 73-migration rebuild, 1,059 SQL assertions, 26 integration tests, application checks, both builds and browser regression. Delivery claims, outgoing-parent continuation and live acceptance remain open in [the reply change](../../openspec/changes/deliver-requester-email-replies/tasks.md).
+
 Incremental completion (full phase exit remains open):
 
 - [x] Deploy the verified reply-transport revision (`a304753`; deployment `dpl_F7QyXxJJq31XRybAdwzk8JJ7RCXz`), verify 72 production HTTP guards, seven public documents and disabled live ingress. No outbound route is enabled. [Evidence](05_rebuild_evidence.md#bounded-agentmail-reply-transport--2026-10-08).

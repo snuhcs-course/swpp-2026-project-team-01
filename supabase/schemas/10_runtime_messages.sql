@@ -31,6 +31,7 @@ begin
     -- Commit an eligible private reply in the same transaction as completion.
     -- A failed write leaves the input pending for checkpoint-based recovery.
     perform fmat.photon_reply_prepare(p_grant_id,p_conversation_id,p_input);
+    perform fmat.requester_email_reply_prepare(p_grant_id,p_conversation_id,p_input);
     update fmat.runtime_messages set status=p_input->>'status',settled_at=clock_timestamp()
       where id=(p_input->>'messageId')::uuid and conversation_id=p_conversation_id and grant_id=p_grant_id and status='pending';
     return jsonb_build_object('recorded',true);
