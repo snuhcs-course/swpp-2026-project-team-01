@@ -326,6 +326,8 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+- [x] Deploy the three OAuth lifecycle migrations from `8da0888`; verify the 79-migration production chain, rollback-only resource/PKCE/code/refresh/revocation probes, zero retained probe records, clean advisors and retained public HTTP guards. Public authorization and client-operation activation remain open. [Evidence](05_rebuild_evidence.md#durable-agent-oauth-grants--2026-10-08).
+
 - [x] Implement the durable OAuth consent/grant/code/refresh lifecycle, current host/request authority, scope narrowing and replay revocation. Verify the 79-migration rebuild, 83 new SQL assertions and actual concurrent exchanges/rotations with expiry after lock waits. Authorization task 1.2 is complete; public routes, consent UI and operation integration remain open. [Evidence](05_rebuild_evidence.md#durable-agent-oauth-grants--2026-10-08).
 
 - [x] Deploy registry migration `20261008115344` from `a6afcaf` to the selected production database. Verify rollback-only privilege/binding/limit checks, zero retained probe rows, clean advisors and retained HTTP guards. The existing web deployment remains Ready; token issuance is not activated. [Evidence](05_rebuild_evidence.md#agent-oauth-registry-and-consent-attempts--2026-10-08).
