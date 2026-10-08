@@ -125,3 +125,5 @@ Private-review confirmation failures capture `.local/rebuild/private-checkbox-tr
 
 
 MCP transport tests use the pinned official client against the actual Web Standard request handler, verifying initialization, discovery/calls, token rejection, role/target/scope isolation, revocation, strict origins and body limits. The agent-operation integration suite additionally sends signed MCP requests through the real local PostgREST boundary and verifies denial after request-token rotation. These fixtures do not prove any named personal-agent client's compatibility.
+
+Agent discovery coverage verifies 30-item pages without duplicates, summary redaction, literal search, cursor target/timestamp denial, browser-query parity, helper privileges and rejection after expiry or revocation while waiting on an observed database lock. The integration suite invokes the host list through the actual MCP handler and local PostgREST.

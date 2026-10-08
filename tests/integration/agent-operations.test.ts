@@ -51,6 +51,22 @@ test('agent operations recheck revocation and expiry under domain and downstream
   assert.equal((await viaMcp.json()).result.structuredContent.result.id,guest.request);
   const foreign=await mcp(mcpRequest('fmat_get_request',randomUUID()));assert.equal((await foreign.json()).result.isError,true);
   assert.equal((await mcp(mcpRequest('fmat_review_decision'))).status,403);
+  await db.query(`insert into fmat.requests(host_id,details,token_hash,expires_at,private_notes) select ${q(host)},jsonb_build_object('purpose','List probe '||n,'requesterEmail','private@example.test'),encode(extensions.digest(gen_random_uuid()::text,'sha256'),'hex'),clock_timestamp()+interval '1 day','private list note' from generate_series(1,35) n;`);
+  const hostProjection=JSON.parse(await db.query(`select fmat.oauth_grant_projection(g) from fmat.oauth_grants g where id=${q(hostGrant.grant)};`)) as AgentTokenGrant;
+  const hostAccess=await new AgentOAuthTokens(env).issue(hostProjection,async()=>{});
+  const listRequest=(input:unknown={})=>new Request(resource,{method:'POST',headers:{authorization:'Bearer '+hostAccess,'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:2,method:'tools/call',params:{name:'fmat_list_requests',arguments:{input}}})});
+  const firstPage=(await(await mcp(listRequest())).json()).result.structuredContent.result;
+  assert.equal(firstPage.requests.length,30);assert.ok(firstPage.nextCursor);
+  const nextPage=(await(await mcp(listRequest(firstPage.nextCursor))).json()).result.structuredContent.result;
+  assert.equal(nextPage.requests.length,6);assert.equal(nextPage.nextCursor,null);
+  assert.equal(new Set([...firstPage.requests,...nextPage.requests].map((r:{requestId:string})=>r.requestId)).size,36);
+  assert.ok(!JSON.stringify(firstPage).includes('private@example.test'));assert.ok(!JSON.stringify(firstPage).includes('private list note'));
+  assert.equal((await(await mcp(listRequest({...firstPage.nextCursor,beforeId:randomUUID()}))).json()).result.isError,true);
+  const expiredList=await fixture('host');
+  await lock.query(`begin;select 1 from fmat.oauth_grants where id=${q(expiredList.grant)} for update;`);
+  let listPending=wait.query(op(expiredList,'requests_list',null,{},null,Math.floor(Date.now()/1000)+2));
+  await blocked(db,waitName);await lock.query('select pg_sleep(2.1);commit;');
+  assert.equal(parse(await listPending).error,'invalid_token','list expiry after grant lock wait returns no summaries');
   // Contended request read must observe rotation committed before its lock.
   await lock.query(`begin;update fmat.requests set token_hash=${q(hash(randomUUID()))} where id=${q(guest.request!)};`);
   let pending=wait.query(op(guest,'request_read'));await blocked(db,waitName);await lock.query('commit;');
@@ -84,6 +100,11 @@ test('agent operations recheck revocation and expiry under domain and downstream
   const replay=JSON.parse(await db.query(op(hostGrant,'setup_draft',null,draft,key)));assert.equal(saved.revision,replay.revision);
   const secondHost=await fixture('host');
   const both=await Promise.all(peers.slice(0,2).map((p,i)=>p.query(op(i?secondHost:hostGrant,'setup_read'))));assert.equal(JSON.parse(both[0]).revision,JSON.parse(both[1]).revision);
+  await lock.query(`begin;update fmat.oauth_grants set revoked_at=clock_timestamp() where id=${q(hostGrant.grant)};`);
+  listPending=wait.query(op(hostGrant,'requests_list'));await blocked(db,waitName);await lock.query('commit;');
+  assert.equal(parse(await listPending).error,'invalid_grant','list observes concurrent grant revocation');
+  assert.equal((await mcp(listRequest())).status,401,'MCP discovery stops after current host grant revocation');
+
  }finally{
   await lock.query('rollback;').catch(()=>{});
   await db.query(`delete from fmat.oauth_refresh_tokens where grant_id in(select id from fmat.oauth_grants where client_id=${q(client)});delete from fmat.oauth_codes where grant_id in(select id from fmat.oauth_grants where client_id=${q(client)});delete from fmat.oauth_grants where client_id=${q(client)};delete from fmat.oauth_authorizations where client_id=${q(client)};delete from fmat.oauth_clients where id=${q(client)};delete from fmat.setup_reviews where conversation_id in(select id from fmat.setup_conversations where host_id=${q(host)});delete from fmat.setup_drafts where conversation_id in(select id from fmat.setup_conversations where host_id=${q(host)});delete from fmat.setup_conversations where host_id=${q(host)};delete from fmat.requests where host_id=${q(host)};delete from fmat.hosts where id=${q(host)};delete from fmat.invitations where id=${q(invitation)};delete from auth.users where id=${q(host)};`);

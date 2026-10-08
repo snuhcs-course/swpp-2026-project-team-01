@@ -22,6 +22,7 @@ test('scope, role, target, clone and synthetic decision attacks stop before RPC'
  const operations=new AgentOperations({rpc:async()=>{calls++;return {};}},()=>second*1000);
  for(const [c,command] of [
   [guest,{operation:'setup_read',input:{}}],
+  [guest,{operation:'requests_list',input:{}}],
   [guest,{operation:'request_read',requestId:randomUUID(),input:{}}],
   [guest,{operation:'details_propose',requestId:guest.claims.sub,idempotencyKey:randomUUID(),input:{expectedRevision:0,patch:{purpose:'Review'},clarifications:[]}}],
   [guest,{operation:'requester_agree',requestId:guest.claims.sub,input:{confirmed:true}}],

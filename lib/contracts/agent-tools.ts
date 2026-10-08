@@ -6,6 +6,7 @@ type Actor='host'|'guest';
 type Definition={name:string;title:string;description:string;actors:readonly Actor[];readOnly:boolean};
 const retry=' Supply a new UUID idempotencyKey for a new mutation; reuse it with identical input after a lost response. Changed input with the same key conflicts.';
 const definitions={
+ requests_list:{name:'fmat_list_requests',title:'List host meeting requests',actors:['host'],readOnly:true,description:'List up to 30 of the admitted host’s meeting requests, with literal text search and active/closed/all filtering. Requires host:read. Pass nextCursor fields in the next input; an invalid or removed cursor requires restarting from page one. Summaries omit contact addresses, private notes and transcripts.'},
  setup_read:{name:'fmat_get_setup',title:'Read host setup',actors:['host'],readOnly:true,description:'Read the admitted host’s saved setup and readiness. Requires host:read. Does not connect calendars or publish a booking link.'},
  setup_analysis_read:{name:'fmat_get_setup_analysis',title:'Read setup analysis',actors:['host'],readOnly:true,description:'Read the admitted host’s existing calendar setup analysis. Requires host:read. Does not start a new scan or grant provider consent.'},
  setup_draft:{name:'fmat_draft_setup',title:'Draft host setup',actors:['host'],readOnly:false,description:'Save an assistant-proposed host setup draft. Requires host:write. The host must review and confirm in /app; this does not publish settings.'+retry},

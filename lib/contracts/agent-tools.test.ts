@@ -51,3 +51,12 @@ test('Tool discovery produces strict JSON schemas and setup keeps domain validat
  assert.throws(()=>agentToolCommand('fmat_draft_setup',{...draft,input:{...draft.input,patch:{handle:'mcp'}}}));
  assert.throws(()=>agentToolCommand('fmat_propose_request_details',{requestId,idempotencyKey,input:{expectedRevision:0,patch:{},clarifications:[]}}));
 });
+
+
+test('Host request discovery bounds filters and requires complete cursors without accepting identity overrides',()=>{
+ const tool=agentToolsForActor('host').find(t=>t.name==='fmat_list_requests')!;
+ assert.equal(agentToolScope(tool,'host'),'host:read');
+ assert.deepEqual(agentToolCommand(tool.name,{input:{}}),{operation:'requests_list',input:{search:'',status:'active'}});
+ for(const input of [{search:'x'.repeat(201)},{status:'unknown'},{beforeId:requestId},{beforeCreatedAt:'2030-01-01T00:00:00Z'},{hostId:requestId}])assert.throws(()=>agentToolCommand(tool.name,{input}));
+ assert.throws(()=>agentToolCommand(tool.name,{requestId,input:{}}));
+});
