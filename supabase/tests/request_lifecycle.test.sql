@@ -90,10 +90,12 @@ select throws_ok($$select pg_temp.call('contact_confirm','guest',jsonb_build_obj
 select throws_ok($$select pg_temp.call('contact_confirm','guest',jsonb_build_object('codeHash',repeat('c',64)))$$,'P0001','FORBIDDEN','even a correct legacy proof cannot bypass bounded verification');
 select is((pg_temp.call('request_read','guest')->>'contactVerified')::boolean,false,'legacy endpoint cannot persist verification');
 select throws_ok($$select pg_temp.call('contact_confirm','guest',jsonb_build_object('codeHash',repeat('c',64)))$$,'P0001','FORBIDDEN','legacy proof cannot be reused as a new operation');
-select throws_ok($$select pg_temp.call('contact_recover','public',jsonb_build_object('email','different@request.test','tokenHash',repeat('e',64),'encryptedToken',repeat('x',40)))$$,'P0001','NOT_FOUND','different submitted recovery email cannot receive authority');
-select is(pg_temp.call('contact_recover','public',jsonb_build_object('email','guest@request.test','tokenHash',repeat('e',64),'encryptedToken',repeat('x',40))),'{"status":"pending"}'::jsonb,'matching claimed email only queues verification, never issues credential');
-select throws_ok($$select pg_temp.call('contact_redeem','public',jsonb_build_object('tokenHash',repeat('f',64),'newTokenHash',repeat('b',64)))$$,'P0001','CONTACT_INVALID','replacement credential requires delivered proof');
-select lives_ok($$select pg_temp.call('contact_redeem','public',jsonb_build_object('tokenHash',repeat('e',64),'newTokenHash',repeat('b',64)))$$,'recovery atomically rotates request-bound continuation');
+select throws_ok($$select pg_temp.call('contact_recover','public','{}')$$,'P0001','FORBIDDEN','legacy recovery issuance cannot bypass verified-contact boundary');
+select throws_ok($$select pg_temp.call('contact_redeem','public','{}')$$,'P0001','FORBIDDEN','legacy recovery redemption cannot rotate credentials');
+update fmat.requests set contact_verified_email=details->>'requesterEmail' where id=(pg_temp.fixture('request')->>'id')::uuid;
+select is(public.fmat_requester_recovery('start',jsonb_build_object('requestId',pg_temp.fixture('request')->>'id','challengeId','10000000-0000-4000-8000-000000000099','idempotencyKey',gen_random_uuid(),'email','guest@request.test','proofHash',repeat('e',64),'encryptedProof',repeat('x',40))),'{"status":"accepted"}'::jsonb,'verified recovery request has generic outcome');
+select throws_ok($$select public.fmat_requester_recovery('redeem',jsonb_build_object('requestId',pg_temp.fixture('request')->>'id','challengeId','10000000-0000-4000-8000-000000000099','proofHash',repeat('f',64),'newTokenHash',repeat('b',64)))$$,'P0001','CHALLENGE_INVALID','replacement credential requires delivered proof');
+select lives_ok($$select public.fmat_requester_recovery('redeem',jsonb_build_object('requestId',pg_temp.fixture('request')->>'id','challengeId','10000000-0000-4000-8000-000000000099','proofHash',repeat('e',64),'newTokenHash',repeat('b',64)))$$,'recovery atomically rotates request-bound continuation');
 select throws_ok($$select pg_temp.call('request_read','guest')$$,'P0001','NOT_FOUND','old continuation token revoked by recovery');
 update request_fixture set value=value||jsonb_build_object('tokenHash',repeat('b',64)) where name='guest';
 select lives_ok($$select pg_temp.call('request_read','guest')$$,'replacement continuation resumes same request');
@@ -117,7 +119,7 @@ select is(pg_temp.call('request_read','guest')->>'status','withdrawn','unexpired
 select is(pg_temp.call('request_read','guest')->'messages','[]'::jsonb,'terminal receipt excludes previous shared discussion');
 select is(pg_temp.call('request_read','guest')->'details'->>'requesterEmail','','terminal receipt omits old contact data');
 select throws_ok($$select fmat.authorize_guest(pg_temp.fixture('guest'),(pg_temp.fixture('request')->>'id')::uuid)$$,'P0001','NOT_FOUND','closed receipt credential cannot start or complete Calendar OAuth');
-select throws_ok($$select pg_temp.call('contact_recover','public',jsonb_build_object('email','new@request.test','tokenHash',repeat('f',64),'encryptedToken',repeat('x',40)))$$,'P0001','NOT_FOUND','closure blocks new recovery authority');
+select throws_ok($$select pg_temp.call('contact_recover','public',jsonb_build_object('email','new@request.test','tokenHash',repeat('f',64),'encryptedToken',repeat('x',40)))$$,'P0001','FORBIDDEN','legacy recovery remains denied after closure');
 select throws_ok($$select public.fmat_command('requester_withdraw',pg_temp.fixture('guest'),pg_temp.fixture('withdraw-input'))$$,'P0001','FORBIDDEN','retired guest mutation cannot bypass explicit closure authority');
 select throws_ok($$select pg_temp.call('proposal_create','host',pg_temp.fixture('slot'))$$,'P0001','FORBIDDEN','retired proposal route cannot reopen a terminal request');
 select throws_ok($$select public.fmat_command('request_create',pg_temp.fixture('public'),jsonb_build_object('handle','requesttest','details',pg_temp.fixture('details'),'tokenHash',repeat('a',64),'idempotencyKey','create'))$$,'P0001','REQUEST_CLOSED','public cached create cannot leak or revive rotated closed request');
