@@ -258,6 +258,8 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 
 ### Phase 6 — Add requester email continuity
 
+- [x] Deploy the fenced requester reply worker (`8c9bff4`; deployment `dpl_3yQUayzRiFee2aoNKUm5TYN7YJFE`), verify rollback-only remote recovery/lease/suppression, clean advisors, 73 HTTP guards and the installed scheduler with zero enabled receivers. [Evidence](05_rebuild_evidence.md#fenced-requester-email-reply-delivery--2026-10-08).
+
 - [x] Implement requester reply delivery with durable two-minute leases, final current-authority checks, frozen retry identity and first-attempt deadline, ordered uncertainty and a private scheduled worker. Verify 74-migration rebuild, 1,085 SQL assertions, 26 integrations including lost-response recovery and two real lock-expiry cases, 204 app/provider tests, both builds and browser regression. Outgoing-parent authorization and controlled live acceptance remain open.
 
 - [x] Deploy atomic requester email reply capture (`ee4ca15`; deployment `dpl_3Vi6ofPGtPidC5FcjxmdwTYcgcH4`) and verify remote rollback-only immutability/suppression, zero remaining fixtures, clean security advisors and 72 production HTTP guards. [Evidence](05_rebuild_evidence.md#atomic-requester-email-reply-capture--2026-10-08).
