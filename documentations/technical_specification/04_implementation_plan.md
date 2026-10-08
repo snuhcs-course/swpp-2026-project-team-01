@@ -326,6 +326,8 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+- [x] Implement the CLI OAuth protocol layer: fixed issuer/resource metadata, exact loopback registration, S256/state, single-use exchange, signed-token validation, refresh and revocation. Verify invalid callbacks/claims and uncertain exchange; listener, command wiring and live acceptance remain open. [Evidence](05_rebuild_evidence.md#cli-oauth-protocol--2026-10-09).
+
 - [x] Implement private POSIX CLI storage with origin/grant isolation, atomic writes, cross-process refresh locks, durable uncertain-refresh state and retryable incomplete logout. Verify permissions, symlinks, scope/principal changes and two-process single refresh. Browser OAuth and runnable CLI remain open in task 3.2. [Evidence](05_rebuild_evidence.md#cli-private-credential-storage--2026-10-09).
 
 - [x] Implement and verify the internal CLI MCP transport: bounded JSON input/output, official SDK discovery/invocation, fixed-origin bearer requests, sanitized exits, no redirect or mutation retry, and current revocation/scope failures. Runnable entry and credential lifecycle remain open in tasks 3.1–3.2. [Evidence](05_rebuild_evidence.md#cli-mcp-transport-foundation--2026-10-09).
