@@ -297,3 +297,11 @@ The direct Photon transport dependency `@grpc/grpc-js` is pinned to **1.14.5**. 
 ## Requester email worker activation boundary
 
 The release includes `/api/internal/agentmail/dispatch`, protected by `RUNTIME_DISPATCH_SECRET`, and the database `fmat-requester-email` minute scheduler. The scheduler derives this route from the existing `fmat_runtime_dispatch_url` Vault value and uses the existing dispatch secret. It only wakes for pending work in an enabled receiver generation. Keep `fmat.agentmail_receivers` disabled until controlled signature, enrollment, continuation and revocation acceptance succeeds; setting provider credentials alone does not enable the channel. The worker does not yet send conversational email replies. See [the tracked change](../../openspec/changes/bind-requester-email/tasks.md).
+
+### Requester recovery delivery worker
+
+`POST /api/internal/recovery/delivery` requires the existing `RUNTIME_DISPATCH_SECRET`, processes one leased `requester_recovery_delivery` job and returns only a sanitized outcome. It uses the existing Cloudflare account/token/from settings, `TOKEN_ENCRYPTION_KEY` and validated `APP_ORIGIN`; no new provider credential is needed. The minute `fmat-requester-recovery-delivery` scheduler derives this endpoint from the exact validated `fmat_runtime_dispatch_url` in Vault and uses `fmat_runtime_dispatch_secret`. No work means no HTTP wake-up.
+
+The worker freezes encrypted HTML/plain-text content and the recipient before dispatch. Its link uses `/booking/{requestId}#recover={challengeId}.{proof}`; no proof enters query strings or scheduling/model content. Dispatch rechecks the original verified contact, current request token hash, proof validity and request lifecycle. The old browser token may have expired; recovery proof supplies separate authority. Once dispatch may have occurred, a restarted worker records uncertainty rather than sending again. An explicit new recovery request after the cooldown creates a separate proof and supersedes older links. Delivery acceptance does not redeem the proof or rotate request access.
+
+The public recovery issuance and explicit browser redemption flow remain in progress; do not treat the internal worker or synthetic delivery tests as live recovery acceptance.

@@ -21,7 +21,7 @@ test('Recovery proves original verified contact, rotates one credential, and pre
   await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invite}','host@example.test','${hash(invite)}',now()+interval '1 day','recovery-fixture');insert into fmat.hosts(id,email,invitation_id) values('${host}','host@example.test','${invite}');`);
   const r=await fixture(),unverified=await fixture(false),input=start(r.id),accepted={status:'accepted'};
   for(const value of [start(randomUUID()),start(unverified.id),{...input,email:'wrong@example.test'}])assert.deepEqual(await service.start(value),accepted);
-  assert.equal(await sql.query('select count(*) from fmat.requester_recoveries;'),'0');
+  assert.equal(await sql.query(`select count(*) from fmat.requester_recoveries where request_id in('${r.id}','${unverified.id}');`),'0');
   assert.ok((await Promise.all(Array.from({length:8},()=>service.start(input)))).every(v=>JSON.stringify(v)===JSON.stringify(accepted)));
   assert.equal(await sql.query(`select count(*) from fmat.requester_recoveries where request_id='${r.id}';`),'1');
   assert.equal(await sql.query(`select count(*) from fmat.outbox where payload->>'requestId'='${r.id}';`),'1');
