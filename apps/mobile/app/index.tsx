@@ -1,3 +1,4 @@
+// AI-generated with Codex; committed 2026-10-05 (b78494b).
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { supabase, isConfigured } from '../lib/supabase';

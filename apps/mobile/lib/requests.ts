@@ -1,3 +1,4 @@
+// AI-generated with Codex; committed 2026-10-05 (b78494b).
 import { supabase } from './supabase';
 
 export type BookingRequest = {

@@ -1,3 +1,4 @@
+// AI-generated with Codex; committed 2026-10-05 (b78494b).
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 

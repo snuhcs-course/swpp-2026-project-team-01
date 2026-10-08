@@ -1,3 +1,4 @@
+-- AI-generated with Codex; committed 2026-10-05 (b78494b).
 create extension if not exists pgcrypto;
 
 create type public.booking_status as enum (
