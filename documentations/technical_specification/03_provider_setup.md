@@ -289,3 +289,7 @@ AgentMail's normal received classification is insufficient for author alignment:
 These primitives do not authorize a requester or run a job. A protected request binding, verified contact and current receipt/replay/revocation checks must still authorize each message. Alignment failure or unsupported mail formats require protected browser recovery.
 
 Controlled read-only observation on 2026-10-08: the existing Cloudflare-delivered test message downloaded successfully (5,224 bytes); From and Message-ID matched the provider record, and aligned whole-body DKIM passed. Both signatures omitted Message-ID, so application author evidence correctly failed closed. Eight deterministic tests include independently generated RSA signatures, tampering, forged verdict headers, limited-body signatures, ambiguous authors, unsafe download URLs and stalled DNS/downloads. Positive live requester-author acceptance remains open.
+
+### gRPC security patch — 2026-10-08
+
+The direct Photon transport dependency `@grpc/grpc-js` is pinned to **1.14.5**. The [upstream patch](https://github.com/grpc/grpc-node/releases/tag/%40grpc%2Fgrpc-js%401.14.5) fixes certificate-authentication context and error-detail disclosure advisories. Application/provider tests, both builds and the full local browser journey pass; `npm audit` reports zero vulnerabilities after the patch. This does not replace the separate live Photon routing/acceptance gate. No product or UX contract changes are introduced.

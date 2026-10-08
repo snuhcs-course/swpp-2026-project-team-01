@@ -28,7 +28,7 @@
   },
   "type": "module",
   "dependencies": {
-    "@grpc/grpc-js": "1.14.4",
+    "@grpc/grpc-js": "1.14.5",
     "@js-temporal/polyfill": "0.5.1",
     "@photon-ai/advanced-imessage": "2.2.0",
     "@shadcn/react": "0.3.1",
