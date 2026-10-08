@@ -260,6 +260,7 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 
 Incremental completion (full phase exit remains open):
 
+- [x] Implement and verify the AgentMail reply transport with one frozen recipient/parent, stable idempotency key, bounded replay window, current-authority preflight and exact acceptance readback. Eight provider tests pass; durable outbound queue/runtime integration and live full-email continuity remain open.
 - [x] Deploy signed routing-context enforcement (`f722a0e`; deployment `dpl_5c52qhnSqFJJNeM4vEaPLuDndCvN`), verify rollback-only parent isolation, 68 matching migrations, clean advisors and production regressions. [Evidence](05_rebuild_evidence.md#signed-requester-email-routing-context--2026-10-08).
 - [x] Require signed application-recipient and reply-parent context for requester email, anchor continuation to an earlier authenticated receipt in the same link, and recheck that context for runtime grants. Signed-message tests, real-database integration and the full browser regression pass; positive live acceptance remains open.
 - [x] Deploy the email execution worker and migration (`1300236`, `24d0aa6`; deployment `dpl_By9j8FNvBNrS1JhYYwb2S4bWg7es`), verify rollback-only current-authority isolation, clean advisors and 63 production HTTP guards. Live receiver enablement remains gated on controlled acceptance. [Evidence](05_rebuild_evidence.md#requester-email-worker-execution--2026-10-08).

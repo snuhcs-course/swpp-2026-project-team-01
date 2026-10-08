@@ -21,6 +21,7 @@ Tasks describe reconstruction checks and decisions. Incremental provider boundar
 ## 3. Messaging and provider journeys
 
 - [ ] 3.1 Test native eve Photon authentication and controlled inbound/reply routing; verify signatures/provider identity, private host linking, delivery/restart recovery and web confirmation continuation. Document any evidence-based bridge requirement before creating one.
+- [x] 3.2a Implement the bounded single-recipient AgentMail reply transport, stable idempotency identity/window and exact acceptance readback; verify redirects, malformed/oversized/stalled responses, current-authority denial and no blind retry with deterministic tests. Durable outbound processing and controlled live compatibility remain open.
 - [ ] 3.2 Exercise AgentMail raw-body signature verification, replay rejection, received-parent reply threading, idempotency windows and uncertain-send recovery with dedicated identities; verify changed-payload conflicts and sanitized evidence.
 - [ ] 3.3 Test Cloudflare transactional/Auth mail against the selected Supabase project and reconstruction links; verify sender setup, accepted/delivered distinction and contact-safe failure handling.
 - [ ] 3.4 Complete actual host/requester Google consent, refresh, disconnect/reconnect, controlled reads and Calendar booking reconciliation; verify separate scopes, browser callback binding and exact event identity after a lost response.
