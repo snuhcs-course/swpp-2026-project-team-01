@@ -293,3 +293,7 @@ Controlled read-only observation on 2026-10-08: the existing Cloudflare-delivere
 ### gRPC security patch — 2026-10-08
 
 The direct Photon transport dependency `@grpc/grpc-js` is pinned to **1.14.5**. The [upstream patch](https://github.com/grpc/grpc-node/releases/tag/%40grpc%2Fgrpc-js%401.14.5) fixes certificate-authentication context and error-detail disclosure advisories. Application/provider tests, both builds and the full local browser journey pass; `npm audit` reports zero vulnerabilities after the patch. This does not replace the separate live Photon routing/acceptance gate. No product or UX contract changes are introduced.
+
+## Requester email worker activation boundary
+
+The release includes `/api/internal/agentmail/dispatch`, protected by `RUNTIME_DISPATCH_SECRET`, and the database `fmat-requester-email` minute scheduler. The scheduler derives this route from the existing `fmat_runtime_dispatch_url` Vault value and uses the existing dispatch secret. It only wakes for pending work in an enabled receiver generation. Keep `fmat.agentmail_receivers` disabled until controlled signature, enrollment, continuation and revocation acceptance succeeds; setting provider credentials alone does not enable the channel. The worker does not yet send conversational email replies. See [the tracked change](../../openspec/changes/bind-requester-email/tasks.md).

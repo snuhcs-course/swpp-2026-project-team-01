@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {randomBytes,randomUUID,createHash,generateKeyPairSync,sign} from 'node:crypto';
+import {RequesterEmailWorker} from '../../lib/server/agentmail/worker.ts';
 import {RequesterEmailLinking} from '../../lib/server/agentmail/linking.ts';
 import {AgentMailMessages} from '../../lib/server/agentmail/messages.ts';
 import {verifyAgentMailAuthor} from '../../lib/server/agentmail/author.ts';
@@ -33,6 +34,41 @@ test('Requester email linking preserves current authority across retries, signed
  async function cool(id:string){await sql.query(`update fmat.requester_email_links set created_at=created_at-interval '61 seconds' where request_id='${id}';`);}
  try{
   await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invite}','host@example.test','${sha(invite)}',now()+interval '1 day','email-link-fixture');insert into fmat.hosts(id,email,invitation_id) values('${host}','host@example.test','${invite}');insert into fmat.agentmail_receivers(inbox_id,receiver_id,enabled) values('${inbox}','${receiver}',true);`);
+  const worker=new RequesterEmailWorker(db,env,service);
+  const wr=await request(),wl=await start(wr),wb=await receipt(wl.linkingText!);
+  assert.equal((await worker.run()).outcome,'linked');
+  assert.equal(await sql.query(`select count(*) from fmat.runtime_messages m join fmat.conversation_scopes s on s.id=m.conversation_id where s.request_id='${wr.id}';`),'0','Linking text never enters runtime history');
+  assert.equal(await sql.query(`select count(*) from fmat.queue_publications p join fmat.jobs j on j.id=p.job_id where j.payload->>'receiptId'='${wb.id}' and p.acknowledged_at is null;`),'0');
+  const wm=await receipt('Please discuss my meeting',wb.thread);assert.equal((await worker.run()).outcome,'accepted');
+  const execution=JSON.parse(await sql.query(`select json_build_object('grant',m.grant_id,'scope',m.conversation_id) from fmat.runtime_messages m join fmat.conversation_scopes s on s.id=m.conversation_id where s.request_id='${wr.id}';`));
+  const check=()=>db.rpc('fmat_conversation_check',{p_grant_id:execution.grant,p_conversation_id:execution.scope});
+  assert.equal((await check() as {requestId:string}).requestId,wr.id);
+  const web=await db.rpc('fmat_conversation_access',{p_operation:'open',p_credential:wr.guest,p_input:{audience:'request_shared',requestId:wr.id}}) as {conversationId:string};assert.equal(web.conversationId,execution.scope);
+  await service.revoke(wr.guest,{requestId:wr.id,linkId:wl.linkId});await assert.rejects(check(),code('UNAUTHORIZED'));
+  await assert.rejects(db.rpc('fmat_conversation_tool',{p_grant_id:execution.grant,p_conversation_id:execution.scope,p_operation:'request_read',p_input:{}}),code('UNAUTHORIZED'));
+  // Restart after committed preparation must reuse saved evidence and body, never fetch a replacement body.
+  const restart=await request(),restartLink=await start(restart),restartBind=await receipt(restartLink.linkingText!);assert.equal((await worker.run()).outcome,'linked');
+  const restartMessage=await receipt('Preserve exactly this input',restartBind.thread);let lostPreparation=false;
+  const failingDb=new Database(env,async(url,init)=>{const response=await fetch(url,init);if(response.ok&&!lostPreparation&&JSON.parse(String(init?.body)).p_operation==='prepare'){lostPreparation=true;throw new Error('lost preparation response');}return response;});
+  assert.equal((await new RequesterEmailWorker(failingDb,env,service).run()).outcome,'retry');assert.equal(lostPreparation,true);
+  await sql.query(`update fmat.jobs set available_at=clock_timestamp() where payload->>'receiptId'='${restartMessage.id}';`);
+  assert.equal((await new RequesterEmailWorker(db,env,{prepare:async()=>{throw new Error('must reuse verified input');}}).run()).outcome,'accepted');
+  assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where client_id='${restartMessage.id}';`),'1');
+  // A stale lease cannot bind a message, and the replacement lease can recover it.
+  const stale=await request(),staleLink=await start(stale),staleReceipt=await receipt(staleLink.linkingText!);
+  const claimed=await db.rpc('fmat_requester_email_worker',{p_operation:'claim',p_receiver_id:receiver,p_inbox_id:inbox,p_lease:{workerId:randomUUID()},p_input:{}}) as {job:{jobId:string;leaseToken:string;workerId:string}};
+  await sql.query(`update fmat.jobs set lease_until=clock_timestamp()-interval '1 second' where id='${claimed.job.jobId}';`);
+  assert.equal(await worker.process(claimed.job),'lease_lost');assert.equal((await service.read(stale.guest,{requestId:stale.id})).status,'pending');assert.equal((await worker.run()).outcome,'linked');
+  const revoked=await request(),workerRevokedLink=await start(revoked),workerRevokedReceipt=await receipt(workerRevokedLink.linkingText!);
+  const revokeWhileReading=new RequesterEmailWorker(db,env,{prepare:async id=>{const evidence=await service.prepare(id);await service.revoke(revoked.guest,{requestId:revoked.id,linkId:workerRevokedLink.linkId});return evidence;}});
+  assert.equal((await revokeWhileReading.run()).outcome,'rejected');
+  assert.equal(await sql.query(`select processing_outcome from fmat.agentmail_inbox where id='${workerRevokedReceipt.id}';`),'rejected');
+  const malformed=await receipt('Quoted FMAT-LINK with a wrapped secret',staleReceipt.thread);assert.equal((await worker.run()).outcome,'rejected');
+  const lostDispatchRequest=await request(),lostDispatchLink=await start(lostDispatchRequest),lostDispatchBind=await receipt(lostDispatchLink.linkingText!);assert.equal((await worker.run()).outcome,'linked');
+  const lostDispatchMessage=await receipt('Exactly one runtime input',lostDispatchBind.thread);let lostDispatch=false;
+  const lostDispatchDb=new Database(env,async(url,init)=>{const response=await fetch(url,init);if(response.ok&&!lostDispatch&&JSON.parse(String(init?.body)).p_operation==='dispatch'){lostDispatch=true;throw new Error('lost committed dispatch');}return response;});
+  assert.equal((await new RequesterEmailWorker(lostDispatchDb,env,service).run()).outcome,'lease_lost');assert.equal(lostDispatch,true);
+  assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where client_id='${lostDispatchMessage.id}';`),'1');assert.equal((await worker.run()).outcome,'idle');
   const unverified=await request(false);await assert.rejects(start(unverified),code('CONTACT_NOT_VERIFIED'));
   const r=await request(),key=randomUUID(),starts=await Promise.all(Array.from({length:8},()=>start(r,key))),link=starts[0];
   assert.ok(starts.every(x=>x.linkId===link.linkId&&x.linkingText===link.linkingText));assert.equal(link.status,'pending');assert.ok(link.linkingText);assert.equal(await sql.query(`select count(*) from fmat.requester_email_links where request_id='${r.id}';`),'1');
@@ -93,8 +129,8 @@ test('Requester email linking preserves current authority across retries, signed
   const rate=await request();for(let i=0;i<5;i++){await start(rate);await cool(rate.id);}await assert.rejects(start(rate),code('EMAIL_LINK_LIMIT'));
   for(const role of ['anon','authenticated','service_role'])for(const table of ['requester_email_links','requester_email_evidence'])assert.equal(await sql.query(`select has_table_privilege('${role}','fmat.${table}','select,insert,update,delete');`),'f');
   assert.equal(await sql.query(`select has_function_privilege('anon','public.fmat_requester_email_link(text,jsonb,uuid,text,jsonb)','execute')||','||has_function_privilege('authenticated','public.fmat_requester_email_receipt(text,uuid,text,jsonb)','execute');`),'false,false');
-  assert.equal(await sql.query(`select count(*) from fmat.conversation_grants g join fmat.conversation_scopes s on s.id=g.conversation_id where s.request_id in(select id from fmat.requests where host_id='${host}');`),'0');
+  assert.equal(await sql.query(`select count(*) from fmat.conversation_grants g join fmat.conversation_scopes s on s.id=g.conversation_id where s.request_id='${r.id}';`),'0');
  }finally{
-  await sql.query(`delete from fmat.requester_email_evidence where inbox_id='${inbox}';delete from fmat.requester_email_links where inbox_id='${inbox}';delete from pgmq.q_fmat_jobs where msg_id in(select p.message_id from fmat.queue_publications p join fmat.jobs j on j.id=p.job_id where j.payload->>'receiptId' in(select id::text from fmat.agentmail_inbox where inbox_id='${inbox}'));delete from fmat.queue_publications where job_id in(select id from fmat.jobs where payload->>'receiptId' in(select id::text from fmat.agentmail_inbox where inbox_id='${inbox}'));delete from fmat.jobs where payload->>'receiptId' in(select id::text from fmat.agentmail_inbox where inbox_id='${inbox}');delete from fmat.agentmail_deliveries where inbox_id='${inbox}';delete from fmat.agentmail_inbox where inbox_id='${inbox}';delete from fmat.agentmail_receivers where inbox_id='${inbox}';delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';`);sql.close();
+  await sql.query(`update fmat.agentmail_inbox set runtime_message_id=null,link_id=null where inbox_id='${inbox}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_scopes where host_id='${host}';delete from fmat.requester_email_evidence where inbox_id='${inbox}';delete from fmat.requester_email_links where inbox_id='${inbox}';delete from pgmq.a_fmat_jobs where msg_id in(select p.message_id from fmat.queue_publications p join fmat.jobs j on j.id=p.job_id where j.payload->>'receiptId' in(select id::text from fmat.agentmail_inbox where inbox_id='${inbox}'));delete from pgmq.q_fmat_jobs where msg_id in(select p.message_id from fmat.queue_publications p join fmat.jobs j on j.id=p.job_id where j.payload->>'receiptId' in(select id::text from fmat.agentmail_inbox where inbox_id='${inbox}'));delete from fmat.queue_publications where job_id in(select id from fmat.jobs where payload->>'receiptId' in(select id::text from fmat.agentmail_inbox where inbox_id='${inbox}'));delete from fmat.audit_events where subject_id in(select id::text from fmat.jobs where payload->>'receiptId' in(select id::text from fmat.agentmail_inbox where inbox_id='${inbox}'));delete from fmat.jobs where payload->>'receiptId' in(select id::text from fmat.agentmail_inbox where inbox_id='${inbox}');delete from fmat.agentmail_deliveries where inbox_id='${inbox}';delete from fmat.agentmail_inbox where inbox_id='${inbox}';delete from fmat.agentmail_receivers where inbox_id='${inbox}';delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';`);sql.close();
  }
 });

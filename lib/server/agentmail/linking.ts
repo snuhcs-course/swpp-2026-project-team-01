@@ -38,6 +38,14 @@ export class RequesterEmailLinking{
   if(message.content.status!=='available')throw new ApplicationError('INVALID_INPUT',400);
   return {config,text:message.content.text,proof:{receiptId,authorEmail:author.sender,rawHash:author.rawHash,signatureId:author.signatureId}};
  }
+ /** Independently verified provider input for the lease-bound worker. No guest credential is issued. */
+ async prepare(receiptId:string){
+  const {text,proof}=await this.evidence(receiptId);
+  const command=/^FMAT-LINK ([0-9a-f-]{36})\.([A-Za-z0-9_-]{43})$/u.exec(text.trim());
+  if(command&&z.uuid().safeParse(command[1]).success)return {mode:'bind' as const,proof:{...proof,linkId:command[1],proofHash:hash(command[2])}};
+  if(/FMAT-LINK/iu.test(text))throw new ApplicationError('INVALID_INPUT',400);
+  return {mode:'authorize' as const,proof,text};
+ }
  async bind(receiptId:string){
   const {config,text,proof}=await this.evidence(receiptId);
   const command=/^FMAT-LINK ([0-9a-f-]{36})\.([A-Za-z0-9_-]{43})$/u.exec(text.trim());
@@ -47,7 +55,7 @@ export class RequesterEmailLinking{
  /** Trusted worker only. References are not guest credentials; downstream commands must recheck the link. */
  async authorize(receiptId:string){
   const {config,text,proof}=await this.evidence(receiptId);
-  if(/FMAT-LINK\s+[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}/iu.test(text))throw new ApplicationError('INVALID_INPUT',400);
+  if(/FMAT-LINK/iu.test(text))throw new ApplicationError('INVALID_INPUT',400);
   const current=authorization.parse(await this.db.rpc('fmat_requester_email_receipt',{p_operation:'authorize',...config,p_input:proof}));
   return {...current,text};
  }

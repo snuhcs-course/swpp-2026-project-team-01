@@ -31,3 +31,9 @@ See [proposal.md](proposal.md). Durable ingress records transport references; fu
 ## Migration Plan
 
 Generate/review an additive pg-delta migration and rebuild the disposable local chain. Verify concurrent starts/binds, rollback, lost responses, contact/credential changes and direct-role denial. Deploy increments with remote rollback probes and regression checks. Enable live routing only after browser, worker and controlled continuation acceptance is complete.
+
+## Lease-bound worker implementation
+
+The worker claims one current-receiver receipt for sixty seconds and preserves receipt order within a thread. Provider I/O happens outside transactions. A preparation transaction rechecks the lease and current binding, records immutable verified text for ordinary messages and creates the canonical shared scope; binding commands instead complete without storing text in runtime history. A separate dispatch transaction locks the runtime scope before current request authority, creates a receipt-scoped grant and atomically accepts one runtime input and completes the transport job. Separating scope creation avoids reversing the existing runtime/request lock order.
+
+Stored email grants contain only receipt/link/receiver references. `fmat_conversation_check` invokes the current email actor check before output/tools, so later unlink, contact changes, closure or receiver replacement deny queued execution. Retries reuse saved preparation after restart. Completed/rejected receipts acknowledge their queue publications. Provider failures retry within the existing job limit; exhausted, invalid and unknown inputs end without a private reply. The minute scheduler is inert without enabled current-receiver work. Outbound reply execution and positive live acceptance remain separate full-plan gates.

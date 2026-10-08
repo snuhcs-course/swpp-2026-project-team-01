@@ -140,6 +140,10 @@ begin
   select * into v_scope from fmat.conversation_scopes where id=v_grant.conversation_id;
   -- Match request-command lock order. Keep revocation and the eventual tool
   -- effect serialized in this transaction, including an idempotent replay.
+  if v_grant.credential->>'kind'='requester_email' then
+    v_actor:=fmat.requester_email_execution_actor(v_grant.credential);
+    if v_grant.actor_kind<>'guest' or v_scope.audience<>'request_shared' or v_scope.request_id::text is distinct from v_actor->>'requestId' then raise exception 'UNAUTHORIZED';end if;
+  end if;
   perform 1 from fmat.requests where id=v_scope.request_id for update;
   if v_grant.credential->>'kind'='photon' then
     -- Link authority is issued only by the durable private inbox processor,
@@ -155,7 +159,8 @@ begin
   select * into v_scope from fmat.conversation_scopes where id=p_conversation_id for share;
   select * into v_grant from fmat.conversation_grants where id=p_grant_id and conversation_id=p_conversation_id for share;
   if not found or v_grant.revoked_at is not null or v_grant.expires_at<=clock_timestamp() then raise exception 'UNAUTHORIZED'; end if;
-  if v_grant.credential->>'kind'<>'photon' then v_actor:=fmat.credential_actor(v_grant.credential); end if;
+  if v_grant.credential->>'kind'='requester_email' then v_actor:=fmat.requester_email_execution_actor(v_grant.credential);
+  elsif v_grant.credential->>'kind'<>'photon' then v_actor:=fmat.credential_actor(v_grant.credential); end if;
   v_writable:=fmat.authorize_conversation(v_scope,v_actor);
   -- A transaction may have waited for another writer. Recheck time-based
   -- authority against wall time after locks, not its earlier transaction time.

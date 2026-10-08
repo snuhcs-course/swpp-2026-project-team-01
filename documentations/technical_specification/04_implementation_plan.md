@@ -252,6 +252,7 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 
 Incremental completion (full phase exit remains open):
 
+- [x] Connect leased email ingress to protected binding and shared requester runtime preparation. Verify current email grants at output/tools, same-thread ordering, restart after saved preparation, one runtime input after a lost dispatch response, stale-lease rejection and queue acknowledgment. Binding text never enters model/history; controlled live acceptance and outbound replies remain open.
 - [x] Deploy protected email-link controls (`27e507e`; deployment `dpl_CyPendCA95zhAVBu2WgmAXj8jj2X`); verify all 62 production HTTP guards, public documents and disabled live ingress. [Evidence](05_rebuild_evidence.md#protected-requester-email-controls--2026-10-08).
 - [x] Add protected requester email-link state/start/revoke routes and accessible controls with exact retry identities, reload recovery, secret removal after binding/revocation/expiry and unavailable web fallback. The full browser journey verifies these cases and private/no-store, anonymous and CSRF boundaries. Worker routing and live acceptance remain open.
 - [x] Deploy the email-binding foundation and migration (`a361d82`; deployment `dpl_6jzUZ4cJy6FouqC7uv7kidz2DykE`); verify rollback-only remote isolation, clean security advisors and production regressions while live ingress remains disabled. [Evidence](05_rebuild_evidence.md#protected-requester-email-binding-foundation--2026-10-08).
