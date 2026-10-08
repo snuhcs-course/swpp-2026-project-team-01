@@ -31,4 +31,6 @@ See [proposal](proposal.md). Browser authority is currently issued by `lib/serve
 
 ## Migration Plan
 
+Production namespace inspection found `/mcp` currently renders the generic public-handle HTML shell for GET and POST. Before protocol activation, reserve `mcp` and `oauth` consistently in handle validation/storage and check existing assignments; do not silently reassign a published host handle. The protocol route must replace that shell with the specified authenticated transport behavior. No such route is exposed by the primitives slice.
+
 Land tested internal primitives first without public discovery or endpoints. Generate additive desired-schema migrations, rebuild the disposable local chain and verify isolation/concurrency. Add consent and protocol routes only once grants are enforced. Provision release-only signing material without logging it; review migration dry run, deploy from committed source and verify protocol/resource guards. Rollback disables authorization/resource entry while retaining revoked/uncertain state; never remove history or revive a consumed credential. Archive only after real browser/terminal flow and negative cases pass; named-client and MCP tool gates remain separately tracked.
