@@ -5,3 +5,5 @@ export const describedRules={timezone:'Asia/Seoul',durationMinutes:30,availabili
 export const setupInvalid='setup-fixture: invalid extracted duration';
 export const setupAmbiguous='setup-fixture: afternoons, but no exact times';
 export const setupDoubleWrite='setup-fixture: suggest 45 minutes, then try a changed retry';
+
+export const setupReady='setup-fixture: share current booking links';

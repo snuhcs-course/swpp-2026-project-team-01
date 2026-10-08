@@ -1,6 +1,6 @@
 # Tasks
 
-Tasks describe replacement implementation and verification. Private drafts, guided browser setup, focus recovery and protected admission/Calendar continuation are verified locally; cross-channel setup and controlled live acceptance remain open. Follow the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md).
+Tasks describe replacement implementation and verification. Private drafts, guided browser setup, focus recovery and protected admission/Calendar continuation are verified locally; deterministic cross-channel setup is verified; controlled live acceptance remains open. Follow the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md).
 
 ## 1. Authorized state and shared operations
 
@@ -33,7 +33,7 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 
 ## 5. Cross-channel acceptance
 
-- [ ] 5.1 Exercise admission through confirmed rules, calendar readiness and linked web/iMessage continuation using deterministic integration fixtures; verify stale reviews and two-host isolation.
+- [x] 5.1 Exercise admission through confirmed rules, calendar readiness and linked web/iMessage continuation using deterministic integration fixtures; verify stale reviews and two-host isolation.
 - [ ] 5.2 With controlled message authorization and actual Google consent, verify one complete onboarding and browser-return journey at the reconstruction origin; distinguish transport, consent, linking and readiness evidence from booking verification.
 - [ ] 5.3 Run relevant database/runtime/web checks and strict OpenSpec validation; verify AC-28 and update current status only from fresh replacement evidence.
 
@@ -42,3 +42,5 @@ Task 2.4 acceptance: [requirement-by-requirement executable evidence](../../../d
 Task 3.2 acceptance: [in-chat cards and editable weekly preview](../../../documentations/technical_specification/05_rebuild_evidence.md#editable-weekly-preference-preview--2026-10-09). Local focus/consent-return and compact-interface acceptance is verified in task 3.4; live Google/iPhone acceptance remains in task 5.2.
 
 Task 3.4 acceptance: [compact interface and requirement-by-requirement evidence](../../../documentations/technical_specification/05_rebuild_evidence.md#compact-completed-setup-and-visual-acceptance--2026-10-09), together with the retained editor and consent-return tests. Actual Google/iPhone acceptance remains separate in task 5.2.
+
+Task 5.1 acceptance: [admission and two-host journey](../../../documentations/technical_specification/05_rebuild_evidence.md#admission-and-two-host-setup-journey--2026-10-09) and [current private-channel readiness](../../../documentations/technical_specification/05_rebuild_evidence.md#private-channel-readiness-and-cross-channel-acceptance--2026-10-09). Providers are controlled fixtures; actual Google/iPhone acceptance remains task 5.2.

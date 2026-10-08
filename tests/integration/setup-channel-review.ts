@@ -10,7 +10,7 @@ import {ApplicationError} from '../../lib/server/errors.ts';
 import type {Credential} from '../../lib/server/identity/credentials.ts';
 import type {Database} from '../../lib/server/database/client.ts';
 import type {LocalSql} from './local-sql.ts';
-import {setupInvalid,setupAmbiguous,setupDoubleWrite} from '../runtime/setup-preferences.ts';
+import {setupInvalid,setupAmbiguous,setupDoubleWrite,setupReady} from '../runtime/setup-preferences.ts';
 
 const errorCode=(code:string)=>(error:unknown)=>error instanceof ApplicationError&&error.code===code;
 
@@ -62,6 +62,7 @@ export async function verifySharedSetupReview(input:{sql:LocalSql;database:Datab
   assert.equal(saved.nextAction,'settings_confirmed');
   assert.deepEqual(await setup.readiness(credential),{ready:true,handle:saved.confirmed.handle});
   const profile=await new PublicIntake(database,env,provider).profile(saved.confirmed.handle!);
+  assert.equal(await turn(setupReady),`Ready: ${env.APP_ORIGIN}/${saved.confirmed.handle} | ${env.APP_ORIGIN}/${saved.confirmed.handle}/SKILL.md`);
   assert.equal(profile.handle,saved.confirmed.handle);assert.deepEqual(Object.keys(profile).sort(),['displayName','durationMinutes','handle','timezone']);
   assert.equal((await setup.confirm(credential,current)).rulesVersion,saved.rulesVersion,'lost web response cannot save twice');
   assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where host_id='${host}';`),'0');
@@ -69,6 +70,7 @@ export async function verifySharedSetupReview(input:{sql:LocalSql;database:Datab
   await consent.disconnect(credential);assert.equal((await setup.readiness(credential)).ready,false);
   assert.deepEqual((await setup.read(credential)).confirmed,saved.confirmed,'Disconnect preserves confirmed settings but revokes readiness');
   await assert.rejects(new PublicIntake(database,env,provider).profile(saved.confirmed.handle!),errorCode('NOT_FOUND'));
+  assert.equal(await turn(setupReady),'Setup is not ready; continue in the workspace.');
  }finally{
   await sql.query(`delete from fmat.oauth_exchanges where actor->>'id'='${host}';delete from fmat.calendar_connections where principal_kind='host' and principal_id='${host}';`);
  }

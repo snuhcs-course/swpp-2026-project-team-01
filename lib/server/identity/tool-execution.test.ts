@@ -68,3 +68,18 @@ test('authorized setup read gives model the same focused guide and remembered di
  assert.equal(result.guide.step,'profile');assert.deepEqual(result.progress,state.progress);
  await assert.rejects(tools.execute(auth,call,{operation:'setup_progress',input:{choice:'skip_analysis'}}),errorCode('INVALID_INPUT'));
 });
+
+test('setup link reporting rechecks current private authority and revision after public permission I/O',async()=>{
+ const state={revision:2,rulesVersion:1,calendarGeneration:'80000000-0000-4000-8000-000000000001',calendarSelected:true,confirmed:{handle:'verified-host'},draft:null,review:null,nextAction:'settings_confirmed'};
+ const current={...env,APP_ORIGIN:'https://release.findmeatime.com'},readiness={operation:'setup_readiness',input:{}};
+ let revoked=false,stale=false,missing=false,failure=false,changed=()=>{},reads=0,profiles=0;
+ const db=new Database(env,async(_url,init)=>{reads++;const body=JSON.parse(String(init?.body));assert.equal(body.p_operation,'setup_read');assert.deepEqual(body.p_input,{});assert.equal(body.p_grant_id,auth.principalId);return revoked?Response.json({message:'UNAUTHORIZED'},{status:400}):Response.json({...state,revision:stale?3:2});});
+ const tools=new ConversationTools(db,current,{async profile(handle){profiles++;assert.equal(handle,'verified-host');changed();if(failure)throw new ApplicationError('PROVIDER_UNAVAILABLE',503);if(missing)throw new ApplicationError('NOT_FOUND',404);return {handle,displayName:'Verified host',timezone:'Asia/Seoul',durationMinutes:30};}});
+ assert.deepEqual(await tools.execute(auth,call,readiness),{ready:true,bookingUrl:current.APP_ORIGIN+'/verified-host',agentInstructionsUrl:current.APP_ORIGIN+'/verified-host/SKILL.md'});assert.equal(reads,2);
+ missing=true;assert.deepEqual(await tools.execute(auth,call,readiness),{ready:false,reason:'calendar'});missing=false;
+ failure=true;await assert.rejects(tools.execute(auth,call,readiness),errorCode('PROVIDER_UNAVAILABLE'));failure=false;
+ changed=()=>{stale=true;};await assert.rejects(tools.execute(auth,call,readiness),errorCode('STALE_REVISION'));stale=false;
+ changed=()=>{revoked=true;};await assert.rejects(tools.execute(auth,call,readiness),errorCode('UNAUTHORIZED'));revoked=false;changed=()=>{};
+ state.nextAction='complete_preferences';const calls=profiles;assert.deepEqual(await tools.execute(auth,call,readiness),{ready:false,reason:'setup'});assert.equal(profiles,calls);
+ await assert.rejects(tools.execute(auth,call,{...readiness,input:{handle:'another-host'}}),errorCode('INVALID_INPUT'));
+});

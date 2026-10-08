@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import {setupGuide} from '../../contracts/setup-guide.ts';
+import {applicationOrigin} from '../config.ts';
+import {PublicIntake} from './public-intake.ts';
 import {setupState} from '../../contracts/setup.ts';
 import { conversationTool } from '../../contracts/conversation-tools.ts';
 import { Database } from '../database/client.ts';
@@ -13,9 +15,10 @@ const callIdentity = z.strictObject({
 
 /** Only pass the current caller from eve's server-owned runtime context here.
  * Never accept this snapshot as browser authentication or use the initiator of
- * a shared session. The RPC revalidates the grant and executes atomically. */
+ * a shared session. Mutations revalidate authority atomically; external readiness
+ * reads revalidate both before and after provider I/O. */
 export class ConversationTools {
-  constructor(private readonly database = new Database()) {}
+  constructor(private readonly database = new Database(),private readonly env=process.env,private readonly publicIntake:Pick<PublicIntake,'profile'>=new PublicIntake(database,env)) {}
 
   async execute(currentAuth: unknown, call: unknown, command: unknown): Promise<unknown> {
     const auth = runtimeAuth.safeParse(currentAuth);
@@ -24,6 +27,24 @@ export class ConversationTools {
     const parsed = conversationTool.safeParse(command);
     if (!identity.success || !parsed.success) throw new ApplicationError('INVALID_INPUT', 400);
     const { operation, input } = parsed.data;
+    if(operation==='setup_readiness'){
+      const read=async()=>setupState.parse(await this.database.rpc('fmat_conversation_tool',{
+        p_grant_id:auth.data.principalId,p_conversation_id:auth.data.attributes.conversationId,p_operation:'setup_read',p_input:{},
+      }));
+      const before=await read();
+      if(before.nextAction!=='settings_confirmed'||!before.confirmed.handle)return {ready:false,reason:'setup'};
+      if(!before.calendarGeneration||!before.calendarSelected)return {ready:false,reason:'calendar'};
+      let available=true;
+      try{await this.publicIntake.profile(before.confirmed.handle);}
+      catch(error){if(error instanceof ApplicationError&&error.code==='NOT_FOUND')available=false;else throw error;}
+      // Public metadata cannot confer private authority. Recheck the captured
+      // current execution grant after I/O, including private-link revocation.
+      const after=await read();
+      if(after.revision!==before.revision||after.rulesVersion!==before.rulesVersion||after.calendarGeneration!==before.calendarGeneration)throw new ApplicationError('STALE_REVISION',409);
+      if(!available)return {ready:false,reason:'calendar'};
+      const bookingUrl=applicationOrigin(this.env)+'/'+before.confirmed.handle;
+      return {ready:true,bookingUrl,agentInstructionsUrl:bookingUrl+'/SKILL.md'};
+    }
     // An interrupted model step can regenerate different call IDs. Permit one
     // mutation of each kind per accepted message; retries use that same key,
     // even if the model changes its call ID or re-reads a newer revision.

@@ -78,9 +78,14 @@ test('signed linked input executes once in the real eve setup session and loses 
   const faultDir=await mkdtemp(resolve('.local/rebuild/photon-reply-fault-'));
   const marker=join(faultDir,'settlement-blocked'),release=join(faultDir,'release'),modelCalls=join(faultDir,'model-calls'),preload=join(faultDir,'preload.mjs');
   await writeFile(preload,`import {existsSync,writeFileSync} from 'node:fs';
+process.env.TOKEN_ENCRYPTION_KEY=${JSON.stringify(env.TOKEN_ENCRYPTION_KEY)};
 const original=globalThis.fetch;
 globalThis.fetch=async(input,init)=>{
  const url=typeof input==='string'?input:input instanceof URL?input.href:input.url;
+ if(url.startsWith('https://www.googleapis.com/calendar/v3/users/me/calendarList')){
+  if(new Headers(init?.headers).get('authorization')!=='Bearer shared-setup-fixture')throw new Error('Unexpected Calendar fixture token');
+  return Response.json({items:[{id:'shared-setup',summary:'Fixture calendar',accessRole:'owner',primary:true,timeZone:'Asia/Seoul'}]});
+ }
  if(url.endsWith('/rest/v1/rpc/fmat_runtime_message')&&typeof init?.body==='string'){
   const body=JSON.parse(init.body);
   if(body.p_operation==='settle'&&body.p_input.reply&&!existsSync(${JSON.stringify(release)})){
@@ -90,7 +95,7 @@ globalThis.fetch=async(input,init)=>{
  }
  return original(input,init);
 };`);
-  runtime=await startBrowserRuntime(local,'http://127.0.0.1:3000',dispatchSecret,{preload,modelCallLog:modelCalls});
+  runtime=await startBrowserRuntime(local,env.APP_ORIGIN,dispatchSecret,{preload,modelCallLog:modelCalls});
   const dispatch=()=>fetch(runtime!.origin+'/api/internal/conversations/dispatch',{method:'POST',headers:{authorization:'Bearer '+dispatchSecret}});
   const response=await dispatch();assert.equal(response.status,200);assert.equal((await response.json()).sent,1);
   // Observe the finished durable turn while its SQL settlement is unavailable.
@@ -151,11 +156,11 @@ globalThis.fetch=async(input,init)=>{
   // Finish these additional replies through the real ordered worker so the
   // following unlink test still pauses its own reply at provider preflight.
   const sharedReplyIds=new Set<string>();
-  for(let n=0;n<3;n++)assert.equal((await dispatchPhotonReplies(db,env,{async send(route,recipient,_text,id,authorize){
+  for(let n=0;n<5;n++)assert.equal((await dispatchPhotonReplies(db,env,{async send(route,recipient,_text,id,authorize){
    await authorize();assert.equal(route.spaceId,'any;-;'+phone);assert.equal(recipient,phone);assert.ok(!sharedReplyIds.has(id));sharedReplyIds.add(id);
    return {status:'delivered',providerReference:'fixture:'+id};
   },async reconcile(){assert.fail('fresh fixture replies should not need reconciliation');}})).claimed,1);
-  assert.equal(sharedReplyIds.size,3);
+  assert.equal(sharedReplyIds.size,5);
   await verifySetupIsolation({sql,db,env,local,host,credential,token,scope,origin:runtime.origin,service,async privateTurn(sender,text,otherScope){
    const key=randomUUID();await delay(5);assert.equal((await photonWebhook(request(key,text,sender),{env,database:db})).status,200);
    assert.equal((await dispatchPhotonInputs(db,env)).accepted,1);assert.equal((await dispatch()).status,200);await settled(otherScope);

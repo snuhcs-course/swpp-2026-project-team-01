@@ -16,6 +16,7 @@ export const detailsProposalInput = z.strictObject({ expectedRevision: revision,
 export const conversationTool = z.discriminatedUnion('operation', [
   z.strictObject({ operation: z.literal('setup_draft'), input: draftInput }),
   z.strictObject({ operation: z.literal('setup_analysis_read'), input: z.strictObject({}) }),
+  z.strictObject({ operation: z.literal('setup_readiness'), input: z.strictObject({}) }),
   z.strictObject({ operation: z.literal('setup_read'), input: z.strictObject({}) }),
   z.strictObject({ operation: z.literal('request_read'), input: z.strictObject({}) }),
   z.strictObject({ operation: z.literal('private_note_save'), input: privateNoteInput }),

@@ -139,6 +139,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 ### Phase 3 — Deliver host setup in the single `/app` chat
 
+- [x] Complete deterministic cross-channel acceptance (host-setup task 5.1): current private readiness links, actual invitation/Calendar services, signed iMessage/eve and browser continuation, stale review, two-host isolation and disconnect/unlink recovery. Host setup is 16/20; controlled live gates remain open. [Evidence](05_rebuild_evidence.md#private-channel-readiness-and-cross-channel-acceptance--2026-10-09).
+
 - [x] Verify admission, bound Calendar consent/selection, confirmed readiness and linked web/iMessage isolation through the actual services and runtime with two hosts. Private-channel readiness reporting remains the last deterministic task 5.1 gap. [Evidence](05_rebuild_evidence.md#admission-and-two-host-setup-journey--2026-10-09).
 
 - [x] Deploy confirmed-setup links from `67a2889` (`dpl_HdZN6Wgx2A8kMSaTbTougCFN9FQc`), independently verify Ready and the production alias, and pass 69 HTTP guards including protected readiness. [Evidence](05_rebuild_evidence.md#confirmed-setup-booking-links--2026-10-09).

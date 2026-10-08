@@ -3,7 +3,7 @@ import { mockModel } from 'eve/evals';
 import {conversationModel} from '../../lib/server/models/conversation.ts';
 import {appendFileSync} from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
-import {describedPreferences,describedReply,describedRules,setupInvalid,setupAmbiguous,setupDoubleWrite} from './setup-preferences.ts';
+import {describedPreferences,describedReply,describedRules,setupInvalid,setupAmbiguous,setupDoubleWrite,setupReady} from './setup-preferences.ts';
 
 // Dedicated test application only; never imported by the production agent.
 const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMessageCount, toolResults,tools }) => {
@@ -11,6 +11,13 @@ const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMess
     if(!tools.length)return 'Fixture checkpoint: preserve current authority; no scheduling decisions made.';
     if(lastUserMessage==='model-limit-loop')return {toolCalls:[{id:randomUUID(),name:'read_context',input:{context:'request'}}]};
     if(lastUserMessage?.startsWith('compact-fixture:'))return 'Fixture turn complete.';
+    if(lastUserMessage===setupReady){
+      const prefix=`readiness-fixture-${userMessageCount}-`,current=toolResults.filter(result=>result.id.startsWith(prefix));
+      if(current.some(result=>result.isError))return 'Readiness check failed; please retry in the workspace.';
+      const result=current.at(-1)?.output as {ready:boolean;bookingUrl?:string;agentInstructionsUrl?:string}|undefined;
+      if(result)return result.ready?`Ready: ${result.bookingUrl} | ${result.agentInstructionsUrl}`:'Setup is not ready; continue in the workspace.';
+      return {toolCalls:[{id:prefix+randomUUID(),name:'read_context',input:{context:'setup_readiness'}}]};
+    }
     if([setupInvalid,setupAmbiguous,setupDoubleWrite].includes(lastUserMessage??'')){
       const prefix=`setup-fixture-${userMessageCount}-`;
       const current=toolResults.filter(result=>result.id.startsWith(prefix));
