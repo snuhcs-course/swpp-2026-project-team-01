@@ -1,3 +1,4 @@
+import {identityMarker,requesterIdentityCallback} from '../../../../lib/requester-identity-browser.ts';
 import {NextRequest,NextResponse} from 'next/server';
 import {applicationOrigin} from '../../../../../../lib/server/config.ts';
 import {opaque} from '../../../../../../lib/server/calendar/consent.ts';
@@ -5,6 +6,7 @@ import {calendarCommands,calendarCookie} from '../../../../lib/calendar-browser.
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 export async function GET(request:NextRequest){
+  if(request.nextUrl.searchParams.get('state')?.startsWith(identityMarker))return requesterIdentityCallback(request);
   const origin=applicationOrigin(),secure=origin.startsWith('https:');
   const state=opaque.safeParse(request.nextUrl.searchParams.get('state'));let destination='/app?calendar=expired',cookie:string|undefined;
   try{

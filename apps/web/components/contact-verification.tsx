@@ -1,4 +1,5 @@
 'use client';
+import {RequesterGoogleContact} from './requester-google-contact.tsx';
 import {useCallback,useEffect,useId,useRef,useState,type FormEvent} from 'react';
 import {contactState,contactResult,type ContactState} from '../../../lib/contracts/contact-verification.ts';
 import {Button} from './ui/button';
@@ -70,6 +71,7 @@ export function ContactVerificationCard({requestId,refreshKey,disabled,onVerifie
     </Field></FieldGroup></form>:null}
     {remaining>0?<p>New code available in {remaining} seconds.</p>:null}
    </>:null}
+   {state?.email&&!verified?<RequesterGoogleContact requestId={requestId} revision={state.revision} email={state.email} disabled={busy||disabled||uncertain} onVerified={()=>void refresh()}/>:null}
    {notice&&!verified?<p role="status">{notice}</p>:null}
    {error?<Alert variant="destructive"><AlertTitle>Contact verification needs attention</AlertTitle><AlertDescription>{error}{uncertain?' The result may have been saved. Retry the same action to recover it.':''}</AlertDescription></Alert>:null}
   </CardContent>

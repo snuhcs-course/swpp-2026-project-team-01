@@ -1,8 +1,20 @@
+import {createHash,generateKeyPairSync,sign} from 'node:crypto';
+const identityKeys=generateKeyPairSync('rsa',{modulusLength:2048});
 // Loaded only by the isolated browser-test server. Production has no fixture switch.
 const originalFetch=globalThis.fetch;
 let unavailableReads=0;
 globalThis.fetch=async(input,init)=>{
   const url=new URL(input instanceof Request?input.url:String(input));
+  if(url.href==='https://oauth2.googleapis.com/token'){
+    const body=new URLSearchParams(init.body),code=body.get('code');
+    if(!code?.startsWith('identity-fixture.'))return new Response(null,{status:400});
+    const value=JSON.parse(Buffer.from(code.slice(17),'base64url').toString());
+    if(value.challenge!==createHash('sha256').update(body.get('code_verifier')).digest('base64url')||body.get('client_id')!=='test-client')return new Response(null,{status:400});
+    const now=Math.floor(Date.now()/1000),claims={iss:'https://accounts.google.com',aud:'test-client',iat:now,exp:now+3600,sub:value.subject,email:value.email,email_verified:true,name:value.name,nonce:value.nonce};
+    const input=Buffer.from(JSON.stringify({alg:'RS256',kid:'browser-identity'})).toString('base64url')+'.'+Buffer.from(JSON.stringify(claims)).toString('base64url');
+    return Response.json({id_token:input+'.'+sign('RSA-SHA256',Buffer.from(input),identityKeys.privateKey).toString('base64url'),token_type:'Bearer',scope:'openid email profile'});
+  }
+  if(url.href==='https://www.googleapis.com/oauth2/v1/certs')return Response.json({'browser-identity':identityKeys.publicKey.export({format:'pem',type:'spki'}).toString()},{headers:{'cache-control':'public, max-age=3600'}});
   if(url.origin==='https://api.openai.com'){
     if(url.pathname!=='/v1/responses'||new Headers(init?.headers).get('authorization')!=='Bearer browser-ranking-fixture')return new Response(null,{status:401});
     const body=JSON.parse(init.body);

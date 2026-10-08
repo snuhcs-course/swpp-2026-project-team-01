@@ -1,7 +1,8 @@
+import {IdentityReturnNotice} from '../components/identity-return-notice.tsx';
 export default function Home() {
   return <main className="landing">
     <a className="wordmark" href="/">Find Me a Time<span aria-hidden="true">↗</span></a>
-    <div className="intro">
+    <div className="intro"><IdentityReturnNotice/>
       <p className="eyebrow">A little less back and forth</p>
       <h1>Make room for<br />a good conversation.</h1>
       <p className="description">An assistant that finds a time, works through the details, and keeps your final say.</p>

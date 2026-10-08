@@ -25,7 +25,7 @@ export class GoogleRequesterIdentity implements RequesterIdentityProvider {
  private readonly clientId:string;
  constructor(private readonly env=process.env,client?:OAuth2Client){
   this.clientId=requiredEnv('GOOGLE_CLIENT_ID',env);
-  this.client=client??new OAuth2Client({clientId:this.clientId,clientSecret:requiredEnv('GOOGLE_CLIENT_SECRET',env),redirectUri:googleCallback(env),transporterOptions:{timeout:10_000,retry:false}});
+  this.client=client??new OAuth2Client({clientId:this.clientId,clientSecret:requiredEnv('GOOGLE_CLIENT_SECRET',env),redirectUri:googleCallback(env),transporterOptions:{timeout:10_000,retry:false,fetchImplementation:fetch}});
   // The SDK supplies per-call RETRY_CONFIG, overriding transporter defaults.
   // Apply the one-attempt policy after options are merged, including cert reads.
   this.client.transporter.interceptors.request.add({resolved:async options=>{

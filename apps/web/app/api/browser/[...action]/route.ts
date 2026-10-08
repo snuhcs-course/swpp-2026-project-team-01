@@ -1,3 +1,4 @@
+import {requesterIdentityBrowser} from '../../../../lib/requester-identity-browser.ts';
 import { NextRequest, NextResponse } from 'next/server';
 import { z, ZodError } from 'zod';
 import { guestExchange } from '../../../../../../lib/contracts/browser.ts';
@@ -45,6 +46,7 @@ async function handle(request:NextRequest,{params}:Context) {
     if(request.method==='POST')requireSameOrigin(request,applicationOrigin());
     const json=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:browserHeaders});
     if(action==='waitlist'&&request.method==='POST')return json(await commands.waitlist(await readJson(request)));
+    if(action.startsWith('requester-identity/'))return await requesterIdentityBrowser(request,action.slice(19));
     if(action.startsWith('intake/'))return await intakeBrowser(request,action.slice(7));
     if(action==='guest/exchange'&&request.method==='POST') {
       const {requestId,token}=guestExchange.parse(await readJson(request));

@@ -1,3 +1,4 @@
+import {verifyRequesterIdentity} from './requester-identity.ts';
 import assert from 'node:assert/strict';
 import {verifyBookingApproval} from './booking-approval.ts';
 import {verifyScheduling} from './scheduling.ts';
@@ -6,6 +7,7 @@ import {verifyPrivateReview} from './private-review.ts';
 import {expect,type Browser,type Page} from '@playwright/test';
 import type {LocalSql} from '../integration/local-sql.ts';
 export async function verifyPublicIntake(browser:Browser,origin:string,sql:LocalSql,host:string,hostPage:Page){
+ await verifyRequesterIdentity(browser,origin,sql,host);
  const handle='browser-'+host.slice(0,8),context=await browser.newContext({viewport:{width:1280,height:900},timezoneId:'America/New_York',reducedMotion:'reduce'}),page=await context.newPage();page.setDefaultTimeout(15000);
  try{
   await page.goto(origin+'/'+handle);await page.getByLabel('Your name',{exact:true}).waitFor();

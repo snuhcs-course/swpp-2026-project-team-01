@@ -297,3 +297,9 @@ These journeys inherit the [PRD's open decisions](../02_product_requirements.md#
 On the private booking page, review the address in **Verify your contact email** and choose **Send verification code**. Enter the six digits from the email into that card and choose **Verify email**. Delivery status describes email submission; only a matching current code establishes proof. Codes expire after ten minutes and allow five failed guesses. A new code is available after the one-minute cooldown, subject to the hourly request limit, and replaces earlier codes.
 
 If the result is unknown, use **Check verification status** or **Retry same verification action**. Reload restores current status without sending another message. A changed address requires fresh proof. Verification creates no account, replacement private link, proposal agreement or host approval. Requesters still explicitly agree to a proposal and hosts separately approve it.
+
+### Optional Google identity during requester intake
+
+Choose **Continue with Google** to prefill your name and email, or **Continue without Google** to enter them yourself. Google identity does not connect your calendar. Your meeting purpose and selected timezone return with the draft after consent, including when you cancel. Review the address and edit your display name before continuing. A changed address, or an address Google cannot currently vouch for, needs an email verification code.
+
+On an existing private request, Google identity shows the selected account first. Choose **Use verified Google email** to verify the matching current recipient. If you want a different recipient, review that change in the request details first. This action does not agree to a proposal or book a meeting.
