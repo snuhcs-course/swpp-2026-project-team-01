@@ -253,6 +253,7 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 Incremental completion (full phase exit remains open):
 
 - [x] Verify AgentMail raw-body signatures with pinned Svix 2.7, five-minute freshness, one-MiB/five-second read bounds, inbox/thread isolation and minimized event/message locators. Test changed payloads, rotation signatures, omitted bodies and rejected delivery classes. Durable inbox deduplication, sender/request binding and live dispatch remain open.
+- [x] Deploy the tested AgentMail verification dependency/boundary without exposing an ingress endpoint; verify Ready production, retained public documents/access guards and no acknowledgment of unbound AgentMail events (`7910387`; deployment `dpl_HSgcyxzEwPDfz9PF4xbVL3Szw8Go`; [evidence](05_rebuild_evidence.md#agentmail-authenticated-transport-boundary--2026-10-08)).
 
 Work:
 
