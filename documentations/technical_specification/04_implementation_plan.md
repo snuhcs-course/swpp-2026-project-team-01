@@ -168,6 +168,8 @@ Incremental completion (full phase exit remains open):
 
 - [x] Implement and locally verify encrypted Cloudflare contact-code delivery, one dispatch grant, challenge/recipient rechecks, duplicate/expired-worker recovery and honest uncertain outcomes. Add the authenticated endpoint and dormant minute scheduler; browser and live-inbox acceptance remain open ([evidence](05_rebuild_evidence.md#durable-requester-verification-email--2026-10-08)).
 
+- [x] Deploy contact-code delivery, verify 63 matching migrations, production RPC guards, 44 HTTP checks and the authenticated idle endpoint, then configure the scheduler after empty-queue inspection (`e2ce85e`; deployment `dpl_5h2Sz9cGge14ZhfEhyYJ6ZmiqBeq`; [evidence](05_rebuild_evidence.md#durable-requester-verification-email--2026-10-08)).
+
 - [x] Implement and verify explicit requester withdrawal and host decline, including minimal closure status, lost-response recovery and booking uncertainty (1,004 SQL assertions, 18 integration tests, browser/recovery checks).
 - [x] Deploy request closure and verify the selected production database/API boundaries (`3e5db21`; deployment `dpl_5Y2wqC5PujgFL3GHUqtim1kjDw8u`; [evidence](05_rebuild_evidence.md#explicit-withdrawal-and-decline--2026-10-07)).
 
