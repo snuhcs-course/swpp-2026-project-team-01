@@ -2,7 +2,7 @@
 
 ## Why
 
-Requesters who lose their browser credential cannot recover their request through the rebuilt application. The [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md) and [request contract](../../specs/meeting-requests/spec.md) require verified-contact recovery without signup.
+Requesters who lose their browser credential cannot recover their request through the rebuilt application. The [implementation plan](../../../../documentations/technical_specification/04_implementation_plan.md) and [request contract](../../../specs/meeting-requests/spec.md) require verified-contact recovery without signup.
 
 ## What Changes
 
