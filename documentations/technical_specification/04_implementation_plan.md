@@ -184,6 +184,7 @@ References: [single host page](../user_experience/04_page_list.md#primary-pages)
 Incremental completion (full phase exit remains open):
 
 - [x] Reject new requester agreement at or after proposal start using the database wall clock after lock waits; disable browser/MCP agreement, retain completed retries and historical decisions, and verify real near-future evaluation, lock races and delayed browser refresh. [Evidence](05_rebuild_evidence.md#requester-agreement-start-cutoff--2026-10-09).
+- [x] Deploy the agreement start cutoff (`b849354`; `dpl_3hs3dj69ynetPpK91uZbA6NCss7f`), verify 92 matching migrations, identical tested function bodies/security settings, rollback-only production behavior, clean advisors and 48 HTTP checks. [Evidence](05_rebuild_evidence.md#requester-agreement-start-cutoff--2026-10-09).
 
 - [x] Implement and locally verify the bounded requester contact-proof core: encrypted code/hash records, current guest/contact authority, attempt/cooldown/hourly limits, immutable replay, atomic verification and legacy bypass denial. Controlled live inbox acceptance is recorded in the [completed change](../../openspec/changes/archive/2026-10-08-verify-requester-contact/tasks.md).
 - [x] Deploy the contact-proof core and verify production replay/lockout/legacy guards, zero rollback fixtures, 62 matching migrations, clean advisors and 43 HTTP checks (`447b6ec`; deployment `dpl_6XpELzEtVY4sGJWKxNmAe5WooS84`; [evidence](05_rebuild_evidence.md#bounded-requester-contact-proof-core--2026-10-08)).
