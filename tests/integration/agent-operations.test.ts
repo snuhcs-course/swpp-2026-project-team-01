@@ -53,6 +53,12 @@ test('agent operations recheck revocation and expiry under domain and downstream
   assert.equal((await viaMcp.json()).result.structuredContent.result.id,guest.request);
   const foreign=await mcp(mcpRequest('fmat_get_request',randomUUID()));assert.equal((await foreign.json()).result.isError,true);
   assert.equal((await mcp(mcpRequest('fmat_review_decision'))).status,403);
+  for(const name of ['fmat_get_scheduling','fmat_get_booking_status','fmat_review_connections']){
+   const response=await mcp(mcpRequest(name));assert.equal(response.status,200);const data=await response.json();assert.equal(data.result.isError,undefined,JSON.stringify(data));
+   if(name==='fmat_get_scheduling')assert.equal(data.result.structuredContent.result.availability,'reconnect_required');
+   if(name==='fmat_get_booking_status')assert.equal(data.result.structuredContent.result.receipt,null);
+   if(name==='fmat_review_connections')assert.equal(data.result.structuredContent.result.path,'/booking/'+guest.request);
+  }
   const availabilityRead=await mcp(mcpRequest('fmat_get_availability'));assert.equal(availabilityRead.status,200);
   assert.equal((await availabilityRead.json()).result.structuredContent.result.mode,'manual');
   const availabilityInput={expectedRevision:1,timezone:'UTC',windows:[{start:new Date(Date.now()+86400000).toISOString(),end:new Date(Date.now()+90000000).toISOString()}]},availabilityKey=randomUUID();
@@ -129,6 +135,7 @@ test('agent operations recheck revocation and expiry under domain and downstream
   const replay=JSON.parse(await db.query(op(hostGrant,'setup_draft',null,draft,key)));assert.equal(saved.revision,replay.revision);
   const secondHost=await fixture('host');
   const both=await Promise.all(peers.slice(0,2).map((p,i)=>p.query(op(i?secondHost:hostGrant,'setup_read'))));assert.equal(JSON.parse(both[0]).revision,JSON.parse(both[1]).revision);
+  const schedulingBoth=await Promise.all(peers.slice(0,2).map((p,i)=>p.query(op(i?secondHost:hostGrant,'scheduling_read',expiring.request))));assert.ok(schedulingBoth.every(value=>JSON.parse(value).availability==='reconnect_required'),'parallel grants acquire host update before OAuth share locks');
   await lock.query(`begin;update fmat.oauth_grants set revoked_at=clock_timestamp() where id=${q(hostGrant.grant)};`);
   listPending=wait.query(op(hostGrant,'requests_list'));await blocked(db,waitName);await lock.query('commit;');
   assert.equal(parse(await listPending).error,'invalid_grant','list observes concurrent grant revocation');

@@ -326,6 +326,8 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+- [x] Add MCP candidate/current-proposal and booking-status reads plus protected setup, connection and decision handoffs. Verify fresh/stale browser parity, current authority and no implicit decisions across 87 migrations, 1,403 SQL assertions, 264 app/provider tests, 30 integration tests and both browser suites. Complete tool task 2.3; full workflow, CLI and live client acceptance remain open. [Evidence](05_rebuild_evidence.md#mcp-scheduling-and-booking-review--2026-10-09).
+
 - [x] Complete controlled live requester MCP acceptance: browser grant, official SDK discovery/read/draft/retry/decision handoff, role/target/scope denial, refresh narrowing and browser revocation. Verify no applied details or meeting decisions, remove fixtures/credentials and complete transport task 1.3 and protocol compatibility task 2.1. Full workflow, CLI, named clients and host Google acceptance remain open. [Evidence](05_rebuild_evidence.md#live-requester-mcp-acceptance--2026-10-08).
 
 - [x] Deploy initial MCP transport (`2753753`; deployment `dpl_9Nh1NoY1JPKMjy5itXZhQpUEBcPH`) and verify Ready, eleven MCP/public-document checks, fourteen OAuth/browser guards and 28 retained public/login checks. Live granted tool calls remain open in task 1.3. [Evidence](05_rebuild_evidence.md#protected-mcp-transport--2026-10-08).

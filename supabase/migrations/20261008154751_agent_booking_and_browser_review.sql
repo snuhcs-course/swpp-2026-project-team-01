@@ -1,10 +1,43 @@
--- Only verified access claims from the internal agent adapter may call this
--- service-only boundary. Scope/authority remain transactional, not JWT-only.
-create or replace function public.fmat_agent_operation(
- p_grant_id uuid,p_client_id uuid,p_resource text,p_actor_kind text,p_actor_id uuid,
- p_scope text,p_token_expires_at bigint,p_operation text,p_request_id uuid,
- p_input jsonb,p_idempotency_key uuid default null
-) returns jsonb language plpgsql security definer set search_path='' as $$
+SET local check_function_bodies = off;
+
+CREATE OR REPLACE FUNCTION fmat.booking_receipt_view (
+  p_request_id uuid,
+  p_kind       text
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
+declare r fmat.requests; state jsonb; receipt jsonb; delivery text;
+begin
+ select * into strict r from fmat.requests where id=p_request_id;
+ state:=fmat.request_lifecycle_view(r.id,p_kind);
+ receipt:=fmat.confirmed_booking_receipt(r.id);
+ if receipt is not null then
+  select o.status into delivery from fmat.outbox o where o.dedupe_key='booking-confirmed:'||r.id::text||':'||case when p_kind='host' then 'host' else 'requester' end;
+ end if;
+ return jsonb_build_object('requestId',r.id,'revision',r.revision,'status',state->>'status','closed',state->'closed','receipt',receipt,'emailStatus',case when receipt is null then null else coalesce(delivery,'pending') end);
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.fmat_agent_operation (
+  p_grant_id         uuid,
+  p_client_id        uuid,
+  p_resource         text,
+  p_actor_kind       text,
+  p_actor_id         uuid,
+  p_scope            text,
+  p_token_expires_at bigint,
+  p_operation        text,
+  p_request_id       uuid,
+  p_input            jsonb,
+  p_idempotency_key  uuid   DEFAULT NULL::uuid
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare v_grant fmat.oauth_grants; v_request fmat.requests; v_actor jsonb; v_input jsonb; v_result jsonb; v_scope text; v_write boolean; v_conversation fmat.conversation_scopes; v_connection fmat.calendar_connections; v_context text; v_reconnect boolean:=false;
 begin
  if p_operation is null or p_operation not in ('setup_read','setup_analysis_read','setup_draft','request_read','private_note_save','details_propose','decision_review','requests_list','conversation_resolve','availability_read','availability_propose','scheduling_read','booking_status','connection_review','setup_review') then raise exception 'FORBIDDEN';end if;
@@ -135,6 +168,39 @@ begin
   return '{"error":"invalid_token"}';
  end;
  return v_result;
-end$$;
-revoke all on function public.fmat_agent_operation(uuid,uuid,text,text,uuid,text,bigint,text,uuid,jsonb,uuid) from public,anon,authenticated;
-grant execute on function public.fmat_agent_operation(uuid,uuid,text,text,uuid,text,bigint,text,uuid,jsonb,uuid) to service_role;
+end$function$;
+
+CREATE OR REPLACE FUNCTION public.fmat_booking_receipt (
+  p_credential jsonb,
+  p_input      jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare r fmat.requests; actor jsonb; state jsonb; receipt jsonb; delivery text; viewer_audience text;
+begin
+ if jsonb_typeof(p_input) is distinct from 'object' or not(p_input ? 'requestId') or exists(select 1 from jsonb_object_keys(p_input) k where k<>'requestId') then raise exception 'INVALID_INPUT';end if;
+ select * into r from fmat.requests where id=(p_input->>'requestId')::uuid for update;
+ if not found then raise exception 'NOT_FOUND';end if;
+ if p_credential->>'kind'='host' then
+  actor:=fmat.calendar_actor(p_credential);
+  if actor->>'id' is distinct from r.host_id::text then raise exception 'NOT_FOUND';end if;
+  viewer_audience:='host';
+ elsif p_credential->>'kind'='booking_receipt' then
+  if r.status<>'booked' or p_credential->>'requestId' is distinct from r.id::text or not exists(
+   select 1 from fmat.booking_deliveries d join fmat.outbox o on o.id=d.outbox_id where d.request_id=r.id and d.receipt_token_hash=p_credential->>'tokenHash'
+    and d.dispatched_at is not null and d.parent_token_hash=r.token_hash and d.receipt_expires_at>clock_timestamp() and r.token_expires_at>clock_timestamp()
+    and o.audience='requester' and lower(o.recipient->>'email')=lower(r.contact_verified_email) and o.status in ('sending','sent','uncertain')) then raise exception 'NOT_FOUND';end if;
+  viewer_audience:='requester';
+ elsif p_credential->>'kind'='guest' then
+  if p_credential->>'requestId' is distinct from r.id::text or p_credential->>'tokenHash' is distinct from r.token_hash or r.token_expires_at<=clock_timestamp()
+   or (r.token_revoked_at is not null and r.status not in ('booked','declined','withdrawn','expired')) then raise exception 'NOT_FOUND';end if;
+  viewer_audience:='requester';
+ else raise exception 'UNAUTHORIZED';end if;
+ return fmat.booking_receipt_view(r.id,case when viewer_audience='host' then 'host' else 'guest' end);
+end;
+$function$;
+
+REVOKE ALL ON FUNCTION "fmat"."booking_receipt_view"(uuid, text) FROM PUBLIC;

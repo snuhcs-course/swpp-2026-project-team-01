@@ -19,6 +19,22 @@ end;
 $$;
 revoke all on function fmat.confirmed_booking_receipt(uuid) from public,anon,authenticated,service_role;
 
+-- Current actor/request authorization and request lock are caller-owned.
+create or replace function fmat.booking_receipt_view(p_request_id uuid,p_kind text)
+returns jsonb language plpgsql set search_path='' as $$
+declare r fmat.requests; state jsonb; receipt jsonb; delivery text;
+begin
+ select * into strict r from fmat.requests where id=p_request_id;
+ state:=fmat.request_lifecycle_view(r.id,p_kind);
+ receipt:=fmat.confirmed_booking_receipt(r.id);
+ if receipt is not null then
+  select o.status into delivery from fmat.outbox o where o.dedupe_key='booking-confirmed:'||r.id::text||':'||case when p_kind='host' then 'host' else 'requester' end;
+ end if;
+ return jsonb_build_object('requestId',r.id,'revision',r.revision,'status',state->>'status','closed',state->'closed','receipt',receipt,'emailStatus',case when receipt is null then null else coalesce(delivery,'pending') end);
+end;
+$$;
+revoke all on function fmat.booking_receipt_view(uuid,text) from public,anon,authenticated,service_role;
+
 create or replace function public.fmat_booking_receipt(p_credential jsonb,p_input jsonb)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare r fmat.requests; actor jsonb; state jsonb; receipt jsonb; delivery text; viewer_audience text;
@@ -41,12 +57,7 @@ begin
    or (r.token_revoked_at is not null and r.status not in ('booked','declined','withdrawn','expired')) then raise exception 'NOT_FOUND';end if;
   viewer_audience:='requester';
  else raise exception 'UNAUTHORIZED';end if;
- state:=fmat.request_lifecycle_view(r.id,p_credential->>'kind');
- receipt:=fmat.confirmed_booking_receipt(r.id);
- if receipt is not null then
-  select o.status into delivery from fmat.outbox o where o.dedupe_key='booking-confirmed:'||r.id::text||':'||viewer_audience;
- end if;
- return jsonb_build_object('requestId',r.id,'revision',r.revision,'status',state->>'status','closed',state->'closed','receipt',receipt,'emailStatus',case when receipt is null then null else coalesce(delivery,'pending') end);
+ return fmat.booking_receipt_view(r.id,case when viewer_audience='host' then 'host' else 'guest' end);
 end;
 $$;
 revoke all on function public.fmat_booking_receipt(jsonb,jsonb) from public,anon,authenticated;

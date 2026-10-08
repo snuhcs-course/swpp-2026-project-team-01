@@ -9,6 +9,10 @@ const requestId=z.uuid(),idempotencyKey=z.uuid(),empty=z.strictObject({});
 // Deliberately no actor, bearer token, confirmation, or arbitrary RPC name.
 export const agentOperation=z.discriminatedUnion('operation',[
  z.strictObject({operation:z.literal('conversation_read'),input:agentHistoryInput}),
+ z.strictObject({operation:z.literal('booking_status'),requestId,input:empty}),
+ z.strictObject({operation:z.literal('connection_review'),requestId,input:empty}),
+ z.strictObject({operation:z.literal('setup_review'),input:empty}),
+ z.strictObject({operation:z.literal('scheduling_read'),requestId,input:empty}),
  z.strictObject({operation:z.literal('availability_read'),requestId,input:empty}),
  z.strictObject({operation:z.literal('availability_propose'),requestId,input:z.strictObject({expectedRevision:z.number().int().positive(),timezone:ianaTimezone,windows:availabilityWindows}),idempotencyKey}),
  z.strictObject({operation:z.literal('requests_list'),input:hostRequestQuery}),
