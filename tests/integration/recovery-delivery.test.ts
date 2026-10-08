@@ -16,7 +16,7 @@ test('Recovery email freezes proof and recipient, fences dispatch and never repe
  const provider=new CloudflareEmail(env,async(_url,init)=>{
   posts++;const message=JSON.parse(String(init?.body));messages.push(message);
   assert.equal(await sql.query(`select status from fmat.outbox where id=(select (payload->>'outboxId')::uuid from fmat.jobs where id='${activeJob}');`),'sending');
-  assert.equal(message.from,'no-reply@findmeatime.com');assert.equal(message.to,'guest@example.test');
+  assert.equal(message.from,'no-reply@findmeatime.com');assert.match(message.to,/^[a-f0-9-]+@example\.test$/u);
   assert.equal(message.text.includes('PRIVATE PURPOSE'),false);const link=new URL(message.text.split('\n\n')[2]);assert.equal(link.origin,env.APP_ORIGIN);assert.equal(link.search,'');assert.ok(link.hash.startsWith('#recover='));assert.ok(message.html.includes('href='));
   if(duringSend)await duringSend();
   if(mode==='expired')await sql.query(`update fmat.jobs set lease_until=clock_timestamp()-interval '1 second' where id='${activeJob}';`);
@@ -29,8 +29,8 @@ test('Recovery email freezes proof and recipient, fences dispatch and never repe
  async function own(jobId:string){activeJob=jobId;const lease={workerId:'recovery-delivery-'+randomUUID(),jobId,leaseToken:randomUUID()};await sql.query(`update fmat.jobs set status='running',worker_id='${lease.workerId}',lease_token='${lease.leaseToken}',lease_until=clock_timestamp()+interval '60 seconds' where id='${jobId}';`);return lease;}
  async function fixture(){
   const id=randomUUID(),token=randomBytes(32).toString('base64url'),hash=createHash('sha256').update(token).digest('hex');requests.push(id);
-  await sql.query(`insert into fmat.requests(id,host_id,details,token_hash,contact_verified_email,expires_at) values('${id}','${host}','{"requesterEmail":"guest@example.test","purpose":"PRIVATE PURPOSE"}','${hash}','guest@example.test',clock_timestamp()+interval '1 day');`);
-  await service.start({requestId:id,email:'guest@example.test',idempotencyKey:randomUUID()});const challengeId=await sql.query(`select id from fmat.requester_recoveries where request_id='${id}';`);
+  await sql.query(`insert into fmat.requests(id,host_id,details,token_hash,contact_verified_email,expires_at) values('${id}','${host}','{"requesterEmail":"${id}@example.test","purpose":"PRIVATE PURPOSE"}','${hash}','${id}@example.test',clock_timestamp()+interval '1 day');`);
+  await service.start({requestId:id,email:id+'@example.test',idempotencyKey:randomUUID()});const challengeId=await sql.query(`select id from fmat.requester_recoveries where request_id='${id}';`);
   const outbox=await sql.query(`select outbox_id from fmat.requester_recoveries where id='${challengeId}';`);
   const job=await sql.query(`select id from fmat.jobs where kind='requester_recovery_delivery' and payload->>'outboxId'='${outbox}';`);
   const proof=(cipher.open(await sql.query(`select encrypted_proof from fmat.requester_recoveries where id='${challengeId}';`),'requester-recovery:'+id+':'+challengeId) as {proof:string}).proof;
@@ -68,7 +68,7 @@ test('Recovery email freezes proof and recipient, fences dispatch and never repe
     const mutations:Record<string,string>={verified_contact:'contact_verified_email=null',email:`details=details||'{"requesterEmail":"other@example.test"}'`,rotation:`token_hash='${createHash('sha256').update(f.id).digest('hex')}'`,revocation:'token_revoked_at=clock_timestamp()',request_expiry:"created_at=clock_timestamp()-interval '2 days',expires_at=clock_timestamp()-interval '1 second'",closed:"status='withdrawn'",booking:"status='booking'"};
     if(mutations[change])await sql.query(`update fmat.requests set ${mutations[change]} where id='${f.id}';`);
     else if(change==='recipient')await sql.query(`update fmat.outbox set recipient='{"email":"other@example.test"}' where id='${f.outbox}';`);
-    else if(change==='superseded'){await sql.query(`update fmat.requester_recoveries set created_at=created_at-interval '61 seconds' where id='${f.challengeId}';`);await service.start({requestId:f.id,email:'guest@example.test',idempotencyKey:randomUUID()});}
+    else if(change==='superseded'){await sql.query(`update fmat.requester_recoveries set created_at=created_at-interval '61 seconds' where id='${f.challengeId}';`);await service.start({requestId:f.id,email:f.id+'@example.test',idempotencyKey:randomUUID()});}
     else await sql.query(`update fmat.requester_recoveries set ${change==='invalidated'?'invalidated_at=clock_timestamp()':change==='consumed'?"redeemed_at=clock_timestamp(),new_token_hash=repeat('a',64)":"expires_at=clock_timestamp()-interval '1 second'"} where id='${f.challengeId}';`);
    }return response;});
    count=posts;assert.equal(await worker(stale).process(await own(f.job)),'suppressed',change);assert.equal(changed,true);assert.equal(posts,count);

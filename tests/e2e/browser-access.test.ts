@@ -1,3 +1,4 @@
+import {verifyRequesterRecovery} from './requester-recovery.ts';
 import {verifyRequesterEmail,emailInbox,emailReceiver} from './requester-email.ts';
 import {verifyConversationReconnect} from './conversation-reconnect.ts';
 import {test} from 'node:test';
@@ -150,6 +151,7 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     await setup.getByRole('button',{name:'Confirm these meeting settings'}).click();await setup.getByRole('status').filter({hasText:'Settings confirmed.'}).waitFor();assert.equal(await sql.query(`select rules->>'travelMode' from fmat.hosts where id='${userId}';`),'PER_TRIP');assert.equal(await sql.query(`select rules->>'travelBufferMinutes' from fmat.hosts where id='${userId}';`),'15');
 
     await verifyPublicIntake(browser,origin,sql,userId,page);
+    await verifyRequesterRecovery(browser,origin,sql,userId,local);
     await page.setViewportSize({width:1280,height:900});
     await page.getByRole('button',{name:'Disconnect Google',exact:true}).click();await page.getByRole('status').filter({hasText:'Google access has been disconnected'}).waitFor();assert.equal(await choices.count(),0);
     assert.equal((await context.request.get(origin+'/api/browser/calendar/list')).status(),409);

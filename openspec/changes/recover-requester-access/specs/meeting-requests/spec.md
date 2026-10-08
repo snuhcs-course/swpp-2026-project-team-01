@@ -32,3 +32,14 @@ The booking destination SHALL offer recovery with labeled keyboard-operable cont
 #### Scenario: Uncertain delivery
 - **WHEN** delivery may have succeeded but its acknowledgment is lost
 - **THEN** the same message is not automatically resent and the caller sees no private delivery information
+
+### Requirement: Aggregate recovery issuance limits
+Recovery issuance SHALL allow at most five links per verified recipient per hour across requests and at most 120 links across the service per minute. A fixed-size budget SHALL bound accepted issuance attempts to 600 per minute without storing caller IPs or unknown email claims. Budget exhaustion SHALL preserve generic acceptance and issue no proof or email.
+
+#### Scenario: Same recipient across requests
+- **WHEN** five recovery links have been issued to a verified address within an hour
+- **THEN** another request using that address receives generic acceptance without another recovery link
+
+#### Scenario: Shared budget exhaustion
+- **WHEN** either service-wide minute budget is exhausted
+- **THEN** additional issuance produces no proof or delivery and normal issuance resumes in the next budget window

@@ -1,0 +1,54 @@
+import {type Browser,expect} from '@playwright/test';
+import assert from 'node:assert/strict';
+import {randomUUID,randomBytes,createHash} from 'node:crypto';
+import {LocalSql} from '../integration/local-sql.ts';
+import {Database} from '../../lib/server/database/client.ts';
+import {CloudflareEmail} from '../../lib/server/email/cloudflare.ts';
+import {RequesterRecoveryDelivery} from '../../lib/server/email/recovery-delivery.ts';
+export async function verifyRequesterRecovery(browser:Browser,origin:string,sql:LocalSql,hostId:string,local:{API_URL:string;SERVICE_ROLE_KEY:string}){
+ const id=randomUUID(),other=randomUUID(),token=randomBytes(32).toString('base64url'),otherToken=randomBytes(32).toString('base64url'),email=id+'@example.test',hash=(s:string)=>createHash('sha256').update(s).digest('hex');
+ const original=await browser.newContext(),context=await browser.newContext({viewport:{width:320,height:844}}),page=await context.newPage();page.setDefaultTimeout(15000);
+ const path='/api/browser/recovery/',url=origin+'/booking/'+id;let link='',sends=0;
+ try{
+  await sql.query(`insert into fmat.requests(id,host_id,details,token_hash,contact_verified_email,expires_at) values('${id}','${hostId}','{"requesterEmail":"${email}","purpose":"Recovery fixture meeting"}','${hash(token)}','${email}',clock_timestamp()+interval '1 day'),('${other}','${hostId}','{"purpose":"Other private meeting"}','${hash(otherToken)}',null,clock_timestamp()+interval '1 day');`);
+  await original.addCookies([{name:'fmat-request-'+id,value:token,url:origin,httpOnly:true,sameSite:'Lax'}]);
+  await context.addCookies([{name:'fmat-request-'+other,value:otherToken,url:origin,httpOnly:true,sameSite:'Lax'}]);
+  assert.equal((await original.request.get(origin+'/api/browser/guest/state?requestId='+id)).status(),200);
+  assert.equal((await context.request.post(origin+path+'start',{headers:{origin:'https://wrong.test'},data:{requestId:id,email,idempotencyKey:randomUUID()}})).status(),403);
+  const missing=await context.request.post(origin+path+'start',{headers:{origin},data:{requestId:randomUUID(),email,idempotencyKey:randomUUID()}});assert.equal(missing.status(),200);assert.deepEqual(await missing.json(),{status:'accepted'});assert.equal(missing.headers()['set-cookie'],undefined);
+  await page.goto(url);const card=page.getByRole('region',{name:'Recover request access'});await card.getByLabel('Verified contact email').fill(email);
+  const identities:string[]=[];let lostStart=false;
+  await page.route('**'+path+'start',async route=>{identities.push(route.request().postDataJSON().idempotencyKey);const response=await route.fetch();if(!lostStart){lostStart=true;await route.fulfill({status:503,contentType:'application/json',body:'{"error":{"code":"PROVIDER_UNAVAILABLE"}}'});}else await route.fulfill({response});});
+  await card.getByRole('button',{name:'Email a recovery link'}).click();await card.getByRole('alert').filter({hasText:'Retry this request'}).waitFor();
+  await expect(card.getByLabel('Verified contact email')).toBeDisabled();await card.getByRole('button',{name:'Retry recovery request'}).click();await card.getByRole('status').filter({hasText:'a recovery link may arrive'}).waitFor();assert.equal(identities.length,2);assert.equal(identities[0],identities[1]);
+  await page.unroute('**'+path+'start');assert.equal(await sql.query(`select count(*) from fmat.requester_recoveries where request_id='${id}';`),'1');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.local/rebuild/browser-screenshots/recovery-request-320.png',fullPage:true});
+  const env={SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64'),APP_ORIGIN:origin,CLOUDFLARE_ACCOUNT_ID:'a'.repeat(32),CLOUDFLARE_EMAIL_FROM:'no-reply@findmeatime.com',CLOUDFLARE_EMAIL_API_TOKEN:'synthetic'};
+  const provider=new CloudflareEmail(env,async(_url,init)=>{sends++;const message=JSON.parse(String(init?.body));assert.equal(message.to,email);link=message.text.split('\n\n')[2];return Response.json({success:true,errors:[],result:{message_id:'recovery-browser-fixture',delivered:[],queued:[email],permanent_bounces:[],suppressed_recipients:[]}});});
+  const job=await sql.query(`select id from fmat.jobs where kind='requester_recovery_delivery' and payload->>'outboxId'=(select outbox_id::text from fmat.requester_recoveries where request_id='${id}');`),lease={workerId:'browser-recovery',jobId:job,leaseToken:randomUUID()};
+  await sql.query(`update fmat.jobs set status='running',worker_id='${lease.workerId}',lease_token='${lease.leaseToken}',lease_until=clock_timestamp()+interval '60 seconds' where id='${job}';`);
+  assert.equal(await new RequesterRecoveryDelivery(new Database(env),env,provider).process(lease),'sent');assert.equal(sends,1);
+  const proof=new URL(link).hash.split('.')[1];let secretInUrl=false;page.on('request',request=>{if(request.url().includes(proof))secretInUrl=true;});
+  await page.goto(link);await card.getByRole('button',{name:'Restore request access'}).waitFor();assert.equal(new URL(page.url()).hash,'');assert.equal(await sql.query(`select token_hash from fmat.requests where id='${id}';`),hash(token),'opening link does not redeem it');
+  assert.equal(await page.locator('body').innerText().then(text=>text.includes(proof)),false);
+  assert.equal(await page.evaluate(proof=>JSON.stringify({...localStorage,...sessionStorage}).includes(proof),proof),false);assert.equal(secretInUrl,false);
+  await card.getByRole('button',{name:'Restore request access'}).focus();assert.equal(await card.getByRole('button',{name:'Restore request access'}).evaluate(e=>e===document.activeElement),true);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.local/rebuild/browser-screenshots/recovery-restore-320.png',fullPage:true});
+  await card.getByRole('button',{name:'Cancel',exact:true}).click();await card.getByRole('button',{name:'Email a recovery link'}).waitFor();assert.equal(await sql.query(`select token_hash from fmat.requests where id='${id}';`),hash(token));await page.goto(link);await card.getByRole('button',{name:'Restore request access'}).waitFor();
+  await page.setViewportSize({width:768,height:900});await page.evaluate(()=>document.documentElement.style.zoom='2');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.local/rebuild/browser-screenshots/recovery-restore-zoom.png',fullPage:true});await page.evaluate(()=>document.documentElement.style.zoom='');
+  let lostRedeem=false;const redemptionInputs:string[]=[];
+  await page.route('**'+path+'redeem',async route=>{redemptionInputs.push(route.request().postData()!);const response=await route.fetch();if(!lostRedeem){lostRedeem=true;await route.fulfill({status:503,contentType:'application/json',body:'{"error":{"code":"PROVIDER_UNAVAILABLE"}}'});}else await route.fulfill({response});});
+  await card.getByRole('button',{name:'Restore request access'}).click();await card.getByRole('alert').filter({hasText:'Try Restore request access again'}).waitFor();
+  await card.getByRole('button',{name:'Restore request access'}).click();await page.getByRole('status').filter({hasText:'Request access restored.'}).waitFor();await page.getByRole('heading',{name:'Recovery fixture meeting',exact:true}).waitFor();
+  assert.equal(redemptionInputs.length,2);assert.equal(redemptionInputs[0],redemptionInputs[1]);await page.unroute('**'+path+'redeem');
+  const cookies=await context.cookies(),guest=cookies.find(c=>c.name==='fmat-request-'+id)!;assert.ok(guest.httpOnly);assert.equal(guest.sameSite,'Lax');assert.notEqual(guest.value,token);assert.equal(cookies.find(c=>c.name==='fmat-request-'+other)?.value,otherToken);
+  assert.equal((await original.request.get(origin+'/api/browser/guest/state?requestId='+id)).status(),404);assert.equal(await sql.query(`select count(*) from fmat.request_history where request_id='${id}' and operation='requester_recovered';`),'1');
+  assert.equal(await page.evaluate(token=>JSON.stringify({...localStorage,...sessionStorage}).includes(token),guest.value),false);await page.reload();await page.getByRole('heading',{name:'Recovery fixture meeting',exact:true}).waitFor();
+  await context.clearCookies({name:'fmat-request-'+id});await sql.query(`update fmat.requester_recoveries set expires_at=clock_timestamp()-interval '1 second' where request_id='${id}';`);
+  await page.goto(link);await card.getByRole('button',{name:'Restore request access'}).click();await page.getByRole('status').filter({hasText:'This recovery link is no longer valid'}).waitFor();await card.getByRole('button',{name:'Email a recovery link'}).waitFor();assert.equal((await context.cookies()).some(c=>c.name==='fmat-request-'+id),false);
+  await page.goto(url+'#recover=invalid');await page.getByRole('status').filter({hasText:'This recovery link is invalid'}).waitFor();assert.equal(new URL(page.url()).hash,'');await expect(card.getByRole('button',{name:'Restore request access'})).toHaveCount(0);
+ }finally{
+  await context.close();await original.close();
+  for(const request of [id,other])await sql.query(`set session_replication_role=replica;delete from fmat.requester_recovery_deliveries where request_id='${request}';delete from pgmq.q_fmat_jobs where message->>'jobId' in(select id::text from fmat.jobs where payload->>'outboxId' in(select id::text from fmat.outbox where payload->>'requestId'='${request}'));delete from fmat.jobs where payload->>'outboxId' in(select id::text from fmat.outbox where payload->>'requestId'='${request}');delete from fmat.audit_events where subject_id in(select id::text from fmat.outbox where payload->>'requestId'='${request}');delete from fmat.requester_recoveries where request_id='${request}';delete from fmat.outbox where payload->>'requestId'='${request}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where request_id='${request}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where request_id='${request}');delete from fmat.conversation_scopes where request_id='${request}';delete from fmat.request_history where request_id='${request}';delete from fmat.audit_events where subject_id='${request}';delete from fmat.requests where id='${request}';set session_replication_role=origin;`);
+ }
+}

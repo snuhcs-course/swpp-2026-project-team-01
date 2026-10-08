@@ -1,3 +1,4 @@
+import {recoveryBrowser} from '../../../../lib/recovery-browser.ts';
 import {RequesterEmailLinking} from '../../../../../../lib/server/agentmail/linking.ts';
 import {emailLinkTarget,emailLinkStart,emailLinkRevoke} from '../../../../../../lib/contracts/requester-email.ts';
 import {requesterIdentityBrowser} from '../../../../lib/requester-identity-browser.ts';
@@ -47,6 +48,7 @@ async function handle(request:NextRequest,{params}:Context) {
     const action=(await params).action.join('/');
     if(request.method==='POST')requireSameOrigin(request,applicationOrigin());
     const json=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:browserHeaders});
+    if(action.startsWith('recovery/'))return await recoveryBrowser(request,action.slice(9));
     if(action==='waitlist'&&request.method==='POST')return json(await commands.waitlist(await readJson(request)));
     if(action.startsWith('requester-identity/'))return await requesterIdentityBrowser(request,action.slice(19));
     if(action.startsWith('intake/'))return await intakeBrowser(request,action.slice(7));

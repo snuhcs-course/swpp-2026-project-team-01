@@ -1,52 +1,28 @@
--- Fixed-size shared budget; no client IP or unverified email is stored here.
-create table fmat.requester_recovery_budget (
- singleton boolean primary key default true check(singleton),
- window_started_at timestamptz not null,
- attempts integer not null check(attempts between 0 and 600),
- issued integer not null check(issued between 0 and 120)
-);
-alter table fmat.requester_recovery_budget enable row level security;
-revoke all on fmat.requester_recovery_budget from public,anon,authenticated,service_role;
-create table fmat.requester_recoveries (
- id uuid primary key,
- request_id uuid not null references fmat.requests(id),
- key uuid not null,
- email text not null,
- old_token_hash text not null check(old_token_hash ~ '^[a-f0-9]{64}$'),
- proof_hash text not null check(proof_hash ~ '^[a-f0-9]{64}$'),
- encrypted_proof text not null,
- expires_at timestamptz not null,
- created_at timestamptz not null default clock_timestamp(),
- invalidated_at timestamptz,
- redeemed_at timestamptz,
- new_token_hash text check(new_token_hash ~ '^[a-f0-9]{64}$'),
- outbox_id uuid references fmat.outbox(id),
- unique(request_id,key),
- check((redeemed_at is null)=(new_token_hash is null))
-);
-create index requester_recoveries_request_idx on fmat.requester_recoveries(request_id,created_at desc);
-create index requester_recoveries_email_idx on fmat.requester_recoveries(lower(email),created_at desc);
-create index requester_recoveries_outbox_idx on fmat.requester_recoveries(outbox_id);
-alter table fmat.requester_recoveries enable row level security;
-revoke all on fmat.requester_recoveries from public,anon,authenticated,service_role;
+SET local check_function_bodies = off;
 
-create or replace function fmat.invalidate_requester_recovery()
-returns trigger language plpgsql set search_path='' as $$
-begin
- if new.contact_verified_email is distinct from old.contact_verified_email or new.details->>'requesterEmail' is distinct from old.details->>'requesterEmail'
-  or new.token_revoked_at is not null or new.status not in ('gathering','negotiating','awaiting_approval') then
-  update fmat.requester_recoveries set invalidated_at=coalesce(invalidated_at,clock_timestamp()) where request_id=new.id;
- elsif new.token_hash is distinct from old.token_hash then
-  update fmat.requester_recoveries set invalidated_at=coalesce(invalidated_at,clock_timestamp()) where request_id=new.id and (redeemed_at is null or new_token_hash is distinct from new.token_hash);
- end if;
- return new;
-end;
-$$;
-create trigger requester_recovery_invalidation after update on fmat.requests for each row execute function fmat.invalidate_requester_recovery();
-revoke all on function fmat.invalidate_requester_recovery() from public,anon,authenticated,service_role;
+CREATE TABLE "fmat"."requester_recovery_budget" (
+  "singleton"         boolean                  NOT NULL DEFAULT true,
+  "window_started_at" timestamp with time zone NOT NULL,
+  "attempts"          integer                  NOT NULL,
+  "issued"            integer                  NOT NULL,
+  CONSTRAINT "requester_recovery_budget_attempts_check" CHECK (((attempts >= 0) AND (attempts <= 600))),
+  CONSTRAINT "requester_recovery_budget_issued_check" CHECK (((issued >= 0) AND (issued <= 120))),
+  CONSTRAINT "requester_recovery_budget_pkey" PRIMARY KEY (singleton),
+  CONSTRAINT "requester_recovery_budget_singleton_check" CHECK (singleton)
+);
 
-create or replace function public.fmat_requester_recovery(p_operation text,p_input jsonb)
-returns jsonb language plpgsql security definer set search_path='' as $$
+ALTER TABLE "fmat"."requester_recovery_budget"
+  ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.fmat_requester_recovery (
+  p_operation text,
+  p_input     jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare r fmat.requests; c fmat.requester_recoveries; outbox uuid; budget fmat.requester_recovery_budget;
 begin
  if p_operation is null or p_operation not in ('start','redeem') or jsonb_typeof(p_input) is distinct from 'object' then raise exception 'INVALID_INPUT';end if;
@@ -104,6 +80,6 @@ begin
  end if;
  return jsonb_build_object('status','recovered','requestId',r.id,'expiresAt',least(r.token_expires_at,r.expires_at));
 end;
-$$;
-revoke all on function public.fmat_requester_recovery(text,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_requester_recovery(text,jsonb) to service_role;
+$function$;
+
+CREATE INDEX requester_recoveries_email_idx ON fmat.requester_recoveries USING btree (lower(email), created_at DESC);

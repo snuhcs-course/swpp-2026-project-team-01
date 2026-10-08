@@ -27,3 +27,11 @@ Recover one known request through its previously verified current email. Do not 
 ## Migration Plan
 
 Add the private schema and service adapter first, without exposing a public endpoint. Generate and review the additive pg-delta migration, rebuild locally and test isolation/concurrency/replay/expiry. Deploy and verify a rollback-only remote fixture. Then implement fenced delivery and browser controls, followed by controlled live acceptance. Do not remove migration history on rollback; disable public routing while preserving recovery audit records.
+
+## Browser and abuse-control implementation
+
+`POST /api/browser/recovery/start` and `/redeem` require the configured same origin and strict bounded JSON. Issuance responds only with generic acceptance. Redemption installs the existing request-specific HttpOnly, SameSite=Lax cookie (Secure on HTTPS) and returns only request ID, outcome and deadline. It removes the receipt-only cookie for that request and preserves all other request and host cookies.
+
+The booking page removes recovery fragments immediately and retains proof only in component memory. Merely opening a link cannot rotate authority: the requester must choose **Restore request access**. Failed/uncertain issuance retains its original UUID; uncertain redemption retains its exact proof. Successful restoration clears proof and reloads authorized state. Reload before redemption intentionally forgets proof, so the requester must reopen the email link. Invalid links expose no request data.
+
+Before taking a request lock, issuance locks one fixed-size shared minute-budget row. No delivery/renewal operation takes that row after a request lock. The caps are 600 issuance attempts and 120 new links per minute across the service, plus five links per verified recipient per hour across requests. Existing per-request cooldown/hourly limits still apply. A composite recipient/time index supports the check, and only verified recipients create recovery rows. This bounds delivery volume without trusting client-supplied network identity or persisting unknown addresses. High-volume abuse can exhaust a shared window; production traffic and abuse telemetry must inform later limit tuning rather than silently lifting these caps.

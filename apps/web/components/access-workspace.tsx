@@ -1,4 +1,6 @@
 'use client';
+import {RequesterRecoveryCard,type RecoveryProof} from './requester-recovery.tsx';
+import {recoveryRedeem,recoveryStart} from '../../../lib/contracts/requester-recovery.ts';
 import {BookingReceiptCard} from './booking-receipt.tsx';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {RequestLifecycleCard} from './request-lifecycle.tsx';
@@ -54,24 +56,41 @@ export function HostWorkspace() {
 }
 export function BookingWorkspace({requestId}:{requestId:string}) {
   const [state,setState]=useState<GuestState|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(true);
+  const [recovery,setRecovery]=useState<RecoveryProof|null>(null),[reload,setReload]=useState(0),[recoveryNotice,setRecoveryNotice]=useState('');
+  const recoveryOwner=useRef(requestId),pendingRecovery=useRef<RecoveryProof|null>(null),pageHeading=useRef<HTMLHeadingElement>(null);
   const statusHeading=useRef<HTMLHeadingElement>(null);
   useEffect(()=>{if(state?.closed)statusHeading.current?.focus();},[state?.closed]);
   const request=useRef<{id:string;task:Promise<unknown>}|null>(null);
   useEffect(()=>{let active=true,sequence=0;
     function load() {
+      if(recoveryOwner.current!==requestId){recoveryOwner.current=requestId;pendingRecovery.current=null;setRecovery(null);request.current=null;setRecoveryNotice('');}
       const current=++sequence;
       setLoading(true);setState(null);setError('');
       const fragment=new URLSearchParams(location.hash.slice(1)),token=fragment.get('token'),receiptToken=fragment.get('receipt');
+      const hasFragment=Boolean(location.hash),recover=fragment.get('recover');
       if(location.hash)history.replaceState(null,'',location.pathname+location.search);
+      if(hasFragment){
+       pendingRecovery.current=null;setRecovery(null);setRecoveryNotice('');
+       if(recover!==null){
+        const [challengeId,proof,...extra]=recover.split('.');const parsed=recoveryRedeem.safeParse({requestId,challengeId,proof});
+        if(parsed.success&&!extra.length&&!token&&!receiptToken){pendingRecovery.current={challengeId:parsed.data.challengeId,proof:parsed.data.proof};setRecovery(pendingRecovery.current);}
+        else setRecoveryNotice('This recovery link is invalid. Request a new link for an active request.');
+       }
+      }
+      if(pendingRecovery.current){setLoading(false);return;}
+
       const receiptState=(value:{requestId:string;status:string;closed:boolean})=>({requestId:value.requestId,status:value.status,closed:value.closed,title:null,proposal:null});
       if(token||receiptToken||request.current?.id!==requestId)request.current={id:requestId,task:receiptToken?api('booking-receipt/exchange',{requestId,token:receiptToken}).then(receiptState):token?api('guest/exchange',{requestId,token}):api('guest/state?requestId='+encodeURIComponent(requestId)).catch(()=>api('booking-receipt?audience=guest&requestId='+encodeURIComponent(requestId)).then(receiptState))};
       request.current!.task.then(data=>{if(active&&current===sequence)setState(guestState.parse(data));}).catch(()=>{if(active&&current===sequence){setState(null);setError('Open the private link sent to you to continue. This page address alone does not unlock your meeting.');}}).finally(()=>{if(active&&current===sequence)setLoading(false);});
     }
     load();addEventListener('hashchange',load);
     return()=>{active=false;removeEventListener('hashchange',load);};
-  },[requestId]);
-  return <Frame aside={<span className="header-note">Your meeting</span>}><p className="eyebrow">One meeting at a time</p><h1>{loading?'Finding your conversation.':error?'This link is private.':state?.status==='booked'?'A time to connect.':'Your meeting, in progress.'}</h1>
+  },[requestId,reload]);
+  const finishRecovery=(message:string)=>{if(recoveryOwner.current!==requestId)return;pendingRecovery.current=null;setRecovery(null);request.current=null;setRecoveryNotice(message);setReload(value=>value+1);pageHeading.current?.focus();};
+  return <Frame aside={<span className="header-note">Your meeting</span>}><p className="eyebrow">One meeting at a time</p><h1 ref={pageHeading} tabIndex={-1}>{loading?'Finding your conversation.':recovery?'Restore your request.':error?'This link is private.':state?.status==='booked'?'A time to connect.':'Your meeting, in progress.'}</h1>
     {loading?<p role="status">Checking your private access…</p>:null}{error?<p className="workspace-description" role="alert">{error}</p>:null}
+    {recoveryNotice?<p role="status">{recoveryNotice}</p>:null}
+    {(recovery||(!loading&&!state&&recoveryStart.shape.requestId.safeParse(requestId).success))?<RequesterRecoveryCard key={requestId+':'+(recovery?.challengeId??'entry')} requestId={requestId} proof={recovery} onRecovered={()=>finishRecovery('Request access restored.')} onDiscard={message=>finishRecovery(message??'Recovery cancelled.')}/>:null}
     {state&&state.status!=='booked'?<div className="access-card"><div><h2 ref={statusHeading} tabIndex={-1}>{state.title||'Meeting status'}</h2><p className="status-label">{state.status.replaceAll('_',' ')}</p>{state.proposal?<><ProposalTime proposal={state.proposal}/>{state.proposal.location?<p>{state.proposal.location}</p>:null}</>:null}<p>{state.closed?'This request is closed. Conversation history and changes are no longer available.':state.status==='booking'?'Your proposal is saved. Check booking status below.':'Your saved request is protected. Use the conversation below to discuss the details.'}</p></div></div>:null}
     {state&&['booking','booked'].includes(state.status)?<BookingReceiptCard key={requestId+'receipt'} requestId={requestId} audience="guest" onStatus={next=>setState(previous=>previous?.requestId===next.requestId?{...previous,status:next.status,closed:next.closed}:previous)}/>:null}
     {state&&!state.closed?<RequestLifecycleCard key={requestId+'closure'} requestId={requestId} audience="guest" onStatus={next=>{setState(previous=>previous&&previous.requestId===next.requestId?{...previous,status:next.status,closed:next.closed,...(next.closed?{title:null,proposal:null}:{})}:previous);if(next.closed)void api('guest/state?requestId='+encodeURIComponent(requestId)).then(data=>{const receipt=guestState.parse(data);if(receipt.closed)setState(previous=>previous?.requestId===requestId?receipt:previous);}).catch(()=>{});}}/>:null}
