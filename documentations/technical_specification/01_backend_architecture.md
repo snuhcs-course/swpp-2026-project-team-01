@@ -356,6 +356,10 @@ The minute `fmat-photon-replies` sweep uses a separate authenticated `/api/inter
 
 The server-only resolver returns route/expiry metadata after current receiver, private-route, token and lifetime checks. It grants no host authority. This foundation remains disconnected from HTTP dispatch and cron until browser proof binding and fresh authenticated OTP completion are implemented; the eventual `/app` fragment exchange must not treat a forwarded continuation as account proof. Task 4.2 and complete iMessage-first acceptance remain open.
 
+### Durable AgentMail ingress
+
+The bounded `/api/providers/agentmail` receiver verifies transport before calling the service-only receipt RPC. A locked operator registry fences disabled or replaced consumer generations. An inbox transaction serializes event/message/delivery deduplication, stores immutable minimized locators and signed-payload hash, and atomically publishes a receipt-reference job. Conflicting evidence fails without mutation; commit failure is not acknowledged. Private receipt tables grant no client access or conversation authority. The receiver stays disabled until consumer ownership and downstream requester routing are verified; see [setup](03_provider_setup.md#agentmail-verified-transport-boundary).
+
 ## 9. Provider boundaries
 
 | Integration | Narrow application-facing responsibility |
