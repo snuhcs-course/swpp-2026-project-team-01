@@ -87,11 +87,16 @@ globalThis.fetch=async(input,init)=>{
   assert.match(output,/session.waiting/u);assert.ok(output.includes(describedReply));await access(marker);
   assert.equal(await sql.query(`select status from fmat.runtime_messages where conversation_id='${scope}';`),'pending');
   assert.equal(await sql.query(`select count(*) from fmat.photon_replies where project_id='${project}';`),'0');
-  const callsBefore=await readFile(modelCalls,'utf8');
+  // The shared dispatcher may also claim inputs from concurrent integration
+  // fixtures. Count this input, not every model call in the runtime process.
+  const inputHash=createHash('sha256').update(describedPreferences).digest('hex');
+  const readCalls=async()=> (await readFile(modelCalls,'utf8')).trim().split('\n').map(line=>JSON.parse(line) as {inputHash:string});
+  const inputCalls=async()=> (await readCalls()).filter(call=>call.inputHash===inputHash).length;
+  const callsBefore=await inputCalls();assert.ok(callsBefore>0);
   await runtime.stop();await writeFile(release,'resume');await runtime.restart();
   await sql.query(`update fmat.runtime_messages set next_dispatch_at=clock_timestamp()-interval '1 second',dispatch_until=null,dispatch_token=null where conversation_id='${scope}';`);
   assert.equal((await dispatch()).status,200);await settled(scope);
-  assert.equal(await readFile(modelCalls,'utf8'),callsBefore,'restart settles saved output without another model invocation');
+  assert.equal(await inputCalls(),callsBefore,'restart settles saved output without another model invocation');
   assert.equal(await sql.query(`select text from fmat.photon_replies where project_id='${project}';`),describedReply);
   assert.equal(await sql.query(`select count(*) from fmat.photon_replies where project_id='${project}';`),'1');
   // Lose the provider-result database acknowledgment after committing it.
@@ -114,6 +119,8 @@ globalThis.fetch=async(input,init)=>{
   const webHeaders={authorization:'Bearer '+token,'content-type':'application/json'};
   const view=await fetch(runtime.origin+'/api/conversations/'+scope,{headers:webHeaders});assert.equal(view.status,200);assert.equal((await view.json()).messages[0].text,describedPreferences);
   const web=await fetch(runtime.origin+`/api/conversations/${scope}/messages`,{method:'POST',headers:webHeaders,body:JSON.stringify({clientId:randomUUID(),text:'Continue from the browser.'})});assert.equal(web.status,202);await settled(scope);
+  assert.ok((await readCalls()).some(call=>call.inputHash===createHash('sha256').update('Continue from the browser.').digest('hex')),'the model log includes the distinct continuation');
+  assert.equal(await inputCalls(),callsBefore,'a different input cannot change the original input replay count');
   assert.equal(await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${scope}';`),session,'web resumes the same runtime session');
   assert.equal(await sql.query(`select count(*) from fmat.photon_replies where project_id='${project}';`),'1','web continuation does not send an iMessage reply');
   assert.equal((await photonWebhook(request('reply-before-unlink','A second private turn.'),{env,database:db})).status,200);
