@@ -272,6 +272,8 @@ References: [requester destination](../user_experience/04_page_list.md#requester
 
 ### Phase 5 — Complete approval, booking and invitations
 
+- [x] Complete the operator recovery runbook acceptance (booking task 2.5): actual CLI replay, definite rejection/retry, lost successful insert response, initial not-found with retained reservation, and eventual same-event confirmation without replacement insertion or state-forcing. [Evidence](05_rebuild_evidence.md#operator-lost-response-recovery-acceptance--2026-10-09). Live Calendar and broader fault coverage remain open.
+
 Incremental completion (full phase exit remains open):
 
 - [x] Implement and locally verify the project-pinned operator retry/reconcile CLI, immutable approval continuity across recovery revisions, same-command replay and guarded worker execution. Verify the 61-migration rebuild, SQL/integration/application suites and browser/runtime recovery. Complete reconnect and fault-matrix acceptance remain open.

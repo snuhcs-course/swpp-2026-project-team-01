@@ -274,6 +274,8 @@ An uncertain message retains its frozen identity and requires investigation; cha
 
 ## Operator booking recovery
 
+Controlled operator acceptance covers definitive rejection/retry and lost-success-response reconciliation, including CLI replay and an initial not-found lookup. See the [acceptance evidence](05_rebuild_evidence.md#operator-lost-response-recovery-acceptance--2026-10-09). These are local provider fixtures; live Google reconnection and booking require separate acceptance.
+
 Run `npm run booking:recover -- --help` from the repository. Supply `SUPABASE_URL` and `SUPABASE_SECRET_KEY` through the operator's secure environment; the command does not load local environment files automatically. The service key grants administrative authority. `--operator` is a stable audit label, not a login or permission grant. This command is deliberately absent from browser and agent tools.
 
 ```sh

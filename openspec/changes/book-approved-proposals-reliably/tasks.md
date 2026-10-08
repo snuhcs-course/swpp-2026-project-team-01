@@ -16,7 +16,7 @@ Tasks describe replacement implementation and verification; completion is tracke
 - [x] 2.2 Implement Calendar insert using exact saved ID/calendar/payload and verified attendee `sendUpdates=all`; verify host-supplied HTTPS links, no automatic destination fallback, and no requester grant writes.
 - [x] 2.3 Implement uncertain-write reconciliation with association/payload/noncancelled validation; verify lost successful response, immediate not-found, duplicate-ID mismatch, post-dispatch termination, and expired ownership never create a replacement.
 - [ ] 2.4 Implement definitive failure and audited reconnect/reconcile/retry operations; verify current prerequisites are rechecked and operators cannot forge approval/booked outcomes or release unresolved reservations.
-- [ ] 2.5 Document recovery actions and limits; verify an operator can recover controlled fixtures without manual state-forcing or compensating event deletion.
+- [x] 2.5 Document recovery actions and limits; verify an operator can recover controlled fixtures without manual state-forcing or compensating event deletion.
 
 ## 3. Completion and notification isolation
 
