@@ -11,10 +11,17 @@ create table fmat.invitation_deliveries (
  template_version integer not null default 1 check(template_version=1),
  phase text not null check(phase in ('manual','pending','prepared','dispatched','sent','failed','suppressed','uncertain')),
  provider_reference text,
+ prepared_basis text,
+ prepared_fingerprint text,
+ dispatched_at timestamptz,
+ dispatch_job_id uuid references fmat.jobs(id),
+ dispatch_lease_token uuid,
  created_at timestamptz not null default clock_timestamp(),
  unique(project,operator_id,issue_key),
  check((mode='manual' and account_id is null) or (mode='cloudflare' and account_id is not null and account_id ~ '^[a-f0-9]{32}$')),
- check(project<>'local' or mode='manual')
+ check(project<>'local' or mode='manual'),
+ check((prepared_basis is null and prepared_fingerprint is null) or (prepared_basis is not null and prepared_fingerprint is not null and prepared_basis ~ '^[a-f0-9]{64}$' and prepared_fingerprint ~ '^[a-f0-9]{64}$')),
+ check((dispatched_at is null and dispatch_job_id is null and dispatch_lease_token is null) or (dispatched_at is not null and dispatch_job_id is not null and dispatch_lease_token is not null and prepared_basis is not null))
 );
 alter table fmat.invitation_deliveries enable row level security;
 revoke all on fmat.invitation_deliveries from public,anon,authenticated,service_role;
@@ -22,7 +29,9 @@ create or replace function fmat.protect_invitation_delivery_context()
 returns trigger language plpgsql set search_path='' as $$
 begin
  if (new.invitation_id,new.project,new.operator_id,new.issue_key,new.recipient,new.origin,new.mode,new.account_id,new.template_version,new.created_at)
-  is distinct from (old.invitation_id,old.project,old.operator_id,old.issue_key,old.recipient,old.origin,old.mode,old.account_id,old.template_version,old.created_at) then raise exception 'IMMUTABLE_DELIVERY';end if;
+  is distinct from (old.invitation_id,old.project,old.operator_id,old.issue_key,old.recipient,old.origin,old.mode,old.account_id,old.template_version,old.created_at)
+  or (old.prepared_basis is not null and (new.prepared_basis,new.prepared_fingerprint) is distinct from (old.prepared_basis,old.prepared_fingerprint))
+  or (old.dispatched_at is not null and (new.dispatched_at,new.dispatch_job_id,new.dispatch_lease_token) is distinct from (old.dispatched_at,old.dispatch_job_id,old.dispatch_lease_token)) then raise exception 'IMMUTABLE_DELIVERY';end if;
  return new;
 end$$;
 revoke all on function fmat.protect_invitation_delivery_context() from public,anon,authenticated,service_role;

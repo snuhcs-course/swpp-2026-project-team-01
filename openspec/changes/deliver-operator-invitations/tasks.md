@@ -7,7 +7,7 @@
 ## 2. Durable lifecycle
 
 - [x] 2.1 Add dedicated issuance/status/revocation and delivery intent with database-owned seven-day expiry, exact retry and legacy issuance denial; generate/review the migration, rebuild locally, test authorization/concurrency/expiry and update setup documentation.
-- [ ] 2.2 Implement fenced Cloudflare preparation/dispatch/outcome handling with frozen message context and code-hash verification; test lost responses, process interruption, revocation, key mismatch and no automatic resend, and document recovery.
+- [x] 2.2 Implement fenced Cloudflare preparation/dispatch/outcome handling with frozen message context and code-hash verification; test lost responses, process interruption, revocation, key mismatch and no automatic resend, and document recovery.
 
 ## 3. Operator command and release
 
