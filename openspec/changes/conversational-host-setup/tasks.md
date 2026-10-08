@@ -40,3 +40,5 @@ Tasks describe replacement implementation and verification. Private draft persis
 Task 2.4 acceptance: [requirement-by-requirement executable evidence](../../../documentations/technical_specification/05_rebuild_evidence.md#explicit-onboarding-preference-acceptance--2026-10-09), including the online-only, per-meeting/per-trip and reviewed chat-answer browser journeys. Live scan/channel gates remain in tasks 2.5 and 5.2.
 
 Task 3.2 acceptance: [in-chat cards and editable weekly preview](../../../documentations/technical_specification/05_rebuild_evidence.md#editable-weekly-preference-preview--2026-10-09). Broader focus/consent-return acceptance remains in task 3.4, with live Google/iPhone acceptance in task 5.2.
+
+Task 3.4 progress: [verified editing and consent-return focus](../../../documentations/technical_specification/05_rebuild_evidence.md#setup-editing-and-consent-return-focus--2026-10-09). The compact completed-card and whole-interface visual review remains open; this focus increment does not certify the full task.
