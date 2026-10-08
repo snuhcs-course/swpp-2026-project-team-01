@@ -172,6 +172,8 @@ Incremental completion (full phase exit remains open):
 
 - [x] Add protected requester contact state/send/confirm routes and the inline verification card; verify exact retry, reload, changed email, delivery uncertainty, expiry, lockout and keyboard/mobile recovery. Complete the local public-intake/code-delivery/verification/host-approval journey with synthetic Cloudflare delivery ([evidence](05_rebuild_evidence.md#requester-contact-verification-controls--2026-10-08)).
 
+- [x] Deploy requester verification controls and verify 49 production HTTP checks, including credential/CSRF/no-store guards, plus healthy scheduler configuration and an empty pending queue (`9990177`; deployment `dpl_5AJxaAx4erYLfrYfqo3yMj2pFpX1`; [evidence](05_rebuild_evidence.md#requester-contact-verification-controls--2026-10-08)). Controlled live inbox acceptance remains open.
+
 - [x] Implement and verify explicit requester withdrawal and host decline, including minimal closure status, lost-response recovery and booking uncertainty (1,004 SQL assertions, 18 integration tests, browser/recovery checks).
 - [x] Deploy request closure and verify the selected production database/API boundaries (`3e5db21`; deployment `dpl_5Y2wqC5PujgFL3GHUqtim1kjDw8u`; [evidence](05_rebuild_evidence.md#explicit-withdrawal-and-decline--2026-10-07)).
 
