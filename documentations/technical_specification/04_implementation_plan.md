@@ -97,6 +97,10 @@ References: [repository change workflow](../../AGENTS.md#documentation-and-speci
 
 ### Phase 1 — Prove the runtime and settle deployment decisions
 
+Incremental completion (full phase exit remains open):
+
+- [x] Bound browser conversation headers/body/stream waits and make Reconnect now interrupt an in-flight read while preserving transcript cursor and message retry identity. Verify stalled HTTP fixtures, browser recovery, application checks, both builds and runtime restart recovery.
+
 Work:
 
 - [ ] Configure the reconstruction deployment at `https://release.findmeatime.com` following [provider setup](03_provider_setup.md#reconstruction-deployment-origin). Verify domain attachment, DNS, TLS and origin configuration before remote callback tests; preserve root-domain and mail records.

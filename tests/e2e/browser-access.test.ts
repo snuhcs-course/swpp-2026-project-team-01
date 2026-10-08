@@ -1,3 +1,4 @@
+import {verifyConversationReconnect} from './conversation-reconnect.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn,execFileSync} from 'node:child_process';
@@ -151,6 +152,7 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     await page.setViewportSize({width:1280,height:900});
     await page.getByRole('button',{name:'Disconnect Google',exact:true}).click();await page.getByRole('status').filter({hasText:'Google access has been disconnected'}).waitFor();assert.equal(await choices.count(),0);
     assert.equal((await context.request.get(origin+'/api/browser/calendar/list')).status(),409);
+    await verifyConversationReconnect(page);
     const composer=page.getByLabel('Message your scheduling assistant');
     await composer.fill('Help me plan a focused week.');await page.getByRole('button',{name:'Send',exact:true}).click();
     await page.getByText('Reply 1: Help me plan a focused week.',{exact:true}).waitFor();
