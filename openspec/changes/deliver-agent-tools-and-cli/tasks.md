@@ -11,7 +11,7 @@
 Host discovery and audience-safe runtime history now pass local SQL, signed-token, cursor, revocation and real eve restart coverage. Production deployment is recorded in the rebuild evidence ledger.
 
 - [x] 2.1 Add bounded host request discovery and audience-safe conversation reads through the transactional boundary; verify pagination, cursor ownership, cross-host/request denial and revocation races, with schema/migration and tool documentation.
-- [ ] 2.2 Add requester availability and negotiation operations using existing domain version/retry semantics; verify stale and conflicting mutations, requester isolation and equivalent browser outcomes, and document each tool's authority.
+- [x] 2.2 Add requester availability and negotiation operations using existing domain version/retry semantics; verify stale and conflicting mutations, requester isolation and equivalent browser outcomes, and document each tool's authority.
 - [ ] 2.3 Add candidate/current-proposal review and booking-status operations plus protected browser handoffs for human-only decisions and provider consent; verify no implicit approval/booking and consistent current-version review, with interface documentation.
 - [ ] 2.4 Exercise complete host setup and requester scheduling through the catalog; verify remaining setup confirmation/handoff coverage, all domain migrations and production behavior before claiming workflow completion.
 

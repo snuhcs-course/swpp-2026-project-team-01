@@ -53,6 +53,15 @@ test('agent operations recheck revocation and expiry under domain and downstream
   assert.equal((await viaMcp.json()).result.structuredContent.result.id,guest.request);
   const foreign=await mcp(mcpRequest('fmat_get_request',randomUUID()));assert.equal((await foreign.json()).result.isError,true);
   assert.equal((await mcp(mcpRequest('fmat_review_decision'))).status,403);
+  const availabilityRead=await mcp(mcpRequest('fmat_get_availability'));assert.equal(availabilityRead.status,200);
+  assert.equal((await availabilityRead.json()).result.structuredContent.result.mode,'manual');
+  const availabilityInput={expectedRevision:1,timezone:'UTC',windows:[{start:new Date(Date.now()+86400000).toISOString(),end:new Date(Date.now()+90000000).toISOString()}]},availabilityKey=randomUUID();
+  const proposeAvailability=(input:unknown)=>mcp(new Request(resource,{method:'POST',headers:{authorization:'Bearer '+access,'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:3,method:'tools/call',params:{name:'fmat_propose_availability',arguments:{requestId:guest.request,input,idempotencyKey:availabilityKey}}})}));
+  const availabilityDraft=(await(await proposeAvailability(availabilityInput)).json()).result.structuredContent.result;
+  assert.equal(availabilityDraft.review.status,'pending');
+  assert.deepEqual((await(await proposeAvailability(availabilityInput)).json()).result.structuredContent.result,availabilityDraft);
+  assert.equal((await(await proposeAvailability({...availabilityInput,timezone:'Asia/Seoul'})).json()).result.isError,true);
+  assert.equal(await db.query(`select revision from fmat.requests where id=${q(guest.request!)};`),'1','agent draft does not apply availability');
   await db.query(`insert into fmat.requests(host_id,details,token_hash,expires_at,private_notes) select ${q(host)},jsonb_build_object('purpose','List probe '||n,'requesterEmail','private@example.test'),encode(extensions.digest(gen_random_uuid()::text,'sha256'),'hex'),clock_timestamp()+interval '1 day','private list note' from generate_series(1,35) n;`);
   const hostProjection=JSON.parse(await db.query(`select fmat.oauth_grant_projection(g) from fmat.oauth_grants g where id=${q(hostGrant.grant)};`)) as AgentTokenGrant;
   const hostAccess=await new AgentOAuthTokens(env).issue(hostProjection,async()=>{});

@@ -27,6 +27,7 @@ test('scope, role, target, clone and synthetic decision attacks stop before RPC'
   [guest,{operation:'details_propose',requestId:guest.claims.sub,idempotencyKey:randomUUID(),input:{expectedRevision:0,patch:{purpose:'Review'},clarifications:[]}}],
   [guest,{operation:'requester_agree',requestId:guest.claims.sub,input:{confirmed:true}}],
   [guest,{operation:'decision_review',requestId:guest.claims.sub,input:{confirmed:true}}],
+  [host,{operation:'availability_read',requestId:randomUUID(),input:{}}],
   [host,{operation:'decision_review',requestId:randomUUID(),input:{}}],
   [host,{operation:'setup_read',input:{actor:{kind:'host'}}}],
   [{...host},{operation:'setup_read',input:{}}],

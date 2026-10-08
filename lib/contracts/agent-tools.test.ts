@@ -5,7 +5,7 @@ import {agentTools,agentToolsForActor,agentToolCommand,agentToolScope} from './a
 const requestId='10000000-0000-4000-8000-000000000001',idempotencyKey='20000000-0000-4000-8000-000000000001';
 
 test('Requester discovery excludes host setup and private notes; decision permission stays distinct',()=>{
- assert.deepEqual(agentToolsForActor('guest').map(t=>t.name),['fmat_read_conversation','fmat_get_request','fmat_propose_request_details','fmat_review_decision']);
+ assert.deepEqual(agentToolsForActor('guest').map(t=>t.name),['fmat_read_conversation','fmat_get_availability','fmat_propose_availability','fmat_get_request','fmat_propose_request_details','fmat_review_decision']);
  assert.ok(!agentToolsForActor('host').some(t=>t.name==='fmat_propose_request_details'));
  const decision=agentTools.find(t=>t.name==='fmat_review_decision')!;
  assert.equal(agentToolScope(decision,'host'),'host:decide');assert.equal(agentToolScope(decision,'guest'),'request:decide');
@@ -59,4 +59,12 @@ test('Host request discovery bounds filters and requires complete cursors withou
  assert.deepEqual(agentToolCommand(tool.name,{input:{}}),{operation:'requests_list',input:{search:'',status:'active'}});
  for(const input of [{search:'x'.repeat(201)},{status:'unknown'},{beforeId:requestId},{beforeCreatedAt:'2030-01-01T00:00:00Z'},{hostId:requestId}])assert.throws(()=>agentToolCommand(tool.name,{input}));
  assert.throws(()=>agentToolCommand(tool.name,{requestId,input:{}}));
+});
+
+test('availability proposals validate bounded windows and refuse human confirmation claims',()=>{
+ const input={expectedRevision:1,timezone:'Asia/Seoul',windows:[{start:'2030-01-01T09:00:00+09:00',end:'2030-01-01T10:00:00+09:00'}]};
+ assert.equal(agentToolCommand('fmat_propose_availability',{requestId,input,idempotencyKey}).operation,'availability_propose');
+ for(const patch of [{confirmed:true},{timezone:'not-a-zone'},{windows:[]},{windows:[{start:input.windows[0].end,end:input.windows[0].start}]}])
+  assert.throws(()=>agentToolCommand('fmat_propose_availability',{requestId,input:{...input,...patch},idempotencyKey}));
+ assert.ok(!agentToolsForActor('host').some(t=>t.name==='fmat_get_availability'||t.name==='fmat_propose_availability'));
 });

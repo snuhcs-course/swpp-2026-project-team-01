@@ -16,6 +16,15 @@ $$;
 create trigger close_requester_calendar after update of status,token_hash,token_revoked_at on fmat.requests for each row execute function fmat.close_requester_calendar();
 revoke all on function fmat.close_requester_calendar() from public,anon,authenticated,service_role;
 
+-- Shared requester-owned projection; callers establish current authority.
+create or replace function fmat.requester_availability_view(p_request fmat.requests,p_connection fmat.calendar_connections)
+returns jsonb language sql stable set search_path='' as $$
+ select jsonb_build_object('revision',p_request.revision,'mode',p_request.availability_mode,'failed',p_request.availability_failed,
+ 'connected',p_connection.id is not null,'selectedCalendarIds',to_jsonb(coalesce(p_connection.selected_calendar_ids,'{}')),
+ 'timezone',coalesce(p_request.details->>'timezone',''),'windows',coalesce(p_request.details->'windows','[]'));
+$$;
+revoke all on function fmat.requester_availability_view(fmat.requests,fmat.calendar_connections) from public,anon,authenticated,service_role;
+
 create or replace function public.fmat_requester_availability(p_operation text,p_credential jsonb,p_input jsonb)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare v_actor jsonb; v_request fmat.requests; v_connection fmat.calendar_connections; v_ids text[]; v_id text; v_details jsonb;
@@ -25,7 +34,7 @@ begin
   select * into strict v_request from fmat.requests where id=(v_actor->>'requestId')::uuid;
   select * into v_connection from fmat.calendar_connections where principal_kind='guest' and principal_id=v_request.id and revoked_at is null and guest_authority_key=p_credential->>'tokenHash' for update;
   if p_operation='status' then
-    return jsonb_build_object('revision',v_request.revision,'mode',v_request.availability_mode,'failed',v_request.availability_failed,'connected',v_connection.id is not null,'selectedCalendarIds',to_jsonb(coalesce(v_connection.selected_calendar_ids,'{}')),'timezone',coalesce(v_request.details->>'timezone',''),'windows',coalesce(v_request.details->'windows','[]'));
+    return fmat.requester_availability_view(v_request,v_connection);
   end if;
   if p_operation='manual' then
     if (p_input->>'revision')::integer is distinct from v_request.revision then raise exception 'REVISION_CONFLICT'; end if;

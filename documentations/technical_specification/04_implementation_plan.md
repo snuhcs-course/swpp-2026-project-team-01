@@ -365,6 +365,7 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 Incremental completion (full phase exit remains open):
 
+- [x] Add requester availability reads and window proposals to MCP, reusing browser projections and explicit details review; verify isolation, revisions, retry conflicts, browser application and preservation of failed Calendar state. [Evidence](05_rebuild_evidence.md#mcp-requester-availability--2026-10-09).
 - [x] Deploy MCP conversation history (`cdf7801`; `dpl_39tvAnQp4GsKLfV4T6gH891bjWJh`), verify 84 matching migrations, rollback-only runtime resolution, clean advisors and protected route guards. [Evidence](05_rebuild_evidence.md#mcp-conversation-history-surface--2026-10-09).
 - [x] Mount audience-safe MCP conversation history with encrypted bound cursors and reverified bearer relay; verify projected replies through the real eve restart fixture, cursor attacks and revoked denial. [Evidence](05_rebuild_evidence.md#mcp-conversation-history-surface--2026-10-09).
 - [x] Implement the internal agent conversation authority resolver with strict audiences, current grant checks and runtime-binding isolation; verify SQL boundaries and expiry/revocation races. Public routing and end-to-end transcript acceptance remain open. [Evidence](05_rebuild_evidence.md#agent-conversation-authority-resolver--2026-10-09).
