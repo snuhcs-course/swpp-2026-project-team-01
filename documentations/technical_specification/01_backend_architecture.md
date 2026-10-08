@@ -115,6 +115,8 @@ Compatibility finding (2026-10-08): stock local GoTrue v2.197.0 does not enforce
 
 Protected host MCP access uses OAuth authorization code flow with PKCE, protected-resource metadata, authorization-server discovery and resource-specific tokens. Validate issuer, signature, audience, expiry, the active client grant and requested permission on every operation. Keep permissions for reading, revising and submitting decisions distinct, and enforce revocation through current server-side grant state. Google Calendar credentials are never MCP credentials.
 
+The [pending agent authorization change](../../openspec/changes/authorize-agent-clients/proposal.md) owns the application OAuth boundary. Internal protocol parsers and ES256 token handling are implemented first, without public routes. The configured origin and `/mcp` resource are fixed, tokens carry only actor/client/grant/scope identifiers, and verified claims still require current durable authorization before any domain operation. Google sign-in credentials remain distinct.
+
 The CLI calls the same application operations and returns structured results with meaningful exit codes. Its final interactive/headless login and credential storage need compatibility decisions. Guest MCP and CLI operations use request-scoped grants, never host or service credentials.
 
 #### Optional requester Google identity

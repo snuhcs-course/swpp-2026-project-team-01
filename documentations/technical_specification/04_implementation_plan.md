@@ -326,6 +326,8 @@ References: [linking direction](02_frontend_architecture.md#host-setup-conversat
 
 ### Phase 8 — Deliver skill entry, MCP, CLI and named clients
 
+- [x] Implement internal resource/redirect/scope/S256 parsers and ES256 access-token verification under [agent client authorization](../../openspec/changes/authorize-agent-clients/tasks.md). Verify foreign/altered/expired tokens, key rotation and current-authority callbacks with ten focused tests, full application checks and both builds. Public protocol routes and durable grants remain open. [Evidence](05_rebuild_evidence.md#agent-oauth-protocol-and-token-primitives--2026-10-08).
+
 Incremental completion (full phase exit remains open):
 
 - [x] Implement versioned root and per-host public Markdown entry routes on the reconstruction origin, current public-readiness checks, encoded profile data and honest browser fallback. Verify GET/HEAD, neutral unavailable/retry responses, no cookies/cache, fixed-origin links and public-field projection. Root-domain promotion and protected client integration remain open.
