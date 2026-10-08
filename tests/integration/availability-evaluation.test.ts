@@ -22,6 +22,7 @@ import {Database} from '../../lib/server/database/client.ts';
 import {guestCredential,verifyHostToken,type Credential} from '../../lib/server/identity/credentials.ts';
 import {ApplicationError} from '../../lib/server/errors.ts';
 import {LocalSql} from './local-sql.ts';
+import {verifySchedulingStartCutoff} from './scheduling-start-cutoff.ts';
 import {routeFingerprint} from '../../lib/server/routes/google.ts';
 import type {RouteRequest} from '../../lib/contracts/travel.ts';
 import type {TravelCommitment} from '../../lib/server/calendar/adjacent.ts';
@@ -302,6 +303,7 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   for(const operation of ['candidates_save','proposal_create','proposal_revise','requester_agree','manual_allowance_save','preference_exception_save'])await assert.rejects(database.rpc('fmat_command',{p_operation:operation,p_actor:{kind:'worker',id:'fabricated'},p_input:{requestId}}),code('FORBIDDEN'));
   await assert.rejects(publication.select({...credential},refreshedSelection),code('UNAUTHORIZED'));
   await sql.query(`do $$ begin update fmat.proposals set details='{}' where request_id='${requestId}';raise exception 'fixture mutable proposal';exception when raise_exception then if sqlerrm<>'IMMUTABLE_PROPOSAL' then raise;end if;end $$;`);
+  await verifySchedulingStartCutoff(sql,publication,credential,host,requestId,agentRead);
   const publicationCount=await sql.query(`select count(*) from fmat.candidate_publications where request_id='${requestId}';`);
   let publishEntered!:()=>void,publishRelease!:()=>void;const publishArrived=new Promise<void>(r=>publishEntered=r),publishWait=new Promise<void>(r=>publishRelease=r);publicationGate=async()=>{publishEntered();await publishWait;};
   const stalePublish=assert.rejects(publication.evaluate(credential,{requestId,revision:await revision()}),code('STALE_REVISION'));await publishArrived;

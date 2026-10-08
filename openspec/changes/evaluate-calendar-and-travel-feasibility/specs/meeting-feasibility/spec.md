@@ -9,6 +9,11 @@ Offer only deterministically feasible candidates and keep uncertainty, private h
 ### Requirement: Deterministic interval feasibility
 Candidates SHALL fit requester date windows, duration, timezone, host working hours, focus rules, busy calendars, buffers, and explicitly supplied or authorized requester availability.
 
+#### Scenario: Proposal starts before requester agreement
+- **WHEN** the selected proposal reaches its start time before a new agreement commits, including during a database lock wait
+- **THEN** the service rejects agreement without advancing the request or recording a decision, and browser and agent reads disable agreement
+- **AND** an exact retry of an already committed decision returns current state without another mutation or erasing the historical agreement
+
 #### Scenario: Busy requester
 - **WHEN** the connected requester has a busy interval overlapping a candidate
 - **THEN** the candidate is excluded without disclosing private requester events

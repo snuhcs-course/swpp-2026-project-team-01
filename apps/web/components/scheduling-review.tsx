@@ -29,7 +29,7 @@ const availabilityText={
 export function SchedulingReview({requestId,audience='guest',refreshKey,disabled,onAccessLost,onChanged,onAsk}:{requestId:string;audience?:'host'|'guest';refreshKey:string;disabled:boolean;onAccessLost:()=>void;onChanged?:()=>void;onAsk:(text:string)=>void}){
  const [state,setState]=useState<SchedulingState|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[uncertain,setUncertain]=useState(false),[notice,setNotice]=useState('');
  const pending=useRef<Action|null>(null),inFlight=useRef(false),sequence=useRef(0),mounted=useRef(false),readController=useRef<AbortController|null>(null),callbacks=useRef({onAccessLost,onChanged});callbacks.current={onAccessLost,onChanged};
- const id=useId();
+ const id=useId(),[clock,tick]=useState(0);
  const [displayTimezone,setDisplayTimezone]=useState(''),[zones,setZones]=useState<string[]>([]),[preferenceNotice,setPreferenceNotice]=useState('');
  useEffect(()=>{setDisplayTimezone(readTimezonePreference()??detectedTimezone());setZones(['UTC',...Intl.supportedValuesOf('timeZone')]);},[]);
  const validDisplay=validTimezone(displayTimezone);
@@ -55,7 +55,12 @@ export function SchedulingReview({requestId,audience='guest',refreshKey,disabled
   addEventListener('focus',wake);document.addEventListener('visibilitychange',wake);
   return()=>{clearInterval(timer);removeEventListener('focus',wake);document.removeEventListener('visibilitychange',wake);};
  },[refresh]);
- useEffect(()=>{if(!state?.publication)return;const remaining=Date.parse(state.publication.expiresAt)-Date.now();const timer=setTimeout(()=>void refresh(),Math.max(0,remaining)+25);return()=>clearTimeout(timer);},[state?.publication,refresh]);
+ useEffect(()=>{
+  const now=Date.now(),deadlines=[state?.publication?.expiresAt,state?.proposal?.start].filter((value):value is string=>!!value).map(Date.parse).filter(value=>value>now);
+  if(!deadlines.length)return;
+  const timer=setTimeout(()=>{tick(value=>value+1);void refresh();},Math.min(2_147_483_647,Math.min(...deadlines)-now+25));
+  return()=>clearTimeout(timer);
+ },[state?.publication?.expiresAt,state?.proposal?.start,refresh,clock]);
  async function act(operation:Operation,fields:Record<string,unknown>={}){
   if(inFlight.current||disabled||(!state&&!pending.current))return;
   if(pending.current){if(!await refresh()||!pending.current)return;}
@@ -73,7 +78,7 @@ export function SchedulingReview({requestId,audience='guest',refreshKey,disabled
   }finally{inFlight.current=false;if(mounted.current)setBusy(false);}
  }
  const locked=disabled||busy||uncertain||!state,proposal=state?.proposal,publication=state?.publication;
- const currentPublication=publication&&Date.parse(publication.expiresAt)>Date.now();
+ const currentPublication=publication&&Date.parse(publication.expiresAt)>Date.now(),canAgree=state?.canAgree&&proposal&&Date.parse(proposal.start)>Date.now();
  return <section aria-label="Meeting options and proposal" aria-busy={busy||loading} className="flex min-w-0 flex-col gap-4">
   {loading?<p role="status">Loading meeting options…</p>:null}
   {error?<Alert variant="destructive"><AlertTitle>Meeting options need attention</AlertTitle><AlertDescription>{error}</AlertDescription><div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" className="min-h-11 h-auto whitespace-normal" disabled={busy||disabled} onClick={()=>void refresh()}>Check current meeting status</Button>{uncertain&&pending.current&&pending.current.operation!=='evaluate'?<Button variant="outline" className="min-h-11 h-auto whitespace-normal" disabled={busy||disabled} onClick={()=>void act(pending.current!.operation)}>Retry same decision</Button>:null}</div></Alert>:null}
@@ -90,8 +95,8 @@ export function SchedulingReview({requestId,audience='guest',refreshKey,disabled
   </Card>:null}
   {proposal?<Card aria-label="Current meeting proposal">
    <CardHeader><CardTitle>Review your proposal</CardTitle><CardDescription>Proposal {proposal.version} · {state?.requesterAgreed?'Awaiting host approval':'Review all details before agreeing'}</CardDescription></CardHeader>
-   <CardContent className="flex min-w-0 flex-col gap-3 break-words"><p>{intervalLabel(proposal.start,proposal.end,displayTimezone)}<br/>Shown in {displayTimezone}. Meeting timezone: {proposal.timezone}.</p><dl className="flex flex-col gap-2"><div><dt>Meeting</dt><dd>{proposal.purpose}</dd></div><div><dt>Requester</dt><dd>{proposal.requesterName}<br/>{proposal.requesterEmail}</dd></div><div><dt>{proposal.mode==='online'?'Online meeting':'In-person location'}</dt><dd>{proposal.location}</dd></div></dl>{!state?.canAgree?<Alert><AlertTitle>Proposal needs a fresh review</AlertTitle><AlertDescription>Availability or meeting details changed. Find new options before agreeing.</AlertDescription></Alert>:null}<p>{state?.requesterAgreed?'Your agreement is saved. This meeting is not booked yet.':'Agreement applies to this exact proposal. The host must approve it before booking.'}</p></CardContent>
-   <CardFooter className="flex flex-wrap gap-2">{audience==='guest'?<Button className="min-h-11 h-auto whitespace-normal" disabled={locked||!validDisplay||!state?.canAgree||state.requesterAgreed} onClick={()=>void act('agree',{proposalVersion:proposal.version})}>{state?.requesterAgreed?'Agreement saved':'Agree to this proposal'}</Button>:null}<Button variant="outline" className="min-h-11 h-auto whitespace-normal" disabled={disabled||busy||uncertain} onClick={()=>onAsk('I’d like to change the current meeting proposal. Help me review the details.')}>Request changes</Button></CardFooter>
+   <CardContent className="flex min-w-0 flex-col gap-3 break-words"><p>{intervalLabel(proposal.start,proposal.end,displayTimezone)}<br/>Shown in {displayTimezone}. Meeting timezone: {proposal.timezone}.</p><dl className="flex flex-col gap-2"><div><dt>Meeting</dt><dd>{proposal.purpose}</dd></div><div><dt>Requester</dt><dd>{proposal.requesterName}<br/>{proposal.requesterEmail}</dd></div><div><dt>{proposal.mode==='online'?'Online meeting':'In-person location'}</dt><dd>{proposal.location}</dd></div></dl>{!canAgree?<Alert><AlertTitle>Proposal needs a fresh review</AlertTitle><AlertDescription>This proposal’s time has passed, or availability or meeting details changed. Find new options before agreeing.</AlertDescription></Alert>:null}<p>{state?.requesterAgreed?'Your agreement is saved. This meeting is not booked yet.':'Agreement applies to this exact proposal. The host must approve it before booking.'}</p></CardContent>
+   <CardFooter className="flex flex-wrap gap-2">{audience==='guest'?<Button className="min-h-11 h-auto whitespace-normal" disabled={locked||!validDisplay||!canAgree||state.requesterAgreed} onClick={()=>void act('agree',{proposalVersion:proposal.version})}>{state?.requesterAgreed?'Agreement saved':'Agree to this proposal'}</Button>:null}<Button variant="outline" className="min-h-11 h-auto whitespace-normal" disabled={disabled||busy||uncertain} onClick={()=>onAsk('I’d like to change the current meeting proposal. Help me review the details.')}>Request changes</Button></CardFooter>
   </Card>:null}
   {notice?<p role="status">{notice}</p>:null}
  </section>;

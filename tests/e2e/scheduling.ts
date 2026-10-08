@@ -2,6 +2,29 @@ import assert from 'node:assert/strict';
 import {expect,type Page} from '@playwright/test';
 import type {LocalSql} from '../integration/local-sql.ts';
 
+/** Browser-only clock edge: the integration suite separately uses real evidence
+ * and SQL lock waits. Delay refresh so a stale response cannot enable consent. */
+async function verifyAgreementClock(page:Page,requestId:string){
+ const pattern='**/api/browser/scheduling/state?*',url=new URL(page.url()).origin+'/api/browser/scheduling/state?audience=guest&requestId='+requestId;
+ const original=await (await page.request.get(url)).json();assert.equal(original.canAgree,true);
+ let served=false,release!:()=>void;const wait=new Promise<void>(resolve=>release=resolve);
+ await page.route(pattern,async route=>{
+  if(served){await wait;return route.fulfill({json:original});}
+  served=true;const start=Date.now()+2000;
+  await route.fulfill({json:{...original,publication:null,proposal:{...original.proposal,start:new Date(start).toISOString(),end:new Date(start+30*60000).toISOString()}}});
+ });
+ try{
+  const panel=page.getByRole('region',{name:'Meeting options and proposal'}),button=panel.getByRole('button',{name:'Agree to this proposal',exact:true});
+  await panel.getByRole('button',{name:'Refresh meeting',exact:true}).click();
+  await expect(button).toBeEnabled();
+  await expect(button).toBeDisabled({timeout:5000});
+  await expect(panel.getByText('Proposal needs a fresh review',{exact:true})).toBeVisible();
+  await button.scrollIntoViewIfNeeded();
+  await page.screenshot({path:'.local/rebuild/browser-screenshots/scheduling-elapsed-proposal.png',fullPage:true});
+ }finally{release();await page.unroute(pattern);await page.reload();}
+ await expect(page.getByRole('button',{name:'Agree to this proposal',exact:true})).toBeEnabled();
+}
+
 /** Uses the real browser API/evaluator/SQL with provider fixtures in the test server. */
 export async function verifyScheduling(page:Page,sql:LocalSql,requestId:string,hostId:string,reviewHost?:()=>Promise<void>){
  const panel=page.getByRole('region',{name:'Meeting options and proposal'});
@@ -39,6 +62,7 @@ export async function verifyScheduling(page:Page,sql:LocalSql,requestId:string,h
   assert.equal(await sql.query(`select status='awaiting_approval' and requester_agreed_version=1 and host_approved_version is null from fmat.requests where id='${requestId}';`),'t');assert.equal(await sql.query(`select count(*) from fmat.jobs where payload->>'requestId'='${requestId}' and kind like 'booking%';`),'0');
   await page.reload();await proposal.getByRole('button',{name:'Agreement saved'}).waitFor();
   await panel.getByRole('button',{name:'Choose this time'}).nth(1).click();await proposal.getByText('Proposal 2 · Review all details before agreeing',{exact:true}).waitFor();assert.equal(await sql.query(`select requester_agreed_version is null from fmat.requests where id='${requestId}';`),'t');
+  await verifyAgreementClock(page,requestId);
   await reviewHost?.();
   // Refresh removes current consent when another actor changes the context.
   await sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${hostId}';`);await panel.getByRole('button',{name:'Refresh meeting',exact:true}).click();await proposal.getByText('Proposal needs a fresh review',{exact:true}).waitFor();assert.equal(await proposal.getByRole('button',{name:'Agree to this proposal'}).isDisabled(),true);assert.equal(await panel.getByRole('button',{name:'Choose this time'}).count(),0);

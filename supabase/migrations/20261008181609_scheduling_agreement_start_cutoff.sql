@@ -1,53 +1,14 @@
-create table fmat.candidate_publications (
- id uuid primary key default gen_random_uuid(),
- request_id uuid not null references fmat.requests(id) on delete cascade,
- ranking_id uuid not null unique references fmat.candidate_rankings(id) on delete cascade,
- check_id uuid not null,
- context_basis text not null check(context_basis ~ '^[a-f0-9]{64}$'),
- result_revision integer not null check(result_revision>0),
- candidates jsonb not null check(jsonb_typeof(candidates)='array' and jsonb_array_length(candidates)<=30),
- resolution text not null check(resolution in ('available','clarification','no_candidates')),
- truncated boolean not null,
- expires_at timestamptz not null,
- created_at timestamptz not null default clock_timestamp()
-);
-create index candidate_publications_request_idx on fmat.candidate_publications(request_id,created_at desc);
-alter table fmat.candidate_publications enable row level security;
-revoke all on fmat.candidate_publications from public,anon,authenticated;
-create trigger candidate_publications_immutable before update on fmat.candidate_publications for each row execute function fmat.reject_candidate_evaluation_update();
-alter table fmat.requests add column candidate_publication_id uuid references fmat.candidate_publications(id);
-create index requests_candidate_publication_idx on fmat.requests(candidate_publication_id) where candidate_publication_id is not null;
-create table fmat.proposal_evidence (
- request_id uuid not null,
- proposal_version integer not null,
- publication_id uuid not null references fmat.candidate_publications(id),
- evaluation_id uuid not null references fmat.candidate_evaluations(id),
- context_basis text not null,
- primary key(request_id,proposal_version),
- foreign key(request_id,proposal_version) references fmat.proposals(request_id,version)
-);
-create index proposal_evidence_publication_idx on fmat.proposal_evidence(publication_id);
-create index proposal_evidence_evaluation_idx on fmat.proposal_evidence(evaluation_id);
-alter table fmat.proposal_evidence enable row level security;
-revoke all on fmat.proposal_evidence from public,anon,authenticated;
-create trigger proposal_evidence_immutable before update on fmat.proposal_evidence for each row execute function fmat.reject_candidate_evaluation_update();
-create table fmat.scheduling_decisions (
- request_id uuid not null references fmat.requests(id) on delete cascade,
- actor_scope text not null,
- key uuid not null,
- operation text not null check(operation in ('select','agree')),
- input jsonb not null,
- result_revision integer not null,
- primary key(request_id,actor_scope,key)
-);
-alter table fmat.scheduling_decisions enable row level security;
-revoke all on fmat.scheduling_decisions from public,anon,authenticated;
-create trigger scheduling_decisions_immutable before update on fmat.scheduling_decisions for each row execute function fmat.reject_candidate_evaluation_update();
+SET local check_function_bodies = off;
 
--- This projection is shared-safe, including when a host calls it. Validation
--- occurs in the public service function before any private row reaches it.
-create or replace function fmat.scheduling_view(p_request_id uuid,p_context text,p_reconnect boolean default false)
-returns jsonb language plpgsql set search_path='' as $$
+CREATE OR REPLACE FUNCTION fmat.scheduling_view (
+  p_request_id uuid,
+  p_context    text,
+  p_reconnect  boolean DEFAULT false
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
 declare r fmat.requests; p fmat.candidate_publications; proposal jsonb; bound boolean:=false; current boolean:=false; availability text;
 begin
  select * into strict r from fmat.requests where id=p_request_id;
@@ -61,10 +22,18 @@ begin
  'proposal',proposal,'requesterAgreed',bound and coalesce(r.requester_agreed_version=r.current_proposal_version,false),
  'canAgree',coalesce(bound and proposal is not null and (proposal->>'start')::timestamptz>clock_timestamp() and not p_reconnect and not r.host_availability_failed and not(r.availability_mode='calendar' and r.availability_failed),false));
 end;
-$$;
+$function$;
 
-create or replace function public.fmat_scheduling(p_operation text,p_credential jsonb,p_input jsonb)
-returns jsonb language plpgsql security definer set search_path='' as $$
+CREATE OR REPLACE FUNCTION public.fmat_scheduling (
+  p_operation  text,
+  p_credential jsonb,
+  p_input      jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare r fmat.requests; actor jsonb; context text; reconnect boolean:=false; pub fmat.candidate_publications; ranking fmat.candidate_rankings; e fmat.candidate_evaluations;
  snapshot jsonb; v_candidates jsonb:='[]'; c jsonb; proposal jsonb; version integer; decision fmat.scheduling_decisions; scope text; resolution text;
 begin
@@ -149,6 +118,4 @@ begin
  perform fmat.audit('scheduling_'||p_operation,actor,r.id::text);
  return fmat.scheduling_view(r.id,context);
 end;
-$$;
-revoke all on function public.fmat_scheduling(text,jsonb,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_scheduling(text,jsonb,jsonb) to service_role;
+$function$;

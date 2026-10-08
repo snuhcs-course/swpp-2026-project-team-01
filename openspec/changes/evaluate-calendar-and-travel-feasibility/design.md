@@ -85,6 +85,8 @@ The old payload-trusting generic candidate/proposal/exception operations and the
 
 ## Requester scheduling cards
 
+Proposal start is a separate agreement cutoff. Publications already inherit the earliest source candidate's start as their expiry; agreement can outlive that publication only while its own selected proposal remains in the future. SQL checks the wall clock after request/authority lock waits for each new agreement. Shared browser/MCP reads disable agreement at start, while historical agreement and read-only exact retries remain intact. The browser schedules a refresh at publication expiry and proposal start, and disables the local agreement control immediately without waiting for the refresh response.
+
 The requester conversation renders current published intervals and exact proposal details with explicit selection and separate agreement. A shared-safe meeting summary is read atomically with the same request revision, avoiding mismatched timezone/mode/location displays. The UI preserves decision identity across uncertain responses, checks status before retries and refreshes on context changes, focus and expiry. No-match and clarification expose no private reasons. Alternative/change actions prepare user-editable conversation text. Task 3.2 remains open for private host controls and complete lifecycle UI; task 3.3 remains open for booking revalidation.
 
 ## Host request navigation
