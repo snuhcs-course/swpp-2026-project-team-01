@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import SignOut from "../account/sign-out";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { readJsonResponse } from "@/lib/client-json";
 import CalendarView, { type CalendarData, shortDate } from "./calendar-view";
 import LinkManager from "./link-manager";
@@ -16,6 +16,7 @@ export default function OwnerDashboard({ email }: { email: string }) {
   const [calendarError, setCalendarError] = useState("");
   const [shares, setShares] = useState<Share[]>([]);
   const [requestError, setRequestError] = useState("");
+  const requestSequence = useRef(0);
 
   const loadCalendar = useCallback(async () => {
     setCalendarLoading(true); setCalendarError("");
@@ -24,21 +25,37 @@ export default function OwnerDashboard({ email }: { email: string }) {
     finally { setCalendarLoading(false); }
   }, []);
   const loadRequests = useCallback(async () => {
+    const sequence = ++requestSequence.current;
     try {
       const result = await readJsonResponse<{ links: Share[] }>(await fetch("/api/requests", { cache: "no-store" }), "요청을 불러오지 못했습니다.");
+      if (sequence !== requestSequence.current) return;
       setShares(result.links); setRequestError("");
-    } catch (cause) { setRequestError(cause instanceof Error ? cause.message : "요청을 불러오지 못했습니다."); }
+    } catch (cause) {
+      if (sequence === requestSequence.current) setRequestError(cause instanceof Error ? cause.message : "요청을 불러오지 못했습니다.");
+    }
   }, []);
   useEffect(() => {
     const timer = setTimeout(() => { void loadCalendar(); void loadRequests(); }, 0);
     return () => clearTimeout(timer);
   }, [loadCalendar, loadRequests]);
+  useEffect(() => {
+    const refreshRequests = () => {
+      if (document.visibilityState === "visible") void loadRequests();
+    };
+    window.addEventListener("focus", refreshRequests);
+    document.addEventListener("visibilitychange", refreshRequests);
+    return () => {
+      window.removeEventListener("focus", refreshRequests);
+      document.removeEventListener("visibilitychange", refreshRequests);
+      requestSequence.current += 1;
+    };
+  }, [loadRequests]);
 
   return <main className={styles.shell}>
     <header className={styles.header}><Link href="/owner" className={styles.brand}>Caltalk<span>.</span></Link><div className={styles.account}><i /><span>Google Calendar 연결 · {email}</span><Link href="/account">내 계정</Link><SignOut/></div></header>
     <div className={styles.layout}>
       <aside className={styles.sidebar} aria-label="메뉴와 미팅 조건">
-        <nav><a href="#my-calendar">▦ 내 캘린더</a><a href="#share-links">↗ 요청 링크</a><a href="#received-requests">▤ 받은 요청</a></nav>
+        <nav><a href="#my-calendar">▦ 내 캘린더</a><a href="#share-links">↗ 요청 링크</a><a href="#received-requests" onClick={() => void loadRequests()}>▤ 받은 요청</a></nav>
         <section className={styles.rules}><h2>내 미팅 조건</h2><dl>
           <div><dt>후보를 찾는 기간</dt><dd>내일부터 14일{calendar && <><br /><span className={styles.muted}>{shortDate(calendar.period.start)}<br />– {shortDate(calendar.period.end)}</span></>}</dd></div>
           <div><dt>가능한 요일과 시간</dt><dd>월요일 – 금요일<br />09:00 – 20:00</dd></div>

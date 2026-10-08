@@ -1,5 +1,6 @@
 # 팀원 테스트 배포 안내
 
+> **현재 배포 상태: 운영 중 (2026-10-05).** 사용자 요청으로 일시 중지했던 Caltalk 배포를 다시 열었습니다. 메인 주소 https://caltalk-mvp.vercel.app 에서 HTTP 200 및 Caltalk 화면 응답을 확인했습니다.
 ## 현재 상태 (2026-10-05)
 
 - 주소: https://caltalk-mvp.vercel.app

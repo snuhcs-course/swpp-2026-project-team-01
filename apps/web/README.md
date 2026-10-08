@@ -90,3 +90,7 @@ Auth에는 서버 키와 별도로 `SUPABASE_PUBLISHABLE_KEY`가 필요합니다
 - `lib/server/account.ts`, `proxy.ts`: Supabase Auth 쿠키·신원 확인·세션 갱신.
 - `app/request/[code]/request-method.tsx`, `manual-request-form.tsx`: 자동/수동 선택과 공개 후보 선택.
 - `app/api/requests/manual/route.ts`, `lib/server/manual-request.ts`: 공개 후보 조회·호스트 일정 재확인·수동 요청 저장.
+
+### 받은 요청의 링크 이름
+
+받은 요청 묶음 제목은 DB에 저장된 현재 링크 이름을 표시합니다. 이름을 요청별로 복제하지 않으므로 이후 이름이 변경되어도 목록 재조회에 반영됩니다. 받은 요청 메뉴 클릭, 페이지 새로고침, 다른 창·탭에서 돌아오기, 링크 변경 완료 시 최신 목록을 읽습니다. 이름이 없는 이전 데이터는 ‘미팅 요청’으로 표시합니다.

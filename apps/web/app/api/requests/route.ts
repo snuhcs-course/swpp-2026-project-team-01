@@ -14,7 +14,7 @@ export async function GET() {
     const { data, error } = await supabaseAdmin()
       .from("share_links")
       .select(`
-        id, created_at,
+        id, name, created_at,
         meeting_requests (
           id, request_mode, requester_name, requester_email, purpose, duration_minutes,
           location, candidate_slots, status, created_at, confirmed_start, confirmed_end, google_event_url
@@ -25,7 +25,7 @@ export async function GET() {
       .order("created_at", { ascending: false });
 
     if (error) throw error;
-    return NextResponse.json({ links: data ?? [] });
+    return NextResponse.json({ links: data ?? [] }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("Meeting request listing failed", error);
     return jsonError("요청을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.", 500);
