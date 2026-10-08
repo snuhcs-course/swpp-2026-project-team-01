@@ -3,6 +3,7 @@ import {useEffect,useRef,useState,type FormEvent} from 'react';
 import {intakeDetails,intakeContinuation,publicProfile,type PublicProfile,type IntakeContinuation} from '../../../lib/contracts/intake.ts';
 import {identityDraft,requesterIdentityState,type identityProfile} from '../../../lib/contracts/requester-identity.ts';
 import {z} from 'zod';
+import {detectedTimezone,readTimezonePreference,saveTimezonePreference} from '../lib/timezone-preference.ts';
 import {Button} from './ui/button.tsx';
 import {Input} from './ui/input.tsx';
 import {Textarea} from './ui/textarea.tsx';
@@ -36,7 +37,7 @@ export function PublicIntakeWorkspace({handle}:{handle:string}){
  }
  function apply(state:Awaited<ReturnType<typeof load>>){
   setAttempt(state.attemptId);setContinuation(state.continuation);setProfile(state.profile);setIdentity(state.identity?.identity??null);
-  if(state.identity){const saved=state.identity;setDraft({requesterName:saved.identity?.name??saved.draft.requesterName,requesterEmail:saved.identity?.email??saved.draft.requesterEmail,purpose:saved.draft.purpose,durationMinutes:saved.draft.durationMinutes??state.profile?.durationMinutes??30});if(saved.draft.timezone)setTimezone(saved.draft.timezone);}
+  if(state.identity){const saved=state.identity;setDraft({requesterName:saved.identity?.name??saved.draft.requesterName,requesterEmail:saved.identity?.email??saved.draft.requesterEmail,purpose:saved.draft.purpose,durationMinutes:saved.draft.durationMinutes??state.profile?.durationMinutes??30});if(saved.draft.timezone)setTimezone(readTimezonePreference()??saved.draft.timezone);}
   else if(state.profile)setDraft(value=>({...value,durationMinutes:state.profile!.durationMinutes}));
  }
  async function chooseIdentity(google:boolean){
@@ -49,7 +50,7 @@ export function PublicIntakeWorkspace({handle}:{handle:string}){
  }
  useEffect(()=>{
   let active=true;
-  setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone||'');
+  setTimezone(readTimezonePreference()??detectedTimezone());
   const result=new URLSearchParams(location.search).get('identity');if(result){if(result!=='verified')setNotice('Google identity was not completed. Try again or continue without Google.');history.replaceState(null,'','/'+handle);}setZones(['UTC',...Intl.supportedValuesOf('timeZone')]);
   init.current??=load();
   init.current.then(state=>{if(active)apply(state);}).catch(()=>{if(active)setError('We couldn’t open this booking link. The host may be unavailable, or the connection may need a retry.');}).finally(()=>{if(active)setLoading(false);});
@@ -94,7 +95,7 @@ export function PublicIntakeWorkspace({handle}:{handle:string}){
      <Field data-disabled={busy||uncertain}><FieldLabel htmlFor="intake-email">Email address</FieldLabel><Input id="intake-email" name="email" value={draft.requesterEmail} onChange={e=>setDraft({...draft,requesterEmail:e.target.value})} type="email" autoComplete="email" maxLength={254} required disabled={busy||uncertain}/><FieldDescription>{identity?.contactVerified&&identity.email===draft.requesterEmail.trim().toLowerCase()?'Google verified this address. Review it before continuing.':'Use the address where you’d like to receive meeting details. This address needs an email code before recovery or invitations.'}</FieldDescription></Field>
      <Field data-disabled={busy||uncertain}><FieldLabel htmlFor="intake-purpose">What would you like to discuss?</FieldLabel><Textarea id="intake-purpose" name="purpose" value={draft.purpose} onChange={e=>setDraft({...draft,purpose:e.target.value})} rows={3} maxLength={5000} required disabled={busy||uncertain}/></Field>
      <Field data-disabled={busy||uncertain}><FieldLabel htmlFor="intake-duration">Meeting length (minutes)</FieldLabel><Input id="intake-duration" name="duration" type="number" min={5} max={240} step={1} value={draft.durationMinutes} onChange={e=>setDraft({...draft,durationMinutes:Number(e.target.value)})} required disabled={busy||uncertain}/></Field>
-     <Field data-disabled={busy||uncertain}><FieldLabel htmlFor="intake-timezone">Your timezone</FieldLabel><Input id="intake-timezone" name="timezone" list="intake-timezones" value={timezone} onChange={e=>setTimezone(e.target.value)} maxLength={100} required disabled={busy||uncertain}/><datalist id="intake-timezones">{zones.map(zone=><option key={zone} value={zone}/>)}</datalist><FieldDescription>Initially suggested from your browser. Choose the IANA timezone for your meeting details.</FieldDescription></Field>
+     <Field data-disabled={busy||uncertain}><FieldLabel htmlFor="intake-timezone">Your timezone</FieldLabel><Input id="intake-timezone" name="timezone" list="intake-timezones" value={timezone} onChange={e=>{setTimezone(e.target.value);if(!saveTimezonePreference(e.target.value))setNotice('Your browser cannot save the timezone for reloads. Check it when you return.');}} maxLength={100} required disabled={busy||uncertain}/><datalist id="intake-timezones">{zones.map(zone=><option key={zone} value={zone}/>)}</datalist><FieldDescription>Initially suggested from your browser. Choose the IANA timezone for your meeting details.</FieldDescription></Field>
      <Button disabled={busy||!attempt} type="submit">{busy?'Opening your conversation…':uncertain?'Retry this request':'Continue to my conversation'}</Button>
     </FieldGroup></form></>:null}
    {error?<Alert variant="destructive" className="mt-6"><AlertDescription>{error}</AlertDescription></Alert>:null}

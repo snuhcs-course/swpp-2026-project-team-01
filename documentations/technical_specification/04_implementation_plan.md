@@ -183,6 +183,7 @@ Incremental completion (full phase exit remains open):
 - [x] Deploy the requester identity backend and verify 64 matching migrations, production proof/replay/revocation guards, anonymous RPC denial and 49 HTTP checks (`d96f241`; deployment `dpl_7H7pFr1j14ToJ4etQC6F24cQNLe5`; [evidence](05_rebuild_evidence.md#durable-requester-identity-binding--2026-10-08)).
 
 - [x] Implement optional requester Google/manual browser controls, marked callback dispatch, editable prefill, saved draft/timezone restoration and explicit matching-recipient proof. Verify signed-provider browser fixtures, denial/replay/isolation, account switching, third-party/alternate email, lost responses and accessible layouts. Live Google/iPhone and the remaining timezone/Calendar acceptance stay open.
+- [x] Preserve explicit requester timezone choices across tab reloads and Google returns; add candidate/proposal display conversion with date-specific offsets and no scheduling mutation. Verify cleared/invalid zones, DST, storage restrictions and unchanged candidate/revision/decision state. Controlled live Calendar and iPhone acceptance remain open.
 
 - [x] Deploy optional requester Google/manual controls and verify 57 HTTP guards plus safe invalid-callback routing (`059f023`; deployment `dpl_CKWWaaCPjYw9pojf1sjsQYsyZmMj`; [evidence](05_rebuild_evidence.md#requester-google-identity-browser-controls--2026-10-08)).
 

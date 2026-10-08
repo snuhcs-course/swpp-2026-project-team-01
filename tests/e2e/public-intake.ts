@@ -31,7 +31,7 @@ export async function verifyPublicIntake(browser:Browser,origin:string,sql:Local
   assert.equal(await sql.query(`select details->>'timezone' from fmat.requests where id='${id}';`),'Asia/Seoul');
   assert.equal(await sql.query(`select contact_verified_email is null and status='gathering' from fmat.requests where id='${id}';`),'t');
   const cookies=await context.cookies();assert.ok(cookies.filter(c=>c.name.startsWith('fmat-')).every(c=>c.httpOnly&&c.sameSite==='Lax'));
-  assert.equal(await page.evaluate(()=>document.cookie),'');assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
+  assert.equal(await page.evaluate(()=>document.cookie),'');assert.deepEqual(await page.evaluate(()=>({local:localStorage.length,session:Object.entries(sessionStorage)})),{local:0,session:[['fmat-display-timezone-v1','Asia/Seoul']]});
   const other=await browser.newContext();try{
    assert.equal((await other.request.get(origin+'/api/browser/guest/state?requestId='+id)).status(),401);
    assert.equal((await other.request.post(origin+'/api/browser/intake/resume',{headers:{origin},data:{handle,attemptId:attempt}})).status(),401);

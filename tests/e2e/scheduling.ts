@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import type {Page} from '@playwright/test';
+import {expect,type Page} from '@playwright/test';
 import type {LocalSql} from '../integration/local-sql.ts';
 
 /** Uses the real browser API/evaluator/SQL with provider fixtures in the test server. */
@@ -14,6 +14,14 @@ export async function verifyScheduling(page:Page,sql:LocalSql,requestId:string,h
   await page.reload();await panel.getByRole('button',{name:'Find meeting times',exact:true}).waitFor();
   await panel.getByRole('button',{name:'Find meeting times',exact:true}).click();await panel.getByRole('button',{name:'Choose this time'}).first().waitFor();
   assert.ok(await panel.getByRole('button',{name:'Choose this time'}).count()>1);
+  const beforeDisplay=await (await page.request.get(new URL(page.url()).origin+'/api/browser/scheduling/state?audience=guest&requestId='+requestId)).json();
+  await panel.getByLabel('Display timezone',{exact:true}).fill('');await expect(panel.getByRole('button',{name:'Choose this time'}).first()).toBeDisabled();
+  await page.reload();await expect(panel.getByLabel('Display timezone',{exact:true})).toHaveValue('');
+  await panel.getByLabel('Display timezone',{exact:true}).fill('America/New_York');await expect(panel.getByText(/GMT-(4|5)/).first()).toBeVisible();
+  await page.reload();await expect(panel.getByLabel('Display timezone',{exact:true})).toHaveValue('America/New_York');
+  const afterDisplay=await (await page.request.get(new URL(page.url()).origin+'/api/browser/scheduling/state?audience=guest&requestId='+requestId)).json();assert.deepEqual(afterDisplay,beforeDisplay,'Display changes preserve candidate instants, revisions and decisions');
+  await panel.getByLabel('Display timezone',{exact:true}).fill('Asia/Seoul');
+  await page.setViewportSize({width:320,height:844});await panel.getByLabel('Display timezone',{exact:true}).scrollIntoViewIfNeeded();await page.screenshot({path:'.local/rebuild/browser-screenshots/timezone-selector-mobile.png',fullPage:true});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.setViewportSize({width:1280,height:900});
   assert.match(await panel.innerText(),/Asia\/Seoul/);assert.match(await panel.innerText(),/GMT\+9/);
   await panel.getByRole('button',{name:'Choose this time'}).first().focus();await page.keyboard.press('Tab');assert.equal(await panel.getByRole('button',{name:'Choose this time'}).nth(1).evaluate(e=>e===document.activeElement),true);
   await panel.scrollIntoViewIfNeeded();await page.screenshot({path:'.local/rebuild/browser-screenshots/scheduling-candidates-desktop.png',fullPage:true});
