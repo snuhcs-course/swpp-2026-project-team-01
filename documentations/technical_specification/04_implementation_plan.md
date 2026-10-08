@@ -179,6 +179,7 @@ References: [requester destination](../user_experience/04_page_list.md#requester
 Incremental completion (full phase exit remains open):
 
 - [x] Implement and locally verify the project-pinned operator retry/reconcile CLI, immutable approval continuity across recovery revisions, same-command replay and guarded worker execution. Verify the 61-migration rebuild, SQL/integration/application suites and browser/runtime recovery. Complete reconnect and fault-matrix acceptance remain open.
+- [x] Deploy recovery approval continuity and verify the production evaluator matches the tested definition, service-only command grants, 61 matching migrations, clean advisors and 43 HTTP checks (`6c5675e`; deployment `dpl_E5WuW6vcsAdsjCfVDU694ZjNrpUS`; [evidence](05_rebuild_evidence.md#operator-recovery-and-approval-continuity--2026-10-08)).
 
 - [x] Implement and locally verify withdrawal/decline until persisted Calendar dispatch, with atomic prepared-attempt retirement, reservation release, both deterministic lock races, expiry after waits and browser retry recovery. Verify the 60-migration rebuild, SQL/integration/application suites, builds and browser/recovery/runtime checks. Production verification is recorded separately.
 - [x] Deploy the withdrawal cutoff and verify both production closure boundaries, 60 matching migrations, clean security advisors and 43 HTTP checks (`50021f8`; deployment `dpl_6dXLH6X4jN5yB9xNwDXQsppHUVtN`; [evidence](05_rebuild_evidence.md#withdrawal-at-the-calendar-dispatch-cutoff--2026-10-08)).
