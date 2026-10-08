@@ -359,3 +359,7 @@ With valid signing configuration, clients discover the issuer at `/.well-known/o
 Browser management is at `/connect/authorize` for hosts and `/connect/authorize?requestId=<uuid>` for a currently authorized requester. Setup/request workspaces link there. Permission lists page through at most 50 records; a different owner's cursor is rejected. Revoking permission does not approve or cancel a meeting. This API contract does not claim that MCP tools, CLI login or any named agent client is ready.
 
 Protocol references: [client registration](https://www.rfc-editor.org/rfc/rfc7591.html), [authorization-server metadata](https://www.rfc-editor.org/rfc/rfc8414.html), and [protected-resource metadata](https://www.rfc-editor.org/rfc/rfc9728.html).
+
+### Agent operation integration
+
+The internal `AgentCredentials.verify` and `AgentOperations.execute` boundary is available for subsequent MCP/CLI integration. It verifies application tokens and routes only allowlisted setup/request operations through service-only `fmat_agent_operation`, with current authority and operation scope enforced in the domain transaction. Do not substitute ordinary browser credentials, forward bearer tokens into model inputs, or invoke domain RPCs directly from agent-supplied names. Decision permission opens an authenticated browser confirmation path; it does not create meeting approval. Public MCP tools and CLI delivery remain pending.
