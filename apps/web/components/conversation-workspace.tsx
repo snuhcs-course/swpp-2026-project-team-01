@@ -2,6 +2,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { ArrowUpIcon, RefreshCwIcon } from 'lucide-react';
 import { useConversation, type ChatTarget } from '../lib/use-conversation.ts';
+import {ContactVerificationCard} from './contact-verification.tsx';
 import {PrivateSchedulingReview} from './private-scheduling-review.tsx';
 import {SchedulingReview} from './scheduling-review.tsx';
 import {RequestDetailReview} from './request-detail-review.tsx';
@@ -37,6 +38,7 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
             </MessageScrollerItem>
             {host||('guest' in target&&target.guest)?<MessageScrollerItem messageId="calendar-connection" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><CalendarConnection requestId={'guest' in target&&target.guest?target.requestId:undefined}/></MessageScrollerItem>:null}
             {'guest' in target&&target.guest?<MessageScrollerItem messageId="request-details" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><RequestDetailReview requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onSaved={requestChanged}/></MessageScrollerItem>:null}
+            {'guest' in target&&target.guest?<MessageScrollerItem messageId="contact-verification" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><ContactVerificationCard requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onVerified={requestChanged}/></MessageScrollerItem>:null}
             {target.audience!=='host_setup'?<MessageScrollerItem messageId="meeting-options" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><SchedulingReview audience={target.guest?'guest':'host'} requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onChanged={onRequestChanged} onAsk={ask}/></MessageScrollerItem>:null}
             {target.audience==='host_private'?<MessageScrollerItem messageId="private-review" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><PrivateSchedulingReview requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onChanged={requestChanged}/></MessageScrollerItem>:null}
             {host?<MessageScrollerItem messageId="host-setup" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><HostSetup refreshKey={chat.messages.length+':'+chat.working} disabled={chat.denied||chat.working}/></MessageScrollerItem>:null}

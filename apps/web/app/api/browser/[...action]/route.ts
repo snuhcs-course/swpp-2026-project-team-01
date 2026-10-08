@@ -24,6 +24,8 @@ import {AvailabilityEvaluation} from '../../../../../../lib/server/scheduling/av
 import {availabilityCheckInput} from '../../../../../../lib/contracts/availability-evaluation.ts';
 import {BookingReceipt,bookingReceiptCredential} from '../../../../../../lib/server/booking/receipt.ts';
 import {BookingApproval} from '../../../../../../lib/server/booking/approval.ts';
+import {ContactVerification} from '../../../../../../lib/server/contact/verification.ts';
+import {contactStart,contactConfirm,contactTarget} from '../../../../../../lib/contracts/contact-verification.ts';
 import {RequestLifecycle} from '../../../../../../lib/server/scheduling/lifecycle.ts';
 import {PrivateReview} from '../../../../../../lib/server/scheduling/private-review.ts';
 import {HostRequests} from '../../../../../../lib/server/identity/host-requests.ts';
@@ -61,6 +63,15 @@ async function handle(request:NextRequest,{params}:Context) {
       const state=await new BookingReceipt().read(bookingReceiptCredential(requestId,token),{requestId}),response=json(state);
       response.cookies.set('fmat-receipt-'+requestId,token,{httpOnly:true,secure:applicationOrigin().startsWith('https:'),sameSite:'lax',path:'/',maxAge:30*86400});
       return response;
+    }
+    if(action==='contact-verification/state'&&request.method==='GET') {
+      const input=contactTarget.parse(Object.fromEntries(request.nextUrl.searchParams));
+      return json(await new ContactVerification().read(guestCredential(input.requestId,request.cookies.get(guestCookieName(input.requestId))?.value??''),input));
+    }
+    if(['contact-verification/start','contact-verification/confirm'].includes(action)&&request.method==='POST') {
+      const operation=action==='contact-verification/start'?'start':'confirm';
+      const input=(operation==='start'?contactStart:contactConfirm).parse(await readJson(request));
+      return json(await new ContactVerification()[operation](guestCredential(input.requestId,request.cookies.get(guestCookieName(input.requestId))?.value??''),input));
     }
     if(action==='request-review/read'&&request.method==='GET') {
       const requestId=z.uuid().parse(request.nextUrl.searchParams.get('requestId'));

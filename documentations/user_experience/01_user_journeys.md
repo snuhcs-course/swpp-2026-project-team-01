@@ -291,3 +291,9 @@ This illustrates the host experience and authorization boundary, not a complete 
 ## Decisions still open
 
 These journeys inherit the [PRD's open decisions](../02_product_requirements.md#10-dependencies-and-open-decisions), including channel delivery order, agent discovery and confirmation, iMessage identity linking, rule defaults, meeting-link creation, expiry, and reminders. The proposed six-digit iMessage browser-verification flow must be reconciled with the active conversational-host-setup OpenSpec change before implementation. The two skill URL paths and copy-and-paste entry experiences are product requirements. Remaining example phrases do not prescribe screens, API formats, notification timing, or a finished integration.
+
+### Requester contact-code recovery
+
+On the private booking page, review the address in **Verify your contact email** and choose **Send verification code**. Enter the six digits from the email into that card and choose **Verify email**. Delivery status describes email submission; only a matching current code establishes proof. Codes expire after ten minutes and allow five failed guesses. A new code is available after the one-minute cooldown, subject to the hourly request limit, and replaces earlier codes.
+
+If the result is unknown, use **Check verification status** or **Retry same verification action**. Reload restores current status without sending another message. A changed address requires fresh proof. Verification creates no account, replacement private link, proposal agreement or host approval. Requesters still explicitly agree to a proposal and hosts separately approve it.

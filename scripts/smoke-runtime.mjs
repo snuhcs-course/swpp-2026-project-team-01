@@ -59,6 +59,9 @@ try {
     assert.equal(receipt.status,401,'Receipt rejects anonymous '+audience+' access');
     assert.match(receipt.headers.get('cache-control'),/no-store/u);
   }
+  const contactState = await fetch(web+'/api/browser/contact-verification/state?requestId=00000000-0000-4000-8000-000000000001');
+  assert.equal(contactState.status,401,'Contact status rejects callers without request authority');
+  assert.match(contactState.headers.get('cache-control'),/no-store/u);
   const bookingDispatch = await fetch(web+'/api/internal/booking/dispatch',{method:'POST'});
   assert.equal(bookingDispatch.status,401,'Booking worker rejects anonymous dispatch');
   assert.match(bookingDispatch.headers.get('cache-control'),/no-store/u);
