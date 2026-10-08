@@ -144,9 +144,7 @@ begin
  else
   select * into original from fmat.agentmail_inbox where id=l.bound_receipt_id;
   if l.state<>'linked' or receipt.received_at<l.bound_at or receipt.received_order<=original.received_order then raise exception 'NOT_FOUND';end if;
-  if not exists(select 1 from fmat.agentmail_inbox parent join fmat.requester_email_evidence e on e.receipt_id=parent.id
-   where parent.inbox_id=p_inbox_id and parent.receiver_id=p_receiver_id and parent.message_id=p_input->>'parentMessageId'
-    and parent.thread_id=l.thread_id and parent.received_order<receipt.received_order and e.link_id=l.id) then raise exception 'NOT_FOUND';end if;
+  if not fmat.requester_email_parent_matches(receipt,l.id,p_input->>'parentMessageId') then raise exception 'NOT_FOUND';end if;
  end if;
  select * into prior from fmat.requester_email_evidence where receipt_id=receipt.id;
  if found then

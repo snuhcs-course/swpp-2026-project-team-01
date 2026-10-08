@@ -174,3 +174,26 @@ end;
 $$;
 revoke all on function fmat.wake_requester_email_replies() from public,anon,authenticated,service_role;
 select cron.schedule('fmat-requester-email-replies','* * * * *','select fmat.wake_requester_email_replies();');
+
+-- Parent evidence is shared by admission and every later execution check.
+-- This helper proves thread provenance only; callers still recheck authority.
+create or replace function fmat.requester_email_parent_matches(incoming fmat.agentmail_inbox,p_link uuid,p_parent text)
+returns boolean language sql set search_path='' as $$
+ select p_parent is not null and (
+  exists(select 1 from fmat.agentmail_inbox parent join fmat.requester_email_evidence evidence on evidence.receipt_id=parent.id
+   where parent.inbox_id=incoming.inbox_id and parent.receiver_id=incoming.receiver_id and parent.message_id=p_parent
+    and parent.thread_id=incoming.thread_id and parent.received_order<incoming.received_order and evidence.link_id=p_link)
+  or exists(select 1 from fmat.requester_email_replies reply
+   join fmat.agentmail_inbox source on source.id=reply.receipt_id
+   join fmat.requester_email_evidence evidence on evidence.receipt_id=source.id and evidence.link_id=reply.link_id
+   join fmat.requester_email_links link on link.id=reply.link_id
+   where reply.link_id=p_link and reply.inbox_id=incoming.inbox_id and reply.receiver_id=incoming.receiver_id
+    and reply.thread_id=incoming.thread_id and reply.provider_message_id=p_parent and reply.status='accepted'
+    and reply.accepted_at is not null and reply.suppressed_at is null and reply.first_attempt_at<=incoming.received_at
+    and reply.recipient=link.email and reply.parent_message_id=source.message_id
+    and source.inbox_id=reply.inbox_id and source.receiver_id=reply.receiver_id and source.thread_id=reply.thread_id
+    and source.link_id=reply.link_id and source.processing_outcome='accepted' and source.runtime_message_id=reply.runtime_message_id
+    and source.received_order<incoming.received_order)
+ );
+$$;
+revoke all on function fmat.requester_email_parent_matches(fmat.agentmail_inbox,uuid,text) from public,anon,authenticated,service_role;

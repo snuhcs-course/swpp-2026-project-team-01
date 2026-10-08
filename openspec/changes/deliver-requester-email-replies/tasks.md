@@ -4,7 +4,7 @@
 
 - [x] 1.1 Implement the private reply ledger and atomic settlement capture with immutable replay, suppression and no historical backfill. Verify transaction/replay/current-authority behavior with real database tests and update backend documentation.
 - [x] 1.2 Implement fenced claims, final dispatch authorization, stable first-attempt deadline, acceptance persistence and ordered recovery. Verify concurrent claims, stale leases, changed outcome identities and expired horizons with database tests.
-- [ ] 1.3 Centralize parent evidence checks and accept only current-link accepted outgoing parents. Reconcile the pending binding specification and test valid continuation plus wrong-link/thread/receiver, unsent, uncertain and pre-dispatch parents.
+- [x] 1.3 Centralize parent evidence checks and accept only current-link accepted outgoing parents. Reconcile the pending binding specification and test valid continuation plus wrong-link/thread/receiver, unsent, uncertain and pre-dispatch parents.
 
 ## 2. Delivery integration
 

@@ -23,7 +23,7 @@ test('Requester email linking preserves current authority across retries, signed
  const providers={messages:new AgentMailMessages(env,async url=>{const id=decodeURIComponent(new URL(String(url)).pathname.split('/').at(-1)!);return Response.json(messages.get(id)!.json);}),raw:async(input:{messageId:string})=>messages.get(input.messageId)!.raw,author:(raw:Buffer,expected:{senderClaim:string;messageId:string})=>verifyAgentMailAuthor(raw,expected,{resolver:async()=>[[dnsRecord]]})};
  const service=new RequesterEmailLinking(db,env,providers);
  async function request(verified=true){const id=randomUUID(),token=randomBytes(32).toString('base64url');requests.push(id);await sql.query(`insert into fmat.requests(id,host_id,details,token_hash,contact_verified_email,expires_at) values('${id}','${host}','{"requesterEmail":"guest@example.test"}','${sha(token)}',${verified?"'guest@example.test'":'null'},clock_timestamp()+interval '1 day');`);return {id,token,guest:guestCredential(id,token)};}
- async function receipt(text:string,thread=randomUUID(),sender='guest@example.test',parentOverride?:string|null){
+ async function receipt(text:string,thread:string=randomUUID(),sender='guest@example.test',parentOverride?:string|null){
   const parent=parentOverride===undefined?[...messages.entries()].reverse().find(([,m])=>m.json.thread_id===thread)?.[0]:parentOverride;
   const id='<'+randomUUID()+'@example.test>',timestamp=new Date().toISOString(),body=text+'\r\n',from='From: '+sender,mid='Message-ID: '+id,to='To: '+inbox,reply=parent?'In-Reply-To: '+parent:null;
   const unsigned=`DKIM-Signature: v=1; a=rsa-sha256; c=simple/simple; d=example.test; s=fixture; h=from:message-id:to${reply?':in-reply-to':''}; bh=${createHash('sha256').update(body).digest('base64')}; b=`;
@@ -89,7 +89,32 @@ test('Requester email linking preserves current authority across retries, signed
   assert.equal((await dispatchRequesterEmailReply(db,env,transport)).outcome,'idle');assert.equal(sends.length,2,'Known acceptance is not sent again after lost finish');
   const finalReply=JSON.parse(await sql.query(`select json_build_object('status',status,'message',provider_message_id,'firstAttemptAt',first_attempt_at) from fmat.requester_email_replies where id='${frozen.id}';`));
   assert.equal(finalReply.status,'accepted');assert.equal(finalReply.message,acceptedId);assert.equal(Date.parse(finalReply.firstAttemptAt),Date.parse(oneReply[0].reply!.firstAttemptAt));
+  // Normal email clients reply to the service's outgoing message, not the
+  // requester's earlier input. Preserve signed author/recipient/parent checks.
+  const outgoingContinuation=await receipt('Reply to the service answer',wb.thread,'guest@example.test',acceptedId);
+  assert.equal((await service.authorize(outgoingContinuation.id)).requestId,wr.id);
+  assert.equal((await worker.run()).outcome,'accepted');
+  const continuedExecution=JSON.parse(await sql.query(`select json_build_object('grant',m.grant_id,'scope',m.conversation_id) from fmat.runtime_messages m where m.client_id='${outgoingContinuation.id}';`));
+  assert.equal(continuedExecution.scope,execution.scope);
+  const continuedCheck=()=>db.rpc('fmat_conversation_check',{p_grant_id:continuedExecution.grant,p_conversation_id:continuedExecution.scope});
+  assert.equal((await continuedCheck() as {requestId:string}).requestId,wr.id);
+  await sql.query(`update fmat.requester_email_replies set status='uncertain' where id='${frozen.id}';`);
+  await assert.rejects(continuedCheck(),code('UNAUTHORIZED'));await assert.rejects(service.authorize(outgoingContinuation.id),code('NOT_FOUND'));
+  await sql.query(`update fmat.requester_email_replies set status='accepted' where id='${frozen.id}';`);
+  assert.equal((await continuedCheck() as {requestId:string}).requestId,wr.id);
+  for(const [label,thread,sender,parent] of [
+   ['wrong sender',wb.thread,'other@example.test',acceptedId],
+   ['wrong thread',randomUUID(),'guest@example.test',acceptedId],
+   ['unknown outgoing parent',wb.thread,'guest@example.test','<unknown-outgoing@example.test>'],
+  ]){const denied=await receipt(label,thread,sender,parent);await assert.rejects(service.authorize(denied.id),code('NOT_FOUND'));assert.equal((await worker.run()).outcome,'rejected');}
+  const predatesSend=await receipt('Received before service dispatch',wb.thread,'guest@example.test',acceptedId);
+  await sql.query(`update fmat.agentmail_inbox set received_at=(select first_attempt_at-interval '1 millisecond' from fmat.requester_email_replies where id='${frozen.id}') where id='${predatesSend.id}';`);
+  await assert.rejects(service.authorize(predatesSend.id),code('NOT_FOUND'));assert.equal((await worker.run()).outcome,'rejected');
+  const otherReplyRequest=await request(),otherReplyLink=await start(otherReplyRequest),otherReplyBind=await receipt(otherReplyLink.linkingText!);assert.equal((await worker.run()).outcome,'linked');
+  const crossedReply=await receipt('Other request cannot cite this service answer',otherReplyBind.thread,'guest@example.test',acceptedId);
+  await assert.rejects(service.authorize(crossedReply.id),code('NOT_FOUND'));assert.equal((await worker.run()).outcome,'rejected');
   await service.revoke(wr.guest,{requestId:wr.id,linkId:wl.linkId});await assert.rejects(check(),code('UNAUTHORIZED'));
+  await assert.rejects(continuedCheck(),code('UNAUTHORIZED'));await assert.rejects(service.authorize(outgoingContinuation.id),code('NOT_FOUND'));
   await assert.rejects(db.rpc('fmat_conversation_tool',{p_grant_id:execution.grant,p_conversation_id:execution.scope,p_operation:'request_read',p_input:{}}),code('UNAUTHORIZED'));
   // Restart after committed preparation must reuse saved evidence and body, never fetch a replacement body.
   const restart=await request(),restartLink=await start(restart),restartBind=await receipt(restartLink.linkingText!);assert.equal((await worker.run()).outcome,'linked');

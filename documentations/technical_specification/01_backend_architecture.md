@@ -617,7 +617,7 @@ The `fmat-requester-email` minute schedule reuses the runtime dispatch URL/secre
 
 ## Signed email routing context
 
-Requester binding now requires the accepted author signature to cover the application recipient. Continuation also requires a signed, singular In-Reply-To anchored to an earlier authenticated receipt for the same link/thread. Receipt evidence saves the recipient and parent alongside its raw/signature hashes; both authorization and runtime grant checks enforce that context. A message signed for another recipient or reassigned through unsigned thread headers cannot become scheduling input. Future outbound replies must register their own authorized parent identity before replies to them are admitted.
+Requester binding now requires the accepted author signature to cover the application recipient. Continuation also requires a signed, singular In-Reply-To anchored to an earlier authenticated receipt or a provider-accepted service answer for the same link/thread. Receipt evidence saves the recipient and parent alongside its raw/signature hashes; both authorization and runtime grant checks enforce that context. A message signed for another recipient or reassigned through unsigned thread headers cannot become scheduling input. Accepted outgoing replies now supply that parent evidence through the shared private provenance check described below.
 
 Controlled AgentMail self-delivery was accepted by the provider but exposed a combined sent/received record with no raw DKIM signature. It is negative compatibility evidence, not successful requester authentication. Positive live acceptance requires an external controlled test sender; the receiver remains disabled while that gate is open.
 
@@ -640,7 +640,7 @@ The AgentMail reply transport sends only a frozen single-recipient response to a
 
 Runtime settlement now prepares one private `requester_email_replies` record in the same transaction as completing an accepted requester email input. It freezes the verified recipient, receiver generation, inbox, link, thread, incoming parent and generated answer. Concurrent/replayed settlement preserves the first committed answer; invalid output rolls back completion so checkpoint recovery can retry. A failed or empty generation uses a bounded browser-continuation response. Revoked or expired authority records a suppressed tombstone without private text. Historical completed inputs cannot be backfilled with a newly supplied answer.
 
-The ledger has RLS, no direct client/service-role table grants and a private preparation helper. Capture creates neither provider acceptance nor delivery or scheduling decisions. Fenced delivery is described below. Outgoing-parent authorization and live acceptance remain open in [the reply change](../../openspec/changes/deliver-requester-email-replies/tasks.md).
+The ledger has RLS, no direct client/service-role table grants and a private preparation helper. Capture creates neither provider acceptance nor delivery or scheduling decisions. Fenced delivery is described below. Controlled live acceptance remains open in [the reply change](../../openspec/changes/deliver-requester-email-replies/tasks.md).
 
 
 ## Requester email reply delivery
@@ -649,4 +649,11 @@ The ledger has RLS, no direct client/service-role table grants and a private pre
 
 `dispatchRequesterEmailReply` processes one reply per invocation through the bounded AgentMail transport. Unknown acceptance retries the exact original inbox, parent, recipient, text and `fmat-reply-<UUID>` key, only before the persisted first attempt plus 23 hours. The SQL gate and transport both enforce this deadline. Accepted provider identities are unique within the inbox and cannot change or regress through late acknowledgments. Acceptance is not delivery, contact proof or meeting approval. Later replies in the same link wait behind earlier unsuppressed prepared/uncertain replies; other requests can proceed. Exhausted uncertainty stays recorded and holds later replies without an endless send loop.
 
-`POST /api/internal/agentmail/replies` requires the existing runtime dispatch secret and uses private/no-store responses. The `fmat-requester-email-replies` minute scheduler derives this path from the configured runtime dispatch URL; it wakes only for due work under a currently enabled matching receiver. Existing consumer fencing remains mandatory. Controlled live reply acceptance and authorization of signed replies to outgoing service messages are separate remaining gates.
+`POST /api/internal/agentmail/replies` requires the existing runtime dispatch secret and uses private/no-store responses. The `fmat-requester-email-replies` minute scheduler derives this path from the configured runtime dispatch URL; it wakes only for due work under a currently enabled matching receiver. Existing consumer fencing remains mandatory. Controlled live reply acceptance remains a separate gate.
+
+
+## Accepted outgoing email parents
+
+Receipt admission and requester email execution now call the same private `requester_email_parent_matches` helper. Incoming parents retain their existing earlier-authenticated-receipt rule. An outgoing parent must be a provider-accepted, unsuppressed reply from the same inbox, receiver generation, link and thread, addressed to that link's verified email. Its authenticated source receipt must precede the new receipt and still match the reply's incoming parent and runtime input. Its persisted first-attempt timestamp must be no later than receipt of the continuation. Unknown, prepared, uncertain, unrelated or pre-dispatch parents cannot establish provenance.
+
+This evidence check does not grant access independently: callers still require the signed author, signed application recipient, signed singular reply parent, current verified contact, request credential, binding and lifecycle. Every runtime/tool check reuses the same evidence rule. Linking revocation or credential rotation therefore denies a queued continuation even when its cited service answer was accepted. The outgoing record proves provider acceptance, not recipient delivery or any scheduling decision.

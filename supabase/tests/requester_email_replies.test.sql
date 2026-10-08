@@ -121,4 +121,52 @@ select pg_temp.delivery('finish',pg_temp.lease('independent')||'{"status":"suppr
 select ok((select status='uncertain' and text is null and suppressed_at is not null from fmat.requester_email_replies where id=(pg_temp.lease('independent')->>'replyId')::uuid),'suppression redacts content without inventing provider failure');
 select pg_temp.prepare(12);select pg_temp.settle(12);update fmat.agentmail_receivers set receiver_id=gen_random_uuid();
 select is(pg_temp.delivery('claim')->>'action','suppressed','receiver replacement suppresses old destination');
+
+-- Outgoing-parent provenance is shared by receipt admission and execution.
+update fmat.agentmail_receivers set receiver_id='ed000000-0000-4000-8000-000000000003';
+select pg_temp.next_in_thread(8,13);
+create function pg_temp.parent_matches(n int,parent text default 'outgoing-first') returns boolean language sql as $$
+ select fmat.requester_email_parent_matches(i,f.link_id,$2) from fixture f join fmat.agentmail_inbox i on i.id=f.receipt_id where f.n=$1
+$$;
+create function pg_temp.execution(n int) returns jsonb language sql as $$
+ select public.fmat_conversation_check(grant_id,scope_id) from fixture where fixture.n=$1
+$$;
+create function pg_temp.admit(n int) returns jsonb language sql as $$
+ select public.fmat_requester_email_receipt('authorize','ed000000-0000-4000-8000-000000000003','replies@example.test',
+  jsonb_build_object('receiptId',e.receipt_id,'authorEmail',e.author_email,'recipientEmail',e.recipient_email,'parentMessageId',e.parent_message_id,'rawHash',e.raw_hash,'signatureId',e.signature_id))
+ from fixture f join fmat.requester_email_evidence e on e.receipt_id=f.receipt_id where f.n=$1
+$$;
+select ok(not has_function_privilege(role,'fmat.requester_email_parent_matches(fmat.agentmail_inbox,uuid,text)','execute'),role||' cannot query private parent evidence') from unnest(array['anon','authenticated','service_role']) role;
+select ok(pg_temp.parent_matches(13),'accepted earlier service reply is a valid parent');
+select ok(not pg_temp.parent_matches(9),'receipt predating first dispatch cannot gain outgoing-parent authority');
+select ok(not pg_temp.parent_matches(11),'another link cannot cite accepted outgoing identity');
+select ok(not pg_temp.parent_matches(13,'unknown-outgoing'),'unknown outgoing identity rejected');
+select ok(not pg_temp.parent_matches(13,null),'absent parent rejected');
+update fmat.requester_email_evidence set parent_message_id='outgoing-first' where receipt_id=(select receipt_id from fixture where n=13);
+select lives_ok($$select pg_temp.admit(13)$$,'admission accepts signed outgoing parent');
+select lives_ok($$select pg_temp.execution(13)$$,'runtime accepts the same outgoing parent evidence');
+update fmat.requester_email_replies set status='uncertain' where provider_message_id='outgoing-first';
+select ok(not pg_temp.parent_matches(13),'uncertain outgoing identity is insufficient');
+select throws_ok($$select pg_temp.admit(13)$$,'P0001','NOT_FOUND','admission rechecks accepted parent state');
+select throws_ok($$select pg_temp.execution(13)$$,'P0001','UNAUTHORIZED','execution rechecks accepted parent state');
+update fmat.requester_email_replies set status='prepared' where provider_message_id='outgoing-first';
+select ok(not pg_temp.parent_matches(13),'prepared outgoing identity is insufficient');
+update fmat.requester_email_replies set status='accepted',suppressed_at=clock_timestamp() where provider_message_id='outgoing-first';
+select ok(not pg_temp.parent_matches(13),'suppressed outgoing identity is insufficient');
+update fmat.requester_email_replies set suppressed_at=null,receiver_id='ed000000-0000-4000-8000-000000000099' where provider_message_id='outgoing-first';
+select ok(not pg_temp.parent_matches(13),'another receiver cannot supply parent evidence');
+update fmat.requester_email_replies set receiver_id='ed000000-0000-4000-8000-000000000003',thread_id='other-thread' where provider_message_id='outgoing-first';
+select ok(not pg_temp.parent_matches(13),'another thread cannot supply parent evidence');
+update fmat.requester_email_replies set thread_id=(select link_id::text from fixture where n=8),recipient='other@example.test' where provider_message_id='outgoing-first';
+select ok(not pg_temp.parent_matches(13),'another recipient cannot supply parent evidence');
+insert into fmat.agentmail_receivers(inbox_id,receiver_id,enabled) values('other-replies@example.test',gen_random_uuid(),true);
+update fmat.requester_email_replies set recipient='guest@example.test',inbox_id='other-replies@example.test' where provider_message_id='outgoing-first';
+select ok(not pg_temp.parent_matches(13),'another inbox cannot supply parent evidence');
+update fmat.requester_email_replies set inbox_id='replies@example.test',parent_message_id='unrelated-input' where provider_message_id='outgoing-first';
+select ok(not pg_temp.parent_matches(13),'outgoing reply must retain its authenticated source parent');
+update fmat.requester_email_replies set parent_message_id=(select receipt_id::text from fixture where n=8) where provider_message_id='outgoing-first';
+select lives_ok($$select pg_temp.execution(13)$$,'matching evidence remains usable');
+update fmat.requests set token_revoked_at=clock_timestamp() where id=(select request_id from fixture where n=13);
+select throws_ok($$select pg_temp.admit(13)$$,'P0001','NOT_FOUND','accepted parent never bypasses current link revocation');
+select throws_ok($$select pg_temp.execution(13)$$,'P0001','UNAUTHORIZED','runtime denies revoked continuation');
 select * from finish();rollback;

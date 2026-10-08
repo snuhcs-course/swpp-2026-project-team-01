@@ -29,7 +29,7 @@ Binding SHALL require a received message with matching one-time proof and indepe
 - **THEN** the existing binding is recovered without duplicating authority or effects
 
 ### Requirement: Current per-message authority
-Every email operation SHALL recheck current receiver, verified contact, request credential, expiry and lifecycle. Revocation, contact change, credential rotation or closure SHALL invalidate existing links. Receipts received before binding SHALL not acquire authority retroactively. Domain authentication alone SHALL not grant request access, agreement or host approval. The accepted signature SHALL cover the application recipient and, for continuation, the reply parent. That parent SHALL identify an earlier authenticated receipt in the same bound request thread. Provider thread grouping alone SHALL NOT confer continuation authority.
+Every email operation SHALL recheck current receiver, verified contact, request credential, expiry and lifecycle. Revocation, contact change, credential rotation or closure SHALL invalidate existing links. Receipts received before binding SHALL not acquire authority retroactively. Domain authentication alone SHALL not grant request access, agreement or host approval. The accepted signature SHALL cover the application recipient and, for continuation, the reply parent. That parent SHALL identify either an earlier authenticated receipt or a provider-accepted service reply in the same bound request thread. An outgoing parent SHALL belong to the same link, inbox and receiver, derive from an earlier authorized input, and have a first dispatch preceding this receipt. Unsent, uncertain or unrelated reply identities SHALL NOT establish authority. Provider thread grouping alone SHALL NOT confer continuation authority.
 
 #### Scenario: Delayed pre-binding message
 - **WHEN** an older receipt is processed after a thread is linked
@@ -43,6 +43,10 @@ Every email operation SHALL recheck current receiver, verified contact, request 
 #### Scenario: Reassigned signed message
 - **WHEN** a valid signed author message is assigned to a bound provider thread but its signed recipient or reply parent does not identify that application thread
 - **THEN** it cannot become runtime input or acquire requester authority
+
+#### Scenario: Reply to the service answer
+- **WHEN** the currently bound requester sends a signed continuation whose parent is a provider-accepted answer in the same link and thread
+- **THEN** admission and later runtime operations use the same current request authority without requiring the parent to be an incoming message
 
 ### Requirement: Protected linking controls
 The protected booking page SHALL expose current link state, explicit enrollment, pending-message instructions and revocation. It SHALL preserve operation identity across uncertain responses, remove sensitive linking content after completion and direct unavailable verification to protected browser continuation.
