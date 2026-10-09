@@ -133,15 +133,17 @@ Within the requester's delegated authority, their agent may select a candidate a
 
 ### Agent connection and authorization
 
-For host access, the personal agent starts from the root skill document and guides the host through a compatible connection, browser sign-in, permission review, and grant or denial. Manual MCP connection remains an alternative setup path. After consent, the client can use only the granted host operations, including onboarding and configuration when explicitly permitted. The host can inspect and revoke connected clients in account settings. Terminal-based agents can use the CLI to access the same scheduling API with the same role boundaries; CLI login details remain a technical design decision.
+For host access, the personal agent starts from the root skill document and guides the host through a compatible connection, browser sign-in, permission review, and grant or denial. Manual MCP connection remains an alternative setup path. After consent, the client can use only the granted host operations, including onboarding and configuration when explicitly permitted. The host can inspect and revoke connected clients in account settings. Terminal-based agents can use the CLI to access the same scheduling API with the same role boundaries; The [CLI guide](technical_specification/06_cli.md) owns concrete login and recovery commands; client-specific acceptance remains a release gate.
 
 | Permission | Authorizes | Does not authorize |
 |---|---|---|
 | Google Calendar connection | Find Me a Time accesses the host's selected calendars or, with separate requester consent, the requester's selected availability. | A personal-agent client accessing the host's Find Me a Time account. |
-| MCP OAuth connection | A client accesses the host's Find Me a Time operations within granted permissions. | Blanket meeting approval or automatic booking. |
+| MCP OAuth connection | A client accesses consented host operations or one consented requester intake/request within granted permissions. | Blanket meeting approval or automatic booking. |
 | Explicit host approval | Booking the exact current proposal, subject to requester agreement and final feasibility checks. | Booking a changed proposal or waiving unrelated rules. |
 
 Requesters retain public booking-link discovery and request-specific continuation without a Find Me a Time account or host-style OAuth connection. Their access cannot reveal other requests or host-only data. Sharing a booking link does not automatically install a CLI, connect an MCP server, or grant permissions: each supported client needs a tested discovery and connection path. If setup is needed, explain the next action and retain a web path to continue the same request.
+
+For initial agent-led scheduling, the requester explicitly grants one client permission to create one future request for the displayed public host, without an account or manual meeting-details form. The agent reuses authorized context and asks for missing details. Creation binds the grant to that request; exact retries recover it and cannot create a second request. Human browser continuation stays private to the consenting browser, and creation grants no agreement, host approval, contact verification or Calendar consent. The [intake change](../openspec/changes/enable-agent-request-intake/proposal.md) tracks implementation and rollout; full AC-15/21/24 and named-client acceptance remain required.
 
 ### Guest identity, timezone and optional Google connection
 
@@ -335,7 +337,7 @@ Keep request state, participant authority, proposal versions, and approval in Fi
 
 The agent access direction is **remote MCP and a thin CLI over the shared scheduling API**, with MCP prioritized for personal-agent integration. The HTTP MCP authorization design should follow the OAuth-based MCP authorization specification, including authorization-code flow with PKCE, protected-resource and authorization-server discovery, and access tokens issued for this resource. Select and test the supported protocol version and client-registration mechanisms during technical design. [MCP authorization specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
 
-The CLI is a thin API client. Exact commands, application permission mapping, Supabase OAuth compatibility, CLI login, and requester continuation credentials remain design decisions. Provider calendar credentials stay with the scheduling service and are not passed to personal-agent clients.
+The CLI is a thin API client. The [CLI guide](technical_specification/06_cli.md) and [authorization architecture](technical_specification/01_backend_architecture.md) document implemented commands and access boundaries; complete workflow and client-specific compatibility still require acceptance evidence. Provider calendar credentials stay with the scheduling service and are not passed to personal-agent clients.
 
 Use the existing **Photon Spectrum** provider direction for iMessage transport. Rebuild or adapt the bridge against the new channel contracts; do not assume that an eve-native Photon adapter accepts the existing Spectrum credentials or preserves the required delivery semantics without verification. [Photon documentation](https://photon.codes/docs/spectrum-ts/introduction)
 
