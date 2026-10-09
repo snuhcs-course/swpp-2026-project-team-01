@@ -30,7 +30,20 @@ async function fixture(contextWindowTokens:number){
   for(let i=0;i<requests.length;i++)await sql.query(`insert into fmat.requests(id,host_id,details,token_hash,expires_at) values('${requests[i]}','${host}','{}','${createHash('sha256').update(tokens[i]).digest('hex')}',now()+interval '1 day');`);
   const scopes:string[]=[];
   for(let i=0;i<requests.length;i++){const response=await post('/api/conversations',{audience:'request_shared',requestId:requests[i]},i);assert.equal(response.status,200,await response.clone().text());scopes.push((await response.json()).conversationId);}
-  const send=async(text:string,index=0)=>{const input={clientId:randomUUID(),text};const response=await post(`/api/conversations/${scopes[index]}/messages`,input,index);assert.equal(response.status,202,await response.clone().text());return {input,id:(await response.json()).messageId as string};};
+  const send=async(text:string,index=0)=>{
+   const input={clientId:randomUUID(),text};
+   // Settlement can precede the runtime continuation becoming resolvable.
+   // Recover the accepted input; never generate a replacement retry identity.
+   for(let attempt=0;attempt<100;attempt++){
+    const response=await post(`/api/conversations/${scopes[index]}/messages`,input,index),body=await response.json();
+    if(response.status===409&&body.error?.code==='RECONCILIATION_PENDING'){await delay(100);continue;}
+    assert.ok([200,202].includes(response.status),JSON.stringify(body));
+    const id=body.messageId as string;
+    assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scopes[index]}' and client_id='${input.clientId}' and id='${id}';`),'1');
+    return {input,id};
+   }
+   throw new Error('The same compaction input did not recover within the retry bound');
+  };
   const status=(id:string)=>sql.query(`select status from fmat.runtime_messages where id='${id}';`);
   return {runtime,sql,requests,scopes,headers,post,calls,wait,send,status,cleanup};
  }catch(error){await cleanup();throw error;}

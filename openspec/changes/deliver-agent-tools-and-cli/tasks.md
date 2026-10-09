@@ -17,7 +17,7 @@ Local signed MCP host setup now covers draft-to-human-confirmation and logout wi
 
 Initial intake implementation owner: [enable-agent-request-intake](../enable-agent-request-intake/tasks.md). Catalog task 2.4 and paste-entry acceptance still require the completed bootstrap plus the full scheduling journey.
 
-Release inventory clarification (2026-10-09): AC-15/21/24 still require agent-led account-free initial creation/delegation. The current CLI requires browser intake first and does not satisfy that outcome. Keep task 2.4 and both paste-entry acceptance open until the missing bootstrap is implemented and tested without manual booking-page interaction; see the [acceptance inventory](../../../documentations/technical_specification/07_acceptance_inventory.md#ac-01ac-28-obligations).
+Release inventory clarification (2026-10-09): the intake-capable CLI now passes local account-free initial creation/delegation without booking-form entry, and its server is deployed. Production consent/retry/continuation passes with controlled SQL creation; fresh creation through real Calendar readiness remains open. Keep task 2.4 and both paste-entry acceptance open until bootstrap and the complete live workflow are verified; see the [acceptance inventory](../../../documentations/technical_specification/07_acceptance_inventory.md#ac-01ac-28-obligations).
 
 - [ ] 2.4 Exercise complete host setup and requester scheduling through the catalog; verify remaining setup confirmation/handoff coverage, all domain migrations and production behavior before claiming workflow completion.
 

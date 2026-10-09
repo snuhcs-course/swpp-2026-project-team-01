@@ -527,6 +527,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 - [x] Implement and locally verify atomic conversation admission budgets across web, iMessage and requester email: 20/minute and 100/hour per principal; 200/minute and 2,000/hour service-wide. Preserve exact retries, authority/lease fencing and ordered channel deferral; verify browser wait-and-retry feedback. [Evidence](05_rebuild_evidence.md#conversation-admission-budgets--2026-10-09). Model spend and broader operational gates remain open.
 
+- [x] Align runtime compaction tests with same-input reconciliation retries, serialize the npm browser suites and assert keyboard target readiness/focus before Enter. Verify three runtime and two browser suites while preserving all outcome assertions. [Evidence](05_rebuild_evidence.md#runtime-retry-and-browser-test-sequencing--2026-10-09). CI acceptance and the earlier intermittent UI failures remain open.
+
 - [x] Add bounded, sanitized private-review interaction evidence captured before fixture cleanup and retained by CI. The normal local browser run and a temporary four-times CPU-throttled 20-cycle checkbox probe passed; the intermittent CI checkbox failure remains unresolved.
 
 Work:

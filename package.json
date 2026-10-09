@@ -23,7 +23,7 @@
     "verify:model": "node --import tsx --env-file-if-exists=.env scripts/verify-model.mjs",
     "test:integration": "tsx --test --test-concurrency=1 tests/integration/*.test.ts",
     "test:conversations": "tsx --test --test-concurrency=1 tests/runtime/*.test.ts",
-    "test:browser": "tsx --test tests/e2e/*.test.ts",
+    "test:browser": "tsx --test --test-concurrency=1 tests/e2e/*.test.ts",
     "booking:recover": "node --import tsx scripts/booking-recovery.ts",
     "probe:oauth": "node scripts/probe-oauth-compatibility.mjs",
     "fmat": "tsx scripts/fmat.ts",
