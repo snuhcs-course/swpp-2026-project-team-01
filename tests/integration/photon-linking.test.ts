@@ -18,7 +18,7 @@ test('real Auth and durable Photon linking survive replay, lost sends, competing
  const headers={apikey:local.SERVICE_ROLE_KEY,authorization:'Bearer '+local.SERVICE_ROLE_KEY,'content-type':'application/json'};
  const sql=new LocalSql(),holder=new LocalSql(),database=new Database(env),users:{id:string;invitation:string;token:string;credential:Credential;browser:string}[]=[];
  const sent=new Map<string,{code:string;phone:string}>();let sends=0,lose=false,preflight:()=>Promise<void>=async()=>{};
- const client:PhotonClient={addresses:{async isIMessageAvailable(){await preflight();return true;}},messages:{async sendText(space,text,options){
+ const client:PhotonClient={chats:{async shareContactInfo(){throw new Error('Unexpected contact share');}},addresses:{async isIMessageAvailable(){await preflight();return true;}},messages:{async sendText(space,text,options){
   sends++;assert.ok(options?.clientMessageId);const found=text.match(/code is (\d{6})/u);assert.ok(found);sent.set(options.clientMessageId,{code:found[1],phone:String(space).split(';')[2]});
   if(lose)throw new Error('Synthetic lost response after provider commit');
   return {guid:'message:'+options.clientMessageId,chatGuids:[String(space)],isFromMe:true,isDelivered:false,sendErrorCode:0} as unknown as Awaited<ReturnType<PhotonClient['messages']['sendText']>>;

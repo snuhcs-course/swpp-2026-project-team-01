@@ -10,7 +10,7 @@ const tokens=z.discriminatedUnion('type',[
 ]);
 export type PhotonRoute={line:string;spaceId:string};
 export type SendResult={status:'accepted'|'delivered'|'failed'|'uncertain';providerReference:string|null};
-export type PhotonClient={messages:Pick<AdvancedIMessage['messages'],'sendText'|'get'>;addresses:Pick<AdvancedIMessage['addresses'],'isIMessageAvailable'>;close:AdvancedIMessage['close']};
+export type PhotonClient={messages:Pick<AdvancedIMessage['messages'],'sendText'|'get'>;chats:Pick<AdvancedIMessage['chats'],'shareContactInfo'>;addresses:Pick<AdvancedIMessage['addresses'],'isIMessageAvailable'>;close:AdvancedIMessage['close']};
 type Client=PhotonClient;
 type Factory=(options:Parameters<typeof createGrpcClient>[0])=>Client;
 export class PhotonTransport {
@@ -61,6 +61,23 @@ export class PhotonTransport {
     if(error instanceof IMessageError&&error.code==='duplicateMessage')return {status:'accepted',providerReference:null};
     return {status:'uncertain',providerReference:null};
    }
+  });
+ }
+ async shareContact(route:PhotonRoute,phone:string,authorizeDispatch:()=>Promise<void>):Promise<{status:'accepted'|'failed'|'uncertain'}>{
+  requireMessagingEnvironment(this.env);
+  if(route.spaceId!=='any;-;'+phone||!/^\+[1-9]\d{7,14}$/u.test(phone)||!route.line||route.line.length>512)throw new ApplicationError('INVALID_INPUT',400);
+  return this.withClient(route.line,async client=>{
+   let reachable:boolean;
+   try{reachable=await client.addresses.isIMessageAvailable(phone);}
+   catch{throw new ApplicationError('PROVIDER_UNAVAILABLE',503);}
+   if(!reachable)return {status:'failed'};
+   // The caller must durably mark dispatch and recheck current authority here.
+   // A lost callback response must not result in a provider call.
+   await authorizeDispatch();
+   try{await client.chats.shareContactInfo(route.spaceId);return {status:'accepted'};}
+   // Native sharing has no idempotency key or reconciliation identity. Even a
+   // duplicate-looking provider error cannot prove which card was accepted.
+   catch{return {status:'uncertain'};}
   });
  }
  async reconcile(route:PhotonRoute,reference:string|null):Promise<SendResult>{

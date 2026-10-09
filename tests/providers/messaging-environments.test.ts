@@ -50,6 +50,7 @@ test('direct messaging transports reject before HTTP, gRPC or authorization call
   const route={line:'shared',spaceId:'any;-;+15550100001'};
   await assert.rejects(photon.prepare('+15550100001'),unavailable);
   await assert.rejects(photon.send(route,'+15550100001','Test',id,forbidden),unavailable);
+  await assert.rejects(photon.shareContact(route,'+15550100001',forbidden),unavailable);
   await assert.rejects(photon.reconcile(route,'saved-reference'),unavailable);
   const agentmail=new AgentMailReplyTransport(env,forbidden);
   await assert.rejects(agentmail.send(reply,forbidden),unavailable);

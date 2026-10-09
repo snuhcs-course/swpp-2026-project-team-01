@@ -102,6 +102,8 @@ Verify live delivery and shared-pool eligibility before enabling the flow. Offer
 
 The proposed optional **Add to contacts** action uses the verified sender route for that user's private conversation. The user chooses whether to save it. Contact saving does not establish identity or consent.
 
+The [contact-sharing change](../../openspec/changes/offer-imessage-contact-card/tasks.md) now has a native transport boundary using the installed Photon SDK's `chats.shareContactInfo` on the exact saved private route. It checks reachability, invokes the caller's current-authority/durable-dispatch guard immediately before the call, and disables automatic retries. A successful RPC means accepted only; an error after dispatch remains uncertain. The SDK supplies no message identity or reconciliation handle for this action, so the future durable worker must never resend an uncertain share. Durable intent, browser controls and live-device acceptance remain pending; no user-facing contact action is enabled by this transport alone.
+
 Verify provider profile-sync support and device-side display before claiming that the product name appears automatically. A delivered contact attachment alone proves neither import nor displayed name. See [native contact sharing](https://photon.codes/docs/spectrum-ts/providers/imessage/messaging-features/contact-card-sharing) and [custom contacts](https://photon.codes/docs/spectrum-ts/content/contacts).
 
 ## Host invitation operations

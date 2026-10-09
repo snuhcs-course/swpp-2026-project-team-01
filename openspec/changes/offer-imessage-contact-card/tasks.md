@@ -2,7 +2,7 @@
 
 ## 1. Native provider boundary
 
-- [ ] 1.1 Add native contact sharing to the installed Photon transport; verify exact saved route, reachability, reauthorization after preflight, zero automatic retries, sanitized uncertainty and environment denial with provider tests. Document acknowledgement limits in provider setup.
+- [x] 1.1 Add native contact sharing to the installed Photon transport; verify exact saved route, reachability, reauthorization after preflight, zero automatic retries, sanitized uncertainty and environment denial with provider tests. Document acknowledgement limits in provider setup.
 
 ## 2. Durable authorized intent
 
