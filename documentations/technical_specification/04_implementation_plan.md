@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Trace the retired shared provider deadline and confirm the replacement evaluator lacks an invocation-wide budget. Create and strictly validate the bounded [evaluation deadline change](../../openspec/changes/bound-availability-evaluation/proposal.md) with cancellation, late-result and durable-uncertainty acceptance tasks. Implementation and deployment remain pending.
+
 - [x] Reconcile the three retired Google-provider assertions and strengthen paginated metadata privacy fixtures on both pages. Verify refresh material preservation and revoked-grant handling. [Evidence](05_rebuild_evidence.md#legacy-google-provider-reconciliation--2026-10-09). Shared transport deadline reconciliation remains open.
 
 - [x] Reconcile all six retired email-provider assertions; verify Cloudflare delivered-recipient matching, exact authentication headers and single-recipient rejection before sending. Record the fixed-sender and conversational AgentMail contract changes. [Evidence](05_rebuild_evidence.md#legacy-email-provider-reconciliation--2026-10-09). Live inbox acceptance remains open.

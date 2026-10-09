@@ -2518,3 +2518,9 @@ Read all three historical Google-provider tests and current catalog/OAuth implem
 The historical shared transport test was also read. Its evaluation-wide deadline and no-further-fetch assertion requires a separate trace through the current evaluation service; per-adapter timeouts alone do not close that obligation. This remains an explicit next audit item.
 
 `npm run check` passes all 383 application/provider tests, types, boundaries and script checks; final documentation validation passes 753 links. Logs use `.local/rebuild/legacy-google-*`. Only tests and documentation changed, so verified production source `1c24b20` remains deployed.
+
+## Shared evaluation deadline gap — 2026-10-09
+
+The legacy transport audit followed `deadlineFetcher` into request evaluation at `5c305d9^`: one 18-second deadline was passed through provider acquisition and optional ranking. Current `AvailabilityEvaluation` instead invokes providers with their independent deadlines; no shared budget spans parties, candidate loops and publication/ranking. SQL freshness and adapter timeouts do not establish the missing elapsed-time invariant.
+
+Created [bound-availability-evaluation](../../openspec/changes/bound-availability-evaluation/proposal.md) with proposal, meeting-feasibility delta, cross-module design and six unchecked implementation/verification tasks. OpenSpec 1.14.0 strict validation passes; all four planning artifacts exist. This proves a reviewed implementation plan, not a restored timeout. Production remains on `1c24b20`; no application, provider or schema state changed in this increment.
