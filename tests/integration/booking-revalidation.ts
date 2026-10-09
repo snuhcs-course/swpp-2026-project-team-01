@@ -17,7 +17,7 @@ export function bookingNeighbors(candidate:{start:string;end:string}):TravelComm
 }
 export async function verifyBookingRevalidation(database:Database,env:NodeJS.ProcessEnv,hostId:string,createApproved:(mode:'online'|'guest'|'travel')=>Promise<string>){
  const sql=new LocalSql();
- const scenarios=['host_busy','guest_busy','host_revoked','guest_revoked','rules_changed','approval_changed','destination_changed','destination_missing','destination_readonly','travel_conflict','travel_unavailable','grant_changed_during_read','rules_changed_during_routes','guest_valid','travel_valid'] as const;
+ const scenarios=['host_busy','guest_busy','host_revoked','guest_revoked','rules_changed','approval_changed','destination_changed','destination_missing','destination_readonly','travel_conflict','travel_neighbor_changed','travel_unavailable','grant_changed_during_read','rules_changed_during_routes','guest_valid','travel_valid'] as const;
  try{
   for(const scenario of scenarios){
    const physical=scenario.startsWith('travel_')||scenario==='rules_changed_during_routes',valid=scenario.endsWith('_valid');
@@ -33,7 +33,7 @@ export async function verifyBookingRevalidation(database:Database,env:NodeJS.Pro
     assert.equal(access,'fixture-access');assert.deepEqual(ids,['fixture-calendar']);
     if(scenario==='grant_changed_during_read')await revoke();
     return scenario==='host_busy'?[saved.candidate]:[];
-   }},{async read(access,ids,candidate,assertCurrent){eventReads++;assert.equal(access,'fixture-access');assert.deepEqual(ids,['fixture-calendar']);await assertCurrent();return bookingNeighbors(candidate);}},{async estimate(request){
+   }},{async read(access,ids,candidate,assertCurrent){eventReads++;assert.equal(access,'fixture-access');assert.deepEqual(ids,['fixture-calendar']);await assertCurrent();const neighbors=bookingNeighbors(candidate);if(scenario==='travel_neighbor_changed'){neighbors[1].version='moved-after-approval';neighbors[1].interval.start=new Date(Date.parse(candidate.end)+60000).toISOString();}return neighbors;}},{async estimate(request){
     routeReads++;assert.equal(request.mode,'DRIVE');
     if(scenario==='rules_changed_during_routes')await (changedRules??=sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${hostId}';`));
     if(scenario==='travel_unavailable')return {status:'no_route',fingerprint:routeFingerprint(request),checkedAt:new Date().toISOString()};

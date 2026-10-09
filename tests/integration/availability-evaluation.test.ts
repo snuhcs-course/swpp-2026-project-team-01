@@ -1,3 +1,4 @@
+import {verifySchedulingDst} from './scheduling-dst.ts';
 import {generateKeyPair,exportJWK} from 'jose';
 import {AgentOAuthTokens,type AgentTokenGrant} from '../../lib/server/oauth/tokens.ts';
 import {AgentCredentials} from '../../lib/server/oauth/credentials.ts';
@@ -54,12 +55,14 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
  const check=async(actor=credential)=>service.read(actor,{requestId,revision:await revision()});
  const flags=()=>sql.query(`select host_availability_failed||','||availability_failed from fmat.requests where id='${requestId}';`);
  const bundle=(kind:'host'|'guest')=>({accessToken:kind+'-access',refreshToken:kind+'-refresh',subject:'fixture-'+kind,expiresAt:1,scopes:[...calendarScopes[kind]]});
+ let testError:unknown;
  let agentClient:string|undefined,agentGrant='';
  let guestEncrypted='';
  const reconnect=async()=>{await sql.query(`update fmat.requests set availability_mode='calendar',revision=revision+1 where id='${requestId}';update fmat.calendar_connections set revoked_at=null,encrypted_credential='${guestEncrypted}',generation=gen_random_uuid(),selected_calendar_ids=array['guest-calendar'] where principal_id='${requestId}';`);};
  async function paused(mutate:()=>Promise<unknown>,expected='STALE_REVISION',actor=credential){
   let release!:()=>void,entered!:()=>void;const arrived=new Promise<void>(r=>entered=r),waiting=new Promise<void>(r=>release=r);gate=async()=>{entered();await waiting;};
-  const pending=check(actor),rejected=assert.rejects(pending,code(expected));await arrived;
+  const pending=check(actor),rejected=assert.rejects(pending,code(expected));
+  await Promise.race([arrived,rejected.then(()=>{throw new Error('Evaluation ended before its provider gate');})]);
   try{await mutate();}finally{release();}await rejected;gate=async()=>{};
  }
  try{
@@ -390,12 +393,14 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
    assert.equal(await locker.query(`select public.fmat_availability_evaluation('start','${JSON.stringify(credential)}','${JSON.stringify(input)}')->>'revision';`),String(input.revision));
    await locker.query('commit;');const result=await observedWait;assert.ok('value' in result);assert.equal(result.value,'released');
   }finally{await locker.query('rollback;').catch(()=>{});await bookingWait?.catch(()=>{});locker.close();waiter.close();}
+  await verifySchedulingDst(sql,database,env,host,requestId,hostCredential,credential);
   await paused(async()=>{const logout=await fetch(local.API_URL+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+authToken}});assert.equal(logout.status,204);},'UNAUTHORIZED',hostCredential);
   await assert.rejects(privateReview.read(hostCredential,{requestId}),code('UNAUTHORIZED'));
   await check(); // A request-bound guest does not depend on the host browser session.
   await sql.query(`update fmat.requests set token_revoked_at=now() where id='${requestId}';`);await assert.rejects(check(),code('NOT_FOUND'));assert.equal((await invoke('fmat_get_scheduling')).status,401);
- }finally{
+ }catch(error){testError=error;throw error;}finally{try{
   if(agentClient)await sql.query(`delete from fmat.oauth_codes where grant_id in(select id from fmat.oauth_grants where client_id='${agentClient}');delete from fmat.oauth_grants where client_id='${agentClient}';delete from fmat.oauth_authorizations where client_id='${agentClient}';delete from fmat.oauth_clients where id='${agentClient}';`);
-  if(host){await sql.query(`set session_replication_role=replica;delete from fmat.private_review_checks where request_id='${requestId}';delete from fmat.scheduling_decisions where request_id='${requestId}';delete from fmat.proposal_evidence where request_id='${requestId}';delete from fmat.candidate_publications where request_id='${requestId}';delete from fmat.proposals where request_id='${requestId}';delete from fmat.candidate_rankings where request_id='${requestId}';delete from fmat.preference_decisions where request_id='${requestId}';delete from fmat.travel_allowances where request_id='${requestId}';delete from fmat.candidate_evaluations where request_id='${requestId}';delete from fmat.booking_attempts where host_id='${host}';delete from fmat.host_approvals where host_id='${host}';delete from fmat.booking_identities where request_id in('${otherRequest}','${farRequest}');delete from fmat.proposals where request_id in('${otherRequest}','${farRequest}');delete from fmat.audit_events where subject_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.calendar_connections where principal_id in('${host}','${requestId}');delete from fmat.request_history where request_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';set session_replication_role=origin;`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers});assert.equal(removed.status,200);}sql.close();
+  if(host){await sql.query(`set session_replication_role=replica;delete from fmat.private_review_checks where request_id='${requestId}';delete from fmat.scheduling_decisions where request_id='${requestId}';delete from fmat.proposal_evidence where request_id='${requestId}';delete from fmat.candidate_publications where request_id='${requestId}';delete from fmat.proposals where request_id='${requestId}';delete from fmat.candidate_rankings where request_id='${requestId}';delete from fmat.preference_decisions where request_id='${requestId}';delete from fmat.travel_allowances where request_id='${requestId}';delete from fmat.candidate_evaluations where request_id='${requestId}';delete from fmat.booking_attempts where host_id='${host}';delete from fmat.host_approvals where host_id='${host}';delete from fmat.booking_identities where request_id in('${otherRequest}','${farRequest}');delete from fmat.proposals where request_id in('${otherRequest}','${farRequest}');delete from fmat.audit_events where subject_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.calendar_connections where principal_id in('${host}','${requestId}');delete from fmat.request_history where request_id in('${requestId}','${otherRequest}','${farRequest}');delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';set session_replication_role=origin;`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers});assert.equal(removed.status,200);}
+ }catch(error){throw testError??error;}finally{sql.close();}
  }
 });

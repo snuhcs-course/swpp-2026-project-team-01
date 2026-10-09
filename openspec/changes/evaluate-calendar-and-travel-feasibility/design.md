@@ -101,3 +101,8 @@ Task 3.2 now adds a host-private review card on the selected request, backed by 
 ## Private-review to requester acceptance
 
 Task 3.2 is verified through actual browser routes and local Auth/SQL with controlled Calendar/model providers. The host explicitly chooses a preference exception; the account-free requester then evaluates and selects its allowed proposal. A separate physical-meeting path confirms both travel legs, rejects an insufficient gap and publishes a selectable candidate only after sufficient explicit allowances. Requester API/DOM omit private rules, reasons, endpoints, provider IDs and fingerprints. Selection creates no agreement, approval or booking work. Revoking an allowance invalidates the selected proposal. Existing no-match/clarification, changed context, uncertainty/retry, private/shared switching and withdrawal tests complete the lifecycle wiring. This completes task 3.2 without claiming live provider acceptance or task 3.3's full AC integration matrix.
+
+
+## Shared evaluator acceptance
+
+Task 3.3's AC-02/03/12/27 integration matrix is recorded in the evidence ledger. Normal publication and lease-authorized booking use the same `AvailabilityEvaluation`. A next-event time moved after approval is read afresh and blocks dispatch; requester busy/revoked and travel-failure cases remain covered. Both next-year New York DST transitions now pass actual publication, selection and agreement with identical host/requester instants and correct display offsets. Calendar grant fixtures verify account-free scope and recovery separately from live provider acceptance, which stays open in the owning Calendar and compatibility changes.

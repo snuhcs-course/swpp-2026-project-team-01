@@ -217,6 +217,8 @@ References: [single host page](../user_experience/04_page_list.md#primary-pages)
 
 ### Phase 4 — Deliver requester negotiation and host review on web
 
+- [x] Complete feasibility task 3.3: record AC-02/03/12/27 integration evidence, verify both DST transitions through proposal agreement, and block booking after a neighboring event moves. Rebuild 96 local migrations and pass four integration suites using the shared evaluator. Live Google/device and browser reliability gates remain separate. [Evidence](05_rebuild_evidence.md#feasibility-integration-acceptance--2026-10-09).
+
 - [x] Complete feasibility task 3.2: verify explicit private preference exception and two-leg travel allowance through requester evaluation and proposal selection, private-data redaction, separate agreement/approval authority and revocation invalidation. Fresh browser, service integrations, build and application checks pass; intermittent browser failures remain recorded. [Evidence](05_rebuild_evidence.md#private-review-to-requester-proposal-acceptance--2026-10-09).
 
 Incremental completion (full phase exit remains open):
