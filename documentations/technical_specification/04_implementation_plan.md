@@ -86,8 +86,8 @@ After Phase 5, the first complete web booking path should work. That is an integ
 Work:
 
 - [ ] Record tracked/untracked changes, existing remote consumers and retained resources; preserve unrelated work and credentials.
-- [ ] Map current admission, scoped access, setup review, proposal revision, booking uncertainty and channel replay requirements to replacement tests.
-- [ ] Create a bounded rebuild-foundation OpenSpec change. Map later slices to existing active changes or new bounded changes; avoid duplicate task ownership.
+- [x] Map current admission, scoped access, setup review, proposal revision, booking uncertainty and channel replay requirements to replacement tests. [Preparation audit](05_rebuild_evidence.md#phase-0-preparation-checklist-audit--2026-10-09).
+- [x] Create a bounded rebuild-foundation OpenSpec change. Map later slices to existing active changes or new bounded changes; avoid duplicate task ownership. [Preparation audit](05_rebuild_evidence.md#phase-0-preparation-checklist-audit--2026-10-09).
 - [x] Sync the six verified foundation requirements into [chat workspaces](../../openspec/specs/chat-workspaces/spec.md) and [conversation access](../../openspec/specs/conversation-access/spec.md), and [archive all 11 completed tasks](../../openspec/changes/archive/2026-10-09-rebuild-application-foundation/tasks.md). Live Google, managed-runtime and full release gates remain open.
 - [x] Complete foundation task 3.3: audit all eleven foundation tasks and six contract requirements against current code/test evidence, preserving the full acceptance inventory and explicit runtime/provider/client gaps. [Audit](05_rebuild_evidence.md#foundation-completion-audit--2026-10-09).
 - [x] Complete foundation task 1.1: refresh resource/owner inventory and map all 28 acceptance criteria to bounded evidence and remaining work, including the missing agent-led intake required by AC-15/21/24. [Inventory](07_acceptance_inventory.md). Refreshed on 2026-10-09 for deployed `9e82305`, the verified 104-migration ledger, and explicitly unverified per-client availability.
@@ -97,7 +97,7 @@ Work:
 - [x] Complete foundation task 2.1: verify typed principals, scoped operations, forged-actor and cross-resource denial, conflicting/stale retries, safe public errors and revocation fencing through five integrations, the full SQL suite and application checks. [Evidence](05_rebuild_evidence.md#foundation-principal-and-command-guard-acceptance--2026-10-09).
 - [x] Reconcile foundation task 1.2: preserve settled request/invitation expiry, scoped credential lifetime and English/Korean intake; replace stale iMessage OTP implementation claims with the owning change’s verified local and pending live status. [Evidence](05_rebuild_evidence.md#foundation-documentation-contract-reconciliation--2026-10-09).
 - [ ] Reconcile active `connect-google-calendars`, `book-approved-proposals-reliably`, `conversational-host-setup` and `validate-provider-and-agent-compatibility` work. Rebuild tasks start unverified and require fresh completion evidence.
-- [ ] Capture the single `/app` surface, requester booking route, invitation receipt behavior and browser-entered iMessage OTP as explicit proposed deltas where needed. Do not mark main capability specs implemented in advance.
+- [x] Capture the single `/app` surface, requester booking route, invitation receipt behavior and browser-entered iMessage OTP as explicit proposed deltas where needed. Do not mark main capability specs implemented in advance. [Preparation audit](05_rebuild_evidence.md#phase-0-preparation-checklist-audit--2026-10-09).
 
 Exit: a resource inventory, behavior-to-test map and non-overlapping OpenSpec task map exist. Outstanding spec/document disagreements are resolved for the foundation slice. Validate changed OpenSpec artifacts using the repository's pinned CLI.
 
