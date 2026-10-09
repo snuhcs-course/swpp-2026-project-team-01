@@ -517,6 +517,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Deploy Calendar evidence retention migration `20261009044130` from `f8922d3`: verify 104 matching migrations, identical maintenance definition/privileges/index/schedule, 48 integrations, isolated restore and all 1,747 SQL assertions. Observe actual production minute cleanup while preserving recent/adopted state and removing all fixtures. [Evidence](05_rebuild_evidence.md#scheduled-calendar-cleanup-production-acceptance--2026-10-09). General retention and recovery gates remain open.
+
 - [x] Implement bounded Calendar analysis cleanup and its minute scheduler; rebuild 104 local migrations, pass 15 new retention assertions (1,747 total), verify concurrent/locked rows and preserve adopted state, with clean local advisors. [Evidence](05_rebuild_evidence.md#calendar-evidence-cleanup-foundation--2026-10-09). Integrated and production acceptance remain open.
 
 - [x] Define [scheduled Calendar evidence cleanup](../../openspec/changes/expire-calendar-analysis-evidence/tasks.md) using the existing 24-hour cutoff, bounded database-only batches and preservation of adopted settings/dismissals. Implementation and selected-production scheduler acceptance remain open.
