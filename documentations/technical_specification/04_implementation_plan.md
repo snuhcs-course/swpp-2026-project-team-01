@@ -513,6 +513,7 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Define strict operational snapshot contracts and extract the shared explicit-project server credential check without changing invitation behavior. Verify category/field allowlists, count/sample consistency and invalid target/credential rejection. SQL and command activation remain pending in the diagnostics change.
 - [ ] Implement and deploy [read-only operational diagnostics](../../openspec/changes/inspect-operational-health/tasks.md) with explicit target/credential checks, redacted persisted-state signals, bounded samples and truthful missing telemetry. Keep broader rejection instrumentation, recovery, retention and operational gates separate.
 
 - [x] Deploy model execution limits from `0a69f56` (`dpl_EBTshCB6ejSE4ge8qZJxCB4KrsEn`); verify 35 integration tests, runtime/browser recovery, 94 matching migrations, matching function definitions/privileges, rollback-only quota acceptance, clean advisors and 34 production HTTP guards. Sync and archive the bounded model execution change. [Evidence](05_rebuild_evidence.md#deployed-model-execution-limits--2026-10-09).

@@ -424,6 +424,10 @@ Correlate logs by request, proposal, job, and booking attempt. Track aged pendin
 
 Operational recovery must use audited actions with defined guards: reconnect credentials, retry delivery, resume a definitively failed action, or reconcile an uncertain attempt. Operators cannot mark a meeting approved or booked merely to clear a queue. Backups, retention, and recovery ownership must be decided before launch.
 
+### Operational inspection boundary
+
+The [operational diagnostics change](../../openspec/changes/inspect-operational-health/tasks.md) defines a private read-only operator projection. Strict contracts require an explicit local/selected project, 0–20 samples (default 10), thirteen fixed signal categories, counts, oldest timestamps and UUID/timestamp samples only. Unknown/private fields and inconsistent samples fail closed. Authorization-denial and rejected-stale-action event coverage is explicitly `not_recorded`; release readiness is `not_assessed`. The shared server credential/origin check preserves invitation tooling behavior. SQL and command activation remain pending until the change's verification steps complete; these contracts expose no new public or agent capability.
+
 ### Verification plan
 
 Verify this architecture with:

@@ -1,25 +1,14 @@
 import {z} from 'zod';
-import {Database,supabaseOrigin} from '../database/client.ts';
+import {Database} from '../database/client.ts';
 import {ApplicationError} from '../errors.ts';
-import {applicationOrigin,requiredEnv} from '../config.ts';
+import {applicationOrigin} from '../config.ts';
 import {CloudflareEmail} from '../email/cloudflare.ts';
 import {InvitationCodes,invitationIssueInput,invitationStatusInput,invitationRevokeInput} from './invitations.ts';
 const result=z.strictObject({invitationId:z.uuid(),email:z.email(),expiresAt:z.iso.datetime({offset:true}),status:z.enum(['active','revoked','expired','redeemed']),revoked:z.boolean(),delivery:z.enum(['manual','cloudflare']),deliveryStatus:z.enum(['manual','pending','prepared','dispatched','sent','failed','suppressed','uncertain'])});
 const recovery=z.strictObject({invitationId:z.uuid(),project:z.string(),operator:z.string(),email:z.email(),idempotencyKey:z.uuid(),delivery:z.enum(['manual','cloudflare']),origin:z.string(),tokenHash:z.string().regex(/^[a-f0-9]{64}$/u),expiresAt:z.iso.datetime({offset:true})});
 const loopback=(url:URL)=>['localhost','127.0.0.1','[::1]'].includes(url.hostname);
-/** Credential shape is an early rejection check, never proof of authority.
- * The database validates the actual server credential on every RPC. */
-export function invitationOperatorConfiguration(project:string,env=process.env){
- const url=new URL(supabaseOrigin(env));
- if(project==='local'?!loopback(url):url.origin!==`https://${project}.supabase.co`)throw new ApplicationError('CONFIGURATION_UNAVAILABLE',503);
- const key=requiredEnv('SUPABASE_SECRET_KEY',env);
- if(/^sb_secret_[A-Za-z0-9_-]{20,}$/u.test(key))return;
- try{
-  if(key.length>16384||!(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u.test(key)))throw Error();
-  const claims=JSON.parse(Buffer.from(key.split('.')[1],'base64url').toString('utf8'));
-  if(claims.role!=='service_role'||(project!=='local'&&claims.ref!==project))throw Error();
- }catch{throw new ApplicationError('CONFIGURATION_UNAVAILABLE',503);}
-}
+export {operatorConfiguration as invitationOperatorConfiguration} from '../../operator/configuration.ts';
+import {operatorConfiguration as invitationOperatorConfiguration} from '../../operator/configuration.ts';
 const parse=<T>(schema:z.ZodType<T>,input:unknown):T=>{const value=schema.safeParse(input);if(!value.success)throw new ApplicationError('INVALID_INPUT',400);return value.data;};
 const publicStatus=(value:unknown)=>{const {email:_,...status}=result.parse(value);return status;};
 export class InvitationOperator{
