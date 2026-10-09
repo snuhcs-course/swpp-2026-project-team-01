@@ -21,6 +21,14 @@ describe("validated onboarding LLM", () => {
   expect(result.values).toEqual(empty())
   expect(calls).toBe(2)
  })
+ it("accepts the model's common slips: a preference named as a topic, no windows for no fixed hours, a missing strength", async () => {
+  const reply = { patch: { work: { mode: "none" }, preferences: { startTime: { value: { startMin: 900, endMin: 1440 } } } }, confirmedTopics: ["work", "startTime"] }
+  const result = await interpretOnboarding({ chat: async () => JSON.stringify(reply) }, { text: "고정 근무 없고 15시 이후 선호", values: empty() })
+  expect(result.failed).toBe(false)
+  expect(result.values.work).toEqual({ mode: "none", windows: [] })
+  expect(result.values.preferences.startTime).toEqual({ value: { startMin: 900, endMin: 1440 }, strength: "weak" })
+  expect(result.confirmedTopics).toEqual(["work", "preferences"])
+ })
  it("does not make up work hours for a greeting", async () => {
   const result = await interpretOnboarding({ chat: async () => JSON.stringify(valid) }, { text: "안녕", values: empty() })
   expect(result.failed).toBe(true)
