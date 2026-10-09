@@ -24,6 +24,12 @@ Execution is bounded by [conversation admission](#conversation-admission-limits)
 
 The managed diagnostic killed a worker after a real draft commit and before tool acknowledgment, then observed one draft, unchanged shared revision, the original session and successful continuation. It used a deterministic model in a protected preview; it did not exercise live provider effects, deployment handoff or production-load recovery. Local actual-process and browser tests supply the complementary isolation, restart, revocation and reconnect cases. Preserve those distinctions when evaluating the broader release gate.
 
+### Pending terminal conversation recovery
+
+The [terminal recovery change](../../openspec/changes/recover-terminal-conversations/design.md) owns recovery after a workflow has ended, which differs from replaying an interrupted active workflow. Its initial browser contract accepts only an observed nonnegative generation and retry UUID; the authorized route will select the logical conversation. Neither a runtime ID, grant, terminal claim, usage count nor force flag is accepted from a caller. Status exposes only logical conversation ID, generation and `active`, `recovery_required`, `recovering`, `unavailable` or `limit_reached`; only `recovering` includes the public recovery-operation UUID.
+
+These strict contracts are implemented and tested, but no recovery endpoint is active yet. The remaining change must add trusted terminal evidence, private generation persistence, retired-runtime fencing, retained history/cursors, pending-input continuation, cumulative limits and explicit browser controls before deployment. Ordinary reconnect and current session-binding rules remain unchanged until that implementation passes its local and managed acceptance.
+
 ```mermaid
 flowchart LR
     U[Web, MCP and CLI]
