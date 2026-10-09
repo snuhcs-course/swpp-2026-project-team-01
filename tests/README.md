@@ -223,3 +223,6 @@ Both separate-job hosted runs `37891812093` and `37891807750` passed at source `
 
 
 The actual-runtime recovery suite also injects a failed dispatch-finish RPC after eve accepts a swept message. It verifies a conservative dispatch count, the retained lease, eventual settlement, process restart with the same canonical session, no redispatch of the completed input, and cursor-continuous history. This complements the earlier post-tool-commit crash and lost-wakeup cases; it does not measure managed-production recovery latency.
+
+
+Private-preference checkbox failures retain bounded textarea/checkbox/ancestor geometry, field sizing, and viewport/page scroll offsets alongside pointer/focus events. This distinguishes control growth from scroll movement without recording reason text or field values. The diagnostic test verifies a 56px synthetic field expansion separately from scrolling and excludes private sentinels. Pointer activation and enabled-state assertions remain mandatory; the trace is not a retry workaround.

@@ -1,3 +1,4 @@
+import {privateCheckboxProbe} from './private-checkbox-probe.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {chromium} from '@playwright/test';
@@ -15,5 +16,26 @@ test('setup failure evidence identifies hidden ancestors without collecting priv
   assert.ok(!JSON.stringify(result).includes('sentinel'));
   await page.setContent('<p>No setup controls</p>');
   assert.deepEqual(await setupFailureState(page),{times:[],setup:[],imessage:[],phone:[],code:[],form:[],viewport:[]});
+ }finally{await browser.close();}
+});
+
+
+test('private checkbox trace distinguishes field growth from scroll movement without private content',async()=>{
+ const browser=await chromium.launch();
+ try{
+  const page=await browser.newPage();
+  await page.setContent('<div data-slot="message-scroller-viewport" style="height:200px;overflow:auto"><form aria-label="Additional preferences decision"><textarea style="height:64px;display:block">private-reason-sentinel</textarea><button type="button" role="checkbox" aria-checked="false" data-secret="private-attribute-sentinel">private-label-sentinel</button><div style="height:500px"></div></form></div>');
+  await page.evaluate(privateCheckboxProbe);
+  const states=await page.evaluate(()=>{
+   const probe=(window as unknown as {privateCheckboxDiagnostic:{state:()=>unknown;stop:()=>void}}).privateCheckboxDiagnostic;
+   const before=probe.state();document.querySelector('textarea')!.style.height='120px';
+   const grown=probe.state();document.querySelector('[data-slot="message-scroller-viewport"]')!.scrollTop=20;
+   const scrolled=probe.state();probe.stop();return {before,grown,scrolled};
+  }) as {before:{textarea:{height:number};viewportScrollTop:number};grown:{textarea:{height:number};viewportScrollTop:number};scrolled:{textarea:{height:number};viewportScrollTop:number}};
+  assert.equal(states.grown.textarea.height-states.before.textarea.height,56);
+  assert.equal(states.grown.viewportScrollTop,states.before.viewportScrollTop);
+  assert.equal(states.scrolled.viewportScrollTop,20);
+  assert.equal(states.scrolled.textarea.height,states.grown.textarea.height);
+  assert.ok(!JSON.stringify(states).includes('sentinel'));
  }finally{await browser.close();}
 });
