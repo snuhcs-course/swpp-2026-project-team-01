@@ -2057,3 +2057,12 @@ Reviewed source `e892779` built successfully as `dpl_Fb7nsFPjGvLja5RWzwx5Sv7dpgQ
 Project readback confirms system variables are enabled. Built preview tests prove authenticated environment denial before database access; production tests verify public and anonymous guard behavior without dispatching live messages. No Calendar event or outbound provider message was sent. No migration was required; this rollout preserves the previously deployed database. General database/credential environment separation, Calendar/model/SMTP boundaries, actual recipient delivery and named-client acceptance remain separate gates.
 
 All three preview-messaging tasks are complete. The three requirements and five scenarios were copied to the new main capability without changing their purpose or behavior, then the bounded change was archived. Separately, CI run `37878643942` for `1b7bdcf` passed, including the new final database invariant step after fixture cleanup. CI for the preview-messaging source remains in progress at this checkpoint.
+
+
+## Requester scheduling CI failure evidence — 2026-10-09
+
+CI run `37878647395` for `1b7bdcf` failed waiting for the second proposal's review text after selecting another candidate. The other run of that commit passed. Its retained screenshot showed the host setup page because the requester context had already closed before the outer failure handler ran; its control JSON was empty. This evidence does not distinguish a rejected selection, missed action or rendering failure and does not establish a product root cause.
+
+The scheduling browser fixture now checks the second selection's HTTP status and returned proposal version before waiting for its display. A local catch captures only response status/revision/proposal version/agreement/error code, persisted request status/version fields and bounded button/control state, plus the actual requester screenshot, before fixture teardown invalidates state or closes its context. CI preserves both new artifacts. Failed assertions remain failures; there is no added retry, alternate success path or increased timeout.
+
+Typechecks, workflow YAML parsing, both built browser suites (85.5s total) and all 1,695 SQL assertions in 36 files after cleanup pass. The intermittent CI failure did not reproduce locally, so it remains unresolved pending fresh hosted evidence. This test-only change does not alter application behavior and needs no production deployment or capability-spec change.

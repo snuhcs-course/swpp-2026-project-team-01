@@ -515,6 +515,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Add pre-cleanup requester scheduling evidence and explicit second-selection response/version assertions for CI run `37878647395`; verify types, both browser suites and all 1,695 SQL assertions. [Evidence](05_rebuild_evidence.md#requester-scheduling-ci-failure-evidence--2026-10-09). The intermittent proposal-display failure remains unresolved.
+
 - [x] Deploy preview messaging guard source `e892779` (`dpl_Fb7nsFPjGvLja5RWzwx5Sv7dpgQk`), verify enabled system metadata, Ready release alias and 81 production HTTP checks, then sync/archive the bounded change. [Evidence](05_rebuild_evidence.md#deployed-preview-messaging-guard--2026-10-09). General environment separation and live-provider gates remain open.
 
 - [x] Verify preview messaging integration with 45 real-database tests, all 1,695 SQL assertions after cleanup, both builds, built HTTP denial and 23 strict OpenSpec items. Production rollout remains pending in the [owning change](../../openspec/changes/archive/2026-10-09-fence-preview-messaging/tasks.md).

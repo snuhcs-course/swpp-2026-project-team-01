@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {writeFile} from 'node:fs/promises';
 import {expect,type Page} from '@playwright/test';
 import type {LocalSql} from '../integration/local-sql.ts';
 
@@ -29,6 +30,7 @@ async function verifyAgreementClock(page:Page,requestId:string){
 export async function verifyScheduling(page:Page,sql:LocalSql,requestId:string,hostId:string,reviewHost?:()=>Promise<void>){
  const panel=page.getByRole('region',{name:'Meeting options and proposal'});
  const original=await sql.query(`select rules::text from fmat.hosts where id='${hostId}';`);
+ let replacementResponse:unknown=null;
  try{
   const start=new Date(Date.now()+2*86400000);start.setUTCHours(10,0,0,0);
   const windows=[{start:start.toISOString(),end:new Date(start.getTime()+2*3600000).toISOString()}];
@@ -61,7 +63,15 @@ export async function verifyScheduling(page:Page,sql:LocalSql,requestId:string,h
   await proposal.getByRole('button',{name:'Agree to this proposal'}).click();await panel.getByRole('button',{name:'Retry same decision'}).waitFor();await panel.getByRole('button',{name:'Retry same decision'}).click();await proposal.getByRole('button',{name:'Agreement saved'}).waitFor();assert.equal(await proposal.getByRole('button',{name:'Agreement saved'}).isDisabled(),true);
   assert.equal(await sql.query(`select status='awaiting_approval' and requester_agreed_version=1 and host_approved_version is null from fmat.requests where id='${requestId}';`),'t');assert.equal(await sql.query(`select count(*) from fmat.jobs where payload->>'requestId'='${requestId}' and kind like 'booking%';`),'0');
   await page.reload();await proposal.getByRole('button',{name:'Agreement saved'}).waitFor();
-  await panel.getByRole('button',{name:'Choose this time'}).nth(1).click();await proposal.getByText('Proposal 2 · Review all details before agreeing',{exact:true}).waitFor();assert.equal(await sql.query(`select requester_agreed_version is null from fmat.requests where id='${requestId}';`),'t');
+  const [replacement]=await Promise.all([
+   page.waitForResponse(response=>new URL(response.url()).pathname==='/api/browser/scheduling/select'&&response.request().method()==='POST'),
+   panel.getByRole('button',{name:'Choose this time'}).nth(1).click(),
+  ]);
+  const replacementBody=await replacement.json();
+  replacementResponse={status:replacement.status(),revision:replacementBody.revision,proposalVersion:replacementBody.proposal?.version,requesterAgreed:replacementBody.requesterAgreed,errorCode:replacementBody.error?.code};
+  assert.equal(replacement.status(),200,'Second selection must commit before proposal display: '+JSON.stringify(replacementResponse));
+  assert.equal(replacementBody.proposal?.version,2,'Second selection returns the replacement proposal');
+  await proposal.getByText('Proposal 2 · Review all details before agreeing',{exact:true}).waitFor();assert.equal(await sql.query(`select requester_agreed_version is null from fmat.requests where id='${requestId}';`),'t');
   await verifyAgreementClock(page,requestId);
   await reviewHost?.();
   // Refresh removes current consent when another actor changes the context.
@@ -72,6 +82,19 @@ export async function verifyScheduling(page:Page,sql:LocalSql,requestId:string,h
   await page.getByLabel('Message your scheduling assistant').fill('');
   await sql.query(`update fmat.hosts set rules=jsonb_set(jsonb_set(rules,'{preferences}','""'),'{focusBlocks}','${JSON.stringify(windows)}'),rules_version=rules_version+1 where id='${hostId}';`);
   await panel.getByRole('button',{name:'Find new options',exact:true}).click();await panel.getByText('No matching times were found in the checked options. Share different availability or meeting details to explore alternatives.',{exact:true}).waitFor();
+ }catch(error){
+  // Capture the requester page before parent cleanup closes its browser context
+  // or restoring host rules invalidates the proposal. Never save response bodies.
+  const controls=await panel.evaluate(element=>({
+   busy:element.getAttribute('aria-busy'),
+   choices:[...element.querySelectorAll('button')].filter(button=>button.textContent==='Choose this time').map(button=>({disabled:button.disabled})),
+   proposalVisible:!!element.querySelector('[aria-label="Current meeting proposal"]'),
+   attention:!!element.querySelector('[role="alert"]'),
+  })).catch(()=>null);
+  const persisted=await sql.query(`select json_build_object('revision',revision,'proposalVersion',current_proposal_version,'agreedVersion',requester_agreed_version,'approvedVersion',host_approved_version,'status',status)::text from fmat.requests where id='${requestId}';`).then(value=>JSON.parse(value)).catch(()=>null);
+  await writeFile('.local/rebuild/scheduling-failure.json',JSON.stringify({replacementResponse,controls,persisted},null,2)).catch(()=>{});
+  await page.screenshot({path:'.local/rebuild/browser-screenshots/scheduling-failure.png',fullPage:true}).catch(()=>{});
+  throw error;
  }finally{
   await page.unroute('**/api/browser/scheduling/select');await page.unroute('**/api/browser/scheduling/agree');
   await sql.query(`update fmat.hosts set rules='${original.replaceAll("'","''")}',rules_version=rules_version+1 where id='${hostId}';`);
