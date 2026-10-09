@@ -4,25 +4,49 @@ import {expect,type Page} from '@playwright/test';
 import type {LocalSql} from '../integration/local-sql.ts';
 
 /** Browser-only clock edge: the integration suite separately uses real evidence
- * and SQL lock waits. Delay refresh so a stale response cannot enable consent. */
+ * and SQL lock waits. Confirm the fixture rendered, then advance its clock while
+ * refresh is held. A periodic/aborted first read cannot consume the only fixture. */
 async function verifyAgreementClock(page:Page,requestId:string){
  const pattern='**/api/browser/scheduling/state?*',url=new URL(page.url()).origin+'/api/browser/scheduling/state?audience=guest&requestId='+requestId;
  const original=await (await page.request.get(url)).json();assert.equal(original.canAgree,true);
- let served=false,release!:()=>void;const wait=new Promise<void>(resolve=>release=resolve);
- await page.route(pattern,async route=>{
-  if(served){await wait;return route.fulfill({json:original});}
-  served=true;const start=Date.now()+2000;
-  await route.fulfill({json:{...original,publication:null,proposal:{...original.proposal,start:new Date(start).toISOString(),end:new Date(start+30*60000).toISOString()}}});
- });
+ const browser=page.context().browser();assert.ok(browser);
+ // Keep clock emulation out of the continuing requester/host journey. Copy only
+ // this synthetic requester's storage into a fresh context; never persist it.
+ const context=await browser.newContext({storageState:await page.context().storageState()});
+ const clockPage=await context.newPage(),now=Date.now(),start=now+60000,marker='Synthetic clock-boundary proposal';
+ let holdRefresh=false,served=0,held=0,release!:()=>void;const wait=new Promise<void>(resolve=>release=resolve);
+ const fixture={...original,publication:null,proposal:{...original.proposal,purpose:marker,start:new Date(start).toISOString(),end:new Date(start+30*60000).toISOString()}};
  try{
-  const panel=page.getByRole('region',{name:'Meeting options and proposal'}),button=panel.getByRole('button',{name:'Agree to this proposal',exact:true});
-  await panel.getByRole('button',{name:'Refresh meeting',exact:true}).click();
+  await clockPage.clock.install({time:now});
+  await clockPage.route(pattern,async route=>{
+   if(holdRefresh){held++;await wait;}
+   else served++;
+   await route.fulfill({json:fixture});
+  });
+  await clockPage.goto(page.url());
+  const panel=clockPage.getByRole('region',{name:'Meeting options and proposal'}),button=panel.getByRole('button',{name:'Agree to this proposal',exact:true});
+  await expect(panel.getByText(marker,{exact:true})).toBeVisible();
   await expect(button).toBeEnabled();
+  assert.ok(served>0,'the expiring proposal fixture was delivered and rendered');
+  holdRefresh=true;
+  await clockPage.clock.pauseAt(start-1000);
+  await expect(button).toBeEnabled();
+  await clockPage.clock.runFor(1100);
   await expect(button).toBeDisabled({timeout:5000});
   await expect(panel.getByText('Proposal needs a fresh review',{exact:true})).toBeVisible();
+  assert.ok(held>0,'refresh is pending while the local deadline disables agreement');
   await button.scrollIntoViewIfNeeded();
-  await page.screenshot({path:'.local/rebuild/browser-screenshots/scheduling-elapsed-proposal.png',fullPage:true});
- }finally{release();await page.unroute(pattern);await page.reload();}
+  await clockPage.screenshot({path:'.local/rebuild/browser-screenshots/scheduling-elapsed-proposal.png',fullPage:true});
+ }catch(error){
+  const button=clockPage.getByRole('button',{name:'Agree to this proposal',exact:true});
+  const diagnostic={served,held,holdRefresh,proposalVersion:original.proposal.version,start,
+   browserNow:await clockPage.evaluate(()=>Date.now()).catch(()=>null),
+   fixtureVisible:await clockPage.getByText(marker,{exact:true}).isVisible().catch(()=>false),
+   buttonDisabled:await button.isDisabled({timeout:1000}).catch(()=>null)};
+  await writeFile('.local/rebuild/agreement-clock-failure.json',JSON.stringify(diagnostic,null,2)).catch(()=>{});
+  await clockPage.screenshot({path:'.local/rebuild/browser-screenshots/agreement-clock-failure.png',fullPage:true}).catch(()=>{});
+  throw error;
+ }finally{release();await clockPage.unrouteAll({behavior:'wait'});await context.close();}
  await expect(page.getByRole('button',{name:'Agree to this proposal',exact:true})).toBeEnabled();
 }
 

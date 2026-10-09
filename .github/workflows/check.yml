@@ -69,5 +69,7 @@ jobs:
             .local/rebuild/requester-intake-failure.json
             .local/rebuild/browser-screenshots/requester-intake-failure.png
             .local/rebuild/scheduling-failure.json
+            .local/rebuild/agreement-clock-failure.json
+            .local/rebuild/browser-screenshots/agreement-clock-failure.png
             .local/rebuild/browser-screenshots/scheduling-failure.png
             .local/rebuild/browser-screenshots/last-state.png
