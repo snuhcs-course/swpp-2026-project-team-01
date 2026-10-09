@@ -517,6 +517,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Preserve guided-onboarding visibility/focus evidence before its separate browser context closes, with bounded content-free JSON and an input-masked synthetic screenshot. Verify privacy/hidden-ancestor regression and actual failure capture. Intermittent hidden-phone and keyboard-focus failures remain open. [Evidence](05_rebuild_evidence.md#guided-onboarding-failure-capture--2026-10-09).
+
 - [x] Reuse the verified local PostgreSQL image ID for isolated restore with `--pull=never` and preserve bounded, redacted Docker startup diagnostics. Local restore and types pass; the cause of hosted exit-125 failure `37884778034` remains unproven pending fresh CI. [Evidence](05_rebuild_evidence.md#isolated-restore-startup-diagnostics--2026-10-09).
 
 - [x] Sync [Calendar analysis retention](../../openspec/specs/calendar-analysis-retention/spec.md) and archive all three verified cleanup tasks. Broader retention, backup custody, hosted restore reliability and full release acceptance remain open.

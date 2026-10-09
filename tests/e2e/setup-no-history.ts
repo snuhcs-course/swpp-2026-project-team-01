@@ -1,5 +1,6 @@
 import {verifyReadyLinks} from './setup-ready-links.ts';
 import {verifyCompactSetup} from './compact-setup.ts';
+import {captureSetupFailure} from './setup-failure.ts';
 import assert from 'node:assert/strict';
 import {randomUUID,createHash} from 'node:crypto';
 import {createServerClient} from '@supabase/ssr';
@@ -75,6 +76,10 @@ export async function verifyNoHistory(browser:Browser,origin:string,local:Record
   else{const card=page.getByRole('region',{name:'Connect iMessage'});await card.getByRole('button',{name:'Maybe later',exact:true}).click();await card.getByText('You chose to continue on the web.',{exact:false}).waitFor();await page.reload();await card.getByText('You chose to continue on the web.',{exact:false}).waitFor();}
   if(flow==='no-history'){await verifyReadyLinks(page,context,origin);await verifyCompactSetup(page,context,origin);}
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await setup.scrollIntoViewIfNeeded();await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-'+flow+'.png',fullPage:true});
+ }catch(error){
+  // This page belongs to its own context. Capture before closing it; the outer
+  // suite's page is already on the waitlist and cannot diagnose this failure.
+  await captureSetupFailure(page,flow).catch(()=>{});throw error;
  }finally{
   await context.close();if(host){await sql.query(`delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.audit_events where subject_id='${host}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_scopes where host_id='${host}';delete from fmat.calendar_connections where principal_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);}
  }
