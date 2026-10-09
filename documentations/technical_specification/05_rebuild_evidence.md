@@ -2431,3 +2431,7 @@ The real code-proof browser journey covers anonymous, cross-origin and forged re
 Verification: npm check passes (378 app/provider tests plus script checks, types, boundaries and documentation), both builds pass, built runtime smoke passes, two contact integration tests pass, all four browser tests pass, strict OpenSpec validation passes, and local security advisors report no issues. The full SQL suite passes 1,830 assertions across 39 files without resetting after the fixtures. The first browser attempt exposed an over-strict Vary-header assertion (Next.js adds framework entries); it was corrected to require Cookie membership. Its leftover creation audit exposed missing browser teardown coverage; cleanup now includes contact audit/work, the identified orphan fixture was removed, and SQL passed against the retained local database. Logs: ignored `.local/rebuild/contact-browser-*`.
 
 Production rollout and authorized native iPhone/profile acceptance remain open. No real message or contact card was sent. Main specs remain unchanged pending the complete change acceptance.
+
+### Contact browser fixture cleanup follow-up
+
+Extended teardown to remove system-actor dispatch/settlement audits by the fixture intent IDs as well as host-actor request audits. A fresh complete browser journey passes (79.8 seconds), followed by all 1,830 SQL assertions without a reset; the explicit contact-audit residue query returns zero. This changes test cleanup only and requires no application redeployment.
