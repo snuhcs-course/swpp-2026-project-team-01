@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-07
 // Records Claude Code and Codex token usage per Git branch.
 //
 //   node scripts/ai-usage.mjs record [--stage]   update ai-usage/<branch>/<user>.json from local agent logs
