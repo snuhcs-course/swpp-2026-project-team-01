@@ -132,7 +132,7 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
-- [x] Reconcile the three retired Calendar/route adapter assertions and restore the remote-conference location guard. Preserve busy time while requiring clarification for unknown physical whereabouts. Verify failure before the fix and passing provider regressions. [Evidence](05_rebuild_evidence.md#legacy-calendar-location-regression--2026-10-09).
+- [x] Reconcile the three retired Calendar/route adapter assertions and restore the remote-conference location guard. Preserve busy time while requiring clarification for unknown physical whereabouts. Verify failure before the fix, 381 application tests, both builds and runtime checks. Deploy `1c24b20` as `dpl_AL9jJigLzsRXNu2CGkLxho2UPmxA` and pass twenty production checks. [Evidence](05_rebuild_evidence.md#legacy-calendar-location-regression--2026-10-09).
 
 - [x] Reconcile both retired ranking-provider assertions against the current adapter; record the explicit failure-policy change and verify fifteen private/authority input injections cannot reach the model or consume allowance. [Evidence](05_rebuild_evidence.md#legacy-ranking-provider-reconciliation--2026-10-09). The remaining legacy-file audit stays open.
 
