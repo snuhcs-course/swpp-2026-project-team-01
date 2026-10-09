@@ -2,6 +2,14 @@
 
 Updated: 2026-10-09. This ledger tracks the entire [implementation plan](04_implementation_plan.md); an empty evidence cell is incomplete, not a passed gate.
 
+## Conversation credential text regression — 2026-10-09
+
+The retired `modules/onboarding/conversation_test.ts` verifies that `protectedSetupText` removes OAuth query/fragment values, bearer tokens and UUID-based linking proofs while retaining ordinary scheduling prose. Current `RuntimeMessages.accept` passes the original text to SQL, and the shared runtime ledger stores/delivers it unchanged. Email and iMessage execution also invoke this SQL admission function directly, so a web-only sanitizer would leave those paths exposed.
+
+A real local transaction created a synthetic admitted host/session and host-setup conversation grant, called `fmat_runtime_message` admission and delivery, and inspected the saved message. Boolean-only output confirmed `acceptedRetainsCredentials=true`, `deliveredRetainsCredentials=true`, `storedRetainsLinkProof=true` and `ordinaryContextRetained=true`. Every record, session binding and budget mutation was rolled back. No actual secrets, model requests or provider messages were involved.
+
+The bounded [change](../../openspec/changes/protect-conversation-credential-text/proposal.md) specifies shared admission protection, private original-input digests for exact retry discrimination and a separate data migration protecting pending work. It explicitly excludes claims of rewriting external inboxes or already generated eve history. Task 1.1 is complete; implementation, integrated verification, production rollout and the rest of the nine-assertion onboarding conversation audit remain open. The previously investigated transport deadline is already reconciled and was not reimplemented. Production is unchanged.
+
 ## Legacy request API audit — 2026-10-09
 
 Read all 15 retired request-route assertions and mapped them to current services, SQL, browser adapters and runtime tests in the [request API audit](13_legacy_request_api_audit.md). Three new unit tests verify invalid review decisions/copied credentials do not reach SQL, request denial prevents both evaluation/ranking calls, and contact initiation sends a request/challenge-scoped HMAC plus encrypted code without a plaintext field or public secret. Four malformed-window fixtures retain explicit rejection coverage.

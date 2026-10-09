@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Reproduce the retired onboarding credential-text protection gap through actual local admission/storage/delivery, with all fixture state rolled back. Define [shared runtime protection](../../openspec/changes/protect-conversation-credential-text/tasks.md), exact retry discrimination and existing-row migration boundaries. [Evidence](05_rebuild_evidence.md#conversation-credential-text-regression--2026-10-09). Implementation, verification and deployment remain open.
+
 - [x] Reconcile all 15 retired request-route assertions. Add boundary, reordered-intake, stale-review and old-review replay checks plus provider-free proposal-selection replay; verify 448 app/provider tests, five real database integrations and 1,860 post-fixture SQL assertions. Record expanded contact drafts, current-state replay and asynchronous message contracts in the [audit](13_legacy_request_api_audit.md) and [evidence](05_rebuild_evidence.md#legacy-request-api-audit--2026-10-09). Wider legacy and release acceptance remain open.
 
 - [x] Reconcile all five retired Calendar OAuth assertions: verify independent hashed/encrypted consent secrets, pre-I/O malformed callback rejection, wrong-browser nonconsumption, superseded callback/save denial and refresh ciphertext comparison. Pass 445 app/provider tests, both Calendar integrations and 1,860 post-fixture SQL assertions. [Evidence](05_rebuild_evidence.md#legacy-calendar-oauth-audit--2026-10-09). Document fresh-start and refresh API differences; live consent and the wider legacy audit remain open.
