@@ -517,13 +517,15 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Add a bounded public HTTP latency probe with first/repeat timing, explicit failure evidence and stop-on-challenge/rate-limit handling; pass four probe tests and diagnose the selected production Node probe’s Vercel edge challenge. [Evidence](05_rebuild_evidence.md#public-http-latency-probe-and-edge-challenge--2026-10-09). Complete baseline, numeric targets and authenticated/load performance acceptance remain open.
+
 - [x] Deploy the inline iMessage size-container mitigation from `9e82305` to the selected production project (`dpl_Gaq4x8FwZU5ZQDupVZhyVxmN8ncz`), verify Ready/domain promotion, and pass 81 HTTP plus 15 composed runtime checks. [Evidence](05_rebuild_evidence.md#inline-imessage-mitigation-production-deployment--2026-10-09). Authenticated device/provider acceptance and full release readiness remain open.
 
 - [x] Disable unused size-container behavior on the two inline iMessage form groups after reproducing zero-size mounted controls. Preserve focus/retry/privacy checks; verify eight fresh onboarding journeys, all three browser suites, app checks/builds/runtime smoke and 1,747 post-cleanup SQL assertions. [Evidence](05_rebuild_evidence.md#inline-imessage-size-container-mitigation--2026-10-09). Broader intermittent-browser and actual-device/provider acceptance remain open.
 
-- [x] Verify the full pinned-stack CI run and accept the exact PostgreSQL version from CLI 2.119.0’s verified ECR/GHCR/Docker Hub fallback names. Keep immutable-ID reuse and reject other versions/repositories; pass three local restore tests. [Evidence](05_rebuild_evidence.md#verified-restore-registry-fallbacks--2026-10-09). Fresh hosted mirror-guard acceptance remains pending.
+- [x] Verify the full pinned-stack CI run and accept the exact PostgreSQL version from CLI 2.119.0’s verified ECR/GHCR/Docker Hub fallback names. Keep immutable-ID reuse and reject other versions/repositories; pass three local restore tests. [Evidence](05_rebuild_evidence.md#verified-restore-registry-fallbacks--2026-10-09). Full hosted mirror-guard CI `37888267190` now passes.
 
-- [x] Pin fresh CI stacks to PostgreSQL `17.11.0.003` and verify CLI resolution before startup, correcting the proven `.002`/`.003` restore-assertion mismatch without weakening its exact-version check. Clean-checkout resolution and local restore pass; hosted rerun pending. [Evidence](05_rebuild_evidence.md#clean-checkout-postgresql-pin--2026-10-09).
+- [x] Pin fresh CI stacks to PostgreSQL `17.11.0.003` and verify CLI resolution before startup, correcting the proven `.002`/`.003` restore-assertion mismatch without weakening its exact-version check. Clean-checkout resolution, local restore and full hosted reruns `37886909305` / `37888267190` pass. [Evidence](05_rebuild_evidence.md#clean-checkout-postgresql-pin--2026-10-09).
 
 - [x] Add and run the repeatable public-landmark Routes probe for both adjacent directions, four modes and Seoul/New York; assert separate meeting/travel margins and preserve no-route clarification. Pass 19 deterministic adapter/evaluator tests and types. [Evidence](05_rebuild_evidence.md#bidirectional-live-routes-evaluation--2026-10-09). Complete live physical booking and compatibility task 3.5 remain open.
 

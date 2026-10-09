@@ -5,8 +5,8 @@
   "packageManager": "npm@11.19.0",
   "scripts": {
     "check:docs": "node scripts/check-documentation.mjs",
-    "lint": "node --check scripts/check-documentation.mjs && node --check scripts/configure-email-smtp.mjs && node --check scripts/configure-email-smtp.test.mjs && node --check scripts/smoke-runtime.mjs && node --check scripts/verify-model.mjs && node --check scripts/probe-oauth-compatibility.mjs && node --check scripts/probe-google-login.mjs && node --check scripts/probe-google-login.test.mjs",
-    "test": "node --test scripts/configure-email-smtp.test.mjs scripts/probe-google-login.test.mjs scripts/check-client-boundaries.test.mjs",
+    "lint": "node --check scripts/check-documentation.mjs && node --check scripts/configure-email-smtp.mjs && node --check scripts/configure-email-smtp.test.mjs && node --check scripts/smoke-runtime.mjs && node --check scripts/verify-model.mjs && node --check scripts/probe-oauth-compatibility.mjs && node --check scripts/probe-google-login.mjs && node --check scripts/probe-google-login.test.mjs && node --check scripts/probe-public-latency.mjs && node --check scripts/probe-public-latency.test.mjs",
+    "test": "node --test scripts/configure-email-smtp.test.mjs scripts/probe-google-login.test.mjs scripts/check-client-boundaries.test.mjs scripts/probe-public-latency.test.mjs",
     "check": "npm run lint && npm run check:docs && npm run check:boundaries && npm run typecheck && npm test && npm run test:app",
     "db:test": "supabase test db",
     "dev": "vercel dev --local",
@@ -32,7 +32,8 @@
     "invitations": "node --import tsx scripts/invitations.ts",
     "diagnostics": "node --import tsx scripts/diagnostics.ts",
     "check:boundaries": "node scripts/check-client-boundaries.mjs",
-    "probe:routes": "node --import tsx --env-file-if-exists=.env scripts/probe-routes.ts"
+    "probe:routes": "node --import tsx --env-file-if-exists=.env scripts/probe-routes.ts",
+    "probe:public-latency": "node scripts/probe-public-latency.mjs"
   },
   "type": "module",
   "dependencies": {
