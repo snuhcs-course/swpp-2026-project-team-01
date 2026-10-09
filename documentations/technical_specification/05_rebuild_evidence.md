@@ -1761,3 +1761,17 @@ This completes the bounded feasibility integration task, not the full release or
 ## Feasibility specification archive — 2026-10-09
 
 All 12 tracked tasks and four planning artifacts are complete. Synced six requirements and 12 scenarios into the [main feasibility specification](../../openspec/specs/meeting-feasibility/spec.md), preserving the authored purpose and complete behavioral contract. The [implementation record](../../openspec/changes/archive/2026-10-09-evaluate-calendar-and-travel-feasibility/tasks.md) is archived with its acceptance evidence. Live Google, device, provider compatibility and broader browser reliability gates remain open in their owning changes. This documentation-only checkpoint changes no deployed application or schema.
+
+## Foundation documentation contract reconciliation — 2026-10-09
+
+Completed foundation task 1.2 by comparing the PRD, journey/story/page documents and plan against current main specifications and the active host-setup delta. Removed stale references to an eventual expiry policy, unresolved initial languages and unimplemented six-digit linking. No normative main specification or application behavior changed.
+
+| Boundary | Owning contract and reconciliation |
+|---|---|
+| Request expiry | [Meeting requests](../../openspec/specs/meeting-requests/spec.md): actionable requests expire seven days after creation or at the earlier requested-window end; closed requests do not reopen through replay. The journey now explicitly requires a new request after expiry. |
+| Guest authority and recovery | The same contract limits credentials to thirty days, removes mutation/OAuth/recovery authority on closure, retains only minimal terminal reads while unexpired and requires verified original contact for recovery. The page list now links this contract instead of deferring lifetime policy. |
+| Invitation and handle lifetime | [Host admission](../../openspec/specs/host-admission/spec.md) retains seven-day invitations, verified-recipient redemption, revocation and stable handles. No expiration or admission rule was relaxed. |
+| Languages | English/Korean intake remains required by the meeting-request contract. Only broader localization and mixed-language acceptance remain open; the plan no longer lists initial languages as undecided. |
+| iMessage proof | The [active host-setup change](../../openspec/changes/conversational-host-setup/tasks.md) records implemented browser/proof controls, wrong/expired/replayed-code denial, private code handling and deterministic channel tests. PRD/UX/backend references now distinguish that evidence from pending live Google/iPhone acceptance. The old LINK protocol is not restored; the incomplete capability remains in its active change. |
+
+Documentation links and strict OpenSpec validation pass. This reconciliation does not claim runtime, live-provider or full-release acceptance, and needs no production redeploy.

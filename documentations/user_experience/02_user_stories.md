@@ -123,7 +123,7 @@ As a host, I want to opt into a verified private iMessage conversation and unlin
 
 J-01, J-06; FR-26; AC-17.
 
-The page design proposes linking through a six-digit code delivered to the private iMessage conversation and confirmed in the authenticated browser. That interaction remains a proposed OpenSpec delta, not settled or verified behavior.
+The selected linking flow delivers a six-digit code to the private iMessage conversation for confirmation in the initiating authenticated browser. The [host-setup change](../../openspec/changes/conversational-host-setup/tasks.md) owns the implemented browser/proof behavior and deterministic verification; live Google/iPhone acceptance remains open before main-spec promotion.
 
 ### US-19 — Decide through iMessage
 

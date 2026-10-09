@@ -88,6 +88,7 @@ Work:
 - [ ] Record tracked/untracked changes, existing remote consumers and retained resources; preserve unrelated work and credentials.
 - [ ] Map current admission, scoped access, setup review, proposal revision, booking uncertainty and channel replay requirements to replacement tests.
 - [ ] Create a bounded rebuild-foundation OpenSpec change. Map later slices to existing active changes or new bounded changes; avoid duplicate task ownership.
+- [x] Reconcile foundation task 1.2: preserve settled request/invitation expiry, scoped credential lifetime and English/Korean intake; replace stale iMessage OTP implementation claims with the owning change’s verified local and pending live status. [Evidence](05_rebuild_evidence.md#foundation-documentation-contract-reconciliation--2026-10-09).
 - [ ] Reconcile active `connect-google-calendars`, `book-approved-proposals-reliably`, `conversational-host-setup` and `validate-provider-and-agent-compatibility` work. Rebuild tasks start unverified and require fresh completion evidence.
 - [ ] Capture the single `/app` surface, requester booking route, invitation receipt behavior and browser-entered iMessage OTP as explicit proposed deltas where needed. Do not mark main capability specs implemented in advance.
 
@@ -530,8 +531,8 @@ Resolve these inside the owning change; the plan does not invent product default
 | Model ID, direct billing route and model failure policy | End of 1 | Direct-provider call, selected entitlement and safe failure results; never print keys |
 | OAuth server, resource-audience enforcement and registration/client constraints | End of 1 | Early compatibility results and implementable grant/refresh/revocation contracts |
 | Guest continuation/recovery, inbox dispatch receipt and per-user memory policy | Before 2 is complete | Explicit credential/session boundaries plus replay/revocation/isolation tests |
-| Waitlist fields, rule defaults/classification, handle lifecycle and initial languages | Before 3–4 behavior is finalized | PRD/OpenSpec decision with UI and domain acceptance cases |
-| Travel modes/geography, estimate freshness, manual allowance, proposal expiry and follow-up limits | Before 4 exits | Deterministic policy and no-match/expiry/unsupported-region tests |
+| Waitlist fields, rule defaults/classification and broader localization | Before 3–4 behavior is finalized | Preserve stable handles from the [admission contract](../../openspec/specs/host-admission/spec.md) and required English/Korean intake from the [request contract](../../openspec/specs/meeting-requests/spec.md); finalize remaining decisions with UI/domain acceptance cases. |
+| Travel modes/geography, estimate freshness, manual allowance, proposal validity and follow-up limits | Before 4 exits | Preserve the settled seven-day/earlier-window request deadline and thirty-day maximum guest credential lifetime; verify deterministic policy, no-match, expiry and unsupported-region cases. |
 | Online meeting link source and invitation/ICS ownership | Before 5 exits | Approved final proposal matches actual created event and one-event invitation tests |
 | AgentMail allocation/sender binding and Spectrum line/hosting/linking details | Before 6–7 exit | Controlled routing, delivery and restart/revocation evidence |
 | Numeric performance/cost limits, retention/deletion and backup/recovery ownership | Before 9 exits | Measured checks and operational runbook |

@@ -3,7 +3,7 @@
 ## 1. Baseline and ownership
 
 - [ ] 1.1 Record current resource inventory, task ownership and all AC-01–AC-28 verification obligations; verify links and strict OpenSpec validation.
-- [ ] 1.2 Reconcile settled expiry/language and proposed OTP documentation references with current specs; verify no settled behavior is weakened.
+- [x] 1.2 Reconcile settled expiry/language and proposed OTP documentation references with current specs; verify no settled behavior is weakened.
 
 ## 2. Shared foundation
 
