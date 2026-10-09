@@ -14,7 +14,7 @@ alter table fmat.host_approvals enable row level security;
 -- A request retains one provider-valid event identity across conclusively noncreating attempts.
 create table fmat.booking_identities (
   request_id uuid primary key references fmat.requests(id),
-  event_id text not null unique check(length(event_id) between 5 and 1024 and event_id ~ '^[0-9a-v]+$'),
+  event_id text not null unique check(length(event_id) >= 5 and length(event_id) <= 1024 and event_id ~ '^[0-9a-v]+$'),
   created_at timestamptz not null default now()
 );
 alter table fmat.booking_identities enable row level security;

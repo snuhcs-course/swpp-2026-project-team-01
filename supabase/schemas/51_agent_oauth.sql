@@ -9,7 +9,7 @@ alter table fmat.oauth_budgets enable row level security;
 
 create table fmat.oauth_clients (
   id uuid primary key default gen_random_uuid(),
-  name text not null check(length(name) between 1 and 120 and name !~ '[[:cntrl:]]'),
+  name text not null check(length(name) >= 1 and length(name) <= 120 and name !~ '[[:cntrl:]]'),
   redirect_uris text[] not null check(cardinality(redirect_uris) between 1 and 5),
   resource text not null check(length(resource) between 1 and 2048),
   created_at timestamptz not null default clock_timestamp(),
@@ -26,7 +26,7 @@ create table fmat.oauth_authorizations (
   redirect_uri text not null,
   scope text not null,
   code_challenge text not null check(code_challenge ~ '^[A-Za-z0-9_-]{43}$'),
-  state text not null check(length(state) between 1 and 1024 and state !~ '[[:cntrl:]]'),
+  state text not null check(length(state) >= 1 and length(state) <= 1024 and state !~ '[[:cntrl:]]'),
   browser_hash text not null check(browser_hash ~ '^[a-f0-9]{64}$'),
   created_at timestamptz not null default clock_timestamp(),
   expires_at timestamptz not null,
