@@ -1,4 +1,5 @@
 #!/bin/sh
+# AI-generated with Claude Code (claude-opus-5-5), 2026-10-07
 # Logs which branch this worktree has checked out, for scripts/ai-usage.mjs.
 # The log lives in the common .git directory so it survives `git worktree remove`.
 branch=$(git branch --show-current)
