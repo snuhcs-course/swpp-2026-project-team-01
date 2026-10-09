@@ -23,6 +23,14 @@ Deploy from the linked repository root with `vercel deploy --prod --scope justdo
 
 Verify DNS, TLS, the expected deployment, Auth/Calendar returns, generated links and signed webhook delivery. See [domain operations](../../AGENTS.md#domain-and-dns).
 
+## Runtime secrets and managed recovery
+
+The [selected topology](01_backend_architecture.md#selected-runtime-persistence-and-recovery) runs eve on managed Vercel Workflow and keeps authorized inbox/domain state in Supabase. Root `vercel.ts` composes eve and web services; the application dispatcher and domain workers run behind authenticated endpoints, with due work awakened by Supabase Cron. No separate worker deployment is selected.
+
+Both services require the selected `SUPABASE_URL` and server-only `SUPABASE_SECRET_KEY`; the web Auth boundary additionally uses `SUPABASE_PUBLISHABLE_KEY`. Configure `APP_ORIGIN`, `OPENAI_MODEL` and server-only `OPENAI_API_KEY`. `RUNTIME_DISPATCH_SECRET` protects scheduled internal work; its matching Vault configuration belongs to the intended database/environment. Provider-specific keys remain separate and follow their sections below. Managed Workflow persistence uses the Vercel deployment integration; do not export operator CLI credentials into application environment variables. `.env.example` lists names only. Client-safe contracts must not import server modules; `npm run check:boundaries` checks reachable source imports and environment access. Production builds and built-client secret checks provide separate evidence.
+
+The [2026-10-10 managed recovery diagnostic](05_rebuild_evidence.md#managed-workflow-recovery-acceptance--2026-10-10) used a protected preview with the production channel, a deterministic model and exact synthetic records in the selected Supabase project. This was a controlled diagnostic with privileged database access, not evidence of preview/production database isolation. The run was cancelled, synthetic records removed and the preview deleted; the public release alias was unchanged. Ordinary previews must continue to use separate database/credential scopes. Never promote the diagnostic agent or provide it real model/messaging credentials. Its observed recovery time is not a production SLA.
+
 ## Selected rebuild Supabase project
 
 Use **FindMeATime2**, project **`mriseqztcwmezvtawnbo`**: [project dashboard](https://supabase.com/dashboard/project/mriseqztcwmezvtawnbo). The CLI link was restored and matched against `SUPABASE_PROJECT_REF` and `SUPABASE_URL` on 2026-10-07. The initially empty project now has all twenty-five migrations through `20261007003213_calendar_model_projection`. A subsequent dry run reports no pending migrations, and the remote security advisor reports no issues. Reconfirm the target before each remote operation.

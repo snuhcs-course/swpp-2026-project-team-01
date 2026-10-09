@@ -29,3 +29,22 @@ compatibility or prove the public release's complete recovery SLA. Clean up only
 the exact synthetic database records after revoking access and stopping work;
 remove the diagnostic deployment. Managed checkpoint/log retention is separate
 from database cleanup. Never reset or globally clean the release database.
+
+## Recorded managed acceptance
+
+The [2026-10-10 acceptance](../../documentations/technical_specification/05_rebuild_evidence.md#managed-workflow-recovery-acceptance--2026-10-10)
+records the exact source, diagnostic overlays, preview deployment, observed
+SIGKILL and managed redelivery, one draft and canonical session, stream/cursor
+continuation, replay accounting, revoked access and verified cleanup. The
+diagnostic preview was removed after its Workflow run was cancelled. The public
+release alias was never promoted to this fixture.
+
+The diagnostic used exact synthetic records in the selected release database.
+That does not prove environment isolation: the preview temporarily had a
+privileged server credential. No real model or messaging credentials were
+needed. To keep the release Cron from dispatching these synthetic inputs to its
+real model, the operator atomically accepted each exact input and moved only its
+`next_dispatch_at` twenty minutes ahead, then delivered the same client ID/text
+through the normal diagnostic HTTP route. Therefore this run tests managed
+step redelivery, not production Cron wake-up. The local runtime suite separately
+tests missed inbox delivery and the authenticated recovery dispatcher.

@@ -1,18 +1,28 @@
 # Find Me a Time — Backend Architecture
 
-Status: replacement backend design; implementation and runtime placement pending
-Date: 2026-10-06
+Status: selected deployed runtime; feature and release acceptance tracked in the implementation plan
+Date: 2026-10-10
 Basis: [implementation plan](04_implementation_plan.md), [technical specification](../03_technical_specification.md), [PRD](../02_product_requirements.md), and [interfaces](../user_experience/03_interfaces.md)
 
 The scheduling backend is part of the full source rebuild. This document defines domain guarantees and proposed runtime boundaries. Reconcile behavioral deltas through bounded changes before implementation under the [repository workflow](../../AGENTS.md#documentation-and-specifications).
 
 ## 1. Deployment shape
 
-Use Supabase Auth and PostgreSQL for identity and durable application state. Next.js and eve are the proposed web/conversation direction, subject to the checks in the [backend decision](../03_technical_specification.md#backend-decision). Follow the eve chat template: root `agent/`, Next.js in `apps/web/`, and separately built eve/web services composed through root `vercel.ts`. Shared server-only domain modules live in root `lib/server/`. The runtime spike verifies cross-runtime module compatibility, persistence, job transport, background execution and recovery scheduling; add a worker or bridge deployment only for an evidenced requirement.
+Use Supabase Auth and PostgreSQL for identity and durable application state. The selected deployed runtime is Next.js in `apps/web/` and eve in root `agent/`, with separately built web/eve services composed through root `vercel.ts`. Shared server-only domain modules live in root `lib/server/`. The [runtime acceptance](05_rebuild_evidence.md#managed-workflow-recovery-acceptance--2026-10-10) records managed persistence, post-commit recovery and the complementary local isolation tests. Full live-provider and operational acceptance remains in the [implementation plan](04_implementation_plan.md).
 
 Separate interactive commands, conversation execution and durable external effects as logical responsibilities. They may share modules or deployment infrastructure once the runtime spike establishes compatibility. Human waits live in durable state; request connections and process memory are not their source of truth.
 
 Model calls use eve's direct OpenAI provider with server-side `OPENAI_API_KEY` and a verified native model ID. Keep provider billing configuration in backend infrastructure; API credit exhaustion is a failed model operation, not a successful scheduling transition. See [model access and billing](03_provider_setup.md#openai-model-access-through-eve).
+
+### Selected runtime persistence and recovery
+
+Vercel Workflow persists eve execution checkpoints and resumes interrupted managed steps. Supabase separately owns canonical conversation/session bindings, current grants, immutable accepted inputs, model reservations and scheduling effects. A Workflow checkpoint or retry never replaces application authorization. The six routes and six authored tools are inventoried in [agent runtime authorization](../../agent/README.md#runtime-authorization-inventory); shared memory, default tools and subagent dispatch remain disabled.
+
+Next.js serves browser/provider entry points and durable-effect workers. Eve serves conversation execution and its authenticated inbox dispatcher in the same Vercel project. SQL jobs/inbox/outbox rows are durable work; Supabase Cron wakes the authenticated endpoints when due work exists. Managed Workflow redelivery recovers an interrupted executing step, while the application dispatcher recovers accepted input whose delivery was missed or uncertain. A missing or terminated canonical session cannot silently become a new session. No additional process, external queue or separately deployed bridge is required for this topology.
+
+Execution is bounded by [conversation admission](#conversation-admission-limits), [durable model reservations](#model-execution-allowance), eight model attempts per input, a 30-second provider deadline and bounded stream leases. Eve also limits each session to 100,000 input and 8,000 output tokens; provider-reported session totals can overshoot by a completing call. These controls do not establish a measured dollar bill or recovery SLA. Server secret names and deployment boundaries are owned by [provider setup](03_provider_setup.md#runtime-secrets-and-managed-recovery).
+
+The managed diagnostic killed a worker after a real draft commit and before tool acknowledgment, then observed one draft, unchanged shared revision, the original session and successful continuation. It used a deterministic model in a protected preview; it did not exercise live provider effects, deployment handoff or production-load recovery. Local actual-process and browser tests supply the complementary isolation, restart, revocation and reconnect cases. Preserve those distinctions when evaluating the broader release gate.
 
 ```mermaid
 flowchart LR
