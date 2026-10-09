@@ -2,11 +2,47 @@
 
 Google Calendar와 시간 프로필을 바탕으로 만날 수 있는 시간을 찾고, 자연어로 후보를 좁혀 미팅을 요청하는 웹 prototype입니다.
 
+## 목차
+
+- [Demo 영상](#demo-영상)
+- [데모 범위](#데모-범위)
+- [기술 스택](#기술-스택)
+- [배포된 prototype](#배포된-prototype)
+- [준비](#준비)
+- [Supabase 배포](#supabase-배포)
+- [영상 재현: real 모드 설정 및 실행](#영상-재현-real-모드-설정-및-실행)
+- [대안: 로컬 Supabase / 예시 데이터](#대안-로컬-supabase--예시-데이터)
+- [확인 및 문제 해결](#확인-및-문제-해결)
+
 ## Demo 영상
 
 [Iteration 1 demo 영상 보기 / 다운로드](demos/iteration-1-demo.mov) (MOV, 약 48MB, 2분 8초)
 
 이 브랜치는 `mvp/enu3379`의 `82aac7380cbfd67b13f769f0b26ccf02d91b99d6`을 기준으로 합니다. 영상의 Google Calendar 연결은 아래 **real 모드**로 재현합니다. 자신의 Google 계정과 캘린더를 사용하므로 일정과 AI 분석 결과는 영상과 달라질 수 있습니다.
+
+## 데모 범위
+
+영상은 Google 계정과 Calendar 연결, 캘린더 선택, 지난 일정의 AI 분석을 통한 시간 프로필 설정, 직접 설정 수정 및 확인, 호스트 예약 링크 확인 흐름을 보여줍니다.
+
+추가로 이 브랜치에는 자연어 기반 예약 후보 탐색, 미팅 요청·수락·거절과 연락처 초대 링크가 구현되어 있습니다. 아래 실행 절차로 자신의 계정을 연결하거나, demo 모드의 시드 계정으로 예약 흐름을 확인할 수 있습니다.
+
+## 기술 스택
+
+| 영역 | 기술 |
+|---|---|
+| 웹 UI / 서버 API | Next.js 16 App Router, React 19, TypeScript |
+| 스타일 | Tailwind CSS |
+| 데이터베이스 | Supabase Postgres, Drizzle ORM, postgres-js |
+| 로그인 / Calendar | Google OAuth 2.0, Google Calendar API |
+| AI | Ollama Cloud (`gemma4:31b`) |
+| 테스트 | Vitest, PGlite |
+| 웹 호스팅 | Vercel |
+
+## 배포된 prototype
+
+영상에서 사용한 웹 주소: [https://findmeatime-mvp.vercel.app](https://findmeatime-mvp.vercel.app).
+
+2026-10-09 기준 로그인 페이지의 HTTP 200 응답을 확인했습니다. Google OAuth가 테스트 상태인 경우 등록된 테스트 계정으로 접속해야 합니다. 직접 재현하려면 아래 Supabase 및 Google 설정으로 자신의 환경을 구성합니다. 배포 사이트는 이 브랜치와 별도로 갱신될 수 있습니다.
 
 ## 준비
 
