@@ -2,10 +2,26 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {generateText} from 'ai';
+import {ZodError} from 'zod';
 import {OpenAIRanking,validateRanking,type RankingInput} from './ranking.ts';
 import {ApplicationError} from '../errors.ts';
 const ids=[randomUUID(),randomUUID()],candidates=ids.map((id,i)=>({id,interval:{start:`2030-01-01T1${i}:00:00Z`,end:`2030-01-01T1${i}:30:00Z`}}));
 const unavailable=(error:unknown)=>error instanceof ApplicationError&&error.code==='PROVIDER_UNAVAILABLE';
+test('Ranking rejects private or authority context before model execution or allowance reservation',async()=>{
+ let calls=0,reservations=0;
+ const fake=(async()=>{calls++;throw new Error('Unexpected model call');}) as typeof generateText;
+ const provider=new OpenAIRanking(fake),input:RankingInput={timezone:'UTC',candidates};
+ const privateFields={identity:'host@example.test',physicalLocation:'Private street',calendar:{events:[]},authority:{approved:true},preferences:'Private host reason'};
+ for(const [field,value] of Object.entries(privateFields)){
+  const contaminated=[
+   {...input,[field]:value},
+   {...input,candidates:[{...candidates[0],[field]:value},candidates[1]]},
+   {...input,candidates:[{...candidates[0],interval:{...candidates[0].interval,[field]:value}},candidates[1]]},
+  ];
+  for(const raw of contaminated)await assert.rejects(provider.rank(raw,async()=>{reservations++;}),ZodError);
+ }
+ assert.equal(calls,0);assert.equal(reservations,0);
+});
 test('Ranking is an exact ID permutation and cannot invent intervals, omit slots or waive constraints',()=>{
  assert.deepEqual(validateRanking({orderedIds:[...ids].reverse()},candidates),{orderedIds:[...ids].reverse()});
  for(const value of [{orderedIds:[ids[0],ids[0]]},{orderedIds:[ids[0]]},{orderedIds:[...ids,randomUUID()]},{orderedIds:[ids[0],randomUUID()]},{orderedIds:ids,intervals:[]},{orderedIds:ids,waive:true},null])assert.throws(()=>validateRanking(value,candidates),unavailable);
