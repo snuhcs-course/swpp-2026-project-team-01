@@ -136,6 +136,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 Work:
 
+- [x] Inventory retired root/CI commands from the pre-reconstruction revision and map their current executable checks, behavior owners and remaining gaps. This retrospective [command map](../../tests/README.md#legacy-verification-command-migration) does not claim assertion-level equivalence or complete hosted acceptance.
+
 - [ ] Define typed commands, viewer-specific queries and events for admission/setup, requests, proposals, explicit decisions, conversations, provider ingress, delivery and booking. Require resource/revision/idempotency information on applicable actions.
 - [ ] Implement Supabase host identity/admission, request-scoped guest credentials and verified conversation/channel bindings. Authorize before querying eve or executing a tool; a session ID is not a credential.
 - [ ] Model immutable proposal versions, agreement/approval evidence, one booking identity per request, attempt history, host reservations, inbox deduplication and outbox/jobs. Keep eve transcript persistence distinct from domain records.
