@@ -2,7 +2,7 @@
 
 ## Why
 
-Phase 9 of the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md) requires previews to avoid live mail/messages. Current delivery workers and provider transports rely on missing credentials and disabled schedules; copied credentials can enable actual sends.
+Phase 9 of the [implementation plan](../../../../documentations/technical_specification/04_implementation_plan.md) requires previews to avoid live mail/messages. Current delivery workers and provider transports rely on missing credentials and disabled schedules; copied credentials can enable actual sends.
 
 ## What Changes
 
@@ -18,7 +18,7 @@ Phase 9 of the [implementation plan](../../../documentations/technical_specifica
 
 ### Modified Capabilities
 
-None. The existing [email delivery](../../specs/email-delivery/spec.md) authority and outcome contracts remain intact.
+None. The existing [email delivery](../../../specs/email-delivery/spec.md) authority and outcome contracts remain intact.
 
 ## Impact
 

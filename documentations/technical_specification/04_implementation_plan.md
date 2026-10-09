@@ -515,9 +515,11 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
-- [x] Verify preview messaging integration with 45 real-database tests, all 1,695 SQL assertions after cleanup, both builds, built HTTP denial and 23 strict OpenSpec items. Production rollout remains pending in the [owning change](../../openspec/changes/fence-preview-messaging/tasks.md).
+- [x] Deploy preview messaging guard source `e892779` (`dpl_Fb7nsFPjGvLja5RWzwx5Sv7dpgQk`), verify enabled system metadata, Ready release alias and 81 production HTTP checks, then sync/archive the bounded change. [Evidence](05_rebuild_evidence.md#deployed-preview-messaging-guard--2026-10-09). General environment separation and live-provider gates remain open.
 
-- [x] Implement [preview messaging admission](../../openspec/changes/fence-preview-messaging/tasks.md) at worker and provider boundaries; verify zero RPC/network calls for denied environments, 355 app/provider tests, both builds and all seven built messaging routes rejecting authenticated preview wakeups. Integrated regressions and production rollout remain open.
+- [x] Verify preview messaging integration with 45 real-database tests, all 1,695 SQL assertions after cleanup, both builds, built HTTP denial and 23 strict OpenSpec items. Production rollout remains pending in the [owning change](../../openspec/changes/archive/2026-10-09-fence-preview-messaging/tasks.md).
+
+- [x] Implement [preview messaging admission](../../openspec/changes/archive/2026-10-09-fence-preview-messaging/tasks.md) at worker and provider boundaries; verify zero RPC/network calls for denied environments, 355 app/provider tests, both builds and all seven built messaging routes rejecting authenticated preview wakeups. Integrated regressions and production rollout remain open.
 
 - [x] Add the final CI database invariant gate after integration/runtime/browser fixture cleanup, including failed-suite paths; verify 45 local integrations followed by all 1,695 SQL assertions without a reset. [Evidence](05_rebuild_evidence.md#ci-database-cleanup-gate--2026-10-09). Hosted execution of the new gate remains to be observed.
 

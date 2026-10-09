@@ -2048,3 +2048,12 @@ Provider setup documents the required system metadata and separate databases/sec
 The full 45-test integration suite passes in 210.4 seconds with the new guard, followed without reset by all 1,695 SQL assertions in 36 files. Both builds, the seven-route built preview/database-trap smoke and the 355-test application check pass as recorded above. All 23 strict OpenSpec items pass. No UI behavior changed, so the focused built HTTP checks and provider/worker tests cover this boundary without rerunning visual acceptance.
 
 Vercel CLI 62.5.0 freshly identifies `justdodos-projects/findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`), and project API readback confirms `autoExposeSystemEnvs=true`. A clean archive of reviewed source `e892779` excludes unrelated work. Deployment dry-run inspection scanned 818 regular files against 13 configured credential values with zero matches. Production-target upload/build has started; readiness, promotion and production HTTP acceptance remain pending until independently verified.
+
+
+## Deployed preview messaging guard — 2026-10-09
+
+Reviewed source `e892779` built successfully as `dpl_Fb7nsFPjGvLja5RWzwx5Sv7dpgQk` (`https://findmeatime-release-7cjcdx72o-justdodos-projects.vercel.app`). The production-target deployment passed protected health before promotion. Promotion succeeded, and independent inspection of `https://release.findmeatime.com` resolves that exact Ready production deployment. All 81 production HTTP checks pass, including anonymous denial at the seven messaging endpoints. Health continues to report `releaseReady: false`.
+
+Project readback confirms system variables are enabled. Built preview tests prove authenticated environment denial before database access; production tests verify public and anonymous guard behavior without dispatching live messages. No Calendar event or outbound provider message was sent. No migration was required; this rollout preserves the previously deployed database. General database/credential environment separation, Calendar/model/SMTP boundaries, actual recipient delivery and named-client acceptance remain separate gates.
+
+All three preview-messaging tasks are complete. The three requirements and five scenarios were copied to the new main capability without changing their purpose or behavior, then the bounded change was archived. Separately, CI run `37878643942` for `1b7bdcf` passed, including the new final database invariant step after fixture cleanup. CI for the preview-messaging source remains in progress at this checkpoint.
