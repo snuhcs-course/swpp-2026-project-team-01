@@ -517,6 +517,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Add and run the repeatable public-landmark Routes probe for both adjacent directions, four modes and Seoul/New York; assert separate meeting/travel margins and preserve no-route clarification. Pass 19 deterministic adapter/evaluator tests and types. [Evidence](05_rebuild_evidence.md#bidirectional-live-routes-evaluation--2026-10-09). Complete live physical booking and compatibility task 3.5 remain open.
+
 - [x] Preserve guided-onboarding visibility/focus evidence before its separate browser context closes, with bounded content-free JSON and an input-masked synthetic screenshot. Verify privacy/hidden-ancestor regression and actual failure capture. Intermittent hidden-phone and keyboard-focus failures remain open. [Evidence](05_rebuild_evidence.md#guided-onboarding-failure-capture--2026-10-09).
 
 - [x] Reuse the verified local PostgreSQL image ID for isolated restore with `--pull=never` and preserve bounded, redacted Docker startup diagnostics. Local restore and types pass; the cause of hosted exit-125 failure `37884778034` remains unproven pending fresh CI. [Evidence](05_rebuild_evidence.md#isolated-restore-startup-diagnostics--2026-10-09).
