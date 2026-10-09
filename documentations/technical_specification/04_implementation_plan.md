@@ -404,6 +404,8 @@ References: [email direction](01_backend_architecture.md#email-provider-directio
 
 ### Phase 7 — Add verified host iMessage continuity
 
+- [x] Deploy native contact sharing (`49a9f04`; deployment `dpl_BNquS32WpumCMg2JTxPq5K5MFEjn`), verify all 107 migrations, private RPC/RLS guards, scheduler, release alias and twenty HTTP checks. Configure the verified existing Photon project credentials for production while preserving inactive receivers. [Evidence](05_rebuild_evidence.md#native-contact-sharing-production-rollout--2026-10-09). Authorized iPhone/profile acceptance remains open.
+
 - [x] Add protected optional contact-card controls with exact retry identity, safe status recovery, link replacement fencing and truthful acceptance/uncertainty. Pass all four browser tests, 378 app/provider tests, two contact integrations, 1,830 SQL assertions, both builds and runtime guards; update product/UX/setup documentation. [Evidence](05_rebuild_evidence.md#optional-contact-card-browser-controls--2026-10-09). Production rollout and authorized device/profile acceptance remain open.
 
 - [x] Wire protected native contact delivery, minute scheduled recovery and a separate read-only `diagnostics --contacts` mode. Verify process kills at claim/dispatch/provider/finish boundaries, lost wakeup, preflight unlink and no repeat uncertain share; pass 376 app/provider tests, four related integrations, all 1,830 SQL assertions, both builds and eight-route preview denial. [Evidence](05_rebuild_evidence.md#contact-sharing-worker-and-recovery--2026-10-09). Browser controls, production rollout and authorized iPhone acceptance remain open.

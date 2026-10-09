@@ -17,5 +17,5 @@
 ## 4. Deployment and integrated acceptance
 
 - [x] 4.1 Run relevant app, database, integration, runtime and browser suites, strict OpenSpec validation and documentation checks; record evidence and mark only verified implementation-plan increments complete.
-- [ ] 4.2 Review remote migration dry run against the selected project, deploy schema and production application, and verify authenticated endpoint guards, independent release alias/health and inactive receiver preservation. Record deployment and rollback evidence without sending to an unauthorized recipient.
+- [x] 4.2 Review remote migration dry run against the selected project, deploy schema and production application, and verify authenticated endpoint guards, independent release alias/health and inactive receiver preservation. Record deployment and rollback evidence without sending to an unauthorized recipient.
 - [ ] 4.3 With an explicitly authorized recipient, verify the native card on the saved private route and recipient-controlled saving on a recorded iPhone OS/provider profile. Record actual name/number behavior without inferring it from RPC acknowledgement; archive/sync only when all change requirements are verified.
