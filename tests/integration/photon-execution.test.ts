@@ -168,8 +168,12 @@ globalThis.fetch=async(input,init)=>{
   }});
   const messagesBeforeUnlink=Number(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}';`));
   const draftsBeforeUnlink=await sql.query(`select count(*) from fmat.setup_drafts d join fmat.setup_conversations c on c.id=d.conversation_id where c.host_id='${host}';`);
-  assert.equal((await photonWebhook(request('reply-before-unlink','A second private turn.'),{env,database:db})).status,200);
+  assert.equal((await photonWebhook(request('reply-before-unlink','A second private turn. Bearer photon-secret https://example.test/?%63ode=photon-code'),{env,database:db})).status,200);
   await dispatchPhotonInputs(db,env);assert.equal((await dispatch()).status,200);await settled(scope);
+  const protectedPrivate='A second private turn. [x] https://example.test/?[x]';
+  assert.equal(await sql.query(`select m.text from fmat.runtime_messages m join fmat.photon_inbox i on i.runtime_message_id=m.id where i.project_id='${project}' and i.message_id='reply-before-unlink';`),protectedPrivate);
+  assert.ok((await readCalls()).some(call=>call.inputHash===createHash('sha256').update(protectedPrivate).digest('hex')),'signed private input reaches the actual model only after protection');
+  assert.ok(!(await readCalls()).some(call=>call.inputHash===createHash('sha256').update('A second private turn. Bearer photon-secret https://example.test/?%63ode=photon-code').digest('hex')));
   let preflightReady!:()=>void,releasePreflight!:()=>void;
   const ready=new Promise<void>(resolve=>preflightReady=resolve),paused=new Promise<void>(resolve=>releasePreflight=resolve);
   const revokedSend=dispatchPhotonReplies(db,env,{async send(_route,_phone,_text,_id,authorize){

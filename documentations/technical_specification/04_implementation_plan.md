@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Verify protected conversation text through actual web/eve model input and crash recovery, signed iMessage execution and verified requester-email execution. Pass 448 app/provider tests, builds/smoke, runtime/authority regressions, both browser journeys and all 1,918 post-fixture SQL assertions. [Evidence](05_rebuild_evidence.md#conversation-text-runtime-acceptance--2026-10-09). Production rollout remains open.
+
 - [x] Implement shared SQL credential-text protection and private original-input retry digests, plus separate irreversible legacy-ledger backfill. Rebuild 112 local migrations; pass 58 focused SQL assertions, the actual backfill integration and all 1,918 SQL assertions. [Evidence](05_rebuild_evidence.md#shared-conversation-text-protection--2026-10-09). Runtime/channel acceptance and production rollout remain open.
 
 - [x] Reproduce the retired onboarding credential-text protection gap through actual local admission/storage/delivery, with all fixture state rolled back. Define [shared runtime protection](../../openspec/changes/protect-conversation-credential-text/tasks.md), exact retry discrimination and existing-row migration boundaries. [Evidence](05_rebuild_evidence.md#conversation-credential-text-regression--2026-10-09). Implementation, verification and deployment remain open.

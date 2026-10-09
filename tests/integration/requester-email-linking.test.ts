@@ -43,14 +43,20 @@ test('Requester email linking preserves current authority across retries, signed
   assert.equal((await worker.run()).outcome,'linked');
   assert.equal(await sql.query(`select count(*) from fmat.runtime_messages m join fmat.conversation_scopes s on s.id=m.conversation_id where s.request_id='${wr.id}';`),'0','Linking text never enters runtime history');
   assert.equal(await sql.query(`select count(*) from fmat.queue_publications p join fmat.jobs j on j.id=p.job_id where j.payload->>'receiptId'='${wb.id}' and p.acknowledged_at is null;`),'0');
-  const wm=await receipt('Please discuss my meeting',wb.thread);assert.equal((await worker.run()).outcome,'accepted');
+  const wm=await receipt('Please discuss my meeting Bearer email-secret',wb.thread);assert.equal((await worker.run()).outcome,'accepted');
   const execution=JSON.parse(await sql.query(`select json_build_object('grant',m.grant_id,'scope',m.conversation_id) from fmat.runtime_messages m join fmat.conversation_scopes s on s.id=m.conversation_id where s.request_id='${wr.id}';`));
   const check=()=>db.rpc('fmat_conversation_check',{p_grant_id:execution.grant,p_conversation_id:execution.scope});
   assert.equal((await check() as {requestId:string}).requestId,wr.id);
   const web=await db.rpc('fmat_conversation_access',{p_operation:'open',p_credential:wr.guest,p_input:{audience:'request_shared',requestId:wr.id}}) as {conversationId:string};assert.equal(web.conversationId,execution.scope);
   // Concurrent runtime retries freeze one answer and the exact bound recipient.
   const runtimeId=await sql.query(`select id from fmat.runtime_messages where client_id='${wm.id}';`);
-  await db.rpc('fmat_runtime_message',{p_operation:'deliver',p_grant_id:execution.grant,p_conversation_id:execution.scope,p_input:{messageId:runtimeId,sessionId:'email-fixture-'+execution.scope}});
+  const delivered=await db.rpc('fmat_runtime_message',{p_operation:'deliver',p_grant_id:execution.grant,p_conversation_id:execution.scope,p_input:{messageId:runtimeId,sessionId:'email-fixture-'+execution.scope}}) as {text:string};
+  assert.equal(delivered.text,'Please discuss my meeting [x]','verified email execution delivers protected text');
+  assert.equal(await sql.query(`select text from fmat.runtime_messages where id='${runtimeId}';`),delivered.text);
+  const retryInput={clientId:wm.id,text:'Please discuss my meeting Bearer email-secret'};
+  assert.equal((await db.rpc('fmat_runtime_message',{p_operation:'accept',p_grant_id:execution.grant,p_conversation_id:execution.scope,p_input:retryInput}) as {id:string}).id,runtimeId);
+  await assert.rejects(db.rpc('fmat_runtime_message',{p_operation:'accept',p_grant_id:execution.grant,p_conversation_id:execution.scope,p_input:{...retryInput,text:'Please discuss my meeting Bearer changed-email-secret'}}),code('IDEMPOTENCY_CONFLICT'));
+
   const settle=(reply:string)=>db.rpc('fmat_runtime_message',{p_operation:'settle',p_grant_id:execution.grant,p_conversation_id:execution.scope,p_input:{messageId:runtimeId,sessionId:'email-fixture-'+execution.scope,status:'completed',reply}});
   await Promise.all(Array.from({length:8},(_,index)=>settle('Concurrent answer '+index)));
   const frozen=JSON.parse(await sql.query(`select json_build_object('id',id,'text',text,'recipient',recipient,'parent',parent_message_id) from fmat.requester_email_replies where receipt_id='${wm.id}';`));

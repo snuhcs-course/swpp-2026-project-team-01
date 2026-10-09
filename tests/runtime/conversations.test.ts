@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdir, mkdtemp, writeFile, access } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile, readFile, access } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { createServer } from 'node:net';
@@ -60,7 +60,7 @@ globalThis.fetch=async(input,init)=>{
     // production retains its default lease and never imports this fixture.
     WORKFLOW_INLINE_OWNERSHIP_LEASE_SECONDS:'5',
     NODE_OPTIONS:`--import=${preload}`,
-    RUNTIME_DISPATCH_SECRET:'a'.repeat(64), FMAT_TEST_MARKER:marker, OPENAI_API_KEY:'', NODE_ENV:'development'};
+    RUNTIME_DISPATCH_SECRET:'a'.repeat(64), FMAT_TEST_MARKER:marker, FMAT_FIXTURE_MODEL_LOG:join(fixture,'model-inputs'), OPENAI_API_KEY:'', NODE_ENV:'development'};
   let child: ChildProcess | undefined, serverLog='';
   async function start(resume=false) {
     child=spawn(process.execPath,[join(root,'node_modules/eve/bin/eve.js'),'dev','--no-ui','--no-default-extensions','--host','127.0.0.1','--port',String(port),...(resume?['--resume']:[])],{cwd:fixture,env,stdio:['ignore','pipe','pipe'],detached:true});
@@ -111,18 +111,19 @@ globalThis.fetch=async(input,init)=>{
       assert.equal((await post('/eve/v1'+path,{message:'unauthorized control'})).status,401,'request authority never enables raw runtime controls');
     }
     assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}';`),'0','denied ingress creates no input');
-    const message={clientId:randomUUID(),text:'save: a post-commit recovery test'};
+    const protectedText='save: a post-commit recovery test [x]';
+    const message={clientId:randomUUID(),text:'save: a post-commit recovery test Bearer synthetic-runtime-secret'};
     const sent=await post(`/api/conversations/${scope}/messages`,message); assert.equal(sent.status,202,await sent.clone().text());
     const acceptedId=(await sent.json()).messageId as string;
     await waitUntil(async()=>{try{await access(marker);return true;}catch{return false;}},'Tool did not reach commit');
     assert.equal(await sql.query(`select revision from fmat.requests where id='${requests[0]}';`),'1');
     const attemptsBefore=Number(await sql.query(`select attempts from fmat.model_work_attempts where name='conversation:${acceptedId}';`));assert.equal(attemptsBefore,1);
-    assert.equal((await post(`/api/conversations/${scope}/messages`,{...message,text:'conflicting retry'})).status,409);
+    assert.equal((await post(`/api/conversations/${scope}/messages`,{...message,text:'save: a post-commit recovery test Bearer changed-runtime-secret'})).status,409);
     await stop(); await writeFile(marker+'.release','resume'); await start(true);
     const retry=await post(`/api/conversations/${scope}/messages`,message); assert.equal(retry.status,202,await retry.clone().text());
     await waitUntil(async()=>await sql.query(`select status from fmat.runtime_messages where conversation_id='${scope}';`)==='completed','Runtime failed to recover after kill');
     assert.equal(await sql.query(`select revision from fmat.requests where id='${requests[0]}';`),'1','draft does not change scheduling details');
-    assert.equal(await sql.query(`select count(*) from fmat.request_detail_reviews where request_id='${requests[0]}' and status='pending' and proposed_details->>'purpose'='save: a post-commit recovery test';`),'1','interrupted tool creates one review despite regenerated call ID');
+    assert.equal(await sql.query(`select count(*) from fmat.request_detail_reviews where request_id='${requests[0]}' and status='pending' and proposed_details->>'purpose'='${protectedText}';`),'1','interrupted tool creates one review despite regenerated call ID');
     const attemptsAfter=Number(await sql.query(`select attempts from fmat.model_work_attempts where name='conversation:${acceptedId}';`));
     assert.ok(attemptsAfter>attemptsBefore&&attemptsAfter<=8,'recovered provider calls retain prior durable reservations');
     assert.equal((await post(`/api/conversations/${scope}/messages`,message)).status,200);
@@ -132,11 +133,14 @@ globalThis.fetch=async(input,init)=>{
     const reader=stream.body!.getReader(); let output='';
     while(!output.includes('session.waiting')) { const item=await reader.read();if(item.done)break;output+=new TextDecoder().decode(item.value); }
     controller.abort();
-    assert.match(output,/Reply 1:/u); assert.doesNotMatch(output,/p_grant_id|tokenHash|tool-committed/u);
+    assert.match(output,/Reply 1:/u); assert.doesNotMatch(output,/p_grant_id|tokenHash|tool-committed|synthetic-runtime-secret/u);
+    const modelInputs=(await readFile(join(fixture,'model-inputs'),'utf8')).trim().split('\n').map(line=>JSON.parse(line) as {inputHash:string});
+    assert.ok(modelInputs.length>1,'model ran before and after recovery');
+    assert.ok(modelInputs.every(call=>call.inputHash===createHash('sha256').update(protectedText).digest('hex')),'every recovered model input is protected');
     const cursor=(JSON.parse(output.trim().split('\n').at(-1)!) as {cursor:number}).cursor;
     // Simulate process death after inbox commit and before from().send(): no
     // browser retry occurs. The authenticated sweep must recover this input.
-    await sql.query(`select public.fmat_runtime_message('accept',(select id from fmat.conversation_grants where conversation_id='${scope}' limit 1),'${scope}','${JSON.stringify({clientId:randomUUID(),text:'Continue the same request.'})}'::jsonb);
+    await sql.query(`select public.fmat_runtime_message('accept',(select id from fmat.conversation_grants where conversation_id='${scope}' limit 1),'${scope}','${JSON.stringify({clientId:randomUUID(),text:'Continue the same request. code=dispatch-secret'})}'::jsonb);
       update fmat.runtime_messages set next_dispatch_at=now()-interval '1 second' where conversation_id='${scope}' and status='pending';`);
     assert.equal((await fetch(origin+'/api/internal/conversations/dispatch',{method:'POST'})).status,401);
     const recovered=await fetch(origin+'/api/internal/conversations/dispatch',{method:'POST',headers:{authorization:'Bearer '+'a'.repeat(64)}});
@@ -157,10 +161,10 @@ globalThis.fetch=async(input,init)=>{
     const resumedReader=resumed.body!.getReader(); let resumedOutput='';
     while(!resumedOutput.includes('session.waiting')) {const item=await resumedReader.read();if(item.done)break;resumedOutput+=new TextDecoder().decode(item.value);}
     resumedController.abort();
-    assert.match(resumedOutput,/Reply 2:/u); assert.doesNotMatch(resumedOutput,/Reply 1:/u);
+    assert.match(resumedOutput,/Reply 2:/u); assert.doesNotMatch(resumedOutput,/dispatch-secret|synthetic-runtime-secret/u); assert.doesNotMatch(resumedOutput,/Reply 1:/u);
     for(const line of resumedOutput.trim().split('\n')) assert.ok(JSON.parse(line).cursor>cursor);
     const snapshot=await fetch(`${origin}/api/conversations/${scope}`,{headers:headers()}); const view=await snapshot.json();
-    assert.equal(view.messages.length,2); assert.equal('sessionId' in view,false); assert.equal('grantId' in view,false);
+    assert.equal(view.messages.length,2); assert.deepEqual(view.messages.map((m:{text:string})=>m.text),[protectedText,'Continue the same request. [x]']); assert.equal('sessionId' in view,false); assert.equal('grantId' in view,false);
     agentClient=JSON.parse(await sql.query(`select public.fmat_oauth_register('Runtime history fixture',array['http://127.0.0.1:55777/callback'],'${origin}/mcp');`)).clientId;
     const authorization=JSON.parse(await sql.query(`select public.fmat_oauth_authorization_start('${JSON.stringify({clientId:agentClient,resource:origin+'/mcp',redirectUri:'http://127.0.0.1:55777/callback',scope:'request:read',codeChallenge:'A'.repeat(43),codeChallengeMethod:'S256',state:'runtime-test',browserHash:'a'.repeat(64)})}'::jsonb);`)).authorizationId;
     await sql.query(`select public.fmat_oauth_consent('${authorization}','${'a'.repeat(64)}','${JSON.stringify({kind:'guest',requestId:requests[0],tokenHash:createHash('sha256').update(tokens[0]).digest('hex')})}'::jsonb,'grant','${'b'.repeat(64)}');`);
@@ -171,7 +175,7 @@ globalThis.fetch=async(input,init)=>{
     const historyResponse=await historyCall({audience:'request_shared',requestId:requests[0]});assert.equal(historyResponse.status,200);
     const historyJson=await historyResponse.json();assert.equal(historyJson.result.isError,undefined,JSON.stringify(historyJson));
     const history=historyJson.result.structuredContent.result;assert.match(JSON.stringify(history.events),/Reply 1:/);assert.match(JSON.stringify(history.events),/Reply 2:/);
-    assert.doesNotMatch(JSON.stringify(history),/runtime_session_id|tokenHash|p_grant_id|action.result/);
+    assert.doesNotMatch(JSON.stringify(history),/runtime_session_id|tokenHash|p_grant_id|action.result|synthetic-runtime-secret|dispatch-secret/);
     assert.equal((await (await historyCall({audience:'host_private',requestId:requests[0]})).json()).result.isError,true);
     assert.equal((await (await historyCall({audience:'request_shared',requestId:requests[1]},history.nextCursor)).json()).result.isError,true);
     await sql.query(`update fmat.requests set token_revoked_at=now() where id='${requests[0]}';`);
