@@ -515,6 +515,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Add `npm run test:restore` and its CI gate: restore populated synthetic state between isolated databases, compare 86 application/Auth/queue tables and verify booking/delivery uncertainty, pending-message replay, revoked OAuth, expired sessions, credential-key dependence and queue sequencing. Document queue export/ownership prerequisites. [Evidence](05_rebuild_evidence.md#populated-application-restore-regression--2026-10-09). Full managed-runtime recovery, actual key custody, off-site durability and live provider reconciliation remain open.
+
 - [x] Restore the encrypted export into a network-isolated, cron-disabled PostgreSQL destination; verify exact COPY content for 118 targets/121 rows, 124 foreign keys and 102 migration records, then remove the disposable destination. Document missing platform-role/queue prerequisites and the empty critical-state coverage limit. [Evidence](05_rebuild_evidence.md#isolated-logical-restore-rehearsal--2026-10-09). Populated application recovery, external keys, off-site durability and recovery objectives remain open.
 
 - [x] Inspect selected-project backup availability and export roles/schema/data plus 102 migration records to private encrypted local storage; verify authenticated decryption and tamper rejection, and document [restoration boundaries](09_backup_recovery.md). [Evidence](05_rebuild_evidence.md#backup-inventory-and-private-logical-export--2026-10-09). Platform restore points, isolated restore, off-site custody, retention and numeric recovery objectives remain open.

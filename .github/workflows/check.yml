@@ -40,6 +40,8 @@ jobs:
         run: supabase test db
       - name: Verify Auth and application database integration
         run: npm run test:integration
+      - name: Verify isolated restoration of populated application state
+        run: npm run test:restore
       - name: Verify authorized eve conversations and process-kill recovery
         run: npm run test:conversations
       - name: Build browser application

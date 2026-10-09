@@ -47,13 +47,30 @@ This drill used the image's platform initialization plus a **schema-only** Auth/
 Two stop-on-error attempts rolled back before the final restore succeeded. They exposed prerequisites that a new incident destination must satisfy:
 
 - The exported role grants reference platform service roles absent from the bare PostgreSQL image. A real destination needs the supported Supabase platform roles and service configuration before importing custom roles.
-- The schema export installs pgmq but omits its extension-owned queue tables, while the data export contains `pgmq.a_fmat_jobs` and `pgmq.q_fmat_jobs`. After restoring schema and before importing data, create the existing non-partitioned, logged queue with `SELECT pgmq.create('fmat_jobs');`. This matches the repository's runtime setup. **Do not call `fmat.install_runtime()` during a fenced drill:** it also schedules recovery work. Cron jobs were absent after this restore and require deliberate review and activation later.
+- The schema export installs pgmq but omits its extension-owned queue tables, while this data export contains `pgmq.a_fmat_jobs` and `pgmq.q_fmat_jobs`. After restoring schema and before importing data, create the existing non-partitioned, logged queue. The populated drill below additionally established that the pgmq extension and queue must have the application's expected `postgres` ownership: use `SET ROLE postgres; SELECT pgmq.create('fmat_jobs'); RESET ROLE;` after verifying that extension ownership and schema privileges match the source. Creation as the restore administrator can load rows but leave application commands unable to use them. **Do not call `fmat.install_runtime()` during a fenced drill:** it also schedules recovery work. Cron jobs were absent after this restore and require deliberate review and activation later.
 
 The successful import used one transaction with `ON_ERROR_STOP=1`: custom roles, application schema, migration-history schema, queue creation, then data/history data with replication triggers temporarily disabled as described by the provider procedure. Restoration took 248 ms once the prepared destination and prerequisites were ready; this is not incident recovery time or an RTO measurement.
 
 Verification compared each exported COPY column set and every row against the destination in memory, including migration history: **118 targets, 121 rows**, with exact sorted COPY-content parity. It checked **124 application foreign keys**, finding no orphan rows, and confirmed 102 migrations through `20261009025836`, 82 application tables, no anonymous/authenticated usage of the private schema and no public tables with RLS disabled. No cron jobs or Vault secrets were restored. Private artifacts include `restore.mjs`, `platform-baseline.sql`, logs and `restore-verification.json` beside the encrypted export; SQL data was never written back to a plaintext file.
 
 The snapshot contains no Auth users, requests, booking attempts, reservations, booking deliveries, conversation scopes or OAuth grants. Therefore this drill cannot demonstrate recovery of those populated states, encrypted Calendar credentials, session revocation or provider uncertainty. The required synthetic application recovery scenarios below, independent key custody and off-site storage remain open. The manifest distinguishes SQL restoration from complete application recovery.
+
+## Repeatable populated-state drill
+
+Run `npm run test:restore` after starting this repository's local stack and applying its current migrations with Supabase CLI 2.119.0. The test requires Docker and uses PostgreSQL image `public.ecr.aws/supabase/postgres:17.11.0.003`. CI runs it after application database integration. It checks the local container's project label and reads **schema only**, then prepares two uniquely named, labelled containers with no network, no published ports, memory-backed data directories and disabled cron dispatch. It has no remote target option, reads no existing application rows or production keys, and removes both containers in cleanup, including failure paths.
+
+The test creates synthetic data through the application's booking, conversation and OAuth commands, with constrained fixture setup for host/request details and an uncertain outbox record. One Calendar outcome is simulated as confirmed and another as a lost response. These are test evidence, not real provider observations. It exports and restores all application/Auth state and exact queue rows in memory, then compares every row in 86 application/Auth/queue tables before exercising restored behavior:
+
+- A confirmed request remains booked; an uncertain attempt retains its host reservation and immutable event/payload identity. Retry and withdrawal cannot reset uncertainty, and repeated dispatch cannot authorize a second insertion.
+- An uncertain delivery retains its provider reference and original dispatch time. Dispatch after the existing reconciliation window fails without changing it to sent or generating a replacement identity.
+- A pending conversation input reuses its restored receipt instead of adding another message. A restored execution grant backed by an expired Auth session is denied.
+- A revoked OAuth grant, its consumed authorization code and its refresh family remain unusable.
+- A synthetic encrypted Calendar credential opens with the retained original application key and context; a different key or principal context fails.
+- Private-schema access stays denied to anonymous/authenticated roles; queues preserve their contents and sequence, and a new publication receives a fresh message ID. No cron task or provider consumer is activated.
+
+**Queue export caveat:** the inspected local pgmq 1.5.1 tables are extension members; raw `pg_dump --data-only`, even with explicit table selection, omitted their rows. The retained production CLI export did contain queue COPY targets, so do not infer coverage from a successful exit code or one environment. Check both queue tables and the sequence in every export. The synthetic test supplements the application/Auth dump with explicit column-bound `COPY ... TO STDOUT` for `pgmq.q_fmat_jobs` and `pgmq.a_fmat_jobs`, plus `last_value`/`is_called` for `pgmq.q_fmat_jobs_msg_id_seq`; it does not detach tables from the extension. Exporting a busy production queue this way also requires a coordinated snapshot or fenced maintenance window.
+
+The verified local run passed in 5.6 seconds, including setup, restore, command checks and cleanup. This is a repeatable database/application-command drill, not full web/eve startup, managed-service recovery, off-site durability, recovered production key custody, a live provider reconciliation or an incident RTO measurement. Those release gates remain open.
 
 ## Restore rehearsal before incident use
 
@@ -78,7 +95,7 @@ Deployment rollback is a separate operation: promoting an older compatible appli
 |---|---|
 | Available platform restore points | The selected project's observed list is empty; PITR is disabled. |
 | Export preservation | See the dated evidence ledger for completed local exports and encryption verification. This is not off-site durability. |
-| Restore rehearsal | Isolated SQL/content/integrity drill passed as described above. Populated application recovery, credentials, uncertainty and provider reconciliation remain unverified. |
+| Restore rehearsal | Production-export SQL/content drill and synthetic populated application-command drill pass. Managed/full-runtime recovery, actual key recovery and live provider reconciliation remain unverified. |
 | Data-loss and recovery-time objectives | Numeric objectives and measurements remain to be selected and verified before launch. |
 | Retention and deletion | Backup retention, deletion propagation and application data policy remain unresolved product/operations decisions. |
 | Operational ownership | A named primary/backup operator, incident contact and key custodian remain to be designated. |
