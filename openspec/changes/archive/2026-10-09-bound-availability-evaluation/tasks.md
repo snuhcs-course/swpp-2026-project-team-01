@@ -13,4 +13,4 @@
 ## 3. End-to-end verification and rollout
 
 - [x] 3.1 Run actual local evaluation/publication/booking integrations, post-fixture SQL, full application checks, both builds and runtime smoke. Verify unchanged successful paths plus timeout before Calendar dispatch; record exact commands and evidence in the implementation plan.
-- [ ] 3.2 Commit and deploy a scanned clean archive to the verified release project; confirm Ready deployment, independent release alias, health and authorization checks. Record source/deployment identity, then archive only after all required acceptance evidence passes.
+- [x] 3.2 Commit and deploy a scanned clean archive to the verified release project; confirm Ready deployment, independent release alias, health and authorization checks. Record source/deployment identity, then archive only after all required acceptance evidence passes.

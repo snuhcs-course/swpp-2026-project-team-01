@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Deploy shared evaluation deadlines from `5f43a52` (`dpl_8SSnwtVGWZVBTy1ixvUZokTkvAjV`); verify the Ready release alias and 20 production HTTP checks, sync the two deadline requirements and archive the bounded change. [Evidence](05_rebuild_evidence.md#deployed-evaluation-deadline--2026-10-09). Wider legacy reconciliation and release gates remain open.
+
 - [x] Verify shared evaluation deadlines against actual local evaluation/publication/booking integrations, including expiry before Calendar dispatch. Pass 1,830 post-fixture SQL assertions without reset, 410 application/provider tests, both builds and built runtime guards. [Evidence](05_rebuild_evidence.md#evaluation-deadline-integrated-acceptance--2026-10-09). Production rollout remains pending.
 
 - [x] Share the evaluation budget through ranking, allowance reservation and publication. Verify no late/partial publication, retained committed charges, saved-ranking recovery and actual Responses-adapter cancellation. Pass nine focused and 410 application/provider tests. [Evidence](05_rebuild_evidence.md#publication-budget-orchestration--2026-10-09). Database acceptance and deployment remain pending.
@@ -142,7 +144,7 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 - [x] Implement and verify the invocation-owned 18-second budget primitive: monotonic expiry, cancelled/non-cooperative work, late results, cleanup and independent concurrent invocations. Pass five focused tests and 388 application/provider tests. [Evidence](05_rebuild_evidence.md#evaluation-budget-foundation--2026-10-09). Provider propagation, orchestration and deployment remain pending.
 
-- [x] Trace the retired shared provider deadline and confirm the replacement evaluator lacks an invocation-wide budget. Create and strictly validate the bounded [evaluation deadline change](../../openspec/changes/bound-availability-evaluation/proposal.md) with cancellation, late-result and durable-uncertainty acceptance tasks. Implementation and deployment remain pending.
+- [x] Trace the retired shared provider deadline and confirm the replacement evaluator lacks an invocation-wide budget. Create and strictly validate the bounded [evaluation deadline change](../../openspec/changes/archive/2026-10-09-bound-availability-evaluation/proposal.md) with cancellation, late-result and durable-uncertainty acceptance tasks. Implementation and deployment remain pending.
 
 - [x] Reconcile the three retired Google-provider assertions and strengthen paginated metadata privacy fixtures on both pages. Verify refresh material preservation and revoked-grant handling. [Evidence](05_rebuild_evidence.md#legacy-google-provider-reconciliation--2026-10-09). Shared transport deadline reconciliation remains open.
 

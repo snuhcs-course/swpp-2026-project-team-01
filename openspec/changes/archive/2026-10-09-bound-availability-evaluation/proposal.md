@@ -2,7 +2,7 @@
 
 ## Why
 
-The Phase 2 legacy audit found that the retired evaluator shared an 18-second deadline across provider work (`5c305d9^`, request evaluation and `deadlineFetcher`). The replacement `AvailabilityEvaluation` uses individual timeouts but can start fresh budgets for successive Calendar pages, parties, candidates and travel legs. Cancellation and prevention of later calls are therefore unproven. This undermines the bounded execution required by the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md) and safe uncertainty in [meeting feasibility](../../specs/meeting-feasibility/spec.md).
+The Phase 2 legacy audit found that the retired evaluator shared an 18-second deadline across provider work (`5c305d9^`, request evaluation and `deadlineFetcher`). The replacement `AvailabilityEvaluation` uses individual timeouts but can start fresh budgets for successive Calendar pages, parties, candidates and travel legs. Cancellation and prevention of later calls are therefore unproven. This undermines the bounded execution required by the [implementation plan](../../../../documentations/technical_specification/04_implementation_plan.md) and safe uncertainty in [meeting feasibility](../../../specs/meeting-feasibility/spec.md).
 
 ## What Changes
 
