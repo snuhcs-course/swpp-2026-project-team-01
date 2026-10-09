@@ -11,6 +11,29 @@ export async function verifyPrivateReview(page:Page,guest:Page,sql:LocalSql,requ
  const rules={timezone:'Asia/Seoul',availability:[{days:[0,1,2,3,4,5,6],start:'00:00',end:'23:59'}],focusBlocks:[],bufferMinutes:5,durationMinutes:30,preferences:'Private location preference for this fixture',travelMode:'NONE',meetingMode:'online',locationPolicy:'per_meeting',locations:[],travelBufferMinutes:5};
  const privateState=async()=>{const response=await page.request.get(origin+'/api/browser/scheduling/private?requestId='+requestId);assert.equal(response.status(),200);assert.match(response.headers()['cache-control'],/private.*no-store/);return response.json();};
  async function check(){const response=page.waitForResponse(r=>r.url().endsWith('/api/browser/scheduling/private/evaluate'));await review.getByRole('button',{name:'Check private constraints',exact:true}).click();const result=await response;assert.equal(result.status(),200,await result.text());await review.getByText('Private checks refreshed. A passing check is not a proposal or booking.',{exact:true}).waitFor();}
+ async function requesterProposal(label:string){
+  await guest.reload();
+  const panel=guest.getByRole('region',{name:'Meeting options and proposal'});
+  const evaluated=guest.waitForResponse(response=>response.url().endsWith('/api/browser/scheduling/evaluate'));
+  await panel.getByRole('button',{name:/^Find (meeting times|new options)$/}).click();
+  const evaluationResponse=await evaluated,evaluationState=await evaluationResponse.json();
+  assert.equal(evaluationResponse.status(),200,label+': '+JSON.stringify(evaluationState.error??{}));
+  assert.equal(evaluationState.availability,'available',label+': requester evaluation');
+  await panel.getByRole('button',{name:'Choose this time'}).first().waitFor();
+  const response=await guest.request.get(origin+'/api/browser/scheduling/state?audience=guest&requestId='+requestId),shared=await response.json();
+  assert.equal(shared.availability,'available',label);assert.ok(shared.publication.candidates.length>0);
+  for(const secret of ['Private location preference','Private reason','Private endpoint','Private inbound','Private outbound','contextFingerprint','travelBasis','instance-']){
+   assert.ok(!JSON.stringify(shared).includes(secret),label+': '+secret);assert.equal(await guest.getByText(secret,{exact:false}).count(),0);
+  }
+  assert.equal(await guest.getByRole('region',{name:'Private scheduling review'}).count(),0);
+  await panel.getByRole('button',{name:'Choose this time'}).first().click();
+  await panel.getByRole('button',{name:'Agree to this proposal',exact:true}).waitFor();
+  assert.equal(await sql.query(`select current_proposal_version is not null and requester_agreed_version is null and host_approved_version is null from fmat.requests where id='${requestId}';`),'t',label);
+  assert.equal(await sql.query(`select count(*) from fmat.jobs where payload->>'requestId'='${requestId}' and kind like 'booking%';`),'0',label);
+  await panel.getByRole('button',{name:'Agree to this proposal',exact:true}).scrollIntoViewIfNeeded();
+  await guest.screenshot({path:'.local/rebuild/browser-screenshots/private-'+label+'-requester-proposal.png',fullPage:true});
+  await page.reload();await review.getByRole('button',{name:'Refresh private review',exact:true}).waitFor();
+ }
  async function visual(name:string){
   await page.setViewportSize({width:1280,height:1000});await page.getByRole('region',{name:'Private candidate details',exact:true}).scrollIntoViewIfNeeded();await page.screenshot({path:'.local/rebuild/browser-screenshots/private-'+name+'-desktop.png',fullPage:true});
   const action=review.getByRole('button',{name:name==='preference'?'Confirm preference and recheck':'Confirm allowance and recheck'}).first();
@@ -25,7 +48,7 @@ export async function verifyPrivateReview(page:Page,guest:Page,sql:LocalSql,requ
   assert.equal((await page.request.post(origin+'/api/browser/scheduling/private/evaluate',{headers:{origin:'https://wrong.test'},data:{requestId,revision:1}})).status(),403);
   await check();
   const form=review.getByRole('form',{name:'Additional preferences decision'}),confirm=form.getByRole('button',{name:'Confirm preference and recheck'});
-  await form.getByRole('radio',{name:'This time satisfies it'}).check();await form.getByLabel('Private reason',{exact:true}).fill('Private reason that must not reach the requester');assert.equal(await confirm.isDisabled(),true);
+  await form.getByRole('radio',{name:'Allow an exception for this time'}).check();await form.getByLabel('Private reason',{exact:true}).fill('Private reason that must not reach the requester');assert.equal(await confirm.isDisabled(),true);
   // Preserve evidence before this fixture's finally block invalidates its
   // rules. No request IDs, cookies, URLs or entered text enter this trace.
   // Keep this injected function as plain JavaScript so tsx's function-name
@@ -55,6 +78,7 @@ export async function verifyPrivateReview(page:Page,guest:Page,sql:LocalSql,requ
   let lost=false;await page.route('**/api/browser/scheduling/preferences/confirm',async route=>{if(lost)return route.continue();lost=true;const response=await route.fetch();assert.equal(response.status(),200);await route.abort('failed');});
   await confirm.click();await review.getByRole('button',{name:'Retry same private decision'}).waitFor();await review.getByRole('button',{name:'Refresh private review',exact:true}).click();await review.getByText('Private reason that must not reach the requester',{exact:true}).waitFor();
   assert.equal((await privateState()).preferences.length,1);await page.reload();await review.getByText('Private reason that must not reach the requester',{exact:true}).waitFor();await check();await review.getByText('These private checks passed. Find meeting times in the shared proposal card before selecting a proposal.',{exact:true}).waitFor();
+  await requesterProposal('preference-exception');
   const state=await privateState();assert.ok(!JSON.stringify(state).includes('contextFingerprint'));assert.ok(!JSON.stringify(state).includes('instance-'));
   const shared=await guest.request.get(origin+'/api/browser/scheduling/state?audience=guest&requestId='+requestId);assert.ok(!JSON.stringify(await shared.json()).includes('Private reason'));
   await page.getByRole('radio',{name:'Shared with requester',exact:true}).check();assert.equal(await review.count(),0);assert.equal(await page.getByText(rules.preferences,{exact:true}).count(),0);
@@ -79,8 +103,10 @@ export async function verifyPrivateReview(page:Page,guest:Page,sql:LocalSql,requ
   await allowance('outbound','120');assert.equal((await privateState()).candidates[0].status,'conflict','A confirmed allowance cannot waive an insufficient travel gap');
   await review.getByRole('button',{name:'Revoke travel allowance'}).first().click();await review.getByText('Decision revoked and time rechecked.',{exact:true}).waitFor();await allowance('outbound','10');assert.equal((await privateState()).candidates[0].status,'checks_passed');
   assert.equal(await sql.query(`select current_proposal_version is null and requester_agreed_version is null and host_approved_version is null from fmat.requests where id='${requestId}';`),'t');
+  await requesterProposal('manual-travel');
   await guest.reload();assert.equal(await guest.getByText('Private endpoint',{exact:false}).count(),0);assert.equal(await guest.getByRole('region',{name:'Private scheduling review'}).count(),0);
   await review.getByRole('button',{name:'Revoke travel allowance'}).first().click();await review.getByText('Decision revoked and time rechecked.',{exact:true}).waitFor();assert.equal((await privateState()).candidates[0].status,'clarification');
+  await guest.reload();assert.equal(await guest.getByRole('button',{name:'Agree to this proposal',exact:true}).count(),0);assert.equal(await sql.query(`select current_proposal_version is null and requester_agreed_version is null and host_approved_version is null from fmat.requests where id='${requestId}';`),'t');
   await page.getByRole('button',{name:'Back to host chat',exact:true}).click();await page.getByRole('button',{name:'Manage Google connection',exact:true}).waitFor();
  }finally{
   await page.unroute('**/api/browser/scheduling/preferences/confirm');await page.unroute('**/api/browser/scheduling/preferences/revoke');

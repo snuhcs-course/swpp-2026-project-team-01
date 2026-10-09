@@ -21,7 +21,9 @@ Tasks describe replacement implementation and verification. Completed pure-core 
 ## 3. Ranking and proposal integration
 
 - [x] 3.1 Implement structured ranking over already-valid candidate IDs; verify model suggestions cannot invent intervals, waive constraints, or overwrite stale results.
-- [ ] 3.2 Wire evaluation/no-match clarification and private host exception UI to request lifecycle; verify account-free requester can select a feasible current proposal without seeing private rules.
+- [x] 3.2 Wire evaluation/no-match clarification and private host exception UI to request lifecycle; verify account-free requester can select a feasible current proposal without seeing private rules.
 - [ ] 3.3 Record AC-02/AC-03/AC-12/AC-27 integration evidence and expose the same evaluator for booking revalidation; verify changed requester availability and travel context block later dispatch.
 
 Task 3.2 progress (2026-10-09): requester agreement now rejects elapsed proposals after database lock waits, with shared browser/MCP state, historical decision preservation and exact retry checks. Real near-future evaluation and delayed-refresh browser evidence pass. Full task 3.2/3.3 acceptance remains open; see [cutoff evidence](../../../documentations/technical_specification/05_rebuild_evidence.md#requester-agreement-start-cutoff--2026-10-09).
+
+Task 3.2 acceptance (2026-10-09): actual requester publication/selection follows explicit private preference exception and two-leg manual travel review in the browser. Private data stays absent; revocation invalidates the proposal; selection grants no agreement, approval or booking. See [acceptance evidence](../../../documentations/technical_specification/05_rebuild_evidence.md#private-review-to-requester-proposal-acceptance--2026-10-09). Task 3.3 and broader live/browser reliability gates remain open.

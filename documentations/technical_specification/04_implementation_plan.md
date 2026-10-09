@@ -217,6 +217,8 @@ References: [single host page](../user_experience/04_page_list.md#primary-pages)
 
 ### Phase 4 — Deliver requester negotiation and host review on web
 
+- [x] Complete feasibility task 3.2: verify explicit private preference exception and two-leg travel allowance through requester evaluation and proposal selection, private-data redaction, separate agreement/approval authority and revocation invalidation. Fresh browser, service integrations, build and application checks pass; intermittent browser failures remain recorded. [Evidence](05_rebuild_evidence.md#private-review-to-requester-proposal-acceptance--2026-10-09).
+
 Incremental completion (full phase exit remains open):
 
 - [x] Reject new requester agreement at or after proposal start using the database wall clock after lock waits; disable browser/MCP agreement, retain completed retries and historical decisions, and verify real near-future evaluation, lock races and delayed browser refresh. [Evidence](05_rebuild_evidence.md#requester-agreement-start-cutoff--2026-10-09).
