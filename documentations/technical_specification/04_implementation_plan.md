@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Reconcile the three retired Calendar/route adapter assertions and restore the remote-conference location guard. Preserve busy time while requiring clarification for unknown physical whereabouts. Verify failure before the fix and passing provider regressions. [Evidence](05_rebuild_evidence.md#legacy-calendar-location-regression--2026-10-09).
+
 - [x] Reconcile both retired ranking-provider assertions against the current adapter; record the explicit failure-policy change and verify fifteen private/authority input injections cannot reach the model or consume allowance. [Evidence](05_rebuild_evidence.md#legacy-ranking-provider-reconciliation--2026-10-09). The remaining legacy-file audit stays open.
 
 - [x] Restore the legacy foundation check rejecting a publishable Supabase key in the shared server RPC configuration. Demonstrate failure before the fix and pass the regression, built-server zero-database-call check, 379 app/provider tests, real local Auth, both builds and 1,830 post-fixture SQL assertions. [Evidence](05_rebuild_evidence.md#legacy-public-key-configuration-regression--2026-10-09). Deployed `92956b1` as `dpl_4MKa6aQGYBFKYNLjehFMYgkAL2Ws`; independent alias/health and twenty production checks pass. Broader legacy behavior reconciliation remains open.

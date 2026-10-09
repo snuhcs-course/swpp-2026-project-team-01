@@ -546,6 +546,8 @@ The evaluator checks three named preferences after evaluating an exact interval:
 
 Persisted preference evidence contains only named check statuses and decision references; private reasons stay in the decision ledger. Requester projections and the browser scheduling receipt contain neither private checks nor reasons. Model tools cannot confirm exceptions. These backend operations do not create offers, proposal approval or booking authority; host review controls and publication remain task 3.2, with fresh booking revalidation in task 3.3.
 
+Adjacent Calendar reads request conference entry-point types and solution type, excluding conference URLs and descriptions. A conference signal leaves the event busy but its physical location unknown, even when the event contains an address. Hybrid attendance does not prove the host is at that address; the existing explicit manual travel allowance or clarification path remains necessary. Ordinary physical events retain their validated location.
+
 ### Structured private candidate ranking
 
 `AvailabilityEvaluation.batch` shares one authorized free/busy snapshot and superseding check across up to thirty sampled exact intervals. Sampling step and limit are explicit presentation parameters; the returned `truncated` flag prevents interpreting a bounded sample as exhaustive availability. Every interval still runs the same travel and private-preference evaluator and persists immutable evidence. The batch rechecks current authority after all saves. Physical candidates retain separately checked adjacent context and route deadlines; incomplete acquisition fails the batch.

@@ -8,9 +8,21 @@ const page=(items:unknown[],other={})=>({timeZone:'UTC',accessRole:'reader',item
 const at=(time:string)=>'2030-01-02T'+time+':00Z';
 const fail=(error:unknown)=>error instanceof ApplicationError&&error.code==='PROVIDER_UNAVAILABLE';
 const current=async()=>{};
+test('Remote conference commitments retain busy time but never establish a physical travel endpoint',async()=>{
+ const remote=[{conferenceData:{entryPoints:[{entryPointType:'video',uri:'https://private.example'}]}},{conferenceData:{conferenceSolution:{key:{type:'hangoutsMeet'}}}},{hangoutLink:'https://private.example'}];
+ for(const details of remote){
+  const provider=new GoogleAdjacentEvents(async()=>Response.json(page([raw('remote',at('09:00'),at('09:30'),{...details,location:'Private remote venue',description:'Private note'}),raw('physical',at('11:00'),at('12:00'),{location:'Office'})])));
+  const events=await provider.read('token',['a'],candidate,current);
+  assert.equal(events.length,2);assert.equal(events[0].location,null);assert.deepEqual(events[1].location,{address:'Office'});
+  assert.deepEqual(events[0].interval,{start:at('09:00'),end:at('09:30')});
+  assert.doesNotMatch(JSON.stringify(events),/Private|https:|conferenceData|hangoutLink/);
+  const previous=adjacentContext(candidate,events,'basis').previous;
+  assert.equal(previous.kind,'commitment');if(previous.kind==='commitment')assert.equal(previous.location,null);
+ }
+});
 test('Adjacent reads use expanded recurring events, minimal fields, all pages/calendars and outward second bounds',async()=>{
  const urls:URL[]=[];let checks=0;
- const provider=new GoogleAdjacentEvents(async(url,init)=>{const u=new URL(String(url));urls.push(u);assert.equal(new Headers(init?.headers).get('authorization'),'Bearer private');assert.equal(init?.cache,'no-store');assert.equal(init?.redirect,'error');assert.ok(init?.signal);assert.equal(u.searchParams.get('singleEvents'),'true');assert.equal(u.searchParams.get('showHiddenInvitations'),'true');assert.equal(u.searchParams.get('maxAttendees'),'1');assert.equal(u.searchParams.get('timeMin'),'2029-12-02T10:00:00Z');assert.equal(u.searchParams.get('timeMax'),'2030-02-02T10:30:01Z');assert.doesNotMatch(u.searchParams.get('fields')!,/description|summary|email|hangout/);
+ const provider=new GoogleAdjacentEvents(async(url,init)=>{const u=new URL(String(url));urls.push(u);assert.equal(new Headers(init?.headers).get('authorization'),'Bearer private');assert.equal(init?.cache,'no-store');assert.equal(init?.redirect,'error');assert.ok(init?.signal);assert.equal(u.searchParams.get('singleEvents'),'true');assert.equal(u.searchParams.get('showHiddenInvitations'),'true');assert.equal(u.searchParams.get('maxAttendees'),'1');assert.equal(u.searchParams.get('timeMin'),'2029-12-02T10:00:00Z');assert.equal(u.searchParams.get('timeMax'),'2030-02-02T10:30:01Z');assert.doesNotMatch(u.searchParams.get('fields')!,/description|summary|email|hangout|uri/);assert.ok(u.searchParams.get('fields')!.includes('conferenceData(entryPoints(entryPointType),conferenceSolution(key(type)))'));
   return Response.json(urls.length===1?page([],{nextPageToken:'second'}):page([raw('event-'+urls.length,at('09:00'),at('09:30'))]));
  });
  const result=await provider.read('private',['calendar/a','other'],candidate,async()=>{checks++;});assert.equal(urls.length,3);assert.equal(checks,4);assert.match(urls[0].pathname,/calendar%2Fa/);assert.equal(urls[1].searchParams.get('pageToken'),'second');assert.equal(result.length,2);assert.ok(!JSON.stringify(result).includes('private'));assert.equal(travelReadRange(candidate).start,'2029-12-02T10:00:00.000000001Z');

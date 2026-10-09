@@ -12,7 +12,7 @@ const day=86400n*1000000000n;
 export const travelCommitment=z.strictObject({id:z.string().min(1).max(1024),calendarId:z.string().min(1).max(1024),eventId:z.string().min(1).max(1024),version:z.string().max(1024),interval:schedulingInterval,location:routeLocation.nullable()});
 export type TravelCommitment=z.infer<typeof travelCommitment>;
 const endpoint=z.object({date:z.iso.date().optional(),dateTime:z.string().max(100).optional(),timeZone:z.string().max(100).optional()});
-const event=z.object({id:z.string().min(1).max(1024),etag:z.string().min(1).max(1024),status:z.enum(['confirmed','tentative','cancelled']).optional(),transparency:z.enum(['opaque','transparent']).optional(),eventType:z.string().max(100).optional(),start:endpoint.optional(),end:endpoint.optional(),location:z.string().max(5000).optional(),attendees:z.array(z.object({self:z.boolean().optional(),responseStatus:z.string().optional()})).max(1).optional()});
+const event=z.object({id:z.string().min(1).max(1024),etag:z.string().min(1).max(1024),status:z.enum(['confirmed','tentative','cancelled']).optional(),transparency:z.enum(['opaque','transparent']).optional(),eventType:z.string().max(100).optional(),start:endpoint.optional(),end:endpoint.optional(),location:z.string().max(5000).optional(),hangoutLink:z.string().max(5000).optional(),conferenceData:z.object({entryPoints:z.array(z.object({entryPointType:z.string().min(1).max(100)})).max(100).optional(),conferenceSolution:z.object({key:z.object({type:z.string().min(1).max(100)})}).optional()}).optional(),attendees:z.array(z.object({self:z.boolean().optional(),responseStatus:z.string().optional()})).max(1).optional()});
 const pageSchema=z.object({timeZone:z.string().min(1).max(100),accessRole:z.enum(['reader','writer','writerWithoutPrivateAccess','owner']),items:z.array(event).max(250).optional(),nextPageToken:z.string().min(1).max(4096).optional(),nextSyncToken:z.string().min(1).max(4096).optional()});
 export function travelReadRange(raw:SchedulingInterval){const value=schedulingInterval.parse(raw);return {start:Temporal.Instant.fromEpochNanoseconds(ns(value.start)-31n*day).toString(),end:Temporal.Instant.fromEpochNanoseconds(ns(value.end)+31n*day).toString()};}
 export function physicalLocation(raw:string|undefined){const value=raw?.trim().replace(/\s+/gu,' ');return value&&value.length<=2000&&!/[<>\u0000-\u001f]|https?:\/\/|@/iu.test(value)?{address:value}:null;}
@@ -36,7 +36,7 @@ export class GoogleAdjacentEvents implements AdjacentEventProvider {
     const url=new URL('https://www.googleapis.com/calendar/v3/calendars/'+encodeURIComponent(calendarId)+'/events');
     // Google ignores fractional seconds on range filters. Round outward.
     const timeMin=Temporal.Instant.from(range.start).round({smallestUnit:'second',roundingMode:'floor'}).toString(),timeMax=Temporal.Instant.from(range.end).round({smallestUnit:'second',roundingMode:'ceil'}).toString();
-    for(const [key,value] of Object.entries({singleEvents:'true',showDeleted:'false',showHiddenInvitations:'true',maxResults:'250',maxAttendees:'1',timeMin,timeMax,fields:'timeZone,accessRole,nextPageToken,nextSyncToken,items(id,etag,status,transparency,eventType,start,end,location,attendees(self,responseStatus))'}))url.searchParams.set(key,value);
+    for(const [key,value] of Object.entries({singleEvents:'true',showDeleted:'false',showHiddenInvitations:'true',maxResults:'250',maxAttendees:'1',timeMin,timeMax,fields:'timeZone,accessRole,nextPageToken,nextSyncToken,items(id,etag,status,transparency,eventType,start,end,location,conferenceData(entryPoints(entryPointType),conferenceSolution(key(type))),attendees(self,responseStatus))'}))url.searchParams.set(key,value);
     if(token)url.searchParams.set('pageToken',token);
     const response=await this.fetcher(url,{headers:{authorization:'Bearer '+accessToken},signal,cache:'no-store',redirect:'error'});
     if([401,403,404].includes(response.status))throw new ApplicationError('RECONNECT_REQUIRED',409);if(!response.ok)throw new Error();
@@ -50,7 +50,7 @@ export class GoogleAdjacentEvents implements AdjacentEventProvider {
      if(!e.start||!e.end||Boolean(e.start.date)!==Boolean(e.end.date))throw new Error();
      const interval=schedulingInterval.parse({start:instant(e.start,zone),end:instant(e.end,zone)});
      if(ns(interval.end)<=ns(range.start)||ns(interval.start)>=ns(range.end))continue;
-     result.push({id:createHash('sha256').update(JSON.stringify([calendarId,e.id])).digest('hex'),calendarId,eventId:e.id,version:e.etag,interval,location:physicalLocation(e.location)});
+     result.push({id:createHash('sha256').update(JSON.stringify([calendarId,e.id])).digest('hex'),calendarId,eventId:e.id,version:e.etag,interval,location:e.hangoutLink||e.conferenceData?.entryPoints?.length||e.conferenceData?.conferenceSolution?null:physicalLocation(e.location)});
     }
     token=data.nextPageToken;if(!token)break;if(tokens.has(token)||page===9)throw new Error();tokens.add(token);
    }
