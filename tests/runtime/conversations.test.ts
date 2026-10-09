@@ -64,10 +64,16 @@ globalThis.fetch=async(input,init)=>{
   let child: ChildProcess | undefined, serverLog='';
   async function start(resume=false) {
     child=spawn(process.execPath,[join(root,'node_modules/eve/bin/eve.js'),'dev','--no-ui','--no-default-extensions','--host','127.0.0.1','--port',String(port),...(resume?['--resume']:[])],{cwd:fixture,env,stdio:['ignore','pipe','pipe'],detached:true});
-    child.stdout!.on('data',x=>serverLog+=x); child.stderr!.on('data',x=>serverLog+=x);
+    let startupLog='';
+    child.stdout!.on('data',x=>{serverLog+=x;startupLog+=x;}); child.stderr!.on('data',x=>{serverLog+=x;startupLog+=x;});
     for(let n=0;n<300;n++) {
       assert.equal(child.exitCode,null,serverLog.slice(-3000));
-      try { if((await fetch(origin+'/eve/v1/health')).ok)return; } catch {}
+      assert.equal(child.signalCode,null,serverLog.slice(-3000));
+      // A pooled health response from the killed process cannot establish
+      // readiness of this replacement process on the same address.
+      if(startupLog.includes('server listening at '+origin+'/')){
+        try { if((await fetch(origin+'/eve/v1/health',{headers:{connection:'close'}})).ok)return; } catch {}
+      }
       await delay(100);
     } throw new Error('Fixture runtime did not start');
   }

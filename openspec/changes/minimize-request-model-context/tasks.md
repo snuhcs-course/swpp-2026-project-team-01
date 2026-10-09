@@ -6,7 +6,7 @@
 
 ## 2. Integrated acceptance
 
-- [ ] 2.1 Verify real authorized request reads, contact-edit drafts and exact retries through ConversationTools while protected review preserves exact contact and explicit apply semantics. Verify revoked grants, post-fixture SQL, runtime regressions, application checks and builds; update evidence and plan, then commit.
+- [x] 2.1 Verify real authorized request reads, contact-edit drafts and exact retries through ConversationTools while protected review preserves exact contact and explicit apply semantics. Verify revoked grants, post-fixture SQL, runtime regressions, application checks and builds; update evidence and plan, then commit.
 
 ## 3. Production and completion
 

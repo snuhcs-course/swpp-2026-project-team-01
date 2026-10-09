@@ -134,6 +134,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 - [x] Verify requester-window expiry during observed request-lock waits for proposal and apply, state preservation, and committed replay after time passes. Pass real RPC integration, 1,853 post-fixture SQL assertions, 413 app/provider tests, both builds and runtime smoke. [Evidence](05_rebuild_evidence.md#requester-review-window-integrated-acceptance--2026-10-09). Production verification and archive remain open.
 
+- [x] Verify real requester context/replay minimization with exact protected contact edits and revoked access, four runtime suites, 1,853 post-fixture SQL assertions, 417 app/provider tests, both builds and runtime smoke. Fix replacement-process readiness in the crash fixture. [Evidence](05_rebuild_evidence.md#request-model-contact-integrated-acceptance--2026-10-09). Production rollout remains open.
+
 - [x] Restore structured contact minimization in conversation result paths, with nested/current/review/retry-compatible projection and presence semantics. Demonstrate the regression, pass ten focused tool tests and typechecks, and document history/free-text limits. [Evidence](05_rebuild_evidence.md#request-model-contact-projection--2026-10-09). Integrated acceptance and deployment remain open.
 
 - [x] Map all eight retired requester-model assertions and verify nine actual Responses outputs, including refusal, malformed/impossible time data, authority injection and a positive advisory review. Five assertions have replacement coverage; identity minimization, uncertain-intent semantics and false narration remain open. [Evidence](05_rebuild_evidence.md#requester-model-protocol-reconciliation--2026-10-09).
