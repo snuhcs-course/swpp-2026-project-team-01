@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {requestClarificationKind,requestClarificationLanguage} from './request-clarifications.ts';
 import {draftInput} from './setup.ts';
 
 const revision = z.number().int().nonnegative();
@@ -14,7 +15,7 @@ export const detailsProposalInput = z.strictObject({ expectedRevision: revision,
 
 // The application model must classify extraction before proposing a domain draft.
 // This label is not human consent or proof that the model understood the message.
-export const requestExtractionInput=detailsProposalInput.safeExtend({intent:z.enum(['details','availability','question','unknown'])})
+export const requestExtractionInput=detailsProposalInput.safeExtend({intent:z.enum(['details','availability','question','unknown']),clarifications:z.array(requestClarificationKind).max(10),clarificationLanguage:requestClarificationLanguage.optional()})
   .refine(value=>!['question','unknown'].includes(value.intent)||Object.keys(value.patch).length===0,
     {message:'Question or unknown intent cannot include a patch',path:['patch']});
 

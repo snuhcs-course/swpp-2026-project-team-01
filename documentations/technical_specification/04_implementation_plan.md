@@ -134,6 +134,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 - [x] Verify requester-window expiry during observed request-lock waits for proposal and apply, state preservation, and committed replay after time passes. Pass real RPC integration, 1,853 post-fixture SQL assertions, 413 app/provider tests, both builds and runtime smoke. [Evidence](05_rebuild_evidence.md#requester-review-window-integrated-acceptance--2026-10-09). Production verification and archive remain open.
 
+- [x] Replace arbitrary application-model review clarification prose with checked categories and authored English/Korean questions. Verify all 18 mappings, invalid prose/language rejection, retry payloads, 26 focused tests and typechecks. [Evidence](05_rebuild_evidence.md#authored-requester-review-questions--2026-10-09). Integration, rollout and broader chat narration remain open.
+
 - [x] Deploy checked requester extraction from `8e23bbc` (`dpl_FmhEibV4QPkrisgsuXchFPU1s2YS`), verify exact Ready release alias and 20 HTTP checks, sync and archive all four tasks. [Evidence](05_rebuild_evidence.md#deployed-requester-extraction-intent--2026-10-09). Seven of eight legacy requester assertions are covered; false narration and live semantic/provider gates remain open.
 
 - [x] Verify declared-intent rejection and clarification-only non-application through real request reviews, exact retry counts, four runtime tests, 1,853 post-fixture SQL assertions, 418 app/provider tests, both builds and runtime guards. [Evidence](05_rebuild_evidence.md#requester-extraction-intent-integrated-acceptance--2026-10-09). Production rollout remains pending.

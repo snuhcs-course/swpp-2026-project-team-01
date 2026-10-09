@@ -180,8 +180,10 @@ test('installed Responses adapter preserves requester advisory boundaries and re
    {name:'question with patch',args:JSON.stringify({...valid,intent:'question'})},
    {name:'unknown with patch',args:JSON.stringify({...valid,intent:'unknown'})},
    {name:'missing intent',args:JSON.stringify({...valid,intent:undefined})},
+   {name:'English false claim',args:JSON.stringify({...valid,clarifications:['The meeting is booked and approved.']})},
+   {name:'Korean false claim',args:JSON.stringify({...valid,clarifications:['예약이 완료되었습니다.']})},
    {name:'valid advisory review',args:JSON.stringify(valid)},
-   {name:'valid clarification',args:JSON.stringify({...valid,intent:'question',patch:{},clarifications:['Which timezone?']})},
+   {name:'valid clarification',args:JSON.stringify({...valid,intent:'question',patch:{},clarifications:['timezone']})},
   ].map(item=>({name:item.name,output:[{type:'function_call',id:'fc_1',call_id:'call_1',name:'propose_request_details',arguments:item.args}]})),
  ];
  try{
@@ -190,7 +192,7 @@ test('installed Responses adapter preserves requester advisory boundaries and re
    globalThis.fetch=async(url)=>{assert.equal(String(url),'https://api.openai.com/v1/responses');requests++;return Response.json({...base,output:scenario.output});};
    const raw=openai('gpt-6-luna');assert.notEqual(typeof raw,'string');
    const model=boundedModel(raw as Parameters<typeof boundedModel>[0],async()=>{reservations++;});
-   const outcome=await Promise.allSettled([generateText({model,prompt:'Suggest requester scheduling details',maxRetries:0,tools:{propose_request_details:{description:'Propose a review for explicit requester application',inputSchema:requestExtractionInput,execute:async(input)=>{executions++;assert.deepEqual(input,scenario.name==='valid clarification'?{...valid,intent:'question',patch:{},clarifications:['Which timezone?']}:valid);return {review:{status:'pending'}};}}}})]);
+   const outcome=await Promise.allSettled([generateText({model,prompt:'Suggest requester scheduling details',maxRetries:0,tools:{propose_request_details:{description:'Propose a review for explicit requester application',inputSchema:requestExtractionInput,execute:async(input)=>{executions++;assert.deepEqual(input,scenario.name==='valid clarification'?{...valid,intent:'question',patch:{},clarifications:['timezone']}:valid);return {review:{status:'pending'}};}}}})]);
    assert.equal(executions,scenario.name.startsWith('valid ')?1:0,scenario.name);
    assert.equal(requests,1,scenario.name);assert.equal(reservations,1,scenario.name);
    if(scenario.name.startsWith('valid '))assert.equal(outcome[0].status,'fulfilled');

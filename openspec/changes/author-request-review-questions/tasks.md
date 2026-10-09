@@ -2,7 +2,7 @@
 
 ## 1. Authored model questions
 
-- [ ] 1.1 Add checked clarification categories, optional English/Korean language and deterministic questions in the extraction adapter; update agent guidance. Verify all category/language mappings, malicious prose and unsupported values before RPC, complete drafts, retry payloads and actual Responses fixtures. Update technical/test documentation and commit.
+- [x] 1.1 Add checked clarification categories, optional English/Korean language and deterministic questions in the extraction adapter; update agent guidance. Verify all category/language mappings, malicious prose and unsupported values before RPC, complete drafts, retry payloads and actual Responses fixtures. Update technical/test documentation and commit.
 
 ## 2. Integrated acceptance
 

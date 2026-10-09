@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import {requestClarificationQuestions} from '../../contracts/request-clarifications.ts';
 import {setupGuide} from '../../contracts/setup-guide.ts';
 import {applicationOrigin} from '../config.ts';
 import {PublicIntake} from './public-intake.ts';
@@ -24,8 +25,10 @@ export class ConversationTools {
   async proposeRequestExtraction(currentAuth:unknown,call:unknown,input:unknown):Promise<unknown>{
     const parsed=requestExtractionInput.safeParse(input);
     if(!parsed.success)throw new ApplicationError('INVALID_INPUT',400);
-    const {intent:_intent,...draft}=parsed.data;
-    return this.execute(currentAuth,call,{operation:'details_propose',input:draft});
+    const {intent:_intent,clarificationLanguage='en',clarifications,...draft}=parsed.data;
+    return this.execute(currentAuth,call,{operation:'details_propose',input:{...draft,
+      clarifications:clarifications.map(kind=>requestClarificationQuestions[clarificationLanguage][kind]),
+    }});
   }
 
   async execute(currentAuth: unknown, call: unknown, command: unknown): Promise<unknown> {
