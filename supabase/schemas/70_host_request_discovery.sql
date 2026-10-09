@@ -13,7 +13,7 @@ begin
   then raise exception 'INVALID_INPUT'; end if;
  page:=fmat.host_request_page(p_host_id,p_input);
  select coalesce(jsonb_agg(jsonb_build_object(
-  'requestId',item->'requestId','revision',item->'revision','title',item->'title',
+  'requestId',item->'requestId','selectionCommand','request '||(item->>'requestId'),'revision',item->'revision','title',item->'title',
   'status',item->'status','closed',item->'closed','createdAt',item->'createdAt',
   'updatedAt',item->'updatedAt','proposalVersion',item->'proposalVersion'
  ) order by position),'[]'::jsonb) into rows

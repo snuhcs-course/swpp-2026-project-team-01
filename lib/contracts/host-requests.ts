@@ -10,6 +10,6 @@ export type HostRequestPage=z.infer<typeof hostRequestPage>;
 // An assistant needs navigation, not saved contact identity or transcript data.
 // Strip unknown fields independently of the database's explicit projection.
 export const hostRequestModelPage=z.object({
- requests:z.array(hostRequestSummary.omit({requesterName:true}).strip()).max(30),
+ requests:z.array(hostRequestSummary.omit({requesterName:true}).extend({selectionCommand:z.string().regex(/^request [a-f0-9-]{36}$/u)}).strip()).max(30),
  nextCursor:hostRequestCursor.nullable(),
 });

@@ -22,6 +22,7 @@ export const requestExtractionInput=detailsProposalInput.safeExtend({intent:z.en
 
 // No actor, request ID, execution grant, or human decision in model input.
 export const conversationTool = z.discriminatedUnion('operation', [
+  z.strictObject({ operation: z.literal('context_read'), input: z.strictObject({}) }),
   z.strictObject({ operation: z.literal('host_requests_read'), input: hostRequestQuery }),
   z.strictObject({ operation: z.literal('setup_draft'), input: assistantDraftInput }),
   z.strictObject({ operation: z.literal('setup_analysis_read'), input: z.strictObject({}) }),
@@ -31,3 +32,5 @@ export const conversationTool = z.discriminatedUnion('operation', [
   z.strictObject({ operation: z.literal('private_note_save'), input: privateNoteInput }),
   z.strictObject({ operation: z.literal('details_propose'), input: detailsProposalInput }),
 ]);
+
+export const conversationModelContext=z.object({audience:z.enum(['host_setup','host_private','request_shared']),requestId:z.uuid().nullable(),readOnly:z.boolean()});

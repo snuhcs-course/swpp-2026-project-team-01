@@ -7,9 +7,9 @@
 
 ## 2. Explicit request selection and continuity
 
-- [ ] 2.1 Add link-local selection and stable request-bound references, authored selection/invalid-choice replies and explicit return to setup. Verify foreign/unknown/stale selection denial and ambiguous input leaving selection unchanged; update UX and backend documentation.
-- [ ] 2.2 Bind accepted receipts to the selected canonical host-private scope and extend grant authorization without admitting shared audiences. Verify ordered parallel dispatch, competing web edits, runtime restart, later selection changes, exact retries and no setup/request/history mixing.
-- [ ] 2.3 Label outbound replies with authored request context and revalidate original authority before send. Verify late replies, unlink/relink, receiver changes, stale provider completion and uncertain-send recovery; update provider documentation.
+- [x] 2.1 Add link-local selection and stable request-bound references, authored selection/invalid-choice replies and explicit return to setup. Verify foreign/unknown/stale selection denial and ambiguous input leaving selection unchanged; update UX and backend documentation.
+- [x] 2.2 Bind accepted receipts to the selected canonical host-private scope and extend grant authorization without admitting shared audiences. Verify ordered parallel dispatch, competing web edits, runtime restart, later selection changes, exact retries and no setup/request/history mixing.
+- [x] 2.3 Label outbound replies with authored request context and revalidate original authority before send. Verify late replies, unlink/relink, receiver changes, stale provider completion and uncertain-send recovery; update provider documentation.
 - [ ] 2.4 Verify real eve request reading and private questions through signed fixture ingress, including two hosts/two requests, continuation from web and return to setup. Deploy and verify rollback-only production routing and public guards without claiming live recipient acceptance.
 
 ## 3. Proposal review and decisions

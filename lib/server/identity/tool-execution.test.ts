@@ -217,7 +217,7 @@ test('setup model selects bounded localized categories without authoring questio
 
 test('host navigation reads are scoped to the captured grant and strip contact and extra response fields',async()=>{
  const bodies:Record<string,any>[]=[];
- const row={requestId:'84000000-0000-4000-8000-000000000001',revision:1,title:'Research meeting',status:'gathering',closed:false,createdAt:'2030-01-01T00:00:00Z',updatedAt:'2030-01-01T00:00:00Z',proposalVersion:null};
+ const row={requestId:'84000000-0000-4000-8000-000000000001',selectionCommand:'request 84000000-0000-4000-8000-000000000001',revision:1,title:'Research meeting',status:'gathering',closed:false,createdAt:'2030-01-01T00:00:00Z',updatedAt:'2030-01-01T00:00:00Z',proposalVersion:null};
  const cursor={beforeCreatedAt:row.createdAt,beforeId:row.requestId};
  const tools=new ConversationTools(new Database(env,async(_url,init)=>{bodies.push(JSON.parse(String(init?.body)));return Response.json({requests:[{...row,requesterName:'private-contact',requesterEmail:'private@example.test',messages:['private-history'],credential:'private-token'}],nextCursor:cursor,hostEmail:'private-host@example.test'});}));
  assert.deepEqual(await tools.execute(auth,call,{operation:'host_requests_read',input:{}}),{requests:[row],nextCursor:cursor});
@@ -228,4 +228,11 @@ test('host navigation reads are scoped to the captured grant and strip contact a
   await assert.rejects(tools.execute(auth,call,{operation:'host_requests_read',input}),errorCode('INVALID_INPUT'));
  }
  assert.equal(bodies.length,2,'invalid navigation never reaches the database');
+});
+
+
+test('conversation orientation exposes only the captured audience and request',async()=>{
+ const tools=new ConversationTools(new Database(env,async()=>Response.json({audience:'host_private',requestId:auth.principalId,readOnly:false,grantId:auth.principalId,credential:{secret:'private-token'},hostId:'private-host'})));
+ assert.deepEqual(await tools.execute(auth,call,{operation:'context_read',input:{}}),{audience:'host_private',requestId:auth.principalId,readOnly:false});
+ await assert.rejects(tools.execute(auth,call,{operation:'context_read',input:{requestId:auth.principalId}}),errorCode('INVALID_INPUT'));
 });

@@ -5,7 +5,7 @@ import {setupGuide} from '../../contracts/setup-guide.ts';
 import {applicationOrigin} from '../config.ts';
 import {PublicIntake} from './public-intake.ts';
 import {setupState,encodeSetupClarifications} from '../../contracts/setup.ts';
-import { conversationTool, requestExtractionInput } from '../../contracts/conversation-tools.ts';
+import { conversationTool, requestExtractionInput, conversationModelContext } from '../../contracts/conversation-tools.ts';
 import { Database } from '../database/client.ts';
 import { ApplicationError } from '../errors.ts';
 import {requestModelContext} from './request-model-context.ts';
@@ -68,6 +68,7 @@ export class ConversationTools {
       p_operation: operation,
       p_input: operation.endsWith('_read') ? input : { ...(parsed.data.operation==='setup_draft'?encodeSetupClarifications(parsed.data.input):input), idempotencyKey },
     });
+    if(operation==='context_read')return conversationModelContext.parse(result);
     if(operation==='host_requests_read')return hostRequestModelPage.parse(result);
     if(operation==='setup_read'){const state=setupState.parse(result);return {...state,guide:setupGuide(state)};}
     if(operation==='request_read'||operation==='details_propose'||operation==='private_note_save')return requestModelContext(result);

@@ -22,6 +22,7 @@ insert into fixture values
  ('guest',public.fmat_conversation_access('open',jsonb_build_object('kind','guest','requestId','f5400000-0000-4000-8000-000000000001','tokenHash',md5('1')||md5('1')),'{"audience":"request_shared","requestId":"f5400000-0000-4000-8000-000000000001"}'));
 create function pg_temp.page(name text,input jsonb default '{}') returns jsonb language sql as $$select public.fmat_conversation_tool((pg_temp.f(name)->>'grantId')::uuid,(pg_temp.f(name)->>'conversationId')::uuid,'host_requests_read',input)$$;
 insert into fixture values('first',pg_temp.page('host1'));
+select is(pg_temp.f('first')#>>'{requests,0,selectionCommand}','request f5400000-0000-4000-8000-000000000001','selection command binds exact immutable request reference');
 select is(jsonb_array_length(pg_temp.f('first')->'requests'),30,'navigation page bounded to thirty summaries');
 select is(pg_temp.f('first')#>>'{requests,0,title}','Korean 연구 proposal','stable newest-first ordering');
 select is(pg_temp.f('first')#>>'{nextCursor,beforeId}','f5400000-0000-4000-8000-000000000030','cursor is last displayed row');
@@ -35,7 +36,7 @@ select is(jsonb_array_length(pg_temp.page('host1','{"search":"%"}')->'requests')
 select is(jsonb_array_length(pg_temp.page('host1','{"search":"other-host"}')->'requests'),0,'search cannot cross host boundary');
 select is(jsonb_array_length(pg_temp.page('host2')->'requests'),1,'second host sees only its own request');
 select ok(pg_temp.f('first')::text !~ 'private-name|private-address|requesterName|requesterEmail|messages|credential|other-host-sentinel','navigation omits structured contact and private/foreign fields');
-select ok(not exists(select 1 from jsonb_array_elements(pg_temp.f('first')->'requests') item where item-array['requestId','revision','title','status','closed','createdAt','updatedAt','proposalVersion']<>'{}'::jsonb),'explicit summary output allowlist');
+select ok(not exists(select 1 from jsonb_array_elements(pg_temp.f('first')->'requests') item where item-array['requestId','selectionCommand','revision','title','status','closed','createdAt','updatedAt','proposalVersion']<>'{}'::jsonb),'explicit summary output allowlist');
 select throws_ok($$select pg_temp.page('shared')$$,'P0001','FORBIDDEN','host in shared audience cannot list private requests');
 select throws_ok($$select pg_temp.page('guest')$$,'P0001','FORBIDDEN','requester cannot discover host requests');
 select throws_ok($$select public.fmat_conversation_access('open',pg_temp.credential(3),'{"audience":"host_setup"}')$$,'P0001','HOST_NOT_ADMITTED','unadmitted account receives no private grant');

@@ -148,7 +148,11 @@ begin
   if v_grant.credential->>'kind'='photon' then
     -- Link authority is issued only by the durable private inbox processor,
     -- never by credential_actor or a browser-supplied credential.
-    if v_grant.actor_kind<>'host' or v_scope.audience<>'host_setup' then raise exception 'UNAUTHORIZED'; end if;
+    if v_grant.actor_kind<>'host' or v_scope.audience not in ('host_setup','host_private') then raise exception 'UNAUTHORIZED'; end if;
+    if not exists(select 1 from fmat.photon_inbox i where i.id=(v_grant.credential->>'inboxId')::uuid
+     and ((i.conversation_id=v_scope.id and i.execution_grant_id=v_grant.id)
+      or (i.conversation_id is null and i.execution_grant_id is null and v_scope.audience='host_setup')))
+     then raise exception 'UNAUTHORIZED';end if;
     v_actor:=fmat.photon_execution_actor(v_grant.credential);
   end if;
   perform 1 from fmat.hosts where id=v_scope.host_id for share;

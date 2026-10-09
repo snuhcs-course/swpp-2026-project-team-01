@@ -39,6 +39,7 @@ begin
  reply:=case when p_input->>'status'='completed' then nullif(btrim(p_input->>'reply'),'') else null end;
  if reply is null then reply:='I could not complete this reply. Your saved changes are preserved. Open Find Me a Time in your browser to continue.';end if;
  if length(reply)>4000 then raise exception 'INVALID_INPUT';end if;
+ reply:=fmat.photon_scoped_reply(p_scope,reply);
  insert into fmat.photon_replies(inbox_id,project_id,text,revoked_at)
  values(i.id,i.project_id,case when valid then reply else null end,case when valid then null else clock_timestamp() end)
  on conflict(inbox_id) do nothing;
@@ -48,7 +49,7 @@ revoke all on function fmat.photon_reply_prepare(uuid,uuid,jsonb) from public,an
 
 create or replace function public.fmat_photon_reply_delivery(p_operation text,p_project_id uuid,p_input jsonb)
 returns jsonb language plpgsql security definer set search_path='' as $$
-declare r fmat.photon_replies; i fmat.photon_inbox; m fmat.runtime_messages; valid boolean:=true; action text;
+declare r fmat.photon_replies; i fmat.photon_inbox; m fmat.runtime_messages; valid boolean:=true; action text; grant_id uuid; scope_id uuid;
 begin
  if p_operation='claim' then
   select r0.* into r from fmat.photon_replies r0 join fmat.photon_inbox i0 on i0.id=r0.inbox_id
@@ -67,11 +68,16 @@ begin
   if not found then raise exception 'NOT_FOUND';end if;
  end if;
  select * into strict i from fmat.photon_inbox where id=r.inbox_id;
- select * into strict m from fmat.runtime_messages where id=i.runtime_message_id;
+ if i.runtime_message_id is not null then
+  select * into strict m from fmat.runtime_messages where id=i.runtime_message_id;
+  grant_id:=m.grant_id;scope_id:=m.conversation_id;
+ else
+  grant_id:=i.execution_grant_id;scope_id:=i.conversation_id;
+ end if;
  if p_operation in ('claim','authorize') then
   -- Same host/scope/reply order as settlement and revocation; never acquire
   -- the reply lock before waiting on host authority.
-  begin perform public.fmat_conversation_check(m.grant_id,m.conversation_id);
+  begin perform public.fmat_conversation_check(grant_id,scope_id);
   exception when raise_exception then
    if sqlerrm in ('UNAUTHORIZED','FORBIDDEN','NOT_FOUND','HOST_NOT_ADMITTED') then valid:=false;else raise;end if;
   end;

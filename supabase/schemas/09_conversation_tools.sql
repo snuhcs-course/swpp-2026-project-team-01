@@ -9,6 +9,9 @@ begin
   v_actor:=v_access->'actor'; v_request_id:=(v_access->>'requestId')::uuid;
   if jsonb_typeof(p_input) is distinct from 'object' then raise exception 'INVALID_INPUT'; end if;
   case p_operation
+  when 'context_read' then
+    if p_input<>'{}'::jsonb then raise exception 'INVALID_INPUT';end if;
+    return jsonb_build_object('audience',v_access->'audience','requestId',v_access->'requestId','readOnly',v_access->'readOnly');
   when 'host_requests_read' then
     if v_access->>'audience' not in ('host_setup','host_private') or v_actor->>'kind'<>'host' then raise exception 'FORBIDDEN'; end if;
     return fmat.host_request_model_page((v_actor->>'id')::uuid,p_input);

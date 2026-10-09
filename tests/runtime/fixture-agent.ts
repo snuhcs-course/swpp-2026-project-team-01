@@ -12,6 +12,17 @@ const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMess
     if(lastUserMessage==='setup-provider-outage')throw new Error('synthetic-private-provider-detail');
     if(lastUserMessage==='setup-provider-timeout')throw new DOMException('synthetic-private-timeout-detail','TimeoutError');
     if(lastUserMessage==='setup-provider-refusal')return 'I cannot provide a setup suggestion.';
+    if(lastUserMessage==='private-request-question'){
+      const prefix=`request-context-${userMessageCount}-`,current=toolResults.filter(result=>result.id.startsWith(prefix));
+      if(current.some(result=>result.isError))return 'Private request context unavailable.';
+      const outputs=current.map(result=>result.output as {audience?:string;details?:{purpose?:string}});
+      const context=outputs.find(result=>result.audience);
+      if(!context)return {toolCalls:[{id:prefix+randomUUID(),name:'read_context',input:{context:'conversation'}}]};
+      if(context.audience==='host_setup')return 'Setup has no selected request.';
+      const request=outputs.find(result=>result.details);
+      if(request)return 'Private request: '+request.details!.purpose;
+      return {toolCalls:[{id:prefix+randomUUID(),name:'read_context',input:{context:'request'}}]};
+    }
     if(lastUserMessage==='host-request-discovery-fixture'){
       const prefix=`discovery-${userMessageCount}-`,current=toolResults.filter(result=>result.id.startsWith(prefix));
       if(current.some(result=>result.isError))return 'Request discovery unavailable.';

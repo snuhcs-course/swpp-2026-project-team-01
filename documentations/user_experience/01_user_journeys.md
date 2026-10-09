@@ -201,6 +201,8 @@ For optional iMessage linking, choose **Connect iMessage** in the `/app` chat, e
 **Goal:** Handle a request in a private messaging conversation.\
 **Entry:** The host has verified and linked their messaging identity and opted into notifications.
 
+Before discussing a request, the host asks for their request list and sends its exact `request <reference>` command. The service confirms the selection; ambiguous or invalid choices leave it unchanged. `setup` returns to onboarding/settings. Request replies identify their original request even when delivered after a new selection. Selection never grants proposal approval.
+
 1. The host receives a summary of the current proposal in their linked private conversation.
 2. They ask questions or propose changes such as “Make it next week.” The discussion remains host-only.
 3. They explicitly approve or decline the displayed proposal. A change follows J-07.
