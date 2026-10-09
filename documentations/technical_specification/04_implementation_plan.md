@@ -517,6 +517,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Reproduce and fix a delayed pre-receipt snapshot overwriting newer accepted message status; retain the receipt until a fresh authorized read and verify normal later settlement. Pass the failing-before/passing-after browser regression, three browser suites, app/script/type/build/runtime/boundary checks and 1,747 SQL assertions. [Evidence](05_rebuild_evidence.md#accepted-receipt-and-delayed-snapshot-ordering--2026-10-09).
+
 - [x] Deploy the historical-replay busy-state fix from `2ecf965` (`dpl_HE43YYm48ACEjCQUGBrMUsxgTk6c`); verify both services before promotion, the production domain, 15 runtime/access checks and two public pages. [Evidence](05_rebuild_evidence.md#historical-replay-fix-production-deployment--2026-10-09). Fresh hosted browser and live authenticated/device gates remain open.
 
 - [x] Reproduce historical stream replay incorrectly disabling setup controls, and derive current UI busy state from saved pending application inputs instead. Verify the failing-before/passing-after browser regression and inverse pending-input case, all three browser suites, app/script checks, types/build/runtime smoke. [Evidence](05_rebuild_evidence.md#historical-replay-and-current-conversation-work--2026-10-09). Production and fresh hosted acceptance remain separate.

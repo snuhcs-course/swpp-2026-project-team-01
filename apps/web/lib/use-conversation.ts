@@ -17,20 +17,27 @@ export function useConversation(target:ChatTarget,onAccessLost:()=>void) {
   const [transcript,setTranscript]=useState(emptyTranscript),[snapshot,setSnapshot]=useState<ConversationSnapshot|null>(null);
   const [error,setError]=useState(''),[sendError,setSendError]=useState(''),[sending,setSending]=useState(false),[denied,setDenied]=useState(false);
   const state=useRef(emptyTranscript()),scope=useRef(''),lifetime=useRef<AbortController|null>(null),wake=useRef(()=>{}),interruptRead=useRef(()=>{});
+  const receiptVersion=useRef(0);
   const frozen=useRef<{clientId:string;text:string}|null>(null),inFlight=useRef(false),onDenied=useRef(onAccessLost);onDenied.current=onAccessLost;
   const query=guest?'?requestId='+encodeURIComponent(requestId!):'';
   function deny(){lifetime.current?.abort();scope.current='';setSending(false);state.current=emptyTranscript();setTranscript(state.current);setSnapshot(null);setDenied(true);frozen.current=null;setSendError('');setError('Your conversation access has ended.');onDenied.current();}
   useEffect(()=>{
     const controller=new AbortController(),signal=controller.signal;lifetime.current=controller;
     state.current=emptyTranscript();setTranscript(state.current);setSnapshot(null);setDenied(false);setError('');setSendError('');setSending(false);scope.current='';frozen.current=null;
-    async function refresh(readSignal:AbortSignal){const data=conversationSnapshot.parse(await json('/api/browser/conversations/'+scope.current+query,readSignal));if(!signal.aborted&&!readSignal.aborted)setSnapshot(data);return data;}
+    async function refresh(readSignal:AbortSignal){
+      const version=receiptVersion.current;
+      const data=conversationSnapshot.parse(await json('/api/browser/conversations/'+scope.current+query,readSignal));
+      // A read begun before an accepted receipt cannot erase its newer status.
+      if(signal.aborted||readSignal.aborted||version!==receiptVersion.current)return null;
+      setSnapshot(data);return data;
+    }
     async function run(){
       while(!signal.aborted){
         const connection=new AbortController(),readSignal=AbortSignal.any([signal,connection.signal]);
         interruptRead.current=()=>{connection.abort();wake.current();};
         try{
           if(!scope.current){const opened=conversationView.parse(await json('/api/browser/conversations'+query,readSignal,{audience,...(requestId?{requestId}:{})}));if(signal.aborted)return;scope.current=opened.conversationId;}
-          const latest=await refresh(readSignal);setError('');
+          const latest=await refresh(readSignal);if(!latest)continue;setError('');
           if(latest.messages.length===0){await wait(10_000,signal,wake);continue;}
           const url='/api/browser/conversations/'+scope.current+'/stream'+query+(query?'&':'?')+'cursor='+state.current.cursor;
           const response=await fetch(url,{signal:AbortSignal.any([readSignal,AbortSignal.timeout(60_000)]),cache:'no-store'});
@@ -74,7 +81,7 @@ export function useConversation(target:ChatTarget,onAccessLost:()=>void) {
       const submitted=frozen.current;
       const receipt=messageReceipt.parse(await json('/api/browser/conversations/'+scope.current+'/messages'+query,controller.signal,submitted));
       if(controller.signal.aborted)return false;
-      frozen.current=null;
+      frozen.current=null;receiptVersion.current++;
       // The receipt confirms acceptance. A later snapshot/network failure must
       // never turn this into a fresh-ID retry of an already accepted message.
       setSnapshot(previous=>previous?{...previous,messages:previous.messages.some(m=>m.id===receipt.messageId)
