@@ -25,4 +25,4 @@ None.
 
 Calendar/Routes adapters, scheduling evaluation, versioned candidate persistence, rule configuration, private host controls, and tests. Depends on Calendar connections and request lifecycle; booking reuses the same feasibility checks before dispatch.
 
-Basis: [PRD FR-05–FR-17 and AC-02–AC-03, AC-12, AC-27](../../../documentations/02_product_requirements.md), [technical availability design](../../../documentations/03_technical_specification.md), and [backend architecture](../../../documentations/technical_specification/01_backend_architecture.md). Route coverage must be reported by tested geography/mode; unsupported coverage remains a visible clarification condition.
+Basis: [PRD FR-05–FR-17 and AC-02–AC-03, AC-12, AC-27](../../../../documentations/02_product_requirements.md), [technical availability design](../../../../documentations/03_technical_specification.md), and [backend architecture](../../../../documentations/technical_specification/01_backend_architecture.md). Route coverage must be reported by tested geography/mode; unsupported coverage remains a visible clarification condition.

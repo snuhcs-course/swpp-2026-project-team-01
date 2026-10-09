@@ -4,7 +4,7 @@
 
 See [proposal.md](proposal.md). Request lifecycle supplies normalized details and revisions; Calendar grants supply authorized host event context and requester free/busy. Missing travel must remain unresolved.
 
-Follow the [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md): root `agent/`, Next.js in `apps/web/`, shared contracts and authorized server operations in root `lib/`, and separately built eve/web services composed through root `vercel.ts`. The reconstruction target is `https://release.findmeatime.com` with Supabase project `mriseqztcwmezvtawnbo`. Runtime and provider compatibility require fresh verification.
+Follow the [implementation plan](../../../../documentations/technical_specification/04_implementation_plan.md): root `agent/`, Next.js in `apps/web/`, shared contracts and authorized server operations in root `lib/`, and separately built eve/web services composed through root `vercel.ts`. The reconstruction target is `https://release.findmeatime.com` with Supabase project `mriseqztcwmezvtawnbo`. Runtime and provider compatibility require fresh verification.
 
 ## Goals / Non-Goals
 
@@ -35,7 +35,7 @@ Extend rules and candidate context desired SQL and command shapes. Add pure inte
 
 The pure time-filtering stage now lives in `lib/server/scheduling/intervals.ts`, with strict snapshot contracts and a shared browser-safe local-time converter. It intersects continuous requester and host windows, subtracts both parties' busy intervals and host focus blocks, expands host busy/focus boundaries by the confirmed general buffer, and checks elapsed duration. General buffer, route duration and extra travel buffer remain separate. Weekly windows use actual local dates and reject ambiguous/nonexistent boundaries. Nanosecond comparisons avoid rounding away small overlaps. Explicit sampling spacing/caps affect presentation only; a shared exact-interval check remains available for later booking revalidation.
 
-The [backend interval explanation](../../../documentations/technical_specification/01_backend_architecture.md#deterministic-interval-core) records tested boundary/DST examples and the required padded Calendar-read coverage. Provider acquisition, versioned persistence, preference/travel evaluation and proposal UI are still separate unfinished tasks. No time-only result may be presented as a fully feasible candidate.
+The [backend interval explanation](../../../../documentations/technical_specification/01_backend_architecture.md#deterministic-interval-core) records tested boundary/DST examples and the required padded Calendar-read coverage. Provider acquisition, versioned persistence, preference/travel evaluation and proposal UI are still separate unfinished tasks. No time-only result may be presented as a fully feasible candidate.
 
 ## Authorized Calendar acquisition (2026-10-07)
 

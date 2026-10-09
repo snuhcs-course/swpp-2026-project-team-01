@@ -88,7 +88,7 @@ Work:
 - [ ] Record tracked/untracked changes, existing remote consumers and retained resources; preserve unrelated work and credentials.
 - [ ] Map current admission, scoped access, setup review, proposal revision, booking uncertainty and channel replay requirements to replacement tests.
 - [ ] Create a bounded rebuild-foundation OpenSpec change. Map later slices to existing active changes or new bounded changes; avoid duplicate task ownership.
-- [ ] Reconcile active `connect-google-calendars`, `evaluate-calendar-and-travel-feasibility`, `book-approved-proposals-reliably`, `conversational-host-setup` and `validate-provider-and-agent-compatibility` work. Rebuild tasks start unverified and require fresh completion evidence.
+- [ ] Reconcile active `connect-google-calendars`, `book-approved-proposals-reliably`, `conversational-host-setup` and `validate-provider-and-agent-compatibility` work. Rebuild tasks start unverified and require fresh completion evidence.
 - [ ] Capture the single `/app` surface, requester booking route, invitation receipt behavior and browser-entered iMessage OTP as explicit proposed deltas where needed. Do not mark main capability specs implemented in advance.
 
 Exit: a resource inventory, behavior-to-test map and non-overlapping OpenSpec task map exist. Outstanding spec/document disagreements are resolved for the foundation slice. Validate changed OpenSpec artifacts using the repository's pinned CLI.
@@ -217,6 +217,7 @@ References: [single host page](../user_experience/04_page_list.md#primary-pages)
 
 ### Phase 4 — Deliver requester negotiation and host review on web
 
+- [x] Sync all six verified feasibility requirements into the [main capability specification](../../openspec/specs/meeting-feasibility/spec.md) and [archive the completed 12-task change](../../openspec/changes/archive/2026-10-09-evaluate-calendar-and-travel-feasibility/tasks.md). Live provider/device gates remain in their owning changes.
 - [x] Complete feasibility task 3.3: record AC-02/03/12/27 integration evidence, verify both DST transitions through proposal agreement, and block booking after a neighboring event moves. Rebuild 96 local migrations and pass four integration suites using the shared evaluator. Live Google/device and browser reliability gates remain separate. [Evidence](05_rebuild_evidence.md#feasibility-integration-acceptance--2026-10-09).
 
 - [x] Complete feasibility task 3.2: verify explicit private preference exception and two-leg travel allowance through requester evaluation and proposal selection, private-data redaction, separate agreement/approval authority and revocation invalidation. Fresh browser, service integrations, build and application checks pass; intermittent browser failures remain recorded. [Evidence](05_rebuild_evidence.md#private-review-to-requester-proposal-acceptance--2026-10-09).
