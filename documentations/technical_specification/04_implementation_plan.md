@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Reproduce accepted past-start requester review windows and define the bounded [review-window correction](../../openspec/changes/validate-requester-draft-windows/tasks.md), including duration, lock-time expiry and durable retries. [Evidence](05_rebuild_evidence.md#requester-draft-window-validation-gap--2026-10-09). Implementation and production validation remain open.
+
 - [x] Reconcile all five retired host-intent assertions with typed partial drafts, context privacy, actual Responses protocol rejection, runtime failure preservation and impossible-date guards. Pass 413 app/provider tests, signed-ingress/eve setup integration and 1,830 post-fixture SQL assertions. [Evidence](05_rebuild_evidence.md#host-intent-protocol-reconciliation--2026-10-09). Wider legacy inventory and live provider/client acceptance remain open.
 
 - [x] Verify host draft preservation through actual eve provider-error/timeout handling, per-input sanitized stream feedback, settled replay and a text-only decline; test setup context projection against injected credentials. Pass 412 app/provider tests, four runtime tests and 1,830 post-fixture SQL assertions. [Evidence](05_rebuild_evidence.md#host-model-failure-and-context-acceptance--2026-10-09). Provider-protocol refusal/invalid-JSON reconciliation remains open.
