@@ -11,6 +11,7 @@ import {InvitationDelivery} from '../../lib/server/email/invitation-delivery.ts'
 import {PhotonTransport} from '../../lib/server/photon/transport.ts';
 import {dispatchLinkCodes} from '../../lib/server/photon/delivery.ts';
 import {dispatchPhotonReplies} from '../../lib/server/photon/replies.ts';
+import {dispatchContactShares} from '../../lib/server/photon/contact-delivery.ts';
 import {AgentMailReplyTransport,type FrozenAgentMailReply} from '../../lib/server/agentmail/reply-transport.ts';
 import {dispatchRequesterEmailReply} from '../../lib/server/agentmail/replies.ts';
 const id='00000000-0000-4000-8000-000000000001';
@@ -36,6 +37,7 @@ test('all messaging workers reject before database or injected transport access'
   }
   await assert.rejects(dispatchLinkCodes(db,env,{send:forbidden,reconcile:forbidden}),unavailable);
   await assert.rejects(dispatchPhotonReplies(db,env,{send:forbidden,reconcile:forbidden}),unavailable);
+  await assert.rejects(dispatchContactShares(db,env,{shareContact:forbidden}),unavailable);
   await assert.rejects(dispatchRequesterEmailReply(db,env,{send:forbidden}),unavailable);
  }
  assert.equal(calls,0);

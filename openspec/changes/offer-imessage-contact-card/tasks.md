@@ -11,7 +11,7 @@
 
 ## 3. Worker and browser integration
 
-- [ ] 3.1 Wire a protected internal worker and recurring recovery, with environment checks before claims and independent provider checks; verify lost wakeup, process termination, post-preflight revocation and no repeat send after uncertain results. Add sanitized operational visibility and document recovery.
+- [x] 3.1 Wire a protected internal worker and recurring recovery, with environment checks before claims and independent provider checks; verify lost wakeup, process termination, post-preflight revocation and no repeat send after uncertain results. Add sanitized operational visibility and document recovery.
 - [ ] 3.2 Add same-origin protected browser request/status operations and an accessible optional contact action on the current linked card; verify keyboard/mobile layout, duplicate clicks, lost responses, reload, link replacement and truthful accepted/uncertain copy in browser tests. Update frontend, UX, PRD and application setup documentation.
 
 ## 4. Deployment and integrated acceptance

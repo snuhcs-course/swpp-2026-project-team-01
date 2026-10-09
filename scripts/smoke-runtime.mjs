@@ -77,6 +77,8 @@ try {
   assert.equal(photonDispatch.status,401,'Code worker rejects anonymous dispatch');
   assert.match(photonDispatch.headers.get('cache-control'),/no-store/u);
   const photonReplies = await fetch(web+'/api/internal/photon/replies',{method:'POST'});
+  const photonContacts = await fetch(web+'/api/internal/photon/contacts',{method:'POST'});
+  assert.equal(photonContacts.status,401);
   assert.equal(photonReplies.status,401,'Reply worker rejects anonymous dispatch');
   assert.match(photonReplies.headers.get('cache-control'),/no-store/u);
   const photonHandoffs = await fetch(web+'/api/internal/photon/handoffs',{method:'POST'});
@@ -96,14 +98,14 @@ try {
     PHOTON_PROJECT_SECRET:'synthetic', AGENTMAIL_API_KEY:'synthetic', AGENTMAIL_INBOX_ID:'inbox@example.test',
     AGENTMAIL_RECEIVER_ID:'00000000-0000-4000-8000-000000000001',
   });
-  for (const action of ['booking/delivery','contact/delivery','recovery/delivery','invitations/delivery','photon/dispatch','photon/replies','agentmail/replies']) {
+  for (const action of ['booking/delivery','contact/delivery','recovery/delivery','invitations/delivery','photon/dispatch','photon/replies','photon/contacts','agentmail/replies']) {
     const response = await fetch(preview+'/api/internal/'+action, {method:'POST',headers:{authorization:'Bearer '+dispatchSecret}});
     assert.equal(response.status,503,action+' denies authenticated preview wakeup');
     assert.equal((await response.json()).error.code,'CONFIGURATION_UNAVAILABLE');
     assert.match(response.headers.get('cache-control'),/no-store/u);
   }
   assert.equal(databaseCalls,0,'Preview messaging never reaches the database');
-  console.log('PASS: all seven built messaging routes deny authenticated preview wakeups before database access.');
+  console.log('PASS: all eight built messaging routes deny authenticated preview wakeups before database access.');
 
   const eve = await start(['.output/server/index.mjs'], await unusedPort(), '/eve/v1/health');
   for (const path of ['/session', '/session/test', ...['cancel', 'compact', 'clear', 'reset'].map((action) => `/session/test/${action}`)]) {

@@ -24,7 +24,7 @@ The installed `@photon-ai/advanced-imessage` 2.2.0 exposes `chats.shareContactIn
 
 5. **Independent environment and authority guards.** Worker rejects non-production Vercel environments before claiming state; transport independently rejects before network access. Recheck authority after preflight immediately before the native operation. New requests and undispatched work are denied after unlink, replacement, host/session revocation or receiver disablement. A side effect already dispatched cannot be recalled; the UI must not suggest unlink retracts a card.
 
-6. **Truthful outcomes.** Accepted means only that the native RPC acknowledged. The UI never claims delivered, saved or named Find Me a Time on the device. Uncertain explains that the host should check the existing conversation and does not offer a blind resend. Do not expose full phone, route tokens, provider errors or original credential in browser/diagnostic responses. Use existing aggregate diagnostics for aged queued/uncertain work with bounded identifiers.
+6. **Truthful outcomes.** Accepted means only that the native RPC acknowledged. The UI never claims delivered, saved or named Find Me a Time on the device. Uncertain explains that the host should check the existing conversation and does not offer a blind resend. Do not expose full phone, route tokens, provider errors or original credential in browser/diagnostic responses. Add a separate `diagnostics --contacts` snapshot for aged queued, failed and uncertain/in-flight work with bounded identifiers; keep the existing operational v1 snapshot contract unchanged.
 
 ## Risks / Trade-offs
 

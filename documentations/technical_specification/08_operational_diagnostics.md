@@ -54,6 +54,23 @@ New automated alerts, broader denial instrumentation, additional audited recover
 
 See [backup and restoration readiness](09_backup_recovery.md) before treating a database restore as job or provider recovery. Restoring saved state does not reverse external effects.
 
+## Native iMessage contact sharing
+
+The [contact-sharing change](../../openspec/changes/offer-imessage-contact-card/tasks.md) adds an independently typed, read-only snapshot. Use an explicitly identified Supabase target and the existing server credential configuration:
+
+```sh
+npm run --silent diagnostics -- --project local --contacts --samples 0
+npm run --silent diagnostics -- --project mriseqztcwmezvtawnbo --contacts --samples 10
+```
+
+This mode calls only `fmat_photon_contact_snapshot`, separately from the existing operational v1 and rejection snapshots. It reports queued shares older than five minutes, terminal pre-dispatch failures, and dispatching/uncertain shares. Each category contains count, oldest time and at most twenty intent IDs/timestamps; `--samples 0` returns aggregate counts only. It contains no host identity, phone, credentials, message content or provider error. Dispatching is included conservatively; it may still receive an acknowledgement. Device delivery, contact saving and release readiness remain unobserved.
+
+The database-owner-only `fmat-photon-contacts` job runs every minute. Its wake function derives `/api/internal/photon/contacts` from the exact runtime-dispatch Vault URL, authenticates with the runtime dispatch secret and queues no HTTP request when no work is due or configuration is absent. The endpoint checks the secret and production messaging admission before any claim. A worker inspects at most five items per invocation. Successful scheduled HTTP invocation is not proof that every item was sent or settled; inspect saved outcomes.
+
+For aged queued work, check scheduler activity, target configuration, current host/session/link authority and provider preflight availability. Undispatched work can use at most three two-minute claims, with a thirty-second cooldown after a preflight failure. A terminated worker before dispatch remains recoverable after lease expiry. Once the durable dispatch marker exists, an expired lease or lost response becomes uncertain and is never retried as a native share. Photon provides no native contact reconciliation handle. Do not clear the marker, fabricate a provider reference or convert uncertain work to queued. Ask the authorized host to inspect the existing conversation; saving remains their choice.
+
+An operator may invoke the existing protected worker after confirming its target, or suspend only this schedule with `cron.alter_job` and `active:=false`. Resuming uses `active:=true`; verify the intended job row afterward. Neither suspension nor unlink retracts an already dispatched card. Keep the additive migrations and intent history on rollback. The implementation has local verification; selected-production rollout and authorized iPhone/profile acceptance remain pending in the owning change.
+
 ## Database rejection observations
 
 The [rejection observation change](../../openspec/changes/archive/2026-10-09-record-database-rejections/tasks.md) adds a separate snapshot; the existing v1 state snapshot and its unavailable event-rate fields remain unchanged. The deployed schema stores only `authorization_denied` and `stale_action`, UTC hour, count and last-observed timestamp. No actor, request, error text, provider or credential data is accepted.

@@ -28,6 +28,13 @@ select ok(not has_function_privilege('service_role','fmat.photon_contact_authori
 select ok(not has_table_privilege('service_role','fmat.photon_contact_shares','select'),'no direct share reads');
 select ok(not has_table_privilege('authenticated','fmat.photon_contact_request_keys','insert'),'no direct retry writes');
 select ok((select bool_and(relrowsecurity) from pg_class where oid in ('fmat.photon_contact_shares'::regclass,'fmat.photon_contact_request_keys'::regclass)),'both tables RLS enabled');
+select ok(not has_function_privilege('service_role','fmat.wake_photon_contacts()','execute'),'application cannot invoke scheduler directly');
+select ok(not has_function_privilege('authenticated','public.fmat_photon_contact_snapshot(integer)','execute'),'cross-tenant contact snapshot is service-only');
+select ok(has_function_privilege('service_role','public.fmat_photon_contact_snapshot(integer)','execute'),'operator can read bounded contact snapshot');
+select is((select count(*)::integer from cron.job where jobname='fmat-photon-contacts' and active and schedule='* * * * *'),1,'one recurring contact recovery schedule');
+select is(fmat.wake_photon_contacts(),null::bigint,'idle schedule creates no HTTP wakeup');
+select throws_ok($$select public.fmat_photon_contact_snapshot(21)$$,'P0001','INVALID_INPUT','snapshot limit bounded');
+select throws_ok($$select public.fmat_photon_contact_snapshot(null)$$,'P0001','INVALID_INPUT','snapshot null limit denied');
 select is(pg_temp.state(1),null::jsonb,'linking alone creates no intent');
 select throws_ok($$select pg_temp.request(11)$$,'P0001','HOST_NOT_ADMITTED','unadmitted account rejected');
 select throws_ok($$select public.fmat_photon_contact('request','{"kind":"guest"}',pg_temp.id('c8300000',1),pg_temp.input(1))$$,'P0001','FORBIDDEN','guest rejected');
@@ -35,6 +42,21 @@ select throws_ok($$select public.fmat_photon_contact('request',pg_temp.credentia
 select throws_ok($$select public.fmat_photon_contact('request',pg_temp.credential(1),pg_temp.id('c8300000',1),pg_temp.input(1)||'{"phone":"+15550100001"}')$$,'P0001','INVALID_INPUT','client route rejected');
 select throws_ok($$select public.fmat_photon_contact('request',pg_temp.credential(1),pg_temp.id('c8300000',1),pg_temp.input(1)-'idempotencyKey')$$,'P0001','INVALID_INPUT','retry key required');
 insert into fixture values('one',pg_temp.request(1));
+select is(fmat.wake_photon_contacts(),null::bigint,'pending local work with no Vault target makes no network request');
+-- pg_net sends only after commit. This entire test rolls back, so synthetic
+-- scheduler configuration can be verified without any external HTTP request.
+select vault.create_secret('https://contact-fixture.invalid/api/internal/conversations/dispatch','fmat_runtime_dispatch_url');
+select vault.create_secret(repeat('a',64),'fmat_runtime_dispatch_secret');
+insert into fixture values('wake',to_jsonb(fmat.wake_photon_contacts()));
+select is((select url from net.http_request_queue where id=(pg_temp.f('wake')#>>'{}')::bigint),'https://contact-fixture.invalid/api/internal/photon/contacts','scheduled recovery targets exact protected contact endpoint');
+select is((select method from net.http_request_queue where id=(pg_temp.f('wake')#>>'{}')::bigint),'POST','scheduler uses POST');
+select is((select headers->>'Authorization' from net.http_request_queue where id=(pg_temp.f('wake')#>>'{}')::bigint),'Bearer '||repeat('a',64),'scheduler authenticates with configured secret');
+select vault.update_secret((select id from vault.secrets where name='fmat_runtime_dispatch_url'),'https://wrong-fixture.invalid/unrelated');
+select throws_ok($$select fmat.wake_photon_contacts()$$,'P0001','INVALID_DISPATCH_CONFIGURATION','invalid wake target fails closed');
+delete from vault.secrets where name in ('fmat_runtime_dispatch_url','fmat_runtime_dispatch_secret');
+select is(public.fmat_photon_contact_snapshot(0)->>'scope','photon_contacts','snapshot scope explicit');
+select is(public.fmat_photon_contact_snapshot(0)#>>'{coverage,deviceDelivery}','not_observed','no inferred device delivery');
+select is(public.fmat_photon_contact_snapshot(0)#>>'{coverage,contactSaving}','not_observed','no inferred contact saving');
 select is(pg_temp.request(1),pg_temp.f('one'),'lost response repeats saved result');
 select is(public.fmat_photon_contact('request',pg_temp.credential(1),pg_temp.id('c8300000',1),pg_temp.input(1)||jsonb_build_object('idempotencyKey',pg_temp.id('c8700000',20))),pg_temp.f('one'),'different key shares same one intent');
 select is((select count(*)::integer from fmat.photon_contact_shares),1,'one durable work item');
@@ -47,6 +69,8 @@ select is(pg_temp.delivery('claim')->>'action','idle','active lease excludes com
 select throws_ok($$select pg_temp.delivery('finish',pg_temp.lease('claim')||'{"status":"accepted"}')$$,'P0001','INVALID_INPUT','cannot accept before dispatch');
 select is(pg_temp.delivery('dispatch',pg_temp.lease('claim'))->>'authorized','true','current authority marks dispatch');
 select is(pg_temp.state(1)->>'status','uncertain','in-flight share never promises acceptance');
+select is(public.fmat_photon_contact_snapshot(0)#>>'{signals,2,count}','1','in-flight share visible as uncertain to operators');
+select is(public.fmat_photon_contact_snapshot(0)#>'{signals,2,samples}','[]'::jsonb,'aggregate mode omits identifiers');
 select throws_ok($$select pg_temp.delivery('dispatch',pg_temp.lease('claim'))$$,'P0001','REVISION_CONFLICT','lost dispatch response cannot authorize another call');
 select throws_ok($$select pg_temp.delivery('finish',pg_temp.lease('claim')||'{"status":"retry"}')$$,'P0001','INVALID_INPUT','dispatched share cannot return to queue');
 select throws_ok($$select pg_temp.delivery('finish',pg_temp.lease('claim')||'{"status":"failed"}')$$,'P0001','INVALID_INPUT','native failure after dispatch is uncertain');
@@ -128,6 +152,9 @@ update fmat.photon_contact_shares set lease_until=now()-interval '1 second' wher
 select is(pg_temp.delivery('claim')->>'action','failed','repeated pre-dispatch process loss exhausts bounded claims');
 select is(pg_temp.state(10)->>'status','failed','crash exhaustion remains visible');
 select is((select attempts from fmat.photon_contact_shares where link_id=pg_temp.id('c8600000',10)),3,'crash recovery never exceeds three claims');
+select is(public.fmat_photon_contact_snapshot(20)#>>'{signals,1,count}','2','failed preflight and crash budgets visible');
+select is(public.fmat_photon_contact_snapshot(20)#>>'{signals,2,count}','1','terminal uncertainty visible separately');
+select ok(public.fmat_photon_contact_snapshot(20)::text not like '%155502%' and public.fmat_photon_contact_snapshot(20)::text not like '%sessionId%','snapshot omits recipient and credentials');
 select is((select count(*)::integer from fmat.audit_events where operation like 'photon_contact_%' and (metadata::text like '%155502%' or metadata::text like '%sessionId%')),0,'audit has no private route or session');
 select is((select count(*)::integer from fmat.booking_attempts),0,'contact sharing creates no booking');
 select * from finish();
