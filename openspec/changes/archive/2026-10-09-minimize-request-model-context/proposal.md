@@ -2,7 +2,7 @@
 
 ## Why
 
-The [Phase 2 requester audit](../../../tests/README.md#legacy-requester-model-assertion-map) found that the retired extractor excluded saved requester identity, while the replacement request read and draft result include saved names and email addresses. Restore structured contact minimization without removing conversational intake or the protected contact review required by the [PRD](../../../documentations/02_product_requirements.md).
+The [Phase 2 requester audit](../../../../tests/README.md#legacy-requester-model-assertion-map) found that the retired extractor excluded saved requester identity, while the replacement request read and draft result include saved names and email addresses. Restore structured contact minimization without removing conversational intake or the protected contact review required by the [PRD](../../../../documentations/02_product_requirements.md).
 
 ## What Changes
 
@@ -19,7 +19,7 @@ None.
 
 ### Modified Capabilities
 
-- `meeting-requests`: minimize saved structured contact identity in conversation model context, extending [constrained interpretation](../../specs/meeting-requests/spec.md).
+- `meeting-requests`: minimize saved structured contact identity in conversation model context, extending [constrained interpretation](../../../specs/meeting-requests/spec.md).
 
 ## Impact
 

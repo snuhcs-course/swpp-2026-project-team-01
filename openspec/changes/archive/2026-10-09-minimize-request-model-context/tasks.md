@@ -10,5 +10,5 @@
 
 ## 3. Production and completion
 
-- [ ] 3.1 Identify the release target, scan a clean committed archive, deploy/promote and verify the Ready alias and production health/authorization checks. Record source/deployment identity and privacy limits.
-- [ ] 3.2 Audit all task evidence, sync the settled requirement, archive the completed change and update the legacy map and plan without closing unrelated interpretation, narration or live-provider gaps.
+- [x] 3.1 Identify the release target, scan a clean committed archive, deploy/promote and verify the Ready alias and production health/authorization checks. Record source/deployment identity and privacy limits.
+- [x] 3.2 Audit all task evidence, sync the settled requirement, archive the completed change and update the legacy map and plan without closing unrelated interpretation, narration or live-provider gaps.
