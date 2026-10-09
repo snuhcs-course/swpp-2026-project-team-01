@@ -369,6 +369,10 @@ Overnight durable acceptance adds seven SQL assertions across partial/complete v
 
 The [21-assertion map](../documentations/technical_specification/10_legacy_scheduling_audit.md) distinguishes preserved behavior, documented replacement contracts and the unresolved online-adjacent-trip difference. Five added unit tests pin non-rounded sampling, working-hour endpoints, both manual legs with failed Routes, nine context changes invalidating allowances and rejected legacy/unattributed input shapes. The actual availability integration adds six conflict cases that persist conflict evidence without adjacent-event or route calls, and uses a 45-minute host default with a 30-minute request to verify requested-duration semantics. All 435 application/provider tests, the real availability integration and 1,860 post-fixture SQL assertions pass. These controlled provider fixtures do not establish live travel acceptance.
 
+### Legacy request API assertion audit
+
+The separate [request API audit](../documentations/technical_specification/13_legacy_request_api_audit.md) maps 15 retired request-route tests. Added coverage verifies pre-I/O decision rejection, authorization before evaluation, secret-code projection, reordered intake retries, old review replay after newer details and provider-free proposal-selection replay. It records the current contact-draft, asynchronous-message and replay-projection contracts explicitly.
+
 ### Legacy Calendar OAuth assertion audit
 
 All five named assertions in `5c305d9^:supabase/functions/_shared/modules/onboarding/oauth_test.ts` were read against the current Calendar consent, selection and browser adapters. [Consent unit tests](../lib/server/calendar/consent.test.ts), [Google adapter tests](../lib/server/calendar/google.test.ts), [consent integration](integration/calendar-consent.test.ts) and [selection integration](integration/calendar-selection.test.ts) own the current boundaries.

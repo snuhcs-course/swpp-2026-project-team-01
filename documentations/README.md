@@ -73,3 +73,5 @@ The [legacy scheduling audit](technical_specification/10_legacy_scheduling_audit
 The [legacy delivery audit](technical_specification/11_legacy_delivery_audit.md) maps retired contact-mail assertions, configuration changes and historical-record boundaries to current workers and verification.
 
 The [legacy booking audit](technical_specification/12_legacy_booking_audit.md) maps 24 retired durable adapter, booking handler and runtime assertions to current authority, recovery, receipt scope and explicit API changes.
+
+The [legacy request API audit](technical_specification/13_legacy_request_api_audit.md) maps 15 retired route assertions to current request authority, review, retry, contact-proof and proposal behavior.

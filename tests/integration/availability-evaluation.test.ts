@@ -306,6 +306,9 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   const selectInput={requestId,revision:published.revision,publicationId:published.publication!.id,candidateId:published.publication!.candidates[0].id,confirmed:true as const,idempotencyKey:randomUUID()};
   const selections=await Promise.all(Array.from({length:8},()=>publication.select(credential,selectInput)));assert.ok(selections.every(r=>r.proposal?.version===1&&r.revision===published.revision+1));
   const selected=selections[0];assert.equal(selected.requesterAgreed,false);assert.equal(selected.canAgree,true);assert.equal(selected.proposal!.start,published.publication!.candidates[0].interval.start);
+  const beforeSelectionReplay={busy:calls.length,events:eventReads,routes:routeCalls.length,ranking:rankCalls};
+  assert.deepEqual(await publication.select(credential,selectInput),selected);
+  assert.deepEqual({busy:calls.length,events:eventReads,routes:routeCalls.length,ranking:rankCalls},beforeSelectionReplay,'Committed proposal selection replay performs no new provider work');
   assert.equal(await sql.query(`select count(*) from fmat.proposals where request_id='${requestId}';`),'1');
   await assert.rejects(publication.select(credential,{...selectInput,candidateId:published.publication!.candidates[1].id}),code('IDEMPOTENCY_CONFLICT'));
   assert.deepEqual(await agentRead(),selected);

@@ -34,6 +34,9 @@ test('account-free intake fences provider reads and recovers concurrent/lost sub
   await assert.rejects(unreliable.create(handle,token,details),code('PROVIDER_UNAVAILABLE'));
   const continuation=await service.resume(handle,token);assert.ok(continuation);assert.equal(continuation.closed,false);const before=reads;
   const retries=await Promise.all(Array.from({length:8},()=>service.create(handle,token,details)));assert.ok(retries.every(r=>r.requestId===continuation.requestId));assert.equal(reads,before,'committed replay does not depend on another Google call');
+  const reordered=Object.fromEntries(Object.entries(details).reverse());
+  assert.deepEqual(await service.create(handle,token,reordered),continuation,'JSON key order cannot create a new request or continuation');
+  assert.equal(reads,before,'Reordered committed replay performs no Google read');
   assert.equal(await sql.query(`select count(*) from fmat.requests where host_id='${host}';`),'1');
   assert.equal(await sql.query(`select count(*) from fmat.audit_events where operation='request_create' and subject_id='${continuation.requestId}';`),'1');
   await assert.rejects(service.create(handle,token,{...details,purpose:'changed'}),code('IDEMPOTENCY_CONFLICT'));
