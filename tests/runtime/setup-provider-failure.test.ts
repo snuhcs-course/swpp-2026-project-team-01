@@ -23,7 +23,7 @@ for(const [text,status] of outcomes)test(`real host runtime preserves saved setu
   await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invitation}','${email}','${createHash('sha256').update(invitation).digest('hex')}',now()+interval '1 day','setup-runtime');insert into fmat.hosts(id,email,invitation_id) values('${host}','${email}','${invitation}');`);
   const setup=new HostSetup(new Database(env)),credential=await verifyHostToken(token,{env});
   const saved=await setup.draft(credential,{expectedRevision:0,idempotencyKey:randomUUID(),patch:{displayName:'Existing draft',rules:{timezone:'Asia/Seoul',bufferMinutes:10}},unresolved:['Meeting hours still needed']});
-  runtime=await startBrowserRuntime(local,'http://localhost:3000');
+  runtime=await startBrowserRuntime(local,'http://localhost:3000',undefined,{terminalInspection:true});
   const headers={authorization:'Bearer '+token,'content-type':'application/json'};
   const post=(path:string,body:unknown)=>fetch(runtime!.origin+path,{method:'POST',headers,body:JSON.stringify(body)});
   const opened=await post('/api/conversations',{audience:'host_setup'});assert.equal(opened.status,200);const scope=(await opened.json()).conversationId;
@@ -55,11 +55,23 @@ for(const [text,status] of outcomes)test(`real host runtime preserves saved setu
    assert.equal(await sql.query(`select attempts from fmat.model_work_attempts where name='conversation:${id}';`),attempts,'Settled replay cannot invoke another provider step');
    if(text==='setup-provider-authentication'){
     const canonical=await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${scope}';`);
+    const inspection=await fetch(runtime.origin+`/test/runtime/terminal/${scope}`,{headers});
+    assert.equal(inspection.status,200);const terminal=await inspection.json();
+    assert.equal(terminal.state,'failed','Actual pinned eve terminal event must establish failed-session evidence');
+    assert.equal(terminal.evidence.sessionId,canonical);assert.equal(terminal.evidence.generation,0);
+    assert.ok(Number.isSafeInteger(terminal.evidence.tailIndex)&&terminal.evidence.tailIndex>=0);
+    for(const key of ['inputTokens','outputTokens','cacheReadTokens','cacheWriteTokens'])assert.ok(Number.isSafeInteger(terminal.evidence.usage[key])&&terminal.evidence.usage[key]>=0);
+    assert.doesNotMatch(JSON.stringify(terminal),/synthetic-private|invalid_api_key|responseBody/);
+    assert.equal((await fetch(runtime.origin+`/test/runtime/terminal/${scope}`)).status,401,'Inspection requires current participant authority');
     const followup=await post(`/api/conversations/${scope}/messages`,{text:'Continue after authentication failure',clientId:randomUUID()});
     assert.equal(followup.status,409,'A terminal canonical session is not silently replaced');
     assert.equal((await followup.json()).error.code,'RECONCILIATION_PENDING');
     assert.equal(await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${scope}';`),canonical);
     assert.deepEqual(await setup.read(credential),saved);
+   }
+   if(text==='setup-provider-refusal'){
+    const inspection=await fetch(runtime.origin+`/test/runtime/terminal/${scope}`,{headers});
+    assert.equal(inspection.status,200);assert.deepEqual(await inspection.json(),{state:'active'},'A waiting workflow cannot authorize replacement');
    }
  }finally{
   await runtime?.stop();

@@ -8,7 +8,7 @@ import {setTimeout as delay} from 'node:timers/promises';
 
 // Isolated eve instance with the real application channels and deterministic
 // model. The fixture cannot call external model or messaging providers.
-export async function startBrowserRuntime(local:{API_URL:string;SERVICE_ROLE_KEY:string;ANON_KEY:string},appOrigin:string,dispatchSecret?:string,options:{preload?:string;modelCallLog?:string;modelContextWindowTokens?:number}={}){
+export async function startBrowserRuntime(local:{API_URL:string;SERVICE_ROLE_KEY:string;ANON_KEY:string},appOrigin:string,dispatchSecret?:string,options:{preload?:string;modelCallLog?:string;modelContextWindowTokens?:number;terminalInspection?:boolean}={}){
   const root=process.cwd();await mkdir('.local/rebuild',{recursive:true});
   const fixture=await mkdtemp(resolve('.local/rebuild/browser-runtime-'));
   await mkdir(join(fixture,'agent/channels'),{recursive:true});
@@ -18,6 +18,7 @@ export async function startBrowserRuntime(local:{API_URL:string;SERVICE_ROLE_KEY
   for(const [target,source] of Object.entries({'agent/agent.ts':'tests/runtime/fixture-agent.ts','agent/channels/eve.ts':'agent/channels/eve.ts','agent/channels/conversations.ts':'agent/channels/conversations.ts','agent/tools/read_context.ts':'agent/tools/read_context.ts','agent/tools/list_host_requests.ts':'agent/tools/list_host_requests.ts','agent/tools/propose_request_details.ts':'agent/tools/propose_request_details.ts','agent/tools/propose_host_revision.ts':'agent/tools/propose_host_revision.ts','agent/tools/update_setup_draft.ts':'agent/tools/update_setup_draft.ts'}))
     await writeFile(join(fixture,target),`export {default} from ${JSON.stringify(resolve(source))};\n`);
   const modelContext=String(options.modelContextWindowTokens??100_000);
+  if(options.terminalInspection)await writeFile(join(fixture,'agent/channels/conversations.ts'),`export {default} from ${JSON.stringify(resolve('tests/runtime/fixture-terminal-channel.ts'))};\n`);
   const build=spawn(process.execPath,[join(root,'node_modules/eve/bin/eve.js'),'build','--skip-sandbox-prewarm'],{cwd:fixture,env:{...process.env,FMAT_FIXTURE_MODEL_CONTEXT:modelContext},stdio:['ignore','pipe','pipe']});
   let buildLog='';build.stdout.on('data',v=>buildLog+=v);build.stderr.on('data',v=>buildLog+=v);
   const [buildCode]=await once(build,'close');await writeFile(join(fixture,'build.log'),buildLog);assert.equal(buildCode,0,buildLog.slice(-4000));
