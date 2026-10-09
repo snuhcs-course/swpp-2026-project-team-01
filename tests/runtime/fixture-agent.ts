@@ -9,6 +9,9 @@ import {describedPreferences,describedReply,describedRules,setupInvalid,setupAmb
 const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMessageCount, toolResults,tools }) => {
     if(process.env.FMAT_FIXTURE_MODEL_LOG)appendFileSync(process.env.FMAT_FIXTURE_MODEL_LOG,JSON.stringify({kind:tools.length?'turn':'compaction',inputHash:createHash('sha256').update(lastUserMessage??'').digest('hex')})+'\n');
     if(!tools.length)return 'Fixture checkpoint: preserve current authority; no scheduling decisions made.';
+    if(lastUserMessage==='setup-provider-outage')throw new Error('synthetic-private-provider-detail');
+    if(lastUserMessage==='setup-provider-timeout')throw new DOMException('synthetic-private-timeout-detail','TimeoutError');
+    if(lastUserMessage==='setup-provider-refusal')return 'I cannot provide a setup suggestion.';
     if(lastUserMessage==='model-limit-loop')return {toolCalls:[{id:randomUUID(),name:'read_context',input:{context:'request'}}]};
     if(lastUserMessage?.startsWith('compact-fixture:'))return 'Fixture turn complete.';
     if(lastUserMessage===setupReady){

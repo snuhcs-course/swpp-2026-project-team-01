@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Verify host draft preservation through actual eve provider-error/timeout handling, per-input sanitized stream feedback, settled replay and a text-only decline; test setup context projection against injected credentials. Pass 412 app/provider tests, four runtime tests and 1,830 post-fixture SQL assertions. [Evidence](05_rebuild_evidence.md#host-model-failure-and-context-acceptance--2026-10-09). Provider-protocol refusal/invalid-JSON reconciliation remains open.
+
 - [x] Deploy early setup timezone validation from `5a88cc9`; verify exact Ready release alias and 20 production HTTP checks. [Evidence](05_rebuild_evidence.md#deployed-setup-timezone-validation--2026-10-09). Remaining legacy host-intent assertions and live setup acceptance stay open.
 
 - [x] Restore early IANA timezone rejection in the shared host setup schema; verify ten invalid time/authority inputs cause zero tool RPCs and valid partial drafts remain supported. Pass 411 application/provider tests, real host-setup integration, 1,830 SQL assertions, both builds and runtime smoke. [Evidence](05_rebuild_evidence.md#setup-timezone-validation-regression--2026-10-09). Rollout and remaining legacy host-intent reconciliation are separate.

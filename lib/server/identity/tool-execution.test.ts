@@ -103,3 +103,13 @@ test('setup suggestions reject invalid time data and injected authority before a
  }
  assert.equal(requests,3,'Valid partial preferences remain advisory draft operations');
 });
+
+test('setup model context projects server state without injected credentials or identity',async()=>{
+ const state={revision:2,rulesVersion:0,calendarGeneration:null,calendarSelected:false,confirmed:{handle:'example',rules:{timezone:'Asia/Seoul'},accessToken:'private-confirmed'},draft:null,review:null,nextAction:'connect_calendar',hostId:'private-host',credential:'private-credential',accessToken:'private-token'};
+ const tools=new ConversationTools(new Database(env,async()=>Response.json(state)));
+ const result=await tools.execute(auth,call,{operation:'setup_read',input:{}});
+ assert.doesNotMatch(JSON.stringify(result),/private-confirmed|private-host|private-credential|private-token|sb_secret_test/);
+ assert.equal((result as typeof state).confirmed.rules.timezone,'Asia/Seoul');
+ state.confirmed.rules={timezone:'Asia/Seoul',accessToken:'private-nested'} as typeof state.confirmed.rules;
+ await assert.rejects(tools.execute(auth,call,{operation:'setup_read',input:{}}),'Unknown rule fields fail closed instead of reaching the model');
+});
