@@ -163,3 +163,36 @@ test('installed Responses adapter never executes setup tools for refusals or mal
   }
  }finally{globalThis.fetch=originalFetch;if(key===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=key;}
 });
+
+test('installed Responses adapter preserves requester advisory boundaries and rejects unsafe extraction',async()=>{
+ const originalFetch=globalThis.fetch,key=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='fixture-only';
+ const {detailsProposalInput}=await import('../../contracts/conversation-tools.ts');
+ const base={id:'resp_fixture',object:'response',created_at:1,status:'completed',model:'gpt-6-luna',usage:{input_tokens:1,output_tokens:1,total_tokens:2,input_tokens_details:{cached_tokens:0},output_tokens_details:{reasoning_tokens:0}},incomplete_details:null};
+ const valid={expectedRevision:2,patch:{purpose:'Discuss research',mode:'in_person',location:'Library',windows:[{start:'2030-06-01T09:00:00+09:00',end:'2030-06-01T10:00:00+09:00'}]},clarifications:[]};
+ const cases=[
+  {name:'refusal',output:[{type:'message',id:'msg_1',role:'assistant',content:[{type:'refusal',refusal:'Cannot provide a suggestion'}]}]},
+  ...[
+   {name:'invalid tool JSON',args:'{broken'},
+   {name:'ambiguous dates',args:JSON.stringify({...valid,patch:{windows:[{start:'2030-06-01T09:00',end:'2030-06-01T10:00'}]}})},
+   {name:'impossible date',args:JSON.stringify({...valid,patch:{windows:[{start:'2030-02-30T09:00:00Z',end:'2030-02-30T10:00:00Z'}]}})},
+   {name:'injected authority',args:JSON.stringify({...valid,approved:true,command:'calendar.insert'})},
+   {name:'nested authority',args:JSON.stringify({...valid,patch:{...valid.patch,agreed:true}})},
+   {name:'obsolete question envelope',args:JSON.stringify({...valid,intent:'question'})},
+   {name:'obsolete unknown envelope',args:JSON.stringify({...valid,intent:'unknown'})},
+   {name:'valid advisory review',args:JSON.stringify(valid)},
+  ].map(item=>({name:item.name,output:[{type:'function_call',id:'fc_1',call_id:'call_1',name:'propose_request_details',arguments:item.args}]})),
+ ];
+ try{
+  for(const scenario of cases){
+   let executions=0,reservations=0,requests=0;
+   globalThis.fetch=async(url)=>{assert.equal(String(url),'https://api.openai.com/v1/responses');requests++;return Response.json({...base,output:scenario.output});};
+   const raw=openai('gpt-6-luna');assert.notEqual(typeof raw,'string');
+   const model=boundedModel(raw as Parameters<typeof boundedModel>[0],async()=>{reservations++;});
+   const outcome=await Promise.allSettled([generateText({model,prompt:'Suggest requester scheduling details',maxRetries:0,tools:{propose_request_details:{description:'Propose a review for explicit requester application',inputSchema:detailsProposalInput,execute:async(input)=>{executions++;assert.deepEqual(input,valid);return {review:{status:'pending'}};}}}})]);
+   assert.equal(executions,scenario.name==='valid advisory review'?1:0,scenario.name);
+   assert.equal(requests,1,scenario.name);assert.equal(reservations,1,scenario.name);
+   if(scenario.name==='valid advisory review')assert.equal(outcome[0].status,'fulfilled');
+   if(scenario.name==='refusal'&&outcome[0].status==='fulfilled'){assert.equal(outcome[0].value.toolCalls.length,0);assert.equal(outcome[0].value.text,'');}
+  }
+ }finally{globalThis.fetch=originalFetch;if(key===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=key;}
+});

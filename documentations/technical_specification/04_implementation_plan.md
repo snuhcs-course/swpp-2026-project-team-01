@@ -134,6 +134,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 - [x] Verify requester-window expiry during observed request-lock waits for proposal and apply, state preservation, and committed replay after time passes. Pass real RPC integration, 1,853 post-fixture SQL assertions, 413 app/provider tests, both builds and runtime smoke. [Evidence](05_rebuild_evidence.md#requester-review-window-integrated-acceptance--2026-10-09). Production verification and archive remain open.
 
+- [x] Map all eight retired requester-model assertions and verify nine actual Responses outputs, including refusal, malformed/impossible time data, authority injection and a positive advisory review. Five assertions have replacement coverage; identity minimization, uncertain-intent semantics and false narration remain open. [Evidence](05_rebuild_evidence.md#requester-model-protocol-reconciliation--2026-10-09).
+
 - [x] Activate and verify requester review-window validation in production: 108 matching migrations, three matching function/privilege sets, clean advisors, rollback-only acceptance and 20 HTTP checks. Sync both requirements and archive the five-task change. [Evidence](05_rebuild_evidence.md#deployed-requester-review-window-validation--2026-10-09). Other requester-model and live-provider gates remain open.
 
 - [x] Implement private assistant review-window validation at proposal/apply boundaries with durable retries. Review generated migration `20261009082925`, rebuild 108 local migrations, and pass 23 new/1,853 total SQL assertions plus clean security advisors. [Evidence](05_rebuild_evidence.md#requester-review-window-database-validation--2026-10-09). Production rollout remains open.
