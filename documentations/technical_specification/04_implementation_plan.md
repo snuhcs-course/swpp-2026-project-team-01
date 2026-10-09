@@ -517,6 +517,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Disable unused size-container behavior on the two inline iMessage form groups after reproducing zero-size mounted controls. Preserve focus/retry/privacy checks; verify eight fresh onboarding journeys, all three browser suites, app checks/builds/runtime smoke and 1,747 post-cleanup SQL assertions. [Evidence](05_rebuild_evidence.md#inline-imessage-size-container-mitigation--2026-10-09). Broader intermittent-browser and actual-device/provider acceptance remain open.
+
 - [x] Verify the full pinned-stack CI run and accept the exact PostgreSQL version from CLI 2.119.0’s verified ECR/GHCR/Docker Hub fallback names. Keep immutable-ID reuse and reject other versions/repositories; pass three local restore tests. [Evidence](05_rebuild_evidence.md#verified-restore-registry-fallbacks--2026-10-09). Fresh hosted mirror-guard acceptance remains pending.
 
 - [x] Pin fresh CI stacks to PostgreSQL `17.11.0.003` and verify CLI resolution before startup, correcting the proven `.002`/`.003` restore-assertion mismatch without weakening its exact-version check. Clean-checkout resolution and local restore pass; hosted rerun pending. [Evidence](05_rebuild_evidence.md#clean-checkout-postgresql-pin--2026-10-09).
