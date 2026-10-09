@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Deploy Photon credential separation from `1ba3f85` (`dpl_99B6uHx4UwH9gaehpZHgWM5isPiq`), verify the exact Ready release alias and 25 production checks. [Evidence](05_rebuild_evidence.md#deployed-photon-credential-separation--2026-10-09). Production Photon receiver configuration is absent and correctly returns 503; signed ingress and live device acceptance remain open.
+
 - [x] Restore Photon privileged-secret separation and resolve legacy health/preflight behavior under the same-origin architecture. Demonstrate the regression, pass 421 application/provider tests, both builds and built runtime checks. [Evidence](05_rebuild_evidence.md#photon-credential-separation-and-foundation-reconciliation--2026-10-09). Production rollout remains pending; the wider legacy inventory stays open.
 
 - [x] Audit all eight legacy foundation assertions, strengthen dispatch lease/failure and token-hash coverage, and pass 30 focused tests plus typechecks. [Evidence](05_rebuild_evidence.md#legacy-foundation-boundary-audit--2026-10-09). Health/preflight contract differences and Photon privileged-secret reuse rejection remain open; this does not complete the legacy audit.
