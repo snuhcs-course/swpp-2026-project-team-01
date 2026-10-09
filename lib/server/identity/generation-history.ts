@@ -58,11 +58,12 @@ export function legacyHistoryPosition(value:GenerationTimeline,sessionId:string,
  * not. Returned events preserve original IDs and use logical cursor positions. */
 export async function readGenerationHistory(expected:GenerationTimeline,attach:(id:string)=>HistorySession,
  check:()=>Promise<GenerationTimeline>,startIndex:number,signal:AbortSignal,
- options:{timeoutMs?:number;maxEvents?:number;maxBytes?:number}={}):Promise<HistoryPage>{
+ options:{timeoutMs?:number;maxEvents?:number;maxBytes?:number;endIndex?:number}={}):Promise<HistoryPage>{
  const saved=timeline(expected),rows=positions(saved),signature=JSON.stringify(saved);
  const timeout=options.timeoutMs??5000,maxEvents=options.maxEvents??100,maxBytes=options.maxBytes??65_536;
  if(!Number.isSafeInteger(startIndex)||startIndex<0||!Number.isInteger(timeout)||timeout<1||timeout>5000
-  ||!Number.isInteger(maxEvents)||maxEvents<1||maxEvents>100||!Number.isInteger(maxBytes)||maxBytes<1024||maxBytes>65_536)
+  ||!Number.isInteger(maxEvents)||maxEvents<1||maxEvents>100||!Number.isInteger(maxBytes)||maxBytes<1024||maxBytes>65_536
+  ||(options.endIndex!==undefined&&(!Number.isSafeInteger(options.endIndex)||options.endIndex<startIndex)))
   throw new ApplicationError('INVALID_INPUT',400);
  const cancel=AbortSignal.any([signal,AbortSignal.timeout(timeout)]);
  let reader:ReadableStreamDefaultReader<unknown>|undefined,stopped=false,abort=()=>{};
@@ -82,14 +83,14 @@ export async function readGenerationHistory(expected:GenerationTimeline,attach:(
  try{
   await authorize();
   const current=rows.at(-1)!;
-  const live=current.sessionId===null?undefined:attach(current.sessionId);
+  const live=current.sessionId===null||(options.endIndex!==undefined&&options.endIndex<=current.offset)?undefined:attach(current.sessionId);
   const liveTail=live?validTail(await bounded(()=>live.getStreamTailIndex())):-1;
-  const end=current.offset+liveTail+1;
+  const end=Math.min(current.offset+liveTail+1,options.endIndex??Number.MAX_SAFE_INTEGER);
   if(!Number.isSafeInteger(end))throw unavailable();
   if(startIndex>end)throw new ApplicationError('INVALID_INPUT',400);
   const events:HistoryPage['events']=[];let cursor=startIndex,bytes=0,full=false;
   for(const row of rows){
-   const tail=row.terminalTail??liveTail,limit=row.offset+tail+1;
+   const tail=row.terminalTail??liveTail,limit=Math.min(row.offset+tail+1,end);
    if(cursor>=limit||cursor<row.offset||row.sessionId===null)continue;
    if(events.length>=maxEvents||full)break;
    const session=row.terminalTail===null?live!:attach(row.sessionId);

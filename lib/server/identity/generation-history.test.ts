@@ -94,6 +94,17 @@ test('unbound successor preserves complete archive, and an empty generation zero
  assert.deepEqual(await readGenerationHistory(empty,()=>{throw Error('must not attach');},async()=>{checks++;return empty;},0,signal()),{events:[],nextCursor:0,hasMore:false});assert.equal(checks,2);
 });
 
+test('an explicit archive boundary never attaches or waits for the successor',async()=>{
+ const env=environment();
+ const page=await readGenerationHistory(timeline,env.attach,env.check,1,signal(),{endIndex:3});
+ assert.deepEqual(page.events.map(e=>e.cursor),[2,3]);assert.equal(page.hasMore,false);
+ assert.deepEqual(env.attached,['private-old-runtime']);
+ const atEnd=await readGenerationHistory(timeline,()=>{throw Error('no provider read at boundary');},env.check,5,signal(),{endIndex:5});
+ assert.deepEqual(atEnd,{events:[],nextCursor:5,hasMore:false});
+ for(const endIndex of [-1,0.5,Number.MAX_SAFE_INTEGER+1,0])
+  await assert.rejects(readGenerationHistory(timeline,env.attach,env.check,1,signal(),{endIndex}),code('INVALID_INPUT'));
+});
+
 test('byte limit across a generation boundary retains the first unreturned event',async()=>{
  const value={...timeline,generations:[{...timeline.generations[0],terminalTail:0},timeline.generations[1]]};
  const first=fixture([event('message.completed','a'.repeat(650),'first')]),second=fixture([event('message.completed','한'.repeat(220),'second')]);
