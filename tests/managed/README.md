@@ -1,0 +1,31 @@
+# Managed runtime recovery fixture
+
+These modules belong only in an isolated diagnostic **preview deployment**. They
+are never imported by the product agent and must never be promoted to a release
+alias. Use the pinned Eve version, production conversation channel and shared
+application modules, with the deterministic `fixture-agent.ts` replacing the
+model and `fixture-update-tool.ts` as the sole mutation tool.
+
+The operator creates one synthetic Auth user named
+`managed-runtime-<user UUID>@example.test`, one matching admitted host and one
+synthetic request. Configure `FMAT_MANAGED_PROBE_HOST_ID` and
+`FMAT_MANAGED_PROBE_REQUEST_ID` for those exact records. The tool checks preview
+environment, current guest grant and exact request before performing the actual
+requester draft operation. It then writes a one-shot marker to that synthetic
+user's app metadata and kills its own diagnostic worker before returning the
+committed result to Eve. A managed replay must retain the canonical session and
+idempotency identity, return the same draft and settle one accepted input.
+
+Send `managed-recovery-probe` through the normal authorized conversation route.
+Inspect the synthetic database records for one draft, unchanged shared request
+revision, one accepted/completed input, retained session and bounded model work.
+Repeat the same client ID/text, reconnect the stream, send a continuation and
+revoke the request. Verify replay adds no draft and revoked read/send/stream
+access fails. Retain only sanitized counts, timings and provider statuses.
+
+The fixture uses no real model, Calendar, email or iMessage provider. A hosted
+fixture tests managed Workflow behavior; it does not establish real-provider
+compatibility or prove the public release's complete recovery SLA. Clean up only
+the exact synthetic database records after revoking access and stopping work;
+remove the diagnostic deployment. Managed checkpoint/log retention is separate
+from database cleanup. Never reset or globally clean the release database.
