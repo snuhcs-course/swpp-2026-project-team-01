@@ -60,6 +60,8 @@ test('guest credentials carry a request-bound hash and never trust a supplied ac
   const credential = guestCredential(requestId, 'a'.repeat(43));
   requireCredential(credential);
   assert.equal(credential.kind, 'guest');
+  if (credential.kind !== 'guest') assert.fail('Expected request credential');
+  assert.match(credential.tokenHash, /^[a-f0-9]{64}$/u);
   assert.doesNotMatch(JSON.stringify(credential), /a{43}/);
   assert.throws(() => requireCredential(JSON.parse(JSON.stringify(credential)) as Credential), code('UNAUTHORIZED'));
   assert.throws(() => guestCredential(requestId, 'short'), code('UNAUTHORIZED'));

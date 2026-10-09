@@ -22,3 +22,20 @@ test('revoked recovery never sends and transient failures remain retryable', asy
     assert.deepEqual(finishes,[{messageId:row.messageId,leaseToken:row.leaseToken,outcome}]);
   }
 });
+
+test('dispatcher records each claimed lease after success or provider failure without leaking the failure', async () => {
+  const row={messageId:'91000000-0000-4000-8000-000000000001',conversationId:'92000000-0000-4000-8000-000000000001',grantId:'93000000-0000-4000-8000-000000000001',leaseToken:'94000000-0000-4000-8000-000000000001',text:'saved input',sessionId:'canonical'};
+  for(const fail of [false,true]) {
+    const calls: {operation:unknown;input:unknown}[]=[];let sends=0,checks=0;
+    const db={rpc:async (_name:string,p:Record<string,unknown>)=>{calls.push({operation:p.p_operation,input:p.p_input});return p.p_operation==='claim'?[row]:{};}} as Database;
+    const access={checkExecution:async(grantId:string,conversationId:string)=>{checks++;assert.equal(grantId,row.grantId);assert.equal(conversationId,row.conversationId);}} as unknown as Conversations;
+    const result=await dispatchPending(async(scope,text,auth,sessionId)=>{
+      sends++;assert.equal(checks,1);assert.equal(scope,row.conversationId);assert.equal(text,row.text);assert.equal(sessionId,row.sessionId);
+      assert.deepEqual(auth,{authenticator:'fmat-conversation',principalType:'user',principalId:row.grantId,attributes:{conversationId:row.conversationId,messageId:row.messageId}});
+      if(fail)throw new Error('private-provider-token-and-message');
+    },db,access);
+    assert.equal(sends,1);assert.deepEqual(result,{claimed:1,sent:fail?0:1});
+    assert.deepEqual(calls,[{operation:'claim',input:{}},{operation:'finish',input:{messageId:row.messageId,leaseToken:row.leaseToken,outcome:fail?'retry':'sent'}}]);
+    assert.doesNotMatch(JSON.stringify({result,calls}),/private-provider/);
+  }
+});
