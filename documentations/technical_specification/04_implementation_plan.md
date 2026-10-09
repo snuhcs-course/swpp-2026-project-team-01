@@ -517,6 +517,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Verify the full pinned-stack CI run and accept the exact PostgreSQL version from CLI 2.119.0’s verified ECR/GHCR/Docker Hub fallback names. Keep immutable-ID reuse and reject other versions/repositories; pass three local restore tests. [Evidence](05_rebuild_evidence.md#verified-restore-registry-fallbacks--2026-10-09). Fresh hosted mirror-guard acceptance remains pending.
+
 - [x] Pin fresh CI stacks to PostgreSQL `17.11.0.003` and verify CLI resolution before startup, correcting the proven `.002`/`.003` restore-assertion mismatch without weakening its exact-version check. Clean-checkout resolution and local restore pass; hosted rerun pending. [Evidence](05_rebuild_evidence.md#clean-checkout-postgresql-pin--2026-10-09).
 
 - [x] Add and run the repeatable public-landmark Routes probe for both adjacent directions, four modes and Seoul/New York; assert separate meeting/travel margins and preserve no-route clarification. Pass 19 deterministic adapter/evaluator tests and types. [Evidence](05_rebuild_evidence.md#bidirectional-live-routes-evaluation--2026-10-09). Complete live physical booking and compatibility task 3.5 remain open.

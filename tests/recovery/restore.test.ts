@@ -6,7 +6,8 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
 
 const local='supabase_db_swpp-2026-project-team-01';
-const image='public.ecr.aws/supabase/postgres:17.11.0.003';
+// CLI 2.119.0's verified ECR -> GHCR -> Docker Hub fallback names.
+const selectedImage=(image:string)=>['public.ecr.aws/supabase/postgres','ghcr.io/supabase/postgres','supabase/postgres'].some(repository=>image===`${repository}:17.11.0.003`);
 const literal=(value:unknown)=>"'"+String(value).replaceAll("'","''")+"'";
 const json=(value:unknown)=>literal(JSON.stringify(value))+'::jsonb';
 function dockerFailure(operation:string,stderr:string,env:NodeJS.ProcessEnv=process.env){
@@ -26,6 +27,10 @@ test('restore startup diagnostics preserve the cause without inherited values or
  assert.equal(dockerFailure('run','docker: no space left on device',{}),'docker: no space left on device');
  assert.equal(dockerFailure('run','docker: denied short',{PASSWORD:'short'}),'docker: denied [environment value]');
 });
+test('restore accepts the pinned release image from verified Supabase mirrors only',()=>{
+ for(const repository of ['public.ecr.aws/supabase/postgres','ghcr.io/supabase/postgres','supabase/postgres'])assert.equal(selectedImage(`${repository}:17.11.0.003`),true);
+ for(const image of ['ghcr.io/supabase/postgres:17.11.0.002','ghcr.io/supabase/postgres:latest','ghcr.io/other/postgres:17.11.0.003','ghcr.io.attacker.test/supabase/postgres:17.11.0.003','attacker.test/supabase/postgres:17.11.0.003'])assert.equal(selectedImage(image),false);
+});
 function docker(args:string[],input?:string){
  const result=spawnSync('docker',args,{input,encoding:'utf8',maxBuffer:32*1024*1024,timeout:60000});
  // Never print a dump, SQL input, or inherited credentials on failure.
@@ -40,7 +45,7 @@ test('isolated restore preserves populated booking uncertainty, delivery identit
  const source=JSON.parse(docker(['inspect',local]))[0];
  assert.equal(source.Config.Labels['com.supabase.cli.project'],'swpp-2026-project-team-01');
  assert.equal(source.State.Running,true);
- assert.equal(source.Config.Image,image,'restore uses the selected pinned PostgreSQL version');
+ assert.ok(selectedImage(source.Config.Image),'restore uses the selected pinned PostgreSQL version from a verified Supabase mirror');
  assert.match(source.Image,/^sha256:[a-f0-9]{64}$/u);
  const localImage=source.Image as string;
  // Only schema leaves the existing local stack. No existing local rows or remote target are read.
