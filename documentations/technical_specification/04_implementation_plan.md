@@ -513,6 +513,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [ ] Implement and deploy [read-only operational diagnostics](../../openspec/changes/inspect-operational-health/tasks.md) with explicit target/credential checks, redacted persisted-state signals, bounded samples and truthful missing telemetry. Keep broader rejection instrumentation, recovery, retention and operational gates separate.
+
 - [x] Deploy model execution limits from `0a69f56` (`dpl_EBTshCB6ejSE4ge8qZJxCB4KrsEn`); verify 35 integration tests, runtime/browser recovery, 94 matching migrations, matching function definitions/privileges, rollback-only quota acceptance, clean advisors and 34 production HTTP guards. Sync and archive the bounded model execution change. [Evidence](05_rebuild_evidence.md#deployed-model-execution-limits--2026-10-09).
 
 - [x] Wire conversation, automatic compaction and ranking calls to durable model reservations; verify bounded loops, restart charges, failed settlement, cached ranking reuse and browser recovery with working structured edits. Deployed and verified in the deployment evidence. [Evidence](05_rebuild_evidence.md#model-execution-runtime-integration--2026-10-09).
