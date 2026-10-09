@@ -6,6 +6,8 @@ For the pre-launch rebuild, start with the [implementation plan](technical_speci
 
 Reconstruction target: **`https://release.findmeatime.com`**, using Supabase project **`mriseqztcwmezvtawnbo`**. See [deployment setup](technical_specification/03_provider_setup.md#reconstruction-deployment-origin); selecting this target does not establish live deployment readiness.
 
+The [acceptance inventory](technical_specification/07_acceptance_inventory.md) maps every AC-01–AC-28 obligation to current ownership, evidence and remaining work.
+
 | Document | Purpose |
 |---|---|
 | [One-pager](01_one_pager.md) | Product purpose, target users, problem, solution, and core principles. |

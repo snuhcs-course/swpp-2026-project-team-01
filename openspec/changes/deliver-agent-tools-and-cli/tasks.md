@@ -15,6 +15,8 @@ Host discovery and audience-safe runtime history now pass local SQL, signed-toke
 - [x] 2.3 Add candidate/current-proposal review and booking-status operations plus protected browser handoffs for human-only decisions and provider consent; verify no implicit approval/booking and consistent current-version review, with interface documentation.
 Local signed MCP host setup now covers draft-to-human-confirmation and logout with a controlled Calendar adapter; requester availability/proposal/human-review state transitions now also pass signed MCP coverage with controlled providers. The booking worker now also verifies signed MCP status parity across approval, uncertain writes, reconciliation and confirmation, including closed-requester denial and browser receipt retention. Live production/provider acceptance remains outstanding.
 
+Release inventory clarification (2026-10-09): AC-15/21/24 still require agent-led account-free initial creation/delegation. The current CLI requires browser intake first and does not satisfy that outcome. Keep task 2.4 and both paste-entry acceptance open until the missing bootstrap is implemented and tested without manual booking-page interaction; see the [acceptance inventory](../../../documentations/technical_specification/07_acceptance_inventory.md#ac-01ac-28-obligations).
+
 - [ ] 2.4 Exercise complete host setup and requester scheduling through the catalog; verify remaining setup confirmation/handoff coverage, all domain migrations and production behavior before claiming workflow completion.
 
 ## 3. Thin CLI and entry journeys
