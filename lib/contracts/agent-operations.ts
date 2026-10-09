@@ -3,7 +3,7 @@ import {ianaTimezone} from './time.ts';
 import {agentHistoryInput} from './agent-history.ts';
 import {z} from 'zod';
 import {hostRequestQuery} from './host-requests.ts';
-import {draftInput} from './setup.ts';
+import {assistantDraftInput} from './setup.ts';
 import {privateNoteInput,detailsProposalInput} from './conversation-tools.ts';
 const requestId=z.uuid(),idempotencyKey=z.uuid(),empty=z.strictObject({});
 // Deliberately no actor, bearer token, confirmation, or arbitrary RPC name.
@@ -18,7 +18,7 @@ export const agentOperation=z.discriminatedUnion('operation',[
  z.strictObject({operation:z.literal('requests_list'),input:hostRequestQuery}),
  z.strictObject({operation:z.literal('setup_read'),input:empty}),
  z.strictObject({operation:z.literal('setup_analysis_read'),input:empty}),
- z.strictObject({operation:z.literal('setup_draft'),input:draftInput,idempotencyKey}),
+ z.strictObject({operation:z.literal('setup_draft'),input:assistantDraftInput,idempotencyKey}),
  z.strictObject({operation:z.literal('request_read'),requestId,input:empty}),
  z.strictObject({operation:z.literal('private_note_save'),requestId,input:privateNoteInput,idempotencyKey}),
  z.strictObject({operation:z.literal('details_propose'),requestId,input:detailsProposalInput,idempotencyKey}),

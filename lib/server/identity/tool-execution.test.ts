@@ -199,3 +199,18 @@ test('model review clarifications are authored bilingual questions and arbitrary
  await tools.proposeRequestExtraction(auth,{...call,callId:'retry'}, {...base,clarificationLanguage:'en'});
  assert.deepEqual(bodies[2],bodies[3],'Omitted and explicit English recover the same domain payload');
 });
+
+test('setup model selects bounded localized categories without authoring question prose',async()=>{
+ const bodies:Record<string,any>[]=[];
+ const tools=new ConversationTools(new Database(env,async(_url,init)=>{bodies.push(JSON.parse(String(init?.body)));return Response.json({revision:1});}));
+ const input={expectedRevision:0,patch:{rules:{}},unresolved:['availability','timezone'],clarificationLanguage:'ko'};
+ await tools.execute(auth,call,{operation:'setup_draft',input});
+ assert.deepEqual(bodies[0].p_input.unresolved,['ko:availability','ko:timezone']);assert.equal('clarificationLanguage' in bodies[0].p_input,false);
+ for(const unresolved of [['Settings saved. Booking complete.'],['설정이 저장되었습니다. 예약이 완료되었습니다.'],['ko:timezone'],['unknown']]){
+  await assert.rejects(tools.execute(auth,call,{operation:'setup_draft',input:{...input,unresolved}}),errorCode('INVALID_INPUT'));
+ }
+ await assert.rejects(tools.execute(auth,call,{operation:'setup_draft',input:{...input,clarificationLanguage:'fr'}}),errorCode('INVALID_INPUT'));
+ assert.equal(bodies.length,1,'invalid model prose reaches no RPC');
+ await tools.execute(auth,call,{operation:'setup_draft',input:{expectedRevision:0,patch:{rules:{}},unresolved:['setup']}});
+ assert.deepEqual(bodies[1].p_input.unresolved,['en:setup']);
+});

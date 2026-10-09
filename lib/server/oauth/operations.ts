@@ -1,3 +1,4 @@
+import {encodeSetupClarifications} from '../../contracts/setup.ts';
 import {agentOperation,agentOperationScope} from '../../contracts/agent-operations.ts';
 import {Database} from '../database/client.ts';
 import {ApplicationError} from '../errors.ts';
@@ -21,7 +22,7 @@ export class AgentOperations{
    p_grant_id:claims.grant_id,p_client_id:claims.client_id,p_resource:claims.aud,p_actor_kind:claims.actor_kind,p_actor_id:claims.sub,
    p_scope:claims.scope,p_token_expires_at:claims.exp,p_operation:operation.operation,
    p_request_id:'requestId'in operation?operation.requestId:null,
-   p_input:operation.input,p_idempotency_key:'idempotencyKey'in operation?operation.idempotencyKey:null,
+   p_input:operation.operation==='setup_draft'?encodeSetupClarifications(operation.input):operation.input,p_idempotency_key:'idempotencyKey'in operation?operation.idempotencyKey:null,
   });
   if(result&&typeof result==='object'&&'error'in result){
    if(result.error==='invalid_grant'||result.error==='invalid_token')throw new AgentOAuthError('invalid_token',401);

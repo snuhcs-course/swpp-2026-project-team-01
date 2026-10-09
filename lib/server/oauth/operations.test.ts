@@ -4,6 +4,7 @@ import {randomUUID} from 'node:crypto';
 import {generateKeyPair,exportJWK} from 'jose';
 import {AgentCredentials,type AgentCredential} from './credentials.ts';
 import {AgentOAuthTokens} from './tokens.ts';
+import {ApplicationError} from '../errors.ts';
 import {AgentOperations} from './operations.ts';
 const second=Math.floor(Date.now()/1000),pair=await generateKeyPair('ES256',{extractable:true});
 const env={APP_ORIGIN:'https://release.example.test',AGENT_OAUTH_SIGNING_JWK:JSON.stringify({...await exportJWK(pair.privateKey),kid:'test'})};
@@ -45,5 +46,14 @@ test('bound intake operations keep their original subject and require explicit r
  assert.deepEqual(await operations.execute(c,{operation:'request_read',requestId,input:{}}),{id:requestId});
  for(const operation of ['setup_read','requests_list','private_note_save','decision_review'])await assert.rejects(operations.execute(c,{operation,requestId,input:{}}));
  const onlyIntake=await credential('intake','request:intake');await assert.rejects(operations.execute(onlyIntake,{operation:'request_read',requestId,input:{}}),/invalid_scope/);
+ assert.equal(calls,1);
+});
+
+test('external-agent setup uses the same bounded clarification categories',async()=>{
+ const c=await credential('host','host:read host:write');let calls=0;
+ const operations=new AgentOperations({rpc:async(_name,args)=>{calls++;assert.deepEqual(args.p_input,{expectedRevision:0,patch:{rules:{}},unresolved:['ko:timezone','ko:availability']});return {revision:1};}},()=>second*1000);
+ const command={operation:'setup_draft',idempotencyKey:randomUUID(),input:{expectedRevision:0,patch:{rules:{}},unresolved:['timezone','availability'],clarificationLanguage:'ko'}};
+ await operations.execute(c,command);
+ for(const text of ['Settings saved. Booking complete.','설정이 저장되었습니다. 예약이 완료되었습니다.'])await assert.rejects(operations.execute(c,{...command,input:{...command.input,unresolved:[text]}}),error=>error instanceof ApplicationError&&error.code==='INVALID_INPUT');
  assert.equal(calls,1);
 });

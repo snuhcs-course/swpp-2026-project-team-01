@@ -4,7 +4,7 @@ import {requestClarificationQuestions} from '../../contracts/request-clarificati
 import {setupGuide} from '../../contracts/setup-guide.ts';
 import {applicationOrigin} from '../config.ts';
 import {PublicIntake} from './public-intake.ts';
-import {setupState} from '../../contracts/setup.ts';
+import {setupState,encodeSetupClarifications} from '../../contracts/setup.ts';
 import { conversationTool, requestExtractionInput } from '../../contracts/conversation-tools.ts';
 import { Database } from '../database/client.ts';
 import { ApplicationError } from '../errors.ts';
@@ -65,7 +65,7 @@ export class ConversationTools {
     const result=await this.database.rpc('fmat_conversation_tool', {
       p_grant_id: auth.data.principalId, p_conversation_id: auth.data.attributes.conversationId,
       p_operation: operation,
-      p_input: operation.endsWith('_read') ? input : { ...input, idempotencyKey },
+      p_input: operation.endsWith('_read') ? input : { ...(parsed.data.operation==='setup_draft'?encodeSetupClarifications(parsed.data.input):input), idempotencyKey },
     });
     if(operation==='setup_read'){const state=setupState.parse(result);return {...state,guide:setupGuide(state)};}
     if(operation==='request_read'||operation==='details_propose'||operation==='private_note_save')return requestModelContext(result);

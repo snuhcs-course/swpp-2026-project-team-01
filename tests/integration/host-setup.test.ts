@@ -41,13 +41,19 @@ test('host setup uses current authority, explicit review, provider permission an
   async function tool(name:string,args:unknown={input:{}}){const response=await invoke(name,args);assert.equal(response.status,200);const body=await response.json();assert.equal(body.result?.isError,undefined,JSON.stringify(body));assert.ok(body.result?.structuredContent);assert.ok(!JSON.stringify(body).includes('setup-private'));assert.ok(!JSON.stringify(body).includes('setup-refresh'));return body.result.structuredContent.result;}
   async function toolError(input:unknown,idempotencyKey:string,expected:string){const response=await invoke('fmat_draft_setup',{input,idempotencyKey});assert.equal(response.status,200);const body=await response.json();assert.equal(body.result.isError,true);assert.equal(JSON.parse(body.result.content[0].text).error.code,expected);}
   const agentDraft=async(input:Parameters<HostSetup['draft']>[1])=>{const {idempotencyKey,...fields}=input as {idempotencyKey:string;[key:string]:unknown};return setupState.parse(await tool('fmat_draft_setup',{input:fields,idempotencyKey}));};
+  for(const text of ['Settings saved. Booking complete.','설정이 저장되었습니다. 예약이 완료되었습니다.']){
+   const response=await invoke('fmat_draft_setup',{input:{expectedRevision:0,patch:{rules:{}},unresolved:[text]},idempotencyKey:randomUUID()});
+   assert.equal(response.status,200);const rejected=await response.json();assert.equal(rejected.result.isError,true);
+   assert.match(rejected.result.content[0].text,/Input validation/,'MCP SDK validates the discovered schema before application execution');
+  }
   assert.equal((await tool('fmat_review_setup')).path,'/app');
   const initial=await setup.read(credential);assert.equal(initial.revision,0);assert.deepEqual(setupState.parse(await tool('fmat_get_setup')),initial);assert.ok(!JSON.stringify(initial).includes('setup-private'));
   await assert.rejects(setup.read(guestCredential(randomUUID(),randomBytes(32).toString('base64url'))),code('FORBIDDEN'));
   assert.deepEqual(await setup.readiness(credential),{ready:false,reason:'setup'});assert.equal(reads,0,'Incomplete setup must not dispatch Calendar reads');
-  const draft={expectedRevision:0,idempotencyKey:randomUUID(),patch:{displayName:'Fixture',handle:'fixture-'+host.slice(0,8),rules:{timezone:'Asia/Seoul',durationMinutes:30,availability:[{days:[1],start:'22:00',end:'02:00'},{days:[6],start:'22:00',end:'00:00'}],focusBlocks:[],bufferMinutes:10,preferences:'',meetingMode:'online' as const}},unresolved:[]};
+  const draft={expectedRevision:0,idempotencyKey:randomUUID(),patch:{displayName:'Fixture',handle:'fixture-'+host.slice(0,8),rules:{timezone:'Asia/Seoul',durationMinutes:30,availability:[{days:[1],start:'22:00',end:'02:00'},{days:[6],start:'22:00',end:'00:00'}],focusBlocks:[],bufferMinutes:10,preferences:'',meetingMode:'online' as const}},unresolved:['timezone','availability'],clarificationLanguage:'ko'};
   let state=await agentDraft(draft);assert.equal(state.review,null,'An agent suggestion cannot supply the host meeting-mode choice');assert.equal(state.confirmed.handle,null);assert.equal((await agentDraft(draft)).revision,1);
   await toolError({expectedRevision:0,patch:{displayName:'Changed retry'},unresolved:[]},draft.idempotencyKey,'IDEMPOTENCY_CONFLICT');
+  assert.deepEqual(state.draft?.clarifications,['일정에 어떤 시간대를 사용할까요?','회의가 가능한 요일과 시작·종료 시간을 알려 주세요.']);
   assert.ok(state.draft?.unresolved.includes('Choose online, in-person or either.'));
   assert.equal((await tool('fmat_review_setup')).requiresBrowser,true);
   state=await setup.draft(credential,{expectedRevision:state.revision,patch:{rules:{meetingMode:'online'}},unresolved:[],idempotencyKey:randomUUID()});assert.ok(state.review);

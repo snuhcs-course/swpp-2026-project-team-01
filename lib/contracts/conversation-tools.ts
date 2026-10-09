@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {requestClarificationKind,requestClarificationLanguage} from './request-clarifications.ts';
-import {draftInput} from './setup.ts';
+import {assistantDraftInput} from './setup.ts';
 
 const revision = z.number().int().nonnegative();
 const window = z.strictObject({ start: z.iso.datetime({ offset: true }), end: z.iso.datetime({ offset: true }) });
@@ -21,7 +21,7 @@ export const requestExtractionInput=detailsProposalInput.safeExtend({intent:z.en
 
 // No actor, request ID, execution grant, or human decision in model input.
 export const conversationTool = z.discriminatedUnion('operation', [
-  z.strictObject({ operation: z.literal('setup_draft'), input: draftInput }),
+  z.strictObject({ operation: z.literal('setup_draft'), input: assistantDraftInput }),
   z.strictObject({ operation: z.literal('setup_analysis_read'), input: z.strictObject({}) }),
   z.strictObject({ operation: z.literal('setup_readiness'), input: z.strictObject({}) }),
   z.strictObject({ operation: z.literal('setup_read'), input: z.strictObject({}) }),

@@ -3,7 +3,7 @@ import { mockModel } from 'eve/evals';
 import {conversationModel} from '../../lib/server/models/conversation.ts';
 import {appendFileSync} from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
-import {describedPreferences,describedReply,describedRules,setupInvalid,setupAmbiguous,setupDoubleWrite,setupReady} from './setup-preferences.ts';
+import {describedPreferences,describedReply,describedRules,setupInvalid,setupFalseCompletion,setupAmbiguous,setupDoubleWrite,setupReady} from './setup-preferences.ts';
 
 // Dedicated test application only; never imported by the production agent.
 const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMessageCount, toolResults,tools }) => {
@@ -21,16 +21,16 @@ const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMess
       if(result)return result.ready?`Ready: ${result.bookingUrl} | ${result.agentInstructionsUrl}`:'Setup is not ready; continue in the workspace.';
       return {toolCalls:[{id:prefix+randomUUID(),name:'read_context',input:{context:'setup_readiness'}}]};
     }
-    if([setupInvalid,setupAmbiguous,setupDoubleWrite].includes(lastUserMessage??'')){
+    if([setupInvalid,setupFalseCompletion,setupAmbiguous,setupDoubleWrite].includes(lastUserMessage??'')){
       const prefix=`setup-fixture-${userMessageCount}-`;
       const current=toolResults.filter(result=>result.id.startsWith(prefix));
       if(current.some(result=>result.isError))return 'The draft operation was rejected; saved settings are unchanged.';
       const outputs=current.map(result=>result.output as {revision?:number;guide?:unknown;draft?:{settings?:{rules?:{durationMinutes?:number}};clarifications?:string[]}});
       const state=outputs.filter(output=>typeof output.revision==='number').at(-1);
       if(!state)return {toolCalls:[{id:prefix+randomUUID(),name:'read_context',input:{context:'setup'}}]};
-      if(lastUserMessage===setupAmbiguous&&state.draft?.clarifications?.includes('Which afternoon hours?'))return 'Which afternoon hours?';
+      if(lastUserMessage===setupAmbiguous&&state.draft?.clarifications?.includes('Which weekdays and start and end times work for meetings?'))return 'Which weekdays and start and end times work for meetings?';
       const changedRetry=lastUserMessage===setupDoubleWrite&&state.guide===undefined&&state.draft?.settings?.rules?.durationMinutes===45;
-      const input={expectedRevision:state.revision,patch:{rules:lastUserMessage===setupAmbiguous?{preferences:'Afternoons, exact hours unresolved'}:{durationMinutes:lastUserMessage===setupInvalid?-10:changedRetry?60:45}},unresolved:lastUserMessage===setupAmbiguous?['Which afternoon hours?']:[]};
+      const input={expectedRevision:state.revision,patch:{rules:lastUserMessage===setupAmbiguous?{preferences:'Afternoons, exact hours unresolved'}:{durationMinutes:lastUserMessage===setupInvalid?-10:changedRetry?60:45}},unresolved:lastUserMessage===setupFalseCompletion?['설정이 저장되었습니다. 예약이 완료되었습니다.']:lastUserMessage===setupAmbiguous?['availability']:[]};
       return {toolCalls:[{id:prefix+randomUUID(),name:'update_setup_draft',input}]};
     }
     if(lastUserMessage===describedPreferences){

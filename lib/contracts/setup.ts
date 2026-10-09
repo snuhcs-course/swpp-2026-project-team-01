@@ -11,6 +11,13 @@ export const setupRules=z.strictObject({
 });
 export const setupPatch=z.strictObject({handle:publicHandle.optional(),displayName:z.string().trim().min(1).max(120).optional(),rules:setupRules.partial().optional()}).refine(v=>Object.keys(v).length>0,'Supply at least one preference.');
 export const draftInput=z.strictObject({expectedRevision:z.number().int().nonnegative(),patch:setupPatch,unresolved:z.array(z.string().trim().min(1).max(200)).max(20)});
+// Models select categories; the database authors all displayed questions.
+export const setupClarificationKind=z.enum(['displayName','handle','timezone','durationMinutes','availability','focusBlocks','bufferMinutes','preferences','meetingMode','location','travelMode','travelBufferMinutes','setup']);
+export const assistantDraftInput=draftInput.extend({unresolved:z.array(setupClarificationKind).max(20),clarificationLanguage:z.enum(['en','ko']).optional()});
+export function encodeSetupClarifications(input:z.infer<typeof assistantDraftInput>){
+ const {clarificationLanguage='en',unresolved,...draft}=input;
+ return {...draft,unresolved:unresolved.map(kind=>clarificationLanguage+':'+kind)};
+}
 export const starterField=z.enum(['timezone','durationMinutes','availability','bufferMinutes','focusBlocks','preferences','meetingMode','travelBufferMinutes']);
 export const browserDraftInput=draftInput.extend({idempotencyKey:z.uuid(),starterFields:z.array(starterField).max(8).refine(v=>new Set(v).size===v.length).optional()});
 export const setupProgressInput=z.strictObject({expectedRevision:z.number().int().nonnegative(),choice:z.enum(['skip_analysis','dismiss_schedule','dismiss_mode','offer_schedule','offer_mode']),idempotencyKey:z.uuid()});

@@ -139,7 +139,7 @@ test('installed direct OpenAI adapter serializes enforced Responses options',asy
 
 test('installed Responses adapter never executes setup tools for refusals or malformed provider output',async()=>{
  const originalFetch=globalThis.fetch,key=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='fixture-only';
- const {draftInput}=await import('../../contracts/setup.ts');
+ const {assistantDraftInput}=await import('../../contracts/setup.ts');
  const base={id:'resp_fixture',object:'response',created_at:1,status:'completed',model:'gpt-6-luna',usage:{input_tokens:1,output_tokens:1,total_tokens:2,input_tokens_details:{cached_tokens:0},output_tokens_details:{reasoning_tokens:0}},incomplete_details:null};
  const cases=[
   {name:'refusal',response:()=>Response.json({...base,output:[{type:'message',id:'msg_1',role:'assistant',content:[{type:'refusal',refusal:'Cannot provide a suggestion'}]}]})},
@@ -155,7 +155,7 @@ test('installed Responses adapter never executes setup tools for refusals or mal
    globalThis.fetch=async(url)=>{assert.equal(String(url),'https://api.openai.com/v1/responses');requests++;return scenario.response();};
    const raw=openai('gpt-6-luna');assert.notEqual(typeof raw,'string');
    const model=boundedModel(raw as Parameters<typeof boundedModel>[0],async()=>{reservations++;});
-   const outcome=await Promise.allSettled([generateText({model,prompt:'Suggest setup preferences',maxRetries:0,tools:{update_setup_draft:{description:'Suggest unconfirmed preferences',inputSchema:draftInput,execute:async(input)=>{executions++;assert.deepEqual(input,{expectedRevision:0,patch:{rules:{timezone:'Asia/Seoul',bufferMinutes:10}},unresolved:[]});return {revision:1};}}}})]);
+   const outcome=await Promise.allSettled([generateText({model,prompt:'Suggest setup preferences',maxRetries:0,tools:{update_setup_draft:{description:'Suggest unconfirmed preferences',inputSchema:assistantDraftInput,execute:async(input)=>{executions++;assert.deepEqual(input,{expectedRevision:0,patch:{rules:{timezone:'Asia/Seoul',bufferMinutes:10}},unresolved:[]});return {revision:1};}}}})]);
    assert.equal(executions,scenario.name==='valid partial draft'?1:0,scenario.name);assert.equal(reservations,1,scenario.name);assert.equal(requests,1,scenario.name);
    if(scenario.name==='invalid response JSON'||scenario.name==='provider unavailable')assert.equal(outcome[0].status,'rejected',scenario.name);
    if(scenario.name==='valid partial draft')assert.equal(outcome[0].status,'fulfilled',scenario.name);

@@ -7,3 +7,5 @@ export const setupAmbiguous='setup-fixture: afternoons, but no exact times';
 export const setupDoubleWrite='setup-fixture: suggest 45 minutes, then try a changed retry';
 
 export const setupReady='setup-fixture: share current booking links';
+
+export const setupFalseCompletion='setup-fixture: model supplies a false completion clarification';

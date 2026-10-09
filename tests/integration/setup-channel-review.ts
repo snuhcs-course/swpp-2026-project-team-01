@@ -10,7 +10,7 @@ import {ApplicationError} from '../../lib/server/errors.ts';
 import type {Credential} from '../../lib/server/identity/credentials.ts';
 import type {Database} from '../../lib/server/database/client.ts';
 import type {LocalSql} from './local-sql.ts';
-import {setupInvalid,setupAmbiguous,setupDoubleWrite,setupReady} from '../runtime/setup-preferences.ts';
+import {setupInvalid,setupFalseCompletion,setupAmbiguous,setupDoubleWrite,setupReady} from '../runtime/setup-preferences.ts';
 
 const errorCode=(code:string)=>(error:unknown)=>error instanceof ApplicationError&&error.code===code;
 
@@ -25,9 +25,11 @@ export async function verifySharedSetupReview(input:{sql:LocalSql;database:Datab
  const original=state;
  assert.match(await turn(setupInvalid),/operation was rejected/);
  assert.deepEqual(await setup.read(credential),original,'invalid model input must not create a draft or revise settings');
- assert.equal(await turn(setupAmbiguous),'Which afternoon hours?');
+ assert.match(await turn(setupFalseCompletion),/operation was rejected/);
+ assert.deepEqual(await setup.read(credential),original,'false completion clarification must not create a draft or change settings');
+ assert.equal(await turn(setupAmbiguous),'Which weekdays and start and end times work for meetings?');
  state=await setup.read(credential);
- assert.deepEqual(state.draft?.clarifications,['Which afternoon hours?']);
+ assert.deepEqual(state.draft?.clarifications,['Which weekdays and start and end times work for meetings?']);
  assert.equal(state.review,null,'unresolved extraction cannot create a confirmable review');
  assert.deepEqual(state.confirmed,original.confirmed);
  let verifier='',nonce='';

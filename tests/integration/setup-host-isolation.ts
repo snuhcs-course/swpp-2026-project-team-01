@@ -38,8 +38,8 @@ export async function verifySetupIsolation(input:{sql:LocalSql;db:Database;env:N
   const started=await service.start(otherCredential,proof,{phone,idempotencyKey:randomUUID()});let code='';
   await dispatchLinkCodes(db,env,{async send(_route,recipient,text){assert.equal(recipient,phone);code=text.match(/code is (\d{6})/u)![1];return {status:'accepted',providerReference:'isolation-code'};},async reconcile(){assert.fail('fresh link code');}});
   assert.ok((await service.verify(otherCredential,proof,{challengeId:started.challenge!.id,code,idempotencyKey:randomUUID()})).link);
-  assert.equal(await privateTurn(phone,setupAmbiguous,otherScope),'Which afternoon hours?');
-  const otherState=await setup.read(otherCredential);assert.deepEqual(otherState.draft?.clarifications,['Which afternoon hours?']);assert.equal(otherState.confirmed.handle,null);
+  assert.equal(await privateTurn(phone,setupAmbiguous,otherScope),'Which weekdays and start and end times work for meetings?');
+  const otherState=await setup.read(otherCredential);assert.deepEqual(otherState.draft?.clarifications,['Which weekdays and start and end times work for meetings?']);assert.equal(otherState.confirmed.handle,null);
   assert.deepEqual(await setup.read(credential),firstBefore,'The other private sender cannot modify the first host');
   const ownHeaders={authorization:'Bearer '+otherToken,'content-type':'application/json'},firstHeaders={authorization:'Bearer '+token,'content-type':'application/json'};
   const own=await fetch(origin+'/api/conversations/'+otherScope,{headers:ownHeaders});assert.equal(own.status,200);assert.equal((await own.json()).messages[0].text,setupAmbiguous);
@@ -53,7 +53,7 @@ export async function verifySetupIsolation(input:{sql:LocalSql;db:Database;env:N
   assert.deepEqual(await setup.read(otherCredential),otherState);assert.deepEqual(await setup.read(credential),firstBefore);
   const firstSession=await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${scope}';`),secondSession=await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${otherScope}';`);
   assert.ok(firstSession&&secondSession);assert.notEqual(firstSession,secondSession);
-  let sent=0;await dispatchPhotonReplies(db,env,{async send(route,recipient,text,_id,authorize){await authorize();sent++;assert.equal(recipient,phone);assert.equal(route.spaceId,'any;-;'+phone);assert.equal(text,'Which afternoon hours?');return {status:'delivered',providerReference:'isolation-reply'};},async reconcile(){assert.fail('fresh isolated reply');}});assert.equal(sent,1);
+  let sent=0;await dispatchPhotonReplies(db,env,{async send(route,recipient,text,_id,authorize){await authorize();sent++;assert.equal(recipient,phone);assert.equal(route.spaceId,'any;-;'+phone);assert.equal(text,'Which weekdays and start and end times work for meetings?');return {status:'delivered',providerReference:'isolation-reply'};},async reconcile(){assert.fail('fresh isolated reply');}});assert.equal(sent,1);
   assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where host_id in('${host}','${other}');`),'0');
  }finally{
   if(other){

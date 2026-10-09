@@ -1,3 +1,4 @@
+import {verifySetupClarifications} from './setup-clarifications.ts';
 import {verifyReadyLinks} from './setup-ready-links.ts';
 import {verifyCompactSetup} from './compact-setup.ts';
 import {captureSetupFailure} from './setup-failure.ts';
@@ -58,6 +59,7 @@ export async function verifyNoHistory(browser:Browser,origin:string,local:Record
    const accepted=await (await context.request.get(origin+'/api/browser/setup/read')).json();assert.equal(accepted.revision,extracted.revision+1,'Lost acknowledgement reuses the same selection intent');assert.equal(accepted.draft.provenance['rules.travelMode'],'host');assert.equal(accepted.draft.origins['rules.travelMode'].source,'assistant');assert.equal(accepted.confirmed.rules,null);
    await page.reload();await setup.getByRole('button',{name:'Confirm these meeting settings'}).waitFor();assert.equal(await answers.count(),0,'Chosen answers are reused without asking again');
   }
+  if(flow==='online')await verifySetupClarifications(page,context,origin);
   await expect(setup.getByRole('figure',{name:'Your draft meeting week'})).toBeVisible();await expect(setup.getByRole('button',{name:'Show preference details'})).toHaveCount(0);
   if(flow==='no-history'){await page.setViewportSize({width:320,height:900});const caption=setup.getByRole('figure',{name:'Your draft meeting week'}).locator('figcaption');await caption.scrollIntoViewIfNeeded();await expect(caption).toBeInViewport();await page.screenshot({path:'.local/rebuild/browser-screenshots/compact-final-review-top.png'});const confirm=setup.getByRole('button',{name:'Confirm these meeting settings'});await confirm.focus();await expect(confirm).toBeInViewport();await page.screenshot({path:'.local/rebuild/browser-screenshots/compact-final-review-bottom.png'});await page.setViewportSize({width:1280,height:900});}
   await setup.getByRole('button',{name:'Confirm these meeting settings'}).waitFor();assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${host}';`),'t');await setup.getByRole('button',{name:'Confirm these meeting settings'}).click();await setup.getByRole('status').filter({hasText:'Settings confirmed.'}).waitFor();
