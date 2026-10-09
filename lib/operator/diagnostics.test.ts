@@ -44,3 +44,20 @@ test('operator reads exactly one fixed RPC and rejects untrusted/private output'
  response={...snapshot(),token:'PRIVATE_SECRET'};await assert.rejects(service.inspect({project:'local'}),error=>error instanceof ApplicationError&&error.code==='PROVIDER_UNAVAILABLE'&&!error.message.includes('PRIVATE'));
  response={...snapshot(),sampleLimit:0};await assert.rejects(service.inspect({project:'local'}));
 });
+
+test('rejection inspection selects a fixed read-only RPC and refuses sample or private controls',async()=>{
+ for(const args of [['--project','local','--rejections'],['--rejections','--project','local']])assert.deepEqual(diagnosticArguments(args),{project:'local',rejections:true});
+ for(const args of [['--rejections'],['--project','local','--rejections','--samples','0'],['--project','local','--rejections','--rejections'],['--project','local','--rejections','true']])assert.throws(()=>diagnosticArguments(args));
+ const env={SUPABASE_URL:'http://127.0.0.1:54321',SUPABASE_SECRET_KEY:'sb_secret_'+'x'.repeat(32)};
+ const calls:{name:string;input:unknown}[]=[];
+ let value:unknown={version:1,scope:'database_rpc',delivery:'best_effort',observedAt:'2026-10-09T04:30:00Z',windowStart:'2026-10-08T05:00:00Z',hourlyBuckets:24,bucketLimit:1000000,partialCurrentHour:true,
+  coverage:{preDatabaseDenials:'not_recorded',uncategorizedRejections:'not_recorded',releaseReadiness:'not_assessed'},
+  signals:[{category:'authorization_denied',count:0,lastSeenAt:null,saturated:false},{category:'stale_action',count:0,lastSeenAt:null,saturated:false}]};
+ const db={rpc:async(name:string,input:unknown)=>{calls.push({name,input});return value;}} as Database;
+ const service=new OperatorDiagnostics(env,db);
+ assert.deepEqual(await service.inspect({project:'local',rejections:true}),{project:'local',...value as object});
+ assert.deepEqual(calls,[{name:'fmat_rejection_snapshot',input:{}}]);
+ await assert.rejects(service.inspect({project:'abcdefghijklmnopqrst',rejections:true}));assert.equal(calls.length,1);
+ await assert.rejects(service.inspect({project:'local',rejections:true,sampleLimit:0}));assert.equal(calls.length,1);
+ value={...value as object,privateText:'secret'};await assert.rejects(service.inspect({project:'local',rejections:true}),error=>error instanceof ApplicationError&&error.code==='PROVIDER_UNAVAILABLE');
+});

@@ -1,6 +1,7 @@
 import { requiredEnv } from '../config.ts';
 import { ApplicationError } from '../errors.ts';
 import type { ErrorCode } from '../../contracts/errors.ts';
+import {observeDatabaseRejection} from './rejection-observations.ts';
 
 export type Fetch = typeof globalThis.fetch;
 export function supabaseOrigin(env = process.env): string {
@@ -41,7 +42,7 @@ const domainErrors: Record<string, [ErrorCode, number]> = {
 export class Database {
   constructor(private readonly env = process.env, private readonly fetcher: Fetch = fetch) {}
 
-  async rpc(name: 'fmat_operational_snapshot' | 'fmat_oauth_intake_handoff' | 'fmat_agent_intake' | 'fmat_conversation_model_reserve' | 'fmat_invitation_delivery' | 'fmat_invitation_operator' | 'fmat_agent_operation' | 'fmat_oauth_grants_read' | 'fmat_oauth_register' | 'fmat_oauth_authorization_start' | 'fmat_oauth_authorization_read' | 'fmat_oauth_intake_read' | 'fmat_oauth_intake_consent' | 'fmat_oauth_intake_revoke' | 'fmat_oauth_consent' | 'fmat_oauth_grant_revoke' | 'fmat_oauth_code_exchange' | 'fmat_oauth_refresh' | 'fmat_oauth_grant_check' | 'fmat_oauth_token_revoke' | 'fmat_requester_email_reply_delivery' | 'fmat_requester_recovery_delivery' | 'fmat_requester_recovery' | 'fmat_requester_email_worker' | 'fmat_requester_email_link' | 'fmat_requester_email_receipt' | 'fmat_agentmail_ingress' | 'fmat_requester_identity' | 'fmat_contact_verification_delivery' | 'fmat_contact_verification' | 'fmat_booking_delivery' | 'fmat_booking_receipt' | 'fmat_booking_worker' | 'fmat_booking_dispatch' | 'fmat_booking_evaluation' | 'fmat_booking_approval' | 'fmat_request_lifecycle' | 'fmat_private_review' | 'fmat_host_requests' | 'fmat_scheduling' | 'fmat_candidate_ranking' | 'fmat_preference_decision' | 'fmat_travel_allowance' | 'fmat_availability_evaluation' | 'fmat_command' | 'fmat_conversation_access' | 'fmat_conversation_check' | 'fmat_conversation_tool' | 'fmat_runtime_message' | 'fmat_runtime_dispatch' | 'fmat_browser_command' | 'fmat_calendar_consent' | 'fmat_calendar_access' | 'fmat_requester_availability' | 'fmat_request_detail_review' | 'fmat_host_setup' | 'fmat_calendar_scan' | 'fmat_photon_ingress' | 'fmat_photon_link' | 'fmat_photon_link_delivery' | 'fmat_photon_dispatch' | 'fmat_photon_reply_delivery' | 'fmat_photon_handoff' | 'fmat_photon_handoff_browser' | 'fmat_public_intake', parameters: Record<string, unknown>): Promise<unknown> {
+  async rpc(name: 'fmat_rejection_record' | 'fmat_rejection_snapshot' | 'fmat_operational_snapshot' | 'fmat_oauth_intake_handoff' | 'fmat_agent_intake' | 'fmat_conversation_model_reserve' | 'fmat_invitation_delivery' | 'fmat_invitation_operator' | 'fmat_agent_operation' | 'fmat_oauth_grants_read' | 'fmat_oauth_register' | 'fmat_oauth_authorization_start' | 'fmat_oauth_authorization_read' | 'fmat_oauth_intake_read' | 'fmat_oauth_intake_consent' | 'fmat_oauth_intake_revoke' | 'fmat_oauth_consent' | 'fmat_oauth_grant_revoke' | 'fmat_oauth_code_exchange' | 'fmat_oauth_refresh' | 'fmat_oauth_grant_check' | 'fmat_oauth_token_revoke' | 'fmat_requester_email_reply_delivery' | 'fmat_requester_recovery_delivery' | 'fmat_requester_recovery' | 'fmat_requester_email_worker' | 'fmat_requester_email_link' | 'fmat_requester_email_receipt' | 'fmat_agentmail_ingress' | 'fmat_requester_identity' | 'fmat_contact_verification_delivery' | 'fmat_contact_verification' | 'fmat_booking_delivery' | 'fmat_booking_receipt' | 'fmat_booking_worker' | 'fmat_booking_dispatch' | 'fmat_booking_evaluation' | 'fmat_booking_approval' | 'fmat_request_lifecycle' | 'fmat_private_review' | 'fmat_host_requests' | 'fmat_scheduling' | 'fmat_candidate_ranking' | 'fmat_preference_decision' | 'fmat_travel_allowance' | 'fmat_availability_evaluation' | 'fmat_command' | 'fmat_conversation_access' | 'fmat_conversation_check' | 'fmat_conversation_tool' | 'fmat_runtime_message' | 'fmat_runtime_dispatch' | 'fmat_browser_command' | 'fmat_calendar_consent' | 'fmat_calendar_access' | 'fmat_requester_availability' | 'fmat_request_detail_review' | 'fmat_host_setup' | 'fmat_calendar_scan' | 'fmat_photon_ingress' | 'fmat_photon_link' | 'fmat_photon_link_delivery' | 'fmat_photon_dispatch' | 'fmat_photon_reply_delivery' | 'fmat_photon_handoff' | 'fmat_photon_handoff_browser' | 'fmat_public_intake', parameters: Record<string, unknown>): Promise<unknown> {
     const origin = supabaseOrigin(this.env);
     const key = requiredEnv('SUPABASE_SECRET_KEY', this.env);
     const headers: Record<string, string> = { apikey: key, 'content-type': 'application/json' };
@@ -61,10 +62,14 @@ export class Database {
     if (!response.ok) {
       const message = typeof body === 'object' && body !== null && 'message' in body ? body.message : null;
       const mapped = typeof message === 'string' ? domainErrors[message] : undefined;
-      if (mapped) throw new ApplicationError(...mapped);
+      if (mapped) {
+        await observeDatabaseRejection({name,mappedCode:mapped[0],env:this.env,origin,headers,fetcher:this.fetcher});
+        throw new ApplicationError(...mapped);
+      }
       // Never forward SQL/provider text or log the request/credential object.
       throw new ApplicationError('PROVIDER_UNAVAILABLE', 503);
     }
+    await observeDatabaseRejection({name,body,env:this.env,origin,headers,fetcher:this.fetcher});
     return body;
   }
 }

@@ -456,3 +456,7 @@ Public entry instruction version `2026-10-09.6` is deployed with the integrated 
 ## Backup readiness
 
 The selected project’s current backup inventory and private logical export are recorded in the [backup and restoration runbook](09_backup_recovery.md). An empty platform backup list and disabled PITR remain a release gap. Preserve application encryption material separately; do not treat migration rebuilds or encrypted file verification as a successful restore.
+
+## Database rejection collection
+
+`OPERATIONAL_REJECTIONS_ENABLED=true` enables best-effort, category-only observations of recognized database RPC denials and stale actions. It defaults to disabled in `.env.example`. Apply the reviewed rejection-observation migration before enabling it, and configure only the intended environment. Collection sends at most one additional RPC per recognized rejection, with a 250 ms independent deadline, and cannot replace the original result. Read [scope, counter bounds and operator usage](08_operational_diagnostics.md#database-rejection-observations) before interpreting counts. Local acceptance is complete; production rollout remains pending in the [owning change](../../openspec/changes/record-database-rejections/tasks.md).

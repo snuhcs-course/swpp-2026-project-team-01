@@ -517,6 +517,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 - [x] Implement the rejection-counter schema and strict snapshot contract; review the additive migration, rebuild 103 local migrations, pass 37 new SQL assertions (1,732 total), concurrent accepted increments and lock-timeout/no-domain-mutation checks, with clean local advisors. [Evidence](05_rebuild_evidence.md#rejection-observation-schema-foundation--2026-10-09). Adapter collection, CLI inspection and production activation remain open.
 
+- [x] Implement opt-in rejection collection and `diagnostics --rejections`: preserve original outcomes, bound telemetry waits to 250 ms, omit private content and verify actual local CLI inspection. Application checks and both builds pass; integrated release verification and production activation remain open. [Evidence](05_rebuild_evidence.md#rejection-collector-and-operator-cli--2026-10-09).
+
 - [x] Define [bounded database rejection observations](../../openspec/changes/record-database-rejections/tasks.md): two content-free hourly counter categories, explicit best-effort activation, read-only operator inspection and disclosed coverage gaps. Implementation and production verification remain open in that change.
 
 - [x] Replace the one-response agreement-clock fixture with an isolated, controlled browser clock that verifies the expiring proposal has rendered before advancing time; preserve failure evidence before context cleanup. Both browser suites and 1,695 post-cleanup SQL assertions pass. [Evidence](05_rebuild_evidence.md#controlled-agreement-clock-regression--2026-10-09). Fresh hosted CI acceptance remains open.
