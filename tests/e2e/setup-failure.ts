@@ -5,7 +5,7 @@ import type {Page} from '@playwright/test';
 // arbitrary attributes, page text, cookies or provider responses.
 export async function setupFailureState(page:Page){
  return page.evaluate(()=>{
-  const selectors={setup:'[aria-label="Your meeting setup"]',imessage:'[aria-label="Connect iMessage"]',phone:'[aria-label="Connect iMessage"] input[type="tel"]',code:'[aria-label="Connect iMessage"] [data-input-otp]',form:'[aria-label="Connect iMessage"] form',viewport:'[data-slot="message-scroller-viewport"]'};
+  const selectors={times:'[aria-label="Your meeting setup"] input[type="time"]',setup:'[aria-label="Your meeting setup"]',imessage:'[aria-label="Connect iMessage"]',phone:'[aria-label="Connect iMessage"] input[type="tel"]',code:'[aria-label="Connect iMessage"] [data-input-otp]',form:'[aria-label="Connect iMessage"] form',viewport:'[data-slot="message-scroller-viewport"]'};
   return Object.fromEntries(Object.entries(selectors).map(([name,selector])=>{
    const elements=Array.from(document.querySelectorAll(selector)).slice(0,4);
    return [name,elements.map(element=>{

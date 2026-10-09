@@ -517,6 +517,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Preserve weekly time-control focus evidence and assert initial focus after deployed-source CI reproduced the keyboard failure. Verify privacy/type/browser checks; record passing companion CI without claiming resolution. [Evidence](05_rebuild_evidence.md#weekly-preview-keyboard-failure-evidence--2026-10-09). The intermittent weekly keyboard gate remains open.
+
 - [x] Add a bounded public HTTP latency probe with first/repeat timing, explicit failure evidence and stop-on-challenge/rate-limit handling; pass four probe tests and diagnose the selected production Node probe’s Vercel edge challenge. [Evidence](05_rebuild_evidence.md#public-http-latency-probe-and-edge-challenge--2026-10-09). Complete baseline, numeric targets and authenticated/load performance acceptance remain open.
 
 - [x] Deploy the inline iMessage size-container mitigation from `9e82305` to the selected production project (`dpl_Gaq4x8FwZU5ZQDupVZhyVxmN8ncz`), verify Ready/domain promotion, and pass 81 HTTP plus 15 composed runtime checks. [Evidence](05_rebuild_evidence.md#inline-imessage-mitigation-production-deployment--2026-10-09). Authenticated device/provider acceptance and full release readiness remain open.

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import {writeFile} from 'node:fs/promises';
+import {setupFailureState} from './setup-failure.ts';
 import {expect,type Page,type Locator,type BrowserContext} from '@playwright/test';
 
 // Runs inside the authenticated local browser journey, including model failure.
@@ -18,7 +20,17 @@ export async function verifyWeeklyPreview(page:Page,setup:Locator,context:Browse
  await expect(sundayRow).toContainText('22:15–23:45');
  assert.equal((await (await context.request.get(origin+'/api/browser/setup/read')).json()).revision,before.revision,'Preview edits do not save a draft');
  // Native time controls may tab through hour/minute/period segments first.
- await start.focus();for(let i=0;i<6&&!await end.evaluate(e=>e===document.activeElement);i++)await page.keyboard.press('Tab');await expect(end).toBeFocused();
+ const focusTrace=[];
+ // Avoid forcing layout between Tab presses; collect geometry only on failure.
+ const focusState=()=>page.evaluate(()=>{const controls=document.querySelectorAll('[aria-label="Your meeting setup"] input[type="time"]');return {startFocused:document.activeElement===controls[0],endFocused:document.activeElement===controls[1],activeTag:document.activeElement?.tagName??null};});
+ try{
+  await start.focus();focusTrace.push({step:'start-focus',state:await focusState()});
+  await expect(start).toBeFocused();
+  for(let i=0;i<6&&!await end.evaluate(e=>e===document.activeElement);i++){
+   await page.keyboard.press('Tab');focusTrace.push({step:'tab-'+(i+1),state:await focusState()});
+  }
+  await expect(end).toBeFocused();
+ }catch(error){await writeFile('.local/rebuild/weekly-focus-failure.json',JSON.stringify({trace:focusTrace,final:await setupFailureState(page)},null,2));throw error;}
  await page.emulateMedia({reducedMotion:'reduce'});
  for(const width of [320,390,768,1440]){
   await page.setViewportSize({width,height:900});await preview.scrollIntoViewIfNeeded();

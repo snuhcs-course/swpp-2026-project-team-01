@@ -192,3 +192,5 @@ Inline iMessage acceptance checks phone visibility and a usable verification-inp
 
 
 The public latency probe (`npm run --silent probe:public-latency -- --origin https://release.findmeatime.com`) records bounded unauthenticated HTTP timings only. Its script tests verify full-body timing, first/repeat separation, nearest-rank percentiles, credential-free requests, origin validation, redirect/failure/size/deadline handling and sanitized evidence. See the [measurement boundaries](../documentations/technical_specification/08_operational_diagnostics.md#public-http-latency-baseline) before interpreting production results.
+
+Weekly-preview keyboard failures retain `.local/rebuild/weekly-focus-failure.json`: at most seven focus-identity observations and final bounded time-control ancestor geometry. Input values, arbitrary attributes and page text are excluded. CI uploads it for seven days. Starting and ending focus remain required; the trace is diagnostic evidence, not a workaround or a passed accessibility gate.
