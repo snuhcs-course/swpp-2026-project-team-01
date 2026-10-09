@@ -75,3 +75,18 @@ test('Photon cancels stalled and aborted bodies without awaiting a stuck source 
  const controller=new AbortController(),pending=photonWebhook(streamed(controller.signal),{env,now,database});controller.abort();assert.equal((await pending).status,400);assert.equal(cancelled,3);
  const aborted=new AbortController();aborted.abort();assert.equal((await photonWebhook(streamed(aborted.signal),{env,now,database})).status,400);assert.equal(cancelled,4);assert.equal(writes,0);
 });
+
+test('Photon rejects reuse of database or dispatcher secrets before persisting input',async()=>{
+ let writes=0;const database={async rpc(){writes++;return {};}};
+ const shared='a'.repeat(64);
+ for(const name of ['SUPABASE_SECRET_KEY','RUNTIME_DISPATCH_SECRET']){
+  for(const value of [shared,' '+shared+'\n']){
+   const response=await photonWebhook(signed(undefined,{secret:shared}),{env:{...env,IMESSAGE_WEBHOOK_SECRET:shared,[name]:value},now,database});
+   assert.equal(response.status,503);assert.match(response.headers.get('cache-control')??'',/no-store/);
+   const body=await response.text();assert.equal(JSON.parse(body).error.code,'CONFIGURATION_UNAVAILABLE');assert.ok(!body.includes(shared));
+  }
+ }
+ assert.equal(writes,0);
+ const response=await photonWebhook(signed(),{env:{...env,SUPABASE_SECRET_KEY:'b'.repeat(64),RUNTIME_DISPATCH_SECRET:'c'.repeat(64)},now,database});
+ assert.equal(response.status,200);assert.equal(writes,1);
+});

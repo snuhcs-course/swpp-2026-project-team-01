@@ -466,3 +466,7 @@ The selected project’s current backup inventory and private logical export are
 ## Database rejection collection
 
 `OPERATIONAL_REJECTIONS_ENABLED=true` enables best-effort, category-only observations of recognized database RPC denials and stale actions. It defaults to disabled in `.env.example`. Apply the reviewed rejection-observation migration before enabling it, and configure only the intended environment. Collection sends at most one additional RPC per recognized rejection, with a 250 ms independent deadline, and cannot replace the original result. Read [scope, counter bounds and operator usage](08_operational_diagnostics.md#database-rejection-observations) before interpreting counts. Production-only activation is verified for `findmeatime-release` and Supabase `mriseqztcwmezvtawnbo`; [deployment evidence](05_rebuild_evidence.md#rejection-observation-production-acceptance--2026-10-09) records the hosted collector check and coverage limits.
+
+### Photon receiver credential separation
+
+Use an independent `IMESSAGE_WEBHOOK_SECRET` for the registered Spectrum receiver. It must not reuse `SUPABASE_SECRET_KEY` or `RUNTIME_DISPATCH_SECRET`, including whitespace-padded copies. The receiver fails with a generic 503 before processing or writing a webhook when configuration collides. Keep the provider's signature secret bytes exact; comparison normalization does not change signing semantics. Missing/invalid receiver configuration also remains disabled.

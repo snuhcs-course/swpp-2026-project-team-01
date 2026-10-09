@@ -22,6 +22,11 @@ const config = z.object({projectId:z.uuid(), receiverId:z.uuid(), secret:z.strin
 export function photonReceiver(env=process.env):PhotonReceiver {
   const result=config.safeParse({projectId:env.PHOTON_PROJECT_ID,receiverId:env.PHOTON_WEBHOOK_ID,secret:env.IMESSAGE_WEBHOOK_SECRET});
   if(!result.success)throw new ApplicationError('CONFIGURATION_UNAVAILABLE',503);
+  // Receiver credentials cannot confer database or internal worker authority.
+  const secret=result.data.secret.trim();
+  if(['SUPABASE_SECRET_KEY','RUNTIME_DISPATCH_SECRET'].some(name=>env[name]?.trim()===secret)) {
+    throw new ApplicationError('CONFIGURATION_UNAVAILABLE',503);
+  }
   return result.data;
 }
 

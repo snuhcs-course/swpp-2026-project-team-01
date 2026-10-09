@@ -47,6 +47,16 @@ try {
   const health = await fetch(`${web}/api/health`);
   assert.deepEqual(await health.json(), { service: 'find-me-a-time', status: 'reachable', releaseReady: false });
   assert.match(health.headers.get('cache-control'), /no-store/);
+  // Public static health carries no identity and does not expose cross-origin APIs.
+  for (const origin of [web, 'https://unrelated.example']) {
+    const response = await fetch(web+'/api/health', {headers:{origin}});
+    assert.equal(response.status,200);
+    assert.deepEqual(await response.json(),{service:'find-me-a-time',status:'reachable',releaseReady:false});
+    assert.equal(response.headers.get('access-control-allow-origin'),null);
+    const preflight=await fetch(web+'/api/health',{method:'OPTIONS',headers:{origin,'access-control-request-method':'GET','access-control-request-headers':'apikey,authorization'}});
+    assert.equal(preflight.headers.get('access-control-allow-origin'),null);
+    assert.equal(preflight.headers.get('access-control-allow-headers'),null);
+  }
   const page = await fetch(web);
   assert.equal(page.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(page.headers.get('referrer-policy'), 'no-referrer');
