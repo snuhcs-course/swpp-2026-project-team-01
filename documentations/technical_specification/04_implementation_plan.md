@@ -515,6 +515,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Restore the encrypted export into a network-isolated, cron-disabled PostgreSQL destination; verify exact COPY content for 118 targets/121 rows, 124 foreign keys and 102 migration records, then remove the disposable destination. Document missing platform-role/queue prerequisites and the empty critical-state coverage limit. [Evidence](05_rebuild_evidence.md#isolated-logical-restore-rehearsal--2026-10-09). Populated application recovery, external keys, off-site durability and recovery objectives remain open.
+
 - [x] Inspect selected-project backup availability and export roles/schema/data plus 102 migration records to private encrypted local storage; verify authenticated decryption and tamper rejection, and document [restoration boundaries](09_backup_recovery.md). [Evidence](05_rebuild_evidence.md#backup-inventory-and-private-logical-export--2026-10-09). Platform restore points, isolated restore, off-site custody, retention and numeric recovery objectives remain open.
 
 - [x] Verify requester detail-review keyboard prerequisites and preserve intake-context failure artifacts for CI run `37879259941`; pass both browser suites and all 1,695 SQL assertions. [Evidence](05_rebuild_evidence.md#requester-review-keyboard-prerequisites--2026-10-09). Hosted intermittent UI acceptance remains open.

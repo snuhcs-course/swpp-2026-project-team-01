@@ -36,7 +36,24 @@ Before treating the export as usable, check command exit status, nonempty files,
 
 The 2026-10-09 export is retained in ignored `.local/recovery/2026-10-09/` as five authenticated ciphertext files plus a format/hash manifest and `verify.mjs`. Its random key is in `~/.local/share/find-me-a-time/backup-keys/<manifest-keyId>.key`, outside the export directory; both ciphertext and key use mode `0600`. The manifest records AES-256-GCM, the header/nonce/tag layout, authenticated project/filename context, original sizes and export times. It contains no key. `node .local/recovery/2026-10-09/verify.mjs` verifies file hashes, authenticated decryption and tamper rejection in memory without writing plaintext or contacting a database. Keep the key and manifest available for the isolated restore rehearsal; do not publish either the export or operational key material.
 
-The five files are custom roles, application schema, data, migration-history schema and migration-history data. This export set covers 117 COPY targets including 82 application tables and 102 migration records. The local encrypted copy is an interim artifact, not a tested restore or independent backup service. A deletion from the local filesystem is not a claim of forensic secure erasure.
+The five files are custom roles, application schema, data, migration-history schema and migration-history data. This export set covers 117 COPY targets including 82 application tables and 102 migration records. The local encrypted copy has passed the bounded SQL restoration drill below; application recovery and independent backup durability remain unverified. A deletion from the local filesystem is not a claim of forensic secure erasure.
+
+## Isolated SQL restore evidence — 2026-10-09
+
+The export was decrypted in memory and streamed into a separate `public.ecr.aws/supabase/postgres:17.11.0.003` container. Docker network mode was `none`, no ports were published, database storage used a temporary memory filesystem, `cron.launch_active_jobs=off` was verified before loading data, and no application workers ran. The container and its temporary storage were removed after verification. The existing local stack and release database were untouched.
+
+This drill used the image's platform initialization plus a **schema-only** Auth/Storage scaffold from the existing local stack. It did not establish exact hosted platform configuration parity. Two service-role names missing from the base image were created as non-login placeholders (`supabase_realtime_admin`, `supabase_functions_admin`); these are not recovered service credentials or a verified production role configuration.
+
+Two stop-on-error attempts rolled back before the final restore succeeded. They exposed prerequisites that a new incident destination must satisfy:
+
+- The exported role grants reference platform service roles absent from the bare PostgreSQL image. A real destination needs the supported Supabase platform roles and service configuration before importing custom roles.
+- The schema export installs pgmq but omits its extension-owned queue tables, while the data export contains `pgmq.a_fmat_jobs` and `pgmq.q_fmat_jobs`. After restoring schema and before importing data, create the existing non-partitioned, logged queue with `SELECT pgmq.create('fmat_jobs');`. This matches the repository's runtime setup. **Do not call `fmat.install_runtime()` during a fenced drill:** it also schedules recovery work. Cron jobs were absent after this restore and require deliberate review and activation later.
+
+The successful import used one transaction with `ON_ERROR_STOP=1`: custom roles, application schema, migration-history schema, queue creation, then data/history data with replication triggers temporarily disabled as described by the provider procedure. Restoration took 248 ms once the prepared destination and prerequisites were ready; this is not incident recovery time or an RTO measurement.
+
+Verification compared each exported COPY column set and every row against the destination in memory, including migration history: **118 targets, 121 rows**, with exact sorted COPY-content parity. It checked **124 application foreign keys**, finding no orphan rows, and confirmed 102 migrations through `20261009025836`, 82 application tables, no anonymous/authenticated usage of the private schema and no public tables with RLS disabled. No cron jobs or Vault secrets were restored. Private artifacts include `restore.mjs`, `platform-baseline.sql`, logs and `restore-verification.json` beside the encrypted export; SQL data was never written back to a plaintext file.
+
+The snapshot contains no Auth users, requests, booking attempts, reservations, booking deliveries, conversation scopes or OAuth grants. Therefore this drill cannot demonstrate recovery of those populated states, encrypted Calendar credentials, session revocation or provider uncertainty. The required synthetic application recovery scenarios below, independent key custody and off-site storage remain open. The manifest distinguishes SQL restoration from complete application recovery.
 
 ## Restore rehearsal before incident use
 
@@ -61,7 +78,7 @@ Deployment rollback is a separate operation: promoting an older compatible appli
 |---|---|
 | Available platform restore points | The selected project's observed list is empty; PITR is disabled. |
 | Export preservation | See the dated evidence ledger for completed local exports and encryption verification. This is not off-site durability. |
-| Restore rehearsal | No completed restore of this export has been verified. |
+| Restore rehearsal | Isolated SQL/content/integrity drill passed as described above. Populated application recovery, credentials, uncertainty and provider reconciliation remain unverified. |
 | Data-loss and recovery-time objectives | Numeric objectives and measurements remain to be selected and verified before launch. |
 | Retention and deletion | Backup retention, deletion propagation and application data policy remain unresolved product/operations decisions. |
 | Operational ownership | A named primary/backup operator, incident contact and key custodian remain to be designated. |
