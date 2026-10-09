@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Implement and verify the invocation-owned 18-second budget primitive: monotonic expiry, cancelled/non-cooperative work, late results, cleanup and independent concurrent invocations. Pass five focused tests and 388 application/provider tests. [Evidence](05_rebuild_evidence.md#evaluation-budget-foundation--2026-10-09). Provider propagation, orchestration and deployment remain pending.
+
 - [x] Trace the retired shared provider deadline and confirm the replacement evaluator lacks an invocation-wide budget. Create and strictly validate the bounded [evaluation deadline change](../../openspec/changes/bound-availability-evaluation/proposal.md) with cancellation, late-result and durable-uncertainty acceptance tasks. Implementation and deployment remain pending.
 
 - [x] Reconcile the three retired Google-provider assertions and strengthen paginated metadata privacy fixtures on both pages. Verify refresh material preservation and revoked-grant handling. [Evidence](05_rebuild_evidence.md#legacy-google-provider-reconciliation--2026-10-09). Shared transport deadline reconciliation remains open.

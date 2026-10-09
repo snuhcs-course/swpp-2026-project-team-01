@@ -833,3 +833,9 @@ Context accepts no parameters and projects only the fixed host's public profile 
 
 
 Public instruction version `2026-10-09.6` pins CLI source `72645aa394dab7b474420b908ffad740c3b132c5` and describes initial MCP consent with `handle` and `request:intake`, bounded clarification, one-request creation, exact retry and protected browser continuation. Host instructions retain admitted Google-only setup. Browser manual intake is an explicit fallback rather than a prerequisite to agent-led creation. Both documents state that reading a document grants no authority and SDK/local CLI verification does not prove any named client's compatibility. The public documents were deployed with the integrated intake application; fresh live-provider creation and named-client acceptance remain open.
+
+### Shared evaluation budget foundation
+
+`lib/server/scheduling/budget.ts` provides an invocation-owned `EvaluationBudget` with an 18-second `performance.now()` deadline, one abort signal and injectable monotonic clock/timer hooks for deterministic tests. `run` checks admission before invoking work, races its result against cancellation, then checks elapsed time again before accepting success or failure. Late rejection is consumed and late results cannot resume the awaiting caller. Each settled wait removes its listener; `dispose` clears the timer, cancels pending waits and prevents reuse. The owner must dispose in `finally`; nested operations borrow the same instance.
+
+This primitive cannot undo remote effects or stop arbitrary code inside a non-cooperative dependency. Callers must forward its signal and guard each later RPC/provider operation, including response-body reads. Provider propagation and evaluation/publication integration are still pending in [the deadline change](../../openspec/changes/bound-availability-evaluation/tasks.md); current production evaluation is not yet covered by the shared budget.

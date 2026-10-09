@@ -2524,3 +2524,9 @@ The historical shared transport test was also read. Its evaluation-wide deadline
 The legacy transport audit followed `deadlineFetcher` into request evaluation at `5c305d9^`: one 18-second deadline was passed through provider acquisition and optional ranking. Current `AvailabilityEvaluation` instead invokes providers with their independent deadlines; no shared budget spans parties, candidate loops and publication/ranking. SQL freshness and adapter timeouts do not establish the missing elapsed-time invariant.
 
 Created [bound-availability-evaluation](../../openspec/changes/bound-availability-evaluation/proposal.md) with proposal, meeting-feasibility delta, cross-module design and six unchecked implementation/verification tasks. OpenSpec 1.14.0 strict validation passes; all four planning artifacts exist. This proves a reviewed implementation plan, not a restored timeout. Production remains on `1c24b20`; no application, provider or schema state changed in this increment.
+
+## Evaluation budget foundation — 2026-10-09
+
+Implemented task 1.1 of `bound-availability-evaluation`: one 18-second invocation-owned monotonic deadline, shared abort signal, bounded waiting and explicit disposal. Five deterministic tests cover expiry before a new call, exact deadline boundaries, late resolve/reject, never-settling work, delayed timer delivery, synchronous/asynchronous failures, listener/timer cleanup and independent concurrent budgets. A late provider response cannot resolve the caller's cancelled wait. Cancellation is not proof of rollback or a guarantee that non-cooperative external code has stopped.
+
+`npm run check` passes 388 application/provider tests plus script, type, boundary and documentation checks (`.local/rebuild/evaluation-budget-check.log`). The primitive is not yet wired to providers/evaluation; no deployed deadline behavior is claimed, and tasks 1.2–3.2 remain open. Production stays on `1c24b20` while this foundation is integrated.
