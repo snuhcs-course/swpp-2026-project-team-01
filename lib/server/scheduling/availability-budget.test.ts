@@ -83,3 +83,15 @@ test('Failure recording cannot extend the evaluation deadline or resume after it
   assert.equal(f.operations.at(-1),'failure');const before=[...f.operations];f.release();await new Promise(resolve=>setImmediate(resolve));assert.deepEqual(f.operations,before);
  }finally{f.release();f.budget.dispose();}
 });
+
+test('Separate booking destination reads retain the original evaluation deadline',async()=>{
+ for(const point of ['host','events']){
+  const f=fixture(point,2);
+  try{
+   await assert.rejects(f.run('booking'),unavailable);
+   assert.equal(f.operations.filter(op=>op===point).length,2);
+   assert.ok(!f.operations.includes('success'));assert.ok(!f.operations.includes('evidence_save'));
+   assert.ok(f.signals.every(signal=>signal===f.budget.signal&&signal.aborted));
+  }finally{f.budget.dispose();}
+ }
+});

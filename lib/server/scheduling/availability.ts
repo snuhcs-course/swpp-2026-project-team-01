@@ -51,6 +51,11 @@ export class AvailabilityEvaluation {
  private async evaluateWithin(target:z.infer<typeof availabilityCheckInput>,call:(operation:string,input:unknown)=>Promise<unknown>,budget:EvaluationBudget,sampling?:z.infer<typeof batchOptions>){
   const state=snapshot.parse(await call('start',{...target,checkId:randomUUID()}));
   const context={...target,checkId:state.checkId,basis:state.basis},cipher=new TokenCipher(this.env);
+  // Final booking checks include its frozen destination even when the host
+  // selected other conflict calendars. Keep the extra read separate so fifty
+  // selected calendars still fit the provider's per-request limit.
+  const hostCalendarGroups=[state.host.calendarIds];
+  if(state.bookingCalendarId&&!state.host.calendarIds.includes(state.bookingCalendarId))hostCalendarGroups.push([state.bookingCalendarId]);
   const windows=state.details.windows;let hostAccessToken='';
   const read=async(party:'host'|'guest',selected:z.infer<typeof grant>)=>{
    // Recheck before each external read as well as after it. Network I/O never
@@ -85,7 +90,13 @@ export class AvailabilityEvaluation {
      if(!calendars.some(c=>c.id===state.bookingCalendarId&&['writer','writerWithoutPrivateAccess','owner'].includes(c.accessRole)))throw new ApplicationError('RECONNECT_REQUIRED',409);
      await call('destination_checked',context);
     }
-    const busy=await budget.run(signal=>this.freebusy.read(bundle.accessToken,selected.calendarIds,party==='host'?bufferedReadWindows(windows,state.rules.bufferMinutes):windows,signal));if(party==='host')hostAccessToken=bundle.accessToken;return busy;}
+    const busy:z.infer<typeof schedulingInterval>[]=[];
+    for(const ids of party==='host'?hostCalendarGroups:[selected.calendarIds]){
+     await call('check',context);
+     busy.push(...await budget.run(signal=>this.freebusy.read(bundle.accessToken,ids,party==='host'?bufferedReadWindows(windows,state.rules.bufferMinutes):windows,signal)));
+     await call('check',context);
+    }
+    if(party==='host')hostAccessToken=bundle.accessToken;return busy;}
    catch(error){await call('failure',{...context,party});throw error instanceof ApplicationError?error:new ApplicationError('PROVIDER_UNAVAILABLE',503);}
   };
   const hostBusy=await read('host',state.host);
@@ -104,7 +115,7 @@ export class AvailabilityEvaluation {
     const assertCurrent=async()=>{await call('check',context);};
     let commitments:TravelCommitment[]=[];
     if(state.details.mode==='in_person'){
-     try{await assertCurrent();commitments=await budget.run(signal=>this.events.read(hostAccessToken,state.host.calendarIds,candidate,assertCurrent,signal));await assertCurrent();}
+     try{for(const ids of hostCalendarGroups){await assertCurrent();commitments.push(...await budget.run(signal=>this.events.read(hostAccessToken,ids,candidate,assertCurrent,signal)));await assertCurrent();}}
      catch(error){if(!(error instanceof ApplicationError)||['RECONNECT_REQUIRED','PROVIDER_UNAVAILABLE'].includes(error.code))await call('failure',{...context,party:'host'});throw error instanceof ApplicationError?error:new ApplicationError('PROVIDER_UNAVAILABLE',503);}
      commitments.push(...unexplainedBusy(hostBusy,commitments),...state.localCommitments.map(c=>({...c,location:physicalLocation(c.location??undefined)})),...state.rules.focusBlocks.map((interval,i)=>({id:'focus-'+i,calendarId:'rules',eventId:'focus-'+i,version:String(state.rulesVersion),interval,location:null})));
     }

@@ -17,10 +17,11 @@ export function bookingNeighbors(candidate:{start:string;end:string}):TravelComm
 }
 export async function verifyBookingRevalidation(database:Database,env:NodeJS.ProcessEnv,hostId:string,createApproved:(mode:'online'|'guest'|'travel')=>Promise<string>){
  const sql=new LocalSql();
- const scenarios=['host_busy','guest_busy','host_revoked','guest_revoked','rules_changed','approval_changed','destination_changed','destination_missing','destination_readonly','travel_conflict','travel_neighbor_changed','travel_unavailable','grant_changed_during_read','rules_changed_during_routes','guest_valid','travel_valid'] as const;
+ const scenarios=['destination_only_busy','host_busy','guest_busy','host_revoked','guest_revoked','rules_changed','approval_changed','destination_changed','destination_missing','destination_readonly','travel_conflict','travel_neighbor_changed','travel_unavailable','grant_changed_during_read','rules_changed_during_routes','guest_valid','travel_valid'] as const;
  try{
   for(const scenario of scenarios){
    const physical=scenario.startsWith('travel_')||scenario==='rules_changed_during_routes',valid=scenario.endsWith('_valid');
+   if(scenario==='destination_only_busy')await sql.query(`update fmat.hosts set conflict_calendar_ids=array['conflict-calendar'] where id='${hostId}';`);
    const requestId=await createApproved(physical?'travel':scenario.startsWith('guest_')?'guest':'online');
    const saved=JSON.parse(await sql.query(`select json_build_object('jobId',j.id,'attemptId',a.id,'rulesVersion',h.rules_version,'credential',c.encrypted_credential,'candidate',json_build_object('start',a.payload->'start'->>'dateTime','end',a.payload->'end'->>'dateTime')) from fmat.jobs j join fmat.booking_attempts a on a.id=(j.payload->>'attemptId')::uuid join fmat.hosts h on h.id=a.host_id join fmat.calendar_connections c on c.id=a.connection_id where j.kind='booking' and a.request_id='${requestId}';`));
    const lease={workerId:'revalidate-'+randomUUID(),jobId:saved.jobId,leaseToken:randomUUID()};
@@ -30,9 +31,9 @@ export async function verifyBookingRevalidation(database:Database,env:NodeJS.Pro
    const revoke=()=>sql.query(`update fmat.calendar_connections set revoked_at=clock_timestamp(),encrypted_credential=null where principal_kind='host' and principal_id='${hostId}';`);
    const evaluation=new AvailabilityEvaluation(database,env,calendar,{async read(access,ids){
     if(access==='booking-guest-access'){guestReads++;assert.deepEqual(ids,['guest-calendar']);return scenario==='guest_busy'?[saved.candidate]:[];}
-    assert.equal(access,'fixture-access');assert.deepEqual(ids,['fixture-calendar']);
+    assert.equal(access,'fixture-access');if(scenario!=='destination_only_busy')assert.deepEqual(ids,['fixture-calendar']);
     if(scenario==='grant_changed_during_read')await revoke();
-    return scenario==='host_busy'?[saved.candidate]:[];
+    return scenario==='host_busy'||(scenario==='destination_only_busy'&&ids.includes('fixture-calendar'))?[saved.candidate]:[];
    }},{async read(access,ids,candidate,assertCurrent){eventReads++;assert.equal(access,'fixture-access');assert.deepEqual(ids,['fixture-calendar']);await assertCurrent();const neighbors=bookingNeighbors(candidate);if(scenario==='travel_neighbor_changed'){neighbors[1].version='moved-after-approval';neighbors[1].interval.start=new Date(Date.parse(candidate.end)+60000).toISOString();}return neighbors;}},{async estimate(request){
     routeReads++;assert.equal(request.mode,'DRIVE');
     if(scenario==='rules_changed_during_routes')await (changedRules??=sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${hostId}';`));
@@ -57,7 +58,7 @@ export async function verifyBookingRevalidation(database:Database,env:NodeJS.Pro
     if(scenario==='guest_busy'||scenario==='guest_valid')assert.equal(guestReads,1);
     if(physical){assert.equal(eventReads,1);assert.equal(routeReads,2);}
    }finally{
-    await sql.query(`update fmat.hosts set rules_version=${saved.rulesVersion},booking_calendar_id='fixture-calendar' where id='${hostId}';update fmat.calendar_connections set revoked_at=null,encrypted_credential='${saved.credential}' where principal_kind='host' and principal_id='${hostId}';`);
+    await sql.query(`update fmat.hosts set rules_version=${saved.rulesVersion},booking_calendar_id='fixture-calendar',conflict_calendar_ids=array['fixture-calendar'] where id='${hostId}';update fmat.calendar_connections set revoked_at=null,encrypted_credential='${saved.credential}' where principal_kind='host' and principal_id='${hostId}';`);
    }
   }
  }finally{sql.close();}

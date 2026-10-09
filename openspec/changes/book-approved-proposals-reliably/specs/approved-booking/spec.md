@@ -39,6 +39,10 @@ Before dispatch, booking SHALL recheck current decisions, lifecycle, calendars, 
 - **WHEN** the selected booking calendar is absent or no longer writable
 - **THEN** booking requires reconnection or selection recovery and does not silently write to another calendar
 
+#### Scenario: Booking destination differs from conflict calendars
+- **WHEN** the frozen booking destination is not among the selected conflict calendars
+- **THEN** final booking checks read both the selected conflict calendars and that destination for busy time and applicable adjacent travel context, and a failed destination read cannot authorize dispatch
+
 ### Requirement: Uncertain writes retain identity and reservation
 A timeout, crash after possible dispatch, or lost provider response SHALL leave booking pending and preserve the attempted calendar/event/payload and reservation. Lease expiry or immediate not-found SHALL not justify a replacement write.
 

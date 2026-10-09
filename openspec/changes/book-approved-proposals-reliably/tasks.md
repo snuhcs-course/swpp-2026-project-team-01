@@ -13,6 +13,7 @@ Tasks describe replacement implementation and verification; completion is tracke
 ## 2. Revalidated dispatch and reconciliation
 
 - [x] 2.1 Re-read required grants/calendars/rules/requester availability/travel and current decisions before frozen dispatch; verify changed availability, revoked credentials, changed rules, stale approval, and wrong destination block creation.
+- [ ] 2.1a Restore final booking checks over selected conflict calendars plus a distinct frozen booking destination. Verify destination-only busy/travel evidence, provider failure, deduplication and maximum calendar selection without changing ordinary selection; deploy the correction.
 - [x] 2.2 Implement Calendar insert using exact saved ID/calendar/payload and verified attendee `sendUpdates=all`; verify host-supplied HTTPS links, no automatic destination fallback, and no requester grant writes.
 - [x] 2.3 Implement uncertain-write reconciliation with association/payload/noncancelled validation; verify lost successful response, immediate not-found, duplicate-ID mismatch, post-dispatch termination, and expired ownership never create a replacement.
 - [x] 2.4 Implement definitive failure and audited reconnect/reconcile/retry operations; verify current prerequisites are rechecked and operators cannot forge approval/booked outcomes or release unresolved reservations.

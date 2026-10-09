@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Reproduce and fix a booking-destination conflict regression: final checks include a distinct frozen destination for free/busy and physical travel, within the shared deadline and 50-calendar request limit. Verify five regression/deadline tests, 441 app/provider tests, actual booking/availability integrations and built runtime checks. [Evidence](05_rebuild_evidence.md#booking-destination-conflict-regression--2026-10-09). Production rollout remains pending in booking task 2.1a; live booking and wider legacy audit remain open.
+
 - [x] Audit all 12 retired contact-delivery assertions; verify sender configuration failures, frozen-account mismatch, unchanged preview state and uncertainty after challenge expiry through the real delivery integration. Read back zero legacy delivery records in the selected production project. [Evidence](05_rebuild_evidence.md#legacy-contact-delivery-audit--2026-10-09). Record removed enable flags and legacy transactional AgentMail format explicitly; wider legacy and live-provider acceptance remain open.
 
 - [x] Audit the eight retired request-evaluation assertions; verify initial stale-revision denial before providers/state changes, frozen booking protection during Calendar lag and differing provider intervals, and immutable local/provider context. Pass the real evaluator integration, 436 app/provider tests and 1,860 post-fixture SQL assertions. [Evidence](05_rebuild_evidence.md#legacy-request-evaluation-audit--2026-10-09). Record changed deadline/ranking/mode contracts; online travel scope and the wider inventory remain open.
