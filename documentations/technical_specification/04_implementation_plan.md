@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Reconcile all four retired booking-provider assertions and verify credential revocation prevents insert and lookup in all four active attempt phases, preserving post-dispatch uncertainty. [Evidence](05_rebuild_evidence.md#legacy-booking-provider-reconciliation--2026-10-09). Remaining legacy files and live acceptance stay open.
+
 - [x] Reconcile the three retired Calendar/route adapter assertions and restore the remote-conference location guard. Preserve busy time while requiring clarification for unknown physical whereabouts. Verify failure before the fix, 381 application tests, both builds and runtime checks. Deploy `1c24b20` as `dpl_AL9jJigLzsRXNu2CGkLxho2UPmxA` and pass twenty production checks. [Evidence](05_rebuild_evidence.md#legacy-calendar-location-regression--2026-10-09).
 
 - [x] Reconcile both retired ranking-provider assertions against the current adapter; record the explicit failure-policy change and verify fifteen private/authority input injections cannot reach the model or consume allowance. [Evidence](05_rebuild_evidence.md#legacy-ranking-provider-reconciliation--2026-10-09). The remaining legacy-file audit stays open.
