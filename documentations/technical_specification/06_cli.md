@@ -59,7 +59,7 @@ Tool input is one JSON object, at most 12 KiB, read within five seconds. MCP cal
 
 ## Credential lifecycle and recovery
 
-Credentials live under `~/.config/findmeatime/`, separated by a hash of the origin and the grant UUID. Directories require current-user ownership and mode 0700; files require mode 0600. Symlinks, extra file links, corrupt data and unsafe permissions fail closed. Do not copy these files into the repository or send them to an agent.
+Credentials live under `$XDG_CONFIG_HOME/findmeatime/` when configured, otherwise `~/.config/findmeatime/`, separated by a hash of the origin and the grant UUID. Directories require current-user ownership and mode 0700; files require mode 0600. Symlinks, extra file links, corrupt data and unsafe permissions fail closed. Do not copy these files into the repository or send them to an agent.
 
 Refresh is coordinated across terminal processes. Before dispatch, the connection is durably marked unusable. A verified successful response atomically replaces its credentials. If the reply is lost, sign in again; the old refresh token is never replayed. Review/revoke the old grant in the service's browser permissions screen when needed.
 
@@ -70,3 +70,21 @@ The callback listener closes after success, denial, timeout, cancellation or lau
 ## Operator tooling
 
 Invitation administration uses the separate server-credential command `npm run --silent invitations --`. It is not an MCP tool or a capability granted to host/requester agent clients. See [host invitation operations](03_provider_setup.md#host-invitation-operations) for issue/status/revoke/recover commands, environment binding and private output. This operator command exits 0 on success or 1 with sanitized JSON on failure; the personal-agent CLI exit-code table above does not apply.
+
+
+## Initial requester intake (locally verified; production rollout pending)
+
+To authorize one future request, use a public host handle rather than an existing request ID:
+
+```sh
+npm run --silent fmat -- login intake --handle HOST_HANDLE
+npm run --silent fmat -- tools CONNECTION_UUID
+npm run --silent fmat -- call CONNECTION_UUID fmat_get_intake_context < empty-object.json
+npm run --silent fmat -- call CONNECTION_UUID fmat_create_request < intake-input.json
+```
+
+`empty-object.json` contains `{}`. Creation input uses an `idempotencyKey` UUID and a `details` object containing requester-authorized `requesterName`, `requesterEmail`, `purpose`, `timezone` (IANA) and `durationMinutes`. Optional `mode`, `location` and explicit-offset `windows` follow the discovered schema. Omit unknown details and use the structured clarification response to ask the requester. No meeting-details form or product login is required in the consent browser. It displays the fixed host and one-request limit. `--handle` and `--request` are distinct targets and cannot be combined.
+
+The returned connection has actor `intake`; its subject remains the intake identity after binding. Creation returns only `status: created` and `requestId`. Use that request ID with `fmat_get_request` and other consented requester tools. Keep the same creation key and identical details after a lost result; a consumed intake cannot create a second request, even with a new key. Clarification may be corrected before the first successful creation. Creation does not verify email, agree to a meeting or approve booking.
+
+For human browser continuation, return to the original consent page using browser history and choose **Open request access**; it installs the request cookie only in that browser. The CLI never emits the proof. Logout revokes agent access; browser access already installed keeps its ordinary rotation, receipt and expiry limits. These commands pass actual local CLI subprocess, loopback, built-server and database tests. Production activation, public instruction rollout and named-client/full-workflow acceptance remain separate.

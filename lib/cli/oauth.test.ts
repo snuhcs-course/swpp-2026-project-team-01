@@ -7,9 +7,9 @@ import {CliFailure} from './mcp.ts';
 import {AgentOAuthTokens} from '../server/oauth/tokens.ts';
 const origin='https://oauth-cli.example.test',redirect='http://127.0.0.1:45678/callback/'+'x'.repeat(43);
 const fails=(error:unknown)=>error instanceof CliFailure&&error.code==='LOGIN_REQUIRED';
-async function fixture(){
+async function fixture(intake=false){
  const pair=await generateKeyPair('ES256',{extractable:true}),env={APP_ORIGIN:origin,AGENT_OAUTH_SIGNING_JWK:JSON.stringify({...await exportJWK(pair.privateKey),kid:'oauth-cli'})},tokens=new AgentOAuthTokens(env);
- const grant={grantId:randomUUID(),clientId:randomUUID(),actorKind:'guest' as const,actorId:randomUUID(),scope:'request:read',grantExpiresAt:Math.floor(Date.now()/1000)+3600};
+ const grant={grantId:randomUUID(),clientId:randomUUID(),actorKind:intake?'intake' as const:'guest' as const,actorId:randomUUID(),scope:intake?'request:intake request:read':'request:read',grantExpiresAt:Math.floor(Date.now()/1000)+3600};
  let exchangeCalls=0,revocations=0,failExchange=false,badMetadata=false,privateKey=false,claimsPatch:Record<string,unknown>|null=null;let authorization:URL;
  const fetcher:typeof fetch=async(input,init)=>{
   const request=new Request(input,init),url=new URL(request.url);assert.equal(url.origin,origin);assert.equal(init?.redirect,'manual');assert.equal(init?.credentials,'omit');assert.equal(request.headers.get('authorization'),null);
@@ -23,11 +23,11 @@ async function fixture(){
   if(failExchange)throw Error('sensitive provider failure');
   if(form.get('grant_type')==='authorization_code'){assert.equal(form.get('redirect_uri'),redirect);assert.equal(createHash('sha256').update(form.get('code_verifier')!).digest('base64url'),authorization.searchParams.get('code_challenge'));}
   let token=await tokens.issue(grant,async()=>{});
-  if(claimsPatch){const now=Math.floor(Date.now()/1000);token=await new SignJWT({iss:origin,aud:origin+'/mcp',sub:grant.actorId,client_id:grant.clientId,grant_id:grant.grantId,actor_kind:'guest',scope:grant.scope,iat:now,exp:now+300,jti:randomUUID(),...claimsPatch}).setProtectedHeader({alg:'ES256',typ:'at+jwt',kid:'oauth-cli'}).sign(pair.privateKey);}
+  if(claimsPatch){const now=Math.floor(Date.now()/1000);token=await new SignJWT({iss:origin,aud:origin+'/mcp',sub:grant.actorId,client_id:grant.clientId,grant_id:grant.grantId,actor_kind:grant.actorKind,scope:grant.scope,iat:now,exp:now+300,jti:randomUUID(),...claimsPatch}).setProtectedHeader({alg:'ES256',typ:'at+jwt',kid:'oauth-cli'}).sign(pair.privateKey);}
   return Response.json({access_token:token,refresh_token:(exchangeCalls===1?'a':'b').repeat(43),token_type:'Bearer',expires_in:300,scope:grant.scope});
  };
  const client=new CliOAuthClient(origin,fetcher);
- const begin=async()=>{const attempt=await client.begin('request:read',redirect,grant.actorId);authorization=new URL(attempt.authorizationUrl);return attempt;};
+ const begin=async()=>{const attempt=await client.begin(grant.scope,redirect,intake?undefined:grant.actorId,intake?'public-host':undefined);authorization=new URL(attempt.authorizationUrl);return attempt;};
  const callback=()=>redirect+'?'+new URLSearchParams({state:authorization.searchParams.get('state')!,code:'c'.repeat(43)});
  return {client,begin,callback,grant,calls:()=>exchangeCalls,revocations:()=>revocations,breakExchange:()=>{failExchange=true;},badMetadata:()=>{badMetadata=true;},privateKey:()=>{privateKey=true;},patch:(p:Record<string,unknown>)=>{claimsPatch=p;}};
 }
@@ -51,4 +51,14 @@ test('foreign metadata, private JWKS and incorrectly bound signed claims fail cl
  for(const patch of [{aud:'https://foreign.test/mcp'},{iss:'https://foreign.test'},{client_id:randomUUID()},{actor_kind:'host'},{sub:randomUUID()},{exp:Math.floor(Date.now()/1000)-1},{scope:'request:read request:write'}]){
   const f=await fixture(),attempt=await f.begin();f.patch(patch);await assert.rejects(attempt.complete(f.callback()),fails);
  }
+});
+
+test('CLI intake authorization binds its public target and rejects actor promotion or mixed targets',async()=>{
+ const f=await fixture(true),attempt=await f.begin(),url=new URL(attempt.authorizationUrl);
+ assert.equal(url.searchParams.get('handle'),'public-host');assert.equal(url.searchParams.has('request_id'),false);
+ const connection=await attempt.complete(f.callback());assert.equal(connection.actorKind,'intake');assert.equal((await f.client.refresh(connection)).actorId,connection.actorId);
+ for(const args of [['request:intake',undefined,undefined],['request:intake',randomUUID(),'public-host'],['request:read',undefined,'public-host'],['request:intake',undefined,'app']] as const)
+  await assert.rejects(f.client.begin(args[0],redirect,args[1],args[2]),e=>e instanceof CliFailure&&e.code==='INVALID_INPUT');
+ const wrong=await fixture(true),pending=await wrong.begin();wrong.patch({actor_kind:'guest'});await assert.rejects(pending.complete(wrong.callback()),fails);
+ const existing=await fixture(),guest=await existing.begin();existing.patch({actor_kind:'intake'});await assert.rejects(guest.complete(existing.callback()),fails);
 });

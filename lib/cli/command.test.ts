@@ -35,7 +35,7 @@ test('runnable CLI handles browser login, private save, refresh, MCP calls and r
  }finally{await rm(root,{recursive:true,force:true});}
 });
 test('CLI rejects credential arguments and help is valid JSON from the actual entry point',async()=>{
- for(const args of [[],['--token','secret'],['login','host','--request',randomUUID()],['call',randomUUID(),'fmat_get_request','secret'],['--origin','https://foreign.test/path','tools',randomUUID()]]){
+ for(const args of [['login','intake'],['login','intake','--handle','app'],['login','intake','--request',randomUUID()],['login','requester','--handle','host'],[],['--token','secret'],['login','host','--request',randomUUID()],['call',randomUUID(),'fmat_get_request','secret'],['--origin','https://foreign.test/path','tools',randomUUID()]]){
   let out='',err='';assert.equal(await runCli(args,{stdin:stdin('{}'),stdout:v=>out+=v,stderr:v=>err+=v}),2);assert.equal(out,'');assert.equal(JSON.parse(err).error.code,'INVALID_INPUT');assert.ok(!err.includes('secret'));
  }
  const help=JSON.parse(execFileSync(process.execPath,['--import','tsx','scripts/fmat.ts','--help'],{encoding:'utf8'}));assert.equal(help.usage.length,4);assert.ok(help.credentials.includes('no token flags'));

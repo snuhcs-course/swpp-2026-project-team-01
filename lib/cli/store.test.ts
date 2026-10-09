@@ -64,3 +64,9 @@ test('an existing lock times out without stealing it or invoking refresh',()=>fi
  await store.save(v);const lock=file(root,v).replace(/\.json$/u,'.lock');await mkdir(lock,{mode:0o700});
  await assert.rejects(store.access(origin,v.grantId,async()=>assert.fail()),fails('CONNECTION_BUSY'));assert.equal((await stat(lock)).isDirectory(),true);assert.equal(JSON.parse(await readFile(file(root,v),'utf8')).state,'ready');
 }));
+
+test('intake storage permits narrowed requester scopes but cannot promote a guest or host',()=>fixture(async(_root,store,v)=>{
+ const intake={...v,actorKind:'intake' as const,scope:'request:intake request:read'};await store.save(intake);
+ assert.equal(await store.access(origin,intake.grantId,async current=>({...current,scope:'request:read',refreshToken:'b'.repeat(43),accessExpiresAt:now+60000})),intake.accessToken);
+ for(const actorKind of ['guest','host'] as const)await assert.rejects(store.save({...intake,grantId:randomUUID(),actorKind}),fails('STORAGE_UNSAFE'));
+}));

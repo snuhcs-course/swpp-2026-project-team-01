@@ -4,7 +4,7 @@ import {CliFailure} from './mcp.ts';
 import type {CliOAuthClient} from './oauth.ts';
 import type {StoredConnection} from './store.ts';
 /** Only the authorization URL reaches the browser launcher; tokens stay in memory. */
-export async function browserLogin(client:Pick<CliOAuthClient,'begin'>,scope:string,openBrowser:(url:string)=>Promise<void>,options:{requestId?:string;signal?:AbortSignal;timeoutMs?:number}={}):Promise<StoredConnection>{
+export async function browserLogin(client:Pick<CliOAuthClient,'begin'>,scope:string,openBrowser:(url:string)=>Promise<void>,options:{requestId?:string;handle?:string;signal?:AbortSignal;timeoutMs?:number}={}):Promise<StoredConnection>{
  const path='/callback/'+randomBytes(32).toString('base64url');
  let callback='',expectedState='',attempt:Awaited<ReturnType<CliOAuthClient['begin']>>|undefined,busy=false,settled=false;
  let resolve!: (value:StoredConnection)=>void,reject!: (error:CliFailure)=>void;
@@ -33,7 +33,7 @@ export async function browserLogin(client:Pick<CliOAuthClient,'begin'>,scope:str
   await Promise.race([new Promise<void>(yes=>server.listen(0,'127.0.0.1',yes)),result]);
   const address=server.address();if(!address||typeof address==='string')throw new CliFailure('LOGIN_REQUIRED');
   callback='http://127.0.0.1:'+address.port+path;
-  attempt=await Promise.race([client.begin(scope,callback,options.requestId),result.then(()=>{throw new CliFailure('LOGIN_REQUIRED');})]);
+  attempt=await Promise.race([client.begin(scope,callback,options.requestId,options.handle),result.then(()=>{throw new CliFailure('LOGIN_REQUIRED');})]);
   expectedState=new URL(attempt.authorizationUrl).searchParams.get('state')??'';
   if(!/^[A-Za-z0-9_-]{43}$/u.test(expectedState))throw new CliFailure('LOGIN_REQUIRED');
   await Promise.race([openBrowser(attempt.authorizationUrl),result]);

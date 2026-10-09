@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {exerciseIntakeCli} from './agent-intake-cli.ts';
 import assert from 'node:assert/strict';
 import {spawn,execFileSync} from 'node:child_process';
 import {once} from 'node:events';
@@ -83,6 +84,7 @@ test('public OAuth routes and explicit host/requester consent survive reload, lo
   const handle='intake-'+host.slice(0,8);
   const calendarProof=new TokenCipher(proofEnv).seal({accessToken:'intake-browser-fixture',refreshToken:'fixture-refresh',expiresAt:Date.now()+3600000,subject:'private-subject',scopes:['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events']},'google:host:'+host);
   await sql.query(`update fmat.hosts set handle=${q(handle)},display_name='Displayed intake host',rules='{"timezone":"Asia/Seoul","durationMinutes":30}',conflict_calendar_ids=array['private-calendar'],booking_calendar_id='private-calendar' where id=${q(host)};insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential) values('host',${q(host)},'private-subject',array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],${q(calendarProof)});`);
+  await exerciseIntakeCli(origin,handle,sql,browser);
   const intake=await browser.newContext({viewport:{width:320,height:844}}),intakePage=await intake.newPage();intakePage.setDefaultTimeout(15000);let intakeCallback='';
   try{
    await intakePage.route('https://oauth-client.example/callback*',async route=>{intakeCallback=route.request().url();await route.fulfill({status:200,body:'Intake callback received'});});

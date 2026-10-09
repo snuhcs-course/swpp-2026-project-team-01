@@ -446,3 +446,6 @@ Migration `20261009020556_agent_intake_handoff.sql` follows the four pending int
 
 
 Local MCP intake verification uses the pinned official SDK against the built Next.js `/mcp` route and real local Supabase. A test-only Node preload substitutes the Google Calendar metadata boundary using an encrypted synthetic credential; production code has no fixture switch. No live Calendar write or provider message is sent. Keep public entry instructions and production claims behind the integrated rollout; browser/SDK success does not establish CLI or named-client compatibility.
+
+
+The local CLI now supports `login intake --handle HANDLE`; see [initial requester intake](06_cli.md#initial-requester-intake-locally-verified-production-rollout-pending). Actual subprocess acceptance uses a temporary XDG configuration root and a test browser-launcher shim, with real loopback OAuth and the built app. It does not override the user home directory or touch real stored connections. No production Auth, secret or schema change is required by the CLI extension itself; integrated intake deployment remains task 4.1.

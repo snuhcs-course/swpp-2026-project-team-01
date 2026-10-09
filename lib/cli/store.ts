@@ -7,14 +7,14 @@ import {setTimeout} from 'node:timers/promises';
 import {z} from 'zod';
 import {cliOrigin,CliFailure} from './mcp.ts';
 const jwt=z.string().max(8192).regex(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u);
-export const storedConnection=z.strictObject({version:z.literal(1),origin:z.string(),grantId:z.uuid(),clientId:z.uuid(),actorKind:z.enum(['host','guest']),actorId:z.uuid(),scope:z.string().min(1).max(100),accessToken:jwt,refreshToken:z.string().regex(/^[A-Za-z0-9_-]{43}$/u),accessExpiresAt:z.number().int().positive(),state:z.enum(['ready','refreshing','revoking'])});
+export const storedConnection=z.strictObject({version:z.literal(1),origin:z.string(),grantId:z.uuid(),clientId:z.uuid(),actorKind:z.enum(['host','guest','intake']),actorId:z.uuid(),scope:z.string().min(1).max(100),accessToken:jwt,refreshToken:z.string().regex(/^[A-Za-z0-9_-]{43}$/u),accessExpiresAt:z.number().int().positive(),state:z.enum(['ready','refreshing','revoking'])});
 export type StoredConnection=z.infer<typeof storedConnection>;
 const missing=(error:unknown)=>Boolean(error&&typeof error==='object'&&'code'in error&&error.code==='ENOENT');
 const exists=(error:unknown)=>Boolean(error&&typeof error==='object'&&'code'in error&&error.code==='EEXIST');
 /** POSIX private storage. Never repair unsafe permissions or follow file symlinks. */
 export class CliCredentialStore{
  private readonly root:string;
- constructor(root=join(homedir(),'.config','findmeatime'),private readonly now=Date.now,private readonly lockWaitMs=2000){this.root=resolve(root);}
+ constructor(root=join(process.env.XDG_CONFIG_HOME||join(homedir(),'.config'),'findmeatime'),private readonly now=Date.now,private readonly lockWaitMs=2000){this.root=resolve(root);}
  private async directory(path:string){
   await mkdir(path,{recursive:true,mode:0o700});
   const stat=await lstat(path);
@@ -39,7 +39,7 @@ export class CliCredentialStore{
   const parsed=storedConnection.safeParse(value);
   if(!parsed.success||parsed.data.origin!==origin||parsed.data.grantId!==grantId||cliOrigin(parsed.data.origin)!==origin)throw new CliFailure('STORAGE_UNSAFE');
   const prefix=parsed.data.actorKind==='host'?'host:':'request:',scopes=parsed.data.scope.split(' ');
-  if(new Set(scopes).size!==scopes.length||!scopes.every(s=>['read','write','decide'].some(permission=>s===prefix+permission)))throw new CliFailure('STORAGE_UNSAFE');
+  if(new Set(scopes).size!==scopes.length||!scopes.every(s=>['read','write','decide',...(parsed.data.actorKind==='intake'?['intake']:[])].some(permission=>s===prefix+permission)))throw new CliFailure('STORAGE_UNSAFE');
   return parsed.data;
  }
  private async read(paths:Awaited<ReturnType<CliCredentialStore['paths']>>):Promise<StoredConnection>{
