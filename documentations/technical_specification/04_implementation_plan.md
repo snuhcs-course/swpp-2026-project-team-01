@@ -517,6 +517,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Deploy accepted-receipt snapshot ordering from `d135901` (`dpl_HexyRfLkzhXDTouz1yzmPVRm9LuU`), verify pre-promotion service health, domain promotion, 15 composed production checks and two public pages. [Evidence](05_rebuild_evidence.md#receipt-ordering-production-deployment--2026-10-09). Hosted CI and broader release acceptance remain open.
+
 - [x] Reproduce and fix a delayed pre-receipt snapshot overwriting newer accepted message status; retain the receipt until a fresh authorized read and verify normal later settlement. Pass the failing-before/passing-after browser regression, three browser suites, app/script/type/build/runtime/boundary checks and 1,747 SQL assertions. [Evidence](05_rebuild_evidence.md#accepted-receipt-and-delayed-snapshot-ordering--2026-10-09).
 
 - [x] Deploy the historical-replay busy-state fix from `2ecf965` (`dpl_HE43YYm48ACEjCQUGBrMUsxgTk6c`); verify both services before promotion, the production domain, 15 runtime/access checks and two public pages. [Evidence](05_rebuild_evidence.md#historical-replay-fix-production-deployment--2026-10-09). Fresh hosted browser and live authenticated/device gates remain open.
