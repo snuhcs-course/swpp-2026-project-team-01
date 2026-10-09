@@ -10,9 +10,11 @@ import {dispatchPhotonInputs} from '../../lib/server/photon/execution.ts';
 import {dispatchPhotonReplies} from '../../lib/server/photon/replies.ts';
 import {photonWebhook} from '../../lib/server/photon/webhook.ts';
 import {LocalSql,cleanupFixtureJobsSql} from './local-sql.ts';
+import {Conversations} from '../../lib/server/identity/conversations.ts';
+import type {SchedulingPublication} from '../../lib/server/scheduling/publication.ts';
 import {verifyBookingWorker} from './booking-worker.ts';
 
-export async function verifyIMessageBooking(db:Database,baseEnv:NodeJS.ProcessEnv,host:{id:string;credential:Credential},createProposal:()=>Promise<string>){
+export async function verifyIMessageBooking(db:Database,baseEnv:NodeJS.ProcessEnv,host:{id:string;credential:Credential},createProposal:()=>Promise<{id:string;guest:Credential}>,publication:SchedulingPublication){
  const sql=new LocalSql(),holder=new LocalSql(),project=randomUUID(),receiver=randomUUID(),secret=randomBytes(32).toString('hex');
  const env={...baseEnv,APP_ORIGIN:'http://localhost:3000',PHOTON_PROJECT_ID:project,PHOTON_WEBHOOK_ID:receiver,IMESSAGE_WEBHOOK_SECRET:secret};
  const phone='+1555'+String(Math.floor(Math.random()*9000000)+1000000),space={id:'any;-;'+phone,platform:'imessage',type:'dm',phone:'shared'};
@@ -37,7 +39,31 @@ export async function verifyIMessageBooking(db:Database,baseEnv:NodeJS.ProcessEn
   const started=await service.start(host.credential,browser,{phone,idempotencyKey:randomUUID()});let code='';
   await dispatchLinkCodes(db,env,{async send(_route,recipient,text){assert.equal(recipient,phone);code=text.match(/code is (\d{6})/u)![1];return {status:'delivered',providerReference:randomUUID()};},async reconcile(){assert.fail('fresh fixture code');}});
   link=(await service.verify(host.credential,browser,{challengeId:started.challenge!.id,code,idempotencyKey:randomUUID()})).link!.id;await delay(5);
-  const raced=await createProposal(),old=await review(raced);
+  const revised=await createProposal(),oldReview=await review(revised.id);
+  const original=await publication.read(revised.guest,{requestId:revised.id});
+  const before=JSON.parse(await sql.query(`select details::text from fmat.requests where id='${revised.id}';`));
+  const windows=before.windows.map((w:{start:string;end:string})=>({start:new Date(Date.parse(w.start)+3600000).toISOString(),end:new Date(Date.parse(w.end)+3600000).toISOString()}));
+  const grant=await new Conversations(db).open(host.credential,{audience:'host_private',requestId:revised.id});
+  await db.rpc('fmat_conversation_tool',{p_grant_id:grant.grantId,p_conversation_id:grant.conversationId,p_operation:'host_revision_propose',p_input:{expectedRevision:original.revision,patch:{windows},clarifications:[],idempotencyKey:randomUUID()}});
+  assert.deepEqual(await publication.read(revised.guest,{requestId:revised.id}),original,'private draft has no shared effect');
+  const changes=await turn('changes'),changeRef=changes.text.match(/apply changes ([a-f0-9-]{36})/u)?.[1];assert.ok(changeRef);await deliver();
+  assert.match(changes.text,/Current details:.*Proposed details:/s);
+  assert.match((await turn('apply changes '+changeRef)).text,/Revised details shared/);
+  assert.match((await turn('apply changes '+changeRef)).text,/already recorded/);
+  assert.match((await turn('approve '+oldReview)).text,/No new decision was recorded/);
+  let current=await publication.read(revised.guest,{requestId:revised.id});assert.equal(current.proposal,null);
+  assert.equal(await sql.query(`select requester_agreed_version is null and host_approved_version is null from fmat.requests where id='${revised.id}';`),'t');
+  current=await publication.evaluate(revised.guest,{requestId:revised.id,revision:current.revision});
+  current=await publication.select(revised.guest,{requestId:revised.id,revision:current.revision,publicationId:current.publication!.id,candidateId:current.publication!.candidates[0].id,confirmed:true,idempotencyKey:randomUUID()});
+  assert.ok(current.proposal!.version>original.proposal!.version);
+  assert.notEqual(current.proposal!.start,original.proposal!.start,'revised proposal uses a changed time');
+  const unagreed=await review(revised.id);assert.match((await turn('approve '+unagreed)).text,/No new decision was recorded/);
+  await publication.agree(revised.guest,{requestId:revised.id,revision:current.revision,proposalVersion:current.proposal!.version,confirmed:true,idempotencyKey:randomUUID()});
+  assert.match((await turn('approve '+unagreed)).text,/No new decision was recorded/,'new agreement requires renewed review');
+  const renewed=await review(revised.id);assert.match((await turn('approve '+renewed)).text,/Approval recorded/);
+  assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where request_id='${revised.id}';`),'1');
+  assert.equal(await sql.query(`select proposal_version from fmat.host_approvals where request_id='${revised.id}';`),String(current.proposal!.version));
+  const {id:raced}=await createProposal(),old=await review(raced);
   assert.match((await turn('yes')).text,/No decision was recorded/);
   const pid=Number((await holder.query(`begin;select pg_backend_pid();select id from fmat.requests where id='${raced}' for update;`)).split('\n')[0]);
   const incoming=await receive('approve '+old),waiting=dispatchPhotonInputs(db,env);let blocked=false;
@@ -47,7 +73,7 @@ export async function verifyIMessageBooking(db:Database,baseEnv:NodeJS.ProcessEn
   const decline=await review(raced);assert.match((await turn('decline '+decline)).text,/Declined proposal/);assert.match((await turn('decline '+decline)).text,/already recorded.*declined/);
   assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where request_id='${raced}';`),'0');
   await verifyBookingWorker(db,env,host.id,async()=>{
-   const id=await createProposal(),reference=await review(id),approved=await turn('approve '+reference);assert.match(approved.text,/Approval recorded.*Booking is pending/);decisions++;
+   const {id}=await createProposal(),reference=await review(id),approved=await turn('approve '+reference);assert.match(approved.text,/Approval recorded.*Booking is pending/);decisions++;
    // A replayed provider receipt and a new explicit retry both retain one effect.
    await receive('approve '+reference,approved.key);assert.equal((await dispatchPhotonInputs(db,env)).accepted,0);
    assert.match((await turn('approve '+reference)).text,/already recorded.*booking/);
@@ -60,6 +86,6 @@ export async function verifyIMessageBooking(db:Database,baseEnv:NodeJS.ProcessEn
  }finally{
   await holder.query('rollback;');holder.close();
   await sql.query(cleanupFixtureJobsSql(`payload->>'inboxId' in(select id::text from fmat.photon_inbox where project_id='${project}')`));
-  await sql.query(`delete from fmat.photon_proposal_decisions where link_id in(select id from fmat.photon_links where project_id='${project}');delete from fmat.photon_proposal_reviews where link_id in(select id from fmat.photon_links where project_id='${project}');delete from fmat.photon_replies where project_id='${project}';delete from fmat.photon_inbox where project_id='${project}';delete from fmat.conversation_grants where credential->>'linkId'='${link}';delete from fmat.conversation_scopes where host_id='${host.id}';delete from fmat.photon_links where project_id='${project}';delete from fmat.photon_link_challenges where project_id='${project}';delete from fmat.photon_receivers where project_id='${project}';`);sql.close();
+  await sql.query(`delete from fmat.photon_revision_decisions where review_id in(select id from fmat.photon_revision_reviews where link_id='${link}');delete from fmat.photon_revision_reviews where link_id='${link}';delete from fmat.photon_proposal_decisions where link_id in(select id from fmat.photon_links where project_id='${project}');delete from fmat.photon_proposal_reviews where link_id in(select id from fmat.photon_links where project_id='${project}');delete from fmat.photon_replies where project_id='${project}';delete from fmat.photon_inbox where project_id='${project}';delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host.id}');delete from fmat.conversation_scopes where host_id='${host.id}';delete from fmat.photon_links where project_id='${project}';delete from fmat.photon_link_challenges where project_id='${project}';delete from fmat.photon_receivers where project_id='${project}';`);sql.close();
  }
 }

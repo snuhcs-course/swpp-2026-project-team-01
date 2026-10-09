@@ -43,7 +43,7 @@ create or replace function public.fmat_photon_dispatch(p_project_id uuid)
 returns jsonb language plpgsql security definer set search_path='' as $$
 declare i fmat.photon_inbox; j fmat.jobs; l fmat.photon_links; s fmat.conversation_scopes;
  g fmat.conversation_grants; credential jsonb; accepted jsonb; outcome text; publication record;
- target uuid; command text; notice text; navigation boolean; decision boolean; chosen fmat.requests; access jsonb;
+ target uuid; command text; notice text; navigation boolean; decision boolean; revision_control boolean; chosen fmat.requests; access jsonb;
 begin
  select j0.* into j from fmat.jobs j0
  join fmat.photon_inbox i0 on j0.dedupe_key='photon-ingress:'||i0.id::text and j0.kind='photon_ingress'
@@ -63,6 +63,7 @@ begin
  begin
   command:=lower(btrim(i.text));
   decision:=command~'^(approve|decline)([[:space:]]|$)' or (l.selected_request_id is not null and command in ('yes','ok','okay','네','승인','거절'));
+  revision_control:=command='changes' or command~'^(apply|dismiss)([[:space:]]|$)';
   navigation:=command='setup' or command~'^request([[:space:]]|$)';
   target:=case when navigation then null else l.selected_request_id end;
   -- Request locks precede host/FK locks, including first-scope creation.
@@ -87,11 +88,13 @@ begin
   select * into strict g from fmat.conversation_grants where conversation_id=s.id and actor_kind='host' and authority_key='photon:'||i.id::text;
   update fmat.photon_inbox set conversation_id=s.id,execution_grant_id=g.id where id=i.id;
   access:=public.fmat_conversation_check(g.id,s.id);
-  if navigation or decision or command='review' or (access->>'readOnly')::boolean then
+  if navigation or decision or revision_control or command='review' or (access->>'readOnly')::boolean then
    perform fmat.conversation_budget_charge('host',l.host_id);
    -- The quota lock may have waited; revalidate all time-based authority.
    perform public.fmat_conversation_check(g.id,s.id);
-   if decision then
+   if revision_control then
+    notice:=fmat.photon_revision_command(i.id);
+   elsif decision then
     notice:=fmat.photon_proposal_decide(i.id);
    elsif command='review' then
     notice:=case when target is null then 'Select a request first: ask to list your requests and send its exact request command.' else fmat.photon_proposal_review(i.id) end;

@@ -16,10 +16,10 @@
 
 - [x] 3.1 Add authored current-proposal display and route-bound expiring decision context. Verify exact displayed details, proposal/revision changes, requester agreement, missing context and context issuance retries; update UX and authority documentation.
 - [x] 3.2 Parse explicit host approval and decline outside the model and invoke existing domain commands with attributable context. Verify bare assent denial, stale/duplicate/foreign decisions, concurrent changes, lost acknowledgements and one booking effect; preserve browser fallback.
-- [ ] 3.3 Support private revision discussion with a reviewable change and renewed requester agreement/host approval. Verify no silent shared mutation, private rationale isolation and revisions superseding old decisions; document the review flow.
+- [x] 3.3 Support private revision discussion with a reviewable change and renewed requester agreement/host approval. Verify no silent shared mutation, private rationale isolation and revisions superseding old decisions; document the review flow.
 - [ ] 3.4 Deploy verified decision/revision behavior and independently inspect release alias, migration parity, permission denial and rollback-only decision probes. Record which provider interactions remain unverified.
 
 ## 4. End-to-end acceptance
 
-- [ ] 4.1 Run integrated app, database, runtime and browser regressions plus strict OpenSpec/documentation checks; record AC-16–18 coverage with exact fixture/live distinctions.
+- [x] 4.1 Run integrated app, database, runtime and browser regressions plus strict OpenSpec/documentation checks; record AC-16–18 coverage with exact fixture/live distinctions.
 - [ ] 4.2 With an authorized real recipient and configured receiver, verify iMessage request discovery/selection, question, revision, approval, separate decline, outcome, unlink and browser continuation; record iPhone/provider versions and archive only after all tasks pass.

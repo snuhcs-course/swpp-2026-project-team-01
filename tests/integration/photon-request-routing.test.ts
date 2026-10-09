@@ -107,9 +107,15 @@ test('signed private selection survives restart, preserves request scope and ret
   assert.equal(await sql.query(`select revision from fmat.requests where id='${requests[1]}';`),revisionBefore,'actual Eve draft does not change shared revision');
   const revisions=new HostRevisionReview(db),revisionReview=await revisions.read(hosts[0].credential,{requestId:requests[1]});
   assert.equal(revisionReview.review?.details.location,'https://meet.example.test/revised');
-  const decision={requestId:requests[1],input:{reviewId:revisionReview.review!.id,expectedRevision:revisionReview.review!.baseRevision,confirmed:true,idempotencyKey:randomUUID()}};
-  const applied=await revisions.decide('apply',hosts[0].credential,decision);assert.equal(applied.review?.status,'applied');
-  assert.deepEqual(await revisions.decide('apply',hosts[0].credential,decision),applied);
+  const changes=await turn(0,'changes');assert.equal(changes.input.messageId,null);
+  const reference=changes.text.match(/apply changes ([a-f0-9-]{36})/u)?.[1];assert.ok(reference);
+  for(let n=0;n<30;n++){
+   const batch=await dispatchPhotonReplies(db,env,{async send(_route,phone,_text,id,authorize){assert.equal(phone,hosts[0].phone);await authorize();return {status:'delivered',providerReference:id};},async reconcile(){assert.fail('fresh revision reply');}});if(!batch.claimed)break;
+  }
+  const applied=await turn(0,'apply changes '+reference);assert.equal(applied.input.messageId,null);assert.match(applied.text,/Revised details shared/);
+  assert.match((await turn(0,'apply changes '+reference)).text,/already recorded/);
+  assert.equal((await revisions.read(hosts[0].credential,{requestId:requests[1]})).review?.status,'applied');
+  assert.equal(await sql.query(`select details->>'location' from fmat.requests where id='${requests[1]}';`),'https://meet.example.test/revised');
   assert.equal(await sql.query(`select count(*) from fmat.request_history where request_id='${requests[1]}' and operation='details_update';`),'1');
   const oldLink=hosts[0].link;
   await service.unlink(hosts[0].credential,hosts[0].browser,{linkId:oldLink});await assert.rejects(conversations.checkExecution(first.grant,first.scope));
@@ -121,7 +127,7 @@ test('signed private selection survives restart, preserves request scope and ret
   try{
   await holder.query('rollback;');await runtime?.stop();
   await sql.query(cleanupFixtureJobsSql(`payload->>'inboxId' in(select id::text from fmat.photon_inbox where project_id='${project}')`));
-  await sql.query(`delete from fmat.photon_replies where project_id='${project}';delete from fmat.photon_inbox where project_id='${project}';delete from fmat.photon_links where project_id='${project}';delete from fmat.photon_link_challenges where project_id='${project}';delete from fmat.photon_receivers where project_id='${project}';`);
+  await sql.query(`delete from fmat.photon_revision_decisions where review_id in(select id from fmat.photon_revision_reviews where link_id in(select id from fmat.photon_links where project_id='${project}'));delete from fmat.photon_revision_reviews where link_id in(select id from fmat.photon_links where project_id='${project}');delete from fmat.photon_replies where project_id='${project}';delete from fmat.photon_inbox where project_id='${project}';delete from fmat.photon_links where project_id='${project}';delete from fmat.photon_link_challenges where project_id='${project}';delete from fmat.photon_receivers where project_id='${project}';`);
   for(const host of hosts){
    await sql.query(`delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host.id}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host.id}');delete from fmat.conversation_scopes where host_id='${host.id}';delete from fmat.request_history where request_id in(select id from fmat.requests where host_id='${host.id}');delete from fmat.requests where host_id='${host.id}';delete from fmat.audit_events where actor->>'id'='${host.id}';delete from fmat.idempotency where actor_scope='host:${host.id}';delete from fmat.hosts where id='${host.id}';delete from fmat.invitations where id='${host.invite}';`);
    assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host.id,{method:'DELETE',headers})).status,200);
