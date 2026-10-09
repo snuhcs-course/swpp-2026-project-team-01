@@ -19,7 +19,7 @@ export function projectRuntimeEvent(value: unknown, cursor: number): Record<stri
 }
 
 export function authorizedStream(source: ReadableStream<unknown>, check: () => Promise<unknown>, startIndex: number,
-  signal: AbortSignal, options: { pollMs?: number; leaseMs?: number } = {}): Response {
+  signal: AbortSignal, options: { pollMs?: number; leaseMs?: number; project?:typeof projectRuntimeEvent } = {}): Response {
   const reader = source.getReader(); const encoder = new TextEncoder();
   let cursor = startIndex, stopped = false;
   let interval: ReturnType<typeof setInterval> | undefined, lease: ReturnType<typeof setTimeout> | undefined;
@@ -47,7 +47,7 @@ export function authorizedStream(source: ReadableStream<unknown>, check: () => P
         if (stopped) return;
         if (item.done) { stop(); return; }
         await recheck(); if (stopped) return;
-        controller.enqueue(encoder.encode(JSON.stringify(projectRuntimeEvent(item.value, ++cursor))+'\n'));
+        controller.enqueue(encoder.encode(JSON.stringify((options.project??projectRuntimeEvent)(item.value, ++cursor))+'\n'));
       } catch (error) { stop(error instanceof ApplicationError ? error : new ApplicationError('PROVIDER_UNAVAILABLE', 503)); }
     },
     cancel() { stopped = true; clearInterval(interval); clearTimeout(lease); signal.removeEventListener('abort', abort); return reader.cancel(); },

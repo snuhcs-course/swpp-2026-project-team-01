@@ -24,6 +24,15 @@ export const generationTimeline=z.strictObject({conversationId:z.uuid(),audience
 export type GenerationTimeline=z.infer<typeof generationTimeline>;
 export type HistoryPage={events:Exclude<ConversationEvent,{type:'error'}>[];nextCursor:number;hasMore:boolean};
 const unavailable=()=>new ApplicationError('PROVIDER_UNAVAILABLE',503);
+/** Eve turn IDs are session-local. Keep generation zero compatible and give
+ * successor turns stable logical identities without exposing runtime IDs. */
+export function projectGenerationEvent(value:unknown,cursor:number,generation:number):HistoryPage['events'][number]{
+ const projected=projectRuntimeEvent(value,cursor);
+ if(generation>0&&typeof projected.turnId==='string')projected.turnId=`g${generation}:${projected.turnId}`;
+ const parsed=conversationEvent.safeParse(projected);
+ if(!parsed.success||parsed.data.type==='error')throw unavailable();
+ return parsed.data;
+}
 function timeline(value:unknown):GenerationTimeline{
  const parsed=generationTimeline.safeParse(value);if(!parsed.success)throw unavailable();return parsed.data;
 }
@@ -91,9 +100,7 @@ export async function readGenerationHistory(expected:GenerationTimeline,attach:(
    reader=await bounded(opening);
    while(cursor<limit&&events.length<maxEvents){
     const item=await bounded(()=>reader!.read());if(item.done)throw unavailable();
-    const parsed=conversationEvent.safeParse(projectRuntimeEvent(item.value,cursor+1));
-    if(!parsed.success||parsed.data.type==='error')throw unavailable();
-    const event=parsed.data,size=Buffer.byteLength(JSON.stringify(event),'utf8');
+    const event=projectGenerationEvent(item.value,cursor+1,row.generation),size=Buffer.byteLength(JSON.stringify(event),'utf8');
     if(bytes+size>maxBytes){if(events.length===0)throw unavailable();full=true;break;}
     events.push(event);bytes+=size;cursor++;
    }

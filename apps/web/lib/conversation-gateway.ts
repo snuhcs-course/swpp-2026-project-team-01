@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { conversationSnapshot, conversationView, incomingMessage, messageReceipt, openConversation } from '../../../lib/contracts/conversations.ts';
+import { conversationCursor, conversationSnapshot, conversationView, incomingMessage, messageReceipt, openConversation } from '../../../lib/contracts/conversations.ts';
 import { errorCode } from '../../../lib/contracts/errors.ts';
 import { applicationOrigin } from '../../../lib/server/config.ts';
 import { ApplicationError } from '../../../lib/server/errors.ts';
@@ -42,7 +42,7 @@ export async function conversationGateway(request:NextRequest,parts:string[],ses
   }
   const url=new URL('/api/conversations'+(suffix.length?'/'+suffix.join('/'):''),runtimeOrigin());
   const stream=suffix[1]==='stream';
-  if(stream)url.searchParams.set('cursor',z.string().regex(/^\d{1,9}$/u).parse(request.nextUrl.searchParams.get('cursor')??'0'));
+  if(stream)url.searchParams.set('cursor',String(conversationCursor.parse(request.nextUrl.searchParams.get('cursor')??'0')));
   let response:Response;
   try {response=await fetch(url,{method:request.method,headers,body,redirect:'error',cache:'no-store',signal:AbortSignal.any([request.signal,AbortSignal.timeout(stream?55_000:30_000)])});}
   catch {throw new ApplicationError('PROVIDER_UNAVAILABLE',503);}

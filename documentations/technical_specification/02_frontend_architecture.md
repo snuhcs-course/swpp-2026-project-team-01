@@ -197,6 +197,8 @@ Model-extracted edits remain drafts until the relevant explicit apply action. Th
 
 Define submission deduplication at the application boundary; runtime checkpoints do not replace provider inbox/outbox or business idempotency. On an ambiguous command timeout, query operation status before resubmitting with the same key. Distinguish stopping model generation from withdrawing a request and from cancelling an external calendar event. If the runtime is unavailable, retain structured settings, current decisions and truthful status.
 
+The browser stream adapter uses one logical cursor across retained runtime generations. It replays authorized projected pages before following the current runtime, preserving events appended during the handoff. Generation-zero turn identities remain compatible; successor turns receive a stable generation prefix so their restarted turn numbers cannot replace old messages. Raw runtime IDs remain server-only. Changed authority or generation closes the stream; the browser reconnects from its last fully parsed cursor. This history transport is implemented locally; the explicit terminal-recovery action and successor dispatch remain under the recovery change.
+
 ## Host setup conversation
 
 Use `/app` for both setup and ongoing host-agent chat. Keep one authorized private setup context with durable eve transcript/runtime state and versioned application drafts/review artifacts. Reload and consent return restore server state. Model interpretation changes a draft only; unsupported rules, ambiguous input or model failures leave saved policy unchanged and expose clarification or structured controls.

@@ -39,7 +39,7 @@ The current application runtime exposes six routes in `channels/conversations.ts
 | `POST /api/conversations` | Verified host or request credential; strict audience/resource input; current SQL access and scope binding. |
 | `GET /api/conversations/:conversationId` | Current credential and execution grant; authorized message inspection; no runtime session/grant identifier in projection. |
 | `POST /api/conversations/:conversationId/messages` | Current scope/grant, immutable accepted input and retry key; canonical session/generation verification before delivery. |
-| `GET /api/conversations/:conversationId/stream` | Current scope/grant and stored session; recheck before each projected event and during idle waits; bounded lease and absolute cursor. |
+| `GET /api/conversations/:conversationId/stream` | Current scope/grant and complete generation ledger; bounded archive replay followed by the current live session; recheck before every event and during idle waits, with a bounded lease and logical cursor. |
 | `POST /api/internal/conversations/dispatch` | Dispatch secret, inbox lease bound to a generation and current execution grant; old acknowledgments cannot settle successor work and unbound recovered scopes await explicit successor dispatch. |
 | `POST /api/agent/conversations/read` | Resource-bound agent token and current scoped grant; complete authorized generation ledger, legacy and logical encrypted cursors, and authorization before/after bounded projected reads. Runtime IDs remain encrypted or server-only. |
 

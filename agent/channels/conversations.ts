@@ -1,12 +1,11 @@
 import {agentHistoryHttp} from '../../lib/server/oauth/history-http.ts';
 import { defineChannel, GET, POST } from 'eve/channels';
-import { z } from 'zod';
-import { conversationView } from '../../lib/contracts/conversations.ts';
+import { conversationCursor, conversationView } from '../../lib/contracts/conversations.ts';
 import { Conversations } from '../../lib/server/identity/conversations.ts';
 import { RuntimeMessages, type RuntimeAuth } from '../../lib/server/identity/runtime-messages.ts';
 import { deliverMessage, settleMessage, captureReply, type DeliveryState } from '../../lib/server/identity/runtime-delivery.ts';
 import { privateHeaders, privateRoute, readJson, requestCredential } from '../../lib/server/identity/request-credential.ts';
-import { authorizedStream } from '../../lib/server/identity/runtime-stream.ts';
+import { generationStream } from '../../lib/server/identity/generation-stream.ts';
 import { dispatchPending, requireDispatchSecret } from '../../lib/server/identity/runtime-dispatch.ts';
 import { ApplicationError } from '../../lib/server/errors.ts';
 
@@ -71,12 +70,9 @@ export default defineChannel({
       const credential = await requestCredential(request);
       const grant = await conversations.authorize(credential, params.conversationId);
       const cursor = new URL(request.url).searchParams.get('cursor') ?? '0';
-      if (!/^\d{1,9}$/u.test(cursor)) throw new ApplicationError('INVALID_INPUT', 400);
-      const startIndex = z.number().int().nonnegative().parse(Number(cursor));
-      const snapshot = await messages.inspect(grant);
-      if (!snapshot.sessionId) return new Response(null, { status: 204, headers: privateHeaders });
-      const source = await attachSession(snapshot.sessionId).getEventStream({ startIndex });
-      return authorizedStream(source, () => conversations.checkExecution(grant.grantId, grant.conversationId), startIndex, request.signal);
+      const startIndex=conversationCursor.parse(cursor);
+      const timeline=await messages.history(grant);
+      return generationStream(timeline,attachSession,()=>messages.history(grant),startIndex,request.signal);
     })),
   ],
 });
