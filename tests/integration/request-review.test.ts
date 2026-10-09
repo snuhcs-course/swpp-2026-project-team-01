@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {randomUUID,randomBytes,createHash} from 'node:crypto';
 import {RequestReview} from '../../lib/server/identity/request-review.ts';
-import {guestCredential} from '../../lib/server/identity/credentials.ts';
+import {guestCredential,type Credential} from '../../lib/server/identity/credentials.ts';
+import {publicError} from '../../lib/server/errors.ts';
 import {Database} from '../../lib/server/database/client.ts';
 import {LocalSql} from './local-sql.ts';
 
@@ -20,10 +21,20 @@ test('concurrent explicit review retries apply once and current authority fences
   await Promise.all(Array.from({length:6},propose));
   const draft=await service.read(credential);assert.equal(draft.revision,1);assert.equal(draft.details.purpose,'original');assert.equal(draft.review?.details.requesterName,'Preserved name');
   assert.equal(await sql.query(`select count(*) from fmat.request_detail_reviews where request_id='${request}';`),'1');
+  await assert.rejects(service.read(JSON.parse(JSON.stringify(credential)) as Credential),{code:'UNAUTHORIZED'});
+  await assert.rejects(service.read(guestCredential(randomUUID(),token)),{code:'NOT_FOUND'});
+  await assert.rejects(database.rpc('fmat_conversation_tool',{p_grant_id:grant.grantId,p_conversation_id:grant.conversationId,p_operation:'details_propose',p_input:{...input,patch:{purpose:'Changed retry sentinel'}}}),{code:'IDEMPOTENCY_CONFLICT'});
+  await assert.rejects(service.decide('apply',credential,{reviewId:draft.review!.id,expectedRevision:0,confirmed:true,idempotencyKey:randomUUID()}),{code:'STALE_REVISION'});
+  assert.equal((await service.read(credential)).revision,1,'denied mutations retain the original revision');
   const decision={reviewId:draft.review!.id,expectedRevision:1,confirmed:true,idempotencyKey:randomUUID()};
   const applied=await Promise.all(Array.from({length:8},()=>service.decide('apply',credential,decision)));
   assert.ok(applied.every(result=>result.revision===2&&result.review?.status==='applied'));
   assert.equal(await sql.query(`select count(*) from fmat.request_history where request_id='${request}' and operation='details_update';`),'1');
+  await assert.rejects(service.decide('dismiss',credential,decision),error=>{
+   const safe=publicError(error);assert.equal(safe.status,409);assert.equal(safe.body.error.code,'IDEMPOTENCY_CONFLICT');
+   assert.doesNotMatch(JSON.stringify(safe),new RegExp(`${token}|${hash}|Reviewed purpose|Preserved name`));return true;
+  });
+  assert.equal((await service.read(credential)).revision,2,'conflicting retry cannot undo the committed review');
   await sql.query(`update fmat.requests set token_revoked_at=now() where id='${request}';`);
   await assert.rejects(service.decide('apply',credential,decision),{code:'NOT_FOUND'});
   await assert.rejects(service.read(credential),{code:'NOT_FOUND'});

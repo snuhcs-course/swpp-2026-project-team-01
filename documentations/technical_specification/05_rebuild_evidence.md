@@ -1775,3 +1775,16 @@ Completed foundation task 1.2 by comparing the PRD, journey/story/page documents
 | iMessage proof | The [active host-setup change](../../openspec/changes/conversational-host-setup/tasks.md) records implemented browser/proof controls, wrong/expired/replayed-code denial, private code handling and deterministic channel tests. PRD/UX/backend references now distinguish that evidence from pending live Google/iPhone acceptance. The old LINK protocol is not restored; the incomplete capability remains in its active change. |
 
 Documentation links and strict OpenSpec validation pass. This reconciliation does not claim runtime, live-provider or full-release acceptance, and needs no production redeploy.
+
+## Foundation principal and command guard acceptance — 2026-10-09
+
+Completed foundation task 2.1 by inspecting the actual shared contracts/adapters and extending the real local request-review integration. Public schemas remain strict; issued browser credentials are immutable and process-branded. Hosts require verification of the original token followed by current database session/admission checks; requesters carry request-bound token hashes. Runtime tools derive authority and retry identity from the server-owned current grant/message, not model actor fields.
+
+| Task obligation | Executable evidence |
+|---|---|
+| Typed principals and forged actors | `credentials.test.ts` rejects cloned actor objects, forged/provider/anonymous tokens, mismatched Auth subjects and user metadata authority. `identity.test.ts` uses real local Auth to verify admission, privileged-RPC denial and logout invalidation. The request-review adapter now rejects a serialized credential clone before RPC access. |
+| Scoped operations and cross-host/request denial | `conversation_access.test.sql` covers two hosts/two requests, private/shared/setup scope isolation, wrong token hashes, cross-scope grants, actor/resource overrides and disallowed model decisions. `tool-execution.test.ts` verifies the typed allowlist and stable server-derived operation identity. The review integration rejects a token rebound to an unrelated request ID. |
+| Revision and retry guards | Six concurrent draft calls and eight concurrent explicit decisions retain one review and one history mutation. New integration checks reject a changed patch under the same retry key, a stale review revision and a conflicting dismiss after committed apply, without advancing or undoing state. SQL foundation/requester-conversation suites independently cover conflicting keys and stale requests. |
+| Safe errors and current authority | The real conflict maps to HTTP 409 with a public category and no credential/hash/private-detail values. Existing unit tests sanitize provider/database failures. Revoked request authority blocks saved-decision replay; three lock-order integration cases establish tool/logout ordering and expiry during a lock wait. |
+
+All five focused integration tests pass (4.2 seconds). The subsequent full SQL run passes 1,532 assertions in 33 files; application checks pass typechecks, eight script tests and 316 app/provider tests. These verify shared principal/command guards, not every exposed runtime route or full-release acceptance; foundation task 2.2 retains that broader audit. The increment changes tests/documentation only and requires no production redeploy.
