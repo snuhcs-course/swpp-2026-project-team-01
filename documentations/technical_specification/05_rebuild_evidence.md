@@ -1965,3 +1965,10 @@ Deployment review found that the documented browser-history return could reach a
 All 345 app/provider tests, eight script tests, typechecks and both builds pass. Both sequential browser suites pass (8.2s OAuth/MCP/CLI; 72.4s broader host/requester). Fresh Vercel inspection confirms `justdodos-projects/findmeatime-release`; the linked Supabase project is `mriseqztcwmezvtawnbo`. Production migration inspection and dry run show exactly the five reviewed intake migrations pending after 96 applied migrations. The dedicated `AGENT_INTAKE_PROOF_KEY` is newly provisioned through stdin as a sensitive production variable, with metadata readback confirming its presence; its value remains in ignored private storage and was not printed.
 
 Task 4.1 remains open: broad integrations/runtime verification, reviewed migration/app rollout and controlled production acceptance are still required. No production schema or application was changed by this preparation increment, and no external provider message or Calendar write was sent.
+
+
+## Sequential integration queue cleanup — 2026-10-09
+
+The intake rollout gate passed all 44 integration tests (210.9s) and three actual-runtime tests (22.2s), but the following SQL suite exposed 37 orphan active queue entries and 94 orphan publication rows. Four contact/recovery teardown paths disabled FK triggers and deleted jobs before their queue/publication records. The failure was test-state leakage, not a reason to weaken the two SQL assertions or reset production.
+
+A shared test-only SQL builder now removes active and archived queue entries plus publication records for the exact fixture job predicate before deleting those jobs. It is used by contact delivery/verification and recovery delivery/verification cleanup. The observed orphan rows were removed only from the disposable local database. All four corrected suites pass (6.4s), followed immediately by all 1,660 SQL assertions in 35 files and clean local security advisors; typechecks also pass. No application schema or runtime behavior changed. The full integration/runtime results remain valid, with the corrected teardown paths additionally reverified.

@@ -8,7 +8,7 @@ import {CloudflareEmail} from '../../lib/server/email/cloudflare.ts';
 import {Database} from '../../lib/server/database/client.ts';
 import {guestCredential} from '../../lib/server/identity/credentials.ts';
 import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
-import {LocalSql} from './local-sql.ts';
+import {LocalSql,cleanupFixtureJobsSql} from './local-sql.ts';
 test('Contact email freezes code and recipient, fences dispatch and never retries uncertain sends',async()=>{
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
  const env={SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,19).toString('base64'),CLOUDFLARE_ACCOUNT_ID:'a'.repeat(32),CLOUDFLARE_EMAIL_FROM:'no-reply@findmeatime.com',CLOUDFLARE_EMAIL_API_TOKEN:'synthetic'},db=new Database(env),service=new ContactVerification(db,env),cipher=new TokenCipher(env),sql=new LocalSql();
@@ -87,7 +87,7 @@ test('Contact email freezes code and recipient, fences dispatch and never retrie
   assert.equal(await sql.query(`select has_function_privilege('anon','public.fmat_contact_verification_delivery(text,jsonb,jsonb)','execute')||','||has_function_privilege('authenticated','public.fmat_contact_verification_delivery(text,jsonb,jsonb)','execute')||','||has_function_privilege('service_role','public.fmat_contact_verification_delivery(text,jsonb,jsonb)','execute')||','||has_table_privilege('service_role','fmat.contact_verification_deliveries','select');`),'false,false,true,false');
  }finally{
   sql.close();const cleanup=new LocalSql();
-  for(const id of requests)await cleanup.query(`set session_replication_role=replica;delete from fmat.contact_verification_deliveries where request_id='${id}';delete from fmat.jobs where payload->>'outboxId' in(select id::text from fmat.outbox where payload->>'requestId'='${id}');delete from fmat.audit_events where subject_id in(select id::text from fmat.outbox where payload->>'requestId'='${id}');delete from fmat.contact_confirmations where request_id='${id}';delete from fmat.contact_verifications where request_id='${id}';delete from fmat.outbox where payload->>'requestId'='${id}';delete from fmat.audit_events where subject_id='${id}';delete from fmat.request_history where request_id='${id}';delete from fmat.requests where id='${id}';set session_replication_role=origin;`);
+  for(const id of requests)await cleanup.query(`set session_replication_role=replica;delete from fmat.contact_verification_deliveries where request_id='${id}';${cleanupFixtureJobsSql(`payload->>'outboxId' in(select id::text from fmat.outbox where payload->>'requestId'='${id}')`)}delete from fmat.audit_events where subject_id in(select id::text from fmat.outbox where payload->>'requestId'='${id}');delete from fmat.contact_confirmations where request_id='${id}';delete from fmat.contact_verifications where request_id='${id}';delete from fmat.outbox where payload->>'requestId'='${id}';delete from fmat.audit_events where subject_id='${id}';delete from fmat.request_history where request_id='${id}';delete from fmat.requests where id='${id}';set session_replication_role=origin;`);
   await cleanup.query(`delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';`);cleanup.close();
  }
 });

@@ -154,3 +154,6 @@ The intake branch of `tests/e2e/agent-oauth.test.ts` now uses the actual pinned 
 
 
 `agent-intake-cli.ts`, invoked by the OAuth browser suite, starts the actual CLI entry point for intake login, discovery, clarification, creation and bound reads. Its temporary launcher hands the authorization URL to Playwright, while the real ephemeral loopback listener exchanges the code and writes a private 0600 connection. A client-only preload drops a committed creation reply; the next CLI process recovers the same request. The test also verifies changed-input/foreign-request denial, actual refresh with unchanged subject, same-browser handoff, remote logout/file removal and absence of tokens/proofs in CLI argv or stdout/stderr. Temporary credentials, request/audit/retry and OAuth records are cleaned up.
+
+
+Contact/recovery integrations use `cleanupFixtureJobsSql` to remove exact fixture jobs from active/archived pgmq storage and the publication ledger before job deletion. This explicit order is required when teardown disables FK triggers. Run the full SQL suite after integrations/runtime tests as well as after browser tests; do not hide orphan queue records with a database reset.

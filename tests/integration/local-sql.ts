@@ -44,3 +44,14 @@ export class LocalSql {
   }
   close() { this.child.stdin.end(); }
 }
+
+/** Test-owned SQL predicate only. Remove queue rows before fixture jobs, even
+ * when a teardown temporarily disables foreign-key triggers. */
+export function cleanupFixtureJobsSql(predicate:string):string {
+ const ids=`select id from fmat.jobs where ${predicate}`;
+ return `select id from fmat.jobs where ${predicate} for update;
+ delete from pgmq.q_fmat_jobs where message->>'jobId' in(select id::text from (${ids}) fixture_jobs);
+ delete from pgmq.a_fmat_jobs where message->>'jobId' in(select id::text from (${ids}) fixture_jobs);
+ delete from fmat.queue_publications where job_id in(${ids});
+ delete from fmat.jobs where ${predicate};`;
+}

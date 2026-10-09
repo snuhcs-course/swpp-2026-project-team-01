@@ -6,7 +6,7 @@ import {RequesterRecovery} from '../../lib/server/contact/recovery.ts';
 import {Database} from '../../lib/server/database/client.ts';
 import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
 import {ApplicationError} from '../../lib/server/errors.ts';
-import {LocalSql} from './local-sql.ts';
+import {LocalSql,cleanupFixtureJobsSql} from './local-sql.ts';
 const hash=(v:string)=>createHash('sha256').update(v).digest('hex');
 const invalid=(e:unknown)=>e instanceof ApplicationError&&e.code==='CHALLENGE_INVALID';
 test('Recovery proves original verified contact, rotates one credential, and preserves bounded retries without login or decisions',async()=>{
@@ -51,7 +51,7 @@ test('Recovery proves original verified contact, rotates one credential, and pre
   assert.equal(await sql.query(`select has_function_privilege('anon','public.fmat_requester_recovery(text,jsonb)','execute')||','||has_function_privilege('authenticated','public.fmat_requester_recovery(text,jsonb)','execute')||','||has_function_privilege('service_role','public.fmat_requester_recovery(text,jsonb)','execute');`),'false,false,true');
   assert.equal(await sql.query(`select has_table_privilege('service_role','fmat.requester_recoveries','select');`),'f');
  }finally{
-  for(const id of ids)await sql.query(`set session_replication_role=replica;delete from pgmq.q_fmat_jobs where message->>'jobId' in(select id::text from fmat.jobs where payload->>'outboxId' in(select id::text from fmat.outbox where payload->>'requestId'='${id}'));delete from fmat.jobs where payload->>'outboxId' in(select id::text from fmat.outbox where payload->>'requestId'='${id}');delete from fmat.requester_recoveries where request_id='${id}';delete from fmat.outbox where payload->>'requestId'='${id}';delete from fmat.audit_events where subject_id='${id}';delete from fmat.request_history where request_id='${id}';delete from fmat.requests where id='${id}';set session_replication_role=origin;`);
+  for(const id of ids)await sql.query(`set session_replication_role=replica;${cleanupFixtureJobsSql(`payload->>'outboxId' in(select id::text from fmat.outbox where payload->>'requestId'='${id}')`)}delete from fmat.requester_recoveries where request_id='${id}';delete from fmat.outbox where payload->>'requestId'='${id}';delete from fmat.audit_events where subject_id='${id}';delete from fmat.request_history where request_id='${id}';delete from fmat.requests where id='${id}';set session_replication_role=origin;`);
   await sql.query(`delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';`);sql.close();
  }
 });

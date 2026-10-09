@@ -7,7 +7,7 @@ import {Database} from '../../lib/server/database/client.ts';
 import {guestCredential} from '../../lib/server/identity/credentials.ts';
 import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
 import {ApplicationError} from '../../lib/server/errors.ts';
-import {LocalSql} from './local-sql.ts';
+import {LocalSql,cleanupFixtureJobsSql} from './local-sql.ts';
 const errorCode=(code:string)=>(e:unknown)=>e instanceof ApplicationError&&e.code===code;
 test('Contact proof is request-bound, attempt-limited and replayable without account or booking authority',async()=>{
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
@@ -70,7 +70,7 @@ test('Contact proof is request-bound, attempt-limited and replayable without acc
   assert.equal(await sql.query(`select has_function_privilege('anon','public.fmat_contact_verification(text,jsonb,jsonb)','execute')||','||has_function_privilege('authenticated','public.fmat_contact_verification(text,jsonb,jsonb)','execute')||','||has_function_privilege('service_role','public.fmat_contact_verification(text,jsonb,jsonb)','execute');`),'false,false,true');
   assert.equal(await sql.query(`select has_table_privilege('service_role','fmat.contact_verifications','select');`),'f');
  }finally{
-  for(const id of requests)await sql.query(`set session_replication_role=replica;delete from fmat.jobs where payload->>'outboxId' in(select id::text from fmat.outbox where payload->>'requestId'='${id}');delete from fmat.contact_confirmations where request_id='${id}';delete from fmat.contact_verifications where request_id='${id}';delete from fmat.outbox where payload->>'requestId'='${id}';delete from fmat.audit_events where subject_id='${id}';delete from fmat.request_history where request_id='${id}';delete from fmat.requests where id='${id}';set session_replication_role=origin;`);
+  for(const id of requests)await sql.query(`set session_replication_role=replica;${cleanupFixtureJobsSql(`payload->>'outboxId' in(select id::text from fmat.outbox where payload->>'requestId'='${id}')`)}delete from fmat.contact_confirmations where request_id='${id}';delete from fmat.contact_verifications where request_id='${id}';delete from fmat.outbox where payload->>'requestId'='${id}';delete from fmat.audit_events where subject_id='${id}';delete from fmat.request_history where request_id='${id}';delete from fmat.requests where id='${id}';set session_replication_role=origin;`);
   await sql.query(`delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invite}';`);sql.close();
  }
 });
