@@ -1,5 +1,6 @@
 import { defineAgent } from 'eve';
 import { mockModel } from 'eve/evals';
+import {APICallError} from 'ai';
 import {conversationModel} from '../../lib/server/models/conversation.ts';
 import {appendFileSync} from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
@@ -11,6 +12,13 @@ const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMess
     if(!tools.length)return 'Fixture checkpoint: preserve current authority; no scheduling decisions made.';
     if(lastUserMessage==='setup-provider-outage')throw new Error('synthetic-private-provider-detail');
     if(lastUserMessage==='setup-provider-timeout')throw new DOMException('synthetic-private-timeout-detail','TimeoutError');
+    if(lastUserMessage==='setup-provider-missing-key')throw new Error('Set OPENAI_API_KEY in the server environment. synthetic-private-provider-detail');
+    const providerFailure={
+      'setup-provider-authentication':{status:401,code:'invalid_api_key'},
+      'setup-provider-rate-limit':{status:429,code:'rate_limit_exceeded'},
+      'setup-provider-credit-exhausted':{status:429,code:'credit_balance_exhausted'},
+    }[lastUserMessage??''];
+    if(providerFailure)throw new APICallError({message:'synthetic-private-provider-detail',url:'https://api.openai.com/v1/responses',requestBodyValues:{},statusCode:providerFailure.status,isRetryable:providerFailure.status===429,responseBody:JSON.stringify({error:{message:'synthetic-private-provider-detail',code:providerFailure.code}})});
     if(lastUserMessage==='setup-provider-refusal')return 'I cannot provide a setup suggestion.';
     if(lastUserMessage==='host-revision-fixture'){
       const prefix=`host-revision-${userMessageCount}-`,current=toolResults.filter(result=>result.id.startsWith(prefix));

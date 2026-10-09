@@ -137,6 +137,50 @@ test('installed direct OpenAI adapter serializes enforced Responses options',asy
  }finally{globalThis.fetch=originalFetch;if(key===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=key;}
 });
 
+test('deployed direct provider fails without a key before HTTP or tool execution',async()=>{
+ const originalFetch=globalThis.fetch,key=process.env.OPENAI_API_KEY,dev=process.env.EVE_DEV;
+ process.env.OPENAI_API_KEY='';process.env.EVE_DEV='0';
+ let requests=0,executions=0,reservations=0;
+ globalThis.fetch=async()=>{requests++;throw new Error('Unexpected network access');};
+ try{
+  const raw=openai('gpt-6-luna');assert.notEqual(typeof raw,'string');
+  const model=boundedModel(raw as Parameters<typeof boundedModel>[0],async()=>{reservations++;});
+  await assert.rejects(generateText({model,prompt:'Suggest setup preferences',maxRetries:0,tools:{update_setup_draft:{description:'Fixture mutation',inputSchema:(await import('zod')).z.object({}),execute:async()=>{executions++;return {};}}}}),/Set OPENAI_API_KEY in the server environment/);
+  await assert.rejects(model.doStream({prompt}),/Set OPENAI_API_KEY in the server environment/);
+  assert.equal(requests,0);assert.equal(executions,0);assert.equal(reservations,2,'Failed attempts retain their reservations');
+ }finally{
+  globalThis.fetch=originalFetch;
+  if(key===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=key;
+  if(dev===undefined)delete process.env.EVE_DEV;else process.env.EVE_DEV=dev;
+ }
+});
+
+test('installed Responses adapter rejects authentication, throttling and billing failures in generation and streaming',async()=>{
+ const originalFetch=globalThis.fetch,key=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='fixture-only';
+ const {assistantDraftInput}=await import('../../contracts/setup.ts');
+ const cases=[
+  {status:401,code:'invalid_api_key',type:'invalid_request_error'},
+  {status:429,code:'rate_limit_exceeded',type:'rate_limit_error'},
+  {status:429,code:'slow_down',type:'rate_limit_error'},
+  ...['insufficient_quota','credit_balance_exhausted','organization_spend_limit_exceeded','project_spend_limit_exceeded','organization_usage_limit_exceeded'].map(code=>({status:429,code,type:'insufficient_quota'})),
+ ];
+ try{
+  for(const scenario of cases){
+   let requests=0,executions=0,reservations=0;
+   globalThis.fetch=async(url)=>{
+    assert.equal(String(url),'https://api.openai.com/v1/responses');requests++;
+    return Response.json({error:{message:'synthetic-private-provider-detail',type:scenario.type,code:scenario.code,param:null}},{status:scenario.status,headers:{'retry-after':'1'}});
+   };
+   const raw=openai('gpt-6-luna');assert.notEqual(typeof raw,'string');
+   const model=boundedModel(raw as Parameters<typeof boundedModel>[0],async()=>{reservations++;});
+   const rejected=(error:unknown)=>APICallError.isInstance(error)&&error.statusCode===scenario.status;
+   await assert.rejects(generateText({model,prompt:'Suggest setup preferences',maxRetries:0,tools:{update_setup_draft:{description:'Suggest unconfirmed preferences',inputSchema:assistantDraftInput,execute:async()=>{executions++;return {};}}}}),rejected,scenario.code);
+   await assert.rejects(model.doStream({prompt}),rejected,scenario.code);
+   assert.equal(executions,0,scenario.code);assert.equal(requests,2,scenario.code);assert.equal(reservations,2,scenario.code);
+  }
+ }finally{globalThis.fetch=originalFetch;if(key===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=key;}
+});
+
 test('installed Responses adapter never executes setup tools for refusals or malformed provider output',async()=>{
  const originalFetch=globalThis.fetch,key=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='fixture-only';
  const {assistantDraftInput}=await import('../../contracts/setup.ts');

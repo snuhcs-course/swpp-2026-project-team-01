@@ -9,7 +9,8 @@ import {Database} from '../../lib/server/database/client.ts';
 import {HostSetup} from '../../lib/server/setup/commands.ts';
 import {verifyHostToken} from '../../lib/server/identity/credentials.ts';
 
-test('real host runtime preserves a saved draft after provider errors and a text-only declined suggestion',{timeout:150000},async()=>{
+const outcomes=[['setup-provider-outage','failed'],['setup-provider-timeout','failed'],['setup-provider-missing-key','failed'],['setup-provider-authentication','failed'],['setup-provider-rate-limit','failed'],['setup-provider-credit-exhausted','failed'],['setup-provider-refusal','completed']] as const;
+for(const [text,status] of outcomes)test(`real host runtime preserves saved setup for ${text}`,{timeout:150000},async()=>{
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
  assert.ok(['127.0.0.1','localhost'].includes(new URL(local.API_URL).hostname));
  const sql=new LocalSql(),invitation=randomUUID(),email=randomUUID()+'@setup-runtime.test',password=randomUUID()+randomUUID();
@@ -26,14 +27,13 @@ test('real host runtime preserves a saved draft after provider errors and a text
   const headers={authorization:'Bearer '+token,'content-type':'application/json'};
   const post=(path:string,body:unknown)=>fetch(runtime!.origin+path,{method:'POST',headers,body:JSON.stringify(body)});
   const opened=await post('/api/conversations',{audience:'host_setup'});assert.equal(opened.status,200);const scope=(await opened.json()).conversationId;
-  for(const [text,status]of [['setup-provider-outage','failed'],['setup-provider-timeout','failed'],['setup-provider-refusal','completed']]){
    const input={text,clientId:randomUUID()};let id='';
    for(let attempt=0;attempt<100;attempt++){
     const response=await post(`/api/conversations/${scope}/messages`,input),body=await response.json();
     if(response.status===409&&body.error?.code==='RECONCILIATION_PENDING'){await delay(100);continue;}
     assert.ok([200,202].includes(response.status),JSON.stringify(body));id=body.messageId;break;
    }
-   assert.ok(id);
+   assert.ok(id,'Expected accepted input for '+text);
    for(let attempt=0;attempt<400;attempt++){
     if(await sql.query(`select status from fmat.runtime_messages where id='${id}';`)!=='pending')break;
     await delay(100);
@@ -50,9 +50,17 @@ test('real host runtime preserves a saved draft after provider errors and a text
    assert.ok(currentOutcome(),'Stream must include this input followed by its own terminal feedback');
    assert.doesNotMatch(output,/synthetic-private-provider-detail|synthetic-private-timeout-detail/);
    const attempts=await sql.query(`select attempts from fmat.model_work_attempts where name='conversation:${id}';`);
+   assert.ok(Number(attempts)>=1&&Number(attempts)<=8,'Provider failures remain within the durable per-input allowance');
    assert.equal((await post(`/api/conversations/${scope}/messages`,input)).status,200,'Settled replay returns the existing outcome');
    assert.equal(await sql.query(`select attempts from fmat.model_work_attempts where name='conversation:${id}';`),attempts,'Settled replay cannot invoke another provider step');
-  }
+   if(text==='setup-provider-authentication'){
+    const canonical=await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${scope}';`);
+    const followup=await post(`/api/conversations/${scope}/messages`,{text:'Continue after authentication failure',clientId:randomUUID()});
+    assert.equal(followup.status,409,'A terminal canonical session is not silently replaced');
+    assert.equal((await followup.json()).error.code,'RECONCILIATION_PENDING');
+    assert.equal(await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${scope}';`),canonical);
+    assert.deepEqual(await setup.read(credential),saved);
+   }
  }finally{
   await runtime?.stop();
   try{if(host){await sql.query(`delete from fmat.model_work_attempts where name in(select 'conversation:'||m.id::text from fmat.runtime_messages m join fmat.conversation_scopes s on s.id=m.conversation_id where s.host_id='${host}');delete from fmat.model_budgets where name='host:${host}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_scopes where host_id='${host}';delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.audit_events where subject_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers:admin});assert.equal(removed.status,200);}}
