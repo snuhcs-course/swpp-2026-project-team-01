@@ -1,3 +1,4 @@
+import {verifyOvernightHours} from './overnight-hours.ts';
 import {verifyReceiptSnapshotOrdering} from './conversation-snapshot-order.ts';
 import {verifyHistoricalBusyReplay} from './conversation-busy-replay.ts';
 import {verifyRequesterRecovery} from './requester-recovery.ts';
@@ -168,6 +169,8 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     await guide.getByRole('button',{name:'Use 15 extra travel minutes'}).waitFor();await page.reload();await guide.getByRole('button',{name:'Use 15 extra travel minutes'}).waitFor();assert.equal(await guide.getByRole('button',{name:'Choose transportation'}).count(),0,'Recorded transportation is reused');await guide.getByRole('button',{name:'Adjust extra travel buffer'}).click();assert.equal(await setup.getByRole('radio').count(),0);await setup.getByLabel('Extra travel buffer (minutes)',{exact:true}).fill('15');await setup.getByRole('button',{name:'Use these preferences in my draft'}).scrollIntoViewIfNeeded();assert.equal(await setup.getByRole('button',{name:'Use these preferences in my draft'}).evaluate(e=>e.scrollWidth>e.clientWidth),false);await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-travel-mobile.png',fullPage:true});await setup.getByRole('button',{name:'Use these preferences in my draft'}).click();await setup.getByRole('button',{name:'Confirm these meeting settings'}).waitFor();
     await setup.getByRole('button',{name:'Confirm these meeting settings'}).click();await setup.getByRole('status').filter({hasText:'Settings confirmed.'}).waitFor();assert.equal(await sql.query(`select rules->>'travelMode' from fmat.hosts where id='${userId}';`),'PER_TRIP');assert.equal(await sql.query(`select rules->>'travelBufferMinutes' from fmat.hosts where id='${userId}';`),'15');
 
+    await setup.getByRole('button',{name:'Edit schedule',exact:true}).click();
+    await verifyOvernightHours(page,setup,context,origin);
     await verifyPublicIntake(browser,origin,sql,userId,page);
     await verifyRequesterRecovery(browser,origin,sql,userId,local);
     await page.setViewportSize({width:1280,height:900});

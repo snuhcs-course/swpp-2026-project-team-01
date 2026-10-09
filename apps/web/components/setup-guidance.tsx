@@ -1,4 +1,5 @@
 'use client';
+import {weeklyHoursLabel} from '../../../lib/contracts/weekly-hours.ts';
 import {useEffect,useRef} from 'react';
 import {setupGuide,scheduleSuggestion} from '../../../lib/contracts/setup-guide.ts';
 import type {SetupState,SetupPatch} from '../../../lib/contracts/setup.ts';
@@ -23,7 +24,7 @@ export function SetupGuidance({state,disabled,editing,onEdit,onProgress,onUse,on
    {guide.step==='profile'?<Button disabled={disabled} onClick={()=>onEdit('profile')}>Choose my booking profile</Button>:null}
    {guide.step==='schedule'?suggestion&&r?<Alert><AlertTitle>Suggested meeting week</AlertTitle><AlertDescription>
     <p>{r.durationMinutes} minute meetings · {r.timezone} · {r.bufferMinutes} minute meeting buffer</p>
-    {r.availability?.map((w,i)=><p key={i}>{w.days.map(d=>days[d]).join(', ')} · {w.start}–{w.end}</p>)}
+    {r.availability?.map((w,i)=><p key={i}>{w.days.map(d=>days[d]).join(', ')} · {weeklyHoursLabel(w)}</p>)}
     <p>{suggestion.defaults.length?'Starter defaults for missing '+suggestion.defaults.join(', ')+'. Existing draft and confirmed values are preserved.':'These values come from your current draft or confirmed settings.'} Review or adjust before using them.</p>
     <div className="flex flex-wrap gap-2"><Button className="h-auto min-h-11 whitespace-normal" disabled={disabled} onClick={()=>onUse(suggestion.patch,suggestion.starterFields)}>Use this meeting week</Button><Button variant="outline" disabled={disabled} onClick={()=>onEdit('schedule')}>Adjust meeting week</Button><Button variant="ghost" disabled={disabled} onClick={()=>onProgress('dismiss_schedule')}>Choose my own schedule</Button></div>
    </AlertDescription></Alert>:<><p>You dismissed the schedule defaults. Your existing choices stay in place.</p><Button disabled={disabled} onClick={()=>onEdit('schedule')}>Enter my schedule</Button><Button variant="ghost" disabled={disabled} onClick={()=>onProgress('offer_schedule')}>Show schedule suggestions again</Button></>:null}

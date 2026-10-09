@@ -7,7 +7,7 @@
 ## 2. Durable setup and host display
 
 - [x] 2.1 Update declarative setup validation, generate/review the migration with pinned pg-delta, rebuild the disposable local chain, and test overnight persistence plus equal-clock unchanged-state denial through SQL and actual setup draft/confirmation. Update schema evidence/setup documentation and commit after post-fixture SQL passes.
-- [ ] 2.2 Label next-day ends in weekly editors, guidance, draft/final reviews and previews. Verify the built browser can edit, reload, review and explicitly confirm overnight hours without interpreting equal clocks as all-day; inspect mobile/keyboard rendering. Update UX/test documentation and commit.
+- [x] 2.2 Label next-day ends in weekly editors, guidance, draft/final reviews and previews. Verify the built browser can edit, reload, review and explicitly confirm overnight hours without interpreting equal clocks as all-day; inspect mobile/keyboard rendering. Update UX/test documentation and commit.
 
 ## 3. Production completion
 

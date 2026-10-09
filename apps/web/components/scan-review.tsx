@@ -27,11 +27,11 @@ export function ScanReview({scan,setup,disabled,onApply,onCancel}:{scan:Scan;set
   if(step==='schedule'){if(schedule&&!knownWindows&&!windows.length){setError('Add a window or skip the schedule suggestion.');return;}advance(!knownMode?'mode':mode!=='online'&&!knownLocation?'location':'review');return;}
   if(step==='mode'){if(!mode){setError('Choose how you want to meet. Observations cannot answer for you.');return;}advance(mode!=='online'&&!knownLocation?'location':'review');return;}
   if(step==='location'){if(!policy||policy==='preferred'&&!selected.length&&!manual.trim()){setError('Choose a place, enter one, or decide per meeting.');return;}advance('review');return;}
-  const parsed=analysisApplication.safeParse({...choice(),idempotencyKey:crypto.randomUUID()});if(!parsed.success){setError('Check the selected days, times and places. Each window needs a later end time and each place must be distinct.');return;}
+  const parsed=analysisApplication.safeParse({...choice(),idempotencyKey:crypto.randomUUID()});if(!parsed.success){setError('Check the selected days, times and places. Window start and end must differ (an earlier end is next day), and each place must be distinct.');return;}
   const {idempotencyKey:_,...input}=parsed.data;onApply(input);
  }
  return <form onSubmit={submit} aria-label="Review Calendar suggestions"><FieldSet disabled={disabled}><FieldLegend ref={heading} tabIndex={-1}>{({schedule:'Review your suggested week',mode:'How would you like to meet?',location:'Choose your meeting places',review:'Review these draft choices'})[step]}</FieldLegend><FieldGroup>
-  {step==='schedule'?<>
+  {step==='schedule'?<><FieldDescription>An earlier end means the next day; select the starting weekday. Start and end must differ.</FieldDescription>
    {schedule?<WeeklyPreview windows={knownWindows?current.availability??[]:windows} timezone={knownWindows?current.timezone:scan.scope.timezone} title="Your suggested week preview"/>:null}
    <FieldDescription>{summary.windowSource==='calendar'?'These windows come from the bounded Calendar analysis. Edit them if needed.':'These are labeled starter windows for sparse evidence.'} Your existing explicit and confirmed values will be preserved.</FieldDescription>
    <Field orientation="horizontal"><Checkbox id={id+'schedule'} checked={schedule} onCheckedChange={v=>setSchedule(v===true)} disabled={!summary.windows.length}/><FieldLabel htmlFor={id+'schedule'}>Include suggested schedule</FieldLabel></Field>
