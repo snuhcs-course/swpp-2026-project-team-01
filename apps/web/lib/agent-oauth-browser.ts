@@ -6,6 +6,7 @@ import {applicationOrigin} from '../../../lib/server/config.ts';
 import {ApplicationError} from '../../../lib/server/errors.ts';
 import {BrowserCommands} from '../../../lib/server/identity/browser-commands.ts';
 import {guestCredential} from '../../../lib/server/identity/credentials.ts';
+import {AgentIntakeBrowser} from '../../../lib/server/oauth/intake-browser.ts';
 import {AgentOAuthRegistry} from '../../../lib/server/oauth/registry.ts';
 import {AgentOAuthError,decodeOAuthForm} from '../../../lib/server/oauth/protocol.ts';
 import {readOAuthBody} from '../../../lib/server/oauth/http.ts';
@@ -26,6 +27,15 @@ export async function agentOAuthBrowser(request:NextRequest,action:string){
   if(action==='revoke'&&request.method==='POST'){
    const target=z.strictObject({requestId:z.uuid().optional(),grantId:z.uuid()}).parse(input);return json(await registry.revoke(target.grantId,await credential(target.requestId)));
   }
+  if((action==='intake-state'&&request.method==='GET')||(action==='intake-claim'&&request.method==='POST')){
+   const target=z.strictObject({authorizationId:z.uuid()}).parse(input);
+   const secret=request.cookies.get(agentAuthorizationCookie(target.authorizationId))?.value??'',intake=new AgentIntakeBrowser();
+   if(action==='intake-state')return json(await intake.state(target.authorizationId,secret));
+   const claimed=await intake.claim(target.authorizationId,secret);
+   const response=json({path:'/booking/'+claimed.requestId});
+   response.cookies.set(guestCookieName(claimed.requestId),claimed.proof,{httpOnly:true,secure:applicationOrigin().startsWith('https:'),sameSite:'lax',path:'/',expires:new Date(claimed.tokenExpiresAt)});
+   return response;
+  }
   if(action==='intake-revoke'&&request.method==='POST'){
    const target=z.strictObject({authorizationId:z.uuid()}).parse(input);
    return json(await registry.revokeIntake(target.authorizationId,request.cookies.get(agentAuthorizationCookie(target.authorizationId))?.value??''));
@@ -34,7 +44,9 @@ export async function agentOAuthBrowser(request:NextRequest,action:string){
    const target=agentBrowserTarget.extend({decision:z.enum(['grant','deny'])}).parse(input);
    const secret=request.cookies.get(agentAuthorizationCookie(target.authorizationId))?.value??'',state=await registry.read(target.authorizationId,secret);
    if(state.intake&&target.requestId)throw new AgentOAuthError('invalid_request');
-   return json(await registry.decide(target.authorizationId,secret,target.decision,target.decision==='grant'&&!state.intake?await credential(target.requestId):null));
+   const response=json(await registry.decide(target.authorizationId,secret,target.decision,target.decision==='grant'&&!state.intake?await credential(target.requestId):null));
+   if(state.intake&&target.decision==='grant')response.cookies.set(agentAuthorizationCookie(target.authorizationId),secret,{httpOnly:true,secure:applicationOrigin().startsWith('https:'),sameSite:'lax',path:'/',maxAge:30*86400});
+   return response;
   }
   const target=agentBrowserTarget.parse(input),state=await registry.read(target.authorizationId,request.cookies.get(agentAuthorizationCookie(target.authorizationId))?.value??'');
   if(action==='login'&&request.method==='POST'){

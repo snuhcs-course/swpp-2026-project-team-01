@@ -52,6 +52,7 @@ export function AgentConsent({authorizationId,initialRequestId,loginExpired=fals
      {state.access==='sign_in'&&state.decision===null?<Button disabled={busy} onClick={()=>void act('login')} className="min-h-11 h-auto whitespace-normal">Continue with Google</Button>:null}
      {state.decision!=='deny'?<Button disabled={busy||state.access!=='ready'} onClick={()=>void act('grant')} className="min-h-11 h-auto whitespace-normal">{state.decision==='grant'?'Continue to agent':'Grant access'}</Button>:null}
      {state.decision!=='grant'?<Button variant="outline" disabled={busy} onClick={()=>void act('deny')} className="min-h-11 h-auto whitespace-normal">{state.decision==='deny'?'Continue to agent':'Deny access'}</Button>:null}
+     {state.audience==='intake'&&state.decision==='grant'?<a href={'/connect/intake?authorizationId='+authorizationId} className="underline underline-offset-4">Open request access</a>:null}
      {state.audience==='intake'&&state.decision==='grant'?<Button variant="outline" disabled={busy} onClick={()=>void act('revoke')}>Revoke this connection</Button>:null}
      <Button variant="ghost" disabled={busy} onClick={()=>setRevision(value=>value+1)} className="min-h-11">Reload</Button>
     </CardFooter>

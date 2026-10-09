@@ -9,12 +9,14 @@ import {generateKeyPair,exportJWK,createLocalJWKSet,jwtVerify} from 'jose';
 import {chromium,expect} from '@playwright/test';
 import {LocalSql} from '../integration/local-sql.ts';
 import {oauthSecretHash} from '../../lib/server/oauth/service.ts';
+import {agentIntakeProof} from '../../lib/server/oauth/intake-proof.ts';
 import {pkceChallenge} from '../../lib/server/oauth/protocol.ts';
 const q=(value:string)=>`'${value.replaceAll("'","''")}'`;
 test('public OAuth routes and explicit host/requester consent survive reload, loss, refresh and revocation',{timeout:180000},async()=>{
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
  const origin='http://localhost:3004',resource=origin+'/mcp',redirect='https://oauth-client.example/callback?keep=1',pair=await generateKeyPair('ES256',{extractable:true}),privateKey={...await exportJWK(pair.privateKey),kid:'browser-test'};
- const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','apps/web','-p','3004'],{env:{...process.env,APP_ORIGIN:origin,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY,AGENT_OAUTH_SIGNING_JWK:JSON.stringify(privateKey)},stdio:['ignore','pipe','pipe']});let log='';child.stdout.on('data',v=>log+=v);child.stderr.on('data',v=>log+=v);
+ const proofEnv={AGENT_INTAKE_PROOF_KEY:randomBytes(32).toString('base64')};
+ const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','apps/web','-p','3004'],{env:{...process.env,...proofEnv,APP_ORIGIN:origin,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY,AGENT_OAUTH_SIGNING_JWK:JSON.stringify(privateKey)},stdio:['ignore','pipe','pipe']});let log='';child.stdout.on('data',v=>log+=v);child.stderr.on('data',v=>log+=v);
  const sql=new LocalSql(),browser=await chromium.launch(),context=await browser.newContext({viewport:{width:1280,height:900}}),page=await context.newPage();page.setDefaultTimeout(15000);
  const invitation=randomUUID(),requestId=randomUUID(),otherRequest=randomUUID(),requestSecret=randomBytes(32).toString('base64url'),email='oauth-browser-'+randomUUID()+'@example.test';
  let host='',client='',callback='',googleReturn='';const budgets=await sql.query('select coalesce(jsonb_agg(to_jsonb(b)),\'[]\'::jsonb) from fmat.oauth_budgets b;');
@@ -103,18 +105,49 @@ test('public OAuth routes and explicit host/requester consent survive reload, lo
    const verified=await jwtVerify(tokens.access_token,createLocalJWKSet(jwks),{issuer:origin,audience:resource,typ:'at+jwt'});assert.equal(verified.payload.actor_kind,'intake');
    assert.equal(verified.payload.sub,await sql.query(`select id from fmat.oauth_intakes where authorization_id=${q(intakeId)};`));assert.equal(await sql.query(`select count(*) from fmat.requests where host_id=${q(host)};`),'2','consent creates no preliminary request');
    assert.equal((await intake.request.post(origin+'/oauth/token',{form:exchange})).status(),400);
+   await intakePage.setViewportSize({width:320,height:844});
+   const handoffUrl=origin+'/connect/intake?authorizationId='+intakeId;
+   await intakePage.goto(handoffUrl);await intakePage.getByText('Your agent has not created the request yet.',{exact:false}).waitFor();
+   assert.equal((await intake.request.post(origin+'/api/browser/agent-oauth/intake-claim',{headers:{origin},data:{authorizationId:intakeId}})).status(),400);
+   const retained=(await intake.cookies()).find(cookie=>cookie.name==='fmat-agent-'+intakeId)!;assert.ok(retained.httpOnly&&retained.expires>Date.now()/1000+29*86400);
+   const binding=JSON.parse(await sql.query(`select jsonb_build_object('intake',id,'request',reserved_request_id,'grant',grant_id) from fmat.oauth_intakes where authorization_id=${q(intakeId)};`));
+   const proof=agentIntakeProof(binding.intake,binding.request,proofEnv);
+   const creation=JSON.parse(await sql.query(`select jsonb_build_object('connectionId',c.id,'generation',c.generation,'rulesVersion',h.rules_version) from fmat.hosts h join fmat.calendar_connections c on c.principal_id=h.id where h.id=${q(host)} and c.revoked_at is null;`));
+   const input={...creation,tokenHash:oauthSecretHash(proof),idempotencyKey:randomUUID(),details:{requesterName:'Browser requester',requesterEmail:'requester@example.test',purpose:'Agent-created request',timezone:'Asia/Seoul',durationMinutes:30,windows:[]}};
+   assert.equal(JSON.parse(await sql.query(`select public.fmat_agent_intake(${q(binding.grant)},${q(client)},${q(resource)},${q(binding.intake)},'request:intake request:read request:write',${verified.payload.exp},'create',${q(JSON.stringify(input))}::jsonb);`)).requestId,binding.request);
+   await sql.query(`update fmat.oauth_authorizations set created_at=now()-interval '11 minutes',expires_at=now()-interval '1 minute' where id=${q(intakeId)};`);
+   await intakePage.reload();await intakePage.getByRole('button',{name:'Open my request'}).waitFor();
+   assert.equal(await intakePage.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await intakePage.screenshot({path:'.local/rebuild/browser-screenshots/agent-intake-handoff-mobile.png',fullPage:true});
+   await intakePage.setViewportSize({width:1280,height:900});await intakePage.evaluate(()=>{document.body.style.zoom='2';});assert.equal(await intakePage.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await intakePage.screenshot({path:'.local/rebuild/browser-screenshots/agent-intake-handoff-zoom.png',fullPage:true});await intakePage.evaluate(()=>{document.body.style.zoom='1';});
+   const copied=await browser.newContext();try{
+    assert.equal((await copied.request.get(origin+'/api/browser/agent-oauth/intake-state?authorizationId='+intakeId)).status(),400);
+    assert.equal((await copied.request.post(origin+'/api/browser/agent-oauth/intake-claim',{headers:{origin,authorization:'Bearer '+tokens.access_token},data:{authorizationId:intakeId}})).status(),400);
+    assert.equal((await copied.cookies()).some(cookie=>cookie.name.startsWith('fmat-request-')),false);
+   }finally{await copied.close();}
+   assert.equal((await intake.request.post(origin+'/api/browser/agent-oauth/intake-claim',{headers:{origin:'https://evil.example'},data:{authorizationId:intakeId}})).status(),403);
+   assert.notEqual((await intake.request.post(origin+'/api/browser/agent-oauth/intake-claim',{headers:{origin},data:{authorizationId:intakeId,requestId:otherRequest}})).status(),200);
+   const status=await (await intake.request.get(origin+'/api/browser/agent-oauth/intake-state?authorizationId='+intakeId)).json();assert.equal(status.requestId,binding.request);assert.ok(!JSON.stringify(status).includes(proof));assert.equal('intakeId' in status,false);assert.equal('tokenExpiresAt' in status,false);
+   let lostClaim=false;await intakePage.route('**/api/browser/agent-oauth/intake-claim',async route=>{if(lostClaim)return route.continue();lostClaim=true;const result=await route.fetch();assert.equal(result.status(),200);assert.deepEqual(await result.json(),{path:'/booking/'+binding.request});await route.abort('failed');});
+   await intakePage.getByRole('button',{name:'Open my request'}).click();await intakePage.getByRole('alert').filter({hasText:'retry this same action'}).waitFor();await intakePage.unroute('**/api/browser/agent-oauth/intake-claim');await intakePage.reload();await intakePage.getByRole('button',{name:'Open my request'}).click();await intakePage.waitForURL(origin+'/booking/'+binding.request);
+   const saved=(await intake.cookies()).find(cookie=>cookie.name==='fmat-request-'+binding.request)!;assert.equal(saved.value,proof);assert.equal(saved.httpOnly,true);assert.equal(saved.sameSite,'Lax');assert.ok(!(await intakePage.evaluate(()=>document.cookie)).includes(proof));
+   const again=await intake.request.post(origin+'/api/browser/agent-oauth/intake-claim',{headers:{origin},data:{authorizationId:intakeId}});assert.equal(again.status(),200);assert.equal(Math.floor((await intake.cookies()).find(cookie=>cookie.name===saved.name)!.expires),Math.floor(saved.expires),'retry retains the original expiry at HTTP cookie precision');
+   assert.equal((await intake.request.get(origin+'/api/browser/guest/state?requestId='+binding.request)).status(),200);
    const refresh={grant_type:'refresh_token',client_id:client,resource,refresh_token:tokens.refresh_token};
    assert.equal((await intake.request.post(origin+'/oauth/token',{form:{...refresh,scope:'request:decide request:intake request:read'}})).status(),400);
    const narrowedResponse=await intake.request.post(origin+'/oauth/token',{form:{...refresh,scope:'request:read'}});assert.equal(narrowedResponse.status(),200);const narrowed=await narrowedResponse.json();assert.equal(narrowed.scope,'request:read');
    const claims=await jwtVerify(narrowed.access_token,createLocalJWKSet(jwks),{issuer:origin,audience:resource,typ:'at+jwt'});assert.equal(claims.payload.sub,verified.payload.sub);assert.equal(claims.payload.actor_kind,'intake');
    const mcp=await intake.request.post(origin+'/mcp',{headers:{authorization:'Bearer '+narrowed.access_token},data:{jsonrpc:'2.0',id:1,method:'tools/list'}});assert.equal(mcp.status(),403);assert.equal((await mcp.json()).error,'intake_unavailable');
-   await intakePage.goto(consentUrl);await intakePage.getByRole('button',{name:'Revoke this connection'}).click();await intakePage.getByRole('status').filter({hasText:'This connection is revoked.'}).waitFor();
+   await intakePage.goto(handoffUrl);await intakePage.getByRole('button',{name:'Revoke agent access'}).click();await intakePage.getByRole('status').filter({hasText:'Agent access revoked.'}).waitFor();
+   assert.equal((await intake.request.post(origin+'/api/browser/agent-oauth/intake-claim',{headers:{origin},data:{authorizationId:intakeId}})).status(),400);
+   await sql.query(`update fmat.requests set status='withdrawn',token_revoked_at=clock_timestamp() where id=${q(binding.request)};`);
+   const receipt=await (await intake.request.get(origin+'/api/browser/guest/state?requestId='+binding.request)).json();assert.ok(JSON.stringify(receipt).includes('withdrawn'));assert.ok(!JSON.stringify(receipt).includes('Agent-created request'));
+   await sql.query(`update fmat.requests set token_expires_at=clock_timestamp()-interval '1 second' where id=${q(binding.request)};`);assert.notEqual((await intake.request.get(origin+'/api/browser/guest/state?requestId='+binding.request)).status(),200);
    assert.equal((await intake.request.post(origin+'/oauth/token',{form:{...refresh,refresh_token:narrowed.refresh_token}})).status(),400);
   }finally{await intake.close();}
   assert.ok(googleReturn,'host flow used the existing Google-only PKCE callback');
  }finally{
   await page.unrouteAll({behavior:'ignoreErrors'});await browser.close();child.kill('SIGTERM');await Promise.race([once(child,'exit'),delay(3000)]);if(child.exitCode===null)child.kill('SIGKILL');
-  try{if(client)await sql.query(`delete from fmat.oauth_refresh_tokens where grant_id in(select id from fmat.oauth_grants where client_id=${q(client)});delete from fmat.oauth_codes where grant_id in(select id from fmat.oauth_grants where client_id=${q(client)});delete from fmat.oauth_intakes where authorization_id in(select id from fmat.oauth_authorizations where client_id=${q(client)});delete from fmat.oauth_grants where client_id=${q(client)};delete from fmat.oauth_authorizations where client_id=${q(client)};delete from fmat.oauth_clients where id=${q(client)};`);
+  try{if(client)await sql.query(`delete from fmat.idempotency where actor_scope in(select 'intake:'||id from fmat.oauth_intakes where host_id=${q(host)});delete from fmat.audit_events where subject_id in(select id::text from fmat.requests where host_id=${q(host)});delete from fmat.oauth_refresh_tokens where grant_id in(select id from fmat.oauth_grants where client_id=${q(client)});delete from fmat.oauth_codes where grant_id in(select id from fmat.oauth_grants where client_id=${q(client)});delete from fmat.oauth_intakes where authorization_id in(select id from fmat.oauth_authorizations where client_id=${q(client)});delete from fmat.oauth_grants where client_id=${q(client)};delete from fmat.oauth_authorizations where client_id=${q(client)};delete from fmat.oauth_clients where id=${q(client)};`);
    if(host)await sql.query(`delete from fmat.requests where host_id=${q(host)};delete from fmat.calendar_connections where principal_kind='host' and principal_id=${q(host)};delete from fmat.hosts where id=${q(host)};delete from fmat.invitations where id=${q(invitation)};delete from auth.users where id=${q(host)};`);
    await sql.query(`delete from fmat.oauth_budgets;insert into fmat.oauth_budgets select * from jsonb_populate_recordset(null::fmat.oauth_budgets,${q(budgets)}::jsonb);`);
    await sql.query(`delete from fmat.oauth_intake_budgets;insert into fmat.oauth_intake_budgets select * from jsonb_populate_recordset(null::fmat.oauth_intake_budgets,${q(intakeBudgets)}::jsonb);`);

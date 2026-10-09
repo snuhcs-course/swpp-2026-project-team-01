@@ -14,3 +14,6 @@ export const agentConsentView=z.object({authorizationId:z.uuid(),clientName:z.st
 export type AgentConsentView=z.infer<typeof agentConsentView>;
 export const agentGrantsView=z.object({grants:z.array(z.object({id:z.uuid(),clientName:z.string(),scope:z.string(),expiresAt:z.string(),clientDisabled:z.boolean()})),nextCursor:z.uuid().nullable()});
 export type AgentGrant=z.infer<typeof agentGrantsView>['grants'][number];
+
+export const agentIntakeBrowserView=z.strictObject({state:z.enum(['pending','bound']),clientName:z.string(),hostName:z.string().nullable(),scope:z.string(),expiresAt:z.iso.datetime({offset:true}),requestId:z.uuid().nullable()});
+export type AgentIntakeBrowserView=z.infer<typeof agentIntakeBrowserView>;

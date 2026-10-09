@@ -5,6 +5,7 @@ import {createHash,randomBytes,randomUUID} from 'node:crypto';
 import {setTimeout} from 'node:timers/promises';
 import {generateKeyPair,exportJWK} from 'jose';
 import {Database} from '../../lib/server/database/client.ts';
+import {AgentIntakeBrowser} from '../../lib/server/oauth/intake-browser.ts';
 import {AgentIntake} from '../../lib/server/oauth/intake.ts';
 import {agentIntakeProof} from '../../lib/server/oauth/intake-proof.ts';
 import {AgentCredentials,type AgentCredential} from '../../lib/server/oauth/credentials.ts';
@@ -16,7 +17,7 @@ import {ApplicationError} from '../../lib/server/errors.ts';
 import {LocalSql} from './local-sql.ts';
 const q=(value:string)=>`'${value.replaceAll("'","''")}'`;
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
-const resource='https://release.findmeatime.com/mcp',redirect='https://client.example/cb',browser='a'.repeat(64);
+const resource='https://release.findmeatime.com/mcp',redirect='https://client.example/cb',browserSecret=randomBytes(32).toString('base64url'),browser=hash(browserSecret);
 const details={requesterName:'Requester',requesterEmail:'requester@example.test',purpose:'Discuss plans',timezone:'Asia/Seoul',durationMinutes:30,windows:[]};
 const code=(value:string)=>(e:unknown)=>e instanceof ApplicationError&&e.code===value;
 
@@ -31,7 +32,7 @@ test('agent intake atomically creates its reserved request and recovers concurre
  const cipher=new TokenCipher(env),tokens=new AgentOAuthTokens(env),credentials=new AgentCredentials(env,database);
  let savedRegistry:string|undefined,savedIntake:string|undefined,reads=0,refreshes=0,gate:()=>Promise<void>=async()=>{};
  const provider:CalendarProvider={async refresh(bundle){refreshes++;return {...bundle,expiresAt:Date.now()+3600000};},async list(){reads++;await gate();return [{id:'calendar',name:'Private calendar',accessRole:'owner',primary:true,timeZone:'Asia/Seoul',color:null}];}};
- const service=new AgentIntake(database,env,provider);
+ const service=new AgentIntake(database,env,provider),handoff=new AgentIntakeBrowser(database,env);
  const encrypted=()=>cipher.seal({accessToken:'private-access',refreshToken:'private-refresh',expiresAt:Date.now()+3600000,subject:'fixture',scopes:[...calendarScopes.host]},'google:host:'+host);
  async function fixture(){
   const start=await database.rpc('fmat_oauth_authorization_start',{p_input:{clientId:client,resource,redirectUri:redirect,scope:'request:intake request:read request:write',handle,
@@ -59,10 +60,12 @@ test('agent intake atomically creates its reserved request and recovers concurre
   await db.query('delete from fmat.oauth_budgets;delete from fmat.oauth_intake_budgets;');
   await db.query(`insert into auth.users(id,email,email_confirmed_at) values(${q(host)},'intake-create@example.test',now());insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values(${q(invite)},'intake-create@example.test',${q(hash(invite))},now()+interval '1 day','intake-create');insert into fmat.hosts(id,email,invitation_id,handle,display_name,rules,conflict_calendar_ids,booking_calendar_id) values(${q(host)},'intake-create@example.test',${q(invite)},${q(handle)},'Public host','{"timezone":"Asia/Seoul","durationMinutes":30}',array['calendar'],'calendar');insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential) values('host',${q(host)},'synthetic-subject',array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],${q(encrypted())});insert into fmat.oauth_clients(id,name,redirect_uris,resource) values(${q(client)},'Intake creation fixture',array[${q(redirect)}],${q(resource)});`);
   for(const role of ['anon','authenticated'])assert.equal(await db.query(`select has_function_privilege(${q(role)},'public.fmat_agent_intake(uuid,uuid,text,uuid,text,bigint,text,jsonb)','execute');`),'f');
+  for(const role of ['anon','authenticated'])assert.equal(await db.query(`select has_function_privilege(${q(role)},'public.fmat_oauth_intake_handoff(uuid,text,text,text)','execute');`),'f');
   for(const role of ['anon','authenticated','service_role'])assert.equal(await db.query(`select has_function_privilege(${q(role)},'fmat.insert_request(uuid,jsonb,text,jsonb,uuid)','execute');`),'f');
   const f=await fixture(),intent={idempotencyKey:f.key,details};
   assert.equal((await service.create(f.credential,{idempotencyKey:f.key,details:{purpose:'Ask first'}})).status,'clarification');
   assert.equal(reads,0);assert.equal(await count(),'0');
+  assert.equal((await handoff.state(f.authorization,browserSecret)).state,'pending');await assert.rejects(handoff.claim(f.authorization,browserSecret),/invalid_grant/);
   await assert.rejects(service.create(f.credential,{...intent,hostId:host}),code('INVALID_INPUT'));
   await assert.rejects(service.create({...f.credential},intent),/invalid_token/);
   const firsts=await Promise.all(Array.from({length:8},()=>service.create(f.credential,intent)));
@@ -72,6 +75,13 @@ test('agent intake atomically creates its reserved request and recovers concurre
   assert.equal(await db.query(`select token_hash from fmat.requests where id=${q(f.request)};`),hash(agentIntakeProof(f.intake,f.request,env)));
   assert.equal(await db.query(`select contact_verified_email is null and requester_agreed_version is null and host_approved_version is null and event is null from fmat.requests where id=${q(f.request)};`),'t');
   const before=reads;assert.deepEqual(await service.create(f.credential,intent),{status:'created',requestId:f.request});assert.equal(reads,before);
+  const handed=await handoff.claim(f.authorization,browserSecret);assert.equal(handed.requestId,f.request);assert.equal(handed.proof,agentIntakeProof(f.intake,f.request,env));
+  assert.deepEqual(await handoff.claim(f.authorization,browserSecret),handed);
+  await assert.rejects(handoff.claim(f.authorization,randomBytes(32).toString('base64url')),/invalid_grant/);
+  await assert.rejects(new AgentIntakeBrowser(database,{...env,AGENT_INTAKE_PROOF_KEY:randomBytes(32).toString('base64')}).claim(f.authorization,browserSecret),/invalid_grant/);
+  const lostHandoff=new AgentIntakeBrowser({async rpc(name,params){const result=await database.rpc(name,params);if(name==='fmat_oauth_intake_handoff'&&params.p_proof_hash!==null)throw new ApplicationError('PROVIDER_UNAVAILABLE',503);return result;}},env);
+  await assert.rejects(lostHandoff.claim(f.authorization,browserSecret),code('PROVIDER_UNAVAILABLE'));assert.deepEqual(await handoff.claim(f.authorization,browserSecret),handed);
+
   await assert.rejects(service.create(f.credential,{...intent,details:{...details,purpose:'Changed'}}),code('IDEMPOTENCY_CONFLICT'));
   await assert.rejects(service.create(f.credential,{...intent,idempotencyKey:randomUUID()}),code('IDEMPOTENCY_CONFLICT'));
   const different=await fixture();
@@ -85,6 +95,7 @@ test('agent intake atomically creates its reserved request and recovers concurre
   const revoked=await fixture();await providerRace(revoked,()=>database.rpc('fmat_oauth_intake_revoke',{p_id:revoked.authorization,p_browser_hash:browser}),/invalid_token/);
   const disconnected=await fixture();await providerRace(disconnected,()=>db.query(`update fmat.calendar_connections set revoked_at=clock_timestamp(),encrypted_credential=null where principal_kind='host' and principal_id=${q(host)};`),/invalid_token/);
   await db.query(`update fmat.calendar_connections set revoked_at=null,encrypted_credential=${q(encrypted())} where principal_kind='host' and principal_id=${q(host)};`);
+  await assert.rejects(handoff.claim(revoked.authorization,browserSecret),/invalid_grant/);
   const disabled=await fixture();await providerRace(disabled,()=>db.query(`update fmat.oauth_clients set disabled_at=clock_timestamp() where id=${q(client)};`),/invalid_token/);
   await db.query(`update fmat.oauth_clients set disabled_at=null where id=${q(client)};`);
   assert.equal(await count(),'4');
@@ -93,6 +104,7 @@ test('agent intake atomically creates its reserved request and recovers concurre
   assert.deepEqual(await service.create(f.credential,intent),{status:'created',requestId:f.request});
   await db.query(`update fmat.hosts set handle=${q(handle)} where id=${q(host)};update fmat.requests set token_hash=${q(hash('rotated'))} where id=${q(f.request)};`);
   await assert.rejects(service.create(f.credential,intent),/invalid_token/);
+  await assert.rejects(handoff.claim(f.authorization,browserSecret),/invalid_grant/);
   await db.query(`update fmat.requests set token_hash=${q(hash(agentIntakeProof(f.intake,f.request,env)))} where id=${q(f.request)};`);
   await assert.rejects(service.create(f.credential,intent),/invalid_token/);
   // Distinct pending intakes share one expiring host credential. A failed CAS
