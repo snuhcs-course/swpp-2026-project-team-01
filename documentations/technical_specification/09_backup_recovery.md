@@ -92,6 +92,12 @@ Native contact sharing has no provider reconciliation handle. The drill proves p
 
 Deployment rollback is a separate operation: promoting an older compatible application does not restore database data or reverse provider actions. Keep migrations as immutable history and verify that the selected application understands the restored schema/state.
 
+## Conversation text minimization
+
+The credential-text migration replaces recognized credentials in `fmat.runtime_messages.text` irreversibly. It first derives the private original-input retry digest in the same row update, preserving an existing digest for newly protected rows. Message identity, status, ordering and session bindings remain unchanged. Application rollback must retain the protected text and compatible digest comparison; it must not recover plaintext from backups to restore an older retry implementation.
+
+Historical backups, provider inbox rows and previously generated eve checkpoints/transcripts are separate copies; this migration does not erase or rewrite them. Before activating a restored database, keep consumers fenced and apply the structural protection plus data migration to any older ledger. Check that pending delivery and inspection expose protected text, original exact retries succeed and changed-secret retries fail. Do not infer historical erasure from a successful backfill or restore drill.
+
 ## Remaining release decisions
 
 | Requirement | Current evidence / missing result |

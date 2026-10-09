@@ -22,7 +22,7 @@ begin
         dispatch_until=clock_timestamp()+interval '90 seconds',dispatch_attempts=dispatch_attempts+1
         where id=v_message.id returning * into v_message;
       v_result:=v_result||jsonb_build_array(jsonb_build_object('messageId',v_message.id,
-        'conversationId',v_message.conversation_id,'grantId',v_message.grant_id,'text',v_message.text,
+        'conversationId',v_message.conversation_id,'grantId',v_message.grant_id,'text',fmat.protect_conversation_text(v_message.text),
         'leaseToken',v_message.dispatch_token,'sessionId',
         (select runtime_session_id from fmat.conversation_scopes where id=v_message.conversation_id)));
     end loop;

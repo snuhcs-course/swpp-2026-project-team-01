@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Implement shared SQL credential-text protection and private original-input retry digests, plus separate irreversible legacy-ledger backfill. Rebuild 112 local migrations; pass 58 focused SQL assertions, the actual backfill integration and all 1,918 SQL assertions. [Evidence](05_rebuild_evidence.md#shared-conversation-text-protection--2026-10-09). Runtime/channel acceptance and production rollout remain open.
+
 - [x] Reproduce the retired onboarding credential-text protection gap through actual local admission/storage/delivery, with all fixture state rolled back. Define [shared runtime protection](../../openspec/changes/protect-conversation-credential-text/tasks.md), exact retry discrimination and existing-row migration boundaries. [Evidence](05_rebuild_evidence.md#conversation-credential-text-regression--2026-10-09). Implementation, verification and deployment remain open.
 
 - [x] Reconcile all 15 retired request-route assertions. Add boundary, reordered-intake, stale-review and old-review replay checks plus provider-free proposal-selection replay; verify 448 app/provider tests, five real database integrations and 1,860 post-fixture SQL assertions. Record expanded contact drafts, current-state replay and asynchronous message contracts in the [audit](13_legacy_request_api_audit.md) and [evidence](05_rebuild_evidence.md#legacy-request-api-audit--2026-10-09). Wider legacy and release acceptance remain open.

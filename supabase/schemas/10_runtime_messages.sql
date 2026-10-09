@@ -42,17 +42,19 @@ begin
   select * into v_scope from fmat.conversation_scopes where id=p_conversation_id for update;
   if p_operation='inspect' then
     return jsonb_build_object('sessionId',v_scope.runtime_session_id,'messages',(
-      select coalesce(jsonb_agg(jsonb_build_object('id',id,'text',text,'status',status,'createdAt',created_at,
+      select coalesce(jsonb_agg(jsonb_build_object('id',id,'text',fmat.protect_conversation_text(text),'status',status,'createdAt',created_at,
         'mine',grant_id=p_grant_id) order by created_at,id),'[]'::jsonb) from fmat.runtime_messages where conversation_id=p_conversation_id));
   end if;
   if (v_access->>'readOnly')::boolean then raise exception 'REQUEST_CLOSED'; end if;
   if p_operation='accept' then
     if coalesce(p_input->>'clientId','')='' or jsonb_typeof(p_input->'text') is distinct from 'string'
-      or length(trim(p_input->>'text')) not between 1 and 10000
+      or length(p_input->>'text') not between 1 and 10000 or length(trim(p_input->>'text'))=0
       or exists(select 1 from jsonb_object_keys(p_input) k where k not in ('clientId','text')) then raise exception 'INVALID_INPUT'; end if;
     select * into v_message from fmat.runtime_messages where conversation_id=p_conversation_id and grant_id=p_grant_id and client_id=(p_input->>'clientId')::uuid;
     if found then
-      if v_message.text is distinct from p_input->>'text' then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
+      if coalesce(v_message.input_fingerprint,fmat.conversation_input_fingerprint(p_conversation_id,p_grant_id,v_message.client_id,v_message.text))
+        is distinct from fmat.conversation_input_fingerprint(p_conversation_id,p_grant_id,v_message.client_id,p_input->>'text')
+        then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
     else
       if exists(select 1 from fmat.runtime_messages where conversation_id=p_conversation_id and status='pending') then raise exception 'CONVERSATION_BUSY'; end if;
       -- Bounded inbox/checkpoint growth; the runtime has independent token caps.
@@ -62,8 +64,9 @@ begin
       -- Quota contention may outlast a grant, Auth session or request deadline.
       v_access:=public.fmat_conversation_check(p_grant_id,p_conversation_id);
       if (v_access->>'readOnly')::boolean then raise exception 'REQUEST_CLOSED'; end if;
-      insert into fmat.runtime_messages(conversation_id,grant_id,client_id,text)
-        values(p_conversation_id,p_grant_id,(p_input->>'clientId')::uuid,p_input->>'text') returning * into v_message;
+      insert into fmat.runtime_messages(conversation_id,grant_id,client_id,text,input_fingerprint)
+        values(p_conversation_id,p_grant_id,(p_input->>'clientId')::uuid,fmat.protect_conversation_text(p_input->>'text'),
+          fmat.conversation_input_fingerprint(p_conversation_id,p_grant_id,(p_input->>'clientId')::uuid,p_input->>'text')) returning * into v_message;
     end if;
   elsif p_operation='deliver' then
     select * into v_message from fmat.runtime_messages where id=(p_input->>'messageId')::uuid and conversation_id=p_conversation_id and grant_id=p_grant_id;
@@ -73,7 +76,7 @@ begin
     if v_scope.runtime_session_id is not null and v_scope.runtime_session_id<>v_session then raise exception 'FORBIDDEN'; end if;
     update fmat.conversation_scopes set runtime_session_id=v_session where id=p_conversation_id and runtime_session_id is null;
   else raise exception 'INVALID_INPUT'; end if;
-  return jsonb_build_object('id',v_message.id,'status',v_message.status,'text',v_message.text);
+  return jsonb_build_object('id',v_message.id,'status',v_message.status,'text',fmat.protect_conversation_text(v_message.text));
 end;
 $$;
 revoke all on fmat.runtime_messages from public,anon,authenticated,service_role;
