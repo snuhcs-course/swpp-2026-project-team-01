@@ -12,7 +12,7 @@ const now=1800000000000,origin='https://store.example.test';
 const value=():StoredConnection=>({version:1,origin,grantId:randomUUID(),clientId:randomUUID(),actorKind:'host',actorId:randomUUID(),scope:'host:read host:write',accessToken:'aaa.bbb.ccc',refreshToken:'a'.repeat(43),accessExpiresAt:now+1000,state:'ready'});
 const file=(root:string,v:StoredConnection)=>join(root,createHash('sha256').update(v.origin).digest('hex'),v.grantId+'.json');
 const fails=(code:string)=>(error:unknown)=>error instanceof CliFailure&&error.code===code;
-async function fixture(run:(root:string,store:CliCredentialStore,v:StoredConnection)=>Promise<void>){const root=await mkdtemp(join(tmpdir(),'fmat-store-'));try{await run(root,new CliCredentialStore(root,()=>now,100),value());}finally{await rm(root,{recursive:true,force:true});}}
+async function fixture(run:(root:string,store:CliCredentialStore,v:StoredConnection)=>Promise<void>){const root=await mkdtemp(join(tmpdir(),'fmat-store-'));try{await run(root,new CliCredentialStore(root,()=>now),value());}finally{await rm(root,{recursive:true,force:true});}}
 test('credential storage isolates origins/grants and uses private atomic files',()=>fixture(async(root,store,v)=>{
  await store.save({...v,accessExpiresAt:now+60000});
  assert.equal((await stat(root)).mode&0o777,0o700);assert.equal((await stat(file(root,v))).mode&0o777,0o600);
@@ -24,9 +24,22 @@ test('credential storage isolates origins/grants and uses private atomic files',
 }));
 test('parallel refresh rotates once and a lost reply disables rather than replays the connection',()=>fixture(async(root,store,v)=>{
  await store.save(v);let calls=0;
- const refresh=async(current:StoredConnection)=>{calls++;await new Promise(r=>setTimeout(r,40));return {...current,accessToken:'ddd.eee.fff',refreshToken:'b'.repeat(43),accessExpiresAt:now+60000};};
- const other=new CliCredentialStore(root,()=>now,1000);
- assert.deepEqual(await Promise.all([store.access(origin,v.grantId,refresh),other.access(origin,v.grantId,refresh)]),['ddd.eee.fff','ddd.eee.fff']);assert.equal(calls,1);
+ let entered!:()=>void,release!:()=>void;
+ const started=new Promise<void>(resolve=>entered=resolve),held=new Promise<void>(resolve=>release=resolve);
+ const refresh=async(current:StoredConnection)=>{calls++;entered();await held;return {...current,accessToken:'ddd.eee.fff',refreshToken:'b'.repeat(43),accessExpiresAt:now+60000};};
+ const other=new CliCredentialStore(root,()=>now);
+ const first=store.access(origin,v.grantId,refresh);
+ // Observe the durable refresh boundary before starting the competing access;
+ // no 40 ms sleep or 100 ms success deadline may stand in for synchronization.
+ await Promise.race([started,first.then(()=>assert.fail('refresh did not start'))]);
+ const second=other.access(origin,v.grantId,refresh);
+ const both=Promise.all([first,second]);
+ try{
+  assert.equal(JSON.parse(await readFile(file(root,v),'utf8')).state,'refreshing');
+  await assert.rejects(new CliCredentialStore(root,()=>now,0).access(origin,v.grantId,async()=>assert.fail('contender must not refresh')),fails('CONNECTION_BUSY'));
+  assert.equal(calls,1,'only the lock owner can enter refresh');
+ }finally{release();await both;}
+ assert.deepEqual(await both,['ddd.eee.fff','ddd.eee.fff']);assert.equal(calls,1);
  const uncertain={...value()};await store.save(uncertain);
  const lost=async()=>{calls++;throw Error('private refresh data');};await assert.rejects(store.access(origin,uncertain.grantId,lost),fails('LOGIN_REQUIRED'));
  assert.equal(JSON.parse(await readFile(file(root,uncertain),'utf8')).state,'refreshing');
@@ -62,7 +75,8 @@ process.stdout.write('ok');`,{mode:0o600});
 
 test('an existing lock times out without stealing it or invoking refresh',()=>fixture(async(root,store,v)=>{
  await store.save(v);const lock=file(root,v).replace(/\.json$/u,'.lock');await mkdir(lock,{mode:0o700});
- await assert.rejects(store.access(origin,v.grantId,async()=>assert.fail()),fails('CONNECTION_BUSY'));assert.equal((await stat(lock)).isDirectory(),true);assert.equal(JSON.parse(await readFile(file(root,v),'utf8')).state,'ready');
+ const impatient=new CliCredentialStore(root,()=>now,100);
+ await assert.rejects(impatient.access(origin,v.grantId,async()=>assert.fail()),fails('CONNECTION_BUSY'));assert.equal((await stat(lock)).isDirectory(),true);assert.equal(JSON.parse(await readFile(file(root,v),'utf8')).state,'ready');
 }));
 
 test('intake storage permits narrowed requester scopes but cannot promote a guest or host',()=>fixture(async(_root,store,v)=>{
