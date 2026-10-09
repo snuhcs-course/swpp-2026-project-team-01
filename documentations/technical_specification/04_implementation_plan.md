@@ -517,6 +517,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Deploy the inline iMessage size-container mitigation from `9e82305` to the selected production project (`dpl_Gaq4x8FwZU5ZQDupVZhyVxmN8ncz`), verify Ready/domain promotion, and pass 81 HTTP plus 15 composed runtime checks. [Evidence](05_rebuild_evidence.md#inline-imessage-mitigation-production-deployment--2026-10-09). Authenticated device/provider acceptance and full release readiness remain open.
+
 - [x] Disable unused size-container behavior on the two inline iMessage form groups after reproducing zero-size mounted controls. Preserve focus/retry/privacy checks; verify eight fresh onboarding journeys, all three browser suites, app checks/builds/runtime smoke and 1,747 post-cleanup SQL assertions. [Evidence](05_rebuild_evidence.md#inline-imessage-size-container-mitigation--2026-10-09). Broader intermittent-browser and actual-device/provider acceptance remain open.
 
 - [x] Verify the full pinned-stack CI run and accept the exact PostgreSQL version from CLI 2.119.0’s verified ECR/GHCR/Docker Hub fallback names. Keep immutable-ID reuse and reject other versions/repositories; pass three local restore tests. [Evidence](05_rebuild_evidence.md#verified-restore-registry-fallbacks--2026-10-09). Fresh hosted mirror-guard acceptance remains pending.
