@@ -15,7 +15,7 @@ export async function startBrowserRuntime(local:{API_URL:string;SERVICE_ROLE_KEY
   await mkdir(join(fixture,'agent/tools'),{recursive:true});
   await writeFile(join(fixture,'agent/instructions.md'),'Reply to synthetic browser tests.');
   await writeFile(join(fixture,'package.json'),JSON.stringify({name:'fmat-browser-fixture',private:true,type:'module',dependencies:{eve:'0.71.3'}}));
-  for(const [target,source] of Object.entries({'agent/agent.ts':'tests/runtime/fixture-agent.ts','agent/channels/eve.ts':'agent/channels/eve.ts','agent/channels/conversations.ts':'agent/channels/conversations.ts','agent/tools/read_context.ts':'agent/tools/read_context.ts','agent/tools/propose_request_details.ts':'agent/tools/propose_request_details.ts','agent/tools/update_setup_draft.ts':'agent/tools/update_setup_draft.ts'}))
+  for(const [target,source] of Object.entries({'agent/agent.ts':'tests/runtime/fixture-agent.ts','agent/channels/eve.ts':'agent/channels/eve.ts','agent/channels/conversations.ts':'agent/channels/conversations.ts','agent/tools/read_context.ts':'agent/tools/read_context.ts','agent/tools/list_host_requests.ts':'agent/tools/list_host_requests.ts','agent/tools/propose_request_details.ts':'agent/tools/propose_request_details.ts','agent/tools/update_setup_draft.ts':'agent/tools/update_setup_draft.ts'}))
     await writeFile(join(fixture,target),`export {default} from ${JSON.stringify(resolve(source))};\n`);
   const modelContext=String(options.modelContextWindowTokens??100_000);
   const build=spawn(process.execPath,[join(root,'node_modules/eve/bin/eve.js'),'build','--skip-sandbox-prewarm'],{cwd:fixture,env:{...process.env,FMAT_FIXTURE_MODEL_CONTEXT:modelContext},stdio:['ignore','pipe','pipe']});

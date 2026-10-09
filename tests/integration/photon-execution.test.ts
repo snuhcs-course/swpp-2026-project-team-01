@@ -148,6 +148,13 @@ globalThis.fetch=async(input,init)=>{
   assert.equal(await inputCalls(),callsBefore,'a different input cannot change the original input replay count');
   assert.equal(await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${scope}';`),session,'web resumes the same runtime session');
   assert.equal(await sql.query(`select count(*) from fmat.photon_replies where project_id='${project}';`),'1','web continuation does not send an iMessage reply');
+  const discoveryRequest=randomUUID();
+  await sql.query(`insert into fmat.requests(id,host_id,details,token_hash,expires_at) values('${discoveryRequest}','${host}','{"purpose":"Discovery fixture","requesterName":"private-name-sentinel","requesterEmail":"private-address-sentinel@example.test"}','${createHash('sha256').update(discoveryRequest).digest('hex')}',now()+interval '1 day');`);
+  assert.equal((await photonWebhook(request('discovery','host-request-discovery-fixture'),{env,database:db})).status,200);
+  assert.equal((await dispatchPhotonInputs(db,env)).accepted,1);assert.equal((await dispatch()).status,200);await settled(scope);
+  assert.equal(await sql.query(`select r.text from fmat.photon_replies r join fmat.photon_inbox i on i.id=r.inbox_id where i.project_id='${project}' and i.message_id='discovery';`),'Request list: Discovery fixture (gathering). Select a request in the workspace.');
+  assert.equal(await sql.query(`select revision from fmat.requests where id='${discoveryRequest}';`),'1','navigation changes no request state');
+  assert.equal(await sql.query(`select request_id is null and audience='host_setup' from fmat.conversation_scopes where id='${scope}';`),'t','discovery cannot select a request');
   await verifySharedSetupReview({sql,database:db,env,host,credential,scope,async turn(text){
    const key=randomUUID();assert.equal((await photonWebhook(request(key,text),{env,database:db})).status,200);
    assert.equal((await dispatchPhotonInputs(db,env)).accepted,1);assert.equal((await dispatch()).status,200);await settled(scope);
@@ -156,11 +163,11 @@ globalThis.fetch=async(input,init)=>{
   // Finish these additional replies through the real ordered worker so the
   // following unlink test still pauses its own reply at provider preflight.
   const sharedReplyIds=new Set<string>();
-  for(let n=0;n<6;n++)assert.equal((await dispatchPhotonReplies(db,env,{async send(route,recipient,_text,id,authorize){
+  for(let n=0;n<7;n++)assert.equal((await dispatchPhotonReplies(db,env,{async send(route,recipient,_text,id,authorize){
    await authorize();assert.equal(route.spaceId,'any;-;'+phone);assert.equal(recipient,phone);assert.ok(!sharedReplyIds.has(id));sharedReplyIds.add(id);
    return {status:'delivered',providerReference:'fixture:'+id};
   },async reconcile(){assert.fail('fresh fixture replies should not need reconciliation');}})).claimed,1);
-  assert.equal(sharedReplyIds.size,6);
+  assert.equal(sharedReplyIds.size,7);
   await verifySetupIsolation({sql,db,env,local,host,credential,token,scope,origin:runtime.origin,service,async privateTurn(sender,text,otherScope){
    const key=randomUUID();await delay(5);assert.equal((await photonWebhook(request(key,text,sender),{env,database:db})).status,200);
    assert.equal((await dispatchPhotonInputs(db,env)).accepted,1);assert.equal((await dispatch()).status,200);await settled(otherScope);
@@ -204,7 +211,7 @@ globalThis.fetch=async(input,init)=>{
   assert.equal(await sql.query(`select count(*) from fmat.setup_drafts d join fmat.setup_conversations c on c.id=d.conversation_id where c.host_id='${host}';`),draftsBeforeUnlink);
  }finally{
   await holder.query('rollback;');await runtime?.stop();
-  if(host){await sql.query(`delete from fmat.queue_publications p using fmat.jobs j,fmat.photon_inbox i where p.job_id=j.id and j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from pgmq.q_fmat_jobs q using fmat.jobs j,fmat.photon_inbox i where q.message->>'jobId'=j.id::text and j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from fmat.jobs j using fmat.photon_inbox i where j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from fmat.photon_replies where project_id='${project}';delete from fmat.photon_inbox where project_id='${project}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_scopes where host_id='${host}';delete from fmat.photon_links where project_id='${project}';delete from fmat.photon_link_challenges where project_id='${project}';delete from fmat.photon_receivers where project_id='${project}';delete from fmat.audit_events where actor->>'id'='${host}';delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitation_deliveries where invitation_id='${invitation}';delete from fmat.invitations where id='${invitation}';delete from fmat.idempotency where actor_scope='invitation_operator:local:${operator}';delete from fmat.audit_events where subject_id='${invitation}';`);assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);}
+  if(host){await sql.query(`delete from fmat.queue_publications p using fmat.jobs j,fmat.photon_inbox i where p.job_id=j.id and j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from pgmq.q_fmat_jobs q using fmat.jobs j,fmat.photon_inbox i where q.message->>'jobId'=j.id::text and j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from fmat.jobs j using fmat.photon_inbox i where j.payload->>'inboxId'=i.id::text and i.project_id='${project}';delete from fmat.photon_replies where project_id='${project}';delete from fmat.photon_inbox where project_id='${project}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_scopes where host_id='${host}';delete from fmat.photon_links where project_id='${project}';delete from fmat.photon_link_challenges where project_id='${project}';delete from fmat.photon_receivers where project_id='${project}';delete from fmat.audit_events where actor->>'id'='${host}';delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.requests where host_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitation_deliveries where invitation_id='${invitation}';delete from fmat.invitations where id='${invitation}';delete from fmat.idempotency where actor_scope='invitation_operator:local:${operator}';delete from fmat.audit_events where subject_id='${invitation}';`);assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);}
   sql.close();holder.close();
  }
 });

@@ -54,6 +54,7 @@ select isnt(pg_temp.check_input('other-host')->>'conversationId',pg_temp.f('web'
 select throws_ok($$select public.fmat_conversation_check((pg_temp.check_input('first')->>'grantId')::uuid,(pg_temp.check_input('other-host')->>'conversationId')::uuid)$$,'P0001','UNAUTHORIZED','cross-host grant denied');
 select throws_ok($$select public.fmat_conversation_access('open',(select credential from fmat.conversation_grants where id=(pg_temp.check_input('first')->>'grantId')::uuid),'{"audience":"host_setup"}')$$,'P0001','UNAUTHORIZED','browser credential path never accepts private link credential');
 select lives_ok($$select pg_temp.tool('first','setup_read')$$,'phone can read its setup');
+select is(pg_temp.tool('first','host_requests_read'),' {"requests":[],"nextCursor":null}'::jsonb,'linked private setup can discover host requests without changing context');
 select lives_ok($$select pg_temp.tool('first','setup_draft',jsonb_build_object('expectedRevision',0,'patch','{"displayName":"Fixture host"}'::jsonb,'unresolved','[]'::jsonb,'idempotencyKey','phone-fixture'))$$,'authorized model can draft');
 select lives_ok($$select pg_temp.tool('first','setup_draft',jsonb_build_object('expectedRevision',0,'patch','{"displayName":"Fixture host"}'::jsonb,'unresolved','[]'::jsonb,'idempotencyKey','phone-fixture'))$$,'tool retry retains one effect');
 select is((select count(*)::integer from fmat.setup_turns),1,'one setup turn after replay');
@@ -83,6 +84,7 @@ update fmat.hosts set revoked_at=null where id=(pg_temp.credential(1)->>'subject
 select pg_temp.receive(1,'queued-unlink');
 update fmat.photon_links set revoked_at=clock_timestamp() where host_id=(pg_temp.credential(1)->>'subject')::uuid;
 select throws_ok($$select pg_temp.tool('second','setup_read')$$,'P0001','UNAUTHORIZED','unlink revokes already accepted input');
+select throws_ok($$select pg_temp.tool('second','host_requests_read')$$,'P0001','UNAUTHORIZED','unlink also revokes private request discovery');
 select pg_temp.settle('second');
 select is(pg_temp.dispatch(),'revoked','queued unlinked input suppressed');
 select is((select runtime_message_id from fmat.photon_inbox where message_id='queued-unlink'),null,'revoked input never reaches runtime');

@@ -12,6 +12,16 @@ const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMess
     if(lastUserMessage==='setup-provider-outage')throw new Error('synthetic-private-provider-detail');
     if(lastUserMessage==='setup-provider-timeout')throw new DOMException('synthetic-private-timeout-detail','TimeoutError');
     if(lastUserMessage==='setup-provider-refusal')return 'I cannot provide a setup suggestion.';
+    if(lastUserMessage==='host-request-discovery-fixture'){
+      const prefix=`discovery-${userMessageCount}-`,current=toolResults.filter(result=>result.id.startsWith(prefix));
+      if(current.some(result=>result.isError))return 'Request discovery unavailable.';
+      const result=current.at(-1)?.output as {requests:{title:string;status:string}[]}|undefined;
+      if(result){
+        if(/private-name-sentinel|private-address-sentinel|requesterName|requesterEmail/.test(JSON.stringify(result)))throw new Error('Contact values entered fixture model');
+        return 'Request list: '+result.requests.map(row=>row.title+' ('+row.status+')').join(', ')+'. Select a request in the workspace.';
+      }
+      return {toolCalls:[{id:prefix+randomUUID(),name:'list_host_requests',input:{search:'Discovery fixture'}}]};
+    }
     if(lastUserMessage==='model-limit-loop')return {toolCalls:[{id:randomUUID(),name:'read_context',input:{context:'request'}}]};
     if(lastUserMessage?.startsWith('compact-fixture:'))return 'Fixture turn complete.';
     if(lastUserMessage===setupReady){

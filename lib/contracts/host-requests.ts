@@ -6,3 +6,10 @@ export const hostRequestSummary=z.strictObject({requestId:z.uuid(),revision:z.nu
 export const hostRequestPage=z.strictObject({requests:z.array(hostRequestSummary).max(30),nextCursor:hostRequestCursor.nullable()});
 export type HostRequestSummary=z.infer<typeof hostRequestSummary>;
 export type HostRequestPage=z.infer<typeof hostRequestPage>;
+
+// An assistant needs navigation, not saved contact identity or transcript data.
+// Strip unknown fields independently of the database's explicit projection.
+export const hostRequestModelPage=z.object({
+ requests:z.array(hostRequestSummary.omit({requesterName:true}).strip()).max(30),
+ nextCursor:hostRequestCursor.nullable(),
+});

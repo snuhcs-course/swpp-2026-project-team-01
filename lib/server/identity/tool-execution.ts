@@ -9,6 +9,7 @@ import { conversationTool, requestExtractionInput } from '../../contracts/conver
 import { Database } from '../database/client.ts';
 import { ApplicationError } from '../errors.ts';
 import {requestModelContext} from './request-model-context.ts';
+import {hostRequestModelPage} from '../../contracts/host-requests.ts';
 import { runtimeAuth } from './runtime-messages.ts';
 
 const callIdentity = z.strictObject({
@@ -67,6 +68,7 @@ export class ConversationTools {
       p_operation: operation,
       p_input: operation.endsWith('_read') ? input : { ...(parsed.data.operation==='setup_draft'?encodeSetupClarifications(parsed.data.input):input), idempotencyKey },
     });
+    if(operation==='host_requests_read')return hostRequestModelPage.parse(result);
     if(operation==='setup_read'){const state=setupState.parse(result);return {...state,guide:setupGuide(state)};}
     if(operation==='request_read'||operation==='details_propose'||operation==='private_note_save')return requestModelContext(result);
     return result;

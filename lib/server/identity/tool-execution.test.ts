@@ -214,3 +214,18 @@ test('setup model selects bounded localized categories without authoring questio
  await tools.execute(auth,call,{operation:'setup_draft',input:{expectedRevision:0,patch:{rules:{}},unresolved:['setup']}});
  assert.deepEqual(bodies[1].p_input.unresolved,['en:setup']);
 });
+
+test('host navigation reads are scoped to the captured grant and strip contact and extra response fields',async()=>{
+ const bodies:Record<string,any>[]=[];
+ const row={requestId:'84000000-0000-4000-8000-000000000001',revision:1,title:'Research meeting',status:'gathering',closed:false,createdAt:'2030-01-01T00:00:00Z',updatedAt:'2030-01-01T00:00:00Z',proposalVersion:null};
+ const cursor={beforeCreatedAt:row.createdAt,beforeId:row.requestId};
+ const tools=new ConversationTools(new Database(env,async(_url,init)=>{bodies.push(JSON.parse(String(init?.body)));return Response.json({requests:[{...row,requesterName:'private-contact',requesterEmail:'private@example.test',messages:['private-history'],credential:'private-token'}],nextCursor:cursor,hostEmail:'private-host@example.test'});}));
+ assert.deepEqual(await tools.execute(auth,call,{operation:'host_requests_read',input:{}}),{requests:[row],nextCursor:cursor});
+ assert.deepEqual(bodies[0],{p_grant_id:auth.principalId,p_conversation_id:auth.attributes.conversationId,p_operation:'host_requests_read',p_input:{search:'',status:'active'}});
+ await tools.execute(auth,call,{operation:'host_requests_read',input:{search:' Research ',status:'all',...cursor}});
+ assert.deepEqual(bodies[1].p_input,{search:'Research',status:'all',...cursor});
+ for(const input of [{hostId:auth.principalId},{requestId:row.requestId},{selected:true},{status:'approved'},{search:'x'.repeat(201)},{beforeId:row.requestId},{beforeCreatedAt:row.createdAt},{search:null},{beforeId:'not-a-uuid',beforeCreatedAt:row.createdAt}]){
+  await assert.rejects(tools.execute(auth,call,{operation:'host_requests_read',input}),errorCode('INVALID_INPUT'));
+ }
+ assert.equal(bodies.length,2,'invalid navigation never reaches the database');
+});

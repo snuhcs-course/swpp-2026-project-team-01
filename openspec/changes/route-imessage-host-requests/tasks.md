@@ -2,7 +2,7 @@
 
 ## 1. Private request discovery
 
-- [ ] 1.1 Add the bounded read-only conversation navigation contract, private authorized SQL projection and eve tool. Verify two-host isolation, guest/shared/revoked denial, pagination/search, omitted contact fields, invalid input and unchanged selection/domain state. Document the assistant boundary and review the generated migration after a full local rebuild.
+- [x] 1.1 Add the bounded read-only conversation navigation contract, private authorized SQL projection and eve tool. Verify two-host isolation, guest/shared/revoked denial, pagination/search, omitted contact fields, invalid input and unchanged selection/domain state. Document the assistant boundary and review the generated migration after a full local rebuild.
 - [ ] 1.2 Deploy the discovery foundation to the selected release project after local app/database/runtime checks; verify the migration ledger, private function privileges, rollback-only production navigation and deployed health/guards. Mark only this foundation complete in the implementation plan.
 
 ## 2. Explicit request selection and continuity

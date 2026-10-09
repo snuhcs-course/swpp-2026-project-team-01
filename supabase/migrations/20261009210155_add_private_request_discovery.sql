@@ -1,8 +1,44 @@
--- Model tools receive an execution reference captured by authenticated ingress.
--- They cannot supply an actor, resource ID, decision, or privileged operation.
-create or replace function public.fmat_conversation_tool(
-  p_grant_id uuid,p_conversation_id uuid,p_operation text,p_input jsonb
-) returns jsonb language plpgsql security definer set search_path='' as $$
+SET local check_function_bodies = off;
+
+CREATE OR REPLACE FUNCTION fmat.host_request_model_page (
+  p_host_id uuid,
+  p_input   jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
+declare page jsonb; rows jsonb;
+begin
+ if jsonb_typeof(p_input) is distinct from 'object'
+  or p_input-array['search','status','beforeCreatedAt','beforeId']<>'{}'::jsonb
+  or (p_input?'search' and jsonb_typeof(p_input->'search') is distinct from 'string')
+  or (p_input?'status' and jsonb_typeof(p_input->'status') is distinct from 'string')
+  or (p_input?'beforeCreatedAt' and jsonb_typeof(p_input->'beforeCreatedAt') is distinct from 'string')
+  or (p_input?'beforeId' and jsonb_typeof(p_input->'beforeId') is distinct from 'string')
+  then raise exception 'INVALID_INPUT'; end if;
+ page:=fmat.host_request_page(p_host_id,p_input);
+ select coalesce(jsonb_agg(jsonb_build_object(
+  'requestId',item->'requestId','revision',item->'revision','title',item->'title',
+  'status',item->'status','closed',item->'closed','createdAt',item->'createdAt',
+  'updatedAt',item->'updatedAt','proposalVersion',item->'proposalVersion'
+ ) order by position),'[]'::jsonb) into rows
+ from jsonb_array_elements(page->'requests') with ordinality as entry(item,position);
+ return jsonb_build_object('requests',rows,'nextCursor',page->'nextCursor');
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.fmat_conversation_tool (
+  p_grant_id        uuid,
+  p_conversation_id uuid,
+  p_operation       text,
+  p_input           jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare v_access jsonb; v_actor jsonb; v_input jsonb; v_result jsonb; v_request_id uuid;
 begin
   v_access:=public.fmat_conversation_check(p_grant_id,p_conversation_id);
@@ -61,6 +97,6 @@ begin
   end if;
   return v_result;
 end;
-$$;
-revoke execute on function public.fmat_conversation_tool(uuid,uuid,text,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_conversation_tool(uuid,uuid,text,jsonb) to service_role;
+$function$;
+
+REVOKE ALL ON FUNCTION "fmat"."host_request_model_page"(uuid, jsonb) FROM PUBLIC;
