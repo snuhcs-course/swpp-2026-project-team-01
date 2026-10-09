@@ -72,7 +72,7 @@ The callback listener closes after success, denial, timeout, cancellation or lau
 Invitation administration uses the separate server-credential command `npm run --silent invitations --`. It is not an MCP tool or a capability granted to host/requester agent clients. See [host invitation operations](03_provider_setup.md#host-invitation-operations) for issue/status/revoke/recover commands, environment binding and private output. This operator command exits 0 on success or 1 with sanitized JSON on failure; the personal-agent CLI exit-code table above does not apply.
 
 
-## Initial requester intake (locally verified; production rollout pending)
+## Initial requester intake
 
 To authorize one future request, use a public host handle rather than an existing request ID:
 
@@ -87,4 +87,4 @@ npm run --silent fmat -- call CONNECTION_UUID fmat_create_request < intake-input
 
 The returned connection has actor `intake`; its subject remains the intake identity after binding. Creation returns only `status: created` and `requestId`. Use that request ID with `fmat_get_request` and other consented requester tools. Keep the same creation key and identical details after a lost result; a consumed intake cannot create a second request, even with a new key. Clarification may be corrected before the first successful creation. Creation does not verify email, agree to a meeting or approve booking.
 
-For human browser continuation, return to the original consent page using browser history and choose **Open request access**; it installs the request cookie only in that browser. The CLI never emits the proof. Logout revokes agent access; browser access already installed keeps its ordinary rotation, receipt and expiry limits. These commands pass actual local CLI subprocess, loopback, built-server and database tests. Public instructions now describe this locally verified flow; production activation and named-client/full-workflow acceptance remain separate.
+For human browser continuation, return to the original consent page using browser history and choose **Open request access**; it installs the request cookie only in that browser. The CLI never emits the proof. Logout revokes agent access; browser access already installed keeps its ordinary rotation, receipt and expiry limits. These commands pass actual local CLI subprocess, loopback, built-server and database tests. The integrated server and public instructions are deployed; see the [production rollout evidence](05_rebuild_evidence.md#agent-intake-production-rollout--2026-10-09). Controlled production SDK checks cover consent, clarification, exact retry, bound reads, handoff and revocation. Fresh production creation through real Calendar preflight, a production CLI intake journey and named-client/full-workflow acceptance remain unverified.
