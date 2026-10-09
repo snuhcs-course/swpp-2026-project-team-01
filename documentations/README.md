@@ -69,3 +69,5 @@ The [operational diagnostics runbook](technical_specification/08_operational_dia
 The [backup and restoration runbook](technical_specification/09_backup_recovery.md) records verified coverage, private logical export, isolated restoration and unresolved release gates.
 
 The [legacy scheduling audit](technical_specification/10_legacy_scheduling_audit.md) maps the retired evaluator assertions to current behavior and tests, including explicit policy differences and the unresolved online-travel scope.
+
+The [legacy delivery audit](technical_specification/11_legacy_delivery_audit.md) maps retired contact-mail assertions, configuration changes and historical-record boundaries to current workers and verification.

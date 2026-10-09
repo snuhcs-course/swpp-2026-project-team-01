@@ -210,6 +210,8 @@ The snapshot-ordering browser fixture holds a completed-work read across a synth
 
 ## Legacy verification command migration
 
+The [contact-delivery assertion audit](../documentations/technical_specification/11_legacy_delivery_audit.md) maps all 12 retired contact worker tests. The current actual-database integration additionally verifies missing/malformed sender configuration, changed account after preparation, preview denial with unchanged durable state, and challenge expiry after uncertainty. Historical provider formats and old enable flags are documented as changed contracts, not asserted equivalent.
+
 The pre-reconstruction command inventory comes from `5c305d9^:package.json`, `5c305d9^:deno.json` and `5c305d9^:.github/workflows/check.yml`. Commit `5c305d9` removed the legacy runtime before this retrospective mapping; this table does not claim that mapping preceded removal. It identifies current owners and remaining evidence rather than requiring the retired Deno/Fly implementation to run.
 
 | Retired command or CI entry | Current executable checks | Behavior and boundary |

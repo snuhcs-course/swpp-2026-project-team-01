@@ -52,13 +52,47 @@ test('Contact email freezes code and recipient, fences dispatch and never retrie
   for(const [behavior,outcome] of [['lost','uncertain'],['reject','failed'],['bounce','failed'],['suppress','suppressed'],['unknown','uncertain']]){
    const f=await fixture();mode=behavior;assert.equal(await worker().process(await own(f.job)),outcome);const count:number=posts;mode='success';assert.equal(await worker().process(await own(f.job)),outcome);assert.equal(posts,count);assert.equal((await service.read(f.guest,{requestId:f.id})).status,'pending');
   }
+  const inactive=await fixture();mode='lost';assert.equal(await worker().process(await own(inactive.job)),'uncertain');mode='success';
+  await sql.query(`update fmat.contact_verifications set expires_at=clock_timestamp()-interval '1 second' where id='${inactive.challengeId}';`);
+  const inactivePosts=posts;
+  assert.equal(await worker().process(await own(inactive.job)),'uncertain','Challenge expiry cannot relabel a possibly sent message as suppressed');
+  assert.equal(posts,inactivePosts);assert.equal(await status(inactive.outbox),'uncertain');
   const lostPrepare=await fixture();let dropped=false;
   const lose=(operation:string)=>new Database(env,async(url,init)=>{const response=await fetch(url,init);if(!dropped&&response.ok&&JSON.parse(String(init?.body)).p_operation===operation){dropped=true;throw new Error('lost committed response');}return response;});
   let count:number=posts;assert.equal(await worker(lose('prepare')).process(await own(lostPrepare.job)),'retry');assert.equal(dropped,true);assert.equal(posts,count);
   const frozen=await sql.query(`select encrypted_prepared from fmat.contact_verification_deliveries where outbox_id='${lostPrepare.outbox}';`);
   assert.equal(frozen.includes(lostPrepare.code),false);
+  // A configuration change after durable preparation cannot reroute the frozen
+  // verification email. Restoring the original account permits its first send.
+  const changedAccount={...env,CLOUDFLARE_ACCOUNT_ID:'b'.repeat(32)};
+  let unexpectedPosts=0;
+  const unexpected=async()=>{unexpectedPosts++;throw new Error('Configuration denial reached provider');};
+  const rerouted=new ContactVerificationDelivery(db,changedAccount,new CloudflareEmail(changedAccount,unexpected));
+  assert.equal(await rerouted.process(await own(lostPrepare.job)),'retry');assert.equal(unexpectedPosts,0);
+  assert.equal(await sql.query(`select encrypted_prepared from fmat.contact_verification_deliveries where outbox_id='${lostPrepare.outbox}';`),frozen);
+  assert.equal(await sql.query(`select dispatched_at is null from fmat.contact_verification_deliveries where outbox_id='${lostPrepare.outbox}';`),'t');
   await sql.query(`do $$begin update fmat.contact_verification_deliveries set encrypted_prepared='changed' where outbox_id='${lostPrepare.outbox}';raise exception 'mutable fixture';exception when raise_exception then if sqlerrm<>'IMMUTABLE_DELIVERY' then raise;end if;end$$;`);
   assert.equal(await worker().process(await own(lostPrepare.job)),'sent');assert.equal(posts,count+1);assert.equal(await sql.query(`select encrypted_prepared from fmat.contact_verification_deliveries where outbox_id='${lostPrepare.outbox}';`),frozen);
+  for(const patch of [{CLOUDFLARE_EMAIL_API_TOKEN:''},{CLOUDFLARE_ACCOUNT_ID:'invalid'},{CLOUDFLARE_EMAIL_FROM:'other@example.test'}]){
+   const f=await fixture(),invalidEnv={...env,...patch},owned=await own(f.job);
+   const invalidWorker=new ContactVerificationDelivery(db,invalidEnv,new CloudflareEmail(invalidEnv,unexpected));
+   assert.equal(await invalidWorker.process(owned),'retry');assert.equal(unexpectedPosts,0);
+   assert.equal(await sql.query(`select not exists(select 1 from fmat.contact_verification_deliveries where outbox_id='${f.outbox}');`),'t');
+   assert.equal((await service.read(f.guest,{requestId:f.id})).status,'pending');
+   count=posts;assert.equal(await worker().process(await own(f.job)),'sent');assert.equal(posts,count+1);
+  }
+  // Managed preview restrictions deny both fresh and potentially dispatched
+  // work before touching the durable state; they never relabel uncertainty.
+  const previewEnv={...env,VERCEL_ENV:'preview'},previewWorker=new ContactVerificationDelivery(db,previewEnv,new CloudflareEmail(previewEnv,unexpected));
+  for(const dispatched of [false,true]){
+   const f=await fixture(),owned=await own(f.job);
+   if(dispatched){mode='lost';assert.equal(await worker().process(owned),'uncertain');mode='success';}
+   const durable=()=>sql.query(`select jsonb_build_array(o.status,d.encrypted_prepared,d.dispatched_at,j.status,j.lease_token) from fmat.outbox o left join fmat.contact_verification_deliveries d on d.outbox_id=o.id join fmat.jobs j on j.id='${f.job}' where o.id='${f.outbox}';`);
+   const beforeState=await durable();count=posts;
+   await assert.rejects(previewWorker.process(owned),{code:'CONFIGURATION_UNAVAILABLE'});
+   assert.equal(await durable(),beforeState);assert.equal(posts,count);assert.equal(unexpectedPosts,0);
+   assert.equal((await service.read(f.guest,{requestId:f.id})).status,'pending');
+  }
   const lostDispatch=await fixture();dropped=false;count=posts;assert.equal(await worker(lose('dispatch')).process(await own(lostDispatch.job)),'uncertain');assert.equal(dropped,true);assert.equal(posts,count);
   const lostRecord=await fixture();dropped=false;await worker(lose('record')).process(await own(lostRecord.job));assert.equal(dropped,true);assert.equal(await status(lostRecord.outbox),'sent');assert.equal(posts,count+1);
   const expired=await fixture();mode='expired';assert.equal(await worker().process(await own(expired.job)),'lease_lost');mode='success';count=posts;assert.equal(await worker().process(await own(expired.job)),'uncertain');assert.equal(posts,count);

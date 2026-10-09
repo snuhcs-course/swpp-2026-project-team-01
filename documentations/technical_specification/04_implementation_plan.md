@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Audit all 12 retired contact-delivery assertions; verify sender configuration failures, frozen-account mismatch, unchanged preview state and uncertainty after challenge expiry through the real delivery integration. Read back zero legacy delivery records in the selected production project. [Evidence](05_rebuild_evidence.md#legacy-contact-delivery-audit--2026-10-09). Record removed enable flags and legacy transactional AgentMail format explicitly; wider legacy and live-provider acceptance remain open.
+
 - [x] Audit the eight retired request-evaluation assertions; verify initial stale-revision denial before providers/state changes, frozen booking protection during Calendar lag and differing provider intervals, and immutable local/provider context. Pass the real evaluator integration, 436 app/provider tests and 1,860 post-fixture SQL assertions. [Evidence](05_rebuild_evidence.md#legacy-request-evaluation-audit--2026-10-09). Record changed deadline/ranking/mode contracts; online travel scope and the wider inventory remain open.
 
 - [x] Audit all 21 retired scheduling assertions and strengthen hard-conflict call ordering plus manual-context coverage: five new unit tests, six real evaluator conflict cases, 435 app/provider tests and 1,860 post-fixture SQL assertions pass. [Evidence](05_rebuild_evidence.md#legacy-scheduling-assertion-map--2026-10-09). Twenty assertions have explicit preserved/replacement mappings; online-adjacent travel remains an unresolved product/spec difference, and the wider legacy inventory remains open.
