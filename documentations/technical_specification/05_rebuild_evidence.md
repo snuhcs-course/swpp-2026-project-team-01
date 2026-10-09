@@ -2,6 +2,16 @@
 
 Updated: 2026-10-09. This ledger tracks the entire [implementation plan](04_implementation_plan.md); an empty evidence cell is incomplete, not a passed gate.
 
+## Legacy booking worker and runtime audit — 2026-10-09
+
+Read all 24 named assertions in the retired booking durable adapter, handler and runtime at `5c305d9^`. The [assertion map](12_legacy_booking_audit.md) records preserved authority/recovery behavior and explicit replacement contracts: strict worker leases with SQL-owned job binding, persisted evaluation evidence, asynchronous duplicate-ID reconciliation, renamed worker outcomes and conservative local/provider context merging. The destination-only regression was corrected and deployed in the preceding increment; this audit adds no runtime or schema change.
+
+Two worker tests verify malformed/injected inputs cause zero database I/O and saved-event recovery retains the original lease, SQL fingerprint and exact calendar/event while stripping worker/private fields. The real booking integration rejects five malformed or mismatched persisted request/attempt bindings without changing the prepared phase or reading providers. It then exercises the existing dispatch, withdrawal, reconnect, competing-worker and 43 SIGKILL cases successfully (94 seconds).
+
+The real availability integration additionally checks unselected, selected-conflict and booking-destination receipt scope through the replacement snapshot RPC and resulting availability windows with empty provider busy data. The first fixture tried changing an immutable confirmed calendar and was correctly rejected by the database. It was corrected to change current host selections; the failed local fixture and dependent records were removed in a bounded transaction. The corrected suite passes (22 seconds), preserving and restoring the host selections without changing the booking snapshot.
+
+Verification: `npm run check` passes with 443 application/provider tests; booking and availability integrations run sequentially, followed by all 1,860 SQL assertions across 40 files. Documentation links and diff whitespace pass. This is a tests/documentation increment; there is no new production artifact to deploy. Production remains on the preceding verified destination fix. No provider messages were sent. The wider 34-file retrospective audit, live Google consent/booking, device/client acceptance and release readiness remain open.
+
 ## Unlinked private continuation foundation (2026-10-07)
 
 The new private handoff ledger and server service create one encrypted, fifteen-minute setup continuation from a fresh signed unlinked receipt. Recipient, private space and receiver are fixed; preparation also completes the ingress job and publication. Per-sender limits, changed-receiver/current-link checks and expiry prevent obsolete issuance. The fixed reply carries a fragment token, never incoming text or host data. Delivery uses stable IDs, current authorization, fenced leases and reconciliation without resend. The resolver exposes only server-side route metadata and grants no host authority.

@@ -15,6 +15,15 @@ export async function verifyBookingEvaluation(database:Database,env:NodeJS.Proce
   const renew=()=>sql.query(`update fmat.jobs set status='running',worker_id='${workerId}',lease_token='${leaseToken}',lease_until=clock_timestamp()+interval '90 seconds' where id='${saved.jobId}';`);
   const evaluation=new AvailabilityEvaluation(database,env,{async refresh(bundle){return bundle;},async list(){lists++;return [{id:saved.calendarId,name:'fixture',accessRole:writable?'owner':'reader',primary:false,timeZone:'UTC',color:null}];}},{async read(){reads++;await onRead?.();return conflict?[saved.candidate]:[];}});
   await renew();
+  const originalPayload=await sql.query(`select payload from fmat.jobs where id='${saved.jobId}';`);
+  const load=()=>database.rpc('fmat_booking_worker',{p_operation:'load',p_lease:lease(),p_input:{}});
+  for(const payload of [{},{attemptId:saved.attemptId},{requestId},{requestId:randomUUID(),attemptId:saved.attemptId},{requestId,attemptId:randomUUID()}]){
+   await sql.query(`update fmat.jobs set payload='${JSON.stringify(payload)}' where id='${saved.jobId}';`);
+   try{await assert.rejects(load());assert.equal(await sql.query(`select phase from fmat.booking_attempts where id='${saved.attemptId}';`),'prepared');}
+   finally{await sql.query(`update fmat.jobs set payload='${originalPayload}' where id='${saved.jobId}';`);}
+  }
+  const loaded=await load() as {requestId:string;attemptId:string};
+  assert.equal(loaded.requestId,requestId);assert.equal(loaded.attemptId,saved.attemptId);
   for(const invalid of [{...lease(),workerId:'other'},{...lease(),leaseToken:randomUUID()},{...lease(),jobId:randomUUID()}])await assert.rejects(evaluation.readForBooking(invalid,target));
   await assert.rejects(evaluation.readForBooking(lease(),{...target,requestId:randomUUID()}));
   await assert.rejects(evaluation.readForBooking(lease(),{...target,revision:target.revision+1}));

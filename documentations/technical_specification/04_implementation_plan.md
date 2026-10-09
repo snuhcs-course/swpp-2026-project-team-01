@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Audit all 24 retired booking adapter/handler/runtime assertions; add strict lease/context, persisted job-binding and replacement receipt-scope coverage. Verify 443 app/provider tests, actual booking and availability integrations, and 1,860 post-fixture SQL assertions. Record asynchronous duplicate-ID reconciliation and other API changes in the [audit](12_legacy_booking_audit.md) and [evidence](05_rebuild_evidence.md#legacy-booking-worker-and-runtime-audit--2026-10-09). Wider legacy and live-provider gates remain open.
+
 - [x] Deploy the booking-destination correction from `bab8503` as `dpl_GyFfpJ7GCKNDCcVHuZqDgoo7qFeR`; verify the exact Ready release alias, protected health and 36 production HTTP checks. Complete booking task 2.1a. [Evidence](05_rebuild_evidence.md#deployed-booking-destination-checks--2026-10-09). Live Calendar acceptance remains open.
 
 - [x] Reproduce and fix a booking-destination conflict regression: final checks include a distinct frozen destination for free/busy and physical travel, within the shared deadline and 50-calendar request limit. Verify five regression/deadline tests, 441 app/provider tests, actual booking/availability integrations and built runtime checks. [Evidence](05_rebuild_evidence.md#booking-destination-conflict-regression--2026-10-09). Live booking and wider legacy audit remain open.

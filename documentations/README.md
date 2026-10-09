@@ -71,3 +71,5 @@ The [backup and restoration runbook](technical_specification/09_backup_recovery.
 The [legacy scheduling audit](technical_specification/10_legacy_scheduling_audit.md) maps the retired evaluator assertions to current behavior and tests, including explicit policy differences and the unresolved online-travel scope.
 
 The [legacy delivery audit](technical_specification/11_legacy_delivery_audit.md) maps retired contact-mail assertions, configuration changes and historical-record boundaries to current workers and verification.
+
+The [legacy booking audit](technical_specification/12_legacy_booking_audit.md) maps 24 retired durable adapter, booking handler and runtime assertions to current authority, recovery, receipt scope and explicit API changes.

@@ -409,6 +409,17 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   // provider event must not reopen the locally confirmed interval.
   await manual.manual(credential,{revision:await revision(),confirmed:true,timezone:'UTC',windows});
   hostBusyOverride=[];
+  // Exercise the replacement snapshot RPC rather than the retired evaluation_read
+  // contract: receipts follow selected conflicts plus the booking destination.
+  try{
+   for(const [scope,included] of [['unselected',false],['conflict',true],['destination',true]] as const){
+    await sql.query(`update fmat.hosts set conflict_calendar_ids=array['${scope==='conflict'?'booking':'host-calendar'}'],booking_calendar_id='${scope==='destination'?'booking':'other-destination'}' where id='${host}';`);
+    const scoped=await database.rpc('fmat_availability_evaluation',{p_operation:'start',p_credential:credential,p_input:{requestId,revision:await revision(),checkId:randomUUID()}}) as {localBookings:{start:string;end:string}[];localCommitments:{eventId:string;calendarId:string}[]};
+    assert.equal(scoped.localBookings.length,included?1:0,`Busy receipt scope: ${scope}`);
+    assert.equal(scoped.localCommitments.some(c=>c.eventId==='fmat123'&&c.calendarId==='booking'),included,`Adjacent receipt scope: ${scope}`);
+    assert.deepEqual((await check()).evaluation.windows,[{start:day+'T10:00:00Z',end:day+(included?'T11:15:00Z':'T12:00:00Z')}],`Only effective-calendar receipts restrict availability: ${scope}`);
+   }
+  }finally{await sql.query(`update fmat.hosts set conflict_calendar_ids=array['host-calendar'],booking_calendar_id='booking' where id='${host}';`);}
   assert.deepEqual((await check()).evaluation.windows,[{start:day+'T10:00:00Z',end:day+'T11:15:00Z'}],'The frozen booking blocks time even when Calendar returns no event');
   hostBusyOverride=[{start:at('10:00'),end:at('10:30')}];
   const movedBusy=structuredClone(hostBusyOverride);
