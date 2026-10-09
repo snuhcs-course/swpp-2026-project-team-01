@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Verify requester-window expiry during observed request-lock waits for proposal and apply, state preservation, and committed replay after time passes. Pass real RPC integration, 1,853 post-fixture SQL assertions, 413 app/provider tests, both builds and runtime smoke. [Evidence](05_rebuild_evidence.md#requester-review-window-integrated-acceptance--2026-10-09). Production verification and archive remain open.
+
 - [x] Implement private assistant review-window validation at proposal/apply boundaries with durable retries. Review generated migration `20261009082925`, rebuild 108 local migrations, and pass 23 new/1,853 total SQL assertions plus clean security advisors. [Evidence](05_rebuild_evidence.md#requester-review-window-database-validation--2026-10-09). Production rollout remains open.
 
 - [x] Reproduce accepted past-start requester review windows and define the bounded [review-window correction](../../openspec/changes/validate-requester-draft-windows/tasks.md), including duration, lock-time expiry and durable retries. [Evidence](05_rebuild_evidence.md#requester-draft-window-validation-gap--2026-10-09). Implementation and production validation remain open.

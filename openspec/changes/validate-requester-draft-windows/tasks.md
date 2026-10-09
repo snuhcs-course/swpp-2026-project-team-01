@@ -7,7 +7,7 @@
 
 ## 2. Integrated acceptance
 
-- [ ] 2.1 Extend real request-review integration with past/short windows, valid partial patches, concurrent retries and expiry while waiting for locks. Verify no pending-review supersession or request mutation on denial, replay after expiry and clean post-fixture SQL; run application checks/builds and update the implementation plan.
+- [x] 2.1 Extend real request-review integration with past/short windows, valid partial patches, concurrent retries and expiry while waiting for locks. Verify no pending-review supersession or request mutation on denial, replay after expiry and clean post-fixture SQL; run application checks/builds and update the implementation plan.
 
 ## 3. Production verification
 

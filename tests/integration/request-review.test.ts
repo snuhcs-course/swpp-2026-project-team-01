@@ -7,6 +7,7 @@ import {guestCredential,type Credential} from '../../lib/server/identity/credent
 import {publicError} from '../../lib/server/errors.ts';
 import {Database} from '../../lib/server/database/client.ts';
 import {LocalSql} from './local-sql.ts';
+import {verifyReviewWindowLocks} from './request-review-windows.ts';
 
 test('concurrent explicit review retries apply once and current authority fences cached results',async()=>{
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
@@ -16,6 +17,11 @@ test('concurrent explicit review retries apply once and current authority fences
  try{
   await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invite}','${host}@example.test','${createHash('sha256').update(invite).digest('hex')}',now()+interval '1 day','review-test');insert into fmat.hosts(id,email,invitation_id) values('${host}','${host}@example.test','${invite}');insert into fmat.requests(id,host_id,details,token_hash,expires_at) values('${request}','${host}','{"requesterName":"Preserved name","purpose":"original"}','${hash}',now()+interval '1 day');`);
   const grant=await database.rpc('fmat_conversation_access',{p_operation:'open',p_credential:credential,p_input:{audience:'request_shared',requestId:request}}) as {grantId:string;conversationId:string};
+  const now=Date.now();
+  for(const [start,end] of [[now-60000,now+3600000],[now+3600000,now+4500000]]){
+   await assert.rejects(database.rpc('fmat_conversation_tool',{p_grant_id:grant.grantId,p_conversation_id:grant.conversationId,p_operation:'details_propose',p_input:{expectedRevision:1,patch:{durationMinutes:30,windows:[{start:new Date(start).toISOString(),end:new Date(end).toISOString()}]},clarifications:[],idempotencyKey:randomUUID()}}),{code:'INVALID_INPUT'});
+  }
+  assert.equal(await sql.query(`select count(*) from fmat.request_detail_reviews where request_id='${request}';`),'0','Invalid extracted windows cannot create a review');
   const input={expectedRevision:1,patch:{purpose:'Reviewed purpose'},clarifications:[],idempotencyKey:'one-message'};
   const propose=()=>database.rpc('fmat_conversation_tool',{p_grant_id:grant.grantId,p_conversation_id:grant.conversationId,p_operation:'details_propose',p_input:input});
   await Promise.all(Array.from({length:6},propose));
@@ -35,6 +41,7 @@ test('concurrent explicit review retries apply once and current authority fences
    assert.doesNotMatch(JSON.stringify(safe),new RegExp(`${token}|${hash}|Reviewed purpose|Preserved name`));return true;
   });
   assert.equal((await service.read(credential)).revision,2,'conflicting retry cannot undo the committed review');
+  await verifyReviewWindowLocks(database,sql,service,credential,request,grant);
   await sql.query(`update fmat.requests set token_revoked_at=now() where id='${request}';`);
   await assert.rejects(service.decide('apply',credential,decision),{code:'NOT_FOUND'});
   await assert.rejects(service.read(credential),{code:'NOT_FOUND'});
