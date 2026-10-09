@@ -21,6 +21,7 @@ Date: 2026-10-09. This is an obligation and ownership map, not a release sign-of
 | Host setup | [conversational-host-setup](../../openspec/changes/conversational-host-setup/tasks.md) |
 | Email binding/replies | [bind-requester-email](../../openspec/changes/bind-requester-email/tasks.md), [deliver-requester-email-replies](../../openspec/changes/deliver-requester-email-replies/tasks.md) |
 | Operator invitations | [deliver-operator-invitations](../../openspec/changes/deliver-operator-invitations/tasks.md) |
+| Agent intake | [enable-agent-request-intake](../../openspec/changes/enable-agent-request-intake/tasks.md) |
 | Agent tools | [deliver-agent-tools-and-cli](../../openspec/changes/deliver-agent-tools-and-cli/tasks.md) |
 | Public entry | [main contract](../../openspec/specs/public-agent-entry/spec.md); complete client journeys remain with agent tools |
 | Compatibility | [validate-provider-and-agent-compatibility](../../openspec/changes/validate-provider-and-agent-compatibility/tasks.md) |
@@ -45,16 +46,16 @@ The evidence column summarizes inspected tests and dated ledger entries; the las
 | AC-12 | Feasibility; Calendar | Both DST transitions through real evaluation/selection/agreement preserve instants; ambiguous input rejected. | Actual-device/live Calendar display acceptance remains separate. |
 | AC-13 | Foundation; booking | Late/stale closure decisions, expiry locks and withdrawal/dispatch races pass. | Include live terminal/uncertain behavior in final journey. |
 | AC-14 | Agent tools; compatibility | SDK, application OAuth and actual requester CLI protocol evidence exists. | Test both roles independently in Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code; none inferred from SDK success. |
-| AC-15 | Agent tools; compatibility | Current requester tools operate after browser intake; delegated account-free initial creation is not implemented by the CLI flow. | Implement agent-led request bootstrap and delegation/clarification without manual booking-page interaction, then test every named client. |
+| AC-15 | Agent intake; agent tools; compatibility | Current requester tools operate after browser intake; delegated account-free initial creation is not implemented by the CLI flow. | Implement agent-led request bootstrap and delegation/clarification without manual booking-page interaction, then test every named client. |
 | AC-16 | Host setup; booking; compatibility | Linked private runtime and protected current-proposal web handoffs pass with fixtures. | Authorized real iMessage question/revision/approval and separate decline, with current requester agreement. |
 | AC-17 | Host setup; compatibility | Unlinked/group/stale authority denial, proof expiry and queued/outbound unlink fencing pass. | Actual private/group/ambiguous-message acceptance with controlled identities. |
 | AC-18 | Host setup; booking; compatibility | Runtime restart, durable reply uncertainty and booking duplicate recovery pass separately. | Combined live message approval/restart/web race and notification failure journey. |
 | AC-19 | Agent tools; compatibility | Scoped OAuth consent/deny, refresh and revocation; production requester CLI acceptance. | Actual host connection after Google login and per-client denial/revocation. |
 | AC-20 | Agent tools; compatibility | Issuer/resource/token type/scope denial and no OAuth-to-meeting approval pass. | Repeat against each actual supported client and live host flow. |
-| AC-21 | Agent tools | Existing request-bound operations deny foreign requests, host-only data and host actions. | Public-link agent bootstrap and subsequent account-free continuation remain open with AC-15. |
+| AC-21 | Agent intake; agent tools | Existing request-bound operations deny foreign requests, host-only data and host actions. | Public-link agent bootstrap and subsequent account-free continuation remain open with AC-15. |
 | AC-22 | Agent tools; compatibility | Machine-readable CLI, SDK calls, same-request retry/version and browser handoff coverage. | Full deployed MCP/CLI scheduling parity and missing-setup journey through confirmation. |
 | AC-23 | Host setup; agent tools; compatibility | Root instructions, readiness-only share links and resumable setup fixtures pass. | Both interrupted/existing/new host paste-to-agent paths in every named client, with actual consent. |
-| AC-24 | Agent tools; compatibility | Host-specific public instructions and protected requester tools exist. | Delegated initial creation, minimal clarification and pending-to-confirmed outcome from the exact paste prompt. |
+| AC-24 | Agent intake; agent tools; compatibility | Host-specific public instructions and protected requester tools exist. | Delegated initial creation, minimal clarification and pending-to-confirmed outcome from the exact paste prompt. |
 | AC-25 | Public entry; agent tools; compatibility | Public-only documents, unavailable hosts and safe fallback fixtures pass. | Actual fetch/connect failure and denied consent paths per named client. |
 | AC-26 | Foundation; operator invitations; agent tools | Waitlist deduplication, verified-recipient redemption, expiry/revocation, concurrent and direct bypass tests pass. | Complete host MCP/CLI admission journey and authorized invitation mailbox acceptance. |
 | AC-27 | Calendar; feasibility; compatibility | Request-scoped consent/denial, manual replacement, busy exclusion, revocation and changed availability fixtures pass. | Actual uninvited requester Google consent, refresh, disconnect/reconnect and browser return. |
