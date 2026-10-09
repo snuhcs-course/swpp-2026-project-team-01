@@ -6,8 +6,8 @@
   "scripts": {
     "check:docs": "node scripts/check-documentation.mjs",
     "lint": "node --check scripts/check-documentation.mjs && node --check scripts/configure-email-smtp.mjs && node --check scripts/configure-email-smtp.test.mjs && node --check scripts/smoke-runtime.mjs && node --check scripts/verify-model.mjs && node --check scripts/probe-oauth-compatibility.mjs && node --check scripts/probe-google-login.mjs && node --check scripts/probe-google-login.test.mjs",
-    "test": "node --test scripts/configure-email-smtp.test.mjs scripts/probe-google-login.test.mjs",
-    "check": "npm run lint && npm run check:docs && npm run typecheck && npm test && npm run test:app",
+    "test": "node --test scripts/configure-email-smtp.test.mjs scripts/probe-google-login.test.mjs scripts/check-client-boundaries.test.mjs",
+    "check": "npm run lint && npm run check:docs && npm run check:boundaries && npm run typecheck && npm test && npm run test:app",
     "db:test": "supabase test db",
     "dev": "vercel dev --local",
     "dev:web": "next dev apps/web",
@@ -30,7 +30,8 @@
     "fmat": "tsx scripts/fmat.ts",
     "probe:google-login": "node scripts/probe-google-login.mjs",
     "invitations": "node --import tsx scripts/invitations.ts",
-    "diagnostics": "node --import tsx scripts/diagnostics.ts"
+    "diagnostics": "node --import tsx scripts/diagnostics.ts",
+    "check:boundaries": "node scripts/check-client-boundaries.mjs"
   },
   "type": "module",
   "dependencies": {

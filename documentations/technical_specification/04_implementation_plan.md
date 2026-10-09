@@ -105,6 +105,8 @@ References: [repository change workflow](../../AGENTS.md#documentation-and-speci
 
 ### Phase 1 — Prove the runtime and settle deployment decisions
 
+- [x] Complete provider/runtime task 1.1: pin eve/chatbot reference revisions and runtime dependencies, verify direct OpenAI structured calls, add a CI browser/shared-contract import boundary check, and verify independent builds plus 15 composed production health/access checks. [Evidence](05_rebuild_evidence.md#runtime-reference-and-client-boundary-acceptance--2026-10-09). Managed recovery and live provider/client gates remain open.
+
 - [x] Run the pinned local OAuth resource-isolation spike and retain a reproducible probe: unmodified GoTrue v2.197.0 fails wrong-resource form exchange/refresh and audience requirements despite passing PKCE/replay/revocation. Record the rejected boundary and required enforcement before MCP implementation. [Evidence](05_rebuild_evidence.md#local-oauth-resource-isolation-spike--2026-10-08). Full OAuth and named-client gates remain open.
 
 Incremental completion (full phase exit remains open):
@@ -116,7 +118,7 @@ Incremental completion (full phase exit remains open):
 Work:
 
 - [ ] Configure the reconstruction deployment at `https://release.findmeatime.com` following [provider setup](03_provider_setup.md#reconstruction-deployment-origin). Verify domain attachment, DNS, TLS and origin configuration before remote callback tests; preserve root-domain and mail records.
-- [ ] Build the smallest integration with root `agent/`, Next.js in `apps/web/` and shared root `lib/`, following the [reference repositories](04_implementation_plan.md#reference-repositories) and [source organization](02_frontend_architecture.md#source-organization). Pin the dependency set verified on Node.js 24/npm; keep Supabase identity in control.
+- [x] Build the smallest integration with root `agent/`, Next.js in `apps/web/` and shared root `lib/`, following the [reference repositories](04_implementation_plan.md#reference-repositories) and [source organization](02_frontend_architecture.md#source-organization). Pin the dependency set verified on Node.js 24/npm; keep Supabase identity in control.
 - [ ] Wire the direct OpenAI provider; verify the selected model and account entitlement. Keep keys server-side and fail clearly on missing credentials, rate limits and exhausted credits. A model failure must not advance scheduling state.
 - [ ] Exercise two hosts and two request-scoped requesters. Verify session creation/read/list/stream/resume and every exposed mutation against actor, resource and audience. Inspect per-user memory scoping if memory is enabled; disable it until isolation is proven.
 - [ ] Kill/restart the runtime mid-turn and after a tool commit; reconnect the browser. Verify authorized output recovery and one domain effect despite repeated tool execution. Test revocation while a stream/session exists.

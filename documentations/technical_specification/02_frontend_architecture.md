@@ -8,7 +8,7 @@ Companion: [Page list](../user_experience/04_page_list.md)
 
 Rebuild the web, agent integration, and Supabase scheduling backend source. Retain product requirements and provider/infrastructure choices unless a later decision changes them. Existing API routes, components, DTOs and workers are reference material, not a compatibility boundary. Do not describe this work as a frontend port onto the old backend. The [implementation plan](04_implementation_plan.md) records scope and source preservation.
 
-Use Next.js App Router and TypeScript for the web, React for interactive components, and eve as the proposed conversation runtime. Use shadcn/ui primitives for accessible controls and selected AI Elements components where they fit the scheduling UI. Keep npm as the workspace package manager. Pin a tested dependency set and verify the selected eve template's build integration on Node.js 24 before completing the application structure.
+Use Next.js App Router and TypeScript for the web, React for interactive components, and eve as the selected conversation runtime. Use shadcn/ui primitives for accessible controls and selected AI Elements components where they fit the scheduling UI. Keep npm as the workspace package manager. Pin a tested dependency set and verify the selected eve template's build integration on Node.js 24 before completing the application structure.
 
 Use the [eve chat template](https://github.com/vercel/eve/tree/main/apps/templates/eve-chat-template) for runtime/client integration, the [personal-agent template](https://github.com/vercel/eve/tree/main/apps/templates/personal-agent-template) for channel-linking concepts, and [Vercel chatbot](https://github.com/vercel/chatbot) for interaction references. Do not copy their authentication, databases or application chrome wholesale. Template selection does not override our permissions or the no-sidebar [workspace contract](../../openspec/specs/chat-workspaces/spec.md).
 
@@ -17,6 +17,18 @@ Configure eve's model on the server through the [direct OpenAI provider](03_prov
 Supabase remains the selected database and host identity infrastructure. Its existing scheduling API, domain services and worker implementation are in replacement scope. The final placement of rebuilt API/worker code, queue processing and eve persistence must be recorded in backend design after the runtime check; the frontend depends on typed application contracts rather than Supabase table shapes or old Edge Function URLs.
 
 Use **`https://release.findmeatime.com`** as the reconstruction public origin. Generate share links and browser handoffs from server-owned origin configuration; keep browser API requests same-origin. [Provider setup](03_provider_setup.md#reconstruction-deployment-origin) owns domain, Auth and Calendar callback configuration.
+
+## Verified runtime and reference pins
+
+The 2026-10-09 runtime check uses Node 24.21.0/npm 11.19.0, eve 0.71.3, Next.js 16.4.0, React/React DOM 19.2.8 and AI SDK 7.0.105. Root `package.json` and `package-lock.json` pin the complete tested dependency graph. `agent/agent.ts` selects direct OpenAI through `eve/models/openai`; `lib/server/model.ts` allows only native `gpt-6-luna` with explicit context metadata. Builds need the model ID but perform no model call; `npm run verify:model` is a separate opt-in synthetic live entitlement/tool-call probe.
+
+| Reference revision | Reviewed role and application decision |
+|---|---|
+| [eve chat template at cebbc9b](https://github.com/vercel/eve/tree/cebbc9b611be2b0eda728c731f675f592b57b100/apps/templates/eve-chat-template) | Retain root agent, `apps/web`, independent builds and `withEve` composition. Our explicit authenticated conversation routes precede the web fallback. |
+| [personal-agent template at the same eve revision](https://github.com/vercel/eve/tree/cebbc9b611be2b0eda728c731f675f592b57b100/apps/templates/personal-agent-template) | Channel/connection concepts only. Its model string and Nuxt frontend are not adopted; our direct OpenAI configuration and application-owned channel authorization remain explicit. |
+| [Vercel chatbot at c2f8235](https://github.com/vercel/chatbot/tree/c2f8235e1f3ea903ad8b7f61447c4f74164b5c58) | Review pin captured on 2026-10-09, not a claim of the historical copy source. Reviewed conversation rendering, streaming feedback and latest-message navigation. Retain our eve transport, one host workspace and explicit scheduling cards; do not adopt its chat ownership/database or generic tool approval as meeting authority. |
+
+`npm run check:boundaries` checks all browser client roots and shared contracts for runtime paths into privileged application modules and direct private environment reads. It follows local aliases, re-exports and dynamic imports; erased type references remain valid. See [test scope and limitations](../../tests/README.md#browser-and-shared-contract-import-boundaries). Both builds and the composed deployment's protected routes provide additional runtime evidence; none of these checks establishes live provider/client journeys or managed recovery.
 
 ## Logical boundaries
 

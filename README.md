@@ -29,7 +29,7 @@ See the [frontend architecture](documentations/technical_specification/02_fronte
 
 ## Rebuild status
 
-The product is pre-launch. A full application-source rebuild is in progress on `feat/reconstruct-application` in the main checkout, including the web, agent integration, Supabase scheduling backend, contracts and channel integration. Supabase remains selected infrastructure. Next.js with eve is the proposed direction, subject to build, authorization and recovery checks.
+The product is pre-launch. A full application-source rebuild is in progress on `feat/reconstruct-application` in the main checkout, including the web, agent integration, Supabase scheduling backend, contracts and channel integration. Supabase remains selected infrastructure. Next.js with eve is implemented and its separate builds and protected deployment routes are verified. Managed recovery and live provider/client acceptance remain release gates.
 
 The selected rebuild Supabase project is **`mriseqztcwmezvtawnbo`**. The ignored root environment contains matching project credentials. Verify CLI link metadata before any remote operation; credentials alone do not establish a link. See the [project connection status](documentations/technical_specification/03_provider_setup.md#selected-rebuild-supabase-project) before any deployment.
 
@@ -50,7 +50,7 @@ Use Node.js 24, npm 11, Supabase CLI 2.119.0 and OpenSpec CLI 1.14.0. Dependenci
 ```sh
 npm ci
 cp .env.example .env # only for a fresh checkout; preserve an existing .env
-npm run check
+npm run check # includes browser/shared-contract import boundaries
 npm run build
 npm run test:runtime
 ```
