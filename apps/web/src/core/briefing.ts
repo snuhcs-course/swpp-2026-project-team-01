@@ -41,6 +41,8 @@ type Topic = 'work' | 'meeting' | 'place'
 /** Is this a question about what the analysis saw (as opposed to the user telling us their hours)? */
 export function historyQuestion(text: string): Topic[] | null {
   const t = text.trim()
+  // A polite request ("13시부터로 변경해줄래?") ends in "?" but asks for a change, not for the analysis.
+  if (/변경|바꿔|바꾸|바꿀|수정|고쳐|설정해|반영해|넣어|추가해|빼 ?줘|빼 ?줄래|지워|맞춰/.test(t)) return null
   if (!/[?？]$|어떻게|뭐|몇 ?시|언제|어디|무슨|알려 ?줘|생각했|추정|짐작|봤어|분석/.test(t)) return null
   const topics: Topic[] = []
   if (/근무|일하|출근|퇴근|업무 ?시간/.test(t)) topics.push('work')
