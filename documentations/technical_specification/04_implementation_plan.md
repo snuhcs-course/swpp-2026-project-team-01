@@ -404,6 +404,8 @@ References: [email direction](01_backend_architecture.md#email-provider-directio
 
 ### Phase 7 — Add verified host iMessage continuity
 
+- [x] Define the [optional native contact-sharing change](../../openspec/changes/offer-imessage-contact-card/proposal.md), including explicit host intent, saved private route, durable single dispatch and honest uncertainty. Strict OpenSpec validation passes; implementation and authorized device acceptance remain open.
+
 Work:
 
 - [ ] Implement the Spectrum adapter/bridge chosen in Phase 1 and scoped server authorization. Verify shared-pool target policy and actual sender route before live tests.
