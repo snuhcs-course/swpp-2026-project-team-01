@@ -2,7 +2,7 @@
 
 ## 1. Deployment admission
 
-- [ ] 1.1 Add shared deployment admission at all messaging worker and transport entry points; verify preview/development/custom/ambiguous denial before RPC/network access and production/local compatibility, and document configuration and limits.
+- [x] 1.1 Add shared deployment admission at all messaging worker and transport entry points; verify preview/development/custom/ambiguous denial before RPC/network access and production/local compatibility, and document configuration and limits.
 
 ## 2. Integrated verification and rollout
 

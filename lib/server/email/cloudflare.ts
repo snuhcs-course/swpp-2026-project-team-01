@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {ApplicationError} from '../errors.ts';
-import {requiredEnv} from '../config.ts';
+import {requiredEnv,requireMessagingEnvironment} from '../config.ts';
 export const preparedEmail=z.strictObject({id:z.uuid(),accountId:z.string().regex(/^[a-f0-9]{32}$/u),message:z.strictObject({from:z.literal('no-reply@findmeatime.com'),to:z.email(),subject:z.string().min(1).max(200).regex(/^[^\r\n]+$/u),html:z.string().min(1).max(65536),text:z.string().min(1).max(32768)})});
 export type PreparedEmail=z.infer<typeof preparedEmail>;
 export type EmailOutcome={outcome:'sent';providerReference:string}|{outcome:'uncertain'|'failed'|'suppressed';reason:string};
@@ -8,6 +8,7 @@ export type EmailOutcome={outcome:'sent';providerReference:string}|{outcome:'unc
 export class CloudflareEmail{
  constructor(private readonly env=process.env,private readonly fetcher:typeof fetch=fetch){}
  configuration(){
+  requireMessagingEnvironment(this.env);
   const accountId=requiredEnv('CLOUDFLARE_ACCOUNT_ID',this.env),from=requiredEnv('CLOUDFLARE_EMAIL_FROM',this.env),token=requiredEnv('CLOUDFLARE_EMAIL_API_TOKEN',this.env);
   if(!/^[a-f0-9]{32}$/u.test(accountId)||from!=='no-reply@findmeatime.com'||/[\r\n]/u.test(token))throw new ApplicationError('CONFIGURATION_UNAVAILABLE',503);
   return {accountId,from:'no-reply@findmeatime.com' as const};

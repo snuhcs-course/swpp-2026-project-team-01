@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {requiredEnv} from '../config.ts';
+import {requiredEnv,requireMessagingEnvironment} from '../config.ts';
 import {ApplicationError} from '../errors.ts';
 
 const opaque=z.string().min(1).max(512).refine(value=>!/[\u0000-\u0020\u007f]/u.test(value)&&value!=='.'&&value!=='..');
@@ -42,6 +42,7 @@ const replayWindow=23*60*60*1000;
 export class AgentMailReplyTransport {
  constructor(private readonly env:NodeJS.ProcessEnv=process.env,private readonly fetcher:typeof fetch=fetch,private readonly now:()=>number=Date.now){}
  private prepare(input:FrozenAgentMailReply){
+  requireMessagingEnvironment(this.env);
   const parsed=frozenAgentMailReply.safeParse(input);
   if(!parsed.success)throw new ApplicationError('INVALID_INPUT',400);
   const inbox=requiredEnv('AGENTMAIL_INBOX_ID',this.env),key=requiredEnv('AGENTMAIL_API_KEY',this.env);

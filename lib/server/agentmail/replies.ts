@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {Database} from '../database/client.ts';
-import {requiredEnv} from '../config.ts';
+import {requiredEnv,requireMessagingEnvironment} from '../config.ts';
 import {ApplicationError} from '../errors.ts';
 import {AgentMailReplyTransport,frozenAgentMailReply,type AgentMailReplyResult} from './reply-transport.ts';
 
@@ -11,6 +11,7 @@ export async function dispatchRequesterEmailReply(
  database:Pick<Database,'rpc'>=new Database(),env:NodeJS.ProcessEnv=process.env,
  transport:Pick<AgentMailReplyTransport,'send'>=new AgentMailReplyTransport(env),
 ){
+ requireMessagingEnvironment(env);
  const inbox=z.email().safeParse(env.AGENTMAIL_INBOX_ID),receiver=z.uuid().safeParse(env.AGENTMAIL_RECEIVER_ID);
  if(!inbox.success||!receiver.success)throw new ApplicationError('CONFIGURATION_UNAVAILABLE',503);
  requiredEnv('AGENTMAIL_API_KEY',env);

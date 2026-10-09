@@ -1,7 +1,7 @@
 import {createGrpcClient,IMessageError,type AdvancedIMessage,type Message} from '@photon-ai/advanced-imessage/grpc';
 import {z} from 'zod';
 import {ApplicationError} from '../errors.ts';
-import {requiredEnv} from '../config.ts';
+import {requiredEnv,requireMessagingEnvironment} from '../config.ts';
 import type {Fetch} from '../database/client.ts';
 
 const tokens=z.discriminatedUnion('type',[
@@ -33,6 +33,7 @@ export class PhotonTransport {
   }catch{throw new ApplicationError('PROVIDER_UNAVAILABLE',503);}
  }
  async prepare(phone:string):Promise<PhotonRoute>{
+  requireMessagingEnvironment(this.env);
   if(!/^\+[1-9]\d{7,14}$/u.test(phone))throw new ApplicationError('INVALID_INPUT',400);
   const route=await this.route(this.env.PHOTON_LINE||undefined);
   return {line:route.line,spaceId:'any;-;'+phone};
@@ -46,6 +47,7 @@ export class PhotonTransport {
   return {status:message.sendErrorCode!==0?'failed':message.isDelivered?'delivered':'accepted',providerReference:message.guid};
  }
  async send(route:PhotonRoute,phone:string,text:string,clientMessageId:string,authorize:()=>Promise<void>):Promise<SendResult>{
+  requireMessagingEnvironment(this.env);
   if(route.spaceId!=='any;-;'+phone||!/^\+[1-9]\d{7,14}$/u.test(phone)||!z.uuid().safeParse(clientMessageId).success)throw new ApplicationError('INVALID_INPUT',400);
   return this.withClient(route.line,async client=>{
    if(!await client.addresses.isIMessageAvailable(phone))return {status:'failed',providerReference:null};
@@ -62,6 +64,7 @@ export class PhotonTransport {
   });
  }
  async reconcile(route:PhotonRoute,reference:string|null):Promise<SendResult>{
+  requireMessagingEnvironment(this.env);
   if(!reference)return {status:'uncertain',providerReference:null};
   try{return await this.withClient(route.line,async client=>this.result(await client.messages.get(reference),route.spaceId));}
   catch{return {status:'uncertain',providerReference:reference};}

@@ -1,3 +1,4 @@
+import {requireMessagingEnvironment} from '../config.ts';
 import {z} from 'zod';
 import {phoneNumber} from '../../contracts/imessage.ts';
 import {Database} from '../database/client.ts';
@@ -8,6 +9,7 @@ import {PhotonTransport,type SendResult} from './transport.ts';
 const intent=z.object({challengeId:z.uuid(),hostId:z.uuid(),projectId:z.uuid(),phone:phoneNumber,line:z.string().min(1),spaceId:z.string().min(1),
  encryptedCode:z.string().nullable(),providerReference:z.string().nullable(),leaseToken:z.uuid(),action:z.enum(['send','reconcile'])});
 export async function dispatchLinkCodes(database=new Database(),env=process.env,transport:Pick<PhotonTransport,'send'|'reconcile'>=new PhotonTransport(env)){
+ requireMessagingEnvironment(env);
  const project=z.uuid().safeParse(env.PHOTON_PROJECT_ID);
  if(!project.success)throw new ApplicationError('CONFIGURATION_UNAVAILABLE',503);
  const call=(operation:string,input:unknown)=>database.rpc('fmat_photon_link_delivery',{p_operation:operation,p_project_id:project.data,p_input:input});

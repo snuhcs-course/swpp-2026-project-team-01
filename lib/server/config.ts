@@ -16,3 +16,13 @@ export function applicationOrigin(env = process.env): string {
   }
   return url.origin;
 }
+
+/** Deployment metadata is server-owned. No request field can enable preview sends. */
+export function requireMessagingEnvironment(env: NodeJS.ProcessEnv = process.env): void {
+  const managed = ['VERCEL', 'VERCEL_ENV', 'VERCEL_TARGET_ENV', 'VERCEL_DEPLOYMENT_ID', 'VERCEL_URL']
+    .some(name => env[name] !== undefined);
+  if (managed && (env.VERCEL_ENV !== 'production' ||
+      (env.VERCEL_TARGET_ENV !== undefined && env.VERCEL_TARGET_ENV !== 'production'))) {
+    throw new ApplicationError('CONFIGURATION_UNAVAILABLE', 503);
+  }
+}

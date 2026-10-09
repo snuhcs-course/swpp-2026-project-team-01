@@ -29,6 +29,14 @@ Use **FindMeATime2**, project **`mriseqztcwmezvtawnbo`**: [project dashboard](ht
 
 Verify schema, Auth, SMTP and provider configuration against this project independently. Follow the [schema workflow](../../AGENTS.md#supabase-schema-changes), review migration SQL and run `supabase db push --dry-run` before a remote push. Never reset a remote database for local setup.
 
+## Messaging environment isolation
+
+The [preview messaging change](../../openspec/changes/fence-preview-messaging/tasks.md) adds a server-side deployment check before application delivery claims and provider calls. Cloudflare invitation/contact/recovery/booking workers, Photon code/reply dispatchers and AgentMail replies reject Vercel preview, development and custom environments with sanitized `CONFIGURATION_UNAVAILABLE` responses, even when provider credentials are present. Direct transport calls enforce the same check. Rejection preserves delivery records and does not establish failure, uncertainty or successful delivery.
+
+Keep [Vercel system environment variables](https://vercel.com/docs/environment-variables/system-environment-variables) enabled. When any Vercel marker is present, messaging requires exact `VERCEL_ENV=production` and, if supplied, `VERCEL_TARGET_ENV=production`; missing, empty or contradictory metadata fails closed. There is no preview-send override. Do not manually set these markers to impersonate production. Standalone processes without Vercel markers retain existing behavior for local fixtures and explicitly authorized operator work.
+
+Continue using separate local, preview and production databases and credential scopes. Keep production provider secrets and dispatch Vault entries out of previews. This application messaging guard does not isolate database access, Calendar writes, model calls or Supabase-managed SMTP. Disabling every system marker removes deployment identification; configuration verification must confirm system variables remain enabled. The guard is locally implemented; built acceptance and production rollout are tracked in the owning change.
+
 ## Development skills and CLIs
 
 Use Node.js 24 and npm 11. The repository pins Supabase CLI **2.119.0** and OpenSpec CLI **1.14.0**; verify installed versions before schema or specification work. Read the relevant [project skills](../../AGENTS.md#shared-skills), including the [Photon skill](../../.agents/skills/photon-cli/SKILL.md) and [AgentMail skill](../../.agents/skills/agentmail-cli/SKILL.md).

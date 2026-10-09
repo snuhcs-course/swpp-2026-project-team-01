@@ -1,3 +1,4 @@
+import {requireMessagingEnvironment} from '../config.ts';
 import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {Database} from '../database/client.ts';
@@ -13,11 +14,13 @@ export class ContactVerificationDelivery{
  constructor(private readonly database=new Database(),private readonly env=process.env,private readonly provider=new CloudflareEmail(env)){}
  private call(operation:string,lease:Lease|{workerId:string},input:unknown={}){return this.database.rpc('fmat_contact_verification_delivery',{p_operation:operation,p_lease:lease,p_input:input});}
  async run(){
+  requireMessagingEnvironment(this.env);
   this.provider.configuration();
   const {job}=z.strictObject({job:bookingLease.nullable()}).parse(await this.call('claim',{workerId:randomUUID()}));
   return job?{claimed:1,outcome:await this.process(job)}:{claimed:0,outcome:'idle'};
  }
  async process(input:unknown):Promise<string>{
+  requireMessagingEnvironment(this.env);
   const lease=bookingLease.parse(input);
   const finish=async(value:unknown)=>{
    const {phase:status}=phase.parse(value);
