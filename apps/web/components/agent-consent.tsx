@@ -57,6 +57,7 @@ export function AgentConsent({authorizationId,initialRequestId,loginExpired=fals
      <Button variant="ghost" disabled={busy} onClick={()=>setRevision(value=>value+1)} className="min-h-11">Reload</Button>
     </CardFooter>
    </Card>:<Button variant="outline" onClick={()=>setRevision(value=>value+1)}>Try again</Button>}
+   {!loading&&!state?<p className="mt-6">If you already granted access for a new request in this browser, <a href={'/connect/intake?authorizationId='+authorizationId} className="underline underline-offset-4">Open request access</a>.</p>:null}
    {loginExpired?<Alert><AlertDescription>Google sign-in was not completed. You can try again or deny this connection.</AlertDescription></Alert>:null}
    {error?<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>:null}
    {state?.audience!=='intake'?<p className="mt-6"><a href={'/connect/authorize'+(state?.requestId?'?requestId='+state.requestId:'')}>Manage existing agent permissions</a></p>:null}

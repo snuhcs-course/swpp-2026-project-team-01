@@ -142,7 +142,8 @@ test('public OAuth routes and explicit host/requester consent survive reload, lo
     assert.ok(!JSON.stringify(created).includes(proof));
    }finally{await sdk.close();}
    await sql.query(`update fmat.oauth_authorizations set created_at=now()-interval '11 minutes',expires_at=now()-interval '1 minute' where id=${q(intakeId)};`);
-   await intakePage.reload();await intakePage.getByRole('button',{name:'Open my request'}).waitFor();
+   await intakePage.goto(origin+'/connect/authorize?authorizationId='+intakeId);await intakePage.getByRole('alert').filter({hasText:'expired or belongs to another browser'}).waitFor();
+   await intakePage.getByRole('link',{name:'Open request access'}).focus();await intakePage.keyboard.press('Enter');await intakePage.waitForURL(handoffUrl);await intakePage.getByRole('button',{name:'Open my request'}).waitFor();
    assert.equal(await intakePage.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await intakePage.screenshot({path:'.local/rebuild/browser-screenshots/agent-intake-handoff-mobile.png',fullPage:true});
    await intakePage.setViewportSize({width:1280,height:900});await intakePage.evaluate(()=>{document.body.style.zoom='2';});assert.equal(await intakePage.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await intakePage.screenshot({path:'.local/rebuild/browser-screenshots/agent-intake-handoff-zoom.png',fullPage:true});await intakePage.evaluate(()=>{document.body.style.zoom='1';});
    const copied=await browser.newContext();try{
