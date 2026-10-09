@@ -253,3 +253,16 @@ Legacy booking-provider reconciliation reads all four assertions in `5c305d9^:su
 | Revoked credential prevents writes and limits lookup | `booking/worker.test.ts` exercises the real worker and RPC client with a synthetic revocation response in prepared, dispatched, uncertain and conflict phases. It requires zero Google calls, blocks only the pre-dispatch attempt, and retains post-dispatch recovery via `RECONNECT_REQUIRED`. Current credential acquisition belongs to the worker rather than the transport's former injected callback. |
 
 These eleven focused tests cover the retired adapter assertions and the replacement orchestration boundary. They do not replace the real database lock/revocation, process-crash or live Calendar acceptance suites. The worker fixture injects successful feasibility and a rejected access RPC; it does not prove SQL authorization itself.
+
+Legacy email-provider reconciliation reads all six assertions in `5c305d9^:supabase/functions/_shared/providers/email_test.ts`:
+
+| Historical assertion | Current coverage or explicit contract change |
+|---|---|
+| Frozen Cloudflare URL/sender/token, no idempotency header, delivered acceptance | `email/cloudflare.test.ts` verifies the exact frozen body/account URL, bearer header, absent idempotency header, delivered recipient match and a single request. |
+| Queued acceptance and fully bounced/suppressed rejection | The same suite verifies queued acceptance and bounce/suppression overriding acceptance for the intended recipient. |
+| Partial multi-recipient acceptance is uncertain | The current strict `PreparedEmail` accepts one recipient per durable intent. A regression rejects recipient arrays and added cc/bcc before fetch; foreign-recipient-only evidence remains uncertain. Batch acceptance is no longer an input contract. |
+| Invalid/lost response stays uncertain | Missing message identity, invalid/missing/oversized responses, unknown errors and thrown transport failure yield uncertainty with one request. |
+| AgentMail stable idempotency and lost response | `agentmail-reply-transport.test.ts` checks the frozen `fmat-reply-<id>` key, identical retries, response-loss uncertainty, no internal retry and the bounded replay window. This is a parent-bound conversational reply, not the retired transactional send endpoint. |
+| Cloudflare settings coexist with AgentMail settings | `.env.example` retains both namespaces; the two transport constructors read their own settings. Their configuration tests deny missing configuration, mismatched account/inbox and changed sender. The [email contract](../openspec/specs/email-delivery/spec.md) deliberately replaces configurable legacy senders with `no-reply@findmeatime.com` and separates transactional delivery from conversations. |
+
+Sixteen focused Cloudflare/AgentMail reply tests exercise these replacement transport boundaries with synthetic responses. They do not establish recipient inbox delivery, configured production SMTP or durable worker recovery; those remain separate evidence.

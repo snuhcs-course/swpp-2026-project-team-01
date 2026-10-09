@@ -9,11 +9,21 @@ test('Cloudflare sends the frozen message once and requires recipient acceptance
  const provider=new CloudflareEmail(env,async(url,init)=>{
   calls++;assert.equal(url,`https://api.cloudflare.com/client/v4/accounts/${email.accountId}/email/sending/send`);
   assert.equal(init?.method,'POST');assert.equal(init?.redirect,'error');assert.equal(init?.cache,'no-store');
+  const headers=new Headers(init?.headers);assert.equal(headers.get('authorization'),'Bearer '+env.CLOUDFLARE_EMAIL_API_TOKEN);assert.equal(headers.has('Idempotency-Key'),false);
   assert.deepEqual(JSON.parse(String(init?.body)),email.message);
   assert.ok(init?.signal instanceof AbortSignal);
   return Response.json(accepted);
  });
  assert.deepEqual(await provider.send(email),{outcome:'sent',providerReference:'synthetic-message'});assert.equal(calls,1);
+});
+test('Cloudflare delivered evidence applies only to the frozen single recipient',async()=>{
+ for(const delivered of [[email.message.to.toUpperCase()],['someone@example.test']]){
+  let calls=0;const provider=new CloudflareEmail(env,async()=>{calls++;return Response.json({...accepted,result:{...accepted.result,queued:[],delivered}});});
+  assert.equal((await provider.send(email)).outcome,delivered[0].toLowerCase()===email.message.to?'sent':'uncertain');assert.equal(calls,1);
+ }
+ let calls=0;const provider=new CloudflareEmail(env,async()=>{calls++;return Response.json(accepted);});
+ for(const message of [{...email.message,to:[email.message.to,'other@example.test']},{...email.message,cc:['other@example.test']},{...email.message,bcc:['other@example.test']}])await assert.rejects(provider.send({...email,message}));
+ assert.equal(calls,0,'partial multi-recipient acceptance is prevented before dispatch');
 });
 test('Missing evidence and unknown errors never become sent and are never retried',async()=>{
  const cases=[Response.json({success:true}),Response.json({...accepted,result:{...accepted.result,message_id:undefined}}),Response.json({...accepted,result:{...accepted.result,queued:['other@example.test']}}),new Response('invalid json'),new Response('x'.repeat(262145)),Response.json({success:false,errors:[{code:99999}]},{status:400}),Response.json({success:false,errors:[{code:10001}]},{status:500}),new Response(null,{status:204})];
