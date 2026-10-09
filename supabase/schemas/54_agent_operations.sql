@@ -16,6 +16,8 @@ begin
  select * into v_grant from fmat.oauth_grants where id=p_grant_id;
  if not found or v_grant.client_id is distinct from p_client_id or v_grant.resource is distinct from p_resource
   or v_grant.actor_kind is distinct from p_actor_kind or v_grant.actor_id is distinct from p_actor_id then return '{"error":"invalid_grant"}';end if;
+ -- Intake remains default-denied until the bound-request adapter is enabled.
+ if v_grant.actor_kind not in ('host','guest') then return '{"error":"invalid_grant"}';end if;
  if (p_operation like 'setup_%' or p_operation in ('private_note_save','requests_list')) and v_grant.actor_kind<>'host'
   or p_operation in ('details_propose','availability_read','availability_propose') and v_grant.actor_kind<>'guest' then raise exception 'FORBIDDEN';end if;
  v_scope:=(case when v_grant.actor_kind='host' then 'host:' else 'request:' end)||

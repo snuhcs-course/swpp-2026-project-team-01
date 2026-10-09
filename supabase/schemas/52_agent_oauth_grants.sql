@@ -5,7 +5,7 @@ create table fmat.oauth_grants (
   client_id uuid not null references fmat.oauth_clients(id),
   resource text not null,
   scope text not null check(fmat.oauth_scope_valid(scope)),
-  actor_kind text not null check(actor_kind in ('host','guest')),
+  actor_kind text not null check(actor_kind in ('host','guest','intake')),
   actor_id uuid not null,
   host_id uuid not null references fmat.hosts(id),
   request_id uuid references fmat.requests(id),
@@ -16,7 +16,8 @@ create table fmat.oauth_grants (
   revoked_at timestamptz,
   check(expires_at>created_at and expires_at<=created_at+interval '30 days'),
   check((actor_kind='host' and actor_id=host_id and session_id is not null and request_id is null and token_hash is null and scope like 'host:%')
-    or (actor_kind='guest' and actor_id=request_id and request_id is not null and session_id is null and token_hash is not null and token_hash ~ '^[a-f0-9]{64}$' and scope like 'request:%'))
+    or (actor_kind='guest' and actor_id=request_id and request_id is not null and session_id is null and token_hash is not null and token_hash ~ '^[a-f0-9]{64}$' and scope like 'request:%' and not ('request:intake'=any(string_to_array(scope,' '))))
+    or (actor_kind='intake' and session_id is null and request_id is null and token_hash is null and scope like 'request:%'))
 );
 create index oauth_grants_client_idx on fmat.oauth_grants(client_id);
 create index oauth_grants_host_idx on fmat.oauth_grants(host_id);
@@ -49,7 +50,26 @@ alter table fmat.oauth_refresh_tokens enable row level security;
 create or replace function fmat.oauth_authority_current(p_grant fmat.oauth_grants)
 returns boolean language plpgsql set search_path='' as $$
 declare v_request fmat.requests; v_user auth.users; v_session auth.sessions; v_host fmat.hosts; v_now timestamptz;
+ v_intake fmat.oauth_intakes; v_bound fmat.oauth_grants; v_auth fmat.oauth_authorizations;
 begin
+  if p_grant.actor_kind='intake' then
+    -- Serialize the mutable pending -> bound lookup before any request/host
+    -- lock. Creation and same-browser revocation use this same order.
+    select * into v_intake from fmat.oauth_intakes where id=p_grant.actor_id for update;
+    if not found or v_intake.grant_id is distinct from p_grant.id or v_intake.host_id is distinct from p_grant.host_id
+      or v_intake.authorization_id is distinct from p_grant.authorization_id or v_intake.revoked_at is not null
+      then return false;end if;
+    select * into v_auth from fmat.oauth_authorizations where id=v_intake.authorization_id;
+    if not found or v_auth.decision is distinct from 'grant' or v_auth.client_id is distinct from p_grant.client_id
+      or v_auth.browser_hash is distinct from v_intake.browser_hash then return false;end if;
+    if v_intake.request_id is null then
+      if not fmat.oauth_intake_host_current(v_intake.host_id) then return false;end if;
+      return coalesce(v_intake.create_expires_at>clock_timestamp(),false);
+    end if;
+    v_bound:=p_grant;v_bound.actor_kind:='guest';v_bound.actor_id:=v_intake.request_id;
+    v_bound.request_id:=v_intake.request_id;v_bound.token_hash:=v_intake.token_hash;
+    return fmat.oauth_authority_current(v_bound);
+  end if;
   if p_grant.actor_kind='guest' then
     select * into v_request from fmat.requests where id=p_grant.request_id for update;
     if not found or v_request.host_id is distinct from p_grant.host_id then return false;end if;
@@ -131,6 +151,7 @@ begin
   if p_decision is null or p_decision not in ('grant','deny') then return '{"error":"invalid_request"}';end if;
   select * into v_auth from fmat.oauth_authorizations where id=p_id;
   if not found or v_auth.browser_hash is distinct from p_browser_hash then return '{"error":"invalid_request"}';end if;
+  if 'request:intake'=any(string_to_array(v_auth.scope,' ')) then return '{"error":"invalid_scope"}';end if;
   if p_decision='grant' then
     if p_code_hash is null or p_code_hash !~ '^[a-f0-9]{64}$' then return '{"error":"invalid_request"}';end if;
     v_grant:=fmat.oauth_browser_authority(p_credential);

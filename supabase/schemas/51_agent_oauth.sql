@@ -72,7 +72,7 @@ returns boolean language sql immutable set search_path='' as $$
   select coalesce(length(p_scope) between 1 and 100
     and p_scope=(select string_agg(s,' ' order by s collate "C") from (select distinct unnest(string_to_array(p_scope,' ')) s) t)
     and (string_to_array(p_scope,' ') <@ array['host:read','host:write','host:decide']
-      or string_to_array(p_scope,' ') <@ array['request:read','request:write','request:decide']),false);
+      or string_to_array(p_scope,' ') <@ array['request:intake','request:read','request:write','request:decide']),false);
 $$;
 
 create or replace function public.fmat_oauth_register(p_name text,p_redirects text[],p_resource text)
@@ -94,17 +94,31 @@ end$$;
 
 create or replace function public.fmat_oauth_authorization_start(p_input jsonb)
 returns jsonb language plpgsql security definer set search_path='' as $$
-declare v_client fmat.oauth_clients; v_auth fmat.oauth_authorizations; v_now timestamptz;
+declare v_client fmat.oauth_clients; v_auth fmat.oauth_authorizations; v_now timestamptz; v_intake boolean; v_host uuid;
 begin
   if not fmat.oauth_take_budget('authorization') then return '{"error":"rate_limited"}';end if;
   if jsonb_typeof(p_input) is distinct from 'object' then return '{"error":"invalid_request"}';end if;
-  if (select count(*) from jsonb_object_keys(p_input))<>8
+  if (select count(*) from jsonb_object_keys(p_input)) not in (8,9)
     or not p_input ?& array['clientId','resource','redirectUri','scope','codeChallenge','codeChallengeMethod','state','browserHash']
     or exists(select 1 from jsonb_each(p_input) where jsonb_typeof(value)<>'string')
     or p_input->>'clientId' !~ '^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$'
     then return '{"error":"invalid_request"}';end if;
-  -- Lock order is global budget, client, then authorization. Grant/refresh
-  -- operations must not acquire budgets after locking a client.
+  if not fmat.oauth_scope_valid(p_input->>'scope') then return '{"error":"invalid_scope"}';end if;
+  v_intake:='request:intake'=any(string_to_array(p_input->>'scope',' '));
+  if (p_input ? 'handle')<>v_intake or (select count(*) from jsonb_object_keys(p_input))<>(case when v_intake then 9 else 8 end)
+    then return '{"error":"invalid_request"}';end if;
+  if v_intake then
+    if not fmat.valid_public_handle(p_input->>'handle') then return '{"error":"invalid_request"}';end if;
+    -- Registry budget -> intake budgets -> public host authority -> client ->
+    -- authorization. No path may acquire these budgets after a client lock.
+    select id into v_host from fmat.hosts where handle=p_input->>'handle';
+    if v_host is null then return '{"error":"invalid_request"}';end if;
+    if not fmat.oauth_intake_take_budget(v_host) then return '{"error":"rate_limited"}';end if;
+    if not fmat.oauth_intake_host_current(v_host)
+      or not exists(select 1 from fmat.hosts where id=v_host and handle=p_input->>'handle')
+      then return '{"error":"invalid_request"}';end if;
+  end if;
+  -- Ordinary registry lock order remains budget, client, authorization.
   select * into v_client from fmat.oauth_clients where id=(p_input->>'clientId')::uuid for update;
   if not found or v_client.disabled_at is not null then return '{"error":"invalid_client"}';end if;
   v_now:=clock_timestamp();
@@ -122,6 +136,12 @@ begin
   insert into fmat.oauth_authorizations(client_id,resource,redirect_uri,scope,code_challenge,state,browser_hash,created_at,expires_at)
     values(v_client.id,v_client.resource,p_input->>'redirectUri',p_input->>'scope',p_input->>'codeChallenge',
       p_input->>'state',p_input->>'browserHash',v_now,v_now+interval '10 minutes') returning * into v_auth;
+  if v_intake then
+    -- Readiness and time can change while waiting on a client or budget lock.
+    if not fmat.oauth_intake_host_current(v_host) then return '{"error":"invalid_request"}';end if;
+    insert into fmat.oauth_intakes(authorization_id,host_id,browser_hash)
+      values(v_auth.id,v_host,p_input->>'browserHash');
+  end if;
   return jsonb_build_object('authorizationId',v_auth.id,'expiresAt',v_auth.expires_at);
 end$$;
 

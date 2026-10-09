@@ -3,7 +3,7 @@
 ## 1. Contracts and private authorization
 
 - [x] 1.1 Implement strict intake target/detail/clarification/result contracts and explicit scope/principal types; verify missing/ambiguous data, actor/host injection and existing-token compatibility.
-- [ ] 1.2 Add private consent/intake state, fixed host/reserved request identity, bounded admission and current grant checks through desired SQL and reviewed migrations; verify local rebuild, service-only privileges, expiry and revoke races.
+- [x] 1.2 Add private consent/intake state, fixed host/reserved request identity, bounded admission and current grant checks through desired SQL and reviewed migrations; verify local rebuild, service-only privileges, expiry and revoke races.
 - [ ] 1.3 Extend OAuth consent/code/refresh and token validation for intake authority without weakening existing host/request grants; verify exact resource/client/PKCE binding, deny, reuse and no scope widening.
 
 ## 2. Creation and continuation

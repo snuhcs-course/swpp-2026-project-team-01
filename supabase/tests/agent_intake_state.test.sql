@@ -11,8 +11,8 @@ insert into fmat.hosts(id,email,invitation_id)
 select ('ac000000-0000-4000-8000-00000000000'||n)::uuid,'intake-state'||n||'@example.test',('ac100000-0000-4000-8000-00000000000'||n)::uuid from generate_series(1,2) n;
 create temporary table fixture(client_id uuid,authorization_id uuid,intake_id uuid);
 insert into fixture select (public.fmat_oauth_register('intake fixture',array['https://client.example/cb'],'https://release.findmeatime.com/mcp')->>'clientId')::uuid,null,null;
--- Staging schema only: ordinary authorization still rejects request:intake.
-select is(public.fmat_oauth_authorization_start(jsonb_build_object('clientId',client_id,'resource','https://release.findmeatime.com/mcp','redirectUri','https://client.example/cb','scope','request:intake','codeChallenge',repeat('A',43),'codeChallengeMethod','S256','state','s','browserHash',repeat('a',64)))->>'error','invalid_scope','existing OAuth entry does not enable unfinished intake') from fixture;
+-- Staging schema only: intake authorization requires an explicit host target.
+select is(public.fmat_oauth_authorization_start(jsonb_build_object('clientId',client_id,'resource','https://release.findmeatime.com/mcp','redirectUri','https://client.example/cb','scope','request:intake','codeChallenge',repeat('A',43),'codeChallengeMethod','S256','state','s','browserHash',repeat('a',64)))->>'error','invalid_request','intake scope without a host target is rejected') from fixture;
 -- Private fixture authorizations are inert: no code or grant is issued.
 with a as (
  insert into fmat.oauth_authorizations(client_id,resource,redirect_uri,scope,code_challenge,state,browser_hash,created_at,expires_at)
