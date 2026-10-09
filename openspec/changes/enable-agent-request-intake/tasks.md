@@ -8,7 +8,7 @@
 
 ## 2. Creation and continuation
 
-- [ ] 2.1 Implement current-ready-host preflight plus atomic one-request creation/binding and retry recovery; verify concurrent same/different inputs, lost committed responses, host changes and revocation during provider I/O.
+- [x] 2.1 Implement current-ready-host preflight plus atomic one-request creation/binding and retry recovery; verify concurrent same/different inputs, lost committed responses, host changes and revocation during provider I/O.
 - [ ] 2.2 Resolve bound intake credentials into existing requester operations under current SQL authority; verify all catalog operations deny foreign requests/host roles and inherit rotation, closure and expiry.
 - [ ] 2.3 Implement private same-browser continuation without model/terminal disclosure of request proof; verify wrong browser, copied ID, CSRF, lost reply, replay and expiry, preserving existing receipt limits.
 

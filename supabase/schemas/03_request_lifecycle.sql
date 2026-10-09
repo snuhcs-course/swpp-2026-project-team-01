@@ -225,6 +225,23 @@ begin
 end;
 $$;
 
+-- Shared insertion contract. Callers own current authorization, idempotency and
+-- provider fencing. Only private adapters may choose a reserved request UUID.
+create or replace function fmat.insert_request(p_host_id uuid,p_details jsonb,p_token_hash text,p_actor jsonb,p_id uuid)
+returns fmat.requests language plpgsql set search_path='' as $$
+declare v_host fmat.hosts; v_details jsonb; v_request fmat.requests;
+begin
+  select * into v_host from fmat.hosts where id=p_host_id for share;
+  if not found or not fmat.host_ready(v_host) then raise exception 'NOT_FOUND';end if;
+  if coalesce(p_token_hash,'') !~ '^[0-9a-f]{64}$' or p_id is null then raise exception 'INVALID_INPUT';end if;
+  v_details:=fmat.normalize_details(p_details);
+  insert into fmat.requests(id,host_id,details,token_hash,status,expires_at)
+    values(p_id,v_host.id,v_details,p_token_hash,case when fmat.details_complete(v_details) then 'negotiating' else 'gathering' end,fmat.request_expiry(v_details,now())) returning * into v_request;
+  perform fmat.audit('request_create',p_actor,v_request.id::text);
+  return v_request;
+end$$;
+revoke execute on function fmat.insert_request(uuid,jsonb,text,jsonb,uuid) from public,anon,authenticated,service_role;
+
 create or replace function fmat.request_command(p_operation text,p_actor jsonb,p_input jsonb)
 returns jsonb language plpgsql set search_path='' as $$
 declare v_request fmat.requests; v_host fmat.hosts; v_details jsonb; v_id uuid; v_start timestamptz; v_end timestamptz; v_proposal jsonb; v_version integer;
@@ -247,10 +264,7 @@ begin
   if p_operation='request_create' then
     select * into v_host from fmat.hosts where handle=p_input->>'handle' for share;
     if not found or not fmat.host_ready(v_host) then raise exception 'NOT_FOUND'; end if;
-    if coalesce(p_input->>'tokenHash','') !~ '^[0-9a-f]{64}$' then raise exception 'INVALID_INPUT'; end if;
-    v_details:=fmat.normalize_details(p_input->'details');
-    insert into fmat.requests(host_id,details,token_hash,status,expires_at) values(v_host.id,v_details,p_input->>'tokenHash',case when fmat.details_complete(v_details) then 'negotiating' else 'gathering' end,fmat.request_expiry(v_details,now())) returning * into v_request;
-    perform fmat.audit(p_operation,p_actor,v_request.id::text);
+    v_request:=fmat.insert_request(v_host.id,p_input->'details',p_input->>'tokenHash',p_actor,gen_random_uuid());
     return fmat.request_view(v_request.id,'{"kind":"guest"}');
   elsif p_operation='requests_list' then
     return jsonb_build_object('requests',(select coalesce(jsonb_agg(fmat.request_view(id,p_actor) order by created_at desc),'[]'::jsonb) from fmat.requests where host_id=fmat.require_host(p_actor,true)));
