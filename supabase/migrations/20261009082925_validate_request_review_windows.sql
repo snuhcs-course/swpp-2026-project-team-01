@@ -1,48 +1,13 @@
--- Assistant extraction is a draft. Only the protected requester operation can
--- apply it, against the exact request revision and current continuation proof.
-create table fmat.request_detail_reviews (
-  id uuid primary key default gen_random_uuid(),
-  request_id uuid not null references fmat.requests(id) on delete cascade,
-  authority_key text not null,
-  base_revision integer not null,
-  input jsonb not null,
-  proposed_details jsonb not null,
-  idempotency_key text not null,
-  status text not null default 'pending' check(status in ('pending','applied','dismissed','superseded')),
-  decision_key uuid,
-  result_revision integer,
-  created_at timestamptz not null default clock_timestamp(),
-  decided_at timestamptz,
-  unique(request_id,authority_key,idempotency_key)
-);
-create unique index request_detail_reviews_pending_idx on fmat.request_detail_reviews(request_id) where status='pending';
-alter table fmat.request_detail_reviews enable row level security;
-revoke all on fmat.request_detail_reviews from public,anon,authenticated,service_role;
+SET local check_function_bodies = off;
 
-create or replace function fmat.request_detail_review_view(p_review fmat.request_detail_reviews)
-returns jsonb language sql immutable set search_path='' as $$
-  select jsonb_build_object('id',p_review.id,'baseRevision',p_review.base_revision,'patch',p_review.input->'patch',
-    'details',p_review.proposed_details,'clarifications',p_review.input->'clarifications','status',p_review.status,
-    'resultRevision',p_review.result_revision);
-$$;
-
--- Review-only validation: generic manual availability keeps its own contract.
--- Caller normalizes details and acquires request/review locks first.
-create or replace function fmat.validate_request_review_windows(p_details jsonb)
-returns void language plpgsql set search_path='' as $$
-declare v_window jsonb; v_duration integer:=(p_details->>'durationMinutes')::integer;
-begin
-  for v_window in select value from jsonb_array_elements(p_details->'windows') loop
-    if (v_window->>'start')::timestamptz<=clock_timestamp()
-      or (v_duration is not null and (v_window->>'end')::timestamptz-(v_window->>'start')::timestamptz<make_interval(mins=>v_duration))
-      then raise exception 'INVALID_INPUT'; end if;
-  end loop;
-end;
-$$;
-revoke all on function fmat.validate_request_review_windows(jsonb) from public,anon,authenticated,service_role;
-
-create or replace function fmat.propose_request_details(p_actor jsonb,p_input jsonb)
-returns jsonb language plpgsql set search_path='' as $$
+CREATE OR REPLACE FUNCTION fmat.propose_request_details (
+  p_actor jsonb,
+  p_input jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
 declare v_request fmat.requests; v_review fmat.request_detail_reviews; v_details jsonb; v_key text;
 begin
   if p_actor->>'kind' is distinct from 'guest' then raise exception 'FORBIDDEN'; end if;
@@ -76,10 +41,35 @@ begin
   perform fmat.audit('request_details_proposed',p_actor,v_request.id::text);
   return jsonb_build_object('review',fmat.request_detail_review_view(v_review));
 end;
-$$;
+$function$;
 
-create or replace function public.fmat_request_detail_review(p_operation text,p_credential jsonb,p_input jsonb)
-returns jsonb language plpgsql security definer set search_path='' as $$
+CREATE OR REPLACE FUNCTION fmat.validate_request_review_windows (
+  p_details jsonb
+)
+  RETURNS void
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
+declare v_window jsonb; v_duration integer:=(p_details->>'durationMinutes')::integer;
+begin
+  for v_window in select value from jsonb_array_elements(p_details->'windows') loop
+    if (v_window->>'start')::timestamptz<=clock_timestamp()
+      or (v_duration is not null and (v_window->>'end')::timestamptz-(v_window->>'start')::timestamptz<make_interval(mins=>v_duration))
+      then raise exception 'INVALID_INPUT'; end if;
+  end loop;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.fmat_request_detail_review (
+  p_operation  text,
+  p_credential jsonb,
+  p_input      jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare v_actor jsonb; v_request fmat.requests; v_review fmat.request_detail_reviews; v_result jsonb; v_decision uuid;
 begin
   if p_credential->>'kind' is distinct from 'guest' then raise exception 'FORBIDDEN'; end if;
@@ -122,8 +112,6 @@ begin
     'review',case when v_review.id is null then null else fmat.request_detail_review_view(v_review) end);
 exception when invalid_text_representation or numeric_value_out_of_range then raise exception 'INVALID_INPUT';
 end;
-$$;
-revoke all on function fmat.request_detail_review_view(fmat.request_detail_reviews) from public,anon,authenticated,service_role;
-revoke all on function fmat.propose_request_details(jsonb,jsonb) from public,anon,authenticated,service_role;
-revoke all on function public.fmat_request_detail_review(text,jsonb,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_request_detail_review(text,jsonb,jsonb) to service_role;
+$function$;
+
+REVOKE ALL ON FUNCTION "fmat"."validate_request_review_windows"(jsonb) FROM PUBLIC;

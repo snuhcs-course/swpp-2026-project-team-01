@@ -2,8 +2,8 @@
 
 ## 1. Authoritative review validation
 
-- [ ] 1.1 Add review-scoped future-start and known-duration validation at proposal and new-apply boundaries; preserve exact replay and dismissal. Add SQL tests for merged/changed/missing duration, invalid replacement preservation and expired apply; update owning architecture and test documentation.
-- [ ] 1.2 Generate and review the pg-delta migration using Supabase 2.119.0. Verify full local migration rebuild, SQL assertions, permissions and unchanged generic normalization; record evidence and commit schema/migration together.
+- [x] 1.1 Add review-scoped future-start and known-duration validation at proposal and new-apply boundaries; preserve exact replay and dismissal. Add SQL tests for merged/changed/missing duration, invalid replacement preservation and expired apply; update owning architecture and test documentation.
+- [x] 1.2 Generate and review the pg-delta migration using Supabase 2.119.0. Verify full local migration rebuild, SQL assertions, permissions and unchanged generic normalization; record evidence and commit schema/migration together.
 
 ## 2. Integrated acceptance
 

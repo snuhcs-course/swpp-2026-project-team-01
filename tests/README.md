@@ -298,3 +298,5 @@ All five tests in `5c305d9^:supabase/functions/_shared/providers/host-intent_tes
 | Impossible focus-block calendar dates are rejected | `tool-execution.test.ts` denies February 30 plus ambiguous/reversed focus intervals with zero RPC calls. |
 
 The adapter also requires a valid control to execute exactly once, so zero invalid executions cannot pass merely because tools are disconnected. The old Chat Completions extractor is retired; the native Responses/tool boundary owns replacement parsing. These checks establish synthetic protocol and local runtime behavior, not live model quality or provider consent. The wider legacy inventory remains open.
+
+`request_review_windows.test.sql` adds 23 assertions for private validator permissions, future starts, exact/inherited/changed/missing duration, invalid replacement preservation, expired apply denial, dismissal and committed retry recovery. It explicitly verifies generic manual normalization is unchanged. The expiry SQL fixture ages a saved review directly; real elapsed time and observed lock waits are covered by the request-review integration helper.
