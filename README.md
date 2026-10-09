@@ -18,11 +18,11 @@ Google Calendar와 시간 프로필을 바탕으로 만날 수 있는 시간을 
 
 [Iteration 1 demo 영상 보기 / 다운로드](demos/iteration-1-demo.mov) (MOV, 약 48MB, 2분 8초)
 
-이 브랜치는 `mvp/enu3379`의 `82aac7380cbfd67b13f769f0b26ccf02d91b99d6`을 기준으로 합니다. 영상의 Google Calendar 연결은 아래 **real 모드**로 재현합니다. 자신의 Google 계정과 캘린더를 사용하므로 일정과 AI 분석 결과는 영상과 달라질 수 있습니다.
+이 브랜치는 `mvp/enu3379`의 `82aac7380cbfd67b13f769f0b26ccf02d91b99d6`을 기준으로 합니다. 영상의 Google Calendar 연결은 아래 **real 모드**로 재현했습니다.
 
 ## 데모 범위
 
-영상은 Google 계정과 Calendar 연결, 캘린더 선택, 지난 일정의 AI 분석을 통한 시간 프로필 설정, 직접 설정 수정 및 확인, 호스트 예약 링크 확인 흐름을 보여줍니다.
+데모 영상에는 Google 계정과 Calendar 연결, 캘린더 선택, 지난 일정의 AI 분석을 통한 시간 프로필 설정, 직접 설정 수정 및 확인, 호스트 예약 링크 확인 흐름을 포함했습니다.
 
 추가로 이 브랜치에는 자연어 기반 예약 후보 탐색, 미팅 요청·수락·거절과 연락처 초대 링크가 구현되어 있습니다. 아래 실행 절차로 자신의 계정을 연결하거나, demo 모드의 시드 계정으로 예약 흐름을 확인할 수 있습니다.
 
@@ -42,7 +42,7 @@ Google Calendar와 시간 프로필을 바탕으로 만날 수 있는 시간을 
 
 영상에서 사용한 웹 주소: [https://findmeatime-mvp.vercel.app](https://findmeatime-mvp.vercel.app).
 
-2026-10-09 기준 로그인 페이지의 HTTP 200 응답을 확인했습니다. Google OAuth가 테스트 상태인 경우 등록된 테스트 계정으로 접속해야 합니다. 직접 재현하려면 아래 Supabase 및 Google 설정으로 자신의 환경을 구성합니다. 배포 사이트는 이 브랜치와 별도로 갱신될 수 있습니다.
+Google OAuth가 테스트 상태인 경우 등록된 테스트 계정으로 접속해야 합니다. 직접 재현하려면 아래 Supabase 및 Google 설정으로 자신의 환경을 구성합니다.
 
 ## 준비
 
@@ -74,7 +74,7 @@ supabase db push
 supabase migration list
 ```
 
-3. Dashboard의 **Connect → Transaction pooler** 연결 문자열(포트 `6543`)을 복사해 `apps/web/.env`의 `DATABASE_URL`에 넣습니다. 실제 데이터베이스 비밀번호로 바꾸고, 비밀번호의 특수문자는 URL 인코딩합니다. 원격 연결에는 `sslmode=require`를 지정합니다.
+3. Dashboard의 **Connect → Transaction pooler** 연결 문자열을 복사해 `apps/web/.env`의 `DATABASE_URL`에 넣습니다. 실제 데이터베이스 비밀번호로 바꾸고, 비밀번호의 특수문자는 URL 인코딩합니다. 원격 연결에는 `sslmode=require`를 지정합니다.
 
 ```dotenv
 DATABASE_URL=postgresql://postgres.<PROJECT_REF>:<URL_ENCODED_DB_PASSWORD>@<POOLER_HOST>:6543/postgres?sslmode=require
@@ -110,7 +110,7 @@ TOKEN_ENCRYPTION_KEY=<첫 번째 64자리 hex 값>
 IMPACT_SIGNING_KEY=<두 번째 64자리 hex 값>
 ```
 
-Ollama 키는 한 개면 실행할 수 있습니다. 선택적으로 `OLLAMA_API_KEY_2`, `OLLAMA_API_KEY_3`를 넣으면 인증 오류나 요청 제한 시 다음 키를 사용합니다. `.env`와 모든 키는 Git에 올리지 않습니다.
+Ollama 키는 한 개면 실행할 수 있습니다. `OLLAMA_API_KEY_2`, `OLLAMA_API_KEY_3`를 입력해 두면 인증 오류나 요청 제한 시 다음 키를 사용합니다. `.env`와 모든 키는 Git에 올리지 않습니다.
 
 ```bash
 cd apps/web
@@ -124,11 +124,11 @@ npm run dev
 3. **호스트 설정**에서 장소와 미팅 양식을 설정하고 **내 예약 링크**를 복사합니다.
 4. 예약 흐름까지 확인하려면 다른 Google 계정으로 로그인해 링크를 열고, **예약하기**에서 후보를 좁혀 요청을 보냅니다. 호스트는 **받은 요청함**에서 수락/거절합니다.
 
-real 모드는 빈 데이터베이스에서 시작하며 로그인 시 사용자가 생성됩니다. **`npm run db:reset`을 실행하지 않습니다.** 이 명령은 demo 전용 데이터 삭제·시드 명령입니다.
+real 모드는 빈 데이터베이스에서 시작하며 로그인 시 사용자가 생성됩니다. 
 
 ## 대안: 로컬 Supabase / 예시 데이터
 
-원격 대신 로컬 DB를 사용하려면 Docker를 실행하고 저장소 루트에서 다음을 실행합니다. `db reset --local`은 기존 로컬 데이터를 삭제하므로 재현용 DB에서 사용합니다. SQL seed 대신 앱의 시드 스크립트를 사용합니다.
+원격 대신 로컬 DB를 사용하려면 Docker를 실행하고 저장소 루트에서 다음을 실행하면 됩니다. `db reset --local`은 기존 로컬 데이터를 삭제하므로 재현용 DB에서 사용해야 합니다. SQL seed 대신 앱의 시드 스크립트를 사용합니다.
 
 ```bash
 supabase start
@@ -146,7 +146,7 @@ npm run db:reset
 npm run dev
 ```
 
-`npm run db:reset`은 지정한 DB의 앱 데이터를 모두 삭제하고 실행일 기준 시드 데이터를 만듭니다. 상단 사용자 전환으로 김민준·이서연·박지호·최하나를 선택할 수 있습니다. Calendar 연결은 예시 캘린더로 동작합니다. **real과 demo는 같은 DB를 공유할 수 없습니다.** 상세 예시 시나리오는 [웹 앱 README](apps/web/README.md)를 참고하세요.
+`npm run db:reset`은 지정한 DB의 앱 데이터를 모두 삭제하고 실행일 기준 시드 데이터를 만듭니다. 상단 사용자 전환으로 김민준·이서연·박지호·최하나를 선택할 수 있습니다. Calendar 연결은 예시 캘린더로 동작합니다. **real과 demo는 같은 DB를 공유할 수 없습니다.** 상세 예시 시나리오는 [웹 앱 README](apps/web/README.md)를 참고해 주세요.
 
 ## 확인 및 문제 해결
 
