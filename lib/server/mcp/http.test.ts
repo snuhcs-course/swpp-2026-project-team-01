@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {generateKeyPair,exportJWK,decodeJwt,SignJWT} from 'jose';
 import {Client,StreamableHTTPClientTransport} from '@modelcontextprotocol/client';
+import {AgentIntake} from '../oauth/intake.ts';
 import {agentMcpHttp} from './http.ts';
 import {AgentCredentials} from '../oauth/credentials.ts';
 import {AgentOAuthTokens} from '../oauth/tokens.ts';
@@ -63,4 +64,27 @@ test('Insufficient scope challenges advertise only the required role permission'
  const f=await fixture();
  const response=await f.handle(f.request({jsonrpc:'2.0',id:2,method:'tools/call',params:{name:'fmat_review_decision',arguments:{requestId:f.grant.actorId,input:{}}}}));
  assert.equal(response.status,403);assert.match(response.headers.get('www-authenticate')!,/error="insufficient_scope", scope="request:decide"/);assert.equal(f.calls(),0);
+});
+
+test('intake MCP discovery, clarification, private context projection and errors stay scoped',async()=>{
+ const grant={grantId:randomUUID(),clientId:randomUUID(),actorKind:'intake' as const,actorId:randomUUID(),scope:'request:intake request:read',grantExpiresAt:Math.floor(Date.now()/1000)+3600};
+ const tokens=new AgentOAuthTokens(env),token=await tokens.issue(grant,async()=>{});
+ const credentials=new AgentCredentials(env,{rpc:async()=>grant});
+ let unavailable=false;
+ const service=new AgentIntake({rpc:async()=>{
+  if(unavailable)throw Error('private provider token must not leak');
+  return {reservedRequestId:randomUUID(),profile:{handle:'public-host',displayName:'Host',timezone:'Asia/Seoul',durationMinutes:30},grant:{principalId:randomUUID(),connectionId:randomUUID(),generation:randomUUID(),encryptedCredential:'private-ciphertext',rulesVersion:1,conflictCalendarIds:['private-calendar'],bookingCalendarId:'private-calendar'}};
+ }},env);
+ const handle=agentMcpHttp(env,credentials,undefined,service);
+ const client=new Client({name:'intake-test',version:'1.0.0'});
+ await client.connect(new StreamableHTTPClientTransport(new URL(env.APP_ORIGIN+'/mcp'),{requestInit:{headers:{authorization:'Bearer '+token}},fetch:async(input,init)=>handle(new Request(input,init))}));
+ try{
+  const tools=(await client.listTools()).tools;assert.equal(tools.length,11);assert.ok(!tools.some(t=>t.name==='fmat_get_setup'));
+  const context=await client.callTool({name:'fmat_get_intake_context',arguments:{}});assert.deepEqual(context.structuredContent,{result:{profile:{handle:'public-host',displayName:'Host',timezone:'Asia/Seoul',durationMinutes:30}}});
+  for(const value of ['private-ciphertext','private-calendar',grant.actorId])assert.ok(!JSON.stringify(context).includes(value));
+  const result=await client.callTool({name:'fmat_create_request',arguments:{idempotencyKey:randomUUID(),details:{}}});
+  assert.equal((result.structuredContent as {result:{status:string}}).result.status,'clarification');
+  const injection=await client.callTool({name:'fmat_create_request',arguments:{idempotencyKey:randomUUID(),details:{hostId:randomUUID()}}});assert.equal(injection.isError,true);
+  unavailable=true;const error=await client.callTool({name:'fmat_get_intake_context',arguments:{}});assert.equal(error.isError,true);assert.ok(!JSON.stringify(error).includes('private provider token'));
+ }finally{await client.close();}
 });

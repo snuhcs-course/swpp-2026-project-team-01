@@ -1,3 +1,5 @@
+import {AgentIntake} from '../oauth/intake.ts';
+import {agentIntakeTools} from '../../contracts/agent-intake.ts';
 import {relayAgentHistory} from '../oauth/history-relay.ts';
 import {McpServer,WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/server';
 import {z} from 'zod';
@@ -24,7 +26,7 @@ function allowedOrigins(env:NodeJS.ProcessEnv):Set<string>{
  return origins;
 }
 /** Fresh SDK server per request: no process-global session can carry authority. */
-export function agentMcpHttp(env=process.env,credentials:Pick<AgentCredentials,'verify'>=new AgentCredentials(env),operations:Pick<AgentOperations,'execute'>=new AgentOperations()){
+export function agentMcpHttp(env=process.env,credentials:Pick<AgentCredentials,'verify'>=new AgentCredentials(env),operations:Pick<AgentOperations,'execute'>=new AgentOperations(),intake:Pick<AgentIntake,'context'|'create'>=new AgentIntake(undefined,env)){
  return async(request:Request):Promise<Response>=>{
   let origin:string|undefined,allowedOrigin:string|undefined,server:McpServer|undefined;
   const finish=(response:Response)=>{
@@ -57,12 +59,28 @@ export function agentMcpHttp(env=process.env,credentials:Pick<AgentCredentials,'
    try{body=JSON.parse(raw);}catch{return finish(oauthJson({error:'invalid_request'},400));}
    // No JSON-RPC batches: one authorized operation per bounded HTTP request.
    if(!body||typeof body!=='object'||Array.isArray(body))return finish(oauthJson({error:'invalid_request'},400));
-   // Intake discovery is enabled with its creation/bound-request adapter.
-   if(credential.claims.actor_kind==='intake')return finish(oauthJson({error:'intake_unavailable'},403));
-   const tools=agentToolsForActor(credential.claims.actor_kind);
+   // Discovery describes capabilities, not current request authority. Pending
+   // intakes can call only intake tools; SQL denies every unbound request call.
+   const actor=credential.claims.actor_kind==='intake'?'guest':credential.claims.actor_kind;
+   const tools=agentToolsForActor(actor);
+   const intakeTools=credential.claims.actor_kind==='intake'?agentIntakeTools:[];
    const call=z.object({method:z.literal('tools/call'),params:z.object({name:z.string()})}).safeParse(body);
-   if(call.success){const tool=tools.find(t=>t.name===call.data.params.name);if(tool){const scope=agentToolScope(tool,credential.claims.actor_kind);if(!credential.claims.scope.split(' ').includes(scope))return challenge('insufficient_scope',scope);}}
+   if(call.success){const tool=tools.find(t=>t.name===call.data.params.name);if(tool){const scope=agentToolScope(tool,actor);if(!credential.claims.scope.split(' ').includes(scope))return challenge('insufficient_scope',scope);}}
+   if(call.success&&intakeTools.some(t=>t.name===call.data.params.name)&&!credential.claims.scope.split(' ').includes('request:intake'))return challenge('insufficient_scope','request:intake');
    server=new McpServer({name:'find-me-a-time',version:'0.1.0'});
+   for(const tool of intakeTools)server.registerTool(tool.name,{
+    title:tool.title,description:tool.description,inputSchema:tool.inputSchema,
+    outputSchema:z.object({result:tool.outputSchema}),
+    annotations:{readOnlyHint:tool.readOnly,destructiveHint:false,idempotentHint:true,openWorldHint:false},
+   },async (input:unknown)=>{
+    try{
+     const result=tool.outputSchema.parse(tool.name==='fmat_get_intake_context'?await intake.context(credential):await intake.create(credential,input));
+     const structuredContent={result};return {content:[{type:'text' as const,text:JSON.stringify(structuredContent)}],structuredContent};
+    }catch(error){
+     const safe=error instanceof AgentOAuthError?{error:{code:error.code,message:'Reconnect the agent and review its requested permissions.'}}:publicError(error).body;
+     return {isError:true,content:[{type:'text' as const,text:JSON.stringify(safe)}]};
+    }
+   });
    for(const tool of tools)server.registerTool(tool.name,{
     title:tool.title,description:tool.description,inputSchema:tool.inputSchema,
     outputSchema:z.object({result:z.unknown()}),annotations:tool.annotations,

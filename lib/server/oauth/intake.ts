@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {z} from 'zod';
-import {agentIntakeResult,prepareAgentIntake} from '../../contracts/agent-intake.ts';
+import {agentIntakeContext,agentIntakeResult,prepareAgentIntake} from '../../contracts/agent-intake.ts';
 import {Database} from '../database/client.ts';
 import {GoogleCalendarProvider,type CalendarProvider} from '../calendar/catalog.ts';
 import {checkIntakeReadiness,intakeReadinessContext} from '../identity/intake-readiness.ts';
@@ -29,6 +29,10 @@ export class AgentIntake {
    throw new ApplicationError('PROVIDER_UNAVAILABLE',503);
   }
   requireAgentCredential(credential,this.now());return result;
+ }
+ async context(credential:AgentCredential){
+  const {profile}=privateContext.parse(await this.call(credential,'context'));
+  return agentIntakeContext.parse({profile});
  }
  async create(credential:AgentCredential,input:unknown){
   requireAgentCredential(credential,this.now());

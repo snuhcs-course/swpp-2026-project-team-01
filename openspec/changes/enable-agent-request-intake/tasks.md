@@ -14,7 +14,7 @@
 
 ## 3. Agent and browser surfaces
 
-- [ ] 3.1 Add consent UI and authenticated MCP intake discovery/calls with sanitized bounded input/output; verify actual SDK and protected browser integration with sufficient/missing details and no booking-page form entry.
+- [x] 3.1 Add consent UI and authenticated MCP intake discovery/calls with sanitized bounded input/output; verify actual SDK and protected browser integration with sufficient/missing details and no booking-page form entry.
 - [ ] 3.2 Add CLI intake login/create/continuation using private credential storage; verify real loopback authorization, no secrets in argv/output, uncertain retries and logout/revocation.
 - [ ] 3.3 Update public skill instructions and owning PRD/architecture/setup/CLI docs; test both entry documents and truthful fallback without claiming untested client compatibility.
 
