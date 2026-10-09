@@ -638,7 +638,7 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
-- [x] Replace the CLI concurrent-refresh test’s artificial 100 ms success deadline and 40 ms scheduling sleep with observed refresh entry/release, the production lock allowance and an explicit held-lock rejection probe. Preserve uncertain-token and cross-process assertions; pass all 448 app/provider tests and the full static check. [Evidence](05_rebuild_evidence.md#cli-refresh-contention-fixture--2026-10-09). Fresh hosted CI remains pending.
+- [x] Replace the CLI concurrent-refresh test’s artificial 100 ms success deadline and 40 ms scheduling sleep with observed refresh entry/release, the production lock allowance and an explicit held-lock rejection probe. Preserve uncertain-token and cross-process assertions; pass all 448 app/provider tests and the full static check. [Evidence](05_rebuild_evidence.md#cli-refresh-contention-fixture--2026-10-09). Both hosted source CI runs `37931261182` and `37931254557` completed successfully, including repository, browser and database jobs.
 
 - [x] Extend the populated backup/restore drill to native contact acceptance, in-flight uncertainty, remembered retry aliases, claim budgets, frozen routes and post-restore session revocation. Verify exact contents across 89 tables in isolated containers, three passing restore tests and typechecks. [Evidence](05_rebuild_evidence.md#native-contact-sharing-restore-coverage--2026-10-09). Managed/full-runtime restore, snapshot-age effects and operational custody remain open.
 
