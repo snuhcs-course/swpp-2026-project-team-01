@@ -104,3 +104,47 @@ test('half-hour clock changes are evaluated from timezone rules without a one-ho
  const input=base();input.now='2030-04-06T00:00:00Z';input.rules.timezone='Australia/Lord_Howe';input.rules.availability=[{days:[0],start:'00:00',end:'04:00'}];input.windows=input.requesterAvailability=[slot('2030-04-06T00:00:00Z','2030-04-08T00:00:00Z')];
  const result=evaluateIntervals(input);assert.deepEqual(result.windows,[slot('2030-04-06T13:00:00Z','2030-04-06T17:30:00Z')]);assert.equal(sampleIntervals(result,{stepMinutes:30,limit:100}).intervals.length,9);
 });
+
+test('overnight hours belong to the starting weekday even for a next-morning-only request',()=>{
+ const input=base();input.rules.availability=[{days:[1],start:'22:00',end:'02:00'}];
+ input.windows=input.requesterAvailability=[slot('2030-01-08T01:00:00Z','2030-01-08T02:30:00Z')];
+ assert.deepEqual(evaluateIntervals(input).windows,[slot('2030-01-08T01:00:00Z','2030-01-08T02:00:00Z')]);
+ assert.equal(intervalFits(evaluateIntervals(input),slot('2030-01-08T01:45:00Z','2030-01-08T02:15:00Z')),false);
+ input.windows=input.requesterAvailability=[slot('2030-01-09T01:00:00Z','2030-01-09T02:00:00Z')];assert.deepEqual(evaluateIntervals(input).windows,[]);
+});
+
+test('overnight Saturday rolls into Sunday in host time independently of the requester day',()=>{
+ const input=base();input.now='2030-01-01T00:00:00Z';input.rules.timezone='Asia/Seoul';input.requesterTimezone='America/Los_Angeles';input.rules.availability=[{days:[6],start:'22:00',end:'02:00'}];
+ input.windows=input.requesterAvailability=[slot('2030-01-05T16:00:00Z','2030-01-05T18:00:00Z')];
+ assert.deepEqual(evaluateIntervals(input).windows,[slot('2030-01-05T16:00:00Z','2030-01-05T17:00:00Z')]);
+});
+
+test('overnight ranges merge with morning hours and retain buffers and midnight endpoints',()=>{
+ const input=base();input.rules.availability=[{days:[1],start:'22:00',end:'02:00'},{days:[2],start:'01:00',end:'04:00'}];
+ input.windows=input.requesterAvailability=[slot('2030-01-07T23:00:00Z','2030-01-08T04:00:00Z')];input.rules.bufferMinutes=10;
+ input.hostBusy=[slot('2030-01-08T01:00:00Z','2030-01-08T01:30:00Z')];input.rules.focusBlocks=[slot('2030-01-08T02:30:00Z','2030-01-08T03:00:00Z')];
+ assert.deepEqual(evaluateIntervals(input).windows,[slot('2030-01-07T23:00:00Z','2030-01-08T00:50:00Z'),slot('2030-01-08T01:40:00Z','2030-01-08T02:20:00Z'),slot('2030-01-08T03:10:00Z','2030-01-08T04:00:00Z')]);
+ input.rules.availability=[{days:[1],start:'22:00',end:'00:00'}];assert.deepEqual(evaluateIntervals(input).windows,[slot('2030-01-07T23:00:00Z','2030-01-08T00:00:00Z')]);
+});
+
+test('overnight DST windows use next local date rather than 24 elapsed hours',()=>{
+ for(const [date,start,end,hours] of [['2030-03-09','2030-03-10T03:00:00Z','2030-03-10T08:00:00Z',5],['2030-11-02','2030-11-03T02:00:00Z','2030-11-03T09:00:00Z',7]] as const){
+  const input=base();input.now=date+'T00:00:00Z';input.rules.timezone='America/New_York';input.rules.availability=[{days:[6],start:'22:00',end:'04:00'}];input.durationMinutes=60;input.windows=input.requesterAvailability=[slot(start,end)];
+  const result=evaluateIntervals(input);assert.deepEqual(result.windows,[slot(start,end)]);assert.equal(sampleIntervals(result,{stepMinutes:60,limit:20}).intervals.length,hours);
+ }
+});
+
+test('overnight ambiguous or missing ends clarify, but unrelated previous-day rules do not',()=>{
+ for(const [date,end] of [['2030-03-10','02:30'],['2030-11-03','01:30']] as const){
+  const input=base();input.now=date+'T00:00:00Z';input.rules.timezone='America/New_York';input.rules.availability=[{days:[6],start:'22:00',end}];input.windows=input.requesterAvailability=[slot(date+'T05:00:00Z',date+'T10:00:00Z')];
+  assert.equal(evaluateIntervals(input).status,'clarification');assert.deepEqual(evaluateIntervals(input).windows,[]);
+  const monday=Temporal.PlainDate.from(date).add({days:1}).toString();input.windows=input.requesterAvailability=[slot(monday+'T13:00:00Z',monday+'T17:00:00Z')];input.rules.availability=[{days:[0],start:end,end:'04:00'},{days:[1],start:'09:00',end:'12:00'}];
+  assert.equal(evaluateIntervals(input).status,'ready');assert.equal(evaluateIntervals(input).windows.length,1);
+ }
+});
+
+test('distant overnight windows do not expand intervening clock-change dates',()=>{
+ const input=base();input.now='2030-01-01T00:00:00Z';input.rules.timezone='America/New_York';input.rules.availability=[{days:[6],start:'22:00',end:'02:30'}];
+ input.windows=input.requesterAvailability=[slot('2030-01-06T05:00:00Z','2030-01-06T06:00:00Z'),slot('2030-11-10T05:00:00Z','2030-11-10T06:00:00Z')];
+ assert.deepEqual(evaluateIntervals(input).windows,input.windows);
+});

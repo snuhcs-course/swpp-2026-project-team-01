@@ -2,7 +2,7 @@
 
 ## 1. Contract and interval evaluation
 
-- [ ] 1.1 Allow start/end inequality in the shared weekly contract and expand overnight hours with previous-day ownership. Add failing-then-passing tests for overnight tails, weekday/week rollover, host/requester timezone differences, midnight ends, equal-clock rejection, overlaps, distant windows, both DST transitions and unrelated ambiguous dates. Preserve same-day and full-interval/buffer controls; update architecture/test documentation, run focused tests and typechecks, and commit.
+- [x] 1.1 Allow start/end inequality in the shared weekly contract and expand overnight hours with previous-day ownership. Add failing-then-passing tests for overnight tails, weekday/week rollover, host/requester timezone differences, midnight ends, equal-clock rejection, overlaps, distant windows, both DST transitions and unrelated ambiguous dates. Preserve same-day and full-interval/buffer controls; update architecture/test documentation, run focused tests and typechecks, and commit.
 
 ## 2. Durable setup and host display
 

@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Restore overnight weekly-hours parsing and previous-day interval expansion, with seven regression tests and all 428 application/provider tests passing. [Evidence](05_rebuild_evidence.md#overnight-contract-and-interval-core--2026-10-09). SQL persistence, next-day UI labels, integrated acceptance and production rollout remain open.
+
 - [x] Reproduce the lost overnight host-hours behavior and define the strictly validated [cross-layer restoration](../../openspec/changes/support-overnight-host-hours/tasks.md), including previous-day ownership, DST, SQL persistence and next-day review labels. [Evidence](05_rebuild_evidence.md#legacy-overnight-host-hours-gap--2026-10-09). Implementation, rollout and the wider scheduling audit remain open.
 
 - [x] Deploy Photon credential separation from `1ba3f85` (`dpl_99B6uHx4UwH9gaehpZHgWM5isPiq`), verify the exact Ready release alias and 25 production checks. [Evidence](05_rebuild_evidence.md#deployed-photon-credential-separation--2026-10-09). Production Photon receiver configuration is absent and correctly returns 503; signed ingress and live device acceptance remain open.

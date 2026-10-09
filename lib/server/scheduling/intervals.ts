@@ -40,9 +40,16 @@ export function evaluateIntervals(raw:IntervalFeasibilityInput):IntervalEvaluati
  for(const value of requests){let date=Temporal.Instant.fromEpochNanoseconds(value.start).toZonedDateTimeISO(input.rules.timezone).toPlainDate();const last=Temporal.Instant.fromEpochNanoseconds(value.end-1n).toZonedDateTimeISO(input.rules.timezone).toPlainDate();
   while(Temporal.PlainDate.compare(date,last)<=0){dates.add(date.toString());date=date.add({days:1});}
  }
- for(const value of dates){const date=Temporal.PlainDate.from(value);
+ // A morning-only request may intersect hours owned by yesterday. Keep
+ // requested dates separate so yesterday's same-day rules cannot add an
+ // unrelated ambiguous clock boundary to this evaluation.
+ const owners=new Set(dates);
+ for(const value of dates)owners.add(Temporal.PlainDate.from(value).subtract({days:1}).toString());
+ for(const value of owners){const date=Temporal.PlainDate.from(value);
   for(const rule of input.rules.availability){if(!rule.days.includes(date.dayOfWeek%7))continue;
-   try{working.push(range({start:localTimeToInstant(value+'T'+rule.start,input.rules.timezone),end:localTimeToInstant(value+'T'+rule.end,input.rules.timezone)}));}
+   const overnight=rule.end<rule.start,endDate=overnight?date.add({days:1}).toString():value;
+   if(!dates.has(value)&&!(overnight&&dates.has(endDate)))continue;
+   try{working.push(range({start:localTimeToInstant(value+'T'+rule.start,input.rules.timezone),end:localTimeToInstant(endDate+'T'+rule.end,input.rules.timezone)}));}
    catch{ambiguous.add(value);}
   }
  }

@@ -2,7 +2,7 @@ import {z} from 'zod';
 import {publicHandle} from './handles.ts';
 import {ianaTimezone} from './time.ts';
 const minute=z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/u);
-export const weeklyWindow=z.strictObject({days:z.array(z.number().int().min(0).max(6)).min(1).max(7),start:minute,end:minute}).refine(v=>v.start<v.end,'End must follow start.');
+export const weeklyWindow=z.strictObject({days:z.array(z.number().int().min(0).max(6)).min(1).max(7),start:minute,end:minute}).refine(v=>v.start!==v.end,'Start and end must differ; an earlier end is on the next day.');
 const instantWindow=z.strictObject({start:z.iso.datetime({offset:true}),end:z.iso.datetime({offset:true})}).refine(v=>Date.parse(v.start)<Date.parse(v.end));
 export const setupRules=z.strictObject({
  timezone:ianaTimezone,durationMinutes:z.number().int().min(5).max(240),availability:z.array(weeklyWindow).min(1).max(21),focusBlocks:z.array(instantWindow).max(100),bufferMinutes:z.number().int().min(0).max(240),
