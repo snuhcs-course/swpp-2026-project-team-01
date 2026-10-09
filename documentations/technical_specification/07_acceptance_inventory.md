@@ -4,11 +4,27 @@ Date: 2026-10-09. This is an obligation and ownership map, not a release sign-of
 
 ## Current resource inventory
 
-- Checkout at audit: `871e478` on `feat/reconstruct-application`; [draft PR 7](https://github.com/snuhcs-course/swpp-2026-project-team-01/pull/7). Preserve the unrelated competitor-research edit.
-- Vercel readback: team `justdodos-projects`, project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`), production deployment `dpl_9UR6Vmy8nssyPK7PNVADTaPMdf7i` is Ready and aliases `https://release.findmeatime.com`. Deployed application source remains `09b936a`; subsequent commits add tests/docs. Fresh public health returns HTTP 200 and `releaseReady: false`.
-- Supabase CLI link remains `mriseqztcwmezvtawnbo` (FindMeATime2). The [deployment ledger](05_rebuild_evidence.md#booking-identity-and-host-lock-acceptance--2026-10-09) records remote verification; local fresh rebuild covers all 96 migrations. No remote schema state is inferred from the local reset.
+- Checkout at audit: `0e38f6e` on `feat/reconstruct-application`; [draft PR 7](https://github.com/snuhcs-course/swpp-2026-project-team-01/pull/7). Preserve the unrelated competitor-research edit.
+- Vercel readback: team `justdodos-projects`, project `findmeatime-release` (`prj_eCihziUF85AHPkfnFCNhBtdYlfnk`), production deployment `dpl_Gaq4x8FwZU5ZQDupVZhyVxmN8ncz` is Ready at `https://release.findmeatime.com`. Deployed source is `9e82305`; later commits add tooling/docs. The [deployment checks](05_rebuild_evidence.md#inline-imessage-mitigation-production-deployment--2026-10-09) passed 81 HTTP and 15 composed runtime checks with `releaseReady: false`. The subsequent [latency probe](05_rebuild_evidence.md#public-http-latency-probe-and-edge-challenge--2026-10-09) encountered a Vercel challenge; complete performance acceptance remains open.
+- Supabase CLI link remains `mriseqztcwmezvtawnbo` (FindMeATime2). The [retention deployment ledger](05_rebuild_evidence.md#scheduled-calendar-cleanup-production-acceptance--2026-10-09) records 104 matching migrations through `20261009044130`. No newer remote schema state is inferred from a local reset or this documentation refresh.
 - Node 24.21.0, npm 11.19.0, Supabase 2.119.0, OpenSpec 1.14.0 and Vercel 62.5.0 were read back. Runtime pins remain in the committed manifest/lockfile. Six application eve routes and four tools are inventoried in the [runtime documentation](../../agent/README.md#runtime-authorization-inventory).
 - Google OAuth remains blocked by the documented callback mismatch and Google Cloud sign-in requirement. Photon live receiver/device acceptance, authorized AgentMail journeys and invitation mailbox delivery remain open; credential presence is not delivery evidence. See [provider setup](03_provider_setup.md). Cloudflare retains authoritative DNS; the root-domain deployment is outside this reconstruction checkout’s release target.
+
+## Named-client availability audit
+
+The 2026-10-09 read-only workstation inventory checked exact application bundles in `/Applications` and `~/Applications`, plus executable discovery on the current PATH. It is a local availability check, not exhaustive software discovery or compatibility acceptance. Web products, differently named bundles and installations on other devices may still be available. No connection, grant or scheduling journey was performed by this inventory.
+
+| Required client | Observed availability | Acceptance still required |
+|---|---|---|
+| Dots | No exact-name local bundle found in the checked directories. | Identify the actual client/version and exercise both roles. |
+| Muse | No exact-name local bundle found in the checked directories. | Identify the actual client/version and exercise both roles. |
+| Instinct | No exact-name local bundle found in the checked directories. | Identify the actual client/version and exercise both roles. |
+| ChatGPT | `/Applications/ChatGPT.app`, version `26.1002.52244`, build `13536`. | Actual application connector/consent and both complete role journeys. |
+| Codex | Bundled CLI reports `0.162.0-alpha.2`; no separate exact-name app bundle was found. CLI presence does not establish the desktop client's version or connection state. | Actual supported client connection and both role journeys; do not substitute the project's requester CLI. |
+| Claude | No exact-name local bundle found in the checked directories. | Identify desktop/web client/version and exercise both roles. |
+| Claude Code | `claude` was not found on the current PATH. | Locate/install the intended client, authenticate it and exercise both roles. |
+
+The Google Cloud check found zero signed-in accounts through Aside's account inventory. Attaching the existing Cloud Console tab timed out, so its old title is not evidence of authenticated access. The operator sign-in request remains pending. No callback or OAuth client setting was changed. The full named-client tasks remain open; all seven products require independent current-proposal, stale-decision and revoked-access evidence.
 
 ## Ownership
 
