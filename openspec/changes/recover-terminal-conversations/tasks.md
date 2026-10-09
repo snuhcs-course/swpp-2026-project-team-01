@@ -4,7 +4,7 @@
 
 - [x] 1.1 Define strict browser recovery input/status contracts without caller-controlled runtime identity, authority or terminal claims; verify invalid/extra fields and retry/generation boundaries, and document the pending API boundary.
 - [x] 1.2 Implement trusted terminal-evidence inspection for exact saved sessions using pinned eve APIs; verify failed versus active/missing/unknown state, bounded reads, usage evidence and authority after I/O. Document the supported evidence source and limitations.
-- [ ] 1.3 Add private generation/recovery persistence, generation-zero backfill and idempotent transitions with pg-delta; rebuild locally and verify grants, concurrent transitions, changed retries, expiry after locks and lost acknowledgments. Document lock order and rollout compatibility.
+- [x] 1.3 Add private generation/recovery persistence, generation-zero backfill and idempotent transitions with pg-delta; rebuild locally and verify grants, concurrent transitions, changed retries, expiry after locks and lost acknowledgments. Document lock order and rollout compatibility.
 - [ ] 1.4 Fence tools, readiness reads, model reservations, input delivery and settlement with runtime generation identity; verify retired and legacy runtime calls cannot mutate recovered scopes while ordinary generation-zero behavior remains valid. Update the route/tool inventory.
 
 ## 2. History, dispatch and provider failure
