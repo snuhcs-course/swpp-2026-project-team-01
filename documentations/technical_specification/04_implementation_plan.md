@@ -514,6 +514,8 @@ References: [email direction](01_backend_architecture.md#email-provider-directio
 
 ### Phase 7 — Add verified host iMessage continuity
 
+- [x] Deploy explicit private routing from `d742c49` (`dpl_BYay8ozxva8AJkg55cdZQyeqUBa1`); verify 116 migrations, seven matching function definitions/privileges, thirteen rollback-only assertions, clean production advisors, exact Ready release alias and 25 HTTP guards. [Evidence](05_rebuild_evidence.md#deployed-private-imessage-request-routing--2026-10-10). Proposal decisions/revisions and controlled live iPhone acceptance remain open.
+
 - [x] Implement explicit link-local request selection, captured private scope/grant routing and original-context replies. Verify 116 local migrations, 2,034 SQL assertions, 452 app/provider tests, both builds, signed Photon/eve concurrency/restart/isolation tests, runtime recovery and clean advisors. [Evidence](05_rebuild_evidence.md#private-imessage-request-routing--2026-10-10). Production routing rollout, proposal decisions/revisions and live iPhone acceptance remain open.
 
 - [x] Deploy private assistant discovery from `e1d5a82` (`dpl_HKZgMmRBFMeNprpEYoFjoHJ3XiKB`); verify 114 migrations, matching function bodies/privileges, eleven rollback-only production assertions, clean advisors, Ready release alias and 25 HTTP guards. [Evidence](05_rebuild_evidence.md#deployed-private-request-discovery--2026-10-10). Explicit iMessage switching and proposal decisions remain open.
@@ -792,7 +794,7 @@ Preserve settled capability requirements, including expiry, scoped guest credent
 
 ## 5. Verification and completion evidence
 
-- [x] Synchronize the booking rule-change fixture at the entry of both parallel route provider calls; preserve exact call counts and every blocked-booking/no-effect assertion. Verify the full booking integration, 1,979 post-cleanup SQL assertions and types. [Evidence](05_rebuild_evidence.md#booking-revalidation-fixture-synchronization--2026-10-10). Hosted CI acceptance remains pending.
+- [x] Synchronize the booking rule-change fixture at the entry of both parallel route provider calls; preserve exact call counts and every blocked-booking/no-effect assertion. Verify the full booking integration, 1,979 post-cleanup SQL assertions and types. [Evidence](05_rebuild_evidence.md#booking-revalidation-fixture-synchronization--2026-10-10). Hosted CI runs `37991579645` and `37991585661` passed; see the [follow-up](05_rebuild_evidence.md#booking-fixture-hosted-ci-follow-up).
 
 Create fresh tests as each slice lands; do not defer isolation or recovery tests to the final phase. Use deterministic fixtures for failure injection and real controlled accounts for provider acceptance. Tests assert scheduling outcomes and authorization, not framework internals.
 
