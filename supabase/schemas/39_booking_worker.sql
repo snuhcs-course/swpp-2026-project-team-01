@@ -11,7 +11,7 @@ begin
   if p_input<>'{}' or exists(select 1 from jsonb_object_keys(p_lease) k where k<>'workerId') then raise exception 'INVALID_INPUT';end if;
   select * into j from fmat.jobs job where kind in ('booking','booking_reconcile')
    and ((status='pending' and available_at<=clock_timestamp()) or (status='running' and lease_until<=clock_timestamp()))
-   and exists(select 1 from fmat.booking_attempts attempt join fmat.web_approval_decisions decision on decision.approval_id=attempt.approval_id
+   and exists(select 1 from fmat.booking_attempts attempt join fmat.approval_attributions decision on decision.approval_id=attempt.approval_id
      where attempt.id::text=job.payload->>'attemptId' and attempt.request_id::text=job.payload->>'requestId')
    order by available_at,created_at,id limit 1 for update skip locked;
   if not found then return jsonb_build_object('job',null);end if;
@@ -29,7 +29,7 @@ begin
  if not found then raise exception 'NOT_FOUND';end if;
  select * into h from fmat.hosts where id=r.host_id for update;
  select * into a from fmat.booking_attempts where id=(j.payload->>'attemptId')::uuid and request_id=r.id;
- if not found or not exists(select 1 from fmat.web_approval_decisions where approval_id=a.approval_id and request_id=r.id and host_id=h.id) then raise exception 'FORBIDDEN';end if;
+ if not found or not exists(select 1 from fmat.approval_attributions where approval_id=a.approval_id and request_id=r.id and host_id=h.id) then raise exception 'FORBIDDEN';end if;
  if p_operation in ('access','refresh') then
   if a.phase not in ('prepared','dispatched','uncertain','conflict') then raise exception 'BOOKING_UNCERTAIN';end if;
   perform 1 from auth.users where id=h.id for share;
@@ -116,7 +116,7 @@ declare url text; secret text;
 begin
  if not exists(select 1 from fmat.jobs j where kind in ('booking','booking_reconcile')
   and ((status='pending' and available_at<=clock_timestamp()) or (status='running' and lease_until<=clock_timestamp()))
-  and exists(select 1 from fmat.booking_attempts a join fmat.web_approval_decisions d on d.approval_id=a.approval_id where a.id::text=j.payload->>'attemptId' and a.request_id::text=j.payload->>'requestId')) then return null;end if;
+  and exists(select 1 from fmat.booking_attempts a join fmat.approval_attributions d on d.approval_id=a.approval_id where a.id::text=j.payload->>'attemptId' and a.request_id::text=j.payload->>'requestId')) then return null;end if;
  select decrypted_secret into url from vault.decrypted_secrets where name='fmat_booking_dispatch_url';
  select decrypted_secret into secret from vault.decrypted_secrets where name='fmat_runtime_dispatch_secret';
  if url is null or secret is null then return null;end if;

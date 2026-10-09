@@ -72,18 +72,7 @@ begin
  if result->>'status'='booking' and not (result->>(case when p_operation='withdraw' then 'canWithdraw' else 'canDecline' end))::boolean then raise exception 'BOOKING_PENDING';end if;
  if (result->>'closed')::boolean then raise exception 'REQUEST_CLOSED';end if;
  if (p_input->>'revision')::integer is distinct from r.revision then raise exception 'REVISION_CONFLICT';end if;
- update fmat.booking_attempts set phase='blocked',reason='request_'||p_operation||'_before_dispatch',updated_at=clock_timestamp()
-  where request_id=r.id and phase='prepared';
- delete from fmat.host_reservations where attempt_id in(select id from fmat.booking_attempts where request_id=r.id and phase='blocked');
- update fmat.requests set status=case when p_operation='withdraw' then 'withdrawn' else 'declined' end,
-  token_revoked_at=clock_timestamp(),candidates='[]',candidate_publication_id=null,current_proposal_version=null,
-  requester_agreed_version=null,host_approved_version=null,evaluated_at=null,evaluated_rules_version=null,
-  availability_check_id=null,availability_check_started_at=null,revision=revision+1,updated_at=clock_timestamp()
-  where id=r.id returning * into r;
- insert into fmat.request_closures(request_id,actor_scope,key,operation,input,result_revision) values(r.id,scope,(p_input->>'idempotencyKey')::uuid,p_operation,p_input,r.revision);
- insert into fmat.request_history(request_id,revision,operation,actor,proposal_version) values(r.id,r.revision,'request_'||p_operation,actor,null);
- perform fmat.audit('request_'||p_operation,actor,r.id::text);
- return fmat.request_lifecycle_view(r.id,p_credential->>'kind');
+ return fmat.commit_request_closure(r,actor,scope,p_operation,p_input);
 end;
 $$;
 revoke all on function public.fmat_request_lifecycle(text,jsonb,jsonb) from public,anon,authenticated;

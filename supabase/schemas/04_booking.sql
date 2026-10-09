@@ -3,7 +3,7 @@ create table fmat.host_approvals (
   request_id uuid not null references fmat.requests(id),
   proposal_version integer not null,
   host_id uuid not null references fmat.hosts(id),
-  source text not null check(source='authenticated_web'),
+  source text not null check(source in ('authenticated_web','verified_imessage')),
   approved_revision integer not null,
   created_at timestamptz not null default now(),
   foreign key(request_id,proposal_version) references fmat.proposals(request_id,version)
@@ -281,13 +281,13 @@ begin
       then raise exception 'FEASIBILITY_STALE'; end if;
     -- Rebuilt web approvals must consume saved lease-bound evidence through
     -- fmat_booking_dispatch; a caller-supplied feasibility flag is insufficient.
-    if exists(select 1 from fmat.web_approval_decisions where approval_id=v_attempt.approval_id) then raise exception 'FEASIBILITY_STALE';end if;
+    if exists(select 1 from fmat.approval_attributions where approval_id=v_attempt.approval_id) then raise exception 'FEASIBILITY_STALE';end if;
     update fmat.booking_attempts set phase='dispatched',dispatched_at=clock_timestamp(),updated_at=clock_timestamp() where id=v_attempt.id;
     perform fmat.audit(p_operation,p_actor,v_attempt.id::text);
     return jsonb_build_object('dispatched',true);
   end if;
 
-  if exists(select 1 from fmat.web_approval_decisions where approval_id=v_attempt.approval_id) then raise exception 'FORBIDDEN';end if;
+  if exists(select 1 from fmat.approval_attributions where approval_id=v_attempt.approval_id) then raise exception 'FORBIDDEN';end if;
   v_outcome:=p_input->>'outcome';
   if v_attempt.phase='confirmed' then
     if v_outcome='confirmed' then return jsonb_build_object('ok',true); end if;

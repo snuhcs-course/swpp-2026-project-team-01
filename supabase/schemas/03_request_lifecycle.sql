@@ -433,7 +433,7 @@ begin
     or v_job.payload->>'outboxId' is distinct from p_input->>'outboxId' or v_job.kind not in ('contact_delivery','delivery') then raise exception 'LEASE_LOST'; end if;
   select * into v_outbox from fmat.outbox where id=(p_input->>'outboxId')::uuid for update;
   if not found then raise exception 'NOT_FOUND'; end if;
-  if v_outbox.payload->>'type'='booking_confirmed' and exists(select 1 from fmat.web_approval_decisions where request_id=(v_outbox.payload->>'requestId')::uuid) then raise exception 'FORBIDDEN';end if;
+  if v_outbox.payload->>'type'='booking_confirmed' and exists(select 1 from fmat.approval_attributions where request_id=(v_outbox.payload->>'requestId')::uuid) then raise exception 'FORBIDDEN';end if;
   if v_outbox.payload->>'kind' in ('contact_verification','contact_recovery') then
     select * into v_challenge from fmat.contact_challenges where id=(v_outbox.payload->>'challengeId')::uuid;
     select * into v_request from fmat.requests where id=v_challenge.request_id;

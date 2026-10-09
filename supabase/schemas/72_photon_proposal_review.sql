@@ -90,7 +90,8 @@ begin
   return body;
  end if;
  body:=body||'Review reference: '||review_id::text||E'\nValid until: '||to_char((state->>'expiresAt')::timestamptz at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')||E'\n';
- body:=body||'Review does not approve or book. Complete approval or decline in your host workspace.';
+ body:=body||case when (state->>'canApprove')::boolean then 'To approve this exact proposal, reply: approve '||review_id::text||E'\n' else 'Approval is unavailable until requester agreement and contact verification are current.'||E'\n' end;
+ body:=body||case when (state->>'canDecline')::boolean then 'To decline, reply: decline '||review_id::text||E'\n' else '' end||'Review alone does not approve or book. You can also decide in your host workspace.';
  if length(body)>4000 then return fmat.photon_scoped_reply(i.conversation_id,'This proposal is too long for a complete message. Open your host workspace to review every detail.');end if;
  if (state->>'expiresAt')::timestamptz<=clock_timestamp() then raise exception 'REVISION_CONFLICT';end if;
  insert into fmat.photon_proposal_reviews(id,inbox_id,link_id,receiver_id,request_id,revision,proposal_version,proposal,context_basis,requester_agreed,can_approve,can_decline,text,expires_at)

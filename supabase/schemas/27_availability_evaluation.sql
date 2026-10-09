@@ -68,7 +68,7 @@ begin
       or v_attempt.proposal_version is distinct from v_request.current_proposal_version
       or v_request.requester_agreed_version is distinct from v_attempt.proposal_version
       or v_request.host_approved_version is distinct from v_attempt.proposal_version
-      or not exists(select 1 from fmat.web_approval_decisions d join fmat.host_approvals a on a.id=d.approval_id
+      or not exists(select 1 from fmat.approval_attributions d join fmat.host_approvals a on a.id=d.approval_id
         where d.approval_id=v_attempt.approval_id and d.request_id=v_request.id and d.host_id=v_host.id
         -- Recovery advances request revision without fabricating a new human decision.
         -- The saved approval remains bound to its original revision and proposal;

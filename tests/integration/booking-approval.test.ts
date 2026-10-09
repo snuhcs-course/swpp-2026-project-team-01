@@ -1,3 +1,4 @@
+import {verifyIMessageBooking} from './booking-imessage.ts';
 import {verifyBookingCrashes} from './booking-crashes.ts';
 import {bookingNeighbors,verifyBookingRevalidation} from './booking-revalidation.ts';
 import {routeFingerprint} from '../../lib/server/routes/google.ts';
@@ -71,6 +72,8 @@ test('Web approval requires exact current host/session/proposal/agreement and co
   await assert.rejects(approval.approve(a.credential,{...input,revision:input.revision+1}),code('IDEMPOTENCY_CONFLICT'));await assert.rejects(approval.approve(a.credential,{...input,revision:input.revision+1,idempotencyKey:randomUUID()}),code('RECONCILIATION_PENDING'));
   assert.equal(await sql.query(`select has_function_privilege('anon','public.fmat_booking_approval(text,jsonb,jsonb)','EXECUTE')||','||has_function_privilege('authenticated','public.fmat_booking_approval(text,jsonb,jsonb)','EXECUTE')||','||has_function_privilege('service_role','public.fmat_booking_approval(text,jsonb,jsonb)','EXECUTE');`),'false,false,true');
   await sql.query(`do $$begin update fmat.web_approval_decisions set input='{}' where request_id='${r.id}';raise exception 'mutable fixture';exception when raise_exception then if sqlerrm<>'IMMUTABLE_EVALUATION' then raise;end if;end$$;`);
+  const imessageHost=await createHost();let imessageDay=20;
+  await verifyIMessageBooking(db,env,imessageHost,async()=>{const f=await fixture(imessageHost,imessageDay++);await f.agree();await sql.query(`update fmat.requests set contact_verified_email='guest@example.test' where id='${f.id}';`);return f.id;});
   await verifyBookingLeaseCutoffs(r.id,a.id);
   await verifyBookingEvaluation(db,env,r.id,a.id);
   const changed=await fixture();await changed.agree();await sql.query(`update fmat.requests set details=details||'{"purpose":"Changed"}' where id='${changed.id}';`);assert.equal((await approval.read(a.credential,{requestId:changed.id})).blocker,'proposal_stale');

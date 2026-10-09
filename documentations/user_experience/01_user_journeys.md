@@ -205,7 +205,7 @@ Before discussing a request, the host asks for their request list and sends its 
 
 1. The host receives a summary of the current proposal in their linked private conversation.
 2. They ask questions or propose changes such as “Make it next week.” The discussion remains host-only.
-3. They explicitly approve or decline the displayed proposal. A change follows J-07.
+3. They explicitly approve or decline the displayed proposal using its exact authored command and review reference, or complete authenticated browser review. If the proposal or its context changed, they review again. An approval acknowledgment reports booking pending until an event is actually confirmed. A change follows J-07.
 4. If a reply such as “yes” is ambiguous, the assistant asks for clarification. A stale reply cannot approve a newer proposal. When identity or proposal context cannot be established, the host uses authenticated web review.
 5. The host receives the booking outcome or continues in `/app` if delivery fails. They can unlink iMessage to stop notifications and further private processing or host actions through that identity; relinking requires fresh proofs.
 

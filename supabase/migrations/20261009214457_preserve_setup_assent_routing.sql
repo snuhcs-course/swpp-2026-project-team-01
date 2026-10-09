@@ -1,46 +1,13 @@
--- Historical receipts deliberately remain unbound. Never infer authority from
--- a link created after an input arrived or move a receipt to a replacement link.
-alter table fmat.photon_inbox
-  add column receiver_id uuid,
-  add column link_id uuid references fmat.photon_links(id),
-  add column runtime_message_id uuid references fmat.runtime_messages(id),
-  add column processing_outcome text check(processing_outcome in ('accepted','revoked','limited'));
-create index photon_inbox_link_idx on fmat.photon_inbox(link_id);
-create index photon_inbox_runtime_idx on fmat.photon_inbox(runtime_message_id);
+SET local check_function_bodies = off;
 
-create or replace function fmat.photon_execution_actor(p_credential jsonb)
-returns jsonb language plpgsql set search_path='' as $$
-declare i fmat.photon_inbox; l fmat.photon_links; h fmat.hosts; u auth.users; r fmat.photon_receivers;
-begin
- if jsonb_typeof(p_credential) is distinct from 'object' or p_credential->>'kind' is distinct from 'photon'
-  or p_credential-array['kind','linkId','inboxId','receiverId']<>'{}'::jsonb then raise exception 'UNAUTHORIZED'; end if;
- select * into i from fmat.photon_inbox where id=(p_credential->>'inboxId')::uuid;
- select * into l from fmat.photon_links where id=i.link_id and id=(p_credential->>'linkId')::uuid;
- if not found then raise exception 'UNAUTHORIZED'; end if;
- -- Same host/Auth/receiver/link order as unlink and browser setup. UPDATE up
- -- front avoids upgrading a shared host lock after another setup writer starts.
- select * into h from fmat.hosts where id=l.host_id for update;
- if not found or h.revoked_at is not null then raise exception 'UNAUTHORIZED'; end if;
- select * into u from auth.users where id=h.id for share;
- if not found or u.deleted_at is not null or u.email_confirmed_at is null
-  or u.banned_until>clock_timestamp() or lower(u.email) is distinct from h.email then raise exception 'UNAUTHORIZED'; end if;
- select * into r from fmat.photon_receivers where project_id=i.project_id for share;
- select * into l from fmat.photon_links where id=i.link_id for share;
- if not found or l.revoked_at is not null or not r.enabled
-  or r.receiver_id is distinct from i.receiver_id or i.receiver_id is distinct from (p_credential->>'receiverId')::uuid
-  or l.project_id is distinct from i.project_id or l.phone is distinct from i.sender_id
-  or l.line is distinct from i.line or l.space_id is distinct from i.space_id
-  or i.occurred_at<l.linked_at or i.occurred_at>i.received_at+interval '5 minutes'
-  or i.received_at+interval '1 hour'<=clock_timestamp() then raise exception 'UNAUTHORIZED'; end if;
- return jsonb_build_object('kind','host','id',h.id,'email',h.email,'channel','imessage');
-end;
-$$;
-revoke all on function fmat.photon_execution_actor(jsonb) from public,anon,authenticated,service_role;
-
--- One receipt per transaction: no network call, no cross-host lock ordering,
--- and no gap between accepting runtime input and completing its transport job.
-create or replace function public.fmat_photon_dispatch(p_project_id uuid)
-returns jsonb language plpgsql security definer set search_path='' as $$
+CREATE OR REPLACE FUNCTION public.fmat_photon_dispatch (
+  p_project_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare i fmat.photon_inbox; j fmat.jobs; l fmat.photon_links; s fmat.conversation_scopes;
  g fmat.conversation_grants; credential jsonb; accepted jsonb; outcome text; publication record;
  target uuid; command text; notice text; navigation boolean; decision boolean; chosen fmat.requests; access jsonb;
@@ -137,22 +104,4 @@ Your next messages stay private to this request. Reply "setup" to return to setu
  update fmat.queue_publications set acknowledged_at=clock_timestamp() where job_id=j.id and acknowledged_at is null;
  return jsonb_build_object('outcome',outcome);
 end;
-$$;
-revoke all on function public.fmat_photon_dispatch(uuid) from public,anon,authenticated;
-grant execute on function public.fmat_photon_dispatch(uuid) to service_role;
-
-create or replace function fmat.wake_photon_inbox()
-returns bigint language plpgsql security definer set search_path='' as $$
-declare v_url text; v_secret text;
-begin
- if not exists(select 1 from fmat.photon_inbox where processed_at is null and link_id is not null) then return null; end if;
- select decrypted_secret into v_url from vault.decrypted_secrets where name='fmat_runtime_dispatch_url';
- select decrypted_secret into v_secret from vault.decrypted_secrets where name='fmat_runtime_dispatch_secret';
- if v_url is null or v_secret is null then return null; end if;
- if v_url !~ '^https://[^/]+/api/internal/conversations/dispatch$' or v_secret !~ '^[a-f0-9]{64}$' then raise exception 'INVALID_DISPATCH_CONFIGURATION'; end if;
- v_url:=replace(v_url,'/api/internal/conversations/dispatch','/api/internal/photon/dispatch');
- return net.http_post(url:=v_url,headers:=jsonb_build_object('Content-Type','application/json','Authorization','Bearer '||v_secret),body:='{}'::jsonb,timeout_milliseconds:=60000);
-end;
-$$;
-revoke all on function fmat.wake_photon_inbox() from public,anon,authenticated,service_role;
-select cron.schedule('fmat-photon-inbox','* * * * *','select fmat.wake_photon_inbox();');
+$function$;

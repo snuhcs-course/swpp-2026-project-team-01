@@ -36,7 +36,7 @@ begin
  end if;
  state:=fmat.request_lifecycle_view(r.id,'host')->>'status';
  select details into proposal from fmat.proposals where request_id=r.id and version=r.current_proposal_version;
- approved:=coalesce(r.host_approved_version=r.current_proposal_version,false) and exists(select 1 from fmat.web_approval_decisions d join fmat.host_approvals a on a.id=d.approval_id where d.request_id=r.id and a.proposal_version=r.current_proposal_version);
+ approved:=coalesce(r.host_approved_version=r.current_proposal_version,false) and exists(select 1 from fmat.approval_attributions d join fmat.host_approvals a on a.id=d.approval_id where d.request_id=r.id and a.proposal_version=r.current_proposal_version);
  if state in ('booked','withdrawn','declined','expired') then blocker:='closed';proposal:=null;
  elsif state='booking' then blocker:='booking_pending';
  elsif proposal is null then blocker:='proposal_required';
@@ -66,12 +66,10 @@ begin
    -- connection locks. Check wall-clock validity once more before the write.
    if r.expires_at<=clock_timestamp() then raise exception 'REQUEST_CLOSED';end if;
    if (p_credential->>'expiresAt')::timestamptz<=clock_timestamp() then raise exception 'UNAUTHORIZED';end if;
-   update fmat.requests set host_approved_version=current_proposal_version,status='booking',revision=revision+1,updated_at=clock_timestamp() where id=r.id returning * into r;
-   insert into fmat.host_approvals(request_id,proposal_version,host_id,source,approved_revision) values(r.id,r.current_proposal_version,r.host_id,'authenticated_web',r.revision) returning id into approval;
-   attempt:=fmat.prepare_booking(r,approval);
+   result:=fmat.commit_host_approval(r,actor,'authenticated_web');
+   approval:=(result->>'approvalId')::uuid;attempt:=(result->>'attemptId')::uuid;
+   select * into strict r from fmat.requests where id=r.id;
    insert into fmat.web_approval_decisions(request_id,host_id,session_id,key,input,approval_id,result_revision) values(r.id,r.host_id,(p_credential->>'sessionId')::uuid,(p_input->>'idempotencyKey')::uuid,p_input,approval,r.revision);
-   insert into fmat.request_history(request_id,revision,operation,actor,proposal_version) values(r.id,r.revision,'web_host_approve',actor,r.current_proposal_version);
-   perform fmat.audit('web_host_approve',actor,r.id::text,jsonb_build_object('approvalId',approval,'attemptId',attempt));
    approved:=true;state:='booking';blocker:='booking_pending';
   end if;
  end if;
