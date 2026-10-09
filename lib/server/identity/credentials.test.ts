@@ -83,6 +83,15 @@ test('modern secret keys stay in apikey and RPC failures expose only safe catego
   catch (error) { assert.doesNotMatch(JSON.stringify(publicError(error)), /private calendar|secret/); }
 });
 
+test('privileged RPC rejects a mislabeled publishable key before any database request',async()=>{
+ let calls=0;
+ for(const key of ['sb_publishable_public','  sb_publishable_public\n']){
+  const database=new Database({...env,SUPABASE_SECRET_KEY:key},fakeFetch(()=>{calls++;return Response.json({ok:true});}));
+  await assert.rejects(database.rpc('fmat_command',{}),code('CONFIGURATION_UNAVAILABLE'));
+ }
+ assert.equal(calls,0,'Known public credentials never reach a privileged RPC');
+});
+
 test('browser conversation projection removes execution authority and private fields', () => {
   const view = conversationView.parse({ conversationId: subject, audience: 'request_shared', hostId: subject,
     requestId, readOnly: false, grantId: sessionId, credential: { tokenHash: 'secret' }, actor: { email: 'private' } });

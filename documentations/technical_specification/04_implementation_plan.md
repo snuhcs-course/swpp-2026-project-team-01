@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Restore the legacy foundation check rejecting a publishable Supabase key in the shared server RPC configuration. Demonstrate failure before the fix and pass the regression, built-server zero-database-call check, 379 app/provider tests, real local Auth, both builds and 1,830 post-fixture SQL assertions. [Evidence](05_rebuild_evidence.md#legacy-public-key-configuration-regression--2026-10-09). Broader legacy behavior reconciliation remains open.
+
 - [x] Verify actual eve acceptance followed by failed dispatch acknowledgment, retained lease, settlement and process restart without a replacement session or redispatch. Pass all three runtime suites and post-fixture SQL. [Evidence](05_rebuild_evidence.md#runtime-dispatch-acknowledgment-loss--2026-10-09).
 
 - [x] Repair browser-fixture cleanup so host cascades remove setup history and booking/recovery jobs remove active/archived queue entries and publication rows. Verify both browser suites followed by all 1,532 SQL assertions without an intervening reset. [Evidence](05_rebuild_evidence.md#browser-fixture-cleanup-and-sequential-database-tests--2026-10-09).

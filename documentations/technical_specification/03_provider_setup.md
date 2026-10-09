@@ -2,7 +2,7 @@
 
 Configure the rebuild for the [implementation plan](04_implementation_plan.md). This document owns credentials, deployment origins and provider setup; capability specs own behavior, and the plan owns integration acceptance gates. The initial eve/web runtime is deployed; scheduling and provider integrations remain under implementation.
 
-Keep credentials in the ignored root `.env` with file mode `0600`. Share names through [`.env.example`](../../.env.example), never values. Provision deployment secrets separately; local environment files do not configure remote services. Keep server and operator credentials out of browser bundles, model context and logs.
+Keep credentials in the ignored root `.env` with file mode `0600`. Share names through [`.env.example`](../../.env.example), never values. Provision deployment secrets separately; local environment files do not configure remote services. `SUPABASE_SECRET_KEY` must contain the server credential, never an `sb_publishable_` key. The shared RPC client rejects that known public-key prefix locally with sanitized configuration-unavailable feedback before any database request; credential validity and privileges still belong to Supabase. Keep server and operator credentials out of browser bundles, model context and logs.
 
 ## Reconstruction deployment origin
 

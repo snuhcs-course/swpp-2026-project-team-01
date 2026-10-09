@@ -89,6 +89,16 @@ try {
   databaseTrap = createHttpServer((_request, response) => { databaseCalls++; response.writeHead(500); response.end(); });
   databaseTrap.listen(0, '127.0.0.1');
   await once(databaseTrap, 'listening');
+  const misconfigured = await start(['node_modules/next/dist/bin/next', 'start', 'apps/web'], await unusedPort(), '/api/health', {
+    SUPABASE_URL:`http://127.0.0.1:${databaseTrap.address().port}`, SUPABASE_SECRET_KEY:'sb_publishable_smoke_fixture',
+  });
+  const publicKeyRequest=await fetch(misconfigured+'/api/browser/waitlist',{method:'POST',headers:{origin:misconfigured,'content-type':'application/json'},
+    body:JSON.stringify({email:'configuration@example.test',idempotencyKey:'00000000-0000-4000-8000-000000000001'})});
+  assert.equal(publicKeyRequest.status,503);
+  assert.equal((await publicKeyRequest.json()).error.code,'CONFIGURATION_UNAVAILABLE');
+  assert.match(publicKeyRequest.headers.get('cache-control'),/no-store/u);
+  assert.equal(databaseCalls,0,'A mislabeled publishable key is rejected before any database request');
+  console.log('PASS: built browser RPC rejects a publishable server key before database access.');
   const dispatchSecret = 'a'.repeat(64);
   const preview = await start(['node_modules/next/dist/bin/next', 'start', 'apps/web'], await unusedPort(), '/api/health', {
     VERCEL:'1', VERCEL_ENV:'preview', VERCEL_TARGET_ENV:'preview',
