@@ -1,10 +1,54 @@
--- Only verified access claims from the internal agent adapter may call this
--- service-only boundary. Scope/authority remain transactional, not JWT-only.
-create or replace function public.fmat_agent_operation(
- p_grant_id uuid,p_client_id uuid,p_resource text,p_actor_kind text,p_actor_id uuid,
- p_scope text,p_token_expires_at bigint,p_operation text,p_request_id uuid,
- p_input jsonb,p_idempotency_key uuid default null
-) returns jsonb language plpgsql security definer set search_path='' as $$
+SET local check_function_bodies = off;
+
+CREATE OR REPLACE FUNCTION fmat.conversation_history_timeline (
+  p_scope fmat.conversation_scopes
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
+declare v_rows jsonb; v_count bigint; v_min bigint; v_max bigint;
+begin
+ if p_scope.id is null then return null;end if;
+ if p_scope.revoked_at is not null then raise exception 'NOT_FOUND';end if;
+ if p_scope.runtime_generation=0 then
+  -- Existing generation-zero runtimes can precede ledger enrollment.
+  if exists(select 1 from fmat.conversation_generations where conversation_id=p_scope.id
+    and (generation<>0 or retired_at is not null or (runtime_session_id is not null
+      and runtime_session_id is distinct from p_scope.runtime_session_id))) then raise exception 'PROVIDER_UNAVAILABLE';end if;
+  v_rows:=jsonb_build_array(jsonb_build_object('generation',0,'sessionId',p_scope.runtime_session_id,'terminalTail',null));
+ else
+  select count(*),min(generation),max(generation),jsonb_agg(jsonb_build_object(
+    'generation',generation,'sessionId',runtime_session_id,'terminalTail',terminal_tail) order by generation)
+    into v_count,v_min,v_max,v_rows from fmat.conversation_generations where conversation_id=p_scope.id;
+  if v_count<>p_scope.runtime_generation+1 or v_min<>0 or v_max<>p_scope.runtime_generation
+    or exists(select 1 from fmat.conversation_generations where conversation_id=p_scope.id and (
+      (generation<p_scope.runtime_generation and (retired_at is null or runtime_session_id is null or terminal_tail is null))
+      or (generation=p_scope.runtime_generation and (retired_at is not null or terminal_tail is not null
+        or runtime_session_id is distinct from p_scope.runtime_session_id)))) then raise exception 'PROVIDER_UNAVAILABLE';end if;
+ end if;
+ return jsonb_build_object('conversationId',p_scope.id,'audience',p_scope.audience,
+   'generation',p_scope.runtime_generation,'generations',v_rows);
+end$function$;
+
+CREATE OR REPLACE FUNCTION public.fmat_agent_operation (
+  p_grant_id         uuid,
+  p_client_id        uuid,
+  p_resource         text,
+  p_actor_kind       text,
+  p_actor_id         uuid,
+  p_scope            text,
+  p_token_expires_at bigint,
+  p_operation        text,
+  p_request_id       uuid,
+  p_input            jsonb,
+  p_idempotency_key  uuid   DEFAULT NULL::uuid
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare v_grant fmat.oauth_grants; v_authority fmat.oauth_grants; v_request fmat.requests; v_actor jsonb; v_input jsonb; v_result jsonb; v_scope text; v_write boolean; v_conversation fmat.conversation_scopes; v_connection fmat.calendar_connections; v_context text; v_reconnect boolean:=false;
 begin
  if p_operation is null or p_operation not in ('setup_read','setup_analysis_read','setup_draft','request_read','private_note_save','details_propose','decision_review','requests_list','conversation_resolve','conversation_history','availability_read','availability_propose','scheduling_read','booking_status','connection_review','setup_review') then raise exception 'FORBIDDEN';end if;
@@ -141,6 +185,88 @@ begin
   return '{"error":"invalid_token"}';
  end;
  return v_result;
-end$$;
-revoke all on function public.fmat_agent_operation(uuid,uuid,text,text,uuid,text,bigint,text,uuid,jsonb,uuid) from public,anon,authenticated;
-grant execute on function public.fmat_agent_operation(uuid,uuid,text,text,uuid,text,bigint,text,uuid,jsonb,uuid) to service_role;
+end$function$;
+
+CREATE OR REPLACE FUNCTION public.fmat_runtime_message (
+  p_operation       text,
+  p_grant_id        uuid,
+  p_conversation_id uuid,
+  p_input           jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare v_access jsonb; v_message fmat.runtime_messages; v_scope fmat.conversation_scopes; v_session text;
+begin
+  if jsonb_typeof(p_input) is distinct from 'object' then raise exception 'INVALID_INPUT'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('runtime:'||p_conversation_id::text,0));
+  if p_operation='settle' then
+    -- A runtime may record completion after the originating grant expires.
+    -- Reply preparation separately requires current private-channel authority.
+    select * into v_scope from fmat.conversation_scopes where id=p_conversation_id;
+    perform fmat.require_runtime_generation(v_scope,p_input->>'sessionId');
+    if p_input->>'status' is null or p_input->>'status' not in ('completed','failed') then raise exception 'INVALID_INPUT'; end if;
+    -- Commit an eligible private reply in the same transaction as completion.
+    -- A failed write leaves the input pending for checkpoint-based recovery.
+    perform fmat.photon_reply_prepare(p_grant_id,p_conversation_id,p_input);
+    perform fmat.requester_email_reply_prepare(p_grant_id,p_conversation_id,p_input);
+    update fmat.runtime_messages set status=p_input->>'status',settled_at=clock_timestamp()
+      where id=(p_input->>'messageId')::uuid and conversation_id=p_conversation_id and grant_id=p_grant_id and status='pending';
+    return jsonb_build_object('recorded',true);
+  end if;
+  v_access:=public.fmat_conversation_check(p_grant_id,p_conversation_id);
+  -- Serialize accept/bind against other participants on this shared scope.
+  select * into v_scope from fmat.conversation_scopes where id=p_conversation_id for update;
+  if p_operation='history' then
+    if p_input<>'{}'::jsonb then raise exception 'INVALID_INPUT';end if;
+    v_access:=public.fmat_conversation_check(p_grant_id,p_conversation_id);
+    return fmat.conversation_history_timeline(v_scope);
+  end if;
+  if p_operation='inspect' then
+    return jsonb_build_object('sessionId',v_scope.runtime_session_id,'messages',(
+      select coalesce(jsonb_agg(jsonb_build_object('id',id,'text',fmat.protect_conversation_text(text),'status',status,'createdAt',created_at,
+        'mine',grant_id=p_grant_id) order by created_at,id),'[]'::jsonb) from fmat.runtime_messages where conversation_id=p_conversation_id));
+  end if;
+  if (v_access->>'readOnly')::boolean then raise exception 'REQUEST_CLOSED'; end if;
+  if p_operation='accept' then
+    if coalesce(p_input->>'clientId','')='' or jsonb_typeof(p_input->'text') is distinct from 'string'
+      or length(p_input->>'text') not between 1 and 10000 or length(trim(p_input->>'text'))=0
+      or exists(select 1 from jsonb_object_keys(p_input) k where k not in ('clientId','text')) then raise exception 'INVALID_INPUT'; end if;
+    select * into v_message from fmat.runtime_messages where conversation_id=p_conversation_id and grant_id=p_grant_id and client_id=(p_input->>'clientId')::uuid;
+    if found then
+      if coalesce(v_message.input_fingerprint,fmat.conversation_input_fingerprint(p_conversation_id,p_grant_id,v_message.client_id,v_message.text))
+        is distinct from fmat.conversation_input_fingerprint(p_conversation_id,p_grant_id,v_message.client_id,p_input->>'text')
+        then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
+    else
+      if exists(select 1 from fmat.runtime_messages where conversation_id=p_conversation_id and status='pending') then raise exception 'CONVERSATION_BUSY'; end if;
+      -- Bounded inbox/checkpoint growth; the runtime has independent token caps.
+      if (select count(*) from fmat.runtime_messages where conversation_id=p_conversation_id)>=200 then raise exception 'CONVERSATION_LIMIT'; end if;
+      perform fmat.conversation_budget_charge(v_access->>'actorKind',
+        case when v_access->>'actorKind'='host' then v_scope.host_id else v_scope.request_id end);
+      -- Quota contention may outlast a grant, Auth session or request deadline.
+      v_access:=public.fmat_conversation_check(p_grant_id,p_conversation_id);
+      if (v_access->>'readOnly')::boolean then raise exception 'REQUEST_CLOSED'; end if;
+      insert into fmat.runtime_messages(conversation_id,grant_id,client_id,text,input_fingerprint)
+        values(p_conversation_id,p_grant_id,(p_input->>'clientId')::uuid,fmat.protect_conversation_text(p_input->>'text'),
+          fmat.conversation_input_fingerprint(p_conversation_id,p_grant_id,(p_input->>'clientId')::uuid,p_input->>'text')) returning * into v_message;
+    end if;
+  elsif p_operation='deliver' then
+    select * into v_message from fmat.runtime_messages where id=(p_input->>'messageId')::uuid and conversation_id=p_conversation_id and grant_id=p_grant_id;
+    if not found then raise exception 'NOT_FOUND'; end if;
+    v_session:=p_input->>'sessionId';
+    if length(coalesce(v_session,'')) not between 1 and 200 then raise exception 'INVALID_INPUT'; end if;
+    if v_scope.runtime_generation>0 and v_scope.runtime_session_id is null then raise exception 'RECONCILIATION_PENDING';end if;
+    if v_scope.runtime_session_id is not null then perform fmat.require_runtime_generation(v_scope,v_session);end if;
+    update fmat.conversation_scopes set runtime_session_id=v_session where id=p_conversation_id and runtime_session_id is null;
+    insert into fmat.conversation_generations(conversation_id,generation,runtime_session_id)
+      values(p_conversation_id,v_scope.runtime_generation,v_session) on conflict(conversation_id,generation) do update
+      set runtime_session_id=excluded.runtime_session_id where conversation_generations.generation=0
+        and conversation_generations.runtime_session_id is null and conversation_generations.retired_at is null;
+  else raise exception 'INVALID_INPUT'; end if;
+  return jsonb_build_object('id',v_message.id,'status',v_message.status,'text',fmat.protect_conversation_text(v_message.text));
+end;
+$function$;
+
+REVOKE ALL ON FUNCTION "fmat"."conversation_history_timeline"(fmat.conversation_scopes) FROM PUBLIC;

@@ -88,20 +88,23 @@ test('agent operations recheck revocation and expiry under domain and downstream
   await db.query(`insert into fmat.conversation_scopes(id,host_id,request_id,audience,runtime_session_id) values(${q(historyId)},${q(host)},${q(guest.request!)},'request_shared','internal-history-fixture');`);
   const histories=new AgentConversations(database);
   assert.deepEqual(await histories.resolve(credential,{audience:'request_shared',requestId:guest.request}),{conversationId:historyId,sessionId:'internal-history-fixture'});
+  for(const historyOperation of ['conversation_resolve','conversation_history']){
+  await db.query(`update fmat.conversation_scopes set revoked_at=null where id=${q(historyId)};`);
   // The final authority check must cover waiting on the runtime binding lock.
   await lock.query(`begin;select 1 from fmat.conversation_scopes where id=${q(historyId)} for update;`);
-  let historyPending=wait.query(op(guest,'conversation_resolve',guest.request,{audience:'request_shared'},null,Math.floor(Date.now()/1000)+2));
+  let historyPending=wait.query(op(guest,historyOperation,guest.request,{audience:'request_shared'},null,Math.floor(Date.now()/1000)+2));
   await blocked(db,waitName);await lock.query('select pg_sleep(2.1);commit;');
   assert.equal(parse(await historyPending).error,'invalid_token','history binding wait cannot return an expired credential result');
   await db.query(`update fmat.requests set expires_at=clock_timestamp()+interval '2 seconds' where id=${q(guest.request!)};`);
   await lock.query(`begin;select 1 from fmat.conversation_scopes where id=${q(historyId)} for update;`);
-  historyPending=wait.query(`select pg_temp.operation_error(${q(op(hostGrant,'conversation_resolve',guest.request,{audience:'request_shared'}))});`);
+  historyPending=wait.query(`select pg_temp.operation_error(${q(op(hostGrant,historyOperation,guest.request,{audience:'request_shared'}))});`);
   await blocked(db,waitName);await lock.query('select pg_sleep(2.1);commit;');assert.equal(await historyPending,'REQUEST_CLOSED');
   await db.query(`update fmat.requests set expires_at=clock_timestamp()+interval '1 day' where id=${q(guest.request!)};`);
   await lock.query(`begin;update fmat.conversation_scopes set revoked_at=clock_timestamp() where id=${q(historyId)};`);
-  historyPending=wait.query(`select pg_temp.operation_error(${q(op(guest,'conversation_resolve',guest.request,{audience:'request_shared'}))});`);
+  historyPending=wait.query(`select pg_temp.operation_error(${q(op(guest,historyOperation,guest.request,{audience:'request_shared'}))});`);
   await blocked(db,waitName);await lock.query('commit;');assert.equal(await historyPending,'NOT_FOUND');
   await assert.rejects(histories.resolve(credential,{audience:'request_shared',requestId:guest.request}));
+  }
   // Contended request read must observe rotation committed before its lock.
   await lock.query(`begin;update fmat.requests set token_hash=${q(hash(randomUUID()))} where id=${q(guest.request!)};`);
   let pending=wait.query(op(guest,'request_read'));await blocked(db,waitName);await lock.query('commit;');

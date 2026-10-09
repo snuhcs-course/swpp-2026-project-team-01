@@ -44,10 +44,10 @@ test('bound intake inherits requester operations and current authority without p
   for(const role of ['anon','authenticated','service_role'])assert.equal(await db.query(`select has_function_privilege(${q(role)},'fmat.oauth_bound_grant(fmat.oauth_grants)','execute');`),'f');
   const pending=await fixture(false),f=await fixture(),foreign=await fixture();
   const writable=new Set(['setup_draft','private_note_save','details_propose','availability_propose']);
-  const all=['setup_read','setup_analysis_read','setup_draft','request_read','private_note_save','details_propose','decision_review','requests_list','conversation_resolve','availability_read','availability_propose','scheduling_read','booking_status','connection_review','setup_review'];
+  const all=['setup_read','setup_analysis_read','setup_draft','request_read','private_note_save','details_propose','decision_review','requests_list','conversation_resolve','conversation_history','availability_read','availability_propose','scheduling_read','booking_status','connection_review','setup_review'];
   for(const operation of all){
    assert.deepEqual(await raw(pending,operation,pending.request,{},writable.has(operation)?randomUUID():null),{error:'invalid_grant'},operation+' denies unbound intake');
-   await assert.rejects(raw(f,operation,foreign.request,operation==='conversation_resolve'?{audience:'request_shared'}:{},writable.has(operation)?randomUUID():null),operation+' denies foreign/host access');
+   await assert.rejects(raw(f,operation,foreign.request,['conversation_resolve','conversation_history'].includes(operation)?{audience:'request_shared'}:{},writable.has(operation)?randomUUID():null),operation+' denies foreign/host access');
   }
   for(const operation of ['setup_read','setup_analysis_read','setup_draft','requests_list','setup_review','private_note_save'])await assert.rejects(raw(f,operation,operation==='private_note_save'?f.request:null,{},writable.has(operation)?randomUUID():null));
   for(const operation of ['request_read','availability_read','scheduling_read','booking_status','connection_review','decision_review'] as const){
@@ -77,11 +77,26 @@ test('bound intake inherits requester operations and current authority without p
    return {getStreamTailIndex:async()=>1,getEventStream:async()=>new ReadableStream({start(controller){controller.enqueue({type:'message.completed',data:{message:'Shared answer'}});controller.enqueue({type:'action.result',data:{secret:'PRIVATE TOOL OUTPUT'}});controller.close();}})};
   },new AbortController().signal,conversations,env);
   assert.equal(history.events.length,2);assert.deepEqual(history.events[1],{cursor:2,type:'cursor'});assert.match(JSON.stringify(history.events),/Shared answer/);assert.doesNotMatch(JSON.stringify(history),/PRIVATE TOOL OUTPUT|runtime-/);
+  // Populate finalized generations as a fixture; successor creation is tested
+  // separately. Exercise the real authorized ledger and encrypted cursor path.
+  await db.query(`begin;
+   insert into fmat.conversation_generations(conversation_id,generation,runtime_session_id,retired_at,terminal_event_id,terminal_tail,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens)
+    values(${q(f.conversation)},0,${q('runtime-'+f.conversation)},clock_timestamp(),'terminal-fixture',1,10,5,0,0);
+   insert into fmat.conversation_generations(conversation_id,generation) values(${q(f.conversation)},1);
+   update fmat.conversation_scopes set runtime_generation=1,runtime_session_id=null where id=${q(f.conversation)};commit;`);
+  const awaiting=await agentHistory(narrow,{target:{audience:'request_shared',requestId:f.request},cursor:history.nextCursor},()=>{throw Error('archive cursor is already at its end');},new AbortController().signal,conversations,env);
+  assert.equal(awaiting.events.length,0);
+  await db.query(`begin;update fmat.conversation_generations set runtime_session_id=${q('successor-'+f.conversation)} where conversation_id=${q(f.conversation)} and generation=1;
+   update fmat.conversation_scopes set runtime_session_id=${q('successor-'+f.conversation)} where id=${q(f.conversation)};commit;`);
+  const continued=await agentHistory(narrow,{target:{audience:'request_shared',requestId:f.request},cursor:awaiting.nextCursor},id=>{
+   assert.equal(id,'successor-'+f.conversation);return {getStreamTailIndex:async()=>0,getEventStream:async()=>new ReadableStream({start(c){c.enqueue({type:'message.completed',data:{message:'Authorized successor answer'}});c.close();}})};
+  },new AbortController().signal,conversations,env);
+  assert.deepEqual(JSON.parse(JSON.stringify(continued.events)),[{cursor:3,type:'message',text:'Authorized successor answer'}]);
   await db.query(`update fmat.calendar_connections set revoked_at=clock_timestamp(),encrypted_credential=null where principal_id=${q(host)};`);
   assert.equal((await operations.execute(f.credential,{operation:'request_read',requestId:f.request,input:{}}) as {id:string}).id,f.request,'bound access does not require published Calendar readiness');
   await db.query(`update fmat.calendar_connections set revoked_at=null,encrypted_credential='encrypted-private-fixture' where principal_id=${q(host)};`);
   // History checks again after runtime I/O; revocation discards the whole page.
-  await assert.rejects(agentHistory(f.credential,{target:{audience:'request_shared',requestId:f.request}},()=>({getStreamTailIndex:async()=>{await database.rpc('fmat_oauth_intake_revoke',{p_id:f.authorization,p_browser_hash:'b'.repeat(64)});return -1;},getEventStream:async()=>new ReadableStream()}),new AbortController().signal,conversations,env),/invalid_token/);
+  await assert.rejects(agentHistory(f.credential,{target:{audience:'request_shared',requestId:f.request},cursor:history.nextCursor},()=>({getStreamTailIndex:async()=>{await database.rpc('fmat_oauth_intake_revoke',{p_id:f.authorization,p_browser_hash:'b'.repeat(64)});return 0;},getEventStream:async()=>new ReadableStream({start(c){c.enqueue({type:'message.completed',data:{message:'must be discarded'}});c.close();}})}),new AbortController().signal,conversations,env),/invalid_token/);
   await assert.rejects(operations.execute(f.credential,intent),/invalid_token/,'cached draft replay checks current authority');
   for(const change of ['rotation','closure','request-expiry','proof-expiry','client','host'] as const){
    const item=await fixture();

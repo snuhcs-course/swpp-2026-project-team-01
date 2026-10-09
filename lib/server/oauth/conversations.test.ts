@@ -44,3 +44,19 @@ test('intake conversation resolution preserves the intake subject and denies hos
  for(const target of [{audience:'host_setup'},{audience:'host_private',requestId}])await assert.rejects(adapter.resolve(c,target));
  assert.equal(calls,1);
 });
+
+test('history resolver validates the complete ledger and retains the same role and scope boundary',async()=>{
+ const c=await credential('guest','request:read'),conversationId=randomUUID();let calls=0;
+ const timeline={conversationId,audience:'request_shared',generation:1,generations:[
+  {generation:0,sessionId:'retired',terminalTail:9},{generation:1,sessionId:null,terminalTail:null},
+ ]};
+ const adapter=new AgentConversations({rpc:async(_name,args)=>{calls++;assert.equal(args.p_operation,'conversation_history');assert.equal(args.p_grant_id,c.claims.grant_id);return timeline;}},()=>second*1000);
+ assert.deepEqual(await adapter.history(c,{audience:'request_shared',requestId:c.claims.sub}),timeline);
+ for(const target of [{audience:'host_setup'},{audience:'host_private',requestId:c.claims.sub},{audience:'request_shared',requestId:randomUUID()}])
+  await assert.rejects(adapter.history(c,target));
+ assert.equal(calls,1);
+ for(const result of [{...timeline,audience:'host_setup'},{...timeline,generations:timeline.generations.slice(1)}, {...timeline,private:'secret'}]){
+  const bad=new AgentConversations({rpc:async()=>result},()=>second*1000);
+  await assert.rejects(bad.history(c,{audience:'request_shared',requestId:c.claims.sub}));
+ }
+});

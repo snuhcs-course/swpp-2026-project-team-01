@@ -1,24 +1,16 @@
--- Application inbox, not a second transcript engine. Eve owns generated
--- history/checkpoints; this ledger freezes authenticated input and its receipt.
-alter table fmat.conversation_scopes add column runtime_session_id text;
-create unique index conversation_runtime_session_idx on fmat.conversation_scopes(runtime_session_id) where runtime_session_id is not null;
-create table fmat.runtime_messages (
-  id uuid primary key default gen_random_uuid(),
-  conversation_id uuid not null references fmat.conversation_scopes(id),
-  grant_id uuid not null references fmat.conversation_grants(id),
-  client_id uuid not null,
-  text text not null check(length(text) between 1 and 10000),
-  status text not null default 'pending' check(status in ('pending','completed','failed')),
-  created_at timestamptz not null default now(),
-  settled_at timestamptz,
-  unique(conversation_id,grant_id,client_id)
-);
-create index runtime_messages_grant_idx on fmat.runtime_messages(grant_id);
-create unique index runtime_messages_pending_idx on fmat.runtime_messages(conversation_id) where status='pending';
-alter table fmat.runtime_messages enable row level security;
+SET local check_function_bodies = off;
 
-create or replace function public.fmat_runtime_message(p_operation text,p_grant_id uuid,p_conversation_id uuid,p_input jsonb)
-returns jsonb language plpgsql security definer set search_path='' as $$
+CREATE OR REPLACE FUNCTION public.fmat_runtime_message (
+  p_operation       text,
+  p_grant_id        uuid,
+  p_conversation_id uuid,
+  p_input           jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare v_access jsonb; v_message fmat.runtime_messages; v_scope fmat.conversation_scopes; v_session text;
 begin
   if jsonb_typeof(p_input) is distinct from 'object' then raise exception 'INVALID_INPUT'; end if;
@@ -89,7 +81,4 @@ begin
   else raise exception 'INVALID_INPUT'; end if;
   return jsonb_build_object('id',v_message.id,'status',v_message.status,'text',fmat.protect_conversation_text(v_message.text));
 end;
-$$;
-revoke all on fmat.runtime_messages from public,anon,authenticated,service_role;
-revoke execute on function public.fmat_runtime_message(text,uuid,uuid,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_runtime_message(text,uuid,uuid,jsonb) to service_role;
+$function$;

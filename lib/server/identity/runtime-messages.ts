@@ -3,6 +3,7 @@ import { Database } from '../database/client.ts';
 import { formatPhotonReply } from '../photon/reply-text.ts';
 import { ApplicationError } from '../errors.ts';
 import type { ConversationGrant } from './conversations.ts';
+import {generationTimeline} from './generation-history.ts';
 
 import { incomingMessage } from '../../contracts/conversations.ts';
 export { incomingMessage } from '../../contracts/conversations.ts';
@@ -29,6 +30,14 @@ export class RuntimeMessages {
     return runtimeSnapshot.parse(await this.database.rpc('fmat_runtime_message', {
       p_operation: 'inspect', p_grant_id: grant.grantId, p_conversation_id: grant.conversationId, p_input: {},
     }));
+  }
+  async history(grant:ConversationGrant) {
+    const parsed=generationTimeline.safeParse(await this.database.rpc('fmat_runtime_message',{
+      p_operation:'history',p_grant_id:grant.grantId,p_conversation_id:grant.conversationId,p_input:{},
+    }));
+    if(!parsed.success||parsed.data.conversationId!==grant.conversationId||parsed.data.audience!==grant.audience)
+      throw new ApplicationError('PROVIDER_UNAVAILABLE',503);
+    return parsed.data;
   }
   async deliver(auth: RuntimeAuth, sessionId: string) {
     return receipt.parse(await this.database.rpc('fmat_runtime_message', {

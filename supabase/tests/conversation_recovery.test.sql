@@ -18,6 +18,11 @@ select ok(not has_table_privilege(r,t,p),r||' cannot '||p||' '||t)
  from unnest(array['anon','authenticated','service_role']) r cross join unnest(array['fmat.conversation_generations','fmat.conversation_recoveries']) t cross join unnest(array['SELECT','INSERT','UPDATE','DELETE']) p;
 select ok(not has_function_privilege(r,'fmat.conversation_recovery_begin(uuid,uuid,jsonb)','EXECUTE'),r||' cannot activate private recovery') from unnest(array['anon','authenticated','service_role']) r;
 select ok((select relrowsecurity from pg_class where oid=t::regclass),t||' uses RLS') from unnest(array['fmat.conversation_generations','fmat.conversation_recoveries']) t;
+select ok(not has_function_privilege(r,'fmat.conversation_history_timeline(fmat.conversation_scopes)','EXECUTE'),r||' cannot read a ledger without authorization') from unnest(array['anon','authenticated','service_role']) r;
+create function pg_temp.history() returns jsonb language sql as $$select public.fmat_runtime_message('history',pg_temp.grant_id(),pg_temp.scope(),'{}')$$;
+select is(pg_temp.history()->'generations','[{"generation":0,"sessionId":null,"terminalTail":null}]'::jsonb,'unbound initial history is explicit');
+select throws_ok($$select public.fmat_runtime_message('history',pg_temp.grant_id(),pg_temp.scope(),'{"sessionId":"foreign"}')$$,'P0001','INVALID_INPUT','history refuses caller runtime selection');
+select throws_ok($$select public.fmat_runtime_message('history',gen_random_uuid(),pg_temp.scope(),'{}')$$,'P0001','UNAUTHORIZED','foreign grant cannot read history');
 select throws_ok($$select pg_temp.recover()$$,'P0001','FORBIDDEN','missing canonical session cannot be recovered');
 select is((select count(*) from fmat.conversation_generations where conversation_id=pg_temp.scope()),0::bigint,'denied transition leaves no ledger');
 -- Exercise the existing canonical-delivery contract, then retain a pending input.
@@ -47,6 +52,9 @@ drop trigger test_recovery_audit on fmat.audit_events;
 update fmat.conversation_generations set runtime_session_id=null where conversation_id=pg_temp.scope() and generation=0;
 insert into fixture select 'receipt',pg_temp.recover();
 select is((pg_temp.f('receipt')->>'generation')::integer,1,'first transition advances exactly once');
+select is(pg_temp.history()->'generations','[{"generation":0,"sessionId":"wrun_recovery_fixture","terminalTail":24},{"generation":1,"sessionId":null,"terminalTail":null}]'::jsonb,'recovery retains old tail while successor awaits binding');
+select ok(not(pg_temp.history()::text ~ 'inputTokens|event_terminal|grantId|tokenHash|usage'),'history projection excludes terminal usage and authority');
+
 select is(pg_temp.recover(),pg_temp.f('receipt'),'lost acknowledgement retries return original transition');
 select is((select runtime_generation from fmat.conversation_scopes where id=pg_temp.scope()),1::bigint,'replay does not advance again');
 select ok((select runtime_session_id is null from fmat.conversation_scopes where id=pg_temp.scope()),'successor awaits binding');
@@ -66,8 +74,29 @@ update fixture set value='{"expectedGeneration":1,"idempotencyKey":"91000000-000
 select throws_ok($$select pg_temp.recover()$$,'P0001','MODEL_LIMIT','multiple generations share the same input allowance');
 update fixture set value=jsonb_set(value,'{evidence,usage,inputTokens}','100') where name='input';
 select lives_ok($$select pg_temp.recover()$$,'second failed generation can advance within retained limits');
+select is(jsonb_array_length(pg_temp.history()->'generations'),3,'all recovered generations remain readable');
+select is(pg_temp.history()#>>'{generations,1,sessionId}','wrun_recovery_successor','second retained binding has original identity');
+create function pg_temp.inconsistent_history(mode text) returns void language plpgsql as $$begin
+ if mode='conflict' then
+  update fmat.conversation_generations set runtime_session_id='conflicting-current' where conversation_id=pg_temp.scope() and generation=2;
+ else
+  delete from fmat.conversation_recoveries where conversation_id=pg_temp.scope();
+  delete from fmat.conversation_generations where conversation_id=pg_temp.scope() and generation=1;
+ end if;
+ perform pg_temp.history();
+end$$;
+select throws_ok($$select pg_temp.inconsistent_history('conflict')$$,'P0001','PROVIDER_UNAVAILABLE','pointer and ledger conflict fails closed');
+select throws_ok($$select pg_temp.inconsistent_history('missing')$$,'P0001','PROVIDER_UNAVAILABLE','missing middle generation cannot silently truncate history');
+
 select is((select sum(input_tokens)::bigint from fmat.conversation_generations where conversation_id=pg_temp.scope()),500::bigint,'usage accumulates without rewriting old generation');
 update fmat.conversation_grants set revoked_at=clock_timestamp() where id=pg_temp.grant_id();
 select throws_ok($$select pg_temp.recover()$$,'P0001','UNAUTHORIZED','exact replay still requires current participant authority');
+select throws_ok($$select pg_temp.history()$$,'P0001','UNAUTHORIZED','revocation denies all retained history');
+-- A host can retain structured read-only access after expiry, but not history.
+insert into fmat.requests(id,host_id,details,token_hash,expires_at) values('91000000-0000-4000-8000-000000000008','91000000-0000-4000-8000-000000000001','{}',repeat('e',64),clock_timestamp()+interval '1 day');
+insert into fixture select 'request_grant',public.fmat_conversation_access('open',jsonb_build_object('kind','host','subject','91000000-0000-4000-8000-000000000001','sessionId','91000000-0000-4000-8000-000000000002','expiresAt',now()+interval '1 hour'),'{"audience":"host_private","requestId":"91000000-0000-4000-8000-000000000008"}');
+select lives_ok($$select public.fmat_runtime_message('history',(pg_temp.f('request_grant')->>'grantId')::uuid,(pg_temp.f('request_grant')->>'conversationId')::uuid,'{}')$$,'active host request history is readable');
+update fmat.requests set expires_at=clock_timestamp()-interval '1 second' where id='91000000-0000-4000-8000-000000000008';
+select throws_ok($$select public.fmat_runtime_message('history',(pg_temp.f('request_grant')->>'grantId')::uuid,(pg_temp.f('request_grant')->>'conversationId')::uuid,'{}')$$,'P0001','REQUEST_CLOSED','read-only expired host scope cannot expose history');
 select * from finish();
 rollback;
