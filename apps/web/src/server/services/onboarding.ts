@@ -1,7 +1,7 @@
 import { historyQuestion, answerFromHistory } from '@/core/briefing'
 import { DomainError, type OperationMeta } from '@/contracts/common'
 import { onboardingTurnSchema, type OnboardingTurnInput, type ProfileDraftView } from '@/contracts/profile'
-import { interpretOnboarding, explainOnboarding } from '@/llm/onboarding'
+import { interpretOnboarding, explainOnboarding, askedAboutHistory } from '@/llm/onboarding'
 import { lock, run , one } from '../db/client'
 import type { ServiceContext } from '../runtime'
 import { getDraft } from './profile'
@@ -14,10 +14,10 @@ export async function onboardingTurn(ctx:ServiceContext, actorId:string, input:O
   const draft=await getDraft(ctx.db,actorId,draftId)
   if(draft.status!=='active'||draft.revision!==parsed.expectedRevision) throw new DomainError('revision_conflict','초안이 변경됐어요',false,undefined,draft.revision)
   const client=ctx.llm ?? {chat:async()=>{throw new Error('Unavailable')}}
-  const interpreted=await interpretOnboarding(client,{text:parsed.text,values:draft.values})
+  const [interpreted,intent]=await Promise.all([interpretOnboarding(client,{text:parsed.text,values:draft.values}),askedAboutHistory(client,parsed.text)])
   const topics={...draft.topics};for(const topic of interpreted.confirmedTopics)topics[topic]='confirmed'
   // The model judges intent; the pattern match only stands in when the model could not answer.
-  const asked=interpreted.failed?historyQuestion(parsed.text):interpreted.ask
+  const asked=intent===undefined?historyQuestion(parsed.text):intent
   const analysis=asked?await one<{summary_json:string}>(ctx.db,'SELECT r.summary_json FROM analysis_runs r JOIN profile_drafts d ON d.analysis_id=r.id WHERE d.id=?',[draftId]):undefined
   const answer=asked?answerFromHistory(analysis?JSON.parse(analysis.summary_json):null,asked):undefined
   const reply=await explainOnboarding(client,{values:interpreted.values,topics,changed:interpreted.changed,interpretFailed:interpreted.failed,answer})
