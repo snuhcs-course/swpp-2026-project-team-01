@@ -44,7 +44,7 @@ Google Calendar와 시간 프로필을 바탕으로 만날 수 있는 시간을 
 
 Google OAuth가 테스트 상태인 경우 등록된 테스트 계정으로 접속해야 합니다. 직접 재현하려면 아래 Supabase 및 Google 설정으로 자신의 환경을 구성합니다.
 
-## 준비
+## 준비사항
 
 - Node.js 24와 npm
 - Supabase CLI **2.119.0** (`supabase --version`으로 확인)
@@ -82,7 +82,7 @@ DATABASE_URL=postgresql://postgres.<PROJECT_REF>:<URL_ENCODED_DB_PASSWORD>@<POOL
 
 앱 서버가 Drizzle/postgres-js로 Postgres에 직접 연결합니다. Supabase Auth 설정이나 `anon`/`service_role` API 키는 필요하지 않습니다. Google 로그인은 앱에서 직접 처리합니다. Supabase 배포는 데이터베이스 배포이며, 웹 앱은 아래 명령으로 별도 실행합니다.
 
-## 영상 재현: real 모드 설정 및 실행
+## 프로덕트 실행 방법
 
 1. Google Cloud Console에서 **Google Calendar API**를 활성화합니다.
 2. Google Auth platform의 동의 화면을 설정하고, External / Testing을 사용한다면 실행할 Google 계정을 테스트 사용자로 추가합니다.
@@ -126,7 +126,7 @@ npm run dev
 
 real 모드는 빈 데이터베이스에서 시작하며 로그인 시 사용자가 생성됩니다. 
 
-## 대안: 로컬 Supabase / 예시 데이터
+## 로컬 실행 방법
 
 원격 대신 로컬 DB를 사용하려면 Docker를 실행하고 저장소 루트에서 다음을 실행하면 됩니다. `db reset --local`은 기존 로컬 데이터를 삭제하므로 재현용 DB에서 사용해야 합니다. SQL seed 대신 앱의 시드 스크립트를 사용합니다.
 
@@ -148,7 +148,7 @@ npm run dev
 
 `npm run db:reset`은 지정한 DB의 앱 데이터를 모두 삭제하고 실행일 기준 시드 데이터를 만듭니다. 상단 사용자 전환으로 김민준·이서연·박지호·최하나를 선택할 수 있습니다. Calendar 연결은 예시 캘린더로 동작합니다. **real과 demo는 같은 DB를 공유할 수 없습니다.** 상세 예시 시나리오는 [웹 앱 README](apps/web/README.md)를 참고해 주세요.
 
-## 확인 및 문제 해결
+## 예상되는 오류와 해결 방법
 
 `build`도 DB에 접근하므로, 위 환경 변수 설정과 migration 적용을 먼저 완료하고 DB가 실행 중인 상태에서 실행합니다.
 
