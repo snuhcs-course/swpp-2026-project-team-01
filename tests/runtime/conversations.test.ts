@@ -76,6 +76,18 @@ test('real eve ingress binds request authority, deduplicates input and recovers 
     const scope=(await opened.json()).conversationId as string; assert.ok(scope);
     assert.equal((await fetch(`${origin}/api/conversations/${scope}`,{headers:headers(1)})).status,404);
     assert.equal((await fetch(`${origin}/api/conversations/${scope}/stream`,{headers:headers(1)})).status,404);
+    assert.equal((await post(`/api/conversations/${scope}/messages`,{clientId:randomUUID(),text:'foreign input'},1)).status,404);
+    for(const audience of ['host_setup','host_private']){
+      const input=audience==='host_setup'?{audience}:{audience,requestId:requests[0]};
+      assert.equal((await post('/api/conversations',input)).status,404,'request credential cannot open a private host scope');
+    }
+    assert.equal((await post('/api/conversations',{audience:'request_shared',requestId:requests[0],actor:{kind:'host',id:host}})).status,400);
+    assert.equal((await fetch(origin+'/api/conversations',{method:'POST',headers:{...headers(),origin:'https://untrusted.example'},body:JSON.stringify({audience:'request_shared',requestId:requests[0]})})).status,403);
+    assert.equal((await fetch(origin+'/api/agent/conversations/read',{method:'POST',headers:headers(),body:'{}'})).status,401,'request token is not an agent access token');
+    for(const path of ['/session','/session/test',...['cancel','compact','clear','reset'].map(action=>`/session/test/${action}`)]){
+      assert.equal((await post('/eve/v1'+path,{message:'unauthorized control'})).status,401,'request authority never enables raw runtime controls');
+    }
+    assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}';`),'0','denied ingress creates no input');
     const message={clientId:randomUUID(),text:'save: a post-commit recovery test'};
     const sent=await post(`/api/conversations/${scope}/messages`,message); assert.equal(sent.status,202,await sent.clone().text());
     const acceptedId=(await sent.json()).messageId as string;
@@ -134,6 +146,12 @@ test('real eve ingress binds request authority, deduplicates input and recovers 
     await sql.query(`update fmat.requests set token_revoked_at=now() where id='${requests[0]}';`);
     assert.equal((await fetch(`${origin}/api/conversations/${scope}/stream`,{headers:headers()})).status,404);
     assert.equal((await historyCall({audience:'request_shared',requestId:requests[0]},history.nextCursor)).status,401);
+    assert.equal((await fetch(`${origin}/api/conversations/${scope}`,{headers:headers()})).status,404);
+    assert.equal((await post(`/api/conversations/${scope}/messages`,message)).status,404,'revoked authority cannot replay an accepted message');
+    assert.equal((await post(`/api/conversations/${scope}/messages`,{clientId:randomUUID(),text:'revoked input'})).status,404);
+    assert.equal((await post('/api/conversations',{audience:'request_shared',requestId:requests[0]})).status,404);
+    assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}';`),'2','revoked calls create no input or replacement scope');
+
   } finally {
     await stop(); await writeFile(join(fixture,'server.log'),serverLog);
     if(agentClient)await sql.query(`delete from fmat.oauth_codes where grant_id in(select id from fmat.oauth_grants where client_id='${agentClient}');delete from fmat.oauth_grants where client_id='${agentClient}';delete from fmat.oauth_authorizations where client_id='${agentClient}';delete from fmat.oauth_clients where id='${agentClient}';`);
