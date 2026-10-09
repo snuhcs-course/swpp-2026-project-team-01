@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Audit all 21 retired scheduling assertions and strengthen hard-conflict call ordering plus manual-context coverage: five new unit tests, six real evaluator conflict cases, 435 app/provider tests and 1,860 post-fixture SQL assertions pass. [Evidence](05_rebuild_evidence.md#legacy-scheduling-assertion-map--2026-10-09). Twenty assertions have explicit preserved/replacement mappings; online-adjacent travel remains an unresolved product/spec difference, and the wider legacy inventory remains open.
+
 - [x] Deploy overnight host hours from `452baf5` (`dpl_9sgdRGXeRKQCqn3Sex6YKBgptCuu`), verify exact Ready release alias and 30 production HTTP checks, sync/archive all five tasks and reconcile the legacy preceding-weekday assertion. [Evidence](05_rebuild_evidence.md#deployed-overnight-host-hours--2026-10-09). Wider scheduling/legacy and live-provider gates remain open.
 
 - [x] Apply both overnight validators to selected production after an exact two-migration dry run; verify rollback-only draft/review/confirmation/retry and matching local/remote function definitions. Runtime, real setup and 1,860 post-fixture SQL assertions pass. [Evidence](05_rebuild_evidence.md#overnight-production-schema-acceptance--2026-10-09). Application promotion remains open.

@@ -67,3 +67,5 @@ Use two-digit prefixes starting at `01` for ordered documents within each direct
 The [operational diagnostics runbook](technical_specification/08_operational_diagnostics.md) documents private read-only inspection, signal limits and guarded recovery.
 
 The [backup and restoration runbook](technical_specification/09_backup_recovery.md) records verified coverage, private logical export, isolated restoration and unresolved release gates.
+
+The [legacy scheduling audit](technical_specification/10_legacy_scheduling_audit.md) maps the retired evaluator assertions to current behavior and tests, including explicit policy differences and the unresolved online-travel scope.

@@ -49,7 +49,7 @@ The evidence column summarizes inspected tests and dated ledger entries; the las
 | AC | Owner | Current evidence or implementation | Remaining verification or implementation |
 |---|---|---|---|
 | AC-01 | Foundation, Calendar, feasibility, booking | Intake clarification, publication, agreement and approval fixtures; full booking integration. | Complete controlled live account-free journey and one Calendar event. |
-| AC-02 | Feasibility; compatibility | Both legs, unresolved Routes, private allowances and changed-neighbor revalidation pass. | Retain live geography/mode checks in compatibility task 3.5. |
+| AC-02 | Feasibility; compatibility | Both legs, unresolved Routes, private allowances and changed-neighbor revalidation pass. The [legacy scheduling audit](10_legacy_scheduling_audit.md) records hard-conflict call ordering and remaining scope differences. | Retain live geography/mode checks in compatibility task 3.5. |
 | AC-03 | Feasibility; booking | Private exception/browser handoff, redaction and separate approval pass. | Verify in the final live requester/host journey. |
 | AC-04 | Booking; agent tools | Stale approval/changed details and fresh agreement/approval checks pass. | Complete live and named-client decision paths. |
 | AC-05 | Email binding/replies; booking | Current-version binding and browser-only human decisions prevent stale email authority. | Authorized external email reply against an older proposal; preserve one request. |

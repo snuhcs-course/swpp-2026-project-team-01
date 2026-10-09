@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {evaluateTravel,type TravelInput,type CachedLeg} from './travel.ts';
+import {evaluateTravel,travelLegFingerprint,type TravelInput,type CachedLeg} from './travel.ts';
+import {verifiedTravelAllowance,type VerifiedTravelAllowance} from '../../contracts/travel-allowance.ts';
 import {routeFingerprint,type RoutesProvider} from '../routes/google.ts';
 import type {RouteRequest} from '../../contracts/travel.ts';
 const now=Date.parse('2030-01-01T00:00:00Z'),at=(time:string)=>'2030-01-02T'+time+':00Z';
@@ -70,4 +71,34 @@ test('A past origin is replaced only by an explicit current place and time witho
  const allowance={id:'00000000-0000-4000-8000-000000000001',direction:'inbound' as const,contextFingerprint:travelLegFingerprint(value,'inbound'),durationMinutes:20,mode:'WALK' as const,boundary:{at:at('09:21'),location:{placeId:'explicit-current-origin'}},reason:'Host confirms current location and available time'};
  const result=await evaluateTravel(value,fixture().provider,{now:later,allowances:[allowance]});assert.equal(result.legs[0].status,'fits');assert.equal(result.legs[0].request?.departureTime,at('09:31'));assert.deepEqual(result.legs[0].request?.origin,allowance.boundary.location);
  const past=await evaluateTravel(value,fixture().provider,{now:later,allowances:[{...allowance,boundary:{...allowance.boundary,at:at('09:00')}}]});assert.equal(past.legs[0].status,'clarification');
+});
+
+function manualLegs(value:TravelInput):VerifiedTravelAllowance[]{return (['inbound','outbound'] as const).map(direction=>({id:direction==='inbound'?'00000000-0000-4000-8000-000000000001':'00000000-0000-4000-8000-000000000002',direction,contextFingerprint:travelLegFingerprint(value,direction),durationMinutes:45,mode:'TRANSIT',boundary:{at:at(direction==='inbound'?'09:00':'11:30'),location:{placeId:direction==='inbound'?'previous':'next'}},reason:'Host confirmed this specific trip'}));}
+test('Both unavailable trips require their own manual allowance; a longer allowance still conflicts',async()=>{
+ const value=input(),allowances=manualLegs(value);let calls=0;
+ const provider:RoutesProvider={async estimate(request){calls++;return {status:'no_route',fingerprint:routeFingerprint(request),checkedAt:new Date(now).toISOString()};}};
+ const one=await evaluateTravel(value,provider,{now,allowances:allowances.slice(0,1)});
+ assert.equal(one.status,'clarification');assert.equal(one.legs[0].manualAllowanceId,allowances[0].id);assert.equal(one.legs[1].status,'clarification');assert.equal(calls,1);
+ const both=await evaluateTravel(value,provider,{now,allowances});assert.equal(both.status,'fits');assert.equal(calls,1);
+ assert.deepEqual(both.legs.map(l=>l.manualAllowanceId),allowances.map(a=>a.id));assert.ok(both.legs.every(l=>l.requiredNanoseconds==='3000000000000'&&l.availableNanoseconds==='3000000000000'));
+ const tooLong=await evaluateTravel(value,provider,{now,allowances:[allowances[0],{...allowances[1],durationMinutes:46}]});assert.equal(tooLong.status,'conflict');assert.equal(tooLong.legs[1].reason,'insufficient_gap');assert.equal(calls,1);
+});
+test('Saved travel allowances do not survive changed authority, rules, slot or neighboring context',async()=>{
+ const original=input(),allowances=manualLegs(original);
+ const changes:((v:TravelInput)=>void)[]=[
+  v=>{v.contextFingerprint='b'.repeat(64);},v=>{v.bufferMinutes=11;},v=>{v.travelBufferMinutes=6;},v=>{v.mode='WALK';},
+  v=>{v.location={placeId:'changed-meeting'};},v=>{v.candidate={start:at('10:15'),end:at('10:45')};},
+  v=>{if(v.previous.kind==='commitment')v.previous.location={placeId:'changed-origin'};},
+  v=>{if(v.next.kind==='commitment')v.next.id='changed-next-event';},
+  v=>{if(v.previous.kind==='commitment')v.previous.interval.end=at('09:05');},
+ ];
+ for(const change of changes){
+  const value=structuredClone(original);change(value);let calls=0;
+  const result=await evaluateTravel(value,{async estimate(request){calls++;return {status:'no_route',fingerprint:routeFingerprint(request),checkedAt:new Date(now).toISOString()};}},{now,allowances});
+  assert.equal(result.status,'clarification');assert.ok(result.legs.every(l=>!l.manualAllowanceId));assert.equal(calls,2);
+ }
+});
+test('Manual travel requires explicit positive duration and endpoint; invalid legacy shapes cannot enter evaluation',()=>{
+ const [valid]=manualLegs(input());
+ for(const input of [{...valid,durationMinutes:0},{...valid,durationMinutes:-1},{...valid,boundary:{at:at('09:00'),location:null}},{...valid,boundary:{...valid.boundary,at:'yesterday'}},{...valid,hostId:'caller-selected-host'},{...valid,confirmedAt:'caller-claimed-confirmation'}])assert.equal(verifiedTravelAllowance.safeParse(input).success,false);
 });

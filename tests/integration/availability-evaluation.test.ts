@@ -38,7 +38,7 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
  const credential=guestCredential(requestId,token),database=new Database(env),cipher=new TokenCipher(env);let host='',hostCredential:Credential,authToken='';
  const day=new Date(Date.now()+2*86400000).toISOString().slice(0,10),at=(time:string)=>day+'T'+time+':00.000Z';
  const windows=[{start:at('10:00'),end:at('12:00')}],details={requesterName:'Fixture',requesterEmail:'requester@example.test',purpose:'Fixture',durationMinutes:30,timezone:'UTC',windows,mode:'online',location:''};
- const rules={timezone:'UTC',availability:[{days:[0,1,2,3,4,5,6],start:'00:00',end:'23:59'}],focusBlocks:[],bufferMinutes:10,durationMinutes:30,preferences:'Private host preference',travelMode:'NONE',meetingMode:'online',locationPolicy:'per_meeting',locations:[],travelBufferMinutes:0};
+ const rules={timezone:'UTC',availability:[{days:[0,1,2,3,4,5,6],start:'00:00',end:'23:59'}],focusBlocks:[],bufferMinutes:10,durationMinutes:45,preferences:'Private host preference',travelMode:'NONE',meetingMode:'online',locationPolicy:'per_meeting',locations:[],travelBufferMinutes:0};
  let hostBusyOverride:{start:string;end:string}[]|null=null;
  const calls:{party:string;ids:string[];windows:unknown}[]=[];let failure:'host'|'guest'|null=null,refreshes=0,gate:()=>Promise<void>=async()=>{},gatedParty:'host'|'guest'='host';
  let eventGate=async()=>{},routeGate=async()=>{},saveGate=async()=>{},allowanceGate=async()=>{},publicationGate=async()=>{},eventFailure=false,routeUnavailable=false,inboundSeconds=600,outboundSeconds=600,eventReads=0;
@@ -86,7 +86,30 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   // events, not a separately constructed pure travel fixture.
   await sql.query(`update fmat.requests set details=jsonb_set(jsonb_set(details,'{mode}','"in_person"'),'{location}','"Meeting venue"'),revision=revision+1 where id='${requestId}';update fmat.hosts set rules=rules||'{"travelMode":"DRIVE","travelBufferMinutes":5}',rules_version=rules_version+1 where id='${host}';`);
   const physical=async()=>service.read(credential,{requestId,revision:await revision(),candidate});
+  // Preserve the retired evaluator's ordering guarantee through real Auth/RPC
+  // and evidence persistence: hard conflicts never acquire private travel data.
+  async function hardConflict(label:string,exact=candidate){
+   const beforeEvents=eventReads,beforeRoutes=routeCalls.length;
+   const result=await service.read(credential,{requestId,revision:await revision(),candidate:exact});
+   assert.equal(result.candidateEvaluation?.interval,'conflict',label);
+   assert.equal(result.candidateEvaluation?.travel,null,label);
+   assert.equal(result.persisted?.status,'conflict',label);
+   assert.equal(eventReads,beforeEvents,label+' must not read adjacent events');
+   assert.equal(routeCalls.length,beforeRoutes,label+' must not estimate travel');
+  }
+  hostBusyOverride=[{start:at('11:25'),end:at('11:40')}];await hardConflict('overlap near the meeting end');
+  hostBusyOverride=[{start:at('11:35'),end:at('12:00')}];await hardConflict('host buffer after the meeting');hostBusyOverride=null;
+  await sql.query(`update fmat.hosts set rules=jsonb_set(rules,'{focusBlocks}','${JSON.stringify([{start:at('11:25'),end:at('11:40')}])}'),rules_version=rules_version+1 where id='${host}';`);
+  await hardConflict('host focus block');
+  await sql.query(`update fmat.hosts set rules=jsonb_set(rules,'{focusBlocks}','[]'),rules_version=rules_version+1 where id='${host}';`);
+  await hardConflict('wrong elapsed duration',{start:at('11:00'),end:at('11:15')});
+  await sql.query(`update fmat.hosts set rules=jsonb_set(rules,'{availability}','[{"days":[0,1,2,3,4,5,6],"start":"11:00","end":"11:20"}]'),rules_version=rules_version+1 where id='${host}';`);
+  await hardConflict('working hours end during the meeting');
+  await sql.query(`update fmat.hosts set rules=jsonb_set(rules,'{availability}','${JSON.stringify(rules.availability)}'),rules_version=rules_version+1 where id='${host}';`);
+  await reconnect();await hardConflict('requester Calendar conflict');
+  await manual.manual(credential,{revision:await revision(),confirmed:true,timezone:'UTC',windows});
   const fits=await physical();assert.equal(fits.candidateEvaluation?.interval,'fits');assert.equal(fits.candidateEvaluation?.travel?.status,'fits');assert.equal(routeCalls.length,2);assert.deepEqual(routeCalls.map(r=>r.departureTime).sort(),[day+'T10:40:00Z',day+'T11:40:00Z']);
+  assert.notEqual(rules.durationMinutes,details.durationMinutes,'Requested duration governs feasibility independently of the host default');
   assert.equal(fits.persisted?.status,'clarification');assert.equal(fits.persisted?.complete,false);
   const savedInput={...fits.context,rulesVersion:fits.rulesVersion,evidence:{candidate,...fits.candidateEvaluation,complete:false}};
   const retries=await Promise.all(Array.from({length:8},()=>database.rpc('fmat_availability_evaluation',{p_operation:'evidence_save',p_credential:credential,p_input:savedInput}))) as {evaluationId:string}[];

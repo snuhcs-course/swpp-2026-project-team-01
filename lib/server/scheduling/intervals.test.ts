@@ -148,3 +148,17 @@ test('distant overnight windows do not expand intervening clock-change dates',()
  input.windows=input.requesterAvailability=[slot('2030-01-06T05:00:00Z','2030-01-06T06:00:00Z'),slot('2030-11-10T05:00:00Z','2030-11-10T06:00:00Z')];
  assert.deepEqual(evaluateIntervals(input).windows,input.windows);
 });
+
+test('presentation sampling starts at the feasible window without imposing a quarter-hour rounding rule',()=>{
+ const input=base();input.windows=input.requesterAvailability=[slot(at(10,1),at(11))];
+ const result=evaluateIntervals(input);
+ assert.deepEqual(sampleIntervals(result,{stepMinutes:15,limit:10}),{intervals:[slot(at(10,1),at(10,31)),slot(at(10,16),at(10,46))],truncated:false});
+ assert.equal(intervalFits(result,slot(at(10,7),at(10,37))),true,'Exact feasible proposals need not be sampled');
+ assert.deepEqual(sampleIntervals(result,{stepMinutes:15,limit:1}),{intervals:[slot(at(10,1),at(10,31))],truncated:true});
+});
+
+test('host working-hour endpoints contain the meeting while general buffers protect commitments',()=>{
+ const input=base();input.rules.timezone='Asia/Seoul';input.rules.availability=[{days:[1],start:'19:00',end:'20:00'}];input.rules.bufferMinutes=10;
+ assert.equal(intervalFits(evaluateIntervals(input),slot(at(10),at(10,30))),true);
+ input.rules.availability[0].end='19:20';assert.equal(intervalFits(evaluateIntervals(input),slot(at(10),at(10,30))),false);
+});
