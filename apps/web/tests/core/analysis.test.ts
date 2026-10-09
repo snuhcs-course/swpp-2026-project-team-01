@@ -79,6 +79,7 @@ describe("questions about the analysis", () => {
     expect(historyQuestion("미팅은 주로 언제 했어?")).toEqual(["meeting"])
     expect(historyQuestion("분석 결과 알려줘")).toEqual(["work", "meeting", "place"])
     expect(historyQuestion("평일 10시부터 6시까지 미팅 가능해요")).toBeNull()
+    expect(historyQuestion("미팅 허용시간 13시부터로 변경해줄래?")).toBeNull()
   })
   it("answers only from the stored analysis", () => {
     expect(answerFromHistory(null, ["work"])).toContain("아직 가져온 일정을 분석하지 않았어요")
