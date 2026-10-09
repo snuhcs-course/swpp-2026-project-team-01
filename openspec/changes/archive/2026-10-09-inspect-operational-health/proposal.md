@@ -2,7 +2,7 @@
 
 ## Why
 
-[Implementation Phase 9](../../../documentations/technical_specification/04_implementation_plan.md#phase-9--harden-deploy-and-close-release-gates) requires redacted diagnostics for stalled work and uncertain provider outcomes. Operators currently need ad hoc private-table queries, increasing exposure risk and making missing telemetry easy to mistake for a healthy system.
+[Implementation Phase 9](../../../../documentations/technical_specification/04_implementation_plan.md#phase-9--harden-deploy-and-close-release-gates) requires redacted diagnostics for stalled work and uncertain provider outcomes. Operators currently need ad hoc private-table queries, increasing exposure risk and making missing telemetry easy to mistake for a healthy system.
 
 ## What Changes
 
@@ -19,7 +19,7 @@
 
 ### Modified Capabilities
 
-None. Existing [durable jobs](../../specs/durable-jobs/spec.md), [command authorization](../../specs/application-commands/spec.md) and [email uncertainty](../../specs/email-delivery/spec.md) retain their contracts.
+None. Existing [durable jobs](../../../specs/durable-jobs/spec.md), [command authorization](../../../specs/application-commands/spec.md) and [email uncertainty](../../../specs/email-delivery/spec.md) retain their contracts.
 
 ## Impact
 

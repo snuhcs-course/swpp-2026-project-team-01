@@ -1,6 +1,6 @@
 # Read-only operational diagnostics
 
-Use this command to inspect persisted work before choosing a guarded recovery path. It does not send messages, run workers, clear reservations, alter approvals, retry provider writes or determine release readiness. Implementation and production acceptance are tracked in the [diagnostics change](../../openspec/changes/inspect-operational-health/tasks.md).
+Use this command to inspect persisted work before choosing a guarded recovery path. It does not send messages, run workers, clear reservations, alter approvals, retry provider writes or determine release readiness. Implementation and production acceptance are tracked in the [diagnostics change](../../openspec/changes/archive/2026-10-09-inspect-operational-health/tasks.md).
 
 ## Running the command
 
