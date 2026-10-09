@@ -6,7 +6,7 @@
 
 ## 2. Integrated acceptance
 
-- [ ] 2.1 Exercise the production extraction adapter against real reviews, including unchanged state on denial, clarification-only non-application, valid explicit edits and retries. Run runtime recovery, post-fixture SQL, application checks and both builds; update evidence and plan, then commit.
+- [x] 2.1 Exercise the production extraction adapter against real reviews, including unchanged state on denial, clarification-only non-application, valid explicit edits and retries. Run runtime recovery, post-fixture SQL, application checks and both builds; update evidence and plan, then commit.
 
 ## 3. Production completion
 

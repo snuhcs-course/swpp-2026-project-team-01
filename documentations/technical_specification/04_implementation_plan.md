@@ -134,6 +134,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 - [x] Verify requester-window expiry during observed request-lock waits for proposal and apply, state preservation, and committed replay after time passes. Pass real RPC integration, 1,853 post-fixture SQL assertions, 413 app/provider tests, both builds and runtime smoke. [Evidence](05_rebuild_evidence.md#requester-review-window-integrated-acceptance--2026-10-09). Production verification and archive remain open.
 
+- [x] Verify declared-intent rejection and clarification-only non-application through real request reviews, exact retry counts, four runtime tests, 1,853 post-fixture SQL assertions, 418 app/provider tests, both builds and runtime guards. [Evidence](05_rebuild_evidence.md#requester-extraction-intent-integrated-acceptance--2026-10-09). Production rollout remains pending.
+
 - [x] Add checked requester extraction intent: question/unknown patches and absent/invalid labels fail before domain execution, with valid draft/clarification controls. Pass 25 focused tests and typechecks. [Evidence](05_rebuild_evidence.md#requester-extraction-intent-boundary--2026-10-09). Real runtime/review acceptance, rollout and free-form narration remain open.
 
 - [x] Deploy structured model contact minimization from `fbc350b` (`dpl_FdHb5pUS1REvZH1FhbQxJ5n5ZBF7`), verify the exact Ready release alias and 20 production checks, sync the requirement and archive the four-task change. [Evidence](05_rebuild_evidence.md#deployed-request-model-contact-projection--2026-10-09). Six of eight requester legacy assertions are now covered; uncertain-intent, false narration and broader release gates remain open.
