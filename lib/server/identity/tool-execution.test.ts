@@ -83,3 +83,23 @@ test('setup link reporting rechecks current private authority and revision after
  state.nextAction='complete_preferences';const calls=profiles;assert.deepEqual(await tools.execute(auth,call,readiness),{ready:false,reason:'setup'});assert.equal(profiles,calls);
  await assert.rejects(tools.execute(auth,call,{...readiness,input:{handle:'another-host'}}),errorCode('INVALID_INPUT'));
 });
+
+test('setup suggestions reject invalid time data and injected authority before any RPC',async()=>{
+ let requests=0;
+ const tools=new ConversationTools(new Database(env,async()=>{requests++;return Response.json({revision:2});}));
+ const patch=(rules:unknown)=>({operation:'setup_draft',input:{expectedRevision:1,patch:{rules},unresolved:[]}});
+ for(const rules of [
+  {timezone:'fake/timezone'},{timezone:'+09:00'},
+  {availability:[{days:[1],start:'25:00',end:'26:00'}]},
+  {focusBlocks:[{start:'2030-02-30T09:00:00Z',end:'2030-02-30T10:00:00Z'}]},
+  {focusBlocks:[{start:'2030-06-01T09:00',end:'2030-06-01T10:00'}]},
+  {focusBlocks:[{start:'2030-06-01T10:00:00Z',end:'2030-06-01T09:00:00Z'}]},
+  {bufferMinutes:-1},{timezone:'Asia/Seoul',accessToken:'private-token'},
+  {approved:true},{command:'calendar.insert'},
+ ])await assert.rejects(tools.execute(auth,call,patch(rules)),errorCode('INVALID_INPUT'));
+ assert.equal(requests,0);
+ for(const timezone of ['Asia/Seoul','America/New_York','UTC']){
+  await tools.execute(auth,call,patch({timezone,bufferMinutes:10}));
+ }
+ assert.equal(requests,3,'Valid partial preferences remain advisory draft operations');
+});

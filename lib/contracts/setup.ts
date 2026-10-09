@@ -1,10 +1,11 @@
 import {z} from 'zod';
 import {publicHandle} from './handles.ts';
+import {ianaTimezone} from './time.ts';
 const minute=z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/u);
 export const weeklyWindow=z.strictObject({days:z.array(z.number().int().min(0).max(6)).min(1).max(7),start:minute,end:minute}).refine(v=>v.start<v.end,'End must follow start.');
 const instantWindow=z.strictObject({start:z.iso.datetime({offset:true}),end:z.iso.datetime({offset:true})}).refine(v=>Date.parse(v.start)<Date.parse(v.end));
 export const setupRules=z.strictObject({
- timezone:z.string().min(1).max(100),durationMinutes:z.number().int().min(5).max(240),availability:z.array(weeklyWindow).min(1).max(21),focusBlocks:z.array(instantWindow).max(100),bufferMinutes:z.number().int().min(0).max(240),
+ timezone:ianaTimezone,durationMinutes:z.number().int().min(5).max(240),availability:z.array(weeklyWindow).min(1).max(21),focusBlocks:z.array(instantWindow).max(100),bufferMinutes:z.number().int().min(0).max(240),
  travelMode:z.enum(['DRIVE','TRANSIT','WALK','BICYCLE','PER_TRIP','NONE']),homeLocation:z.string().max(2000).optional(),preferences:z.string().max(5000),
  meetingMode:z.enum(['online','in_person','either']),locationPolicy:z.enum(['per_meeting','preferred']),locations:z.array(z.string().trim().min(1).max(500)).max(10),travelBufferMinutes:z.number().int().min(0).max(240),
 });

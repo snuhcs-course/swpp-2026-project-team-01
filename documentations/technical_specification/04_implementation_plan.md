@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Restore early IANA timezone rejection in the shared host setup schema; verify ten invalid time/authority inputs cause zero tool RPCs and valid partial drafts remain supported. Pass 411 application/provider tests, real host-setup integration, 1,830 SQL assertions, both builds and runtime smoke. [Evidence](05_rebuild_evidence.md#setup-timezone-validation-regression--2026-10-09). Rollout and remaining legacy host-intent reconciliation are separate.
+
 - [x] Deploy shared evaluation deadlines from `5f43a52` (`dpl_8SSnwtVGWZVBTy1ixvUZokTkvAjV`); verify the Ready release alias and 20 production HTTP checks, sync the two deadline requirements and archive the bounded change. [Evidence](05_rebuild_evidence.md#deployed-evaluation-deadline--2026-10-09). Wider legacy reconciliation and release gates remain open.
 
 - [x] Verify shared evaluation deadlines against actual local evaluation/publication/booking integrations, including expiry before Calendar dispatch. Pass 1,830 post-fixture SQL assertions without reset, 410 application/provider tests, both builds and built runtime guards. [Evidence](05_rebuild_evidence.md#evaluation-deadline-integrated-acceptance--2026-10-09). Production rollout remains pending.
