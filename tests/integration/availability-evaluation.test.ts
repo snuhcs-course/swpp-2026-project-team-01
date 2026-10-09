@@ -86,6 +86,12 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   // events, not a separately constructed pure travel fixture.
   await sql.query(`update fmat.requests set details=jsonb_set(jsonb_set(details,'{mode}','"in_person"'),'{location}','"Meeting venue"'),revision=revision+1 where id='${requestId}';update fmat.hosts set rules=rules||'{"travelMode":"DRIVE","travelBufferMinutes":5}',rules_version=rules_version+1 where id='${host}';`);
   const physical=async()=>service.read(credential,{requestId,revision:await revision(),candidate});
+  const providerCounts=()=>[refreshes,calls.length,eventReads,routeCalls.length];
+  const attemptState=()=>sql.query(`select jsonb_build_array(revision,availability_check_id,availability_check_started_at) from fmat.requests where id='${requestId}';`);
+  const staleCounts=providerCounts(),staleStateBefore=await attemptState();
+  await assert.rejects(service.read(credential,{requestId,revision:(await revision())-1,candidate}),code('STALE_REVISION'));
+  assert.deepEqual(providerCounts(),staleCounts,'An initially stale request never accesses Calendar or Routes');
+  assert.equal(await attemptState(),staleStateBefore,'Stale input cannot replace the current evaluation attempt');
   // Preserve the retired evaluator's ordering guarantee through real Auth/RPC
   // and evidence persistence: hard conflicts never acquire private travel data.
   async function hardConflict(label:string,exact=candidate){
@@ -399,6 +405,21 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   const approval=randomUUID();
   await paused(()=>sql.query(`insert into fmat.requests(id,host_id,details,token_hash,expires_at) values('${otherRequest}','${host}','${JSON.stringify(details)}','${createHash('sha256').update(otherRequest).digest('hex')}',now()+interval '3 days');insert into fmat.proposals(request_id,version,details,rules_version) values('${otherRequest}',1,'{}',1);insert into fmat.host_approvals(id,request_id,proposal_version,host_id,source,approved_revision) values('${approval}','${otherRequest}',1,'${host}','authenticated_web',1);insert into fmat.booking_identities(request_id,event_id) values('${otherRequest}','fmat123');insert into fmat.booking_attempts(request_id,host_id,proposal_version,approval_id,expected_revision,rules_version,connection_id,connection_provider_subject,calendar_id,event_id,payload,payload_fingerprint,starts_at,ends_at,phase) select '${otherRequest}','${host}',1,'${approval}',1,1,id,'fixture-host','booking','fmat123','{}','fixture','${at('11:25')}','${at('12:00')}','confirmed' from fmat.calendar_connections where principal_id='${host}';`));
   const blocked=await check();assert.deepEqual(blocked.evaluation.windows,[]);
+  // Isolate the frozen booking from requester busy data. A missing or moved
+  // provider event must not reopen the locally confirmed interval.
+  await manual.manual(credential,{revision:await revision(),confirmed:true,timezone:'UTC',windows});
+  hostBusyOverride=[];
+  assert.deepEqual((await check()).evaluation.windows,[{start:day+'T10:00:00Z',end:day+'T11:15:00Z'}],'The frozen booking blocks time even when Calendar returns no event');
+  hostBusyOverride=[{start:at('10:00'),end:at('10:30')}];
+  const movedBusy=structuredClone(hostBusyOverride);
+  assert.deepEqual((await check()).evaluation.windows,[{start:day+'T10:40:00Z',end:day+'T11:15:00Z'}],'Current provider busy and the original confirmed booking both remain protected');
+  const beforeFrozenEvents=eventReads,beforeFrozenRoutes=routeCalls.length;
+  const frozenConflict=await service.read(credential,{requestId,revision:await revision(),candidate});
+  assert.equal(frozenConflict.candidateEvaluation?.interval,'conflict');
+  assert.equal(frozenConflict.candidateEvaluation?.travel,null);
+  assert.equal(eventReads,beforeFrozenEvents);assert.equal(routeCalls.length,beforeFrozenRoutes);
+  assert.deepEqual(hostBusyOverride,movedBusy,'Evaluation does not mutate provider intervals');
+  hostBusyOverride=null;await reconnect();
   // Observe a real booking-preparation lock wait. Evaluation can finish in
   // the host-lock owner's transaction because booking no longer grabs the
   // Calendar row first and creates a host/connection deadlock cycle.

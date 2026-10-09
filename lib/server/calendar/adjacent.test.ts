@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {GoogleAdjacentEvents,adjacentContext,travelReadRange,unexplainedBusy,type TravelCommitment} from './adjacent.ts';
+import {GoogleAdjacentEvents,adjacentContext,physicalLocation,travelReadRange,unexplainedBusy,type TravelCommitment} from './adjacent.ts';
 import {ApplicationError} from '../errors.ts';
 const candidate={start:'2030-01-02T10:00:00.000000001Z',end:'2030-01-02T10:30:00.000000001Z'};
 const raw=(id:string,start:string,end:string,other={})=>({id,etag:'v1',start:{dateTime:start},end:{dateTime:end},location:'A precise venue',...other});
@@ -67,4 +67,16 @@ test('Calendar versions, local writes, locations and authority change context; i
  for(const modified of [[{...events[0],version:'v2'},events[1]],[{...events[0],location:null},events[1]],[...events,commitment('local','09:00','09:30')]])assert.notEqual(adjacentContext(candidate,modified,'basis').fingerprint,base);
  assert.notEqual(adjacentContext(candidate,events,'changed').fingerprint,base);
  const duplicate={...events[0],id:'local'};assert.equal(adjacentContext(candidate,[...events,duplicate],'basis').previous.kind,'commitment');
+});
+test('Frozen online receipts preserve their interval without erasing a moved provider commitment',()=>{
+ const provider=commitment('provider','08:00','09:00');
+ const local={...provider,id:'receipt',version:'frozen',interval:{start:at('09:00'),end:at('09:30')},location:physicalLocation('https://video.example.test/meeting')};
+ const inputs=[provider,local],before=structuredClone(inputs);
+ assert.equal(local.location,null,'Online receipt links never become physical endpoints');
+ const merged=adjacentContext(candidate,inputs,'basis');
+ assert.deepEqual(merged.previous,{kind:'commitment',id:'receipt',interval:local.interval,location:null});
+ assert.notEqual(merged.fingerprint,adjacentContext(candidate,[local],'basis').fingerprint,'The moved provider version is still part of the evidence');
+ const earlier={start:at('08:30'),end:at('08:45')};
+ assert.deepEqual(adjacentContext(earlier,inputs,'basis').previous,{kind:'commitment',id:provider.id,interval:provider.interval,location:provider.location});
+ assert.deepEqual(inputs,before,'Neither receipt nor provider input is rewritten');
 });
