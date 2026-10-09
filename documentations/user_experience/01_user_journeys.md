@@ -223,7 +223,7 @@ Photon Spectrum is the selected transport direction described in the [PRD depend
 1. The assistant asks the requester for missing information or a wider window, or privately asks the host to review a preference.
 2. The host can explicitly waive a preference for the request, edit an applicable rule, or decline. A busy calendar conflict or unmet hard constraint cannot be bypassed by approval alone.
 3. The service evaluates new options, including travel before and after physical meetings, and offers only feasible candidates.
-4. Changed shared details return to the requester or their authorized agent for agreement. A revised proposal requires fresh host approval.
+4. In private host discussion, the assistant can draft changed shared details. The host opens **Review proposed shared changes** in the web workspace, compares current and suggested values, and chooses **Share revised details** or **Dismiss suggestions**. Sharing clears the old proposal and decisions; private reasons remain in private discussion. Linked iMessage hosts currently continue to this web review. Changed shared details then return to the requester or their authorized agent through a newly checked proposal for agreement, followed by fresh host approval.
 5. The request returns to the chosen review channel, or closes when declined or withdrawn.
 
 **Outcome:** Both parties act on the same current details. The requester sees alternatives and shared meeting information, not private rules or exception reasons.

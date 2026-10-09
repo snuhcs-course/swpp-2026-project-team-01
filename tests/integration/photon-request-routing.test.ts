@@ -1,3 +1,4 @@
+import {HostRevisionReview} from '../../lib/server/identity/host-revision-review.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
@@ -100,19 +101,31 @@ test('signed private selection survives restart, preserves request scope and ret
   assert.ok([...sent.values()].some(item=>item.phone===hosts[0].phone&&item.text===`Request ${requests[0]}\n\nPrivate request: First edited in web`),'delayed reply retains original request despite later selection');
   assert.ok([...sent.values()].filter(item=>item.phone===hosts[1].phone).every(item=>!item.text.includes(requests[0])&&!item.text.includes(requests[1])));
   await turn(0,'setup');assert.equal((await turn(0,'private-request-question')).text,'Setup has no selected request.');
-  await turn(0,'request '+requests[1]);const oldLink=hosts[0].link;
+  await turn(0,'request '+requests[1]);
+  const revisionBefore=await sql.query(`select revision from fmat.requests where id='${requests[1]}';`);
+  assert.match((await turn(0,'host-revision-fixture')).text,/Private revision drafted/);
+  assert.equal(await sql.query(`select revision from fmat.requests where id='${requests[1]}';`),revisionBefore,'actual Eve draft does not change shared revision');
+  const revisions=new HostRevisionReview(db),revisionReview=await revisions.read(hosts[0].credential,{requestId:requests[1]});
+  assert.equal(revisionReview.review?.details.location,'https://meet.example.test/revised');
+  const decision={requestId:requests[1],input:{reviewId:revisionReview.review!.id,expectedRevision:revisionReview.review!.baseRevision,confirmed:true,idempotencyKey:randomUUID()}};
+  const applied=await revisions.decide('apply',hosts[0].credential,decision);assert.equal(applied.review?.status,'applied');
+  assert.deepEqual(await revisions.decide('apply',hosts[0].credential,decision),applied);
+  assert.equal(await sql.query(`select count(*) from fmat.request_history where request_id='${requests[1]}' and operation='details_update';`),'1');
+  const oldLink=hosts[0].link;
   await service.unlink(hosts[0].credential,hosts[0].browser,{linkId:oldLink});await assert.rejects(conversations.checkExecution(first.grant,first.scope));
   await sql.query(`update fmat.photon_link_challenges set created_at=created_at-interval '61 seconds',expires_at=expires_at-interval '61 seconds' where host_id='${hosts[0].id}';`);
   await link(0);assert.notEqual(hosts[0].link,oldLink);assert.equal(await sql.query(`select selected_request_id is null from fmat.photon_links where id='${hosts[0].link}';`),'t');
   assert.equal((await turn(0,'private-request-question')).text,'Setup has no selected request.');
   assert.equal(await sql.query(`select count(*) from fmat.host_approvals where host_id='${hosts[0].id}';`),'0');
  }finally{
+  try{
   await holder.query('rollback;');await runtime?.stop();
   await sql.query(cleanupFixtureJobsSql(`payload->>'inboxId' in(select id::text from fmat.photon_inbox where project_id='${project}')`));
   await sql.query(`delete from fmat.photon_replies where project_id='${project}';delete from fmat.photon_inbox where project_id='${project}';delete from fmat.photon_links where project_id='${project}';delete from fmat.photon_link_challenges where project_id='${project}';delete from fmat.photon_receivers where project_id='${project}';`);
   for(const host of hosts){
-   await sql.query(`delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host.id}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host.id}');delete from fmat.conversation_scopes where host_id='${host.id}';delete from fmat.requests where host_id='${host.id}';delete from fmat.audit_events where actor->>'id'='${host.id}';delete from fmat.idempotency where actor_scope='host:${host.id}';delete from fmat.hosts where id='${host.id}';delete from fmat.invitations where id='${host.invite}';`);
+   await sql.query(`delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host.id}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host.id}');delete from fmat.conversation_scopes where host_id='${host.id}';delete from fmat.request_history where request_id in(select id from fmat.requests where host_id='${host.id}');delete from fmat.requests where host_id='${host.id}';delete from fmat.audit_events where actor->>'id'='${host.id}';delete from fmat.idempotency where actor_scope='host:${host.id}';delete from fmat.hosts where id='${host.id}';delete from fmat.invitations where id='${host.invite}';`);
    assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host.id,{method:'DELETE',headers})).status,200);
-  }sql.close();holder.close();
+  }
+  }finally{sql.close();holder.close();}
  }
 });

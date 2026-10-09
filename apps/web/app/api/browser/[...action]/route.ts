@@ -1,3 +1,4 @@
+import {HostRevisionReview} from '../../../../../../lib/server/identity/host-revision-review.ts';
 import {hostLoginStart,hostLoginCookie} from '../../../../lib/host-login-target.ts';
 import {agentOAuthBrowser} from '../../../../lib/agent-oauth-browser.ts';
 import {agentLoginReturnCookie} from '../../../../lib/agent-oauth-protocol.ts';
@@ -103,6 +104,14 @@ async function handle(request:NextRequest,{params}:Context) {
     }
     if(action.startsWith('imessage-entry/'))return await imessageEntryBrowser(request,action.slice(15));
     session=browserSession(request);
+    if(action==='host-revision/read'&&request.method==='GET') {
+      const {credential}=await session.host();
+      return session.finish(json(await new HostRevisionReview().read(credential,Object.fromEntries(request.nextUrl.searchParams))));
+    }
+    if(['host-revision/apply','host-revision/dismiss'].includes(action)&&request.method==='POST') {
+      const {credential}=await session.host();
+      return session.finish(json(await new HostRevisionReview().decide(action==='host-revision/apply'?'apply':'dismiss',credential,await readJson(request))));
+    }
     if(['host/requests','host/request'].includes(action)&&request.method==='GET') {
       const {credential}=await session.host(),service=new HostRequests();
       const input=Object.fromEntries(request.nextUrl.searchParams);

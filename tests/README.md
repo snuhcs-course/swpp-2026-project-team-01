@@ -417,3 +417,6 @@ The `rules_changed_during_routes` scenario waits until both parallel route provi
 
 
 `host_revision_drafts.test.sql` verifies that current host-private grants can persist revision suggestions without changing any shared request field or booking state, while setup/shared/guest/foreign/revoked contexts fail. It covers contact-field rejection, stale revision, exact and conflicting retry, pending-draft supersession, private read isolation and direct privilege denial. Human revision decisions remain separate pending coverage.
+
+
+`host_revision_review.test.sql` verifies protected host review, exact apply/dismiss confirmation, foreign/guest denial, stale changes, retry conflicts, private rationale isolation and invalidation of previous proposal/agreement/approval. The signed private-routing integration now invokes the actual Eve revision tool and resumes its draft through authenticated web-domain review. The browser host-request journey covers the before/after card, CSRF and guest denial, mobile reflow, lost-response same-action retry, reload, dismissal, stale-draft denial and removal from shared discussion.

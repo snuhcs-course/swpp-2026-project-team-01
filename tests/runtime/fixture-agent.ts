@@ -12,6 +12,15 @@ const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMess
     if(lastUserMessage==='setup-provider-outage')throw new Error('synthetic-private-provider-detail');
     if(lastUserMessage==='setup-provider-timeout')throw new DOMException('synthetic-private-timeout-detail','TimeoutError');
     if(lastUserMessage==='setup-provider-refusal')return 'I cannot provide a setup suggestion.';
+    if(lastUserMessage==='host-revision-fixture'){
+      const prefix=`host-revision-${userMessageCount}-`,current=toolResults.filter(result=>result.id.startsWith(prefix));
+      if(current.some(result=>result.isError))return 'Private revision unavailable.';
+      const outputs=current.map(result=>result.output as {revision?:number;revisionDraft?:{status:string}});
+      if(outputs.some(result=>result.revisionDraft?.status==='pending'))return 'Private revision drafted. Review it in the host workspace.';
+      const request=outputs.find(result=>typeof result.revision==='number');
+      if(!request)return {toolCalls:[{id:prefix+randomUUID(),name:'read_context',input:{context:'request'}}]};
+      return {toolCalls:[{id:prefix+randomUUID(),name:'propose_host_revision',input:{intent:'details',expectedRevision:request.revision,patch:{location:'https://meet.example.test/revised'},clarifications:[]}}]};
+    }
     if(lastUserMessage==='private-request-question'){
       const prefix=`request-context-${userMessageCount}-`,current=toolResults.filter(result=>result.id.startsWith(prefix));
       if(current.some(result=>result.isError))return 'Private request context unavailable.';

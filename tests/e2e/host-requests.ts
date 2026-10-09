@@ -1,3 +1,4 @@
+import {verifyHostRevisionReview} from './host-revision-review.ts';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {expect,type Page} from '@playwright/test';
@@ -5,6 +6,7 @@ import type {LocalSql} from '../integration/local-sql.ts';
 export async function verifyHostRequests(page:Page,guest:Page,sql:LocalSql,requestId:string,host:string){
  const origin=new URL(page.url()).origin,other=randomUUID(),picker=page.getByRole('region',{name:'Meeting request picker'}),selected=page.getByRole('region',{name:'Selected meeting request'});
  await sql.query(`insert into fmat.requests(id,host_id,details,token_hash,expires_at) values('${other}','${host}','{"requesterName":"Separate requester","purpose":"Separate discussion"}',encode(extensions.digest('${other}','sha256'),'hex'),now()+interval '1 day');`);
+ await verifyHostRevisionReview(page,guest,sql,other,host);
  assert.equal((await guest.request.get(origin+'/api/browser/host/requests')).status(),401);
  assert.equal((await guest.request.get(origin+'/api/browser/host/request?requestId='+requestId)).status(),401);
  await page.getByRole('button',{name:'Meeting requests',exact:true}).click();await picker.getByRole('button',{name:'Review Separate discussion from Separate requester'}).waitFor();

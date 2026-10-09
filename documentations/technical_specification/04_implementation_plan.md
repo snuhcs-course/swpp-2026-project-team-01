@@ -514,6 +514,8 @@ References: [email direction](01_backend_architecture.md#email-provider-directio
 
 ### Phase 7 — Add verified host iMessage continuity
 
+- [x] Add authenticated host web apply/dismiss with before/after review, current draft/revision checks, exact retry and old proposal/agreement/approval invalidation. Activate the private Eve draft tool and verify signed iMessage-to-web continuation, 123 local migrations, 2,160 SQL assertions and all four browser tests. [Evidence](05_rebuild_evidence.md#protected-host-revision-review--2026-10-10). Authored iMessage apply/dismiss, complete revised-proposal agreement/approval acceptance and rollout remain open.
+
 - [x] Deploy the private revision draft foundation from `4bd438e` (`dpl_HCKUCSiq3Y4yt1crvkBaCUVnmhCY`); verify 122 matching migrations, private function/table permissions, seven rollback-only assertions, zero fixture residue, clean advisors, exact Ready alias and 25 HTTP checks. [Evidence](05_rebuild_evidence.md#deployed-private-host-revision-draft-foundation--2026-10-10). Human review controls and agent-tool activation remain open.
 
 - [x] Add private host revision draft storage and server adapter, with current grant/revision checks, requester identity rejection, shared-audience isolation, exact retry and supersession. Verify 122 local migrations, 2,134 SQL assertions, 453 app/provider tests, builds and runtime guards. [Evidence](05_rebuild_evidence.md#private-host-revision-draft-foundation--2026-10-10). Human review controls, agent-tool activation and production rollout remain open; task 3.3 is not complete.
