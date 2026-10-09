@@ -2025,3 +2025,10 @@ Final checks pass: 351 application/provider tests, eight script tests, types, bo
 All four diagnostics tasks are complete. Syncing and archiving this capability does not close authorization-denial/stale-rejection event instrumentation, alerts, new recovery actions, retention/deletion, backup restore, performance SLOs or operational ownership. It also does not close intake live-Calendar creation, any named client or the full implementation goal; `releaseReady` remains false.
 
 The diagnostics change is archived at `2026-10-09-inspect-operational-health`. Its three requirements and six scenarios are synced verbatim into the new main operational-diagnostics specification, with the purpose preserved. All 22 strict OpenSpec items and 607 documentation links pass after archive/link updates.
+
+
+## CI database cleanup gate — 2026-10-09
+
+The database CI job previously checked SQL invariants only immediately after reset. Integration, runtime and browser fixtures could subsequently leave orphan queue entries or other invalid state without a final SQL failure. The earlier contact/recovery cleanup incident demonstrated this gap. CI now reruns all SQL assertions after those suites against the same database, without resetting it. The condition requires a successful baseline and a non-cancelled job; it deliberately runs after intermediate failures too. Existing browser failure artifacts remain available.
+
+Local verification passes all 45 integrations (212.9s), immediately followed by all 1,695 SQL assertions in 36 files with no reset between them. Ruby's YAML parser verifies the workflow and gate ordering; documentation links and whitespace checks pass. The first parser attempt found no installed Node `yaml` module, so verification used the existing Ruby parser without adding a dependency. The new hosted gate remains subject to its own CI run. Separately, diagnostics CI run `37877616402` completed successfully. This CI-only change introduces no application, database schema or provider behavior and needs no production redeployment.

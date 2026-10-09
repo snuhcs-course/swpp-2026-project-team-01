@@ -36,6 +36,7 @@ jobs:
       - run: supabase start
       - run: supabase db reset --local
       - name: Verify preserved database baseline
+        id: database_baseline
         run: supabase test db
       - name: Verify Auth and application database integration
         run: npm run test:integration
@@ -51,6 +52,9 @@ jobs:
       - name: Verify browser access, conversation replay and revocation
         id: browser
         run: npm run test:browser
+      - name: Verify database invariants after fixture cleanup
+        if: ${{ !cancelled() && steps.database_baseline.outcome == 'success' }}
+        run: supabase test db
       - name: Preserve synthetic browser failure evidence
         if: failure() && steps.browser.outcome == 'failure'
         uses: actions/upload-artifact@v4

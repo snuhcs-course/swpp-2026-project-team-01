@@ -515,6 +515,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Add the final CI database invariant gate after integration/runtime/browser fixture cleanup, including failed-suite paths; verify 45 local integrations followed by all 1,695 SQL assertions without a reset. [Evidence](05_rebuild_evidence.md#ci-database-cleanup-gate--2026-10-09). Hosted execution of the new gate remains to be observed.
+
 - [x] Define strict operational snapshot contracts and extract the shared explicit-project server credential check without changing invitation behavior. Verify category/field allowlists, count/sample consistency and invalid target/credential rejection. SQL and command activation remain pending in the diagnostics change.
 - [x] Implement the stable service-only diagnostic SQL projection and reviewed additive migration. Rebuild 102 local migrations, pass 35 new permission/category/redaction/no-mutation assertions and all 1,695 database assertions, with clean local advisors. Production and CLI acceptance remain pending.
 - [x] Add the explicit-project diagnostic JSON command and [signal/recovery runbook](08_operational_diagnostics.md). Verify actual local CLI reads, aggregate-only mode, target/credential denial, redacted upstream failures and unchanged uncertain deliveries; preserve invitation CLI behavior. Pass 351 app tests and both builds. Production snapshot acceptance remains pending.
