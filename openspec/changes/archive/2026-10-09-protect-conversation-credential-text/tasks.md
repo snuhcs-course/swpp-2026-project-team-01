@@ -9,4 +9,4 @@
 ## 2. Integrated acceptance and rollout
 
 - [x] 2.1 Verify actual web runtime/model input, process recovery and the existing verified email/iMessage execution adapters all receive protected text; run affected integrations sequentially, complete application/build/runtime checks as applicable and the full post-fixture SQL suite. Record evidence without external human messages.
-- [ ] 2.2 Reidentify production, inspect pending migrations with a dry run, deploy and verify the protected admission/delivery/retry behavior using rollback-only synthetic production fixtures; deploy Vercel only if application code changes. Update implementation plan/evidence, sync the verified requirement and archive only after all checks pass.
+- [x] 2.2 Reidentify production, inspect pending migrations with a dry run, deploy and verify the protected admission/delivery/retry behavior using rollback-only synthetic production fixtures; deploy Vercel only if application code changes. Update implementation plan/evidence, sync the verified requirement and archive only after all checks pass.
