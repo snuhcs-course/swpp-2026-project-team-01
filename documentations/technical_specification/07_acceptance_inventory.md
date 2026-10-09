@@ -14,7 +14,7 @@ Date: 2026-10-09. This is an obligation and ownership map, not a release sign-of
 
 | Short owner | Current record |
 |---|---|
-| Foundation | [rebuild-application-foundation](../../openspec/changes/rebuild-application-foundation/tasks.md) |
+| Foundation | [rebuild-application-foundation](../../openspec/changes/archive/2026-10-09-rebuild-application-foundation/tasks.md) |
 | Calendar | [connect-google-calendars](../../openspec/changes/connect-google-calendars/tasks.md) |
 | Feasibility | [completed record](../../openspec/changes/archive/2026-10-09-evaluate-calendar-and-travel-feasibility/tasks.md) and [main contract](../../openspec/specs/meeting-feasibility/spec.md) |
 | Booking | [book-approved-proposals-reliably](../../openspec/changes/book-approved-proposals-reliably/tasks.md) |
