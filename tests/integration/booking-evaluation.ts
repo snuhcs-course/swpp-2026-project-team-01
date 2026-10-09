@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
+import {EvaluationBudget} from '../../lib/server/scheduling/budget.ts';
 import {AvailabilityEvaluation} from '../../lib/server/scheduling/availability.ts';
 import {ApplicationError} from '../../lib/server/errors.ts';
 import type {Database} from '../../lib/server/database/client.ts';
@@ -30,6 +31,15 @@ export async function verifyBookingEvaluation(database:Database,env:NodeJS.Proce
   assert.equal(result.persisted?.status,'checks_passed');assert.equal(result.candidateEvaluation?.interval,'fits');assert.equal(lists,1);assert.equal(reads,1);
   assert.equal(await sql.query(`select lease_token='${leaseToken}' and check_id='${result.context.checkId}' and destination_checked_at is not null from fmat.booking_checks where attempt_id='${saved.attemptId}';`),'t');
   assert.equal(await sql.query(`select phase from fmat.booking_attempts where id='${saved.attemptId}';`),'prepared');
+  const beforeTimeout=await sql.query(`select count(*) from fmat.candidate_evaluations where request_id='${requestId}';`);
+  let elapsed=0;const budget=new EvaluationBudget({now:()=>elapsed,schedule:()=>()=>{}});
+  onRead=async()=>{elapsed=18000;};
+  try{
+   await assert.rejects(evaluation.readForBooking(lease(),target,budget),error=>error instanceof ApplicationError&&error.code==='PROVIDER_UNAVAILABLE');
+   assert.equal(await sql.query(`select count(*) from fmat.candidate_evaluations where request_id='${requestId}';`),beforeTimeout);
+   assert.equal(await sql.query(`select phase from fmat.booking_attempts where id='${saved.attemptId}';`),'prepared');
+   assert.equal(await sql.query(`select count(*) from fmat.booking_dispatches where attempt_id='${saved.attemptId}';`),'0','Expired revalidation cannot authorize Calendar dispatch');
+  }finally{onRead=undefined;budget.dispose();}
   const oldLease=lease();leaseToken=randomUUID();await renew();
   await assert.rejects(database.rpc('fmat_booking_evaluation',{p_operation:'evidence_read',p_lease:lease(),p_input:{requestId,revision:target.revision,evaluationId:result.persisted!.evaluationId}}));
   await assert.rejects(evaluation.readForBooking(oldLease,target));

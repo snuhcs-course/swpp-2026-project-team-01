@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Verify shared evaluation deadlines against actual local evaluation/publication/booking integrations, including expiry before Calendar dispatch. Pass 1,830 post-fixture SQL assertions without reset, 410 application/provider tests, both builds and built runtime guards. [Evidence](05_rebuild_evidence.md#evaluation-deadline-integrated-acceptance--2026-10-09). Production rollout remains pending.
+
 - [x] Share the evaluation budget through ranking, allowance reservation and publication. Verify no late/partial publication, retained committed charges, saved-ranking recovery and actual Responses-adapter cancellation. Pass nine focused and 410 application/provider tests. [Evidence](05_rebuild_evidence.md#publication-budget-orchestration--2026-10-09). Database acceptance and deployment remain pending.
 
 - [x] Apply one budget across direct/batch/booking evaluation and its RPC/provider boundaries. Verify late responses cannot start guest reads or save evidence, later-candidate expiry rejects the batch, and failure recording stays bounded. Pass five service tests and 405 application/provider tests. [Evidence](05_rebuild_evidence.md#evaluation-budget-orchestration--2026-10-09). Publication/ranking integration and rollout remain pending.
