@@ -27,6 +27,11 @@ export async function verifyBookingRevalidation(database:Database,env:NodeJS.Pro
    const lease={workerId:'revalidate-'+randomUUID(),jobId:saved.jobId,leaseToken:randomUUID()};
    await sql.query(`update fmat.jobs set status='running',worker_id='${lease.workerId}',lease_token='${lease.leaseToken}',lease_until=clock_timestamp()+interval '90 seconds' where id='${lease.jobId}';`);
    let inserts=0,guestReads=0,eventReads=0,routeReads=0;let changedRules:Promise<string>|undefined;
+   // Exercise revocation after BOTH parallel provider calls have started.
+   // Without this barrier one preflight can observe the other's rule change
+   // and correctly stop before its provider call, making the count race CI.
+   let releaseRoutes!:()=>void;
+   const routesStarted=new Promise<void>(resolve=>{releaseRoutes=resolve;});
    const calendar={async refresh(bundle:import('../../lib/server/calendar/google.ts').TokenBundle){return bundle;},async list(){return scenario==='destination_missing'?[]:[{id:'fixture-calendar',name:'fixture',accessRole:scenario==='destination_readonly'?'reader' as const:'owner' as const,primary:false,timeZone:'UTC',color:null}];}};
    const revoke=()=>sql.query(`update fmat.calendar_connections set revoked_at=clock_timestamp(),encrypted_credential=null where principal_kind='host' and principal_id='${hostId}';`);
    const evaluation=new AvailabilityEvaluation(database,env,calendar,{async read(access,ids){
@@ -36,7 +41,11 @@ export async function verifyBookingRevalidation(database:Database,env:NodeJS.Pro
     return scenario==='host_busy'||(scenario==='destination_only_busy'&&ids.includes('fixture-calendar'))?[saved.candidate]:[];
    }},{async read(access,ids,candidate,assertCurrent){eventReads++;assert.equal(access,'fixture-access');assert.deepEqual(ids,['fixture-calendar']);await assertCurrent();const neighbors=bookingNeighbors(candidate);if(scenario==='travel_neighbor_changed'){neighbors[1].version='moved-after-approval';neighbors[1].interval.start=new Date(Date.parse(candidate.end)+60000).toISOString();}return neighbors;}},{async estimate(request){
     routeReads++;assert.equal(request.mode,'DRIVE');
-    if(scenario==='rules_changed_during_routes')await (changedRules??=sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${hostId}';`));
+    if(scenario==='rules_changed_during_routes'){
+     if(routeReads===2)releaseRoutes();
+     await routesStarted;
+     await (changedRules??=sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${hostId}';`));
+    }
     if(scenario==='travel_unavailable')return {status:'no_route',fingerprint:routeFingerprint(request),checkedAt:new Date().toISOString()};
     return {status:'success',fingerprint:routeFingerprint(request),checkedAt:new Date().toISOString(),departureTime:request.departureTime,durationNanoseconds:String(BigInt(scenario==='travel_conflict'?7200:300)*1000000000n),distanceMeters:1000};
    }});
@@ -56,7 +65,7 @@ export async function verifyBookingRevalidation(database:Database,env:NodeJS.Pro
     assert.equal(await sql.query(`select count(*) from fmat.host_reservations where attempt_id='${saved.attemptId}';`),'0',scenario);
     assert.equal(await sql.query(`select count(*) from fmat.outbox where payload->>'requestId'='${requestId}';`),valid?'2':'0',scenario);
     if(scenario==='guest_busy'||scenario==='guest_valid')assert.equal(guestReads,1);
-    if(physical){assert.equal(eventReads,1);assert.equal(routeReads,2);}
+    if(physical){assert.equal(eventReads,1,scenario);assert.equal(routeReads,2,scenario);}
    }finally{
     await sql.query(`update fmat.hosts set rules_version=${saved.rulesVersion},booking_calendar_id='fixture-calendar',conflict_calendar_ids=array['fixture-calendar'] where id='${hostId}';update fmat.calendar_connections set revoked_at=null,encrypted_credential='${saved.credential}' where principal_kind='host' and principal_id='${hostId}';`);
    }

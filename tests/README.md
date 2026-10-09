@@ -402,3 +402,7 @@ The two integrations pass sequentially using the disposable local database and s
 ## Private assistant request discovery
 
 `host_request_discovery.test.sql` exercises the real conversation RPC for thirty-row pagination, stable continuation, literal/Unicode search, active/closed filtering, two-host isolation, contact-field minimization, shared/guest/unadmitted/revoked denial and no selection/decision effects. `photon_execution.test.sql` verifies linked setup discovery and denial after unlink. The signed Photon integration invokes the actual compiled `list_host_requests` tool through eve and checks the model receives no saved contact fields, the reply contains its host-owned request title, and the setup context/request revision remain unchanged. Provider sends use deterministic fixtures; request switching, proposal decisions and real iMessage acceptance remain separate pending tasks.
+
+## Booking revalidation concurrency fixture
+
+The `rules_changed_during_routes` scenario waits until both parallel route provider calls have started, then commits one host rule-version change before either returns. It continues to require exactly two route calls, a blocked attempt, zero calendar inserts, zero dispatches/outbox rows and released reservations. The separate `rules_changed` case covers a change before evaluation. This removes a scheduling race where one call could correctly fail its preflight after the other had already changed rules; it does not weaken booking authority checks. Hosted CI acceptance of this fixture update remains to be observed.
