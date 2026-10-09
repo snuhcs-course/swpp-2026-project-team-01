@@ -7,7 +7,7 @@ import {AgentOAuthTokens} from './tokens.ts';
 import {AgentOperations} from './operations.ts';
 const second=Math.floor(Date.now()/1000),pair=await generateKeyPair('ES256',{extractable:true});
 const env={APP_ORIGIN:'https://release.example.test',AGENT_OAUTH_SIGNING_JWK:JSON.stringify({...await exportJWK(pair.privateKey),kid:'test'})};
-async function credential(kind:'host'|'guest',scope:string){
+async function credential(kind:'host'|'guest'|'intake',scope:string){
  const grant={grantId:randomUUID(),clientId:randomUUID(),actorKind:kind,actorId:randomUUID(),scope,grantExpiresAt:second+3600};
  const token=await new AgentOAuthTokens(env,()=>second*1000).issue(grant,async()=>{});
  return new AgentCredentials(env,{rpc:async()=>grant},()=>second*1000).verify(token);
@@ -37,4 +37,13 @@ test('scope, role, target, clone and synthetic decision attacks stop before RPC'
 test('committed invalid-grant outcome is denied, including revocation after credential creation',async()=>{
  const c=await credential('host','host:read');const operations=new AgentOperations({rpc:async()=>({error:'invalid_grant'})},()=>second*1000);
  await assert.rejects(operations.execute(c,{operation:'setup_read',input:{}}),/invalid_token/);
+});
+
+test('bound intake operations keep their original subject and require explicit requester permissions',async()=>{
+ const c=await credential('intake','request:read request:write'),requestId=randomUUID();let calls=0;
+ const operations=new AgentOperations({rpc:async(_name,args)=>{calls++;assert.equal(args.p_actor_kind,'intake');assert.equal(args.p_actor_id,c.claims.sub);assert.equal(args.p_request_id,requestId);return {id:requestId};}},()=>second*1000);
+ assert.deepEqual(await operations.execute(c,{operation:'request_read',requestId,input:{}}),{id:requestId});
+ for(const operation of ['setup_read','requests_list','private_note_save','decision_review'])await assert.rejects(operations.execute(c,{operation,requestId,input:{}}));
+ const onlyIntake=await credential('intake','request:intake');await assert.rejects(operations.execute(onlyIntake,{operation:'request_read',requestId,input:{}}),/invalid_scope/);
+ assert.equal(calls,1);
 });

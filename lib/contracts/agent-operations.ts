@@ -25,7 +25,7 @@ export const agentOperation=z.discriminatedUnion('operation',[
  z.strictObject({operation:z.literal('decision_review'),requestId,input:empty}),
 ]);
 export type AgentOperation=z.infer<typeof agentOperation>;
-export function agentOperationScope(operation:AgentOperation['operation'],kind:'host'|'guest'):string{
+export function agentOperationScope(operation:AgentOperation['operation'],kind:'host'|'guest'|'intake'):string{
  const role=kind==='host'?'host':'request';
  if(operation==='decision_review')return role+':decide';
  return role+(operation==='setup_draft'||operation==='private_note_save'||operation==='details_propose'||operation==='availability_propose'?':write':':read');

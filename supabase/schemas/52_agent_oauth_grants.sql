@@ -126,6 +126,25 @@ returns jsonb language sql set search_path='' as $$
   select jsonb_build_object('grantId',p_grant.id,'clientId',p_grant.client_id,'actorKind',p_grant.actor_kind,
     'actorId',p_grant.actor_id,'scope',p_grant.scope,'grantExpiresAt',floor(extract(epoch from p_grant.expires_at))::bigint);
 $$;
+-- Internal requester projection only, never token identity or authorization.
+-- Resolve a binding before domain locks and preserve the original grant for
+-- oauth_lock_grant/current-authority checks. Pending intake resolves to null.
+create or replace function fmat.oauth_bound_grant(p_grant fmat.oauth_grants)
+returns fmat.oauth_grants language plpgsql set search_path='' as $$
+declare v_intake fmat.oauth_intakes; v_bound fmat.oauth_grants;
+begin
+  if p_grant.actor_kind is distinct from 'intake' then return p_grant;end if;
+  select * into v_intake from fmat.oauth_intakes where id=p_grant.actor_id for update;
+  if not found or v_intake.grant_id is distinct from p_grant.id
+    or v_intake.host_id is distinct from p_grant.host_id
+    or v_intake.authorization_id is distinct from p_grant.authorization_id
+    or v_intake.request_id is null or v_intake.token_hash is null then return null;end if;
+  v_bound:=p_grant;v_bound.actor_kind:='guest';v_bound.actor_id:=v_intake.request_id;
+  v_bound.request_id:=v_intake.request_id;v_bound.token_hash:=v_intake.token_hash;
+  return v_bound;
+end$$;
+revoke execute on function fmat.oauth_bound_grant(fmat.oauth_grants) from public,anon,authenticated,service_role;
+
 create or replace function fmat.oauth_lock_grant(p_id uuid)
 returns fmat.oauth_grants language plpgsql set search_path='' as $$
 declare v_grant fmat.oauth_grants; v_client fmat.oauth_clients; v_current boolean;

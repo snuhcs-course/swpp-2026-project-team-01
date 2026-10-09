@@ -5,7 +5,7 @@ create or replace function public.fmat_agent_operation(
  p_scope text,p_token_expires_at bigint,p_operation text,p_request_id uuid,
  p_input jsonb,p_idempotency_key uuid default null
 ) returns jsonb language plpgsql security definer set search_path='' as $$
-declare v_grant fmat.oauth_grants; v_request fmat.requests; v_actor jsonb; v_input jsonb; v_result jsonb; v_scope text; v_write boolean; v_conversation fmat.conversation_scopes; v_connection fmat.calendar_connections; v_context text; v_reconnect boolean:=false;
+declare v_grant fmat.oauth_grants; v_authority fmat.oauth_grants; v_request fmat.requests; v_actor jsonb; v_input jsonb; v_result jsonb; v_scope text; v_write boolean; v_conversation fmat.conversation_scopes; v_connection fmat.calendar_connections; v_context text; v_reconnect boolean:=false;
 begin
  if p_operation is null or p_operation not in ('setup_read','setup_analysis_read','setup_draft','request_read','private_note_save','details_propose','decision_review','requests_list','conversation_resolve','availability_read','availability_propose','scheduling_read','booking_status','connection_review','setup_review') then raise exception 'FORBIDDEN';end if;
  if jsonb_typeof(p_input) is distinct from 'object' then raise exception 'INVALID_INPUT';end if;
@@ -16,8 +16,9 @@ begin
  select * into v_grant from fmat.oauth_grants where id=p_grant_id;
  if not found or v_grant.client_id is distinct from p_client_id or v_grant.resource is distinct from p_resource
   or v_grant.actor_kind is distinct from p_actor_kind or v_grant.actor_id is distinct from p_actor_id then return '{"error":"invalid_grant"}';end if;
- -- Intake remains default-denied until the bound-request adapter is enabled.
- if v_grant.actor_kind not in ('host','guest') then return '{"error":"invalid_grant"}';end if;
+ -- Lock intake before resolving its binding or taking any request lock.
+ v_grant:=fmat.oauth_bound_grant(v_grant);
+ if v_grant.id is null or v_grant.actor_kind not in ('host','guest') then return '{"error":"invalid_grant"}';end if;
  if (p_operation like 'setup_%' or p_operation in ('private_note_save','requests_list')) and v_grant.actor_kind<>'host'
   or p_operation in ('details_propose','availability_read','availability_propose') and v_grant.actor_kind<>'guest' then raise exception 'FORBIDDEN';end if;
  v_scope:=(case when v_grant.actor_kind='host' then 'host:' else 'request:' end)||
@@ -47,8 +48,10 @@ begin
  end if;
  -- Evaluator requires UPDATE on host: avoid upgrading a grant's SHARE lock.
  if p_operation='scheduling_read' then perform 1 from fmat.hosts where id=v_grant.host_id for update;end if;
- v_grant:=fmat.oauth_lock_grant(p_grant_id);
- if v_grant.id is null or not(string_to_array(p_scope,' ') <@ string_to_array(v_grant.scope,' ')) then return '{"error":"invalid_grant"}';end if;
+ v_authority:=fmat.oauth_lock_grant(p_grant_id);
+ if v_authority.id is null or not(string_to_array(p_scope,' ') <@ string_to_array(v_authority.scope,' ')) then return '{"error":"invalid_grant"}';end if;
+ v_grant:=fmat.oauth_bound_grant(v_authority);
+ if v_grant.id is null then return '{"error":"invalid_grant"}';end if;
  if p_token_expires_at<=extract(epoch from clock_timestamp()) or p_token_expires_at>floor(extract(epoch from v_grant.expires_at)) then return '{"error":"invalid_token"}';end if;
  if v_grant.actor_kind='host' then
   select jsonb_build_object('kind','host','id',v_grant.actor_id,'email',email) into v_actor from auth.users where id=v_grant.actor_id;
@@ -127,7 +130,7 @@ begin
    v_result:=jsonb_build_object('requiresHumanConfirmation',true,'requestId',p_request_id,'revision',v_request.revision,'proposalVersion',v_request.current_proposal_version,
     'path',case when v_grant.actor_kind='host' then '/app?request='||p_request_id::text||'&audience=host_private' else '/booking/'||p_request_id::text end);
   end case;
-  if p_token_expires_at<=extract(epoch from clock_timestamp()) or v_grant.expires_at<=clock_timestamp() or not fmat.oauth_authority_current(v_grant) then
+  if p_token_expires_at<=extract(epoch from clock_timestamp()) or v_grant.expires_at<=clock_timestamp() or not fmat.oauth_authority_current(v_authority) then
    raise exception using errcode='PT401',message='AGENT_AUTHORITY_EXPIRED';
   end if;
  exception when sqlstate 'PT401' then

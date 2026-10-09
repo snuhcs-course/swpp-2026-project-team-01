@@ -10,13 +10,13 @@ export class AgentOperations{
  async execute(credential:AgentCredential,command:unknown):Promise<unknown>{
   requireAgentCredential(credential,this.now());
   const claims=credential.claims;
-  if(claims.actor_kind==='intake')throw new ApplicationError('FORBIDDEN',403);
   const parsed=agentOperation.safeParse(command);if(!parsed.success)throw new ApplicationError('INVALID_INPUT',400);
   const operation=parsed.data,host=claims.actor_kind==='host';
   if((operation.operation.startsWith('setup_')||['private_note_save','requests_list'].includes(operation.operation))&&!host||['details_propose','availability_read','availability_propose'].includes(operation.operation)&&host)
    throw new ApplicationError('FORBIDDEN',403);
   if(!claims.scope.split(' ').includes(agentOperationScope(operation.operation,claims.actor_kind)))throw new AgentOAuthError('invalid_scope',403);
-  if(!host&&('requestId'in operation?operation.requestId!==claims.sub:true))throw new ApplicationError('FORBIDDEN',403);
+  // Intake subjects are not request IDs; SQL resolves their immutable binding.
+  if(!host&&(!('requestId'in operation)||(claims.actor_kind==='guest'&&operation.requestId!==claims.sub)))throw new ApplicationError('FORBIDDEN',403);
   const result=await this.database.rpc('fmat_agent_operation',{
    p_grant_id:claims.grant_id,p_client_id:claims.client_id,p_resource:claims.aud,p_actor_kind:claims.actor_kind,p_actor_id:claims.sub,
    p_scope:claims.scope,p_token_expires_at:claims.exp,p_operation:operation.operation,
