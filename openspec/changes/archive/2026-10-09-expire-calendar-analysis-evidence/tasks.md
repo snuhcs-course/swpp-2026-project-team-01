@@ -7,4 +7,4 @@
 ## 2. Integrated release acceptance
 
 - [x] 2.1 Run full database, integration and isolated restore regressions with clean security advisors; review selected-production dry run, deploy and verify definitions/privileges, one active schedule and actual scheduled synthetic cleanup without domain/provider effects.
-- [ ] 2.2 Record verified implementation-plan/evidence updates, validate strictly and sync/archive the completed change while preserving general retention, backup and release gaps.
+- [x] 2.2 Record verified implementation-plan/evidence updates, validate strictly and sync/archive the completed change while preserving general retention, backup and release gaps.

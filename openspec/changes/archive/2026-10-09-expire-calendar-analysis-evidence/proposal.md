@@ -2,7 +2,7 @@
 
 ## Why
 
-The [Calendar analysis design](../conversational-host-setup/design.md#bounded-calendar-analysis-contract) already removes temporary scans after 24 hours when a host returns, but inactive hosts retain them indefinitely. The [Phase 9 operations work](../../../documentations/technical_specification/04_implementation_plan.md#phase-9--harden-deploy-and-close-release-gates) calls for global cleanup.
+The [Calendar analysis design](../../conversational-host-setup/design.md#bounded-calendar-analysis-contract) already removes temporary scans after 24 hours when a host returns, but inactive hosts retain them indefinitely. The [Phase 9 operations work](../../../../documentations/technical_specification/04_implementation_plan.md#phase-9--harden-deploy-and-close-release-gates) calls for global cleanup.
 
 ## What Changes
 
@@ -18,7 +18,7 @@ The [Calendar analysis design](../conversational-host-setup/design.md#bounded-ca
 
 ### Modified Capabilities
 
-None. The [chat workspace contract](../../specs/chat-workspaces/spec.md) continues to own host setup and explicit confirmation.
+None. The [chat workspace contract](../../../specs/chat-workspaces/spec.md) continues to own host setup and explicit confirmation.
 
 ## Impact
 
