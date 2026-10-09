@@ -10,7 +10,7 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 - [x] 1.4 Update backend/frontend documentation with the implemented contracts and recovery behavior; verify descriptions match executable operations.
 
 - [x] 1.5 Implement application-authored English/Korean setup clarifications across eve, external-agent and database boundaries; verify malicious text, legacy projection, exact/changed retries, rebase and ordered browser resolution without confirming settings.
-- [ ] 1.6 Deploy the clarification boundary and verify production function/contract behavior; retain separate live onboarding and free-form narration acceptance gates.
+- [x] 1.6 Deploy the clarification boundary and verify production function/contract behavior; retain separate live onboarding and free-form narration acceptance gates.
 
 ## 2. Guided preferences and Calendar analysis
 
@@ -49,3 +49,5 @@ Task 3.4 acceptance: [compact interface and requirement-by-requirement evidence]
 Task 5.1 acceptance: [admission and two-host journey](../../../documentations/technical_specification/05_rebuild_evidence.md#admission-and-two-host-setup-journey--2026-10-09) and [current private-channel readiness](../../../documentations/technical_specification/05_rebuild_evidence.md#private-channel-readiness-and-cross-channel-acceptance--2026-10-09). Providers are controlled fixtures; actual Google/iPhone acceptance remains task 5.2.
 
 Task 4.3 acceptance: [installed native adapter and selected transport evidence](../../../documentations/technical_specification/05_rebuild_evidence.md#photon-adapter-boundary-acceptance--2026-10-09). No additional process is required. Live routing/device and controlled Google journeys remain task 5.2.
+
+Tasks 1.5–1.6 acceptance: [authored questions and production rollout](../../../documentations/technical_specification/05_rebuild_evidence.md#deployed-setup-clarification-boundary--2026-10-10). Structured guidance is verified; historical free-form narration and controlled live onboarding remain separate acceptance work.

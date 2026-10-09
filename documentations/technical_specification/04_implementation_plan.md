@@ -310,7 +310,9 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 Incremental completion (2026-10-07; the full phase exit remains open):
 
-- [x] Implement shared application-authored English/Korean setup questions; verify typed model/MCP rejection, legacy projection, immutable retries, rebase and ordered browser resolution. Pass 450 app/provider tests, both builds, runtime smoke, actual MCP/signed Photon/eve and browser regressions, and 1,938 SQL assertions. [Evidence](05_rebuild_evidence.md#application-authored-setup-questions--2026-10-10). Production rollout remains task 1.6.
+- [x] Deploy authored setup questions from `5101bc1` (`dpl_7vXRvC1b9MHSHMLDvijqQYs7GTzD`); verify the exact Ready release alias, 113 migrations, matching private function definitions/permissions, rollback-only acceptance with zero retained fixtures, clean advisors and 26 production HTTP checks. [Evidence](05_rebuild_evidence.md#deployed-setup-clarification-boundary--2026-10-10). Live onboarding and broader model-narration gates remain open.
+
+- [x] Implement shared application-authored English/Korean setup questions; verify typed model/MCP rejection, legacy projection, immutable retries, rebase and ordered browser resolution. Pass 450 app/provider tests, both builds, runtime smoke, actual MCP/signed Photon/eve and browser regressions, and 1,938 SQL assertions. [Evidence](05_rebuild_evidence.md#application-authored-setup-questions--2026-10-10). Production rollout is verified in task 1.6.
 
 - [x] Reproduce and specify the setup clarification gap: arbitrary model wording can appear as structured guidance despite unchanged confirmed settings. Add shared authored-question, legacy projection and retry acceptance to [setup tasks 1.5–1.6](../../openspec/changes/conversational-host-setup/tasks.md). Implementation and production verification remain open.
 
