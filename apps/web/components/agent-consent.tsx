@@ -16,16 +16,17 @@ function Permissions({scope}:{scope:string}){
 }
 export function AgentConsent({authorizationId,initialRequestId,loginExpired=false}:{authorizationId:string|null;initialRequestId?:string;loginExpired?:boolean}){
  const [state,setState]=useState<AgentConsentView|null>(null),[requestId,setRequestId]=useState(initialRequestId),[revision,setRevision]=useState(0);
- const [error,setError]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
+ const [revoked,setRevoked]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
  const inFlight=useRef(false);
  useEffect(()=>{
   if(!authorizationId)return;const controller=new AbortController();let active=true;setLoading(true);setError('');
   api('state',{authorizationId,requestId},'GET',controller.signal).then(value=>{if(active){const next=agentConsentView.parse(value);setState(next);}}).catch(cause=>{if(active){setState(null);setError(cause instanceof Error?cause.message:'Access could not be checked.');}}).finally(()=>{if(active)setLoading(false);});
   return()=>{active=false;controller.abort();};
  },[authorizationId,requestId,revision]);
- async function act(action:'grant'|'deny'|'login'){
+ async function act(action:'grant'|'deny'|'login'|'revoke'){
   if(inFlight.current||!authorizationId||!state)return;inFlight.current=true;setBusy(true);setError('');
   try{
+   if(action==='revoke'){await api('intake-revoke',{authorizationId},'POST');setRevoked(true);return;}
    const result=await api(action==='login'?'login':'decide',{authorizationId,...(state.requestId?{requestId:state.requestId}:{}),...(action==='login'?{}:{decision:action})},'POST');
    window.location.assign(action==='login'?result.url:result.redirectUri);
   }catch(cause){setError((cause instanceof Error?cause.message:'The response could not be confirmed.')+' You can retry the same choice. If the attempt has expired, start again from your agent.');}
@@ -34,12 +35,12 @@ export function AgentConsent({authorizationId,initialRequestId,loginExpired=fals
  return <main className="workspace"><header className="workspace-header"><a className="wordmark" href="/">Find Me a Time<span aria-hidden="true">↗</span></a></header><section className="workspace-content">
   <p className="eyebrow">Personal agent access</p><h1>{authorizationId?'Review this connection.':'Manage your connections.'}</h1>
   {!authorizationId?<AgentGrants requestId={initialRequestId}/>:<>
-   {loading?<p role="status">Checking this connection…</p>:state?<Card aria-busy={busy}>
+   {revoked?<p role="status">This connection is revoked. Start a new connection from your agent if needed.</p>:loading?<p role="status">Checking this connection…</p>:state?<Card aria-busy={busy}>
     <CardHeader><CardTitle className="break-words">{state.clientName}</CardTitle><CardDescription>This name is supplied by the client. Only connect an agent you intended to use.</CardDescription></CardHeader>
     <CardContent className="flex flex-col gap-5">
      <div><p>Requested permissions</p><Permissions scope={state.scope}/></div>
      <p>These permissions do not approve a meeting or share your Google credentials. Meeting decisions still require your explicit confirmation.</p>
-     <p>Access lasts up to 30 days and ends earlier if the underlying account session or request access ends. You can revoke it below.</p>
+     {state.audience==='intake'?<p>Your agent can create one request for this host within 15 minutes. After creation, access applies only to that request for up to 30 days and ends earlier if request access ends. No account or meeting-details form is required here.</p>:<p>Access lasts up to 30 days and ends earlier if the underlying account session or request access ends. You can revoke it below.</p>}
      <div><p>Return address</p><p className="break-all">{state.redirectUri}</p></div>
      {state.label?<p>Connecting for: <strong>{state.label}</strong></p>:null}
      {state.access==='sign_in'?<p>Sign in with your invited Google account to review host access.</p>:null}
@@ -51,12 +52,13 @@ export function AgentConsent({authorizationId,initialRequestId,loginExpired=fals
      {state.access==='sign_in'&&state.decision===null?<Button disabled={busy} onClick={()=>void act('login')} className="min-h-11 h-auto whitespace-normal">Continue with Google</Button>:null}
      {state.decision!=='deny'?<Button disabled={busy||state.access!=='ready'} onClick={()=>void act('grant')} className="min-h-11 h-auto whitespace-normal">{state.decision==='grant'?'Continue to agent':'Grant access'}</Button>:null}
      {state.decision!=='grant'?<Button variant="outline" disabled={busy} onClick={()=>void act('deny')} className="min-h-11 h-auto whitespace-normal">{state.decision==='deny'?'Continue to agent':'Deny access'}</Button>:null}
+     {state.audience==='intake'&&state.decision==='grant'?<Button variant="outline" disabled={busy} onClick={()=>void act('revoke')}>Revoke this connection</Button>:null}
      <Button variant="ghost" disabled={busy} onClick={()=>setRevision(value=>value+1)} className="min-h-11">Reload</Button>
     </CardFooter>
    </Card>:<Button variant="outline" onClick={()=>setRevision(value=>value+1)}>Try again</Button>}
    {loginExpired?<Alert><AlertDescription>Google sign-in was not completed. You can try again or deny this connection.</AlertDescription></Alert>:null}
    {error?<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>:null}
-   <p className="mt-6"><a href={'/connect/authorize'+(state?.requestId?'?requestId='+state.requestId:'')}>Manage existing agent permissions</a></p>
+   {state?.audience!=='intake'?<p className="mt-6"><a href={'/connect/authorize'+(state?.requestId?'?requestId='+state.requestId:'')}>Manage existing agent permissions</a></p>:null}
   </>}
  </section><footer>Your calendar. Your final say.</footer></main>;
 }

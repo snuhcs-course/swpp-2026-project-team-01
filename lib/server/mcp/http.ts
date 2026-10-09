@@ -57,6 +57,8 @@ export function agentMcpHttp(env=process.env,credentials:Pick<AgentCredentials,'
    try{body=JSON.parse(raw);}catch{return finish(oauthJson({error:'invalid_request'},400));}
    // No JSON-RPC batches: one authorized operation per bounded HTTP request.
    if(!body||typeof body!=='object'||Array.isArray(body))return finish(oauthJson({error:'invalid_request'},400));
+   // Intake discovery is enabled with its creation/bound-request adapter.
+   if(credential.claims.actor_kind==='intake')return finish(oauthJson({error:'intake_unavailable'},403));
    const tools=agentToolsForActor(credential.claims.actor_kind);
    const call=z.object({method:z.literal('tools/call'),params:z.object({name:z.string()})}).safeParse(body);
    if(call.success){const tool=tools.find(t=>t.name===call.data.params.name);if(tool){const scope=agentToolScope(tool,credential.claims.actor_kind);if(!credential.claims.scope.split(' ').includes(scope))return challenge('insufficient_scope',scope);}}

@@ -5,6 +5,7 @@ import {ApplicationError} from '../errors.ts';
 import {requireCredential,type Credential} from '../identity/credentials.ts';
 import {AgentOAuthError,decodeOAuthForm,oauthResource,parseAuthorizationQuery,parseScopes,validateRedirect} from './protocol.ts';
 import {oauthSecretHash} from './service.ts';
+import {publicProfile} from '../../contracts/intake.ts';
 
 const timestamp=z.iso.datetime({offset:true});
 const binding=z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
@@ -18,6 +19,7 @@ const metadata=z.object({
 const registered=z.strictObject({clientId:z.uuid(),name:z.string(),redirectUris:z.array(z.string()),resource:z.string(),createdAt:timestamp});
 const started=z.strictObject({authorizationId:z.uuid(),expiresAt:timestamp});
 export const authorizationState=z.strictObject({authorizationId:z.uuid(),clientId:z.uuid(),clientName:z.string(),redirectUri:z.string(),resource:z.string(),scope:z.string(),state:z.string(),decision:z.enum(['grant','deny']).nullable(),expiresAt:timestamp});
+const intakeAuthorizationState=authorizationState.extend({intake:z.strictObject({state:z.enum(['pending','bound']),profile:publicProfile.strict()})});
 const decisionResult=z.strictObject({decision:z.enum(['grant','deny']),redirectUri:z.string(),state:z.string(),codeExpiresAt:timestamp.nullable()});
 function result(value:unknown):unknown{
  if(value&&typeof value==='object'&&'error' in value){
@@ -58,31 +60,44 @@ export class AgentOAuthRegistry {
    if(failure&&typeof failure==='object'&&'error' in failure&&failure.error==='rate_limited')throw new AgentOAuthError('rate_limited',429);
    throw error;
   }
-  const attempt=checked(started,await this.database.rpc('fmat_oauth_authorization_start',{p_input:{clientId:input.client_id,resource:input.resource,redirectUri:input.redirect_uri,scope:input.scope,state:input.state,codeChallenge:input.code_challenge,codeChallengeMethod:input.code_challenge_method,browserHash:oauthSecretHash(secret)}}));
+  const attempt=checked(started,await this.database.rpc('fmat_oauth_authorization_start',{p_input:{clientId:input.client_id,resource:input.resource,redirectUri:input.redirect_uri,scope:input.scope,state:input.state,codeChallenge:input.code_challenge,codeChallengeMethod:input.code_challenge_method,browserHash:oauthSecretHash(secret),...(input.handle?{handle:input.handle}:{})}}));
   return {...attempt,binding:secret};
  }
  async read(id:string,secret:string){
   if(!z.uuid().safeParse(id).success||!binding.safeParse(secret).success)throw new AgentOAuthError('invalid_request');
   const state=checked(authorizationState,await this.database.rpc('fmat_oauth_authorization_read',{p_id:id,p_browser_hash:oauthSecretHash(secret)}));
   if(state.resource!==oauthResource(this.env)||state.authorizationId!==id)throw new AgentOAuthError('invalid_request');
-  parseScopes(state.scope);validateRedirect(state.redirectUri);return state;
+  const scopes=parseScopes(state.scope);validateRedirect(state.redirectUri);
+  if(!scopes.includes('request:intake'))return {...state,intake:null};
+  const intake=checked(intakeAuthorizationState,await this.database.rpc('fmat_oauth_intake_read',{p_id:id,p_browser_hash:oauthSecretHash(secret)}));
+  if(Object.keys(state).some(key=>intake[key as keyof typeof state]!==state[key as keyof typeof state]))throw new AgentOAuthError('invalid_request');
+  return intake;
  }
  async decide(id:string,secret:string,decision:'grant'|'deny',credential:Credential|null){
   const state=await this.read(id,secret);
-  if(decision==='grant'){
+  if(state.intake&&credential!==null)throw new AgentOAuthError('invalid_grant');
+  if(decision==='grant'&&!state.intake){
    if(!credential)throw new AgentOAuthError('invalid_grant');requireCredential(credential);
    if(state.scope.startsWith('host:')!==(credential.kind==='host'))throw new AgentOAuthError('invalid_grant');
   }
   // Stable only for this browser-bound attempt, so a lost response recovers the
   // same one-minute code. Neither the binding nor its hash enters client JS.
   const code=createHmac('sha256',secret).update('fmat-agent-code:'+id).digest('base64url');
-  const outcome=checked(decisionResult,await this.database.rpc('fmat_oauth_consent',{p_id:id,p_browser_hash:oauthSecretHash(secret),p_credential:decision==='grant'?credential:null,p_decision:decision,p_code_hash:decision==='grant'?oauthSecretHash(code):null}));
+  const parameters={p_id:id,p_browser_hash:oauthSecretHash(secret),p_decision:decision,p_code_hash:decision==='grant'?oauthSecretHash(code):null};
+  const outcome=checked(decisionResult,state.intake
+   ?await this.database.rpc('fmat_oauth_intake_consent',parameters)
+   :await this.database.rpc('fmat_oauth_consent',{...parameters,p_credential:decision==='grant'?credential:null}));
   if(outcome.decision!==decision||outcome.redirectUri!==state.redirectUri||outcome.state!==state.state)throw new AgentOAuthError('invalid_request');
   if(decision==='grant'&&(!outcome.codeExpiresAt||Date.parse(outcome.codeExpiresAt)<=Date.now()))throw new AgentOAuthError('invalid_grant');
   const redirect=new URL(state.redirectUri);redirect.searchParams.delete('code');redirect.searchParams.delete('error');redirect.searchParams.delete('error_description');
   redirect.searchParams.set('state',state.state);
   redirect.searchParams.set(decision==='grant'?'code':'error',decision==='grant'?code:'access_denied');
   return {redirectUri:redirect.toString()};
+ }
+ async revokeIntake(id:string,secret:string){
+  // Revocation must remain possible after the authorization/read deadline.
+  if(!z.uuid().safeParse(id).success||!binding.safeParse(secret).success)throw new AgentOAuthError('invalid_request');
+  return checked(z.strictObject({revoked:z.literal(true)}),await this.database.rpc('fmat_oauth_intake_revoke',{p_id:id,p_browser_hash:oauthSecretHash(secret)}));
  }
  async grants(credential:Credential,cursor:string|null=null){
   requireCredential(credential);

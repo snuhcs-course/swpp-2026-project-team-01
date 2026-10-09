@@ -9,8 +9,10 @@ export class AgentOperations{
  constructor(private readonly database:Pick<Database,'rpc'>=new Database(),private readonly now=Date.now){}
  async execute(credential:AgentCredential,command:unknown):Promise<unknown>{
   requireAgentCredential(credential,this.now());
+  const claims=credential.claims;
+  if(claims.actor_kind==='intake')throw new ApplicationError('FORBIDDEN',403);
   const parsed=agentOperation.safeParse(command);if(!parsed.success)throw new ApplicationError('INVALID_INPUT',400);
-  const operation=parsed.data,claims=credential.claims,host=claims.actor_kind==='host';
+  const operation=parsed.data,host=claims.actor_kind==='host';
   if((operation.operation.startsWith('setup_')||['private_note_save','requests_list'].includes(operation.operation))&&!host||['details_propose','availability_read','availability_propose'].includes(operation.operation)&&host)
    throw new ApplicationError('FORBIDDEN',403);
   if(!claims.scope.split(' ').includes(agentOperationScope(operation.operation,claims.actor_kind)))throw new AgentOAuthError('invalid_scope',403);

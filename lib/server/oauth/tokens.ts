@@ -10,7 +10,7 @@ const kid=z.string().regex(/^[A-Za-z0-9_-]{1,64}$/u);
 const publicKeySchema=z.strictObject({kty:z.literal('EC'),crv:z.literal('P-256'),x:coordinate,y:coordinate,kid,alg:z.literal('ES256').optional(),use:z.literal('sig').optional()});
 const privateKeySchema=publicKeySchema.extend({d:coordinate});
 const keyHeader=z.strictObject({alg:z.literal('ES256'),typ:z.literal('at+jwt'),kid});
-const actorKind=z.enum(['host','guest']);
+const actorKind=z.enum(['host','guest','intake']);
 export const agentTokenGrant=z.strictObject({grantId:z.uuid(),clientId:z.uuid(),actorKind,actorId:z.uuid(),scope:z.string(),grantExpiresAt:z.number().int().positive()});
 const grantInput=agentTokenGrant;
 export type AgentTokenGrant=z.infer<typeof grantInput>;
@@ -18,9 +18,9 @@ const claimsSchema=z.strictObject({iss:z.string(),aud:z.string(),sub:z.uuid(),cl
 export type AgentAccessClaims=Readonly<z.infer<typeof claimsSchema>>;
 type KeyMaterial={active:z.infer<typeof privateKeySchema>;publicKeys:z.infer<typeof publicKeySchema>[];signer:CryptoKey|Uint8Array;verifiers:Map<string,CryptoKey|Uint8Array>};
 function publicPart(key:z.infer<typeof privateKeySchema>|z.infer<typeof publicKeySchema>){return {kty:key.kty,crv:key.crv,x:key.x,y:key.y,kid:key.kid,alg:'ES256' as const,use:'sig' as const};}
-function checkedScope(scope:string,kind:'host'|'guest'){
+function checkedScope(scope:string,kind:z.infer<typeof actorKind>){
  const parsed=parseScopes(scope),prefix=kind==='host'?'host:':'request:';
- if(parsed.some(s=>!s.startsWith(prefix)))throw new AgentOAuthError('invalid_scope');
+ if(parsed.some(s=>!s.startsWith(prefix))||kind==='guest'&&parsed.includes('request:intake'))throw new AgentOAuthError('invalid_scope');
  return parsed.join(' ');
 }
 /** Cryptographic boundary only. Callers must supply current durable authority;

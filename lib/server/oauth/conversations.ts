@@ -11,6 +11,7 @@ export class AgentConversations{
  constructor(private readonly database:Pick<Database,'rpc'>=new Database(),private readonly now=Date.now){}
  async resolve(credential:AgentCredential,target:unknown){
   requireAgentCredential(credential,this.now());
+  if(credential.claims.actor_kind==='intake')throw new ApplicationError('FORBIDDEN',403);
   const parsed=openConversation.safeParse(target);if(!parsed.success)throw new ApplicationError('INVALID_INPUT',400);
   const command=parsed.data,claims=credential.claims,host=claims.actor_kind==='host';
   if(!host&&(command.audience!=='request_shared'||command.requestId!==claims.sub))throw new ApplicationError('FORBIDDEN',403);

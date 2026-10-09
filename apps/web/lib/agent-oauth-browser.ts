@@ -26,9 +26,15 @@ export async function agentOAuthBrowser(request:NextRequest,action:string){
   if(action==='revoke'&&request.method==='POST'){
    const target=z.strictObject({requestId:z.uuid().optional(),grantId:z.uuid()}).parse(input);return json(await registry.revoke(target.grantId,await credential(target.requestId)));
   }
+  if(action==='intake-revoke'&&request.method==='POST'){
+   const target=z.strictObject({authorizationId:z.uuid()}).parse(input);
+   return json(await registry.revokeIntake(target.authorizationId,request.cookies.get(agentAuthorizationCookie(target.authorizationId))?.value??''));
+  }
   if(action==='decide'&&request.method==='POST'){
    const target=agentBrowserTarget.extend({decision:z.enum(['grant','deny'])}).parse(input);
-   return json(await registry.decide(target.authorizationId,request.cookies.get(agentAuthorizationCookie(target.authorizationId))?.value??'',target.decision,target.decision==='grant'?await credential(target.requestId):null));
+   const secret=request.cookies.get(agentAuthorizationCookie(target.authorizationId))?.value??'',state=await registry.read(target.authorizationId,secret);
+   if(state.intake&&target.requestId)throw new AgentOAuthError('invalid_request');
+   return json(await registry.decide(target.authorizationId,secret,target.decision,target.decision==='grant'&&!state.intake?await credential(target.requestId):null));
   }
   const target=agentBrowserTarget.parse(input),state=await registry.read(target.authorizationId,request.cookies.get(agentAuthorizationCookie(target.authorizationId))?.value??'');
   if(action==='login'&&request.method==='POST'){
@@ -39,6 +45,10 @@ export async function agentOAuthBrowser(request:NextRequest,action:string){
   }
   if(action==='state'&&request.method==='GET'){
    const view={authorizationId:state.authorizationId,clientName:state.clientName,redirectUri:state.redirectUri,scope:state.scope,expiresAt:state.expiresAt,decision:state.decision};
+   if(state.intake){
+    if(target.requestId)throw new AgentOAuthError('invalid_request');
+    return json({...view,audience:'intake',access:'ready',label:state.intake.profile.displayName+' (@'+state.intake.profile.handle+')',requestId:null,requests:[]});
+   }
    if(state.scope.startsWith('host:')){
     try{const host=await commands.host((await session.host()).credential);return json({...view,audience:'host',access:host.admitted?'ready':'admission',label:host.email,requestId:null,requests:[]});}
     catch(error){if(error instanceof ApplicationError&&error.code==='UNAUTHORIZED')return json({...view,audience:'host',access:'sign_in',label:null,requestId:null,requests:[]});throw error;}

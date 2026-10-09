@@ -37,3 +37,13 @@ test('agent credential rejects expiry during authority lookup and invalid signat
  await assert.rejects(adapter.verify('invalid'),invalid);assert.equal(calls,0);
  await assert.rejects(adapter.verify(token),invalid);assert.equal(calls,1);
 });
+
+test('intake credentials must match the current intake grant rather than another valid actor kind',async()=>{
+ const intake={...grant,actorKind:'intake' as const,scope:'request:intake request:read'};
+ const value=await new AgentOAuthTokens(env,()=>second*1000).issue(intake,async()=>{});
+ const verified=await new AgentCredentials(env,{rpc:async()=>intake},()=>second*1000).verify(value);
+ assert.equal(verified.claims.actor_kind,'intake');assert.throws(()=>requireCredential(verified as unknown as Credential));
+ for(const current of [grant,{...intake,actorId:grant.clientId},{...intake,actorKind:'guest'},{error:'invalid_grant'}]){
+  await assert.rejects(new AgentCredentials(env,{rpc:async()=>current},()=>second*1000).verify(value),invalid);
+ }
+});

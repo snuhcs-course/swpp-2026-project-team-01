@@ -46,3 +46,14 @@ test('S256 uses the RFC verifier alphabet and constant-length comparisons',()=>{
  for(const bad of ['short','a'.repeat(129),'a'.repeat(42)+'+']){assert.equal(verifyPkce(bad,pkceChallenge(v)),false);assert.throws(()=>pkceChallenge(bad),error('invalid_request'));}
  assert.equal(verifyPkce(v,pkceChallenge(v).slice(0,-1)+'N'),false);
 });
+
+test('future-request authorization requires one public handle and rejects existing-request or actor injection',()=>{
+ const base={client_id:'00000000-0000-4000-8000-000000000001',redirect_uri:'https://client.example/cb',response_type:'code',state:'state',scope:'request:intake request:read',resource:'https://release.example.test/mcp',code_challenge:pkceChallenge('A'.repeat(43)),code_challenge_method:'S256',handle:'public-host'};
+ const env={APP_ORIGIN:'https://release.example.test'};
+ const parsed=parseAuthorizationQuery(new URLSearchParams(base).toString(),env);assert.equal(parsed.handle,'public-host');
+ const patches:Record<string,string>[]=[{handle:''},{handle:'../host'},{request_id:'00000000-0000-4000-8000-000000000002'},{host_id:'private-host'},{actor_kind:'host'},{scope:'request:read'},{scope:'host:read request:intake'}];
+ for(const patch of patches){
+  assert.throws(()=>parseAuthorizationQuery(new URLSearchParams({...base,...patch}).toString(),env),e=>e instanceof AgentOAuthError);
+ }
+ const {handle,...missing}=base;assert.throws(()=>parseAuthorizationQuery(new URLSearchParams(missing).toString(),env));
+});

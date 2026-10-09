@@ -34,3 +34,25 @@ test('OAuth consent recovers the same code after lost responses, preserves callb
  const denied=new URL((await registry.decide(id,secret,'deny',null)).redirectUri);assert.equal(denied.searchParams.get('error'),'access_denied');assert.equal(denied.searchParams.has('code'),false);
  await assert.rejects(registry.read(id,'wrong'));
 });
+
+test('intake registry routes explicit account-free consent and private revoke without reusing another credential',async()=>{
+ const intakeState={...state,scope:'request:intake request:read'},profile={handle:'public-host',displayName:'Public host',timezone:'Asia/Seoul',durationMinutes:30};
+ const names:string[]=[],hashes:string[]=[];
+ const registry=new AgentOAuthRegistry(env,{async rpc(name,p){
+  names.push(name);
+  if(name==='fmat_oauth_authorization_start'){assert.equal((p.p_input as Record<string,string>).handle,profile.handle);return {authorizationId:id,expiresAt:state.expiresAt};}
+  if(name==='fmat_oauth_authorization_read')return intakeState;
+  if(name==='fmat_oauth_intake_read')return {...intakeState,intake:{state:'pending',profile}};
+  if(name==='fmat_oauth_intake_revoke'){assert.equal('p_credential' in p,false);return {revoked:true};}
+  assert.equal(name,'fmat_oauth_intake_consent');assert.equal('p_credential' in p,false);hashes.push(String(p.p_code_hash));
+  return {decision:p.p_decision,redirectUri:redirect,state:'state',codeExpiresAt:p.p_decision==='grant'?new Date(Date.now()+60000).toISOString():null};
+ }});
+ await registry.start(form({...query,scope:intakeState.scope,handle:profile.handle}));
+ const first=await registry.decide(id,secret,'grant',null),second=await registry.decide(id,secret,'grant',null);
+ assert.equal(first.redirectUri,second.redirectUri);assert.equal(hashes[0],hashes[1]);assert.ok(!first.redirectUri.includes(secret));
+ await assert.rejects(registry.decide(id,secret,'grant',guestCredential(request,secret)),e=>e instanceof AgentOAuthError&&e.code==='invalid_grant');
+ assert.equal(new URL((await registry.decide(id,secret,'deny',null)).redirectUri).searchParams.get('error'),'access_denied');
+ names.length=0;assert.deepEqual(await registry.revokeIntake(id,secret),{revoked:true});assert.deepEqual(names,['fmat_oauth_intake_revoke']);
+ const mismatched=new AgentOAuthRegistry(env,{async rpc(name){return name==='fmat_oauth_authorization_read'?intakeState:{...intakeState,scope:'request:intake',intake:{state:'pending',profile}};}});
+ await assert.rejects(mismatched.read(id,secret),e=>e instanceof AgentOAuthError&&e.code==='invalid_request');
+});

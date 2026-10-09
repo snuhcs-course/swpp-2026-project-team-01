@@ -1,11 +1,12 @@
 import {createHash,timingSafeEqual} from 'node:crypto';
 import {z} from 'zod';
 import {applicationOrigin} from '../config.ts';
+import {publicHandle} from '../../contracts/handles.ts';
 
 export class AgentOAuthError extends Error {
  constructor(readonly code:'invalid_request'|'invalid_target'|'invalid_scope'|'unsupported_grant_type'|'invalid_grant'|'invalid_token'|'invalid_client'|'invalid_client_metadata'|'rate_limited',readonly status=400){super(code);}
 }
-export const agentScopes=['host:read','host:write','host:decide','request:read','request:write','request:decide'] as const;
+export const agentScopes=['host:read','host:write','host:decide','request:intake','request:read','request:write','request:decide'] as const;
 export type AgentScope=typeof agentScopes[number];
 export function oauthResource(env=process.env){return applicationOrigin(env)+'/mcp';}
 export function requireResource(value:unknown,env=process.env):string{
@@ -58,7 +59,13 @@ const refreshRequest=z.object({grant_type:z.literal('refresh_token'),client_id:z
 export function parseAuthorizationQuery(raw:string,env=process.env){
  const form=decodeOAuthForm(raw),resource=requireResource(form.resource,env),scopes=parseScopes(form.scope),parsed=authorization.safeParse(form);
  if(!parsed.success)throw new AgentOAuthError('invalid_request');
- return {...parsed.data,redirect_uri:validateRedirect(parsed.data.redirect_uri),resource,scope:scopes.join(' ')};
+ const intake=scopes.includes('request:intake');
+ const handle=intake?publicHandle.safeParse(form.handle):null;
+ if(intake&&(!handle?.success||form.request_id!==undefined)||!intake&&form.handle!==undefined)throw new AgentOAuthError('invalid_request');
+ // A future-request grant may name only a public handle, never an existing
+ // request or caller-selected private host/principal identifier.
+ if(['host_id','hostId','actor','actor_id','actorId','actor_kind','grant_id','grantId','intake_id','reserved_request_id','reservedRequestId','requestId','verified','token'].some(key=>Object.hasOwn(form,key)))throw new AgentOAuthError('invalid_request');
+ return {...parsed.data,redirect_uri:validateRedirect(parsed.data.redirect_uri),resource,scope:scopes.join(' '),...(handle?.success?{handle:handle.data}:{})};
 }
 export function parseTokenBody(raw:string,env=process.env){
  const form=decodeOAuthForm(raw),resource=requireResource(form.resource,env);

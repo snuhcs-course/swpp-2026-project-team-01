@@ -53,10 +53,10 @@ test('invalid meeting values return guidance without reflecting raw input',()=>{
  }
  assert.equal(prepare({windows:Array.from({length:31},()=>({start:'2026-11-01T10:00:00Z',end:'2026-11-01T11:00:00Z'}))}).status,'clarification');
 });
-test('new intake contracts do not change current OAuth scope acceptance',()=>{
+test('intake scope remains separate from existing role scope groups',()=>{
  assert.deepEqual(agentIntakeScopes,['request:intake','request:read','request:write','request:decide']);
  assert.deepEqual(parseScopes('request:write request:read'),['request:read','request:write']);
  assert.deepEqual(parseScopes('host:decide host:read'),['host:decide','host:read']);
- assert.throws(()=>parseScopes('request:intake'));
+ assert.deepEqual(parseScopes('request:intake'),['request:intake']);
  assert.throws(()=>parseScopes('request:intake host:read'));
 });
