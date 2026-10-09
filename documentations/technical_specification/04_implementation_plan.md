@@ -517,6 +517,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Reuse the verified local PostgreSQL image ID for isolated restore with `--pull=never` and preserve bounded, redacted Docker startup diagnostics. Local restore and types pass; the cause of hosted exit-125 failure `37884778034` remains unproven pending fresh CI. [Evidence](05_rebuild_evidence.md#isolated-restore-startup-diagnostics--2026-10-09).
+
 - [x] Sync [Calendar analysis retention](../../openspec/specs/calendar-analysis-retention/spec.md) and archive all three verified cleanup tasks. Broader retention, backup custody, hosted restore reliability and full release acceptance remain open.
 
 - [x] Deploy Calendar evidence retention migration `20261009044130` from `f8922d3`: verify 104 matching migrations, identical maintenance definition/privileges/index/schedule, 48 integrations, isolated restore and all 1,747 SQL assertions. Observe actual production minute cleanup while preserving recent/adopted state and removing all fixtures. [Evidence](05_rebuild_evidence.md#scheduled-calendar-cleanup-production-acceptance--2026-10-09). General retention and recovery gates remain open.

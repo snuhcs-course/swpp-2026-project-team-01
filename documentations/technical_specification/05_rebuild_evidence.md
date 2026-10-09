@@ -2179,3 +2179,12 @@ Actual scheduled acceptance created a synthetic host without an Auth account or 
 The two requirements and four scenarios map to cutoff/batch/privilege/state-preservation SQL assertions, independent-connection lock/concurrency tests and actual scheduled production evidence. General user-data and backup retention, operational ownership and the full release gate remain open. Separately, CI `37884778034` for the earlier runtime-boundary commit failed at Docker `run` with exit 125 before its restore test initialized. The helper omitted the daemon reason; this is an unresolved hosted test failure, not evidence of a restore or retention defect. It will receive bounded startup diagnostics rather than an inferred cause.
 
 All three cleanup tasks are verified; both requirements and four scenarios are synchronized into `calendar-analysis-retention`, and the change is archived as `2026-10-09-expire-calendar-analysis-evidence`. Strict validation passes. This closes temporary scan cleanup only, not general data retention or release readiness.
+
+
+## Isolated restore startup diagnostics — 2026-10-09
+
+CI `37884778034` failed during the first isolated Docker `run` (exit 125, before database initialization); its helper preserved only PostgreSQL error lines, so the daemon reason was lost. The companion run `37884781508` passed. Neither result establishes the failed run's root cause.
+
+The restore fixture now verifies the running local container's pinned PostgreSQL tag and immutable image ID, then uses that ID with `--pull=never`. This removes an unnecessary external registry/tag lookup from isolated restoration without weakening version or state checks. Docker startup failures now retain a bounded daemon diagnostic after inherited credential values and URL credentials/query data are redacted; command/dump input remains excluded. A diagnostic regression checks secret/URL removal, generic dump suppression and preservation of a meaningful daemon cause.
+
+Both the diagnostic regression and 87-table populated restore pass locally, as do typechecks. No application or database behavior changed in this test increment. Fresh hosted acceptance is required; do not label the historical failure fixed from local success.

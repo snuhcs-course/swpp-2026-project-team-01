@@ -9,10 +9,27 @@ const local='supabase_db_swpp-2026-project-team-01';
 const image='public.ecr.aws/supabase/postgres:17.11.0.003';
 const literal=(value:unknown)=>"'"+String(value).replaceAll("'","''")+"'";
 const json=(value:unknown)=>literal(JSON.stringify(value))+'::jsonb';
+function dockerFailure(operation:string,stderr:string,env:NodeJS.ProcessEnv=process.env){
+ // Daemon startup errors contain no SQL input; other operations keep only the
+ // existing PostgreSQL error line. Never echo commands, dumps or inherited values.
+ let detail=(operation==='run'?stderr.split('\n').find(line=>/^(?:docker:|Error response from daemon:)/u.test(line)):stderr.match(/ERROR:  [^\n]+/u)?.[0])??'inspect the isolated target';
+ for(const value of Object.entries(env).filter(([key,value])=>Boolean(value&&(value.length>=8||/secret|token|password|key/iu.test(key)))).map(([,value])=>value!).sort((a,b)=>b.length-a.length))detail=detail.split(value).join('[environment value]');
+ detail=detail.replace(/https?:\/\/[^\s]+/gu,value=>{try{return new URL(value).origin.replace(/\/\/[^/@]+@/u,'//')+'/[redacted]';}catch{return '[redacted URL]';}});
+ return detail.replace(/[\u0000-\u001f\u007f]/gu,' ').slice(0,600);
+}
+
+test('restore startup diagnostics preserve the cause without inherited values or SQL dumps',()=>{
+ const secret='synthetic-private-registry-token';
+ assert.equal(dockerFailure('run',`docker: Error response from daemon: denied ${secret}`,{TOKEN:secret}),'docker: Error response from daemon: denied [environment value]');
+ assert.equal(dockerFailure('run','docker: registry https://user:password@example.test/path?token=private',{}),'docker: registry https://example.test/[redacted]');
+ assert.equal(dockerFailure('exec','private dump contents and SQL input',{}),'inspect the isolated target');
+ assert.equal(dockerFailure('run','docker: no space left on device',{}),'docker: no space left on device');
+ assert.equal(dockerFailure('run','docker: denied short',{PASSWORD:'short'}),'docker: denied [environment value]');
+});
 function docker(args:string[],input?:string){
  const result=spawnSync('docker',args,{input,encoding:'utf8',maxBuffer:32*1024*1024,timeout:60000});
  // Never print a dump, SQL input, or inherited credentials on failure.
- assert.equal(result.status,0,`Docker ${args[0]} failed (${result.error?.name??'nonzero exit'}): ${result.stderr?.match(/ERROR:  [^\n]+/u)?.[0]??'inspect the isolated target'}`);
+ assert.equal(result.status,0,`Docker ${args[0]} failed (${result.error?.name??'nonzero exit'}): ${dockerFailure(args[0],result.stderr??'')}`);
  return result.stdout;
 }
 const query=(name:string,sql:string)=>docker(['exec','-i',name,'psql','-X','-qAt','-U','supabase_admin','-d','postgres','-v','ON_ERROR_STOP=1'],sql).trim();
@@ -23,15 +40,18 @@ test('isolated restore preserves populated booking uncertainty, delivery identit
  const source=JSON.parse(docker(['inspect',local]))[0];
  assert.equal(source.Config.Labels['com.supabase.cli.project'],'swpp-2026-project-team-01');
  assert.equal(source.State.Running,true);
+ assert.equal(source.Config.Image,image,'restore uses the selected pinned PostgreSQL version');
+ assert.match(source.Image,/^sha256:[a-f0-9]{64}$/u);
+ const localImage=source.Image as string;
  // Only schema leaves the existing local stack. No existing local rows or remote target are read.
  const schema=dump(local,['--schema-only','--schema=auth','--schema=storage','--schema=fmat','--schema=public']);
  const run=randomUUID(),created:string[]=[];
  const origin='fmat-recovery-source-'+run,destination='fmat-recovery-target-'+run;
  const initialize=async(name:string)=>{
-  docker(['run','-d','--name',name,'--network','none','--label','fmat.restore-test='+run,
+  docker(['run','--pull=never','-d','--name',name,'--network','none','--label','fmat.restore-test='+run,
    '--tmpfs','/var/lib/postgresql/data:rw,noexec,nosuid,size=512m',
    '-e','POSTGRES_HOST_AUTH_METHOD=trust','-e','POSTGRES_USER=supabase_admin','-e','POSTGRES_HOST=/var/run/postgresql',
-   image,'postgres','-D','/etc/postgresql','-c','cron.launch_active_jobs=off','-c','listen_addresses=localhost']);
+   localImage,'postgres','-D','/etc/postgresql','-c','cron.launch_active_jobs=off','-c','listen_addresses=localhost']);
   created.push(name);
   const deadline=Date.now()+45000;
   while(true){
