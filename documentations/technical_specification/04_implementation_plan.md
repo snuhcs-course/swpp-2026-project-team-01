@@ -514,6 +514,8 @@ References: [email direction](01_backend_architecture.md#email-provider-directio
 
 ### Phase 7 — Add verified host iMessage continuity
 
+- [x] Audit private iMessage request routing against J-06: dispatch and grant authorization currently allow setup only. Define the bounded [request-continuity change](../../openspec/changes/route-imessage-host-requests/tasks.md); request discovery, explicit selection, request discussion and attributable decisions remain implementation work, not only live-provider verification.
+
 - [x] Deploy native contact sharing (`49a9f04`; deployment `dpl_BNquS32WpumCMg2JTxPq5K5MFEjn`), verify all 107 migrations, private RPC/RLS guards, scheduler, release alias and twenty HTTP checks. Configure the verified existing Photon project credentials for production while preserving inactive receivers. [Evidence](05_rebuild_evidence.md#native-contact-sharing-production-rollout--2026-10-09). Authorized iPhone/profile acceptance remains open.
 
 - [x] Add protected optional contact-card controls with exact retry identity, safe status recovery, link replacement fencing and truthful acceptance/uncertainty. Pass all four browser tests, 378 app/provider tests, two contact integrations, 1,830 SQL assertions, both builds and runtime guards; update product/UX/setup documentation. [Evidence](05_rebuild_evidence.md#optional-contact-card-browser-controls--2026-10-09). Production rollout and authorized device/profile acceptance remain open.
