@@ -515,6 +515,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Define [bounded database rejection observations](../../openspec/changes/record-database-rejections/tasks.md): two content-free hourly counter categories, explicit best-effort activation, read-only operator inspection and disclosed coverage gaps. Implementation and production verification remain open in that change.
+
 - [x] Replace the one-response agreement-clock fixture with an isolated, controlled browser clock that verifies the expiring proposal has rendered before advancing time; preserve failure evidence before context cleanup. Both browser suites and 1,695 post-cleanup SQL assertions pass. [Evidence](05_rebuild_evidence.md#controlled-agreement-clock-regression--2026-10-09). Fresh hosted CI acceptance remains open.
 
 - [x] Add `npm run test:restore` and its CI gate: restore populated synthetic state between isolated databases, compare 86 application/Auth/queue tables and verify booking/delivery uncertainty, pending-message replay, revoked OAuth, expired sessions, credential-key dependence and queue sequencing. Document queue export/ownership prerequisites. [Evidence](05_rebuild_evidence.md#populated-application-restore-regression--2026-10-09). Full managed-runtime recovery, actual key custody, off-site durability and live provider reconciliation remain open.
