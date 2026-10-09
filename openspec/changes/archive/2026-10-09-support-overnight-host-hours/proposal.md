@@ -2,7 +2,7 @@
 
 ## Why
 
-The retired scheduling suite accepts Monday 22:00–Tuesday 02:00, but the rebuilt setup contract and SQL validator reject it. Restore overnight host hours so the [PRD's working-hour constraints](../../../documentations/02_product_requirements.md) can preserve this legacy scheduling behavior.
+The retired scheduling suite accepts Monday 22:00–Tuesday 02:00, but the rebuilt setup contract and SQL validator reject it. Restore overnight host hours so the [PRD's working-hour constraints](../../../../documentations/02_product_requirements.md) can preserve this legacy scheduling behavior.
 
 ## What Changes
 
@@ -19,7 +19,7 @@ None.
 
 ### Modified Capabilities
 
-- `meeting-feasibility`: define overnight weekly availability and boundary semantics alongside [deterministic interval feasibility](../../specs/meeting-feasibility/spec.md).
+- `meeting-feasibility`: define overnight weekly availability and boundary semantics alongside [deterministic interval feasibility](../../../specs/meeting-feasibility/spec.md).
 
 ## Impact
 

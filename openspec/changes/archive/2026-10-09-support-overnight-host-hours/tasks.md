@@ -12,4 +12,4 @@
 ## 3. Production completion
 
 - [x] 3.1 Run full application checks, both builds, runtime and relevant setup/evaluator/browser integrations sequentially; verify existing saved-rule compatibility, selected-production migration dry run, additive rollout and rollback-only overnight SQL acceptance. Record exact migration/function evidence and commit.
-- [ ] 3.2 Deploy a scanned clean committed archive, verify Ready health, promotion, exact release alias and production HTTP guards, then update the implementation plan, reconcile the legacy overnight assertion, sync and archive only the verified requirements. Keep wider legacy/provider/client gates explicit and commit the evidence.
+- [x] 3.2 Deploy a scanned clean committed archive, verify Ready health, promotion, exact release alias and production HTTP guards, then update the implementation plan, reconcile the legacy overnight assertion, sync and archive only the verified requirements. Keep wider legacy/provider/client gates explicit and commit the evidence.
