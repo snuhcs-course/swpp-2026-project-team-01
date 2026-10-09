@@ -2,7 +2,7 @@
 
 ## 1. Checked extraction contract
 
-- [ ] 1.1 Add the model intent schema and validated extraction adapter; update the authored tool, guidance and crash fixture. Verify missing/invalid intent and question/unknown patches make zero RPCs, valid drafts/clarifications preserve exact payloads, and actual Responses behavior passes. Update owning technical/test documentation and commit.
+- [x] 1.1 Add the model intent schema and validated extraction adapter; update the authored tool, guidance and crash fixture. Verify missing/invalid intent and question/unknown patches make zero RPCs, valid drafts/clarifications preserve exact payloads, and actual Responses behavior passes. Update owning technical/test documentation and commit.
 
 ## 2. Integrated acceptance
 

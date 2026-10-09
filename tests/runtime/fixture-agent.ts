@@ -41,7 +41,7 @@ const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMess
     }
     if (lastUserMessage?.startsWith('save:') && !toolResults.some(result => !result.isError &&
       (result.output as { review?: { details?: { purpose?: string } } })?.review?.details?.purpose === lastUserMessage)) {
-      return { toolCalls: [{ id: randomUUID(), name: 'propose_request_details', input: { expectedRevision: 1,
+      return { toolCalls: [{ id: randomUUID(), name: 'propose_request_details', input: { intent:'details', expectedRevision: 1,
         patch: { purpose: lastUserMessage }, clarifications: [],
       } }] };
     }

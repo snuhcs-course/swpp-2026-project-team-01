@@ -4,7 +4,7 @@ import {setupGuide} from '../../contracts/setup-guide.ts';
 import {applicationOrigin} from '../config.ts';
 import {PublicIntake} from './public-intake.ts';
 import {setupState} from '../../contracts/setup.ts';
-import { conversationTool } from '../../contracts/conversation-tools.ts';
+import { conversationTool, requestExtractionInput } from '../../contracts/conversation-tools.ts';
 import { Database } from '../database/client.ts';
 import { ApplicationError } from '../errors.ts';
 import {requestModelContext} from './request-model-context.ts';
@@ -20,6 +20,13 @@ const callIdentity = z.strictObject({
  * reads revalidate both before and after provider I/O. */
 export class ConversationTools {
   constructor(private readonly database = new Database(),private readonly env=process.env,private readonly publicIntake:Pick<PublicIntake,'profile'>=new PublicIntake(database,env)) {}
+
+  async proposeRequestExtraction(currentAuth:unknown,call:unknown,input:unknown):Promise<unknown>{
+    const parsed=requestExtractionInput.safeParse(input);
+    if(!parsed.success)throw new ApplicationError('INVALID_INPUT',400);
+    const {intent:_intent,...draft}=parsed.data;
+    return this.execute(currentAuth,call,{operation:'details_propose',input:draft});
+  }
 
   async execute(currentAuth: unknown, call: unknown, command: unknown): Promise<unknown> {
     const auth = runtimeAuth.safeParse(currentAuth);

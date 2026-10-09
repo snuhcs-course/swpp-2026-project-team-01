@@ -154,3 +154,22 @@ test('contact projection preserves missing fields and free text without mutating
  let nested:unknown={requesterEmail:'deep-contact@example.test'};for(let i=0;i<34;i++)nested={child:nested};
  assert.throws(()=>requestModelContext(nested),errorCode('INTERNAL_ERROR'));
 });
+
+test('model extraction requires intent and rejects uncertain patches before RPC while preserving valid draft retries',async()=>{
+ const bodies:Record<string,any>[]=[];
+ const tools=new ConversationTools(new Database(env,async(_url,init)=>{bodies.push(JSON.parse(String(init?.body)));return Response.json({review:{status:'pending'}});}));
+ const draft={expectedRevision:1,patch:{purpose:'Discuss research'},clarifications:[]};
+ for(const input of [draft,{...draft,intent:'approve'},{...draft,intent:'question'},{...draft,intent:'unknown'},
+  {...draft,intent:'question',patch:{requesterEmail:'private@example.test'},clarifications:['Which address?']},
+  {...draft,intent:'unknown',patch:{windows:[]},clarifications:['Which time?']},
+  {...draft,intent:'question',patch:{}},
+ ])await assert.rejects(tools.proposeRequestExtraction(auth,call,input),errorCode('INVALID_INPUT'));
+ assert.equal(bodies.length,0);
+ for(const intent of ['details','availability'])await tools.proposeRequestExtraction(auth,call,{...draft,intent});
+ assert.deepEqual(bodies[0],bodies[1],'Intent labels do not change a logical domain draft or its retry identity');
+ assert.equal(Object.hasOwn(bodies[0].p_input,'intent'),false);
+ assert.deepEqual(bodies[0].p_input.patch,draft.patch);
+ for(const intent of ['question','unknown'])await tools.proposeRequestExtraction(auth,call,{...draft,intent,patch:{},clarifications:['Which timezone?']});
+ assert.deepEqual(bodies[2],bodies[3]);assert.deepEqual(bodies[2].p_input.patch,{});assert.deepEqual(bodies[2].p_input.clarifications,['Which timezone?']);
+ assert.equal(bodies.length,4);
+});

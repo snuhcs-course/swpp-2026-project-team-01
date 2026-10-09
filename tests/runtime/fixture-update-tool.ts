@@ -1,16 +1,16 @@
 import { defineTool } from 'eve/tools';
 import { writeFile, access } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
-import { detailsProposalInput } from '../../lib/contracts/conversation-tools.ts';
+import { requestExtractionInput } from '../../lib/contracts/conversation-tools.ts';
 import { ConversationTools } from '../../lib/server/identity/tool-execution.ts';
 
 // Fault injection after the actual production operation commits but before eve
 // checkpoints its result. This module is copied only into the isolated fixture.
 export default defineTool({
-  description: 'Fixture update with a controlled post-commit interruption.', inputSchema: detailsProposalInput,
+  description: 'Fixture update with a controlled post-commit interruption.', inputSchema: requestExtractionInput,
   async execute(input, ctx) {
-    const result = await new ConversationTools().execute(ctx.session.auth.current,
-      { sessionId: ctx.session.id, callId: ctx.callId }, { operation: 'details_propose', input });
+    const result = await new ConversationTools().proposeRequestExtraction(ctx.session.auth.current,
+      { sessionId: ctx.session.id, callId: ctx.callId }, input);
     const marker = process.env.FMAT_TEST_MARKER;
     if (marker) {
       await writeFile(marker, 'committed');
