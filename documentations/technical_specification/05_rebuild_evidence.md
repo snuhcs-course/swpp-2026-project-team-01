@@ -2942,3 +2942,14 @@ Task 2.4 is complete. Proposal display, attributable iMessage decisions, reviewa
 ### Booking fixture hosted CI follow-up
 
 Runs `37991579645` and `37991585661` for `ede4e250d4a12bdc0aa9e78b082d3258e36e6b25` completed successfully. This supplies hosted acceptance for the previously recorded booking-revalidation fixture synchronization; it does not close unrelated live-provider gates.
+
+
+## Authored iMessage proposal review — 2026-10-10
+
+Implemented exact `review` dispatch for the selected private request. The service authors the complete proposal details and agreement status without invoking a model, stores one immutable review per receipt, and preserves its reference/text/deadline on retry. Validity is capped at ten minutes and bounded by original receipt, request/token expiry and meeting start. Current-state validation binds the exact proposal, revision, scheduling fingerprint, agreement/eligibility, link and receiver and rechecks both original and subsequent grant authority. Unknown, stale, expired, foreign or revoked context is denied. Oversized details require browser review without issuing a context; display alone creates no approval or booking.
+
+The narrow internal availability credential permits only a current-context read from a verified Photon host-private grant; the public availability RPC rejects it. Private review functions are non-executable by client/service roles, and the RLS-protected immutable table has no direct service write access. The model can explain the authored command but cannot mint review references. Approval/decline parsing and booking attribution remain task 3.2; revision discussion remains task 3.3.
+
+Reviewed generated migrations `20261009212638_author_imessage_proposal_review.sql` and `20261009212911_recheck_original_imessage_review_authority.sql`. The full **118-migration local rebuild** passed. All **2,071 SQL assertions across 45 files**, **452 app/provider tests**, root script tests and both builds passed. Three real-database integrations passed sequentially: existing booking approval/revalidation/recovery, signed Photon setup, and signed private request routing including authored review without a runtime message. The post-cleanup database suite again passed all 2,071 assertions; local advisors reported no issues. Documentation and strict change validation passed.
+
+Commands: `npm run check`, `npm run build`, `supabase db reset --local`, `supabase test db`, `npx tsx --test --test-concurrency=1 tests/integration/photon-request-routing.test.ts tests/integration/photon-execution.test.ts tests/integration/booking-approval.test.ts`, and `supabase db advisors --local`. No actual recipient or calendar provider was contacted. Live iPhone acceptance and the complete proposal-decision journey remain open.

@@ -85,6 +85,7 @@ test('signed private selection survives restart, preserves request scope and ret
   await receive(0,'request '+requests[0],selected.key);assert.equal((await dispatchPhotonInputs(db,env)).accepted,0,'replayed old selection does not switch back');
   const second=await turn(0,'private-request-question');assert.equal(second.text,`Request ${requests[1]}\n\nPrivate request: Routing meeting 2`);assert.notEqual(second.input.scope,first.scope);
   assert.equal((await conversations.checkExecution(first.grant,first.scope)).requestId,requests[0]);
+  const review=await turn(0,'review');assert.equal(review.input.messageId,null,'authored review bypasses the model');assert.equal(review.text,`Request ${requests[1]}\n\nThere is no open proposal to review. Open your host workspace for the current request status.`);
   const foreign=await turn(0,'request '+requests[2]);assert.match(foreign.text,/^That request could not be selected\./);assert.doesNotMatch(foreign.text,/Routing meeting 3/);
   assert.equal(await sql.query(`select selected_request_id from fmat.photon_links where id='${hosts[0].link}';`),requests[1]);
   assert.equal((await turn(1,'private-request-question')).text,'Setup has no selected request.');

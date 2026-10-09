@@ -14,7 +14,7 @@
 
 ## 3. Proposal review and decisions
 
-- [ ] 3.1 Add authored current-proposal display and route-bound expiring decision context. Verify exact displayed details, proposal/revision changes, requester agreement, missing context and context issuance retries; update UX and authority documentation.
+- [x] 3.1 Add authored current-proposal display and route-bound expiring decision context. Verify exact displayed details, proposal/revision changes, requester agreement, missing context and context issuance retries; update UX and authority documentation.
 - [ ] 3.2 Parse explicit host approval and decline outside the model and invoke existing domain commands with attributable context. Verify bare assent denial, stale/duplicate/foreign decisions, concurrent changes, lost acknowledgements and one booking effect; preserve browser fallback.
 - [ ] 3.3 Support private revision discussion with a reviewable change and renewed requester agreement/host approval. Verify no silent shared mutation, private rationale isolation and revisions superseding old decisions; document the review flow.
 - [ ] 3.4 Deploy verified decision/revision behavior and independently inspect release alias, migration parity, permission denial and rollback-only decision probes. Record which provider interactions remain unverified.

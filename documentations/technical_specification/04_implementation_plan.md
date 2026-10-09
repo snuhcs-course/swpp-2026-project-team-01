@@ -514,6 +514,8 @@ References: [email direction](01_backend_architecture.md#email-provider-directio
 
 ### Phase 7 — Add verified host iMessage continuity
 
+- [x] Add application-authored `review` with complete proposal details, immutable expiring context, current agreement/eligibility and original/new receipt authority checks. Verify 118 local migrations, 2,071 SQL assertions, 452 app/provider tests, both builds, booking and signed Photon integrations, and clean advisors. [Evidence](05_rebuild_evidence.md#authored-imessage-proposal-review--2026-10-10). Production foundation rollout and explicit iMessage decisions/revisions remain open.
+
 - [x] Deploy explicit private routing from `d742c49` (`dpl_BYay8ozxva8AJkg55cdZQyeqUBa1`); verify 116 migrations, seven matching function definitions/privileges, thirteen rollback-only assertions, clean production advisors, exact Ready release alias and 25 HTTP guards. [Evidence](05_rebuild_evidence.md#deployed-private-imessage-request-routing--2026-10-10). Proposal decisions/revisions and controlled live iPhone acceptance remain open.
 
 - [x] Implement explicit link-local request selection, captured private scope/grant routing and original-context replies. Verify 116 local migrations, 2,034 SQL assertions, 452 app/provider tests, both builds, signed Photon/eve concurrency/restart/isolation tests, runtime recovery and clean advisors. [Evidence](05_rebuild_evidence.md#private-imessage-request-routing--2026-10-10). Production routing rollout, proposal decisions/revisions and live iPhone acceptance remain open.

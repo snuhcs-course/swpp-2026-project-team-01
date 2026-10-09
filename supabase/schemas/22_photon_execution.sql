@@ -86,11 +86,13 @@ begin
   select * into strict g from fmat.conversation_grants where conversation_id=s.id and actor_kind='host' and authority_key='photon:'||i.id::text;
   update fmat.photon_inbox set conversation_id=s.id,execution_grant_id=g.id where id=i.id;
   access:=public.fmat_conversation_check(g.id,s.id);
-  if navigation or (access->>'readOnly')::boolean then
+  if navigation or command='review' or (access->>'readOnly')::boolean then
    perform fmat.conversation_budget_charge('host',l.host_id);
    -- The quota lock may have waited; revalidate all time-based authority.
    perform public.fmat_conversation_check(g.id,s.id);
-   if command='setup' then
+   if command='review' then
+    notice:=case when target is null then 'Select a request first: ask to list your requests and send its exact request command.' else fmat.photon_proposal_review(i.id) end;
+   elsif command='setup' then
     update fmat.photon_links set selected_request_id=null where id=l.id;
     notice:='You are back in host setup. Your next messages stay in setup. Ask to list your requests when you want to select a meeting.';
    elsif navigation then
