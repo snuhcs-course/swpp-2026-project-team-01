@@ -6,7 +6,7 @@
 
 ## 2. Integrated acceptance
 
-- [ ] 2.1 Verify real pending review wording, exact retries, changed-language conflict, invalid-prose unchanged state and clarification-only non-application. Run runtime recovery, post-fixture SQL, application checks/builds and smoke; update evidence and implementation plan, then commit.
+- [x] 2.1 Verify real pending review wording, exact retries, changed-language conflict, invalid-prose unchanged state and clarification-only non-application. Run runtime recovery, post-fixture SQL, application checks/builds and smoke; update evidence and implementation plan, then commit.
 
 ## 3. Production completion
 

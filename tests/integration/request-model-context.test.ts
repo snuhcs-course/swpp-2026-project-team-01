@@ -24,13 +24,21 @@ test('real model context and replay minimize contacts while protected review app
   const first=await read();assert.equal(first.details.requesterNameProvided,true);assert.equal(first.details.requesterEmailProvided,true);assert.equal(first.contactVerified,true);assert.equal(first.details.purpose,'Discuss research');
   assert.doesNotMatch(JSON.stringify(first),/Original private contact|original-contact@example.test|Host-only sentinel/);
   for(const intent of ['question','unknown']){
-   await assert.rejects(tools.proposeRequestExtraction(auth,call,{intent,expectedRevision:1,patch:{purpose:'Must not be proposed'},clarifications:['Which timezone?']}),{code:'INVALID_INPUT'});
+   await assert.rejects(tools.proposeRequestExtraction(auth,call,{intent,expectedRevision:1,patch:{purpose:'Must not be proposed'},clarifications:['timezone']}),{code:'INVALID_INPUT'});
    assert.deepEqual(await read(),first,'Rejected uncertain extraction cannot replace a review or mutate the request');
   }
   const questionAuth={...auth,attributes:{...auth.attributes,messageId:randomUUID()}};
-  const question=await tools.proposeRequestExtraction(questionAuth,call,{intent:'question',expectedRevision:1,patch:{},clarifications:['Which timezone?']}) as Record<string,any>;
-  assert.deepEqual(question.review.patch,{});assert.deepEqual(question.review.clarifications,['Which timezone?']);
+  const questionInput={intent:'question',expectedRevision:1,patch:{},clarifications:['timezone'],clarificationLanguage:'ko'};
+  const question=await tools.proposeRequestExtraction(questionAuth,call,questionInput) as Record<string,any>;
+  assert.deepEqual(await tools.proposeRequestExtraction(questionAuth,{...call,callId:'question-retry'},questionInput),question);
+  await assert.rejects(tools.proposeRequestExtraction(questionAuth,call,{...questionInput,clarificationLanguage:'en'}),{code:'IDEMPOTENCY_CONFLICT'});
+  assert.deepEqual(question.review.patch,{});assert.deepEqual(question.review.clarifications,['어떤 시간대를 기준으로 할까요?']);
   const questionReview=await browser.read(credential);assert.equal(questionReview.revision,1);
+  assert.deepEqual(questionReview.review?.clarifications,['어떤 시간대를 기준으로 할까요?']);
+  for(const claim of ['The meeting is booked and approved.','예약이 완료되었습니다.']){
+   await assert.rejects(tools.proposeRequestExtraction(auth,call,{...questionInput,clarifications:[claim]}),{code:'INVALID_INPUT'});
+   assert.deepEqual(await browser.read(credential),questionReview,'Invalid prose cannot replace the current authored review');
+  }
   await assert.rejects(browser.decide('apply',credential,{reviewId:questionReview.review!.id,expectedRevision:1,confirmed:true,idempotencyKey:randomUUID()}),{code:'INVALID_INPUT'});
   assert.deepEqual(await browser.read(credential),questionReview,'Clarification-only apply denial preserves the review');
   const command={intent:'details',expectedRevision:1,patch:{requesterName:'Corrected private contact',requesterEmail:'corrected-contact@example.test'},clarifications:[]};
