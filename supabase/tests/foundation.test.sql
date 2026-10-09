@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(29);
+select plan(37);
 
 select ok(not has_schema_privilege('anon','fmat','USAGE'),'anon cannot access private schema');
 select ok(not has_schema_privilege('authenticated','fmat','USAGE'),'host JWT cannot access private schema');
@@ -55,5 +55,21 @@ insert into test_results values('retry-claim',public.fmat_command('jobs_claim','
 select lives_ok(format('select public.fmat_command(%L,%L,%L)','jobs_fail','{"kind":"worker","id":"test"}',(select jsonb_build_object('jobId',value->'jobs'->0->>'id','leaseToken',value->'jobs'->0->>'leaseToken','errorCode','PROVIDER_UNAVAILABLE')::text from test_results where name='retry-claim')),'worker can record definitive failed attempt');
 select is((select status from fmat.jobs where dedupe_key='retry-one'),'dead','retry exhaustion quarantines work');
 select is(jsonb_array_length(public.fmat_command('jobs_claim','{"kind":"worker","id":"test"}','{"workerId":"test","limit":1}')->'jobs'),0,'quarantined job is not retried indefinitely');
+-- Exercise the whole public command transaction, including its retry receipt.
+create temporary table atomic_counts as select
+ (select count(*) from fmat.jobs) jobs,
+ (select count(*) from fmat.queue_publications) publications,
+ (select count(*) from pgmq.q_fmat_jobs) wakeups;
+savepoint whole_command_failure;
+select public.fmat_command('foundation_ping','{"kind":"worker","id":"atomic-fixture"}','{"idempotencyKey":"rollback-retry","label":"atomic"}');
+rollback to whole_command_failure;
+select is((select count(*) from fmat.jobs),(select jobs from atomic_counts),'failed command rolls back its durable job');
+select is((select count(*) from fmat.queue_publications),(select publications from atomic_counts),'failed command rolls back publication ledger');
+select is((select count(*) from pgmq.q_fmat_jobs),(select wakeups from atomic_counts),'failed command rolls back queue wake-up');
+select is((select count(*)::integer from fmat.audit_events where actor->>'id'='atomic-fixture'),0,'failed command rolls back audit entry');
+select is((select count(*)::integer from fmat.idempotency where actor_scope='worker:atomic-fixture'),0,'failed command rolls back retry receipt');
+select lives_ok($$select public.fmat_command('foundation_ping','{"kind":"worker","id":"atomic-fixture"}','{"idempotencyKey":"rollback-retry","label":"atomic"}')$$,'same key succeeds after rollback');
+select is(public.fmat_command('foundation_ping','{"kind":"worker","id":"atomic-fixture"}','{"idempotencyKey":"rollback-retry","label":"atomic"}'),(select result from fmat.idempotency where actor_scope='worker:atomic-fixture' and key='rollback-retry'),'committed retry returns the saved command result');
+select is((select count(*)::integer from fmat.audit_events where actor->>'id'='atomic-fixture'),1,'successful retry commits one audit effect');
 select * from finish();
 rollback;
