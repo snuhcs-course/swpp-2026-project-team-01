@@ -132,7 +132,9 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
-- [x] Reproduce and fix a booking-destination conflict regression: final checks include a distinct frozen destination for free/busy and physical travel, within the shared deadline and 50-calendar request limit. Verify five regression/deadline tests, 441 app/provider tests, actual booking/availability integrations and built runtime checks. [Evidence](05_rebuild_evidence.md#booking-destination-conflict-regression--2026-10-09). Production rollout remains pending in booking task 2.1a; live booking and wider legacy audit remain open.
+- [x] Deploy the booking-destination correction from `bab8503` as `dpl_GyFfpJ7GCKNDCcVHuZqDgoo7qFeR`; verify the exact Ready release alias, protected health and 36 production HTTP checks. Complete booking task 2.1a. [Evidence](05_rebuild_evidence.md#deployed-booking-destination-checks--2026-10-09). Live Calendar acceptance remains open.
+
+- [x] Reproduce and fix a booking-destination conflict regression: final checks include a distinct frozen destination for free/busy and physical travel, within the shared deadline and 50-calendar request limit. Verify five regression/deadline tests, 441 app/provider tests, actual booking/availability integrations and built runtime checks. [Evidence](05_rebuild_evidence.md#booking-destination-conflict-regression--2026-10-09). Live booking and wider legacy audit remain open.
 
 - [x] Audit all 12 retired contact-delivery assertions; verify sender configuration failures, frozen-account mismatch, unchanged preview state and uncertainty after challenge expiry through the real delivery integration. Read back zero legacy delivery records in the selected production project. [Evidence](05_rebuild_evidence.md#legacy-contact-delivery-audit--2026-10-09). Record removed enable flags and legacy transactional AgentMail format explicitly; wider legacy and live-provider acceptance remain open.
 

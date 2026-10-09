@@ -210,6 +210,8 @@ The snapshot-ordering browser fixture holds a completed-work read across a synth
 
 ## Legacy verification command migration
 
+The retired booking-runtime destination-union assertions exposed a regression with distinct conflict and booking calendars. [The deployed correction](../documentations/technical_specification/05_rebuild_evidence.md#deployed-booking-destination-checks--2026-10-09) is covered by `availability-destination.test.ts`, the shared deadline tests and the actual booking revalidation matrix. The matrix first reproduced an incorrect confirmed result; after the fix it requires blocking with no dispatch, insert or confirmation outbox. This does not complete the other retired booking/runtime assertion mappings or live Calendar acceptance.
+
 The [contact-delivery assertion audit](../documentations/technical_specification/11_legacy_delivery_audit.md) maps all 12 retired contact worker tests. The current actual-database integration additionally verifies missing/malformed sender configuration, changed account after preparation, preview denial with unchanged durable state, and challenge expiry after uncertainty. Historical provider formats and old enable flags are documented as changed contracts, not asserted equivalent.
 
 The pre-reconstruction command inventory comes from `5c305d9^:package.json`, `5c305d9^:deno.json` and `5c305d9^:.github/workflows/check.yml`. Commit `5c305d9` removed the legacy runtime before this retrospective mapping; this table does not claim that mapping preceded removal. It identifies current owners and remaining evidence rather than requiring the retired Deno/Fly implementation to run.
