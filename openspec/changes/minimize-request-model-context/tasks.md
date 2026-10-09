@@ -2,7 +2,7 @@
 
 ## 1. Model result boundary
 
-- [ ] 1.1 Demonstrate the current structured contact echo, implement the shared request-result projection and agent guidance, and verify nested arrays/reviews, omitted/empty contacts, malformed values, collisions, unchanged scheduling data, non-mutation and safe errors. Update technical/test documentation and commit.
+- [x] 1.1 Demonstrate the current structured contact echo, implement the shared request-result projection and agent guidance, and verify nested arrays/reviews, omitted/empty contacts, malformed values, collisions, unchanged scheduling data, non-mutation and safe errors. Update technical/test documentation and commit.
 
 ## 2. Integrated acceptance
 

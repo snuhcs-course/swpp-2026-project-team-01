@@ -113,3 +113,44 @@ test('setup model context projects server state without injected credentials or 
  state.confirmed.rules={timezone:'Asia/Seoul',accessToken:'private-nested'} as typeof state.confirmed.rules;
  await assert.rejects(tools.execute(auth,call,{operation:'setup_read',input:{}}),'Unknown rule fields fail closed instead of reaching the model');
 });
+
+test('request conversation reads and mutations minimize nested contact identity without changing source or scheduling fields',async()=>{
+ const details={requesterName:'Private name sentinel',requesterEmail:'private-email-sentinel@example.test',purpose:'Discuss research',durationMinutes:30,windows:[{start:'2030-06-01T09:00:00Z',end:'2030-06-01T10:00:00Z'}]};
+ const source={revision:2,status:'gathering',details,proposal:{...details,version:1},review:{patch:{requesterName:'',purpose:'New purpose'},details,status:'pending'},privateNotes:'Keep this authorized note',nested:[{requesterEmail:'nested-sentinel@example.test',requesterEmailProvided:false}]};
+ const original=structuredClone(source),requests:Record<string,any>[]=[];
+ const tools=new ConversationTools(new Database(env,async(_url,init)=>{requests.push(JSON.parse(String(init?.body)));return Response.json(source);}));
+ for(const operation of ['request_read','details_propose','private_note_save']){
+  const input=operation==='request_read'?{}:operation==='details_propose'?{expectedRevision:1,patch:{purpose:'Review'},clarifications:[]}:{expectedRevision:1,text:'Note'};
+  const result=await tools.execute(auth,call,{operation,input}) as Record<string,any>;
+  assert.doesNotMatch(JSON.stringify(result),/Private name sentinel|private-email-sentinel|nested-sentinel/);
+  assert.deepEqual(result.details,{purpose:details.purpose,durationMinutes:30,windows:details.windows,requesterNameProvided:true,requesterEmailProvided:true});
+  assert.equal(result.proposal.version,1);assert.equal(result.proposal.requesterEmailProvided,true);
+  assert.deepEqual(result.review.patch,{purpose:'New purpose',requesterNameProvided:false});
+  assert.equal(result.review.details.requesterEmailProvided,true);assert.equal(result.review.status,'pending');
+  assert.equal(result.nested[0].requesterEmailProvided,true,'Derived presence wins over colliding source flags');
+  assert.equal(result.privateNotes,source.privateNotes,'Existing audience authorization still owns private discussion');
+  assert.deepEqual(source,original);
+ }
+ assert.equal(requests.length,3);
+});
+
+test('malformed structured contact values fail safely rather than entering model context',async()=>{
+ for(const requesterEmail of [null,123,{secret:'private-invalid-sentinel'},['private-invalid-sentinel']]){
+  const tools=new ConversationTools(new Database(env,async()=>Response.json({review:{details:{requesterEmail}}})));
+  await assert.rejects(tools.execute(auth,call,{operation:'details_propose',input:{expectedRevision:1,patch:{purpose:'Review'},clarifications:[]}}),error=>{
+   assert(error instanceof ApplicationError);assert.equal(error.code,'INTERNAL_ERROR');assert.doesNotMatch(String(error),/private-invalid-sentinel/);return true;
+  });
+ }
+});
+
+test('contact projection preserves missing fields and free text without mutating nested input',async()=>{
+ const {requestModelContext}=await import('./request-model-context.ts');
+ const source={details:{purpose:'Contact me at explicitly-written@example.test',requesterName:'  ',requesterNameProvided:true},review:{patch:{purpose:'Only a purpose change'}},messages:[{text:'A user explicitly supplied contact text'}],other:null};
+ const original=structuredClone(source),result=requestModelContext(source) as typeof source;
+ assert.deepEqual(source,original);assert.notEqual(result,source);assert.notEqual(result.details,source.details);
+ assert.deepEqual(result.details,{purpose:source.details.purpose,requesterNameProvided:false});
+ assert.deepEqual(result.review,source.review);assert.deepEqual(result.messages,source.messages);
+ assert.equal(Object.hasOwn(result.review.patch,'requesterEmailProvided'),false);
+ let nested:unknown={requesterEmail:'deep-contact@example.test'};for(let i=0;i<34;i++)nested={child:nested};
+ assert.throws(()=>requestModelContext(nested),errorCode('INTERNAL_ERROR'));
+});

@@ -319,3 +319,5 @@ The eight tests in `5c305d9^:supabase/functions/_shared/providers/model_test.ts`
 | Impossible calendar dates rejected | The requester Responses fixture rejects February 30 with zero tool execution; offset-free dates are separately rejected. |
 
 Five historical assertions now have focused replacement coverage; identity minimization, uncertain-intent semantics and false narration remain explicitly unresolved. No production behavior changes in this test increment, and no new provider or human communication is performed.
+
+Contact-context unit tests exercise all three request-related `ConversationTools` result paths with nested review/proposal/array sentinels, valid scheduling data, explicit empty fields, missing patch fields and colliding presence flags. Malformed contact values fail generically. A direct projector test checks source non-mutation, free-text preservation and bounded recursion. This restores structured contact minimization; it does not claim to remove contact text users supplied to the conversation or previously persisted runtime history.
