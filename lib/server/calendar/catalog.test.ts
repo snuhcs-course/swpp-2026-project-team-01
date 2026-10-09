@@ -10,9 +10,9 @@ test('Calendar list follows bounded opaque page tokens on Google only and expose
   let calls=0;
   const provider=new GoogleCalendarProvider(env,async(input,init)=>{
     const url=new URL(String(input));assert.equal(url.origin,'https://www.googleapis.com');assert.equal(url.pathname,'/calendar/v3/users/me/calendarList');assert.equal(url.searchParams.get('showHidden'),'true');assert.equal((init?.headers as Record<string,string>).authorization,'Bearer private-access');assert.equal(init?.redirect,'error');
-    calls++;if(calls===1)return Response.json({items:[{id:'one',summary:'Duplicate name',accessRole:'reader',primary:true},{id:'gone',accessRole:'owner',deleted:true}],nextPageToken:'https://untrusted.test/token'});
+    calls++;if(calls===1)return Response.json({items:[{id:'one',summary:'Duplicate name',accessRole:'reader',primary:true,privateSecret:'must-not-escape',description:'Private calendar notes'},{id:'gone',accessRole:'owner',deleted:true}],nextPageToken:'https://untrusted.test/token'});
     assert.equal(url.searchParams.get('pageToken'),'https://untrusted.test/token');
-    return Response.json({items:[{id:'one',accessRole:'reader'},{id:'two',summary:'Duplicate name',summaryOverride:'Preferred name',accessRole:'writerWithoutPrivateAccess',backgroundColor:'javascript:bad'}]});
+    return Response.json({items:[{id:'one',accessRole:'reader'},{id:'two',summary:'Duplicate name',summaryOverride:'Preferred name',accessRole:'writerWithoutPrivateAccess',backgroundColor:'javascript:bad',privateSecret:'second-page-secret',conferenceProperties:{allowedConferenceSolutionTypes:['private']}}]});
   });
   assert.deepEqual(await provider.list('private-access'),[{id:'one',name:'Duplicate name',accessRole:'reader',primary:true,timeZone:null,color:null},{id:'two',name:'Preferred name',accessRole:'writerWithoutPrivateAccess',primary:false,timeZone:null,color:null}]);assert.equal(calls,2);
 });

@@ -2510,3 +2510,11 @@ Read all six historical email-provider assertions, the current Cloudflare transp
 Extended the existing frozen Cloudflare request test to verify its bearer token and absence of an idempotency header. Added delivered-recipient matching (including case normalization), foreign-only evidence remaining uncertain, and recipient-array/cc/bcc rejection with zero fetch calls. All sixteen focused Cloudflare/AgentMail transport tests pass using synthetic responses; no message is sent. Logs: `.local/rebuild/legacy-email-focused.log` and `legacy-email-check.log`. This increment changes tests and audit documentation only, leaving production on `1c24b20`.
 
 Full `npm run check` passes with 383 application/provider tests, type checks, script tests and import boundaries. Final documentation validation passes 751 links. No rebuild or redeployment is required for this test/documentation-only increment.
+
+## Legacy Google provider reconciliation — 2026-10-09
+
+Read all three historical Google-provider tests and current catalog/OAuth implementations and tests. The [assertion map](../../tests/README.md#legacy-verification-command-migration) links refresh-token/scope preservation, safe paginated discovery and revoked-grant reconnection to current executable coverage. Strengthened both catalog pages with private sentinel fields, description and conference metadata; the existing exact projection assertion excludes them. Six focused catalog/OAuth tests pass with synthetic provider responses and OAuth-library mocks. No real account, consent or provider state changed.
+
+The historical shared transport test was also read. Its evaluation-wide deadline and no-further-fetch assertion requires a separate trace through the current evaluation service; per-adapter timeouts alone do not close that obligation. This remains an explicit next audit item.
+
+`npm run check` passes all 383 application/provider tests, types, boundaries and script checks; final documentation validation passes 753 links. Logs use `.local/rebuild/legacy-google-*`. Only tests and documentation changed, so verified production source `1c24b20` remains deployed.
