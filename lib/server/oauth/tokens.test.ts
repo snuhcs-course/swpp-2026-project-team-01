@@ -25,7 +25,7 @@ test('OAuth access tokens bind issuer/resource/client/grant/actor with bounded l
 test('OAuth token verification rejects wrong signature, algorithm, key/header, claim type and resource before authority lookup',async()=>{
  const tokens=new AgentOAuthTokens(env,()=>now),legit=await tokens.issue(grant,allow),payload=decodeJwt(legit),privateKey=await importJWK(key,'ES256');let calls=0;
  const check=()=>{calls++;return Promise.resolve();};
- for(const patch of [{iss:'https://other.test'},{aud:'authenticated'},{aud:[env.APP_ORIGIN+'/mcp']},{sub:'bad'},{client_id:'bad'},{grant_id:'bad'},{actor_kind:'host'},{scope:'request:read host:read'},{scope:'request:write request:read'},{scope:'request:read request:read'},{exp:second},{iat:second+1},{exp:second+301},{jti:'bad'},{email:'private@example.test'}]){
+ for(const patch of [{iss:'https://other.test'},{aud:'authenticated'},{aud:[env.APP_ORIGIN+'/mcp']},{sub:'bad'},{client_id:'bad'},{grant_id:'bad'},{actor_kind:'host'},{actor_kind:'intake'},{scope:'request:intake'},{scope:'request:read host:read'},{scope:'request:write request:read'},{scope:'request:read request:read'},{exp:second},{iat:second+1},{exp:second+301},{jti:'bad'},{email:'private@example.test'}]){
   const forged=await new SignJWT({...payload,...patch}).setProtectedHeader({alg:'ES256',typ:'at+jwt',kid:'current'}).sign(privateKey);await assert.rejects(tokens.verify(forged,check),invalid);
  }
  for(const header of [{alg:'ES256',typ:'JWT',kid:'current'},{alg:'ES256',typ:'at+jwt',kid:'unknown'},{alg:'ES256',typ:'at+jwt',kid:'current',jku:'https://untrusted.test/keys'},{alg:'ES256',typ:'at+jwt',kid:'current',jwk:(await tokens.jwks()).keys[0]}]){

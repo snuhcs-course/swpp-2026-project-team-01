@@ -757,3 +757,10 @@ Browser handlers derive current credentials and call these narrow service adapte
 | `BookingReceipt` | Confirmed receipt derives from matching frozen booking/provider evidence, with current host or request/receipt authority. Rotated/expired credentials fail; closure does not expose prior conversation, private diagnostics or mutable request details. |
 
 The [foundation adapter acceptance](05_rebuild_evidence.md#foundation-admission-and-request-adapter-acceptance--2026-10-09) maps direct bypass, stale action and terminal-read evidence. Live Google login, invitation delivery and controlled Calendar booking remain separate provider gates.
+
+
+## Agent intake contract foundation
+
+The [agent intake change](../../openspec/changes/enable-agent-request-intake/tasks.md) adds internal contracts in `lib/contracts/agent-intake.ts`. The consent target accepts only a public handle; creation accepts only an idempotency UUID and meeting details. The host and authority come from private grant state, never creation input. Unknown fields, including nested window fields, are rejected with a fixed error. Missing or invalid known fields return bounded, field-specific clarification without reflecting raw values. Required identity, purpose, duration and IANA timezone are never inferred; optional windows retain the existing gathering behavior. Supplied windows require explicit offsets and increasing instants, including during daylight-saving transitions.
+
+The proposed intake principal distinguishes pending and bound states, with explicit `request:intake` and separately consented requester permissions. `request:decide` retains the existing human-review semantics. These types do not mint credentials. Current OAuth parsing and signed-token verification still reject intake authority until the private state and current-grant checks are implemented. The public result has no request proof or credential-bearing continuation URL. No new public endpoint or client instructions are activated by this foundation.
