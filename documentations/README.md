@@ -63,3 +63,5 @@ See [agent guidance](../AGENTS.md) for the repository's documentation and change
 Add or update links when documents are created, moved, or renamed. Keep product intent in the one-pager and PRD, and put supporting research in `business/` with sources and research dates.
 
 Use two-digit prefixes starting at `01` for ordered documents within each directory, followed by a concise lowercase snake_case name. Keep `README.md` as the unnumbered index. Research files use descriptive names without sequence numbers. Filename numbering does not change stable requirement, acceptance, journey, or story IDs.
+
+The [operational diagnostics runbook](technical_specification/08_operational_diagnostics.md) documents private read-only inspection, signal limits and guarded recovery.

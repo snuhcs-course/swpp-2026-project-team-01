@@ -7,5 +7,5 @@
 
 ## 2. Operator command and acceptance
 
-- [ ] 2.1 Implement the environment-bound JSON command with sanitized failures and no provider/recovery calls; verify actual CLI execution against local service credentials, ordinary credential denial and target mismatch, and add the operations runbook.
+- [x] 2.1 Implement the environment-bound JSON command with sanitized failures and no provider/recovery calls; verify actual CLI execution against local service credentials, ordinary credential denial and target mismatch, and add the operations runbook.
 - [ ] 2.2 Run relevant application/integration/build checks, deploy the reviewed migration to the identified production target, compare definition/privileges and verify a rollback-only fixture plus read-only production command. Record evidence, update the plan and archive only after every requirement passes.

@@ -24,3 +24,23 @@ test('operator configuration binds remote and local origins before credential us
  for(const key of ['','sb_publishable_'+'x'.repeat(32),'e30.'+Buffer.from('{"role":"authenticated"}').toString('base64url')+'.signature'])assert.throws(()=>operatorConfiguration(project,{...env,SUPABASE_SECRET_KEY:key}));
  assert.throws(()=>operatorConfiguration('local',env));assert.throws(()=>operatorConfiguration('wrongprojectabcdefgh',env));
 });
+
+import {diagnosticArguments,OperatorDiagnostics} from './diagnostics.ts';
+import {Database} from '../server/database/client.ts';
+import {ApplicationError} from '../server/errors.ts';
+test('CLI arguments reject duplicate, unknown and unbounded controls',()=>{
+ assert.deepEqual(diagnosticArguments(['--project','local','--samples','0']),{project:'local',sampleLimit:0});
+ for(const args of [[],['--project'],['--project','local','--project','local'],['--project','local','--samples','21'],['--project','local','--samples','01'],['--project','local','--samples','1e1'],['--project','local','--sql','private'],['--token','secret']])assert.throws(()=>diagnosticArguments(args),error=>error instanceof ApplicationError&&error.code==='INVALID_INPUT');
+});
+test('operator reads exactly one fixed RPC and rejects untrusted/private output',async()=>{
+ const env={SUPABASE_URL:'http://127.0.0.1:54321',SUPABASE_SECRET_KEY:'sb_secret_'+'x'.repeat(32)};
+ const calls:{name:string;input:unknown}[]=[];
+ let response:unknown=snapshot();
+ const db={rpc:async(name:string,input:unknown)=>{calls.push({name,input});return response;}} as Database;
+ const service=new OperatorDiagnostics(env,db);
+ assert.equal((await service.inspect({project:'local'})).coverage.releaseReadiness,'not_assessed');
+ assert.deepEqual(calls,[{name:'fmat_operational_snapshot',input:{p_sample_limit:10}}]);
+ await assert.rejects(service.inspect({project:'abcdefghijklmnopqrst'}));assert.equal(calls.length,1);
+ response={...snapshot(),token:'PRIVATE_SECRET'};await assert.rejects(service.inspect({project:'local'}),error=>error instanceof ApplicationError&&error.code==='PROVIDER_UNAVAILABLE'&&!error.message.includes('PRIVATE'));
+ response={...snapshot(),sampleLimit:0};await assert.rejects(service.inspect({project:'local'}));
+});

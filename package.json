@@ -28,7 +28,8 @@
     "probe:oauth": "node scripts/probe-oauth-compatibility.mjs",
     "fmat": "tsx scripts/fmat.ts",
     "probe:google-login": "node scripts/probe-google-login.mjs",
-    "invitations": "node --import tsx scripts/invitations.ts"
+    "invitations": "node --import tsx scripts/invitations.ts",
+    "diagnostics": "node --import tsx scripts/diagnostics.ts"
   },
   "type": "module",
   "dependencies": {

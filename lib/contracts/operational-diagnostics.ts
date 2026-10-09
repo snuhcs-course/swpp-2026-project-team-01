@@ -10,7 +10,7 @@ const instant=z.iso.datetime({offset:true});
 const sample=z.strictObject({id:z.uuid(),since:instant});
 const signal=z.strictObject({category:z.enum(diagnosticCategories),count:z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),oldestAt:instant.nullable(),samples:z.array(sample).max(20)}).superRefine((value,ctx)=>{
  if((value.count===0)!==(value.oldestAt===null)||value.samples.length>value.count)ctx.addIssue({code:'custom',message:'Inconsistent diagnostic count'});
- if(value.samples.some((item,index)=>index>0&&(Date.parse(item.since)<Date.parse(value.samples[index-1].since)||(Date.parse(item.since)===Date.parse(value.samples[index-1].since)&&item.id<value.samples[index-1].id))))ctx.addIssue({code:'custom',message:'Unordered diagnostic sample'});
+ if(value.samples.some((item,index)=>index>0&&(Date.parse(item.since)<Date.parse(value.samples[index-1].since)||(item.since===value.samples[index-1].since&&item.id<value.samples[index-1].id))))ctx.addIssue({code:'custom',message:'Unordered diagnostic sample'});
  if(value.samples.some(item=>Date.parse(item.since)<Date.parse(value.oldestAt!)))ctx.addIssue({code:'custom',message:'Inconsistent oldest timestamp'});
  if(new Set(value.samples.map(item=>item.id)).size!==value.samples.length)ctx.addIssue({code:'custom',message:'Duplicate diagnostic sample'});
 });
