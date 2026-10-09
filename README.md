@@ -18,7 +18,7 @@ Google Calendar와 시간 프로필을 바탕으로 만날 수 있는 시간을 
 
 [Iteration 1 demo 영상 보기 / 다운로드](demos/iteration-1-demo.mov) (MOV, 약 26MB, 5분 3초)
 
-이 브랜치는 `mvp/enu3379`의 `82aac7380cbfd67b13f769f0b26ccf02d91b99d6`을 기준으로 합니다. 영상의 Google Calendar 연결은 아래 **real 모드**로 재현했습니다.
+이 브랜치는 `mvp/enu3379`의 `2ce5a6f8a371d396aa14ddffb72129fe18ae3fa5`을 기준으로 합니다. 영상의 Google Calendar 연결은 아래 **real 모드**로 재현했습니다.
 
 ## 데모 범위
 
