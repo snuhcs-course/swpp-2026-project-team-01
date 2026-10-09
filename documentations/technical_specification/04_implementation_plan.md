@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Share the evaluation budget through ranking, allowance reservation and publication. Verify no late/partial publication, retained committed charges, saved-ranking recovery and actual Responses-adapter cancellation. Pass nine focused and 410 application/provider tests. [Evidence](05_rebuild_evidence.md#publication-budget-orchestration--2026-10-09). Database acceptance and deployment remain pending.
+
 - [x] Apply one budget across direct/batch/booking evaluation and its RPC/provider boundaries. Verify late responses cannot start guest reads or save evidence, later-candidate expiry rejects the batch, and failure recording stays bounded. Pass five service tests and 405 application/provider tests. [Evidence](05_rebuild_evidence.md#evaluation-budget-orchestration--2026-10-09). Publication/ranking integration and rollout remain pending.
 
 - [x] Propagate optional shared cancellation through Calendar refresh/catalog/freebusy/adjacent and Routes; verify stalled headers/bodies, pagination and no later fetch. Exercise the installed OAuth SDK and disable its otherwise-active retries. Pass 35 focused and 400 application/provider tests plus both builds. [Evidence](05_rebuild_evidence.md#evaluation-provider-cancellation--2026-10-09). Orchestration and rollout remain pending.

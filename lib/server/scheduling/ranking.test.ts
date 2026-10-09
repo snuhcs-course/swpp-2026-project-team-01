@@ -54,3 +54,17 @@ test('Direct ranking reserves before the real Responses adapter and preserves al
   assert.equal(requests,1);assert.equal(reservations,1);
  }finally{globalThis.fetch=fetcher;if(key===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=key;if(model===undefined)delete process.env.OPENAI_MODEL;else process.env.OPENAI_MODEL=model;}
 });
+
+test('Shared expiry reaches the real model adapter and cannot start HTTP after a late reservation',async()=>{
+ const key=process.env.OPENAI_API_KEY,model=process.env.OPENAI_MODEL,originalFetch=globalThis.fetch;
+ process.env.OPENAI_API_KEY='fixture-key';process.env.OPENAI_MODEL='gpt-6-luna';
+ try{for(const point of ['reservation','http']){
+  const controller=new AbortController();let ready!:()=>void,release!:()=>void,calls=0,reservations=0,observed:AbortSignal|undefined;
+  const started=new Promise<void>(resolve=>{ready=resolve;});
+  globalThis.fetch=async(_url,init)=>{calls++;observed=init?.signal??undefined;ready();return new Promise<Response>(()=>{});};
+  const pending=new OpenAIRanking().rank({timezone:'UTC',candidates},async()=>{reservations++;if(point==='reservation'){ready();await new Promise<void>(resolve=>{release=resolve;});}},controller.signal);
+  const rejected=assert.rejects(pending,unavailable);await started;controller.abort();await rejected;
+  if(point==='reservation')release();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(reservations,1);assert.equal(calls,point==='reservation'?0:1);if(observed)assert.equal(observed.aborted,true);
+ }}finally{globalThis.fetch=originalFetch;if(key===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=key;if(model===undefined)delete process.env.OPENAI_MODEL;else process.env.OPENAI_MODEL=model;}
+});
