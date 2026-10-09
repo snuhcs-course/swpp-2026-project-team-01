@@ -64,6 +64,8 @@ jobs:
           path: |
             .local/rebuild/browser-control-failure.json
             .local/rebuild/private-checkbox-trace.json
+            .local/rebuild/requester-intake-failure.json
+            .local/rebuild/browser-screenshots/requester-intake-failure.png
             .local/rebuild/scheduling-failure.json
             .local/rebuild/browser-screenshots/scheduling-failure.png
             .local/rebuild/browser-screenshots/last-state.png

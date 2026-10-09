@@ -1,6 +1,7 @@
 import {verifyPublicSkill} from './public-skill.ts';
 import {verifyRequesterIdentity} from './requester-identity.ts';
 import assert from 'node:assert/strict';
+import {writeFile} from 'node:fs/promises';
 import {verifyBookingApproval} from './booking-approval.ts';
 import {verifyScheduling} from './scheduling.ts';
 import {verifyHostRequests} from './host-requests.ts';
@@ -55,8 +56,10 @@ export async function verifyPublicIntake(browser:Browser,origin:string,sql:Local
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   assert.ok(await page.getByRole('button',{name:'Apply suggested details'}).evaluate(e=>e.getBoundingClientRect().height>=44));
   await page.screenshot({path:'.local/rebuild/browser-screenshots/request-review-mobile.png',fullPage:true});
-  await page.getByRole('button',{name:'Apply suggested details'}).focus();await page.keyboard.press('Tab');
-  assert.equal(await page.getByRole('button',{name:'Dismiss suggestions'}).evaluate(e=>e===document.activeElement),true);
+  const applyDetails=page.getByRole('button',{name:'Apply suggested details',exact:true}),dismissDetails=page.getByRole('button',{name:'Dismiss suggestions',exact:true});
+  await expect(applyDetails).toBeVisible();await expect(applyDetails).toBeEnabled();await expect(dismissDetails).toBeEnabled();
+  await applyDetails.focus();await expect(applyDetails).toBeFocused();await page.keyboard.press('Tab');
+  await expect(dismissDetails).toBeFocused();
   assert.equal((await context.request.post(origin+'/api/browser/request-review/apply',{headers:{origin:'https://wrong.test'},data:{requestId:id,input:{}}})).status(),403);
   let lostReview=false;await page.route('**/api/browser/request-review/apply',async route=>{if(lostReview)return route.continue();lostReview=true;const result=await route.fetch();assert.equal(result.status(),200);await route.abort('failed');});
   await page.getByRole('button',{name:'Apply suggested details'}).click();await page.getByRole('button',{name:'Retry same action'}).waitFor();
@@ -107,5 +110,15 @@ export async function verifyPublicIntake(browser:Browser,origin:string,sql:Local
   assert.equal(await sql.query(`select count(*) from fmat.requests where host_id='${host}';`),'2','reload after a lost response recovers the committed second request');
   await verifyBookingApproval(hostPage,page,sql,host);
   await page.goto(origin+'/unknown-booking-host');await page.getByRole('alert').waitFor();assert.equal(await page.getByLabel('Your name').count(),0);await page.screenshot({path:'.local/rebuild/browser-screenshots/intake-unavailable.png',fullPage:true});
+ }catch(error){
+  // This context closes before the outer host fixture can capture a failure.
+  const controls=[];
+  for(const name of ['Apply suggested details','Dismiss suggestions','Agree to this proposal']){
+   const button=page.getByRole('button',{name,exact:true}),count=await button.count().catch(()=>0);
+   controls.push({name,count,visible:count===1&&await button.isVisible().catch(()=>false),enabled:count===1&&await button.isEnabled({timeout:1000}).catch(()=>false),focused:count===1&&await button.evaluate(element=>element===document.activeElement,undefined,{timeout:1000}).catch(()=>false)});
+  }
+  await writeFile('.local/rebuild/requester-intake-failure.json',JSON.stringify(controls,null,2)).catch(()=>{});
+  await page.screenshot({path:'.local/rebuild/browser-screenshots/requester-intake-failure.png',fullPage:true}).catch(()=>{});
+  throw error;
  }finally{await context.close();}
 }
