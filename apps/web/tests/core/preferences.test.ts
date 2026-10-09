@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05
 import { describe, expect, it } from "vitest"
 import { resolvePreferences } from "@/core/preferences"
 import type { ProfilePreferences } from "@/core/profile"

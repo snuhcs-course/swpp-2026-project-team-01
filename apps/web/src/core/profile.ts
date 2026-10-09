@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-04, 2026-10-05
 /** KST weekday: 0 = Sunday … 6 = Saturday; half-open minutes within one day. */
 export interface WeeklyWindow {
   weekday: number

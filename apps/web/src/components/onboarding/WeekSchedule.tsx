@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05; Claude Code (claude-opus-5-5), 2026-10-05
 import { days, timeText, type Values } from './draftReducer'
 
 // Monday-first, the way a working week is read.

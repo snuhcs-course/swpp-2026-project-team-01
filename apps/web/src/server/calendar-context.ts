@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-10-05; Codex (gpt-6-astra), 2026-10-05
 import { getDb } from './db/client'
 import { readServerConfig } from './config'
 import { GoogleCalendarProvider, type CalendarProvider } from './providers/google-calendar'

@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05; Claude Code (claude-opus-5-5), 2026-10-05
 import { redirect } from 'next/navigation'
 import { Header } from '@/components/Header'
 import { requireActor } from '@/server/session'

@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-09-29
 import { describe, expect, it } from "vitest"
 import { autoDeclineIds, groupOverlapping, isExpired, overlapsOwnPending } from "@/core/booking"
 import type { RequestLike } from "@/core/types"

@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05; Claude Code (claude-opus-5-5), 2026-10-05
 'use client'
 import { Input, Select, ToggleChip } from '@/components/ui'
 import { days, timeText, type Values } from './draftReducer'

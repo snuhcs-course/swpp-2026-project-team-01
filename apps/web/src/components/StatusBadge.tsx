@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-09-29; Claude Code (claude-opus-5-5), 2026-10-05
 import { Badge, type Tone } from "./ui"
 
 const TONE: Record<string, Tone> = {

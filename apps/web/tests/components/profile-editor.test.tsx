@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProfileDraftView } from '@/contracts/profile'

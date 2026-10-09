@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-06
 import { normalizeCalendarEvents } from '@/core/calendar'
 import type { AnalysisEvent, Classification } from '@/core/analysis'
 import { suggestHostSetup, type HostSuggestions } from '@/core/host-suggestions'

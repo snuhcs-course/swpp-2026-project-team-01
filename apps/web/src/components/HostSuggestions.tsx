@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-06
 "use client"
 
 import Link from "next/link"

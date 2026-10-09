@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-09-29
 import type { RequestLike } from "./types"
 
 export function intervalsOverlap(a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }): boolean {

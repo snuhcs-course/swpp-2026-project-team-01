@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05; Claude Code (claude-opus-5-5), 2026-10-05
 'use client'
 import type { ProfileDraftView } from '@/contracts/profile'
 import { AlertIcon, Button, ChatBubble, ChatPending, SendIcon, Textarea } from '@/components/ui'

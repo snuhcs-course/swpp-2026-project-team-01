@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05
 import { z } from 'zod'
 import { DomainError } from '@/contracts/common'
 const page = z.object({items:z.array(z.unknown()).default([]),nextPageToken:z.string().min(1).optional()})

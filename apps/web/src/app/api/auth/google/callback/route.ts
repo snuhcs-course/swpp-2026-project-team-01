@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05
 import { completeGoogleAuth, authContext, handleAuth } from '@/server/services/auth'
 import { readCookie, authCookie, OAUTH_COOKIE, SESSION_COOKIE } from '@/server/session'
 export function GET(req: Request) { return handleAuth(async () => {

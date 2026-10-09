@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-04
 import { z } from "zod"
 
 export const idSchema = z.string().trim().min(1).max(512)

@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-09-29, 2026-10-05
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {

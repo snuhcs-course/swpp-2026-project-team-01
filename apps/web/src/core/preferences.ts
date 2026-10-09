@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05
 import type { ProfilePreferences } from "./profile"
 import type { EffectiveConditions, PreferenceDimension, PreferenceOverrides, PreferenceValues, PreferenceSource } from "./types"
 

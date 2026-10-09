@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-09-29
 import { defaultRules } from "@/core/availability"
 import { parseHm, parseKstDate, kstDateString, kstTimeString } from "@/core/time"
 import type { CalEvent, LocationKind, MeetingType, Person, Place } from "@/core/types"

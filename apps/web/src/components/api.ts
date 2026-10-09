@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-09-29; Codex (gpt-6-astra), 2026-10-05
 export interface ApiResult<T> {
   ok: boolean
   status: number

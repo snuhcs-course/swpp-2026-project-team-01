@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-09-29; Codex (gpt-6-astra), 2026-10-04
 // All product time is Asia/Seoul. KST has no DST, so a fixed +09:00 offset is exact.
 export const KST_OFFSET_MS = 9 * 60 * 60 * 1000
 export const MIN_MS = 60 * 1000

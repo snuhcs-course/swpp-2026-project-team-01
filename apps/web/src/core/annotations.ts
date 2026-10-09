@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05
 import type {CalendarSourceInput} from './calendar'
 export interface AnnotationProjection {field_fingerprints_json:string;values_json:string;revision:number}
 export function projectAnnotation(sourceFields:string,annotation?:AnnotationProjection|null):CalendarSourceInput {

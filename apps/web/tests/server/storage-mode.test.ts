@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-10-05
 import { expect, it } from "vitest"
 import { bindDatabaseMode } from "@/server/db/client"
 import { emptyDb } from "./helpers"

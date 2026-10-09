@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-10-05; Claude Code (claude-opus-5-5), 2026-10-06
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { freshDb, U } from "./helpers"
 

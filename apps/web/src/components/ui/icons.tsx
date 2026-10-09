@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-05
 import type { SVGProps } from "react"
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number }
