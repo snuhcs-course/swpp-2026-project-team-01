@@ -189,3 +189,18 @@ For hosts accepting in-person meetings, onboarding SHALL ask how they usually tr
 #### Scenario: Online-only or existing preferences
 - **WHEN** the host selects online-only meetings or has already stated their applicable mode and buffer
 - **THEN** the agent skips unnecessary questions and includes applicable existing choices in the editable final review
+
+### Requirement: Application-authored setup clarification questions
+Structured setup guidance SHALL use application-authored English or Korean questions selected by bounded categories, never arbitrary model-authored clarification prose. The same current-state projection SHALL apply to web, linked private channels and external agents. Unknown stored wording SHALL remain pending as a neutral question until resolved; normalization SHALL NOT imply confirmation or booking success.
+
+#### Scenario: False completion in model clarification
+- **WHEN** model output supplies a claim that settings were saved or a booking completed as clarification text
+- **THEN** typed model and agent draft inputs reject that free-form value and the shared operation never projects it as an application question, while confirmed settings and booking authority remain unchanged
+
+#### Scenario: Legacy draft and retry
+- **WHEN** a stored draft contains an unrecognized question or its original mutation is retried
+- **THEN** current reads and exact retries expose a neutral pending question without another mutation, changed input under the same retry identity is rejected, and refreshing or editing the draft preserves unresolved questions until explicitly resolved
+
+#### Scenario: Bounded localized questions
+- **WHEN** a valid setup draft identifies missing preferences with English or Korean question categories
+- **THEN** every authorized channel receives the corresponding fixed questions in the supplied order and browser controls can resolve one without dropping the others

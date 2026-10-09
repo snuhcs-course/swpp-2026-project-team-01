@@ -10,6 +10,7 @@ Hosts should complete setup through guided conversation in `/app` or private iMe
 - Recommend calendar roles and offer a disclosed, host-selected bounded scan before suggesting editable meeting windows and location/mode preferences.
 - Prefer explicit choices, then authorized evidence, then labeled starter defaults. Ask one unresolved question at a time and require a current settings review before saving.
 - Explicitly ask mode/location, then transportation and extra travel buffer for hosts accepting physical meetings; support per-meeting/per-trip policies and reuse explicit prior answers.
+- Author structured clarification questions in the application using bounded English/Korean categories; never display arbitrary model prose as setup guidance.
 - Persist a host-owned setup conversation and versioned draft across web and linked private iMessage.
 - Provide protected sign-in, invitation and Google handoffs plus inline iMessage phone/code linking, unlinking and recovery.
 - Keep admission, Calendar permissions, handle/readiness checks and booking approval separate from conversational inference.

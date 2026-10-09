@@ -9,6 +9,9 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 - [x] 1.3 Implement protected admission and Google continuation; test interrupted/denied/swapped callbacks, authoritative resume, no false readiness and no secrets in context/transcripts.
 - [x] 1.4 Update backend/frontend documentation with the implemented contracts and recovery behavior; verify descriptions match executable operations.
 
+- [ ] 1.5 Implement application-authored English/Korean setup clarifications across eve, external-agent and database boundaries; verify malicious text, legacy projection, exact/changed retries, rebase and ordered browser resolution without confirming settings.
+- [ ] 1.6 Deploy the clarification boundary and verify production function/contract behavior; retain separate live onboarding and free-form narration acceptance gates.
+
 ## 2. Guided preferences and Calendar analysis
 
 - [x] 2.1 Define selected-calendar scan inputs, bounded range, normalization, freshness and minimized summaries; verify selected scopes and revisions invalidate stale scans/reviews.

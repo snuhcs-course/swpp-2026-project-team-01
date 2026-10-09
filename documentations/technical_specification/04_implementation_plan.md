@@ -310,6 +310,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 Incremental completion (2026-10-07; the full phase exit remains open):
 
+- [x] Reproduce and specify the setup clarification gap: arbitrary model wording can appear as structured guidance despite unchanged confirmed settings. Add shared authored-question, legacy projection and retry acceptance to [setup tasks 1.5–1.6](../../openspec/changes/conversational-host-setup/tasks.md). Implementation and production verification remain open.
+
 - [x] Replace the host email-login form and endpoint with Google-only identity sign-in; retain waitlist email, invitation admission and separate Calendar consent.
 - [x] Verify local Google PKCE exchange, wrong-browser/replayed/cancelled returns, CSRF, logout, invitation and account-free requester regressions; pass application checks, separate builds and runtime smoke tests.
 - [x] Deploy Google-only sign-in and verify hosted Google enabled/email disabled, production redirect and cookie boundaries (`02a8ba0`; deployment `dpl_B3iDknA8E4b7NpeiGoqvQdRSsbs3`; [evidence](05_rebuild_evidence.md#google-only-mvp-login-update--2026-10-07)).
