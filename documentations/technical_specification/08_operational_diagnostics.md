@@ -72,3 +72,21 @@ npm run --silent diagnostics -- --project mriseqztcwmezvtawnbo --rejections
 This mode uses the same explicit target/server credential checks. It rejects `--samples`, returns no identifiers and invokes only `fmat_rejection_snapshot()`. The fixed JSON has `scope: database_rpc`, `delivery: best_effort`, observation/window timestamps, 24 hourly buckets, the per-bucket cap, coverage limits and two count/last-seen/saturation signals. No collection heartbeat is recorded, so empty counts do not establish that activation is configured or functioning. Inspection neither creates a counter nor prunes history.
 
 Local adapter and actual CLI acceptance pass. Production activation was verified on 2026-10-09: migration `20261009041242`, application `1ee5725`, deployment `dpl_BvKRnAmWAwbWyACF62JUhEn9Fv6x` at `https://release.findmeatime.com`, and the production-only flag. A hosted invalid OAuth exchange added exactly one authorization observation; operator reads and nine domain-table fingerprints remained unchanged. See the [release evidence](05_rebuild_evidence.md#rejection-observation-production-acceptance--2026-10-09). Roll back collection by disabling the flag or using the prior compatible application; keep the additive migration as history.
+
+## Temporary Calendar analysis retention
+
+The [scheduled cleanup change](../../openspec/changes/expire-calendar-analysis-evidence/tasks.md) applies the existing 24-hour scan retention cutoff without requiring a host to return. Local verification is complete; selected-production activation is still pending. This policy covers only `fmat.calendar_scans` (temporary scope, summary and replay input), not adopted draft/settings values, setup progress, dismissal fingerprints, requests, transcripts, audit records or backups. Scan usability still expires after 15 minutes.
+
+The database-owner-only `fmat.prune_calendar_scans()` removes at most 1,000 rows strictly older than 24 hours per call, ordered by creation time and ID. It skips locked rows and leaves them eligible for later passes. The expiry index supports this cross-host selection. The single `fmat-calendar-scan-retention` pg_cron job runs every minute with a five-second statement timeout; the function also has a 50 ms lock timeout. Recent rows survive. Application/service-role callers cannot invoke global maintenance, and no HTTP/provider/model call is involved.
+
+A successful bounded pass does not imply an empty backlog. Scheduler downtime, persistent locks and backlog can extend storage beyond 24 hours; there is no exact wall-clock erasure guarantee. After confirming the CLI link names the intended project, inspect without reading private content:
+
+```sh
+supabase db query --linked "select count(*) as eligible, min(created_at) as oldest from fmat.calendar_scans where created_at < clock_timestamp()-interval '24 hours';"
+supabase db query --linked "select jobid, schedule, active, command, username from cron.job where jobname='fmat-calendar-scan-retention';"
+supabase db query --linked "select status,start_time,end_time,return_message from cron.job_run_details where jobid=(select jobid from cron.job where jobname='fmat-calendar-scan-retention') order by start_time desc limit 5;"
+```
+
+Investigate a growing oldest age or failing/disabled scheduler before increasing work. An operator can run one bounded pass with `select fmat.prune_calendar_scans();` through the identified database connection; its integer result is the deleted-row count. Repeat deliberately while checking backlog and lock contention. Do not clear saved decisions or make new provider reads as cleanup recovery.
+
+Suspend only this job with `select cron.alter_job((select jobid from cron.job where jobname='fmat-calendar-scan-retention'),active:=false);`; use `active:=true` to resume and verify the row afterward. Disabling maintenance cannot reconstruct deleted evidence. Keep applied migration history. Backup retention/erasure and general user-data deletion remain separate unresolved policies.

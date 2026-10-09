@@ -2,7 +2,7 @@
 
 ## 1. Bounded database maintenance
 
-- [ ] 1.1 Add the expiry index, restricted bounded cleanup and named minute scheduler; generate/review the migration, rebuild locally, verify permissions, cutoff, batching, decision preservation and concurrent lock handling, and document inspection/disablement.
+- [x] 1.1 Add the expiry index, restricted bounded cleanup and named minute scheduler; generate/review the migration, rebuild locally, verify permissions, cutoff, batching, decision preservation and concurrent lock handling, and document inspection/disablement.
 
 ## 2. Integrated release acceptance
 
