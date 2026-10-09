@@ -50,6 +50,32 @@ jobs:
         run: npm run test:restore
       - name: Verify authorized eve conversations and process-kill recovery
         run: npm run test:conversations
+      - name: Verify database invariants after fixture cleanup
+        if: ${{ !cancelled() && steps.database_baseline.outcome == 'success' }}
+        run: supabase test db
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.119.0
+      - name: Pin local PostgreSQL to the selected release version
+        run: |
+          mkdir -p supabase/.temp
+          printf '%s' '17.11.0.003' > supabase/.temp/postgres-version
+          supabase services -o json > /tmp/fmat-service-versions.json
+          node --input-type=module -e "import {readFileSync} from 'node:fs'; import assert from 'node:assert/strict'; const services=JSON.parse(readFileSync('/tmp/fmat-service-versions.json','utf8')); assert.equal(services.find(service=>service.name==='supabase/postgres')?.local,'17.11.0.003');"
+      - run: supabase start
+      - run: supabase db reset --local
+      - name: Verify preserved database baseline
+        id: database_baseline
+        run: supabase test db
       - name: Build browser application
         run: npm run build:web
         env:

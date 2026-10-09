@@ -141,7 +141,7 @@ Work:
 - [ ] Model immutable proposal versions, agreement/approval evidence, one booking identity per request, attempt history, host reservations, inbox deduplication and outbox/jobs. Keep eve transcript persistence distinct from domain records.
 - [ ] Implement atomic state/audit/work commits, lease/fencing and recovery sweeps. Define recovery for a crash between eve accepting a message and the app recording dispatch acknowledgment.
 - [ ] Add database constraints, grants/RLS and narrow privileged access. Generate new migrations through pg-delta; preserve applied history. Rebuild the identified disposable local database and run cross-user/concurrency tests.
-- [ ] Update root scripts and CI to execute the replacement checks, including a separate local database job and browser job. Retire obsolete test commands only after their behavior coverage is mapped.
+- [ ] Update root scripts and CI to execute the replacement checks, including a separate local database job and browser job. Retire obsolete test commands only after their behavior coverage is mapped. The separate browser job is now implemented with its own pinned local stack and pre/post-fixture SQL checks; [hosted acceptance remains pending](05_rebuild_evidence.md#separate-browser-ci-job--2026-10-09).
 
 Exit: cross-host/request access fails; duplicate commands return consistent results; stale revisions fail; state and jobs commit atomically; expired leases/lost wake-ups recover without repeated effects. The migration chain rebuilds locally and its desired schema matches the checked-in files.
 
