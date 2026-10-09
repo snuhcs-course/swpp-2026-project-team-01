@@ -5,7 +5,7 @@ import {setupGuide} from '../../contracts/setup-guide.ts';
 import {applicationOrigin} from '../config.ts';
 import {PublicIntake} from './public-intake.ts';
 import {setupState,encodeSetupClarifications} from '../../contracts/setup.ts';
-import { conversationTool, requestExtractionInput, conversationModelContext } from '../../contracts/conversation-tools.ts';
+import { conversationTool, requestExtractionInput, hostRevisionExtractionInput, conversationModelContext } from '../../contracts/conversation-tools.ts';
 import { Database } from '../database/client.ts';
 import { ApplicationError } from '../errors.ts';
 import {requestModelContext} from './request-model-context.ts';
@@ -28,6 +28,15 @@ export class ConversationTools {
     if(!parsed.success)throw new ApplicationError('INVALID_INPUT',400);
     const {intent:_intent,clarificationLanguage='en',clarifications,...draft}=parsed.data;
     return this.execute(currentAuth,call,{operation:'details_propose',input:{...draft,
+      clarifications:clarifications.map(kind=>requestClarificationQuestions[clarificationLanguage][kind]),
+    }});
+  }
+
+  async proposeHostRevision(currentAuth:unknown,call:unknown,input:unknown):Promise<unknown>{
+    const parsed=hostRevisionExtractionInput.safeParse(input);
+    if(!parsed.success)throw new ApplicationError('INVALID_INPUT',400);
+    const {intent:_intent,clarificationLanguage='en',clarifications,...draft}=parsed.data;
+    return this.execute(currentAuth,call,{operation:'host_revision_propose',input:{...draft,
       clarifications:clarifications.map(kind=>requestClarificationQuestions[clarificationLanguage][kind]),
     }});
   }
@@ -71,7 +80,7 @@ export class ConversationTools {
     if(operation==='context_read')return conversationModelContext.parse(result);
     if(operation==='host_requests_read')return hostRequestModelPage.parse(result);
     if(operation==='setup_read'){const state=setupState.parse(result);return {...state,guide:setupGuide(state)};}
-    if(operation==='request_read'||operation==='details_propose'||operation==='private_note_save')return requestModelContext(result);
+    if(operation==='request_read'||operation==='details_propose'||operation==='private_note_save'||operation==='host_revision_propose')return requestModelContext(result);
     return result;
   }
 }

@@ -30,3 +30,10 @@ Non-goals: shared/group iMessage conversations, inferred selection or approval f
 ## Migration Plan
 
 Land and verify the read-only tool first; it neither reroutes existing inputs nor grants decision authority. Add private RLS-protected selection/challenge state and generated additive migrations with historical receipts untouched. Activate routing only with authorization, ordering, runtime and reply tests passing. Review selected-project migration dry runs, deploy and independently verify release alias/guards. Roll back application activation without deleting accepted receipts or applied migration history. Keep the change open until full request interaction and live-provider acceptance pass.
+
+
+## Private revision draft foundation (2026-10-10)
+
+Store host revision suggestions in `fmat.host_revision_drafts`, separate from requester extraction authority. The draft snapshots the current request revision and saved details, stores only the proposed shared patch and authored clarification questions, and permits one pending draft per request. The private host conversation tool derives request/actor from its execution grant; setup, shared-host and guest contexts cannot draft. Requester identity fields and arbitrary private-rationale fields are rejected. Draft creation does not change request details, proposal, agreement, approval, private notes or booking state. Exact retries preserve the draft, changed retries conflict and new drafts supersede old pending drafts.
+
+The server adapter classifies extraction and authors clarification text using the existing category contract, strips saved contact identity from returned model context and derives idempotency from the accepted runtime message. The foundation adds no callable Eve tool yet. Activation belongs with the protected human review: show current and proposed shared values, bind the selected draft/revision, and require explicit apply/dismiss outside model output. Applying must use existing domain invalidation and require a new proposal, requester agreement and host approval. Web controls and an authored expiring iMessage review/decision context remain required; task 3.3 is not complete.

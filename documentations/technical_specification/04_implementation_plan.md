@@ -514,6 +514,8 @@ References: [email direction](01_backend_architecture.md#email-provider-directio
 
 ### Phase 7 — Add verified host iMessage continuity
 
+- [x] Add private host revision draft storage and server adapter, with current grant/revision checks, requester identity rejection, shared-audience isolation, exact retry and supersession. Verify 122 local migrations, 2,134 SQL assertions, 453 app/provider tests, builds and runtime guards. [Evidence](05_rebuild_evidence.md#private-host-revision-draft-foundation--2026-10-10). Human review controls, agent-tool activation and production rollout remain open; task 3.3 is not complete.
+
 - [x] Deploy explicit iMessage decisions from `0bf8c75` (`dpl_Faj6FPamqiWKK2mt9MTdLyppvLF8`); verify 121 matching migrations, twelve function definitions/privileges, private attribution guards, eleven rollback-only assertions, zero probe residue, clean advisors, exact Ready alias and 25 HTTP checks. [Evidence](05_rebuild_evidence.md#deployed-imessage-proposal-decisions--2026-10-10). Revision support and live iPhone acceptance remain open.
 
 - [x] Implement explicit authored iMessage approval/decline with immutable channel attribution and shared booking/closure commands. Verify stale/foreign/bare-assent denial, concurrent changes, retry and booking recovery; rebuild 121 migrations, pass 2,105 SQL assertions, all four browser tests, signed integrations and runtime guards. [Evidence](05_rebuild_evidence.md#attributable-imessage-proposal-decisions--2026-10-10). Production rollout, revisions and live iPhone acceptance remain open.

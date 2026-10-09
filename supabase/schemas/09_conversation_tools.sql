@@ -36,7 +36,15 @@ begin
       v_result:=v_result||jsonb_build_object('review',(select fmat.request_detail_review_view(r) from fmat.request_detail_reviews r
         where r.request_id=v_request_id and r.authority_key=v_actor->>'tokenHash' order by r.created_at desc,r.id desc limit 1));
     end if;
+    if v_access->>'audience'='host_private' and v_actor->>'kind'='host' then
+      v_result:=v_result||jsonb_build_object('revisionDraft',(select fmat.host_revision_view(d) from fmat.host_revision_drafts d
+        where d.request_id=v_request_id and d.host_id=(v_actor->>'id')::uuid order by d.created_at desc,d.id desc limit 1));
+    end if;
     return v_result;
+  when 'host_revision_propose' then
+    if v_access->>'audience'<>'host_private' or v_actor->>'kind'<>'host' then raise exception 'FORBIDDEN';end if;
+    if (v_access->>'readOnly')::boolean then raise exception 'REQUEST_CLOSED';end if;
+    return fmat.propose_host_revision(v_actor,v_request_id,p_input);
   when 'private_note_save' then
     if v_access->>'audience'<>'host_private' or v_actor->>'kind'<>'host' then raise exception 'FORBIDDEN'; end if;
     if exists(select 1 from jsonb_object_keys(p_input) k where k not in ('text','expectedRevision','idempotencyKey')) then raise exception 'INVALID_INPUT'; end if;

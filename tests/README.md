@@ -414,3 +414,6 @@ The `rules_changed_during_routes` scenario waits until both parallel route provi
 
 
 `photon_proposal_decisions.test.sql` verifies exact authored approve/decline parsing, bare assent, unsent/stale/foreign references, one decision/effect, same-action and conflicting retries, distinct channel attribution, actual worker claim/load/evaluation, decline closure and private permissions. `booking-imessage.ts`, invoked by the booking integration, uses real signed Photon ingress and the real reply worker with deterministic transport. It races a web revision against approval and repeats provider receipts and explicit decisions, then runs the existing booking-worker fault matrix against channel approvals: successful create, conflict, provider rejection, lost insert response, lost acknowledgement, lease expiry, reconciliation and uncertain recovery. Human messages and real Calendar writes are never sent by these fixtures.
+
+
+`host_revision_drafts.test.sql` verifies that current host-private grants can persist revision suggestions without changing any shared request field or booking state, while setup/shared/guest/foreign/revoked contexts fail. It covers contact-field rejection, stale revision, exact and conflicting retry, pending-draft supersession, private read isolation and direct privilege denial. Human revision decisions remain separate pending coverage.

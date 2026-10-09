@@ -236,3 +236,19 @@ test('conversation orientation exposes only the captured audience and request',a
  assert.deepEqual(await tools.execute(auth,call,{operation:'context_read',input:{}}),{audience:'host_private',requestId:auth.principalId,readOnly:false});
  await assert.rejects(tools.execute(auth,call,{operation:'context_read',input:{requestId:auth.principalId}}),errorCode('INVALID_INPUT'));
 });
+
+test('host revision extraction uses authored questions, minimizes contacts and preserves durable operation identity',async()=>{
+ const bodies:Record<string,any>[]=[];
+ const tools=new ConversationTools(new Database(env,async(_url,init)=>{bodies.push(JSON.parse(String(init?.body)));return Response.json({revisionDraft:{details:{requesterName:'Private name',requesterEmail:'private@example.test',purpose:'Public change'}}});}));
+ const input={intent:'details',expectedRevision:1,patch:{purpose:'Public change'},clarifications:[]};
+ const result=await tools.proposeHostRevision(auth,call,input);
+ assert.doesNotMatch(JSON.stringify(result),/Private name|private@example/);
+ assert.equal(bodies[0].p_operation,'host_revision_propose');assert.equal('intent' in bodies[0].p_input,false);
+ await tools.proposeHostRevision(auth,{...call,callId:'regenerated'},input);
+ assert.deepEqual(bodies[0],bodies[1]);
+ for(const invalid of [{...input,patch:{requesterEmail:'other@example.test'}},{...input,privateRationale:'Do not share'},{...input,intent:'question'},{...input,clarifications:['Invented question']},{...input,confirmed:true}]){
+  await assert.rejects(tools.proposeHostRevision(auth,call,invalid),errorCode('INVALID_INPUT'));
+ }
+ assert.equal(bodies.length,2);
+ for(const operation of ['host_revision_apply','host_revision_dismiss'])await assert.rejects(tools.execute(auth,call,{operation,input:{}}),errorCode('INVALID_INPUT'));
+});
