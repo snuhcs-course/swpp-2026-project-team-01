@@ -56,12 +56,13 @@ describe('history analysis', () => {
     f.ctx.llm = model([])
     const analysed = await analyzeDraft(f.ctx, 'owner', { draftId: draft.draftId, expectedRevision: draft.revision }, { key: 'a1' })
     const windows = [1, 2, 3, 4, 5].map(weekday => ({ weekday, startMin: 780, endMin: 1080 }))
-    f.ctx.llm = { chat: async () => JSON.stringify({ patch: { meetingWindows: windows }, confirmedTopics: ['meetingWindows'], ask: null }) }
+    const reply = (extracted: object, ask: string[] | null): ChatClient => ({ chat: async messages => JSON.stringify(messages[0].content.startsWith('Decide') ? { ask } : extracted) })
+    f.ctx.llm = reply({ patch: { meetingWindows: windows }, confirmedTopics: ['meetingWindows'] }, null)
     const changed = await onboardingTurn(f.ctx, 'owner', { draftId: draft.draftId, expectedRevision: analysed.revision, text: '미팅 허용시간 13시부터로 변경해줄래?' }, { key: 't1' })
     expect(changed.messages.at(-1)!.content).toContain('초안에 반영했어요')
     expect(changed.messages.at(-1)!.content).not.toContain('지난 일정에서 본 경향')
     expect(changed.values.meetingWindows).toEqual(windows)
-    f.ctx.llm = { chat: async () => JSON.stringify({ patch: {}, confirmedTopics: [], ask: ['work'] }) }
+    f.ctx.llm = reply({ patch: {}, confirmedTopics: [] }, ['work'])
     const asked = await onboardingTurn(f.ctx, 'owner', { draftId: draft.draftId, expectedRevision: changed.revision, text: '근무시간 결과가 궁금해요' }, { key: 't2' })
     expect(asked.messages.at(-1)!.content).toContain('근무시간은 짐작하기 어려워요')
   })
