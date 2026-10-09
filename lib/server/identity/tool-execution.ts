@@ -50,7 +50,7 @@ export class ConversationTools {
     const { operation, input } = parsed.data;
     if(operation==='setup_readiness'){
       const read=async()=>setupState.parse(await this.database.rpc('fmat_conversation_tool',{
-        p_grant_id:auth.data.principalId,p_conversation_id:auth.data.attributes.conversationId,p_operation:'setup_read',p_input:{},
+        p_session_id:identity.data.sessionId,p_grant_id:auth.data.principalId,p_conversation_id:auth.data.attributes.conversationId,p_operation:'setup_read',p_input:{},
       }));
       const before=await read();
       if(before.nextAction!=='settings_confirmed'||!before.confirmed.handle)return {ready:false,reason:'setup'};
@@ -74,7 +74,7 @@ export class ConversationTools {
     ])).digest('hex');
     const result=await this.database.rpc('fmat_conversation_tool', {
       p_grant_id: auth.data.principalId, p_conversation_id: auth.data.attributes.conversationId,
-      p_operation: operation,
+      p_session_id: identity.data.sessionId, p_operation: operation,
       p_input: operation.endsWith('_read') ? input : { ...(parsed.data.operation==='setup_draft'?encodeSetupClarifications(parsed.data.input):input), idempotencyKey },
     });
     if(operation==='context_read')return conversationModelContext.parse(result);

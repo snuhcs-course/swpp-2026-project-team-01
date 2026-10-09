@@ -1,11 +1,14 @@
 -- Model tools receive an execution reference captured by authenticated ingress.
 -- They cannot supply an actor, resource ID, decision, or privileged operation.
 create or replace function public.fmat_conversation_tool(
-  p_grant_id uuid,p_conversation_id uuid,p_operation text,p_input jsonb
+  p_grant_id uuid,p_conversation_id uuid,p_operation text,p_input jsonb,p_session_id text
 ) returns jsonb language plpgsql security definer set search_path='' as $$
-declare v_access jsonb; v_actor jsonb; v_input jsonb; v_result jsonb; v_request_id uuid;
+declare v_access jsonb; v_actor jsonb; v_input jsonb; v_result jsonb; v_request_id uuid; v_scope fmat.conversation_scopes;
 begin
+  perform pg_advisory_xact_lock(hashtextextended('runtime:'||p_conversation_id::text,0));
   v_access:=public.fmat_conversation_check(p_grant_id,p_conversation_id);
+  select * into strict v_scope from fmat.conversation_scopes where id=p_conversation_id;
+  perform fmat.require_runtime_generation(v_scope,p_session_id,true);
   v_actor:=v_access->'actor'; v_request_id:=(v_access->>'requestId')::uuid;
   if jsonb_typeof(p_input) is distinct from 'object' then raise exception 'INVALID_INPUT'; end if;
   case p_operation
@@ -73,5 +76,14 @@ begin
   return v_result;
 end;
 $$;
-revoke execute on function public.fmat_conversation_tool(uuid,uuid,text,jsonb) from public,anon,authenticated;
+revoke execute on function public.fmat_conversation_tool(uuid,uuid,text,jsonb,text) from public,anon,authenticated;
+grant execute on function public.fmat_conversation_tool(uuid,uuid,text,jsonb,text) to service_role;
+
+-- Compatibility for already deployed generation-zero workers. Recovered scopes
+-- reject identity-free calls inside the same transaction as tool execution.
+create or replace function public.fmat_conversation_tool(p_grant_id uuid,p_conversation_id uuid,p_operation text,p_input jsonb)
+returns jsonb language sql security definer set search_path='' as $$
+ select public.fmat_conversation_tool(p_grant_id,p_conversation_id,p_operation,p_input,null::text);
+$$;
+revoke all on function public.fmat_conversation_tool(uuid,uuid,text,jsonb) from public,anon,authenticated;
 grant execute on function public.fmat_conversation_tool(uuid,uuid,text,jsonb) to service_role;

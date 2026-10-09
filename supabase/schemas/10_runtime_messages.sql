@@ -22,11 +22,12 @@ returns jsonb language plpgsql security definer set search_path='' as $$
 declare v_access jsonb; v_message fmat.runtime_messages; v_scope fmat.conversation_scopes; v_session text;
 begin
   if jsonb_typeof(p_input) is distinct from 'object' then raise exception 'INVALID_INPUT'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('runtime:'||p_conversation_id::text,0));
   if p_operation='settle' then
     -- A runtime may record completion after the originating grant expires.
     -- Reply preparation separately requires current private-channel authority.
     select * into v_scope from fmat.conversation_scopes where id=p_conversation_id;
-    if v_scope.runtime_session_id is null or v_scope.runtime_session_id is distinct from p_input->>'sessionId' then raise exception 'FORBIDDEN'; end if;
+    perform fmat.require_runtime_generation(v_scope,p_input->>'sessionId');
     if p_input->>'status' is null or p_input->>'status' not in ('completed','failed') then raise exception 'INVALID_INPUT'; end if;
     -- Commit an eligible private reply in the same transaction as completion.
     -- A failed write leaves the input pending for checkpoint-based recovery.
@@ -36,7 +37,6 @@ begin
       where id=(p_input->>'messageId')::uuid and conversation_id=p_conversation_id and grant_id=p_grant_id and status='pending';
     return jsonb_build_object('recorded',true);
   end if;
-  perform pg_advisory_xact_lock(hashtextextended('runtime:'||p_conversation_id::text,0));
   v_access:=public.fmat_conversation_check(p_grant_id,p_conversation_id);
   -- Serialize accept/bind against other participants on this shared scope.
   select * into v_scope from fmat.conversation_scopes where id=p_conversation_id for update;
@@ -73,8 +73,13 @@ begin
     if not found then raise exception 'NOT_FOUND'; end if;
     v_session:=p_input->>'sessionId';
     if length(coalesce(v_session,'')) not between 1 and 200 then raise exception 'INVALID_INPUT'; end if;
-    if v_scope.runtime_session_id is not null and v_scope.runtime_session_id<>v_session then raise exception 'FORBIDDEN'; end if;
+    if v_scope.runtime_generation>0 and v_scope.runtime_session_id is null then raise exception 'RECONCILIATION_PENDING';end if;
+    if v_scope.runtime_session_id is not null then perform fmat.require_runtime_generation(v_scope,v_session);end if;
     update fmat.conversation_scopes set runtime_session_id=v_session where id=p_conversation_id and runtime_session_id is null;
+    insert into fmat.conversation_generations(conversation_id,generation,runtime_session_id)
+      values(p_conversation_id,v_scope.runtime_generation,v_session) on conflict(conversation_id,generation) do update
+      set runtime_session_id=excluded.runtime_session_id where conversation_generations.generation=0
+        and conversation_generations.runtime_session_id is null and conversation_generations.retired_at is null;
   else raise exception 'INVALID_INPUT'; end if;
   return jsonb_build_object('id',v_message.id,'status',v_message.status,'text',fmat.protect_conversation_text(v_message.text));
 end;

@@ -19,7 +19,9 @@ test('real model context and replay minimize contacts while protected review app
    insert into fmat.hosts(id,email,invitation_id) values('${host}','${host}@example.test','${invite}');
    insert into fmat.requests(id,host_id,details,token_hash,expires_at,contact_verified_email,private_notes) values('${request}','${host}','{"requesterName":"Original private contact","requesterEmail":"original-contact@example.test","purpose":"Discuss research"}','${hash}',now()+interval '1 day','original-contact@example.test','Host-only sentinel');`);
   const grant=await database.rpc('fmat_conversation_access',{p_operation:'open',p_credential:credential,p_input:{audience:'request_shared',requestId:request}}) as {grantId:string;conversationId:string};
-  const auth={authenticator:'fmat-conversation',principalType:'user',principalId:grant.grantId,attributes:{conversationId:grant.conversationId,messageId:randomUUID()}},call={sessionId:'request-context-fixture',callId:'call-1'};
+  const auth={authenticator:'fmat-conversation',principalType:'user',principalId:grant.grantId,attributes:{conversationId:grant.conversationId,messageId:randomUUID()}},call={sessionId:'request-context-'+request,callId:'call-1'};
+  // Bind this isolated tool fixture; real delivery/enrollment is covered by the runtime suite.
+  await sql.query(`update fmat.conversation_scopes set runtime_session_id='${call.sessionId}' where id='${grant.conversationId}';`);
   const read=()=>tools.execute(auth,call,{operation:'request_read',input:{}}) as Promise<Record<string,any>>;
   const first=await read();assert.equal(first.details.requesterNameProvided,true);assert.equal(first.details.requesterEmailProvided,true);assert.equal(first.contactVerified,true);assert.equal(first.details.purpose,'Discuss research');
   assert.doesNotMatch(JSON.stringify(first),/Original private contact|original-contact@example.test|Host-only sentinel/);

@@ -40,11 +40,11 @@ select is((select runtime_generation from fmat.conversation_scopes where id=pg_t
 create function pg_temp.reject_recovery_audit() returns trigger language plpgsql as $$begin if new.operation='conversation_recovery_started' then raise exception 'TEST_AUDIT_FAILURE';end if;return new;end$$;
 create trigger test_recovery_audit before insert on fmat.audit_events for each row execute function pg_temp.reject_recovery_audit();
 select throws_ok($$select pg_temp.recover()$$,'P0001','TEST_AUDIT_FAILURE','late write failure rolls back entire recovery');
-select is((select count(*) from fmat.conversation_generations where conversation_id=pg_temp.scope()),0::bigint,'rollback removes retirement and successor');
+select is((select count(*) from fmat.conversation_generations where conversation_id=pg_temp.scope()),1::bigint,'rollback preserves original delivery enrollment without a successor');
 select is((select count(*) from fmat.conversation_recoveries where conversation_id=pg_temp.scope()),0::bigint,'rollback removes retry receipt');
 drop trigger test_recovery_audit on fmat.audit_events;
 -- A backfilled unbound generation can still enroll its later canonical binding.
-insert into fmat.conversation_generations(conversation_id,generation) values(pg_temp.scope(),0);
+update fmat.conversation_generations set runtime_session_id=null where conversation_id=pg_temp.scope() and generation=0;
 insert into fixture select 'receipt',pg_temp.recover();
 select is((pg_temp.f('receipt')->>'generation')::integer,1,'first transition advances exactly once');
 select is(pg_temp.recover(),pg_temp.f('receipt'),'lost acknowledgement retries return original transition');

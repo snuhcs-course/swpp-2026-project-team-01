@@ -51,7 +51,7 @@ begin
  access:=public.fmat_conversation_check(p_grant_id,p_conversation_id);
  if (access->>'readOnly')::boolean then raise exception 'REQUEST_CLOSED';end if;
  select * into strict scope from fmat.conversation_scopes where id=p_conversation_id for update;
- if scope.runtime_session_id is distinct from p_session_id then raise exception 'FORBIDDEN';end if;
+ perform fmat.require_runtime_generation(scope,p_session_id);
  select * into message from fmat.runtime_messages where id=p_message_id and conversation_id=p_conversation_id and grant_id=p_grant_id for update;
  if not found or message.status<>'pending' then raise exception 'NOT_FOUND';end if;
  perform fmat.model_budget_reserve(access->>'actorKind',case when access->>'actorKind'='host' then scope.host_id else scope.request_id end,'conversation',message.id);
