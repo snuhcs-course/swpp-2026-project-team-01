@@ -22,3 +22,5 @@
 
 - [ ] 4.1 Run database, integration, runtime, browser, application and build checks; review code and deploy reviewed schema/app to the selected production target, then verify controlled creation/continuation and clean synthetic fixtures without outbound messages.
 - [ ] 4.2 Record AC-15/21/24 bootstrap evidence and remaining full-workflow/named-client gates; update the implementation plan and archive only after every task above passes.
+
+Deployment progress (2026-10-09): [reviewed rollout and controlled production evidence](../../../documentations/technical_specification/05_rebuild_evidence.md#agent-intake-production-rollout--2026-10-09) cover all checks, schema/app activation, consent/clarification, bound retry/continuation and fixture cleanup. Task 4.1 remains open for successful fresh production creation through real Calendar readiness; the controlled first creation used service-only SQL. AC-15/21/24 inventory is updated, but task 4.2 cannot be archived while 4.1 remains open.
