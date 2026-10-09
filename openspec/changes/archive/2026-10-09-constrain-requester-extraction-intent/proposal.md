@@ -2,7 +2,7 @@
 
 ## Why
 
-The [legacy requester audit](../../../tests/README.md#legacy-requester-model-assertion-map) found that the replaced extractor rejected actionable fields whenever its classified intent was question or unknown. The current model tool accepts a partial patch without classifying intent. Restore that conditional boundary while preserving the [PRD's](../../../documentations/02_product_requirements.md) conversational review flow.
+The [legacy requester audit](../../../../tests/README.md#legacy-requester-model-assertion-map) found that the replaced extractor rejected actionable fields whenever its classified intent was question or unknown. The current model tool accepts a partial patch without classifying intent. Restore that conditional boundary while preserving the [PRD's](../../../../documentations/02_product_requirements.md) conversational review flow.
 
 ## What Changes
 
@@ -19,7 +19,7 @@ None.
 
 ### Modified Capabilities
 
-- `meeting-requests`: constrain application model extraction classified as question or unknown, alongside [constrained asynchronous interpretation](../../specs/meeting-requests/spec.md).
+- `meeting-requests`: constrain application model extraction classified as question or unknown, alongside [constrained asynchronous interpretation](../../../specs/meeting-requests/spec.md).
 
 ## Impact
 

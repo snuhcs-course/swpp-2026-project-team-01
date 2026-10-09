@@ -10,5 +10,5 @@
 
 ## 3. Production completion
 
-- [ ] 3.1 Deploy a scanned clean committed archive to the identified release project; verify Ready promotion, exact release alias and production health/authorization guards. Record source/deployment evidence.
-- [ ] 3.2 Audit task evidence, sync and archive this bounded change, and update the assertion map and implementation plan while retaining false narration and live interpretation/provider gates.
+- [x] 3.1 Deploy a scanned clean committed archive to the identified release project; verify Ready promotion, exact release alias and production health/authorization guards. Record source/deployment evidence.
+- [x] 3.2 Audit task evidence, sync and archive this bounded change, and update the assertion map and implementation plan while retaining false narration and live interpretation/provider gates.
