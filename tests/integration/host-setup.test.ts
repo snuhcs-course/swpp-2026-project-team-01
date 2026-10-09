@@ -45,13 +45,16 @@ test('host setup uses current authority, explicit review, provider permission an
   const initial=await setup.read(credential);assert.equal(initial.revision,0);assert.deepEqual(setupState.parse(await tool('fmat_get_setup')),initial);assert.ok(!JSON.stringify(initial).includes('setup-private'));
   await assert.rejects(setup.read(guestCredential(randomUUID(),randomBytes(32).toString('base64url'))),code('FORBIDDEN'));
   assert.deepEqual(await setup.readiness(credential),{ready:false,reason:'setup'});assert.equal(reads,0,'Incomplete setup must not dispatch Calendar reads');
-  const draft={expectedRevision:0,idempotencyKey:randomUUID(),patch:{displayName:'Fixture',handle:'fixture-'+host.slice(0,8),rules:{timezone:'Asia/Seoul',durationMinutes:30,availability:[{days:[1,2,3,4,5],start:'13:00',end:'17:00'}],focusBlocks:[],bufferMinutes:10,preferences:'',meetingMode:'online' as const}},unresolved:[]};
+  const draft={expectedRevision:0,idempotencyKey:randomUUID(),patch:{displayName:'Fixture',handle:'fixture-'+host.slice(0,8),rules:{timezone:'Asia/Seoul',durationMinutes:30,availability:[{days:[1],start:'22:00',end:'02:00'},{days:[6],start:'22:00',end:'00:00'}],focusBlocks:[],bufferMinutes:10,preferences:'',meetingMode:'online' as const}},unresolved:[]};
   let state=await agentDraft(draft);assert.equal(state.review,null,'An agent suggestion cannot supply the host meeting-mode choice');assert.equal(state.confirmed.handle,null);assert.equal((await agentDraft(draft)).revision,1);
   await toolError({expectedRevision:0,patch:{displayName:'Changed retry'},unresolved:[]},draft.idempotencyKey,'IDEMPOTENCY_CONFLICT');
   assert.ok(state.draft?.unresolved.includes('Choose online, in-person or either.'));
   assert.equal((await tool('fmat_review_setup')).requiresBrowser,true);
   state=await setup.draft(credential,{expectedRevision:state.revision,patch:{rules:{meetingMode:'online'}},unresolved:[],idempotencyKey:randomUUID()});assert.ok(state.review);
   assert.deepEqual(setupState.parse(await tool('fmat_get_setup')),state);
+  assert.deepEqual(state.review!.settings.rules!.availability,draft.patch.rules.availability);
+  await assert.rejects(database.rpc('fmat_host_setup',{p_operation:'draft',p_credential:credential,p_input:{expectedRevision:state.revision,patch:{rules:{availability:[{days:[1],start:'22:00',end:'22:00'}]}},unresolved:[],idempotencyKey:randomUUID()}}),code('INVALID_INPUT'));
+  assert.deepEqual(await setup.read(credential),state,'Invalid equal clocks must preserve the entire pending review and confirmed settings');
   const forged=await invoke('fmat_draft_setup',{input:{expectedRevision:state.revision,patch:{displayName:'Forged'},unresolved:[],confirmed:true},idempotencyKey:randomUUID()});assert.equal((await forged.json()).result.isError,true);assert.deepEqual(await setup.read(credential),state);
   const confirmation=()=>({expectedRevision:state.revision,draftRevision:state.review!.draftRevision,reviewRevision:state.review!.revision,rulesVersion:state.rulesVersion,calendarGeneration:state.calendarGeneration!,confirmed:true as const,idempotencyKey:randomUUID()});
   await toolError({expectedRevision:state.revision,patch:{rules:{meetingMode:'in_person'}},unresolved:[]},randomUUID(),'EXPLICIT_CHOICE_CONFLICT');
@@ -72,6 +75,8 @@ test('host setup uses current authority, explicit review, provider permission an
   const pending=setup.confirm(credential,confirmation()),rejected=assert.rejects(pending,code('STALE_REVISION'));await arrived;
   state=await agentDraft({expectedRevision:state.revision,patch:{rules:{durationMinutes:45}},unresolved:[],idempotencyKey:randomUUID()});release();await rejected;gate=async()=>{};
   const confirm=confirmation(),saved=await setup.confirm(credential,confirm);assert.equal(saved.confirmed.rules?.durationMinutes,45);assert.equal(saved.nextAction,'settings_confirmed');assert.deepEqual(setupState.parse(await tool('fmat_get_setup')),saved);
+  assert.deepEqual(saved.confirmed.rules!.availability,draft.patch.rules.availability);
+  assert.deepEqual(JSON.parse(await sql.query(`select rules->'availability' from fmat.hosts where id='${host}';`)),draft.patch.rules.availability);
   assert.deepEqual(await setup.readiness(credential),{ready:true,handle:draft.patch.handle});
   role='reader';assert.deepEqual(await setup.readiness(credential),{ready:false,reason:'calendar'});role='owner';
   missing=true;assert.deepEqual(await setup.readiness(credential),{ready:false,reason:'calendar'});missing=false;

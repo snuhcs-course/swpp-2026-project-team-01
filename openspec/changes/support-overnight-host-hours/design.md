@@ -2,7 +2,7 @@
 
 ## Context
 
-See proposal.md for the restored behavior. `weeklyWindow` currently requires start < end, and `fmat.validate_setup_patch` repeats that condition in SQL. `evaluateIntervals` expands only dates within each requested interval, so merely relaxing validation would omit the previous day's overnight tail. Setup guidance prints unqualified start/end clocks. Current validators admit only same-day windows; inspect existing stored rules before rollout rather than assuming historical rows share that invariant.
+See proposal.md for the restored behavior. `weeklyWindow` currently requires start < end, and both `fmat.validate_setup_patch` and the review-completeness validator `fmat.validate_rules` repeat that condition in SQL. `evaluateIntervals` expands only dates within each requested interval, so merely relaxing validation would omit the previous day's overnight tail. Setup guidance prints unqualified start/end clocks. Current validators admit only same-day windows; inspect existing stored rules before rollout rather than assuming historical rows share that invariant.
 
 ## Goals / Non-Goals
 

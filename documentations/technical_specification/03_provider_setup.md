@@ -470,3 +470,7 @@ The selected project’s current backup inventory and private logical export are
 ### Photon receiver credential separation
 
 Use an independent `IMESSAGE_WEBHOOK_SECRET` for the registered Spectrum receiver. It must not reuse `SUPABASE_SECRET_KEY` or `RUNTIME_DISPATCH_SECRET`, including whitespace-padded copies. The receiver fails with a generic 503 before processing or writing a webhook when configuration collides. Keep the provider's signature secret bytes exact; comparison normalization does not change signing semantics. Missing/invalid receiver configuration also remains disabled.
+
+### Overnight host-hours migration sequence
+
+The overnight-hours restoration adds `20261009110653_support_overnight_host_hours.sql` for partial setup validation and `20261009110811_allow_overnight_complete_rules.sql` for complete review validation. Both are generated from declarative schema by pinned CLI 2.119.0 and only replace existing validators; equal clocks stay invalid. Apply both before promoting the application that supports overnight rules. The complete 110-migration chain is verified locally; selected-production dry run and rollout remain pending. After saving overnight settings, prefer a forward fix over reverting to a parser that rejects them.

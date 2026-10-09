@@ -145,7 +145,7 @@ begin
   for v_item in select value from jsonb_array_elements(p_rules->'availability') loop
     if jsonb_typeof(v_item->'days') is distinct from 'array' or jsonb_array_length(v_item->'days')=0
       or coalesce(v_item->>'start','') !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' or coalesce(v_item->>'end','') !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
-      or (v_item->>'start') >= (v_item->>'end') then raise exception 'INVALID_INPUT'; end if;
+      or (v_item->>'start') = (v_item->>'end') then raise exception 'INVALID_INPUT'; end if;
     if exists(select 1 from jsonb_array_elements_text(v_item->'days') d where d::integer not between 0 and 6) then raise exception 'INVALID_INPUT'; end if;
   end loop;
   for v_item in select value from jsonb_array_elements(p_rules->'focusBlocks') loop

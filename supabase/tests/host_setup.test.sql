@@ -97,4 +97,11 @@ select lives_ok($$select pg_temp.setup('draft','host3','{"expectedRevision":0,"p
 select is(pg_temp.setup('read','host3')->'draft'->'origins'->'rules.durationMinutes'->>'source','starter','accepted starter retains its source separately from human authority');
 update auth.sessions set not_after=clock_timestamp()-interval '1 second' where id='81000000-0000-4000-8000-000000000001';
 select throws_ok($$select pg_temp.setup('read','host1')$$,'P0001','UNAUTHORIZED','expired Auth session denies draft read');
+select lives_ok($$select fmat.validate_setup_patch('{"rules":{"availability":[{"days":[1],"start":"22:00","end":"02:00"}]}}')$$,'overnight hours pass durable validation');
+select lives_ok($$select fmat.validate_setup_patch('{"rules":{"availability":[{"days":[6],"start":"22:00","end":"00:00"}]}}')$$,'midnight end passes durable validation');
+select throws_ok($$select fmat.validate_setup_patch('{"rules":{"availability":[{"days":[1],"start":"22:00","end":"22:00"}]}}')$$,'P0001','INVALID_INPUT','equal clocks cannot become all-day hours');
+select throws_ok($$select fmat.validate_setup_patch('{"rules":{"availability":[{"days":[1],"start":"24:00","end":"02:00"}]}}')$$,'P0001','INVALID_INPUT','overnight support does not accept invalid clocks');
+select lives_ok($$select fmat.validate_setup_patch('{"rules":{"availability":[{"days":[1],"start":"09:00","end":"17:00"}]}}')$$,'existing same-day rules remain valid');
+select lives_ok($$select fmat.validate_rules((pg_temp.f('draft1')->'patch'->'rules')||'{"availability":[{"days":[1],"start":"22:00","end":"02:00"}]}')$$,'complete rules accept overnight hours');
+select throws_ok($$select fmat.validate_rules((pg_temp.f('draft1')->'patch'->'rules')||'{"availability":[{"days":[1],"start":"22:00","end":"22:00"}]}')$$,'P0001','INVALID_INPUT','complete rules reject equal clocks');
 select * from finish();rollback;
