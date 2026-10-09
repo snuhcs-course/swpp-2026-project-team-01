@@ -3,6 +3,7 @@ import {expect,type Page,type BrowserContext} from '@playwright/test';
 import {Database} from '../../lib/server/database/client.ts';
 import {dispatchLinkCodes} from '../../lib/server/photon/delivery.ts';
 import {LocalSql} from '../integration/local-sql.ts';
+import {verifyContactSharing} from './imessage-contact.ts';
 export const photonProject='b3000000-0000-4000-8000-000000000030';
 export async function verifyIMessage(page:Page,context:BrowserContext,host:string,local:Record<string,string>,sql:LocalSql){
  const origin='http://localhost:3000',env={SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,PHOTON_PROJECT_ID:photonProject,TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64')};
@@ -47,7 +48,8 @@ export async function verifyIMessage(page:Page,context:BrowserContext,host:strin
   let lostVerify=false;await page.route('**/api/browser/imessage/verify',async route=>{if(lostVerify)return route.continue();lostVerify=true;await route.fetch();await route.abort('failed');});
   await card.getByRole('button',{name:'Confirm and link'}).click();await card.getByRole('alert').waitFor();await page.reload();await card.getByText('iMessage connected · ••••0001',{exact:true}).waitFor();await page.unroute('**/api/browser/imessage/verify');
   assert.equal(await codeInput.count(),0);assert.equal(await sql.query(`select count(*) from fmat.photon_links where host_id='${host}' and revoked_at is null;`),'1');
-  await card.getByRole('button',{name:'Unlink iMessage'}).click();await card.getByRole('button',{name:'Keep connected'}).click();assert.ok((await state()).link);await card.getByRole('button',{name:'Unlink iMessage'}).click();await card.getByRole('button',{name:'Confirm unlink'}).click();await card.getByRole('button',{name:'Connect iMessage',exact:true}).waitFor();assert.equal((await state()).link,null);
+  await verifyContactSharing(page,context,host,env,sql);
+  await card.getByRole('button',{name:'Unlink iMessage'}).click();await card.getByRole('button',{name:'Keep connected'}).click();assert.ok((await state()).link);await card.getByRole('button',{name:'Unlink iMessage'}).click();await card.getByRole('button',{name:'Confirm unlink'}).click();await card.getByRole('button',{name:'Connect iMessage',exact:true}).waitFor();assert.equal((await state()).link,null);await expect(card.getByRole('region',{name:'iMessage contact card'})).toHaveCount(0);
   await age();await card.getByRole('button',{name:'Connect iMessage',exact:true}).click();await phone.fill('+15550100002');await card.getByRole('button',{name:'Send code',exact:true}).click();await card.getByText('Your code request is saved and waiting to send.',{exact:true}).waitFor();current=await state();const second=current.challenge.id;
   await card.getByRole('button',{name:'Change number',exact:true}).click();await phone.waitFor();assert.equal(await codeInput.count(),0);assert.equal(await sql.query(`select revoked_at is not null and encrypted_code is null from fmat.photon_link_challenges where id='${second}';`),'t');
   await card.getByRole('button',{name:'Maybe later',exact:true}).click();await card.getByText('You chose to continue on the web.',{exact:false}).waitFor();await page.reload();await card.getByText('You chose to continue on the web.',{exact:false}).waitFor();assert.equal((await state()).skipped,true);
@@ -65,6 +67,6 @@ export async function verifyIMessage(page:Page,context:BrowserContext,host:strin
   for(const value of codes.values()){assert.ok(!snapshot.includes(value));assert.ok(!runtime.includes(value));assert.ok(!(await page.locator('body').innerText()).includes(value));}
   assert.deepEqual(await page.evaluate(()=>({local:Object.keys(localStorage),session:Object.keys(sessionStorage)})),{local:[],session:[]});assert.equal(await page.getByLabel('Message your scheduling assistant').inputValue(),'');assert.equal(new URL(page.url()).pathname,'/app');
  }finally{
-  await sql.query(`delete from fmat.audit_events where operation in('photon_link','photon_unlink') and actor->>'id'='${host}';delete from fmat.photon_links where project_id='${photonProject}';delete from fmat.photon_link_challenges where project_id='${photonProject}';delete from fmat.photon_receivers where project_id='${photonProject}';`);
+  await sql.query(`delete from fmat.audit_events where (operation in('photon_link','photon_unlink') or operation like 'photon_contact%') and actor->>'id'='${host}';delete from fmat.photon_contact_shares where project_id='${photonProject}';delete from fmat.photon_links where project_id='${photonProject}';delete from fmat.photon_link_challenges where project_id='${photonProject}';delete from fmat.photon_receivers where project_id='${photonProject}';`);
  }
 }

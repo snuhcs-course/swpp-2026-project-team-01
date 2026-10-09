@@ -23,6 +23,7 @@ import { HostSetup } from '../../../../../../lib/server/setup/commands.ts';
 import { CalendarSelection } from '../../../../../../lib/server/calendar/selection.ts';
 import {imessageEntryBrowser} from '../../../../lib/imessage-entry-browser.ts';
 import { imessageBrowser } from '../../../../lib/imessage-browser.ts';
+import {HostContactSharing} from '../../../../../../lib/server/photon/contact-sharing.ts';
 import {RequestReview} from '../../../../../../lib/server/identity/request-review.ts';
 import {PreferenceDecisions} from '../../../../../../lib/server/scheduling/preference-decisions.ts';
 import {TravelAllowances} from '../../../../../../lib/server/scheduling/allowances.ts';
@@ -164,6 +165,11 @@ async function handle(request:NextRequest,{params}:Context) {
     if(['scheduling/allowances/confirm','scheduling/allowances/revoke'].includes(action)&&request.method==='POST') {
       const {credential}=await session.host(),service=new TravelAllowances();
       return session.finish(json(await service[action.endsWith('/confirm')?'confirm':'revoke'](credential,await readJson(request))));
+    }
+    if((action==='imessage/contact/read'&&request.method==='GET')||(action==='imessage/contact/request'&&request.method==='POST')){
+      const {credential}=await session.host(),service=new HostContactSharing();
+      const result=action.endsWith('/read')?await service.read(credential,Object.fromEntries(request.nextUrl.searchParams)):await service.request(credential,await readJson(request));
+      return session.finish(json(result));
     }
     if(action.startsWith('imessage/')&&['read','bind','start','continue','verify','cancel','skip','unlink'].includes(action.slice(9))){
       const {credential}=await session.host();

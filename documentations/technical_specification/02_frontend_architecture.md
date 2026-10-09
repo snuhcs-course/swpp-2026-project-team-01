@@ -399,3 +399,11 @@ After intake consent, **Open request access** links to `/connect/intake` in the 
 
 
 If the original authorization attempt has expired, its consent page still offers **Open request access**. This link conveys no authority: the separate handoff checks the original HttpOnly browser binding and current intake/request grant. The expired consent cannot be reused to grant a new code. A built browser test returns to the expired consent page and follows the link by keyboard before opening the existing request.
+
+## Optional iMessage contact card
+
+The current linked host card offers **Add to contacts** after a successful protected status read. This explicit action requests the native service-account card in the verified conversation; linking alone never sends it. The recipient chooses whether to save it in iMessage. The UI does not promise a displayed product name or treat saving as notification consent.
+
+The browser uses private/no-store `GET /api/browser/imessage/contact/read` with the link ID and same-origin `POST /api/browser/imessage/contact/request` with the link ID and retry UUID. Server authorization checks current host admission, session and link independently. Reads expose only intent ID, link ID, requested time and sanitized status. Polling while visible and focus refresh recover worker outcomes; **Check contact status** remains available. A failed read hides the send action. A lost request response preserves its UUID until recovery, and reload observes the existing intent without sending. Link-keyed component lifetime aborts obsolete reads and clears prior request state on replacement or unlink.
+
+Queued, accepted, failed, revoked and uncertain outcomes have distinct copy. Accepted means provider acknowledgement only; uncertain directs the host to the existing conversation without a resend action. Unlink cannot recall an already dispatched card. Production rollout and real iPhone/profile acceptance remain separate gates in the [contact-sharing change](../../openspec/changes/offer-imessage-contact-card/tasks.md).

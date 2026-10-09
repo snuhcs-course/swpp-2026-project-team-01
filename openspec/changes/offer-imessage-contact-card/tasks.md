@@ -12,10 +12,10 @@
 ## 3. Worker and browser integration
 
 - [x] 3.1 Wire a protected internal worker and recurring recovery, with environment checks before claims and independent provider checks; verify lost wakeup, process termination, post-preflight revocation and no repeat send after uncertain results. Add sanitized operational visibility and document recovery.
-- [ ] 3.2 Add same-origin protected browser request/status operations and an accessible optional contact action on the current linked card; verify keyboard/mobile layout, duplicate clicks, lost responses, reload, link replacement and truthful accepted/uncertain copy in browser tests. Update frontend, UX, PRD and application setup documentation.
+- [x] 3.2 Add same-origin protected browser request/status operations and an accessible optional contact action on the current linked card; verify keyboard/mobile layout, duplicate clicks, lost responses, reload, link replacement and truthful accepted/uncertain copy in browser tests. Update frontend, UX, PRD and application setup documentation.
 
 ## 4. Deployment and integrated acceptance
 
-- [ ] 4.1 Run relevant app, database, integration, runtime and browser suites, strict OpenSpec validation and documentation checks; record evidence and mark only verified implementation-plan increments complete.
+- [x] 4.1 Run relevant app, database, integration, runtime and browser suites, strict OpenSpec validation and documentation checks; record evidence and mark only verified implementation-plan increments complete.
 - [ ] 4.2 Review remote migration dry run against the selected project, deploy schema and production application, and verify authenticated endpoint guards, independent release alias/health and inactive receiver preservation. Record deployment and rollback evidence without sending to an unauthorized recipient.
 - [ ] 4.3 With an explicitly authorized recipient, verify the native card on the saved private route and recipient-controlled saving on a recorded iPhone OS/provider profile. Record actual name/number behavior without inferring it from RPC acknowledgement; archive/sync only when all change requirements are verified.

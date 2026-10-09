@@ -8,6 +8,7 @@ import {Input} from './ui/input';
 import {InputOTP,InputOTPGroup,InputOTPSlot} from './ui/input-otp';
 import {Field,FieldGroup,FieldLabel,FieldDescription} from './ui/field';
 import {Alert,AlertTitle,AlertDescription} from './ui/alert';
+import {IMessageContact} from './imessage-contact';
 
 export function IMessageLink({beforeSettings=false}:{beforeSettings?:boolean}){
  const [state,setState]=useState<IMessageState|null>(null),[editing,setEditing]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
@@ -89,6 +90,7 @@ export function IMessageLink({beforeSettings=false}:{beforeSettings?:boolean}){
   <h3 className="text-base font-medium">Continue in iMessage</h3>
   {!state?<p role="status">{error?'iMessage status is unavailable.':'Checking your iMessage connection…'}</p>:state.link?<>
    <p tabIndex={-1} ref={connected}>iMessage connected · {state.link.maskedPhone}</p><p>Your private number is linked. Web chat remains available.</p>
+   <IMessageContact key={state.link.id} linkId={state.link.id} available={state.available} disabled={locked||confirmUnlink}/>
    {confirmUnlink?<><p>Unlink {state.link.maskedPhone}? It will no longer have access to your private host conversation.</p><div className="flex flex-wrap gap-2"><Button variant="destructive" disabled={locked} onClick={()=>void run(()=>imessageCall('unlink',{linkId:state.link!.id})).then(next=>{if(next)setConfirmUnlink(false);})}>Confirm unlink</Button><Button variant="outline" disabled={locked} onClick={()=>setConfirmUnlink(false)}>Keep connected</Button></div></>:<Button variant="outline" disabled={locked} onClick={()=>setConfirmUnlink(true)}>Unlink iMessage</Button>}
   </>:challenge?<>
    <p>Verification for {challenge.maskedPhone}</p><p role="status">{status?messages[status]:null}</p>
