@@ -3,7 +3,7 @@
 ## 1. Contracts and private projection
 
 - [x] 1.1 Define strict signal/input/output contracts and explicit-project operator configuration; verify redaction, unknown fields, sample limits and unchanged invitation target checks, and document the inspection boundary.
-- [ ] 1.2 Implement the service-only read-only snapshot in desired SQL and a reviewed migration; verify all categories, ordering/bounds, permissions, null/invalid limits, no mutations and the full local rebuild with SQL tests; document signal semantics.
+- [x] 1.2 Implement the service-only read-only snapshot in desired SQL and a reviewed migration; verify all categories, ordering/bounds, permissions, null/invalid limits, no mutations and the full local rebuild with SQL tests; document signal semantics.
 
 ## 2. Operator command and acceptance
 
