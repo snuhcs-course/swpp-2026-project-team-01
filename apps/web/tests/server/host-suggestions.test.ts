@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-06
 import { afterEach, describe, expect, it } from 'vitest'
 import { fixture, event } from '../fixtures/google-calendar-provider'
 import { syncCalendar } from '@/server/services/calendar-sync'

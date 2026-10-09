@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-04, 2026-10-05
 import { z } from "zod"
 import { idSchema, revisionSchema, textSchema } from "./common"
 import { daysSchema, preferencesSchema, strengthSchema } from "./profile"

@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05
 import { expect, it } from "vitest"
 import { TokenVault } from "@/server/token-vault"
 it("encrypts with randomized authenticated owner binding and rejects tampering/wrong key", () => {

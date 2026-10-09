@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto"
 
 /** v1 AES-256-GCM; AAD must include the owner, Google sub, and connection ID. */

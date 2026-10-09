@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05; Claude Code (claude-opus-5-5), 2026-10-05, 2026-10-06
 import { z } from 'zod'
 import { textSchema } from '@/contracts/common'
 import { requireActor } from '@/server/session'

@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05; Claude Code (claude-sonnet-5-5), 2026-10-05
 import { describe, expect, it } from "vitest"
 import { interpretOnboarding, explainOnboarding } from "@/llm/onboarding"
 import { classifyEvents } from "@/llm/classify"

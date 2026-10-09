@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05
 import { expect, it } from "vitest"
 import { decideOptions, pickDiverse } from "@/core/options"
 import { rankForParticipants } from "@/core/filter"

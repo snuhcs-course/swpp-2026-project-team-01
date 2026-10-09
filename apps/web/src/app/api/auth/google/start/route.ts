@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05
 import { authStartSchema } from '@/contracts/auth'
 import { commandBody, jsonResult } from '@/server/command-api'
 import { authContext, startGoogleAuth, handleAuth } from '@/server/services/auth'

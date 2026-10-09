@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-05
 import { randomBytes } from "node:crypto"
 import { DomainError } from "@/contracts/common"
 import type { ServiceContext } from "../runtime"

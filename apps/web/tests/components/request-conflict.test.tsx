@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-10-05
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { RequestSummary } from '@/components/RequestCard'

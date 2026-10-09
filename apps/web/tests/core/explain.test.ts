@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-09-30; Claude Code (claude-opus-5-5), 2026-10-05; Codex (gpt-6-astra), 2026-10-05
 import { describe, expect, it } from "vitest"
 import { filterChips, slotLabel } from "@/core/chips"
 import { basisSentence, describeOrder, diffChips, selectionBasis } from "@/core/explain"

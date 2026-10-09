@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-09-29, 2026-10-05; Claude Code (claude-opus-5-5), 2026-09-30; Codex (gpt-6-astra), 2026-10-05
 // Usage: npm run db:reset — wipes every row and inserts demo data dated from today (KST). Demo databases only; the schema comes from supabase/migrations.
 import { createDb, truncateAll, bindDatabaseMode, all } from "@/server/db/client"
 import { readServerConfig } from "@/server/config"

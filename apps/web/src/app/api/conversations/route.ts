@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05
 import {DomainError} from '@/contracts/common'
 import {handleCommand} from '@/server/command-api'
 import {requireActor} from '@/server/session'

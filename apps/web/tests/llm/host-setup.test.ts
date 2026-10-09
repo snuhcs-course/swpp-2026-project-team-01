@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-06
 import { describe, expect, it } from "vitest"
 import { interpretHostSetup } from "@/llm/host-setup"
 import type { ChatClient } from "@/llm/ollama"

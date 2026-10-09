@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-05; Codex (gpt-6-astra), 2026-10-05
 import Link from 'next/link'
 import { DomainError } from '@/contracts/common'
 import { GoogleConnect } from '@/components/GoogleConnect'

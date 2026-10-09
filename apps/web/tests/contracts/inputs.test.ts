@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-04; Claude Code (claude-sonnet-5-5), 2026-10-05
 import { describe, expect, it } from "vitest"
 import { profileValuesSchema, patchDraftSchema, confirmProfileSchema } from "@/contracts/profile"
 import { selectionSchema, annotationSchema } from "@/contracts/calendar"

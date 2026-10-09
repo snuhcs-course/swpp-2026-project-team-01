@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { profileDraftViewSchema, type ProfileDraftView } from '@/contracts/profile'

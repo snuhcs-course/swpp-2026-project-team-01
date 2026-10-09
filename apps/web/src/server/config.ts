@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05; Claude Code (claude-sonnet-5-5), 2026-10-05
 export interface ServerConfig {
   mode: "demo" | "real"; databaseUrl?: string; allowReset: boolean;
   googleClientId?: string; googleClientSecret?: string; googleRedirectUri?: string;

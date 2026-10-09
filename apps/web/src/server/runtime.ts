@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05
 import { randomUUID } from "node:crypto"
 import type { Db } from "./db/client"
 import { readServerConfig, type ServerConfig } from "./config"

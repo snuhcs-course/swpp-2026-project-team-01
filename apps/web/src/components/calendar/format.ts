@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-10-05
 import { DAY_MS, kstDateString, kstParts, kstTimeString, weekdayKo } from '@/core/time'
 import type { ImportedEventView } from '@/contracts/calendar'
 

@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-05
 import type { HTMLAttributes, ReactNode } from "react"
 import { cn } from "./cn"
 import { toneSoft, type Tone } from "./Badge"

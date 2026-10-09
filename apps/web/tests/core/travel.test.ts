@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-09-29
 import { describe, expect, it } from "vitest"
 import { travelMinutes } from "@/core/travel"
 import type { CalEvent } from "@/core/types"

@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-05
 import { OAuth2Client } from "google-auth-library"
 import { DomainError } from "@/contracts/common"
 

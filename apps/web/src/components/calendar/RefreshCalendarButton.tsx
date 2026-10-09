@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-sonnet-5-5), 2026-10-05
 "use client"
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'

@@ -1,3 +1,4 @@
+// AI-generated with Codex (gpt-6-astra), 2026-10-04
 import { describe, expect, it } from "vitest"
 import { normalizeWindows, validateProfile, type ProfileValues, type WeeklyWindow } from "../../src/core/profile"
 
