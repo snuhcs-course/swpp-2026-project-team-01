@@ -1,3 +1,4 @@
+import {EvaluationBudget} from './budget.ts';
 import {randomUUID} from 'node:crypto';
 import {bookingLease} from '../booking/dispatch.ts';
 import {z} from 'zod';
@@ -33,16 +34,21 @@ const snapshot=z.object({bookingCalendarId:z.string().min(1).nullable().optional
 export class AvailabilityEvaluation {
  constructor(private readonly database=new Database(),private readonly env=process.env,private readonly provider:CalendarProvider=new GoogleCalendarProvider(env),private readonly freebusy:FreeBusyProvider=new GoogleFreeBusy(),private readonly events:AdjacentEventProvider=new GoogleAdjacentEvents(),private readonly routes:RoutesProvider=new GoogleRoutes(env)){}
  private call(operation:string,credential:Credential,input:unknown){requireCredential(credential);return this.database.rpc('fmat_availability_evaluation',{p_operation:operation,p_credential:credential,p_input:input});}
- async read(credential:Credential,input:unknown){return this.evaluate(availabilityCheckInput.parse(input),(operation,input)=>this.call(operation,credential,input));}
- async batch(credential:Credential,input:unknown){
+ async read(credential:Credential,input:unknown,budget?:EvaluationBudget){return this.evaluate(availabilityCheckInput.parse(input),(operation,input)=>this.call(operation,credential,input),undefined,budget);}
+ async batch(credential:Credential,input:unknown,budget?:EvaluationBudget){
   const parsed=availabilityCheckInput.omit({candidate:true}).extend({sampling:batchOptions}).parse(input);
-  return this.evaluate({requestId:parsed.requestId,revision:parsed.revision},(operation,input)=>this.call(operation,credential,input),parsed.sampling);
+  return this.evaluate({requestId:parsed.requestId,revision:parsed.revision},(operation,input)=>this.call(operation,credential,input),parsed.sampling,budget);
  }
- async readForBooking(lease:unknown,input:unknown){
+ async readForBooking(lease:unknown,input:unknown,budget?:EvaluationBudget){
   const authority=bookingLease.parse(lease),target=availabilityCheckInput.required({candidate:true}).parse(input);
-  return this.evaluate(target,(operation,input)=>this.database.rpc('fmat_booking_evaluation',{p_operation:operation,p_lease:authority,p_input:input}));
+  return this.evaluate(target,(operation,input)=>this.database.rpc('fmat_booking_evaluation',{p_operation:operation,p_lease:authority,p_input:input}),undefined,budget);
  }
- private async evaluate(target:z.infer<typeof availabilityCheckInput>,call:(operation:string,input:unknown)=>Promise<unknown>,sampling?:z.infer<typeof batchOptions>){
+ private async evaluate(target:z.infer<typeof availabilityCheckInput>,call:(operation:string,input:unknown)=>Promise<unknown>,sampling?:z.infer<typeof batchOptions>,supplied?:EvaluationBudget){
+  const budget=supplied??new EvaluationBudget();
+  try{return await this.evaluateWithin(target,(operation,input)=>budget.run(()=>call(operation,input)),budget,sampling);}
+  finally{if(!supplied)budget.dispose();}
+ }
+ private async evaluateWithin(target:z.infer<typeof availabilityCheckInput>,call:(operation:string,input:unknown)=>Promise<unknown>,budget:EvaluationBudget,sampling?:z.infer<typeof batchOptions>){
   const state=snapshot.parse(await call('start',{...target,checkId:randomUUID()}));
   const context={...target,checkId:state.checkId,basis:state.basis},cipher=new TokenCipher(this.env);
   const windows=state.details.windows;let hostAccessToken='';
@@ -60,7 +66,7 @@ export class AvailabilityEvaluation {
     };
     validate(bundle);
     if(bundle.expiresAt<=Date.now()+60_000){
-     const refreshed=tokenBundle.parse(await this.provider.refresh(bundle,party));validate(refreshed);
+     const refreshed=tokenBundle.parse(await budget.run(signal=>this.provider.refresh(bundle,party,signal)));validate(refreshed);
      if(refreshed.expiresAt<=Date.now()+30_000)throw new ApplicationError('RECONNECT_REQUIRED',409);
      await call('refresh',{...context,party,previousCredential:selected.encryptedCredential,encryptedCredential:cipher.seal(refreshed,encryptionContext)});
      bundle=refreshed;
@@ -74,12 +80,12 @@ export class AvailabilityEvaluation {
    await call('check',context);
    try{
     if(party==='host'&&state.bookingCalendarId){
-     const calendars=await this.provider.list(bundle.accessToken);
+     const calendars=await budget.run(signal=>this.provider.list(bundle.accessToken,signal));
      await call('check',context);
      if(!calendars.some(c=>c.id===state.bookingCalendarId&&['writer','writerWithoutPrivateAccess','owner'].includes(c.accessRole)))throw new ApplicationError('RECONNECT_REQUIRED',409);
      await call('destination_checked',context);
     }
-    const busy=await this.freebusy.read(bundle.accessToken,selected.calendarIds,party==='host'?bufferedReadWindows(windows,state.rules.bufferMinutes):windows);if(party==='host')hostAccessToken=bundle.accessToken;return busy;}
+    const busy=await budget.run(signal=>this.freebusy.read(bundle.accessToken,selected.calendarIds,party==='host'?bufferedReadWindows(windows,state.rules.bufferMinutes):windows,signal));if(party==='host')hostAccessToken=bundle.accessToken;return busy;}
    catch(error){await call('failure',{...context,party});throw error instanceof ApplicationError?error:new ApplicationError('PROVIDER_UNAVAILABLE',503);}
   };
   const hostBusy=await read('host',state.host);
@@ -92,19 +98,21 @@ export class AvailabilityEvaluation {
   const sampled=sampling?sampleIntervals(evaluation,sampling):{intervals:target.candidate?[target.candidate]:[],truncated:false};
   const assessments:{candidate:z.infer<typeof schedulingInterval>;assessment:CandidateAssessment}[]=[];
   for(const candidate of sampled.intervals){
+   budget.assertActive();
    const candidateEvaluation:CandidateAssessment={interval:evaluation.status==='clarification'?'clarification':intervalFits(evaluation,candidate)?'fits':'conflict',travel:null,contextFingerprint:null};
    if(candidateEvaluation.interval==='fits'&&['online','in_person'].includes(state.details.mode??'')){
     const assertCurrent=async()=>{await call('check',context);};
     let commitments:TravelCommitment[]=[];
     if(state.details.mode==='in_person'){
-     try{await assertCurrent();commitments=await this.events.read(hostAccessToken,state.host.calendarIds,candidate,assertCurrent);await assertCurrent();}
+     try{await assertCurrent();commitments=await budget.run(signal=>this.events.read(hostAccessToken,state.host.calendarIds,candidate,assertCurrent,signal));await assertCurrent();}
      catch(error){if(!(error instanceof ApplicationError)||['RECONNECT_REQUIRED','PROVIDER_UNAVAILABLE'].includes(error.code))await call('failure',{...context,party:'host'});throw error instanceof ApplicationError?error:new ApplicationError('PROVIDER_UNAVAILABLE',503);}
      commitments.push(...unexplainedBusy(hostBusy,commitments),...state.localCommitments.map(c=>({...c,location:physicalLocation(c.location??undefined)})),...state.rules.focusBlocks.map((interval,i)=>({id:'focus-'+i,calendarId:'rules',eventId:'focus-'+i,version:String(state.rulesVersion),interval,location:null})));
     }
     const adjacent=adjacentContext(candidate,commitments,state.travelBasis),rules=setupRules.pick({travelMode:true,travelBufferMinutes:true}).strip().parse(state.rules);
     candidateEvaluation.contextFingerprint=adjacent.fingerprint;
     candidateEvaluation.travelContext={contextFingerprint:adjacent.fingerprint,candidate,meetingMode:state.details.mode as 'online'|'in_person',location:physicalLocation(state.details.location),previous:adjacent.previous,next:adjacent.next,mode:rules.travelMode,bufferMinutes:state.rules.bufferMinutes,travelBufferMinutes:rules.travelBufferMinutes};
-    candidateEvaluation.travel=await evaluateTravel(candidateEvaluation.travelContext,{estimate:async request=>{await assertCurrent();const result=await this.routes.estimate(request);await assertCurrent();return result;}},{allowances:state.allowances});
+    const travelContext=candidateEvaluation.travelContext;
+    candidateEvaluation.travel=await budget.run(()=>evaluateTravel(travelContext,{estimate:async request=>{await assertCurrent();const result=await budget.run(signal=>this.routes.estimate(request,signal));await assertCurrent();return result;}},{allowances:state.allowances}));
    }
    candidateEvaluation.preferences=evaluatePreferences({basis:state.travelBasis,candidate,details:state.details,rules:setupRules.parse(state.rules)},state.preferenceDecisions);
    assessments.push({candidate,assessment:candidateEvaluation});

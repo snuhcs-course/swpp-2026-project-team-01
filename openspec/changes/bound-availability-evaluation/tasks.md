@@ -7,7 +7,7 @@
 
 ## 2. Evaluation and publication integration
 
-- [ ] 2.1 Apply the budget to direct/batch and booking evaluation, keeping authority checks and bounded failure recording. Verify host/guest sequencing, candidate loops, route failure values and no late evidence writes with deterministic service fixtures; document incomplete-result behavior.
+- [x] 2.1 Apply the budget to direct/batch and booking evaluation, keeping authority checks and bounded failure recording. Verify host/guest sequencing, candidate loops, route failure values and no late evidence writes with deterministic service fixtures; document incomplete-result behavior.
 - [ ] 2.2 Share the same budget through publication and ranking, including model reservation and persistence boundaries. Verify no fresh deadline, no late/partial publication, retained committed reservations, and unchanged durable recovery after uncertain RPC replies; update architecture and legacy assertion mapping.
 
 ## 3. End-to-end verification and rollout
