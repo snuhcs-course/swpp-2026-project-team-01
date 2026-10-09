@@ -1,0 +1,58 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select no_plan();
+truncate fmat.rejection_counters;
+select ok((select relrowsecurity from pg_class where oid='fmat.rejection_counters'::regclass),'counter table uses RLS');
+select ok(not has_table_privilege(role,'fmat.rejection_counters','SELECT,INSERT,UPDATE,DELETE'),role||' has no direct counter access') from unnest(array['anon','authenticated','service_role'])role;
+select ok(not has_function_privilege(role,fn,'EXECUTE'),role||' cannot invoke '||fn) from unnest(array['anon','authenticated'])role cross join unnest(array['public.fmat_rejection_record(text)','public.fmat_rejection_snapshot()'])fn;
+select ok(has_function_privilege('service_role',fn,'EXECUTE'),'service can invoke '||fn) from unnest(array['public.fmat_rejection_record(text)','public.fmat_rejection_snapshot()'])fn;
+set local role anon;
+select throws_ok($$select public.fmat_rejection_record('stale_action')$$,'42501',null,'anonymous record denied');
+select throws_ok($$select public.fmat_rejection_snapshot()$$,'42501',null,'anonymous snapshot denied');
+reset role;
+set local role authenticated;
+select throws_ok($$select public.fmat_rejection_snapshot()$$,'42501',null,'authenticated snapshot denied');
+reset role;
+select throws_ok($$select public.fmat_rejection_record(null)$$,'P0001','INVALID_INPUT','null category denied');
+select throws_ok($$select public.fmat_rejection_record('PRIVATE_ERROR')$$,'P0001','INVALID_INPUT','freeform content denied');
+select is((select count(*)::integer from information_schema.columns where table_schema='fmat' and table_name='rejection_counters'),4,'only four fixed counter fields stored');
+select is(public.fmat_rejection_snapshot()->>'scope','database_rpc','scope explicitly database only');
+select is(public.fmat_rejection_snapshot()->>'delivery','best_effort','collection incompleteness explicit');
+select is(public.fmat_rejection_snapshot()->'coverage','{"preDatabaseDenials":"not_recorded","uncategorizedRejections":"not_recorded","releaseReadiness":"not_assessed"}'::jsonb,'unmeasured coverage stays unavailable');
+select is((public.fmat_rejection_snapshot()->>'partialCurrentHour')::boolean,true,'current hour incomplete');
+select is((public.fmat_rejection_snapshot()->>'hourlyBuckets')::integer,24,'bounded hourly window');
+select is(jsonb_array_length(public.fmat_rejection_snapshot()->'signals'),2,'fixed categories');
+select is((public.fmat_rejection_snapshot()->'signals'->0->>'count')::integer,0,'empty count is zero observations');
+select is(public.fmat_rejection_snapshot()->'signals'->0->'lastSeenAt','null'::jsonb,'empty count lacks timestamp');
+set local role service_role;
+select public.fmat_rejection_record('authorization_denied');
+select public.fmat_rejection_record('authorization_denied');
+select public.fmat_rejection_record('stale_action');
+reset role;
+select is((public.fmat_rejection_snapshot()->'signals'->0->>'count')::integer,2,'same category increments');
+select is((public.fmat_rejection_snapshot()->'signals'->1->>'count')::integer,1,'categories independent');
+select is((select count(*)::integer from fmat.rejection_counters),2,'increments reuse hourly rows');
+update fmat.rejection_counters set count=1000000 where category='authorization_denied';
+select public.fmat_rejection_record('authorization_denied');
+select is((public.fmat_rejection_snapshot()->'signals'->0->>'count')::integer,1000000,'counter saturates without overflow');
+select is((public.fmat_rejection_snapshot()->'signals'->0->>'saturated')::boolean,true,'saturation disclosed');
+insert into fmat.rejection_counters values
+ ('stale_action',date_trunc('hour',clock_timestamp(),'UTC')-interval '24 hours',777,date_trunc('hour',clock_timestamp(),'UTC')-interval '24 hours'),
+ ('stale_action',date_trunc('hour',clock_timestamp(),'UTC')+interval '1 hour',888,date_trunc('hour',clock_timestamp(),'UTC')+interval '1 hour');
+create temporary table before_read as select jsonb_agg(to_jsonb(r) order by category,bucket_start) as data from fmat.rejection_counters r;
+select is((public.fmat_rejection_snapshot()->'signals'->1->>'count')::integer,1,'inspection excludes expired and future buckets');
+select is((select jsonb_agg(to_jsonb(r) order by category,bucket_start) from fmat.rejection_counters r),(select data from before_read),'inspection does not prune or mutate');
+select public.fmat_rejection_record('stale_action');
+select is((select count(*)::integer from fmat.rejection_counters),2,'next observation prunes outside window');
+insert into fmat.rejection_counters
+ select category,date_trunc('hour',clock_timestamp(),'UTC')-make_interval(hours=>n),1,date_trunc('hour',clock_timestamp(),'UTC')-make_interval(hours=>n)
+ from unnest(array['authorization_denied','stale_action'])category cross join generate_series(1,23)n;
+select public.fmat_rejection_record('stale_action');
+select is((select count(*)::integer from fmat.rejection_counters),48,'maximum ordinary retained cardinality');
+select is((public.fmat_rejection_snapshot()->'signals'->1->>'count')::integer,26,'all 24 visible buckets contribute');
+select is((public.fmat_rejection_snapshot()->>'windowStart')::timestamptz,date_trunc('hour',statement_timestamp(),'UTC')-interval '23 hours','window starts at UTC hour');
+select is((select count(*)::integer from fmat.jobs),0,'observation does not create work');
+select is((select count(*)::integer from fmat.host_reservations),0,'observation does not create reservations');
+select * from finish();
+rollback;

@@ -53,3 +53,11 @@ Record the selected project, observation time, category and relevant opaque ID i
 New automated alerts, durable denial/stale-rejection instrumentation, additional audited recovery commands, retention/deletion, backup restoration, performance targets and operational ownership remain open [Phase 9 requirements](04_implementation_plan.md#phase-9--harden-deploy-and-close-release-gates).
 
 See [backup and restoration readiness](09_backup_recovery.md) before treating a database restore as job or provider recovery. Restoring saved state does not reverse external effects.
+
+## Rejection observations under implementation
+
+The [rejection observation change](../../openspec/changes/record-database-rejections/tasks.md) adds a separate snapshot; the existing v1 state snapshot and its unavailable event-rate fields remain unchanged. The local schema foundation stores only `authorization_denied` and `stale_action`, UTC hour, count and last-observed timestamp. No actor, request, error text, provider or credential data is accepted.
+
+The service-only recorder increments atomically, caps each bucket at 1,000,000 and prunes outside the current/preceding 23 UTC hours on a new write. A 50 ms lock timeout bounds counter contention. At most 48 ordinary rows are retained; idle expired rows may remain until another observation. Read-only inspection excludes those rows without deleting them, reports the partial current hour and saturation, and labels best-effort database-only coverage. Counts are observed attempts, not distinct actions, total event rates or proof collection is active. Pre-database/uncategorized denials remain unavailable.
+
+The schema and contract are locally verified. Adapter collection, the operator CLI mode and production activation remain pending; do not treat these counters as live telemetry yet.
