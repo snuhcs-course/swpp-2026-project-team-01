@@ -134,9 +134,11 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 - [x] Verify requester-window expiry during observed request-lock waits for proposal and apply, state preservation, and committed replay after time passes. Pass real RPC integration, 1,853 post-fixture SQL assertions, 413 app/provider tests, both builds and runtime smoke. [Evidence](05_rebuild_evidence.md#requester-review-window-integrated-acceptance--2026-10-09). Production verification and archive remain open.
 
+- [x] Activate and verify requester review-window validation in production: 108 matching migrations, three matching function/privilege sets, clean advisors, rollback-only acceptance and 20 HTTP checks. Sync both requirements and archive the five-task change. [Evidence](05_rebuild_evidence.md#deployed-requester-review-window-validation--2026-10-09). Other requester-model and live-provider gates remain open.
+
 - [x] Implement private assistant review-window validation at proposal/apply boundaries with durable retries. Review generated migration `20261009082925`, rebuild 108 local migrations, and pass 23 new/1,853 total SQL assertions plus clean security advisors. [Evidence](05_rebuild_evidence.md#requester-review-window-database-validation--2026-10-09). Production rollout remains open.
 
-- [x] Reproduce accepted past-start requester review windows and define the bounded [review-window correction](../../openspec/changes/validate-requester-draft-windows/tasks.md), including duration, lock-time expiry and durable retries. [Evidence](05_rebuild_evidence.md#requester-draft-window-validation-gap--2026-10-09). Implementation and production validation remain open.
+- [x] Reproduce accepted past-start requester review windows and define the bounded [review-window correction](../../openspec/changes/archive/2026-10-09-validate-requester-draft-windows/tasks.md), including duration, lock-time expiry and durable retries. [Evidence](05_rebuild_evidence.md#requester-draft-window-validation-gap--2026-10-09). Implementation and production validation remain open.
 
 - [x] Reconcile all five retired host-intent assertions with typed partial drafts, context privacy, actual Responses protocol rejection, runtime failure preservation and impossible-date guards. Pass 413 app/provider tests, signed-ingress/eve setup integration and 1,830 post-fixture SQL assertions. [Evidence](05_rebuild_evidence.md#host-intent-protocol-reconciliation--2026-10-09). Wider legacy inventory and live provider/client acceptance remain open.
 

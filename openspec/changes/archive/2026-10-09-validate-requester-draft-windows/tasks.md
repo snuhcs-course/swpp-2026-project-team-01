@@ -11,5 +11,5 @@
 
 ## 3. Production verification
 
-- [ ] 3.1 Identify the selected Supabase project, review pending migration dry run, apply and verify migration history, function definitions/privileges and rollback-only acceptance. Deploy a scanned clean application archive if needed; verify release health/authorization and record source/environment identity.
-- [ ] 3.2 Verify all task evidence, sync the settled meeting-request requirements, archive this bounded change and update the plan; retain other requester-model and live-provider gaps explicitly.
+- [x] 3.1 Identify the selected Supabase project, review pending migration dry run, apply and verify migration history, function definitions/privileges and rollback-only acceptance. Deploy a scanned clean application archive if needed; verify release health/authorization and record source/environment identity.
+- [x] 3.2 Verify all task evidence, sync the settled meeting-request requirements, archive this bounded change and update the plan; retain other requester-model and live-provider gaps explicitly.

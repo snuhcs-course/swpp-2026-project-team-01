@@ -2,7 +2,7 @@
 
 ## Why
 
-The Phase 2 [legacy audit](../../../documentations/technical_specification/04_implementation_plan.md) found that the retired requester extractor rejected past-start and too-short windows, while the replacement review ledger accepts them. A local RPC regression reproduces acceptance of a window starting one minute ago; later feasibility checks do not make that review valid.
+The Phase 2 [legacy audit](../../../../documentations/technical_specification/04_implementation_plan.md) found that the retired requester extractor rejected past-start and too-short windows, while the replacement review ledger accepts them. A local RPC regression reproduces acceptance of a window starting one minute ago; later feasibility checks do not make that review valid.
 
 ## What Changes
 
@@ -19,7 +19,7 @@ None.
 
 ### Modified Capabilities
 
-- `meeting-requests`: valid, current time windows at the assistant review boundary, extending [constrained interpretation](../../specs/meeting-requests/spec.md).
+- `meeting-requests`: valid, current time windows at the assistant review boundary, extending [constrained interpretation](../../../specs/meeting-requests/spec.md).
 
 ## Impact
 
