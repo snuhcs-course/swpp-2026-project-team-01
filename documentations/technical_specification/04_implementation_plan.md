@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Apply both overnight validators to selected production after an exact two-migration dry run; verify rollback-only draft/review/confirmation/retry and matching local/remote function definitions. Runtime, real setup and 1,860 post-fixture SQL assertions pass. [Evidence](05_rebuild_evidence.md#overnight-production-schema-acceptance--2026-10-09). Application promotion remains open.
+
 - [x] Label overnight ends and split weekly previews at midnight; verify equal-clock unchanged-state denial, draft reload and explicit keyboard confirmation in the built browser. Pass all four browser tests and 1,860 post-fixture SQL assertions; inspect 320px editor/review layouts. [Evidence](05_rebuild_evidence.md#overnight-editor-and-review-acceptance--2026-10-09). Production rollout remains open.
 
 - [x] Restore both durable overnight-hours validators with reviewed generated migrations, rebuild all 110 local migrations, and verify real setup confirmation/retry plus unchanged-state denial. Pass 1,860 post-fixture SQL assertions, typechecks and clean security advisors. [Evidence](05_rebuild_evidence.md#overnight-durable-setup-acceptance--2026-10-09). Browser labels and production rollout remain open.
