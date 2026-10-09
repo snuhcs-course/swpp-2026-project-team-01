@@ -51,6 +51,20 @@ describe('history analysis', () => {
     expect(again.messages).toHaveLength(1)
     expect(again.messages[0].content).toContain('지난 8주 일정')
   })
+  it('lets the model, not the question mark, decide whether a turn asks about the analysis', async () => {
+    const { f, draft } = await setup()
+    f.ctx.llm = model([])
+    const analysed = await analyzeDraft(f.ctx, 'owner', { draftId: draft.draftId, expectedRevision: draft.revision }, { key: 'a1' })
+    const windows = [1, 2, 3, 4, 5].map(weekday => ({ weekday, startMin: 780, endMin: 1080 }))
+    f.ctx.llm = { chat: async () => JSON.stringify({ patch: { meetingWindows: windows }, confirmedTopics: ['meetingWindows'], ask: null }) }
+    const changed = await onboardingTurn(f.ctx, 'owner', { draftId: draft.draftId, expectedRevision: analysed.revision, text: '미팅 허용시간 13시부터로 변경해줄래?' }, { key: 't1' })
+    expect(changed.messages.at(-1)!.content).toContain('초안에 반영했어요')
+    expect(changed.messages.at(-1)!.content).not.toContain('지난 일정에서 본 경향')
+    expect(changed.values.meetingWindows).toEqual(windows)
+    f.ctx.llm = { chat: async () => JSON.stringify({ patch: {}, confirmedTopics: [], ask: ['work'] }) }
+    const asked = await onboardingTurn(f.ctx, 'owner', { draftId: draft.draftId, expectedRevision: changed.revision, text: '근무시간 결과가 궁금해요' }, { key: 't2' })
+    expect(asked.messages.at(-1)!.content).toContain('근무시간은 짐작하기 어려워요')
+  })
   it('does not reuse a proposal cached under older labelling rules', async () => {
     const { f, draft } = await setup(), calls: { items: number }[] = []
     f.ctx.llm = model(calls)

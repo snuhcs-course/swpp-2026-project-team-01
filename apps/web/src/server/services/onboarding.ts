@@ -16,7 +16,8 @@ export async function onboardingTurn(ctx:ServiceContext, actorId:string, input:O
   const client=ctx.llm ?? {chat:async()=>{throw new Error('Unavailable')}}
   const interpreted=await interpretOnboarding(client,{text:parsed.text,values:draft.values})
   const topics={...draft.topics};for(const topic of interpreted.confirmedTopics)topics[topic]='confirmed'
-  const asked=historyQuestion(parsed.text)
+  // The model judges intent; the pattern match only stands in when the model could not answer.
+  const asked=interpreted.failed?historyQuestion(parsed.text):interpreted.ask
   const analysis=asked?await one<{summary_json:string}>(ctx.db,'SELECT r.summary_json FROM analysis_runs r JOIN profile_drafts d ON d.analysis_id=r.id WHERE d.id=?',[draftId]):undefined
   const answer=asked?answerFromHistory(analysis?JSON.parse(analysis.summary_json):null,asked):undefined
   const reply=await explainOnboarding(client,{values:interpreted.values,topics,changed:interpreted.changed,interpretFailed:interpreted.failed,answer})
