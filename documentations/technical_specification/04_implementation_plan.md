@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Verify actual eve acceptance followed by failed dispatch acknowledgment, retained lease, settlement and process restart without a replacement session or redispatch. Pass all three runtime suites and post-fixture SQL. [Evidence](05_rebuild_evidence.md#runtime-dispatch-acknowledgment-loss--2026-10-09).
+
 - [x] Repair browser-fixture cleanup so host cascades remove setup history and booking/recovery jobs remove active/archived queue entries and publication rows. Verify both browser suites followed by all 1,532 SQL assertions without an intervening reset. [Evidence](05_rebuild_evidence.md#browser-fixture-cleanup-and-sequential-database-tests--2026-10-09).
 
 Work:
@@ -143,7 +145,7 @@ Work:
 - [ ] Model immutable proposal versions, agreement/approval evidence, one booking identity per request, attempt history, host reservations, inbox deduplication and outbox/jobs. Keep eve transcript persistence distinct from domain records.
 - [ ] Implement atomic state/audit/work commits, lease/fencing and recovery sweeps. Define recovery for a crash between eve accepting a message and the app recording dispatch acknowledgment.
 - [ ] Add database constraints, grants/RLS and narrow privileged access. Generate new migrations through pg-delta; preserve applied history. Rebuild the identified disposable local database and run cross-user/concurrency tests.
-- [ ] Update root scripts and CI to execute the replacement checks, including a separate local database job and browser job. Retire obsolete test commands only after their behavior coverage is mapped. The separate browser job is now implemented with its own pinned local stack and pre/post-fixture SQL checks; [hosted acceptance remains pending](05_rebuild_evidence.md#separate-browser-ci-job--2026-10-09).
+- [ ] Update root scripts and CI to execute the replacement checks, including a separate local database job and browser job. Retire obsolete test commands only after their behavior coverage is mapped. The separate browser job has its own pinned local stack and pre/post-fixture SQL checks; both hosted runs now pass. Retrospective legacy behavior reconciliation remains bounded by the [command map](../../tests/README.md#legacy-verification-command-migration).
 
 Exit: cross-host/request access fails; duplicate commands return consistent results; stale revisions fail; state and jobs commit atomically; expired leases/lost wake-ups recover without repeated effects. The migration chain rebuilds locally and its desired schema matches the checked-in files.
 

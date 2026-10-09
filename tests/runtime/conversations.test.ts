@@ -36,6 +36,22 @@ test('real eve ingress binds request authority, deduplicates input and recovers 
   const portServer=createServer(); portServer.listen(0,'127.0.0.1'); await once(portServer,'listening');
   const port=(portServer.address() as {port:number}).port; await new Promise<void>(r=>portServer.close(()=>r()));
   const origin=`http://127.0.0.1:${port}`, marker=join(fixture,'tool-committed');
+  const dispatchFault=join(fixture,'dispatch-ack-lost'),preload=join(fixture,'dispatch-fault.mjs');
+  // Fail only the dispatch acknowledgment, after eve's send has returned. The
+  // real database keeps its lease; no message/session/domain state is patched.
+  await writeFile(preload,`import {existsSync,writeFileSync} from 'node:fs';
+const original=globalThis.fetch;
+globalThis.fetch=async(input,init)=>{
+ const url=typeof input==='string'?input:input instanceof URL?input.href:input.url;
+ if(url.endsWith('/rest/v1/rpc/fmat_runtime_dispatch')&&typeof init?.body==='string'){
+  const body=JSON.parse(init.body);
+  if(body.p_operation==='finish'&&!existsSync(${JSON.stringify(dispatchFault)})){
+   writeFileSync(${JSON.stringify(dispatchFault)},'acknowledgment lost');
+   return Response.json({message:'synthetic dispatch acknowledgment outage'},{status:503});
+  }
+ }
+ return original(input,init);
+};`);
   const key=await generateKeyPair('ES256',{extractable:true});
   const env={...process.env, AGENT_OAUTH_SIGNING_JWK:JSON.stringify({...await exportJWK(key.privateKey),kid:'runtime-test'}), TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64'), SUPABASE_URL:local.API_URL, SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,
     SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY, APP_ORIGIN:origin, PORT:String(port), HOST:'127.0.0.1',
@@ -43,6 +59,7 @@ test('real eve ingress binds request authority, deduplicates input and recovers 
     // lease. Accelerate expiration only in this isolated crash-test process;
     // production retains its default lease and never imports this fixture.
     WORKFLOW_INLINE_OWNERSHIP_LEASE_SECONDS:'5',
+    NODE_OPTIONS:`--import=${preload}`,
     RUNTIME_DISPATCH_SECRET:'a'.repeat(64), FMAT_TEST_MARKER:marker, OPENAI_API_KEY:'', NODE_ENV:'development'};
   let child: ChildProcess | undefined, serverLog='';
   async function start(resume=false) {
@@ -118,8 +135,16 @@ test('real eve ingress binds request authority, deduplicates input and recovers 
     assert.equal((await fetch(origin+'/api/internal/conversations/dispatch',{method:'POST'})).status,401);
     const recovered=await fetch(origin+'/api/internal/conversations/dispatch',{method:'POST',headers:{authorization:'Bearer '+'a'.repeat(64)}});
     assert.equal(recovered.status,200,await recovered.clone().text());
-    assert.deepEqual(await recovered.json(),{claimed:1,sent:1});
+    assert.deepEqual(await recovered.json(),{claimed:1,sent:0},'lost acknowledgment must not be reported as a recorded dispatch');
+    await access(dispatchFault);
     await waitUntil(async()=>await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}' and status='completed';`)==='2','Continuation did not finish');
+    assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}' and dispatch_token is not null and dispatch_attempts=1;`),'1','acknowledgment failure retains the original lease');
+    const canonical=await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${scope}';`);
+    await stop();await start(true);
+    const settledSweep=await fetch(origin+'/api/internal/conversations/dispatch',{method:'POST',headers:{authorization:'Bearer '+'a'.repeat(64)}});
+    assert.equal(settledSweep.status,200);assert.deepEqual(await settledSweep.json(),{claimed:0,sent:0},'completed delivery is not redispatched after acknowledgment loss and restart');
+    assert.equal(await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${scope}';`),canonical);
+    assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}';`),'2');
     const resumedController=new AbortController();
     const resumed=await fetch(`${origin}/api/conversations/${scope}/stream?cursor=${cursor}`,{headers:headers(),signal:resumedController.signal});
     assert.equal(resumed.status,200);
