@@ -6,8 +6,8 @@
 
 ## 2. Durable authorized intent
 
-- [ ] 2.1 Add strict request/status contracts and a private RLS-protected intent with atomic audit/publication, one intent per link and exact retry behavior; generate/review an additive pg-delta migration and verify unauthorized/cross-host/concurrent requests in SQL and integration tests. Document the backend boundary.
-- [ ] 2.2 Implement bounded claiming, current session/admission/link/receiver checks, dispatch marking, fenced completion and expired-owner recovery; verify crashes before/after dispatch, revoked authority, changed routes, retry exhaustion and stale finish without duplicate sharing. Rebuild the full local migration chain and run database tests/advisors.
+- [x] 2.1 Add strict request/status contracts and a private RLS-protected intent with atomic audit/publication, one intent per link and exact retry behavior; generate/review an additive pg-delta migration and verify unauthorized/cross-host/concurrent requests in SQL and integration tests. Document the backend boundary.
+- [x] 2.2 Implement bounded claiming, current session/admission/link/receiver checks, dispatch marking, fenced completion and expired-owner recovery; verify crashes before/after dispatch, revoked authority, changed routes, retry exhaustion and stale finish without duplicate sharing. Rebuild the full local migration chain and run database tests/advisors.
 
 ## 3. Worker and browser integration
 

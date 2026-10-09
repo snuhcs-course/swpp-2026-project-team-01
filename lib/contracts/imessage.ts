@@ -16,3 +16,11 @@ export const imessageState=z.object({
  outcome:z.enum(['invalid_code','linked']).optional(),
 });
 export type IMessageState=z.infer<typeof imessageState>;
+
+export const contactShareReadInput=z.strictObject({linkId:z.uuid()});
+export const contactShareInput=contactShareReadInput.extend({idempotencyKey:z.uuid()});
+export const contactShareState=z.strictObject({
+ id:z.uuid(),linkId:z.uuid(),requestedAt:z.string(),
+ status:z.enum(['queued','accepted','failed','revoked','uncertain']),
+});
+export type ContactShareState=z.infer<typeof contactShareState>;

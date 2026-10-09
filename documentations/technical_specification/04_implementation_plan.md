@@ -404,6 +404,7 @@ References: [email direction](01_backend_architecture.md#email-provider-directio
 
 ### Phase 7 — Add verified host iMessage continuity
 
+- [x] Implement the durable native contact-sharing foundation with one intent per verified link, strict host inputs, atomic audit/work, current route/session/admission guards and bounded recovery that never resends after dispatch. Rebuild 106 local migrations; pass 63 contact-sharing SQL assertions, all 1,810 SQL assertions after 49 integrations, 369 app/provider tests, typechecks and clean security advisors. [Evidence](05_rebuild_evidence.md#durable-contact-sharing-foundation--2026-10-09). Worker/scheduler, browser action, deployment and authorized device acceptance remain open.
 - [x] Define the [optional native contact-sharing change](../../openspec/changes/offer-imessage-contact-card/proposal.md), including explicit host intent, saved private route, durable single dispatch and honest uncertainty. Strict OpenSpec validation passes; implementation and authorized device acceptance remain open.
 - [x] Implement and verify the native Photon contact-sharing transport with exact-route and current-authority guards, no automatic resend, sanitized outcomes and preview denial. Pass 367 app/provider tests, the real Auth/linking integration, typechecks and all 1,747 SQL assertions. [Evidence](05_rebuild_evidence.md#native-contact-sharing-transport--2026-10-09). Durable intent, browser action, deployment and authorized device acceptance remain open.
 

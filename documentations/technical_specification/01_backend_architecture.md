@@ -376,6 +376,16 @@ Claims carry lease/ownership metadata and attempt counts. Retry transient failur
 
 For notification dispatch, recheck recipient authorization and suppress obsolete pending summaries. Persist provider references and retry identity. An uncertain send must be reconciled under the provider's capabilities and idempotency window; do not assume that retrying always avoids duplicate email. Maintain separate requester and host-private outbox entries even when they refer to the same request.
 
+### Optional native contact-sharing intent
+
+The [contact-sharing change](../../openspec/changes/offer-imessage-contact-card/tasks.md) adds the server-only `HostContactSharing` boundary and `fmat_photon_contact` RPC. A current admitted host submits only the active link ID and a retry UUID; the database derives the project-bound private recipient/route from the verified link. The service rejects preview requests before database access. Read responses contain only intent ID, link ID, requested time and a bounded status. Neither model text nor successful linking creates an intent.
+
+`photon_contact_shares` is both the durable intent and recoverable work item. Creation and a redacted audit commit atomically. One row per link plus remembered host-scoped retry keys prevent concurrent clicks, lost responses or key reuse against a replacement link from creating another share. RLS and private-schema privileges keep tables unavailable to Data API clients; public RPCs are service-only, and internal helpers explicitly revoke caller execution.
+
+The delivery RPC claims one queued item with a two-minute lease and at most three claims. It checks the initiating Auth session, current admission, enabled receiver and frozen link route in host-before-intent lock order, including wall-clock deadlines after waits. Only a fresh dispatch operation can change queued to dispatching. Duplicate dispatch calls cannot repeat permission. Lost dispatch acknowledgement or expired dispatch ownership becomes terminal uncertainty; it can never return to queued. Pre-dispatch failures can retry after thirty seconds, then fail visibly. A stale lease cannot mark acceptance. Provider acknowledgement is recorded independently of subsequent unlink because an already dispatched effect cannot be recalled.
+
+This foundation has no active HTTP worker, browser contact action or recovery scheduler yet. Those remain tasks in the owning change. The existing native transport alone provides no device-delivery, contact-import or display-name evidence.
+
 ### Private iMessage reply outbox
 
 The eve channel captures only final (`finishReason=stop`) assistant text in checkpointed per-input state. Settlement atomically records input completion and one immutable `photon_replies` intent for an accepted linked receipt. Web inputs produce no iMessage intent. Failed or empty final output produces a fixed browser-recovery message; overlong replies use a Unicode-safe 4,000-character limit and a link to `/app`. A failed settlement leaves the input pending; the input recovery sweep resends the same input to eve, whose checkpoint retries settlement without invoking the model again. A later failure notification cannot replace checkpointed completion.
