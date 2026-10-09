@@ -43,8 +43,13 @@ test('account-free intake fences provider reads and recovers concurrent/lost sub
   // Concurrent first submissions, not just already-committed replay.
   const second=randomBytes(32).toString('base64url');const firsts=await Promise.all(Array.from({length:8},()=>service.create(handle,second,details)));assert.equal(new Set(firsts.map(r=>r.requestId)).size,1);
   await sql.query(`update fmat.requests set status='withdrawn',token_revoked_at=now(),private_notes='PRIVATE' where id='${continuation.requestId}';`);
-  assert.equal((await service.resume(handle,token))?.closed,true);const receipt=await commands.guest(guestCredential(continuation.requestId,token));assert.equal(receipt.closed,true);assert.equal(receipt.title,null);
+  assert.equal((await service.resume(handle,token))?.closed,true);const receipt=await commands.guest(guestCredential(continuation.requestId,token));assert.deepEqual(receipt,{requestId:continuation.requestId,status:'withdrawn',closed:true,title:null,proposal:null});
+  assert.doesNotMatch(JSON.stringify(receipt),/PRIVATE|requester@example.test|함께 이야기하기/);
+  assert.equal((await service.create(handle,token,details)).closed,true,'lost-response replay retains closed continuation without recreating the request');
   await sql.query(`update fmat.requests set token_expires_at=now()-interval '1 second' where id='${continuation.requestId}';`);await assert.rejects(service.resume(handle,token),code('NOT_FOUND'));
+  await assert.rejects(commands.guest(guestCredential(continuation.requestId,token)),code('NOT_FOUND'));
+  await assert.rejects(service.create(handle,token,details),code('NOT_FOUND'));
+  assert.equal(await sql.query(`select status from fmat.requests where id='${continuation.requestId}';`),'withdrawn','expired continuation never reopens a closed request');
   let releaseDisconnect!:()=>void,enteredDisconnect!:()=>void;const arrivedDisconnect=new Promise<void>(r=>enteredDisconnect=r),waitDisconnect=new Promise<void>(r=>releaseDisconnect=r);gate=async()=>{enteredDisconnect();await waitDisconnect;};
   const revoked=service.create(handle,randomBytes(32).toString('base64url'),details),denied=assert.rejects(revoked,code('NOT_FOUND'));await arrivedDisconnect;await sql.query(`update fmat.calendar_connections set revoked_at=now(),encrypted_credential=null where principal_id='${host}';`);releaseDisconnect();await denied;gate=async()=>{};
   assert.equal(await sql.query(`select count(*) from fmat.requests where host_id='${host}';`),'2');
