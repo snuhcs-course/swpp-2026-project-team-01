@@ -46,6 +46,11 @@ test('Calendar choices use fresh permissions and recheck current Auth/grant afte
     await paused(()=>service.list(credential),()=>new CalendarConsent(database,env).disconnect(credential),'RECONNECT_REQUIRED');
     assert.equal(await sql.query(`select encrypted_credential is null from fmat.calendar_connections where principal_id='${host}';`),'t');
     await sql.query(`update fmat.calendar_connections set revoked_at=null,encrypted_credential='${encrypted}',generation=gen_random_uuid() where principal_id='${host}';`);
+    const concurrent=cipher.seal({...bundle,accessToken:'concurrent-access',expiresAt:Date.now()+3600000},'google:host:'+host),beforeRefreshList=listCalls;
+    await paused(()=>service.list(credential),()=>sql.query(`update fmat.calendar_connections set encrypted_credential='${concurrent}' where principal_id='${host}';`),'STALE_REVISION');
+    assert.equal(listCalls,beforeRefreshList,'A lost refresh comparison cannot read calendars with stale credentials');
+    assert.equal(await sql.query(`select encrypted_credential from fmat.calendar_connections where principal_id='${host}';`),concurrent,'Refresh cannot overwrite a newer credential in the same generation');
+    await sql.query(`update fmat.calendar_connections set encrypted_credential='${encrypted}' where principal_id='${host}';`);
     await paused(()=>service.list(credential),async()=>{const logout=await fetch(local.API_URL+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+token}});assert.equal(logout.status,204);},'UNAUTHORIZED');
     assert.equal(await sql.query(`select encrypted_credential from fmat.calendar_connections where principal_id='${host}';`),encrypted,'logout during refresh prevents writing new credentials');
   }finally{

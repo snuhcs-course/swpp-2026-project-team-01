@@ -2,6 +2,12 @@
 
 Updated: 2026-10-09. This ledger tracks the entire [implementation plan](04_implementation_plan.md); an empty evidence cell is incomplete, not a passed gate.
 
+## Legacy Calendar OAuth audit — 2026-10-09
+
+Read all five retired onboarding OAuth assertions and recorded their [replacement map](../../tests/README.md#legacy-calendar-oauth-assertion-audit). Two new unit tests verify exact state/binding hashing, encrypted independent PKCE/nonce, authorization URL projection and eight malformed callback inputs rejected before database/provider I/O. Actual consent integration now confirms wrong-browser input cannot consume valid state, denial returns the exact requester workspace, a fresh start invalidates the prior flow and a restart during provider exchange prevents the older callback from saving. The latest flow can still be consumed. Actual selection integration replaces ciphertext during refresh without changing generation and verifies compare-and-swap rejection, unchanged newer ciphertext and zero subsequent calendar reads.
+
+Four focused consent/Google adapter tests, both sequential Calendar integrations, `npm run check` with 445 application/provider tests and all 1,860 post-fixture SQL assertions pass. The current refresh interface uses generation plus ciphertext instead of the retired timestamp/reread mechanism. Consent restart creates new artifacts rather than replaying an old idempotency key; these are explicit replacement contracts, not wire compatibility. Existing browser cookie checks were inspected but not rerun for this service-test-only increment. No application, schema or provider configuration changed, so no production redeployment is needed. Live Google consent and the wider implementation/release gates remain open.
+
 ## Legacy booking worker and runtime audit — 2026-10-09
 
 Read all 24 named assertions in the retired booking durable adapter, handler and runtime at `5c305d9^`. The [assertion map](12_legacy_booking_audit.md) records preserved authority/recovery behavior and explicit replacement contracts: strict worker leases with SQL-owned job binding, persisted evaluation evidence, asynchronous duplicate-ID reconciliation, renamed worker outcomes and conservative local/provider context merging. The destination-only regression was corrected and deployed in the preceding increment; this audit adds no runtime or schema change.

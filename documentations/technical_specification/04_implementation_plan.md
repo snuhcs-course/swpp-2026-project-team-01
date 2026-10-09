@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Reconcile all five retired Calendar OAuth assertions: verify independent hashed/encrypted consent secrets, pre-I/O malformed callback rejection, wrong-browser nonconsumption, superseded callback/save denial and refresh ciphertext comparison. Pass 445 app/provider tests, both Calendar integrations and 1,860 post-fixture SQL assertions. [Evidence](05_rebuild_evidence.md#legacy-calendar-oauth-audit--2026-10-09). Document fresh-start and refresh API differences; live consent and the wider legacy audit remain open.
+
 - [x] Audit all 24 retired booking adapter/handler/runtime assertions; add strict lease/context, persisted job-binding and replacement receipt-scope coverage. Verify 443 app/provider tests, actual booking and availability integrations, and 1,860 post-fixture SQL assertions. Record asynchronous duplicate-ID reconciliation and other API changes in the [audit](12_legacy_booking_audit.md) and [evidence](05_rebuild_evidence.md#legacy-booking-worker-and-runtime-audit--2026-10-09). Wider legacy and live-provider gates remain open.
 
 - [x] Deploy the booking-destination correction from `bab8503` as `dpl_GyFfpJ7GCKNDCcVHuZqDgoo7qFeR`; verify the exact Ready release alias, protected health and 36 production HTTP checks. Complete booking task 2.1a. [Evidence](05_rebuild_evidence.md#deployed-booking-destination-checks--2026-10-09). Live Calendar acceptance remains open.
