@@ -1,3 +1,4 @@
+import {verifyHistoricalBusyReplay} from './conversation-busy-replay.ts';
 import {verifyRequesterRecovery} from './requester-recovery.ts';
 import {verifyRequesterEmail,emailInbox,emailReceiver} from './requester-email.ts';
 import {verifyConversationReconnect} from './conversation-reconnect.ts';
@@ -214,6 +215,7 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     await failure.waitFor();
     assert.equal(await sql.query(`select m.status from fmat.runtime_messages m join fmat.conversation_scopes c on c.id=m.conversation_id where c.host_id='${userId}' and m.text='A model-limited browser question.';`),'failed');
     assert.equal(await sql.query(`select count(*) from fmat.model_work_attempts w join fmat.runtime_messages m on w.name='conversation:'||m.id::text join fmat.conversation_scopes c on c.id=m.conversation_id where c.host_id='${userId}' and m.text='A model-limited browser question.';`),'0');
+    await verifyHistoricalBusyReplay(page);
     await page.reload();await failure.waitFor();await page.getByRole('button',{name:'Reconnect now'}).click();await failure.waitFor();
     await setup.getByRole('button',{name:'Edit schedule',exact:true}).click();
     await verifyWeeklyPreview(page,setup,context,origin);
