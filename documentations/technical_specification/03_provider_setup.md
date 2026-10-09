@@ -452,3 +452,7 @@ Local MCP verification uses the pinned official SDK against the built Next.js `/
 Production verification covers account-free consent, SDK context/clarification, unavailable-Calendar denial, exact creation retry, bound read, original-browser handoff and revocation. The first controlled request was created through service-only SQL. This does not establish successful fresh MCP creation through real Calendar preflight; that remains required by task 4.1. Full scheduling workflows and each named client remain separate acceptance gates.
 
 Public entry instruction version `2026-10-09.6` is deployed with the integrated intake application. Its pinned CLI source is `72645aa394dab7b474420b908ffad740c3b132c5`, which contains intake login and private storage. A document fetch alone is not a successful client connection. Missing client target/OAuth support must disclose the limitation and retain the CLI or browser fallback.
+
+## Backup readiness
+
+The selected project’s current backup inventory and private logical export are recorded in the [backup and restoration runbook](09_backup_recovery.md). An empty platform backup list and disabled PITR remain a release gap. Preserve application encryption material separately; do not treat migration rebuilds or encrypted file verification as a successful restore.

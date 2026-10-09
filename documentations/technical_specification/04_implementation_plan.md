@@ -515,6 +515,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Inspect selected-project backup availability and export roles/schema/data plus 102 migration records to private encrypted local storage; verify authenticated decryption and tamper rejection, and document [restoration boundaries](09_backup_recovery.md). [Evidence](05_rebuild_evidence.md#backup-inventory-and-private-logical-export--2026-10-09). Platform restore points, isolated restore, off-site custody, retention and numeric recovery objectives remain open.
+
 - [x] Verify requester detail-review keyboard prerequisites and preserve intake-context failure artifacts for CI run `37879259941`; pass both browser suites and all 1,695 SQL assertions. [Evidence](05_rebuild_evidence.md#requester-review-keyboard-prerequisites--2026-10-09). Hosted intermittent UI acceptance remains open.
 
 - [x] Add pre-cleanup requester scheduling evidence and explicit second-selection response/version assertions for CI run `37878647395`; verify types, both browser suites and all 1,695 SQL assertions. [Evidence](05_rebuild_evidence.md#requester-scheduling-ci-failure-evidence--2026-10-09). The intermittent proposal-display failure remains unresolved.

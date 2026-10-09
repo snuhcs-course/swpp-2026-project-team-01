@@ -51,3 +51,5 @@ Record the selected project, observation time, category and relevant opaque ID i
 - For mismatched decisions, return to the current proposal's participant review. No operator action substitutes for requester agreement or explicit host approval.
 
 New automated alerts, durable denial/stale-rejection instrumentation, additional audited recovery commands, retention/deletion, backup restoration, performance targets and operational ownership remain open [Phase 9 requirements](04_implementation_plan.md#phase-9--harden-deploy-and-close-release-gates).
+
+See [backup and restoration readiness](09_backup_recovery.md) before treating a database restore as job or provider recovery. Restoring saved state does not reverse external effects.

@@ -65,3 +65,5 @@ Add or update links when documents are created, moved, or renamed. Keep product 
 Use two-digit prefixes starting at `01` for ordered documents within each directory, followed by a concise lowercase snake_case name. Keep `README.md` as the unnumbered index. Research files use descriptive names without sequence numbers. Filename numbering does not change stable requirement, acceptance, journey, or story IDs.
 
 The [operational diagnostics runbook](technical_specification/08_operational_diagnostics.md) documents private read-only inspection, signal limits and guarded recovery.
+
+The [backup and restoration runbook](technical_specification/09_backup_recovery.md) records verified coverage, private logical export, isolated restoration and unresolved release gates.
