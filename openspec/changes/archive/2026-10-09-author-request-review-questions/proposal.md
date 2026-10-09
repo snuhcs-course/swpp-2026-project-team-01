@@ -2,7 +2,7 @@
 
 ## Why
 
-The final gap in the [legacy requester assertion map](../../../tests/README.md#legacy-requester-model-assertion-map) is that a model-generated clarification can falsely claim booking or approval in a pending review. Restore authored clarification wording while keeping the [PRD's](../../../documentations/02_product_requirements.md) English/Korean conversational intake and useful missing-field questions.
+The final gap in the [legacy requester assertion map](../../../../tests/README.md#legacy-requester-model-assertion-map) is that a model-generated clarification can falsely claim booking or approval in a pending review. Restore authored clarification wording while keeping the [PRD's](../../../../documentations/02_product_requirements.md) English/Korean conversational intake and useful missing-field questions.
 
 ## What Changes
 
@@ -19,7 +19,7 @@ None.
 
 ### Modified Capabilities
 
-- `meeting-requests`: authored clarification questions for new application model extraction, extending [constrained interpretation](../../specs/meeting-requests/spec.md).
+- `meeting-requests`: authored clarification questions for new application model extraction, extending [constrained interpretation](../../../specs/meeting-requests/spec.md).
 
 ## Impact
 

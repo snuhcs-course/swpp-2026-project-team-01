@@ -132,6 +132,8 @@ References: [runtime decision](../03_technical_specification.md#backend-decision
 
 ### Phase 2 — Build contracts, identity, schema and durable effects
 
+- [x] Deploy authored requester review questions from `20c3876` (`dpl_CGQaQVUf7ZbcFD7K7HRP5T1uBFF7`), verify the exact Ready alias and 20 production checks, sync and archive all four tasks. [Evidence](05_rebuild_evidence.md#deployed-authored-requester-review-questions--2026-10-09). All eight requester extractor assertions are reconciled with the documented rejection-policy change; broader narration, legacy audit and live acceptance remain open.
+
 - [x] Verify requester-window expiry during observed request-lock waits for proposal and apply, state preservation, and committed replay after time passes. Pass real RPC integration, 1,853 post-fixture SQL assertions, 413 app/provider tests, both builds and runtime smoke. [Evidence](05_rebuild_evidence.md#requester-review-window-integrated-acceptance--2026-10-09). Production verification and archive remain open.
 
 - [x] Verify authored Korean review questions, exact and changed-language retries, false-claim rejection with unchanged state, explicit apply guards, four runtime tests, 1,853 post-fixture SQL assertions, 419 app/provider tests, builds and smoke. [Evidence](05_rebuild_evidence.md#authored-requester-question-integrated-acceptance--2026-10-09). Production rollout remains open.

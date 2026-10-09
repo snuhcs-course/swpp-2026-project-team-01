@@ -10,5 +10,5 @@
 
 ## 3. Production completion
 
-- [ ] 3.1 Deploy a scanned clean committed archive to the identified release target and verify Ready health, promotion, exact alias and production HTTP guards. Record source/deployment identity.
-- [ ] 3.2 Audit task evidence, sync/archive the bounded requirement and update the legacy map and implementation plan, retaining ordinary-chat/external-agent narration and live-provider/client gaps explicitly.
+- [x] 3.1 Deploy a scanned clean committed archive to the identified release target and verify Ready health, promotion, exact alias and production HTTP guards. Record source/deployment identity.
+- [x] 3.2 Audit task evidence, sync/archive the bounded requirement and update the legacy map and implementation plan, retaining ordinary-chat/external-agent narration and live-provider/client gaps explicitly.
