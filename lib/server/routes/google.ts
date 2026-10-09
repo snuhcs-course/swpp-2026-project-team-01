@@ -1,3 +1,4 @@
+import {providerSignal,providerFetch,providerBody} from '../calendar/transport.ts';
 import {createHash} from 'node:crypto';
 import {Temporal} from '@js-temporal/polyfill';
 import {z} from 'zod';
@@ -16,10 +17,10 @@ export function routeFingerprint(raw:RouteRequest){
  const input=routeRequest.parse(raw);
  return createHash('sha256').update(JSON.stringify({version:1,origin:waypoint(input.origin),destination:waypoint(input.destination),mode:input.mode,departureTime:Temporal.Instant.from(input.departureTime).toString()})).digest('hex');
 }
-export interface RoutesProvider {estimate(input:RouteRequest):Promise<RouteResult>;}
+export interface RoutesProvider {estimate(input:RouteRequest,shared?:AbortSignal):Promise<RouteResult>;}
 export class GoogleRoutes implements RoutesProvider {
  constructor(private readonly env=process.env,private readonly fetcher:typeof fetch=fetch,private readonly now:()=>number=Date.now,private readonly timeoutMs=10000){}
- async estimate(raw:RouteRequest):Promise<RouteResult>{
+ async estimate(raw:RouteRequest,shared?:AbortSignal):Promise<RouteResult>{
   const checkedAt=new Date(this.now()).toISOString();
   if(raw&&typeof raw==='object'&&'mode' in raw&&!routeMode.safeParse(raw.mode).success)return {status:'unsupported',reason:'mode',fingerprint:null,checkedAt};
   const parsed=routeRequest.safeParse(raw);if(!parsed.success)return {status:'failure',reason:'invalid_input',fingerprint:null,checkedAt};
@@ -28,14 +29,13 @@ export class GoogleRoutes implements RoutesProvider {
   const key=this.env.GOOGLE_MAPS_API_KEY?.trim();if(!key)return {status:'failure',reason:'configuration',...base};
   const transit=input.mode==='TRANSIT';
   const fields=['routes.duration','routes.distanceMeters','fallbackInfo','geocodingResults',...(transit?['routes.legs.steps.travelMode','routes.legs.steps.staticDuration','routes.legs.steps.transitDetails.stopDetails.departureTime','routes.legs.steps.transitDetails.stopDetails.arrivalTime']:[])].join(',');
+  const signal=providerSignal(shared,Math.max(1,Math.min(15000,this.timeoutMs)));
   try{
-   const response=await this.fetcher('https://routes.googleapis.com/directions/v2:computeRoutes',{method:'POST',headers:{'content-type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':fields},body:JSON.stringify({origin:waypoint(input.origin),destination:waypoint(input.destination),travelMode:input.mode,departureTime:Temporal.Instant.from(input.departureTime).toString(),computeAlternativeRoutes:false,...(input.mode==='DRIVE'?{routingPreference:'TRAFFIC_AWARE'}:{})}),signal:AbortSignal.timeout(Math.max(1,Math.min(15000,this.timeoutMs))),cache:'no-store',redirect:'error'});
+   const response=await providerFetch(this.fetcher,'https://routes.googleapis.com/directions/v2:computeRoutes',{method:'POST',headers:{'content-type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':fields},body:JSON.stringify({origin:waypoint(input.origin),destination:waypoint(input.destination),travelMode:input.mode,departureTime:Temporal.Instant.from(input.departureTime).toString(),computeAlternativeRoutes:false,...(input.mode==='DRIVE'?{routingPreference:'TRAFFIC_AWARE'}:{})}),signal,cache:'no-store',redirect:'error'},signal);
    if(response.status===501)return {status:'unsupported',reason:'mode',...base};
    if(!response.ok)return {status:'failure',reason:response.status===401||response.status===403?'denied':response.status===429?'rate_limit':'unavailable',...base};
-   const reader=response.body?.getReader();if(!reader)return {status:'failure',reason:'malformed',...base};
-   let size=0;const chunks:Uint8Array[]=[];
-   try{for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>512*1024){await reader.cancel();return {status:'failure',reason:'malformed',...base};}chunks.push(value);}}finally{reader.releaseLock();}
-   const parsedResponse=responseSchema.safeParse(JSON.parse(Buffer.concat(chunks).toString('utf8')));if(!parsedResponse.success)return {status:'failure',reason:'malformed',...base};
+   const bytes=await providerBody(response,signal,512*1024);
+   const parsedResponse=responseSchema.safeParse(JSON.parse(bytes.toString('utf8')));if(!parsedResponse.success)return {status:'failure',reason:'malformed',...base};
    const body=parsedResponse.data;
    if(body.fallbackInfo!==undefined)return {status:'unsupported',reason:'provider_fallback',...base};
    if(!body.routes?.length)return {status:'no_route',...base};
@@ -56,6 +56,6 @@ export class GoogleRoutes implements RoutesProvider {
     if(cursor-departure>elapsed)elapsed=cursor-departure;
    }
    return {status:'success',...base,departureTime:Temporal.Instant.from(input.departureTime).toString(),durationNanoseconds:elapsed.toString(),distanceMeters:route.distanceMeters??null};
-  }catch(error){return {status:'failure',reason:error instanceof SyntaxError?'malformed':error instanceof Error&&['TimeoutError','AbortError'].includes(error.name)?'deadline':'unavailable',...base};}
+  }catch(error){return {status:'failure',reason:signal.aborted?'deadline':error instanceof SyntaxError?'malformed':error instanceof Error&&['TimeoutError','AbortError'].includes(error.name)?'deadline':'unavailable',...base};}
  }
 }

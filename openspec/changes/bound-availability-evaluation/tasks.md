@@ -3,7 +3,7 @@
 ## 1. Shared budget and provider cancellation
 
 - [x] 1.1 Implement the invocation-scoped 18-second budget with monotonic timing, disposal and bounded waiting; verify expiry-before-call, boundary expiry, late resolve/reject, non-cooperative promises and independent concurrent invocations. Document its cancellation limits in the owning architecture document.
-- [ ] 1.2 Thread the shared cancellation signal through Calendar refresh/list/freebusy/adjacent and Routes adapters without resetting narrower timeouts. Verify real installed OAuth transport cancellation, paginated/header/body stalls and zero subsequent provider calls after expiry; update provider test documentation.
+- [x] 1.2 Thread the shared cancellation signal through Calendar refresh/list/freebusy/adjacent and Routes adapters without resetting narrower timeouts. Verify real installed OAuth transport cancellation, paginated/header/body stalls and zero subsequent provider calls after expiry; update provider test documentation.
 
 ## 2. Evaluation and publication integration
 

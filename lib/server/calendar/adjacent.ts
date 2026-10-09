@@ -1,3 +1,4 @@
+import {providerSignal,providerFetch,providerBody} from './transport.ts';
 import {createHash} from 'node:crypto';
 import {Temporal} from '@js-temporal/polyfill';
 import {z} from 'zod';
@@ -21,14 +22,14 @@ function instant(value:z.infer<typeof endpoint>,zone:string){
  if(value.date)return Temporal.PlainDate.from(value.date).toZonedDateTime(zone).toInstant().toString();
  try{return Temporal.Instant.from(value.dateTime!).toString();}catch{if(!value.timeZone)throw new Error();return Temporal.PlainDateTime.from(value.dateTime!).toZonedDateTime(value.timeZone,{disambiguation:'reject'}).toInstant().toString();}
 }
-export interface AdjacentEventProvider {read(accessToken:string,calendarIds:string[],candidate:SchedulingInterval,assertCurrent:()=>Promise<void>):Promise<TravelCommitment[]>;}
+export interface AdjacentEventProvider {read(accessToken:string,calendarIds:string[],candidate:SchedulingInterval,assertCurrent:()=>Promise<void>,shared?:AbortSignal):Promise<TravelCommitment[]>;}
 /** Bounded complete reads establish known neighbors, never an assumed location
  * outside coverage. Titles, descriptions, attendee identity and meeting URLs
  * are neither requested nor retained. */
 export class GoogleAdjacentEvents implements AdjacentEventProvider {
  constructor(private readonly fetcher:typeof fetch=fetch){}
- async read(accessToken:string,calendarIds:string[],candidate:SchedulingInterval,assertCurrent:()=>Promise<void>):Promise<TravelCommitment[]>{
-  const ids=z.array(z.string().min(1).max(1024)).min(1).max(50).refine(v=>new Set(v).size===v.length).parse(calendarIds),range=travelReadRange(candidate),signal=AbortSignal.timeout(20_000),result:TravelCommitment[]=[];
+ async read(accessToken:string,calendarIds:string[],candidate:SchedulingInterval,assertCurrent:()=>Promise<void>,shared?:AbortSignal):Promise<TravelCommitment[]>{
+  const ids=z.array(z.string().min(1).max(1024)).min(1).max(50).refine(v=>new Set(v).size===v.length).parse(calendarIds),range=travelReadRange(candidate),signal=providerSignal(shared,20_000),result:TravelCommitment[]=[];
   let totalBytes=0,totalEvents=0;
   try{for(const calendarId of ids){let token:string|undefined,zone:string|undefined;const seen=new Set<string>(),tokens=new Set<string>();
    for(let page=0;page<10;page++){
@@ -38,11 +39,10 @@ export class GoogleAdjacentEvents implements AdjacentEventProvider {
     const timeMin=Temporal.Instant.from(range.start).round({smallestUnit:'second',roundingMode:'floor'}).toString(),timeMax=Temporal.Instant.from(range.end).round({smallestUnit:'second',roundingMode:'ceil'}).toString();
     for(const [key,value] of Object.entries({singleEvents:'true',showDeleted:'false',showHiddenInvitations:'true',maxResults:'250',maxAttendees:'1',timeMin,timeMax,fields:'timeZone,accessRole,nextPageToken,nextSyncToken,items(id,etag,status,transparency,eventType,start,end,location,conferenceData(entryPoints(entryPointType),conferenceSolution(key(type))),attendees(self,responseStatus))'}))url.searchParams.set(key,value);
     if(token)url.searchParams.set('pageToken',token);
-    const response=await this.fetcher(url,{headers:{authorization:'Bearer '+accessToken},signal,cache:'no-store',redirect:'error'});
+    const response=await providerFetch(this.fetcher,url,{headers:{authorization:'Bearer '+accessToken},signal,cache:'no-store',redirect:'error'},signal);
     if([401,403,404].includes(response.status))throw new ApplicationError('RECONNECT_REQUIRED',409);if(!response.ok)throw new Error();
-    const reader=response.body?.getReader();if(!reader)throw new Error();let bytes=0;const chunks:Uint8Array[]=[];
-    try{for(;;){const {done,value}=await reader.read();if(done)break;bytes+=value.length;totalBytes+=value.length;if(bytes>2*1024*1024||totalBytes>8*1024*1024){await reader.cancel();throw new Error();}chunks.push(value);}}finally{reader.releaseLock();}
-    const data=pageSchema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')));Temporal.Instant.from(candidate.start).toZonedDateTimeISO(data.timeZone);
+    const bytes=await providerBody(response,signal,2*1024*1024);totalBytes+=bytes.length;if(totalBytes>8*1024*1024)throw new Error();
+    const data=pageSchema.parse(JSON.parse(bytes.toString('utf8')));Temporal.Instant.from(candidate.start).toZonedDateTimeISO(data.timeZone);
     if(zone&&zone!==data.timeZone||!data.items&&!data.nextPageToken&&!data.nextSyncToken)throw new Error();zone=data.timeZone;
     for(const e of data.items??[]){
      if(seen.has(e.id)||++totalEvents>10000)throw new Error();seen.add(e.id);

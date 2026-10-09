@@ -1,3 +1,4 @@
+import {providerSignal,providerFetch,providerBody} from './transport.ts';
 import {z} from 'zod';
 import {Temporal} from '@js-temporal/polyfill';
 import {availabilityWindows,interval,type Interval} from '../../contracts/availability.ts';
@@ -22,21 +23,20 @@ export function bufferedReadWindows(windows:Interval[],bufferMinutes:number):Int
  const ranges=availabilityWindows.parse(windows),buffer=BigInt(z.number().int().min(0).max(240).parse(bufferMinutes))*60n*1000000000n;
  return splitWindows(mergeIntervals(ranges.map(v=>({start:iso(instant(v.start)-buffer),end:iso(instant(v.end)+buffer)}))));
 }
-export interface FreeBusyProvider {read(accessToken:string,calendarIds:string[],windows:Interval[]):Promise<Interval[]>;}
+export interface FreeBusyProvider {read(accessToken:string,calendarIds:string[],windows:Interval[],shared?:AbortSignal):Promise<Interval[]>;}
 export class GoogleFreeBusy implements FreeBusyProvider {
   constructor(private readonly fetcher:typeof fetch=fetch){}
-  async read(accessToken:string,calendarIds:string[],windows:Interval[]):Promise<Interval[]>{
+  async read(accessToken:string,calendarIds:string[],windows:Interval[],shared?:AbortSignal):Promise<Interval[]>{
     const ids=z.array(z.string().min(1).max(1024)).min(1).max(50).parse(calendarIds),ranges=splitWindows(mergeIntervals(z.array(interval).min(1).max(60).refine(values=>values.every(v=>instant(v.end)-instant(v.start)<=31n*day)).parse(windows)));
-    const signal=AbortSignal.timeout(15_000),busy:Interval[]=[];
+    const signal=providerSignal(shared,15_000),busy:Interval[]=[];
     try{
       for(const range of ranges){
-        const response=await this.fetcher('https://www.googleapis.com/calendar/v3/freeBusy',{method:'POST',headers:{authorization:'Bearer '+accessToken,'content-type':'application/json'},body:JSON.stringify({timeMin:range.start,timeMax:range.end,timeZone:'UTC',calendarExpansionMax:50,groupExpansionMax:0,items:ids.map(id=>({id}))}),signal,cache:'no-store',redirect:'error'});
+        const response=await providerFetch(this.fetcher,'https://www.googleapis.com/calendar/v3/freeBusy',{method:'POST',headers:{authorization:'Bearer '+accessToken,'content-type':'application/json'},body:JSON.stringify({timeMin:range.start,timeMax:range.end,timeZone:'UTC',calendarExpansionMax:50,groupExpansionMax:0,items:ids.map(id=>({id}))}),signal,cache:'no-store',redirect:'error'},signal);
         if(response.status===401||response.status===403)throw new ApplicationError('RECONNECT_REQUIRED',409);
         if(!response.ok)throw new ApplicationError('PROVIDER_UNAVAILABLE',503);
         // Bound the response before parsing: provider failure must not exhaust runtime memory.
-        const reader=response.body?.getReader();if(!reader)throw new Error();let size=0;const chunks:Uint8Array[]=[];
-        try{for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>4*1024*1024){await reader.cancel();throw new Error();}chunks.push(value);}}finally{reader.releaseLock();}
-        const data=responseSchema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+        const bytes=await providerBody(response,signal,4*1024*1024);
+        const data=responseSchema.parse(JSON.parse(bytes.toString('utf8')));
         if(instant(data.timeMin)!==instant(range.start)||instant(data.timeMax)!==instant(range.end)||Object.keys(data.groups??{}).length)throw new Error();
         for(const id of ids){
           const calendar=Object.hasOwn(data.calendars,id)?data.calendars[id]:undefined;
