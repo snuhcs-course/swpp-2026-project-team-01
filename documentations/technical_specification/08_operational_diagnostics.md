@@ -56,7 +56,7 @@ See [backup and restoration readiness](09_backup_recovery.md) before treating a 
 
 ## Database rejection observations
 
-The [rejection observation change](../../openspec/changes/record-database-rejections/tasks.md) adds a separate snapshot; the existing v1 state snapshot and its unavailable event-rate fields remain unchanged. The deployed schema stores only `authorization_denied` and `stale_action`, UTC hour, count and last-observed timestamp. No actor, request, error text, provider or credential data is accepted.
+The [rejection observation change](../../openspec/changes/archive/2026-10-09-record-database-rejections/tasks.md) adds a separate snapshot; the existing v1 state snapshot and its unavailable event-rate fields remain unchanged. The deployed schema stores only `authorization_denied` and `stale_action`, UTC hour, count and last-observed timestamp. No actor, request, error text, provider or credential data is accepted.
 
 The service-only recorder increments atomically, caps each bucket at 1,000,000 and prunes outside the current/preceding 23 UTC hours on a new write. A 50 ms lock timeout bounds counter contention. At most 48 ordinary rows are retained; idle expired rows may remain until another observation. Read-only inspection excludes those rows without deleting them, reports the partial current hour and saturation, and labels best-effort database-only coverage. Counts are observed attempts, not distinct actions, total event rates or proof collection is active. Pre-database/uncategorized denials remain unavailable.
 

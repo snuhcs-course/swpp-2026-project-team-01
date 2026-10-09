@@ -8,4 +8,4 @@
 ## 2. Integrated release verification
 
 - [x] 2.1 Run application/type/build, database/integration and restore regressions; review and deploy the additive schema and application with production activation to the selected release target, then verify protected collection, operator counts, unchanged domain state and production guards with sanitized evidence.
-- [ ] 2.2 Update the implementation plan and evidence ledger, run strict OpenSpec validation, and sync/archive the change only after every bounded requirement above is verified; keep broader Phase 9 and pre-database coverage gaps explicit.
+- [x] 2.2 Update the implementation plan and evidence ledger, run strict OpenSpec validation, and sync/archive the change only after every bounded requirement above is verified; keep broader Phase 9 and pre-database coverage gaps explicit.

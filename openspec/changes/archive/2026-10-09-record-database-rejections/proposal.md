@@ -2,7 +2,7 @@
 
 ## Why
 
-The [Phase 9 plan](../../../documentations/technical_specification/04_implementation_plan.md#phase-9--harden-deploy-and-close-release-gates) requires redacted diagnostics for rejected stale actions and authorization failures. The current [operational snapshot](../../specs/operational-diagnostics/spec.md) can only inspect retained domain state; rejected transactions leave no measurable event count.
+The [Phase 9 plan](../../../../documentations/technical_specification/04_implementation_plan.md#phase-9--harden-deploy-and-close-release-gates) requires redacted diagnostics for rejected stale actions and authorization failures. The current [operational snapshot](../../../specs/operational-diagnostics/spec.md) can only inspect retained domain state; rejected transactions leave no measurable event count.
 
 ## What Changes
 
