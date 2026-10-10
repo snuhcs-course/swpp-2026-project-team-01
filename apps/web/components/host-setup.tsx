@@ -42,7 +42,7 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
   catch(e){setError(e instanceof Error?e.message:'Please retry.');}finally{setBusy(false);}
  }
  async function refreshAfterAnalysis(){setBusy(true);try{setState(await call('read'));setEditor(null);}finally{setBusy(false);}}
- const settings=state?.draft?.settings??state?.confirmed,rules=settings?.rules,locked=disabled||busy||loading,guide=state?setupGuide(state):null;
+ const settings=state?.draft?.settings??state?.confirmed,rules=settings?.rules,editingLocked=disabled||busy,locked=editingLocked||loading,guide=state?setupGuide(state):null;
  const showReview=state?.review?.status==='pending'&&!!state.calendarGeneration&&state.calendarSelected;
  const openEditor=(section:Section)=>{if(state){editorOrigin.current=document.activeElement instanceof HTMLElement?document.activeElement:null;setEditor({section,base:state});}};
  const progress=(choice:string)=>{if(state)void mutate('progress',{expectedRevision:state.revision,choice});};
@@ -59,7 +59,7 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
     {settings?.displayName?<p className="break-words">{settings.displayName}{settings.handle?' · '+settings.handle:''}</p>:null}
     {rules?.timezone?<p>{rules.durationMinutes??'—'} minute meetings · {rules.timezone} · {rules.bufferMinutes??'—'} minute meeting buffer</p>:null}
     {settings?.displayName||rules?<Collapsible open={!editor&&(showReview||expanded)} onOpenChange={setExpanded} className="flex min-w-0 flex-col gap-3">
-     {!showReview?<CollapsibleTrigger asChild><Button className="min-h-11 h-auto whitespace-normal" variant="outline" disabled={locked||!!editor}>{expanded?'Hide preference details':'Show preference details'}</Button></CollapsibleTrigger>:<p>Review your complete draft below. These values are not confirmed yet.</p>}
+     {!showReview?<CollapsibleTrigger asChild><Button className="min-h-11 h-auto whitespace-normal" variant="outline" disabled={editingLocked||!!editor}>{expanded?'Hide preference details':'Show preference details'}</Button></CollapsibleTrigger>:<p>Review your complete draft below. These values are not confirmed yet.</p>}
      <CollapsibleContent className="flex min-w-0 flex-col gap-3">
     {rules?.availability&&editor?.section!=='schedule'?<WeeklyPreview windows={rules.availability} timezone={rules.timezone} title={state.draft&&state.draft.status!=='confirmed'?'Your draft meeting week':'Your confirmed meeting week'}/>:null}
     {rules?.focusBlocks?.length?<p>Additional focus blocks: {rules.focusBlocks.map(w=>new Date(w.start).toLocaleString(undefined,{timeZone:rules.timezone})+' – '+new Date(w.end).toLocaleString(undefined,{timeZone:rules.timezone})).join('; ')}</p>:null}
@@ -71,8 +71,8 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
      </CollapsibleContent>
     </Collapsible>:null}
     {state.nextAction==='refresh_draft'?<Alert><AlertTitle>Review your preferences again</AlertTitle><AlertDescription>Your calendar choices or saved settings changed. Your draft answers are preserved. Refresh the draft to review them against the current setup before confirming.</AlertDescription><Button disabled={locked} onClick={()=>void mutate('rebase',{expectedRevision:state.revision,rulesVersion:state.rulesVersion})}>Refresh my draft</Button></Alert>:null}
-    <div className="flex flex-wrap gap-2">{(['profile','schedule','mode','location','travel'] as Section[]).filter(s=>rules?.meetingMode!=='online'||!['location','travel'].includes(s)).map(section=><Button key={section} variant="outline" disabled={locked||state.nextAction==='refresh_draft'} onClick={()=>openEditor(section)}>Edit {section}</Button>)}</div>
-    {editor?<SetupEditor key={editor.section+':'+editor.base.revision} section={editor.section} state={editor.base} disabled={disabled||busy} savingDisabled={locked} onCancel={()=>{restoreFocus.current='origin';setEditor(null);}} onSave={(patch,unresolved)=>void mutate('draft',{expectedRevision:editor.base.revision,patch,unresolved})}/>:null}
+    <div className="flex flex-wrap gap-2">{(['profile','schedule','mode','location','travel'] as Section[]).filter(s=>rules?.meetingMode!=='online'||!['location','travel'].includes(s)).map(section=><Button key={section} variant="outline" disabled={editingLocked||state.nextAction==='refresh_draft'} onClick={()=>openEditor(section)}>Edit {section}</Button>)}</div>
+    {editor?<SetupEditor key={editor.section+':'+editor.base.revision} section={editor.section} state={editor.base} disabled={editingLocked} savingDisabled={locked} onCancel={()=>{restoreFocus.current='origin';setEditor(null);}} onSave={(patch,unresolved)=>void mutate('draft',{expectedRevision:editor.base.revision,patch,unresolved})}/>:null}
     {showReview&&!editor?<Button className="h-auto min-h-11 whitespace-normal" disabled={locked} onClick={()=>void mutate('confirm',{expectedRevision:state.revision,draftRevision:state.review!.draftRevision,reviewRevision:state.review!.revision,rulesVersion:state.rulesVersion,calendarGeneration:state.calendarGeneration,confirmed:true})}>Confirm these meeting settings</Button>:null}
    </>:null}
   </FieldSet>

@@ -1,3 +1,4 @@
+import {verifyHostRequestListRecovery} from './host-request-list-recovery.ts';
 import {verifyHostRevisionReview} from './host-revision-review.ts';
 import {verifyHostRequestRecovery} from './host-request-recovery.ts';
 import assert from 'node:assert/strict';
@@ -9,6 +10,7 @@ export async function verifyHostRequests(page:Page,guest:Page,sql:LocalSql,reque
  await sql.query(`insert into fmat.requests(id,host_id,details,token_hash,expires_at) values('${other}','${host}','{"requesterName":"Separate requester","purpose":"Separate discussion"}',encode(extensions.digest('${other}','sha256'),'hex'),now()+interval '1 day');`);
  await verifyHostRevisionReview(page,guest,sql,other,host);
  await verifyHostRequestRecovery(page,other);
+ await verifyHostRequestListRecovery(page,sql,host);
  assert.equal((await guest.request.get(origin+'/api/browser/host/requests')).status(),401);
  assert.equal((await guest.request.get(origin+'/api/browser/host/request?requestId='+requestId)).status(),401);
  await page.getByRole('button',{name:'Meeting requests',exact:true}).click();await picker.getByRole('button',{name:'Review Separate discussion from Separate requester'}).waitFor();

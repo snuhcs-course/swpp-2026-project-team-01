@@ -1,3 +1,4 @@
+import {verifySetupEditorReadNavigation} from './setup-editor-read-navigation.ts';
 import assert from 'node:assert/strict';
 import {expect,type Page,type BrowserContext} from '@playwright/test';
 
@@ -26,6 +27,7 @@ export async function verifySetupReadRecovery(page:Page,context:BrowserContext,o
   await expect(setup.getByRole('button',{name:'Edit profile',exact:true})).toBeEnabled();
   await expect(loading).toHaveCount(0);await expect(error).toHaveCount(0);await expect(setup).toHaveAttribute('aria-busy','false');
   await page.unroute(endpoint);
+  await verifySetupEditorReadNavigation(page);
   // A failed refresh must not leave previously published links actionable.
   await page.route(endpoint,route=>route.fulfill({status:503,json:{error:{message:'Setup could not be loaded. Try again.'}}}));
   await reload.click();await expect(error).toContainText('Setup could not be loaded.');await expect(loading).toHaveCount(0);
