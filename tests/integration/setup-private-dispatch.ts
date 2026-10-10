@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {Database} from '../../lib/server/database/client.ts';
 import {HostSetup} from '../../lib/server/setup/commands.ts';
+import {PublicIntake} from '../../lib/server/identity/public-intake.ts';
 import {CalendarConsent} from '../../lib/server/calendar/consent.ts';
 import {CalendarSelection} from '../../lib/server/calendar/selection.ts';
 import {calendarScopes} from '../../lib/server/calendar/google.ts';
@@ -63,14 +64,22 @@ export async function verifyPrivateSetupDispatch(input:{sql:LocalSql;database:Da
   assert.equal(reads,beforeReads+1);assert.equal(await version(),String(Number(initialVersion)+1));
   assert.equal(await sql.query(`select processed_at is null from fmat.photon_inbox where id=${q(later)};`),'t','Later command waits behind recovering confirmation');
   assert.equal(await reply(confirmation),'','Unacknowledged save does not fabricate a reply before recovery');
+  const resumed=await setup.read(credential),readiness=await setup.readiness(credential);
+  assert.deepEqual(readiness,{ready:true,handle:resumed.confirmed.handle},'Committed private confirmation exposes current readiness before a new draft');
+  const publicProfile=await new PublicIntake(database,env,provider).profile(readiness.handle!);
+  assert.equal(publicProfile.handle,resumed.confirmed.handle);
+  assert.deepEqual(Object.keys(publicProfile).sort(),['displayName','durationMinutes','handle','timezone']);
+  assert.doesNotMatch(JSON.stringify(publicProfile),/private-dispatch-fixture|private-refresh|private-subject|private-setup|bufferMinutes|preferences/u,'Public readiness never publishes provider credentials or private settings');
+  const beforeReplayReads=reads;
   // The original committed receipt must survive a newer web draft and a worker
   // restart. No recheck of the provider can overwrite the saved old decision.
   state=await setup.read(credential);state=await setup.draft(credential,{expectedRevision:state.revision,idempotencyKey:randomUUID(),patch:{rules:{bufferMinutes:25}},unresolved:[]});
   await sql.query(`update fmat.jobs set available_at=clock_timestamp() where payload->>'inboxId'=${q(confirmation)};`);
-  assert.equal((await dispatchPhotonInputs(database,env,provider)).accepted,1);assert.equal(reads,beforeReads+1);
+  assert.equal((await dispatchPhotonInputs(database,env,provider)).accepted,1);assert.equal(reads,beforeReplayReads,'Replaying a committed confirmation performs no provider read');
   assert.match(await reply(confirmation),/^Saved the settings from setup review /u);
   assert.equal((await setup.read(credential)).draft?.settings.rules?.bufferMinutes,25);
   assert.equal((await setup.read(credential)).confirmed.rules?.bufferMinutes,20);
+  assert.deepEqual(await setup.readiness(credential),{ready:false,reason:'setup'},'A newer unconfirmed browser draft prevents a completed-onboarding claim');
   assert.equal((await dispatchPhotonInputs(database,env,provider)).accepted,1);assert.match(await reply(later),/exact "confirm setup <reference>"/u);
   await drain();
   // A lost claim response recovers the same input after lease expiry without a

@@ -3595,3 +3595,20 @@ Verification on Node.js 24 and Supabase CLI 2.119.0 against the disposable local
 - `npm run check:docs` and `git diff --check` — pass.
 
 Local logs: `.local/rebuild/legacy-request-command-integration.log` and `.local/rebuild/legacy-request-command-types.log`. This increment changes verification/documentation only and requires no production application redeployment. Production remains on the previously verified private-setup dispatch code. The onboarding command audit, online-meeting travel-policy decision and complete live provider/device/named-client gates remain open. The fresh Google login probe still reports `GOOGLE_REDIRECT_URI_MISMATCH`; this audit does not claim live sign-in acceptance.
+
+
+## Legacy onboarding command integration audit — 2026-10-10
+
+Read the complete retired `5c305d9^:supabase/functions/_shared/modules/onboarding/local_conversation_integration.ts`; map its fifteen behavior groups in the [onboarding audit](14_legacy_onboarding_api_audit.md#retired-onboarding-command-integration-2026-10-10). This completes source inspection of all three historical command integration scripts while leaving broader legacy policy and release obligations open.
+
+The actual signed-ingress/eve fixture now checks current readiness immediately after committed private setup confirmation, fetches the public host through `PublicIntake.profile`, requires exactly the four public fields and saved handle, and excludes provider credentials, Calendar IDs and private rule fields. A subsequent browser draft retains its unsaved buffer of 25 while confirmed buffer remains 20; readiness withholds a completed-onboarding claim. Lost-response confirmation replay still performs zero provider reads. The fixture records the read counter after the new explicit readiness/profile checks so their own provider validation is not confused with replay work.
+
+The first added assertion incorrectly expected readiness despite a newer unconfirmed draft. Inspection of `HostSetup.readiness` established its explicit `settings_confirmed` requirement. Final assertions cover both the committed state and the later draft separately, without changing application behavior. The older conversation audit's browser-only confirmation statement and the plan's unimplemented native-confirmation statement now reflect the deployed deterministic command path.
+
+Verification uses the disposable local Supabase stack and controlled providers; no human message or live Google authorization is sent:
+
+- `npx tsx --test tests/integration/photon-execution.test.ts` — actual eve/signed ingress, admission, shared review, two-host isolation, private confirmation/replay and unlink acceptance pass.
+- `npx tsx --test --test-concurrency=1 tests/integration/host-setup.test.ts tests/integration/calendar-consent.test.ts tests/integration/calendar-selection.test.ts tests/integration/photon-linking.test.ts` — four supporting suites pass.
+- `npm run typecheck`, `npm run check:docs` and `git diff --check` — pass.
+
+Logs remain in ignored `.local/rebuild/legacy-onboarding-command-{runtime,services,types}.log`. Only tests and owning documentation changed, so no application redeployment is needed. This does not complete actual Google/iPhone onboarding, controlled Calendar analysis, later-stage narration, or native first-time acceptance of explicit preference answers. The exact private confirmation of a browser-prepared draft is narrower than those remaining requirements. Google-only login and the existing production deployment remain unchanged.
