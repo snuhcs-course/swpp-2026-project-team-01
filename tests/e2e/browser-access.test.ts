@@ -1,3 +1,4 @@
+import {verifyCalendarReadRecovery} from './calendar-read-recovery.ts';
 import {cleanupBrowserHostSql} from './browser-cleanup.ts';
 import {verifyOvernightHours} from './overnight-hours.ts';
 import {verifyLandingWaitlist} from './landing-waitlist.ts';
@@ -106,6 +107,7 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
     const beforeReturn=await (await context.request.get(origin+'/api/browser/setup/read')).json();
     await page.goto(origin+'/app?calendar=connected');await expect(page.getByRole('status').filter({hasText:'Google connection saved.'})).toBeFocused();
     const afterReturn=await (await context.request.get(origin+'/api/browser/setup/read')).json();assert.deepEqual(afterReturn.draft,beforeReturn.draft);assert.deepEqual(afterReturn.progress,beforeReturn.progress);
+    await verifyCalendarReadRecovery(page);
     const choices=page.getByRole('region',{name:'Calendar choices'});await choices.getByRole('checkbox').first().waitFor();
     assert.equal(await choices.getByRole('checkbox',{checked:true}).count(),0,'No conflicts silently selected');
     assert.equal(await choices.getByRole('radio',{checked:true}).count(),0,'Primary is never a silent destination');
