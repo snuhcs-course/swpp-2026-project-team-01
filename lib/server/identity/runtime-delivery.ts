@@ -1,15 +1,23 @@
+import {RuntimeSuccessors,successorBootstrap,type SuccessorBootstrap} from './runtime-successors.ts';
 import { ApplicationError } from '../errors.ts';
 import { RuntimeMessages, runtimeAuth, type RuntimeAuth } from './runtime-messages.ts';
 
-export type DeliveryState = { seen: Record<string, 'running' | 'completed' | 'failed'>; active: RuntimeAuth | null; replyParts?: Record<string, Record<string,string>> };
+export type DeliveryState = { seen: Record<string, 'running' | 'completed' | 'failed'>; active: RuntimeAuth | null; successor?:SuccessorBootstrap; continuityApplied?:boolean; replyParts?: Record<string, Record<string,string>> };
 
 // State is checkpointed with eve's turn. A database receipt alone never causes
 // an input to be skipped: the runtime may have crashed before its checkpoint.
 export async function deliverMessage(currentAuth: unknown, sessionId: string, address: string | undefined,
-  state: DeliveryState, messages = new RuntimeMessages()) {
+  state: DeliveryState, messages = new RuntimeMessages(), successors = new RuntimeSuccessors()) {
   const parsed = runtimeAuth.safeParse(currentAuth);
   if (!parsed.success || address !== parsed.data.attributes.conversationId) throw new ApplicationError('UNAUTHORIZED', 401);
   const auth = parsed.data;
+  let context:readonly string[]|undefined;
+  if(state.successor&&!state.continuityApplied){
+    const parsed=successorBootstrap.safeParse(state.successor);
+    if(!parsed.success)throw new ApplicationError('PROVIDER_UNAVAILABLE',503);
+    await successors.bind(auth,sessionId,parsed.data);
+    context=parsed.data.context;
+  }
   const message = await messages.deliver(auth, sessionId);
   const seen = state.seen[message.id];
   if (seen) {
@@ -17,7 +25,8 @@ export async function deliverMessage(currentAuth: unknown, sessionId: string, ad
     return; // Installed eve 0.71.3 treats an explicit deliver hook's void as ignored.
   }
   state.seen[message.id] = 'running'; state.active = auth;
-  return { message: message.text };
+  if(context)state.continuityApplied=true;
+  return { message: message.text, ...(context?{context}:{}) };
 }
 
 export async function settleMessage(state: DeliveryState, sessionId: string, status: 'completed' | 'failed', messages = new RuntimeMessages()) {

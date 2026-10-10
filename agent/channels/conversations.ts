@@ -7,10 +7,18 @@ import { deliverMessage, settleMessage, captureReply, type DeliveryState } from 
 import { privateHeaders, privateRoute, readJson, requestCredential } from '../../lib/server/identity/request-credential.ts';
 import { generationStream } from '../../lib/server/identity/generation-stream.ts';
 import { dispatchPending, requireDispatchSecret } from '../../lib/server/identity/runtime-dispatch.ts';
-import { ApplicationError } from '../../lib/server/errors.ts';
+import {sendRuntimeInput,type RuntimeSender} from '../../lib/server/identity/runtime-send.ts';
+import type {RouteHandlerArgs} from 'eve/channels';
 
 const historyHttp=agentHistoryHttp();
 const conversations = new Conversations(), messages = new RuntimeMessages();
+function sender({attachSession,resolveSession,from}:RouteHandlerArgs<DeliveryState>):RuntimeSender{
+  return {attach:attachSession,resolve:resolveSession,
+    send:async(id,text,auth)=>{await attachSession(id).send(text,{auth});},
+    create:async(scope,text,auth,successor)=>{await from(scope).send(text,{auth,
+      state:{seen:{},active:null,...(successor?{successor}:{})},title:'Scheduling conversation'});},
+  };
+}
 export default defineChannel({
   state: { seen: {}, active: null } as DeliveryState,
   context: (state, session) => ({ state, session }),
@@ -26,14 +34,10 @@ export default defineChannel({
   },
   routes: [
     POST('/api/agent/conversations/read', (request,{attachSession})=>historyHttp(request,attachSession)),
-    POST<DeliveryState>('/api/internal/conversations/dispatch', (request, { from, resolveSession }) => privateRoute(async () => {
+    POST<DeliveryState>('/api/internal/conversations/dispatch', (request, args) => privateRoute(async () => {
       requireDispatchSecret(request);
-      const result = await dispatchPending(async (scope, text, auth, sessionId) => {
-        if (sessionId) {
-          const session = await resolveSession(scope);
-          if (!session || session.id !== sessionId) throw new ApplicationError('RECONCILIATION_PENDING', 409);
-        }
-        await from(scope).send(text, {auth, state:{seen:{},active:null}, title:'Scheduling conversation'});
+      const result = await dispatchPending(async (_scope, text, auth) => {
+        await sendRuntimeInput(text,auth,sender(args),request.signal);
       });
       return Response.json(result, {headers:privateHeaders});
     })),
@@ -48,21 +52,15 @@ export default defineChannel({
       const snapshot = await messages.inspect(grant);
       return Response.json({ ...conversationView.parse(grant), messages: snapshot.messages }, { headers: privateHeaders });
     })),
-    POST<DeliveryState>('/api/conversations/:conversationId/messages', (request, { params, from, resolveSession }) => privateRoute(async () => {
+    POST<DeliveryState>('/api/conversations/:conversationId/messages', (request, args) => privateRoute(async () => {
+      const {params}=args;
       const credential = await requestCredential(request);
       const grant = await conversations.authorize(credential, params.conversationId);
       const message = await messages.accept(grant, await readJson(request));
       if (message.status === 'pending') {
-        const snapshot = await messages.inspect(grant);
-        // Never silently create a replacement for a terminated bound workflow.
-        // Canonical identity is committed by deliver(), not the cold-start candidate.
-        if (snapshot.sessionId) {
-          const session = await resolveSession(grant.conversationId);
-          if (!session || session.id !== snapshot.sessionId) throw new ApplicationError('RECONCILIATION_PENDING', 409);
-        }
         const auth: RuntimeAuth = { authenticator: 'fmat-conversation', principalType: 'user', principalId: grant.grantId,
           attributes: { conversationId: grant.conversationId, messageId: message.id } };
-        await from(grant.conversationId).send(message.text, { auth, state: { seen: {}, active: null }, title: 'Scheduling conversation' });
+        await sendRuntimeInput(message.text,auth,sender(args),request.signal);
       }
       return Response.json({ messageId: message.id, status: message.status }, { status: message.status === 'pending' ? 202 : 200, headers: privateHeaders });
     })),

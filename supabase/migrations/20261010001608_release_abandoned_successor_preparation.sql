@@ -1,28 +1,15 @@
--- Private creation protocol, invoked through the service-only runtime wrapper.
--- Explicit terminal-recovery activation remains separate from dispatch.
-create table fmat.conversation_successors (
- conversation_id uuid not null,
- generation bigint not null check(generation>0),
- message_id uuid not null references fmat.runtime_messages(id),
- creation_key uuid not null unique default gen_random_uuid(),
- lease_token uuid not null default gen_random_uuid(),
- lease_until timestamptz not null default (clock_timestamp()+interval '90 seconds'),
- creation_started_at timestamptz,
- bound_at timestamptz,
- primary key(conversation_id,generation),
- foreign key(conversation_id,generation) references fmat.conversation_generations(conversation_id,generation) on delete cascade,
- check(bound_at is null or creation_started_at is not null)
-);
-create index conversation_successors_message_idx on fmat.conversation_successors(message_id);
-alter table fmat.conversation_successors enable row level security;
-revoke all on fmat.conversation_successors from public,anon,authenticated,service_role;
+SET local check_function_bodies = off;
 
--- claim may renew an expired pre-creation lease; start consumes the permission
--- to perform one external creation send. After start, uncertainty is permanent
--- until the same creation identity binds, regardless of lease expiry. The exact
--- immutable session ID and creation key come from the runtime delivery hook.
-create or replace function fmat.conversation_successor(p_operation text,p_grant_id uuid,p_conversation_id uuid,p_input jsonb)
-returns jsonb language plpgsql set search_path='' as $$
+CREATE OR REPLACE FUNCTION fmat.conversation_successor (
+  p_operation       text,
+  p_grant_id        uuid,
+  p_conversation_id uuid,
+  p_input           jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
 declare scope fmat.conversation_scopes; pending fmat.runtime_messages; successor fmat.conversation_successors;
  access jsonb; expected numeric; message_id uuid; permitted boolean:=false; session_id text;
 begin
@@ -123,5 +110,4 @@ begin
   'state',case when successor.bound_at is not null then 'bound' when successor.creation_started_at is not null then 'creating' else 'prepared' end,
   'sessionId',scope.runtime_session_id,'dispatch',permitted);
 end;
-$$;
-revoke all on function fmat.conversation_successor(text,uuid,uuid,jsonb) from public,anon,authenticated,service_role;
+$function$;

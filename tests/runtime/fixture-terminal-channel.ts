@@ -1,4 +1,5 @@
-import {GET} from 'eve/channels';
+import {GET,type RouteHandlerArgs} from 'eve/channels';
+import type {DeliveryState} from '../../lib/server/identity/runtime-delivery.ts';
 import conversationChannel from '../../agent/channels/conversations.ts';
 import {Conversations} from '../../lib/server/identity/conversations.ts';
 import {RuntimeMessages} from '../../lib/server/identity/runtime-messages.ts';
@@ -9,7 +10,22 @@ import {ApplicationError} from '../../lib/server/errors.ts';
 // Read-only fixture route, never included in the product agent. It deliberately
 // uses the framework's public Session methods against a real local workflow.
 const conversations=new Conversations(),messages=new RuntimeMessages();
-export default {...conversationChannel,routes:[...conversationChannel.routes,
+let creationFaultUsed=false;
+// Public route wrapping preserves the production adapter and all checkpoints.
+// The optional fault loses only the cold-start acknowledgment after eve accepts.
+function creationFault(args:RouteHandlerArgs<DeliveryState>):RouteHandlerArgs<DeliveryState>{
+ return {...args,from(address){const source=args.from(address);return {...source,async send(message,options){
+  const session=await source.send(message,options);
+  if(options.state.successor&&process.env.FMAT_FIXTURE_CREATION_ACK_FAULT==='1'&&!creationFaultUsed){
+   creationFaultUsed=true;throw new Error('Synthetic accepted creation acknowledgment loss');
+  }
+  return session;
+ }}}};
+}
+const routes=conversationChannel.routes.map(route=>route.transport==='websocket'?route:{...route,
+ handler:(request:Request,args:RouteHandlerArgs<DeliveryState>)=>route.handler(request,creationFault(args)),
+});
+export default {...conversationChannel,routes:[...routes,
  GET('/test/runtime/terminal/:conversationId',(request,{params,attachSession,resolveSession})=>privateRoute(async()=>{
   const credential=await requestCredential(request),grant=await conversations.authorize(credential,params.conversationId);
   const check=async()=>{

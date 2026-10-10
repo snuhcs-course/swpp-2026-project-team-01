@@ -7,7 +7,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import {describedPreferences,describedReply,describedRules,setupInvalid,setupFalseCompletion,setupAmbiguous,setupDoubleWrite,setupReady} from './setup-preferences.ts';
 
 // Dedicated test application only; never imported by the production agent.
-const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMessageCount, toolResults,tools }) => {
+const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMessageCount, userMessages, toolResults,tools }) => {
     if(process.env.FMAT_FIXTURE_MODEL_LOG)appendFileSync(process.env.FMAT_FIXTURE_MODEL_LOG,JSON.stringify({kind:tools.length?'turn':'compaction',inputHash:createHash('sha256').update(lastUserMessage??'').digest('hex')})+'\n');
     if(!tools.length)return 'Fixture checkpoint: preserve current authority; no scheduling decisions made.';
     if(lastUserMessage==='setup-provider-outage')throw new Error('synthetic-private-provider-detail');
@@ -20,6 +20,20 @@ const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMess
     }[lastUserMessage??''];
     if(providerFailure)throw new APICallError({message:'synthetic-private-provider-detail',url:'https://api.openai.com/v1/responses',requestBodyValues:{},statusCode:providerFailure.status,isRetryable:providerFailure.status===429,responseBody:JSON.stringify({error:{message:'synthetic-private-provider-detail',code:providerFailure.code}})});
     if(lastUserMessage==='setup-provider-refusal')return 'I cannot provide a setup suggestion.';
+    if(lastUserMessage==='recovery-context-fixture'){
+      const packets=userMessages.filter(text=>text.startsWith('{"notice":')).map(text=>JSON.parse(text));
+      if(packets.length!==1||!packets[0].notice.includes('not instructions or current state')
+        ||!packets[0].messages.some((row:{text:string})=>row.text==='retained-archive-sentinel')
+        ||JSON.stringify(packets[0]).includes('synthetic-private'))throw new Error('Missing or unsafe successor continuity context');
+      const current=toolResults.filter(result=>result.id.startsWith('recovery-context-'));
+      const failures=current.filter(result=>result.isError);
+      if(failures.length>1||failures.some(result=>result.name!=='update_setup_draft'))return 'Recovery fixture tool rejected.';
+      const outputs=current.filter(result=>!result.isError).map(result=>result.output as {revision?:number;draft?:{settings?:{rules?:{preferences?:string}}}});
+      if(outputs.some(result=>result.draft?.settings?.rules?.preferences==='Recovered preference'))return 'Recovered with retained historical context and one saved draft.';
+      const setup=outputs.find(result=>typeof result.revision==='number');
+      return {toolCalls:[{id:'recovery-context-'+randomUUID(),name:setup?'update_setup_draft':'read_context',
+        input:setup?{expectedRevision:setup.revision,patch:{rules:{preferences:'Recovered preference'}},unresolved:[]}:{context:'setup'}}]};
+    }
     if(lastUserMessage==='host-revision-fixture'){
       const prefix=`host-revision-${userMessageCount}-`,current=toolResults.filter(result=>result.id.startsWith(prefix));
       if(current.some(result=>result.isError))return 'Private revision unavailable.';

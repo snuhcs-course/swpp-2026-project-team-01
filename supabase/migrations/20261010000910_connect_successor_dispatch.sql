@@ -1,15 +1,14 @@
--- Recovery is driven by accepted input, including a crash before any runtime
--- session exists. Leases fence acknowledgment; runtime delivery stays deduplicated.
-alter table fmat.runtime_messages
-  add column dispatch_token uuid,
-  add column dispatch_until timestamptz,
-  add column next_dispatch_at timestamptz not null default (now()+interval '30 seconds'),
-  add column dispatch_attempts integer not null default 0,
-  add column dispatch_error text;
-create index runtime_messages_due_idx on fmat.runtime_messages(next_dispatch_at) where status='pending';
+SET local check_function_bodies = off;
 
-create or replace function public.fmat_runtime_dispatch(p_operation text,p_input jsonb)
-returns jsonb language plpgsql security definer set search_path='' as $$
+CREATE OR REPLACE FUNCTION public.fmat_runtime_dispatch (
+  p_operation text,
+  p_input     jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare v_message fmat.runtime_messages; v_result jsonb:='[]'; v_generation bigint; v_scope uuid;
 begin
   if p_operation='claim' then
@@ -50,28 +49,26 @@ begin
     return jsonb_build_object('recorded',true);
   else raise exception 'INVALID_INPUT'; end if;
 end;
-$$;
-revoke execute on function public.fmat_runtime_dispatch(text,jsonb) from public,anon,authenticated;
-grant execute on function public.fmat_runtime_dispatch(text,jsonb) to service_role;
+$function$;
 
--- No configured Vault entries means no network activity (including local and
--- preview databases). The URL and narrowly scoped secret are provisioned only
--- after verifying the intended release deployment. Never embed secrets in cron.
-create or replace function fmat.wake_runtime_dispatch()
-returns bigint language plpgsql security definer set search_path='' as $$
-declare v_url text; v_secret text;
-begin
-  if not exists(select 1 from fmat.runtime_messages where status='pending' and next_dispatch_at<=clock_timestamp()
-    and (dispatch_until is null or dispatch_until<=clock_timestamp())) then return null; end if;
-  select decrypted_secret into v_url from vault.decrypted_secrets where name='fmat_runtime_dispatch_url';
-  select decrypted_secret into v_secret from vault.decrypted_secrets where name='fmat_runtime_dispatch_secret';
-  if v_url is null or v_secret is null then return null; end if;
-  if v_url !~ '^https://[^/]+/api/internal/conversations/dispatch$' or v_secret !~ '^[a-f0-9]{64}$' then raise exception 'INVALID_DISPATCH_CONFIGURATION'; end if;
-  return net.http_post(url:=v_url,headers:=jsonb_build_object('Content-Type','application/json','Authorization','Bearer '||v_secret),body:='{}'::jsonb,timeout_milliseconds:=10000);
-end;
-$$;
-revoke all on function fmat.wake_runtime_dispatch() from public,anon,authenticated,service_role;
+CREATE OR REPLACE FUNCTION public.fmat_runtime_successor (
+  p_operation       text,
+  p_grant_id        uuid,
+  p_conversation_id uuid,
+  p_input           jsonb
+)
+  RETURNS jsonb
+  LANGUAGE sql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+ select fmat.conversation_successor(p_operation,p_grant_id,p_conversation_id,p_input);
+$function$;
 
--- pg-delta tracks named cron definitions; retain this alongside its installer
--- migration so later unrelated diffs cannot unschedule recovery.
-select cron.schedule('fmat-runtime-dispatch','* * * * *','select fmat.wake_runtime_dispatch();');
+REVOKE ALL ON FUNCTION "public"."fmat_runtime_successor"(text, uuid, uuid, jsonb) FROM PUBLIC, "anon", "authenticated";
+
+REVOKE ALL ON FUNCTION "public"."fmat_runtime_successor"(text, uuid, uuid, jsonb) FROM "postgres";
+
+GRANT EXECUTE ON FUNCTION "public"."fmat_runtime_successor"(text, uuid, uuid, jsonb) TO "postgres";
+
+GRANT EXECUTE ON FUNCTION "public"."fmat_runtime_successor"(text, uuid, uuid, jsonb) TO "service_role";

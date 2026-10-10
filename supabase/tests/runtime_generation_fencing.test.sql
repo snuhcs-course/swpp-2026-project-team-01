@@ -46,7 +46,8 @@ select throws_ok($$select public.fmat_runtime_dispatch('finish',jsonb_build_obje
 select is((select to_jsonb(m) from fmat.runtime_messages m where id=pg_temp.message()),pg_temp.f('before'),'all retired execution leaves pending identity and dispatch fields unchanged');
 select is((select attempts from fmat.model_work_attempts where name='conversation:'||pg_temp.message()),1,'retired work consumes no new allowance');
 update fmat.runtime_messages set dispatch_until=clock_timestamp()-interval '1 second' where id=pg_temp.message();
-select ok(not exists(select 1 from jsonb_array_elements(public.fmat_runtime_dispatch('claim','{}')) r where r->>'messageId'=pg_temp.message()::text),'ordinary dispatcher skips a generation awaiting successor binding');
+select ok(exists(select 1 from jsonb_array_elements(public.fmat_runtime_dispatch('claim','{}')) r where r->>'messageId'=pg_temp.message()::text),'authenticated dispatcher leases input awaiting explicit successor binding');
+update fmat.runtime_messages set dispatch_until=clock_timestamp()-interval '1 second' where id=pg_temp.message();
 -- Simulate the future leased binder; this step tests execution after an exact
 -- binding, not the not-yet-implemented creation/binding protocol itself.
 update fmat.conversation_scopes set runtime_session_id='fence-successor' where id=pg_temp.scope();

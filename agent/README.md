@@ -40,8 +40,10 @@ The current application runtime exposes six routes in `channels/conversations.ts
 | `GET /api/conversations/:conversationId` | Current credential and execution grant; authorized message inspection; no runtime session/grant identifier in projection. |
 | `POST /api/conversations/:conversationId/messages` | Current scope/grant, immutable accepted input and retry key; canonical session/generation verification before delivery. |
 | `GET /api/conversations/:conversationId/stream` | Current scope/grant and complete generation ledger; bounded archive replay followed by the current live session; recheck before every event and during idle waits, with a bounded lease and logical cursor. |
-| `POST /api/internal/conversations/dispatch` | Dispatch secret, inbox lease bound to a generation and current execution grant; old acknowledgments cannot settle successor work and unbound recovered scopes await explicit successor dispatch. |
+| `POST /api/internal/conversations/dispatch` | Dispatch secret, inbox lease bound to a generation and current execution grant; old acknowledgments cannot settle successor work; explicitly recovered scopes use the one-time successor creation protocol and original input authority. |
 | `POST /api/agent/conversations/read` | Resource-bound agent token and current scoped grant; complete authorized generation ledger, legacy and logical encrypted cursors, and authorization before/after bounded projected reads. Runtime IDs remain encrypted or server-only. |
+
+The shared runtime sender uses fixed session handles for every bound generation. Only an explicitly recovered, unbound generation can claim a successor permit. The dispatcher prepares bounded retired-history context before consuming the permit; the delivery hook binds its captured runtime ID and installs the context once in the same checkpoint as the original input. A lost binding acknowledgment retries that exact binding once. Unknown creation remains pending and cannot issue a second cold-start send. Model archive paging, cumulative successor limits and browser recovery activation remain pending.
 
 Provider ingress routes live in the web service and reach runtime only through their separately authorized durable adapters.
 

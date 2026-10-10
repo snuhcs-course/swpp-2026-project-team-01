@@ -15,6 +15,8 @@ insert into fixture select 'message',public.fmat_runtime_message('accept',pg_tem
 create function pg_temp.call(op text,extra jsonb default '{}') returns jsonb language sql as $$select fmat.conversation_successor(op,pg_temp.grant_id(),pg_temp.scope(),jsonb_build_object('generation',1,'messageId',pg_temp.f('message')->>'id')||extra)$$;
 select ok(not has_table_privilege(r,'fmat.conversation_successors',p),r||' cannot '||p||' successor records') from unnest(array['anon','authenticated','service_role']) r cross join unnest(array['SELECT','INSERT','UPDATE','DELETE']) p;
 select ok(not has_function_privilege(r,'fmat.conversation_successor(text,uuid,uuid,jsonb)','EXECUTE'),r||' cannot activate private successor protocol') from unnest(array['anon','authenticated','service_role']) r;
+select ok(not has_function_privilege(r,'public.fmat_runtime_successor(text,uuid,uuid,jsonb)','EXECUTE'),r||' cannot invoke runtime successor wrapper') from unnest(array['anon','authenticated']) r;
+select ok(has_function_privilege('service_role','public.fmat_runtime_successor(text,uuid,uuid,jsonb)','EXECUTE'),'service-only runtime wrapper is callable');
 select ok((select relrowsecurity from pg_class where oid='fmat.conversation_successors'::regclass),'successor ledger has RLS');
 select throws_ok($$select pg_temp.call('claim')$$,'P0001','STALE_REVISION','ordinary generation zero cannot allocate a successor');
 select public.fmat_runtime_message('deliver',pg_temp.grant_id(),pg_temp.scope(),jsonb_build_object('messageId',pg_temp.f('message')->>'id','sessionId','wrun_successor_old'));
@@ -82,5 +84,31 @@ select throws_ok($$select pg_temp.call('bind',jsonb_build_object('creationKey',p
 select throws_ok($$select pg_temp.call('start',jsonb_build_object('leaseToken',pg_temp.f('renewed')->>'leaseToken'))$$,'P0001','STALE_REVISION','retired creation permit cannot start new work');
 select throws_ok($$select pg_temp.call('claim')$$,'P0001','STALE_REVISION','retired lease cannot be renewed');
 select ok((select bound_at is not null from fmat.conversation_successors where conversation_id=pg_temp.scope() and generation=1),'historical creation receipt is retained');
+-- Revocation during pre-creation preparation must not strand a new authorized
+-- input. No external creation permission has been issued for this generation.
+insert into fixture select 'second_prepared',pg_temp.call('claim','{"generation":2}');
+update fmat.runtime_messages set next_dispatch_at=clock_timestamp()-interval '1 second',dispatch_until=null where id=(pg_temp.f('message')->>'id')::uuid;
+insert into fixture select 'dispatch',r from jsonb_array_elements(public.fmat_runtime_dispatch('claim','{}')) r where r->>'messageId'=pg_temp.f('message')->>'id';
+update fmat.conversation_grants set revoked_at=clock_timestamp() where id=pg_temp.grant_id();
+select public.fmat_runtime_dispatch('finish',jsonb_build_object('messageId',pg_temp.f('message')->>'id','leaseToken',pg_temp.f('dispatch')->>'leaseToken','outcome','revoked'));
+insert into auth.sessions(id,user_id) values('96000000-0000-4000-8000-000000000008','96000000-0000-4000-8000-000000000001');
+insert into fixture select 'new_grant',public.fmat_conversation_access('authorize',jsonb_build_object('kind','host','subject','96000000-0000-4000-8000-000000000001','sessionId','96000000-0000-4000-8000-000000000008','expiresAt',now()+interval '1 hour'),jsonb_build_object('conversationId',pg_temp.scope()));
+insert into fixture select 'new_message',public.fmat_runtime_message('accept',(pg_temp.f('new_grant')->>'grantId')::uuid,pg_temp.scope(),'{"clientId":"96000000-0000-4000-8000-000000000009","text":"Separately authorized new input"}');
+create function pg_temp.new_claim() returns jsonb language sql as $$select public.fmat_runtime_successor('claim',(pg_temp.f('new_grant')->>'grantId')::uuid,pg_temp.scope(),jsonb_build_object('generation',2,'messageId',pg_temp.f('new_message')->>'id'))$$;
+insert into fixture select 'reassigned',pg_temp.new_claim();
+select is(pg_temp.f('reassigned')->>'state','prepared','new authorized input may replace abandoned preparation only');
+select isnt(pg_temp.f('reassigned')->>'creationKey',pg_temp.f('second_prepared')->>'creationKey','old unstarted creation key is invalidated');
+select isnt(pg_temp.f('reassigned')->>'leaseToken',pg_temp.f('second_prepared')->>'leaseToken','old preparation lease is invalidated');
+select is((select status from fmat.runtime_messages where id=(pg_temp.f('message')->>'id')::uuid),'failed','expired original remains failed and is never replayed');
+select ok((select revoked_at is not null from fmat.conversation_grants where id=pg_temp.grant_id()),'reassignment does not restore original authority');
+select is((select attempts from fmat.model_work_attempts where name='conversation:'||(pg_temp.f('message')->>'id')),3,'original failed charges survive reassignment');
+select is(pg_temp.new_claim(),pg_temp.f('reassigned'),'reassignment retry preserves the replacement preparation');
+select is((select count(*) from fmat.audit_events where operation='conversation_successor_preparation_reassigned' and subject_id=pg_temp.scope()::text),1::bigint,'one redacted reassignment audit');
+select public.fmat_runtime_successor('start',(pg_temp.f('new_grant')->>'grantId')::uuid,pg_temp.scope(),jsonb_build_object('generation',2,'messageId',pg_temp.f('new_message')->>'id','leaseToken',pg_temp.f('reassigned')->>'leaseToken'));
+update fmat.runtime_messages set status='failed' where id=(pg_temp.f('new_message')->>'id')::uuid;
+insert into fixture select 'third_message',public.fmat_runtime_message('accept',(pg_temp.f('new_grant')->>'grantId')::uuid,pg_temp.scope(),'{"clientId":"96000000-0000-4000-8000-000000000010","text":"Wait for uncertain creation"}');
+select throws_ok($$select public.fmat_runtime_successor('claim',(pg_temp.f('new_grant')->>'grantId')::uuid,pg_temp.scope(),jsonb_build_object('generation',2,'messageId',pg_temp.f('third_message')->>'id'))$$,'P0001','RECONCILIATION_PENDING','started uncertainty cannot be reassigned or mislabeled as revoked authority');
+select is((select creation_key::text from fmat.conversation_successors where conversation_id=pg_temp.scope() and generation=2),pg_temp.f('reassigned')->>'creationKey','uncertain creation identity remains frozen');
+select is((select status from fmat.runtime_messages where id=(pg_temp.f('third_message')->>'id')::uuid),'pending','later valid input remains pending during reconciliation');
 select * from finish();
 rollback;
