@@ -64,6 +64,42 @@ test('reservation failures and pre-cancelled calls never reach the provider',asy
  assert.equal(count,2);assert.equal(provider.doGenerateCalls.length+provider.doStreamCalls.length,0);
 });
 
+test('preserves only recognized assistant text phases in generate and stream history',async()=>{
+ const provider=fixture({doStream:async()=>({stream:new ReadableStream({start(c){c.close();}})})});
+ const model=boundedModel(provider,async()=>{});
+ const phases=['commentary','final_answer','unknown',null,3];
+ const history:Call['prompt']=[{role:'user',content:[{type:'text',text:'Question',providerOptions:{openai:{phase:'final_answer'}}}]},
+  ...phases.map(phase=>({role:'assistant' as const,content:[{type:'text' as const,text:'Answer',providerOptions:{openai:{phase,promptCacheBreakpoint:true}}}]})),
+  {role:'assistant',content:[{type:'reasoning',text:'',providerOptions:{openai:{phase:'commentary',reasoningEncryptedContent:'encrypted'}}}]}];
+ await model.doGenerate({prompt:history});
+ const streamed=await model.doStream({prompt:history});await streamed.stream.getReader().read();
+ for(const call of [provider.doGenerateCalls[0],provider.doStreamCalls[0]]){
+  const metadata=call.prompt.map(message=>message.role==='system'?undefined:message.content[0].providerOptions?.openai);
+  assert.deepEqual(metadata,[undefined,{phase:'commentary'},{phase:'final_answer'},undefined,undefined,undefined,{reasoningEncryptedContent:'encrypted'}]);
+ }
+});
+
+test('installed Responses adapter round-trips assistant phases across follow-up calls',async()=>{
+ const originalFetch=globalThis.fetch,key=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='fixture-only';
+ const bodies:Record<string,unknown>[]=[];
+ globalThis.fetch=async(url,init)=>{
+  assert.equal(String(url),'https://api.openai.com/v1/responses');bodies.push(JSON.parse(String(init?.body)));
+  return Response.json({id:'resp_phase_fixture',object:'response',created_at:1,status:'completed',model:'gpt-6-luna',
+   output:['commentary','final_answer'].map((phase,i)=>({type:'message',id:'msg_phase_'+i,role:'assistant',phase,content:[{type:'output_text',text:i?'Final answer':'Checking current state',annotations:[]}]})),
+   usage:{input_tokens:1,output_tokens:2,total_tokens:3,input_tokens_details:{cached_tokens:0},output_tokens_details:{reasoning_tokens:0}},incomplete_details:null});
+ };
+ try{
+  const raw=openai('gpt-6-luna');assert.notEqual(typeof raw,'string');
+  const model=boundedModel(raw as Parameters<typeof boundedModel>[0],async()=>{});
+  const first=await generateText({model,prompt:'Current state?',maxRetries:0});
+  await generateText({model,messages:[{role:'user',content:'Current state?'},...first.response.messages,{role:'user',content:'What next?'}],maxRetries:0});
+  const items=bodies[1].input as {role?:string;phase?:string;content:unknown}[];
+  assert.deepEqual(items.filter(item=>item.role==='assistant').map(item=>item.phase),['commentary','final_answer']);
+  assert.ok(items.filter(item=>item.role==='user').every(item=>item.phase===undefined));
+  assert.equal(bodies[1].store,false);assert.equal(bodies[1].previous_response_id,undefined);
+ }finally{globalThis.fetch=originalFetch;if(key===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=key;}
+});
+
 test('actual SDK retries each require a new reservation and stop when denied',async()=>{
  let reservations=0;const provider=fixture({doGenerate:async()=>{throw new APICallError({message:'temporary',url:'https://api.openai.com/v1/responses',requestBodyValues:{},statusCode:503,isRetryable:true});}});
  const model=boundedModel(provider,async()=>{if(++reservations===2)throw new ApplicationError('MODEL_LIMIT',429);});

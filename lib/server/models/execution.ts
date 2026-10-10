@@ -30,13 +30,14 @@ function providerFailure(error:unknown):Error {
  return new ApplicationError('PROVIDER_UNAVAILABLE',503);
 }
 
-// Retain only stateless reasoning continuity metadata. In particular, callers
+// Retain only stateless reasoning and assistant-text continuity metadata. Callers
 // cannot add cache breakpoints or remote conversation expansion through options.
-function continuity(options:Call['providerOptions']):Call['providerOptions'] {
+function continuity(options:Call['providerOptions'],assistantText:boolean):Call['providerOptions'] {
  const source=options?.openai;
  if(!source)return undefined;
  const result:Record<string,string>={};
  for(const key of ['itemId','reasoningEncryptedContent'])if(typeof source[key]==='string')result[key]=source[key];
+ if(assistantText&&(source.phase==='commentary'||source.phase==='final_answer'))result.phase=source.phase;
  return Object.keys(result).length?{openai:result}:undefined;
 }
 
@@ -53,7 +54,7 @@ function prepare(input:Call,outputLimit:number):Call {
     if(!['text','json','error-text','error-json','execution-denied'].includes(part.output.type))throw limited();
     return {...part,providerOptions:undefined,output:{...part.output,providerOptions:undefined}};
    }
-   return {...part,providerOptions:continuity(part.providerOptions)};
+   return {...part,providerOptions:continuity(part.providerOptions,message.role==='assistant'&&part.type==='text')};
   })} as Call['prompt'][number];
  });
  if(input.maxOutputTokens!==undefined&&(!Number.isSafeInteger(input.maxOutputTokens)||input.maxOutputTokens<1))throw limited();
