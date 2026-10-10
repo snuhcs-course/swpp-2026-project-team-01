@@ -519,6 +519,8 @@ References: [email direction](01_backend_architecture.md#email-provider-directio
 
 ### Phase 7 — Add verified host iMessage continuity
 
+- [x] Deploy Photon response identity validation from `f9943b3` (`dpl_7c7cCUMX7UuzvRmnzBt2p3r1z1oX`), verify the exact Ready release alias and 35 production HTTP guards. [Evidence](05_rebuild_evidence.md#photon-response-identity-production-rollout--2026-10-10). Real provider/device acceptance and wider legacy coverage remain open.
+
 - [x] Reproduce and fix Photon response binding regressions: reject changed send text, require the exact persisted provider reference during recovery, and retain that reference on uncertain reads. Verify 555 application/provider tests, installed-SDK gRPC checks, actual signed Photon/eve integration and both TypeScript targets. [Evidence](05_rebuild_evidence.md#photon-response-identity-validation--2026-10-10). Production rollout and broader legacy/device acceptance remain separate.
 
 - [x] Complete deployment task 3.4: deploy authored revision decisions from `0c7537e` (`dpl_9jXmbRbcqAPb8RQkZLcB84tK8kbZ`); verify 124 matching migrations, both function definitions/privileges, 27 rollback-only assertions, zero fixture residue, clean advisors, exact Ready alias and 30 production HTTP checks. [Evidence](05_rebuild_evidence.md#deployed-imessage-revision-decisions--2026-10-10). Real iPhone/Photon acceptance remains open; the change is 11/12 complete and is not archived.
