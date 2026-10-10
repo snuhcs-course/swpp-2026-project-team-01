@@ -16,14 +16,16 @@ async function request(action:'list'|'select',signal:AbortSignal,input?:unknown)
 export function CalendarChoices({disabled,onSaved}:{disabled:boolean;onSaved?:()=>void}){
   const id=useId(),[catalog,setCatalog]=useState<CalendarCatalog|null>(null),[conflicts,setConflicts]=useState<string[]>([]),[booking,setBooking]=useState('');
   const [attempt,setAttempt]=useState(0),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+  const readFocus=useRef<HTMLElement|null>(null),readError=useRef<HTMLParagraphElement>(null),choicesHeading=useRef<HTMLLegendElement>(null);
+  useEffect(()=>{if(loading||!readFocus.current)return;const origin=readFocus.current;readFocus.current=null;if(document.activeElement===origin||document.activeElement===document.body)(error?readError.current:change.current??choicesHeading.current)?.focus();},[loading,catalog,error]);
   const [editing,setEditing]=useState(false),change=useRef<HTMLButtonElement>(null),restoreFocus=useRef(false);
   useEffect(()=>{if(!saving&&restoreFocus.current){restoreFocus.current=false;change.current?.focus();}},[saving,editing]);
   useEffect(()=>{
     const controller=new AbortController();setLoading(true);setError('');setCatalog(null);
-    void request('list',controller.signal).then(result=>{
+    void request('list',AbortSignal.any([controller.signal,AbortSignal.timeout(15_000)])).then(result=>{
       if(controller.signal.aborted)return;
       const next=calendarCatalog.parse(result);setCatalog(next);setEditing(false);setConflicts(next.conflictCalendarIds);setBooking(next.bookingCalendarId??'');
-    }).catch(e=>{if(!controller.signal.aborted)setError(e.message);}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
+    }).catch(()=>{if(!controller.signal.aborted)setError('Calendar choices could not be loaded. Try again.');}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
     return()=>controller.abort();
   },[attempt]);
   const available=new Set(catalog?.calendars.map(c=>c.id)),selectedValid=conflicts.length>0&&conflicts.length<=50&&conflicts.every(c=>available.has(c))&&catalog?.calendars.some(c=>c.id===booking&&writable(c.accessRole));
@@ -45,7 +47,7 @@ export function CalendarChoices({disabled,onSaved}:{disabled:boolean;onSaved?:()
       {savedValid?<><p className="break-words">{catalog.conflictCalendarIds.length} calendar{catalog.conflictCalendarIds.length===1?'':'s'} checked for conflicts · Bookings in {destination?.name}</p><p className="text-sm text-muted-foreground break-all">{destination?.id}</p><CollapsibleTrigger asChild><Button className="min-h-11 h-auto whitespace-normal" ref={change} variant="outline" disabled={disabled||saving}>{editing?'Close without saving':'Change calendar choices'}</Button></CollapsibleTrigger></>:null}
       <CollapsibleContent><FieldGroup>
       <FieldSet disabled={disabled||saving}>
-        <FieldLegend>Calendars to check for conflicts</FieldLegend>
+        <FieldLegend ref={choicesHeading} tabIndex={-1}>Calendars to check for conflicts</FieldLegend>
         <FieldDescription>Choose up to 50 calendars whose busy times should block meetings. Your primary calendar is a suggested starting point; include shared calendars only when they represent your commitments.</FieldDescription>
         {unavailable?<p role="alert">A saved calendar is no longer available with the required access. Review your choices and select a replacement.</p>:null}
         {catalog.calendars.length===0?<p>No calendars are available. Reconnect Google with an account that has calendars.</p>:null}
@@ -74,7 +76,7 @@ export function CalendarChoices({disabled,onSaved}:{disabled:boolean;onSaved?:()
       <Button disabled={disabled||saving||!selectedValid} onClick={()=>void save()}>{saving?'Saving choices…':'Confirm calendar choices'}</Button>
       {savedValid?<Button variant="ghost" disabled={disabled||saving} onClick={()=>{setConflicts(catalog.conflictCalendarIds);setBooking(catalog.bookingCalendarId??'');setEditing(false);restoreFocus.current=true;setError('');}}>Cancel calendar edits</Button>:null}
     </FieldGroup></CollapsibleContent></Collapsible>:null}
-    {!savedValid||editing||error?<Button variant="outline" disabled={disabled||loading||saving} onClick={()=>{setNotice('');setAttempt(n=>n+1);}}>Reload calendar choices</Button>:null}
-    {notice?<p role="status">{notice}</p>:null}{error?<p role="alert" className="text-destructive">{error} Reconnect Google if access has changed, or reload your choices to try again.</p>:null}
+    {!savedValid||editing||error?<Button variant="outline" disabled={disabled||loading||saving} onClick={event=>{readFocus.current=event.currentTarget;setNotice('');setAttempt(n=>n+1);}}>Reload calendar choices</Button>:null}
+    {notice?<p role="status">{notice}</p>:null}{error?<p ref={readError} tabIndex={-1} role="alert" className="text-destructive">{error} Reconnect Google if access has changed, or reload your choices to try again.</p>:null}
   </section>;
 }

@@ -20,7 +20,7 @@ const titles:Record<Section,string>={profile:'Your booking profile',schedule:'Yo
 const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const modes={online:'Online only',in_person:'In person',either:'Either'};
 const travelModes={DRIVE:'Drive',TRANSIT:'Public transit',WALK:'Walk',BICYCLE:'Bicycle',PER_TRIP:'Depends on the trip'};
-async function call(action:string,input?:unknown,signal?:AbortSignal){const response=await fetch('/api/browser/setup/'+action,{method:input===undefined?'GET':'POST',cache:'no-store',signal:signal??AbortSignal.timeout(20_000),headers:{'content-type':'application/json'},...(input===undefined?{}:{body:JSON.stringify(input)})});const data=await response.json();if(!response.ok)throw new Error(data.error?.message??'Setup could not be saved. Try again.');return setupState.parse(data);}
+async function call(action:string,input?:unknown,signal?:AbortSignal){const response=await fetch('/api/browser/setup/'+action,{method:input===undefined?'GET':'POST',cache:'no-store',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20_000)]):AbortSignal.timeout(20_000),headers:{'content-type':'application/json'},...(input===undefined?{}:{body:JSON.stringify(input)})});const data=await response.json();if(!response.ok)throw new Error(data.error?.message??'Setup could not be saved. Try again.');return setupState.parse(data);}
 export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:boolean}){
  const [state,setState]=useState<SetupState|null>(null),[editor,setEditor]=useState<{section:Section;base:SetupState}|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[reload,setReload]=useState(0);
  const [expanded,setExpanded]=useState(false),[loading,setLoading]=useState(true);
@@ -31,7 +31,7 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
   const controller=new AbortController();setLoading(true);setError('');
   void call('read',undefined,controller.signal)
    .then(value=>{if(!controller.signal.aborted)setState(value);})
-   .catch(e=>{if(!controller.signal.aborted){setState(null);setError(e instanceof Error?e.message:'Setup could not be loaded. Try again.');}})
+   .catch(e=>{if(!controller.signal.aborted){setState(null);setError(e instanceof Error&&e.name!=='TimeoutError'?e.message:'Setup could not be loaded. Try again.');}})
    .finally(()=>{if(!controller.signal.aborted)setLoading(false);});
   return()=>controller.abort();
  },[refreshKey,reload]);

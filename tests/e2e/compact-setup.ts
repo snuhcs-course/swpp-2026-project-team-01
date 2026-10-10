@@ -1,3 +1,4 @@
+import {verifyCalendarChoicesRecovery} from './calendar-choices-recovery.ts';
 import assert from 'node:assert/strict';
 import {expect,type Page,type BrowserContext} from '@playwright/test';
 
@@ -15,9 +16,7 @@ export async function verifyCompactSetup(page:Page,context:BrowserContext,origin
  await page.route('**/api/browser/calendar/list',async route=>{const response=await route.fetch(),body=await response.json();body.calendars=body.calendars.filter((c:{id:string})=>c.id!==body.bookingCalendarId);await route.fulfill({response,json:body});});
  await page.reload();await choices.getByRole('alert').filter({hasText:'A saved calendar is no longer available'}).waitFor();await expect(choices.getByRole('checkbox').first()).toBeVisible();await expect(choices.getByRole('button',{name:'Change calendar choices'})).toHaveCount(0);
  await page.unroute('**/api/browser/calendar/list');
- await page.route('**/api/browser/calendar/list',route=>route.fulfill({status:503,json:{error:{message:'Calendar choices could not be loaded.'}}}));
- await choices.getByRole('button',{name:'Reload calendar choices'}).click();await choices.getByRole('alert').filter({hasText:'Calendar choices could not be loaded'}).waitFor();
- await page.unroute('**/api/browser/calendar/list');await choices.getByRole('button',{name:'Reload calendar choices'}).click();await change.waitFor();
+ await verifyCalendarChoicesRecovery(page);
  await page.emulateMedia({reducedMotion:'reduce'});
  for(const width of [320,390,768,1440]){
   await page.setViewportSize({width,height:900});await change.focus();await page.keyboard.press('Tab');await page.keyboard.press('Shift+Tab');await expect(change).toBeFocused();await page.evaluate(()=>window.scrollTo(0,0));
