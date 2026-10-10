@@ -11,7 +11,7 @@
 
 - [ ] 2.1 Implement generation-aware history, stream projection and bounded safe model continuity context; verify old cursors, no missing/duplicate output, cross-audience denial, byte limits and revocation during reads. Document cursor compatibility.
 - [x] 2.2 Implement leased successor creation/binding and original pending-input continuation through the authenticated dispatcher; verify duplicate recovery, uncertain create/send/settle, expired original grants and one committed tool effect with unchanged input identity and charges. Document recovery states.
-- [ ] 2.3 Normalize recoverable model configuration failures without exposing upstream errors or terminating healthy conversation ownership; verify generation/stream failures, explicit later continuation, retained reservations and accumulated session limits, including already terminated sessions through the separate recovery path.
+- [x] 2.3 Normalize recoverable model configuration failures without exposing upstream errors or terminating healthy conversation ownership; verify generation/stream failures, explicit later continuation, retained reservations and accumulated session limits, including already terminated sessions through the separate recovery path.
 
 ## 3. Browser recovery and acceptance
 

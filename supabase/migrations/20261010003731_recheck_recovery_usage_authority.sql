@@ -1,51 +1,14 @@
--- Additive recovery foundation. Activation waits for generation fencing on all
--- runtime entry points. These functions are private even to service_role.
-alter table fmat.conversation_scopes add column runtime_generation bigint not null default 0
- check(runtime_generation between 0 and 9007199254740991);
+SET local check_function_bodies = off;
 
-create table fmat.conversation_generations (
- conversation_id uuid not null references fmat.conversation_scopes(id) on delete cascade,
- generation bigint not null check(generation between 0 and 9007199254740991),
- runtime_session_id text unique check(length(runtime_session_id) between 1 and 200),
- created_at timestamptz not null default clock_timestamp(),
- retired_at timestamptz,
- terminal_event_id text check(length(terminal_event_id) between 1 and 200),
- terminal_tail bigint check(terminal_tail between 0 and 9007199254740990),
- input_tokens bigint check(input_tokens between 0 and 9007199254740991),
- output_tokens bigint check(output_tokens between 0 and 9007199254740991),
- cache_read_tokens bigint check(cache_read_tokens between 0 and 9007199254740991),
- cache_write_tokens bigint check(cache_write_tokens between 0 and 9007199254740991),
- primary key(conversation_id,generation),
- check((retired_at is null and terminal_event_id is null and terminal_tail is null
-   and input_tokens is null and output_tokens is null and cache_read_tokens is null and cache_write_tokens is null)
-  or (retired_at is not null and runtime_session_id is not null and terminal_event_id is not null and terminal_tail is not null
-   and input_tokens is not null and output_tokens is not null and cache_read_tokens is not null and cache_write_tokens is not null))
-);
-create table fmat.conversation_recoveries (
- id uuid primary key default gen_random_uuid(),
- conversation_id uuid not null references fmat.conversation_scopes(id) on delete cascade,
- source_generation bigint not null,
- target_generation bigint not null check(target_generation=source_generation+1),
- grant_id uuid not null references fmat.conversation_grants(id),
- request_key uuid not null,
- input_fingerprint text not null check(input_fingerprint ~ '^[a-f0-9]{64}$'),
- created_at timestamptz not null default clock_timestamp(),
- unique(conversation_id,source_generation),
- unique(conversation_id,grant_id,request_key),
- foreign key(conversation_id,source_generation) references fmat.conversation_generations(conversation_id,generation),
- foreign key(conversation_id,target_generation) references fmat.conversation_generations(conversation_id,generation)
-);
-create index conversation_recoveries_grant_idx on fmat.conversation_recoveries(grant_id);
-create index conversation_recoveries_target_idx on fmat.conversation_recoveries(conversation_id,target_generation);
-alter table fmat.conversation_generations enable row level security;
-alter table fmat.conversation_recoveries enable row level security;
-revoke all on fmat.conversation_generations,fmat.conversation_recoveries from public,anon,authenticated,service_role;
-
--- Validate server-observed evidence independently of browser validation. SQL
--- cannot establish provider terminal state: only the bounded inspector may
--- supply it to the eventual service-only wrapper. Do not expose this function.
-create or replace function fmat.conversation_recovery_begin(p_grant_id uuid,p_conversation_id uuid,p_input jsonb)
-returns jsonb language plpgsql set search_path='' as $$
+CREATE OR REPLACE FUNCTION fmat.conversation_recovery_begin (
+  p_grant_id        uuid,
+  p_conversation_id uuid,
+  p_input           jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SET search_path TO ''
+  AS $function$
 declare scope fmat.conversation_scopes; access jsonb; old fmat.conversation_generations;
  recovery fmat.conversation_recoveries; evidence jsonb; usage jsonb; key text; value numeric;
  expected bigint; v_request_key uuid; fingerprint text; input_used numeric; output_used numeric;
@@ -100,10 +63,6 @@ begin
  if old.runtime_session_id is distinct from scope.runtime_session_id or old.retired_at is not null then raise exception 'STALE_REVISION';end if;
  -- Final provider evidence cannot understate a previously reserved live total.
  perform fmat.require_model_usage(scope,usage);
- -- Compaction calls are reported by our provider receipt but omitted from
- -- eve's terminal total. Preserve the larger proven count on every axis.
- select jsonb_build_object('inputTokens',input_tokens,'outputTokens',output_tokens,'cacheReadTokens',cache_read_tokens,'cacheWriteTokens',cache_write_tokens)
-  into usage from fmat.conversation_model_usage where conversation_id=scope.id and generation=expected;
  access:=public.fmat_conversation_check(p_grant_id,p_conversation_id);
  if (access->>'readOnly')::boolean then raise exception 'REQUEST_CLOSED';end if;
  -- Aggregate using numeric, so even adversarially large valid counts cannot
@@ -125,5 +84,4 @@ begin
    jsonb_build_object('recoveryId',recovery.id,'sourceGeneration',expected,'generation',expected+1));
  return jsonb_build_object('recoveryId',recovery.id,'sourceGeneration',expected,'generation',expected+1);
 end;
-$$;
-revoke all on function fmat.conversation_recovery_begin(uuid,uuid,jsonb) from public,anon,authenticated,service_role;
+$function$;

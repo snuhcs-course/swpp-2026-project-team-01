@@ -1,8 +1,9 @@
+import type {ModelUsageState} from '../models/session-usage.ts';
 import {RuntimeSuccessors,successorBootstrap,type SuccessorBootstrap} from './runtime-successors.ts';
 import { ApplicationError } from '../errors.ts';
 import { RuntimeMessages, runtimeAuth, type RuntimeAuth } from './runtime-messages.ts';
 
-export type DeliveryState = { seen: Record<string, 'running' | 'completed' | 'failed'>; active: RuntimeAuth | null; successor?:SuccessorBootstrap; continuityApplied?:boolean; replyParts?: Record<string, Record<string,string>> };
+export type DeliveryState = { modelUsage?:ModelUsageState; seen: Record<string, 'running' | 'completed' | 'failed'>; active: RuntimeAuth | null; successor?:SuccessorBootstrap; continuityApplied?:boolean; replyParts?: Record<string, Record<string,string>> };
 
 // State is checkpointed with eve's turn. A database receipt alone never causes
 // an input to be skipped: the runtime may have crashed before its checkpoint.

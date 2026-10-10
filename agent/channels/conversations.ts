@@ -1,3 +1,4 @@
+import {initialModelUsage,captureModelUsage} from '../../lib/server/models/session-usage.ts';
 import {agentHistoryHttp} from '../../lib/server/oauth/history-http.ts';
 import { defineChannel, GET, POST } from 'eve/channels';
 import { conversationCursor, conversationView } from '../../lib/contracts/conversations.ts';
@@ -16,16 +17,18 @@ function sender({attachSession,resolveSession,from}:RouteHandlerArgs<DeliverySta
   return {attach:attachSession,resolve:resolveSession,
     send:async(id,text,auth)=>{await attachSession(id).send(text,{auth});},
     create:async(scope,text,auth,successor)=>{await from(scope).send(text,{auth,
-      state:{seen:{},active:null,...(successor?{successor}:{})},title:'Scheduling conversation'});},
+      state:{seen:{},active:null,modelUsage:initialModelUsage(),...(successor?{successor}:{})},title:'Scheduling conversation'});},
   };
 }
 export default defineChannel({
   state: { seen: {}, active: null } as DeliveryState,
+  metadata: state => ({modelUsage:state.modelUsage?.total??null}),
   context: (state, session) => ({ state, session }),
   turnPolicy: 'queue', audience: () => 'private',
   deliver: (_payload, channel) => deliverMessage(channel.session.auth.current, channel.session.id,
     channel.session.continuation?.token, channel.state),
   events: {
+    'step.completed': (event,channel) => captureModelUsage(channel.state.modelUsage,event),
     'message.completed': (event, channel) => captureReply(channel.state, event.message, event.finishReason, event.stepIndex, event.sequence),
     'turn.completed': (_event, channel, ctx) => settleMessage(channel.state, ctx.session.id, 'completed'),
     'turn.failed': (_event, channel, ctx) => settleMessage(channel.state, ctx.session.id, 'failed'),

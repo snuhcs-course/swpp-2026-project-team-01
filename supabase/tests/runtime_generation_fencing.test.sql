@@ -59,7 +59,8 @@ select throws_ok($$select pg_temp.tool('fence-original')$$,'P0001','FORBIDDEN','
 select throws_ok($$select pg_temp.old_tool()$$,'P0001','FORBIDDEN','legacy runtime remains denied after successor binding');
 select throws_ok($$select pg_temp.deliver('fence-original')$$,'P0001','FORBIDDEN','old delivery cannot use successor binding');
 select lives_ok($$select pg_temp.deliver('fence-successor')$$,'bound successor continues original pending input');
-select lives_ok($$select pg_temp.reserve('fence-successor')$$,'bound successor retains original model accounting');
+select throws_ok($$select pg_temp.reserve('fence-successor')$$,'P0001','MODEL_LIMIT','legacy reservation cannot reset successor token usage');
+select lives_ok($$select public.fmat_conversation_model_reserve(pg_temp.grant_id(),pg_temp.scope(),pg_temp.message(),'fence-successor','{"inputTokens":0,"outputTokens":0,"cacheReadTokens":0,"cacheWriteTokens":0}')$$,'bound successor retains original model accounting with trusted live usage');
 select is((select attempts from fmat.model_work_attempts where name='conversation:'||pg_temp.message()),2,'successor increments rather than resets attempts');
 insert into fixture select 'newclaim',row from jsonb_array_elements(public.fmat_runtime_dispatch('claim','{}')) row where row->>'messageId'=pg_temp.message()::text;
 select is((select dispatch_generation from fmat.runtime_messages where id=pg_temp.message()),1::bigint,'new dispatch lease captures successor generation');

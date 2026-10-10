@@ -41,8 +41,8 @@ end;
 $$;
 revoke all on function fmat.model_budget_reserve(text,uuid,text,uuid) from public,anon,authenticated,service_role;
 
-create or replace function public.fmat_conversation_model_reserve(p_grant_id uuid,p_conversation_id uuid,p_message_id uuid,p_session_id text)
-returns jsonb language plpgsql security definer set search_path='' as $$
+create or replace function fmat.conversation_model_reserve(p_grant_id uuid,p_conversation_id uuid,p_message_id uuid,p_session_id text,p_usage jsonb)
+returns jsonb language plpgsql set search_path='' as $$
 declare access jsonb; scope fmat.conversation_scopes; message fmat.runtime_messages;
 begin
  if p_grant_id is null or p_conversation_id is null or p_message_id is null
@@ -54,6 +54,7 @@ begin
  perform fmat.require_runtime_generation(scope,p_session_id);
  select * into message from fmat.runtime_messages where id=p_message_id and conversation_id=p_conversation_id and grant_id=p_grant_id for update;
  if not found or message.status<>'pending' then raise exception 'NOT_FOUND';end if;
+ perform fmat.require_model_usage(scope,p_usage);
  perform fmat.model_budget_reserve(access->>'actorKind',case when access->>'actorKind'='host' then scope.host_id else scope.request_id end,'conversation',message.id);
  -- Time may expire while the service counter is contended. All charges roll
  -- back if the original authority is no longer valid after that wait.
@@ -62,5 +63,26 @@ begin
  return jsonb_build_object('reserved',true);
 end;
 $$;
+revoke all on function fmat.conversation_model_reserve(uuid,uuid,uuid,text,jsonb) from public,anon,authenticated,service_role;
+
+-- Old deployments retain generation-zero compatibility; this overload cannot
+-- authorize model work for a successor without checkpointed usage evidence.
+create or replace function public.fmat_conversation_model_reserve(p_grant_id uuid,p_conversation_id uuid,p_message_id uuid,p_session_id text)
+returns jsonb language sql security definer set search_path='' as $$
+ select fmat.conversation_model_reserve(p_grant_id,p_conversation_id,p_message_id,p_session_id,null)
+$$;
 revoke all on function public.fmat_conversation_model_reserve(uuid,uuid,uuid,text) from public,anon,authenticated;
 grant execute on function public.fmat_conversation_model_reserve(uuid,uuid,uuid,text) to service_role;
+
+create or replace function public.fmat_conversation_model_reserve(p_grant_id uuid,p_conversation_id uuid,p_message_id uuid,p_session_id text,p_usage jsonb)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare receipt uuid;
+begin
+ perform fmat.conversation_model_reserve(p_grant_id,p_conversation_id,p_message_id,p_session_id,p_usage);
+ insert into fmat.conversation_model_receipts(conversation_id,generation,message_id)
+  select id,runtime_generation,p_message_id from fmat.conversation_scopes where id=p_conversation_id returning id into receipt;
+ return jsonb_build_object('reserved',true,'attemptId',receipt);
+end;
+$$;
+revoke all on function public.fmat_conversation_model_reserve(uuid,uuid,uuid,text,jsonb) from public,anon,authenticated;
+grant execute on function public.fmat_conversation_model_reserve(uuid,uuid,uuid,text,jsonb) to service_role;

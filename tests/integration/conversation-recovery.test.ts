@@ -62,6 +62,20 @@ test('recovery migration and transitions retain identity under races, lost respo
   await locker.query(`update fmat.conversation_grants set revoked_at=clock_timestamp() where id=${q(rows[2].grant)};commit;`);
   assert.equal(await revoked,'UNAUTHORIZED','revocation wins before authority locks are acquired');
   assert.equal(await admin.query(`select count(*) from fmat.conversation_generations where conversation_id=${q(rows[2].scope)};`),'0','denials never leave partial ledger rows');
+  // The live-usage floor introduces a later row lock. Expiry must be checked
+  // again after this wait for both recovery and a new model reservation.
+  const usageRow=rows[3];
+  await admin.query(`update fmat.conversation_scopes set runtime_session_id=${q('runtime-'+usageRow.scope)} where id=${q(usageRow.scope)};insert into fmat.conversation_generations(conversation_id,generation,runtime_session_id) values(${q(usageRow.scope)},0,${q('runtime-'+usageRow.scope)});insert into fmat.conversation_model_usage values(${q(usageRow.scope)},0,0,0,0,0);`);
+  for(const operation of ['recovery','reservation']){
+   await admin.query(`update fmat.conversation_grants set expires_at=clock_timestamp()+interval '0.5 seconds' where id=${q(usageRow.grant)};`);
+   await locker.query(`begin;select 1 from fmat.conversation_model_usage where conversation_id=${q(usageRow.scope)} for update;`);
+   const reserve=`do $$begin perform public.fmat_conversation_model_reserve(${q(usageRow.grant)},${q(usageRow.scope)},${q(usageRow.message)},${q('runtime-'+usageRow.scope)},'{"inputTokens":1,"outputTokens":1,"cacheReadTokens":0,"cacheWriteTokens":0}');perform set_config('test.recovery','reserved',false);exception when raise_exception then perform set_config('test.recovery',sqlerrm,false);end$$;select current_setting('test.recovery');`;
+   const pending=waiter.query(operation==='recovery'?attempt(3):reserve);await blocked(admin,name);await locker.query('select pg_sleep(0.7);commit;');
+   assert.equal(await pending,'UNAUTHORIZED',operation+' rechecks expiry after the observed live-usage lock');
+   assert.equal(await admin.query(`select count(*) from fmat.conversation_recoveries where conversation_id=${q(usageRow.scope)};`),'0');
+   assert.equal(await admin.query(`select input_tokens from fmat.conversation_model_usage where conversation_id=${q(usageRow.scope)};`),'0','denial rolls back the observed usage floor');
+   assert.equal(await admin.query(`select attempts from fmat.model_work_attempts where name=${q('conversation:'+usageRow.message)};`),'3','denial preserves charged attempts');
+  }
  }finally{
   await locker.query('rollback;').catch(()=>{});await admin.query('rollback;').catch(()=>{});
   const cleanup=new LocalSql();

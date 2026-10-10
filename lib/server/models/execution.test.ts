@@ -286,3 +286,43 @@ test('installed Responses adapter preserves requester advisory boundaries and re
   }
  }finally{globalThis.fetch=originalFetch;if(key===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=key;}
 });
+
+test('reported generation usage is durable before exposing a successful result',async()=>{
+ let release!:()=>void,entered!:()=>void,returned=false;
+ const recording=new Promise<void>(resolve=>{entered=resolve;});
+ const model=boundedModel(fixture(),async()=>({complete:async usage=>{assert.deepEqual(usage,answer.usage);entered();await new Promise<void>(resolve=>{release=resolve;});},failed:async()=>{assert.fail('successful result cannot be recorded as zero failure');}}));
+ const pending=model.doGenerate({prompt}).then(result=>{returned=true;return result;});
+ await recording;assert.equal(returned,false);release();assert.deepEqual(await pending,answer);
+});
+
+test('uncertain successful usage recording fails closed without converting it to zero',async()=>{
+ let failed=0;
+ const model=boundedModel(fixture(),async()=>({complete:async()=>{throw new ApplicationError('PROVIDER_UNAVAILABLE',503);},failed:async()=>{failed++;}}));
+ await assert.rejects(model.doGenerate({prompt}),{code:'PROVIDER_UNAVAILABLE'});assert.equal(failed,0);
+});
+
+test('stream completion waits for reported usage, while setup failure records no reported tokens',async()=>{
+ let complete=0,failed=0;
+ const receipt={complete:async(usage:unknown)=>{assert.deepEqual(usage,answer.usage);complete++;},failed:async()=>{failed++;}};
+ const provider=fixture({doStream:async()=>({stream:new ReadableStream({start(controller){controller.enqueue({type:'finish',finishReason:answer.finishReason,usage:answer.usage});controller.close();}})})});
+ const response=await boundedModel(provider,async()=>receipt).doStream({prompt});
+ const event=await response.stream.getReader().read();assert.equal(event.value?.type,'finish');assert.equal(complete,1);assert.equal(failed,0);
+ const broken=fixture({doStream:async()=>{throw new APICallError({message:'private',url:'https://api.openai.com',requestBodyValues:{},statusCode:401,isRetryable:false});}});
+ await assert.rejects(boundedModel(broken,async()=>receipt).doStream({prompt}),configurationUnavailable);assert.equal(failed,1);
+});
+
+test('configuration stream failure records no reported usage only before any generated output',async()=>{
+ for(const partial of [false,true]){
+  let failed=0;
+  const error=new APICallError({message:'private upstream',url:'https://api.openai.com',requestBodyValues:{},statusCode:401,isRetryable:false});
+  const provider=fixture({doStream:async()=>({stream:new ReadableStream({start(controller){
+   if(partial)controller.enqueue({type:'text-delta',id:'text',delta:'partial response'});
+   controller.enqueue({type:'error',error});controller.close();
+  }})})});
+  const model=boundedModel(provider,async()=>({complete:async()=>{assert.fail('failure has no complete usage');},failed:async()=>{failed++;}}));
+  const reader=(await model.doStream({prompt})).stream.getReader();
+  if(partial)assert.equal((await reader.read()).value?.type,'text-delta');
+  const result=(await reader.read()).value;assert.ok(result?.type==='error'&&configurationUnavailable(result.error));
+  assert.equal(failed,partial?0:1,'partial output remains unresolved instead of being assigned zero usage');
+ }
+});

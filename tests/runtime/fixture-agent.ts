@@ -10,6 +10,9 @@ import {describedPreferences,describedReply,describedRules,setupInvalid,setupFal
 const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMessageCount, userMessages, toolResults,tools }) => {
     if(process.env.FMAT_FIXTURE_MODEL_LOG)appendFileSync(process.env.FMAT_FIXTURE_MODEL_LOG,JSON.stringify({kind:tools.length?'turn':'compaction',inputHash:createHash('sha256').update(lastUserMessage??'').digest('hex')})+'\n');
     if(!tools.length)return 'Fixture checkpoint: preserve current authority; no scheduling decisions made.';
+    if(lastUserMessage==='usage-input-near-limit')return {text:'Input allowance retained.',usage:{inputTokens:99999,outputTokens:0}};
+    if(lastUserMessage==='usage-output-near-limit')return {text:'Output allowance retained.',usage:{inputTokens:0,outputTokens:7999}};
+    if(lastUserMessage==='usage-small-step')return {text:'Consumed the last remaining allowance.',usage:{inputTokens:1,outputTokens:1}};
     if(lastUserMessage==='setup-provider-outage')throw new Error('synthetic-private-provider-detail');
     if(lastUserMessage==='setup-provider-timeout')throw new DOMException('synthetic-private-timeout-detail','TimeoutError');
     if(lastUserMessage==='setup-provider-missing-key')throw new Error('Set OPENAI_API_KEY in the server environment. synthetic-private-provider-detail');

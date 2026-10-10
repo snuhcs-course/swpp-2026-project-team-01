@@ -1,3 +1,4 @@
+import type {ModelUsageReceipt} from './model-usage-receipt.ts';
 import {APICallError,LoadAPIKeyError,wrapLanguageModel} from 'ai';
 import {ApplicationError} from '../errors.ts';
 
@@ -88,31 +89,46 @@ function wait<T>(value:PromiseLike<T>,signal:AbortSignal):Promise<T>{
 
 /** Mandatory reservation callback runs once per actual provider invocation,
  * including SDK retries. Never supply a process-local counter in production. */
-export function boundedModel(model:Parameters<typeof wrapLanguageModel>[0]['model'],reserve:()=>Promise<void>,outputLimit=4096) {
+export function boundedModel(model:Parameters<typeof wrapLanguageModel>[0]['model'],reserve:()=>Promise<void|ModelUsageReceipt>,outputLimit=4096) {
  if(model.modelId!=='gpt-6-luna'||!Number.isSafeInteger(outputLimit)||outputLimit<1||outputLimit>modelExecutionPolicy.maxOutputTokens)throw new ApplicationError('CONFIGURATION_UNAVAILABLE',503);
  const delegate=wrapLanguageModel({model,middleware:{}});
  return {
   specificationVersion:delegate.specificationVersion,modelId:delegate.modelId,provider:delegate.provider,supportedUrls:{},
   async doGenerate(input:Call){
    const params=prepare(input,outputLimit),clock=deadline(input.abortSignal);params.abortSignal=clock.signal;
+   let receipt:void|ModelUsageReceipt=undefined,providerReturned=false;
    try{
     if(clock.signal.aborted)throw limited();
-    await wait(reserve(),clock.signal);
+    receipt=await wait(reserve(),clock.signal);
     if(clock.signal.aborted)throw limited();
-    return await wait(delegate.doGenerate(params),clock.signal);
-   }catch(error){throw providerFailure(error);}finally{clock.close();}
+    const result=await wait(delegate.doGenerate(params),clock.signal);providerReturned=true;
+    if(receipt)await wait(receipt.complete(result.usage),clock.signal);
+    return result;
+   }catch(error){const safe=providerFailure(error);
+    if(receipt&&!providerReturned&&!clock.signal.aborted)await wait(receipt.failed(),clock.signal);
+    throw safe;
+   }finally{clock.close();}
   },
   async doStream(input:Call){
    const params=prepare(input,outputLimit),clock=deadline(input.abortSignal);params.abortSignal=clock.signal;
+   let receipt:void|ModelUsageReceipt=undefined,providerReturned=false;
    try{
     if(clock.signal.aborted)throw limited();
-    await wait(reserve(),clock.signal);
+    receipt=await wait(reserve(),clock.signal);
     if(clock.signal.aborted)throw limited();
     const pending=Promise.resolve(delegate.doStream(params));
     // If stream setup finishes after cancellation, release its source as well.
     void pending.then(result=>{if(clock.signal.aborted)void result.stream.cancel().catch(()=>{});},()=>{});
-    const result=await wait(pending,clock.signal),reader=result.stream.getReader();
-    let ended=false;
+    const result=await wait(pending,clock.signal),reader=result.stream.getReader();providerReturned=true;
+    let ended=false,outputObserved=false,finishObserved=false,failureProcessed=false;
+    const sourceFailure=async(error:unknown)=>{
+     const safe=providerFailure(error);
+     if(receipt&&!outputObserved&&!finishObserved&&!failureProcessed&&!clock.signal.aborted
+       &&safe instanceof ApplicationError&&safe.code==='CONFIGURATION_UNAVAILABLE'){
+      failureProcessed=true;await wait(receipt.failed(),clock.signal);
+     }
+     return safe;
+    };
     const stop=()=>{if(ended)return;ended=true;clock.close();void reader.cancel().catch(()=>{});};
     const stream=new ReadableStream<Awaited<ReturnType<typeof reader.read>>['value'] & {}>({
      start(controller){
@@ -126,14 +142,29 @@ export function boundedModel(model:Parameters<typeof wrapLanguageModel>[0]['mode
        if(ended)return;
        if(part.done){controller.close();stop();}
        else if(part.value.type==='error'){
-        controller.enqueue({type:'error',error:providerFailure(part.value.error)});controller.close();stop();
-       }else controller.enqueue(part.value);
-      }catch(error){if(!ended){controller.error(providerFailure(error));stop();}}
+        const error=await sourceFailure(part.value.error);
+        if(!ended){controller.enqueue({type:'error',error});controller.close();stop();}
+       }else {
+        if(['text-delta','reasoning-delta','tool-call','tool-input-delta'].includes(part.value.type))outputObserved=true;
+        if(part.value.type==='finish'){
+         finishObserved=true;if(receipt)await wait(receipt.complete(part.value.usage),clock.signal);
+        }
+        if(!ended)controller.enqueue(part.value);
+       }
+      }catch(error){if(!ended){
+       try{const safe=await sourceFailure(error);if(!ended)controller.error(safe);}
+       catch(recordError){if(!ended)controller.error(providerFailure(recordError));}
+       finally{stop();}
+      }}
      },
      cancel(){clock.abort();stop();},
     });
     return {...result,stream};
-   }catch(error){clock.abort();clock.close();throw providerFailure(error);}
+   }catch(error){const safe=providerFailure(error);
+    try{if(receipt&&!providerReturned&&!clock.signal.aborted)await wait(receipt.failed(),clock.signal);}
+    finally{clock.abort();clock.close();}
+    throw safe;
+   }
   },
  } satisfies Model;
 }
