@@ -30,7 +30,7 @@ export function CalendarConnection({requestId,onChanged}:{requestId?:string;onCh
   async function act(action:'start'|'disconnect'){
     if(loading||!status||busy)return;
     setBusy(true);setError('');setNotice('');
-    try{const data=await call(action,requestId);if(action==='start'){const url=new URL(data.url);if(url.protocol!=='https:'||url.hostname!=='accounts.google.com')throw new Error('The connection could not be started.');location.assign(url.href);}else{setStatus(calendarStatus.parse(data));setNotice('Google access has been disconnected from this workspace.');onChanged?.();}}
+    try{const data=await call(action,requestId);if(action==='start'){const url=new URL(data.url);if(url.protocol!=='https:'||url.hostname!=='accounts.google.com')throw new Error('The connection could not be started.');location.assign(url.href);}else{returned.current=true;setStatus(calendarStatus.parse(data));setNotice('Google access has been disconnected from this workspace.');onChanged?.();}}
     catch(e){setError(e instanceof Error?e.message:'Please try again.');}finally{setBusy(false);}
   }
   return <Alert role="region" aria-label="Google Calendar connection" aria-busy={loading||busy}>

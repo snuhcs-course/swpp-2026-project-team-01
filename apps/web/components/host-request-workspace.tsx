@@ -23,8 +23,10 @@ function statusLabel(value:string){return value.replaceAll('_',' ');}
 export function HostRequestWorkspace({onAccessLost,onDraftRetained}:{onAccessLost:(draft?:string)=>void;onDraftRetained:(draft:string)=>void}){
  const [selection,setSelection]=useState<Selection|null>(null),[initialized,setInitialized]=useState(false),[picker,setPicker]=useState(false);
  const [selected,setSelected]=useState<HostRequestSummary|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(false);
+ const pickerToggle=useRef<HTMLButtonElement>(null);
  const current=useRef(selection),sequence=useRef(0),onDenied=useRef(onAccessLost),heading=useRef<HTMLDivElement>(null);current.current=selection;onDenied.current=onAccessLost;
  function choose(next:Selection|null){
+  if(!next)pickerToggle.current?.focus();
   sequence.current++;current.current=next;setSelection(next);setSelected(null);setError('');setLoading(!!next);setPicker(false);
   const url=new URL(location.href);url.searchParams.delete('request');url.searchParams.delete('audience');
   if(next){url.searchParams.set('request',next.requestId);url.searchParams.set('audience',next.audience);}
@@ -35,6 +37,7 @@ export function HostRequestWorkspace({onAccessLost,onDraftRetained}:{onAccessLos
    const params=new URLSearchParams(location.search),requestId=params.get('request');sequence.current++;setSelected(null);setError('');
    const valid=requestId&&hostRequestTarget.safeParse({requestId}).success;
    const next:Selection|null=valid?{requestId,audience:params.get('audience')==='request_shared'?'request_shared':'host_private'}:null;
+   if(current.current&&!next)pickerToggle.current?.focus();
    current.current=next;setSelection(next);setLoading(!!next);setPicker(false);setInitialized(true);
    if(requestId&&!valid)setError('That request link is invalid. Choose a request below.');
   }
@@ -56,7 +59,7 @@ export function HostRequestWorkspace({onAccessLost,onDraftRetained}:{onAccessLos
  useEffect(()=>{if(selected)heading.current?.focus();},[selected?.requestId,selected?.closed,selection?.audience]);
  const id=useId(),active=selected?.requestId===selection?.requestId?selected:null;
  return <div className="flex min-w-0 flex-col gap-4">
-  <div className="flex flex-wrap gap-2"><Button variant="outline" className="min-h-11" aria-expanded={picker} aria-controls={id+'picker'} onClick={()=>setPicker(value=>!value)}>Meeting requests</Button>{selection?<Button variant="ghost" className="min-h-11" onClick={()=>choose(null)}>Back to host chat</Button>:null}</div>
+  <div className="flex flex-wrap gap-2"><Button ref={pickerToggle} variant="outline" className="min-h-11" aria-expanded={picker} aria-controls={id+'picker'} onClick={()=>setPicker(value=>!value)}>Meeting requests</Button>{selection?<Button variant="ghost" className="min-h-11" onClick={()=>choose(null)}>Back to host chat</Button>:null}</div>
   {picker?<RequestPicker id={id+'picker'} onChoose={requestId=>choose({requestId,audience:'host_private'})} onAccessLost={onAccessLost}/>:null}
   {error?<Alert variant="destructive"><AlertTitle>Request unavailable</AlertTitle><AlertDescription>{error}</AlertDescription>{selection?<Button variant="outline" className="min-h-11" onClick={()=>{setError('');setLoading(true);void refresh();}}>Retry request</Button>:null}</Alert>:null}
   {loading?<p role="status">Opening your selected request…</p>:null}
@@ -78,6 +81,8 @@ export function HostRequestWorkspace({onAccessLost,onDraftRetained}:{onAccessLos
 function RequestPicker({id,onChoose,onAccessLost}:{id:string;onChoose:(id:string)=>void;onAccessLost:()=>void}){
  const [search,setSearch]=useState(''),[status,setStatus]=useState('active'),[query,setQuery]=useState({search:'',status:'active'});
  const [cursor,setCursor]=useState<HostRequestPage['nextCursor']>(null),[page,setPage]=useState<HostRequestPage|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(true),[refresh,setRefresh]=useState(0);
+ const resultsHeading=useRef<HTMLDivElement>(null),focusOrigin=useRef<HTMLElement|null>(null);
+ useEffect(()=>{if(loading||!page||!focusOrigin.current)return;const origin=focusOrigin.current;focusOrigin.current=null;if(document.activeElement===origin||document.activeElement===document.body)resultsHeading.current?.focus();},[loading,page]);
  const denied=useRef(onAccessLost);denied.current=onAccessLost;
  useEffect(()=>{const controller=new AbortController();setLoading(true);setPage(null);setError('');
   void read('requests?'+new URLSearchParams({...query,...cursor}),AbortSignal.any([controller.signal,AbortSignal.timeout(15_000)])).then(value=>{if(!controller.signal.aborted)setPage(hostRequestPage.parse(value));}).catch(cause=>{
@@ -85,14 +90,14 @@ function RequestPicker({id,onChoose,onAccessLost}:{id:string;onChoose:(id:string
   }).finally(()=>{if(!controller.signal.aborted)setLoading(false);});return()=>controller.abort();
  },[query,cursor,refresh]);
  function submit(event:FormEvent){event.preventDefault();setCursor(null);setQuery({search:search.trim(),status});}
- return <Card id={id} role="region" aria-label="Meeting request picker"><CardHeader><CardTitle>Choose a meeting request</CardTitle><CardDescription>Search by requester or purpose. Newest requests appear first.</CardDescription></CardHeader>
+ return <Card id={id} role="region" aria-label="Meeting request picker"><CardHeader><CardTitle ref={resultsHeading} tabIndex={-1}>Choose a meeting request</CardTitle><CardDescription>Search by requester or purpose. Newest requests appear first.</CardDescription></CardHeader>
   <CardContent className="flex min-w-0 flex-col gap-4"><form onSubmit={submit}><FieldGroup>
    <Field><FieldLabel htmlFor={id+'search'}>Search requests</FieldLabel><Input id={id+'search'} value={search} maxLength={200} onChange={event=>setSearch(event.target.value)}/></Field>
    <FieldSet><FieldLegend>Request status</FieldLegend><RadioGroup value={status} onValueChange={setStatus} className="flex flex-wrap gap-4">{[['active','Active'],['closed','Closed'],['all','All']].map(([value,label])=><Field orientation="horizontal" className="w-auto" key={value}><RadioGroupItem id={id+value} value={value}/><FieldLabel htmlFor={id+value}>{label}</FieldLabel></Field>)}</RadioGroup></FieldSet>
    <Button type="submit" variant="outline" className="min-h-11">Search requests</Button>
   </FieldGroup></form>
-  {loading?<p role="status">Loading requests…</p>:null}{error?<Alert variant="destructive"><AlertTitle>Could not load requests</AlertTitle><AlertDescription>{error}</AlertDescription><Button variant="outline" className="min-h-11" onClick={()=>setRefresh(value=>value+1)}>Retry list</Button></Alert>:null}
+  {loading?<p role="status">Loading requests…</p>:null}{error?<Alert variant="destructive"><AlertTitle>Could not load requests</AlertTitle><AlertDescription>{error}</AlertDescription><Button variant="outline" className="min-h-11" onClick={event=>{focusOrigin.current=event.currentTarget;setRefresh(value=>value+1);}}>Retry list</Button></Alert>:null}
   {page?<><p role="status">{page.requests.length?`${page.requests.length} requests on this page.`:'No requests match this search.'}</p><ul className="flex min-w-0 flex-col gap-3">{page.requests.map(request=><li key={request.requestId} className="flex min-w-0 flex-col gap-1"><p className="wrap-anywhere">{request.title||'Meeting request'} · {request.requesterName||'Requester'} · {statusLabel(request.status)}</p><Button variant="outline" className="min-h-11 self-start" aria-label={'Review '+(request.title||'meeting request')+' from '+(request.requesterName||'requester')} onClick={()=>onChoose(request.requestId)}>Review request</Button></li>)}</ul></>:null}
-  </CardContent><CardFooter className="flex-wrap gap-2"><Button variant="ghost" className="min-h-11" disabled={loading} onClick={()=>{setCursor(null);setRefresh(value=>value+1);}}>Refresh newest</Button>{page?.nextCursor?<Button variant="outline" className="min-h-11" disabled={loading} onClick={()=>setCursor(page.nextCursor)}>Older requests</Button>:null}</CardFooter>
+  </CardContent><CardFooter className="flex-wrap gap-2"><Button variant="ghost" className="min-h-11" disabled={loading} onClick={event=>{focusOrigin.current=event.currentTarget;setCursor(null);setRefresh(value=>value+1);}}>Refresh newest</Button>{page?.nextCursor?<Button variant="outline" className="min-h-11" disabled={loading} onClick={event=>{focusOrigin.current=event.currentTarget;setCursor(page.nextCursor);}}>Older requests</Button>:null}</CardFooter>
  </Card>;
 }

@@ -10,7 +10,7 @@ All reconstruction routes below use **`https://release.findmeatime.com`**: host 
 
 ## Navigation and page model
 
-Use a centered conversation with contextual cards and a reachable composer. A compact menu opens setup, request selection and settings controls inside the host chat, plus sign-out. Do not introduce a persistent sidebar, dashboard metrics, separate generic chat home, or model picker. Precise edits open labeled dialogs within the same page and return to the conversation.
+Use a centered conversation with contextual cards and a reachable composer. A compact menu opens setup, request selection and settings controls inside the host chat, plus sign-out. Do not introduce a persistent sidebar, dashboard metrics, separate generic chat home, or model picker. Precise preference edits open labeled in-chat editors within the same page and restore focus on cancel or save, following the [interface contract](03_interfaces.md).
 
 Public visitors enter through `/` or a host's `/{handle}` link. Signed-in hosts chat with their agent at `/app`. Admission, setup, request review and settings are states and contextual controls of that same page. Requesters continue through a private request link without creating a product account. Email and iMessage conversations use the same application records and link to these pages when browser consent or review is needed.
 

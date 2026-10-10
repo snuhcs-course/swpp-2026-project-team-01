@@ -180,7 +180,7 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     await verifyPublicIntake(browser,origin,sql,userId,page);
     await verifyRequesterRecovery(browser,origin,sql,userId,local);
     await page.setViewportSize({width:1280,height:900});
-    await page.getByRole('button',{name:'Manage Google connection',exact:true}).click();await page.getByRole('button',{name:'Disconnect Google',exact:true}).click();await page.getByRole('status').filter({hasText:'Google access has been disconnected'}).waitFor();assert.equal(await choices.count(),0);
+    await page.getByRole('button',{name:'Manage Google connection',exact:true}).click();await page.getByRole('button',{name:'Disconnect Google',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Google access has been disconnected'})).toBeFocused();assert.equal(await choices.count(),0);
     assert.equal((await context.request.get(origin+'/api/browser/calendar/list')).status(),409);
     await verifyConversationReconnect(page);
     const composer=page.getByLabel('Message your scheduling assistant');
