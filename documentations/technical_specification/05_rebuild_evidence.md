@@ -3458,3 +3458,19 @@ The actual database ingress and requester linking/worker integrations passed, co
 ### Successor fixture hosted CI follow-up
 
 Hosted run `38017093480` completed successfully for `f9943b36e79f1a181f3abbd53b9fb99bcfd80d23`, including repository, browser and database/runtime jobs. This verifies the earlier successor acknowledgment synchronization on a hosted runner. It does not certify the later AgentMail changes or their still-running hosted jobs.
+
+
+## Legacy native OAuth probe audit — 2026-10-10
+
+Read all seven retired native OAuth tests at `5c305d9^:scripts/p0/oauth-probe-native.test.mjs` and recorded their disposition in the [audit](19_legacy_native_oauth_probe_audit.md). The isolated GoTrue diagnostic issuer/session tables, temporary native-run registry, diagnostic tool and JSONL parser are retired. Their actual-event provenance, active-login preservation and natural-expiry refresh requirements remain live acceptance obligations. The current application issuer and `fmat` CLI must not be mistaken for native Codex or other named-client acceptance.
+
+Fresh `npx tsx --test --test-concurrency=1 tests/integration/agent-oauth-service.test.ts tests/integration/agent-oauth-grants.test.ts tests/integration/agent-oauth-registry.test.ts` passed all three cases against real local PostgREST/SQL, including concurrency, expiry/disablement after lock waits, consent, one-time code exchange, narrowed refresh, rotation/replay revocation and explicit revoke. All 2,534 SQL assertions passed afterward. Current CLI/protocol unit tests also passed in the preceding 560-case application run. Logs: `.local/rebuild/legacy-native-oauth-{integration,sql}.log`. No native client or production OAuth grant was changed, and none of the seven client-specific journey gates is marked complete.
+
+
+## AgentMail aborted-body production rollout — 2026-10-10
+
+Deployed the verified Git archive of `9a176c982f565334515fa793fdd003939cbdda4d` to `justdodos-projects/findmeatime-release` with Vercel CLI 62.5.0. Verified 1,432 Git blobs; the dry-run upload scan checked 1,068 regular files against 13 known local secret values with zero matches and excluded local environment files. Deployment `dpl_6sPHvWznoT7GyLaxmAm4wDndfmKW`, `https://findmeatime-release-o7hrur7ov-justdodos-projects.vercel.app`, independently reported Ready and passed protected health before promotion.
+
+After promotion, inspection of `https://release.findmeatime.com` and the explicit alias list both resolved the exact new deployment. All 38 production checks passed: 15 runtime/health guards, ten setup/Google-only login-start checks, six recovery guards, four Photon worker denials, two AgentMail worker denials and one AgentMail ingress configuration guard. The latter returned `503 CONFIGURATION_UNAVAILABLE`; receiver configuration remains incomplete, and this is not claimed as successful ingestion. `releaseReady:false` remains truthful. The already-aborted-body behavior is proved by the local regression, not inferred from production HTTP guard results.
+
+No remote migration, receiver activation or message send occurred. Hosted runs `38018065784` and `38018063244` for this source remained in progress at the last observation. The later native OAuth audit changes documentation only. The root `npm test` command also passed 17 tests; its four SMTP tests remain byte-for-byte unchanged from `5c305d9^` and are retained, rather than silently retired. Local rollout artifacts use `.local/rebuild/agentmail-abort-`; root-test evidence is `.local/rebuild/agentmail-legacy-root-tests.log`. Live Google callbacks, email/provider ownership and all other open plan gates remain outstanding.

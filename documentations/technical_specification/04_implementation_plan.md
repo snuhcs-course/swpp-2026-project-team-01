@@ -468,6 +468,8 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 
 ### Phase 6 — Add requester email continuity
 
+- [x] Deploy AgentMail aborted-body cleanup from `9a176c9` (`dpl_6sPHvWznoT7GyLaxmAm4wDndfmKW`) and verify the Ready release alias plus 38 production guards. [Evidence](05_rebuild_evidence.md#agentmail-aborted-body-production-rollout--2026-10-10). Receiver configuration and live email acceptance remain open.
+
 - [x] Audit all 23 retired AgentMail probe assertions, restore the independent Svix vector, and fix cancellation of request bodies already aborted before verification. Preserve diagnostic ownership/callback obligations as live gates. [Audit](18_legacy_agentmail_probe_audit.md); [evidence](05_rebuild_evidence.md#legacy-agentmail-probe-audit-and-aborted-body-cleanup--2026-10-10).
 
 - [x] Deploy verified parent-quotation readback (`5636381`; deployment `dpl_DxsJ2S6TKhoFUeVG8gsDB5MHnrsT`) and verify Ready production, 73 HTTP guards, seven public documents and disabled ingress. [Evidence](05_rebuild_evidence.md#verified-agentmail-parent-quotation-readback--2026-10-08).
@@ -679,6 +681,8 @@ Incremental completion (full phase exit remains open):
 - [x] Deploy public skill entry and verify production GET/HEAD/POST behavior plus existing access guards (`df91af8`; deployment `dpl_JCbfDnWjD6B5xagyTdbgRKJ6sFX2`; [evidence](05_rebuild_evidence.md#public-agent-entry-documents--2026-10-08)).
 
 Work:
+
+- [x] Map all seven retired native OAuth probe assertions to the current issuer/grant/client boundaries and preserve actual client-event and natural-expiry refresh obligations. Verify registry, grant and service integrations plus 2,534 post-fixture SQL assertions. [Audit](19_legacy_native_oauth_probe_audit.md); [evidence](05_rebuild_evidence.md#legacy-native-oauth-probe-audit--2026-10-10). No named-client acceptance is claimed.
 
 - [ ] Serve `/SKILL.md` and `/{handle}/SKILL.md` with public instructions, versioning, missing-client recovery and no private state. Preserve both agreed paste-to-agent entry journeys.
 - [ ] Implement the OAuth server/resource checks selected in Phase 1, bounded grants and grant/deny consent at `/connect/authorize`. Keep Google consent, application authorization, host admission and proposal approval distinct.

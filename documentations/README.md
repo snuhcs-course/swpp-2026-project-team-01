@@ -79,3 +79,5 @@ The [legacy request API audit](technical_specification/13_legacy_request_api_aud
 The [legacy Photon bridge audit](technical_specification/17_legacy_photon_bridge_audit.md) maps all 23 retired bridge assertions, records replaced stream/configuration contracts, and distinguishes verified delivery recovery from pending live-provider behavior.
 
 The [legacy AgentMail probe audit](technical_specification/18_legacy_agentmail_probe_audit.md) maps 23 retired diagnostic tests and separates application guarantees from unverified live fixture ownership and callback evidence.
+
+The [legacy native OAuth probe audit](technical_specification/19_legacy_native_oauth_probe_audit.md) records seven retired assertions, the issuer change and the evidence still needed from actual named clients.
