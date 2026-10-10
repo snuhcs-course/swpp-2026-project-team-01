@@ -2,7 +2,7 @@
 
 ## Why
 
-The [model failure acceptance](../../../documentations/technical_specification/05_rebuild_evidence.md#direct-model-access-and-failure-acceptance--2026-10-10) demonstrates that an OpenAI authentication error terminates eve's canonical workflow. Saved scheduling state survives, but subsequent accepted input remains reconciliation-pending because the application correctly refuses an implicit replacement. The implementation plan requires a guarded path back to the same authorized conversation.
+The [model failure acceptance](../../../../documentations/technical_specification/05_rebuild_evidence.md#direct-model-access-and-failure-acceptance--2026-10-10) demonstrates that an OpenAI authentication error terminates eve's canonical workflow. Saved scheduling state survives, but subsequent accepted input remains reconciliation-pending because the application correctly refuses an implicit replacement. The implementation plan requires a guarded path back to the same authorized conversation.
 
 ## What Changes
 
@@ -26,6 +26,6 @@ None.
 
 ## Impact
 
-Application conversation contracts, SQL session/inbox/tool authorization, additive declarative migration, eve channel delivery/history/stream adapters, browser gateway and conversation controls, model error handling, runtime/browser/SQL tests and managed acceptance. See the [PRD](../../../documentations/02_product_requirements.md), [implementation plan](../../../documentations/technical_specification/04_implementation_plan.md), [conversation contract](../../specs/conversation-access/spec.md), [workspace contract](../../specs/chat-workspaces/spec.md) and [model limits](../../specs/model-execution/spec.md).
+Application conversation contracts, SQL session/inbox/tool authorization, additive declarative migration, eve channel delivery/history/stream adapters, browser gateway and conversation controls, model error handling, runtime/browser/SQL tests and managed acceptance. See the [PRD](../../../../documentations/02_product_requirements.md), [implementation plan](../../../../documentations/technical_specification/04_implementation_plan.md), [conversation contract](../../../specs/conversation-access/spec.md), [workspace contract](../../../specs/chat-workspaces/spec.md) and [model limits](../../../specs/model-execution/spec.md).
 
 This change introduces no new identity provider, channel receiver, scheduling approval path, external queue or automatic session replacement. Existing model/admission limits and closed/revoked-request restrictions remain in force. SDK metadata/history behavior must be verified with pinned eve before implementation treats a successor as recoverable; unknown provider state never authorizes a transition.
