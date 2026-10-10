@@ -339,6 +339,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 Incremental completion (2026-10-07; the full phase exit remains open):
 
+- [x] Deploy workspace focus recovery from `3d69270`, verify the exact Ready release alias and pass all 38 production HTTP checks. [Rollout](05_rebuild_evidence.md#production-workspace-focus-recovery--2026-10-10). Live provider/device and broader release acceptance remain open.
+
 - [x] Restore focus after final-page request pagination, retry/refresh, return to host chat and Google disconnect; preserve a new focus choice while a read is pending. Verify the complete browser journey, both builds, runtime and 2,837 SQL assertions; reconcile the page-list editor wording with the interface contract. [Evidence](05_rebuild_evidence.md#workspace-navigation-focus-recovery--2026-10-10). Broader workspace/device acceptance remains open.
 
 - [x] Deploy workspace read navigation from `2237332`, independently verify the exact Ready release alias and all 38 runtime/setup/recovery/provider HTTP checks. [Rollout](05_rebuild_evidence.md#production-workspace-read-navigation--2026-10-10). Live provider/device and broader release gates remain open.
