@@ -494,3 +494,10 @@ The overnight-hours restoration adds `20261009110653_support_overnight_host_hour
 ### iMessage revision controls
 
 After selecting a request and privately discussing changes, send `changes` to receive the application's complete before/after review. Use only its exact `apply changes <review UUID>` or `dismiss changes <review UUID>` command before expiry. The review must have crossed the reply delivery boundary, and the original private link and receipt authority must still be current. Model summaries, draft IDs and ordinary assent cannot apply changes. Stale or oversized reviews require renewed review or authenticated web continuation. Sharing clears old proposal decisions; evaluate/select a new proposal in the workspace, obtain requester agreement and review it again before explicit host approval. Real recipient acceptance remains required by the [continuity tasks](../../openspec/changes/route-imessage-host-requests/tasks.md).
+
+
+### Terminal conversation recovery rollout
+
+The [recovery change](../../openspec/changes/recover-terminal-conversations/tasks.md) adds current-authority status and explicit recovery controls without a new provider credential. Keep the existing runtime dispatch secret and scheduler: eligible accepted input resumes with its original message identity and grant. Recovery alone must not send a fabricated prompt, renew expired access, reset model allowances or approve scheduling changes.
+
+Before activating the browser controls in production, complete isolated managed acceptance and deploy the reviewed generation/fencing/usage/recovery migrations with function parity checks. A status of unavailable requires investigation of trusted runtime evidence and unresolved usage; do not clear bindings or manufacture terminal evidence. A limit-reached status preserves structured controls and does not authorize quota resets. After a lost browser response, check recovery status or retry the saved recovery identity; ordinary reconnect only resumes history transport. See the [frontend behavior](02_frontend_architecture.md) and [evidence ledger](05_rebuild_evidence.md) for current acceptance and rollout state.

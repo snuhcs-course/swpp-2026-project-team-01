@@ -20,7 +20,7 @@ async function read(path:string,signal?:AbortSignal){
 }
 function statusLabel(value:string){return value.replaceAll('_',' ');}
 
-export function HostRequestWorkspace({onAccessLost}:{onAccessLost:()=>void}){
+export function HostRequestWorkspace({onAccessLost,onDraftRetained}:{onAccessLost:(draft?:string)=>void;onDraftRetained:(draft:string)=>void}){
  const [selection,setSelection]=useState<Selection|null>(null),[initialized,setInitialized]=useState(false),[picker,setPicker]=useState(false);
  const [selected,setSelected]=useState<HostRequestSummary|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(false);
  const current=useRef(selection),sequence=useRef(0),onDenied=useRef(onAccessLost),heading=useRef<HTMLDivElement>(null);current.current=selection;onDenied.current=onAccessLost;
@@ -71,7 +71,7 @@ export function HostRequestWorkspace({onAccessLost}:{onAccessLost:()=>void}){
   {active&&selection&&['booking','booked'].includes(active.status)?<BookingReceiptCard key={selection.requestId+'receipt'} requestId={selection.requestId} audience="host" onStatus={next=>setSelected(previous=>previous?.requestId===next.requestId&&next.revision>=previous.revision?{...previous,status:next.status,closed:next.closed,revision:next.revision}:previous)}/>:null}
   {active&&!active.closed&&selection?<RequestLifecycleCard key={selection.requestId+'closure'} requestId={selection.requestId} audience="host" refreshKey={active.revision} onStatus={next=>setSelected(previous=>previous?.requestId===next.requestId&&next.revision>=previous.revision?{...previous,status:next.status,closed:next.closed,revision:next.revision}:previous)}/>:null}
   {active&&!active.closed&&selection?<BookingApprovalCard key={selection.requestId+'approval'} requestId={selection.requestId} onStatus={next=>setSelected(previous=>previous?.requestId===next.requestId&&next.revision>=previous.revision?{...previous,status:next.status,revision:next.revision,closed:['booked','withdrawn','declined','expired'].includes(next.status)}:previous)}/>:null}
-  {initialized&&!selection?<ConversationWorkspace key="host_setup" target={{audience:'host_setup'}} onAccessLost={onAccessLost}/>:active&&!active.closed&&active.status!=='booking'&&selection?<ConversationWorkspace key={selection.requestId+selection.audience} target={selection} onAccessLost={()=>{sequence.current++;setSelected(null);setError('Access to this discussion has ended. Refresh the request to check your access.');}} onRequestChanged={()=>void refresh()}/>:null}
+  {initialized&&!selection?<ConversationWorkspace key="host_setup" target={{audience:'host_setup'}} onAccessLost={onAccessLost}/>:active&&!active.closed&&active.status!=='booking'&&selection?<ConversationWorkspace key={selection.requestId+selection.audience} target={selection} onAccessLost={draft=>{if(draft)onDraftRetained(draft);sequence.current++;setSelected(null);setError('Access to this discussion has ended. Refresh the request to check your access.');}} onRequestChanged={()=>void refresh()}/>:null}
  </div>;
 }
 

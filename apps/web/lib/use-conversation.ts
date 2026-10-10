@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { conversationEvent, conversationSnapshot, conversationView, incomingMessage, messageReceipt, type ConversationSnapshot } from '../../../lib/contracts/conversations.ts';
 import {conversationJson as json,conversationSendFailure} from './conversation-transport.ts';
 import { emptyTranscript, reduceConversation } from './conversation-state.ts';
+import {useConversationRecovery} from './use-conversation-recovery.ts';
 
 export type ChatTarget={audience:'host_setup'}|{audience:'request_shared'|'host_private';requestId:string;guest?:boolean};
 type Failure=Error&{status?:number};
@@ -21,6 +22,12 @@ export function useConversation(target:ChatTarget,onAccessLost:()=>void) {
   const frozen=useRef<{clientId:string;text:string}|null>(null),inFlight=useRef(false),onDenied=useRef(onAccessLost);onDenied.current=onAccessLost;
   const query=guest?'?requestId='+encodeURIComponent(requestId!):'';
   function deny(){lifetime.current?.abort();scope.current='';setSending(false);state.current=emptyTranscript();setTranscript(state.current);setSnapshot(null);setDenied(true);frozen.current=null;setSendError('');setError('Your conversation access has ended.');onDenied.current();}
+  const recovery=useConversationRecovery(denied||snapshot?.readOnly?undefined:snapshot?.conversationId,query,deny,()=>interruptRead.current());
+  const pending=snapshot?.messages.some(m=>m.status==='pending')===true;
+  const recoveryBlocked=!!recovery.error||!!recovery.status&&recovery.status.state!=='active';
+  const canRetry=!!snapshot&&!snapshot.readOnly&&!denied&&!recovery.busy&&!recovery.error&&
+    (recovery.status?.state==='active'||recovery.status?.state==='recovering');
+  const canSend=canRetry&&!pending;
   useEffect(()=>{
     const controller=new AbortController(),signal=controller.signal;lifetime.current=controller;
     state.current=emptyTranscript();setTranscript(state.current);setSnapshot(null);setDenied(false);setError('');setSendError('');setSending(false);scope.current='';frozen.current=null;
@@ -54,7 +61,8 @@ export function useConversation(target:ChatTarget,onAccessLost:()=>void) {
                 const event=conversationEvent.parse(JSON.parse(line));
                 if(event.type==='error')throw Object.assign(new Error(event.error.message),{status:['UNAUTHORIZED','FORBIDDEN','NOT_FOUND'].includes(event.error.code)?403:503});
                 state.current=reduceConversation(state.current,event);if(signal.aborted)return;setTranscript(state.current);
-                if(event.type==='failed')setError(failedResponse);
+                // A failed event may belong to a retired historical turn. The
+                // latest application receipt, not replay, owns current failure.
                 if(['turn.started','step.started','turn.completed','turn.cancelled','session.waiting','session.completed','failed'].includes(event.type))await refresh(readSignal);
               }
             }
@@ -74,7 +82,7 @@ export function useConversation(target:ChatTarget,onAccessLost:()=>void) {
   },[audience,requestId,guest]);
 
   async function send(text:string) {
-    const controller=lifetime.current;if(inFlight.current||!scope.current||!controller||controller.signal.aborted||denied)return false;
+    const controller=lifetime.current;if(!(frozen.current?canRetry:canSend)||inFlight.current||!scope.current||!controller||controller.signal.aborted||denied)return false;
     frozen.current??=incomingMessage.parse({clientId:crypto.randomUUID(),text});
     inFlight.current=true;setSending(true);setSendError('');
     try{
@@ -97,6 +105,7 @@ export function useConversation(target:ChatTarget,onAccessLost:()=>void) {
   }
   // Stream lifecycle events also replay old turns. Only accepted, unsettled
   // application inputs establish current work; refresh that state on lifecycle events.
-  return {messages:transcript.messages,working:snapshot?.messages.some(m=>m.status==='pending')===true,
+  return {messages:transcript.messages,working:pending&&!recoveryBlocked,canSend,canRetry,recovery,
+    pendingMessages:snapshot?.messages.filter(m=>m.status==='pending')??[],
     ready:!!snapshot&&!denied,error:error||(snapshot?.messages.at(-1)?.status==='failed'?failedResponse:''),sendError,sending,denied,send,reconnect:()=>interruptRead.current()};
 }

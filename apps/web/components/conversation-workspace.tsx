@@ -17,9 +17,10 @@ import { Message, MessageContent, MessageHeader } from './ui/message';
 import { Bubble, BubbleContent } from './ui/bubble';
 import { MessageScrollerProvider, MessageScroller, MessageScrollerViewport, MessageScrollerContent, MessageScrollerItem, MessageScrollerButton, useMessageScroller } from './ui/message-scroller';
 import { Suggestion, Suggestions } from './ai-elements/suggestion';
+import {ConversationRecoveryCard} from './conversation-recovery.tsx';
 
-export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{target:ChatTarget;onAccessLost:()=>void;onRequestChanged?:()=>void}) {
-  const chat=useConversation(target,onAccessLost),[draft,setDraft]=useState(''),id=useId(),input=useRef<HTMLTextAreaElement>(null);
+export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{target:ChatTarget;onAccessLost:(draft?:string)=>void;onRequestChanged?:()=>void}) {
+  const [draft,setDraft]=useState(''),chat=useConversation(target,()=>onAccessLost(draft)),id=useId(),input=useRef<HTMLTextAreaElement>(null);
   const [requestRevision,setRequestRevision]=useState(0);
   function requestChanged(){setRequestRevision(value=>value+1);onRequestChanged?.();}
   function ask(text:string){setDraft(text);input.current?.focus();}
@@ -56,16 +57,17 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
       </MessageScroller>
     </MessageScrollerProvider>
     <div className="conversation-controls">
+      <ConversationRecoveryCard recovery={chat.recovery} pendingMessages={chat.pendingMessages} onContinue={()=>input.current?.focus()}/>
       {chat.error?<Alert><AlertTitle>Conversation connection</AlertTitle><AlertDescription>{chat.error}</AlertDescription>{!chat.denied?<Button variant="ghost" onClick={chat.reconnect}><RefreshCwIcon data-icon="inline-start"/>Reconnect now</Button>:null}</Alert>:null}
-      {chat.sendError?<Alert variant="destructive"><AlertTitle>Message needs a retry</AlertTitle><AlertDescription>{chat.sendError}</AlertDescription><Button variant="outline" disabled={chat.sending||chat.denied} onClick={()=>void submit()}>Retry same message</Button></Alert>:null}
+      {chat.sendError?<Alert variant="destructive"><AlertTitle>Message needs a retry</AlertTitle><AlertDescription>{chat.sendError}</AlertDescription><Button variant="outline" disabled={chat.sending||!chat.canRetry} onClick={()=>void submit()}>Retry same message</Button></Alert>:null}
       {!chat.messages.length&&!draft&&!chat.denied?<Suggestions>{(host?['Help me set up my meetings','What can you help me with?']:['I’d like to share my availability','What details do you need?']).map(suggestion=><Suggestion key={suggestion} suggestion={suggestion} onClick={text=>{setDraft(text);input.current?.focus();}}/>)}</Suggestions>:null}
       <form onSubmit={submit}>
         <FieldGroup><Field data-disabled={!chat.ready||chat.sending||!!chat.sendError}>
           <FieldLabel htmlFor={id}>Message your scheduling assistant</FieldLabel>
           <Textarea id={id} ref={input} value={draft} maxLength={10_000} placeholder={host?'Tell me what a good meeting week looks like…':'Share what you have in mind…'}
             disabled={!chat.ready||chat.sending||!!chat.sendError} onChange={e=>setDraft(e.target.value)}
-            onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(!chat.working&&!chat.sending&&!chat.sendError)void submit();}}}/>
-          <div className="composer-actions"><FieldDescription>Enter to send · Shift + Enter for a new line</FieldDescription><Button type="submit" size="lg" disabled={!chat.ready||chat.working||chat.sending||!!chat.sendError||!draft.trim()}>Send<ArrowUpIcon data-icon="inline-end"/></Button></div>
+            onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(chat.canSend&&!chat.sending&&!chat.sendError)void submit();}}}/>
+          <div className="composer-actions"><FieldDescription>Enter to send · Shift + Enter for a new line</FieldDescription><Button type="submit" size="lg" disabled={!chat.canSend||chat.sending||!!chat.sendError||!draft.trim()}>Send<ArrowUpIcon data-icon="inline-end"/></Button></div>
         </Field></FieldGroup>
       </form>
       <p className="conversation-status" role="status">{chat.denied?'Access ended.':chat.sending?'Sending your message…':chat.working?'Your message is saved. The assistant is responding…':chat.ready?'Your conversation is saved. Approval and booking always need confirmed actions.':'Opening your private conversation…'}</p>

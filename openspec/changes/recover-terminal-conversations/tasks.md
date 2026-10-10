@@ -15,7 +15,7 @@
 
 ## 3. Browser recovery and acceptance
 
-- [ ] 3.1 Add current-authority same-origin recovery routes and explicit accessible browser controls; verify CSRF/foreign/revoked/stale denial, retained text/history, concurrent participants and reload after lost responses. Update UX, setup and operational documentation.
-- [ ] 3.2 Run actual-process and browser recovery for an existing authentication-terminated workflow, pending input, prior committed draft and historical cursors; verify original logical identity, one effect, unchanged approvals and cleanup with the complete SQL suite.
+- [x] 3.1 Add current-authority same-origin recovery routes and explicit accessible browser controls; verify CSRF/foreign/revoked/stale denial, retained text/history, concurrent participants and reload after lost responses. Update UX, setup and operational documentation.
+- [x] 3.2 Run actual-process and browser recovery for an existing authentication-terminated workflow, pending input, prior committed draft and historical cursors; verify original logical identity, one effect, unchanged approvals and cleanup with the complete SQL suite.
 - [ ] 3.3 Verify managed recovery in an isolated diagnostic deployment using synthetic records, preserving release routing; record exact source/overlays, terminal evidence, successor/history/accounting results and verified run/database/deployment cleanup.
 - [ ] 3.4 Deploy the reviewed migration and implementation to the identified production targets; verify migration/function parity, current release routing, protected HTTP guards and isolated recovery acceptance, then update the implementation plan and archive only after all tasks pass.
