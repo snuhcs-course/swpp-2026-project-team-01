@@ -8,6 +8,7 @@ import {BookingDelivery} from '../../lib/server/email/booking-delivery.ts';
 import {ContactVerificationDelivery} from '../../lib/server/email/contact-delivery.ts';
 import {RequesterRecoveryDelivery} from '../../lib/server/email/recovery-delivery.ts';
 import {InvitationDelivery} from '../../lib/server/email/invitation-delivery.ts';
+import {PhotonHandoffs} from '../../lib/server/photon/handoffs.ts';
 import {PhotonTransport} from '../../lib/server/photon/transport.ts';
 import {dispatchLinkCodes} from '../../lib/server/photon/delivery.ts';
 import {dispatchPhotonReplies} from '../../lib/server/photon/replies.ts';
@@ -15,7 +16,7 @@ import {dispatchContactShares} from '../../lib/server/photon/contact-delivery.ts
 import {AgentMailReplyTransport,type FrozenAgentMailReply} from '../../lib/server/agentmail/reply-transport.ts';
 import {dispatchRequesterEmailReply} from '../../lib/server/agentmail/replies.ts';
 const id='00000000-0000-4000-8000-000000000001';
-const base={SUPABASE_URL:'https://database.example.test',SUPABASE_SECRET_KEY:'synthetic',CLOUDFLARE_ACCOUNT_ID:'a'.repeat(32),CLOUDFLARE_EMAIL_FROM:'no-reply@findmeatime.com',CLOUDFLARE_EMAIL_API_TOKEN:'synthetic',PHOTON_PROJECT_ID:id,PHOTON_PROJECT_SECRET:'synthetic',AGENTMAIL_INBOX_ID:'inbox@example.test',AGENTMAIL_RECEIVER_ID:id,AGENTMAIL_API_KEY:'synthetic'};
+const base={TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,1).toString('base64'),SUPABASE_URL:'https://database.example.test',SUPABASE_SECRET_KEY:'synthetic',CLOUDFLARE_ACCOUNT_ID:'a'.repeat(32),CLOUDFLARE_EMAIL_FROM:'no-reply@findmeatime.com',CLOUDFLARE_EMAIL_API_TOKEN:'synthetic',PHOTON_PROJECT_ID:id,PHOTON_PROJECT_SECRET:'synthetic',AGENTMAIL_INBOX_ID:'inbox@example.test',AGENTMAIL_RECEIVER_ID:id,AGENTMAIL_API_KEY:'synthetic'};
 const denied:NodeJS.ProcessEnv[]=[{VERCEL_ENV:'preview'},{VERCEL_ENV:'development'},{VERCEL_ENV:'custom'},{VERCEL:'1'},{VERCEL_URL:'preview.example.test'},{VERCEL_DEPLOYMENT_ID:'private-deployment'},{VERCEL_ENV:''},{VERCEL_ENV:' production'},{VERCEL_ENV:'production',VERCEL_TARGET_ENV:'staging'},{VERCEL_TARGET_ENV:'production'}];
 const unavailable=(error:unknown)=>error instanceof ApplicationError&&error.code==='CONFIGURATION_UNAVAILABLE'&&error.status===503;
 const email:PreparedEmail={id,accountId:base.CLOUDFLARE_ACCOUNT_ID,message:{from:'no-reply@findmeatime.com',to:'guest@example.test',subject:'Test',html:'Test',text:'Test'}};
@@ -37,6 +38,9 @@ test('all messaging workers reject before database or injected transport access'
   }
   await assert.rejects(dispatchLinkCodes(db,env,{send:forbidden,reconcile:forbidden}),unavailable);
   await assert.rejects(dispatchPhotonReplies(db,env,{send:forbidden,reconcile:forbidden}),unavailable);
+  const handoffs=new PhotonHandoffs(db,env,{send:forbidden,reconcile:forbidden});
+  await assert.rejects(handoffs.prepare(),unavailable);
+  await assert.rejects(handoffs.dispatch(),unavailable);
   await assert.rejects(dispatchContactShares(db,env,{shareContact:forbidden}),unavailable);
   await assert.rejects(dispatchRequesterEmailReply(db,env,{send:forbidden}),unavailable);
  }
@@ -68,6 +72,12 @@ test('production and standalone workers retain the normal claim boundary and tra
   const provider=new CloudflareEmail(env,async()=>{sends++;return Response.json({success:true});});
   for(const Worker of [BookingDelivery,ContactVerificationDelivery,RequesterRecoveryDelivery,InvitationDelivery])assert.equal((await new Worker(db,env,provider).run()).claimed,0);
   assert.equal(claims,4);assert.equal(sends,0);
+  const operations:string[]=[];
+  const handoffDb=new Database(env,async(_url,init)=>{const operation=JSON.parse(String(init?.body)).p_operation;operations.push(operation);return Response.json(operation==='prepare'?{outcome:'idle'}:{action:'idle'});});
+  const handoffs=new PhotonHandoffs(handoffDb,env,{async send(){assert.fail('idle worker must not send');},async reconcile(){assert.fail('idle worker must not reconcile');}});
+  assert.deepEqual(await handoffs.prepare(),{handoff:0,limited:0,revoked:0});
+  assert.deepEqual(await handoffs.dispatch(),{claimed:0,suppressed:0,recorded:0});
+  assert.deepEqual(operations,['prepare','claim']);
   assert.equal((await provider.send(email)).outcome,'uncertain');assert.equal(sends,1);
  }
 });

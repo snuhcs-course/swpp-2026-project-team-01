@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {Database} from '../database/client.ts';
 import {ApplicationError} from '../errors.ts';
-import {applicationOrigin} from '../config.ts';
+import {applicationOrigin,requireMessagingEnvironment} from '../config.ts';
 import {TokenCipher} from '../calendar/encryption.ts';
 import {browserProof,proofHash} from './proof.ts';
 import {PhotonTransport,type SendResult} from './transport.ts';
@@ -23,6 +23,7 @@ export class PhotonHandoffs {
  private call(operation:string,input:unknown){return this.database.rpc('fmat_photon_handoff',{p_operation:operation,p_project_id:this.project(),p_input:input});}
  private context(id:string){return `photon:handoff:${this.project()}:${id}`;}
  async prepare(){
+  requireMessagingEnvironment(this.env);
   const counts={handoff:0,limited:0,revoked:0},cipher=new TokenCipher(this.env);
   for(let n=0;n<5;n++){
    const id=randomUUID(),token=browserProof();
@@ -35,6 +36,7 @@ export class PhotonHandoffs {
  // A browser adapter must bind its own proof and require fresh host/OTP proof.
  async resolve(input:unknown){const {handoffId,token}=handoffProof.parse(input);return resolved.parse(await this.call('resolve',{handoffId,tokenHash:proofHash(token)}));}
  async dispatch(){
+  requireMessagingEnvironment(this.env);
   const claimed:z.infer<typeof intent>[]=[];let suppressed=0;
   for(let n=0;n<5;n++){
    const value=claim.parse(await this.call('claim',{}));if(value.action==='idle')break;
