@@ -27,6 +27,7 @@ function current(input:unknown,now:number):{reason:'invalid'|'expired'|'empty'}|
  const parsed=snapshot.safeParse(input);
  if(!parsed.success||!Number.isFinite(now)||!isDeepStrictEqual(parsed.data.state,(input as z.input<typeof snapshot>).state))return {reason:'invalid' as const};
  if(Date.parse(parsed.data.expiresAt)<=now)return {reason:'expired' as const};
+ if(parsed.data.state.draft&&parsed.data.state.draft.baseRulesVersion!==parsed.data.state.rulesVersion)return {reason:'empty'};
  const answers=draftAnswers(parsed.data.state);
  return answers.length?{value:parsed.data,answers}:{reason:'empty' as const};
 }

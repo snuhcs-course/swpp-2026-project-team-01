@@ -40,7 +40,7 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 - [x] 4.8 Deploy and verify the private setup-confirmation boundary, update owning documentation and preserve the separate authorized live Google/iPhone acceptance gate.
 
 - [x] 4.9 Implement strict private answer-review/acceptance syntax and bounded exact-value formatting using the existing answer derivation; verify subset rules, online skips, quoting, stale/empty/oversized fallback and no inferred authority.
-- [ ] 4.10 Persist immutable bound answer reviews, validated delivery and atomic attributed draft-acceptance receipts; verify current authority, snapshot/subset fencing, replay, lock waits, provenance/origin retention and no settings/booking effects.
+- [x] 4.10 Persist immutable bound answer reviews, validated delivery and atomic attributed draft-acceptance receipts; verify current authority, snapshot/subset fencing, replay, lock waits, provenance/origin retention and no settings/booking effects.
 - [ ] 4.11 Connect leased signed-input answer dispatch and durable replies; verify an assistant-only physical/online draft through native answer acceptance, separate final confirmation, browser resume and lost-response/restart recovery without model authority.
 - [ ] 4.12 Deploy and verify native answer acceptance, update owning documents and preserve separate live Google/iPhone and full narration gates.
 
@@ -73,3 +73,5 @@ Task 4.7 completion: [leased private setup dispatch](../../../documentations/tec
 Task 4.8 completion: [production private setup rollout](../../../documentations/technical_specification/05_rebuild_evidence.md#deployed-private-setup-confirmation--2026-10-10) verifies the exact deployed source/alias, 139-migration ledger, matching function definitions/privileges, 176 rollback-only hosted assertions, clean advisors and 38 production HTTP checks. Actual Google/iPhone acceptance remains tasks 2.5 and 5.2; broader AC-28/narration remains task 5.3.
 
 Task 4.9 acceptance: [private answer-review foundation](../../../documentations/technical_specification/05_rebuild_evidence.md#private-setup-answer-review-foundation--2026-10-10) verifies exact syntax, displayed values and subset derivation without mutation authority. Persistence, signed dispatch and production rollout remain tasks 4.10–4.12.
+
+Task 4.10 acceptance: [atomic private answer acceptance](../../../documentations/technical_specification/05_rebuild_evidence.md#atomic-private-setup-answer-acceptance--2026-10-10) verifies 107 focused SQL assertions, actual PostgREST concurrency/lost-response recovery and lock-wait rejection, with no settings mutation. Signed dispatcher activation and production rollout remain tasks 4.11–4.12.

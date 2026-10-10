@@ -32,6 +32,7 @@ test('quoted place values cannot insert commands, fake references or direction c
 test('invalid, normalized, stale, empty and expired snapshots never issue actionable partial reviews',()=>{
  const input=fixture();
  const values:unknown[]=[null,{}, {...input,token:'hidden'}, {...input,reviewId:'bad'}, {...input,expiresAt:new Date(now).toISOString()}, {...input,state:{...input.state,secret:'hidden'}}, {...input,state:{...input.state,nextAction:'refresh_draft'}}, {...input,state:{...input.state,draft:null}}];
+ const staleBase=fixture();staleBase.state.rulesVersion=1;values.push(staleBase);
  const normalized=fixture();normalized.state.draft!.settings.rules!.locations=[' Leading space'];values.push(normalized);
  const explicit=fixture();for(const key of Object.keys(explicit.state.draft!.provenance))explicit.state.draft!.provenance[key]='host';values.push(explicit);
  for(const value of values){const result=formatPrivateAnswerReview(value,now);assert.equal(result.kind,'browser_required');assert.doesNotMatch(result.text,/91000000|accept setup answers|Library|hidden/u);assert.equal(privateAnswerPatch(value,['mode'],now),null);}

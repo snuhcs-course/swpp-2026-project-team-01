@@ -3629,3 +3629,21 @@ Verification on Node.js 24.21.0:
 - OpenSpec CLI 1.14.0 strict validation, documentation links and whitespace checks pass.
 
 The tests initially exposed invalid fixture inputs (trimmed terminal Unicode separators and more than ten locations); corrected fixtures exercise valid embedded controls and valid-but-oversized values. An explicit helper return union resolved a TypeScript narrowing error. No validation was relaxed. Production activation is deliberately tracked as pending until the authority and durable-dispatch layers are verified.
+
+
+## Atomic private setup answer acceptance — 2026-10-10
+
+Complete conversational-setup task 4.10 with desired schema `88_photon_setup_answers.sql`, generated migrations `20261010040520_photon_setup_answers.sql` and `20261010040910_photon_setup_answers_deadline.sql`, and internal service `PrivateSetupAnswers`. Three RLS-protected immutable tables own reviews, exact outgoing publications and attributed acceptance receipts; direct table/helper access is denied to anonymous, authenticated and service roles. Only the checked public RPC is executable by the internal service.
+
+Current host/setup/grant context and the exact signed command determine authority and eligible patches. Review snapshots bind the original private route and expire within ten minutes/the source execution lifetime. Acceptance requires the exact publication's accepted reference (or a delivered body purged under the existing policy), current snapshot, valid distinct subset and pending-mode dependencies. No caller patch or provenance is accepted. The shared human draft operation changes selected provenance with iMessage attribution, retaining origins/questions/unselected values and leaving confirmed settings and booking state untouched. Receipt insertion failure rolls back the draft. Exact original-input replay recovers the minimal committed result despite newer drafts; a new message or revoked authority cannot reuse it.
+
+Verification:
+
+- Supabase CLI 2.119.0 generated both reviewed migrations. Full disposable-local reset rebuilt **141** versions; desired-schema parity reports no changes. No remote migration was applied.
+- New pgTAP coverage passes **107 assertions**, including privileges/RLS, immutable rows, malformed/foreign/subset input, delivery failures, receiver/grant/rules changes, expiry, rollback, attribution, partial choices and cached revocation. All **2,817 assertions across 58 SQL files** pass.
+- A delayed draft-write regression failed before the second migration: acceptance committed after review expiry. Rechecking authority/deadline after shared draft work now rejects it and restores the exact prior state.
+- Actual PostgREST integration races eight review/publication/acceptance calls, drops a committed response, verifies one revision/receipt, preserves newer browser edits, compares SQL/browser answer eligibility and observes actual blocking locks before changing rules, expiring execution or unlinking. The two existing setup-review/confirmation integrations also pass; fixture readback leaves zero new review/acceptance rows.
+- All **574 application/provider tests**, both TypeScript targets and separate eve/web builds pass. Security advisors report no issues after fixtures close; a preliminary concurrent scan only saw temporary test functions, so the final scan was rerun after cleanup.
+- Strict OpenSpec validation, documentation links and whitespace checks pass. The earlier hosted CI run `38021799359` on `9c32c64` independently completed successfully; this is not CI evidence for the new schema.
+
+Logs use `.local/rebuild/private-setup-answers-*`, with the pre-change local backup at `.local/rebuild/pre-private-setup-answers-local.dump`. The production deployment and its 139-migration ledger remain unchanged. Task 4.11 must connect the leased signed dispatcher and prove physical/online native journeys; task 4.12 owns reviewed hosted migrations and application rollout. No human message or live Google action occurred, and the broad implementation goal remains incomplete.
