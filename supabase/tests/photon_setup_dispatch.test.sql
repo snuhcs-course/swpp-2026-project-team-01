@@ -18,7 +18,7 @@ insert into fmat.calendar_connections(principal_kind,principal_id,provider_subje
 update fmat.hosts set conflict_calendar_ids=array['conflict'],booking_calendar_id='destination' where id in(pg_temp.host(1),pg_temp.host(2));
 create function pg_temp.actor(n integer) returns jsonb language sql as $$select jsonb_build_object('kind','host','id',id,'email',email) from fmat.hosts where id=pg_temp.host(n)$$;
 create function pg_temp.draft(n integer,patch jsonb) returns jsonb language sql as $$select fmat.host_setup_operation('draft',pg_temp.actor(n),jsonb_build_object('expectedRevision',fmat.host_setup_view(pg_temp.host(n))->'revision','patch',patch,'unresolved','[]'::jsonb,'idempotencyKey',gen_random_uuid()),'host')$$;
-select pg_temp.draft(n,jsonb_build_object('handle','setup-review-'||n,'displayName','Host '||n,'rules','{"timezone":"UTC","durationMinutes":30,"availability":[{"days":[1,2,3,4,5],"start":"09:00","end":"17:00"}],"focusBlocks":[],"bufferMinutes":10,"preferences":"Private exact preference","meetingMode":"online"}'::jsonb)) from generate_series(1,2)n;
+select pg_temp.draft(n,jsonb_build_object('handle','setup-review-'||n,'displayName','Host '||n,'rules','{"timezone":"UTC","durationMinutes":30,"availability":[{"days":[1,2,3,4,5],"start":"09:00","end":"17:00"}],"focusBlocks":[],"bufferMinutes":10,"preferences":"Private exact preference","meetingMode":"online"}'::jsonb)) from generate_series(1,1)n;
 create function pg_temp.receive(n integer,body text) returns uuid language plpgsql as $$declare receipt jsonb;begin
  receipt:=public.fmat_photon_ingress('a8510000-0000-4000-8000-000000000001','a8520000-0000-4000-8000-000000000001',jsonb_build_object('messageId',gen_random_uuid(),'senderId','+1555010000'||n,'spaceId','any;-;+1555010000'||n,'line','shared','text',body,'occurredAt',clock_timestamp()));
  -- All SQL assertions share one rollback transaction; model the distinct
@@ -76,5 +76,41 @@ select matches((select text from fmat.photon_replies where inbox_id=(pg_temp.f('
 select is((select count(*)::integer from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id=pg_temp.host(1))),0,'deterministic commands never invoke a model');
 select is(pg_temp.dispatch()->>'outcome','setup','next route input resumes only after settlement');
 select is((select count(*)::integer from fmat.booking_attempts),0,'setup dispatch creates no booking work');
+
+create function pg_temp.answers(op text,arg jsonb) returns jsonb language sql as $$select public.fmat_photon_setup_dispatch('operate_answers','a8510000-0000-4000-8000-000000000001',pg_temp.lease()||jsonb_build_object('operation',op,'input',arg))$$;
+-- Host 2 starts from a model-owned draft, with no explicitly answered fields.
+select fmat.host_setup_operation('draft',pg_temp.actor(2),jsonb_build_object('expectedRevision',fmat.host_setup_view(pg_temp.host(2))->'revision','patch',jsonb_build_object('handle','setup-review-2','rules','{"timezone":"UTC","durationMinutes":30,"availability":[{"days":[1],"start":"09:00","end":"17:00"}],"focusBlocks":[],"bufferMinutes":10,"meetingMode":"either","locationPolicy":"preferred","locations":["Library"],"travelMode":"TRANSIT","travelBufferMinutes":20}'::jsonb),'unresolved','[]'::jsonb,'idempotencyKey',gen_random_uuid()),'assistant');
+update fixture set value=to_jsonb(pg_temp.receive(2,'review setup answers')) where name='source';
+update fixture set value=pg_temp.dispatch() where name='claim';
+select is(pg_temp.f('claim')->>'outcome','setup','answer review bypasses model under a leased setup grant');
+select throws_ok($$select pg_temp.answers('finish_confirmation','{}')$$,'P0001','INVALID_INPUT','answer operations cannot call final confirmation');
+select throws_ok($$select pg_temp.settle('answers_reviewed')$$,'P0001','REVISION_CONFLICT','label cannot fabricate an answer publication');
+select throws_ok($$select pg_temp.settle('answers_accepted')$$,'P0001','REVISION_CONFLICT','label cannot fabricate an answer receipt');
+update fixture set value=pg_temp.answers('review','{}') where name='issued';
+select pg_temp.answers('publish',jsonb_build_object('reviewId',pg_temp.review(),'text','Exact complete answer fixture'));
+select is(pg_temp.settle('answers_reviewed')->>'outcome','accepted','answer publication settles atomically');
+select is((select text from fmat.photon_replies where inbox_id=pg_temp.source()),'Exact complete answer fixture','settlement retains frozen answer text');
+update fmat.photon_replies set status='accepted',provider_reference='answers-fixture-accepted' where inbox_id=pg_temp.source();
+update fixture set value=to_jsonb(pg_temp.receive(2,'accept setup answers '||pg_temp.review()||' mode,location,transport,travel_buffer')) where name='decision';
+update fixture set value=pg_temp.dispatch() where name='claim';
+select is(pg_temp.f('claim')->'inboxId',pg_temp.f('decision'),'acceptance selects deterministic leased path');
+select throws_ok($$select pg_temp.operate('accept',jsonb_build_object('reviewId',pg_temp.review()))$$,'P0001','INVALID_INPUT','confirmation operations cannot accept answers');
+update fixture set value=pg_temp.lease() where name='old-lease';
+update fmat.jobs set lease_until=clock_timestamp()-interval '1 second' where id=(select job_id from fmat.photon_setup_dispatches where inbox_id=(pg_temp.f('decision')#>>'{}')::uuid);
+select throws_ok($$select pg_temp.answers('accept',jsonb_build_object('reviewId',pg_temp.review()))$$,'P0001','LEASE_LOST','expired answer worker cannot mutate draft');
+update fixture set value=pg_temp.dispatch() where name='claim';
+select throws_ok($$select public.fmat_photon_setup_dispatch('operate_answers','a8510000-0000-4000-8000-000000000001',pg_temp.f('old-lease')||jsonb_build_object('operation','accept','input',jsonb_build_object('reviewId',pg_temp.review())))$$,'P0001','LEASE_LOST','replaced answer worker is fenced');
+insert into fixture select 'accepted-answers',pg_temp.answers('accept',jsonb_build_object('reviewId',pg_temp.review()));
+select is(pg_temp.f('accepted-answers')->>'accepted','true','leased acceptance returns committed draft receipt');
+select is(pg_temp.answers('accept',jsonb_build_object('reviewId',pg_temp.review())),pg_temp.f('accepted-answers'),'same leased inbox replays original receipt');
+select is(pg_temp.settle('invalid')->>'outcome','accepted','actual answer receipt wins over worker failure label');
+select matches((select text from fmat.photon_replies where inbox_id=(pg_temp.f('decision')#>>'{}')::uuid),'^Accepted the selected draft answers','acknowledgment derives from answer receipt');
+select matches((select text from fmat.photon_replies where inbox_id=(pg_temp.f('decision')#>>'{}')::uuid),'Settings have not been saved','acceptance reply disclaims final settings save');
+select is((select count(*)::integer from fmat.photon_setup_confirmations c join fmat.photon_setup_reviews r on r.id=c.review_id where r.host_id=pg_temp.host(2)),0,'answer acceptance never confirms settings');
+select is((select rules_version::integer from fmat.hosts where id=pg_temp.host(2)),0,'confirmed rule version is unchanged');
+select is((select count(*)::integer from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id=pg_temp.host(2))),0,'answer dispatch never reaches model');
+select is((select minute_used from fmat.conversation_budgets where name='host:'||pg_temp.host(2)),2,'answer review and acceptance charge once each despite lease recovery');
+select is((select count(*)::integer from fmat.booking_attempts),0,'answer dispatch has no booking effect');
+
 select * from finish();
 rollback;

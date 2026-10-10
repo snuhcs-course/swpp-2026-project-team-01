@@ -15,7 +15,7 @@ import type {LocalSql} from './local-sql.ts';
 import {setupAmbiguous} from '../runtime/setup-preferences.ts';
 
 const errorCode=(code:string)=>(error:unknown)=>error instanceof ApplicationError&&error.code===code;
-export async function verifySetupIsolation(input:{sql:LocalSql;db:Database;env:NodeJS.ProcessEnv;local:Record<string,string>;host:string;credential:Credential;token:string;scope:string;origin:string;service:HostIMessage;privateTurn:(phone:string,text:string,scope:string)=>Promise<string>}){
+export async function verifySetupIsolation(input:{sql:LocalSql;db:Database;env:NodeJS.ProcessEnv;local:Record<string,string>;host:string;credential:Credential;token:string;scope:string;origin:string;service:HostIMessage;privateTurn:(phone:string,text:string,scope:string)=>Promise<string>;nativeSetup?:(host:string,credential:Credential,phone:string,scope:string)=>Promise<void>}){
  const {sql,db,env,local,host,credential,token,scope,origin,service,privateTurn}=input;
  assert.ok(['localhost','127.0.0.1'].includes(new URL(origin).hostname));
  const headers={apikey:local.SERVICE_ROLE_KEY,authorization:'Bearer '+local.SERVICE_ROLE_KEY,'content-type':'application/json'};
@@ -55,6 +55,8 @@ export async function verifySetupIsolation(input:{sql:LocalSql;db:Database;env:N
   assert.ok(firstSession&&secondSession);assert.notEqual(firstSession,secondSession);
   let sent=0;await dispatchPhotonReplies(db,env,{async send(route,recipient,text,_id,authorize){await authorize();sent++;assert.equal(recipient,phone);assert.equal(route.spaceId,'any;-;'+phone);assert.equal(text,'Which weekdays and start and end times work for meetings?');return {status:'delivered',providerReference:'isolation-reply'};},async reconcile(){assert.fail('fresh isolated reply');}});assert.equal(sent,1);
   assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where host_id in('${host}','${other}');`),'0');
+  await input.nativeSetup?.(other,otherCredential,phone,otherScope);
+  assert.deepEqual(await setup.read(credential),firstBefore,'Native setup for another sender remains isolated');
  }finally{
   if(other){
    // Preserve the first host's fixtures and drain only this sender's queue rows.

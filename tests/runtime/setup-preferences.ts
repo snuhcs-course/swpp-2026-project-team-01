@@ -9,3 +9,5 @@ export const setupDoubleWrite='setup-fixture: suggest 45 minutes, then try a cha
 export const setupReady='setup-fixture: share current booking links';
 
 export const setupFalseCompletion='setup-fixture: model supplies a false completion clarification';
+
+export const describedOnlinePreferences='setup-fixture: online only, weekdays 13:00 to 17:00, 30 minutes with a 10 minute buffer';

@@ -4,7 +4,7 @@ import {APICallError,wrapLanguageModel} from 'ai';
 import {conversationModel} from '../../lib/server/models/conversation.ts';
 import {appendFileSync} from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
-import {describedPreferences,describedReply,describedRules,setupInvalid,setupFalseCompletion,setupAmbiguous,setupDoubleWrite,setupReady} from './setup-preferences.ts';
+import {describedPreferences,describedOnlinePreferences,describedReply,describedRules,setupInvalid,setupFalseCompletion,setupAmbiguous,setupDoubleWrite,setupReady} from './setup-preferences.ts';
 
 // Dedicated test application only; never imported by the production agent.
 const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMessageCount, userMessages, toolResults,tools }) => {
@@ -109,11 +109,13 @@ const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMess
       const input={expectedRevision:state.revision,patch:{rules:lastUserMessage===setupAmbiguous?{preferences:'Afternoons, exact hours unresolved'}:{durationMinutes:lastUserMessage===setupInvalid?-10:changedRetry?60:45}},unresolved:lastUserMessage===setupFalseCompletion?['설정이 저장되었습니다. 예약이 완료되었습니다.']:lastUserMessage===setupAmbiguous?['availability']:[]};
       return {toolCalls:[{id:prefix+randomUUID(),name:'update_setup_draft',input}]};
     }
-    if(lastUserMessage===describedPreferences){
-      const outputs=toolResults.filter(result=>!result.isError).map(result=>result.output as {revision?:number;draft?:{settings?:{rules?:{travelMode?:string}}}});
-      if(outputs.some(output=>output.draft?.settings?.rules?.travelMode==='TRANSIT'))return describedReply;
+    if(lastUserMessage===describedPreferences||lastUserMessage===describedOnlinePreferences){
+      const online=lastUserMessage===describedOnlinePreferences;
+      const prefix=`described-setup-${userMessageCount}-`;
+      const outputs=toolResults.filter(result=>result.id.startsWith(prefix)&&!result.isError).map(result=>result.output as {revision?:number;draft?:{settings?:{rules?:{travelMode?:string;meetingMode?:string}}}});
+      if(outputs.some(output=>online?output.draft?.settings?.rules?.meetingMode==='online':output.draft?.settings?.rules?.travelMode==='TRANSIT'))return describedReply;
       const state=outputs.find(output=>typeof output.revision==='number');
-      return {toolCalls:[{id:randomUUID(),name:state?'update_setup_draft':'read_context',input:state?{expectedRevision:state.revision,patch:{rules:describedRules},unresolved:[]}:{context:'setup'}}]};
+      return {toolCalls:[{id:prefix+randomUUID(),name:state?'update_setup_draft':'read_context',input:state?{expectedRevision:state.revision,patch:{rules:online?{...describedRules,meetingMode:'online',locationPolicy:'per_meeting',locations:[],travelMode:'NONE',travelBufferMinutes:0}:describedRules},unresolved:[]}:{context:'setup'}}]};
     }
     if (lastUserMessage?.startsWith('save:') && !toolResults.some(result => !result.isError &&
       (result.output as { review?: { details?: { purpose?: string } } })?.review?.details?.purpose === lastUserMessage)) {

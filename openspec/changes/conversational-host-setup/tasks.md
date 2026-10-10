@@ -41,7 +41,7 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 
 - [x] 4.9 Implement strict private answer-review/acceptance syntax and bounded exact-value formatting using the existing answer derivation; verify subset rules, online skips, quoting, stale/empty/oversized fallback and no inferred authority.
 - [x] 4.10 Persist immutable bound answer reviews, validated delivery and atomic attributed draft-acceptance receipts; verify current authority, snapshot/subset fencing, replay, lock waits, provenance/origin retention and no settings/booking effects.
-- [ ] 4.11 Connect leased signed-input answer dispatch and durable replies; verify an assistant-only physical/online draft through native answer acceptance, separate final confirmation, browser resume and lost-response/restart recovery without model authority.
+- [x] 4.11 Connect leased signed-input answer dispatch and durable replies; verify an assistant-only physical/online draft through native answer acceptance, separate final confirmation, browser resume and lost-response/restart recovery without model authority.
 - [ ] 4.12 Deploy and verify native answer acceptance, update owning documents and preserve separate live Google/iPhone and full narration gates.
 
 ## 5. Cross-channel acceptance
@@ -75,3 +75,5 @@ Task 4.8 completion: [production private setup rollout](../../../documentations/
 Task 4.9 acceptance: [private answer-review foundation](../../../documentations/technical_specification/05_rebuild_evidence.md#private-setup-answer-review-foundation--2026-10-10) verifies exact syntax, displayed values and subset derivation without mutation authority. Persistence, signed dispatch and production rollout remain tasks 4.10–4.12.
 
 Task 4.10 acceptance: [atomic private answer acceptance](../../../documentations/technical_specification/05_rebuild_evidence.md#atomic-private-setup-answer-acceptance--2026-10-10) verifies 107 focused SQL assertions, actual PostgREST concurrency/lost-response recovery and lock-wait rejection, with no settings mutation. Signed dispatcher activation and production rollout remain tasks 4.11–4.12.
+
+Task 4.11 acceptance: [native answer dispatch and complete setup journeys](../../../documentations/technical_specification/05_rebuild_evidence.md#native-answer-dispatch-and-setup-journeys--2026-10-10) verifies fresh assistant-only physical/online drafts, signed selected acceptance, independent final confirmation, later browser edits and lost-response recovery through actual eve. Production rollout remains task 4.12; real Google/iPhone acceptance remains separate.

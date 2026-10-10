@@ -23,6 +23,7 @@ import {HostSetup} from '../../lib/server/setup/commands.ts';
 import {ApplicationError} from '../../lib/server/errors.ts';
 import {verifySetupIsolation} from './setup-host-isolation.ts';
 import {verifySharedSetupReview} from './setup-channel-review.ts';
+import {verifyNativeSetupAnswers} from './setup-native-answers.ts';
 import {verifyPrivateSetupDispatch} from './setup-private-dispatch.ts';
 
 test('signed linked input executes once in the real eve setup session and loses authority after unlink',{timeout:180_000},async()=>{
@@ -185,10 +186,16 @@ globalThis.fetch=async(input,init)=>{
    return {status:'delivered',providerReference:'fixture:'+id};
   },async reconcile(){assert.fail('fresh fixture replies should not need reconciliation');}})).claimed,1);
   assert.equal(sharedReplyIds.size,8);
-  await verifySetupIsolation({sql,db,env,local,host,credential,token,scope,origin:runtime.origin,service,async privateTurn(sender,text,otherScope){
+  for(const mode of ['physical','online'] as const)await verifySetupIsolation({sql,db,env,local,host,credential,token,scope,origin:runtime.origin,service,async privateTurn(sender,text,otherScope){
    const key=randomUUID();await delay(5);assert.equal((await photonWebhook(request(key,text,sender),{env,database:db})).status,200);
    assert.equal((await dispatchPhotonInputs(db,env)).accepted,1);assert.equal((await dispatch()).status,200);await settled(otherScope);
    return sql.query(`select r.text from fmat.photon_replies r join fmat.photon_inbox i on i.id=r.inbox_id where i.project_id='${project}' and i.message_id='${key}';`);
+  },async nativeSetup(other,otherCredential,sender,otherScope){
+   await verifyNativeSetupAnswers({sql,database:db,env,host:other,credential:otherCredential,scope:otherScope,mode,
+    async receive(text){const key=randomUUID();assert.equal((await photonWebhook(request(key,text,sender),{env,database:db})).status,200);return sql.query(`select id from fmat.photon_inbox where project_id='${project}' and message_id='${key}';`);},
+    async runRuntime(){assert.equal((await dispatch()).status,200);await settled(otherScope);},
+    async modelCount(){return (await readCalls()).length;},
+   });
   }});
   await verifyPrivateSetupDispatch({sql,database:db,env,host,credential,scope,selectedRequest:discoveryRequest,
    async receive(text){const key=randomUUID();assert.equal((await photonWebhook(request(key,text),{env,database:db})).status,200);return sql.query(`select id from fmat.photon_inbox where project_id='${project}' and message_id='${key}';`);},

@@ -4,6 +4,8 @@ import {ApplicationError} from '../errors.ts';
 import type {CalendarProvider} from '../calendar/catalog.ts';
 import {PrivateSetupConfirmation} from './setup-confirmation.ts';
 import {parsePrivateSetupCommand} from './setup-review.ts';
+import {PrivateSetupAnswers} from './setup-answers.ts';
+import {parsePrivateAnswerCommand} from './setup-answer-review.ts';
 
 const receipt=z.object({outcome:z.enum(['idle','busy','accepted','revoked','limited'])}).strict();
 const setupReceipt=z.object({outcome:z.literal('setup'),inboxId:z.uuid(),leaseToken:z.uuid(),text:z.string().max(10000)}).strict();
@@ -24,15 +26,22 @@ export async function dispatchPhotonInputs(database:Pick<Database,'rpc'>=new Dat
     if(name!=='fmat_photon_setup'||parameters.p_inbox_id!==claimed.inboxId)throw new ApplicationError('FORBIDDEN',403);
     return call('operate',{...lease,operation:parameters.p_operation,input:parameters.p_input});
    }},env,calendarProvider);
+   const answers=new PrivateSetupAnswers({rpc:async(name,parameters)=>{
+    if(name!=='fmat_photon_setup_answers'||parameters.p_inbox_id!==claimed.inboxId)throw new ApplicationError('FORBIDDEN',403);
+    return call('operate_answers',{...lease,operation:parameters.p_operation,input:parameters.p_input});
+   }});
+   const answerCommand=parsePrivateAnswerCommand(claimed.text);
    const command=parsePrivateSetupCommand(claimed.text);
    let result='invalid';
    try{
-    if(command?.action==='review')result=(await service.review(claimed.inboxId)).kind==='review'?'reviewed':'browser_required';
+    if(answerCommand?.action==='review_answers')result=(await answers.review(claimed.inboxId)).kind==='review'?'answers_reviewed':'browser_required';
+    else if(answerCommand?.action==='accept_answers'){await answers.accept(claimed.inboxId,answerCommand.reviewId);result='answers_accepted';}
+    else if(command?.action==='review')result=(await service.review(claimed.inboxId)).kind==='review'?'reviewed':'browser_required';
     else if(command?.action==='confirm'){await service.confirm(claimed.inboxId,command.reviewId);result='confirmed';}
    }catch(error){
     if(!(error instanceof ApplicationError))throw error;
     if(error.code==='BOOKING_LEASE_LOST')throw error;
-    if(['STALE_REVISION','IDEMPOTENCY_CONFLICT'].includes(error.code))result='stale';
+    if(['STALE_REVISION','IDEMPOTENCY_CONFLICT'].includes(error.code))result=answerCommand?.action==='review_answers'||command?.action==='review'?'browser_required':'stale';
     else if(['RECONNECT_REQUIRED','CALENDAR_ACCESS_INVALID'].includes(error.code))result='calendar_required';
     else if(error.code==='RECONCILIATION_PENDING')result='delivery_pending';
     else if(['INVALID_INPUT','HANDLE_UNAVAILABLE','EXPLICIT_CHOICE_CONFLICT'].includes(error.code))result='browser_required';

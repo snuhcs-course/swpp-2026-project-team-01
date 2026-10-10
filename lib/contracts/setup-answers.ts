@@ -2,7 +2,8 @@ import type {SetupPatch,SetupState} from './setup.ts';
 
 export type DraftAnswer={key:'mode'|'location'|'transport'|'travel_buffer';label:string;patch:SetupPatch};
 /** Reuse extracted values without assigning human authority. Only a protected
- * browser choice can apply these patches with host provenance. */
+ * browser choice or validated signed private review acceptance may apply these
+ * patches with host provenance. */
 export function draftAnswers(state:SetupState):DraftAnswer[]{
  const draft=state.draft,r=draft?.settings.rules,p=draft?.provenance??{};
  if(!r||draft?.status!=='active'||state.nextAction==='refresh_draft')return [];

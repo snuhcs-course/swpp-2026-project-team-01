@@ -50,3 +50,26 @@ test('malformed setup commands never invoke confirmation and transient failures 
   assert.deepEqual(operations,scenario==='malformed'?['settle']:scenario==='lease'?['operate']:['operate','retry']);
  }
 });
+
+test('answer commands use the frozen lease and only receipt-backed draft acknowledgments',async()=>{
+ const project=randomUUID(),inboxId=randomUUID(),leaseToken=randomUUID(),reviewId=randomUUID();
+ for(const scenario of ['review','accept','invalid','outage','lease'] as const){
+  const operations:string[]=[];
+  const database={async rpc(name:string,input:Record<string,unknown>){
+   if(name==='fmat_photon_dispatch')return {outcome:'setup',inboxId,leaseToken,text:scenario==='review'?'review setup answers':`accept setup answers ${reviewId} ${scenario==='invalid'?'all':'mode,location'}`};
+   assert.equal(name,'fmat_photon_setup_dispatch');assert.equal(input.p_project_id,project);
+   const payload=input.p_input as Record<string,unknown>;assert.equal(payload.inboxId,inboxId);assert.equal(payload.leaseToken,leaseToken);operations.push(String(input.p_operation));
+   if(input.p_operation==='operate_answers'){
+    if(scenario==='outage'||scenario==='lease')throw new ApplicationError(scenario==='lease'?'BOOKING_LEASE_LOST':'PROVIDER_UNAVAILABLE',503);
+    if(scenario==='review'){assert.equal(payload.operation,'review');assert.deepEqual(payload.input,{});return {reviewId,expiresAt:new Date().toISOString(),state:{},text:'Previously published exact review'};}
+    assert.equal(payload.operation,'accept');assert.deepEqual(payload.input,{reviewId},'Caller does not supply chosen keys or values');
+    return {accepted:true,reviewId,revision:3,draftRevision:2,keys:['mode','location'],acceptedAt:new Date().toISOString()};
+   }
+   if(input.p_operation==='retry')return {outcome:'busy'};
+   assert.equal(input.p_operation,'settle');assert.equal(payload.result,scenario==='review'?'answers_reviewed':scenario==='invalid'?'invalid':'answers_accepted');return {outcome:'accepted'};
+  }};
+  if(scenario==='lease')await assert.rejects(dispatchPhotonInputs(database,{PHOTON_PROJECT_ID:project}),(error:unknown)=>error instanceof ApplicationError&&error.code==='BOOKING_LEASE_LOST');
+  else assert.equal((await dispatchPhotonInputs(database,{PHOTON_PROJECT_ID:project})).accepted,scenario==='outage'?0:1);
+  assert.deepEqual(operations,scenario==='invalid'?['settle']:scenario==='outage'?['operate_answers','retry']:scenario==='lease'?['operate_answers']:['operate_answers','settle']);
+ }
+});

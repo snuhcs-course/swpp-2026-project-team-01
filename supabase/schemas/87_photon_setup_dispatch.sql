@@ -14,10 +14,10 @@ declare i fmat.photon_inbox; j fmat.jobs; record fmat.photon_setup_dispatches;
  publication record; result jsonb; saved jsonb; notice text; outcome text:='accepted'; failure text;
 begin
  if jsonb_typeof(p_input) is distinct from 'object' or not (p_input ?& array['inboxId','leaseToken']) then raise exception 'INVALID_INPUT';end if;
- if p_operation='operate' then
+ if p_operation in ('operate','operate_answers') then
   if not (p_input ?& array['operation','input']) or exists(select 1 from jsonb_object_keys(p_input) k where k not in ('inboxId','leaseToken','operation','input')) then raise exception 'INVALID_INPUT';end if;
  elsif p_operation='settle' then
-  if jsonb_typeof(p_input->'result') is distinct from 'string' or p_input->>'result' not in ('reviewed','confirmed','invalid','stale','calendar_required','browser_required','delivery_pending')
+  if jsonb_typeof(p_input->'result') is distinct from 'string' or p_input->>'result' not in ('answers_reviewed','answers_accepted','reviewed','confirmed','invalid','stale','calendar_required','browser_required','delivery_pending')
    or exists(select 1 from jsonb_object_keys(p_input) k where k not in ('inboxId','leaseToken','result')) then raise exception 'INVALID_INPUT';end if;
  elsif p_operation='retry' then
   if exists(select 1 from jsonb_object_keys(p_input) k where k not in ('inboxId','leaseToken')) then raise exception 'INVALID_INPUT';end if;
@@ -35,9 +35,14 @@ begin
  -- Current authority may have waited for a host/grant lock. Expired workers
  -- cannot mutate or settle, even if a replacement worker has not claimed yet.
  if j.lease_until<=clock_timestamp() then raise exception 'LEASE_LOST';end if;
- if p_operation='operate' then
+ if p_operation in ('operate','operate_answers') then
+  if p_operation='operate_answers' then
+   if jsonb_typeof(p_input->'operation') is distinct from 'string' or p_input->>'operation' not in ('review','publish','accept') then raise exception 'INVALID_INPUT';end if;
+   result:=public.fmat_photon_setup_answers(p_input->>'operation',i.id,p_input->'input');
+  else
   if jsonb_typeof(p_input->'operation') is distinct from 'string' or p_input->>'operation' not in ('review','publish','begin_confirmation','refresh','finish_confirmation') then raise exception 'INVALID_INPUT';end if;
   result:=public.fmat_photon_setup(p_input->>'operation',i.id,p_input->'input');
+  end if;
   if j.lease_until<=clock_timestamp() then raise exception 'LEASE_LOST';end if;
   return result;
  elsif p_operation='retry' then
@@ -49,18 +54,31 @@ begin
   select c.result into saved from fmat.photon_setup_confirmations c where c.inbox_id=i.id;
   if saved is not null then
    notice:='Saved the settings from setup review '||(saved->>'reviewId')||'. This does not approve or book a meeting. Ask to check setup readiness before sharing your booking link.';
+  elsif exists(select 1 from fmat.photon_setup_answer_acceptances a where a.inbox_id=i.id) then
+   select a.result into saved from fmat.photon_setup_answer_acceptances a where a.inbox_id=i.id;
+   notice:='Accepted the selected draft answers from review '||(saved->>'reviewId')||'. Settings have not been saved. Send "review setup" to review all current settings before a separate confirmation.';
+  elsif exists(select 1 from fmat.photon_setup_answer_review_publications p join fmat.photon_setup_answer_reviews r on r.id=p.review_id where r.inbox_id=i.id) then
+   notice:=null;
   elsif exists(select 1 from fmat.photon_setup_review_publications p join fmat.photon_setup_reviews r on r.id=p.review_id where r.inbox_id=i.id) then
    -- The complete summary already owns its exact durable outgoing identity.
    notice:=null;
   else
    failure:=p_input->>'result';
-   if failure in ('reviewed','confirmed') then raise exception 'REVISION_CONFLICT';end if;
+   if failure in ('answers_reviewed','answers_accepted','reviewed','confirmed') then raise exception 'REVISION_CONFLICT';end if;
+   if lower(btrim(i.text,E' \t\r\n\f'||chr(11)))~'^(review|accept) setup answers([[:space:]]|$)' then
+    notice:=case failure
+     when 'invalid' then 'Send "review setup answers" to inspect extracted draft answers, then use the exact reference and selected keys shown there. No answers were accepted; settings have not been saved.'
+     when 'stale' then 'That answer review is no longer current. Send "review setup answers" for a new review. No answers were accepted; settings have not been saved.'
+     when 'delivery_pending' then 'Delivery of that answer review has not been verified. Wait for the complete review, then request a new answer review. No answers were accepted; settings have not been saved.'
+     else 'A complete answer review is unavailable. Open your host workspace to review the draft and remaining steps. No answers were accepted; settings have not been saved.' end;
+   else
    notice:=case failure
     when 'invalid' then 'To review settings, send "review setup". To save, reply with the exact "confirm setup <reference>" command from that review. Settings have not been saved.'
     when 'stale' then 'That setup review is no longer current. Send "review setup" for a new review, or open your host workspace. Settings have not been saved.'
     when 'calendar_required' then 'Calendar access needs attention. Open your host workspace to reconnect or select calendars, then request a new setup review. Settings have not been saved.'
     when 'delivery_pending' then 'Delivery of that setup review has not been verified. Wait for the complete review, then request a new review and confirm its exact reference. Settings have not been saved.'
     else 'A complete setup review is unavailable in this message. Open your host workspace to review every setting and any remaining steps. Settings have not been saved.' end;
+   end if;
   end if;
   if notice is not null then
    insert into fmat.photon_replies(inbox_id,project_id,text) values(i.id,i.project_id,notice) on conflict(inbox_id) do nothing;
