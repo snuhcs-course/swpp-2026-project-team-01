@@ -11,7 +11,7 @@ const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const modes={online:'Online only',in_person:'In person',either:'Either'};
 export function SetupGuidance({state,disabled,editing,onEdit,onProgress,onUse,onResolve}:{state:SetupState;disabled:boolean;editing:boolean;onEdit:(step:EditStep)=>void;onProgress:(choice:string)=>void;onUse:(patch:SetupPatch,starterFields?:string[])=>void;onResolve:()=>void}){
  const guide=setupGuide(state),heading=useRef<HTMLParagraphElement>(null),previous=useRef(guide.step);
- useEffect(()=>{if(previous.current!==guide.step&&!editing)heading.current?.focus();previous.current=guide.step;},[guide.step,editing]);
+ useEffect(()=>{const resultFocused=document.activeElement?.matches('[role="status"],[role="alert"]');if(previous.current!==guide.step&&!editing&&!resultFocused)heading.current?.focus();previous.current=guide.step;},[guide.step,editing]);
  const suggestion=scheduleSuggestion(state,Intl.DateTimeFormat().resolvedOptions().timeZone),r=suggestion?.patch.rules;
  const current=state.draft?.settings.rules??state.confirmed.rules,mode=current?.meetingMode??'either';
  const hasExtra=!!state.draft?.provenance['rules.travelBufferMinutes'],extra=hasExtra?current?.travelBufferMinutes??15:15;

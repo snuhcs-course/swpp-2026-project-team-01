@@ -33,6 +33,19 @@ test('event reader scopes every paginated request, expands recurrence and reject
  for(const response of [Response.json({timeZone:'UTC',accessRole:'freeBusyReader',items:[]}),Response.json({timeZone:'UTC',accessRole:'reader'}),new Response('',{status:403})])await assert.rejects(new GoogleEventProvider(async()=>response).read('private-token',current));
  let pages=0;await assert.rejects(new GoogleEventProvider(async()=>{pages++;return Response.json({timeZone:'UTC',accessRole:'owner',items:[],nextPageToken:'same'});}).read('private-token',current));assert.equal(pages,2);
 });
+test('mixed-zone all-day events block their actual instants and missing places never become inferred locations',()=>{
+ const mondays=[5,12,19,26];
+ const events=mondays.flatMap(day=>{
+  const date=`2026-10-${String(day).padStart(2,'0')}`,next=`2026-10-${String(day+1).padStart(2,'0')}`;
+  return [{id:'tokyo-'+day,start:{date},end:{date:next}},event('afternoon-'+day,date+'T13:00:00-04:00',date+'T18:00:00-04:00')];
+ });
+ const result=analyzeCalendars(scope,[{id:'chosen',timezone:'Asia/Tokyo',events}],now);
+ assert.deepEqual(result.windows.find(window=>window.days.includes(1)),{days:[1],start:'11:00',end:'13:00'},'Tokyo all-day events end at 11:00 New York time, not at the host midnight');
+ assert.equal(result.windowSource,'calendar');assert.equal(result.busyCount,8);assert.deepEqual(result.locations,[]);
+ assert.ok(result.limitations.includes('mixed_timezones'));assert.ok(result.limitations.includes('missing_locations'));
+ const hostZone=analyzeCalendars(scope,[{id:'chosen',timezone:scope.timezone,events}],now);
+ assert.equal(hostZone.windows.some(window=>window.days.includes(1)),false,'The same dates in the host calendar really do block every Monday');
+});
 test('event reader rejects oversized pages and pagination that exceeds the disclosed cap',async()=>{
  const startDate=new Date().toISOString().slice(0,10),endDate=new Date(Date.now()+28*86400000).toISOString().slice(0,10),current={...scope,startDate,endDate};
  let cancelled=false;
