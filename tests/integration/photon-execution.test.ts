@@ -99,15 +99,17 @@ globalThis.fetch=async(input,init)=>{
   const dispatch=()=>fetch(runtime!.origin+'/api/internal/conversations/dispatch',{method:'POST',headers:{authorization:'Bearer '+dispatchSecret}});
   const response=await dispatch();assert.equal(response.status,200);assert.equal((await response.json()).sent,1);
   // Observe the finished durable turn while its SQL settlement is unavailable.
-  let stream:Response|undefined;
+  // Dispatch returns before the first delivery atomically binds generation zero.
+  // Opening history across that binding correctly asks the client to reconnect.
+  // This fault test starts after binding so it measures persisted turn settlement.
+  let bound=false;
   for(let n=0;n<300;n++){
-   stream=await fetch(runtime.origin+'/api/conversations/'+scope+'/stream',{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(30_000)});
-   if(stream.status!==204)break;
-   // Dispatch acceptance precedes canonical-session binding on slower runners.
-   // A 204 is an authorized not-yet-bound snapshot, not a failed turn.
-   await delay(100);
+   bound=await sql.query(`select exists(select 1 from fmat.conversation_scopes s join fmat.conversation_generations g on g.conversation_id=s.id and g.generation=s.runtime_generation where s.id='${scope}' and s.runtime_generation=0 and s.runtime_session_id is not null and g.runtime_session_id=s.runtime_session_id and g.retired_at is null);`)==='t';
+   if(bound)break;await delay(100);
   }
-  assert.equal(stream?.status,200);const reader=stream!.body!.getReader();let output='';
+  assert.equal(bound,true,'Original generation must bind before observing its saved turn');
+  const stream=await fetch(runtime.origin+'/api/conversations/'+scope+'/stream',{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(30_000)});
+  assert.equal(stream.status,200);const reader=stream.body!.getReader();let output='';
   try{while(!output.includes('session.waiting')){const next=await reader.read();if(next.done)break;output+=new TextDecoder().decode(next.value);}}finally{await reader.cancel();}
   assert.match(output,/session.waiting/u);assert.ok(output.includes(describedReply));await access(marker);
   assert.equal(await sql.query(`select status from fmat.runtime_messages where conversation_id='${scope}';`),'pending');
@@ -118,6 +120,11 @@ globalThis.fetch=async(input,init)=>{
   const readCalls=async()=> (await readFile(modelCalls,'utf8')).trim().split('\n').map(line=>JSON.parse(line) as {inputHash:string});
   const inputCalls=async()=> (await readCalls()).filter(call=>call.inputHash===inputHash).length;
   const callsBefore=await inputCalls();assert.ok(callsBefore>0);
+  // Another browser edit after the model's completed turn must not replace the
+  // original private reply when settlement resumes after a crash.
+  const setupAtFault=new HostSetup(db),beforeEdit=await setupAtFault.read(credential);
+  const newerDraft=await setupAtFault.draft(credential,{expectedRevision:beforeEdit.revision,patch:{displayName:'Newer unrelated browser draft'},unresolved:[],idempotencyKey:randomUUID()});
+  assert.ok(newerDraft.revision>beforeEdit.revision);
   await runtime.stop();await writeFile(release,'resume');await runtime.restart();
   await sql.query(`update fmat.runtime_messages set next_dispatch_at=clock_timestamp()-interval '1 second',dispatch_until=null,dispatch_token=null where conversation_id='${scope}';`);
   assert.equal((await dispatch()).status,200);await settled(scope);
@@ -137,8 +144,9 @@ globalThis.fetch=async(input,init)=>{
   await dispatchPhotonReplies(db,env,replyProvider);assert.equal(sends,1);assert.equal(reconciles,1);
   assert.equal(await sql.query(`select status||':'||(text is null)::text from fmat.photon_replies where id='${replyId}';`),'delivered:true');
   assert.equal(await sql.query(`select status from fmat.runtime_messages where conversation_id='${scope}';`),'completed');
-  assert.equal(await sql.query(`select count(*) from fmat.setup_drafts d join fmat.setup_conversations c on c.id=d.conversation_id where c.host_id='${host}';`),'1');
-  assert.equal(await sql.query(`select channel from fmat.setup_turns t join fmat.setup_conversations c on c.id=t.conversation_id where c.host_id='${host}';`),'imessage');
+  assert.equal(await sql.query(`select count(*) from fmat.setup_drafts d join fmat.setup_conversations c on c.id=d.conversation_id where c.host_id='${host}';`),'2','one original model draft and one explicit later browser edit');
+  assert.equal(await sql.query(`select count(*) from fmat.setup_turns t join fmat.setup_conversations c on c.id=t.conversation_id where c.host_id='${host}' and t.channel='imessage';`),'1','restart does not append another original turn');
+  assert.deepEqual(await setupAtFault.read(credential),newerDraft,'reply recovery preserves the later browser draft');
   assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${host}';`),'t');
   const session=await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${scope}';`);assert.ok(session);
   const webHeaders={authorization:'Bearer '+token,'content-type':'application/json'};

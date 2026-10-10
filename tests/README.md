@@ -407,6 +407,10 @@ All five named assertions in `5c305d9^:supabase/functions/_shared/modules/onboar
 
 The two integrations pass sequentially using the disposable local database and synthetic Google exchange/refresh. This audit does not prove live Google login/Calendar consent, browser acceptance of a successful real provider return, or complete the wider legacy inventory. Identity-only login remains separate from Calendar authorization.
 
+### Legacy onboarding API assertion audit
+
+The [thirteen-assertion map](../documentations/technical_specification/14_legacy_onboarding_api_audit.md) distinguishes current strict browser admission, RFC 4648 invitation codes and signed durable Photon ingress from the retired token/bridge protocol. New browser-command tests verify normalized anonymous waitlist input, no caller authority, hash-only redemption and early malformed/copied-credential denial. Calendar selection explicitly rejects caller permissions before provider reads or policy changes. The actual Photon recovery test now saves a later browser draft while original turn settlement is blocked, then requires the original reply and unchanged newer state after restart. It observes the first canonical binding before opening history; a deterministic stream test separately verifies the legitimate initial-binding reconnect race.
+
 ## Conversation credential text
 
 `supabase test db supabase/tests/conversation_text.test.sql` verifies the shared admission/read/delivery/dispatch boundary: bearer and linking proofs, credential assignments, mixed-case/percent-encoded names, fragments, overlapping credential prefixes, repeated markers, exact multilingual and maximum-size input, idempotence, private digest projection, changed-secret retry rejection and unchanged quota/authority rollback. `[x]` denotes removed credential material.

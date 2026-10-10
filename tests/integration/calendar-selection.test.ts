@@ -34,7 +34,10 @@ test('Calendar choices use fresh permissions and recheck current Auth/grant afte
     role='reader';await assert.rejects(service.select(credential,selection),code('CALENDAR_ACCESS_INVALID'));role='owner';
     const saved=await service.select(credential,selection);assert.equal(saved.saved,true);assert.equal(saved.rulesVersion,catalog.rulesVersion+1);
     await assert.rejects(service.select(credential,selection),code('STALE_REVISION'));
-    await assert.rejects(service.select(credential,{...selection,verifiedCalendars:[{id:'read',accessRole:'owner'}]}));
+    const beforeForgedCatalog=listCalls;
+    await assert.rejects(service.select(credential,{...selection,rulesVersion:saved.rulesVersion,verifiedCalendars:[{id:'read',accessRole:'owner'}]}));
+    assert.equal(listCalls,beforeForgedCatalog,'Caller-supplied Calendar permissions are rejected before provider I/O');
+    assert.equal(await sql.query(`select rules_version from fmat.hosts where id='${host}';`),String(saved.rulesVersion),'Forged permissions cannot change saved policy');
     const before=listCalls;await assert.rejects(service.list(guestCredential(randomUUID(),randomBytes(32).toString('base64url'))),code('FORBIDDEN'));assert.equal(listCalls,before);
     catalog=await service.list(credential);selection={...selection,generation:catalog.generation,rulesVersion:catalog.rulesVersion};
     async function paused<T>(action:()=>Promise<T>,mutate:()=>Promise<unknown>,expected:string){

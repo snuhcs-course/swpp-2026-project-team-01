@@ -130,3 +130,17 @@ test('archived and live failures preserve fixed safe feedback without forwarding
  for(const row of events){assert.equal(row.type,'failed');assert.equal('message'in row?row.message:null,'The response could not be completed. Your saved changes are preserved.');}
  assert.doesNotMatch(output,/secret-upstream|private-body/);
 });
+
+
+test('initial session binding during a history open requires reconnect without reading a mixed timeline',async()=>{
+ const empty:GenerationTimeline={conversationId:scope,audience:'host_setup',generation:0,generations:[{generation:0,sessionId:null,terminalTail:null}]};
+ const bound:GenerationTimeline={...empty,generations:[{generation:0,sessionId:'first-runtime',terminalTail:null}]};
+ let checks=0,attaches=0;
+ await assert.rejects(generationStream(empty,()=>{attaches++;throw Error('No session belongs to the captured empty timeline');},async()=>++checks===1?empty:bound,0,signal()),
+  error=>error instanceof ApplicationError&&error.code==='RECONNECT_REQUIRED'&&error.status===409);
+ assert.equal(attaches,0);assert.equal(checks,2);
+ const first=session([event('Initial question','message.received'),event('Initial answer')]);
+ const resumed=lines(await(await generationStream(bound,()=>first.value,async()=>bound,0,signal())).text());
+ assert.deepEqual(resumed.map(row=>row.type),['user','message']);
+ assert.deepEqual(resumed.map(row=>'cursor'in row?row.cursor:null),[1,2]);
+});
