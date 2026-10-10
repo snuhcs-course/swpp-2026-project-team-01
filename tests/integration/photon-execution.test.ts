@@ -131,15 +131,23 @@ globalThis.fetch=async(input,init)=>{
   assert.equal(await inputCalls(),callsBefore,'restart settles saved output without another model invocation');
   assert.equal(await sql.query(`select text from fmat.photon_replies where project_id='${project}';`),describedReply);
   assert.equal(await sql.query(`select count(*) from fmat.photon_replies where project_id='${project}';`),'1');
-  // Lose the provider-result database acknowledgment after committing it.
+  // Fail one receipt write before commit, then lose its retry acknowledgment after commit.
   let sends=0,reconciles=0;const replyId=await sql.query(`select id from fmat.photon_replies where project_id='${project}';`);
   const replyProvider={async send(route:{line:string;spaceId:string},recipient:string,text:string,id:string,authorize:()=>Promise<void>){
    await authorize();sends++;assert.equal(route.spaceId,'any;-;'+phone);assert.equal(recipient,phone);assert.equal(text,describedReply);assert.equal(id,replyId);
    return {status:'accepted' as const,providerReference:'fixture-reply-guid'};
   },async reconcile(_route:unknown,reference:string|null){reconciles++;assert.equal(reference,'fixture-reply-guid');return {status:'delivered' as const,providerReference:reference};}};
-  const lostFinish=new Database(env,async(input,init)=>{const response=await fetch(input,init);if(JSON.parse(String(init?.body)).p_operation==='finish'){assert.equal(response.status,200);await response.text();throw new Error('Lost committed reply acknowledgment');}return response;});
+  let finishAttempts=0;
+  const lostFinish=new Database(env,async(input,init)=>{
+   const finishing=JSON.parse(String(init?.body)).p_operation==='finish';
+   if(finishing&&++finishAttempts===1)throw new Error('Synthetic pre-commit receipt outage');
+   const response=await fetch(input,init);
+   if(finishing){assert.equal(response.status,200);await response.text();throw new Error('Lost committed reply acknowledgment');}
+   return response;
+  });
   await Promise.all([dispatchPhotonReplies(lostFinish,env,replyProvider),dispatchPhotonReplies(lostFinish,env,replyProvider)]);
-  assert.equal(sends,1,'concurrent workers dispatch one frozen reply');
+  assert.equal(sends,1,'concurrent workers dispatch one frozen reply');assert.equal(finishAttempts,2);
+  assert.equal(await sql.query(`select provider_reference from fmat.photon_replies where id='${replyId}';`),'fixture-reply-guid');
   await sql.query(`update fmat.photon_replies set checked_at=clock_timestamp()-interval '31 seconds' where project_id='${project}';`);
   await dispatchPhotonReplies(db,env,replyProvider);assert.equal(sends,1);assert.equal(reconciles,1);
   assert.equal(await sql.query(`select status||':'||(text is null)::text from fmat.photon_replies where id='${replyId}';`),'delivered:true');

@@ -33,8 +33,16 @@ test('private unlinked handoff freezes one token and survives lost acknowledgmen
   const lostPrepare=new PhotonHandoffs(new Database(env,async(...args)=>{const response=await fetch(...args);assert.equal(response.status,200);await response.text();throw new Error('Synthetic lost commit acknowledgment');}),env,transport);
   await assert.rejects(()=>lostPrepare.prepare());await Promise.all([service.prepare(),service.prepare()]);
   assert.equal(await sql.query(`select count(*) from fmat.photon_handoffs where project_id='${project}';`),'1');
-  const lostFinish=new PhotonHandoffs(new Database(env,async(input,init)=>{const response=await fetch(input,init);if(JSON.parse(String(init?.body)).p_operation==='finish'){assert.equal(response.status,200);await response.text();throw new Error('Synthetic lost send acknowledgment');}return response;}),env,transport);
-  await Promise.all([lostFinish.dispatch(),lostFinish.dispatch()]);assert.equal(sends,1);assert.ok(proof);
+  let finishAttempts=0;
+  const lostFinish=new PhotonHandoffs(new Database(env,async(input,init)=>{
+   const finishing=JSON.parse(String(init?.body)).p_operation==='finish';
+   if(finishing&&++finishAttempts===1)throw new Error('Synthetic pre-commit receipt outage');
+   const response=await fetch(input,init);
+   if(finishing){assert.equal(response.status,200);await response.text();throw new Error('Synthetic lost send acknowledgment');}
+   return response;
+  }),env,transport);
+  await Promise.all([lostFinish.dispatch(),lostFinish.dispatch()]);assert.equal(sends,1);assert.ok(proof);assert.equal(finishAttempts,2);
+  assert.equal(await sql.query(`select provider_reference from fmat.photon_handoffs where project_id='${project}';`),'fixture-handoff-guid');
   const metadata=await service.resolve(proof);assert.equal(metadata.phone,phone);assert.deepEqual(Object.keys(metadata).sort(),['expiresAt','handoffId','line','phone','spaceId']);
   const stored=await sql.query(`select encrypted_token from fmat.photon_handoffs where project_id='${project}';`);assert.ok(!stored.includes(proof.token));
   await assert.rejects(()=>service.resolve({...proof,token:randomBytes(32).toString('base64url')}));

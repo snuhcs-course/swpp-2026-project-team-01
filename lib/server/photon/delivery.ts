@@ -1,3 +1,4 @@
+import {recordPhotonOutcome} from './outcome.ts';
 import {requireMessagingEnvironment} from '../config.ts';
 import {z} from 'zod';
 import {phoneNumber} from '../../contracts/imessage.ts';
@@ -32,7 +33,7 @@ export async function dispatchLinkCodes(database=new Database(),env=process.env,
    // send remains uncertain and will never become another send action.
    if(error instanceof ApplicationError&&[401,403,404].includes(error.status))result={status:'failed',providerReference:item.providerReference};
   }
-  await call('finish',{...lease,...result});return result.status;
+  await recordPhotonOutcome(()=>call('finish',{...lease,...result}),result.providerReference);return result.status;
  }));
  return {claimed:claimed.length,recorded:results.filter(r=>r.status==='fulfilled').length};
 }

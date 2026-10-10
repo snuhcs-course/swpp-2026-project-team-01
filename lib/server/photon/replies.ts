@@ -1,3 +1,4 @@
+import {recordPhotonOutcome} from './outcome.ts';
 import {requireMessagingEnvironment} from '../config.ts';
 import {z} from 'zod';
 import {Database} from '../database/client.ts';
@@ -29,7 +30,7 @@ export async function dispatchPhotonReplies(database:Pick<Database,'rpc'>=new Da
   }catch(error){
    if(error instanceof ApplicationError&&[401,403,404].includes(error.status))result={status:'revoked',providerReference:item.providerReference};
   }
-  await call('finish',{...lease,...result});
+  await recordPhotonOutcome(()=>call('finish',{...lease,...result}),result.providerReference);
  }));
  return {claimed:claimed.length,suppressed,recorded:results.filter(r=>r.status==='fulfilled').length};
 }

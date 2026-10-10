@@ -1,3 +1,4 @@
+import {recordPhotonOutcome} from './outcome.ts';
 import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {Database} from '../database/client.ts';
@@ -54,7 +55,7 @@ export class PhotonHandoffs {
       item.handoffId,async()=>{await this.call('authorize',lease);});
     }else result=await this.transport.reconcile({line:item.line,spaceId:item.spaceId},item.providerReference);
    }catch(error){if(error instanceof ApplicationError&&[401,403,404].includes(error.status))result={status:'revoked',providerReference:item.providerReference};}
-   await this.call('finish',{...lease,...result});
+   await recordPhotonOutcome(()=>this.call('finish',{...lease,...result}),result.providerReference);
   }));
   return {claimed:claimed.length,suppressed,recorded:results.filter(r=>r.status==='fulfilled').length};
  }

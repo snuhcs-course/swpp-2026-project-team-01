@@ -21,7 +21,7 @@ test('real Auth and durable Photon linking survive replay, lost sends, competing
  const client:PhotonClient={chats:{async shareContactInfo(){throw new Error('Unexpected contact share');}},addresses:{async isIMessageAvailable(){await preflight();return true;}},messages:{async sendText(space,text,options){
   sends++;assert.ok(options?.clientMessageId);const found=text.match(/code is (\d{6})/u);assert.ok(found);sent.set(options.clientMessageId,{code:found[1],phone:String(space).split(';')[2]});
   if(lose)throw new Error('Synthetic lost response after provider commit');
-  return {guid:'message:'+options.clientMessageId,chatGuids:[String(space)],isFromMe:true,isDelivered:false,sendErrorCode:0} as unknown as Awaited<ReturnType<PhotonClient['messages']['sendText']>>;
+  return {guid:'message:'+options.clientMessageId,content:{text},chatGuids:[String(space)],isFromMe:true,isDelivered:false,sendErrorCode:0} as unknown as Awaited<ReturnType<PhotonClient['messages']['sendText']>>;
  },async get(){throw new Error('synthetic read outage');}},async close(){}};
  const transport=new PhotonTransport(env,async()=>Response.json({succeed:true,data:{type:'shared',token:'fixture',expiresIn:300}}),()=>client);
  const service=new HostIMessage(database,env,transport);
@@ -64,7 +64,18 @@ test('real Auth and durable Photon linking survive replay, lost sends, competing
   await age(one.id);lose=false;
   const first=await service.start(one.credential,one.browser,{phone,idempotencyKey:randomUUID()});await age(one.id);
   const second=await service.start(two.credential,two.browser,{phone,idempotencyKey:randomUUID()});
-  await dispatchLinkCodes(database,env,transport);
+  const receiptAttempts=new Map<string,number>();
+  const transientReceipt=new Database(env,async(input,init)=>{
+   const body=JSON.parse(String(init?.body));
+   if(body.p_operation==='finish'){
+    const id=body.p_input.challengeId,count=(receiptAttempts.get(id)??0)+1;receiptAttempts.set(id,count);
+    if(count===1)throw new Error('Synthetic pre-commit link receipt outage');
+   }
+   return fetch(input,init);
+  });
+  const beforeReceipts=sends;const receipts=await dispatchLinkCodes(transientReceipt,env,transport);
+  assert.equal(receipts.recorded,2);assert.equal(sends,beforeReceipts+2);assert.deepEqual([...receiptAttempts.values()],[2,2]);
+  for(const id of [first.challenge!.id,second.challenge!.id])assert.equal(await sql.query(`select provider_reference from fmat.photon_link_challenges where id='${id}';`),'message:'+id);
   const competing=await Promise.allSettled([[one,first],[two,second]].map(async([u,s])=>{
    const user=u as typeof one,state=s as typeof first,id=state.challenge!.id;return service.verify(user.credential,user.browser,{challengeId:id,code:sent.get(id)!.code,idempotencyKey:randomUUID()});
   }));

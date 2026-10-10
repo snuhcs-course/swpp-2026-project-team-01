@@ -519,6 +519,8 @@ References: [email direction](01_backend_architecture.md#email-provider-directio
 
 ### Phase 7 — Add verified host iMessage continuity
 
+- [x] Recover validated Photon receipt evidence across one transient pre-commit database failure for replies, linking codes and handoffs. Preserve the original lease/outcome, stop on conflicts, and never repeat provider I/O. Verify 558 application tests, three real database integrations, both TypeScript targets and 2,534 SQL assertions. [Evidence](05_rebuild_evidence.md#photon-delivery-receipt-persistence--2026-10-10). Production rollout and live provider acceptance remain separate.
+
 - [x] Deploy Photon response identity validation from `f9943b3` (`dpl_7c7cCUMX7UuzvRmnzBt2p3r1z1oX`), verify the exact Ready release alias and 35 production HTTP guards. [Evidence](05_rebuild_evidence.md#photon-response-identity-production-rollout--2026-10-10). Real provider/device acceptance and wider legacy coverage remain open.
 
 - [x] Reproduce and fix Photon response binding regressions: reject changed send text, require the exact persisted provider reference during recovery, and retain that reference on uncertain reads. Verify 555 application/provider tests, installed-SDK gRPC checks, actual signed Photon/eve integration and both TypeScript targets. [Evidence](05_rebuild_evidence.md#photon-response-identity-validation--2026-10-10). Production rollout and broader legacy/device acceptance remain separate.
