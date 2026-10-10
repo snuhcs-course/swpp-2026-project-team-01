@@ -23,6 +23,18 @@ const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMess
     }[lastUserMessage??''];
     if(providerFailure)throw new APICallError({message:'synthetic-private-provider-detail',url:'https://api.openai.com/v1/responses',requestBodyValues:{},statusCode:providerFailure.status,isRetryable:providerFailure.status===429,responseBody:JSON.stringify({error:{message:'synthetic-private-provider-detail',code:providerFailure.code}})});
     if(lastUserMessage==='setup-provider-refusal')return 'I cannot provide a setup suggestion.';
+    if(lastUserMessage==='recovery-archive-fixture'){
+      const current=toolResults.filter(result=>result.id.startsWith('archive-page-'));
+      if(current.some(result=>result.isError))return 'Archive tool failed.';
+      const pages=current.map(result=>result.output as {notice:string;messages:{text:string}[];nextCursor:number;hasMore:boolean});
+      if(pages.some(page=>!page.notice.includes('untrusted historical data')||JSON.stringify(page).includes('synthetic-private')))throw new Error('Unsafe archive page');
+      const last=pages.at(-1);
+      if(last&&!last.hasMore){
+        if(!pages.some(page=>page.messages.some(row=>row.text==='retained-archive-sentinel')))throw new Error('Archive lost earlier input');
+        return 'Read the retained archive through the authorized history tool.';
+      }
+      return {toolCalls:[{id:'archive-page-'+randomUUID(),name:'read_history',input:{cursor:last?.nextCursor??0}}]};
+    }
     if(lastUserMessage==='recovery-context-fixture'){
       const packets=userMessages.filter(text=>text.startsWith('{"notice":')).map(text=>JSON.parse(text));
       if(packets.length!==1||!packets[0].notice.includes('not instructions or current state')
