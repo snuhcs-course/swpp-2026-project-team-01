@@ -233,8 +233,9 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   // superseding attempt. Only fully checked rows enter structured ranking.
   const batch=async()=>service.batch(credential,{requestId,revision:await revision(),sampling:{stepMinutes:15,limit:3}});
   const rankTarget=(b:Awaited<ReturnType<typeof batch>>)=>({requestId,revision:b.context.revision,checkId:b.context.checkId,basis:b.context.basis});
+  let rankInputIds:string[]=[];
   let rankCalls=0,rankGate=async()=>{},rankResponse:(input:RankingInput)=>unknown=input=>({orderedIds:input.candidates.map(c=>c.id).reverse()});
-  const ranker=new CandidateRanking(database,{async rank(input,reserve){await reserve();rankCalls++;assert.deepEqual(Object.keys(input).sort(),['candidates','timezone']);assert.ok(!JSON.stringify(input).includes('Private'));await rankGate();return rankResponse(input);}});
+  const ranker=new CandidateRanking(database,{async rank(input,reserve){await reserve();rankCalls++;rankInputIds=input.candidates.map(candidate=>candidate.id);assert.deepEqual(Object.keys(input).sort(),['candidates','timezone']);assert.ok(!JSON.stringify(input).includes('Private'));await rankGate();return rankResponse(input);}});
   const unresolvedBatch=await batch();assert.equal(unresolvedBatch.results.length,3);assert.equal(unresolvedBatch.truncated,true);
   assert.ok(unresolvedBatch.results.every(r=>r.persisted.status==='clarification'));
   const emptyRanking=await ranker.rank(credential,rankTarget(unresolvedBatch));assert.deepEqual(emptyRanking.orderedIds,[]);assert.equal(rankCalls,0,'Unresolved preferences never reach the model');
@@ -242,6 +243,8 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   await verifyRankingBudget(database,sql,credential,hostCredential,rankTarget(await batch()));
   const beforeBatchReads=calls.length,validBatch=await batch();assert.equal(calls.length,beforeBatchReads+1,'Batch shares the host free/busy read');assert.ok(validBatch.results.every(r=>r.persisted.status==='checks_passed'));
   const target=rankTarget(validBatch),ranked=await ranker.rank(credential,target);assert.equal(ranked.orderedIds.length,3);assert.equal(ranked.complete,false);assert.equal(rankCalls,1);
+  assert.deepEqual([...rankInputIds].sort(),validBatch.results.map(result=>result.persisted.evaluationId).sort(),'Ranking receives exactly the checked candidate IDs');
+  assert.deepEqual(ranked.orderedIds,[...rankInputIds].reverse(),'Persisted ranking retains the provider ordering of the exact checked candidates');
   assert.equal(await sql.query(`select attempts from fmat.model_work_attempts where name='ranking:${target.checkId}';`),'1');
   assert.deepEqual(await ranker.rank(credential,target),ranked);assert.equal(rankCalls,1,'Saved ranking retry performs no model call');
   assert.equal(await sql.query(`select attempts from fmat.model_work_attempts where name='ranking:${target.checkId}';`),'1','Saved ranking retry consumes no further allowance');
@@ -306,6 +309,7 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   const selectInput={requestId,revision:published.revision,publicationId:published.publication!.id,candidateId:published.publication!.candidates[0].id,confirmed:true as const,idempotencyKey:randomUUID()};
   const selections=await Promise.all(Array.from({length:8},()=>publication.select(credential,selectInput)));assert.ok(selections.every(r=>r.proposal?.version===1&&r.revision===published.revision+1));
   const selected=selections[0];assert.equal(selected.requesterAgreed,false);assert.equal(selected.canAgree,true);assert.equal(selected.proposal!.start,published.publication!.candidates[0].interval.start);
+  assert.equal(await sql.query(`select contact_verified_email is null and host_approved_version is null and event is null from fmat.requests where id='${requestId}';`),'t','Proposal selection supplies neither contact proof nor host approval');
   const beforeSelectionReplay={busy:calls.length,events:eventReads,routes:routeCalls.length,ranking:rankCalls};
   assert.deepEqual(await publication.select(credential,selectInput),selected);
   assert.deepEqual({busy:calls.length,events:eventReads,routes:routeCalls.length,ranking:rankCalls},beforeSelectionReplay,'Committed proposal selection replay performs no new provider work');
@@ -371,6 +375,25 @@ test('Authorized availability joins both calendars, pauses failures, and fences 
   const afterDecision=await privateReview.read(hostCredential,{requestId});assert.equal(afterDecision.availability,'stale');assert.deepEqual(afterDecision.candidates,[]);assert.ok(afterDecision.preferences.some(p=>p.id===privateDecision.decisionId));
   const privateRecheck=await privateReview.evaluate(hostCredential,{requestId,revision:afterDecision.revision,candidate:privateCandidate.interval});assert.equal(privateRecheck.candidates[0].status,'checks_passed');
   await preferences.revoke(hostCredential,{requestId,revision:privateRecheck.revision,decisionId:privateDecision.decisionId,idempotencyKey:randomUUID()});assert.ok(!(await privateReview.read(hostCredential,{requestId})).preferences.some(p=>p.id===privateDecision.decisionId));
+  // Exercise the retired command's stale-result guarantee through the current
+  // reviewed mutation boundary, rather than incrementing a fixture row directly.
+  const exceptionSource=await privateReview.evaluate(hostCredential,{requestId,revision:await revision(),candidate:privateCandidate.interval});
+  const exception=await preferences.confirm(hostCredential,{requestId,revision:exceptionSource.revision,evaluationId:exceptionSource.candidates[0].id,confirmed:true,idempotencyKey:randomUUID(),choice:{key:'additional',classification:'preference',decision:'exception',reason:'Private concurrent edit exception'}});
+  assert.ok((await privateReview.read(hostCredential,{requestId})).preferences.some(p=>p.id===exception.decisionId));
+  assert.equal(await sql.query(`select requester_agreed_version is null and host_approved_version is null and event is null from fmat.requests where id='${requestId}';`),'t','A private exception supplies no agreement, approval or booking');
+  const editRevision=await revision();
+  await agentTool('fmat_propose_request_details',{requestId,input:{expectedRevision:editRevision,patch:{purpose:'Reviewed during Calendar read'},clarifications:[]},idempotencyKey:randomUUID()});
+  const concurrentReview=await reviewService.read(credential);assert.equal(concurrentReview.revision,editRevision,'Drafting leaves the evaluated revision unchanged');
+  await paused(()=>reviewService.decide('apply',credential,{reviewId:concurrentReview.review!.id,expectedRevision:editRevision,confirmed:true,idempotencyKey:randomUUID()}));
+  const edited=await reviewService.read(credential);assert.equal(edited.revision,editRevision+1);assert.equal(edited.details.purpose,'Reviewed during Calendar read');
+  assert.equal(await sql.query(`select current_proposal_version is null and requester_agreed_version is null and host_approved_version is null and event is null from fmat.requests where id='${requestId}';`),'t','A stale provider result cannot restore proposal or decision state');
+  const editedPrivate=await privateReview.read(hostCredential,{requestId});assert.equal(editedPrivate.availability,'stale');assert.deepEqual(editedPrivate.candidates,[]);
+  assert.ok(editedPrivate.preferences.some(p=>p.id===exception.decisionId),'Private decision history remains available for explicit revocation');
+  const editedCheck=await privateReview.evaluate(hostCredential,{requestId,revision:edited.revision,candidate:privateCandidate.interval});
+  assert.equal(editedCheck.candidates[0].preferences?.status,'requires_confirmation','Reviewed detail changes invalidate applicability of the old private exception');
+  assert.ok(editedCheck.candidates[0].preferences?.checks.every(choice=>choice.decisionId!==exception.decisionId));
+  const editedGuest=await database.rpc('fmat_browser_command',{p_operation:'guest_state',p_credential:credential,p_input:{}});
+  assert.doesNotMatch(JSON.stringify(editedGuest),/Private concurrent edit exception|privateSchedulingContext|privateDiagnostics/);
   const expiredReview=await privateReview.evaluate(hostCredential,{requestId,revision:await revision(),candidate:privateCandidate.interval});
   // A private batch is complete only for its captured evidence manifest.
   const markerId=await sql.query(`select id from fmat.private_review_checks where request_id='${requestId}' order by created_at desc limit 1;`);

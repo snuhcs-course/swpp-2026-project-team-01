@@ -33,6 +33,7 @@ test('account-free intake fences provider reads and recovers concurrent/lost sub
   const unreliable=new PublicIntake({async rpc(name,params){const result=await database.rpc(name,params);if(lost&&params.p_operation==='create'){lost=false;throw new ApplicationError('PROVIDER_UNAVAILABLE',503);}return result;}},env,provider);
   await assert.rejects(unreliable.create(handle,token,details),code('PROVIDER_UNAVAILABLE'));
   const continuation=await service.resume(handle,token);assert.ok(continuation);assert.equal(continuation.closed,false);const before=reads;
+  assert.equal(await sql.query(`select contact_verified_email is null and requester_agreed_version is null and host_approved_version is null and event is null from fmat.requests where id='${continuation.requestId}';`),'t','Public intake supplies no contact proof or meeting decisions');
   const retries=await Promise.all(Array.from({length:8},()=>service.create(handle,token,details)));assert.ok(retries.every(r=>r.requestId===continuation.requestId));assert.equal(reads,before,'committed replay does not depend on another Google call');
   const reordered=Object.fromEntries(Object.entries(details).reverse());
   assert.deepEqual(await service.create(handle,token,reordered),continuation,'JSON key order cannot create a new request or continuation');

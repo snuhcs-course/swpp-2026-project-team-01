@@ -66,7 +66,7 @@ Source: `5c305d9^:scripts/tests/booking-integration.ts`, all 648 lines, includin
 | Own online receipts remain virtual | **Changed merge policy:** [adjacent-context tests](../../lib/server/calendar/adjacent.test.ts) normalize virtual URLs and preserve differing provider/local versions instead of allowing the local receipt to overwrite the provider event. This remains the documented runtime audit disposition above. |
 | Local receipt blocks during Calendar lag | [Availability integration](../../tests/integration/availability-evaluation.test.ts) includes effective-calendar confirmed receipts while provider busy is empty, retains both original and moved intervals, and rejects a conflicting candidate before adjacent-event/route reads. |
 
-This audit adds explicit recipient and post-validation grant-generation assertions. It does not restore the retired script's permissive actor inputs, direct candidate persistence, exact failure-code vocabulary or setup shortcuts. The remaining request/onboarding command scripts and unresolved online-travel policy still require separate disposition.
+This audit adds explicit recipient and post-validation grant-generation assertions. It does not restore the retired script's permissive actor inputs, direct candidate persistence, exact failure-code vocabulary or setup shortcuts. The [request command audit](13_legacy_request_api_audit.md#retired-request-command-integration-2026-10-10) now covers that script. The onboarding command script and unresolved online-travel policy still require separate disposition.
 
 ## Verification limits
 

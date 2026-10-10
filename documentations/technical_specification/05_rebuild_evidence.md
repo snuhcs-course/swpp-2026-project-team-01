@@ -3578,3 +3578,20 @@ Setup task 4.8 is complete, with **23/26** owning tasks done. Current-source hos
 Hosted run `38020794299` on `d2ca189` passed fourteen runtime tests but failed the managed-terminal fixture: immediately after the domain input reached `failed`, the protected recovery API still returned `active`. The production inspector intentionally reports active while the exact session still owns its runtime address; only released ownership plus a stable final `session.failed` event and settled usage can establish recovery eligibility. Domain input settlement is an earlier event and cannot substitute for terminal evidence.
 
 The fixture now polls its actual protected recovery API for at most twenty seconds, asserting HTTP success, generation zero and known transient states, before requiring `recovery_required`. It does not fake failure, remove the terminal assertion, restart a live workflow or change production behavior. The subsequent successor generation, archive, exactly two drafts, unchanged request revision, one recovery, retained usage and zero-booking assertions remain. The focused actual-eve test passed, and both TypeScript targets passed. This is a test-only ordering correction; the deployed product source remains `7a1aa7f`. It needs no product/UX/API setup change or redeployment. Fresh full hosted CI remains separately pending. Logs: `.local/rebuild/private-setup-terminal-fixture{,-types}.log`.
+
+
+## Legacy request command integration audit — 2026-10-10
+
+Read the entire retired `5c305d9^:supabase/functions/_shared/modules/requests/local_integration.ts` and map its setup, intake, ranking, proposal, private exception, agreement, privacy, stale-result and withdrawal checks in the [request audit](13_legacy_request_api_audit.md#retired-request-command-integration-2026-10-10). Preserve the original local/injected-provider evidence boundary.
+
+The replacement availability integration now verifies the exact provider-input candidate set and persisted reversed ordering. SQL orders its manifest independently of chronological sampling, so the assertion records actual provider input instead of assuming UUID order. Intake and selection explicitly retain null contact proof, host approval and event. A bound MCP agent drafts a purpose edit; while the actual Calendar reader is paused, the requester applies that saved review. The pending evaluator must reject `STALE_REVISION`, preserve the one reviewed revision and purpose, and create no meeting decisions. A fresh exact-candidate evaluation requires preference confirmation and cannot reuse the earlier exception's decision ID. Guest output excludes its private reason and legacy private-context fields.
+
+The first draft assertion expected the private history record to disappear and failed. Current SQL, the archived decision design and the host UI instead retain unrevoked history while separately checking applicability. The final test verifies both retained history and lost applicability. This is an explicit API difference, not a restored legacy shortcut; no application or schema change was necessary.
+
+Verification on Node.js 24 and Supabase CLI 2.119.0 against the disposable local stack:
+
+- `npx tsx --test --test-concurrency=1 tests/integration/availability-evaluation.test.ts tests/integration/public-intake.test.ts tests/integration/request-review.test.ts tests/integration/request-lifecycle.test.ts` — four passing suites, including real local Auth/RPC and injected providers.
+- `npm run typecheck` — both TypeScript targets pass.
+- `npm run check:docs` and `git diff --check` — pass.
+
+Local logs: `.local/rebuild/legacy-request-command-integration.log` and `.local/rebuild/legacy-request-command-types.log`. This increment changes verification/documentation only and requires no production application redeployment. Production remains on the previously verified private-setup dispatch code. The onboarding command audit, online-meeting travel-policy decision and complete live provider/device/named-client gates remain open. The fresh Google login probe still reports `GOOGLE_REDIRECT_URI_MISMATCH`; this audit does not claim live sign-in acceptance.
