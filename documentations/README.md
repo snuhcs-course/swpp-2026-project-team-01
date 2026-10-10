@@ -75,3 +75,5 @@ The [legacy delivery audit](technical_specification/11_legacy_delivery_audit.md)
 The [legacy booking audit](technical_specification/12_legacy_booking_audit.md) maps 24 retired durable adapter, booking handler and runtime assertions to current authority, recovery, receipt scope and explicit API changes.
 
 The [legacy request API audit](technical_specification/13_legacy_request_api_audit.md) maps 15 retired route assertions to current request authority, review, retry, contact-proof and proposal behavior.
+
+The [legacy Photon bridge audit](technical_specification/17_legacy_photon_bridge_audit.md) maps all 23 retired bridge assertions, records replaced stream/configuration contracts, and distinguishes verified delivery recovery from pending live-provider behavior.

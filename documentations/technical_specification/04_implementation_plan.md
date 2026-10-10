@@ -519,6 +519,10 @@ References: [email direction](01_backend_architecture.md#email-provider-directio
 
 ### Phase 7 — Add verified host iMessage continuity
 
+- [x] Deploy receipt persistence and handoff preview denial from `ca01c2d` (`dpl_8M88AMz1FxGUPWr5BC1yietUfyBp`), verify the exact Ready custom alias and 35 production HTTP guards. [Evidence](05_rebuild_evidence.md#photon-receipt-and-preview-guard-rollout--2026-10-10). Hosted CI and actual provider/device acceptance remain pending.
+
+- [x] Audit all 23 retired Photon bridge assertions and record preserved behavior, replaced stream/configuration contracts and unverified forwarding/provider details. [Audit](17_legacy_photon_bridge_audit.md); [evidence](05_rebuild_evidence.md#legacy-photon-bridge-assertion-audit--2026-10-10). This does not close actual device, receiver ownership or provider retry gates.
+
 - [x] Deny handoff preparation and dispatch before database access in preview, development and ambiguous Vercel environments. Reproduce the omitted worker guard, verify every denied metadata case and retain normal local/production claims. Pass 558 application tests, both TypeScript targets and the real handoff integration. [Evidence](05_rebuild_evidence.md#photon-handoff-preview-denial--2026-10-10).
 
 - [x] Recover validated Photon receipt evidence across one transient pre-commit database failure for replies, linking codes and handoffs. Preserve the original lease/outcome, stop on conflicts, and never repeat provider I/O. Verify 558 application tests, three real database integrations, both TypeScript targets and 2,534 SQL assertions. [Evidence](05_rebuild_evidence.md#photon-delivery-receipt-persistence--2026-10-10). Production rollout and live provider acceptance remain separate.
