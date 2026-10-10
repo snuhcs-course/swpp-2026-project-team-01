@@ -58,7 +58,7 @@ export function HostRequestWorkspace({onAccessLost,onDraftRetained}:{onAccessLos
  return <div className="flex min-w-0 flex-col gap-4">
   <div className="flex flex-wrap gap-2"><Button variant="outline" className="min-h-11" aria-expanded={picker} aria-controls={id+'picker'} onClick={()=>setPicker(value=>!value)}>Meeting requests</Button>{selection?<Button variant="ghost" className="min-h-11" onClick={()=>choose(null)}>Back to host chat</Button>:null}</div>
   {picker?<RequestPicker id={id+'picker'} onChoose={requestId=>choose({requestId,audience:'host_private'})} onAccessLost={onAccessLost}/>:null}
-  {error?<Alert variant="destructive"><AlertTitle>Request unavailable</AlertTitle><AlertDescription>{error}</AlertDescription>{selection?<Button variant="outline" className="min-h-11" onClick={()=>void refresh()}>Retry request</Button>:null}</Alert>:null}
+  {error?<Alert variant="destructive"><AlertTitle>Request unavailable</AlertTitle><AlertDescription>{error}</AlertDescription>{selection?<Button variant="outline" className="min-h-11" onClick={()=>{setError('');setLoading(true);void refresh();}}>Retry request</Button>:null}</Alert>:null}
   {loading?<p role="status">Opening your selected request…</p>:null}
   {active&&selection?<Card role="region" aria-label="Selected meeting request">
    <CardHeader><CardTitle className="wrap-anywhere" ref={heading} tabIndex={-1}>{active.title||'Meeting request'}</CardTitle><CardDescription className="wrap-anywhere">{active.requesterName||'Requester'} · {statusLabel(active.status)}{active.proposalVersion?` · Proposal ${active.proposalVersion}`:''}</CardDescription></CardHeader>

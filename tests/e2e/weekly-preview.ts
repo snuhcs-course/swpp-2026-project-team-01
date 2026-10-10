@@ -22,7 +22,7 @@ export async function verifyWeeklyPreview(page:Page,setup:Locator,context:Browse
  // Native time controls may tab through hour/minute/period segments first.
  const focusTrace=[];
  // Avoid forcing layout between Tab presses; collect geometry only on failure.
- const focusState=()=>page.evaluate(()=>{const controls=document.querySelectorAll('[aria-label="Your meeting setup"] input[type="time"]');return {startFocused:document.activeElement===controls[0],endFocused:document.activeElement===controls[1],activeTag:document.activeElement?.tagName??null};});
+ const focusState=()=>page.evaluate(()=>{const controls=document.querySelectorAll('[aria-label="Your meeting setup"] input[type="time"]');return {startFocused:document.activeElement===controls[0],endFocused:document.activeElement===controls[1],activeTag:document.activeElement?.tagName??null,startDisabled:controls[0]?.matches(':disabled'),endDisabled:controls[1]?.matches(':disabled'),setupBusy:document.querySelector('[aria-label="Your meeting setup"]')?.getAttribute('aria-busy')};});
  try{
   await start.focus();focusTrace.push({step:'start-focus',state:await focusState()});
   await expect(start).toBeFocused();
