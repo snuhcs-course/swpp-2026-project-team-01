@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac,createHash} from 'node:crypto';
+import {Webhook} from 'svix';
 import {verifiedAgentMailReceipt} from '../../lib/server/agentmail/webhook.ts';
 const key=Buffer.alloc(32,7),receiver={secret:'whsec_'+key.toString('base64'),inboxId:'controlled@agentmail.to'};
 const fixture=()=>({type:'event',event_type:'message.received',event_id:'event-1',message:{inbox_id:receiver.inboxId,thread_id:'thread-1',message_id:'<message-1@example.test>',timestamp:'2026-10-08T00:00:00Z',from:'Display <sender@example.test>',text:'Private text',html:'<b>Private</b>',headers:{'Authentication-Results':'attacker supplied'},attachments:[{filename:'private.txt'}]},thread:{inbox_id:receiver.inboxId,thread_id:'thread-1',senders:['private@example.test']}});
@@ -32,7 +33,7 @@ test('AgentMail fences the intended inbox, conflicting route copies and malforme
 test('Receipt identity is stable on retries while changed signed content changes the digest',async()=>{
  const first=await verifiedAgentMailReceipt(signed(),receiver),retry=await verifiedAgentMailReceipt(signed(undefined,{timestamp:Math.floor(Date.now()/1000)-10}),receiver);assert.deepEqual(first,retry);
  const changed=fixture();changed.message.text='Changed';const next=await verifiedAgentMailReceipt(signed(changed),receiver);assert.equal(next?.eventId,first?.eventId);assert.notEqual(next?.payloadHash,first?.payloadHash);
- // Durable duplicate/conflict rejection belongs to the future inbox transaction.
+ // Durable duplicate/conflict rejection is verified in the real ingress integration.
 });
 test('AgentMail bounds payload bytes, media types and stalled reads before any persistence',async()=>{
  await assert.rejects(()=>verifiedAgentMailReceipt(signed(undefined,{raw:'x'.repeat(1048577)}),receiver),{status:413});
@@ -49,4 +50,29 @@ test('AgentMail rejects signed invalid UTF-8 and respects a caller-aborted read'
  const controller=new AbortController();let canceled=false;
  const stalled=new Request('https://release.invalid/',{method:'POST',headers:signed().headers,body:new ReadableStream({cancel(){canceled=true;}}),signal:controller.signal,duplex:'half'} as RequestInit);
  const result=verifiedAgentMailReceipt(stalled,receiver);controller.abort();await assert.rejects(()=>result,{status:400});assert.equal(canceled,true);
+});
+
+test('AgentMail cancels a body when the caller already aborted before verification',async()=>{
+ const controller=new AbortController();controller.abort();let cancelled=false;
+ const request=new Request('https://release.invalid/',{method:'POST',headers:signed().headers,
+  body:new ReadableStream({cancel(){cancelled=true;}}),signal:controller.signal,duplex:'half'} as RequestInit);
+ await assert.rejects(verifiedAgentMailReceipt(request,receiver),{code:'INVALID_INPUT'});
+ assert.equal(cancelled,true);
+});
+
+
+test('published independent Svix vector verifies exact bytes without granting application ingress',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:1731705121000});
+ // Fixed vector retained from the original probe, not signed by this fixture.
+ const secret='whsec_plJ3nmyCDGBKInavdOK15jsl';
+ const body='{"event_type":"ping","data":{"success":true}}';
+ const headers={'svix-id':'msg_loFOjxBNrRLzqYUf','svix-timestamp':'1731705121','svix-signature':'v1,rAvfW3dJ/X/qxhsaXPOyyCGmRKsaKWcsNccKXlIktD0='};
+ assert.doesNotThrow(()=>new Webhook(secret).verify(body,headers));
+ const request=(raw=body)=>new Request('https://release.invalid/',{method:'POST',headers:{...headers,'content-type':'application/json'},body:raw});
+ const configured={secret,inboxId:receiver.inboxId};
+ // Valid transport signature; the historical ping lacks the required event ID.
+ await assert.rejects(verifiedAgentMailReceipt(request(),configured),{code:'INVALID_INPUT'});
+ await assert.rejects(verifiedAgentMailReceipt(request(body+' '),configured),{code:'UNAUTHORIZED'});
+ t.mock.timers.setTime(1731705431000);
+ await assert.rejects(verifiedAgentMailReceipt(request(),configured),{code:'UNAUTHORIZED'});
 });

@@ -468,6 +468,8 @@ References: [booking algorithm](01_backend_architecture.md#7-approval-to-booking
 
 ### Phase 6 — Add requester email continuity
 
+- [x] Audit all 23 retired AgentMail probe assertions, restore the independent Svix vector, and fix cancellation of request bodies already aborted before verification. Preserve diagnostic ownership/callback obligations as live gates. [Audit](18_legacy_agentmail_probe_audit.md); [evidence](05_rebuild_evidence.md#legacy-agentmail-probe-audit-and-aborted-body-cleanup--2026-10-10).
+
 - [x] Deploy verified parent-quotation readback (`5636381`; deployment `dpl_DxsJ2S6TKhoFUeVG8gsDB5MHnrsT`) and verify Ready production, 73 HTTP guards, seven public documents and disabled ingress. [Evidence](05_rebuild_evidence.md#verified-agentmail-parent-quotation-readback--2026-10-08).
 
 - [x] Verify appended reply quotations against a separately fetched exact parent, preserving frozen sends and replay identity. Real stored-reply inspection now passes; forged or unavailable parent evidence stays uncertain. [Evidence](05_rebuild_evidence.md#verified-agentmail-parent-quotation-readback--2026-10-08). Full signed requester continuity remains open.
@@ -851,7 +853,7 @@ Preserve settled capability requirements, including expiry, scoped guest credent
 
 ## 5. Verification and completion evidence
 
-- [x] Synchronize the successor recovery fault fixture with its post-commit acknowledgment-loss marker. Keep the marker mandatory, exercise a deliberate response delay, and preserve original-message, one-effect, restart and history assertions. [Evidence](05_rebuild_evidence.md#successor-acknowledgment-fixture-synchronization--2026-10-10). Hosted CI verification remains pending.
+- [x] Synchronize the successor recovery fault fixture with its post-commit acknowledgment-loss marker. Keep the marker mandatory, exercise a deliberate response delay, and preserve original-message, one-effect, restart and history assertions. [Evidence](05_rebuild_evidence.md#successor-acknowledgment-fixture-synchronization--2026-10-10). Hosted recovery run `38017093480` passed on `f9943b3`; see the evidence follow-up.
 
 - [x] Synchronize the booking rule-change fixture at the entry of both parallel route provider calls; preserve exact call counts and every blocked-booking/no-effect assertion. Verify the full booking integration, 1,979 post-cleanup SQL assertions and types. [Evidence](05_rebuild_evidence.md#booking-revalidation-fixture-synchronization--2026-10-10). Hosted CI runs `37991579645` and `37991585661` passed; see the [follow-up](05_rebuild_evidence.md#booking-fixture-hosted-ci-follow-up).
 

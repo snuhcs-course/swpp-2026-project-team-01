@@ -18,7 +18,7 @@ async function rawBody(request:Request):Promise<Buffer>{
  const timer=setTimeout(()=>{timedOut=true;cancel();},5000);
  request.signal.addEventListener('abort',cancel,{once:true});
  try{
-  if(request.signal.aborted)throw new ApplicationError('INVALID_INPUT',400);
+  if(request.signal.aborted){cancel();throw new ApplicationError('INVALID_INPUT',400);}
   for(;;){const {done,value}=await reader.read();if(timedOut)throw new ApplicationError('INVALID_INPUT',408);if(request.signal.aborted)throw new ApplicationError('INVALID_INPUT',400);if(done)break;
    total+=value.byteLength;if(total>maximumBytes){cancel();throw new ApplicationError('INVALID_INPUT',413);}chunks.push(value);
   }

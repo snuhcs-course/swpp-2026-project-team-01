@@ -82,7 +82,7 @@ References: [Cloudflare Email Service](https://developers.cloudflare.com/email-s
 
 AgentMail owns requester conversational inboxes and threads. Configure `AGENTMAIL_API_KEY`, `AGENTMAIL_POD_ID` and `AGENTMAIL_INBOX_ID` for the intended application resources. Use narrowly scoped `inbox_read`, `message_read` and `message_send` permissions; reserve provisioning and webhook administration for operator credentials.
 
-Store the receiver signing secret as `AGENTMAIL_WEBHOOK_SECRET`; it is distinct from the API key. Verify signed ingestion, sender binding, request/thread mapping, deduplication, replies and uncertain-send recovery under the [compatibility gates](04_implementation_plan.md#compatibility-gates).
+Store the receiver signing secret as `AGENTMAIL_WEBHOOK_SECRET`; it is distinct from the API key. The receiver bounds body reads and cancels both already-aborted and subsequently aborted requests before receipt persistence. Verify signed ingestion, sender binding, request/thread mapping, deduplication, replies and uncertain-send recovery under the [compatibility gates](04_implementation_plan.md#compatibility-gates).
 
 Inspection on 2026-10-07 with installed CLI 1.9.0 confirms that the configured development inbox is readable. The configured runtime key cannot list webhooks (`403 missing_permission`, missing `webhook_read`). Use an appropriately scoped operator credential to establish consumer ownership and webhook configuration; do not broaden the runtime key or send private Auth links into an inbox whose consumers are unverified.
 

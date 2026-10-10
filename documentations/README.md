@@ -77,3 +77,5 @@ The [legacy booking audit](technical_specification/12_legacy_booking_audit.md) m
 The [legacy request API audit](technical_specification/13_legacy_request_api_audit.md) maps 15 retired route assertions to current request authority, review, retry, contact-proof and proposal behavior.
 
 The [legacy Photon bridge audit](technical_specification/17_legacy_photon_bridge_audit.md) maps all 23 retired bridge assertions, records replaced stream/configuration contracts, and distinguishes verified delivery recovery from pending live-provider behavior.
+
+The [legacy AgentMail probe audit](technical_specification/18_legacy_agentmail_probe_audit.md) maps 23 retired diagnostic tests and separates application guarantees from unverified live fixture ownership and callback evidence.

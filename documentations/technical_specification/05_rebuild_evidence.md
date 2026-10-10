@@ -3445,3 +3445,16 @@ Independent inspection reported Ready for `dpl_8M88AMz1FxGUPWr5BC1yietUfyBp` at 
 The receipt-only build `dpl_3TRxZpc5xxPXTfitYrWZ5GekRdgx` was superseded before custom-domain promotion. No database migration, receiver activation or real-recipient send was performed. The final local database check passed 2,534 assertions after all integration fixtures. Current deployed-head hosted runs `38017617837` and `38017614056` were still running at the last observation; earlier recovery-fixture runs `38017093480` and `38017096990` had passed repository/browser jobs but were still executing database/runtime checks. No complete hosted pass is claimed.
 
 Local artifact prefix: `.local/rebuild/photon-receipt-guard-` for archive, upload scan, deployment, inspection, protected health, promotion, alias and all HTTP result files. Only audit/rollout documentation changed after the deployed source. Google callback correction, provider receiver ownership, controlled live journeys and the other open implementation-plan gates remain outstanding.
+
+
+## Legacy AgentMail probe audit and aborted-body cleanup — 2026-10-10
+
+Read all 23 tests in the four retired AgentMail P0 probe files at `5c305d9^` and mapped every assertion in the [audit](18_legacy_agentmail_probe_audit.md). Diagnostic inbox allocation, ownership/private-file guards and two-inbox callback evidence are explicitly distinguished from application guarantees. Those live obligations remain open; no fixture result is promoted to provider acceptance.
+
+A new regression failed because a request aborted before webhook verification released its reader without cancelling the underlying body. The receiver now cancels before returning the existing safe input error. The independent fixed Svix test vector from the retired probe also runs against installed Svix 2.7.0, with altered-byte and expired-signature negatives. The installed verifier returns no parsed JSON; application validation separately rejects the signed historical ping because it lacks the required event ID. No authentication policy was relaxed.
+
+The actual database ingress and requester linking/worker integrations passed, covering concurrent receipts, changed identity/payload, lost commits, receiver replacement, thread/contact authority, frozen replies and uncertain-send recovery. All 2,534 SQL assertions passed afterward. All 560 application/provider tests and both TypeScript targets passed; the nine webhook cases include the restored vector and cancellation regression. Local evidence prefix: `.local/rebuild/agentmail-legacy-`. No provider message, inbox provisioning or remote migration was performed; application rollout is recorded separately.
+
+### Successor fixture hosted CI follow-up
+
+Hosted run `38017093480` completed successfully for `f9943b36e79f1a181f3abbd53b9fb99bcfd80d23`, including repository, browser and database/runtime jobs. This verifies the earlier successor acknowledgment synchronization on a hosted runner. It does not certify the later AgentMail changes or their still-running hosted jobs.
