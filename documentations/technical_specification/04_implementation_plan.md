@@ -339,6 +339,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 Incremental completion (2026-10-07; the full phase exit remains open):
 
+- [x] Deploy workspace read navigation from `2237332`, independently verify the exact Ready release alias and all 38 runtime/setup/recovery/provider HTTP checks. [Rollout](05_rebuild_evidence.md#production-workspace-read-navigation--2026-10-10). Live provider/device and broader release gates remain open.
+
 - [x] Preserve local setup editor entry/cancel focus during background reads while guarding Save; verify held-read zero-write behavior, request-list failure/keyboard retry at 320px, 35-request pagination and empty search. Both builds, browser/runtime checks and all 2,837 SQL assertions pass. [Evidence](05_rebuild_evidence.md#workspace-read-navigation-and-request-list-acceptance--2026-10-10). Broader workspace and live-device gates remain open.
 
 - [x] Deploy authored setup questions from `5101bc1` (`dpl_7vXRvC1b9MHSHMLDvijqQYs7GTzD`); verify the exact Ready release alias, 113 migrations, matching private function definitions/permissions, rollback-only acceptance with zero retained fixtures, clean advisors and 26 production HTTP checks. [Evidence](05_rebuild_evidence.md#deployed-setup-clarification-boundary--2026-10-10). Live onboarding and broader model-narration gates remain open.
