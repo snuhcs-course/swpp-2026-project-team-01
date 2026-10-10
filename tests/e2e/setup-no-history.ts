@@ -1,5 +1,6 @@
 import {verifySetupClarifications} from './setup-clarifications.ts';
 import {verifyReadyLinks} from './setup-ready-links.ts';
+import {verifySetupReadRecovery} from './setup-read-recovery.ts';
 import {verifyCompactSetup} from './compact-setup.ts';
 import {captureSetupFailure} from './setup-failure.ts';
 import assert from 'node:assert/strict';
@@ -76,7 +77,7 @@ export async function verifyNoHistory(browser:Browser,origin:string,local:Record
   assert.equal(await sql.query(`select count(*) from fmat.calendar_scans where host_id='${host}';`),'0','Skipping analysis never scans events');assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where host_id='${host}';`),'0');
   if(flow==='described')await verifyIMessage(page,context,host,local,sql);
   else{const card=page.getByRole('region',{name:'Connect iMessage'});await card.getByRole('button',{name:'Maybe later',exact:true}).click();await card.getByText('You chose to continue on the web.',{exact:false}).waitFor();await page.reload();await card.getByText('You chose to continue on the web.',{exact:false}).waitFor();}
-  if(flow==='no-history'){await verifyReadyLinks(page,context,origin);await verifyCompactSetup(page,context,origin);}
+  if(flow==='no-history'){await verifyReadyLinks(page,context,origin);await verifyCompactSetup(page,context,origin);await verifySetupReadRecovery(page,context,origin);}
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await setup.scrollIntoViewIfNeeded();await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-'+flow+'.png',fullPage:true});
  }catch(error){
   // This page belongs to its own context. Capture before closing it; the outer
