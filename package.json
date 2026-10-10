@@ -33,7 +33,8 @@
     "diagnostics": "node --import tsx scripts/diagnostics.ts",
     "check:boundaries": "node scripts/check-client-boundaries.mjs",
     "probe:routes": "node --import tsx --env-file-if-exists=.env scripts/probe-routes.ts",
-    "probe:public-latency": "node scripts/probe-public-latency.mjs"
+    "probe:public-latency": "node scripts/probe-public-latency.mjs",
+    "probe:setup-narration": "node --import tsx --env-file-if-exists=.env scripts/probe-setup-narration.ts"
   },
   "type": "module",
   "dependencies": {

@@ -1,21 +1,29 @@
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
-import {mkdir,mkdtemp,writeFile} from 'node:fs/promises';
+import {mkdir,mkdtemp,writeFile,readFile} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {createServer} from 'node:net';
 import {setTimeout as delay} from 'node:timers/promises';
 
 // Isolated eve instance with the real application channels and deterministic
-// model. The fixture cannot call external model or messaging providers.
-export async function startBrowserRuntime(local:{API_URL:string;SERVICE_ROLE_KEY:string;ANON_KEY:string},appOrigin:string,dispatchSecret?:string,options:{preload?:string;modelCallLog?:string;modelContextWindowTokens?:number;terminalInspection?:boolean;creationAckFault?:boolean;legacyAuthenticationFailure?:boolean;managedTerminal?:{hostId:string;requestId:string}}={}){
+// model by default. Only the explicit live setup probe can use a real model;
+// its process receives no Calendar or messaging provider credentials.
+export async function startBrowserRuntime(local:{API_URL:string;SERVICE_ROLE_KEY:string;ANON_KEY:string},appOrigin:string,dispatchSecret?:string,options:{preload?:string;modelCallLog?:string;modelContextWindowTokens?:number;terminalInspection?:boolean;creationAckFault?:boolean;legacyAuthenticationFailure?:boolean;managedTerminal?:{hostId:string;requestId:string};liveSetupModel?:boolean}={}){
+  if(options.liveSetupModel){
+    assert.equal(process.env.FMAT_LIVE_SETUP_PROBE,'1','Live calls require the dedicated opt-in probe');
+    assert.equal(process.env.OPENAI_MODEL,'gpt-6-luna');assert.ok(process.env.OPENAI_API_KEY);
+    assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
+    assert.ok(['localhost','127.0.0.1'].includes(new URL(appOrigin).hostname));
+    assert.deepEqual(Object.keys(options),['liveSetupModel'],'Live probe cannot combine diagnostic overlays');
+  }
   const root=process.cwd();await mkdir('.local/rebuild',{recursive:true});
   const fixture=await mkdtemp(resolve('.local/rebuild/browser-runtime-'));
   await mkdir(join(fixture,'agent/channels'),{recursive:true});
   await mkdir(join(fixture,'agent/tools'),{recursive:true});
-  await writeFile(join(fixture,'agent/instructions.md'),'Reply to synthetic browser tests.');
+  await writeFile(join(fixture,'agent/instructions.md'),options.liveSetupModel?await readFile('agent/instructions.md','utf8'):'Reply to synthetic browser tests.');
   await writeFile(join(fixture,'package.json'),JSON.stringify({name:'fmat-browser-fixture',private:true,type:'module',dependencies:{eve:'0.71.3'}}));
-  for(const [target,source] of Object.entries({'agent/agent.ts':options.managedTerminal?'tests/managed/terminal-agent.ts':'tests/runtime/fixture-agent.ts','agent/channels/eve.ts':'agent/channels/eve.ts','agent/channels/conversations.ts':'agent/channels/conversations.ts','agent/tools/read_context.ts':'agent/tools/read_context.ts','agent/tools/read_history.ts':'agent/tools/read_history.ts','agent/tools/list_host_requests.ts':'agent/tools/list_host_requests.ts','agent/tools/propose_request_details.ts':'agent/tools/propose_request_details.ts','agent/tools/propose_host_revision.ts':'agent/tools/propose_host_revision.ts','agent/tools/update_setup_draft.ts':'agent/tools/update_setup_draft.ts'}))
+  for(const [target,source] of Object.entries({'agent/agent.ts':options.liveSetupModel?'agent/agent.ts':options.managedTerminal?'tests/managed/terminal-agent.ts':'tests/runtime/fixture-agent.ts','agent/channels/eve.ts':'agent/channels/eve.ts','agent/channels/conversations.ts':'agent/channels/conversations.ts','agent/tools/read_context.ts':'agent/tools/read_context.ts','agent/tools/read_history.ts':'agent/tools/read_history.ts','agent/tools/list_host_requests.ts':'agent/tools/list_host_requests.ts','agent/tools/propose_request_details.ts':'agent/tools/propose_request_details.ts','agent/tools/propose_host_revision.ts':'agent/tools/propose_host_revision.ts','agent/tools/update_setup_draft.ts':'agent/tools/update_setup_draft.ts',...(options.liveSetupModel?{'agent/tools/save_private_note.ts':'agent/tools/save_private_note.ts'}:{})}))
     await writeFile(join(fixture,target),`export {default} from ${JSON.stringify(resolve(source))};\n`);
   const modelContext=String(options.modelContextWindowTokens??100_000);
   if(options.terminalInspection)await writeFile(join(fixture,'agent/channels/conversations.ts'),`export {default} from ${JSON.stringify(resolve('tests/runtime/fixture-terminal-channel.ts'))};\n`);
@@ -26,8 +34,11 @@ export async function startBrowserRuntime(local:{API_URL:string;SERVICE_ROLE_KEY
   const origin=`http://127.0.0.1:${port}`;
   let child:ReturnType<typeof spawn>;
   let log='';
+  // Live acceptance gets only its model credential and disposable database.
+  // Calendar and messaging provider credentials are deliberately absent.
+  const inherited=options.liveSetupModel?{PATH:process.env.PATH,HOME:process.env.HOME,TMPDIR:process.env.TMPDIR,OPENAI_MODEL:process.env.OPENAI_MODEL}:process.env;
   async function start(resume=false){
-  child=spawn(process.execPath,[join(root,'node_modules/eve/bin/eve.js'),'dev','--no-ui','--no-default-extensions','--host','127.0.0.1','--port',String(port),...(resume?['--resume']:[])],{cwd:fixture,env:{...process.env,...(options.managedTerminal?{VERCEL_ENV:'preview',FMAT_MANAGED_PROBE_HOST_ID:options.managedTerminal.hostId,FMAT_MANAGED_PROBE_REQUEST_ID:options.managedTerminal.requestId}:{}),SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY,APP_ORIGIN:appOrigin,PORT:String(port),HOST:'127.0.0.1',OPENAI_API_KEY:'',WORKFLOW_INLINE_OWNERSHIP_LEASE_SECONDS:'5',...(options.preload?{NODE_OPTIONS:'--import '+options.preload}:{}),FMAT_FIXTURE_MODEL_CONTEXT:modelContext,FMAT_FIXTURE_CREATION_ACK_FAULT:options.creationAckFault?'1':'',FMAT_FIXTURE_LEGACY_AUTH_FAILURE:options.legacyAuthenticationFailure?'1':'',FMAT_FIXTURE_MODEL_LOG:options.modelCallLog??'',RUNTIME_DISPATCH_SECRET:dispatchSecret??'',NODE_ENV:'development'},stdio:['ignore','pipe','pipe'],detached:true});
+  child=spawn(process.execPath,[join(root,'node_modules/eve/bin/eve.js'),'dev','--no-ui','--no-default-extensions','--host','127.0.0.1','--port',String(port),...(resume?['--resume']:[])],{cwd:fixture,env:{...inherited,...(options.managedTerminal?{VERCEL_ENV:'preview',FMAT_MANAGED_PROBE_HOST_ID:options.managedTerminal.hostId,FMAT_MANAGED_PROBE_REQUEST_ID:options.managedTerminal.requestId}:{}),SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY,APP_ORIGIN:appOrigin,PORT:String(port),HOST:'127.0.0.1',OPENAI_API_KEY:options.liveSetupModel?process.env.OPENAI_API_KEY:'',WORKFLOW_INLINE_OWNERSHIP_LEASE_SECONDS:'5',...(options.preload?{NODE_OPTIONS:'--import '+options.preload}:{}),FMAT_FIXTURE_MODEL_CONTEXT:modelContext,FMAT_FIXTURE_CREATION_ACK_FAULT:options.creationAckFault?'1':'',FMAT_FIXTURE_LEGACY_AUTH_FAILURE:options.legacyAuthenticationFailure?'1':'',FMAT_FIXTURE_MODEL_LOG:options.modelCallLog??'',RUNTIME_DISPATCH_SECRET:dispatchSecret??'',NODE_ENV:'development'},stdio:['ignore','pipe','pipe'],detached:true});
   let startupLog='';
   child.stdout!.on('data',v=>{log+=v;startupLog+=v;});child.stderr!.on('data',v=>{log+=v;startupLog+=v;});
   for(let i=0;i<300;i++){
