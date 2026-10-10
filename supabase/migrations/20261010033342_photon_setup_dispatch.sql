@@ -1,46 +1,24 @@
--- Historical receipts deliberately remain unbound. Never infer authority from
--- a link created after an input arrived or move a receipt to a replacement link.
-alter table fmat.photon_inbox
-  add column receiver_id uuid,
-  add column link_id uuid references fmat.photon_links(id),
-  add column runtime_message_id uuid references fmat.runtime_messages(id),
-  add column processing_outcome text check(processing_outcome in ('accepted','revoked','limited'));
-create index photon_inbox_link_idx on fmat.photon_inbox(link_id);
-create index photon_inbox_runtime_idx on fmat.photon_inbox(runtime_message_id);
+SET local check_function_bodies = off;
 
-create or replace function fmat.photon_execution_actor(p_credential jsonb)
-returns jsonb language plpgsql set search_path='' as $$
-declare i fmat.photon_inbox; l fmat.photon_links; h fmat.hosts; u auth.users; r fmat.photon_receivers;
-begin
- if jsonb_typeof(p_credential) is distinct from 'object' or p_credential->>'kind' is distinct from 'photon'
-  or p_credential-array['kind','linkId','inboxId','receiverId']<>'{}'::jsonb then raise exception 'UNAUTHORIZED'; end if;
- select * into i from fmat.photon_inbox where id=(p_credential->>'inboxId')::uuid;
- select * into l from fmat.photon_links where id=i.link_id and id=(p_credential->>'linkId')::uuid;
- if not found then raise exception 'UNAUTHORIZED'; end if;
- -- Same host/Auth/receiver/link order as unlink and browser setup. UPDATE up
- -- front avoids upgrading a shared host lock after another setup writer starts.
- select * into h from fmat.hosts where id=l.host_id for update;
- if not found or h.revoked_at is not null then raise exception 'UNAUTHORIZED'; end if;
- select * into u from auth.users where id=h.id for share;
- if not found or u.deleted_at is not null or u.email_confirmed_at is null
-  or u.banned_until>clock_timestamp() or lower(u.email) is distinct from h.email then raise exception 'UNAUTHORIZED'; end if;
- select * into r from fmat.photon_receivers where project_id=i.project_id for share;
- select * into l from fmat.photon_links where id=i.link_id for share;
- if not found or l.revoked_at is not null or not r.enabled
-  or r.receiver_id is distinct from i.receiver_id or i.receiver_id is distinct from (p_credential->>'receiverId')::uuid
-  or l.project_id is distinct from i.project_id or l.phone is distinct from i.sender_id
-  or l.line is distinct from i.line or l.space_id is distinct from i.space_id
-  or i.occurred_at<l.linked_at or i.occurred_at>i.received_at+interval '5 minutes'
-  or i.received_at+interval '1 hour'<=clock_timestamp() then raise exception 'UNAUTHORIZED'; end if;
- return jsonb_build_object('kind','host','id',h.id,'email',h.email,'channel','imessage');
-end;
-$$;
-revoke all on function fmat.photon_execution_actor(jsonb) from public,anon,authenticated,service_role;
+CREATE TABLE "fmat"."photon_setup_dispatches" (
+  "inbox_id"   uuid                     NOT NULL,
+  "job_id"     uuid                     NOT NULL,
+  "created_at" timestamp with time zone NOT NULL DEFAULT clock_timestamp(),
+  CONSTRAINT "photon_setup_dispatches_job_id_key" UNIQUE (job_id),
+  CONSTRAINT "photon_setup_dispatches_pkey" PRIMARY KEY (inbox_id)
+);
 
--- One receipt per transaction: no network call, no cross-host lock ordering,
--- and no gap between accepting runtime input and completing its transport job.
-create or replace function public.fmat_photon_dispatch(p_project_id uuid)
-returns jsonb language plpgsql security definer set search_path='' as $$
+ALTER TABLE "fmat"."photon_setup_dispatches"
+  ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.fmat_photon_dispatch (
+  p_project_id uuid
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
 declare i fmat.photon_inbox; j fmat.jobs; l fmat.photon_links; s fmat.conversation_scopes;
  g fmat.conversation_grants; credential jsonb; accepted jsonb; outcome text; publication record;
  target uuid; command text; notice text; navigation boolean; decision boolean; revision_control boolean; setup_control boolean; setup_lease uuid; chosen fmat.requests; access jsonb;
@@ -154,22 +132,96 @@ Your next messages stay private to this request. Reply "setup" to return to setu
  update fmat.queue_publications set acknowledged_at=clock_timestamp() where job_id=j.id and acknowledged_at is null;
  return jsonb_build_object('outcome',outcome);
 end;
-$$;
-revoke all on function public.fmat_photon_dispatch(uuid) from public,anon,authenticated;
-grant execute on function public.fmat_photon_dispatch(uuid) to service_role;
+$function$;
 
-create or replace function fmat.wake_photon_inbox()
-returns bigint language plpgsql security definer set search_path='' as $$
-declare v_url text; v_secret text;
+CREATE OR REPLACE FUNCTION public.fmat_photon_setup_dispatch (
+  p_operation  text,
+  p_project_id uuid,
+  p_input      jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare i fmat.photon_inbox; j fmat.jobs; record fmat.photon_setup_dispatches;
+ publication record; result jsonb; saved jsonb; notice text; outcome text:='accepted'; failure text;
 begin
- if not exists(select 1 from fmat.photon_inbox where processed_at is null and link_id is not null) then return null; end if;
- select decrypted_secret into v_url from vault.decrypted_secrets where name='fmat_runtime_dispatch_url';
- select decrypted_secret into v_secret from vault.decrypted_secrets where name='fmat_runtime_dispatch_secret';
- if v_url is null or v_secret is null then return null; end if;
- if v_url !~ '^https://[^/]+/api/internal/conversations/dispatch$' or v_secret !~ '^[a-f0-9]{64}$' then raise exception 'INVALID_DISPATCH_CONFIGURATION'; end if;
- v_url:=replace(v_url,'/api/internal/conversations/dispatch','/api/internal/photon/dispatch');
- return net.http_post(url:=v_url,headers:=jsonb_build_object('Content-Type','application/json','Authorization','Bearer '||v_secret),body:='{}'::jsonb,timeout_milliseconds:=60000);
+ if jsonb_typeof(p_input) is distinct from 'object' or not (p_input ?& array['inboxId','leaseToken']) then raise exception 'INVALID_INPUT';end if;
+ if p_operation='operate' then
+  if not (p_input ?& array['operation','input']) or exists(select 1 from jsonb_object_keys(p_input) k where k not in ('inboxId','leaseToken','operation','input')) then raise exception 'INVALID_INPUT';end if;
+ elsif p_operation='settle' then
+  if jsonb_typeof(p_input->'result') is distinct from 'string' or p_input->>'result' not in ('reviewed','confirmed','invalid','stale','calendar_required','browser_required','delivery_pending')
+   or exists(select 1 from jsonb_object_keys(p_input) k where k not in ('inboxId','leaseToken','result')) then raise exception 'INVALID_INPUT';end if;
+ elsif p_operation='retry' then
+  if exists(select 1 from jsonb_object_keys(p_input) k where k not in ('inboxId','leaseToken')) then raise exception 'INVALID_INPUT';end if;
+ else raise exception 'INVALID_INPUT';end if;
+ select * into record from fmat.photon_setup_dispatches where inbox_id=(p_input->>'inboxId')::uuid;
+ select * into j from fmat.jobs where id=record.job_id for update;
+ select * into i from fmat.photon_inbox where id=record.inbox_id and project_id=p_project_id;
+ if j.id is null or i.id is null or i.processed_at is not null or j.status<>'running'
+  or j.lease_token is distinct from (p_input->>'leaseToken')::uuid or j.lease_until<=clock_timestamp() then raise exception 'LEASE_LOST';end if;
+ begin
+  perform public.fmat_conversation_check(i.execution_grant_id,i.conversation_id);
+ exception when raise_exception then
+  if sqlerrm in ('UNAUTHORIZED','NOT_FOUND','HOST_NOT_ADMITTED') and p_operation='settle' then outcome:='revoked';else raise;end if;
+ end;
+ -- Current authority may have waited for a host/grant lock. Expired workers
+ -- cannot mutate or settle, even if a replacement worker has not claimed yet.
+ if j.lease_until<=clock_timestamp() then raise exception 'LEASE_LOST';end if;
+ if p_operation='operate' then
+  if jsonb_typeof(p_input->'operation') is distinct from 'string' or p_input->>'operation' not in ('review','publish','begin_confirmation','refresh','finish_confirmation') then raise exception 'INVALID_INPUT';end if;
+  result:=public.fmat_photon_setup(p_input->>'operation',i.id,p_input->'input');
+  if j.lease_until<=clock_timestamp() then raise exception 'LEASE_LOST';end if;
+  return result;
+ elsif p_operation='retry' then
+  update fmat.jobs set status='pending',available_at=clock_timestamp()+interval '30 seconds',lease_token=null,lease_until=null,
+   worker_id=null,last_error='PROVIDER_UNAVAILABLE',updated_at=clock_timestamp() where id=j.id;
+  return jsonb_build_object('outcome','busy');
+ end if;
+ if outcome='accepted' then
+  select c.result into saved from fmat.photon_setup_confirmations c where c.inbox_id=i.id;
+  if saved is not null then
+   notice:='Saved the settings from setup review '||(saved->>'reviewId')||'. This does not approve or book a meeting. Ask to check setup readiness before sharing your booking link.';
+  elsif exists(select 1 from fmat.photon_setup_review_publications p join fmat.photon_setup_reviews r on r.id=p.review_id where r.inbox_id=i.id) then
+   -- The complete summary already owns its exact durable outgoing identity.
+   notice:=null;
+  else
+   failure:=p_input->>'result';
+   if failure in ('reviewed','confirmed') then raise exception 'REVISION_CONFLICT';end if;
+   notice:=case failure
+    when 'invalid' then 'To review settings, send "review setup". To save, reply with the exact "confirm setup <reference>" command from that review. Settings have not been saved.'
+    when 'stale' then 'That setup review is no longer current. Send "review setup" for a new review, or open your host workspace. Settings have not been saved.'
+    when 'calendar_required' then 'Calendar access needs attention. Open your host workspace to reconnect or select calendars, then request a new setup review. Settings have not been saved.'
+    when 'delivery_pending' then 'Delivery of that setup review has not been verified. Wait for the complete review, then request a new review and confirm its exact reference. Settings have not been saved.'
+    else 'A complete setup review is unavailable in this message. Open your host workspace to review every setting and any remaining steps. Settings have not been saved.' end;
+  end if;
+  if notice is not null then
+   insert into fmat.photon_replies(inbox_id,project_id,text) values(i.id,i.project_id,notice) on conflict(inbox_id) do nothing;
+  end if;
+ end if;
+ update fmat.photon_inbox set processed_at=clock_timestamp(),processing_outcome=outcome where id=i.id;
+ update fmat.jobs set status='complete',lease_token=null,lease_until=null,worker_id=null,last_error=null,
+  result=jsonb_build_object('outcome',outcome),updated_at=clock_timestamp() where id=j.id;
+ for publication in select message_id from fmat.queue_publications where job_id=j.id and acknowledged_at is null loop
+  perform pgmq.archive('fmat_jobs',publication.message_id);
+ end loop;
+ update fmat.queue_publications set acknowledged_at=clock_timestamp() where job_id=j.id and acknowledged_at is null;
+ return jsonb_build_object('outcome',outcome);
+exception when invalid_text_representation then raise exception 'INVALID_INPUT';
 end;
-$$;
-revoke all on function fmat.wake_photon_inbox() from public,anon,authenticated,service_role;
-select cron.schedule('fmat-photon-inbox','* * * * *','select fmat.wake_photon_inbox();');
+$function$;
+
+REVOKE ALL ON FUNCTION "public"."fmat_photon_setup_dispatch"(text, uuid, jsonb) FROM PUBLIC, "anon", "authenticated";
+
+ALTER TABLE "fmat"."photon_setup_dispatches"
+  ADD CONSTRAINT "photon_setup_dispatches_inbox_id_fkey" FOREIGN KEY (inbox_id) REFERENCES fmat.photon_inbox(id);
+
+ALTER TABLE "fmat"."photon_setup_dispatches"
+  ADD CONSTRAINT "photon_setup_dispatches_job_id_fkey" FOREIGN KEY (job_id) REFERENCES fmat.jobs(id);
+
+REVOKE ALL ON FUNCTION "public"."fmat_photon_setup_dispatch"(text, uuid, jsonb) FROM "postgres";
+
+GRANT EXECUTE ON FUNCTION "public"."fmat_photon_setup_dispatch"(text, uuid, jsonb) TO "postgres";
+
+GRANT EXECUTE ON FUNCTION "public"."fmat_photon_setup_dispatch"(text, uuid, jsonb) TO "service_role";

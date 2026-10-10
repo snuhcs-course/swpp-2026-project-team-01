@@ -14,7 +14,7 @@ const checking=z.object({status:z.literal('checking'),checkId:z.uuid(),hostId:z.
  * or register these methods as model/MCP tools. SQL derives current authority
  * from the frozen provider receipt, including its literal human command. */
 export class PrivateSetupConfirmation {
- constructor(private readonly database=new Database(),private readonly env=process.env,private readonly provider:CalendarProvider=new GoogleCalendarProvider(env)){}
+ constructor(private readonly database:Pick<Database,'rpc'>=new Database(),private readonly env=process.env,private readonly provider:CalendarProvider=new GoogleCalendarProvider(env)){}
  private call(operation:string,inboxId:string,input:unknown){
   return this.database.rpc('fmat_photon_setup',{p_operation:operation,p_inbox_id:z.uuid().parse(inboxId),p_input:input});
  }

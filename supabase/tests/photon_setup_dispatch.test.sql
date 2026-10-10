@@ -1,0 +1,80 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select no_plan();
+create temporary table fixture(name text primary key,value jsonb);
+create function pg_temp.f(text) returns jsonb language sql as $$select value from fixture where name=$1$$;
+create function pg_temp.host(n integer) returns uuid language sql as $$select ('a8500000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
+insert into auth.users(id,email,email_confirmed_at) select pg_temp.host(n),'setup-review-'||n||'@example.test',now() from generate_series(1,2)n;
+insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) select gen_random_uuid(),'setup-review-'||n||'@example.test',md5(n::text)||md5(n::text),now()+interval '1 day','setup-review-fixture' from generate_series(1,2)n;
+insert into fmat.hosts(id,email,invitation_id) select u.id,u.email,i.id from auth.users u join fmat.invitations i on i.email=u.email where i.issued_by='setup-review-fixture';
+insert into fmat.photon_receivers(project_id,receiver_id,enabled) values('a8510000-0000-4000-8000-000000000001','a8520000-0000-4000-8000-000000000001',true);
+insert into fmat.photon_link_challenges(id,host_id,project_id,credential,browser_hash,phone,line,space_id,code_hash,request_key,delivery_status,consumed_at)
+ select gen_random_uuid(),pg_temp.host(n),'a8510000-0000-4000-8000-000000000001','{}',repeat('a',64),'+1555010000'||n,'shared','any;-;+1555010000'||n,repeat('b',64),gen_random_uuid(),'delivered',now() from generate_series(1,2)n;
+insert into fmat.photon_links(host_id,project_id,phone,line,space_id,challenge_id,linked_at)
+ select host_id,project_id,phone,line,space_id,id,clock_timestamp()-interval '1 second' from fmat.photon_link_challenges where project_id='a8510000-0000-4000-8000-000000000001';
+insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential)
+ select 'host',pg_temp.host(n),'google-setup-'||n,array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],repeat('e',40) from generate_series(1,2)n;
+update fmat.hosts set conflict_calendar_ids=array['conflict'],booking_calendar_id='destination' where id in(pg_temp.host(1),pg_temp.host(2));
+create function pg_temp.actor(n integer) returns jsonb language sql as $$select jsonb_build_object('kind','host','id',id,'email',email) from fmat.hosts where id=pg_temp.host(n)$$;
+create function pg_temp.draft(n integer,patch jsonb) returns jsonb language sql as $$select fmat.host_setup_operation('draft',pg_temp.actor(n),jsonb_build_object('expectedRevision',fmat.host_setup_view(pg_temp.host(n))->'revision','patch',patch,'unresolved','[]'::jsonb,'idempotencyKey',gen_random_uuid()),'host')$$;
+select pg_temp.draft(n,jsonb_build_object('handle','setup-review-'||n,'displayName','Host '||n,'rules','{"timezone":"UTC","durationMinutes":30,"availability":[{"days":[1,2,3,4,5],"start":"09:00","end":"17:00"}],"focusBlocks":[],"bufferMinutes":10,"preferences":"Private exact preference","meetingMode":"online"}'::jsonb)) from generate_series(1,2)n;
+create function pg_temp.receive(n integer,body text) returns uuid language plpgsql as $$declare receipt jsonb;begin
+ receipt:=public.fmat_photon_ingress('a8510000-0000-4000-8000-000000000001','a8520000-0000-4000-8000-000000000001',jsonb_build_object('messageId',gen_random_uuid(),'senderId','+1555010000'||n,'spaceId','any;-;+1555010000'||n,'line','shared','text',body,'occurredAt',clock_timestamp()));
+ -- All SQL assertions share one rollback transaction; model the distinct
+ -- arrival transactions rather than giving every receipt its BEGIN time.
+ update fmat.photon_inbox set received_at=clock_timestamp() where id=(receipt->>'inboxId')::uuid;
+ return (receipt->>'inboxId')::uuid;
+end$$;
+
+insert into fixture values('source',to_jsonb(pg_temp.receive(1,'review setup')));
+create function pg_temp.source() returns uuid language sql as $$select (pg_temp.f('source')#>>'{}')::uuid$$;
+create function pg_temp.dispatch() returns jsonb language sql as $$select public.fmat_photon_dispatch('a8510000-0000-4000-8000-000000000001')$$;
+insert into fixture select 'claim',pg_temp.dispatch();
+create function pg_temp.lease() returns jsonb language sql as $$select pg_temp.f('claim')-'outcome'-'text'$$;
+create function pg_temp.operate(op text,arg jsonb) returns jsonb language sql as $$select public.fmat_photon_setup_dispatch('operate','a8510000-0000-4000-8000-000000000001',pg_temp.lease()||jsonb_build_object('operation',op,'input',arg))$$;
+create function pg_temp.settle(value text) returns jsonb language sql as $$select public.fmat_photon_setup_dispatch('settle','a8510000-0000-4000-8000-000000000001',pg_temp.lease()||jsonb_build_object('result',value))$$;
+select ok(not has_table_privilege(role,'fmat.photon_setup_dispatches',priv),role||' cannot '||priv||' dispatcher marker') from unnest(array['anon','authenticated','service_role']) role cross join unnest(array['SELECT','INSERT','UPDATE','DELETE']) priv;
+select ok(not has_function_privilege(role,'public.fmat_photon_setup_dispatch(text,uuid,jsonb)','EXECUTE'),role||' cannot run continuation') from unnest(array['anon','authenticated']) role;
+select is(pg_temp.f('claim')->>'outcome','setup','setup gets a leased deterministic continuation');
+select is(pg_temp.dispatch()->>'outcome','idle','another worker cannot take an active lease');
+select ok((select i.processed_at is null and i.runtime_message_id is null and s.audience='host_setup' and g.credential->>'inboxId'=i.id::text from fmat.photon_inbox i join fmat.conversation_scopes s on s.id=i.conversation_id join fmat.conversation_grants g on g.id=i.execution_grant_id where i.id=pg_temp.source()),'canonical setup grant commits without model input or premature completion');
+select is((select minute_used from fmat.conversation_budgets where name='host:'||pg_temp.host(1)),1,'claim charges once');
+select throws_ok($$select public.fmat_photon_setup_dispatch('operate','a8510000-0000-4000-8000-000000000001',pg_temp.lease()||jsonb_build_object('leaseToken',gen_random_uuid(),'operation','review','input','{}'::jsonb))$$,'P0001','LEASE_LOST','wrong lease cannot read or mutate');
+select throws_ok($$select public.fmat_photon_setup_dispatch('operate',gen_random_uuid(),pg_temp.lease()||jsonb_build_object('operation','review','input','{}'::jsonb))$$,'P0001','LEASE_LOST','project mismatch cannot use lease');
+select throws_ok($$select pg_temp.operate('setup_confirm','{}')$$,'P0001','INVALID_INPUT','no arbitrary operation dispatch');
+select throws_ok($$select pg_temp.settle('confirmed')$$,'P0001','REVISION_CONFLICT','worker label cannot fabricate a save receipt');
+select public.fmat_photon_setup_dispatch('retry','a8510000-0000-4000-8000-000000000001',pg_temp.lease());
+select is(pg_temp.dispatch()->>'outcome','idle','provider retry respects delay');
+update fmat.jobs set available_at=clock_timestamp() where id=(select job_id from fmat.photon_setup_dispatches where inbox_id=pg_temp.source());
+update fixture set value=pg_temp.dispatch() where name='claim';
+select is((select minute_used from fmat.conversation_budgets where name='host:'||pg_temp.host(1)),1,'restart never charges the same input twice');
+insert into fixture select 'issued',pg_temp.operate('review','{}');
+create function pg_temp.review() returns uuid language sql as $$select (pg_temp.f('issued')->>'reviewId')::uuid$$;
+select pg_temp.operate('publish',jsonb_build_object('reviewId',pg_temp.review(),'text','Complete fixture review'));
+select is(pg_temp.settle('reviewed')->>'outcome','accepted','review settles with original reply');
+select is((select count(*)::integer from fmat.photon_replies where inbox_id=pg_temp.source()),1,'one outgoing identity');
+select throws_ok($$select pg_temp.operate('review','{}')$$,'P0001','LEASE_LOST','completed lease cannot be reused');
+update fmat.photon_replies set status='accepted',provider_reference='fixture-review-accepted' where inbox_id=pg_temp.source();
+insert into fixture values('decision',to_jsonb(pg_temp.receive(1,'confirm setup '||pg_temp.review())));
+insert into fixture values('later',to_jsonb(pg_temp.receive(1,'review setup')));
+update fixture set value=pg_temp.dispatch() where name='claim';
+select is(pg_temp.f('claim')->'inboxId',pg_temp.f('decision'),'confirmation preserves route order');
+select is(pg_temp.dispatch()->>'outcome','idle','later route input waits for external continuation');
+insert into fixture select 'check',pg_temp.operate('begin_confirmation',jsonb_build_object('reviewId',pg_temp.review()));
+insert into fixture select 'old-lease',pg_temp.lease();
+update fmat.jobs set lease_until=clock_timestamp()-interval '1 second' where id=(select job_id from fmat.photon_setup_dispatches where inbox_id=(pg_temp.f('decision')#>>'{}')::uuid);
+select throws_ok($$select pg_temp.operate('finish_confirmation',jsonb_build_object('checkId',pg_temp.f('check')->'checkId','verifiedCalendars','[{"id":"conflict","accessRole":"reader"},{"id":"destination","accessRole":"owner"}]'::jsonb))$$,'P0001','LEASE_LOST','expired worker cannot save settings');
+update fixture set value=pg_temp.dispatch() where name='claim';
+select isnt(pg_temp.lease()->>'leaseToken',pg_temp.f('old-lease')->>'leaseToken','reclaim rotates lease');
+select is((select minute_used from fmat.conversation_budgets where name='host:'||pg_temp.host(1)),2,'confirmation retry charges no extra quota');
+select throws_ok($$select public.fmat_photon_setup_dispatch('settle','a8510000-0000-4000-8000-000000000001',pg_temp.f('old-lease')||'{"result":"invalid"}')$$,'P0001','LEASE_LOST','old worker cannot settle over new owner');
+insert into fixture select 'saved',pg_temp.operate('finish_confirmation',jsonb_build_object('checkId',pg_temp.f('check')->'checkId','verifiedCalendars','[{"id":"conflict","accessRole":"reader"},{"id":"destination","accessRole":"owner"}]'::jsonb));
+select is(pg_temp.f('saved')->>'status','confirmed','current lease can commit checked save');
+select is(pg_temp.settle('invalid')->>'outcome','accepted','committed receipt wins over a stale worker result label');
+select matches((select text from fmat.photon_replies where inbox_id=(pg_temp.f('decision')#>>'{}')::uuid),'^Saved the settings from setup review ','reply derives from actual saved evidence');
+select is((select count(*)::integer from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id=pg_temp.host(1))),0,'deterministic commands never invoke a model');
+select is(pg_temp.dispatch()->>'outcome','setup','next route input resumes only after settlement');
+select is((select count(*)::integer from fmat.booking_attempts),0,'setup dispatch creates no booking work');
+select * from finish();
+rollback;

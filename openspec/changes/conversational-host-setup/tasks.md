@@ -36,7 +36,7 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 
 - [x] 4.5 Implement deterministic `review setup` / `confirm setup <reference>` parsing and a complete bounded application-authored review formatter; verify malformed input, literal quoted preferences, overnight hours, all setting fields and oversized-summary fallback without confirmation authority.
 - [x] 4.6 Persist immutable private setup reviews and attributable confirmation receipts bound to current host/link/receiver/conversation/revisions/grant; verify delivery evidence, expiry, races, replay, unlink, changed grants and no model/booking authority through SQL and service integrations.
-- [ ] 4.7 Connect deterministic signed-input review/confirmation dispatch, fresh Calendar permission validation and durable replies; verify web/iMessage cross-channel edits, lost acknowledgments, browser continuation and ordinary-chat denial through actual eve/provider fixtures.
+- [x] 4.7 Connect deterministic signed-input review/confirmation dispatch, fresh Calendar permission validation and durable replies; verify web/iMessage cross-channel edits, lost acknowledgments, browser continuation and ordinary-chat denial through actual eve/provider fixtures.
 - [ ] 4.8 Deploy and verify the private setup-confirmation boundary, update owning documentation and preserve the separate authorized live Google/iPhone acceptance gate.
 
 ## 5. Cross-channel acceptance
@@ -62,3 +62,5 @@ Task 5.3 incremental evidence: [six reviewed live-model initial-setup narration 
 Task 4.6 incremental evidence: [private review persistence foundation](../../../documentations/technical_specification/05_rebuild_evidence.md#private-setup-review-persistence-foundation--2026-10-10) verifies immutable snapshots/publications, one exact outgoing reply, accepted-delivery evidence, stale/foreign/expired denial and concurrent lock-wait checks. The private SQL helpers cannot save settings and are not exposed to the service role; atomic decision receipts and service integration remain unfinished. Task 4.6 stays unchecked.
 
 Task 4.6 completion: [atomic private setup confirmation](../../../documentations/technical_specification/05_rebuild_evidence.md#atomic-private-setup-confirmation--2026-10-10) verifies the service-only permission-check protocol, immutable attributed receipts, atomic rollback, eight competing commits, changed authority and lost-response replay without another provider read. Dispatcher integration and production rollout remain tasks 4.7–4.8.
+
+Task 4.7 completion: [leased private setup dispatch](../../../documentations/technical_specification/05_rebuild_evidence.md#leased-private-setup-dispatch--2026-10-10) verifies signed ingress through deterministic dispatch, current Calendar metadata, durable replies, cross-channel edits, exact lost-save recovery and actual-eve bare-assent denial. Production rollout remains task 4.8.

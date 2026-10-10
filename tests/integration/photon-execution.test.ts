@@ -23,6 +23,7 @@ import {HostSetup} from '../../lib/server/setup/commands.ts';
 import {ApplicationError} from '../../lib/server/errors.ts';
 import {verifySetupIsolation} from './setup-host-isolation.ts';
 import {verifySharedSetupReview} from './setup-channel-review.ts';
+import {verifyPrivateSetupDispatch} from './setup-private-dispatch.ts';
 
 test('signed linked input executes once in the real eve setup session and loses authority after unlink',{timeout:180_000},async()=>{
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
@@ -189,6 +190,11 @@ globalThis.fetch=async(input,init)=>{
    assert.equal((await dispatchPhotonInputs(db,env)).accepted,1);assert.equal((await dispatch()).status,200);await settled(otherScope);
    return sql.query(`select r.text from fmat.photon_replies r join fmat.photon_inbox i on i.id=r.inbox_id where i.project_id='${project}' and i.message_id='${key}';`);
   }});
+  await verifyPrivateSetupDispatch({sql,database:db,env,host,credential,scope,selectedRequest:discoveryRequest,
+   async receive(text){const key=randomUUID();assert.equal((await photonWebhook(request(key,text),{env,database:db})).status,200);return sql.query(`select id from fmat.photon_inbox where project_id='${project}' and message_id='${key}';`);},
+   async runRuntime(){assert.equal((await dispatch()).status,200);await settled(scope);},
+   async modelCount(){return (await readCalls()).length;},
+  });
   const messagesBeforeUnlink=Number(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id='${scope}';`));
   const draftsBeforeUnlink=await sql.query(`select count(*) from fmat.setup_drafts d join fmat.setup_conversations c on c.id=d.conversation_id where c.host_id='${host}';`);
   assert.equal((await photonWebhook(request('reply-before-unlink','A second private turn. Bearer photon-secret https://example.test/?%63ode=photon-code'),{env,database:db})).status,200);
