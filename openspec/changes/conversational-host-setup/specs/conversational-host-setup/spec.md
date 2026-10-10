@@ -43,6 +43,29 @@ Extracted preferences SHALL remain a draft until the host explicitly confirms a 
 - **WHEN** natural-language extraction fails or returns invalid data
 - **THEN** confirmed settings remain unchanged and the host can retry or use structured setup controls
 
+### Requirement: Explicit private-channel setup confirmation
+An admitted host with a current private iMessage link SHALL be able to request an application-authored setup review and explicitly confirm that exact review without returning to the browser for the settings confirmation itself. Google consent, calendar selection and account admission SHALL retain their protected browser boundaries. The service SHALL validate all existing setup prerequisites and fresh selected-calendar permissions before saving.
+
+#### Scenario: Review and confirm current settings
+- **WHEN** a linked host sends `review setup` with a complete current draft and subsequently sends `confirm setup <review-reference>` for the delivered review
+- **THEN** the application presents every setting and the review expiry, binds the reference to the host, link, receiver, conversation, draft/review/rules revisions and Calendar generation, and saves those exact settings after current permission checks without invoking the model
+
+#### Scenario: Incomplete or oversized review
+- **WHEN** settings are incomplete, required explicit answers are missing, or a full review cannot fit the supported private-message length
+- **THEN** the service issues no confirmable partial summary, explains the remaining action or protected browser continuation, and preserves confirmed settings
+
+#### Scenario: Stale or foreign confirmation
+- **WHEN** the draft, confirmed rules, calendar selection, grant generation, link or receiver changes, the review expires, or another private route presents the reference
+- **THEN** confirmation cannot save settings or obtain authority from the old reference and the host must request a current review
+
+#### Scenario: Delivery uncertainty and retries
+- **WHEN** review delivery lacks validated acceptance evidence or a confirmation is replayed after its committed response is lost
+- **THEN** unverified delivery cannot authorize confirmation, while an exact authorized replay returns the saved result without another save, model call, provider permission read or booking effect
+
+#### Scenario: Ordinary assistant input is not confirmation
+- **WHEN** a model emits confirmation text, calls a setup tool with confirmation fields, or the host sends bare assent without a current review reference
+- **THEN** the application does not interpret that text or tool call as permission to save settings
+
 ### Requirement: Verified browser handoffs
 Setup chat SHALL direct hosts to verified browser steps for sign-in, invitation redemption, and Google authorization. It SHALL resume from validated server state after completion and SHALL not collect provider credentials or treat a chat message as consent.
 
