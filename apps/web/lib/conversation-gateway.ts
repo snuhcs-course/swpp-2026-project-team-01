@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { conversationCursor, conversationSnapshot, conversationView, incomingMessage, messageReceipt, openConversation } from '../../../lib/contracts/conversations.ts';
 import { errorCode } from '../../../lib/contracts/errors.ts';
+import {conversationRecoveryInput,conversationRecoveryStatus} from '../../../lib/contracts/conversation-recovery.ts';
 import { applicationOrigin } from '../../../lib/server/config.ts';
 import { ApplicationError } from '../../../lib/server/errors.ts';
 import { guestCredential } from '../../../lib/server/identity/credentials.ts';
@@ -23,7 +24,7 @@ export async function conversationGateway(request:NextRequest,parts:string[],ses
   const suffix=parts.slice(1);
   const open=suffix.length===0&&request.method==='POST';
   if(!open&&!(suffix.length===1&&request.method==='GET')&&!(suffix.length===2&&
-      ((suffix[1]==='messages'&&request.method==='POST')||(suffix[1]==='stream'&&request.method==='GET'))))throw new ApplicationError('NOT_FOUND',404);
+      ((suffix[1]==='messages'&&request.method==='POST')||(suffix[1]==='stream'&&request.method==='GET')||(suffix[1]==='recovery'&&['GET','POST'].includes(request.method)))))throw new ApplicationError('NOT_FOUND',404);
   if(suffix.length)z.uuid().parse(suffix[0]);
   const headers=new Headers();
   const requestId=request.nextUrl.searchParams.get('requestId');
@@ -37,7 +38,7 @@ export async function conversationGateway(request:NextRequest,parts:string[],ses
   }
   let body:string|undefined;
   if(request.method==='POST') {
-    body=JSON.stringify((open?openConversation:incomingMessage).parse(await readJson(request)));
+    body=JSON.stringify((open?openConversation:suffix[1]==='recovery'?conversationRecoveryInput:incomingMessage).parse(await readJson(request)));
     headers.set('content-type','application/json');
   }
   const url=new URL('/api/conversations'+(suffix.length?'/'+suffix.join('/'):''),runtimeOrigin());
@@ -56,6 +57,6 @@ export async function conversationGateway(request:NextRequest,parts:string[],ses
     if(!response.headers.get('content-type')?.startsWith('application/x-ndjson'))throw new ApplicationError('PROVIDER_UNAVAILABLE',503);
     return new NextResponse(response.body,{headers:{...privateHeaders,'content-type':'application/x-ndjson; charset=utf-8'}});
   }
-  const schema=open?conversationView:request.method==='POST'?messageReceipt:conversationSnapshot;
+  const schema=suffix[1]==='recovery'?conversationRecoveryStatus:open?conversationView:request.method==='POST'?messageReceipt:conversationSnapshot;
   return NextResponse.json(schema.parse(await response.json()),{status:response.status,headers:privateHeaders});
 }

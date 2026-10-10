@@ -20,7 +20,7 @@ test('recovery migration and transitions retain identity under races, lost respo
  const credential={kind:'host',subject:host,sessionId:session,expiresAt:new Date(Date.now()+3600000).toISOString()};
  const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
  const input=(n:number,retry:string=rows[n].retry)=>({expectedGeneration:0,idempotencyKey:retry,evidence:{sessionId:'runtime-'+rows[n].scope,generation:0,tailIndex:17,eventId:'event-'+rows[n].scope,usage:{inputTokens:40,outputTokens:2,cacheReadTokens:10,cacheWriteTokens:0}}});
- const recover=(n:number,retry?:string)=>`fmat.conversation_recovery_begin(${q(rows[n].grant)},${q(rows[n].scope)},${q(JSON.stringify(input(n,retry)))}::jsonb)`;
+ const recover=(n:number,retry?:string)=>`public.fmat_conversation_recovery('begin',${q(rows[n].grant)},${q(rows[n].scope)},${q(JSON.stringify(input(n,retry)))}::jsonb)`;
  const attempt=(n:number,retry?:string)=>`do $$begin perform set_config('test.recovery',${recover(n,retry)}::text,false);exception when raise_exception then perform set_config('test.recovery',sqlerrm,false);end$$;select current_setting('test.recovery');`;
  const name='recovery-wait-'+randomUUID();
  try{
@@ -45,13 +45,14 @@ test('recovery migration and transitions retain identity under races, lost respo
   assert.equal(await snapshot(),before,'concurrency does not rotate grants, replay inputs, reset dispatch or refund attempts');
   await waiter.query(`set application_name=${q(name)};`);
   // Force real row-lock waits, not a sleep before the operation starts.
-  for(const phase of ['grant','session','request','scope'] as const){
+  for(const phase of ['grant','session','request','scope','status'] as const){
    await admin.query(`update fmat.conversation_grants set expires_at=clock_timestamp()+interval '1 hour' where id=${q(rows[2].grant)};update auth.sessions set not_after=null where id=${q(session)};update fmat.requests set expires_at=clock_timestamp()+interval '1 day' where id=${q(rows[2].request)};`);
    if(phase==='session')await admin.query(`update auth.sessions set not_after=clock_timestamp()+interval '0.5 seconds' where id=${q(session)};`);
    else if(phase==='request')await admin.query(`update fmat.requests set expires_at=clock_timestamp()+interval '0.5 seconds' where id=${q(rows[2].request)};`);
    else await admin.query(`update fmat.conversation_grants set expires_at=clock_timestamp()+interval '0.5 seconds' where id=${q(rows[2].grant)};`);
    await locker.query(phase==='scope'?`begin;select 1 from fmat.conversation_scopes where id=${q(rows[2].scope)} for share;`:`begin;select 1 from fmat.requests where id=${q(rows[2].request)} for update;`);
-   const pending=waiter.query(attempt(2));await blocked(admin,name);await locker.query('select pg_sleep(0.7);commit;');
+   const readStatus=`do $$begin perform public.fmat_conversation_recovery('read',${q(rows[2].grant)},${q(rows[2].scope)},'{}');perform set_config('test.recovery','read',false);exception when raise_exception then perform set_config('test.recovery',sqlerrm,false);end$$;select current_setting('test.recovery');`;
+   const pending=waiter.query(phase==='status'?readStatus:attempt(2));await blocked(admin,name);await locker.query('select pg_sleep(0.7);commit;');
    assert.equal(await pending,phase==='request'?'REQUEST_CLOSED':'UNAUTHORIZED',phase+' expiry during a verified lock wait');
    assert.equal(await admin.query(`select runtime_generation||':'||runtime_session_id from fmat.conversation_scopes where id=${q(rows[2].scope)};`),'0:runtime-'+rows[2].scope);
    assert.equal(await admin.query(`select count(*) from fmat.conversation_recoveries where conversation_id=${q(rows[2].scope)};`),'0');

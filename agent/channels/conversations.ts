@@ -1,4 +1,5 @@
 import {initialModelUsage,captureModelUsage} from '../../lib/server/models/session-usage.ts';
+import {ConversationRecovery} from '../../lib/server/identity/conversation-recovery.ts';
 import {agentHistoryHttp} from '../../lib/server/oauth/history-http.ts';
 import { defineChannel, GET, POST } from 'eve/channels';
 import { conversationCursor, conversationView } from '../../lib/contracts/conversations.ts';
@@ -13,6 +14,7 @@ import type {RouteHandlerArgs} from 'eve/channels';
 
 const historyHttp=agentHistoryHttp();
 const conversations = new Conversations(), messages = new RuntimeMessages();
+const recovery=new ConversationRecovery();
 function sender({attachSession,resolveSession,from}:RouteHandlerArgs<DeliveryState>):RuntimeSender{
   return {attach:attachSession,resolve:resolveSession,
     send:async(id,text,auth)=>{await attachSession(id).send(text,{auth});},
@@ -36,6 +38,14 @@ export default defineChannel({
     'session.failed': (event, channel) => settleMessage(channel.state, event.sessionId, 'failed'),
   },
   routes: [
+    GET('/api/conversations/:conversationId/recovery',(request,{params,attachSession,resolveSession})=>privateRoute(async()=>{
+      const grant=await conversations.authorize(await requestCredential(request),params.conversationId);
+      return Response.json(await recovery.status(grant,{attach:attachSession,resolve:resolveSession},request.signal),{headers:privateHeaders});
+    })),
+    POST('/api/conversations/:conversationId/recovery',(request,{params,attachSession,resolveSession})=>privateRoute(async()=>{
+      const grant=await conversations.authorize(await requestCredential(request),params.conversationId);
+      return Response.json(await recovery.recover(grant,await readJson(request),{attach:attachSession,resolve:resolveSession},request.signal),{headers:privateHeaders});
+    })),
     POST('/api/agent/conversations/read', (request,{attachSession})=>historyHttp(request,attachSession)),
     POST<DeliveryState>('/api/internal/conversations/dispatch', (request, args) => privateRoute(async () => {
       requireDispatchSecret(request);

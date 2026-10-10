@@ -35,3 +35,22 @@ test('guest relay binds the matching cookie and rejects framework control routes
   process.env.APP_ORIGIN='https://release.example.test';assert.throws(()=>runtimeOrigin());
   process.env.APP_ORIGIN='http://localhost:3000';process.env.EVE_LOCAL_ORIGIN='https://external.example.test';assert.throws(()=>runtimeOrigin());
 });
+
+test('recovery relay admits only fixed status and strict observed-generation requests',async t=>{
+ t.mock.property(process,'env',{...process.env,APP_ORIGIN:'https://release.example.test',EVE_LOCAL_ORIGIN:''});
+ const session={host:async()=>({token:'verified-token'})} as ReturnType<typeof browserSession>;
+ const path=`https://release.example.test/api/browser/conversations/${id}/recovery`,parts=['conversations',id,'recovery'];
+ const input={expectedGeneration:0,idempotencyKey:host},status={conversationId:id,generation:0,state:'recovery_required'};
+ let calls=0,leak=false;
+ t.mock.method(globalThis,'fetch',async(url:URL,init:RequestInit)=>{
+  calls++;assert.equal(url.pathname,`/api/conversations/${id}/recovery`);assert.equal(url.search,'');
+  assert.equal(new Headers(init.headers).get('authorization'),'Bearer verified-token');
+  if(init.method==='POST')assert.deepEqual(JSON.parse(String(init.body)),input);
+  return Response.json(leak?{...status,sessionId:'private-runtime'}:status);
+ });
+ assert.deepEqual(await (await conversationGateway(new NextRequest(path),parts,session)).json(),status);
+ const post=(body:unknown)=>new NextRequest(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+ const response=await conversationGateway(post(input),parts,session);assert.deepEqual(await response.json(),status);assert.match(response.headers.get('cache-control')!,/private, no-store/);
+ for(const candidate of [{expectedGeneration:0},{...input,evidence:{}},{...input,sessionId:'forged'}])await assert.rejects(conversationGateway(post(candidate),parts,session));
+ assert.equal(calls,2);leak=true;await assert.rejects(conversationGateway(new NextRequest(path),parts,session));
+});

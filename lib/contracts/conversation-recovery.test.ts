@@ -6,11 +6,11 @@ const conversationId='91000000-0000-4000-8000-000000000001';
 const idempotencyKey='92000000-0000-4000-8000-000000000001';
 
 test('recovery requests preserve observed generation and retry identity without accepting authority claims',()=>{
- for(const expectedGeneration of [0,1,Number.MAX_SAFE_INTEGER]){
+ for(const expectedGeneration of [0,1,Number.MAX_SAFE_INTEGER-1]){
   const input={expectedGeneration,idempotencyKey};
   assert.deepEqual(conversationRecoveryInput.parse(input),input);
  }
- for(const expectedGeneration of [-1,0.5,Infinity,NaN,Number.MAX_SAFE_INTEGER+1,'0',null])
+ for(const expectedGeneration of [-1,0.5,Infinity,NaN,Number.MAX_SAFE_INTEGER,Number.MAX_SAFE_INTEGER+1,'0',null])
   assert.equal(conversationRecoveryInput.safeParse({expectedGeneration,idempotencyKey}).success,false);
  for(const key of ['conversationId','sessionId','grantId','actor','terminal','confirmed','usage','nextSessionId','force'])
   assert.equal(conversationRecoveryInput.safeParse({expectedGeneration:0,idempotencyKey,[key]:true}).success,false,key);

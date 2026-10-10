@@ -25,14 +25,15 @@ test('actual terminal workflow recovers original pending input with historical c
   await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invitation}','${email}','${createHash('sha256').update(invitation).digest('hex')}',now()+interval '1 day','successor-runtime');insert into fmat.hosts(id,email,invitation_id) values('${host}','${email}','${invitation}');`);
   const setup=new HostSetup(new Database(env)),credential=await verifyHostToken(token,{env});
   const saved=await setup.draft(credential,{expectedRevision:0,idempotencyKey:randomUUID(),patch:{displayName:'Existing draft',rules:{timezone:'Asia/Seoul',bufferMinutes:10}},unresolved:['Meeting hours still needed']});
-  const fault=await mkdtemp(resolve('.local/rebuild/successor-ack-')),marker=join(fault,'binding-ack-lost'),toolMarker=join(fault,'tool-ack-lost'),settleMarker=join(fault,'settle-ack-lost'),preload=join(fault,'fault.mjs');
+  const fault=await mkdtemp(resolve('.local/rebuild/successor-ack-')),marker=join(fault,'binding-ack-lost'),recoveryMarker=join(fault,'recovery-ack-lost'),toolMarker=join(fault,'tool-ack-lost'),settleMarker=join(fault,'settle-ack-lost'),preload=join(fault,'fault.mjs');
   await writeFile(preload,`import {existsSync,writeFileSync} from 'node:fs';
 const original=globalThis.fetch;
 globalThis.fetch=async(url,init)=>{
  const response=await original(url,init);
  if(!String(url).includes('/rpc/')||!response.ok)return response;
  const params=JSON.parse(init?.body??'{}');
- const faultMarker=String(url).endsWith('/rpc/fmat_runtime_successor')&&params.p_operation==='bind'?${JSON.stringify(marker)}:
+ const faultMarker=String(url).endsWith('/rpc/fmat_conversation_recovery')&&params.p_operation==='begin'?${JSON.stringify(recoveryMarker)}:
+  String(url).endsWith('/rpc/fmat_runtime_successor')&&params.p_operation==='bind'?${JSON.stringify(marker)}:
   String(url).endsWith('/rpc/fmat_conversation_tool')&&params.p_operation==='setup_draft'?${JSON.stringify(toolMarker)}:
   String(url).endsWith('/rpc/fmat_runtime_message')&&params.p_operation==='settle'&&params.p_input?.status==='completed'&&existsSync(${JSON.stringify(toolMarker)})?${JSON.stringify(settleMarker)}:null;
  if(faultMarker&&!existsSync(faultMarker)){
@@ -63,9 +64,20 @@ globalThis.fetch=async(url,init)=>{
   const pending=await post(`/api/conversations/${scope}/messages`,input);assert.equal(pending.status,409);assert.equal((await pending.json()).error.code,'RECONCILIATION_PENDING');
   const row=JSON.parse(await sql.query(`select jsonb_build_object('id',id,'grantId',grant_id,'clientId',client_id,'fingerprint',input_fingerprint,'text',text) from fmat.runtime_messages where conversation_id=${q(scope)} and status='pending';`));
   assert.equal(row.clientId,input.clientId);assert.equal(row.text,input.text);assert.deepEqual(await setup.read(credential),saved);
-  // Use actual inspected terminal evidence with the private transition. A
-  // browser recovery action is intentionally outside this delivery test.
-  await sql.query(`select fmat.conversation_recovery_begin(${q(row.grantId)},${q(scope)},${q(JSON.stringify({expectedGeneration:0,idempotencyKey:randomUUID(),evidence:terminal.evidence}))}::jsonb);update fmat.runtime_messages set next_dispatch_at=clock_timestamp()-interval '1 second' where id=${q(row.id)};`);
+  const recoveryPath=`/api/conversations/${scope}/recovery`,recoveryInput={expectedGeneration:0,idempotencyKey:randomUUID()};
+  const status=await fetch(runtime.origin+recoveryPath,{headers});assert.equal(status.status,200);
+  assert.deepEqual(await status.json(),{conversationId:scope,generation:0,state:'recovery_required'});
+  assert.equal((await fetch(runtime.origin+recoveryPath)).status,401);
+  assert.equal((await fetch(runtime.origin+recoveryPath,{method:'POST',headers:{...headers,origin:'https://foreign.test'},body:JSON.stringify(recoveryInput)})).status,403);
+  assert.equal((await post(recoveryPath,{...recoveryInput,evidence:terminal.evidence})).status,400);
+  const lost=await post(recoveryPath,recoveryInput);assert.equal(lost.status,503);await access(recoveryMarker);
+  const duplicate=await Promise.all([post(recoveryPath,recoveryInput),post(recoveryPath,recoveryInput)]);
+  const recovered=await Promise.all(duplicate.map(async response=>{assert.equal(response.status,200);return response.json();}));
+  assert.deepEqual(recovered[0],recovered[1]);assert.equal(recovered[0].state,'recovering');assert.equal(recovered[0].generation,1);
+  assert.doesNotMatch(JSON.stringify(recovered),/sessionId|eventId|usage|grantId|private-runtime/);
+  assert.equal((await post(recoveryPath,{...recoveryInput,idempotencyKey:randomUUID()})).status,409);
+  const reloaded=await fetch(runtime.origin+recoveryPath,{headers});assert.equal(reloaded.status,200);assert.deepEqual(await reloaded.json(),recovered[0]);
+  await sql.query(`update fmat.runtime_messages set next_dispatch_at=clock_timestamp()-interval '1 second' where id=${q(row.id)};`);
   const dispatch=()=>fetch(runtime!.origin+'/api/internal/conversations/dispatch',{method:'POST',headers:{authorization:'Bearer '+dispatchSecret}});
   assert.equal((await fetch(runtime.origin+'/api/internal/conversations/dispatch',{method:'POST'})).status,401);
   const responses=await Promise.all([dispatch(),dispatch()]);for(const response of responses)assert.equal(response.status,200);
@@ -96,6 +108,8 @@ globalThis.fetch=async(url,init)=>{
   assert.equal(await sql.query(`select runtime_session_id from fmat.conversation_scopes where id=${q(scope)};`),newRuntime,'normal continuation retains the bound successor');
   const archive=await send('recovery-archive-fixture');await settle(archive,'completed');await stream(terminal.evidence.tailIndex+1,'Read the retained archive through the authorized history tool.');
   assert.deepEqual(await setup.read(credential),current,'archived assistant text cannot change saved setup');
+  const healthy=await post(recoveryPath,{expectedGeneration:1,idempotencyKey:randomUUID()});assert.equal(healthy.status,200);assert.equal((await healthy.json()).state,'active');
+  assert.equal(await sql.query(`select count(*) from fmat.conversation_recoveries where conversation_id=${q(scope)};`),'1','ordinary active runtime cannot be replaced');
  }finally{
   await runtime?.stop();
   try{if(host){await sql.query(`delete from fmat.conversation_recoveries where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_generations where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.model_work_attempts where name in(select 'conversation:'||m.id::text from fmat.runtime_messages m join fmat.conversation_scopes s on s.id=m.conversation_id where s.host_id='${host}');delete from fmat.model_budgets where name='host:${host}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_scopes where host_id='${host}';delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.audit_events where subject_id in('${host}',${q(scope)});delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);const removed=await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers:admin});assert.equal(removed.status,200);}}

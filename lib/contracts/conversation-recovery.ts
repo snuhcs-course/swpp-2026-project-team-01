@@ -4,7 +4,7 @@ import {z} from 'zod';
 // nor evidence of termination can come from the browser.
 const generation=z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 export const conversationRecoveryInput=z.strictObject({
- expectedGeneration:generation,
+ expectedGeneration:generation.max(Number.MAX_SAFE_INTEGER-1),
  idempotencyKey:z.uuid(),
 });
 
