@@ -53,20 +53,21 @@ for(const [text,status] of outcomes)test(`real host runtime preserves saved setu
    assert.ok(Number(attempts)>=1&&Number(attempts)<=8,'Provider failures remain within the durable per-input allowance');
    assert.equal((await post(`/api/conversations/${scope}/messages`,input)).status,200,'Settled replay returns the existing outcome');
    assert.equal(await sql.query(`select attempts from fmat.model_work_attempts where name='conversation:${id}';`),attempts,'Settled replay cannot invoke another provider step');
-   if(text==='setup-provider-authentication'){
+   if(['setup-provider-authentication','setup-provider-missing-key','setup-provider-credit-exhausted'].includes(text)){
     const canonical=await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${scope}';`);
     const inspection=await fetch(runtime.origin+`/test/runtime/terminal/${scope}`,{headers});
-    assert.equal(inspection.status,200);const terminal=await inspection.json();
-    assert.equal(terminal.state,'failed','Actual pinned eve terminal event must establish failed-session evidence');
-    assert.equal(terminal.evidence.sessionId,canonical);assert.equal(terminal.evidence.generation,0);
-    assert.ok(Number.isSafeInteger(terminal.evidence.tailIndex)&&terminal.evidence.tailIndex>=0);
-    for(const key of ['inputTokens','outputTokens','cacheReadTokens','cacheWriteTokens'])assert.ok(Number.isSafeInteger(terminal.evidence.usage[key])&&terminal.evidence.usage[key]>=0);
-    assert.doesNotMatch(JSON.stringify(terminal),/synthetic-private|invalid_api_key|responseBody/);
+    assert.equal(inspection.status,200);assert.deepEqual(await inspection.json(),{state:'active'},'Configuration failure leaves the canonical workflow resumable');
     assert.equal((await fetch(runtime.origin+`/test/runtime/terminal/${scope}`)).status,401,'Inspection requires current participant authority');
-    const followup=await post(`/api/conversations/${scope}/messages`,{text:'Continue after authentication failure',clientId:randomUUID()});
-    assert.equal(followup.status,409,'A terminal canonical session is not silently replaced');
-    assert.equal((await followup.json()).error.code,'RECONCILIATION_PENDING');
+    const followup=await post(`/api/conversations/${scope}/messages`,{text:'Explicitly continue after configuration correction',clientId:randomUUID()});
+    assert.ok([200,202].includes(followup.status));const continued=(await followup.json()).messageId;assert.ok(continued);
+    for(let attempt=0;attempt<400;attempt++){
+     if(await sql.query(`select status from fmat.runtime_messages where id='${continued}';`)!=='pending')break;
+     await delay(100);
+    }
+    assert.equal(await sql.query(`select status from fmat.runtime_messages where id='${continued}';`),'completed');
     assert.equal(await sql.query(`select runtime_session_id from fmat.conversation_scopes where id='${scope}';`),canonical);
+    assert.equal(await sql.query(`select runtime_generation from fmat.conversation_scopes where id='${scope}';`),'0');
+    assert.equal(await sql.query(`select attempts from fmat.model_work_attempts where name='conversation:${id}';`),attempts,'Later continuation cannot refund or replay the failed input');
     assert.deepEqual(await setup.read(credential),saved);
    }
    if(text==='setup-provider-refusal'){

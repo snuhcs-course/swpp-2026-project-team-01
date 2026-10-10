@@ -1,10 +1,33 @@
-import {wrapLanguageModel} from 'ai';
+import {APICallError,LoadAPIKeyError,wrapLanguageModel} from 'ai';
 import {ApplicationError} from '../errors.ts';
 
 type Model = ReturnType<typeof wrapLanguageModel>;
 type Call = Parameters<Model['doGenerate']>[0];
 export const modelExecutionPolicy = Object.freeze({maxInputBytes:128 * 1024,maxOutputTokens:4096,timeoutMs:30_000});
 const limited = () => new ApplicationError('MODEL_LIMIT',429);
+
+const configurationCodes=new Set(['invalid_api_key','model_not_found','insufficient_quota','credit_balance_exhausted',
+ 'organization_spend_limit_exceeded','project_spend_limit_exceeded','organization_usage_limit_exceeded']);
+
+// Never retain an upstream cause: eve examines nested errors when deciding
+// whether a failed turn must terminate its owning workflow. Transient retries
+// still pass through the SDK and therefore require another durable reservation.
+function providerFailure(error:unknown):Error {
+ if(error instanceof ApplicationError)return error;
+ if(LoadAPIKeyError.isInstance(error)||(error instanceof Error&&error.message.startsWith('Set OPENAI_API_KEY in the server environment')))
+  return new ApplicationError('CONFIGURATION_UNAVAILABLE',503);
+ if(APICallError.isInstance(error)){
+  let code:unknown;
+  if(typeof error.responseBody==='string'&&Buffer.byteLength(error.responseBody,'utf8')<=64*1024){
+   try{code=JSON.parse(error.responseBody)?.error?.code;}catch{}
+  }
+  if(error.statusCode===401||error.statusCode===403||(typeof code==='string'&&configurationCodes.has(code)))
+   return new ApplicationError('CONFIGURATION_UNAVAILABLE',503);
+  if(error.isRetryable)return new APICallError({message:'A connected service is unavailable. Please try again.',
+   url:'https://api.openai.com/v1/responses',requestBodyValues:{},statusCode:error.statusCode,isRetryable:true});
+ }
+ return new ApplicationError('PROVIDER_UNAVAILABLE',503);
+}
 
 // Retain only stateless reasoning continuity metadata. In particular, callers
 // cannot add cache breakpoints or remote conversation expansion through options.
@@ -77,7 +100,7 @@ export function boundedModel(model:Parameters<typeof wrapLanguageModel>[0]['mode
     await wait(reserve(),clock.signal);
     if(clock.signal.aborted)throw limited();
     return await wait(delegate.doGenerate(params),clock.signal);
-   }finally{clock.close();}
+   }catch(error){throw providerFailure(error);}finally{clock.close();}
   },
   async doStream(input:Call){
    const params=prepare(input,outputLimit),clock=deadline(input.abortSignal);params.abortSignal=clock.signal;
@@ -101,13 +124,16 @@ export function boundedModel(model:Parameters<typeof wrapLanguageModel>[0]['mode
       try{
        const part=await wait(reader.read(),clock.signal);
        if(ended)return;
-       if(part.done){controller.close();stop();}else controller.enqueue(part.value);
-      }catch(error){if(!ended){controller.error(error);stop();}}
+       if(part.done){controller.close();stop();}
+       else if(part.value.type==='error'){
+        controller.enqueue({type:'error',error:providerFailure(part.value.error)});controller.close();stop();
+       }else controller.enqueue(part.value);
+      }catch(error){if(!ended){controller.error(providerFailure(error));stop();}}
      },
      cancel(){clock.abort();stop();},
     });
     return {...result,stream};
-   }catch(error){clock.abort();clock.close();throw error;}
+   }catch(error){clock.abort();clock.close();throw providerFailure(error);}
   },
  } satisfies Model;
 }

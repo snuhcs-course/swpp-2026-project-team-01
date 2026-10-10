@@ -10,6 +10,7 @@ type Model=ReturnType<typeof boundedModel>;
 type Call=Parameters<Model['doGenerate']>[0];
 const prompt:Call['prompt']=[{role:'user',content:[{type:'text',text:'Find a time'}]}];
 const answer:Awaited<ReturnType<Model['doGenerate']>>={content:[{type:'text',text:'Ready'}],finishReason:{unified:'stop',raw:'stop'},usage:{inputTokens:{total:1,noCache:1,cacheRead:0,cacheWrite:0},outputTokens:{total:1,text:1,reasoning:0}},warnings:[]};
+const configurationUnavailable=(error:unknown)=>error instanceof ApplicationError&&error.code==='CONFIGURATION_UNAVAILABLE'&&error.cause===undefined;
 const limited=(error:unknown)=>error instanceof ApplicationError&&error.code==='MODEL_LIMIT';
 const fixture=(options:ConstructorParameters<typeof MockLanguageModelV4>[0]={})=>new MockLanguageModelV4({modelId:'gpt-6-luna',doGenerate:answer,...options});
 
@@ -68,6 +69,41 @@ test('actual SDK retries each require a new reservation and stop when denied',as
  const model=boundedModel(provider,async()=>{if(++reservations===2)throw new ApplicationError('MODEL_LIMIT',429);});
  await assert.rejects(generateText({model,prompt:'hello',maxRetries:2}));
  assert.equal(reservations,2);assert.equal(provider.doGenerateCalls.length,1);
+});
+
+test('configuration failures are sanitized without automatic retries or refunded reservations',async()=>{
+ for(const statusCode of [401,403]){
+  let reservations=0;
+  const provider=fixture({doGenerate:async()=>{throw new APICallError({message:'private authentication detail',
+   url:'https://private.test/secret',requestBodyValues:{secret:'private'},responseHeaders:{secret:'private'},
+   responseBody:'private body',cause:new Error('private cause'),statusCode,isRetryable:true});}});
+  await assert.rejects(generateText({model:boundedModel(provider,async()=>{reservations++;}),prompt:'hello',maxRetries:2}),error=>{
+   assert.doesNotMatch(JSON.stringify(error),/private|authentication|401|403/);
+   return configurationUnavailable(error);
+  });
+  assert.equal(reservations,1);assert.equal(provider.doGenerateCalls.length,1);
+ }
+});
+
+test('stream error events and reader exceptions are sanitized and cancel the source',async()=>{
+ for(const mode of ['event','throw'] as const){
+  let reservations=0,cancelled=0;
+  const error=new APICallError({message:'private upstream detail',url:'https://private.test',requestBodyValues:{secret:'private'},
+   statusCode:401,responseBody:JSON.stringify({error:{code:'invalid_api_key'}}),isRetryable:false});
+  const provider=fixture({doStream:async()=>({stream:new ReadableStream({start(controller){
+   if(mode==='throw')controller.error(error);
+   else {controller.enqueue({type:'error',error});controller.enqueue({type:'tool-call',toolCallId:'must-not-run',toolName:'update_setup_draft',input:'{}'});}
+  },cancel(){cancelled++;}})})});
+  const response=await boundedModel(provider,async()=>{reservations++;}).doStream({prompt}),reader=response.stream.getReader();
+  if(mode==='throw')await assert.rejects(reader.read(),configurationUnavailable);
+  else {
+   const event=(await reader.read()).value;assert.equal(event?.type,'error');
+   assert.ok(event?.type==='error'&&configurationUnavailable(event.error));
+   assert.doesNotMatch(JSON.stringify(event),/private|invalid_api_key|responseBody/);
+   assert.equal((await reader.read()).done,true);assert.equal(cancelled,1);
+  }
+  assert.equal(reservations,1);assert.equal(provider.doStreamCalls.length,1);
+ }
 });
 
 test('30-second deadline rejects an uncooperative generation and retains its reservation',async(t)=>{
@@ -145,8 +181,8 @@ test('deployed direct provider fails without a key before HTTP or tool execution
  try{
   const raw=openai('gpt-6-luna');assert.notEqual(typeof raw,'string');
   const model=boundedModel(raw as Parameters<typeof boundedModel>[0],async()=>{reservations++;});
-  await assert.rejects(generateText({model,prompt:'Suggest setup preferences',maxRetries:0,tools:{update_setup_draft:{description:'Fixture mutation',inputSchema:(await import('zod')).z.object({}),execute:async()=>{executions++;return {};}}}}),/Set OPENAI_API_KEY in the server environment/);
-  await assert.rejects(model.doStream({prompt}),/Set OPENAI_API_KEY in the server environment/);
+  await assert.rejects(generateText({model,prompt:'Suggest setup preferences',maxRetries:0,tools:{update_setup_draft:{description:'Fixture mutation',inputSchema:(await import('zod')).z.object({}),execute:async()=>{executions++;return {};}}}}),configurationUnavailable);
+  await assert.rejects(model.doStream({prompt}),configurationUnavailable);
   assert.equal(requests,0);assert.equal(executions,0);assert.equal(reservations,2,'Failed attempts retain their reservations');
  }finally{
   globalThis.fetch=originalFetch;
@@ -173,7 +209,13 @@ test('installed Responses adapter rejects authentication, throttling and billing
    };
    const raw=openai('gpt-6-luna');assert.notEqual(typeof raw,'string');
    const model=boundedModel(raw as Parameters<typeof boundedModel>[0],async()=>{reservations++;});
-   const rejected=(error:unknown)=>APICallError.isInstance(error)&&error.statusCode===scenario.status;
+   const rejected=(error:unknown)=>{
+    assert.doesNotMatch(JSON.stringify(error),/synthetic-private|invalid_api_key|responseBody|retry-after/);
+    assert.equal((error as Error).cause,undefined);
+    return ['rate_limit_exceeded','slow_down'].includes(scenario.code)
+     ?APICallError.isInstance(error)&&error.statusCode===scenario.status&&error.isRetryable
+     :configurationUnavailable(error);
+   };
    await assert.rejects(generateText({model,prompt:'Suggest setup preferences',maxRetries:0,tools:{update_setup_draft:{description:'Suggest unconfirmed preferences',inputSchema:assistantDraftInput,execute:async()=>{executions++;return {};}}}}),rejected,scenario.code);
    await assert.rejects(model.doStream({prompt}),rejected,scenario.code);
    assert.equal(executions,0,scenario.code);assert.equal(requests,2,scenario.code);assert.equal(reservations,2,scenario.code);

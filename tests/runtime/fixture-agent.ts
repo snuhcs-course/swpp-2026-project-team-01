@@ -1,6 +1,6 @@
-import { defineAgent } from 'eve';
+import { defineAgent,defineDynamic } from 'eve';
 import { mockModel } from 'eve/evals';
-import {APICallError} from 'ai';
+import {APICallError,wrapLanguageModel} from 'ai';
 import {conversationModel} from '../../lib/server/models/conversation.ts';
 import {appendFileSync} from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
@@ -100,7 +100,29 @@ const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMess
     return `Reply ${userMessageCount}: ${lastUserMessage}`;
   }});
 if(typeof model==='string')throw new Error('The runtime fixture requires a local model');
+const productionModel=conversationModel(model,Number(process.env.FMAT_FIXTURE_MODEL_CONTEXT??100_000));
+// Reproduce a pre-normalization terminal error after the production reservation
+// has run. This opt-in diagnostic exists only in the isolated fixture agent.
+const fixtureModel=defineDynamic({events:{'step.started':async(event,ctx)=>{
+ const selection=await productionModel.events['step.started']!(event,ctx);
+ if(process.env.FMAT_FIXTURE_LEGACY_AUTH_FAILURE!=='1')return selection;
+ return {...selection,model:wrapLanguageModel({model:selection.model,middleware:{wrapGenerate:async({doGenerate,params})=>{
+  try{return await doGenerate();}catch(error){
+   const last=params.prompt.filter(message=>message.role==='user').at(-1);
+   if(last?.content.some(part=>part.type==='text'&&part.text==='setup-provider-authentication'))
+    throw new APICallError({message:'synthetic-private-provider-detail',url:'https://api.openai.com/v1/responses',requestBodyValues:{},statusCode:401,isRetryable:false,responseBody:JSON.stringify({error:{code:'invalid_api_key'}})});
+   throw error;
+  }
+ },wrapStream:async({doStream,params})=>{
+  try{return await doStream();}catch(error){
+   const last=params.prompt.filter(message=>message.role==='user').at(-1);
+   if(last?.content.some(part=>part.type==='text'&&part.text==='setup-provider-authentication'))
+    throw new APICallError({message:'synthetic-private-provider-detail',url:'https://api.openai.com/v1/responses',requestBodyValues:{},statusCode:401,isRetryable:false,responseBody:JSON.stringify({error:{code:'invalid_api_key'}})});
+   throw error;
+  }
+ }}})};
+}}});
 export default defineAgent({
   defaultTools:false,tool:false,
-  model:conversationModel(model,Number(process.env.FMAT_FIXTURE_MODEL_CONTEXT??100_000)),
+  model:fixtureModel,
 });

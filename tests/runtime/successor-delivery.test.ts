@@ -41,7 +41,7 @@ globalThis.fetch=async(url,init)=>{
  }
  return response;
 };`);
-  runtime=await startBrowserRuntime(local,'http://localhost:3000',dispatchSecret,{terminalInspection:true,preload,creationAckFault:true});
+  runtime=await startBrowserRuntime(local,'http://localhost:3000',dispatchSecret,{terminalInspection:true,preload,creationAckFault:true,legacyAuthenticationFailure:true});
   const headers={authorization:'Bearer '+token,'content-type':'application/json'};
   const post=(path:string,body:unknown)=>fetch(runtime!.origin+path,{method:'POST',headers,body:JSON.stringify(body)});
   const opened=await post('/api/conversations',{audience:'host_setup'});assert.equal(opened.status,200);scope=(await opened.json()).conversationId;

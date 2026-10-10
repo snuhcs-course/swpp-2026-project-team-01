@@ -8,7 +8,7 @@ import {setTimeout as delay} from 'node:timers/promises';
 
 // Isolated eve instance with the real application channels and deterministic
 // model. The fixture cannot call external model or messaging providers.
-export async function startBrowserRuntime(local:{API_URL:string;SERVICE_ROLE_KEY:string;ANON_KEY:string},appOrigin:string,dispatchSecret?:string,options:{preload?:string;modelCallLog?:string;modelContextWindowTokens?:number;terminalInspection?:boolean;creationAckFault?:boolean}={}){
+export async function startBrowserRuntime(local:{API_URL:string;SERVICE_ROLE_KEY:string;ANON_KEY:string},appOrigin:string,dispatchSecret?:string,options:{preload?:string;modelCallLog?:string;modelContextWindowTokens?:number;terminalInspection?:boolean;creationAckFault?:boolean;legacyAuthenticationFailure?:boolean}={}){
   const root=process.cwd();await mkdir('.local/rebuild',{recursive:true});
   const fixture=await mkdtemp(resolve('.local/rebuild/browser-runtime-'));
   await mkdir(join(fixture,'agent/channels'),{recursive:true});
@@ -27,7 +27,7 @@ export async function startBrowserRuntime(local:{API_URL:string;SERVICE_ROLE_KEY
   let child:ReturnType<typeof spawn>;
   let log='';
   async function start(resume=false){
-  child=spawn(process.execPath,[join(root,'node_modules/eve/bin/eve.js'),'dev','--no-ui','--no-default-extensions','--host','127.0.0.1','--port',String(port),...(resume?['--resume']:[])],{cwd:fixture,env:{...process.env,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY,APP_ORIGIN:appOrigin,PORT:String(port),HOST:'127.0.0.1',OPENAI_API_KEY:'',WORKFLOW_INLINE_OWNERSHIP_LEASE_SECONDS:'5',...(options.preload?{NODE_OPTIONS:'--import '+options.preload}:{}),FMAT_FIXTURE_MODEL_CONTEXT:modelContext,FMAT_FIXTURE_CREATION_ACK_FAULT:options.creationAckFault?'1':'',FMAT_FIXTURE_MODEL_LOG:options.modelCallLog??'',RUNTIME_DISPATCH_SECRET:dispatchSecret??'',NODE_ENV:'development'},stdio:['ignore','pipe','pipe'],detached:true});
+  child=spawn(process.execPath,[join(root,'node_modules/eve/bin/eve.js'),'dev','--no-ui','--no-default-extensions','--host','127.0.0.1','--port',String(port),...(resume?['--resume']:[])],{cwd:fixture,env:{...process.env,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY,APP_ORIGIN:appOrigin,PORT:String(port),HOST:'127.0.0.1',OPENAI_API_KEY:'',WORKFLOW_INLINE_OWNERSHIP_LEASE_SECONDS:'5',...(options.preload?{NODE_OPTIONS:'--import '+options.preload}:{}),FMAT_FIXTURE_MODEL_CONTEXT:modelContext,FMAT_FIXTURE_CREATION_ACK_FAULT:options.creationAckFault?'1':'',FMAT_FIXTURE_LEGACY_AUTH_FAILURE:options.legacyAuthenticationFailure?'1':'',FMAT_FIXTURE_MODEL_LOG:options.modelCallLog??'',RUNTIME_DISPATCH_SECRET:dispatchSecret??'',NODE_ENV:'development'},stdio:['ignore','pipe','pipe'],detached:true});
   let startupLog='';
   child.stdout!.on('data',v=>{log+=v;startupLog+=v;});child.stderr!.on('data',v=>{log+=v;startupLog+=v;});
   for(let i=0;i<300;i++){
