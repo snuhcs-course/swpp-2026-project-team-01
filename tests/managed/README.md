@@ -48,3 +48,10 @@ real model, the operator atomically accepted each exact input and moved only its
 through the normal diagnostic HTTP route. Therefore this run tests managed
 step redelivery, not production Cron wake-up. The local runtime suite separately
 tests missed inbox delivery and the authenticated recovery dispatcher.
+
+
+## Terminal-generation recovery fixture
+
+`terminal-agent.ts` is a separate preview-only deterministic model guarded by the exact synthetic host/request IDs above. Mount only the production `propose_request_details` and `read_history` tools with the production conversation channel. Send `managed-terminal-archive` to create a prior unconfirmed draft and record nonzero usage, then `managed-terminal-authentication` to reproduce the legacy terminal failure after normal reservation/failure accounting. `managed-terminal-recover` requires retained successor context and the real archive tool before proposing one further unconfirmed draft. Other text produces a bounded continuation. No real model or messaging provider is used. The local actual-eve test validates this fixture before managed deployment; it does not establish managed acceptance.
+
+For each synthetic input, atomically accept it through the real private command and move only its dispatch timestamp into the future before committing. Deliver/retry that exact client ID through the protected diagnostic route. Inspect and reconcile the terminal state through the production recovery endpoint, then verify one generation transition, original pending identity, old and successor history, retained usage/attempts and unchanged human decisions. Revoke the exact request, stop only its managed runs after verifying deployment identity, and delete only those synthetic records and the diagnostic preview. Never promote this overlay to a release alias.
