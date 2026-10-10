@@ -3612,3 +3612,20 @@ Verification uses the disposable local Supabase stack and controlled providers; 
 - `npm run typecheck`, `npm run check:docs` and `git diff --check` — pass.
 
 Logs remain in ignored `.local/rebuild/legacy-onboarding-command-{runtime,services,types}.log`. Only tests and owning documentation changed, so no application redeployment is needed. This does not complete actual Google/iPhone onboarding, controlled Calendar analysis, later-stage narration, or native first-time acceptance of explicit preference answers. The exact private confirmation of a browser-prepared draft is narrower than those remaining requirements. Google-only login and the existing production deployment remain unchanged.
+
+
+## Private setup answer review foundation — 2026-10-10
+
+The onboarding audit identified a remaining native-setup gap: model extraction keeps assistant provenance and the final settings review requires explicit choices, but only browser answer controls can currently accept those choices. Extend the existing `conversational-host-setup` proposal, design, delta requirement and tasks 4.9–4.12 rather than weakening provenance or treating bare assent as consent.
+
+Task 4.9 implements a pure presentation/syntax boundary in `lib/server/photon/setup-answer-review.ts`. Complete `review setup answers` and `accept setup answers <UUID> <keys>` commands accept surrounding ASCII whitespace and case-insensitive syntax. Keys are a nonempty distinct subset of four fixed names; arbitrary values, duplicate keys, internal whitespace, extra instructions, malformed references and all/wildcard shortcuts fail. The formatter derives eligible answers using existing browser semantics, quotes exact individual place values without ambiguous separator merging, escapes line and direction controls, omits physical choices for online mode, and issues no actionable reference for stale, dismissed, empty, normalized/hidden, expired or oversized input. A derived patch contains only displayed selected values; pending mode must be included before dependent choices. Formatting and selection preserve the original draft, questions and provenance.
+
+No HTTP handler, model tool, SQL mutation or dispatcher invokes this foundation yet. Signed authority, immutable review/delivery evidence, current snapshot/lock checks, atomic human attribution and replay must be implemented in 4.10, followed by actual native journey/restart acceptance in 4.11 and deployment in 4.12. Existing native final-confirmation behavior remains unchanged. This is not completion of first-time native onboarding or live provider acceptance.
+
+Verification on Node.js 24.21.0:
+
+- Six new tests plus ten existing answer/final-review tests pass (`npx tsx --test lib/server/photon/setup-answer-review.test.ts lib/server/photon/setup-review.test.ts lib/contracts/setup-answers.test.ts`).
+- `npm run test:app` passes all 574 tests; `npm run typecheck` passes both targets. Logs: `.local/rebuild/native-setup-answers-{app,types}.log`.
+- OpenSpec CLI 1.14.0 strict validation, documentation links and whitespace checks pass.
+
+The tests initially exposed invalid fixture inputs (trimmed terminal Unicode separators and more than ten locations); corrected fixtures exercise valid embedded controls and valid-but-oversized values. An explicit helper return union resolved a TypeScript narrowing error. No validation was relaxed. Production activation is deliberately tracked as pending until the authority and durable-dispatch layers are verified.

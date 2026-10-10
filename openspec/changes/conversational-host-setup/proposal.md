@@ -12,6 +12,7 @@ Hosts should complete setup through guided conversation in `/app` or private iMe
 - Explicitly ask mode/location, then transportation and extra travel buffer for hosts accepting physical meetings; support per-meeting/per-trip policies and reuse explicit prior answers.
 - Author structured clarification questions in the application using bounded English/Korean categories; never display arbitrary model prose as setup guidance.
 - Persist a host-owned setup conversation and versioned draft across web and linked private iMessage.
+- Let linked hosts review extracted mode/location/transport/buffer answers and explicitly accept selected displayed values into the draft without returning to browser controls; final settings confirmation remains separate.
 - Restore explicit private-channel settings confirmation through an application-authored, expiring review reference; ordinary chat/model tools retain draft-only authority.
 - Provide protected sign-in, invitation and Google handoffs plus inline iMessage phone/code linking, unlinking and recovery.
 - Keep admission, Calendar permissions, handle/readiness checks and booking approval separate from conversational inference.

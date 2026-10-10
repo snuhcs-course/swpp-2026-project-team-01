@@ -273,6 +273,9 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 ### Phase 3 — Deliver host setup in the single `/app` chat
 
+- [x] Complete conversational-setup task 4.9: define the native explicit-answer boundary and implement strict review/acceptance parsing, bounded exact-value display and selected-patch derivation. Verify sixteen focused tests, all 574 application/provider tests, both TypeScript targets and strict OpenSpec validation. [Evidence](05_rebuild_evidence.md#private-setup-answer-review-foundation--2026-10-10). No command is activated yet; atomic persistence, signed dispatch and rollout remain tasks 4.10–4.12.
+
+
 - [x] Deploy bounded Photon receiver reads from `09b936a` (`dpl_9UR6Vmy8nssyPK7PNVADTaPMdf7i`); independently verify Ready/production alias, both builds and 70 HTTP guards while preserving the unavailable receiver state. [Evidence](05_rebuild_evidence.md#photon-adapter-boundary-acceptance--2026-10-09).
 
 - [x] Complete native/selected Photon adapter acceptance (task 4.3): verify native acknowledgment/identity limitations, actual SDK protobuf identity and no resend, signed durable ingress, FIFO/deduplication, two-host runtime mapping and recovery. Add bounded/cancellable receiver reads. Host setup is 17/20; live-provider gates remain open. [Evidence](05_rebuild_evidence.md#photon-adapter-boundary-acceptance--2026-10-09).

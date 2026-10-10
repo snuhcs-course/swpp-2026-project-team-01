@@ -39,6 +39,11 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 - [x] 4.7 Connect deterministic signed-input review/confirmation dispatch, fresh Calendar permission validation and durable replies; verify web/iMessage cross-channel edits, lost acknowledgments, browser continuation and ordinary-chat denial through actual eve/provider fixtures.
 - [x] 4.8 Deploy and verify the private setup-confirmation boundary, update owning documentation and preserve the separate authorized live Google/iPhone acceptance gate.
 
+- [x] 4.9 Implement strict private answer-review/acceptance syntax and bounded exact-value formatting using the existing answer derivation; verify subset rules, online skips, quoting, stale/empty/oversized fallback and no inferred authority.
+- [ ] 4.10 Persist immutable bound answer reviews, validated delivery and atomic attributed draft-acceptance receipts; verify current authority, snapshot/subset fencing, replay, lock waits, provenance/origin retention and no settings/booking effects.
+- [ ] 4.11 Connect leased signed-input answer dispatch and durable replies; verify an assistant-only physical/online draft through native answer acceptance, separate final confirmation, browser resume and lost-response/restart recovery without model authority.
+- [ ] 4.12 Deploy and verify native answer acceptance, update owning documents and preserve separate live Google/iPhone and full narration gates.
+
 ## 5. Cross-channel acceptance
 
 - [x] 5.1 Exercise admission through confirmed rules, calendar readiness and linked web/iMessage continuation using deterministic integration fixtures; verify stale reviews and two-host isolation.
@@ -66,3 +71,5 @@ Task 4.6 completion: [atomic private setup confirmation](../../../documentations
 Task 4.7 completion: [leased private setup dispatch](../../../documentations/technical_specification/05_rebuild_evidence.md#leased-private-setup-dispatch--2026-10-10) verifies signed ingress through deterministic dispatch, current Calendar metadata, durable replies, cross-channel edits, exact lost-save recovery and actual-eve bare-assent denial. Production rollout remains task 4.8.
 
 Task 4.8 completion: [production private setup rollout](../../../documentations/technical_specification/05_rebuild_evidence.md#deployed-private-setup-confirmation--2026-10-10) verifies the exact deployed source/alias, 139-migration ledger, matching function definitions/privileges, 176 rollback-only hosted assertions, clean advisors and 38 production HTTP checks. Actual Google/iPhone acceptance remains tasks 2.5 and 5.2; broader AC-28/narration remains task 5.3.
+
+Task 4.9 acceptance: [private answer-review foundation](../../../documentations/technical_specification/05_rebuild_evidence.md#private-setup-answer-review-foundation--2026-10-10) verifies exact syntax, displayed values and subset derivation without mutation authority. Persistence, signed dispatch and production rollout remain tasks 4.10–4.12.

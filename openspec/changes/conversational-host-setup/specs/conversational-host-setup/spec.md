@@ -227,3 +227,27 @@ Structured setup guidance SHALL use application-authored English or Korean quest
 #### Scenario: Bounded localized questions
 - **WHEN** a valid setup draft identifies missing preferences with English or Korean question categories
 - **THEN** every authorized channel receives the corresponding fixed questions in the supplied order and browser controls can resolve one without dropping the others
+
+
+### Requirement: Explicit private-channel extracted answer acceptance
+A currently admitted, privately linked host SHALL be able to review and explicitly accept selected extracted mode, location, transportation and extra travel buffer answers without browser answer controls. The application SHALL freeze and display exact eligible values, require a delivered current review reference and derive the selected patches itself. Acceptance SHALL update only draft provenance and values with human attribution; it SHALL NOT confirm settings, grant provider access or authorize a meeting.
+
+#### Scenario: Accept displayed physical answers
+- **WHEN** a linked host requests `review setup answers` for assistant-extracted physical preferences and replies `accept setup answers <reference> mode,location,transport,travel_buffer` for its delivered current review
+- **THEN** only those displayed values acquire host provenance, their source origins and unresolved questions remain, and final settings still require a separate current setup confirmation
+
+#### Scenario: Online and partial choices
+- **WHEN** the extracted mode is online or the host accepts only a valid subset of displayed keys
+- **THEN** online reviews omit physical choices, pending mode must be included before accepting dependent answers, and unselected or already explicit answers are not silently accepted or replaced
+
+#### Scenario: Invalid or untrusted acceptance
+- **WHEN** input contains bare assent, duplicate/unknown keys, arbitrary replacement values, a stale/foreign/expired reference, changed setup or grant state, missing review-delivery evidence, or revoked channel authority
+- **THEN** no answer gains human provenance and neither draft nor confirmed settings change
+
+#### Scenario: Restart after accepted answers
+- **WHEN** a committed acceptance loses its response and the same signed input retries after a later browser edit
+- **THEN** current authority is rechecked and the original receipt is returned without another draft mutation, model/provider call or overwrite of the newer edit
+
+#### Scenario: Missing or oversized answer review
+- **WHEN** no eligible extracted answer exists, the draft requires refresh, or all eligible values cannot fit the supported private-message bound
+- **THEN** the service gives a nonconfirmable manual/browser continuation without publishing a partial actionable reference
