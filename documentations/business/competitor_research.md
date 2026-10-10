@@ -6,7 +6,7 @@ Scope: External meeting coordination, email scheduling assistants, booking platf
 
 This is a public-documentation review, not hands-on testing. Product descriptions are vendor claims; assessments of relevance and differentiation are our analysis. An accessible website does not establish successful onboarding, reliability, adoption, or retention. "Not verified" means the reviewed sources did not establish a capability, not that the product lacks it.
 
-Find Me a Time's comparison baseline is its planned experience in [the one pager](../0_one_pager.md): external one-to-one requests through chat, email, or agents; host-specific preferences and travel constraints; and authenticated approval of the current proposal before booking. Find Me a Time's named agent integrations remain compatibility targets.
+Find Me a Time's comparison baseline is its planned experience in [the one pager](../01_one_pager.md): external one-to-one requests through chat, email, or agents; host-specific preferences and travel constraints; and authenticated approval of the current proposal before booking. Find Me a Time's named agent integrations remain compatibility targets.
 
 ## 1. Findings
 

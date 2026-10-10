@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {expect,type Page} from '@playwright/test';
+import type {LocalSql} from '../integration/local-sql.ts';
+export async function verifyHostRevisionReview(page:Page,guest:Page,sql:LocalSql,requestId:string,host:string){
+ const origin=new URL(page.url()).origin,target=origin+'/app?request='+requestId+'&audience=host_private';
+ const draft=async()=>JSON.parse(await sql.query(`select fmat.propose_host_revision(jsonb_build_object('kind','host','id',id,'email',email),'${requestId}',jsonb_build_object('expectedRevision',(select revision from fmat.requests where id='${requestId}'),'patch',jsonb_build_object('location','https://meet.example.test/revision'),'clarifications','[]'::jsonb,'idempotencyKey','${randomUUID()}')) from fmat.hosts where id='${host}';`));
+ await draft();await page.goto(target);
+ const review=page.getByLabel('Review proposed shared changes',{exact:true});
+ await review.getByText('Suggested: https://meet.example.test/revision',{exact:true}).waitFor();
+ assert.equal((await guest.request.get(origin+'/api/browser/host-revision/read?requestId='+requestId)).status(),401);
+ assert.equal((await page.request.post(origin+'/api/browser/host-revision/apply',{headers:{origin:'https://foreign.example'},data:{}})).status(),403);
+ const before=Number(await sql.query(`select revision from fmat.requests where id='${requestId}';`));
+ await page.setViewportSize({width:390,height:844});await review.scrollIntoViewIfNeeded();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await page.screenshot({path:'.local/rebuild/browser-screenshots/host-revision-mobile.png',fullPage:true});await page.setViewportSize({width:1280,height:900});
+ await page.route('**/api/browser/host-revision/apply',async route=>{await route.fetch();await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:{message:'Lost response fixture'}})});},{times:1});
+ await review.getByRole('button',{name:'Share revised details',exact:true}).click();
+ await page.getByRole('button',{name:'Retry same action',exact:true}).click();
+ await page.getByRole('status').filter({hasText:'Revised details shared.'}).waitFor();
+ assert.equal(Number(await sql.query(`select revision from fmat.requests where id='${requestId}';`)),before+1);
+ assert.equal(await sql.query(`select count(*) from fmat.request_history where request_id='${requestId}' and operation='details_update';`),'1');
+ await page.reload();await page.getByRole('status').filter({hasText:'Revised details shared.'}).waitFor();
+ await draft();await page.reload();await review.getByRole('button',{name:'Dismiss suggestions',exact:true}).click();
+ await page.getByRole('status').filter({hasText:'Suggestions dismissed.'}).waitFor();
+ const stale=await draft();await sql.query(`update fmat.requests set revision=revision+1 where id='${requestId}';`);await page.reload();
+ await expect(review.getByRole('button',{name:'Share revised details',exact:true})).toBeDisabled();
+ const response=await page.request.post(origin+'/api/browser/host-revision/apply',{headers:{origin},data:{requestId,input:{reviewId:stale.revisionDraft.id,expectedRevision:stale.revisionDraft.baseRevision,confirmed:true,idempotencyKey:randomUUID()}}});assert.equal(response.status(),409);
+ await review.getByRole('button',{name:'Dismiss suggestions',exact:true}).click();await page.getByRole('status').filter({hasText:'Suggestions dismissed.'}).waitFor();
+ await page.getByRole('radio',{name:'Shared with requester',exact:true}).check();await expect(page.getByLabel('Review proposed shared changes',{exact:true})).toHaveCount(0);
+ await page.goto(origin+'/app');
+}

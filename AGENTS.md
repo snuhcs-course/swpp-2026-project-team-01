@@ -5,7 +5,7 @@ This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, r
 ## Repository layout
 
 - `apps/`: application code. Add app-specific setup and test instructions when an app is created.
-- `documentations/`: product direction, release scope, research, and explanatory documentation, starting with `0_one_pager.md`.
+- `documentations/`: product direction, release scope, research, and explanatory documentation, starting with `01_one_pager.md`.
 - `openspec/specs/`: main capability specifications, with detailed behavior in `<capability>/spec.md`.
 - `openspec/changes/`: proposed behavior changes and archived implementation records.
 - `supabase/`: local Supabase configuration and future database migrations.
@@ -43,7 +43,7 @@ References: [Cloudflare CLI setup](https://developers.cloudflare.com/cf/get-star
 - Read the relevant files before editing and avoid guessing the product architecture or dependencies.
 - Keep secrets, credentials, and local environment files out of Git. Add examples when configuration needs to be shared.
 - Run the relevant checks for files you change, and report any checks that cannot run.
-- Update documentation when setup steps or behavior change.
+- For every feature change, check whether product, UX, technical, setup, or API documentation needs updating. Update the owning documents in the same change when behavior or setup changes; if no update is needed, say why in the final report.
 
 ## Documentation and specifications
 
@@ -60,6 +60,16 @@ If product documents and capability specs disagree, resolve the discrepancy expl
 OpenSpec validation checks artifact structure and specification consistency; it does not prove the implementation works. Run relevant automated tests and review the code before treating a change as complete. Keep `openspec/config.yaml`, specifications, change artifacts, and generated project skills in Git.
 
 Reference: [OpenSpec quickstart](https://openspec.dev/docs/quickstart).
+
+## Git branch conventions
+
+- `main` is the integration branch. Use a topic branch and a pull request for changes; do not commit directly to `main`.
+- Name new branches `<type>/<short-description>`, using the commit types below and lowercase letters, digits, and hyphens within each segment. Examples: `fix/booking-timezone` and `docs/branch-conventions`. Do not use the `codex/` prefix. Follow an explicit user-provided branch name when given.
+- Keep each branch focused on one feature, fix, or documentation task. When implementing an OpenSpec change, reuse its change name as the description where practical, such as `feat/connect-google-calendars`.
+- Start new, independent work from the latest `origin/main` after fetching. Continue an existing task on its existing branch; use another base only when the task explicitly depends on it.
+- Inspect the current branch and working tree before switching or creating branches. Preserve unrelated local changes; use a separate worktree when isolation is needed. Do not rename an existing branch just to match this convention.
+- Keep shared branch history intact. Do not force-push or rebase a shared branch without explicit authorization.
+- Delete a topic branch after its pull request is merged and its work is no longer needed. Do not delete branches with unmerged work or active worktrees.
 
 ## Commit messages
 

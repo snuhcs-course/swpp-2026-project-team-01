@@ -1,0 +1,85 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
+import {randomBytes,randomUUID,createHash} from 'node:crypto';
+import {CalendarScans} from '../../lib/server/calendar/scans.ts';
+import {HostSetup} from '../../lib/server/setup/commands.ts';
+import {CalendarSelection} from '../../lib/server/calendar/selection.ts';
+import {calendarScopes} from '../../lib/server/calendar/google.ts';
+import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
+import {Database} from '../../lib/server/database/client.ts';
+import {verifyHostToken,guestCredential} from '../../lib/server/identity/credentials.ts';
+import {ApplicationError} from '../../lib/server/errors.ts';
+import {LocalSql} from './local-sql.ts';
+const code=(value:string)=>(error:unknown)=>error instanceof ApplicationError&&error.code===value;
+test('calendar analysis fences provider work, preserves choices, dismisses repeated evidence and expires privately',async()=>{
+ const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
+ const env={...process.env,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY,TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64')};
+ const headers={apikey:local.SERVICE_ROLE_KEY,authorization:'Bearer '+local.SERVICE_ROLE_KEY,'content-type':'application/json'},sql=new LocalSql(),email=randomUUID()+'@example.test',password=randomUUID()+randomUUID(),invitation=randomUUID();let host='';
+ const database=new Database(env),cipher=new TokenCipher(env);let role:'owner'|'reader'|'freeBusyReader'='owner',reads=0,gate:()=>Promise<void>=async()=>{};
+ const calendars=new CalendarSelection(database,env,{async refresh(bundle){return bundle;},async list(){reads++;await gate();return [{id:'mine',name:'Calendar',accessRole:role,primary:true,timeZone:'Asia/Seoul',color:null}];}}),setup=new HostSetup(database,calendars);
+ try{
+  const create=await fetch(local.API_URL+'/auth/v1/admin/users',{method:'POST',headers,body:JSON.stringify({email,password,email_confirm:true})});assert.equal(create.status,200);host=(await create.json()).id;
+  const login=await fetch(local.API_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:local.ANON_KEY,'content-type':'application/json'},body:JSON.stringify({email,password})});const token=(await login.json()).access_token,credential=await verifyHostToken(token,{env});
+  await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invitation}','${email}','${createHash('sha256').update(invitation).digest('hex')}',now()+interval '1 day','setup-test');insert into fmat.hosts(id,email,invitation_id,conflict_calendar_ids,booking_calendar_id) values('${host}','${email}','${invitation}',array['mine'],'mine');`);
+  const encrypted=cipher.seal({accessToken:'setup-private',refreshToken:'setup-refresh',subject:'fixture',scopes:[...calendarScopes.host],expiresAt:Date.now()+3600000},'google:host:'+host);
+  await sql.query(`insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential) values('host','${host}','fixture',array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],'${encrypted}');`);
+  const day=new Date().toISOString().slice(0,10),end=new Date(Date.now()+28*86400000).toISOString().slice(0,10);let eventReads=0,rich=false,eventFailure:'partial'|'revoked'|null=null;
+  const events={async read(_token:string,scope:{calendarIds:string[]}){eventReads++;await gate();if(eventFailure==='revoked')throw new ApplicationError('RECONNECT_REQUIRED',409);if(eventFailure==='partial')return [];return scope.calendarIds.map(id=>({id,timezone:'UTC',events:rich?Array.from({length:8},(_,i)=>({id:'event-'+i,start:{dateTime:new Date(Date.now()+i*86400000).toISOString()},end:{dateTime:new Date(Date.now()+i*86400000+3600000).toISOString()},location:'Library meeting room'})):[]}));}};
+  const metadata={async refresh(bundle:Parameters<TokenCipher['seal']>[0]){return bundle as never;},async list(){return [{id:'mine',name:'Calendar',accessRole:role,primary:true,timeZone:'UTC',color:null}];}};
+  const scans=new CalendarScans(database,env,metadata,events);
+  const draft=await setup.draft(credential,{expectedRevision:0,patch:{displayName:'Private explicit',rules:{timezone:'UTC',durationMinutes:45}},unresolved:[],idempotencyKey:randomUUID()});
+  assert.equal((await scans.read(credential)).scan,null);await assert.rejects(scans.read(guestCredential(randomUUID(),randomBytes(32).toString('base64url'))),code('FORBIDDEN'));
+  const choice=async()=>{const s=await setup.read(credential);return {expectedRevision:s.revision,rulesVersion:s.rulesVersion,generation:s.calendarGeneration!,calendarIds:['mine'],startDate:day,endDate:end,timezone:'UTC',consented:true as const,idempotencyKey:randomUUID()};};
+  let entered!:()=>void,release!:()=>void;const arrived=new Promise<void>(r=>entered=r),wait=new Promise<void>(r=>release=r);gate=async()=>{entered();await wait;};
+  const stale=scans.start(credential,await choice()),rejected=assert.rejects(stale,code('STALE_REVISION'));await arrived;
+  let state=await setup.read(credential);assert.equal(state.revision,draft.revision+1);
+  await setup.draft(credential,{expectedRevision:state.revision,patch:{displayName:'Corrected explicit'},unresolved:[],idempotencyKey:randomUUID()});release();await rejected;gate=async()=>{};
+  assert.equal((await scans.read(credential)).scan!.status,'stale');
+  const start=await choice(),ready=await scans.start(credential,start);assert.equal(ready.scan!.status,'ready');assert.equal(ready.scan!.summary!.windowSource,'starter');assert.equal((await setup.read(credential)).analysisStatus,'ready');
+  const reads=eventReads;assert.equal((await scans.start(credential,start)).scan!.id,ready.scan!.id);assert.equal(eventReads,reads);
+  const apply={scanId:ready.scan!.id,expectedRevision:ready.scan!.revision,idempotencyKey:randomUUID()};role='freeBusyReader';await assert.rejects(scans.apply(credential,apply),code('CALENDAR_ACCESS_INVALID'));role='owner';assert.equal((await scans.apply(credential,apply)).scan!.status,'applied');await scans.apply(credential,apply);
+  state=await setup.read(credential);assert.equal(state.draft!.settings.rules!.durationMinutes,45);assert.equal(state.draft!.settings.displayName,'Corrected explicit');assert.ok(state.draft!.settings.rules!.availability);assert.equal(state.confirmed.rules,null);assert.equal(state.review,null,'mode inference cannot create final review');
+  const third=await scans.start(credential,await choice()),dismiss={scanId:third.scan!.id,expectedRevision:third.scan!.revision,idempotencyKey:randomUUID()};assert.equal((await scans.dismiss(credential,dismiss)).scan!.status,'dismissed');await scans.dismiss(credential,dismiss);
+  await assert.rejects(scans.start(credential,await choice()),code('CONSENT_LIMIT'));
+  await sql.query(`update fmat.calendar_scans set created_at=created_at-interval '2 minutes' where host_id='${host}';`);
+  const repeated=await scans.start(credential,await choice());assert.equal(repeated.scan!.status,'dismissed');assert.equal(repeated.scan!.summary,null,'unchanged dismissed evidence is not proposed again');
+  await sql.query(`update fmat.calendar_scans set expires_at=clock_timestamp()-interval '1 second' where id='${repeated.scan!.id}';`);assert.equal((await scans.read(credential)).scan!.status,'expired');
+  await sql.query(`update fmat.calendar_scans set created_at=created_at-interval '2 minutes' where host_id='${host}';`);
+  const enteredAgain=new Promise<void>(r=>entered=r),waitAgain=new Promise<void>(r=>release=r);gate=async()=>{entered();await waitAgain;};
+  const revoked=scans.start(credential,await choice()),revokedFailure=assert.rejects(revoked,code('STALE_REVISION'));await enteredAgain;
+  await sql.query(`update fmat.calendar_connections set generation=gen_random_uuid() where principal_id='${host}';`);release();await revokedFailure;gate=async()=>{};
+  assert.equal((await scans.read(credential)).scan!.status,'stale','reconnected source cannot publish earlier scan');
+  await sql.query(`update fmat.calendar_scans set created_at=created_at-interval '2 minutes' where host_id='${host}';`);rich=true;
+  const richScan=await scans.start(credential,await choice());assert.equal(richScan.scan!.status,'ready');assert.equal(richScan.scan!.summary!.locations[0].label,'Library meeting room');
+  const edited={scanId:richScan.scan!.id,expectedRevision:richScan.scan!.revision,idempotencyKey:randomUUID(),schedule:false,meetingMode:'either' as const,location:{policy:'preferred' as const,places:[{index:0,label:'Library lounge'}]}};
+  await assert.rejects(scans.apply(credential,{...edited,location:{policy:'preferred',places:[{index:4,label:'Unseen'}]}}),code('INVALID_INPUT'));
+  await assert.rejects(scans.apply(credential,{...edited,schedule:true,windows:[{days:[1],start:'01:00',end:'02:00'}]}),code('EXPLICIT_CHOICE_CONFLICT'));
+  assert.equal((await scans.apply(credential,edited)).scan!.status,'applied');await scans.apply(credential,edited);
+  state=await setup.read(credential);assert.deepEqual(state.draft!.settings.rules!.locations,['Library lounge']);assert.equal(state.draft!.origins['rules.locations'].source,'calendar_edited');assert.equal(state.draft!.origins['rules.availability'].source,'starter');assert.equal(state.draft!.origins['rules.durationMinutes'].source,'host');assert.equal(state.confirmed.rules,null);
+  const origins=state.draft!.origins;
+  state=await setup.draft(credential,{expectedRevision:state.revision,patch:{rules:{travelMode:'PER_TRIP',travelBufferMinutes:15}},unresolved:[],idempotencyKey:randomUUID()});assert.deepEqual(state.draft!.origins['rules.locations'],origins['rules.locations']);
+  // Exercise failure recovery with real confirmed policy, not only null rules.
+  state=await setup.draft(credential,{expectedRevision:state.revision,patch:{handle:'analysis-'+host.slice(0,8),rules:{meetingMode:'online',focusBlocks:[],bufferMinutes:10,preferences:''}},unresolved:[],idempotencyKey:randomUUID()});assert.ok(state.review);
+  state=await setup.confirm(credential,{expectedRevision:state.revision,draftRevision:state.review.draftRevision,reviewRevision:state.review.revision,rulesVersion:state.rulesVersion,calendarGeneration:state.calendarGeneration!,confirmed:true,idempotencyKey:randomUUID()});
+  const confirmed=state.confirmed;assert.ok(confirmed.rules);
+  for(const failure of ['partial','revoked'] as const){
+   await sql.query(`update fmat.calendar_scans set created_at=created_at-interval '2 minutes' where host_id='${host}';`);eventFailure=failure;
+   const beforeFailure=await setup.read(credential);
+   await assert.rejects(scans.start(credential,await choice()),code(failure==='partial'?'PROVIDER_UNAVAILABLE':'RECONNECT_REQUIRED'));
+   assert.equal((await scans.read(credential)).scan!.status,'failed');state=await setup.read(credential);
+   assert.deepEqual(state.confirmed,confirmed);assert.deepEqual(state.draft!.settings,beforeFailure.draft!.settings);
+   state=await setup.draft(credential,{expectedRevision:state.revision,patch:{rules:{bufferMinutes:failure==='partial'?15:20}},unresolved:[],idempotencyKey:randomUUID()});
+   assert.equal(state.draft!.settings.rules!.bufferMinutes,failure==='partial'?15:20);assert.deepEqual(state.confirmed,confirmed,'Manual recovery remains a draft after provider failure');
+  }
+  eventFailure=null;await sql.query(`update fmat.calendar_scans set created_at=created_at-interval '2 minutes' where host_id='${host}';`);
+  const oldSuggestions=await scans.start(credential,await choice());assert.equal(oldSuggestions.scan!.status,'ready');state=await setup.read(credential);
+  state=await setup.draft(credential,{expectedRevision:state.revision,patch:{rules:{durationMinutes:60}},unresolved:[],idempotencyKey:randomUUID()});
+  await assert.rejects(scans.apply(credential,{scanId:oldSuggestions.scan!.id,expectedRevision:oldSuggestions.scan!.revision,idempotencyKey:randomUUID()}),code('STALE_REVISION'));
+  assert.deepEqual((await setup.read(credential)).confirmed,confirmed);assert.equal((await setup.read(credential)).draft!.settings.rules!.durationMinutes,60);
+  assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where host_id='${host}';`),'0');
+  const logout=await fetch(local.API_URL+'/auth/v1/logout?scope=global',{method:'POST',headers:{apikey:local.ANON_KEY,authorization:'Bearer '+token}});assert.equal(logout.status,204);await assert.rejects(scans.read(credential),code('UNAUTHORIZED'));
+ }finally{
+  if(host){await sql.query(`delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.audit_events where subject_id='${host}';delete from fmat.calendar_connections where principal_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);}await sql.close();
+ }
+});

@@ -1,0 +1,20 @@
+# Local credentials
+.env*
+!.env.example
+
+# Local Cloudflare CLI cache
+.cloudflare/
+
+# Dependencies, deployment and verification outputs
+node_modules/
+dist/
+.vercel/
+.local/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.eve/
+.output/
+.next/
+apps/web/next-env.d.ts
+.vercel

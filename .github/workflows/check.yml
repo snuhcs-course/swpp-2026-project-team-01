@@ -1,0 +1,110 @@
+name: Check
+on:
+  push:
+  pull_request:
+jobs:
+  repository:
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_MODEL: gpt-6-luna
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Check documentation, application types and unit tests
+        run: npm run check
+      - name: Build independent eve and web services
+        run: npm run build
+      - name: Smoke test production servers
+        run: npm run test:runtime
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.119.0
+      - name: Pin local PostgreSQL to the selected release version
+        run: |
+          mkdir -p supabase/.temp
+          printf '%s' '17.11.0.003' > supabase/.temp/postgres-version
+          supabase services -o json > /tmp/fmat-service-versions.json
+          node --input-type=module -e "import {readFileSync} from 'node:fs'; import assert from 'node:assert/strict'; const services=JSON.parse(readFileSync('/tmp/fmat-service-versions.json','utf8')); assert.equal(services.find(service=>service.name==='supabase/postgres')?.local,'17.11.0.003');"
+      - run: supabase start
+      - run: supabase db reset --local
+      - name: Verify preserved database baseline
+        id: database_baseline
+        run: supabase test db
+      - name: Verify Auth and application database integration
+        run: npm run test:integration
+      - name: Verify isolated restoration of populated application state
+        run: npm run test:restore
+      - name: Verify authorized eve conversations and process-kill recovery
+        run: npm run test:conversations
+      - name: Verify database invariants after fixture cleanup
+        if: ${{ !cancelled() && steps.database_baseline.outcome == 'success' }}
+        run: supabase test db
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.119.0
+      - name: Pin local PostgreSQL to the selected release version
+        run: |
+          mkdir -p supabase/.temp
+          printf '%s' '17.11.0.003' > supabase/.temp/postgres-version
+          supabase services -o json > /tmp/fmat-service-versions.json
+          node --input-type=module -e "import {readFileSync} from 'node:fs'; import assert from 'node:assert/strict'; const services=JSON.parse(readFileSync('/tmp/fmat-service-versions.json','utf8')); assert.equal(services.find(service=>service.name==='supabase/postgres')?.local,'17.11.0.003');"
+      - run: supabase start
+      - run: supabase db reset --local
+      - name: Verify preserved database baseline
+        id: database_baseline
+        run: supabase test db
+      - name: Build browser application
+        run: npm run build:web
+        env:
+          OPENAI_MODEL: gpt-6-luna
+          NEXT_TELEMETRY_DISABLED: '1'
+      - name: Install browser test runtime
+        run: npx playwright install --with-deps chromium
+      - name: Verify browser access, conversation replay and revocation
+        id: browser
+        run: npm run test:browser
+      - name: Verify database invariants after fixture cleanup
+        if: ${{ !cancelled() && steps.database_baseline.outcome == 'success' }}
+        run: supabase test db
+      - name: Preserve synthetic browser failure evidence
+        if: failure() && steps.browser.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failure-${{ github.run_id }}
+          retention-days: 7
+          path: |
+            .local/rebuild/browser-control-failure.json
+            .local/rebuild/weekly-focus-failure.json
+            .local/rebuild/setup-failure.json
+            .local/rebuild/browser-screenshots/setup-failure.png
+            .local/rebuild/private-checkbox-trace.json
+            .local/rebuild/requester-intake-failure.json
+            .local/rebuild/browser-screenshots/requester-intake-failure.png
+            .local/rebuild/scheduling-failure.json
+            .local/rebuild/agreement-clock-failure.json
+            .local/rebuild/browser-screenshots/agreement-clock-failure.png
+            .local/rebuild/browser-screenshots/scheduling-failure.png
+            .local/rebuild/browser-screenshots/last-state.png
