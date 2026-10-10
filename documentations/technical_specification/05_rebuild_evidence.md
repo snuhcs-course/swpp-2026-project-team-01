@@ -3921,3 +3921,10 @@ The Calendar fixture audit added exact mixed-timezone all-day expectations and f
 The expanded browser run exposed a separate result-focus race: disconnect focuses its status, then the asynchronous setup refresh advances guidance and steals focus. A held setup-read regression failed on the previous build only after releasing that refresh. `SetupGuidance` now preserves an already-focused status or alert instead of replacing it with the next question. The deterministic regression and complete browser journey pass in 125.1 seconds with the fix.
 
 Fresh checks pass: 18 Calendar/guide unit tests, the expanded Calendar analysis integration and host-setup integration, full browser journey, both service builds, types, runtime smoke, 2,837 SQL assertions after fixture cleanup without reset, browser/shared-contract boundaries, documentation links and all 26 strict OpenSpec items. This closes the named fixture/UI review item. Provider responses remain deterministic fixtures; live Google scans, iPhone use and complete AC-28 remain open.
+
+
+## Production Calendar fixture focus fix — 2026-10-10
+
+Source `e6da3dfe9f820879ab3a76dacc2d9dcaafef2d9d` is deployed as `dpl_22PfE7hHroNUVHhii3Sn4BuUf5if` at `https://findmeatime-release-b492v79tt-justdodos-projects.vercel.app`. The clean Git archive verified 1,470 blobs; 1,106 uploaded regular files had zero matches against 13 checked secret values. Vercel CLI 62.2.0 independently resolved the intended `justdodos-projects/findmeatime-release` project before deployment.
+
+Independent inspection confirmed Ready/production, and protected health reported reachable with `releaseReady: false`. Following promotion, `https://release.findmeatime.com` resolved to that exact Ready deployment. All 38 production HTTP checks pass (15 runtime/access, 10 setup/handle, six recovery and seven provider). No migration, provider configuration, real recipient message or Calendar event was involved. The unrelated competitor-research edit remains excluded; live Google, device, channel and named-client acceptance remain open.

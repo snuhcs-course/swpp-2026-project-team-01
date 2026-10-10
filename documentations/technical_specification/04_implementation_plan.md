@@ -339,6 +339,8 @@ References: [module boundaries](01_backend_architecture.md#2-module-boundaries),
 
 Incremental completion (2026-10-07; the full phase exit remains open):
 
+- [x] Deploy the Calendar acceptance focus fix from `e6da3df`; independently verify the exact Ready release alias and all 38 production HTTP checks. [Rollout](05_rebuild_evidence.md#production-calendar-fixture-focus-fix--2026-10-10). Live provider/device gates remain open.
+
 - [x] Deploy setup/catalog read deadlines and Calendar choice recovery from `7da4677`; verify the exact Ready release alias and all 38 production HTTP checks. [Rollout](05_rebuild_evidence.md#production-workspace-read-deadlines--2026-10-10). Live provider/device gates remain open.
 
 - [x] Deploy workspace focus recovery from `3d69270`, verify the exact Ready release alias and pass all 38 production HTTP checks. [Rollout](05_rebuild_evidence.md#production-workspace-focus-recovery--2026-10-10). Live provider/device and broader release acceptance remain open.
