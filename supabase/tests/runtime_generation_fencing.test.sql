@@ -2,6 +2,9 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path=public,extensions;
 select no_plan();
+-- The transaction restores existing service accounting on rollback. This
+-- fixture tests generation authority, independently of earlier test charges.
+delete from fmat.model_budgets where name='service';
 insert into auth.users(id,email,email_confirmed_at) values('92000000-0000-4000-8000-000000000001','fence@fixture.test',now());
 insert into auth.sessions(id,user_id) values('92000000-0000-4000-8000-000000000002','92000000-0000-4000-8000-000000000001');
 insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('92000000-0000-4000-8000-000000000003','fence@fixture.test',repeat('e',64),now()+interval '1 day','fixture');

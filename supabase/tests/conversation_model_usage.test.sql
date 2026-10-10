@@ -2,6 +2,9 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path=public,extensions;
 select no_plan();
+-- Isolate this rollback-only fixture from earlier local/provider test charges.
+-- Per-input and cumulative token limits below still use the real reserve path.
+delete from fmat.model_budgets where name='service';
 insert into auth.users(id,email,email_confirmed_at) values('96000000-0000-4000-8000-000000000001','usage@fixture.test',now());
 insert into auth.sessions(id,user_id) values('96000000-0000-4000-8000-000000000002','96000000-0000-4000-8000-000000000001');
 insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('96000000-0000-4000-8000-000000000003','usage@fixture.test',repeat('f',64),now()+interval '1 day','fixture');
