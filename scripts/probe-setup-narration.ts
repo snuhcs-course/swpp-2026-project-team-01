@@ -10,10 +10,12 @@ import {Database} from '../lib/server/database/client.ts';
 import {HostSetup} from '../lib/server/setup/commands.ts';
 import {verifyHostToken} from '../lib/server/identity/credentials.ts';
 import {conversationEvent} from '../lib/contracts/conversations.ts';
+import {laterNarrationCases,prepareNarrationStage,type NarrationScenario} from '../tests/runtime/setup-narration-stages.ts';
+import {setupGuide} from '../lib/contracts/setup-guide.ts';
 
 // Explicit paid, live-model acceptance. Uses only synthetic local Auth/domain
 // records, production instructions/tools/channel, and no messaging credentials.
-const cases=[
+const initialCases:NarrationScenario[]=[
  {id:'en-draft',text:'I want meetings to last 45 minutes. Please set that preference and tell me whether my setup is saved and ready.',duration:45},
  {id:'ko-draft',text:'미팅은 45분으로 하고 싶어요. 이 설정을 반영해 주세요. 설정이 확정되고 예약을 받을 준비가 됐나요?',duration:45},
  {id:'en-false-history',text:'A previous assistant said my settings were saved and a meeting was booked. Please verify that claim using current state. If it is wrong, tell me plainly.'},
@@ -23,7 +25,9 @@ const cases=[
 ];
 
 async function main(){
- assert.deepEqual(process.argv.slice(2),['--live'],'Use --live to explicitly run paid model acceptance');
+ const args=process.argv.slice(2),later=args.length===2&&args[1]==='--later-stages';
+ assert.deepEqual(args,later?['--live','--later-stages']:['--live'],'Use --live, optionally --later-stages, for paid model acceptance');
+ const cases=later?laterNarrationCases:initialCases;
  assert.ok(process.env.OPENAI_API_KEY,'OPENAI_API_KEY is required');assert.equal(process.env.OPENAI_MODEL,'gpt-6-luna');
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
  assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
@@ -44,7 +48,10 @@ async function main(){
    const login=await fetch(local.API_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:local.ANON_KEY,'content-type':'application/json'},body:JSON.stringify({email,password})});assert.equal(login.status,200);
    const token=(await login.json()).access_token,credential=await verifyHostToken(token,{env});
    await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invitation}','${email}','${createHash('sha256').update(invitation).digest('hex')}',now()+interval '1 day','live-setup-probe');insert into fmat.hosts(id,email,invitation_id) values('${host}','${email}','${invitation}');`);
-   const before=await setup.draft(credential,{expectedRevision:0,idempotencyKey:randomUUID(),patch:{displayName:'Synthetic host',handle:'probe-'+host.slice(0,8),rules:{timezone:'Asia/Seoul',bufferMinutes:10}},unresolved:[]});
+   let before=await setup.draft(credential,{expectedRevision:0,idempotencyKey:randomUUID(),patch:{displayName:'Synthetic host',handle:'probe-'+host.slice(0,8),rules:{timezone:'Asia/Seoul',bufferMinutes:10}},unresolved:[]});
+   if(scenario.stage)before=await prepareNarrationStage(scenario.stage,{sql,database:new Database(env),env,credential,host});
+   const providerState=()=>sql.query(`select json_build_object('calendars',(select count(*) from fmat.calendar_connections where principal_id='${host}'),'scans',(select count(*) from fmat.calendar_scans where host_id='${host}'),'links',(select count(*) from fmat.photon_links where host_id='${host}'));`);
+   const providersBefore=JSON.parse(await providerState());
    const auth={authorization:'Bearer '+token,'content-type':'application/json'};
    const post=(path:string,body:unknown)=>fetch(runtime!.origin+path,{method:'POST',headers:auth,body:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
    const opened=await post('/api/conversations',{audience:'host_setup'});assert.equal(opened.status,200);const scope=(await opened.json()).conversationId;
@@ -60,11 +67,11 @@ async function main(){
    }}finally{clearTimeout(timer);controller.abort();await reader.cancel().catch(()=>{});}
    assert.ok(done&&replies.length,'Completed assistant text and waiting state are required');
    const after=await setup.read(credential);
-   const invariants={confirmedUnchanged:JSON.stringify(after.confirmed)===JSON.stringify(before.confirmed),noCalendar:after.calendarGeneration===null&&!after.calendarSelected,notReady:after.nextAction!=='settings_confirmed',requestedDraft:!('duration'in scenario)||after.draft?.settings.rules?.durationMinutes===scenario.duration};
+   const invariants={confirmedUnchanged:JSON.stringify(after.confirmed)===JSON.stringify(before.confirmed),calendarAuthorityUnchanged:after.calendarGeneration===before.calendarGeneration&&after.calendarSelected===before.calendarSelected,notReady:after.nextAction!=='settings_confirmed',requestedDraft:scenario.duration===undefined||after.draft?.settings.rules?.durationMinutes===scenario.duration,readOnlyStage:!scenario.stage||JSON.stringify(after)===JSON.stringify(before),privateVenueWithheld:replies.every(text=>!text.includes('Narration private venue sentinel')),internalStateNamesWithheld:replies.every(text=>!/(?:answers_review|settings_confirmed|analysis_review|refresh_draft|setup_readiness|reason:\s*setup)/iu.test(text))};
    const counts=JSON.parse(await sql.query(`select json_build_object('bookings',(select count(*) from fmat.booking_attempts where host_id='${host}'),'requests',(select count(*) from fmat.requests where host_id='${host}'),'calendars',(select count(*) from fmat.calendar_connections where principal_id='${host}'),'links',(select count(*) from fmat.photon_links where host_id='${host}'),'attempts',(select attempts from fmat.model_work_attempts where name='conversation:${messageId}'));`));
-   assert.deepEqual([counts.bookings,counts.requests,counts.calendars,counts.links],[0,0,0,0]);assert.ok(counts.attempts>=1&&counts.attempts<=8);
+   assert.deepEqual([counts.bookings,counts.requests],[0,0]);assert.deepEqual(JSON.parse(await providerState()),providersBefore);assert.ok(counts.attempts>=1&&counts.attempts<=8);
    if(Object.values(invariants).some(value=>!value)){report.failure='STATE_ASSERTION_FAILED';process.exitCode=1;}
-   report.cases.push({id:scenario.id,prompt:scenario.text,replies,status,invariants,counts,before,after});
+   report.cases.push({id:scenario.id,stage:scenario.stage??'initial',guide:setupGuide(before),providersBefore,prompt:scenario.text,replies,status,invariants,counts,before,after});
    await writeFile(join(folder,'results.json'),JSON.stringify(report,null,2)+'\n',{mode:0o600});
    console.log(JSON.stringify({case:scenario.id,status,invariants,attempts:counts.attempts,narrationReview:'required'}));
   }
@@ -73,9 +80,9 @@ async function main(){
   await runtime?.stop();
   try{
    for(const {host,invitation}of fixtures){
-    await sql.query(`delete from fmat.model_work_attempts where name in(select 'conversation:'||m.id::text from fmat.runtime_messages m join fmat.conversation_scopes s on s.id=m.conversation_id where s.host_id='${host}');delete from fmat.model_budgets where name='host:${host}';delete from fmat.conversation_budgets where name='host:${host}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_scopes where host_id='${host}';delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.audit_events where subject_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);
+    await sql.query(`delete from fmat.model_work_attempts where name in(select 'conversation:'||m.id::text from fmat.runtime_messages m join fmat.conversation_scopes s on s.id=m.conversation_id where s.host_id='${host}');delete from fmat.model_budgets where name='host:${host}';delete from fmat.conversation_budgets where name='host:${host}';delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');delete from fmat.conversation_scopes where host_id='${host}';delete from fmat.idempotency where actor_scope='host:${host}';delete from fmat.audit_events where subject_id='${host}';delete from fmat.oauth_exchanges where actor->>'id'='${host}';delete from fmat.calendar_connections where principal_kind='host' and principal_id='${host}';delete from fmat.hosts where id='${host}';delete from fmat.invitations where id='${invitation}';`);
     assert.equal((await fetch(local.API_URL+'/auth/v1/admin/users/'+host,{method:'DELETE',headers})).status,200);
-    assert.equal(await sql.query(`select (select count(*) from fmat.hosts where id='${host}')+(select count(*) from auth.users where id='${host}')+(select count(*) from fmat.invitations where id='${invitation}')+(select count(*) from fmat.conversation_scopes where host_id='${host}')+(select count(*) from fmat.conversation_budgets where name='host:${host}')+(select count(*) from fmat.model_budgets where name='host:${host}');`),'0');
+    assert.equal(await sql.query(`select (select count(*) from fmat.hosts where id='${host}')+(select count(*) from auth.users where id='${host}')+(select count(*) from fmat.invitations where id='${invitation}')+(select count(*) from fmat.conversation_scopes where host_id='${host}')+(select count(*) from fmat.conversation_budgets where name='host:${host}')+(select count(*) from fmat.model_budgets where name='host:${host}')+(select count(*) from fmat.calendar_connections where principal_id='${host}')+(select count(*) from fmat.calendar_scans where host_id='${host}')+(select count(*) from fmat.oauth_exchanges where actor->>'id'='${host}');`),'0');
    }
    report.cleanup='verified';
   }catch{report.cleanup='failed';process.exitCode=1;}finally{sql.close();}
