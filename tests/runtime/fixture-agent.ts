@@ -23,6 +23,15 @@ const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMess
     }[lastUserMessage??''];
     if(providerFailure)throw new APICallError({message:'synthetic-private-provider-detail',url:'https://api.openai.com/v1/responses',requestBodyValues:{},statusCode:providerFailure.status,isRetryable:providerFailure.status===429,responseBody:JSON.stringify({error:{message:'synthetic-private-provider-detail',code:providerFailure.code}})});
     if(lastUserMessage==='setup-provider-refusal')return 'I cannot provide a setup suggestion.';
+    if(lastUserMessage==='yes'){
+      const prefix=`setup-confirmation-${userMessageCount}-`,current=toolResults.filter(result=>result.id.startsWith(prefix));
+      if(current.some(result=>result.isError))return 'Confirm the exact current settings in the protected review.';
+      const state=current.at(-1)?.output as {revision:number}|undefined;
+      // Deliberately overinterpret bare assent. Production tool validation must
+      // reject this authority claim even when a current review already exists.
+      return {toolCalls:[{id:prefix+randomUUID(),name:state?'update_setup_draft':'read_context',input:state?
+        {expectedRevision:state.revision,patch:{displayName:'Unauthorized confirmation'},unresolved:[],confirmed:true}:{context:'setup'}}]};
+    }
     if(lastUserMessage==='recovery-archive-fixture'){
       const current=toolResults.filter(result=>result.id.startsWith('archive-page-'));
       if(current.some(result=>result.isError))return 'Archive tool failed.';

@@ -33,6 +33,7 @@ test('Calendar choices use fresh permissions and recheck current Auth/grant afte
     await assert.rejects(service.select(credential,{...selection,bookingCalendarId:'read'}),code('CALENDAR_ACCESS_INVALID'));
     role='reader';await assert.rejects(service.select(credential,selection),code('CALENDAR_ACCESS_INVALID'));role='owner';
     const saved=await service.select(credential,selection);assert.equal(saved.saved,true);assert.equal(saved.rulesVersion,catalog.rulesVersion+1);
+    assert.deepEqual(JSON.parse(await sql.query(`select json_build_object('conflictCalendarIds',conflict_calendar_ids,'bookingCalendarId',booking_calendar_id) from fmat.hosts where id='${host}';`)),{conflictCalendarIds:['read'],bookingCalendarId:'write'},'Duplicate display names cannot replace the exact selected calendar IDs');
     await assert.rejects(service.select(credential,selection),code('STALE_REVISION'));
     const beforeForgedCatalog=listCalls;
     await assert.rejects(service.select(credential,{...selection,rulesVersion:saved.rulesVersion,verifiedCalendars:[{id:'read',accessRole:'owner'}]}));

@@ -46,6 +46,9 @@ export async function verifySharedSetupReview(input:{sql:LocalSql;database:Datab
   // suggestion, so a later private turn can revise it without overriding a choice.
   state=await setup.draft(credential,{expectedRevision:state.revision,idempotencyKey:randomUUID(),patch:{displayName:'Shared setup',handle:'shared-'+host.slice(0,8),rules:{meetingMode:'either',locationPolicy:'preferred',locations:['Library lounge'],travelMode:'TRANSIT',travelBufferMinutes:20}},unresolved:[]});
   assert.ok(state.review);
+  const beforeAssent=state;
+  assert.equal(await turn('yes'),'Confirm the exact current settings in the protected review.');
+  assert.deepEqual(await setup.read(credential),beforeAssent,'Bare private-channel assent cannot confirm a pending review or change its draft, even when the model asks');
   const confirmation=(value:typeof state)=>({expectedRevision:value.revision,draftRevision:value.review!.draftRevision,reviewRevision:value.review!.revision,rulesVersion:value.rulesVersion,calendarGeneration:value.calendarGeneration!,confirmed:true as const,idempotencyKey:randomUUID()});
   const oldReview=confirmation(state),before=state;
   assert.match(await turn(setupDoubleWrite),/operation was rejected/);

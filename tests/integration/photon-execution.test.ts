@@ -171,11 +171,11 @@ globalThis.fetch=async(input,init)=>{
   // Finish these additional replies through the real ordered worker so the
   // following unlink test still pauses its own reply at provider preflight.
   const sharedReplyIds=new Set<string>();
-  for(let n=0;n<7;n++)assert.equal((await dispatchPhotonReplies(db,env,{async send(route,recipient,_text,id,authorize){
+  for(let n=0;n<8;n++)assert.equal((await dispatchPhotonReplies(db,env,{async send(route,recipient,_text,id,authorize){
    await authorize();assert.equal(route.spaceId,'any;-;'+phone);assert.equal(recipient,phone);assert.ok(!sharedReplyIds.has(id));sharedReplyIds.add(id);
    return {status:'delivered',providerReference:'fixture:'+id};
   },async reconcile(){assert.fail('fresh fixture replies should not need reconciliation');}})).claimed,1);
-  assert.equal(sharedReplyIds.size,7);
+  assert.equal(sharedReplyIds.size,8);
   await verifySetupIsolation({sql,db,env,local,host,credential,token,scope,origin:runtime.origin,service,async privateTurn(sender,text,otherScope){
    const key=randomUUID();await delay(5);assert.equal((await photonWebhook(request(key,text,sender),{env,database:db})).status,200);
    assert.equal((await dispatchPhotonInputs(db,env)).accepted,1);assert.equal((await dispatch()).status,200);await settled(otherScope);
