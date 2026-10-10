@@ -25,6 +25,14 @@ export async function verifyBookingDelivery(database:Database,baseEnv:NodeJS.Pro
  try{
   const rows: {id:string;requestId:string;audience:string;jobId:string}[]=JSON.parse(await sql.query(`select jsonb_agg(jsonb_build_object('id',o.id,'requestId',r.id,'audience',o.audience,'jobId',j.id) order by r.created_at,r.id,o.audience) from fmat.requests r join fmat.outbox o on o.payload->>'requestId'=r.id::text join fmat.jobs j on j.payload->>'outboxId'=o.id::text where r.host_id='${hostId}' and r.status='booked' and j.kind='delivery';`));
   assert.equal(rows.length,10);
+  const recipients: {requestId:string;audience:string;email:string;expected:string}[]=JSON.parse(await sql.query(`select jsonb_agg(jsonb_build_object('requestId',r.id,'audience',o.audience,'email',o.recipient->>'email','expected',case o.audience when 'host' then h.email when 'requester' then r.contact_verified_email end) order by r.id,o.audience) from fmat.requests r join fmat.hosts h on h.id=r.host_id join fmat.outbox o on o.payload->>'requestId'=r.id::text where r.host_id='${hostId}' and r.status='booked';`));
+  assert.equal(recipients.length,10);
+  for(const requestId of new Set(recipients.map(row=>row.requestId))){
+   const participants=recipients.filter(row=>row.requestId===requestId);
+   assert.deepEqual(participants.map(row=>row.audience),['host','requester'],'Each booking retains separate participant confirmations');
+   for(const participant of participants){assert.ok(participant.expected);assert.equal(participant.email,participant.expected,'Confirmation targets the verified participant for its audience');}
+   assert.equal(new Set(participants.map(row=>row.email)).size,2,'Distinct fixture participants must not receive each other’s confirmation');
+  }
   const original=await sql.query(`select jsonb_agg(jsonb_build_object('id',id,'status',status,'event',event) order by id)::text from fmat.requests where host_id='${hostId}';`);
   const calendarJobs=await sql.query(`select count(*) from fmat.jobs where kind in ('booking','booking_reconcile') and payload->>'requestId' in(select id::text from fmat.requests where host_id='${hostId}');`);
   // A concurrent duplicate must defer while the original sender still owns its lease.

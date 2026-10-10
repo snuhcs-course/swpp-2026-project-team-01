@@ -23,6 +23,13 @@ export async function verifyBookingDispatch(database:Database,env:NodeJS.Process
   await assert.rejects(evaluator.readForBooking(b.lease,b.target));
   for(const wrong of [{...input,evaluationId:randomUUID()},{...input,checkId:randomUUID()},{...input,revision:input.revision+1},{...input,basis:'f'.repeat(64)},{...input,feasibility:{valid:true}}])await assert.rejects(dispatch.dispatch(a.lease,wrong));
   await assert.rejects(dispatch.dispatch({...a.lease,leaseToken:randomUUID()},input));await assert.rejects(dispatch.dispatch(b.lease,input));
+  const generation=await sql.query(`select generation from fmat.calendar_connections where id='${a.saved.connectionId}';`);
+  await sql.query(`update fmat.calendar_connections set generation=gen_random_uuid() where id='${a.saved.connectionId}';`);
+  try{
+   await assert.rejects(dispatch.dispatch(a.lease,input));
+   assert.equal(await sql.query(`select phase from fmat.booking_attempts where id='${a.saved.attemptId}';`),'prepared','A replacement grant cannot use old provider validation');
+   assert.equal(await sql.query(`select count(*) from fmat.booking_dispatches where attempt_id='${a.saved.attemptId}';`),'0');
+  }finally{await sql.query(`update fmat.calendar_connections set generation='${generation}' where id='${a.saved.connectionId}';`);}
   const legacy={jobId:a.lease.jobId,leaseToken:a.lease.leaseToken,attemptId:a.saved.attemptId,expectedRevision:a.saved.revision,rulesVersion:a.saved.rulesVersion,connectionId:a.saved.connectionId,connectionUpdatedAt:a.saved.connectionUpdatedAt,providerSubject:a.saved.providerSubject,feasibility:{valid:true,checkedAt:new Date().toISOString()}};
   await sql.query(`do $$begin perform public.fmat_command('booking_dispatch','${JSON.stringify({kind:'worker',id:workerId})}','${JSON.stringify(legacy)}');raise exception 'LEGACY_DISPATCH_ACCEPTED';exception when raise_exception then if sqlerrm<>'FEASIBILITY_STALE' then raise;end if;end$$;`);
   await sql.query(`update fmat.requests set requester_agreed_version=null where id='${requestId}';`);await assert.rejects(dispatch.dispatch(a.lease,input));await sql.query(`update fmat.requests set requester_agreed_version=current_proposal_version where id='${requestId}';`);
