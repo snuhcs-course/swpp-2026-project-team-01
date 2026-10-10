@@ -67,7 +67,7 @@ flowchart LR
     J <--> G
 ```
 
-Public skill documents are read-only guidance. Protected operations require their own verified credentials. eve owns conversation execution; the application owns actor/audience-to-session bindings and scheduling authority. A verified provider event must be durably recorded and resolved to a permitted conversation before runtime dispatch. Select the Spectrum bridge or compatible native eve adapter based on evidence, not adapter naming.
+Public skill documents are read-only guidance. Protected operations require their own verified credentials. eve owns conversation execution; the application owns actor/audience-to-session bindings and scheduling authority. A verified provider event must be durably recorded and resolved to a permitted conversation before runtime dispatch. The [verified Photon boundary](03_provider_setup.md#photon) uses the application-owned Next.js receiver, durable inbox/outbox and low-level Spectrum SDK. Eve executes only an already authorized conversation. Native adapter acknowledgment and send-identity limitations rule it out for this boundary; the selected topology requires no separate bridge process.
 
 ## 2. Module boundaries
 

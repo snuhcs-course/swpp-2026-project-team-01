@@ -18,7 +18,7 @@ Deploy from the linked repository root with `vercel deploy --prod --scope justdo
 - Set the application origin and Supabase Auth Site URL to the release origin. Allow `https://release.findmeatime.com/auth/callback` as the application return; the provider-side Supabase Auth callback is a separate URL belonging to the selected project.
 - Register direct Calendar consent at `https://release.findmeatime.com/connections/google/callback` and the approved local counterpart.
 - Generate invitations, public booking links, private `/booking/[bookingId]` continuations and public skill links from the configured origin.
-- Register webhooks against the verified deployed receiver. The native eve Photon route, if selected by the runtime spike, is `/eve/v1/photon`; the AgentMail route is `/api/providers/agentmail` (disabled until registry/consumer readiness). Identify and fence existing consumers before changing delivery routing.
+- The selected webhook routes are `POST /api/providers/photon` and `POST /api/providers/agentmail`. The [Photon adapter decision](#photon) selects the application-owned receiver, durable inbox and outbound intent. Keep receiver registration/activation gated on registry readiness, verified consumer ownership and controlled live acceptance; identify and fence existing consumers before changing delivery routing.
 - Keep the transactional sender `no-reply@findmeatime.com`; the web subdomain does not change the email sender domain.
 
 Verify DNS, TLS, the expected deployment, Auth/Calendar returns, generated links and signed webhook delivery. See [domain operations](../../AGENTS.md#domain-and-dns).
