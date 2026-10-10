@@ -724,6 +724,8 @@ References: [public skill entry](01_backend_architecture.md#public-skill-entry-d
 
 ### Phase 9 — Harden, deploy and close release gates
 
+- [x] Reproduce and fix browser failure cleanup leaving host revision drafts behind when request cascade triggers are disabled. Verify scoped/repeated cleanup, untouched second-host state, the full browser journey and 2,837 post-fixture SQL assertions; preserve both assertion and cleanup errors. [Evidence](05_rebuild_evidence.md#interrupted-browser-revision-cleanup--2026-10-10). Original intermittent browser failures and fresh hosted acceptance remain open.
+
 - [x] Correct the managed-terminal fixture’s ordering assumption after hosted CI observed an active workflow after domain input failure. Poll the actual protected recovery status with a bounded deadline before asserting terminal recovery; retain generation, archive, single-draft and usage assertions. Focused actual-eve regression and both TypeScript targets pass. [Evidence](05_rebuild_evidence.md#managed-terminal-fixture-status-ordering--2026-10-10). Fresh hosted CI acceptance remains open.
 
 - [x] Replace the CLI concurrent-refresh test’s artificial 100 ms success deadline and 40 ms scheduling sleep with observed refresh entry/release, the production lock allowance and an explicit held-lock rejection probe. Preserve uncertain-token and cross-process assertions; pass all 448 app/provider tests and the full static check. [Evidence](05_rebuild_evidence.md#cli-refresh-contention-fixture--2026-10-09). Both hosted source CI runs `37931261182` and `37931254557` completed successfully, including repository, browser and database jobs.

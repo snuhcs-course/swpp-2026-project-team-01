@@ -1,3 +1,4 @@
+import {cleanupBrowserHostSql} from './browser-cleanup.ts';
 import {verifyOvernightHours} from './overnight-hours.ts';
 import {verifyLandingWaitlist} from './landing-waitlist.ts';
 import {verifyReceiptSnapshotOrdering} from './conversation-snapshot-order.ts';
@@ -32,7 +33,7 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
   let log='';child.stdout.on('data',v=>log+=v);child.stderr.on('data',v=>log+=v);
   const sql=new LocalSql();const email=`browser-${randomUUID()}@example.test`,invitation=randomUUID(),requestId=randomUUID();
   const token=randomBytes(32).toString('base64url'),code='ABCDEFGHIJKLMNOP';let userId:string|undefined,callback='';
-  let entry:Awaited<ReturnType<typeof beginIMessageEntry>>|undefined;
+  let entry:Awaited<ReturnType<typeof beginIMessageEntry>>|undefined,primaryFailure:unknown;
   const browser=await chromium.launch();const context=await browser.newContext({viewport:{width:1280,height:900}});const page=await context.newPage();page.setDefaultTimeout(15000);page.setDefaultNavigationTimeout(20000);
   page.on('request',request=>{if(request.url().startsWith(origin+'/auth/callback?code='))callback=request.url();});
   const adminHeaders={apikey:local.SERVICE_ROLE_KEY,authorization:'Bearer '+local.SERVICE_ROLE_KEY,'content-type':'application/json'};
@@ -309,6 +310,7 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     assert.equal(await sql.query(`select count(*) from fmat.waitlist where email='${email}';`),'1');
     await verifyNoHistory(browser,origin,local,sql);
   }catch(error){
+    primaryFailure=error;
     await writeFile('.local/rebuild/photon-browser-failure.log',String(error instanceof Error?error.stack:error));
     // Capture control state without cookies, tokens, URLs or entered content.
     const controls=await page.locator('[aria-label="Private scheduling review"]').evaluateAll(regions=>regions.map(region=>({
@@ -326,7 +328,10 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     await cleanupIMessageEntry(sql).catch(()=>{});
     userId ||= await sql.query(`select id from auth.users where email='${email}';`);
     const cleanupId=userId||'00000000-0000-4000-8000-000000000000';
-    await sql.query(`set session_replication_role=replica;delete from fmat.audit_events where subject_id in(select id::text from fmat.oauth_exchanges where actor->>'id'='${cleanupId}' or actor->>'requestId'='${requestId}');delete from fmat.oauth_exchanges where actor->>'id'='${cleanupId}' or actor->>'requestId'='${requestId}';delete from fmat.conversation_model_receipts where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.conversation_model_usage where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.runtime_messages where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.conversation_generations where conversation_id in(select id from fmat.conversation_scopes where host_id='${cleanupId}');delete from fmat.conversation_scopes where host_id='${cleanupId}';delete from fmat.request_closures where request_id in(select id from fmat.requests where host_id='${cleanupId}');delete from fmat.request_history where request_id in(select id from fmat.requests where host_id='${cleanupId}');delete from fmat.idempotency where actor_scope in(select 'guest:'||token_hash from fmat.requests where host_id='${cleanupId}');delete from fmat.calendar_connections where principal_id='${requestId}';delete from fmat.audit_events where subject_id in(select id::text from fmat.requests where host_id='${cleanupId}');delete from fmat.idempotency where operation='request_create' and input->>'handle'='browser-'||left('${cleanupId}',8);update fmat.requests set candidate_publication_id=null where host_id='${cleanupId}';delete from fmat.proposal_evidence where request_id in(select id from fmat.requests where host_id='${cleanupId}');delete from fmat.proposals where request_id in(select id from fmat.requests where host_id='${cleanupId}');delete from fmat.candidate_publications where request_id in(select id from fmat.requests where host_id='${cleanupId}');delete from fmat.candidate_rankings where request_id in(select id from fmat.requests where host_id='${cleanupId}');delete from fmat.private_review_checks where request_id in(select id from fmat.requests where host_id='${cleanupId}');delete from fmat.preference_decisions where request_id in(select id from fmat.requests where host_id='${cleanupId}');delete from fmat.travel_allowances where request_id in(select id from fmat.requests where host_id='${cleanupId}');delete from fmat.candidate_evaluations where request_id in(select id from fmat.requests where host_id='${cleanupId}');delete from fmat.requests where host_id='${cleanupId}';delete from fmat.idempotency where actor_scope='host:${cleanupId}' or input->>'email'='${email}';delete from fmat.audit_events where subject_id in ('${cleanupId}','${invitation}');delete from fmat.calendar_connections where principal_id in ('${cleanupId}','${requestId}');set session_replication_role=origin;delete from fmat.hosts where id='${cleanupId}';delete from fmat.invitations where id='${invitation}';delete from fmat.waitlist where email='${email}';`).finally(()=>sql.close());
+    await sql.query(cleanupBrowserHostSql(cleanupId,requestId,invitation,email)).catch(error=>{
+      if(primaryFailure!==undefined)throw new AggregateError([primaryFailure,error],'Browser assertion and fixture cleanup both failed');
+      throw error;
+    }).finally(()=>sql.close());
     if(userId)await fetch(local.API_URL+'/auth/v1/admin/users/'+userId,{method:'DELETE',headers:adminHeaders});
   }
 });
