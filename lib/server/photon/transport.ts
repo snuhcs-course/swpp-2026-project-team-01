@@ -54,7 +54,12 @@ export class PhotonTransport {
    // Recheck current application authority after network preflight, immediately
    // before the irreversible provider call. The database lease is already durable.
    await authorize();
-   try{return this.result(await client.messages.sendText(route.spaceId,text,{clientMessageId,enableDataDetection:false,enableLinkPreview:false}),route.spaceId);}
+   try{
+    const message=await client.messages.sendText(route.spaceId,text,{clientMessageId,enableDataDetection:false,enableLinkPreview:false});
+    // Only bind a provider identity to the frozen body actually dispatched.
+    if(message.content?.text!==text)return {status:'uncertain',providerReference:null};
+    return this.result(message,route.spaceId);
+   }
    catch(error){
     // A repeated durable ID proves acceptance, not device delivery. Never
     // generate another ID or echo provider errors (which can contain code text).
@@ -83,7 +88,13 @@ export class PhotonTransport {
  async reconcile(route:PhotonRoute,reference:string|null):Promise<SendResult>{
   requireMessagingEnvironment(this.env);
   if(!reference)return {status:'uncertain',providerReference:null};
-  try{return await this.withClient(route.line,async client=>this.result(await client.messages.get(reference),route.spaceId));}
+  try{return await this.withClient(route.line,async client=>{
+   const message=await client.messages.get(reference);
+   const result=message.guid===reference?this.result(message,route.spaceId):null;
+   // Preserve the persisted identity even when a read is inconclusive. An
+   // unrelated provider response cannot replace it or authorize another send.
+   return result?.providerReference===reference?result:{status:'uncertain',providerReference:reference};
+  });}
   catch{return {status:'uncertain',providerReference:reference};}
  }
 }

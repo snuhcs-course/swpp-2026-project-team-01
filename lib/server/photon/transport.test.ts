@@ -6,7 +6,7 @@ import {PhotonTransport,type PhotonClient} from './transport.ts';
 import {LinkProof,browserProof,proofHash} from './proof.ts';
 import {ApplicationError} from '../errors.ts';
 const phone='+15550100001',spaceId='any;-;'+phone;
-const message=(overrides:Partial<Message>={}):Message=>({guid:'fixture-message',chatGuids:[spaceId],isFromMe:true,isDelivered:false,sendErrorCode:0,...overrides}) as Message;
+const message=(overrides:Partial<Message>={}):Message=>({guid:'fixture-message',content:{text:'Synthetic code'},chatGuids:[spaceId],isFromMe:true,isDelivered:false,sendErrorCode:0,...overrides}) as Message;
 const env={PHOTON_PROJECT_ID:randomUUID(),PHOTON_PROJECT_SECRET:'synthetic-secret'};
 const issuer:typeof fetch=async(url,init)=>{assert.equal(String(url),`https://spectrum.photon.codes/projects/${env.PHOTON_PROJECT_ID}/imessage/tokens`);assert.equal(init?.redirect,'error');return Response.json({succeed:true,data:{type:'shared',token:'synthetic-token',expiresIn:300}});};
 function fixture(){
@@ -93,4 +93,22 @@ test('native sharing retains the saved dedicated line and fails closed when it d
  assert.deepEqual(await transport.shareContact(route,phone,async()=>{}),{status:'accepted'});
  await assert.rejects(transport.shareContact({line:'+15550100004',spaceId},phone,async()=>{}),{code:'PROVIDER_UNAVAILABLE'});
  assert.equal(shares,1);
+});
+
+
+test('send never binds a provider identity for a different body, sender or chat',async()=>{
+ const f=fixture(),route={line:'shared',spaceId};
+ for(const overrides of [{content:{text:'Different message'}},{content:undefined},{isFromMe:false},{chatGuids:['any;-;+15550100002']},{guid:''}] as Partial<Message>[]){
+  f.client.messages.sendText=async()=>message(overrides);
+  assert.deepEqual(await f.transport.send(route,phone,'Synthetic code',randomUUID(),async()=>{}),{status:'uncertain',providerReference:null});
+ }
+ assert.equal(f.closed(),5);
+});
+test('reconciliation retains the original reference when the provider returns unrelated or incomplete evidence',async()=>{
+ const f=fixture(),route={line:'shared',spaceId};let reads=0;
+ for(const overrides of [{guid:'different-message'},{guid:''},{isFromMe:false},{chatGuids:['any;+;group']}] as Partial<Message>[]){
+  f.client.messages.get=async reference=>{assert.equal(reference,'fixture-message');reads++;return message({...overrides,isDelivered:true});};
+  assert.deepEqual(await f.transport.reconcile(route,'fixture-message'),{status:'uncertain',providerReference:'fixture-message'});
+ }
+ assert.equal(reads,4);assert.equal(f.calls.length,0);assert.equal(f.closed(),4);
 });

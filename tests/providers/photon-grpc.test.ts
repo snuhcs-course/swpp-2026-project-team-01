@@ -14,8 +14,8 @@ test('installed Photon SDK serializes frozen identity, disables resend and recon
  const definition=loadSync(['photon/imessage/v1/message_service.proto','photon/imessage/v1/address_service.proto'],{includeDirs:[root]});
  const services=loadPackageDefinition(definition) as unknown as {photon:{imessage:{v1:{MessageService:{service:ServiceDefinition};AddressService:{service:ServiceDefinition}}}}};
  const server=new Server(),phone='+15550100001',spaceId='any;-;'+phone,reference=randomUUID(),sent:Record<string,unknown>[]=[];
- let unavailable=false,reads=0,authorized=0,closed=0;
- const message=(delivered:boolean)=>({guid:reference,content:{text:'Synthetic wire message'},dateCreated:{seconds:Math.floor(Date.now()/1000),nanos:0},chatGuids:[spaceId],isFromMe:true,isDelivered:delivered,sendErrorCode:0});
+ let unavailable=false,reads=0,authorized=0,closed=0,wrongReference=false,wrongBody=false;
+ const message=(delivered:boolean)=>({guid:wrongReference?'unrelated-message':reference,content:{text:wrongBody?'Unrelated body':'Synthetic wire message'},dateCreated:{seconds:Math.floor(Date.now()/1000),nanos:0},chatGuids:[spaceId],isFromMe:true,isDelivered:delivered,sendErrorCode:0});
  const check=(call:ServerUnaryCall<Record<string,unknown>,unknown>)=>assert.deepEqual(call.metadata.get('authorization'),['Bearer synthetic-sdk-token']);
  server.addService(services.photon.imessage.v1.AddressService.service,{
   getIMessageAvailability(call:ServerUnaryCall<Record<string,unknown>,unknown>,done:sendUnaryData<unknown>){check(call);assert.equal(call.request.address,phone);done(null,{isAvailable:true});},
@@ -37,10 +37,15 @@ test('installed Photon SDK serializes frozen identity, disables resend and recon
   assert.deepEqual(await transport.send(route,phone,'Synthetic wire message',id,async()=>{authorized++;}),{status:'accepted',providerReference:reference});
   assert.equal(sent.length,1);assert.equal(sent[0].chatGuid,spaceId);assert.equal(sent[0].clientMessageId,id);assert.equal(sent[0].text,'Synthetic wire message');assert.equal(sent[0].enableDataDetection,false);assert.equal(sent[0].enableLinkPreview,false);
   assert.deepEqual(await transport.reconcile(route,reference),{status:'delivered',providerReference:reference});assert.equal(reads,1);assert.equal(sent.length,1,'reconciliation is read-only');
-  unavailable=true;const uncertainId=randomUUID();
+  wrongReference=true;
+  assert.deepEqual(await transport.reconcile(route,reference),{status:'uncertain',providerReference:reference});
+  assert.equal(reads,2);assert.equal(sent.length,1);
+  wrongReference=false;wrongBody=true;
+  assert.deepEqual(await transport.send(route,phone,'Synthetic wire message',randomUUID(),async()=>{authorized++;}),{status:'uncertain',providerReference:null});
+  wrongBody=false;unavailable=true;const uncertainId=randomUUID();
   assert.deepEqual(await transport.send(route,phone,'Synthetic uncertain send',uncertainId,async()=>{authorized++;}),{status:'uncertain',providerReference:null});
-  assert.equal(sent.length,2,'retryable gRPC failure cannot dispatch twice');assert.equal(sent[1].clientMessageId,uncertainId);
-  assert.deepEqual(await transport.reconcile(route,null),{status:'uncertain',providerReference:null});assert.equal(reads,1);assert.equal(sent.length,2);assert.equal(closed,3);
+  assert.equal(sent.length,3,'retryable gRPC failure cannot dispatch twice');assert.equal(sent[2].clientMessageId,uncertainId);
+  assert.deepEqual(await transport.reconcile(route,null),{status:'uncertain',providerReference:null});assert.equal(reads,2);assert.equal(sent.length,3);assert.equal(closed,5);
  }finally{server.forceShutdown();}
 });
 
