@@ -3895,3 +3895,10 @@ The Phase 3 single-workspace implementation item is now reconciled against each 
 | Existing workspace authority is preserved | Full browser coverage includes admission, Google-only login contract, callback replay/wrong-browser denial, private/shared isolation, revoked conversation access and account-free request cookies. SQL and runtime checks pass after fixture cleanup. No focus target, credential or draft is added to browser storage. |
 
 This closes the stated single-page implementation/mobile-keyboard requirement, not the complete Phase 3 exit. CSS magnification and Chromium viewport tests do not establish native browser zoom or actual iPhone Safari/iMessage behavior. Live Google consent, actual device and remaining provider/client acceptance stay explicitly open in the implementation plan.
+
+
+## Production workspace read deadlines — 2026-10-10
+
+Source `7da4677961a51697eb7fcbf1c49c72a5179bdf50` is deployed as `dpl_7CLFxnsFqS3DoTQQxvmJojhjAtCD` at `https://findmeatime-release-1o1wcj0p9-justdodos-projects.vercel.app`. The clean Git archive verified 1,470 blobs and the 1,106 uploaded regular files contained none of 13 checked local secret values. Vercel CLI 62.2.0 independently resolved the intended `justdodos-projects/findmeatime-release` project before deployment.
+
+Independent inspection confirmed Ready/production; protected health reported reachable with `releaseReady: false`. After promotion, independent inspection of `https://release.findmeatime.com` confirmed that exact Ready deployment. All 38 production HTTP checks pass: 15 runtime/access, 10 setup/handle, six recovery and seven provider checks. No database migration, provider configuration, real recipient message or Calendar event was involved. Live Google/device/channel/named-client gates remain open, and unrelated competitor-research changes remain outside the deployment.
