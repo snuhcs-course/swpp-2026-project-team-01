@@ -236,6 +236,8 @@ The [contact-delivery assertion audit](../documentations/technical_specification
 
 The [booking assertion audit](../documentations/technical_specification/12_legacy_booking_audit.md) maps all 24 retired durable adapter, handler and runtime tests. Added worker tests reject injected job context before I/O and retain the trusted lease, saved provider identity and SQL fingerprint in minimized recovery evidence. Actual booking integration rejects five corrupt persisted request/attempt bindings. Availability integration tests local receipt scope through the replacement RPC and resulting free windows while changing current host calendar selections; the confirmed booking remains immutable. Run both integrations sequentially, then the complete SQL suite. These controlled fixtures do not prove live Google or participant delivery acceptance.
 
+The [invitation CLI assertion audit](../documentations/technical_specification/15_legacy_invitation_cli_audit.md) maps all nine retired operator tests to current configuration, private artifact, issuance and durable-delivery checks. It explicitly distinguishes SQL dispatch records from retired local receipts and RFC 4648 derivation from the old random alphabet. Real mailbox acceptance remains open.
+
 The pre-reconstruction command inventory comes from `5c305d9^:package.json`, `5c305d9^:deno.json` and `5c305d9^:.github/workflows/check.yml`. Commit `5c305d9` removed the legacy runtime before this retrospective mapping; this table does not claim that mapping preceded removal. It identifies current owners and remaining evidence rather than requiring the retired Deno/Fly implementation to run.
 
 | Retired command or CI entry | Current executable checks | Behavior and boundary |
