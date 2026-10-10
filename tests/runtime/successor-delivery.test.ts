@@ -37,6 +37,8 @@ globalThis.fetch=async(url,init)=>{
   String(url).endsWith('/rpc/fmat_conversation_tool')&&params.p_operation==='setup_draft'?${JSON.stringify(toolMarker)}:
   String(url).endsWith('/rpc/fmat_runtime_message')&&params.p_operation==='settle'&&params.p_input?.status==='completed'&&existsSync(${JSON.stringify(toolMarker)})?${JSON.stringify(settleMarker)}:null;
  if(faultMarker&&!existsSync(faultMarker)){
+  // Make the post-commit/pre-ack window observable even on a fast runner.
+  if(faultMarker===${JSON.stringify(settleMarker)})await new Promise(resolve=>setTimeout(resolve,250));
   writeFileSync(faultMarker,'committed acknowledgment lost');
   return Response.json({message:'synthetic acknowledgment loss'},{status:503});
  }
@@ -82,7 +84,15 @@ globalThis.fetch=async(url,init)=>{
   assert.equal((await fetch(runtime.origin+'/api/internal/conversations/dispatch',{method:'POST'})).status,401);
   const responses=await Promise.all([dispatch(),dispatch()]);for(const response of responses)assert.equal(response.status,200);
   const reports=await Promise.all(responses.map(response=>response.json()));assert.equal(reports.reduce((n,r)=>n+r.claimed,0),1);assert.equal(reports.reduce((n,r)=>n+r.sent,0),0,'accepted creation acknowledgment was lost rather than reported sent');
-  await settle(row.id,'completed');await access(marker);await access(toolMarker);await access(settleMarker);
+  await settle(row.id,'completed');await access(marker);await access(toolMarker);
+  // SQL visibility precedes receipt of the RPC response in the child process.
+  // Wait for the injected lost acknowledgment as a separate required event.
+  for(let n=0;n<100;n++){
+   try{await access(settleMarker);break;}catch(error){
+    if((error as NodeJS.ErrnoException).code!=='ENOENT'||n===99)throw error;
+    await delay(100);
+   }
+  }
   const current=await setup.read(credential);assert.equal(current.revision,saved.revision+1);assert.equal(current.draft?.settings.rules?.preferences,'Recovered preference');assert.equal(current.draft?.settings.displayName,'Existing draft');
   const newRuntime=await sql.query(`select runtime_session_id from fmat.conversation_scopes where id=${q(scope)};`);assert.ok(newRuntime&&newRuntime!==oldRuntime);
   assert.equal(await sql.query(`select count(*) from fmat.conversation_generations where conversation_id=${q(scope)};`),'2');
