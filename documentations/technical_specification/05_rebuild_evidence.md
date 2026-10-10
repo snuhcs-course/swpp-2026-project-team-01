@@ -3928,3 +3928,14 @@ Fresh checks pass: 18 Calendar/guide unit tests, the expanded Calendar analysis 
 Source `e6da3dfe9f820879ab3a76dacc2d9dcaafef2d9d` is deployed as `dpl_22PfE7hHroNUVHhii3Sn4BuUf5if` at `https://findmeatime-release-b492v79tt-justdodos-projects.vercel.app`. The clean Git archive verified 1,470 blobs; 1,106 uploaded regular files had zero matches against 13 checked secret values. Vercel CLI 62.2.0 independently resolved the intended `justdodos-projects/findmeatime-release` project before deployment.
 
 Independent inspection confirmed Ready/production, and protected health reported reachable with `releaseReady: false`. Following promotion, `https://release.findmeatime.com` resolved to that exact Ready deployment. All 38 production HTTP checks pass (15 runtime/access, 10 setup/handle, six recovery and seven provider). No migration, provider configuration, real recipient message or Calendar event was involved. The unrelated competitor-research edit remains excluded; live Google, device, channel and named-client acceptance remain open.
+
+
+## Google login redirect fix verification — 2026-10-10
+
+After the operator reported fixing Google login, the fresh production command `npm run probe:google-login -- --origin https://release.findmeatime.com --project mriseqztcwmezvtawnbo` returned `initialGoogleRedirect: "passed"` with `liveLoginVerified: false`. The previous `GOOGLE_REDIRECT_URI_MISMATCH` is no longer reproduced.
+
+An independent Aside browser journey opened the production landing page, followed **Open your host workspace**, and selected **Continue with Google**. Google displayed the expected Supabase application account chooser; selecting the remembered personal account reached Google's password challenge. Aside's Google Accounts check returned no signed-in account. Operator sign-in was requested in the browser without requesting credentials in chat. Consent, the authenticated application return and subsequent live Calendar operations remain unverified.
+
+The implementation plan and current provider setup guidance now distinguish the verified initial redirect correction from the remaining login acceptance. Earlier dated failure evidence is preserved as history. This update changes documentation only; no runtime, schema or provider configuration was modified, and no deployment is required.
+
+A second fresh login attempt after the operator requested an Aside retry again reached the signed-out account chooser. The only local Aside profile was checked; an Aside account session does not establish a signed-in Google website session. Documentation validation passes for 1,251 local links across 182 Markdown files, and `git diff --check` passes.
