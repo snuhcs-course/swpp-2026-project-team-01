@@ -20,7 +20,19 @@ test('managed terminal diagnostic model uses real recovery, archive and draft bo
   const opened=await post('/api/conversations',{audience:'request_shared',requestId:request});assert.equal(opened.status,200);scope=(await opened.json()).conversationId;
   async function send(text:string,status:string){const response=await post(`/api/conversations/${scope}/messages`,{text,clientId:randomUUID()});assert.ok([200,202].includes(response.status));const {messageId}=await response.json();for(let n=0;n<200;n++){if(await sql.query(`select status from fmat.runtime_messages where id='${messageId}';`)!=='pending')break;await delay(100);}assert.equal(await sql.query(`select status from fmat.runtime_messages where id='${messageId}';`),status);}
   await send('managed-terminal-archive','completed');await send('managed-terminal-authentication','failed');
-  const status=await fetch(runtime.origin+`/api/conversations/${scope}/recovery`,{headers});assert.equal(status.status,200);assert.equal((await status.json()).state,'recovery_required');
+  // Input failure is settled before eve releases its session address and
+  // persists the terminal stream tail. Wait for the actual recovery boundary;
+  // never infer terminality from the domain message's earlier failed status.
+  let terminalState='active';const terminalDeadline=Date.now()+20_000;
+  while(Date.now()<terminalDeadline){
+   const status:Response=await fetch(runtime.origin+`/api/conversations/${scope}/recovery`,{headers,signal:AbortSignal.timeout(10_000)});
+   assert.equal(status.status,200);const observed=await status.json();assert.equal(observed.generation,0);
+   terminalState=observed.state;
+   assert.ok(['active','unavailable','recovery_required'].includes(terminalState),terminalState);
+   if(terminalState==='recovery_required')break;
+   await delay(100);
+  }
+  assert.equal(terminalState,'recovery_required','The bound workflow must have verified terminal evidence before recovery');
   const recovery=await post(`/api/conversations/${scope}/recovery`,{expectedGeneration:0,idempotencyKey:randomUUID()});assert.equal(recovery.status,200);assert.equal((await recovery.json()).generation,1);
   await send('managed-terminal-recover','completed');
   assert.equal(await sql.query(`select count(*) from fmat.request_detail_reviews where request_id='${request}';`),'2');
