@@ -105,6 +105,8 @@ References: [repository change workflow](../../AGENTS.md#documentation-and-speci
 
 ### Phase 1 — Prove the runtime and settle deployment decisions
 
+- [x] Deploy assistant phase continuity from `7cf4a39`, verify the exact Ready release alias and all 38 production HTTP checks. [Rollout](05_rebuild_evidence.md#production-assistant-phase-continuity--2026-10-10). Full narration and live release gates remain open.
+
 - [x] Restore assistant commentary/final phase continuity through the bounded model wrapper; reproduce the dropped metadata with two regressions and verify actual installed-adapter follow-up serialization, 577 application/provider tests, typechecks and builds. [Evidence](05_rebuild_evidence.md#assistant-phase-continuity-regression--2026-10-10). This does not close free-form repetition or live acceptance gates.
 
 - [x] Complete provider/runtime task 1.1: pin eve/chatbot reference revisions and runtime dependencies, verify direct OpenAI structured calls, add a CI browser/shared-contract import boundary check, and verify independent builds plus 15 composed production health/access checks. [Evidence](05_rebuild_evidence.md#runtime-reference-and-client-boundary-acceptance--2026-10-09). Managed recovery and live provider/client gates remain open.
