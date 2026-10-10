@@ -509,3 +509,8 @@ Private answer acceptance adds `photon_setup_answers.test.sql` and `photon-setup
 ### Assistant phase continuity
 
 `lib/server/models/execution.test.ts` verifies that generated and streaming calls preserve only recognized assistant-text phases, with unchanged encrypted-reasoning continuity and stripped user/unknown metadata. An installed `eve/models/openai` + AI SDK test returns synthetic commentary/final messages, replays the resulting response messages through `generateText`, and inspects the next actual Responses request body. Both phases must survive without enabling remote response history or storage. HTTP is substituted and no real model request is sent. These checks prove history serialization, not absence of repeated model prose.
+
+
+### Public landing waitlist
+
+The browser-access suite begins at `/` without a session and runs `landing-waitlist.ts`. It verifies product/host entry, native email validation, keyboard submission, a real local waitlist commit with its browser response lost, exact retry identity, reload/case-normalized deduplication, no Auth user/invitation/host creation and no credential cookie. The landing page must request no authenticated state. It captures 320/390/1280px and 200% CSS magnification layouts under reduced motion; screenshots remain ignored. The same suite later submits the shared form from `/app`. Synthetic enrollment and idempotency rows are cleaned up. This fixture sends no email and does not establish real invitation delivery or Google login.

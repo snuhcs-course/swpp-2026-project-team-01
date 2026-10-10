@@ -1,4 +1,5 @@
 import {verifyOvernightHours} from './overnight-hours.ts';
+import {verifyLandingWaitlist} from './landing-waitlist.ts';
 import {verifyReceiptSnapshotOrdering} from './conversation-snapshot-order.ts';
 import {verifyConversationRecoveryControls} from './conversation-recovery.ts';
 import {verifyHistoricalBusyReplay} from './conversation-busy-replay.ts';
@@ -38,6 +39,7 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
   await mkdir('.local/rebuild/browser-screenshots',{recursive:true});
   try {
     for(let i=0;i<100;i++){assert.equal(child.exitCode,null,log.slice(-2000));try{if((await fetch(origin+'/api/health')).ok)break;}catch{}await delay(100);}
+    await verifyLandingWaitlist(page,context,origin,sql);
     await page.goto(origin+'/app');await page.getByRole('button',{name:'Continue with Google'}).waitFor();
     assert.equal(await page.getByLabel('Email address').count(),0,'No email login field');
     await page.keyboard.press('Tab');assert.equal(await page.getByRole('link',{name:'Find Me a Time'}).evaluate(e=>e===document.activeElement),true);

@@ -55,6 +55,9 @@ body { margin: 0; background: var(--paper); color: var(--ink); }
 a { color: inherit; }
 a:focus-visible, button:focus-visible, input:focus-visible, legend[tabindex="-1"]:focus-visible { outline: 3px solid var(--primary); outline-offset: 5px; }
 .landing { min-height: 100svh; padding: clamp(24px, 5vw, 72px); display: flex; flex-direction: column; }
+.landing-waitlist { width:min(100%,980px); margin:0 auto 64px; display:grid; grid-template-columns:1fr minmax(0,420px); gap:40px; }
+.landing-waitlist h2 { font-size:clamp(28px,4vw,42px); letter-spacing:-.035em; line-height:1.15; margin:18px 0; }
+@media(max-width:760px) { .landing-waitlist { grid-template-columns:minmax(0,1fr); gap:24px; } }
 .wordmark { display: inline-flex; align-self: flex-start; align-items: center; gap: 14px; font-weight: 650; text-decoration: none; letter-spacing: -.04em; font-size: 22px; }
 .wordmark span { background: var(--accent); border-radius: 50%; width: 34px; height: 34px; display: grid; place-items: center; }
 .intro { margin: auto; padding: 90px 0; width: min(100%, 980px); }

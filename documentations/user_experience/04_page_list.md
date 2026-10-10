@@ -18,7 +18,7 @@ Public visitors enter through `/` or a host's `/{handle}` link. Signed-in hosts 
 
 | ID | Route | Audience and access | Content and main actions |
 |---|---|---|---|
-| P01 | `/` | Public | Product explanation; become a host/sign in; join waitlist; explain invitation-only hosting. Do not show fabricated active booking links. |
+| P01 | `/` | Public | Product explanation; become a host/sign in; submit the account-free waitlist form directly; explain invitation-only hosting. Do not show fabricated active booking links. |
 | P02 | `/auth/sign-in` | Prospective or returning host | Google-only host sign-in and return to the intended safe destination; no email-login form. Show pending, invalid/expired sign-in and retry states. Requesters are not required to visit this page. |
 | P03 | `/app` | Signed-in account; private agent conversation and host operations require admission | Host chat with contextual admission, setup, request selection/review, proposal decisions and settings controls. Resume the permitted conversation and server-derived next action. |
 | P08 | `/[handle]` | Public requester; active host only | Public host identity and conversational intake. Gather contact, purpose, duration, availability, timezone, mode and location. Offer an authorized agent handoff. On accepted request creation, continue at P09. Unavailable handles expose no host-private information. |

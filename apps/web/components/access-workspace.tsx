@@ -1,5 +1,6 @@
 'use client';
 import {cn} from 'cn';
+import {WaitlistForm} from './waitlist-form.tsx';
 import {RetainedConversationDraft} from './retained-conversation-draft.tsx';
 import {hostLoginTarget} from '../lib/host-login-target.ts';
 import {RequesterRecoveryCard,type RecoveryProof} from './requester-recovery.tsx';
@@ -32,7 +33,7 @@ export function HostWorkspace() {
   const [retainedDraft,setRetainedDraft]=useState('');
   const [host,setHost]=useState<HostState|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false);
   const [error,setError]=useState(''),[notice,setNotice]=useState(''),[waitlist,setWaitlist]=useState(false);
-  const [email,setEmail]=useState(''),[name,setName]=useState(''),[code,setCode]=useState('');
+  const [code,setCode]=useState('');
   useEffect(()=>{let active=true;api('host/state').then(data=>{if(active)setHost(hostState.parse(data));}).catch(e=>{if(active&&e.status!==401)setError(e.message);}).finally(()=>{if(active)setLoading(false);});
     if(new URLSearchParams(location.search).get('auth')==='expired'){setError('Google sign-in wasn’t completed or has expired. Continue with Google again in this browser.');const url=new URL(location.href);url.searchParams.delete('auth');history.replaceState(null,'',url.pathname+url.search+url.hash);}
     return()=>{active=false;};},[]);
@@ -40,7 +41,6 @@ export function HostWorkspace() {
     event.preventDefault();setBusy(true);setError('');setNotice('');
     try {
       if(host){setHost(hostState.parse(await api('host/redeem',{code,idempotencyKey:crypto.randomUUID()})));setCode('');}
-      else if(waitlist){await api('waitlist',{email,name,idempotencyKey:crypto.randomUUID()});setNotice('You’re on the list. We’ll be in touch when an invitation is available.');}
       else {const query=new URLSearchParams(location.search),target=hostLoginTarget.safeParse({requestId:query.get('request'),audience:query.get('audience')??'host_private'});const {url}=await api('auth/start',target.success?{target:target.data}:{});window.location.assign(url);return;}
     }catch(e){setError(e instanceof Error?e.message:'Please try again.');}finally{setBusy(false);}
   }
@@ -49,10 +49,10 @@ export function HostWorkspace() {
     <IMessageEntry admitted={host?.admitted??false}/>{!host?.admitted?<p className="eyebrow">A little less back and forth</p>:null}
     <h1>{loading?'Getting your place ready.':host?.admitted?'Welcome to your workspace.':host?'Your invitation, please.':waitlist?'Make room for better meetings.':'Let’s find your time.'}</h1>
     {!host?.admitted?<p className="workspace-description">{host?'Enter the invitation code sent to your verified email. Signing in and host access are separate.':waitlist?'Hosting is opening by invitation. Join the list—no calendar connection needed.':'Sign in to set up your scheduling assistant. Every meeting stays subject to your final approval.'}</p>:null}
-    {loading?<p role="status">Checking your access…</p>:host?.admitted?<><p className="signed-in">Signed in as <strong>{host.email}</strong></p><HostRequestWorkspace onDraftRetained={setRetainedDraft} onAccessLost={draft=>{if(draft)setRetainedDraft(draft);setHost(null);setError('Your conversation access has ended. Sign in again to check your access.');}}/></>:<form onSubmit={submit} className="access-form">
-      {host?<><p className="signed-in">Signed in as <strong>{host.email}</strong></p><label htmlFor="invitation">Invitation code</label><input id="invitation" value={code} onChange={e=>setCode(e.target.value)} autoComplete="off" placeholder="ABCD-EFGH-IJKL-MNOP" maxLength={19} required spellCheck={false}/><p className="field-note">Use the code from your invitation. It stays outside the conversation.</p></>:waitlist?<><label htmlFor="name">Name <span className="optional">(optional)</span></label><input id="name" value={name} onChange={e=>setName(e.target.value)} autoComplete="name" maxLength={200}/><label htmlFor="email">Email address</label><input id="email" type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" maxLength={254} required/><p className="field-note">Use your Google account email for your host invitation.</p></>:<p className="field-note">Use the Google account your invitation was sent to. Calendar access is requested separately.</p>}
-      <button className="primary-button" disabled={busy}>{busy?'One moment…':host?'Use invitation':waitlist?'Join the waitlist':'Continue with Google'}<span aria-hidden="true">↗</span></button>
-      {!host?<button type="button" className="text-button secondary-choice" disabled={busy} onClick={()=>{setWaitlist(!waitlist);setNotice('');setError('');}}>{waitlist?'Already invited? Sign in':'Not invited yet? Join the waitlist'}</button>:null}
+    {loading?<p role="status">Checking your access…</p>:host?.admitted?<><p className="signed-in">Signed in as <strong>{host.email}</strong></p><HostRequestWorkspace onDraftRetained={setRetainedDraft} onAccessLost={draft=>{if(draft)setRetainedDraft(draft);setHost(null);setError('Your conversation access has ended. Sign in again to check your access.');}}/></>:!host&&waitlist?<><WaitlistForm/><button type="button" className="text-button secondary-choice" onClick={()=>{setWaitlist(false);setNotice('');setError('');}}>Already invited? Sign in</button></>:<form onSubmit={submit} className="access-form">
+      {host?<><p className="signed-in">Signed in as <strong>{host.email}</strong></p><label htmlFor="invitation">Invitation code</label><input id="invitation" value={code} onChange={e=>setCode(e.target.value)} autoComplete="off" placeholder="ABCD-EFGH-IJKL-MNOP" maxLength={19} required spellCheck={false}/><p className="field-note">Use the code from your invitation. It stays outside the conversation.</p></>:<p className="field-note">Use the Google account your invitation was sent to. Calendar access is requested separately.</p>}
+      <button className="primary-button" disabled={busy}>{busy?'One moment…':host?'Use invitation':'Continue with Google'}<span aria-hidden="true">↗</span></button>
+      {!host?<button type="button" className="text-button secondary-choice" disabled={busy} onClick={()=>{setWaitlist(true);setNotice('');setError('');}}>Not invited yet? Join the waitlist</button>:null}
     </form>}
     <RetainedConversationDraft text={retainedDraft} onDiscard={()=>setRetainedDraft('')}/>
     {notice?<p className="notice" role="status">{notice}</p>:null}{error?<p className="error" role="alert">{error}</p>:null}
