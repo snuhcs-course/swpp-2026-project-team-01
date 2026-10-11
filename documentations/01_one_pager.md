@@ -31,3 +31,5 @@ Availability alone misses focus time, priorities, and travel. Booking pages leav
 - Only the host's approval of the current proposal authorizes booking.
 - Private calendar details, preferences, and host discussions stay private.
 - Chat, email, mobile, and agent clients share one request state.
+
+The [design principles](04_design_principles.md) guide agent capability parity, suggestion-first preferences, and separate user and administrator CLIs.

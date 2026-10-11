@@ -11,6 +11,7 @@ The [acceptance inventory](technical_specification/07_acceptance_inventory.md) m
 | Document | Purpose |
 |---|---|
 | [One-pager](01_one_pager.md) | Product purpose, target users, problem, solution, and core principles. |
+| [Design principles](04_design_principles.md) | Agent capability parity, suggestion-first preferences, and separate user and administrator CLIs. |
 | [Product requirements](02_product_requirements.md) | Draft release scope, waitlist/invite-only calendar hosting, agent onboarding and booking, requirements, acceptance scenarios, and open decisions. |
 | [User journeys](user_experience/01_user_journeys.md) | End-to-end experiences, skill-prompt entry diagram, interface and decision flows, and MCP OAuth connection and revocation. |
 | [User stories](user_experience/02_user_stories.md) | Actor-focused needs mapped to journeys and existing PRD requirements and acceptance scenarios. |
@@ -34,6 +35,7 @@ documentations/
   01_one_pager.md
   02_product_requirements.md
   03_technical_specification.md
+  04_design_principles.md
   user_experience/
     01_user_journeys.md
     02_user_stories.md
