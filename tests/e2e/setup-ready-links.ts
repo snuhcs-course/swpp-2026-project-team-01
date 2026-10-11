@@ -10,8 +10,8 @@ export async function verifyReadyLinks(page:Page,context:BrowserContext,origin:s
  await page.emulateMedia({reducedMotion:'reduce'});
  for(const width of [320,390,768,1440]){
   await page.setViewportSize({width,height:900});await booking.focus();await expect(booking).toBeInViewport();
-  assert.ok((await booking.boundingBox())!.height>=44);assert.notEqual(await booking.evaluate(e=>getComputedStyle(e).outlineStyle),'none');
-  await page.keyboard.press('Tab');await expect(instructions).toBeFocused();assert.ok((await instructions.boundingBox())!.height>=44);
+  await expect.poll(async()=>(await booking.boundingBox())?.height??0).toBeGreaterThanOrEqual(44);assert.notEqual(await booking.evaluate(e=>getComputedStyle(e).outlineStyle),'none');
+  await page.keyboard.press('Tab');await expect(instructions).toBeFocused();await expect.poll(async()=>(await instructions.boundingBox())?.height??0).toBeGreaterThanOrEqual(44);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:`.local/rebuild/browser-screenshots/readiness-${width}.png`});
  }

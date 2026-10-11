@@ -1,3 +1,4 @@
+import {openPreferenceControls} from './preference-controls.ts';
 import assert from 'node:assert/strict';
 import {writeFile} from 'node:fs/promises';
 import {setupFailureState} from './setup-failure.ts';
@@ -51,8 +52,10 @@ export async function verifyWeeklyPreview(page:Page,setup:Locator,context:Browse
  await page.evaluate(()=>{document.documentElement.style.zoom='';});await page.setViewportSize({width:1280,height:900});
  await start.fill(oldStart);await end.fill(oldEnd);await sunday.setChecked(oldSunday);
  await setup.getByRole('button',{name:'Cancel edit'}).click();
+  await openPreferenceControls(page);
  await expect(setup.getByRole('button',{name:'Edit schedule',exact:true})).toBeFocused();
  const after=await (await context.request.get(origin+'/api/browser/setup/read')).json();assert.deepEqual(after.draft,before.draft,'Cancel preserves the existing draft');
+  await openPreferenceControls(page);
  await setup.getByRole('button',{name:'Edit schedule',exact:true}).click();
  await expect(setup.locator('legend').filter({hasText:/^Your meeting week$/})).toBeFocused();
  await expect(setup.getByLabel('Window start 1',{exact:true})).toHaveValue(oldStart);

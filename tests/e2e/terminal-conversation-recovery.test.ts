@@ -1,3 +1,4 @@
+import {openPreferenceControls} from './preference-controls.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn,execFileSync} from 'node:child_process';
@@ -75,6 +76,7 @@ test('browser explicitly recovers an authentication-terminated runtime with orig
   await page.reload();await expect(card.getByText('Conversation recovery is ready',{exact:true})).toBeVisible();assert.equal(bodies.length,2,'Reload never posts another recovery');
   assert.equal(await page.evaluate(scope=>sessionStorage.getItem('fmat:conversation-recovery:v1:'+scope),scope),null);
   assert.deepEqual(await setup.read(credential),saved,'Recovery itself does not edit or confirm setup');assert.equal(await sql.query(`select count(*) from fmat.runtime_messages where conversation_id=${q(scope)};`),'3','Recovery invents no input');
+   await openPreferenceControls(page);
   await composer.fill('Next unsent draft');await expect(setupCard.getByRole('button',{name:'Edit schedule',exact:true})).toBeEnabled();
   await sql.query(`update fmat.runtime_messages set next_dispatch_at=clock_timestamp()-interval '1 second' where id=${q(original.id)};`);
   const dispatched=await fetch(runtime.origin+'/api/internal/conversations/dispatch',{method:'POST',headers:{authorization:'Bearer '+dispatchSecret}});assert.equal(dispatched.status,200);await settle(original.id,'completed');

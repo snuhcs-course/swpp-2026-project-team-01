@@ -9,7 +9,7 @@ declare v_actor jsonb; v_host fmat.hosts; v_connection fmat.calendar_connections
 begin
   if jsonb_typeof(p_input) is distinct from 'object' or p_credential->>'kind' is distinct from 'host' then raise exception 'FORBIDDEN'; end if;
   v_actor:=fmat.calendar_actor(p_credential);
-  select * into strict v_host from fmat.hosts where id=(v_actor->>'id')::uuid;
+  select * into strict v_host from fmat.hosts where id=(v_actor->>'id')::uuid for update;
   select * into v_connection from fmat.calendar_connections where principal_kind='host' and principal_id=v_host.id and revoked_at is null for update;
   if not found then raise exception 'RECONNECT_REQUIRED'; end if;
   if p_operation='read' then

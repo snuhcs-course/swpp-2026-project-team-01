@@ -1,3 +1,4 @@
+import {openPreferenceControls} from './preference-controls.ts';
 import {expect,type Page} from '@playwright/test';
 
 // An interrupted historical replay is display history, not current accepted work.
@@ -12,6 +13,7 @@ export async function verifyHistoricalBusyReplay(page:Page){
   const replay=page.waitForResponse(response=>response.url().includes('/stream?')&&response.status()===200);
   const idle=page.waitForResponse(response=>response.url().includes('/stream?')&&response.status()===204);
   await page.reload();await replay;await idle;
+   await openPreferenceControls(page);
   await expect(page.getByRole('region',{name:'Your meeting setup'}).getByRole('button',{name:'Edit schedule',exact:true})).toBeEnabled();
   await expect(page.getByRole('status').filter({hasText:'Your conversation is saved. Approval and booking always need confirmed actions.'})).toBeVisible();
   // A completed stream event must not clear genuinely pending application work.
@@ -21,6 +23,7 @@ export async function verifyHistoricalBusyReplay(page:Page){
    served=false;pending=true;
    const pendingIdle=page.waitForResponse(response=>response.url().includes('/stream?')&&response.status()===204);
    await page.reload();await pendingIdle;
+    await openPreferenceControls(page);
    await expect(page.getByRole('region',{name:'Your meeting setup'}).getByRole('button',{name:'Edit schedule',exact:true})).toBeDisabled();
    await expect(page.getByRole('status').filter({hasText:'Your message is saved. The assistant is responding…'})).toBeVisible();
   }finally{await page.unroute(snapshots);}

@@ -1,3 +1,4 @@
+import {openPreferenceControls} from './preference-controls.ts';
 import {verifySetupGreeting} from './setup-greeting.ts';
 import {verifyCalendarReadRecovery} from './calendar-read-recovery.ts';
 import {cleanupBrowserHostSql} from './browser-cleanup.ts';
@@ -30,7 +31,7 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
   const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
   assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
   const origin='http://localhost:3000';
-  const runtime=await startBrowserRuntime(local,origin);
+  const runtime=await startBrowserRuntime(local,origin,undefined,{calendarFixture:true,preload:new URL('./google-fixture.mjs',import.meta.url).href});
   const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','apps/web','-p','3000'],{env:{...process.env,NODE_OPTIONS:'--import='+new URL('./google-fixture.mjs',import.meta.url).href,AGENTMAIL_INBOX_ID:emailInbox,AGENTMAIL_RECEIVER_ID:emailReceiver,OPENAI_API_KEY:'browser-ranking-fixture',OPENAI_MODEL:'gpt-6-luna',PHOTON_PROJECT_ID:photonProject,PHOTON_PROJECT_SECRET:'browser-photon-fixture',GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64'),APP_ORIGIN:origin,EVE_LOCAL_ORIGIN:runtime.origin,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY},stdio:['ignore','pipe','pipe']});
   let log='';child.stdout.on('data',v=>log+=v);child.stderr.on('data',v=>log+=v);
   const sql=new LocalSql();const email=`browser-${randomUUID()}@example.test`,invitation=randomUUID(),requestId=randomUUID();
@@ -110,7 +111,13 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
     await page.goto(origin+'/app?calendar=connected');await expect(page.getByRole('status').filter({hasText:'Google connection saved.'})).toBeFocused();
     const afterReturn=await (await context.request.get(origin+'/api/browser/setup/read')).json();assert.deepEqual(afterReturn.draft,beforeReturn.draft);assert.deepEqual(afterReturn.progress,beforeReturn.progress);
     await verifyCalendarReadRecovery(page);
-    const choices=page.getByRole('region',{name:'Calendar choices'});await choices.getByRole('checkbox').first().waitFor();
+    const choices=page.getByRole('region',{name:'Calendar choices'});
+    const connected=page.getByRole('button',{name:'Google Calendar connected',exact:true});await expect(connected).toBeDisabled();
+    await expect(page.locator('[data-slot="ai-message-content"]').filter({has:connected}).getByRole('button',{name:'Manage Google connection',exact:true})).toBeVisible();
+    await expect(choices.getByRole('button',{name:'Use suggested calendar',exact:true})).toBeVisible();
+    await expect(choices.getByRole('checkbox')).toHaveCount(0);
+    await expect(choices).not.toContainText('Choose up to 50 calendars');
+    await choices.getByRole('button',{name:'Choose calendars',exact:true}).click();await choices.getByRole('checkbox').first().waitFor();
     await expect(choices.getByText('Hidden calendar',{exact:true})).toHaveCount(0);await expect(choices.getByText('Unchecked calendar',{exact:true})).toHaveCount(0);assert.doesNotMatch(await choices.innerText(),/personal@example|readonly@example/);
     assert.equal(await choices.getByRole('checkbox',{checked:true}).count(),0,'No conflicts silently selected');
     assert.equal(await choices.getByRole('radio',{checked:true}).count(),0,'Primary is never a silent destination');
@@ -125,7 +132,7 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
     await choices.getByRole('radio',{name:'My calendar (1)',exact:true}).check();await choices.getByRole('button',{name:'Confirm calendar choices'}).click();
     await choices.getByRole('status').filter({hasText:'Calendar choices saved.'}).waitFor();
     assert.equal(await sql.query(`select booking_calendar_id from fmat.hosts where id='${userId}';`),'personal@example.test');
-    await expect(choices.getByRole('checkbox')).toHaveCount(0);await page.getByRole('region',{name:'Setup guide'}).getByRole('button',{name:'Skip analysis and choose preferences'}).waitFor();await expect(page.getByRole('region',{name:'Setup guide'}).getByText('Would you like suggestions from selected calendars, or choose preferences yourself?',{exact:true})).toBeFocused();
+    await expect(choices.getByRole('checkbox')).toHaveCount(0);await page.getByRole('region',{name:'Setup guide'}).getByRole('button',{name:'Skip analysis and choose preferences'}).waitFor();await expect(choices.getByRole('button',{name:'Change calendar choices',exact:true})).toBeFocused();
     await page.reload();await choices.getByRole('button',{name:'Change calendar choices'}).click();await choices.getByRole('checkbox',{checked:true}).waitFor();assert.equal(await choices.getByRole('radio',{checked:true}).count(),1);
     assert.notEqual(await choices.getByRole('radio',{checked:true}).evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)','Selected booking destination has a visible filled state');
     await choices.scrollIntoViewIfNeeded();await page.screenshot({path:'.local/rebuild/browser-screenshots/calendar-choices-desktop.png',fullPage:true});
@@ -138,6 +145,7 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
     await setup.getByRole('button',{name:'Reload setup'}).click();
     const guide=setup.getByRole('region',{name:'Setup guide'});
     await guide.getByRole('button',{name:'Skip analysis and choose preferences'}).click();await setup.getByRole('status').filter({hasText:'Your setup choice is remembered.'}).waitFor();await page.reload();await guide.getByRole('button',{name:'Choose my booking profile'}).waitFor();assert.equal(await guide.getByRole('button',{name:'Skip analysis and choose preferences'}).count(),0);
+    await openPreferenceControls(page);
     await setup.getByRole('button',{name:'Edit profile',exact:true}).click();await setup.getByLabel('Display name',{exact:true}).fill('Browser host');await setup.getByLabel('Booking name',{exact:true}).fill('browser-'+userId.slice(0,8));
     await setup.getByRole('button',{name:'Use these preferences in my draft'}).click();await expect(setup.getByRole('status').filter({hasText:'Draft updated.'})).toBeFocused();
     await guide.scrollIntoViewIfNeeded();await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-guide-desktop.png',fullPage:true});await page.setViewportSize({width:320,height:844});await guide.scrollIntoViewIfNeeded();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);for(const button of await guide.getByRole('button').all())assert.equal(await button.evaluate(e=>e.scrollWidth>e.clientWidth),false);await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-guide-mobile.png',fullPage:true});await page.setViewportSize({width:1280,height:900});
@@ -158,7 +166,9 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
     await scanReview.getByRole('button',{name:'Use reviewed suggestions in draft'}).focus();await page.keyboard.press('Enter');await analysis.getByRole('status').filter({hasText:'Suggested preferences added to your draft.'}).waitFor();
     const reviewed=(await (await context.request.get(origin+'/api/browser/setup/read')).json()).draft;assert.deepEqual(reviewed.settings.rules.locations,['Library lounge']);assert.equal(reviewed.origins['rules.locations'].source,'calendar_edited');assert.equal(reviewed.origins['rules.availability'].source,'calendar_edited');assert.equal(reviewed.origins['rules.durationMinutes'].source,'starter');assert.equal(await setup.getByRole('button',{name:'Confirm these meeting settings'}).count(),0,'Travel answers still required');await page.emulateMedia({reducedMotion:'no-preference'});
 assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${userId}';`),'t','Using analysis changes only the private draft');
+    await openPreferenceControls(page);
     await setup.getByRole('button',{name:'Edit schedule',exact:true}).click();await setup.getByLabel('Meeting timezone',{exact:true}).fill('Asia/Seoul');await setup.getByRole('button',{name:'Use these preferences in my draft'}).click();await expect(setup.getByRole('status').filter({hasText:'Draft updated.'})).toBeFocused();
+    await openPreferenceControls(page);
     await setup.getByRole('button',{name:'Edit mode',exact:true}).click();assert.equal(await setup.getByRole('radio',{name:'Either',exact:true}).isChecked(),true,'Prior explicit review choice is reused');await setup.getByRole('radio',{name:'Online only',exact:true}).check();await setup.getByRole('button',{name:'Use these preferences in my draft'}).click();await setup.getByRole('button',{name:'Confirm these meeting settings'}).waitFor();
     await sql.query(`update fmat.hosts set rules_version=rules_version+1 where id='${userId}';`);
     await setup.getByRole('button',{name:'Reload setup'}).click();await setup.getByRole('button',{name:'Refresh my draft'}).waitFor();assert.equal(await setup.getByRole('button',{name:'Confirm these meeting settings'}).count(),0);
@@ -172,13 +182,15 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     await page.setViewportSize({width:320,height:844});await setup.getByRole('button',{name:'Confirm these meeting settings'}).scrollIntoViewIfNeeded();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-review-mobile.png',fullPage:true});
     await setup.getByRole('button',{name:'Confirm these meeting settings'}).click();await setup.getByRole('status').filter({hasText:'Settings confirmed.'}).waitFor();
     assert.equal(await sql.query(`select rules->>'meetingMode' from fmat.hosts where id='${userId}';`),'online');
-    await page.reload();await setup.getByText('Your settings are confirmed.',{exact:true}).waitFor();
+    await page.reload();await setup.getByText('Your settings are confirmed.',{exact:true}).waitFor();await openPreferenceControls(page);
     await setup.getByRole('button',{name:'Edit mode',exact:true}).click();await setup.getByRole('radio',{name:'Either',exact:true}).check();await setup.getByRole('button',{name:'Use these preferences in my draft'}).click();await expect(setup.getByRole('status').filter({hasText:'Draft updated.'})).toBeFocused();assert.equal(await setup.getByRole('button',{name:'Confirm these meeting settings'}).count(),0,'Physical mode needs explicit location and travel answers');
+    await openPreferenceControls(page);
     await setup.getByRole('button',{name:'Edit location',exact:true}).click();await setup.getByRole('radio',{name:'Decide per meeting',exact:true}).check();await setup.getByRole('button',{name:'Use these preferences in my draft'}).click();await expect(setup.getByRole('status').filter({hasText:'Draft updated.'})).toBeFocused();
     await guide.getByRole('button',{name:'Choose transportation'}).click();assert.equal(await setup.getByRole('radio',{checked:true}).count(),0);assert.equal(await setup.getByLabel('Extra travel buffer (minutes)',{exact:true}).count(),0,'Transportation is asked separately');await setup.getByRole('radio',{name:'Depends on the trip',exact:true}).check();await setup.getByRole('button',{name:'Use these preferences in my draft'}).click();
     await guide.getByRole('button',{name:'Use 15 extra travel minutes'}).waitFor();await page.reload();await guide.getByRole('button',{name:'Use 15 extra travel minutes'}).waitFor();assert.equal(await guide.getByRole('button',{name:'Choose transportation'}).count(),0,'Recorded transportation is reused');await guide.getByRole('button',{name:'Adjust extra travel buffer'}).click();assert.equal(await setup.getByRole('radio').count(),0);await setup.getByLabel('Extra travel buffer (minutes)',{exact:true}).fill('15');await setup.getByRole('button',{name:'Use these preferences in my draft'}).scrollIntoViewIfNeeded();assert.equal(await setup.getByRole('button',{name:'Use these preferences in my draft'}).evaluate(e=>e.scrollWidth>e.clientWidth),false);await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-travel-mobile.png',fullPage:true});await setup.getByRole('button',{name:'Use these preferences in my draft'}).click();await setup.getByRole('button',{name:'Confirm these meeting settings'}).waitFor();
     await setup.getByRole('button',{name:'Confirm these meeting settings'}).click();await setup.getByRole('status').filter({hasText:'Settings confirmed.'}).waitFor();assert.equal(await sql.query(`select rules->>'travelMode' from fmat.hosts where id='${userId}';`),'PER_TRIP');assert.equal(await sql.query(`select rules->>'travelBufferMinutes' from fmat.hosts where id='${userId}';`),'15');
 
+    await openPreferenceControls(page);
     await setup.getByRole('button',{name:'Edit schedule',exact:true}).click();
     await verifyOvernightHours(page,setup,context,origin);
     await verifyPublicIntake(browser,origin,sql,userId,page);
@@ -241,6 +253,7 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     await verifyReceiptSnapshotOrdering(page);
     await verifyConversationRecoveryControls(page);
     await page.reload();await failure.waitFor();await page.getByRole('button',{name:'Reconnect now'}).click();await failure.waitFor();
+    await openPreferenceControls(page);
     await setup.getByRole('button',{name:'Edit schedule',exact:true}).click();
     await verifyWeeklyPreview(page,setup,context,origin);
     await setup.getByLabel('Meeting duration (minutes)').fill('45');
@@ -260,9 +273,12 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     const returnNotice=page.getByRole('status').filter({hasText:'Google connection was skipped.'});await expect(returnNotice).toBeFocused();
     const resumedSetup=await (await context.request.get(origin+'/api/browser/setup/read')).json();assert.deepEqual(resumedSetup.draft,retainedSetup.draft);assert.deepEqual(resumedSetup.progress,retainedSetup.progress);
     await page.setViewportSize({width:320,height:844});await returnNotice.focus();await expect(returnNotice).toBeInViewport();await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-return-focus-320.png'});
+    await openPreferenceControls(page);
     await expect(setup.getByRole('button',{name:'Edit schedule',exact:true})).toBeVisible();await expect(setup.getByRole('button',{name:'Edit schedule',exact:true})).toBeEnabled();await setup.getByRole('button',{name:'Edit schedule',exact:true}).focus();await expect(setup.getByRole('button',{name:'Edit schedule',exact:true})).toBeFocused();await page.keyboard.press('Enter');const editHeading=setup.locator('legend').filter({hasText:/^Your meeting week$/});await expect(editHeading).toBeFocused();await expect(editHeading).toBeInViewport();await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-editor-focus-320.png'});
+    await openPreferenceControls(page);
     await setup.getByRole('button',{name:'Cancel edit'}).click();await expect(setup.getByRole('button',{name:'Edit schedule',exact:true})).toBeFocused();
     await page.setViewportSize({width:1280,height:900});await page.evaluate(()=>{document.documentElement.style.zoom='2';});
+    await openPreferenceControls(page);
     await expect(setup.getByRole('button',{name:'Edit profile',exact:true})).toBeVisible();await expect(setup.getByRole('button',{name:'Edit profile',exact:true})).toBeEnabled();await setup.getByRole('button',{name:'Edit profile',exact:true}).focus();await expect(setup.getByRole('button',{name:'Edit profile',exact:true})).toBeFocused();await page.keyboard.press('Enter');const zoomHeading=setup.locator('legend').filter({hasText:/^Your booking profile$/});await expect(zoomHeading).toBeFocused();await expect(zoomHeading).toBeInViewport();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-editor-focus-zoom.png'});await setup.getByRole('button',{name:'Cancel edit'}).click();await page.evaluate(()=>{document.documentElement.style.zoom='';});
     await sql.query(`update fmat.model_budgets set reserved_cents=${Number(allowance)} where name='host:${userId}';`);
     assert.equal(await page.evaluate(()=>document.cookie),'');

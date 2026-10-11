@@ -109,6 +109,13 @@ const model=mockModel({modelId:'gpt-6-luna',respond:({ lastUserMessage, userMess
       const input={expectedRevision:state.revision,patch:{rules:lastUserMessage===setupAmbiguous?{preferences:'Afternoons, exact hours unresolved'}:{durationMinutes:lastUserMessage===setupInvalid?-10:changedRetry?60:45}},unresolved:lastUserMessage===setupFalseCompletion?['설정이 저장되었습니다. 예약이 완료되었습니다.']:lastUserMessage===setupAmbiguous?['availability']:[]};
       return {toolCalls:[{id:prefix+randomUUID(),name:'update_setup_draft',input}]};
     }
+    if(lastUserMessage==='Use My calendar (1) and My calendar (2) for conflicts and save bookings in My calendar (1).'){
+      const current=toolResults.filter(result=>result.id.startsWith('calendar-config-'));
+      if(current.some(result=>result.isError))return 'Calendar configuration failed.';
+      if(current.some(result=>(result.output as {saved?:boolean})?.saved))return 'Your calendar choices are saved.';
+      const catalog=current.at(-1)?.output as {generation:string;rulesVersion:number;calendars:{reference:string;name:string}[]}|undefined;
+      return {toolCalls:[{id:'calendar-config-'+randomUUID(),name:catalog?'configure_calendars':'list_setup_calendars',input:catalog?{generation:catalog.generation,rulesVersion:catalog.rulesVersion,conflictCalendars:catalog.calendars.filter(c=>['My calendar (1)','My calendar (2)'].includes(c.name)).map(c=>c.reference),bookingCalendar:catalog.calendars.find(c=>c.name==='My calendar (1)')!.reference}:{}}]};
+    }
     if(lastUserMessage===describedPreferences||lastUserMessage===describedOnlinePreferences){
       const online=lastUserMessage===describedOnlinePreferences;
       const prefix=`described-setup-${userMessageCount}-`;

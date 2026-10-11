@@ -44,7 +44,7 @@ Extracted preferences SHALL remain a draft until the host explicitly confirms a 
 - **THEN** confirmed settings remain unchanged and the host can retry or use structured setup controls
 
 ### Requirement: Explicit private-channel setup confirmation
-An admitted host with a current private iMessage link SHALL be able to request an application-authored setup review and explicitly confirm that exact review without returning to the browser for the settings confirmation itself. Google consent, calendar selection and account admission SHALL retain their protected browser boundaries. The service SHALL validate all existing setup prerequisites and fresh selected-calendar permissions before saving.
+An admitted host with a current private iMessage link SHALL be able to request an application-authored setup review and explicitly confirm that exact review without returning to the browser for the settings confirmation itself. Google consent and account admission SHALL retain their protected browser boundaries. Calendar selection SHALL be available through authenticated private web chat or the browser picker; iMessage SHALL hand this action back to the web workspace. The service SHALL validate all existing setup prerequisites and fresh selected-calendar permissions before saving.
 
 #### Scenario: Review and confirm current settings
 - **WHEN** a linked host sends `review setup` with a complete current draft and subsequently sends `confirm setup <review-reference>` for the delivered review
@@ -256,3 +256,22 @@ A currently admitted, privately linked host SHALL be able to review and explicit
 #### Scenario: Missing or oversized answer review
 - **WHEN** no eligible extracted answer exists, the draft requires refresh, or all eligible values cannot fit the supported private-message bound
 - **THEN** the service gives a nonconfirmable manual/browser continuation without publishing a partial actionable reference
+
+### Requirement: Suggest before manual configuration
+The host setup interface SHALL show concise suggestions before exposing manual configuration. A connected Google account SHALL appear as a disabled status button with a link-like management action attached to its message. The agent SHALL draft supported preferences supplied in chat and ask only for missing or ambiguous details; final settings activation SHALL retain the current protected review.
+
+#### Scenario: First calendar recommendation
+- **WHEN** an unconfigured connected host has a checked, visible, writable primary calendar
+- **THEN** the interface suggests that calendar for conflict checks and bookings with an explicit acceptance action
+- **AND** the picker remains collapsed until the host requests it, no choices are saved by viewing the suggestion, and inaccessible saved choices still expose recovery
+
+#### Scenario: Chat preference entry
+- **WHEN** a host describes supported preferences in chat
+- **THEN** the agent updates the authorized private draft, preserves accepted choices and uncertainty, and offers the next missing question or current review
+- **AND** optional manual editing remains available without requiring the host to retype already extracted answers
+
+#### Scenario: Host asks the assistant to configure calendars
+- **WHEN** the signed-in host names conflict calendars and a booking destination in private web setup chat
+- **THEN** the agent reads current checked, visible calendars and applies unambiguous requested choices through an authorized tool without requiring manual picker interaction
+- **AND** the service rechecks grant, runtime session, pending message, connection generation, rules version and provider permissions, rejects shared audiences, and deduplicates exact retries
+- **AND** a missing or ambiguous destination requires one clarifying question, while calendar selection does not confirm meeting preferences or create an event

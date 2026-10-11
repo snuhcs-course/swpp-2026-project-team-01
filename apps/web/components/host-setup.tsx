@@ -25,7 +25,7 @@ const travelModes={DRIVE:'Drive',TRANSIT:'Public transit',WALK:'Walk',BICYCLE:'B
 async function call(action:string,input?:unknown,signal?:AbortSignal){const response=await fetch('/api/browser/setup/'+action,{method:input===undefined?'GET':'POST',cache:'no-store',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20_000)]):AbortSignal.timeout(20_000),headers:{'content-type':'application/json'},...(input===undefined?{}:{body:JSON.stringify(input)})});const data=await response.json();if(!response.ok)throw new Error(data.error?.message??'Setup could not be saved. Try again.');return setupState.parse(data);}
 export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:boolean}){
  const [state,setState]=useState<SetupState|null>(null),[editor,setEditor]=useState<{section:Section;base:SetupState}|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[reload,setReload]=useState(0);
- const [manualOpen,setManualOpen]=useState(false);
+ const [manualOpen,setManualOpen]=useState(false),[optionsOpen,setOptionsOpen]=useState(false);
  const [expanded,setExpanded]=useState(false),[loading,setLoading]=useState(true);
  const editorOrigin=useRef<HTMLElement|null>(null),setupHeading=useRef<HTMLLegendElement>(null),savedNotice=useRef<HTMLParagraphElement>(null),restoreFocus=useRef<'origin'|'saved'|null>(null);
  useEffect(()=>{if(editor||busy||!restoreFocus.current)return;const target=restoreFocus.current==='saved'?savedNotice.current:editorOrigin.current;restoreFocus.current=null;if(target?.isConnected&&!target.matches(':disabled'))target.focus();else setupHeading.current?.focus();},[editor,busy,notice]);
@@ -50,18 +50,18 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
  const openEditor=(section:Section)=>{if(state){editorOrigin.current=document.activeElement instanceof HTMLElement?document.activeElement:null;setEditor({section,base:state});}};
  const progress=(choice:string)=>{if(state)void mutate('progress',{expectedRevision:state.revision,choice});};
  const suggest=(patch:SetupPatch,starterFields?:string[])=>{if(state)void mutate('draft',{expectedRevision:state.revision,patch,...(starterFields?.length?{starterFields}:{}),unresolved:state.draft?.clarifications??[]});};
- const fresh=!!state&&!state.calendarGeneration&&!state.draft&&!state.confirmed.rules&&!state.confirmed.displayName&&!state.confirmed.handle;
+ const fresh=!!state&&!state.calendarSelected&&!state.draft&&!state.confirmed.rules&&!state.confirmed.displayName&&!state.confirmed.handle;
  return <section role="region" aria-label="Your meeting setup" className="flex min-w-0 flex-col gap-4" aria-busy={busy||loading}>
   {state?<IMessageLink beforeSettings={state.nextAction!=='settings_confirmed'}/>:null}
   <Collapsible open={(!loading&&!state)||(!fresh&&!!state)||manualOpen} onOpenChange={setManualOpen}>
-   {fresh?<CollapsibleTrigger asChild><Button variant="ghost" className="min-h-11 h-auto whitespace-normal">{manualOpen?'Hide manual setup':'Set preferences without connecting yet'}</Button></CollapsibleTrigger>:null}
+   {fresh?<CollapsibleTrigger asChild><Button variant="ghost" className="min-h-11 h-auto whitespace-normal">{manualOpen?'Hide manual setup':state?.calendarGeneration?'Set preferences manually':'Set preferences without connecting yet'}</Button></CollapsibleTrigger>:null}
    <CollapsibleContent>
-  <FieldSet className="gap-5"><FieldLegend ref={setupHeading} tabIndex={-1}>Your meeting setup</FieldLegend><ChatMessage><p>Preferences stay private drafts until you confirm the exact review. You can describe them in chat or edit a step here.</p></ChatMessage>
+  <FieldSet className="gap-5"><FieldLegend ref={setupHeading} tabIndex={-1}>Your meeting setup</FieldLegend><ChatMessage><p>Tell me your preferences in chat. I’ll prepare a draft for you to review.</p></ChatMessage>
    {loading?<p role="status">Loading setup…</p>:null}
    {state?<>
     {guide?<SetupGuidance state={state} disabled={locked} editing={!!editor} onEdit={openEditor} onProgress={progress} onUse={suggest} onResolve={()=>void mutate('draft',{expectedRevision:state.revision,patch:{rules:{}},unresolved:state.draft?.clarifications.slice(1)??[]})}/>:null}
-    <ChatAction title="Calendar suggestions"><CalendarAnalysis setup={state} disabled={locked} onSkip={()=>progress('skip_analysis')} onChange={refreshAfterAnalysis}/></ChatAction>
-    <ChatMessage><p>{state.nextAction==='settings_confirmed'?'Your settings are confirmed.':state.calendarSelected?'Calendar choices are saved. Let’s review your preferences.':'Connect Google and confirm calendar choices above. You can draft preferences meanwhile.'}</p></ChatMessage>
+    {state.calendarSelected?<ChatAction title="Calendar suggestions"><CalendarAnalysis setup={state} disabled={locked} onSkip={()=>progress('skip_analysis')} onChange={refreshAfterAnalysis}/></ChatAction>:null}
+    {state.nextAction==='settings_confirmed'?<ChatMessage><p>Your settings are confirmed.</p></ChatMessage>:null}
     {state.nextAction==='settings_confirmed'&&!locked?<SetupReadyLinks key={[refreshKey,reload,state.revision,state.rulesVersion,state.calendarGeneration].join(':')}/>:null}
     {settings?.displayName?<p className="break-words">{settings.displayName}{settings.handle?' · '+settings.handle:''}</p>:null}
     {rules?.timezone?<p>{rules.durationMinutes??'—'} minute meetings · {rules.timezone} · {rules.bufferMinutes??'—'} minute meeting buffer</p>:null}
@@ -78,7 +78,7 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
      </CollapsibleContent>
     </Collapsible></ChatAction>:null}
     {state.nextAction==='refresh_draft'?<Alert><AlertTitle>Review your preferences again</AlertTitle><AlertDescription>Your calendar choices or saved settings changed. Your draft answers are preserved. Refresh the draft to review them against the current setup before confirming.</AlertDescription><Button disabled={locked} onClick={()=>void mutate('rebase',{expectedRevision:state.revision,rulesVersion:state.rulesVersion})}>Refresh my draft</Button></Alert>:null}
-    <div className="flex flex-wrap gap-2">{(['profile','schedule','mode','location','travel'] as Section[]).filter(s=>rules?.meetingMode!=='online'||!['location','travel'].includes(s)).map(section=><Button key={section} variant="outline" disabled={editingLocked||state.nextAction==='refresh_draft'} onClick={()=>openEditor(section)}>Edit {section}</Button>)}</div>
+    <Collapsible open={optionsOpen||manualOpen} onOpenChange={open=>{setOptionsOpen(open);setManualOpen(false);}}><CollapsibleTrigger asChild><Button variant="link" className="min-h-11 h-auto px-0">Adjust preferences</Button></CollapsibleTrigger><CollapsibleContent><div className="flex flex-wrap gap-2">{(['profile','schedule','mode','location','travel'] as Section[]).filter(s=>rules?.meetingMode!=='online'||!['location','travel'].includes(s)).map(section=><Button key={section} variant="outline" disabled={editingLocked||state.nextAction==='refresh_draft'} onClick={()=>openEditor(section)}>Edit {section}</Button>)}</div></CollapsibleContent></Collapsible>
     {editor?<ChatAction title={titles[editor.section]}><SetupEditor key={editor.section+':'+editor.base.revision} section={editor.section} state={editor.base} disabled={editingLocked} savingDisabled={locked} onCancel={()=>{restoreFocus.current='origin';setEditor(null);}} onSave={(patch,unresolved)=>void mutate('draft',{expectedRevision:editor.base.revision,patch,unresolved})}/></ChatAction>:null}
     {showReview&&!editor?<Button className="h-auto min-h-11 whitespace-normal" disabled={locked} onClick={()=>void mutate('confirm',{expectedRevision:state.revision,draftRevision:state.review!.draftRevision,reviewRevision:state.review!.revision,rulesVersion:state.rulesVersion,calendarGeneration:state.calendarGeneration,confirmed:true})}>Confirm these meeting settings</Button>:null}
    </>:null}

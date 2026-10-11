@@ -23,11 +23,11 @@ export function SetupGuidance({state,disabled,editing,onEdit,onProgress,onUse,on
   {!editing&&['answers_review','analysis','profile','schedule','mode','location','transport','travel_buffer','clarification'].includes(guide.step)?<ChatAction title="Your next setup step">
    {guide.step==='answers_review'?<SetupAnswers key={state.revision} state={state} disabled={disabled} onUse={onUse} onEdit={onEdit}/>:null}
    {guide.step==='analysis'?<Button variant="outline" className="h-auto min-h-11 whitespace-normal" disabled={disabled} onClick={()=>onProgress('skip_analysis')}>Skip analysis and choose preferences</Button>:null}
-   {guide.step==='profile'?<Button disabled={disabled} onClick={()=>onEdit('profile')}>Choose my booking profile</Button>:null}
+   {guide.step==='profile'?<Button variant="link" disabled={disabled} onClick={()=>onEdit('profile')}>Choose my booking profile</Button>:null}
    {guide.step==='schedule'?suggestion&&r?<Alert><AlertTitle>Suggested meeting week</AlertTitle><AlertDescription>
     <p>{r.durationMinutes} minute meetings · {r.timezone} · {r.bufferMinutes} minute meeting buffer</p>
     {r.availability?.map((w,i)=><p key={i}>{w.days.map(d=>days[d]).join(', ')} · {weeklyHoursLabel(w)}</p>)}
-    <p>{suggestion.defaults.length?'Starter defaults for missing '+suggestion.defaults.join(', ')+'. Existing draft and confirmed values are preserved.':'These values come from your current draft or confirmed settings.'} Review or adjust before using them.</p>
+    <p>{suggestion.defaults.length?'A suggested starting point.':'From your current preferences.'} Tell me what you’d change, or use this week.</p>
     <div className="flex flex-wrap gap-2"><Button className="h-auto min-h-11 whitespace-normal" disabled={disabled} onClick={()=>onUse(suggestion.patch,suggestion.starterFields)}>Use this meeting week</Button><Button variant="outline" disabled={disabled} onClick={()=>onEdit('schedule')}>Adjust meeting week</Button><Button variant="ghost" disabled={disabled} onClick={()=>onProgress('dismiss_schedule')}>Choose my own schedule</Button></div>
    </AlertDescription></Alert>:<><p>You dismissed the schedule defaults. Your existing choices stay in place.</p><Button disabled={disabled} onClick={()=>onEdit('schedule')}>Enter my schedule</Button><Button variant="ghost" disabled={disabled} onClick={()=>onProgress('offer_schedule')}>Show schedule suggestions again</Button></>:null}
    {guide.step==='mode'?<>
@@ -35,7 +35,7 @@ export function SetupGuidance({state,disabled,editing,onEdit,onProgress,onUse,on
     <Button variant="outline" disabled={disabled} onClick={()=>onEdit('mode')}>Choose another meeting mode</Button>
    </>:null}
    {guide.step==='location'?<><p>A place observed in Calendar is only a candidate. You can keep the location flexible.</p><Button disabled={disabled} onClick={()=>onUse({rules:{locationPolicy:'per_meeting',locations:[]}})}>Decide location per meeting</Button><Button variant="outline" disabled={disabled} onClick={()=>onEdit('location')}>Choose preferred places</Button></>:null}
-   {guide.step==='transport'?<><p>Choose how you travel, or decide for each trip. Actual routes and both travel legs still need checking for each meeting.</p><Button disabled={disabled} onClick={()=>onEdit('transport')}>Choose transportation</Button></>:null}
+   {guide.step==='transport'?<><p>Tell me how you usually travel in chat.</p><Button variant="link" disabled={disabled} onClick={()=>onEdit('transport')}>Choose transportation</Button></>:null}
    {guide.step==='travel_buffer'?<><p>{hasExtra?'Draft suggestion':'Starter suggestion'}: {extra} extra minutes around travel, in addition to the journey estimate.</p><Button disabled={disabled} onClick={()=>onUse({rules:{travelBufferMinutes:extra}},hasExtra?undefined:['travelBufferMinutes'])}>Use {extra} extra travel minutes</Button><Button variant="outline" disabled={disabled} onClick={()=>onEdit('travel_buffer')}>Adjust extra travel buffer</Button></>:null}
    {guide.step==='clarification'?<><p>Answer in chat or edit the relevant step below. Other questions will remain pending.</p><Button disabled={disabled} onClick={onResolve}>I have resolved this question</Button></>:null}
   </ChatAction>:null}

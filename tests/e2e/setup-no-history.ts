@@ -25,7 +25,24 @@ export async function verifyNoHistory(browser:Browser,origin:string,local:Record
   await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invitation}','${email}','${createHash('sha256').update(invitation).digest('hex')}',now()+interval '1 day','browser-fixture');insert into fmat.hosts(id,email,invitation_id,conflict_calendar_ids,booking_calendar_id) values('${host}','${email}','${invitation}',array['personal@example.test'],'personal@example.test');`);
   const encrypted=new TokenCipher({TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64')}).seal({accessToken:'browser-calendar-fixture',refreshToken:'fixture-refresh',subject:'fixture',scopes:['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],expiresAt:Date.now()+3600000},'google:host:'+host);
   await sql.query(`insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential) values('host','${host}','fixture',array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],'${encrypted}');`);
-  await page.goto(origin+'/app');const setup=page.getByRole('region',{name:'Your meeting setup'}),guide=setup.getByRole('region',{name:'Setup guide'});
+  if(flow==='no-history')await sql.query(`update fmat.hosts set conflict_calendar_ids='{}',booking_calendar_id=null where id='${host}';`);
+  await page.goto(origin+'/app');
+  if(flow==='no-history'){
+   const calendars=page.getByRole('region',{name:'Calendar choices'});
+   await expect(calendars.getByRole('button',{name:'Use suggested calendar',exact:true})).toBeVisible();
+   await expect(calendars.getByRole('checkbox')).toHaveCount(0);
+   assert.equal(await sql.query(`select booking_calendar_id is null and cardinality(conflict_calendar_ids)=0 from fmat.hosts where id='${host}';`),'t');
+   await calendars.getByRole('button',{name:'Use suggested calendar',exact:true}).click();
+   await expect(calendars.getByRole('button',{name:'Change calendar choices',exact:true})).toBeFocused();
+   assert.equal(await sql.query(`select booking_calendar_id='personal@example.test' and conflict_calendar_ids=array['personal@example.test'] from fmat.hosts where id='${host}';`),'t');
+  }
+  if(flow==='no-history'){
+   await page.getByLabel('Message your scheduling assistant').fill('Use My calendar (1) and My calendar (2) for conflicts and save bookings in My calendar (1).');
+   await page.getByRole('button',{name:'Send',exact:true}).click();await page.getByText('Your calendar choices are saved.',{exact:true}).waitFor();
+   await expect(page.getByRole('region',{name:'Calendar choices'})).toContainText('2 calendars checked for conflicts');
+   assert.equal(await sql.query(`select cardinality(conflict_calendar_ids)=2 and booking_calendar_id='personal@example.test' and rules is null from fmat.hosts where id='${host}';`),'t');
+  }
+  const setup=page.getByRole('region',{name:'Your meeting setup'}),guide=setup.getByRole('region',{name:'Setup guide'});
   await guide.getByRole('button',{name:'Skip analysis and choose preferences'}).click();await guide.getByRole('button',{name:'Choose my booking profile'}).click();await setup.getByLabel('Display name',{exact:true}).fill('No history host');await setup.getByLabel('Booking name',{exact:true}).fill('guided-'+host.slice(0,8));await setup.getByRole('button',{name:'Use these preferences in my draft'}).click();
   if(flow==='no-history'){
   await guide.getByRole('button',{name:'Use this meeting week'}).click();await guide.getByRole('button',{name:'Choose Either',exact:true}).click();await guide.getByRole('button',{name:'Decide location per meeting'}).click();
@@ -77,7 +94,7 @@ export async function verifyNoHistory(browser:Browser,origin:string,local:Record
   assert.equal(await sql.query(`select count(*) from fmat.calendar_scans where host_id='${host}';`),'0','Skipping analysis never scans events');assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where host_id='${host}';`),'0');
   if(flow==='described')await verifyIMessage(page,context,host,local,sql);
   else{const card=page.getByRole('region',{name:'Connect iMessage'});await card.getByRole('button',{name:'Maybe later',exact:true}).click();await card.getByText('You chose to continue on the web.',{exact:false}).waitFor();await page.reload();await card.getByText('You chose to continue on the web.',{exact:false}).waitFor();}
-  if(flow==='no-history'){await verifyReadyLinks(page,context,origin);await verifyCompactSetup(page,context,origin);await verifySetupReadRecovery(page,context,origin);}
+  if(flow==='no-history'){await expect(page.getByText('Your calendar choices are saved.',{exact:true})).toBeVisible();await expect(setup).toHaveAttribute('aria-busy','false');await verifyReadyLinks(page,context,origin);await verifyCompactSetup(page,context,origin);await verifySetupReadRecovery(page,context,origin);}
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await setup.scrollIntoViewIfNeeded();await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-'+flow+'.png',fullPage:true});
  }catch(error){
   // This page belongs to its own context. Capture before closing it; the outer

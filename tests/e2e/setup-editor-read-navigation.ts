@@ -1,3 +1,4 @@
+import {openPreferenceControls} from './preference-controls.ts';
 import assert from 'node:assert/strict';
 import {expect,type Page} from '@playwright/test';
 
@@ -11,6 +12,7 @@ export async function verifySetupEditorReadNavigation(page:Page){
  try{
   await page.route('**/api/browser/setup/read',route=>{const work=(async()=>{entered();await wait;await route.continue();})();routed.push(work);return work;});
   await setup.getByRole('button',{name:'Reload setup',exact:true}).click();await arrived;await expect(setup).toHaveAttribute('aria-busy','true');
+  await openPreferenceControls(page);
   await expect(edit).toBeEnabled();await edit.focus();await page.keyboard.press('Enter');
   const heading=setup.locator('legend').filter({hasText:/^Your booking profile$/});await expect(heading).toBeFocused();
   const name=setup.getByLabel('Display name',{exact:true});await name.fill('Unsubmitted local edit');

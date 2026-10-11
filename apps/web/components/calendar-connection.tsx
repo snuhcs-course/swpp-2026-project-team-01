@@ -2,7 +2,7 @@
 import {useEffect,useRef,useState} from 'react';
 import {calendarStatus,type CalendarStatus} from '../../../lib/contracts/calendar.ts';
 import {ChatAction} from './chat-action';
-import {Collapsible,CollapsibleTrigger,CollapsibleContent} from './ui/collapsible';
+import {Collapsible,CollapsibleContent} from './ui/collapsible';
 import {Button} from './ui/button';
 import {ChatMessage} from './chat-message';
 import {CalendarChoices} from './calendar-choices';
@@ -11,7 +11,8 @@ async function call(action:string,requestId?:string,signal?:AbortSignal){
   const response=await fetch('/api/browser/calendar/'+action+(action==='status'&&requestId?'?requestId='+encodeURIComponent(requestId):''),{method:action==='status'?'GET':'POST',cache:'no-store',signal,headers:{'content-type':'application/json'},...(action==='status'?{}:{body:JSON.stringify(requestId?{requestId}:{})})});
   const data=await response.json();if(!response.ok)throw new Error(data.error?.message??'Calendar connection is unavailable. Try again.');return data;
 }
-export function CalendarConnection({requestId,onChanged,introduce=false}:{requestId?:string;onChanged?:()=>void;introduce?:boolean}){
+export function CalendarConnection({requestId,onChanged,introduce=false,refreshKey}:{requestId?:string;onChanged?:()=>void;introduce?:boolean;refreshKey?:string}){
+  const [manage,setManage]=useState(false);
   const [status,setStatus]=useState<CalendarStatus|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const [loading,setLoading]=useState(true),[reload,setReload]=useState(0);
   const returnResult=useRef<string|null>(null),returned=useRef(false),resultStatus=useRef<HTMLParagraphElement>(null),resultError=useRef<HTMLParagraphElement>(null);
@@ -37,18 +38,18 @@ export function CalendarConnection({requestId,onChanged,introduce=false}:{reques
   return <section role="region" aria-label="Google Calendar connection" aria-busy={loading||busy} className="flex min-w-0 flex-col gap-4">
     {introduce?<ChatMessage><p>Hi! I’m your scheduling assistant. Let’s set up your meetings together.</p></ChatMessage>:null}
     <ChatMessage continuation={introduce}>
-    {!requestId&&status&&!status.connected?null:<p>{!status?'Google Calendar connection':status.connected?'Google Calendar connected':requestId?'Optionally connect your calendar':'Let’s start with your calendar.'}</p>}
-    <p>{!status?'Check the saved connection before changing Google access.':status.connected?(requestId?'Google availability permission is saved for this request. Calendar choices still need confirmation before availability checks.':'Your Google permission is saved. Review your calendar choices below. Every booking still needs your approval.'):(requestId?'Choose calendars and share free/busy availability for this request. We won’t request event details or event creation access. You can continue the conversation without connecting.':'Could you connect Google Calendar? We’ll choose your calendars next. Nothing gets booked without your approval.')}</p>
+    {status?.connected?<Button variant="secondary" disabled className="w-fit">Google Calendar connected</Button>:requestId?<p>Optionally connect your calendar</p>:null}
+    <p>{!status?'Check the saved connection before changing Google access.':status.connected?(requestId?'Google availability permission is saved for this request. Calendar choices still need confirmation before availability checks.':'Let’s choose which calendars to use.'):(requestId?'Choose calendars and share free/busy availability for this request. We won’t request event details or event creation access. You can continue the conversation without connecting.':'Could you connect Google Calendar? We’ll choose your calendars next. Nothing gets booked without your approval.')}</p>
     {loading?<p role="status" className="mt-2 text-sm">Checking Google Calendar connection…</p>:null}
+    {status?.connected?<Button variant="link" className="min-h-11 h-auto w-fit px-0" onClick={()=>setManage(value=>!value)} aria-expanded={manage}>Manage Google connection</Button>:null}
     </ChatMessage>
-    {status?<ChatAction title="Google Calendar access"><Collapsible key={status?.connected?'connected':'disconnected'} defaultOpen={!status?.connected}>
-      {status?.connected?<CollapsibleTrigger asChild><Button className="min-h-11 h-auto whitespace-normal" variant="outline">Manage Google connection</Button></CollapsibleTrigger>:null}
+    {status&&(!status.connected||manage)?<ChatAction title="Google Calendar access"><Collapsible key={status?.connected?'connected':'disconnected'} open>
       <CollapsibleContent><div className="flex flex-wrap gap-2">
         <Button variant={status?.connected?'outline':'default'} disabled={busy} onClick={()=>void act('start')}>{busy?'One moment…':status?.connected?'Reconnect Google':'Connect Google Calendar'}</Button>
         {status?.connected?<Button variant="outline" disabled={busy} onClick={()=>void act('disconnect')}>Disconnect Google</Button>:null}
       </div></CollapsibleContent>
     </Collapsible></ChatAction>:null}
-    {status?.connected&&!requestId?<ChatAction title="Choose calendars"><CalendarChoices disabled={busy} onSaved={onChanged}/></ChatAction>:null}
+    {status?.connected&&!requestId?<ChatAction title="Choose calendars"><CalendarChoices refreshKey={refreshKey} disabled={busy} onSaved={onChanged}/></ChatAction>:null}
     {requestId?<ChatAction title="Your availability"><RequesterAvailability requestId={requestId} connected={status?.connected??false} disabled={busy||loading} onManual={()=>{setError('');setStatus({connected:false,kind:'guest',selected:false});}}/></ChatAction>:null}
     {!loading&&!status&&error?<Button variant="outline" className="mt-3 min-h-11" onClick={()=>{returned.current=true;setError('');setLoading(true);setReload(value=>value+1);}}>Retry connection status</Button>:null}
     {notice?<p ref={resultStatus} tabIndex={-1} role="status" className="mt-2 text-sm">{notice}</p>:null}{error?<p ref={resultError} tabIndex={-1} role="alert" className="mt-2 text-sm text-destructive">{error}</p>:null}

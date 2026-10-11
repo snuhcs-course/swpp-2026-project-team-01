@@ -1,3 +1,4 @@
+import {openPreferenceControls} from './preference-controls.ts';
 import {expect,type Page,type Route,type APIResponse} from '@playwright/test';
 
 export async function verifyReceiptSnapshotOrdering(page:Page){
@@ -14,7 +15,7 @@ export async function verifyReceiptSnapshotOrdering(page:Page){
  });
  await page.route(messages,route=>route.fulfill({json:{messageId,status:'pending'}}));
  try{
-  await page.reload();await expect.poll(()=>!!stale).toBe(true);
+  await page.reload();await expect.poll(()=>!!stale).toBe(true);await openPreferenceControls(page);
   await page.getByLabel('Message your scheduling assistant').fill(text);
   await page.getByRole('button',{name:'Send',exact:true}).click();
   const edit=page.getByRole('region',{name:'Your meeting setup'}).getByRole('button',{name:'Edit schedule',exact:true});
@@ -25,6 +26,7 @@ export async function verifyReceiptSnapshotOrdering(page:Page){
   // A read begun after acceptance can still settle the current input.
   const body=await stale!.response.json();body.messages.push({id:messageId,text,status:'completed',createdAt:new Date().toISOString(),mine:true});
   await fresh!.fulfill({json:body});fresh=undefined;
+  await openPreferenceControls(page);
   await expect(edit).toBeEnabled();
  }finally{
   await stale?.route.abort().catch(()=>{});await fresh?.abort().catch(()=>{});

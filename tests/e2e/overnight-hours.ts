@@ -1,3 +1,4 @@
+import {openPreferenceControls} from './preference-controls.ts';
 import assert from 'node:assert/strict';
 import {expect,type Page,type Locator,type BrowserContext} from '@playwright/test';
 
@@ -28,6 +29,7 @@ export async function verifyOvernightHours(page:Page,setup:Locator,context:Brows
  const confirm=setup.getByRole('button',{name:'Confirm these meeting settings'});await confirm.focus();await expect(confirm).toBeFocused();await page.keyboard.press('Enter');
  await setup.getByText('Your settings are confirmed.',{exact:true}).waitFor();const saved=await read();assert.deepEqual(saved.confirmed.rules.availability,draft.draft.settings.rules.availability);
  // Restore this shared journey's original rules through the same human controls.
+  await openPreferenceControls(page);
  await setup.getByRole('button',{name:'Edit schedule',exact:true}).click();await start.fill(original[0].start);await end.fill(original[0].end);
  for(const [i,day] of days.entries())await window.getByRole('checkbox',{name:day,exact:true}).setChecked(original[0].days.includes(i));
  await setup.getByRole('button',{name:'Use these preferences in my draft'}).click();await setup.getByRole('button',{name:'Confirm these meeting settings'}).click();await setup.getByText('Your settings are confirmed.',{exact:true}).waitFor();assert.deepEqual((await read()).confirmed.rules.availability,original);

@@ -29,6 +29,11 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 
 - [x] 3.5 Start admitted-host onboarding with an assistant greeting and Google Calendar action in one chat message; defer empty preference panels behind an explicit manual action, preserve consent/retry/resume, and verify mobile/keyboard/browser behavior before production rollout.
 
+- [x] 3.6 Make connected status a disabled button with an attached link-like management action; suggest an active writable primary calendar before optional minimal selection controls and verify explicit acceptance/recovery.
+- [x] 3.7 Make chat drafting the default preference path, defer manual controls, shorten repetitive guidance, and verify review, keyboard/mobile and existing recovery behavior.
+
+- [x] 3.8 Add authenticated web-chat calendar listing/configuration with current provider permissions, private audience/runtime/message fencing, exact-retry receipts, UI refresh and deterministic end-to-end verification.
+
 ## 4. Private iMessage proof and transport
 
 - [x] 4.1 Implement browser-bound expiring hashed OTP challenges and durable code intents; test wrong browser/sender, guesses, expiry, replay, delivery failure, number change and single-use consumption.
@@ -89,3 +94,5 @@ Task 5.3 recovery increment: [twenty live-model turns and authored recovery guid
 Task 5.3 retained-settings increment: [controlled narration acceptance](../../../documentations/technical_specification/05_rebuild_evidence.md#retained-settings-narration-acceptance--2026-10-11) verifies that disconnected hosts receive accurate confirmed-versus-draft answers, including a newer unconfirmed edit and a never-confirmed draft. This supersedes the specific unanswered-retention limitation above; full AC-28 and actual provider/device acceptance remain open.
 
 Task 3.5 acceptance: [assistant-first host entry](../../../documentations/technical_specification/05_rebuild_evidence.md#assistant-first-host-entry--2026-10-11) records mobile/keyboard/consent-recovery checks, the verified production rollout and the signed-in host view. Real Google consent and full AC-28 remain separate.
+
+Tasks 3.6–3.8 acceptance: [suggestion-first setup and chat calendar configuration](../../../documentations/technical_specification/05_rebuild_evidence.md#suggestion-first-setup-and-chat-calendar-configuration--2026-10-11). Deterministic browser, service and database checks cover the new behavior; broad live Google/iPhone and AC-28 gates remain open.

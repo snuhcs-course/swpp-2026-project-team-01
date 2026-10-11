@@ -1,3 +1,4 @@
+import {openPreferenceControls} from './preference-controls.ts';
 import {setupReadFocusState} from './setup-read-focus.ts';
 import {verifySetupEditorReadNavigation} from './setup-editor-read-navigation.ts';
 import assert from 'node:assert/strict';
@@ -33,6 +34,7 @@ export async function verifySetupReadRecovery(page:Page,context:BrowserContext,o
   await reload.click();await arrived;
   await expect(loading).toBeVisible();await expect(error).toHaveCount(0);await expect(setup).toHaveAttribute('aria-busy','true');
   await expect(reload).toBeDisabled();release();
+   await openPreferenceControls(page);
   await expect(setup.getByRole('button',{name:'Edit profile',exact:true})).toBeEnabled();
   await expect(loading).toHaveCount(0);await expect(error).toHaveCount(0);await expect(setup).toHaveAttribute('aria-busy','false');
   await page.unroute(endpoint);

@@ -1,3 +1,4 @@
+import {openPreferenceControls} from './preference-controls.ts';
 import assert from 'node:assert/strict';
 import {expect,type Page} from '@playwright/test';
 
@@ -27,11 +28,13 @@ export async function verifyConversationRecoveryControls(page:Page){
   const card=page.getByRole('alert',{name:'Conversation recovery'}),input=page.getByLabel('Message your scheduling assistant');
   await expect(card.getByText('Conversation needs recovery',{exact:true})).toBeVisible();
   const edit=page.getByRole('region',{name:'Your meeting setup'}).getByRole('button',{name:'Edit schedule',exact:true});
+  await openPreferenceControls(page);
   await expect(edit).toBeEnabled();await expect(page.getByText('Earlier saved discussion.',{exact:true})).toHaveCount(1);
   await input.fill('Unsent private draft');await expect(page.getByRole('button',{name:'Send',exact:true})).toBeDisabled();
   await card.getByText('Saved pending messages',{exact:true}).click();await expect(card.getByText(pendingText,{exact:true})).toBeVisible();
   const recover=card.getByRole('button',{name:'Recover conversation',exact:true});await recover.focus();await expect(recover).toBeFocused();await page.keyboard.press('Enter');
   await expect(card.getByRole('button',{name:'Retry same recovery'})).toBeEnabled();assert.equal(posts.length,1);
+  await openPreferenceControls(page);
   await expect(input).toHaveValue('Unsent private draft');await expect(input).toBeFocused();await expect(edit).toBeEnabled();await expect(page.getByText('Earlier saved discussion.',{exact:true})).toHaveCount(1);
   const stored=await page.evaluate(scope=>sessionStorage.getItem('fmat:conversation-recovery:v1:'+scope),scope);assert.deepEqual(JSON.parse(stored!),posts[0]);assert.ok(!stored!.includes('private'));
   await page.reload();await expect(card.getByRole('button',{name:'Retry same recovery'})).toBeEnabled();assert.equal(posts.length,1,'Reload only reads status');
@@ -41,10 +44,13 @@ export async function verifyConversationRecoveryControls(page:Page){
   commit=true;await card.getByRole('button',{name:'Retry same recovery'}).click();await expect.poll(()=>generation).toBe(1);
   await page.reload();await expect(card.getByText('Conversation recovery is ready',{exact:true})).toBeVisible();assert.equal(posts.length,3);assert.deepEqual(posts[2],posts[0]);
   assert.equal(await page.evaluate(scope=>sessionStorage.getItem('fmat:conversation-recovery:v1:'+scope),scope),null);
+  await openPreferenceControls(page);
   await expect(card.getByRole('button',{name:'Recover conversation',exact:true})).toHaveCount(0);await expect(edit).toBeEnabled();
   await card.getByText('Saved pending messages',{exact:true}).click();await expect(card.getByText(pendingText,{exact:true})).toBeVisible();
   // A failed inspection and exhausted allowance preserve structured controls.
+  await openPreferenceControls(page);
   readsFail=true;await input.fill('Still unsent');await card.getByRole('button',{name:'Check recovery status'}).click();await expect(card.getByText(/Recovery status is unavailable/)).toBeVisible();await expect(input).toHaveValue('Still unsent');await expect(edit).toBeEnabled();
+  await openPreferenceControls(page);
   readsFail=false;state='limit_reached';await card.getByRole('button',{name:'Check recovery status'}).click();await expect(card.getByText('Conversation limit reached',{exact:true})).toBeVisible();await expect(edit).toBeEnabled();await expect(page.getByRole('button',{name:'Send',exact:true})).toBeDisabled();
   state='recovery_required';await card.getByRole('button',{name:'Check recovery status'}).click();await expect(card.getByRole('button',{name:'Recover conversation'})).toBeEnabled();
   await page.setViewportSize({width:320,height:800});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
