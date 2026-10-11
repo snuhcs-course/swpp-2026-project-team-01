@@ -27,7 +27,7 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 - [x] 3.3 Implement inline phone/code/connected states with skip, retry, expiry and change-number; verify protected fields never enter model, transcript, analytics or persisted card state.
 - [x] 3.4 Run the required visual review loop and update interface documentation; verify completed steps remain editable and consent return retains focus/current progress.
 
-- [ ] 3.5 Start admitted-host onboarding with an assistant greeting and Google Calendar action in one chat message; defer empty preference panels behind an explicit manual action, preserve consent/retry/resume, and verify mobile/keyboard/browser behavior before production rollout.
+- [x] 3.5 Start admitted-host onboarding with an assistant greeting and Google Calendar action in one chat message; defer empty preference panels behind an explicit manual action, preserve consent/retry/resume, and verify mobile/keyboard/browser behavior before production rollout.
 
 ## 4. Private iMessage proof and transport
 
@@ -87,3 +87,5 @@ Task 5.3 rollout increment: [deployed setup narration corrections](../../../docu
 Task 5.3 recovery increment: [twenty live-model turns and authored recovery guidance](../../../documentations/technical_specification/05_rebuild_evidence.md#setup-narration-continuity-and-recovery--2026-10-11) verify current initial recovery and unchanged state across follow-ups. The historical duplicated Korean block did not recur in this sample. The revoked-calendar reply did not answer saved-settings retention; full narration/AC-28 and live provider acceptance remain open, so task 5.3 stays unchecked.
 
 Task 5.3 retained-settings increment: [controlled narration acceptance](../../../documentations/technical_specification/05_rebuild_evidence.md#retained-settings-narration-acceptance--2026-10-11) verifies that disconnected hosts receive accurate confirmed-versus-draft answers, including a newer unconfirmed edit and a never-confirmed draft. This supersedes the specific unanswered-retention limitation above; full AC-28 and actual provider/device acceptance remain open.
+
+Task 3.5 acceptance: [assistant-first host entry](../../../documentations/technical_specification/05_rebuild_evidence.md#assistant-first-host-entry--2026-10-11) records mobile/keyboard/consent-recovery checks, the verified production rollout and the signed-in host view. Real Google consent and full AC-28 remain separate.
