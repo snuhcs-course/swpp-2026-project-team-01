@@ -10,7 +10,7 @@ import {RequestDetailReview} from './request-detail-review.tsx';
 import { HostSetup } from './host-setup.tsx';
 import { CalendarConnection } from './calendar-connection.tsx';
 import { Button } from './ui/button';
-import { Textarea } from './ui/textarea';
+import {InputGroup,InputGroupTextarea,InputGroupAddon,InputGroupButton} from './ui/input-group';
 import { Field, FieldGroup, FieldLabel, FieldDescription } from './ui/field';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
 import { Message, MessageContent, MessageHeader } from './ui/message';
@@ -29,7 +29,7 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
   const host=target.audience==='host_setup';
   useEffect(()=>{if(chat.denied)setDraft('');},[chat.denied]);
   async function submit(event?:FormEvent){event?.preventDefault();if(!draft.trim()||draft.length>10_000)return;if(await chat.send(draft)){setDraft('');input.current?.focus();followLatest();}}
-  return <div className="conversation-workspace">
+  return <div className="conversation-workspace" data-fresh={host&&!chat.messages.length}>
     <MessageScrollerProvider autoScroll={followMessages}>
       <FollowSentMessage sequence={followSequence}/>
       <MessageScroller>
@@ -52,7 +52,7 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
           </MessageScrollerContent>
         </MessageScrollerViewport>
         <div className="flex shrink-0 justify-end p-1">
-          <MessageScrollerButton aria-label="Jump to latest message" onClick={followLatest} size="sm" className="static min-h-11 translate-x-0 data-[direction=end]:data-[active=false]:translate-y-0">Latest message</MessageScrollerButton>
+          <MessageScrollerButton aria-label="Jump to latest message" onClick={followLatest} size="sm" className="static min-h-11 translate-x-0 data-[active=false]:scale-100 data-[direction=end]:data-[active=false]:translate-y-0">Latest message</MessageScrollerButton>
         </div>
       </MessageScroller>
     </MessageScrollerProvider>
@@ -60,17 +60,17 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
       <ConversationRecoveryCard recovery={chat.recovery} pendingMessages={chat.pendingMessages} onContinue={()=>input.current?.focus()}/>
       {chat.error?<Alert><AlertTitle>Conversation connection</AlertTitle><AlertDescription>{chat.error}</AlertDescription>{!chat.denied?<Button variant="ghost" onClick={chat.reconnect}><RefreshCwIcon data-icon="inline-start"/>Reconnect now</Button>:null}</Alert>:null}
       {chat.sendError?<Alert variant="destructive"><AlertTitle>Message needs a retry</AlertTitle><AlertDescription>{chat.sendError}</AlertDescription><Button variant="outline" disabled={chat.sending||!chat.canRetry} onClick={()=>void submit()}>Retry same message</Button></Alert>:null}
-      {!chat.messages.length&&!draft&&!chat.denied?<Suggestions>{(host?['I’d like to describe my preferences first']:['I’d like to share my availability','What details do you need?']).map(suggestion=><Suggestion key={suggestion} suggestion={suggestion} onClick={text=>{setDraft(text);input.current?.focus();}}/>)}</Suggestions>:null}
+      {!chat.messages.length&&!draft&&!chat.denied?<Suggestions>{(host?['Describe my preferences']:['I’d like to share my availability','What details do you need?']).map(suggestion=><Suggestion key={suggestion} suggestion={suggestion} onClick={text=>{setDraft(text);input.current?.focus();}}/>)}</Suggestions>:null}
       <form onSubmit={submit}>
         <FieldGroup><Field data-disabled={!chat.ready||chat.sending||!!chat.sendError}>
-          <FieldLabel htmlFor={id}>Message your scheduling assistant</FieldLabel>
-          <Textarea id={id} ref={input} value={draft} maxLength={10_000} placeholder={host?'Tell me what a good meeting week looks like…':'Share what you have in mind…'}
+          <FieldLabel className="sr-only" htmlFor={id}>Message your scheduling assistant</FieldLabel>
+          <InputGroup className="chat-composer"><InputGroupTextarea rows={2} id={id} ref={input} value={draft} maxLength={10_000} placeholder={host?'Tell me what a good meeting week looks like…':'Share what you have in mind…'}
             disabled={!chat.ready||chat.sending||!!chat.sendError} onChange={e=>setDraft(e.target.value)}
             onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(chat.canSend&&!chat.sending&&!chat.sendError)void submit();}}}/>
-          <div className="composer-actions"><FieldDescription>Enter to send · Shift + Enter for a new line</FieldDescription><Button type="submit" size="lg" disabled={!chat.canSend||chat.sending||!!chat.sendError||!draft.trim()}>Send<ArrowUpIcon data-icon="inline-end"/></Button></div>
+          <InputGroupAddon align="block-end" className="justify-between"><FieldDescription>Shift + Enter for a new line</FieldDescription><InputGroupButton aria-label="Send" type="submit" size="icon-sm" variant="default" className="size-11" disabled={!chat.canSend||chat.sending||!!chat.sendError||!draft.trim()}><ArrowUpIcon/></InputGroupButton></InputGroupAddon></InputGroup>
         </Field></FieldGroup>
       </form>
-      <p className="conversation-status" role="status">{chat.denied?'Access ended.':chat.sending?'Sending your message…':chat.working?'Your message is saved. The assistant is responding…':chat.ready?'Your conversation is saved. Approval and booking always need confirmed actions.':'Opening your private conversation…'}</p>
+      <p className="conversation-status" data-idle={chat.ready&&!chat.denied&&!chat.sending&&!chat.working} role="status">{chat.denied?'Access ended.':chat.sending?'Sending your message…':chat.working?'Your message is saved. The assistant is responding…':chat.ready?'Your conversation is saved. Approval and booking always need confirmed actions.':'Opening your private conversation…'}</p>
     </div>
   </div>;
 }

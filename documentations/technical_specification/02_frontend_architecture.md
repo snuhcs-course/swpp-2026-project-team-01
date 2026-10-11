@@ -201,6 +201,8 @@ The browser stream adapter uses one logical cursor across retained runtime gener
 
 ## Host setup conversation
 
+The host chat uses the reference templates’ open reading column and composed input: a compact brand/account header, borderless message scroller, a 720px maximum column, and a rounded input with its send action inside. On the setup conversation, the scroller fills the remaining dynamic viewport height and the composer stays below it; structured request views retain document flow. Account identity, agent permissions and sign-out are available through the keyboard-operable account menu. The welcome heading remains available to assistive technology without taking over the visual hierarchy. Idle transport status is visually hidden, while pending/error states stay visible.
+
 An admitted host with no conversation history sees an assistant greeting first, followed by a request to connect Google Calendar and the connection button in the same chat message. The authored greeting requires no model call or synthetic user turn. Fresh hosts can reveal manual preference controls or describe preferences in the composer; existing drafts and connected setup remain visible. Consent return restores the protected server state and retry feedback. A manual reload keeps recovery controls open while the read is pending.
 
 Use `/app` for both setup and ongoing host-agent chat. Keep one authorized private setup context with durable eve transcript/runtime state and versioned application drafts/review artifacts. Reload and consent return restore server state. Model interpretation changes a draft only; unsupported rules, ambiguous input or model failures leave saved policy unchanged and expose clarification or structured controls.

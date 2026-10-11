@@ -58,8 +58,8 @@ export function HostRequestWorkspace({onAccessLost,onDraftRetained}:{onAccessLos
  },[selection,refresh]);
  useEffect(()=>{if(selected)heading.current?.focus();},[selected?.requestId,selected?.closed,selection?.audience]);
  const id=useId(),active=selected?.requestId===selection?.requestId?selected:null;
- return <div className="flex min-w-0 flex-col gap-4">
-  <div className="flex flex-wrap gap-2"><Button ref={pickerToggle} variant="outline" className="min-h-11" aria-expanded={picker} aria-controls={id+'picker'} onClick={()=>setPicker(value=>!value)}>Meeting requests</Button>{selection?<Button variant="ghost" className="min-h-11" onClick={()=>choose(null)}>Back to host chat</Button>:null}</div>
+ return <div className="host-request-workspace flex min-w-0 flex-col gap-4" data-host-chat={!selection&&!picker}>
+  <div className="flex flex-wrap gap-2"><Button ref={pickerToggle} variant="ghost" className="min-h-11" aria-expanded={picker} aria-controls={id+'picker'} onClick={()=>setPicker(value=>!value)}>Meeting requests</Button>{selection?<Button variant="ghost" className="min-h-11" onClick={()=>choose(null)}>Back to host chat</Button>:null}</div>
   {picker?<RequestPicker id={id+'picker'} onChoose={requestId=>choose({requestId,audience:'host_private'})} onAccessLost={onAccessLost}/>:null}
   {error?<Alert variant="destructive"><AlertTitle>Request unavailable</AlertTitle><AlertDescription>{error}</AlertDescription>{selection?<Button variant="outline" className="min-h-11" onClick={()=>{setError('');setLoading(true);void refresh();}}>Retry request</Button>:null}</Alert>:null}
   {loading?<p role="status">Opening your selected request…</p>:null}

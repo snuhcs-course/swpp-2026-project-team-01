@@ -166,3 +166,30 @@ button:disabled { cursor: wait; opacity: .6; }
 .workspace-host .conversation-controls { gap:12px; }
 .workspace-host .privacy-note { margin-top:12px; }
 .workspace-host .conversation-workspace [data-slot="message-scroller"] { height:clamp(280px,48svh,600px); }
+
+/* Reference chat layout: an open reading column and a single composed input. */
+.workspace-host { padding:12px clamp(16px,3vw,32px); }
+.workspace-host .workspace-header { min-height:44px; gap:12px; }
+.workspace-host .wordmark { font-size:17px; gap:10px; letter-spacing:-.035em; }
+.workspace-host .wordmark span { width:28px; height:28px; }
+.workspace-host .workspace-content:has(.conversation-workspace) { width:min(100%,720px); padding:0; }
+.workspace-host .workspace-content > h1.sr-only { margin:-1px; }
+.workspace-host > footer { display:none; }
+.workspace-host:has([data-host-chat="true"]) { height:100dvh; min-height:560px; }
+.workspace-host:has([data-host-chat="true"]) .workspace-content { display:flex; flex:1; min-height:0; flex-direction:column; }
+.host-request-workspace[data-host-chat="true"] { flex:1; min-height:0; gap:0; }
+.host-request-workspace[data-host-chat="true"] > .conversation-workspace { flex:1; min-height:0; }
+.workspace-host .conversation-workspace { margin-top:0; gap:8px; }
+.workspace-host .conversation-workspace [data-slot="message-scroller"] { border:0; border-radius:0; background:transparent; }
+.host-request-workspace[data-host-chat="true"] [data-slot="message-scroller"] { flex:1; height:auto; }
+.workspace-host .conversation-workspace[data-fresh="true"] [data-slot="message-scroller-content"] { padding-top:clamp(24px,9dvh,96px); }
+.workspace-host .conversation-controls { gap:8px; padding-bottom:max(4px,env(safe-area-inset-bottom)); }
+.chat-composer { border-radius:var(--radius-xl); background:var(--card); box-shadow:0 2px 8px oklch(0 0 0 / .035); }
+.chat-composer [data-slot="input-group-control"] { font-size:16px; min-height:64px; max-height:160px; overflow:auto; }
+.conversation-status[data-idle="true"] { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.conversation-status { min-height:0; margin:0; }
+@media(max-width:480px) {
+ .workspace-host { padding:8px 16px; }
+ .workspace-host .wordmark { font-size:16px; }
+ .workspace-host .conversation-workspace[data-fresh="true"] [data-slot="message-scroller-content"] { padding-top:32px; }
+}

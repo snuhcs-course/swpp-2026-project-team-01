@@ -9,17 +9,25 @@ export async function verifySetupGreeting(page:Page){
  const connect=panel.getByRole('button',{name:'Connect Google Calendar',exact:true});
  const manual=page.getByRole('button',{name:'Set preferences without connecting yet',exact:true});
  await expect(greeting).toHaveCount(1);await expect(connect).toBeEnabled();await expect(manual).toBeVisible();
+ await expect(page.getByLabel('Message your scheduling assistant')).toBeEnabled();
+ await expect(page.locator('.chat-composer')).toHaveCSS('opacity','1');
  await expect(panel).toHaveAttribute('data-slot','message');
  await expect(panel.locator('[data-slot="bubble-content"]').getByRole('button',{name:'Connect Google Calendar',exact:true})).toHaveCount(1);
  await expect(page.getByRole('button',{name:'Edit profile',exact:true})).toHaveCount(0);
  await expect(page.getByRole('region',{name:'Calendar suggestions'})).toHaveCount(0);
  const viewport=page.viewportSize();
- for(const width of [1280,390,320]){
-  await page.setViewportSize({width,height:900});await greeting.scrollIntoViewIfNeeded();
+ for(const [width,height] of [[1280,900],[390,844],[320,640]]){
+  await page.setViewportSize({width,height});await greeting.scrollIntoViewIfNeeded();
   await expect(greeting).toBeInViewport();await expect(connect).toBeInViewport();
+  await expect(page.getByLabel('Message your scheduling assistant')).toBeInViewport();
+  await expect(page.getByRole('button',{name:'Send',exact:true})).toBeInViewport();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:`.local/rebuild/browser-screenshots/setup-greeting-${width}.png`});
  }
+ const account=page.getByRole('button',{name:'Account menu'});await account.focus();await page.keyboard.press('Enter');
+ await expect(page.getByRole('menuitem',{name:'Manage agent permissions'})).toBeVisible();
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-account-menu-320.png'});await page.keyboard.press('Escape');await expect(account).toBeFocused();
  await manual.focus();await page.keyboard.press('Enter');await expect(page.getByRole('button',{name:'Edit profile',exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Hide manual setup',exact:true}).click();
  await page.reload();await expect(greeting).toHaveCount(1);await expect(manual).toBeVisible();

@@ -266,7 +266,7 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     const cookies=await context.cookies();assert.ok(cookies.some(c=>c.name.startsWith('fmat-auth')&&c.httpOnly&&c.sameSite==='Lax'));
     const hostResponse=await context.request.get(origin+'/api/browser/host/state');assert.equal(hostResponse.status(),200);assert.match(hostResponse.headers()['cache-control'],/private.*no-store/u);
     const copied=await browser.newContext();await copied.addCookies(cookies);
-    await page.getByRole('button',{name:'Sign out'}).click();await page.getByRole('button',{name:'Continue with Google'}).waitFor();
+    await page.getByRole('button',{name:'Account menu'}).click();await page.getByRole('menuitem',{name:'Sign out',exact:true}).click();await page.getByRole('button',{name:'Continue with Google'}).waitFor();
     assert.equal((await context.request.get(origin+'/api/browser/host/state')).status(),401);
     assert.equal((await copied.request.get(origin+'/api/browser/host/state')).status(),401,'Logout invalidates a copied, unexpired session');await copied.close();
     assert.ok(callback);const replay=await context.request.get(callback,{maxRedirects:0});assert.equal(replay.status(),303);assert.equal(replay.headers().location,origin+'/app?auth=expired');
