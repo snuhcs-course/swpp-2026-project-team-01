@@ -115,6 +115,16 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
     const connected=page.getByRole('button',{name:'Google Calendar connected',exact:true});await expect(connected).toBeDisabled();
     assert.equal(await connected.evaluate(el=>!!el.closest('[data-slot="ai-message-content"]')),false,'Connection status has its own message part');
     await expect(page.locator('[data-slot="ai-message-content"]').filter({hasText:'Great! Your Google Calendar is connected!'}).getByRole('button',{name:'Manage Google connection',exact:true})).toBeVisible();
+    const manageGoogle=page.getByRole('button',{name:'Manage Google connection',exact:true});
+    await manageGoogle.click();const connectionDialog=page.getByRole('dialog',{name:'Google Calendar settings'});
+    await expect(connectionDialog).toBeVisible();await expect(connectionDialog.getByRole('button',{name:'Reconnect Google',exact:true})).toBeFocused();
+    await page.setViewportSize({width:320,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await page.screenshot({path:'.local/rebuild/browser-screenshots/google-connection-modal-mobile.png'});
+    await page.keyboard.press('Escape');await expect(connectionDialog).toHaveCount(0);await expect(manageGoogle).toBeFocused();
+    await page.setViewportSize({width:1280,height:900});await manageGoogle.click();
+    await page.route('**/api/browser/calendar/start',route=>route.fulfill({status:503,json:{error:{message:'Please try again.'}}}));
+    await connectionDialog.getByRole('button',{name:'Reconnect Google',exact:true}).click();await expect(connectionDialog.getByRole('alert')).toHaveText('Please try again.');await page.unroute('**/api/browser/calendar/start');
+    await connectionDialog.getByRole('button',{name:'Close',exact:true}).click();await expect(manageGoogle).toBeFocused();
     await expect(choices.getByRole('checkbox')).toHaveCount(3);
     await expect(choices.getByRole('radio')).toHaveCount(0);
     await expect(choices.getByRole('button',{name:/Reload/})).toHaveCount(0);
