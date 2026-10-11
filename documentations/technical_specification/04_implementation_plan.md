@@ -365,6 +365,8 @@ Incremental completion (2026-10-07; the full phase exit remains open):
 - [x] Extend live-model setup narration to eight later stages, correct internal-state wording, repeated timezone questions and exclusive scan-end descriptions, and regress all six initial cases. Verify state preservation, fixture cleanup and 2,837 SQL assertions. [Evidence](05_rebuild_evidence.md#later-stage-setup-narration--2026-10-10). A repeated Korean explanation and full AC-28/live onboarding remain open.
 
 - [x] Run and review six English/Korean live-model initial-setup narration cases with production instructions/tools and isolated local state; verify truthful draft, readiness, scan and link responses, bounded execution and exact fixture cleanup. [Evidence](05_rebuild_evidence.md#live-initial-setup-narration-acceptance--2026-10-10). Full onboarding/Google/iPhone acceptance remains open.
+- [x] Deploy setup recovery guidance from `333d51e`, verify the exact Ready production alias and all 38 HTTP checks, and retain explicit narration/live-provider limitations. [Rollout](05_rebuild_evidence.md#production-setup-recovery-guidance--2026-10-11).
+
 - [x] Add current authored recovery guidance to incomplete model readiness results and extend narration verification with cursor-resumed, read-only follow-up turns. Verify the failing-before recovery regression, 579 application/provider tests and twenty live-model turns with exact cleanup. Repetition did not recur in this sample; the revoked-calendar saved-settings answer and full AC-28/live acceptance remain open. [Evidence](05_rebuild_evidence.md#setup-narration-continuity-and-recovery--2026-10-11).
 
 - [ ] Complete controlled live Google login and actual iPhone acceptance, followed by the remaining host-setup phase exit below.

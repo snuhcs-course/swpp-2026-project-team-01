@@ -3954,3 +3954,10 @@ Final-code acceptance ran twelve initial/follow-up turns and eight later-stage t
 Private reports: `.local/rebuild/live-setup-narration-M7iLWL/results.json` (twelve turns) and `.local/rebuild/live-setup-narration-zeJDtO/results.json` (eight stages). Fresh checks pass: 579 application/provider tests including the 18 tool-execution tests, the live-model opt-in guard, both service builds, both TypeScript targets, runtime smoke and dependency boundaries. The preceding source `be42971` has two completed successful hosted CI runs (`38033062261`, `38033059345`); this does not establish CI status for the new source. No schema change is required.
 
 After both live fixture suites cleaned up, all 2,837 SQL assertions across 58 files pass without a database reset. Documentation validation checks 1,253 local links across 182 Markdown files; strict validation of the owning OpenSpec change and whitespace checks pass.
+
+
+## Production setup recovery guidance — 2026-10-11
+
+Source `333d51e5f1dd49ab9c676dd0ae95dc3e13f52582` is deployed as `dpl_8qVsqZfC7kygPYovLm2VtjPsPS1L` at `https://findmeatime-release-kwkme3sul-justdodos-projects.vercel.app`. A clean Git archive verified 1,470 blobs; 1,106 uploaded regular files had zero matches against 13 checked secret values. Vercel CLI 62.2.0 resolved the intended `justdodos-projects/findmeatime-release` project before deployment (the root native CLI reports 62.5.0).
+
+Independent inspection confirmed Ready/production and protected health reported reachable with `releaseReady: false`. Promotion and independent alias inspection confirmed `https://release.findmeatime.com` resolves to that exact Ready deployment. All 38 production HTTP checks pass: 15 runtime/access, 10 setup/Google-only login, six recovery and seven provider/dispatcher checks. AgentMail ingress remains configuration-unavailable, not accepted live ingress. No schema migration, provider configuration, real recipient message or Calendar event was involved. The unrelated competitor-research edit remains outside the commit and deployment. Complete narration, Google/device/channel and named-client acceptance remain open.
