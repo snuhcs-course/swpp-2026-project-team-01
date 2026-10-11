@@ -17,7 +17,7 @@ export function CalendarChoices({disabled,onSaved,refreshKey}:{disabled:boolean;
  const [attempt,setAttempt]=useState(0),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const readError=useRef<HTMLParagraphElement>(null),heading=useRef<HTMLLegendElement>(null),change=useRef<HTMLButtonElement>(null),focusNext=useRef(false);
  const cached=useRef<{generation:string;value:CalendarRecommendations}|null>(null);
- useEffect(()=>{if(!loading&&!saving&&focusNext.current){focusNext.current=false;(error?readError.current:step==='saved'?change.current:heading.current)?.focus();}},[step,loading,saving,error]);
+ useEffect(()=>{if(!loading&&!saving&&focusNext.current){const target=error?readError.current:step==='saved'?change.current:heading.current;if(target){focusNext.current=false;target.scrollIntoView({block:'nearest'});target.focus({preventScroll:true});}}},[step,loading,saving,error]);
  useEffect(()=>{
   const controller=new AbortController();setLoading(true);setError('');setCatalog(null);setNotice('');
   void (async()=>{

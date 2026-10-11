@@ -28,7 +28,7 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
  const [manualOpen,setManualOpen]=useState(false),[optionsOpen,setOptionsOpen]=useState(false);
  const [expanded,setExpanded]=useState(false),[loading,setLoading]=useState(true);
  const editorOrigin=useRef<HTMLElement|null>(null),setupHeading=useRef<HTMLLegendElement>(null),savedNotice=useRef<HTMLParagraphElement>(null),restoreFocus=useRef<'origin'|'saved'|null>(null);
- useEffect(()=>{if(editor||busy||!restoreFocus.current)return;const target=restoreFocus.current==='saved'?savedNotice.current:editorOrigin.current;restoreFocus.current=null;if(target?.isConnected&&!target.matches(':disabled'))target.focus();else setupHeading.current?.focus();},[editor,busy,notice]);
+ useEffect(()=>{if(editor||busy||!restoreFocus.current)return;const target=restoreFocus.current==='saved'?savedNotice.current:editorOrigin.current;restoreFocus.current=null;if(target?.isConnected&&!target.matches(':disabled')){target.scrollIntoView({block:'nearest'});target.focus({preventScroll:true});}else setupHeading.current?.focus();},[editor,busy,notice]);
  const pending=useRef<{action:string;input:Record<string,unknown>;identity:string}|null>(null);
  useEffect(()=>{
   const controller=new AbortController();setLoading(true);setError('');

@@ -119,7 +119,17 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
     await manageGoogle.click();const connectionDialog=page.getByRole('dialog',{name:'Google Calendar settings'});
     await expect(connectionDialog).toBeVisible();await expect(connectionDialog.getByRole('button',{name:'Reconnect Google',exact:true})).toBeFocused();
     await page.setViewportSize({width:320,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
-    await page.screenshot({path:'.local/rebuild/browser-screenshots/google-connection-modal-mobile.png'});
+    await page.evaluate(()=>document.fonts.ready);
+    assert.match(await connectionDialog.evaluate(el=>getComputedStyle(el).fontFamily),/Geist Mono/i);
+    assert.match(await connectionDialog.getByRole('heading').evaluate(el=>getComputedStyle(el).fontFamily),/Merriweather/i);
+    assert.equal(await connectionDialog.evaluate(el=>getComputedStyle(el).borderRadius),'0px');
+    await page.screenshot({path:'.local/rebuild/browser-screenshots/google-connection-modal-mobile.png',animations:'disabled'});
+    const lightDialogBackground=await connectionDialog.evaluate(el=>getComputedStyle(el).backgroundColor);
+    await page.evaluate(()=>document.documentElement.classList.add('dark'));
+    await connectionDialog.evaluate(async el=>{getComputedStyle(el).backgroundColor;await Promise.all(el.getAnimations().map(animation=>animation.finished));});
+    assert.notEqual(await connectionDialog.evaluate(el=>getComputedStyle(el).backgroundColor),lightDialogBackground);
+    await page.screenshot({path:'.local/rebuild/browser-screenshots/google-connection-modal-dark.png',animations:'disabled'});
+    await page.evaluate(()=>document.documentElement.classList.remove('dark'));
     await page.keyboard.press('Escape');await expect(connectionDialog).toHaveCount(0);await expect(manageGoogle).toBeFocused();
     await page.setViewportSize({width:1280,height:900});await manageGoogle.click();
     await page.route('**/api/browser/calendar/start',route=>route.fulfill({status:503,json:{error:{message:'Please try again.'}}}));
