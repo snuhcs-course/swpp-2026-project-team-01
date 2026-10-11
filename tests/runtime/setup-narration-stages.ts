@@ -12,7 +12,7 @@ import type {Credential} from '../../lib/server/identity/credentials.ts';
 import {setupGuide,type SetupStep} from '../../lib/contracts/setup-guide.ts';
 import type {SetupState} from '../../lib/contracts/setup.ts';
 import type {LocalSql} from '../integration/local-sql.ts';
-export type NarrationStage='calendars'|'analysis'|'rich_scan'|'sparse_scan'|'dismissed'|'answers'|'review'|'revoked';
+export type NarrationStage='calendars'|'analysis'|'rich_scan'|'sparse_scan'|'dismissed'|'answers'|'review'|'revoked'|'revoked_draft'|'unconfirmed_disconnect';
 export type NarrationScenario={id:string;text:string;duration?:number;stage?:NarrationStage};
 export const laterNarrationCases:NarrationScenario[]=[
  {id:'en-calendar-selection',stage:'calendars',text:'Google is connected. Tell me the next setup step and explain the different calendar roles. Do not change anything or claim that a scan happened.'},
@@ -22,6 +22,8 @@ export const laterNarrationCases:NarrationScenario[]=[
  {id:'en-dismissed-defaults',stage:'dismissed',text:'I already dismissed the suggested schedule and meeting mode. What do you need from me next? Do not suggest those defaults again, undo my dismissal, or change my draft.'},
  {id:'ko-extracted-answers',stage:'answers',text:'제가 말한 온라인 미팅 선호가 초안에 들어갔어요. 다시 입력해야 하나요? 지금 저장이 확정됐는지, 다음에 어떻게 확인해야 하는지 알려 주세요. 제 대신 답을 수락하거나 설정을 확정하지 마세요.'},
  {id:'en-current-review',stage:'review',text:'My current settings review is ready. Explain what is saved and what still needs my action. Do not confirm it for me and do not invent booking links.'},
+ {id:'en-revoked-newer-draft',stage:'revoked_draft',text:'I confirmed 30-minute meetings, then drafted 45 minutes without confirming it and disconnected Google. Which duration is actually saved now? Is the 45-minute change confirmed? Can I share my booking link? Check current state without changing anything.'},
+ {id:'ko-disconnected-unconfirmed',stage:'unconfirmed_disconnect',text:'캘린더를 연결하고 30분 미팅 초안을 만들었지만 최종 확인은 하지 않고 연결을 해제했어요. 이 30분 설정은 확정되어 저장됐나요? 지금 예약 링크를 써도 되나요? 현재 상태를 확인해서 알려 주고 설정은 바꾸지 마세요.'},
  {id:'ko-revoked-calendar',stage:'revoked',text:'예전에 설정을 확정했지만 Google 연결을 해제했어요. 저장된 설정은 유지되나요? 지금 예약 링크를 공유해도 되나요? 현재 준비 상태를 확인하고 다음 조치를 안내해 주세요. 설정은 바꾸지 마세요.'},
 ];
 const q=(value:string)=>"'"+value.replaceAll("'","''")+"'";
@@ -45,7 +47,7 @@ export async function prepareNarrationStage(stage:NarrationStage,input:{sql:Loca
   const scans=new CalendarScans(database,env,provider,{async read(){return [{id:'narration-calendar',timezone:'Asia/Seoul',events:stage==='sparse_scan'?[]:Array.from({length:8},(_,n)=>({id:'synthetic-'+n,start:{dateTime:start.add({days:n}).toString()+'T09:00:00+09:00'},end:{dateTime:start.add({days:n}).toString()+'T10:00:00+09:00'},location:'Narration private venue sentinel'}))}];}});
   const scan=await scans.start(credential,{calendarIds:['narration-calendar'],startDate:start.toString(),endDate:end.toString(),timezone:'Asia/Seoul',expectedRevision:state.revision,rulesVersion:state.rulesVersion,generation:state.calendarGeneration!,consented:true,idempotencyKey:randomUUID()});
   assert.equal(scan.scan?.status,'ready');assert.equal(scan.scan?.summary?.windowSource,stage==='sparse_scan'?'starter':'calendar');
- }else if(['dismissed','answers','review','revoked'].includes(stage)){
+ }else if(['dismissed','answers','review','revoked','revoked_draft','unconfirmed_disconnect'].includes(stage)){
   state=await setup.progress(credential,{expectedRevision:state.revision,choice:'skip_analysis',idempotencyKey:randomUUID()});
   if(stage==='dismissed'){
    for(const choice of ['dismiss_schedule','dismiss_mode'])state=await setup.progress(credential,{expectedRevision:state.revision,choice,idempotencyKey:randomUUID()});
@@ -58,16 +60,21 @@ export async function prepareNarrationStage(stage:NarrationStage,input:{sql:Loca
    }else{
     state=await setup.draft(credential,{expectedRevision:state.revision,idempotencyKey:randomUUID(),patch,unresolved:[]});
     assert.ok(state.review);
-    if(stage==='revoked'){
+    if(stage==='revoked'||stage==='revoked_draft'){
      state=await setup.confirm(credential,{expectedRevision:state.revision,draftRevision:state.review.draftRevision,reviewRevision:state.review.revision,rulesVersion:state.rulesVersion,calendarGeneration:state.calendarGeneration!,confirmed:true,idempotencyKey:randomUUID()});
-     assert.equal(state.nextAction,'settings_confirmed');await consent.disconnect(credential);
+     assert.equal(state.nextAction,'settings_confirmed');
+     if(stage==='revoked_draft')state=await setup.draft(credential,{expectedRevision:state.revision,idempotencyKey:randomUUID(),patch:{rules:{durationMinutes:45}},unresolved:[]});
     }
+    if(['revoked','revoked_draft','unconfirmed_disconnect'].includes(stage))await consent.disconnect(credential);
    }
   }
  }
  state=await setup.read(credential);
- const expected:Record<NarrationStage,SetupStep>={calendars:'calendars',analysis:'analysis',rich_scan:'analysis_review',sparse_scan:'analysis_review',dismissed:'schedule',answers:'answers_review',review:'review',revoked:'connect'};
+ const expected:Record<NarrationStage,SetupStep>={calendars:'calendars',analysis:'analysis',rich_scan:'analysis_review',sparse_scan:'analysis_review',dismissed:'schedule',answers:'answers_review',review:'review',revoked:'connect',revoked_draft:'connect',unconfirmed_disconnect:'connect'};
  assert.equal(setupGuide(state).step,expected[stage],`Fixture must reach the requested ${stage} before a paid model call`);
+ if(stage==='revoked'||stage==='revoked_draft')assert.equal(state.confirmed.rules?.durationMinutes,30);
+ if(stage==='revoked_draft'){assert.equal(state.draft?.settings.rules?.durationMinutes,45);assert.equal(state.draft?.status,'active');}
+ if(stage==='unconfirmed_disconnect'){assert.notEqual(state.confirmed.rules?.durationMinutes,30);assert.equal(state.draft?.settings.rules?.durationMinutes,30);assert.equal(state.draft?.status,'active');}
  if(stage==='answers')assert.equal(state.draft?.provenance['rules.meetingMode'],'assistant');
  return state as SetupState;
 }
