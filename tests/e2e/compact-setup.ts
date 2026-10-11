@@ -24,7 +24,7 @@ export async function verifyCompactSetup(page:Page,context:BrowserContext,origin
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:`.local/rebuild/browser-screenshots/compact-setup-${width}.png`});
   await show.focus();await expect(show).toBeInViewport();await page.screenshot({path:`.local/rebuild/browser-screenshots/compact-preferences-${width}.png`});
-  const composer=page.getByLabel('Message your scheduling assistant');await composer.focus();await expect(composer).toBeInViewport();
+  const composer=page.getByLabel('Message Thyme');await composer.focus();await expect(composer).toBeInViewport();
   await page.screenshot({path:`.local/rebuild/browser-screenshots/compact-composer-${width}.png`});
  }
  await page.evaluate(()=>{document.documentElement.style.zoom='2';});await change.focus();await expect(change).toBeInViewport();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);

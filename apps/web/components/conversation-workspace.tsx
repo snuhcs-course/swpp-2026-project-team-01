@@ -60,7 +60,7 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
       {!chat.messages.length&&!draft&&!chat.denied?<Suggestions>{(host?['Describe my preferences']:['I’d like to share my availability','What details do you need?']).map(suggestion=><Suggestion key={suggestion} suggestion={suggestion} onClick={text=>{setDraft(text);input.current?.focus();}}/>)}</Suggestions>:null}
       <form onSubmit={submit}>
         <FieldGroup><Field data-disabled={!chat.ready||chat.sending||!!chat.sendError}>
-          <FieldLabel className="sr-only" htmlFor={id}>Message your scheduling assistant</FieldLabel>
+          <FieldLabel className="sr-only" htmlFor={id}>Message Thyme</FieldLabel>
           <InputGroup className="chat-composer"><InputGroupTextarea rows={2} id={id} ref={input} value={draft} maxLength={10_000} placeholder={host?'Tell me what a good meeting week looks like…':'Share what you have in mind…'}
             disabled={!chat.ready||chat.sending||!!chat.sendError} onChange={e=>setDraft(e.target.value)}
             onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(chat.canSend&&!chat.sending&&!chat.sendError)void submit();}}}/>

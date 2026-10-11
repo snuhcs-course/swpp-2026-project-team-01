@@ -37,7 +37,7 @@ export async function verifyNoHistory(browser:Browser,origin:string,local:Record
    assert.equal(await sql.query(`select booking_calendar_id='personal@example.test' and conflict_calendar_ids=array['personal@example.test'] from fmat.hosts where id='${host}';`),'t');
   }
   if(flow==='no-history'){
-   await page.getByLabel('Message your scheduling assistant').fill('Use My calendar (1) and My calendar (2) for conflicts and save bookings in My calendar (1).');
+   await page.getByLabel('Message Thyme').fill('Use My calendar (1) and My calendar (2) for conflicts and save bookings in My calendar (1).');
    await page.getByRole('button',{name:'Send',exact:true}).click();await page.getByText('Your calendar choices are saved.',{exact:true}).waitFor();
    await expect(page.getByRole('region',{name:'Calendar choices'})).toContainText('2 calendars checked for conflicts');
    assert.equal(await sql.query(`select cardinality(conflict_calendar_ids)=2 and booking_calendar_id='personal@example.test' and rules is null from fmat.hosts where id='${host}';`),'t');
@@ -61,7 +61,7 @@ export async function verifyNoHistory(browser:Browser,origin:string,local:Record
    assert.equal(online.confirmed.rules,null);
    await page.reload();await setup.getByRole('button',{name:'Confirm these meeting settings'}).waitFor();
   }else{
-   await page.getByLabel('Message your scheduling assistant').fill(describedPreferences);await page.getByRole('button',{name:'Send',exact:true}).click();await page.getByText(describedReply,{exact:true}).waitFor();
+   await page.getByLabel('Message Thyme').fill(describedPreferences);await page.getByRole('button',{name:'Send',exact:true}).click();await page.getByText(describedReply,{exact:true}).waitFor();
    const answers=guide.getByRole('group',{name:'Review draft answers'});await answers.waitFor();assert.equal(await answers.getByRole('checkbox',{checked:true}).count(),0);assert.equal(await setup.getByRole('button',{name:'Confirm these meeting settings'}).count(),0);
    const extracted=await (await context.request.get(origin+'/api/browser/setup/read')).json();assert.equal(extracted.draft.provenance['rules.travelMode'],'assistant');assert.equal(extracted.review,null);assert.equal(extracted.confirmed.rules,null);
    await answers.getByRole('checkbox',{name:'I choose: Public transit',exact:true}).check();assert.equal(await answers.getByRole('button',{name:'Use my selected answers'}).isDisabled(),true,'Physical choices cannot assume an unchosen mode');

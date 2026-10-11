@@ -16,9 +16,9 @@ export async function verifyConversationReconnect(page:Page){
   const reconnect=page.getByRole('button',{name:'Reconnect now',exact:true});
   await expect(reconnect).toBeVisible();
   await expect.poll(()=>reads,{timeout:15000}).toBe(2);
-  await expect(page.getByLabel('Message your scheduling assistant')).toBeDisabled();
+  await expect(page.getByLabel('Message Thyme')).toBeDisabled();
   await reconnect.click();
-  await expect(page.getByLabel('Message your scheduling assistant')).toBeEnabled({timeout:10000});
+  await expect(page.getByLabel('Message Thyme')).toBeEnabled({timeout:10000});
   await expect(reconnect).toHaveCount(0);
   await page.screenshot({path:'.local/rebuild/browser-screenshots/conversation-reconnected.png',fullPage:true});
  }finally{

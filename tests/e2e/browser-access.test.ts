@@ -223,7 +223,7 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     }finally{releaseDisconnect();await Promise.allSettled(disconnectReads);await page.unroute('**/api/browser/setup/read');}
     assert.equal((await context.request.get(origin+'/api/browser/calendar/list')).status(),409);
     await verifyConversationReconnect(page);
-    const composer=page.getByLabel('Message your scheduling assistant');
+    const composer=page.getByLabel('Message Thyme');
     await sql.query(`insert into fmat.conversation_budgets values('host:${userId}',clock_timestamp(),20,clock_timestamp(),20) on conflict(name) do update set minute_used=20,minute_started_at=clock_timestamp();`);
     const throttled=page.waitForResponse(r=>r.url().includes('/conversations/')&&r.url().endsWith('/messages')&&r.request().method()==='POST');
     await composer.fill('Help me plan a focused week.');await page.getByRole('button',{name:'Send',exact:true}).click();

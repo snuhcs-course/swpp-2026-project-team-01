@@ -5,11 +5,11 @@ export async function verifySetupGreeting(page:Page){
  const origin=new URL(page.url()).origin;assert.equal(origin,'http://localhost:3000');
  const before=await (await page.request.get(origin+'/api/browser/setup/read')).json();
  const panel=page.getByRole('region',{name:'Google Calendar connection'});
- const greeting=panel.getByText('Hi! I’m your scheduling assistant. Let’s set up your meetings together.',{exact:true});
+ const greeting=panel.getByText('Hi! I’m Thyme, your scheduling assistant. Let’s set up your meetings together.',{exact:true});
  const connect=panel.getByRole('button',{name:'Connect Google Calendar',exact:true});
  const manual=page.getByRole('button',{name:'Set preferences without connecting yet',exact:true});
  await expect(greeting).toHaveCount(1);await expect(connect).toBeEnabled();await expect(manual).toBeVisible();
- await expect(page.getByLabel('Message your scheduling assistant')).toBeEnabled();
+ await expect(page.getByLabel('Message Thyme')).toBeEnabled();
  await expect(page.locator('.chat-composer')).toHaveCSS('opacity','1');
  await expect(panel.locator('[data-slot="ai-message"]')).toHaveCount(2);
  await expect(panel.locator('[data-slot="ai-message-content"] button')).toHaveCount(0);
@@ -22,7 +22,7 @@ export async function verifySetupGreeting(page:Page){
  for(const [width,height] of [[1280,900],[390,844],[320,640]]){
   await page.setViewportSize({width,height});await greeting.scrollIntoViewIfNeeded();
   await expect(greeting).toBeInViewport();await expect(connect).toBeInViewport();
-  await expect(page.getByLabel('Message your scheduling assistant')).toBeInViewport();
+  await expect(page.getByLabel('Message Thyme')).toBeInViewport();
   await expect(page.getByRole('button',{name:'Send',exact:true})).toBeInViewport();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:`.local/rebuild/browser-screenshots/setup-greeting-${width}.png`});

@@ -33,7 +33,7 @@ export async function verifyBookingApproval(host:Page,guest:Page,sql:LocalSql,ho
   await card.getByRole('button',{name:'Confirm approval',exact:true}).click();await card.getByRole('alert').waitFor();await card.getByRole('button',{name:'Check approval status',exact:true}).click();await card.getByRole('button',{name:'Retry same approval',exact:true}).click();
   await card.getByRole('button',{name:'Check approval status',exact:true}).click();await card.getByText('Your approval is recorded. Booking still requires current availability checks and a confirmed Calendar event.',{exact:true}).waitFor();
   assert.deepEqual(inputs[0],inputs[1]);assert.equal(await sql.query(`select count(*) from fmat.host_approvals where request_id='${id}';`),'1');assert.equal(await sql.query(`select count(*) from fmat.jobs where kind='booking' and payload->>'requestId'='${id}';`),'1');
-  await expect(host.getByLabel('Message your scheduling assistant')).toHaveCount(0);await host.reload();await card.getByText('Your approval is recorded. Booking still requires current availability checks and a confirmed Calendar event.',{exact:true}).waitFor();
+  await expect(host.getByLabel('Message Thyme')).toHaveCount(0);await host.reload();await card.getByText('Your approval is recorded. Booking still requires current availability checks and a confirmed Calendar event.',{exact:true}).waitFor();
   // Synthetic persisted provider evidence exercises the real receipt API/UI;
   // actual worker outcomes are separately covered by the integration suite.
   const pendingReceipt=host.getByRole('region',{name:'Booking confirmation',exact:true});
@@ -45,7 +45,7 @@ export async function verifyBookingApproval(host:Page,guest:Page,sql:LocalSql,ho
   await expect(receipt.getByRole('link',{name:'Join meeting',exact:true})).toHaveAttribute('href',details.location);
   await expect(receipt.getByRole('link',{name:'Open in Google Calendar',exact:true})).toHaveAttribute('href','https://www.google.com/calendar/event?eid=fixture');
   await expect(receipt.getByText(details.purpose,{exact:true})).toBeVisible();await expect(receipt.getByText('30 minutes',{exact:true})).toBeVisible();await expect(receipt.getByText(details.requesterEmail,{exact:true})).toBeVisible();
-  assert.equal(await guest.getByText('receipt private sentinel',{exact:true}).count(),0);await expect(guest.getByLabel('Message your scheduling assistant')).toHaveCount(0);
+  assert.equal(await guest.getByText('receipt private sentinel',{exact:true}).count(),0);await expect(guest.getByLabel('Message Thyme')).toHaveCount(0);
   const receiptResponse=await guest.request.get(origin+'/api/browser/booking-receipt?audience=guest&requestId='+id);assert.equal(receiptResponse.status(),200);assert.match(receiptResponse.headers()['cache-control'],/no-store/);assert.doesNotMatch(await receiptResponse.text(),/private sentinel|tokenHash|encryptedCredential/);
   await guest.setViewportSize({width:320,height:844});await receipt.scrollIntoViewIfNeeded();assert.equal(await guest.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await guest.screenshot({path:'.local/rebuild/browser-screenshots/receipt-mobile.png',fullPage:true});
   await guest.setViewportSize({width:1280,height:1000});await guest.evaluate(()=>{document.documentElement.style.zoom='2';});assert.equal(await guest.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await guest.screenshot({path:'.local/rebuild/browser-screenshots/receipt-zoom.png',fullPage:true});await guest.evaluate(()=>{document.documentElement.style.zoom='';});
@@ -63,7 +63,7 @@ export async function verifyBookingApproval(host:Page,guest:Page,sql:LocalSql,ho
    assert.equal((await emailContext.request.get(origin+'/api/browser/guest/state?requestId='+id)).status(),401);
    assert.equal((await emailContext.request.post(origin+'/api/browser/scheduling/evaluate',{headers:{origin},data:{requestId:id,revision:1,audience:'guest'}})).status(),401);
    assert.equal((await emailContext.request.post(origin+'/api/browser/booking-receipt/exchange',{headers:{origin:'https://wrong.test'},data:{requestId:id,token:emailToken}})).status(),403);
-   await expect(emailPage.getByLabel('Message your scheduling assistant')).toHaveCount(0);
+   await expect(emailPage.getByLabel('Message Thyme')).toHaveCount(0);
    await emailPage.reload();await emailReceipt.getByText('Meeting confirmed',{exact:true}).waitFor();
    await sql.query(`update fmat.requests set token_hash=repeat('7',64) where id='${id}';`);
    await emailReceipt.getByRole('button',{name:'Check booking status',exact:true}).click();await emailReceipt.getByRole('alert').waitFor();

@@ -36,7 +36,7 @@ export function CalendarConnection({requestId,onChanged,introduce=false,refreshK
     catch(e){setError(e instanceof Error?e.message:'Please try again.');}finally{setBusy(false);}
   }
   return <Dialog open={manage} onOpenChange={setManage}><section role="region" aria-label="Google Calendar connection" aria-busy={loading||busy} className="flex min-w-0 flex-col gap-4">
-    {introduce?<ChatMessage><p>Hi! I’m your scheduling assistant. Let’s set up your meetings together.</p></ChatMessage>:null}
+    {introduce?<ChatMessage><p>Hi! I’m Thyme, your scheduling assistant. Let’s set up your meetings together.</p></ChatMessage>:null}
     {status?.connected?<>
       <div><Button variant="secondary" disabled className="w-fit">Google Calendar connected</Button></div>
       <ChatMessage continuation={introduce}><p>Great! Your Google Calendar is connected!</p><DialogTrigger asChild><Button variant="link" className="min-h-11 h-auto w-fit px-0 text-muted-foreground underline underline-offset-4">Manage Google connection</Button></DialogTrigger></ChatMessage>

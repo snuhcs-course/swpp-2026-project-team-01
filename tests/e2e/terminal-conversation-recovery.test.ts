@@ -50,7 +50,7 @@ test('browser explicitly recovers an authentication-terminated runtime with orig
   const path=`**/api/browser/conversations/${scope}/recovery`,bodies:unknown[]=[];let forward=false,lostStatus=0;
   await page.route(path,async route=>{if(route.request().method()!=='POST')return route.continue();bodies.push(route.request().postDataJSON());if(forward)lostStatus=(await route.fetch()).status();await route.abort();});
   await page.goto(origin+'/app');
-  const card=page.getByRole('alert',{name:'Conversation recovery'}),composer=page.getByLabel('Message your scheduling assistant'),setupCard=page.getByRole('region',{name:'Your meeting setup'});
+  const card=page.getByRole('alert',{name:'Conversation recovery'}),composer=page.getByLabel('Message Thyme'),setupCard=page.getByRole('region',{name:'Your meeting setup'});
   await expect(card.getByRole('button',{name:'Recover conversation',exact:true})).toBeEnabled();
   await page.setViewportSize({width:640,height:900});await page.evaluate(()=>{document.documentElement.style.zoom='2';});
   const recoveryButton=card.getByRole('button',{name:'Recover conversation',exact:true});await recoveryButton.focus();await recoveryButton.scrollIntoViewIfNeeded();await expect(recoveryButton).toBeInViewport();
@@ -96,7 +96,7 @@ test('browser explicitly recovers an authentication-terminated runtime with orig
   await sql.query(`update auth.sessions set not_after=clock_timestamp()-interval '1 second' where user_id='${host}';`);
   await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
   await expect(page.getByLabel('Draft retained on this page')).toHaveValue('Local draft retained after access ends');
-  await expect(page.getByLabel('Message your scheduling assistant')).toHaveCount(0);await expect(page.getByText('Reply 1: retained-archive-sentinel',{exact:true})).toHaveCount(0);
+  await expect(page.getByLabel('Message Thyme')).toHaveCount(0);await expect(page.getByText('Reply 1: retained-archive-sentinel',{exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Select draft text'}).click();await expect(page.getByLabel('Draft retained on this page')).toBeFocused();
   assert.equal(await page.evaluate(()=>Object.values(sessionStorage).some(value=>value.includes('Local draft retained'))),false);
   await page.getByRole('button',{name:'Discard draft'}).click();await expect(page.getByLabel('Draft retained on this page')).toHaveCount(0);

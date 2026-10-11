@@ -25,7 +25,7 @@ export async function verifyConversationRecoveryControls(page:Page){
  });
  try{
   await page.reload();
-  const card=page.getByRole('alert',{name:'Conversation recovery'}),input=page.getByLabel('Message your scheduling assistant');
+  const card=page.getByRole('alert',{name:'Conversation recovery'}),input=page.getByLabel('Message Thyme');
   await expect(card.getByText('Conversation needs recovery',{exact:true})).toBeVisible();
   const edit=page.getByRole('region',{name:'Your meeting setup'}).getByRole('button',{name:'Edit schedule',exact:true});
   await openPreferenceControls(page);

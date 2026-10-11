@@ -5,6 +5,8 @@ Status: Product direction; implementation coverage must be verified separately.
 
 These principles guide new features and reviews across the web app, our conversational agent, personal-agent integrations, and command-line tools. They complement the [one-pager](01_one_pager.md) and [product requirements](02_product_requirements.md). Detailed behavior belongs in capability specifications; implementation changes follow the repository's OpenSpec workflow.
 
+Our AI scheduling agent is named **Thyme**. Use Thyme for the assistant’s chat identity, introductions, and conversational references. **Find Me a Time** remains the product name.
+
 ## 1. The agent can perform user actions
 
 Our agent should be able to do everything a user can do in the product, except explicitly documented human-only actions. A user should be able to describe an intended outcome in chat and have the agent carry it out, without being sent to a form merely because the agent lacks the corresponding tool.

@@ -12,7 +12,7 @@ export async function verifyHostRequestRecovery(page:Page,requestId:string){
   await page.route(endpoint,route=>route.fulfill({status:503,json:{error:{message:'Request could not be loaded. Try again.'}}}));
   await page.goto(origin+'/app?request='+requestId);
   await expect(error).toContainText('Request could not be loaded.');await expect(loading).toHaveCount(0);
-  await expect(selected).toHaveCount(0);await expect(page.getByLabel('Message your scheduling assistant')).toHaveCount(0);
+  await expect(selected).toHaveCount(0);await expect(page.getByLabel('Message Thyme')).toHaveCount(0);
   await page.setViewportSize({width:320,height:900});
   const retry=error.getByRole('button',{name:'Retry request',exact:true});await retry.focus();await expect(retry).toBeInViewport();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);

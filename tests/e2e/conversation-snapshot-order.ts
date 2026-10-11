@@ -16,7 +16,7 @@ export async function verifyReceiptSnapshotOrdering(page:Page){
  await page.route(messages,route=>route.fulfill({json:{messageId,status:'pending'}}));
  try{
   await page.reload();await expect.poll(()=>!!stale).toBe(true);await openPreferenceControls(page);
-  await page.getByLabel('Message your scheduling assistant').fill(text);
+  await page.getByLabel('Message Thyme').fill(text);
   await page.getByRole('button',{name:'Send',exact:true}).click();
   const edit=page.getByRole('region',{name:'Your meeting setup'}).getByRole('button',{name:'Edit schedule',exact:true});
   await expect(edit).toBeDisabled();
