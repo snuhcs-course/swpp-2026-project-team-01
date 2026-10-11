@@ -25,8 +25,8 @@ const initialCases:NarrationScenario[]=[
 ];
 
 async function main(){
- const args=process.argv.slice(2),later=args.length===2&&args[1]==='--later-stages';
- assert.deepEqual(args,later?['--live','--later-stages']:['--live'],'Use --live, optionally --later-stages, for paid model acceptance');
+ const args=process.argv.slice(2),later=args.length===2&&args[1]==='--later-stages',followUp=args.length===2&&args[1]==='--follow-up';
+ assert.deepEqual(args,later?['--live','--later-stages']:followUp?['--live','--follow-up']:['--live'],'Use --live, optionally --later-stages or --follow-up, for paid model acceptance');
  const cases=later?laterNarrationCases:initialCases;
  assert.ok(process.env.OPENAI_API_KEY,'OPENAI_API_KEY is required');assert.equal(process.env.OPENAI_MODEL,'gpt-6-luna');
  const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
@@ -55,25 +55,32 @@ async function main(){
    const auth={authorization:'Bearer '+token,'content-type':'application/json'};
    const post=(path:string,body:unknown)=>fetch(runtime!.origin+path,{method:'POST',headers:auth,body:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
    const opened=await post('/api/conversations',{audience:'host_setup'});assert.equal(opened.status,200);const scope=(await opened.json()).conversationId;
-   const sent=await post(`/api/conversations/${scope}/messages`,{text:scenario.text,clientId:randomUUID()});assert.ok([200,202].includes(sent.status));const messageId=(await sent.json()).messageId;assert.match(messageId,/^[a-f0-9-]{36}$/u);
-   let status='pending';const deadline=Date.now()+120000;
-   while(status==='pending'&&Date.now()<deadline){await delay(200);status=await sql.query(`select status from fmat.runtime_messages where id='${messageId}';`);}
-   assert.equal(status,'completed','Live model turn must complete before narration review');
-   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
-   const stream:Response=await fetch(runtime.origin+`/api/conversations/${scope}/stream`,{headers:auth,signal:controller.signal});assert.equal(stream.status,200);
-   const reader=stream.body!.getReader(),decoder=new TextDecoder();let buffer='',done=false;const replies:string[]=[];
-   try{while(!done){const part=await reader.read();if(part.done)break;buffer+=decoder.decode(part.value,{stream:true});let end:number;
-    while((end=buffer.indexOf('\n'))>=0){const event=conversationEvent.parse(JSON.parse(buffer.slice(0,end)));buffer=buffer.slice(end+1);if(event.type==='message')replies.push(event.text);if(event.type==='session.waiting'){done=true;break;}}
-   }}finally{clearTimeout(timer);controller.abort();await reader.cancel().catch(()=>{});}
-   assert.ok(done&&replies.length,'Completed assistant text and waiting state are required');
-   const after=await setup.read(credential);
-   const invariants={confirmedUnchanged:JSON.stringify(after.confirmed)===JSON.stringify(before.confirmed),calendarAuthorityUnchanged:after.calendarGeneration===before.calendarGeneration&&after.calendarSelected===before.calendarSelected,notReady:after.nextAction!=='settings_confirmed',requestedDraft:scenario.duration===undefined||after.draft?.settings.rules?.durationMinutes===scenario.duration,readOnlyStage:!scenario.stage||JSON.stringify(after)===JSON.stringify(before),privateVenueWithheld:replies.every(text=>!text.includes('Narration private venue sentinel')),internalStateNamesWithheld:replies.every(text=>!/(?:answers_review|settings_confirmed|analysis_review|refresh_draft|setup_readiness|reason:\s*setup)/iu.test(text))};
-   const counts=JSON.parse(await sql.query(`select json_build_object('bookings',(select count(*) from fmat.booking_attempts where host_id='${host}'),'requests',(select count(*) from fmat.requests where host_id='${host}'),'calendars',(select count(*) from fmat.calendar_connections where principal_id='${host}'),'links',(select count(*) from fmat.photon_links where host_id='${host}'),'attempts',(select attempts from fmat.model_work_attempts where name='conversation:${messageId}'));`));
-   assert.deepEqual([counts.bookings,counts.requests],[0,0]);assert.deepEqual(JSON.parse(await providerState()),providersBefore);assert.ok(counts.attempts>=1&&counts.attempts<=8);
-   if(Object.values(invariants).some(value=>!value)){report.failure='STATE_ASSERTION_FAILED';process.exitCode=1;}
-   report.cases.push({id:scenario.id,stage:scenario.stage??'initial',guide:setupGuide(before),providersBefore,prompt:scenario.text,replies,status,invariants,counts,before,after});
-   await writeFile(join(folder,'results.json'),JSON.stringify(report,null,2)+'\n',{mode:0o600});
-   console.log(JSON.stringify({case:scenario.id,status,invariants,attempts:counts.attempts,narrationReview:'required'}));
+   const prompts=[scenario.text];
+   if(followUp)prompts.push(scenario.id.startsWith('ko-')?'아무 설정도 바꾸거나 다시 저장하지 말고 현재 상태만 확인해 주세요. 앞선 설명을 반복하지 말고 지금 제가 해야 할 다음 한 단계만 짧게 알려 주세요.':'Do not change or save any settings. Check the current state, then briefly tell me just the next step I should take without repeating the previous explanation.');
+   let cursor=0;
+   for(const [turnIndex,prompt]of prompts.entries()){
+    if(turnIndex>0)before=await setup.read(credential);
+    const startCursor=cursor;
+    const sent=await post(`/api/conversations/${scope}/messages`,{text:prompt,clientId:randomUUID()});assert.ok([200,202].includes(sent.status));const messageId=(await sent.json()).messageId;assert.match(messageId,/^[a-f0-9-]{36}$/u);
+    let status='pending';const deadline=Date.now()+120000;
+    while(status==='pending'&&Date.now()<deadline){await delay(200);status=await sql.query(`select status from fmat.runtime_messages where id='${messageId}';`);}
+    assert.equal(status,'completed','Live model turn must complete before narration review');
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+    const stream:Response=await fetch(runtime.origin+`/api/conversations/${scope}/stream?cursor=${startCursor}`,{headers:auth,signal:controller.signal});assert.equal(stream.status,200);
+    const reader=stream.body!.getReader(),decoder=new TextDecoder();let buffer='',done=false;const replies:string[]=[];
+    try{while(!done){const part=await reader.read();if(part.done)break;buffer+=decoder.decode(part.value,{stream:true});let end:number;
+     while((end=buffer.indexOf('\n'))>=0){const event=conversationEvent.parse(JSON.parse(buffer.slice(0,end)));buffer=buffer.slice(end+1);assert.notEqual(event.type,'error');if('cursor'in event){assert.ok(event.cursor>cursor,'Resumed stream must not replay prior output');cursor=event.cursor;}if(event.type==='message')replies.push(event.text);if(event.type==='session.waiting'){done=true;break;}}
+    }}finally{clearTimeout(timer);controller.abort();await reader.cancel().catch(()=>{});}
+    assert.ok(done&&replies.length,'Completed assistant text and waiting state are required');
+    const after=await setup.read(credential);
+    const invariants={confirmedUnchanged:JSON.stringify(after.confirmed)===JSON.stringify(before.confirmed),calendarAuthorityUnchanged:after.calendarGeneration===before.calendarGeneration&&after.calendarSelected===before.calendarSelected,notReady:after.nextAction!=='settings_confirmed',requestedDraft:scenario.duration===undefined||after.draft?.settings.rules?.durationMinutes===scenario.duration,readOnlyStage:(!scenario.stage&&turnIndex===0)||JSON.stringify(after)===JSON.stringify(before),privateVenueWithheld:replies.every(text=>!text.includes('Narration private venue sentinel')),internalStateNamesWithheld:replies.every(text=>!/(?:answers_review|settings_confirmed|analysis_review|refresh_draft|setup_readiness|reason:\s*setup)/iu.test(text))};
+    const counts=JSON.parse(await sql.query(`select json_build_object('bookings',(select count(*) from fmat.booking_attempts where host_id='${host}'),'requests',(select count(*) from fmat.requests where host_id='${host}'),'calendars',(select count(*) from fmat.calendar_connections where principal_id='${host}'),'links',(select count(*) from fmat.photon_links where host_id='${host}'),'attempts',(select attempts from fmat.model_work_attempts where name='conversation:${messageId}'));`));
+    assert.deepEqual([counts.bookings,counts.requests],[0,0]);assert.deepEqual(JSON.parse(await providerState()),providersBefore);assert.ok(counts.attempts>=1&&counts.attempts<=8);
+    if(Object.values(invariants).some(value=>!value)){report.failure='STATE_ASSERTION_FAILED';process.exitCode=1;}
+    report.cases.push({id:scenario.id+(turnIndex?'-follow-up':''),turnIndex,startCursor,endCursor:cursor,stage:scenario.stage??'initial',guide:setupGuide(before),providersBefore,prompt,replies,status,invariants,counts,before,after});
+    await writeFile(join(folder,'results.json'),JSON.stringify(report,null,2)+'\n',{mode:0o600});
+    console.log(JSON.stringify({case:scenario.id+(turnIndex?'-follow-up':''),status,invariants,attempts:counts.attempts,narrationReview:'required'}));
+   }
   }
  }catch(error){report.failure=error instanceof assert.AssertionError?'ASSERTION_FAILED':'PROBE_UNAVAILABLE';process.exitCode=1;}
  finally{

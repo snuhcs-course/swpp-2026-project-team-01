@@ -53,7 +53,10 @@ export class ConversationTools {
         p_session_id:identity.data.sessionId,p_grant_id:auth.data.principalId,p_conversation_id:auth.data.attributes.conversationId,p_operation:'setup_read',p_input:{},
       }));
       const before=await read();
-      if(before.nextAction!=='settings_confirmed'||!before.confirmed.handle)return {ready:false,reason:'setup'};
+      if(before.nextAction!=='settings_confirmed'||!before.confirmed.handle){
+        const {step,question}=setupGuide(before);
+        return {ready:false,reason:'setup',recovery:{step,question}};
+      }
       if(!before.calendarGeneration||!before.calendarSelected)return {ready:false,reason:'calendar'};
       let available=true;
       try{await this.publicIntake.profile(before.confirmed.handle);}

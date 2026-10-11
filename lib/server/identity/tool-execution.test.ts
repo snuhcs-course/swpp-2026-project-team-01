@@ -84,8 +84,21 @@ test('setup link reporting rechecks current private authority and revision after
  failure=true;await assert.rejects(tools.execute(auth,call,readiness),errorCode('PROVIDER_UNAVAILABLE'));failure=false;
  changed=()=>{stale=true;};await assert.rejects(tools.execute(auth,call,readiness),errorCode('STALE_REVISION'));stale=false;
  changed=()=>{revoked=true;};await assert.rejects(tools.execute(auth,call,readiness),errorCode('UNAUTHORIZED'));revoked=false;changed=()=>{};
- state.nextAction='complete_preferences';const calls=profiles;assert.deepEqual(await tools.execute(auth,call,readiness),{ready:false,reason:'setup'});assert.equal(profiles,calls);
+ state.nextAction='complete_preferences';const calls=profiles;assert.deepEqual(await tools.execute(auth,call,readiness),{ready:false,reason:'setup',recovery:{step:'analysis',question:'Would you like suggestions from selected calendars, or choose preferences yourself?'}});assert.equal(profiles,calls);
  await assert.rejects(tools.execute(auth,call,{...readiness,input:{handle:'another-host'}}),errorCode('INVALID_INPUT'));
+});
+
+test('incomplete readiness supplies the current recovery step without links or private setup fields',async()=>{
+ for(const [calendarGeneration,calendarSelected,step,question]of [
+  [null,false,'connect','Connect Google Calendar to start. You can draft preferences while you connect.'],
+  ['80000000-0000-4000-8000-000000000001',false,'calendars','Which calendars should block meetings, and where should approved bookings go?'],
+ ] as const){
+  let reads=0,profiles=0;
+  const state={revision:2,rulesVersion:1,calendarGeneration,calendarSelected,confirmed:{handle:'private-handle',displayName:'Private name'},draft:null,review:null,nextAction:'complete_preferences'};
+  const tools=new ConversationTools(new Database(env,async()=>{reads++;return Response.json(state);}),env,{async profile(){profiles++;throw Error('Must not check a public profile before setup');}});
+  assert.deepEqual(await tools.execute(auth,call,{operation:'setup_readiness',input:{}}),{ready:false,reason:'setup',recovery:{step,question}});
+  assert.equal(reads,1);assert.equal(profiles,0);
+ }
 });
 
 test('setup suggestions reject invalid time data and injected authority before any RPC',async()=>{
