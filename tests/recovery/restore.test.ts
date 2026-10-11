@@ -5,6 +5,7 @@ import {randomBytes,randomUUID,createHash} from 'node:crypto';
 import {setTimeout as delay} from 'node:timers/promises';
 import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
 import {prepareContactRestore} from './contact-sharing.ts';
+import {prepareSuccessorRestore} from './conversation-successors.ts';
 
 const local='supabase_db_swpp-2026-project-team-01';
 // CLI 2.119.0's verified ECR -> GHCR -> Docker Hub fallback names.
@@ -145,6 +146,9 @@ test('isolated restore preserves populated booking uncertainty, delivery identit
   const grant=JSON.parse(query(origin,exchangeSql));assert.equal(grant.actorKind,'guest');
   assert.equal(JSON.parse(query(origin,`select public.fmat_oauth_grant_revoke(${literal(grant.grantId)},${json(guest)});`)).revoked,true);
   const verifyRestoredContacts=prepareContactRestore(query,origin,hostId);
+  const verifyRestoredSuccessors=prepareSuccessorRestore(query,origin,[5,6].map(day=>{
+   const request=createRequest(day);return {kind:'guest',requestId:request.id,tokenHash:request.tokenHash};
+  }));
   const tables=JSON.parse(query(origin,"select json_agg(format('%I.%I',schemaname,tablename) order by schemaname,tablename) from pg_tables where schemaname='fmat' or (schemaname='auth' and tablename in ('users','sessions')) or (schemaname='pgmq' and tablename in ('q_fmat_jobs','a_fmat_jobs'));")) as string[];
   const snapshot=(target:string)=>{
    const rows=JSON.parse(query(target,`select jsonb_agg(rows order by position) from (${tables.map((table,index)=>`select ${index} as position,coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text),'[]') as rows from ${table} t`).join(' UNION ALL ')}) contents;`)) as unknown[];
@@ -168,6 +172,7 @@ test('isolated restore preserves populated booking uncertainty, delivery identit
   const after=snapshot(destination);
   tables.forEach((table,index)=>assert.equal(after[index],before[index],'restored contents: '+table));
   verifyRestoredContacts(destination);
+  verifyRestoredSuccessors(destination);
   const restoredCipher=query(destination,`select encrypted_credential from fmat.calendar_connections where id=${literal(connectionId)};`);
   assert.deepEqual(cipher.open(restoredCipher,context),credential);
   assert.throws(()=>new TokenCipher({TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64')}).open(restoredCipher,context));
@@ -194,7 +199,7 @@ test('isolated restore preserves populated booking uncertainty, delivery identit
   assert.equal(query(destination,'select count(*) from cron.job;'),'0');
   const laterId=query(destination,"select fmat.enqueue_job('restore_probe','restore-sequence-probe','{}');");
   assert.ok(Number(query(destination,`select message_id from fmat.queue_publications where job_id=${literal(laterId)};`))>sequence.value,'restored sequence permits a new unique queue publication');
-  console.log(JSON.stringify({restoredTables:tables.length,confirmedBooking:true,uncertainBookingHeld:true,stableProviderIdentity:true,uncertainDeliveryFenced:true,contactAcceptancePreserved:true,inFlightContactNotResent:true,contactLeaseAndKeysPreserved:true,restoredContactAuthorityRechecked:true,pendingConversationReplay:true,revokedOAuthDenied:true,expiredSessionDenied:true,credentialKeyRequired:true,network:'none',providerCalls:0}));
+  console.log(JSON.stringify({restoredTables:tables.length,confirmedBooking:true,uncertainBookingHeld:true,stableProviderIdentity:true,uncertainDeliveryFenced:true,contactAcceptancePreserved:true,inFlightContactNotResent:true,contactLeaseAndKeysPreserved:true,restoredContactAuthorityRechecked:true,pendingConversationReplay:true,successorCreationNotRepeated:true,recoveryReceiptPreserved:true,cumulativeUsageRetained:true,revokedOAuthDenied:true,expiredSessionDenied:true,credentialKeyRequired:true,network:'none',providerCalls:0}));
  }finally{
   const cleanupErrors:unknown[]=[];
   for(const name of created.reverse()){
