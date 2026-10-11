@@ -74,6 +74,14 @@ The test creates synthetic data through the application's booking, conversation 
 
 The latest populated-state run passed in 7.1 seconds, including native contact-sharing cases, setup, restore, command checks and cleanup. This is a repeatable database/application-command drill, not full web/eve startup, managed-service recovery, off-site durability, recovered production key custody, a live provider reconciliation or an incident RTO measurement. Those release gates remain open.
 
+## Booking worker restoration acceptance — 2026-10-11
+
+The populated drill now also runs the actual `SchedulingPublication`, `AvailabilityEvaluation`, `BookingWorker` and `GoogleBookingProvider` implementations. A dedicated synthetic host/request passes current proposal agreement, session-attributed approval and dispatch checks before a simulated accepted insert loses its response. Its uncertain attempt, exact payload/event identity, reservation, attribution, dispatch ledger and expired reconciliation lease participate in the 107-table restore comparison.
+
+On the restored destination, the real worker reclaims the expired lease. A synthetic Google lookup returning 404 preserves uncertainty and the reservation without creating receipts or another event. A subsequent exact matching event confirms the booking, releases the reservation and creates two deduplicated receipt outbox records. Replaying a duplicate queue job completes without additional provider calls or receipts. No fresh availability evaluation or event insertion occurs after restoration.
+
+The database transport executes allowlisted application RPCs as `service_role` through psql; it does not run PostgREST or Auth HTTP. Google HTTP, calendar availability/catalog and ranking responses are synthetic. Both databases remain network-isolated, and the adapters make no external provider requests. Full web/eve startup, managed recovery, off-site durability and production key recovery remain open. See the [dated checks](05_rebuild_evidence.md#booking-worker-restoration-acceptance--2026-10-11).
+
 ## Restore rehearsal before incident use
 
 Use an explicitly identified isolated destination with matching supported PostgreSQL/extensions. Never rehearse by resetting or overwriting the release database. A migration reset proves schema reconstruction, not restoration of Auth identities, queues, encrypted credentials or uncertain provider outcomes.

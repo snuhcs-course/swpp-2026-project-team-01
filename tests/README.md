@@ -537,3 +537,7 @@ The setup-read recovery fixture captures `setup-read-focus-failure.json` and a m
 
 
 `setup-failure.test.ts` now executes the retry-geometry collector through real Playwright serialization. The regression reproduced `ReferenceError: __name is not defined`: a nested named arrow callback acquired a tsx helper unavailable inside the browser, preventing the first CI capture. The collector now uses a self-contained callback with direct rectangle projections. The test verifies clipped versus focused/scrolled geometry, 320px capture retained after a desktop resize, pending-scroll state and absence of private sentinels. This fixes diagnostics only; it does not resolve the underlying retry-button visibility race.
+
+### Booking worker after restoration
+
+`tests/recovery/booking-worker.ts` creates a current approved/dispatched booking through application scheduling and guarded SQL commands, then simulates a lost insert response before backup. After exact restoration, the actual worker reclaims an expired lease, retains an uncertain reservation on a missing event, confirms the exact saved event when observed, and completes duplicate queue work without another insert or receipt. All RPCs execute against the isolated database as `service_role`; the HTTP transport, Calendar responses and ranker are synthetic. This extends `npm run test:restore`, not live Google or full hosted application recovery acceptance.

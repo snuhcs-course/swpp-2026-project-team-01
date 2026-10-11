@@ -6,6 +6,7 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {TokenCipher} from '../../lib/server/calendar/encryption.ts';
 import {prepareContactRestore} from './contact-sharing.ts';
 import {prepareSuccessorRestore} from './conversation-successors.ts';
+import {prepareBookingWorkerRestore} from './booking-worker.ts';
 
 const local='supabase_db_swpp-2026-project-team-01';
 // CLI 2.119.0's verified ECR -> GHCR -> Docker Hub fallback names.
@@ -154,6 +155,7 @@ test('isolated restore preserves populated booking uncertainty, delivery identit
    const rows=JSON.parse(query(target,`select jsonb_agg(rows order by position) from (${tables.map((table,index)=>`select ${index} as position,coalesce(jsonb_agg(to_jsonb(t) order by to_jsonb(t)::text),'[]') as rows from ${table} t`).join(' UNION ALL ')}) contents;`)) as unknown[];
    return rows.map(value=>createHash('sha256').update(JSON.stringify(value)).digest('hex'));
   };
+  const verifyRestoredBookingWorker=await prepareBookingWorkerRestore(query,origin);
   const before=snapshot(origin);
   // pgmq's extension-owned queue data is omitted by raw pg_dump here. Export
   // exact COPY columns and the next-message sequence explicitly; don't detach
@@ -173,6 +175,7 @@ test('isolated restore preserves populated booking uncertainty, delivery identit
   tables.forEach((table,index)=>assert.equal(after[index],before[index],'restored contents: '+table));
   verifyRestoredContacts(destination);
   verifyRestoredSuccessors(destination);
+  await verifyRestoredBookingWorker(destination);
   const restoredCipher=query(destination,`select encrypted_credential from fmat.calendar_connections where id=${literal(connectionId)};`);
   assert.deepEqual(cipher.open(restoredCipher,context),credential);
   assert.throws(()=>new TokenCipher({TOKEN_ENCRYPTION_KEY:randomBytes(32).toString('base64')}).open(restoredCipher,context));
@@ -199,7 +202,7 @@ test('isolated restore preserves populated booking uncertainty, delivery identit
   assert.equal(query(destination,'select count(*) from cron.job;'),'0');
   const laterId=query(destination,"select fmat.enqueue_job('restore_probe','restore-sequence-probe','{}');");
   assert.ok(Number(query(destination,`select message_id from fmat.queue_publications where job_id=${literal(laterId)};`))>sequence.value,'restored sequence permits a new unique queue publication');
-  console.log(JSON.stringify({restoredTables:tables.length,confirmedBooking:true,uncertainBookingHeld:true,stableProviderIdentity:true,uncertainDeliveryFenced:true,contactAcceptancePreserved:true,inFlightContactNotResent:true,contactLeaseAndKeysPreserved:true,restoredContactAuthorityRechecked:true,pendingConversationReplay:true,successorCreationNotRepeated:true,recoveryReceiptPreserved:true,cumulativeUsageRetained:true,revokedOAuthDenied:true,expiredSessionDenied:true,credentialKeyRequired:true,network:'none',providerCalls:0}));
+  console.log(JSON.stringify({restoredTables:tables.length,confirmedBooking:true,uncertainBookingHeld:true,stableProviderIdentity:true,uncertainDeliveryFenced:true,contactAcceptancePreserved:true,inFlightContactNotResent:true,contactLeaseAndKeysPreserved:true,restoredContactAuthorityRechecked:true,pendingConversationReplay:true,successorCreationNotRepeated:true,recoveryReceiptPreserved:true,cumulativeUsageRetained:true,revokedOAuthDenied:true,expiredSessionDenied:true,credentialKeyRequired:true,network:'none',liveProviderCalls:0,restoredWorkerLookupOnly:true,syntheticEventInserts:1,syntheticEventLookups:2}));
  }finally{
   const cleanupErrors:unknown[]=[];
   for(const name of created.reverse()){
