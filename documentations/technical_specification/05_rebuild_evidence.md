@@ -3972,3 +3972,10 @@ The live-model stage suite now contains ten cases, including three distinct disc
 All ten complete stage replies were reviewed against their captured state, including Calendar roles, analysis consent, rich/sparse evidence and exclusive-end dates, dismissed defaults, answer reuse and pending final review. The stage report `.local/rebuild/live-setup-narration-xEFQ5F/results.json` records exact fixture cleanup. These results close the observed retained-settings-answer gap for these controlled cases, not full live Google/iPhone or AC-28 acceptance.
 
 The six initial regression replies also pass full review: requested 45-minute changes stay drafts, false save/booking claims are rejected, absent consent is not described as a completed scan and unverified links stay withheld. Report `.local/rebuild/live-setup-narration-DD5S0S/results.json` verifies cleanup. All sixteen turns pass state assertions. Both builds, both TypeScript targets and built runtime smoke pass; after fixture cleanup all 2,837 SQL assertions across 58 files pass without reset. No schema, provider or model selection changed.
+
+
+## Production retained-settings narration — 2026-10-11
+
+Source `be69fd62bfbf25739f66a83e037584b178874305` is deployed as `dpl_EyzcpLkUrUccGEChk3zSDfhKD1qz` at `https://findmeatime-release-i0z2o1htc-justdodos-projects.vercel.app`. The clean Git archive verified 1,470 blobs; 1,106 uploaded regular files contained none of 13 checked secret values. Vercel CLI 62.2.0 resolved `justdodos-projects/findmeatime-release` before deployment. Independent inspection confirmed Ready/production and protected health returned reachable with `releaseReady: false`.
+
+After promotion, independent alias inspection confirmed `https://release.findmeatime.com` resolves to that exact Ready deployment. All 38 production HTTP checks pass (15 runtime/access, 10 setup/Google-only login, six recovery and seven provider/dispatcher checks). No schema, provider configuration, real recipient message or Calendar event changed. The unrelated competitor-research edit remains excluded. Full live Google, device/channel and named-client acceptance remains open.
