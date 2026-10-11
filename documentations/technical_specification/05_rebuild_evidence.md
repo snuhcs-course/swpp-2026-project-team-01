@@ -4008,3 +4008,12 @@ The restored retry intent returns the exact recovery receipt and 400 input/30 ou
 `npm run test:restore` passes all three tests, including the full populated drill in 8.45 seconds; both TypeScript targets pass. The initial fixture attempt omitted the required request ID when opening requester scope and was rejected; the final run supplies the explicit request-bound input. Both disposable containers are removed by the existing verified cleanup. The local stack supplies schema only, targets have no network or published ports, cron is disabled, and no provider call occurs. This proves database recovery boundaries with synthetic terminal evidence; it does not restore an external managed workflow, establish first-time provider acceptance, or settle off-site backup custody/RPO/RTO.
 
 Logs: ignored `.local/rebuild/successor-restore.log` and `.local/rebuild/successor-restore-types.log`. This change adds verification and documentation only; no schema migration or application redeployment is required.
+
+
+## Complete retired verification file index — 2026-10-11
+
+The [retired verification index](20_legacy_verification_inventory.md) closes the missing file-level inventory: the exact Git-tree enumeration at `5c305d9^` contains 34 test/integration paths, comprising 215 named test declarations in 31 files and three command-style integrations. A set comparison requires every historical path to appear exactly once in the index. Existing assertion-level audits remain the evidence owners; this index does not rerun all replacements or reinterpret an unresolved difference as preserved behavior.
+
+The retained `scripts/configure-email-smtp.test.mjs` is byte-identical to its historical blob, and its four tests pass freshly. The index separately carries forward unresolved online-adjacent travel policy, Photon forwarding/device/consumer evidence, AgentMail live ownership/callback evidence and native-client tool/refresh acceptance. Controlled live Google identity login is complete, while invitation/Calendar/full onboarding gates remain separate. The Phase 2 aggregate is deliberately still unchecked.
+
+This documentation-only reconciliation does not change application behavior or require a deployment. Unrelated competitor research remains untouched.
