@@ -1,3 +1,4 @@
+import {setupReadFocusState} from './setup-read-focus.ts';
 import {privateCheckboxProbe} from './private-checkbox-probe.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -37,5 +38,23 @@ test('private checkbox trace distinguishes field growth from scroll movement wit
   assert.equal(states.scrolled.viewportScrollTop,20);
   assert.equal(states.scrolled.textarea.height,states.grown.textarea.height);
   assert.ok(!JSON.stringify(states).includes('sentinel'));
+ }finally{await browser.close();}
+});
+
+
+test('setup retry geometry is serializable before mobile viewport cleanup',async()=>{
+ const browser=await chromium.launch();
+ try{
+  const page=await browser.newPage({viewport:{width:320,height:900}});
+  await page.setContent('<div data-slot="message-scroller-viewport" data-pending-scroll style="height:100px;overflow:auto"><div style="height:400px"></div><button data-secret="private-attribute-sentinel">Reload setup</button><input value="private-value-sentinel"></div>');
+  const button=page.getByRole('button',{name:'Reload setup'}),before=await setupReadFocusState(button);
+  assert.equal(before.window.width,320);assert.equal(before.focused,false);assert.equal(before.pending,true);
+  assert.ok(before.button.y>before.viewport!.y+before.viewport!.height);
+  await button.focus();const focused=await setupReadFocusState(button);
+  assert.equal(focused.focused,true);assert.ok(focused.scrollTop!>before.scrollTop!);
+  assert.ok(focused.button.y<focused.viewport!.y+focused.viewport!.height);
+  assert.ok(!JSON.stringify(focused).includes('sentinel'));
+  await page.setViewportSize({width:1280,height:900});
+  assert.equal(before.window.width,320,'Captured mobile geometry survives later cleanup resize');
  }finally{await browser.close();}
 });

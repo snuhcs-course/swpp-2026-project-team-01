@@ -1,3 +1,4 @@
+import {setupReadFocusState} from './setup-read-focus.ts';
 import {verifySetupEditorReadNavigation} from './setup-editor-read-navigation.ts';
 import assert from 'node:assert/strict';
 import {writeFile} from 'node:fs/promises';
@@ -20,11 +21,7 @@ export async function verifySetupReadRecovery(page:Page,context:BrowserContext,o
   try{await expect(reload).toBeInViewport();}catch(error){
    // Capture the failing mobile layout before finally restores desktop size.
    // Diagnostics must not replace the original visibility failure.
-   try{await writeFile('.local/rebuild/setup-read-focus-failure.json',JSON.stringify(await reload.evaluate(element=>{
-    const rect=(e:Element)=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};};
-    const viewport=element.closest('[data-slot=message-scroller-viewport]');
-    return {focused:document.activeElement===element,button:rect(element),viewport:viewport?rect(viewport):null,scrollTop:viewport?.scrollTop,scrollHeight:viewport?.scrollHeight,window:{width:innerWidth,height:innerHeight,scrollY},pending:viewport?.hasAttribute('data-pending-scroll')};
-   }),null,2));
+   try{await writeFile('.local/rebuild/setup-read-focus-failure.json',JSON.stringify(await setupReadFocusState(reload),null,2));
    await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-read-focus-failure.png',mask:[page.locator('input,textarea,.chat-text')]});}catch{}
    throw error;
   }
