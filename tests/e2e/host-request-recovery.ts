@@ -1,3 +1,4 @@
+import {workspaceNavigate} from './workspace-navigation.ts';
 import assert from 'node:assert/strict';
 import {expect,type Page} from '@playwright/test';
 
@@ -29,7 +30,7 @@ export async function verifyHostRequestRecovery(page:Page,requestId:string){
   let enteredAgain!:()=>void;const arrivedAgain=new Promise<void>(resolve=>{enteredAgain=resolve;}),waitAgain=new Promise<void>(resolve=>{release=resolve;});
   await page.route(endpoint,route=>{const work=(async()=>{const response=await route.fetch();enteredAgain();await waitAgain;await route.fulfill({response});})();routed.push(work);return work;});
   await page.reload();await arrivedAgain;await expect(loading).toBeVisible();
-  await page.getByRole('button',{name:'Back to host chat',exact:true}).click();
+  await workspaceNavigate(page,'Host chat');
   await expect(page.getByRole('region',{name:'Your meeting setup'})).toBeVisible();
   const lateResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/browser/host/request');
   release();await Promise.all(routed);await (await lateResponse).finished();

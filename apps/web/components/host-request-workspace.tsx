@@ -6,6 +6,9 @@ import {BookingApprovalCard} from './booking-approval.tsx';
 import {RequestLifecycleCard} from './request-lifecycle.tsx';
 import {ConversationWorkspace} from './conversation-workspace.tsx';
 import {Button} from './ui/button';
+import {createPortal} from 'react-dom';
+import {MenuIcon,MessagesSquareIcon,MessageCircleIcon,LogOutIcon,SettingsIcon} from 'lucide-react';
+import {DropdownMenu,DropdownMenuTrigger,DropdownMenuContent,DropdownMenuLabel,DropdownMenuGroup,DropdownMenuItem,DropdownMenuSeparator} from './ui/dropdown-menu';
 import {Card,CardHeader,CardTitle,CardDescription,CardContent,CardFooter} from './ui/card';
 import {Field,FieldGroup,FieldLabel,FieldSet,FieldLegend} from './ui/field';
 import {Input} from './ui/input';
@@ -20,7 +23,7 @@ async function read(path:string,signal?:AbortSignal){
 }
 function statusLabel(value:string){return value.replaceAll('_',' ');}
 
-export function HostRequestWorkspace({onAccessLost,onDraftRetained}:{onAccessLost:(draft?:string)=>void;onDraftRetained:(draft:string)=>void}){
+export function HostRequestWorkspace({onAccessLost,onDraftRetained,menuTarget,email,onSignOut,signingOut}:{menuTarget:HTMLElement|null;email:string;onSignOut:()=>Promise<void>;signingOut:boolean;onAccessLost:(draft?:string)=>void;onDraftRetained:(draft:string)=>void}){
  const [selection,setSelection]=useState<Selection|null>(null),[initialized,setInitialized]=useState(false),[picker,setPicker]=useState(false);
  const [selected,setSelected]=useState<HostRequestSummary|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(false);
  const pickerToggle=useRef<HTMLButtonElement>(null);
@@ -59,7 +62,7 @@ export function HostRequestWorkspace({onAccessLost,onDraftRetained}:{onAccessLos
  useEffect(()=>{if(selected)heading.current?.focus();},[selected?.requestId,selected?.closed,selection?.audience]);
  const id=useId(),active=selected?.requestId===selection?.requestId?selected:null;
  return <div className="host-request-workspace flex min-w-0 flex-col gap-4" data-host-chat={!selection&&!picker}>
-  <div className="flex flex-wrap gap-2"><Button ref={pickerToggle} variant="ghost" className="min-h-11" aria-expanded={picker} aria-controls={id+'picker'} onClick={()=>setPicker(value=>!value)}>Meeting requests</Button>{selection?<Button variant="ghost" className="min-h-11" onClick={()=>choose(null)}>Back to host chat</Button>:null}</div>
+  {menuTarget?createPortal(<DropdownMenu><DropdownMenuTrigger asChild><Button ref={pickerToggle} variant="ghost" size="icon" className="size-11" aria-label="Workspace menu"><MenuIcon/></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-2rem)]"><DropdownMenuLabel className="break-all">{email}</DropdownMenuLabel><DropdownMenuSeparator/><DropdownMenuGroup><DropdownMenuItem className="min-h-11" onSelect={()=>choose(null)}><MessageCircleIcon/>Host chat</DropdownMenuItem><DropdownMenuItem className="min-h-11" onSelect={()=>setPicker(value=>!value)}><MessagesSquareIcon/>{picker?'Close meeting requests':'Meeting requests'}</DropdownMenuItem><DropdownMenuItem className="min-h-11" asChild><a href="/connect/authorize"><SettingsIcon/>Manage agent permissions</a></DropdownMenuItem></DropdownMenuGroup><DropdownMenuSeparator/><DropdownMenuGroup><DropdownMenuItem className="min-h-11" onSelect={()=>void onSignOut()} disabled={signingOut}><LogOutIcon/>Sign out</DropdownMenuItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu>,menuTarget):null}
   {picker?<RequestPicker id={id+'picker'} onChoose={requestId=>choose({requestId,audience:'host_private'})} onAccessLost={onAccessLost}/>:null}
   {error?<Alert variant="destructive"><AlertTitle>Request unavailable</AlertTitle><AlertDescription>{error}</AlertDescription>{selection?<Button variant="outline" className="min-h-11" onClick={()=>{setError('');setLoading(true);void refresh();}}>Retry request</Button>:null}</Alert>:null}
   {loading?<p role="status">Opening your selected request…</p>:null}

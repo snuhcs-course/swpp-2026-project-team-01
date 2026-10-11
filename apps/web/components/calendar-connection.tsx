@@ -4,8 +4,7 @@ import {calendarStatus,type CalendarStatus} from '../../../lib/contracts/calenda
 import {Alert} from './ui/alert';
 import {Collapsible,CollapsibleTrigger,CollapsibleContent} from './ui/collapsible';
 import {Button} from './ui/button';
-import {Message,MessageContent,MessageHeader} from './ui/message';
-import {Bubble,BubbleContent} from './ui/bubble';
+import {ChatMessage} from './chat-message';
 import {CalendarChoices} from './calendar-choices';
 import {RequesterAvailability} from './requester-availability';
 async function call(action:string,requestId?:string,signal?:AbortSignal){
@@ -51,5 +50,5 @@ export function CalendarConnection({requestId,onChanged,introduce=false}:{reques
     {!loading&&!status&&error?<Button variant="outline" className="mt-3 min-h-11" onClick={()=>{returned.current=true;setError('');setLoading(true);setReload(value=>value+1);}}>Retry connection status</Button>:null}
     {notice?<p ref={resultStatus} tabIndex={-1} role="status" className="mt-2 text-sm">{notice}</p>:null}{error?<p ref={resultError} tabIndex={-1} role="alert" className="mt-2 text-sm text-destructive">{error}</p>:null}
   </>;
-  return requestId?<Alert role="region" aria-label="Google Calendar connection" aria-busy={loading||busy}>{content}</Alert>:<Message align="start" role="region" aria-label="Google Calendar connection" aria-busy={loading||busy}><MessageContent><MessageHeader>Find Me a Time</MessageHeader><Bubble variant="ghost" align="start"><BubbleContent className="flex flex-col gap-3">{introduce?<p>Hi! I’m your scheduling assistant. Let’s set up your meetings together.</p>:null}{content}</BubbleContent></Bubble></MessageContent></Message>;
+  return requestId?<Alert role="region" aria-label="Google Calendar connection" aria-busy={loading||busy}>{content}</Alert>:<ChatMessage role="region" aria-label="Google Calendar connection" aria-busy={loading||busy}><div className="flex flex-col gap-3">{introduce?<p>Hi! I’m your scheduling assistant. Let’s set up your meetings together.</p>:null}{content}</div></ChatMessage>;
 }

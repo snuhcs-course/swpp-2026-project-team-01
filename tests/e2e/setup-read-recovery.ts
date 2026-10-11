@@ -22,7 +22,7 @@ export async function verifySetupReadRecovery(page:Page,context:BrowserContext,o
    // Capture the failing mobile layout before finally restores desktop size.
    // Diagnostics must not replace the original visibility failure.
    try{await writeFile('.local/rebuild/setup-read-focus-failure.json',JSON.stringify(await setupReadFocusState(reload),null,2));
-   await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-read-focus-failure.png',mask:[page.locator('input,textarea,.chat-text')]});}catch{}
+   await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-read-focus-failure.png',mask:[page.locator('input,textarea,.chat-text,.chat-response')]});}catch{}
    throw error;
   }
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);

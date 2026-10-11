@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../../node_modules/streamdown/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -193,3 +194,11 @@ button:disabled { cursor: wait; opacity: .6; }
  .workspace-host .wordmark { font-size:16px; }
  .workspace-host .conversation-workspace[data-fresh="true"] [data-slot="message-scroller-content"] { padding-top:32px; }
 }
+
+/* AI Elements supplies distinct assistant and participant message surfaces. */
+.chat-speaker { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:500; color:var(--muted-foreground); }
+.chat-avatar { display:grid; place-items:center; width:28px; height:28px; border:1px solid var(--border); border-radius:50%; background:var(--background); color:var(--primary); }
+.chat-avatar svg { width:14px; height:14px; }
+[data-slot="ai-message"][data-role="user"] .chat-speaker { justify-content:flex-end; }
+[data-slot="ai-message-content"] { line-height:1.7; }
+.workspace-host .conversation-workspace[data-fresh="true"] [data-slot="message-scroller-content"] { padding-top:24px; }

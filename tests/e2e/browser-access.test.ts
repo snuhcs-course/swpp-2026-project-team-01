@@ -216,7 +216,9 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     await page.route('**/api/browser/conversations/*/stream?*',async route=>{if(dropped)return route.continue();dropped=true;await route.abort('failed');});
     await page.reload();await page.getByText('Reply 2: A second question after reconnect.',{exact:true}).waitFor();
     assert.equal(await page.getByText('Reply 1: Help me plan a focused week.',{exact:true}).count(),1);
-    assert.equal(await page.locator('.chat-text').count(),4);
+    assert.equal(await page.locator('.chat-text,.chat-response').count(),4);
+    await expect(page.locator('[data-slot=ai-message][data-role=user]')).toHaveCount(2);
+    await expect(page.locator('[data-slot=ai-message][data-role=assistant] .chat-response')).toHaveCount(2);
     await page.unroute('**/api/browser/conversations/*/stream?*');
     await page.screenshot({path:'.local/rebuild/browser-screenshots/chat-desktop.png',fullPage:true});
     await page.setViewportSize({width:390,height:844});await page.screenshot({path:'.local/rebuild/browser-screenshots/chat-mobile.png',fullPage:true});
@@ -266,7 +268,7 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     const cookies=await context.cookies();assert.ok(cookies.some(c=>c.name.startsWith('fmat-auth')&&c.httpOnly&&c.sameSite==='Lax'));
     const hostResponse=await context.request.get(origin+'/api/browser/host/state');assert.equal(hostResponse.status(),200);assert.match(hostResponse.headers()['cache-control'],/private.*no-store/u);
     const copied=await browser.newContext();await copied.addCookies(cookies);
-    await page.getByRole('button',{name:'Account menu'}).click();await page.getByRole('menuitem',{name:'Sign out',exact:true}).click();await page.getByRole('button',{name:'Continue with Google'}).waitFor();
+    await page.getByRole('button',{name:'Workspace menu'}).click();await page.getByRole('menuitem',{name:'Sign out',exact:true}).click();await page.getByRole('button',{name:'Continue with Google'}).waitFor();
     assert.equal((await context.request.get(origin+'/api/browser/host/state')).status(),401);
     assert.equal((await copied.request.get(origin+'/api/browser/host/state')).status(),401,'Logout invalidates a copied, unexpired session');await copied.close();
     assert.ok(callback);const replay=await context.request.get(callback,{maxRedirects:0});assert.equal(replay.status(),303);assert.equal(replay.headers().location,origin+'/app?auth=expired');
@@ -306,7 +308,7 @@ assert.equal(await sql.query(`select rules is null from fmat.hosts where id='${u
     assert.equal(await page.getByText('Help me plan a focused week.',{exact:true}).count(),0,'Host setup never enters requester history');
     await page.reload();await page.getByText('Reply 1: A private requester question.',{exact:true}).waitFor();
     await sql.query(`update fmat.requests set status='declined',token_revoked_at=now() where id='${requestId}';`);
-    await page.getByRole('heading',{name:'Meeting status'}).waitFor();assert.equal(await page.locator('.chat-text').count(),0,'Revocation removes existing transcript without a reload');assert.equal(await page.getByText('A protected discussion').count(),0);
+    await page.getByRole('heading',{name:'Meeting status'}).waitFor();assert.equal(await page.locator('.chat-text,.chat-response').count(),0,'Revocation removes existing transcript without a reload');assert.equal(await page.getByText('A protected discussion').count(),0);
     await page.setViewportSize({width:390,height:844});await page.goto(origin+'/app');await page.getByRole('button',{name:'Continue with Google'}).waitFor();
     await page.screenshot({path:'.local/rebuild/browser-screenshots/host-mobile.png',fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);

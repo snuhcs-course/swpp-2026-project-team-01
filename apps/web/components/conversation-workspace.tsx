@@ -13,8 +13,7 @@ import { Button } from './ui/button';
 import {InputGroup,InputGroupTextarea,InputGroupAddon,InputGroupButton} from './ui/input-group';
 import { Field, FieldGroup, FieldLabel, FieldDescription } from './ui/field';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
-import { Message, MessageContent, MessageHeader } from './ui/message';
-import { Bubble, BubbleContent } from './ui/bubble';
+import {ChatMessage} from './chat-message';
 import { MessageScrollerProvider, MessageScroller, MessageScrollerViewport, MessageScrollerContent, MessageScrollerItem, MessageScrollerButton, useMessageScroller } from './ui/message-scroller';
 import { Suggestion, Suggestions } from './ai-elements/suggestion';
 import {ConversationRecoveryCard} from './conversation-recovery.tsx';
@@ -36,7 +35,7 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
         <MessageScrollerViewport aria-label="Conversation" className="scroll-py-2">
           <MessageScrollerContent className="p-2 md:p-4">
             {!host?<MessageScrollerItem messageId="welcome">
-              <Alert><AlertTitle>{target.audience==='host_private'?'Private review of this request':'Let’s work out the details'}</AlertTitle><AlertDescription>{target.audience==='host_private'?'Review the current proposal and discuss your preferences privately. Selecting an option does not approve or book the meeting.':'Share your purpose, availability and meeting preferences. Review saved details, explore meeting times and agree to a current proposal here. Booking still requires host approval.'}</AlertDescription></Alert>
+              <ChatMessage><p className="font-medium">{target.audience==='host_private'?'Private review of this request':'Let’s work out the details'}</p><p>{target.audience==='host_private'?'Review the current proposal and discuss your preferences privately. Selecting an option does not approve or book the meeting.':'Share your purpose, availability and meeting preferences. Review saved details, explore meeting times and agree to a current proposal here. Booking still requires host approval.'}</p></ChatMessage>
             </MessageScrollerItem>:null}
             {host||('guest' in target&&target.guest)?<MessageScrollerItem messageId="calendar-connection" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><CalendarConnection introduce={host&&!chat.messages.length} onChanged={host?()=>setRequestRevision(value=>value+1):undefined} requestId={'guest' in target&&target.guest?target.requestId:undefined}/></MessageScrollerItem>:null}
             {'guest' in target&&target.guest?<MessageScrollerItem messageId="request-details" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><RequestDetailReview requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onSaved={requestChanged}/></MessageScrollerItem>:null}
@@ -45,9 +44,9 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
             {target.audience!=='host_setup'?<MessageScrollerItem messageId="meeting-options" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><SchedulingReview audience={target.guest?'guest':'host'} requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onChanged={onRequestChanged} onAsk={ask}/></MessageScrollerItem>:null}
             {target.audience==='host_private'?<MessageScrollerItem messageId="host-revision" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><RequestDetailReview audience="host" requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onSaved={requestChanged}/></MessageScrollerItem>:null}
             {target.audience==='host_private'?<MessageScrollerItem messageId="private-review" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><PrivateSchedulingReview requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onChanged={requestChanged}/></MessageScrollerItem>:null}
-            {host?<MessageScrollerItem messageId="host-setup" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><HostSetup refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working}/></MessageScrollerItem>:null}
+            {host?<MessageScrollerItem messageId="host-setup" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><ChatMessage><HostSetup refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working}/></ChatMessage></MessageScrollerItem>:null}
             {chat.messages.map(message=><MessageScrollerItem key={message.id} messageId={message.id}>
-              <Message align={message.role==='user'?'end':'start'}><MessageContent><MessageHeader>{message.role==='user'?(target.audience==='request_shared'?'Meeting participant':'You'):'Find Me a Time'}</MessageHeader><Bubble variant={message.role==='user'?'secondary':'ghost'} align={message.role==='user'?'end':'start'}><BubbleContent><span className="chat-text">{message.text}</span></BubbleContent></Bubble></MessageContent></Message>
+              <ChatMessage from={message.role==='user'?'user':'assistant'} label={message.role==='user'&&target.audience==='request_shared'?'Meeting participant':undefined} text={message.text}/>
             </MessageScrollerItem>)}
           </MessageScrollerContent>
         </MessageScrollerViewport>

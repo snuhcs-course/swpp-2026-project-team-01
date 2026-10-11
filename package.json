@@ -44,6 +44,7 @@
     "@modelcontextprotocol/server": "2.3.1",
     "@photon-ai/advanced-imessage": "2.2.0",
     "@shadcn/react": "0.3.1",
+    "@streamdown/cjk": "1.0.4",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.2",
     "ai": "7.0.105",
@@ -62,6 +63,7 @@
     "radix-ui": "1.7.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "streamdown": "2.7.0",
     "svix": "2.7.0",
     "zod": "4.4.3"
   },

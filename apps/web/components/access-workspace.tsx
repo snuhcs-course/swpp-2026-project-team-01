@@ -1,8 +1,5 @@
 'use client';
 import {cn} from 'cn';
-import {UserRoundIcon} from 'lucide-react';
-import {Button} from './ui/button';
-import {DropdownMenu,DropdownMenuTrigger,DropdownMenuContent,DropdownMenuLabel,DropdownMenuGroup,DropdownMenuItem,DropdownMenuSeparator} from './ui/dropdown-menu';
 import {WaitlistForm} from './waitlist-form.tsx';
 import {RetainedConversationDraft} from './retained-conversation-draft.tsx';
 import {hostLoginTarget} from '../lib/host-login-target.ts';
@@ -33,6 +30,7 @@ function ProposalTime({proposal}:{proposal:NonNullable<GuestState['proposal']>})
   } catch {return <p>Time details need review before this meeting can continue.</p>;}
 }
 export function HostWorkspace() {
+  const [menuTarget,setMenuTarget]=useState<HTMLDivElement|null>(null);
   const [retainedDraft,setRetainedDraft]=useState('');
   const [host,setHost]=useState<HostState|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false);
   const [error,setError]=useState(''),[notice,setNotice]=useState(''),[waitlist,setWaitlist]=useState(false);
@@ -48,11 +46,11 @@ export function HostWorkspace() {
     }catch(e){setError(e instanceof Error?e.message:'Please try again.');}finally{setBusy(false);}
   }
   async function signOut(){setBusy(true);setError('');try{await api('auth/logout',{});setHost(null);setNotice('You’re signed out.');setCode('');}catch(e){setError(e instanceof Error?e.message:'Sign-out failed. Try again.');}finally{setBusy(false);}}
-  return <Frame compact={!!host?.admitted} aside={host?.admitted?<DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-11" aria-label="Account menu"><UserRoundIcon/></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-2rem)]"><DropdownMenuLabel className="break-all">{host.email}</DropdownMenuLabel><DropdownMenuSeparator/><DropdownMenuGroup><DropdownMenuItem className="min-h-11" asChild><a href="/connect/authorize">Manage agent permissions</a></DropdownMenuItem><DropdownMenuItem className="min-h-11" onSelect={()=>void signOut()} disabled={busy}>Sign out</DropdownMenuItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu>:host?<button className="text-button" onClick={signOut} disabled={busy}>Sign out</button>:<span className="header-note">Host workspace</span>}>
+  return <Frame compact={!!host?.admitted} aside={host?.admitted?<div ref={setMenuTarget}/>:host?<button className="text-button" onClick={signOut} disabled={busy}>Sign out</button>:<span className="header-note">Host workspace</span>}>
     <IMessageEntry admitted={host?.admitted??false}/>{!host?.admitted?<p className="eyebrow">A little less back and forth</p>:null}
     <h1 className={host?.admitted?"sr-only":undefined}>{loading?'Getting your place ready.':host?.admitted?'Welcome to your workspace.':host?'Your invitation, please.':waitlist?'Make room for better meetings.':'Let’s find your time.'}</h1>
     {!host?.admitted?<p className="workspace-description">{host?'Enter the invitation code sent to your verified email. Signing in and host access are separate.':waitlist?'Hosting is opening by invitation. Join the list—no calendar connection needed.':'Sign in to set up your scheduling assistant. Every meeting stays subject to your final approval.'}</p>:null}
-    {loading?<p role="status">Checking your access…</p>:host?.admitted?<><HostRequestWorkspace onDraftRetained={setRetainedDraft} onAccessLost={draft=>{if(draft)setRetainedDraft(draft);setHost(null);setError('Your conversation access has ended. Sign in again to check your access.');}}/></>:!host&&waitlist?<><WaitlistForm/><button type="button" className="text-button secondary-choice" onClick={()=>{setWaitlist(false);setNotice('');setError('');}}>Already invited? Sign in</button></>:<form onSubmit={submit} className="access-form">
+    {loading?<p role="status">Checking your access…</p>:host?.admitted?<><HostRequestWorkspace menuTarget={menuTarget} email={host.email} onSignOut={signOut} signingOut={busy} onDraftRetained={setRetainedDraft} onAccessLost={draft=>{if(draft)setRetainedDraft(draft);setHost(null);setError('Your conversation access has ended. Sign in again to check your access.');}}/></>:!host&&waitlist?<><WaitlistForm/><button type="button" className="text-button secondary-choice" onClick={()=>{setWaitlist(false);setNotice('');setError('');}}>Already invited? Sign in</button></>:<form onSubmit={submit} className="access-form">
       {host?<><p className="signed-in">Signed in as <strong>{host.email}</strong></p><label htmlFor="invitation">Invitation code</label><input id="invitation" value={code} onChange={e=>setCode(e.target.value)} autoComplete="off" placeholder="ABCD-EFGH-IJKL-MNOP" maxLength={19} required spellCheck={false}/><p className="field-note">Use the code from your invitation. It stays outside the conversation.</p></>:<p className="field-note">Use the Google account your invitation was sent to. Calendar access is requested separately.</p>}
       <button className="primary-button" disabled={busy}>{busy?'One moment…':host?'Use invitation':'Continue with Google'}<span aria-hidden="true">↗</span></button>
       {!host?<button type="button" className="text-button secondary-choice" disabled={busy} onClick={()=>{setWaitlist(true);setNotice('');setError('');}}>Not invited yet? Join the waitlist</button>:null}

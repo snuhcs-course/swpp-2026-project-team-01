@@ -11,8 +11,9 @@ export async function verifySetupGreeting(page:Page){
  await expect(greeting).toHaveCount(1);await expect(connect).toBeEnabled();await expect(manual).toBeVisible();
  await expect(page.getByLabel('Message your scheduling assistant')).toBeEnabled();
  await expect(page.locator('.chat-composer')).toHaveCSS('opacity','1');
- await expect(panel).toHaveAttribute('data-slot','message');
- await expect(panel.locator('[data-slot="bubble-content"]').getByRole('button',{name:'Connect Google Calendar',exact:true})).toHaveCount(1);
+ await expect(panel).toHaveAttribute('data-slot','ai-message');
+ await expect(panel.locator('[data-slot="ai-message-content"]').getByRole('button',{name:'Connect Google Calendar',exact:true})).toHaveCount(1);
+ await expect(page.getByRole('button',{name:'Meeting requests',exact:true})).toHaveCount(0);
  await expect(page.getByRole('button',{name:'Edit profile',exact:true})).toHaveCount(0);
  await expect(page.getByRole('region',{name:'Calendar suggestions'})).toHaveCount(0);
  const viewport=page.viewportSize();
@@ -24,7 +25,9 @@ export async function verifySetupGreeting(page:Page){
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:`.local/rebuild/browser-screenshots/setup-greeting-${width}.png`});
  }
- const account=page.getByRole('button',{name:'Account menu'});await account.focus();await page.keyboard.press('Enter');
+ const account=page.getByRole('button',{name:'Workspace menu'});await account.focus();await page.keyboard.press('Enter');
+ await expect(page.getByRole('menuitem',{name:'Meeting requests',exact:true})).toBeVisible();
+ await expect(page.getByRole('menuitem',{name:'Host chat',exact:true})).toBeVisible();
  await expect(page.getByRole('menuitem',{name:'Manage agent permissions'})).toBeVisible();
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-account-menu-320.png'});await page.keyboard.press('Escape');await expect(account).toBeFocused();
