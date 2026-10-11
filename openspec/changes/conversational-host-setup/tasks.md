@@ -34,7 +34,7 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 
 - [x] 3.8 Add authenticated web-chat calendar listing/configuration with current provider permissions, private audience/runtime/message fencing, exact-retry receipts, UI refresh and deterministic end-to-end verification.
 
-- [ ] 3.9 Separate connected status and assistant messages; implement bounded event-informed editable calendar suggestions, sequential conflict/booking choices and contextual recovery; verify provider, authority, browser and production behavior and update owning docs.
+- [x] 3.9 Separate connected status and assistant messages; implement bounded event-informed editable calendar suggestions, sequential conflict/booking choices and contextual recovery; verify provider, authority, browser and production behavior and update owning docs.
 
 ## 4. Private iMessage proof and transport
 
@@ -98,3 +98,5 @@ Task 5.3 retained-settings increment: [controlled narration acceptance](../../..
 Task 3.5 acceptance: [assistant-first host entry](../../../documentations/technical_specification/05_rebuild_evidence.md#assistant-first-host-entry--2026-10-11) records mobile/keyboard/consent-recovery checks, the verified production rollout and the signed-in host view. Real Google consent and full AC-28 remain separate.
 
 Tasks 3.6–3.8 acceptance: [suggestion-first setup and chat calendar configuration](../../../documentations/technical_specification/05_rebuild_evidence.md#suggestion-first-setup-and-chat-calendar-configuration--2026-10-11). Deterministic browser, service and database checks cover the new behavior; broad live Google/iPhone and AC-28 gates remain open.
+
+Task 3.9 acceptance: [event-informed sequential calendar selection](../../../documentations/technical_specification/05_rebuild_evidence.md#event-informed-sequential-calendar-selection--2026-10-11) verifies deterministic analysis, authority checks, browser recovery and the live two-step interface. The later opt-in preference scan and broad Google/iPhone gates remain separate.
