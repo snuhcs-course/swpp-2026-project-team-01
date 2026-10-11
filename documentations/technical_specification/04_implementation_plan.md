@@ -920,6 +920,8 @@ Preserve settled capability requirements, including expiry, scoped guest credent
 
 ## 5. Verification and completion evidence
 
+- [x] Preserve narrow-viewport setup retry failure evidence before fixture cleanup resizes the page. Retain geometry-only JSON and a masked screenshot in CI without weakening the visibility assertion. [Investigation](05_rebuild_evidence.md#setup-retry-viewport-failure-investigation--2026-10-11): normal and throttled local runs pass, but the intermittent hosted failure remains unresolved.
+
 - [x] Isolate rollback-only model-usage and runtime-generation SQL fixtures from previously exhausted local service allowance. Preserve production limits, all original assertions and the pre-existing counter after rollback; pass all 2,534 SQL assertions. [Evidence](05_rebuild_evidence.md#rollback-only-model-allowance-fixture-isolation--2026-10-10).
 
 - [x] Synchronize the successor recovery fault fixture with its post-commit acknowledgment-loss marker. Keep the marker mandatory, exercise a deliberate response delay, and preserve original-message, one-effect, restart and history assertions. [Evidence](05_rebuild_evidence.md#successor-acknowledgment-fixture-synchronization--2026-10-10). Hosted recovery run `38017093480` passed on `f9943b3`; see the evidence follow-up.

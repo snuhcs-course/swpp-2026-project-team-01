@@ -4017,3 +4017,14 @@ The [retired verification index](20_legacy_verification_inventory.md) closes the
 The retained `scripts/configure-email-smtp.test.mjs` is byte-identical to its historical blob, and its four tests pass freshly. The index separately carries forward unresolved online-adjacent travel policy, Photon forwarding/device/consumer evidence, AgentMail live ownership/callback evidence and native-client tool/refresh acceptance. Controlled live Google identity login is complete, while invitation/Calendar/full onboarding gates remain separate. The Phase 2 aggregate is deliberately still unchecked.
 
 This documentation-only reconciliation does not change application behavior or require a deployment. Unrelated competitor research remains untouched.
+
+
+## Setup retry viewport failure investigation — 2026-10-11
+
+Hosted runs `38127740729` (`be69fd6`) and `38127861283` (`f320b99`) failed the same browser assertion: after changing to 320px width and focusing **Reload setup**, its viewport intersection remained zero for five seconds. Their paired runs passed. Both runs at later documentation commit `58f1fbf` (`38128054223`, `38128051179`) have now completed successfully. These outcomes establish intermittent failure, not a corrected product or a reason to weaken the check.
+
+The downloaded failure artifact showed a focused retry button at desktop width because the helper's `finally` restored 1280px before the outer capture. New failure-only instrumentation therefore captures geometry and a masked screenshot directly around the original mobile assertion. CI retains these files alongside existing synthetic browser evidence. The JSON excludes content, attributes carrying identity and credentials; the screenshot masks inputs, textareas and transcript text. Capture errors cannot replace the original assertion. The assertion, timeout and application scrolling behavior are unchanged.
+
+The full local browser-access journey passed in 127.68 seconds. A temporary 20-cycle alternating-width/focus probe with four-times CPU throttling around the resize step also passed (127.49-second full journey); that stress modification was removed after investigation. These passes do not reproduce or explain the hosted failure. Both TypeScript targets and all **2,837 SQL assertions across 58 files** pass after fixture cleanup without a database reset. Logs and downloaded CI artifacts remain ignored under `.local/rebuild/setup-read-focus-*` and `.local/rebuild/ci-f320b99-*`. The new failure branch awaits a hosted occurrence for root-cause evidence.
+
+This is test diagnostics and documentation only, so no application redeployment is needed. The viewport defect remains open. Live host onboarding separately awaits authorization to issue and redeem a manual invitation for the signed-in operator account; no host access, mail or Calendar permission changed during this investigation.

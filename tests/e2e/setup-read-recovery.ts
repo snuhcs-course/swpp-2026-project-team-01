@@ -1,5 +1,6 @@
 import {verifySetupEditorReadNavigation} from './setup-editor-read-navigation.ts';
 import assert from 'node:assert/strict';
+import {writeFile} from 'node:fs/promises';
 import {expect,type Page,type BrowserContext} from '@playwright/test';
 
 export async function verifySetupReadRecovery(page:Page,context:BrowserContext,origin:string){
@@ -15,7 +16,18 @@ export async function verifySetupReadRecovery(page:Page,context:BrowserContext,o
   await expect(loading).toHaveCount(0);await expect(setup).toHaveAttribute('aria-busy','false');await expect(reload).toBeEnabled();
   await expect(setup.getByRole('button',{name:'Edit profile',exact:true})).toHaveCount(0);
   await expect(setup.getByRole('link',{name:'Open booking page'})).toHaveCount(0);
-  await page.setViewportSize({width:320,height:900});await reload.focus();await expect(reload).toBeInViewport();
+  await page.setViewportSize({width:320,height:900});await reload.focus();
+  try{await expect(reload).toBeInViewport();}catch(error){
+   // Capture the failing mobile layout before finally restores desktop size.
+   // Diagnostics must not replace the original visibility failure.
+   try{await writeFile('.local/rebuild/setup-read-focus-failure.json',JSON.stringify(await reload.evaluate(element=>{
+    const rect=(e:Element)=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};};
+    const viewport=element.closest('[data-slot=message-scroller-viewport]');
+    return {focused:document.activeElement===element,button:rect(element),viewport:viewport?rect(viewport):null,scrollTop:viewport?.scrollTop,scrollHeight:viewport?.scrollHeight,window:{width:innerWidth,height:innerHeight,scrollY},pending:viewport?.hasAttribute('data-pending-scroll')};
+   }),null,2));
+   await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-read-focus-failure.png',mask:[page.locator('input,textarea,.chat-text')]});}catch{}
+   throw error;
+  }
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-read-error-320.png'});
   await page.unroute(endpoint);

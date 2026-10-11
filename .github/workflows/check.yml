@@ -99,6 +99,8 @@ jobs:
             .local/rebuild/browser-control-failure.json
             .local/rebuild/weekly-focus-failure.json
             .local/rebuild/setup-failure.json
+            .local/rebuild/setup-read-focus-failure.json
+            .local/rebuild/browser-screenshots/setup-read-focus-failure.png
             .local/rebuild/browser-screenshots/setup-failure.png
             .local/rebuild/private-checkbox-trace.json
             .local/rebuild/requester-intake-failure.json
