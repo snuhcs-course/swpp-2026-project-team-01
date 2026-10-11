@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
 import {calendarStatus,type CalendarStatus} from '../../../lib/contracts/calendar.ts';
-import {Alert} from './ui/alert';
+import {ChatAction} from './chat-action';
 import {Collapsible,CollapsibleTrigger,CollapsibleContent} from './ui/collapsible';
 import {Button} from './ui/button';
 import {ChatMessage} from './chat-message';
@@ -34,21 +34,23 @@ export function CalendarConnection({requestId,onChanged,introduce=false}:{reques
     try{const data=await call(action,requestId);if(action==='start'){const url=new URL(data.url);if(url.protocol!=='https:'||url.hostname!=='accounts.google.com')throw new Error('The connection could not be started.');location.assign(url.href);}else{returned.current=true;setStatus(calendarStatus.parse(data));setNotice('Google access has been disconnected from this workspace.');onChanged?.();}}
     catch(e){setError(e instanceof Error?e.message:'Please try again.');}finally{setBusy(false);}
   }
-  const content=<>
+  return <section role="region" aria-label="Google Calendar connection" aria-busy={loading||busy} className="flex min-w-0 flex-col gap-4">
+    {introduce?<ChatMessage><p>Hi! I’m your scheduling assistant. Let’s set up your meetings together.</p></ChatMessage>:null}
+    <ChatMessage continuation={introduce}>
     {!requestId&&status&&!status.connected?null:<p>{!status?'Google Calendar connection':status.connected?'Google Calendar connected':requestId?'Optionally connect your calendar':'Let’s start with your calendar.'}</p>}
     <p>{!status?'Check the saved connection before changing Google access.':status.connected?(requestId?'Google availability permission is saved for this request. Calendar choices still need confirmation before availability checks.':'Your Google permission is saved. Review your calendar choices below. Every booking still needs your approval.'):(requestId?'Choose calendars and share free/busy availability for this request. We won’t request event details or event creation access. You can continue the conversation without connecting.':'Could you connect Google Calendar? We’ll choose your calendars next. Nothing gets booked without your approval.')}</p>
     {loading?<p role="status" className="mt-2 text-sm">Checking Google Calendar connection…</p>:null}
-    {status?<Collapsible className="mt-3" key={status?.connected?'connected':'disconnected'} defaultOpen={!status?.connected}>
+    </ChatMessage>
+    {status?<ChatAction title="Google Calendar access"><Collapsible key={status?.connected?'connected':'disconnected'} defaultOpen={!status?.connected}>
       {status?.connected?<CollapsibleTrigger asChild><Button className="min-h-11 h-auto whitespace-normal" variant="outline">Manage Google connection</Button></CollapsibleTrigger>:null}
-      <CollapsibleContent><div className="flex flex-wrap gap-2 py-2">
+      <CollapsibleContent><div className="flex flex-wrap gap-2">
         <Button variant={status?.connected?'outline':'default'} disabled={busy} onClick={()=>void act('start')}>{busy?'One moment…':status?.connected?'Reconnect Google':'Connect Google Calendar'}</Button>
         {status?.connected?<Button variant="outline" disabled={busy} onClick={()=>void act('disconnect')}>Disconnect Google</Button>:null}
       </div></CollapsibleContent>
-    </Collapsible>:null}
-    {status?.connected&&!requestId?<CalendarChoices disabled={busy} onSaved={onChanged}/>:null}
-    {requestId?<RequesterAvailability requestId={requestId} connected={status?.connected??false} disabled={busy||loading} onManual={()=>{setError('');setStatus({connected:false,kind:'guest',selected:false});}}/>:null}
+    </Collapsible></ChatAction>:null}
+    {status?.connected&&!requestId?<ChatAction title="Choose calendars"><CalendarChoices disabled={busy} onSaved={onChanged}/></ChatAction>:null}
+    {requestId?<ChatAction title="Your availability"><RequesterAvailability requestId={requestId} connected={status?.connected??false} disabled={busy||loading} onManual={()=>{setError('');setStatus({connected:false,kind:'guest',selected:false});}}/></ChatAction>:null}
     {!loading&&!status&&error?<Button variant="outline" className="mt-3 min-h-11" onClick={()=>{returned.current=true;setError('');setLoading(true);setReload(value=>value+1);}}>Retry connection status</Button>:null}
     {notice?<p ref={resultStatus} tabIndex={-1} role="status" className="mt-2 text-sm">{notice}</p>:null}{error?<p ref={resultError} tabIndex={-1} role="alert" className="mt-2 text-sm text-destructive">{error}</p>:null}
-  </>;
-  return requestId?<Alert role="region" aria-label="Google Calendar connection" aria-busy={loading||busy}>{content}</Alert>:<ChatMessage role="region" aria-label="Google Calendar connection" aria-busy={loading||busy}><div className="flex flex-col gap-3">{introduce?<p>Hi! I’m your scheduling assistant. Let’s set up your meetings together.</p>:null}{content}</div></ChatMessage>;
+  </section>;
 }

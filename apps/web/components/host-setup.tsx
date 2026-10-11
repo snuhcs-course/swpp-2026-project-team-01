@@ -1,4 +1,6 @@
 'use client';
+import {ChatMessage} from './chat-message';
+import {ChatAction} from './chat-action';
 import {useEffect,useId,useRef,useState,type FormEvent} from 'react';
 import {setupState,setupPatch,type SetupState,type SetupPatch} from '../../../lib/contracts/setup.ts';
 import {setupGuide} from '../../../lib/contracts/setup-guide.ts';
@@ -54,16 +56,16 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
   <Collapsible open={(!loading&&!state)||(!fresh&&!!state)||manualOpen} onOpenChange={setManualOpen}>
    {fresh?<CollapsibleTrigger asChild><Button variant="ghost" className="min-h-11 h-auto whitespace-normal">{manualOpen?'Hide manual setup':'Set preferences without connecting yet'}</Button></CollapsibleTrigger>:null}
    <CollapsibleContent>
-  <FieldSet><FieldLegend ref={setupHeading} tabIndex={-1}>Your meeting setup</FieldLegend><FieldDescription>Preferences stay private drafts until you confirm the exact review. You can describe them in chat or edit a step here.</FieldDescription>
+  <FieldSet className="gap-5"><FieldLegend ref={setupHeading} tabIndex={-1}>Your meeting setup</FieldLegend><ChatMessage><p>Preferences stay private drafts until you confirm the exact review. You can describe them in chat or edit a step here.</p></ChatMessage>
    {loading?<p role="status">Loading setup…</p>:null}
    {state?<>
     {guide?<SetupGuidance state={state} disabled={locked} editing={!!editor} onEdit={openEditor} onProgress={progress} onUse={suggest} onResolve={()=>void mutate('draft',{expectedRevision:state.revision,patch:{rules:{}},unresolved:state.draft?.clarifications.slice(1)??[]})}/>:null}
-    <CalendarAnalysis setup={state} disabled={locked} onSkip={()=>progress('skip_analysis')} onChange={refreshAfterAnalysis}/>
-    <p>{state.nextAction==='settings_confirmed'?'Your settings are confirmed.':state.calendarSelected?'Calendar choices are saved. Let’s review your preferences.':'Connect Google and confirm calendar choices above. You can draft preferences meanwhile.'}</p>
+    <ChatAction title="Calendar suggestions"><CalendarAnalysis setup={state} disabled={locked} onSkip={()=>progress('skip_analysis')} onChange={refreshAfterAnalysis}/></ChatAction>
+    <ChatMessage><p>{state.nextAction==='settings_confirmed'?'Your settings are confirmed.':state.calendarSelected?'Calendar choices are saved. Let’s review your preferences.':'Connect Google and confirm calendar choices above. You can draft preferences meanwhile.'}</p></ChatMessage>
     {state.nextAction==='settings_confirmed'&&!locked?<SetupReadyLinks key={[refreshKey,reload,state.revision,state.rulesVersion,state.calendarGeneration].join(':')}/>:null}
     {settings?.displayName?<p className="break-words">{settings.displayName}{settings.handle?' · '+settings.handle:''}</p>:null}
     {rules?.timezone?<p>{rules.durationMinutes??'—'} minute meetings · {rules.timezone} · {rules.bufferMinutes??'—'} minute meeting buffer</p>:null}
-    {settings?.displayName||rules?<Collapsible open={!editor&&(showReview||expanded)} onOpenChange={setExpanded} className="flex min-w-0 flex-col gap-3">
+    {settings?.displayName||rules?<ChatAction title="Meeting preferences"><Collapsible open={!editor&&(showReview||expanded)} onOpenChange={setExpanded} className="flex min-w-0 flex-col gap-3">
      {!showReview?<CollapsibleTrigger asChild><Button className="min-h-11 h-auto whitespace-normal" variant="outline" disabled={editingLocked||!!editor}>{expanded?'Hide preference details':'Show preference details'}</Button></CollapsibleTrigger>:<p>Review your complete draft below. These values are not confirmed yet.</p>}
      <CollapsibleContent className="flex min-w-0 flex-col gap-3">
     {rules?.availability&&editor?.section!=='schedule'?<WeeklyPreview windows={rules.availability} timezone={rules.timezone} title={state.draft&&state.draft.status!=='confirmed'?'Your draft meeting week':'Your confirmed meeting week'}/>:null}
@@ -74,10 +76,10 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
     {state.draft&&Object.keys(state.draft.origins).length?<details><summary>Where these preferences came from</summary><ul className="flex flex-col gap-2">{Object.entries(state.draft.origins).map(([field,origin])=><li key={field}>{({timezone:'Meeting timezone',availability:'Weekly meeting windows',durationMinutes:'Meeting duration',bufferMinutes:'Meeting buffer',focusBlocks:'Focus time',preferences:'Other preferences',meetingMode:'Meeting mode',locationPolicy:'Location preference',locations:'Preferred places',travelMode:'Transportation',travelBufferMinutes:'Extra travel buffer',displayName:'Display name',handle:'Booking name'}[field.replace('rules.','')]??field.replace('rules.',''))} · {({host:'You entered or chose this',assistant:'Assistant suggestion',confirmed:'Previously confirmed',calendar:'Calendar suggestion you chose',calendar_edited:'Calendar suggestion you edited',starter:'Starter default you chose'})[origin.source]}{origin.startDate?' · '+origin.startDate+'–'+origin.endDate+' · '+origin.timezone:''}</li>)}</ul></details>:null}
     {state.draft&&Object.values(state.draft.provenance).includes('assistant')?<p>Some values are assistant suggestions. Review them before confirming.</p>:null}
      </CollapsibleContent>
-    </Collapsible>:null}
+    </Collapsible></ChatAction>:null}
     {state.nextAction==='refresh_draft'?<Alert><AlertTitle>Review your preferences again</AlertTitle><AlertDescription>Your calendar choices or saved settings changed. Your draft answers are preserved. Refresh the draft to review them against the current setup before confirming.</AlertDescription><Button disabled={locked} onClick={()=>void mutate('rebase',{expectedRevision:state.revision,rulesVersion:state.rulesVersion})}>Refresh my draft</Button></Alert>:null}
     <div className="flex flex-wrap gap-2">{(['profile','schedule','mode','location','travel'] as Section[]).filter(s=>rules?.meetingMode!=='online'||!['location','travel'].includes(s)).map(section=><Button key={section} variant="outline" disabled={editingLocked||state.nextAction==='refresh_draft'} onClick={()=>openEditor(section)}>Edit {section}</Button>)}</div>
-    {editor?<SetupEditor key={editor.section+':'+editor.base.revision} section={editor.section} state={editor.base} disabled={editingLocked} savingDisabled={locked} onCancel={()=>{restoreFocus.current='origin';setEditor(null);}} onSave={(patch,unresolved)=>void mutate('draft',{expectedRevision:editor.base.revision,patch,unresolved})}/>:null}
+    {editor?<ChatAction title={titles[editor.section]}><SetupEditor key={editor.section+':'+editor.base.revision} section={editor.section} state={editor.base} disabled={editingLocked} savingDisabled={locked} onCancel={()=>{restoreFocus.current='origin';setEditor(null);}} onSave={(patch,unresolved)=>void mutate('draft',{expectedRevision:editor.base.revision,patch,unresolved})}/></ChatAction>:null}
     {showReview&&!editor?<Button className="h-auto min-h-11 whitespace-normal" disabled={locked} onClick={()=>void mutate('confirm',{expectedRevision:state.revision,draftRevision:state.review!.draftRevision,reviewRevision:state.review!.revision,rulesVersion:state.rulesVersion,calendarGeneration:state.calendarGeneration,confirmed:true})}>Confirm these meeting settings</Button>:null}
    </>:null}
   </FieldSet>

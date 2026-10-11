@@ -11,8 +11,10 @@ export async function verifySetupGreeting(page:Page){
  await expect(greeting).toHaveCount(1);await expect(connect).toBeEnabled();await expect(manual).toBeVisible();
  await expect(page.getByLabel('Message your scheduling assistant')).toBeEnabled();
  await expect(page.locator('.chat-composer')).toHaveCSS('opacity','1');
- await expect(panel).toHaveAttribute('data-slot','ai-message');
- await expect(panel.locator('[data-slot="ai-message-content"]').getByRole('button',{name:'Connect Google Calendar',exact:true})).toHaveCount(1);
+ await expect(panel.locator('[data-slot="ai-message"]')).toHaveCount(2);
+ await expect(panel.locator('[data-slot="ai-message-content"] button')).toHaveCount(0);
+ await expect(panel.locator('[data-slot="chat-action"]').getByRole('button',{name:'Connect Google Calendar',exact:true})).toHaveCount(1);
+ assert.equal(await greeting.evaluate(node=>node.closest('[data-slot="ai-message"]')?.textContent?.includes('Could you connect Google Calendar?')),false);
  await expect(page.getByRole('button',{name:'Meeting requests',exact:true})).toHaveCount(0);
  await expect(page.getByRole('button',{name:'Edit profile',exact:true})).toHaveCount(0);
  await expect(page.getByRole('region',{name:'Calendar suggestions'})).toHaveCount(0);

@@ -1,4 +1,6 @@
 'use client';
+import {ChatMessage} from './chat-message';
+import {ChatAction} from './chat-action';
 import {weeklyHoursLabel} from '../../../lib/contracts/weekly-hours.ts';
 import {useEffect,useRef} from 'react';
 import {setupGuide,scheduleSuggestion} from '../../../lib/contracts/setup-guide.ts';
@@ -17,8 +19,8 @@ export function SetupGuidance({state,disabled,editing,onEdit,onProgress,onUse,on
  const hasExtra=!!state.draft?.provenance['rules.travelBufferMinutes'],extra=hasExtra?current?.travelBufferMinutes??15:15;
  return <section aria-label="Setup guide" className="flex min-w-0 flex-col gap-3">
   <details className="text-sm"><summary className="min-h-11 cursor-pointer py-2">{guide.completed.length} of {guide.total} preference steps complete</summary><p>{guide.completed.length?guide.completed.join(' · '):'Your completed steps will appear here.'}</p></details>
-  <p ref={heading} tabIndex={-1}>{guide.question}</p>
-  {!editing?<>
+  <ChatMessage><p ref={heading} tabIndex={-1}>{guide.question}</p></ChatMessage>
+  {!editing&&['answers_review','analysis','profile','schedule','mode','location','transport','travel_buffer','clarification'].includes(guide.step)?<ChatAction title="Your next setup step">
    {guide.step==='answers_review'?<SetupAnswers key={state.revision} state={state} disabled={disabled} onUse={onUse} onEdit={onEdit}/>:null}
    {guide.step==='analysis'?<Button variant="outline" className="h-auto min-h-11 whitespace-normal" disabled={disabled} onClick={()=>onProgress('skip_analysis')}>Skip analysis and choose preferences</Button>:null}
    {guide.step==='profile'?<Button disabled={disabled} onClick={()=>onEdit('profile')}>Choose my booking profile</Button>:null}
@@ -36,6 +38,6 @@ export function SetupGuidance({state,disabled,editing,onEdit,onProgress,onUse,on
    {guide.step==='transport'?<><p>Choose how you travel, or decide for each trip. Actual routes and both travel legs still need checking for each meeting.</p><Button disabled={disabled} onClick={()=>onEdit('transport')}>Choose transportation</Button></>:null}
    {guide.step==='travel_buffer'?<><p>{hasExtra?'Draft suggestion':'Starter suggestion'}: {extra} extra minutes around travel, in addition to the journey estimate.</p><Button disabled={disabled} onClick={()=>onUse({rules:{travelBufferMinutes:extra}},hasExtra?undefined:['travelBufferMinutes'])}>Use {extra} extra travel minutes</Button><Button variant="outline" disabled={disabled} onClick={()=>onEdit('travel_buffer')}>Adjust extra travel buffer</Button></>:null}
    {guide.step==='clarification'?<><p>Answer in chat or edit the relevant step below. Other questions will remain pending.</p><Button disabled={disabled} onClick={onResolve}>I have resolved this question</Button></>:null}
-  </>:null}
+  </ChatAction>:null}
  </section>;
 }
