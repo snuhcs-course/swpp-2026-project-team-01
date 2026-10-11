@@ -24,7 +24,7 @@ Explicitly ask online/in-person/either unless answered. In-person/either require
 
 ### Calendar analysis and in-chat experience
 
-After browser consent, recommend calendar roles from authorized metadata, distinguish conflict calendars from a writable booking destination and let the host choose a disclosed bounded scan. Resolve scan range, normalization and freshness limits before implementation. Normalize recurrence, timezone/DST, all-day, cancelled and free events server-side. Only minimized summaries reach the model; event text is untrusted data, not instructions. Candidate venues remain private and are not labeled home/work or published without explicit choice.
+After browser consent, recommend calendar roles from bounded event-name and activity evidence from checked visible calendars, distinguish conflict calendars from a writable booking destination and let the host choose a disclosed bounded scan. Resolve scan range, normalization and freshness limits before implementation. Normalize recurrence, timezone/DST, all-day, cancelled and free events server-side. Only minimized summaries reach the model; event text is untrusted data, not instructions. Candidate venues remain private and are not labeled home/work or published without explicit choice.
 
 Calendar cards, scan state, editable weekly preview, preference actions and final review live inside `/app`. Use real status, accessible text alternatives, focus management and mobile/reduced-motion behavior. Sparse, partial, failed or revoked reads produce uncertainty and manual recovery. Applying a suggestion changes only the draft. Calendar selection, permissions, refreshed analysis or cross-channel edits invalidate dependent results and reviews. Future booking availability is checked again.
 
@@ -221,3 +221,13 @@ Follow the pinned personal-agent-template’s ordered prose/action pattern. Atta
 ## Calendar configuration from web chat
 
 The explicit request to let the agent configure setup supersedes picker-only calendar selection for authenticated private web setup. Add two eve tools: list safe active-calendar names/references, then save a complete requested selection. A service-only RPC derives the host credential from the current conversation grant and revalidates the bound runtime session and pending message before every provider phase. The existing calendar permission/generation/revision checks own the save. One receipt per accepted message deduplicates exact retries and rejects changed retries. Names remain data, opaque calendar IDs stay out of tool outputs, and shared/private-request/iMessage audiences cannot use this web-only capability. Preference confirmation and booking authority are unchanged.
+
+### Event-informed sequential calendar selection (2026-10-11)
+
+The host-only role recommendation reads the past and next 28 days without persisting raw event names. It uses deterministic English/Korean name categories, busy flags, event types, self-declines and instance counts; unknown busy events still count, and title text cannot execute instructions. This explicitly extends the previous metadata-only role recommendation. The later preference scan remains separately opt-in and selected-scope only. Recommendations are editable, not authoritative availability or saved configuration.
+
+Limit to 50 readable checked calendars, two pages of 250 instances each, four concurrent reads, 256 KiB per page and a shared 20-second event deadline. Mark truncated samples partial and failed/unreadable calendars unknown. Only fixed explanations and counts reach browser/chat; raw titles stay transient. Recheck current authority after provider work and retain existing revision/permission validation on saving. Prefer a writable primary booking destination, otherwise the writable calendar with most observed busy activity; this is a suggestion only.
+
+Separate disabled connection status, assistant confirmation/management link, and calendar-selection prompt. Show conflict suggestions checked first; Continue reveals booking choices, Back preserves edits, and final confirmation atomically saves both. Saved selections take precedence over recommendations; no ordinary reload control remains, while failures expose Try again. No database schema change is required.
+
+Provider field and pagination semantics follow the official [Google Events list reference](https://developers.google.com/workspace/calendar/api/v3/reference/events/list).

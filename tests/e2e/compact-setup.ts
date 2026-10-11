@@ -7,7 +7,7 @@ export async function verifyCompactSetup(page:Page,context:BrowserContext,origin
  const setup=page.getByRole('region',{name:'Your meeting setup'}),choices=page.getByRole('region',{name:'Calendar choices'});
  const before=await (await context.request.get(origin+'/api/browser/setup/read')).json();
  const change=choices.getByRole('button',{name:'Change calendar choices'});
- await expect(change).toHaveAttribute('aria-expanded','false');await expect(choices.getByRole('checkbox')).toHaveCount(0);
+ await expect(change).toBeVisible();await expect(choices.getByRole('checkbox')).toHaveCount(0);
  await expect(setup.getByRole('figure')).toHaveCount(0);
  const show=setup.getByRole('button',{name:'Show preference details'});await show.focus();await page.keyboard.press('Enter');
  await expect(setup.getByRole('figure',{name:'Your confirmed meeting week'})).toBeVisible();
@@ -29,7 +29,7 @@ export async function verifyCompactSetup(page:Page,context:BrowserContext,origin
  }
  await page.evaluate(()=>{document.documentElement.style.zoom='2';});await change.focus();await expect(change).toBeInViewport();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.screenshot({path:'.local/rebuild/browser-screenshots/compact-setup-zoom.png'});
- await change.click();const close=choices.getByRole('button',{name:'Close without saving'});await expect(close).toHaveAttribute('aria-expanded','true');await choices.getByRole('checkbox').first().focus();await expect(choices.getByRole('checkbox').first()).toBeInViewport();await page.screenshot({path:'.local/rebuild/browser-screenshots/compact-calendar-edit-zoom.png'});await close.click();await expect(change).toBeFocused();
+ await change.click();const close=choices.getByRole('button',{name:'Cancel calendar edits'});await expect(close).toBeVisible();await choices.getByRole('checkbox').first().focus();await expect(choices.getByRole('checkbox').first()).toBeInViewport();await page.screenshot({path:'.local/rebuild/browser-screenshots/compact-calendar-edit-zoom.png'});await close.click();await expect(change).toBeFocused();
  await page.evaluate(()=>{document.documentElement.style.zoom='';});await page.setViewportSize({width:1280,height:900});await page.emulateMedia({reducedMotion:'no-preference'});
  const after=await (await context.request.get(origin+'/api/browser/setup/read')).json();assert.deepEqual(after,before,'Disclosure and recovery checks do not change setup');
 }

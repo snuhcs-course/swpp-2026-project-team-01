@@ -151,7 +151,7 @@ The website SHALL guide admitted hosts inside `/app` through Google connection, 
 - **THEN** controls and the composer remain reachable, selection is not conveyed by color alone, the weekly view has a text equivalent, and focus/progress survives edits, reload and consent return
 
 ### Requirement: Calendar-informed setup suggestions
-After verified host consent, the service SHALL recommend calendar roles from authorized metadata and stated intent, and SHALL let the host select calendars for a disclosed bounded analysis before reading their events. It SHALL use selected calendar evidence to suggest meeting windows and, where supported, location/mode preferences with reasons and uncertainty. Suggestions SHALL remain editable private drafts until explicit current-review confirmation.
+After verified host consent, the service SHALL recommend calendar roles from bounded event-name/activity evidence from checked visible calendars and stated intent. This role recommendation SHALL remain separate from the opt-in preference analysis, for which the host SHALL choose the calendars and disclosed bounded period before event reads. It SHALL use selected calendar evidence to suggest meeting windows and, where supported, location/mode preferences with reasons and uncertainty. Suggestions SHALL remain editable private drafts until explicit current-review confirmation.
 
 #### Scenario: Useful calendar patterns
 - **WHEN** a host analyzes selected calendars containing recurring commitments, free intervals and usable location information
@@ -258,12 +258,18 @@ A currently admitted, privately linked host SHALL be able to review and explicit
 - **THEN** the service gives a nonconfirmable manual/browser continuation without publishing a partial actionable reference
 
 ### Requirement: Suggest before manual configuration
-The host setup interface SHALL show concise suggestions before exposing manual configuration. A connected Google account SHALL appear as a disabled status button with a link-like management action attached to its message. The agent SHALL draft supported preferences supplied in chat and ask only for missing or ambiguous details; final settings activation SHALL retain the current protected review.
+The host setup interface SHALL show concise suggestions before exposing manual configuration. A connected Google account SHALL appear as a standalone disabled status button, followed by a separate assistant confirmation with a muted underlined management action, then a separate calendar-selection prompt. The agent SHALL draft supported preferences supplied in chat and ask only for missing or ambiguous details; final settings activation SHALL retain the current protected review.
 
-#### Scenario: First calendar recommendation
-- **WHEN** an unconfigured connected host has a checked, visible, writable primary calendar
-- **THEN** the interface suggests that calendar for conflict checks and bookings with an explicit acceptance action
-- **AND** the picker remains collapsed until the host requests it, no choices are saved by viewing the suggestion, and inaccessible saved choices still expose recovery
+#### Scenario: Event-informed calendar recommendation
+- **WHEN** an unconfigured connected host opens calendar selection
+- **THEN** the service inspects event instances, bounded names and counts from checked visible readable calendars within the past and next four weeks, and presents conflict suggestions checked in visible editable options
+- **AND** private raw titles are neither persisted nor passed to the model; partial and failed reads are labeled and never represented as empty history
+- **AND** this role-recommendation read is separate from the later opt-in preference scan, and no choices are saved by viewing suggestions
+
+#### Scenario: Configure calendar roles sequentially
+- **WHEN** the host reviews calendars to check for conflicts
+- **THEN** only conflict checkboxes appear; Continue opens the booking destination step with writable choices, Back retains local conflict edits, and explicit final confirmation saves both roles under current revision and permission checks
+- **AND** the normal flow has no reload button; failures have contextual retry, and saved choices remain editable without new suggestions overwriting them
 
 #### Scenario: Chat preference entry
 - **WHEN** a host describes supported preferences in chat

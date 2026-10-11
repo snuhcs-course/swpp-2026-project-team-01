@@ -7,7 +7,7 @@ Hosts should complete setup through guided conversation in `/app` or private iMe
 ## What Changes
 
 - Lead every onboarding step with agent guidance and accessible in-chat actions, using AI Elements and the selected shadcn preset `b6rtA2Hmi`.
-- Recommend calendar roles and offer a disclosed, host-selected bounded scan before suggesting editable meeting windows and location/mode preferences.
+- Recommend calendar roles from bounded event-name and activity evidence from checked visible calendars, show editable prechecked conflicts followed by a separate booking destination step, and offer a disclosed, host-selected bounded scan before suggesting editable meeting windows and location/mode preferences.
 - Prefer explicit choices, then authorized evidence, then labeled starter defaults. Ask one unresolved question at a time and require a current settings review before saving.
 - Explicitly ask mode/location, then transportation and extra travel buffer for hosts accepting physical meetings; support per-meeting/per-trip policies and reuse explicit prior answers.
 - Author structured clarification questions in the application using bounded English/Korean categories; never display arbitrary model prose as setup guidance.

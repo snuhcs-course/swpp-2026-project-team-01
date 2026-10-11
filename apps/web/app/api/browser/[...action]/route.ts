@@ -213,6 +213,10 @@ async function handle(request:NextRequest,{params}:Context) {
       const {credential}=await session.host();
       return session.finish(json(await new CalendarSelection().list(credential)));
     }
+    if(action==='calendar/recommend'&&request.method==='POST') {
+      const {credential}=await session.host();
+      return session.finish(json(await new CalendarSelection().recommend(credential,await readJson(request))));
+    }
     if(action==='calendar/select'&&request.method==='POST') {
       const {credential}=await session.host();
       return session.finish(json(await new CalendarSelection().select(credential,await readJson(request))));

@@ -7,3 +7,7 @@ export const calendarEntry=z.object({id:z.string().min(1).max(1024),name:z.strin
 export const calendarSelection=z.strictObject({generation:z.uuid(),rulesVersion:z.number().int().nonnegative(),conflictCalendarIds:z.array(z.string().min(1).max(1024)).min(1).max(50),bookingCalendarId:z.string().min(1).max(1024)});
 export const calendarCatalog=z.object({generation:z.uuid(),rulesVersion:z.number().int(),calendars:z.array(calendarEntry).max(2500),conflictCalendarIds:z.array(z.string()),bookingCalendarId:z.string().nullable()});
 export type CalendarCatalog=z.infer<typeof calendarCatalog>;
+
+export const calendarRecommendations=z.object({start:z.iso.datetime(),end:z.iso.datetime(),conflictCalendarIds:z.array(z.string()).max(50),bookingCalendarId:z.string().nullable(),evidence:z.array(z.object({calendarId:z.string(),status:z.enum(['complete','partial','unavailable']),eventCount:z.number().int().nonnegative().nullable(),busyCount:z.number().int().nonnegative().nullable(),namedCommitments:z.number().int().nonnegative().nullable(),reason:z.string()})).max(2500)});
+export type CalendarRecommendations=z.infer<typeof calendarRecommendations>;
+export const calendarRecommendationRequest=z.strictObject({generation:z.uuid(),rulesVersion:z.number().int().nonnegative()});

@@ -34,6 +34,8 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 
 - [x] 3.8 Add authenticated web-chat calendar listing/configuration with current provider permissions, private audience/runtime/message fencing, exact-retry receipts, UI refresh and deterministic end-to-end verification.
 
+- [ ] 3.9 Separate connected status and assistant messages; implement bounded event-informed editable calendar suggestions, sequential conflict/booking choices and contextual recovery; verify provider, authority, browser and production behavior and update owning docs.
+
 ## 4. Private iMessage proof and transport
 
 - [x] 4.1 Implement browser-bound expiring hashed OTP challenges and durable code intents; test wrong browser/sender, guesses, expiry, replay, delivery failure, number change and single-use consumption.

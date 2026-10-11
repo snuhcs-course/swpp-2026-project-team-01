@@ -8,11 +8,12 @@ import {ApplicationError} from '../errors.ts';
 import {TokenCipher} from './encryption.ts';
 import {tokenBundle} from './google.ts';
 import {GoogleCalendarProvider,type CalendarProvider} from './catalog.ts';
+import {GoogleCalendarRecommender,type CalendarRecommender} from './recommendations.ts';
 const grantSchema=z.object({connectionId:z.uuid(),generation:z.uuid(),principalId:z.uuid(),encryptedCredential:z.string(),rulesVersion:z.number().int(),conflictCalendarIds:z.array(z.string()),bookingCalendarId:z.string().nullable()});
 const savedSchema=z.object({saved:z.literal(true),rulesVersion:z.number().int()});
 const reference=(id:string)=>'cal_'+createHash('sha256').update(id).digest('hex').slice(0,24);
 export class ConversationCalendars{
- constructor(private readonly database=new Database(),private readonly env=process.env,private readonly provider:CalendarProvider=new GoogleCalendarProvider(env)){}
+ constructor(private readonly database=new Database(),private readonly env=process.env,private readonly provider:CalendarProvider=new GoogleCalendarProvider(env),private readonly recommender:CalendarRecommender=new GoogleCalendarRecommender()){}
  async execute(currentAuth:unknown,sessionId:string,input?:unknown){
   const auth=runtimeAuth.parse(currentAuth);
   const call=(operation:string,value:unknown)=>this.database.rpc('fmat_conversation_calendar',{p_grant_id:auth.principalId,p_conversation_id:auth.attributes.conversationId,p_session_id:sessionId,p_message_id:auth.attributes.messageId,p_operation:operation,p_input:value});
@@ -31,7 +32,8 @@ export class ConversationCalendars{
    if(conflicts.some(c=>!c)||!booking||!['owner','writer','writerWithoutPrivateAccess'].includes(booking.accessRole))throw new ApplicationError('CALENDAR_ACCESS_INVALID',400);
    return savedSchema.parse(await call('select',{choice,selection:{generation:grant.generation,rulesVersion:grant.rulesVersion,connectionId:grant.connectionId,conflictCalendarIds:conflicts.map(c=>c!.id),bookingCalendarId:booking.id,verifiedCalendars:calendars.map(c=>({id:c.id,accessRole:c.accessRole}))}}));
   }
+  const recommendations=await this.recommender.recommend(bundle.accessToken,catalog);
   await call('check',{connectionId:grant.connectionId,generation:grant.generation});
-  return {generation:grant.generation,rulesVersion:grant.rulesVersion,total:calendars.length,calendars:calendars.slice(0,100).map(c=>({reference:reference(c.id),name:calendarLabel(c,catalog),primary:c.primary,writable:['owner','writer','writerWithoutPrivateAccess'].includes(c.accessRole),checksConflicts:grant.conflictCalendarIds.includes(c.id),receivesBookings:grant.bookingCalendarId===c.id}))};
+  return {generation:grant.generation,rulesVersion:grant.rulesVersion,total:calendars.length,analysisWindow:{start:recommendations.start,end:recommendations.end},calendars:calendars.slice(0,100).map(c=>({reference:reference(c.id),name:calendarLabel(c,catalog),primary:c.primary,writable:['owner','writer','writerWithoutPrivateAccess'].includes(c.accessRole),checksConflicts:grant.conflictCalendarIds.includes(c.id),receivesBookings:grant.bookingCalendarId===c.id,suggestedForConflicts:recommendations.conflictCalendarIds.includes(c.id),suggestedForBookings:recommendations.bookingCalendarId===c.id,evidence:recommendations.evidence.filter(e=>e.calendarId===c.id).map(({calendarId,...summary})=>summary)[0]}))};
  }
 }

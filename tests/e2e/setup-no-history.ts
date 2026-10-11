@@ -29,10 +29,10 @@ export async function verifyNoHistory(browser:Browser,origin:string,local:Record
   await page.goto(origin+'/app');
   if(flow==='no-history'){
    const calendars=page.getByRole('region',{name:'Calendar choices'});
-   await expect(calendars.getByRole('button',{name:'Use suggested calendar',exact:true})).toBeVisible();
-   await expect(calendars.getByRole('checkbox')).toHaveCount(0);
+   await expect(calendars.getByRole('checkbox',{checked:true})).toHaveCount(2);
+   await expect(calendars.getByRole('radio')).toHaveCount(0);
    assert.equal(await sql.query(`select booking_calendar_id is null and cardinality(conflict_calendar_ids)=0 from fmat.hosts where id='${host}';`),'t');
-   await calendars.getByRole('button',{name:'Use suggested calendar',exact:true}).click();
+   await calendars.getByRole('checkbox').nth(1).uncheck();await calendars.getByRole('button',{name:'Continue',exact:true}).click();await calendars.getByRole('button',{name:'Confirm calendar choices',exact:true}).click();
    await expect(calendars.getByRole('button',{name:'Change calendar choices',exact:true})).toBeFocused();
    assert.equal(await sql.query(`select booking_calendar_id='personal@example.test' and conflict_calendar_ids=array['personal@example.test'] from fmat.hosts where id='${host}';`),'t');
   }

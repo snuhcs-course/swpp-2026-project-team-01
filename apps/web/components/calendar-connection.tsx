@@ -37,19 +37,20 @@ export function CalendarConnection({requestId,onChanged,introduce=false,refreshK
   }
   return <section role="region" aria-label="Google Calendar connection" aria-busy={loading||busy} className="flex min-w-0 flex-col gap-4">
     {introduce?<ChatMessage><p>Hi! I’m your scheduling assistant. Let’s set up your meetings together.</p></ChatMessage>:null}
-    <ChatMessage continuation={introduce}>
-    {status?.connected?<Button variant="secondary" disabled className="w-fit">Google Calendar connected</Button>:requestId?<p>Optionally connect your calendar</p>:null}
-    <p>{!status?'Check the saved connection before changing Google access.':status.connected?(requestId?'Google availability permission is saved for this request. Calendar choices still need confirmation before availability checks.':'Let’s choose which calendars to use.'):(requestId?'Choose calendars and share free/busy availability for this request. We won’t request event details or event creation access. You can continue the conversation without connecting.':'Could you connect Google Calendar? We’ll choose your calendars next. Nothing gets booked without your approval.')}</p>
-    {loading?<p role="status" className="mt-2 text-sm">Checking Google Calendar connection…</p>:null}
-    {status?.connected?<Button variant="link" className="min-h-11 h-auto w-fit px-0" onClick={()=>setManage(value=>!value)} aria-expanded={manage}>Manage Google connection</Button>:null}
-    </ChatMessage>
+    {status?.connected?<>
+      <div><Button variant="secondary" disabled className="w-fit">Google Calendar connected</Button></div>
+      <ChatMessage continuation={introduce}><p>Great! Your Google Calendar is connected!</p><Button variant="link" className="min-h-11 h-auto w-fit px-0 text-muted-foreground underline underline-offset-4" onClick={()=>setManage(value=>!value)} aria-expanded={manage}>Manage Google connection</Button></ChatMessage>
+    </>:<ChatMessage continuation={introduce}>
+      <p>{!status?'Checking your Google Calendar connection…':requestId?'Optionally connect your calendar to share free/busy availability for this request.':'Could you connect Google Calendar? We’ll choose your calendars next. Nothing gets booked without your approval.'}</p>
+      {loading?<p role="status" className="sr-only">Checking Google Calendar connection…</p>:null}
+    </ChatMessage>}
     {status&&(!status.connected||manage)?<ChatAction title="Google Calendar access"><Collapsible key={status?.connected?'connected':'disconnected'} open>
       <CollapsibleContent><div className="flex flex-wrap gap-2">
         <Button variant={status?.connected?'outline':'default'} disabled={busy} onClick={()=>void act('start')}>{busy?'One moment…':status?.connected?'Reconnect Google':'Connect Google Calendar'}</Button>
         {status?.connected?<Button variant="outline" disabled={busy} onClick={()=>void act('disconnect')}>Disconnect Google</Button>:null}
       </div></CollapsibleContent>
     </Collapsible></ChatAction>:null}
-    {status?.connected&&!requestId?<ChatAction title="Choose calendars"><CalendarChoices refreshKey={refreshKey} disabled={busy} onSaved={onChanged}/></ChatAction>:null}
+    {status?.connected&&!requestId?<><ChatMessage continuation><p>Let’s choose which calendars to use.</p></ChatMessage><ChatAction title="Choose calendars"><CalendarChoices refreshKey={refreshKey} disabled={busy} onSaved={onChanged}/></ChatAction></>:null}
     {requestId?<ChatAction title="Your availability"><RequesterAvailability requestId={requestId} connected={status?.connected??false} disabled={busy||loading} onManual={()=>{setError('');setStatus({connected:false,kind:'guest',selected:false});}}/></ChatAction>:null}
     {!loading&&!status&&error?<Button variant="outline" className="mt-3 min-h-11" onClick={()=>{returned.current=true;setError('');setLoading(true);setReload(value=>value+1);}}>Retry connection status</Button>:null}
     {notice?<p ref={resultStatus} tabIndex={-1} role="status" className="mt-2 text-sm">{notice}</p>:null}{error?<p ref={resultError} tabIndex={-1} role="alert" className="mt-2 text-sm text-destructive">{error}</p>:null}

@@ -50,7 +50,7 @@ Release acceptance requires zero unauthorized bookings, duplicate events, and pr
 
 - One host and one external requester per meeting.
 - Hosting a calendar—publishing your own booking link and receiving meeting requests—is invite-only, with a waitlist for prospective hosts. Requesters do not need an invitation to request meetings or optionally connect Google Calendar.
-- Google Calendar connection, host-selected calendars for conflict checking, and a designated calendar for booking. Requesters can optionally connect their Google Calendar for availability checks without host admission or a product account.
+- Google Calendar connection, event-informed suggestions from checked visible calendars, host-selected calendars for conflict checking, and a designated calendar for booking. Show suggested conflict calendars checked first, then ask for the booking destination; save only after confirmation. Requesters can optionally connect their Google Calendar for availability checks without host admission or a product account.
 - Host-configured availability, meeting duration, focus-time rules, preferences, meeting mode/location, and travel buffers, with map-based travel-time estimates between physical commitments.
 - A booking link with conversational intake, email negotiation, and agent access to the same request lifecycle.
 - Support for Dots, Muse, Instinct, ChatGPT, Codex, Claude, and Claude Code as required agent integrations, with role-appropriate access for hosts and requesters.

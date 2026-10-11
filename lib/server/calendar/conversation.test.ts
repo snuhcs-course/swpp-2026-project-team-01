@@ -15,7 +15,7 @@ function fixture(){
  let replay:unknown=null,denied=false,selection:unknown;
  const database={rpc:async(_name:string,args:Record<string,unknown>)=>{assert.equal(args.p_message_id,auth.attributes.messageId);assert.equal(args.p_session_id,'current-runtime');const operation=String(args.p_operation);calls.push(operation);if(denied)throw new ApplicationError('UNAUTHORIZED',401);if(operation==='replay')return replay;if(operation==='read')return grant;if(operation==='select'){selection=args.p_input;return {saved:true,rulesVersion:5};}return {current:true};}} as unknown as Database;
  const provider:CalendarProvider={refresh:async()=>({...bundle,expiresAt:Date.now()+3600000}),list:async()=>{calls.push('provider');return calendars;}};
- return {auth,grant,calls,calendars,provider,service:new ConversationCalendars(database,env,provider),deny:()=>{denied=true;},replay:(value:unknown)=>{replay=value;},selection:()=>selection};
+ return {auth,grant,calls,calendars,provider,service:new ConversationCalendars(database,env,provider,{recommend:async()=>({start:new Date().toISOString(),end:new Date().toISOString(),conflictCalendarIds:['school'],bookingCalendarId:calendars[0].id,evidence:[]})}),deny:()=>{denied=true;},replay:(value:unknown)=>{replay=value;},selection:()=>selection};
 }
 test('private Calendar tools expose safe active names/references and apply exact current choices',async()=>{
  const f=fixture(),list=await f.service.execute(f.auth,'current-runtime');assert.ok('calendars' in list);assert.equal(list.calendars.length,2);assert.doesNotMatch(JSON.stringify(list),/private-access|private-refresh|https:\/\/private-calendar|Hidden/);assert.deepEqual(f.calls,['read','provider','check']);
