@@ -1,4 +1,5 @@
 'use client';
+import {activeCalendars,calendarLabel} from '../lib/calendar-display';
 import {useEffect,useId,useRef,useState} from 'react';
 import {calendarCatalog,type CalendarCatalog} from '../../../lib/contracts/calendar.ts';
 import {Collapsible,CollapsibleTrigger,CollapsibleContent} from './ui/collapsible';
@@ -44,18 +45,19 @@ export function CalendarChoices({disabled,onSaved}:{disabled:boolean;onSaved?:()
   return <section aria-label="Calendar choices" aria-busy={loading||saving} className="mt-5 flex min-w-0 flex-col gap-4">
     {loading?<p role="status">Loading your calendars…</p>:null}
     {catalog?<Collapsible open={editing||!savedValid} onOpenChange={open=>{setEditing(open);setNotice('');if(!open){setConflicts(catalog.conflictCalendarIds);setBooking(catalog.bookingCalendarId??'');setError('');}}} className="flex min-w-0 flex-col gap-3">
-      {savedValid?<><p className="break-words">{catalog.conflictCalendarIds.length} calendar{catalog.conflictCalendarIds.length===1?'':'s'} checked for conflicts · Bookings in {destination?.name}</p><p className="text-sm text-muted-foreground break-all">{destination?.id}</p><CollapsibleTrigger asChild><Button className="min-h-11 h-auto whitespace-normal" ref={change} variant="outline" disabled={disabled||saving}>{editing?'Close without saving':'Change calendar choices'}</Button></CollapsibleTrigger></>:null}
+      {savedValid?<><p className="break-words">{catalog.conflictCalendarIds.length} calendar{catalog.conflictCalendarIds.length===1?'':'s'} checked for conflicts · Bookings in {destination?calendarLabel(destination,catalog.calendars):'Calendar'}</p><CollapsibleTrigger asChild><Button className="min-h-11 h-auto whitespace-normal" ref={change} variant="outline" disabled={disabled||saving}>{editing?'Close without saving':'Change calendar choices'}</Button></CollapsibleTrigger></>:null}
       <CollapsibleContent><FieldGroup>
       <FieldSet disabled={disabled||saving}>
         <FieldLegend ref={choicesHeading} tabIndex={-1}>Calendars to check for conflicts</FieldLegend>
         <FieldDescription>Choose up to 50 calendars whose busy times should block meetings. Your primary calendar is a suggested starting point; include shared calendars only when they represent your commitments.</FieldDescription>
+        {catalog.calendars.some(c=>c.active===false&&(conflicts.includes(c.id)||booking===c.id))?<p role="status">Some saved calendars are now hidden or unchecked in Google Calendar. Their saved choices still apply. Show and check them in Google Calendar, then reload to edit them.</p>:null}
         {unavailable?<p role="alert">A saved calendar is no longer available with the required access. Review your choices and select a replacement.</p>:null}
-        {catalog.calendars.length===0?<p>No calendars are available. Reconnect Google with an account that has calendars.</p>:null}
-        {catalog.calendars.map((calendar,index)=><Field key={calendar.id} orientation="horizontal">
+        {activeCalendars(catalog.calendars).length===0?<p>No active calendars. Check a calendar in Google Calendar, then reload your choices.</p>:null}
+        {activeCalendars(catalog.calendars).map((calendar,index)=><Field key={calendar.id} orientation="horizontal">
           <Checkbox id={id+'-conflict-'+index} checked={conflicts.includes(calendar.id)} onCheckedChange={checked=>{setNotice('');setConflicts(current=>checked?[...current,calendar.id]:current.filter(c=>c!==calendar.id));}}/>
           <FieldContent className="min-w-0 break-words">
-            <FieldLabel htmlFor={id+'-conflict-'+index}>{calendar.name}{calendar.primary?' (primary)':''}</FieldLabel>
-            <FieldDescription className="break-all">{calendar.id}{calendar.timeZone?' · '+calendar.timeZone:''}</FieldDescription>
+            <FieldLabel htmlFor={id+'-conflict-'+index}>{calendarLabel(calendar,catalog.calendars)}{calendar.primary?' (primary)':''}</FieldLabel>
+            <FieldDescription className="break-all">{calendar.timeZone}</FieldDescription>
           </FieldContent>
         </Field>)}
         {conflicts.some(c=>!available.has(c))?<Button type="button" variant="outline" onClick={()=>{setNotice('');setConflicts(current=>current.filter(c=>available.has(c)));}}>Remove unavailable conflict calendars</Button>:null}
@@ -64,11 +66,11 @@ export function CalendarChoices({disabled,onSaved}:{disabled:boolean;onSaved?:()
         <FieldLegend id={id+'-destination'}>Calendar for confirmed bookings</FieldLegend>
         <FieldDescription>Choose where approved meetings will be created. Read-only calendars cannot receive bookings. A writable primary calendar is a suggested destination; choose the calendar you want to organize meetings from.</FieldDescription>
         <RadioGroup aria-labelledby={id+'-destination'} value={booking} disabled={disabled||saving} onValueChange={value=>{setBooking(value);setNotice('');}}>
-          {catalog.calendars.map((calendar,index)=><Field key={calendar.id} orientation="horizontal" data-disabled={!writable(calendar.accessRole)}>
+          {activeCalendars(catalog.calendars).map((calendar,index)=><Field key={calendar.id} orientation="horizontal" data-disabled={!writable(calendar.accessRole)}>
             <RadioGroupItem id={id+'-booking-'+index} value={calendar.id} disabled={!writable(calendar.accessRole)}/>
             <FieldContent className="min-w-0 break-words">
-              <FieldLabel htmlFor={id+'-booking-'+index}>{calendar.name}{!writable(calendar.accessRole)?' (read-only)':''}</FieldLabel>
-              <FieldDescription className="break-all">{calendar.id}</FieldDescription>
+              <FieldLabel htmlFor={id+'-booking-'+index}>{calendarLabel(calendar,catalog.calendars)}{!writable(calendar.accessRole)?' (read-only)':''}</FieldLabel>
+
             </FieldContent>
           </Field>)}
         </RadioGroup>

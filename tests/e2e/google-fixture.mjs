@@ -32,9 +32,11 @@ globalThis.fetch=async(input,init)=>{
     const headers=new Headers(init?.headers??(input instanceof Request?input.headers:undefined));
     if(!['Bearer browser-calendar-fixture','Bearer browser-requester-fixture'].includes(headers.get('authorization')))return new Response(null,{status:401});
     return Response.json({items:[
-      {id:'personal@example.test',summary:'My calendar',accessRole:'owner',primary:true,timeZone:'Asia/Seoul'},
-      {id:'readonly@example.test',summary:'My calendar',accessRole:'reader',timeZone:'America/New_York'},
-      {id:'unavailable@example.test',summary:'Temporarily unavailable',accessRole:'reader'},
+      {id:'personal@example.test',summary:'My calendar',selected:true,accessRole:'owner',primary:true,timeZone:'Asia/Seoul'},
+      {id:'readonly@example.test',summary:'My calendar',selected:true,accessRole:'reader',timeZone:'America/New_York'},
+      {id:'hidden@example.test',summary:'Hidden calendar',accessRole:'owner',hidden:true,selected:true},
+      {id:'unchecked@example.test',summary:'Unchecked calendar',accessRole:'owner',selected:false},
+      {id:'unavailable@example.test',summary:'Temporarily unavailable',selected:true,accessRole:'reader'},
     ]});
   }
   if(url.origin==='https://www.googleapis.com'&&url.pathname.endsWith('/events')){

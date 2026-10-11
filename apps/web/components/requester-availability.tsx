@@ -1,4 +1,5 @@
 'use client';
+import {activeCalendars,calendarLabel} from '../lib/calendar-display';
 import {useEffect,useId,useState} from 'react';
 import {availabilityState,requesterCatalog,type AvailabilityState,type RequesterCatalog} from '../../../lib/contracts/availability.ts';
 import {localTimeToInstant,instantToLocalTime} from '../lib/availability-time';
@@ -43,8 +44,9 @@ export function RequesterAvailability({requestId,connected,disabled,onManual}:{r
     {catalog?<FieldSet disabled={locked}>
       <FieldLegend>Calendars for your availability</FieldLegend>
       <FieldDescription>Choose the calendars to check for this request. Event details stay private.</FieldDescription>
-      {catalog.calendars.length===0?<p>No calendars are available. Reconnect with another account or enter your availability manually.</p>:null}
-      {catalog.calendars.map((c,index)=><Field key={c.id} orientation="horizontal"><Checkbox id={id+'-calendar-'+index} checked={selected.includes(c.id)} onCheckedChange={checked=>{setNotice('');setSelected(current=>checked?[...current,c.id]:current.filter(v=>v!==c.id));}}/><FieldContent className="min-w-0 break-words"><FieldLabel htmlFor={id+'-calendar-'+index}>{c.name}{c.primary?' (primary)':''}</FieldLabel><FieldDescription className="break-all">{c.id}</FieldDescription></FieldContent></Field>)}
+      {activeCalendars(catalog.calendars).length===0?<p>No active calendars. Check a calendar in Google Calendar and reload, or enter your availability manually.</p>:null}
+      {activeCalendars(catalog.calendars).map((c,index)=><Field key={c.id} orientation="horizontal"><Checkbox id={id+'-calendar-'+index} checked={selected.includes(c.id)} onCheckedChange={checked=>{setNotice('');setSelected(current=>checked?[...current,c.id]:current.filter(v=>v!==c.id));}}/><FieldContent className="min-w-0 break-words"><FieldLabel htmlFor={id+'-calendar-'+index}>{calendarLabel(c,catalog.calendars)}{c.primary?' (primary)':''}</FieldLabel></FieldContent></Field>)}
+      {catalog.calendars.some(c=>c.active===false&&selected.includes(c.id))?<p role="status">Some saved calendars are now hidden or unchecked in Google Calendar. They remain selected for availability. Show and check them in Google Calendar, then reload to edit them.</p>:null}
       {selected.some(v=>!catalog.calendars.some(c=>c.id===v))?<Button variant="outline" onClick={()=>setSelected(values=>values.filter(v=>catalog.calendars.some(c=>c.id===v)))}>Remove unavailable calendars</Button>:null}
       <Button disabled={locked||selected.length<1||selected.length>50} onClick={()=>void act('select')}>Confirm availability calendars</Button>
       <Button variant="outline" disabled={locked||!state?.windows.length||!catalog.selectedCalendarIds.length} onClick={()=>void act('check')}>Check my calendars</Button>

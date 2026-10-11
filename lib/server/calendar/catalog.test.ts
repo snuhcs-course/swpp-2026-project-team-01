@@ -14,7 +14,7 @@ test('Calendar list follows bounded opaque page tokens on Google only and expose
     assert.equal(url.searchParams.get('pageToken'),'https://untrusted.test/token');
     return Response.json({items:[{id:'one',accessRole:'reader'},{id:'two',summary:'Duplicate name',summaryOverride:'Preferred name',accessRole:'writerWithoutPrivateAccess',backgroundColor:'javascript:bad',privateSecret:'second-page-secret',conferenceProperties:{allowedConferenceSolutionTypes:['private']}}]});
   });
-  assert.deepEqual(await provider.list('private-access'),[{id:'one',name:'Duplicate name',accessRole:'reader',primary:true,timeZone:null,color:null},{id:'two',name:'Preferred name',accessRole:'writerWithoutPrivateAccess',primary:false,timeZone:null,color:null}]);assert.equal(calls,2);
+  assert.deepEqual(await provider.list('private-access'),[{id:'one',active:false,name:'Duplicate name',accessRole:'reader',primary:true,timeZone:null,color:null},{id:'two',active:false,name:'Preferred name',accessRole:'writerWithoutPrivateAccess',primary:false,timeZone:null,color:null}]);assert.equal(calls,2);
 });
 test('Calendar partial, malformed, looping and unauthorized reads fail instead of returning empty or incomplete calendars',async()=>{
   for(const failure of [()=>new Response('',{status:503}),()=>Response.json({items:[{id:'bad',accessRole:'unknown'}]}),()=>Promise.reject(new Error('private provider details'))]){
@@ -42,3 +42,11 @@ test('Requester refresh permits only availability/list scopes and preserves a va
   const provider=new GoogleCalendarProvider(env);assert.equal((await provider.refresh(original,'guest')).accessToken,'new');
   scopes+=' https://www.googleapis.com/auth/calendar.events';await assert.rejects(provider.refresh(original,'guest'),code('RECONNECT_REQUIRED'));
 });
+
+ test('Calendar visibility metadata preserves hidden calendars for existing scheduling authority',async()=>{
+  const provider=new GoogleCalendarProvider(env,async input=>{
+   assert.match(new URL(String(input)).searchParams.get('fields')!,/hidden,selected/);
+   return Response.json({items:[{id:'active',selected:true},{id:'hidden',hidden:true,selected:true},{id:'unchecked',selected:false},{id:'omitted'}].map(c=>({...c,accessRole:'owner'}))});
+  });
+  assert.deepEqual((await provider.list('token')).map(c=>[c.id,c.active]),[['active',true],['hidden',false],['unchecked',false],['omitted',false]]);
+ });

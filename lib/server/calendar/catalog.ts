@@ -41,14 +41,14 @@ export class GoogleCalendarProvider implements CalendarProvider {
     try{
       for(let page=0;page<10;page++){
         const url=new URL('https://www.googleapis.com/calendar/v3/users/me/calendarList');
-        url.searchParams.set('maxResults','250');url.searchParams.set('showHidden','true');url.searchParams.set('fields','nextPageToken,items(id,summary,summaryOverride,accessRole,primary,timeZone,backgroundColor,deleted)');if(pageToken)url.searchParams.set('pageToken',pageToken);
+        url.searchParams.set('maxResults','250');url.searchParams.set('showHidden','true');url.searchParams.set('fields','nextPageToken,items(id,summary,summaryOverride,accessRole,primary,timeZone,backgroundColor,deleted,hidden,selected)');if(pageToken)url.searchParams.set('pageToken',pageToken);
         const response=await providerFetch(this.fetcher,url,{headers:{authorization:'Bearer '+accessToken},signal,cache:'no-store',redirect:'error'},signal);
         if(response.status===401||response.status===403)throw new ApplicationError('RECONNECT_REQUIRED',409);
         if(!response.ok)throw new ApplicationError('PROVIDER_UNAVAILABLE',503);
-        const body=z.object({items:z.array(z.object({id:z.string().min(1).max(1024),summary:z.string().max(1024).optional(),summaryOverride:z.string().max(1024).optional(),accessRole:calendarEntry.shape.accessRole,primary:z.boolean().optional(),timeZone:z.string().max(100).optional(),backgroundColor:z.string().optional(),deleted:z.boolean().optional()})).max(250).default([]),nextPageToken:z.string().min(1).max(4096).optional()}).parse(JSON.parse((await providerBody(response,signal,2*1024*1024)).toString('utf8')));
+        const body=z.object({items:z.array(z.object({id:z.string().min(1).max(1024),summary:z.string().max(1024).optional(),summaryOverride:z.string().max(1024).optional(),accessRole:calendarEntry.shape.accessRole,primary:z.boolean().optional(),timeZone:z.string().max(100).optional(),backgroundColor:z.string().optional(),deleted:z.boolean().optional(),hidden:z.boolean().optional(),selected:z.boolean().optional()})).max(250).default([]),nextPageToken:z.string().min(1).max(4096).optional()}).parse(JSON.parse((await providerBody(response,signal,2*1024*1024)).toString('utf8')));
         for(const item of body.items){
           if(item.deleted||seen.has(item.id))continue;seen.add(item.id);
-          entries.push(calendarEntry.parse({id:item.id,name:item.summaryOverride??item.summary??item.id,accessRole:item.accessRole,primary:item.primary??false,timeZone:item.timeZone??null,color:/^#[a-f0-9]{6}$/iu.test(item.backgroundColor??'')?item.backgroundColor:null}));
+          entries.push(calendarEntry.parse({id:item.id,active:!item.hidden&&item.selected===true,name:item.summaryOverride??item.summary??item.id,accessRole:item.accessRole,primary:item.primary??false,timeZone:item.timeZone??null,color:/^#[a-f0-9]{6}$/iu.test(item.backgroundColor??'')?item.backgroundColor:null}));
         }
         pageToken=body.nextPageToken;if(!pageToken)return entries;
         if(pages.has(pageToken))throw new ApplicationError('PROVIDER_UNAVAILABLE',503);pages.add(pageToken);

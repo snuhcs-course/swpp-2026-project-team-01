@@ -4083,3 +4083,11 @@ Browser coverage now asserts AI Elements message roles/content, visible Calendar
 Final local verification passed: the production web build, both TypeScript targets, 90 browser/contract roots and 106 reachable modules, 1,311 documentation links, the complete 129-second browser-access journey, and 2,837 SQL assertions across 58 files after browser fixture cleanup. Desktop and phone screenshots confirmed the message layout and menu.
 
 Production rollout: exact source `39306cc5295d575ab8a4dfcdd67ad5c495dddf80` (1,482 verified Git blobs; 1,118 upload files scanned with zero known-secret matches) produced Ready deployment `dpl_6RNGF4v4aDGAUyU1h5EfqFX5Um4Y` in `justdodos-projects/findmeatime-release`. Protected health passed before promotion, and independent alias inspection confirmed `https://release.findmeatime.com` resolves to this deployment. All 25 runtime/setup HTTP checks passed. The signed-in Aside browser confirmed the workspace menu entries and AI Elements assistant surface with the integrated composer. No schema migration was needed; this presentation/navigation refinement implements the existing chat-workspaces contract.
+
+## Active calendar labels — 2026-10-11
+
+Host conflict/destination, requester availability and optional analysis pickers now show only checked, non-hidden Google calendars. Calendar URLs and raw identifiers are removed from visible labels and summaries; duplicates get numbered labels and missing/address-only names get friendly fallbacks. The provider retains all authorized calendar entries with a separate visibility flag, so display filtering never silently drops saved scheduling selections. Saved inactive choices have an explanatory notice. This is a bounded presentation refinement; scheduling and consent contracts remain unchanged.
+
+Provider and display unit checks cover checked/unchecked/hidden/omitted flags, complete authority catalogs, duplicate labels and address fallbacks. Browser fixtures include hidden and unchecked calendars and assert that neither is displayed and that raw identifiers are absent.
+
+Verification passed: production web build, both TypeScript targets, six focused unit tests, complete browser-access regression, 90 browser/contract roots with 107 reachable modules, and 1,311 documentation links. Phone screenshot review confirmed readable calendar names without identifiers.
