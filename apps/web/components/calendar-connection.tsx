@@ -1,16 +1,18 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
 import {calendarStatus,type CalendarStatus} from '../../../lib/contracts/calendar.ts';
-import {Alert,AlertTitle,AlertDescription} from './ui/alert';
+import {Alert} from './ui/alert';
 import {Collapsible,CollapsibleTrigger,CollapsibleContent} from './ui/collapsible';
 import {Button} from './ui/button';
+import {Message,MessageContent,MessageHeader} from './ui/message';
+import {Bubble,BubbleContent} from './ui/bubble';
 import {CalendarChoices} from './calendar-choices';
 import {RequesterAvailability} from './requester-availability';
 async function call(action:string,requestId?:string,signal?:AbortSignal){
   const response=await fetch('/api/browser/calendar/'+action+(action==='status'&&requestId?'?requestId='+encodeURIComponent(requestId):''),{method:action==='status'?'GET':'POST',cache:'no-store',signal,headers:{'content-type':'application/json'},...(action==='status'?{}:{body:JSON.stringify(requestId?{requestId}:{})})});
   const data=await response.json();if(!response.ok)throw new Error(data.error?.message??'Calendar connection is unavailable. Try again.');return data;
 }
-export function CalendarConnection({requestId,onChanged}:{requestId?:string;onChanged?:()=>void}){
+export function CalendarConnection({requestId,onChanged,introduce=false}:{requestId?:string;onChanged?:()=>void;introduce?:boolean}){
   const [status,setStatus]=useState<CalendarStatus|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const [loading,setLoading]=useState(true),[reload,setReload]=useState(0);
   const returnResult=useRef<string|null>(null),returned=useRef(false),resultStatus=useRef<HTMLParagraphElement>(null),resultError=useRef<HTMLParagraphElement>(null);
@@ -33,9 +35,9 @@ export function CalendarConnection({requestId,onChanged}:{requestId?:string;onCh
     try{const data=await call(action,requestId);if(action==='start'){const url=new URL(data.url);if(url.protocol!=='https:'||url.hostname!=='accounts.google.com')throw new Error('The connection could not be started.');location.assign(url.href);}else{returned.current=true;setStatus(calendarStatus.parse(data));setNotice('Google access has been disconnected from this workspace.');onChanged?.();}}
     catch(e){setError(e instanceof Error?e.message:'Please try again.');}finally{setBusy(false);}
   }
-  return <Alert role="region" aria-label="Google Calendar connection" aria-busy={loading||busy}>
-    <AlertTitle>{!status?'Google Calendar connection':status.connected?'Google Calendar connected':requestId?'Optionally connect your calendar':'Connect your calendar'}</AlertTitle>
-    <AlertDescription>{!status?'Check the saved connection before changing Google access.':status.connected?(requestId?'Google availability permission is saved for this request. Calendar choices still need confirmation before availability checks.':'Your Google permission is saved. Review your calendar choices below. Every booking still needs your approval.'):(requestId?'Choose calendars and share free/busy availability for this request. We won’t request event details or event creation access. You can continue the conversation without connecting.':'Connect Google to choose calendars for conflicts and a booking destination. Every booking will still require your approval.')}</AlertDescription>
+  const content=<>
+    {!requestId&&status&&!status.connected?null:<p>{!status?'Google Calendar connection':status.connected?'Google Calendar connected':requestId?'Optionally connect your calendar':'Let’s start with your calendar.'}</p>}
+    <p>{!status?'Check the saved connection before changing Google access.':status.connected?(requestId?'Google availability permission is saved for this request. Calendar choices still need confirmation before availability checks.':'Your Google permission is saved. Review your calendar choices below. Every booking still needs your approval.'):(requestId?'Choose calendars and share free/busy availability for this request. We won’t request event details or event creation access. You can continue the conversation without connecting.':'Could you connect Google Calendar? We’ll choose your calendars next. Nothing gets booked without your approval.')}</p>
     {loading?<p role="status" className="mt-2 text-sm">Checking Google Calendar connection…</p>:null}
     {status?<Collapsible className="mt-3" key={status?.connected?'connected':'disconnected'} defaultOpen={!status?.connected}>
       {status?.connected?<CollapsibleTrigger asChild><Button className="min-h-11 h-auto whitespace-normal" variant="outline">Manage Google connection</Button></CollapsibleTrigger>:null}
@@ -48,5 +50,6 @@ export function CalendarConnection({requestId,onChanged}:{requestId?:string;onCh
     {requestId?<RequesterAvailability requestId={requestId} connected={status?.connected??false} disabled={busy||loading} onManual={()=>{setError('');setStatus({connected:false,kind:'guest',selected:false});}}/>:null}
     {!loading&&!status&&error?<Button variant="outline" className="mt-3 min-h-11" onClick={()=>{returned.current=true;setError('');setLoading(true);setReload(value=>value+1);}}>Retry connection status</Button>:null}
     {notice?<p ref={resultStatus} tabIndex={-1} role="status" className="mt-2 text-sm">{notice}</p>:null}{error?<p ref={resultError} tabIndex={-1} role="alert" className="mt-2 text-sm text-destructive">{error}</p>:null}
-  </Alert>;
+  </>;
+  return requestId?<Alert role="region" aria-label="Google Calendar connection" aria-busy={loading||busy}>{content}</Alert>:<Message align="start" role="region" aria-label="Google Calendar connection" aria-busy={loading||busy}><MessageContent><MessageHeader>Find Me a Time</MessageHeader><Bubble variant="ghost" align="start"><BubbleContent className="flex flex-col gap-3">{introduce?<p>Hi! I’m your scheduling assistant. Let’s set up your meetings together.</p>:null}{content}</BubbleContent></Bubble></MessageContent></Message>;
 }

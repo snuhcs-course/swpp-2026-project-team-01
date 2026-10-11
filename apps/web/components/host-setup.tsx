@@ -23,6 +23,7 @@ const travelModes={DRIVE:'Drive',TRANSIT:'Public transit',WALK:'Walk',BICYCLE:'B
 async function call(action:string,input?:unknown,signal?:AbortSignal){const response=await fetch('/api/browser/setup/'+action,{method:input===undefined?'GET':'POST',cache:'no-store',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20_000)]):AbortSignal.timeout(20_000),headers:{'content-type':'application/json'},...(input===undefined?{}:{body:JSON.stringify(input)})});const data=await response.json();if(!response.ok)throw new Error(data.error?.message??'Setup could not be saved. Try again.');return setupState.parse(data);}
 export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:boolean}){
  const [state,setState]=useState<SetupState|null>(null),[editor,setEditor]=useState<{section:Section;base:SetupState}|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[reload,setReload]=useState(0);
+ const [manualOpen,setManualOpen]=useState(false);
  const [expanded,setExpanded]=useState(false),[loading,setLoading]=useState(true);
  const editorOrigin=useRef<HTMLElement|null>(null),setupHeading=useRef<HTMLLegendElement>(null),savedNotice=useRef<HTMLParagraphElement>(null),restoreFocus=useRef<'origin'|'saved'|null>(null);
  useEffect(()=>{if(editor||busy||!restoreFocus.current)return;const target=restoreFocus.current==='saved'?savedNotice.current:editorOrigin.current;restoreFocus.current=null;if(target?.isConnected&&!target.matches(':disabled'))target.focus();else setupHeading.current?.focus();},[editor,busy,notice]);
@@ -47,12 +48,16 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
  const openEditor=(section:Section)=>{if(state){editorOrigin.current=document.activeElement instanceof HTMLElement?document.activeElement:null;setEditor({section,base:state});}};
  const progress=(choice:string)=>{if(state)void mutate('progress',{expectedRevision:state.revision,choice});};
  const suggest=(patch:SetupPatch,starterFields?:string[])=>{if(state)void mutate('draft',{expectedRevision:state.revision,patch,...(starterFields?.length?{starterFields}:{}),unresolved:state.draft?.clarifications??[]});};
+ const fresh=!!state&&!state.calendarGeneration&&!state.draft&&!state.confirmed.rules&&!state.confirmed.displayName&&!state.confirmed.handle;
  return <section role="region" aria-label="Your meeting setup" className="flex min-w-0 flex-col gap-4" aria-busy={busy||loading}>
+  {state?<IMessageLink beforeSettings={state.nextAction!=='settings_confirmed'}/>:null}
+  <Collapsible open={(!loading&&!state)||(!fresh&&!!state)||manualOpen} onOpenChange={setManualOpen}>
+   {fresh?<CollapsibleTrigger asChild><Button variant="ghost" className="min-h-11 h-auto whitespace-normal">{manualOpen?'Hide manual setup':'Set preferences without connecting yet'}</Button></CollapsibleTrigger>:null}
+   <CollapsibleContent>
   <FieldSet><FieldLegend ref={setupHeading} tabIndex={-1}>Your meeting setup</FieldLegend><FieldDescription>Preferences stay private drafts until you confirm the exact review. You can describe them in chat or edit a step here.</FieldDescription>
    {loading?<p role="status">Loading setup…</p>:null}
    {state?<>
     {guide?<SetupGuidance state={state} disabled={locked} editing={!!editor} onEdit={openEditor} onProgress={progress} onUse={suggest} onResolve={()=>void mutate('draft',{expectedRevision:state.revision,patch:{rules:{}},unresolved:state.draft?.clarifications.slice(1)??[]})}/>:null}
-    <IMessageLink beforeSettings={state.nextAction!=='settings_confirmed'}/>
     <CalendarAnalysis setup={state} disabled={locked} onSkip={()=>progress('skip_analysis')} onChange={refreshAfterAnalysis}/>
     <p>{state.nextAction==='settings_confirmed'?'Your settings are confirmed.':state.calendarSelected?'Calendar choices are saved. Let’s review your preferences.':'Connect Google and confirm calendar choices above. You can draft preferences meanwhile.'}</p>
     {state.nextAction==='settings_confirmed'&&!locked?<SetupReadyLinks key={[refreshKey,reload,state.revision,state.rulesVersion,state.calendarGeneration].join(':')}/>:null}
@@ -76,8 +81,10 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
     {showReview&&!editor?<Button className="h-auto min-h-11 whitespace-normal" disabled={locked} onClick={()=>void mutate('confirm',{expectedRevision:state.revision,draftRevision:state.review!.draftRevision,reviewRevision:state.review!.revision,rulesVersion:state.rulesVersion,calendarGeneration:state.calendarGeneration,confirmed:true})}>Confirm these meeting settings</Button>:null}
    </>:null}
   </FieldSet>
-  <Button variant="ghost" disabled={locked} onClick={()=>{pending.current=null;setEditor(null);setError('');setReload(n=>n+1);}}>Reload setup</Button>
+  <Button variant="ghost" disabled={locked} onClick={()=>{pending.current=null;setManualOpen(true);setEditor(null);setError('');setReload(n=>n+1);}}>Reload setup</Button>
   {notice?<p ref={savedNotice} tabIndex={-1} role="status">{notice}</p>:null}{error?<Alert variant="destructive"><AlertTitle>Setup needs attention</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>:null}
+   </CollapsibleContent>
+  </Collapsible>
  </section>;
 }
 function SetupEditor({section,state,disabled,savingDisabled,onSave,onCancel}:{section:Section;state:SetupState;disabled:boolean;savingDisabled:boolean;onSave:(patch:SetupPatch,unresolved:string[])=>void;onCancel:()=>void}){

@@ -209,3 +209,7 @@ Authority and expiry are checked again after the shared draft operation, so a wa
 ### Readiness recovery guidance (2026-10-11)
 
 An incomplete model-facing readiness read now includes only the current setup-guide step and authored question alongside `ready: false`. It derives these from the setup snapshot already read under current execution authority; it does not expose saved profile fields, issue links, read public/provider metadata or change state. This prevents a generic setup-not-ready reason from being mistaken for an available final review. Calendar permission failures retain their separate outcome and current-authority checks. Agent instructions ask for one concise result and the immediate recovery step; live semantic review remains required.
+
+### Assistant-first entry (2026-10-11)
+
+Use the pinned chatbot reference’s application-rendered empty-conversation greeting pattern with the existing Message/Bubble primitives. The first host Calendar message introduces the assistant and embeds the protected connection button; no synthetic user input, model call or persisted transcript mutation is needed to say hello. Connection status remains authoritative and loading/failure must not offer a speculative connect action. Fresh empty setup controls stay in a secondary collapsible manual path; existing drafts, confirmed settings and connected setup keep their current accessible controls. Requester connection behavior is unchanged.

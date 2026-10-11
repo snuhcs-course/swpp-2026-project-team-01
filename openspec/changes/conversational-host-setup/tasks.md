@@ -27,6 +27,8 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 - [x] 3.3 Implement inline phone/code/connected states with skip, retry, expiry and change-number; verify protected fields never enter model, transcript, analytics or persisted card state.
 - [x] 3.4 Run the required visual review loop and update interface documentation; verify completed steps remain editable and consent return retains focus/current progress.
 
+- [ ] 3.5 Start admitted-host onboarding with an assistant greeting and Google Calendar action in one chat message; defer empty preference panels behind an explicit manual action, preserve consent/retry/resume, and verify mobile/keyboard/browser behavior before production rollout.
+
 ## 4. Private iMessage proof and transport
 
 - [x] 4.1 Implement browser-bound expiring hashed OTP challenges and durable code intents; test wrong browser/sender, guesses, expiry, replay, delivery failure, number change and single-use consumption.

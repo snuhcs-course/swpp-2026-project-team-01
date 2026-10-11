@@ -201,6 +201,8 @@ The browser stream adapter uses one logical cursor across retained runtime gener
 
 ## Host setup conversation
 
+An admitted host with no conversation history sees an assistant greeting first, followed by a request to connect Google Calendar and the connection button in the same chat message. The authored greeting requires no model call or synthetic user turn. Fresh hosts can reveal manual preference controls or describe preferences in the composer; existing drafts and connected setup remain visible. Consent return restores the protected server state and retry feedback. A manual reload keeps recovery controls open while the read is pending.
+
 Use `/app` for both setup and ongoing host-agent chat. Keep one authorized private setup context with durable eve transcript/runtime state and versioned application drafts/review artifacts. Reload and consent return restore server state. Model interpretation changes a draft only; unsupported rules, ambiguous input or model failures leave saved policy unchanged and expose clarification or structured controls.
 
 Setup reads have explicit pending, failed and recovered states, with a 20-second deadline combined with caller cancellation. A stalled read reaches the same safe recovery state as a failed read. Show loading and `aria-busy` only while a read or mutation is pending; disable saving/confirmation actions and withhold booking links during a read. Local preference disclosure and edit controls remain usable when an authorized setup snapshot is already available. A failed read removes the unavailable setup projection, stops loading and exposes **Reload setup**. Retrying clears the old error, and a successful authorized read restores the saved draft/confirmed settings without mutating them.

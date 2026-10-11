@@ -137,6 +137,11 @@ Setup SHALL report readiness and share a booking link only when current admissio
 ### Requirement: Guided onboarding action cards
 The website SHALL guide admitted hosts inside `/app` through Google connection, calendar choices, optional analysis, suggestion review and explicit settings confirmation with accessible in-chat actions. It SHALL show one primary next action, compact progress and editable completed steps without requiring separate setup pages or a long form.
 
+#### Scenario: Assistant opens the conversation
+- **WHEN** an admitted host opens setup without prior messages or saved preferences
+- **THEN** the assistant greets them before any user input and asks to connect Google Calendar with an accessible button in the same chat message, while empty preference panels remain behind a secondary manual-setup action
+- **AND** checking, failure, denied consent and returning connected states reflect server state without creating a user message, repeating a model turn or claiming consent from chat
+
 #### Scenario: Guided connection and return
 - **WHEN** a host chooses Connect Google Calendar and completes browser consent
 - **THEN** verified server state resumes the same conversation with actual calendar cards, readable account/access labels, explained recommendations and editable selections, rather than claiming settings are already saved

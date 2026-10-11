@@ -1,3 +1,4 @@
+import {verifySetupGreeting} from './setup-greeting.ts';
 import {verifyCalendarReadRecovery} from './calendar-read-recovery.ts';
 import {cleanupBrowserHostSql} from './browser-cleanup.ts';
 import {verifyOvernightHours} from './overnight-hours.ts';
@@ -86,6 +87,7 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
     await page.getByLabel('Invitation code').fill('ABCD-EFGH-IJKL-MNOP');await page.getByRole('button',{name:'Use invitation'}).click();await page.getByRole('heading',{name:'Welcome to your workspace.'}).waitFor();
     await page.reload();await page.getByRole('heading',{name:'Welcome to your workspace.'}).waitFor();
     await entry.finish(userId);await entry.cleanup();entry=undefined;
+    await page.reload();await verifySetupGreeting(page);
     const calendarStart=await context.request.post(origin+'/api/browser/calendar/start',{headers:{origin},data:{}});assert.equal(calendarStart.status(),200);
     const consentUrl=new URL((await calendarStart.json()).url),state=consentUrl.searchParams.get('state')!;
     assert.equal(consentUrl.origin,'https://accounts.google.com');assert.equal(consentUrl.searchParams.get('code_challenge_method'),'S256');
