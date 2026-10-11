@@ -41,10 +41,10 @@ export async function verifyIMessage(page:Page,context:BrowserContext,host:strin
   await codeInput.focus();await codeInput.press('Tab');await expect(card.getByRole('button',{name:'Confirm and link'})).toBeFocused();
   await card.getByRole('button',{name:'Maybe later',exact:true}).focus();await expect(card.getByRole('button',{name:'Maybe later',exact:true})).toBeInViewport();await page.screenshot({path:'.local/rebuild/browser-screenshots/imessage-actions-desktop.png',fullPage:true});
   assert.ok(await page.getByRole('button',{name:'Jump to latest message'}).evaluate(button=>{
-   const viewport=document.querySelector('[data-slot="message-scroller-viewport"]')!;
-   return button.getBoundingClientRect().top>=viewport.getBoundingClientRect().bottom;
+   const focused=document.activeElement!.getBoundingClientRect(),floating=button.getBoundingClientRect();
+   return focused.bottom<=floating.top||focused.top>=floating.bottom||focused.right<=floating.left||focused.left>=floating.right;
   }),'Latest-message control must not overlay focused inline actions');
-  assert.ok((await page.getByRole('button',{name:'Jump to latest message'}).boundingBox())!.height>=44);
+  assert.ok(await page.getByRole('button',{name:'Jump to latest message'}).evaluate(button=>parseFloat(getComputedStyle(button).height)>=44),'Latest-message touch target remains usable even while its hidden state is scaled down');
   let lostVerify=false;await page.route('**/api/browser/imessage/verify',async route=>{if(lostVerify)return route.continue();lostVerify=true;await route.fetch();await route.abort('failed');});
   await card.getByRole('button',{name:'Confirm and link'}).click();await card.getByRole('alert').waitFor();await page.reload();await card.getByText('iMessage connected · ••••0001',{exact:true}).waitFor();await page.unroute('**/api/browser/imessage/verify');
   assert.equal(await codeInput.count(),0);assert.equal(await sql.query(`select count(*) from fmat.photon_links where host_id='${host}' and revoked_at is null;`),'1');

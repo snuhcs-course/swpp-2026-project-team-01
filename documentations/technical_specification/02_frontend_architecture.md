@@ -318,7 +318,7 @@ The admitted-host shell uses a compact heading and spacing, leaving more room fo
 
 `HostSetup` remembers the opening control in memory, focuses each editor legend on mount, returns to that control on cancel (with the setup heading as fallback), and focuses the saved-draft status after success. Failed edits remain open. `CalendarConnection` focuses the result after a browser return or explicit status retry and after a successful disconnect; denied or forged-success returns retain recovery wording, and failed reads focus the error. An asynchronous setup-step update preserves an already-focused status or alert, so a new guidance question cannot steal focus from a connection result. No focus target or draft value is added to browser storage or the consent URL.
 
-Focusing Calendar or setup controls pauses automatic conversation following. Replayed user messages do not create forced scroll anchors that can pull a focused control off screen. Sending a new message or choosing **Jump to latest message** explicitly resumes following; ordinary transcript scrolling continues through the installed scroller's public API.
+Focusing Calendar or setup controls pauses automatic conversation following. Replayed user messages do not create forced scroll anchors that can pull a focused control off screen. Sending a new message or choosing the floating down-arrow button (accessible name **Jump to latest message**) explicitly resumes following; ordinary transcript scrolling continues through the installed scroller's public API. The icon-only button floats at the bottom center of the transcript and hides when the latest message is already visible.
 
 ### Inline iMessage connection card
 

@@ -32,7 +32,7 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
     <MessageScrollerProvider autoScroll={followMessages}>
       <FollowSentMessage sequence={followSequence}/>
       <MessageScroller>
-        <MessageScrollerViewport aria-label="Conversation" className="scroll-py-2">
+        <MessageScrollerViewport aria-label="Conversation" className="scroll-pt-2 scroll-pb-16">
           <MessageScrollerContent className="p-2 md:p-4">
             {!host?<MessageScrollerItem messageId="welcome">
               <ChatMessage><p className="font-medium">{target.audience==='host_private'?'Private review of this request':'Let’s work out the details'}</p><p>{target.audience==='host_private'?'Review the current proposal and discuss your preferences privately. Selecting an option does not approve or book the meeting.':'Share your purpose, availability and meeting preferences. Review saved details, explore meeting times and agree to a current proposal here. Booking still requires host approval.'}</p></ChatMessage>
@@ -50,9 +50,7 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
             </MessageScrollerItem>)}
           </MessageScrollerContent>
         </MessageScrollerViewport>
-        <div className="flex shrink-0 justify-end p-1">
-          <MessageScrollerButton aria-label="Jump to latest message" onClick={followLatest} size="sm" className="static min-h-11 translate-x-0 data-[active=false]:scale-100 data-[direction=end]:data-[active=false]:translate-y-0">Latest message</MessageScrollerButton>
-        </div>
+        <MessageScrollerButton aria-label="Jump to latest message" onClick={followLatest} className="size-11 rounded-full shadow-sm" />
       </MessageScroller>
     </MessageScrollerProvider>
     <div className="conversation-controls">
