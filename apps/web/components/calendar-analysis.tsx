@@ -1,4 +1,5 @@
 'use client';
+import {automaticAnalysisScope} from '../lib/automatic-analysis';
 import {activeCalendars,calendarLabel} from '../lib/calendar-display';
 import {useEffect,useId,useRef,useState} from 'react';
 import {analysisState,type AnalysisState} from '../../../lib/contracts/calendar-analysis.ts';
@@ -18,10 +19,25 @@ export function CalendarAnalysis({setup,disabled,onChange,onSkip}:{setup:SetupSt
  useEffect(()=>{let active=true;const refresh=()=>void call('analysis/read').then(data=>{if(active)setState(analysisState.parse(data));}).catch(e=>{if(active)setError(e.message);});refresh();const timer=setInterval(refresh,30_000);return()=>{active=false;clearInterval(timer);};},[setup.revision,setup.rulesVersion,setup.calendarGeneration]);
  async function open(){setBusy(true);setError('');try{const next=calendarCatalog.parse(await call('calendar/list'));setCatalog(next);setIds(current=>current.filter(id=>activeCalendars(next.calendars).some(c=>c.id===id)));setForm(true);}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
  async function mutate(action:string,body:Record<string,unknown>){const signature=JSON.stringify({action,body});if(pending.current&&pending.current.signature!==signature){setError('Reload analysis before another action; the earlier result is not confirmed.');return;}pending.current??={action,body:{...body,idempotencyKey:crypto.randomUUID()},signature};setBusy(true);setError('');try{const next=analysisState.parse(await call('analysis/'+action,pending.current.body));await onChange();setState(next);pending.current=null;setForm(false);setReviewing(false);}catch(e){setError((e as Error).message);try{await onChange();}catch{/* Preserve the operation error; reload can recover current state. */}}finally{setBusy(false);}}
+ const autoAttempt=useRef<string|null>(null);
+ async function analyzeSelected(){
+  setBusy(true);setError('');
+  try{
+   const next=calendarCatalog.parse(await call('calendar/list'));
+   const scope=automaticAnalysisScope(setup,next,Intl.DateTimeFormat().resolvedOptions().timeZone);
+   await mutate('start',{...scope,expectedRevision:setup.revision,rulesVersion:next.rulesVersion,generation:next.generation,consented:true});
+  }catch(e){setError((e as Error).message);}finally{setBusy(false);}
+ }
+ useEffect(()=>{
+  if(disabled||busy||!state||state.scan||!setup.calendarSelected||setup.progress.analysisDecided||setup.nextAction==='refresh_draft'||setup.nextAction==='settings_confirmed')return;
+  const key=setup.calendarGeneration+':'+setup.rulesVersion;
+  if(autoAttempt.current===key)return;
+  autoAttempt.current=key;void analyzeSelected();
+ },[state,disabled,busy,setup.calendarGeneration,setup.rulesVersion,setup.revision,setup.calendarSelected,setup.progress.analysisDecided,setup.nextAction]);
  const scan=state?.scan,summary=scan?.summary,locked=disabled||busy;
  return <section role="region" aria-label="Calendar suggestions" className="flex min-w-0 flex-col gap-3" aria-busy={busy}>
-  <p>Want suggestions from your calendar?</p>
-  {setup.calendarGeneration&&!form?<Button variant={setup.calendarSelected&&!setup.progress.analysisDecided?'default':'outline'} disabled={locked} onClick={()=>void open()}>Explore calendar suggestions</Button>:null}
+  {busy?<p role="status">I’m analyzing your selected calendars from the past and next four weeks…</p>:null}
+  {setup.calendarGeneration&&!form&&(scan||error||setup.progress.analysisDecided)?<Button variant={setup.calendarSelected&&!setup.progress.analysisDecided?'default':'outline'} disabled={locked} onClick={()=>void open()}>Explore calendar suggestions</Button>:null}
   {form&&catalog?<form onSubmit={e=>{e.preventDefault();void mutate('start',{expectedRevision:setup.revision,rulesVersion:catalog.rulesVersion,generation:catalog.generation,calendarIds:ids,startDate:start,endDate:end,timezone:zone,consented:true});}}><FieldSet disabled={locked}><FieldLegend>Choose what to analyze</FieldLegend><FieldDescription>Choose 1–10 calendars and 14–56 days within 90 days of today. This selection only controls this scan. Results last 15 minutes. Limits: 10,000 events, ten pages per calendar and a 20-second event-read deadline; an incomplete read produces no suggestions.</FieldDescription>
    {activeCalendars(catalog.calendars).length===0?<p>No active calendars. Check a calendar in Google Calendar, then reopen these choices.</p>:null}
    {activeCalendars(catalog.calendars).map((c,i)=><Field key={c.id} orientation="horizontal"><Checkbox id={id+i} disabled={c.accessRole==='freeBusyReader'} checked={ids.includes(c.id)} onCheckedChange={checked=>setIds(current=>checked?[...current,c.id]:current.filter(v=>v!==c.id))}/><FieldContent className="min-w-0 break-words"><FieldLabel htmlFor={id+i}>{calendarLabel(c,catalog.calendars)}</FieldLabel><FieldDescription className="break-all">{c.timeZone??'Calendar timezone'}{c.accessRole==='freeBusyReader'?' · Event details unavailable':''}</FieldDescription></FieldContent></Field>)}
@@ -44,6 +60,7 @@ export function CalendarAnalysis({setup,disabled,onChange,onSkip}:{setup:SetupSt
    {scan.status==='ready'&&reviewing?<ScanReview key={scan.id+':'+setup.revision} scan={scan} setup={setup} disabled={locked} onApply={choice=>void mutate('apply',choice)} onCancel={()=>setReviewing(false)}/>:null}
    {scan.status==='ready'&&!reviewing?<div className="flex flex-wrap gap-2"><Button className="h-auto min-h-11 w-full whitespace-normal" disabled={locked||summary.windows.length===0} onClick={()=>void mutate('apply',{scanId:scan.id,expectedRevision:setup.revision})}>Use suggested schedule in draft</Button><Button variant="outline" className="h-auto min-h-11 whitespace-normal" disabled={locked} onClick={()=>setReviewing(true)}>Review and edit suggestions</Button><Button variant="outline" disabled={locked} onClick={()=>void mutate('dismiss',{scanId:scan.id,expectedRevision:setup.revision})}>Dismiss these suggestions</Button></div>:null}
   </CollapsibleContent></Collapsible>:null}
+  {(error||scan&&['failed','stale','expired'].includes(scan.status))&&!form?<><Button variant="outline" disabled={locked} onClick={()=>{pending.current=null;void analyzeSelected();}}>Retry selected calendars</Button><Button variant="link" disabled={locked} onClick={onSkip}>Choose preferences manually</Button></>:null}
   {scan||error?<Button variant="ghost" disabled={locked} onClick={()=>{pending.current=null;setError('');void call('analysis/read').then(data=>setState(analysisState.parse(data))).then(onChange).catch(e=>setError(e.message));}}>Reload analysis</Button>:null}
   {error?<p role="alert" className="text-destructive">{error}</p>:null}
  </section>;

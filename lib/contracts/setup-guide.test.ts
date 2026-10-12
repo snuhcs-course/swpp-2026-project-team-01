@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {setupState,type SetupState} from './setup.ts';
 import {setupGuide,scheduleSuggestion} from './setup-guide.ts';
 function fixture():SetupState{return setupState.parse({revision:1,rulesVersion:0,calendarGeneration:'80000000-0000-4000-8000-000000000001',calendarSelected:true,confirmed:{},draft:{revision:1,baseRulesVersion:0,settings:{handle:'example',displayName:'Example'},provenance:{},unresolved:[],clarifications:[],status:'active'},review:null,nextAction:'complete_preferences'});}
-test('guidance follows connection authority and remembers optional analysis across reload',()=>{
+test('guidance follows connection authority and remembers automatic analysis across reload',()=>{
  const s=fixture();assert.equal(setupGuide(s).step,'analysis');s.progress.analysisDecided=true;assert.equal(setupGuide(setupState.parse(JSON.parse(JSON.stringify(s)))).step,'schedule');
  s.calendarSelected=false;assert.equal(setupGuide(s).step,'calendars');s.calendarGeneration=null;assert.equal(setupGuide(s).step,'connect');
 });
@@ -31,3 +31,5 @@ test('current ready Calendar evidence takes precedence over starter suggestions 
  const s=fixture();s.progress.analysisDecided=true;s.analysisStatus='ready';assert.equal(setupGuide(s).step,'analysis_review');
  for(const status of ['failed','stale','expired','dismissed'] as const){s.analysisStatus=status;assert.equal(setupGuide(s).step,'schedule');}
 });
+
+test('running analysis precedes preference questions',()=>{const s=fixture();s.progress.analysisDecided=true;s.analysisStatus='running';assert.equal(setupGuide(s).step,'analysis');assert.match(setupGuide(s).question,/I’ll analyze your selected calendars/);});

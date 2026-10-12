@@ -36,6 +36,8 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 
 - [x] 3.9 Separate connected status and assistant messages; implement bounded event-informed editable calendar suggestions, sequential conflict/booking choices and contextual recovery; verify provider, authority, browser and production behavior and update owning docs.
 
+- [x] 3.10 Automatically analyze saved conflict calendars without a second choice prompt; verify exact scope, reload reuse, review-only suggestions and manual recovery.
+
 ## 4. Private iMessage proof and transport
 
 - [x] 4.1 Implement browser-bound expiring hashed OTP challenges and durable code intents; test wrong browser/sender, guesses, expiry, replay, delivery failure, number change and single-use consumption.
@@ -99,4 +101,6 @@ Task 3.5 acceptance: [assistant-first host entry](../../../documentations/techni
 
 Tasks 3.6–3.8 acceptance: [suggestion-first setup and chat calendar configuration](../../../documentations/technical_specification/05_rebuild_evidence.md#suggestion-first-setup-and-chat-calendar-configuration--2026-10-11). Deterministic browser, service and database checks cover the new behavior; broad live Google/iPhone and AC-28 gates remain open.
 
-Task 3.9 acceptance: [event-informed sequential calendar selection](../../../documentations/technical_specification/05_rebuild_evidence.md#event-informed-sequential-calendar-selection--2026-10-11) verifies deterministic analysis, authority checks, browser recovery and the live two-step interface. The later opt-in preference scan and broad Google/iPhone gates remain separate.
+Task 3.9 acceptance: [event-informed sequential calendar selection](../../../documentations/technical_specification/05_rebuild_evidence.md#event-informed-sequential-calendar-selection--2026-10-11) verifies deterministic analysis, authority checks, browser recovery and the live two-step interface. The later preference scan and broad Google/iPhone gates remain separate.
+
+Task 3.10 acceptance: 591 application tests, TypeScript checks, both production builds, documentation/OpenSpec validation, and the controlled browser setup journey verify automatic exact saved scope, a 56-day window, no repeated scan on reload, dismissal/manual setup and draft-only application. The initial browser run exposed an obsolete zero-scan assertion; it was updated to require exactly one automatic scan. Broad live Google/iPhone and narration gates remain open.

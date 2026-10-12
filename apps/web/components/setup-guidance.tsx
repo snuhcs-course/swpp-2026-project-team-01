@@ -20,9 +20,8 @@ export function SetupGuidance({state,disabled,editing,onEdit,onProgress,onUse,on
  return <section aria-label="Setup guide" className="flex min-w-0 flex-col gap-3">
   <details className="text-sm"><summary className="min-h-11 cursor-pointer py-2">{guide.completed.length} of {guide.total} preference steps complete</summary><p>{guide.completed.length?guide.completed.join(' · '):'Your completed steps will appear here.'}</p></details>
   <ChatMessage><p ref={heading} tabIndex={-1}>{guide.question}</p></ChatMessage>
-  {!editing&&['answers_review','analysis','profile','schedule','mode','location','transport','travel_buffer','clarification'].includes(guide.step)?<ChatAction title="Your next setup step">
+  {!editing&&['answers_review','profile','schedule','mode','location','transport','travel_buffer','clarification'].includes(guide.step)?<ChatAction title="Your next setup step">
    {guide.step==='answers_review'?<SetupAnswers key={state.revision} state={state} disabled={disabled} onUse={onUse} onEdit={onEdit}/>:null}
-   {guide.step==='analysis'?<Button variant="outline" className="h-auto min-h-11 whitespace-normal" disabled={disabled} onClick={()=>onProgress('skip_analysis')}>Skip analysis and choose preferences</Button>:null}
    {guide.step==='profile'?<Button variant="link" disabled={disabled} onClick={()=>onEdit('profile')}>Choose my booking profile</Button>:null}
    {guide.step==='schedule'?suggestion&&r?<Alert><AlertTitle>Suggested meeting week</AlertTitle><AlertDescription>
     <p>{r.durationMinutes} minute meetings · {r.timezone} · {r.bufferMinutes} minute meeting buffer</p>

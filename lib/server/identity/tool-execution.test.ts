@@ -84,7 +84,7 @@ test('setup link reporting rechecks current private authority and revision after
  failure=true;await assert.rejects(tools.execute(auth,call,readiness),errorCode('PROVIDER_UNAVAILABLE'));failure=false;
  changed=()=>{stale=true;};await assert.rejects(tools.execute(auth,call,readiness),errorCode('STALE_REVISION'));stale=false;
  changed=()=>{revoked=true;};await assert.rejects(tools.execute(auth,call,readiness),errorCode('UNAUTHORIZED'));revoked=false;changed=()=>{};
- state.nextAction='complete_preferences';const calls=profiles;assert.deepEqual(await tools.execute(auth,call,readiness),{ready:false,reason:'setup',recovery:{step:'analysis',question:'Would you like suggestions from selected calendars, or choose preferences yourself?'}});assert.equal(profiles,calls);
+ state.nextAction='complete_preferences';const calls=profiles;assert.deepEqual(await tools.execute(auth,call,readiness),{ready:false,reason:'setup',recovery:{step:'analysis',question:'I’ll analyze your selected calendars and suggest preferences from the past and next four weeks.'}});assert.equal(profiles,calls);
  await assert.rejects(tools.execute(auth,call,{...readiness,input:{handle:'another-host'}}),errorCode('INVALID_INPUT'));
 });
 

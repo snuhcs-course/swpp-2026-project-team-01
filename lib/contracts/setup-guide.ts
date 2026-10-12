@@ -5,14 +5,14 @@ export type SetupGuide={step:SetupStep;question:string;completed:string[];total:
 export function setupGuide(state:SetupState):SetupGuide{
  const s=state.draft?.settings??state.confirmed,r=s.rules??{},p=state.draft?.provenance??{};
  const explicit=(key:string)=>p['rules.'+key]==='host';
- const steps:[string,boolean][]=[['Google',!!state.calendarGeneration],['Calendars',state.calendarSelected],['Analysis choice',state.progress.analysisDecided],['Profile',!!s.handle&&!!s.displayName],['Schedule',!!r.timezone&&!!r.availability?.length&&!!r.durationMinutes&&r.bufferMinutes!==undefined&&r.focusBlocks!==undefined&&r.preferences!==undefined],['Meeting mode',explicit('meetingMode')]];
+ const steps:[string,boolean][]=[['Google',!!state.calendarGeneration],['Calendars',state.calendarSelected],['Calendar analysis',state.progress.analysisDecided],['Profile',!!s.handle&&!!s.displayName],['Schedule',!!r.timezone&&!!r.availability?.length&&!!r.durationMinutes&&r.bufferMinutes!==undefined&&r.focusBlocks!==undefined&&r.preferences!==undefined],['Meeting mode',explicit('meetingMode')]];
  if(r.meetingMode!=='online')steps.push(['Location',explicit('locationPolicy')&&(r.locationPolicy==='per_meeting'||explicit('locations')&&!!r.locations?.length)],['Transportation',explicit('travelMode')&&r.travelMode!=='NONE'],['Travel buffer',explicit('travelBufferMinutes')]);
  const result=(step:SetupStep,question:string)=>({step,question,completed:steps.filter(([,done])=>done).map(([name])=>name),total:steps.length});
  if(!state.calendarGeneration)return result('connect','Connect Google Calendar to start. You can draft preferences while you connect.');
  if(!state.calendarSelected)return result('calendars','Which calendars should block meetings, and where should approved bookings go?');
  if(state.nextAction==='refresh_draft')return result('refresh','Your calendar or saved settings changed. Refresh your draft before reviewing it.');
  if(state.nextAction==='settings_confirmed')return result('confirmed','Your meeting preferences are confirmed.');
- if(!state.progress.analysisDecided)return result('analysis','Would you like suggestions from selected calendars, or choose preferences yourself?');
+ if(!state.progress.analysisDecided||state.analysisStatus==='running')return result('analysis','I’ll analyze your selected calendars and suggest preferences from the past and next four weeks.');
  if(state.analysisStatus==='ready')return result('analysis_review','Your Calendar suggestions are ready. Review them below before choosing new defaults.');
  if(!s.handle||!s.displayName)return result('profile','What name and booking name would you like people to see?');
  if(!steps[4][1])return result('schedule','Would this meeting week work for you?');

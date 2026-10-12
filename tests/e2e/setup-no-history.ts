@@ -36,6 +36,7 @@ export async function verifyNoHistory(browser:Browser,origin:string,local:Record
    await expect(calendars.getByRole('button',{name:'Change calendar choices',exact:true})).toBeFocused();
    assert.equal(await sql.query(`select booking_calendar_id='personal@example.test' and conflict_calendar_ids=array['personal@example.test'] from fmat.hosts where id='${host}';`),'t');
   }
+  const autoAnalysis=page.getByRole('region',{name:'Calendar suggestions'});await autoAnalysis.getByText('Your private suggestions are ready.',{exact:true}).waitFor();await autoAnalysis.getByRole('button',{name:'Dismiss these suggestions'}).click();await autoAnalysis.getByRole('status').filter({hasText:'Suggestions dismissed.'}).waitFor();
   if(flow==='no-history'){
    await page.getByLabel('Message Thyme').fill('Use My calendar (1) and My calendar (2) for conflicts and save bookings in My calendar (1).');
    await page.getByRole('button',{name:'Send',exact:true}).click();await page.getByText('Your calendar choices are saved.',{exact:true}).waitFor();
@@ -43,7 +44,7 @@ export async function verifyNoHistory(browser:Browser,origin:string,local:Record
    assert.equal(await sql.query(`select cardinality(conflict_calendar_ids)=2 and booking_calendar_id='personal@example.test' and rules is null from fmat.hosts where id='${host}';`),'t');
   }
   const setup=page.getByRole('region',{name:'Your meeting setup'}),guide=setup.getByRole('region',{name:'Setup guide'});
-  await guide.getByRole('button',{name:'Skip analysis and choose preferences'}).click();await guide.getByRole('button',{name:'Choose my booking profile'}).click();await setup.getByLabel('Display name',{exact:true}).fill('No history host');await setup.getByLabel('Booking name',{exact:true}).fill('guided-'+host.slice(0,8));await setup.getByRole('button',{name:'Use these preferences in my draft'}).click();
+  await guide.getByRole('button',{name:'Choose my booking profile'}).click();await setup.getByLabel('Display name',{exact:true}).fill('No history host');await setup.getByLabel('Booking name',{exact:true}).fill('guided-'+host.slice(0,8));await setup.getByRole('button',{name:'Use these preferences in my draft'}).click();
   if(flow==='no-history'){
   await guide.getByRole('button',{name:'Use this meeting week'}).click();await guide.getByRole('button',{name:'Choose Either',exact:true}).click();await guide.getByRole('button',{name:'Decide location per meeting'}).click();
   await guide.getByRole('button',{name:'Choose transportation'}).click();assert.equal(await setup.getByRole('radio',{checked:true}).count(),0);await setup.getByRole('radio',{name:'Depends on the trip',exact:true}).check();await setup.getByRole('button',{name:'Use these preferences in my draft'}).click();await guide.getByRole('button',{name:'Use 15 extra travel minutes'}).click();
@@ -91,7 +92,7 @@ export async function verifyNoHistory(browser:Browser,origin:string,local:Record
   assert.equal(state.confirmed.rules.durationMinutes,30);assert.equal(state.progress.analysisDecided,true);
   if(flow==='online')assert.deepEqual(state.confirmed.rules.locations,[]);
   else for(const key of ['durationMinutes','meetingMode','travelBufferMinutes'])assert.equal(state.draft.origins['rules.'+key].source,flow==='no-history'?'starter':'assistant');
-  assert.equal(await sql.query(`select count(*) from fmat.calendar_scans where host_id='${host}';`),'0','Skipping analysis never scans events');assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where host_id='${host}';`),'0');
+  assert.equal(await sql.query(`select count(*) from fmat.calendar_scans where host_id='${host}';`),'1','Setup automatically scans once; dismissal and reload never rescan');assert.equal(await sql.query(`select count(*) from fmat.booking_attempts where host_id='${host}';`),'0');
   if(flow==='described')await verifyIMessage(page,context,host,local,sql);
   else{const card=page.getByRole('region',{name:'Connect iMessage'});await card.getByRole('button',{name:'Maybe later',exact:true}).click();await card.getByText('You chose to continue on the web.',{exact:false}).waitFor();await page.reload();await card.getByText('You chose to continue on the web.',{exact:false}).waitFor();}
   if(flow==='no-history'){await expect(page.getByText('Your calendar choices are saved.',{exact:true})).toBeVisible();await expect(setup).toHaveAttribute('aria-busy','false');await verifyReadyLinks(page,context,origin);await verifyCompactSetup(page,context,origin);await verifySetupReadRecovery(page,context,origin);}

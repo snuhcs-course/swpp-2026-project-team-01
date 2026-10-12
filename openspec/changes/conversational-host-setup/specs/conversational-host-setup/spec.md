@@ -151,7 +151,7 @@ The website SHALL guide admitted hosts inside `/app` through Google connection, 
 - **THEN** controls and the composer remain reachable, selection is not conveyed by color alone, the weekly view has a text equivalent, and focus/progress survives edits, reload and consent return
 
 ### Requirement: Calendar-informed setup suggestions
-After verified host consent, the service SHALL recommend calendar roles from bounded event-name/activity evidence from checked visible calendars and stated intent. This role recommendation SHALL remain separate from the opt-in preference analysis, for which the host SHALL choose the calendars and disclosed bounded period before event reads. It SHALL use selected calendar evidence to suggest meeting windows and, where supported, location/mode preferences with reasons and uncertainty. Suggestions SHALL remain editable private drafts until explicit current-review confirmation.
+After verified host consent, the service SHALL recommend calendar roles from bounded event-name/activity evidence from checked visible calendars and stated intent. This role recommendation SHALL remain separate from preference analysis. After calendar choices are saved, the web workspace SHALL automatically analyze those conflict calendars over the past and next four weeks, without asking whether to analyze or requiring repeated selection. It SHALL use selected calendar evidence to suggest meeting windows and, where supported, location/mode preferences with reasons and uncertainty. Suggestions SHALL remain editable private drafts until explicit current-review confirmation.
 
 #### Scenario: Useful calendar patterns
 - **WHEN** a host analyzes selected calendars containing recurring commitments, free intervals and usable location information
@@ -264,7 +264,7 @@ The host setup interface SHALL show concise suggestions before exposing manual c
 - **WHEN** an unconfigured connected host opens calendar selection
 - **THEN** the service inspects event instances, bounded names and counts from checked visible readable calendars within the past and next four weeks, and presents conflict suggestions checked in visible editable options
 - **AND** private raw titles are neither persisted nor passed to the model; partial and failed reads are labeled and never represented as empty history
-- **AND** this role-recommendation read is separate from the later opt-in preference scan, and no choices are saved by viewing suggestions
+- **AND** this role-recommendation read is separate from the later automatic selected-calendar preference scan, and no choices are saved by viewing suggestions
 
 #### Scenario: Configure calendar roles sequentially
 - **WHEN** the host reviews calendars to check for conflicts
@@ -281,3 +281,20 @@ The host setup interface SHALL show concise suggestions before exposing manual c
 - **THEN** the agent reads current checked, visible calendars and applies unambiguous requested choices through an authorized tool without requiring manual picker interaction
 - **AND** the service rechecks grant, runtime session, pending message, connection generation, rules version and provider permissions, rejects shared audiences, and deduplicates exact retries
 - **AND** a missing or ambiguous destination requires one clarifying question, while calendar selection does not confirm meeting preferences or create an event
+
+### Requirement: Automatic selected-calendar preference analysis
+The web workspace SHALL start one bounded preference analysis after saved calendar choices, using all saved conflict calendars and the past and next 28 calendar days in the known preference timezone, booking-calendar timezone or browser timezone. It SHALL NOT ask a second analysis-choice question. Suggestions SHALL require review before becoming policy.
+
+#### Scenario: Selection proceeds directly to analysis
+- **WHEN** a host saves calendar choices with no prior analysis decision or scan
+- **THEN** the workspace analyzes the saved conflict calendars without another selection or opt-in prompt
+- **AND** shows reviewable suggestions without confirming settings
+
+#### Scenario: Reload and recovery
+- **WHEN** a host reloads with an existing scan or persisted analysis decision
+- **THEN** no additional automatic scan starts
+- **AND** failed, stale or expired analysis offers explicit retry or manual preferences
+
+#### Scenario: Unsupported selected scope
+- **WHEN** more than ten calendars are selected or any selected calendar lacks event-read access
+- **THEN** analysis offers recovery without silently dropping selected calendars
