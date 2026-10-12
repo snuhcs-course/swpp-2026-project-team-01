@@ -53,3 +53,12 @@ test('event reader rejects oversized pages and pagination that exceeds the discl
  await assert.rejects(new GoogleEventProvider(async()=>new Response(body)).read('private-token',current));assert.equal(cancelled,true,'oversized stream is cancelled before parsing');
  let pages=0;await assert.rejects(new GoogleEventProvider(async()=>Response.json({timeZone:'UTC',accessRole:'owner',items:[],nextPageToken:'page-'+(++pages)})).read('private-token',current));assert.equal(pages,10);
 });
+
+test('zero-length timed entries do not block a complete scan or contribute preference evidence',()=>{
+ const entries=[event('busy','2026-10-05T13:00:00Z','2026-10-05T14:00:00Z')];
+ const analyze=(events:CalendarEvent[])=>analyzeCalendars(scope,[{id:'chosen',timezone:'UTC',events}],now);
+ const marker=event('marker','2026-10-05T13:30:00Z','2026-10-05T13:30:00Z',{location:'Not a commitment',hangoutLink:'https://meet.google.com/example'});
+ assert.deepEqual(analyze([...entries,marker]),analyze(entries));
+ assert.throws(()=>analyze([event('reversed','2026-10-05T14:00:00Z','2026-10-05T13:00:00Z')]));
+ assert.throws(()=>analyze([{id:'invalid-day',start:{date:'2026-10-05'},end:{date:'2026-10-05'}}]));
+});

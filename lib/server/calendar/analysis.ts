@@ -51,7 +51,7 @@ export function analyzeCalendars(scope:AnalysisScope,calendars:EventCalendar[],n
   for(const calendar of calendars){Temporal.Now.zonedDateTimeISO(calendar.timezone);for(const raw of calendar.events){const e=event.parse(raw);
    if(e.status==='cancelled'||e.transparency==='transparent'||e.eventType==='workingLocation'||e.attendees?.some(a=>a.self&&a.responseStatus==='declined'))continue;
    if(!e.start||!e.end||Boolean(e.start.date)!==Boolean(e.end.date))throw new Error();
-   const start=instant(e.start,calendar.timezone),end=instant(e.end,calendar.timezone);if(start>=end)throw new Error();if(end<=begin||start>=finish)continue;
+   const start=instant(e.start,calendar.timezone),end=instant(e.end,calendar.timezone);if(start>end||start===end&&e.start.date)throw new Error();if(start===end||end<=begin||start>=finish)continue;
    busy.push({start:Math.max(start,begin),end:Math.min(end,finish)});eventCount++;
    const online=Boolean(e.hangoutLink||e.conferenceData?.entryPoints?.some(p=>p.entryPointType==='video'));
    if(online)onlineCount++;
