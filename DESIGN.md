@@ -57,7 +57,7 @@ Use muted olive, warm ivory, dark natural ink, fine lines, and restrained serif 
 
 ![Thyme botanical clock logo](apps/web/public/logo.png)
 
-The selected logo asset is [apps/web/public/logo.png](apps/web/public/logo.png), served as `/logo.png` by the web app. It is a centered 380 × 380px square crop of the last botanical image generated with GPT Image 2. The broad empty margins have been removed, keeping at least a 2px edge allowance around the artwork. The crop retains the original pixels and ivory background without stretching the mark. The [uncropped reference](documentations/assets/thyme-logo-concept.png) remains available for provenance.
+The selected logo asset is [apps/web/public/logo.png](apps/web/public/logo.png), served directly as `/logo.png` by the web app. The shared wordmark opts out of Next.js image optimization because the current multi-service deployment does not serve its `/_next/image` endpoint. Deployment verification must await image decoding and check nonzero natural dimensions, not only the styled element size. It is a centered 380 × 380px square crop of the last botanical image generated with GPT Image 2. The broad empty margins have been removed, keeping at least a 2px edge allowance around the artwork. The crop retains the original pixels and ivory background without stretching the mark. The [uncropped reference](documentations/assets/thyme-logo-concept.png) remains available for provenance.
 
 The mark is a thyme sprig curving along the left and bottom of an open clock circle. The hands read **10:10**, with a shorter hour hand pointing upper left and a longer minute hand pointing upper right. Preserve the slender organic stems, small leaves, open arc, and understated central hub.
 
