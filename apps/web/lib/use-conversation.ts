@@ -105,7 +105,7 @@ export function useConversation(target:ChatTarget,onAccessLost:()=>void) {
   }
   // Stream lifecycle events also replay old turns. Only accepted, unsettled
   // application inputs establish current work; refresh that state on lifecycle events.
-  return {messages:transcript.messages,working:pending&&!recoveryBlocked,canSend,canRetry,recovery,
+  return {conversationId:snapshot?.conversationId,messages:transcript.messages,working:pending&&!recoveryBlocked,canSend,canRetry,recovery,
     pendingMessages:snapshot?.messages.filter(m=>m.status==='pending')??[],
     ready:!!snapshot&&!denied,error:error||(snapshot?.messages.at(-1)?.status==='failed'?failedResponse:''),sendError,sending,denied,send,reconnect:()=>interruptRead.current()};
 }

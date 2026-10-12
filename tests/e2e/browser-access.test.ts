@@ -35,7 +35,7 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
   const child=spawn(process.execPath,['node_modules/next/dist/bin/next','start','apps/web','-p','3000'],{env:{...process.env,NODE_OPTIONS:'--import='+new URL('./google-fixture.mjs',import.meta.url).href,AGENTMAIL_INBOX_ID:emailInbox,AGENTMAIL_RECEIVER_ID:emailReceiver,OPENAI_API_KEY:'browser-ranking-fixture',OPENAI_MODEL:'gpt-6-luna',PHOTON_PROJECT_ID:photonProject,PHOTON_PROJECT_SECRET:'browser-photon-fixture',GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret',TOKEN_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64'),APP_ORIGIN:origin,EVE_LOCAL_ORIGIN:runtime.origin,SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY,SUPABASE_PUBLISHABLE_KEY:local.ANON_KEY},stdio:['ignore','pipe','pipe']});
   let log='';child.stdout.on('data',v=>log+=v);child.stderr.on('data',v=>log+=v);
   const sql=new LocalSql();const email=`browser-${randomUUID()}@example.test`,invitation=randomUUID(),requestId=randomUUID();
-  const token=randomBytes(32).toString('base64url'),code='ABCDEFGHIJKLMNOP';let userId:string|undefined,callback='';
+  const token=randomBytes(32).toString('base64url'),code=Array.from(randomBytes(16),value=>String.fromCharCode(65+value%26)).join('');let userId:string|undefined,callback='';
   let entry:Awaited<ReturnType<typeof beginIMessageEntry>>|undefined,primaryFailure:unknown;
   const browser=await chromium.launch();const context=await browser.newContext({viewport:{width:1280,height:900}});const page=await context.newPage();page.setDefaultTimeout(15000);page.setDefaultNavigationTimeout(20000);
   page.on('request',request=>{if(request.url().startsWith(origin+'/auth/callback?code='))callback=request.url();});
@@ -85,7 +85,7 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
     const row=await sql.query(`select id from auth.users where email='${email}';`);assert.match(row,/^[a-f0-9-]{36}$/u);userId=row;
     await sql.query(`insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('${invitation}','${email}','${createHash('sha256').update(code).digest('hex')}',now()+interval '1 day','browser-test');`);
     await page.getByLabel('Invitation code').fill('ZZZZ-ZZZZ-ZZZZ-ZZZZ');await page.getByRole('button',{name:'Use invitation'}).click();await page.getByRole('alert').filter({hasText:'This invitation cannot be used'}).waitFor();
-    await page.getByLabel('Invitation code').fill('ABCD-EFGH-IJKL-MNOP');await page.getByRole('button',{name:'Use invitation'}).click();await page.getByRole('heading',{name:'Welcome to your workspace.'}).waitFor();
+    await page.getByLabel('Invitation code').fill(code.match(/.{4}/g)!.join('-'));await page.getByRole('button',{name:'Use invitation'}).click();await page.getByRole('heading',{name:'Welcome to your workspace.'}).waitFor();
     await page.reload();await page.getByRole('heading',{name:'Welcome to your workspace.'}).waitFor();
     await entry.finish(userId);await entry.cleanup();entry=undefined;
     await page.reload();await verifySetupGreeting(page);
@@ -108,7 +108,7 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
     const encryptedCalendar=calendarCipher.seal({accessToken:'browser-calendar-fixture',refreshToken:'browser-refresh-fixture',expiresAt:Date.now()+3600000,subject:'browser-google',scopes:['openid','email','https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events']},'google:host:'+userId);
     await sql.query(`insert into fmat.calendar_connections(principal_kind,principal_id,provider_subject,scopes,encrypted_credential) values('host','${userId}','browser-google',array['https://www.googleapis.com/auth/calendar.readonly','https://www.googleapis.com/auth/calendar.events'],'${encryptedCalendar}');`);
     const beforeReturn=await (await context.request.get(origin+'/api/browser/setup/read')).json();
-    await page.goto(origin+'/app?calendar=connected');await expect(page.getByRole('status').filter({hasText:'Google connection saved.'})).toBeFocused();
+    await page.goto(origin+'/app?calendar=connected');await expect(page.locator('[data-connection-confirmation]')).toBeFocused();await expect(page.getByText('Google connection saved.',{exact:true})).toHaveCount(0);
     const afterReturn=await (await context.request.get(origin+'/api/browser/setup/read')).json();assert.deepEqual(afterReturn.draft,beforeReturn.draft);assert.deepEqual(afterReturn.progress,beforeReturn.progress);
     await verifyCalendarReadRecovery(page);
     const choices=page.getByRole('region',{name:'Calendar choices'});

@@ -1,3 +1,4 @@
+import {nonPresentationLocalKeys} from './presentation-storage.ts';
 import assert from 'node:assert/strict';
 import {randomUUID,randomBytes,createHmac} from 'node:crypto';
 import {expect,type Page,type BrowserContext} from '@playwright/test';
@@ -51,7 +52,7 @@ export async function beginIMessageEntry(page:Page,context:BrowserContext,local:
    await input.fill(code);await card.getByRole('button',{name:'Confirm and link'}).click();await card.getByText('iMessage connected · ••••9999',{exact:true}).waitFor();
    assert.ok(!(await context.cookies()).some(c=>c.name==='fmat-imessage-entry'));assert.ok(!(await page.locator('body').innerText()).includes(token));
    assert.equal(await sql.query(`select count(*) from fmat.photon_inbox where project_id='${photonProject}' and (link_id is not null or runtime_message_id is not null);`),'0','Original unlinked message never inherits authority');
-   assert.deepEqual(await page.evaluate(()=>({local:Object.keys(localStorage),session:Object.keys(sessionStorage)})),{local:[],session:[]});
+   assert.deepEqual({local:await nonPresentationLocalKeys(page),session:await page.evaluate(()=>Object.keys(sessionStorage))},{local:[],session:[]});
    await card.getByRole('button',{name:'Unlink iMessage',exact:true}).click();await card.getByRole('button',{name:'Confirm unlink'}).click();
    await expect(card).toHaveCount(0);await page.setViewportSize({width:1280,height:900});
   },

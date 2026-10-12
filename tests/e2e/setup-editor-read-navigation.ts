@@ -11,7 +11,8 @@ export async function verifySetupEditorReadNavigation(page:Page){
  page.on('request',observe);
  try{
   await page.route('**/api/browser/setup/read',route=>{const work=(async()=>{entered();await wait;await route.continue();})();routed.push(work);return work;});
-  await setup.getByRole('button',{name:'Reload setup',exact:true}).click();await arrived;await expect(setup).toHaveAttribute('aria-busy','true');
+  // Keyboard activation keeps this pending-read focus test independent of chat layout movement.
+  await setup.getByRole('button',{name:'Reload setup',exact:true}).focus();await page.keyboard.press('Enter');await arrived;await expect(setup).toHaveAttribute('aria-busy','true');
   await openPreferenceControls(page);
   await expect(edit).toBeEnabled();await edit.focus();await page.keyboard.press('Enter');
   const heading=setup.locator('legend').filter({hasText:/^Your booking profile$/});await expect(heading).toBeFocused();

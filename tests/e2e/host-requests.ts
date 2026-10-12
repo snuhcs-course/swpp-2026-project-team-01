@@ -1,3 +1,4 @@
+import {nonPresentationLocalKeys} from './presentation-storage.ts';
 import {workspaceNavigate} from './workspace-navigation.ts';
 import {verifyHostRequestListRecovery} from './host-request-list-recovery.ts';
 import {verifyHostRevisionReview} from './host-revision-review.ts';
@@ -39,6 +40,6 @@ export async function verifyHostRequests(page:Page,guest:Page,sql:LocalSql,reque
  await page.goto(origin+'/app?request='+randomUUID());await page.getByText('This resource is unavailable.',{exact:true}).waitFor();assert.equal(await page.getByLabel('Message Thyme').count(),0);assert.equal(await selected.count(),0);
  await workspaceNavigate(page,'Host chat');await page.getByRole('region',{name:'Your meeting setup'}).waitFor();assert.equal(new URL(page.url()).search,'');await expect(page.getByRole('button',{name:'Workspace menu',exact:true})).toBeFocused();
  await page.goBack();await page.getByText('This resource is unavailable.',{exact:true}).waitFor();await page.goForward();await page.getByRole('region',{name:'Your meeting setup'}).waitFor();await expect(page.getByRole('button',{name:'Workspace menu',exact:true})).toBeFocused();
- assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
+ assert.equal((await nonPresentationLocalKeys(page)).length+await page.evaluate(()=>sessionStorage.length),0);
  await sql.query(`delete from fmat.conversation_grants where conversation_id in(select id from fmat.conversation_scopes where request_id='${other}');delete from fmat.conversation_scopes where request_id='${other}';delete from fmat.request_history where request_id='${other}';delete from fmat.audit_events where subject_id='${other}';delete from fmat.requests where id='${other}';`);
 }

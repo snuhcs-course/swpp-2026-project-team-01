@@ -1,8 +1,8 @@
 'use client';
-import {ChatMessage} from './chat-message';
+import {StreamingChatMessage} from './streaming-chat-message';
 import {ChatAction} from './chat-action';
 import {weeklyHoursLabel} from '../../../lib/contracts/weekly-hours.ts';
-import {useEffect,useRef} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {setupGuide,scheduleSuggestion} from '../../../lib/contracts/setup-guide.ts';
 import type {SetupState,SetupPatch} from '../../../lib/contracts/setup.ts';
 import {Button} from './ui/button';
@@ -12,15 +12,16 @@ type EditStep='profile'|'schedule'|'mode'|'location'|'transport'|'travel_buffer'
 const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const modes={online:'Online only',in_person:'In person',either:'Either'};
 export function SetupGuidance({state,disabled,editing,onEdit,onProgress,onUse,onResolve}:{state:SetupState;disabled:boolean;editing:boolean;onEdit:(step:EditStep)=>void;onProgress:(choice:string)=>void;onUse:(patch:SetupPatch,starterFields?:string[])=>void;onResolve:()=>void}){
- const guide=setupGuide(state),heading=useRef<HTMLParagraphElement>(null),previous=useRef(guide.step);
+ const [spoken,setSpoken]=useState('');
+ const guide=setupGuide(state),heading=useRef<HTMLDivElement>(null),previous=useRef(guide.step);
  useEffect(()=>{const resultFocused=document.activeElement?.matches('[role="status"],[role="alert"]');if(previous.current!==guide.step&&!editing&&!resultFocused)heading.current?.focus();previous.current=guide.step;},[guide.step,editing]);
  const suggestion=scheduleSuggestion(state,Intl.DateTimeFormat().resolvedOptions().timeZone),r=suggestion?.patch.rules;
  const current=state.draft?.settings.rules??state.confirmed.rules,mode=current?.meetingMode??'either';
  const hasExtra=!!state.draft?.provenance['rules.travelBufferMinutes'],extra=hasExtra?current?.travelBufferMinutes??15:15;
  return <section aria-label="Setup guide" className="flex min-w-0 flex-col gap-3">
   <details className="text-sm"><summary className="min-h-11 cursor-pointer py-2">{guide.completed.length} of {guide.total} preference steps complete</summary><p>{guide.completed.length?guide.completed.join(' · '):'Your completed steps will appear here.'}</p></details>
-  <ChatMessage><p ref={heading} tabIndex={-1}>{guide.question}</p></ChatMessage>
-  {!editing&&['answers_review','profile','schedule','mode','location','transport','travel_buffer','clarification'].includes(guide.step)?<ChatAction title="Your next setup step">
+  <div ref={heading} tabIndex={-1}><StreamingChatMessage key={guide.question} text={guide.question} onComplete={()=>setSpoken(guide.question)}/></div>
+  {spoken===guide.question&&!editing&&['answers_review','profile','schedule','mode','location','transport','travel_buffer','clarification'].includes(guide.step)?<ChatAction title="Your next setup step">
    {guide.step==='answers_review'?<SetupAnswers key={state.revision} state={state} disabled={disabled} onUse={onUse} onEdit={onEdit}/>:null}
    {guide.step==='profile'?<Button variant="link" disabled={disabled} onClick={()=>onEdit('profile')}>Choose my booking profile</Button>:null}
    {guide.step==='schedule'?suggestion&&r?<Alert><AlertTitle>Suggested meeting week</AlertTitle><AlertDescription>

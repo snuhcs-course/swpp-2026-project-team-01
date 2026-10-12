@@ -1,5 +1,6 @@
 'use client';
 import {ChatMessage} from './chat-message';
+import {StreamingChatMessage} from './streaming-chat-message';
 import {ChatAction} from './chat-action';
 import {useEffect,useId,useRef,useState,type FormEvent} from 'react';
 import {setupState,setupPatch,type SetupState,type SetupPatch} from '../../../lib/contracts/setup.ts';
@@ -25,6 +26,7 @@ const travelModes={DRIVE:'Drive',TRANSIT:'Public transit',WALK:'Walk',BICYCLE:'B
 async function call(action:string,input?:unknown,signal?:AbortSignal){const response=await fetch('/api/browser/setup/'+action,{method:input===undefined?'GET':'POST',cache:'no-store',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20_000)]):AbortSignal.timeout(20_000),headers:{'content-type':'application/json'},...(input===undefined?{}:{body:JSON.stringify(input)})});const data=await response.json();if(!response.ok)throw new Error(data.error?.message??'Setup could not be saved. Try again.');return setupState.parse(data);}
 export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:boolean}){
  const [state,setState]=useState<SetupState|null>(null),[editor,setEditor]=useState<{section:Section;base:SetupState}|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[reload,setReload]=useState(0);
+ const [introDone,setIntroDone]=useState(false);
  const [manualOpen,setManualOpen]=useState(false),[optionsOpen,setOptionsOpen]=useState(false);
  const [expanded,setExpanded]=useState(false),[loading,setLoading]=useState(true);
  const editorOrigin=useRef<HTMLElement|null>(null),setupHeading=useRef<HTMLLegendElement>(null),savedNotice=useRef<HTMLParagraphElement>(null),restoreFocus=useRef<'origin'|'saved'|null>(null);
@@ -56,9 +58,9 @@ export function HostSetup({refreshKey,disabled}:{refreshKey:string;disabled:bool
   <Collapsible open={(!loading&&!state)||(!fresh&&!!state)||manualOpen} onOpenChange={setManualOpen}>
    {fresh?<CollapsibleTrigger asChild><Button variant="ghost" className="min-h-11 h-auto whitespace-normal">{manualOpen?'Hide manual setup':state?.calendarGeneration?'Set preferences manually':'Set preferences without connecting yet'}</Button></CollapsibleTrigger>:null}
    <CollapsibleContent>
-  <FieldSet className="gap-5"><FieldLegend ref={setupHeading} tabIndex={-1}>Your meeting setup</FieldLegend><ChatMessage><p>Tell me your preferences in chat. I’ll prepare a draft for you to review.</p></ChatMessage>
+  <FieldSet className="gap-5"><FieldLegend ref={setupHeading} tabIndex={-1}>Your meeting setup</FieldLegend><StreamingChatMessage text="Tell me your preferences in chat. I’ll prepare a draft for you to review." onComplete={()=>setIntroDone(true)}/>
    {loading?<p role="status">Loading setup…</p>:null}
-   {state?<>
+   {state&&introDone?<>
     {guide?<SetupGuidance state={state} disabled={locked} editing={!!editor} onEdit={openEditor} onProgress={progress} onUse={suggest} onResolve={()=>void mutate('draft',{expectedRevision:state.revision,patch:{rules:{}},unresolved:state.draft?.clarifications.slice(1)??[]})}/>:null}
     {state.calendarSelected?<ChatAction title="Calendar suggestions"><CalendarAnalysis setup={state} disabled={locked} onSkip={()=>progress('skip_analysis')} onChange={refreshAfterAnalysis}/></ChatAction>:null}
     {state.nextAction==='settings_confirmed'?<ChatMessage><p>Your settings are confirmed.</p></ChatMessage>:null}

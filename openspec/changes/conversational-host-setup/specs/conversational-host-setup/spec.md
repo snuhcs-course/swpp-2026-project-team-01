@@ -298,3 +298,21 @@ The web workspace SHALL start one bounded preference analysis after saved calend
 #### Scenario: Unsupported selected scope
 - **WHEN** more than ten calendars are selected or any selected calendar lacks event-read access
 - **THEN** analysis offers recovery without silently dropping selected calendars
+
+### Requirement: Sequential onboarding presentation
+The workspace SHALL reveal authored onboarding prose progressively in order and show its associated actions after the message completes. Reduced-motion users SHALL receive complete prose without animation. Verified Google connection SHALL use the assistant congratulations without a duplicate “Google connection saved.” notice. Actual generated replies SHALL retain server streaming.
+
+#### Scenario: Fresh host greeting
+- **WHEN** a fresh host opens onboarding
+- **THEN** Thyme finishes its greeting before revealing the connection prompt
+- **AND** the connect action appears after that prompt completes
+
+#### Scenario: Verified Google return
+- **WHEN** Google connection is verified after return
+- **THEN** the congratulations streams before the calendar-selection introduction and options
+- **AND** return focus lands on the congratulations without a duplicate saved notice
+
+#### Scenario: Previously seen message
+- **WHEN** a completed authored message is shown again in the same conversation and browser, including after refresh
+- **THEN** its complete text and actions appear without replaying the animation
+- **AND** a new conversation has independent presentation history

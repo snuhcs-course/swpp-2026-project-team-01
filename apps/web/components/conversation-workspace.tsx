@@ -13,6 +13,7 @@ import { Button } from './ui/button';
 import {InputGroup,InputGroupTextarea,InputGroupAddon,InputGroupButton} from './ui/input-group';
 import { Field, FieldGroup, FieldLabel, FieldDescription } from './ui/field';
 import { Alert, AlertTitle, AlertDescription } from './ui/alert';
+import {AuthoredMessageScope} from './streaming-chat-message';
 import {ChatMessage} from './chat-message';
 import { MessageScrollerProvider, MessageScroller, MessageScrollerViewport, MessageScrollerContent, MessageScrollerItem, MessageScrollerButton, useMessageScroller } from './ui/message-scroller';
 import { Suggestion, Suggestions } from './ai-elements/suggestion';
@@ -20,7 +21,7 @@ import {ConversationRecoveryCard} from './conversation-recovery.tsx';
 
 export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{target:ChatTarget;onAccessLost:(draft?:string)=>void;onRequestChanged?:()=>void}) {
   const [draft,setDraft]=useState(''),chat=useConversation(target,()=>onAccessLost(draft)),id=useId(),input=useRef<HTMLTextAreaElement>(null);
-  const [requestRevision,setRequestRevision]=useState(0);
+  const [requestRevision,setRequestRevision]=useState(0),[introReady,setIntroReady]=useState(false);
   function requestChanged(){setRequestRevision(value=>value+1);onRequestChanged?.();}
   function ask(text:string){setDraft(text);input.current?.focus();}
   const [followMessages,setFollowMessages]=useState(true),[followSequence,setFollowSequence]=useState(0);
@@ -28,7 +29,7 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
   const host=target.audience==='host_setup';
   useEffect(()=>{if(chat.denied)setDraft('');},[chat.denied]);
   async function submit(event?:FormEvent){event?.preventDefault();if(!draft.trim()||draft.length>10_000)return;if(await chat.send(draft)){setDraft('');input.current?.focus();followLatest();}}
-  return <div className="conversation-workspace" data-fresh={host&&!chat.messages.length}>
+  return <AuthoredMessageScope.Provider value={chat.conversationId}><div className="conversation-workspace" data-fresh={host&&!chat.messages.length}>
     <MessageScrollerProvider autoScroll={followMessages}>
       <FollowSentMessage sequence={followSequence}/>
       <MessageScroller>
@@ -37,16 +38,16 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
             {!host?<MessageScrollerItem messageId="welcome">
               <ChatMessage><p className="font-medium">{target.audience==='host_private'?'Private review of this request':'Let’s work out the details'}</p><p>{target.audience==='host_private'?'Review the current proposal and discuss your preferences privately. Selecting an option does not approve or book the meeting.':'Share your purpose, availability and meeting preferences. Review saved details, explore meeting times and agree to a current proposal here. Booking still requires host approval.'}</p></ChatMessage>
             </MessageScrollerItem>:null}
-            {host||('guest' in target&&target.guest)?<MessageScrollerItem messageId="calendar-connection" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><CalendarConnection refreshKey={host?chat.messages.length+':'+chat.working:undefined} introduce={host&&!chat.messages.length} onChanged={host?()=>setRequestRevision(value=>value+1):undefined} requestId={'guest' in target&&target.guest?target.requestId:undefined}/></MessageScrollerItem>:null}
+            {host||('guest' in target&&target.guest)?<MessageScrollerItem messageId="calendar-connection" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><CalendarConnection onPresentationReady={()=>setIntroReady(true)} refreshKey={host?chat.messages.length+':'+chat.working:undefined} introduce={host&&!chat.messages.length} onChanged={host?()=>setRequestRevision(value=>value+1):undefined} requestId={'guest' in target&&target.guest?target.requestId:undefined}/></MessageScrollerItem>:null}
             {'guest' in target&&target.guest?<MessageScrollerItem messageId="request-details" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><RequestDetailReview requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onSaved={requestChanged}/></MessageScrollerItem>:null}
             {'guest' in target&&target.guest?<MessageScrollerItem messageId="contact-verification" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><ContactVerificationCard requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onVerified={requestChanged}/></MessageScrollerItem>:null}
             {'guest' in target&&target.guest?<MessageScrollerItem messageId="requester-email" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><RequesterEmailCard requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working} onAccessLost={onAccessLost}/></MessageScrollerItem>:null}
             {target.audience!=='host_setup'?<MessageScrollerItem messageId="meeting-options" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><SchedulingReview audience={target.guest?'guest':'host'} requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onChanged={onRequestChanged} onAsk={ask}/></MessageScrollerItem>:null}
             {target.audience==='host_private'?<MessageScrollerItem messageId="host-revision" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><RequestDetailReview audience="host" requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onSaved={requestChanged}/></MessageScrollerItem>:null}
             {target.audience==='host_private'?<MessageScrollerItem messageId="private-review" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><PrivateSchedulingReview requestId={target.requestId} refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working} onAccessLost={onAccessLost} onChanged={requestChanged}/></MessageScrollerItem>:null}
-            {host?<MessageScrollerItem messageId="host-setup" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><HostSetup refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working}/></MessageScrollerItem>:null}
+            {host&&introReady?<MessageScrollerItem messageId="host-setup" style={{contentVisibility:'visible'}} onFocusCapture={()=>setFollowMessages(false)}><HostSetup refreshKey={chat.messages.length+':'+chat.working+':'+requestRevision} disabled={chat.denied||chat.working}/></MessageScrollerItem>:null}
             {chat.messages.map(message=><MessageScrollerItem key={message.id} messageId={message.id}>
-              <ChatMessage from={message.role==='user'?'user':'assistant'} label={message.role==='user'&&target.audience==='request_shared'?'Meeting participant':undefined} text={message.text}/>
+              <ChatMessage from={message.role==='user'?'user':'assistant'} label={message.role==='user'&&target.audience==='request_shared'?'Meeting participant':undefined} text={message.text} streaming={!message.complete}/>
             </MessageScrollerItem>)}
           </MessageScrollerContent>
         </MessageScrollerViewport>
@@ -69,7 +70,7 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
       </form>
       <p className="conversation-status" data-idle={chat.ready&&!chat.denied&&!chat.sending&&!chat.working} role="status">{chat.denied?'Access ended.':chat.sending?'Sending your message…':chat.working?'Your message is saved. The assistant is responding…':chat.ready?'Your conversation is saved. Approval and booking always need confirmed actions.':'Opening your private conversation…'}</p>
     </div>
-  </div>;
+  </div></AuthoredMessageScope.Provider>;
 }
 
 function FollowSentMessage({sequence}:{sequence:number}){

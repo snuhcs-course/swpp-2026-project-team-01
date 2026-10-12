@@ -3,6 +3,11 @@ import {expect,type Page} from '@playwright/test';
 
 export async function verifySetupGreeting(page:Page){
  const origin=new URL(page.url()).origin;assert.equal(origin,'http://localhost:3000');
+ await page.evaluate(()=>{for(const key of Object.keys(localStorage))if(key.startsWith('fmat:seen-prose:'))localStorage.removeItem(key);});
+ await page.reload();
+ const streaming=page.locator('[aria-label="Google Calendar connection"] [data-streaming="true"]');
+ await expect(streaming).toHaveCount(1);await expect(page.getByRole('button',{name:'Connect Google Calendar',exact:true})).toHaveCount(0);
+ await expect.poll(async()=> (await streaming.textContent())?.length??0).toBeGreaterThan(8);
  const before=await (await page.request.get(origin+'/api/browser/setup/read')).json();
  const panel=page.getByRole('region',{name:'Google Calendar connection'});
  const greeting=panel.getByText('Hi! I’m Thyme, your scheduling assistant. Let’s set up your meetings together.',{exact:true});
@@ -35,7 +40,7 @@ export async function verifySetupGreeting(page:Page){
  await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-account-menu-320.png'});await page.keyboard.press('Escape');await expect(account).toBeFocused();
  await manual.focus();await page.keyboard.press('Enter');await expect(page.getByRole('button',{name:'Edit profile',exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Hide manual setup',exact:true}).click();
- await page.reload();await expect(greeting).toHaveCount(1);await expect(manual).toBeVisible();
+ await page.reload();await expect(greeting).toHaveCount(1);await expect(connect).toBeEnabled();await expect(panel.locator('[data-streaming="true"]')).toHaveCount(0);await page.emulateMedia({reducedMotion:'reduce'});await page.reload();await expect(greeting).toHaveCount(1);await expect(manual).toBeVisible();await expect(panel.locator('[data-streaming="true"]')).toHaveCount(0);await page.emulateMedia({reducedMotion:'no-preference'});
  assert.deepEqual(await (await page.request.get(origin+'/api/browser/setup/read')).json(),before,'Opening manual controls and reloading cannot change saved setup');
  // The chat button, not a direct API shortcut, starts the existing PKCE flow.
  let consent:URL|undefined;

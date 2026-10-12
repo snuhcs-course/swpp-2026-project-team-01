@@ -31,7 +31,7 @@ export async function verifyCalendarReadRecovery(page:Page,requestId?:string){
   release();await Promise.all(routed);await expect(loading).toHaveCount(0);
   if(before.connected)await expect(panel.getByText('Google Calendar connected',{exact:true})).toBeVisible();
   else await expect(panel.getByRole('button',{name:'Connect Google Calendar',exact:true})).toBeEnabled();
-  await expect(panel.getByRole('status').filter({hasText:requestId?'Calendar connection checked.':'Google connection saved.'})).toBeFocused();
+  if(requestId)await expect(panel.getByRole('status').filter({hasText:'Calendar connection checked.'})).toBeFocused();else await expect(panel.locator('[data-connection-confirmation]')).toBeFocused();
   assert.equal(new URL(page.url()).search,'');assert.deepEqual(await (await page.request.get(endpoint)).json(),before,'Read recovery preserves connection and selections');
  }finally{release();await Promise.allSettled(routed);await page.unroute(match);if(viewport)await page.setViewportSize(viewport);}
 }

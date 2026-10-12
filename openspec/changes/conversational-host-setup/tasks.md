@@ -38,6 +38,8 @@ Tasks describe replacement implementation and verification. Private drafts, guid
 
 - [x] 3.10 Automatically analyze saved conflict calendars without a second choice prompt; verify exact scope, reload reuse, review-only suggestions and manual recovery.
 
+- [x] 3.11 Stream onboarding messages sequentially once per conversation/browser, preserve actual reply streaming and reduced motion, and remove duplicate Google success status.
+
 ## 4. Private iMessage proof and transport
 
 - [x] 4.1 Implement browser-bound expiring hashed OTP challenges and durable code intents; test wrong browser/sender, guesses, expiry, replay, delivery failure, number change and single-use consumption.
@@ -106,3 +108,5 @@ Task 3.9 acceptance: [event-informed sequential calendar selection](../../../doc
 Task 3.10 acceptance: 591 application tests, TypeScript checks, both production builds, documentation/OpenSpec validation, and the controlled browser setup journey verify automatic exact saved scope, a 56-day window, no repeated scan on reload, dismissal/manual setup and draft-only application. The initial browser run exposed an obsolete zero-scan assertion; it was updated to require exactly one automatic scan. Broad live Google/iPhone and narration gates remain open.
 
 Live selected-calendar verification exposed one zero-length timed event among 287 returned entries. The analyzer now excludes empty timed intervals from busy/location evidence while preserving rejection of reversed and invalid all-day ranges. A focused regression and a read-only replay against the selected calendars verify successful analysis (260 busy entries; no consistent two-hour gap).
+
+Task 3.11 acceptance: 594 application tests and all six controlled browser tests pass, including sequential greeting/action reveal, refresh without replay, reduced motion, Google return focus and later setup recovery. Production builds, TypeScript, client-boundary, documentation and strict OpenSpec checks pass. Browser fixtures use unique invitation codes, validate fingerprint-only presentation storage, and activate the pending-read keyboard test without depending on moving chat geometry. An intermittent private-review notice timeout passed on rerun; broader live provider and narration gates remain open.

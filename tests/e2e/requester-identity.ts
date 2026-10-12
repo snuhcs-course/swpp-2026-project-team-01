@@ -1,3 +1,4 @@
+import {nonPresentationLocalKeys} from './presentation-storage.ts';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {expect,type Browser} from '@playwright/test';
@@ -43,7 +44,7 @@ export async function verifyRequesterIdentity(browser:Browser,origin:string,sql:
   await google.getByRole('button',{name:'Use verified Google email',exact:true}).click();await expect(google.getByRole('alert')).toBeVisible();await page.unroute('**/api/browser/requester-identity/apply');await google.getByRole('button',{name:'Retry Google contact verification',exact:true}).click();
   await page.getByText('Your contact email is verified.',{exact:true}).waitFor();assert.equal(lost,true);assert.equal(await sql.query(`select count(*) from fmat.audit_events where subject_id='${id}' and operation='google_contact_verified';`),'1');
   assert.equal((await context.request.get(origin+'/api/browser/host/state')).status(),401);assert.equal(await sql.query(`select count(*) from fmat.calendar_connections where principal_kind='guest' and principal_id='${id}';`),'0');
-  assert.deepEqual(await page.evaluate(()=>({local:localStorage.length,session:Object.entries(sessionStorage)})),{local:0,session:[['fmat-display-timezone-v1','Europe/London']]});
+  assert.deepEqual({local:(await nonPresentationLocalKeys(page)).length,session:await page.evaluate(()=>Object.entries(sessionStorage))},{local:0,session:[['fmat-display-timezone-v1','Europe/London']]});
   const state=await context.request.get(origin+'/api/browser/requester-identity/state?kind=guest&requestId='+id);assert.equal(state.status(),200);assert.match(state.headers()['cache-control'],/no-store/);assert.ok(!JSON.stringify(await state.json()).includes('subject'));
   for(const operation of ['start','skip','apply'])assert.equal((await context.request.post(origin+'/api/browser/requester-identity/'+operation,{headers:{origin:'https://wrong.test'},data:{target:{kind:'guest',requestId:id}}})).status(),403);
  }finally{

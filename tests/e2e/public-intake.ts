@@ -1,3 +1,4 @@
+import {nonPresentationLocalKeys} from './presentation-storage.ts';
 import {verifyCalendarReadRecovery} from './calendar-read-recovery.ts';
 import {verifyPublicSkill} from './public-skill.ts';
 import {verifyRequesterIdentity} from './requester-identity.ts';
@@ -35,7 +36,7 @@ export async function verifyPublicIntake(browser:Browser,origin:string,sql:Local
   assert.equal(await sql.query(`select details->>'timezone' from fmat.requests where id='${id}';`),'Asia/Seoul');
   assert.equal(await sql.query(`select contact_verified_email is null and status='gathering' from fmat.requests where id='${id}';`),'t');
   const cookies=await context.cookies();assert.ok(cookies.filter(c=>c.name.startsWith('fmat-')).every(c=>c.httpOnly&&c.sameSite==='Lax'));
-  assert.equal(await page.evaluate(()=>document.cookie),'');assert.deepEqual(await page.evaluate(()=>({local:localStorage.length,session:Object.entries(sessionStorage)})),{local:0,session:[['fmat-display-timezone-v1','Asia/Seoul']]});
+  assert.equal(await page.evaluate(()=>document.cookie),'');assert.deepEqual({local:(await nonPresentationLocalKeys(page)).length,session:await page.evaluate(()=>Object.entries(sessionStorage))},{local:0,session:[['fmat-display-timezone-v1','Asia/Seoul']]});
   await verifyCalendarReadRecovery(page,id);
   const other=await browser.newContext();try{
    assert.equal((await other.request.get(origin+'/api/browser/guest/state?requestId='+id)).status(),401);

@@ -1,0 +1,5 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {hasSeenMessage,rememberMessage} from './seen-messages.ts';
+test('seen prose persists per conversation without crossing reset identities',()=>{const map=new Map<string,string>(),storage={getItem:(key:string)=>map.get(key)??null,setItem:(key:string,value:string)=>{map.set(key,value);}};assert.equal(hasSeenMessage(storage,'first','hash'),false);rememberMessage(storage,'first','hash');assert.equal(hasSeenMessage(storage,'first','hash'),true);assert.equal(hasSeenMessage(storage,'reset','hash'),false);assert.equal(hasSeenMessage(storage,'first','different'),false);});
+test('invalid or unavailable browser storage never blocks presentation',()=>{assert.equal(hasSeenMessage({getItem:()=>'{broken'},'first','hash'),false);const unavailable={getItem:()=>{throw Error();},setItem:()=>{throw Error();}};assert.doesNotThrow(()=>rememberMessage(unavailable,'first','hash'));assert.equal(hasSeenMessage(unavailable,'first','hash'),false);});

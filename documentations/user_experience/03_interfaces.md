@@ -53,6 +53,12 @@ MCP and CLI are connection options for personal-agent clients, not additional ch
 
 Requester calendar consent opens in a browser from web, email continuation, or a personal-agent response and returns to the same protected request. Google sign-in is for calendar authorization and does not require creating a product account. Provide a visible skip/disconnect path and manual or authorized agent availability as alternatives. The host and personal agents receive appropriate proposed times, not the requester's private events or tokens.
 
+## Onboarding message presentation
+
+Authored onboarding messages reveal progressively, one message at a time: greeting, connection prompt or verified congratulations, then calendar selection. Actions appear after their preceding message completes. The duplicate “Google connection saved.” status is omitted; consent-return focus moves to the verified congratulations. Reduced-motion users receive complete messages immediately. Actual assistant replies continue to render from the server stream.
+
+Once an authored message finishes, revisits and refreshes show it immediately. Completion fingerprints are retained in this browser per authorized conversation, without storing message text; a new conversation after an onboarding reset starts fresh. Unfinished messages can stream again.
+
 ## Booking confirmation email and calendar invitation
 
 Use the supplied invitation as a presentation reference: a readable confirmation email and a calendar-native event are complementary views of the same confirmed booking. Reuse the pattern, not the example's personal details, meeting credentials or management tokens. These are meeting invitations, distinct from invite-only host-admission emails.

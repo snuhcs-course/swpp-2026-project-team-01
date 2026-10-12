@@ -1,3 +1,4 @@
+import {nonPresentationLocalKeys} from './presentation-storage.ts';
 import assert from 'node:assert/strict';
 import {expect,type Page,type BrowserContext} from '@playwright/test';
 import {Database} from '../../lib/server/database/client.ts';
@@ -65,7 +66,7 @@ export async function verifyIMessage(page:Page,context:BrowserContext,host:strin
   const snapshot=await sql.query(`select coalesce(string_agg(to_jsonb(t)::text,''),'') from fmat.setup_turns t where conversation_id in(select id from fmat.setup_conversations where host_id='${host}');`);
   const runtime=await sql.query(`select coalesce(string_agg(to_jsonb(m)::text,''),'') from fmat.runtime_messages m where conversation_id in(select id from fmat.conversation_scopes where host_id='${host}');`);
   for(const value of codes.values()){assert.ok(!snapshot.includes(value));assert.ok(!runtime.includes(value));assert.ok(!(await page.locator('body').innerText()).includes(value));}
-  assert.deepEqual(await page.evaluate(()=>({local:Object.keys(localStorage),session:Object.keys(sessionStorage)})),{local:[],session:[]});assert.equal(await page.getByLabel('Message Thyme').inputValue(),'');assert.equal(new URL(page.url()).pathname,'/app');
+  assert.deepEqual({local:await nonPresentationLocalKeys(page),session:await page.evaluate(()=>Object.keys(sessionStorage))},{local:[],session:[]});assert.equal(await page.getByLabel('Message Thyme').inputValue(),'');assert.equal(new URL(page.url()).pathname,'/app');
  }finally{
   await sql.query(`delete from fmat.audit_events where (operation in('photon_link','photon_unlink') and actor->>'id'='${host}') or (operation like 'photon_contact%' and (actor->>'id'='${host}' or subject_id in(select id::text from fmat.photon_contact_shares where host_id='${host}')));delete from fmat.photon_contact_shares where project_id='${photonProject}';delete from fmat.photon_links where project_id='${photonProject}';delete from fmat.photon_link_challenges where project_id='${photonProject}';delete from fmat.photon_receivers where project_id='${photonProject}';`);
  }
