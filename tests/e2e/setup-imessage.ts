@@ -15,7 +15,7 @@ export async function verifyIMessage(page:Page,context:BrowserContext,host:strin
  await sql.query(`insert into fmat.photon_receivers(project_id,receiver_id,enabled) values('${photonProject}','b4000000-0000-4000-8000-000000000030',true);`);
  try{
   await card.getByRole('button',{name:'Check iMessage status'}).click();await expect(card.getByRole('button',{name:'Connect iMessage',exact:true})).toBeEnabled();
-  assert.match(await page.evaluate(()=>getComputedStyle(document.body).fontFamily),/Geist Mono/i);
+  assert.match(await page.evaluate(()=>getComputedStyle(document.body).fontFamily),/^Geist,/i);
   const contrast=await page.evaluate(()=>{
    const style=getComputedStyle(document.documentElement),canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true})!;
    const values=Object.fromEntries(['--muted-foreground','--background','--muted','--primary-foreground','--primary','--destructive','--card'].map(name=>{ctx.fillStyle=style.getPropertyValue(name);ctx.fillRect(0,0,1,1);return [name,[...ctx.getImageData(0,0,1,1).data].slice(0,3).map(c=>{const v=c/255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((n,v,i)=>n+v*[.2126,.7152,.0722][i],0)];}));

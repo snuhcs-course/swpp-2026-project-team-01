@@ -7,6 +7,8 @@ import {expect,type Page,type BrowserContext} from '@playwright/test';
 
 export async function verifySetupReadRecovery(page:Page,context:BrowserContext,origin:string){
  assert.equal(origin,'http://localhost:3000');
+ // Let persisted chat replay settle before testing isolated read recovery.
+ const savedReplies=await page.locator('.chat-response').allTextContents();
  const before=await (await context.request.get(origin+'/api/browser/setup/read')).json();
  const setup=page.getByRole('region',{name:'Your meeting setup'}),reload=setup.getByRole('button',{name:'Reload setup',exact:true});
  const loading=setup.getByRole('status').filter({hasText:'Loading setup…'}),error=setup.getByRole('alert');
@@ -14,7 +16,7 @@ export async function verifySetupReadRecovery(page:Page,context:BrowserContext,o
  let release=()=>{};
  try{
   await page.route(endpoint,route=>route.fulfill({status:503,json:{error:{message:'Setup could not be loaded. Try again.'}}}));
-  await page.reload();await expect(error).toContainText('Setup could not be loaded.');
+  await page.reload();await expect(page.locator('.chat-response')).toHaveText(savedReplies);await expect(error).toContainText('Setup could not be loaded.');
   await expect(loading).toHaveCount(0);await expect(setup).toHaveAttribute('aria-busy','false');await expect(reload).toBeEnabled();
   await expect(setup.getByRole('button',{name:'Edit profile',exact:true})).toHaveCount(0);
   await expect(setup.getByRole('link',{name:'Open booking page'})).toHaveCount(0);
@@ -30,7 +32,8 @@ export async function verifySetupReadRecovery(page:Page,context:BrowserContext,o
   await page.screenshot({path:'.local/rebuild/browser-screenshots/setup-read-error-320.png'});
   await page.unroute(endpoint);
   let entered!:()=>void;const arrived=new Promise<void>(resolve=>{entered=resolve;}),wait=new Promise<void>(resolve=>{release=resolve;});
-  await page.route(endpoint,async route=>{entered();await wait;await route.continue();});
+  // A refresh-key change can cancel a held read before it is released.
+  await page.route(endpoint,async route=>{entered();await wait;try{await route.continue();}catch(error){if(!(error instanceof Error)||!error.message.includes('Route is already handled'))throw error;}});
   await reload.click();await arrived;
   await expect(loading).toBeVisible();await expect(error).toHaveCount(0);await expect(setup).toHaveAttribute('aria-busy','true');
   await expect(reload).toBeDisabled();release();

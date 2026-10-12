@@ -1,4 +1,5 @@
 'use client';
+import {BrandLink} from './brand-link';
 import {useEffect,useRef,useState} from 'react';
 import {agentIntakeBrowserView,type AgentIntakeBrowserView} from '../../../lib/contracts/agent-oauth.ts';
 import {Button} from './ui/button.tsx';
@@ -20,7 +21,7 @@ export function AgentIntakeAccess({authorizationId}:{authorizationId:string}){
   catch(cause){setError((cause instanceof Error?cause.message:'The response could not be confirmed.')+' You can retry this same action.');}
   finally{flight.current=false;setBusy(false);}
  }
- return <main className="workspace"><header className="workspace-header"><a className="wordmark" href="/">Find Me a Time<span aria-hidden="true">↗</span></a></header><section className="workspace-content"><p className="eyebrow">Personal agent access</p><h1>Open your meeting request.</h1>
+ return <main className="workspace"><header className="workspace-header"><BrandLink/></header><section className="workspace-content"><p className="eyebrow">Personal agent access</p><h1>Open your meeting request.</h1>
   <p>Use the browser where you granted your agent access. Copying this link to another browser does not share your request.</p>
   {revoked?<p role="status">Agent access revoked. Request access already saved in this browser keeps its existing limits.</p>:<Card aria-busy={busy||loading}>
    <CardHeader><CardTitle className="break-words">{state?state.clientName:'Request access'}</CardTitle></CardHeader>

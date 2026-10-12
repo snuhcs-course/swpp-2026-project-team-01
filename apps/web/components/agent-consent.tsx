@@ -1,4 +1,5 @@
 'use client';
+import {BrandLink} from './brand-link';
 import {useEffect,useRef,useState} from 'react';
 import {agentConsentView,agentGrantsView,agentPermissionLabels,type AgentConsentView,type AgentGrant} from '../../../lib/contracts/agent-oauth.ts';
 import {Button} from './ui/button.tsx';
@@ -32,7 +33,7 @@ export function AgentConsent({authorizationId,initialRequestId,loginExpired=fals
   }catch(cause){setError((cause instanceof Error?cause.message:'The response could not be confirmed.')+' You can retry the same choice. If the attempt has expired, start again from your agent.');}
   finally{inFlight.current=false;setBusy(false);}
  }
- return <main className="workspace"><header className="workspace-header"><a className="wordmark" href="/">Find Me a Time<span aria-hidden="true">↗</span></a></header><section className="workspace-content">
+ return <main className="workspace"><header className="workspace-header"><BrandLink/></header><section className="workspace-content">
   <p className="eyebrow">Personal agent access</p><h1>{authorizationId?'Review this connection.':'Manage your connections.'}</h1>
   {!authorizationId?<AgentGrants requestId={initialRequestId}/>:<>
    {revoked?<p role="status">This connection is revoked. Start a new connection from your agent if needed.</p>:loading?<p role="status">Checking this connection…</p>:state?<Card aria-busy={busy}>

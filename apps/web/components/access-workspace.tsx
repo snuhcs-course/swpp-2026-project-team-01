@@ -1,4 +1,5 @@
 'use client';
+import {BrandLink} from './brand-link';
 import {cn} from 'cn';
 import {WaitlistForm} from './waitlist-form.tsx';
 import {RetainedConversationDraft} from './retained-conversation-draft.tsx';
@@ -20,7 +21,7 @@ async function api(path:string,body?:unknown) {
   return data;
 }
 function Frame({children,aside,compact=false}:{children:React.ReactNode;aside?:React.ReactNode;compact?:boolean}) {
-  return <main className={cn("workspace",compact&&"workspace-host")}><header className="workspace-header"><a className="wordmark" href="/">Find Me a Time<span aria-hidden="true">↗</span></a>{aside}</header>
+  return <main className={cn("workspace",compact&&"workspace-host")}><header className="workspace-header"><BrandLink/>{aside}</header>
     <section className="workspace-content">{children}</section><footer>Your calendar. Your final say.</footer></main>;
 }
 function ProposalTime({proposal}:{proposal:NonNullable<GuestState['proposal']>}) {

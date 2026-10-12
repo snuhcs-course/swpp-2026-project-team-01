@@ -1,8 +1,9 @@
+import {BrandLink} from '../components/brand-link';
 import {IdentityReturnNotice} from '../components/identity-return-notice.tsx';
 import {WaitlistForm} from '../components/waitlist-form.tsx';
 export default function Home() {
   return <main className="landing">
-    <a className="wordmark" href="/">Find Me a Time<span aria-hidden="true">↗</span></a>
+    <BrandLink/>
     <div className="intro"><IdentityReturnNotice/>
       <p className="eyebrow">A little less back and forth</p>
       <h1>Make room for<br />a good conversation.</h1>

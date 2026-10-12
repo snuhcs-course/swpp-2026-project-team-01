@@ -120,9 +120,9 @@ test('browser access verifies Google PKCE, invitation, logout, and request cooki
     await expect(connectionDialog).toBeVisible();await expect(connectionDialog.getByRole('button',{name:'Reconnect Google',exact:true})).toBeFocused();
     await page.setViewportSize({width:320,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     await page.evaluate(()=>document.fonts.ready);
-    assert.match(await connectionDialog.evaluate(el=>getComputedStyle(el).fontFamily),/Geist Mono/i);
-    assert.match(await connectionDialog.getByRole('heading').evaluate(el=>getComputedStyle(el).fontFamily),/Merriweather/i);
-    assert.equal(await connectionDialog.evaluate(el=>getComputedStyle(el).borderRadius),'0px');
+    assert.match(await connectionDialog.evaluate(el=>getComputedStyle(el).fontFamily),/^Geist,/i);
+    assert.match(await connectionDialog.getByRole('heading').evaluate(el=>getComputedStyle(el).fontFamily),/^Geist,/i);
+    assert.equal(await connectionDialog.evaluate(el=>getComputedStyle(el).borderRadius),'16px');
     await page.screenshot({path:'.local/rebuild/browser-screenshots/google-connection-modal-mobile.png',animations:'disabled'});
     const lightDialogBackground=await connectionDialog.evaluate(el=>getComputedStyle(el).backgroundColor);
     await page.evaluate(()=>document.documentElement.classList.add('dark'));

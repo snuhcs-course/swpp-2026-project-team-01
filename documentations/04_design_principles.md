@@ -7,6 +7,8 @@ These principles guide new features and reviews across the web app, our conversa
 
 Our AI scheduling agent is named **Thyme**. Use Thyme for the assistant’s chat identity, introductions, and conversational references. **Find Me a Time** remains the product name.
 
+The [visual design guide](../DESIGN.md) owns the Thyme botanical identity, paper material, color, typography, and component styling direction. These interaction principles continue to govern how the product behaves.
+
 ## 1. The agent can perform user actions
 
 Our agent should be able to do everything a user can do in the product, except explicitly documented human-only actions. A user should be able to describe an intended outcome in chat and have the agent carry it out, without being sent to a form merely because the agent lacks the corresponding tool.

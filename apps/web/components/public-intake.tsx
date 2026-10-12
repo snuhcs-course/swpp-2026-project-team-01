@@ -1,4 +1,5 @@
 'use client';
+import {BrandLink} from './brand-link';
 import {useEffect,useRef,useState,type FormEvent} from 'react';
 import {intakeDetails,intakeContinuation,publicProfile,type PublicProfile,type IntakeContinuation} from '../../../lib/contracts/intake.ts';
 import {identityDraft,requesterIdentityState,type identityProfile} from '../../../lib/contracts/requester-identity.ts';
@@ -80,7 +81,7 @@ export function PublicIntakeWorkspace({handle}:{handle:string}){
    setUncertain(true);setError('We couldn’t confirm the response. Retry this same request, or reload to recover it if it was saved.');setBusy(false);
   }
  }
- return <main className="workspace"><header className="workspace-header"><a className="wordmark" href="/">Find Me a Time<span aria-hidden="true">↗</span></a><span className="header-note">No account needed</span></header>
+ return <main className="workspace"><header className="workspace-header"><BrandLink/><span className="header-note">No account needed</span></header>
   <section className="workspace-content intake-workspace">
    <p className="eyebrow">One meeting at a time</p><h1>{continuation?'Pick up your conversation.':profile?<>Meet with<br/>{profile.displayName}.</>:'Let’s find a time.'}</h1>
    {loading?<p role="status">Checking this booking link…</p>:null}
