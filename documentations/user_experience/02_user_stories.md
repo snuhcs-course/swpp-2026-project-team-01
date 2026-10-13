@@ -1,7 +1,7 @@
 # Find Me a Time — User Stories
 
 Status: Draft for team review\
-Date: 2026-10-06\
+Date: 2026-10-13\
 Source: [Product requirements](../02_product_requirements.md)\
 Companion: [User journeys and flows](01_user_journeys.md)
 
@@ -123,7 +123,7 @@ As a host, I want to opt into a verified private iMessage conversation and unlin
 
 J-01, J-06; FR-26; AC-17.
 
-The selected linking flow delivers a six-digit code to the private iMessage conversation for confirmation in the initiating authenticated browser. The [host-setup change](../../openspec/changes/conversational-host-setup/tasks.md) owns the implemented browser/proof behavior and deterministic verification; live Google/iPhone acceptance remains open before main-spec promotion.
+The selected linking flow delivers a six-digit code to the private iMessage conversation for confirmation in the initiating authenticated browser. The [implementation plan](../technical_specification/04_implementation_plan.md) assigns this proposed browser/proof behavior to fresh setup/iMessage changes; implementation and live Google/iPhone acceptance are pending before main-spec promotion.
 
 ### US-19 — Decide through iMessage
 

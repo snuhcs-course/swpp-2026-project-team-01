@@ -1,6 +1,6 @@
 # Find Me a Time — Design Principles
 
-Date: 2026-10-11\
+Date: 2026-10-13\
 Status: Product direction; implementation coverage must be verified separately.
 
 These principles guide new features and reviews across the web app, our conversational agent, personal-agent integrations, and command-line tools. They complement the [one-pager](01_one_pager.md) and [product requirements](02_product_requirements.md). Detailed behavior belongs in capability specifications; implementation changes follow the repository's OpenSpec workflow.
@@ -58,9 +58,9 @@ The product must have two distinct command-line interfaces: one for users and th
 
 Both CLIs should use the same domain operations and validation as other authorized surfaces, return structured results suitable for automation, and make errors and incomplete actions clear. Their authority must remain separate on the server; hiding administrator commands from user help is insufficient. An administrator CLI must not be implemented as an elevated mode of a user's connection.
 
-### Current tooling and remaining decisions
+### Planned tooling and remaining decisions
 
-The existing [CLI guide](technical_specification/06_cli.md) documents the `fmat` user/client command and a separate `invitations` operator command. The invitation command is an existing piece of administrator tooling; it does not establish that a complete administrator CLI or full user-agent capability parity has been delivered.
+The [CLI direction](technical_specification/06_cli.md) defines the future user and administrator surfaces. Previous executables were removed with the source reset; no command or capability parity is currently implemented.
 
 Final executable names, packaging/distribution, the complete command inventories, and administrator authentication are implementation decisions still to be specified. This document establishes the two-CLI direction without inventing commands or asserting unverified support.
 

@@ -1,94 +1,28 @@
-# Find Me a Time CLI
+# CLI Direction
 
-The repository CLI supports browser authorization, JSON MCP discovery/calls and logout on macOS/Linux with Node 24 and the repository dependencies installed (`npm ci`). It calls the same protected service as personal-agent MCP clients. Local protocol/workflow tests and [controlled production requester CLI acceptance](05_rebuild_evidence.md#live-requester-cli-acceptance--2026-10-09) pass. Host CLI, complete current-proposal journeys and individual named-client acceptance remain tracked in [the implementation plan](04_implementation_plan.md#phase-8--deliver-skill-entry-mcp-cli-and-named-clients).
+Status: proposed interfaces; no executable CLI
 
-The [design principles](../04_design_principles.md#3-provide-separate-user-and-administrator-clis) establish separate user and administrator CLIs as the product direction. This guide describes current tooling; the existing invitation operator command is only part of the intended administrator surface.
+Date: 2026-10-13
 
-## Commands
+The previous `fmat` and invitation scripts were removed. Their command syntax, exit codes and acceptance results do not describe a current executable. Packaging, names, login/storage strategy and concrete commands must be specified with their owning future changes.
 
-Run from the repository root. `--silent` keeps npm's banner out of JSON stdout.
+## Separate authority
 
-```sh
-npm run --silent fmat -- --help
-npm run --silent fmat -- login host
-npm run --silent fmat -- login requester --request REQUEST_UUID
-```
+| Interface | Audience | Required capabilities and authority |
+|---|---|---|
+| User CLI | Hosts, requesters and authorized personal agents | Role-scoped onboarding/configuration, request discovery/intake/continuation, availability, negotiation and status through shared domain operations |
+| Administrator CLI | Authorized team operators | Environment-bound invitations, private diagnostics and permitted audited recovery through distinct operator authority |
 
-Login opens the system browser and waits up to ten minutes on an ephemeral `127.0.0.1` port. Hosts sign in with Google and need admission; requesters use the browser holding their private request access. The requester request hint is optional when the browser can select the intended request. Review the read/write/decision permissions and grant or deny access. Decision permission provides human review, not meeting approval.
+The administrator CLI is a separate entry point/authentication boundary, not an elevated mode of the user CLI. A user credential never grants service/database access. Follow [design principles](../04_design_principles.md#3-provide-separate-user-and-administrator-clis).
 
-Successful login prints a JSON object with `connection` (the grant UUID), `origin`, `actor` and `scope`. Keep that connection ID for later commands. It is an identifier, not a bearer credential.
+## User connection and behavior
 
-```sh
-npm run --silent fmat -- tools CONNECTION_UUID
-npm run --silent fmat -- call CONNECTION_UUID fmat_get_request < request-input.json
-npm run --silent fmat -- logout CONNECTION_UUID
-```
+Protected host access uses resource-bound OAuth with explicit consent, PKCE, current scope checks, refresh and revocation. Requester bootstrap and continuation remain account-free and limited to one permitted request. Public skill discovery grants no credentials. Provider/Calendar tokens remain with the service.
 
-For `fmat_get_request`, `request-input.json` contains:
+CLI and MCP expose the same domain semantics without separate scheduling state. Structured output identifies operation/resource, revision/proposal where relevant, status, error and next action. Current human approval remains required; return protected review when attributable confirmation cannot be established. Freeze mutation identity across exact retries and give lost token exchange/refresh responses an explicit reauthorization path.
 
-```json
-{"requestId":"REQUEST_UUID","input":{}}
-```
+## Future command design and acceptance
 
-Replace placeholder UUIDs with real values. Discovery returns each tool's current schema; use that schema when constructing other inputs. Mutation tools require an idempotency UUID outside `input`. Keep the same key and identical input after an uncertain reply; changed input needs a new key only after checking current state. Human confirmations and provider consent remain in the protected browser workspace.
+Define commands only after their domain operation exists; record JSON schemas, errors/exit codes, pagination, headless/interactive login, OS support, secure storage and private output. Test login cancellation, wrong resource, expiry, revoked grants, foreign requests, stale proposals and lost responses. Do not advertise old `npm run` commands.
 
-The default origin is `https://release.findmeatime.com`. Put an override before the command and use the same origin for that connection every time:
-
-```sh
-npm run --silent fmat -- --origin http://localhost:3000 login host
-npm run --silent fmat -- --origin http://localhost:3000 tools CONNECTION_UUID
-```
-
-HTTPS origins and loopback HTTP origins are accepted. Paths, embedded credentials, query parameters and redirect overrides are rejected. Tokens are never accepted through command arguments or an environment-token fallback.
-
-## Output and limits
-
-Successful commands emit JSON on stdout. Failures emit a sanitized JSON `error` on stderr without raw provider/SDK messages or credentials.
-
-| Exit | Code | Action |
-| --- | --- | --- |
-| 0 | Success | Inspect the structured result. |
-| 2 | `INVALID_INPUT` | Check command syntax, UUIDs and the tool schema. |
-| 3 | `LOGIN_REQUIRED` | Start a new browser login for the intended origin/request. |
-| 4 | `INSUFFICIENT_SCOPE` | Reconnect and explicitly grant the needed permissions. |
-| 5 | `TOOL_FAILED` | Read current state and review the tool input. |
-| 6 | `REMOTE_FAILURE` | A dispatched mutation may have completed. Check state and preserve its retry key. |
-| 7 | `STORAGE_UNSAFE` | Check ownership/permissions of the private credential directory. The CLI does not silently repair it. |
-| 8 | `CONNECTION_BUSY` | Wait for the other command. After a process crash, sign in as a new connection. |
-| 9 | `LOGOUT_INCOMPLETE` | Retry logout; local invocation is disabled until revocation is confirmed. |
-
-Tool input is one JSON object, at most 12 KiB, read within five seconds. MCP calls have a 30-second deadline and 512 KiB response bound. OAuth HTTP calls have a 15-second deadline and 32 KiB JSON bound. Redirects do not forward credentials. Tool calls and code/refresh exchanges are not automatically replayed.
-
-## Credential lifecycle and recovery
-
-Credentials live under `$XDG_CONFIG_HOME/findmeatime/` when configured, otherwise `~/.config/findmeatime/`, separated by a hash of the origin and the grant UUID. Directories require current-user ownership and mode 0700; files require mode 0600. Symlinks, extra file links, corrupt data and unsafe permissions fail closed. Do not copy these files into the repository or send them to an agent.
-
-Refresh is coordinated across terminal processes. Before dispatch, the connection is durably marked unusable. A verified successful response atomically replaces its credentials. If the reply is lost, sign in again; the old refresh token is never replayed. Review/revoke the old grant in the service's browser permissions screen when needed.
-
-Logout first disables local invocation, then revokes remotely and removes the file. If the network fails, the disabled file remains so an explicit logout retry can complete revocation. A crashed process's lock is never guessed stale or stolen. Use a new login connection and revoke the old grant in the browser rather than manually resuming an uncertain refresh.
-
-The callback listener closes after success, denial, timeout, cancellation or launcher failure. It returns only a generic status page and never displays authorization codes or tokens. `Ctrl-C` cancels a pending login. On systems without a working desktop browser launcher, use the service's browser workflow; headless copy/paste authorization is not implemented.
-
-## Operator tooling
-
-Invitation administration uses the separate server-credential command `npm run --silent invitations --`. It is not an MCP tool or a capability granted to host/requester agent clients. See [host invitation operations](03_provider_setup.md#host-invitation-operations) for issue/status/revoke/recover commands, environment binding and private output. This operator command exits 0 on success or 1 with sanitized JSON on failure; the personal-agent CLI exit-code table above does not apply.
-
-
-## Initial requester intake
-
-To authorize one future request, use a public host handle rather than an existing request ID:
-
-```sh
-npm run --silent fmat -- login intake --handle HOST_HANDLE
-npm run --silent fmat -- tools CONNECTION_UUID
-npm run --silent fmat -- call CONNECTION_UUID fmat_get_intake_context < empty-object.json
-npm run --silent fmat -- call CONNECTION_UUID fmat_create_request < intake-input.json
-```
-
-`empty-object.json` contains `{}`. Creation input uses an `idempotencyKey` UUID and a `details` object containing requester-authorized `requesterName`, `requesterEmail`, `purpose`, `timezone` (IANA) and `durationMinutes`. Optional `mode`, `location` and explicit-offset `windows` follow the discovered schema. Omit unknown details and use the structured clarification response to ask the requester. No meeting-details form or product login is required in the consent browser. It displays the fixed host and one-request limit. `--handle` and `--request` are distinct targets and cannot be combined.
-
-The returned connection has actor `intake`; its subject remains the intake identity after binding. Creation returns only `status: created` and `requestId`. Use that request ID with `fmat_get_request` and other consented requester tools. Keep the same creation key and identical details after a lost result; a consumed intake cannot create a second request, even with a new key. Clarification may be corrected before the first successful creation. Creation does not verify email, agree to a meeting or approve booking.
-
-For human browser continuation, return to the original consent page using browser history and choose **Open request access**; it installs the request cookie only in that browser. The CLI never emits the proof. Logout revokes agent access; browser access already installed keeps its ordinary rotation, receipt and expiry limits. These commands pass actual local CLI subprocess, loopback, built-server and database tests. The integrated server and public instructions are deployed; see the [production rollout evidence](05_rebuild_evidence.md#agent-intake-production-rollout--2026-10-09). Controlled production SDK checks cover consent, clarification, exact retry, bound reads, handoff and revocation. Fresh production creation through real Calendar preflight, a production CLI intake journey and named-client/full-workflow acceptance remain unverified.
-
-Host `fmat_draft_setup` input uses `expectedRevision`, `patch`, and `unresolved` category keys: `displayName`, `handle`, `timezone`, `durationMinutes`, `availability`, `focusBlocks`, `bufferMinutes`, `preferences`, `meetingMode`, `location`, `travelMode`, `travelBufferMinutes`, or `setup`. Optional `clarificationLanguage` selects `en` (default) or `ko`. Free-form questions are rejected; the service returns authored wording. Preserve the discovered schema and the same retry UUID/input after an uncertain result. Browser confirmation remains separate.
+Administrator invitation commands land with admission so the browser journey is usable. Complete user/MCP parity and separate operator diagnostics/recovery land in later slices. See the [implementation plan](04_implementation_plan.md) and [acceptance inventory](07_acceptance_inventory.md).

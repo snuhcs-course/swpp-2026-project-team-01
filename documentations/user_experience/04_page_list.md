@@ -1,12 +1,12 @@
 # Page list
 
-Date: 2026-10-06
+Date: 2026-10-13
 Status: proposed page design for the pre-launch reconstruction; not an implementation report
 Companion: [Frontend architecture](../technical_specification/02_frontend_architecture.md)
 
 This inventory defines the web surfaces for the fresh application, including its rebuilt scheduling backend. The [PRD](../02_product_requirements.md) owns release scope, and the [chat workspace specification](../../openspec/specs/chat-workspaces/spec.md) owns the agreed conversation-first behavior. The single host chat page `/app` and requester route `/booking/[bookingId]` are the selected naming directions; the page designs below remain proposed; no migration of old development links is required. Detailed new behavior must be captured in an OpenSpec change before implementation.
 
-All reconstruction routes below use **`https://release.findmeatime.com`**: host chat is `https://release.findmeatime.com/app`, public intake is `https://release.findmeatime.com/{handle}`, and private continuation is `https://release.findmeatime.com/booking/[bookingId]`. See [deployment setup](../technical_specification/03_provider_setup.md#reconstruction-deployment-origin) for callback and link configuration.
+The recorded target origin for reconstruction routes below is **`https://release.findmeatime.com`**: host chat is `https://release.findmeatime.com/app`, public intake is `https://release.findmeatime.com/{handle}`, and private continuation is `https://release.findmeatime.com/booking/[bookingId]`. See [deployment setup](../technical_specification/03_provider_setup.md#reconstruction-deployment-origin) for callback and link configuration.
 
 ## Navigation and page model
 
@@ -31,7 +31,7 @@ Public visitors enter through `/` or a host's `/{handle}` link. Signed-in hosts 
 - During setup, resume the saved conversation and draft with Calendar connection/selection, scheduling rules, optional iMessage linking and explicit settings review. Show booking/skill links only after server-confirmed readiness.
 - Once ready, continue the host-agent conversation. Surface pending requests as selectable cards or a contextual picker with search/status filters, empty/loading states and delivery problems. Selecting a request loads its authorized discussion and current proposal in `/app`.
 - Review proposals, approve, request changes, decline and inspect private rule/travel explanations in context. Each action names its request and current proposal revision. Show one shared or private discussion at a time; changing the visible discussion never merges their histories.
-- Open labeled in-page dialogs for exact rules, calendars, timezone and personal-agent grants. Keep iMessage linking in inline conversation cards Keep these controls usable during model failures and return focus to the conversation after closing.
+- Open labeled in-page dialogs for exact rules, calendars, timezone and personal-agent grants. Keep iMessage linking in inline conversation cards. Keep these controls usable during model failures and return focus to the conversation after closing.
 
 Authentication and provider consent may use their dedicated routes, then return to `/app` and restore the server-authorized context. Notification entry and reload must recover the intended request only after checking ownership; the route itself grants no request access.
 
@@ -55,7 +55,7 @@ These names describe product components, not existing framework APIs. Cards rece
 | Guest timezone | P08, P09 | Show detected IANA timezone and date-specific offsets with a selector. Preserve explicit choices; no separate confirmation prompt unless ambiguity needs resolving. |
 | Contact verification | P09 | **Send verification code**, a labeled six-digit field, **Verify email**, and explicit **Request a new code** after the cooldown. Show delivery separately from proof, recover unknown actions with the same request, and keep codes outside chat. No login or meeting approval is granted. |
 | Calendar connection | P03, P09 | **Connect Google Calendar**, reconnect, skip where optional, or disconnect. Browser consent returns to the same host draft/request; show connected only after server verification. Requester access remains availability-only. |
-| Calendar selection | P03; requester variant in P09 | Recommend actual host calendars with reasons, account/access labels and editable selections; distinguish conflict checking from writable booking destination. **Analyze selected calendars** reviews a disclosed scan scope. Requesters choose availability calendars only; they do not receive host setup inference. |
+| Calendar selection | P03; requester variant in P09 | Recommend actual host calendars with reasons, account/access labels and editable selections; distinguish conflict checking from writable booking destination. Saving the confirmed selection automatically starts the disclosed first scan; **Analyze again** is an explicit refresh/recovery action. Requesters choose availability calendars only; they do not receive host setup inference. |
 | Onboarding suggestions | P03 | Private calendar-based meeting windows in a weekly preview and mode/location cards, with evidence, scope and uncertainty. **Use**, **Adjust**, **Choose my own**, or manual setup changes the draft only. Never present failed reads or inferred places as confirmed preferences. |
 | Setup review | P03 | Show proposed settings and missing values; **Confirm settings** or **Edit**. A typed preference creates a draft, not silently saved policy. |
 | Channel link | P03 | **Connect iMessage** expands inline phone entry and **Send code** within chat, then a protected code field and **Confirm and link**, then verified connection status. Offer **Maybe later**, retry/change-number and unlink as appropriate. Show masked recipient, expiry, delivery state and resend limits. Never return the sent code from the server or add the entered code to the transcript/model context. No settings dialog or separate linking page is required. |
@@ -65,7 +65,7 @@ These names describe product components, not existing framework APIs. Cards rece
 | Decision and booking status | P03, P09 | Distinguish awaiting agreement/approval, booking, uncertain result, confirmed booking and delivery failure. A receipt appears only for a confirmed calendar event; show final details and **Join meeting** when a valid online meeting URL exists. |
 | Share links / client connection | P03; public handoff in P08 | Copy the valid booking/skill link; inspect or revoke an authorized personal-agent connection. Reading a skill document does not connect or authorize a client. |
 
-The host iMessage link flow adopts the newer onboarding direction from the original working tree: authenticated phone entry, a six-digit code delivered to that private iMessage sender, and verification in the initiating browser. The old `LINK` command protocol is not a compatibility requirement. An iMessage-first introduction may lead to authenticated browser linking; it grants no private access by itself. The [host-setup change](../../openspec/changes/conversational-host-setup/tasks.md) owns the implemented browser/proof flow and deterministic verification. Live delivery and actual Google/iPhone acceptance remain open before main-spec promotion.
+The proposed host iMessage link flow uses authenticated phone entry, a six-digit code delivered to that private iMessage sender, and verification in the initiating browser. The old `LINK` command protocol is not a compatibility requirement. An iMessage-first introduction may lead to authenticated browser linking; it grants no private access by itself. The [implementation plan](../technical_specification/04_implementation_plan.md) assigns this proposed browser/proof flow to fresh setup/iMessage changes. Implementation, live delivery and actual Google/iPhone acceptance are pending before main-spec promotion.
 
 ## Supporting routes and surfaces
 
