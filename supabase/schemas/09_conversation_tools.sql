@@ -1,0 +1,89 @@
+-- Model tools receive an execution reference captured by authenticated ingress.
+-- They cannot supply an actor, resource ID, decision, or privileged operation.
+create or replace function public.fmat_conversation_tool(
+  p_grant_id uuid,p_conversation_id uuid,p_operation text,p_input jsonb,p_session_id text
+) returns jsonb language plpgsql security definer set search_path='' as $$
+declare v_access jsonb; v_actor jsonb; v_input jsonb; v_result jsonb; v_request_id uuid; v_scope fmat.conversation_scopes;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('runtime:'||p_conversation_id::text,0));
+  v_access:=public.fmat_conversation_check(p_grant_id,p_conversation_id);
+  select * into strict v_scope from fmat.conversation_scopes where id=p_conversation_id;
+  perform fmat.require_runtime_generation(v_scope,p_session_id,true);
+  v_actor:=v_access->'actor'; v_request_id:=(v_access->>'requestId')::uuid;
+  if jsonb_typeof(p_input) is distinct from 'object' then raise exception 'INVALID_INPUT'; end if;
+  case p_operation
+  when 'context_read' then
+    if p_input<>'{}'::jsonb then raise exception 'INVALID_INPUT';end if;
+    return jsonb_build_object('audience',v_access->'audience','requestId',v_access->'requestId','readOnly',v_access->'readOnly');
+  when 'host_requests_read' then
+    if v_access->>'audience' not in ('host_setup','host_private') or v_actor->>'kind'<>'host' then raise exception 'FORBIDDEN'; end if;
+    return fmat.host_request_model_page((v_actor->>'id')::uuid,p_input);
+  when 'setup_read' then
+    if v_access->>'audience' not in ('host_setup','host_private') or v_actor->>'kind'<>'host' then raise exception 'FORBIDDEN'; end if;
+    if p_input<>'{}'::jsonb then raise exception 'INVALID_INPUT'; end if;
+    return fmat.host_setup_operation('read',v_actor,'{}','assistant');
+  when 'setup_analysis_read' then
+    if v_access->>'audience' not in ('host_setup','host_private') or v_actor->>'kind'<>'host' then raise exception 'FORBIDDEN'; end if;
+    if p_input<>'{}'::jsonb then raise exception 'INVALID_INPUT'; end if;
+    return fmat.calendar_scan_model_view((v_actor->>'id')::uuid);
+  when 'setup_draft' then
+    if v_access->>'audience'<>'host_setup' or v_actor->>'kind'<>'host' then raise exception 'FORBIDDEN'; end if;
+    return fmat.host_setup_operation('draft',v_actor,p_input,'assistant');
+  when 'request_read' then
+    if v_request_id is null then raise exception 'FORBIDDEN'; end if;
+    if p_input<>'{}'::jsonb then raise exception 'INVALID_INPUT'; end if;
+    -- Host identity does not make a shared conversation private. Project for
+    -- the audience at the database boundary before any model sees the result.
+    v_result:=fmat.request_view(v_request_id,case when v_access->>'audience'='request_shared' then '{"kind":"guest"}'::jsonb else v_actor end);
+    if v_actor->>'kind'='guest' then
+      v_result:=v_result||jsonb_build_object('review',(select fmat.request_detail_review_view(r) from fmat.request_detail_reviews r
+        where r.request_id=v_request_id and r.authority_key=v_actor->>'tokenHash' order by r.created_at desc,r.id desc limit 1));
+    end if;
+    if v_access->>'audience'='host_private' and v_actor->>'kind'='host' then
+      v_result:=v_result||jsonb_build_object('revisionDraft',(select fmat.host_revision_view(d) from fmat.host_revision_drafts d
+        where d.request_id=v_request_id and d.host_id=(v_actor->>'id')::uuid order by d.created_at desc,d.id desc limit 1));
+    end if;
+    return v_result;
+  when 'host_revision_propose' then
+    if v_access->>'audience'<>'host_private' or v_actor->>'kind'<>'host' then raise exception 'FORBIDDEN';end if;
+    if (v_access->>'readOnly')::boolean then raise exception 'REQUEST_CLOSED';end if;
+    return fmat.propose_host_revision(v_actor,v_request_id,p_input);
+  when 'private_note_save' then
+    if v_access->>'audience'<>'host_private' or v_actor->>'kind'<>'host' then raise exception 'FORBIDDEN'; end if;
+    if exists(select 1 from jsonb_object_keys(p_input) k where k not in ('text','expectedRevision','idempotencyKey')) then raise exception 'INVALID_INPUT'; end if;
+    if jsonb_typeof(p_input->'text') is distinct from 'string' then raise exception 'INVALID_INPUT'; end if;
+  when 'details_propose' then
+    if v_access->>'audience'<>'request_shared' or v_actor->>'kind'<>'guest' then raise exception 'FORBIDDEN'; end if;
+    if (v_access->>'readOnly')::boolean then raise exception 'REQUEST_CLOSED'; end if;
+    return fmat.propose_request_details(v_actor,p_input);
+  else
+    -- Approval, agreement, confirmed settings, travel exceptions and worker or
+    -- provider outcomes require separate authored application operations.
+    raise exception 'FORBIDDEN';
+  end case;
+  if (v_access->>'readOnly')::boolean then raise exception 'REQUEST_CLOSED'; end if;
+  if jsonb_typeof(p_input->'expectedRevision') is distinct from 'number'
+    or (p_input->>'expectedRevision') !~ '^[0-9]+$'
+    or jsonb_typeof(p_input->'idempotencyKey') is distinct from 'string' then raise exception 'INVALID_INPUT'; end if;
+  v_input:=p_input||jsonb_build_object('requestId',v_request_id);
+  v_result:=public.fmat_command(p_operation,v_actor,v_input);
+  if v_access->>'audience'='request_shared' then
+    -- Also scrub cached idempotency results; these may have been produced by
+    -- the host's same command from a private application surface.
+    select coalesce(jsonb_object_agg(key,value),'{}'::jsonb) into v_result from jsonb_each(v_result)
+      where key=any(array['id','hostId','revision','status','details','candidates','proposal','requesterAgreed','hostApproved','contactVerified','calendarConnected','event','messages','nextAction','receipt']);
+  end if;
+  return v_result;
+end;
+$$;
+revoke execute on function public.fmat_conversation_tool(uuid,uuid,text,jsonb,text) from public,anon,authenticated;
+grant execute on function public.fmat_conversation_tool(uuid,uuid,text,jsonb,text) to service_role;
+
+-- Compatibility for already deployed generation-zero workers. Recovered scopes
+-- reject identity-free calls inside the same transaction as tool execution.
+create or replace function public.fmat_conversation_tool(p_grant_id uuid,p_conversation_id uuid,p_operation text,p_input jsonb)
+returns jsonb language sql security definer set search_path='' as $$
+ select public.fmat_conversation_tool(p_grant_id,p_conversation_id,p_operation,p_input,null::text);
+$$;
+revoke all on function public.fmat_conversation_tool(uuid,uuid,text,jsonb) from public,anon,authenticated;
+grant execute on function public.fmat_conversation_tool(uuid,uuid,text,jsonb) to service_role;

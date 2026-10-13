@@ -1,0 +1,15 @@
+import {z} from 'zod';
+import {schedulingInterval} from './interval-feasibility.ts';
+import {ianaTimezone} from './time.ts';
+import {routeLocation,routeMode,travelInstant} from './travel.ts';
+import {preferenceEvaluation,preferenceChoice} from './preference-decision.ts';
+import {travelAllowanceValue} from './travel-allowance.ts';
+export const privateReviewTarget=z.strictObject({requestId:z.uuid()});
+export const privateReviewCheck=privateReviewTarget.extend({revision:z.number().int().positive(),candidate:schedulingInterval.optional()});
+export const privateTravelLeg=z.strictObject({direction:z.enum(['inbound','outbound']),status:z.enum(['fits','conflict','clarification','not_required']),reason:z.string().nullable(),canConfirm:z.boolean(),boundary:z.strictObject({at:travelInstant.nullable(),location:routeLocation.nullable(),timeLocked:z.boolean(),locationLocked:z.boolean()}),mode:routeMode.nullable()});
+const privatePreferences=z.strictObject({status:preferenceEvaluation.shape.status,checks:preferenceEvaluation.shape.checks});
+export const privateReviewCandidate=z.strictObject({id:z.uuid(),interval:schedulingInterval,status:z.enum(['checks_passed','conflict','clarification']),intervalStatus:z.enum(['fits','conflict','clarification']),expiresAt:travelInstant,travel:z.array(privateTravelLeg).max(2),preferences:privatePreferences.nullable(),canConfirmPreferences:z.boolean()});
+export const privateReviewState=z.strictObject({requestId:z.uuid(),revision:z.number().int().positive(),timezone:ianaTimezone,detailsComplete:z.boolean(),availability:z.enum(['idle','current','stale','reconnect_required']),truncated:z.boolean(),expiresAt:travelInstant.nullable(),rules:z.strictObject({meetingMode:z.string(),locations:z.array(z.string()).max(20),additional:z.string(),bufferMinutes:z.number().int().nonnegative(),travelBufferMinutes:z.number().int().nonnegative()}),candidates:z.array(privateReviewCandidate).max(12),allowances:z.array(z.strictObject({id:z.uuid(),candidate:schedulingInterval,value:travelAllowanceValue})).max(200),preferences:z.array(z.strictObject({id:z.uuid(),candidate:schedulingInterval,value:preferenceChoice})).max(200)});
+export type PrivateReviewState=z.infer<typeof privateReviewState>;
+export type PrivateReviewCandidate=z.infer<typeof privateReviewCandidate>;
+export type PrivateTravelLeg=z.infer<typeof privateTravelLeg>;

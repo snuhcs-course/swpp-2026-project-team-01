@@ -156,11 +156,11 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "http://localhost:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -217,6 +217,8 @@ web3 = 30
 # secret = ""
 
 [auth.email]
+# Local-only admin/password fixtures use this provider. Hosted MVP auth uses
+# auth-mvp.toml to disable email login and enable identity-only Google sign-in.
 # Allow/disallow new user signups via email to your project.
 enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
@@ -233,15 +235,17 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
+# Local development captures mail with local_smtp. Production Auth uses Cloudflare;
+# apply only SMTP settings with scripts/configure-email-smtp.mjs, not a full config push.
+# To opt in to real Cloudflare delivery locally, uncomment this block explicitly.
 # [auth.email.smtp]
 # enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# host = "smtp.mx.cloudflare.net"
+# port = 465
+# user = "api_token"
+# pass = "env(CLOUDFLARE_EMAIL_API_TOKEN)"
+# admin_email = "env(CLOUDFLARE_EMAIL_FROM)"
+# sender_name = "Find Me a Time"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -372,7 +376,8 @@ authorization_url_path = "/oauth/consent"
 allow_dynamic_registration = false
 
 [edge_runtime]
-enabled = true
+# No local Edge Function implementation remains after source removal.
+enabled = false
 # Supported request policies: `oneshot`, `per_worker`.
 # `per_worker` (default) — enables hot reload during local development.
 # `oneshot` — fallback mode if hot reload causes issues (e.g. in large repos or with symlinks).
@@ -412,3 +417,6 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+[experimental.webhooks]
+enabled = true

@@ -1,0 +1,50 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
+import {randomUUID} from 'node:crypto';
+import {Database} from '../../lib/server/database/client.ts';
+import {ApplicationError} from '../../lib/server/errors.ts';
+import {LocalSql} from './local-sql.ts';
+const errorCode=(code:string)=>(e:unknown)=>e instanceof ApplicationError&&e.code===code;
+test('AgentMail receipt commits once across concurrent retries, lost responses and receiver replacement',async()=>{
+ const local=JSON.parse(execFileSync('supabase',['status','-o','json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
+ assert.ok(['localhost','127.0.0.1'].includes(new URL(local.API_URL).hostname));
+ const env={SUPABASE_URL:local.API_URL,SUPABASE_SECRET_KEY:local.SERVICE_ROLE_KEY},db=new Database(env),sql=new LocalSql();
+ const inbox=randomUUID()+'@example.test',receiver=randomUUID();
+ const input={deliveryId:'delivery-1',eventId:'event-1',inboxId:inbox,threadId:'thread-1',messageId:'message-1',occurredAt:'2026-10-08T00:00:00Z',payloadHash:'a'.repeat(64)};
+ const call=(value:unknown=input,id=receiver,client=db)=>client.rpc('fmat_agentmail_ingress',{p_receiver_id:id,p_inbox_id:inbox,p_input:value}) as Promise<{receiptId:string;duplicate:boolean;ignored?:boolean}>;
+ try{
+  await assert.rejects(call(),errorCode('CONFIGURATION_UNAVAILABLE'));
+  await sql.query(`insert into fmat.agentmail_receivers(inbox_id,receiver_id) values('${inbox}','${receiver}');`);
+  await assert.rejects(call(),errorCode('CONFIGURATION_UNAVAILABLE'));
+  await sql.query(`update fmat.agentmail_receivers set enabled=true where inbox_id='${inbox}';`);
+  const results=await Promise.all(Array.from({length:8},()=>call())),id=results[0].receiptId;
+  assert.ok(results.every(x=>x.receiptId===id));assert.equal(results.filter(x=>!x.duplicate).length,1);
+  assert.equal(await sql.query(`select count(*) from fmat.agentmail_inbox where inbox_id='${inbox}';`),'1');
+  assert.equal(await sql.query(`select count(*) from fmat.jobs where kind='agentmail_ingress' and payload=jsonb_build_object('receiptId','${id}'::text);`),'1');
+  assert.equal(await sql.query(`select count(*) from fmat.queue_publications p join fmat.jobs j on j.id=p.job_id join pgmq.q_fmat_jobs q on q.msg_id=p.message_id where j.payload->>'receiptId'='${id}';`),'1');
+  assert.equal((await call({...input,deliveryId:'delivery-2'})).duplicate,true);
+  for(const patch of [{payloadHash:'b'.repeat(64)},{threadId:'thread-2'},{eventId:'event-2'},{messageId:'message-2'},{occurredAt:'2026-10-08T01:00:00Z'},{messageId:'message-2',eventId:'event-2'}])await assert.rejects(call({...input,...patch}),errorCode('IDEMPOTENCY_CONFLICT'));
+  assert.equal(await sql.query(`select count(*) from fmat.agentmail_inbox where inbox_id='${inbox}';`),'1','crossed delivery collision rolls back the inserted receipt');
+  for(const patch of [{inboxId:'another@example.test'},{threadId:''},{occurredAt:'infinity'},{messageId:'has space'},{text:'must not persist'},{payloadHash:'invalid'}])await assert.rejects(call({...input,...patch}),errorCode('INVALID_INPUT'));
+  assert.equal((await call(null)).ignored,true);
+  let dropped=false;
+  const lost=new Database(env,async(url,init)=>{const response=await fetch(url,init);if(response.ok&&!dropped){dropped=true;throw new Error('lost commit response');}return response;});
+  const next={...input,deliveryId:'delivery-3',eventId:'event-3',messageId:'message-3'};
+  await assert.rejects(call(next,receiver,lost),errorCode('PROVIDER_UNAVAILABLE'));assert.equal(dropped,true);
+  assert.equal((await call(next)).duplicate,true);
+  const replacement=randomUUID();await sql.query(`update fmat.agentmail_receivers set receiver_id='${replacement}' where inbox_id='${inbox}';`);
+  for(const value of [input,null,next])await assert.rejects(call(value),errorCode('CONFIGURATION_UNAVAILABLE'));
+  assert.equal((await call(input,replacement)).duplicate,true);
+  assert.equal(await sql.query(`select receiver_id from fmat.agentmail_inbox where id='${id}';`),receiver,'replacement cannot rewrite receipt generation');
+  await sql.query(`update fmat.agentmail_receivers set enabled=false where inbox_id='${inbox}';`);
+  await assert.rejects(call(input,replacement),errorCode('CONFIGURATION_UNAVAILABLE'));
+  for(const role of ['anon','authenticated','service_role'])for(const table of ['agentmail_receivers','agentmail_inbox','agentmail_deliveries'])assert.equal(await sql.query(`select has_table_privilege('${role}','fmat.${table}','select,insert,update,delete');`),'f');
+  assert.equal(await sql.query(`select has_function_privilege('anon','public.fmat_agentmail_ingress(uuid,text,jsonb)','execute')||','||has_function_privilege('authenticated','public.fmat_agentmail_ingress(uuid,text,jsonb)','execute')||','||has_function_privilege('service_role','public.fmat_agentmail_ingress(uuid,text,jsonb)','execute');`),'false,false,true');
+ }finally{
+  await sql.query(`delete from pgmq.q_fmat_jobs where msg_id in(select p.message_id from fmat.queue_publications p join fmat.jobs j on j.id=p.job_id where j.payload->>'receiptId' in(select id::text from fmat.agentmail_inbox where inbox_id='${inbox}'));
+   delete from fmat.queue_publications where job_id in(select id from fmat.jobs where payload->>'receiptId' in(select id::text from fmat.agentmail_inbox where inbox_id='${inbox}'));
+   delete from fmat.jobs where payload->>'receiptId' in(select id::text from fmat.agentmail_inbox where inbox_id='${inbox}');
+   delete from fmat.agentmail_deliveries where inbox_id='${inbox}';delete from fmat.agentmail_inbox where inbox_id='${inbox}';delete from fmat.agentmail_receivers where inbox_id='${inbox}';`);sql.close();
+ }
+});

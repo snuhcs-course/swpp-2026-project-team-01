@@ -1,0 +1,42 @@
+# Retired AgentMail probe assertion audit
+
+This maps all 23 tests in four retired `scripts/p0/agentmail-*.test.mjs` files at `5c305d9^`. Those scripts provisioned diagnostic inboxes and captured provider evidence; they were not the requester application. The current service uses authenticated receipts, verified requester/thread bindings and immutable reply intents. Application fixtures do not establish the former live-probe acceptance gates.
+
+## Diagnostic ownership and immutable payloads
+
+| Retired file/test | Replacement or disposition |
+|---|---|
+| `distinct-probe`: original configuration mismatch | Diagnostic script retired. Live testing still requires readback of the intended inbox/pod and sole-consumer ownership. Current [setup guidance](03_provider_setup.md#agentmail) records that webhook administration is unavailable with the runtime key; this gate remains open. |
+| `distinct-probe`: unmarked/foreign fixture | Diagnostic provisioning retired; no replacement app command creates or adopts diagnostic inboxes. Any future live harness must prove ownership before using an existing resource. Application receiver registration is not proof of fixture ownership. |
+| `distinct-probe`: distinct pair, same pod, exact recipients | Live two-identity acceptance remains pending. The application's [reply transport tests](../../tests/providers/agentmail-reply-transport.test.ts) prove one frozen verified recipient with no CC/BCC/reply-all. This does not prove ownership of a second live diagnostic inbox. |
+| `distinct-probe`: immutable payload and provider expiry | [Reply integration](../../tests/integration/requester-email-linking.test.ts), reply transport tests and database invariants preserve the original key/body/recipient/parent and first-attempt time. Production replay is bounded to 23 hours, leaving margin within the provider's recorded 24-hour policy. The old diagnostic payload hash/file format is retired. |
+| `distinct-probe`: namespace, subject, keys and distinct identities | Diagnostic run namespace/subject hashing retired. Current reply identity is a persisted UUID bound to the authorized request, link, thread and received parent; a caller cannot select a different recipient or replace a frozen intent. No diagnostic namespace is accepted as requester authority. |
+| `probe`: capacity at most one existing inbox | Free-plan fixture provisioning logic retired; the app does not provision a pair of test inboxes. Do not infer current provider quotas from the historical test. Resource capacity must be read before any future controlled provisioning. |
+| `probe`: single-self fallback capacity | Single-self diagnostic allocation retired. A self-send would not satisfy the plan's distinct requester/service identity acceptance. |
+| `probe`: persist client IDs before provider allocation | Inbox provisioning script retired. Current message delivery persists its own immutable reply identity before provider dispatch; this is a different operation, not evidence for recovering an uncertain inbox creation. |
+| `probe`: paired owned recipient only | Diagnostic recipient guard retired with its sending script. Live tests still require controlled recipients. Product replies instead require a currently verified request contact and bound thread, tested by the real linking/worker integration. |
+| `probe`: self-fixture resolves both roles | Self-fixture role mapping retired. The product neither aliases requester/service identity nor treats a self-send as a two-party journey. |
+| `probe`: inbox/pod/address/role/fingerprint ownership | Diagnostic resource ownership format retired. Receiver/inbox binding and replacement fencing are tested in [database ingress integration](../../tests/integration/agentmail-ingress.test.ts); these do not prove external ownership or consumer exclusivity. |
+| `probe`: deterministic provisioning client ID | Diagnostic inbox creation is not supported by the replacement runtime. Preserve this check if a future provisioning harness reuses provider resources; no live allocation/recovery acceptance is claimed. |
+| `probe`: dotenv reader rejects group-readable credentials | Retired script-local credential loader. Runtime secrets come from server environment configuration; no application API reads a supplied credential-file path. Future diagnostic files must remain private, but this audit does not claim that every unrelated dotenv reader enforces the old mode check. |
+| `probe`: JSON writer creates mode 0600 | Raw diagnostic JSON writer retired. Product receipts live in private database tables. Current tests verify grants and minimized stored evidence; that is not a file-permission test for a replacement live callback ledger. |
+| `probe`: unknown initial write is possibly sent | Reply transport/worker tests retain uncertain results after transport loss and malformed responses without counting them as accepted or delivered. No application field reports an invented actual-email count. |
+| `probe`: one accepted initial and uncertain reply | Current service does not aggregate a two-message diagnostic count. Each durable reply keeps its own status. Unknown reply outcome cannot become delivery evidence for either message. |
+| `probe`: changed payload, malformed/extended/expired window | Reply transport rejects invalid frozen input, rechecks its original 23-hour horizon after authorization delay and sends no request after expiry. SQL owns immutable retry identity and first-attempt time; the client cannot extend a diagnostic expiry to renew a send. |
+
+## Signatures and callback evidence
+
+| Retired file/test | Replacement or disposition |
+|---|---|
+| `webhook`: independent Svix test vector | Restored the exact fixed vector in [webhook tests](../../tests/providers/agentmail-webhook.test.ts) against installed Svix 2.7.0. Verify the known body, reject a one-byte change and stale timestamp. The old ping lacks the product's required event ID, so valid cryptography still does not admit it as an application receipt. |
+| `webhook`: concurrent duplicate/restart/scope | Database ingress integration races eight receipts, requires one receipt/job/publication, rejects changed payload/identity, recovers a lost commit acknowledgment and fences replaced/disabled receivers. The old file-backed ledger and duplicate counter are retired. |
+| `webhook`: signed sent callback has exact owned recipient | **Event contract changed.** The product dispatches only `message.received`; `message.sent` and other non-received events cannot create conversation input. Exact outbound-recipient evidence is checked by reply readback. A signed sent callback alone proves no delivery. |
+| `webhook`: exact reply and no synthetic callback evidence | Historical callback-ledger validator retired. Current readback validates exact inbox/message/thread/parent/sender/recipient/body and labels, including independently fetched parent quotation. All deterministic tests remain fixture evidence; a locally signed callback is never reported as live acceptance. |
+| `paired-webhook`: six callbacks with inbox-local threads | Live paired callback capture remains open. Product parent/thread checks operate in the configured service inbox; they do not require equal IDs across different inboxes. Six real callbacks and their original/reply bindings are not replaced by passing local transport tests. |
+| `paired-webhook`: missing receive/wrong reply thread fails | Reply tests reject a changed thread, wrong parent and ambiguous/missing readback. The full two-inbox callback set is still unverified and therefore cannot pass the live compatibility gate. |
+
+## Fresh evidence and limits
+
+The audit restored independent signature evidence and found an already-aborted request whose body was not cancelled. That cancellation regression is now fixed and tested without a persistence call. [Recorded evidence](05_rebuild_evidence.md#legacy-agentmail-probe-audit-and-aborted-body-cleanup--2026-10-10) lists fresh test results.
+
+The old provisioning tools, local ledger and report format are deliberately not recreated as application APIs. Controlled live provisioning/callback tooling must restore their ownership, private-file, immutable-payload and recipient checks before use. Provider permission/consumer ownership, distinct identities, actual received-parent threading and delivery remain open under [compatibility task 3.2](../../openspec/changes/validate-provider-and-agent-compatibility/tasks.md). No human or provider message was sent for this audit.

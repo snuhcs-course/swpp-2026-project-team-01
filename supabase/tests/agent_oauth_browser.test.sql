@@ -1,0 +1,46 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select no_plan();
+create temporary table fixture as select gen_random_uuid() host,gen_random_uuid() session,gen_random_uuid() invitation,gen_random_uuid() request1,gen_random_uuid() request2,gen_random_uuid() client;
+insert into auth.users(id,email,email_confirmed_at) select host,'oauth-browser@example.test',now() from fixture;
+insert into auth.sessions(id,user_id) select session,host from fixture;
+insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) select invitation,'oauth-browser@example.test',repeat('f',64),now()+interval '1 day','oauth-browser' from fixture;
+insert into fmat.hosts(id,email,invitation_id) select host,'oauth-browser@example.test',invitation from fixture;
+insert into fmat.requests(id,host_id,details,token_hash,expires_at) select r,host,'{}',case when r=request1 then repeat('a',64) else repeat('d',64) end,now()+interval '1 day' from fixture cross join lateral unnest(array[request1,request2]) r;
+insert into fmat.oauth_clients(id,name,redirect_uris,resource) select client,'Browser grant',array['https://client.example/cb'],'https://release.example/mcp' from fixture;
+create temporary table entries as select n,gen_random_uuid() authorization_id,gen_random_uuid() grant_id from generate_series(1,54) n;
+insert into fmat.oauth_authorizations(id,client_id,resource,redirect_uri,scope,code_challenge,state,browser_hash,created_at,expires_at)
+select authorization_id,client,'https://release.example/mcp','https://client.example/cb',case when n=53 then 'host:read' else 'request:read' end,repeat('A',43),'state',repeat('b',64),statement_timestamp(),statement_timestamp()+interval '10 minutes' from entries cross join fixture;
+insert into fmat.oauth_grants(id,authorization_id,client_id,resource,scope,actor_kind,actor_id,host_id,request_id,session_id,token_hash,created_at,expires_at)
+select grant_id,authorization_id,client,'https://release.example/mcp',case when n=53 then 'host:read' else 'request:read' end,case when n=53 then 'host' else 'guest' end,
+case when n=53 then host when n=54 then request2 else request1 end,host,case when n=53 then null when n=54 then request2 else request1 end,case when n=53 then session else null end,case when n=53 then null when n=54 then repeat('d',64) else repeat('a',64) end,statement_timestamp()+n*interval '1 microsecond',statement_timestamp()+interval '1 day' from entries cross join fixture;
+create function pg_temp.guest(p_other boolean default false) returns jsonb language sql as $$select jsonb_build_object('kind','guest','requestId',case when p_other then request2 else request1 end,'tokenHash',case when p_other then repeat('d',64) else repeat('a',64) end) from fixture$$;
+create function pg_temp.host() returns jsonb language sql as $$select jsonb_build_object('kind','host','subject',host,'sessionId',session,'expiresAt',now()+interval '1 hour') from fixture$$;
+select ok(not has_function_privilege('anon','public.fmat_oauth_grants_read(jsonb,uuid)','execute'),'anonymous cannot list grants');
+select ok(not has_function_privilege('authenticated','public.fmat_oauth_grants_read(jsonb,uuid)','execute'),'browser Auth role cannot invoke privileged grant listing');
+select ok(has_function_privilege('service_role','public.fmat_oauth_grants_read(jsonb,uuid)','execute'),'service may invoke verified browser listing');
+create temporary table pages as select public.fmat_oauth_grants_read(pg_temp.guest()) first;
+select is(jsonb_array_length(first->'grants'),50,'first owner page is bounded') from pages;
+select ok(first->>'nextCursor' is not null,'overflow has an owner-bound cursor') from pages;
+alter table pages add column second jsonb;
+update pages set second=public.fmat_oauth_grants_read(pg_temp.guest(),(first->>'nextCursor')::uuid);
+select is(jsonb_array_length(second->'grants'),2,'second page contains only remaining owner grants') from pages;
+select is(second->>'nextCursor',null,'last page has no cursor') from pages;
+select is((select count(*) from pages,jsonb_array_elements(first->'grants') a,jsonb_array_elements(second->'grants') b where a->>'id'=b->>'id'),0::bigint,'pages have no repeated grants');
+select is(jsonb_array_length(public.fmat_oauth_grants_read(pg_temp.guest(true))->'grants'),1,'other request sees only its grant');
+select is(jsonb_array_length(public.fmat_oauth_grants_read(pg_temp.host())->'grants'),1,'host list never includes requester grants');
+select is(public.fmat_oauth_grants_read(pg_temp.guest(),(select grant_id from entries where n=54))->>'error','invalid_request','foreign cursor reveals no page');
+select ok(not ((select first::text from pages) ~ '(tokenHash|sessionId|browserHash|codeChallenge|email|authorizationId)'),'projection excludes underlying credentials and identity');
+select is(public.fmat_oauth_grant_revoke((select grant_id from entries where n=54),pg_temp.guest())->>'error','invalid_grant','requester cannot revoke another request grant');
+select is(public.fmat_oauth_grant_revoke((select grant_id from entries where n=52),pg_temp.guest())->>'revoked','true','owner revokes its grant');
+select is(public.fmat_oauth_grant_revoke((select grant_id from entries where n=52),pg_temp.guest())->>'revoked','true','owner repeats revocation safely');
+select ok(not exists(select 1 from jsonb_array_elements(public.fmat_oauth_grants_read(pg_temp.guest())->'grants') v where v->>'id'=(select grant_id::text from entries where n=52)),'revoked grant leaves active list');
+update fmat.oauth_clients set disabled_at=now() where id=(select client from fixture);
+select is(public.fmat_oauth_grants_read(pg_temp.guest())->'grants'->0->>'clientDisabled','true','disabled client is explicitly identified for owner cleanup');
+update fmat.requests set token_hash=repeat('c',64) where id=(select request1 from fixture);
+select is(public.fmat_oauth_grants_read(pg_temp.guest())->>'error','invalid_grant','rotated request cannot list grants with old credential');
+update auth.sessions set not_after=now()-interval '1 second' where id=(select session from fixture);
+select is(public.fmat_oauth_grants_read(pg_temp.host())->>'error','invalid_grant','expired Auth session cannot list grants');
+select * from finish();
+rollback;

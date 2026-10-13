@@ -1,0 +1,14 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select plan(8);
+select ok(not has_function_privilege('anon','public.fmat_booking_approval(text,jsonb,jsonb)','EXECUTE'),'anonymous cannot approve');
+select ok(not has_function_privilege('authenticated','public.fmat_booking_approval(text,jsonb,jsonb)','EXECUTE'),'authenticated role cannot bypass browser credentials');
+select ok(has_function_privilege('service_role','public.fmat_booking_approval(text,jsonb,jsonb)','EXECUTE'),'verified server adapter can call approval');
+select ok(not has_table_privilege('authenticated','fmat.web_approval_decisions','SELECT'),'attribution is private');
+select ok(not has_table_privilege('authenticated','fmat.web_approval_decisions','INSERT'),'browser cannot forge attribution');
+select ok((select relrowsecurity from pg_class where oid='fmat.web_approval_decisions'::regclass),'attribution has RLS');
+select throws_ok($$select public.fmat_booking_approval('approve','{"kind":"guest"}','{}')$$,'P0001','FORBIDDEN','guest approval rejected');
+select throws_ok($$select public.fmat_booking_approval('invented','{"kind":"host"}','{}')$$,'P0001','INVALID_INPUT','unknown operation rejected');
+select * from finish();
+rollback;

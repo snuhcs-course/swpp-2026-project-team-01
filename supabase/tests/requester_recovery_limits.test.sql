@@ -1,0 +1,33 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select no_plan();
+insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('ab000000-0000-4000-8000-000000000001','recovery-budget@example.test',repeat('a',64),clock_timestamp()+interval '1 day','fixture');
+insert into fmat.hosts(id,email,invitation_id) values('ab000000-0000-4000-8000-000000000002','recovery-budget@example.test','ab000000-0000-4000-8000-000000000001');
+create function pg_temp.recovery(n integer,email text default 'shared@example.test') returns jsonb language plpgsql as $$
+declare rid uuid:=('ab100000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid;
+begin
+ insert into fmat.requests(id,host_id,details,token_hash,contact_verified_email,expires_at) values(rid,'ab000000-0000-4000-8000-000000000002',jsonb_build_object('requesterEmail',email),encode(sha256(convert_to(rid::text,'UTF8')),'hex'),email,clock_timestamp()+interval '1 day');
+ return public.fmat_requester_recovery('start',jsonb_build_object('requestId',rid,'challengeId',gen_random_uuid(),'idempotencyKey',gen_random_uuid(),'email',email,'proofHash',repeat('b',64),'encryptedProof',repeat('c',40)));
+end$$;
+insert into fmat.requester_recovery_budget values(true,clock_timestamp(),0,0) on conflict(singleton) do update set window_started_at=excluded.window_started_at,attempts=0,issued=0;
+select is(pg_temp.recovery(1),'{"status":"accepted"}'::jsonb,'first request has generic acceptance');
+select pg_temp.recovery(n) from generate_series(2,5) n;
+select is(pg_temp.recovery(6),'{"status":"accepted"}'::jsonb,'recipient limit has identical acceptance');
+select is((select count(*)::integer from fmat.requester_recoveries where email='shared@example.test'),5,'one recipient gets at most five links across different requests');
+select is((select count(*)::integer from fmat.requester_recoveries where request_id='ab100000-0000-4000-8000-000000000006'),0,'sixth request issues no proof');
+update fmat.requester_recovery_budget set attempts=600;
+select is(pg_temp.recovery(7,'other@example.test'),'{"status":"accepted"}'::jsonb,'global attempt cap has identical acceptance');
+select is((select count(*)::integer from fmat.requester_recoveries where email='other@example.test'),0,'attempt cap creates no proof');
+update fmat.requester_recovery_budget set attempts=0,issued=120;
+select is(pg_temp.recovery(8,'different@example.test'),'{"status":"accepted"}'::jsonb,'global issuance cap has identical acceptance');
+select is((select count(*)::integer from fmat.requester_recoveries where email='different@example.test'),0,'issuance cap creates no proof');
+update fmat.requester_recovery_budget set window_started_at=clock_timestamp()-interval '61 seconds';
+select is(pg_temp.recovery(9,'fresh@example.test'),'{"status":"accepted"}'::jsonb,'elapsed window permits a new issuance');
+select is((select count(*)::integer from fmat.requester_recoveries where email='fresh@example.test'),1,'new window actually publishes one proof');
+select is((select attempts from fmat.requester_recovery_budget),1,'fixed-size budget resets attempts');
+select is((select issued from fmat.requester_recovery_budget),1,'fixed-size budget resets issuance');
+select ok(not has_table_privilege('anon','fmat.requester_recovery_budget','select'),'anonymous cannot read budget');
+select ok(not has_table_privilege('service_role','fmat.requester_recovery_budget','update'),'service clients cannot bypass budget directly');
+select * from finish();
+rollback;

@@ -1,0 +1,13 @@
+# Sparse hosted Auth policy. Copy to an ignored workdir's supabase/config.toml
+# and use CLI 2.119.0 config diff/push against the identified release project.
+# Do not push the full local config; local test fixtures use admin/password users.
+[auth.email]
+# CLI 2.119.0 maps this to external_email_enabled, disabling email login.
+enable_signup = false
+
+[auth.external.google]
+enabled = true
+client_id = "env(GOOGLE_CLIENT_ID)"
+secret = "env(GOOGLE_CLIENT_SECRET)"
+skip_nonce_check = false
+email_optional = false

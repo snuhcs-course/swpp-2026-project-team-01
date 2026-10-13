@@ -1,0 +1,105 @@
+SET local check_function_bodies = off;
+
+CREATE TABLE "fmat"."agentmail_deliveries" (
+  "inbox_id"    text NOT NULL,
+  "delivery_id" text NOT NULL,
+  "receipt_id"  uuid NOT NULL,
+  CONSTRAINT "agentmail_deliveries_pkey" PRIMARY KEY (inbox_id, delivery_id)
+);
+
+ALTER TABLE "fmat"."agentmail_deliveries"
+  ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE "fmat"."agentmail_inbox" (
+  "id"             uuid                     NOT NULL DEFAULT gen_random_uuid(),
+  "inbox_id"       text                     NOT NULL,
+  "receiver_id"    uuid                     NOT NULL,
+  "event_id"       text                     NOT NULL,
+  "message_id"     text                     NOT NULL,
+  "thread_id"      text                     NOT NULL,
+  "occurred_at"    timestamp with time zone NOT NULL,
+  "payload_hash"   text                     NOT NULL,
+  "received_order" bigint                   GENERATED ALWAYS AS IDENTITY NOT NULL,
+  "received_at"    timestamp with time zone NOT NULL DEFAULT now(),
+  "processed_at"   timestamp with time zone,
+  CONSTRAINT "agentmail_inbox_inbox_id_event_id_key" UNIQUE (inbox_id, event_id),
+  CONSTRAINT "agentmail_inbox_inbox_id_message_id_key" UNIQUE (inbox_id, message_id),
+  CONSTRAINT "agentmail_inbox_payload_hash_check" CHECK ((payload_hash ~ '^[0-9a-f]{64}$'::text)),
+  CONSTRAINT "agentmail_inbox_pkey" PRIMARY KEY (id),
+  CONSTRAINT "agentmail_inbox_received_order_key" UNIQUE (received_order)
+);
+
+ALTER TABLE "fmat"."agentmail_inbox"
+  ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE "fmat"."agentmail_receivers" (
+  "inbox_id"    text                     NOT NULL,
+  "receiver_id" uuid                     NOT NULL,
+  "enabled"     boolean                  NOT NULL DEFAULT false,
+  "updated_at"  timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT "agentmail_receivers_inbox_id_check" CHECK (((length(inbox_id) >= 1) AND (length(inbox_id) <= 512))),
+  CONSTRAINT "agentmail_receivers_pkey" PRIMARY KEY (inbox_id),
+  CONSTRAINT "agentmail_receivers_receiver_id_key" UNIQUE (receiver_id)
+);
+
+ALTER TABLE "fmat"."agentmail_receivers"
+  ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.fmat_agentmail_ingress (
+  p_receiver_id uuid,
+  p_inbox_id    text,
+  p_input       jsonb
+)
+  RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare registration fmat.agentmail_receivers; receipt fmat.agentmail_inbox; delivery uuid; occurred timestamptz; fresh boolean:=false;
+begin
+ select * into registration from fmat.agentmail_receivers where inbox_id=p_inbox_id for share;
+ if not found or not registration.enabled or registration.receiver_id is distinct from p_receiver_id then raise exception 'CONFIGURATION_UNAVAILABLE';end if;
+ -- Null means an authenticated unsupported type: check the current fence before acknowledgment.
+ if p_input is null then return jsonb_build_object('ignored',true);end if;
+ if jsonb_typeof(p_input) is distinct from 'object' or p_input-array['deliveryId','eventId','inboxId','threadId','messageId','occurredAt','payloadHash']<>'{}'::jsonb then raise exception 'INVALID_INPUT';end if;
+ if exists(select 1 from unnest(array['deliveryId','eventId','inboxId','threadId','messageId','occurredAt','payloadHash']) k where jsonb_typeof(p_input->k) is distinct from 'string') then raise exception 'INVALID_INPUT';end if;
+ if p_input->>'inboxId' is distinct from p_inbox_id or exists(select 1 from unnest(array['deliveryId','eventId','inboxId','threadId','messageId']) k where length(p_input->>k) not between 1 and 512 or (p_input->>k)~'[[:space:][:cntrl:]]') or (p_input->>'payloadHash') !~ '^[0-9a-f]{64}$' then raise exception 'INVALID_INPUT';end if;
+ begin occurred:=(p_input->>'occurredAt')::timestamptz;exception when others then raise exception 'INVALID_INPUT';end;
+ if not isfinite(occurred) then raise exception 'INVALID_INPUT';end if;
+ perform pg_advisory_xact_lock(hashtextextended(jsonb_build_array('agentmail-ingress',p_inbox_id)::text,0));
+ select * into receipt from fmat.agentmail_inbox where inbox_id=p_inbox_id and message_id=p_input->>'messageId';
+ if found then
+  if receipt.event_id<>p_input->>'eventId' or receipt.thread_id<>p_input->>'threadId' or receipt.occurred_at<>occurred or receipt.payload_hash<>p_input->>'payloadHash' then raise exception 'IDEMPOTENCY_CONFLICT';end if;
+ else
+  if exists(select 1 from fmat.agentmail_inbox where inbox_id=p_inbox_id and event_id=p_input->>'eventId') then raise exception 'IDEMPOTENCY_CONFLICT';end if;
+  insert into fmat.agentmail_inbox(inbox_id,receiver_id,event_id,message_id,thread_id,occurred_at,payload_hash)
+   values(p_inbox_id,p_receiver_id,p_input->>'eventId',p_input->>'messageId',p_input->>'threadId',occurred,p_input->>'payloadHash') returning * into receipt;
+  fresh:=true;
+ end if;
+ select receipt_id into delivery from fmat.agentmail_deliveries where inbox_id=p_inbox_id and delivery_id=p_input->>'deliveryId';
+ if found and delivery<>receipt.id then raise exception 'IDEMPOTENCY_CONFLICT';end if;
+ insert into fmat.agentmail_deliveries(inbox_id,delivery_id,receipt_id) values(p_inbox_id,p_input->>'deliveryId',receipt.id) on conflict do nothing;
+ if fresh then perform fmat.enqueue_job('agentmail_ingress','agentmail-ingress:'||receipt.id::text,jsonb_build_object('receiptId',receipt.id));end if;
+ return jsonb_build_object('receiptId',receipt.id,'duplicate',not fresh);
+end;
+$function$;
+
+REVOKE ALL ON FUNCTION "public"."fmat_agentmail_ingress"(uuid, text, jsonb) FROM PUBLIC, "anon", "authenticated";
+
+ALTER TABLE "fmat"."agentmail_deliveries"
+  ADD CONSTRAINT "agentmail_deliveries_receipt_id_fkey" FOREIGN KEY (receipt_id) REFERENCES fmat.agentmail_inbox(id);
+
+ALTER TABLE "fmat"."agentmail_deliveries"
+  ADD CONSTRAINT "agentmail_deliveries_inbox_id_fkey" FOREIGN KEY (inbox_id) REFERENCES fmat.agentmail_receivers(inbox_id);
+
+ALTER TABLE "fmat"."agentmail_inbox"
+  ADD CONSTRAINT "agentmail_inbox_inbox_id_fkey" FOREIGN KEY (inbox_id) REFERENCES fmat.agentmail_receivers(inbox_id);
+
+CREATE INDEX agentmail_inbox_pending_idx ON fmat.agentmail_inbox USING btree (inbox_id, thread_id, received_order)
+  WHERE (processed_at IS NULL);
+
+REVOKE ALL ON FUNCTION "public"."fmat_agentmail_ingress"(uuid, text, jsonb) FROM "postgres";
+
+GRANT EXECUTE ON FUNCTION "public"."fmat_agentmail_ingress"(uuid, text, jsonb) TO "postgres";
+
+GRANT EXECUTE ON FUNCTION "public"."fmat_agentmail_ingress"(uuid, text, jsonb) TO "service_role";

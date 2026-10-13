@@ -1,0 +1,4 @@
+import {defineTool} from 'eve/tools';
+import {configureCalendars} from '../../lib/contracts/conversation-calendars.ts';
+import {ConversationCalendars} from '../../lib/server/calendar/conversation.ts';
+export default defineTool({description:'Apply the host’s requested conflict calendars and booking destination in private web setup. First list_setup_calendars; resolve names from that result. Ask only if names or destination are ambiguous. Use this for a clear request to select/change calendars, never merely when suggesting them. Call once per message with the complete desired selection; preserve existing choices unless asked to change them. Does not confirm meeting preferences or book events.',inputSchema:configureCalendars,availableInSubagents:false,async execute(input,ctx){return new ConversationCalendars().execute(ctx.session.auth.current,ctx.session.id,input);}});

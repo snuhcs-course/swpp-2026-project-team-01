@@ -1,0 +1,144 @@
+import {EvaluationBudget} from './budget.ts';
+import {randomUUID} from 'node:crypto';
+import {bookingLease} from '../booking/dispatch.ts';
+import {z} from 'zod';
+import {availabilityCheckInput,availabilityCheckReceipt} from '../../contracts/availability-evaluation.ts';
+import {intervalFeasibilityInput,schedulingInterval} from '../../contracts/interval-feasibility.ts';
+import {setupRules} from '../../contracts/setup.ts';
+import {Database} from '../database/client.ts';
+import {ApplicationError} from '../errors.ts';
+import {requireCredential,type Credential} from '../identity/credentials.ts';
+import {TokenCipher} from '../calendar/encryption.ts';
+import {calendarScopes,tokenBundle,type TokenBundle} from '../calendar/google.ts';
+import {GoogleCalendarProvider,type CalendarProvider} from '../calendar/catalog.ts';
+import {GoogleFreeBusy,bufferedReadWindows,type FreeBusyProvider} from '../calendar/freebusy.ts';
+import {GoogleAdjacentEvents,adjacentContext,physicalLocation,unexplainedBusy,type AdjacentEventProvider,type TravelCommitment} from '../calendar/adjacent.ts';
+import {GoogleRoutes,type RoutesProvider} from '../routes/google.ts';
+import {verifiedTravelAllowance} from '../../contracts/travel-allowance.ts';
+import {verifiedPreferenceDecision} from '../../contracts/preference-decision.ts';
+import {evaluatePreferences} from './preferences.ts';
+import {evaluateTravel} from './travel.ts';
+import {evaluateIntervals,intervalFits,sampleIntervals} from './intervals.ts';
+import {candidateEvidence,evidenceReceipt,type CandidateAssessment} from './evidence.ts';
+
+const batchOptions=z.strictObject({stepMinutes:z.number().int().min(1).max(240),limit:z.number().int().min(1).max(30)});
+const grant=z.object({principalId:z.uuid(),providerSubject:z.string(),encryptedCredential:z.string(),calendarIds:z.array(z.string()).min(1).max(50)});
+const snapshot=z.object({bookingCalendarId:z.string().min(1).nullable().optional(),preferenceDecisions:z.array(verifiedPreferenceDecision).max(30),travelBasis:z.string().regex(/^[a-f0-9]{64}$/u),allowances:z.array(verifiedTravelAllowance).max(20),checkId:z.uuid(),basis:z.string().regex(/^[a-f0-9]{64}$/u),revision:z.number().int().positive(),rulesVersion:z.number().int().nonnegative(),
+ details:z.object({windows:intervalFeasibilityInput.shape.windows,timezone:intervalFeasibilityInput.shape.requesterTimezone,durationMinutes:intervalFeasibilityInput.shape.durationMinutes,mode:z.string().optional(),location:z.string().optional()}),
+ rules:intervalFeasibilityInput.shape.rules.loose(),localBookings:z.array(schedulingInterval),localCommitments:z.array(z.object({id:z.uuid(),calendarId:z.string(),eventId:z.string(),version:z.string(),interval:schedulingInterval,location:z.string().nullable()})).max(10000),mode:z.enum(['manual','calendar']),host:grant,guest:grant.nullable()});
+
+/** Authorized interval and optional exact-candidate travel evaluation.
+ * Private snapshots never leave the server; check() exposes only a receipt.
+ * Exact assessments persist privately; preferences, publication and approval
+ * remain separate required gates. */
+export class AvailabilityEvaluation {
+ constructor(private readonly database=new Database(),private readonly env=process.env,private readonly provider:CalendarProvider=new GoogleCalendarProvider(env),private readonly freebusy:FreeBusyProvider=new GoogleFreeBusy(),private readonly events:AdjacentEventProvider=new GoogleAdjacentEvents(),private readonly routes:RoutesProvider=new GoogleRoutes(env)){}
+ private call(operation:string,credential:Credential,input:unknown){requireCredential(credential);return this.database.rpc('fmat_availability_evaluation',{p_operation:operation,p_credential:credential,p_input:input});}
+ async read(credential:Credential,input:unknown,budget?:EvaluationBudget){return this.evaluate(availabilityCheckInput.parse(input),(operation,input)=>this.call(operation,credential,input),undefined,budget);}
+ async batch(credential:Credential,input:unknown,budget?:EvaluationBudget){
+  const parsed=availabilityCheckInput.omit({candidate:true}).extend({sampling:batchOptions}).parse(input);
+  return this.evaluate({requestId:parsed.requestId,revision:parsed.revision},(operation,input)=>this.call(operation,credential,input),parsed.sampling,budget);
+ }
+ async readForBooking(lease:unknown,input:unknown,budget?:EvaluationBudget){
+  const authority=bookingLease.parse(lease),target=availabilityCheckInput.required({candidate:true}).parse(input);
+  return this.evaluate(target,(operation,input)=>this.database.rpc('fmat_booking_evaluation',{p_operation:operation,p_lease:authority,p_input:input}),undefined,budget);
+ }
+ private async evaluate(target:z.infer<typeof availabilityCheckInput>,call:(operation:string,input:unknown)=>Promise<unknown>,sampling?:z.infer<typeof batchOptions>,supplied?:EvaluationBudget){
+  const budget=supplied??new EvaluationBudget();
+  try{return await this.evaluateWithin(target,(operation,input)=>budget.run(()=>call(operation,input)),budget,sampling);}
+  finally{if(!supplied)budget.dispose();}
+ }
+ private async evaluateWithin(target:z.infer<typeof availabilityCheckInput>,call:(operation:string,input:unknown)=>Promise<unknown>,budget:EvaluationBudget,sampling?:z.infer<typeof batchOptions>){
+  const state=snapshot.parse(await call('start',{...target,checkId:randomUUID()}));
+  const context={...target,checkId:state.checkId,basis:state.basis},cipher=new TokenCipher(this.env);
+  // Final booking checks include its frozen destination even when the host
+  // selected other conflict calendars. Keep the extra read separate so fifty
+  // selected calendars still fit the provider's per-request limit.
+  const hostCalendarGroups=[state.host.calendarIds];
+  if(state.bookingCalendarId&&!state.host.calendarIds.includes(state.bookingCalendarId))hostCalendarGroups.push([state.bookingCalendarId]);
+  const windows=state.details.windows;let hostAccessToken='';
+  const read=async(party:'host'|'guest',selected:z.infer<typeof grant>)=>{
+   // Recheck before each external read as well as after it. Network I/O never
+   // runs inside a database transaction or grants authority to a stale caller.
+   await call('check',context);
+   let bundle:TokenBundle;
+   try{
+    const encryptionContext='google:'+party+':'+selected.principalId;
+    bundle=tokenBundle.parse(cipher.open(selected.encryptedCredential,encryptionContext));
+    const validate=(value:TokenBundle)=>{
+     if(value.subject!==selected.providerSubject||calendarScopes[party].filter(s=>s.startsWith('https:')).some(s=>!value.scopes.includes(s))||
+       (party==='guest'&&value.scopes.some(s=>![...calendarScopes.guest,'https://www.googleapis.com/auth/userinfo.email'].includes(s))))throw new ApplicationError('RECONNECT_REQUIRED',409);
+    };
+    validate(bundle);
+    if(bundle.expiresAt<=Date.now()+60_000){
+     const refreshed=tokenBundle.parse(await budget.run(signal=>this.provider.refresh(bundle,party,signal)));validate(refreshed);
+     if(refreshed.expiresAt<=Date.now()+30_000)throw new ApplicationError('RECONNECT_REQUIRED',409);
+     await call('refresh',{...context,party,previousCredential:selected.encryptedCredential,encryptedCredential:cipher.seal(refreshed,encryptionContext)});
+     bundle=refreshed;
+    }
+   }catch(error){
+    // A stale authority error must not mark a newer request/connection failed.
+    if(error instanceof ApplicationError&&!['RECONNECT_REQUIRED','PROVIDER_UNAVAILABLE'].includes(error.code))throw error;
+    await call('failure',{...context,party});
+    throw error instanceof ApplicationError?error:new ApplicationError('RECONNECT_REQUIRED',409);
+   }
+   await call('check',context);
+   try{
+    if(party==='host'&&state.bookingCalendarId){
+     const calendars=await budget.run(signal=>this.provider.list(bundle.accessToken,signal));
+     await call('check',context);
+     if(!calendars.some(c=>c.id===state.bookingCalendarId&&['writer','writerWithoutPrivateAccess','owner'].includes(c.accessRole)))throw new ApplicationError('RECONNECT_REQUIRED',409);
+     await call('destination_checked',context);
+    }
+    const busy:z.infer<typeof schedulingInterval>[]=[];
+    for(const ids of party==='host'?hostCalendarGroups:[selected.calendarIds]){
+     await call('check',context);
+     busy.push(...await budget.run(signal=>this.freebusy.read(bundle.accessToken,ids,party==='host'?bufferedReadWindows(windows,state.rules.bufferMinutes):windows,signal)));
+     await call('check',context);
+    }
+    if(party==='host')hostAccessToken=bundle.accessToken;return busy;}
+   catch(error){await call('failure',{...context,party});throw error instanceof ApplicationError?error:new ApplicationError('PROVIDER_UNAVAILABLE',503);}
+  };
+  const hostBusy=await read('host',state.host);
+  // An absent selected Calendar is never interpreted as manual availability.
+  if(state.mode==='calendar'&&!state.guest)throw new ApplicationError('RECONNECT_REQUIRED',409);
+  const requesterBusy=state.mode==='calendar'?await read('guest',state.guest!):[];
+  const {timezone,availability,focusBlocks,bufferMinutes}=state.rules;
+  const evaluation=evaluateIntervals({now:new Date().toISOString(),requesterTimezone:state.details.timezone,durationMinutes:state.details.durationMinutes,
+    windows,requesterAvailability:windows,requesterBusy,hostBusy:[...hostBusy,...state.localBookings],rules:{timezone,availability,focusBlocks,bufferMinutes}});
+  const sampled=sampling?sampleIntervals(evaluation,sampling):{intervals:target.candidate?[target.candidate]:[],truncated:false};
+  const assessments:{candidate:z.infer<typeof schedulingInterval>;assessment:CandidateAssessment}[]=[];
+  for(const candidate of sampled.intervals){
+   budget.assertActive();
+   const candidateEvaluation:CandidateAssessment={interval:evaluation.status==='clarification'?'clarification':intervalFits(evaluation,candidate)?'fits':'conflict',travel:null,contextFingerprint:null};
+   if(candidateEvaluation.interval==='fits'&&['online','in_person'].includes(state.details.mode??'')){
+    const assertCurrent=async()=>{await call('check',context);};
+    let commitments:TravelCommitment[]=[];
+    if(state.details.mode==='in_person'){
+     try{for(const ids of hostCalendarGroups){await assertCurrent();commitments.push(...await budget.run(signal=>this.events.read(hostAccessToken,ids,candidate,assertCurrent,signal)));await assertCurrent();}}
+     catch(error){if(!(error instanceof ApplicationError)||['RECONNECT_REQUIRED','PROVIDER_UNAVAILABLE'].includes(error.code))await call('failure',{...context,party:'host'});throw error instanceof ApplicationError?error:new ApplicationError('PROVIDER_UNAVAILABLE',503);}
+     commitments.push(...unexplainedBusy(hostBusy,commitments),...state.localCommitments.map(c=>({...c,location:physicalLocation(c.location??undefined)})),...state.rules.focusBlocks.map((interval,i)=>({id:'focus-'+i,calendarId:'rules',eventId:'focus-'+i,version:String(state.rulesVersion),interval,location:null})));
+    }
+    const adjacent=adjacentContext(candidate,commitments,state.travelBasis),rules=setupRules.pick({travelMode:true,travelBufferMinutes:true}).strip().parse(state.rules);
+    candidateEvaluation.contextFingerprint=adjacent.fingerprint;
+    candidateEvaluation.travelContext={contextFingerprint:adjacent.fingerprint,candidate,meetingMode:state.details.mode as 'online'|'in_person',location:physicalLocation(state.details.location),previous:adjacent.previous,next:adjacent.next,mode:rules.travelMode,bufferMinutes:state.rules.bufferMinutes,travelBufferMinutes:rules.travelBufferMinutes};
+    const travelContext=candidateEvaluation.travelContext;
+    candidateEvaluation.travel=await budget.run(()=>evaluateTravel(travelContext,{estimate:async request=>{await assertCurrent();const result=await budget.run(signal=>this.routes.estimate(request,signal));await assertCurrent();return result;}},{allowances:state.allowances}));
+   }
+   candidateEvaluation.preferences=evaluatePreferences({basis:state.travelBasis,candidate,details:state.details,rules:setupRules.parse(state.rules)},state.preferenceDecisions);
+   assessments.push({candidate,assessment:candidateEvaluation});
+  }
+  const receipt=availabilityCheckReceipt.parse({...await call('success',context) as object,complete:false});
+  const results=[];
+  for(const {candidate,assessment} of assessments){
+   const evidence=candidateEvidence.parse({candidate,...assessment,complete:false});
+   const persisted=evidenceReceipt.parse(await call('evidence_save',{...context,candidate,rulesVersion:state.rulesVersion,evidence}));
+   results.push({candidate,assessment,persisted});
+  }
+  // A later save/read can race an earlier one; recheck after the entire batch.
+  await call('check',context);
+  return {receipt,evaluation,candidateEvaluation:target.candidate?results[0].assessment:null,persisted:target.candidate?results[0].persisted:null,context,rulesVersion:state.rulesVersion,results,truncated:sampled.truncated};
+ }
+ async check(credential:Credential,input:unknown){return (await this.read(credential,input)).receipt;}
+ async evidence(credential:Credential,input:unknown){const target=z.strictObject({requestId:z.uuid(),revision:z.number().int().positive(),evaluationId:z.uuid()}).parse(input);return evidenceReceipt.parse(await this.call('evidence_read',credential,target));}
+}

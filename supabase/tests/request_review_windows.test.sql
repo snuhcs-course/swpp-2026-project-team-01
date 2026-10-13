@@ -1,0 +1,56 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select no_plan();
+insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) values('95000000-0000-4000-8000-000000000001','review-window@example.test',repeat('1',64),now()+interval '1 day','fixture');
+insert into fmat.hosts(id,email,invitation_id) values('95000000-0000-4000-8000-000000000002','review-window@example.test','95000000-0000-4000-8000-000000000001');
+insert into fmat.requests(id,host_id,details,token_hash,expires_at) values('95000000-0000-4000-8000-000000000003','95000000-0000-4000-8000-000000000002','{"durationMinutes":30}',repeat('a',64),now()+interval '1 day');
+create function pg_temp.credential() returns jsonb language sql as $$select '{"kind":"guest","requestId":"95000000-0000-4000-8000-000000000003","tokenHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'::jsonb$$;
+create temporary table fixture(name text primary key,value jsonb);
+insert into fixture values('grant',public.fmat_conversation_access('open',pg_temp.credential(),'{"audience":"request_shared","requestId":"95000000-0000-4000-8000-000000000003"}'));
+create function pg_temp.f(text) returns jsonb language sql as $$select value from fixture where name=$1$$;
+create function pg_temp.windows(p_start interval,p_length interval) returns jsonb language sql as $$select jsonb_build_array(jsonb_build_object('start',to_char(now()+p_start,'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),'end',to_char(now()+p_start+p_length,'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')))$$;
+create function pg_temp.input(p_key text,p_patch jsonb,p_revision integer default 1) returns jsonb language sql as $$select jsonb_build_object('expectedRevision',p_revision,'patch',p_patch,'clarifications','[]'::jsonb,'idempotencyKey',p_key)$$;
+create function pg_temp.propose(jsonb) returns jsonb language sql as $$select public.fmat_conversation_tool((pg_temp.f('grant')->>'grantId')::uuid,(pg_temp.f('grant')->>'conversationId')::uuid,'details_propose',$1)$$;
+create function pg_temp.decide(p_action text,p_key text) returns jsonb language sql as $$select public.fmat_request_detail_review(p_action,pg_temp.credential(),pg_temp.f(p_key))$$;
+
+select ok(not has_function_privilege('anon','fmat.validate_request_review_windows(jsonb)','EXECUTE'),'validator denies anonymous execution');
+select ok(not has_function_privilege('authenticated','fmat.validate_request_review_windows(jsonb)','EXECUTE'),'validator denies browser execution');
+select ok(not has_function_privilege('service_role','fmat.validate_request_review_windows(jsonb)','EXECUTE'),'validator is private even to service role');
+select throws_ok($$select pg_temp.propose(pg_temp.input('past',jsonb_build_object('windows',pg_temp.windows('-1 minute','1 hour'))))$$,'P0001','INVALID_INPUT','ongoing interval cannot become assistant review');
+select throws_ok($$select pg_temp.propose(pg_temp.input('short',jsonb_build_object('windows',pg_temp.windows('1 hour','15 minutes'))))$$,'P0001','INVALID_INPUT','window must fit inherited duration');
+select is((select count(*)::integer from fmat.request_detail_reviews where request_id='95000000-0000-4000-8000-000000000003'),0,'rejected suggestions create no ledger row');
+insert into fixture values('validInput',pg_temp.input('valid',jsonb_build_object('windows',pg_temp.windows('1 hour','30 minutes'))));
+insert into fixture values('valid',pg_temp.propose(pg_temp.f('validInput')));
+select is(pg_temp.f('valid')->'review'->'details'->>'durationMinutes','30','exact-length interval preserves inherited duration');
+select throws_ok($$select pg_temp.propose(pg_temp.input('replacement',jsonb_build_object('windows',pg_temp.windows('1 hour','10 minutes'))))$$,'P0001','INVALID_INPUT','invalid replacement rejected');
+select is(public.fmat_request_detail_review('read',pg_temp.credential(),'{}')->'review',pg_temp.f('valid')->'review','invalid replacement preserves entire pending review');
+select is((select revision from fmat.requests where id='95000000-0000-4000-8000-000000000003'),1,'proposal never changes request revision');
+-- Exercise duration-only patches against existing availability, not just a value in the patch.
+update fmat.requests set details=details||jsonb_build_object('windows',pg_temp.windows('1 hour','30 minutes')) where id='95000000-0000-4000-8000-000000000003';
+select throws_ok($$select pg_temp.propose(pg_temp.input('longer','{"durationMinutes":45}'))$$,'P0001','INVALID_INPUT','new duration must fit retained windows');
+select lives_ok($$select pg_temp.propose(pg_temp.input('shorter','{"durationMinutes":15}'))$$,'shortened known duration fits');
+select lives_ok($$select pg_temp.propose(pg_temp.input('unknown','{"durationMinutes":null}'))$$,'missing duration is not invented');
+select is(public.fmat_request_detail_review('read',pg_temp.credential(),'{}')->'review'->'details'->'durationMinutes','null'::jsonb,'unknown duration remains null');
+-- Model a review that was valid when created and has aged before apply.
+insert into fixture values('expiringInput',pg_temp.input('expiring',jsonb_build_object('windows',pg_temp.windows('1 hour','30 minutes'))));
+insert into fixture values('expiring',pg_temp.propose(pg_temp.f('expiringInput')));
+insert into fixture values('decision',jsonb_build_object('reviewId',pg_temp.f('expiring')->'review'->>'id','expectedRevision',1,'confirmed',true,'idempotencyKey',gen_random_uuid()));
+update fmat.request_detail_reviews set proposed_details=jsonb_set(proposed_details,'{windows}',pg_temp.windows('-1 minute','1 hour')) where id=(pg_temp.f('expiring')->'review'->>'id')::uuid;
+insert into fixture values('expiredSnapshot',public.fmat_request_detail_review('read',pg_temp.credential(),'{}'));
+select throws_ok($$select pg_temp.decide('apply','decision')$$,'P0001','INVALID_INPUT','new apply rejects expired start');
+select is(public.fmat_request_detail_review('read',pg_temp.credential(),'{}'),pg_temp.f('expiredSnapshot'),'expired apply preserves review and request');
+select is(pg_temp.propose(pg_temp.f('expiringInput'))->'review'->>'id',pg_temp.f('expiring')->'review'->>'id','committed proposal retry remains recoverable');
+select lives_ok($$select pg_temp.decide('dismiss','decision')$$,'expired review remains dismissible');
+select lives_ok($$select pg_temp.decide('dismiss','decision')$$,'exact dismissal retry is stable');
+-- Applied review replay is also recovered before time validation.
+insert into fixture values('applyInput',pg_temp.input('apply',jsonb_build_object('windows',pg_temp.windows('2 hours','30 minutes'))));
+insert into fixture values('applyReview',pg_temp.propose(pg_temp.f('applyInput')));
+insert into fixture values('applyDecision',jsonb_build_object('reviewId',pg_temp.f('applyReview')->'review'->>'id','expectedRevision',1,'confirmed',true,'idempotencyKey',gen_random_uuid()));
+select lives_ok($$select pg_temp.decide('apply','applyDecision')$$,'valid current review applies');
+update fmat.request_detail_reviews set proposed_details=jsonb_set(proposed_details,'{windows}',pg_temp.windows('-1 minute','1 hour')) where id=(pg_temp.f('applyReview')->'review'->>'id')::uuid;
+select lives_ok($$select pg_temp.decide('apply','applyDecision')$$,'committed apply retry does not reapply expired windows');
+select is((select revision from fmat.requests where id='95000000-0000-4000-8000-000000000003'),2,'exact apply retry does not advance revision');
+select lives_ok($$select fmat.normalize_details(jsonb_build_object('durationMinutes',30,'windows',pg_temp.windows('-1 minute','10 minutes')))$$,'generic manual normalization retains its existing contract');
+select * from finish();
+rollback;

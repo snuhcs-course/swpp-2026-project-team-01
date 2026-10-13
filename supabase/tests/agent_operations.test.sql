@@ -1,0 +1,172 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions;
+select no_plan();
+insert into auth.users(id,email,email_confirmed_at) values
+('a1000000-0000-4000-8000-000000000001','oauth-host1@example.test',now()),
+('a1000000-0000-4000-8000-000000000002','oauth-host2@example.test',now()),
+('a1000000-0000-4000-8000-000000000003','oauth-unadmitted@example.test',now());
+insert into auth.sessions(id,user_id) select ('a2000000-0000-4000-8000-00000000000'||n)::uuid,('a1000000-0000-4000-8000-00000000000'||n)::uuid from generate_series(1,3) n;
+insert into fmat.invitations(id,email,token_hash,expires_at,issued_by) select ('a3000000-0000-4000-8000-00000000000'||n)::uuid,'oauth-host'||n||'@example.test',repeat(n::text,64),now()+interval '1 day','oauth-fixture' from generate_series(1,2) n;
+insert into fmat.hosts(id,email,invitation_id) select ('a1000000-0000-4000-8000-00000000000'||n)::uuid,'oauth-host'||n||'@example.test',('a3000000-0000-4000-8000-00000000000'||n)::uuid from generate_series(1,2) n;
+create temporary table fixture(n int primary key,credential jsonb,authorization_id uuid,grant_id uuid,client_id uuid,request_id uuid);
+create temporary table client(id uuid);
+insert into client select (public.fmat_oauth_register('SQL fixture',array['https://client.example/cb'],'https://release.findmeatime.com/mcp')->>'clientId')::uuid;
+create function pg_temp.hash(n int,purpose text) returns text language sql immutable as $$select md5(n||purpose)||md5(purpose||n)$$;
+create function pg_temp.host(n int) returns jsonb language sql as $$select jsonb_build_object('kind','host','subject','a1000000-0000-4000-8000-00000000000'||n,'sessionId','a2000000-0000-4000-8000-00000000000'||n,'expiresAt',clock_timestamp()+interval '1 hour')$$;
+create function pg_temp.prepare(n int,kind text default 'guest',scope text default 'request:read request:write') returns void language plpgsql as $$
+declare req uuid:=gen_random_uuid(); cred jsonb; a uuid; c uuid;
+begin
+ select id into c from client;
+ update fmat.oauth_clients set authorization_window_at=clock_timestamp()-interval '2 minutes' where id=c;
+ if kind='guest' then
+   insert into fmat.requests(id,host_id,details,token_hash,expires_at) values(req,'a1000000-0000-4000-8000-000000000001','{}',pg_temp.hash(n,'guest'),clock_timestamp()+interval '2 days');
+   cred:=jsonb_build_object('kind','guest','requestId',req,'tokenHash',pg_temp.hash(n,'guest'));
+ else cred:=pg_temp.host(substring(kind from 5)::int);req:=null;end if;
+ a:=(public.fmat_oauth_authorization_start(jsonb_build_object('clientId',c,'resource','https://release.findmeatime.com/mcp','redirectUri','https://client.example/cb','scope',scope,
+ 'codeChallenge',translate(rtrim(encode(extensions.digest(repeat('A',43),'sha256'),'base64'),'='),'+/','-_'),'codeChallengeMethod','S256','state','state','browserHash',repeat('a',64)))->>'authorizationId')::uuid;
+ insert into fixture values(n,cred,a,null,c,req);
+end$$;
+create function pg_temp.consent(n int,decision text default 'grant',browser text default repeat('a',64)) returns jsonb language plpgsql as $$
+declare f fixture; r jsonb;
+begin select * into f from fixture where fixture.n=$1;
+ r:=public.fmat_oauth_consent(f.authorization_id,browser,f.credential,decision,pg_temp.hash(n,'code'));
+ update fixture set grant_id=(select id from fmat.oauth_grants where authorization_id=f.authorization_id) where fixture.n=$1;
+ return r;end$$;
+create function pg_temp.exchange(n int,patch jsonb default '{}') returns jsonb language sql as $$
+ select public.fmat_oauth_code_exchange(coalesce((patch->>'clientId')::uuid,f.client_id),coalesce(patch->>'resource','https://release.findmeatime.com/mcp'),pg_temp.hash(n,'code'),coalesce(patch->>'redirect','https://client.example/cb'),coalesce(patch->>'verifier',repeat('A',43)),pg_temp.hash(n,'refresh')) from fixture f where f.n=$1
+$$;
+create function pg_temp.refresh(n int,oldkey text default 'refresh',newkey text default 'next',scope text default null) returns jsonb language sql as $$
+ select public.fmat_oauth_refresh(f.client_id,'https://release.findmeatime.com/mcp',pg_temp.hash(n,oldkey),pg_temp.hash(n,newkey),scope) from fixture f where f.n=$1
+$$;
+create function pg_temp.check_grant(n int,scope text default null) returns jsonb language sql as $$
+ select public.fmat_oauth_grant_check(g.id,g.client_id,g.resource,g.actor_kind,g.actor_id,coalesce($2,g.scope)) from fixture f join fmat.oauth_grants g on g.id=f.grant_id where f.n=$1
+$$;
+create function pg_temp.op(n int,op text,req uuid default null,input jsonb default '{}',key uuid default null,scope text default null,exp bigint default floor(extract(epoch from clock_timestamp()))::bigint+300) returns jsonb language sql as $$
+ select public.fmat_agent_operation(g.id,g.client_id,g.resource,g.actor_kind,g.actor_id,coalesce($6,g.scope),$7,$2,$3,$4,$5) from fixture f join fmat.oauth_grants g on g.id=f.grant_id where f.n=$1
+$$;
+select ok(not has_function_privilege(r,'public.fmat_agent_operation(uuid,uuid,text,text,uuid,text,bigint,text,uuid,jsonb,uuid)','execute'),r||' denied agent RPC') from unnest(array['anon','authenticated']) r;
+select ok(has_function_privilege('service_role','public.fmat_agent_operation(uuid,uuid,text,text,uuid,text,bigint,text,uuid,jsonb,uuid)','execute'),'service adapter can call RPC');
+select pg_temp.prepare(1,'guest','request:decide request:read request:write');select pg_temp.consent(1);
+select pg_temp.prepare(2,'guest');select pg_temp.consent(2);
+select pg_temp.prepare(3,'host1','host:decide host:read host:write');select pg_temp.consent(3);
+select pg_temp.prepare(4,'host2','host:read');select pg_temp.consent(4);
+-- Internal transcript resolver: no browser credentials or execution grants minted.
+insert into fmat.conversation_scopes(host_id,request_id,audience,runtime_session_id)
+select 'a1000000-0000-4000-8000-000000000001',request_id,'request_shared','agent-shared-history' from fixture where n=1;
+insert into fmat.conversation_scopes(host_id,request_id,audience,runtime_session_id)
+select 'a1000000-0000-4000-8000-000000000001',request_id,'host_private','agent-private-history' from fixture where n=1;
+insert into fmat.conversation_scopes(host_id,audience,runtime_session_id) values('a1000000-0000-4000-8000-000000000001','host_setup','agent-setup-history');
+select is(pg_temp.op(1,'conversation_resolve',(select request_id from fixture where n=1),'{"audience":"request_shared"}')->>'sessionId','agent-shared-history','guest resolves only authorized shared runtime');
+select is(pg_temp.op(3,'conversation_resolve',null,'{"audience":"host_setup"}')->>'sessionId','agent-setup-history','host resolves setup runtime');
+select is(pg_temp.op(3,'conversation_resolve',(select request_id from fixture where n=1),'{"audience":"host_private"}')->>'sessionId','agent-private-history','host resolves private runtime');
+select throws_ok($$select pg_temp.op(1,'conversation_resolve',(select request_id from fixture where n=1),'{"audience":"host_private"}')$$,'P0001','FORBIDDEN','guest denied private audience');
+select throws_ok($$select pg_temp.op(1,'conversation_resolve',null,'{"audience":"host_setup"}')$$,'P0001','FORBIDDEN','guest denied setup audience');
+select throws_ok($$select pg_temp.op(2,'conversation_resolve',(select request_id from fixture where n=1),'{"audience":"request_shared"}')$$,'P0001','FORBIDDEN','foreign guest denied shared runtime');
+select throws_ok($$select pg_temp.op(4,'conversation_resolve',(select request_id from fixture where n=1),'{"audience":"request_shared"}')$$,'P0001','FORBIDDEN','foreign host denied shared runtime');
+select throws_ok($$select pg_temp.op(3,'conversation_resolve',null,'{"audience":"host_setup","sessionId":"forged"}')$$,'P0001','INVALID_INPUT','caller cannot choose runtime binding');
+select is(pg_temp.op(3,'conversation_resolve',null,'{"audience":"host_setup"}',null,'host:write')->>'error','invalid_scope','write scope cannot read transcript');
+select is(pg_temp.op(2,'conversation_resolve',(select request_id from fixture where n=2),'{"audience":"request_shared"}'),' {"conversationId":null,"sessionId":null}'::jsonb,'absent conversation stays absent without creating a scope');
+update fmat.conversation_scopes set revoked_at=now() where runtime_session_id='agent-private-history';
+select throws_ok($$select pg_temp.op(3,'conversation_resolve',(select request_id from fixture where n=1),'{"audience":"host_private"}')$$,'P0001','NOT_FOUND','revoked conversation binding cannot be resolved');
+update fmat.requests set status='withdrawn' where id=(select request_id from fixture where n=2);
+select throws_ok($$select pg_temp.op(3,'conversation_resolve',(select request_id from fixture where n=2),'{"audience":"request_shared"}')$$,'P0001','REQUEST_CLOSED','closed request offers no transcript resolution');
+update fmat.requests set status='negotiating' where id=(select request_id from fixture where n=2);
+update fmat.conversation_scopes set revoked_at=null where runtime_session_id='agent-private-history';
+select is(pg_temp.op(1,'conversation_history',(select request_id from fixture where n=1),'{"audience":"request_shared"}')#>>'{generations,0,sessionId}','agent-shared-history','guest resolves only authorized shared runtime');
+select is(pg_temp.op(3,'conversation_history',null,'{"audience":"host_setup"}')#>>'{generations,0,sessionId}','agent-setup-history','host resolves setup runtime');
+select is(pg_temp.op(3,'conversation_history',(select request_id from fixture where n=1),'{"audience":"host_private"}')#>>'{generations,0,sessionId}','agent-private-history','host resolves private runtime');
+select throws_ok($$select pg_temp.op(1,'conversation_history',(select request_id from fixture where n=1),'{"audience":"host_private"}')$$,'P0001','FORBIDDEN','guest denied private audience');
+select throws_ok($$select pg_temp.op(1,'conversation_history',null,'{"audience":"host_setup"}')$$,'P0001','FORBIDDEN','guest denied setup audience');
+select throws_ok($$select pg_temp.op(2,'conversation_history',(select request_id from fixture where n=1),'{"audience":"request_shared"}')$$,'P0001','FORBIDDEN','foreign guest denied shared runtime');
+select throws_ok($$select pg_temp.op(4,'conversation_history',(select request_id from fixture where n=1),'{"audience":"request_shared"}')$$,'P0001','FORBIDDEN','foreign host denied shared runtime');
+select throws_ok($$select pg_temp.op(3,'conversation_history',null,'{"audience":"host_setup","sessionId":"forged"}')$$,'P0001','INVALID_INPUT','caller cannot choose runtime binding');
+select is(pg_temp.op(3,'conversation_history',null,'{"audience":"host_setup"}',null,'host:write')->>'error','invalid_scope','write scope cannot read transcript');
+select is(pg_temp.op(2,'conversation_history',(select request_id from fixture where n=2),'{"audience":"request_shared"}'),null::jsonb,'absent conversation stays absent without creating a scope');
+update fmat.conversation_scopes set revoked_at=now() where runtime_session_id='agent-private-history';
+select throws_ok($$select pg_temp.op(3,'conversation_history',(select request_id from fixture where n=1),'{"audience":"host_private"}')$$,'P0001','NOT_FOUND','revoked conversation binding cannot be resolved');
+update fmat.requests set status='withdrawn' where id=(select request_id from fixture where n=2);
+select throws_ok($$select pg_temp.op(3,'conversation_history',(select request_id from fixture where n=2),'{"audience":"request_shared"}')$$,'P0001','REQUEST_CLOSED','closed request offers no transcript resolution');
+update fmat.requests set status='negotiating' where id=(select request_id from fixture where n=2);
+select ok(not has_function_privilege(r,'fmat.host_request_page(uuid,jsonb)','execute'),r||' denied private list helper') from unnest(array['anon','authenticated','service_role']) r;
+select throws_ok($$select pg_temp.op(1,'requests_list')$$,'P0001','FORBIDDEN','requester cannot list host requests');
+select is(pg_temp.op(3,'requests_list',null,'{}',null,'host:write')->>'error','invalid_scope','write does not grant host discovery');
+select throws_ok($$select pg_temp.op(3,'requests_list',(select request_id from fixture where n=1))$$,'P0001','FORBIDDEN','list cannot take a target override');
+select throws_ok($$select pg_temp.op(3,'requests_list',null,'{"hostId":"a1000000-0000-4000-8000-000000000002"}')$$,'P0001','INVALID_INPUT','list cannot take a host override');
+insert into fmat.requests(host_id,details,token_hash,expires_at,created_at,private_notes) select 'a1000000-0000-4000-8000-000000000001',jsonb_build_object('purpose','Discovery 100% _ item '||n,'requesterName','Person '||n,'requesterEmail','hidden@example.test'),encode(extensions.digest(gen_random_uuid()::text,'sha256'),'hex'),now()+interval '1 day',now()-interval '1 minute','DO NOT DISCLOSE' from generate_series(1,35) n;
+insert into fmat.requests(id,host_id,details,token_hash,expires_at) values('a4000000-0000-4000-8000-000000000099','a1000000-0000-4000-8000-000000000002','{"purpose":"Foreign discovery"}',repeat('9',64),now()+interval '1 day');
+create temporary table discovery_page as select pg_temp.op(3,'requests_list') as data;
+select is(jsonb_array_length((select data->'requests' from discovery_page)),30,'host list caps its first page');
+select is(jsonb_array_length(pg_temp.op(3,'requests_list',null,(select data->'nextCursor' from discovery_page))->'requests'),7,'next page contains remaining owned requests');
+select is(pg_temp.op(3,'requests_list'),public.fmat_host_requests('list',pg_temp.host(1),'{}'),'agent and browser share summary and filtering semantics');
+select ok((select data::text not like '%DO NOT DISCLOSE%' and data::text not like '%hidden@example.test%' and data::text not like '%Foreign discovery%' from discovery_page),'list excludes private/contact/foreign data');
+select is(jsonb_array_length(pg_temp.op(3,'requests_list',null,'{"search":"100% _"}')->'requests'),30,'search treats wildcard characters literally');
+select throws_ok($$select pg_temp.op(3,'requests_list',null,jsonb_build_object('beforeId',r.id,'beforeCreatedAt',r.created_at)) from fmat.requests r where r.id='a4000000-0000-4000-8000-000000000099'$$,'P0001','INVALID_INPUT','foreign cursor is rejected');
+select throws_ok($$select pg_temp.op(3,'requests_list',null,jsonb_build_object('beforeId',(select request_id from fixture where n=1),'beforeCreatedAt','2030-01-01T00:00:00Z'))$$,'P0001','INVALID_INPUT','changed cursor timestamp is rejected');
+select throws_ok($$select pg_temp.op(3,'requests_list',null,'{"beforeCreatedAt":"2030-01-01T00:00:00Z"}')$$,'P0001','INVALID_INPUT','partial cursor is rejected');
+select throws_ok($$select pg_temp.op(3,'requests_list',null,'{"search":null}')$$,'P0001','INVALID_INPUT','null filter is rejected');
+select ok(not has_function_privilege(r,'fmat.requester_availability_view(fmat.requests,fmat.calendar_connections)','execute'),r||' denied private availability projection') from unnest(array['anon','authenticated','service_role']) r;
+select ok(not has_function_privilege(r,'fmat.booking_receipt_view(uuid,text)','execute'),r||' denied private receipt projection') from unnest(array['anon','authenticated','service_role']) r;
+select is(pg_temp.op(1,'booking_status',(select request_id from fixture where n=1)),public.fmat_booking_receipt((select credential from fixture where n=1),jsonb_build_object('requestId',(select request_id from fixture where n=1))),'agent booking status matches browser receipt projection');
+select ok(pg_temp.op(1,'booking_status',(select request_id from fixture where n=1))->'receipt'='null'::jsonb,'unconfirmed request has no receipt');
+select is(pg_temp.op(3,'setup_review')->>'path','/app','setup handoff returns workspace');
+select throws_ok($$select pg_temp.op(1,'setup_review')$$,'P0001','FORBIDDEN','requester cannot obtain host setup handoff');
+select is(pg_temp.op(1,'connection_review',(select request_id from fixture where n=1))->>'path','/booking/'||(select request_id::text from fixture where n=1),'requester consent handoff is bound to its request');
+select is(pg_temp.op(3,'decision_review',(select request_id from fixture where n=1))->>'path','/app?request='||(select request_id::text from fixture where n=1)||'&audience=host_private','host decision handoff selects the authorized request');
+select ok(pg_temp.op(1,'decision_review',(select request_id from fixture where n=1)) ? 'proposalVersion','decision handoff states current proposal version');
+select throws_ok($$select pg_temp.op(1,'connection_review',(select request_id from fixture where n=2))$$,'P0001','FORBIDDEN','connection handoff cannot target another request');
+select is(pg_temp.op(1,'scheduling_read',(select request_id from fixture where n=1))->>'availability','reconnect_required','agent scheduling reports unavailable host context truthfully');
+select ok(pg_temp.op(1,'scheduling_read',(select request_id from fixture where n=1))->'publication'='null'::jsonb,'missing context never returns candidates');
+select throws_ok($$select public.fmat_availability_evaluation('current_context',jsonb_build_object('kind','agent','grantId',(select grant_id from fixture where n=1),'tokenExpiresAt',extract(epoch from now())+300),jsonb_build_object('requestId',(select request_id from fixture where n=1),'revision',1))$$,'P0001','FORBIDDEN','browser evaluator rejects agent credential-shaped input');
+select throws_ok($$select fmat.evaluate_availability('start',jsonb_build_object('kind','agent'),jsonb_build_object('requestId',(select request_id from fixture where n=1),'revision',1),null)$$,'P0001','FORBIDDEN','private agent evaluation branch cannot start evaluation writes');
+select is(pg_temp.op(1,'availability_read',(select request_id from fixture where n=1)),public.fmat_requester_availability('status',(select credential from fixture where n=1),'{}'),'agent availability matches browser projection');
+select throws_ok($$select pg_temp.op(3,'availability_read',(select request_id from fixture where n=1))$$,'P0001','FORBIDDEN','host cannot inspect requester calendar selections');
+select throws_ok($$select pg_temp.op(1,'availability_read',(select request_id from fixture where n=2))$$,'P0001','FORBIDDEN','requester availability is request-bound');
+create temporary table availability_draft as select jsonb_build_object('expectedRevision',(select revision from fmat.requests where id=(select request_id from fixture where n=1)),'timezone','UTC','windows',jsonb_build_array(jsonb_build_object('start',now()+interval '1 day','end',now()+interval '2 days'))) as input;
+update fmat.requests set availability_mode='calendar',availability_failed=true where id=(select request_id from fixture where n=1);
+create temporary table availability_result as select pg_temp.op(1,'availability_propose',(select request_id from fixture where n=1),(select input from availability_draft),'c1000000-0000-4000-8000-000000000001') as data;
+select is((select data->'review'->>'status' from availability_result),'pending','availability proposal requires review');
+select is(pg_temp.op(1,'availability_propose',(select request_id from fixture where n=1),(select input from availability_draft),'c1000000-0000-4000-8000-000000000001'),(select data from availability_result),'identical availability retry returns same review');
+select throws_ok($$select pg_temp.op(1,'availability_propose',(select request_id from fixture where n=1),(select input||'{"timezone":"Asia/Seoul"}'::jsonb from availability_draft),'c1000000-0000-4000-8000-000000000001')$$,'P0001','IDEMPOTENCY_CONFLICT','changed availability retry conflicts');
+select throws_ok($$select pg_temp.op(1,'availability_propose',(select request_id from fixture where n=1),(select input||'{"expectedRevision":999}'::jsonb from availability_draft),gen_random_uuid())$$,'P0001','REVISION_CONFLICT','stale availability proposal conflicts');
+select throws_ok($$select pg_temp.op(1,'availability_propose',(select request_id from fixture where n=1),(select input||'{"confirmed":true}'::jsonb from availability_draft),gen_random_uuid())$$,'P0001','INVALID_INPUT','agent cannot claim confirmation');
+select throws_ok($$select pg_temp.op(1,'availability_propose',(select request_id from fixture where n=1),(select input||'{"timezone":""}'::jsonb from availability_draft),gen_random_uuid())$$,'P0001','INVALID_INPUT','empty timezone denied at SQL boundary');
+select throws_ok($$select pg_temp.op(1,'availability_propose',(select request_id from fixture where n=1),(select input||'{"windows":[{}]}'::jsonb from availability_draft),gen_random_uuid())$$,'P0001','INVALID_INPUT','missing interval endpoints denied at SQL boundary');
+select ok((select availability_mode='calendar' and availability_failed and revision=(select (input->>'expectedRevision')::int from availability_draft) from fmat.requests where id=(select request_id from fixture where n=1)),'draft preserves failed Calendar mode and request revision');
+select ok(public.fmat_request_detail_review('apply',(select credential from fixture where n=1),jsonb_build_object('reviewId',(select data->'review'->>'id' from availability_result),'expectedRevision',(select input->'expectedRevision' from availability_draft),'confirmed',true,'idempotencyKey',gen_random_uuid())) is not null,'existing browser review applies the agent draft');
+select is((select details->'windows' from fmat.requests where id=(select request_id from fixture where n=1)),(select input->'windows' from availability_draft),'browser applies exactly the proposed windows');
+select ok((select availability_mode='calendar' and availability_failed and requester_agreed_version is null and host_approved_version is null from fmat.requests where id=(select request_id from fixture where n=1)),'review does not silently replace failed Calendar or approve a meeting');
+select is(pg_temp.op(1,'request_read',(select request_id from fixture where n=1))->>'id',(select request_id::text from fixture where n=1),'guest reads exact request');
+select ok(not pg_temp.op(1,'request_read',(select request_id from fixture where n=1)) ? 'privateNotes','guest projection has no private notes');
+select throws_ok($$select pg_temp.op(1,'request_read',(select request_id from fixture where n=2))$$,'P0001','FORBIDDEN','guest cannot cross request');
+select throws_ok($$select pg_temp.op(4,'request_read',(select request_id from fixture where n=1))$$,'P0001','FORBIDDEN','host cannot cross host');
+select is(pg_temp.op(1,'request_read',(select request_id from fixture where n=1),'{}',null,'request:write')->>'error','invalid_scope','write does not imply read');
+select throws_ok($$select pg_temp.op(1,'setup_read')$$,'P0001','FORBIDDEN','guest cannot read setup');
+select throws_ok($$select pg_temp.op(3,'host_approve',(select request_id from fixture where n=1))$$,'P0001','FORBIDDEN','decision scope cannot approve');
+select throws_ok($$select pg_temp.op(1,'requester_agree',(select request_id from fixture where n=1))$$,'P0001','FORBIDDEN','decision scope cannot agree');
+select is(pg_temp.op(1,'decision_review',(select request_id from fixture where n=1))->>'requiresHumanConfirmation','true','decision returns human handoff');
+select ok((select requester_agreed_version is null and host_approved_version is null from fmat.requests where id=(select request_id from fixture where n=1)),'handoff creates neither approval nor agreement');
+select ok(pg_temp.op(3,'setup_read') ? 'revision','host reads setup');
+select ok(pg_temp.op(3,'setup_analysis_read') is not null,'host reads safe analysis');
+select ok(pg_temp.op(3,'setup_draft',null,jsonb_build_object('expectedRevision',(pg_temp.op(3,'setup_read')->>'revision')::int,'patch',jsonb_build_object('displayName','Draft from agent'),'unresolved','[]'::jsonb),'b1000000-0000-4000-8000-000000000001') ? 'draft','host write produces setup draft');
+select isnt((select display_name from fmat.hosts where id='a1000000-0000-4000-8000-000000000001'),'Draft from agent','draft does not confirm settings');
+select ok(pg_temp.op(3,'private_note_save',(select request_id from fixture where n=1),jsonb_build_object('expectedRevision',(select revision from fmat.requests where id=(select request_id from fixture where n=1)),'text','private agent note'),'b1000000-0000-4000-8000-000000000002') is not null,'host writes own private note');
+select ok(pg_temp.op(3,'request_read',(select request_id from fixture where n=1))::text like '%private agent note%','host can read private note');
+select ok(pg_temp.op(1,'request_read',(select request_id from fixture where n=1))::text not like '%private agent note%','requester cannot see private note');
+select ok(pg_temp.op(1,'details_propose',(select request_id from fixture where n=1),jsonb_build_object('expectedRevision',(select revision from fmat.requests where id=(select request_id from fixture where n=1)),'patch','{"purpose":"Draft purpose"}'::jsonb,'clarifications','[]'::jsonb),'b1000000-0000-4000-8000-000000000003') ? 'review','requester write produces review');
+select isnt((select details->>'purpose' from fmat.requests where id=(select request_id from fixture where n=1)),'Draft purpose','proposed details require human review');
+select ok(pg_temp.op(1,'request_read',(select request_id from fixture where n=1))::text not like '%'||pg_temp.hash(1,'guest')||'%','request secret never forwarded');
+select is(pg_temp.op(1,'request_read',(select request_id from fixture where n=1),'{}',null,null,1)->>'error','invalid_token','expired token denied');
+update fmat.requests set token_hash=repeat('f',64) where id=(select request_id from fixture where n=1);
+select is(pg_temp.op(1,'request_read',(select request_id from fixture where n=1))->>'error','invalid_grant','rotated authority denied');
+select ok((select revoked_at is not null from fmat.oauth_grants where id=(select grant_id from fixture where n=1)),'authority loss revokes grant durably');
+update fmat.requests set status='withdrawn' where id=(select request_id from fixture where n=2);
+select is(pg_temp.op(2,'request_read',(select request_id from fixture where n=2))->>'error','invalid_grant','closed request denied');
+select is(public.fmat_agent_operation((select grant_id from fixture where n=3),(select client_id from fixture where n=3),'https://wrong.example/mcp','host','a1000000-0000-4000-8000-000000000001','host:read',floor(extract(epoch from clock_timestamp()))::bigint+300,'setup_read',null,'{}')->>'error','invalid_grant','foreign resource denied');
+update fmat.oauth_grants set scope='host:read' where id=(select grant_id from fixture where n=3);
+select is(pg_temp.op(3,'setup_read',null,'{}',null,'host:read host:write')->>'error','invalid_grant','old broader token denied after scope narrowing');
+update fmat.oauth_grants set revoked_at=clock_timestamp() where id=(select grant_id from fixture where n=3);
+select is(pg_temp.op(3,'setup_read')->>'error','invalid_grant','revoked grant denied');
+update auth.sessions set not_after=clock_timestamp()-interval '1 second' where id='a2000000-0000-4000-8000-000000000002';
+select is(pg_temp.op(4,'setup_read')->>'error','invalid_grant','original host session loss denied');
+select * from finish();rollback;
