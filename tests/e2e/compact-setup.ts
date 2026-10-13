@@ -26,6 +26,21 @@ export async function verifyCompactSetup(page:Page,context:BrowserContext,origin
   await show.focus();await expect(show).toBeInViewport();await page.screenshot({path:`.local/rebuild/browser-screenshots/compact-preferences-${width}.png`});
   const composer=page.getByLabel('Message Thyme');await composer.focus();await expect(composer).toBeInViewport();
   await page.screenshot({path:`.local/rebuild/browser-screenshots/compact-composer-${width}.png`});
+  const viewport=page.locator('[data-slot="message-scroller-viewport"]');
+  const bounds=(await viewport.boundingBox())!;
+  assert.ok(bounds.x<=1&&bounds.y<=1&&bounds.width>=width-20&&bounds.height>=899,'Conversation scroll surface covers the page');
+  const controls=page.locator('.conversation-controls'),header=page.locator('.workspace-header');
+  const controlsBefore=await controls.boundingBox(),headerBefore=await header.boundingBox();
+  await viewport.evaluate(element=>element.scrollTo({top:0,behavior:'instant'}));
+  await page.mouse.move(width-24,400);await page.mouse.wheel(0,500);
+  await expect.poll(()=>viewport.evaluate(element=>element.scrollTop)).toBeGreaterThan(0);
+  assert.deepEqual(await controls.boundingBox(),controlsBefore,'Composer stays floating while the page scrolls');
+  assert.deepEqual(await header.boundingBox(),headerBefore,'Navigation stays floating while the page scrolls');
+  const latest=page.getByRole('button',{name:'Jump to latest message'});
+  await viewport.evaluate(element=>element.scrollTo({top:0,behavior:'instant'}));
+  await expect(latest).toHaveAttribute('data-active','true');await latest.click();
+  await expect(latest).toHaveAttribute('data-active','false');
+
  }
  await page.evaluate(()=>{document.documentElement.style.zoom='2';});await change.focus();await expect(change).toBeInViewport();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.screenshot({path:'.local/rebuild/browser-screenshots/compact-setup-zoom.png'});

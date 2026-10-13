@@ -260,3 +260,32 @@ button:disabled { cursor:not-allowed; }
 [data-slot="input-group"]:has(:focus-visible) { outline:2px solid var(--ring); outline-offset:3px; --tw-ring-shadow:0 0 #0000; }
 [data-slot="input-group-control"]:focus-visible { outline:none; }
 @media (forced-colors:active) { [data-slot="input-group"]:has(:focus-visible) { outline-color:Highlight; } }
+
+/* Host chat has one page-wide scroll surface; navigation and composition float above it. */
+.workspace-host:has([data-host-chat="true"]) { height:auto; min-height:100dvh; }
+.workspace-host:has([data-host-chat="true"]) .workspace-header {
+ position:fixed; inset:12px clamp(16px,3vw,32px) auto; z-index:20; pointer-events:none;
+}
+.workspace-host:has([data-host-chat="true"]) .workspace-header > * {
+ pointer-events:auto; background:var(--background); border-radius:var(--radius-lg);
+}
+.host-request-workspace[data-host-chat="true"] .conversation-workspace { --conversation-controls-height:200px; }
+.host-request-workspace[data-host-chat="true"] [data-slot="message-scroller"] {
+ position:fixed; inset:0; width:100%; height:auto;
+}
+.host-request-workspace[data-host-chat="true"] [data-slot="message-scroller-viewport"] {
+ scroll-padding-top:88px; scroll-padding-bottom:calc(var(--conversation-controls-height) + 76px);
+}
+.host-request-workspace[data-host-chat="true"] .conversation-workspace [data-slot="message-scroller-content"] {
+ width:min(100%,752px); margin-inline:auto;
+ padding:96px 16px calc(var(--conversation-controls-height) + 88px);
+}
+.host-request-workspace[data-host-chat="true"] .conversation-controls {
+ position:fixed; inset:auto 16px max(12px,env(safe-area-inset-bottom)); z-index:20;
+ width:min(calc(100% - 32px),720px); margin-inline:auto;
+ padding:0; background:var(--background); border-radius:var(--radius-lg);
+ max-height:55dvh; overflow-y:auto;
+}
+.host-request-workspace[data-host-chat="true"] [data-slot="message-scroller-button"] {
+ position:fixed; bottom:calc(var(--conversation-controls-height) + max(12px,env(safe-area-inset-bottom)) + 12px); z-index:20;
+}

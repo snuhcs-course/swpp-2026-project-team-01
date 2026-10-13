@@ -27,9 +27,18 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
   const [followMessages,setFollowMessages]=useState(true),[followSequence,setFollowSequence]=useState(0);
   function followLatest(){setFollowMessages(true);setFollowSequence(value=>value+1);}
   const host=target.audience==='host_setup';
+  const workspace=useRef<HTMLDivElement>(null),controls=useRef<HTMLDivElement>(null);
+  useEffect(()=>{
+    if(!host||!workspace.current||!controls.current)return;
+    const root=workspace.current,composer=controls.current;
+    // Reserve the actual floating controls height, including recovery notices and wrapped suggestions.
+    const resize=new ResizeObserver(()=>root.style.setProperty('--conversation-controls-height',`${composer.getBoundingClientRect().height}px`));
+    resize.observe(composer);
+    return()=>resize.disconnect();
+  },[host]);
   useEffect(()=>{if(chat.denied)setDraft('');},[chat.denied]);
   async function submit(event?:FormEvent){event?.preventDefault();if(!draft.trim()||draft.length>10_000)return;if(await chat.send(draft)){setDraft('');input.current?.focus();followLatest();}}
-  return <AuthoredMessageScope.Provider value={chat.conversationId}><div className="conversation-workspace" data-fresh={host&&!chat.messages.length}>
+  return <AuthoredMessageScope.Provider value={chat.conversationId}><div ref={workspace} className="conversation-workspace" data-fresh={host&&!chat.messages.length}>
     <MessageScrollerProvider autoScroll={followMessages}>
       <FollowSentMessage sequence={followSequence}/>
       <MessageScroller>
@@ -54,7 +63,7 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
         <MessageScrollerButton aria-label="Jump to latest message" onClick={followLatest} className="size-11 rounded-full shadow-sm" />
       </MessageScroller>
     </MessageScrollerProvider>
-    <div className="conversation-controls">
+    <div ref={controls} className="conversation-controls">
       <ConversationRecoveryCard recovery={chat.recovery} pendingMessages={chat.pendingMessages} onContinue={()=>input.current?.focus()}/>
       {chat.error?<Alert><AlertTitle>Conversation connection</AlertTitle><AlertDescription>{chat.error}</AlertDescription>{!chat.denied?<Button variant="ghost" onClick={chat.reconnect}><RefreshCwIcon data-icon="inline-start"/>Reconnect now</Button>:null}</Alert>:null}
       {chat.sendError?<Alert variant="destructive"><AlertTitle>Message needs a retry</AlertTitle><AlertDescription>{chat.sendError}</AlertDescription><Button variant="outline" disabled={chat.sending||!chat.canRetry} onClick={()=>void submit()}>Retry same message</Button></Alert>:null}
