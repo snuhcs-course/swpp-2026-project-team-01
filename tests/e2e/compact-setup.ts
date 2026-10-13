@@ -43,6 +43,9 @@ export async function verifyCompactSetup(page:Page,context:BrowserContext,origin
 
  }
  await page.evaluate(()=>{document.documentElement.style.zoom='2';});await change.focus();await expect(change).toBeInViewport();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ const zoomViewport=(await page.locator('[data-slot="message-scroller-viewport"]').boundingBox())!;
+ assert.ok(Math.abs(zoomViewport.height-900)<2,'Page scroll surface fits the viewport at 200% zoom');
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollHeight>innerHeight),false,'Zoom does not introduce a second scrollbar');
  await page.screenshot({path:'.local/rebuild/browser-screenshots/compact-setup-zoom.png'});
  await change.click();const close=choices.getByRole('button',{name:'Cancel calendar edits'});await expect(close).toBeVisible();await choices.getByRole('checkbox').first().focus();await expect(choices.getByRole('checkbox').first()).toBeInViewport();await page.screenshot({path:'.local/rebuild/browser-screenshots/compact-calendar-edit-zoom.png'});await close.click();await expect(change).toBeFocused();
  await page.evaluate(()=>{document.documentElement.style.zoom='';});await page.setViewportSize({width:1280,height:900});await page.emulateMedia({reducedMotion:'no-preference'});

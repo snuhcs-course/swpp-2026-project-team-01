@@ -262,7 +262,7 @@ button:disabled { cursor:not-allowed; }
 @media (forced-colors:active) { [data-slot="input-group"]:has(:focus-visible) { outline-color:Highlight; } }
 
 /* Host chat has one page-wide scroll surface; navigation and composition float above it. */
-.workspace-host:has([data-host-chat="true"]) { height:auto; min-height:100dvh; }
+.workspace-host:has([data-host-chat="true"]) { height:auto; min-height:0; }
 .workspace-host:has([data-host-chat="true"]) .workspace-header {
  position:fixed; inset:12px clamp(16px,3vw,32px) auto; z-index:20; pointer-events:none;
 }

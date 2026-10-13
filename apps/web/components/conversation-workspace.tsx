@@ -32,7 +32,7 @@ export function ConversationWorkspace({target,onAccessLost,onRequestChanged}:{ta
     if(!host||!workspace.current||!controls.current)return;
     const root=workspace.current,composer=controls.current;
     // Reserve the actual floating controls height, including recovery notices and wrapped suggestions.
-    const resize=new ResizeObserver(()=>root.style.setProperty('--conversation-controls-height',`${composer.getBoundingClientRect().height}px`));
+    const resize=new ResizeObserver(([entry])=>root.style.setProperty('--conversation-controls-height',`${entry.borderBoxSize[0]?.blockSize??composer.offsetHeight}px`));
     resize.observe(composer);
     return()=>resize.disconnect();
   },[host]);
