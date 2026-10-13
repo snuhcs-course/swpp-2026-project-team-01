@@ -234,17 +234,9 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Local development captures mail with local_smtp. Production Auth uses Cloudflare;
-# SMTP setup commands must be recreated/verified in their future owning change.
-# To opt in to real Cloudflare delivery locally, uncomment this block explicitly.
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.mx.cloudflare.net"
-# port = 465
-# user = "api_token"
-# pass = "env(CLOUDFLARE_EMAIL_API_TOKEN)"
-# admin_email = "env(CLOUDFLARE_EMAIL_FROM)"
-# sender_name = "Find Me a Time"
+# Local infrastructure captures mail with local_smtp; no external SMTP is configured here.
+# Product transactional mail is separate from Google-only host login.
+# Hosted Auth/provider settings require verification in their future owning change.
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

@@ -2,7 +2,7 @@
 
 ## Context
 
-The repository contains product/UX plans, fifteen agreed capability specs, shared skills and inactive Supabase configuration. Application source and application migration history are absent locally. See [proposal](proposal.md) for motivation and scope. No previous implementation pass establishes replacement acceptance.
+The repository contains product/UX plans, fifteen agreed capability specs, shared skills and inactive Supabase configuration. Application source and application migration history are absent locally. The separately authorized reset on selected Supabase project `anelszynxtvxoxqvzgqt` also removed application objects, migration records, legacy jobs and queues; managed Auth/Storage/Vault remain. See [provider setup](../../../documentations/technical_specification/03_provider_setup.md#selected-rebuild-supabase-project) for the verified baseline and [proposal](proposal.md) for motivation and scope. No previous implementation pass establishes replacement acceptance.
 
 ## Goals / Non-Goals
 
@@ -47,12 +47,14 @@ Use fixture-based OAuth exact-resource/PKCE/callback/current-grant checks and Ph
 - Runtime integration changes → pin a freshly inspected version/template pair, verify both production builds and record supported persistence/recovery behavior.
 - Framework retry appears successful while application work is lost/duplicated → inject process death after commit/before acknowledgment and lost wake-ups; require one saved synthetic effect with original input identity.
 - A raw endpoint bypasses scope checks → inventory every exposed runtime entry and test anonymous, foreign, revoked, expired and retired-generation calls.
-- Reset migration history is accidentally deployed to existing data → isolate synthetic storage; restore/reconcile applied history before using an existing target. Never push a new empty-baseline chain onto it.
+- Synthetic fixtures become a hosted migration backlog → isolate S1 storage; S2 owns the selected project's first application chain after a fresh baseline check. Reconcile applied history for any other populated target; never push an empty-baseline chain onto existing application data.
+- New objects inherit unintended client access → review namespace/default privileges, explicit grants/revokes and RLS before applying the first application chain; the prior reset did not remove existing `public` default grants.
+- Old external consumers process replacement state → identify and fence consumers before any remote schema/API activation or live provider test; an empty database job catalog does not prove old deployments/webhooks are inactive.
 - Foundational tests are presented as release success → record fixture/provider evidence separately; all AC rows stay pending until their complete journeys pass.
 
 ## Migration Plan
 
-There is no runtime deployment in the planning task. Future implementation starts in an isolated no-send development/preview environment after the database-baseline decision. Introduce the minimum reviewed synthetic persistence chain using the repository workflow. Before any remote step, identify the environment and its existing consumers/history.
+There is no runtime deployment in the planning task. After a new implementation request, S1 starts in isolated disposable no-send storage, preserving the selected hosted project's clean application baseline. Introduce only the minimum reviewed synthetic persistence chain using the repository workflow; it is not an implicit pending chain for that hosted project. S2 authors the first product chain after rechecking the selected baseline and reviewing managed identity/configuration, namespace/default privileges, grants and RLS. Follow the [entry gates](../../../documentations/technical_specification/04_implementation_plan.md#clean-supabase-baseline-and-entry-gates), including environment/consumer ownership before any remote step or live provider test.
 
 Do not replace current external callbacks or promote the release origin from a local build pass. Managed acceptance, if needed for the selected topology, uses a controlled synthetic preview and explicit environment authorization. Rollback removes/deactivates only that replacement environment and its consumers; it never rewrites applied history or resets existing hosted data. Update architecture/setup with actual verified commands and limits before closing the slice.
 

@@ -4,6 +4,8 @@ Status: clean application baseline verified; provider/runtime acceptance pending
 
 Date: 2026-10-13
 
+Reviewed: 2026-10-14
+
 The local application/SQL were removed and the selected hosted application schema was subsequently reset under explicit user authorization. The fresh audit below confirms the clean application baseline. This document combines verified database setup facts with future provider checks; external deployments, DNS, callbacks, inboxes, lines and provider grants were not reconfigured and may still have active consumers.
 
 ## Reconstruction deployment origin
@@ -43,6 +45,8 @@ Default privileges were also inspected. Objects created by `postgres` or `supaba
 The retained local config has PostgreSQL major 17, pg-delta enabled, migrations/seeds disabled and no declarative `schema_paths`. Its `project_id` is a local-stack identifier, not the hosted project ref, and its local Auth defaults are not evidence of hosted Google-only configuration. Project-bound application keys, hosted Auth settings, callbacks, deployed APIs and provider/client readiness remain unverified. Check these at their entry gates in the [implementation plan](04_implementation_plan.md#clean-supabase-baseline-and-entry-gates).
 
 The fresh queries returned schema/role metadata and aggregate counts only. No private identity details, tokens, Vault values or transcripts were retrieved. The selected project was not mutated during this recheck.
+
+A repeat read-only catalog/aggregate check on 2026-10-14 using Supabase CLI 2.119.0 and the same explicit linked project ref confirms the application object/type, migration, job and queue counts remain zero. Managed counts remain one Auth user with one Google identity, zero Storage buckets/objects and two unread Vault secrets; PostgreSQL and installed extension versions are unchanged. This repeat check did not re-audit default privileges or hosted Auth/provider settings. Recheck again before implementation or remote activation.
 
 ### Authorized application schema reset — 2026-10-13
 

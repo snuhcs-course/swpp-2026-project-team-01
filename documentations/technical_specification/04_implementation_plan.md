@@ -2,6 +2,8 @@
 
 Date: 2026-10-13
 
+Reviewed: 2026-10-14
+
 Status: planning complete for review; **implementation has not started**
 
 ## Starting point and scope
@@ -16,7 +18,7 @@ The [PRD](../02_product_requirements.md) owns FR-01–FR-36 and AC-01–AC-28. P
 
 ## Clean Supabase baseline and entry gates
 
-The fresh 2026-10-13 catalog audit confirms zero application relations, functions and enum/domain types, zero migration records, zero scheduled jobs and zero registered queues on the selected project. `public` remains empty and `fmat` is absent. This is an empty **application** baseline: managed schemas, one Google Auth identity, two unread Vault secrets and installed infrastructure extensions remain. [Provider setup](03_provider_setup.md#clean-project-recheck--2026-10-13) owns the full observed inventory and verification limits.
+The 2026-10-13 catalog audit, repeated on 2026-10-14, confirms zero application relations, functions and enum/domain types, zero migration records, zero scheduled jobs and zero registered queues on the selected project. `public` remains empty and `fmat` is absent. This is an empty **application** baseline: managed schemas, one Google Auth identity, two unread Vault secrets and installed infrastructure extensions remain. [Provider setup](03_provider_setup.md#clean-project-recheck--2026-10-13) owns the full observed inventory and verification limits.
 
 | Entry gate | Owner / timing | Required result before proceeding |
 |---|---|---|

@@ -6,7 +6,7 @@ Planning only. **0 tasks implemented.** Start only after a new explicit implemen
 
 - [ ] 1.1 Inspect current supported Next.js/eve integration and model metadata, pin npm/runtime/dependency/template revisions, and record the compatibility decision in frontend/provider docs; verify the selected metadata and lockfile without inheriting old version claims.
 - [ ] 1.2 Scaffold only root agent, web and shared safe/server boundaries with independent production builds; verify fresh installation and both builds, and document exact commands in root/app READMEs.
-- [ ] 1.3 Establish an isolated disposable synthetic persistence baseline with no live effects, preserving any existing applied history; verify target separation and reviewed pg-delta/local fixture setup, and document what may be reset in the provider setup guide.
+- [ ] 1.3 Establish isolated disposable synthetic persistence with no live effects, without bootstrapping the selected hosted project; verify target separation and reviewed pg-delta/local fixture setup, preserve any existing applied history, and document reset limits plus S2 ownership of the selected project's first product chain in the provider setup guide. Scratch fixtures must not become that project's implicit migration backlog.
 - [ ] 1.4 Wire preferred managed execution persistence and the minimum durable dispatcher/wake-up boundary; verify an accepted synthetic input survives restart, and record process/worker ownership in backend architecture.
 
 ## 2. Protect application and runtime boundaries
