@@ -1,3 +1,4 @@
+# Inactive local infrastructure after source reset; see supabase/README.md.
 # For detailed configuration reference documentation, visit:
 # https://supabase.com/docs/guides/local-development/cli/config
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
@@ -57,18 +58,16 @@ max_client_conn = 100
 # secret_key = "env(SECRET_VALUE)"
 
 [db.migrations]
-# If disabled, migrations will be skipped during a db push or reset.
-enabled = true
-# Specifies an ordered list of schema files, directories, or glob patterns that describe your database.
-# Supports paths relative to supabase directory: "./schemas/*.sql", "./database".
-schema_paths = []
+# No application migration chain remains. Re-enable only after baseline review.
+enabled = false
+# pg-delta orders declarative dependencies; do not configure schema_paths.
 
 [db.seed]
-# If enabled, seeds the database after migrations during a db reset.
-enabled = true
+# No application seed exists in the planning checkout.
+enabled = false
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["./seed.sql"]
+sql_paths = []
 
 [db.network_restrictions]
 # Enable management of network restrictions.
@@ -217,8 +216,8 @@ web3 = 30
 # secret = ""
 
 [auth.email]
-# Local-only admin/password fixtures use this provider. Hosted MVP auth uses
-# auth-mvp.toml to disable email login and enable identity-only Google sign-in.
+# Local infrastructure defaults only; no app/Auth fixtures remain.
+# Hosted Google-only policy must be configured in its future owning change.
 # Allow/disallow new user signups via email to your project.
 enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
@@ -235,17 +234,9 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Local development captures mail with local_smtp. Production Auth uses Cloudflare;
-# apply only SMTP settings with scripts/configure-email-smtp.mjs, not a full config push.
-# To opt in to real Cloudflare delivery locally, uncomment this block explicitly.
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.mx.cloudflare.net"
-# port = 465
-# user = "api_token"
-# pass = "env(CLOUDFLARE_EMAIL_API_TOKEN)"
-# admin_email = "env(CLOUDFLARE_EMAIL_FROM)"
-# sender_name = "Find Me a Time"
+# Local infrastructure captures mail with local_smtp; no external SMTP is configured here.
+# Product transactional mail is separate from Google-only host login.
+# Hosted Auth/provider settings require verification in their future owning change.
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

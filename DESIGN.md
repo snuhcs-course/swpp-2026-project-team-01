@@ -1,7 +1,7 @@
 ---
 title: Find Me a Time — Thyme Visual Design
-date: 2026-10-12
-status: Visual direction; light theme implemented
+date: 2026-10-13
+status: Visual direction; replacement implementation pending
 colors:
   canvas: "#FAF8F2"
   surface: "#FFFDF8"
@@ -45,7 +45,7 @@ This document defines the visual direction developed from the Thyme logo explora
 
 **Find Me a Time** is the product; **Thyme** is its scheduling assistant. The [design principles](documentations/04_design_principles.md) own interaction direction. The [one-pager](documentations/01_one_pager.md), [PRD](documentations/02_product_requirements.md), and [capability specifications](openspec/specs/) own product scope and behavior. Visual styling must preserve their consent, privacy, and booking rules.
 
-The selected logo is saved in the repository. The app adopts the light theme through its shared tokens, controls, wordmark, and conversation components. See [Known gaps](#known-gaps).
+The selected logo and uncropped reference are retained as documentation assets. The replacement app has not been implemented. See [Known gaps](#known-gaps).
 
 ## Mood
 
@@ -55,9 +55,9 @@ Use muted olive, warm ivory, dark natural ink, fine lines, and restrained serif 
 
 ## Logo
 
-![Thyme botanical clock logo](apps/web/public/logo.png)
+![Thyme botanical clock logo](documentations/assets/thyme-logo.png)
 
-The selected logo asset is [apps/web/public/logo.png](apps/web/public/logo.png), served directly as `/logo.png` by the web app. The shared wordmark opts out of Next.js image optimization because the current multi-service deployment does not serve its `/_next/image` endpoint. Deployment verification must await image decoding and check nonzero natural dimensions, not only the styled element size. It is a centered 380 × 380px square crop of the last botanical image generated with GPT Image 2. The broad empty margins have been removed, keeping at least a 2px edge allowance around the artwork. The crop retains the original pixels and ivory background without stretching the mark. The [uncropped reference](documentations/assets/thyme-logo-concept.png) remains available for provenance.
+The selected logo asset is [documentations/assets/thyme-logo.png](documentations/assets/thyme-logo.png), a 380 × 380px square crop of the original generated artwork. It retains the original pixels and ivory background without stretching the mark. The [uncropped reference](documentations/assets/thyme-logo-concept.png) remains available for provenance. Future application asset paths and serving behavior require implementation and visual verification.
 
 The mark is a thyme sprig curving along the left and bottom of an open clock circle. The hands read **10:10**, with a shorter hour hand pointing upper left and a longer minute hand pointing upper right. Preserve the slender organic stems, small leaves, open arc, and understated central hub.
 
@@ -107,11 +107,11 @@ The main background should resemble **warm matte uncoated paper** with fine, irr
 - Keep a solid-color fallback while the texture loads. In forced-colors mode, omit the texture and honor system colors; omit it for printing as well.
 - Check the tile for visible seams at mobile and desktop widths and at 200% zoom. Recheck text and focus contrast on the darkest textured area.
 
-The logo reference's ivory backdrop conveys the palette. The original procedural [paper tile](apps/web/public/paper-grain.svg) is served locally at a fixed 128px scale and 2.5% opacity; do not tile the logo image or use it as the page background.
+The logo reference's ivory backdrop conveys the palette. A future original paper tile should use a fixed fine-grain scale and 2.5% opacity; do not tile the logo image or use it as the page background.
 
 ## Typography
 
-Use **Merriweather** for editorial display headings, **Geist** for body and interface text, and **Geist Mono** for technical identifiers where needed. Preserve system fallbacks. The app loads all three fonts through Next.js, with Geist used for body text.
+Use **Merriweather** for editorial display headings, **Geist** for body and interface text, and **Geist Mono** for technical identifiers where needed. Preserve system fallbacks. The replacement should load these fonts with system fallbacks and use Geist for body text.
 
 | Role | Size | Weight | Line height | Usage |
 | --- | --- | --- | --- | --- |
@@ -156,7 +156,7 @@ Default to flat surfaces and 1px lines. Paper texture supplies the material char
 | Empty state | One clear explanation and next action; optional small botanical illustration |
 | Dialog | Smooth paper surface, accessible title, clear action order, preserved focus behavior |
 
-Reuse installed shadcn and conversation components. Prefer their variants; update shared recipes rather than scattering color and typography overrides at call sites. Keep information density appropriate to each task: an airy landing page should not make calendar review cumbersome.
+Use the selected shadcn and conversation-component direction after fresh dependency setup. Prefer their variants; update shared recipes rather than scattering color and typography overrides at call sites. Keep information density appropriate to each task: an airy landing page should not make calendar review cumbersome.
 
 ## Voice and motion
 
@@ -179,13 +179,11 @@ Use brief 120–180ms color and opacity transitions. Preserve a stable reading p
 
 **Don't:** put texture behind detailed task content, use pale botanical color for small text, spread leaves across every control, use a monochrome palette to hide errors, or substitute visual calm for clear confirmation.
 
-## Implementation mapping
+## Proposed implementation mapping
 
-The current app uses Next.js, Tailwind CSS v4, shadcn `radix-mira`, and Lucide icons. Its [component configuration](components.json), [global stylesheet](apps/web/app/globals.css), and [root layout](apps/web/app/layout.tsx) remain the implementation owners.
+Use the future shared stylesheet, root layout and component recipes as implementation owners; those files do not exist in this planning checkout. Preserve the selected Next.js, Tailwind/shadcn and accessible conversation UI direction, with dependency versions/preset chosen in the foundation slice.
 
-Map canvas to `--background`, ink to `--foreground` and surface foreground roles, surface to `--card` and `--popover`, action olive to `--primary`, ivory to `--primary-foreground`, soft wash to `--secondary`, `--muted`, and `--accent`, and secondary ink to `--muted-foreground`. Set `--secondary-foreground` and `--accent-foreground` to ink. Map decorative line to `--border`, field boundary to `--input`, and focus to `--ring`. Register additional botanical, hover, pressed, warning, and success tokens where no existing semantic role fits.
-
-Apply the radius scale deliberately in the Tailwind theme. Load Geist before switching the body font, and keep compact component titles on the sans-serif face. Implement the paper layer separately from surface tokens so cards and fields remain clean. Preserve existing component APIs and consent flows; this document does not require switching presets or primitive libraries.
+Map canvas/ink to background/foreground, surface to card/popover, action olive/ivory to primary roles, soft wash to secondary/muted/accent, decorative line to border, field boundary to input and focus to ring. Keep additional hover/pressed/warning/success roles explicit. Apply the radius scale deliberately, load fonts before switching family, and keep the decorative paper layer separate from clean controls/content.
 
 ## Iteration guide
 
@@ -193,16 +191,10 @@ When applying the design, start with the canvas, paper layer, text contrast, and
 
 Review a landing page, a conversation with long messages, a proposal awaiting host approval, validation errors, and a keyboard-focused dialog. Check 375px and 1280px widths, 200% zoom, reduced motion, and forced colors. Run the app checks relevant to changed code; documentation validation alone cannot verify a rendered theme.
 
-## Implementation verification — 2026-10-12
-
-The existing application is themed in place; component APIs, consent rules, and stream-once behavior are retained. No new behavior specification or primitive-library migration is introduced by this styling change. The frontend architecture now points here instead of describing the original preset colors and fonts.
-
-Rendered checks cover landing and access pages at 320px, 375px, and 1280px, 200% zoom, reduced motion, forced colors, and print. The texture is absent in forced colors and print, and focused controls use a 2px outline with a 3px offset. Mobile conversation, Google connection dialog, and scheduling proposal screenshots were reviewed. Flat-token contrast checks cover body/supporting copy, primary/hover/pressed labels, field borders, and errors. Production builds, TypeScript, documentation links, and client-boundary checks pass. All three isolated onboarding journeys pass, including mobile/zoom, calendar/setup read recovery, and iMessage controls. Full-suite attempts covered the Google modal and scheduling screenshots but did not complete cleanly: recovery fixtures needed to await saved transcript replay, and the latest full run stopped on an intermittent private-review checkbox click. That broader suite is not claimed as passing.
-
 ## Known gaps
 
-- The light theme is implemented in the global stylesheet and shared components. Existing consent, confirmation, and stream-once behavior is preserved; interaction parity remains governed by the capability specifications.
-- Product headers use the selected cropped PNG at 48px with 10px clear space. Assistant messages use the Thyme text label; a clean vector master, simplified small-size mark, and light/dark export variants are still needed.
-- The static procedural paper tile is separate from clean conversation, form, card, and overlay surfaces. It is disabled for print, forced colors, and the existing dark fallback.
-- Existing dark tokens are not a validated botanical dark theme. A dark treatment requires a separate contrast and visual pass; do not invert the paper texture automatically.
-- The Pinterest references inform the mood only. Use original artwork and typography; they do not grant rights to reuse source brand assets.
+- All replacement theme implementation and rendered accessibility checks are pending; previous screenshots/test passes describe removed source.
+- The cropped PNG and uncropped original are retained under documentation assets. A vector master, simplified small-size mark and export variants still need preparation and verification.
+- Prepare and verify an original seamless paper tile when the UI is implemented. It must be disabled in print and forced colors.
+- A botanical dark theme requires separate contrast/visual review; do not invert the texture automatically.
+- Moodboard references inform visual direction only. Use original artwork and typography; they do not grant rights to reuse source brand assets.
