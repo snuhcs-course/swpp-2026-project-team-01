@@ -2,7 +2,7 @@
 
 Date: 2026-10-13
 
-Reviewed: 2026-10-14
+Reviewed: 2026-10-15
 
 Status: planning complete for review; **implementation has not started**
 
@@ -26,7 +26,7 @@ The 2026-10-13 catalog audit, repeated on 2026-10-14, confirms zero application 
 | Synthetic runtime storage | S1 | Isolated disposable storage with no live delivery or production identity bypass; scratch fixtures never become an implicit migration backlog for the selected project |
 | First application migration chain | S2 design / before any remote schema apply | Recheck the empty application baseline; author new desired SQL and generate/review a new chain; keep managed Auth/Storage/Vault intact and account for preinstalled extension prerequisites |
 | Exposure and grants | Before first schema apply, then each schema slice | Review namespace/role/default-privilege matrix, explicit grants/revokes and RLS; test anonymous/authenticated bypass denial because new `public` objects can inherit broad existing defaults |
-| Retained identity and settings | Before S2 hosted acceptance | A preserved Google identity is not an admitted host; verify current Google-only login configuration/callbacks and create admission/profile/grants only through new authorized operations |
+| Retained identity and settings | Before S2 hosted acceptance | A preserved Google identity is not an admitted host; verify Google-only login/callbacks and Cloudflare SMTP routing/sender for applicable non-login Auth notifications; create admission/profile/grants only through new authorized operations |
 | Environment and consumer ownership | Before the first remote schema/API activation and each live provider test in S2–S9 | Identify project-bound credentials and callbacks, default previews to no-send, and fence competing old consumers before enabling replacement processing; zero database cron jobs does not prove old deployments/webhooks are inactive |
 
 The recorded PostgreSQL version is 17.6, consistent with local major version 17. The local `config.toml` project ID identifies a disposable local stack; the ignored CLI link identifies the hosted target. It is not a verified hosted configuration export. Local migration/seed execution stays disabled until implementation authorization and reviewed re-enablement. Do not replay old migrations, private backup data, queue definitions or scheduled jobs into the new baseline.
@@ -70,6 +70,8 @@ S1 synthetic fixtures use isolated disposable storage. Before S2 product SQL, re
 
 Verify hosted Google-only login settings, exact callbacks and project-bound application credentials; neither the local config nor the surviving Google identity establishes that acceptance. Separate Google sign-in from admission and Calendar permission. The retained account must pass new admission rather than inheriting removed host/profile/grant state. Implement deduplicated waitlist, verified-recipient seven-day invitations, atomic redeem/retry/revoke, stable/reserved handles and publication guards. Provide a distinct environment-bound administrator CLI for issuance/status/revoke/recovery so invited users can complete the journey. Add durable Cloudflare dispatch and truthful uncertainty; no Auth email login.
 
+Preserve and verify hosted Cloudflare custom SMTP for applicable non-login Auth notifications under the [provider setup gate](03_provider_setup.md#cloudflare-email-service). Record configuration, selected sender and controlled notification evidence where applicable before hosted Auth acceptance; keep Google-only login and no fallback sender. Removed local SMTP examples are not evidence of hosted configuration or delivery.
+
 Exit: account/admission bypass and two-host isolation negatives pass across direct operations; controlled invitation recipient delivery/redemption is recorded before claiming live delivery. User OAuth/client guards added later must reuse this boundary.
 
 ### S3 — Guided host setup
@@ -84,9 +86,11 @@ Exit: consent/reload, duplicate calendar names, read-only destination, sparse/fa
 
 Build public host entry and protected `/booking/[bookingId]`, with English/Korean clarification and reviewed extraction. Offer optional identity-only Google prefill and manual name/contact; verify alternate/manual addresses before attendee/private recovery use. Optional requester Calendar consent is request-bound, availability-only and independent of admission.
 
+Provide accessible verified-contact access recovery at the booking destination without requiring prior browser access. Preserve generic issuance feedback, all retained proof/rate limits, fragment-to-HttpOnly exchange, exact retry and atomic replacement of the request credential. Replacement revokes old credentials, pending contact proofs and linked channels; closed requests cannot recover. Follow the [requester recovery design](../user_experience/04_page_list.md#requester-booking-destination); this is distinct from runtime reconnect/terminal recovery.
+
 Preserve expected revisions, immutable proposals, audience separation, exact retry/withdrawal/decline/expiry guards and minimal terminal receipt access. Enforce seven-day/earlier-window request deadlines and at-most-thirty-day guest credentials; closure denies mutations/OAuth/recovery. Reconnect or explicit manual/agent availability replaces unavailable requester data, never assumed free time.
 
-Exit: two-request/two-host isolation, wrong-browser callbacks, contact rotation/recovery, stale extraction, closed access and lost-response/reload tests pass; both optional and skipped Google paths work.
+Exit: two-request/two-host isolation, wrong-browser callbacks, recovery without prior access, generic unknown/wrong/unverified/closed-request feedback, expired/replayed recovery proof, credential/contact rotation, stale extraction, closed access and lost-response/reload tests pass; both optional and skipped Google paths work.
 
 ### S5 — Feasibility and negotiation
 

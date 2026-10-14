@@ -4,7 +4,7 @@ Status: clean application baseline verified; provider/runtime acceptance pending
 
 Date: 2026-10-13
 
-Reviewed: 2026-10-14
+Reviewed: 2026-10-15
 
 The local application/SQL were removed and the selected hosted application schema was subsequently reset under explicit user authorization. The fresh audit below confirms the clean application baseline. This document combines verified database setup facts with future provider checks; external deployments, DNS, callbacks, inboxes, lines and provider grants were not reconfigured and may still have active consumers.
 
@@ -133,7 +133,7 @@ Fresh checks must record OAuth application ownership/publishing state, exact cal
 
 Retain Cloudflare for transactional host invitations, contact verification, private recovery and confirmed booking messages, with sender `no-reply@findmeatime.com`. Verify sender/domain ownership, API permissions, delivery outcomes and provider retry limits using authorized controlled recipients. API acceptance is distinct from inbox delivery.
 
-Existing Auth SMTP may remain externally configured, but Google-only login does not require enabling Auth email login or testing password-reset/magic-link journeys. Any later need for Auth email must first reconcile the release scope. Old SMTP/invitation scripts and commands no longer exist.
+Preserve Cloudflare custom SMTP for applicable non-login Supabase Auth notifications, as required by the [email-delivery contract](../../openspec/specs/email-delivery/spec.md#requirement-separate-transactional-sending-from-conversations). S2 owns verification of the selected project's hosted SMTP configuration, sender/domain and applicable notification routing before hosted Auth acceptance; current settings and delivery remain unverified. Applicable production Auth notifications must use `no-reply@findmeatime.com` through Cloudflare SMTP, with no fallback sender. Record controlled notification evidence where applicable; SMTP configuration alone does not prove inbox delivery. This retains Google-only sign-in and does not enable email/password, email OTP or magic-link login or add password-reset login journeys. Old SMTP/invitation scripts and commands no longer exist; this planning fix configures no hosted service.
 
 ### Host invitation operations
 
