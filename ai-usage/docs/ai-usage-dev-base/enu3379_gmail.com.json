@@ -1,0 +1,23 @@
+{
+  "branch": "docs/ai-usage-dev-base",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:ec918075-b5a9-404f-aa16-110a3ba99187": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 69440,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 14,
+          "cache_read": 784531,
+          "cache_write_5m": 0,
+          "cache_write_1h": 7453,
+          "output": 5530,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-15T16:25:46.673Z",
+      "last": "2026-10-15T16:27:13.412Z"
+    }
+  }
+}
