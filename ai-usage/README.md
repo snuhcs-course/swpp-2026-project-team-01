@@ -16,7 +16,7 @@ git config core.hooksPath .githooks
 - Node.js가 `PATH`에 있어야 합니다. 의존성 설치는 없습니다.
 - `git config user.email`이 설정돼 있어야 합니다. 기록 파일 이름으로 쓰입니다.
 - **task용 branch나 worktree를 만들기 전에** 설정하세요. 설정 전에 만들었다가 지운 worktree의 사용량은 복구할 수 없습니다.
-- 이 도구가 들어오기 전에 만든 branch에는 main을 merge(또는 rebase)해 오세요. hook은 각 worktree에 체크아웃된 `.githooks/`에서 실행되므로, 그 파일이 없는 branch에서는 오류 없이 아무것도 기록되지 않습니다.
+- 이 도구가 들어오기 전에 만든 branch에는 dev를 merge(또는 rebase)해 오세요. hook은 각 worktree에 체크아웃된 `.githooks/`에서 실행되므로, 그 파일이 없는 branch에서는 오류 없이 아무것도 기록되지 않습니다.
 
 ## 사용법
 
@@ -90,8 +90,8 @@ Claude와 Codex(OpenAI)는 토큰을 세는 방식이 다릅니다. OpenAI는 ca
 | 상황 | 처리 |
 |---|---|
 | repo 또는 그 worktree 안(하위 폴더 포함)에서 연 세션 | 그 시점의 branch로 집계 |
-| main이나 detached 상태에서 시작해, 같은 세션에서 새 branch로 이동 | 앞부분도 새 branch로 집계 |
-| 끝까지 main에만 있던 세션 | main 몫으로 남음 |
+| 기본 브랜치(dev)나 detached 상태에서 시작해, 같은 세션에서 새 branch로 이동 | 앞부분도 새 branch로 집계 |
+| 끝까지 dev에만 있던 세션 | dev 몫으로 남음 |
 | 끝까지 detached였던 세션 | 집계하지 않고 커밋할 때 경고 출력 |
 | `git branch -m`으로 이름 변경 | 옛 이름의 기록이 새 이름으로 합쳐짐 |
 | 작업 후 worktree 삭제 | 그대로 집계됨 (`.git/ai-usage-branches.log`에 branch 변경 기록이 남음) |
