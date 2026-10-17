@@ -7,7 +7,6 @@
     "dev": "next dev -H 127.0.0.1",
     "build": "next build",
     "start": "next start -H 127.0.0.1",
-    "imessage": "node --env-file=.env.local --import tsx scripts/imessage-agent.ts",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
     "db:reset": "tsx --env-file=.env scripts/db-reset.ts",
