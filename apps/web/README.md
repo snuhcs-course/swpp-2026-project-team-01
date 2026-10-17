@@ -48,6 +48,18 @@ npm test                  # 단위·서버 테스트 (서버 테스트는 PGlite
 | `TOKEN_ENCRYPTION_KEY` / `IMPACT_SIGNING_KEY` | real 모드 전용 32바이트 키(`openssl rand -hex 32`) |
 | `DATABASE_POOL_MAX` | 선택. 연결 풀 크기(기본 5) |
 
+## Photon iMessage 에이전트
+
+`scripts/imessage-agent.ts`는 웹 앱과 별도의 Node.js 프로세스로 실행되는 Photon Spectrum 에코 에이전트입니다. 앱의 Next.js 요청 수명 주기와 분리해 실행하며, iMessage 텍스트를 받으면 `Photon Spectrum is connected. You said: <message>`로 답합니다.
+
+Photon 프로젝트의 `SPECTRUM_PROJECT_ID`와 `SPECTRUM_PROJECT_SECRET`을 `.env.local`에 설정합니다. 실제 자격증명 파일은 Git에 추가하지 않습니다. `.env.example`은 변수 이름만 기록합니다.
+
+```bash
+npm run imessage
+```
+
+개발 중에는 `npm run dev`와 `npm run imessage`를 각자 터미널에서 실행합니다. Free/Pro 프로젝트에서는 등록된 테스트 번호로 Photon이 할당한 iMessage 번호에 메시지를 보냅니다. 에이전트를 종료하려면 `Ctrl+C`를 누릅니다.
+
 ## 예약 링크
 연락처로 추가한 사람만 예약할 수 있다(데모 포함). 호스트 설정의 "내 예약 링크"(`/invite/<토큰>`)를 보내면, 받은 사람이 링크를 열거나 예약하기 화면에 붙여 넣을 때 서로 연락처가 된다. "새 링크로 바꾸기"를 하면 이전 링크는 열리지 않고 기존 연락처는 유지된다. 데모 시드는 김민준↔박지호, 김민준↔최하나만 연결해 두고 이서연은 비워 둔다. 이서연으로 바꿔 호스트 설정의 링크를 복사한 뒤, 박지호로 바꿔 링크를 열거나 예약하기에 붙여 넣으면 링크 흐름을 확인할 수 있다.
 
