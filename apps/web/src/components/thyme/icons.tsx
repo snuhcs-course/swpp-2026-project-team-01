@@ -1,4 +1,4 @@
-// AI-generated with Claude Code (claude-opus-5-5), 2026-10-16
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-16, 2026-10-17
 // Small inline icons shared by the landing and the host screens. All are decorative: the control around them carries the label.
 
 export function GoogleLogo() {
@@ -48,6 +48,23 @@ export function AccountIcon() {
     <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
       <circle cx="10" cy="7" r="3.4" fill="none" stroke="currentColor" strokeWidth="1.6" />
       <path d="M3.6 17c.9-3.2 3.4-5 6.4-5s5.5 1.8 6.4 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function GlobeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M1.8 8h12.4M8 1.8c1.7 1.8 2.5 3.9 2.5 6.2S9.7 12.4 8 14.2C6.3 12.4 5.5 10.3 5.5 8S6.3 3.6 8 1.8z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function Check() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      <path d="M2.5 7.4 5.6 10.4 11.5 3.8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

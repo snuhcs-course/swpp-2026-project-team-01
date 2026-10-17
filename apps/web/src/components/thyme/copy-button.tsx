@@ -1,23 +1,25 @@
-// AI-generated with Claude Code (claude-opus-5-5), 2026-10-16
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-16, 2026-10-17
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Copy } from "./copy";
 import { CopyIcon } from "./icons";
 
 // Copies `text`. When the clipboard is refused, it selects `fallbackTarget` so the person can copy it themselves.
-export function CopyButton({ text, className, fallbackTarget }: {
+export function CopyButton({ text, className, labels, fallbackTarget }: {
   text: string;
   className: string;
+  labels: Copy["copy"];
   fallbackTarget?: React.RefObject<HTMLElement | null>;
 }) {
-  const [label, setLabel] = useState("Copy");
+  const [shown, setShown] = useState<keyof Copy["copy"]>("idle");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  function show(message: string) {
-    setLabel(message);
+  function show(message: keyof Copy["copy"]) {
+    setShown(message);
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => setLabel("Copy"), 1600);
+    timer.current = setTimeout(() => setShown("idle"), 1600);
   }
   function selectFallback() {
     const el = fallbackTarget?.current;
@@ -28,17 +30,17 @@ export function CopyButton({ text, className, fallbackTarget }: {
       selection?.removeAllRanges();
       selection?.addRange(range);
     }
-    show("Select the text");
+    show("fallback");
   }
   function copy() {
     if (!navigator.clipboard?.writeText) return selectFallback();
-    navigator.clipboard.writeText(text).then(() => show("Copied"), selectFallback);
+    navigator.clipboard.writeText(text).then(() => show("done"), selectFallback);
   }
 
   return (
     <button className={className} type="button" onClick={copy}>
       <CopyIcon />
-      <span>{label}</span>
+      <span>{labels[shown]}</span>
     </button>
   );
 }

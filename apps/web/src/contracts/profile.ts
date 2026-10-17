@@ -27,8 +27,11 @@ export const patchDraftSchema = z.strictObject({
   proposalId: idSchema.optional(), sourceRevision: revisionSchema.optional(),
 })
 export const confirmProfileSchema = z.strictObject({ expectedRevision: revisionSchema, baseProfileVersion: revisionSchema.nullable() })
-export const onboardingTurnSchema = z.strictObject({ expectedRevision: revisionSchema, text: textSchema })
-export const analyzeDraftSchema = z.strictObject({ expectedRevision: revisionSchema })
+/** The language Thyme answers in. Callers that leave it out get Korean, the app screens' language. */
+export const localeSchema = z.enum(["en", "ko"])
+export type Locale = z.infer<typeof localeSchema>
+export const onboardingTurnSchema = z.strictObject({ expectedRevision: revisionSchema, text: textSchema, locale: localeSchema.optional() })
+export const analyzeDraftSchema = z.strictObject({ expectedRevision: revisionSchema, locale: localeSchema.optional() })
 export const profileViewSchema = z.strictObject({ version: revisionSchema, values: profileValuesSchema, confirmedAt: instantSchema.nullable(), origin: z.enum(["legacy", "user"]) })
 export const draftMessageSchema = z.strictObject({ id: idSchema, role: z.enum(["user", "assistant"]), content: z.string(), createdAt: instantSchema, evidenceIds: z.array(idSchema).optional(), interpretFailed: z.boolean().optional() })
 export const profileDraftViewSchema = z.strictObject({

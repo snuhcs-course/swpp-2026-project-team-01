@@ -3,37 +3,61 @@ import { MIN_EVENTS_FOR_ESTIMATE } from './analysis'
 import { weekdayKo } from './time'
 
 type Summary = ReturnType<typeof analyzeHistory>
+type Locale = 'en' | 'ko'
 const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 const PLACE = { office: '회사', place: '외부 장소', online: '온라인' } as const
 const PLACE_OBJECT = { office: '회사를', place: '외부 장소를', online: '온라인을' } as const
-function days(weekdays: number[]) {
+const PLACE_EN = { office: 'the office', place: 'other places', online: 'online' } as const
+const WEEKDAY_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+function days(weekdays: number[], locale: Locale = 'ko') {
   const set = weekdays.join()
-  if (set === '1,2,3,4,5') return '평일'
-  if (set === '1,2,3,4,5,6,0') return '매일'
-  return weekdays.map(weekdayKo).join('·') + '요일'
+  if (set === '1,2,3,4,5') return locale === 'en' ? 'weekdays' : '평일'
+  if (set === '1,2,3,4,5,6,0') return locale === 'en' ? 'every day' : '매일'
+  return locale === 'en' ? weekdays.map(d => WEEKDAY_EN[d]).join('·') : weekdays.map(weekdayKo).join('·') + '요일'
 }
+const places = (list: { kind: keyof typeof PLACE; count: number }[], locale: Locale) =>
+  list.map(p => locale === 'en' ? `${PLACE_EN[p.kind]} ${p.count}` : `${PLACE[p.kind]} ${p.count}건`).join(', ')
 
 /** The first analysis message: what was observed, and what it suggests — always worded as an estimate for the user to confirm. */
-export function describeHistory(summary: Summary): string {
+export function describeHistory(summary: Summary, locale: Locale = 'ko'): string {
   const { counts, coverage, estimate } = summary
-  const parts = [`지난 8주 일정 ${coverage.eligible}건 중 업무 ${counts.business}건, 개인 ${counts.personal}건, 확인 필요 ${counts.unknown}건을 관찰했어요.`]
-  if (coverage.partial) parts.push(`AI가 분류하지 못한 일정 ${coverage.eligible - coverage.classified}건은 확인 필요에 포함돼 있어요.`)
+  const en = locale === 'en'
+  const parts = [en
+    ? `Of ${coverage.eligible} events in the last 8 weeks, I saw ${counts.business} work, ${counts.personal} personal and ${counts.unknown} to check.`
+    : `지난 8주 일정 ${coverage.eligible}건 중 업무 ${counts.business}건, 개인 ${counts.personal}건, 확인 필요 ${counts.unknown}건을 관찰했어요.`]
+  if (coverage.partial) parts.push(en
+    ? `${coverage.eligible - coverage.classified} events the AI could not sort are counted as to check.`
+    : `AI가 분류하지 못한 일정 ${coverage.eligible - coverage.classified}건은 확인 필요에 포함돼 있어요.`)
   const busiest = summary.businessByWeekday.map((count, day) => ({ count, day })).filter(d => d.count).sort((a, b) => b.count - a.count).slice(0, 3)
-  if (busiest.length) parts.push(`업무 일정은 ${busiest.map(d => `${weekdayKo(d.day)}요일 ${d.count}건`).join(', ')}에 있었어요. 이 요일을 선호하시나요?`)
+  if (busiest.length) parts.push(en
+    ? `Work events fell on ${busiest.map(d => `${WEEKDAY_EN[d.day]} (${d.count})`).join(', ')}. Do you prefer these days?`
+    : `업무 일정은 ${busiest.map(d => `${weekdayKo(d.day)}요일 ${d.count}건`).join(', ')}에 있었어요. 이 요일을 선호하시나요?`)
   if (estimate.basedOn < MIN_EVENTS_FOR_ESTIMATE) {
-    parts.push(counts.business ? `업무 일정이 ${counts.business}건뿐이라 근무시간이나 미팅 시간을 추정하기는 어려워요. 직접 알려 주세요.` : '일정만으로 근무시간과 선호를 알기 어려워요. 직접 알려 주세요.')
+    parts.push(en
+      ? counts.business ? `With only ${counts.business} work events I can't estimate your work or meeting hours. Please tell me.` : 'Your calendar alone does not show your work hours or preferences. Please tell me.'
+      : counts.business ? `업무 일정이 ${counts.business}건뿐이라 근무시간이나 미팅 시간을 추정하기는 어려워요. 직접 알려 주세요.` : '일정만으로 근무시간과 선호를 알기 어려워요. 직접 알려 주세요.')
   } else {
     const guesses: string[] = []
-    if (estimate.workHours) guesses.push(`예상 근무시간은 ${days(estimate.workHours.weekdays)} ${hm(estimate.workHours.startMin)}–${hm(estimate.workHours.endMin)}`)
-    if (estimate.meetingStarts) guesses.push(`기존 미팅은 주로 ${hm(estimate.meetingStarts.fromMin)}–${hm(estimate.meetingStarts.toMin)} 사이에 시작했어요`)
-    if (guesses.length) parts.push(`지난 업무 일정 ${estimate.basedOn}건으로 짐작해 보면, ${guesses.join('이고, ')}.`)
+    if (estimate.workHours) guesses.push(en
+      ? `you work ${days(estimate.workHours.weekdays, locale)} ${hm(estimate.workHours.startMin)}–${hm(estimate.workHours.endMin)}`
+      : `예상 근무시간은 ${days(estimate.workHours.weekdays)} ${hm(estimate.workHours.startMin)}–${hm(estimate.workHours.endMin)}`)
+    if (estimate.meetingStarts) guesses.push(en
+      ? `your meetings mostly started between ${hm(estimate.meetingStarts.fromMin)} and ${hm(estimate.meetingStarts.toMin)}`
+      : `기존 미팅은 주로 ${hm(estimate.meetingStarts.fromMin)}–${hm(estimate.meetingStarts.toMin)} 사이에 시작했어요`)
+    if (guesses.length) parts.push(en
+      ? `From ${estimate.basedOn} past work events, my guess is that ${guesses.join(', and ')}.`
+      : `지난 업무 일정 ${estimate.basedOn}건으로 짐작해 보면, ${guesses.join('이고, ')}.`)
   }
   if (estimate.places.length) {
     const [top] = estimate.places
-    parts.push(`업무 일정 장소는 ${estimate.places.map(p => `${PLACE[p.kind]} ${p.count}건`).join(', ')}이라 ${PLACE_OBJECT[top.kind]} 선호하시는 것 같아요.`)
+    parts.push(en
+      ? `Work events took place at ${places(estimate.places, locale)}, so you seem to prefer ${PLACE_EN[top.kind]}.`
+      : `업무 일정 장소는 ${places(estimate.places, locale)}이라 ${PLACE_OBJECT[top.kind]} 선호하시는 것 같아요.`)
   }
-  if (summary.lateBusinessEventIds.length) parts.push(`저녁 업무 일정도 ${summary.lateBusinessEventIds.length}건 있었지만, 앞으로 그 시간에 미팅을 허용한다는 뜻은 아니에요.`)
-  parts.push('모두 지난 일정에서 본 경향이라, 맞으면 직접 설정에 반영하거나 말로 고쳐 주세요.')
+  if (summary.lateBusinessEventIds.length) parts.push(en
+    ? `There were also ${summary.lateBusinessEventIds.length} evening work events, which does not mean meetings are fine then.`
+    : `저녁 업무 일정도 ${summary.lateBusinessEventIds.length}건 있었지만, 앞으로 그 시간에 미팅을 허용한다는 뜻은 아니에요.`)
+  parts.push(en ? 'These are only patterns from past events. Tell me if they are right, or correct them.' : '모두 지난 일정에서 본 경향이라, 맞으면 직접 설정에 반영하거나 말로 고쳐 주세요.')
   return parts.join(' ')
 }
 
@@ -52,22 +76,31 @@ export function historyQuestion(text: string): Topic[] | null {
 }
 
 /** Answers from the stored analysis only; nothing here is invented, and an estimate is always called one. */
-export function answerFromHistory(summary: Summary | null, topics: Topic[]): string {
-  if (!summary) return '아직 가져온 일정을 분석하지 않았어요. ‘가져온 일정 분석하기’를 누르면 지난 8주 일정으로 짐작해 드릴게요.'
+export function answerFromHistory(summary: Summary | null, topics: Topic[], locale: Locale = 'ko'): string {
+  const en = locale === 'en'
+  if (!summary) return en ? 'I have not analyzed your imported events yet. Ask me to analyze them and I will estimate from the last 8 weeks.' : '아직 가져온 일정을 분석하지 않았어요. ‘가져온 일정 분석하기’를 누르면 지난 8주 일정으로 짐작해 드릴게요.'
   const { estimate, counts } = summary
-  if (!estimate) return '이 분석은 추정 기능이 생기기 전에 만들어졌어요. ‘다시 분석’을 누르면 근무시간과 장소를 짐작해 드릴게요.'
+  if (!estimate) return en ? 'This analysis predates estimates. Analyze again and I will estimate your work hours and places.' : '이 분석은 추정 기능이 생기기 전에 만들어졌어요. ‘다시 분석’을 누르면 근무시간과 장소를 짐작해 드릴게요.'
   const out: string[] = []
   const thin = estimate.basedOn < MIN_EVENTS_FOR_ESTIMATE
-  if (topics.includes('work')) out.push(estimate.workHours
-    ? `지난 업무 일정으로 보면 근무시간은 ${days(estimate.workHours.weekdays)} ${hm(estimate.workHours.startMin)}–${hm(estimate.workHours.endMin)}쯤으로 보여요.`
-    : thin ? `업무로 분류된 일정이 ${counts.business}건뿐이라 근무시간은 짐작하기 어려워요.` : '업무 일정이 대부분 하루 한 건이라 근무시간 전체는 짐작하기 어려워요.')
-  if (topics.includes('meeting')) out.push(estimate.meetingStarts
-    ? `기존 미팅은 주로 ${hm(estimate.meetingStarts.fromMin)}–${hm(estimate.meetingStarts.toMin)} 사이에 시작했어요.`
-    : `미팅 시간대를 짐작할 만큼 업무 일정이 많지 않아요(${counts.business}건).`)
-  if (topics.includes('place')) out.push(estimate.places.length
-    ? `업무 일정 장소는 ${estimate.places.map(p => `${PLACE[p.kind]} ${p.count}건`).join(', ')}이었어요.`
-    : '장소가 확인된 업무 일정이 없어서 선호 장소는 알 수 없어요.')
-  if (thin) out.push('가져온 일정 확인에서 업무 일정을 바로잡고 다시 분석하면 더 정확해져요.')
-  out.push('지난 일정에서 본 경향일 뿐이니, 맞으면 말씀해 주시거나 직접 설정에 반영해 주세요.')
+  if (topics.includes('work')) out.push(en
+    ? estimate.workHours
+      ? `From past work events, you seem to work ${days(estimate.workHours.weekdays, locale)} around ${hm(estimate.workHours.startMin)}–${hm(estimate.workHours.endMin)}.`
+      : thin ? `Only ${counts.business} events were sorted as work, so I can't estimate your work hours.` : 'Most days have a single work event, so I can\'t estimate your full work hours.'
+    : estimate.workHours
+      ? `지난 업무 일정으로 보면 근무시간은 ${days(estimate.workHours.weekdays)} ${hm(estimate.workHours.startMin)}–${hm(estimate.workHours.endMin)}쯤으로 보여요.`
+      : thin ? `업무로 분류된 일정이 ${counts.business}건뿐이라 근무시간은 짐작하기 어려워요.` : '업무 일정이 대부분 하루 한 건이라 근무시간 전체는 짐작하기 어려워요.')
+  if (topics.includes('meeting')) out.push(en
+    ? estimate.meetingStarts
+      ? `Your meetings mostly started between ${hm(estimate.meetingStarts.fromMin)} and ${hm(estimate.meetingStarts.toMin)}.`
+      : `There are not enough work events (${counts.business}) to estimate your meeting hours.`
+    : estimate.meetingStarts
+      ? `기존 미팅은 주로 ${hm(estimate.meetingStarts.fromMin)}–${hm(estimate.meetingStarts.toMin)} 사이에 시작했어요.`
+      : `미팅 시간대를 짐작할 만큼 업무 일정이 많지 않아요(${counts.business}건).`)
+  if (topics.includes('place')) out.push(en
+    ? estimate.places.length ? `Work events took place at ${places(estimate.places, locale)}.` : 'No work event had a known place, so I can\'t tell which place you prefer.'
+    : estimate.places.length ? `업무 일정 장소는 ${places(estimate.places, locale)}이었어요.` : '장소가 확인된 업무 일정이 없어서 선호 장소는 알 수 없어요.')
+  if (thin) out.push(en ? 'Correcting your work events in the import review and analyzing again makes this more accurate.' : '가져온 일정 확인에서 업무 일정을 바로잡고 다시 분석하면 더 정확해져요.')
+  out.push(en ? 'These are only patterns from past events. Tell me if they are right.' : '지난 일정에서 본 경향일 뿐이니, 맞으면 말씀해 주시거나 직접 설정에 반영해 주세요.')
   return out.join(' ')
 }

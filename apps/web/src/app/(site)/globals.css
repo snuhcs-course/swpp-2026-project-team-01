@@ -1,4 +1,4 @@
-/* AI-generated with Claude Code (claude-opus-5-5), 2026-10-16 */
+/* AI-generated with Claude Code (claude-opus-5-5), 2026-10-16, 2026-10-17 */
 /* Ported from the landing prototype (the "랜딩 볼드 시안" artifact) with its chosen options fixed:
    Ink palette, Big Shoulders for the wordmark and headings, Geist for body text. The review tools are left out. */
 /* Layout: on wide screens the pitch and one action sit on the left, a phone-width example thread on the right. */
@@ -71,6 +71,8 @@ h1, h2, h3, p, ol, figure { margin: 0; }
 .stage h1, .stage .steps h2, .stage .steps li::before {
   font-family: var(--wm-family); font-weight: var(--wm-weight); font-stretch: var(--wm-stretch); font-variation-settings: var(--wm-fvs); letter-spacing: var(--hd-track);
 }
+/* Hangul has no condensed face (Big Shoulders sets Latin only), so Korean headings need no widening scale. */
+html[lang="ko"] .stage { --hd-scale: 1; }
 .stage h1 { font-size: calc(clamp(32px, 4.6cqi, 56px) * var(--hd-scale)); }
 .stage .steps h2 { font-size: calc(clamp(21px, 2.4cqi, 27px) * var(--hd-scale)); }
 .stage .steps li::before { font-size: calc(22px * var(--hd-scale)); }
@@ -168,6 +170,26 @@ h1 span { display: block; white-space: nowrap; }
 .legal-links { display: flex; flex-wrap: wrap; gap: 6px 16px; }
 .legal-links a { color: inherit; text-underline-offset: 3px; }
 .legal-links a:hover { color: var(--primary); }
+
+/* the right end of the header: the language pill, then Sign in or the account button */
+.top-actions { display: flex; align-items: center; gap: 10px; }
+.lang { position: relative; }
+.lang-btn {
+  display: inline-flex; align-items: center; gap: 4px; height: 40px; padding: 0 12px 0 10px; border: 0; border-radius: 9999px;
+  color: var(--primary); background: var(--soft-surface); box-shadow: inset 0 0 0 1px var(--hairline);
+  font: inherit; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; cursor: pointer; transition: box-shadow 150ms;
+}
+.lang-btn:hover, .lang-btn[aria-expanded="true"] { box-shadow: inset 0 0 0 1px var(--primary); }
+.lang-btn svg { display: block; flex: none; }
+/* the same surface as the account menu, narrower */
+.lang-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 5; min-width: 150px;
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: 12px;
+  box-shadow: 0 12px 32px rgb(30 36 48 / 0.14); padding: 6px; display: flex; flex-direction: column;
+}
+.lang-menu .menu-item { justify-content: space-between; gap: 12px; color: var(--ink); }
+.lang-menu .menu-item[aria-checked="true"] { font-weight: 600; color: var(--primary); }
+.lang-menu .menu-item svg { flex: none; }
 
 /* account menu: Sign out lives here instead of in the header */
 .account { position: relative; }
@@ -404,6 +426,7 @@ h1 span { display: block; white-space: nowrap; }
   .alt .link-btn { padding-block: 12px; }
   .ghost { min-height: 44px; }
   .account-btn { width: 44px; height: 44px; }
+  .lang-btn { height: 44px; }
   .fine { font-size: 13px; }
 }
 /* Phone width: the chat is the screen itself, edge to edge, under one bar: Thyme with the product name beneath, and the account button. */
@@ -417,7 +440,7 @@ h1 span { display: block; white-space: nowrap; }
   .window .dock { padding-inline: var(--gutter); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .gbtn, .ghost, .send, .primary-btn { transition: none; }
+  .gbtn, .ghost, .send, .primary-btn, .lang-btn { transition: none; }
   .w, .typing i, .tick path { animation: none; }
   .card-dots button::before { transition: none; }
 }

@@ -1,50 +1,54 @@
 // AI-generated with Claude Code (claude-opus-5-5), 2026-10-16, 2026-10-17
-import { DomainError } from "@/contracts/common";
 import { AgentPrompt } from "@/components/thyme/agent-prompt";
 import { Brand, PRODUCT_NAME } from "@/components/thyme/brand";
+import { COPY } from "@/components/thyme/copy";
 import { ExampleCards } from "@/components/thyme/example-cards";
 import { GoogleStart, SignInLink } from "@/components/thyme/google-start";
+import { LanguageSelect } from "@/components/thyme/language-select";
 import { readServerConfig } from "@/server/config";
-import { requireActor } from "@/server/session";
+import { siteLocale } from "./locale";
 
-// P01, the public landing. Both sign-in entries start Google sign-in; demo mode and a signed-in host skip it.
+// P01, the public landing. Both sign-in entries start Google sign-in; demo mode skips it.
 export default async function Landing() {
-  const signedIn = await requireActor().then(() => true, (e) => { if (e instanceof DomainError && e.code === "unauthenticated") return false; throw e; });
-  const direct = readServerConfig().mode === "demo" || signedIn;
+  // A signed-in host signs in again too: that is where the Calendar box takes effect.
+  const direct = readServerConfig().mode === "demo";
+  const locale = await siteLocale();
+  const t = COPY[locale];
   return (
     <div className="inner" data-screen="landing">
       <header className="top">
         <Brand />
-        <SignInLink direct={direct} />
+        <div className="top-actions">
+          <LanguageSelect locale={locale} />
+          <SignInLink direct={direct} copy={t.landing} />
+        </div>
       </header>
 
       <main className="hero">
         <div className="pitch">
-          <h1><span>Send one link.</span><span>Thyme finds the time.</span><span>All you need is to chat.</span></h1>
-          <p className="lede">Setting up a meeting is tiring, isn&apos;t it? Send anyone your link without showing your calendar. Thyme works out the time with them and texts you the plan. You just reply back.</p>
+          <h1>{t.landing.headline.map((line) => <span key={line}>{line}</span>)}</h1>
+          <p className="lede">{t.landing.lede}</p>
           <div className="start">
-            <GoogleStart direct={direct} />
-            <AgentPrompt />
+            <GoogleStart direct={direct} copy={t.landing} />
+            <AgentPrompt copy={t.landing} labels={t.copy} />
           </div>
-          <p className="guest">Already asked someone for a time? <a href="#">Resume your request</a></p>
+          <p className="guest">{t.landing.guest} <a href="#">{t.landing.resume}</a></p>
         </div>
-        <ExampleCards />
+        <ExampleCards locale={locale} />
       </main>
 
       <section className="steps" aria-labelledby="steps-h">
-        <h2 id="steps-h">Three steps, then it runs in your messages.</h2>
+        <h2 id="steps-h">{t.landing.stepsTitle}</h2>
         <ol>
-          <li><h3>Start with Google</h3><p>Sign in and connect your calendar in one step.</p></li>
-          <li><h3>Link your phone</h3><p>Thyme texts you from then on.</p></li>
-          <li><h3>Share your link</h3><p>Anyone can ask for a time. They need no account.</p></li>
+          {t.landing.steps.map(([title, body]) => <li key={title}><h3>{title}</h3><p>{body}</p></li>)}
         </ol>
       </section>
 
       <footer className="foot">
-        <p>Thoughtful scheduling. One meeting at a time.</p>
+        <p>{t.landing.tagline}</p>
         <div className="legal">
-          <nav className="legal-links" aria-label="Legal"><a href="#">Privacy Policy</a><a href="#">Terms of Service</a></nav>
-          <p>© 2026 {PRODUCT_NAME}. All rights reserved.</p>
+          <nav className="legal-links" aria-label={t.landing.legal}><a href="#">{t.landing.privacy}</a><a href="#">{t.landing.terms}</a></nav>
+          <p>© 2026 {PRODUCT_NAME}. {t.landing.rights}</p>
         </div>
       </footer>
     </div>

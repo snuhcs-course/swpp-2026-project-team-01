@@ -7,6 +7,7 @@ import {request} from '@/components/api'
 import {GoogleConnect} from '@/components/GoogleConnect'
 import {profileDraftViewSchema,type ProfileDraftView} from '@/contracts/profile'
 import {ImportReviewDialog} from './ImportReviewDialog'
+import {browserLocale} from '@/components/thyme/copy'
 import {DAY_MS,kstDayStart} from '@/core/time'
 import {Alert,Button,Card,Checkbox,CheckIcon,PageHeader,SectionHeader,Spinner,Stepper,StatusPill,type Tone} from '@/components/ui'
 const labels={manual:'직접 설정 사용',connected:'일정 반영 중',needs_refresh:'일정을 가져와 주세요',reconnect_required:'권한 재연결 필요',decision_required:'Calendar 없이 계속할지 선택해 주세요'}
@@ -49,7 +50,7 @@ export function CalendarSettings({initial,mode}:{initial:CalendarConnectionView;
   return !!r?.ok
  }
  // Import, let the AI read the past eight weeks, then show what it made of them before moving on to the hours.
- const analyze=async(draft:ProfileDraftView)=>{const r=await draftOp.run({method:'POST',url:`/api/profile-drafts/${encodeURIComponent(draft.draftId)}/analyze`,kind:'profile.draft.analyze',payload:{expectedRevision:draft.revision},schema:profileDraftViewSchema});if(r?.ok){analyzed.current=r.data;return true}if(r)setError(r.error.message);return false}
+ const analyze=async(draft:ProfileDraftView)=>{const r=await draftOp.run({method:'POST',url:`/api/profile-drafts/${encodeURIComponent(draft.draftId)}/analyze`,kind:'profile.draft.analyze',payload:{expectedRevision:draft.revision,locale:browserLocale()},schema:profileDraftViewSchema});if(r?.ok){analyzed.current=r.data;return true}if(r)setError(r.error.message);return false}
  const startWithAi=async()=>{
   setStarting(true);setStage('일정을 저장하는 중…')
   if(!await importSelected(false)){setStarting(false);setStage(null);return}
