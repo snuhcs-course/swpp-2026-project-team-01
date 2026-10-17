@@ -37,12 +37,13 @@ export const serverLinker: PhoneLinker = {
 
 // The demo follows the agreed rules: a number lasts 5 minutes, a text goes out no sooner than a minute after the
 // last one (asking earlier just waits), after 5 texts within 5 minutes the phone is put off, a wrong reply
-// replaces the number, and 3 wrong replies fail the check.
+// replaces the number, and 3 wrong replies fail the check until 5 minutes have passed.
 const TTL_MS = 5 * 60_000;
 const RETRY_MS = 60_000;
 const WINDOW_MS = 5 * 60_000;
 const MAX_SENDS = 5;
 const MAX_WRONG = 3;
+const LOCK_MS = 5 * 60_000;
 const SEND_DELAY_MS = 1200;
 
 export function demoLinker(): PhoneLinker {
@@ -85,7 +86,7 @@ export function demoLinker(): PhoneLinker {
         const wrongReplies = view.wrongReplies + 1;
         let next = code();
         while (next === view.code) next = code();
-        view = wrongReplies >= MAX_WRONG ? { ...view, wrongReplies, status: "failed", failure: "too_many_wrong_replies" } : { ...view, wrongReplies, code: next };
+        view = wrongReplies >= MAX_WRONG ? { ...view, wrongReplies, status: "failed", failure: "too_many_wrong_replies", retryEligibleAt: Date.now() + LOCK_MS } : { ...view, wrongReplies, code: next };
       },
       fail: () => { if (view) view = { ...view, status: "failed", failure: "provider_rejected" }; },
     },

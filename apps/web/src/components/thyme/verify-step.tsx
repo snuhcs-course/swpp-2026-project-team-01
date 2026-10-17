@@ -15,8 +15,9 @@ import { StatusMark } from "./status-mark";
 // out, and the screen shows the 2-digit number to send back with the time it has left. If nothing arrives the
 // host asks for another text right away; the server holds it until a minute after the last one, so the screen
 // shows no countdown. The newest number is shown and earlier ones still work. A wrong reply replaces the
-// number, and a box below it says so. A failed or expired check turns the ring into a cross; a failure sends the host back to enter the
-// number again. When no more texts are allowed the phone is put off and the caller decides where to go
+// number, and a box below it says so. A failed or expired check turns the ring into a cross. A failed send
+// sends the host back to enter the number again; too many wrong replies ask to wait a few minutes and connect
+// again, or contact us. When no more texts are allowed the phone is put off and the caller decides where to go
 // (`later`); if texting kept failing, a dialog also says so, offers to tell the host when it works again
 // (`notifyBy`), and how to reach us. A checked number shows the caller's `verified` ending.
 
@@ -100,16 +101,19 @@ export function VerifyStep({ locale, linker, initial, onBack, verified, later, n
     if (!r.ok) { setNotice(t.error); return; }
     setView(r.view);
     setNow(Date.now());
-    setResent(true);
+    // after a lockout the earlier numbers are gone, so there is nothing "still working" to mention
+    setResent(phase === "sent");
   }
 
   const canAsk = view.retryEligibleAt !== null;
-  // the text did go out when the replies kept missing
-  const failed = view.failure === "too_many_wrong_replies" ? t.notChecked : t.failed;
+  // the text did go out when the replies kept missing, so that one waits instead of asking for the number again
+  const locked = view.failure === "too_many_wrong_replies";
+  const eligible = view.retryEligibleAt !== null && now >= view.retryEligibleAt;
+  const failed = locked ? t.lockedTitle : t.failed;
   const heads: Record<Phase, string> = { texting: t.texting, sent: t.sent, connected: t.connected, failed, expired: t.expired, later: t.later };
   const ledes: Record<Phase, string | null> = {
     texting: t.textingLede, sent: null, connected: verified.lede, expired: t.expiredLede, later: t.laterLede,
-    failed: t.reasons[view.failure ?? ""] ?? t.reasons.other,
+    failed: locked ? t.lockedLede : t.reasons[view.failure ?? ""] ?? t.reasons.other,
   };
 
   return (
@@ -146,7 +150,14 @@ export function VerifyStep({ locale, linker, initial, onBack, verified, later, n
             <span>{t.wrongNumber} <button className="link-btn" type="button" onClick={onBack}>{t.change}</button></span>
           </div>
         )}
-        {phase === "failed" && <button className="primary-btn" type="button" onClick={onBack}>{t.reenter}</button>}
+        {phase === "failed" && !locked && <button className="primary-btn" type="button" onClick={onBack}>{t.reenter}</button>}
+        {phase === "failed" && locked && (
+          <div className="verify-actions">
+            <button className="primary-btn" type="button" disabled={!eligible || busy} onClick={() => void retry()}>{t.reconnect}</button>
+            {!eligible && view.retryEligibleAt !== null && <p className="field-help">{t.reconnectIn(Math.ceil((view.retryEligibleAt - now) / 60_000))}</p>}
+            <a className="link-btn" href={`mailto:${CONTACT_EMAIL}`}>{t.contact}</a>
+          </div>
+        )}
         {phase === "expired" && (
           <div className="verify-actions">
             <button className="primary-btn" type="button" disabled={busy} onClick={() => void retry()}>{t.newCode}</button>

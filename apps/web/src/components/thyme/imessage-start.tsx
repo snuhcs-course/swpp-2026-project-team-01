@@ -12,7 +12,7 @@ import { PhoneForm, type SubmitPhone } from "./phone-step";
 import { VerifyStep } from "./verify-step";
 
 // The landing that starts from iMessage: the number goes in on the landing itself, and once it is checked
-// Thyme carries on in Messages, including the sign-in link. Signing in with Google on this page stays as a
+// onboarding carries on with Thyme in Messages. Signing in with Google on this page stays as a
 // small link, and becomes the way forward when the phone is put off.
 // The landing is rendered on the server; this wraps it and takes over the page once a number is in.
 
@@ -35,7 +35,7 @@ export function ImessageStart({ locale, direct, children }: { locale: Locale; di
   return (
     <VerifyStep
       locale={locale} linker={linker} initial={link} onBack={() => setLink(null)}
-      verified={{ lede: t.verify.signInSent, action: <GoogleLink className="link-btn faint" direct={direct} calendar phoneDone>{t.verify.googleHere}</GoogleLink> }}
+      verified={{ lede: t.verify.onboardSent, action: <GoogleLink className="link-btn faint" direct={direct} calendar phoneDone>{t.verify.googleHere}</GoogleLink> }}
       later={<GoogleLink className="gbtn" direct={direct} calendar phoneDone><GoogleLogo /><span>{t.landing.google}</span></GoogleLink>}
       // not signed in yet, so there is no email address to write to
       notifyBy={["sms"]}

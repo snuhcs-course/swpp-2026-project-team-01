@@ -24,7 +24,8 @@ export const phoneLinkSchema = z.object({
   /**
    * Replies in the conversation that matched no valid number. Each one replaces the number: earlier numbers stop
    * working, `code` is a new one, and `expiresAt` stays as it was. The numbers are only 2 digits, so after 3 wrong
-   * replies the server fails the check (too_many_wrong_replies) and the host enters the number again.
+   * replies the server fails the check (too_many_wrong_replies) and sets `retryEligibleAt` a few minutes ahead;
+   * a retry after that sends a new text with a new number and starts the count again.
    */
   wrongReplies: z.number().int().nonnegative(),
 })

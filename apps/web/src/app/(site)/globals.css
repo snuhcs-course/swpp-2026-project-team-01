@@ -253,7 +253,7 @@ h1 span { display: block; white-space: nowrap; }
 .alt .link-btn { font-size: 14px; padding: 4px 0; }
 /* verify: the mark, what happened, the number to send back, and what to do if nothing arrives */
 .handoff.verify { align-items: center; text-align: center; padding-top: clamp(32px, 10cqi, 120px); }
-.verify .lede { max-width: 34ch; }
+.verify .lede { max-width: 34ch; word-break: keep-all; }
 .sent-to { font-size: 14px; font-weight: 500; color: var(--muted-ink); font-variant-numeric: tabular-nums; }
 /* the ring spins, stops where it is, closes into a disc, then the check or cross is drawn on it */
 .status-mark { display: block; width: 72px; height: 72px; color: var(--primary); transition: color 200ms; }

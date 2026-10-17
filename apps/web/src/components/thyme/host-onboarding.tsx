@@ -25,7 +25,7 @@ export type HostSetup = {
   attachExampleCalendar: boolean;
 };
 
-// The host page after sign-in: phone number, then the number check, then the web chat.
+// The host page after sign-in: phone number, then the number check, then home (/home) or the web chat.
 // These are states of /app, not separate routes. Before a number is in, the host can skip to the web chat;
 // after that the chat opens only once the number is checked or the phone is put off.
 // A host who already confirmed a profile, or came from the iMessage start, opens on the chat.
@@ -59,7 +59,15 @@ export function HostOnboarding({ host, chat }: { host: HostSetup; chat: HostChat
     return (
       <VerifyStep
         locale={host.locale} linker={linker} initial={link} onBack={() => go("phone")}
-        verified={{ lede: t.connectedLede, action: <button className="primary-btn" type="button" onClick={() => go("chat")}>{t.continue}</button> }}
+        verified={{
+          lede: t.connectedLede,
+          action: (
+            <div className="verify-actions">
+              <button className="primary-btn" type="button" onClick={() => location.assign("/home")}>{t.goHome}</button>
+              <button className="link-btn faint" type="button" onClick={() => go("chat")}>{t.chatWeb}</button>
+            </div>
+          ),
+        }}
         later={toChat} notifyBy={["sms", "email"]}
       />
     );
