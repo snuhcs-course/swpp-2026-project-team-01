@@ -9,7 +9,8 @@ export const controlClass =
   "disabled:cursor-not-allowed disabled:bg-surface-sunken disabled:text-muted aria-invalid:border-danger"
 
 type ControlSize = "sm" | "md"
-const controlSize: Record<ControlSize, string> = { sm: "min-h-9 py-1 text-small", md: "min-h-10 py-2 text-body" }
+// md follows the DESIGN.md input: 48px tall with 16px text, so iOS does not zoom.
+const controlSize: Record<ControlSize, string> = { sm: "min-h-9 py-1 text-small", md: "min-h-12 py-2 text-body" }
 // No class-merging library: a caller-supplied width replaces the default full width.
 const width = (className?: string) => (/(^|\s)(w-|basis-|flex-1)/.test(className ?? "") ? "" : "w-full")
 

@@ -1,0 +1,160 @@
+@import "tailwindcss";
+
+/* AI-generated with Claude Code (claude-opus-5-5), 2026-10-17 */
+/*
+ * Design direction: the Ink palette of DESIGN.md (the landing prototype), on cool paper with ink-blue actions.
+ * Raw values live on :root; @theme inline exposes them to Tailwind as utilities (bg-surface, text-ink, ring-focus …).
+ * The older role names stay so the screens keep their classes: each points at the DESIGN.md token it now means.
+ * DESIGN.md defines no dark theme, so there is none here.
+ */
+
+:root {
+  color-scheme: light;
+  --canvas: #F6F7F9;
+  --surface: #FFFFFF;
+  --surface-sunken: #E7EAF0;   /* soft-surface */
+  --surface-raised: #FFFFFF;
+  --ink: #1E2430;
+  --ink-soft: #1E2430;         /* DESIGN.md has ink and muted-ink only */
+  --muted: #586172;            /* muted-ink */
+  --subtle: #586172;
+  --border: #D4D9E2;           /* hairline */
+  --border-strong: #7B8BA8;    /* input-border */
+
+  --primary: #2C3E63;
+  --primary-hover: #243453;
+  --primary-pressed: #1C2A44;
+  --primary-ink: #FFFFFF;      /* on-primary */
+  --primary-soft: #E7EAF0;     /* soft-surface */
+  --primary-soft-ink: #2C3E63;
+  --logo: #4A5E85;
+
+  /* status tints are the status color at 10% on white, so they follow the tokens */
+  --success: #3F6142;
+  --success-soft: color-mix(in srgb, var(--success) 10%, #FFFFFF);
+  --success-ink: #3F6142;
+  --warn: #77591F;
+  --warn-soft: color-mix(in srgb, var(--warn) 10%, #FFFFFF);
+  --warn-ink: #77591F;
+  --danger: #9B3F35;           /* destructive */
+  --danger-soft: color-mix(in srgb, var(--danger) 10%, #FFFFFF);
+  --danger-ink: #9B3F35;
+
+  --track-work: #D4D9E2;
+  --focus: #2C3E63;
+  --shadow-color: 220 23% 15%; /* ink */
+}
+
+@theme inline {
+  /* Geist and Big Shoulders have no Hangul; Pretendard sets it. Headings here stay in the sans face: in Korean
+     headings the display face would set only the Latin letters and digits ("버전 1" reads as "버전 l"). */
+  --font-sans: var(--font-geist), "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  --font-display: var(--font-big-shoulders), "Pretendard Variable", Pretendard, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-raised: var(--surface-raised);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-pressed: var(--primary-pressed);
+  --color-primary-ink: var(--primary-ink);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-soft-ink: var(--primary-soft-ink);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-ink: var(--success-ink);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-ink: var(--warn-ink);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-ink: var(--danger-ink);
+  --color-track-work: var(--track-work);
+  --color-focus: var(--focus);
+  --color-logo: var(--logo);
+
+  /* Type scale (DESIGN.md): caption 12 · small 14 · body 16 · lead 18 · h3 18 · h2 20 · h1 32 · display 40 */
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.125rem;
+  --text-small: 0.875rem;
+  --text-small--line-height: 1.3125rem;
+  --text-body: 1rem;
+  --text-body--line-height: 1.625rem;
+  --text-lead: 1.125rem;
+  --text-lead--line-height: 1.75rem;
+  --text-h3: 1.125rem;
+  --text-h3--line-height: 1.5rem;
+  --text-h2: 1.25rem;
+  --text-h2--line-height: 1.75rem;
+  --text-h1: 2rem;
+  --text-h1--line-height: 2.25rem;
+  --text-display: 2.5rem;
+  --text-display--line-height: 2.75rem;
+
+  /* Radius (DESIGN.md): controls 10 · cards 12 · sheets 16 */
+  --radius-control: 0.625rem;
+  --radius-card: 0.75rem;
+  --radius-sheet: 1rem;
+
+  /* Surfaces are flat with 1px lines; only floating ones (menus, dialogs, the action bar) cast a shadow. */
+  --shadow-card: 0 0 #0000;
+  --shadow-raised: 0 12px 32px rgb(30 36 48 / 0.14);
+  --shadow-bar: 0 -6px 20px -10px hsl(var(--shadow-color) / 0.25);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    /* Korean reads better when words are not split mid-syllable-cluster. */
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  h1, h2, h3 {
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+  input[type="checkbox"], input[type="radio"] {
+    accent-color: var(--primary);
+  }
+  summary {
+    cursor: pointer;
+  }
+  ::selection {
+    background: var(--primary-soft);
+    color: var(--primary-soft-ink);
+  }
+}
+
+@layer utilities {
+  /* Times and dates line up in columns. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

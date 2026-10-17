@@ -7,6 +7,7 @@ import {request} from '@/components/api'
 import {GoogleConnect} from '@/components/GoogleConnect'
 import {profileDraftViewSchema,type ProfileDraftView} from '@/contracts/profile'
 import {ImportReviewDialog} from './ImportReviewDialog'
+import {browserLocale} from '@/components/thyme/copy'
 import {DAY_MS,kstDayStart} from '@/core/time'
 import {Alert,Button,Card,Checkbox,CheckIcon,PageHeader,SectionHeader,Spinner,Stepper,StatusPill,type Tone} from '@/components/ui'
 const labels={manual:'직접 설정 사용',connected:'일정 반영 중',needs_refresh:'일정을 가져와 주세요',reconnect_required:'권한 재연결 필요',decision_required:'Calendar 없이 계속할지 선택해 주세요'}
@@ -49,7 +50,7 @@ export function CalendarSettings({initial,mode}:{initial:CalendarConnectionView;
   return !!r?.ok
  }
  // Import, let the AI read the past eight weeks, then show what it made of them before moving on to the hours.
- const analyze=async(draft:ProfileDraftView)=>{const r=await draftOp.run({method:'POST',url:`/api/profile-drafts/${encodeURIComponent(draft.draftId)}/analyze`,kind:'profile.draft.analyze',payload:{expectedRevision:draft.revision},schema:profileDraftViewSchema});if(r?.ok){analyzed.current=r.data;return true}if(r)setError(r.error.message);return false}
+ const analyze=async(draft:ProfileDraftView)=>{const r=await draftOp.run({method:'POST',url:`/api/profile-drafts/${encodeURIComponent(draft.draftId)}/analyze`,kind:'profile.draft.analyze',payload:{expectedRevision:draft.revision,locale:browserLocale()},schema:profileDraftViewSchema});if(r?.ok){analyzed.current=r.data;return true}if(r)setError(r.error.message);return false}
  const startWithAi=async()=>{
   setStarting(true);setStage('일정을 저장하는 중…')
   if(!await importSelected(false)){setStarting(false);setStage(null);return}
@@ -63,7 +64,7 @@ export function CalendarSettings({initial,mode}:{initial:CalendarConnectionView;
  const finishReview=async(changed:boolean)=>{
   // Corrections change what the AI should see, so it reads the history again before the profile screen opens.
   if(changed&&analyzed.current){setStarting(true);setStage('보정한 내용으로 다시 분석하는 중…');await analyze(analyzed.current);setStarting(false);setStage(null)}
-  router.push('/onboarding')
+  router.push('/app')
  }
  return <div className="space-y-6">
   <PageHeader eyebrow="설정" title="Calendar 연결" description="선택한 캘린더를 읽어 기존 일정과 겹치지 않게 준비해요. 과거 8주 관찰과 앞으로 60일의 일정을 사용해요." actions={<StatusPill role="status" tone={tones[view.status]} busy={busy}>{labels[view.status]}</StatusPill>} className="mb-0"/>
@@ -77,7 +78,7 @@ export function CalendarSettings({initial,mode}:{initial:CalendarConnectionView;
     {mode==='real'
      ?linked&&!needsReconnect
       ?<Button disabled aria-label="Google Calendar 연결됨"><CheckIcon/>Google Calendar 연결됨</Button>
-      :<div className="flex flex-wrap items-center gap-3"><GoogleConnect purpose="calendar" returnPath="/settings/calendars" label={needsReconnect?'Google Calendar 다시 연결':undefined}/>{!needsReconnect&&<a href="/onboarding" className="text-small font-medium text-primary underline-offset-4 hover:underline">Calendar 없이 직접 설정하기</a>}</div>
+      :<div className="flex flex-wrap items-center gap-3"><GoogleConnect purpose="calendar" returnPath="/settings/calendars" label={needsReconnect?'Google Calendar 다시 연결':undefined}/>{!needsReconnect&&<a href="/app" className="text-small font-medium text-primary underline-offset-4 hover:underline">Calendar 없이 직접 설정하기</a>}</div>
      :canMockConnect
       ?<Button variant="primary" disabled={busy} onClick={()=>void connectMock()}>{busy&&<Spinner/>}예시 Calendar 연결</Button>
       :<p className="flex items-center gap-1.5 rounded-control bg-surface-sunken px-3 py-2.5 text-small text-ink-soft"><CheckIcon/>예시 Calendar 연결됨 · Google에는 접속하지 않아요</p>}

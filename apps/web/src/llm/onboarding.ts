@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { profileValuesSchema, preferencesSchema, workSchema, type DraftTopics } from '@/contracts/profile'
+import { profileValuesSchema, preferencesSchema, workSchema, type DraftTopics, type Locale } from '@/contracts/profile'
 import { normalizeWindows, type ProfileValues } from '@/core/profile'
 import { extractJson, type ChatClient } from './ollama'
 // The model often names the preference it set ("startTime") instead of its topic, leaves out the empty windows of "no fixed hours",
@@ -38,13 +38,33 @@ export async function askedAboutHistory(client: ChatClient, text:string) {
  }
  return undefined
 }
-export async function explainOnboarding(_client: ChatClient, input:{values:ProfileValues;topics:DraftTopics;changed:string[];interpretFailed:boolean;answer?:string}) {
- // This wording is intentionally deterministic: no invented dates, times or permissions.
- const question = input.topics.work === 'unanswered' ? '보통 어떤 요일, 몇 시에 근무하세요? 고정 근무시간이 없어도 괜찮아요.'
-  : input.topics.meetingWindows === 'unanswered' ? '미팅을 허용할 요일과 시간대를 알려 주세요. 하루를 여러 구간으로 나눌 수 있어요.'
-  : input.topics.preferences === 'unanswered' ? '특히 선호하는 요일, 시작 시간, 온라인 여부나 앞뒤 여유가 있나요? 선호 없음도 선택할 수 있어요.'
-  : '설정 내용을 확인했어요. 최종 확인에서 적용해 주세요.'
+// This wording is intentionally deterministic: no invented dates, times or permissions.
+const EXPLAIN = {
+ ko: {
+  work: '보통 어떤 요일, 몇 시에 근무하세요? 고정 근무시간이 없어도 괜찮아요.',
+  meetingWindows: '미팅을 허용할 요일과 시간대를 알려 주세요. 하루를 여러 구간으로 나눌 수 있어요.',
+  preferences: '특히 선호하는 요일, 시작 시간, 온라인 여부나 앞뒤 여유가 있나요? 선호 없음도 선택할 수 있어요.',
+  done: '설정 내용을 확인했어요. 최종 확인에서 적용해 주세요.',
+  applied: '초안에 반영했어요. ', appliedCheck: '초안에 반영했어요. 직접 설정 영역도 확인해 주세요. ',
+  failed: '말씀을 설정으로 해석하지 못했어요. 직접 입력하거나 더 구체적으로 알려 주세요. ',
+ },
+ // The web chat has no form beside it, so the English lines do not point at one.
+ en: {
+  work: 'Which days and hours do you usually work? No fixed hours is fine too.',
+  meetingWindows: 'Which days and times are open for meetings? A day can have more than one block.',
+  preferences: 'Any preferred days, start times, online or in person, or a buffer between meetings? "No preference" is fine.',
+  done: 'I have everything I need.',
+  applied: 'Got it. ', appliedCheck: 'Got it. ',
+  failed: 'I could not turn that into a setting. Could you say it more specifically? ',
+ },
+}
+export async function explainOnboarding(_client: ChatClient, input:{values:ProfileValues;topics:DraftTopics;changed:string[];interpretFailed:boolean;answer?:string;locale?:Locale}) {
+ const w = EXPLAIN[input.locale ?? 'ko']
+ const question = input.topics.work === 'unanswered' ? w.work
+  : input.topics.meetingWindows === 'unanswered' ? w.meetingWindows
+  : input.topics.preferences === 'unanswered' ? w.preferences
+  : w.done
  // A question about the analysis gets the analysis' answer, not a remark that the input could not be read.
- if (input.answer) return {text:(input.changed.length ? '초안에 반영했어요. ' : '')+input.answer,fallback:true}
- return {text:(input.interpretFailed ? '말씀을 설정으로 해석하지 못했어요. 직접 입력하거나 더 구체적으로 알려 주세요. ' : input.changed.length ? '초안에 반영했어요. 직접 설정 영역도 확인해 주세요. ' : '')+question,fallback:true}
+ if (input.answer) return {text:(input.changed.length ? w.applied : '')+input.answer,fallback:true}
+ return {text:(input.interpretFailed ? w.failed : input.changed.length ? w.appliedCheck : '')+question,fallback:true}
 }

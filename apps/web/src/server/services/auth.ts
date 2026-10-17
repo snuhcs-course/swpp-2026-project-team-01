@@ -4,7 +4,7 @@ import { authStartSchema, authCallbackSchema, type AuthStartInput, type AuthStar
 import { DomainError } from "@/contracts/common"
 import { ensureBound, getDb, lock, one, run } from "../db/client"
 import { readServerConfig } from "../config"
-import { GoogleAuth, CALENDAR_SCOPES, isInvalidGrant, type GoogleAuthProvider } from "../providers/google-auth"
+import { GoogleAuth, CALENDAR_SCOPES, isInvalidGrant, type GoogleAuthProvider, type GoogleIdentity } from "../providers/google-auth"
 import { TokenVault } from "../token-vault"
 import { actorFromSession, createSession, revokeSession, hashToken, randomToken, OAUTH_TTL_MS, type SessionContext } from "../session"
 
@@ -27,7 +27,7 @@ export function authContext(): AuthContext {
 }
 const invalid = () => new DomainError("invalid_input", "인증 요청이 만료되었거나 올바르지 않아요. 다시 시작해 주세요")
 // Only collection/static destinations are allowed, so redirects cannot disclose private resource IDs.
-const RETURN_PATHS = new Set(["/", "/calendar", "/book", "/requests", "/settings", "/settings/calendars", "/onboarding", "/onboarding/review"])
+const RETURN_PATHS = new Set(["/", "/calendar", "/book", "/requests", "/settings", "/settings/calendars", "/app"])
 function safeReturnPath(path: string): string {
   // A booking link brings the visitor back to the same link after sign-in.
   if (!RETURN_PATHS.has(path) && !/^\/invite\/[A-Za-z0-9_-]{24}$/.test(path)) throw new DomainError("invalid_input", "허용된 앱 내부 경로로 이동해 주세요")
@@ -54,7 +54,7 @@ export async function startGoogleAuth(ctx: AuthContext, binding: AuthBinding, ra
   const input = authStartSchema.parse(raw), returnPath = safeReturnPath(input.returnPath)
   const userId = input.purpose === "calendar" ? (await requireCalendarOwner(ctx, binding)).id : null
   const state = randomToken(), nonce = randomToken()
-  const authorizationUrl = ctx.provider.authorizationUrl({ purpose: input.purpose, state, nonce })
+  const authorizationUrl = ctx.provider.authorizationUrl({ purpose: input.purpose, state, nonce, calendar: input.purpose === "login" && input.calendar === true })
   await run(ctx.db, `INSERT INTO oauth_attempts(id,state_hash,nonce_hash,browser_binding_hash,purpose,user_id,return_path,expires_at)
     VALUES (?,?,?,?,?,?,?,?)`, [randomUUID(), hashToken(state), hashToken(nonce), await bindingHash(ctx, binding, input.purpose, userId),
       input.purpose, userId, returnPath, ctx.now() + OAUTH_TTL_MS])
@@ -89,6 +89,9 @@ export async function completeGoogleAuth(ctx: AuthContext, binding: AuthBinding,
         await run(tx, "INSERT INTO users(id,name) VALUES (?,?)", [userId, identity.name])
         await run(tx, "INSERT INTO auth_identities(id,user_id,provider,subject) VALUES (?,?,'google',?)", [randomUUID(), userId, identity.subject])
       }
+      // Signed in with the Calendar box checked: the same grant carries the Calendar scopes, so connect it now.
+      // A grant without them (box unchecked, or permissions declined on Google's screen) is still a valid sign-in.
+      if (CALENDAR_SCOPES.every(scope => identity.scopes.includes(scope)) && identity.refreshToken) await saveCalendarGrant(t, userId, identity)
       const session = await createSession(t, userId)
       await revokeSession(t, binding.sessionToken)
       return { returnPath: attempt.return_path, sessionToken: session.token }
@@ -98,21 +101,25 @@ export async function completeGoogleAuth(ctx: AuthContext, binding: AuthBinding,
     if (!CALENDAR_SCOPES.every(scope => identity.scopes.includes(scope))) {
       throw new DomainError("calendar_reconnect_required", "Calendar 읽기 권한을 모두 허용해 주세요")
     }
-    const old = await connection(t, attempt.user_id!)
-    const row = { id: old?.id ?? randomUUID(), user_id: attempt.user_id!, subject: identity.subject }
-    let ciphertext = identity.refreshToken ? ctx.vault.encrypt(identity.refreshToken, tokenOwner(row)) : undefined
-    if (!ciphertext && old?.subject === identity.subject && old.status === "connected" && old.refresh_token_ciphertext) {
-      ctx.vault.decrypt(old.refresh_token_ciphertext, tokenOwner(row))
-      ciphertext = old.refresh_token_ciphertext
-    }
-    if (!ciphertext) throw new DomainError("calendar_reconnect_required", "오프라인 접근을 허용해 Calendar를 다시 연결해 주세요")
-    if (old) await run(tx, `UPDATE calendar_connections SET subject=?,status='connected',refresh_token_ciphertext=?,key_version=1,
-      granted_scopes_json=?,revision=revision+1 WHERE id=?`, [identity.subject, ciphertext, JSON.stringify(identity.scopes), old.id])
-    else await run(tx, `INSERT INTO calendar_connections(id,user_id,subject,status,refresh_token_ciphertext,key_version,granted_scopes_json)
-      VALUES (?,?,?,'connected',?,1,?)`, [row.id, row.user_id, row.subject, ciphertext, JSON.stringify(identity.scopes)])
-    await run(tx, "UPDATE users SET calendar_use_state='needs_refresh',calendar_use_revision=calendar_use_revision+1 WHERE id=?", [attempt.user_id])
+    await saveCalendarGrant(t, attempt.user_id!, identity)
     return { returnPath: attempt.return_path }
   })
+}
+/** Stores the Calendar refresh token for this user's Google account, replacing an earlier connection. */
+async function saveCalendarGrant(t: AuthContext, userId: string, identity: GoogleIdentity) {
+  const old = await connection(t, userId)
+  const row = { id: old?.id ?? randomUUID(), user_id: userId, subject: identity.subject }
+  let ciphertext = identity.refreshToken ? t.vault.encrypt(identity.refreshToken, tokenOwner(row)) : undefined
+  if (!ciphertext && old?.subject === identity.subject && old.status === "connected" && old.refresh_token_ciphertext) {
+    t.vault.decrypt(old.refresh_token_ciphertext, tokenOwner(row))
+    ciphertext = old.refresh_token_ciphertext
+  }
+  if (!ciphertext) throw new DomainError("calendar_reconnect_required", "오프라인 접근을 허용해 Calendar를 다시 연결해 주세요")
+  if (old) await run(t.db, `UPDATE calendar_connections SET subject=?,status='connected',refresh_token_ciphertext=?,key_version=1,
+    granted_scopes_json=?,revision=revision+1 WHERE id=?`, [identity.subject, ciphertext, JSON.stringify(identity.scopes), old.id])
+  else await run(t.db, `INSERT INTO calendar_connections(id,user_id,subject,status,refresh_token_ciphertext,key_version,granted_scopes_json)
+    VALUES (?,?,?,'connected',?,1,?)`, [row.id, row.user_id, row.subject, ciphertext, JSON.stringify(identity.scopes)])
+  await run(t.db, "UPDATE users SET calendar_use_state='needs_refresh',calendar_use_revision=calendar_use_revision+1 WHERE id=?", [userId])
 }
 /** Internal owner-scoped integration point. Callers must pass the authenticated actor's ID. */
 export async function refreshCalendarAccess(ctx: AuthContext, userId: string) {

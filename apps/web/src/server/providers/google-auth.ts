@@ -12,7 +12,8 @@ export interface GoogleIdentity {
 }
 export interface GoogleAccess { accessToken: string; expiresAt: number; refreshToken?: string }
 export interface GoogleAuthProvider {
-  authorizationUrl(input: { purpose: "login" | "calendar"; state: string; nonce: string }): string
+  /** `calendar` adds the Calendar scopes to a login; the calendar purpose always has them. */
+  authorizationUrl(input: { purpose: "login" | "calendar"; state: string; nonce: string; calendar?: boolean }): string
   exchange(code: string): Promise<GoogleIdentity>
   refresh(refreshToken: string): Promise<GoogleAccess>
 }
@@ -27,11 +28,14 @@ export class GoogleAuth implements GoogleAuthProvider {
     client?: OAuth2Client, private readonly now = Date.now) {
     this.client = client ?? new OAuth2Client(config.clientId, config.clientSecret, config.redirectUri)
   }
-  authorizationUrl(input: { purpose: "login" | "calendar"; state: string; nonce: string }): string {
+  authorizationUrl(input: { purpose: "login" | "calendar"; state: string; nonce: string; calendar?: boolean }): string {
+    const calendar = input.purpose === "calendar" || input.calendar === true
+    // No include_granted_scopes: the grant then covers only the scopes asked for here, so a plain login never
+    // comes back carrying an earlier Calendar permission.
     return this.client.generateAuthUrl({
-      scope: ["openid", "email", "profile", ...(input.purpose === "calendar" ? CALENDAR_SCOPES : [])],
+      scope: ["openid", "email", "profile", ...(calendar ? CALENDAR_SCOPES : [])],
       state: input.state, nonce: input.nonce,
-      ...(input.purpose === "calendar" ? { access_type: "offline", prompt: "consent" } : {}),
+      ...(calendar ? { access_type: "offline", prompt: "consent" } : {}),
     })
   }
   async exchange(code: string): Promise<GoogleIdentity> {

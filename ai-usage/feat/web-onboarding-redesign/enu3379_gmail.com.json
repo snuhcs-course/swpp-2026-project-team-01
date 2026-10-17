@@ -1,0 +1,40 @@
+{
+  "branch": "feat/web-onboarding-redesign",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:1103279e-d681-4c08-bc54-429c41019727": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 1223332,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 184,
+          "cache_read": 27718193,
+          "cache_write_5m": 0,
+          "cache_write_1h": 1023751,
+          "output": 88103,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-16T12:15:39.401Z",
+      "last": "2026-10-17T08:16:48.125Z"
+    },
+    "claude:a250feb9-7b74-40bd-a8d6-4cf1805eb890": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 154,
+          "cache_read": 16748910,
+          "cache_write_5m": 0,
+          "cache_write_1h": 149360,
+          "output": 71704,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-17T12:34:52.677Z",
+      "last": "2026-10-17T12:57:52.968Z"
+    }
+  }
+}

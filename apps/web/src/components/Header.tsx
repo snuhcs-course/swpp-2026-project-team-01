@@ -1,3 +1,4 @@
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-17
 import { readServerConfig } from "@/server/config"
 import Link from "next/link"
 import { currentUser, db, now } from "@/server/context"
@@ -48,14 +49,10 @@ export async function Header() {
         groups={NAV}
         pending={pending}
         brand={
-          <Link href="/book" className="flex items-center gap-2 rounded-control font-bold tracking-tight text-ink">
-            <span aria-hidden="true" className="grid size-7 grid-cols-2 gap-0.5 rounded-md bg-primary p-1.5">
-              <span className="rounded-[1px] bg-primary-ink/90" />
-              <span className="rounded-[1px] bg-primary-ink/40" />
-              <span className="rounded-[1px] bg-primary-ink/40" />
-              <span className="rounded-[1px] bg-primary-ink/90" />
-            </span>
-            AI 미팅 예약
+          <Link href="/app" className="flex items-center gap-2.5 rounded-control text-logo">
+            {/* DESIGN.md sizes: mark 10px on phones, 17px to 960px, 20px wider; the wordmark never wraps */}
+            <span aria-hidden="true" className="size-2.5 shrink-0 bg-logo [mask:url(/logo-mask.png)_center/contain_no-repeat] sm:size-[17px] lg:size-5" />
+            <span className="font-display text-[1.375rem] leading-none font-extrabold whitespace-nowrap [font-variation-settings:'opsz'_72] sm:text-[1.625rem]">Find Me a Time</span>
           </Link>
         }
         account={account}

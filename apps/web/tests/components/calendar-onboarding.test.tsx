@@ -82,7 +82,7 @@ describe('calendar and onboarding screens', () => {
     fireEvent.click(screen.getByRole('tab', { name: '장소별' }))
     expect(screen.getAllByText(/^[12]건$/).map(n => n.textContent)).toEqual(['1건', '1건', '2건'])   // 회사 · 직접 지정 · 알 수 없음 (future included)
     fireEvent.click(await screen.findByText('확인했어요 · AI 설정 계속'))
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/onboarding'))
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/app'))
     expect(fetcher).toHaveBeenCalledTimes(3)                       // nothing was corrected, so no second analysis
   })
   it('lets a demo account connect its example calendar, never offering Google', async () => {
