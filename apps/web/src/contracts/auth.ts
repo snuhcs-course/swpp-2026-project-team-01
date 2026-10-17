@@ -5,7 +5,8 @@ export const returnPathSchema = z.string().max(2048).refine(path => {
   const pathname = path.split(/[?#]/)[0]
   return pathname === "/" || /^\/invite\/[A-Za-z0-9_-]{24}$/.test(pathname) || ["/app", "/calendar", "/book", "/requests", "/settings"].some(p => pathname === p || pathname.startsWith(p + "/"))
 }, "앱 내부의 복귀 경로를 지정해 주세요")
-export const authStartSchema = z.strictObject({ purpose: z.enum(["login", "calendar"]), returnPath: returnPathSchema })
+// `calendar` on a login asks for the Calendar permission in the same consent, so signing in also connects the calendar.
+export const authStartSchema = z.strictObject({ purpose: z.enum(["login", "calendar"]), returnPath: returnPathSchema, calendar: z.boolean().optional() })
 export type AuthStartInput = z.infer<typeof authStartSchema>
 export type AuthStartView = { authorizationUrl: string }
 export const authCallbackSchema = z.strictObject({ code: z.string().min(1).max(4096), state: z.string().min(1).max(512) })

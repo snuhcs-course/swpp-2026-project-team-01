@@ -9,6 +9,7 @@ let store: Awaited<ReturnType<typeof emptyDb>>
 let time = 1000000
 let subject = "google-owner"
 let nonce = ""
+let calendarAsked = false
 let refreshToken: string | undefined = "refresh-secret"
 let exchangeHook: (() => void) | undefined
 let refreshError: unknown
@@ -29,8 +30,9 @@ beforeEach(async () => {
   store = await emptyDb()
   time = 1000000; subject = "google-owner"; refreshToken = "refresh-secret"; exchangeHook = undefined; refreshError = undefined
   const provider: GoogleAuthProvider = {
-    authorizationUrl(input) { nonce = input.nonce; return `https://accounts.google.com/o/oauth2/v2/auth?state=${input.state}` },
-    async exchange() { exchangeHook?.(); return { subject, name: "Owner", nonce, scopes: [...CALENDAR_SCOPES], refreshToken } },
+    // Like Google without include_granted_scopes: the grant carries only the scopes this request asked for.
+    authorizationUrl(input) { nonce = input.nonce; calendarAsked = input.purpose === "calendar" || input.calendar === true; return `https://accounts.google.com/o/oauth2/v2/auth?state=${input.state}` },
+    async exchange() { exchangeHook?.(); return { subject, name: "Owner", nonce, scopes: calendarAsked ? [...CALENDAR_SCOPES] : [], refreshToken } },
     async refresh() { if (refreshError) throw refreshError; return { accessToken: "access", expiresAt: time + 3600000 } },
   }
   ctx = { db: store.db, mode: "real", now: () => time, provider, vault: new TokenVault(Buffer.alloc(32, 7)) }
@@ -89,6 +91,14 @@ describe("OAuth lifecycle", () => {
   })
   it("separates demo from real authorization", async () => {
     await expect(startGoogleAuth({ ...ctx, mode: "demo" }, browser, { purpose: "login", returnPath: "/" })).rejects.toMatchObject({ code: "forbidden" })
+  })
+  it("connects the calendar from a login only when that login asked for it", async () => {
+    await completeGoogleAuth(ctx, browser, await begin())
+    expect((await store.sqlite.prepare("SELECT count(*) n FROM calendar_connections").get())).toEqual({ n: 0 })
+    const start = await startGoogleAuth(ctx, browser, { purpose: "login", returnPath: "/app", calendar: true })
+    const result = await completeGoogleAuth(ctx, browser, { state: new URL(start.authorizationUrl).searchParams.get("state")!, code: "code" })
+    expect(result).toMatchObject({ returnPath: "/app", sessionToken: expect.any(String) })
+    expect((await store.sqlite.prepare("SELECT status FROM calendar_connections").all())).toEqual([{ status: "connected" }])
   })
   it("rejects foreign sub and preserves existing refresh token on same-sub re-consent", async () => {
     const binding = await login()
