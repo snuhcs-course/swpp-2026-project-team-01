@@ -11,4 +11,8 @@ describe("mode configuration", () => {
     expect(readServerConfig({APP_MODE:"real",DATABASE_URL:"postgresql://x"}).allowReset).toBe(false)
     expect(readServerConfig({APP_MODE:"demo"}).allowReset).toBe(true)
   })
+  it("keeps Photon sends behind the explicit iMessage channel confirmation gate", () => {
+    expect(readServerConfig({ APP_MODE: "real", DATABASE_URL: "postgresql://x" }).spectrumImessageChannelConfirmed).toBe(false)
+    expect(readServerConfig({ APP_MODE: "real", DATABASE_URL: "postgresql://x", SPECTRUM_IMESSAGE_CHANNEL_CONFIRMED: "true" }).spectrumImessageChannelConfirmed).toBe(true)
+  })
 })
