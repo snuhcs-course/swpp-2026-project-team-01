@@ -11,7 +11,7 @@ export function LogoutButton() {
     <Button size="sm" variant="link" disabled={busy} onClick={async () => {
       setBusy(true)
       await request("POST", "/api/auth/logout", z.object({ loggedOut: z.boolean() }), {})
-      location.assign("/login")
+      location.assign("/")
     }}>로그아웃</Button>
   )
 }

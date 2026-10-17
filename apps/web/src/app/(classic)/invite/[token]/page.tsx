@@ -34,7 +34,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
             <AcceptInviteButton token={token} />
           </> : <>
             <p className="text-muted">로그인하면 {host.name}님이 연락처에 추가되고, 서로 가능한 시간을 AI와 함께 찾을 수 있어요.</p>
-            {real ? <GoogleConnect returnPath={`/invite/${token}`} /> : <Link href="/login" className={buttonClass('primary', 'lg')}>시작</Link>}
+            {real ? <GoogleConnect returnPath={`/invite/${token}`} /> : <Link href="/" className={buttonClass('primary', 'lg')}>시작</Link>}
           </>}
         </>}
       </Card>

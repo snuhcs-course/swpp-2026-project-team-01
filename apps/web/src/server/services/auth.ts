@@ -27,7 +27,7 @@ export function authContext(): AuthContext {
 }
 const invalid = () => new DomainError("invalid_input", "인증 요청이 만료되었거나 올바르지 않아요. 다시 시작해 주세요")
 // Only collection/static destinations are allowed, so redirects cannot disclose private resource IDs.
-const RETURN_PATHS = new Set(["/", "/calendar", "/book", "/requests", "/settings", "/settings/calendars", "/onboarding", "/onboarding/review"])
+const RETURN_PATHS = new Set(["/", "/calendar", "/book", "/requests", "/settings", "/settings/calendars", "/app"])
 function safeReturnPath(path: string): string {
   // A booking link brings the visitor back to the same link after sign-in.
   if (!RETURN_PATHS.has(path) && !/^\/invite\/[A-Za-z0-9_-]{24}$/.test(path)) throw new DomainError("invalid_input", "허용된 앱 내부 경로로 이동해 주세요")

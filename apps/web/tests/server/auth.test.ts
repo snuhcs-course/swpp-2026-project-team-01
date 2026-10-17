@@ -162,7 +162,7 @@ describe("auth HTTP boundary", () => {
     const { GET: callback } = await import("@/app/api/auth/google/callback/route")
     const { GET: me } = await import("@/app/api/me/route")
     const { POST: logout } = await import("@/app/api/auth/logout/route")
-    const started = await start(new Request("https://app.example/api/auth/google/start", { method: "POST", headers: { origin: "https://app.example", "content-type": "application/json" }, body: JSON.stringify({ purpose: "login", returnPath: "/onboarding" }) }))
+    const started = await start(new Request("https://app.example/api/auth/google/start", { method: "POST", headers: { origin: "https://app.example", "content-type": "application/json" }, body: JSON.stringify({ purpose: "login", returnPath: "/app" }) }))
     const payload = await started.json()
     expect(payload).toMatchObject({ ok: true, meta: {} })
     const url = new URL(payload.data.authorizationUrl)
@@ -172,7 +172,7 @@ describe("auth HTTP boundary", () => {
     const cbUrl = `https://app.example/api/auth/google/callback?code=fixture&state=${url.searchParams.get("state")}`
     const finished = await callback(new Request(cbUrl, { headers: { cookie } }))
     expect(finished.status).toBe(303)
-    expect(finished.headers.get("location")).toBe("https://app.example/onboarding")
+    expect(finished.headers.get("location")).toBe("https://app.example/app")
     const session = finished.headers.getSetCookie().find(c => c.startsWith(`${SESSION_COOKIE}=`))!
     expect(session).toContain("Max-Age=604800; Secure")
     const authCookie = session.split(";")[0]
