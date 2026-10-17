@@ -10,6 +10,7 @@
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
     "db:reset": "tsx --env-file=.env scripts/db-reset.ts",
+    "imessage:worker": "tsx scripts/imessage-worker.ts",
     "dev:mock": "APP_MODE=demo DATABASE_URL=${MOCK_DATABASE_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres} NEXT_DIST_DIR=.next-mock next dev -H 127.0.0.1 -p 3100"
   },
   "dependencies": {
