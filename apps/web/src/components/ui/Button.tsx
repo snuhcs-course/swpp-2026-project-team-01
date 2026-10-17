@@ -1,4 +1,4 @@
-// AI-generated with Claude Code (claude-opus-5-5), 2026-10-05
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-05, 2026-10-17
 import type { ButtonHTMLAttributes } from "react"
 import { cn } from "./cn"
 
@@ -11,7 +11,7 @@ const base =
   "disabled:cursor-not-allowed disabled:opacity-45 aria-disabled:cursor-not-allowed aria-disabled:opacity-45"
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-primary text-primary-ink shadow-card hover:bg-primary-hover disabled:hover:bg-primary",
+  primary: "bg-primary font-semibold text-primary-ink hover:bg-primary-hover active:bg-primary-pressed disabled:hover:bg-primary",
   secondary: "border border-border-strong bg-surface text-ink hover:bg-surface-sunken disabled:hover:bg-surface",
   ghost: "text-ink-soft hover:bg-surface-sunken hover:text-ink",
   danger: "border border-border-strong bg-surface text-danger hover:border-danger hover:bg-danger-soft",
