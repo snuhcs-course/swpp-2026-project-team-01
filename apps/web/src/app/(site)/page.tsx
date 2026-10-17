@@ -1,20 +1,24 @@
-// AI-generated with Claude Code (claude-opus-5-5), 2026-10-16, 2026-10-17
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-16, 2026-10-17, 2026-10-18
 import { AgentPrompt } from "@/components/thyme/agent-prompt";
 import { Brand, PRODUCT_NAME } from "@/components/thyme/brand";
 import { COPY } from "@/components/thyme/copy";
 import { ExampleCards } from "@/components/thyme/example-cards";
 import { GoogleStart, SignInLink } from "@/components/thyme/google-start";
+import { ImessageStart, PhoneStart } from "@/components/thyme/imessage-start";
 import { LanguageSelect } from "@/components/thyme/language-select";
 import { readServerConfig } from "@/server/config";
 import { siteLocale } from "./locale";
 
 // P01, the public landing. Both sign-in entries start Google sign-in; demo mode skips it.
-export default async function Landing() {
+// Two starts are being compared: Google first (the default), and `?flow=imessage`, which asks for the number
+// right here and checks it before anything else. How visitors get one or the other is not decided yet.
+export default async function Landing({ searchParams }: { searchParams: Promise<{ flow?: string }> }) {
   // A signed-in host signs in again too: that is where the Calendar box takes effect.
   const direct = readServerConfig().mode === "demo";
   const locale = await siteLocale();
+  const imessage = (await searchParams).flow === "imessage";
   const t = COPY[locale];
-  return (
+  const page = (
     <div className="inner" data-screen="landing">
       <header className="top">
         <Brand />
@@ -29,7 +33,7 @@ export default async function Landing() {
           <h1>{t.landing.headline.map((line) => <span key={line}>{line}</span>)}</h1>
           <p className="lede">{t.landing.lede}</p>
           <div className="start">
-            <GoogleStart direct={direct} copy={t.landing} />
+            {imessage ? <PhoneStart locale={locale} direct={direct} /> : <GoogleStart direct={direct} copy={t.landing} />}
             <AgentPrompt copy={t.landing} labels={t.copy} />
           </div>
           <p className="guest">{t.landing.guest} <a href="#">{t.landing.resume}</a></p>
@@ -53,4 +57,5 @@ export default async function Landing() {
       </footer>
     </div>
   );
+  return imessage ? <ImessageStart locale={locale} direct={direct}>{page}</ImessageStart> : page;
 }

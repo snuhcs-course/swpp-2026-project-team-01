@@ -1,7 +1,7 @@
-// AI-generated with Claude Code (claude-opus-5-5), 2026-10-17
+// AI-generated with Claude Code (claude-opus-5-5), 2026-10-17, 2026-10-18
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { z } from "zod";
 import { request } from "@/components/api";
 import type { Copy } from "./copy";
@@ -9,10 +9,12 @@ import { GoogleLogo } from "./icons";
 
 // Sign-in always returns to the host page. With the Calendar box checked, the same Google consent also grants
 // Calendar access, and the host page imports the calendar in the background.
-// Demo mode has no Google sign-in: it goes straight there, and `?calendar=1` asks for the example calendar.
-async function start(calendar: boolean, direct: boolean): Promise<string | null> {
+// Demo mode has no Google sign-in: it goes straight there, `?calendar=1` asks for the example calendar and
+// `?phone=1` says the iMessage start already dealt with the number.
+async function start(calendar: boolean, direct: boolean, phoneDone = false): Promise<string | null> {
   if (direct) {
-    location.assign(calendar ? "/app?calendar=1" : "/app");
+    const query = new URLSearchParams([...(calendar ? [["calendar", "1"]] : []), ...(phoneDone ? [["phone", "1"]] : [])]).toString();
+    location.assign(query ? `/app?${query}` : "/app");
     return null;
   }
   const r = await request("POST", "/api/auth/google/start", z.object({ authorizationUrl: z.string() }), { purpose: "login", returnPath: "/app", calendar });
@@ -24,14 +26,21 @@ async function start(calendar: boolean, direct: boolean): Promise<string | null>
 }
 
 export function SignInLink({ direct, copy }: { direct: boolean; copy: Copy["landing"] }) {
+  return <GoogleLink className="signin" direct={direct}>{copy.signIn}</GoogleLink>;
+}
+
+/** A plain link into Google sign-in, for places that offer it on the side. */
+export function GoogleLink({ direct, calendar = false, phoneDone = false, className, children }: {
+  direct: boolean; calendar?: boolean; phoneDone?: boolean; className: string; children: ReactNode;
+}) {
   const [busy, setBusy] = useState(false);
   return (
-    <a className="signin" href="/app" aria-disabled={busy} onClick={(event) => {
+    <a className={className} href="/app" aria-disabled={busy} onClick={(event) => {
       event.preventDefault();
       if (busy) return;
       setBusy(true);
-      void start(false, direct).then((error) => { if (error) setBusy(false); });
-    }}>{copy.signIn}</a>
+      void start(calendar, direct, phoneDone).then((error) => { if (error) setBusy(false); });
+    }}>{children}</a>
   );
 }
 

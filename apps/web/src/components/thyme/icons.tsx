@@ -69,20 +69,20 @@ export function Check() {
   );
 }
 
+export function AlertIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+      <circle cx="11" cy="11" r="9.5" fill="currentColor" />
+      <path d="M11 6.2v6.2" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
+      <circle cx="11" cy="15.6" r="1.3" fill="#fff" />
+    </svg>
+  );
+}
+
 export function SendIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
       <path d="M10 16V4.5M4.8 9.4 10 4.2l5.2 5.2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
-  );
-}
-
-export function Tick() {
-  return (
-    <span className="tick" aria-hidden="true">
-      <svg viewBox="0 0 64 64">
-        <path d="M19 33.5 28 42.5 46 23.5" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </span>
   );
 }

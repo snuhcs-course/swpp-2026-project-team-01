@@ -68,7 +68,7 @@ h1, h2, h3, p, ol, figure { margin: 0; }
   --wm-family: var(--font-big-shoulders), system-ui, sans-serif; --wm-weight: 800; --wm-stretch: 100%; --wm-fvs: "opsz" 72;
   --wm-size: clamp(26px, 3.2cqi, 33px); --wm-track: -0.005em; --hd-track: 0em; --hd-scale: 1.19;
 }
-.stage h1, .stage .steps h2, .stage .steps li::before {
+.stage h1, .stage .steps h2, .stage .steps li::before, .stage .code-digits {
   font-family: var(--wm-family); font-weight: var(--wm-weight); font-stretch: var(--wm-stretch); font-variation-settings: var(--wm-fvs); letter-spacing: var(--hd-track);
 }
 /* Hangul has no condensed face (Big Shoulders sets Latin only), so Korean headings need no widening scale. */
@@ -245,19 +245,74 @@ h1 span { display: block; white-space: nowrap; }
 }
 .primary-btn:hover { background: var(--primary-hover); }
 .primary-btn:active { background: var(--primary-pressed); }
+.primary-btn:disabled { background: var(--primary); opacity: 0.5; cursor: default; font-variant-numeric: tabular-nums; }
 .field-help { font-size: 13px; color: var(--muted-ink); min-height: 20px; }
 .field-help.error { color: var(--destructive); font-weight: 500; }
 .fine { font-size: 12px; line-height: 1.55; color: var(--muted-ink); max-width: 56ch; }
 .alt { font-size: 14px; color: var(--muted-ink); border-top: 1px solid var(--hairline); padding-top: 16px; width: 100%; }
 .alt .link-btn { font-size: 14px; padding: 4px 0; }
-/* sent: one check, the message, and a quiet way to stay on the web */
-.handoff.sent { align-items: center; text-align: center; padding-top: clamp(32px, 10cqi, 120px); }
-.tick { display: block; width: 72px; height: 72px; border-radius: 9999px; background: var(--primary); color: var(--on-primary); }
-.tick svg { display: block; width: 100%; height: 100%; }
-.tick path { stroke-dasharray: 40; stroke-dashoffset: 0; animation: tick-draw 420ms 120ms ease-out backwards; }
-@keyframes tick-draw { from { stroke-dashoffset: 40; } }
-.sent .lede { max-width: 34ch; }
+/* verify: the mark, what happened, the number to send back, and what to do if nothing arrives */
+.handoff.verify { align-items: center; text-align: center; padding-top: clamp(32px, 10cqi, 120px); }
+.verify .lede { max-width: 34ch; }
 .sent-to { font-size: 14px; font-weight: 500; color: var(--muted-ink); font-variant-numeric: tabular-nums; }
+/* the ring spins, stops where it is, closes into a disc, then the check or cross is drawn on it */
+.status-mark { display: block; width: 72px; height: 72px; color: var(--primary); transition: color 200ms; }
+.status-mark.failed { color: var(--destructive); }
+.status-mark svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.status-mark .disc { fill: currentColor; opacity: 0; transition: opacity 220ms 300ms ease-out; }
+.status-mark .ring {
+  fill: none; stroke: currentColor; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 26 100;
+  transform-box: fill-box; transform-origin: center; animation: mark-spin 900ms linear infinite; transition: stroke-dasharray 320ms ease-out;
+}
+.status-mark:not(.busy) .ring { stroke-dasharray: 100 0; animation-play-state: paused; }
+.status-mark:not(.busy) .disc { opacity: 1; }
+.status-mark .glyph { fill: none; stroke: var(--on-primary); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 100; animation: mark-draw 420ms 520ms ease-out backwards; }
+@keyframes mark-spin { to { transform: rotate(360deg); } }
+@keyframes mark-draw { from { stroke-dashoffset: 100; } }
+.code { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 16px; }
+.code-label { font-size: 14px; font-weight: 500; color: var(--muted-ink); }
+/* the number to send back is set like the heading above it */
+.code-digits { font-family: var(--font-display); font-weight: 760; font-size: calc(64px * var(--hd-scale, 1)); line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.stage .code-digits { animation: code-in 320ms ease-out; }
+@keyframes code-in { from { opacity: 0; transform: translateY(6px); } }
+/* a wrong reply: a box that cannot be missed, right below the new number */
+.wrong {
+  box-sizing: border-box; width: 100%; display: flex; gap: 12px; align-items: flex-start; text-align: left;
+  padding: 14px 16px; border-radius: 12px; color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--destructive) 40%, transparent);
+  animation: wrong-in 420ms ease-out;
+}
+.wrong svg { flex: none; margin-top: 1px; }
+.wrong strong { display: block; font-size: 17px; font-weight: 700; line-height: 1.35; }
+.wrong span { display: block; font-size: 15px; line-height: 1.5; color: var(--ink); word-break: keep-all; }
+@keyframes wrong-in { 0%, 100% { transform: none; } 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+.code-left { font-size: 13px; color: var(--muted-ink); font-variant-numeric: tabular-nums; }
+.verify-help { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 14px; color: var(--muted-ink); max-width: 40ch; }
+.verify-help .link-btn { font-size: 14px; padding: 4px 0; }
+.verify-help .link-btn:disabled { color: var(--muted-ink); text-decoration: none; cursor: default; font-variant-numeric: tabular-nums; }
+.verify-actions { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+/* put off: a dialog over the crossed-out screen */
+.putoff {
+  box-sizing: border-box; width: min(420px, calc(100vw - 32px)); margin: auto; padding: 24px; border: 0; border-radius: 16px; background: var(--surface); color: var(--ink);
+  box-shadow: 0 24px 60px rgb(30 36 48 / 0.22); text-align: left;
+}
+.putoff[open] { display: flex; flex-direction: column; gap: 14px; }
+.putoff::backdrop { background: rgb(30 36 48 / 0.45); }
+.putoff h2 { font-family: var(--font-display); font-weight: 760; font-size: 22px; line-height: 1.2; }
+.putoff p { font-size: 15px; color: var(--muted-ink); line-height: 1.55; }
+.notify { display: flex; flex-direction: column; gap: 8px; }
+.secondary-btn {
+  min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--hairline); background: var(--surface);
+  font: inherit; font-weight: 600; font-size: 15px; color: var(--primary); cursor: pointer;
+}
+.secondary-btn:hover { border-color: var(--primary); }
+.putoff-go { display: flex; flex-direction: column; padding-top: 6px; border-top: 1px solid var(--hairline); }
+.putoff-go > *, .verify .gbtn { box-sizing: border-box; max-width: 100%; }
+.putoff-go > * { margin-top: 8px; justify-content: center; }
+.putoff .contact { font-size: 13px; }
+.putoff .contact a { color: var(--primary); font-weight: 500; text-underline-offset: 3px; }
+.demo-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; font-size: 13px; color: var(--muted-ink); border-top: 1px dashed var(--hairline); padding-top: 12px; }
+.demo-row .link-btn { font-size: 13px; padding: 4px 0; }
 .link-btn.faint { color: var(--muted-ink); font-size: 14px; font-weight: 400; opacity: 0.8; }
 .link-btn.faint:hover { opacity: 1; color: var(--primary); }
 
@@ -441,7 +496,10 @@ h1 span { display: block; white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   .gbtn, .ghost, .send, .primary-btn, .lang-btn { transition: none; }
-  .w, .typing i, .tick path { animation: none; }
+  .w, .typing i, .status-mark .glyph, .wrong, .stage .code-digits { animation: none; }
+  .status-mark .ring { animation: none; stroke-dasharray: 100 0; opacity: 0.35; transition: none; }
+  .status-mark:not(.busy) .ring { opacity: 1; }
+  .status-mark, .status-mark .disc { transition: none; }
   .card-dots button::before { transition: none; }
 }
 
