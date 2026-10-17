@@ -13,7 +13,7 @@ export type PhoneEntry = { e164: string; display: string };
 export type SubmitPhone = (phone: PhoneEntry) => Promise<"invalid" | "taken" | "other" | null>;
 
 // After sign-in: where should Thyme text you. Skipping the number opens the web chat instead; once a number
-// is in, the web chat opens only after it is checked.
+// is in, the host moves on only after it is checked or put off.
 export function PhoneStep({ locale, onSubmit, onSkip }: { locale: Locale; onSubmit: SubmitPhone; onSkip: () => void }) {
   const t = COPY[locale].phone;
   const heading = useRef<HTMLHeadingElement>(null);
