@@ -1,0 +1,19 @@
+# Local credentials and tooling state must never be uploaded as deployment source.
+.env*
+**/.env*
+.local/
+.cloudflare/
+.agents/
+.codex/
+.git/
+.vercel/
+node_modules/
+**/node_modules/
+.eve/
+.output/
+**/.next/
+**/*.tsbuildinfo
+test-results/
+playwright-report/
+supabase/.temp/
+supabase/.branches/

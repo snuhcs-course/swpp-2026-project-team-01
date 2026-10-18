@@ -2,6 +2,14 @@
 
 This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, reviewable, and aligned with the team's agreed requirements.
 
+## Reconstruction planning boundary
+
+On 2026-10-13 the user authorized local source removal and re-planning only. Application code, SQL/migrations, tests and build tooling are absent. Do not scaffold or implement the replacement until a new explicit implementation request. The previous implementation remains on the `feat/astra-reconstruction` branch (pre-removal recovery point `02e5a8e`); historical OpenSpec checkmarks do not establish current implementation coverage. See the [implementation plan](documentations/technical_specification/04_implementation_plan.md).
+
+The user subsequently explicitly authorized resetting the application schemas on linked Supabase project `anelszynxtvxoxqvzgqt`. That reset is verified complete: application objects, legacy jobs/queue and migration history are empty; Supabase-managed schemas/data remain. Private ignored backups retain the former application state. See [reset verification](documentations/technical_specification/03_provider_setup.md#authorized-application-schema-reset--2026-10-13). This does not authorize replacement implementation.
+
+Before database implementation, recheck the selected empty application baseline; any other populated target still requires restored/reconciled applied history. Never push a new empty-baseline migration chain onto a populated project. The normal schema workflow below applies after a new implementation request and reviewed local migration re-enablement.
+
 ## Repository layout
 
 - `apps/`: application code. Add app-specific setup and test instructions when an app is created.
@@ -43,7 +51,7 @@ References: [Cloudflare CLI setup](https://developers.cloudflare.com/cf/get-star
 - Read the relevant files before editing and avoid guessing the product architecture or dependencies.
 - Keep secrets, credentials, and local environment files out of Git. Add examples when configuration needs to be shared.
 - Run the relevant checks for files you change, and report any checks that cannot run.
-- Update documentation when setup steps or behavior change.
+- For every feature change, check whether product, UX, technical, setup, or API documentation needs updating. Update the owning documents in the same change when behavior or setup changes; if no update is needed, say why in the final report.
 
 ## Documentation and specifications
 
@@ -61,21 +69,15 @@ OpenSpec validation checks artifact structure and specification consistency; it 
 
 Reference: [OpenSpec quickstart](https://openspec.dev/docs/quickstart).
 
-## Git workflow and pull requests
+## Git branch conventions
 
-The four-person team uses GitHub Flow: `main` -> short-lived working branch -> pull request -> review and checks -> merge -> branch deletion. Keep `main` ready to deploy as application code is added; use working branches for incomplete work.
-
-- Create each working branch from the latest `main` and give it one bounded purpose. Use descriptive names such as `feat/booking-approval` or `docs/development-workflow`; Codex-created branches use the `codex/` prefix.
-- Keep PRs small and separate unrelated changes. Describe the resulting behavior, rationale, and validation, including any checks that could not run. Reflect new changes on `main` regularly and resolve conflicts before merging.
-- All changes to `main` go through a PR. Require approval from at least one teammate other than the author and passing relevant CI checks before merging. Until relevant CI exists, run the applicable local checks and record the results and gaps in the PR.
-- Configure GitHub branch protection or rulesets to enforce the review and required checks on `main`.
-- Use **Squash and merge** by default so each PR becomes one logical commit on `main`. Use the commit-message format below for the PR title and final squash message, and preserve useful Lore decision context in the final message.
-- Use **Rebase and merge** as an exception when the PR's individual commits are already meaningful, independently reviewable, and worth retaining. Ordinary PRs do not need merge commits.
-- Delete the working branch after merging and start the next task from the latest `main`, especially after a squash merge. Coordinate with teammates before rewriting history on shared branches.
-
-Use this workflow without a permanent `develop` branch. Reconsider Git Flow or release branches if the project needs concurrent supported versions or a separate release-stabilization period.
-
-References: [GitHub Flow](https://docs.github.com/en/get-started/using-github/github-flow) and [PR merge methods](https://docs.github.com/en/pull-requests/reference/pull-request-merges).
+- `main` is the integration branch. Use a topic branch and a pull request for changes; do not commit directly to `main`.
+- Name new branches `<type>/<short-description>`, using the commit types below and lowercase letters, digits, and hyphens within each segment. Examples: `fix/booking-timezone` and `docs/branch-conventions`. Do not use the `codex/` prefix. Follow an explicit user-provided branch name when given.
+- Keep each branch focused on one feature, fix, or documentation task. When implementing an OpenSpec change, reuse its change name as the description where practical, such as `feat/connect-google-calendars`.
+- Start new, independent work from the latest `origin/main` after fetching. Continue an existing task on its existing branch; use another base only when the task explicitly depends on it.
+- Inspect the current branch and working tree before switching or creating branches. Preserve unrelated local changes; use a separate worktree when isolation is needed. Do not rename an existing branch just to match this convention.
+- Keep shared branch history intact. Do not force-push or rebase a shared branch without explicit authorization.
+- Delete a topic branch after its pull request is merged and its work is no longer needed. Do not delete branches with unmerged work or active worktrees.
 
 ## Commit messages
 
@@ -109,6 +111,15 @@ Not-tested: <known gaps in verification>
 ```
 
 Use `Rejected:` to record alternatives future modifiers should not revisit and `Directive:` for warnings. Include only trailers that add useful context.
+
+## AI usage records
+
+Each task is one branch, and each task reports the Claude Code and Codex tokens and agent working time spent on it.
+
+- One-time setup per clone: `git config core.hooksPath .githooks`. The pre-commit hook then runs `node scripts/ai-usage.mjs record --stage` on every commit, which reads the local Claude Code and Codex logs (CLI and desktop app) and updates `ai-usage/<branch>/<git user.email>.json`. It stores token counts and agent time only, never prompts.
+- Usage is attributed by the working directory and by which branch that worktree had checked out at the time, so run agents inside the repository (or its worktrees). Start every new task's session on its own new branch: a session opened on another task's branch or worktree is counted toward that task. When working on several tasks in parallel, create the branch and worktree first (`git worktree add -b feat/new ../new`) and start the session there. The post-checkout hook logs every branch switch and `git worktree add` to `.git/ai-usage-branches.log`, so usage in worktrees that were later removed still counts; set up the hooks before creating task worktrees. Cloud sessions (Claude Code on the web, Codex cloud) leave no local logs and are not recorded.
+- Usage after the last commit is picked up by the next commit. Commit once more before asking for review if agents ran since.
+- Do not edit `ai-usage/` files by hand. `node scripts/ai-usage.mjs report [branch]` prints the table; the `AI usage` workflow posts it as a comment on each pull request.
 
 ## Shared skills
 

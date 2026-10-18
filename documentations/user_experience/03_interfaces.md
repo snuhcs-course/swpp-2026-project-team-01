@@ -1,32 +1,46 @@
 # Find Me a Time — Interfaces
 
 Status: Draft for team review\
-Date: 2026-10-05\
+Date: 2026-10-13\
 Basis: [Product requirements](../02_product_requirements.md)\
 Companion: [User journeys and flows](01_user_journeys.md)
 
 This document explains which interfaces people and personal agents use, what each interface is for, and how they connect to the same scheduling workflow. It describes intended product design, not implemented integrations. The PRD owns release requirements and acceptance criteria.
 
+Reconstruction design (2026-10-13): the [page list](04_page_list.md) defines the proposed new web routes and contextual actions. The [frontend architecture](../technical_specification/02_frontend_architecture.md) proposes Next.js/eve against a rebuilt scheduling backend. The [implementation plan](../technical_specification/04_implementation_plan.md) defines the delivery phases and verification gates. The six-digit iMessage linking direction remains a proposed delta. Its previous plan is retired; the browser card, proof backend, live delivery and linked conversation must be implemented and verified afresh.
+
 ## Channel direction
 
-Make the personal agent the primary entry point for agent users: paste `Let me use findmeatime.com/SKILL.md for my scheduling` to become a host, or `Let me schedule a meeting with findmeatime.com/dodo/SKILL.md` to request a meeting. The agent guides the workflow and asks only for missing information, required consent, and decisions. These are planned URLs, not verified live endpoints.
+Make the personal agent the primary entry point for agent users: paste `Let me use findmeatime.com/SKILL.md for my scheduling` to become a host, or `Let me schedule a meeting with findmeatime.com/dodo/SKILL.md` to request a meeting. The agent guides the workflow and asks only for missing information, required consent, and decisions. The rebuilt application serves both paths on `https://release.findmeatime.com`; the root-domain URLs remain the intended launch entry points. The current documents provide browser continuation while protected MCP/CLI and named-client acceptance remain incomplete.
 
 Publishing a booking link and receiving requests as a host is waitlist/invite-only; connecting Google Calendar as a requester is available without an invitation. The public root skill explains this and directs users without access to web waitlist entry or invitation redemption. Existing admitted hosts resume setup normally. Requesters using an active host's link remain account-free and do not need invitations. They can optionally connect Google Calendar through a separate browser consent flow to check availability; this does not enroll them as hosts.
 
-Build one responsive web application for mobile and desktop. Web handles host setup, full request management, connection settings, and recovery, while the public booking page lets requesters coordinate without an account. A native mobile app is outside the initial release.
+Build one responsive web application for mobile and desktop. Website chat and linked private iMessage guide host setup through the same durable draft and explicit settings review. The inline linking flow has the host enter an E.164 phone number on the authenticated website, receive a six-digit code in iMessage, and enter that code back on the website; the website never displays the code it sent. Connect/Maybe later, phone/code entry, expiry, retry, number changes and confirmed unlink stay inside `/app`; reload restores only masked server state. The implementation plan assigns fresh setup/linking behavior and acceptance to S3/S8; the prior change is retired. Make the host and requester web workspaces conversation-first: show current settings, candidate times, proposals and decisions as reviewable artifacts with labeled action buttons in context. Keep structured setup controls in clearly labeled in-chat sections for precise edits. A private request link exchanges its secret for request-scoped browser access without credential-paste controls. When access is missing, the booking destination offers labeled, keyboard-operable recovery through the previously verified current contact, with generic feedback and no protected details. The [requester booking destination](04_page_list.md#requester-booking-destination) describes this S4 recovery flow. Sign-in, invitation codes and Google consent continue in the browser. Web also handles full request management and connection settings, while the public booking page lets requesters coordinate without an account. A native mobile app is outside the initial release.
+
+The host chats with the agent at `/app`, the single host page for admission, setup, request review and settings. A compact menu opens contextual controls and sign-out; request cards or a picker select the discussion within the same page. Requester intake and booking conversations retain their separate public/protected routes. These workspaces use centered chat with no persistent sidebar or dashboard metrics. Host request review switches between shared and private discussions, showing one at a time. Status and decisions appear in the transcript, while exact setup settings stay in expandable review and edit sections. On phones, the transcript scrolls independently so the composer remains reachable.
 
 For hosts who use iMessage, make the linked private conversation their main day-to-day channel for request summaries, discussion, and decisions. Hosts can instead use web or a supported personal agent. Channel choice should not require repeating a conversation or maintaining a second request.
 
 Also offer a private host–assistant email conversation, with final approval through authenticated web review. This is a proposed extension from the latest product discussion: the current PRD and numbered journeys cover requester email, but do not yet specify host email requirements or acceptance scenarios. The email design below should be incorporated there before implementation.
 
+
+Admitted hosts see a compact workspace heading above the conversation. Saved Calendar choices collapse to a count and named booking destination, with **Change calendar choices** to reopen the current selections. Missing or invalid saved selections stay open for correction. **Close without saving** and **Cancel calendar edits** discard only unsubmitted selection changes. Saving refreshes the next setup question automatically. **Manage Google connection** exposes reconnect/disconnect separately from preference editing.
+
+After calendar choices are saved, Thyme analyzes the selected conflict calendars over the past and next four weeks automatically. There is no suggestions-versus-manual question or repeated calendar picker. Suggestions remain reviewable drafts. Failed analysis offers retry or manual preferences; existing, dismissed or expired results do not trigger repeated scans on reload.
+
+Preference details and completed analysis evidence collapse after use while their review/edit actions remain available. The exact preference review opens automatically before final confirmation, including weekly windows and applicable physical-meeting choices. Collapsing a card never confirms settings or changes the server draft. Compact progress expands to show completed steps.
+
+Host preference editors focus their title when opened from guidance or an **Edit** action. **Cancel edit** returns focus to the opening control; saving a draft focuses its result without claiming settings confirmation. Calendar consent returns focus to the verified connection result (or its recovery error), with the current server draft and completed preference choices preserved. The return URL alone cannot establish consent.
+
 ## Interface inventory
 
 | Interface | Who uses it | Main responsibility | Access and approval |
 |---|---|---|---|
-| Waitlist and invitation web flow | Prospective host | Join the waitlist, see pending access, redeem an invitation, and resume onboarding. | Waitlist entry grants no host access; invitation redemption binds admission to a verified account. Email invitation delivery is proposed; exact delivery policy remains open. |
+| Waitlist and invitation web flow | Prospective host | Join the waitlist, see pending access, redeem an invitation, and resume onboarding. | Waitlist entry grants no host access; invitation redemption binds admission to a verified account. Remote operator-issued invitations use Cloudflare email from `no-reply@findmeatime.com`, with an explicit manual-delivery option. |
 | Public skill documents | Host or requester through a personal agent | Root `/SKILL.md` guides onboarding; `/{host}/SKILL.md` guides requesting that host. | Public instructions only; tools still enforce role-specific access, consent, and approval. |
-| Public booking web page | Requester | Intake, optional Google Calendar connection/disconnection, clarification, feasible options, negotiation, agreement, and status. | No account required; continuation is limited to the request. Cannot approve for the host. |
-| Host web workspace | Host | Calendar and rule setup, request inbox, private discussion, proposal review, connection management, and recovery. | Authenticated and admitted host access; explicit approval of the displayed current proposal. |
+| Public booking entry | Requester | `/{handle}` introduces the host and starts intake; accepted creation continues at `/booking/[bookingId]`. | No account required; public entry exposes no existing request history. |
+| Private booking conversation and receipt | Requester | `/booking/[bookingId]` supports clarification, optional Calendar availability, candidate selection, agreement and status; after booking, shows the permitted final receipt. | Verified request-scoped access; the route ID alone grants nothing. Cannot approve for the host. |
+| Host web workspace (`/app`) | Host | Calendar and rule setup, contextual request selection, private discussion, proposal review, connection management, and recovery within one agent chat page. | Authenticated and admitted host access; explicit approval of the displayed current proposal. |
 | Requester email | Requester | Submit details, exchange alternatives, agree to shared details, and receive outcomes. | Verified request continuation; sender claims do not grant host access. |
 | Host email — proposed extension | Host | Receive summaries, discuss privately, request revisions or decline, and receive outcomes. | Verified host conversation; final meeting approval uses an authenticated web link. |
 | iMessage | Host | Opt-in private summaries, questions, revisions, approval, decline, and outcomes. | Linked host identity and exact proposal context; use web when these cannot be established. |
@@ -38,6 +52,28 @@ Also offer a private host–assistant email conversation, with final approval th
 MCP and CLI are connection options for personal-agent clients, not additional chat applications we need to build. The CLI and MCP server both use the shared scheduling API; the CLI does not need to route through MCP.
 
 Requester calendar consent opens in a browser from web, email continuation, or a personal-agent response and returns to the same protected request. Google sign-in is for calendar authorization and does not require creating a product account. Provide a visible skip/disconnect path and manual or authorized agent availability as alternatives. The host and personal agents receive appropriate proposed times, not the requester's private events or tokens.
+
+## Onboarding message presentation
+
+Authored onboarding messages reveal progressively, one message at a time: greeting, connection prompt or verified congratulations, then calendar selection. Actions appear after their preceding message completes. Avoid a duplicate “Google connection saved.” status; consent-return focus moves to the verified congratulations. Reduced-motion users receive complete messages immediately. Actual assistant replies continue to render from the server stream.
+
+Once an authored message finishes, revisits and refreshes show it immediately. Completion fingerprints are retained in this browser per authorized conversation, without storing message text; a new conversation after an onboarding reset starts fresh. Unfinished messages can stream again.
+
+## Booking confirmation email and calendar invitation
+
+Use the supplied invitation as a presentation reference: a readable confirmation email and a calendar-native event are complementary views of the same confirmed booking. Reuse the pattern, not the example's personal details, meeting credentials or management tokens. These are meeting invitations, distinct from invite-only host-admission emails.
+
+| Surface | Content | Actions |
+|---|---|---|
+| Confirmation email | Confirmed status; meeting title/purpose; date, start/end time, duration and explicit timezone; organizer and participants; physical location or online meeting link. Provide readable HTML and a plain-text equivalent. | **Join meeting** when an online URL exists; **View booking** opens the requester receipt at `/booking/[bookingId]`; the host opens the selected request in `/app?request=[bookingId]`. |
+| Calendar invitation | Structured title, start/end instants, timezone, organizer, attendees and location/join URL. A concise description contains shared purpose, practical joining details and the booking-page link. | Calendar-native response controls; **View booking** in the description. |
+| Booking page | Current authoritative status and, once confirmed, the final event details and joining information permitted for that viewer. | Continue negotiation while active; view the terminal receipt after closure within the credential's lifetime. |
+
+The service may send confirmation email while the host's selected calendar supplies event organizer identity. Do not replace the organizer with the email delivery provider or assume every selected calendar has the host's primary email. Calendar RSVP/accepted flags, delivery receipts and email opening do not establish our requester agreement or host approval; those remain recorded application decisions.
+
+Generate all views from the same confirmed event details. An uncertain write must not produce a “Confirmed” email or receipt. Keep delivery outcome separate: failure or retry does not recreate the calendar event. Calendar description links contain no host-private notes, rules, exception reasons or credential granting transcript access; opening them still requires appropriate authorization. Private requester email carries a separate receipt-only token in the URL fragment, exchanged for an HttpOnly cookie and removed from the address bar. It grants no conversation, scheduling mutation or Calendar access. Its lifetime is bounded by the original requester credential; rotation, expiry or a changed verified recipient denies access. Hosts use their authenticated workspace session.
+
+The first release offers **View booking** rather than in-product **Reschedule** or **Cancel** actions. Users manage post-booking changes through their existing calendar; pre-booking withdrawal remains a separate permitted action. Exact new rendering and delivery behavior must be captured and tested in the owning OpenSpec change before implementation; this design does not claim invitation delivery is already built.
 
 ## How the interfaces connect
 
@@ -79,7 +115,7 @@ The host should be able to email the scheduling assistant as part of managing a 
 
 For the proposed initial email experience, a reply such as “Approve” directs the host to web review rather than recording approval. Inline email approval can be considered later after identity and proposal binding are designed and tested. A typed sender address, forwarded thread, quoted approval, or newly added recipient is not sufficient authority for private access or host actions. When verification or context is uncertain, move the action to authenticated web review.
 
-AgentMail is the recommended provider for the email adapter, with Resend as a viable alternative. The address scheme, reply verification, thread linking, unlinking behavior, and delivery recovery still need design. This is request-specific scheduling assistance; it does not require general access to the host's inbox.
+AgentMail is the provider for managed conversational inboxes, threads, and replies. Cloudflare Email Service separately sends fixed transactional verification, recovery, and booking messages, including Supabase Auth mail through custom SMTP. The conversational address scheme, reply verification, thread linking, unlinking behavior, and recovery still need design. This is request-specific scheduling assistance; it does not require general access to the host's inbox.
 
 ## Personal agents and authorization
 
@@ -93,10 +129,38 @@ Three permissions remain distinct: Google Calendar authorization lets our servic
 
 ## Integration choices and scope
 
-- **Email:** Recommend AgentMail for managed inboxes and multi-turn conversations; Resend also supports receiving and threaded replies. Integrate one provider behind the email adapter, and map its inbox/thread/message IDs to application-owned conversations. Keep private host threads separate from requester threads. See the [email provider design](../03_technical_specification.md#email-provider-direction).
-- **iMessage:** Evaluate Photon directly or Mastra with Photon, as described in the [PRD dependencies](../02_product_requirements.md#10-dependencies-and-open-decisions). Transport or framework approval mechanisms must still enforce the product's explicit host-confirmation rule.
-- **Mobile:** Use responsive web for the initial release. Consider a native app later if pilot evidence shows recurring needs that existing channels cannot meet.
-- **Agent-to-agent coordination:** The current service can coordinate requester and host agents through shared scheduling state. A separate agent-to-agent protocol endpoint is not currently a release requirement.
+- **Email:** Use Cloudflare Email Service for transactional verification, recovery, booking, and Supabase Auth custom SMTP. Use AgentMail for managed inboxes and multi-turn conversations, mapping its inbox/thread/message IDs to application-owned conversations. Keep private host threads separate from requester threads. See the [email provider design](../technical_specification/01_backend_architecture.md#email-provider-direction).
+- **iMessage:** Keep Photon Spectrum as the transport direction and rebuild or adapt the bridge to the new channel contracts. Do not assume a native eve Photon adapter is compatible with Spectrum credentials without verification. Transport or runtime approval mechanisms must still enforce the product's explicit host-confirmation rule.
+- **Mobile:** Use responsive web for the initial release. Consider a native app later if post-launch evidence shows recurring needs that existing channels cannot meet.
+- **Agent-to-agent coordination:** The rebuilt application will coordinate requester and host agents through shared scheduling state. A separate agent-to-agent protocol endpoint is not currently a release requirement.
 - **Delivery order:** Web is the setup and recovery foundation; MCP is the primary personal-agent interface and CLI complements it. Channel delivery order and client support details still need agreement, without silently dropping the PRD's required integrations. Host email remains the scope extension identified above.
 
 All channels inherit the PRD's privacy and lifecycle rules. Changed proposals require fresh approval; stale messages and retries cannot duplicate bookings. A delivered message, read receipt, requester agreement, or unconfirmed calendar write must never be reported as a confirmed meeting.
+
+## Reconstruction status
+
+The [chat workspace specification](../../openspec/specs/chat-workspaces/spec.md) owns the agreed contextual-artifact and explicit-decision behavior. The [page list](04_page_list.md) describes the proposed replacement host and requester workspaces.
+
+The replacement must verify website setup, requester conversation, email, MCP, CLI, and full iMessage journeys independently. Unconfirmed web chat text has no agreement or approval authority; channel decisions require the verified, current-proposal confirmation mechanism described above. Existing provider resources and credentials may be reused deliberately, but old deployment success cannot be carried forward as replacement evidence.
+
+
+### Proposed web confirmation receipt
+
+Once provider evidence confirms booking, the host's selected request and the requester's protected booking page display the same frozen title/purpose, start/end, duration, timezone, participant emails and location. Online HTTPS locations offer **Join meeting**; an allowlisted saved Calendar URL offers **Open in Google Calendar**. **Check booking status** refreshes confirmation and the viewer's own email status. Pending or failed email does not change the confirmed meeting. An uncertain Calendar write remains “Booking in progress” without a join action or confirmed receipt. Expired or rotated requester access removes the receipt on refresh and does not reveal the prior conversation. The receipt displays the actual Calendar organizer from provider evidence. Confirmation email, receipt-only access, local fault/browser checks and controlled inbox acceptance must be implemented and verified afresh in S6.
+
+
+### Withdrawal before Calendar dispatch
+
+An approved request can still show **Withdraw request** to its requester and **Decline request** to its host while its saved Calendar attempt is prepared and has no dispatch evidence. The card explains that Calendar creation has not started and the server will check again on confirmation. The existing explicit confirmation and same-decision retry remain usable in that state. Once dispatch may have begun, both actions disappear and the card explains that the outcome is pending; it never claims to cancel an existing event.
+
+## Protected requester email linking
+
+The private booking conversation offers **Continue by email** below contact verification. A requester with a verified current contact can create a private linking message and send it exactly as shown in a new thread from that address to the displayed inbox. The page remains pending until the authenticated message binds successfully. The linking text stays outside chat and browser storage, disappears after binding, unlinking or expiry, and is recoverable after reloading the protected page while still pending.
+
+**Check email link** refreshes status; **Unlink email** revokes the old thread even during a receiver outage. An uncertain command offers **Retry same linking action**, preserving its operation identity. Unavailable email always offers continuation in the private web conversation. The controls alone do not establish live channel readiness: worker routing and controlled end-to-end acceptance remain open in [the requester-email slice](../technical_specification/04_implementation_plan.md).
+
+## Optional iMessage contact card
+
+After verified linking, **Add to contacts** is an optional action in the connected card. Explain before the action that it requests a card in the linked conversation and the recipient chooses whether to save it. Setup and web chat remain available without this choice.
+
+Show queued, provider-accepted, failed, revoked or uncertain status. For acceptance, ask the host to check iMessage and choose whether to save; never report delivery or saving as confirmed. For uncertainty, ask them to check the existing conversation and offer **Check contact status**, without a resend button. A failed status read hides **Add to contacts** until status can be verified. Reload restores the persisted request, and a new verified link starts with its own status. Unlinking does not recall a card already sent. Live device appearance and profile-name behavior remain subject to [provider acceptance](../technical_specification/03_provider_setup.md#display-name-contact-cards-and-profile-sync).

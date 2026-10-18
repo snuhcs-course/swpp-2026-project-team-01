@@ -1,161 +1,178 @@
-# Find Me a Time — Implementation Plan
+# Reconstruction Implementation Plan
 
-Status: Proposed delivery plan; implementation has not started\
-Date: 2026-10-05\
-Basis: [PRD](../02_product_requirements.md), [technical specification](../03_technical_specification.md), [backend architecture](01_backend_architecture.md), [repository structure](02_repo_structure.md), and [provider setup](03_provider_setup.md).
+Date: 2026-10-13
 
-Build a working web scheduling flow first, then connect personal agents, email, and iMessage to the same operations. Investigate integration risks at the start so the web milestone does not hide a release blocker. Intermediate milestones are development checkpoints; the initial release still includes all required channels and named agent clients.
+Reviewed: 2026-10-15
 
-This document owns sequencing and completion evidence. Each substantial capability needs a bounded OpenSpec change with observable scenarios, design decisions, implementation tasks, and tests. The proposed change names below are planning labels, not existing proposals or approved specifications. Archive only completed, verified changes into main capability specs.
+Status: planning complete for review; **implementation has not started**
 
-## 1. Starting point and scope
+## Starting point and scope
 
-The repository has product/design documents, local Supabase configuration, and shared development skills. Application code, the product schema, provider callbacks, workers, and public skill routes remain to be implemented.
+Application/agent/server code, scripts, tests, package/build configuration and application SQL were removed from this checkout. The previous snapshot is Git commit `02e5a8e`; external deployments were not reconfigured; the later authorized Supabase application reset is recorded below. Product requirements, original brand assets, agreed capability specs and historical OpenSpec records are retained. Eleven unfinished plans are [retired](../../openspec/retired/2026-10-13/README.md); no historical checkmark carries forward.
 
-| Prepared | Evidence and remaining work |
-|---|---|
-| Supabase project and local credentials | Project reference is configured; application access, migrations, Auth flows, and deployed functions still need verification. |
-| Google Cloud, Calendar OAuth credentials, and Routes key | Calendar and Routes APIs enabled. OAuth client credentials passed a negative-control check; a sample Routes request returned a duration and distance. Calendar consent, reads/writes, redirect URLs, and target-region routing remain untested. |
-| OpenAI API key | Present locally; choose and test the model and structured-result contract. |
-| AgentMail and Photon | See the provider setup record for verified provisioning and untested delivery. Their credentials do not establish application integration or Edge runtime compatibility. |
-| Development tools | Supabase CLI 2.119.0, OpenSpec CLI 1.14.0, provider CLIs, and shared skills. Confirm local Docker/runtime readiness during foundation work. |
+Use the user-selected Supabase project **`anelszynxtvxoxqvzgqt`** for the rebuild. [Provider setup](03_provider_setup.md#selected-rebuild-supabase-project) records verified CLI linkage and the subsequent explicit application reset. Application schema/RPC, migration history, legacy queue and scheduled jobs are now empty; managed Auth/Storage/Vault remain. Recheck this clean application baseline before implementation.
 
-Carry these boundaries through every phase: only hosting a calendar is invite-only; requesters can request meetings and optionally connect Google Calendar without an invitation or product account. Google consent, MCP OAuth, requester agreement, and explicit host approval are separate permissions. Calendar writes use the host's selected booking calendar.
+The [PRD](../02_product_requirements.md) owns FR-01–FR-36 and AC-01–AC-28. Preserve invite-only Google-login hosts, account-free requesters, Google availability/travel checks, requester email, optional linked host iMessage, remote MCP, separate user/admin CLIs and all seven required personal-agent clients. Preserve explicit current host approval, privacy and uncertain-write reconciliation. Private host email and automated post-booking reschedule/cancel remain outside initial release.
 
-The latest product direction includes map-based travel-time calculation. The PRD and technical specification are aligned in this change: estimate both adjacent trips and add host buffers. Missing estimates require clarification or a confirmed manual allowance. Native apps, group scheduling, automated post-booking changes, and agent-generated host approval remain excluded. Host email is a proposed extension and needs its own scope decision before implementation.
+**The original request authorized source cleanup and planning only.** A later explicit application database reset is complete; it does not authorize any implementation slice. Wait for a new explicit implementation request before scaffolding packages, installing dependencies, generating migrations, adding tests or implementing a slice. Provider effects, deployment and root-domain promotion remain separate future actions.
 
-## 2. Dependencies and milestones
+## Clean Supabase baseline and entry gates
 
-```mermaid
-flowchart TD
-    P0["P0: Compatibility and contract decisions"] --> P1["P1: Repository and backend foundation"]
-    P1 --> P2["P2: Host admission and calendar connections"]
-    P2 --> P3["P3: Web intake and feasible proposals"]
-    P3 --> P4["P4: Approval and durable booking"]
-    P3 --> P5["P5: MCP, CLI, and public skills"]
-    P3 --> P6["P6: Email and host iMessage"]
-    P4 --> P7["P7: Cross-channel release verification"]
-    P5 --> P7
-    P6 --> P7
-    P7 --> Pilot["Invite-only host pilot"]
-```
+The 2026-10-13 catalog audit, repeated on 2026-10-14, confirms zero application relations, functions and enum/domain types, zero migration records, zero scheduled jobs and zero registered queues on the selected project. `public` remains empty and `fmat` is absent. This is an empty **application** baseline: managed schemas, one Google Auth identity, two unread Vault secrets and installed infrastructure extensions remain. [Provider setup](03_provider_setup.md#clean-project-recheck--2026-10-13) owns the full observed inventory and verification limits.
 
-P5 and P6 can implement adapters after shared contracts stabilize in P3. Their end-to-end booking checks depend on P4. Provider experiments in P0 should use disposable fixtures; avoid building independent scheduling logic for each channel.
-
-| Milestone | Demonstrable result |
-|---|---|
-| M1 — Connected host, after P2 | An invited host completes web setup; an uninvited account cannot publish a booking link. |
-| M2 — Web booking, after P4 | An account-free requester and invited host complete one approved meeting, including recovery from a lost Calendar response. |
-| M3 — All required interfaces, after P5/P6 | Agents, email, and iMessage operate on the same request and proposal versions. |
-| M4 — Pilot, after P7 | Acceptance evidence, operator recovery, and provider configurations satisfy the release gates. |
-
-## 3. Implementation phases
-
-### P0 — Resolve integration risks and contracts
-
-Proposed change: `validate-provider-and-agent-compatibility`. This phase precedes production implementation of the affected adapters.
-
-- Verify Supabase OAuth with a minimal remote MCP tool in the actual client versions: discovery, registration, redirect handling, token audience, refresh, revocation, and application-owned grants. Start with a browser-oriented client and a terminal client, then record results for all seven required clients.
-- Determine how each host client obtains attributable confirmation of a specific proposal. Use authenticated web confirmation when the client cannot supply reliable human confirmation; a model-supplied `approved` field is insufficient.
-- Exercise Photon authentication and a controlled test conversation. Validate its documented Node-compatible gRPC transport against the chosen runtime. Record direct Photon versus Mastra and the transport/deployment decision; if Edge execution cannot support it, design a narrow Node/Bun messaging bridge while retaining Supabase as the scheduling backend.
-- Validate AgentMail webhook verification, reply threading, and uncertain-send handling using dedicated test identities. Decide inbox allocation and contact verification before binding email to requests.
-- Test Google consent and token refresh, Calendar read/write permissions, and Routes coverage for the intended geography and travel modes. Keep host event scopes separate from requester free/busy scopes. Select callback URLs before editing the OAuth client configuration.
-- Choose the web framework/hosting, package manager, MCP library, model, and compatible package versions. Specify guest token recovery, invitation expiry, request expiry, online meeting-link behavior, and supported language coverage in the owning changes.
-
-**Exit evidence:** a recorded decision and reproducible check for each risk. An unsupported required client or transport remains an explicit blocker with a proposed resolution, not an implicit scope reduction. Independent foundation work can continue while an adapter-specific blocker is investigated.
-
-### P1 — Establish the repository and backend foundation
-
-Proposed change: `establish-application-foundation`. Depends on P0's runtime and web choices.
-
-- Create the first real files under `apps/web`, `supabase/functions`, and shared modules following the repository structure. Introduce `packages/contracts` when a second consumer needs it; keep secrets and server-only entities outside client contracts.
-- Implement environment validation, provider adapters with test doubles, scoped logs, and stable error/command envelopes. Define idempotency and expected-revision semantics before client mutations.
-- Create initial desired SQL under `supabase/schemas/`, with explicit privileges, constraints, and RLS where data is exposed. Add later capability tables with their owning phases rather than guessing the entire schema now.
-- Add local checks and CI for formatting/lint, typechecking, meaningful unit/database tests, and web builds. Establish separate preview/test provider identities and default external sends off.
-- Verify a bounded worker and durable queue publication in a transaction, internal invocation authorization, and Cron recovery. Use jobs for persisted work; never rely on an open request or `waitUntil()` for durability.
-
-**Exit evidence:** a fresh checkout starts locally, builds, and passes foundation CI. Generate migrations with `supabase db schema declarative sync --name <name> --no-apply`, review the SQL, and rebuild only the disposable local database with `supabase db reset --local`. No remote migration is implied by a local reset.
-
-### P2 — Implement host admission and calendar connections
-
-Proposed changes: `implement-host-admission`, `connect-google-calendars`. Depends on P1.
-
-- Implement public waitlist intake, operator-controlled invitation issuance, verified recipient binding, atomic redemption, and resumable host onboarding. Enforce admission in shared operations so direct API access cannot bypass web restrictions.
-- Add host sign-in, calendar selection, booking-destination permissions, confirmed rules, timezone, handle assignment, and connection recovery. Publish a host only after admission and minimum setup are complete.
-- Implement Google callbacks with validated state and browser/session binding, refresh-token encryption, refresh/revocation handling, disconnect, and bounded token retention. Keep encryption key management separate from stored token rows.
-- Add request-scoped requester consent without requiring a host account. Complete its intake-to-consent-to-resume journey in P3. Denied or revoked consent offers explicit manual/agent availability or reconnection.
-
-**Exit evidence:** M1 works through web. Tests reject expired/reused invitations, concurrent redemption by different accounts, cross-host access, callback swapping, and requester grants used for host writes. Credential failures never appear as an empty calendar. Coverage: FR-01–FR-04, FR-35–FR-36; AC-09–AC-10, AC-26–AC-27.
-
-### P3 — Build web intake, feasibility, and proposal negotiation
-
-Proposed changes: `implement-request-lifecycle`, `evaluate-calendar-and-travel-feasibility`. Depends on P2.
-
-- Add public host discovery, account-free intake, protected continuation, contact verification, and the phone-friendly host inbox. Implement the PRD lifecycle with immutable proposals, audience-specific views, revision checks, and closed-state guards.
-- Collect and normalize purpose, participants, date window, timezone, duration, mode, and location. Intersect host constraints with manually supplied, agent-supplied, or connected requester availability.
-- Implement deterministic interval checks, focus rules, and travel estimates for previous commitment → candidate → next commitment. Account for travel mode, departure context, estimate freshness, and host margins. Define when a new estimate invalidates feasibility; never turn a missing route into zero travel.
-- Add structured AI extraction and ranking only around valid domain operations. Recheck state/rule versions before saving asynchronous results. Keep private event locations, notes, and host reasoning out of requester output and model contexts that do not need them.
-- Support no-match clarification, private preference exceptions, requester agreement, host revisions, decline, and withdrawal. Confirmation controls identify the exact proposal version.
-
-**Exit evidence:** a requester can reach a complete agreed proposal and host review without an account. No Calendar write is enabled yet. Tests cover DST, adjacent travel in both directions, missing routes, private-data isolation, prompt injection, stale asynchronous results, revision invalidation, and interrupted requester consent. Coverage: FR-05–FR-17, FR-19, FR-36; AC-01–AC-04, AC-10–AC-13, AC-27.
-
-### P4 — Add explicit approval and recoverable booking
-
-Proposed change: `book-approved-proposals-reliably`. Depends on P3 and P1's durable job infrastructure.
-
-- Persist attributable host approval separately from requester agreement. Both must refer to current details; host revisions invalidate the appropriate decisions.
-- Implement one durable booking identity per request, immutable dispatch payloads, provider-valid stable event IDs, per-host reservations, worker leases, and transactional state/job/outbox updates.
-- Re-read required calendars, rules, and travel feasibility before dispatch; reject conflicts or changed prerequisites. Create the event only in the host booking calendar, with the selected invitation/meeting-link policy.
-- Reconcile uncertain writes before retrying. A lease timeout does not release a possibly occupied reservation. Confirm Booked only from verified provider evidence, then deliver notifications independently.
-- Add audited operator actions for reconnecting, reconciling, and retrying definitive failures. Do not offer a manual switch that bypasses approval or marks an uncertain write successful.
-
-**Exit evidence:** M2 passes with a dedicated Calendar test account. Fault injection covers success with a lost response, process termination around each external boundary, duplicate queue delivery, competing requests, stale approval, changed requester availability, withdrawal races, missed wake-ups, and notification failure. A confirmed booking remains booked when delivery fails. Coverage: FR-17–FR-23; AC-04, AC-06–AC-10, AC-13.
-
-### P5 — Add agent onboarding, remote MCP, and CLI
-
-Proposed changes: `expose-authorized-agent-operations`, `publish-scheduling-skills`. Contract work starts after P3; booking verification requires P4.
-
-- Expose stateless Streamable HTTP MCP and a thin CLI over shared operations. Implement the P0 OAuth design, application grants, consent/revocation controls, CLI credential storage, structured output, and stable errors.
-- Keep guest submission and continuation request-scoped. Never distribute host credentials, Google tokens, or Supabase privileged keys to personal agents.
-- Publish `/SKILL.md` and `/{host}/SKILL.md` from service-controlled templates and allowlisted public host fields. Preserve waitlist/invitation checks and resumable browser consent; reading Markdown does not grant authorization.
-- Test both exact pasted prompts from the PRD. Resolve supported connection steps per client; report unsupported steps honestly and preserve the same request through web continuations.
-
-**Exit evidence:** requester and host cases pass separately in Dots, Muse, Instinct, ChatGPT, Codex, Claude, and Claude Code. Record versions and confirmation mechanisms. Test expired/revoked/wrong-audience grants, direct privilege bypass, stale decisions, unknown/unavailable hosts, and interrupted setup. Coverage: FR-18, FR-24–FR-25, FR-29–FR-35; AC-14–AC-15, AC-19–AC-26.
-
-### P6 — Add requester email and host iMessage
-
-Proposed changes: `integrate-requester-email`, `integrate-host-imessage`. Depends on P0's transport decisions and P3's contracts; booking verification requires P4.
-
-- Deploy signature-verifying receivers and durably save deduplicated inbound events before acknowledging them. Resolve actor, request, and audience before model interpretation. Provider thread IDs and sender display names are not authorization.
-- Implement AgentMail intake/replies, verified web continuation, recipient selection, and outbound delivery records. Reconcile uncertain sends within provider limits; delivery retries never retry booking.
-- Implement host iMessage opt-in, identity verification, private conversations, unlinking, proposal-specific summaries, clarification, revision, approval, and decline. Ambiguous replies and unreliable confirmation paths use authenticated web review.
-- Register actual receiver URLs and webhook secrets after deployment. Configure a dedicated email subdomain if adopted; preserve unrelated DNS and mail routing. Use the development pod and controlled messaging identities for tests.
-
-**Exit evidence:** M3 passes across web ↔ email, web ↔ iMessage, and agent ↔ web/email. Test spoofed senders, forwarded messages, groups, replay/out-of-order delivery, obsolete summaries, unlinking, and concurrent decisions. Private host conversations cannot leak into requester threads. Coverage: FR-08, FR-26–FR-28; AC-05–AC-06, AC-11, AC-14, AC-16–AC-18.
-
-### P7 — Verify the complete release and prepare the pilot
-
-Proposed change: `verify-invite-only-pilot`. Depends on P4–P6.
-
-- Execute AC-01–AC-27 and every required client journey on the intended deployment. Attach reproducible evidence and failures to the owning changes; mocks alone do not establish live-provider compatibility.
-- Verify mobile layouts, keyboard operation, labeled controls, consent recovery, readable pending/error states, and post-booking scope messaging. Exercise non-admitted hosts and account-free requesters throughout.
-- Rehearse queue recovery, blocked reservation handling, token revocation, backups/restoration, and release rollback without destructive schema rollback. Confirm webhook replay protection and secret/log redaction in deployed configuration.
-- Set pilot limits and operator ownership for job age, provider latency/errors, unresolved writes, delivery failure, abuse, and cost. Finalize retention/deletion and provider data handling. Collect booking conversion and coordination baselines without claiming unmeasured targets.
-- Identify the intended Supabase environment before reviewing remote migrations with `supabase db push --dry-run`; deploy through the reviewed release process. Keep Cloudflare DNS authoritative and verify the chosen web host's actual records and HTTPS routes.
-
-**Exit evidence:** all acceptance scenarios pass, each required client has evidence, and no unresolved authority, duplication, or privacy failures remain in the release suite. Operator recovery is demonstrated. Production OAuth configuration/verification and messaging-domain requirements are satisfied where applicable. Passing tests is not a guarantee that external Calendar races cannot occur.
-
-## 4. Team ownership and change discipline
-
-Suggested responsibilities for the four-person team; assign people before implementation. Ownership is by module and contract, not by independent channel state machines.
-
-| Responsibility | Primary scope | Coordination point |
+| Entry gate | Owner / timing | Required result before proceeding |
 |---|---|---|
-| Web and onboarding | Responsive UI, admission/setup views, consent continuation, accessibility | Shared identity and operation contracts |
-| Scheduling and persistence | Desired SQL/migrations, proposals, constraints, approval, booking/jobs/recovery | Booking guards and transactional boundaries |
-| Calendar and messaging | Google Calendar/Routes, email, iMessage, provider fixtures | Scoped credentials and normalized adapter outcomes |
-| Agent interfaces and release evidence | MCP OAuth, CLI, public skills, client compatibility, CI/E2E coordination | Audience-safe contracts and confirmation evidence |
+| Implementation authorization | Before S1 | A new explicit request; this review creates no code, SQL chain, dependencies or test fixtures |
+| Synthetic runtime storage | S1 | Isolated disposable storage with no live delivery or production identity bypass; scratch fixtures never become an implicit migration backlog for the selected project |
+| First application migration chain | S2 design / before any remote schema apply | Recheck the empty application baseline; author new desired SQL and generate/review a new chain; keep managed Auth/Storage/Vault intact and account for preinstalled extension prerequisites |
+| Exposure and grants | Before first schema apply, then each schema slice | Review namespace/role/default-privilege matrix, explicit grants/revokes and RLS; test anonymous/authenticated bypass denial because new `public` objects can inherit broad existing defaults |
+| Retained identity and settings | Before S2 hosted acceptance | A preserved Google identity is not an admitted host; verify Google-only login/callbacks and Cloudflare SMTP routing/sender for applicable non-login Auth notifications; create admission/profile/grants only through new authorized operations |
+| Environment and consumer ownership | Before the first remote schema/API activation and each live provider test in S2–S9 | Identify project-bound credentials and callbacks, default previews to no-send, and fence competing old consumers before enabling replacement processing; zero database cron jobs does not prove old deployments/webhooks are inactive |
 
-Review each bounded OpenSpec change before implementing its behavior. Use short-lived branches and reviewed PRs; include the relevant AC IDs, actual test commands/results, migration review, and remaining gaps. Tests are owned by each capability author, with another teammate reviewing sensitive authorization and booking paths. Sync completed behavior into main specs when archiving the change.
+The recorded PostgreSQL version is 17.6, consistent with local major version 17. The local `config.toml` project ID identifies a disposable local stack; the ignored CLI link identifies the hosted target. It is not a verified hosted configuration export. Local migration/seed execution stays disabled until implementation authorization and reviewed re-enablement. Do not replay old migrations, private backup data, queue definitions or scheduled jobs into the new baseline.
 
-The first implementation change should resolve P0's compatibility questions and capture the foundation decisions. Do not start with a general-purpose agent loop, all channel adapters at once, or a production Calendar write path before approval and recovery guards exist.
+## Delivery method
+
+Use one bounded OpenSpec change/topic PR at a time. S1 has a [fresh proposal](../../openspec/changes/reconstruct-runtime-foundation/proposal.md). Later names below are proposed work slices, not already-created changes. Before each slice, read its PRD/main contracts, resolve the listed decisions and recreate only the necessary pending deltas from retired reference material. Do not copy an entire old schema/API/runtime or mark it implemented because a prior test passed.
+
+Implement each slice vertically through authorized domain operations, persistence, thin adapters, usable UI, meaningful tests and owning documentation. Record fresh results as they land, then sync/archive only completed verified behavior. Make runtime/security/recovery tests part of their owning slice instead of deferring them to launch. The table expresses delivery dependencies.
+
+## Dependency order
+
+| Slice | Proposed change | Depends on | Deliverable and exit gate |
+|---|---|---|---|
+| S1 | `reconstruct-runtime-foundation` | New implementation request | Pinned npm/Next.js/eve builds, protected conversation/tool boundary, durable replay/restart/terminal recovery proof, deployment/persistence decision and early OAuth/Photon compatibility findings |
+| S2 | `reconstruct-host-admission` | S1; clean-baseline recheck and entry gates | Google-only identity, waitlist, bound invitations, stable handles, grants/RLS, separate invitation admin CLI and controlled transactional delivery |
+| S3 | `reconstruct-host-setup` | S2 | Host Calendar consent/roles, suggestion-first private drafts/analysis, explicit preference review, readiness and share links in `/app` |
+| S4 | `reconstruct-request-lifecycle` | S3 | Account-free intake, contact proof/recovery, optional Google identity/requester Calendar, protected continuation, proposal revisions and closure |
+| S5 | `reconstruct-meeting-feasibility` | S4 | Bounded deterministic calendar/time/rule/travel evaluation, private exceptions, candidates and requester agreement |
+| S6 | `reconstruct-approved-booking` | S5 | Current host approval, reservations, final revalidation, one-event dispatch/reconciliation, consistent receipt/invitations and independent delivery recovery |
+| S7 | `reconstruct-requester-email` | S4, S6 | Initial email intake and verified enrollment, durable input/replies, outgoing-parent continuation, stale/revoked/uncertain-send recovery |
+| S8 | `reconstruct-host-imessage` | S3, S6 | Inline six-digit linking, shared private setup, explicit request selection, attributed review/revision/approval/decline, unlink/restart and optional contact card |
+| S9 | `reconstruct-agent-access` | S2–S8; S1 OAuth findings | Scoped OAuth/MCP, one-request bootstrap, full user CLI parity, both public skill journeys and individual named-client acceptance |
+| S10 | `reconstruct-release-operations` | S1–S9 | Environment/consumer fencing, separate operator diagnostics/recovery, retention/budgets, populated backup restore, all acceptance evidence and reviewed deployment |
+
+S7/S8 do not depend on each other. OAuth/transport feasibility is investigated in S1 so S9 does not first discover an unsupported client/server combination. Controlled provider checks occur as each adapter lands after the environment/consumer entry gate; S10 assembles evidence and verifies integration. Staging slices does not reduce agreed release scope.
+
+## Slice details
+
+### S1 — Runtime foundation
+
+Resolve dependency/template revisions, model/provider entitlement, separately built service composition, persistence, job wake-up and worker placement. Keep synthetic persistence in isolated disposable storage as required by the foundation task 1.3; do not bootstrap the selected hosted project as a shortcut. Build only the minimum protected conversation with a synthetic non-scheduling effect. Derive actor/resource/audience server-side; deny raw runtime endpoints and cross-scope tools. Test stream reconnect, process death after commit/before acknowledgment, exact input retry, lost wake-up, explicit terminal recovery and durable cumulative limits. Preserve the settled numerical [message admission](../../openspec/specs/chat-workspaces/spec.md) and [model execution](../../openspec/specs/model-execution/spec.md) contracts; selecting a model or measuring performance does not change them. Model refusals/configuration/credit failures must be recoverable without fabricated completion.
+
+Perform bounded OAuth resource/PKCE/current-grant and Photon receipt/sender/acknowledgment compatibility checks using fixtures first. Record remaining real-provider/client prerequisites explicitly. Do not claim all seven clients or live iMessage pass from these spikes. Introduce only verified build/check commands and minimal CI with no live effects.
+
+Exit: production builds and protected runtime fixtures pass; persistence/placement/failure contracts are recorded. A failed spike blocks expanding the same runtime until an explicit alternative decision is documented.
+
+### S2 — Identity, admission and database baseline
+
+S1 synthetic fixtures use isolated disposable storage. Before S2 product SQL, recheck the now-empty application baseline on `anelszynxtvxoxqvzgqt`, established by the user-authorized reset. Preserve managed data/configuration; do not replay the old recovery migration chain. Create a new desired application schema and generated migration chain; no applied application history now needs restoring. Review namespace placement, current default privileges, explicit grants/revokes, RLS and idempotent prerequisites for installed extensions before deployment. Re-enable local migration execution only for the reviewed new chain; follow pg-delta and rebuild only an identified disposable local database.
+
+Verify hosted Google-only login settings, exact callbacks and project-bound application credentials; neither the local config nor the surviving Google identity establishes that acceptance. Separate Google sign-in from admission and Calendar permission. The retained account must pass new admission rather than inheriting removed host/profile/grant state. Implement deduplicated waitlist, verified-recipient seven-day invitations, atomic redeem/retry/revoke, stable/reserved handles and publication guards. Provide a distinct environment-bound administrator CLI for issuance/status/revoke/recovery so invited users can complete the journey. Add durable Cloudflare dispatch and truthful uncertainty; no Auth email login.
+
+Preserve and verify hosted Cloudflare custom SMTP for applicable non-login Auth notifications under the [provider setup gate](03_provider_setup.md#cloudflare-email-service). Record configuration, selected sender and controlled notification evidence where applicable before hosted Auth acceptance; keep Google-only login and no fallback sender. Removed local SMTP examples are not evidence of hosted configuration or delivery.
+
+Exit: account/admission bypass and two-host isolation negatives pass across direct operations; controlled invitation recipient delivery/redemption is recorded before claiming live delivery. User OAuth/client guards added later must reuse this boundary.
+
+### S3 — Guided host setup
+
+Implement bound host Calendar consent, encrypted refresh/disconnect, actual editable conflict-calendar recommendations and separate writable booking destination. Explain bounded recommendation context and confirm selection. Automatically analyze saved selected calendars over the past/next four weeks; respect explicit choices, disclose failed/partial reads, retain bounded evidence and label starter defaults.
+
+Persist a resumable draft, ask mode/location explicitly, and capture transport/per-trip policy plus extra buffer for physical meetings. Confirm current settings against current permissions/rules before publication. Keep precise controls and manual setup usable through model failures; apply Thyme visual/accessibility direction. Web/iMessage-first handoffs resume this draft when S8 lands; linking is optional.
+
+Exit: consent/reload, duplicate calendar names, read-only destination, sparse/failed scan, stale review and mobile/keyboard/reduced-motion tests pass. Live Google acceptance remains distinct from fixtures.
+
+### S4 — Guest intake and versioned lifecycle
+
+Build public host entry and protected `/booking/[bookingId]`, with English/Korean clarification and reviewed extraction. Offer optional identity-only Google prefill and manual name/contact; verify alternate/manual addresses before attendee/private recovery use. Optional requester Calendar consent is request-bound, availability-only and independent of admission.
+
+Provide accessible verified-contact access recovery at the booking destination without requiring prior browser access. Preserve generic issuance feedback, all retained proof/rate limits, fragment-to-HttpOnly exchange, exact retry and atomic replacement of the request credential. Replacement revokes old credentials, pending contact proofs and linked channels; closed requests cannot recover. Follow the [requester recovery design](../user_experience/04_page_list.md#requester-booking-destination); this is distinct from runtime reconnect/terminal recovery.
+
+Preserve expected revisions, immutable proposals, audience separation, exact retry/withdrawal/decline/expiry guards and minimal terminal receipt access. Enforce seven-day/earlier-window request deadlines and at-most-thirty-day guest credentials; closure denies mutations/OAuth/recovery. Reconnect or explicit manual/agent availability replaces unavailable requester data, never assumed free time.
+
+Exit: two-request/two-host isolation, wrong-browser callbacks, recovery without prior access, generic unknown/wrong/unverified/closed-request feedback, expired/replayed recovery proof, credential/contact rotation, stale extraction, closed access and lost-response/reload tests pass; both optional and skipped Google paths work.
+
+### S5 — Feasibility and negotiation
+
+Normalize timezone/DST/overnight intervals. Filter full meeting intervals against host/requester busy time, hard rules, focus blocks, duration and buffers. Check physical travel on both sides with selected geography/modes, estimate freshness and explicit manual allowances. Resolve online-meeting travel policy before implementing it. Bound evaluation work/provider reads under retained contracts.
+
+AI can gather details and rank feasible candidates. Host-only exceptions/revisions stay private and cannot waive hard conflicts. Candidate selection/requester agreement bind the current shared proposal; no-match asks for clarification or private host action.
+
+Exit: both travel legs, unsupported/failed routes, adjacent-context changes, DST ambiguity, private projections, no-match and invalid model output tests pass. Record controlled Routes acceptance separately.
+
+### S6 — Approval and reliable booking
+
+Present full current host review and record attributable approval. Current requester agreement is also required. Changed shared details renew both decisions; private exception changes renew affected host approval. Establish immutable event/destination/payload identity, reservations, fenced leases and durable outbox before creation.
+
+Revalidate current permissions, decisions, rules, requester availability and travel immediately before creation. Reconcile timeout/response loss before another create; preserve pending uncertainty and truthful withdrawal cutoff. Generate Calendar invitation, confirmation email and protected receipt from confirmed event data. Notification retries cannot recreate events. Finalize online-link/invitation ownership first.
+
+Exit: concurrent decisions/competing requests, busy changes, killed worker, lost success response, rejected write/reconnect, closure and notification failure tests pass; controlled real Calendar one-event/reconciliation evidence is recorded.
+
+### S7 — Requester email
+
+Support email-first intake as well as explicit enrollment from a protected verified-contact request. Authenticate origin/sender, persist deduplicated input before acknowledgment, freeze receiver/thread/request/audience and reject forwarded/unlinked/stale/revoked input. Continue the same authorized requester conversation and preserve web handoff.
+
+Freeze outgoing replies with settlement, enforce ordering/current authority, accept only correctly bound outgoing-parent continuation and recover send uncertainty within verified provider limits. Do not infer delivery from API acceptance or email opening. Host-private email remains a separate proposal.
+
+Exit: signed-origin fixtures, sender/thread forgery, replay/restart, old proposal selection, revoked bindings and uncertain sends pass; controlled live multi-turn email and browser continuation succeed.
+
+### S8 — Host iMessage
+
+Re-specify the retired six-digit binding delta, private setup answer/settings confirmation, request selection/decision context and contact sharing. Authenticate the host/browser, send proof to the intended private sender, verify in the initiating browser and confirm binding. Keep codes outside transcripts/model context; web remains available on failure/skip.
+
+Use the adapter selected in S1. Freeze explicit request selection per accepted receipt and retain separate setup/private/shared contexts. Current authored reviews establish exact decision context; ambiguous/stale replies require clarification or web review. Unlink stops notifications/actions. Optional native contact sharing reports uncertainty and never promises contact saving or display name.
+
+Exit: unlinked/group/foreign sender, stale/ambiguous replies, revoke, restart and concurrent web decisions pass; a controlled iPhone completes question/revision/approval and separate decline. Transport-only sends are insufficient.
+
+### S9 — Personal agents, MCP and user CLI
+
+Implement resource-bound OAuth discovery/registration/PKCE, explicit owner/scopes, exact callbacks, refresh/revocation and current transactional checks. Recreate the one-future-request bootstrap delta; permanently bind the grant after one creation. Keep requesters account-free. Complete typed role operations and separate user CLI without provider/service credentials. Agent suggestions may draft, but never manufacture human settings/proposal confirmation.
+
+Publish truthful root and per-host skill documents and actual connection/recovery steps. Test both pasted prompts, host setup/configuration, delegated requester coordination, current approval, denial/revocation, stale/private access and MCP/CLI parity separately in Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code. Document client versions and the direct web confirmation fallback where needed.
+
+Exit: every required client's actual journey has independent evidence; missing clients remain release blockers. No one-paste/universal-support claim from SDK fixtures alone.
+
+### S10 — Operations and release
+
+Recheck the environment/consumer gates already required before each earlier activation; S10 is the final integrated audit, not the first consumer-fencing step. Default previews to no live delivery; verify callbacks/domain/HTTPS with current tooling. Extend separate administrator tooling with read-only redacted diagnostics and guarded audited recovery. Define retention/deletion, support ownership, numerical budgets and measured performance/cost targets. Restore synthetic populated data into isolated storage and document rollback/recovery limits. Historical private reset backups are recovery material; they must not be replayed as setup or used to reactivate old jobs/credentials.
+
+Only deploy after pending schema dry run/review and authorized environment identification. Promotion/final activation is a later explicit action. Verify all AC rows against the selected deployment and preserve privacy in evidence. Document post-booking boundaries and any supported-version limits. Reconcile/sync/archive only verified capability deltas.
+
+Exit: all AC-01–AC-28 and cross-cutting gates pass; no unresolved authorization, duplicate effect or uncertain-outcome defect. Build success alone cannot close release readiness.
+
+## Decisions and deadlines
+
+| Decision | Owner / deadline | Required record |
+|---|---|---|
+| Runtime/template/dependency/model/persistence/worker selection | S1 exit | Pinned versions, bounded authorized fixtures, failure/recovery results and selected topology |
+| OAuth registration/resource enforcement and Photon adapter fit | S1 spike; S9/S8 final | Negative protocol/transport results and precise later acceptance prerequisites |
+| Isolated S1 fixtures and selected clean application baseline | Before S1 fixture SQL / S2 product SQL | Application reset verified: zero legacy schema/RPC/jobs/queue/migrations; managed data preserved; recheck before new SQL |
+| Namespace/default grants and managed identity/configuration | Before S2 schema/hosted acceptance; each later schema slice | Explicit exposure/RLS/grant matrix, fresh Google-only config evidence and no admission from surviving identity alone |
+| Environment/consumer ownership | Before first remote schema/API activation; each live S2–S9 test | Verified target/credentials, no-send previews and one intended active consumer; final re-audit in S10 |
+| Complete human-only exception/parity list and CLI authority | S2 design; each slice | Per-operation permission/confirmation matrix; no hidden administrator mode |
+| Calendar scopes, suggestion defaults and hard/preference classification | Before S3 behavior | Reviewed pending contract and editable recommendation/confirmation semantics |
+| Guest proof, consent lifetimes and connection recovery | Before S4 behavior | Credential/audience/callback/closure matrix aligned with main specs |
+| Travel geography/modes/freshness/manual allowance and online travel | Before S5 behavior | Deterministic policy with unknown-route and online-neighbor cases |
+| Online link creation and Calendar invitation/ICS ownership | Before S6 writes | Approved final-details model and single-event invitation evidence |
+| Mail allocation/sender binding/idempotency window | Before S7 effects | Provider contract and uncertain-send procedure |
+| Spectrum recipient/line policy, private-channel confirmations/profile | Before S8 effects | Reviewed pending deltas and real-device acceptance plan |
+| Named client versions, setup and confirmation attribution | S1 discovery; before S9 acceptance | Separate plan/evidence per required product and both roles |
+| Retention/deletion, additional measured targets and support/restore ownership | Before S10 release | Runbooks, measurements and controlled restoration evidence |
+
+If a decision changes product scope or an agreed contract, revise its owning PRD/spec delta explicitly before implementation. Pending drafts remain pending; settled expiry/language/approval rules are not reopened silently.
+
+## Verification and completion
+
+All implementation tasks and all replacement acceptance rows start **pending**. Add fresh tests as a slice lands. Record commit, exact command/result/date, dependency/client versions, environment and limitations; keep personal attendee text, tokens and raw transcripts out of tracked evidence.
+
+| Layer | Required evidence |
+|---|---|
+| Build/static | Pinned separate production builds, type/lint checks, secret/import boundaries and minimal CI |
+| Domain/database | Authorization/RLS, atomic state/outbox, exact retry, current revisions, full disposable migration rebuild and concurrent invariants |
+| Runtime/effects | Reconnect, termination, explicit terminal successor, cumulative usage, replay, lost wake-up/response, fenced ownership and reconciliation |
+| Browser/accessibility | Complete phone/desktop journeys, keyboard/focus, 200% zoom, reduced motion, long messages, readable timezone/errors and callback/reload recovery |
+| Providers | Separate controlled Google/Routes, Cloudflare inbox, AgentMail thread and iPhone delivery/decision journeys |
+| Agent clients | Independent two-role/skill-prompt evidence for all seven products plus OAuth/CLI parity |
+| Operations | One intended consumer, preview fencing, private diagnostics, audited recovery, populated restore and measured limits |
+
+Use the [acceptance inventory](07_acceptance_inventory.md) as the coverage map. A fresh evidence ledger is created only when implementation results exist, with no copied historical passes. Do not add application tests or scaffold code during this planning task.
