@@ -24,7 +24,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
           <p className="text-muted">링크가 잘못됐거나, 보낸 사람이 새 링크로 바꿨어요. 새 링크를 다시 받아 주세요.</p>
           <Link href="/" className={buttonClass('secondary')}>처음으로</Link>
         </> : <>
-          <p className="text-small font-semibold text-primary">AI 미팅 예약</p>
+          <p className="text-small font-semibold text-primary">Find Me a Time</p>
           <h1 className="text-h1 font-bold text-ink">{host.name}님이 미팅 예약 링크를 보냈어요</h1>
           {me?.id === host.id ? <>
             <p className="text-muted">내 예약 링크예요. 미팅을 요청받고 싶은 사람에게 보내 주세요.</p>
@@ -34,7 +34,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
             <AcceptInviteButton token={token} />
           </> : <>
             <p className="text-muted">로그인하면 {host.name}님이 연락처에 추가되고, 서로 가능한 시간을 AI와 함께 찾을 수 있어요.</p>
-            {real ? <GoogleConnect returnPath={`/invite/${token}`} /> : <Link href="/login" className={buttonClass('primary', 'lg')}>시작</Link>}
+            {real ? <GoogleConnect returnPath={`/invite/${token}`} /> : <Link href="/" className={buttonClass('primary', 'lg')}>시작</Link>}
           </>}
         </>}
       </Card>

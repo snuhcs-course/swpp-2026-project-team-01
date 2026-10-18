@@ -19,8 +19,8 @@ export async function onboardingTurn(ctx:ServiceContext, actorId:string, input:O
   // The model judges intent; the pattern match only stands in when the model could not answer.
   const asked=intent===undefined?historyQuestion(parsed.text):intent
   const analysis=asked?await one<{summary_json:string}>(ctx.db,'SELECT r.summary_json FROM analysis_runs r JOIN profile_drafts d ON d.analysis_id=r.id WHERE d.id=?',[draftId]):undefined
-  const answer=asked?answerFromHistory(analysis?JSON.parse(analysis.summary_json):null,asked):undefined
-  const reply=await explainOnboarding(client,{values:interpreted.values,topics,changed:interpreted.changed,interpretFailed:interpreted.failed,answer})
+  const answer=asked?answerFromHistory(analysis?JSON.parse(analysis.summary_json):null,asked,parsed.locale):undefined
+  const reply=await explainOnboarding(client,{values:interpreted.values,topics,changed:interpreted.changed,interpretFailed:interpreted.failed,answer,locale:parsed.locale})
   return await finishOperation(ctx,claim,async tx=>{
    await lock(tx,`profile:${actorId}`)
    if(ctx.clock.now()-claim.startedAt>=90000)throw new DomainError('operation_timeout','시간이 초과됐어요. 다시 시도해 주세요',true)

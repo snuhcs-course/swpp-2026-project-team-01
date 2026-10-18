@@ -3,7 +3,7 @@ import {useState} from 'react'
 import {z} from 'zod'
 import {request} from './api'
 import {Button,Spinner} from './ui'
-export function GoogleConnect({purpose='login',returnPath='/onboarding',label}:{purpose?:'login'|'calendar';returnPath?:string;label?:string}) {
+export function GoogleConnect({purpose='login',returnPath='/app',label}:{purpose?:'login'|'calendar';returnPath?:string;label?:string}) {
  const [busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null)
  return <div className="space-y-2">
   <Button variant="primary" size={purpose==='login'?'lg':'md'} disabled={busy} onClick={async()=>{setBusy(true);const r=await request('POST','/api/auth/google/start',z.object({authorizationUrl:z.string()}),{purpose,returnPath});if(r.ok)location.assign(r.data.authorizationUrl);else {setError(r.error.message);setBusy(false)}}}>

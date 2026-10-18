@@ -13,7 +13,7 @@ export function db(): Db {
 
 /** Verified session in real mode; demo switching is explicitly isolated. */
 export async function currentUser(request?: Request): Promise<UserRow> {
-  const actor = await requireActor(request).catch(e=>{if(!request&&e instanceof DomainError&&e.code==="unauthenticated")redirect("/login");throw e})
+  const actor = await requireActor(request).catch(e=>{if(!request&&e instanceof DomainError&&e.code==="unauthenticated")redirect("/");throw e})
   return (await getUser(getDb(), actor.id))!
 }
 
