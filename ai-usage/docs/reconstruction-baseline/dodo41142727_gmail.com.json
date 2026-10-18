@@ -64,19 +64,44 @@
     "claude:cc1addd5-ed19-4fca-a19b-99b51f075b42": {
       "agent": "claude-code",
       "client": "cli",
-      "agent_ms": 391280,
+      "agent_ms": 1517184,
       "models": {
         "claude-fable-5-1": {
-          "input": 1094,
-          "cache_read": 7653122,
-          "cache_write_5m": 351808,
+          "input": 1354,
+          "cache_read": 11362236,
+          "cache_write_5m": 388963,
           "cache_write_1h": 0,
-          "output": 29698,
+          "output": 63041,
+          "reasoning": 0
+        },
+        "claude-opus-5-5": {
+          "input": 78,
+          "cache_read": 17202604,
+          "cache_write_5m": 503345,
+          "cache_write_1h": 0,
+          "output": 67332,
           "reasoning": 0
         }
       },
       "first": "2026-10-18T22:15:15.381Z",
-      "last": "2026-10-18T22:32:47.241Z"
+      "last": "2026-10-18T23:08:09.353Z"
+    },
+    "claude:cc1addd5-ed19-4fca-a19b-99b51f075b42/agent-ab0cb79c08bf9b8ce": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 28,
+          "cache_read": 1372285,
+          "cache_write_5m": 135041,
+          "cache_write_1h": 0,
+          "output": 489,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T23:04:45.403Z",
+      "last": "2026-10-18T23:08:03.413Z"
     },
     "claude:f03fa0a1-95b4-4dc2-9e37-96c6ac7c9337": {
       "agent": "claude-code",
@@ -84,16 +109,16 @@
       "agent_ms": 169088,
       "models": {
         "claude-fable-5-1": {
-          "input": 5666,
-          "cache_read": 102364695,
-          "cache_write_5m": 692669,
+          "input": 5698,
+          "cache_read": 103050909,
+          "cache_write_5m": 694067,
           "cache_write_1h": 0,
-          "output": 405818,
+          "output": 407150,
           "reasoning": 0
         }
       },
       "first": "2026-10-18T18:17:24.855Z",
-      "last": "2026-10-18T22:33:38.922Z"
+      "last": "2026-10-18T22:34:07.094Z"
     },
     "claude:f03fa0a1-95b4-4dc2-9e37-96c6ac7c9337/agent-aagent-work-research-a39de3d2667e5994": {
       "agent": "claude-code",

@@ -29,7 +29,6 @@ Shared Supabase project: **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, `us-east-2
 These documents were copied unchanged from the iteration 1 prototype so the team can review and update them against the documents above.
 
 - [Transplant guide](documentations/transplant/en/transplant-guide.md): the prototype's features F01–F11, journeys and design decomposed for reuse.
-- [iMessage agent specification](openspec/specs/imessage-agent/spec.md) and the [host iMessage assistant change](openspec/changes/host-imessage-assistant/proposal.md): the prototype's Photon-based iMessage behavior. Overlap with the interface documents is unresolved.
 - [AI usage records](ai-usage/README.md): see [agent guidance](AGENTS.md#ai-usage-records) for the hook setup.
 
 ## Checks

@@ -88,7 +88,7 @@ Offer optional **Add to contacts** as a proposed host action after a verified pr
 
 ## Model access and runtime
 
-Keep model configuration server-side and use the team's intended direct-provider billing route. Select a supported model ID and verify its tool/context metadata during the runtime foundation, while enforcing the agreed [model limits](../../openspec/specs/model-execution/spec.md). Test invalid/refused outputs, provider deadlines, rate/credit failures, durable usage accounting and private-data filtering using synthetic context. A model failure never advances scheduling state or creates approval.
+Keep model configuration server-side and call OpenAI directly with the team's own API key; the AI Gateway is not used. The model is `gpt-5.6-terra`, decided 2026-10-19 and recorded in the [foundation design](../../openspec/changes/application-foundation/design.md#5-model-route-and-model). Confirm the model ID, price and tool support against the team's key in the foundation change, while enforcing the agreed [model limits](../../openspec/specs/model-execution/spec.md). Test invalid/refused outputs, provider deadlines, rate/credit failures, durable usage accounting and private-data filtering using synthetic context. A model failure never advances scheduling state or creates approval.
 
 ## Protected MCP OAuth compatibility
 

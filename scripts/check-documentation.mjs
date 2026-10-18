@@ -31,7 +31,13 @@ function headings(markdown) {
   return anchors;
 }
 
-const files = [path.join(root, 'README.md')];
+// Root documents such as README.md, AGENTS.md and DESIGN.md; symlinks (CLAUDE.md -> AGENTS.md) are skipped
+// so the same file is not reported twice.
+const rootEntries = await readdir(root, { withFileTypes: true });
+const files = rootEntries
+  .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
+  .map((entry) => path.join(root, entry.name))
+  .sort();
 for (const directory of ['documentations', 'openspec', 'supabase', 'ai-usage']) {
   files.push(...await markdownFiles(path.join(root, directory)));
 }

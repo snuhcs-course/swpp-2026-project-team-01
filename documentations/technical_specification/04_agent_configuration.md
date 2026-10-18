@@ -135,7 +135,7 @@ Layers 1 to 4 are the authority boundary; domain and integration tests prove the
 
 ## Model
 
-`agent/agent.ts` is `defineAgent({ model, modelContextWindowTokens, modelOptions })`. The model string routes through the Vercel AI Gateway with the project's OIDC on Vercel; a direct provider key is the local fallback. The exact model identifier, its entitlement and its pinned version are open decisions to record freshly in the foundation change. The [model execution contract](../../openspec/specs/model-execution/spec.md) is enforced by application hooks and instrumentation, not by the model configuration alone: bounded input size, a stalled-provider deadline, a durable per-session allowance that survives process failure and recovery that keeps the same limits.
+`agent/agent.ts` is `defineAgent({ model, modelContextWindowTokens, modelOptions, limits })`. Decided 2026-10-19: Thyme calls OpenAI directly with the team's own `OPENAI_API_KEY`, using `gpt-5.6-terra` through eve's bundled `openai()` helper from `eve/models/openai`; the AI Gateway is not used. `modelOptions.providerOptions.openai` turns provider storage off and selects the standard tier, and `modelContextWindowTokens` is set explicitly because eve cannot read a direct model's window from the Gateway catalog. The [foundation design](../../openspec/changes/application-foundation/design.md#5-model-route-and-model) records the values and the reasoning. The [model execution contract](../../openspec/specs/model-execution/spec.md) is enforced by application hooks and instrumentation, not by the model configuration alone: bounded input size, a stalled-provider deadline, a durable per-session allowance that survives process failure and recovery that keeps the same limits.
 
 ## Memory
 
@@ -169,11 +169,11 @@ Each session is a Workflow run: completed steps replay and an interrupted step r
 |---|---|---|
 | Run | `eve dev` beside `next dev apps/web`; runs persist under `.eve/.workflow-data` | `withEve({ services: { web: { framework: "nextjs", root: "apps/web" } }, routes })` in the root `vercel.ts` adds the agent as its own service and routes `/eve/v1/**` to it |
 | Auth | `localDev()` after the application auth function | Application auth only; fails closed |
-| Model | Direct provider key | AI Gateway with project OIDC |
+| Model | `OPENAI_API_KEY` in the local environment | `OPENAI_API_KEY` in Vercel Production; Preview gets its own key or none |
 | Messaging | Denied | Release only; previews denied |
 | Docker | Not needed | Not needed |
 
-Environment variables are limited to the model provider or gateway, Supabase, Photon, AgentMail, Cloudflare and `EVE_*` settings, kept out of Git with `.env.example` listing names only. `eve build` runs with `next build`; `eve link` binds the Vercel project.
+Environment variables are limited to the OpenAI key, Supabase, Photon, AgentMail, Cloudflare and `EVE_*` settings, kept out of Git with `.env.example` listing names only. `eve build` runs with `next build`; `eve link` binds the Vercel project.
 
 ## Evals
 
@@ -187,8 +187,9 @@ Environment variables are limited to the model provider or gateway, Supabase, Ph
 | Human decisions | Application commands from cards and exact channel commands | Model tools with eve approval: approval prompts are not product consent and cannot carry proposal or review references |
 | Calendar access | Domain code with the stored grant | An eve connection or Calendar tool: raw events and tokens would enter sessions |
 | Memory | None in the first release | A per-host profile slot: nothing in the flows needs it yet |
-| eve version | Pin in the foundation change and verify against the installed docs (template pins `^0.73`; the latest release is newer) | Floating ranges from a template lockfile |
+| eve version | `eve` 0.80.1 pinned exactly, with `ai` 7.0.143 for its peer range; verify against the installed docs ([foundation design](../../openspec/changes/application-foundation/design.md#2-runtime-version)) | Floating ranges from a template lockfile; staying on the template's 0.73 |
+| Model | Direct OpenAI with the team's key, `gpt-5.6-terra`, through eve's `openai()` helper | AI Gateway with project OIDC: the team chose direct OpenAI billing |
 
 ## Open decisions
 
-Photon Spectrum compatibility with the native Photon channel and the sender identifier format; whether `evaluate_candidates` runs as an eve workflow tool or purely as an application job; the model identifier and context window; whether the AgentMail channel is a custom channel or the Chat SDK Gmail adapter; session retention and compaction thresholds; when, if ever, a memory slot becomes useful.
+Photon Spectrum compatibility with the native Photon channel and the sender identifier format; whether `evaluate_candidates` runs as an eve workflow tool or purely as an application job; whether the AgentMail channel is a custom channel or the Chat SDK Gmail adapter; session retention and compaction thresholds; when, if ever, a memory slot becomes useful.
