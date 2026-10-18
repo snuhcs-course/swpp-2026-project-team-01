@@ -12,12 +12,6 @@ npm install -g agentmail-cli
 export AGENTMAIL_API_KEY="am_..."
 ```
 
-This repository currently uses AgentMail CLI 1.8.0. Authenticate with
-`AGENTMAIL_API_KEY` or the CLI keyring (`agentmail auth login`), and verify the
-installed surface with `agentmail --help` plus the relevant resource's
-`--help` before scripting an administrative operation. Version 1.8.0 does not
-support the older `--api-key`, `--transform`, or `--format-error` flags.
-
 A resource nested under another is a nested subcommand, e.g. `inboxes messages`, `inboxes threads`, `pods inboxes`, `pods threads` (CLI 1.x; the colon form `inboxes:messages` is rejected). Run `agentmail <resource> --help` to list what a resource supports.
 
 ## Inboxes
@@ -113,16 +107,17 @@ agentmail domains get-zone-file --domain-id <domain_id>
 
 | Flag | Purpose |
 | --- | --- |
+| `--api-key` | Override `AGENTMAIL_API_KEY` for this call |
 | `--base-url` | Point at a non-default API host |
+| `--environment` | Select a named environment |
 | `--format` | Output format (see below) |
-| `--query` | Apply a JMESPath projection before formatting |
-| `--dry-run` | Validate a request locally without sending it |
-| `--schema` | Print the machine-readable command schema |
+| `--format-error` | Control structured error output |
+| `--transform` | GJSON projection of a successful response |
+| `--transform-error` | GJSON projection of an error response |
 | `--debug` | Verbose request/response logging |
 
 ## Output formats
 
-`--format` accepts: `json`, `table`, `yaml`, `csv`, `raw`, `jsonl`, and `http`.
-Output defaults to `table` on a TTY and `json` when piped.
+`--format` accepts: `auto` (default), `pretty`, `json`, `jsonl`, `yaml`, `raw`, `explore`.
 
 Run `agentmail --help` and the relevant resource's `--help` before using an administrative command not covered here.

@@ -144,7 +144,7 @@ Each task is one branch, and each task reports the Claude Code and Codex tokens 
 
 Project skills live in `.agents/skills/`. Read the matching `SKILL.md` before working in its area:
 
-- `supabase`: Supabase CLI, Auth, database, Storage, Realtime, and Edge Functions.
+- `supabase`: Supabase CLI, Auth, database, Storage, Realtime, and Edge Functions. Start documentation lookups from the index at [supabase.com/llms.txt](https://supabase.com/llms.txt); each listed page can be fetched as Markdown.
 - `supabase-postgres-best-practices`: Postgres schema, queries, indexes, and RLS.
 - `shadcn`: shadcn/ui components and configuration, if the team adopts shadcn/ui.
 - `openspec-*`: generated core workflows for exploring, proposing, applying, and archiving behavior changes.

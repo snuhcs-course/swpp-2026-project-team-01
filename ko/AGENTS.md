@@ -146,7 +146,7 @@ Not-tested: <known gaps in verification>
 
 프로젝트 스킬은 `.agents/skills/`에 있습니다. 해당 영역에서 작업하기 전에 맞는 `SKILL.md`를 읽습니다.
 
-- `supabase`: Supabase CLI, Auth, 데이터베이스, Storage, Realtime, Edge Functions.
+- `supabase`: Supabase CLI, Auth, 데이터베이스, Storage, Realtime, Edge Functions. 문서는 [supabase.com/llms.txt](https://supabase.com/llms.txt) 색인에서 찾기 시작하며, 색인에 나온 각 페이지는 Markdown으로 가져올 수 있습니다.
 - `supabase-postgres-best-practices`: Postgres 스키마, 쿼리, 인덱스, RLS.
 - `shadcn`: shadcn/ui 컴포넌트와 설정. 팀이 shadcn/ui를 채택한 경우에 적용합니다.
 - `openspec-*`: 동작 변경을 탐색, 제안, 적용, 보관하기 위해 생성된 핵심 워크플로.
