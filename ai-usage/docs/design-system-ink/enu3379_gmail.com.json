@@ -1,0 +1,23 @@
+{
+  "branch": "docs/design-system-ink",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:1103279e-d681-4c08-bc54-429c41019727": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 6,
+          "cache_read": 627972,
+          "cache_write_5m": 0,
+          "cache_write_1h": 10469,
+          "output": 10855,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-17T08:16:59.932Z",
+      "last": "2026-10-17T08:18:33.381Z"
+    }
+  }
+}
