@@ -8,7 +8,7 @@ Domain: [findmeatime.com](https://findmeatime.com) · SNU SWPP Project Team 01
 
 **Documentation baseline only.** This branch starts from `main` and carries the documentation, specifications, design assets and shared skills of the previous `feat/astra-reconstruction` implementation, without its application code, tests, schema or migration chain. The team's `dev` prototype is also not carried over, apart from the documents listed under [Carried over for review](#carried-over-for-review). No replacement code has been started.
 
-Read the [one-pager](documentations/01_one_pager.md), [PRD](documentations/02_product_requirements.md), then the [implementation plan](documentations/technical_specification/04_implementation_plan.md). The [foundation proposal](openspec/changes/reconstruct-runtime-foundation/proposal.md) is the first bounded future change. Implementation waits for a new explicit request.
+Read the [one-pager](documentations/01_one_pager.md), [PRD](documentations/02_product_requirements.md), then the [implementation plan](documentations/technical_specification/04_implementation_plan.md). The first bounded change will be proposed after the rebuild's stack decision; see the [specification status](openspec/README.md). Implementation waits for a new explicit request.
 
 Selected rebuild Supabase project: **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, `us-east-2`), CLI-linked and reset at the user's explicit request. The application schema, legacy queue/jobs and migration history are empty; managed Auth/Storage remain. See [project setup and baseline prerequisites](documentations/technical_specification/03_provider_setup.md#selected-rebuild-supabase-project).
 
@@ -19,8 +19,7 @@ Selected rebuild Supabase project: **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, 
 | `documentations/` | Product direction, UX, proposed architecture, implementation sequence and acceptance coverage |
 | `DESIGN.md` | Thyme visual direction and retained original brand assets |
 | `openspec/specs/` | Agreed behavior retained as the replacement's contract baseline; implementation coverage is reset |
-| `openspec/changes/` | Fresh proposals and historical completed archives |
-| `openspec/retired/` | Superseded unfinished plans from the previous implementation |
+| `openspec/changes/` | Pending proposals and historical completed archives |
 | `supabase/` | Inactive local configuration and reconstruction guidance; no application SQL |
 | `.agents/skills/` | Shared project workflows and reference material |
 

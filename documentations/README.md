@@ -26,7 +26,7 @@ Read product purpose and requirements, then UX, architecture and the implementat
 
 ## Historical material
 
-Completed records remain in [OpenSpec archives](../openspec/changes/archive/). Unfinished plans moved to [retired plans](../openspec/retired/2026-10-13/README.md); their checkboxes and implementation references describe the previous attempt only. Neither directory is the active implementation queue. Retired documents and source remain recoverable through the pre-removal Git commit listed in the root README.
+Completed records remain in [OpenSpec archives](../openspec/changes/archive/); their checkboxes and implementation references describe the previous attempt only, and the directory is not the active implementation queue. The previous implementation's unfinished plans and source remain on the `feat/astra-reconstruction` branch, not in this checkout.
 
 ## Maintenance
 

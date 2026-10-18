@@ -10,7 +10,7 @@ Photon's [Spectrum iMessage guide](https://photon.codes/docs/spectrum-ts/provide
 
 **Goals:** Give the future **Text me** UI a stable command/status contract, one safe Photon welcome send, and a durable path to identify a host's reply. Make that complete path runnable and verifiable with a real authenticated host and test iPhone before the new UI exists. Keep Photon transport behind a provider interface so host onboarding and later scheduling services do not depend on Spectrum types.
 
-**Non-Goals:** Build the onboarding screen, create guest messaging, generate booking summaries, interpret free-form host commands, or mutate requests from texts. The product's existing [onboarding PRD](../../../documentaions/availability_onboarding/product_requirement_document.md) excludes host request-handling AI; later messaging policy needs its own change.
+**Non-Goals:** Build the onboarding screen, create guest messaging, generate booking summaries, interpret free-form host commands, or mutate requests from texts. The product's existing onboarding PRD (`documentaions/availability_onboarding/product_requirement_document.md` on the `dev` branch) excludes host request-handling AI; later messaging policy needs its own change.
 
 ## Decisions
 

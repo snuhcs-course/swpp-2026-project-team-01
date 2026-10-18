@@ -8,7 +8,7 @@ Status: planning complete for review; **implementation has not started**
 
 ## Starting point and scope
 
-Application/agent/server code, scripts, tests, package/build configuration and application SQL were removed from this checkout. The previous snapshot is Git commit `02e5a8e`; external deployments were not reconfigured; the later authorized Supabase application reset is recorded below. Product requirements, original brand assets, agreed capability specs and historical OpenSpec records are retained. Eleven unfinished plans are [retired](../../openspec/retired/2026-10-13/README.md); no historical checkmark carries forward.
+Application/agent/server code, scripts, tests, package/build configuration and application SQL were removed from this checkout. The previous snapshot is Git commit `02e5a8e`; external deployments were not reconfigured; the later authorized Supabase application reset is recorded below. Product requirements, original brand assets, agreed capability specs and historical OpenSpec records are retained. The previous implementation's eleven unfinished plans stay on the `feat/astra-reconstruction` branch; no historical checkmark carries forward.
 
 Use the user-selected Supabase project **`anelszynxtvxoxqvzgqt`** for the rebuild. [Provider setup](03_provider_setup.md#selected-rebuild-supabase-project) records verified CLI linkage and the subsequent explicit application reset. Application schema/RPC, migration history, legacy queue and scheduled jobs are now empty; managed Auth/Storage/Vault remain. Recheck this clean application baseline before implementation.
 
@@ -33,7 +33,7 @@ The recorded PostgreSQL version is 17.6, consistent with local major version 17.
 
 ## Delivery method
 
-Use one bounded OpenSpec change/topic PR at a time. S1 has a [fresh proposal](../../openspec/changes/reconstruct-runtime-foundation/proposal.md). Later names below are proposed work slices, not already-created changes. Before each slice, read its PRD/main contracts, resolve the listed decisions and recreate only the necessary pending deltas from retired reference material. Do not copy an entire old schema/API/runtime or mark it implemented because a prior test passed.
+Use one bounded OpenSpec change/topic PR at a time. The names below are proposed work slices, not already-created changes; S1 is proposed after the stack decision. Before each slice, read its PRD/main contracts, resolve the listed decisions and recreate only the necessary pending deltas, consulting the previous implementation's plans on `feat/astra-reconstruction` as reference material. Do not copy an entire old schema/API/runtime or mark it implemented because a prior test passed.
 
 Implement each slice vertically through authorized domain operations, persistence, thin adapters, usable UI, meaningful tests and owning documentation. Record fresh results as they land, then sync/archive only completed verified behavior. Make runtime/security/recovery tests part of their owning slice instead of deferring them to launch. The table expresses delivery dependencies.
 
@@ -41,7 +41,7 @@ Implement each slice vertically through authorized domain operations, persistenc
 
 | Slice | Proposed change | Depends on | Deliverable and exit gate |
 |---|---|---|---|
-| S1 | `reconstruct-runtime-foundation` | New implementation request | Pinned npm/Next.js/eve builds, protected conversation/tool boundary, durable replay/restart/terminal recovery proof, deployment/persistence decision and early OAuth/Photon compatibility findings |
+| S1 | `reconstruct-runtime-foundation` | New implementation request and stack decision | Pinned builds for the chosen stack, protected conversation/tool boundary, durable replay/restart/terminal recovery proof, deployment/persistence decision and early OAuth/Photon compatibility findings |
 | S2 | `reconstruct-host-admission` | S1; clean-baseline recheck and entry gates | Google-only identity, waitlist, bound invitations, stable handles, grants/RLS, separate invitation admin CLI and controlled transactional delivery |
 | S3 | `reconstruct-host-setup` | S2 | Host Calendar consent/roles, suggestion-first private drafts/analysis, explicit preference review, readiness and share links in `/app` |
 | S4 | `reconstruct-request-lifecycle` | S3 | Account-free intake, contact proof/recovery, optional Google identity/requester Calendar, protected continuation, proposal revisions and closure |
