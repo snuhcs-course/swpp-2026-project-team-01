@@ -10,6 +10,7 @@ export type Db = PgDatabase<PgQueryResultHKT, typeof schema>
 
 // The schema is owned by supabase/migrations; this list is only for wiping data (demo databases and tests).
 export const TABLES = [
+  "host_imessage_messages", "photon_inbound_events", "photon_outbound_attempts", "host_phone_connections",
   "draft_messages", "profile_drafts", "analysis_evidence", "analysis_runs", "event_classifications", "event_annotations",
   "imported_busy_intervals", "imported_events", "calendar_snapshots", "calendar_sync_runs", "calendar_sources", "calendar_connections",
   "service_leases", "search_messages", "mutation_operations", "oauth_attempts", "sessions", "auth_identities",
