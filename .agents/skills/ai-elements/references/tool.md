@@ -106,10 +106,10 @@ const Example = () => {
 function formatWeatherResult(result: WeatherToolOutput): string {
   return `**Weather for ${result.location}**
 
-**Temperature:** ${result.temperature}
-**Conditions:** ${result.conditions}
-**Humidity:** ${result.humidity}
-**Wind Speed:** ${result.windSpeed}
+**Temperature:** ${result.temperature}  
+**Conditions:** ${result.conditions}  
+**Humidity:** ${result.humidity}  
+**Wind Speed:** ${result.windSpeed}  
 
 *Last updated: ${result.lastUpdated}*`;
 }
