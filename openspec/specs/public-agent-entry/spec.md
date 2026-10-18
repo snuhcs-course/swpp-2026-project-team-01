@@ -28,6 +28,21 @@ The requester document SHALL use current public host-readiness checks and an all
 - **WHEN** the handle is invalid, unknown or no longer ready
 - **THEN** the document gives an unavailable result without exposing the reason or selecting a different host
 
+### Requirement: Discoverable from plain URLs
+The landing page and each ready host's public page SHALL let an agent that fetches the plain URL find the entry instructions. The HTML SHALL contain a visible agent section that links to the matching `/SKILL.md` or `/{handle}/SKILL.md` document and SHALL declare it with `<link rel="alternate" type="text/markdown">`; the application SHALL serve a root `llms.txt` listing both documents; and requests to those URLs with `Accept: text/markdown` SHALL receive the matching Markdown document while HTML remains the default.
+
+#### Scenario: Agent reads the HTML page
+- **WHEN** an agent fetches `/` or `/{handle}` and converts the HTML to text
+- **THEN** the text contains the agent section and the link to the matching instruction document, and nothing in it grants authority
+
+#### Scenario: Markdown negotiation
+- **WHEN** a client requests `/{handle}` with `Accept: text/markdown`
+- **THEN** it receives the same document as `/{handle}/SKILL.md` under the same caching and authority rules
+
+#### Scenario: Explicit document path
+- **WHEN** a client fetches `/SKILL.md` or `/{handle}/SKILL.md` directly
+- **THEN** it receives the instruction document regardless of how the client discovers documents
+
 ### Requirement: Honest client continuation
 Documents SHALL explain that fetching them does not install tools or authorize actions. They SHALL offer direct web continuation when client tools are absent, preserve account-free requester access, distinguish identity from Calendar consent, and require current requester agreement and attributable host approval before confirmed booking.
 

@@ -8,7 +8,7 @@ A journey describes a person's goal and experience across channels; a flow descr
 
 ## Interfaces used in the journey
 
-The booking link works for people and supported requester agents. Hosts can start by pasting the root skill prompt into their personal agent. Host access is invite-only: users without access join the waitlist; invited hosts redeem access through web before calendar setup. Hosts sign in with Google in the browser; email login is outside the MVP. Admitted hosts use separate provider consent when needed, then choose where to review requests. Direct web setup remains available. Here, **Web** includes mobile and desktop browsers; a separate native app is outside the initial release.
+The booking link works for people and supported requester agents. Hosts can start by pasting the root skill prompt into their personal agent. Hosting is open: anyone with a Google account can become a host, and completing Google sign-in creates an active host account before calendar setup. Hosts sign in with Google in the browser; email login is outside the MVP. Active hosts use separate provider consent when needed, then choose where to review requests. Direct web setup remains available. Here, **Web** includes mobile and desktop browsers; a separate native app is outside the initial release.
 
 ```mermaid
 flowchart LR
@@ -58,23 +58,22 @@ Remote MCP is the primary agent interface; the CLI serves clients with terminal 
 
 ## Copy-and-paste entry flow
 
-Host: `Let me use findmeatime.com/SKILL.md for my scheduling`\
-Requester: `Let me schedule a meeting with findmeatime.com/dodo/SKILL.md`
+Host: `Let me use findmeatime.com for my scheduling`\
+Requester: `Let me schedule a meeting with findmeatime.com/dodo`
 
 These are intended product entry points, not claims that the URLs or integrations are deployed.
 
 ```mermaid
 flowchart TD
-    H["Host: paste root SKILL.md prompt<br/>Personal-agent chat"] --> HS["Agent reads public onboarding instructions<br/>HTTPS Markdown"]
-    HS --> GA{"Host access granted?<br/>Server check"}
-    GA -->|No| WL["Join waitlist<br/>Web"]
-    WL --> IV["Receive invitation when admitted<br/>Email with web redemption link"]
-    IV --> RD["Redeem invitation and verify identity<br/>Web"]
-    RD --> GA
-    GA -->|Yes| HC["Host signs in and grants required access<br/>Browser consent"]
+    H["Host: paste findmeatime.com prompt<br/>Personal-agent chat"] --> HS["Agent finds and reads public onboarding instructions<br/>HTML page or SKILL.md"]
+    HS --> GA{"Active host account?<br/>Server check"}
+    GA -->|No| WL["Sign in with Google<br/>Web"]
+    WL --> IV["Active host account created<br/>Server"]
+    IV --> GA
+    GA -->|Yes| HC["Host grants required access<br/>Browser consent"]
     HC --> HP["Confirm minimum scheduling settings<br/>Personal-agent chat or web fallback"]
     HP --> L["Agent returns host booking and skill links<br/>Personal-agent chat"]
-    R["Requester: paste host SKILL.md prompt<br/>Personal-agent chat"] --> RS["Agent reads host-specific instructions<br/>HTTPS Markdown"]
+    R["Requester: paste host link prompt<br/>Personal-agent chat"] --> RS["Agent finds and reads host-specific instructions<br/>HTML page or SKILL.md"]
     RS --> RC{"Availability source?<br/>Requester choice"}
     RC -->|Connect Google Calendar| GC["Consent and select calendars<br/>Google consent and web continuation"]
     GC --> N["Clarify only missing details and negotiate<br/>Personal-agent chat using supported tools"]
@@ -113,18 +112,18 @@ This shows the main path. Withdrawal, expiry, and unresolved failures are covere
 ## J-01 — Host setup
 
 **Goal:** Delegate coordination while keeping control over availability and final decisions.\
-**Entry:** The host pastes `Let me use findmeatime.com/SKILL.md for my scheduling` into their personal agent, or starts directly on web.
+**Entry:** The host pastes `Let me use findmeatime.com for my scheduling` into their personal agent, or starts directly on web.
 
 The steps below describe the agent path. Direct web onboarding performs the same account, calendar, and settings checks in web, skips personal-agent connection and authorization, and displays the shareable links there.
 
-1. The agent reads the root skill document and checks host access and its available connection capabilities. If access is missing, it offers web waitlist entry without requiring calendar consent. The flow waits for admission; it does not claim setup succeeded. Proposed delivery is an email invitation with browser redemption. A valid invitation admits the verified account and resumes setup; unusable invitations show a recovery step. Direct web follows the same admission check. The agent guides any required client setup without asking the host to discover endpoints or commands.
+1. The agent reads the root skill document and checks for an active host account and its available connection capabilities. If there is none, it directs the host to web Google sign-in, which creates the account immediately without requiring calendar consent. The flow does not claim setup succeeded until sign-in completes. A suspended host account cannot continue hosting setup and sees a neutral unavailable result. Direct web follows the same host eligibility check. The agent guides any required client setup without asking the host to discover endpoints or commands.
 2. The host completes browser sign-in and agent authorization through J-09, plus the separate Google Calendar consent. Existing connections are reused when valid.
 3. The agent shows **Connect Google Calendar**, then resumes with cards for actual authorized calendars. It recommends calendars to check and a writable booking destination with short reasons; the host can change them. **Analyze selected calendars** explains which calendars and date range will be read. After the scan, the agent proposes recurring meeting windows in a weekly preview and online/in-person location preferences, explaining the observed patterns and uncertainty. The agent explicitly asks whether the host prefers online, in-person or either; for in-person/either it asks for preferred areas/venues or an explicit **Decide per meeting** choice. For hosts accepting in-person meetings, it then asks how they usually travel and how much extra travel buffer they want, offering supported modes or **Depends on the trip** plus an editable buffer suggestion. The final review includes these choices; online-only skips transportation setup. Calendar suggestions accompany these questions and do not count as answers. Reuse an already stated preference, and skip physical-location entry for online-only hosts. The host can use, edit or dismiss other suggestions and supply missing timezone, duration or buffers. **Set up manually** remains available; sparse history, missing locations or failed reads produce a question rather than invented preferences. Calendar selection and final settings require explicit confirmation before use.
-4. After the host confirms settings and the service verifies setup, the agent returns the host's booking link and `findmeatime.com/{host}/SKILL.md` link.
+4. After the host confirms settings and the service verifies setup, the agent returns the host's booking link `findmeatime.com/{host}`, which is also the link requesters paste into their own agents.
 5. For an unlinked host, the assistant recommends **Connect iMessage** with **Maybe later** available. A host who began in iMessage resumes the verified linked conversation after required browser steps. Linking is optional and does not block basic setup; everyday proposal review can then continue in iMessage.
 6. An interrupted flow resumes from saved progress. Unsupported client capabilities lead to a supported setup step or web continuation; consent denial does not create a successful connection.
 
-**Outcome:** A user awaiting an invitation has a waitlist confirmation, with no active booking link. An admitted host who completes setup is ready to receive requests with minimal information repeated across agent and browser. Re-running onboarding reuses the existing host account. Failed calendar access is a recovery state, not unrestricted availability.
+**Outcome:** A host who has signed in but not completed setup has an active account and no public booking link. A host with completed setup is ready to receive requests with minimal information repeated across agent and browser. Re-running onboarding reuses the existing host account. Failed calendar access is a recovery state, not unrestricted availability.
 
 The agent leads the entire journey with a useful next action and a suggested answer where possible. It reuses known choices, proposes calendar-informed preferences or labeled starter defaults, and asks one focused question only for an unresolved detail. Hosts accept or correct suggestions instead of completing a blank questionnaire. Sign-in, Calendar consent, inline iMessage verification, retries and completion all receive conversational guidance; sensitive inputs still use protected controls.
 
@@ -139,8 +138,8 @@ For optional iMessage linking, choose **Connect iMessage** in the `/app` chat, e
 **Goal:** Arrange an external meeting without creating an account.\
 **Entry:** The requester receives the host's public `/{handle}` link or uses the supported email channel. After request creation, verified continuation opens `/booking/[bookingId]` without creating a product account.
 
-1. The requester explains the meeting purpose. The assistant reuses known details and suggests duration/mode, offering **Continue with Google** to prefill name and verified email or **Continue without Google** with an inline name/email card. Manual or alternate email follows contact verification before trusted recovery or invitation use; final proposal review shows the recipient.
-2. Display times in the browser-detected IANA timezone with a visible selector, preserving any explicit guest choice without asking a separate timezone confirmation question. Clarify only missing/conflicting zones or ambiguous dates/travel. Offer optional **Connect Google Calendar** for mutual availability, separately from identity sign-in, or **Skip for now** with manual availability. Email users receive protected browser continuation. Consent returns to the same request, not host setup, and requires no product signup or invitation.
+1. The requester explains the meeting purpose. The assistant reuses known details and suggests duration/mode, offering **Continue with Google** to prefill name and verified email or **Continue without Google** with an inline name/email card. Manual or alternate email follows contact verification before trusted recovery or calendar-invitation use; final proposal review shows the recipient.
+2. Display times in the browser-detected IANA timezone with a visible selector, preserving any explicit guest choice without asking a separate timezone confirmation question. Clarify only missing/conflicting zones or ambiguous dates/travel. Offer optional **Connect Google Calendar** for mutual availability, separately from identity sign-in, or **Skip for now** with manual availability. Email users receive protected browser continuation. Consent returns to the same request, not host setup, and requires no product signup.
 3. The requester receives feasible options expressed with explicit dates, times, and timezones, excluding busy intervals from their connected calendars when applicable. Neither party sees the other's private event details. Denied or failed requester access prompts reconnection or an explicit manual/agent-availability fallback, never a claim that the calendar is free.
 4. They choose an option or suggest alternatives. No suitable option leads to J-07.
 5. Their agreement sends the current proposal to host review. The requester sees that approval is pending rather than receiving a booking confirmation.
@@ -153,7 +152,7 @@ For optional iMessage linking, choose **Connect iMessage** in the `/app` chat, e
 ## J-03 — Hand the booking link to a personal agent
 
 **Goal:** Delegate the scheduling conversation instead of filling out a page and relaying messages.\
-**Entry:** The requester pastes `Let me schedule a meeting with findmeatime.com/dodo/SKILL.md` into Dots, Muse, Instinct, ChatGPT, Codex, Claude, or Claude Code. Sharing the ordinary booking link remains supported.
+**Entry:** The requester pastes `Let me schedule a meeting with findmeatime.com/dodo` into Dots, Muse, Instinct, ChatGPT, Codex, Claude, or Claude Code. Sharing the ordinary booking link remains supported.
 
 1. The agent reads the host-specific skill document, resolves the intended host, and supplies known meeting details through a supported connection. It handles tool selection using the documented MCP/CLI paths. If integration setup is missing, it explains the required step or offers web continuation; sharing the link alone does not connect the client or grant access.
 2. It uses availability and preferences the requester has authorized it to access, or offers an optional direct Google Calendar connection through a request-bound browser consent flow. The requester chooses the source; credentials never pass through agent chat. Manual availability remains supported.
@@ -265,7 +264,7 @@ sequenceDiagram
     participant A as Personal-agent client
     participant M as Find Me a Time MCP
     participant O as Find Me a Time authorization service
-    H->>A: Paste root SKILL.md onboarding prompt
+    H->>A: Paste findmeatime.com onboarding prompt
     Note over A,M: Read public instructions and guide supported connection
     A->>M: Request protected access
     M-->>A: Authorization discovery information

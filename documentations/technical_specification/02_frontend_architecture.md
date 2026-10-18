@@ -59,13 +59,13 @@ Unit tests live beside modules. Defer independently published packages, new work
 
 Server entry points authenticate, authorize, validate and delegate. Eve tools invoke the same domain operations as web, MCP, user CLI and verified channels. Provider credentials, privileged persistence and model configuration stay server-only. Contract modules must be safe for both browser and server builds; check indirect/re-export imports as well as direct imports.
 
-Render only audience-filtered server snapshots. React handles local interaction; it does not decide admission, agreement, approval, feasible candidates or booking outcomes. Runtime events and model text cannot invent action-card permissions.
+Render only audience-filtered server snapshots. React handles local interaction; it does not decide host eligibility, agreement, approval, feasible candidates or booking outcomes. Runtime events and model text cannot invent action-card permissions.
 
 ## Rendering and state ownership
 
 | State | Authority |
 |---|---|
-| Host identity, admission, grants and channel binding | Current server verification |
+| Host identity, eligibility, grants and channel binding | Current server verification |
 | Request, proposal, decisions, candidate evidence and booking | Durable versioned domain state |
 | Conversation/runtime binding and committed inputs | Application-owned scope backed by durable execution |
 | Transcript and action cards | Authorized audience projection |
@@ -89,7 +89,7 @@ Lead setup through agent guidance and compact in-chat cards. Suggest actual conf
 
 Ask meeting mode/location explicitly and reuse explicit prior answers. In-person/either requires transportation or per-trip policy and an extra travel buffer; online-only skips these controls. Suggestions and typed corrections update a draft. Current final review, explicit confirmation and server readiness checks precede saved policy/publication.
 
-Keep iMessage phone entry, six-digit proof, connection summary and optional skip inline. Browser sign-in, invitation and Google consent use protected handoffs; returning restores the same draft. Code fields submit directly to the protected server, outside transcripts and model context. Private-channel settings confirmation needs its own reviewed delta and expiring current-review context.
+Keep iMessage phone entry, six-digit proof, connection summary and optional skip inline. Browser sign-in and Google consent use protected handoffs; returning restores the same draft. Code fields submit directly to the protected server, outside transcripts and model context. Private-channel settings confirmation needs its own reviewed delta and expiring current-review context.
 
 ## Commands, artifacts and human decisions
 

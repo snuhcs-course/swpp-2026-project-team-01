@@ -32,11 +32,11 @@ The [PRD](../02_product_requirements.md#9-end-to-end-release-acceptance-scenario
 | AC-20 | S9 | Pending | Expired/wrong-resource/Calendar tokens denied; OAuth grants create no approval |
 | AC-21 | S9, S4 | Pending | One-request account-free continuation and foreign/host-action denial |
 | AC-22 | S9, S6 | Pending | Full same-request MCP/user CLI JSON/version/retry parity and setup recovery |
-| AC-23 | S9, S2, S3 | Pending | Root skill prompt: new/invited/existing/interrupted hosts in every actual client |
+| AC-23 | S9, S2, S3 | Pending | Root skill prompt: new/existing/interrupted hosts in every actual client |
 | AC-24 | S9, S4–S6 | Pending | Per-host skill prompt with full/missing context, pending approval and truthful confirmation |
 | AC-25 | S9 | Pending | Unavailable/unknown skill or host, fetch/connect failure and denied-consent safe fallback |
-| AC-26 | S2, S3, S9 | Pending | Deduplicated waitlist, unusable/concurrent invites and web/API/MCP/CLI admission guards |
-| AC-27 | S4–S6 | Pending | Uninvited requester optional Calendar, denial/revoke/failure/manual replacement and request isolation |
+| AC-26 | S2, S3, S9 | Pending | Open Google sign-in creating an active host account, sign-up and handle-change rate limits, suspended-host denial and web/API/MCP/CLI eligibility-guard bypass denial |
+| AC-27 | S4–S6 | Pending | Account-free requester optional Calendar, denial/revoke/failure/manual replacement and request isolation |
 | AC-28 | S2, S3, S8 | Pending | Full suggestion-first setup, failed/sparse data, explicit mode/travel, current review and accessible inline linking/skip |
 
 ## Named clients

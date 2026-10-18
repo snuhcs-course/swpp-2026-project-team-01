@@ -12,22 +12,22 @@ The target origin for the routes below is **`https://release.findmeatime.com`**:
 
 Use a centered conversation with contextual cards and a reachable composer. A compact menu opens setup, request selection and settings controls inside the host chat, plus sign-out. Do not introduce a persistent sidebar, dashboard metrics, separate generic chat home, or model picker. Precise preference edits open labeled in-chat editors within the same page and restore focus on cancel or save, following the [interface contract](03_interfaces.md).
 
-Public visitors enter through `/` or a host's `/{handle}` link. Signed-in hosts chat with their agent at `/app`. Admission, setup, request review and settings are states and contextual controls of that same page. Requesters continue through a private request link without creating a product account. Email and iMessage conversations use the same application records and link to these pages when browser consent or review is needed.
+Public visitors enter through `/` or a host's `/{handle}` link. Signed-in hosts chat with their agent at `/app`. Sign-in state, setup, request review and settings are states and contextual controls of that same page. Requesters continue through a private request link without creating a product account. Email and iMessage conversations use the same application records and link to these pages when browser consent or review is needed.
 
 ## Primary pages
 
 | ID | Route | Audience and access | Content and main actions |
 |---|---|---|---|
-| P01 | `/` | Public | Product explanation; become a host/sign in; submit the account-free waitlist form directly; explain invitation-only hosting. Do not show fabricated active booking links. |
+| P01 | `/` | Public | Product explanation; become a host or sign in with Google, which creates an active host account. Do not show fabricated active booking links. |
 | P02 | `/auth/sign-in` | Prospective or returning host | Google-only host sign-in and return to the intended safe destination; no email-login form. Show pending, invalid/expired sign-in and retry states. Requesters are not required to visit this page. |
-| P03 | `/app` | Signed-in account; private agent conversation and host operations require admission | Host chat with contextual admission, setup, request selection/review, proposal decisions and settings controls. Resume the permitted conversation and server-derived next action. |
+| P03 | `/app` | Signed-in account; private agent conversation and host operations require an active host account | Host chat with contextual setup, request selection/review, proposal decisions and settings controls. Resume the permitted conversation and server-derived next action. |
 | P08 | `/[handle]` | Public requester; active host only | Public host identity and conversational intake. Gather contact, purpose, duration, availability, timezone, mode and location. Offer an authorized agent handoff. On accepted request creation, continue at P09. Unavailable handles expose no host-private information. |
 | P09 | `/booking/[bookingId]` | Request-scoped credential for private content; generic recovery available without prior access | Requester conversation, reviewed edits, optional Calendar availability, candidate selection, current-proposal agreement and status. Offer verified-contact access recovery, alternatives and withdrawal before booking begins. Email and personal-agent continuations return here; after confirmation, show the permitted booking receipt and join link. |
-| P10 | `/connect/authorize` | Authenticated host plus a validated personal-agent OAuth authorization transaction | Identify the client, show requested application permissions and allow grant/deny. Preserve transaction state across sign-in. This is a logical consent surface; final OAuth-server routing is part of backend design. It does not grant calendar access, host admission or meeting approval. |
+| P10 | `/connect/authorize` | Authenticated host plus a validated personal-agent OAuth authorization transaction | Identify the client, show requested application permissions and allow grant/deny. Preserve transaction state across sign-in. This is a logical consent surface; final OAuth-server routing is part of backend design. It does not grant calendar access, host eligibility or meeting approval. |
 
 `/app` is the host's agent chat page. It does not redirect to separate access, setup, inbox, request-detail or settings pages. Page IDs P04–P07 are intentionally unused; their responsibilities belong to P03, while requester and consent IDs remain stable.
 
-- Before admission, show waitlist/invitation controls in the page without private agent history or host operations. Invalid, expired, revoked or consumed invitations never admit another account. Keep sign-out and narrowly authorized grant revocation available.
+- Before setup is complete, show setup rather than booking links or request controls. A suspended host sees a neutral unavailable state without private agent history or host operations; keep sign-out and narrowly authorized grant revocation available.
 - During setup, resume the saved conversation and draft with Calendar connection/selection, scheduling rules, optional iMessage linking and explicit settings review. Show booking/skill links only after server-confirmed readiness.
 - Once ready, continue the host-agent conversation. Surface pending requests as selectable cards or a contextual picker with search/status filters, empty/loading states and delivery problems. Selecting a request loads its authorized discussion and current proposal in `/app`.
 - Review proposals, approve, request changes, decline and inspect private rule/travel explanations in context. Each action names its request and current proposal revision. Show one shared or private discussion at a time; changing the visible discussion never merges their histories.
@@ -77,11 +77,11 @@ The proposed host iMessage link flow uses authenticated phone entry, a six-digit
 | `/auth/callback` | Complete verified host authentication and redirect to an allowlisted relative destination. Invalid/expired state returns a readable sign-in error. |
 | `/connections/google/callback` | Complete Calendar consent using a server-bound host or requester transaction, then return to its source page. Never derive the actor or return destination from unchecked query parameters. |
 | `/booking/[bookingId]#…` | Exchange the request-bound secret for browser access, remove it from the URL and resume P09. The [meeting-request contract](../../openspec/specs/meeting-requests/spec.md) limits credentials to thirty days, removes mutation/OAuth/recovery authority on closure and permits only minimal terminal receipt reads while the credential remains valid. Recovery requires verified original contact. |
-| `/SKILL.md`, `/[handle]/SKILL.md` | Public agent discovery documents. They expose public instructions, supported connection paths and host information only. These are resources, not chat pages. |
+| `/SKILL.md`, `/[handle]/SKILL.md` | Public agent discovery documents. They expose public instructions, supported connection paths and host information only. These are resources, not chat pages. The `/` and `/[handle]` HTML pages make them discoverable: an in-page agent section with the link, `<link rel="alternate" type="text/markdown">`, a root `llms.txt`, and Markdown for `Accept: text/markdown` requests to the same URL. |
 | Settings/selection dialogs | Host rule editing and Calendar selection open inside `/app`; iMessage phone/code verification uses inline chat cards. Preserve the conversation and restore focus when closed. |
 | Unauthorized, not-found and unavailable views | Reveal no protected request details. At the booking destination, offer the same generic verified-contact recovery controls when access is missing, without disclosing whether the request exists or is recoverable. No token-paste control; closed requests cannot regain authority. |
 
-Reserve `app`, `booking`, `auth`, `connect`, `connections`, `api`, `eve`, `SKILL.md`, framework assets and operational routes before resolving a public handle. Provider webhooks, MCP transport, OAuth protocol endpoints and internal agent APIs are backend endpoints, not navigation pages. Final deployment routing must prevent the public handle route from intercepting them.
+Reserve `app`, `booking`, `auth`, `connect`, `connections`, `api`, `eve`, `SKILL.md`, `llms.txt`, framework assets and operational routes before resolving a public handle. Provider webhooks, MCP transport, OAuth protocol endpoints and internal agent APIs are backend endpoints, not navigation pages. Final deployment routing must prevent the public handle route from intercepting them.
 
 ## Page states and recovery
 
@@ -98,10 +98,10 @@ Reserve `app`, `booking`, `auth`, `connect`, `connections`, `api`, `eve`, `SKILL
 
 | Pages | Product coverage | Essential checks |
 |---|---|---|
-| P01–P03 | FR-01–04, FR-33, FR-35 | Admission, interrupted setup, explicit settings review, revoked Calendar and ready-only links |
+| P01–P03 | FR-01–04, FR-33, FR-35 | Open host sign-in, interrupted setup, explicit settings review, revoked Calendar and ready-only links |
 | P08–P09 | FR-05–15, FR-19, FR-23, FR-32, FR-34, FR-36 | Account-free access, scoped continuation, clarification, availability/privacy, current agreement, withdrawal and authorized final receipt |
 | P03 | FR-16–23, FR-27–28 | Private/shared separation, exact-proposal decisions, stale/concurrent actions, uncertain booking and channel recovery |
 | P03, P10 | FR-24–26, FR-29–31 | Verified channel/client linking, distinct permissions, revocation and browser consent |
 | All interactive pages | Chat workspace spec; PRD privacy/reliability | Keyboard/mobile access, authorization, reload, reconnect, model failure and no private cross-user cache |
 
-Requester email and host iMessage are required channels; neither requires a general-purpose messaging inbox page. MCP, CLI and named personal-agent compatibility remain release requirements outside this page inventory, with connection/revocation surfaces included here. Private host email remains a proposed extension, not added scope. Operator invitation issuance does not require a new public admin dashboard in this design.
+Requester email and host iMessage are required channels; neither requires a general-purpose messaging inbox page. MCP, CLI and named personal-agent compatibility remain release requirements outside this page inventory, with connection/revocation surfaces included here. Private host email remains a proposed extension, not added scope. Operator suspension, restoration and diagnostics use the administrator CLI and do not require a new public admin dashboard in this design.

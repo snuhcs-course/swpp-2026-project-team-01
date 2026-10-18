@@ -10,11 +10,11 @@ Basis: [PRD](../02_product_requirements.md), [technical overview](../03_technica
 
 Use Supabase for Auth and durable scheduling state, Next.js for the web boundary, and eve for conversation execution. Separately built web and agent services are the intended direction; the foundation spike must select persistence, dispatcher ownership, worker placement and deployment routing. No separate worker or bridge app is assumed before that check.
 
-Human waits and accepted operations live in durable state. Process memory, an HTTP response and a framework checkpoint cannot be the only record of an agreement, approval or provider effect. The model provider must be selected and tested server-side while preserving the numerical limits in the [model execution](../../openspec/specs/model-execution/spec.md) and [workspace admission](../../openspec/specs/chat-workspaces/spec.md) contracts.
+Human waits and accepted operations live in durable state. Process memory, an HTTP response and a framework checkpoint cannot be the only record of an agreement, approval or provider effect. The model provider must be selected and tested server-side while preserving the numerical limits in the [model execution](../../openspec/specs/model-execution/spec.md) and [workspace message-acceptance](../../openspec/specs/chat-workspaces/spec.md) contracts.
 
 ## Database starting point
 
-The selected project's application schema is empty, as recorded in [provider setup](03_provider_setup.md#supabase-project). Managed identity, Vault secrets and installed extensions are infrastructure; none supplies application admission, participant grants, conversation bindings or scheduling policy.
+The selected project's application schema is empty, as recorded in [provider setup](03_provider_setup.md#supabase-project). Managed identity, Vault secrets and installed extensions are infrastructure; none supplies host eligibility, participant grants, conversation bindings or scheduling policy.
 
 Before the first schema slice, specify the private/exposed namespace and role matrix. Existing `public` default privileges can grant newly created tables/sequences/functions to `anon` and `authenticated`; explicitly restrict service-only boundaries and apply RLS to exposed tables. Test direct access and RPC authorization with each role. Avoid editing managed Auth/Storage/Vault tables. The desired SQL and migrations must build the complete application contract from this baseline, with deliberate prerequisites for preinstalled extensions.
 
@@ -24,7 +24,7 @@ The runtime foundation uses isolated synthetic storage, with test-only principal
 
 | Module | Responsibility |
 |---|---|
-| Identity/admission | Verified host identity, invitations, request-scoped guests, current grants, channel bindings and revocation |
+| Identity/host eligibility | Verified host identity, active host accounts, the shared eligibility-and-readiness guard, request-scoped guests, current grants, channel bindings and revocation |
 | Onboarding | Resumable drafts, calendar roles, explicit preferences, readiness and stable handles |
 | Requests/conversations | Intake, revisioned state, lifecycle, canonical actor/resource/audience bindings |
 | Feasibility | Deterministic availability, hard rules, buffers, travel and bounded evaluation |
@@ -37,7 +37,7 @@ Thin web, MCP, CLI and channel adapters invoke the same authorized operations. P
 
 ## Authorization architecture
 
-Authenticate before selecting private data or model context. Verify admission separately from Google login and Calendar consent. Requester continuation authorizes one request; public handles and IDs grant no private access. Personal-agent grants require current owner/resource/scope checks and revocation. Operator authority remains separate from users and their agents.
+Authenticate before selecting private data or model context. Completing Google sign-in creates the host account with active status; verify host eligibility separately from Google login and Calendar consent. One shared eligibility-and-readiness guard in the domain layer decides it. Host setup, calendar connection and all hosting operations require an active host account, and public booking profiles additionally require completed setup: confirmed rules, timezone, a unique handle and a writable booking destination. This single guard is where an invitation condition could be added later. Abuse controls are rate limits on sign-up and handle changes, reserved handles and operator suspension, with limits decided in the host-accounts slice design. Operators use a separate administrator CLI for host suspension and restoration, private diagnostics and audited recovery. Requester continuation authorizes one request; public handles and IDs grant no private access. Personal-agent grants require current owner/resource/scope checks and revocation. Operator authority remains separate from users and their agents.
 
 Recheck relevant authority and expected revision inside the transaction that changes state, including expiry after blocking waits. For provider I/O, recheck the context before committing its result. Project only the permitted audience; server-side filtering precedes serialization and model context construction. Default/raw runtime endpoints must fail closed.
 
@@ -55,7 +55,7 @@ Authorize, validate, lock in a documented order, recheck, apply the domain trans
 
 ## Host setup and calendar analysis
 
-Keep an admitted host's draft separate from confirmed policy. Prefer explicit choices, then authorized evidence, then labeled starter defaults. Recommend actual visible calendars using bounded disclosed evidence, review conflict calendars separately from the writable booking destination, and save only on confirmation. Automatically analyze saved conflict calendars over the past/next four weeks, bounded by [analysis retention](../../openspec/specs/calendar-analysis-retention/spec.md), without treating free time or repeated venues as preferences.
+Keep an active host's draft separate from confirmed policy. Prefer explicit choices, then authorized evidence, then labeled starter defaults. Recommend actual visible calendars using bounded disclosed evidence, review conflict calendars separately from the writable booking destination, and save only on confirmation. Automatically analyze saved conflict calendars over the past/next four weeks, bounded by [analysis retention](../../openspec/specs/calendar-analysis-retention/spec.md), without treating free time or repeated venues as preferences.
 
 Ask mode/location explicitly. Physical/either mode requires transportation or per-trip policy and an extra buffer; online-only omits those fields. Calendar metadata, draft/rules revisions and current authority must remain valid at final settings confirmation. Six-digit iMessage linking and private-channel answer/settings confirmation remain proposed deltas until their fresh owning changes are reviewed. Stale suggestions never overwrite explicit values.
 
@@ -73,7 +73,7 @@ Require requester agreement on shared details and attributable host approval on 
 
 Persist booking identity, selected destination, provider-valid event identity, frozen payload, reservation and attempt before creation. Coordinate simultaneous requests for the same host and recheck feasibility immediately before dispatch. An uncertain write remains pending and retains its reservation until reconciliation establishes the outcome. Definitively rejected retries require current decisions and fresh revalidation. Do not claim a booking from a delivery/read receipt.
 
-Generate receipt, confirmation email and Calendar invitation from confirmed event data; keep private conversation credentials out of shared event descriptions. Delivery failure is independently recoverable and cannot cause another event. See [invitation design](../user_experience/03_interfaces.md#booking-confirmation-email-and-calendar-invitation). Detailed approved-booking/notification behavior must be recreated as pending specs before its slice starts.
+Generate receipt, confirmation email and Calendar event from confirmed event data; keep private conversation credentials out of shared event descriptions. Delivery failure is independently recoverable and cannot cause another event. See [confirmation design](../user_experience/03_interfaces.md#booking-confirmation-email-and-calendar-invitation). Detailed approved-booking/notification behavior must be recreated as pending specs before its slice starts.
 
 ## Jobs, inbox and outbox
 
@@ -83,11 +83,11 @@ Atomically publish jobs with domain transitions. Use bounded leases, ownership f
 
 ### Email provider direction
 
-Cloudflare delivers transactional invitations, proof/recovery messages and confirmed-booking notices. AgentMail owns requester conversation inboxes, threads and replies. The MVP deployment must disable Auth email login for Google-only host login; the current hosted setting is not verified by this schema audit. Transactional email setup is independent of host sign-in. Private host email remains outside initial release scope.
+Cloudflare delivers contact-verification and recovery messages and confirmed-booking notices. AgentMail owns requester conversation inboxes, threads and replies. The MVP deployment must disable Auth email login for Google-only host login; the current hosted setting is not verified by this schema audit. Transactional email setup is independent of host sign-in. Private host email remains outside initial release scope.
 
 ### iMessage
 
-Photon Spectrum is the selected transport direction. Browser phone/code proof binds a private sender to an authenticated admitted host only after confirmation. Unlinked/group senders get no private state. Freeze explicit request selection before dispatch; ambiguous replies do not select a request or approve a proposal. Unlinking revokes future access. Contact-card saving is optional and establishes no identity proof. Native versus application-owned adapter suitability needs a fresh spike.
+Photon Spectrum is the selected transport direction. Browser phone/code proof binds a private sender to an authenticated active host only after confirmation. Unlinked/group senders get no private state. Freeze explicit request selection before dispatch; ambiguous replies do not select a request or approve a proposal. Unlinking revokes future access. Contact-card saving is optional and establishes no identity proof. Native versus application-owned adapter suitability needs a fresh spike.
 
 ## Operations and verification
 
@@ -97,4 +97,4 @@ Test transactions, grants/RLS, two-host/two-requester isolation, stale decisions
 
 ## Open technical decisions
 
-Runtime persistence/placement, dependency pins/model ID, OAuth implementation/client versions, rule/travel policy, meeting-link/invitation ownership, transport allocation, retention and measurable limits remain decisions with deadlines in the plan. This document does not prescribe table/RPC names, exact endpoint internals or executable commands.
+Runtime persistence/placement, dependency pins/model ID, OAuth implementation/client versions, rule/travel policy, meeting-link/Calendar-event ownership, transport allocation, retention and measurable limits remain decisions with deadlines in the plan. This document does not prescribe table/RPC names, exact endpoint internals or executable commands.

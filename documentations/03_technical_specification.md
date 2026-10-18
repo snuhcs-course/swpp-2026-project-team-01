@@ -12,10 +12,10 @@ The application coordinates one host and one external requester across web, emai
 |---|---|---|
 | Web | Next.js, React, TypeScript, npm; conversation-first UI | Dependency pins, separate builds, mobile/accessibility verification |
 | Conversation runtime | eve with application-owned authorization | Persistence, deployment composition, protected streams, replay and terminal recovery spike |
-| Identity/data | Supabase Auth and PostgreSQL; Google-only host login | Admission, current grants, isolated database baseline and reviewed migrations |
+| Identity/data | Supabase Auth and PostgreSQL; Google-only host login | Host eligibility, current grants, isolated database baseline and reviewed migrations |
 | Agent access | Remote MCP plus a thin user CLI | Resource-bound OAuth, revocation, requester bootstrap and each named client's acceptance |
 | Calendar/travel | Google Calendar and Google Routes | Separate host/requester consent, travel policy, event reconciliation and controlled provider cases |
-| Transactional email | Cloudflare Email Service, `no-reply@findmeatime.com` | Invitations, contact proof, recovery and booking delivery |
+| Transactional email | Cloudflare Email Service, `no-reply@findmeatime.com` | Contact proof, recovery and booking delivery |
 | Conversational email | AgentMail | Authenticated sender/thread binding, durable replies and uncertain-send recovery |
 | Host iMessage | Photon Spectrum | Verified private binding, native/adapter compatibility, attribution and real-device delivery |
 | Hosting | Recorded Vercel release origin | Runtime placement, consumer ownership and fresh deployment checks |
@@ -30,7 +30,7 @@ Keep Supabase as identity and durable domain storage. Use eve as the intended co
 
 ```mermaid
 flowchart TD
-    W[Web, MCP and user CLI] --> A[Identity, admission and resource authorization]
+    W[Web, MCP and user CLI] --> A[Identity, host eligibility and resource authorization]
     C[Verified email and iMessage ingress] --> A
     A --> E[eve conversation execution]
     A --> D[Shared scheduling commands and scoped queries]

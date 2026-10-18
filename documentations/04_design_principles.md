@@ -52,7 +52,7 @@ The product must have two distinct command-line interfaces: one for users and th
 |---|---|---|
 | Audience | Hosts, requesters, their authorized agents, and user scripts | Authorized team members operating Find Me a Time |
 | Purpose | Perform role-appropriate product actions from a terminal | Perform privileged service administration |
-| Examples | Read request state, configure authorized preferences, coordinate meetings, and continue required human reviews | Issue or revoke host invitations, inspect operational state, and perform permitted recovery operations |
+| Examples | Read request state, configure authorized preferences, coordinate meetings, and continue required human reviews | Suspend or restore hosts, inspect private diagnostics, and perform audited recovery operations |
 | Authority | The signed-in user's or delegated client's scoped permissions | Explicit operator authorization for the intended environment |
 | Interface boundary | No administrator commands or service credentials | Separate command entry point, authentication, and documentation |
 

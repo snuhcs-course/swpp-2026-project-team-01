@@ -18,7 +18,7 @@ Use Supabase project **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, region **`us-e
 
 The project's application schema is empty: `public` contains no application relations, functions or types, and there are no application migration records, scheduled jobs or registered queues. Supabase-managed Auth, Storage, Realtime, Vault, network, cron and queue infrastructure remain, with one Google Auth identity, no Storage objects and two Vault secrets whose purpose must be validated before use. PostgreSQL is **17.6**, matching the local major version. Installed extensions are `pg_cron` 1.6.4, `pg_net` 0.20.4, `pgmq` 1.5.1, `pgcrypto` 1.3, `pg_stat_statements` 1.11, `supabase_vault` 0.3.1, `uuid-ossp` 1.1 and `plpgsql` 1.0; these are prerequisites, not evidence that application queues, workers or permissions exist.
 
-Objects created by `postgres` or `supabase_admin` in `public` currently inherit table/sequence privileges and function execution for `anon`, `authenticated` and `service_role`. Before the first schema deployment, review namespace and default privileges and declare the intended grants, revokes and RLS explicitly. The existing Google identity does not establish host admission, Calendar grants or channel access; create those only through authorized application operations.
+Objects created by `postgres` or `supabase_admin` in `public` currently inherit table/sequence privileges and function execution for `anon`, `authenticated` and `service_role`. Before the first schema deployment, review namespace and default privileges and declare the intended grants, revokes and RLS explicitly. The existing Google identity does not establish a host account, Calendar grants or channel access; create those only through authorized application operations.
 
 The local `config.toml` has PostgreSQL major 17, pg-delta enabled, migrations/seeds disabled and no declarative `schema_paths`. Its `project_id` is a local-stack identifier, not the hosted project ref, and its Auth defaults are not evidence of hosted Google-only configuration. Use the [pg-delta workflow](../../AGENTS.md#supabase-schema-changes) for the first schema slice: create desired schemas, generate and review migrations, verify the chain on a disposable local database, and push to the hosted project only after a reviewed dry run and explicit environment identification.
 
@@ -48,19 +48,19 @@ Split a release environment **before** the first of these happens: an external h
 
 ## Google identity and Calendar
 
-The MVP requires Google-only host login through Supabase Auth. Hosted provider and email-login settings and callbacks have not been audited. Identity login, host admission, host Calendar consent, requester identity prefill, requester Calendar consent and personal-agent OAuth are separate boundaries. Do not enable email/password, email OTP or magic-link host login.
+The MVP requires Google-only host login through Supabase Auth. Hosted provider and email-login settings and callbacks have not been audited. Identity login, host eligibility, host Calendar consent, requester identity prefill, requester Calendar consent and personal-agent OAuth are separate boundaries. Do not enable email/password, email OTP or magic-link host login.
 
-Checks must record OAuth application ownership/publishing state, exact callback URLs, least permissions, host versus request-bound state, cancellation/replay/wrong-browser denial, refresh, disconnect/reconnect and readable failures. Host calendar roles require actual metadata/write permission. Requester consent is availability-only and requires no admission/account. Keep encrypted grants server-side and reveal neither participant's private events to the other.
+Checks must record OAuth application ownership/publishing state, exact callback URLs, least permissions, host versus request-bound state, cancellation/replay/wrong-browser denial, refresh, disconnect/reconnect and readable failures. Host calendar roles require actual metadata/write permission. Requester consent is availability-only and requires no host eligibility or account. Keep encrypted grants server-side and reveal neither participant's private events to the other.
 
 ## Cloudflare Email Service
 
-Use Cloudflare for transactional host invitations, contact verification, private recovery and confirmed booking messages, with sender `no-reply@findmeatime.com`. Verify sender/domain ownership, API permissions, delivery outcomes and provider retry limits using authorized controlled recipients. API acceptance is distinct from inbox delivery.
+Use Cloudflare for transactional contact verification, private recovery and confirmed booking messages, with sender `no-reply@findmeatime.com`. Verify sender/domain ownership, API permissions, delivery outcomes and provider retry limits using authorized controlled recipients. API acceptance is distinct from inbox delivery.
 
 Use Cloudflare custom SMTP for applicable non-login Supabase Auth notifications, as required by the [email-delivery contract](../../openspec/specs/email-delivery/spec.md#requirement-separate-transactional-sending-from-conversations). S2 owns verification of the selected project's hosted SMTP configuration, sender/domain and applicable notification routing before hosted Auth acceptance; current settings and delivery are unverified. Applicable production Auth notifications must use `no-reply@findmeatime.com` through Cloudflare SMTP, with no fallback sender. Record controlled notification evidence where applicable; SMTP configuration alone does not prove inbox delivery. This keeps Google-only sign-in and does not enable email/password, email OTP or magic-link login or add password-reset login journeys.
 
-### Host invitation operations
+### Operator host controls
 
-A future separate administrator CLI will issue/status/revoke/recover recipient-bound invitations with explicit environment and operator authority. Preserve the [admission contract](../../openspec/specs/host-admission/spec.md), including seven-day validity, hash-only code storage and atomic matching-account redemption. Private manual delivery output must not print invitation secrets to routine JSON/logs. Issuance, dispatch, uncertainty and redemption are distinct states.
+A separate administrator CLI suspends and restores host accounts with explicit environment and operator authority; it sends no email. Suspension is the operator's abuse control and takes effect through the shared host-eligibility guard. Routine JSON/logs must not print private host data. Suspension, restoration and recovery are audited and distinct states.
 
 ## AgentMail
 
@@ -78,7 +78,7 @@ Photon Spectrum is the iMessage transport direction. Verify SDK/provider version
 
 ### First message and host onboarding
 
-An authenticated admitted host enters their phone in an inline web card, receives a six-digit code in the intended private chat, enters it in the initiating browser and explicitly confirms linking. An iMessage-first introduction may lead to that browser handoff; it grants no private access. Test wrong/expired/replayed codes, resend limits, uncertain delivery, browser binding and unlinking. Keep codes outside chat transcripts/model context and show masked recipient/status only.
+An authenticated active host enters their phone in an inline web card, receives a six-digit code in the intended private chat, enters it in the initiating browser and explicitly confirms linking. An iMessage-first introduction may lead to that browser handoff; it grants no private access. Test wrong/expired/replayed codes, resend limits, uncertain delivery, browser binding and unlinking. Keep codes outside chat transcripts/model context and show masked recipient/status only.
 
 Verify request selection, private discussion, revision and exact-proposal approval/decline on a controlled iPhone. Unsupported recipients/groups must not receive private state. Record actual device/client versions; transport send success alone cannot establish device receipt or attribution.
 

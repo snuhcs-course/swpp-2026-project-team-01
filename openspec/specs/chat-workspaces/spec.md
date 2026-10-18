@@ -9,7 +9,7 @@ Provide a conversation-first workspace that keeps scheduling progress and decisi
 The website SHALL open host setup and request management on the relevant conversation, with the current next action and a message composer available without navigating through structured forms. The primary workspace SHALL have no persistent sidebar or dashboard panel. Navigation SHALL remain available through a compact, keyboard-operable control. Structured controls SHALL remain reachable from a secondary, clearly labeled surface.
 
 #### Scenario: Resume host setup
-- **WHEN** an admitted host returns to incomplete setup
+- **WHEN** an active host returns to incomplete setup
 - **THEN** the current conversation, server-derived progress, and next action appear first, the composer remains reachable in the initial phone viewport, and manual settings remain accessible
 
 #### Scenario: Resume request
@@ -89,11 +89,11 @@ Temporary admission throttling SHALL return a safe retryable error to web caller
 - **THEN** no new model work is admitted and the receipt reaches the channel's existing unauthorized terminal outcome
 
 ### Requirement: Google-only MVP host login
-The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NOT offer email/password, email OTP or magic-link login in the MVP. The application SHALL initiate identity-only OAuth with browser-bound PKCE and a fixed `/auth/callback` return to `/app`. The deployed Auth configuration SHALL disable email login. Login SHALL NOT grant host admission, Calendar permission or requester authority; waitlist and requester contact email fields SHALL remain available.
+The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NOT offer email/password, email OTP or magic-link login in the MVP. The application SHALL initiate identity-only OAuth with browser-bound PKCE and a fixed `/auth/callback` return to `/app`. The deployed Auth configuration SHALL disable email login. First-time Google sign-in SHALL create an active host account. Login SHALL NOT grant Calendar permission or requester authority; requester contact email fields SHALL remain available.
 
-#### Scenario: Google login before admission
-- **WHEN** a user completes Google sign-in without a redeemed invitation
-- **THEN** the workspace displays invitation controls without private host conversation or Calendar access
+#### Scenario: First Google sign-in
+- **WHEN** a user completes Google sign-in for the first time
+- **THEN** the service creates an active host account and the workspace opens the setup conversation without Calendar access until the host consents
 
 #### Scenario: Invalid or cancelled return
 - **WHEN** Google login is cancelled, the code is replayed or the callback arrives in another browser
@@ -104,10 +104,10 @@ The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NO
 - **THEN** the request is rejected without sending an authentication email
 
 ### Requirement: Single host workspace
-Host admission, setup, request selection, review and settings SHALL remain inside `/app` as authorized states, cards or dialogs. Browser authentication and consent SHALL return to that workspace with the permitted context restored.
+Host sign-in, setup, request selection, review and settings SHALL remain inside `/app` as authorized states, cards or dialogs. Browser authentication and consent SHALL return to that workspace with the permitted context restored.
 
 #### Scenario: Return from calendar consent
-- **WHEN** an admitted host completes valid browser consent
+- **WHEN** an active host completes valid browser consent
 - **THEN** `/app` restores the authorized draft and server-confirmed next action without a separate setup page
 
 ### Requirement: Stable protected requester destination
