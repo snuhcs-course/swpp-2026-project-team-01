@@ -34,14 +34,14 @@ Team parallelism: Phase 0 and Phase 1 are serial because everything depends on t
 
 ## 3. Phase 0 — Baseline hygiene (before the first change)
 
-No OpenSpec change is needed. These are maintenance fixes and decisions that unblock Phase 1. Every item is independent, so each can go to a different person; the first three are one small pull request each.
+No OpenSpec change is needed. These are maintenance fixes and decisions that unblock Phase 1. Every item is independent, so each can go to a different person, and the items are small enough to land together in one pull request.
 
 - [x] Fix the broken link in `DESIGN.md` to `documentations/03_design_principles.md`. The link checker skips root files other than README, so this was missed. Done when the link resolves.
 - [x] Extend `scripts/check-documentation.mjs` to root Markdown files (`DESIGN.md`, `AGENTS.md`) so the same class of error cannot recur. Done when `npm run check:docs` covers them. The checker now reads every root Markdown file except symlinks, so `CLAUDE.md` is not counted twice.
 - [x] Resolve the iteration-1 iMessage artifacts. `openspec validate --all --strict` fails on the placeholder Purpose of `imessage-agent`, which breaks the Check workflow. The `host-imessage-assistant` change designs a service-sent welcome over Drizzle tables and `apps/web/src` paths that do not exist here, and the PRD now selects a host-sent link code instead. Done when a decision is recorded (retire both and re-specify iMessage in Phase 6, or rewrite the spec Purpose now) and `npm run check` passes. Decided 2026-10-19: both retired, as recorded in the [OpenSpec status](../../openspec/README.md); Phase 6 writes the replacement.
 - [x] Record the runtime foundation decisions needed to start: eve version pin and reviewed template revision, model identifier and context window, persistence and worker placement, dependency pins. Done when they are listed in the Phase 1 proposal. Recorded in the [`application-foundation` design](../../openspec/changes/application-foundation/design.md): template `8c55ea7c132f`, `eve` 0.80.1 with `ai` 7.0.143, direct OpenAI `gpt-5.6-terra` with a 32,000-token compaction window, Postgres jobs with a `pg_net` and `pg_cron` woken worker, and region `cle1`.
 - [x] Set up each teammate: hooks (`git config core.hooksPath .githooks`), Supabase CLI 2.119.0, OpenSpec 1.14.0, a personal Supabase project, and the Google OAuth client with local and sandbox callbacks. Done when each teammate can run the Phase 1 checkout locally. Confirmed by the team on 2026-10-19.
-- [x] Prune stale worktrees and branches. Twelve Codex worktrees and two under `.claude/worktrees` attract misattributed usage. Done when only active task worktrees remain. On 2026-10-19, five clean worktrees idle since before 2026-10-10 and four local branches already merged into `origin/main` were removed. Kept: worktrees with uncommitted work or an unreferenced commit, worktrees active in the last two days, and every branch with unmerged or unpushed work.
+- [x] Prune stale worktrees and branches. Twelve Codex worktrees and two under `.claude/worktrees` attract misattributed usage. Done when every remaining worktree is either active or holds work not saved elsewhere. On 2026-10-19, five clean worktrees idle since before 2026-10-10 and four local branches already merged into `origin/main` were removed. Kept: worktrees with uncommitted work or an unreferenced commit, worktrees active in the last two days, and every branch with unmerged or unpushed work.
 
 ## 4. Phases
 
@@ -62,21 +62,21 @@ Scope. Prerequisite for every lane: the skeleton below, done by one person in th
 **Lane A — web and runtime** (needs Lane B's host account to authorize real sessions; develop against a stub principal until then)
 
 - [ ] `/app` shell with the conversation-first layout, compact menu and no sidebar, rendering the template's chat bridge.
-- [ ] Application-owned authorization of every `/eve/v1/*` route; the application index from discussion to eve session; `channels/eve.ts` with the application auth entry first and `localDev()` only locally; fail-closed default endpoints; uploads disabled.
+- [ ] Application-owned authorization of every `/eve/v1/*` route, including session ownership checked against the application session index before eve acts; `channels/eve.ts` with only the application auth entry and `localDev()`, and no `vercelOidc()`; fail-closed default endpoints; uploads disabled.
 - [ ] Stored stream events and session cursors for reconnect; terminal recovery as an explicit transition.
 - [ ] Thyme theme tokens, fonts, paper layer and shared component recipes replacing the template's styling.
 
-**Lane B — data and identity** (independent; its schema baseline is the first migration everyone else builds on, so land it early)
+**Lane B — data and identity** (independent; its schema baseline and the CI job that pushes it merge first and alone, and other lanes add tables only after that)
 
 - [ ] Supabase schema baseline: private and exposed namespaces, role matrix, explicit grants and revokes, RLS on exposed tables, and the first pg-delta migration chain verified on a disposable local database and on each sandbox.
-- [ ] Google-only Supabase Auth sign-in with identity and Calendar scopes on one consent screen, PKCE, offline access, recorded granted scopes and encrypted refresh token, `/auth/callback` with an allowlisted return, email login disabled.
+- [ ] Google-only Supabase Auth sign-in with identity and Calendar scopes on one consent screen, PKCE, offline access, recorded granted scopes and encrypted refresh token, `/auth/callback` returning only to `/app`, email login disabled.
 - [ ] Open host sign-up: one active host account per Google identity; the shared eligibility-and-readiness guard.
 
 **Lane C — platform mechanics** (independent; pure server modules with their own tests)
 
 - [ ] Application command pipeline: validated intent, expected revision, retry identity, audience-safe errors.
-- [ ] Durable jobs base: atomic publication with domain transitions, bounded leases, fencing, redelivery-safe completion, recurring recovery.
-- [ ] Model execution hooks: input size, provider deadline, output caps, durable per-session allowance reservations; direct OpenAI with the team's key, as the foundation design records.
+- [ ] Durable jobs base: atomic publication with domain transitions, bounded leases, fencing, redelivery-safe completion, recurring recovery, and a production-only worker that claims only production-produced jobs.
+- [ ] Model limit middleware around the model instance, so every provider call, including eve's retries and compaction, is checked for input size, output caps and the provider deadline, and reserves durable allowance first; direct OpenAI with the team's key, as the foundation design records.
 - [ ] Messaging-environments denial so previews cannot send.
 
 **Join** (after all lanes): a signed-in host reaches `/app`, opens an authorized empty setup session, and the production deployment serves it on the release origin.
@@ -97,7 +97,7 @@ Scope. Prerequisite: Phase 1 joined. The three lanes are independent until the f
 
 **Lane A — setup conversation and cards**
 
-- [ ] Setup session tools `read_setup_state` and `draft_settings`; instruction fragments `base.md` and `host-setup.md`; authored onboarding messages revealed one at a time.
+- [ ] Setup session tools `read_setup_state` and `draft_settings`; the `host-setup.md` instruction fragment on top of Phase 1's minimal `base.md`; authored onboarding messages revealed one at a time.
 - [ ] Suggestion cards for timezone, weekly windows including overnight windows, weekly meeting limit, note-like exclusions, duration and buffers, each labeled stated, inferred or starter default, with **Use this**, **Adjust** and **Choose my own**.
 - [ ] Explicit mode, location and transport question cards; online-only skips venue and transport.
 - [ ] Final review card and **Confirm and save proposed settings** with the transactional readiness recheck; readiness-derived public profile; share-links card.

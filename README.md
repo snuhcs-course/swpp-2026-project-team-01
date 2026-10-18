@@ -6,7 +6,7 @@ Domain: [findmeatime.com](https://findmeatime.com) · SNU SWPP Project Team 01
 
 ## Status
 
-**Documentation and specification phase.** The product direction, user experience, architecture, provider setup, visual design and capability specifications are agreed in this repository. Application code has not been started; implementation begins with a bounded OpenSpec change once the runtime stack is decided.
+**Documentation and specification phase.** The product direction, user experience, architecture, provider setup, visual design and capability specifications are agreed in this repository. Application code has not been started; implementation begins with the [`application-foundation`](openspec/changes/application-foundation/proposal.md) change, which records the runtime stack.
 
 Read the [one-pager](documentations/01_one_pager.md) and the [PRD](documentations/02_product_requirements.md). The [documentation index](documentations/README.md) lists every document.
 

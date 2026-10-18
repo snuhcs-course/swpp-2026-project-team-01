@@ -97,4 +97,4 @@ Test transactions, grants/RLS, two-host/two-requester isolation, stale decisions
 
 ## Open technical decisions
 
-Runtime persistence/placement, dependency pins/model ID, OAuth implementation/client versions, rule/travel policy, meeting-link/Calendar-event ownership, transport allocation, retention and measurable limits remain open decisions. This document does not prescribe table/RPC names, exact endpoint internals or executable commands.
+Runtime placement is proposed in the [foundation design](../../openspec/changes/application-foundation/design.md) and confirmed at Phase 1 exit. OAuth implementation/client versions, rule/travel policy, meeting-link/Calendar-event ownership, transport allocation, retention and measurable limits remain open decisions. This document does not prescribe table/RPC names, exact endpoint internals or executable commands.

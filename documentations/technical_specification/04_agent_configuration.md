@@ -135,7 +135,7 @@ Layers 1 to 4 are the authority boundary; domain and integration tests prove the
 
 ## Model
 
-`agent/agent.ts` is `defineAgent({ model, modelContextWindowTokens, modelOptions, limits })`. Decided 2026-10-19: Thyme calls OpenAI directly with the team's own `OPENAI_API_KEY`, using `gpt-5.6-terra` through eve's bundled `openai()` helper from `eve/models/openai`; the AI Gateway is not used. `modelOptions.providerOptions.openai` turns provider storage off and selects the standard tier, and `modelContextWindowTokens` is set explicitly because eve cannot read a direct model's window from the Gateway catalog. The [foundation design](../../openspec/changes/application-foundation/design.md#5-model-route-and-model) records the values and the reasoning. The [model execution contract](../../openspec/specs/model-execution/spec.md) is enforced by application hooks and instrumentation, not by the model configuration alone: bounded input size, a stalled-provider deadline, a durable per-session allowance that survives process failure and recovery that keeps the same limits.
+`agent/agent.ts` is `defineAgent({ model, modelContextWindowTokens, modelOptions, limits })`. Decided 2026-10-19: Thyme calls OpenAI directly with the team's own `OPENAI_API_KEY`, using `gpt-5.6-terra` through eve's bundled `openai()` helper from `eve/models/openai`; the AI Gateway is not used. `modelOptions.providerOptions.openai` turns provider storage off and selects the standard tier, and `modelContextWindowTokens` is set explicitly because eve cannot read a direct model's window from the Gateway catalog. The [foundation design](../../openspec/changes/application-foundation/design.md#5-model-route-and-model) records the values and the reasoning. The [model execution contract](../../openspec/specs/model-execution/spec.md) is enforced by an application-owned wrapper around the model instance passed to `defineAgent`, because eve hooks run only after an event is recorded and cannot veto a call. Every provider call goes through the wrapper, including eve's own retries and compaction calls. The wrapper enforces the bounded input size, the output caps, the stalled-provider deadline, and the durable per-attempt reservation that survives process failure and recovery. eve's `maxTokenCostUsdPerSession` is not used: it counts only AI Gateway cost, and its **Continue** prompt grants a fresh window, which the contract forbids.
 
 ## Memory
 
@@ -157,11 +157,11 @@ Non-production deployments deny messaging dispatch under the [messaging environm
 
 ## Hooks and instrumentation
 
-Hooks run before persistence and before model context: credential redaction with retry-safe comparison values, admission budgets per host account or request and service-wide, and the audience check that rejects a tool result whose projection does not match the session principal. Instrumentation reports usage and limit events without private text, feeding the durable allowance and operator diagnostics.
+eve hooks run after an event is durably recorded, and a throwing hook does not reject work; only `ctx.cancel()` stops a turn. So nothing that must block work is a hook. Credential redaction and conversation admission run in the application route before a message is dispatched to eve. Session ownership is checked in the application auth function before eve reads or records anything. Model limits live in the model wrapper. Tool results are projected per audience inside the domain operation the tool calls. Hooks observe: they keep the application session index current, cancel a turn whose audience check fails, and feed instrumentation, which reports usage and limit events without private text to operator diagnostics.
 
 ## Durability and recovery
 
-Each session is a Workflow run: completed steps replay and an interrupted step re-runs, so every tool effect is idempotent by `ctx.callId`, and anything with an external effect is an application job rather than a tool. A session stays bound to its deployment, so the application index records the agent version and treats a stranded session as a terminal-recovery case rather than silently creating a replacement. Compaction and reset are application-initiated controls; reset retires a session identifier permanently.
+Each session is a Workflow run: completed steps replay and an interrupted step re-runs, so every tool effect is idempotent by `ctx.callId`, and anything with an external effect is an application job rather than a tool. A session stays bound to its deployment, so the application index records the agent version and treats a stranded session as a terminal-recovery case rather than silently creating a replacement. eve compacts automatically when the conversation nears `compaction.thresholdPercent` of `modelContextWindowTokens`, and the compaction call goes through the same model wrapper and limits. The application can also request compaction between turns. Reset is application-initiated and retires a session identifier permanently. eve ends a session after `limits.sessionTimeoutMs`, 30 days by default; the index treats that as a terminal state.
 
 ## Local development and deployment
 
@@ -173,7 +173,7 @@ Each session is a Workflow run: completed steps replay and an interrupted step r
 | Messaging | Denied | Release only; previews denied |
 | Docker | Not needed | Not needed |
 
-Environment variables are limited to the OpenAI key, Supabase, Photon, AgentMail, Cloudflare and `EVE_*` settings, kept out of Git with `.env.example` listing names only. `eve build` runs with `next build`; `eve link` binds the Vercel project.
+Environment variables are limited to the OpenAI key, Supabase and the database URL, Google OAuth, the token encryption key, the job worker secret, the application origin, Photon, AgentMail, Cloudflare and `EVE_*` settings, kept out of Git with `.env.example` listing names only. `eve build` runs with `next build`; `eve link` binds the Vercel project.
 
 ## Evals
 

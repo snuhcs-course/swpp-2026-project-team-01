@@ -2,17 +2,26 @@
 
 ## Context
 
-See [proposal.md](proposal.md) for motivation. The repository holds documents, specifications, Supabase local configuration and two scripts; there is no application package. The shared Supabase project `anelszynxtvxoxqvzgqt` (PostgreSQL 17.6, `us-east-2`) has an empty application schema, with `pg_cron`, `pg_net`, `pgmq`, `pgcrypto` and `supabase_vault` installed. Its `public` schema grants new objects to `anon`, `authenticated` and `service_role` by default ([provider setup](../../../documentations/technical_specification/03_provider_setup.md#supabase-project)). Teammates develop against personal hosted Supabase projects without Docker; one teammate with Docker generates migrations ([environments](../../../documentations/technical_specification/03_provider_setup.md#environments-and-collaboration)).
+See [proposal.md](proposal.md) for motivation. The repository holds documents, specifications, Supabase local configuration and two scripts; there is no application package.
 
-The architecture is already chosen in the [technical overview](../../../documentations/04_technical_specification.md), [backend](../../../documentations/technical_specification/01_backend_architecture.md), [frontend](../../../documentations/technical_specification/02_frontend_architecture.md) and [agent configuration](../../../documentations/technical_specification/04_agent_configuration.md) documents. This design records the concrete runtime decisions those documents left to the foundation change. Facts below were checked on 2026-10-19 against npm, the `vercel/eve` repository and the installed eve 0.80.1 documentation.
+The shared Supabase project `anelszynxtvxoxqvzgqt` (PostgreSQL 17.6, `us-east-2`) has an empty application schema. It has `pg_cron`, `pg_net`, `pgmq`, `pgcrypto` and `supabase_vault` installed, and its `public` schema grants new objects to `anon`, `authenticated` and `service_role` by default ([provider setup](../../../documentations/technical_specification/03_provider_setup.md#supabase-project)). Local `supabase/config.toml` has migrations and seeds disabled. Teammates develop against personal hosted Supabase projects without Docker, and one teammate with Docker generates migrations ([environments](../../../documentations/technical_specification/03_provider_setup.md#environments-and-collaboration)). The shared project is changed only by CI on merge to `main`.
+
+The architecture is already chosen in the [technical overview](../../../documentations/04_technical_specification.md), [backend](../../../documentations/technical_specification/01_backend_architecture.md), [frontend](../../../documentations/technical_specification/02_frontend_architecture.md) and [agent configuration](../../../documentations/technical_specification/04_agent_configuration.md) documents. This design records the concrete runtime decisions those documents left to the foundation change. Facts below were checked on 2026-10-19 against npm, the `vercel/eve` repository, and the eve 0.80.1 and `ai` 7.0.143 package documentation.
+
+Two eve facts shape the enforcement points:
+
+- **Hooks only observe.** eve hooks run after an event is durably recorded, and a throwing hook does not veto work (eve `docs/guides/hooks.md`).
+- **Route auth does not own sessions.** Route authentication accepts or rejects a request but does not enforce session ownership (eve `docs/guides/auth-and-route-protection.md`).
+
+So nothing that must block work can be a hook.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Fix every runtime choice a later phase would otherwise reopen: template revision, versions, layout, model, data access, durable placement and region.
-- Make the foundation's authority boundaries real from the first commit: no runtime route, job or model call works without the application deciding it may.
-- Leave each lane of the plan's Phase 1 independently buildable and testable.
+- Fix every runtime choice a later phase would otherwise reopen: template revision, versions, layout, model, data access, durable placement, configuration of the shared project, and region.
+- Make the foundation's authority boundaries real from the first commit: no runtime route, job or model call proceeds unless application code decided it may, at a point that runs before the effect.
+- Leave each lane of the plan's Phase 1 independently buildable and testable once the schema baseline has merged.
 
 **Non-Goals:**
 
@@ -26,9 +35,22 @@ The architecture is already chosen in the [technical overview](../../../document
 
 Copy `vercel/eve` `apps/templates/eve-chat-template` at commit `8c55ea7c132f` (2026-10-08, "deferred tools and skills"), the latest commit touching the template. The repository is Apache-2.0, so copied files keep their license header where present, and a root `THIRD_PARTY_NOTICES.md` records the source, commit and license.
 
-Keep: root `vercel.ts`, `agent/agent.ts`, `agent/channels/eve.ts`, the chat bridge under `apps/web/app/_components/` and `apps/web/lib/chat/`, `apps/web/components/chat/{composer,conversation,message,markdown}.tsx`, the shadcn primitives under `apps/web/components/ui/`, and `components.json`.
+**Keep:**
 
-Remove: Better Auth and password auth, Drizzle and Neon, Upstash rate limiting, the browser-local chat store, the sidebar and integrations menu, `agent/connections/*`, `agent/channels/slack.ts`, `agent/memory/profile.ts`, the sample tool and skill, analytics packages, and the pnpm files.
+- root `vercel.ts`, `agent/agent.ts` and `agent/channels/eve.ts`,
+- the chat bridge under `apps/web/app/_components/` and `apps/web/lib/chat/`,
+- `apps/web/components/chat/{composer,conversation,message,markdown}.tsx`,
+- the shadcn primitives under `apps/web/components/ui/`, and `components.json`.
+
+**Remove:**
+
+- Better Auth and password auth, Drizzle and Neon, Upstash rate limiting,
+- the browser-local chat store, the sidebar and integrations menu,
+- `agent/connections/*`, `agent/channels/slack.ts`, `agent/memory/profile.ts`, the sample tool and skill,
+- analytics packages, the pnpm files,
+- **`vercelOidc()` from the channel auth list.** It accepts any token minted for the same Vercel project, including one from a pull-request preview.
+
+**Routes:** the template's chat home at `/` and its `/chat/[id]` pages are removed. `/app` is the only conversation route. `/` becomes a minimal public page with **Sign in with Google** until Phase 2 builds the landing page and its agent section.
 
 - Rejected: OpenInstinct as the base. It is a complete product built around a browser subagent, a password vault and payments; see [reference repositories](../../../documentations/technical_specification/02_frontend_architecture.md#reference-repositories).
 - Rejected: scaffolding with `eve add channel/web`. The template already carries the reviewed stream resume and persistence patterns the plan points to.
@@ -59,7 +81,7 @@ All versions are exact. A version is updated deliberately in its own pull reques
 |---|---|
 | Kept from the template | `next` 16.3.4, `react` and `react-dom` 19.2.8, `zod` 4.4.3, `tailwindcss` and `@tailwindcss/postcss` 4.3.3, `radix-ui` 1.6.7, `class-variance-authority` 0.7.1, `clsx` 2.1.1, `tailwind-merge` 3.6.0, `cmdk` 1.1.1, `lucide-react` 1.33.0, `streamdown` 2.5.0 with `@streamdown/{cjk 1.0.3, code 1.1.1, math 1.0.2, mermaid 1.0.2}`, `shiki` and `@shikijs/{core,engine-javascript,engine-oniguruma}` 4.3.1, `use-stick-to-bottom` 1.1.6; dev `typescript` 7.0.2, `@typescript/native-preview` 7.0.0-dev.20260707.2, `@types/react` 19.2.18, `@types/react-dom` 19.2.4 |
 | Changed | `eve` 0.80.1, `ai` 7.0.143; dev `@types/node` 24.19.2 to match the Node.js 24 runtime |
-| Added | `@supabase/supabase-js` 2.118.0, `@supabase/ssr` 0.12.7, `postgres` 3.4.9; dev `vitest` 5.0.5, `@playwright/test` 1.64.1 |
+| Added | `@supabase/supabase-js` 2.118.0, `@supabase/ssr` 0.12.7, `postgres` 3.4.9; dev `vitest` 5.0.5, `@playwright/test` 1.64.1, `oxlint` 1.88.0, the linter the eve memory agent template uses |
 | Removed | `better-auth`, `drizzle-orm`, `drizzle-kit`, `@neondatabase/serverless`, `@upstash/redis`, `@vercel/connect`, `@vercel/analytics`, `@vercel/speed-insights`, `microsandbox` |
 
 The template's lockfile is not copied. `package-lock.json` is generated from these pins and committed.
@@ -68,91 +90,146 @@ The template's lockfile is not copied. `package-lock.json` is generated from the
 
 Decided by the team on 2026-10-19: call OpenAI directly with the team's own API key, using `gpt-5.6-terra`.
 
-- `agent/agent.ts` uses eve's bundled helper, `openai("gpt-5.6-terra")` from `eve/models/openai`. It reads `OPENAI_API_KEY` from the server environment, so no separate provider package is needed.
-- `modelOptions.providerOptions.openai` sets `store: false` and the standard service tier, as [model execution](../../specs/model-execution/spec.md) requires. eve fills the OpenAI safety identifier and prompt cache key from the session itself.
-- `modelContextWindowTokens` is set explicitly to `32_000`. eve cannot read a direct model's window from the Gateway catalog, and it uses this value to decide when to compact. The binding limit is the spec's 128 KiB serialized-input cap, roughly 30,000 to 44,000 tokens for English and Korean text, not the model's 1,050,000-token window. A test proves that a long conversation compacts before it reaches the cap.
-- eve's per-session `limits.maxTokenCostUsdPerSession` is set to 30 as a backstop. The authoritative USD 0.60 per-attempt reservation and the per-principal and service-wide allowances remain application-owned and durable.
-- Worst case per attempt is about USD 0.14: 45,000 input tokens at $2 per million plus 4,096 output tokens at $12 per million, using Gateway list prices checked for the same model. That fits the USD 0.60 reservation. The first task confirms the model ID and price against the team's key and records any difference.
+- `agent/agent.ts` starts from eve's bundled `openai("gpt-5.6-terra")` from `eve/models/openai`. It reads `OPENAI_API_KEY` from the server environment, so no separate provider package is needed.
+- `modelOptions.providerOptions.openai` sets `store: false` and `serviceTier: "default"`, the standard tier [model execution](../../specs/model-execution/spec.md) requires. eve fills the OpenAI safety identifier and prompt cache key from the session.
+- `modelContextWindowTokens` is set explicitly to `32_000`, because eve cannot read a direct model's window from the Gateway catalog. `compaction.thresholdPercent` is lowered to `0.6`, so eve compacts at about 19,000 tokens plus its prompt envelope. That keeps the compaction call itself well under the spec's 128 KiB serialized-input cap, which is roughly 30,000 to 44,000 tokens for English and Korean text. The model's own 1,050,000-token window is not the binding limit.
+- eve's `limits.maxTokenCostUsdPerSession` is not set. eve counts cost only from AI Gateway metadata, so it never fires on this route. Its **Continue** prompt also grants a fresh window, which the spec forbids.
+- Worst case per attempt is about USD 0.14: 45,000 input tokens at $2 per million plus 4,096 output tokens at $12 per million, using Gateway list prices for the same model. That fits the USD 0.60 reservation. The model task confirms the model ID and price against the team's key and records any difference.
 
 The [agent configuration](../../../documentations/technical_specification/04_agent_configuration.md#model) and [provider setup](../../../documentations/technical_specification/03_provider_setup.md#model-access-and-runtime) documents and `.env.example` were reconciled to this decision in Phase 0.
 
 - Rejected: Vercel AI Gateway with OIDC. It is the template default, but the team chose direct OpenAI billing.
 - Rejected: an `OPENAI_MODEL` environment variable. The model ID belongs in versioned `agent/agent.ts` so evaluations replay against a known model.
 
-### 6. Data access
+### 6. Model limit enforcement point
 
-Domain code runs server-side only and talks to Postgres through the Supabase transaction pooler. It uses `postgres` (postgres.js) with `prepare: false` and a `DATABASE_URL` held only in server environments. Commands use explicit transactions, `SELECT ... FOR UPDATE` and transaction-scoped advisory locks taken in a documented order, as the [command pipeline](../../../documentations/technical_specification/01_backend_architecture.md#command-and-query-pipeline) requires.
+The model instance passed to `defineAgent` is wrapped with the AI SDK's `wrapLanguageModel` and an application middleware that runs before every provider request. eve's own retries and its compaction calls use the same model, so every provider call passes through it. Per attempt, the middleware does the following, in order:
 
-Supabase JS (`@supabase/ssr`) is used only for the Auth session: Google sign-in, the callback, and reading the signed-in user.
+1. Rejects input over 128 KiB serialized, any attachment, and any provider-executed tool.
+2. Clamps output to 4,096 tokens, or 2,048 for ranking work, regardless of what the caller asked for.
+3. Reserves USD 0.60 durably against the work item, the principal and the service. It refuses beyond eight attempts per accepted input or two per ranking check.
+4. Applies a 30-second idle deadline to generation and to each stream chunk.
+5. Forces `store: false` and the standard tier.
 
-Application tables live in a private `app` schema that is not exposed through the Data API. Row-level security is enabled on every table with no policies. Default privileges for `anon` and `authenticated` are revoked in both `app` and `public`. `supabase/tests/` proves that `anon` and `authenticated` can read or call nothing.
+A denial throws a typed error. eve may retry the step, but every retry hits the same denial, so no provider call is made.
+
+The wrapper keeps the wrapped model's provider and model ID, so eve's OpenAI-specific safety identifier and prompt cache key still apply. A test proves this.
+
+- Rejected: eve hooks. They run after the event is recorded and cannot veto a call.
+- Rejected: eve's `limits` alone. They are per session, are reset by **Continue**, and measure cost only through the Gateway.
+
+### 7. Session ownership enforcement point
+
+Sessions are created by application code, never by the browser. The application records each one in a discussion-to-session index: session ID, discussion, principal, last stream index, agent version, generation and state.
+
+The application `AuthFn`, first in the channel auth list, does two things for every `/eve/v1/**` request:
+
+1. Verifies the caller's Supabase session and current host eligibility.
+2. For any path that names a session, looks that session up in the index and returns `null`, which eve answers with `401`, unless it belongs to the caller's current discussion and generation.
+
+Both checks happen before eve reads, streams or records anything. The channel auth list is `[appAuth, localDev()]`, and `localDev()` only ever answers on a local run.
+
+A session-owner hook keeps the index's stream position and state current. That is bookkeeping, not authority.
+
+eve ends a session after `limits.sessionTimeoutMs`, 30 days by default. The index treats that as a terminal state, so the next turn goes through explicit recovery.
+
+- Rejected: a hook that checks ownership. By the time it runs, a foreign message is already recorded, and a stream read produces no event for it to see.
+
+### 8. Data access and the database role
+
+Domain code runs server-side only. It talks to Postgres through the Supabase transaction pooler using `postgres` (postgres.js) with `prepare: false` and a server-only `DATABASE_URL`. Commands use explicit transactions, `SELECT ... FOR UPDATE` and transaction-scoped advisory locks in a documented order, as the [command pipeline](../../../documentations/technical_specification/01_backend_architecture.md#command-and-query-pipeline) requires.
+
+Supabase JS (`@supabase/ssr`) is used only for the Auth session.
+
+Application tables live in a private `app` schema that is not exposed through the Data API. The server connects as the `postgres` role, which owns the `app` objects. Row-level security is enabled on every table with no policies, so as owner the server is unaffected while `anon` and `authenticated` see nothing. Default privileges for `anon` and `authenticated` are revoked in `app` and `public`. `supabase/tests/` proves that `anon` and `authenticated` can read or call nothing.
 
 - Rejected: Supabase JS table access. PostgREST cannot run multi-statement transactions or hold locks across statements.
 - Rejected: domain logic as PL/pgSQL functions behind RPC. It is harder to share with eve tool code and to unit test. Postgres functions remain available for narrow atomic operations such as job claiming.
+- Deferred to Phase 8: a dedicated least-privilege login role. Its password has to be provisioned outside migrations, which the operations change owns.
 
-### 7. Durable placement and the job worker
+### 9. Durable placement and the job worker
 
 - **eve sessions** run on eve's durable workflow runtime: locally under `.eve/.workflow-data`, and on Vercel through the deployed agent service. A paused eve session is never the record of a decision.
-- **Domain state, the discussion-to-session index, and jobs** live in Postgres. A job row is inserted in the same transaction as the domain change that requires it, as [durable jobs](../../specs/durable-jobs/spec.md) requires.
-- **One worker route** in the web service claims bounded batches. It uses a Postgres function with `FOR UPDATE SKIP LOCKED`, a lease deadline and a fencing token. It records each outcome before acknowledgment and is authenticated by a shared secret.
-- **Wake-ups:** an `AFTER INSERT` trigger calls the production worker URL through `pg_net`, and a `pg_cron` job calls it every minute as the recovery sweep for lost wake-ups. The secret is stored in Supabase Vault and in Vercel Production environment variables, and both are rotated together.
-- **Single consumer:** only the production deployment runs the worker. Preview and development deployments refuse the route before claiming anything, the same fencing [messaging environments](../../specs/messaging-environments/spec.md) uses. Personal sandboxes configure no wake-up URL. Local development runs a polling script (`npm run jobs:dev`) against the sandbox.
+- **Domain state, the session index and jobs** live in Postgres. A job row is inserted in the same transaction as the domain change that requires it, as [durable jobs](../../specs/durable-jobs/spec.md) requires.
+- **Producer environment:** each job row records the environment that produced it.
+- **One worker route** in the web service claims bounded batches, through a Postgres function with `FOR UPDATE SKIP LOCKED`, a lease deadline and a fencing token. It claims only jobs produced by production, records each outcome before acknowledging, and is authenticated by a shared secret.
+- **Wake-ups:** an `AFTER INSERT` trigger calls the worker URL through `pg_net`, and a `pg_cron` job calls it every minute as the recovery sweep. Both read the URL and secret from Supabase Vault and do nothing when either is absent, which is the case in every sandbox and in CI.
+- **Environment detection:** the worker counts as production only when `VERCEL=1` and `VERCEL_ENV=production` are both set and agree. It refuses on any other Vercel environment, or on contradictory metadata, before touching job state.
+- **Local development:** `npm run jobs:dev` runs outside Vercel. It refuses to start when `SUPABASE_PROJECT_REF` names the shared project, polls the teammate's sandbox, and claims only that sandbox's jobs.
+- **Previews:** preview deployments write to the shared database. Their jobs are recorded with a non-production environment and stay unclaimed but visible, so a pull request can never cause a production worker to act.
 
-This placement is confirmed at Phase 1 exit by the tests named in the tasks: process death mid-job, lost wake-up, duplicate delivery, and an expired lease reclaimed with a higher fence.
+This placement is confirmed at Phase 1 exit by the tests named in the tasks: process death mid-job, lost wake-up, duplicate delivery, a crash between follow-up commit and acknowledgment, and an expired lease reclaimed with a higher fence.
 
 - Rejected: Vercel Cron. Frequent schedules depend on a paid plan, the plan avoids that dependency, and it cannot join the domain transaction.
 - Rejected: Vercel Queues. It is in beta and outside the Postgres transaction, so an outbox would still be needed.
 - Rejected: eve schedules. Durable product work belongs to application jobs, per agent configuration.
 - Rejected: `pgmq` as the job store. Its visibility timeout carries no fencing token. A plain table keeps lease and fence explicit and inspectable for [operational diagnostics](../../specs/operational-diagnostics/spec.md).
 
-### 8. Region
+### 10. Shared project configuration and migration order
+
+The schema baseline merges first and alone. The same pull request adds the CI job that, on merge to `main`, does three things:
+
+1. Prints `supabase db push --dry-run` and then pushes the migrations to the shared project.
+2. Writes the worker URL and secret into Supabase Vault from GitHub secrets, idempotently.
+3. Applies hosted Auth settings with `supabase config push`, using `env(...)` substitution in `config.toml` for the site URL and redirect allowlist so local defaults never reach the hosted project.
+
+Lanes that add tables, such as the jobs table and the session index, start their migrations only after the baseline is on `main`. `supabase/config.toml` re-enables `[db.migrations]` in the baseline pull request, so `supabase db reset` rebuilds the chain.
+
+Nobody changes the shared project by hand. `supabase db diff --linked` stays empty after each merge.
+
+### 11. Region
 
 Run Vercel functions in `cle1` (Cleveland). It sits beside the Supabase project in `us-east-2`, which keeps transaction round trips short.
 
 - Rejected: the default `iad1`. It works, but it adds cross-region latency to every locked transaction.
 
-### 9. Authentication details
+### 12. Authentication details
 
-- Supabase Auth's Google provider is the only enabled sign-in method. Email sign-in is disabled in `supabase/config.toml`, and the hosted setting is verified.
-- The consent requests identity plus the least Calendar scopes that cover reading the calendar list, reading events on selected calendars, checking free/busy, and creating events. The exact scope strings are chosen and verified against Google's documentation in the sign-in task.
-- Supabase returns the provider refresh token only at sign-in. The callback stores it immediately, encrypted with AES-256-GCM under `TOKEN_ENCRYPTION_KEY`, in a grants table with the scopes Google actually granted.
-- One host account per Google identity is enforced by a unique constraint and created inside the callback transaction, so concurrent callbacks create one account.
+- **Sign-in method.** Supabase Auth's Google provider is the only enabled method. Email sign-in is disabled in `supabase/config.toml` and applied to the hosted project by the CI configuration step.
+- **Callback.** `/auth/callback` always returns to `/app`, as [chat workspaces](../../specs/chat-workspaces/spec.md#requirement-google-only-mvp-host-login) requires. It accepts no caller-supplied destination.
+- **Scopes.** The consent requests identity plus the least Calendar scopes that cover reading the calendar list, reading events on selected calendars, checking free/busy, and creating events. The exact scope strings are chosen and verified against Google's documentation in the sign-in task.
+- **Granted scopes.** These are read from Google's token information endpoint using the provider access token returned at sign-in, because Supabase does not pass Google's granted `scope` through. They are stored with the grant.
+- **Refresh token.** Google returns one only on the first consent for an identity. The callback stores it immediately, encrypted with AES-256-GCM under `TOKEN_ENCRYPTION_KEY`, and records the key identifier with the ciphertext for later rotation. A sign-in that returns no refresh token never overwrites a stored one. A host with no stored token is left without a Calendar grant, and Phase 2's **Connect Google Calendar** requests consent again.
+- **Account creation.** One host account per Google identity is enforced by a unique constraint and created inside the callback transaction, so concurrent callbacks create one account.
 
-### 10. Tests
+### 13. Tests
 
 | Layer | Tool and location | Where it runs |
 |---|---|---|
 | Unit | Vitest beside modules | Locally and in CI |
 | Integration | Vitest under `tests/integration/` against a database | A personal sandbox locally, the local Supabase stack in CI |
-| Database | Grant, RLS and concurrency tests under `supabase/tests/` | CI, on a fresh `supabase start` |
+| Database | Grant, RLS, trigger and concurrency tests under `supabase/tests/` | CI, on a fresh `supabase start` |
 | Browser | Playwright under `tests/e2e/`, following the Vercel chatbot's layout | CI |
+| Lint | `oxlint` over `agent`, `apps`, `lib` and `tests` | Locally and in CI |
 
 GitHub-hosted runners have Docker, so CI covers what teammates without Docker cannot run locally.
 
 ## Risks / Trade-offs
 
 - [eve is pre-1.0 and changes almost daily] → Exact pin, version-scoped installed docs, and upgrades only in dedicated pull requests with the full suite.
-- [Template code written for eve 0.73 fails on 0.80.1] → The first task builds and runs the copied template on 0.80.1 before any replacement work, so failures are attributed to the upgrade alone.
+- [Template code written for eve 0.73 fails on 0.80.1] → The first build task runs the copied template on 0.80.1, with only its model swapped to the team's OpenAI key, before any replacement work. Failures are then attributed to the upgrade alone.
+- [The wrapper misses a provider call path] → A test drives a turn, a forced retry and a forced compaction through a fake provider and asserts a reservation for each provider request.
 - [The transaction pooler forbids session state] → No prepared statements, session-level locks or `SET` outside a transaction. Tests run through the same pooler URL format.
-- [Preview deployments share the shared database] → The worker refuses outside production; wake-ups target only the production URL; messaging is denied outside production.
+- [Preview deployments share the shared database] → Jobs record their producer, the worker claims only production jobs and runs only in production, and messaging is denied outside production.
 - [`pg_net` delivery is best effort] → The every-minute sweep and idempotent completion make a lost wake-up a delay, not a loss.
-- [The model ID or price differs on the direct OpenAI account] → Task 1 confirms both against the team's key before any limit is tuned.
-- [The compaction threshold is set too low and degrades conversations] → The compaction test also checks that ordinary setup conversations stay uncompacted; tune within the 128 KiB cap.
-- [Google Calendar scopes require app verification] → Submit early in Phase 2; until then, use test users only.
+- [Google issues seven-day refresh tokens while the OAuth app's publishing status is Testing] → Treat Phase 1 grants as disposable. Move the app to the In production publishing status, still unverified with the 100-user cap, before Phase 2 relies on stored grants. Submit Calendar scope verification early in Phase 2.
+- [The model ID, price or storage behavior differs on the direct account] → The model task confirms ID and price against the team's key and exercises a multi-turn exchange with storage off.
+- [Reasoning tokens may count against the 4,096-token output cap] → The model task measures it, and the reasoning setting is chosen so answers are not truncated.
 
 ## Migration Plan
 
 There is no existing application or data.
 
 1. Merge the skeleton.
-2. Generate the first migration in the pull request that adds `supabase/schemas/` and verify it with `supabase db reset --local`.
-3. Apply the migration to each sandbox with `supabase db push`.
-4. On merge, CI pushes the migration to the shared project after a reviewed `supabase db push --dry-run`.
-5. Link the Vercel project, set Production and Preview environment variables separately, set the function region, and attach `release.findmeatime.com` following [domain guidance](../../../AGENTS.md#domain-and-dns).
+2. Merge the schema baseline. Its migration is verified with `supabase db reset --local`, and its CI job pushes the baseline and configuration to the shared project on merge.
+3. Apply the migration chain to each sandbox with `supabase db push` as later lanes add migrations.
+4. Link the Vercel project, set Production and Preview environment variables separately, set the function region, and attach `release.findmeatime.com` following [domain guidance](../../../AGENTS.md#domain-and-dns).
 
 Rollback is a revert plus a forward migration. The shared project's data is disposable until the release split, so `supabase db reset --linked` after a team announcement is acceptable.
 
 ## Open Questions
 
-- Session retention and compaction thresholds beyond the initial `32_000`-token setting can be tuned with evidence without changing the approach.
+- Compaction thresholds and session retention beyond the initial settings can be tuned with evidence without changing the approach.
 - Whether `evaluate_candidates` runs as an eve workflow tool or an application job is decided in Phase 3, where it is first used.
+- **Before Phase 5:** the [chat-workspaces](../../specs/chat-workspaces/spec.md) requirement of a fixed `/auth/callback` return to `/app` must be reconciled with the [page list](../../../documentations/user_experience/04_page_list.md)'s allowlisted return, which `/connect/authorize` needs to preserve an OAuth transaction across sign-in. Phase 1 follows the spec.
+- **Before Phase 3, when the first transport lands:** the [messaging-environments](../../specs/messaging-environments/spec.md) contract admits standalone local execution, while agent configuration and the plan deny local messaging. The owning document must be corrected first. Phase 1's gate follows the spec and has no transport to send through.
