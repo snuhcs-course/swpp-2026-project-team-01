@@ -19,7 +19,7 @@ Selected Supabase project: **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, `us-east
 | `documentations/` | Product direction, UX, architecture, implementation sequence and acceptance coverage |
 | `DESIGN.md` | Thyme visual direction and brand assets |
 | `openspec/specs/` | Agreed capability behavior; the contract the implementation must satisfy |
-| `openspec/changes/` | Pending proposals and completed change records |
+| `openspec/changes/` | Pending change proposals; completed changes are archived here after verification |
 | `supabase/` | Local Supabase configuration; application SQL arrives with the first schema slice |
 | `ai-usage/` | Per-branch AI token and agent-time records required by the course |
 | `.agents/skills/` | Shared project workflows and reference material |

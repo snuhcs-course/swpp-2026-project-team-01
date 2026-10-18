@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const ignored = new Set(['node_modules', 'dist', '.vercel', '.local', '.git', 'archive', 'retired']);
+const ignored = new Set(['node_modules', 'dist', '.vercel', '.local', '.git']);
 
 async function markdownFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });

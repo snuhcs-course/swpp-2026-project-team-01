@@ -24,10 +24,6 @@ Read product purpose and requirements, then UX, architecture and the implementat
 | [Competitor research](business/competitor_research.md) | Dated research context; no product compatibility claim |
 | [Transplant guide](transplant/en/transplant-guide.md) | Iteration 1 prototype features F01–F11, journeys and design decomposed for reuse; copied from `dev` for review, not yet reconciled |
 
-## Completed changes
-
-Completed change records live in [OpenSpec archives](../openspec/changes/archive/). They are not the active implementation queue; pending work is proposed through new changes.
-
 ## Maintenance
 
 Keep product purpose in the one-pager, scope and acceptance in the PRD, UX explanations in `user_experience/`, technical rationale in `technical_specification/`, and observable contracts in OpenSpec. Resolve a conflict explicitly before implementing the affected capability. Do not promote draft decisions into main specs or treat unverified evidence as current status.
