@@ -50,7 +50,7 @@ The [design](design.md) records each with alternatives:
 | Dependencies | The template's exact pins for retained packages, the Supabase and Postgres clients added, the template's identity, database and connector packages removed |
 | Model | Direct OpenAI with the team's `OPENAI_API_KEY`, `gpt-5.6-terra` through eve's `openai()` helper; decided by the team on 2026-10-19 |
 | Model limits | An application middleware around the model instance, through which every provider call passes, including eve's retries and compaction; not eve hooks or eve's cost limit |
-| Session ownership | Checked in the application auth function against the application session index before eve acts; `vercelOidc()` removed |
+| Call path and session ownership | Only application routes create sessions and send messages, through `eve/client` with a short-lived signed bearer; the browser only reads and streams sessions the application index says it owns; the auth function denies everything else before eve acts; `vercelOidc()` and `localDev()` removed |
 | Data access | Server-only Postgres transactions through the Supabase transaction pooler as the `postgres` owner role; Supabase JS for Auth sessions only |
 | Durable placement | eve sessions on eve's workflow runtime; domain state, session index and jobs in Postgres; one internal worker route woken by `pg_net` with a `pg_cron` recovery sweep; production-only consumer of production-produced jobs |
 | Shared project | Schema baseline merges first, with the CI job that pushes migrations, Vault entries and Auth configuration on merge |

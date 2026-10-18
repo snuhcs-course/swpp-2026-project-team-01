@@ -72,7 +72,9 @@ The eve principal is the audience, not the person's identity: a requester has no
 
 ## Route authentication
 
-`channels/eve.ts` exports `eveChannel` with an ordered auth list. The first entry is an application function that verifies the Supabase session for hosts or the booking-link-derived request credential for requesters and returns the eve auth context: `principalId` as above, `principalType: "user"`, `authenticator: "findmeatime"`, and attributes `audience`, `hostId`, `requestId` and `discussionId`. The second entry is eve's `localDev()` and exists only in local development. The scaffolded placeholder auth is never deployed; production fails closed. Uploads are disabled.
+`channels/eve.ts` exports `eveChannel` with an ordered auth list. The first entry is an application function that verifies the Supabase session for hosts or the booking-link-derived request credential for requesters and returns the eve auth context: `principalId` as above, `principalType: "user"`, `authenticator: "findmeatime"`, and attributes `audience`, `hostId`, `requestId` and `discussionId`. It is the only entry: `localDev()` and `vercelOidc()` are not used, so local runs and deployments enforce the same rules. The function never returns `null`; it throws `UnauthenticatedError` or `ForbiddenError`, so the walk cannot fall through. Uploads are disabled.
+
+Only application code creates sessions and sends messages. A browser message goes to an application route, which checks the caller, records the accepted input in the application session index, and calls eve through `eve/client` with a 60-second bearer signed with `EVE_INTERNAL_SIGNING_KEY`. The browser itself only reads and streams sessions the index says it owns. The [foundation design](../../openspec/changes/application-foundation/design.md#7-call-path-and-session-ownership) records the details.
 
 `ctx.session.auth.current` identifies the caller of the active turn and `auth.initiator` the session creator; tools read the audience from there and never from tool input.
 
@@ -161,14 +163,14 @@ eve hooks run after an event is durably recorded, and a throwing hook does not r
 
 ## Durability and recovery
 
-Each session is a Workflow run: completed steps replay and an interrupted step re-runs, so every tool effect is idempotent by `ctx.callId`, and anything with an external effect is an application job rather than a tool. A session stays bound to its deployment, so the application index records the agent version and treats a stranded session as a terminal-recovery case rather than silently creating a replacement. eve compacts automatically when the conversation nears `compaction.thresholdPercent` of `modelContextWindowTokens`, and the compaction call goes through the same model wrapper and limits. The application can also request compaction between turns. Reset is application-initiated and retires a session identifier permanently. eve ends a session after `limits.sessionTimeoutMs`, 30 days by default; the index treats that as a terminal state.
+Each session is a Workflow run: completed steps replay and an interrupted step re-runs, so every tool effect is idempotent by `ctx.callId`, and anything with an external effect is an application job rather than a tool. A session stays bound to its deployment, so the application index records the agent version and treats a stranded session as a terminal-recovery case rather than silently creating a replacement. eve compacts automatically when the conversation nears `compaction.thresholdPercent` of `modelContextWindowTokens`, and the compaction call goes through the same model wrapper and limits. The application can also request compaction between turns. Reset is application-initiated and retires a session identifier permanently. `limits.sessionTimeoutMs` is `false`, because host discussions outlive eve's 30-day default and a lifetime ending is not a confirmed runtime failure. Requester sessions end when their request closes, by application decision.
 
 ## Local development and deployment
 
 | Concern | Local | Vercel |
 |---|---|---|
 | Run | `eve dev` beside `next dev apps/web`; runs persist under `.eve/.workflow-data` | `withEve({ services: { web: { framework: "nextjs", root: "apps/web" } }, routes })` in the root `vercel.ts` adds the agent as its own service and routes `/eve/v1/**` to it |
-| Auth | `localDev()` after the application auth function | Application auth only; fails closed |
+| Auth | Application auth against the teammate's sandbox sign-in; no `localDev()` | Application auth only; fails closed |
 | Model | `OPENAI_API_KEY` in the local environment | `OPENAI_API_KEY` in Vercel Production; Preview gets its own key or none |
 | Messaging | Denied | Release only; previews denied |
 | Docker | Not needed | Not needed |

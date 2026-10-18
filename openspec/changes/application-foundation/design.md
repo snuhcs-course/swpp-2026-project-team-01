@@ -113,27 +113,40 @@ The model instance passed to `defineAgent` is wrapped with the AI SDK's `wrapLan
 
 A denial throws a typed error. eve may retry the step, but every retry hits the same denial, so no provider call is made.
 
+**Attribution.** The wrapper attributes each call without trusting anything the model sends. eve sets the OpenAI prompt cache key to the SHA-256 hash of the session ID. The wrapper looks that hash up in the application session index to find the session, principal, generation and current accepted input. A call with no key, an unknown hash, a retired generation or no current accepted input is denied before any provider request. Ranking calls arrive in Phase 3 as application jobs outside eve. They call the wrapper directly with their work item, which selects the 2,048-token cap and the two-attempt limit.
+
 The wrapper keeps the wrapped model's provider and model ID, so eve's OpenAI-specific safety identifier and prompt cache key still apply. A test proves this.
 
 - Rejected: eve hooks. They run after the event is recorded and cannot veto a call.
 - Rejected: eve's `limits` alone. They are per session, are reset by **Continue**, and measure cost only through the Gateway.
 
-### 7. Session ownership enforcement point
+### 7. Call path and session ownership
 
-Sessions are created by application code, never by the browser. The application records each one in a discussion-to-session index: session ID, discussion, principal, last stream index, agent version, generation and state.
+Only application code creates eve sessions and sends messages. The browser never writes to `/eve/v1`.
 
-The application `AuthFn`, first in the channel auth list, does two things for every `/eve/v1/**` request:
+- **Create and send.** The browser posts a message to an application route in the web service. That route authenticates the Supabase session, checks host eligibility, and records the message as the session's current accepted input in the application session index. It then calls the agent service through `eve/client` with a server-only bearer. Phase 3 adds conversation admission and credential redaction to this route, before the record is written.
+- **Internal bearer.** The bearer is a short-lived token the web service signs with `EVE_INTERNAL_SIGNING_KEY`. It names the principal, discussion, session and generation, and the accepted input or work item. It expires after 60 seconds and is never sent to a browser.
+- **Session creation.** Sessions are created the same way. The index row (session ID, a SHA-256 hash of the session ID, discussion, principal, generation, last stream index, agent version, state, current accepted input) is written before the first message is sent.
+- **Read and stream.** The browser streams `GET /eve/v1/session/:sessionId/stream` directly with its Supabase session cookie, as the template does. The auth function allows that only when the index shows the session belongs to the caller's current discussion and generation.
 
-1. Verifies the caller's Supabase session and current host eligibility.
-2. For any path that names a session, looks that session up in the index and returns `null`, which eve answers with `401`, unless it belongs to the caller's current discussion and generation.
+The channel auth list is `[appAuth]`. `appAuth` accepts exactly two shapes:
 
-Both checks happen before eve reads, streams or records anything. The channel auth list is `[appAuth, localDev()]`, and `localDev()` only ever answers on a local run.
+1. A valid internal bearer, on create and send.
+2. A Supabase session cookie, on reading or streaming the caller's own indexed session.
+
+It throws `UnauthenticatedError` when no credential is present and `ForbiddenError` for anything else. It never returns `null`, so the walk cannot fall through. That includes a browser `POST /eve/v1/session` or `POST /eve/v1/session/:sessionId`, a foreign or unindexed session, and a stale generation.
+
+`localDev()` is not in the list. Local development signs in with Google against the teammate's sandbox and uses the same path, so the ownership tests run identically under `eve dev` and in deployments.
 
 A session-owner hook keeps the index's stream position and state current. That is bookkeeping, not authority.
 
-eve ends a session after `limits.sessionTimeoutMs`, 30 days by default. The index treats that as a terminal state, so the next turn goes through explicit recovery.
+`limits.sessionTimeoutMs` is set to `false`. Host discussions can outlive eve's 30-day default, and a lifetime ending is not the confirmed runtime failure that [conversation access](../../specs/conversation-access/spec.md) recovery requires. Requester sessions end when their request closes, by application decision.
+
+If `eve/react` cannot send through an application route while streaming from `/eve/v1`, the web service proxies the stream as well. The ownership rule is unchanged.
 
 - Rejected: a hook that checks ownership. By the time it runs, a foreign message is already recorded, and a stream read produces no event for it to see.
+- Rejected: `vercelOidc()` for the web-to-agent call. It accepts any token for the same Vercel project, including one from a preview.
+- Rejected: letting the browser create sessions or send messages to `/eve/v1`. Admission, redaction and the accepted-input record would then be bypassable.
 
 ### 8. Data access and the database role
 
@@ -156,7 +169,7 @@ Application tables live in a private `app` schema that is not exposed through th
 - **Wake-ups:** an `AFTER INSERT` trigger calls the worker URL through `pg_net`, and a `pg_cron` job calls it every minute as the recovery sweep. Both read the URL and secret from Supabase Vault and do nothing when either is absent, which is the case in every sandbox and in CI.
 - **Environment detection:** the worker counts as production only when `VERCEL=1` and `VERCEL_ENV=production` are both set and agree. It refuses on any other Vercel environment, or on contradictory metadata, before touching job state.
 - **Local development:** `npm run jobs:dev` runs outside Vercel. It refuses to start when `SUPABASE_PROJECT_REF` names the shared project, polls the teammate's sandbox, and claims only that sandbox's jobs.
-- **Previews:** preview deployments write to the shared database. Their jobs are recorded with a non-production environment and stay unclaimed but visible, so a pull request can never cause a production worker to act.
+- **Previews:** preview deployments write to the shared database. Their jobs are recorded with a non-production environment and stay unclaimed but visible, so job-backed features do not run on previews. This fencing prevents mistakes, not malice: a preview holds the same database owner credentials and could write any label. Real isolation comes with the release environment split in Phase 8, and until then the shared project holds no data worth protecting.
 
 This placement is confirmed at Phase 1 exit by the tests named in the tasks: process death mid-job, lost wake-up, duplicate delivery, a crash between follow-up commit and acknowledgment, and an expired lease reclaimed with a higher fence.
 
@@ -171,7 +184,7 @@ The schema baseline merges first and alone. The same pull request adds the CI jo
 
 1. Prints `supabase db push --dry-run` and then pushes the migrations to the shared project.
 2. Writes the worker URL and secret into Supabase Vault from GitHub secrets, idempotently.
-3. Applies hosted Auth settings with `supabase config push`, using `env(...)` substitution in `config.toml` for the site URL and redirect allowlist so local defaults never reach the hosted project.
+3. Applies hosted Auth settings with `supabase config push`. This pushes all of `config.toml`, so the baseline reviews every setting in it as hosted policy. The site URL and redirect allowlist use `env(...)` substitution so local values never reach the hosted project, and the same variables are set locally for `supabase start`.
 
 Lanes that add tables, such as the jobs table and the session index, start their migrations only after the baseline is on `main`. `supabase/config.toml` re-enables `[db.migrations]` in the baseline pull request, so `supabase db reset` rebuilds the chain.
 
@@ -188,7 +201,7 @@ Run Vercel functions in `cle1` (Cleveland). It sits beside the Supabase project 
 - **Sign-in method.** Supabase Auth's Google provider is the only enabled method. Email sign-in is disabled in `supabase/config.toml` and applied to the hosted project by the CI configuration step.
 - **Callback.** `/auth/callback` always returns to `/app`, as [chat workspaces](../../specs/chat-workspaces/spec.md#requirement-google-only-mvp-host-login) requires. It accepts no caller-supplied destination.
 - **Scopes.** The consent requests identity plus the least Calendar scopes that cover reading the calendar list, reading events on selected calendars, checking free/busy, and creating events. The exact scope strings are chosen and verified against Google's documentation in the sign-in task.
-- **Granted scopes.** These are read from Google's token information endpoint using the provider access token returned at sign-in, because Supabase does not pass Google's granted `scope` through. They are stored with the grant.
+- **Granted scopes.** These are read from Google's token information endpoint using the provider access token returned at sign-in, because Supabase does not pass Google's granted `scope` through. The call happens before the callback opens its database transaction. If it fails, the account is still created with no Calendar grant, and Phase 2's **Connect Google Calendar** recovers.
 - **Refresh token.** Google returns one only on the first consent for an identity. The callback stores it immediately, encrypted with AES-256-GCM under `TOKEN_ENCRYPTION_KEY`, and records the key identifier with the ciphertext for later rotation. A sign-in that returns no refresh token never overwrites a stored one. A host with no stored token is left without a Calendar grant, and Phase 2's **Connect Google Calendar** requests consent again.
 - **Account creation.** One host account per Google identity is enforced by a unique constraint and created inside the callback transaction, so concurrent callbacks create one account.
 
