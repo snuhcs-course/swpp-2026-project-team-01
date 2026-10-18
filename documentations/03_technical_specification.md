@@ -1,14 +1,14 @@
 # Find Me a Time — Technical Specification
 
-Status: proposed replacement architecture; no implementation
+Status: proposed architecture; no implementation
 
-Date: 2026-10-13
+Date: 2026-10-19
 
-The replacement coordinates one host and one external requester across web, email and personal-agent clients, with optional linked host iMessage. Every channel invokes one authorized scheduling boundary. The [PRD](02_product_requirements.md) owns scope and the [capability specs](../openspec/specs/) retain agreed behavior.
+The application coordinates one host and one external requester across web, email and personal-agent clients, with optional linked host iMessage. Every channel invokes one authorized scheduling boundary. The [PRD](02_product_requirements.md) owns scope and the [capability specs](../openspec/specs/) retain agreed behavior.
 
 ## Scope and foundation
 
-| Concern | Retained direction | Fresh decision or evidence needed |
+| Concern | Direction | Decision or evidence needed |
 |---|---|---|
 | Web | Next.js, React, TypeScript, npm; conversation-first UI | Dependency pins, separate builds, mobile/accessibility verification |
 | Conversation runtime | eve with application-owned authorization | Persistence, deployment composition, protected streams, replay and terminal recovery spike |
@@ -20,7 +20,7 @@ The replacement coordinates one host and one external requester across web, emai
 | Host iMessage | Photon Spectrum | Verified private binding, native/adapter compatibility, attribution and real-device delivery |
 | Hosting | Recorded Vercel release origin | Runtime placement, consumer ownership and fresh deployment checks |
 
-The selected Supabase project is linked and its empty application baseline is verified in [provider setup](technical_specification/03_provider_setup.md#clean-project-recheck--2026-10-13). Managed identity/configuration/extensions remain; the release origin and provider/client readiness are still verification targets. Model ID, provider entitlement, dependency versions and runtime hosting must be freshly recorded before they are used.
+The selected Supabase project is linked and its application schema is empty; see [provider setup](technical_specification/03_provider_setup.md#supabase-project). The release origin and provider/client readiness are verification targets. Model ID, provider entitlement, dependency versions and runtime hosting must be freshly recorded before they are used.
 
 ### Backend decision
 

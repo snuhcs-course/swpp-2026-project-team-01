@@ -1,6 +1,6 @@
 # Find Me a Time — Documentation
 
-Status: reviewed against the linked clean application database on 2026-10-13. Application implementation is absent; all replacement acceptance evidence remains pending. [Provider setup](technical_specification/03_provider_setup.md#clean-project-recheck--2026-10-13) records the surviving managed state and first-migration prerequisites.
+Status: documentation and specification phase; implementation and acceptance evidence pending. [Provider setup](technical_specification/03_provider_setup.md) records the selected environment and verification prerequisites.
 
 Read product purpose and requirements, then UX, architecture and the implementation sequence. Detailed agreed behavior lives in [capability specifications](../openspec/specs/); pending requirements live in [active changes](../openspec/changes/). Planning documents do not establish delivery or deployment readiness.
 
@@ -24,12 +24,12 @@ Read product purpose and requirements, then UX, architecture and the implementat
 | [Competitor research](business/competitor_research.md) | Dated research context; no product compatibility claim |
 | [Transplant guide](transplant/en/transplant-guide.md) | Iteration 1 prototype features F01–F11, journeys and design decomposed for reuse; copied from `dev` for review, not yet reconciled |
 
-## Historical material
+## Completed changes
 
-Completed records remain in [OpenSpec archives](../openspec/changes/archive/); their checkboxes and implementation references describe the previous attempt only, and the directory is not the active implementation queue. The previous implementation's unfinished plans and source remain on the `feat/astra-reconstruction` branch, not in this checkout.
+Completed change records live in [OpenSpec archives](../openspec/changes/archive/). They are not the active implementation queue; pending work is proposed through new changes.
 
 ## Maintenance
 
-Keep product purpose in the one-pager, scope and acceptance in the PRD, UX explanations in `user_experience/`, technical rationale in `technical_specification/`, and observable contracts in OpenSpec. Resolve a conflict explicitly before implementing the affected capability. Do not promote draft decisions into main specs or copy historical evidence into replacement status.
+Keep product purpose in the one-pager, scope and acceptance in the PRD, UX explanations in `user_experience/`, technical rationale in `technical_specification/`, and observable contracts in OpenSpec. Resolve a conflict explicitly before implementing the affected capability. Do not promote draft decisions into main specs or treat unverified evidence as current status.
 
 Use two-digit prefixes within each ordered directory and update this index when a document moves. Preserve stable FR, AC, journey and story identifiers.

@@ -1,7 +1,7 @@
 ---
 title: Find Me a Time — Thyme Visual Design
-date: 2026-10-13
-status: Visual direction; replacement implementation pending
+date: 2026-10-19
+status: Visual direction; implementation pending
 colors:
   canvas: "#FAF8F2"
   surface: "#FFFDF8"
@@ -45,7 +45,7 @@ This document defines the visual direction developed from the Thyme logo explora
 
 **Find Me a Time** is the product; **Thyme** is its scheduling assistant. The [design principles](documentations/04_design_principles.md) own interaction direction. The [one-pager](documentations/01_one_pager.md), [PRD](documentations/02_product_requirements.md), and [capability specifications](openspec/specs/) own product scope and behavior. Visual styling must preserve their consent, privacy, and booking rules.
 
-The selected logo and uncropped reference are retained as documentation assets. The replacement app has not been implemented. See [Known gaps](#known-gaps).
+The selected logo and uncropped reference are retained as documentation assets. The app has not been implemented yet. See [Known gaps](#known-gaps).
 
 ## Mood
 
@@ -111,7 +111,7 @@ The logo reference's ivory backdrop conveys the palette. A future original paper
 
 ## Typography
 
-Use **Merriweather** for editorial display headings, **Geist** for body and interface text, and **Geist Mono** for technical identifiers where needed. Preserve system fallbacks. The replacement should load these fonts with system fallbacks and use Geist for body text.
+Use **Merriweather** for editorial display headings, **Geist** for body and interface text, and **Geist Mono** for technical identifiers where needed. Preserve system fallbacks. The app should load these fonts with system fallbacks and use Geist for body text.
 
 | Role | Size | Weight | Line height | Usage |
 | --- | --- | --- | --- | --- |
@@ -181,7 +181,7 @@ Use brief 120–180ms color and opacity transitions. Preserve a stable reading p
 
 ## Proposed implementation mapping
 
-Use the future shared stylesheet, root layout and component recipes as implementation owners; those files do not exist in this planning checkout. Preserve the selected Next.js, Tailwind/shadcn and accessible conversation UI direction, with dependency versions/preset chosen in the foundation slice.
+Use the shared stylesheet, root layout and component recipes as implementation owners once the foundation slice creates them. Preserve the selected Next.js, Tailwind/shadcn and accessible conversation UI direction, with dependency versions/preset chosen in the foundation slice.
 
 Map canvas/ink to background/foreground, surface to card/popover, action olive/ivory to primary roles, soft wash to secondary/muted/accent, decorative line to border, field boundary to input and focus to ring. Keep additional hover/pressed/warning/success roles explicit. Apply the radius scale deliberately, load fonts before switching family, and keep the decorative paper layer separate from clean controls/content.
 
@@ -193,7 +193,7 @@ Review a landing page, a conversation with long messages, a proposal awaiting ho
 
 ## Known gaps
 
-- All replacement theme implementation and rendered accessibility checks are pending; previous screenshots/test passes describe removed source.
+- Theme implementation and rendered accessibility checks are pending.
 - The cropped PNG and uncropped original are retained under documentation assets. A vector master, simplified small-size mark and export variants still need preparation and verification.
 - Prepare and verify an original seamless paper tile when the UI is implemented. It must be disabled in print and forced colors.
 - A botanical dark theme requires separate contrast/visual review; do not invert the texture automatically.

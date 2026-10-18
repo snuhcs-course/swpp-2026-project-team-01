@@ -1,8 +1,8 @@
 # Find Me a Time — Backend Architecture
 
-Status: proposed design; implementation absent
+Status: proposed design; implementation pending
 
-Date: 2026-10-13
+Date: 2026-10-19
 
 Basis: [PRD](../02_product_requirements.md), [technical overview](../03_technical_specification.md), [implementation plan](04_implementation_plan.md) and [capability contracts](../../openspec/specs/).
 
@@ -12,13 +12,13 @@ Use Supabase for Auth and durable scheduling state, Next.js for the web boundary
 
 Human waits and accepted operations live in durable state. Process memory, an HTTP response and a framework checkpoint cannot be the only record of an agreement, approval or provider effect. The model provider must be selected and tested server-side while preserving the numerical limits in the [model execution](../../openspec/specs/model-execution/spec.md) and [workspace admission](../../openspec/specs/chat-workspaces/spec.md) contracts.
 
-## Clean database starting point
+## Database starting point
 
-The selected project's application schema/history is empty, as recorded in [provider setup](03_provider_setup.md#clean-project-recheck--2026-10-13). Existing Google identity, Vault secrets and installed extensions remain managed infrastructure. None supplies application admission, participant grants, conversation bindings or scheduling policy.
+The selected project's application schema is empty, as recorded in [provider setup](03_provider_setup.md#supabase-project). Managed identity, Vault secrets and installed extensions are infrastructure; none supplies application admission, participant grants, conversation bindings or scheduling policy.
 
-Before the first schema slice, specify the private/exposed namespace and role matrix. Existing `public` default privileges can grant newly created tables/sequences/functions to `anon` and `authenticated`; explicitly restrict service-only boundaries and apply RLS to exposed tables. Test direct access and RPC authorization with each role. Avoid editing managed Auth/Storage/Vault tables or treating old private schema/RPC names as compatibility obligations. New desired SQL and migrations must build the complete application contract from the clean baseline, with deliberate prerequisites for preinstalled extensions.
+Before the first schema slice, specify the private/exposed namespace and role matrix. Existing `public` default privileges can grant newly created tables/sequences/functions to `anon` and `authenticated`; explicitly restrict service-only boundaries and apply RLS to exposed tables. Test direct access and RPC authorization with each role. Avoid editing managed Auth/Storage/Vault tables. The desired SQL and migrations must build the complete application contract from this baseline, with deliberate prerequisites for preinstalled extensions.
 
-The runtime foundation uses isolated synthetic storage, with test-only principals kept out of production. Reusable product persistence is introduced through the reviewed new application chain. Before hosted schema/API activation or live effects, identify target credentials and fence competing consumers; absence of database cron jobs does not establish external deployment ownership.
+The runtime foundation uses isolated synthetic storage, with test-only principals kept out of production. Reusable product persistence is introduced through the reviewed application migration chain. Before hosted schema/API activation or live effects, identify target credentials and fence any competing consumers.
 
 ## Module boundaries
 
@@ -45,7 +45,7 @@ Recheck relevant authority and expected revision inside the transaction that cha
 
 Use resource-specific tokens, explicit scoped consent, PKCE, exact registered callbacks, discovery, current-grant checks and refresh/revocation semantics from [agent-client authorization](../../openspec/specs/agent-client-authorization/spec.md). Supabase login or a Calendar token cannot substitute for this boundary. An authenticated SDK fixture does not prove any named client works.
 
-Account-free requester bootstrap is a pending delta: select the host, obtain a grant for one future request, create exactly one request on retry, then permanently restrict continuation to it. Re-specify this behavior before implementation; the retired draft is reference material. Both CLIs are described in [CLI direction](06_cli.md).
+Account-free requester bootstrap is a pending delta: select the host, obtain a grant for one future request, create exactly one request on retry, then permanently restrict continuation to it. Specify this behavior before implementation. Both CLIs are described in [CLI direction](06_cli.md).
 
 ## Command and query pipeline
 
@@ -77,7 +77,7 @@ Generate receipt, confirmation email and Calendar invitation from confirmed even
 
 ## Jobs, inbox and outbox
 
-Record authenticated provider input durably before acknowledging it. Deduplicate provider IDs and freeze the receiver generation, verified sender/thread binding and selected request/audience. Forwarded links, display names and quoted claims do not confer authority. One transport has one intended consumer; old deployments must be fenced before activation.
+Record authenticated provider input durably before acknowledging it. Deduplicate provider IDs and freeze the receiver generation, verified sender/thread binding and selected request/audience. Forwarded links, display names and quoted claims do not confer authority. One transport has one intended consumer; competing deployments must be fenced before activation.
 
 Atomically publish jobs with domain transitions. Use bounded leases, ownership fencing, recoverable wake-ups and redelivery-safe completion from [durable jobs](../../openspec/specs/durable-jobs/spec.md). Outbound jobs freeze route, recipient and content before dispatch. Verify each provider's actual idempotency window; after uncertainty exceeds that window, reconcile or require an audited recovery decision instead of blind resend.
 
@@ -91,10 +91,10 @@ Photon Spectrum is the selected transport direction. Browser phone/code proof bi
 
 ## Operations and verification
 
-Keep secrets, private text and provider credentials out of tracked evidence and user logs. Provide read-only private diagnostics and guarded audited recovery through separate operator authority. Verify backups with synthetic populated-state restoration into an isolated database. Reconstruct local/preview/release separation and default preview delivery fencing.
+Keep secrets, private text and provider credentials out of tracked evidence and user logs. Provide read-only private diagnostics and guarded audited recovery through separate operator authority. Verify backups with synthetic populated-state restoration into an isolated database. Establish local/preview/release separation and default preview delivery fencing.
 
 Test transactions, grants/RLS, two-host/two-requester isolation, stale decisions, concurrent writes, missing wake-ups, process death, lost provider responses, revoked grants, model limits and safe projections as each slice lands. Fresh provider/device/client evidence is required alongside fixtures. The [implementation plan](04_implementation_plan.md#verification-and-completion) owns completion criteria.
 
 ## Open technical decisions
 
-Runtime persistence/placement, dependency pins/model ID, OAuth implementation/client versions, rule/travel policy, meeting-link/invitation ownership, transport allocation, retention and measurable limits remain decisions with deadlines in the plan. This document does not prescribe old table/RPC names, exact endpoint internals or previous executable commands as compatibility requirements.
+Runtime persistence/placement, dependency pins/model ID, OAuth implementation/client versions, rule/travel policy, meeting-link/invitation ownership, transport allocation, retention and measurable limits remain decisions with deadlines in the plan. This document does not prescribe table/RPC names, exact endpoint internals or executable commands.

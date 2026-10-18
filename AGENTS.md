@@ -2,13 +2,11 @@
 
 This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, reviewable, and aligned with the team's agreed requirements.
 
-## Reconstruction planning boundary
+## Project status
 
-On 2026-10-13 the user authorized local source removal and re-planning only. Application code, SQL/migrations, tests and build tooling are absent. Do not scaffold or implement the replacement until a new explicit implementation request. The previous implementation remains on the `feat/astra-reconstruction` branch (pre-removal recovery point `02e5a8e`); historical OpenSpec checkmarks do not establish current implementation coverage. See the [implementation plan](documentations/technical_specification/04_implementation_plan.md).
+The repository is in its documentation and specification phase. Product, UX, architecture and provider documents and the OpenSpec capability specifications are agreed; application code, SQL, tests and build tooling do not exist yet. Do not scaffold or implement until the team opens a bounded OpenSpec change for the first slice, after the runtime stack decision recorded in the [implementation plan](documentations/technical_specification/04_implementation_plan.md).
 
-The user subsequently explicitly authorized resetting the application schemas on linked Supabase project `anelszynxtvxoxqvzgqt`. That reset is verified complete: application objects, legacy jobs/queue and migration history are empty; Supabase-managed schemas/data remain. Private ignored backups retain the former application state. See [reset verification](documentations/technical_specification/03_provider_setup.md#authorized-application-schema-reset--2026-10-13). This does not authorize replacement implementation.
-
-Before database implementation, recheck the selected empty application baseline; any other populated target still requires restored/reconciled applied history. Never push a new empty-baseline migration chain onto a populated project. The normal schema workflow below applies after a new implementation request and reviewed local migration re-enablement.
+The selected Supabase project is `anelszynxtvxoxqvzgqt`; its application schema is empty. Before the first schema slice, confirm the project, review namespace and default privileges and apply RLS as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
 
 ## Repository layout
 

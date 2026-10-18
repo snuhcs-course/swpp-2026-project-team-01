@@ -1,8 +1,8 @@
 # Frontend Architecture
 
-Date: 2026-10-13
+Date: 2026-10-19
 
-Status: proposed design; implementation absent
+Status: proposed design; implementation pending
 
 Companion: [Page list](../user_experience/04_page_list.md)
 
@@ -10,7 +10,7 @@ Companion: [Page list](../user_experience/04_page_list.md)
 
 Use Next.js App Router, React, TypeScript and npm, with eve as the intended conversation runtime. Retain shadcn/ui and selected AI Elements as UI direction; exact versions/preset compatibility must be freshly pinned in the foundation slice. Apply [Thyme visual direction](../../DESIGN.md). No package, component or runnable route exists yet.
 
-The backend is also rebuilt. The UI depends on client-safe contracts and shared authorized operations, rather than old tables, RPCs or Edge Function URLs. Confirm the separately built web/eve composition before expanding the workspace. Source templates are references; their authentication, persistence and generic tool approval cannot replace product authority.
+The UI depends on client-safe contracts and shared authorized operations, never directly on tables, RPCs or function URLs. Confirm the separately built web/eve composition before expanding the workspace. Source templates are references; their authentication, persistence and generic tool approval cannot replace product authority.
 
 ## Source organization
 

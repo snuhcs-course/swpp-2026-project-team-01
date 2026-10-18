@@ -1,7 +1,7 @@
 # Find Me a Time — User Journeys
 
 Status: Draft for team review\
-Date: 2026-10-13\
+Date: 2026-10-19\
 Basis: [Product requirements](../02_product_requirements.md)
 
 A journey describes a person's goal and experience across channels; a flow describes the steps and decisions within it. This document combines both to explain the proposed experience. [User stories](02_user_stories.md) express the corresponding needs. Requirement and acceptance IDs refer to the PRD; these journeys do not introduce separate behavioral contracts or claim that features are implemented. The [implementation plan](../technical_specification/04_implementation_plan.md) replaces the full application source, including the scheduling backend, while preserving these journeys as required behavior.
@@ -52,7 +52,7 @@ flowchart LR
     B -->|Pending or confirmed outcome| S
 ```
 
-The arrows show communication, not equal permissions: requester interfaces cannot grant host approval or read host-only information. iMessage is a host channel in this release. Email is shown as a requester negotiation channel; it is not a host approval surface in these journeys. The MVP targets iPhone/iMessage hosts and recommends iMessage for everyday scheduling. Agent connections and iMessage linking remain opt-in; hosts can start onboarding in either channel and use web throughout. Private iMessage entry leads through verified browser handoffs before accessing host state. Android-specific flows are deferred; requester links remain account-free without device-based blocking. Photon Spectrum remains the selected iMessage transport direction; the bridge and its application identity mapping must be rebuilt and verified against the new contracts.
+The arrows show communication, not equal permissions: requester interfaces cannot grant host approval or read host-only information. iMessage is a host channel in this release. Email is shown as a requester negotiation channel; it is not a host approval surface in these journeys. The MVP targets iPhone/iMessage hosts and recommends iMessage for everyday scheduling. Agent connections and iMessage linking remain opt-in; hosts can start onboarding in either channel and use web throughout. Private iMessage entry leads through verified browser handoffs before accessing host state. Android-specific flows are deferred; requester links remain account-free without device-based blocking. Photon Spectrum is the selected iMessage transport direction; the bridge and its application identity mapping must be implemented and verified against the contracts.
 
 Remote MCP is the primary agent interface; the CLI serves clients with terminal access. Both use the shared scheduling API. Host MCP access uses OAuth, while requester access stays account-free and request-scoped. The diagram shows intended paths, not verified support for either interface in every named client. OAuth connection and revocation are covered in J-09.
 

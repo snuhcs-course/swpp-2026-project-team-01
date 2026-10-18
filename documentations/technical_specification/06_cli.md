@@ -2,9 +2,9 @@
 
 Status: proposed interfaces; no executable CLI
 
-Date: 2026-10-13
+Date: 2026-10-19
 
-The previous `fmat` and invitation scripts were removed. Their command syntax, exit codes and acceptance results do not describe a current executable. Packaging, names, login/storage strategy and concrete commands must be specified with their owning future changes.
+No executable CLI exists yet. Packaging, names, login/storage strategy and concrete commands must be specified with their owning future changes.
 
 ## Separate authority
 

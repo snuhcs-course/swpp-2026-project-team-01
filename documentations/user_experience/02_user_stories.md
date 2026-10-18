@@ -1,11 +1,11 @@
 # Find Me a Time — User Stories
 
 Status: Draft for team review\
-Date: 2026-10-13\
+Date: 2026-10-19\
 Source: [Product requirements](../02_product_requirements.md)\
 Companion: [User journeys and flows](01_user_journeys.md)
 
-These draft stories are not implementation claims. J IDs reference the companion journeys; FR/AC IDs reference PRD acceptance criteria. PRD decisions remain open; order is not priority. The [implementation plan](../technical_specification/04_implementation_plan.md) rebuilds the full application source, including the scheduling backend, while retaining these user needs and identifiers.
+These draft stories are not implementation claims. J IDs reference the companion journeys; FR/AC IDs reference PRD acceptance criteria. PRD decisions remain open; order is not priority. The [implementation plan](../technical_specification/04_implementation_plan.md) sequences the application build, including the scheduling backend, around these user needs and identifiers.
 
 ## Host setup
 

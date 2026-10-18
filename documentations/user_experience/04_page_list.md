@@ -1,12 +1,12 @@
 # Page list
 
-Date: 2026-10-13
-Status: proposed page design for the pre-launch reconstruction; not an implementation report
+Date: 2026-10-19
+Status: proposed page design; not an implementation report
 Companion: [Frontend architecture](../technical_specification/02_frontend_architecture.md)
 
-This inventory defines the web surfaces for the fresh application, including its rebuilt scheduling backend. The [PRD](../02_product_requirements.md) owns release scope, and the [chat workspace specification](../../openspec/specs/chat-workspaces/spec.md) owns the agreed conversation-first behavior. The single host chat page `/app` and requester route `/booking/[bookingId]` are the selected naming directions; the page designs below remain proposed; no migration of old development links is required. Detailed new behavior must be captured in an OpenSpec change before implementation.
+This inventory defines the web surfaces of the application. The [PRD](../02_product_requirements.md) owns release scope, and the [chat workspace specification](../../openspec/specs/chat-workspaces/spec.md) owns the agreed conversation-first behavior. The single host chat page `/app` and requester route `/booking/[bookingId]` are the selected naming directions; the page designs below remain proposed. Detailed new behavior must be captured in an OpenSpec change before implementation.
 
-The recorded target origin for reconstruction routes below is **`https://release.findmeatime.com`**: host chat is `https://release.findmeatime.com/app`, public intake is `https://release.findmeatime.com/{handle}`, and private continuation is `https://release.findmeatime.com/booking/[bookingId]`. See [deployment setup](../technical_specification/03_provider_setup.md#reconstruction-deployment-origin) for callback and link configuration.
+The target origin for the routes below is **`https://release.findmeatime.com`**: host chat is `https://release.findmeatime.com/app`, public intake is `https://release.findmeatime.com/{handle}`, and private continuation is `https://release.findmeatime.com/booking/[bookingId]`. See [deployment setup](../technical_specification/03_provider_setup.md#deployment-origin) for callback and link configuration.
 
 ## Navigation and page model
 
@@ -25,7 +25,7 @@ Public visitors enter through `/` or a host's `/{handle}` link. Signed-in hosts 
 | P09 | `/booking/[bookingId]` | Request-scoped credential for private content; generic recovery available without prior access | Requester conversation, reviewed edits, optional Calendar availability, candidate selection, current-proposal agreement and status. Offer verified-contact access recovery, alternatives and withdrawal before booking begins. Email and personal-agent continuations return here; after confirmation, show the permitted booking receipt and join link. |
 | P10 | `/connect/authorize` | Authenticated host plus a validated personal-agent OAuth authorization transaction | Identify the client, show requested application permissions and allow grant/deny. Preserve transaction state across sign-in. This is a logical consent surface; final OAuth-server routing is part of backend design. It does not grant calendar access, host admission or meeting approval. |
 
-`/app` is the host's agent chat page. It does not redirect to separate access, setup, inbox, request-detail or settings pages. P04–P07 are retired page IDs; their responsibilities are consolidated into P03, while requester and consent IDs remain stable.
+`/app` is the host's agent chat page. It does not redirect to separate access, setup, inbox, request-detail or settings pages. Page IDs P04–P07 are intentionally unused; their responsibilities belong to P03, while requester and consent IDs remain stable.
 
 - Before admission, show waitlist/invitation controls in the page without private agent history or host operations. Invalid, expired, revoked or consumed invitations never admit another account. Keep sign-out and narrowly authorized grant revocation available.
 - During setup, resume the saved conversation and draft with Calendar connection/selection, scheduling rules, optional iMessage linking and explicit settings review. Show booking/skill links only after server-confirmed readiness.
@@ -68,7 +68,7 @@ These names describe product components, not existing framework APIs. Cards rece
 | Decision and booking status | P03, P09 | Distinguish awaiting agreement/approval, booking, uncertain result, confirmed booking and delivery failure. A receipt appears only for a confirmed calendar event; show final details and **Join meeting** when a valid online meeting URL exists. |
 | Share links / client connection | P03; public handoff in P08 | Copy the valid booking/skill link; inspect or revoke an authorized personal-agent connection. Reading a skill document does not connect or authorize a client. |
 
-The proposed host iMessage link flow uses authenticated phone entry, a six-digit code delivered to that private iMessage sender, and verification in the initiating browser. The old `LINK` command protocol is not a compatibility requirement. An iMessage-first introduction may lead to authenticated browser linking; it grants no private access by itself. The [implementation plan](../technical_specification/04_implementation_plan.md) assigns this proposed browser/proof flow to fresh setup/iMessage changes. Implementation, live delivery and actual Google/iPhone acceptance are pending before main-spec promotion.
+The proposed host iMessage link flow uses authenticated phone entry, a six-digit code delivered to that private iMessage sender, and verification in the initiating browser. An iMessage-first introduction may lead to authenticated browser linking; it grants no private access by itself. The [implementation plan](../technical_specification/04_implementation_plan.md) assigns this proposed browser/proof flow to the setup and iMessage slices. Implementation, live delivery and actual Google/iPhone acceptance are pending before main-spec promotion.
 
 ## Supporting routes and surfaces
 

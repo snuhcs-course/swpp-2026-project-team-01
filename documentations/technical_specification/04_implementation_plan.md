@@ -1,39 +1,31 @@
-# Reconstruction Implementation Plan
+# Implementation Plan
 
-Date: 2026-10-13
-
-Reviewed: 2026-10-15
+Date: 2026-10-19
 
 Status: planning complete for review; **implementation has not started**
 
-## Starting point and scope
+## Scope
 
-Application/agent/server code, scripts, tests, package/build configuration and application SQL were removed from this checkout. The previous snapshot is Git commit `02e5a8e`; external deployments were not reconfigured; the later authorized Supabase application reset is recorded below. Product requirements, original brand assets, agreed capability specs and historical OpenSpec records are retained. The previous implementation's eleven unfinished plans stay on the `feat/astra-reconstruction` branch; no historical checkmark carries forward.
+The [PRD](../02_product_requirements.md) owns FR-01–FR-36 and AC-01–AC-28. Deliver invite-only Google-login hosts, account-free requesters, Google availability/travel checks, requester email, optional linked host iMessage, remote MCP, separate user/admin CLIs and all seven required personal-agent clients, with explicit current host approval, privacy and uncertain-write reconciliation. Private host email and automated post-booking reschedule/cancel remain outside initial release.
 
-Use the user-selected Supabase project **`anelszynxtvxoxqvzgqt`** for the rebuild. [Provider setup](03_provider_setup.md#selected-rebuild-supabase-project) records verified CLI linkage and the subsequent explicit application reset. Application schema/RPC, migration history, legacy queue and scheduled jobs are now empty; managed Auth/Storage/Vault remain. Recheck this clean application baseline before implementation.
+Use Supabase project **`anelszynxtvxoxqvzgqt`**; [provider setup](03_provider_setup.md#supabase-project) records its observed state. Its application schema is empty and managed Auth/Storage/Vault remain. Implementation starts with a bounded OpenSpec change for S1 after the runtime stack decision; do not scaffold packages, install dependencies, generate migrations or add tests before that change exists. Provider effects, deployment and root-domain promotion are separate explicit actions.
 
-The [PRD](../02_product_requirements.md) owns FR-01–FR-36 and AC-01–AC-28. Preserve invite-only Google-login hosts, account-free requesters, Google availability/travel checks, requester email, optional linked host iMessage, remote MCP, separate user/admin CLIs and all seven required personal-agent clients. Preserve explicit current host approval, privacy and uncertain-write reconciliation. Private host email and automated post-booking reschedule/cancel remain outside initial release.
-
-**The original request authorized source cleanup and planning only.** A later explicit application database reset is complete; it does not authorize any implementation slice. Wait for a new explicit implementation request before scaffolding packages, installing dependencies, generating migrations, adding tests or implementing a slice. Provider effects, deployment and root-domain promotion remain separate future actions.
-
-## Clean Supabase baseline and entry gates
-
-The 2026-10-13 catalog audit, repeated on 2026-10-14, confirms zero application relations, functions and enum/domain types, zero migration records, zero scheduled jobs and zero registered queues on the selected project. `public` remains empty and `fmat` is absent. This is an empty **application** baseline: managed schemas, one Google Auth identity, two unread Vault secrets and installed infrastructure extensions remain. [Provider setup](03_provider_setup.md#clean-project-recheck--2026-10-13) owns the full observed inventory and verification limits.
+## Entry gates
 
 | Entry gate | Owner / timing | Required result before proceeding |
 |---|---|---|
-| Implementation authorization | Before S1 | A new explicit request; this review creates no code, SQL chain, dependencies or test fixtures |
+| Implementation authorization | Before S1 | A bounded OpenSpec change for S1 and the recorded stack decision |
 | Synthetic runtime storage | S1 | Isolated disposable storage with no live delivery or production identity bypass; scratch fixtures never become an implicit migration backlog for the selected project |
-| First application migration chain | S2 design / before any remote schema apply | Recheck the empty application baseline; author new desired SQL and generate/review a new chain; keep managed Auth/Storage/Vault intact and account for preinstalled extension prerequisites |
+| First application migration chain | S2 design / before any remote schema apply | Confirm the empty application baseline; author desired SQL and generate/review the chain; keep managed Auth/Storage/Vault intact and account for preinstalled extension prerequisites |
 | Exposure and grants | Before first schema apply, then each schema slice | Review namespace/role/default-privilege matrix, explicit grants/revokes and RLS; test anonymous/authenticated bypass denial because new `public` objects can inherit broad existing defaults |
-| Retained identity and settings | Before S2 hosted acceptance | A preserved Google identity is not an admitted host; verify Google-only login/callbacks and Cloudflare SMTP routing/sender for applicable non-login Auth notifications; create admission/profile/grants only through new authorized operations |
-| Environment and consumer ownership | Before the first remote schema/API activation and each live provider test in S2–S9 | Identify project-bound credentials and callbacks, default previews to no-send, and fence competing old consumers before enabling replacement processing; zero database cron jobs does not prove old deployments/webhooks are inactive |
+| Hosted identity and settings | Before S2 hosted acceptance | An existing Google identity is not an admitted host; verify Google-only login/callbacks and Cloudflare SMTP routing/sender for applicable non-login Auth notifications; create admission/profile/grants only through authorized operations |
+| Environment and consumer ownership | Before the first remote schema/API activation and each live provider test in S2–S9 | Identify project-bound credentials and callbacks, default previews to no-send, and fence any competing consumers before enabling processing |
 
-The recorded PostgreSQL version is 17.6, consistent with local major version 17. The local `config.toml` project ID identifies a disposable local stack; the ignored CLI link identifies the hosted target. It is not a verified hosted configuration export. Local migration/seed execution stays disabled until implementation authorization and reviewed re-enablement. Do not replay old migrations, private backup data, queue definitions or scheduled jobs into the new baseline.
+The hosted project runs PostgreSQL 17.6, consistent with the local major version. The local `config.toml` project ID identifies a disposable local stack; the ignored CLI link identifies the hosted target. Local migration/seed execution stays disabled until the reviewed chain exists.
 
 ## Delivery method
 
-Use one bounded OpenSpec change/topic PR at a time. The names below are proposed work slices, not already-created changes; S1 is proposed after the stack decision. Before each slice, read its PRD/main contracts, resolve the listed decisions and recreate only the necessary pending deltas, consulting the previous implementation's plans on `feat/astra-reconstruction` as reference material. Do not copy an entire old schema/API/runtime or mark it implemented because a prior test passed.
+Use one bounded OpenSpec change/topic PR at a time. The names below are proposed work slices, not already-created changes; S1 is proposed after the stack decision. Before each slice, read its PRD/main contracts, resolve the listed decisions and create only the necessary pending deltas. Do not mark behavior implemented because a fixture passed.
 
 Implement each slice vertically through authorized domain operations, persistence, thin adapters, usable UI, meaningful tests and owning documentation. Record fresh results as they land, then sync/archive only completed verified behavior. Make runtime/security/recovery tests part of their owning slice instead of deferring them to launch. The table expresses delivery dependencies.
 
@@ -41,16 +33,16 @@ Implement each slice vertically through authorized domain operations, persistenc
 
 | Slice | Proposed change | Depends on | Deliverable and exit gate |
 |---|---|---|---|
-| S1 | `reconstruct-runtime-foundation` | New implementation request and stack decision | Pinned builds for the chosen stack, protected conversation/tool boundary, durable replay/restart/terminal recovery proof, deployment/persistence decision and early OAuth/Photon compatibility findings |
-| S2 | `reconstruct-host-admission` | S1; clean-baseline recheck and entry gates | Google-only identity, waitlist, bound invitations, stable handles, grants/RLS, separate invitation admin CLI and controlled transactional delivery |
-| S3 | `reconstruct-host-setup` | S2 | Host Calendar consent/roles, suggestion-first private drafts/analysis, explicit preference review, readiness and share links in `/app` |
-| S4 | `reconstruct-request-lifecycle` | S3 | Account-free intake, contact proof/recovery, optional Google identity/requester Calendar, protected continuation, proposal revisions and closure |
-| S5 | `reconstruct-meeting-feasibility` | S4 | Bounded deterministic calendar/time/rule/travel evaluation, private exceptions, candidates and requester agreement |
-| S6 | `reconstruct-approved-booking` | S5 | Current host approval, reservations, final revalidation, one-event dispatch/reconciliation, consistent receipt/invitations and independent delivery recovery |
-| S7 | `reconstruct-requester-email` | S4, S6 | Initial email intake and verified enrollment, durable input/replies, outgoing-parent continuation, stale/revoked/uncertain-send recovery |
-| S8 | `reconstruct-host-imessage` | S3, S6 | Inline six-digit linking, shared private setup, explicit request selection, attributed review/revision/approval/decline, unlink/restart and optional contact card |
-| S9 | `reconstruct-agent-access` | S2–S8; S1 OAuth findings | Scoped OAuth/MCP, one-request bootstrap, full user CLI parity, both public skill journeys and individual named-client acceptance |
-| S10 | `reconstruct-release-operations` | S1–S9 | Environment/consumer fencing, separate operator diagnostics/recovery, retention/budgets, populated backup restore, all acceptance evidence and reviewed deployment |
+| S1 | `runtime-foundation` | New implementation request and stack decision | Pinned builds for the chosen stack, protected conversation/tool boundary, durable replay/restart/terminal recovery proof, deployment/persistence decision and early OAuth/Photon compatibility findings |
+| S2 | `host-admission` | S1; baseline recheck and entry gates | Google-only identity, waitlist, bound invitations, stable handles, grants/RLS, separate invitation admin CLI and controlled transactional delivery |
+| S3 | `host-setup` | S2 | Host Calendar consent/roles, suggestion-first private drafts/analysis, explicit preference review, readiness and share links in `/app` |
+| S4 | `request-lifecycle` | S3 | Account-free intake, contact proof/recovery, optional Google identity/requester Calendar, protected continuation, proposal revisions and closure |
+| S5 | `meeting-feasibility` | S4 | Bounded deterministic calendar/time/rule/travel evaluation, private exceptions, candidates and requester agreement |
+| S6 | `approved-booking` | S5 | Current host approval, reservations, final revalidation, one-event dispatch/reconciliation, consistent receipt/invitations and independent delivery recovery |
+| S7 | `requester-email` | S4, S6 | Initial email intake and verified enrollment, durable input/replies, outgoing-parent continuation, stale/revoked/uncertain-send recovery |
+| S8 | `host-imessage` | S3, S6 | Inline six-digit linking, shared private setup, explicit request selection, attributed review/revision/approval/decline, unlink/restart and optional contact card |
+| S9 | `agent-access` | S2–S8; S1 OAuth findings | Scoped OAuth/MCP, one-request bootstrap, full user CLI parity, both public skill journeys and individual named-client acceptance |
+| S10 | `release-operations` | S1–S9 | Environment/consumer fencing, separate operator diagnostics/recovery, retention/budgets, populated backup restore, all acceptance evidence and reviewed deployment |
 
 S7/S8 do not depend on each other. OAuth/transport feasibility is investigated in S1 so S9 does not first discover an unsupported client/server combination. Controlled provider checks occur as each adapter lands after the environment/consumer entry gate; S10 assembles evidence and verifies integration. Staging slices does not reduce agreed release scope.
 
@@ -58,7 +50,7 @@ S7/S8 do not depend on each other. OAuth/transport feasibility is investigated i
 
 ### S1 — Runtime foundation
 
-Resolve dependency/template revisions, model/provider entitlement, separately built service composition, persistence, job wake-up and worker placement. Keep synthetic persistence in isolated disposable storage as required by the foundation task 1.3; do not bootstrap the selected hosted project as a shortcut. Build only the minimum protected conversation with a synthetic non-scheduling effect. Derive actor/resource/audience server-side; deny raw runtime endpoints and cross-scope tools. Test stream reconnect, process death after commit/before acknowledgment, exact input retry, lost wake-up, explicit terminal recovery and durable cumulative limits. Preserve the settled numerical [message admission](../../openspec/specs/chat-workspaces/spec.md) and [model execution](../../openspec/specs/model-execution/spec.md) contracts; selecting a model or measuring performance does not change them. Model refusals/configuration/credit failures must be recoverable without fabricated completion.
+Resolve dependency/template revisions, model/provider entitlement, separately built service composition, persistence, job wake-up and worker placement. Keep synthetic persistence in isolated disposable storage; do not bootstrap the selected hosted project as a shortcut. Build only the minimum protected conversation with a synthetic non-scheduling effect. Derive actor/resource/audience server-side; deny raw runtime endpoints and cross-scope tools. Test stream reconnect, process death after commit/before acknowledgment, exact input retry, lost wake-up, explicit terminal recovery and durable cumulative limits. Preserve the settled numerical [message admission](../../openspec/specs/chat-workspaces/spec.md) and [model execution](../../openspec/specs/model-execution/spec.md) contracts; selecting a model or measuring performance does not change them. Model refusals/configuration/credit failures must be recoverable without fabricated completion.
 
 Perform bounded OAuth resource/PKCE/current-grant and Photon receipt/sender/acknowledgment compatibility checks using fixtures first. Record remaining real-provider/client prerequisites explicitly. Do not claim all seven clients or live iMessage pass from these spikes. Introduce only verified build/check commands and minimal CI with no live effects.
 
@@ -66,11 +58,11 @@ Exit: production builds and protected runtime fixtures pass; persistence/placeme
 
 ### S2 — Identity, admission and database baseline
 
-S1 synthetic fixtures use isolated disposable storage. Before S2 product SQL, recheck the now-empty application baseline on `anelszynxtvxoxqvzgqt`, established by the user-authorized reset. Preserve managed data/configuration; do not replay the old recovery migration chain. Create a new desired application schema and generated migration chain; no applied application history now needs restoring. Review namespace placement, current default privileges, explicit grants/revokes, RLS and idempotent prerequisites for installed extensions before deployment. Re-enable local migration execution only for the reviewed new chain; follow pg-delta and rebuild only an identified disposable local database.
+S1 synthetic fixtures use isolated disposable storage. Before S2 product SQL, confirm the empty application baseline on `anelszynxtvxoxqvzgqt` and preserve managed data/configuration. Create the desired application schema and generated migration chain. Review namespace placement, current default privileges, explicit grants/revokes, RLS and idempotent prerequisites for installed extensions before deployment. Enable local migration execution only for the reviewed chain; follow pg-delta and rebuild only an identified disposable local database.
 
-Verify hosted Google-only login settings, exact callbacks and project-bound application credentials; neither the local config nor the surviving Google identity establishes that acceptance. Separate Google sign-in from admission and Calendar permission. The retained account must pass new admission rather than inheriting removed host/profile/grant state. Implement deduplicated waitlist, verified-recipient seven-day invitations, atomic redeem/retry/revoke, stable/reserved handles and publication guards. Provide a distinct environment-bound administrator CLI for issuance/status/revoke/recovery so invited users can complete the journey. Add durable Cloudflare dispatch and truthful uncertainty; no Auth email login.
+Verify hosted Google-only login settings, exact callbacks and project-bound application credentials; the local config does not establish that acceptance. Separate Google sign-in from admission and Calendar permission; an existing Google identity must pass admission like any other. Implement deduplicated waitlist, verified-recipient seven-day invitations, atomic redeem/retry/revoke, stable/reserved handles and publication guards. Provide a distinct environment-bound administrator CLI for issuance/status/revoke/recovery so invited users can complete the journey. Add durable Cloudflare dispatch and truthful uncertainty; no Auth email login.
 
-Preserve and verify hosted Cloudflare custom SMTP for applicable non-login Auth notifications under the [provider setup gate](03_provider_setup.md#cloudflare-email-service). Record configuration, selected sender and controlled notification evidence where applicable before hosted Auth acceptance; keep Google-only login and no fallback sender. Removed local SMTP examples are not evidence of hosted configuration or delivery.
+Verify hosted Cloudflare custom SMTP for applicable non-login Auth notifications under the [provider setup gate](03_provider_setup.md#cloudflare-email-service). Record configuration, selected sender and controlled notification evidence where applicable before hosted Auth acceptance; keep Google-only login and no fallback sender.
 
 Exit: account/admission bypass and two-host isolation negatives pass across direct operations; controlled invitation recipient delivery/redemption is recorded before claiming live delivery. User OAuth/client guards added later must reuse this boundary.
 
@@ -94,7 +86,7 @@ Exit: two-request/two-host isolation, wrong-browser callbacks, recovery without 
 
 ### S5 — Feasibility and negotiation
 
-Normalize timezone/DST/overnight intervals. Filter full meeting intervals against host/requester busy time, hard rules, focus blocks, duration and buffers. Check physical travel on both sides with selected geography/modes, estimate freshness and explicit manual allowances. Resolve online-meeting travel policy before implementing it. Bound evaluation work/provider reads under retained contracts.
+Normalize timezone/DST/overnight intervals. Filter full meeting intervals against host/requester busy time, hard rules, focus blocks, duration and buffers. Check physical travel on both sides with selected geography/modes, estimate freshness and explicit manual allowances. Resolve online-meeting travel policy before implementing it. Bound evaluation work/provider reads under the agreed contracts.
 
 AI can gather details and rank feasible candidates. Host-only exceptions/revisions stay private and cannot waive hard conflicts. Candidate selection/requester agreement bind the current shared proposal; no-match asks for clarification or private host action.
 
@@ -118,7 +110,7 @@ Exit: signed-origin fixtures, sender/thread forgery, replay/restart, old proposa
 
 ### S8 — Host iMessage
 
-Re-specify the retired six-digit binding delta, private setup answer/settings confirmation, request selection/decision context and contact sharing. Authenticate the host/browser, send proof to the intended private sender, verify in the initiating browser and confirm binding. Keep codes outside transcripts/model context; web remains available on failure/skip.
+Specify the six-digit binding delta, private setup answer/settings confirmation, request selection/decision context and contact sharing. Authenticate the host/browser, send proof to the intended private sender, verify in the initiating browser and confirm binding. Keep codes outside transcripts/model context; web remains available on failure/skip.
 
 Use the adapter selected in S1. Freeze explicit request selection per accepted receipt and retain separate setup/private/shared contexts. Current authored reviews establish exact decision context; ambiguous/stale replies require clarification or web review. Unlink stops notifications/actions. Optional native contact sharing reports uncertainty and never promises contact saving or display name.
 
@@ -126,7 +118,7 @@ Exit: unlinked/group/foreign sender, stale/ambiguous replies, revoke, restart an
 
 ### S9 — Personal agents, MCP and user CLI
 
-Implement resource-bound OAuth discovery/registration/PKCE, explicit owner/scopes, exact callbacks, refresh/revocation and current transactional checks. Recreate the one-future-request bootstrap delta; permanently bind the grant after one creation. Keep requesters account-free. Complete typed role operations and separate user CLI without provider/service credentials. Agent suggestions may draft, but never manufacture human settings/proposal confirmation.
+Implement resource-bound OAuth discovery/registration/PKCE, explicit owner/scopes, exact callbacks, refresh/revocation and current transactional checks. Specify the one-future-request bootstrap delta; permanently bind the grant after one creation. Keep requesters account-free. Complete typed role operations and separate user CLI without provider/service credentials. Agent suggestions may draft, but never manufacture human settings/proposal confirmation.
 
 Publish truthful root and per-host skill documents and actual connection/recovery steps. Test both pasted prompts, host setup/configuration, delegated requester coordination, current approval, denial/revocation, stale/private access and MCP/CLI parity separately in Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code. Document client versions and the direct web confirmation fallback where needed.
 
@@ -134,7 +126,7 @@ Exit: every required client's actual journey has independent evidence; missing c
 
 ### S10 — Operations and release
 
-Recheck the environment/consumer gates already required before each earlier activation; S10 is the final integrated audit, not the first consumer-fencing step. Default previews to no live delivery; verify callbacks/domain/HTTPS with current tooling. Extend separate administrator tooling with read-only redacted diagnostics and guarded audited recovery. Define retention/deletion, support ownership, numerical budgets and measured performance/cost targets. Restore synthetic populated data into isolated storage and document rollback/recovery limits. Historical private reset backups are recovery material; they must not be replayed as setup or used to reactivate old jobs/credentials.
+Recheck the environment/consumer gates already required before each earlier activation; S10 is the final integrated audit, not the first consumer-fencing step. Default previews to no live delivery; verify callbacks/domain/HTTPS with current tooling. Extend separate administrator tooling with read-only redacted diagnostics and guarded audited recovery. Define retention/deletion, support ownership, numerical budgets and measured performance/cost targets. Restore synthetic populated data into isolated storage and document rollback/recovery limits.
 
 Only deploy after pending schema dry run/review and authorized environment identification. Promotion/final activation is a later explicit action. Verify all AC rows against the selected deployment and preserve privacy in evidence. Document post-booking boundaries and any supported-version limits. Reconcile/sync/archive only verified capability deltas.
 
@@ -146,8 +138,8 @@ Exit: all AC-01–AC-28 and cross-cutting gates pass; no unresolved authorizatio
 |---|---|---|
 | Runtime/template/dependency/model/persistence/worker selection | S1 exit | Pinned versions, bounded authorized fixtures, failure/recovery results and selected topology |
 | OAuth registration/resource enforcement and Photon adapter fit | S1 spike; S9/S8 final | Negative protocol/transport results and precise later acceptance prerequisites |
-| Isolated S1 fixtures and selected clean application baseline | Before S1 fixture SQL / S2 product SQL | Application reset verified: zero legacy schema/RPC/jobs/queue/migrations; managed data preserved; recheck before new SQL |
-| Namespace/default grants and managed identity/configuration | Before S2 schema/hosted acceptance; each later schema slice | Explicit exposure/RLS/grant matrix, fresh Google-only config evidence and no admission from surviving identity alone |
+| Isolated S1 fixtures and the empty application baseline | Before S1 fixture SQL / S2 product SQL | Empty application schema confirmed on the selected project; managed data preserved; recheck before new SQL |
+| Namespace/default grants and managed identity/configuration | Before S2 schema/hosted acceptance; each later schema slice | Explicit exposure/RLS/grant matrix, Google-only config evidence and no admission from an existing identity alone |
 | Environment/consumer ownership | Before first remote schema/API activation; each live S2–S9 test | Verified target/credentials, no-send previews and one intended active consumer; final re-audit in S10 |
 | Complete human-only exception/parity list and CLI authority | S2 design; each slice | Per-operation permission/confirmation matrix; no hidden administrator mode |
 | Calendar scopes, suggestion defaults and hard/preference classification | Before S3 behavior | Reviewed pending contract and editable recommendation/confirmation semantics |
@@ -163,7 +155,7 @@ If a decision changes product scope or an agreed contract, revise its owning PRD
 
 ## Verification and completion
 
-All implementation tasks and all replacement acceptance rows start **pending**. Add fresh tests as a slice lands. Record commit, exact command/result/date, dependency/client versions, environment and limitations; keep personal attendee text, tokens and raw transcripts out of tracked evidence.
+All implementation tasks and acceptance rows start **pending**. Add tests as a slice lands. Record commit, exact command/result/date, dependency/client versions, environment and limitations; keep personal attendee text, tokens and raw transcripts out of tracked evidence.
 
 | Layer | Required evidence |
 |---|---|
@@ -175,4 +167,4 @@ All implementation tasks and all replacement acceptance rows start **pending**. 
 | Agent clients | Independent two-role/skill-prompt evidence for all seven products plus OAuth/CLI parity |
 | Operations | One intended consumer, preview fencing, private diagnostics, audited recovery, populated restore and measured limits |
 
-Use the [acceptance inventory](07_acceptance_inventory.md) as the coverage map. A fresh evidence ledger is created only when implementation results exist, with no copied historical passes. Do not add application tests or scaffold code during this planning task.
+Use the [acceptance inventory](07_acceptance_inventory.md) as the coverage map. An evidence ledger is created when implementation results exist.

@@ -1,14 +1,14 @@
-# Replacement Acceptance Inventory
+# Acceptance Inventory
 
-Date: 2026-10-13
+Date: 2026-10-19
 
 Status: **all implementation and acceptance evidence pending**
 
-The [PRD](../02_product_requirements.md#9-end-to-end-release-acceptance-scenarios) owns full scenarios; this table maps every AC-01–AC-28 obligation to the [implementation plan](04_implementation_plan.md). Historical source, tests and deployment passes were invalidated as replacement evidence by the reset. No provider/client inventory was reverified here.
+The [PRD](../02_product_requirements.md#9-end-to-end-release-acceptance-scenarios) owns full scenarios; this table maps every AC-01–AC-28 obligation to the [implementation plan](04_implementation_plan.md). Evidence is recorded only when a slice lands.
 
 ## AC-01–AC-28 obligations
 
-| AC | Owning slices | Replacement status | Required scope of fresh evidence |
+| AC | Owning slices | Status | Required evidence |
 |---|---|---|---|
 | AC-01 | S4–S6 | Pending | Account-free clarification to one confirmed event; no missing-field assumptions |
 | AC-02 | S5, S6 | Pending | Both travel legs, unknown/failed routes, explicit allowance, changed travel at dispatch and private projection |

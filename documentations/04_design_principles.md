@@ -1,6 +1,6 @@
 # Find Me a Time — Design Principles
 
-Date: 2026-10-13\
+Date: 2026-10-19\
 Status: Product direction; implementation coverage must be verified separately.
 
 These principles guide new features and reviews across the web app, our conversational agent, personal-agent integrations, and command-line tools. They complement the [one-pager](01_one_pager.md) and [product requirements](02_product_requirements.md). Detailed behavior belongs in capability specifications; implementation changes follow the repository's OpenSpec workflow.
@@ -60,7 +60,7 @@ Both CLIs should use the same domain operations and validation as other authoriz
 
 ### Planned tooling and remaining decisions
 
-The [CLI direction](technical_specification/06_cli.md) defines the future user and administrator surfaces. Previous executables were removed with the source reset; no command or capability parity is currently implemented.
+The [CLI direction](technical_specification/06_cli.md) defines the future user and administrator surfaces. No command or capability parity is implemented yet.
 
 Final executable names, packaging/distribution, the complete command inventories, and administrator authentication are implementation decisions still to be specified. This document establishes the two-CLI direction without inventing commands or asserting unverified support.
 
