@@ -10,7 +10,29 @@ Companion: [Page list](../user_experience/04_page_list.md)
 
 Use Next.js App Router, React, TypeScript and npm, with eve as the intended conversation runtime. Retain shadcn/ui and selected AI Elements as UI direction; exact versions/preset compatibility must be freshly pinned in the foundation slice. Apply [Thyme visual direction](../../DESIGN.md). No package, component or runnable route exists yet.
 
-The UI depends on client-safe contracts and shared authorized operations, never directly on tables, RPCs or function URLs. Confirm the separately built web/eve composition before expanding the workspace. Source templates are references; their authentication, persistence and generic tool approval cannot replace product authority.
+The UI depends on client-safe contracts and shared authorized operations, never directly on tables, RPCs or function URLs. Confirm the separately built web/eve composition before expanding the workspace. [Source templates](#reference-repositories) are references; their authentication, persistence and generic tool approval cannot replace product authority.
+
+## Reference repositories
+
+The implementation copies one base template and builds Find Me a Time on top of it; the other repositories are read for specific patterns only. None is a dependency or compatibility boundary. Pin each reviewed revision in the foundation slice, record source commits in the implementing pull request and preserve upstream license notices on copied code. Keep npm and pin a tested dependency set rather than copying a template's lockfile or floating ranges.
+
+### Base template
+
+Copy the **eve chat template** as the base. It already matches the agreed stack (Next.js App Router, React, TypeScript, shadcn/ui, eve as a separately built service composed through root `vercel.ts`), tracks current eve releases, and is small enough (about 90 TypeScript files, one `apps/web` app) that replacing its identity and persistence is less work than removing another template's product features. Its starter mode is a shared password with browser-local chats and a shared memory document; its production mode is Sign in with Vercel plus Neon and Upstash. Replace both with Supabase Auth and our durable domain storage before any real host data enters the app. Route authentication alone does not enforce per-session ownership; our actor/resource/audience bindings do.
+
+OpenInstinct was considered as the base and rejected: it is a complete product (about 440 TypeScript files) whose centre is a Kernel cloud-browser subagent, an encrypted password vault, Stripe Link purchases, Linq iMessage and Better Auth on Neon, with pnpm and Turbo. Most of it would be deleted, and its eve pin (0.66.3) is older than the chat template's. The personal-agent template is Nuxt/Vue and the memory agent template has no web UI, so neither can be the base.
+
+### Pattern references
+
+| Reference | Use for | Do not adopt |
+|---|---|---|
+| [eve chat template](https://github.com/vercel/eve/tree/main/apps/templates/eve-chat-template) | Base copy: root `agent/`, `apps/web/`, `useEveAgent` client integration, stored stream events and session cursors for `/chat/[id]` resume, streaming and message rendering | Shared password identity and its shared memory/connection grants, Sign in with Vercel, Neon/Upstash, unrestricted tools, pnpm lockfile |
+| [OpenInstinct](https://github.com/Merit-Systems/OpenInstinct) | Closest shipped shape to ours on Next.js 16 + eve: eve channel for iMessage with phone-verified users mapped to accounts, user-scoped Google OAuth through a connector for Calendar/Gmail/Contacts, scheduled runs, per-user memory slots with revision checks and bounded records, server-side request scoping, repository `AGENTS.md` conventions | Kernel browser subagent, password vault and autofill, Stripe Link wallet, Linq transport (we use Photon Spectrum), Better Auth/Neon/Blob, AI Gateway default, Vercel Pro cron dependency |
+| [personal-agent template](https://github.com/vercel-labs/personal-agent-template) (also [in the eve monorepo](https://github.com/vercel/eve/tree/main/apps/templates/personal-agent-template) with Sendblue iMessage) | Account/channel linking between browser and messaging, internal API between web and agent services, user-approved `save_memory` proposals, durable approval on write tools | Nuxt/Vue frontend, Better Auth, Sendblue/Slack/Linear integrations, personal-assistant privileges |
+| [eve memory agent template](https://github.com/vercel-labs/eve-memory-agent-template) | Smallest example of eve memory slots: separate per-user and per-group memories keyed to verified channel identity, recalled before each turn, with instructions on when the model may save | Slack transport, Vercel Blob/Sandbox storage, no web UI to reuse |
+| [Vercel chatbot](https://github.com/vercel/chatbot) | Message and composer interactions, responsive polish, empty/loading/error states and browser-test patterns | Auth.js, a second user database, Neon/Blob provisioning, guest accounts, public sharing and uploads, generic artifacts, model picker |
+
+Memory slots in these templates let the model write durable facts about a user; in Find Me a Time, scheduling policy is written only through confirmed settings commands, so any memory slot holds non-authoritative context at most. No reference supplies email delivery or the Photon Spectrum iMessage transport, and none overrides the no-sidebar [workspace contract](../../openspec/specs/chat-workspaces/spec.md).
 
 ## Source organization
 

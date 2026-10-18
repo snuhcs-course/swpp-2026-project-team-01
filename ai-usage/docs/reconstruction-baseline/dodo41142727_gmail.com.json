@@ -1,0 +1,218 @@
+{
+  "branch": "docs/reconstruction-baseline",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:1ef1b869-7a91-4708-a8ac-e53883d2712b": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 215466,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 34,
+          "cache_read": 1656174,
+          "cache_write_5m": 103450,
+          "cache_write_1h": 0,
+          "output": 11185,
+          "reasoning": 0
+        },
+        "claude-fable-5-1": {
+          "input": 200,
+          "cache_read": 1250215,
+          "cache_write_5m": 143321,
+          "cache_write_1h": 0,
+          "output": 11915,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T19:32:37.755Z",
+      "last": "2026-10-18T19:44:55.710Z"
+    },
+    "claude:f03fa0a1-95b4-4dc2-9e37-96c6ac7c9337": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 169088,
+      "models": {
+        "claude-fable-5-1": {
+          "input": 844,
+          "cache_read": 19903980,
+          "cache_write_5m": 105305,
+          "cache_write_1h": 0,
+          "output": 45750,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T18:17:24.855Z",
+      "last": "2026-10-18T19:43:29.099Z"
+    },
+    "claude:f03fa0a1-95b4-4dc2-9e37-96c6ac7c9337/agent-ako-retranslate-a-805d41e73a0bbe91": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-haiku-5-5": {
+          "input": 8,
+          "cache_read": 128206,
+          "cache_write_5m": 96516,
+          "cache_write_1h": 0,
+          "output": 8,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T19:38:49.448Z",
+      "last": "2026-10-18T19:39:02.204Z"
+    },
+    "claude:f03fa0a1-95b4-4dc2-9e37-96c6ac7c9337/agent-ako-retranslate-b-1b0c9d4fcc0a10f4": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-haiku-5-5": {
+          "input": 4,
+          "cache_read": 55667,
+          "cache_write_5m": 86391,
+          "cache_write_1h": 0,
+          "output": 8,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T19:38:49.832Z",
+      "last": "2026-10-18T19:39:13.998Z"
+    },
+    "claude:f03fa0a1-95b4-4dc2-9e37-96c6ac7c9337/agent-ako-retranslate-c-7ec88904e4d1324c": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-haiku-5-5": {
+          "input": 4,
+          "cache_read": 55672,
+          "cache_write_5m": 93440,
+          "cache_write_1h": 0,
+          "output": 8,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T19:38:49.490Z",
+      "last": "2026-10-18T19:39:54.065Z"
+    },
+    "claude:f03fa0a1-95b4-4dc2-9e37-96c6ac7c9337/agent-ako-sonnet-a-4c10d18ce75da906": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 24,
+          "cache_read": 1041319,
+          "cache_write_5m": 131992,
+          "cache_write_1h": 0,
+          "output": 337,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T19:40:11.626Z",
+      "last": "2026-10-18T19:43:50.397Z"
+    },
+    "claude:f03fa0a1-95b4-4dc2-9e37-96c6ac7c9337/agent-ako-sonnet-b-947631fd8c58ecc6": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 10,
+          "cache_read": 353703,
+          "cache_write_5m": 120289,
+          "cache_write_1h": 0,
+          "output": 357,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T19:40:12.291Z",
+      "last": "2026-10-18T19:43:18.597Z"
+    },
+    "claude:f03fa0a1-95b4-4dc2-9e37-96c6ac7c9337/agent-ako-sonnet-c-b192ac6d45884354": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 26,
+          "cache_read": 1146097,
+          "cache_write_5m": 141162,
+          "cache_write_1h": 0,
+          "output": 119,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T19:40:11.765Z",
+      "last": "2026-10-18T19:44:25.019Z"
+    },
+    "claude:f03fa0a1-95b4-4dc2-9e37-96c6ac7c9337/agent-ako-translate-a-1634064c17fa2e68": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-haiku-5-5": {
+          "input": 8,
+          "cache_read": 147641,
+          "cache_write_5m": 93354,
+          "cache_write_1h": 0,
+          "output": 14,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T18:23:12.834Z",
+      "last": "2026-10-18T18:23:59.954Z"
+    },
+    "claude:f03fa0a1-95b4-4dc2-9e37-96c6ac7c9337/agent-ako-translate-b-57982cd88874ab96": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-haiku-5-5": {
+          "input": 10,
+          "cache_read": 232007,
+          "cache_write_5m": 109140,
+          "cache_write_1h": 0,
+          "output": 17001,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T18:23:13.060Z",
+      "last": "2026-10-18T18:24:43.121Z"
+    },
+    "claude:f03fa0a1-95b4-4dc2-9e37-96c6ac7c9337/agent-ako-translate-c-8f97f7032ec8613f": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-haiku-5-5": {
+          "input": 14,
+          "cache_read": 345853,
+          "cache_write_5m": 107688,
+          "cache_write_1h": 0,
+          "output": 16,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T18:23:13.053Z",
+      "last": "2026-10-18T18:24:20.788Z"
+    },
+    "claude:f03fa0a1-95b4-4dc2-9e37-96c6ac7c9337/agent-ako-translate-d-509a4ff5b790c34a": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-haiku-5-5": {
+          "input": 6,
+          "cache_read": 147181,
+          "cache_write_5m": 94167,
+          "cache_write_1h": 0,
+          "output": 21,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T18:23:13.546Z",
+      "last": "2026-10-18T18:23:59.285Z"
+    }
+  }
+}
