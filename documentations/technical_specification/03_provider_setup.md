@@ -12,13 +12,38 @@ Vercel is the hosting direction. Cloudflare remains registrar/authoritative DNS 
 
 ## Supabase project
 
-Use Supabase project **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, region **`us-east-2`**). The checkout is CLI-linked with Supabase CLI 2.119.0; link metadata is ignored by Git. Application and provider credentials have not been verified against it.
+Use Supabase project **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, region **`us-east-2`**) as the team's shared project; see [Environments and collaboration](#environments-and-collaboration) for how it is used. Link each clone with `supabase link --project-ref anelszynxtvxoxqvzgqt` using Supabase CLI 2.119.0; link metadata is ignored by Git. Application and provider credentials have not been verified against it.
+
+**`mriseqztcwmezvtawnbo`** (**FindMeATime2**, `us-west-1`, PostgreSQL 17.11) exists in the same organization and is reserved as the future release project. It currently holds unrelated contents and must be emptied before use; do not link to it for development.
 
 The project's application schema is empty: `public` contains no application relations, functions or types, and there are no application migration records, scheduled jobs or registered queues. Supabase-managed Auth, Storage, Realtime, Vault, network, cron and queue infrastructure remain, with one Google Auth identity, no Storage objects and two Vault secrets whose purpose must be validated before use. PostgreSQL is **17.6**, matching the local major version. Installed extensions are `pg_cron` 1.6.4, `pg_net` 0.20.4, `pgmq` 1.5.1, `pgcrypto` 1.3, `pg_stat_statements` 1.11, `supabase_vault` 0.3.1, `uuid-ossp` 1.1 and `plpgsql` 1.0; these are prerequisites, not evidence that application queues, workers or permissions exist.
 
 Objects created by `postgres` or `supabase_admin` in `public` currently inherit table/sequence privileges and function execution for `anon`, `authenticated` and `service_role`. Before the first schema deployment, review namespace and default privileges and declare the intended grants, revokes and RLS explicitly. The existing Google identity does not establish host admission, Calendar grants or channel access; create those only through authorized application operations.
 
 The local `config.toml` has PostgreSQL major 17, pg-delta enabled, migrations/seeds disabled and no declarative `schema_paths`. Its `project_id` is a local-stack identifier, not the hosted project ref, and its Auth defaults are not evidence of hosted Google-only configuration. Use the [pg-delta workflow](../../AGENTS.md#supabase-schema-changes) for the first schema slice: create desired schemas, generate and review migrations, verify the chain on a disposable local database, and push to the hosted project only after a reviewed dry run and explicit environment identification.
+
+## Environments and collaboration
+
+Decided 2026-10-19. The team starts with **one shared environment plus personal sandboxes**; a separate release environment is added later under the trigger below. Branching follows [GitHub Flow](../../AGENTS.md#git-workflow-and-pull-requests): `main` is the only long-lived branch.
+
+| Layer | Supabase | Application runtime | Who changes it |
+|---|---|---|---|
+| Personal sandbox | Each teammate's own free project in their personal Supabase organization | `eve dev` and `next dev` on the teammate's machine; eve keeps conversation state in the local `.eve/.workflow-data` directory, no Docker required | The teammate, freely |
+| Shared | **FindMeATime** `anelszynxtvxoxqvzgqt` | Vercel **Production** deployment of `main`; pull requests get Vercel **Preview** deployments against the same project | CI on merge to `main`; nobody by hand |
+| Release | **FindMeATime2** `mriseqztcwmezvtawnbo`, after it is emptied | Separate Vercel production target | Not yet in use |
+
+Schema changes flow in one direction:
+
+1. A teammate edits the desired SQL under `supabase/schemas/` on a topic branch.
+2. Generating the migration with pg-delta needs Docker for its shadow database. A teammate whose machine has Docker generates and commits the migration in the same pull request; the full `supabase start` stack is not required for generation.
+3. Teammates apply the branch's migrations to their own sandbox with `supabase db push` and reset the sandbox with `supabase db reset --linked` when switching branches or when history diverges. Shared fixtures live in `supabase/seed.sql` so a reset restores them.
+4. After review and merge, CI pushes the migrations to the shared project. This CI job is introduced with the first schema slice.
+
+Rules for the shared project: never change its schema through Studio or the SQL editor; `supabase db diff --linked` must stay empty against the committed migrations. Its data is disposable until the release split, so a `supabase db reset --linked` after a team announcement is acceptable. Application messaging is denied outside the production deployment, as the [messaging-environments contract](../../openspec/specs/messaging-environments/spec.md) requires, so Preview deployments cannot send email or iMessage.
+
+Configuration: share the shared project's URL and keys through the team's password manager, never through Git; `.env.example` lists the variable names. Scope Vercel environment variables by Production and Preview. Register `http://localhost:3000/**` and each teammate's sandbox callback in the Auth redirect allowlist and the Google OAuth client so sign-in works locally.
+
+Split a release environment **before** the first of these happens: an external host connects a real Google Calendar, real email or iMessage delivery is enabled for people outside the team, or data must survive schema changes. Until then there is nothing to protect, and one environment is simpler to keep consistent.
 
 
 ## Google identity and Calendar

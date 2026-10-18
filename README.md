@@ -10,7 +10,7 @@ Domain: [findmeatime.com](https://findmeatime.com) · SNU SWPP Project Team 01
 
 Read the [one-pager](documentations/01_one_pager.md), the [PRD](documentations/02_product_requirements.md), then the [implementation plan](documentations/technical_specification/04_implementation_plan.md). The [documentation index](documentations/README.md) lists every document.
 
-Selected Supabase project: **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, `us-east-2`). Its application schema is empty and the first schema slice starts from it; see [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project).
+Shared Supabase project: **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, `us-east-2`). Teammates develop against personal Supabase projects and local `eve dev`; the shared project tracks `main` through CI, and a release environment is split off before the first external user. See [environments and collaboration](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration).
 
 ## Repository layout
 

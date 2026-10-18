@@ -1,6 +1,6 @@
 # Supabase
 
-The selected project is **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, `us-east-2`), linked with Supabase CLI **2.119.0**. Link metadata is ignored by Git. Its application schema is empty: PostgreSQL 17 with Supabase-managed Auth, Storage, Vault, cron and queue infrastructure and no application tables, functions, migrations or scheduled jobs. See [provider setup](../documentations/technical_specification/03_provider_setup.md#supabase-project) for the observed state and prerequisites.
+The shared project is **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, `us-east-2`), linked with Supabase CLI **2.119.0**. Link metadata is ignored by Git. Teammates develop against personal projects and the shared project receives migrations only from CI; see [environments and collaboration](../documentations/technical_specification/03_provider_setup.md#environments-and-collaboration). Its application schema is empty: PostgreSQL 17 with Supabase-managed Auth, Storage, Vault, cron and queue infrastructure and no application tables, functions, migrations or scheduled jobs. See [provider setup](../documentations/technical_specification/03_provider_setup.md#supabase-project) for the observed state and prerequisites.
 
 The local `config.toml` targets PostgreSQL major 17 with pg-delta enabled and migration/seed execution disabled; its `project_id` identifies the disposable local stack, not the hosted project, and its Auth defaults are not a hosted configuration export.
 

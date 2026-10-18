@@ -150,6 +150,7 @@ Exit: all AC-01–AC-28 and cross-cutting gates pass; no unresolved authorizatio
 | Spectrum recipient/line policy, private-channel confirmations/profile | Before S8 effects | Reviewed pending deltas and real-device acceptance plan |
 | Named client versions, setup and confirmation attribution | S1 discovery; before S9 acceptance | Separate plan/evidence per required product and both roles |
 | Retention/deletion, additional measured targets and support/restore ownership | Before S10 release | Runbooks, measurements and controlled restoration evidence |
+| Release environment split | Before the first external host, real external messaging or data that must survive schema changes | Emptied release project, production-only credentials and the shared project demoted to development; see [environments and collaboration](03_provider_setup.md#environments-and-collaboration) |
 
 If a decision changes product scope or an agreed contract, revise its owning PRD/spec delta explicitly before implementation. Pending drafts remain pending; settled expiry/language/approval rules are not reopened silently.
 

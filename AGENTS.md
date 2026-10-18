@@ -6,7 +6,7 @@ This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, r
 
 The repository is in its documentation and specification phase. Product, UX, architecture and provider documents and the OpenSpec capability specifications are agreed; application code, SQL, tests and build tooling do not exist yet. Do not scaffold or implement until the team opens a bounded OpenSpec change for the first slice, after the runtime stack decision recorded in the [implementation plan](documentations/technical_specification/04_implementation_plan.md).
 
-The selected Supabase project is `anelszynxtvxoxqvzgqt`; its application schema is empty. Before the first schema slice, confirm the project, review namespace and default privileges and apply RLS as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
+The shared Supabase project is `anelszynxtvxoxqvzgqt`; its application schema is empty. Before the first schema slice, review namespace and default privileges and apply RLS as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
 
 ## Repository layout
 
@@ -155,5 +155,7 @@ This repository uses **pg-delta**, enabled by `[experimental.pgdelta]` in `supab
 5. Commit the schema files, generated migration, and any `config.toml` change together. Treat existing migrations as history; make a new migration for later changes.
 
 Only deploy migrations to a remote Supabase project after the team has linked and identified the intended environment. Review the pending migrations with `supabase db push --dry-run` before `supabase db push`.
+
+Team environments: each teammate develops against their own personal Supabase project and local `eve dev`; the shared project `anelszynxtvxoxqvzgqt` receives migrations only from CI on merge to `main` and is never edited through Studio. Generating a migration needs Docker, so a teammate with Docker generates it inside the same pull request. See [environments and collaboration](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration) for the full structure and the trigger for adding a release environment.
 
 References: [Diff engines](https://supabase.com/docs/guides/local-development/diff-engines) and [Declarative database schemas](https://supabase.com/docs/guides/local-development/declarative-database-schemas).
