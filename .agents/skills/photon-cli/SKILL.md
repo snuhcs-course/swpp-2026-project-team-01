@@ -1,12 +1,25 @@
 ---
 name: photon-cli
 description: >
-  Set up and operate Photon through the photon CLI (alias pho). Use for account
-  authentication, project provisioning, Spectrum credentials, iMessage lines,
-  users, platforms, profiles, environment configuration, and billing management.
-  When asked to set up a project, execute the CLI workflow and verify the result.
-  This skill covers project operations; use Spectrum SDK documentation for
-  application message handlers.
+  Use when working with the Photon CLI — the `photon` binary (alias `pho`). Reach for this skill to
+  set up / bootstrap Photon for a user and run it yourself non-interactively (create a project, capture
+  the id + secret, verify) — when the user says "set this up for me," that is your job to do, not hand
+  back. Also covers running any CLI command, authenticating (device-authorization login / logout /
+  whoami / auth status), managing projects (create, show, list, rename, regenerate the Spectrum API
+  secret, delete, open in the dashboard), managing Spectrum resources (lines, users, platforms, profile,
+  avatar), resolving config and environment (PHOTON_PROJECT_ID, PHOTON_TOKEN, PHOTON_API_HOST,
+  credentials storage, multi-backend), and billing/upgrades (plans, checkout, manage, `projects upgrade`).
+  Answers operational questions like "how many lines do I have?", "what's my project secret?", "how do I
+  make this a business line?", and "how do I point the CLI at a different backend?".
+  This is the entry point; the happy-path setup is right below — consult the topic files for full reference.
+  Keywords: photon, pho, photon cli, photon-ai cli, @photon-ai/cli, photon dashboard, command line,
+  terminal, login, device authorization, oauth device flow, logout, whoami, auth status, credentials,
+  PHOTON_PROJECT_ID, PHOTON_TOKEN, PHOTON_API_HOST, PHOTON_CONFIG_DIR, projects, create project,
+  bootstrap, project id, project secret, regenerate-secret, rotate secret, check-phone, upgrade, billing,
+  plans, checkout, stripe, manage, portal, free tier, pro, business, enterprise, dedicated line, spectrum,
+  lines, add line, imessage line, users, invite, platforms, enable, disable, profile, avatar, ping, env,
+  config, json output, api-host, multi-backend, backend, bun, commander, eden, dashboard-api,
+  quickstart, agent setup, automated setup, non-interactive, scriptable bootstrap, set up photon.
 license: MIT
 metadata:
   author: photon-hq
@@ -17,12 +30,7 @@ metadata:
 
 `photon` (alias `pho`) is a typed terminal UI for the **Photon Dashboard**. Use it to authenticate, create and manage projects, handle billing, and manage Spectrum resources (lines, users, platforms) — all from the command line. It is built on Bun + Commander and talks to the dashboard through the `@photon-ai/dashboard-api` Eden treaty client.
 
-Resource commands generally accept `--json` for machine-readable output and
-resolve their target backend, token, and project from flags or environment
-variables (see [`environment.md`](./environment.md)). This repository currently
-uses Photon CLI 2.2.0. Check the exact command's `--help` before scripting it:
-for example, `projects create`, `projects show`, `projects secret`, and
-`spectrum lines list` support `--json`, while `whoami` does not.
+Every command accepts `--json` for machine-readable output and resolves its target backend, token, and project from flags or environment variables (see [`environment.md`](./environment.md)).
 
 ```bash
 photon login                 # authenticate (opens the browser, waits for approval)
@@ -47,7 +55,7 @@ This is the whole thing. Plain, non-interactive, `--json` everywhere — drive i
 photon --version || bun add -g @photon-ai/cli      # or: npm i -g @photon-ai/cli
 
 # 1. Auth check. If whoami names the user, there is ZERO human involvement from here.
-photon whoami || photon login --no-browser  # login: hand the user the URL + code, wait for approval
+photon whoami --json || photon login --no-browser  # login: hand the user the URL + code, wait for approval
 
 # 2. Bootstrap a project (free tier — no card, nothing charged). Capture the id.
 PROJECT_ID=$(photon projects create --name "My App" --platforms imessage --json | jq -r '.id')

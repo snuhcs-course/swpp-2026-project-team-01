@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "agentmail-cli": {
+      "source": "agentmail-to/agentmail-skills",
+      "sourceType": "github",
+      "skillPath": "agentmail-cli/SKILL.md",
+      "computedHash": "690a2b40edc58995ebd0121bf0ec115de2987fee7321654a47d0226b6ae63675"
+    },
     "ai-elements": {
       "source": "vercel/ai-elements",
       "sourceType": "github",
@@ -25,11 +31,29 @@
       "skillPath": "skills/migrate-radix-to-base/SKILL.md",
       "computedHash": "e1f2030ee5059be3dff0812ca0e4b995ee9fa3132176f049ebe6c90346a6755e"
     },
+    "photon-cli": {
+      "source": "photon-hq/skills",
+      "sourceType": "github",
+      "skillPath": "skills/photon-cli/SKILL.md",
+      "computedHash": "cd3aa827890a716bec483664c24bb6af733be88f860edd395ac453c1e1802182"
+    },
     "shadcn": {
       "source": "shadcn/ui",
       "sourceType": "github",
       "skillPath": "skills/shadcn/SKILL.md",
-      "computedHash": "da388f632cd83783c02967446e21941c9ee8291ccb43ba74c23f7d4e9b7c298c"
+      "computedHash": "b864a958765563321f485a96f4d59c0bb6539f4286ab6d8b8b66895b7ebd302d"
+    },
+    "supabase": {
+      "source": "supabase/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/supabase/SKILL.md",
+      "computedHash": "211141fd078b4b3645803868528d54221bc7755d24d5c8af45a366785c151dba"
+    },
+    "supabase-postgres-best-practices": {
+      "source": "supabase/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/supabase-postgres-best-practices/SKILL.md",
+      "computedHash": "e14e276241805c97dbcfe40dcbea1a3035269cc7293cac4b1832dda41a835e60"
     },
     "vercel-cli": {
       "source": "vercel/vercel",
