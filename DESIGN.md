@@ -181,7 +181,7 @@ Use brief 120–180ms color and opacity transitions. Preserve a stable reading p
 
 ## Proposed implementation mapping
 
-Use the shared stylesheet, root layout and component recipes as implementation owners once the foundation slice creates them. Preserve the selected Next.js, Tailwind/shadcn and accessible conversation UI direction, with dependency versions/preset chosen in the foundation slice.
+Use the shared stylesheet, root layout and component recipes as implementation owners once the foundation change creates them. Preserve the selected Next.js, Tailwind/shadcn and accessible conversation UI direction, with dependency versions/preset chosen in the foundation slice.
 
 Map canvas/ink to background/foreground, surface to card/popover, action olive/ivory to primary roles, soft wash to secondary/muted/accent, decorative line to border, field boundary to input and focus to ring. Keep additional hover/pressed/warning/success roles explicit. Apply the radius scale deliberately, load fonts before switching family, and keep the decorative paper layer separate from clean controls/content.
 

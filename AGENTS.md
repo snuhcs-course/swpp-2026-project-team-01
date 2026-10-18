@@ -4,9 +4,9 @@ This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, r
 
 ## Project status
 
-The repository is in its documentation and specification phase. Product, UX, architecture and provider documents and the OpenSpec capability specifications are agreed; application code, SQL, tests and build tooling do not exist yet. Do not scaffold or implement until the team opens a bounded OpenSpec change for the first slice, after the runtime stack decision recorded in the [implementation plan](documentations/technical_specification/04_implementation_plan.md).
+The repository is in its documentation and specification phase. Product, UX, architecture and provider documents and the OpenSpec capability specifications are agreed; application code, SQL, tests and build tooling do not exist yet. Do not scaffold or implement until the team opens a bounded OpenSpec change for the first change, after the runtime stack decision is recorded.
 
-The shared Supabase project is `anelszynxtvxoxqvzgqt`; its application schema is empty. Before the first schema slice, review namespace and default privileges and apply RLS as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
+The shared Supabase project is `anelszynxtvxoxqvzgqt`; its application schema is empty. Before the first schema change, review namespace and default privileges and apply RLS as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
 
 ## Repository layout
 
@@ -66,6 +66,10 @@ If product documents and capability specs disagree, resolve the discrepancy expl
 OpenSpec validation checks artifact structure and specification consistency; it does not prove the implementation works. Run relevant automated tests and review the code before treating a change as complete. Keep `openspec/config.yaml`, specifications, change artifacts, and generated project skills in Git.
 
 Reference: [OpenSpec quickstart](https://openspec.dev/docs/quickstart).
+
+## Korean translations
+
+`ko/` mirrors the English documents as review translations for the team; the English documents are authoritative. Do not read, search or quote `ko/` unless the user asks for a translation or names a Korean file. The root `.ignore` hides `ko/` from ripgrep-based search, and the project settings ask before a file under `ko/` is read. When an English document changes, regenerate its Korean mirror from the English source instead of editing the Korean file by hand, keep the first-line banner that names the source, and keep headings, tables, links and Mermaid blocks structurally identical.
 
 ## Git branch conventions
 

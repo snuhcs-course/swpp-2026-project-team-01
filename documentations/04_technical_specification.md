@@ -54,4 +54,4 @@ Deterministic calendar, rule and travel checks filter candidates before AI ranki
 
 ## Detailed design owners
 
-[Backend architecture](technical_specification/01_backend_architecture.md) owns domain and effect design. [Frontend architecture](technical_specification/02_frontend_architecture.md) owns source organization, UI state and streaming. [Provider setup](technical_specification/03_provider_setup.md) owns environment prerequisites. [Implementation plan](technical_specification/04_implementation_plan.md) owns delivery gates; the [acceptance inventory](technical_specification/07_acceptance_inventory.md) maps AC-01–AC-28.
+[Backend architecture](technical_specification/01_backend_architecture.md) owns domain and effect design. [Frontend architecture](technical_specification/02_frontend_architecture.md) owns source organization, UI state and streaming. [Provider setup](technical_specification/03_provider_setup.md) owns environment prerequisites. The [PRD](02_product_requirements.md#9-end-to-end-release-acceptance-scenarios) owns AC-01–AC-28 and the rules for the evidence that closes them.

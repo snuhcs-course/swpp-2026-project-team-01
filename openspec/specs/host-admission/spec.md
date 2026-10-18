@@ -6,7 +6,7 @@ Let anyone with a Google account become a calendar host through open sign-up, ga
 ## Requirements
 
 ### Requirement: Open host sign-up
-Completing Google sign-in SHALL create exactly one active host account per Google identity without any waitlist, invitation, or approval step. Sign-in alone SHALL NOT publish a public booking profile.
+Completing Google sign-in SHALL create exactly one active host account per Google identity without any waitlist, invitation, or approval step, whether or not the Calendar scopes requested on the same consent screen were granted. Sign-in alone SHALL NOT publish a public booking profile.
 
 #### Scenario: First sign-in
 - **WHEN** a Google identity completes sign-in for the first time

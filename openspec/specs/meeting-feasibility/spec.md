@@ -62,6 +62,17 @@ Preference exceptions SHALL require an explicit host decision, remain bound to a
 - **WHEN** no candidate satisfies a private preference
 - **THEN** the host receives private exception/revision controls and requester output omits rule or exception reasoning
 
+### Requirement: Weekly meeting load preference
+A confirmed weekly meeting limit SHALL be a host preference, not a hard constraint. The count for a week SHALL include confirmed bookings and the calendar events the host has not excluded as note-like, grouped by week in the host's timezone. When a candidate's week already holds the limit, candidates from weeks below the limit SHALL be offered first, and the host SHALL be able to waive the limit for one request through the existing private exception controls.
+
+#### Scenario: Week at the limit
+- **WHEN** the requested window spans a week that already holds the limit and a later week below it
+- **THEN** candidates from the later week are offered first and requester output explains nothing about the limit
+
+#### Scenario: Only full weeks
+- **WHEN** every feasible candidate falls in a week at or above the limit
+- **THEN** the host receives the private exception control and no candidate is offered until the host waives the limit or the requester widens the window
+
 ### Requirement: Versioned asynchronous results
 Calendar, travel, and model results SHALL carry relevant request/rule context and SHALL be discarded or recomputed when that context changes before persistence. AI SHALL only rank candidates that pass deterministic checks.
 

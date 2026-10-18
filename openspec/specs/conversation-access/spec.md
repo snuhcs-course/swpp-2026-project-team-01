@@ -18,11 +18,15 @@ The service SHALL verify the actor, resource, audience and current grant before 
 - **THEN** the operation is denied even if the runtime previously accepted that participant
 
 ### Requirement: Separate discussion audiences
-Host setup, host-private request discussion and shared requester discussion SHALL use separate authorized contexts and tool permissions. Switching the visible discussion SHALL not merge their histories or memory.
+Host setup, host-private request discussion and shared requester discussion SHALL use separate authorized contexts. A tool that an audience must not use SHALL NOT be registered in that audience's context, so that instructions are never the only barrier; a shared tool SHALL derive the actor from the verified session and return only that audience's projection. Switching the visible discussion SHALL not merge their histories or memory.
 
 #### Scenario: Host switches to shared discussion
 - **WHEN** a host selects the shared discussion after a private review
 - **THEN** only shared-safe history and operations are supplied to that context
+
+#### Scenario: Requester asks for host data
+- **WHEN** a requester session asks the assistant for the host's calendar contents, rules or exception reasons
+- **THEN** no tool able to read them exists in that context, nothing is read, and the assistant answers within the requester projection
 
 ### Requirement: Recovery preserves application authority
 Stream replay, runtime restart and repeated tool execution SHALL recover committed state without generating new approval or repeating committed commands. Failed model operations SHALL leave saved scheduling policy unchanged.

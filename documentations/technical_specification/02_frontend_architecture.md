@@ -8,13 +8,13 @@ Companion: [Page list](../user_experience/04_page_list.md)
 
 ## Scope and decisions
 
-Use Next.js App Router, React, TypeScript and npm, with eve as the intended conversation runtime. Retain shadcn/ui and selected AI Elements as UI direction; exact versions/preset compatibility must be freshly pinned in the foundation slice. Apply [Thyme visual direction](../../DESIGN.md). No package, component or runnable route exists yet.
+Use Next.js App Router, React, TypeScript and npm, with eve as the intended conversation runtime. Retain shadcn/ui and selected AI Elements as UI direction; exact versions/preset compatibility must be freshly pinned in the foundation change. Apply [Thyme visual direction](../../DESIGN.md). No package, component or runnable route exists yet.
 
 The UI depends on client-safe contracts and shared authorized operations, never directly on tables, RPCs or function URLs. Confirm the separately built web/eve composition before expanding the workspace. [Source templates](#reference-repositories) are references; their authentication, persistence and generic tool approval cannot replace product authority.
 
 ## Reference repositories
 
-The implementation copies one base template and builds Find Me a Time on top of it; the other repositories are read for specific patterns only. None is a dependency or compatibility boundary. Pin each reviewed revision in the foundation slice, record source commits in the implementing pull request and preserve upstream license notices on copied code. Keep npm and pin a tested dependency set rather than copying a template's lockfile or floating ranges.
+The implementation copies one base template and builds Find Me a Time on top of it; the other repositories are read for specific patterns only. None is a dependency or compatibility boundary. Pin each reviewed revision in the foundation change, record source commits in the implementing pull request and preserve upstream license notices on copied code. Keep npm and pin a tested dependency set rather than copying a template's lockfile or floating ranges.
 
 ### Base template
 
@@ -57,7 +57,7 @@ Unit tests live beside modules. Defer independently published packages, new work
 
 ## Logical boundaries
 
-Server entry points authenticate, authorize, validate and delegate. Eve tools invoke the same domain operations as web, MCP, user CLI and verified channels. Provider credentials, privileged persistence and model configuration stay server-only. Contract modules must be safe for both browser and server builds; check indirect/re-export imports as well as direct imports.
+Server entry points authenticate, authorize, validate and delegate. Eve tools invoke the same domain operations as web, MCP, user CLI and verified channels, and are registered per session audience ([permission layers](04_agent_configuration.md#permission-layers)). Provider credentials, privileged persistence and model configuration stay server-only. Contract modules must be safe for both browser and server builds; check indirect/re-export imports as well as direct imports.
 
 Render only audience-filtered server snapshots. React handles local interaction; it does not decide host eligibility, agreement, approval, feasible candidates or booking outcomes. Runtime events and model text cannot invent action-card permissions.
 
@@ -77,19 +77,19 @@ Use stable message/artifact identities, revision-aware commands and exact retry 
 
 One host workspace at `/app` serves access, setup, request selection, review and settings. Keep setup, host-private request discussion and shared/requester discussion distinct. Selecting a request ID changes context only after ownership is checked. Notification links, reload and browser consent restore authorized scope without treating the URL as proof.
 
-Public intake uses `/{handle}`; `/booking/[bookingId]` continues a protected request before and after booking. The user-facing booking ID resolves to a request, not a provider event ID. Request credentials are exchanged through protected mechanisms and removed from URLs; shared Calendar links never unlock transcripts. Reserve protocol/application route names before resolving handles.
+Public intake uses `/{handle}`; `/booking/[bookingId]` continues a protected request before and after booking. The user-facing booking ID resolves to a request, not a provider event ID. The random booking identifier in the URL is the requester's credential, so the page sends `Referrer-Policy: no-referrer`, is excluded from indexing and never writes the identifier into shared Calendar descriptions or full request logs. Reserve protocol/application route names before resolving handles.
 
 ## Guided guest intake
 
-Offer optional identity-only Google prefill and manual continuation, separate from optional request-bound Calendar consent. Preserve an editable detected IANA timezone, date-specific offsets and supplied details. Review extracted changes before applying them; resolve ambiguous dates, duration or physical place before agreement. Contact proof and recovery remain protected controls, never chat/model inputs.
+Offer optional Google prefill that requests identity and availability-only Calendar access on one screen, plus manual continuation; a declined Calendar part still prefills identity, and request-bound Calendar consent can be granted later. Preserve an editable detected IANA timezone, date-specific offsets and supplied details. Review extracted changes before applying them; resolve ambiguous dates, duration or physical place before agreement. Contact proof and recovery remain protected controls, never chat/model inputs.
 
 ## Host setup conversation
 
-Lead setup through agent guidance and compact in-chat cards. Suggest actual conflict calendars first, then a writable booking destination; explain/edit and confirm selection. Automatically analyze the saved conflict calendars over the past/next four weeks, disclose scope and bounded failures, and present evidence-based or labeled starter preferences. **Analyze again** is a recovery/refresh action, not a required second opt-in for the first scan.
+The [host onboarding flow](../user_experience/05_host_onboarding_flow.md) records the states and server checks; the [agent configuration](04_agent_configuration.md) records how the conversation runtime is defined. Lead setup through agent guidance and compact in-chat cards. Suggest actual conflict calendars first, then a writable booking destination; explain/edit and confirm selection. Automatically analyze the saved conflict calendars over the past/next four weeks, disclose scope and bounded failures, and present evidence-based or labeled starter preferences: preferred times, weekly meeting load with a suggested limit, note-like entries to exclude and the most frequent area and venue, each as a question with its sample size. **Analyze again** is a recovery/refresh action, not a required second opt-in for the first scan.
 
 Ask meeting mode/location explicitly and reuse explicit prior answers. In-person/either requires transportation or per-trip policy and an extra travel buffer; online-only skips these controls. Suggestions and typed corrections update a draft. Current final review, explicit confirmation and server readiness checks precede saved policy/publication.
 
-Keep iMessage phone entry, six-digit proof, connection summary and optional skip inline. Browser sign-in and Google consent use protected handoffs; returning restores the same draft. Code fields submit directly to the protected server, outside transcripts and model context. Private-channel settings confirmation needs its own reviewed delta and expiring current-review context.
+Keep the iMessage link card inline: the line number, the one-time link code with **Copy** and an **Open Messages** deep link that lands in Messages with the code already in the input, the masked-sender confirmation, the **Send me a code instead** fallback with phone entry and six-digit proof, the connection summary and optional skip. Browser sign-in and Google consent use protected handoffs; returning restores the same draft. Code fields submit directly to the protected server, outside transcripts and model context. Private-channel settings confirmation needs its own reviewed delta and expiring current-review context.
 
 ## Commands, artifacts and human decisions
 

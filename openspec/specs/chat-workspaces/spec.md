@@ -59,7 +59,7 @@ The conversation and secondary controls SHALL report the same authoritative serv
 - **THEN** the conversation, artifacts, action buttons, and secondary controls remain reachable with readable labels and visible status
 
 ### Requirement: Bounded conversation admission
-The service SHALL admit at most 20 new messages per minute and 100 per hour per host account or requester request, and 200 per minute and 2,000 per hour service-wide. Independent fixed windows SHALL start at the first accepted message after expiry. Budgets SHALL be shared across scopes, channels and replacement credentials. Admission and charging SHALL commit atomically; accepted exact retries SHALL not charge again.
+The service SHALL admit at most 20 new messages per minute and 100 per hour per host account or requester request, and 200 per minute and 2,000 per hour service-wide. Independent fixed windows SHALL start at the first accepted message after expiry. Budgets SHALL be shared across scopes and channels. Admission and charging SHALL commit atomically; accepted exact retries SHALL not charge again.
 
 #### Scenario: Concurrent messages across scopes
 - **WHEN** concurrent authorized inputs cross the remaining host or service allowance
@@ -89,11 +89,15 @@ Temporary admission throttling SHALL return a safe retryable error to web caller
 - **THEN** no new model work is admitted and the receipt reaches the channel's existing unauthorized terminal outcome
 
 ### Requirement: Google-only MVP host login
-The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NOT offer email/password, email OTP or magic-link login in the MVP. The application SHALL initiate identity-only OAuth with browser-bound PKCE and a fixed `/auth/callback` return to `/app`. The deployed Auth configuration SHALL disable email login. First-time Google sign-in SHALL create an active host account. Login SHALL NOT grant Calendar permission or requester authority; requester contact email fields SHALL remain available.
+The host workspace SHALL offer Google sign-in through Supabase Auth and SHALL NOT offer email/password, email OTP or magic-link login in the MVP. The application SHALL initiate one Google OAuth consent that requests identity together with the Calendar scopes needed to read selected calendars and create events, with browser-bound PKCE, offline access and a fixed `/auth/callback` return to `/app`, and SHALL record the scopes Google actually granted and the refresh token server-side at sign-in. The deployed Auth configuration SHALL disable email login. First-time Google sign-in SHALL create an active host account whether or not the Calendar scopes were granted. Calendar permission SHALL exist only for granted scopes; login SHALL NOT grant requester authority, and requester contact email fields SHALL remain available.
 
 #### Scenario: First Google sign-in
 - **WHEN** a user completes Google sign-in for the first time
-- **THEN** the service creates an active host account and the workspace opens the setup conversation without Calendar access until the host consents
+- **THEN** the service creates an active host account and the workspace opens the setup conversation with the Calendar access granted on that screen
+
+#### Scenario: Calendar scopes unchecked at sign-in
+- **WHEN** the user completes Google sign-in but unchecks the Calendar scopes on the consent screen
+- **THEN** the active host account is still created and setup offers **Connect Google Calendar** before calendar analysis or booking-destination selection, without blocking unrelated settings
 
 #### Scenario: Invalid or cancelled return
 - **WHEN** Google login is cancelled, the code is replayed or the callback arrives in another browser
@@ -111,11 +115,11 @@ Host sign-in, setup, request selection, review and settings SHALL remain inside 
 - **THEN** `/app` restores the authorized draft and server-confirmed next action without a separate setup page
 
 ### Requirement: Stable protected requester destination
-Public `/{handle}` intake SHALL continue at `/booking/[bookingId]` after request creation. The route identifier SHALL not provide authority or imply a confirmed event. Closed access SHALL obey the existing request credential lifetime and minimal receipt limits.
+Public `/{handle}` intake SHALL continue at `/booking/[bookingId]` after request creation. The route identifier SHALL be the random booking link defined in the [meeting-request contract](../meeting-requests/spec.md), which is the requester's only credential; it SHALL NOT imply a confirmed event. Closed access SHALL obey the booking link lifetime and minimal receipt limits.
 
-#### Scenario: Shared calendar link has no credential
-- **WHEN** a browser without request authority opens a booking route from a shared calendar description
-- **THEN** it receives no protected history or receipt details
+#### Scenario: Calendar description carries no booking link
+- **WHEN** a confirmed event's description is shared with attendees
+- **THEN** it contains the meeting details and join link but not the booking link, so attendees gain no access to the request conversation
 
 ### Requirement: Recognized credentials are removed from conversation input
 The service SHALL remove recognized bearer values, linking proofs and credential-bearing URL/query/fragment values before new conversation text is persisted in the runtime ledger or sent to the model. It SHALL preserve ordinary scheduling prose, replace removed material visibly and apply the same protection to authorized web, email and iMessage conversation input. Redaction SHALL confer no authority.

@@ -8,7 +8,7 @@ Domain: [findmeatime.com](https://findmeatime.com) · SNU SWPP Project Team 01
 
 **Documentation and specification phase.** The product direction, user experience, architecture, provider setup, visual design and capability specifications are agreed in this repository. Application code has not been started; implementation begins with a bounded OpenSpec change once the runtime stack is decided.
 
-Read the [one-pager](documentations/01_one_pager.md), the [PRD](documentations/02_product_requirements.md), then the [implementation plan](documentations/technical_specification/04_implementation_plan.md). The [documentation index](documentations/README.md) lists every document.
+Read the [one-pager](documentations/01_one_pager.md) and the [PRD](documentations/02_product_requirements.md). The [documentation index](documentations/README.md) lists every document.
 
 Shared Supabase project: **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, `us-east-2`). Teammates develop against personal Supabase projects and local `eve dev`; the shared project tracks `main` through CI, and a release environment is split off before the first external user. See [environments and collaboration](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration).
 
@@ -16,11 +16,11 @@ Shared Supabase project: **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, `us-east-2
 
 | Path | Contents |
 |---|---|
-| `documentations/` | Product direction, UX, architecture, implementation sequence and acceptance coverage |
+| `documentations/` | Product direction, UX, architecture and provider setup |
 | `DESIGN.md` | Thyme visual direction and brand assets |
 | `openspec/specs/` | Agreed capability behavior; the contract the implementation must satisfy |
 | `openspec/changes/` | Pending change proposals; completed changes are archived here after verification |
-| `supabase/` | Local Supabase configuration; application SQL arrives with the first schema slice |
+| `supabase/` | Local Supabase configuration; application SQL arrives with the first schema change |
 | `ai-usage/` | Per-branch AI token and agent-time records required by the course |
 | `.agents/skills/` | Shared project workflows and reference material |
 
@@ -41,4 +41,4 @@ npm run check:docs
 openspec validate --all --strict
 ```
 
-Application build and test commands arrive with the first implementation slice. Supabase CLI **2.119.0** is the team version; schema generation, database reset and deployment follow [agent guidance](AGENTS.md#supabase-schema-changes).
+Application build and test commands arrive with the first implementation change. Supabase CLI **2.119.0** is the team version; schema generation, database reset and deployment follow [agent guidance](AGENTS.md#supabase-schema-changes).

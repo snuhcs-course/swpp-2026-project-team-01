@@ -44,7 +44,7 @@ The landing page and each ready host's public page SHALL let an agent that fetch
 - **THEN** it receives the instruction document regardless of how the client discovers documents
 
 ### Requirement: Honest client continuation
-Documents SHALL explain that fetching them does not install tools or authorize actions. They SHALL offer direct web continuation when client tools are absent, preserve account-free requester access, distinguish identity from Calendar consent, and require current requester agreement and attributable host approval before confirmed booking.
+Documents SHALL explain that fetching them does not install tools or authorize actions. They SHALL offer direct web continuation when client tools are absent, preserve account-free requester access, state that identity and Calendar consent are separate grants even when one Google screen requests both, and require current requester agreement and attributable host approval before confirmed booking.
 
 #### Scenario: Client has no integration
 - **WHEN** the agent can read the document but lacks authorized scheduling tools

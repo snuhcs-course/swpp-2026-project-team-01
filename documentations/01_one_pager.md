@@ -44,4 +44,4 @@ Asking a busy person for time means guessing at their availability, trading seve
 - Private calendar details, preferences, and host discussions stay private.
 - Chat, email, mobile, and agent clients share one request state.
 
-The [design principles](04_design_principles.md) guide agent capability parity, suggestion-first preferences, and separate user and administrator CLIs.
+The [design principles](03_design_principles.md) guide agent capability parity, suggestion-first preferences, and separate user and administrator CLIs.

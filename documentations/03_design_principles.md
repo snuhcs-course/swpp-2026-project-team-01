@@ -18,6 +18,7 @@ Our agent should be able to do everything a user can do in the product, except e
 - Apply the acting user's permissions and scope. User capability parity does not grant the agent administrator access or permission to act for another user.
 - Report completion only after the service confirms the action. If an operation cannot finish, explain what remains and provide a way to continue.
 - Record an explicit reason for every human-only exception. Missing tools are implementation gaps, not permanent exceptions.
+- Withhold rather than refuse: a capability another audience must never have, such as a requester reading host calendars, is not registered in that audience's conversation at all. Such absences are design, not implementation gaps; the [permission layers](technical_specification/04_agent_configuration.md#permission-layers) list them.
 
 For example, “Use my personal and class calendars for conflict checks, and put new meetings on my personal calendar” should let the agent configure those choices once the calendars are unambiguous and access is authorized. It should ask a focused question when a name or intended booking calendar is unclear.
 
@@ -60,7 +61,7 @@ Both CLIs should use the same domain operations and validation as other authoriz
 
 ### Planned tooling and remaining decisions
 
-The [CLI direction](technical_specification/06_cli.md) defines the future user and administrator surfaces. No command or capability parity is implemented yet.
+The [CLI direction](technical_specification/05_cli.md) defines the future user and administrator surfaces. No command or capability parity is implemented yet.
 
 Final executable names, packaging/distribution, the complete command inventories, and administrator authentication are implementation decisions still to be specified. This document establishes the two-CLI direction without inventing commands or asserting unverified support.
 
@@ -73,4 +74,4 @@ For each feature, review:
 - Can chat acceptance and interactive controls reach the same authorized outcome while preserving required confirmations?
 - Does the capability belong in the user CLI, the administrator CLI, or both with distinct authorization?
 
-Track gaps through bounded OpenSpec changes. Keep the [implementation plan](technical_specification/04_implementation_plan.md) and owning capability specifications aligned as those changes are implemented and verified.
+Track gaps through bounded OpenSpec changes. Keep the owning capability specifications aligned as those changes are implemented and verified.

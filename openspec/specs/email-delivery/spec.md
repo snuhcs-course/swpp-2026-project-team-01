@@ -49,3 +49,29 @@ New production authentication and transactional messages SHALL use `no-reply@fin
 #### Scenario: Production message prepared
 - **WHEN** a new production authentication or transactional email is prepared
 - **THEN** the configured sender is `no-reply@findmeatime.com`
+
+### Requirement: Requester status notifications
+The service SHALL email the requester's verified contact when a new proposal version awaits their agreement, when the host declines, when the request expires and when a booking stays pending beyond the reconciliation window. Each notification SHALL carry the current status and the booking link, SHALL be generated from domain records, and SHALL NOT change request state. Requesters who entered through email SHALL receive the same notices in their existing conversational thread.
+
+#### Scenario: Host requests changes
+- **WHEN** the host shares revised details that create a new proposal version
+- **THEN** the requester's verified contact receives an action-needed email with the changed details and the booking link, and no agreement is recorded
+
+#### Scenario: Notification delivery fails
+- **WHEN** a status email is rejected or uncertain
+- **THEN** the delivery job retries or records uncertainty without changing the request or booking state
+
+### Requirement: Booking confirmation message
+A booking confirmation email SHALL be generated from the confirmed event details for each recipient, in that recipient's language and timezone. Its From header SHALL carry the host's display name on `no-reply@findmeatime.com`, and its Reply-To SHALL be the other party's verified email. The subject SHALL follow `{title} between {host} and {guest}` in the recipient's language. The message SHALL be HTML with a plain-text alternative and SHALL contain the confirmed status, the what/when/who/where blocks with the timezone named, the **View booking** link and, for online meetings, the join link, and SHALL contain no host-private notes, rules or credentials beyond the booking link. A `text/calendar` part with `METHOD:REQUEST` SHALL be attached only when its `UID` equals the created calendar event's `iCalUID`.
+
+#### Scenario: Requester receives the confirmation
+- **WHEN** an event is confirmed for a Korean-speaking requester in `Asia/Seoul`
+- **THEN** the subject, labels and times are rendered in Korean and in `Asia/Seoul` with the zone named, and **View booking** opens that request's booking page
+
+#### Scenario: Reply to the confirmation
+- **WHEN** the requester replies to the confirmation email
+- **THEN** the reply is addressed to the host's verified email, not to the product sender
+
+#### Scenario: Calendar part cannot match the event
+- **WHEN** the created calendar event's `iCalUID` is unavailable when the email is prepared
+- **THEN** the email is sent without a calendar part and the calendar-native invitation remains the only calendar entry

@@ -5,7 +5,7 @@ Date: 2026-10-19\
 Source: [Product requirements](../02_product_requirements.md)\
 Companion: [User journeys and flows](01_user_journeys.md)
 
-These draft stories are not implementation claims. J IDs reference the companion journeys; FR/AC IDs reference PRD acceptance criteria. PRD decisions remain open; order is not priority. The [implementation plan](../technical_specification/04_implementation_plan.md) sequences the application build, including the scheduling backend, around these user needs and identifiers.
+These draft stories are not implementation claims. J IDs reference the companion journeys; FR/AC IDs reference PRD acceptance criteria. PRD decisions remain open; order is not priority.
 
 ## Host setup
 
@@ -123,7 +123,7 @@ As a host, I want to opt into a verified private iMessage conversation and unlin
 
 J-01, J-06; FR-26; AC-17.
 
-The selected linking flow delivers a six-digit code to the private iMessage conversation for confirmation in the initiating authenticated browser. The [implementation plan](../technical_specification/04_implementation_plan.md) assigns this proposed browser/proof behavior to fresh setup/iMessage changes; implementation and live Google/iPhone acceptance are pending before main-spec promotion.
+The selected linking flow shows a one-time link code in the authenticated browser, has the host send it from their own iMessage and confirms the masked sender in that browser; a service-sent six-digit code is the fallback. Implementation and live Google/iPhone acceptance are pending before main-spec promotion.
 
 ### US-19 — Decide through iMessage
 
@@ -211,6 +211,6 @@ J-01; FR-35; AC-26. Sign-in creates an active host account; a public booking pro
 
 ### US-32 — Use my Google Calendar availability
 
-As a requester, I want to optionally connect Google Calendar and return to the same request, so that proposed times respect my availability without requiring a Find Me a Time account or becoming a host.
+As a requester, I want to optionally share my Google Calendar availability, on the same screen as Google sign-in or later, and return to the same request, so that proposed times respect my availability without requiring a Find Me a Time account or becoming a host.
 
 J-02, J-03; FR-36; AC-27. I can instead provide availability manually or through my agent, disconnect calendar access, and recover from consent/read failures. My private event details stay private; connecting a calendar does not agree to a meeting or grant host access.
