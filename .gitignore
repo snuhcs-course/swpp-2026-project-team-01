@@ -21,3 +21,7 @@ apps/web/next-env.d.ts
 
 # Local agent orchestration state
 .omc/
+
+# Claude Code worktrees created by background sessions
+.claude/worktrees/
+.DS_Store
