@@ -45,7 +45,7 @@ This document defines the visual direction developed from the Thyme logo explora
 
 **Find Me a Time** is the product; **Thyme** is its scheduling assistant. The [design principles](documentations/04_design_principles.md) own interaction direction. The [one-pager](documentations/01_one_pager.md), [PRD](documentations/02_product_requirements.md), and [capability specifications](openspec/specs/) own product scope and behavior. Visual styling must preserve their consent, privacy, and booking rules.
 
-The selected logo and uncropped reference are retained as documentation assets. The app has not been implemented yet. See [Known gaps](#known-gaps).
+The selected logo and uncropped reference are retained as documentation assets. For component structure, message and composer interactions and responsive polish, study the Vercel chatbot and the eve chat template listed in the [reference repositories](documentations/technical_specification/02_frontend_architecture.md#reference-repositories) and adapt their shapes to this palette. The app has not been implemented yet. See [Known gaps](#known-gaps).
 
 ## Mood
 

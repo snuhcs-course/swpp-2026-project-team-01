@@ -7,7 +7,7 @@
 근거: [기술 개요](../04_technical_specification.md), [백엔드 아키텍처](01_backend_architecture.md), [프런트엔드 아키텍처](02_frontend_architecture.md), [대화 접근 계약](../../openspec/specs/conversation-access/spec.md), [모델 실행 계약](../../openspec/specs/model-execution/spec.md), [채팅 워크스페이스 계약](../../openspec/specs/chat-workspaces/spec.md)\
 관련 문서: [호스트 온보딩 흐름](../user_experience/05_host_onboarding_flow.md), [게스트 예약 흐름](../user_experience/06_guest_booking_flow.md)
 
-이 문서는 Find Me a Time 대화 에이전트를 **eve** 에이전트 디렉터리로 정의하는 방법을 기록합니다. 어떤 파일이 존재하는지, 각 파일이 무엇을 할 수 있는지, 그리고 프레임워크 대신 애플리케이션이 소유하는 것이 무엇인지를 다룹니다. eve는 파일 시스템 우선 방식이므로 구성은 곧 `agent/` 디렉터리 자체입니다. 아래의 파일 이름은 2026-10-19에 공개 문서와 eve 채팅 템플릿에서 확인한 eve 관례를 따릅니다. 기반 변경에서 버전을 고정할 때 설치된 `node_modules/eve/docs/README.md`와 대조하여 확인해야 합니다.
+이 문서는 Find Me a Time 대화 에이전트를 **eve** 에이전트 디렉터리로 정의하는 방법을 기록합니다. 어떤 파일이 존재하는지, 각 파일이 무엇을 할 수 있는지, 그리고 프레임워크 대신 애플리케이션이 소유하는 것이 무엇인지를 다룹니다. eve는 파일 시스템 우선 방식이므로 구성은 곧 `agent/` 디렉터리 자체입니다. 아래의 파일 이름은 2026-10-19에 공개 문서와 eve 채팅 템플릿에서 확인한 eve 관례를 따릅니다. 기반 변경에서 버전을 고정할 때 설치된 `node_modules/eve/docs/README.md`와 대조하여 확인해야 합니다. 우리 `agent/`를 작성하기 전에 eve 채팅 템플릿과 OpenInstinct의 에이전트 디렉터리를 처음부터 끝까지 읽고 그 구조를 따라 하며, 이 문서가 달리 정한 곳에서만 벗어납니다.
 
 ## 원칙
 

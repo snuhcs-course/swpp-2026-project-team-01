@@ -18,9 +18,9 @@ Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-e
 
 **`mriseqztcwmezvtawnbo`**(**FindMeATime2**, `us-west-1`, PostgreSQL 17.11)는 같은 조직에 존재하며 향후 릴리스 프로젝트로 예약되어 있습니다. 현재는 관련 없는 내용이 들어 있어 사용하기 전에 비워야 하며, 개발용으로 연결하지 않습니다.
 
-이 프로젝트의 애플리케이션 스키마는 비어 있습니다. `public`에는 애플리케이션 관계(relation), 함수, 타입이 없고, 애플리케이션 마이그레이션 기록, 예약된 작업(scheduled job), 등록된 큐도 없습니다. Supabase가 관리하는 Auth, Storage, Realtime, Vault, 네트워크, cron, 큐 인프라는 남아 있으며, Google Auth 신원 1개, Storage 객체 0개, 사용 전에 용도를 확인해야 하는 Vault 시크릿 2개가 있습니다. PostgreSQL은 **17.6**으로 로컬의 메이저 버전과 일치합니다. 설치된 확장은 `pg_cron` 1.6.4, `pg_net` 0.20.4, `pgmq` 1.5.1, `pgcrypto` 1.3, `pg_stat_statements` 1.11, `supabase_vault` 0.3.1, `uuid-ossp` 1.1, `plpgsql` 1.0이며, 이는 전제 조건일 뿐 애플리케이션 큐, 워커, 권한이 존재한다는 증거가 아닙니다.
+이 프로젝트의 애플리케이션 스키마는 비어 있습니다. `public`에는 애플리케이션 관계(relation), 함수, 타입이 없고, 애플리케이션 마이그레이션 기록, 예약된 작업(scheduled job), 등록된 큐도 없습니다. Supabase가 관리하는 Auth, Storage, Realtime, Vault, 네트워크, cron, 큐 인프라는 남아 있으며, Auth 신원, Storage 객체, Vault 시크릿은 없습니다. 2026-10-19에 어느 브랜치에도 속하지 않던 실험 잔여물(애플리케이션 스키마 2개, 역할 2개, 마이그레이션 기록 5개, Vault 시크릿 2개, 테스트 신원 1개)을 제거한 뒤 검증했으며, 첫 마이그레이션 전에 다시 확인하십시오. PostgreSQL은 **17.6**으로 로컬의 메이저 버전과 일치합니다. 설치된 확장은 `pg_cron` 1.6.4, `pg_net` 0.20.4, `pgmq` 1.5.1, `pgcrypto` 1.3, `pg_stat_statements` 1.11, `supabase_vault` 0.3.1, `uuid-ossp` 1.1, `plpgsql` 1.0이며, 이는 전제 조건일 뿐 애플리케이션 큐, 워커, 권한이 존재한다는 증거가 아닙니다.
 
-`postgres` 또는 `supabase_admin`이 `public`에 만든 객체는 현재 테이블/시퀀스 권한과 함수 실행 권한을 `anon`, `authenticated`, `service_role`에 상속합니다. 첫 스키마 배포 전에 네임스페이스와 기본 권한을 검토하고, 의도한 권한 부여(grant), 회수(revoke), RLS를 명시적으로 선언해야 합니다. 기존 Google 신원은 호스트 계정, 캘린더 권한 부여, 채널 접근을 성립시키지 않으며, 이것들은 승인된 애플리케이션 작업을 통해서만 생성합니다.
+`postgres` 또는 `supabase_admin`이 `public`에 만든 객체는 현재 테이블/시퀀스 권한과 함수 실행 권한을 `anon`, `authenticated`, `service_role`에 상속합니다. 첫 스키마 배포 전에 네임스페이스와 기본 권한을 검토하고, 의도한 권한 부여(grant), 회수(revoke), RLS를 명시적으로 선언해야 합니다. Google 신원만으로는 호스트 계정, 캘린더 권한 부여, 채널 접근을 성립시키지 않으며, 이것들은 승인된 애플리케이션 작업을 통해서만 생성합니다.
 
 로컬 `config.toml`은 PostgreSQL 메이저 17, pg-delta 활성화, 마이그레이션/시드 비활성화, 선언형 `schema_paths` 없음 상태입니다. 그 `project_id`는 로컬 스택 식별자이지 호스팅 프로젝트 ref가 아니며, Auth 기본값도 호스팅 환경이 Google 전용으로 설정되었다는 증거가 아닙니다. 첫 스키마 변경에서는 [pg-delta 워크플로](../../AGENTS.md#supabase-schema-changes)를 사용합니다. 원하는 스키마를 만들고, 마이그레이션을 생성해 검토하고, 일회용 로컬 데이터베이스에서 체인을 검증하며, 검토된 드라이 런과 명시적인 환경 식별을 거친 뒤에만 호스팅 프로젝트에 푸시합니다.
 

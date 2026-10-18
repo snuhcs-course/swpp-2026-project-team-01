@@ -47,7 +47,7 @@ material:
 
 **Find Me a Time**은 제품이고, **Thyme**은 일정 조율 어시스턴트입니다. [디자인 원칙](documentations/03_design_principles.md)은 상호작용 방향을 담당합니다. [원페이저](documentations/01_one_pager.md), [PRD](documentations/02_product_requirements.md), [기능 명세](openspec/specs/)는 제품 범위와 동작을 담당합니다. 시각 스타일은 이들이 정한 동의, 개인정보 보호, 예약 규칙을 지켜야 합니다.
 
-선택된 로고와 잘리지 않은 참고 이미지는 문서 자산으로 보관합니다. 앱은 아직 구현되지 않았습니다. [알려진 공백](#known-gaps)을 참고하십시오.
+선택된 로고와 잘리지 않은 참고 이미지는 문서 자산으로 보관합니다. 컴포넌트 구조, 메시지·작성창 상호작용, 반응형 마감은 [참고 저장소](documentations/technical_specification/02_frontend_architecture.md#reference-repositories)의 Vercel chatbot과 eve 채팅 템플릿을 연구해 이 팔레트에 맞게 가져옵니다. 앱은 아직 구현되지 않았습니다. [알려진 공백](#known-gaps)을 참고하십시오.
 
 ## 분위기
 

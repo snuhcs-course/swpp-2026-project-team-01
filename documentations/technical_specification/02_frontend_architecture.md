@@ -14,7 +14,7 @@ The UI depends on client-safe contracts and shared authorized operations, never 
 
 ## Reference repositories
 
-The implementation copies one base template and builds Find Me a Time on top of it; the other repositories are read for specific patterns only. None is a dependency or compatibility boundary. Pin each reviewed revision in the foundation change, record source commits in the implementing pull request and preserve upstream license notices on copied code. Keep npm and pin a tested dependency set rather than copying a template's lockfile or floating ranges.
+The implementation copies one base template and builds Find Me a Time on top of it; the other repositories are studied closely for architecture, design and UX rather than skimmed: before designing a module, read how each reference structures it and prefer its proven shape over a new one unless a contract here says otherwise. None is a dependency or compatibility boundary. Pin each reviewed revision in the foundation change, record source commits in the implementing pull request and preserve upstream license notices on copied code. Keep npm and pin a tested dependency set rather than copying a template's lockfile or floating ranges.
 
 ### Base template
 

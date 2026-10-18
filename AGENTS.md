@@ -6,7 +6,7 @@ This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, r
 
 The repository is in its documentation and specification phase. Product, UX, architecture and provider documents and the OpenSpec capability specifications are agreed; application code, SQL, tests and build tooling do not exist yet. Do not scaffold or implement until the team opens a bounded OpenSpec change for the first change, after the runtime stack decision is recorded.
 
-The shared Supabase project is `anelszynxtvxoxqvzgqt`; its application schema is empty. Before the first schema change, review namespace and default privileges and apply RLS as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
+The shared Supabase project is `anelszynxtvxoxqvzgqt`; its application schema is empty (verified 2026-10-19). Before the first schema change, review namespace and default privileges and apply RLS as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
 
 ## Repository layout
 
@@ -47,6 +47,7 @@ References: [Cloudflare CLI setup](https://developers.cloudflare.com/cf/get-star
 ## Working agreements
 
 - Read the relevant files before editing and avoid guessing the product architecture or dependencies.
+- Lean on the reference repositories. Before designing or implementing a module, read how the [reference repositories](documentations/technical_specification/02_frontend_architecture.md#reference-repositories) structure, style and test the same thing, and follow their architecture and design wherever our contracts do not say otherwise. Name the repository and revision you followed in the pull request.
 - Keep secrets, credentials, and local environment files out of Git. Add examples when configuration needs to be shared.
 - Run the relevant checks for files you change, and report any checks that cannot run.
 - For every feature change, check whether product, UX, technical, setup, or API documentation needs updating. Update the owning documents in the same change when behavior or setup changes; if no update is needed, say why in the final report.
