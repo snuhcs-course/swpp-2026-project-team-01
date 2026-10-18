@@ -1,0 +1,6 @@
+#!/bin/sh
+# AI-generated with Claude Code (claude-opus-5-5), 2026-10-07
+# Records this branch's AI agent token usage into ai-usage/ (see AGENTS.md). Never blocks a commit.
+command -v node >/dev/null 2>&1 || { echo "ai-usage: node not found, usage not recorded" >&2; exit 0; }
+node "$(git rev-parse --show-toplevel)/scripts/ai-usage.mjs" record --stage || echo "ai-usage: record failed, usage not recorded" >&2
+exit 0

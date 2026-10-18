@@ -1,7 +1,27 @@
 # Local credentials
-.env
-.env.*
+.env*
 !.env.example
 
 # Local Cloudflare CLI cache
 .cloudflare/
+
+# Dependencies, deployment and verification outputs
+node_modules/
+dist/
+.vercel/
+.local/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.eve/
+.output/
+.next/
+apps/web/next-env.d.ts
+.vercel
+
+# Local agent orchestration state
+.omc/
+
+# Claude Code worktrees created by background sessions
+.claude/worktrees/
+.DS_Store

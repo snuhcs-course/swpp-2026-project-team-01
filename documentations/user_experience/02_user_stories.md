@@ -1,7 +1,7 @@
 # Find Me a Time — User Stories
 
 Status: Draft for team review\
-Date: 2026-10-05\
+Date: 2026-10-19\
 Source: [Product requirements](../02_product_requirements.md)\
 Companion: [User journeys and flows](01_user_journeys.md)
 
@@ -17,15 +17,15 @@ J-01; FR-01; AC-10.
 
 ### US-02 — Choose calendars
 
-As a host, I want to select Google Calendars for conflicts and booking, so that scheduling reflects my commitments and places meetings correctly.
+As a host, I want the assistant to recommend which Google Calendars to check and where to create bookings, explain why, and let me change the choices, so that setup is easy while scheduling reflects my commitments.
 
-J-01; FR-02.
+J-01; FR-02; AC-28.
 
 ### US-03 — Control rules
 
-As a host, I want to inspect and edit availability, timezone, duration, focus time, preferences, and travel buffers, so that the assistant uses rules I understand and control.
+As a host, I want the assistant to guide every onboarding step and suggest my preferences first, using calendars I choose to analyze or clearly labeled starter defaults, so that I can review and adjust calendar choices, timezone, meeting windows, duration, buffers and locations without starting from a blank form.
 
-J-01; FR-04.
+J-01; FR-04; AC-28.
 
 ### US-04 — Recover calendar access
 
@@ -55,7 +55,7 @@ J-02, J-03, J-08; FR-08; AC-05, AC-11.
 
 ### US-08 — Delegate by link
 
-As a requester, I want to paste `Let me schedule a meeting with findmeatime.com/dodo/SKILL.md` into Dots, Muse, Instinct, ChatGPT, Codex, Claude, or Claude Code, so that my agent handles intake, negotiation, and outcome tracking for me. An ordinary booking link remains supported.
+As a requester, I want to paste `Let me schedule a meeting with findmeatime.com/dodo` into Dots, Muse, Instinct, ChatGPT, Codex, Claude, or Claude Code, so that my agent handles intake, negotiation, and outcome tracking for me. An ordinary booking link remains supported.
 
 J-03; FR-24, FR-25, FR-29; AC-14, AC-15, AC-22.
 
@@ -122,6 +122,8 @@ J-07; FR-09, FR-17, FR-19; AC-04.
 As a host, I want to opt into a verified private iMessage conversation and unlink it later, so that only my linked identity receives private summaries and can act for me.
 
 J-01, J-06; FR-26; AC-17.
+
+The selected linking flow shows a one-time link code in the authenticated browser, has the host send it from their own iMessage and confirms the masked sender in that browser; a service-sent six-digit code is the fallback. Implementation and live Google/iPhone acceptance are pending before main-spec promotion.
 
 ### US-19 — Decide through iMessage
 
@@ -191,24 +193,24 @@ J-03; FR-32; AC-21. Missing integration setup should produce a clear next step o
 
 ### US-29 — Set up scheduling through my agent
 
-As a host, I want to paste `Let me use findmeatime.com/SKILL.md for my scheduling`, so that my agent guides waitlist entry or invitation redemption when needed, then sign-in, required consent, and minimal settings, then returns my shareable links without requiring API knowledge.
+As a host, I want to paste `Let me use findmeatime.com for my scheduling`, so that my agent guides sign-in when needed, then required consent and minimal settings, then returns my shareable links without requiring API knowledge.
 
 J-01, J-09; FR-33, FR-35; AC-23, AC-25, AC-26. Interrupted setup resumes without duplicate host creation; optional channel setup can wait.
 
 ### US-30 — Start from a host's skill link
 
-As a requester, I want to paste `Let me schedule a meeting with findmeatime.com/dodo/SKILL.md`, so that my agent identifies the host, asks only for missing details or decisions, and handles coordination without an account.
+As a requester, I want to paste `Let me schedule a meeting with findmeatime.com/dodo`, so that my agent identifies the host, asks only for missing details or decisions, and handles coordination without an account.
 
 J-03; FR-34; AC-24, AC-25. Unsupported capabilities have an actionable setup or web continuation; reading instructions never supplies host approval.
 
-### US-31 — Join the waitlist and activate invited access
+### US-31 — Sign in and start host setup
 
-As a prospective host, I want to join the waitlist and resume setup when invited, so that I understand my access status without connecting my calendar before admission.
+As a prospective host, I want to sign in with Google and start setup immediately, so that I get an active host account without waiting for approval or connecting my calendar first.
 
-J-01; FR-35; AC-26. Waitlist confirmation is not host activation. Invalid or reused invitations cannot grant access to another account; requesters do not need invitations to contact active hosts.
+J-01; FR-35; AC-26. Sign-in creates an active host account; a public booking profile still requires completed setup. A suspended host cannot continue hosting operations; requesters do not need accounts to contact active hosts.
 
 ### US-32 — Use my Google Calendar availability
 
-As a requester, I want to optionally connect Google Calendar and return to the same request, so that proposed times respect my availability without requiring a Find Me a Time account or host invitation.
+As a requester, I want to optionally share my Google Calendar availability, on the same screen as Google sign-in or later, and return to the same request, so that proposed times respect my availability without requiring a Find Me a Time account or becoming a host.
 
 J-02, J-03; FR-36; AC-27. I can instead provide availability manually or through my agent, disconnect calendar access, and recover from consent/read failures. My private event details stay private; connecting a calendar does not agree to a meeting or grant host access.

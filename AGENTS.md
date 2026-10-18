@@ -2,6 +2,12 @@
 
 This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, reviewable, and aligned with the team's agreed requirements.
 
+## Project status
+
+The repository is in its documentation and specification phase. Product, UX, architecture and provider documents and the OpenSpec capability specifications are agreed; application code, SQL, tests and build tooling do not exist yet. Do not scaffold or implement until the team opens a bounded OpenSpec change for the first change, after the runtime stack decision is recorded.
+
+The shared Supabase project is `anelszynxtvxoxqvzgqt`; its application schema is empty (verified 2026-10-19). Before the first schema change, review namespace and default privileges and apply RLS as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
+
 ## Repository layout
 
 - `apps/`: application code. Add app-specific setup and test instructions when an app is created.
@@ -41,9 +47,10 @@ References: [Cloudflare CLI setup](https://developers.cloudflare.com/cf/get-star
 ## Working agreements
 
 - Read the relevant files before editing and avoid guessing the product architecture or dependencies.
+- Lean on the reference repositories. Before designing or implementing a module, read how the [reference repositories](documentations/technical_specification/02_frontend_architecture.md#reference-repositories) structure, style and test the same thing, and follow their architecture and design wherever our contracts do not say otherwise. Name the repository and revision you followed in the pull request.
 - Keep secrets, credentials, and local environment files out of Git. Add examples when configuration needs to be shared.
 - Run the relevant checks for files you change, and report any checks that cannot run.
-- Update documentation when setup steps or behavior change.
+- For every feature change, check whether product, UX, technical, setup, or API documentation needs updating. Update the owning documents in the same change when behavior or setup changes; if no update is needed, say why in the final report.
 
 ## Documentation and specifications
 
@@ -61,11 +68,25 @@ OpenSpec validation checks artifact structure and specification consistency; it 
 
 Reference: [OpenSpec quickstart](https://openspec.dev/docs/quickstart).
 
+## Korean translations
+
+`ko/` mirrors the English documents as review translations for the team; the English documents are authoritative. Do not read, search or quote `ko/` unless the user asks for a translation or names a Korean file. The root `.ignore` hides `ko/` from ripgrep-based search, and the project settings ask before a file under `ko/` is read. When an English document changes, regenerate its Korean mirror from the English source instead of editing the Korean file by hand, keep the first-line banner that names the source, and keep headings, tables, links and Mermaid blocks structurally identical.
+
+## Git branch conventions
+
+- `main` is the integration branch. Use a topic branch and a pull request for changes; do not commit directly to `main`.
+- Name new branches `<type>/<short-description>`, using the commit types below and lowercase letters, digits, and hyphens within each segment. Examples: `fix/booking-timezone` and `docs/branch-conventions`. Do not use the `codex/` prefix. Follow an explicit user-provided branch name when given.
+- Keep each branch focused on one feature, fix, or documentation task. When implementing an OpenSpec change, reuse its change name as the description where practical, such as `feat/connect-google-calendars`.
+- Start new, independent work from the latest `origin/main` after fetching. Continue an existing task on its existing branch; use another base only when the task explicitly depends on it.
+- Inspect the current branch and working tree before switching or creating branches. Preserve unrelated local changes; use a separate worktree when isolation is needed. Do not rename an existing branch just to match this convention.
+- Keep shared branch history intact. Do not force-push or rebase a shared branch without explicit authorization.
+- Delete a topic branch after its pull request is merged and its work is no longer needed. Do not delete branches with unmerged work or active worktrees.
+
 ## Git workflow and pull requests
 
 The four-person team uses GitHub Flow: `main` -> short-lived working branch -> pull request -> review and checks -> merge -> branch deletion. Keep `main` ready to deploy as application code is added; use working branches for incomplete work.
 
-- Create each working branch from the latest `main` and give it one bounded purpose. Use descriptive names such as `feat/booking-approval` or `docs/development-workflow`; Codex-created branches use the `codex/` prefix.
+- Create each working branch from the latest `main` and give it one bounded purpose, named as described in the branch conventions above.
 - Keep PRs small and separate unrelated changes. Describe the resulting behavior, rationale, and validation, including any checks that could not run. Reflect new changes on `main` regularly and resolve conflicts before merging.
 - All changes to `main` go through a PR. Require approval from at least one teammate other than the author and passing relevant CI checks before merging. Until relevant CI exists, run the applicable local checks and record the results and gaps in the PR.
 - Configure GitHub branch protection or rulesets to enforce the review and required checks on `main`.
@@ -110,11 +131,20 @@ Not-tested: <known gaps in verification>
 
 Use `Rejected:` to record alternatives future modifiers should not revisit and `Directive:` for warnings. Include only trailers that add useful context.
 
+## AI usage records
+
+Each task is one branch, and each task reports the Claude Code and Codex tokens and agent working time spent on it.
+
+- One-time setup per clone: `git config core.hooksPath .githooks`. The pre-commit hook then runs `node scripts/ai-usage.mjs record --stage` on every commit, which reads the local Claude Code and Codex logs (CLI and desktop app) and updates `ai-usage/<branch>/<git user.email>.json`. It stores token counts and agent time only, never prompts.
+- Usage is attributed by the working directory and by which branch that worktree had checked out at the time, so run agents inside the repository (or its worktrees). Start every new task's session on its own new branch: a session opened on another task's branch or worktree is counted toward that task. When working on several tasks in parallel, create the branch and worktree first (`git worktree add -b feat/new ../new`) and start the session there. The post-checkout hook logs every branch switch and `git worktree add` to `.git/ai-usage-branches.log`, so usage in worktrees that were later removed still counts; set up the hooks before creating task worktrees. Cloud sessions (Claude Code on the web, Codex cloud) leave no local logs and are not recorded.
+- Usage after the last commit is picked up by the next commit. Commit once more before asking for review if agents ran since.
+- Do not edit `ai-usage/` files by hand. `node scripts/ai-usage.mjs report [branch]` prints the table; the `AI usage` workflow posts it as a comment on each pull request.
+
 ## Shared skills
 
 Project skills live in `.agents/skills/`. Read the matching `SKILL.md` before working in its area:
 
-- `supabase`: Supabase CLI, Auth, database, Storage, Realtime, and Edge Functions.
+- `supabase`: Supabase CLI, Auth, database, Storage, Realtime, and Edge Functions. Start documentation lookups from the index at [supabase.com/llms.txt](https://supabase.com/llms.txt); each listed page can be fetched as Markdown.
 - `supabase-postgres-best-practices`: Postgres schema, queries, indexes, and RLS.
 - `shadcn`: shadcn/ui components and configuration, if the team adopts shadcn/ui.
 - `openspec-*`: generated core workflows for exploring, proposing, applying, and archiving behavior changes.
@@ -130,5 +160,7 @@ This repository uses **pg-delta**, enabled by `[experimental.pgdelta]` in `supab
 5. Commit the schema files, generated migration, and any `config.toml` change together. Treat existing migrations as history; make a new migration for later changes.
 
 Only deploy migrations to a remote Supabase project after the team has linked and identified the intended environment. Review the pending migrations with `supabase db push --dry-run` before `supabase db push`.
+
+Team environments: each teammate develops against their own personal Supabase project and local `eve dev`; the shared project `anelszynxtvxoxqvzgqt` receives migrations only from CI on merge to `main` and is never edited through Studio. Generating a migration needs Docker, so a teammate with Docker generates it inside the same pull request. See [environments and collaboration](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration) for the full structure and the trigger for adding a release environment.
 
 References: [Diff engines](https://supabase.com/docs/guides/local-development/diff-engines) and [Declarative database schemas](https://supabase.com/docs/guides/local-development/declarative-database-schemas).

@@ -1,0 +1,40 @@
+{
+  "branch": "feat/ai-usage-tracking",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:50d3ca4f-4e09-450b-8483-224033f25b8b": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 1137408,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 160,
+          "cache_read": 17831416,
+          "cache_write_5m": 0,
+          "cache_write_1h": 117627,
+          "output": 84438,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-07T10:11:26.530Z",
+      "last": "2026-10-07T11:11:38.810Z"
+    },
+    "claude:e153ed14-44aa-4812-8215-15243ca8a24f": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 109966,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 28,
+          "cache_read": 983242,
+          "cache_write_5m": 0,
+          "cache_write_1h": 35995,
+          "output": 11039,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-07T10:56:34.289Z",
+      "last": "2026-10-07T11:10:37.822Z"
+    }
+  }
+}

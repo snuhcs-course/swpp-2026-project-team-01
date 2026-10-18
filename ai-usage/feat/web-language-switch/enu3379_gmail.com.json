@@ -1,0 +1,23 @@
+{
+  "branch": "feat/web-language-switch",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:a250feb9-7b74-40bd-a8d6-4cf1805eb890": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 3265271,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 380,
+          "cache_read": 63172842,
+          "cache_write_5m": 0,
+          "cache_write_1h": 463888,
+          "output": 239038,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-17T13:01:18.545Z",
+      "last": "2026-10-17T18:18:33.960Z"
+    }
+  }
+}

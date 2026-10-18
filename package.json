@@ -1,0 +1,11 @@
+{
+  "name": "find-me-a-time",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "npm@11.12.1",
+  "type": "module",
+  "scripts": {
+    "check:docs": "node scripts/check-documentation.mjs",
+    "check": "npm run check:docs && openspec validate --all --strict"
+  }
+}
