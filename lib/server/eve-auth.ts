@@ -12,6 +12,8 @@ import { type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment, verifiedUse
 //   2. a Supabase session cookie, on streaming the caller's own indexed session
 //      at its discussion's current generation.
 // No credential is UnauthenticatedError; every other request is ForbiddenError.
+// The session attributes name the discussion's audience, generation and ID; the
+// setup tools and instructions resolve only for the host setup audience.
 // Route auth runs before eve records or starts anything, so a denial leaves no
 // event and no model work.
 
@@ -61,8 +63,26 @@ function forbidden(): never {
   throw new ForbiddenError({ code: "forbidden", message: "Not allowed." });
 }
 
-function sessionAuth(principalId: string, attributes: Record<string, string>) {
-  return { attributes, authenticator: "findmeatime", issuer: "findmeatime", principalId, principalType: "user" };
+export const HOST_SETUP_AUDIENCE = "host_setup";
+
+function sessionAuth(principalId: string, discussionId: string, generation: number) {
+  return {
+    attributes: { audience: HOST_SETUP_AUDIENCE, discussionId, generation: String(generation) },
+    authenticator: "findmeatime",
+    issuer: "findmeatime",
+    principalId,
+    principalType: "user",
+  };
+}
+
+// A host principal may reach only its own host setup discussion; any other
+// audience, or a discussion that is missing or someone else's, is refused.
+async function isHostSetupDiscussion(db: Database, discussionId: string, hostAccountId: string) {
+  const [row] = await db<{ audience: string }[]>`
+    select audience from app.discussions
+    where id = ${discussionId} and principal_type = 'host_account' and principal_id = ${hostAccountId}
+  `;
+  return row?.audience === HOST_SETUP_AUDIENCE;
 }
 
 async function hostIsActive(db: Database, hostAccountId: string) {
@@ -164,12 +184,15 @@ async function authorizeBearer(deps: AppAuthDependencies, request: Request, rout
           ? await mayRead(deps.db, grant, route.sessionId)
           : false;
 
-  if (!allowed || !(await hostIsActive(deps.db, grant.principal.id))) forbidden();
+  if (
+    !allowed ||
+    !(await hostIsActive(deps.db, grant.principal.id)) ||
+    !(await isHostSetupDiscussion(deps.db, grant.discussionId, grant.principal.id))
+  ) {
+    forbidden();
+  }
 
-  return sessionAuth(grant.principal.id, {
-    discussionId: grant.discussionId,
-    generation: String(grant.generation),
-  });
+  return sessionAuth(grant.principal.id, grant.discussionId, grant.generation);
 }
 
 // The browser may stream only its own session at the discussion's current
@@ -190,6 +213,9 @@ async function authorizeCookie(deps: AppAuthDependencies, request: Request, sess
   const [row] = await deps.db<{ discussion_id: string; generation: number }[]>`
     select s.discussion_id, s.generation
     from app.agent_sessions s
+    join app.discussions d on d.id = s.discussion_id
+      and d.principal_type = 'host_account' and d.principal_id = s.principal_id
+      and d.audience = ${HOST_SETUP_AUDIENCE}
     where s.session_id = ${sessionId}
       and s.principal_type = 'host_account' and s.principal_id = ${standing.hostAccountId}
       and s.state in ('active', 'failed')
@@ -198,10 +224,7 @@ async function authorizeCookie(deps: AppAuthDependencies, request: Request, sess
 
   if (!row) forbidden();
 
-  return sessionAuth(standing.hostAccountId, {
-    discussionId: row.discussion_id,
-    generation: String(row.generation),
-  });
+  return sessionAuth(standing.hostAccountId, row.discussion_id, row.generation);
 }
 
 export function createAppAuth(load: () => AppAuthDependencies): AuthFn<Request> {

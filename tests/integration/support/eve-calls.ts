@@ -53,14 +53,30 @@ export async function waitForTurn(baseUrl: string, cookie: string, sessionId: st
   return events;
 }
 
+// The host's one setup discussion, created on first use as the message route does.
+export async function setupDiscussion(db: Database, hostAccountId: string) {
+  await db`
+    insert into app.discussions (principal_type, principal_id, audience)
+    values ('host_account', ${hostAccountId}, 'host_setup')
+    on conflict (principal_type, principal_id, audience) do nothing
+  `;
+  const [row] = await db<{ id: string }[]>`
+    select id from app.discussions
+    where principal_type = 'host_account' and principal_id = ${hostAccountId} and audience = 'host_setup'
+  `;
+  return row!.id;
+}
+
 // Creates an eve session for a host and indexes it, as the message route does.
+// Without a discussion ID it serves the host's setup discussion, so a host has
+// one such session per generation.
 export async function createIndexedSession(
   db: Database,
   server: { url: string; signingKey: string },
   hostAccountId: string,
   options: { discussionId?: string; generation?: number; inputId?: string | null } = {},
 ) {
-  const discussionId = options.discussionId ?? randomUUID();
+  const discussionId = options.discussionId ?? (await setupDiscussion(db, hostAccountId));
   const generation = options.generation ?? 1;
   const principal = { id: hostAccountId, type: "host_account" } as const;
   const response = await createSession(
