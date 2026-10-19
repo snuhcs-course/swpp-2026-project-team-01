@@ -31,7 +31,11 @@ async function freePort() {
   return port;
 }
 
-export function eveEnvironment(options: { modelBaseURL: string; signingKey: string }): NodeJS.ProcessEnv {
+export function eveEnvironment(options: {
+  modelBaseURL: string;
+  signingKey: string;
+  apiKey?: string;
+}): NodeJS.ProcessEnv {
   const { API_URL, PUBLISHABLE_KEY } = localStack();
 
   return {
@@ -41,7 +45,7 @@ export function eveEnvironment(options: { modelBaseURL: string; signingKey: stri
     EVE_TELEMETRY_DISABLED: "1",
     // vitest sets NODE_ENV=test, under which eve swaps authored models for mocks.
     NODE_ENV: "production",
-    OPENAI_API_KEY: "sk-test-not-a-real-key",
+    OPENAI_API_KEY: options.apiKey ?? "sk-test-not-a-real-key",
     OPENAI_BASE_URL: options.modelBaseURL,
     SUPABASE_PROJECT_REF: "local",
     SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE_KEY,
@@ -77,10 +81,10 @@ export async function buildEve(env: NodeJS.ProcessEnv) {
 
 export async function startEve(
   target: EveTarget,
-  options: { modelBaseURL: string; signingKey?: string },
+  options: { modelBaseURL: string; signingKey?: string; apiKey?: string },
 ): Promise<EveServer> {
   const signingKey = options.signingKey ?? randomBytes(32).toString("base64url");
-  const env = eveEnvironment({ modelBaseURL: options.modelBaseURL, signingKey });
+  const env = eveEnvironment({ apiKey: options.apiKey, modelBaseURL: options.modelBaseURL, signingKey });
   const port = await freePort();
   const args =
     target === "dev"

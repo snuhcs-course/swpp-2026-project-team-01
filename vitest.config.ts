@@ -14,6 +14,8 @@ export default defineConfig({
         test: {
           name: "integration",
           environment: "node",
+          // Some suites drive a real eve server and the local Supabase stack.
+          testTimeout: 60_000,
           include: ["tests/integration/**/*.test.ts"],
         },
       },
