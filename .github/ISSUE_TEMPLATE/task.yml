@@ -1,0 +1,49 @@
+name: Task
+description: A bounded piece of planned work, such as an implementation-plan task, setup or maintenance.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One task should fit one branch and one pull request. A substantial behavior change needs an OpenSpec change in `openspec/changes/`; link it here instead of restating its requirements.
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      description: The commit type the branch and pull request will use.
+      options:
+        - feat
+        - fix
+        - docs
+        - refactor
+        - test
+        - build
+        - ci
+        - chore
+        - perf
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: The outcome when this is done, in one or two sentences.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Source
+      description: The OpenSpec change, implementation-plan phase and task number, or pull request this comes from, if any.
+      placeholder: "application-foundation, task 2.3"
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: Observable completion criteria, such as behavior someone can check or checks that pass.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Dependencies, constraints and open questions.
