@@ -171,3 +171,34 @@ export const SETUP_OPERATIONS = [
   "setup.confirm_settings",
 ] as const;
 export type SetupOperation = (typeof SETUP_OPERATIONS)[number];
+
+// A calendar as setup shows and saves it: by provider identity, never by name.
+export type CalendarRef = {
+  readonly id: string;
+  readonly summary: string;
+  // Google's accessRole: owner, writer, reader or freeBusyReader.
+  readonly accessRole: string;
+  readonly primary?: boolean;
+};
+
+// The confirmed policy in app.host_settings.settings. Readiness requires a
+// bookingCalendar without unwritableAt; feasibility reads only this.
+export type ConfirmedSettings = {
+  readonly timezone: string;
+  readonly weeklyWindows: readonly WeeklyWindow[];
+  readonly weeklyLimit: number | null;
+  readonly noteExclusions: readonly z.infer<typeof noteExclusionSchema>[];
+  readonly durationMinutes: number;
+  readonly bufferBeforeMinutes: number;
+  readonly bufferAfterMinutes: number;
+  readonly meetingMode: MeetingMode;
+  readonly location: LocationAnswer | null;
+  readonly travelMode: TravelMode | null;
+  readonly travelBufferMinutes: number | null;
+  readonly displayName: string;
+  readonly handle: string;
+  readonly conflictCalendars: readonly CalendarRef[];
+  readonly bookingCalendar: CalendarRef & { readonly verifiedAt: string; readonly unwritableAt?: string | null };
+  // Where each confirmed value came from, kept after the evidence expires.
+  readonly provenance: { readonly [F in SetupFieldName]?: ValueSource };
+};

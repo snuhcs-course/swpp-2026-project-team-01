@@ -1,5 +1,6 @@
 import type { Database, Transaction } from "./database";
 import type { HostAccountStatus } from "./host-accounts";
+import { readReadiness } from "./readiness";
 
 // The shared eligibility-and-readiness guard. Hosting operations need an active
 // host account; a public booking profile additionally needs completed setup
@@ -48,9 +49,8 @@ async function readStanding(db: Database | Transaction, authUserId: string, lock
     return { eligible: false, hostAccountId: row.id, nextAction: "account_suspended", ready: false };
   }
 
-  // No setup can be saved before host onboarding (Phase 2) adds settings, so an
-  // active host is never ready yet and its next action is to complete setup.
-  return { eligible: true, hostAccountId: row.id, nextAction: "complete_setup", ready: false };
+  const { ready } = await readReadiness(db, row.id);
+  return { eligible: true, hostAccountId: row.id, nextAction: ready ? null : "complete_setup", ready };
 }
 
 export function readHostStanding(db: Database, authUserId: string) {
