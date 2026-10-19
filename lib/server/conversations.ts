@@ -1,11 +1,10 @@
 import { parseCookieHeader } from "@supabase/ssr";
 import { Client, ClientError, type MessageStreamEvent } from "eve/client";
-import { z } from "zod";
 import { getChatMessageLengthError } from "../contracts/chat-message";
-import { type Actor, CommandError, type CommandDefinition, runCommand } from "./commands";
+import type { Actor } from "./commands";
 import type { Database, Transaction } from "./database";
 import { deploymentEnvironment } from "./deployment";
-import { lockHostStanding, withActiveHostAccount, withEligibleHost } from "./host-eligibility";
+import { HostIneligibleError, withActiveHostAccount, withEligibleHost } from "./host-eligibility";
 import { messageFingerprint, signInternalBearer } from "./internal-bearer";
 import { sessionIdHash } from "./model-limits";
 
@@ -195,46 +194,31 @@ export async function createIndexedSession(
   });
 }
 
-// Opens the host's setup discussion as an application command: the actor comes
-// from the verified Supabase session, the shared guard is rechecked under the
-// account's share lock, and the fixed retry key makes every later visit a replay.
-function openSetupDiscussion(authUserId: string): CommandDefinition<Record<string, never>, { discussionId: string }> {
-  return {
-    input: z.strictObject({}),
-    operation: "open_setup_discussion",
-    async run(tx, { actor }) {
-      const standing = await lockHostStanding(tx, authUserId);
-
-      if (!standing.eligible || standing.hostAccountId !== actor.id) {
-        throw new CommandError("forbidden");
-      }
-
-      return { discussionId: await lockSetupDiscussion(tx, actor.id) };
-    },
-  };
-}
-
 // The /app visit: a signed-in, eligible host gets an authorized empty setup
 // session (generation 1, indexed, with no accepted input, so no model call can
-// be attributed to it yet). The browser never creates it. Null when the command
-// was refused; its failure is already logged with a correlation identifier.
+// be attributed to it yet). The browser never creates it. Eligibility is
+// rechecked on every visit, under the account's share lock, so a host suspended
+// since an earlier visit gets nothing. Null when the host may not host or the
+// actor is not the signed-in host.
 export async function openSetupSession(
   deps: ConversationDependencies,
   authUserId: string,
   actor: Actor,
 ): Promise<SessionRow | null> {
-  const opened = await runCommand({ authenticate: async () => actor, db: deps.db }, openSetupDiscussion(authUserId), {
-    input: {},
-    resourceId: "host_setup",
-    retryKey: "open_setup_discussion",
-  });
+  let discussionId: string | null;
 
-  if (!opened.ok) return null;
+  try {
+    discussionId = await withEligibleHost(deps.db, authUserId, async (tx, id) =>
+      id === actor.id ? lockSetupDiscussion(tx, id) : null,
+    );
+  } catch (error) {
+    if (error instanceof HostIneligibleError) return null;
+    throw error;
+  }
 
-  return (
-    (await latestSession(deps.db, opened.result.discussionId)) ??
-    createIndexedSession(deps, authUserId, opened.result.discussionId, 1)
-  );
+  if (!discussionId) return null;
+
+  return (await latestSession(deps.db, discussionId)) ?? createIndexedSession(deps, authUserId, discussionId, 1);
 }
 
 type AcceptedInput = {

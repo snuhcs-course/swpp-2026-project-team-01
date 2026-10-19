@@ -305,6 +305,18 @@ describe("message route and session index", () => {
     expect((await reservationsFor(inputId)).length).toBeGreaterThan(0);
   });
 
+  it("rechecks eligibility on every visit instead of replaying the first one", async () => {
+    const host = await signInHost(db);
+    const actor = { id: host.hostAccountId, kind: "host_account" as const };
+    expect(await openSetupSession(deps, host.userId, actor)).toMatchObject({ generation: 1 });
+
+    await db`update app.host_accounts set status = 'suspended' where id = ${host.hostAccountId}`;
+    expect(await openSetupSession(deps, host.userId, actor)).toBeNull();
+
+    await db`update app.host_accounts set status = 'active' where id = ${host.hostAccountId}`;
+    expect(await openSetupSession(deps, host.userId, actor)).toMatchObject({ generation: 1 });
+  });
+
   it("answers a visit whose session create lost the race to a first message with the winner's session", async () => {
     const host = await signInHost(db);
     const actor = { id: host.hostAccountId, kind: "host_account" as const };

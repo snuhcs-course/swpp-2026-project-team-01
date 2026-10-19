@@ -58,11 +58,6 @@ test("a new host signs in, lands on /app with an empty setup session and gets Th
     where d.principal_type = 'host_account' and d.principal_id = ${hostAccountId} and d.audience = 'host_setup'
   `;
   expect(sessions).toEqual([{ current_input_id: null, generation: 1, session_id: expect.any(String), state: "active" }]);
-  const [opened] = await db<{ count: number }[]>`
-    select count(*)::int as count from app.command_outcomes
-    where actor = ${`host_account:${hostAccountId}`} and operation = 'open_setup_discussion'
-  `;
-  expect(opened!.count).toBe(1);
 
   await composer.fill("Hi Thyme. In one short sentence, what can you help me with?");
   await composer.press("Enter");
