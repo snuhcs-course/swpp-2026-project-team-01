@@ -4,6 +4,7 @@ import { type Database, database } from "./database";
 import { createGrantedScopesFetcher, type FetchGrantedScopes } from "./google-token-info";
 import { ensureHostAccount, type HostAccount } from "./host-accounts";
 import { recordGoogleGrant } from "./provider-grants";
+import { crossSiteRefusal } from "./same-origin";
 import { createRequestAuthClient, type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment } from "./supabase-auth";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -137,6 +138,10 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
 export function createSignOutHandler(load: () => GoogleSignInDependencies = dependenciesFromEnvironment) {
   return async (request: Request) => {
     const deps = load();
+    const refused = crossSiteRefusal(request, deps.appOrigin, { json: false });
+
+    if (refused) return refused;
+
     const auth = createRequestAuthClient(request, deps.auth);
     await auth.client.auth.signOut();
     return auth.redirect(`${deps.appOrigin}/`);

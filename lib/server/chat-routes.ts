@@ -10,16 +10,22 @@ import { database } from "./database";
 import { HostIneligibleError } from "./host-eligibility";
 import { internalSigningKey } from "./internal-bearer";
 import { conversationStatus, discussionEvents, recoverDiscussion } from "./recovery";
+import { appOriginFromEnvironment, crossSiteRefusal } from "./same-origin";
 import { type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment, verifiedUserId } from "./supabase-auth";
 
 // Web routes for the /app conversation. Each authenticates the Supabase session
 // itself and returns audience-safe JSON; nothing here trusts a client-supplied
 // actor, session ID or generation.
 
-export type ChatRouteDependencies = ConversationDependencies & { readonly auth: SupabaseAuthConfig };
+export type ChatRouteDependencies = ConversationDependencies & {
+  // The app's own origin, which every state-changing request must come from.
+  readonly appOrigin: string;
+  readonly auth: SupabaseAuthConfig;
+};
 
 export function chatDependenciesFromEnvironment(): ChatRouteDependencies {
   return {
+    appOrigin: appOriginFromEnvironment(),
     auth: supabaseAuthConfigFromEnvironment(),
     db: database(),
     runtime: eveRuntime(agentUrlFromEnvironment()),
@@ -55,6 +61,10 @@ const messageBody = z.object({ clientInputId: z.uuid(), message: z.string() });
 export function createMessageHandler(load: () => ChatRouteDependencies = chatDependenciesFromEnvironment) {
   return async (request: Request) => {
     const deps = load();
+    const refused = crossSiteRefusal(request, deps.appOrigin, { json: true });
+
+    if (refused) return refused;
+
     const userId = await authenticatedUserId(request, deps.auth);
 
     if (!userId) {
@@ -160,6 +170,10 @@ const recoverBody = z.object({ observedGeneration: z.number().int().positive() }
 export function createRecoverHandler(load: () => ChatRouteDependencies = chatDependenciesFromEnvironment) {
   return async (request: Request) => {
     const deps = load();
+    const refused = crossSiteRefusal(request, deps.appOrigin, { json: true });
+
+    if (refused) return refused;
+
     const userId = await authenticatedUserId(request, deps.auth);
 
     if (!userId) return unauthenticated();

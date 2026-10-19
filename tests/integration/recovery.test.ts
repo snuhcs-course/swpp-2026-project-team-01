@@ -41,7 +41,7 @@ afterAll(async () => {
 });
 
 function routes(overrides: Partial<ChatRouteDependencies> = {}) {
-  const deps = { auth: localAuthConfig(), db, runtime, signingKey: server.signingKey, ...overrides };
+  const deps = { appOrigin: "http://localhost:3000", auth: localAuthConfig(), db, runtime, signingKey: server.signingKey, ...overrides };
   return {
     events: createEventsHandler(() => deps),
     message: createMessageHandler(() => deps),
@@ -56,7 +56,7 @@ async function say(host: Host, text: string, deps?: Partial<ChatRouteDependencie
   const response = await routes(deps).message(
     new Request("http://localhost:3000/api/chat/messages", {
       body: JSON.stringify({ clientInputId: randomUUID(), message: text }),
-      headers: { "content-type": "application/json", cookie: host.cookie },
+      headers: { "content-type": "application/json", origin: "http://localhost:3000", cookie: host.cookie },
       method: "POST",
     }),
   );
@@ -67,7 +67,7 @@ async function recover(host: Host, observedGeneration: number, deps?: Partial<Ch
   const response = await routes(deps).recover(
     new Request("http://localhost:3000/api/chat/recover", {
       body: JSON.stringify({ observedGeneration }),
-      headers: { "content-type": "application/json", cookie: host.cookie },
+      headers: { "content-type": "application/json", origin: "http://localhost:3000", cookie: host.cookie },
       method: "POST",
     }),
   );

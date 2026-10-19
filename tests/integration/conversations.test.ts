@@ -23,7 +23,7 @@ beforeAll(async () => {
   fake = await startFakeOpenAI();
   await clearServiceWindow(db);
   server = await startEve("dev", { modelBaseURL: fake.baseURL });
-  deps = { auth: localAuthConfig(), db, runtime: eveRuntime(server.url), signingKey: server.signingKey };
+  deps = { appOrigin: "http://localhost:3000", auth: localAuthConfig(), db, runtime: eveRuntime(server.url), signingKey: server.signingKey };
   post = createMessageHandler(() => deps);
 }, 300_000);
 
@@ -37,7 +37,7 @@ function message(cookie: string, text: string, clientInputId = randomUUID()) {
   return post(
     new Request("http://localhost:3000/api/chat/messages", {
       body: JSON.stringify({ clientInputId, message: text }),
-      headers: { "content-type": "application/json", cookie },
+      headers: { "content-type": "application/json", origin: "http://localhost:3000", cookie },
       method: "POST",
     }),
   );
