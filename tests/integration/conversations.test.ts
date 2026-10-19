@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type ChatRouteDependencies, createMessageHandler } from "../../lib/server/chat-routes";
-import { eveRuntime } from "../../lib/server/conversations";
+import { eveRuntime, openSetupSession } from "../../lib/server/conversations";
 import { MODEL_LIMITS, sessionIdHash } from "../../lib/server/model-limits";
 import { localAuthConfig, signInHost } from "./support/auth";
 import { clearServiceWindow, testDatabase } from "./support/database";
@@ -142,6 +142,40 @@ describe("message route and session index", () => {
 
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({ nextAction: "account_suspended" });
+    const [count] = await db<{ count: number }[]>`
+      select count(*)::int as count from app.discussions where principal_id = ${host.hostAccountId}
+    `;
+    expect(count!.count).toBe(0);
+  });
+
+  it("opens one authorized empty setup session on the visit, which the first message then uses", async () => {
+    const host = await signInHost(db);
+    const actor = { id: host.hostAccountId, kind: "host_account" as const };
+    const opened = await openSetupSession(deps, host.userId, actor);
+
+    expect(opened).toMatchObject({ current_input_id: null, generation: 1, state: "active" });
+    // A repeat visit replays the command and creates no second session.
+    expect(await openSetupSession(deps, host.userId, actor)).toEqual(opened);
+    expect(await readEvents(server.url, host.cookie, opened!.session_id)).toBeDefined();
+    const [reserved] = await db<{ count: number }[]>`
+      select count(*)::int as count from app.model_reservations where session_id = ${opened!.session_id}
+    `;
+    expect(reserved!.count).toBe(0);
+
+    const response = await message(host.cookie, "Hello, Thyme.");
+    const { inputId } = (await response.json()) as { inputId: string };
+    expect(await sessionOf(host.hostAccountId)).toMatchObject({ current_input_id: inputId, session_id: opened!.session_id });
+    await waitForTurn(server.url, host.cookie, opened!.session_id);
+    expect((await reservationsFor(inputId)).length).toBeGreaterThan(0);
+  });
+
+  it("opens no setup session for a suspended host or a mismatched actor", async () => {
+    const host = await signInHost(db);
+    const other = await signInHost(db);
+
+    expect(await openSetupSession(deps, host.userId, { id: other.hostAccountId, kind: "host_account" })).toBeNull();
+    await db`update app.host_accounts set status = 'suspended' where id = ${host.hostAccountId}`;
+    expect(await openSetupSession(deps, host.userId, { id: host.hostAccountId, kind: "host_account" })).toBeNull();
     const [count] = await db<{ count: number }[]>`
       select count(*)::int as count from app.discussions where principal_id = ${host.hostAccountId}
     `;

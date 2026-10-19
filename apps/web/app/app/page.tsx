@@ -1,4 +1,4 @@
-import { hostStandingFromCookies } from "@lib/server/web-session";
+import { openHostWorkspace } from "@lib/server/web-session";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { Suspense } from "react";
@@ -7,7 +7,8 @@ import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { SignInCard } from "@/app/_components/sign-in-card";
 
 // The single host page. Signed out, it offers Google sign-in; a suspended
-// account sees why it cannot continue; an active host gets the conversation.
+// account sees why it cannot continue; an active host gets the conversation,
+// whose empty setup session this visit opens on the server.
 type SearchParams = Promise<{ sign_in?: string }>;
 
 export default function Page({ searchParams }: { readonly searchParams: SearchParams }) {
@@ -24,7 +25,7 @@ async function Workspace({ searchParams }: { readonly searchParams: SearchParams
     .getAll()
     .map(({ name, value }) => `${name}=${value}`)
     .join("; ");
-  const standing = await hostStandingFromCookies(cookie);
+  const standing = await openHostWorkspace(cookie);
 
   if (!standing || standing.nextAction === "sign_in") {
     const { sign_in: signIn } = await searchParams;

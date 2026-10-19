@@ -57,6 +57,12 @@ export function readHostStanding(db: Database, authUserId: string) {
   return readStanding(db, authUserId, false);
 }
 
+// The standing inside a transaction, with the account row share-locked until it
+// ends, for operations (such as commands) that recheck authority themselves.
+export function lockHostStanding(tx: Transaction, authUserId: string) {
+  return readStanding(tx, authUserId, true);
+}
+
 export function hasPublicProfile(standing: HostStanding) {
   return standing.eligible && standing.ready;
 }
@@ -70,7 +76,7 @@ export async function withEligibleHost<T>(
   operation: (tx: Transaction, hostAccountId: string) => Promise<T>,
 ): Promise<T> {
   return (await db.begin(async (tx) => {
-    const standing = await readStanding(tx, authUserId, true);
+    const standing = await lockHostStanding(tx, authUserId);
 
     if (!standing.eligible || !standing.hostAccountId) {
       throw new HostIneligibleError(standing.nextAction ?? "sign_in");

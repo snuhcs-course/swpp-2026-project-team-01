@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import { Client, type MessageStreamEvent } from "eve/client";
+import { z } from "zod";
 import { getChatMessageLengthError } from "../contracts/chat-message";
+import { type Actor, CommandError, type CommandDefinition, runCommand } from "./commands";
 import type { Database, Transaction } from "./database";
-import { withEligibleHost } from "./host-eligibility";
+import { lockHostStanding, withEligibleHost } from "./host-eligibility";
 import { signInternalBearer } from "./internal-bearer";
 import { sessionIdHash } from "./model-limits";
 
@@ -159,6 +161,48 @@ export async function createIndexedSession(
     `;
     return row!;
   });
+}
+
+// Opens the host's setup discussion as an application command: the actor comes
+// from the verified Supabase session, the shared guard is rechecked under the
+// account's share lock, and the fixed retry key makes every later visit a replay.
+function openSetupDiscussion(authUserId: string): CommandDefinition<Record<string, never>, { discussionId: string }> {
+  return {
+    input: z.strictObject({}),
+    operation: "open_setup_discussion",
+    async run(tx, { actor }) {
+      const standing = await lockHostStanding(tx, authUserId);
+
+      if (!standing.eligible || standing.hostAccountId !== actor.id) {
+        throw new CommandError("forbidden");
+      }
+
+      return { discussionId: await lockSetupDiscussion(tx, actor.id) };
+    },
+  };
+}
+
+// The /app visit: a signed-in, eligible host gets an authorized empty setup
+// session (generation 1, indexed, with no accepted input, so no model call can
+// be attributed to it yet). The browser never creates it. Null when the command
+// was refused; its failure is already logged with a correlation identifier.
+export async function openSetupSession(
+  deps: ConversationDependencies,
+  authUserId: string,
+  actor: Actor,
+): Promise<SessionRow | null> {
+  const opened = await runCommand({ authenticate: async () => actor, db: deps.db }, openSetupDiscussion(authUserId), {
+    input: {},
+    resourceId: "host_setup",
+    retryKey: "open_setup_discussion",
+  });
+
+  if (!opened.ok) return null;
+
+  return (
+    (await latestSession(deps.db, opened.result.discussionId)) ??
+    createIndexedSession(deps, authUserId, opened.result.discussionId, 1)
+  );
 }
 
 type AcceptedInput = {

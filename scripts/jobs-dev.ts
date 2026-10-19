@@ -10,7 +10,7 @@ import { runWorkerBatch } from "../lib/server/job-worker";
 
 // The shared project is changed only by CI; the reserved release project is not
 // for development at all.
-const PROTECTED_PROJECT_REFS = ["anelszynxtvxoxqvzgqt", "mriseqztcwmezvtawnbo"];
+export const PROTECTED_PROJECT_REFS = ["anelszynxtvxoxqvzgqt", "mriseqztcwmezvtawnbo"];
 
 export function devWorkerRefusal(env: Readonly<Record<string, string | undefined>>) {
   const ref = env.SUPABASE_PROJECT_REF?.trim() ?? "";

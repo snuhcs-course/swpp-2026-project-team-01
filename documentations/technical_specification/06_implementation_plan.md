@@ -81,7 +81,8 @@ Scope. Prerequisite for every lane: the skeleton below, done by one person in th
 
 **Join** (after all lanes): a signed-in host reaches `/app`, opens an authorized empty setup session, and the production deployment serves it on the release origin.
 
-- [ ] Wire Lane A's session authorization to Lane B's host account and Lane C's command pipeline; run the Phase 1 evidence list below.
+- [x] Wire Lane A's session authorization to Lane B's host account and Lane C's command pipeline.
+- [ ] Run the Phase 1 evidence list below.
 
 Specs: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md) (Google-only login, single host workspace, conversation-first entry), [host-admission](../../openspec/specs/host-admission/spec.md) (open sign-up, eligibility guard), [conversation-access](../../openspec/specs/conversation-access/spec.md), [model-execution](../../openspec/specs/model-execution/spec.md), [application-commands](../../openspec/specs/application-commands/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), [messaging-environments](../../openspec/specs/messaging-environments/spec.md).
 
