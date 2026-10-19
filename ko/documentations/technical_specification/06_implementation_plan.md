@@ -2,7 +2,7 @@
 
 > 한국어 번역본 (검토용). 원본: documentations/technical_specification/06_implementation_plan.md
 
-상태: 팀 검토를 위한 제안된 계획이며 구현은 시작되지 않음\
+상태: 팀 검토를 위한 계획. 1단계 병합됨; 2단계는 `feat/host-onboarding`에서 구현되어 검토 대기 중\
 날짜: 2026-10-19\
 근거: [PRD](../02_product_requirements.md), [기술 개요](../04_technical_specification.md), [백엔드](01_backend_architecture.md), [프런트엔드](02_frontend_architecture.md), [제공자 설정](03_provider_setup.md), [에이전트 구성](04_agent_configuration.md), [호스트 온보딩 흐름](../user_experience/05_host_onboarding_flow.md), [게스트 예약 흐름](../user_experience/06_guest_booking_flow.md), [기능 명세](../../openspec/specs/).
 
@@ -21,7 +21,7 @@
 | 에이전트 접근 | 리소스에 바인딩된 OAuth를 쓰는 원격 MCP와 얇은 사용자 CLI; 별도의 관리자 CLI | [CLI 방향](05_cli.md), [설계 원칙](../03_design_principles.md) |
 | 권한 | 애플리케이션이 호스트 자격, 제안 버전, 합의, 승인, 멱등성, 예약 조정을 소유합니다. 런타임 세션, 도구 승인, OAuth 허가는 미팅을 승인하지 않습니다 | [에이전트 구성](04_agent_configuration.md) |
 | 라우트 | `/`, `/auth/sign-in`, `/app`, `/{handle}`, `/booking/[bookingId]`, `/connect/authorize`, `/SKILL.md`, `/{handle}/SKILL.md`, `llms.txt` | [페이지 목록](../user_experience/04_page_list.md) |
-| 릴리스 오리진 | `https://release.findmeatime.com`; 루트 도메인 승격은 이후의 검증 | [배포 오리진](03_provider_setup.md#deployment-origin) |
+| 릴리스 오리진 | `https://release.findmeatime.com`; 2026-10-19부터 사용자의 요청으로 같은 배포가 `https://findmeatime.com`도 정식 오리진으로 제공 | [배포 오리진](03_provider_setup.md#deployment-origin) |
 
 ## 2. 작업 모델
 
@@ -59,31 +59,32 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **뼈대 (직렬, 가장 먼저)**
 
-- [ ] 검토한 리비전의 eve 채팅 템플릿을 복사하고, `apps/web/`, `agent/`, `lib/contracts/`, `lib/server/`, `tests/`를 만들고, npm으로 전환하고, 의존성을 고정하고, 빌드, 린트, 타입 검사, 테스트 명령을 추가해 Check 워크플로에 연결합니다.
+- [x] 검토한 리비전의 eve 채팅 템플릿을 복사하고, `apps/web/`, `agent/`, `lib/contracts/`, `lib/server/`, `tests/`를 만들고, npm으로 전환하고, 의존성을 고정하고, 빌드, 린트, 타입 검사, 테스트 명령을 추가해 Check 워크플로에 연결합니다.
 
 **레인 A — 웹과 런타임** (실제 세션을 인가하려면 레인 B의 호스트 계정이 필요하며, 그때까지는 스텁 principal로 개발)
 
-- [ ] 대화 우선 레이아웃, 간결한 메뉴, 사이드바 없음으로 템플릿의 채팅 브리지를 렌더링하는 `/app` 셸.
-- [ ] 모든 `/eve/v1/*` 라우트에 대한 애플리케이션 소유 인가(eve가 동작하기 전에 애플리케이션 세션 인덱스와 대조하는 세션 소유권 검사 포함); 애플리케이션 인증 항목만 있고 `localDev()`와 `vercelOidc()`는 없는 `channels/eve.ts`; 브라우저 메시지는 애플리케이션 라우트를 통해서만 eve에 도달; 기본 차단(fail-closed) 기본 엔드포인트; 업로드 비활성화.
-- [ ] 재연결을 위한 저장된 스트림 이벤트와 세션 커서; 명시적 전환으로서의 종료 상태 복구.
-- [ ] 템플릿의 스타일링을 대체하는 Thyme 테마 토큰, 글꼴, 종이 레이어, 공유 컴포넌트 레시피.
+- [x] 대화 우선 레이아웃, 간결한 메뉴, 사이드바 없음으로 템플릿의 채팅 브리지를 렌더링하는 `/app` 셸.
+- [x] 모든 `/eve/v1/*` 라우트에 대한 애플리케이션 소유 인가(eve가 동작하기 전에 애플리케이션 세션 인덱스와 대조하는 세션 소유권 검사 포함); 애플리케이션 인증 항목만 있고 `localDev()`와 `vercelOidc()`는 없는 `channels/eve.ts`; 브라우저 메시지는 애플리케이션 라우트를 통해서만 eve에 도달; 기본 차단(fail-closed) 기본 엔드포인트; 업로드 비활성화.
+- [x] 재연결을 위한 저장된 스트림 이벤트와 세션 커서; 명시적 전환으로서의 종료 상태 복구.
+- [x] 템플릿의 스타일링을 대체하는 Thyme 테마 토큰, 글꼴, 종이 레이어, 공유 컴포넌트 레시피.
 
 **레인 B — 데이터와 신원** (독립적; 스키마 기준선과 이를 푸시하는 CI 작업이 가장 먼저 단독으로 병합되며, 다른 레인은 그 이후에만 테이블을 추가)
 
-- [ ] Supabase 스키마 기준선: 비공개 및 노출 네임스페이스, 역할 매트릭스, 명시적 grant와 revoke, 노출 테이블의 RLS, 그리고 일회용 로컬 데이터베이스와 각 샌드박스에서 검증된 첫 pg-delta 마이그레이션 체인.
-- [ ] 한 동의 화면에서 신원과 Calendar 스코프를 받는 Google 전용 Supabase Auth 로그인, PKCE, 오프라인 접근, 기록된 부여 스코프와 암호화된 리프레시 토큰, `/app`으로만 돌아가는 `/auth/callback`, 이메일 로그인 비활성화.
-- [ ] 개방형 호스트 가입: Google 신원당 활성 호스트 계정 하나; 공유 자격-준비도 가드(eligibility-and-readiness guard).
+- [ ] Supabase 스키마 기준선: 비공개 및 노출 네임스페이스, 역할 매트릭스, 명시적 grant와 revoke, 노출 테이블의 RLS, 그리고 일회용 로컬 데이터베이스와 각 샌드박스에서 검증된 첫 pg-delta 마이그레이션 체인. 열림: 배포 워크플로(작업 2.3)는 저장소 시크릿이 설정되지 않아 한 번도 실행되지 않았습니다.
+- [ ] 한 동의 화면에서 신원과 Calendar 스코프를 받는 Google 전용 Supabase Auth 로그인, PKCE, 오프라인 접근, 기록된 부여 스코프와 암호화된 리프레시 토큰, `/app`으로만 돌아가는 `/auth/callback`, 이메일 로그인 비활성화. 열림: OAuth 앱의 게시 상태와 샌드박스 콜백이 기록되지 않았습니다(작업 2.8).
+- [x] 개방형 호스트 가입: Google 신원당 활성 호스트 계정 하나; 공유 자격-준비도 가드(eligibility-and-readiness guard).
 
 **레인 C — 플랫폼 메커니즘** (독립적; 자체 테스트를 갖춘 순수 서버 모듈)
 
-- [ ] 애플리케이션 명령 파이프라인: 검증된 의도, 기대 리비전, 재시도 식별자, 대상에 안전한 오류.
-- [ ] 내구성 있는 작업 기반: 도메인 전환과 함께하는 원자적 게시, 한정된 리스, 펜싱, 재전달에 안전한 완료, 반복 복구, 프로덕션에서 생산된 작업만 가져가는 프로덕션 전용 워커.
-- [ ] 모델 인스턴스를 감싸는 모델 한도 미들웨어: eve의 재시도와 압축을 포함한 모든 제공자 호출이 입력 크기, 출력 상한, 제공자 마감 시간을 검사받고 먼저 내구성 있는 허용량을 예약함; 기반 설계가 기록한 대로 팀 키를 쓰는 직접 OpenAI.
-- [ ] 프리뷰가 발송할 수 없도록 하는 메시징 환경 거부.
+- [x] 애플리케이션 명령 파이프라인: 검증된 의도, 기대 리비전, 재시도 식별자, 대상에 안전한 오류.
+- [x] 내구성 있는 작업 기반: 도메인 전환과 함께하는 원자적 게시, 한정된 리스, 펜싱, 재전달에 안전한 완료, 반복 복구, 프로덕션에서 생산된 작업만 가져가는 프로덕션 전용 워커.
+- [x] 모델 인스턴스를 감싸는 모델 한도 미들웨어: eve의 재시도와 압축을 포함한 모든 제공자 호출이 입력 크기, 출력 상한, 제공자 마감 시간을 검사받고 먼저 내구성 있는 허용량을 예약함; 기반 설계가 기록한 대로 팀 키를 쓰는 직접 OpenAI.
+- [x] 프리뷰가 발송할 수 없도록 하는 메시징 환경 거부.
 
 **합류** (모든 레인 이후): 로그인한 호스트가 `/app`에 도착하고, 인가된 빈 설정 세션을 열며, 프로덕션 배포가 릴리스 오리진에서 이를 제공합니다.
 
-- [ ] 레인 A의 세션 인가를 레인 B의 호스트 계정과 레인 C의 명령 파이프라인에 연결하고, 아래의 1단계 증거 목록을 실행합니다.
+- [x] 레인 A의 세션 인가를 레인 B의 호스트 계정과 레인 C의 명령 파이프라인에 연결합니다.
+- [x] 아래의 1단계 증거 목록을 실행합니다. [인수 기록](07_acceptance_record.md#phase-1--application-foundation)에 기록되어 있습니다.
 
 명세: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md)(Google 전용 로그인, 단일 호스트 워크스페이스, 대화 우선 진입), [host-admission](../../openspec/specs/host-admission/spec.md)(개방형 가입, 자격 가드), [conversation-access](../../openspec/specs/conversation-access/spec.md), [model-execution](../../openspec/specs/model-execution/spec.md), [application-commands](../../openspec/specs/application-commands/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), [messaging-environments](../../openspec/specs/messaging-environments/spec.md).
 
@@ -99,26 +100,26 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **레인 A — 설정 대화와 카드**
 
-- [ ] 설정 세션 도구 `read_setup_state`와 `draft_settings`; 1단계의 최소 `base.md` 위에 얹는 `host-setup.md` 지침 조각; 한 번에 하나씩 공개되는 작성된 온보딩 메시지.
-- [ ] 시간대, 야간 구간을 포함한 주간 가능 시간대, 주간 미팅 상한, 메모성 이벤트 제외, 소요 시간과 버퍼에 대한 제안 카드. 각각 명시됨, 추론됨, 시작용 기본값 중 하나로 표시하며 **이대로 사용(Use this)**, **조정(Adjust)**, **직접 선택(Choose my own)**을 제공.
-- [ ] 명시적인 방식, 장소, 이동 수단 질문 카드; 온라인 전용이면 장소와 이동 수단을 건너뜀.
-- [ ] 최종 검토 카드와 트랜잭션 방식 준비도 재확인을 갖춘 **제안된 설정 확인 및 저장(Confirm and save proposed settings)**; 준비도에서 도출된 공개 프로필; 공유 링크 카드.
+- [x] 설정 세션 도구 `read_setup_state`와 `draft_settings`; 1단계의 최소 `base.md` 위에 얹는 `host-setup.md` 지침 조각; 한 번에 하나씩 공개되는 작성된 온보딩 메시지.
+- [x] 시간대, 야간 구간을 포함한 주간 가능 시간대, 주간 미팅 상한, 메모성 이벤트 제외, 소요 시간과 버퍼에 대한 제안 카드. 각각 명시됨, 추론됨, 시작용 기본값 중 하나로 표시하며 **이대로 사용(Use this)**, **조정(Adjust)**, **직접 선택(Choose my own)**을 제공.
+- [x] 명시적인 방식, 장소, 이동 수단 질문 카드; 온라인 전용이면 장소와 이동 수단을 건너뜀.
+- [x] 최종 검토 카드와 트랜잭션 방식 준비도 재확인을 갖춘 **제안된 설정 확인 및 저장(Confirm and save proposed settings)**; 준비도에서 도출된 공개 프로필; 공유 링크 카드.
 
 **레인 B — Google Calendar와 분석**
 
-- [ ] 실제 캘린더와 이유를 바탕으로 한 캘린더 역할 카드; 쓰기 가능한 예약 대상 확인; 스코프를 거절했을 때의 **Google Calendar 연결(Connect Google Calendar)**; **Google 연결 관리(Manage Google connection)**.
-- [ ] 저장된 충돌 확인 캘린더를 과거와 다음 4주에 걸쳐 내구성 있는 작업으로 수행하는 자동 첫 스캔; 표본 수를 포함한 네 가지 분석 차원; **다시 분석(Analyze again)**.
-- [ ] 채택된 값은 보존하는 예약된 유지보수에 의한 24시간 증거 정리.
+- [x] 실제 캘린더와 이유를 바탕으로 한 캘린더 역할 카드; 쓰기 가능한 예약 대상 확인; 스코프를 거절했을 때의 **Google Calendar 연결(Connect Google Calendar)**; **Google 연결 관리(Manage Google connection)**.
+- [x] 저장된 충돌 확인 캘린더를 과거와 다음 4주에 걸쳐 내구성 있는 작업으로 수행하는 자동 첫 스캔; 표본 수를 포함한 네 가지 분석 차원; **다시 분석(Analyze again)**.
+- [x] 채택된 값은 보존하는 예약된 유지보수에 의한 24시간 증거 정리.
 
 **레인 C — 신원, 진입 문서, 운영자 통제**
 
-- [ ] 예약어 목록, 고유성, 변경 한도를 갖춘 핸들; 가입 남용 한도.
-- [ ] 공개 진입 문서 `/SKILL.md`, `/{handle}/SKILL.md`, `llms.txt`, 페이지 내 에이전트 섹션, 대체 링크, Markdown 콘텐츠 협상; 핸들보다 먼저 해석되는 예약 라우트 이름.
-- [ ] 정지와 복원, 운영자 권한 경계를 갖춘 관리자 CLI.
+- [x] 예약어 목록, 고유성, 변경 한도를 갖춘 핸들; 가입 남용 한도.
+- [x] 공개 진입 문서 `/SKILL.md`, `/{handle}/SKILL.md`, `llms.txt`, 페이지 내 에이전트 섹션, 대체 링크, Markdown 콘텐츠 협상; 핸들보다 먼저 해석되는 예약 라우트 이름.
+- [x] 정지와 복원, 운영자 권한 경계를 갖춘 관리자 CLI.
 
 **합류**
 
-- [ ] 검토 카드를 분석 증거와 핸들 검증에 연결하고, 2단계 증거 목록을 실행합니다.
+- [x] 검토 카드를 분석 증거와 핸들 검증에 연결하고, 2단계 증거 목록을 실행합니다. [인수 기록](07_acceptance_record.md#phase-2--host-onboarding)에 기록되어 있으며, 로그인한 상태의 프로덕션 실행과 Google 앱 검증은 거기서 계속 열려 있습니다.
 
 명세: [host-admission](../../openspec/specs/host-admission/spec.md)(정지, 핸들, 남용 한도, 안정적 신원), [calendar-analysis-retention](../../openspec/specs/calendar-analysis-retention/spec.md), [public-agent-entry](../../openspec/specs/public-agent-entry/spec.md), [meeting-feasibility](../../openspec/specs/meeting-feasibility/spec.md)(야간 구간 규칙), [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md). 또한 기반 변경이 여기로 미룬 도구 결과 복구 시나리오를 위해 [conversation-access](../../openspec/specs/conversation-access/spec.md)도 참조합니다.
 
@@ -421,7 +422,7 @@ Docker를 갖춘 팀원이 그 주에 마이그레이션이 필요한 레인의 
 | eve 버전, 템플릿 리비전, 모델 ID, 의존성 고정 | 1단계 제안서 | 프런트엔드 아키텍처, 에이전트 구성 |
 | 내구성 있는 작업 배치와 디스패처 소유권 | 1단계 종료 | 백엔드 아키텍처 |
 | 가입 및 핸들 한도, 예약 핸들, 시작용 기본값 | 2단계 제안서 | PRD 10절, host-admission 명세 |
-| 지원 지역, 이동 수단, 경로 최신성, 수동 허용치 세분도 | 3단계 제안서 | PRD 이동 시간 확인, meeting-feasibility 명세 |
+| 지원 지역, 경로 최신성, 수동 허용치 세분도(이동 수단은 2단계에서 확정됨) | 3단계 제안서 | PRD 이동 시간 확인, meeting-feasibility 명세 |
 | 온라인 미팅 링크 생성 | 4단계 제안서 | PRD 10절 |
 | MCP 프로토콜 버전, 등록, 스코프, CLI 패키징 | 5단계 제안서 | 에이전트 클라이언트 인가 명세, CLI 방향 |
 | iMessage 어댑터, 코드 만료, 회선 프로비저닝 | 6단계 제안서 | 제공자 설정, 새 iMessage 변경 |
