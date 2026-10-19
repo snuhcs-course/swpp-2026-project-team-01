@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { runCommand } from "../../lib/server/commands";
 import { createAppAuth } from "../../lib/server/eve-auth";
 import { signInternalBearer } from "../../lib/server/internal-bearer";
 import { sessionIdHash } from "../../lib/server/model-limits";
@@ -12,7 +13,15 @@ import {
 import { localAuthConfig } from "./support/auth";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
-import { draftRevision, prepareReviewableHost, type SeededHost, seedHost, setupDependencies } from "./support/setup-host";
+import { updateDraftCommand } from "../../lib/server/setup-commands";
+import {
+  draftRevision,
+  hostCommandDeps,
+  prepareReviewableHost,
+  type SeededHost,
+  seedHost,
+  setupDependencies,
+} from "./support/setup-host";
 
 // The setup tools' fence, replay and value idempotence (task 3.1), calling the
 // tool entry points with the principal appAuth gives a host setup session.
@@ -107,6 +116,33 @@ describe("draft_settings", () => {
     expect(await commandOutcomes(host.hostAccountId)).toBe(1);
   });
 
+  it("replays the saved outcome after the host accepted the drafted value on its card", async () => {
+    const host = await seedHost(db, deps, google, { calendar: false });
+    const replayed = call(host);
+    const input = { expectedRevision: 0, values: { durationMinutes: { source: "inferred" as const, value: 45 } } };
+
+    const first = await draftSettingsForTool(deps, replayed, input);
+    const accepted = await runCommand(hostCommandDeps(db, host.hostAccountId), updateDraftCommand, {
+      expectedRevision: 1,
+      input: { action: "use_suggestion", field: "durationMinutes", shown: 45 },
+      resourceId: host.hostAccountId,
+      retryKey: randomUUID(),
+    });
+    // The step is replayed after recovery: the draft now holds the host's answer.
+    const again = await draftSettingsForTool(deps, replayed, input);
+    const fresh = await draftSettingsForTool(deps, call(host), {
+      expectedRevision: 2,
+      values: { durationMinutes: { source: "inferred", value: 30 } },
+    });
+
+    expect(first).toMatchObject({ changed: true, revision: 1, saved: true });
+    expect(accepted).toMatchObject({ ok: true, result: { revision: 2 } });
+    expect(again).toMatchObject({ changed: true, revision: 1, saved: true });
+    // A new call still cannot replace the host's answer, and says why.
+    expect(fresh).toMatchObject({ error: "invalid_input", problems: { durationMinutes: expect.any(String) }, saved: false });
+    expect(await draftRevision(db, host.hostAccountId)).toBe(2);
+  });
+
   it("does not advance the revision for identical values under a new call ID", async () => {
     const host = await seedHost(db, deps, google, { calendar: false });
     const input = { expectedRevision: 0, values: { durationMinutes: { source: "stated" as const, value: 45 } } };
@@ -138,8 +174,8 @@ describe("draft_settings", () => {
     if (!drafted.saved) throw new Error("Not saved.");
     expect(drafted.state.fields.durationMinutes.draft).toEqual({ accepted: false, source: "inferred", value: 60 });
     expect(drafted.state.fields.meetingMode.draft).toEqual({ accepted: false, source: "stated", value: "online" });
-    // A stated mode counts as the host's answer.
-    expect(drafted.state.missingFields).not.toContain("meetingMode");
+    // A stated mode is shown on its card as "You said" and counts only once the host accepts it there.
+    expect(drafted.state.missingFields).toContain("meetingMode");
     expect(stale).toMatchObject({ error: "stale_revision", saved: false });
   });
 

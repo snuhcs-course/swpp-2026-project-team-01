@@ -13,9 +13,10 @@ import { WeeklyWindowsEditor } from "./weekly-windows-editor";
 
 // Suggestion cards (H6): one compact card per field group with the proposed
 // value, its source badge and reason, and **Use this**, **Adjust** or **Choose my
-// own**. Use this accepts the server's suggestion (its value never comes from the
-// browser); Adjust and Choose my own save the host's own value. Accepted groups
-// collapse to one line with **Edit**.
+// own**. Use this accepts the value the card shows, a suggestion or the
+// assistant's draft: the server saves its own current value and only checks that
+// it is still the one shown. Adjust and Choose my own save the host's own value.
+// Accepted groups collapse to one line with **Edit**.
 
 type EditorMode = "adjust" | "own";
 type Values = Partial<{ [F in SetupFieldName]: SetupFieldValue<F> }>;
@@ -58,7 +59,7 @@ function SuggestionCard({
   readonly title: string;
   readonly value: ReactNode;
 }) {
-  const { busy, run, state, timeZone } = useSetup();
+  const { busy, run, state } = useSetup();
   const { accepted, views } = useFieldGroup(fields);
   const [editing, setEditing] = useState<{ mode: EditorMode; trigger: string } | null>(null);
   const saving = busy === id;
@@ -76,30 +77,27 @@ function SuggestionCard({
   const save = async (mode: EditorMode, values: Values) => {
     const steps: SetupStep[] = fields.map((field, index) => ({
       expectedRevision: index === 0 ? state.draft.revision : "previous",
-      input: { action: mode === "own" ? "choose_own" : "adjust", browserTimeZone: timeZone, field, value: values[field] },
+      input: { action: mode === "own" ? "choose_own" : "adjust", field, value: values[field] },
       operation: "setup.update_draft",
     }));
 
     if (await run(id, steps)) close();
   };
 
-  // A drafted but unaccepted value (the assistant's draft) is what the card shows,
-  // so accepting it saves that value; otherwise the server copies its suggestion.
+  // Accepts each shown, unaccepted value with its label; a value that changed
+  // since this card rendered is refused as stale and the card reloads.
   const useThis = async () => {
-    const pending = views.filter(({ view }) => !view.proposed?.accepted);
+    const pending = views.filter(({ view }) => view.proposed && !view.proposed.accepted);
     const steps: SetupStep[] = pending.map(({ field, view }, index) => ({
       expectedRevision: index === 0 ? state.draft.revision : "previous",
-      input:
-        view.draft && !view.draft.accepted
-          ? { action: "adjust", browserTimeZone: timeZone, field, value: view.draft.value }
-          : { action: "use_suggestion", browserTimeZone: timeZone, field },
+      input: { action: "use_suggestion", field, shown: view.proposed!.value },
       operation: "setup.update_draft",
     }));
 
     if (await run(id, steps)) focusTrigger(id, "edit");
   };
 
-  const canUseThis = views.every(({ view }) => view.proposed?.accepted || view.suggestion || view.draft);
+  const canUseThis = views.every(({ view }) => view.proposed);
 
   return (
     <SetupCard eyebrow={eyebrow} id={id} title={title}>

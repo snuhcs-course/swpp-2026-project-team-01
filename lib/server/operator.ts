@@ -41,7 +41,6 @@ const PROJECT_REF = /^[a-z]{20}$/;
 // oxlint-disable-next-line no-control-regex -- refusing control characters is the point
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost"]);
-const EVENTS_SCOPE = GOOGLE_CALENDAR_SCOPES[1];
 
 export class AdminUsageError extends Error {
   constructor(message: string) {
@@ -160,7 +159,7 @@ export function adminSql(request: AdminRequest) {
     and h.handle is not null
     and g.refresh_token_ciphertext is not null
     and g.invalidated_at is null
-    and ${sqlLiteral(EVENTS_SCOPE)} = any (g.granted_scopes)
+    and coalesce(g.granted_scopes @> array[${GOOGLE_CALENDAR_SCOPES.map(sqlLiteral).join(", ")}]::text[], false)
   ) as ready
 from app.host_accounts a
 left join app.host_settings s on s.host_account_id = a.id

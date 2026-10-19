@@ -49,7 +49,7 @@ function save(
 }
 
 describe("setup.save_calendar_roles", () => {
-  it("saves roles by provider identity, keeps the draft row and publishes one scan", async () => {
+  it("saves roles by provider identity, publishes one scan and leaves the draft revision alone", async () => {
     const host = await hostWithCalendars();
 
     const outcome = await save(host.hostAccountId, host.live, {
@@ -85,8 +85,9 @@ describe("setup.save_calendar_roles", () => {
     const span = Date.parse(analysis!.range.end) - Date.parse(analysis!.range.start);
     expect(span).toBe(56 * 86_400_000);
 
-    const [draft] = await db`select analysis_skipped from app.setup_drafts where host_account_id = ${host.hostAccountId}`;
-    expect(draft).toEqual({ analysis_skipped: false });
+    // No draft row is created: a missing draft is revision 0, so an open card stays current.
+    const drafts = await db`select 1 from app.setup_drafts where host_account_id = ${host.hostAccountId}`;
+    expect(drafts).toHaveLength(0);
   });
 
   it("rejects a read-only destination and keeps the previous roles", async () => {

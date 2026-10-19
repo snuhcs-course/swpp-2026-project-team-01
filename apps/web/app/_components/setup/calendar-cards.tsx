@@ -80,7 +80,11 @@ export function CalendarRolesCard({ onClose }: { readonly onClose?: (saved: bool
       footer={<GoogleConnectionLinks />}
       id={CALENDARS_CARD_ID}
       title="Choose your calendars"
-      description="I check the calendars you choose for conflicts and add confirmed bookings to one of them."
+      description={
+        state.calendar.destinationLost
+          ? "Your booking calendar can no longer take new events, so bookings are paused. Choose a calendar you can add events to."
+          : "I check the calendars you choose for conflicts and add confirmed bookings to one of them."
+      }
     >
       {error ? (
         <div className="flex flex-col gap-3" role="status">

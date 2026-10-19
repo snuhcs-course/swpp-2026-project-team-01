@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { CalendarRef } from "../contracts/setup";
-import { ensureDraftForAnalysis, lockActiveHost, publishAnalysis } from "./analysis";
+import { ensureDraftForAnalysis, lockActiveHost, lockCalendarRoles, publishAnalysis } from "./analysis";
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
 import type { Queryable } from "./database";
 import {
@@ -107,8 +107,9 @@ const saveRolesInput = z.object({
 // setup.save_calendar_roles. `live` is the calendar list the caller read just
 // before running the command, so every saved ID is one the host has now and the
 // destination is writable now. In one transaction it share-locks the active
-// account, checks the expected roles revision (none saved yet: null or 0), saves
-// the roles, keeps the draft row and publishes the scan for this revision.
+// account, locks the roles, checks the expected roles revision (none saved yet:
+// null or 0), saves the roles, clears a manual-setup choice under the draft lock
+// and publishes the scan for this revision.
 export function saveCalendarRolesCommand(
   live: readonly CalendarListEntry[],
 ): CommandDefinition<{ conflictCalendarIds: string[]; bookingCalendarId: string }, { revision: number; analysisId: string }> {
@@ -129,8 +130,7 @@ export function saveCalendarRolesCommand(
         throw new CommandError("invalid_input");
       }
 
-      // Serializes saves for one host, including the first, which has no row to lock.
-      await tx`select pg_advisory_xact_lock(hashtextextended(${`app.calendar_roles:${hostAccountId}`}, 0))`;
+      await lockCalendarRoles(tx, hostAccountId);
 
       const [current] = await tx<{ revision: number }[]>`
         select revision from app.calendar_roles where host_account_id = ${hostAccountId}
@@ -163,6 +163,29 @@ export function saveCalendarRolesCommand(
       return { analysisId, revision: saved!.revision };
     },
   };
+}
+
+// Records the access the live calendar list now shows for the saved booking
+// destination, after a confirmation found it no longer writable ("none" when it
+// is gone). The confirmation itself rolled back; this durable fact makes setup ask
+// for a writable destination on the next read. Guarded by the destination ID, so
+// roles saved meanwhile are never marked.
+export async function recordDestinationAccess(
+  db: Queryable,
+  hostAccountId: string,
+  live: readonly CalendarListEntry[],
+) {
+  const roles = await readCalendarRoles(db, hostAccountId);
+  if (!roles) return;
+
+  const accessRole = live.find((calendar) => calendar.id === roles.bookingCalendar.id)?.accessRole ?? "none";
+  if (isWritable({ accessRole })) return;
+
+  await db`
+    update app.calendar_roles
+    set booking_calendar = jsonb_set(booking_calendar, '{accessRole}', to_jsonb(${accessRole}::text)), updated_at = now()
+    where host_account_id = ${hostAccountId} and booking_calendar ->> 'id' = ${roles.bookingCalendar.id}
+  `;
 }
 
 export type DestinationRecheck = "fresh" | "verified" | "unwritable" | "revoked" | "unknown";

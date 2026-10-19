@@ -21,8 +21,8 @@ export class SetupRequestError extends Error {
   }
 }
 
-// The browser's IANA zone, the timezone starter default the server offers when
-// the calendar names none.
+// The browser's IANA zone, sent with every state read. The server stores it once
+// as the timezone starter default; commands never carry it.
 export function browserTimeZone() {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -63,7 +63,7 @@ export type SetupCommandRequest = {
 // attempt is never resent with a new key; the card reloads state first.
 export type SetupCommandAttempt<Result> =
   | { readonly kind: "ok"; readonly result: Result; readonly replayed: boolean }
-  | { readonly kind: "refused"; readonly code: string; readonly message: string }
+  | { readonly kind: "refused"; readonly code: string; readonly message: string; readonly reason?: string }
   | { readonly kind: "uncertain"; readonly message: string };
 
 const UNCERTAIN = "We couldn't confirm whether that was saved. Check the card below before trying again.";
@@ -83,13 +83,20 @@ export async function runSetupCommand<Result = unknown>(request: SetupCommandReq
 
   const body = (await response.json().catch(() => null)) as
     | { ok: true; result: Result; replayed: boolean }
-    | { ok: false; error: { category: string; message: string } }
+    | { ok: false; error: { category: string; message: string; reason?: string } }
     | { code?: string; error?: string }
     | null;
 
   if (!body) return { kind: "uncertain", message: UNCERTAIN };
   if ("ok" in body && body.ok) return { kind: "ok", replayed: body.replayed, result: body.result };
-  if ("ok" in body && !body.ok) return { code: body.error.category, kind: "refused", message: body.error.message };
+  if ("ok" in body && !body.ok) {
+    return {
+      code: body.error.category,
+      kind: "refused",
+      message: body.error.message,
+      ...(body.error.reason ? { reason: body.error.reason } : {}),
+    };
+  }
 
   const plain = body as { code?: string; error?: string };
   return {

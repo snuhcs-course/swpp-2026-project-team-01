@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import type { AnalysisCard, PlaceHint } from "../contracts/analysis";
-import { GOOGLE_CALENDAR_SCOPES } from "../contracts/google-scopes";
 import {
   type ConfirmedSettings,
   type DraftEntry,
@@ -19,8 +18,22 @@ import {
   STARTER_DEFAULTS,
   type ValueSource,
 } from "../contracts/setup";
-import { placeHintFromEvidence, readLatestAnalysis, type SetupSuggestions, suggestFromEvidence } from "./analysis";
-import { readCalendarRoles, recheckConfirmedDestination, recommendCalendarRoles, type SavedCalendarRoles } from "./calendar-roles";
+import {
+  lockDraft,
+  placeHintFromEvidence,
+  readLatestAnalysis,
+  type SetupSuggestions,
+  suggestFromEvidence,
+  windowsInOtherZone,
+  writeDraft,
+} from "./analysis";
+import {
+  isWritable,
+  readCalendarRoles,
+  recheckConfirmedDestination,
+  recommendCalendarRoles,
+  type SavedCalendarRoles,
+} from "./calendar-roles";
 import { canonicalJson } from "./commands";
 import { type Database, database, type Queryable } from "./database";
 import {
@@ -32,7 +45,7 @@ import {
   openHostCalendar,
 } from "./google-calendar";
 import { checkHandle, currentHandle, type HandleAvailability, proposeHandle } from "./handles";
-import { readReadiness } from "./readiness";
+import { calendarUsable, readReadiness } from "./readiness";
 import { appOriginFromEnvironment } from "./same-origin";
 import { tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -40,8 +53,9 @@ import { tokenKeyFromEnvironment } from "./token-encryption";
 // read derives the next action, the proposed values and readiness from durable
 // records: the Calendar grant, calendar roles, the latest analysis, the draft and
 // the confirmed settings. Nothing here trusts the browser or the model for the
-// step, and nothing writes, except the best-effort destination recheck for a
-// ready host (design decision 2).
+// step. A read writes only twice (design decision 2): the best-effort destination
+// recheck for a ready host, and, once, the browser's zone as the timezone starter
+// default, so later proposals never depend on what a request says.
 
 export type SetupDependencies = {
   readonly db: Database;
@@ -94,6 +108,9 @@ export type SetupStateView = {
     readonly calendars: readonly CalendarListEntry[] | null;
     readonly recommendations: ReturnType<typeof recommendCalendarRoles> | null;
     readonly error: CalendarAccessCategory | null;
+    // The saved or confirmed booking destination can no longer take events, so the
+    // host must choose a writable one.
+    readonly destinationLost: boolean;
   };
   readonly roles: SavedCalendarRoles | null;
   readonly analysis: AnalysisCard | null;
@@ -111,7 +128,8 @@ export type SetupStateView = {
 };
 
 export type SetupReadOptions = {
-  // The browser's IANA zone, the timezone starter default when nothing better exists.
+  // The browser's IANA zone. The first read that brings one stores it as the
+  // timezone starter default; it is ignored once the draft has a timezone.
   readonly browserTimeZone?: string | null;
   // Read the live calendar list even outside the calendar step (reviewing roles).
   readonly includeCalendars?: boolean;
@@ -124,6 +142,7 @@ export type NextActionInput = {
   readonly ready: boolean;
   readonly calendarConnected: boolean;
   readonly hasRoles: boolean;
+  readonly destinationLost: boolean;
   readonly analysisPending: boolean;
   readonly analysisSkipped: boolean;
   readonly missingCount: number;
@@ -133,15 +152,34 @@ export type NextActionInput = {
 export function deriveNextAction(input: NextActionInput): SetupNextAction {
   if (input.ready) return "ready";
   if (!input.calendarConnected) return "connect_calendar";
-  if (!input.hasRoles) return "choose_calendars";
+  if (!input.hasRoles || input.destinationLost) return "choose_calendars";
   if (input.analysisPending && !input.analysisSkipped) return "analyzing";
   return input.missingCount > 0 ? "review_suggestions" : "confirm_settings";
 }
 
-// Mode, location and transport count only as the host's own answers: accepted on
-// a card, or stated in the conversation. A suggestion never answers them.
-export function countsAsHostAnswer(entry: Pick<ProposedField, "accepted" | "source">) {
-  return entry.accepted || entry.source === "stated";
+// Mode, location and transport count only as the host's own answers, accepted on
+// a card. A value the assistant drafted as stated is shown on its card as "You
+// said" with Use this, and counts once the host presses it: conversation text can
+// be steered by content the host pasted or the model read, a card press cannot.
+export function countsAsHostAnswer(entry: Pick<ProposedField, "accepted">) {
+  return entry.accepted;
+}
+
+type RolesDestination = Pick<SavedCalendarRoles, "bookingCalendar" | "destinationVerifiedAt">;
+
+// Whether the booking destination is lost: the saved roles' destination is not
+// writable (a confirmation found it read-only or gone), or the confirmed one was
+// marked unwritable by the recheck and the roles still name it without a save since.
+export function destinationLost(roles: RolesDestination | null, confirmed: ConfirmedSettings | null) {
+  if (!roles) return false;
+  if (!isWritable(roles.bookingCalendar)) return true;
+
+  const unwritableAt = confirmed?.bookingCalendar.unwritableAt;
+  return (
+    !!unwritableAt &&
+    confirmed!.bookingCalendar.id === roles.bookingCalendar.id &&
+    Date.parse(roles.destinationVerifiedAt) <= Date.parse(unwritableAt)
+  );
 }
 
 function answeredMode(proposed: ProposedFields): MeetingMode | undefined {
@@ -195,13 +233,16 @@ export function proposalHash(proposed: ProposedFields, roles: RolesForHash) {
     .digest("hex");
 }
 
+const BROWSER_ZONE_REASON = "From this browser.";
+
 function starter<F extends SetupFieldName>(value: SetupFieldValue<F>, reason: string): FieldSuggestion<F> {
   return { reason, sampleSize: null, source: "starter_default", value };
 }
 
 export type SuggestionInput = {
   readonly evidenceSuggestions: SetupSuggestions | null;
-  readonly browserTimeZone: string | null;
+  // The browser zone stored as the draft's timezone starter default.
+  readonly starterTimeZone: string | null;
   readonly profileName: string | null;
   readonly email: string | null;
   readonly proposedHandle: string | null;
@@ -215,8 +256,8 @@ export function buildSuggestions(input: SuggestionInput): { [F in SetupFieldName
   const local = input.email?.split("@")[0]?.trim() ?? "";
   const timezone: FieldSuggestion<"timezone"> =
     evidence.timezone ??
-    (input.browserTimeZone && isValidTimeZone(input.browserTimeZone)
-      ? starter<"timezone">(input.browserTimeZone, "From this browser.")
+    (input.starterTimeZone && isValidTimeZone(input.starterTimeZone)
+      ? starter<"timezone">(input.starterTimeZone, BROWSER_ZONE_REASON)
       : starter<"timezone">("UTC", "No calendar or browser time zone was available, so this is UTC."));
   const profileName = input.profileName ? SETUP_FIELD_SCHEMAS.displayName.safeParse(input.profileName) : null;
   const localName = local ? SETUP_FIELD_SCHEMAS.displayName.safeParse(local) : null;
@@ -249,7 +290,9 @@ export function buildSuggestions(input: SuggestionInput): { [F in SetupFieldName
 
 // The proposed value per field: the draft's entry, then the confirmed setting
 // (for a ready host who has not changed it), then the current suggestion. A
-// suggestion never replaces a drafted or confirmed value.
+// suggestion never replaces a drafted or confirmed value, with one exception: an
+// unaccepted starter default in the draft (the browser's zone stored on first
+// read) yields to an inferred suggestion (the primary calendar's zone).
 export function buildFieldViews(
   draft: DraftFields,
   confirmed: ConfirmedSettings | null,
@@ -262,8 +305,9 @@ export function buildFieldViews(
     const suggestion = (suggestions[field] as FieldSuggestion | undefined) ?? null;
     const saved = confirmed ? confirmedValue(confirmed, field) : undefined;
     let proposed: ProposedField | null = null;
+    const yields = drafted && !drafted.accepted && drafted.source === "starter_default" && suggestion?.source === "inferred";
 
-    if (drafted) {
+    if (drafted && !yields) {
       proposed = {
         accepted: drafted.accepted,
         reason: drafted.reason ?? null,
@@ -271,7 +315,7 @@ export function buildFieldViews(
         source: drafted.source,
         value: drafted.value,
       };
-    } else if (saved !== undefined) {
+    } else if (saved !== undefined && !yields) {
       proposed = {
         accepted: true,
         reason: null,
@@ -342,14 +386,13 @@ async function readSetupRecords(q: Queryable, hostAccountId: string): Promise<Se
     draft_fields: DraftFields | null;
     draft_revision: number | null;
     email: string | null;
-    granted_scopes: string[] | null;
-    has_token: boolean;
+    calendar_usable: boolean;
     invalidated: boolean;
     settings: ConfirmedSettings | null;
     status: string;
   }[]>`
     select a.status, a.display_name, i.email,
-           g.granted_scopes, g.refresh_token_ciphertext is not null as has_token, g.invalidated_at is not null as invalidated,
+           ${calendarUsable(q)} as calendar_usable, coalesce(g.invalidated_at is not null, false) as invalidated,
            d.revision as draft_revision, d.fields as draft_fields, d.analysis_skipped,
            s.settings
     from app.host_accounts a
@@ -364,8 +407,7 @@ async function readSetupRecords(q: Queryable, hostAccountId: string): Promise<Se
 
   return {
     analysisSkipped: row.analysis_skipped ?? false,
-    calendarConnected:
-      row.has_token && !row.invalidated && GOOGLE_CALENDAR_SCOPES.every((scope) => row.granted_scopes?.includes(scope)),
+    calendarConnected: row.calendar_usable,
     confirmed: row.settings,
     draftFields: row.draft_fields ?? {},
     draftRevision: row.draft_revision ?? 0,
@@ -388,13 +430,22 @@ export type SetupProposal = {
   readonly proposalHash: string;
 };
 
-// Recomputes the proposal from durable records. The state route, the setup tools
-// and confirmation all call this, so a review's hash means the same thing in each.
-export async function computeSetupProposal(
-  q: Queryable,
-  hostAccountId: string,
-  options: { readonly browserTimeZone?: string | null } = {},
-): Promise<SetupProposal | null> {
+// The suggestions with the inferred weekly windows replaced by the starter default
+// when the scan counted hours in a zone other than the proposed timezone.
+export function alignWindowsWithZone(
+  suggestions: { [F in SetupFieldName]?: FieldSuggestion<F> },
+  countedZone: string | null,
+  proposedZone: string | null,
+): { [F in SetupFieldName]?: FieldSuggestion<F> } {
+  return countedZone && proposedZone && countedZone !== proposedZone && suggestions.weeklyWindows?.source === "inferred"
+    ? { ...suggestions, weeklyWindows: windowsInOtherZone(countedZone, proposedZone) }
+    : suggestions;
+}
+
+// Recomputes the proposal from durable records only. The state route, the setup
+// tools and confirmation all call this, so a review's hash means the same thing in
+// each.
+export async function computeSetupProposal(q: Queryable, hostAccountId: string): Promise<SetupProposal | null> {
   const records = await readSetupRecords(q, hostAccountId);
 
   if (!records) return null;
@@ -405,20 +456,24 @@ export async function computeSetupProposal(
     currentHandle(q, hostAccountId),
   ]);
   const evidence = analysis?.state === "completed" ? analysis.evidence : null;
-  // The scan counts in the host's zone, taken from the draft, the settings or the
-  // primary calendar; UTC means none of them was available.
-  const evidenceZone = evidence && evidence.timezone !== "UTC" ? evidence.timezone : null;
+  const drafted = records.draftFields.timezone;
   const needsHandle = !records.draftFields.handle && !records.confirmed;
   const proposedHandle =
     current ?? (needsHandle && records.email ? await proposeHandle(q, hostAccountId, records.email) : null);
   const suggestions = buildSuggestions({
-    browserTimeZone: options.browserTimeZone ?? null,
     email: records.email,
-    evidenceSuggestions: evidence ? suggestFromEvidence(evidence, evidenceZone) : null,
+    // Only the primary calendar's own zone is labeled as the calendar's.
+    evidenceSuggestions: evidence ? suggestFromEvidence(evidence, evidence.primaryTimeZone ?? null) : null,
     profileName: records.profileName,
     proposedHandle,
+    starterTimeZone: drafted?.source === "starter_default" ? drafted.value : null,
   });
-  const fields = buildFieldViews(records.draftFields, records.confirmed, suggestions);
+  const zone = buildFieldViews(records.draftFields, records.confirmed, suggestions).timezone.proposed?.value ?? null;
+  const fields = buildFieldViews(
+    records.draftFields,
+    records.confirmed,
+    alignWindowsWithZone(suggestions, evidence?.timezone ?? null, zone),
+  );
   const proposed = proposedOf(fields);
   const handle = proposed.handle?.value;
   const handleAvailability = handle ? (await checkHandle(q, hostAccountId, handle)).availability : null;
@@ -449,6 +504,31 @@ async function liveCalendars(deps: SetupDependencies, hostAccountId: string) {
   }
 }
 
+// Stores the browser's zone as the draft's timezone starter default, once: only
+// for an active host whose draft has no timezone and who has no confirmed
+// settings (a ready host's confirmed zone is its proposal). It takes the account
+// share lock and then the draft lock, in setup's lock order.
+export async function storeBrowserTimeZone(db: Database, hostAccountId: string, zone: string) {
+  if (!isValidTimeZone(zone)) return false;
+
+  return db.begin(async (tx) => {
+    const [account] = await tx<{ status: string }[]>`
+      select status from app.host_accounts where id = ${hostAccountId} for share
+    `;
+    if (account?.status !== "active") return false;
+
+    const draft = await lockDraft(tx, hostAccountId);
+    const [settings] = await tx`select 1 from app.host_settings where host_account_id = ${hostAccountId}`;
+    if (draft.fields.timezone || settings) return false;
+
+    await writeDraft(tx, hostAccountId, {
+      ...draft.fields,
+      timezone: { accepted: false, reason: BROWSER_ZONE_REASON, sampleSize: null, source: "starter_default", value: zone },
+    });
+    return true;
+  });
+}
+
 // The full card projection of the host's setup. Null when the account does not exist.
 export async function readSetupState(
   deps: SetupDependencies,
@@ -460,18 +540,26 @@ export async function readSetupState(
     await recheckConfirmedDestination(deps.calendar, hostAccountId).catch(() => "unknown");
   }
 
-  const browserTimeZone =
-    options.browserTimeZone && isValidTimeZone(options.browserTimeZone) ? options.browserTimeZone : null;
-  const proposal = await computeSetupProposal(deps.db, hostAccountId, { browserTimeZone });
+  let proposal = await computeSetupProposal(deps.db, hostAccountId);
 
   if (!proposal) return null;
 
+  if (options.browserTimeZone && !proposal.records.draftFields.timezone && !proposal.records.confirmed) {
+    // Recomputed even when a concurrent read stored a zone first: the lock waited
+    // for it, so this read never returns the revision from before that write.
+    await storeBrowserTimeZone(deps.db, hostAccountId, options.browserTimeZone);
+    proposal = await computeSetupProposal(deps.db, hostAccountId);
+    if (!proposal) return null;
+  }
+
   const readiness = await readReadiness(deps.db, hostAccountId);
   const { records, roles, analysis } = proposal;
+  const lost = destinationLost(roles, records.confirmed);
   const nextAction = deriveNextAction({
     analysisPending: analysis?.state === "pending",
     analysisSkipped: records.analysisSkipped,
     calendarConnected: records.calendarConnected,
+    destinationLost: lost,
     hasRoles: roles !== null,
     missingCount: proposal.missingFields.length,
     ready: readiness.ready,
@@ -485,7 +573,7 @@ export async function readSetupState(
     account: { googleEmail: records.email },
     analysis,
     analysisSkipped: records.analysisSkipped,
-    calendar: { connected: records.calendarConnected, invalid: records.grantInvalid, ...live },
+    calendar: { connected: records.calendarConnected, destinationLost: lost, invalid: records.grantInvalid, ...live },
     draft: { revision: records.draftRevision },
     fields: proposal.fields,
     handleAvailability: proposal.handleAvailability,

@@ -17,9 +17,10 @@ import { describeLocation, describeTravelMode, formatMinutes, MEETING_MODE_LABEL
 import { useSetup } from "./setup-context";
 import { MinutesInput } from "./suggestion-cards";
 
-// Mode, location and transport (H7). These are the host's own answers: a
-// suggestion is labeled but never preselected, and every answer is saved as
-// Choose my own. Online hides the in-person questions.
+// Mode, location and transport (H7). These are the host's own answers and count
+// only once accepted on a card: every choice is saved as Choose my own, and a
+// value the assistant recorded from the conversation shows as "You said" with
+// **Use this**, never preselected. Online hides the in-person questions.
 
 export const QUESTION_CARD_IDS = {
   location: "setup-location",
@@ -28,21 +29,20 @@ export const QUESTION_CARD_IDS = {
   travelBuffer: "setup-travel-buffer",
 } as const;
 
-// Whether a field holds the host's answer: accepted on a card or stated in text.
+// Whether a field holds the host's answer: accepted on a card.
 function useAnswer<F extends SetupFieldName>(field: F) {
   const { state } = useSetup();
   const proposed = state.fields[field].proposed;
-  const answered = proposed ? proposed.accepted || proposed.source === "stated" : false;
-  return { answered, proposed };
+  return { answered: proposed?.accepted ?? false, proposed };
 }
 
 function useAnswerAction(id: string) {
-  const { run, state, timeZone } = useSetup();
+  const { run, state } = useSetup();
   return async (field: SetupFieldName, value: unknown) =>
     run(id, [
       {
         expectedRevision: state.draft.revision,
-        input: { action: "choose_own", browserTimeZone: timeZone, field, value },
+        input: { action: "choose_own", field, value },
         operation: "setup.update_draft",
       },
     ]);
@@ -50,7 +50,38 @@ function useAnswerAction(id: string) {
 
 export function answeredMode(state: ReturnType<typeof useSetup>["state"]): MeetingMode | null {
   const proposed = state.fields.meetingMode.proposed;
-  return proposed && (proposed.accepted || proposed.source === "stated") ? proposed.value : null;
+  return proposed?.accepted ? proposed.value : null;
+}
+
+// What the host told the assistant, recorded but not yet an answer: shown as
+// "You said" with Use this, which accepts exactly the value shown.
+function YouSaid({ children, field, id }: { readonly children: ReactNode; readonly field: SetupFieldName; readonly id: string }) {
+  const { busy, run, state } = useSetup();
+  const proposed = state.fields[field].proposed;
+
+  if (!proposed || proposed.accepted || proposed.source !== "stated") return null;
+
+  const use = async () => {
+    const saved = await run(id, [
+      {
+        expectedRevision: state.draft.revision,
+        input: { action: "use_suggestion", field, shown: proposed.value },
+        operation: "setup.update_draft",
+      },
+    ]);
+    if (saved) focusTrigger(id, "change");
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-secondary/60 p-3">
+      <p className="min-w-0 flex-1 text-sm break-words">
+        <span className="font-medium">You said:</span> {children}
+      </p>
+      <Button data-trigger="use" disabled={busy !== null} onClick={() => void use()} type="button">
+        {busy === id ? "Saving..." : "Use this"}
+      </Button>
+    </div>
+  );
 }
 
 // A one-line answer with a Change button that reopens the choices.
@@ -90,13 +121,11 @@ function ChoiceButtons<T extends string>({
   labels,
   onChoose,
   options,
-  suggested,
 }: {
   readonly current: T | null;
   readonly labels: Readonly<Record<T, string>>;
   readonly onChoose: (value: T) => void;
   readonly options: readonly T[];
-  readonly suggested?: T | null;
 }) {
   const { busy } = useSetup();
   return (
@@ -111,7 +140,6 @@ function ChoiceButtons<T extends string>({
           variant={current === option ? "default" : "outline"}
         >
           {labels[option]}
-          {suggested === option ? <span className="text-xs font-normal text-muted-foreground">(suggested)</span> : null}
         </Button>
       ))}
     </CardActions>
@@ -123,8 +151,6 @@ export function ModeCard() {
   const { answered, proposed } = useAnswer("meetingMode");
   const answer = useAnswerAction(id);
   const reopen = useReopen(id);
-  // A value the assistant drafted from evidence is a labeled suggestion only.
-  const suggested = proposed && !answered ? proposed.value : null;
 
   const choose = async (mode: MeetingMode) => {
     if (await answer("meetingMode", mode)) reopen.close();
@@ -138,17 +164,16 @@ export function ModeCard() {
         </AnsweredLine>
       ) : (
         <>
-          {suggested ? (
-            <p className="text-sm text-muted-foreground">
-              Thyme suggested {MEETING_MODE_LABELS[suggested].toLowerCase()} from your calendar. Choose your own answer.
-            </p>
+          {proposed ? (
+            <YouSaid field="meetingMode" id={id}>
+              {MEETING_MODE_LABELS[proposed.value]}
+            </YouSaid>
           ) : null}
           <ChoiceButtons
             current={answered && proposed ? proposed.value : null}
             labels={MEETING_MODE_LABELS}
             onChoose={(mode) => void choose(mode)}
             options={MEETING_MODES}
-            suggested={suggested}
           />
         </>
       )}
@@ -191,6 +216,11 @@ export function LocationCard() {
         />
       ) : (
         <>
+          {proposed ? (
+            <YouSaid field="location" id={id}>
+              {describeLocation(proposed.value)}
+            </YouSaid>
+          ) : null}
           {hintPlaces ? (
             <div className="flex flex-col gap-2 rounded-lg border border-border bg-secondary/60 p-3">
               <p className="text-sm">
@@ -350,16 +380,23 @@ export function TransportCard() {
           {describeTravelMode(proposed.value)}
         </AnsweredLine>
       ) : (
-        <ChoiceButtons
-          current={answered && proposed ? proposed.value : null}
-          labels={labels}
-          onChoose={(mode) =>
-            void answer("travelMode", mode).then((ok) => {
-              if (ok) reopen.close();
-            })
-          }
-          options={TRAVEL_MODES}
-        />
+        <>
+          {proposed ? (
+            <YouSaid field="travelMode" id={id}>
+              {describeTravelMode(proposed.value)}
+            </YouSaid>
+          ) : null}
+          <ChoiceButtons
+            current={answered && proposed ? proposed.value : null}
+            labels={labels}
+            onChoose={(mode) =>
+              void answer("travelMode", mode).then((ok) => {
+                if (ok) reopen.close();
+              })
+            }
+            options={TRAVEL_MODES}
+          />
+        </>
       )}
     </SetupCard>
   );

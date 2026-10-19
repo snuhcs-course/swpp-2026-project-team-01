@@ -136,7 +136,7 @@ describe("openHostCalendar", () => {
     expect(statements.some((sql) => sql.includes("set invalidated_at"))).toBe(false);
   });
 
-  it("sends the token only in headers and bodies, reads minimal fields and stops after eight pages", async () => {
+  it("sends the token only in headers and bodies, reads minimal fields and pages until the list ends", async () => {
     const { db } = grantDatabase();
     const urls: string[] = [];
     const fetcher = vi.fn<typeof fetch>(async (input, init) => {
@@ -152,7 +152,7 @@ describe("openHostCalendar", () => {
       const pageToken = Number(new URL(url).searchParams.get("pageToken") ?? "0");
       return jsonResponse(200, {
         items: [{ end: { dateTime: "2026-10-13T02:00:00Z" }, id: `e${pageToken}`, start: { dateTime: "2026-10-13T01:00:00Z" } }],
-        nextPageToken: String(pageToken + 1),
+        ...(pageToken < 7 ? { nextPageToken: String(pageToken + 1) } : {}),
       });
     });
     const calendar = await openHostCalendar({ config: config(fetcher), db, tokenKeys: [key] }, hostAccountId);
@@ -174,6 +174,49 @@ describe("openHostCalendar", () => {
     expect(first.searchParams.get("fields")).toMatch(/^nextPageToken,items\(/);
     expect(urls.join(" ")).not.toContain(refreshToken);
     expect(urls.join(" ")).not.toContain("ya29.access");
+  });
+
+  it("reports a list still unfinished at its page cap as unavailable instead of truncating it", async () => {
+    const { db } = grantDatabase();
+    const urls: string[] = [];
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      urls.push(url);
+
+      if (url === "https://oauth.test/token") return jsonResponse(200, { access_token: "ya29.access", expires_in: 3599 });
+
+      const pageToken = Number(new URL(url).searchParams.get("pageToken") ?? "0");
+      return url.includes("/calendarList")
+        ? jsonResponse(200, { items: [{ accessRole: "owner", id: `c${pageToken}` }], nextPageToken: String(pageToken + 1) })
+        : jsonResponse(200, {
+            items: [{ end: { dateTime: "2026-10-13T02:00:00Z" }, id: `e${pageToken}`, start: { dateTime: "2026-10-13T01:00:00Z" } }],
+            nextPageToken: String(pageToken + 1),
+          });
+    });
+    const calendar = await openHostCalendar({ config: config(fetcher), db, tokenKeys: [key] }, hostAccountId);
+    const range = { end: new Date("2026-11-16T00:00:00Z"), start: new Date("2026-09-21T00:00:00Z") };
+
+    expect(await category(calendar.listEvents("me@example.test", range))).toBe("calendar_unavailable");
+    expect(await category(calendar.listCalendars())).toBe("calendar_unavailable");
+    expect(urls.filter((url) => url.includes("/events"))).toHaveLength(8);
+    expect(urls.filter((url) => url.includes("/calendarList"))).toHaveLength(10);
+  });
+
+  it("bounds the token exchange and the calendar list by the caller's signal", async () => {
+    const { db } = grantDatabase();
+    const hanging = vi.fn<typeof fetch>(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal!.reason));
+        }),
+    );
+    // The per-request timeout is far longer than the budget, so only the signal ends the wait.
+    const calendar = await openHostCalendar({ config: config(hanging, { timeoutMs: 60_000 }), db, tokenKeys: [key] }, hostAccountId);
+    const started = Date.now();
+
+    expect(await category(calendar.listCalendars({ signal: AbortSignal.timeout(50) }))).toBe("calendar_unavailable");
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(String(hanging.mock.calls[0]![0])).toBe("https://oauth.test/token");
   });
 
   it("maps events, treating a meeting URL in the location as a link and dropping room resources", async () => {

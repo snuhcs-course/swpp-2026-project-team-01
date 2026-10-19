@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { CommandErrorCategory } from "../contracts/command-errors";
 import { SETUP_OPERATIONS } from "../contracts/setup";
 import { analyzeAgainCommand, setUpManuallyCommand } from "./analysis";
-import { saveCalendarRolesCommand } from "./calendar-roles";
+import { recordDestinationAccess, saveCalendarRolesCommand } from "./calendar-roles";
 import { authenticatedUserId, chatError, json } from "./chat-routes";
 import { type Actor, type CommandDefinition, type CommandOutcome, runCommand } from "./commands";
 import { CalendarAccessError, type CalendarListEntry, openHostCalendar } from "./google-calendar";
@@ -46,7 +46,8 @@ async function eligibleHost(request: Request, deps: SetupRouteDependencies): Pro
   return { id: standing.hostAccountId, kind: "host_account" };
 }
 
-// GET /api/setup/state?tz=<IANA>[&calendars=1]: the derived setup state for the cards.
+// GET /api/setup/state?tz=<IANA>[&calendars=1]: the derived setup state for the
+// cards. The first read with a valid zone stores it as the timezone starter default.
 export function createSetupStateHandler(load: () => SetupRouteDependencies = setupRouteDependenciesFromEnvironment) {
   return async (request: Request) => {
     const deps = load();
@@ -119,9 +120,16 @@ export function createSetupCommandHandler(load: () => SetupRouteDependencies = s
         case "setup.save_calendar_roles":
           outcome = await run(saveCalendarRolesCommand(await liveCalendars(deps, actor.id)));
           break;
-        case "setup.confirm_settings":
-          outcome = await run(confirmSettingsCommand(await liveCalendars(deps, actor.id), deps.appOrigin));
+        case "setup.confirm_settings": {
+          const live = await liveCalendars(deps, actor.id);
+          outcome = await run(confirmSettingsCommand(live, deps.appOrigin));
+          // The refusal saved nothing; recording what the list showed makes setup
+          // ask for a writable destination from now on.
+          if (!outcome.ok && outcome.error.reason === "destination_not_writable") {
+            await recordDestinationAccess(deps.db, actor.id, live);
+          }
           break;
+        }
         case "setup.analyze_again":
           outcome = await run(analyzeAgainCommand);
           break;

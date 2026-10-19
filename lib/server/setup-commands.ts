@@ -3,16 +3,14 @@ import {
   type CalendarRef,
   type ConfirmedSettings,
   type DraftEntry,
-  type DraftFields,
-  isValidTimeZone,
   SETUP_FIELD_NAMES,
   SETUP_FIELD_SCHEMAS,
   type SetupFieldName,
   type ValueSource,
 } from "../contracts/setup";
-import { lockActiveHost } from "./analysis";
-import { isWritable, readCalendarRoles } from "./calendar-roles";
-import { assertRevision, type CommandDefinition, CommandError } from "./commands";
+import { lockActiveHost, lockCalendarRoles, lockDraft, writeDraft } from "./analysis";
+import { isWritable } from "./calendar-roles";
+import { assertRevision, canonicalJson, type CommandDefinition, CommandError } from "./commands";
 import type { Transaction } from "./database";
 import type { CalendarListEntry } from "./google-calendar";
 import { assignHandle, checkHandle, HandleError } from "./handles";
@@ -21,33 +19,11 @@ import { computeSetupProposal, proposalValues, type SetupLinks, setupLinks } fro
 // The draft and confirmation commands of host setup (design decisions 10 to 12).
 // Each runs through runCommand: the actor comes from verified credentials, the
 // expected revision is the draft revision the caller last saw, and every write
-// rechecks that the account is active under its share lock.
+// rechecks that the account is active under its share lock. Locks follow setup's
+// order (see lockCalendarRoles). Proposals come from durable records only, so no
+// command takes the browser's zone.
 
 const fieldName = z.enum(SETUP_FIELD_NAMES as [SetupFieldName, ...SetupFieldName[]]);
-const browserTimeZone = z.string().max(64).refine(isValidTimeZone).optional();
-
-// Locks the host's draft row. With no row yet the revision is 0, so a first
-// write expects 0 and creates revision 1.
-export async function lockDraft(tx: Transaction, hostAccountId: string) {
-  // Serializes the first write, which has no row to lock.
-  await tx`select pg_advisory_xact_lock(hashtextextended(${`app.setup_drafts:${hostAccountId}`}, 0))`;
-  const [row] = await tx<{ fields: DraftFields; revision: number }[]>`
-    select revision, fields from app.setup_drafts where host_account_id = ${hostAccountId} for update
-  `;
-  return { fields: row?.fields ?? {}, revision: row?.revision ?? 0 };
-}
-
-// Writes the draft's fields as the next revision.
-export async function writeDraft(tx: Transaction, hostAccountId: string, fields: DraftFields) {
-  const [saved] = await tx<{ revision: number }[]>`
-    insert into app.setup_drafts as stored (host_account_id, fields)
-    values (${hostAccountId}, ${tx.json(fields as Parameters<typeof tx.json>[0])})
-    on conflict (host_account_id) do update set
-      fields = excluded.fields, revision = stored.revision + 1, updated_at = now()
-    returning revision
-  `;
-  return saved!.revision;
-}
 
 // A handle may be drafted only when the host could take it now.
 export async function assertHandleAvailable(tx: Transaction, hostAccountId: string, handle: string) {
@@ -61,19 +37,25 @@ const updateDraftInput = z
     field: fieldName,
     action: z.enum(["use_suggestion", "adjust", "choose_own"]),
     value: z.unknown().optional(),
-    browserTimeZone,
+    // Use this: the value the card showed, which must still be the proposed one.
+    shown: z.unknown().optional(),
   })
   .strict()
   .refine((input) => (input.action === "use_suggestion") === (input.value === undefined), {
     message: "Use this takes no value; Adjust and Choose my own take one.",
+  })
+  .refine((input) => (input.action === "use_suggestion") === (input.shown !== undefined), {
+    message: "Use this names the value the card showed; Adjust and Choose my own do not.",
   });
 
 export type UpdateDraftInput = z.infer<typeof updateDraftInput>;
 
-// setup.update_draft: **Use this** copies the field's current suggestion, with its
-// label and evidence, into the draft as accepted (the value never comes from the
-// client); **Adjust** and **Choose my own** write the host's own value as stated
-// and accepted.
+// setup.update_draft: **Use this** accepts the field's current proposed value
+// (a suggestion, or a value the assistant drafted, such as a "You said" answer)
+// with its label and evidence. The value itself comes from the server; `shown`
+// only proves the card showed that value, and a different current value is a
+// stale card. **Adjust** and **Choose my own** write the host's own value as
+// stated and accepted.
 export const updateDraftCommand: CommandDefinition<UpdateDraftInput, { revision: number }> = {
   input: updateDraftInput,
   operation: "setup.update_draft",
@@ -86,17 +68,18 @@ export const updateDraftCommand: CommandDefinition<UpdateDraftInput, { revision:
     let entry: DraftEntry;
 
     if (action === "use_suggestion") {
-      const proposal = await computeSetupProposal(tx, hostAccountId, { browserTimeZone: context.input.browserTimeZone });
-      const suggestion = proposal?.fields[field].suggestion;
+      const proposal = await computeSetupProposal(tx, hostAccountId);
+      const proposed = proposal?.fields[field].proposed;
 
-      if (!suggestion) throw new CommandError("invalid_input");
+      if (!proposed) throw new CommandError("invalid_input");
+      if (canonicalJson(proposed.value) !== canonicalJson(context.input.shown)) throw new CommandError("stale_revision");
 
       entry = {
         accepted: true,
-        reason: suggestion.reason,
-        sampleSize: suggestion.sampleSize,
-        source: suggestion.source,
-        value: suggestion.value,
+        reason: proposed.reason,
+        sampleSize: proposed.sampleSize,
+        source: proposed.source,
+        value: proposed.value,
       } as DraftEntry;
     } else {
       const parsed = SETUP_FIELD_SCHEMAS[field].safeParse(context.input.value);
@@ -113,7 +96,7 @@ export const updateDraftCommand: CommandDefinition<UpdateDraftInput, { revision:
   },
 };
 
-const confirmInput = z.object({ proposalHash: z.string().regex(/^[0-9a-f]{64}$/), browserTimeZone }).strict();
+const confirmInput = z.object({ proposalHash: z.string().regex(/^[0-9a-f]{64}$/) }).strict();
 
 export type ConfirmSettingsResult = { readonly handle: string; readonly links: SetupLinks };
 
@@ -128,11 +111,13 @@ function toRef(calendar: CalendarRef): CalendarRef {
 
 // setup.confirm_settings (design decision 12). `live` is the calendar list read
 // just before the command, and `appOrigin` the origin the links are built on. In
-// one transaction it share-locks the active account, locks the draft and checks
-// the reviewed revision, recomputes the proposal and compares the reviewed hash,
-// checks that the saved booking destination is still writable, validates every
-// required value, assigns the handle and writes the confirmed settings. Any
-// failure rolls all of it back.
+// one transaction it share-locks the active account, locks the roles and then the
+// draft (setup's lock order, which saving roles shares) and checks the reviewed
+// revision, recomputes the proposal and compares the reviewed hash, checks that
+// the proposal's booking destination is still writable (refusing with the
+// destination_not_writable reason otherwise), validates every required value,
+// assigns the handle and writes the confirmed settings. Any failure rolls all of
+// it back.
 export function confirmSettingsCommand(
   live: readonly CalendarListEntry[],
   appOrigin: string,
@@ -145,19 +130,24 @@ export function confirmSettingsCommand(
     async run(tx, context) {
       const hostAccountId = context.actor.id;
       await lockActiveHost(tx, hostAccountId);
+      await lockCalendarRoles(tx, hostAccountId);
       const draft = await lockDraft(tx, hostAccountId);
       assertRevision(draft.revision, context.expectedRevision);
-      const proposal = await computeSetupProposal(tx, hostAccountId, { browserTimeZone: context.input.browserTimeZone });
+      const proposal = await computeSetupProposal(tx, hostAccountId);
 
       if (!proposal || proposal.proposalHash !== context.input.proposalHash) {
         throw new CommandError("stale_revision");
       }
 
-      const roles = await readCalendarRoles(tx, hostAccountId);
-      const destination = roles ? byId.get(roles.bookingCalendar.id) : undefined;
+      // The roles the reviewed hash covers, read under the roles lock.
+      const roles = proposal.roles;
 
-      if (!roles || !destination || !isWritable(destination) || proposal.missingFields.length > 0) {
-        throw new CommandError("invalid_input");
+      if (!roles || proposal.missingFields.length > 0) throw new CommandError("invalid_input");
+
+      const destination = byId.get(roles.bookingCalendar.id);
+
+      if (!destination || !isWritable(destination)) {
+        throw new CommandError("invalid_input", { reason: "destination_not_writable" });
       }
 
       const values = proposalValues(proposal.proposed);

@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  ANALYSIS_FAILED,
   analysisForModel,
   analyzeAgainCommand,
   createCalendarAnalysisHandler,
@@ -8,6 +9,8 @@ import {
   setUpManuallyCommand,
   suggestFromEvidence,
 } from "../../lib/server/analysis";
+import type { JobHandler } from "../../lib/server/jobs";
+import { computeSetupProposal } from "../../lib/server/setup";
 import { saveCalendarRolesCommand } from "../../lib/server/calendar-roles";
 import { type CommandDefinition, runCommand } from "../../lib/server/commands";
 import { openHostCalendar } from "../../lib/server/google-calendar";
@@ -96,7 +99,8 @@ describe("calendar analysis job", () => {
       { count: 4, hour: 14, weekday: "wednesday" },
       { count: 4, hour: 16, weekday: "thursday" },
     ]);
-    expect(evidence.meetingLoad).toMatchObject({ max: 3, min: 3, sampleSize: 12 });
+    // The scan covers eight weeks and only four had meetings, so the quietest full week had none.
+    expect(evidence.meetingLoad).toMatchObject({ max: 3, min: 0, sampleSize: 12 });
     expect(evidence.meetingLoad.weeks).toHaveLength(4);
     expect(evidence.meetingLoad.weeks.every((week) => week.internal === 1 && week.external === 2)).toBe(true);
     expect(evidence.places).toEqual({
@@ -120,9 +124,8 @@ describe("calendar analysis job", () => {
   it("counts in the draft's timezone when the host already chose one", async () => {
     const host = await hostWithSavedRoles();
     await db`
-      update app.setup_drafts
-      set fields = ${db.json({ timezone: { accepted: true, source: "stated", value: "UTC" } })}
-      where host_account_id = ${host.hostAccountId}
+      insert into app.setup_drafts (host_account_id, fields)
+      values (${host.hostAccountId}, ${db.json({ timezone: { accepted: true, source: "stated", value: "UTC" } })})
     `;
 
     await runJob(db, host.jobId, handler());
@@ -130,6 +133,72 @@ describe("calendar analysis job", () => {
     const evidence = (await readLatestAnalysis(db, host.hostAccountId))!.evidence!;
     expect(evidence.timezone).toBe("UTC");
     expect(evidence.preferredTimes.cells[0]).toEqual({ count: 4, hour: 1, weekday: "tuesday" });
+  });
+
+  it("labels only the primary calendar's zone as the calendar's, and drops windows counted in another zone", async () => {
+    const paris = (email: string) => {
+      const fixture = defaultGoogleFixture(new Date(), email);
+      return { ...fixture, calendars: fixture.calendars.map((entry) => (entry.primary ? { ...entry, timeZone: "Europe/Paris" } : entry)) };
+    };
+    const browserZone = { accepted: false, reason: "From this browser.", sampleSize: null, source: "starter_default", value: "Asia/Seoul" };
+    const chosenZone = { accepted: true, source: "stated", value: "Asia/Seoul" };
+
+    // The browser's unaccepted starter zone yields to the primary calendar's.
+    const starter = await hostWithSavedRoles(paris);
+    await db`insert into app.setup_drafts (host_account_id, fields) values (${starter.hostAccountId}, ${db.json({ timezone: browserZone })})`;
+    await runJob(db, starter.jobId, handler());
+    const counted = (await readLatestAnalysis(db, starter.hostAccountId))!.evidence!;
+    const proposal = (await computeSetupProposal(db, starter.hostAccountId))!;
+
+    expect(counted).toMatchObject({ primaryTimeZone: "Europe/Paris", timezone: "Europe/Paris" });
+    expect(proposal.fields.timezone.proposed).toMatchObject({ reason: expect.stringContaining("primary"), source: "inferred", value: "Europe/Paris" });
+    expect(proposal.fields.weeklyWindows.proposed).toMatchObject({ source: "inferred" });
+
+    // The host then chooses Seoul: the Paris-counted windows no longer apply.
+    await db`update app.setup_drafts set fields = ${db.json({ timezone: chosenZone })} where host_account_id = ${starter.hostAccountId}`;
+    const moved = (await computeSetupProposal(db, starter.hostAccountId))!;
+    expect(moved.fields.timezone.proposed).toMatchObject({ accepted: true, value: "Asia/Seoul" });
+    expect(moved.fields.weeklyWindows.proposed).toMatchObject({
+      reason: expect.stringContaining("Europe/Paris, not Asia/Seoul"),
+      source: "starter_default",
+    });
+
+    // A host who chose Seoul before the scan has it counted in Seoul, and only
+    // Paris is labeled as the primary calendar's zone.
+    const chosen = await hostWithSavedRoles(paris);
+    await db`insert into app.setup_drafts (host_account_id, fields) values (${chosen.hostAccountId}, ${db.json({ timezone: chosenZone })})`;
+    await runJob(db, chosen.jobId, handler());
+    const seoul = (await computeSetupProposal(db, chosen.hostAccountId))!;
+
+    expect((await readLatestAnalysis(db, chosen.hostAccountId))!.evidence).toMatchObject({ primaryTimeZone: "Europe/Paris", timezone: "Asia/Seoul" });
+    expect(seoul.fields.timezone.suggestion).toMatchObject({ source: "inferred", value: "Europe/Paris" });
+    expect(seoul.fields.timezone.proposed).toMatchObject({ accepted: true, value: "Asia/Seoul" });
+    expect(seoul.fields.weeklyWindows.proposed).toMatchObject({ source: "inferred" });
+  });
+
+  it("marks the scan failed when its job exhausts its attempts on unexpected errors", async () => {
+    const host = await hostWithSavedRoles();
+    await db`update app.jobs set max_attempts = 1 where id = ${host.jobId}`;
+    const failing: JobHandler = Object.assign(
+      async () => {
+        throw new Error("unexpected");
+      },
+      { onExhausted: handler().onExhausted },
+    );
+
+    expect(await runJob(db, host.jobId, failing)).toBe("exhausted");
+
+    expect(await jobState(host.jobId)).toBe("exhausted");
+    expect(await readLatestAnalysis(db, host.hostAccountId)).toMatchObject({ evidence: null, failureCategory: ANALYSIS_FAILED, state: "failed" });
+  });
+
+  it("reports a scan still pending after 15 minutes as failed", async () => {
+    const host = await hostWithSavedRoles();
+    expect(await readLatestAnalysis(db, host.hostAccountId)).toMatchObject({ state: "pending" });
+
+    await db`update app.calendar_analyses set created_at = now() - interval '16 minutes' where id = ${host.analysisId}`;
+
+    expect(await readLatestAnalysis(db, host.hostAccountId)).toMatchObject({ failureCategory: ANALYSIS_FAILED, state: "failed" });
   });
 
   it("discloses a partial failure, stores no evidence and commits the failure", async () => {

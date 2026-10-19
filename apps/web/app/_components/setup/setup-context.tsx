@@ -36,7 +36,6 @@ export type SetupStep = {
 
 type SetupContextValue = {
   readonly state: SetupState;
-  readonly timeZone: string;
   readonly busy: string | null;
   readonly notice: SetupNotice | null;
   readonly editingCalendars: boolean;
@@ -54,8 +53,12 @@ export function useSetup() {
   return value;
 }
 
-function refusalMessage(code: string, message: string) {
+export const DESTINATION_LOST_MESSAGE =
+  "Your booking calendar can no longer take new events. Choose a calendar you can add events to.";
+
+function refusalMessage(code: string, message: string, reason?: string) {
   if (code === "stale_revision") return STALE_MESSAGE;
+  if (reason === "destination_not_writable") return DESTINATION_LOST_MESSAGE;
   if (code === "invalid_input") return "That couldn't be saved. Check the values and try again.";
   if (code === "calendar_access_revoked" || code === "calendar_not_connected") {
     return "Google Calendar access is missing. Connect Google Calendar again to continue.";
@@ -146,7 +149,7 @@ export function useSetupController() {
           pendingRef.current = null;
           setNotice({
             anchor,
-            message: refusalMessage(failure.code, failure.message),
+            message: refusalMessage(failure.code, failure.message, failure.reason),
             tone: failure.code === "stale_revision" ? "info" : "error",
           });
         }
@@ -178,10 +181,9 @@ export function useSetupController() {
             run: execute,
             setEditingCalendars,
             state,
-            timeZone,
           }
         : null,
-    [busy, editingCalendars, execute, notice, retry, setEditingCalendars, state, timeZone],
+    [busy, editingCalendars, execute, notice, retry, setEditingCalendars, state],
   );
 
   return { loadError, reload, state, value };

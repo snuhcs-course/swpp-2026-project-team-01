@@ -9,7 +9,9 @@ import type { TokenKey } from "./token-encryption";
 // agent tool), after OpenInstinct's google-workspace client: a user-scoped client,
 // minimal `fields`, and provider failures mapped to a few categories. It exchanges
 // the sealed refresh token for an access token, then reads calendarList.list and
-// events.list with a timeout per request and a page cap. Tokens are never logged.
+// events.list with a timeout per request and a page cap. A list still unfinished
+// at its cap is reported as unavailable, never returned truncated: a partial event
+// list would read as free time. Tokens are never logged.
 
 export type CalendarAccessCategory = "calendar_not_connected" | "calendar_access_revoked" | "calendar_unavailable";
 
@@ -34,7 +36,8 @@ export const GOOGLE_CALENDAR_API_URL = "https://www.googleapis.com/calendar/v3";
 export const GOOGLE_REQUEST_TIMEOUT_MS = 10_000;
 
 const PAGE_SIZE = 250;
-const MAX_PAGES = 8;
+const MAX_EVENT_PAGES = 8;
+const MAX_CALENDAR_PAGES = 10;
 
 // What reading calendars and events needs; calendar.events.freebusy is not enough.
 const REQUIRED_SCOPES = [GOOGLE_CALENDAR_SCOPES[0], GOOGLE_CALENDAR_SCOPES[1]];
@@ -88,7 +91,9 @@ export type CalendarEvent = {
 };
 
 export type HostCalendar = {
-  listCalendars(): Promise<{ calendars: CalendarListEntry[]; primaryTimeZone: string | null }>;
+  listCalendars(options?: {
+    readonly signal?: AbortSignal;
+  }): Promise<{ calendars: CalendarListEntry[]; primaryTimeZone: string | null }>;
   listEvents(
     calendarId: string,
     range: { readonly start: Date; readonly end: Date },
@@ -275,11 +280,11 @@ export async function openHostCalendar(deps: GoogleCalendarDependencies, hostAcc
   }
 
   return {
-    async listCalendars() {
+    async listCalendars(options) {
       const calendars: CalendarListEntry[] = [];
       let pageToken: string | undefined;
 
-      for (let page = 0; page < MAX_PAGES; page += 1) {
+      for (let page = 0; page < MAX_CALENDAR_PAGES; page += 1) {
         const body = await getJson<{ items?: RawCalendarListEntry[]; nextPageToken?: string }>(
           "/users/me/calendarList",
           {
@@ -287,6 +292,7 @@ export async function openHostCalendar(deps: GoogleCalendarDependencies, hostAcc
             maxResults: String(PAGE_SIZE),
             ...(pageToken ? { pageToken } : {}),
           },
+          options?.signal,
         );
 
         for (const item of body.items ?? []) {
@@ -304,6 +310,8 @@ export async function openHostCalendar(deps: GoogleCalendarDependencies, hostAcc
         if (!pageToken) break;
       }
 
+      if (pageToken) throw new CalendarAccessError("calendar_unavailable");
+
       return { calendars, primaryTimeZone: calendars.find((calendar) => calendar.primary)?.timeZone ?? null };
     },
 
@@ -311,7 +319,7 @@ export async function openHostCalendar(deps: GoogleCalendarDependencies, hostAcc
       const events: CalendarEvent[] = [];
       let pageToken: string | undefined;
 
-      for (let page = 0; page < MAX_PAGES; page += 1) {
+      for (let page = 0; page < MAX_EVENT_PAGES; page += 1) {
         const body = await getJson<{ items?: RawEvent[]; nextPageToken?: string }>(
           `/calendars/${encodeURIComponent(calendarId)}/events`,
           {
@@ -334,6 +342,8 @@ export async function openHostCalendar(deps: GoogleCalendarDependencies, hostAcc
         pageToken = body.nextPageToken;
         if (!pageToken) break;
       }
+
+      if (pageToken) throw new CalendarAccessError("calendar_unavailable");
 
       return events;
     },

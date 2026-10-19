@@ -6,7 +6,17 @@ import type { Queryable } from "./database";
 // unwritable, a current handle, and a Google grant that can still write events.
 // Every public surface and the workspace derive it here, from durable records.
 
-const EVENTS_SCOPE = GOOGLE_CALENDAR_SCOPES[1];
+// The one "Calendar is usable" predicate, over a provider_grants row aliased `g`:
+// a stored refresh token, not marked invalid, with all three Calendar scopes.
+// Readiness and the setup step's Calendar connection both use it, so a host is
+// never ready on a grant that setup reports as disconnected.
+export function calendarUsable(q: Queryable) {
+  return q`(
+    g.refresh_token_ciphertext is not null
+    and g.invalidated_at is null
+    and coalesce(g.granted_scopes @> ${[...GOOGLE_CALENDAR_SCOPES]}::text[], false)
+  )`;
+}
 
 export type Readiness = {
   readonly ready: boolean;
@@ -25,9 +35,7 @@ export async function readReadiness(db: Queryable, hostAccountId: string): Promi
         and s.settings -> 'bookingCalendar' ->> 'id' is not null
         and s.settings -> 'bookingCalendar' ->> 'unwritableAt' is null
         and h.handle is not null
-        and g.refresh_token_ciphertext is not null
-        and g.invalidated_at is null
-        and ${EVENTS_SCOPE} = any (g.granted_scopes)
+        and ${calendarUsable(db)}
       ) as ready
     from app.host_accounts a
     left join app.host_settings s on s.host_account_id = a.id

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { recordDestinationAccess, saveCalendarRolesCommand } from "../../lib/server/calendar-roles";
 import { runCommand } from "../../lib/server/commands";
 import { readHostStanding } from "../../lib/server/host-eligibility";
 import { findReadyHostByHandle } from "../../lib/server/readiness";
@@ -116,17 +117,83 @@ describe("setup.confirm_settings", () => {
     expect(await readHostStanding(db, host.userId)).toMatchObject({ ready: false });
   });
 
-  it("rejects a destination that became read-only", async () => {
+  it("rejects a destination that became read-only with its own reason, and setup then asks for a writable one", async () => {
     const host = await seedHost(db, deps, google);
     const live = await prepareReviewableHost(db, host);
     const readOnly = live.map((calendar) => (calendar.id === host.primaryId ? { ...calendar, accessRole: "reader" } : calendar));
+    const lost = { error: { category: "invalid_input", reason: "destination_not_writable" }, ok: false };
 
-    expect(await confirm(host, readOnly)).toMatchObject({ error: { category: "invalid_input" }, ok: false });
-    expect(await confirm(host, live.filter((calendar) => calendar.id !== host.primaryId))).toMatchObject({
-      error: { category: "invalid_input" },
-      ok: false,
-    });
+    expect(await confirm(host, readOnly)).toMatchObject(lost);
+    expect(await confirm(host, live.filter((calendar) => calendar.id !== host.primaryId))).toMatchObject(lost);
     expect(await settingsOf(host.hostAccountId)).toBeNull();
+
+    await recordDestinationAccess(db, host.hostAccountId, readOnly);
+    const state = await readSetupState(deps, host.hostAccountId);
+
+    expect(state).toMatchObject({ calendar: { destinationLost: true }, nextAction: "choose_calendars" });
+    expect(state!.roles?.bookingCalendar.accessRole).toBe("reader");
+  });
+
+  it("keeps a ready host public on the confirmed destination after saving new roles, and shows the change as pending", async () => {
+    const side = { accessRole: "owner", id: `side-${randomUUID()}@group.calendar.google.com`, summary: "Side" };
+    const host = await seedHost(db, deps, google);
+    const live = await prepareReviewableHost(db, host);
+    expect(await confirm(host, live)).toMatchObject({ ok: true });
+    const withSide = [...live, { ...side, timeZone: null }];
+    const revision = await draftRevision(db, host.hostAccountId);
+
+    const saved = await runCommand(hostCommandDeps(db, host.hostAccountId), saveCalendarRolesCommand(withSide), {
+      expectedRevision: 1,
+      input: { bookingCalendarId: side.id, conflictCalendarIds: [host.primaryId, side.id] },
+      resourceId: host.hostAccountId,
+      retryKey: randomUUID(),
+    });
+    const state = await readSetupState(deps, host.hostAccountId);
+
+    expect(saved).toMatchObject({ ok: true, result: { revision: 2 } });
+    expect(state).toMatchObject({ nextAction: "ready", pendingChanges: true, readiness: { ready: true } });
+    expect(state!.roles?.bookingCalendar.id).toBe(side.id);
+    expect((await settingsOf(host.hostAccountId))!.settings).toMatchObject({ bookingCalendar: { id: host.primaryId } });
+    expect(await draftRevision(db, host.hostAccountId)).toBe(revision);
+  });
+
+  it("serializes a roles save and a confirmation without deadlock: confirm sees the old roles or is stale", async () => {
+    for (let round = 0; round < 5; round += 1) {
+      const host = await seedHost(db, deps, google);
+      const live = await prepareReviewableHost(db, host);
+      const review = await readSetupState(deps, host.hostAccountId);
+      const team = host.calendars.find((calendar) => !calendar.primary)!;
+
+      const [saved, confirmed] = await Promise.all([
+        runCommand(hostCommandDeps(db, host.hostAccountId), saveCalendarRolesCommand(live), {
+          expectedRevision: 1,
+          input: { bookingCalendarId: host.primaryId, conflictCalendarIds: [host.primaryId, team.id] },
+          resourceId: host.hostAccountId,
+          retryKey: randomUUID(),
+        }),
+        confirm(host, live, { hash: review!.proposalHash, revision: review!.draft.revision }),
+      ]);
+
+      expect(saved).toMatchObject({ ok: true });
+      if (confirmed.ok) {
+        // Confirmed before the save: the policy holds the reviewed roles.
+        expect((await settingsOf(host.hostAccountId))!.settings).toMatchObject({ conflictCalendars: [{ id: host.primaryId }] });
+      } else {
+        expect(confirmed.error.category).toBe("stale_revision");
+        expect(await settingsOf(host.hostAccountId)).toBeNull();
+      }
+    }
+  });
+
+  it("confirms without any browser zone in the request, saving the labeled UTC fallback", async () => {
+    const host = await seedHost(db, deps, google);
+    const live = await prepareReviewableHost(db, host);
+
+    expect(await confirm(host, live)).toMatchObject({ ok: true });
+    expect((await settingsOf(host.hostAccountId))!.settings).toMatchObject({
+      provenance: { timezone: "starter_default" },
+      timezone: "UTC",
+    });
   });
 
   it("rejects a handle another host took after it was drafted, changing neither host", async () => {

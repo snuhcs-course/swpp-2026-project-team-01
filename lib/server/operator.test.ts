@@ -58,7 +58,9 @@ describe("fmat-admin SQL", () => {
     const sql = adminSql(parseAdminArguments(["show", "--host", "alice", ...base]));
 
     expect(sql).toContain("where handle = 'alice' and released_at is null");
-    expect(sql).toContain("'https://www.googleapis.com/auth/calendar.events' = any (g.granted_scopes)");
+    expect(sql).toContain(
+      "g.granted_scopes @> array['https://www.googleapis.com/auth/calendar.calendarlist.readonly', 'https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.events.freebusy']::text[]",
+    );
     expect(sql).not.toContain("operator_set_host_status");
   });
 });
