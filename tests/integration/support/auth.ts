@@ -90,7 +90,8 @@ export async function startGoogleSignIn(signIn: (request: Request) => Promise<Re
   };
 }
 
-// Writes what Auth records when Google returns to it for this flow.
+// Writes what Auth records when Google returns to it for this flow. Auth stores an
+// empty string, not NULL, when Google returns no refresh token.
 export async function completeGoogleLeg(
   db: Database,
   codeChallenge: string,
@@ -101,7 +102,7 @@ export async function completeGoogleLeg(
   const updated = await db`
     update auth.flow_state
     set user_id = ${userId}, auth_code = ${code}, auth_code_issued_at = now(),
-        provider_access_token = ${tokens.accessToken}, provider_refresh_token = ${tokens.refreshToken},
+        provider_access_token = ${tokens.accessToken}, provider_refresh_token = ${tokens.refreshToken ?? ""},
         updated_at = now()
     where code_challenge = ${codeChallenge}
   `;
