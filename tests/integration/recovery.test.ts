@@ -185,6 +185,29 @@ describe("terminal recovery", () => {
     expect(await sessions(host.hostAccountId)).toHaveLength(2);
   });
 
+  it("answers a recovery whose successor create lost the race with the winner's transition", async () => {
+    const { host } = await failedHost();
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    // This recovery's create reaches the agent only after another recovery has
+    // indexed the successor, so the agent refuses it.
+    const late: ConversationRuntime = {
+      ...runtime,
+      createSession: async (bearer) => {
+        await held;
+        return runtime.createSession(bearer);
+      },
+    };
+
+    const loser = recover(host, 1, { runtime: late });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect((await recover(host, 1)).body).toEqual({ generation: 2, status: "recovered" });
+    release();
+
+    expect(await loser).toEqual({ body: { generation: 2, status: "recovered" }, status: 200 });
+    expect(await sessions(host.hostAccountId)).toHaveLength(2);
+  });
+
   it("refuses uncertain runtime state", async () => {
     // A live session with no failure.
     const live = await signInHost(db);

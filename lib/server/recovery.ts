@@ -233,12 +233,24 @@ export async function recoverDiscussion(
   }
 
   const generation = observedGeneration + 1;
-  const successorId = await deps.runtime.createSession(
-    signInternalBearer(
-      { discussionId: discussionId!, generation, kind: "create", principal: { id: hostAccountId, type: "host_account" } },
-      deps.signingKey,
-    ),
-  );
+  let successorId: string;
+
+  try {
+    successorId = await deps.runtime.createSession(
+      signInternalBearer(
+        { discussionId: discussionId!, generation, kind: "create", principal: { id: hostAccountId, type: "host_account" } },
+        deps.signingKey,
+      ),
+    );
+  } catch (error) {
+    // A concurrent recovery that already indexed the successor makes the agent
+    // refuse this create; its transition is the answer.
+    const decided = settled(await latestSession(deps.db, discussionId!), observedGeneration);
+
+    if (!decided) throw error;
+    if (decided.status === "recovered") await deliverPending(deps, authUserId, discussionId!);
+    return decided;
+  }
 
   // One transition wins: authority, the discussion and its current generation are
   // rechecked under their locks after the asynchronous reads above.
