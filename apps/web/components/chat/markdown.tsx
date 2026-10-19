@@ -5,10 +5,22 @@ import { code } from "@streamdown/code";
 import { math } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
 import { memo, type ComponentProps } from "react";
-import { Streamdown } from "streamdown";
+import { defaultRehypePlugins, Streamdown, type UrlTransform } from "streamdown";
 import { cn } from "@/lib/utils";
 
 const streamdownPlugins = { cjk, code, math, mermaid };
+
+// Model output is untrusted: it may not load images from any host (a request to
+// an attacker's server could carry data out of the conversation), and links go
+// only to https or mailto. The default sanitizers run first; only the hardening
+// options change.
+const [harden] = defaultRehypePlugins.harden as [NonNullable<unknown>, ...unknown[]];
+const rehypePlugins = Object.entries(defaultRehypePlugins).map(([name, plugin]) =>
+  name === "harden"
+    ? [harden, { allowDataImages: false, allowedImagePrefixes: [], allowedLinkPrefixes: ["*"], allowedProtocols: [] }]
+    : plugin,
+) as NonNullable<ComponentProps<typeof Streamdown>["rehypePlugins"]>;
+const urlTransform: UrlTransform = (url) => (/^(https:|mailto:)/i.test(url.trim()) ? url : "");
 
 export type MarkdownProps = ComponentProps<typeof Streamdown>;
 
@@ -122,6 +134,8 @@ export const Markdown = memo(function Markdown({ className, ...props }: Markdown
       )}
       components={markdownComponents}
       plugins={streamdownPlugins}
+      rehypePlugins={rehypePlugins}
+      urlTransform={urlTransform}
       {...props}
     />
   );
