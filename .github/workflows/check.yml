@@ -32,3 +32,14 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm test
+  database:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.119.0
+      - name: Start the local stack and apply the migration chain
+        run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor
+      - name: Database tests
+        run: supabase test db
