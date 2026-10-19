@@ -4,12 +4,13 @@ import { type Database, database } from "./database";
 import { createGrantedScopesFetcher, type FetchGrantedScopes } from "./google-token-info";
 import { ensureHostAccount, type HostAccount } from "./host-accounts";
 import { recordGoogleGrant } from "./provider-grants";
-import { crossSiteRefusal } from "./same-origin";
+import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal, requestAppOrigin, unknownHost } from "./same-origin";
 import { createRequestAuthClient, type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment } from "./supabase-auth";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
-export type GoogleSignInDependencies = {
-  readonly appOrigin: string;
+// Each route answers for the listed origin the request was addressed to, so
+// findmeatime.com and a release host sign in, return and set cookies on their own.
+export type GoogleSignInDependencies = AppOrigins & {
   readonly auth: SupabaseAuthConfig;
   readonly db: Database;
   readonly fetchGrantedScopes: FetchGrantedScopes;
@@ -23,14 +24,8 @@ export type GoogleSignInResult = {
 };
 
 function dependenciesFromEnvironment(): GoogleSignInDependencies {
-  const appOrigin = process.env.APP_ORIGIN;
-
-  if (!appOrigin) {
-    throw new Error("APP_ORIGIN is not set.");
-  }
-
   return {
-    appOrigin: new URL(appOrigin).origin,
+    ...appOriginsFromEnvironment(),
     auth: supabaseAuthConfigFromEnvironment(),
     db: database(),
     fetchGrantedScopes: createGrantedScopesFetcher(),
@@ -80,11 +75,15 @@ export async function completeGoogleSignIn(
 export function createGoogleSignInHandler(load: () => GoogleSignInDependencies = dependenciesFromEnvironment) {
   return async (request: Request) => {
     const deps = load();
+    const origin = requestAppOrigin(request, deps);
+
+    if (!origin) return unknownHost();
+
     const auth = createRequestAuthClient(request, deps.auth);
     const { data, error } = await auth.client.auth.signInWithOAuth({
       options: {
         queryParams: { access_type: "offline" },
-        redirectTo: `${deps.appOrigin}/auth/callback`,
+        redirectTo: `${origin}/auth/callback`,
         scopes: GOOGLE_CALENDAR_SCOPES.join(" "),
         skipBrowserRedirect: true,
       },
@@ -92,7 +91,7 @@ export function createGoogleSignInHandler(load: () => GoogleSignInDependencies =
     });
 
     if (error || !data.url) {
-      return auth.redirect(`${deps.appOrigin}/app?sign_in=failed`);
+      return auth.redirect(`${origin}/app?sign_in=failed`);
     }
 
     return auth.redirect(data.url);
@@ -104,8 +103,12 @@ export function createGoogleSignInHandler(load: () => GoogleSignInDependencies =
 export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies = dependenciesFromEnvironment) {
   return async (request: Request) => {
     const deps = load();
+    const origin = requestAppOrigin(request, deps);
+
+    if (!origin) return unknownHost();
+
     const auth = createRequestAuthClient(request, deps.auth);
-    const failed = `${deps.appOrigin}/app?sign_in=failed`;
+    const failed = `${origin}/app?sign_in=failed`;
     const code = new URL(request.url).searchParams.get("code");
 
     if (!code) {
@@ -129,7 +132,7 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       return auth.redirect(failed);
     }
 
-    return auth.redirect(`${deps.appOrigin}/app`);
+    return auth.redirect(`${origin}/app`);
   };
 }
 
@@ -138,12 +141,12 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
 export function createSignOutHandler(load: () => GoogleSignInDependencies = dependenciesFromEnvironment) {
   return async (request: Request) => {
     const deps = load();
-    const refused = crossSiteRefusal(request, deps.appOrigin, { json: false });
+    const refused = crossSiteRefusal(request, deps, { json: false });
 
     if (refused) return refused;
 
     const auth = createRequestAuthClient(request, deps.auth);
     await auth.client.auth.signOut();
-    return auth.redirect(`${deps.appOrigin}/`);
+    return auth.redirect(`${requestAppOrigin(request, deps)}/`);
   };
 }

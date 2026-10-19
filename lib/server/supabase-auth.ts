@@ -7,6 +7,7 @@ import {
   stringFromBase64URL,
 } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
+import { addressedOrigin } from "./same-origin";
 
 // Supabase JS is used only for the Auth session. The client reads cookies from the
 // request and collects the cookies it writes, so a route returns them on its own
@@ -15,7 +16,8 @@ import { createClient } from "@supabase/supabase-js";
 export type SupabaseAuthConfig = {
   readonly publishableKey: string;
   readonly url: string;
-  // Marks the session cookies Secure; true when APP_ORIGIN is https.
+  // Marks the session cookies Secure. Unset, each request decides by the
+  // origin it was addressed to: Secure on https.
   readonly secureCookies?: boolean;
 };
 
@@ -29,19 +31,20 @@ export function supabaseAuthConfigFromEnvironment(): SupabaseAuthConfig {
     throw new Error("SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set.");
   }
 
-  return { publishableKey, secureCookies: process.env.APP_ORIGIN?.startsWith("https:") ?? false, url };
+  return { publishableKey, url };
 }
 
 // The session cookies are never readable by page scripts and are sent only
 // same-site (and top-level navigations), over HTTPS when the app is.
-export function authCookieOptions(config: SupabaseAuthConfig): CookieOptions {
-  return { httpOnly: true, path: "/", sameSite: "lax", secure: config.secureCookies ?? false };
+export function authCookieOptions(config: SupabaseAuthConfig, request: Request): CookieOptions {
+  const secure = config.secureCookies ?? addressedOrigin(request)?.startsWith("https:") ?? false;
+  return { httpOnly: true, path: "/", sameSite: "lax", secure };
 }
 
 export function createRequestAuthClient(request: Request, config: SupabaseAuthConfig) {
   const pending: PendingCookie[] = [];
   const client = createServerClient(config.url, config.publishableKey, {
-    cookieOptions: authCookieOptions(config),
+    cookieOptions: authCookieOptions(config, request),
     cookies: {
       getAll: () =>
         parseCookieHeader(request.headers.get("cookie") ?? "").map(({ name, value }) => ({

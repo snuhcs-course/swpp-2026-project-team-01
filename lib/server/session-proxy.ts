@@ -11,7 +11,7 @@ export async function updateSession(request: NextRequest, config: SupabaseAuthCo
   let response = NextResponse.next({ request });
 
   const client = createServerClient(config.url, config.publishableKey, {
-    cookieOptions: authCookieOptions(config),
+    cookieOptions: authCookieOptions(config, request),
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (cookies, headers) => {

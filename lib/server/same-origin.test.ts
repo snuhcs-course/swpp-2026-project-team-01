@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crossSiteRefusal } from "./same-origin";
+import { appOriginsFromEnvironment, crossSiteRefusal, requestAppOrigin } from "./same-origin";
 
 const appOrigin = "https://findmeatime.com";
 
@@ -28,5 +28,55 @@ describe("cross-site refusal", () => {
 
   it("allows a same-origin form post to a route without a body", () => {
     expect(crossSiteRefusal(post({ "content-type": "application/x-www-form-urlencoded", origin: appOrigin }), appOrigin, { json: false })).toBeNull();
+  });
+
+  const origins = { allowedOrigins: ["https://release.findmeatime.com"], appOrigin };
+
+  function postTo(target: string, headers: Record<string, string>) {
+    return new Request(`${target}/api/chat/messages`, {
+      body: "{}",
+      headers: { "content-type": "application/json", ...headers },
+      method: "POST",
+    });
+  }
+
+  it("serves each listed origin from its own pages", () => {
+    for (const origin of [appOrigin, "https://release.findmeatime.com"]) {
+      expect(crossSiteRefusal(postTo(origin, { origin }), origins, { json: true })).toBeNull();
+    }
+  });
+
+  it("refuses one listed origin posting to another, and any unlisted host", () => {
+    expect(
+      crossSiteRefusal(postTo(appOrigin, { origin: "https://release.findmeatime.com" }), origins, { json: true })?.status,
+    ).toBe(403);
+    // A forged Host or forwarded host whose Origin matches it is still unlisted.
+    expect(crossSiteRefusal(postTo("https://evil.example", { origin: "https://evil.example" }), origins, { json: true })?.status).toBe(403);
+    expect(
+      crossSiteRefusal(
+        postTo(appOrigin, { origin: "https://evil.example", "x-forwarded-host": "evil.example" }),
+        origins,
+        { json: true },
+      )?.status,
+    ).toBe(403);
+  });
+
+  it("resolves the addressed origin from the forwarding proxy only within the list", () => {
+    const forwarded = (host: string) =>
+      new Request("http://internal:3000/auth/sign-in", { headers: { "x-forwarded-host": host, "x-forwarded-proto": "https" } });
+
+    expect(requestAppOrigin(forwarded("release.findmeatime.com"), origins)).toBe("https://release.findmeatime.com");
+    expect(requestAppOrigin(forwarded("findmeatime.com"), origins)).toBe(appOrigin);
+    expect(requestAppOrigin(forwarded("evil.example"), origins)).toBeNull();
+  });
+
+  it("reads the canonical origin and the comma-separated allowlist", () => {
+    expect(
+      appOriginsFromEnvironment({
+        APP_ALLOWED_ORIGINS: " https://release.findmeatime.com/ , ",
+        APP_ORIGIN: "https://findmeatime.com/app",
+      }),
+    ).toEqual({ allowedOrigins: ["https://release.findmeatime.com"], appOrigin });
+    expect(appOriginsFromEnvironment({ APP_ORIGIN: appOrigin })).toEqual({ allowedOrigins: [], appOrigin });
   });
 });

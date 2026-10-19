@@ -173,3 +173,58 @@ describe("Google sign-in", () => {
     expect(((await mail.json()) as { messages_count: number }).messages_count).toBe(0);
   });
 });
+
+describe("Google sign-in on more than one origin", () => {
+  const release = "http://127.0.0.1:3000";
+  const both = () => ({ ...deps, allowedOrigins: [release] });
+
+  it("starts and finishes sign-in on the origin the request came to", async () => {
+    const user = await createGoogleUser(db);
+    const flow = await startGoogleSignIn(createGoogleSignInHandler(both), release);
+    const authorize = new URL(flow.response.headers.get("location")!);
+    expect(authorize.searchParams.get("redirect_to")).toBe(`${release}/auth/callback`);
+
+    const code = await completeGoogleLeg(db, flow.codeChallenge, user.userId, {
+      accessToken: `ya29.${randomUUID()}`,
+      refreshToken: null,
+    });
+    const response = await createGoogleCallbackHandler(both)(
+      new Request(`${release}/auth/callback?code=${code}`, { headers: { cookie: flow.cookie } }),
+    );
+    expect(response.headers.get("location")).toBe(`${release}/app`);
+    expect(sessionCookies(response).length).toBeGreaterThan(0);
+
+    // The canonical origin still returns to itself.
+    const canonical = await createGoogleSignInHandler(both)(new Request(`${origin}/auth/sign-in`));
+    expect(new URL(canonical.headers.get("location")!).searchParams.get("redirect_to")).toBe(`${origin}/auth/callback`);
+  });
+
+  it("marks cookies Secure on an https origin and not on an http one", async () => {
+    const secure = "https://release.findmeatime.test";
+    const handler = createGoogleSignInHandler(() => ({ ...deps, allowedOrigins: [secure] }));
+
+    for (const cookie of (await handler(new Request(`${secure}/auth/sign-in`))).headers.getSetCookie()) {
+      expect(cookie).toMatch(/; Secure/i);
+    }
+    for (const cookie of (await handler(new Request(`${origin}/auth/sign-in`))).headers.getSetCookie()) {
+      expect(cookie).not.toMatch(/; Secure/i);
+    }
+  });
+
+  it("refuses an unlisted host, whether in the URL or a forwarded header, without redirecting", async () => {
+    const handlers = [createGoogleSignInHandler(both), createGoogleCallbackHandler(both)];
+    const requests = [
+      () => new Request("http://evil.example/auth/sign-in"),
+      () => new Request(`${origin}/auth/sign-in`, { headers: { "x-forwarded-host": "evil.example" } }),
+      () => new Request("http://evil.example/auth/callback?code=x"),
+    ];
+
+    for (const handler of handlers) {
+      for (const request of requests) {
+        const response = await handler(request());
+        expect(response.status).toBe(421);
+        expect(response.headers.get("location")).toBeNull();
+      }
+    }
+  });
+});
