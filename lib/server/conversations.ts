@@ -150,21 +150,30 @@ export async function latestSession(tx: Transaction | Database, discussionId: st
 // Creates and indexes the discussion's next session. The eve session is created
 // outside any transaction; the index row is written under the discussion lock
 // with the authority rechecked. A concurrent creator that wins leaves this eve
-// session parked with no message, which costs nothing.
+// session parked with no message, which costs nothing; one that indexed first
+// makes the agent refuse this create, and its session is the answer.
 export async function createIndexedSession(
   deps: ConversationDependencies,
   authUserId: string,
   discussionId: string,
   generation: number,
-  options: { readonly currentInputId?: string | null; readonly beforeInsert?: (tx: Transaction) => Promise<void> } = {},
 ) {
   const hostAccountId = await withEligibleHost(deps.db, authUserId, async (_tx, id) => id);
-  const sessionId = await deps.runtime.createSession(
-    signInternalBearer(
-      { discussionId, generation, kind: "create", principal: { id: hostAccountId, type: "host_account" } },
-      deps.signingKey,
-    ),
-  );
+  let sessionId: string;
+
+  try {
+    sessionId = await deps.runtime.createSession(
+      signInternalBearer(
+        { discussionId, generation, kind: "create", principal: { id: hostAccountId, type: "host_account" } },
+        deps.signingKey,
+      ),
+    );
+  } catch (error) {
+    const latest = await latestSession(deps.db, discussionId);
+
+    if (latest && latest.generation >= generation) return latest;
+    throw error;
+  }
 
   return withEligibleHost(deps.db, authUserId, async (tx, id) => {
     await lockSetupDiscussion(tx, id);
@@ -174,14 +183,12 @@ export async function createIndexedSession(
       return latest;
     }
 
-    await options.beforeInsert?.(tx);
     const [row] = await tx<SessionRow[]>`
       insert into app.agent_sessions
-        (session_id, session_id_hash, discussion_id, principal_type, principal_id, generation, agent_version,
-         current_input_id)
+        (session_id, session_id_hash, discussion_id, principal_type, principal_id, generation, agent_version)
       values
         (${sessionId}, ${sessionIdHash(sessionId)}, ${discussionId}, 'host_account', ${id}, ${generation},
-         ${AGENT_VERSION}, ${options.currentInputId ?? null})
+         ${AGENT_VERSION})
       returning session_id, discussion_id, principal_id, generation, state, current_input_id, last_stream_index
     `;
     return row!;

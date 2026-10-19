@@ -305,6 +305,36 @@ describe("message route and session index", () => {
     expect((await reservationsFor(inputId)).length).toBeGreaterThan(0);
   });
 
+  it("answers a visit whose session create lost the race to a first message with the winner's session", async () => {
+    const host = await signInHost(db);
+    const actor = { id: host.hostAccountId, kind: "host_account" as const };
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    // The visit's create reaches the agent only after the message has indexed
+    // generation 1, so the agent refuses it.
+    const late = {
+      ...deps,
+      runtime: {
+        ...deps.runtime,
+        createSession: async (bearer: string) => {
+          await held;
+          return deps.runtime.createSession(bearer);
+        },
+      },
+    };
+
+    const visit = openSetupSession(late, host.userId, actor);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const sent = await message(host.cookie, "Hello, Thyme.");
+    expect(sent.status).toBe(202);
+    release();
+
+    const opened = await visit;
+    const session = await sessionOf(host.hostAccountId);
+    expect(opened).toMatchObject({ generation: 1, session_id: session.session_id });
+    await waitForTurn(server.url, host.cookie, session.session_id);
+  });
+
   it("opens no setup session for a suspended host or a mismatched actor", async () => {
     const host = await signInHost(db);
     const other = await signInHost(db);
