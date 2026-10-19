@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Propose a behavior change
+    url: https://github.com/snuhcs-course/swpp-2026-project-team-01/blob/main/openspec/README.md
+    about: Substantial feature or behavior changes start as an OpenSpec change in openspec/changes/, not as an issue.

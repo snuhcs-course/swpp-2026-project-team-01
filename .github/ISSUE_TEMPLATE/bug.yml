@@ -1,0 +1,69 @@
+name: Bug report
+description: Find Me a Time behaves differently from its agreed specification.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when the product does not do what a capability specification in `openspec/specs/` says. To change the agreed behavior itself, start an OpenSpec change instead.
+
+        This repository is public. Do not report security vulnerabilities here; tell the team privately. Remove tokens, cookies, phone numbers, email addresses and calendar contents from everything you paste.
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: What you saw, including any error message.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened. Link the requirement or scenario in `openspec/specs/` when one applies.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      description: Where the problem appears.
+      multiple: true
+      options:
+        - Web app (host `/app`, public host page or booking page)
+        - Personal agent (MCP, CLI or `SKILL.md`)
+        - iMessage
+        - Email
+        - Backend (jobs, database or administrator CLI)
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Shared deployment (Vercel Production of `main`)
+        - Pull request preview deployment
+        - Local development (personal sandbox)
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Commit or deployment
+      description: The commit SHA or deployment URL where it happened, if known.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or screenshots
+      description: Redact private data before pasting.
