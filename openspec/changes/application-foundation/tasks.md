@@ -6,7 +6,7 @@ Read the [reference repository files for Phase 1](../../../documentations/techni
 
 ## 1. Skeleton (serial, first)
 
-- [ ] 1.1 Copy `vercel/eve` `apps/templates/eve-chat-template` at `8c55ea7c132f` into the repository root (`agent/`, `apps/web/`, `vercel.ts`, `components.json`) and add `THIRD_PARTY_NOTICES.md` with source, commit and Apache-2.0 license; verify the copied tree matches the upstream listing for that commit.
+- [x] 1.1 Copy `vercel/eve` `apps/templates/eve-chat-template` at `8c55ea7c132f` into the repository root (`agent/`, `apps/web/`, `vercel.ts`, `components.json`) and add `THIRD_PARTY_NOTICES.md` with source, commit and Apache-2.0 license; verify the copied tree matches the upstream listing for that commit.
 - [ ] 1.2 Convert to the root npm package with the exact pins in design decision 4, including `eve` 0.80.1, `ai` 7.0.143 and `oxlint` 1.88.0, and delete the pnpm files; verify `npm ci` succeeds from the committed `package-lock.json` and `npm ls eve ai next react oxlint` prints the pinned versions.
 - [ ] 1.3 Build and run the template on eve 0.80.1, changing only its model to `openai("gpt-5.6-terra")` with the team's key and a local password, before any other replacement; verify `eve build` and `next build apps/web` pass and a chat turn streams locally, so upgrade breakage is isolated from later work.
 - [ ] 1.4 Remove Better Auth, password auth, Drizzle and Neon, Upstash, the browser-local store, sidebar, integrations menu, connections, Slack channel, memory profile, sample tool and skill, analytics, `vercelOidc()`, the chat home at `/` and `/chat/[id]`; verify `rg -i "better-auth|drizzle|neon|upstash|@vercel/connect|password-auth|vercelOidc" agent apps package.json` finds nothing and the build still passes.

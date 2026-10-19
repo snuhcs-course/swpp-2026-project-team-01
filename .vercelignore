@@ -10,6 +10,9 @@
 node_modules/
 **/node_modules/
 .eve/
+.workflow-data/
+.nitro/
+dist/
 .output/
 **/.next/
 **/*.tsbuildinfo
