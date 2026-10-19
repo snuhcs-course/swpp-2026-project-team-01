@@ -1,0 +1,81 @@
+name: Deploy shared Supabase
+
+# Only this workflow changes the shared project. It runs after a merge to main and
+# applies the reviewed migration chain, the worker's Vault entries and the hosted
+# configuration declared in supabase/config.toml.
+on:
+  push:
+    branches: [main]
+    paths:
+      - supabase/**
+      - .github/workflows/deploy-shared.yml
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-shared-supabase
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  SUPABASE_PROJECT_REF: anelszynxtvxoxqvzgqt
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.119.0
+      - name: Link the shared project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Show pending migrations
+        run: supabase db push --dry-run
+      - name: Push migrations
+        run: supabase db push --yes
+      - name: Write the worker URL and secret into Vault
+        env:
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          WORKER_SECRET: ${{ secrets.WORKER_SECRET }}
+        run: |
+          if [ -z "$WORKER_URL" ] || [ -z "$WORKER_SECRET" ]; then
+            echo "WORKER_URL or WORKER_SECRET is not set; leaving Vault unchanged, so wake-ups stay inert."
+            exit 0
+          fi
+          # Both values are interpolated into SQL, so accept only characters that cannot end a literal.
+          if ! printf '%s' "$WORKER_URL" | grep -Eq '^https://[A-Za-z0-9./_-]+$'; then
+            echo "WORKER_URL must be an https URL of letters, digits, '.', '/', '_' or '-'." >&2
+            exit 1
+          fi
+          if ! printf '%s' "$WORKER_SECRET" | grep -Eq '^[A-Za-z0-9_-]{32,}$'; then
+            echo "WORKER_SECRET must be at least 32 letters, digits, '_' or '-'." >&2
+            exit 1
+          fi
+          upsert() {
+            echo "perform vault.update_secret(id, '$2') from vault.secrets where name = '$1';"
+            echo "if not found then perform vault.create_secret('$2', '$1'); end if;"
+          }
+          sql_file="$RUNNER_TEMP/worker-vault.sql"
+          {
+            echo 'do $do$ begin'
+            upsert worker_url "$WORKER_URL"
+            upsert worker_secret "$WORKER_SECRET"
+            echo 'end $do$;'
+          } > "$sql_file"
+          supabase db query --linked --file "$sql_file" > /dev/null
+          rm -f "$sql_file"
+      - name: Push hosted configuration
+        env:
+          SUPABASE_AUTH_SITE_URL: ${{ vars.SUPABASE_AUTH_SITE_URL }}
+          SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS: ${{ vars.SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS }}
+        run: |
+          if [ -z "$SUPABASE_AUTH_SITE_URL" ] || [ -z "$SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS" ]; then
+            echo "Set the SUPABASE_AUTH_SITE_URL and SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS repository variables." >&2
+            exit 1
+          fi
+          supabase config diff --project-ref "$SUPABASE_PROJECT_REF"
+          supabase config push --project-ref "$SUPABASE_PROJECT_REF" --yes

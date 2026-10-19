@@ -34,6 +34,9 @@ jobs:
         run: npm test
   database:
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_AUTH_SITE_URL: http://localhost:3000
+      SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS: http://localhost:3000/auth/callback
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1

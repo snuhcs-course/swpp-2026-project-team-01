@@ -1,4 +1,7 @@
-# Inactive local infrastructure after source reset; see supabase/README.md.
+# Hosted policy: on merge to main, .github/workflows/deploy-shared.yml runs `supabase config push`
+# against the shared project, which applies every setting this file declares. Review each change
+# here as a change to the hosted project. Settings this file leaves undeclared (the hosted Cloudflare
+# SMTP, image transformation) stay as they are. See supabase/README.md.
 # For detailed configuration reference documentation, visit:
 # https://supabase.com/docs/guides/local-development/cli/config
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
@@ -49,10 +52,10 @@ port = 54329
 # Specifies when a server connection can be reused by other clients.
 # Configure one of the supported pooler modes: `transaction`, `session`.
 pool_mode = "transaction"
-# How many server connections to allow per user/database pair.
-default_pool_size = 20
+# How many server connections to allow per user/database pair. Matches the hosted value.
+default_pool_size = 15
 # Maximum number of client connections allowed.
-max_client_conn = 100
+max_client_conn = 200
 
 # [db.vault]
 # secret_key = "env(SECRET_VALUE)"
@@ -134,6 +137,7 @@ enabled = true
 # Store analytical data in S3 for running ETL jobs over Iceberg Catalog
 # This feature is only available on the hosted platform.
 [storage.analytics]
+# Unused by the application; `config push` turns it off on the hosted project.
 enabled = false
 max_namespaces = 5
 max_tables = 10
@@ -154,12 +158,14 @@ max_indexes = 5
 [auth]
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
-# in emails.
-site_url = "http://localhost:3000"
+# in emails. Substituted from the environment so local values never reach the hosted project; set
+# it in the root .env for `supabase start` (see .env.example) and as a GitHub variable for CI.
+site_url = "env(SUPABASE_AUTH_SITE_URL)"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+# Comma-separated in the environment, like SUPABASE_AUTH_SITE_URL.
+additional_redirect_urls = "env(SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS)"
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -216,27 +222,26 @@ web3 = 30
 # secret = ""
 
 [auth.email]
-# Local infrastructure defaults only; no app/Auth fixtures remain.
-# Hosted Google-only policy must be configured in its future owning change.
-# Allow/disallow new user signups via email to your project.
-enable_signup = true
+# Hosts sign in with Google only. This disables the email provider, so email/password, email OTP
+# and magic-link requests are rejected without sending mail.
+enable_signup = false
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
-# If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+# If enabled, users need to confirm their email address before signing in. Matches the hosted value.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-max_frequency = "1s"
-# Number of characters used in the email OTP.
-otp_length = 6
+max_frequency = "60s"
+# Number of characters used in the email OTP. Matches the hosted value.
+otp_length = 8
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Local infrastructure captures mail with local_smtp; no external SMTP is configured here.
-# Product transactional mail is separate from Google-only host login.
-# Hosted Auth/provider settings require verification in their future owning change.
+# The hosted project sends Auth notifications through Cloudflare SMTP, configured outside this file
+# because it carries a credential; `config push` leaves an undeclared [auth.email.smtp] unchanged.
+# Locally, local_smtp captures mail.
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -255,7 +260,7 @@ enable_signup = false
 # If enabled, users need to confirm their phone number before signing in.
 enable_confirmations = false
 # Template for sending OTP to users
-template = "Your code is {{ `{{ .Code }}` }}"
+template = "Your code is {{ .Code }}"
 # Controls the minimum amount of time that must pass before sending another sms otp.
 max_frequency = "5s"
 
@@ -295,6 +300,7 @@ max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
 [auth.mfa.totp]
+# Hosts sign in with Google only and the product offers no second factor, so enrollment is off.
 enroll_enabled = false
 verify_enabled = false
 
@@ -303,7 +309,7 @@ verify_enabled = false
 enroll_enabled = false
 verify_enabled = false
 otp_length = 6
-template = "Your code is {{ `{{ .Code }}` }}"
+template = "Your code is {{ .Code }}"
 max_frequency = "5s"
 
 # Configure MFA via WebAuthn
