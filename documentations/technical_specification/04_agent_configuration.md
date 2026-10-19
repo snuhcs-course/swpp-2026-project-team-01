@@ -80,7 +80,7 @@ Only application code creates sessions and sends messages. A browser message goe
 
 ## Tools
 
-Every tool is `defineTool` with a description, a Zod input schema and an output schema. Its `execute` calls one shared domain operation with the actor from `ctx.session.auth.current`, the expected revision carried in the session state and `ctx.callId` as the retry identity, so a replayed step returns the recorded outcome instead of acting twice. Tool results are audience projections and apply contact minimization before they return.
+Every tool is `defineTool` with a description, a Zod input schema and an output schema. Its `execute` calls one shared domain operation with the actor from `ctx.session.auth.current`, the expected revision the model copies from its latest read (for example `read_setup_state`) and `ctx.callId` as the retry identity, so a replayed step returns the recorded outcome instead of acting twice. Tool results are audience projections and apply contact minimization before they return.
 
 | Tool | Audience | Effect | eve approval |
 |---|---|---|---|

@@ -420,7 +420,7 @@ Not carried: the travel-table heuristic (replaced by Google Routes with buffers)
 | eve version, template revision, model ID, dependency pins | Phase 1 proposal | Frontend architecture, agent configuration |
 | Durable-work placement and dispatcher ownership | Phase 1 exit | Backend architecture |
 | Sign-up and handle limits, reserved handles, starter defaults | Phase 2 proposal | PRD section 10, host-admission spec |
-| Supported geography, travel modes, route freshness, manual allowance granularity | Phase 3 proposal | PRD travel-time checks, meeting-feasibility spec |
+| Supported geography, route freshness, manual allowance granularity (travel modes were settled in Phase 2) | Phase 3 proposal | PRD travel-time checks, meeting-feasibility spec |
 | Online meeting link creation | Phase 4 proposal | PRD section 10 |
 | MCP protocol version, registration, scopes, CLI packaging | Phase 5 proposal | Agent-client authorization spec, CLI direction |
 | iMessage adapter, code expiry, line provisioning | Phase 6 proposal | Provider setup, new iMessage change |
