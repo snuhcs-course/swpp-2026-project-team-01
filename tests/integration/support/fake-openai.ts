@@ -70,6 +70,7 @@ function sse(events: ({ type: string } & Record<string, unknown>)[]) {
 
 export async function startFakeOpenAI(
   defaultReply: FakeReply = { kind: "text", text: "Hello from Thyme." },
+  port = 0,
 ): Promise<FakeOpenAI> {
   const requests: FakeRequest[] = [];
   const bodyBytes: number[] = [];
@@ -149,12 +150,12 @@ export async function startFakeOpenAI(
     );
   });
 
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const { port } = server.address() as AddressInfo;
+  await new Promise<void>((resolve) => server.listen(port, "127.0.0.1", resolve));
+  const { port: listening } = server.address() as AddressInfo;
 
   return {
     authorizations,
-    baseURL: `http://127.0.0.1:${port}/v1`,
+    baseURL: `http://127.0.0.1:${listening}/v1`,
     bodyBytes,
     close: () =>
       new Promise<void>((resolve) => {

@@ -57,3 +57,7 @@ jobs:
         run: npm ci
       - name: Integration tests against the local stack
         run: npm run test:integration
+      - name: Install the Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser tests against the local stack
+        run: npm run test:e2e

@@ -30,7 +30,7 @@ npm run typecheck
 npm test             # Vitest unit tests
 ```
 
-`npm run test:integration` runs Vitest integration tests, and `npm run test:e2e` runs Playwright against a `next dev` server (install a browser once with `npx playwright install chromium`). For local development, run `npm run dev:eve` and `npm run dev:web` with `.env` filled from `.env.example`. Run `npm run jobs:dev` to process locally produced jobs against `DATABASE_URL`; it refuses the shared and release projects.
+`npm run test:integration` runs Vitest integration tests one file at a time against the local stack (`supabase start`); some start `eve dev` or `eve build` plus `eve start` with a local OpenAI stand-in. `npm run test:e2e` runs Playwright against `next dev`, `eve dev` and the same stand-in on ports 3100 to 3102, all pointed at the local stack (install a browser once with `npx playwright install chromium`); tests sign in through the real local Auth flow, never a bypass route. For local development, run `npm run dev:eve` and `npm run dev:web` with `.env` filled from `.env.example`. Run `npm run jobs:dev` to process locally produced jobs against `DATABASE_URL`; it refuses the shared and release projects.
 
 Assume the GitHub CLI (`gh`), Vercel CLI (`vercel`), and Supabase CLI (`supabase`) are installed and available on `PATH`.
 

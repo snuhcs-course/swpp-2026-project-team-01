@@ -26,7 +26,7 @@ export function ChatComposer({
   maxLength = MAX_CHAT_MESSAGE_CHARS,
   onChange,
   onSubmit,
-  placeholder = "Ask eve anything...",
+  placeholder = "Message Thyme",
   value,
 }: {
   readonly autoFocus?: boolean;
@@ -98,7 +98,7 @@ export function ChatComposer({
       onSubmit={handleSubmit}
     >
       <label className="sr-only" htmlFor={composerId}>
-        Message eve
+        Message Thyme
       </label>
       <textarea
         autoFocus={autoFocus}

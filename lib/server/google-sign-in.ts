@@ -131,3 +131,14 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
     return auth.redirect(`${deps.appOrigin}/app`);
   };
 }
+
+// POST /auth/sign-out: ends the Supabase session and its cookies, then returns to
+// the public page.
+export function createSignOutHandler(load: () => GoogleSignInDependencies = dependenciesFromEnvironment) {
+  return async (request: Request) => {
+    const deps = load();
+    const auth = createRequestAuthClient(request, deps.auth);
+    await auth.client.auth.signOut();
+    return auth.redirect(`${deps.appOrigin}/`);
+  };
+}
