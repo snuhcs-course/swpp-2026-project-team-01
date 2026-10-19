@@ -37,7 +37,7 @@ Read the [reference repository files for Phase 1](../../../documentations/techni
 ## 4. Web and runtime (Lane A)
 
 - [ ] 4.1 Configure `agent/agent.ts` with the wrapped `openai("gpt-5.6-terra")`, `providerOptions.openai` `store: false` and `serviceTier: "default"`, `modelContextWindowTokens: 32_000`, `compaction.thresholdPercent: 0.6` and `limits.sessionTimeoutMs: false`. Confirm the model ID, price and reasoning-token accounting against the team's key. Verify a multi-turn exchange on a sandbox; a fake-provider test that a turn, a forced retry and a forced compaction each make a reserved call under 128 KiB; that the OpenAI safety identifier and prompt cache key survive wrapping; and record the confirmed price in the design.
-- [ ] 4.2 Write a minimal `agent/instructions/base.md` with the invariants from agent configuration, and register no tools; Phase 2 adds `host-setup.md`. Verify `eve info` lists no tools.
+- [x] 4.2 Write a minimal `agent/instructions/base.md` with the invariants from agent configuration, and register no tools; Phase 2 adds `host-setup.md`. Verify `eve info` lists no tools.
 - [ ] 4.3 Set the channel auth list to `[appAuth]`, with uploads disabled and no `localDev()`. `appAuth` accepts only an internal bearer signed with `EVE_INTERNAL_SIGNING_KEY` on create and send, or a Supabase session cookie on reading or streaming the caller's own indexed session. It throws `UnauthenticatedError` or `ForbiddenError` for everything else and never returns `null`. Add `EVE_INTERNAL_SIGNING_KEY` to `.env.example`. Verify, under both `eve dev` and a deployment build, that each of these is denied with no model work and no recorded event:
   - a request with no credential,
   - a current-project Vercel OIDC token,

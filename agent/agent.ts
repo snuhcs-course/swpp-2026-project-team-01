@@ -23,4 +23,8 @@ export default defineAgent({
   // Host discussions can outlive eve's 30-day default; a lifetime ending is not a
   // confirmed runtime failure (decision 7).
   limits: { sessionTimeoutMs: false },
+  // No tools until a phase registers its own (agent configuration, permission
+  // layers): no eve defaults and no built-in agent tool.
+  defaultTools: false,
+  tool: false,
 });
