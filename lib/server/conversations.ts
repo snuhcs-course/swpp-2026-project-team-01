@@ -45,7 +45,11 @@ export type ConversationRuntime = {
   readRecordedEvents(sessionId: string, bearer: string, signal: AbortSignal): AsyncIterable<MessageStreamEvent>;
 };
 
-export function eveRuntime(baseUrl: string): ConversationRuntime {
+// A send still unanswered after this long is abandoned with an unknown outcome,
+// so it never holds the message route or the session-owner hook open.
+export const SEND_TIMEOUT_MS = 25_000;
+
+export function eveRuntime(baseUrl: string, { sendTimeoutMs = SEND_TIMEOUT_MS } = {}): ConversationRuntime {
   const client = (bearer: string) => new Client({ auth: { bearer }, host: baseUrl, redirect: "error" });
 
   return {
@@ -54,8 +58,9 @@ export function eveRuntime(baseUrl: string): ConversationRuntime {
       return session.state.sessionId;
     },
     async sendMessage(sessionId, bearer, message) {
-      // Accepted once the POST returns; the stream is followed separately.
-      await client(bearer).sessions.attach(sessionId).send(message);
+      // Accepted once the POST returns; the stream is followed separately. A
+      // timeout is an unknown outcome, like a dropped connection.
+      await client(bearer).sessions.attach(sessionId).send(message, { signal: AbortSignal.timeout(sendTimeoutMs) });
     },
     readEvents(sessionId, cookie, { follow, signal, startIndex }) {
       return new Client({ headers: { cookie: supabaseSessionCookie(cookie) }, host: baseUrl, redirect: "error" }).sessions

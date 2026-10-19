@@ -1,5 +1,8 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { ClientError } from "eve/client";
 import { describe, expect, it } from "vitest";
-import { agentUrlFromEnvironment, supabaseSessionCookie } from "./conversations";
+import { agentUrlFromEnvironment, eveRuntime, supabaseSessionCookie } from "./conversations";
 
 const production = { VERCEL: "1", VERCEL_ENV: "production" };
 
@@ -27,5 +30,27 @@ describe("forwarded cookie", () => {
       "sb-abc-auth-token.0=base64-one; sb-abc-auth-token.1=two; sb-abc-auth-token=base64-whole",
     );
     expect(supabaseSessionCookie("theme=dark")).toBe("");
+  });
+});
+
+describe("sending to the agent", () => {
+  it("gives up on a send the agent never answers, as an unknown outcome", async () => {
+    // Accepts the request and never responds.
+    const server = createServer(() => {});
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+
+    try {
+      const started = Date.now();
+      const sent = eveRuntime(`http://127.0.0.1:${port}`, { sendTimeoutMs: 200 }).sendMessage("wrun_01EXAMPLE", "a.b.c", "Hello.");
+
+      const error = await sent.catch((reason: unknown) => reason);
+      expect(error).toBeInstanceOf(Error);
+      expect(error).not.toBeInstanceOf(ClientError);
+      expect(Date.now() - started).toBeLessThan(2_000);
+    } finally {
+      server.closeAllConnections();
+      server.close();
+    }
   });
 });
