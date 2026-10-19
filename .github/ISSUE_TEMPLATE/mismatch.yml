@@ -1,0 +1,60 @@
+name: Document or specification mismatch
+description: Two documents or specifications disagree about the same behavior or decision.
+labels: [documentation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        AGENTS.md requires a disagreement to be resolved explicitly before the affected behavior is implemented. `documentations/` owns product intent, scope, research and explanations, `openspec/specs/` owns the agreed behavior, and `openspec/changes/` owns proposed deltas. Report the English sources; an outdated `ko/` mirror only needs regenerating.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of mismatch
+      options:
+        - Product or UX document vs capability specification
+        - Two capability specifications
+        - OpenSpec change vs main specification
+        - Technical or setup document vs specification
+        - Document vs current implementation, unclear which is right
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: locations
+    attributes:
+      label: Where they disagree
+      description: Each document and section, as a path with a heading or requirement name.
+      placeholder: |
+        - documentations/<file>.md, "<heading>"
+        - openspec/specs/<capability>/spec.md, requirement "<name>"
+    validations:
+      required: true
+  - type: textarea
+    id: statements
+    attributes:
+      label: What each says
+      description: Quote or summarize each statement, so the conflict is visible without opening the files.
+    validations:
+      required: true
+  - type: dropdown
+    id: owner
+    attributes:
+      label: Owning document
+      description: Which side should hold the answer.
+      options:
+        - Capability specification (agreed behavior)
+        - Product or UX document (intent and scope)
+        - Technical or setup document
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: resolution
+    attributes:
+      label: Proposed resolution
+      description: Which side should change and how. Say whether it needs an OpenSpec change (behavior changes) or a routine documentation edit.
+  - type: input
+    id: blocked
+    attributes:
+      label: Blocked work
+      description: The change, task or pull request waiting on this, if any.

@@ -52,7 +52,7 @@ body:
     attributes:
       label: Environment
       options:
-        - Shared deployment (Vercel Production of `main`)
+        - Shared deployment (findmeatime.com or release.findmeatime.com)
         - Pull request preview deployment
         - Local development (personal sandbox)
     validations:
