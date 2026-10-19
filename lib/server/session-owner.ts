@@ -20,14 +20,16 @@ export async function recordTurnEnded(db: Database, sessionId: string) {
 }
 
 // The session received its current accepted input: record the runtime's
-// delivery identities for it, which prove it arrived. One input is in flight
-// per session at a time, so the current one is the input received.
+// delivery identities for it, and that this session received it, which proves
+// the current delivery arrived. One input is in flight per session at a time,
+// so the current one is the input received.
 export async function recordInputReceived(db: Database, sessionId: string, deliveryIds: readonly string[]) {
   if (deliveryIds.length === 0) return;
 
   await db`
     update app.conversation_inputs i
-    set delivery_ids = array(select distinct unnest(i.delivery_ids || ${deliveryIds as string[]}::text[]))
+    set delivery_ids = array(select distinct unnest(i.delivery_ids || ${deliveryIds as string[]}::text[])),
+        received_session_id = s.session_id
     from app.agent_sessions s
     where s.session_id = ${sessionId} and s.state = 'active'
       and i.id = s.current_input_id and i.session_id = s.session_id and i.state = 'sent'

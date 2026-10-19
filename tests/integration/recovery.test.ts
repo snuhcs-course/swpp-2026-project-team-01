@@ -373,6 +373,30 @@ describe("terminal recovery", () => {
     expect(await inputState(second.body.inputId)).toBe("completed");
   });
 
+  it("sends again an input the failed generation received whose redelivery never arrived", async () => {
+    const { host, inputId } = await failedHost();
+    // Recovery's send to the successor is lost before it reaches the agent.
+    const lost: ConversationRuntime = {
+      ...runtime,
+      async sendMessage() {
+        throw new TypeError("fetch failed: connect timeout");
+      },
+    };
+    expect((await recover(host, 1, { runtime: lost })).body).toMatchObject({ generation: 2, status: "recovered" });
+    expect(await inputState(inputId)).toBe("sent");
+    // Long after its bearer expired, the successor has not reported receiving it.
+    await db`update app.conversation_inputs set sent_at = sent_at - interval '10 minutes' where id = ${inputId}`;
+
+    const later = await say(host, "Also, Fridays are out.");
+    expect(later.status).toBe(202);
+    await eventually(async () => (await inputState(later.body.inputId)) === "completed");
+    expect(await inputState(inputId)).toBe("completed");
+    const received = (await readEvents(server.url, host.cookie, (await current(host.hostAccountId)).session_id)).filter(
+      (event) => event.type === "message.received",
+    );
+    expect(received.map((event) => event.data.message)).toEqual(["Find me a time next week.", "Also, Fridays are out."]);
+  });
+
   it("continues input accepted after the failure with its original identity", async () => {
     const { host, inputId } = await failedHost();
     const later = await say(host, "Also, Fridays are out.");

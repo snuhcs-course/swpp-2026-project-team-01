@@ -347,7 +347,7 @@ export async function recoverDiscussion(
     // Input the failed generation never finished continues with its identity.
     await tx`
       update app.conversation_inputs
-      set state = 'accepted', session_id = null, sent_at = null
+      set state = 'accepted', session_id = null, sent_at = null, received_session_id = null
       where discussion_id = ${discussionId!} and state <> 'completed'
     `;
 

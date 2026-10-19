@@ -282,12 +282,14 @@ export async function deliverNext(
     if (!session || session.state !== "active") return null;
     if (options.fromSessionId && options.fromSessionId !== session.session_id) return null;
 
-    // An input whose send outcome was unknown, that no session reported
-    // receiving long after its bearer expired, never arrived: it is accepted
-    // again and delivered below, in order.
+    // An input whose send outcome was unknown, that this session has not
+    // reported receiving long after its bearer expired, never arrived: it is
+    // accepted again and delivered below, in order. Delivery IDs from a retired
+    // generation prove nothing about this delivery.
     await tx`
-      update app.conversation_inputs set state = 'accepted', session_id = null, sent_at = null
-      where session_id = ${session.session_id} and state = 'sent' and cardinality(delivery_ids) = 0
+      update app.conversation_inputs set state = 'accepted', session_id = null, sent_at = null, received_session_id = null
+      where session_id = ${session.session_id} and state = 'sent'
+        and received_session_id is distinct from ${session.session_id}
         and sent_at < clock_timestamp() - make_interval(secs => ${UNDELIVERED_AFTER_SECONDS})
     `;
     const [inFlight] = await tx<{ id: string }[]>`
@@ -342,7 +344,7 @@ export async function deliverNext(
 
     // Refused: not delivered, so an exact retry may send it again.
     await deps.db`
-      update app.conversation_inputs set state = 'accepted', session_id = null, sent_at = null
+      update app.conversation_inputs set state = 'accepted', session_id = null, sent_at = null, received_session_id = null
       where id = ${input.id} and state = 'sent'
     `;
     throw new ConversationInputError("runtime_unavailable", "The assistant is unavailable. Try again.", { cause: error });

@@ -6,6 +6,9 @@
 -- completed (the turn that served it ended). delivery_ids are the runtime's
 -- delivery identities of the input, recorded when a session reports receiving
 -- it: proof it arrived, and how history recognizes a re-sent input.
+-- received_session_id is the session that reported receiving the input since it
+-- was last accepted; delivery_ids outlive a recovery, so only this says whether
+-- the current delivery arrived.
 CREATE TABLE "app"."conversation_inputs" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "discussion_id" uuid NOT NULL REFERENCES "app"."discussions" ("id"),
@@ -18,6 +21,7 @@ CREATE TABLE "app"."conversation_inputs" (
   "sent_at" timestamptz,
   "completed_at" timestamptz,
   "delivery_ids" text[] NOT NULL DEFAULT '{}',
+  "received_session_id" text REFERENCES "app"."agent_sessions" ("session_id"),
   CONSTRAINT "conversation_inputs_client_input_key" UNIQUE ("discussion_id", "client_input_id")
 );
 
