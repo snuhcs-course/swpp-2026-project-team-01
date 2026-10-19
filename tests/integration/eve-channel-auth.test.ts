@@ -212,6 +212,12 @@ describe.each<EveTarget>(["dev", "build"])("eve channel auth under %s", (target)
     const other = await createIndexedSession(db, server, hostB.hostAccountId);
     await expectNoEffect(() => stream({ authorization: `Bearer ${read(session)}` }, other.sessionId), 403);
     await expectNoEffect(() => stream({ authorization: `Bearer ${read(session, 2)}` }), 403);
+
+    // It reads no retired generation and creates no session.
+    const retired = await createIndexedSession(db, server, hostA.hostAccountId);
+    await db`update app.agent_sessions set state = 'retired' where session_id = ${retired.sessionId}`;
+    await expectNoEffect(() => stream({ authorization: `Bearer ${read(retired)}` }, retired.sessionId), 403);
+    await expectNoEffect(() => createSession(server.url, read(session)), 403);
   });
 
   it("denies a foreign or unindexed session ID", async () => {
