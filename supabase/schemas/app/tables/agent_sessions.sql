@@ -12,6 +12,8 @@ CREATE TABLE "app"."agent_sessions" (
   "principal_type" text NOT NULL CHECK ("principal_type" IN ('host_account', 'requester_request')),
   "principal_id" uuid NOT NULL,
   "generation" integer NOT NULL CHECK ("generation" >= 1),
+  -- The number of events stored when recovery retired this generation; null
+  -- while it is live, whose position is the runtime's own stream.
   "last_stream_index" integer,
   "agent_version" text NOT NULL,
   "state" text NOT NULL DEFAULT 'active' CHECK ("state" IN ('active', 'failed', 'retired')),

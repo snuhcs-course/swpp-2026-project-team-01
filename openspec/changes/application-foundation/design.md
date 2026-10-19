@@ -145,7 +145,7 @@ State-changing web routes (`/api/chat/messages`, `/api/chat/recover`, `/auth/sig
 
 `localDev()` is not in the list. Local development signs in with Google against the teammate's sandbox and uses the same path, so the ownership tests run identically under `eve dev` and in deployments.
 
-A session-owner hook keeps the index's stream position and state current. That is bookkeeping, not authority.
+A session-owner hook keeps the index's state current: a terminal failure marks the generation failed, a turn's end completes its input, a received message records its delivery IDs, and an idle session gets the next input. That is bookkeeping, not authority. Deviation: the hook does not keep the last stream index current, because hook events carry no stream index and counting them would drift whenever eve re-emits a retried step's events. `last_stream_index` is written once, when recovery retires a generation, as the number of events it stored; that count is the only reader's need (the discussion cursor's offset), and the live generation's position is always the runtime's own stream.
 
 `limits.sessionTimeoutMs` is set to `false`. Host discussions can outlive eve's 30-day default, and a lifetime ending is not the confirmed runtime failure that [conversation access](../../specs/conversation-access/spec.md) recovery requires. Requester sessions end when their request closes, by application decision.
 
