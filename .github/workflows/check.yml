@@ -46,3 +46,11 @@ jobs:
         run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor
       - name: Database tests
         run: supabase test db
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Integration tests against the local stack
+        run: npm run test:integration
