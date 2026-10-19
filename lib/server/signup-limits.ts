@@ -34,11 +34,28 @@ function sourceAddress(request: Request) {
   return forwarded || request.headers.get("x-real-ip")?.trim() || "unknown";
 }
 
+// The bucket a source address counts under. One IPv6 subscriber usually holds a
+// whole /64, so IPv6 addresses count by that prefix rather than one by one.
+export function sourceBucket(address: string) {
+  if (!address.includes(":") || address.includes(".")) return address;
+
+  const [head = "", tail = ""] = address.toLowerCase().split("%")[0]!.split("::");
+  const left = head ? head.split(":") : [];
+  const right = address.includes("::") ? (tail ? tail.split(":") : []) : [];
+  const groups = address.includes("::")
+    ? [...left, ...Array<string>(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right]
+    : left;
+
+  if (groups.length !== 8 || groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) return address;
+
+  return `${groups.slice(0, 4).map((group) => group.replace(/^0+(?=.)/, "")).join(":")}::/64`;
+}
+
 // HMAC-SHA-256 of the source address under a key derived from the token key, so
 // the stored value cannot be reversed by enumerating addresses without that key.
 export function sourceHash(key: TokenKey, request: Request) {
   const derived = createHmac("sha256", key.key).update("find-me-a-time/signup-source/v1").digest();
-  return createHmac("sha256", derived).update(sourceAddress(request)).digest("hex");
+  return createHmac("sha256", derived).update(sourceBucket(sourceAddress(request))).digest("hex");
 }
 
 // Admits one sign-up inside the account-creating transaction, or throws. The

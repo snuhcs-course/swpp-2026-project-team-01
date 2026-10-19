@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { sourceHash } from "./signup-limits";
+import { sourceBucket, sourceHash } from "./signup-limits";
 import { parseTokenKey } from "./token-encryption";
 
 const key = parseTokenKey(randomBytes(32).toString("base64"));
@@ -31,5 +31,19 @@ describe("sign-up source hash", () => {
     const headers = { "x-forwarded-for": "203.0.113.7" };
 
     expect(sourceHash(other, request(headers))).not.toBe(sourceHash(key, request(headers)));
+  });
+});
+
+describe("sourceBucket", () => {
+  it("counts IPv6 addresses by their /64 prefix", () => {
+    expect(sourceBucket("2001:db8:abcd:12:1::7")).toBe("2001:db8:abcd:12::/64");
+    expect(sourceBucket("2001:db8:abcd:12:ffff:ffff:ffff:1")).toBe("2001:db8:abcd:12::/64");
+    expect(sourceBucket("2001:0db8::1")).toBe("2001:db8:0:0::/64");
+  });
+
+  it("keeps IPv4, IPv4-mapped and unparseable values as they are", () => {
+    expect(sourceBucket("203.0.113.9")).toBe("203.0.113.9");
+    expect(sourceBucket("::ffff:203.0.113.9")).toBe("::ffff:203.0.113.9");
+    expect(sourceBucket("unknown")).toBe("unknown");
   });
 });
