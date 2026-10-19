@@ -16,6 +16,7 @@
   "include": [
     "agent/**/*.ts",
     "lib/**/*.ts",
+    "scripts/**/*.ts",
     "tests/**/*.ts",
     "vercel.ts",
     "vitest.config.ts",
