@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Merriweather } from "next/font/google";
 import type { ReactNode } from "react";
-import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
@@ -31,6 +30,13 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
 });
 
+// Editorial display headings (DESIGN.md typography).
+const merriweather = Merriweather({
+  subsets: ["latin"],
+  variable: "--font-merriweather",
+  weight: ["400"],
+});
+
 export const metadata: Metadata = {
   metadataBase: resolveMetadataBase(),
   title,
@@ -49,38 +55,11 @@ export const metadata: Metadata = {
   },
 };
 
-const themeScript = `
-(() => {
-  try {
-    const theme = window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
-    const root = document.documentElement;
-    root.classList.remove("dark", "light");
-    root.classList.add(theme);
-    root.style.colorScheme = theme;
-  } catch {
-    const root = document.documentElement;
-    root.classList.add("dark");
-    root.style.colorScheme = "dark";
-  }
-})();
-`;
-
 export default function RootLayout({ children }: { readonly children: ReactNode }) {
   return (
-    <html
-      className={`${geistSans.variable} ${geistMono.variable}`}
-      lang="en"
-      suppressHydrationWarning
-    >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} id="theme-init" />
-      </head>
-      <body className={`${geistSans.className} antialiased`}>
-        <ThemeProvider>
-          <TooltipProvider>{children}</TooltipProvider>
-        </ThemeProvider>
+    <html className={`${geistSans.variable} ${geistMono.variable} ${merriweather.variable}`} lang="en">
+      <body className="antialiased">
+        <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>
   );

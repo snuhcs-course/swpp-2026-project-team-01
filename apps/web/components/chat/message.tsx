@@ -48,10 +48,13 @@ export function AgentMessage({
         className={cn(
           "min-w-0",
           isUser
-            ? "max-w-[85%] rounded-[18px] border border-border/40 bg-muted/70 px-3 py-1.5 text-[15px] leading-6 text-foreground shadow-sm"
-            : "w-full max-w-none text-sm leading-relaxed text-foreground",
+            ? "max-w-[85%] rounded-xl border border-border bg-secondary px-3 py-2 text-base leading-[1.65] text-foreground"
+            : "w-full max-w-none text-base leading-[1.65] text-foreground",
         )}
       >
+        <p className={isUser ? "sr-only" : "mb-1 px-3 text-xs font-medium text-muted-foreground"}>
+          {isUser ? "You" : "Thyme"}
+        </p>
         <AgentMessageParts
           canRespond={canRespond}
           isUser={isUser}
@@ -530,7 +533,7 @@ function ToolStatusIcon({ status }: { readonly status: ToolStatus }) {
 
   return (
     <span className="flex size-4 shrink-0 items-center justify-center self-center">
-      <CheckIcon className={cn(className, "text-emerald-500")} />
+      <CheckIcon className={cn(className, "text-success")} />
     </span>
   );
 }

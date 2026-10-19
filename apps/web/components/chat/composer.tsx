@@ -91,7 +91,7 @@ export function ChatComposer({
   const form = (
     <form
       className={cn(
-        "min-w-0 rounded-[14px] border border-border/80 bg-card/95 shadow-sm transition-colors focus-within:border-border focus-within:ring-[1px] focus-within:ring-foreground/5 dark:bg-muted/45 dark:focus-within:ring-white/5",
+        "min-w-0 rounded-xl border border-input bg-card transition-colors",
         className,
       )}
       data-chat-composer
@@ -102,7 +102,7 @@ export function ChatComposer({
       </label>
       <textarea
         autoFocus={autoFocus}
-        className="max-h-32 min-h-12 w-full resize-none bg-transparent px-3 pt-3 pb-1 text-base leading-6 outline-none placeholder:text-muted-foreground/45 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 md:text-[15px] dark:placeholder:text-muted-foreground/60"
+        className="max-h-32 min-h-12 w-full resize-none bg-transparent px-3 pt-3 pb-1 text-base leading-6 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
         data-chat-composer-input
         disabled={textareaDisabled}
         id={composerId}
@@ -122,32 +122,32 @@ export function ChatComposer({
           {isBusy ? (
             <Button
               aria-label="Response in progress"
-              className="size-6 cursor-default rounded-md bg-foreground/15 text-foreground/55 shadow-none hover:bg-foreground/15 disabled:cursor-default disabled:pointer-events-auto disabled:opacity-100"
+              className="size-11 cursor-default rounded-lg bg-secondary text-muted-foreground shadow-none hover:bg-secondary disabled:cursor-default disabled:pointer-events-auto disabled:opacity-100"
               disabled
-              size="icon-xs"
+              size="icon"
               type="button"
             >
-              <SquareIcon className="size-2.5 fill-current" />
+              <SquareIcon className="size-3 fill-current" />
             </Button>
           ) : isPreparing ? (
             <Button
               aria-label="Preparing chat"
-              className="size-6 rounded-md bg-foreground/75 text-background"
+              className="size-11 rounded-lg bg-secondary text-muted-foreground"
               disabled
-              size="icon-xs"
+              size="icon"
               type="button"
             >
-              <Loader2Icon className="size-3 animate-spin" />
+              <Loader2Icon className="size-4 animate-spin" />
             </Button>
           ) : (
             <Button
               aria-label="Send message"
-              className="size-6 cursor-pointer rounded-md bg-foreground text-background hover:bg-foreground/90 disabled:cursor-not-allowed disabled:pointer-events-auto disabled:opacity-30"
+              className="size-11 cursor-pointer rounded-lg bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-pressed disabled:cursor-not-allowed disabled:pointer-events-auto disabled:opacity-40"
               disabled={disabled || trimmedValue.length === 0 || isOverMaxLength}
-              size="icon-xs"
+              size="icon"
               type="submit"
             >
-              <ArrowUpIcon className="size-3.5" />
+              <ArrowUpIcon className="size-5" />
             </Button>
           )}
         </div>

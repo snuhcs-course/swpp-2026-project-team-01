@@ -1,17 +1,37 @@
 "use client";
 
 import { ArrowDownIcon } from "lucide-react";
-import { useCallback, type ComponentProps } from "react";
+import { useCallback, useSyncExternalStore, type ComponentProps } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+
+function subscribeToReducedMotion(onChange: () => void) {
+  const media = window.matchMedia(REDUCED_MOTION);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+// Respects the reduced-motion preference: new messages appear in place instead
+// of smooth-scrolling into view.
+function usePrefersReducedMotion() {
+  return useSyncExternalStore(
+    subscribeToReducedMotion,
+    () => window.matchMedia(REDUCED_MOTION).matches,
+    () => false,
+  );
+}
+
 export function ChatConversation({ className, ...props }: ComponentProps<typeof StickToBottom>) {
+  const motion = usePrefersReducedMotion() ? "instant" : "smooth";
+
   return (
     <StickToBottom
       className={cn("relative min-h-0 flex-1 overflow-y-hidden", className)}
-      initial="smooth"
-      resize="smooth"
+      initial={motion}
+      resize={motion}
       role="log"
       {...props}
     />

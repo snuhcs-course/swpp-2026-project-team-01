@@ -60,7 +60,7 @@ Read the [reference repository files for Phase 1](../../../documentations/techni
   - pending input continuing with its original identity,
   - history read in order across a recovered conversation.
 - [x] 4.6 Build the `/app` shell with a centered conversation, a reachable composer, and a compact keyboard-operable menu with sign-out and no sidebar. Build the minimal `/` page with **Sign in with Google**. Verify Playwright at 320, 390 and 1280 pixels, keyboard-only menu use with Escape returning focus, 200% zoom without horizontal scroll, and saved history staying readable after model allowance is exhausted.
-- [ ] 4.7 Apply the Thyme tokens, Merriweather and Geist, and the paper layer per DESIGN.md, mapped onto shadcn variables; verify contrast of the documented pairs, texture omitted in print and forced colors, and reduced motion respected.
+- [x] 4.7 Apply the Thyme tokens, Merriweather and Geist, and the paper layer per DESIGN.md, mapped onto shadcn variables; verify contrast of the documented pairs, texture omitted in print and forced colors, and reduced motion respected.
 
 ## 5. Join and release
 

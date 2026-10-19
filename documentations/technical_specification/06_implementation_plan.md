@@ -61,10 +61,10 @@ Scope. Prerequisite for every lane: the skeleton below, done by one person in th
 
 **Lane A — web and runtime** (needs Lane B's host account to authorize real sessions; develop against a stub principal until then)
 
-- [ ] `/app` shell with the conversation-first layout, compact menu and no sidebar, rendering the template's chat bridge.
-- [ ] Application-owned authorization of every `/eve/v1/*` route, including session ownership checked against the application session index before eve acts; `channels/eve.ts` with only the application auth entry, no `localDev()` and no `vercelOidc()`; browser messages reach eve only through an application route; fail-closed default endpoints; uploads disabled.
-- [ ] Stored stream events and session cursors for reconnect; terminal recovery as an explicit transition.
-- [ ] Thyme theme tokens, fonts, paper layer and shared component recipes replacing the template's styling.
+- [x] `/app` shell with the conversation-first layout, compact menu and no sidebar, rendering the template's chat bridge.
+- [x] Application-owned authorization of every `/eve/v1/*` route, including session ownership checked against the application session index before eve acts; `channels/eve.ts` with only the application auth entry, no `localDev()` and no `vercelOidc()`; browser messages reach eve only through an application route; fail-closed default endpoints; uploads disabled.
+- [x] Stored stream events and session cursors for reconnect; terminal recovery as an explicit transition.
+- [x] Thyme theme tokens, fonts, paper layer and shared component recipes replacing the template's styling.
 
 **Lane B — data and identity** (independent; its schema baseline and the CI job that pushes it merge first and alone, and other lanes add tables only after that)
 
