@@ -1,6 +1,6 @@
 # Find Me a Time — Implementation Plan
 
-Status: plan for team review; Phase 1 implemented on `feat/application-foundation` and awaiting review\
+Status: plan for team review; Phase 1 merged; Phase 2 implemented on `feat/host-onboarding` and awaiting review\
 Date: 2026-10-19\
 Basis: [PRD](../02_product_requirements.md), [technical overview](../04_technical_specification.md), [backend](01_backend_architecture.md), [frontend](02_frontend_architecture.md), [provider setup](03_provider_setup.md), [agent configuration](04_agent_configuration.md), [host onboarding flow](../user_experience/05_host_onboarding_flow.md), [guest booking flow](../user_experience/06_guest_booking_flow.md) and the [capability specifications](../../openspec/specs/).
 
@@ -117,7 +117,7 @@ Scope. Prerequisite: Phase 1 joined. The three lanes are independent until the f
 
 **Join**
 
-- [ ] Connect the review card to analysis evidence and handle validation; run the Phase 2 evidence list.
+- [x] Connect the review card to analysis evidence and handle validation; run the Phase 2 evidence list. Recorded in the [acceptance record](07_acceptance_record.md#phase-2--host-onboarding); the signed-in production run and Google app verification remain open there.
 
 Specs: [host-admission](../../openspec/specs/host-admission/spec.md) (suspension, handles, abuse limits, stable identity), [calendar-analysis-retention](../../openspec/specs/calendar-analysis-retention/spec.md), [public-agent-entry](../../openspec/specs/public-agent-entry/spec.md), [meeting-feasibility](../../openspec/specs/meeting-feasibility/spec.md) (overnight window rules), [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md). Also [conversation-access](../../openspec/specs/conversation-access/spec.md) for the tool-result recovery scenarios the foundation change deferred here.
 
