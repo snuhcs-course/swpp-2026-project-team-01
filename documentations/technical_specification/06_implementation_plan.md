@@ -74,7 +74,7 @@ Scope. Prerequisite for every lane: the skeleton below, done by one person in th
 
 **Lane C — platform mechanics** (independent; pure server modules with their own tests)
 
-- [ ] Application command pipeline: validated intent, expected revision, retry identity, audience-safe errors.
+- [x] Application command pipeline: validated intent, expected revision, retry identity, audience-safe errors.
 - [ ] Durable jobs base: atomic publication with domain transitions, bounded leases, fencing, redelivery-safe completion, recurring recovery, and a production-only worker that claims only production-produced jobs.
 - [ ] Model limit middleware around the model instance, so every provider call, including eve's retries and compaction, is checked for input size, output caps and the provider deadline, and reserves durable allowance first; direct OpenAI with the team's key, as the foundation design records.
 - [ ] Messaging-environments denial so previews cannot send.

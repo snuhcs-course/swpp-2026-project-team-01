@@ -4,7 +4,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(17);
+select plan(20);
 
 select has_schema('app', 'the private application schema exists');
 
@@ -24,6 +24,11 @@ select is_empty(
       and not c.relrowsecurity
   $$,
   'every application table enables row-level security'
+);
+
+select is_empty(
+  $$ select tablename::text || '.' || policyname::text from pg_policies where schemaname = 'app' $$,
+  'no application table has a policy, so only the owner sees rows'
 );
 
 select is_empty(
@@ -94,8 +99,12 @@ select throws_ok('select app.grant_probe_fn()', '42501', null, 'anon cannot call
 select throws_ok('select * from public.grant_probe', '42501', null, 'anon cannot read a new public table');
 select throws_ok('select public.grant_probe_fn()', '42501', null, 'anon cannot call a new public function');
 
+select throws_ok('select * from app.command_outcomes', '42501', null, 'anon cannot read saved command outcomes');
+
 reset role;
 set local role authenticated;
+
+select throws_ok('select * from app.command_outcomes', '42501', null, 'authenticated cannot read saved command outcomes');
 
 select throws_ok('select * from app.grant_probe', '42501', null, 'authenticated cannot read an application table');
 select throws_ok('select app.grant_probe_fn()', '42501', null, 'authenticated cannot call an application function');
