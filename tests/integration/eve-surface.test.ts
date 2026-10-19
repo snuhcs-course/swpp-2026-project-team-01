@@ -24,8 +24,8 @@ afterAll(async () => {
 });
 
 function leaks(body: string) {
-  const { DB_URL, PUBLISHABLE_KEY } = localStack();
-  return [server.signingKey, PUBLISHABLE_KEY, DB_URL, "sk-test", "postgres", "/Users/", "/home/", "node_modules", "    at "].filter(
+  const { PUBLISHABLE_KEY, SECRET_KEY } = localStack();
+  return [server.signingKey, PUBLISHABLE_KEY, SECRET_KEY, "sk-test", "postgres", "/Users/", "/home/", "node_modules", "    at "].filter(
     (secret) => body.includes(secret),
   );
 }
