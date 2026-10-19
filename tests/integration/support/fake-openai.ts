@@ -23,8 +23,14 @@ export type FakeRequest = Record<string, unknown> & {
   readonly stream?: boolean;
 };
 
+// A reply for the next request whose body contains `includes`, so tests that
+// share one stand-in (the browser tests run in parallel) script only their own
+// conversation. A rule is used once.
+export type FakeRule = { readonly includes: string; readonly reply: FakeReply };
+
 export type FakeOpenAI = {
   readonly baseURL: string;
+  readonly rules: FakeRule[];
   readonly requests: FakeRequest[];
   readonly bodyBytes: number[];
   readonly authorizations: string[];
@@ -77,16 +83,26 @@ export async function startFakeOpenAI(
   const bodyBytes: number[] = [];
   const authorizations: string[] = [];
   const script: FakeReply[] = [];
+  const rules: FakeRule[] = [];
 
   const server = createServer(async (request, response) => {
     let raw = "";
     for await (const chunk of request) raw += chunk;
+
+    // Test control: POST /__rules adds a rule from another process.
+    if (request.method === "POST" && request.url === "/__rules") {
+      rules.push(JSON.parse(raw) as FakeRule);
+      response.writeHead(204).end();
+      return;
+    }
+
     const body = JSON.parse(raw || "{}") as FakeRequest;
     requests.push(body);
     bodyBytes.push(Buffer.byteLength(raw, "utf8"));
     authorizations.push(request.headers.authorization ?? "");
 
-    const reply = script.shift() ?? defaultReply;
+    const ruled = rules.findIndex((rule) => raw.includes(rule.includes));
+    const reply = ruled >= 0 ? rules.splice(ruled, 1)[0]!.reply : (script.shift() ?? defaultReply);
 
     if (reply.kind === "error") {
       response.writeHead(reply.status, { "content-type": "application/json" });
@@ -166,6 +182,7 @@ export async function startFakeOpenAI(
         server.close(() => resolve());
       }),
     requests,
+    rules,
     script,
   };
 }

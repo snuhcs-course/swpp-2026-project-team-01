@@ -39,6 +39,20 @@ function hasOpenTurn(events: readonly DiscussionEvent[]) {
   return open;
 }
 
+// Whether the latest turn failed while the session lived on, as when the model
+// allowance is spent: its reply is missing and nothing else in the conversation
+// says why. A terminal failure has its own restart notice.
+function lastTurnFailed(events: readonly DiscussionEvent[]) {
+  let failed = false;
+
+  for (const event of events) {
+    if (event.type === "turn.started") failed = false;
+    else if (event.type === "turn.failed") failed = event.data.terminal !== true;
+  }
+
+  return failed;
+}
+
 // A re-sent input's marker counts toward the cursor but is not shown: the host's
 // message already appears once.
 function project(events: readonly DiscussionEvent[]) {
@@ -210,6 +224,7 @@ export function HostWorkspace() {
 
   const messages = useMemo(() => project(events), [events]);
   const failed = status?.state === "failed";
+  const turnFailed = useMemo(() => lastTurnFailed(events), [events]);
   const busy = phase !== "ready";
   const isEmpty = messages.length === 0 && !pendingText;
 
@@ -266,6 +281,11 @@ export function HostWorkspace() {
                   message={{ id: "pending", parts: [{ state: "done", text: pendingText, type: "text" }], role: "user" }}
                   onInputResponses={() => {}}
                 />
+              ) : null}
+              {turnFailed && !failed && phase === "ready" ? (
+                <p className="px-3 text-sm text-muted-foreground" role="status">
+                  Thyme couldn&apos;t finish this reply. Your message is saved; try again in a little while.
+                </p>
               ) : null}
               {phase === "sending" || phase === "streaming" ? (
                 <p className="px-3 text-sm text-muted-foreground" role="status">

@@ -1,13 +1,10 @@
-import { expect, type Page, test } from "@playwright/test";
-import { clearServiceWindow, db, signedInHost } from "./support/session";
+import { randomUUID } from "node:crypto";
+import type { Page } from "@playwright/test";
+import { expect, scriptModelReply, signedInHost, test } from "./support/session";
 
 // The /app host workspace (task 4.6) against the real web and agent services,
 // the local Supabase stack and a local model stand-in that answers
 // "Hello from Thyme.".
-
-test.beforeAll(async () => {
-  await clearServiceWindow(db);
-});
 
 async function hasNoHorizontalScroll(page: Page) {
   return page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
@@ -30,10 +27,11 @@ for (const width of [320, 390, 1280]) {
   test(`at ${width}px the conversation is centered with a reachable composer and no sidebar`, async ({
     baseURL,
     context,
+    db,
     page,
   }) => {
     await page.setViewportSize({ height: width === 1280 ? 800 : 700, width });
-    await signedInHost(context, baseURL!);
+    await signedInHost(db, context, baseURL!);
     await page.goto("/app");
 
     const composer = page.getByRole("textbox", { name: "Message Thyme" });
@@ -56,8 +54,8 @@ for (const width of [320, 390, 1280]) {
   });
 }
 
-test("the menu works by keyboard alone, closes on Escape and returns focus", async ({ baseURL, context, page }) => {
-  await signedInHost(context, baseURL!);
+test("the menu works by keyboard alone, closes on Escape and returns focus", async ({ baseURL, context, db, page }) => {
+  await signedInHost(db, context, baseURL!);
   await page.goto("/app");
   const trigger = page.getByRole("button", { name: "Open menu" });
   await expect(page.getByRole("textbox", { name: "Message Thyme" })).toBeEnabled();
@@ -82,11 +80,11 @@ test("the menu works by keyboard alone, closes on Escape and returns focus", asy
   await expect(page.getByRole("link", { name: "Sign in with Google" })).toBeVisible();
 });
 
-test("at 200% zoom the workspace has no horizontal scroll", async ({ baseURL, context, page }) => {
+test("at 200% zoom the workspace has no horizontal scroll", async ({ baseURL, context, db, page }) => {
   // 200% browser zoom of a 1280x800 window lays the page out in a 640x400 CSS
   // viewport; Chromium's zoom is that viewport change at device scale 2.
   await page.setViewportSize({ height: 400, width: 640 });
-  await signedInHost(context, baseURL!);
+  await signedInHost(db, context, baseURL!);
   await page.goto("/app");
 
   await expect(page.getByRole("textbox", { name: "Message Thyme" })).toBeInViewport();
@@ -99,8 +97,8 @@ test("at 200% zoom the workspace has no horizontal scroll", async ({ baseURL, co
   expect(await hasNoHorizontalScroll(page)).toBe(true);
 });
 
-test("saved history stays readable after the model allowance is exhausted", async ({ baseURL, context, page }) => {
-  const host = await signedInHost(context, baseURL!);
+test("saved history stays readable after the model allowance is exhausted", async ({ baseURL, context, db, page }) => {
+  const host = await signedInHost(db, context, baseURL!);
   await page.goto("/app");
   await sendMessage(page, "Tuesdays work best.");
   const log = page.getByRole("log", { name: "Messages" });
@@ -117,6 +115,9 @@ test("saved history stays readable after the model allowance is exhausted", asyn
   await expect(log.getByText("And Thursdays?")).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Message Thyme" })).toBeEnabled({ timeout: 30_000 });
   await expect(log.getByText("Hello from Thyme.")).toHaveCount(1);
+  // The missing reply is explained safely, with no provider or limit detail.
+  await expect(page.getByText("Thyme couldn't finish this reply.", { exact: false })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(/principal_allowance|ModelLimitError|MODEL_CALL_FAILED/);
 
   await page.reload();
   await expect(log.getByText("Tuesdays work best.")).toBeVisible();
@@ -125,7 +126,37 @@ test("saved history stays readable after the model allowance is exhausted", asyn
   await expect(page.getByRole("textbox", { name: "Message Thyme" })).toBeEnabled();
 });
 
-test("the workspace runs under the security headers with no policy violation", async ({ baseURL, context, page }) => {
+test("Restart Thyme recovers a failed conversation and keeps the message once", async ({
+  baseURL,
+  context,
+  db,
+  page,
+}) => {
+  await signedInHost(db, context, baseURL!);
+  const text = `Mornings work best. ${randomUUID()}`;
+  // The model rejects this conversation's key, which ends the session.
+  await scriptModelReply(text, { code: "invalid_api_key", kind: "error", status: 401 });
+  await page.goto("/app");
+  await sendMessage(page, text);
+
+  const restart = page.getByRole("button", { name: "Restart Thyme" });
+  await expect(page.getByText("Thyme stopped responding in this conversation.", { exact: false })).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.locator("body")).not.toContainText(/invalid_api_key|Scripted failure/);
+
+  await restart.click();
+  const log = page.getByRole("log", { name: "Messages" });
+  await expect(log.getByText("Hello from Thyme.")).toBeVisible({ timeout: 30_000 });
+  await expect(restart).toHaveCount(0);
+  await expect(log.getByText(text)).toHaveCount(1);
+
+  await page.reload();
+  await expect(log.getByText("Hello from Thyme.")).toBeVisible();
+  await expect(log.getByText(text)).toHaveCount(1);
+});
+
+test("the workspace runs under the security headers with no policy violation", async ({ baseURL, context, db, page }) => {
   const violations: string[] = [];
   page.on("console", (message) => {
     if (/Content Security Policy|Refused to/i.test(message.text())) violations.push(message.text());
@@ -135,7 +166,7 @@ test("the workspace runs under the security headers with no policy violation", a
       console.error(`Refused to load: ${event.violatedDirective} ${event.blockedURI}`);
     });
   });
-  await signedInHost(context, baseURL!);
+  await signedInHost(db, context, baseURL!);
   const response = (await page.goto("/app"))!;
   const headers = response.headers();
 

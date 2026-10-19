@@ -1,5 +1,5 @@
-import { expect, type Page, test } from "@playwright/test";
-import { signedInHost } from "./support/session";
+import type { Page } from "@playwright/test";
+import { expect, signedInHost, test } from "./support/session";
 
 // The rendered Thyme theme (task 4.7): the paper layer, its omission in print and
 // forced colors, fonts, focus outlines and reduced motion.
@@ -69,8 +69,8 @@ test("keyboard focus shows a 2px outline with a 3px offset", async ({ page }) =>
   expect(outline).toEqual({ offset: "3px", style: "solid", width: "2px" });
 });
 
-test("reduced motion removes transitions and animation", async ({ baseURL, context, page }) => {
-  await signedInHost(context, baseURL!);
+test("reduced motion removes transitions and animation", async ({ baseURL, context, db, page }) => {
+  await signedInHost(db, context, baseURL!);
   const duration = () =>
     page.getByRole("button", { name: "Open menu" }).evaluate((button) => getComputedStyle(button).transitionDuration);
 

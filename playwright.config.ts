@@ -49,6 +49,7 @@ const shared = {
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: "./tests/e2e/support/global-setup.ts",
   testMatch: live ? "**/first-reply.test.ts" : "**/*.test.ts",
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),

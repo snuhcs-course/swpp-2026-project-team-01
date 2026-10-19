@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
 import { completeGoogleLeg, createGoogleUser } from "../integration/support/auth";
-import { clearServiceWindow, db } from "./support/session";
+import { expect, test } from "./support/session";
 
 // The Phase 1 join (task 5.1): a new host signs in from the home page through
 // the real web routes and the real local Supabase Auth flow, lands on /app with
@@ -16,12 +15,9 @@ import { clearServiceWindow, db } from "./support/session";
 
 const live = process.env.E2E_LIVE_MODEL === "1";
 
-test.beforeAll(async () => {
-  await clearServiceWindow(db);
-});
-
 test("a new host signs in, lands on /app with an empty setup session and gets Thyme's first reply", async ({
   baseURL,
+  db,
   page,
 }) => {
   test.setTimeout(live ? 180_000 : 60_000);
