@@ -14,3 +14,21 @@ jobs:
         run: npm run check:docs
       - name: Validate OpenSpec artifacts
         run: npx --yes @fission-ai/openspec@1.14.0 validate --all --strict
+  application:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
