@@ -142,3 +142,44 @@ export async function startFakeTokenInfo(scopesByToken: Record<string, string | 
     url: `http://127.0.0.1:${port}/tokeninfo`,
   };
 }
+
+// Signs a new Google user in through the real callback against the local stack
+// and returns the browser's Supabase session cookies and its host account.
+export async function signInHost(db: Database) {
+  const { createGoogleCallbackHandler, createGoogleSignInHandler } = await import("../../../lib/server/google-sign-in");
+  const { createGrantedScopesFetcher } = await import("../../../lib/server/google-token-info");
+  const { parseTokenKey } = await import("../../../lib/server/token-encryption");
+  const { randomBytes } = await import("node:crypto");
+  const origin = "http://localhost:3000";
+  const deps = {
+    appOrigin: origin,
+    auth: localAuthConfig(),
+    db,
+    // Nothing listens on the discard port, so no Calendar grant is recorded.
+    fetchGrantedScopes: createGrantedScopesFetcher("http://127.0.0.1:9/tokeninfo"),
+    tokenKey: parseTokenKey(randomBytes(32).toString("base64")),
+  };
+  const user = await createGoogleUser(db);
+  const flow = await startGoogleSignIn(createGoogleSignInHandler(() => deps), origin);
+  const code = await completeGoogleLeg(db, flow.codeChallenge, user.userId, {
+    accessToken: `ya29.${randomUUID()}`,
+    refreshToken: null,
+  });
+  const response = await createGoogleCallbackHandler(() => deps)(
+    new Request(`${origin}/auth/callback?code=${code}`, { headers: { cookie: flow.cookie } }),
+  );
+
+  if (response.headers.get("location") !== `${origin}/app`) {
+    throw new Error(`Test sign-in failed: ${response.headers.get("location")}`);
+  }
+
+  const [account] = await db<{ host_account_id: string }[]>`
+    select host_account_id from app.google_identities where auth_user_id = ${user.userId}
+  `;
+
+  return {
+    cookie: cookieHeader(flow.response, response),
+    hostAccountId: account!.host_account_id,
+    userId: user.userId,
+  };
+}
