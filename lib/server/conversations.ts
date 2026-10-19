@@ -1,5 +1,5 @@
 import { parseCookieHeader } from "@supabase/ssr";
-import { Client, type MessageStreamEvent } from "eve/client";
+import { Client, ClientError, type MessageStreamEvent } from "eve/client";
 import { z } from "zod";
 import { getChatMessageLengthError } from "../contracts/chat-message";
 import { type Actor, CommandError, type CommandDefinition, runCommand } from "./commands";
@@ -18,9 +18,16 @@ import { sessionIdHash } from "./model-limits";
 
 export const AGENT_VERSION = "phase-1";
 
+// A send whose outcome was unknown counts as never delivered once no session
+// has reported receiving it this long after it was sent. An accepted message
+// reaches an idle session at once, and its 60-second bearer is long expired.
+export const UNDELIVERED_AFTER_SECONDS = 300;
+
 // The agent service, as the web service reaches it.
 export type ConversationRuntime = {
   createSession(bearer: string): Promise<string>;
+  // Resolves once the agent accepted the message. An HTTP refusal rejects with
+  // eve's ClientError; any other rejection leaves the outcome unknown.
   sendMessage(sessionId: string, bearer: string, message: string): Promise<void>;
   // Reads a session's recorded events with the browser's own Supabase session
   // cookie, which the agent checks against the session index.
@@ -284,6 +291,14 @@ export async function deliverNext(
     if (!session || session.state !== "active") return null;
     if (options.fromSessionId && options.fromSessionId !== session.session_id) return null;
 
+    // An input whose send outcome was unknown, that no session reported
+    // receiving long after its bearer expired, never arrived: it is accepted
+    // again and delivered below, in order.
+    await tx`
+      update app.conversation_inputs set state = 'accepted', session_id = null, sent_at = null
+      where session_id = ${session.session_id} and state = 'sent' and cardinality(delivery_ids) = 0
+        and sent_at < clock_timestamp() - make_interval(secs => ${UNDELIVERED_AFTER_SECONDS})
+    `;
     const [inFlight] = await tx<{ id: string }[]>`
       select id from app.conversation_inputs where session_id = ${session.session_id} and state = 'sent' limit 1
     `;
@@ -329,7 +344,12 @@ export async function deliverNext(
   try {
     await deps.runtime.sendMessage(session.session_id, bearer, input.message);
   } catch (error) {
-    // Not delivered: an exact retry may send it again.
+    // A timeout, a reset connection or a server error may follow acceptance, so
+    // the input stays sent: never sent twice, completed by its turn's end or
+    // continued by recovery if it arrived, and accepted again above if it never did.
+    if (!(error instanceof ClientError) || error.status >= 500) return input.id;
+
+    // Refused: not delivered, so an exact retry may send it again.
     await deps.db`
       update app.conversation_inputs set state = 'accepted', session_id = null, sent_at = null
       where id = ${input.id} and state = 'sent'

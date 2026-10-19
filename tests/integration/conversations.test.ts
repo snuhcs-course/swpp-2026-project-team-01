@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { ClientError } from "eve/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type ChatRouteDependencies, createMessageHandler } from "../../lib/server/chat-routes";
 import { eveRuntime, openSetupSession } from "../../lib/server/conversations";
@@ -33,8 +34,8 @@ afterAll(async () => {
   await db.end();
 });
 
-function message(cookie: string, text: string, clientInputId = randomUUID()) {
-  return post(
+function message(cookie: string, text: string, clientInputId = randomUUID(), via = post) {
+  return via(
     new Request("http://localhost:3000/api/chat/messages", {
       body: JSON.stringify({ clientInputId, message: text }),
       headers: { "content-type": "application/json", origin: "http://localhost:3000", cookie },
@@ -181,6 +182,91 @@ describe("message route and session index", () => {
       expect(await inputState(outcome.inputId)).toBe("completed");
       expect(await reservationsFor(outcome.inputId)).toHaveLength(1);
     }
+  });
+
+  it("keeps an input whose send outcome is unknown in flight, and never sends it twice", async () => {
+    const host = await signInHost(db);
+    // The agent accepts the message, then the connection drops before the answer.
+    const dropping = createMessageHandler(() => ({
+      ...deps,
+      runtime: {
+        ...deps.runtime,
+        async sendMessage(sessionId, bearer, text) {
+          await deps.runtime.sendMessage(sessionId, bearer, text);
+          throw new TypeError("fetch failed: other side closed");
+        },
+      },
+    }));
+    const clientInputId = randomUUID();
+    const first = await message(host.cookie, "Mornings work best.", clientInputId, dropping);
+    expect(first.status).toBe(202);
+    const { inputId, status } = (await first.json()) as { inputId: string; status: string };
+    expect(status).toBe("sent");
+
+    // The browser's exact retry returns the receipt instead of sending again.
+    const retry = await message(host.cookie, "Mornings work best.", clientInputId);
+    expect(await retry.json()).toMatchObject({ inputId, status: "sent" });
+
+    const session = await sessionOf(host.hostAccountId);
+    await waitFor(async () => (await inputState(inputId)) === "completed");
+    expect(await inputState(inputId)).toBe("completed");
+    const received = (await readEvents(server.url, host.cookie, session.session_id)).filter(
+      (event) => event.type === "message.received",
+    );
+    expect(received).toHaveLength(1);
+  });
+
+  it("sends again, in order, an input with an unknown outcome that never arrived", async () => {
+    const host = await signInHost(db);
+    const lost = createMessageHandler(() => ({
+      ...deps,
+      runtime: {
+        ...deps.runtime,
+        async sendMessage() {
+          throw new TypeError("fetch failed: connect timeout");
+        },
+      },
+    }));
+    const first = (await (await message(host.cookie, "Mornings work best.", randomUUID(), lost)).json()) as {
+      inputId: string;
+      status: string;
+    };
+    expect(first.status).toBe("sent");
+    expect(await inputState(first.inputId)).toBe("sent");
+    // Long after its bearer expired, no session has reported receiving it.
+    await db`update app.conversation_inputs set sent_at = sent_at - interval '10 minutes' where id = ${first.inputId}`;
+
+    const second = (await (await message(host.cookie, "And Tuesdays.")).json()) as { inputId: string; status: string };
+    expect(second.status).toBe("queued");
+    await waitFor(async () => (await inputState(second.inputId)) === "completed");
+    expect(await inputState(first.inputId)).toBe("completed");
+    expect(await inputState(second.inputId)).toBe("completed");
+    const session = await sessionOf(host.hostAccountId);
+    const received = (await readEvents(server.url, host.cookie, session.session_id)).filter(
+      (event) => event.type === "message.received",
+    );
+    expect(received.map((event) => event.data.message)).toEqual(["Mornings work best.", "And Tuesdays."]);
+  });
+
+  it("returns a refused send to the browser and keeps the input for an exact retry", async () => {
+    const host = await signInHost(db);
+    const refusing = createMessageHandler(() => ({
+      ...deps,
+      runtime: {
+        ...deps.runtime,
+        async sendMessage() {
+          throw new ClientError(403, JSON.stringify({ code: "forbidden" }));
+        },
+      },
+    }));
+    const clientInputId = randomUUID();
+    const refused = await message(host.cookie, "Hello.", clientInputId, refusing);
+    expect(refused.status).toBe(503);
+
+    const retried = (await (await message(host.cookie, "Hello.", clientInputId)).json()) as { inputId: string; status: string };
+    expect(retried.status).toBe("sent");
+    await waitFor(async () => (await inputState(retried.inputId)) === "completed");
+    expect(await inputState(retried.inputId)).toBe("completed");
   });
 
   it("refuses an unauthenticated caller and a suspended host without recording input", async () => {

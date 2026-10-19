@@ -2,7 +2,7 @@ import { defineHook } from "eve/hooks";
 import { agentUrlFromEnvironment, deliverNextAfterTurn, eveRuntime } from "../../lib/server/conversations";
 import { database } from "../../lib/server/database";
 import { internalSigningKey } from "../../lib/server/internal-bearer";
-import { recordSessionFailed, recordTurnEnded } from "../../lib/server/session-owner";
+import { recordInputReceived, recordSessionFailed, recordTurnEnded } from "../../lib/server/session-owner";
 
 // Keeps the application session index current. Hooks run after an event is
 // recorded and cannot veto work, so this is bookkeeping only (design decision 7).
@@ -11,6 +11,9 @@ import { recordSessionFailed, recordTurnEnded } from "../../lib/server/session-o
 // internal bearer that appAuth checks against the index.
 export default defineHook({
   events: {
+    async "message.received"(event, ctx) {
+      await recordInputReceived(database(), ctx.session.id, event.meta.deliveryIds ?? []);
+    },
     async "turn.completed"(_event, ctx) {
       await recordTurnEnded(database(), ctx.session.id);
     },

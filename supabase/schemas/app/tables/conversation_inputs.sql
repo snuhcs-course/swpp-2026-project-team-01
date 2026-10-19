@@ -3,7 +3,9 @@
 -- against; client_input_id is the caller's retry identity, and an exact retry
 -- (same fingerprint) returns the same input while a changed one conflicts.
 -- state: accepted (recorded, not yet delivered), sent (delivered to session_id),
--- completed (a turn of that session finished after it was sent).
+-- completed (the turn that served it ended). delivery_ids are the runtime's
+-- delivery identities of the input, recorded when a session reports receiving
+-- it: proof it arrived, and how history recognizes a re-sent input.
 CREATE TABLE "app"."conversation_inputs" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "discussion_id" uuid NOT NULL REFERENCES "app"."discussions" ("id"),
@@ -15,6 +17,7 @@ CREATE TABLE "app"."conversation_inputs" (
   "accepted_at" timestamptz NOT NULL DEFAULT now(),
   "sent_at" timestamptz,
   "completed_at" timestamptz,
+  "delivery_ids" text[] NOT NULL DEFAULT '{}',
   CONSTRAINT "conversation_inputs_client_input_key" UNIQUE ("discussion_id", "client_input_id")
 );
 
