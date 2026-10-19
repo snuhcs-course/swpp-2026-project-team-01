@@ -37,14 +37,14 @@ Before each group, read the [Phase 2 reference repository files](../../../docume
 
 ## 5. Identity, entry documents and operator control (Lane C)
 
-- [ ] 5.1 Add handle validation (format, reserved list, uniqueness across released handles, the change limit) and the sign-up bounds per source and service-wide in the sign-in callback, with the temporary-limit message on `/app`. Verify unit tests for the format and reserved list, and integration tests for the source and service bounds, an existing identity at the bound, a collision and a change past the limit.
-- [ ] 5.2 Add `/SKILL.md`, `/[handle]/SKILL.md`, `/llms.txt`, the landing page and the public host page with their agent sections and `<link rel="alternate" type="text/markdown">`, and Markdown negotiation in the proxy with `Vary: Accept`. Verify integration or browser tests for:
+- [x] 5.1 Add handle validation (format, reserved list, uniqueness across released handles, the change limit) and the sign-up bounds per source and service-wide in the sign-in callback, with the temporary-limit message on `/app`. Verify unit tests for the format and reserved list, and integration tests for the source and service bounds, an existing identity at the bound, a collision and a change past the limit.
+- [x] 5.2 Add `/SKILL.md`, `/[handle]/SKILL.md`, `/llms.txt`, the landing page and the public host page with their agent sections and `<link rel="alternate" type="text/markdown">`, and Markdown negotiation in the proxy with `Vary: Accept`. Verify integration or browser tests for:
   - no cookies and `no-store`;
   - the neutral 404 for unknown, unready and suspended hosts, and the 503 on a database failure;
   - a display name containing Markdown and control characters;
   - `Accept: text/markdown` on `/` and `/{handle}`;
   - reserved routes not resolving as handles.
-- [ ] 5.3 Add `scripts/admin.ts` (`npm run admin`) with `show`, `suspend` and `restore`, `--local` and `--project`, confirmation and the audit row. Verify integration tests against the local stack: suspension rejects hosting operations and hides the public profile, restoration brings back the saved setup, `--local` refuses a non-local URL, and a Data API role cannot call the operator function.
+- [x] 5.3 Add `scripts/admin.ts` (`npm run admin`) with `show`, `suspend` and `restore`, `--local` and `--project`, confirmation and the audit row. Verify integration tests against the local stack: suspension rejects hosting operations and hides the public profile, restoration brings back the saved setup, `--local` refuses a non-local URL, and a Data API role cannot call the operator function.
 
 ## 6. Join
 

@@ -16,8 +16,14 @@ export type GoogleIdentity = {
 
 // Returns the one host account of a Google identity, creating it on first sign-in.
 // The transaction-scoped advisory lock serializes concurrent callbacks for the
-// same identity; the unique Google subject is the backstop.
-export async function ensureHostAccount(tx: Transaction, identity: GoogleIdentity): Promise<HostAccount> {
+// same identity; the unique Google subject is the backstop. beforeCreate runs
+// only when an account is about to be created (the sign-up bounds), and throwing
+// from it creates nothing.
+export async function ensureHostAccount(
+  tx: Transaction,
+  identity: GoogleIdentity,
+  beforeCreate?: (tx: Transaction) => Promise<void>,
+): Promise<HostAccount> {
   await tx`select pg_advisory_xact_lock(hashtextextended(${`app.google_identity:${identity.googleSubject}`}, 0))`;
 
   const [existing] = await tx<{ id: string; status: HostAccountStatus }[]>`
@@ -30,6 +36,8 @@ export async function ensureHostAccount(tx: Transaction, identity: GoogleIdentit
   if (existing) {
     return { created: false, id: existing.id, status: existing.status };
   }
+
+  await beforeCreate?.(tx);
 
   const [account] = await tx<{ id: string; status: HostAccountStatus }[]>`
     insert into app.host_accounts default values returning id, status

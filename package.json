@@ -19,6 +19,7 @@
     "dev:web": "tsx scripts/dev.ts web",
     "start:eve": "eve start",
     "jobs:dev": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/jobs-dev.ts",
+    "admin": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/admin.ts",
     "typecheck": "next typegen apps/web && tsgo --noEmit -p apps/web/tsconfig.json && tsgo --noEmit -p tsconfig.json",
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",

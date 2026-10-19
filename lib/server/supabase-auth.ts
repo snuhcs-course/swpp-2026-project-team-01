@@ -46,11 +46,21 @@ export function createRequestAuthClient(request: Request, config: SupabaseAuthCo
   const client = createServerClient(config.url, config.publishableKey, {
     cookieOptions: authCookieOptions(config, request),
     cookies: {
-      getAll: () =>
-        parseCookieHeader(request.headers.get("cookie") ?? "").map(({ name, value }) => ({
-          name,
-          value: value ?? "",
-        })),
+      // The request's cookies overlaid with the ones this client already wrote,
+      // so a later call (signOut after exchangeCodeForSession) sees the session
+      // it created and removes it.
+      getAll: () => {
+        const jar = new Map(
+          parseCookieHeader(request.headers.get("cookie") ?? "").map(({ name, value }) => [name, value ?? ""]),
+        );
+
+        for (const cookie of pending) {
+          if (cookie.value) jar.set(cookie.name, cookie.value);
+          else jar.delete(cookie.name);
+        }
+
+        return [...jar].map(([name, value]) => ({ name, value }));
+      },
       setAll: (cookies) => {
         pending.push(...cookies);
       },
@@ -62,7 +72,11 @@ export function createRequestAuthClient(request: Request, config: SupabaseAuthCo
     redirect(location: string) {
       const headers = new Headers({ "cache-control": "private, no-store", location });
 
-      for (const cookie of pending) {
+      // Only the last write of each cookie, so a session created and then
+      // signed out never reaches the browser.
+      const latest = new Map(pending.map((cookie) => [cookie.name, cookie]));
+
+      for (const cookie of latest.values()) {
         headers.append("set-cookie", serializeCookieHeader(cookie.name, cookie.value, cookie.options));
       }
 
