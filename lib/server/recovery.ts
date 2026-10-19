@@ -77,21 +77,59 @@ export async function conversationStatus(db: Database, authUserId: string): Prom
   };
 }
 
+// How long a received message waits for its receipt while a re-sent input's
+// receipt is still uncommitted: the session-owner hook records it just after eve
+// records the event, so a live reader can see the event first.
+const RECEIPT_WAIT_MS = 2_000;
+
 // Recognizes inputs recovery sent again. Each delivery ID maps to its input;
 // the first message.received of an input is shown, and a later one (in a
 // successor generation) is the re-sent copy.
 async function redeliveryFilter(db: Database, discussionId: string) {
-  const inputs = await db<{ id: string; delivery_ids: string[] }[]>`
+  const inputOf = new Map<string, string>();
+  const remember = (inputs: readonly { id: string; delivery_ids: string[] }[]) => {
+    for (const input of inputs) for (const id of input.delivery_ids) inputOf.set(id, input.id);
+  };
+  remember(await db<{ id: string; delivery_ids: string[] }[]>`
     select id, delivery_ids from app.conversation_inputs
     where discussion_id = ${discussionId} and cardinality(delivery_ids) > 1
-  `;
-  const inputOf = new Map(inputs.flatMap((input) => input.delivery_ids.map((id) => [id, input.id] as const)));
+  `);
   const shown = new Set<string>();
 
-  return (event: MessageStreamEvent): DiscussionEvent => {
+  // Looks up delivery IDs not seen yet, waiting briefly while an input that was
+  // delivered before is in flight with its new receipt unrecorded.
+  const lookUp = async (deliveryIds: readonly string[]) => {
+    const deadline = Date.now() + RECEIPT_WAIT_MS;
+
+    for (;;) {
+      const found = await db<{ id: string; delivery_ids: string[] }[]>`
+        select id, delivery_ids from app.conversation_inputs
+        where discussion_id = ${discussionId} and delivery_ids && ${deliveryIds as string[]}::text[]
+      `;
+      remember(found);
+
+      if (found.length > 0 || Date.now() >= deadline) return;
+
+      const [unrecorded] = await db<{ found: boolean }[]>`
+        select true as found from app.conversation_inputs
+        where discussion_id = ${discussionId} and state = 'sent' and cardinality(delivery_ids) > 0
+          and received_session_id is distinct from session_id
+        limit 1
+      `;
+
+      if (!unrecorded) return;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  };
+
+  return async (event: MessageStreamEvent): Promise<DiscussionEvent> => {
     if (event.type !== "message.received") return event;
 
-    const ids = (event.meta.deliveryIds ?? []).flatMap((id) => inputOf.get(id) ?? []);
+    const deliveryIds = event.meta.deliveryIds ?? [];
+
+    if (deliveryIds.length > 0 && !deliveryIds.some((id) => inputOf.has(id))) await lookUp(deliveryIds);
+
+    const ids = deliveryIds.flatMap((id) => inputOf.get(id) ?? []);
 
     if (ids.length > 0 && ids.every((id) => shown.has(id))) {
       return { data: {}, meta: event.meta, type: "app.input.redelivered" };
@@ -137,7 +175,7 @@ export async function* discussionEvents(
       `;
 
       for (const row of stored) {
-        const event = served(audienceSafe(row.event));
+        const event = await served(audienceSafe(row.event));
         if (row.stream_index >= cursor - offset) yield event;
       }
 
@@ -162,7 +200,7 @@ export async function* discussionEvents(
           : await events.next();
 
         if (next === "idle" || next.done) return;
-        yield served(audienceSafe(next.value));
+        yield await served(audienceSafe(next.value));
         if (options.follow && isCurrentTurnBoundaryEvent(next.value)) return;
       }
     } finally {

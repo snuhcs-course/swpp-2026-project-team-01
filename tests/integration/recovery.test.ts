@@ -412,6 +412,38 @@ describe("terminal recovery", () => {
 });
 
 describe("history and cursors", () => {
+  it("shows a re-sent input once even before its new receipt is recorded", async () => {
+    const { failed, host } = await failedHost();
+    // The successor's receipt for the re-sent input commits 1.5 seconds late.
+    const name = `slow_receipt_${host.hostAccountId.replaceAll("-", "_")}`;
+    await db.unsafe(`
+      create function public.${name}() returns trigger language plpgsql as $$
+      begin
+        if new.delivery_ids is distinct from old.delivery_ids
+           and exists (select 1 from app.discussions d where d.id = new.discussion_id and d.principal_id = '${host.hostAccountId}') then
+          perform pg_sleep(1.5);
+        end if;
+        return new;
+      end $$
+    `);
+    await db.unsafe(`create trigger ${name} before update on app.conversation_inputs for each row execute function public.${name}()`);
+
+    try {
+      await recover(host, 1);
+      const successor = await current(host.hostAccountId);
+      expect(successor.session_id).not.toBe(failed.session_id);
+      await eventually(async () =>
+        (await readEvents(server.url, host.cookie, successor.session_id)).some((event) => event.type === "message.received"),
+      );
+
+      const users = texts(await history(host)).filter((text) => text.startsWith("user:"));
+      expect(users).toEqual(["user:Find me a time next week."]);
+    } finally {
+      await db.unsafe(`drop trigger ${name} on app.conversation_inputs`);
+      await db.unsafe(`drop function public.${name}()`);
+    }
+  });
+
   it("reads history in order across a recovered conversation, from any cursor", async () => {
     const { host } = await failedHost();
     const beforeRecovery = await history(host);
