@@ -48,7 +48,27 @@ Split a release environment **before** the first of these happens: an external h
 
 ## Google identity and Calendar
 
-The MVP requires Google-only host login through Supabase Auth. Hosted provider and email-login settings and callbacks have not been audited. Host sign-in and requester **Continue with Google** each request identity and Calendar scopes on one consent screen, yet identity login, host eligibility, host Calendar consent, requester identity prefill, requester Calendar consent and personal-agent OAuth remain separate authorization boundaries. Pass the Calendar scopes and offline access through Supabase Auth, read the granted scopes from the token response because Google lets users uncheck scopes, and store the provider refresh token server-side at sign-in since Supabase returns it only then and does not refresh provider tokens. Do not enable email/password, email OTP or magic-link host login.
+The MVP requires Google-only host login through Supabase Auth. Host sign-in and requester **Continue with Google** each request identity and Calendar scopes on one consent screen, yet identity login, host eligibility, host Calendar consent, requester identity prefill, requester Calendar consent and personal-agent OAuth remain separate authorization boundaries. Pass the Calendar scopes and offline access through Supabase Auth, read the granted scopes from Google's token information endpoint because Google lets users uncheck scopes and Supabase does not pass them through, and store the provider refresh token server-side at sign-in since Supabase returns it only then and does not refresh provider tokens. Do not enable email/password, email OTP or magic-link host login.
+
+### Host sign-in values
+
+Recorded 2026-10-19 by the [foundation change](../../openspec/changes/application-foundation/design.md#12-authentication-details).
+
+- **OAuth client.** One web OAuth client in the Google Cloud project `findmeatime` serves every environment. Its ID and secret are `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`: the root `.env` for the local stack, and the `GOOGLE_CLIENT_ID` GitHub variable and `GOOGLE_CLIENT_SECRET` GitHub secret for the shared project, which the deploy workflow writes with `supabase config push`.
+- **Scopes.** Supabase Auth requests `openid`, `email` and `profile`; the application adds `https://www.googleapis.com/auth/calendar.calendarlist.readonly` (calendar list), `https://www.googleapis.com/auth/calendar.events` (read events on selected calendars and create the booking event) and `https://www.googleapis.com/auth/calendar.events.freebusy` (free/busy on calendars the host can access), with `access_type=offline`. They are defined in [`lib/contracts/google-scopes.ts`](../../lib/contracts/google-scopes.ts) with the API methods each one authorizes.
+- **Authorized redirect URIs** in the OAuth client, one per Supabase Auth server:
+
+  | Environment | Redirect URI |
+  |---|---|
+  | Local stack | `http://127.0.0.1:54321/auth/v1/callback` |
+  | Sandbox **FindMeATime2** `mriseqztcwmezvtawnbo` | `https://mriseqztcwmezvtawnbo.supabase.co/auth/v1/callback` |
+  | Shared `anelszynxtvxoxqvzgqt` (release origin) | `https://anelszynxtvxoxqvzgqt.supabase.co/auth/v1/callback` |
+
+  Each teammate's sandbox adds its own `https://<ref>.supabase.co/auth/v1/callback`.
+- **Supabase site URL and redirect allowlist.** Supabase Auth returns only to allowlisted application callbacks. The shared project uses site URL `https://release.findmeatime.com` and allowlist `https://release.findmeatime.com/auth/callback`, `https://findmeatime.com/auth/callback` and `http://localhost:3000/auth/callback`, set through the `SUPABASE_AUTH_SITE_URL` and `SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS` GitHub variables. The local stack uses `http://localhost:3000` and `http://localhost:3000/auth/callback` from the root `.env`. A sandbox applies the same two variables with `supabase config push --project-ref <sandbox ref>` after confirming the ref.
+- **Application callback.** `/auth/callback` on the origin in `APP_ORIGIN` always returns to `/app`; a cancelled, replayed or other-browser return establishes no session and lands on `/app?sign_in=failed`.
+- **Email login.** `[auth.email] enable_signup = false` disables the email provider, so email/password, OTP and magic-link requests fail with `email_provider_disabled` and send no mail. The hosted Cloudflare SMTP configuration is outside `config.toml` and unchanged by the push.
+- **Publishing status.** Not yet recorded. While the OAuth app is in **Testing**, Google issues refresh tokens that expire after seven days and only listed test users can sign in; move it to **In production** (unverified, 100-user cap) before Phase 2 relies on stored grants, and submit Calendar scope verification early in Phase 2.
 
 Checks must record OAuth application ownership/publishing state and Google app verification for the sensitive Calendar scopes, exact callback URLs, least permissions, host versus request-bound state, cancellation/replay/wrong-browser denial, refresh, disconnect/reconnect and readable failures. Host calendar roles require actual metadata/write permission. Requester consent is availability-only and requires no host eligibility or account. Keep encrypted grants server-side and reveal neither participant's private events to the other.
 
