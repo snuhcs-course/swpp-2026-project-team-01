@@ -1,6 +1,7 @@
 "use client";
 
-import { isCurrentTurnBoundaryEvent, type MessageStreamEvent } from "eve/client";
+import { type DiscussionEvent, isRedeliveredInput } from "@lib/contracts/discussion-events";
+import { isCurrentTurnBoundaryEvent } from "eve/client";
 import { conversationReducer } from "eve/react";
 import { AlertCircleIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -26,10 +27,11 @@ import {
 type Phase = "loading" | "ready" | "sending" | "streaming" | "recovering";
 
 // The same boundary the server's follow mode ends at.
-function hasOpenTurn(events: readonly MessageStreamEvent[]) {
+function hasOpenTurn(events: readonly DiscussionEvent[]) {
   let open = false;
 
   for (const event of events) {
+    if (isRedeliveredInput(event)) continue;
     if (event.type === "turn.started") open = true;
     else if (isCurrentTurnBoundaryEvent(event)) open = false;
   }
@@ -37,9 +39,11 @@ function hasOpenTurn(events: readonly MessageStreamEvent[]) {
   return open;
 }
 
-function project(events: readonly MessageStreamEvent[]) {
+// A re-sent input's marker counts toward the cursor but is not shown: the host's
+// message already appears once.
+function project(events: readonly DiscussionEvent[]) {
   let state = conversationReducer.initial();
-  for (const event of events) state = conversationReducer.reduce(state, event);
+  for (const event of events) if (!isRedeliveredInput(event)) state = conversationReducer.reduce(state, event);
   return state.messages;
 }
 
@@ -49,8 +53,8 @@ function errorMessage(error: unknown) {
 }
 
 export function HostWorkspace() {
-  const [events, setEvents] = useState<MessageStreamEvent[]>([]);
-  const eventsRef = useRef<MessageStreamEvent[]>([]);
+  const [events, setEvents] = useState<DiscussionEvent[]>([]);
+  const eventsRef = useRef<DiscussionEvent[]>([]);
   const [status, setStatus] = useState<DiscussionStatus | null>(null);
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +65,7 @@ export function HostWorkspace() {
   const abortRef = useRef<AbortController | null>(null);
   const composerRef = useRef<HTMLDivElement>(null);
 
-  const append = useCallback((event: MessageStreamEvent) => {
+  const append = useCallback((event: DiscussionEvent) => {
     eventsRef.current = [...eventsRef.current, event];
     setEvents(eventsRef.current);
   }, []);
@@ -123,7 +127,7 @@ export function HostWorkspace() {
     void (async () => {
       try {
         setStatus(await readDiscussionStatus(controller.signal));
-        const history: MessageStreamEvent[] = [];
+        const history: DiscussionEvent[] = [];
         for await (const event of readDiscussionEvents(0, { follow: false, signal: controller.signal })) {
           history.push(event);
         }

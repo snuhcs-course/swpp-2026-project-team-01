@@ -7,6 +7,7 @@ import {
   lockSetupDiscussion,
   type SessionRow,
 } from "./conversations";
+import type { DiscussionEvent } from "../contracts/discussion-events";
 import type { Database } from "./database";
 import { HostIneligibleError, readHostStanding, withEligibleHost } from "./host-eligibility";
 import { signInternalBearer } from "./internal-bearer";
@@ -76,6 +77,31 @@ export async function conversationStatus(db: Database, authUserId: string): Prom
   };
 }
 
+// Recognizes inputs recovery sent again. Each delivery ID maps to its input;
+// the first message.received of an input is shown, and a later one (in a
+// successor generation) is the re-sent copy.
+async function redeliveryFilter(db: Database, discussionId: string) {
+  const inputs = await db<{ id: string; delivery_ids: string[] }[]>`
+    select id, delivery_ids from app.conversation_inputs
+    where discussion_id = ${discussionId} and cardinality(delivery_ids) > 1
+  `;
+  const inputOf = new Map(inputs.flatMap((input) => input.delivery_ids.map((id) => [id, input.id] as const)));
+  const shown = new Set<string>();
+
+  return (event: MessageStreamEvent): DiscussionEvent => {
+    if (event.type !== "message.received") return event;
+
+    const ids = (event.meta.deliveryIds ?? []).flatMap((id) => inputOf.get(id) ?? []);
+
+    if (ids.length > 0 && ids.every((id) => shown.has(id))) {
+      return { data: {}, meta: event.meta, type: "app.input.redelivered" };
+    }
+
+    for (const id of ids) shown.add(id);
+    return event;
+  };
+}
+
 // Events of the host's discussion from `cursor`. With `follow`, the current
 // generation is followed to the end of its current turn.
 export async function* discussionEvents(
@@ -84,7 +110,7 @@ export async function* discussionEvents(
   cookie: string,
   cursor: number,
   options: { readonly follow: boolean; readonly signal?: AbortSignal; readonly idleMs?: number },
-): AsyncGenerator<MessageStreamEvent> {
+): AsyncGenerator<DiscussionEvent> {
   const hostAccountId = await eligibleHost(deps.db, authUserId);
   const discussionId = await findSetupDiscussion(deps.db, hostAccountId);
 
@@ -95,19 +121,24 @@ export async function* discussionEvents(
     where discussion_id = ${discussionId}
     order by generation
   `;
+  const served = await redeliveryFilter(deps.db, discussionId);
   let offset = 0;
 
   for (const session of sessions) {
     if (session.state === "retired") {
       const count = session.last_stream_index ?? 0;
+      // Earlier received messages are read even behind the cursor, so a re-sent
+      // input is recognized wherever reading starts.
+      const stored = await deps.db<{ event: MessageStreamEvent; stream_index: number }[]>`
+        select event, stream_index from app.agent_session_events
+        where session_id = ${session.session_id}
+          and (stream_index >= ${cursor - offset} or event->>'type' = 'message.received')
+        order by stream_index
+      `;
 
-      if (cursor < offset + count) {
-        const stored = await deps.db<{ event: MessageStreamEvent }[]>`
-          select event from app.agent_session_events
-          where session_id = ${session.session_id} and stream_index >= ${cursor - offset}
-          order by stream_index
-        `;
-        for (const row of stored) yield audienceSafe(row.event);
+      for (const row of stored) {
+        const event = served(audienceSafe(row.event));
+        if (row.stream_index >= cursor - offset) yield event;
       }
 
       offset += count;
@@ -131,7 +162,7 @@ export async function* discussionEvents(
           : await events.next();
 
         if (next === "idle" || next.done) return;
-        yield audienceSafe(next.value);
+        yield served(audienceSafe(next.value));
         if (options.follow && isCurrentTurnBoundaryEvent(next.value)) return;
       }
     } finally {

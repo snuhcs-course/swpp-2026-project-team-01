@@ -1,4 +1,4 @@
-import type { MessageStreamEvent } from "eve/client";
+import type { DiscussionEvent } from "@lib/contracts/discussion-events";
 
 // Browser access to the host's discussion. The browser talks only to the web
 // service's /api/chat routes; it never sees a runtime session ID or calls
@@ -71,7 +71,7 @@ export async function postRecovery(observedGeneration: number) {
 export async function* readDiscussionEvents(
   cursor: number,
   options: { readonly follow: boolean; readonly signal?: AbortSignal },
-): AsyncGenerator<MessageStreamEvent> {
+): AsyncGenerator<DiscussionEvent> {
   const response = await fetch(`/api/chat/events?cursor=${cursor}${options.follow ? "&follow=1" : ""}`, {
     cache: "no-store",
     signal: options.signal,
@@ -92,7 +92,7 @@ export async function* readDiscussionEvents(
     buffer = done ? "" : (lines.pop() ?? "");
 
     for (const line of lines) {
-      if (line.trim()) yield JSON.parse(line) as MessageStreamEvent;
+      if (line.trim()) yield JSON.parse(line) as DiscussionEvent;
     }
 
     if (done) return;

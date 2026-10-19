@@ -308,7 +308,8 @@ describe("terminal recovery", () => {
     expect(turn.some((event) => event.type === "message.completed")).toBe(false);
     expect(fake.requests.length).toBe(requests);
     expect(await reservationsFor(inputId)).toBe(1);
-    expect(texts(await history(host))).toEqual(["user:Find me a time next week.", "user:Find me a time next week."]);
+    // The re-sent input shows once.
+    expect(texts(await history(host))).toEqual(["user:Find me a time next week."]);
   });
 
   it("denies a retired generation a model reservation", async () => {
@@ -401,8 +402,9 @@ describe("history and cursors", () => {
       beforeRecovery.map((event) => event.meta.id),
     );
     expect(new Set(all.map((event) => event.meta.id)).size).toBe(all.length);
+    expect(all.filter((event) => (event.type as string) === "app.input.redelivered")).toHaveLength(1);
+    // The input recovery sent again shows once; its repeat is a marker that keeps the cursor aligned.
     expect(texts(all)).toEqual([
-      "user:Find me a time next week.",
       "user:Find me a time next week.",
       "assistant:Hello from Thyme.",
       "user:Thanks.",
