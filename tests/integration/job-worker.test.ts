@@ -7,6 +7,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createJobWorkerHandler, type JobRouteDependencies } from "../../lib/server/job-worker";
 import { claimJobs, type JobHandler, publishJob } from "../../lib/server/jobs";
 import { devWorkerRefusal } from "../../scripts/jobs-dev";
+import type { Database } from "../../lib/server/database";
 import { testDatabase } from "./support/database";
 
 const db = testDatabase();
@@ -94,6 +95,52 @@ describe("job worker route", () => {
     const recovered = await job(id);
     expect(recovered).toMatchObject({ attempts: 2, state: "completed" });
     expect(recovered.fence).toBeGreaterThan(dead!.fence);
+  });
+});
+
+// A database stand-in that fails the test on any use.
+const untouchable = new Proxy(() => {}, {
+  apply: () => {
+    throw new Error("the worker touched the database");
+  },
+  get: () => {
+    throw new Error("the worker touched the database");
+  },
+}) as unknown as Database;
+
+describe("production fence", () => {
+  it.each([
+    ["a preview deployment", { VERCEL: "1", VERCEL_ENV: "preview" }],
+    ["a custom environment", { VERCEL: "1", VERCEL_ENV: "preview", VERCEL_TARGET_ENV: "staging" }],
+    ["Vercel development", { VERCEL: "1", VERCEL_ENV: "development" }],
+    ["VERCEL_ENV without VERCEL", { VERCEL_ENV: "production" }],
+    ["VERCEL without VERCEL_ENV", { VERCEL: "1" }],
+    ["a production label on another target", { VERCEL: "1", VERCEL_ENV: "production", VERCEL_TARGET_ENV: "preview" }],
+    ["a process outside Vercel", {}],
+  ])("refuses on %s before touching job state", async (_label, env) => {
+    const handle = createJobWorkerHandler(() => ({ db: untouchable, env, handlers: { any: async () => ({}) }, secret }));
+
+    const response = await handle(new Request(url, { headers: { authorization: `Bearer ${secret}` }, method: "POST" }));
+
+    expect(response.status).toBe(503);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({ error: { category: "unavailable_configuration" } });
+    expect(body).not.toContain(secret);
+    expect(body).not.toMatch(/preview|staging|development|VERCEL/);
+  });
+
+  it("leaves a preview-produced job unclaimed and visible while production work runs", async () => {
+    const jobKind = kind();
+    const previewJob = (await db.begin((tx) => publishJob(tx, { kind: jobKind }, "preview"))) as string;
+    const productionJob = await publishProduction(jobKind);
+
+    const response = await worker({ [jobKind]: async () => ({ ok: true }) })(
+      new Request(url, { headers: { authorization: `Bearer ${secret}` }, method: "POST" }),
+    );
+
+    expect(await response.json()).toEqual({ claimed: 1, results: { completed: 1 } });
+    expect(await job(productionJob)).toMatchObject({ state: "completed" });
+    expect(await job(previewJob)).toEqual({ attempts: 0, fence: 0, state: "pending" });
   });
 });
 

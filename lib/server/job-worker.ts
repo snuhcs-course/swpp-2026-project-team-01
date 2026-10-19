@@ -69,11 +69,17 @@ function routeDependenciesFromEnvironment(): JobRouteDependencies {
 }
 
 // POST /api/internal/jobs. Called by the pg_net wake-up and the pg_cron sweep
-// with the shared secret from Vault. Every refusal happens before job state is
-// read.
+// with the shared secret from Vault. It runs only on the production deployment
+// (VERCEL=1 with VERCEL_ENV=production) and claims only production-produced
+// jobs, so a preview sharing the database leaves preview jobs unclaimed and
+// visible. Every refusal happens before job state is read.
 export function createJobWorkerHandler(load: () => JobRouteDependencies = routeDependenciesFromEnvironment) {
   return async (request: Request) => {
     const deps = load();
+
+    if (deploymentEnvironment(deps.env) !== "production") {
+      return refusal("unavailable_configuration", 503);
+    }
 
     if (!deps.secret || deps.secret.length < 32) {
       return refusal("unavailable_configuration", 503);
@@ -83,7 +89,7 @@ export function createJobWorkerHandler(load: () => JobRouteDependencies = routeD
       return refusal("unauthenticated", 401);
     }
 
-    const batch = await runWorkerBatch({ ...deps, environment: deploymentEnvironment(deps.env) });
+    const batch = await runWorkerBatch({ ...deps, environment: "production" });
     return Response.json(batch, { headers: { "cache-control": "no-store" } });
   };
 }
