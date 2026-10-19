@@ -1,7 +1,7 @@
 ---
 title: Find Me a Time — Thyme Visual Design
 date: 2026-10-19
-status: Visual direction; implementation pending
+status: Visual direction; Phase 1 theme implemented
 colors:
   canvas: "#FAF8F2"
   surface: "#FFFDF8"
@@ -45,7 +45,7 @@ This document defines the visual direction developed from the Thyme logo explora
 
 **Find Me a Time** is the product; **Thyme** is its scheduling assistant. The [design principles](documentations/03_design_principles.md) own interaction direction. The [one-pager](documentations/01_one_pager.md), [PRD](documentations/02_product_requirements.md), and [capability specifications](openspec/specs/) own product scope and behavior. Visual styling must preserve their consent, privacy, and booking rules.
 
-The selected logo and uncropped reference are retained as documentation assets. For component structure, message and composer interactions and responsive polish, study the Vercel chatbot and the eve chat template listed in the [reference repositories](documentations/technical_specification/02_frontend_architecture.md#reference-repositories) and adapt their shapes to this palette. The app has not been implemented yet. See [Known gaps](#known-gaps).
+The selected logo and uncropped reference are retained as documentation assets. For component structure, message and composer interactions and responsive polish, study the Vercel chatbot and the eve chat template listed in the [reference repositories](documentations/technical_specification/02_frontend_architecture.md#reference-repositories) and adapt their shapes to this palette. The Phase 1 theme lives in `apps/web/app/globals.css` (tokens mapped onto the shadcn roles as described under [Proposed implementation mapping](#proposed-implementation-mapping)), the root layout's fonts and the shared `components/ui` and `components/chat` recipes. See [Known gaps](#known-gaps).
 
 ## Mood
 
@@ -193,8 +193,8 @@ Review a landing page, a conversation with long messages, a proposal awaiting ho
 
 ## Known gaps
 
-- Theme implementation and rendered accessibility checks are pending.
+- The light theme, fonts, paper layer, focus outline and reduced-motion handling are implemented. `apps/web/app/theme.test.ts` checks the documented contrast pairs, including text on the darkest textured area, and `tests/e2e/theme.test.ts` checks the rendered paper layer, its omission in print and forced colors, fonts, focus outlines and reduced motion. Proposal cards, dialogs and status badges get their recipes when they are built.
 - The cropped PNG and uncropped original are retained under documentation assets. A vector master, simplified small-size mark and export variants still need preparation and verification.
-- Prepare and verify an original seamless paper tile when the UI is implemented. It must be disabled in print and forced colors.
+- The paper tile is [documentations/assets/paper-grain.svg](documentations/assets/paper-grain.svg), served as `apps/web/public/paper-grain.svg`: a 128px stitched fractal-noise tile at 2.5% opacity, disabled in print and forced colors. A visual seam check at 200% zoom on hardware displays is still open.
 - A botanical dark theme requires separate contrast/visual review; do not invert the texture automatically.
 - Moodboard references inform visual direction only. Use original artwork and typography; they do not grant rights to reuse source brand assets.

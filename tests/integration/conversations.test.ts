@@ -1,0 +1,583 @@
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { ClientError } from "eve/client";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { type ChatRouteDependencies, createMessageHandler } from "../../lib/server/chat-routes";
+import { type ConversationRuntime, deliverNext, eveRuntime, fingerprint, openSetupSession } from "../../lib/server/conversations";
+import { MODEL_LIMITS, sessionIdHash } from "../../lib/server/model-limits";
+import { localAuthConfig, signInHost } from "./support/auth";
+import { clearServiceWindow, testDatabase } from "./support/database";
+import { readEvents, waitForTurn } from "./support/eve-calls";
+import { buildEve, type EveServer, eveEnvironment, startEve } from "./support/eve-server";
+import { type FakeOpenAI, startFakeOpenAI } from "./support/fake-openai";
+
+// The application message route and session index (task 4.4), against a real
+// `eve dev` agent service whose model is a local Responses API stand-in.
+
+const db = testDatabase();
+let fake: FakeOpenAI;
+let server: EveServer;
+let deps: ChatRouteDependencies;
+let post: ReturnType<typeof createMessageHandler>;
+
+beforeAll(async () => {
+  fake = await startFakeOpenAI();
+  await clearServiceWindow(db);
+  server = await startEve("dev", { modelBaseURL: fake.baseURL });
+  deps = { appOrigin: "http://localhost:3000", auth: localAuthConfig(), db, runtime: eveRuntime(server.url), signingKey: server.signingKey };
+  post = createMessageHandler(() => deps);
+}, 300_000);
+
+afterAll(async () => {
+  await server?.stop();
+  await fake.close();
+  await db.end();
+});
+
+function message(cookie: string, text: string, clientInputId = randomUUID(), via = post) {
+  return via(
+    new Request("http://localhost:3000/api/chat/messages", {
+      body: JSON.stringify({ clientInputId, message: text }),
+      headers: { "content-type": "application/json", origin: "http://localhost:3000", cookie },
+      method: "POST",
+    }),
+  );
+}
+
+async function sessionOf(hostAccountId: string) {
+  const [row] = await db<{ session_id: string; current_input_id: string; generation: number }[]>`
+    select s.session_id, s.current_input_id, s.generation
+    from app.agent_sessions s join app.discussions d on d.id = s.discussion_id
+    where d.principal_id = ${hostAccountId} and s.state = 'active'
+  `;
+  return row!;
+}
+
+async function reservationsFor(workId: string) {
+  return db<{ session_id: string }[]>`select session_id from app.model_reservations where work_id = ${workId}`;
+}
+
+async function inputState(inputId: string) {
+  const [row] = await db<{ state: string }[]>`select state from app.conversation_inputs where id = ${inputId}`;
+  return row?.state;
+}
+
+async function waitFor(check: () => Promise<boolean>) {
+  for (let attempt = 0; attempt < 40 && !(await check()); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+}
+
+describe("message route and session index", () => {
+  it("creates the session on first use and attributes the turn's model call to the accepted input", async () => {
+    const host = await signInHost(db);
+    const response = await message(host.cookie, "Find me a time next week.");
+
+    expect(response.status).toBe(202);
+    const { inputId, status } = (await response.json()) as { inputId: string; status: string };
+    expect(status).toBe("sent");
+
+    const session = await sessionOf(host.hostAccountId);
+    expect(session).toMatchObject({ current_input_id: inputId, generation: 1 });
+    const turn = await waitForTurn(server.url, host.cookie, session.session_id);
+    expect(turn.at(-1)?.type).toBe("session.waiting");
+
+    const reserved = await reservationsFor(inputId);
+    const sent = fake.requests.filter((request) => request.prompt_cache_key === sessionIdHash(session.session_id));
+    expect(reserved.length).toBe(sent.length);
+    expect(reserved.every((row) => row.session_id === session.session_id)).toBe(true);
+    await waitFor(async () => (await inputState(inputId)) === "completed");
+    expect(await inputState(inputId)).toBe("completed");
+  });
+
+  it("returns an exact retry's receipt without sending again, and rejects a changed retry", async () => {
+    const host = await signInHost(db);
+    const clientInputId = randomUUID();
+    const first = (await (await message(host.cookie, "Mornings work best.", clientInputId)).json()) as { inputId: string };
+    const session = await sessionOf(host.hostAccountId);
+    await waitForTurn(server.url, host.cookie, session.session_id);
+    const events = (await readEvents(server.url, host.cookie, session.session_id)).length;
+    const requests = fake.requests.length;
+
+    const retry = await message(host.cookie, "Mornings work best.", clientInputId);
+    expect(retry.status).toBe(202);
+    expect(await retry.json()).toMatchObject({ inputId: first.inputId, status: "sent" });
+
+    const changed = await message(host.cookie, "Evenings work best.", clientInputId);
+    expect(changed.status).toBe(409);
+    expect(await changed.json()).toMatchObject({ code: "retry_conflict" });
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(fake.requests.length).toBe(requests);
+    expect(await readEvents(server.url, host.cookie, session.session_id)).toHaveLength(events);
+  });
+
+  it("keeps one host out of another host's session", async () => {
+    const [hostA, hostB] = await Promise.all([signInHost(db), signInHost(db)]);
+    await message(hostA.cookie, "Only for host A.");
+    const sessionA = await sessionOf(hostA.hostAccountId);
+    await waitForTurn(server.url, hostA.cookie, sessionA.session_id);
+    const eventsA = (await readEvents(server.url, hostA.cookie, sessionA.session_id)).length;
+
+    // Host B can neither read nor stream host A's session...
+    const streamed = await fetch(`${server.url}/eve/v1/session/${sessionA.session_id}/stream`, {
+      headers: { cookie: hostB.cookie },
+    });
+    expect(streamed.status).toBe(403);
+    // ...nor continue it: B's message goes to B's own discussion and session.
+    const sentB = await message(hostB.cookie, "Continue host A's conversation.");
+    expect(sentB.status).toBe(202);
+    const sessionB = await sessionOf(hostB.hostAccountId);
+    expect(sessionB.session_id).not.toBe(sessionA.session_id);
+    await waitForTurn(server.url, hostB.cookie, sessionB.session_id);
+
+    expect(await readEvents(server.url, hostA.cookie, sessionA.session_id)).toHaveLength(eventsA);
+  });
+
+  it("queues a message sent during a turn and delivers it, attributed to itself, when the turn ends", async () => {
+    const host = await signInHost(db);
+    fake.script.push({ delayMs: 1_500, kind: "text", text: "Noted." });
+    const first = await message(host.cookie, "Mornings work best.");
+    const firstInput = ((await first.json()) as { inputId: string }).inputId;
+    const session = await sessionOf(host.hostAccountId);
+
+    const second = await message(host.cookie, "And Tuesdays.");
+    expect(second.status).toBe(202);
+    const { inputId: secondInput, status } = (await second.json()) as { inputId: string; status: string };
+    expect(status).toBe("queued");
+    expect(await inputState(secondInput)).toBe("accepted");
+    // The turn in flight keeps its input.
+    expect((await sessionOf(host.hostAccountId)).current_input_id).toBe(firstInput);
+
+    await waitFor(async () => (await inputState(secondInput)) === "completed");
+    expect(await inputState(firstInput)).toBe("completed");
+    expect(await inputState(secondInput)).toBe("completed");
+    // One turn per input, each call reserved against its own input.
+    const received = (await readEvents(server.url, host.cookie, session.session_id)).filter(
+      (event) => event.type === "message.received",
+    );
+    expect(received.map((event) => event.data.message)).toEqual(["Mornings work best.", "And Tuesdays."]);
+    expect(await reservationsFor(firstInput)).toHaveLength(1);
+    expect(await reservationsFor(secondInput)).toHaveLength(1);
+  });
+
+  it("accepts concurrent sends from two tabs without refusing either", async () => {
+    const host = await signInHost(db);
+    await message(host.cookie, "Hello.");
+    const session = await sessionOf(host.hostAccountId);
+    await waitForTurn(server.url, host.cookie, session.session_id);
+    const settledFirst = session.current_input_id;
+    await waitFor(async () => (await inputState(settledFirst)) === "completed");
+
+    const responses = await Promise.all([message(host.cookie, "From tab one."), message(host.cookie, "From tab two.")]);
+    expect(responses.map((response) => response.status)).toEqual([202, 202]);
+    const outcomes = (await Promise.all(responses.map((response) => response.json()))) as {
+      inputId: string;
+      status: string;
+    }[];
+    expect(outcomes.map((outcome) => outcome.status).sort()).toEqual(["queued", "sent"]);
+
+    for (const outcome of outcomes) {
+      await waitFor(async () => (await inputState(outcome.inputId)) === "completed");
+      expect(await inputState(outcome.inputId)).toBe("completed");
+      expect(await reservationsFor(outcome.inputId)).toHaveLength(1);
+    }
+  });
+
+  it("keeps an input whose send outcome is unknown in flight, and never sends it twice", async () => {
+    const host = await signInHost(db);
+    // The agent accepts the message, then the connection drops before the answer.
+    const dropping = createMessageHandler(() => ({
+      ...deps,
+      runtime: {
+        ...deps.runtime,
+        async sendMessage(sessionId, bearer, text) {
+          await deps.runtime.sendMessage(sessionId, bearer, text);
+          throw new TypeError("fetch failed: other side closed");
+        },
+      },
+    }));
+    const clientInputId = randomUUID();
+    const first = await message(host.cookie, "Mornings work best.", clientInputId, dropping);
+    expect(first.status).toBe(202);
+    const { inputId, status } = (await first.json()) as { inputId: string; status: string };
+    expect(status).toBe("sent");
+
+    // The browser's exact retry returns the receipt instead of sending again.
+    const retry = await message(host.cookie, "Mornings work best.", clientInputId);
+    expect(await retry.json()).toMatchObject({ inputId, status: "sent" });
+
+    const session = await sessionOf(host.hostAccountId);
+    await waitFor(async () => (await inputState(inputId)) === "completed");
+    expect(await inputState(inputId)).toBe("completed");
+    const received = (await readEvents(server.url, host.cookie, session.session_id)).filter(
+      (event) => event.type === "message.received",
+    );
+    expect(received).toHaveLength(1);
+  });
+
+  it("sends again, in order, an input with an unknown outcome that never arrived", async () => {
+    const host = await signInHost(db);
+    const lost = createMessageHandler(() => ({
+      ...deps,
+      runtime: {
+        ...deps.runtime,
+        async sendMessage() {
+          throw new TypeError("fetch failed: connect timeout");
+        },
+      },
+    }));
+    const first = (await (await message(host.cookie, "Mornings work best.", randomUUID(), lost)).json()) as {
+      inputId: string;
+      status: string;
+    };
+    expect(first.status).toBe("sent");
+    expect(await inputState(first.inputId)).toBe("sent");
+    // Long after its bearer expired, no session has reported receiving it.
+    await db`update app.conversation_inputs set sent_at = sent_at - interval '10 minutes' where id = ${first.inputId}`;
+
+    const second = (await (await message(host.cookie, "And Tuesdays.")).json()) as { inputId: string; status: string };
+    expect(second.status).toBe("queued");
+    await waitFor(async () => (await inputState(second.inputId)) === "completed");
+    expect(await inputState(first.inputId)).toBe("completed");
+    expect(await inputState(second.inputId)).toBe("completed");
+    const session = await sessionOf(host.hostAccountId);
+    const received = (await readEvents(server.url, host.cookie, session.session_id)).filter(
+      (event) => event.type === "message.received",
+    );
+    expect(received.map((event) => event.data.message)).toEqual(["Mornings work best.", "And Tuesdays."]);
+  });
+
+  // Makes the session-owner hook's turn-end write fail for one host's inputs:
+  // once, or until the returned function removes the fault.
+  async function failTurnEnd(hostAccountId: string, mode: "once" | "always") {
+    const name = `fail_turn_end_${hostAccountId.replaceAll("-", "_")}`;
+    const once = mode === "once" ? `and nextval('public.${name}') = 1` : "";
+    await db.unsafe(`create sequence public.${name}`);
+    await db.unsafe(`
+      create function public.${name}() returns trigger language plpgsql as $$
+      begin
+        if new.state = 'completed' and old.state = 'sent'
+           and exists (select 1 from app.discussions d where d.id = new.discussion_id and d.principal_id = '${hostAccountId}') then
+          if true ${once} then
+            raise exception 'injected turn-end failure';
+          end if;
+        end if;
+        return new;
+      end $$
+    `);
+    await db.unsafe(
+      `create trigger ${name} before update on app.conversation_inputs for each row execute function public.${name}()`,
+    );
+    return async () => {
+      await db.unsafe(`drop trigger ${name} on app.conversation_inputs`);
+      await db.unsafe(`drop function public.${name}()`);
+      await db.unsafe(`drop sequence public.${name}`);
+    };
+  }
+
+  it("delivers a later message after a turn-end write failed once", async () => {
+    const host = await signInHost(db);
+    const removeFault = await failTurnEnd(host.hostAccountId, "once");
+
+    try {
+      const first = (await (await message(host.cookie, "Mornings work best.")).json()) as { inputId: string };
+      await waitForTurn(server.url, host.cookie, (await sessionOf(host.hostAccountId)).session_id);
+      const second = (await (await message(host.cookie, "And Tuesdays.")).json()) as { inputId: string };
+
+      await waitFor(async () => (await inputState(second.inputId)) === "completed");
+      expect(await inputState(first.inputId)).toBe("completed");
+      expect(await inputState(second.inputId)).toBe("completed");
+    } finally {
+      await removeFault();
+    }
+  });
+
+  it("completes, from the runtime's record, an input whose turn end was never recorded", async () => {
+    const host = await signInHost(db);
+    const removeFault = await failTurnEnd(host.hostAccountId, "always");
+    let first: { inputId: string };
+
+    try {
+      first = (await (await message(host.cookie, "Mornings work best.")).json()) as { inputId: string };
+      await waitForTurn(server.url, host.cookie, (await sessionOf(host.hostAccountId)).session_id);
+      // The hook's retries are spent.
+      await new Promise((resolve) => setTimeout(resolve, 3_000));
+      expect(await inputState(first.inputId)).toBe("sent");
+    } finally {
+      await removeFault();
+    }
+
+    // Longer ago than any turn runs.
+    await db`update app.conversation_inputs set sent_at = sent_at - interval '21 minutes' where id = ${first.inputId}`;
+    const second = (await (await message(host.cookie, "And Tuesdays.")).json()) as { inputId: string; status: string };
+
+    expect(second.status).toBe("sent");
+    expect(await inputState(first.inputId)).toBe("completed");
+    await waitFor(async () => (await inputState(second.inputId)) === "completed");
+    expect(await inputState(second.inputId)).toBe("completed");
+    const received = (await readEvents(server.url, host.cookie, (await sessionOf(host.hostAccountId)).session_id)).filter(
+      (event) => event.type === "message.received",
+    );
+    expect(received.map((event) => event.data.message)).toEqual(["Mornings work best.", "And Tuesdays."]);
+  });
+
+  it("lets only one of two concurrent deliveries reconcile an overdue turn", async () => {
+    const host = await signInHost(db);
+    const removeFault = await failTurnEnd(host.hostAccountId, "always");
+    let overdue: { inputId: string };
+
+    try {
+      overdue = (await (await message(host.cookie, "Mornings work best.")).json()) as { inputId: string };
+      await waitForTurn(server.url, host.cookie, (await sessionOf(host.hostAccountId)).session_id);
+      await new Promise((resolve) => setTimeout(resolve, 3_000));
+      expect(await inputState(overdue.inputId)).toBe("sent");
+    } finally {
+      await removeFault();
+    }
+
+    await db`update app.conversation_inputs set sent_at = sent_at - interval '21 minutes' where id = ${overdue.inputId}`;
+    const [{ discussion_id: discussionId }] = await db<{ discussion_id: string }[]>`
+      select discussion_id from app.conversation_inputs where id = ${overdue.inputId}
+    `;
+    const accept = async (text: string) => {
+      const [row] = await db<{ id: string }[]>`
+        insert into app.conversation_inputs (discussion_id, client_input_id, fingerprint, message)
+        values (${discussionId}, ${randomUUID()}, ${fingerprint(text)}, ${text})
+        returning id
+      `;
+      return row!.id;
+    };
+    const next = await accept("And Tuesdays.");
+    const later = await accept("Not Fridays.");
+    // The next input's turn stays in flight while both callers finish.
+    fake.script.push({ delayMs: 8_000, kind: "text", text: "Noted." });
+
+    // Caller A has found the overdue input and holds its read of the runtime's
+    // record until caller B has reconciled it and delivered the next input.
+    let reading!: () => void;
+    const aReading = new Promise<void>((resolve) => (reading = resolve));
+    let bDelivered!: () => void;
+    const bDone = new Promise<void>((resolve) => (bDelivered = resolve));
+    const held: ConversationRuntime = {
+      ...deps.runtime,
+      async *readRecordedEvents(sessionId, bearer, signal) {
+        reading();
+        const events = [];
+        for await (const event of deps.runtime.readRecordedEvents(sessionId, bearer, signal)) events.push(event);
+        await bDone;
+        yield* events;
+      },
+    };
+
+    const a = deliverNext({ ...deps, runtime: held }, host.hostAccountId, discussionId);
+    await aReading;
+    expect(await deliverNext(deps, host.hostAccountId, discussionId)).toBe(next);
+    bDelivered();
+    await a;
+
+    expect(await inputState(overdue.inputId)).toBe("completed");
+    expect(await inputState(next)).toBe("sent");
+    expect(await inputState(later)).toBe("accepted");
+    const session = await sessionOf(host.hostAccountId);
+    expect(session.current_input_id).toBe(next);
+    const [{ count }] = await db<{ count: number }[]>`
+      select count(*)::int as count from app.conversation_inputs where session_id = ${session.session_id} and state = 'sent'
+    `;
+    expect(count).toBe(1);
+
+    await waitFor(async () => (await inputState(later)) === "completed");
+    expect(await inputState(later)).toBe("completed");
+  }, 60_000);
+
+  it("returns a refused send to the browser and keeps the input for an exact retry", async () => {
+    const host = await signInHost(db);
+    const refusing = createMessageHandler(() => ({
+      ...deps,
+      runtime: {
+        ...deps.runtime,
+        async sendMessage() {
+          throw new ClientError(403, JSON.stringify({ code: "forbidden" }));
+        },
+      },
+    }));
+    const clientInputId = randomUUID();
+    const refused = await message(host.cookie, "Hello.", clientInputId, refusing);
+    expect(refused.status).toBe(503);
+
+    const retried = (await (await message(host.cookie, "Hello.", clientInputId)).json()) as { inputId: string; status: string };
+    expect(retried.status).toBe("sent");
+    await waitFor(async () => (await inputState(retried.inputId)) === "completed");
+    expect(await inputState(retried.inputId)).toBe("completed");
+  });
+
+  it("delivers another tab's queued message when a send is refused", async () => {
+    const host = await signInHost(db);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    // Tab one's send is refused only after tab two's message queued behind it.
+    const refusing = createMessageHandler(() => ({
+      ...deps,
+      runtime: {
+        ...deps.runtime,
+        async sendMessage(sessionId, bearer, text) {
+          if (text !== "From tab one.") return deps.runtime.sendMessage(sessionId, bearer, text);
+          await held;
+          throw new ClientError(403, JSON.stringify({ code: "forbidden" }));
+        },
+      },
+    }));
+
+    const one = message(host.cookie, "From tab one.", randomUUID(), refusing);
+    // Tab one's input is in flight.
+    await waitFor(async () => Boolean((await sessionOf(host.hostAccountId).catch(() => null))?.current_input_id));
+    const two = (await (await message(host.cookie, "From tab two.")).json()) as { inputId: string; status: string };
+    expect(two.status).toBe("queued");
+    release();
+
+    expect((await one).status).toBe(503);
+    await waitFor(async () => (await inputState(two.inputId)) === "completed");
+    expect(await inputState(two.inputId)).toBe("completed");
+  });
+
+  it("refuses an unauthenticated caller and a suspended host without recording input", async () => {
+    expect((await message("", "Hello")).status).toBe(401);
+
+    const host = await signInHost(db);
+    await db`update app.host_accounts set status = 'suspended' where id = ${host.hostAccountId}`;
+    const response = await message(host.cookie, "Hello");
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ nextAction: "account_suspended" });
+    const [count] = await db<{ count: number }[]>`
+      select count(*)::int as count from app.discussions where principal_id = ${host.hostAccountId}
+    `;
+    expect(count!.count).toBe(0);
+  });
+
+  it("opens one authorized empty setup session on the visit, which the first message then uses", async () => {
+    const host = await signInHost(db);
+    const actor = { id: host.hostAccountId, kind: "host_account" as const };
+    const opened = await openSetupSession(deps, host.userId, actor);
+
+    expect(opened).toMatchObject({ current_input_id: null, generation: 1, state: "active" });
+    // A repeat visit replays the command and creates no second session.
+    expect(await openSetupSession(deps, host.userId, actor)).toEqual(opened);
+    expect(await readEvents(server.url, host.cookie, opened!.session_id)).toBeDefined();
+    const [reserved] = await db<{ count: number }[]>`
+      select count(*)::int as count from app.model_reservations where session_id = ${opened!.session_id}
+    `;
+    expect(reserved!.count).toBe(0);
+
+    const response = await message(host.cookie, "Hello, Thyme.");
+    const { inputId } = (await response.json()) as { inputId: string };
+    expect(await sessionOf(host.hostAccountId)).toMatchObject({ current_input_id: inputId, session_id: opened!.session_id });
+    await waitForTurn(server.url, host.cookie, opened!.session_id);
+    expect((await reservationsFor(inputId)).length).toBeGreaterThan(0);
+  });
+
+  it("rechecks eligibility on every visit instead of replaying the first one", async () => {
+    const host = await signInHost(db);
+    const actor = { id: host.hostAccountId, kind: "host_account" as const };
+    expect(await openSetupSession(deps, host.userId, actor)).toMatchObject({ generation: 1 });
+
+    await db`update app.host_accounts set status = 'suspended' where id = ${host.hostAccountId}`;
+    expect(await openSetupSession(deps, host.userId, actor)).toBeNull();
+
+    await db`update app.host_accounts set status = 'active' where id = ${host.hostAccountId}`;
+    expect(await openSetupSession(deps, host.userId, actor)).toMatchObject({ generation: 1 });
+  });
+
+  it("answers a visit whose session create lost the race to a first message with the winner's session", async () => {
+    const host = await signInHost(db);
+    const actor = { id: host.hostAccountId, kind: "host_account" as const };
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    // The visit's create reaches the agent only after the message has indexed
+    // generation 1, so the agent refuses it.
+    const late = {
+      ...deps,
+      runtime: {
+        ...deps.runtime,
+        createSession: async (bearer: string) => {
+          await held;
+          return deps.runtime.createSession(bearer);
+        },
+      },
+    };
+
+    const visit = openSetupSession(late, host.userId, actor);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const sent = await message(host.cookie, "Hello, Thyme.");
+    expect(sent.status).toBe(202);
+    release();
+
+    const opened = await visit;
+    const session = await sessionOf(host.hostAccountId);
+    expect(opened).toMatchObject({ generation: 1, session_id: session.session_id });
+    await waitForTurn(server.url, host.cookie, session.session_id);
+  });
+
+  it("opens no setup session for a suspended host or a mismatched actor", async () => {
+    const host = await signInHost(db);
+    const other = await signInHost(db);
+
+    expect(await openSetupSession(deps, host.userId, { id: other.hostAccountId, kind: "host_account" })).toBeNull();
+    await db`update app.host_accounts set status = 'suspended' where id = ${host.hostAccountId}`;
+    expect(await openSetupSession(deps, host.userId, { id: host.hostAccountId, kind: "host_account" })).toBeNull();
+    const [count] = await db<{ count: number }[]>`
+      select count(*)::int as count from app.discussions where principal_id = ${host.hostAccountId}
+    `;
+    expect(count!.count).toBe(0);
+  });
+
+  it("configures sessions with no lifetime deadline and no tools", async () => {
+    // The deployment build's manifest; built here so a fresh checkout has one.
+    await buildEve(eveEnvironment({ modelBaseURL: fake.baseURL, signingKey: "build-time-placeholder" }));
+    const manifest = JSON.parse(
+      await readFile(new URL("../../.output/.eve/compile/compiled-agent-manifest.json", import.meta.url), "utf8"),
+    ) as Record<string, unknown> & {
+      config: { defaultTools?: unknown; limits?: { sessionTimeoutMs?: unknown }; tool?: unknown };
+    };
+
+    expect(manifest.config.limits?.sessionTimeoutMs).toBe(false);
+    // Task 4.2: nothing the model could call, authored, built in or connected.
+    expect(manifest.config).toMatchObject({ defaultTools: false, tool: false });
+    const capabilities = ["tools", "dynamicTools", "connections", "dynamicConnections", "subagents", "remoteAgents"];
+
+    for (const key of [...capabilities, "extensionMounts", "skills"]) {
+      expect(manifest[key], key).toEqual([]);
+    }
+  }, 300_000);
+});
+
+describe("agent model in the runtime", () => {
+  it("reserves every provider call of a turn with a forced retry and a forced compaction", async () => {
+    const host = await signInHost(db);
+
+    // Turn 1 reports a large prompt, so eve compacts before turn 2's model step;
+    // turn 2's first provider attempt fails and is retried.
+    fake.script.push({ inputTokens: 25_000, kind: "text", text: "Noted." });
+    const first = (await (await message(host.cookie, "I prefer mornings.")).json()) as { inputId: string };
+    const session = await sessionOf(host.hostAccountId);
+    await waitForTurn(server.url, host.cookie, session.session_id);
+    const before = fake.requests.length;
+    const index = (await readEvents(server.url, host.cookie, session.session_id)).length;
+
+    fake.script.push({ kind: "error", status: 500 });
+    const second = (await (await message(host.cookie, "And Tuesdays.")).json()) as { inputId: string };
+    const turn = await waitForTurn(server.url, host.cookie, session.session_id, index);
+    const types = turn.map((event) => event.type);
+
+    expect(types).toContain("compaction.completed");
+    expect(types.at(-1)).toBe("session.waiting");
+    const during = fake.requests.slice(before);
+    // The compaction call, the failed attempt and its retry, at least.
+    expect(during.length).toBeGreaterThanOrEqual(3);
+    expect(during.every((request) => request.prompt_cache_key === sessionIdHash(session.session_id))).toBe(true);
+    expect(during.every((request) => request.store === false && request.service_tier === "default")).toBe(true);
+    expect(fake.bodyBytes.slice(before).every((bytes) => bytes < MODEL_LIMITS.maxInputBytes)).toBe(true);
+    expect(await reservationsFor(second.inputId)).toHaveLength(during.length);
+    expect((await reservationsFor(first.inputId)).length).toBeGreaterThanOrEqual(1);
+  });
+});

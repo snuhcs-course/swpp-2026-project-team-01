@@ -8,7 +8,7 @@
 
 ## 상태
 
-**문서와 명세 단계입니다.** 제품 방향, 사용자 경험, 아키텍처, 제공자 설정, 시각 디자인, 기능 명세는 이 저장소에서 합의되었습니다. 애플리케이션 코드는 아직 시작하지 않았습니다. 구현은 런타임 스택을 기록하는 [`application-foundation`](openspec/changes/application-foundation/proposal.md) 변경으로 시작합니다.
+**기반 구축 진행 중입니다.** 제품 방향, 사용자 경험, 아키텍처, 제공자 설정, 시각 디자인, 기능 명세는 이 저장소에서 합의되었습니다. 구현은 런타임 스택을 기록한 [`application-foundation`](openspec/changes/application-foundation/proposal.md) 변경으로 시작되었으며, 애플리케이션 골격은 빌드되고 검사를 통과합니다.
 
 먼저 [원페이저](documentations/01_one_pager.md)와 [PRD](documentations/02_product_requirements.md)를 읽으십시오. [문서 색인](documentations/README.md)에서 모든 문서를 볼 수 있습니다.
 
@@ -18,6 +18,10 @@
 
 | 경로 | 내용 |
 |---|---|
+| `agent/` | eve 에이전트 정의, 지침, 채널 |
+| `apps/web/` | Next.js 웹 앱: `/`의 공개 진입점, `/app`의 대화 |
+| `lib/` | 에이전트와 웹 앱이 공유하는 계약과 서버 코드 |
+| `tests/` | 통합 테스트와 브라우저 테스트. 단위 테스트는 각 모듈 옆에 있음 |
 | `documentations/` | 제품 방향, UX, 아키텍처, 제공자 설정 |
 | `DESIGN.md` | Thyme 시각 방향과 브랜드 자산 |
 | `openspec/specs/` | 합의된 기능 동작. 구현이 충족해야 하는 계약 |
@@ -42,4 +46,13 @@ npm run check:docs
 openspec validate --all --strict
 ```
 
-애플리케이션 빌드와 테스트 명령은 첫 구현 변경과 함께 제공됩니다. Supabase CLI **2.119.0**이 팀 버전입니다. 스키마 생성, 데이터베이스 리셋, 배포는 [에이전트 지침](AGENTS.md#supabase-schema-changes)을 따릅니다.
+`npm ci`로 애플리케이션을 설치한 뒤, CI가 실행하는 검사를 실행하십시오.
+
+```sh
+npm run build
+npm run lint
+npm run typecheck
+npm test
+```
+
+`npm run test:integration`은 통합 테스트를, `npm run test:e2e`는 Playwright 브라우저 테스트를 실행합니다(브라우저는 `npx playwright install chromium`으로 한 번 설치). 둘 다 `supabase start`의 로컬 스택이 필요하며 OpenAI를 호출하지 않습니다. 예외는 선택 실행인 `E2E_LIVE_MODEL=1 npm run test:e2e`로, 로그인부터 첫 답장까지의 여정을 실제 모델로 실행합니다. `npm run dev`는 루트 `.env`와 `.env.local` 재정의로 웹 서비스와 에이전트 서비스를 실행합니다. Supabase CLI **2.119.0**이 팀 버전입니다. 스키마 생성, 데이터베이스 리셋, 배포는 [에이전트 지침](AGENTS.md#supabase-schema-changes)을 따릅니다.

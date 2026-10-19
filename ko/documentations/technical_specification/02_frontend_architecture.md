@@ -4,13 +4,25 @@
 
 날짜: 2026-10-19
 
-상태: 제안된 설계, 구현 보류
+상태: Phase 1 기반 구현 완료, 이후 단계는 제안 상태
 
 참고 문서: [페이지 목록](../user_experience/04_page_list.md)
 
 ## 범위와 결정 사항
 
-Next.js App Router, React, TypeScript, npm을 사용하며, 대화 런타임으로는 eve를 의도하고 있습니다. shadcn/ui와 선별된 AI Elements를 UI 방향으로 유지하되, 정확한 버전과 프리셋 호환성은 기반 변경(foundation change)에서 새로 고정(pin)해야 합니다. [Thyme 시각 방향](../../DESIGN.md)을 적용합니다. 아직 패키지, 컴포넌트, 실행 가능한 라우트는 존재하지 않습니다.
+Next.js App Router, React, TypeScript, npm을 사용하며, 대화 런타임으로는 eve를 의도하고 있습니다. shadcn/ui와 선별된 AI Elements를 UI 방향으로 유지합니다. [Thyme 시각 방향](../../DESIGN.md)을 적용합니다. Phase 1은 복사한 eve 채팅 템플릿 위에 루트 npm 패키지, `/`, `/auth/sign-in`, `/auth/callback`, `/app` 작업 공간을 만들었습니다. 다른 라우트는 아직 존재하지 않습니다.
+
+**고정된 버전.** [기반 설계](../../openspec/changes/application-foundation/design.md#4-dependency-set)가 기록한 대로 모든 의존성은 정확한 버전으로 고정되며, `package-lock.json`이 커밋되어 있습니다. 2026-10-19에 Node.js 24와 npm 11에서 설치된 버전(`npm ls --depth=0`)은 다음과 같습니다.
+
+| 그룹 | 패키지 |
+|---|---|
+| 런타임과 프레임워크 | `eve` 0.80.1, `ai` 7.0.143, `next` 16.3.8, `react`와 `react-dom` 19.2.8, `zod` 4.4.3 |
+| 데이터와 신원 | `@supabase/supabase-js` 2.118.0, `@supabase/ssr` 0.12.7, `postgres` 3.4.9 |
+| UI | `tailwindcss`와 `@tailwindcss/postcss` 4.3.3, `radix-ui` 1.6.7, `class-variance-authority` 0.7.1, `clsx` 2.1.1, `tailwind-merge` 3.6.0, `cmdk` 1.1.1, `lucide-react` 1.33.0, `use-stick-to-bottom` 1.1.6 |
+| 메시지 렌더링 | `streamdown` 2.7.0, `@streamdown/cjk` 1.0.3, `@streamdown/code` 1.1.1, `@streamdown/math` 1.0.2, `@streamdown/mermaid` 1.0.2, `shiki`와 `@shikijs/{core,engine-javascript,engine-oniguruma}` 4.3.1 |
+| 개발 | `typescript` 7.0.2, `@typescript/native-preview` 7.0.0-dev.20260707.2, `@types/node` 24.19.2, `@types/react` 19.2.18, `@types/react-dom` 19.2.4, `vitest` 5.0.5, `@playwright/test` 1.64.1, `oxlint` 1.88.0, `tsx` 4.23.15 |
+
+버전은 별도의 풀 리퀘스트에서 의도적으로 갱신하고, 이 표도 함께 갱신하십시오.
 
 UI는 클라이언트에서 안전한 계약과 공유되는 권한 검사 작업에만 의존하며, 테이블, RPC, 함수 URL에 직접 의존하지 않습니다. 워크스페이스를 확장하기 전에 별도로 빌드되는 웹/eve 구성을 확인합니다. [소스 템플릿](#reference-repositories)은 참고용이며, 템플릿의 인증, 영속성, 범용 도구 승인은 제품의 권한 체계를 대체할 수 없습니다.
 
@@ -39,7 +51,7 @@ OpenInstinct도 기본 템플릿 후보로 검토했으나 채택하지 않았�
 
 ## 소스 구성
 
-다음 경로는 향후의 레이아웃이며 현재 존재하는 파일이 아닙니다.
+Phase 1은 `agent/`, `apps/web/`, `lib/contracts/`, `lib/server/`, `tests/`와 아래의 `supabase/` 경로를 만들었습니다. `lib/server/providers/`, `db/`, `jobs/` 하위 디렉터리는 향후의 레이아웃입니다.
 
 ```text
 agent/                      eve definition, instructions, tools and channel adapters
@@ -56,7 +68,7 @@ supabase/migrations/        reviewed future migration chain
 supabase/tests/             grants, invariants and concurrency tests
 ```
 
-단위 테스트는 모듈 옆에 둡니다. 독립적으로 배포되는 패키지, 새로운 워커 앱, 브리지 배포는 측정된 런타임 필요가 생길 때까지 미룹니다. 루트 빌드/배포 설정은 기반 검증이 통합 형태를 선택한 뒤에 도입합니다. 이 기획 단계의 체크아웃에는 자리 표시용 애플리케이션 디렉터리가 필요하지 않습니다.
+단위 테스트는 모듈 옆에 둡니다. 독립적으로 배포되는 패키지, 새로운 워커 앱, 브리지 배포는 측정된 런타임 필요가 생길 때까지 미룹니다. 루트 `vercel.ts`가 웹 서비스와 eve 서비스를 하나의 배포로 구성합니다.
 
 ## 논리적 경계
 

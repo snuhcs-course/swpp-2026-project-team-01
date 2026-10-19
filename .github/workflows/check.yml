@@ -6,11 +6,58 @@ jobs:
   documentation:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
       - name: Check documentation links
         run: npm run check:docs
       - name: Validate OpenSpec artifacts
         run: npx --yes @fission-ai/openspec@1.14.0 validate --all --strict
+  application:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+  database:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_AUTH_SITE_URL: http://localhost:3000
+      SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS: http://localhost:3000/auth/callback
+      # Placeholders: the tests never reach Google, but Auth needs the provider configured.
+      GOOGLE_CLIENT_ID: ci-placeholder.apps.googleusercontent.com
+      GOOGLE_CLIENT_SECRET: ci-placeholder
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
+        with:
+          version: 2.119.0
+      - name: Start the local stack and apply the migration chain
+        run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor
+      - name: Database tests
+        run: supabase test db
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Integration tests against the local stack
+        run: npm run test:integration
+      - name: Install the Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser tests against the local stack
+        run: npm run test:e2e

@@ -2,13 +2,25 @@
 
 Date: 2026-10-19
 
-Status: proposed design; implementation pending
+Status: Phase 1 foundation implemented; later phases proposed
 
 Companion: [Page list](../user_experience/04_page_list.md)
 
 ## Scope and decisions
 
-Use Next.js App Router, React, TypeScript and npm, with eve as the intended conversation runtime. Retain shadcn/ui and selected AI Elements as UI direction; exact versions/preset compatibility must be freshly pinned in the foundation change. Apply [Thyme visual direction](../../DESIGN.md). No package, component or runnable route exists yet.
+Use Next.js App Router, React, TypeScript and npm, with eve as the intended conversation runtime. Retain shadcn/ui and selected AI Elements as UI direction. Apply [Thyme visual direction](../../DESIGN.md). Phase 1 built the root npm package, `/`, `/auth/sign-in`, `/auth/callback` and the `/app` workspace on the copied eve chat template; the other routes do not exist yet.
+
+**Pinned versions.** All dependencies are exact, as the [foundation design](../../openspec/changes/application-foundation/design.md#4-dependency-set) records, and `package-lock.json` is committed. Installed on 2026-10-19 (`npm ls --depth=0`) on Node.js 24 and npm 11:
+
+| Group | Packages |
+|---|---|
+| Runtime and framework | `eve` 0.80.1, `ai` 7.0.143, `next` 16.3.8, `react` and `react-dom` 19.2.8, `zod` 4.4.3 |
+| Data and identity | `@supabase/supabase-js` 2.118.0, `@supabase/ssr` 0.12.7, `postgres` 3.4.9 |
+| UI | `tailwindcss` and `@tailwindcss/postcss` 4.3.3, `radix-ui` 1.6.7, `class-variance-authority` 0.7.1, `clsx` 2.1.1, `tailwind-merge` 3.6.0, `cmdk` 1.1.1, `lucide-react` 1.33.0, `use-stick-to-bottom` 1.1.6 |
+| Message rendering | `streamdown` 2.7.0, `@streamdown/cjk` 1.0.3, `@streamdown/code` 1.1.1, `@streamdown/math` 1.0.2, `@streamdown/mermaid` 1.0.2, `shiki` and `@shikijs/{core,engine-javascript,engine-oniguruma}` 4.3.1 |
+| Development | `typescript` 7.0.2, `@typescript/native-preview` 7.0.0-dev.20260707.2, `@types/node` 24.19.2, `@types/react` 19.2.18, `@types/react-dom` 19.2.4, `vitest` 5.0.5, `@playwright/test` 1.64.1, `oxlint` 1.88.0, `tsx` 4.23.15 |
+
+Update a version deliberately in its own pull request, and update this table with it.
 
 The UI depends on client-safe contracts and shared authorized operations, never directly on tables, RPCs or function URLs. Confirm the separately built web/eve composition before expanding the workspace. [Source templates](#reference-repositories) are references; their authentication, persistence and generic tool approval cannot replace product authority.
 
@@ -37,7 +49,7 @@ Memory slots in these templates let the model write durable facts about a user; 
 
 ## Source organization
 
-The following paths are a future layout, not current files:
+Phase 1 created `agent/`, `apps/web/`, `lib/contracts/`, `lib/server/`, `tests/` and the `supabase/` paths below; the `lib/server/providers/`, `db/` and `jobs/` subdirectories are a future layout:
 
 ```text
 agent/                      eve definition, instructions, tools and channel adapters
@@ -54,7 +66,7 @@ supabase/migrations/        reviewed future migration chain
 supabase/tests/             grants, invariants and concurrency tests
 ```
 
-Unit tests live beside modules. Defer independently published packages, new worker apps and bridge deployments until a measured runtime need justifies them. Root build/deployment configuration will be introduced after the foundation check selects its integration shape. No placeholder application directories are needed in this planning checkout.
+Unit tests live beside modules. Defer independently published packages, new worker apps and bridge deployments until a measured runtime need justifies them. Root `vercel.ts` composes the web and eve services into one deployment.
 
 ## Logical boundaries
 

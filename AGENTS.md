@@ -4,19 +4,33 @@ This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, r
 
 ## Project status
 
-The repository is in its documentation and specification phase. Product, UX, architecture and provider documents and the OpenSpec capability specifications are agreed; application code, SQL, tests and build tooling do not exist yet. Do not scaffold or implement until the team opens a bounded OpenSpec change for the first change, after the runtime stack decision is recorded.
+Implementation has started with the [`application-foundation`](openspec/changes/application-foundation/proposal.md) change, whose [design](openspec/changes/application-foundation/design.md) records the runtime stack. Phase 1 (sign-in, the `/app` workspace, the Supabase schema baseline and the platform mechanics) is implemented, deployed and recorded in the [acceptance record](documentations/technical_specification/07_acceptance_record.md); product features arrive with later changes. Implement only within an open OpenSpec change.
 
-The shared Supabase project is `anelszynxtvxoxqvzgqt`; its application schema is empty (verified 2026-10-19). Before the first schema change, review namespace and default privileges and apply RLS as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
+The shared Supabase project is `anelszynxtvxoxqvzgqt`; it holds the Phase 1 migrations, applied on 2026-10-19 (see [environments and collaboration](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration)). Keep namespaces, default privileges and RLS as the schema baseline declares them, as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
 
 ## Repository layout
 
-- `apps/`: application code. Add app-specific setup and test instructions when an app is created.
+- `agent/`: the eve agent definition, instructions and channels. `agent/channels/eve.ts` authorizes every `/eve/v1` route through application code.
+- `apps/web/`: the Next.js web app; `/` is the public entry and `/app` hosts the conversation.
+- `lib/contracts/` and `lib/server/`: browser-safe contracts and server-only code shared by the agent and the web app.
+- `tests/integration/` and `tests/e2e/`: Vitest integration tests and Playwright browser tests. Unit tests live beside their modules.
 - `documentations/`: product direction, release scope, research, and explanatory documentation, starting with `01_one_pager.md`.
 - `openspec/specs/`: main capability specifications, with detailed behavior in `<capability>/spec.md`.
 - `openspec/changes/`: proposed behavior changes and archived implementation records.
 - `supabase/`: local Supabase configuration and future database migrations.
 
 ## Tooling prerequisites
+
+Use Node.js 24 and npm. Install with `npm ci`, then run the checks CI runs:
+
+```sh
+npm run build        # eve build, then next build for apps/web
+npm run lint         # oxlint agent apps lib tests
+npm run typecheck
+npm test             # Vitest unit tests
+```
+
+`npm run test:integration` runs Vitest integration tests one file at a time against the local stack (`supabase start`); some start `eve dev` or `eve build` plus `eve start` with a local OpenAI stand-in. `npm run test:e2e` runs Playwright against `next dev`, `eve dev` and the same stand-in on ports 3100 to 3102, all pointed at the local stack (install a browser once with `npx playwright install chromium`); tests sign in through the real local Auth flow, never a bypass route. Set `E2E_LIVE_MODEL=1` on `npm run test:e2e` to run only the sign-in-to-first-reply journey against the real `gpt-5.6-terra` with `OPENAI_API_KEY`; it spends money, so CI never sets it. For local development, fill `.env` from `.env.example`, put local overrides such as the local stack's values in `.env.local`, and run `npm run dev`: it starts the web service on port 3000 and `eve dev` on port 2000, both from the root env files (the process environment wins, then `.env.development.local`, `.env.local`, `.env.development` and `.env`, as eve and Next.js order them), and refuses the shared and release projects. `npm run dev:web` runs only the web service with the same environment; `npm run dev:eve` runs the agent with its terminal UI. Run `npm run jobs:dev` to process locally produced jobs against `DATABASE_URL`; it refuses the shared and release projects.
 
 Assume the GitHub CLI (`gh`), Vercel CLI (`vercel`), and Supabase CLI (`supabase`) are installed and available on `PATH`.
 

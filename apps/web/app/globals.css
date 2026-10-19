@@ -1,0 +1,211 @@
+@import "tailwindcss";
+@source "../node_modules/streamdown/dist/*.js";
+
+/* The app is light only; dark: variants apply only under a .dark class, which
+   nothing sets, so the OS dark preference never inverts the Thyme palette. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-pressed: var(--primary-pressed);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-botanical: var(--botanical);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  /* DESIGN.md radius scale: 4px small, 8px controls, 12px cards and composer,
+     16px dialogs. */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --font-sans: var(--font-geist-sans), "Geist", system-ui, sans-serif;
+  --font-display: var(--font-merriweather), "Merriweather", Georgia, serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, monospace;
+}
+
+/* Thyme tokens from DESIGN.md, mapped onto the shadcn roles: canvas and ink to
+   background and foreground, smooth paper to card and popover, action olive to
+   primary, soft wash to secondary, muted and accent, decorative line to border,
+   field boundary to input and focus to ring. A botanical dark theme needs its own
+   contrast review, so the app is light only. */
+:root {
+  color-scheme: light;
+  --canvas: #faf8f2;
+  --surface: #fffdf8;
+  --ink: #30362b;
+  --muted-ink: #636755;
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: #4e593c;
+  --primary-hover: #414b32;
+  --primary-pressed: #354029;
+  --primary-foreground: #fffdf8;
+  --secondary: #eeede3;
+  --secondary-foreground: var(--ink);
+  --muted: #eeede3;
+  --muted-foreground: var(--muted-ink);
+  --accent: #eeede3;
+  --accent-foreground: var(--ink);
+  --botanical: #858665;
+  --border: #d8d8c9;
+  --input: #858665;
+  --ring: #4e593c;
+  --destructive: #9b3f35;
+  --warning: #77591f;
+  --success: #3f6142;
+  --grain-opacity: 0.025;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+/* The paper layer: one locally served seamless grain tile at 2.5% opacity, in its
+   own decorative layer behind all content, never animated. The solid canvas shows
+   until it loads. It is omitted in print and forced colors. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: url("/paper-grain.svg");
+  background-repeat: repeat;
+  background-size: 128px 128px;
+  opacity: var(--grain-opacity);
+}
+
+@media print {
+  body::before {
+    content: none;
+    background-image: none;
+  }
+}
+
+@media (forced-colors: active) {
+  body::before {
+    content: none;
+    background-image: none;
+  }
+}
+
+/* A visible 2px focus outline with a 3px offset on every focusable control. The
+   composer shows it around its whole surface instead of its bare textarea. */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+[data-chat-composer-input]:focus-visible {
+  outline: none;
+}
+
+[data-chat-composer]:has([data-chat-composer-input]:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+/* Floating menus and dialogs: a restrained shadow on smooth paper. */
+[data-slot="dropdown-menu-content"],
+[data-slot="dialog-content"] {
+  box-shadow: 0 8px 24px rgb(48 54 43 / 0.08);
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--font-mono);
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+}
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    var(--muted-foreground) 0%,
+    var(--foreground) 45%,
+    var(--muted-foreground) 90%
+  );
+  background-size: 220% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-text 1.8s linear infinite;
+  will-change: background-position;
+}
+
+@keyframes shimmer-text {
+  from {
+    background-position: 120% 0;
+  }
+
+  to {
+    background-position: -120% 0;
+  }
+}
+
+/* Reduced motion: no animation, and transitions and scrolling happen at once. */
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-text {
+    animation: none;
+  }
+
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

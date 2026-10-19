@@ -1,7 +1,7 @@
 ---
 title: Find Me a Time — Thyme Visual Design
 date: 2026-10-19
-status: Visual direction; implementation pending
+status: Visual direction; Phase 1 theme implemented
 colors:
   canvas: "#FAF8F2"
   surface: "#FFFDF8"
@@ -47,7 +47,7 @@ material:
 
 **Find Me a Time**은 제품이고, **Thyme**은 일정 조율 어시스턴트입니다. [디자인 원칙](documentations/03_design_principles.md)은 상호작용 방향을 담당합니다. [원페이저](documentations/01_one_pager.md), [PRD](documentations/02_product_requirements.md), [기능 명세](openspec/specs/)는 제품 범위와 동작을 담당합니다. 시각 스타일은 이들이 정한 동의, 개인정보 보호, 예약 규칙을 지켜야 합니다.
 
-선택된 로고와 잘리지 않은 참고 이미지는 문서 자산으로 보관합니다. 컴포넌트 구조, 메시지·작성창 상호작용, 반응형 마감은 [참고 저장소](documentations/technical_specification/02_frontend_architecture.md#reference-repositories)의 Vercel chatbot과 eve 채팅 템플릿을 연구해 이 팔레트에 맞게 가져옵니다. 앱은 아직 구현되지 않았습니다. [알려진 공백](#known-gaps)을 참고하십시오.
+선택된 로고와 잘리지 않은 참고 이미지는 문서 자산으로 보관합니다. 컴포넌트 구조, 메시지·작성창 상호작용, 반응형 마감은 [참고 저장소](documentations/technical_specification/02_frontend_architecture.md#reference-repositories)의 Vercel chatbot과 eve 채팅 템플릿을 연구해 이 팔레트에 맞게 가져옵니다. Phase 1 테마는 `apps/web/app/globals.css`([제안된 구현 매핑](#proposed-implementation-mapping)에 설명한 대로 토큰을 shadcn 역할에 매핑), 루트 레이아웃의 글꼴, 공유 `components/ui`와 `components/chat` 레시피에 있습니다. [알려진 공백](#known-gaps)을 참고하십시오.
 
 ## 분위기
 
@@ -195,8 +195,8 @@ material:
 
 ## 알려진 공백
 
-- 테마 구현과 렌더링된 접근성 검사는 아직 보류 중입니다.
+- 밝은 테마, 글꼴, 종이 레이어, 포커스 윤곽선, 동작 줄이기 처리가 구현되었습니다. `apps/web/app/theme.test.ts`는 가장 어두운 질감 영역 위의 텍스트를 포함해 문서화된 대비 쌍을 검사하고, `tests/e2e/theme.test.ts`는 렌더링된 종이 레이어, 인쇄와 강제 색상에서의 생략, 글꼴, 포커스 윤곽선, 동작 줄이기를 검사합니다. 제안 카드, 대화상자, 상태 배지는 만들어질 때 레시피를 갖춥니다.
 - 잘린 PNG와 잘리지 않은 원본은 문서 자산 아래에 보관합니다. 벡터 원본, 작은 크기용 단순화 마크, 출력 변형은 아직 준비하고 검증해야 합니다.
-- UI를 구현할 때 독자적인 이음새 없는 종이 타일을 준비하고 검증합니다. 인쇄와 강제 색상에서는 비활성화해야 합니다.
+- 종이 타일은 [documentations/assets/paper-grain.svg](documentations/assets/paper-grain.svg)이며 `apps/web/public/paper-grain.svg`로 제공됩니다. 불투명도 2.5%의 128px 이음새 없는 프랙탈 노이즈 타일이며, 인쇄와 강제 색상에서는 비활성화됩니다. 실제 하드웨어 디스플레이에서 200% 확대로 이음새를 눈으로 확인하는 검사는 아직 남아 있습니다.
 - 식물 어두운 테마에는 별도의 대비와 시각 검토가 필요합니다. 질감을 자동으로 반전하지 않습니다.
 - 무드보드 참고 이미지는 시각 방향에만 쓰입니다. 독자적인 아트워크와 타이포그래피를 사용합니다. 참고 이미지는 원본 브랜드 자산을 재사용할 권리를 부여하지 않습니다.

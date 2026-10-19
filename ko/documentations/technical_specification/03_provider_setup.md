@@ -8,21 +8,23 @@
 
 ## 배포 origin
 
-릴리스 origin은 **`https://release.findmeatime.com`**이며, 로컬 브라우저 개발은 **`http://localhost:3000`**에서 하는 것을 의도합니다. 제품의 진입 약속은 `https://findmeatime.com/SKILL.md`와 호스트별 스킬 링크로 유지합니다. 이 약속이 동작한다고 주장하기 전에 루트 도메인 라우팅/승격(promotion)을 결정하고 검증해야 합니다. 콜백이나 비공개 링크를 만들 때 신뢰할 수 없는 요청 헤더를 절대 사용하지 않습니다.
+정식(canonical) origin은 **`https://findmeatime.com`**이며, **`https://release.findmeatime.com`**도 같은 배포를 독립적으로 제공합니다. 로컬 브라우저 개발은 **`http://localhost:3000`**에서 하는 것을 의도합니다. 제품의 진입 약속은 `https://findmeatime.com/SKILL.md`와 호스트별 스킬 링크로 유지합니다. 아직 이를 제공하는 라우트가 없으므로, 이 약속이 동작한다고 주장하지 마십시오. 콜백이나 비공개 링크를 만들 때 신뢰할 수 없는 요청 헤더를 절대 사용하지 않습니다.
 
 호스팅 방향은 Vercel입니다. Cloudflare는 계속 `findmeatime.com`의 등록기관이자 권한 있는 DNS입니다. DNS를 변경하기 전에 실제 팀/프로젝트를 확인하고 현재의 도메인 점검(inspect) 출력을 사용하며, [도메인 지침](../../AGENTS.md#domain-and-dns)을 따릅니다. 도메인 소유만으로는 애플리케이션이 사용 가능함을 증명하지 못합니다.
+
+**2026-10-19 배포.** Vercel 프로젝트 **`findmeatime-release`**가 `findmeatime.com`과 `release.findmeatime.com`을 모두 제공하며, 함수는 공유 데이터베이스 옆의 **`cle1`** 리전에서 실행됩니다. 사용자의 요청에 따라 루트 도메인은 [Phase 8 승격](06_implementation_plan.md#phase-8--operations-and-release)보다 앞서 지금 연결되었고, 이전 프로토타입 프로젝트에서 옮겨졌습니다. `dev.findmeatime.com`은 별도의 `findmeatime-dev` 프로젝트에 남아 있습니다. Production에서 `APP_ORIGIN`은 `https://findmeatime.com`, `APP_ALLOWED_ORIGINS`는 `https://release.findmeatime.com`입니다. Production과 Preview 변수는 따로 설정하며, Preview에는 `WORKER_SECRET`이 없고, 환경마다 고유한 `TOKEN_ENCRYPTION_KEY`와 `EVE_INTERNAL_SIGNING_KEY`를 둡니다. `DATABASE_URL`은 공유 프로젝트의 트랜잭션 풀러를 사용합니다. 두 이름의 Cloudflare `A` 레코드는 `vercel domains inspect`가 보고하는 주소를 DNS 전용으로 가리킵니다. 이전 프로토타입이 프로젝트에 남긴 변수는 사용되지 않으며 아직 제거해야 합니다. 실행한 검사는 [인수 기록](07_acceptance_record.md#production-deployment)에 있습니다.
 
 ## Supabase 프로젝트
 
 Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-east-2`**)를 팀의 공유 프로젝트로 사용합니다. 사용 방식은 [환경과 협업](#environments-and-collaboration)을 참고하십시오. Supabase CLI 2.119.0으로 `supabase link --project-ref anelszynxtvxoxqvzgqt`를 실행해 각 클론을 연결하며, 연결 메타데이터는 Git에서 제외됩니다. 애플리케이션과 공급자 자격 증명은 이 프로젝트에 대해 검증되지 않았습니다.
 
-**`mriseqztcwmezvtawnbo`**(**FindMeATime2**, `us-west-1`, PostgreSQL 17.11)는 같은 조직에 존재하며 향후 릴리스 프로젝트로 예약되어 있습니다. 현재는 관련 없는 내용이 들어 있어 사용하기 전에 비워야 하며, 개발용으로 연결하지 않습니다.
+**`mriseqztcwmezvtawnbo`**(**FindMeATime2**, `us-west-1`, PostgreSQL 17.11)는 같은 조직에 존재하며 향후 릴리스 프로젝트로 예약되어 있습니다. 현재는 관련 없는 내용이 들어 있어 사용하기 전에 비워야 하며, 개발용으로 연결하지 않습니다. 샌드박스가 아닙니다. Phase 1은 이 프로젝트를 예약된 채로 건드리지 않았으며, 마이그레이션, 설정 푸시, 배포 모두 하지 않았습니다.
 
-이 프로젝트의 애플리케이션 스키마는 비어 있습니다. `public`에는 애플리케이션 관계(relation), 함수, 타입이 없고, 애플리케이션 마이그레이션 기록, 예약된 작업(scheduled job), 등록된 큐도 없습니다. Supabase가 관리하는 Auth, Storage, Realtime, Vault, 네트워크, cron, 큐 인프라는 남아 있으며, Auth 신원, Storage 객체, Vault 시크릿은 없습니다. 2026-10-19에 어느 브랜치에도 속하지 않던 실험 잔여물(애플리케이션 스키마 2개, 역할 2개, 마이그레이션 기록 5개, Vault 시크릿 2개, 테스트 신원 1개)을 제거한 뒤 검증했으며, 첫 마이그레이션 전에 다시 확인하십시오. PostgreSQL은 **17.6**으로 로컬의 메이저 버전과 일치합니다. 설치된 확장은 `pg_cron` 1.6.4, `pg_net` 0.20.4, `pgmq` 1.5.1, `pgcrypto` 1.3, `pg_stat_statements` 1.11, `supabase_vault` 0.3.1, `uuid-ossp` 1.1, `plpgsql` 1.0이며, 이는 전제 조건일 뿐 애플리케이션 큐, 워커, 권한이 존재한다는 증거가 아닙니다.
+스키마 기준선과 Phase 1 마이그레이션은 2026-10-19에 적용되었습니다([환경과 협업](#environments-and-collaboration) 참고). 그 전에는 이 프로젝트의 애플리케이션 스키마가 비어 있었습니다. `public`에는 애플리케이션 관계(relation), 함수, 타입이 없었고, 애플리케이션 마이그레이션 기록, 예약된 작업(scheduled job), 등록된 큐도 없습니다. Supabase가 관리하는 Auth, Storage, Realtime, Vault, 네트워크, cron, 큐 인프라는 남아 있으며, Auth 신원, Storage 객체, Vault 시크릿은 없습니다. 2026-10-19에 어느 브랜치에도 속하지 않던 실험 잔여물(애플리케이션 스키마 2개, 역할 2개, 마이그레이션 기록 5개, Vault 시크릿 2개, 테스트 신원 1개)을 제거한 뒤 검증했으며, 첫 마이그레이션 전에 다시 확인하십시오. PostgreSQL은 **17.6**으로 로컬의 메이저 버전과 일치합니다. 설치된 확장은 `pg_cron` 1.6.4, `pg_net` 0.20.4, `pgmq` 1.5.1, `pgcrypto` 1.3, `pg_stat_statements` 1.11, `supabase_vault` 0.3.1, `uuid-ossp` 1.1, `plpgsql` 1.0이며, 이는 전제 조건일 뿐 애플리케이션 큐, 워커, 권한이 존재한다는 증거가 아닙니다.
 
 `postgres` 또는 `supabase_admin`이 `public`에 만든 객체는 현재 테이블/시퀀스 권한과 함수 실행 권한을 `anon`, `authenticated`, `service_role`에 상속합니다. 첫 스키마 배포 전에 네임스페이스와 기본 권한을 검토하고, 의도한 권한 부여(grant), 회수(revoke), RLS를 명시적으로 선언해야 합니다. Google 신원만으로는 호스트 계정, 캘린더 권한 부여, 채널 접근을 성립시키지 않으며, 이것들은 승인된 애플리케이션 작업을 통해서만 생성합니다.
 
-로컬 `config.toml`은 PostgreSQL 메이저 17, pg-delta 활성화, 마이그레이션/시드 비활성화, 선언형 `schema_paths` 없음 상태입니다. 그 `project_id`는 로컬 스택 식별자이지 호스팅 프로젝트 ref가 아니며, Auth 기본값도 호스팅 환경이 Google 전용으로 설정되었다는 증거가 아닙니다. 첫 스키마 변경에서는 [pg-delta 워크플로](../../AGENTS.md#supabase-schema-changes)를 사용합니다. 원하는 스키마를 만들고, 마이그레이션을 생성해 검토하고, 일회용 로컬 데이터베이스에서 체인을 검증하며, 검토된 드라이 런과 명시적인 환경 식별을 거친 뒤에만 호스팅 프로젝트에 푸시합니다.
+로컬 `config.toml`은 PostgreSQL 메이저 17, pg-delta 활성화, 마이그레이션 활성화, 시드 비활성화, 선언형 `schema_paths` 없음 상태입니다. 그 `project_id`는 로컬 스택 식별자이지 호스팅 프로젝트 ref가 아닙니다. 스키마 기준선은 애플리케이션 객체를 비공개 `app` 스키마에 두고 `public`에서 `anon`과 `authenticated`의 기본 권한을 취소합니다. 역할 매트릭스와 그 pgTAP 테스트는 [`supabase/README.md`](../../supabase/README.md)에 설명되어 있습니다. 모든 스키마 변경에는 [pg-delta 워크플로](../../AGENTS.md#supabase-schema-changes)를 사용합니다. 원하는 스키마를 편집하고, 마이그레이션을 생성해 검토하고, 일회용 로컬 데이터베이스에서 체인을 검증하며, 검토된 드라이 런과 명시적인 환경 식별을 거친 뒤에만 호스팅 프로젝트에 푸시합니다.
 
 ## 환경과 협업
 
@@ -31,15 +33,19 @@ Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-e
 | 계층 | Supabase | 애플리케이션 런타임 | 변경 주체 |
 |---|---|---|---|
 | 개인 샌드박스 | 각 팀원이 개인 Supabase 조직에 만든 본인의 무료 프로젝트 | 팀원 컴퓨터의 `eve dev`와 `next dev`. eve는 대화 상태를 로컬 `.eve/.workflow-data` 디렉터리에 보관하며 Docker는 필요하지 않음 | 팀원이 자유롭게 |
-| 공유 | **FindMeATime** `anelszynxtvxoxqvzgqt` | `main`의 Vercel **Production** 배포. 풀 리퀘스트는 같은 프로젝트를 대상으로 하는 Vercel **Preview** 배포를 받음 | `main`에 머지될 때 CI가 수행. 사람이 직접 변경하지 않음 |
-| 릴리스 | 비운 뒤의 **FindMeATime2** `mriseqztcwmezvtawnbo` | 별도의 Vercel production 대상 | 아직 사용하지 않음 |
+| 공유 | **FindMeATime** `anelszynxtvxoxqvzgqt` | `findmeatime.com`과 `release.findmeatime.com`에서 제공되는 `findmeatime-release`의 Vercel **Production** 배포. 풀 리퀘스트는 같은 프로젝트를 대상으로 하는 Vercel **Preview** 배포를 받음 | `main`에 머지될 때 CI가 수행. 사람이 직접 변경하지 않음(아래에 기록된 예외 한 번) |
+| 릴리스 | 비운 뒤의 **FindMeATime2** `mriseqztcwmezvtawnbo` | 별도의 Vercel production 대상 | 아직 사용하지 않음. 예약된 채로 건드리지 않음 |
 
 스키마 변경은 한 방향으로 흐릅니다.
 
 1. 팀원이 토픽 브랜치에서 `supabase/schemas/` 아래의 원하는 SQL을 편집합니다.
 2. pg-delta로 마이그레이션을 생성하려면 섀도 데이터베이스를 위해 Docker가 필요합니다. Docker가 있는 팀원이 같은 풀 리퀘스트에서 마이그레이션을 생성하고 커밋하며, 생성에 전체 `supabase start` 스택은 필요하지 않습니다.
 3. 팀원은 `supabase db push`로 브랜치의 마이그레이션을 자신의 샌드박스에 적용하고, 브랜치를 전환하거나 이력이 어긋날 때 `supabase db reset --linked`로 샌드박스를 초기화합니다. 공유 픽스처는 `supabase/seed.sql`에 두어 초기화하면 복원되도록 합니다.
-4. 검토와 머지가 끝나면 CI가 마이그레이션을 공유 프로젝트에 푸시합니다. 이 CI 작업은 첫 스키마 변경과 함께 도입합니다.
+4. 검토와 머지가 끝나면 [`Deploy shared Supabase`](../../.github/workflows/deploy-shared.yml) 워크플로가 `supabase db push --dry-run`을 출력하고, 마이그레이션을 공유 프로젝트에 푸시하며, 두 GitHub 시크릿이 모두 설정되어 있으면 워커 URL과 시크릿을 Vault에 쓰고, `supabase config push`를 실행합니다. 이 푸시는 `supabase/config.toml`이 선언한 모든 설정을 적용하므로, 그 파일의 변경은 호스팅 프로젝트의 변경으로 검토하십시오. 사이트 URL과 리디렉션 허용 목록은 `SUPABASE_AUTH_SITE_URL`과 쉼표로 구분한 `SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS` 변수에서 옵니다. CI에서는 GitHub 저장소 변수이고, 로컬 `supabase start`에서는 루트 `.env`입니다. 워크플로에는 `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `WORKER_URL`, `WORKER_SECRET` 저장소 시크릿이 필요합니다. `WORKER_URL`은 정식 origin의 프로덕션 워커 경로인 `https://findmeatime.com/api/internal/jobs`이고, `WORKER_SECRET`은 Vercel Production의 `WORKER_SECRET`과 같은 값(영문자, 숫자, `_`, `-` 32자 이상)입니다. 삽입 트리거와 매분 실행되는 `pg_cron` 스윕은 그 시크릿으로 그 URL에 요청을 보내며, 모든 샌드박스처럼 Vault 항목 중 하나라도 없으면 아무것도 하지 않습니다.
+
+**첫 푸시, 2026-10-19.** Phase 1 마이그레이션은 풀 리퀘스트가 머지되기 전에, 사용자의 명시적 요청에 따라 Supabase CLI로 한 번 수동으로 공유 프로젝트에 적용되었습니다. 이는 위의 CI 전용 규칙에 대한 예외이며, 프로덕션 배포에 스키마가 필요했기 때문입니다. 상태(애플리케이션 스키마 없음, 원격 마이그레이션 없음)를 읽은 뒤 `supabase db push --linked --dry-run`이 14개 마이그레이션을 나열했고 `supabase db push --linked`가 이를 적용했습니다. `supabase migration list --linked`는 14개 모두를 보여 주며, `supabase db diff --linked`는 애플리케이션 드리프트가 없음을 보여 줍니다(체인이 선언하지 않는, 플랫폼에 미리 설치된 `pgmq` 확장만 나타남). `supabase config push`는 사이트 URL `https://findmeatime.com`과 리디렉션 허용 목록 `https://findmeatime.com/auth/callback`, `https://release.findmeatime.com/auth/callback`, `http://localhost:3000/auth/callback`을 적용했고, 그 뒤 `supabase config diff`는 갱신 항목이 없다고 보고했습니다. Google 공급자는 변경하지 않았습니다. Vault 워커 URL은 Production `WORKER_SECRET`과 함께 `https://findmeatime.com/api/internal/jobs`이며, `app-jobs-sweep` cron 작업은 매분 성공합니다. 공유 데이터베이스 비밀번호는 2026-10-19에 Management API로 재설정되었고 Production과 Preview의 `DATABASE_URL`에만 보관됩니다. 이후의 모든 변경은 `Deploy shared Supabase` 워크플로를 거치며, 그 저장소 시크릿과 변수는 아직 설정되지 않았습니다. 다음 머지 전에 이와 같은 값으로 설정하십시오.
+
+작업(jobs): 워커 경로는 Production 배포에서만 실행되고 프로덕션에서 만들어진 작업만 가져가므로, 작업 기반 처리는 이 경로를 통해 Preview 배포나 샌드박스에서 실행되지 않습니다. 샌드박스나 로컬 스택에서는 `npm run jobs:dev`가 같은 워커를 `DATABASE_URL`에 대해 실행하며 로컬에서 만들어진 작업만 가져갑니다. 이 명령은 공유 프로젝트와 릴리스 프로젝트의 ref를 거부합니다.
 
 공유 프로젝트의 규칙은 다음과 같습니다. Studio나 SQL 편집기로 스키마를 변경하지 않으며, `supabase db diff --linked`는 커밋된 마이그레이션과 비교해 항상 비어 있어야 합니다. 릴리스 분리 전까지 데이터는 일회용이므로 팀 공지 후에 `supabase db reset --linked`를 실행해도 됩니다. [메시징 환경 계약](../../openspec/specs/messaging-environments/spec.md)이 요구하는 대로 애플리케이션 메시징은 프로덕션 배포 외에서는 거부되므로, Preview 배포는 이메일이나 iMessage를 보낼 수 없습니다.
 
@@ -47,10 +53,29 @@ Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-e
 
 다음 중 하나가 일어나기 **전에** 릴리스 환경을 분리합니다. 외부 호스트가 실제 Google 캘린더를 연결하는 경우, 팀 외부 사람들에게 실제 이메일이나 iMessage 전달을 활성화하는 경우, 스키마가 변경되어도 데이터를 유지해야 하는 경우입니다. 그 전까지는 보호할 것이 없으며 하나의 환경이 일관성을 유지하기에 더 간단합니다.
 
-
 ## Google 신원과 캘린더
 
-MVP는 Supabase Auth를 통한 Google 전용 호스트 로그인을 요구합니다. 호스팅 환경의 공급자 및 이메일 로그인 설정과 콜백은 점검되지 않았습니다. 호스트 로그인과 요청자의 **Continue with Google**은 각각 하나의 동의 화면에서 신원과 Calendar 스코프를 요청하지만, 신원 로그인, 호스트 자격, 호스트 캘린더 동의, 요청자 신원 미리 채우기, 요청자 캘린더 동의, 개인 에이전트 OAuth는 서로 분리된 인가 경계로 남습니다. Calendar 스코프와 오프라인 접근을 Supabase Auth를 통해 전달하고, Google은 사용자가 스코프를 해제할 수 있게 하므로 부여된 스코프는 토큰 응답에서 읽으며, Supabase는 공급자 리프레시 토큰을 로그인 시점에만 반환하고 공급자 토큰을 갱신하지 않으므로 로그인 시점에 서버 측에 저장합니다. 이메일/비밀번호, 이메일 OTP, 매직 링크 호스트 로그인은 활성화하지 않습니다.
+MVP는 Supabase Auth를 통한 Google 전용 호스트 로그인을 요구합니다. 호스트 로그인과 요청자의 **Continue with Google**은 각각 하나의 동의 화면에서 신원과 Calendar 스코프를 요청하지만, 신원 로그인, 호스트 자격, 호스트 캘린더 동의, 요청자 신원 미리 채우기, 요청자 캘린더 동의, 개인 에이전트 OAuth는 서로 분리된 인가 경계로 남습니다. Calendar 스코프와 오프라인 접근을 Supabase Auth를 통해 전달합니다. Google은 사용자가 스코프를 해제할 수 있게 하고 Supabase는 이를 전달하지 않으므로, 부여된 스코프는 Google의 토큰 정보 엔드포인트에서 읽습니다. Supabase는 공급자 리프레시 토큰을 로그인 시점에만 반환하고 공급자 토큰을 갱신하지 않으므로, 로그인 시점에 서버 측에 저장합니다. 호스트가 Calendar 스코프를 해제했거나 스코프를 읽을 수 없었더라도 그 토큰은 봉인된 채로 보관합니다. Google은 첫 동의에서만 리프레시 토큰을 반환하므로 로그인은 방문할 때마다 `prompt=consent`를 강제하지 않으며, 나중에 Calendar를 허용한 호스트도 저장된 토큰을 갖게 됩니다. 저장된 스코프는 Google이 보고한 Calendar 스코프만 기록하며, 이를 생략한 이후의 동의는 아무것도 취소하지 않습니다. 이메일/비밀번호, 이메일 OTP, 매직 링크 호스트 로그인은 활성화하지 않습니다.
+
+### 호스트 로그인 값
+
+2026-10-19에 [기반 변경](../../openspec/changes/application-foundation/design.md#12-authentication-details)이 기록했습니다.
+
+- **OAuth 클라이언트.** Google Cloud 프로젝트 `findmeatime`의 웹 OAuth 클라이언트 하나가 모든 환경을 담당합니다. 그 ID와 시크릿은 `GOOGLE_CLIENT_ID`와 `GOOGLE_CLIENT_SECRET`입니다. 로컬 스택은 루트 `.env`를 쓰고, 공유 프로젝트는 `GOOGLE_CLIENT_ID` GitHub 변수와 `GOOGLE_CLIENT_SECRET` GitHub 시크릿을 쓰며, 배포 워크플로가 `supabase config push`로 이를 기록합니다.
+- **스코프.** Supabase Auth는 `openid`, `email`, `profile`을 요청하고, 애플리케이션은 `access_type=offline`과 함께 `https://www.googleapis.com/auth/calendar.calendarlist.readonly`(캘린더 목록), `https://www.googleapis.com/auth/calendar.events`(선택한 캘린더의 이벤트 읽기와 예약 이벤트 생성), `https://www.googleapis.com/auth/calendar.events.freebusy`(호스트가 접근할 수 있는 캘린더의 free/busy)를 추가합니다. 각 스코프가 인가하는 API 메서드와 함께 [`lib/contracts/google-scopes.ts`](../../lib/contracts/google-scopes.ts)에 정의되어 있습니다.
+- OAuth 클라이언트의 **승인된 리디렉션 URI**는 Supabase Auth 서버마다 하나씩입니다.
+
+  | 환경 | 리디렉션 URI |
+  |---|---|
+  | 로컬 스택 | `http://127.0.0.1:54321/auth/v1/callback` |
+  | 공유 `anelszynxtvxoxqvzgqt`(릴리스 origin) | `https://anelszynxtvxoxqvzgqt.supabase.co/auth/v1/callback` |
+
+  각 팀원의 샌드박스는 자신의 `https://<ref>.supabase.co/auth/v1/callback`을 추가합니다.
+- **Supabase 사이트 URL과 리디렉션 허용 목록.** Supabase Auth는 허용 목록에 있는 애플리케이션 콜백으로만 돌아갑니다. 공유 프로젝트는 정식 origin인 사이트 URL `https://findmeatime.com`과 허용 목록 `https://release.findmeatime.com/auth/callback`, `https://findmeatime.com/auth/callback`, `http://localhost:3000/auth/callback`을 사용하며, 이는 `SUPABASE_AUTH_SITE_URL`과 `SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS` GitHub 변수로 설정합니다. 로컬 스택은 루트 `.env`의 `http://localhost:3000`과 `http://localhost:3000/auth/callback`을 사용합니다. 샌드박스는 ref를 확인한 뒤 같은 두 변수를 `supabase config push --project-ref <sandbox ref>`로 적용합니다.
+- **애플리케이션 콜백.** `/auth/callback`은 항상 요청이 들어온 origin의 `/app`으로 돌아갑니다. 취소되었거나, 재사용되었거나, 다른 브라우저에서 돌아온 경우에는 세션을 만들지 않고 `/app?sign_in=failed`로 이동합니다.
+- **둘 이상의 origin.** 하나의 배포가 `https://findmeatime.com`(`APP_ORIGIN`, 정식 origin)과 `https://release.findmeatime.com` 같은 다른 origin을 함께 제공할 수 있으며, 다른 origin은 `APP_ALLOWED_ORIGINS`에 쉼표로 구분해 나열합니다. 나열된 각 origin은 독립적으로 로그인하고, Google에서 돌아오고, 교차 사이트 Origin 검사를 통과하며, (https에서) Secure 쿠키를 받습니다. 그 페이지는 나열된 다른 origin으로 요청을 보낼 수 없습니다. URL이나 전달된(forwarded) 헤더에서 나열되지 않은 호스트로 향한 요청은 421로 거부되며 리디렉션되지 않습니다. 나열된 모든 origin의 `/auth/callback`을 `SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS`에 추가하십시오. 그렇지 않으면 Supabase Auth가 그 origin의 로그인을 사이트 URL로 보냅니다.
+- **이메일 로그인.** `[auth.email] enable_signup = false`가 이메일 공급자를 비활성화하므로, 이메일/비밀번호, OTP, 매직 링크 요청은 `email_provider_disabled`로 실패하고 메일을 보내지 않습니다. 호스팅된 Cloudflare SMTP 설정은 `config.toml` 밖에 있으며 푸시로 바뀌지 않습니다.
+- **게시 상태.** 아직 기록되지 않았습니다. OAuth 앱이 **Testing** 상태인 동안 Google은 7일 뒤 만료되는 리프레시 토큰을 발급하고, 등록된 테스트 사용자만 로그인할 수 있습니다. Phase 2가 저장된 권한에 의존하기 전에 **In production**(미검증, 사용자 100명 상한)으로 옮기고, Phase 2 초기에 Calendar 스코프 검증을 제출하십시오.
 
 점검에서는 OAuth 애플리케이션의 소유권/게시 상태와 민감한 Calendar 스코프에 대한 Google 앱 검증, 정확한 콜백 URL, 최소 권한, 호스트 대 요청 범위 상태, 취소/재생(replay)/잘못된 브라우저 거부, 리프레시, 연결 해제/재연결, 읽기 쉬운 실패 메시지를 기록해야 합니다. 호스트 캘린더 역할에는 실제 메타데이터/쓰기 권한이 필요합니다. 요청자 동의는 가용성 전용이며 호스트 자격이나 계정이 필요하지 않습니다. 암호화된 권한 부여(grant)는 서버 측에 보관하고, 어느 참여자의 비공개 이벤트도 상대방에게 드러내지 않습니다.
 
@@ -91,6 +116,8 @@ Photon의 전달 가능성 안내에 따라 인바운드 우선이 기본값입�
 ## 모델 접근과 런타임
 
 모델 설정은 서버 측에 두고 팀의 자체 API 키로 OpenAI를 직접 호출하며, AI Gateway는 사용하지 않습니다. 모델은 `gpt-5.6-terra`이며 2026-10-19에 결정되어 [기반 설계](../../openspec/changes/application-foundation/design.md#5-model-route-and-model)에 기록되어 있습니다. 기반 변경에서 팀의 키를 기준으로 모델 ID, 가격, 도구 지원을 확인하되, 합의된 [모델 한도](../../openspec/specs/model-execution/spec.md)를 강제합니다. 합성 컨텍스트를 사용해 유효하지 않거나 거부된 출력, 공급자 마감 시간, 속도/크레딧 실패, 내구성 있는 사용량 계산, 비공개 데이터 필터링을 테스트합니다. 모델의 실패가 스케줄링 상태를 진행시키거나 승인을 만들어서는 안 됩니다.
+
+에이전트 서비스는 `/eve/v1`에서 두 가지 자격 증명만 받습니다(기반 설계 결정 7). 하나는 웹 서비스가 `EVE_INTERNAL_SIGNING_KEY`로 서명하는 60초짜리 내부 bearer로, 세션을 만들거나, 현재 수락된 입력을 보내거나, 놓친 턴 종료를 맞출 때 세션 하나의 기록을 읽는 데 씁니다. 다른 하나는 자신의 현재 세션을 스트리밍하기 위한 브라우저의 Supabase 세션 쿠키입니다. 에이전트 서비스도 bearer에 서명합니다. 세션이 유휴 상태가 되면 세션 소유자 훅이 대화의 다음 수락된 입력에 대한 send bearer에 서명해 자신의 `/eve/v1` 경로로 보내므로, 자신에게 도달하기 위해 `EVE_AGENT_URL` 또는 `APP_ORIGIN`이 필요합니다. 지금까지 이 자기 호출은 통합 테스트의 `eve dev`에서만 실행되었고 배포에서는 확인되지 않았습니다. 한 환경의 두 서비스에는 같은 `EVE_INTERNAL_SIGNING_KEY`(32자 이상)를 설정하되, Production과 Preview에는 다른 값을 쓰고, 브라우저에 절대 노출하지 마십시오. bearer는 자신에 서명한 배포 환경과, send의 경우 메시지의 SHA-256도 담지만, Preview 배포가 Production bearer를 만들지 못하게 막는 것은 서로 다른 키뿐입니다. 에이전트 서비스는 세션 색인과 브라우저 세션을 확인하기 위해 `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`도 필요합니다. 로컬에서는 `npm run dev`가 루트 env 파일로 두 서비스를 시작하며, `.env.local`이 `.env`를 재정의합니다. 이 값들은 `supabase status -o env`의 로컬 스택 값이나 팀원의 샌드박스 값으로 설정하고, 공유 프로젝트나 릴리스 프로젝트로는 절대 설정하지 마십시오. 웹 서비스는 `EVE_AGENT_URL`로 에이전트에 도달하며, 로컬 `eve dev`의 경우 `http://127.0.0.1:2000`입니다. 배포에서는 이를 설정하지 않고 `APP_ORIGIN`을 사용하며, 구성된 프로젝트는 그 `/eve/v1` 경로를 에이전트 서비스로 보냅니다.
 
 ## 보호된 MCP OAuth 호환성
 
