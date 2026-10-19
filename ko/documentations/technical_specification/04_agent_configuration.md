@@ -74,7 +74,9 @@ eve principal은 사람의 신원이 아니라 대상입니다. 요청자에게�
 
 ## 라우트 인증
 
-`channels/eve.ts`는 순서가 있는 인증 목록과 함께 `eveChannel`을 내보냅니다. 첫 번째 항목은 호스트의 Supabase 세션 또는 요청자의 예약 링크에서 도출된 요청 자격 증명을 검증하는 애플리케이션 함수이며, eve 인증 컨텍스트를 반환합니다. 여기에는 위에서 설명한 `principalId`, `principalType: "user"`, `authenticator: "findmeatime"`, 그리고 속성 `audience`, `hostId`, `requestId`, `discussionId`가 포함됩니다. 두 번째 항목은 eve의 `localDev()`이며 로컬 개발에서만 존재합니다. 스캐폴드된 임시 인증은 배포되지 않으며, 프로덕션은 기본 차단(fail closed)입니다. 업로드는 비활성화되어 있습니다.
+`channels/eve.ts`는 순서가 있는 인증 목록과 함께 `eveChannel`을 내보냅니다. 첫 번째 항목은 호스트의 Supabase 세션 또는 요청자의 예약 링크에서 도출된 요청 자격 증명을 검증하는 애플리케이션 함수이며, eve 인증 컨텍스트를 반환합니다. 여기에는 위에서 설명한 `principalId`, `principalType: "user"`, `authenticator: "findmeatime"`, 그리고 속성 `audience`, `hostId`, `requestId`, `discussionId`가 포함됩니다. 이것이 유일한 항목입니다. `localDev()`와 `vercelOidc()`는 사용하지 않으므로, 로컬 실행과 배포가 같은 규칙을 적용합니다. 이 함수는 `null`을 반환하지 않고 `UnauthenticatedError` 또는 `ForbiddenError`를 던지므로, 인증 목록 순회가 다음 항목으로 넘어갈 수 없습니다. 업로드는 비활성화되어 있습니다.
+
+애플리케이션 코드만 세션을 생성하고 메시지를 보냅니다. 브라우저의 메시지는 애플리케이션 라우트로 전달되며, 이 라우트가 호출자를 확인하고, 수락된 입력을 애플리케이션 세션 인덱스에 기록한 뒤, `EVE_INTERNAL_SIGNING_KEY`로 서명한 60초짜리 베어러 토큰과 함께 `eve/client`를 통해 eve를 호출합니다. 브라우저 자체는 인덱스가 자신의 소유라고 알려 주는 세션만 읽고 스트리밍합니다. 자세한 내용은 [기반 설계](../../openspec/changes/application-foundation/design.md#7-call-path-and-session-ownership)에 기록되어 있습니다.
 
 `ctx.session.auth.current`는 활성 턴의 호출자를, `auth.initiator`는 세션 생성자를 식별합니다. 도구는 대상을 여기서 읽으며 도구 입력에서는 절대 읽지 않습니다.
 
@@ -137,7 +139,7 @@ eve의 승인 정책(`once`, `always`, 사용자 정의)은 도구 실행을 제
 
 ## 모델
 
-`agent/agent.ts`는 `defineAgent({ model, modelContextWindowTokens, modelOptions })`입니다. 모델 문자열은 Vercel에서는 프로젝트 OIDC를 사용하는 Vercel AI Gateway를 거쳐 라우팅되며, 로컬에서는 직접 제공자 키가 대체 수단입니다. 정확한 모델 식별자, 사용 권한, 고정 버전은 기반 변경에서 새로 기록할 미결 사항입니다. [모델 실행 계약](../../openspec/specs/model-execution/spec.md)은 모델 구성만으로는 충분하지 않으며 애플리케이션 훅과 계측으로 강제됩니다. 입력 크기 제한, 제공자 정체에 대한 마감 시간, 프로세스 장애에도 유지되는 내구성 있는 세션별 허용량, 같은 한도를 유지하는 복구가 그것입니다.
+`agent/agent.ts`는 `defineAgent({ model, modelContextWindowTokens, modelOptions, limits })`입니다. 2026-10-19에 결정되었습니다. Thyme은 팀 자체의 `OPENAI_API_KEY`로 OpenAI를 직접 호출하며, `eve/models/openai`에서 가져오는 eve 번들 `openai()` 헬퍼를 통해 `gpt-5.6-terra`를 사용합니다. AI Gateway는 사용하지 않습니다. `modelOptions.providerOptions.openai`는 제공자 저장을 끄고 standard 티어를 선택하며, eve가 Gateway 카탈로그에서 직접 모델의 윈도우를 읽을 수 없으므로 `modelContextWindowTokens`는 명시적으로 설정합니다. 값과 근거는 [기반 설계](../../openspec/changes/application-foundation/design.md#5-model-route-and-model)에 기록되어 있습니다. [모델 실행 계약](../../openspec/specs/model-execution/spec.md)은 `defineAgent`에 전달되는 모델 인스턴스를 감싸는 애플리케이션 소유 래퍼가 강제합니다. eve 훅은 이벤트가 기록된 뒤에만 실행되며 호출을 거부할 수 없기 때문입니다. eve 자체의 재시도와 압축 호출을 포함한 모든 제공자 호출은 이 래퍼를 거칩니다. 래퍼는 입력 크기 제한, 출력 상한, 제공자 정체에 대한 마감 시간, 그리고 프로세스 장애와 복구에도 유지되는 시도별 내구성 있는 예약을 강제합니다. eve의 `maxTokenCostUsdPerSession`은 사용하지 않습니다. 이 값은 AI Gateway 비용만 집계하며, 그 **Continue** 프롬프트는 계약이 금지하는 새로운 윈도우를 부여하기 때문입니다.
 
 ## 메모리
 
@@ -159,23 +161,23 @@ eve의 승인 정책(`once`, `always`, 사용자 정의)은 도구 실행을 제
 
 ## 훅과 계측
 
-훅은 저장 전과 모델 컨텍스트 전에 실행됩니다. 재시도에 안전한 비교 값을 사용한 자격 증명 마스킹, 호스트 계정 또는 요청별 및 서비스 전체 접수 예산, 프로젝션이 세션 principal과 일치하지 않는 도구 결과를 거부하는 대상 검사가 그것입니다. 계측은 비공개 텍스트 없이 사용량과 한도 이벤트를 보고하며, 내구성 있는 허용량과 운영자 진단에 반영됩니다.
+eve 훅은 이벤트가 내구성 있게 기록된 뒤에 실행되며, 예외를 던지는 훅이 작업을 거부하지는 않습니다. 턴을 멈추는 것은 `ctx.cancel()`뿐입니다. 따라서 작업을 막아야 하는 것은 어느 것도 훅이 아닙니다. 자격 증명 마스킹과 대화 접수(admission)는 메시지가 eve로 디스패치되기 전에 애플리케이션 라우트에서 실행됩니다. 세션 소유권은 eve가 무언가를 읽거나 기록하기 전에 애플리케이션 인증 함수에서 확인합니다. 모델 한도는 모델 래퍼에 있습니다. 도구 결과는 도구가 호출하는 도메인 연산 안에서 대상별로 프로젝션됩니다. 훅은 관찰합니다. 애플리케이션 세션 인덱스를 최신으로 유지하고, 대상 검사에 실패한 턴을 취소하며, 비공개 텍스트 없이 사용량과 한도 이벤트를 운영자 진단에 보고하는 계측에 데이터를 공급합니다.
 
 ## 내구성과 복구
 
-각 세션은 Workflow 실행입니다. 완료된 단계는 재생되고 중단된 단계는 다시 실행되므로, 모든 도구 효과는 `ctx.callId`로 멱등하며, 외부 효과가 있는 모든 것은 도구가 아니라 애플리케이션 작업입니다. 세션은 자신의 배포에 묶여 있으므로, 애플리케이션 인덱스는 에이전트 버전을 기록하고 고립된 세션을 조용히 대체 세션으로 바꾸지 않고 종료 상태 복구 사례로 취급합니다. 압축과 초기화는 애플리케이션이 시작하는 제어이며, 초기화는 세션 식별자를 영구히 폐기합니다.
+각 세션은 Workflow 실행입니다. 완료된 단계는 재생되고 중단된 단계는 다시 실행되므로, 모든 도구 효과는 `ctx.callId`로 멱등하며, 외부 효과가 있는 모든 것은 도구가 아니라 애플리케이션 작업입니다. 세션은 자신의 배포에 묶여 있으므로, 애플리케이션 인덱스는 에이전트 버전을 기록하고 고립된 세션을 조용히 대체 세션으로 바꾸지 않고 종료 상태 복구 사례로 취급합니다. eve는 대화가 `modelContextWindowTokens`의 `compaction.thresholdPercent`에 가까워지면 자동으로 압축하며, 압축 호출도 같은 모델 래퍼와 한도를 거칩니다. 애플리케이션은 턴 사이에 압축을 요청할 수도 있습니다. 초기화는 애플리케이션이 시작하며 세션 식별자를 영구히 폐기합니다. `limits.sessionTimeoutMs`는 `false`입니다. 호스트 논의는 eve의 기본값인 30일보다 오래 이어지며, 수명 종료가 확인된 런타임 실패는 아니기 때문입니다. 요청자 세션은 애플리케이션의 결정에 따라 해당 요청이 종료될 때 끝납니다.
 
 ## 로컬 개발과 배포
 
 | 항목 | 로컬 | Vercel |
 |---|---|---|
 | 실행 | `next dev apps/web`과 함께 `eve dev`; 실행 기록은 `.eve/.workflow-data` 아래에 유지됨 | 루트 `vercel.ts`의 `withEve({ services: { web: { framework: "nextjs", root: "apps/web" } }, routes })`가 에이전트를 독립 서비스로 추가하고 `/eve/v1/**`를 그쪽으로 라우팅함 |
-| 인증 | 애플리케이션 인증 함수 다음에 `localDev()` | 애플리케이션 인증만; 기본 차단 |
-| 모델 | 직접 제공자 키 | 프로젝트 OIDC를 사용하는 AI Gateway |
+| 인증 | 팀원의 샌드박스 로그인을 대상으로 하는 애플리케이션 인증; `localDev()` 없음 | 애플리케이션 인증만; 기본 차단 |
+| 모델 | 로컬 환경의 `OPENAI_API_KEY` | Vercel Production의 `OPENAI_API_KEY`; Preview는 별도의 키를 쓰거나 키가 없음 |
 | 메시징 | 거부됨 | 릴리스에서만; 프리뷰는 거부됨 |
 | Docker | 필요 없음 | 필요 없음 |
 
-환경 변수는 모델 제공자 또는 게이트웨이, Supabase, Photon, AgentMail, Cloudflare, `EVE_*` 설정으로 제한되며, 이름만 나열한 `.env.example`을 두고 Git에는 포함하지 않습니다. `eve build`는 `next build`와 함께 실행되고, `eve link`는 Vercel 프로젝트를 연결합니다.
+환경 변수는 OpenAI 키, Supabase와 데이터베이스 URL, Google OAuth, 토큰 암호화 키, 작업 워커 시크릿, 애플리케이션 origin, Photon, AgentMail, Cloudflare, `EVE_*` 설정으로 제한되며, 이름만 나열한 `.env.example`을 두고 Git에는 포함하지 않습니다. `eve build`는 `next build`와 함께 실행되고, `eve link`는 Vercel 프로젝트를 연결합니다.
 
 ## 평가
 
@@ -189,8 +191,9 @@ eve의 승인 정책(`once`, `always`, 사용자 정의)은 도구 실행을 제
 | 사람의 결정 | 카드와 정확한 채널 명령에서 나오는 애플리케이션 명령 | eve 승인 정책을 쓰는 모델 도구: 승인 프롬프트는 제품상의 동의가 아니며 제안이나 검토 참조를 담을 수 없음 |
 | 캘린더 접근 | 저장된 허가를 사용하는 도메인 코드 | eve 연결 또는 Calendar 도구: 원본 이벤트와 토큰이 세션에 들어오게 됨 |
 | 메모리 | 첫 릴리스에서는 없음 | 호스트별 프로필 슬롯: 현재 흐름에는 필요한 것이 없음 |
-| eve 버전 | 기반 변경에서 고정하고 설치된 문서와 대조하여 확인(템플릿은 `^0.73`을 고정하며 최신 릴리스는 더 새로움) | 템플릿 락파일에서 가져온 유동적 범위 |
+| eve 버전 | `eve` 0.80.1을 정확히 고정하고, 그 peer 범위를 위해 `ai` 7.0.143을 사용; 설치된 문서와 대조하여 확인([기반 설계](../../openspec/changes/application-foundation/design.md#2-runtime-version)) | 템플릿 락파일에서 가져온 유동적 범위; 템플릿의 0.73에 머무르기 |
+| 모델 | 팀의 키를 사용하는 직접 OpenAI, `gpt-5.6-terra`, eve의 `openai()` 헬퍼 경유 | 프로젝트 OIDC를 사용하는 AI Gateway: 팀이 직접 OpenAI 결제를 선택함 |
 
 ## 미결 결정
 
-Photon Spectrum과 네이티브 Photon 채널의 호환성 및 발신자 식별자 형식, `evaluate_candidates`를 eve 워크플로 도구로 실행할지 순수 애플리케이션 작업으로 실행할지, 모델 식별자와 컨텍스트 윈도우, AgentMail 채널을 사용자 정의 채널로 할지 Chat SDK Gmail 어댑터로 할지, 세션 보존 및 압축 임계값, 메모리 슬롯이 유용해지는 시점(있다면).
+Photon Spectrum과 네이티브 Photon 채널의 호환성 및 발신자 식별자 형식, `evaluate_candidates`를 eve 워크플로 도구로 실행할지 순수 애플리케이션 작업으로 실행할지, AgentMail 채널을 사용자 정의 채널로 할지 Chat SDK Gmail 어댑터로 할지, 세션 보존 및 압축 임계값, 메모리 슬롯이 유용해지는 시점(있다면).
