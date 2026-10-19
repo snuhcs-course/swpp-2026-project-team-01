@@ -1,10 +1,10 @@
 # CLI Direction
 
-Status: proposed interfaces; no executable CLI
+Status: administrator CLI implemented for suspension and restoration; no executable user CLI
 
 Date: 2026-10-19
 
-No executable CLI exists yet. Packaging, names, login/storage strategy and concrete commands must be specified with their owning future changes.
+No executable user CLI exists yet; its packaging, names, login/storage strategy and concrete commands are specified with their owning future changes. The administrator CLI is described below.
 
 ## Separate authority
 
@@ -25,4 +25,21 @@ CLI and MCP expose the same domain semantics without separate scheduling state. 
 
 Define commands only after their domain operation exists; record JSON schemas, errors/exit codes, pagination, headless/interactive login, OS support, secure storage and private output. Test login cancellation, wrong resource, expiry, revoked grants, foreign requests, stale proposals and lost responses. Do not advertise old `npm run` commands.
 
-Administrator suspension and restoration commands land with host accounts so operators have abuse control from the first open sign-in. Complete user/MCP parity and separate operator diagnostics/recovery land in later changes. The [PRD acceptance scenarios](../02_product_requirements.md#9-end-to-end-release-acceptance-scenarios) own the evidence that closes them.
+Administrator suspension and restoration commands land with host accounts so operators have abuse control from the first open sign-in.
+
+## Administrator CLI
+
+Decided in the [`host-onboarding` design](../../openspec/changes/host-onboarding/design.md#14-administrator-cli) on 2026-10-19. The CLI is `scripts/admin.ts`, named `fmat-admin` and run as `npm run admin -- <command>` from a checkout; it is not published as a package.
+
+| Command | Effect |
+|---|---|
+| `show --host <handle-or-id>` | Prints the account's status, handle and readiness |
+| `suspend --host <handle-or-id> --reason <text>` | Suspends hosting and the public profile; saved setup is kept |
+| `restore --host <handle-or-id> --reason <text>` | Restores the account; the public profile returns if setup is complete |
+
+Every command takes `--operator <name>` and exactly one environment:
+
+- `--local` uses `DATABASE_URL` and refuses any host other than the local stack.
+- `--project <ref>` uses the Supabase Management API with the operator's own `SUPABASE_ACCESS_TOKEN`, so operator authority is membership in the Supabase organization that owns the project.
+
+Mutations print the target and need `--yes` or a typed confirmation. Each records the operator, action, host, reason, environment and time beside the status change. No host, requester or agent credential reaches this path. Complete user/MCP parity and separate operator diagnostics/recovery land in later changes. The [PRD acceptance scenarios](../02_product_requirements.md#9-end-to-end-release-acceptance-scenarios) own the evidence that closes them.
