@@ -1,8 +1,8 @@
 # Acceptance Record
 
-Status: Phase 1 (`application-foundation`) evidence recorded; open gaps listed below
+Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; open gaps listed below
 
-Date: 2026-10-19
+Date: 2026-10-20
 
 This record lists the evidence each phase of the [implementation plan](06_implementation_plan.md) produced, against the evidence list of that phase. Every entry names the command, the date, the revision and the environment it ran in. Fixture and local-stack runs prove logic; only the entries marked **production** prove the deployed integration. Tokens, secrets, email addresses and personal message text are kept out of this record.
 
@@ -84,3 +84,71 @@ Run by the lead on 2026-10-19 against the **production** deployment of revision 
 - **`pg_net` grants.** The platform grants `PUBLIC` access to `net.http_request_queue` and `net._http_response`, and `postgres` cannot revoke it. The application keeps `net` outside the Data API (`tests/integration/data-api-exposure.test.ts`), but queued wake-ups carry the worker secret briefly. Not inspected on the hosted project.
 - **Sign-up budget.** Any Google account that completes sign-in becomes an active host with its own model allowance, so many sign-ups can drain the shared cap. The OAuth app's testing audience limits this today; Phase 2 adds admission control before the app is published.
 - **Stale Vercel variables.** Variables left by the earlier prototype remain on `findmeatime-release`, unused; remove them.
+
+## Phase 2 — `host-onboarding`
+
+Change: [`host-onboarding`](../../openspec/changes/host-onboarding/tasks.md). Evidence list: [Phase 2](06_implementation_plan.md#phase-2--host-onboarding). Environments as in Phase 1; the browser and integration suites also run a local Google stand-in (`tests/e2e/support/fake-google-server.ts`, `tests/integration/support/fake-google.ts`) for the token endpoint and Calendar API.
+
+### Suite runs
+
+| Command | Date | Revision | Environment | Result |
+|---|---|---|---|---|
+| `supabase db reset --local`, then a declarative sync | 2026-10-19 | `beff3899` | Local stack | Chain rebuilt; the sync generated no migration (no drift) |
+| `supabase test db` | 2026-10-20 | `3aa0ad86` | Local stack | 4 files, 59 pgTAP tests passed |
+| `npm run build`, `npm run lint`, `npm run typecheck` | 2026-10-20 | `3aa0ad86` | Local stack | Each exit 0 (three lint warnings in Phase 1 files) |
+| `npm test` | 2026-10-20 | `3aa0ad86` | Local stack | 232 tests passed |
+| `npm run test:integration` | 2026-10-20 | `3aa0ad86` | Local stack | 281 tests passed |
+| `npm run test:e2e` | 2026-10-20 | `3aa0ad86` | Local stack | 28 Playwright tests passed, against the local OpenAI and Google stand-ins |
+| `npm run check` | 2026-10-20 | `3aa0ad86` | Local stack | Documentation links and `openspec validate --all --strict` passed |
+
+### Evidence by item
+
+**AC-26, web and direct API paths.**
+- *One account, no duplicate:* the Phase 1 tests in `tests/integration/host-admission.test.ts` still pass.
+- *No publication before setup:* `tests/integration/setup-tools.test.ts` "returns links only once the host is ready"; `tests/integration/setup-confirm.test.ts` "rejects a stale review by revision or by proposal, saving nothing"; `tests/integration/entry-documents.test.ts` "gives the same neutral 404 for invalid, reserved, unknown, released, unready and suspended hosts". The direct API path is `/api/setup/commands` (`tests/integration/setup-state.test.ts` "serves the signed-in host's state privately and runs card commands with their revisions", "refuses a signed-out request and a cross-site command").
+- *Setup completes:* `tests/e2e/host-setup.test.ts` "a new host completes setup from the authored messages to working public pages"; `tests/integration/setup-confirm.test.ts` "makes the host ready with its links on the configured origin".
+- *Suspension and restoration:* `tests/integration/operator.test.ts` "suspends a host: hosting is refused and the public profile disappears, with an audit row", "restores a host by account ID with its saved setup and public profile", "denies the operator function to Data API roles"; `tests/integration/setup-tools.test.ts` "denies a retired generation, a suspended host and another audience before reading".
+- *Abuse limits:* `tests/integration/signup-limits.test.ts` (all three); `tests/integration/handles.test.ts` (all seven).
+- *Pending:* MCP and CLI paths (Phase 5, where those interfaces first exist; none can publish today because none exists), and the requester calendar connection and account-free contact of an active host (Phase 3).
+
+**AC-28.**
+- *Calendars from actual metadata with reasons; duplicate names; read-only destination:* `tests/integration/google-calendar.test.ts` "lists actual calendars by provider identity, keeping two with the same name apart"; `tests/integration/calendar-roles.test.ts` "rejects a read-only destination and keeps the previous roles"; `tests/integration/setup-state.test.ts` "lists the live calendars with recommendations while choosing calendars".
+- *Analysis of selected calendars, partial and failed reads, revoked access:* `tests/integration/calendar-analysis.test.ts` "stores the evidence dimensions of the saved conflict calendars", "discloses a partial failure, stores no evidence and commits the failure", "records a revoked grant as a failed scan and marks the grant invalid", "does not scan again on reload or redelivery"; `tests/integration/setup-state.test.ts` "reports a revoked grant instead of an empty calendar list", "asks a ready host whose Google access was revoked to connect Calendar again".
+- *Suggestions first, labels, sparse evidence, corrections respected:* unit tests in `lib/server/analysis.test.ts` and `lib/server/setup.test.ts` (small-sample fallback, precedence); `tests/integration/setup-commands.test.ts` "refuses Use this as stale when the proposed value is no longer the one shown"; `tests/integration/setup-tools.test.ts` "writes values unaccepted and labeled, and rejects a stale revision".
+- *Stale review:* `tests/e2e/host-setup.test.ts` "a stale review is rejected and nothing is saved".
+- *Resume after browser return:* `tests/e2e/host-setup.test.ts` "declined Calendar scopes show Connect Google Calendar with the consent link"; production check of the consent redirect below.
+- *Mobile and keyboard:* `tests/e2e/host-setup.test.ts` "the review card works by keyboard alone" and the 390 and 1280 pixel layout assertions in the journey; the reduced-motion reveal test.
+- *Pending:* the inline iMessage connection or skip (Phase 6).
+
+**FR-04 checks from the onboarding checklist.**
+- *Mode, location and transport are explicit; online-only skips transport:* `tests/integration/setup-tools.test.ts` "cannot answer mode, location or transport without source stated, or replace the host's answer"; `tests/e2e/host-setup.test.ts` "a mode the assistant recorded shows as You said and counts only after Use this"; `tests/integration/setup-state.test.ts` "moves to confirmation once the host answers the mode, and writes on read only the first browser zone".
+- *Defaults never described as observed:* the starter-default reasons in `lib/server/analysis.test.ts` and the source badges in `apps/web/app/_components/setup/format.test.ts`.
+- *Links only after readiness:* see AC-26 above.
+- *Analysis evidence expires and adopted values remain:* `tests/integration/analysis-cleanup.test.ts` "removes expired rows in bounded passes and keeps recent ones", "skips a row another transaction holds and removes it on a later pass", "leaves adopted draft and confirmed values untouched".
+
+**Conversation-access scenarios deferred from Phase 1.** "Tool result lost after commit": `tests/integration/setup-tools.test.ts` "replays a call with the same call ID without a second write" and "replays the saved outcome after the host accepted the drafted value on its card". "Committed tool result before failure": "does not advance the revision for identical values under a new call ID". Per-audience registration: `tests/integration/eve-channel-auth.test.ts` asserts the host setup model request carries `read_setup_state`, `draft_settings` and the host-setup fragment under `eve dev` and the build; `npx eve info` lists `tools/setup.ts` as a dynamic resolver.
+
+### Production deployment
+
+Run by the lead on 2026-10-20 against the **production** deployment of revision `3aa0ad86` (`dpl_42ZqP3jUaHC25Y4VFFhrnwRvv4XK`).
+
+| Check | Command | Result |
+|---|---|---|
+| Shared project before the push | `supabase migration list --linked` | The 14 Phase 1 migrations applied, the 2 Phase 2 migrations pending |
+| Migrations | `supabase db push --linked --dry-run`, then `supabase db push --linked` | `20261019144149_host_onboarding.sql` and `20261019144158_schedule_analysis_cleanup.sql` listed, then applied; `supabase migration list --linked` shows 16 |
+| Schema drift | `supabase db diff --linked` | Only the preinstalled `pgmq` extension, as in Phase 1 |
+| Deployment | `vercel deploy --prod`, `vercel inspect` | Ready; aliased to `findmeatime.com` and `release.findmeatime.com` |
+| Entry documents, both origins | `curl` of `/SKILL.md`, `/llms.txt`, `/nobody-here/SKILL.md`, `/app/SKILL.md` | 200 Markdown, 200 text, 404, 404; `cache-control: no-store`; no `set-cookie` |
+| Markdown negotiation | `curl -H "Accept: text/markdown" /` on both origins | 200 `text/markdown`, `Vary: Accept`, no cookie |
+| Renewed Calendar consent | `GET /auth/sign-in?consent=calendar` on both origins | 303 to Supabase Auth with that origin's callback, `prompt=consent`, `include_granted_scopes=true`, offline access, PKCE S256 |
+| Setup API | Unauthenticated `GET /api/setup/state`; cross-site `POST /api/setup/commands` | 401; 403 |
+
+The manual push is the exception recorded in the [design](../../openspec/changes/host-onboarding/design.md#migration-plan): the user approved it again on 2026-10-20, because the deploy workflow's secrets are still not set.
+
+### Known gaps
+
+- **Signed-in setup on production.** A team member's real Google sign-in on `https://findmeatime.com` that completes setup and opens the resulting `/{handle}` and `/{handle}/SKILL.md` is pending. It also confirms that the Vercel Production `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, which predate this change, are the client Supabase Auth uses; a mismatch shows as Calendar unavailable on the calendar card.
+- **Google app verification.** The OAuth app is in **Testing** (reported by the user on 2026-10-20): only listed test users can sign in, and refresh tokens expire after seven days, which invalidates stored Calendar grants weekly (hosts then see **Connect Google Calendar**). Moving it to **In production** and submitting the sensitive Calendar scopes for verification are console steps for the project owner.
+- **Real Google Calendar data.** Analysis and roles are verified against the stand-in only until the signed-in production check runs.
+- **Handle check rate.** `/api/setup/handle` has no rate limit; recorded as a risk in the design.
+- **Host page status code.** The unavailable `/{handle}` page renders the neutral not-found view with status 200 and `noindex`, because the streamed page cannot change its status; the `SKILL.md` routes return a real 404.

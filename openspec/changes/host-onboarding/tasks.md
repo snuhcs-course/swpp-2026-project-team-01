@@ -48,7 +48,7 @@ Before each group, read the [Phase 2 reference repository files](../../../docume
 
 ## 6. Join
 
-- [ ] 6.1 Connect the review card to the analysis evidence and the handle validation. Run the Phase 2 evidence list: AC-26 for the web and direct API paths (MCP and the CLI arrive in Phase 5, requester calendar connection in Phase 3, each listed as pending), AC-28, the FR-04 checks from the onboarding flow checklist, and Google app verification status. Record each in the acceptance record with command, date, revision and environment. Verify a Playwright journey from a new sign-in to a working `/{handle}` and `/{handle}/SKILL.md` against fake Google and OpenAI.
+- [x] 6.1 Connect the review card to the analysis evidence and the handle validation. Run the Phase 2 evidence list: AC-26 for the web and direct API paths (MCP and the CLI arrive in Phase 5, requester calendar connection in Phase 3, each listed as pending), AC-28, the FR-04 checks from the onboarding flow checklist, and Google app verification status. Record each in the acceptance record with command, date, revision and environment. Verify a Playwright journey from a new sign-in to a working `/{handle}` and `/{handle}/SKILL.md` against fake Google and OpenAI.
 
 ## 7. Release
 
