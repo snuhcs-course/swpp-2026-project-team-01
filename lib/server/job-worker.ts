@@ -3,19 +3,22 @@ import { hostname } from "node:os";
 import { COMMAND_ERROR_MESSAGES, type CommandErrorCategory } from "../contracts/command-errors";
 import { database, type Database } from "./database";
 import { type DeploymentEnvironment, deploymentEnvironment } from "./deployment";
-import { JOB_HANDLERS } from "./job-handlers";
-import { claimJobs, type JobHandler, type JobResult, processJob } from "./jobs";
+import { JOB_BATCH_LIMITS, JOB_HANDLERS } from "./job-handlers";
+import { type ClaimedJob, claimJobs, type JobHandler, type JobResult, processJob } from "./jobs";
 
 // The one job worker. The internal route (POST /api/internal/jobs) and
 // `npm run jobs:dev` both run a bounded batch through runWorkerBatch: claim due
 // jobs of the registered kinds produced by one environment, then process each,
-// recording its outcome before the batch answers.
+// recording its outcome before the batch answers. A kind with a batch limit is
+// claimed on its own, at most that many; the other kinds share one default claim.
 
 export type JobWorkerDependencies = {
   readonly db: Database;
   // The producer environment whose jobs this worker may claim.
   readonly environment: DeploymentEnvironment;
   readonly handlers: Readonly<Record<string, JobHandler>>;
+  // Per-kind claim limits; defaults to JOB_BATCH_LIMITS.
+  readonly batchLimits?: Readonly<Record<string, number>>;
   readonly leaseSeconds?: number;
   readonly owner?: string;
 };
@@ -26,12 +29,25 @@ export type WorkerBatch = {
 };
 
 export async function runWorkerBatch(deps: JobWorkerDependencies): Promise<WorkerBatch> {
-  const jobs = await claimJobs(deps.db, {
-    environment: deps.environment,
-    kinds: Object.keys(deps.handlers),
-    leaseSeconds: deps.leaseSeconds,
-    owner: deps.owner ?? `${hostname()}:${process.pid}`,
-  });
+  const limits = deps.batchLimits ?? JOB_BATCH_LIMITS;
+  const kinds = Object.keys(deps.handlers);
+  const claims = [
+    ...kinds.filter((kind) => limits[kind] !== undefined).map((kind) => ({ kinds: [kind], limit: limits[kind] })),
+    { kinds: kinds.filter((kind) => limits[kind] === undefined), limit: undefined },
+  ];
+  const jobs: ClaimedJob[] = [];
+
+  for (const claim of claims) {
+    jobs.push(
+      ...(await claimJobs(deps.db, {
+        environment: deps.environment,
+        kinds: claim.kinds,
+        leaseSeconds: deps.leaseSeconds,
+        limit: claim.limit,
+        owner: deps.owner ?? `${hostname()}:${process.pid}`,
+      })),
+    );
+  }
   const results: Partial<Record<JobResult, number>> = {};
 
   for (const job of jobs) {

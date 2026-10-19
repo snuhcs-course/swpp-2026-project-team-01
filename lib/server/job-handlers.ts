@@ -1,6 +1,15 @@
+import { CALENDAR_ANALYSIS_JOB, createCalendarAnalysisHandler } from "./analysis";
 import type { JobHandler } from "./jobs";
 
 // Handlers by job kind. The worker claims only kinds registered here, so a job
-// whose handler is not deployed yet stays pending and visible. Phase 1 publishes
-// no jobs; later changes register their kinds here.
-export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {};
+// whose handler is not deployed yet stays pending and visible.
+export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
+  [CALENDAR_ANALYSIS_JOB]: createCalendarAnalysisHandler(),
+};
+
+// The most jobs of a kind one worker batch claims; kinds not listed share the
+// default batch. A Calendar analysis may read Google for up to 30 seconds, so two
+// fit within the 120-second lease.
+export const JOB_BATCH_LIMITS: Readonly<Record<string, number>> = {
+  [CALENDAR_ANALYSIS_JOB]: 2,
+};

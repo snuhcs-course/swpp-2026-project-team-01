@@ -133,6 +133,29 @@ describe("worker batch", () => {
   });
 });
 
+describe("per-kind batch limits", () => {
+  it("claims at most a limited kind's limit per batch while other kinds share the default claim", async () => {
+    const limited = kind();
+    const other = kind();
+    await Promise.all([1, 2, 3].map(() => publishProduction(limited)));
+    await Promise.all([1, 2, 3].map(() => publishProduction(other)));
+    const handlers = { [limited]: async () => ({}), [other]: async () => ({}) };
+    const batchLimits = { [limited]: 2 };
+
+    const first = await runWorkerBatch({ batchLimits, db, environment: "production", handlers, owner: "worker-a" });
+    const second = await runWorkerBatch({ batchLimits, db, environment: "production", handlers, owner: "worker-a" });
+
+    expect(first).toEqual({ claimed: 5, results: { completed: 5 } });
+    expect(second).toEqual({ claimed: 1, results: { completed: 1 } });
+  });
+
+  it("limits Calendar analysis to two jobs per batch", async () => {
+    const { JOB_BATCH_LIMITS } = await import("../../lib/server/job-handlers");
+
+    expect(JOB_BATCH_LIMITS.calendar_analysis).toBe(2);
+  });
+});
+
 describe("production fence", () => {
   it.each([
     ["a preview deployment", { VERCEL: "1", VERCEL_ENV: "preview" }],

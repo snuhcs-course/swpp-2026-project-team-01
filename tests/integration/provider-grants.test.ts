@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { afterAll, describe, expect, it, vi } from "vitest";
-import { readGoogleGrant, recordGoogleGrant } from "../../lib/server/provider-grants";
+import { markGoogleGrantInvalid, readGoogleGrant, recordGoogleGrant } from "../../lib/server/provider-grants";
 import { parseTokenKey } from "../../lib/server/token-encryption";
 import { testDatabase } from "./support/database";
 
@@ -88,5 +88,27 @@ describe("provider grants", () => {
     await expect(
       readGoogleGrant(db, [parseTokenKey(randomBytes(32).toString("base64"))], hostAccountId),
     ).rejects.toThrow("unknown key");
+  });
+
+  it("marks a grant invalid until a sign-in records a fresh refresh token", async () => {
+    const hostAccountId = await newHostAccount();
+    const invalidatedAt = async () => {
+      const [row] = await db<{ invalidated_at: Date | null }[]>`
+        select invalidated_at from app.provider_grants where host_account_id = ${hostAccountId}
+      `;
+      return row!.invalidated_at;
+    };
+
+    await recordGoogleGrant(db, key, { grantedScopes: calendarScopes, hostAccountId, refreshToken: "1//first" });
+    await markGoogleGrantInvalid(db, hostAccountId);
+    expect(await invalidatedAt()).toBeInstanceOf(Date);
+
+    // A consent without a new token, even with the scopes, leaves it invalid.
+    await recordGoogleGrant(db, key, { grantedScopes: calendarScopes, hostAccountId, refreshToken: null });
+    expect(await invalidatedAt()).toBeInstanceOf(Date);
+
+    await recordGoogleGrant(db, key, { grantedScopes: calendarScopes, hostAccountId, refreshToken: "1//second" });
+    expect(await invalidatedAt()).toBeNull();
+    expect(await readGoogleGrant(db, [key], hostAccountId)).toEqual({ grantedScopes: calendarScopes, refreshToken: "1//second" });
   });
 });
