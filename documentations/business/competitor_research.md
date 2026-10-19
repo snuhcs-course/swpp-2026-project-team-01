@@ -3,6 +3,9 @@
 Research date: 2026-09-29  
 Openavail update: 2026-10-05  
 Howie update: 2026-10-08
+
+Comparison matrix update: 2026-10-19
+
 Scope: External meeting coordination, email scheduling assistants, booking platforms, and conversational calendar agents.
 
 This is a public-documentation review, not hands-on testing. Product descriptions are vendor claims; assessments of relevance and differentiation are our analysis. An accessible website does not establish successful onboarding, reliability, adoption, or retention. "Not verified" means the reviewed sources did not establish a capability, not that the product lacks it.
@@ -143,18 +146,23 @@ Reclaim's Scheduling Link configuration also documents travel and decompression 
 
 ## 6. Implications and practical benchmark
 
-The following are Find Me a Time product hypotheses, not evidence that competitors cannot perform them:
+This compact matrix compares the selected products with Find Me a Time's **planned** release scope in the [PRD](../02_product_requirements.md); its O marks do not indicate implementation or tested compatibility. For competitors, O means public documentation establishes at least one part of the named capability, △ means only part of the workflow is documented, and X means either unsupported **or not established by the reviewed sources**. X must not be cited as proof that a competitor lacks a feature. The combined personal-agent column accepts either host- or requester-side access; the context column accepts location, travel, or saved scheduling preferences rather than requiring all three. Approval options differ from Find Me a Time's mandatory approval of the current proposal.
 
-| Find Me a Time direction | Existing overlap | What a comparative test should establish |
-|---|---|---|
-| CC an assistant into an email | Callie, Skej, CalendarBridge, Sarra, Clara, SkipUp, Mia, Ari, Lindy, and Howie | Faster completion with fewer host interventions and a natural guest experience |
-| Persistent natural-language preferences | CalendarBridge rules, SkipUp memory, and Howie scheduling rules | Relationship-specific preferences remain consistent, editable, and private across requests |
-| Human approval | Openavail review-first proposals; Lindy, Reclaim Preview Mode, Cal.com/SavvyCal booking approval, Chosen reply approval | Approval applies to the current meeting details and is renewed after a material change |
-| Agent integration | Openavail, CalendarBridge, Reclaim, Cal.com and Calendly have MCP | Requester and host agents have distinct permissions and share a reliable request lifecycle |
-| Location and travel | Howie travel-time claims; Reclaim buffers; Google CC drive-time checks; Openavail's buffer is a soft ranking preference | Hard feasibility constraints survive negotiation and changes of location |
-| Korean coordination | Requires product-specific language testing | Korean/English mixed threads, timezones, and ambiguous date expressions work for target customers |
+| Capability | Find Me a Time (planned) | Howie | Skej | CalendarBridge | Calendly Callie | Cal.com | SavvyCal | Fyxer |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Multi-turn email coordination | O | O | O | O | O | X | X | X |
+| Personal-agent integration | O | X | X | O | O | O | X | X |
+| Guest chat booking | O | X | O | X | X | X | X | X |
+| Host setup through a personal AI agent | O | X | X | △ | △ | X | X | X |
+| Host approval before booking | O | X | X | X | X | O | O | X |
+| iMessage host channel | O | O | X | X | X | X | X | X |
+| Location, travel, or preference context | O | O | O | O | X | X | O | X |
 
-Prioritize trials of **Howie, Skej, CalendarBridge, Lindy, SkipUp, Reclaim 2.0, and Openavail** alongside Callie. These are research priorities based on feature overlap, not purchasing recommendations; Openavail currently labels itself private beta. Run the same scenarios:
+Guest chat booking means that a guest can converse with the service's assistant on the host's booking page; it is distinct from using the guest's own agent. [Skej documents that page chat](https://skej.com/help/feature-overview/using-your-booking-link). [CalendarBridge](https://help.calendarbridge.com/user-docs/bring-your-own-agent-mcp/) and [Calendly](https://developer.calendly.com/docs/mcp/supported-tools) let a host-connected agent manage some scheduling configuration, but their documented flows do not establish complete agent-led signup and consent. The team reports that Skej lacks a host-side personal-agent integration; its guest-agent path was not verified, so the combined cell follows the matrix's X convention.
+
+Openavail and SkipUp are excluded from this current matrix because the team reports that they no longer operate; this update did not independently verify their operating status. Reclaim 2.0 is excluded at the team's request. The earlier dated research above remains useful as historical feature evidence, not as a current-service recommendation.
+
+Prioritize comparable trials of **Howie, Skej, CalendarBridge, and Calendly Callie**; use Cal.com, SavvyCal, and Fyxer for narrower workflow comparisons. Run the same scenarios:
 
 1. A founder requests 30 minutes next week without specifying timezone or location.
 2. A host prefers investor meetings in the afternoon but student meetings in office hours.
