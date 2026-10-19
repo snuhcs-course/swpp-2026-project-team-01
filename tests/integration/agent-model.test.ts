@@ -37,13 +37,14 @@ afterAll(async () => {
 async function indexedSession() {
   const sessionId = `wrun_${randomUUID()}`;
   const inputId = randomUUID();
+  const [host] = await db<{ id: string }[]>`insert into app.host_accounts default values returning id`;
 
   await db`
     insert into app.agent_sessions
       (session_id, session_id_hash, discussion_id, principal_type, principal_id, generation, agent_version,
        current_input_id)
     values
-      (${sessionId}, ${sessionIdHash(sessionId)}, ${randomUUID()}, 'host_account', ${randomUUID()}, 1, 'test',
+      (${sessionId}, ${sessionIdHash(sessionId)}, ${randomUUID()}, 'host_account', ${host!.id}, 1, 'test',
        ${inputId})
   `;
 

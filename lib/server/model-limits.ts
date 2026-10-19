@@ -163,8 +163,19 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
     await tx`select pg_advisory_xact_lock(hashtextextended(${`app.model_allowance:principal:${principal.type}:${principal.id}`}, 0))`;
     await tx`select pg_advisory_xact_lock(hashtextextended(${SERVICE_ALLOWANCE_LOCK}, 0))`;
 
-    // Authority is rechecked after the locks: the session may have been retired
-    // or moved to another input while this call waited.
+    // Authority is rechecked after the locks: the host may have been suspended,
+    // or the session retired or moved to another input, while this call waited.
+    // The account row stays share-locked, so a suspension waits for this reservation.
+    if (principal.type === "host_account") {
+      const [host] = await tx<{ status: string }[]>`
+        select status from app.host_accounts where id = ${principal.id} for share
+      `;
+
+      if (host?.status !== "active") {
+        throw new ModelLimitError("authority_expired");
+      }
+    }
+
     if (sessionId) {
       const [session] = await tx<{ current_input_id: string | null; state: string }[]>`
         select state, current_input_id from app.agent_sessions where session_id = ${sessionId}

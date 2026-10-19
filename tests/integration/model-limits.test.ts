@@ -51,6 +51,8 @@ async function indexedSession(
   const inputId = options.input === undefined ? randomUUID() : options.input;
   const principalId = options.principalId ?? randomUUID();
 
+  // The principal is a real host account: the reservation rechecks its standing.
+  await db`insert into app.host_accounts (id) values (${principalId}) on conflict (id) do nothing`;
   await db`
     insert into app.agent_sessions
       (session_id, session_id_hash, discussion_id, principal_type, principal_id, generation, agent_version, state,
@@ -382,6 +384,33 @@ describe("model limit middleware", () => {
     waiting.catch(() => {});
     await new Promise((resolve) => setTimeout(resolve, 200));
     await db`update app.agent_sessions set state = 'retired' where session_id = ${session.sessionId}`;
+    release();
+    await holder;
+
+    await expect(waiting).rejects.toMatchObject({ code: "authority_expired" });
+    expect(provider.doGenerateCalls).toHaveLength(0);
+    expect(await reservations(session.inputId!)).toBe(0);
+  });
+
+  it("authorizes nothing when the host is suspended while the call waits for a capacity lock", async () => {
+    const provider = fakeOpenAI();
+    const session = await indexedSession();
+    let locked!: () => void;
+    let release!: () => void;
+    const lockHeld = new Promise<void>((resolve) => (locked = resolve));
+    const released = new Promise<void>((resolve) => (release = resolve));
+
+    const holder = db.begin(async (tx) => {
+      await tx`select pg_advisory_xact_lock(hashtextextended(${SERVICE_ALLOWANCE_LOCK}, 0))`;
+      locked();
+      await released;
+    });
+    await lockHeld;
+
+    const waiting = Promise.resolve(wrap(provider).doGenerate(call(session.key)));
+    waiting.catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await db`update app.host_accounts set status = 'suspended' where id = ${session.principalId}`;
     release();
     await holder;
 
