@@ -34,11 +34,19 @@ function routeOf(request: Request): Route {
 
   if (!match) return { kind: "other" };
 
-  const [, sessionId, stream] = match;
+  const [, encoded, stream] = match;
+  let sessionId: string | undefined;
+
+  try {
+    sessionId = encoded === undefined ? undefined : decodeURIComponent(encoded);
+  } catch {
+    // A malformed escape names no session.
+    return { kind: "other" };
+  }
 
   if (request.method === "POST" && !sessionId) return { kind: "create" };
-  if (request.method === "POST" && sessionId && !stream) return { kind: "send", sessionId: decodeURIComponent(sessionId) };
-  if (request.method === "GET" && sessionId && stream) return { kind: "stream", sessionId: decodeURIComponent(sessionId) };
+  if (request.method === "POST" && sessionId && !stream) return { kind: "send", sessionId };
+  if (request.method === "GET" && sessionId && stream) return { kind: "stream", sessionId };
 
   return { kind: "other" };
 }
