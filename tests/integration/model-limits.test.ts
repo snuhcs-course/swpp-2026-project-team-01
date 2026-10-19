@@ -211,9 +211,21 @@ describe("model limit middleware", () => {
     const session = await indexedSession();
 
     await expect(
-      wrap(provider, { limits: { ...roomy, idleTimeoutMs: 100 } }).doGenerate(call(session.key)),
+      wrap(provider, { limits: { ...roomy, generateTimeoutMs: 100 } }).doGenerate(call(session.key)),
     ).rejects.toMatchObject({ code: "deadline" });
     expect(signal?.aborted).toBe(true);
+  });
+
+  it("gives a non-streamed call its total deadline, not the stream idle deadline", async () => {
+    const provider = fakeOpenAI(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return reply;
+    });
+    const session = await indexedSession();
+
+    const model = wrap(provider, { limits: { ...roomy, generateTimeoutMs: 2_000, idleTimeoutMs: 100 } });
+    const result = await model.doGenerate(call(session.key));
+    expect(result.content).toEqual(reply.content);
   });
 
   it("aborts an opened stream when no next chunk arrives", async () => {

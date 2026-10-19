@@ -13,7 +13,8 @@ import { database, type Database } from "./database";
 //   3. reserve USD 0.60 durably against the work item, the principal and the
 //      service, after taking their locks and rechecking authority;
 //   4. call the provider with output clamped (4,096 tokens, 2,048 for ranking),
-//      storage off and the standard tier, under a 30-second idle deadline.
+//      storage off and the standard tier, under a 30-second idle deadline for a
+//      stream or a 120-second total deadline for a non-streamed call.
 // A denial throws ModelLimitError before any provider request. A reservation is
 // never released, so a failed or uncertain attempt stays charged.
 
@@ -21,6 +22,9 @@ export const MODEL_LIMITS = {
   attemptReservationUsd: "0.60",
   conversationAttempts: 8,
   conversationOutputTokens: 4096,
+  // A non-streamed call has no chunks to be idle between, so it gets one total
+  // deadline instead, long enough for a full reasoning response.
+  generateTimeoutMs: 120_000,
   idleTimeoutMs: 30_000,
   maxInputBytes: 128 * 1024,
   principalWindowUsd: "30.00",
@@ -302,7 +306,7 @@ export function modelLimitMiddleware(load: () => ModelLimitDependencies): Langua
     specificationVersion: "v4",
     wrapGenerate: async ({ model, params }) => {
       const call = await prepare(params);
-      const wait = deadline(call.limits.idleTimeoutMs, call.controller);
+      const wait = deadline(call.limits.generateTimeoutMs, call.controller);
 
       try {
         return await Promise.race([(model as InnerModel).doGenerate(call.params), wait.expired]);

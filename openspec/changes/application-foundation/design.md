@@ -109,7 +109,7 @@ The model instance passed to `defineAgent` is wrapped with the AI SDK's `wrapLan
 1. Rejects input over 128 KiB serialized, any attachment, and any provider-executed tool.
 2. Clamps output to 4,096 tokens, or 2,048 for ranking work, regardless of what the caller asked for.
 3. Reserves USD 0.60 durably against the work item, the principal and the service. After taking their locks it rechecks authority: a host principal's account must still be active (its row stays share-locked until the reservation commits), and a conversation call's session must still be live on the same accepted input. It refuses beyond eight attempts per accepted input or two per ranking check.
-4. Applies a 30-second idle deadline to generation and to each stream chunk.
+4. Applies a 30-second idle deadline to opening a stream and to each stream chunk, and a 120-second total deadline to a non-streamed call, which has no chunks to be idle between. eve's turns stream; the non-streamed path serves direct callers such as Phase 3 ranking.
 5. Forces `store: false` and the standard tier.
 
 A denial throws a typed error. eve may retry the step, but every retry hits the same denial, so no provider call is made.
