@@ -70,7 +70,7 @@ Scope. Prerequisite for every lane: the skeleton below, done by one person in th
 
 - [ ] Supabase schema baseline: private and exposed namespaces, role matrix, explicit grants and revokes, RLS on exposed tables, and the first pg-delta migration chain verified on a disposable local database and on each sandbox.
 - [ ] Google-only Supabase Auth sign-in with identity and Calendar scopes on one consent screen, PKCE, offline access, recorded granted scopes and encrypted refresh token, `/auth/callback` returning only to `/app`, email login disabled.
-- [ ] Open host sign-up: one active host account per Google identity; the shared eligibility-and-readiness guard.
+- [x] Open host sign-up: one active host account per Google identity; the shared eligibility-and-readiness guard.
 
 **Lane C — platform mechanics** (independent; pure server modules with their own tests)
 
