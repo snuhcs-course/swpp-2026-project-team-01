@@ -1,21 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import type { ReactNode } from "react";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
-import { AuthDisplayPreHydrationHead } from "@/components/auth/auth-display";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
-const title = "eve Chat Template";
-const description = "Build your own chat agent with eve.";
-const ogImage = {
-  alt: title,
-  height: 630,
-  url: "/eve-chat-template-og.png",
-  width: 1200,
-};
+const title = "Find Me a Time";
+const description = "An AI scheduling agent for external one-to-one meetings.";
 
 function resolveMetadataBase() {
   const configuredUrl =
@@ -53,15 +44,8 @@ export const metadata: Metadata = {
   openGraph: {
     title,
     description,
-    images: [ogImage],
     siteName: title,
     type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title,
-    description,
-    images: [ogImage],
   },
 };
 
@@ -92,14 +76,11 @@ export default function RootLayout({ children }: { readonly children: ReactNode 
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} id="theme-init" />
-        <AuthDisplayPreHydrationHead />
       </head>
       <body className={`${geistSans.className} antialiased`}>
         <ThemeProvider>
           <TooltipProvider>{children}</TooltipProvider>
         </ThemeProvider>
-        <Analytics />
-        <SpeedInsights />
       </body>
     </html>
   );

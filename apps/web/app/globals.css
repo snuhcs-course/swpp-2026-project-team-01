@@ -118,10 +118,6 @@ button:disabled,
   cursor: not-allowed;
 }
 
-html[data-eve-chat-sidebar="closed"] [data-desktop-sidebar] {
-  width: 0;
-}
-
 .shimmer-text {
   background: linear-gradient(
     90deg,

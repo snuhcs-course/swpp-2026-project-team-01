@@ -1,56 +1,11 @@
-import type { AuthFn } from "eve/channels/auth";
-import { auth } from "./auth";
-import { getPasswordSessionFromHeaders } from "./password-auth";
-import { getSetupStatus } from "./setup";
+import { type AuthFn, UnauthenticatedError } from "eve/channels/auth";
 
-export const betterAuthEveAuth: AuthFn<Request> = async (request) => {
-  const setupStatus = await getSetupStatus();
-
-  if (!setupStatus.appReady || setupStatus.authMode !== "vercel") {
-    return null;
-  }
-
-  const session = await auth.api.getSession({
-    headers: request.headers,
+// The only entry in the eve channel's auth list. It never returns null, so the
+// walk cannot fall through to another authenticator. Until the internal bearer
+// and the session-index ownership check exist, every request is refused.
+export const appAuth: AuthFn<Request> = async () => {
+  throw new UnauthenticatedError({
+    code: "authentication_required",
+    message: "Sign in to continue.",
   });
-
-  if (!session?.user) {
-    return null;
-  }
-
-  return {
-    attributes: {
-      email: session.user.email,
-      name: session.user.name,
-    },
-    authenticator: "better-auth",
-    issuer: "better-auth",
-    principalId: session.user.id,
-    principalType: "user",
-    subject: session.user.email,
-  };
-};
-
-export const passwordEveAuth: AuthFn<Request> = async (request) => {
-  const setupStatus = await getSetupStatus();
-
-  if (
-    !setupStatus.appReady ||
-    setupStatus.authMode !== "password" ||
-    !getPasswordSessionFromHeaders(request.headers)
-  ) {
-    return null;
-  }
-
-  return {
-    attributes: {
-      email: "local@eve.dev",
-      name: "eve user",
-    },
-    authenticator: "password",
-    issuer: "eve-chat-template",
-    principalId: "eve-chat-user",
-    principalType: "user",
-    subject: "eve-chat-user",
-  };
 };
