@@ -1,10 +1,15 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { type DeploymentEnvironment, deploymentEnvironment } from "./deployment";
 import type { Principal } from "./model-limits";
 
 // The server-only bearer the web service presents to the agent service when it
 // creates an eve session or sends an accepted input (design decision 7). It is an
 // HS256 JWT signed with EVE_INTERNAL_SIGNING_KEY, names exactly what it authorizes
-// and expires after 60 seconds. It never reaches a browser.
+// and expires after 60 seconds. It never reaches a browser. It is bound to the
+// deployment environment that signed it (`env`), and a send is bound to the
+// SHA-256 fingerprint of its message (`fp`), so a captured bearer cannot carry
+// another message or work in another environment. Production and Preview must
+// still use different keys.
 
 export const INTERNAL_BEARER_TTL_SECONDS = 60;
 const ISSUER = "findmeatime:web";
@@ -24,12 +29,16 @@ export type InternalGrant =
       readonly generation: number;
       readonly sessionId: string;
       readonly inputId: string;
+      // messageFingerprint() of the exact message this bearer may send.
+      readonly messageFingerprint: string;
     };
 
 type Claims = {
   aud: string;
   did: string;
+  env: string;
   exp: number;
+  fp?: string;
   gen: number;
   iat: number;
   iid?: string;
@@ -50,6 +59,10 @@ export function internalSigningKey() {
   return key;
 }
 
+export function messageFingerprint(message: string) {
+  return createHash("sha256").update(message, "utf8").digest("base64url");
+}
+
 function encode(value: object) {
   return Buffer.from(JSON.stringify(value)).toString("base64url");
 }
@@ -58,11 +71,17 @@ function sign(input: string, key: string) {
   return createHmac("sha256", key).update(input).digest();
 }
 
-export function signInternalBearer(grant: InternalGrant, key: string, now = Date.now()) {
+export function signInternalBearer(
+  grant: InternalGrant,
+  key: string,
+  now = Date.now(),
+  environment: DeploymentEnvironment = deploymentEnvironment(),
+) {
   const iat = Math.floor(now / 1000);
   const claims: Claims = {
     aud: AUDIENCE,
     did: grant.discussionId,
+    env: environment,
     exp: iat + INTERNAL_BEARER_TTL_SECONDS,
     gen: grant.generation,
     iat,
@@ -70,7 +89,7 @@ export function signInternalBearer(grant: InternalGrant, key: string, now = Date
     kind: grant.kind,
     pid: grant.principal.id,
     pt: grant.principal.type,
-    ...(grant.kind === "send" ? { iid: grant.inputId, sid: grant.sessionId } : {}),
+    ...(grant.kind === "send" ? { fp: grant.messageFingerprint, iid: grant.inputId, sid: grant.sessionId } : {}),
   };
   const input = `${encode({ alg: "HS256", typ: "JWT" })}.${encode(claims)}`;
 
@@ -78,9 +97,14 @@ export function signInternalBearer(grant: InternalGrant, key: string, now = Date
 }
 
 // Returns the grant, or null for anything that is not a current bearer this
-// service signed: another algorithm, a bad signature, the wrong issuer or
-// audience, an expired token or a malformed claim.
-export function verifyInternalBearer(token: string, key: string, now = Date.now()): InternalGrant | null {
+// service signed: another algorithm, a bad signature, the wrong issuer,
+// audience or environment, an expired token or a malformed claim.
+export function verifyInternalBearer(
+  token: string,
+  key: string,
+  now = Date.now(),
+  environment: DeploymentEnvironment = deploymentEnvironment(),
+): InternalGrant | null {
   const parts = token.split(".");
 
   if (parts.length !== 3) return null;
@@ -106,6 +130,7 @@ export function verifyInternalBearer(token: string, key: string, now = Date.now(
   if (
     claims.iss !== ISSUER ||
     claims.aud !== AUDIENCE ||
+    claims.env !== environment ||
     typeof claims.exp !== "number" ||
     claims.exp <= seconds ||
     typeof claims.iat !== "number" ||
@@ -128,8 +153,13 @@ export function verifyInternalBearer(token: string, key: string, now = Date.now(
     return { ...base, kind: "create" };
   }
 
-  if (claims.kind === "send" && typeof claims.sid === "string" && typeof claims.iid === "string") {
-    return { ...base, inputId: claims.iid, kind: "send", sessionId: claims.sid };
+  if (
+    claims.kind === "send" &&
+    typeof claims.sid === "string" &&
+    typeof claims.iid === "string" &&
+    typeof claims.fp === "string"
+  ) {
+    return { ...base, inputId: claims.iid, kind: "send", messageFingerprint: claims.fp, sessionId: claims.sid };
   }
 
   return null;

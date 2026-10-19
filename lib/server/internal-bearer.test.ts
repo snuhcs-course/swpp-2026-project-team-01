@@ -1,6 +1,6 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { type InternalGrant, signInternalBearer, verifyInternalBearer } from "./internal-bearer";
+import { type InternalGrant, messageFingerprint, signInternalBearer, verifyInternalBearer } from "./internal-bearer";
 
 const key = "a-test-signing-key-of-at-least-32-characters";
 const grant: InternalGrant = {
@@ -8,6 +8,7 @@ const grant: InternalGrant = {
   generation: 2,
   inputId: randomUUID(),
   kind: "send",
+  messageFingerprint: messageFingerprint("Find me a time next week."),
   principal: { id: randomUUID(), type: "host_account" },
   sessionId: "wrun_01EXAMPLE",
 };
@@ -48,5 +49,21 @@ describe("internal bearer", () => {
     expect(verifyInternalBearer(resign(token, (claims) => ({ ...claims, aud: "elsewhere" })), key)).toBeNull();
     expect(verifyInternalBearer(resign(token, (claims) => ({ ...claims, sid: undefined })), key)).toBeNull();
     expect(verifyInternalBearer("not.a.token", key)).toBeNull();
+  });
+
+  it("binds the bearer to the environment that signed it", () => {
+    const token = signInternalBearer(grant, key, Date.now(), "production");
+
+    expect(verifyInternalBearer(token, key, Date.now(), "production")).toEqual(grant);
+    expect(verifyInternalBearer(token, key, Date.now(), "preview")).toBeNull();
+    expect(verifyInternalBearer(signInternalBearer(grant, key, Date.now(), "preview"), key, Date.now(), "production")).toBeNull();
+    expect(verifyInternalBearer(resign(token, (claims) => ({ ...claims, env: undefined })), key, Date.now(), "production")).toBeNull();
+  });
+
+  it("binds a send to its message fingerprint", () => {
+    const token = signInternalBearer(grant, key);
+
+    expect(verifyInternalBearer(resign(token, (claims) => ({ ...claims, fp: undefined })), key)).toBeNull();
+    expect(messageFingerprint("Find me a time next week.")).not.toBe(messageFingerprint("Find me a time next week!"));
   });
 });

@@ -1,11 +1,10 @@
-import { createHash } from "node:crypto";
 import { Client, type MessageStreamEvent } from "eve/client";
 import { z } from "zod";
 import { getChatMessageLengthError } from "../contracts/chat-message";
 import { type Actor, CommandError, type CommandDefinition, runCommand } from "./commands";
 import type { Database, Transaction } from "./database";
 import { lockHostStanding, withEligibleHost } from "./host-eligibility";
-import { signInternalBearer } from "./internal-bearer";
+import { messageFingerprint, signInternalBearer } from "./internal-bearer";
 import { sessionIdHash } from "./model-limits";
 
 // The application side of a host conversation (design decision 7). Only this
@@ -91,9 +90,7 @@ export type SessionRow = {
   readonly last_stream_index: number | null;
 };
 
-export function fingerprint(message: string) {
-  return createHash("sha256").update(message, "utf8").digest("base64url");
-}
+export const fingerprint = messageFingerprint;
 
 // The host's setup discussion, created on first use and row-locked, which
 // serializes accepting input, creating sessions and recovery for it.
@@ -285,6 +282,7 @@ export async function deliverInput(
       generation: session.generation,
       inputId,
       kind: "send",
+      messageFingerprint: messageFingerprint(message),
       principal: { id: session.principal_id, type: "host_account" },
       sessionId: session.session_id,
     },

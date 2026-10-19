@@ -2,7 +2,7 @@ import { parseCookieHeader } from "@supabase/ssr";
 import { type AuthFn, extractBearerToken, ForbiddenError, UnauthenticatedError } from "eve/channels/auth";
 import { type Database, database } from "./database";
 import { readHostStanding } from "./host-eligibility";
-import { type InternalGrant, internalSigningKey, verifyInternalBearer } from "./internal-bearer";
+import { type InternalGrant, internalSigningKey, messageFingerprint, verifyInternalBearer } from "./internal-bearer";
 import { type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment, verifiedUserId } from "./supabase-auth";
 
 // The only entry in the eve channel's auth list (design decision 7). It accepts
@@ -115,6 +115,16 @@ async function carriesMessage(request: Request) {
   }
 }
 
+// A send carries exactly the message its bearer was signed for.
+async function carriesSignedMessage(request: Request, grant: Extract<InternalGrant, { kind: "send" }>) {
+  try {
+    const { message } = JSON.parse(await request.clone().text()) as { message?: unknown };
+    return typeof message === "string" && messageFingerprint(message) === grant.messageFingerprint;
+  } catch {
+    return false;
+  }
+}
+
 async function authorizeBearer(deps: AppAuthDependencies, request: Request, route: Route, token: string) {
   const grant = verifyInternalBearer(token, deps.signingKey);
 
@@ -125,7 +135,7 @@ async function authorizeBearer(deps: AppAuthDependencies, request: Request, rout
     route.kind === "create" && grant.kind === "create"
       ? await mayCreate(deps.db, grant)
       : route.kind === "send" && grant.kind === "send"
-        ? await maySend(deps.db, grant, route.sessionId)
+        ? (await carriesSignedMessage(request, grant)) && (await maySend(deps.db, grant, route.sessionId))
         : false;
 
   if (!allowed || !(await hostIsActive(deps.db, grant.principal.id))) forbidden();
