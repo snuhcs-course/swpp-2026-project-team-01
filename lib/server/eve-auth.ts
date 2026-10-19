@@ -3,7 +3,7 @@ import { type AuthFn, extractBearerToken, ForbiddenError, UnauthenticatedError }
 import { type Database, database } from "./database";
 import { readHostStanding } from "./host-eligibility";
 import { type InternalGrant, internalSigningKey, verifyInternalBearer } from "./internal-bearer";
-import { createRequestAuthClient, type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment } from "./supabase-auth";
+import { type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment, verifiedUserId } from "./supabase-auth";
 
 // The only entry in the eve channel's auth list (design decision 7). It accepts
 // exactly two shapes and never returns null, so the walk cannot fall through:
@@ -139,14 +139,15 @@ async function authorizeBearer(deps: AppAuthDependencies, request: Request, rout
 // The browser may stream only its own session at the discussion's current
 // generation; a retired generation's history is served by the application.
 async function authorizeCookie(deps: AppAuthDependencies, request: Request, sessionId: string) {
-  const { client } = createRequestAuthClient(request, deps.auth);
-  const { data, error } = await client.auth.getUser();
+  // The access token only: the agent never refreshes a session, so it never
+  // spends the refresh token the browser's next request depends on.
+  const userId = await verifiedUserId(request, deps.auth);
 
-  if (error || !data.user) {
+  if (!userId) {
     throw new UnauthenticatedError({ code: "authentication_required", message: "Sign in to continue." });
   }
 
-  const standing = await readHostStanding(deps.db, data.user.id);
+  const standing = await readHostStanding(deps.db, userId);
 
   if (!standing.eligible || !standing.hostAccountId) forbidden();
 

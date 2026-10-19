@@ -10,7 +10,7 @@ import { database } from "./database";
 import { HostIneligibleError } from "./host-eligibility";
 import { internalSigningKey } from "./internal-bearer";
 import { conversationStatus, discussionEvents, recoverDiscussion } from "./recovery";
-import { createRequestAuthClient, type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment } from "./supabase-auth";
+import { type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment, verifiedUserId } from "./supabase-auth";
 
 // Web routes for the /app conversation. Each authenticates the Supabase session
 // itself and returns audience-safe JSON; nothing here trusts a client-supplied
@@ -31,10 +31,9 @@ export function json(body: unknown, status = 200) {
   return Response.json(body, { headers: { "cache-control": "private, no-store" }, status });
 }
 
-export async function authenticatedUserId(request: Request, auth: SupabaseAuthConfig) {
-  const { client } = createRequestAuthClient(request, auth);
-  const { data, error } = await client.auth.getUser();
-  return error || !data.user ? null : data.user.id;
+// Verifies the access token only; the session proxy has already refreshed it.
+export function authenticatedUserId(request: Request, auth: SupabaseAuthConfig) {
+  return verifiedUserId(request, auth);
 }
 
 export function chatError(error: unknown) {

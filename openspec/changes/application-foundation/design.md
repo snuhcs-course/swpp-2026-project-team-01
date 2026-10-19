@@ -135,7 +135,9 @@ The channel auth list is `[appAuth]`. `appAuth` accepts exactly two shapes:
 1. A valid internal bearer, on create and send.
 2. A Supabase session cookie, on reading or streaming the caller's own indexed session.
 
-It throws `UnauthenticatedError` when no credential is present and `ForbiddenError` for anything else. It never returns `null`, so the walk cannot fall through. That includes a browser `POST /eve/v1/session` or `POST /eve/v1/session/:sessionId`, a foreign or unindexed session, and a stale generation.
+Only the web service's session proxy (`apps/web/proxy.ts`, the standard `@supabase/ssr` Next.js proxy) refreshes a Supabase session, writing the new cookies onto the forwarded request and the browser's response. Application routes and `appAuth` verify the access token they receive with Supabase Auth and never refresh, because a refresh whose cookies cannot reach the browser spends the refresh token and gets the session revoked for reuse.
+
+`appAuth` throws `UnauthenticatedError` when no credential is present and `ForbiddenError` for anything else. It never returns `null`, so the walk cannot fall through. That includes a browser `POST /eve/v1/session` or `POST /eve/v1/session/:sessionId`, a foreign or unindexed session, and a stale generation.
 
 `localDev()` is not in the list. Local development signs in with Google against the teammate's sandbox and uses the same path, so the ownership tests run identically under `eve dev` and in deployments.
 

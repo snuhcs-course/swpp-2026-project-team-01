@@ -7,7 +7,7 @@ import {
 } from "../contracts/command-errors";
 import type { Database, Queryable, Transaction } from "./database";
 import { findHostAccountByAuthUser } from "./host-accounts";
-import { createRequestAuthClient, type SupabaseAuthConfig } from "./supabase-auth";
+import { type SupabaseAuthConfig, verifiedUserId } from "./supabase-auth";
 
 // The application command pipeline. Every interface (web route, agent tool, CLI)
 // runs a mutation through runCommand, which in order:
@@ -241,19 +241,18 @@ export async function runCommand<Input, Result>(
   }
 }
 
-// The actor of a browser request: the Supabase user verified with Auth (not just
-// a decoded cookie), mapped to its host account.
+// The actor of a browser request: the Supabase user whose access token Auth
+// verifies (not just a decoded cookie; never refreshed here), mapped to its host account.
 export async function verifiedHostActor(
   request: Request,
   deps: { readonly auth: SupabaseAuthConfig; readonly db: Queryable },
 ): Promise<Actor | null> {
-  const { client } = createRequestAuthClient(request, deps.auth);
-  const { data, error } = await client.auth.getUser();
+  const userId = await verifiedUserId(request, deps.auth);
 
-  if (error || !data.user) {
+  if (!userId) {
     return null;
   }
 
-  const account = await findHostAccountByAuthUser(deps.db, data.user.id);
+  const account = await findHostAccountByAuthUser(deps.db, userId);
   return account ? { id: account.id, kind: "host_account" } : null;
 }
