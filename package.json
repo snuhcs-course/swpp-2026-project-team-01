@@ -48,6 +48,7 @@
     "cmdk": "1.1.1",
     "drizzle-orm": "0.45.2",
     "eve": "0.80.1",
+    "jose": "6.2.12",
     "lucide-react": "1.33.0",
     "next": "16.3.4",
     "postgres": "3.4.9",

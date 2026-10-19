@@ -1,5 +1,6 @@
 import { defineAgent } from "eve";
+import { openai } from "eve/models/openai";
 
 export default defineAgent({
-  model: "anthropic/claude-sonnet-5",
+  model: openai("gpt-5.6-terra"),
 });
