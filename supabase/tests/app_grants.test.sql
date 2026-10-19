@@ -4,7 +4,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(20);
+select plan(24);
 
 select has_schema('app', 'the private application schema exists');
 
@@ -100,11 +100,15 @@ select throws_ok('select * from public.grant_probe', '42501', null, 'anon cannot
 select throws_ok('select public.grant_probe_fn()', '42501', null, 'anon cannot call a new public function');
 
 select throws_ok('select * from app.command_outcomes', '42501', null, 'anon cannot read saved command outcomes');
+select throws_ok('select * from app.jobs', '42501', null, 'anon cannot read jobs');
+select throws_ok($$select * from app.claim_jobs('production', array['any'], 'x', 1, 60)$$, '42501', null, 'anon cannot claim jobs');
 
 reset role;
 set local role authenticated;
 
 select throws_ok('select * from app.command_outcomes', '42501', null, 'authenticated cannot read saved command outcomes');
+select throws_ok('select * from app.jobs', '42501', null, 'authenticated cannot read jobs');
+select throws_ok($$select * from app.claim_jobs('production', array['any'], 'x', 1, 60)$$, '42501', null, 'authenticated cannot claim jobs');
 
 select throws_ok('select * from app.grant_probe', '42501', null, 'authenticated cannot read an application table');
 select throws_ok('select app.grant_probe_fn()', '42501', null, 'authenticated cannot call an application function');
