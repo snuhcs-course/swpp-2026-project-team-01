@@ -86,6 +86,21 @@ async function history(host: Host, cursor = 0) {
     .map((line) => JSON.parse(line) as MessageStreamEvent);
 }
 
+// The history once the runtime has stopped appending: eve may record an event
+// after the turn boundary waitForTurn stops at.
+async function settledHistory(host: Host) {
+  let previous = await history(host);
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const next = await history(host);
+    if (next.length === previous.length) return next;
+    previous = next;
+  }
+
+  return previous;
+}
+
 async function state(host: Host) {
   const response = await routes().state(
     new Request("http://localhost:3000/api/chat/state", { headers: { cookie: host.cookie } }),
@@ -328,7 +343,7 @@ describe("history and cursors", () => {
     await say(host, "Thanks.");
     await waitForTurn(server.url, host.cookie, (await current(host.hostAccountId)).session_id);
 
-    const all = await history(host);
+    const all = await settledHistory(host);
     // The retired generation's events come first, unchanged and in order.
     expect(all.slice(0, beforeRecovery.length).map((event) => event.meta.id)).toEqual(
       beforeRecovery.map((event) => event.meta.id),
