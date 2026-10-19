@@ -9,7 +9,8 @@ import type { AddressInfo } from "node:net";
 // for gpt-5.6-terra on 2026-10-19.
 
 export type FakeReply =
-  | { readonly kind: "text"; readonly text: string; readonly inputTokens?: number }
+  // delayMs holds the reply back, keeping the turn in flight meanwhile.
+  | { readonly kind: "text"; readonly text: string; readonly inputTokens?: number; readonly delayMs?: number }
   | { readonly kind: "error"; readonly status: number; readonly code?: string };
 
 export type FakeRequest = Record<string, unknown> & {
@@ -94,6 +95,8 @@ export async function startFakeOpenAI(
       );
       return;
     }
+
+    if (reply.delayMs) await new Promise((resolve) => setTimeout(resolve, reply.delayMs));
 
     const id = randomUUID().replaceAll("-", "");
     const model = typeof body.model === "string" ? body.model : "gpt-5.6-terra";

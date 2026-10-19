@@ -13,7 +13,7 @@ import { type ConversationRuntime, eveRuntime } from "../../lib/server/conversat
 import { limitModel, sessionIdHash } from "../../lib/server/model-limits";
 import { localAuthConfig, signInHost } from "./support/auth";
 import { clearServiceWindow, testDatabase } from "./support/database";
-import { waitForTurn } from "./support/eve-calls";
+import { readEvents, waitForTurn } from "./support/eve-calls";
 import { type EveServer, startEve } from "./support/eve-server";
 import { type FakeOpenAI, startFakeOpenAI } from "./support/fake-openai";
 
@@ -126,6 +126,11 @@ async function reservationsFor(workId: string) {
     select count(*)::int as count from app.model_reservations where work_id = ${workId}
   `;
   return row!.count;
+}
+
+async function inputState(inputId: string) {
+  const [row] = await db<{ state: string }[]>`select state from app.conversation_inputs where id = ${inputId}`;
+  return row?.state;
 }
 
 async function eventually(check: () => Promise<boolean>) {
@@ -318,6 +323,33 @@ describe("terminal recovery", () => {
       }),
     ).rejects.toMatchObject({ code: "unattributed" });
     expect(provider.doGenerateCalls).toHaveLength(0);
+  });
+
+  it("continues only the input that never finished, whatever the clocks say", async () => {
+    const host = await signInHost(db);
+    fake.script.push({ delayMs: 1_000, kind: "text", text: "Noted." });
+    const first = await say(host, "Mornings work best.");
+    // The database clock runs an hour ahead of the runtime's.
+    await db`update app.conversation_inputs set sent_at = now() + interval '1 hour' where id = ${first.body.inputId}`;
+    const session = await current(host.hostAccountId);
+    await waitForTurn(server.url, host.cookie, session.session_id);
+    await eventually(async () => (await inputState(first.body.inputId)) === "completed");
+    const charged = await reservationsFor(first.body.inputId);
+
+    fake.script.push({ code: "invalid_api_key", kind: "error", status: 401 });
+    const second = await say(host, "And Tuesdays.");
+    await eventually(async () => (await current(host.hostAccountId)).state === "failed");
+    expect((await recover(host, 1)).body).toMatchObject({ generation: 2, status: "recovered" });
+
+    const successor = await current(host.hostAccountId);
+    expect(successor.current_input_id).toBe(second.body.inputId);
+    await waitForTurn(server.url, host.cookie, successor.session_id);
+    const received = (await readEvents(server.url, host.cookie, successor.session_id)).filter(
+      (event) => event.type === "message.received",
+    );
+    expect(received.map((event) => event.data.message)).toEqual(["And Tuesdays."]);
+    expect(await reservationsFor(first.body.inputId)).toBe(charged);
+    expect(await inputState(second.body.inputId)).toBe("completed");
   });
 
   it("continues input accepted after the failure with its original identity", async () => {

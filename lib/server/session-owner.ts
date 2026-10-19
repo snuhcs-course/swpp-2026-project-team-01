@@ -5,12 +5,17 @@ import type { Database } from "./database";
 // decides what may run (route auth and the model wrapper do), it only keeps the
 // index's view of the runtime current.
 
-// A turn that finished completes every input sent to the session before it.
-export async function recordTurnCompleted(db: Database, sessionId: string, at: string) {
+// A turn that ended completes the input it served: the session's current
+// accepted input, by identity. Timestamps are never compared, since the event
+// time is the runtime's clock and the send time the database's. A retired or
+// failed generation completes nothing; recovery owns its inputs.
+export async function recordTurnEnded(db: Database, sessionId: string) {
   await db`
-    update app.conversation_inputs
+    update app.conversation_inputs i
     set state = 'completed', completed_at = now()
-    where session_id = ${sessionId} and state = 'sent' and sent_at <= ${at}::timestamptz
+    from app.agent_sessions s
+    where s.session_id = ${sessionId} and s.state = 'active'
+      and i.id = s.current_input_id and i.session_id = s.session_id and i.state = 'sent'
   `;
 }
 
