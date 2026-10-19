@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { Client } from "eve/client";
+import { Client, type MessageStreamEvent } from "eve/client";
 import { getChatMessageLengthError } from "../contracts/chat-message";
 import type { Database, Transaction } from "./database";
 import { withEligibleHost } from "./host-eligibility";
@@ -19,6 +19,13 @@ export const AGENT_VERSION = "phase-1";
 export type ConversationRuntime = {
   createSession(bearer: string): Promise<string>;
   sendMessage(sessionId: string, bearer: string, message: string): Promise<void>;
+  // Reads a session's recorded events with the browser's own Supabase session
+  // cookie, which the agent checks against the session index.
+  readEvents(
+    sessionId: string,
+    cookie: string,
+    options: { readonly startIndex: number; readonly follow: boolean; readonly signal?: AbortSignal },
+  ): AsyncIterable<MessageStreamEvent>;
 };
 
 export function eveRuntime(baseUrl: string): ConversationRuntime {
@@ -30,8 +37,13 @@ export function eveRuntime(baseUrl: string): ConversationRuntime {
       return session.state.sessionId;
     },
     async sendMessage(sessionId, bearer, message) {
-      // Accepted once the POST returns; the browser follows the stream itself.
+      // Accepted once the POST returns; the stream is followed separately.
       await client(bearer).sessions.attach(sessionId).send(message);
+    },
+    readEvents(sessionId, cookie, { follow, signal, startIndex }) {
+      return new Client({ headers: { cookie }, host: baseUrl, redirect: "error" }).sessions
+        .attach(sessionId)
+        .stream({ follow, signal, startIndex });
     },
   };
 }
@@ -206,13 +218,17 @@ export async function deliverInput(
       return false;
     }
 
+    // Exactly one caller moves an input from accepted to sent.
+    const claimed = await tx`
+      update app.conversation_inputs set state = 'sent', session_id = ${session.session_id}, sent_at = clock_timestamp()
+      where id = ${inputId} and state = 'accepted'
+    `;
+
+    if (claimed.count !== 1) return false;
+
     await tx`
       update app.agent_sessions set current_input_id = ${inputId}, updated_at = now()
       where session_id = ${session.session_id}
-    `;
-    await tx`
-      update app.conversation_inputs set state = 'sent', session_id = ${session.session_id}, sent_at = clock_timestamp()
-      where id = ${inputId} and state = 'accepted'
     `;
     return true;
   });
@@ -276,6 +292,13 @@ export async function acceptHostMessage(
     return { inputId: accepted.inputId, status: "recovery_required" };
   }
 
-  const delivered = await deliverInput(deps, authUserId, session, accepted.inputId, accepted.message);
-  return { inputId: accepted.inputId, status: delivered ? "sent" : "recovery_required" };
+  if (await deliverInput(deps, authUserId, session, accepted.inputId, accepted.message)) {
+    return { inputId: accepted.inputId, status: "sent" };
+  }
+
+  // A concurrent exact retry delivered it, or the generation failed meanwhile.
+  const [current] = await deps.db<{ state: string }[]>`
+    select state from app.conversation_inputs where id = ${accepted.inputId}
+  `;
+  return { inputId: accepted.inputId, status: current?.state === "accepted" ? "recovery_required" : "sent" };
 }

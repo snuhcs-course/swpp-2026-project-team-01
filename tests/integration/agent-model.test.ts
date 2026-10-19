@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { streamText } from "ai";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MODEL_LIMITS, sessionIdHash } from "../../lib/server/model-limits";
-import { LOCAL_DATABASE_URL, testDatabase } from "./support/database";
+import { LOCAL_DATABASE_URL, clearServiceWindow, testDatabase } from "./support/database";
 import { type FakeOpenAI, startFakeOpenAI } from "./support/fake-openai";
 
 // The agent's configured model, driven through the real OpenAI provider client
@@ -17,6 +17,7 @@ let resolveCallProviderOptions: ResolveCallProviderOptions;
 
 beforeAll(async () => {
   fake = await startFakeOpenAI();
+  await clearServiceWindow(db);
   process.env.OPENAI_BASE_URL = fake.baseURL;
   process.env.OPENAI_API_KEY = "sk-test-not-a-real-key";
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL ?? LOCAL_DATABASE_URL;

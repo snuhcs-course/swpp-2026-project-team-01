@@ -5,7 +5,7 @@ import { type ChatRouteDependencies, createMessageHandler } from "../../lib/serv
 import { eveRuntime } from "../../lib/server/conversations";
 import { MODEL_LIMITS, sessionIdHash } from "../../lib/server/model-limits";
 import { localAuthConfig, signInHost } from "./support/auth";
-import { testDatabase } from "./support/database";
+import { clearServiceWindow, testDatabase } from "./support/database";
 import { readEvents, waitForTurn } from "./support/eve-calls";
 import { type EveServer, startEve } from "./support/eve-server";
 import { type FakeOpenAI, startFakeOpenAI } from "./support/fake-openai";
@@ -21,6 +21,7 @@ let post: ReturnType<typeof createMessageHandler>;
 
 beforeAll(async () => {
   fake = await startFakeOpenAI();
+  await clearServiceWindow(db);
   server = await startEve("dev", { modelBaseURL: fake.baseURL });
   deps = { auth: localAuthConfig(), db, runtime: eveRuntime(server.url), signingKey: server.signingKey };
   post = createMessageHandler(() => deps);

@@ -49,7 +49,7 @@ Read the [reference repository files for Phase 1](../../../documentations/techni
   - a signed-out session,
   - a fixture-suspended host.
 - [x] 4.4 Add the session index (session ID, its SHA-256 hash, discussion, principal, generation, last stream index, agent version, state, current accepted input) after the baseline merges. Add the application message route that authenticates, checks eligibility, records the accepted input and sends through `eve/client` with the internal bearer, creating the session the same way on first use. A session-owner hook keeps the bookkeeping current. Verify tests that one host cannot read, stream or continue another host's session, that a message sent through the route is attributed to its accepted input, and that sessions do not time out.
-- [ ] 4.5 Keep stored stream events and cursors for reconnect, and add explicit terminal recovery that creates at most one successor and fences the retired generation. Verify tests for:
+- [x] 4.5 Keep stored stream events and cursors for reconnect, and add explicit terminal recovery that creates at most one successor and fences the retired generation. Verify tests for:
   - reconnect with an old cursor,
   - concurrent and repeated recovery,
   - uncertain runtime state refused,

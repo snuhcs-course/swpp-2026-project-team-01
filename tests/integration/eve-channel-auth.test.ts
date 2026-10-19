@@ -4,7 +4,7 @@ import { signInternalBearer } from "../../lib/server/internal-bearer";
 import { sessionIdHash } from "../../lib/server/model-limits";
 import { createRequestAuthClient } from "../../lib/server/supabase-auth";
 import { localAuthConfig, signInHost } from "./support/auth";
-import { testDatabase } from "./support/database";
+import { clearServiceWindow, testDatabase } from "./support/database";
 import {
   createIndexedSession,
   createSession,
@@ -26,6 +26,7 @@ let fake: FakeOpenAI;
 
 beforeAll(async () => {
   fake = await startFakeOpenAI();
+  await clearServiceWindow(db);
 }, 30_000);
 
 afterAll(async () => {

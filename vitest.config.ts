@@ -14,7 +14,10 @@ export default defineConfig({
         test: {
           name: "integration",
           environment: "node",
-          // Some suites drive a real eve server and the local Supabase stack.
+          // Some suites drive a real eve server and the local Supabase stack. eve dev
+          // servers started from one project share its local workflow queue, so
+          // files run one at a time.
+          fileParallelism: false,
           testTimeout: 60_000,
           include: ["tests/integration/**/*.test.ts"],
         },
