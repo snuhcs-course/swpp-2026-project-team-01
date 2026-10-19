@@ -17,6 +17,7 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = process.env.PORT ?? "3100";
 const EVE_PORT = "3101";
 const FAKE_OPENAI_PORT = "3102";
+const FAKE_GOOGLE_PORT = "3103";
 const baseURL = `http://localhost:${PORT}`;
 const live = process.env.E2E_LIVE_MODEL === "1";
 
@@ -45,6 +46,11 @@ const shared = {
   SUPABASE_PUBLISHABLE_KEY: stack.PUBLISHABLE_KEY,
   SUPABASE_SECRET_KEY: "",
   SUPABASE_URL: stack.API_URL,
+  // Google's token endpoint and Calendar API, served by the local stand-in.
+  GOOGLE_CALENDAR_API_URL: `http://127.0.0.1:${FAKE_GOOGLE_PORT}/calendar/v3`,
+  GOOGLE_CLIENT_ID: "e2e-google-client",
+  GOOGLE_CLIENT_SECRET: "e2e-google-secret",
+  GOOGLE_OAUTH_TOKEN_URL: `http://127.0.0.1:${FAKE_GOOGLE_PORT}/token`,
 };
 
 export default defineConfig({
@@ -67,6 +73,12 @@ export default defineConfig({
     },
   ],
   webServer: [
+    {
+      command: "npx tsx tests/e2e/support/fake-google-server.ts",
+      env: { FAKE_GOOGLE_PORT },
+      reuseExistingServer: false,
+      url: `http://127.0.0.1:${FAKE_GOOGLE_PORT}/health`,
+    },
     ...(live
       ? []
       : [

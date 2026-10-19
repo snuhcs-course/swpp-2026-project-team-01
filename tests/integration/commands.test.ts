@@ -27,6 +27,7 @@ import {
   localAuthConfig,
   startFakeTokenInfo,
   startGoogleSignIn,
+  UNBOUNDED_SIGN_UPS,
 } from "./support/auth";
 import { LOCAL_DATABASE_URL, testDatabase } from "./support/database";
 
@@ -316,6 +317,7 @@ describe("verified host actor", () => {
       auth: localAuthConfig(),
       db,
       fetchGrantedScopes: createGrantedScopesFetcher(tokenInfo.url),
+      signUpLimits: UNBOUNDED_SIGN_UPS,
       tokenKey: parseTokenKey(randomBytes(32).toString("base64")),
     };
   });

@@ -111,9 +111,9 @@ Scope. Prerequisite: Phase 1 joined. The three lanes are independent until the f
 
 **Lane C — identity, entry documents and operator control**
 
-- [ ] Handle with reserved list, uniqueness and change limits; sign-up abuse limits.
-- [ ] Public entry documents `/SKILL.md`, `/{handle}/SKILL.md`, `llms.txt`, the in-page agent section, the alternate link and Markdown content negotiation; reserved route names resolved before handles.
-- [ ] Administrator CLI with suspend and restore and the operator authority boundary.
+- [x] Handle with reserved list, uniqueness and change limits; sign-up abuse limits.
+- [x] Public entry documents `/SKILL.md`, `/{handle}/SKILL.md`, `llms.txt`, the in-page agent section, the alternate link and Markdown content negotiation; reserved route names resolved before handles.
+- [x] Administrator CLI with suspend and restore and the operator authority boundary.
 
 **Join**
 
