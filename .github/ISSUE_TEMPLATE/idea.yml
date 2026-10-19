@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        An idea needs no repository change; describe it freely here. When the team decides to build a substantial behavior change, its requirements move to an OpenSpec change in `openspec/changes/`. Link the change here, or the pull request that adds it until that pull request merges, and keep the requirements there, not in both places.
+        An idea needs no repository change; describe it freely here. When the team decides to build a substantial behavior change, its requirements move to an OpenSpec change in `openspec/changes/`. Link the change here, or the pull request that adds it until that pull request merges, and keep the requirements there, not in both places. This issue then becomes the change's tracking issue: put its number in `proposal.md`, and the pull request that archives the change closes it with `Closes #N`.
   - type: textarea
     id: problem
     attributes:

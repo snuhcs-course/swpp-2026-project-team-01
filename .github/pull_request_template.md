@@ -5,7 +5,7 @@ Keep every section. When one does not apply, replace its prompt with one line sa
 
 ## What this does
 
-<!-- The resulting behavior, and the OpenSpec change, implementation-plan phase or issue it belongs to. Write `Closes #123` so the merge closes the issue. -->
+<!-- The resulting behavior, and the OpenSpec change, implementation-plan phase or issue it belongs to. Write `Closes #123` when this pull request finishes the issue. For an OpenSpec change, write `Part of #123` until the pull request that archives the change. -->
 
 ## Why
 

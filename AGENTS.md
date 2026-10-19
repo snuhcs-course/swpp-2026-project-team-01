@@ -77,6 +77,8 @@ Keep the documents complementary rather than duplicating the same requirements:
 
 Use OpenSpec for substantial feature or behavior changes. Routine documentation edits, maintenance, and small fixes that preserve existing behavior do not need a new proposal. Start with a bounded change, review its requirements, implement and test it, then archive it to update the main specs. Do not promote unresolved PRD decisions or draft requirements into settled specifications.
 
+Give each change one tracking issue and link them both ways: the issue names the change, and `proposal.md` names the issue number. Do not open an issue per `tasks.md` item; split off a sub-issue only when part of the change goes to another person or pull request. Pull requests that implement part of a change refer to the issue without a closing keyword, such as `Part of #N`, and the pull request that archives the change, even if it also implements it, closes it with `Closes #N`. Before archiving, update the deltas with what implementation changed. An archived change is a record: change the behavior later with a new change, not by editing the archive.
+
 If product documents and capability specs disagree, resolve the discrepancy explicitly before implementing the affected behavior. Update the owning document and its links instead of silently choosing one interpretation or maintaining conflicting copies.
 
 OpenSpec validation checks artifact structure and specification consistency; it does not prove the implementation works. Run relevant automated tests and review the code before treating a change as complete. Keep `openspec/config.yaml`, specifications, change artifacts, and generated project skills in Git.
