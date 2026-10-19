@@ -1,0 +1,91 @@
+{
+  "branch": "docs/ko-mirror-sync",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:cc1addd5-ed19-4fca-a19b-99b51f075b42": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 10018430,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 73,
+          "cache_read": 11060171,
+          "cache_write_5m": 95336,
+          "cache_write_1h": 101483,
+          "output": 26088,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T23:52:57.078Z",
+      "last": "2026-10-19T04:51:12.185Z"
+    },
+    "claude:cc1addd5-ed19-4fca-a19b-99b51f075b42/agent-a08862400a6e38aea": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 30,
+          "cache_read": 1103808,
+          "cache_write_5m": 292255,
+          "cache_write_1h": 0,
+          "output": 330,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T23:54:42.940Z",
+      "last": "2026-10-19T02:35:29.892Z"
+    },
+    "claude:cc1addd5-ed19-4fca-a19b-99b51f075b42/agent-ad1acaebf6d4eeff8": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 12,
+          "cache_read": 378211,
+          "cache_write_5m": 70128,
+          "cache_write_1h": 0,
+          "output": 755,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T23:54:50.013Z",
+      "last": "2026-10-18T23:55:28.401Z"
+    },
+    "claude:cc1addd5-ed19-4fca-a19b-99b51f075b42/agent-af4b6fb4ae130d238": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 14,
+          "cache_read": 547355,
+          "cache_write_5m": 132163,
+          "cache_write_1h": 0,
+          "output": 773,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-18T23:54:35.257Z",
+      "last": "2026-10-18T23:59:05.738Z"
+    },
+    "codex:01a1526d-9cdc-7ea2-a071-7033ebf93c9f": {
+      "agent": "codex",
+      "client": "Codex Desktop",
+      "agent_ms": 1168281,
+      "models": {
+        "gpt-6-sol": {
+          "input": 57727,
+          "cache_read": 101888,
+          "cache_write_5m": 0,
+          "cache_write_1h": 0,
+          "output": 576,
+          "reasoning": 78
+        }
+      },
+      "first": "2026-10-19T04:50:41.391Z",
+      "last": "2026-10-19T04:50:52.455Z"
+    }
+  }
+}

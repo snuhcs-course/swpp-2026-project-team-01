@@ -8,7 +8,7 @@
 
 ## 상태
 
-**문서와 명세 단계입니다.** 제품 방향, 사용자 경험, 아키텍처, 제공자 설정, 시각 디자인, 기능 명세는 이 저장소에서 합의되었습니다. 애플리케이션 코드는 아직 시작하지 않았습니다. 런타임 스택이 결정되면 범위가 정해진 OpenSpec 변경으로 구현을 시작합니다.
+**문서와 명세 단계입니다.** 제품 방향, 사용자 경험, 아키텍처, 제공자 설정, 시각 디자인, 기능 명세는 이 저장소에서 합의되었습니다. 애플리케이션 코드는 아직 시작하지 않았습니다. 구현은 런타임 스택을 기록하는 [`application-foundation`](openspec/changes/application-foundation/proposal.md) 변경으로 시작합니다.
 
 먼저 [원페이저](documentations/01_one_pager.md)와 [PRD](documentations/02_product_requirements.md)를 읽으십시오. [문서 색인](documentations/README.md)에서 모든 문서를 볼 수 있습니다.
 
@@ -31,7 +31,6 @@
 이 문서들은 반복 1 프로토타입에서 변경 없이 복사되었습니다. 팀이 위 문서들에 맞추어 검토하고 갱신할 수 있도록 두었습니다.
 
 - [이식 가이드](documentations/transplant/en/transplant-guide.md): 프로토타입의 기능 F01–F11, 사용자 여정, 재사용을 위해 분해한 디자인.
-- [iMessage 에이전트 명세](openspec/specs/imessage-agent/spec.md)와 [호스트 iMessage 어시스턴트 변경](openspec/changes/host-imessage-assistant/proposal.md): 프로토타입의 Photon 기반 iMessage 동작. 인터페이스 문서와의 중복은 아직 해결되지 않았습니다.
 - [AI 사용 기록](ai-usage/README.md): 훅 설정은 [에이전트 지침](AGENTS.md#ai-usage-records)을 참고하십시오.
 
 ## 검사
