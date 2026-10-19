@@ -6,7 +6,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(11);
+select plan(13);
 
 select is(
   (select command from cron.job where jobname = 'app-jobs-sweep'),
@@ -78,6 +78,23 @@ update app.jobs set state = 'completed', lease_expires_at = null, lease_owner = 
 where producer_environment = 'production' and state = 'running';
 
 select is(app.sweep_jobs(), false, 'the sweep requests nothing when no production work is due');
+
+-- A failing wake-up never rolls back the change that published the job.
+create or replace function app.request_worker() returns boolean language plpgsql set search_path = '' as $$
+begin
+  raise exception 'vault unavailable';
+end;
+$$;
+
+select lives_ok(
+  $$insert into app.jobs (kind, producer_environment) values ('test.wakeup.best-effort', 'production')$$,
+  'a failing wake-up does not fail the insert'
+);
+select is(
+  (select count(*)::int from app.jobs where kind = 'test.wakeup.best-effort'),
+  1,
+  'the job published despite the failed wake-up is kept'
+);
 
 select * from finish();
 rollback;
