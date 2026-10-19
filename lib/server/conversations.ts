@@ -289,7 +289,7 @@ export async function deliverNext(
   deps: ConversationDependencies,
   hostAccountId: string,
   discussionId: string,
-  options: { readonly fromSessionId?: string; readonly reconciled?: boolean } = {},
+  options: { readonly fromSessionId?: string; readonly reconciled?: boolean; readonly skipInputId?: string } = {},
 ): Promise<string | null> {
   const claim = await withActiveHostAccount(deps.db, hostAccountId, async (tx) => {
     await tx`select id from app.discussions where id = ${discussionId} for update`;
@@ -321,7 +321,7 @@ export async function deliverNext(
 
     const [next] = await tx<{ id: string; message: string }[]>`
       select id, message from app.conversation_inputs
-      where discussion_id = ${discussionId} and state = 'accepted'
+      where discussion_id = ${discussionId} and state = 'accepted' and id::text <> ${options.skipInputId ?? ""}
       order by accepted_at, id
       limit 1
     `;
@@ -373,6 +373,13 @@ export async function deliverNext(
       update app.conversation_inputs set state = 'accepted', session_id = null, sent_at = null, received_session_id = null
       where id = ${input.id} and state = 'sent'
     `;
+
+    // Input another tab queued behind it would otherwise wait for a turn end
+    // that is not coming: it is delivered now, once.
+    if (!options.skipInputId) {
+      await deliverNext(deps, hostAccountId, discussionId, { ...options, skipInputId: input.id }).catch(() => null);
+    }
+
     throw new ConversationInputError("runtime_unavailable", "The assistant is unavailable. Try again.", { cause: error });
   }
 

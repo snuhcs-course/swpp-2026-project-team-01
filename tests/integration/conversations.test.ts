@@ -343,6 +343,35 @@ describe("message route and session index", () => {
     expect(await inputState(retried.inputId)).toBe("completed");
   });
 
+  it("delivers another tab's queued message when a send is refused", async () => {
+    const host = await signInHost(db);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    // Tab one's send is refused only after tab two's message queued behind it.
+    const refusing = createMessageHandler(() => ({
+      ...deps,
+      runtime: {
+        ...deps.runtime,
+        async sendMessage(sessionId, bearer, text) {
+          if (text !== "From tab one.") return deps.runtime.sendMessage(sessionId, bearer, text);
+          await held;
+          throw new ClientError(403, JSON.stringify({ code: "forbidden" }));
+        },
+      },
+    }));
+
+    const one = message(host.cookie, "From tab one.", randomUUID(), refusing);
+    // Tab one's input is in flight.
+    await waitFor(async () => Boolean((await sessionOf(host.hostAccountId).catch(() => null))?.current_input_id));
+    const two = (await (await message(host.cookie, "From tab two.")).json()) as { inputId: string; status: string };
+    expect(two.status).toBe("queued");
+    release();
+
+    expect((await one).status).toBe(503);
+    await waitFor(async () => (await inputState(two.inputId)) === "completed");
+    expect(await inputState(two.inputId)).toBe("completed");
+  });
+
   it("refuses an unauthenticated caller and a suspended host without recording input", async () => {
     expect((await message("", "Hello")).status).toBe(401);
 
