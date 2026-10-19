@@ -7,7 +7,7 @@ import { MODEL_LIMITS, sessionIdHash } from "../../lib/server/model-limits";
 import { localAuthConfig, signInHost } from "./support/auth";
 import { clearServiceWindow, testDatabase } from "./support/database";
 import { readEvents, waitForTurn } from "./support/eve-calls";
-import { type EveServer, startEve } from "./support/eve-server";
+import { buildEve, type EveServer, eveEnvironment, startEve } from "./support/eve-server";
 import { type FakeOpenAI, startFakeOpenAI } from "./support/fake-openai";
 
 // The application message route and session index (task 4.4), against a real
@@ -183,12 +183,14 @@ describe("message route and session index", () => {
   });
 
   it("configures sessions with no lifetime deadline", async () => {
+    // The deployment build's manifest; built here so a fresh checkout has one.
+    await buildEve(eveEnvironment({ modelBaseURL: fake.baseURL, signingKey: "build-time-placeholder" }));
     const manifest = JSON.parse(
-      await readFile(new URL("../../.eve/compile/compiled-agent-manifest.json", import.meta.url), "utf8"),
+      await readFile(new URL("../../.output/.eve/compile/compiled-agent-manifest.json", import.meta.url), "utf8"),
     ) as { config: { limits?: { sessionTimeoutMs?: unknown } } };
 
     expect(manifest.config.limits?.sessionTimeoutMs).toBe(false);
-  });
+  }, 300_000);
 });
 
 describe("agent model in the runtime", () => {
