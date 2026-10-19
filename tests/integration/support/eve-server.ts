@@ -21,6 +21,19 @@ export type EveServer = {
 };
 
 const root = new URL("../../../", import.meta.url).pathname;
+
+// eve runs in its own process group (so stop() can end its children too); if the
+// test process exits without stopping it, the group is killed on the way out.
+const running = new Set<ChildProcess>();
+process.once("exit", () => {
+  for (const child of running) {
+    try {
+      process.kill(-child.pid!, "SIGKILL");
+    } catch {
+      // Already gone.
+    }
+  }
+});
 const run = promisify(execFile);
 
 async function freePort() {
@@ -95,6 +108,8 @@ export async function startEve(
       ? ["eve", "dev", "--no-ui", "--host", "127.0.0.1", "--port", String(port)]
       : ["eve", "start", "--host", "127.0.0.1", "--port", String(port)];
   const child = spawn("npx", args, { cwd: root, detached: true, env, stdio: ["ignore", "pipe", "pipe"] });
+  running.add(child);
+  child.once("exit", () => running.delete(child));
   let log = "";
   child.stdout?.on("data", (chunk) => (log += chunk));
   child.stderr?.on("data", (chunk) => (log += chunk));

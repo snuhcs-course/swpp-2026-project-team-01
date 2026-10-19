@@ -40,14 +40,19 @@ describe("durable jobs", () => {
   it("publishes nothing when the domain transaction rolls back", async () => {
     const jobKind = kind();
 
+    let domainId: string | undefined;
+
     await expect(
       db.begin(async (tx) => {
+        const [row] = await tx<{ id: string }[]>`insert into app.host_accounts default values returning id`;
+        domainId = row!.id;
         await publishJob(tx, { kind: jobKind }, "local");
         throw new Error("domain change failed");
       }),
     ).rejects.toThrow("domain change failed");
 
     expect(await jobRows(jobKind)).toEqual([]);
+    expect(await db`select 1 from app.host_accounts where id = ${domainId!}`).toHaveLength(0);
   });
 
   it("records the producer environment and claims only jobs from the requested one", async () => {

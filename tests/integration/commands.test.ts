@@ -18,6 +18,7 @@ import {
   type GoogleSignInDependencies,
 } from "../../lib/server/google-sign-in";
 import { createGrantedScopesFetcher } from "../../lib/server/google-token-info";
+import { publishJob } from "../../lib/server/jobs";
 import { parseTokenKey } from "../../lib/server/token-encryption";
 import {
   completeGoogleLeg,
@@ -74,6 +75,28 @@ describe("command pipeline", () => {
     expect(first).toMatchObject({ ok: true, replayed: false, result: { revision: 2, title: "Weekly sync" } });
     expect(retry).toMatchObject({ ok: true, replayed: true, result: { revision: 2, title: "Weekly sync" } });
     expect(runs).toEqual(["Weekly sync"]);
+  });
+
+  it("publishes a command's job once, not again on an identical retry", async () => {
+    const actor = hostActor();
+    const jobKind = `test.${randomUUID()}`;
+    const command: CommandDefinition<{ title: string }, { jobId: string | null }> = {
+      input: z.strictObject({ title: z.string() }),
+      operation: "probe.publish",
+      run: async (tx, context) => ({
+        jobId: await publishJob(tx, { kind: jobKind, payload: { title: context.input.title } }, "local"),
+      }),
+    };
+    const deps = { authenticate: async () => actor, db };
+    const request = { input: { title: "Weekly sync" }, resourceId: "r1", retryKey: randomUUID() };
+
+    const first = await runCommand(deps, command, request);
+    const retry = await runCommand(deps, command, request);
+
+    expect(retry).toMatchObject({ ok: true, replayed: true });
+    expect(retry.ok && first.ok && retry.result.jobId).toBe(first.ok && first.result.jobId);
+    const [jobs] = await db<{ count: number }[]>`select count(*)::int as count from app.jobs where kind = ${jobKind}`;
+    expect(jobs!.count).toBe(1);
   });
 
   it("rejects a retry key reused with changed input, operation or resource without changing state", async () => {

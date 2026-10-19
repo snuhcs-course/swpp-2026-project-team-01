@@ -360,14 +360,23 @@ describe("message route and session index", () => {
     expect(count!.count).toBe(0);
   });
 
-  it("configures sessions with no lifetime deadline", async () => {
+  it("configures sessions with no lifetime deadline and no tools", async () => {
     // The deployment build's manifest; built here so a fresh checkout has one.
     await buildEve(eveEnvironment({ modelBaseURL: fake.baseURL, signingKey: "build-time-placeholder" }));
     const manifest = JSON.parse(
       await readFile(new URL("../../.output/.eve/compile/compiled-agent-manifest.json", import.meta.url), "utf8"),
-    ) as { config: { limits?: { sessionTimeoutMs?: unknown } } };
+    ) as Record<string, unknown> & {
+      config: { defaultTools?: unknown; limits?: { sessionTimeoutMs?: unknown }; tool?: unknown };
+    };
 
     expect(manifest.config.limits?.sessionTimeoutMs).toBe(false);
+    // Task 4.2: nothing the model could call, authored, built in or connected.
+    expect(manifest.config).toMatchObject({ defaultTools: false, tool: false });
+    const capabilities = ["tools", "dynamicTools", "connections", "dynamicConnections", "subagents", "remoteAgents"];
+
+    for (const key of [...capabilities, "extensionMounts", "skills"]) {
+      expect(manifest[key], key).toEqual([]);
+    }
   }, 300_000);
 });
 
