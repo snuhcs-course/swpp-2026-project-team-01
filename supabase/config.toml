@@ -58,8 +58,8 @@ max_client_conn = 100
 # secret_key = "env(SECRET_VALUE)"
 
 [db.migrations]
-# No application migration chain remains. Re-enable only after baseline review.
-enabled = false
+# Apply the reviewed chain in supabase/migrations/ on `supabase db reset`.
+enabled = true
 # pg-delta orders declarative dependencies; do not configure schema_paths.
 
 [db.seed]
