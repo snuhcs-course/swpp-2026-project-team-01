@@ -98,15 +98,15 @@ Scope. Prerequisite: Phase 1 joined. The three lanes are independent until the f
 
 **Lane A — setup conversation and cards**
 
-- [ ] Setup session tools `read_setup_state` and `draft_settings`; the `host-setup.md` instruction fragment on top of Phase 1's minimal `base.md`; authored onboarding messages revealed one at a time.
-- [ ] Suggestion cards for timezone, weekly windows including overnight windows, weekly meeting limit, note-like exclusions, duration and buffers, each labeled stated, inferred or starter default, with **Use this**, **Adjust** and **Choose my own**.
-- [ ] Explicit mode, location and transport question cards; online-only skips venue and transport.
-- [ ] Final review card and **Confirm and save proposed settings** with the transactional readiness recheck; readiness-derived public profile; share-links card.
+- [x] Setup session tools `read_setup_state` and `draft_settings`; the `host-setup.md` instruction fragment on top of Phase 1's minimal `base.md`; authored onboarding messages revealed one at a time.
+- [x] Suggestion cards for timezone, weekly windows including overnight windows, weekly meeting limit, note-like exclusions, duration and buffers, each labeled stated, inferred or starter default, with **Use this**, **Adjust** and **Choose my own**.
+- [x] Explicit mode, location and transport question cards; online-only skips venue and transport.
+- [x] Final review card and **Confirm and save proposed settings** with the transactional readiness recheck; readiness-derived public profile; share-links card.
 
 **Lane B — Google Calendar and analysis**
 
-- [ ] Calendar roles card from actual calendars with reasons; writable booking destination check; **Connect Google Calendar** when scopes were declined; **Manage Google connection**.
-- [ ] Automatic first scan of saved conflict calendars over the past and next four weeks as a durable job; the four analysis dimensions with sample sizes; **Analyze again**.
+- [x] Calendar roles card from actual calendars with reasons; writable booking destination check; **Connect Google Calendar** when scopes were declined; **Manage Google connection**.
+- [x] Automatic first scan of saved conflict calendars over the past and next four weeks as a durable job; the four analysis dimensions with sample sizes; **Analyze again**.
 - [x] 24-hour evidence cleanup by scheduled maintenance that preserves adopted values.
 
 **Lane C — identity, entry documents and operator control**

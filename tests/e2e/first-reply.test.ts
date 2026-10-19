@@ -58,9 +58,10 @@ test("a new host signs in, lands on /app with an empty setup session and gets Th
   await composer.fill("Hi Thyme. In one short sentence, what can you help me with?");
   await composer.press("Enter");
 
+  // Thyme's streamed reply, not the authored onboarding messages that open /app.
   const reply = page
     .getByRole("log", { name: "Messages" })
-    .getByRole("article")
+    .locator("article:not([data-authored-message])")
     .filter({ has: page.getByText("Thyme", { exact: true }) });
   if (live) {
     await expect(reply).toHaveCount(1, { timeout: 120_000 });
