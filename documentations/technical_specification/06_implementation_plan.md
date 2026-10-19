@@ -57,7 +57,7 @@ Scope. Prerequisite for every lane: the skeleton below, done by one person in th
 
 **Skeleton (serial, first)**
 
-- [ ] Copy the eve chat template at the reviewed revision; create `apps/web/`, `agent/`, `lib/contracts/`, `lib/server/`, `tests/`; switch to npm; pin dependencies; add build, lint, typecheck and test commands and wire them into the Check workflow.
+- [x] Copy the eve chat template at the reviewed revision; create `apps/web/`, `agent/`, `lib/contracts/`, `lib/server/`, `tests/`; switch to npm; pin dependencies; add build, lint, typecheck and test commands and wire them into the Check workflow.
 
 **Lane A — web and runtime** (needs Lane B's host account to authorize real sessions; develop against a stub principal until then)
 

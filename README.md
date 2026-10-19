@@ -6,7 +6,7 @@ Domain: [findmeatime.com](https://findmeatime.com) · SNU SWPP Project Team 01
 
 ## Status
 
-**Documentation and specification phase.** The product direction, user experience, architecture, provider setup, visual design and capability specifications are agreed in this repository. Application code has not been started; implementation begins with the [`application-foundation`](openspec/changes/application-foundation/proposal.md) change, which records the runtime stack.
+**Foundation in progress.** The product direction, user experience, architecture, provider setup, visual design and capability specifications are agreed in this repository. Implementation has started with the [`application-foundation`](openspec/changes/application-foundation/proposal.md) change, which records the runtime stack; the application skeleton builds and passes its checks.
 
 Read the [one-pager](documentations/01_one_pager.md) and the [PRD](documentations/02_product_requirements.md). The [documentation index](documentations/README.md) lists every document.
 
@@ -16,6 +16,10 @@ Shared Supabase project: **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, `us-east-2
 
 | Path | Contents |
 |---|---|
+| `agent/` | eve agent definition, instructions and channels |
+| `apps/web/` | Next.js web app: public entry at `/`, conversation at `/app` |
+| `lib/` | Contracts and server code shared by the agent and the web app |
+| `tests/` | Integration and browser tests; unit tests live beside their modules |
 | `documentations/` | Product direction, UX, architecture and provider setup |
 | `DESIGN.md` | Thyme visual direction and brand assets |
 | `openspec/specs/` | Agreed capability behavior; the contract the implementation must satisfy |
@@ -40,4 +44,13 @@ npm run check:docs
 openspec validate --all --strict
 ```
 
-Application build and test commands arrive with the first implementation change. Supabase CLI **2.119.0** is the team version; schema generation, database reset and deployment follow [agent guidance](AGENTS.md#supabase-schema-changes).
+Install the application with `npm ci`, then run the checks CI runs:
+
+```sh
+npm run build
+npm run lint
+npm run typecheck
+npm test
+```
+
+`npm run test:integration` runs the integration tests, and `npm run test:e2e` runs the Playwright browser tests (install a browser once with `npx playwright install chromium`). Supabase CLI **2.119.0** is the team version; schema generation, database reset and deployment follow [agent guidance](AGENTS.md#supabase-schema-changes).

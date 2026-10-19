@@ -12,7 +12,7 @@ Read the [reference repository files for Phase 1](../../../documentations/techni
 - [x] 1.4 Remove Better Auth, password auth, Drizzle and Neon, Upstash, the browser-local store, sidebar, integrations menu, connections, Slack channel, memory profile, sample tool and skill, analytics, `vercelOidc()`, the chat home at `/` and `/chat/[id]`; verify `rg -i "better-auth|drizzle|neon|upstash|@vercel/connect|password-auth|vercelOidc" agent apps package.json` finds nothing and the build still passes.
 - [x] 1.5 Create `lib/contracts/`, `lib/server/`, `tests/integration/`, `tests/e2e/`, `supabase/tests/`; add `build`, `lint` (`oxlint agent apps lib tests`), `typecheck`, `test`, `test:integration`, `test:e2e` scripts and an `oxlint` configuration; verify each script runs successfully on the skeleton.
 - [x] 1.6 Extend `.github/workflows/check.yml` with install, build, lint, typecheck and unit tests on Node.js 24; verify the workflow passes on the pull request.
-- [ ] 1.7 Replace the `apps/` placeholder in agent guidance and the README checks with the real commands; verify `npm run check:docs` passes and a teammate can follow the commands on a fresh clone.
+- [x] 1.7 Replace the `apps/` placeholder in agent guidance and the README checks with the real commands; verify `npm run check:docs` passes and a teammate can follow the commands on a fresh clone.
 
 ## 2. Data and identity (Lane B; 2.1–2.3 merge first)
 

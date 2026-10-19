@@ -4,19 +4,33 @@ This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, r
 
 ## Project status
 
-The repository is in its documentation and specification phase. Product, UX, architecture and provider documents and the OpenSpec capability specifications are agreed; application code, SQL, tests and build tooling do not exist yet. Do not scaffold or implement until the team opens a bounded OpenSpec change for the first change, after the runtime stack decision is recorded.
+Implementation has started with the [`application-foundation`](openspec/changes/application-foundation/proposal.md) change, whose [design](openspec/changes/application-foundation/design.md) records the runtime stack. The application skeleton (eve agent, Next.js web app, shared libraries and test layers) builds and passes its checks; product features, SQL and the Supabase schema arrive with that change's later tasks. Implement only within an open OpenSpec change.
 
 The shared Supabase project is `anelszynxtvxoxqvzgqt`; its application schema is empty (verified 2026-10-19). Before the first schema change, review namespace and default privileges and apply RLS as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
 
 ## Repository layout
 
-- `apps/`: application code. Add app-specific setup and test instructions when an app is created.
+- `agent/`: the eve agent definition, instructions and channels. `agent/channels/eve.ts` authorizes every `/eve/v1` route through application code.
+- `apps/web/`: the Next.js web app; `/` is the public entry and `/app` hosts the conversation.
+- `lib/contracts/` and `lib/server/`: browser-safe contracts and server-only code shared by the agent and the web app.
+- `tests/integration/` and `tests/e2e/`: Vitest integration tests and Playwright browser tests. Unit tests live beside their modules.
 - `documentations/`: product direction, release scope, research, and explanatory documentation, starting with `01_one_pager.md`.
 - `openspec/specs/`: main capability specifications, with detailed behavior in `<capability>/spec.md`.
 - `openspec/changes/`: proposed behavior changes and archived implementation records.
 - `supabase/`: local Supabase configuration and future database migrations.
 
 ## Tooling prerequisites
+
+Use Node.js 24 and npm. Install with `npm ci`, then run the checks CI runs:
+
+```sh
+npm run build        # eve build, then next build for apps/web
+npm run lint         # oxlint agent apps lib tests
+npm run typecheck
+npm test             # Vitest unit tests
+```
+
+`npm run test:integration` runs Vitest integration tests, and `npm run test:e2e` runs Playwright against a `next dev` server (install a browser once with `npx playwright install chromium`). For local development, run `npm run dev:eve` and `npm run dev:web` with `.env` filled from `.env.example`.
 
 Assume the GitHub CLI (`gh`), Vercel CLI (`vercel`), and Supabase CLI (`supabase`) are installed and available on `PATH`.
 
