@@ -24,7 +24,7 @@ Only an authorized operator, using separate operator authority, SHALL suspend or
 - **THEN** the command names exactly one target environment, requires explicit confirmation, and records the operator, action, host, reason, environment and time with the status change
 
 ### Requirement: Sign-up and handle abuse limits
-The service SHALL bound host sign-up attempts and handle changes per account and per source, and SHALL reject reserved handles. A sign-up is the creation of a host account for a Google identity that has none. At most 3 sign-ups per source address and 100 sign-ups service-wide SHALL be accepted in any rolling 24 hours. After a host's first handle assignment, at most 2 further handle assignments SHALL be accepted in any rolling 30 days.
+The service SHALL bound host sign-up attempts and handle changes per account and per source, and SHALL reject reserved handles. A sign-up attempt is a completed Google sign-in that would create a host account for an identity that has none. At most 3 such accounts per source address and 100 service-wide SHALL be created in any rolling 24 hours. After a host's first handle assignment, at most 2 further handle assignments SHALL be accepted in any rolling 30 days.
 
 #### Scenario: Excessive sign-up attempts
 - **WHEN** sign-up attempts from one source exceed the bound
@@ -49,11 +49,15 @@ The service SHALL bound host sign-up attempts and handle changes per account and
 ## ADDED Requirements
 
 ### Requirement: Handle format and reserved names
-A handle SHALL be 3 to 30 characters of lowercase letters, digits and single hyphens, SHALL start with a letter and SHALL NOT end with a hyphen. Handles SHALL be compared case-insensitively. Every route name the application serves at the top level, and the operational, product and impersonation names in the change design, SHALL be reserved. Reserved names SHALL be resolved as routes before any handle lookup.
+A handle SHALL be 3 to 30 characters of lowercase letters, digits and single hyphens, SHALL start with a letter and SHALL NOT end with a hyphen. A proposed handle and a requested path SHALL be lower-cased before validation and lookup. Reserved names SHALL be rejected as handles and SHALL be resolved as routes before any handle lookup.
 
 #### Scenario: Invalid format
-- **WHEN** a host proposes a handle with uppercase letters, a dot, a leading digit, a double hyphen or a trailing hyphen
+- **WHEN** a host proposes a handle with a dot, a leading digit, a double hyphen, a trailing hyphen or fewer than 3 characters
 - **THEN** the handle is rejected with the format rule and nothing is assigned
+
+#### Scenario: Mixed case
+- **WHEN** a host proposes `Alice` or a visitor opens `/Alice`
+- **THEN** the handle is treated as `alice`
 
 #### Scenario: Route name requested as a handle
 - **WHEN** a host proposes `app`, `booking`, `auth`, `connect`, `connections`, `api` or `eve`
@@ -62,3 +66,10 @@ A handle SHALL be 3 to 30 characters of lowercase letters, digits and single hyp
 #### Scenario: Released handle
 - **WHEN** a host changes away from a handle and another host later proposes it
 - **THEN** the proposal is rejected and the old handle returns the neutral unavailable result instead of resolving to anyone
+
+### Requirement: Reserved handle list
+The reserved handles SHALL be: about, account, accounts, admin, administrator, api, app, apple-icon, assets, auth, billing, blog, booking, bookings, cli, connect, connections, contact, dashboard, docs, email, eve, favicon, find-me-a-time, findmeatime, health, help, home, icon, inbox, internal, jobs, legal, llms, login, logout, mail, mcp, me, new, null, oauth, operator, pricing, privacy, public, robots, root, security, settings, sign-in, sign-out, sign-up, signin, signout, signup, sitemap, skill, static, status, support, system, team, terms, thyme, undefined, webhooks, well-known and www. A new top-level route SHALL be added to the list before it ships.
+
+#### Scenario: Impersonation name
+- **WHEN** a host proposes `support` or `findmeatime`
+- **THEN** setup rejects the handle as reserved without assigning it

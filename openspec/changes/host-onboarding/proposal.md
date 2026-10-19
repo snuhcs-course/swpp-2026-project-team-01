@@ -46,9 +46,9 @@ This change also closes scenarios that the main specs already state, without cha
 
 | Specification | Closed in this change | Still deferred, and where |
 |---|---|---|
-| [`host-admission`](../../specs/host-admission/spec.md) | Operator suspension and restoration; abuse limits; readiness guard; stable public identity; "Sign-in without setup" with a real readiness check | "Account-free requester" in Phase 3, when intake exists |
+| [`host-admission`](../../specs/host-admission/spec.md) | Operator suspension and restoration; abuse limits; readiness guard through the web workspace and direct API calls; stable public identity; "Sign-in without setup" with a real readiness check | "Direct bypass" through MCP and the CLI in Phase 5, when those interfaces exist; "Account-free requester" in Phase 3, when intake exists |
 | [`calendar-analysis-retention`](../../specs/calendar-analysis-retention/spec.md) | All requirements and scenarios | None |
-| [`public-agent-entry`](../../specs/public-agent-entry/spec.md) | All requirements; host document and requester document for a ready host | Requester continuation beyond the web page (MCP, CLI) in Phase 5 |
+| [`public-agent-entry`](../../specs/public-agent-entry/spec.md) | All requirements for the host document; the requester document's readiness checks, public-field allowlist, quoted display text and neutral unavailable result | "Available target" links to `/{handle}`, whose intake opens in Phase 3; requester continuation through MCP and the CLI in Phase 5 |
 | [`meeting-feasibility`](../../specs/meeting-feasibility/spec.md) | "Invalid equal clocks" and "Review next-day hours" for drafts and review | Candidate evaluation over overnight windows, daylight-saving boundaries and the weekly limit in Phase 3 |
 | [`chat-workspaces`](../../specs/chat-workspaces/spec.md) | The Connect Google Calendar offer in "Google-only MVP host login"; "Calendar scopes unchecked at sign-in"; "Return from calendar consent"; "Resume host setup" with server-derived progress; "Stale artifact" for setup review | Inbox, discussion switch and request artifacts in Phases 3 and 4 |
 | [`conversation-access`](../../specs/conversation-access/spec.md) | "Tool result lost after commit" and "Committed tool result before failure" | Separate discussion audiences in Phases 3 and 4 |
