@@ -1,8 +1,10 @@
+import { parseCookieHeader } from "@supabase/ssr";
 import { Client, type MessageStreamEvent } from "eve/client";
 import { z } from "zod";
 import { getChatMessageLengthError } from "../contracts/chat-message";
 import { type Actor, CommandError, type CommandDefinition, runCommand } from "./commands";
 import type { Database, Transaction } from "./database";
+import { deploymentEnvironment } from "./deployment";
 import { lockHostStanding, withEligibleHost } from "./host-eligibility";
 import { messageFingerprint, signInternalBearer } from "./internal-bearer";
 import { sessionIdHash } from "./model-limits";
@@ -42,21 +44,38 @@ export function eveRuntime(baseUrl: string): ConversationRuntime {
       await client(bearer).sessions.attach(sessionId).send(message);
     },
     readEvents(sessionId, cookie, { follow, signal, startIndex }) {
-      return new Client({ headers: { cookie }, host: baseUrl, redirect: "error" }).sessions
+      return new Client({ headers: { cookie: supabaseSessionCookie(cookie) }, host: baseUrl, redirect: "error" }).sessions
         .attach(sessionId)
         .stream({ follow, signal, startIndex });
     },
   };
 }
 
-export function agentUrlFromEnvironment() {
-  const url = process.env.EVE_AGENT_URL || process.env.APP_ORIGIN;
+// Only the Supabase session cookie (and its chunks) reaches the agent: it needs
+// the access token, and nothing else the browser holds.
+export function supabaseSessionCookie(cookie: string) {
+  return parseCookieHeader(cookie)
+    .filter(({ name }) => /^sb-.+-auth-token(\.\d+)?$/.test(name))
+    .map(({ name, value }) => `${name}=${value ?? ""}`)
+    .join("; ");
+}
+
+// Production reaches the agent only over HTTPS, since requests carry the
+// browser's session cookie and internal bearers.
+export function agentUrlFromEnvironment(env: Readonly<Record<string, string | undefined>> = process.env) {
+  const url = env.EVE_AGENT_URL || env.APP_ORIGIN;
 
   if (!url) {
     throw new Error("EVE_AGENT_URL or APP_ORIGIN must be set.");
   }
 
-  return new URL(url).origin;
+  const parsed = new URL(url);
+
+  if (deploymentEnvironment(env) === "production" && parsed.protocol !== "https:") {
+    throw new Error("The agent URL must be https in production.");
+  }
+
+  return parsed.origin;
 }
 
 export type ConversationDependencies = {
