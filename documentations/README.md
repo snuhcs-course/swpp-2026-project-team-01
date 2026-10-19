@@ -23,6 +23,7 @@ Read product purpose and requirements, then UX and architecture. Detailed agreed
 | [Agent configuration](technical_specification/04_agent_configuration.md) | How the eve agent is defined on disk: instructions, tools, skills, connections, channels, memory and model |
 | [CLI direction](technical_specification/05_cli.md) | Separate user/admin clients; executable commands pending |
 | [Implementation plan](technical_specification/06_implementation_plan.md) | Proposed sequence of bounded OpenSpec changes, decision deadlines and acceptance evidence per phase |
+| [Acceptance record](technical_specification/07_acceptance_record.md) | Evidence each phase produced, with command, date, revision and environment, and its known gaps |
 | [Competitor research](business/competitor_research.md) | Dated research context; no product compatibility claim |
 | [Transplant guide](transplant/en/transplant-guide.md) | Iteration 1 prototype features F01–F11, journeys and design decomposed for reuse; copied from `dev` for review, not yet reconciled |
 
