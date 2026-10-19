@@ -4,7 +4,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        One task should fit one branch and one pull request. A substantial behavior change needs an OpenSpec change in `openspec/changes/`; link it here instead of restating its requirements.
+        One task should fit one branch and one pull request. A small fix that keeps existing behavior needs only this task. A substantial behavior change needs an OpenSpec change in `openspec/changes/`; link the change, or the pull request that adds it, instead of restating its requirements.
   - type: dropdown
     id: type
     attributes:

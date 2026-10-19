@@ -1,0 +1,39 @@
+name: Feature idea
+description: Record an idea before the team decides whether to build it.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An idea needs no repository change; describe it freely here. When the team decides to build a substantial behavior change, its requirements move to an OpenSpec change in `openspec/changes/`. Link the change here, or the pull request that adds it until that pull request merges, and keep the requirements there, not in both places.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who has the problem, and what happens today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea
+      description: A rough description of what could change. Detailed requirements belong in the OpenSpec change.
+    validations:
+      required: true
+  - type: dropdown
+    id: beneficiaries
+    attributes:
+      label: Who benefits
+      multiple: true
+      options:
+        - Host
+        - Requester
+        - Operator (administrator CLI)
+        - Team (development workflow)
+    validations:
+      required: true
+  - type: input
+    id: related
+    attributes:
+      label: Related documents or issues
+      description: A PRD section, specification, OpenSpec change or issue this builds on, if any.
