@@ -113,7 +113,7 @@ The model instance passed to `defineAgent` is wrapped with the AI SDK's `wrapLan
 
 A denial throws a typed error. eve may retry the step, but every retry hits the same denial, so no provider call is made.
 
-**Attribution.** The wrapper attributes each call without trusting anything the model sends. eve sets the OpenAI prompt cache key to the SHA-256 hash of the session ID. The wrapper looks that hash up in the application session index to find the session, principal, generation and current accepted input. A call with no key, an unknown hash, a retired generation or no current accepted input is denied before any provider request. Ranking calls arrive in Phase 3 as application jobs outside eve. They call the wrapper directly with their work item, which selects the 2,048-token cap and the two-attempt limit.
+**Attribution.** The wrapper attributes each call without trusting anything the model sends. eve sets the OpenAI prompt cache key to the SHA-256 hash of the session ID, encoded as base64url. The wrapper looks that hash up in the application session index to find the session, principal, generation and current accepted input. A call with no key, an unknown hash, a retired generation or no current accepted input is denied before any provider request. Ranking calls arrive in Phase 3 as application jobs outside eve. They call the wrapper directly with their work item, which selects the 2,048-token cap and the two-attempt limit.
 
 The wrapper keeps the wrapped model's provider and model ID, so eve's OpenAI-specific safety identifier and prompt cache key still apply. A test proves this.
 
