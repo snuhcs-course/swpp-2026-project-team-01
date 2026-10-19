@@ -79,12 +79,12 @@ All versions are exact. A version is updated deliberately in its own pull reques
 
 | Group | Packages |
 |---|---|
-| Kept from the template | `react` and `react-dom` 19.2.8, `zod` 4.4.3, `tailwindcss` and `@tailwindcss/postcss` 4.3.3, `radix-ui` 1.6.7, `class-variance-authority` 0.7.1, `clsx` 2.1.1, `tailwind-merge` 3.6.0, `cmdk` 1.1.1, `lucide-react` 1.33.0, `streamdown` 2.5.0 with `@streamdown/{cjk 1.0.3, code 1.1.1, math 1.0.2, mermaid 1.0.2}`, `shiki` and `@shikijs/{core,engine-javascript,engine-oniguruma}` 4.3.1, `use-stick-to-bottom` 1.1.6; dev `typescript` 7.0.2, `@typescript/native-preview` 7.0.0-dev.20260707.2, `@types/react` 19.2.18, `@types/react-dom` 19.2.4 |
-| Changed | `next` 16.3.8, `eve` 0.80.1, `ai` 7.0.143; dev `@types/node` 24.19.2 to match the Node.js 24 runtime |
+| Kept from the template | `react` and `react-dom` 19.2.8, `zod` 4.4.3, `tailwindcss` and `@tailwindcss/postcss` 4.3.3, `radix-ui` 1.6.7, `class-variance-authority` 0.7.1, `clsx` 2.1.1, `tailwind-merge` 3.6.0, `cmdk` 1.1.1, `lucide-react` 1.33.0, `@streamdown/{cjk 1.0.3, code 1.1.1, math 1.0.2, mermaid 1.0.2}`, `shiki` and `@shikijs/{core,engine-javascript,engine-oniguruma}` 4.3.1, `use-stick-to-bottom` 1.1.6; dev `typescript` 7.0.2, `@typescript/native-preview` 7.0.0-dev.20260707.2, `@types/react` 19.2.18, `@types/react-dom` 19.2.4 |
+| Changed | `next` 16.3.8, `streamdown` 2.7.0, `eve` 0.80.1, `ai` 7.0.143; dev `@types/node` 24.19.2 to match the Node.js 24 runtime |
 | Added | `@supabase/supabase-js` 2.118.0, `@supabase/ssr` 0.12.7, `postgres` 3.4.9; dev `vitest` 5.0.5, `@playwright/test` 1.64.1, `oxlint` 1.88.0, the linter the eve memory agent template uses, and `tsx` 4.23.15, which runs `npm run jobs:dev` against the TypeScript worker modules |
 | Removed | `better-auth`, `drizzle-orm`, `drizzle-kit`, `@neondatabase/serverless`, `@upstash/redis`, `@vercel/connect`, `@vercel/analytics`, `@vercel/speed-insights`, `microsandbox` |
 
-`next` moves from the template's 16.3.4 to 16.3.8, the lowest release outside the critical advisories GHSA-vcvr-r3jv-pc5j, GHSA-mcj8-r9mp-w47p, GHSA-3w37-wq28-93x7 and GHSA-cjq9-62q9-8jv4; eve 0.80.1 does not constrain it. The template's lockfile is not copied. `package-lock.json` is generated from these pins and committed.
+`next` moves from the template's 16.3.4 to 16.3.8, the lowest release outside the critical advisories GHSA-vcvr-r3jv-pc5j, GHSA-mcj8-r9mp-w47p, GHSA-3w37-wq28-93x7 and GHSA-cjq9-62q9-8jv4; eve 0.80.1 does not constrain it. `streamdown` moves from 2.5.0 to 2.7.0, which no longer depends on `mermaid` itself (an advisory path), with the same plugin API. The template's lockfile is not copied. `package-lock.json` is generated from these pins and committed.
 
 ### 5. Model route and model
 
