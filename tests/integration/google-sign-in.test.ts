@@ -63,6 +63,22 @@ async function signedInFlow() {
 }
 
 describe("Google sign-in", () => {
+  it("writes HttpOnly, SameSite=Lax session cookies on path /, Secure when the app is https", async () => {
+    const { code, flow } = await signedInFlow();
+    const secure = createGoogleCallbackHandler(() => ({ ...deps, auth: { ...deps.auth, secureCookies: true } }));
+    const response = await secure(new Request(`${origin}/auth/callback?code=${code}`, { headers: { cookie: flow.cookie } }));
+    const cookies = [...flow.response.headers.getSetCookie(), ...sessionCookies(response)];
+
+    expect(sessionCookies(response).length).toBeGreaterThan(0);
+    for (const cookie of cookies) {
+      expect(cookie).toMatch(/; HttpOnly/i);
+      expect(cookie).toMatch(/; SameSite=Lax/i);
+      expect(cookie).toMatch(/; Path=\//i);
+    }
+    for (const cookie of sessionCookies(response)) expect(cookie).toMatch(/; Secure/i);
+    for (const cookie of flow.response.headers.getSetCookie()) expect(cookie).not.toMatch(/; Secure/i);
+  });
+
   it("asks Google once for identity and the Calendar scopes with PKCE and offline access", async () => {
     const { flow } = await signedInFlow();
 

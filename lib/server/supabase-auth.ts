@@ -15,6 +15,8 @@ import { createClient } from "@supabase/supabase-js";
 export type SupabaseAuthConfig = {
   readonly publishableKey: string;
   readonly url: string;
+  // Marks the session cookies Secure; true when APP_ORIGIN is https.
+  readonly secureCookies?: boolean;
 };
 
 type PendingCookie = { name: string; options: CookieOptions; value: string };
@@ -27,12 +29,19 @@ export function supabaseAuthConfigFromEnvironment(): SupabaseAuthConfig {
     throw new Error("SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set.");
   }
 
-  return { publishableKey, url };
+  return { publishableKey, secureCookies: process.env.APP_ORIGIN?.startsWith("https:") ?? false, url };
+}
+
+// The session cookies are never readable by page scripts and are sent only
+// same-site (and top-level navigations), over HTTPS when the app is.
+export function authCookieOptions(config: SupabaseAuthConfig): CookieOptions {
+  return { httpOnly: true, path: "/", sameSite: "lax", secure: config.secureCookies ?? false };
 }
 
 export function createRequestAuthClient(request: Request, config: SupabaseAuthConfig) {
   const pending: PendingCookie[] = [];
   const client = createServerClient(config.url, config.publishableKey, {
+    cookieOptions: authCookieOptions(config),
     cookies: {
       getAll: () =>
         parseCookieHeader(request.headers.get("cookie") ?? "").map(({ name, value }) => ({

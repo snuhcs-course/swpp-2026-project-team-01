@@ -124,3 +124,28 @@ test("saved history stays readable after the model allowance is exhausted", asyn
   await expect(log.getByText("And Thursdays?")).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Message Thyme" })).toBeEnabled();
 });
+
+test("the workspace runs under the security headers with no policy violation", async ({ baseURL, context, page }) => {
+  const violations: string[] = [];
+  page.on("console", (message) => {
+    if (/Content Security Policy|Refused to/i.test(message.text())) violations.push(message.text());
+  });
+  await page.addInitScript(() => {
+    document.addEventListener("securitypolicyviolation", (event) => {
+      console.error(`Refused to load: ${event.violatedDirective} ${event.blockedURI}`);
+    });
+  });
+  await signedInHost(context, baseURL!);
+  const response = (await page.goto("/app"))!;
+  const headers = response.headers();
+
+  expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+  expect(headers["content-security-policy"]).toContain("default-src 'self'");
+  expect(headers["strict-transport-security"]).toContain("max-age=");
+  expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+  expect(headers["x-content-type-options"]).toBe("nosniff");
+
+  await sendMessage(page, "Find me a time next week.");
+  await expect(page.getByRole("log", { name: "Messages" }).getByText("Hello from Thyme.")).toBeVisible();
+  expect(violations).toEqual([]);
+});

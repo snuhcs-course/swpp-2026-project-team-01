@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
-import { type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment } from "./supabase-auth";
+import { authCookieOptions, type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment } from "./supabase-auth";
 
 // The one place a Supabase session is refreshed (the standard @supabase/ssr
 // Next.js proxy). It runs before every page and route, writes refreshed cookies
@@ -11,6 +11,7 @@ export async function updateSession(request: NextRequest, config: SupabaseAuthCo
   let response = NextResponse.next({ request });
 
   const client = createServerClient(config.url, config.publishableKey, {
+    cookieOptions: authCookieOptions(config),
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (cookies, headers) => {

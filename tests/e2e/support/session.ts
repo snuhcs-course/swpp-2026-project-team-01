@@ -18,7 +18,7 @@ export async function signedInHost(context: BrowserContext, baseURL: string) {
       const index = pair.indexOf("=");
       return {
         domain: url.hostname,
-        httpOnly: false,
+        httpOnly: true,
         name: pair.slice(0, index),
         path: "/",
         sameSite: "Lax" as const,
