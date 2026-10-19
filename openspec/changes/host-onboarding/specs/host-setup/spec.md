@@ -56,7 +56,7 @@ When the Calendar scopes were not granted, or the stored grant stops working, th
 - **THEN** setup shows **Connect Google Calendar** first, and timezone, duration and other draft values remain editable
 
 #### Scenario: Grant revoked after setup
-- **WHEN** a ready host revokes the app's Google access and a Calendar read fails with an invalid grant
+- **WHEN** a ready host revokes the app's Google access and the next Calendar read (an analysis, or the destination recheck when the host opens setup) fails with an invalid grant
 - **THEN** the grant is marked invalid, the host is no longer ready, the public profile becomes unavailable, and setup offers **Connect Google Calendar**
 
 ### Requirement: Disclosed automatic first scan
@@ -100,7 +100,7 @@ Weekly windows SHALL be edited and reviewed per weekday in the host timezone. An
 - **THEN** the editor and the review show 02:00 as next day and the window belongs to Friday
 
 ### Requirement: Confirmation rechecks readiness
-**Confirm and save proposed settings** SHALL, in one transaction, recheck that the account is active, that the review names the current draft revision, that the booking destination is still writable, that the handle is valid, unique and within its change limit, and that every required value is present. Only then SHALL it save the confirmed settings, assign the handle and make the host ready. Any failure SHALL save nothing.
+**Confirm and save proposed settings** SHALL, in one transaction, recheck that the account is active, that the review names the current draft revision, that the booking destination is still writable, that the handle is valid, unique and within its change limit, and that every required value is present. Only then SHALL it save the confirmed settings with the confirmed calendar roles, assign the handle and make the host ready. Any failure SHALL save nothing.
 
 #### Scenario: Stale review
 - **WHEN** a host confirms a review after a newer draft revision exists
@@ -131,3 +131,17 @@ The setup assistant's tools SHALL exist only in the host's setup session. They S
 #### Scenario: Suspended during a turn
 - **WHEN** a host is suspended while a setup turn is running
 - **THEN** the next tool call is denied without reading or changing setup data
+
+### Requirement: Confirmed roles stay in force until reconfirmed
+A ready host's public profile and scheduling SHALL use the calendar roles saved with the confirmed settings. Saving new calendar roles or editing the draft SHALL NOT change them until the host confirms again.
+
+#### Scenario: Ready host saves new roles
+- **WHEN** a ready host saves a different booking destination without confirming settings again
+- **THEN** the host stays ready on the previously confirmed destination and the review shows the change as pending
+
+### Requirement: Handle and display name review
+Setup SHALL propose a handle and a display name, let the host edit both on the review card, and validate the handle's format, reservation, availability and change limit when it is drafted and again at confirmation. The display name SHALL be the only host text published with the handle.
+
+#### Scenario: Taken handle drafted
+- **WHEN** a host types a handle that another host holds or once held
+- **THEN** the field reports that the handle is unavailable and the draft keeps the previous handle
