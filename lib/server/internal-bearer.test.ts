@@ -22,11 +22,15 @@ function resign(token: string, change: (claims: Record<string, unknown>) => obje
 }
 
 describe("internal bearer", () => {
-  it("round-trips a send and a create grant", () => {
+  it("round-trips a send, a create and a read grant", () => {
     expect(verifyInternalBearer(signInternalBearer(grant, key), key)).toEqual(grant);
 
     const create: InternalGrant = { discussionId: grant.discussionId, generation: 1, kind: "create", principal: grant.principal };
     expect(verifyInternalBearer(signInternalBearer(create, key), key)).toEqual(create);
+
+    const read: InternalGrant = { ...create, generation: 2, kind: "read", sessionId: grant.sessionId };
+    expect(verifyInternalBearer(signInternalBearer(read, key), key)).toEqual(read);
+    expect(verifyInternalBearer(resign(signInternalBearer(read, key), ({ sid: _sid, ...claims }) => claims), key)).toBeNull();
   });
 
   it("expires after 60 seconds", () => {

@@ -7,8 +7,8 @@ import { type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment, verifiedUse
 
 // The only entry in the eve channel's auth list (design decision 7). It accepts
 // exactly two shapes and never returns null, so the walk cannot fall through:
-//   1. an internal bearer the web service signed, on creating a session or
-//      sending its current accepted input;
+//   1. an internal bearer the application signed, on creating a session,
+//      sending its current accepted input, or reading the one session it names;
 //   2. a Supabase session cookie, on streaming the caller's own indexed session
 //      at its discussion's current generation.
 // No credential is UnauthenticatedError; every other request is ForbiddenError.
@@ -108,6 +108,22 @@ async function maySend(db: Database, grant: Extract<InternalGrant, { kind: "send
   return Boolean(row);
 }
 
+// A read is allowed only for the session the bearer names, at its generation,
+// while the session is not retired: the same sessions a browser may stream.
+async function mayRead(db: Database, grant: Extract<InternalGrant, { kind: "read" }>, sessionId: string) {
+  if (grant.sessionId !== sessionId) return false;
+
+  const [row] = await db<{ found: boolean }[]>`
+    select true as found from app.agent_sessions
+    where session_id = ${sessionId}
+      and discussion_id = ${grant.discussionId}
+      and principal_type = ${grant.principal.type} and principal_id = ${grant.principal.id}
+      and generation = ${grant.generation}
+      and state in ('active', 'failed')
+  `;
+  return Boolean(row);
+}
+
 // A create never carries a first message: the index row must exist, with its
 // accepted input, before any message reaches the session.
 async function carriesMessage(request: Request) {
@@ -144,7 +160,9 @@ async function authorizeBearer(deps: AppAuthDependencies, request: Request, rout
       ? await mayCreate(deps.db, grant)
       : route.kind === "send" && grant.kind === "send"
         ? (await carriesSignedMessage(request, grant)) && (await maySend(deps.db, grant, route.sessionId))
-        : false;
+        : route.kind === "stream" && grant.kind === "read"
+          ? await mayRead(deps.db, grant, route.sessionId)
+          : false;
 
   if (!allowed || !(await hostIsActive(deps.db, grant.principal.id))) forbidden();
 
@@ -199,7 +217,7 @@ export function createAppAuth(load: () => AppAuthDependencies): AuthFn<Request> 
     const deps = load();
 
     if (token) {
-      if (route.kind !== "create" && route.kind !== "send") forbidden();
+      if (route.kind === "other") forbidden();
       return authorizeBearer(deps, request, route, token);
     }
 

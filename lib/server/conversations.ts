@@ -7,6 +7,7 @@ import { deploymentEnvironment } from "./deployment";
 import { HostIneligibleError, withActiveHostAccount, withEligibleHost } from "./host-eligibility";
 import { messageFingerprint, signInternalBearer } from "./internal-bearer";
 import { sessionIdHash } from "./model-limits";
+import { recordSessionFailed, recordTurnEnded } from "./session-owner";
 
 // The application side of a host conversation (design decision 7). Only this
 // module creates eve sessions and sends messages: the browser posts to the
@@ -22,6 +23,11 @@ export const AGENT_VERSION = "phase-1";
 // reaches an idle session at once, and its 60-second bearer is long expired.
 export const UNDELIVERED_AFTER_SECONDS = 300;
 
+// No turn runs this long, so an input its session received this long ago whose
+// turn end the index never recorded (the hook's write failed) is reconciled
+// against the runtime's own record.
+export const TURN_OVERDUE_AFTER_SECONDS = 20 * 60;
+
 // The agent service, as the web service reaches it.
 export type ConversationRuntime = {
   createSession(bearer: string): Promise<string>;
@@ -35,6 +41,8 @@ export type ConversationRuntime = {
     cookie: string,
     options: { readonly startIndex: number; readonly follow: boolean; readonly signal?: AbortSignal },
   ): AsyncIterable<MessageStreamEvent>;
+  // Reads a session's recorded events with an internal read bearer for it.
+  readRecordedEvents(sessionId: string, bearer: string, signal: AbortSignal): AsyncIterable<MessageStreamEvent>;
 };
 
 export function eveRuntime(baseUrl: string): ConversationRuntime {
@@ -53,6 +61,9 @@ export function eveRuntime(baseUrl: string): ConversationRuntime {
       return new Client({ headers: { cookie: supabaseSessionCookie(cookie) }, host: baseUrl, redirect: "error" }).sessions
         .attach(sessionId)
         .stream({ follow, signal, startIndex });
+    },
+    readRecordedEvents(sessionId, bearer, signal) {
+      return client(bearer).sessions.attach(sessionId).stream({ follow: false, signal, startIndex: 0 });
     },
   };
 }
@@ -273,7 +284,7 @@ export async function deliverNext(
   deps: ConversationDependencies,
   hostAccountId: string,
   discussionId: string,
-  options: { readonly fromSessionId?: string } = {},
+  options: { readonly fromSessionId?: string; readonly reconciled?: boolean } = {},
 ): Promise<string | null> {
   const claim = await withActiveHostAccount(deps.db, hostAccountId, async (tx) => {
     await tx`select id from app.discussions where id = ${discussionId} for update`;
@@ -292,11 +303,16 @@ export async function deliverNext(
         and received_session_id is distinct from ${session.session_id}
         and sent_at < clock_timestamp() - make_interval(secs => ${UNDELIVERED_AFTER_SECONDS})
     `;
-    const [inFlight] = await tx<{ id: string }[]>`
-      select id from app.conversation_inputs where session_id = ${session.session_id} and state = 'sent' limit 1
+    const [inFlight] = await tx<{ id: string; delivery_ids: string[]; overdue: boolean }[]>`
+      select id, delivery_ids,
+        received_session_id = session_id
+          and sent_at < clock_timestamp() - make_interval(secs => ${TURN_OVERDUE_AFTER_SECONDS}) as overdue
+      from app.conversation_inputs where session_id = ${session.session_id} and state = 'sent' limit 1
     `;
 
-    if (inFlight) return null;
+    if (inFlight) {
+      return inFlight.overdue && !options.reconciled ? { overdueDeliveryIds: inFlight.delivery_ids, session } : null;
+    }
 
     const [next] = await tx<{ id: string; message: string }[]>`
       select id, message from app.conversation_inputs
@@ -319,6 +335,11 @@ export async function deliverNext(
   });
 
   if (!claim) return null;
+
+  if (claim.overdueDeliveryIds) {
+    const ended = await reconcileTurnEnd(deps, claim.session, claim.overdueDeliveryIds);
+    return ended ? deliverNext(deps, hostAccountId, discussionId, { ...options, reconciled: true }) : null;
+  }
 
   const { input, session } = claim;
   const bearer = signInternalBearer(
@@ -352,6 +373,46 @@ export async function deliverNext(
 
   return input.id;
 }
+
+// Records, from the runtime's own record, the end of the turn that served the
+// session's overdue input (its delivery IDs name the turn), as the session-owner
+// hook would have. True when the input is now completed.
+async function reconcileTurnEnd(deps: ConversationDependencies, session: SessionRow, deliveryIds: readonly string[]) {
+  const bearer = signInternalBearer(
+    {
+      discussionId: session.discussion_id,
+      generation: session.generation,
+      kind: "read",
+      principal: { id: session.principal_id, type: "host_account" },
+      sessionId: session.session_id,
+    },
+    deps.signingKey,
+  );
+  let end: MessageStreamEvent | undefined;
+
+  try {
+    for await (const event of deps.runtime.readRecordedEvents(session.session_id, bearer, AbortSignal.timeout(10_000))) {
+      const ownsTurn = event.meta.deliveryIds?.some((id) => deliveryIds.includes(id));
+
+      if (event.type === "session.failed" || (ownsTurn && TURN_ENDS.has(event.type))) end = event;
+    }
+  } catch {
+    // Unreadable now; the next delivery tries again.
+    return false;
+  }
+
+  if (!end) return false;
+
+  if (end.type === "session.failed" || (end.type === "turn.failed" && end.data.terminal)) {
+    await recordSessionFailed(deps.db, session.session_id);
+    return false;
+  }
+
+  await recordTurnEnded(deps.db, session.session_id);
+  return true;
+}
+
+const TURN_ENDS = new Set(["turn.completed", "turn.failed", "turn.cancelled"]);
 
 // The turn-end side of delivery, from the session-owner hook: delivers the
 // session's discussion's next input when the session is still its live generation.

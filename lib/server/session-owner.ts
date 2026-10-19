@@ -5,6 +5,20 @@ import type { Database } from "./database";
 // decides what may run (route auth and the model wrapper do), it only keeps the
 // index's view of the runtime current.
 
+// eve does not retry a hook that throws, so each write is tried a few times
+// before the hook gives up; delivery reconciles a turn end that still failed.
+export async function retried(write: () => Promise<void>, delaysMs: readonly number[] = [200, 500, 1_000]) {
+  for (const delay of delaysMs) {
+    try {
+      return await write();
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  return write();
+}
+
 // A turn that ended completes the input it served: the session's current
 // accepted input, by identity. Timestamps are never compared, since the event
 // time is the runtime's clock and the send time the database's. A retired or

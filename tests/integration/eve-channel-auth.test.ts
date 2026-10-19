@@ -197,6 +197,23 @@ describe.each<EveTarget>(["dev", "build"])("eve channel auth under %s", (target)
     await expectNoEffect(() => createSession(server.url, create, { message: "Hello" }), 403);
   });
 
+  it("lets a read bearer read only the session it names", async () => {
+    const read = (target: typeof session, generation = target.generation) =>
+      signInternalBearer(
+        { discussionId: target.discussionId, generation, kind: "read", principal: target.principal, sessionId: target.sessionId },
+        server.signingKey,
+      );
+    const recorded = await stream({ authorization: `Bearer ${read(session)}` });
+    expect(recorded.status).toBe(200);
+    await recorded.body?.cancel();
+
+    // It sends nothing, reads no other session and no other generation.
+    await expectNoEffect(() => send({ authorization: `Bearer ${read(session)}` }), 403);
+    const other = await createIndexedSession(db, server, hostB.hostAccountId);
+    await expectNoEffect(() => stream({ authorization: `Bearer ${read(session)}` }, other.sessionId), 403);
+    await expectNoEffect(() => stream({ authorization: `Bearer ${read(session, 2)}` }), 403);
+  });
+
   it("denies a foreign or unindexed session ID", async () => {
     // Host B streams host A's session, or presents a bearer naming it.
     await expectNoEffect(() => stream({ cookie: hostB.cookie }), 403);

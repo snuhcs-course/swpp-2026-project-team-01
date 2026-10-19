@@ -3,7 +3,8 @@ import { type DeploymentEnvironment, deploymentEnvironment } from "./deployment"
 import type { Principal } from "./model-limits";
 
 // The server-only bearer the web service presents to the agent service when it
-// creates an eve session or sends an accepted input (design decision 7). It is an
+// creates an eve session or sends an accepted input, or reads one session's
+// record to reconcile a turn end the index missed (design decision 7). It is an
 // HS256 JWT signed with EVE_INTERNAL_SIGNING_KEY, names exactly what it authorizes
 // and expires after 60 seconds. It never reaches a browser. It is bound to the
 // deployment environment that signed it (`env`), and a send is bound to the
@@ -31,6 +32,13 @@ export type InternalGrant =
       readonly inputId: string;
       // messageFingerprint() of the exact message this bearer may send.
       readonly messageFingerprint: string;
+    }
+  | {
+      readonly kind: "read";
+      readonly principal: Principal;
+      readonly discussionId: string;
+      readonly generation: number;
+      readonly sessionId: string;
     };
 
 type Claims = {
@@ -90,6 +98,7 @@ export function signInternalBearer(
     pid: grant.principal.id,
     pt: grant.principal.type,
     ...(grant.kind === "send" ? { fp: grant.messageFingerprint, iid: grant.inputId, sid: grant.sessionId } : {}),
+    ...(grant.kind === "read" ? { sid: grant.sessionId } : {}),
   };
   const input = `${encode({ alg: "HS256", typ: "JWT" })}.${encode(claims)}`;
 
@@ -160,6 +169,10 @@ export function verifyInternalBearer(
     typeof claims.fp === "string"
   ) {
     return { ...base, inputId: claims.iid, kind: "send", messageFingerprint: claims.fp, sessionId: claims.sid };
+  }
+
+  if (claims.kind === "read" && typeof claims.sid === "string") {
+    return { ...base, kind: "read", sessionId: claims.sid };
   }
 
   return null;

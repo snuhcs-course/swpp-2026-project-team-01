@@ -248,6 +248,80 @@ describe("message route and session index", () => {
     expect(received.map((event) => event.data.message)).toEqual(["Mornings work best.", "And Tuesdays."]);
   });
 
+  // Makes the session-owner hook's turn-end write fail for one host's inputs:
+  // once, or until the returned function removes the fault.
+  async function failTurnEnd(hostAccountId: string, mode: "once" | "always") {
+    const name = `fail_turn_end_${hostAccountId.replaceAll("-", "_")}`;
+    const once = mode === "once" ? `and nextval('public.${name}') = 1` : "";
+    await db.unsafe(`create sequence public.${name}`);
+    await db.unsafe(`
+      create function public.${name}() returns trigger language plpgsql as $$
+      begin
+        if new.state = 'completed' and old.state = 'sent'
+           and exists (select 1 from app.discussions d where d.id = new.discussion_id and d.principal_id = '${hostAccountId}') then
+          if true ${once} then
+            raise exception 'injected turn-end failure';
+          end if;
+        end if;
+        return new;
+      end $$
+    `);
+    await db.unsafe(
+      `create trigger ${name} before update on app.conversation_inputs for each row execute function public.${name}()`,
+    );
+    return async () => {
+      await db.unsafe(`drop trigger ${name} on app.conversation_inputs`);
+      await db.unsafe(`drop function public.${name}()`);
+      await db.unsafe(`drop sequence public.${name}`);
+    };
+  }
+
+  it("delivers a later message after a turn-end write failed once", async () => {
+    const host = await signInHost(db);
+    const removeFault = await failTurnEnd(host.hostAccountId, "once");
+
+    try {
+      const first = (await (await message(host.cookie, "Mornings work best.")).json()) as { inputId: string };
+      await waitForTurn(server.url, host.cookie, (await sessionOf(host.hostAccountId)).session_id);
+      const second = (await (await message(host.cookie, "And Tuesdays.")).json()) as { inputId: string };
+
+      await waitFor(async () => (await inputState(second.inputId)) === "completed");
+      expect(await inputState(first.inputId)).toBe("completed");
+      expect(await inputState(second.inputId)).toBe("completed");
+    } finally {
+      await removeFault();
+    }
+  });
+
+  it("completes, from the runtime's record, an input whose turn end was never recorded", async () => {
+    const host = await signInHost(db);
+    const removeFault = await failTurnEnd(host.hostAccountId, "always");
+    let first: { inputId: string };
+
+    try {
+      first = (await (await message(host.cookie, "Mornings work best.")).json()) as { inputId: string };
+      await waitForTurn(server.url, host.cookie, (await sessionOf(host.hostAccountId)).session_id);
+      // The hook's retries are spent.
+      await new Promise((resolve) => setTimeout(resolve, 3_000));
+      expect(await inputState(first.inputId)).toBe("sent");
+    } finally {
+      await removeFault();
+    }
+
+    // Longer ago than any turn runs.
+    await db`update app.conversation_inputs set sent_at = sent_at - interval '21 minutes' where id = ${first.inputId}`;
+    const second = (await (await message(host.cookie, "And Tuesdays.")).json()) as { inputId: string; status: string };
+
+    expect(second.status).toBe("sent");
+    expect(await inputState(first.inputId)).toBe("completed");
+    await waitFor(async () => (await inputState(second.inputId)) === "completed");
+    expect(await inputState(second.inputId)).toBe("completed");
+    const received = (await readEvents(server.url, host.cookie, (await sessionOf(host.hostAccountId)).session_id)).filter(
+      (event) => event.type === "message.received",
+    );
+    expect(received.map((event) => event.data.message)).toEqual(["Mornings work best.", "And Tuesdays."]);
+  });
+
   it("returns a refused send to the browser and keeps the input for an exact retry", async () => {
     const host = await signInHost(db);
     const refusing = createMessageHandler(() => ({
