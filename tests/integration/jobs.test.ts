@@ -163,4 +163,35 @@ describe("durable jobs", () => {
       { attempts: 1, failure_category: "lease_expired", fence: 1, state: "exhausted" },
     ]);
   });
+
+  it("backs off a job with many attempts by at most an hour instead of overflowing", async () => {
+    const jobKind = kind();
+    const id = (await publish(jobKind, { maxAttempts: 100 }))!;
+    await db`update app.jobs set attempts = 40 where id = ${id}`;
+    const [job] = await claim(jobKind);
+
+    expect(await processJob(db, job!, async () => {
+      throw new Error("still failing");
+    })).toBe("failed");
+    const [row] = await db<{ state: string; delay: number }[]>`
+      select state, extract(epoch from run_after - now())::int as delay from app.jobs where id = ${id}
+    `;
+    expect(row!.state).toBe("pending");
+    expect(row!.delay).toBeGreaterThan(3500);
+    expect(row!.delay).toBeLessThanOrEqual(3600);
+  });
+
+  it("makes a job without runAfter due at the database's time", async () => {
+    const jobKind = kind();
+    const published = await db.begin(async (tx) => {
+      const [clock] = await tx<{ now: Date }[]>`select now()`;
+      // The application clock moves on; the transaction's does not.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const id = await publishJob(tx, { kind: jobKind }, "local");
+      return { id, now: clock!.now };
+    });
+    const [row] = await db<{ run_after: Date }[]>`select run_after from app.jobs where id = ${published.id}`;
+
+    expect(row!.run_after.getTime()).toBe(published.now.getTime());
+  });
 });

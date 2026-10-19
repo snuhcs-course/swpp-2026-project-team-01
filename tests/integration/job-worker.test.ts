@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
-import { createJobWorkerHandler, type JobRouteDependencies } from "../../lib/server/job-worker";
+import { createJobWorkerHandler, type JobRouteDependencies, runWorkerBatch } from "../../lib/server/job-worker";
 import { claimJobs, type JobHandler, publishJob } from "../../lib/server/jobs";
 import { devWorkerRefusal } from "../../scripts/jobs-dev";
 import type { Database } from "../../lib/server/database";
@@ -107,6 +107,31 @@ const untouchable = new Proxy(() => {}, {
     throw new Error("the worker touched the database");
   },
 }) as unknown as Database;
+
+describe("worker batch", () => {
+  it("keeps processing the batch when recording one job's outcome fails", async () => {
+    const jobKind = kind();
+    await Promise.all([publishProduction(jobKind), publishProduction(jobKind)]);
+    // The database drops the connection whenever a failed attempt is recorded.
+    const flaky = new Proxy(db, {
+      apply(target, thisArg, args: [TemplateStringsArray, ...unknown[]]) {
+        if (Array.isArray(args[0]) && args[0].join("").includes("failure_category = ")) {
+          return Promise.reject(new Error("connection reset"));
+        }
+        return Reflect.apply(target, thisArg, args);
+      },
+    }) as Database;
+    const handlers = {
+      [jobKind]: async () => {
+        throw new Error("handler failed");
+      },
+    };
+
+    const batch = await runWorkerBatch({ db: flaky, environment: "production", handlers, owner: "worker-a" });
+
+    expect(batch).toEqual({ claimed: 2, results: { failed: 2 } });
+  });
+});
 
 describe("production fence", () => {
   it.each([

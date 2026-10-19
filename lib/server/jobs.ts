@@ -42,7 +42,7 @@ export async function publishJob(
     insert into app.jobs (kind, payload, dedupe_key, producer_environment, max_attempts, run_after)
     values (
       ${job.kind}, ${tx.json((job.payload ?? {}) as Parameters<typeof tx.json>[0])}, ${job.dedupeKey ?? null},
-      ${environment}, ${job.maxAttempts ?? 5}, ${job.runAfter ?? new Date()}
+      ${environment}, ${job.maxAttempts ?? 5}, coalesce(${job.runAfter ?? null}::timestamptz, now())
     )
     on conflict (kind, dedupe_key) do nothing
     returning id
@@ -120,13 +120,16 @@ export async function processJob(db: Database, job: ClaimedJob, handler: JobHand
 }
 
 // Records a failed attempt under the claim's fence: the job is retried after a
-// backoff, or left exhausted and visible once its attempts are spent.
+// backoff (doubling from 20 seconds, capped at an hour, computed in double
+// precision so a large attempt count cannot overflow), or left exhausted and
+// visible once its attempts are spent. A job without runAfter is due at the
+// database's own time, the clock the claim compares against.
 async function failJob(db: Database, job: ClaimedJob, category: string): Promise<JobResult> {
   const [row] = await db<{ state: string }[]>`
     update app.jobs
     set state = case when attempts >= max_attempts then 'exhausted' else 'pending' end,
         failure_category = ${category}, lease_owner = null, lease_expires_at = null,
-        run_after = now() + make_interval(secs => least(power(2, attempts)::int * 10, 3600)),
+        run_after = now() + make_interval(secs => least(power(2, attempts) * 10, 3600)),
         updated_at = now()
     where id = ${job.id} and fence = ${job.fence} and state = 'running'
     returning state

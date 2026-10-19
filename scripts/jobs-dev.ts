@@ -48,17 +48,25 @@ async function main() {
 
   console.log(`jobs:dev polling every 5 s for local jobs of ${Object.keys(JOB_HANDLERS).length} registered kinds.`);
 
-  while (!stopping) {
-    const batch = await runWorkerBatch({ db, environment: "local", handlers: JOB_HANDLERS, owner });
+  try {
+    while (!stopping) {
+      try {
+        const batch = await runWorkerBatch({ db, environment: "local", handlers: JOB_HANDLERS, owner });
 
-    if (batch.claimed > 0) {
-      console.log(JSON.stringify(batch));
-    } else {
+        if (batch.claimed > 0) {
+          console.log(JSON.stringify(batch));
+          continue;
+        }
+      } catch (error) {
+        // A database blip skips one poll instead of ending the worker.
+        console.error("jobs:dev batch failed", error);
+      }
+
       await sleep(5000);
     }
+  } finally {
+    await db.end();
   }
-
-  await db.end();
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

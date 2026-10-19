@@ -35,7 +35,17 @@ export async function runWorkerBatch(deps: JobWorkerDependencies): Promise<Worke
   const results: Partial<Record<JobResult, number>> = {};
 
   for (const job of jobs) {
-    const result = await processJob(deps.db, job, deps.handlers[job.kind]!);
+    let result: JobResult;
+
+    try {
+      result = await processJob(deps.db, job, deps.handlers[job.kind]!);
+    } catch (error) {
+      // Recording the failure itself failed: the lease expires and the job is
+      // reclaimed under a new fence, while the rest of the batch still runs.
+      console.error("job worker could not record a job outcome", { error, jobId: job.id, kind: job.kind });
+      result = "failed";
+    }
+
     results[result] = (results[result] ?? 0) + 1;
   }
 
