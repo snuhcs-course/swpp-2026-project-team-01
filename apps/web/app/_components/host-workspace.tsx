@@ -5,6 +5,9 @@ import { isCurrentTurnBoundaryEvent } from "eve/client";
 import { conversationReducer } from "eve/react";
 import { AlertCircleIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AuthoredMessages, useAuthoredReveal } from "@/app/_components/setup/authored-messages";
+import { focusCurrentCard, SetupCards } from "@/app/_components/setup/setup-cards";
+import { SetupProvider, useSetupController } from "@/app/_components/setup/setup-context";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { ChatComposer } from "@/components/chat/composer";
 import { ChatConversation, ChatConversationContent, ChatScrollButton } from "@/components/chat/conversation";
@@ -22,7 +25,13 @@ import {
 // The host workspace at /app: one centered conversation, a reachable composer
 // and a compact menu, with no sidebar. History and live output come from the
 // discussion's application routes, so a reload, a reconnect or a recovered
-// runtime continues from the same discussion cursor.
+// runtime continues from the same discussion cursor. Setup lives in the same
+// column: the authored onboarding messages open the conversation, and the
+// current step's cards follow the last message, above the composer.
+
+// While a scan is pending the analysis card polls, since no turn or action
+// would otherwise reveal its result.
+const ANALYSIS_POLL_MS = 4000;
 
 type Phase = "loading" | "ready" | "sending" | "streaming" | "recovering";
 
@@ -78,6 +87,9 @@ export function HostWorkspace() {
   const retryRef = useRef<{ id: string; text: string } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const composerRef = useRef<HTMLDivElement>(null);
+  const setup = useSetupController();
+  const reloadSetup = setup.reload;
+  const reveal = useAuthoredReveal(setup.state);
 
   const append = useCallback((event: DiscussionEvent) => {
     eventsRef.current = [...eventsRef.current, event];
@@ -132,8 +144,22 @@ export function HostWorkspace() {
         setPendingText(null);
         setPhase("ready");
       }
+      // A settled turn may have drafted setup values.
+      void reloadSetup();
     }
-  }, [append, refreshStatus]);
+  }, [append, refreshStatus, reloadSetup]);
+
+  useEffect(() => {
+    void reloadSetup();
+  }, [reloadSetup]);
+
+  const analyzing = setup.state?.nextAction === "analyzing";
+
+  useEffect(() => {
+    if (!analyzing) return;
+    const timer = window.setInterval(() => void reloadSetup(), ANALYSIS_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [analyzing, reloadSetup]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -226,17 +252,20 @@ export function HostWorkspace() {
   const failed = status?.state === "failed";
   const turnFailed = useMemo(() => lastTurnFailed(events), [events]);
   const busy = phase !== "ready";
-  const isEmpty = messages.length === 0 && !pendingText;
+  const setupState = setup.state;
 
-  const focusComposer = useCallback(() => {
-    composerRef.current?.querySelector("textarea")?.focus();
-  }, []);
+  // The menu's Setup item leads to the current step's card, or the composer
+  // while setup has not loaded.
+  const focusSetup = useCallback(() => {
+    if (setupState && reveal.done) focusCurrentCard(setupState);
+    else composerRef.current?.querySelector("textarea")?.focus();
+  }, [reveal.done, setupState]);
 
   return (
     <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <header className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 sm:px-6">
         <h1 className="truncate font-display text-lg">Find Me a Time</h1>
-        <WorkspaceMenu onSelectSetup={focusComposer} />
+        <WorkspaceMenu onSelectSetup={focusSetup} />
       </header>
 
       <main aria-label="Setup conversation with Thyme" className="flex min-h-0 flex-1 flex-col">
@@ -255,47 +284,52 @@ export function HostWorkspace() {
           </div>
         ) : null}
 
-        {isEmpty && phase !== "loading" ? (
-          <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-4 sm:px-6">
-            <h2 className="font-display text-2xl">Let&apos;s find a time</h2>
-            <p className="mt-2 text-muted-foreground">
-              Tell Thyme how your weeks usually go, and it will help you set up how people book time with you.
-            </p>
+        {setup.loadError && !setupState ? (
+          <div className="mx-auto w-full max-w-2xl px-4 pt-2 sm:px-6" role="status">
+            <p className="text-sm text-muted-foreground">{setup.loadError}</p>
           </div>
-        ) : (
-          <ChatConversation aria-busy={busy} aria-label="Messages">
-            <ChatConversationContent>
-              {messages.map((message, index) => (
-                <AgentMessage
-                  canRespond={false}
-                  isStreaming={phase === "streaming" && index === messages.length - 1}
-                  key={message.id}
-                  message={message}
-                  onInputResponses={() => {}}
-                />
-              ))}
-              {pendingText ? (
-                <AgentMessage
-                  canRespond={false}
-                  isStreaming={false}
-                  message={{ id: "pending", parts: [{ state: "done", text: pendingText, type: "text" }], role: "user" }}
-                  onInputResponses={() => {}}
-                />
-              ) : null}
-              {turnFailed && !failed && phase === "ready" ? (
-                <p className="px-3 text-sm text-muted-foreground" role="status">
-                  Thyme couldn&apos;t finish this reply. Your message is saved; try again in a little while.
-                </p>
-              ) : null}
-              {phase === "sending" || phase === "streaming" ? (
-                <p className="px-3 text-sm text-muted-foreground" role="status">
-                  Thyme is thinking...
-                </p>
-              ) : null}
-            </ChatConversationContent>
-            <ChatScrollButton />
-          </ChatConversation>
-        )}
+        ) : null}
+
+        <ChatConversation aria-busy={busy} aria-label="Messages">
+          <ChatConversationContent>
+            <AuthoredMessages messages={reveal.visible} />
+            {messages.map((message, index) => (
+              <AgentMessage
+                canRespond={false}
+                isStreaming={phase === "streaming" && index === messages.length - 1}
+                key={message.id}
+                message={message}
+                onInputResponses={() => {}}
+              />
+            ))}
+            {pendingText ? (
+              <AgentMessage
+                canRespond={false}
+                isStreaming={false}
+                message={{ id: "pending", parts: [{ state: "done", text: pendingText, type: "text" }], role: "user" }}
+                onInputResponses={() => {}}
+              />
+            ) : null}
+            {turnFailed && !failed && phase === "ready" ? (
+              <p className="px-3 text-sm text-muted-foreground" role="status">
+                Thyme couldn&apos;t finish this reply. Your message is saved; try again in a little while.
+              </p>
+            ) : null}
+            {phase === "sending" || phase === "streaming" ? (
+              <p className="px-3 text-sm text-muted-foreground" role="status">
+                Thyme is thinking...
+              </p>
+            ) : null}
+            {setup.value && reveal.done ? (
+              <div aria-label="Setup" className="flex min-w-0 flex-col gap-4" role="group">
+                <SetupProvider value={setup.value}>
+                  <SetupCards />
+                </SetupProvider>
+              </div>
+            ) : null}
+          </ChatConversationContent>
+          <ChatScrollButton />
+        </ChatConversation>
       </main>
 
       <div className="shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6" ref={composerRef}>

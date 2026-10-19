@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_TOKEN_ENCRYPTION_KEY } from "./tests/e2e/support/token-key";
 
 // Browser tests run the web service (next dev), the agent service (eve dev) and a
 // local stand-in for OpenAI, all against the local Supabase stack started with
@@ -108,7 +108,8 @@ export default defineConfig({
         ...shared,
         APP_ORIGIN: baseURL,
         EVE_AGENT_URL: `http://127.0.0.1:${EVE_PORT}`,
-        TOKEN_ENCRYPTION_KEY: randomBytes(32).toString("base64"),
+        // One key per run, shared with the tests so they can seal a Calendar grant.
+        TOKEN_ENCRYPTION_KEY: E2E_TOKEN_ENCRYPTION_KEY,
       },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

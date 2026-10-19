@@ -2,8 +2,13 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  // The web app's own import alias, for its component tests.
-  resolve: { alias: { "@/": fileURLToPath(new URL("./apps/web/", import.meta.url)) } },
+  // The web app's own import aliases, for its component tests.
+  resolve: {
+    alias: {
+      "@/": fileURLToPath(new URL("./apps/web/", import.meta.url)),
+      "@lib/": fileURLToPath(new URL("./lib/", import.meta.url)),
+    },
+  },
   test: {
     projects: [
       {
