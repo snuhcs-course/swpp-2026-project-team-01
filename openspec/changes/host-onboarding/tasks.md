@@ -6,7 +6,7 @@ Before each group, read the [Phase 2 reference repository files](../../../docume
 
 ## 1. Decisions (serial, first)
 
-- [ ] 1.1 Record the Phase 2 decisions (sign-up and handle-change limits, reserved handles, starter defaults, travel modes, retention confirmation, administrator CLI packaging and authentication) in PRD section 10, the host onboarding flow's open decisions and the CLI direction, matching the [design](design.md); verify `npm run check` passes with `openspec validate --all --strict`.
+- [x] 1.1 Record the Phase 2 decisions (sign-up and handle-change limits, reserved handles, starter defaults, travel modes, retention confirmation, administrator CLI packaging and authentication) in PRD section 10, the host onboarding flow's open decisions and the CLI direction, matching the [design](design.md); verify `npm run check` passes with `openspec validate --all --strict`.
 
 ## 2. Schema (serial)
 

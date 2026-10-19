@@ -153,4 +153,6 @@ PRD references: FR-01 to FR-04, FR-18, FR-26, FR-31, FR-33, FR-35; AC-09, AC-17,
 
 ## Open decisions
 
-Handle assignment rules and the numeric sign-up and handle-change limits (host-accounts change design); starter default values for windows, duration and buffers; the retention period of analysis evidence; the host-sent link code delta, with the service-sent code fallback, and its device acceptance; CLI login for terminal-based agents.
+Settled on 2026-10-19 in the [`host-onboarding` design](../../openspec/changes/host-onboarding/design.md): handle assignment rules, the reserved list and the numeric sign-up and handle-change limits; starter default values for windows, duration and buffers; supported travel modes; a 24-hour retention period for analysis evidence.
+
+Still open: the host-sent link code delta, with the service-sent code fallback, and its device acceptance (Phase 6); CLI login for terminal-based agents (Phase 5).
