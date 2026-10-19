@@ -20,10 +20,10 @@ export function ShareLinksCard() {
   return (
     <SetupCard
       className="border-primary/40"
-      eyebrow="Ready"
+      label="Ready"
       id={LINKS_CARD_ID}
       title="You're ready."
-      description="Share your booking link with people, or the skill document with their AI agents."
+      description="Share the link with people, or the skill document with their AI agents."
     >
       <ShareLink href={links.booking} label="Booking link" />
       <ShareLink href={links.skill} label="Skill document for agents" />
@@ -50,9 +50,9 @@ function ShareLink({ href, label }: { readonly href: string; readonly label: str
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-border p-3">
-      <p className="text-sm font-medium">{label}</p>
-      <p className="font-mono text-sm break-all">{href}</p>
+    <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border px-3 py-2">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="font-mono text-sm break-all text-foreground">{href}</p>
       <div className="flex flex-wrap items-center gap-2">
         <Button aria-label={`Copy ${label.toLowerCase()}`} onClick={() => void copy()} type="button" variant="outline">
           {status === "copied" ? <CheckIcon aria-hidden /> : <CopyIcon aria-hidden />}

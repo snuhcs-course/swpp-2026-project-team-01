@@ -6,6 +6,7 @@ import {
   copyDay,
   emptyRows,
   formatWindow,
+  groupWindows,
   handleMessage,
   normalizeClock,
   parseMinutes,
@@ -181,5 +182,24 @@ describe("authored onboarding messages", () => {
     expect(key).not.toContain("host");
     expect(key).toBe(storageKey("host@example.test"));
     expect(key).not.toBe(storageKey("other@example.test"));
+  });
+});
+
+describe("grouped weekly windows", () => {
+  it("joins consecutive days with the same ranges", () => {
+    const weekdays = (["monday", "tuesday", "wednesday", "thursday", "friday"] as const).map((weekday) => ({
+      end: "17:00",
+      start: "10:00",
+      weekday,
+    }));
+    expect(groupWindows(weekdays)).toEqual([
+      { days: "Mon–Fri", ranges: "10:00 – 17:00" },
+      { days: "Sat–Sun", ranges: null },
+    ]);
+    expect(groupWindows([{ end: "12:00", start: "09:00", weekday: "wednesday" }])).toEqual([
+      { days: "Mon–Tue", ranges: null },
+      { days: "Wed", ranges: "09:00 – 12:00" },
+      { days: "Thu–Sun", ranges: null },
+    ]);
   });
 });

@@ -6,7 +6,9 @@ import { recordGoogleGrant } from "../../../lib/server/provider-grants";
 import { parseTokenKey } from "../../../lib/server/token-encryption";
 import { analysisJobs, runJob } from "../../integration/support/calendar-host";
 import { defaultGoogleFixture } from "../../integration/support/fake-google";
-import { prepareReviewableHost } from "../../integration/support/setup-host";
+import { runCommand } from "../../../lib/server/commands";
+import { updateDraftCommand } from "../../../lib/server/setup-commands";
+import { draftRevision, hostCommandDeps, prepareReviewableHost } from "../../integration/support/setup-host";
 import { E2E_TOKEN_ENCRYPTION_KEY } from "./token-key";
 
 // Setup helpers for the browser tests. The web server Playwright starts seals
@@ -58,4 +60,31 @@ export async function reviewableHost(db: Database, hostAccountId: string) {
     hostAccountId,
     primaryId: PRIMARY_CALENDAR_ID,
   } as unknown as Parameters<typeof prepareReviewableHost>[1]);
+}
+
+// Accepts the remaining suggestion steps as the host's own choices, so the
+// stepper opens on the review (or, without `handle`, on the identity step).
+export async function acceptSuggestions(db: Database, hostAccountId: string, identity?: { handle: string; displayName: string }) {
+  const values: [string, unknown][] = [
+    ["timezone", "Asia/Seoul"],
+    [
+      "weeklyWindows",
+      (["monday", "tuesday", "wednesday", "thursday", "friday"] as const).map((weekday) => ({ end: "17:00", start: "10:00", weekday })),
+    ],
+    ["weeklyLimit", null],
+    ["durationMinutes", 30],
+    ["bufferBeforeMinutes", 10],
+    ["bufferAfterMinutes", 10],
+  ];
+  if (identity) values.push(["displayName", identity.displayName], ["handle", identity.handle]);
+
+  for (const [field, value] of values) {
+    const result = await runCommand(hostCommandDeps(db, hostAccountId), updateDraftCommand, {
+      expectedRevision: await draftRevision(db, hostAccountId),
+      input: { action: "choose_own", field, value },
+      resourceId: hostAccountId,
+      retryKey: randomUUID(),
+    });
+    if (!result.ok) throw new Error(`Accepting ${field} failed: ${JSON.stringify(result)}`);
+  }
 }

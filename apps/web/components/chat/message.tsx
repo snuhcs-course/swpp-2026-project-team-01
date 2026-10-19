@@ -1,12 +1,23 @@
 "use client";
 
 import type { EveDynamicToolPart, EveMessage, EveMessagePart } from "eve/react";
-import { ChevronDownIcon, ChevronRightIcon, CheckIcon, Loader2Icon, XIcon } from "lucide-react";
+import { BrainIcon, ChevronRightIcon, CircleCheckIcon, Loader2Icon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Markdown } from "@/components/chat/markdown";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
+import { Message, MessageContent, MessageHeader } from "@/components/ui/message";
+import {
+  Trace,
+  TraceCollapsible,
+  TraceCollapsibleContent,
+  TraceCollapsibleTrigger,
+  TraceIcon,
+  TraceLine,
+  TraceTitle,
+} from "@/components/ui/trace";
 import { cn } from "@/lib/utils";
 
 const STREAM_TEXT_TICK_MS = 60;
@@ -19,13 +30,22 @@ export type AgentInputResponse = {
   readonly text?: string;
 };
 
+// How a tool call reads in the thread, such as "Checked your setup"; undefined
+// falls back to the call's own label or name.
+export type DescribeTool = (part: EveDynamicToolPart) => string | undefined;
+
+// One turn, on the shadcn/ui Message pattern: the host's text is a muted Bubble
+// at the end; Thyme's reply is markdown under a "Thyme" header, with its steps
+// (reasoning and tool calls) as Trace lines above the text.
 export function AgentMessage({
   canRespond,
+  describeTool,
   isStreaming,
   message,
   onInputResponses,
 }: {
   readonly canRespond: boolean;
+  readonly describeTool?: DescribeTool;
   readonly isStreaming: boolean;
   readonly message: EveMessage;
   readonly onInputResponses: (responses: readonly AgentInputResponse[]) => void | Promise<void>;
@@ -35,42 +55,45 @@ export function AgentMessage({
     -1,
   );
   const isUser = message.role === "user";
+  const parts = (
+    <AgentMessageParts
+      canRespond={canRespond}
+      describeTool={describeTool}
+      isUser={isUser}
+      lastTextIndex={lastTextIndex}
+      messageId={message.id}
+      onInputResponses={onInputResponses}
+      parts={message.parts}
+      showCaret={isStreaming && message.role === "assistant"}
+    />
+  );
 
   return (
-    <article
-      className={cn(
-        "group flex w-full min-w-0",
-        isUser ? "justify-end" : "justify-start",
-        message.metadata?.optimistic ? "opacity-90" : undefined,
+    <article className={cn("w-full min-w-0", message.metadata?.optimistic ? "opacity-90" : undefined)}>
+      {isUser ? (
+        <Message align="end">
+          <MessageContent>
+            <p className="sr-only">You</p>
+            <Bubble align="end" className="max-w-[85%]" variant="muted">
+              <BubbleContent className="rounded-xl text-base leading-[1.65]">{parts}</BubbleContent>
+            </Bubble>
+          </MessageContent>
+        </Message>
+      ) : (
+        <Message>
+          <MessageContent className="gap-1.5 text-base leading-[1.65] text-foreground">
+            <MessageHeader>Thyme</MessageHeader>
+            {parts}
+          </MessageContent>
+        </Message>
       )}
-    >
-      <div
-        className={cn(
-          "min-w-0",
-          isUser
-            ? "max-w-[85%] rounded-xl border border-border bg-secondary px-3 py-2 text-base leading-[1.65] text-foreground"
-            : "w-full max-w-none text-base leading-[1.65] text-foreground",
-        )}
-      >
-        <p className={isUser ? "sr-only" : "mb-1 px-3 text-xs font-medium text-muted-foreground"}>
-          {isUser ? "You" : "Thyme"}
-        </p>
-        <AgentMessageParts
-          canRespond={canRespond}
-          isUser={isUser}
-          lastTextIndex={lastTextIndex}
-          messageId={message.id}
-          onInputResponses={onInputResponses}
-          parts={message.parts}
-          showCaret={isStreaming && message.role === "assistant"}
-        />
-      </div>
     </article>
   );
 }
 
 function AgentMessageParts({
   canRespond,
+  describeTool,
   isUser,
   lastTextIndex,
   messageId,
@@ -79,6 +102,7 @@ function AgentMessageParts({
   showCaret,
 }: {
   readonly canRespond: boolean;
+  readonly describeTool?: DescribeTool;
   readonly isUser: boolean;
   readonly lastTextIndex: number;
   readonly messageId: string;
@@ -99,6 +123,7 @@ function AgentMessageParts({
     elements.push(
       <ToolGroup
         canRespond={canRespond}
+        describeTool={describeTool}
         isSettled={isSettled}
         key={`tools:${partsForGroup.map((part) => part.toolCallId).join(":")}`}
         onInputResponses={onInputResponses}
@@ -321,6 +346,8 @@ function nextStreamingText(current: string, target: string, catchUp = false) {
   return target.slice(0, current.length + Math.min(remaining, step));
 }
 
+// The model's reasoning as a Trace line: "Thinking" shimmers while it streams
+// and opens; once done it folds to "Thought" and opens on request.
 function ReasoningPart({
   isStreaming,
   text,
@@ -328,109 +355,97 @@ function ReasoningPart({
   readonly isStreaming: boolean;
   readonly text: string;
 }) {
-  const [open, setOpen] = useState(isStreaming);
-
-  useEffect(() => {
-    if (isStreaming) {
-      setOpen(true);
-    }
-  }, [isStreaming]);
+  const [open, setOpen] = useState<boolean>();
 
   return (
-    <Collapsible className="my-3 w-full" onOpenChange={setOpen} open={open}>
-      <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
-        <span className={isStreaming ? "shimmer-text" : undefined}>
-          {isStreaming ? "Thinking..." : "Reasoning"}
-        </span>
-        <ChevronDownIcon className={cn("size-4 transition-transform", open ? "rotate-180" : "")} />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="mt-3 border-l border-border pl-4 text-muted-foreground">
-        <Markdown>{text}</Markdown>
-      </CollapsibleContent>
-    </Collapsible>
+    <Trace className="my-1 px-3">
+      <TraceCollapsible onOpenChange={setOpen} open={open ?? isStreaming}>
+        <TraceCollapsibleTrigger>
+          <TraceLine status={isStreaming ? "running" : undefined}>
+            <TraceIcon>{isStreaming ? <Loader2Icon className="animate-spin motion-reduce:animate-none" /> : <BrainIcon />}</TraceIcon>
+            <TraceTitle>{isStreaming ? "Thinking" : "Thought"}</TraceTitle>
+          </TraceLine>
+        </TraceCollapsibleTrigger>
+        <TraceCollapsibleContent>
+          <Markdown>{text}</Markdown>
+        </TraceCollapsibleContent>
+      </TraceCollapsible>
+    </Trace>
   );
 }
 
+// Consecutive tool calls as one Trace step: a friendly summary line ("Checked
+// your setup") with its status, expanding to each call's details.
 function ToolGroup({
   canRespond,
+  describeTool,
   isSettled,
   onInputResponses,
   parts,
 }: {
   readonly canRespond: boolean;
+  readonly describeTool?: DescribeTool;
   readonly isSettled: boolean;
   readonly onInputResponses: (responses: readonly AgentInputResponse[]) => void | Promise<void>;
   readonly parts: readonly EveDynamicToolPart[];
 }) {
   const shouldOpen = parts.some(needsInputResponse);
-  const [open, setOpen] = useState(shouldOpen);
+  const [open, setOpen] = useState<boolean>();
   const status = getSettledToolStatus(getToolGroupStatus(parts), isSettled && !shouldOpen);
-  const label = summarizeToolGroup(parts);
+  const label = summarizeToolGroup(parts, describeTool);
   const canExpand = parts.length > 1 ? parts.some(hasToolDetails) : hasToolDetails(parts[0]!);
-
-  useEffect(() => {
-    if (shouldOpen) {
-      setOpen(true);
-    }
-  }, [shouldOpen]);
+  const line = (
+    <TraceLine status={traceStatus(status)}>
+      <ToolStatusIcon status={status} />
+      <TraceTitle>{label}</TraceTitle>
+      <span className="sr-only">{toolStatusLabel(status)}</span>
+    </TraceLine>
+  );
 
   return (
-    <Collapsible
-      className="my-2 px-3"
-      onOpenChange={canExpand ? setOpen : undefined}
-      open={canExpand ? open : false}
-    >
-      <CollapsibleTrigger
-        className={cn(
-          "group flex max-w-full items-center gap-2 py-0.5 text-left text-sm leading-6 text-muted-foreground transition-colors",
-          canExpand ? "cursor-pointer hover:text-foreground" : "cursor-default",
-        )}
-        disabled={!canExpand}
-      >
-        <ToolStatusIcon status={status} />
-        <span className="truncate">{label}</span>
-        <span className="sr-only">{toolStatusLabel(status)}</span>
-        {canExpand ? (
-          <ChevronRightIcon
-            className={cn(
-              "size-3 shrink-0 self-center transition-all",
-              open ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-100",
-            )}
-          />
-        ) : null}
-      </CollapsibleTrigger>
+    <Trace className="my-1 px-3">
       {canExpand ? (
-        <CollapsibleContent className="ml-2 border-l border-border/40 pl-3 pt-0.5 pb-1">
-          {parts.length === 1 ? (
-            <ToolDetails
-              canRespond={canRespond}
-              onInputResponses={onInputResponses}
-              part={parts[0]!}
-            />
-          ) : (
-            parts.map((part) => (
-              <ToolCallItem
-                canRespond={canRespond}
-                isSettled={isSettled}
-                key={part.toolCallId}
-                onInputResponses={onInputResponses}
-                part={part}
-              />
-            ))
-          )}
-        </CollapsibleContent>
-      ) : null}
-    </Collapsible>
+        <TraceCollapsible onOpenChange={setOpen} open={open ?? shouldOpen}>
+          <TraceCollapsibleTrigger>{line}</TraceCollapsibleTrigger>
+          <TraceCollapsibleContent>
+            {parts.length === 1 ? (
+              <ToolDetails canRespond={canRespond} onInputResponses={onInputResponses} part={parts[0]!} />
+            ) : (
+              parts.map((part) => (
+                <ToolCallItem
+                  canRespond={canRespond}
+                  describeTool={describeTool}
+                  isSettled={isSettled}
+                  key={part.toolCallId}
+                  onInputResponses={onInputResponses}
+                  part={part}
+                />
+              ))
+            )}
+          </TraceCollapsibleContent>
+        </TraceCollapsible>
+      ) : (
+        <div>{line}</div>
+      )}
+    </Trace>
   );
+}
+
+function traceStatus(status: ToolStatus) {
+  if (status === "running") return "running" as const;
+  if (status === "error" || status === "denied") return "error" as const;
+  return undefined;
 }
 
 function ToolCallItem({
   canRespond,
+  describeTool,
   isSettled,
   onInputResponses,
   part,
 }: {
   readonly canRespond: boolean;
+  readonly describeTool?: DescribeTool;
   readonly isSettled: boolean;
   readonly onInputResponses: (responses: readonly AgentInputResponse[]) => void | Promise<void>;
   readonly part: EveDynamicToolPart;
@@ -456,7 +471,7 @@ function ToolCallItem({
     >
       <ToolStatusIcon status={status} />
       <ToolNameLabel part={part} />
-      <span className="truncate text-foreground/80">{describeToolAction(part)}</span>
+      <span className="truncate text-foreground/80">{describeToolAction(part, describeTool)}</span>
       {canExpand ? (
         <ChevronRightIcon
           className={cn(
@@ -513,28 +528,16 @@ function ToolDetails({
 }
 
 function ToolStatusIcon({ status }: { readonly status: ToolStatus }) {
-  const className = "size-3 shrink-0";
-
-  if (status === "running") {
-    return (
-      <span className="flex size-4 shrink-0 items-center justify-center self-center">
-        <Loader2Icon className={cn(className, "animate-spin")} />
-      </span>
-    );
-  }
-
-  if (status === "error" || status === "denied") {
-    return (
-      <span className="flex size-4 shrink-0 items-center justify-center self-center">
-        <XIcon className={cn(className, "text-destructive")} />
-      </span>
-    );
-  }
-
   return (
-    <span className="flex size-4 shrink-0 items-center justify-center self-center">
-      <CheckIcon className={cn(className, "text-success")} />
-    </span>
+    <TraceIcon>
+      {status === "running" ? (
+        <Loader2Icon className="animate-spin motion-reduce:animate-none" />
+      ) : status === "error" || status === "denied" ? (
+        <XIcon className="text-destructive" />
+      ) : (
+        <CircleCheckIcon className="text-success" />
+      )}
+    </TraceIcon>
   );
 }
 
@@ -734,9 +737,15 @@ function toolStatusLabel(status: ToolStatus) {
   }
 }
 
-function summarizeToolGroup(parts: readonly EveDynamicToolPart[]) {
+function summarizeToolGroup(parts: readonly EveDynamicToolPart[], describeTool?: DescribeTool) {
   if (parts.length === 1) {
-    return describeToolAction(parts[0]!);
+    return describeToolAction(parts[0]!, describeTool);
+  }
+
+  // Calls the caller can name read as their names, in order, without repeats.
+  const named = parts.map((part) => describeTool?.(part));
+  if (named.every(Boolean)) {
+    return [...new Set(named)].join(", ");
   }
 
   const counts = new Map<string, number>();
@@ -783,8 +792,8 @@ function toolCategory(name: string) {
   return "ran";
 }
 
-function describeToolAction(part: EveDynamicToolPart) {
-  const label = toolLabel(part);
+function describeToolAction(part: EveDynamicToolPart, describeTool?: DescribeTool) {
+  const label = describeTool?.(part) ?? toolLabel(part);
   if (label) {
     return label;
   }

@@ -2,73 +2,54 @@
 
 import { displayNameSchema, type SetupFieldName } from "@lib/contracts/setup";
 import type { HandleAvailability } from "@lib/server/handles";
+import { CircleCheckIcon, CircleIcon, ListChecksIcon, ShieldCheckIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { Trace, TraceDescription, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
 import { Input } from "@/components/ui/input";
 import { checkHandle } from "@/lib/setup/client";
-import { ANALYSIS_CARD_ID } from "./analysis-card";
+import { cn } from "@/lib/utils";
 import { CALENDARS_CARD_ID } from "./calendar-cards";
-import { CardActions, focusCard, SetupCard, SourceBadge } from "./card";
+import { CardActions, EditorForm, focusCard, QuietButton, SetupCard, SourceBadge } from "./card";
 import {
   describeLimit,
   describeLocation,
   describeTravelMode,
   FIELD_LABELS,
   formatMinutes,
+  groupWindows,
   handleMessage,
   MEETING_MODE_LABELS,
 } from "./format";
-import { answeredMode, QUESTION_CARD_IDS } from "./question-cards";
-import { useSetup } from "./setup-context";
-import { SUGGESTION_CARD_IDS, WeeklyPreview } from "./suggestion-cards";
+import { type SetupStep, useSetup, useStepper } from "./setup-context";
+import { StepCard } from "./step-card";
+import { acceptedMode, noteEntries, STEP_CARD_IDS, STEP_FIELDS, type StepId, stepAccepted, stepForField } from "./steps";
 
-// The setup review (H8, H9): the exact settings confirmation would save, each
-// with its source, the editable display name and handle, the calendar roles, the
-// values still missing, and **Confirm and save proposed settings**, which names
-// the reviewed draft revision and proposal hash so a newer draft rejects it.
+// The setup review (H8, H9): the exact settings confirmation would save in one
+// compact list, each with its source and an Edit link to its step, the calendar
+// roles, the values still missing, and **Confirm and save proposed settings**,
+// which names the reviewed draft revision and proposal hash so a newer draft
+// rejects it. The identity step (display name and handle) comes just before it.
 
-export const REVIEW_CARD_ID = "setup-review";
+export const REVIEW_CARD_ID = STEP_CARD_IDS.review;
 export const DISPLAY_NAME_INPUT_ID = "setup-display-name";
 export const HANDLE_INPUT_ID = "setup-handle";
 export const CHANGE_CALENDARS_ID = "setup-change-calendars";
 
-// Where each field is answered, so a missing value can take the host there.
-export const FIELD_TARGETS: Readonly<Record<SetupFieldName, { readonly card: string; readonly input?: string }>> = {
-  bufferAfterMinutes: { card: SUGGESTION_CARD_IDS.duration },
-  bufferBeforeMinutes: { card: SUGGESTION_CARD_IDS.duration },
-  displayName: { card: REVIEW_CARD_ID, input: DISPLAY_NAME_INPUT_ID },
-  durationMinutes: { card: SUGGESTION_CARD_IDS.duration },
-  handle: { card: REVIEW_CARD_ID, input: HANDLE_INPUT_ID },
-  location: { card: QUESTION_CARD_IDS.location },
-  meetingMode: { card: QUESTION_CARD_IDS.mode },
-  noteExclusions: { card: ANALYSIS_CARD_ID },
-  timezone: { card: SUGGESTION_CARD_IDS.timezone },
-  travelBufferMinutes: { card: QUESTION_CARD_IDS.travelBuffer },
-  travelMode: { card: QUESTION_CARD_IDS.transport },
-  weeklyLimit: { card: SUGGESTION_CARD_IDS.limit },
-  weeklyWindows: { card: SUGGESTION_CARD_IDS.windows },
-};
-
-export function focusField(field: SetupFieldName) {
-  const target = FIELD_TARGETS[field];
-  if (target.input) {
-    const input = document.getElementById(target.input);
-    if (input) {
-      input.focus();
-      input.scrollIntoView({ block: "center" });
-      return;
-    }
-  }
-  focusCard(target.card);
-}
-
 export function ReviewCard({ pending = false }: { readonly pending?: boolean }) {
   const { busy, run, setEditingCalendars, state } = useSetup();
+  const stepper = useStepper();
   const { fields } = state;
-  const mode = answeredMode(state);
+  const mode = acceptedMode(state);
   const inPerson = mode === "in_person" || mode === "either";
   const missing = state.missingFields;
   const saving = busy === REVIEW_CARD_ID;
+  const exclusions = fields.noteExclusions.proposed?.value.length ?? 0;
+  const reviewedCount = stepper.steps.filter((step) => stepAccepted(state, step)).length;
+  // Missing values, one link per step.
+  const missingSteps = [...new Set(missing.map(stepForField))];
 
   const confirm = () =>
     run(REVIEW_CARD_ID, [
@@ -79,124 +60,229 @@ export function ReviewCard({ pending = false }: { readonly pending?: boolean }) 
       },
     ]);
 
-  const row = (field: SetupFieldName, value: ReactNode) => {
-    const proposed = fields[field].proposed;
-    return (
-      <div className="flex flex-col gap-1 py-2 sm:flex-row sm:gap-4" key={field}>
-        <dt className="text-sm font-medium sm:w-40 sm:shrink-0">{FIELD_LABELS[field]}</dt>
-        <dd className="flex min-w-0 flex-1 flex-col gap-1">
-          {proposed ? value : <span className="text-muted-foreground">Not set yet</span>}
-          {proposed ? <SourceBadge sampleSize={proposed.sampleSize} source={proposed.source} /> : null}
-        </dd>
-      </div>
-    );
-  };
-
-  const exclusions = fields.noteExclusions.proposed?.value.length ?? 0;
+  const duration = fields.durationMinutes.proposed?.value;
+  const before = fields.bufferBeforeMinutes.proposed?.value;
+  const after = fields.bufferAfterMinutes.proposed?.value;
+  const windows = fields.weeklyWindows.proposed?.value;
+  const handle = fields.handle.proposed?.value;
 
   return (
     <SetupCard
-      eyebrow="Review"
-      id={REVIEW_CARD_ID}
-      title={pending ? "Review your changes" : "Review your booking settings"}
       description={
-        pending
-          ? "People still book with your confirmed settings until you confirm these."
-          : "This is exactly what will be saved. Nothing is public until you confirm."
+        pending ? (
+          <span role="status">
+            <span className="font-medium text-warning">Not yet confirmed.</span> People still book with your confirmed settings.
+          </span>
+        ) : (
+          "Nothing is public until you confirm."
+        )
       }
+      id={REVIEW_CARD_ID}
+      label="Review"
+      onBack={!pending && stepper.steps.length > 0 ? stepper.back : undefined}
+      progress={pending ? undefined : 1}
+      scroll
+      title={pending ? "Review your changes" : "Review your booking settings"}
     >
-      <dl className="flex flex-col divide-y divide-border">
-        {row("timezone", <span className="break-words">{fields.timezone.proposed?.value.replaceAll("_", " ")}</span>)}
-        {row("weeklyWindows", fields.weeklyWindows.proposed ? <WeeklyPreview windows={fields.weeklyWindows.proposed.value} /> : null)}
-        {row("weeklyLimit", describeLimit(fields.weeklyLimit.proposed?.value ?? null))}
-        {row("noteExclusions", exclusions === 0 ? "None excluded" : `${exclusions} excluded from busy time`)}
-        {row("durationMinutes", formatMinutes(fields.durationMinutes.proposed?.value ?? 0))}
-        {row("bufferBeforeMinutes", formatMinutes(fields.bufferBeforeMinutes.proposed?.value ?? 0))}
-        {row("bufferAfterMinutes", formatMinutes(fields.bufferAfterMinutes.proposed?.value ?? 0))}
-        {mode
-          ? row("meetingMode", MEETING_MODE_LABELS[mode])
-          : (
-              <div className="flex flex-col gap-1 py-2 sm:flex-row sm:gap-4">
-                <dt className="text-sm font-medium sm:w-40 sm:shrink-0">{FIELD_LABELS.meetingMode}</dt>
-                <dd className="text-muted-foreground">Not answered yet</dd>
-              </div>
-            )}
+      <Trace>
+        <TraceLine>
+          <TraceIcon>
+            <ListChecksIcon />
+          </TraceIcon>
+          <TraceTitle>Your booking settings</TraceTitle>
+          <TraceDescription>
+            {reviewedCount} of {stepper.steps.length} reviewed
+          </TraceDescription>
+        </TraceLine>
+      </Trace>
+      <dl className="grid gap-x-6 sm:grid-cols-2">
+        <Row label={FIELD_LABELS.timezone} step="timezone">
+          {fields.timezone.proposed?.value.replaceAll("_", " ")}
+        </Row>
+        <Row label={FIELD_LABELS.weeklyWindows} step="windows">
+          {windows
+            ? groupWindows(windows).map((group) => (
+                <span className="block tabular-nums" key={group.days}>
+                  <span className="font-medium">{group.days}</span> {group.ranges ?? <span className="text-muted-foreground">unavailable</span>}
+                </span>
+              ))
+            : null}
+        </Row>
+        <Row label={FIELD_LABELS.weeklyLimit} step="limit">
+          {describeLimit(fields.weeklyLimit.proposed?.value ?? null)}
+        </Row>
+        <Row label="Meeting length" step="duration">
+          {duration === undefined ? null : (
+            <>
+              <span>{formatMinutes(duration)}</span>
+              <span className="text-muted-foreground">
+                {" · "}
+                <span>{formatMinutes(before ?? 0)} before</span>
+                {" · "}
+                <span>{formatMinutes(after ?? 0)} after</span>
+              </span>
+            </>
+          )}
+        </Row>
+        <Row label={FIELD_LABELS.noteExclusions} step={noteEntries(state).length > 0 ? "notes" : null}>
+          {exclusions === 0 ? "None excluded" : `${exclusions} excluded from busy time`}
+        </Row>
+        <Row label={FIELD_LABELS.meetingMode} step="mode">
+          {mode ? MEETING_MODE_LABELS[mode] : null}
+        </Row>
         {inPerson ? (
           <>
-            {row("location", fields.location.proposed ? describeLocation(fields.location.proposed.value) : null)}
-            {row("travelMode", fields.travelMode.proposed ? describeTravelMode(fields.travelMode.proposed.value) : null)}
-            {row("travelBufferMinutes", formatMinutes(fields.travelBufferMinutes.proposed?.value ?? 0))}
+            <Row label={FIELD_LABELS.location} step="location">
+              {fields.location.proposed?.accepted ? describeLocation(fields.location.proposed.value) : null}
+            </Row>
+            <Row label={FIELD_LABELS.travelMode} step="transport">
+              {fields.travelMode.proposed?.accepted ? describeTravelMode(fields.travelMode.proposed.value) : null}
+            </Row>
+            <Row label={FIELD_LABELS.travelBufferMinutes} step="travelBuffer">
+              {fields.travelBufferMinutes.proposed ? formatMinutes(fields.travelBufferMinutes.proposed.value) : null}
+            </Row>
           </>
         ) : null}
+        <Row label={FIELD_LABELS.displayName} step="identity" field="displayName">
+          {fields.displayName.proposed?.value}
+        </Row>
+        <Row label={FIELD_LABELS.handle} step="identity" field="handle">
+          {handle ? <span className="font-mono break-all">/{handle}</span> : null}
+        </Row>
+        <div className="flex min-w-0 items-start gap-2 border-t border-border py-2 sm:col-span-2">
+          <div className="min-w-0 flex-1">
+            <dt className="text-xs text-muted-foreground">Calendars</dt>
+            <dd className="min-w-0 break-words">
+              {state.roles ? (
+                <>
+                  Checks {state.roles.conflictCalendars.map((calendar) => calendar.summary).join(", ")}; adds bookings to{" "}
+                  {state.roles.bookingCalendar.summary}
+                </>
+              ) : (
+                <span className="text-muted-foreground">Not chosen yet</span>
+              )}
+            </dd>
+          </div>
+          <EditLink
+            disabled={busy !== null || !state.calendar.connected}
+            id={CHANGE_CALENDARS_ID}
+            label="calendars"
+            onClick={() => {
+              setEditingCalendars(true);
+              focusCard(CALENDARS_CARD_ID);
+            }}
+          />
+        </div>
       </dl>
 
-      <IdentityFields />
-
-      <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-        <h4 className="font-medium">Calendars</h4>
-        {state.roles ? (
-          <dl className="flex flex-col gap-1 text-sm">
-            <div className="flex flex-col sm:flex-row sm:gap-4">
-              <dt className="font-medium sm:w-40 sm:shrink-0">Check for conflicts</dt>
-              <dd className="min-w-0 break-words">{state.roles.conflictCalendars.map((calendar) => calendar.summary).join(", ")}</dd>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:gap-4">
-              <dt className="font-medium sm:w-40 sm:shrink-0">Add bookings to</dt>
-              <dd className="min-w-0 break-words">{state.roles.bookingCalendar.summary}</dd>
-            </div>
-          </dl>
-        ) : (
-          <p className="text-sm text-muted-foreground">No calendars chosen yet.</p>
-        )}
-        <Button
-          className="self-start"
-          disabled={busy !== null || !state.calendar.connected}
-          id={CHANGE_CALENDARS_ID}
-          onClick={() => {
-            setEditingCalendars(true);
-            focusCard(CALENDARS_CARD_ID);
-          }}
-          type="button"
-          variant="outline"
-        >
-          Change calendars
-        </Button>
-      </div>
-
-      {missing.length > 0 ? (
-        <div className="flex flex-col gap-2" role="status">
-          <p className="text-sm font-medium">Still needed before you can confirm:</p>
-          <ul className="flex flex-wrap gap-2">
-            {missing.map((field) => (
-              <li key={field}>
-                <Button className="h-auto min-h-11" onClick={() => focusField(field)} type="button" variant="link">
-                  {FIELD_LABELS[field]}
-                </Button>
-              </li>
-            ))}
-          </ul>
+      {missingSteps.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1" role="status">
+          <p className="font-medium">Still needed:</p>
+          {missingSteps.map((step) => (
+            <Button className="min-h-9 px-1" key={step} onClick={() => stepper.edit(step)} type="button" variant="link">
+              {STEP_LABELS[step]}
+            </Button>
+          ))}
         </div>
       ) : null}
 
-      <CardActions>
-        <Button disabled={missing.length > 0 || busy !== null} onClick={() => void confirm()} type="button">
-          {saving ? "Saving..." : "Confirm and save proposed settings"}
-        </Button>
-      </CardActions>
+      {/* The Confirmation pattern: one prompt to approve, kept in view. */}
+      <div className="sticky bottom-0 z-10 -mx-4 mt-auto bg-card px-4 pt-1 pb-3">
+        <Item className="gap-2 rounded-lg px-3 py-2" size="sm" variant="outline">
+          <ItemMedia variant="icon">
+            <ShieldCheckIcon />
+          </ItemMedia>
+          <ItemContent className="min-w-40 gap-0">
+            <ItemTitle>{pending ? "Publish these changes?" : "Ready to go live?"}</ItemTitle>
+            <ItemDescription className="text-xs">Your booking page uses exactly these settings.</ItemDescription>
+          </ItemContent>
+          <ItemActions className="w-full sm:w-auto">
+            <Button className="w-full sm:w-auto" disabled={missing.length > 0 || busy !== null} onClick={() => void confirm()} type="button">
+              {saving ? "Saving..." : "Confirm and save proposed settings"}
+            </Button>
+          </ItemActions>
+        </Item>
+      </div>
     </SetupCard>
   );
 }
 
-// Display name and handle, edited in place and saved as the host's own values.
-// The handle is checked as it is typed, and again when saved and confirmed.
-function IdentityFields() {
+const STEP_LABELS: Readonly<Record<StepId, string>> = {
+  duration: "Meeting length",
+  identity: "Display name and handle",
+  limit: FIELD_LABELS.weeklyLimit,
+  location: FIELD_LABELS.location,
+  mode: FIELD_LABELS.meetingMode,
+  notes: FIELD_LABELS.noteExclusions,
+  timezone: FIELD_LABELS.timezone,
+  transport: FIELD_LABELS.travelMode,
+  travelBuffer: FIELD_LABELS.travelBufferMinutes,
+  windows: FIELD_LABELS.weeklyWindows,
+};
+
+function EditLink({ disabled, id, label, onClick }: { readonly disabled?: boolean; readonly id?: string; readonly label: string; readonly onClick: () => void }) {
+  return (
+    <Button aria-label={`Edit ${label}`} className="-mr-1 min-h-9 shrink-0 px-1" disabled={disabled} id={id} onClick={onClick} type="button" variant="link">
+      Edit
+    </Button>
+  );
+}
+
+// One reviewed value: its label, the value or "Not set yet", its source, and an
+// Edit link to its step. A value the host skipped is marked as only proposed.
+function Row({
+  children,
+  field,
+  label,
+  step,
+}: {
+  readonly children: ReactNode;
+  readonly field?: SetupFieldName;
+  readonly label: string;
+  readonly step: StepId | null;
+}) {
+  const { busy, state } = useSetup();
+  const stepper = useStepper();
+  const shown = field ?? (step ? STEP_FIELDS[step][0] : undefined);
+  const proposed = shown ? state.fields[shown].proposed : null;
+  const empty = children === null || children === undefined;
+  const unreviewed = step !== null && !empty && !stepAccepted(state, step);
+
+  return (
+    <div className="flex min-w-0 items-start gap-2 border-t border-border py-2 first:border-t-0 sm:[&:nth-child(2)]:border-t-0">
+      <TraceIcon className={cn("mt-0.5", empty || unreviewed ? "text-muted-foreground" : "text-success")}>
+        {empty || unreviewed ? <CircleIcon /> : <CircleCheckIcon />}
+      </TraceIcon>
+      <div className="min-w-0 flex-1">
+        <dt className="text-xs text-muted-foreground">{label}</dt>
+        <dd className="flex min-w-0 flex-col gap-1">
+          <span className={cn("min-w-0 break-words", empty && "text-muted-foreground")}>{empty ? "Not set yet" : children}</span>
+          {!empty && proposed ? (
+            <span className="flex flex-wrap items-center gap-1.5">
+              <SourceBadge sampleSize={proposed.sampleSize} source={proposed.source} />
+              {unreviewed ? <span className="text-xs text-muted-foreground">Proposed, not reviewed</span> : null}
+            </span>
+          ) : null}
+        </dd>
+      </div>
+      {step ? <EditLink disabled={busy !== null} label={label.toLowerCase()} onClick={() => stepper.edit(step)} /> : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The identity step: display name and handle, checked as they are typed.
+
+export function IdentityStep() {
   const { busy, run, state } = useSetup();
+  const stepper = useStepper();
+  const id = STEP_CARD_IDS.identity;
   const savedName = state.fields.displayName.proposed?.value ?? "";
   const savedHandle = state.fields.handle.proposed?.value ?? "";
   const [name, setName] = useState(savedName);
   const [handle, setHandle] = useState(savedHandle);
   const [check, setCheck] = useState<{ handle: string; availability: HandleAvailability | "checking" | "error" } | null>(null);
-  const id = useId();
+  const hintId = useId();
 
   // A new server value (after a save or another change) resets an untouched field.
   const [seen, setSeen] = useState({ handle: savedHandle, name: savedName });
@@ -240,94 +326,90 @@ function IdentityFields() {
           : current === "available"
             ? "Available."
             : handleMessage(current);
-  const canSaveHandle = handleChanged && current === "available";
+  const handleOk = handleChanged ? current === "available" : state.handleAvailability === "available";
+  const canSave = nameResult.success && handleOk && savedHandle.length + candidate.length > 0;
+  const accepted = stepAccepted(state, "identity");
+  const changed = nameChanged || handleChanged;
   const origin = typeof window === "undefined" ? "" : window.location.origin;
 
-  const save = (field: "displayName" | "handle", value: string) =>
-    run(REVIEW_CARD_ID, [
-      {
-        expectedRevision: state.draft.revision,
-        input: { action: "adjust", field, value },
-        operation: "setup.update_draft",
-      },
-    ]);
+  // Changed values are saved as the host's own; unchanged, unaccepted ones are
+  // accepted as shown.
+  const save = async () => {
+    if (!canSave) return;
+    const entries: { field: "displayName" | "handle"; changed: boolean; value: string }[] = [
+      { changed: nameChanged, field: "displayName", value: nameResult.success ? nameResult.data : savedName },
+      { changed: handleChanged, field: "handle", value: candidate },
+    ];
+    const steps: SetupStep[] = [];
+    for (const entry of entries) {
+      const proposed = state.fields[entry.field].proposed;
+      if (entry.changed) {
+        steps.push({ expectedRevision: "previous", input: { action: "adjust", field: entry.field, value: entry.value }, operation: "setup.update_draft" });
+      } else if (proposed && !proposed.accepted) {
+        steps.push({ expectedRevision: "previous", input: { action: "use_suggestion", field: entry.field, shown: proposed.value }, operation: "setup.update_draft" });
+      }
+    }
+    if (steps.length === 0) {
+      stepper.forward();
+      return;
+    }
+    const chained = steps.map((step, index) => (index === 0 ? { ...step, expectedRevision: state.draft.revision } : step));
+    if (await run(id, chained)) stepper.saved();
+  };
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <form
-        className="flex min-w-0 flex-col gap-1"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (nameChanged) void save("displayName", nameResult.data);
-        }}
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="text-sm font-medium" htmlFor={DISPLAY_NAME_INPUT_ID}>
-            Display name
-          </label>
-          <FieldSource field="displayName" />
-        </div>
-        <div className="flex flex-wrap gap-2">
+    <StepCard step="identity" title="What should your booking page show?">
+      <EditorForm label="Booking page identity" onSubmit={() => void save()}>
+        <Field className="min-w-0 gap-1" data-invalid={nameResult.success ? undefined : true}>
+          <FieldLabel htmlFor={DISPLAY_NAME_INPUT_ID}>Display name</FieldLabel>
           <Input
-            aria-describedby={`${id}-name-hint`}
-            className="h-11 min-w-0 flex-1 bg-card text-base md:text-base"
+            aria-describedby={nameResult.success ? undefined : `${hintId}-name`}
+            aria-invalid={nameResult.success ? undefined : true}
+            className="h-11 min-w-0 bg-card text-base md:text-base"
             id={DISPLAY_NAME_INPUT_ID}
             maxLength={80}
             onChange={(event) => setName(event.target.value)}
             value={name}
           />
-          <Button disabled={!nameChanged || busy !== null} type="submit" variant="outline">
-            Save name
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground" id={`${id}-name-hint`}>
-          {nameResult.success ? "Shown on your booking page." : "Enter a name of up to 80 characters."}
-        </p>
-      </form>
-      <form
-        className="flex min-w-0 flex-col gap-1"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (canSaveHandle) void save("handle", candidate);
-        }}
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="text-sm font-medium" htmlFor={HANDLE_INPUT_ID}>
-            Handle
-          </label>
-          <FieldSource field="handle" />
-        </div>
-        <div className="flex flex-wrap gap-2">
+          {nameResult.success ? null : (
+            <FieldDescription className="text-destructive" id={`${hintId}-name`}>
+              Enter a name of up to 80 characters.
+            </FieldDescription>
+          )}
+        </Field>
+        <Field className="min-w-0 gap-1">
+          <FieldLabel htmlFor={HANDLE_INPUT_ID}>Handle</FieldLabel>
           <Input
-            aria-describedby={`${id}-handle-hint`}
+            aria-describedby={`${hintId}-handle`}
             aria-invalid={handleChanged && current !== null && current !== "checking" && current !== "available" ? true : undefined}
             autoCapitalize="none"
             autoComplete="off"
-            className="h-11 min-w-0 flex-1 bg-card font-mono text-base md:text-base"
+            className="h-11 min-w-0 bg-card font-mono text-base md:text-base"
             id={HANDLE_INPUT_ID}
             maxLength={64}
             onChange={(event) => setHandle(event.target.value)}
             spellCheck={false}
             value={handle}
           />
-          <Button disabled={!canSaveHandle || busy !== null} type="submit" variant="outline">
-            Save handle
+          <FieldDescription aria-live="polite" id={`${hintId}-handle`}>
+            {handleText ?? (
+              <>
+                Your link: <span className="break-all text-foreground">{`${origin}/${candidate}`}</span>
+              </>
+            )}
+          </FieldDescription>
+        </Field>
+        <CardActions>
+          <Button data-trigger="use" disabled={!canSave || busy !== null} onClick={() => void save()} type="button">
+            {busy === id ? "Saving..." : changed ? "Save" : accepted ? (stepper.returnToReview ? "Keep and return" : "Keep this") : "Use these"}
           </Button>
-        </div>
-        <p aria-live="polite" className="text-sm text-muted-foreground" id={`${id}-handle-hint`}>
-          {handleText ?? (
-            <>
-              Your link: <span className="break-all text-foreground">{`${origin}/${candidate}`}</span>
-            </>
+          {accepted ? null : (
+            <QuietButton className="ml-auto" disabled={busy !== null} onClick={stepper.skip}>
+              Skip for now
+            </QuietButton>
           )}
-        </p>
-      </form>
-    </div>
+        </CardActions>
+      </EditorForm>
+    </StepCard>
   );
-}
-
-function FieldSource({ field }: { readonly field: "displayName" | "handle" }) {
-  const { state } = useSetup();
-  const proposed = state.fields[field].proposed;
-  return proposed ? <SourceBadge sampleSize={proposed.sampleSize} source={proposed.source} /> : null;
 }

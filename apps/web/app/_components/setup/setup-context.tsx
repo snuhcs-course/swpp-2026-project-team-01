@@ -1,7 +1,7 @@
 "use client";
 
 import type { SetupOperation } from "@lib/contracts/setup";
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   browserTimeZone,
   createRetryKeys,
@@ -11,10 +11,12 @@ import {
   SetupRequestError,
   type SetupState,
 } from "@/lib/setup/client";
+import { backTarget, firstOpenStep, forwardTarget, setupSteps, type StepId, type StepTarget } from "./steps";
 
 // The setup cards' shared controller: the server-derived state, one command at a
-// time with retry identity, and a notice shown beside the card that acted. State
-// is reloaded on load, after every card action and after every assistant turn.
+// time with retry identity, a notice shown beside the card that acted, and the
+// client-side step pointer (Back, Edit, Skip for now). State is reloaded on load,
+// after every card action and after every assistant turn.
 
 export const STALE_MESSAGE = "This changed since you last saw it. Here is the current version.";
 
@@ -34,8 +36,19 @@ export type SetupStep = {
   readonly expectedRevision: number | null | "previous";
 };
 
+// An explicit place in the stepper, set by Back, Edit or moving forward through
+// steps already answered. Without one, the first open step is shown.
+export type StepView = { readonly step: StepTarget; readonly returnToReview: boolean };
+
 type SetupContextValue = {
   readonly state: SetupState;
+  readonly view: StepView | null;
+  readonly skipped: ReadonlySet<StepId>;
+  // Before Calendar is connected, the host chose to set other preferences now.
+  readonly early: boolean;
+  readonly setView: (view: StepView | null) => void;
+  readonly setSkipped: (skipped: ReadonlySet<StepId>) => void;
+  readonly setEarly: (early: boolean) => void;
   readonly busy: string | null;
   readonly notice: SetupNotice | null;
   readonly editingCalendars: boolean;
@@ -51,6 +64,64 @@ export function useSetup() {
   const value = useContext(SetupContext);
   if (!value) throw new Error("useSetup must be used inside SetupProvider.");
   return value;
+}
+
+const STEPPER_ACTIONS = new Set(["connect_calendar", "review_suggestions", "confirm_settings", "ready"]);
+
+// The current card of the stepper and the moves from it. Inside setup, the card
+// is the explicit view if it still exists, else the first open step; a ready host
+// with pending changes sees the review unless they chose a step to edit.
+export function useStepper() {
+  const { early, setEarly, setSkipped, setView, skipped, state, view } = useSetup();
+  const steps = setupSteps(state);
+  const open = firstOpenStep(state, skipped);
+  const pointed = view && (view.step === "review" || steps.includes(view.step)) ? view : null;
+  const current: StepTarget = pointed?.step ?? (state.nextAction === "ready" ? "review" : open);
+  const returnToReview = pointed?.returnToReview ?? false;
+  const previous = backTarget(steps, current);
+
+  const forward = (skippedNow: ReadonlySet<StepId> = skipped) => {
+    if (returnToReview) {
+      setView({ returnToReview: false, step: "review" });
+      return;
+    }
+    const target = forwardTarget(steps, current, firstOpenStep(state, skippedNow));
+    setView(target ? { returnToReview: false, step: target } : null);
+  };
+
+  return {
+    canGoBack: current !== "review" && (returnToReview || previous !== null || early),
+    current,
+    // Leaves an edit for the review, or goes to the previous step, or, on the
+    // first step before Calendar is connected, back to the Connect card.
+    back() {
+      if (returnToReview) setView({ returnToReview: false, step: "review" });
+      else if (previous) setView({ returnToReview: false, step: previous });
+      else if (early) {
+        setView(null);
+        setEarly(false);
+      }
+    },
+    edit(step: StepId) {
+      setView({ returnToReview: true, step });
+    },
+    forward: () => forward(),
+    position: current === "review" ? null : steps.indexOf(current) + 1,
+    returnToReview,
+    // A saved step hands back to the first open step, which is the review once
+    // everything is accepted or skipped.
+    saved() {
+      setView(null);
+    },
+    skip() {
+      if (current === "review") return;
+      const next = new Set(skipped).add(current);
+      setSkipped(next);
+      forward(next);
+    },
+    skipped,
+    steps,
+  };
 }
 
 export const DESTINATION_LOST_MESSAGE =
@@ -75,6 +146,9 @@ export function useSetupController() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<SetupNotice | null>(null);
   const [editingCalendars, setEditingCalendarsState] = useState(false);
+  const [view, setView] = useState<StepView | null>(null);
+  const [skipped, setSkipped] = useState<ReadonlySet<StepId>>(() => new Set());
+  const [early, setEarly] = useState(false);
   const editingRef = useRef(false);
   const timeZone = useMemo(() => browserTimeZone(), []);
   const retryKeys = useMemo(() => createRetryKeys(), []);
@@ -164,6 +238,18 @@ export function useSetupController() {
     [reload, retryKeys],
   );
 
+  // Leaving the stepper (to connect, choose calendars or wait for the scan, or
+  // once confirmed) forgets its client-side place.
+  const nextAction = state?.nextAction;
+  const lastAction = useRef(nextAction);
+  useEffect(() => {
+    if (lastAction.current === nextAction) return;
+    lastAction.current = nextAction;
+    setView(null);
+    if (!nextAction || !STEPPER_ACTIONS.has(nextAction) || nextAction === "ready") setSkipped(new Set());
+    if (nextAction !== "connect_calendar") setEarly(false);
+  }, [nextAction]);
+
   const retry = useCallback(async () => {
     const pending = pendingRef.current;
     return pending ? execute(pending.anchor, pending.steps) : false;
@@ -175,15 +261,21 @@ export function useSetupController() {
         ? {
             busy,
             dismissNotice: () => setNotice(null),
+            early,
             editingCalendars,
             notice,
             retry,
             run: execute,
+            setEarly,
             setEditingCalendars,
+            setSkipped,
+            setView,
+            skipped,
             state,
+            view,
           }
         : null,
-    [busy, editingCalendars, execute, notice, retry, setEditingCalendars, state],
+    [busy, early, editingCalendars, execute, notice, retry, setEditingCalendars, skipped, state, view],
   );
 
   return { loadError, reload, state, value };

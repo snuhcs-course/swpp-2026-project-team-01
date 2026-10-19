@@ -21,3 +21,10 @@ This product includes software developed at Vercel, Inc.
 ```
 
 The remainder of that `NOTICE` covers the code-mode runtime bundled inside the `eve` npm package, which is installed as a dependency and not copied here.
+
+## shadcn/ui and its AI Elements patterns
+
+`apps/web/components/ui/{bubble,field,item,label,message,message-scroller,progress,questionnaire,trace}.tsx` were added with the shadcn CLI 4.22.1 on 2026-10-20 (the `trace` and `questionnaire` components from the `radix-rhea` style) and are modified here. `apps/web/app/shadcn.css` is copied from `shadcn@4.21.4` `dist/tailwind.css`.
+
+- Source: <https://github.com/shadcn-ui/ui>, <https://ui.shadcn.com/docs/ai-elements>
+- License: MIT License, Copyright (c) 2023 shadcn

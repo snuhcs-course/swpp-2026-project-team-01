@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ChatItem } from "@/components/chat/conversation";
+import { Message, MessageContent, MessageHeader } from "@/components/ui/message";
 import { storageKey } from "./format";
 import type { SetupState } from "@/lib/setup/client";
 
@@ -99,13 +101,19 @@ export function useAuthoredReveal(state: SetupState | null) {
   };
 }
 
+// Each authored message is a Thyme turn on the same Message pattern as the
+// conversation's replies.
 export function AuthoredMessages({ messages }: { readonly messages: readonly AuthoredMessage[] }) {
   return messages.map((message) => (
-    <article className="flex w-full min-w-0 justify-start" data-authored-message={message.id} key={message.id}>
-      <div className="w-full min-w-0 text-base leading-[1.65] text-foreground">
-        <p className="mb-1 px-3 text-xs font-medium text-muted-foreground">Thyme</p>
-        <p className="px-3 break-words">{message.text}</p>
-      </div>
-    </article>
+    <ChatItem key={message.id} messageId={`authored-${message.id}`}>
+      <article className="w-full min-w-0" data-authored-message={message.id}>
+        <Message>
+          <MessageContent className="gap-1.5 text-base leading-[1.65] text-foreground">
+            <MessageHeader>Thyme</MessageHeader>
+            <p className="px-3 break-words">{message.text}</p>
+          </MessageContent>
+        </Message>
+      </article>
+    </ChatItem>
   ));
 }
