@@ -18,6 +18,9 @@ export type ScannedCalendar = {
 export type AnalysisEvidence = {
   // The host timezone the hours, weekdays and weeks are counted in.
   readonly timezone: string;
+  // The primary calendar's own zone, when the scan could read the calendar list.
+  // Scans stored before it was recorded lack it.
+  readonly primaryTimeZone?: string | null;
   readonly scannedCalendars: readonly { readonly id: string; readonly summary: string; readonly ok: boolean }[];
   readonly preferredTimes: {
     readonly sampleSize: number;
@@ -30,6 +33,7 @@ export type AnalysisEvidence = {
     readonly sampleSize: number;
     // Weeks with at least one counted meeting, starting Monday in the host timezone.
     readonly weeks: readonly { readonly weekStart: string; readonly internal: number; readonly external: number }[];
+    // The quietest week, 0 when a full week inside the range had no meeting.
     readonly min: number;
     readonly max: number;
   };
@@ -64,19 +68,21 @@ export type AnalysisCard = {
   readonly createdAt: string;
 };
 
-// The model's projection: counts, ranges and place names, the number of note-like
-// entries but never their titles, and no event or calendar identities.
+// The model's projection: counts and ranges, the number of note-like entries but
+// never their titles, no place names, no event or calendar identities, and
+// calendar names only as quoted data (JSON string literals with Markdown and
+// line breaks escaped), because other people can write that text.
 export type AnalysisForModel = {
   readonly state: AnalysisState;
   readonly range: { readonly start: string; readonly end: string };
-  readonly calendars: readonly { readonly summary: string; readonly ok: boolean | null }[];
+  readonly calendars: readonly { readonly name: string; readonly ok: boolean | null }[];
   readonly failureCategory: string | null;
   readonly evidence: {
     readonly timezone: string;
     readonly preferredTimes: AnalysisEvidence["preferredTimes"];
     readonly meetingLoad: AnalysisEvidence["meetingLoad"];
     readonly noteLikeCount: number;
-    readonly places: AnalysisEvidence["places"];
+    readonly places: { readonly sampleSize: number };
     readonly durations: AnalysisEvidence["durations"];
   } | null;
 };

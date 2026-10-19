@@ -53,6 +53,41 @@ describe("runSetupCommand", () => {
     });
   });
 
+  it("keeps a refusal's reason, so a lost booking destination can ask for a writable one", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          {
+            error: { category: "invalid_input", correlationId: "c", message: "The request is not valid.", reason: "destination_not_writable" },
+            ok: false,
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    expect(await runSetupCommand(request)).toEqual({
+      code: "invalid_input",
+      kind: "refused",
+      message: "The request is not valid.",
+      reason: "destination_not_writable",
+    });
+  });
+
+  it("sends Use this with the shown value and no browser zone", async () => {
+    const fetch = vi.fn(async (_url: string, _init?: RequestInit) => Response.json({ correlationId: "c", ok: true, replayed: false, result: {} }));
+    vi.stubGlobal("fetch", fetch);
+    const use = {
+      expectedRevision: 2,
+      input: { action: "use_suggestion", field: "meetingMode", shown: "online" },
+      operation: "setup.update_draft",
+      retryKey: "k",
+    } as const;
+    await runSetupCommand(use);
+
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toEqual(use);
+  });
+
   it("reports a route refusal outside the command pipeline", async () => {
     vi.stubGlobal(
       "fetch",

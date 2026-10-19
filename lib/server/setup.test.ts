@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { STARTER_DEFAULTS, type ConfirmedSettings, type DraftFields } from "../contracts/setup";
 import {
+  alignWindowsWithZone,
   buildFieldViews,
   buildSuggestions,
+  countsAsHostAnswer,
   deriveNextAction,
+  destinationLost,
   differsFromConfirmed,
   missingFields,
   type NextActionInput,
@@ -16,6 +19,7 @@ const base: NextActionInput = {
   analysisPending: false,
   analysisSkipped: false,
   calendarConnected: true,
+  destinationLost: false,
   hasRoles: true,
   missingCount: 0,
   ready: false,
@@ -26,6 +30,7 @@ describe("deriveNextAction", () => {
     ["no Calendar grant", { calendarConnected: false, hasRoles: false }, "connect_calendar"],
     ["an invalid grant after roles were saved", { calendarConnected: false }, "connect_calendar"],
     ["no saved roles", { hasRoles: false }, "choose_calendars"],
+    ["a booking destination that can no longer take events", { destinationLost: true, missingCount: 0 }, "choose_calendars"],
     ["a pending scan", { analysisPending: true, missingCount: 3 }, "analyzing"],
     ["a pending scan the host skipped", { analysisPending: true, analysisSkipped: true, missingCount: 3 }, "review_suggestions"],
     ["missing values", { missingCount: 1 }, "review_suggestions"],
@@ -62,6 +67,8 @@ function proposal(overrides: Partial<Record<string, unknown>> = {}): ProposedFie
 
 const stated = (value: unknown) => ({ accepted: false, reason: null, sampleSize: null, source: "stated" as const, value });
 const accepted = (value: unknown) => ({ accepted: true, reason: null, sampleSize: null, source: "inferred" as const, value });
+// Stated in the conversation and accepted on its card.
+const answered = (value: unknown) => ({ ...stated(value), accepted: true });
 
 describe("missingFields", () => {
   it("requires the host's own mode answer", () => {
@@ -70,22 +77,32 @@ describe("missingFields", () => {
     expect(
       missingFields(proposal({ meetingMode: { ...accepted("online"), accepted: false } }), true),
     ).toEqual(["meetingMode"]);
-    expect(missingFields(proposal({ meetingMode: stated("online") }), true)).toEqual([]);
+    expect(missingFields(proposal({ meetingMode: answered("online") }), true)).toEqual([]);
     expect(missingFields(proposal({ meetingMode: accepted("online") }), true)).toEqual([]);
   });
 
+  it("counts a host answer only once it is accepted on a card, never a stated draft alone", () => {
+    expect(countsAsHostAnswer(stated("online"))).toBe(false);
+    expect(countsAsHostAnswer(answered("online"))).toBe(true);
+    // The assistant recorded "online" from the conversation; the card still asks.
+    expect(missingFields(proposal({ meetingMode: stated("online") }), true)).toEqual(["meetingMode"]);
+    expect(
+      missingFields(proposal({ location: stated({ kind: "decide_per_meeting" }), meetingMode: answered("in_person"), travelMode: answered("walking") }), true),
+    ).toEqual(["location"]);
+  });
+
   it("skips location and transport for an online-only host", () => {
-    expect(missingFields(proposal({ meetingMode: stated("online"), travelBufferMinutes: null }), true)).toEqual([]);
+    expect(missingFields(proposal({ meetingMode: answered("online"), travelBufferMinutes: null }), true)).toEqual([]);
   });
 
   it("requires location and transport answers in person or either", () => {
-    expect(missingFields(proposal({ meetingMode: stated("either") }), true)).toEqual(["location", "travelMode"]);
+    expect(missingFields(proposal({ meetingMode: answered("either") }), true)).toEqual(["location", "travelMode"]);
     expect(
       missingFields(
         proposal({
           location: { ...accepted({ kind: "decide_per_meeting" }), accepted: false },
-          meetingMode: stated("in_person"),
-          travelMode: stated("transit"),
+          meetingMode: answered("in_person"),
+          travelMode: answered("transit"),
         }),
         true,
       ),
@@ -93,10 +110,10 @@ describe("missingFields", () => {
     expect(
       missingFields(
         proposal({
-          location: stated({ kind: "decide_per_meeting" }),
-          meetingMode: stated("in_person"),
+          location: answered({ kind: "decide_per_meeting" }),
+          meetingMode: answered("in_person"),
           travelBufferMinutes: null,
-          travelMode: stated("depends"),
+          travelMode: answered("depends"),
         }),
         true,
       ),
@@ -106,11 +123,11 @@ describe("missingFields", () => {
   it("counts invalid values and an unavailable handle as missing", () => {
     expect(
       missingFields(
-        proposal({ meetingMode: stated("online"), weeklyWindows: stated([{ end: "09:00", start: "09:00", weekday: "monday" }]) }),
+        proposal({ meetingMode: answered("online"), weeklyWindows: stated([{ end: "09:00", start: "09:00", weekday: "monday" }]) }),
         true,
       ),
     ).toEqual(["weeklyWindows"]);
-    expect(missingFields(proposal({ meetingMode: stated("online") }), false)).toEqual(["handle"]);
+    expect(missingFields(proposal({ meetingMode: answered("online") }), false)).toEqual(["handle"]);
   });
 });
 
@@ -121,7 +138,7 @@ describe("proposalHash", () => {
   };
 
   it("is stable across key order and ignores labels' evidence text", () => {
-    const one = proposal({ meetingMode: stated("online") });
+    const one = proposal({ meetingMode: answered("online") });
     const reordered = Object.fromEntries(Object.entries(one).reverse()) as ProposedFields;
     const otherReason = { ...one, durationMinutes: { ...one.durationMinutes!, reason: "Another reason." } } as ProposedFields;
 
@@ -130,7 +147,7 @@ describe("proposalHash", () => {
   });
 
   it("changes with a value, a source, the roles, or fields the mode saves", () => {
-    const one = proposal({ meetingMode: stated("online") });
+    const one = proposal({ meetingMode: answered("online") });
     const hash = proposalHash(one, roles);
 
     expect(proposalHash({ ...one, durationMinutes: stated(45) } as ProposedFields, roles)).not.toBe(hash);
@@ -145,7 +162,7 @@ describe("proposalHash", () => {
 describe("suggestions and field precedence", () => {
   it("labels starter defaults and the browser zone, and suggests no host answers", () => {
     const suggestions = buildSuggestions({
-      browserTimeZone: "Asia/Seoul",
+      starterTimeZone: "Asia/Seoul",
       email: "alice.kim@example.test",
       evidenceSuggestions: null,
       profileName: null,
@@ -168,7 +185,7 @@ describe("suggestions and field precedence", () => {
 
   it("falls back to UTC only without a calendar or browser zone, and infers the profile name", () => {
     const suggestions = buildSuggestions({
-      browserTimeZone: "Not/AZone",
+      starterTimeZone: "Not/AZone",
       email: null,
       evidenceSuggestions: null,
       profileName: "Alice Kim",
@@ -178,6 +195,32 @@ describe("suggestions and field precedence", () => {
     expect(suggestions.timezone).toMatchObject({ source: "starter_default", value: "UTC" });
     expect(suggestions.displayName).toMatchObject({ source: "inferred", value: "Alice Kim" });
     expect(suggestions.handle).toBeUndefined();
+  });
+
+  it("lets the primary calendar's zone replace the browser's unaccepted starter zone, but nothing the host chose", () => {
+    const primary = { reason: "The time zone of your primary Google calendar.", sampleSize: null, source: "inferred" as const, value: "Europe/Paris" };
+    const browser: DraftFields = {
+      timezone: { accepted: false, reason: "From this browser.", sampleSize: null, source: "starter_default", value: "Asia/Seoul" },
+    };
+    const accepted: DraftFields = { timezone: { ...browser.timezone!, accepted: true } };
+
+    expect(buildFieldViews(browser, null, { timezone: primary }).timezone.proposed).toMatchObject({ source: "inferred", value: "Europe/Paris" });
+    expect(buildFieldViews(accepted, null, { timezone: primary }).timezone.proposed).toMatchObject({ accepted: true, value: "Asia/Seoul" });
+    expect(
+      buildFieldViews(browser, null, { timezone: { ...primary, source: "starter_default", value: "UTC" } }).timezone.proposed,
+    ).toMatchObject({ value: "Asia/Seoul" });
+  });
+
+  it("drops inferred windows counted in another zone than the proposed one", () => {
+    const windows = { reason: "From 8 meetings.", sampleSize: 8, source: "inferred" as const, value: [{ end: "11:00", start: "10:00", weekday: "tuesday" as const }] };
+
+    expect(alignWindowsWithZone({ weeklyWindows: windows }, "Asia/Seoul", "Asia/Seoul").weeklyWindows).toBe(windows);
+    expect(alignWindowsWithZone({ weeklyWindows: windows }, "Asia/Seoul", "Europe/Paris").weeklyWindows).toMatchObject({
+      reason: expect.stringContaining("Asia/Seoul, not Europe/Paris"),
+      sampleSize: null,
+      source: "starter_default",
+      value: STARTER_DEFAULTS.weeklyWindows,
+    });
   });
 
   it("keeps a drafted value over a newer suggestion", () => {
@@ -218,5 +261,27 @@ describe("suggestions and field precedence", () => {
     expect(differsFromConfirmed(untouched, roles, settings)).toBe(false);
     expect(differsFromConfirmed(edited, roles, settings)).toBe(true);
     expect(differsFromConfirmed(untouched, { ...roles, bookingCalendar: { ...roles.bookingCalendar, id: "new" } }, settings)).toBe(true);
+  });
+});
+
+describe("destinationLost", () => {
+  const writable = { accessRole: "owner", id: "cal", summary: "Me" };
+  const settings = (unwritableAt: string | null) =>
+    ({ bookingCalendar: { ...writable, unwritableAt, verifiedAt: "2026-10-19T00:00:00.000Z" } }) as unknown as ConfirmedSettings;
+
+  it("is lost when the saved destination is not writable", () => {
+    expect(destinationLost({ bookingCalendar: { ...writable, accessRole: "reader" }, destinationVerifiedAt: "2026-10-19T00:00:00.000Z" }, null)).toBe(true);
+    expect(destinationLost({ bookingCalendar: writable, destinationVerifiedAt: "2026-10-19T00:00:00.000Z" }, null)).toBe(false);
+    expect(destinationLost(null, settings("2026-10-20T00:00:00.000Z"))).toBe(false);
+  });
+
+  it("is lost when the recheck marked the confirmed destination unwritable and no roles were saved since", () => {
+    const roles = { bookingCalendar: writable, destinationVerifiedAt: "2026-10-19T00:00:00.000Z" };
+
+    expect(destinationLost(roles, settings("2026-10-20T00:00:00.000Z"))).toBe(true);
+    expect(destinationLost(roles, settings(null))).toBe(false);
+    // Saving roles again re-verified the destination after it was marked.
+    expect(destinationLost({ ...roles, destinationVerifiedAt: "2026-10-21T00:00:00.000Z" }, settings("2026-10-20T00:00:00.000Z"))).toBe(false);
+    expect(destinationLost({ ...roles, bookingCalendar: { ...writable, id: "other" } }, settings("2026-10-20T00:00:00.000Z"))).toBe(false);
   });
 });

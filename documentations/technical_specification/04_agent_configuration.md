@@ -84,8 +84,8 @@ Every tool is `defineTool` with a description, a Zod input schema and an output 
 
 | Tool | Audience | Effect | eve approval |
 |---|---|---|---|
-| `read_setup_state` | host setup | Current draft, saved roles, analysis evidence and next action | never |
-| `draft_settings` | host setup | Writes draft values with a revision and labels each as stated, inferred or starter default; never policy | never |
+| `read_setup_state` | host setup | Current draft, saved roles, analysis evidence and next action; calendar names only as quoted data and no place names from events | never |
+| `draft_settings` | host setup | Writes draft values with a revision and labels each as stated or inferred (starter defaults are the service's own); never policy, and mode, location and transport count only once the host accepts them on a card | never |
 | `read_request` | host or requester | Current request, proposal version, decisions and permitted conversation, projected per audience | never |
 | `list_host_requests` | host | Selectable requests with status; no requester private data beyond the projection | never |
 | `draft_request_review` | requester | Declares details, availability, question or unknown intent with an authored clarification; creates a pending review that only the requester can apply | never |

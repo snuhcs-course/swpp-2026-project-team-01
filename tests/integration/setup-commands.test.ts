@@ -57,33 +57,70 @@ describe("setup.update_draft", () => {
     expect(await draftFields(host.hostAccountId)).toEqual({ durationMinutes: { accepted: true, source: "stated", value: 45 } });
   });
 
-  it("copies the current suggestion with its label for Use this", async () => {
+  const use = (hostAccountId: string, expectedRevision: number, field: string, shown: unknown) =>
+    runCommand(hostCommandDeps(db, hostAccountId), updateDraftCommand, {
+      expectedRevision,
+      input: { action: "use_suggestion", field, shown },
+      resourceId: hostAccountId,
+      retryKey: randomUUID(),
+    });
+
+  it("accepts the shown proposed value with its label for Use this", async () => {
     const host = await seedHost(db, deps, google, { calendar: false, displayName: "Alice Kim" });
     const before = await readSetupState(deps, host.hostAccountId, { browserTimeZone: "Asia/Seoul" });
 
-    const used = await runCommand(hostCommandDeps(db, host.hostAccountId), updateDraftCommand, {
-      expectedRevision: 0,
-      input: { action: "use_suggestion", browserTimeZone: "Asia/Seoul", field: "timezone" },
-      resourceId: host.hostAccountId,
-      retryKey: randomUUID(),
-    });
-    const mode = await runCommand(hostCommandDeps(db, host.hostAccountId), updateDraftCommand, {
-      expectedRevision: 1,
-      input: { action: "use_suggestion", field: "meetingMode" },
-      resourceId: host.hostAccountId,
-      retryKey: randomUUID(),
-    });
+    const used = await use(host.hostAccountId, before!.draft.revision, "timezone", "Asia/Seoul");
+    const mode = await use(host.hostAccountId, before!.draft.revision + 1, "meetingMode", "online");
 
-    expect(used).toMatchObject({ ok: true, result: { revision: 1 } });
+    expect(used).toMatchObject({ ok: true, result: { revision: before!.draft.revision + 1 } });
     expect((await draftFields(host.hostAccountId)).timezone).toEqual({
       accepted: true,
-      reason: before!.fields.timezone.suggestion!.reason,
+      reason: before!.fields.timezone.proposed!.reason,
       sampleSize: null,
       source: "starter_default",
       value: "Asia/Seoul",
     });
-    // Mode has no suggestion to accept: only the host answers it.
+    // Mode has no proposed value to accept: only the host answers it.
     expect(mode).toMatchObject({ error: { category: "invalid_input" }, ok: false });
+  });
+
+  it("refuses Use this as stale when the proposed value is no longer the one shown", async () => {
+    const host = await seedHost(db, deps, google, { calendar: false });
+
+    const stale = await use(host.hostAccountId, 0, "durationMinutes", 45);
+
+    expect(stale).toMatchObject({ error: { category: "stale_revision" }, ok: false });
+    expect(await draftRevision(db, host.hostAccountId)).toBe(0);
+    expect(await use(host.hostAccountId, 0, "durationMinutes", 30)).toMatchObject({ ok: true, result: { revision: 1 } });
+  });
+
+  it("accepts a stated draft shown as \"You said\", which then counts as the host's answer", async () => {
+    const host = await seedHost(db, deps, google, { calendar: false });
+    await db`
+      insert into app.setup_drafts (host_account_id, fields)
+      values (${host.hostAccountId}, ${db.json({ meetingMode: { accepted: false, source: "stated", value: "online" } })})
+    `;
+    expect((await readSetupState(deps, host.hostAccountId))!.missingFields).toContain("meetingMode");
+
+    expect(await use(host.hostAccountId, 1, "meetingMode", "online")).toMatchObject({ ok: true, result: { revision: 2 } });
+
+    expect((await draftFields(host.hostAccountId)).meetingMode).toEqual({
+      accepted: true,
+      reason: null,
+      sampleSize: null,
+      source: "stated",
+      value: "online",
+    });
+    expect((await readSetupState(deps, host.hostAccountId))!.missingFields).not.toContain("meetingMode");
+  });
+
+  it("needs no request zone for Use this: without a stored browser zone it accepts the labeled UTC fallback", async () => {
+    const host = await seedHost(db, deps, google, { calendar: false });
+    const state = await readSetupState(deps, host.hostAccountId);
+
+    expect(state!.fields.timezone.proposed).toMatchObject({ source: "starter_default", value: "UTC" });
+    expect(await use(host.hostAccountId, 0, "timezone", "UTC")).toMatchObject({ ok: true, result: { revision: 1 } });
+    expect((await draftFields(host.hostAccountId)).timezone).toMatchObject({ accepted: true, value: "UTC" });
   });
 
   it("keeps the previous handle when the drafted one is another host's or invalid", async () => {

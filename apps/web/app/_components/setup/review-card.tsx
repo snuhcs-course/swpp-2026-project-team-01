@@ -63,7 +63,7 @@ export function focusField(field: SetupFieldName) {
 }
 
 export function ReviewCard({ pending = false }: { readonly pending?: boolean }) {
-  const { busy, run, setEditingCalendars, state, timeZone } = useSetup();
+  const { busy, run, setEditingCalendars, state } = useSetup();
   const { fields } = state;
   const mode = answeredMode(state);
   const inPerson = mode === "in_person" || mode === "either";
@@ -74,7 +74,7 @@ export function ReviewCard({ pending = false }: { readonly pending?: boolean }) 
     run(REVIEW_CARD_ID, [
       {
         expectedRevision: state.draft.revision,
-        input: { browserTimeZone: timeZone, proposalHash: state.proposalHash },
+        input: { proposalHash: state.proposalHash },
         operation: "setup.confirm_settings",
       },
     ]);
@@ -190,7 +190,7 @@ export function ReviewCard({ pending = false }: { readonly pending?: boolean }) 
 // Display name and handle, edited in place and saved as the host's own values.
 // The handle is checked as it is typed, and again when saved and confirmed.
 function IdentityFields() {
-  const { busy, run, state, timeZone } = useSetup();
+  const { busy, run, state } = useSetup();
   const savedName = state.fields.displayName.proposed?.value ?? "";
   const savedHandle = state.fields.handle.proposed?.value ?? "";
   const [name, setName] = useState(savedName);
@@ -247,7 +247,7 @@ function IdentityFields() {
     run(REVIEW_CARD_ID, [
       {
         expectedRevision: state.draft.revision,
-        input: { action: "adjust", browserTimeZone: timeZone, field, value },
+        input: { action: "adjust", field, value },
         operation: "setup.update_draft",
       },
     ]);

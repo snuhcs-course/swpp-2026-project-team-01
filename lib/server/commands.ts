@@ -3,6 +3,7 @@ import type { z } from "zod";
 import {
   COMMAND_ERROR_MESSAGES,
   type CommandErrorCategory,
+  type CommandErrorReason,
   type CommandFailure,
 } from "../contracts/command-errors";
 import type { Database, Queryable, Transaction } from "./database";
@@ -64,11 +65,13 @@ export type CommandDependencies = {
 
 export class CommandError extends Error {
   readonly category: CommandErrorCategory;
+  readonly reason: CommandErrorReason | undefined;
 
-  constructor(category: CommandErrorCategory, options?: { cause?: unknown }) {
+  constructor(category: CommandErrorCategory, options?: { cause?: unknown; reason?: CommandErrorReason }) {
     super(COMMAND_ERROR_MESSAGES[category], options);
     this.name = "CommandError";
     this.category = category;
+    this.reason = options?.reason;
   }
 }
 
@@ -131,6 +134,7 @@ export function assertRevision(current: number, expected: number | null) {
 
 export function commandFailure(error: unknown, correlationId: string, operation: string): CommandFailure {
   const category = error instanceof CommandError ? error.category : "internal";
+  const reason = error instanceof CommandError ? error.reason : undefined;
 
   // Diagnostics name the category and the error class only: messages and causes
   // can carry provider tokens or private text.
@@ -144,7 +148,7 @@ export function commandFailure(error: unknown, correlationId: string, operation:
     }),
   );
 
-  return { category, correlationId, message: COMMAND_ERROR_MESSAGES[category] };
+  return { category, correlationId, message: COMMAND_ERROR_MESSAGES[category], ...(reason ? { reason } : {}) };
 }
 
 // Only the owner of the private schema may run commands. A Data API role that

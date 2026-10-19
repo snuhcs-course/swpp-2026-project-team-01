@@ -211,7 +211,7 @@ function Evidence({ evidence }: { readonly evidence: AnalysisEvidence }) {
 // Note-like entries stay busy unless the host ticks one; each tick writes the
 // whole exclusion list as the host's own choice.
 function NoteLikeEntries({ entries }: { readonly entries: AnalysisEvidence["noteLike"]["entries"] }) {
-  const { busy, run, state, timeZone } = useSetup();
+  const { busy, run, state } = useSetup();
   const excluded = state.fields.noteExclusions.proposed?.value ?? [];
   // The box shows the host's tick at once; the next state read settles it.
   const [ticking, setTicking] = useState<{ readonly id: string; readonly checked: boolean } | null>(null);
@@ -226,7 +226,7 @@ function NoteLikeEntries({ entries }: { readonly entries: AnalysisEvidence["note
     void run(ANALYSIS_CARD_ID, [
       {
         expectedRevision: state.draft.revision,
-        input: { action: "choose_own", browserTimeZone: timeZone, field: "noteExclusions", value: next },
+        input: { action: "choose_own", field: "noteExclusions", value: next },
         operation: "setup.update_draft",
       },
     ]).finally(() => setTicking(null));

@@ -205,6 +205,28 @@ test("a stale review is rejected and nothing is saved", async ({ baseURL, contex
   await expect(card(page, "You're ready.")).toHaveCount(0);
 });
 
+test("a mode the assistant recorded shows as You said and counts only after Use this", async ({ baseURL, context, db, page }) => {
+  const host = await signedInHost(db, context, baseURL!);
+  await reviewableHost(db, host.hostAccountId);
+  // As draft_settings leaves it: stated in the conversation, not accepted on the card.
+  await db`
+    update app.setup_drafts
+    set fields = jsonb_set(fields, '{meetingMode}', ${db.json({ accepted: false, source: "stated", value: "online" })})
+    where host_account_id = ${host.hostAccountId}
+  `;
+  await page.goto("/app");
+
+  const mode = card(page, "Do you prefer online meetings, in-person meetings, or either?");
+  await expect(mode.getByText("You said:")).toBeVisible();
+  await expect(mode.getByRole("button", { name: "Online" })).toHaveAttribute("aria-pressed", "false");
+  await expect(card(page, "Review your booking settings").getByRole("button", { name: "Confirm and save proposed settings" })).toBeDisabled();
+
+  await mode.getByRole("button", { name: "Use this" }).click();
+
+  await expect(mode.getByText("Your answer: Online")).toBeVisible();
+  await expect(card(page, "Review your booking settings").getByRole("button", { name: "Confirm and save proposed settings" })).toBeEnabled();
+});
+
 test("the review card works by keyboard alone", async ({ baseURL, context, db, page }) => {
   const host = await signedInHost(db, context, baseURL!);
   await reviewableHost(db, host.hostAccountId);

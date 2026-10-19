@@ -158,7 +158,7 @@ describe("analysis summary", () => {
 describe("authored onboarding messages", () => {
   it("prompts a host without Calendar to connect and stops there", () => {
     const messages = authoredMessages({
-      calendar: { calendars: null, connected: false, error: null, invalid: false, recommendations: null },
+      calendar: { calendars: null, connected: false, destinationLost: false, error: null, invalid: false, recommendations: null },
       nextAction: "connect_calendar",
     });
     expect(messages.map((message) => message.text)).toEqual([AUTHORED_TEXT.greeting, AUTHORED_TEXT.calendarPrompt]);
@@ -166,7 +166,7 @@ describe("authored onboarding messages", () => {
 
   it("congratulates a verified connection and introduces the calendar step", () => {
     const messages = authoredMessages({
-      calendar: { calendars: null, connected: true, error: null, invalid: false, recommendations: null },
+      calendar: { calendars: null, connected: true, destinationLost: false, error: null, invalid: false, recommendations: null },
       nextAction: "choose_calendars",
     });
     expect(messages.map((message) => message.text)).toEqual([
