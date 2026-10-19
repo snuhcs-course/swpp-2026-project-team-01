@@ -85,3 +85,25 @@ export async function withEligibleHost<T>(
     return operation(tx, standing.hostAccountId);
   })) as T;
 }
+
+// Runs an operation for a known host account in one transaction only while the
+// account is active, with its row share-locked as withEligibleHost does. For work
+// that starts from the account rather than from a browser session, such as
+// delivering a discussion's next input when a turn ends.
+export async function withActiveHostAccount<T>(
+  db: Database,
+  hostAccountId: string,
+  operation: (tx: Transaction) => Promise<T>,
+): Promise<T> {
+  return (await db.begin(async (tx) => {
+    const [row] = await tx<{ status: HostAccountStatus }[]>`
+      select status from app.host_accounts where id = ${hostAccountId} for share
+    `;
+
+    if (row?.status !== "active") {
+      throw new HostIneligibleError(row ? "account_suspended" : "sign_in");
+    }
+
+    return operation(tx);
+  })) as T;
+}

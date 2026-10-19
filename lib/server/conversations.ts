@@ -5,7 +5,7 @@ import { getChatMessageLengthError } from "../contracts/chat-message";
 import { type Actor, CommandError, type CommandDefinition, runCommand } from "./commands";
 import type { Database, Transaction } from "./database";
 import { deploymentEnvironment } from "./deployment";
-import { lockHostStanding, withEligibleHost } from "./host-eligibility";
+import { lockHostStanding, withActiveHostAccount, withEligibleHost } from "./host-eligibility";
 import { messageFingerprint, signInternalBearer } from "./internal-bearer";
 import { sessionIdHash } from "./model-limits";
 
@@ -86,6 +86,8 @@ export type ConversationDependencies = {
 
 export type MessageOutcome =
   | { readonly status: "sent"; readonly inputId: string }
+  // Recorded, and delivered when the turn in flight ends.
+  | { readonly status: "queued"; readonly inputId: string }
   // Recorded, and continued by recovery: the discussion's runtime has failed.
   | { readonly status: "recovery_required"; readonly inputId: string };
 
@@ -260,48 +262,64 @@ async function recordInput(
   });
 }
 
-// Makes the input the session's current accepted input and delivers it. The
-// session must still be the discussion's live generation; a failed or replaced
-// session is left alone and the input stays accepted for recovery.
-export async function deliverInput(
+// Delivers the discussion's oldest accepted input to its live generation, when
+// no input is in flight there: one input at a time, so the session's current
+// accepted input never changes while a turn runs and every model call is
+// attributed to the input whose turn it is. Later input waits as accepted and is
+// delivered when the turn ends (the session-owner hook calls this again), or by
+// the next message or recovery. Authority, the discussion and its generation are
+// rechecked under their locks. With `fromSessionId`, only that session's turn
+// end may deliver, so a retired generation delivers nothing. Returns the
+// delivered input's ID, or null when nothing was delivered.
+export async function deliverNext(
   deps: ConversationDependencies,
-  authUserId: string,
-  session: SessionRow,
-  inputId: string,
-  message: string,
-): Promise<boolean> {
-  const delivered = await withEligibleHost(deps.db, authUserId, async (tx, hostAccountId) => {
-    const discussionId = await lockSetupDiscussion(tx, hostAccountId);
-    const latest = await latestSession(tx, discussionId);
+  hostAccountId: string,
+  discussionId: string,
+  options: { readonly fromSessionId?: string } = {},
+): Promise<string | null> {
+  const claim = await withActiveHostAccount(deps.db, hostAccountId, async (tx) => {
+    await tx`select id from app.discussions where id = ${discussionId} for update`;
+    const session = await latestSession(tx, discussionId);
 
-    if (!latest || latest.session_id !== session.session_id || latest.state !== "active") {
-      return false;
-    }
+    if (!session || session.state !== "active") return null;
+    if (options.fromSessionId && options.fromSessionId !== session.session_id) return null;
 
-    // Exactly one caller moves an input from accepted to sent.
-    const claimed = await tx`
-      update app.conversation_inputs set state = 'sent', session_id = ${session.session_id}, sent_at = clock_timestamp()
-      where id = ${inputId} and state = 'accepted'
+    const [inFlight] = await tx<{ id: string }[]>`
+      select id from app.conversation_inputs where session_id = ${session.session_id} and state = 'sent' limit 1
     `;
 
-    if (claimed.count !== 1) return false;
+    if (inFlight) return null;
+
+    const [next] = await tx<{ id: string; message: string }[]>`
+      select id, message from app.conversation_inputs
+      where discussion_id = ${discussionId} and state = 'accepted'
+      order by accepted_at, id
+      limit 1
+    `;
+
+    if (!next) return null;
 
     await tx`
-      update app.agent_sessions set current_input_id = ${inputId}, updated_at = now()
+      update app.conversation_inputs set state = 'sent', session_id = ${session.session_id}, sent_at = clock_timestamp()
+      where id = ${next.id}
+    `;
+    await tx`
+      update app.agent_sessions set current_input_id = ${next.id}, updated_at = now()
       where session_id = ${session.session_id}
     `;
-    return true;
+    return { input: next, session };
   });
 
-  if (!delivered) return false;
+  if (!claim) return null;
 
+  const { input, session } = claim;
   const bearer = signInternalBearer(
     {
       discussionId: session.discussion_id,
       generation: session.generation,
-      inputId,
+      inputId: input.id,
       kind: "send",
-      messageFingerprint: messageFingerprint(message),
+      messageFingerprint: messageFingerprint(input.message),
       principal: { id: session.principal_id, type: "host_account" },
       sessionId: session.session_id,
     },
@@ -309,17 +327,36 @@ export async function deliverInput(
   );
 
   try {
-    await deps.runtime.sendMessage(session.session_id, bearer, message);
+    await deps.runtime.sendMessage(session.session_id, bearer, input.message);
   } catch (error) {
     // Not delivered: an exact retry may send it again.
     await deps.db`
       update app.conversation_inputs set state = 'accepted', session_id = null, sent_at = null
-      where id = ${inputId} and state = 'sent'
+      where id = ${input.id} and state = 'sent'
     `;
     throw new ConversationInputError("runtime_unavailable", "The assistant is unavailable. Try again.", { cause: error });
   }
 
-  return true;
+  return input.id;
+}
+
+// The turn-end side of delivery, from the session-owner hook: delivers the
+// session's discussion's next input when the session is still its live generation.
+export async function deliverNextAfterTurn(deps: ConversationDependencies, sessionId: string) {
+  const [session] = await deps.db<{ discussion_id: string; principal_id: string; principal_type: string }[]>`
+    select discussion_id, principal_id, principal_type from app.agent_sessions where session_id = ${sessionId}
+  `;
+
+  if (session?.principal_type !== "host_account") return null;
+
+  return deliverNext(deps, session.principal_id, session.discussion_id, { fromSessionId: sessionId });
+}
+
+async function inputOutcome(db: Database, inputId: string): Promise<MessageOutcome> {
+  const [row] = await db<{ state: AcceptedInput["state"] }[]>`
+    select state from app.conversation_inputs where id = ${inputId}
+  `;
+  return { inputId, status: row?.state === "accepted" ? "queued" : "sent" };
 }
 
 // POST /api/chat/messages: authenticate (by the caller), check eligibility,
@@ -353,13 +390,15 @@ export async function acceptHostMessage(
     return { inputId: accepted.inputId, status: "recovery_required" };
   }
 
-  if (await deliverInput(deps, authUserId, session, accepted.inputId, accepted.message)) {
-    return { inputId: accepted.inputId, status: "sent" };
+  await deliverNext(deps, accepted.hostAccountId, accepted.discussionId);
+
+  // Delivered now, by a concurrent sender, or still waiting behind the turn in
+  // flight; a generation that failed meanwhile leaves it for recovery.
+  const outcome = await inputOutcome(deps.db, accepted.inputId);
+
+  if (outcome.status === "queued" && (await latestSession(deps.db, accepted.discussionId))?.state !== "active") {
+    return { inputId: accepted.inputId, status: "recovery_required" };
   }
 
-  // A concurrent exact retry delivered it, or the generation failed meanwhile.
-  const [current] = await deps.db<{ state: string }[]>`
-    select state from app.conversation_inputs where id = ${accepted.inputId}
-  `;
-  return { inputId: accepted.inputId, status: current?.state === "accepted" ? "recovery_required" : "sent" };
+  return outcome;
 }

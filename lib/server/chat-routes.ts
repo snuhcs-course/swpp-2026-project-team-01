@@ -79,7 +79,7 @@ export function createMessageHandler(load: () => ChatRouteDependencies = chatDep
 
     try {
       const outcome = await acceptHostMessage(deps, userId, body.data);
-      return json(outcome, outcome.status === "sent" ? 202 : 409);
+      return json(outcome, outcome.status === "recovery_required" ? 409 : 202);
     } catch (error) {
       return chatError(error);
     }

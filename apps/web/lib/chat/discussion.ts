@@ -42,7 +42,12 @@ export async function postMessage(clientInputId: string, message: string) {
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  return readJson<{ inputId?: string; status?: "sent" | "recovery_required"; code?: string; error?: string }>(response);
+  return readJson<{
+    inputId?: string;
+    status?: "sent" | "queued" | "recovery_required";
+    code?: string;
+    error?: string;
+  }>(response);
 }
 
 export async function postRecovery(observedGeneration: number) {

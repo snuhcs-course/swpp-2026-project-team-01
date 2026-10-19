@@ -74,7 +74,10 @@ export function HostWorkspace() {
     }
   }, []);
 
-  // Follows the current turn from the discussion cursor until it settles.
+  // Follows the current turn from the discussion cursor until it settles. A
+  // queued message starts its turn when the one before it ends, so following
+  // continues while the discussion still has input pending and the last pass
+  // saw the runtime move.
   const follow = useCallback(async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -82,19 +85,34 @@ export function HostWorkspace() {
     setPhase("streaming");
 
     try {
-      for await (const event of readDiscussionEvents(eventsRef.current.length, {
-        follow: true,
-        signal: controller.signal,
-      })) {
-        append(event);
+      for (;;) {
+        let received = 0;
+
+        for await (const event of readDiscussionEvents(eventsRef.current.length, {
+          follow: true,
+          signal: controller.signal,
+        })) {
+          append(event);
+          received += 1;
+          if (event.type === "message.received") {
+            const text = event.data.message;
+            setPendingText((pending) => (pending === text ? null : pending));
+          }
+        }
+
+        const next = await readDiscussionStatus(controller.signal);
+        setStatus(next);
+        if (received === 0 || next.state !== "active" || next.pendingInputs === 0) break;
       }
     } catch (cause) {
-      if (!controller.signal.aborted) setError(errorMessage(cause));
+      if (!controller.signal.aborted) {
+        setError(errorMessage(cause));
+        await refreshStatus();
+      }
     } finally {
       if (abortRef.current === controller) {
         setPendingText(null);
         setPhase("ready");
-        await refreshStatus();
       }
     }
   }, [append, refreshStatus]);
@@ -140,7 +158,7 @@ export function HostWorkspace() {
         const outcome = await postMessage(retry.id, text);
         retryRef.current = null;
 
-        if (outcome.status === "sent") {
+        if (outcome.status === "sent" || outcome.status === "queued") {
           await follow();
           return;
         }

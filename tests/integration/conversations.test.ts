@@ -133,6 +133,56 @@ describe("message route and session index", () => {
     expect(await readEvents(server.url, hostA.cookie, sessionA.session_id)).toHaveLength(eventsA);
   });
 
+  it("queues a message sent during a turn and delivers it, attributed to itself, when the turn ends", async () => {
+    const host = await signInHost(db);
+    fake.script.push({ delayMs: 1_500, kind: "text", text: "Noted." });
+    const first = await message(host.cookie, "Mornings work best.");
+    const firstInput = ((await first.json()) as { inputId: string }).inputId;
+    const session = await sessionOf(host.hostAccountId);
+
+    const second = await message(host.cookie, "And Tuesdays.");
+    expect(second.status).toBe(202);
+    const { inputId: secondInput, status } = (await second.json()) as { inputId: string; status: string };
+    expect(status).toBe("queued");
+    expect(await inputState(secondInput)).toBe("accepted");
+    // The turn in flight keeps its input.
+    expect((await sessionOf(host.hostAccountId)).current_input_id).toBe(firstInput);
+
+    await waitFor(async () => (await inputState(secondInput)) === "completed");
+    expect(await inputState(firstInput)).toBe("completed");
+    expect(await inputState(secondInput)).toBe("completed");
+    // One turn per input, each call reserved against its own input.
+    const received = (await readEvents(server.url, host.cookie, session.session_id)).filter(
+      (event) => event.type === "message.received",
+    );
+    expect(received.map((event) => event.data.message)).toEqual(["Mornings work best.", "And Tuesdays."]);
+    expect(await reservationsFor(firstInput)).toHaveLength(1);
+    expect(await reservationsFor(secondInput)).toHaveLength(1);
+  });
+
+  it("accepts concurrent sends from two tabs without refusing either", async () => {
+    const host = await signInHost(db);
+    await message(host.cookie, "Hello.");
+    const session = await sessionOf(host.hostAccountId);
+    await waitForTurn(server.url, host.cookie, session.session_id);
+    const settledFirst = session.current_input_id;
+    await waitFor(async () => (await inputState(settledFirst)) === "completed");
+
+    const responses = await Promise.all([message(host.cookie, "From tab one."), message(host.cookie, "From tab two.")]);
+    expect(responses.map((response) => response.status)).toEqual([202, 202]);
+    const outcomes = (await Promise.all(responses.map((response) => response.json()))) as {
+      inputId: string;
+      status: string;
+    }[];
+    expect(outcomes.map((outcome) => outcome.status).sort()).toEqual(["queued", "sent"]);
+
+    for (const outcome of outcomes) {
+      await waitFor(async () => (await inputState(outcome.inputId)) === "completed");
+      expect(await inputState(outcome.inputId)).toBe("completed");
+      expect(await reservationsFor(outcome.inputId)).toHaveLength(1);
+    }
+  });
+
   it("refuses an unauthenticated caller and a suspended host without recording input", async () => {
     expect((await message("", "Hello")).status).toBe(401);
 

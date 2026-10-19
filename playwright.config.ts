@@ -80,6 +80,7 @@ export default defineConfig({
       command: `npx eve dev --no-ui --host 127.0.0.1 --port ${EVE_PORT}`,
       env: {
         ...shared,
+        EVE_AGENT_URL: `http://127.0.0.1:${EVE_PORT}`,
         EVE_TELEMETRY_DISABLED: "1",
         NODE_ENV: "production",
         ...model,

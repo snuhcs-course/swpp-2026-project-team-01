@@ -2,7 +2,7 @@ import { isCurrentTurnBoundaryEvent, type MessageStreamEvent } from "eve/client"
 import {
   AGENT_VERSION,
   type ConversationDependencies,
-  deliverInput,
+  deliverNext,
   latestSession,
   lockSetupDiscussion,
   type SessionRow,
@@ -127,26 +127,14 @@ export async function* discussionEvents(
   }
 }
 
-// Delivers the discussion's accepted, undelivered inputs to its live generation,
-// oldest first, each with its original identity.
-async function deliverPending(deps: ConversationDependencies, authUserId: string, discussionId: string) {
-  const successor = await latestSession(deps.db, discussionId);
-
-  if (!successor || successor.state !== "active") return;
-
-  const pending = await deps.db<{ id: string; message: string }[]>`
-    select id, message from app.conversation_inputs
-    where discussion_id = ${discussionId} and state = 'accepted'
-    order by accepted_at, id
-  `;
-
-  for (const input of pending) {
-    try {
-      await deliverInput(deps, authUserId, successor, input.id, input.message);
-    } catch {
-      // Left accepted for the next retry.
-      return;
-    }
+// Delivers the discussion's oldest undelivered input to its live generation with
+// its original identity; the rest follow one turn at a time.
+async function deliverPending(deps: ConversationDependencies, hostAccountId: string, discussionId: string) {
+  try {
+    return (await deliverNext(deps, hostAccountId, discussionId)) !== null;
+  } catch {
+    // Left accepted for the next retry.
+    return false;
   }
 }
 
@@ -214,7 +202,7 @@ export async function recoverDiscussion(
 
   if (early) {
     // An exact retry after the transition delivers what the first attempt could not.
-    if (early.status === "recovered") await deliverPending(deps, authUserId, discussionId!);
+    if (early.status === "recovered") await deliverPending(deps, hostAccountId, discussionId!);
     return early;
   }
 
@@ -248,7 +236,7 @@ export async function recoverDiscussion(
     const decided = settled(await latestSession(deps.db, discussionId!), observedGeneration);
 
     if (!decided) throw error;
-    if (decided.status === "recovered") await deliverPending(deps, authUserId, discussionId!);
+    if (decided.status === "recovered") await deliverPending(deps, hostAccountId, discussionId!);
     return decided;
   }
 
@@ -293,7 +281,7 @@ export async function recoverDiscussion(
   });
 
   if (transition.status === "recovered") {
-    await deliverPending(deps, authUserId, discussionId!);
+    await deliverPending(deps, hostAccountId, discussionId!);
   }
 
   return transition;

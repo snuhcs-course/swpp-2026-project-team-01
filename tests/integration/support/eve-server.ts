@@ -84,8 +84,12 @@ export async function startEve(
   options: { modelBaseURL: string; signingKey?: string; apiKey?: string },
 ): Promise<EveServer> {
   const signingKey = options.signingKey ?? randomBytes(32).toString("base64url");
-  const env = eveEnvironment({ apiKey: options.apiKey, modelBaseURL: options.modelBaseURL, signingKey });
   const port = await freePort();
+  // The agent reaches itself to deliver a discussion's next input after a turn.
+  const env = {
+    ...eveEnvironment({ apiKey: options.apiKey, modelBaseURL: options.modelBaseURL, signingKey }),
+    EVE_AGENT_URL: `http://127.0.0.1:${port}`,
+  };
   const args =
     target === "dev"
       ? ["eve", "dev", "--no-ui", "--host", "127.0.0.1", "--port", String(port)]
