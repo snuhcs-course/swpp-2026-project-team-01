@@ -107,7 +107,7 @@ Scope. Prerequisite: Phase 1 joined. The three lanes are independent until the f
 
 - [ ] Calendar roles card from actual calendars with reasons; writable booking destination check; **Connect Google Calendar** when scopes were declined; **Manage Google connection**.
 - [ ] Automatic first scan of saved conflict calendars over the past and next four weeks as a durable job; the four analysis dimensions with sample sizes; **Analyze again**.
-- [ ] 24-hour evidence cleanup by scheduled maintenance that preserves adopted values.
+- [x] 24-hour evidence cleanup by scheduled maintenance that preserves adopted values.
 
 **Lane C — identity, entry documents and operator control**
 

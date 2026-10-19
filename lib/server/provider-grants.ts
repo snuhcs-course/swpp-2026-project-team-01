@@ -25,7 +25,9 @@ function grantContext(hostAccountId: string) {
 // Records what a sign-in returned. The refresh token is kept, sealed, even when
 // the Calendar scopes were unchecked or unreadable: Google returns it only on the
 // first consent, so a token dropped then would never come back when the host
-// grants Calendar later. Its scopes are what the row records, never assumed.
+// grants Calendar later. Its scopes are what the row records, never assumed. A
+// fresh refresh token also clears an earlier invalidation, so reconnecting
+// Calendar restores the grant.
 export async function recordGoogleGrant(db: Queryable, key: TokenKey, update: GoogleGrantUpdate) {
   const calendarScopes = grantedCalendarScopes(update.grantedScopes ?? []);
 
@@ -50,7 +52,19 @@ export async function recordGoogleGrant(db: Queryable, key: TokenKey, update: Go
       refresh_token_ciphertext = coalesce(excluded.refresh_token_ciphertext, stored.refresh_token_ciphertext),
       refresh_token_key_id = coalesce(excluded.refresh_token_key_id, stored.refresh_token_key_id),
       scopes_checked_at = coalesce(excluded.scopes_checked_at, stored.scopes_checked_at),
+      invalidated_at = case when excluded.refresh_token_ciphertext is null then stored.invalidated_at end,
       updated_at = now()
+  `;
+}
+
+// Google rejected the stored refresh token (invalid_grant): the grant supports no
+// Calendar-dependent step, and the host is not ready, until a sign-in records a
+// fresh token.
+export async function markGoogleGrantInvalid(db: Queryable, hostAccountId: string) {
+  await db`
+    update app.provider_grants
+    set invalidated_at = now(), updated_at = now()
+    where host_account_id = ${hostAccountId}
   `;
 }
 
