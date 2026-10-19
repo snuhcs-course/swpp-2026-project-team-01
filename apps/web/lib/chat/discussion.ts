@@ -56,7 +56,12 @@ export async function postRecovery(observedGeneration: number) {
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  return readJson<{ status: "recovered" | "stale" | "not_failed" | "unavailable"; generation?: number | null }>(
+  return readJson<{
+    status: "recovered" | "stale" | "not_failed" | "unavailable";
+    generation?: number | null;
+    // A recovered input is in flight on the successor, so a turn is coming.
+    delivered?: boolean;
+  }>(
     response,
   );
 }

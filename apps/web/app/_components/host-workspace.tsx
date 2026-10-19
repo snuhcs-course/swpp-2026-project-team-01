@@ -1,6 +1,6 @@
 "use client";
 
-import type { MessageStreamEvent } from "eve/client";
+import { isCurrentTurnBoundaryEvent, type MessageStreamEvent } from "eve/client";
 import { conversationReducer } from "eve/react";
 import { AlertCircleIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -17,7 +17,6 @@ import {
   readDiscussionEvents,
   readDiscussionStatus,
 } from "@/lib/chat/discussion";
-import { isChatTurnSettledEvent } from "@/lib/chat/events";
 
 // The host workspace at /app: one centered conversation, a reachable composer
 // and a compact menu, with no sidebar. History and live output come from the
@@ -26,12 +25,13 @@ import { isChatTurnSettledEvent } from "@/lib/chat/events";
 
 type Phase = "loading" | "ready" | "sending" | "streaming" | "recovering";
 
+// The same boundary the server's follow mode ends at.
 function hasOpenTurn(events: readonly MessageStreamEvent[]) {
   let open = false;
 
   for (const event of events) {
     if (event.type === "turn.started") open = true;
-    else if (isChatTurnSettledEvent(event)) open = false;
+    else if (isCurrentTurnBoundaryEvent(event)) open = false;
   }
 
   return open;
@@ -192,7 +192,8 @@ export function HostWorkspace() {
 
       await refreshStatus();
 
-      if (outcome.status === "recovered") {
+      // Follow only when recovery delivered input; an idle successor has no turn coming.
+      if (outcome.status === "recovered" && outcome.delivered) {
         await follow();
         return;
       }

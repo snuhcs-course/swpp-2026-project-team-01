@@ -83,7 +83,7 @@ export async function* discussionEvents(
   authUserId: string,
   cookie: string,
   cursor: number,
-  options: { readonly follow: boolean; readonly signal?: AbortSignal },
+  options: { readonly follow: boolean; readonly signal?: AbortSignal; readonly idleMs?: number },
 ): AsyncGenerator<MessageStreamEvent> {
   const hostAccountId = await eligibleHost(deps.db, authUserId);
   const discussionId = await findSetupDiscussion(deps.db, hostAccountId);
@@ -114,32 +114,70 @@ export async function* discussionEvents(
       continue;
     }
 
+    // Following ends at the current turn's boundary, or when the runtime stays
+    // silent for the idle bound: an idle session may have no turn coming.
+    const controller = new AbortController();
+    const signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal;
     const events = deps.runtime.readEvents(session.session_id, cookie, {
       follow: options.follow,
-      signal: options.signal,
+      signal,
       startIndex: Math.max(0, cursor - offset),
-    });
+    })[Symbol.asyncIterator]();
 
-    for await (const event of events) {
-      yield audienceSafe(event);
-      if (options.follow && isCurrentTurnBoundaryEvent(event)) return;
+    try {
+      for (;;) {
+        const next = options.follow
+          ? await withinIdleBound(events.next(), options.idleMs ?? FOLLOW_IDLE_MS)
+          : await events.next();
+
+        if (next === "idle" || next.done) return;
+        yield audienceSafe(next.value);
+        if (options.follow && isCurrentTurnBoundaryEvent(next.value)) return;
+      }
+    } finally {
+      controller.abort();
+      await events.return?.().catch(() => {});
     }
   }
 }
 
-// Delivers the discussion's oldest undelivered input to its live generation with
-// its original identity; the rest follow one turn at a time.
-async function deliverPending(deps: ConversationDependencies, hostAccountId: string, discussionId: string) {
+// How long a followed stream may stay silent before following ends.
+export const FOLLOW_IDLE_MS = 60_000;
+
+async function withinIdleBound<T>(next: Promise<T>, ms: number): Promise<T | "idle"> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const idle = new Promise<"idle">((resolve) => (timer = setTimeout(() => resolve("idle"), ms)));
+  next.catch(() => {});
+
   try {
-    return (await deliverNext(deps, hostAccountId, discussionId)) !== null;
-  } catch {
-    // Left accepted for the next retry.
-    return false;
+    return await Promise.race([next, idle]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
+// Delivers the discussion's oldest undelivered input to its live generation with
+// its original identity; the rest follow one turn at a time. True when a turn is
+// coming for the browser to follow: an input is now in flight.
+async function deliverPending(deps: ConversationDependencies, hostAccountId: string, discussionId: string) {
+  try {
+    await deliverNext(deps, hostAccountId, discussionId);
+  } catch {
+    // Left accepted for the next retry.
+  }
+
+  const [inFlight] = await deps.db<{ found: boolean }[]>`
+    select true as found from app.conversation_inputs i
+    join app.agent_sessions s on s.session_id = i.session_id and s.state = 'active'
+    where i.discussion_id = ${discussionId} and i.state = 'sent'
+    limit 1
+  `;
+  return Boolean(inFlight);
+}
+
 export type RecoveryOutcome =
-  | { readonly status: "recovered"; readonly generation: number }
+  // delivered: an input is in flight on the successor, so a turn is coming.
+  | { readonly status: "recovered"; readonly generation: number; readonly delivered: boolean }
   // The observed generation is not the current one.
   | { readonly status: "stale"; readonly generation: number | null }
   // The runtime gave no terminal evidence: active, not failed, or uncertain.
@@ -178,7 +216,11 @@ function hasTerminalEvidence(events: readonly MessageStreamEvent[]) {
   );
 }
 
-function settled(latest: SessionRow | null, observedGeneration: number): RecoveryOutcome | null {
+type Settled =
+  | { readonly status: "recovered"; readonly generation: number }
+  | Exclude<RecoveryOutcome, { readonly status: "recovered" }>;
+
+function settled(latest: SessionRow | null, observedGeneration: number): Settled | null {
   if (!latest) return { generation: null, status: "stale" };
   if (latest.generation === observedGeneration + 1) return { generation: latest.generation, status: "recovered" };
   if (latest.generation !== observedGeneration) return { generation: latest.generation, status: "stale" };
@@ -200,11 +242,13 @@ export async function recoverDiscussion(
   const observed = discussionId ? await latestSession(deps.db, discussionId) : null;
   const early = settled(observed, observedGeneration);
 
-  if (early) {
-    // An exact retry after the transition delivers what the first attempt could not.
-    if (early.status === "recovered") await deliverPending(deps, hostAccountId, discussionId!);
-    return early;
-  }
+  // After a transition, an exact retry delivers what the first attempt could not.
+  const answer = async (outcome: Settled): Promise<RecoveryOutcome> =>
+    outcome.status === "recovered"
+      ? { ...outcome, delivered: await deliverPending(deps, hostAccountId, discussionId!) }
+      : outcome;
+
+  if (early) return answer(early);
 
   // Terminal evidence comes from the runtime's own record, which also covers a
   // failure recorded before the session-owner hook existed.
@@ -236,13 +280,12 @@ export async function recoverDiscussion(
     const decided = settled(await latestSession(deps.db, discussionId!), observedGeneration);
 
     if (!decided) throw error;
-    if (decided.status === "recovered") await deliverPending(deps, hostAccountId, discussionId!);
-    return decided;
+    return answer(decided);
   }
 
   // One transition wins: authority, the discussion and its current generation are
   // rechecked under their locks after the asynchronous reads above.
-  const transition = await withEligibleHost(deps.db, authUserId, async (tx, lockedHostId) => {
+  const transition = await withEligibleHost(deps.db, authUserId, async (tx, lockedHostId): Promise<Settled> => {
     await lockSetupDiscussion(tx, lockedHostId);
     const latest = await latestSession(tx, discussionId!);
     const decided = settled(latest, observedGeneration);
@@ -280,9 +323,5 @@ export async function recoverDiscussion(
     return { generation, status: "recovered" } as const;
   });
 
-  if (transition.status === "recovered") {
-    await deliverPending(deps, hostAccountId, discussionId!);
-  }
-
-  return transition;
+  return answer(transition);
 }

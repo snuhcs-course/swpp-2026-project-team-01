@@ -21,6 +21,8 @@ export type ChatRouteDependencies = ConversationDependencies & {
   // The app's own origin, which every state-changing request must come from.
   readonly appOrigin: string;
   readonly auth: SupabaseAuthConfig;
+  // How long a followed event stream may stay silent; FOLLOW_IDLE_MS by default.
+  readonly followIdleMs?: number;
 };
 
 export function chatDependenciesFromEnvironment(): ChatRouteDependencies {
@@ -125,6 +127,7 @@ export function createEventsHandler(load: () => ChatRouteDependencies = chatDepe
 
     const events = discussionEvents(deps, userId, request.headers.get("cookie") ?? "", cursor, {
       follow: url.searchParams.get("follow") === "1",
+      idleMs: deps.followIdleMs,
       signal: request.signal,
     });
     let first: IteratorResult<unknown>;

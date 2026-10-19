@@ -71,7 +71,10 @@ async function recover(host: Host, observedGeneration: number, deps?: Partial<Ch
       method: "POST",
     }),
   );
-  return { body: (await response.json()) as { status: string; generation?: number }, status: response.status };
+  return {
+    body: (await response.json()) as { status: string; generation?: number; delivered?: boolean },
+    status: response.status,
+  };
 }
 
 async function history(host: Host, cursor = 0) {
@@ -172,7 +175,7 @@ describe("terminal recovery", () => {
 
     // "Key corrected": the stand-in now answers.
     const recovered = await recover(host, 1);
-    expect(recovered).toMatchObject({ body: { generation: 2, status: "recovered" }, status: 200 });
+    expect(recovered).toMatchObject({ body: { delivered: true, generation: 2, status: "recovered" }, status: 200 });
 
     const [old, successor] = await sessions(host.hostAccountId);
     expect(old).toMatchObject({ session_id: failed.session_id, state: "retired" });
@@ -188,7 +191,7 @@ describe("terminal recovery", () => {
     const { host } = await failedHost();
 
     const outcomes = await Promise.all([recover(host, 1), recover(host, 1), recover(host, 1)]);
-    expect(outcomes.map((outcome) => outcome.body)).toEqual(
+    expect(outcomes.map((outcome) => outcome.body)).toMatchObject(
       Array.from({ length: 3 }, () => ({ generation: 2, status: "recovered" })),
     );
     expect((await sessions(host.hostAccountId)).map((row) => [row.generation, row.state])).toEqual([
@@ -198,7 +201,7 @@ describe("terminal recovery", () => {
 
     // A retry after a lost response returns the same transition; the live
     // generation cannot be "recovered" again without terminal evidence.
-    expect((await recover(host, 1)).body).toEqual({ generation: 2, status: "recovered" });
+    expect((await recover(host, 1)).body).toMatchObject({ generation: 2, status: "recovered" });
     await waitForTurn(server.url, host.cookie, (await current(host.hostAccountId)).session_id);
     expect((await recover(host, 2)).body).toEqual({ status: "not_failed" });
     expect((await recover(host, 5)).body).toEqual({ generation: 2, status: "stale" });
@@ -221,10 +224,10 @@ describe("terminal recovery", () => {
 
     const loser = recover(host, 1, { runtime: late });
     await new Promise((resolve) => setTimeout(resolve, 300));
-    expect((await recover(host, 1)).body).toEqual({ generation: 2, status: "recovered" });
+    expect((await recover(host, 1)).body).toMatchObject({ generation: 2, status: "recovered" });
     release();
 
-    expect(await loser).toEqual({ body: { generation: 2, status: "recovered" }, status: 200 });
+    expect(await loser).toMatchObject({ body: { generation: 2, status: "recovered" }, status: 200 });
     expect(await sessions(host.hostAccountId)).toHaveLength(2);
   });
 
@@ -298,7 +301,7 @@ describe("terminal recovery", () => {
     `;
     const requests = fake.requests.length;
 
-    expect((await recover(host, 1)).body).toEqual({ generation: 2, status: "recovered" });
+    expect((await recover(host, 1)).body).toMatchObject({ generation: 2, status: "recovered" });
     const successor = await current(host.hostAccountId);
     const turn = await waitForTurn(server.url, host.cookie, successor.session_id);
 
@@ -323,6 +326,23 @@ describe("terminal recovery", () => {
       }),
     ).rejects.toMatchObject({ code: "unattributed" });
     expect(provider.doGenerateCalls).toHaveLength(0);
+  });
+
+  it("says when recovery delivered nothing, and following the idle successor ends", async () => {
+    const { host, inputId } = await failedHost();
+    // Nothing is left to continue: the failed turn's input counts as finished.
+    await db`update app.conversation_inputs set state = 'completed' where id = ${inputId}`;
+
+    expect((await recover(host, 1)).body).toEqual({ delivered: false, generation: 2, status: "recovered" });
+
+    const cursor = (await history(host)).length;
+    const started = Date.now();
+    const response = await routes({ followIdleMs: 500 }).events(
+      new Request(`http://localhost:3000/api/chat/events?cursor=${cursor}&follow=1`, { headers: { cookie: host.cookie } }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("");
+    expect(Date.now() - started).toBeLessThan(10_000);
   });
 
   it("continues only the input that never finished, whatever the clocks say", async () => {
