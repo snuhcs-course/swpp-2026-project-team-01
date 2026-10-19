@@ -247,6 +247,8 @@ There is no existing application or data.
 3. Apply the migration chain to each sandbox with `supabase db push` as later lanes add migrations.
 4. Link the Vercel project, set Production and Preview environment variables separately, set the function region, and attach `release.findmeatime.com` following [domain guidance](../../../AGENTS.md#domain-and-dns).
 
+   Done on 2026-10-19 from this branch before merge: one Vercel project, `findmeatime-release`, with functions in `cle1`, serves `release.findmeatime.com` and, at the user's request and ahead of the plan's Phase 8 promotion, `findmeatime.com` as the canonical origin (`APP_ORIGIN`, with `release.findmeatime.com` in `APP_ALLOWED_ORIGINS`). Because that deployment needed its schema before the merge, the migrations and Auth configuration were pushed to the shared project once by hand with the Supabase CLI at the user's explicit request, an exception to step 2's CI-only path; the shared database password was reset the same day. Later changes reach the shared project only through the deploy workflow. The record is in [provider setup](../../../documentations/technical_specification/03_provider_setup.md#environments-and-collaboration).
+
 Rollback is a revert plus a forward migration. The shared project's data is disposable until the release split, so `supabase db reset --linked` after a team announcement is acceptable.
 
 ## Open Questions
