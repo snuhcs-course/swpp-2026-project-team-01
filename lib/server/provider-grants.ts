@@ -1,9 +1,12 @@
+import { grantedCalendarScopes } from "../contracts/google-scopes";
 import type { Queryable } from "./database";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
 
 export type GoogleGrantUpdate = {
   readonly hostAccountId: string;
-  // null when Google's granted scopes could not be read; nothing is recorded then.
+  // Scopes Google reported as granted, or null when they could not be read.
+  // Only Calendar scopes are recorded; with none, nothing is recorded, because a
+  // later consent that omits them does not revoke an earlier Google grant.
   readonly grantedScopes: readonly string[] | null;
   // Google returns a refresh token only on first consent; null keeps the stored one.
   readonly refreshToken: string | null;
@@ -19,7 +22,9 @@ function grantContext(hostAccountId: string) {
 }
 
 export async function recordGoogleGrant(db: Queryable, key: TokenKey, update: GoogleGrantUpdate) {
-  if (update.grantedScopes === null) {
+  const calendarScopes = grantedCalendarScopes(update.grantedScopes ?? []);
+
+  if (calendarScopes.length === 0) {
     return;
   }
 
@@ -31,7 +36,7 @@ export async function recordGoogleGrant(db: Queryable, key: TokenKey, update: Go
     insert into app.provider_grants as stored (
       host_account_id, granted_scopes, refresh_token_ciphertext, refresh_token_key_id, scopes_checked_at
     ) values (
-      ${update.hostAccountId}, ${update.grantedScopes as string[]},
+      ${update.hostAccountId}, ${calendarScopes},
       ${sealed?.ciphertext ?? null}, ${sealed?.keyId ?? null}, now()
     )
     on conflict (host_account_id) do update set

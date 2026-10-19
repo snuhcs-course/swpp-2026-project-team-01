@@ -72,10 +72,14 @@ jobs:
         env:
           SUPABASE_AUTH_SITE_URL: ${{ vars.SUPABASE_AUTH_SITE_URL }}
           SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS: ${{ vars.SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS }}
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: |
-          if [ -z "$SUPABASE_AUTH_SITE_URL" ] || [ -z "$SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS" ]; then
-            echo "Set the SUPABASE_AUTH_SITE_URL and SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS repository variables." >&2
-            exit 1
-          fi
+          for name in SUPABASE_AUTH_SITE_URL SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
+            if [ -z "${!name}" ]; then
+              echo "Set $name in the repository variables or secrets." >&2
+              exit 1
+            fi
+          done
           supabase config diff --project-ref "$SUPABASE_PROJECT_REF"
           supabase config push --project-ref "$SUPABASE_PROJECT_REF" --yes
