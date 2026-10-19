@@ -58,7 +58,12 @@ export async function runWorkerBatch(deps: JobWorkerDependencies): Promise<Worke
     } catch (error) {
       // Recording the failure itself failed: the lease expires and the job is
       // reclaimed under a new fence, while the rest of the batch still runs.
-      console.error("job worker could not record a job outcome", { error, jobId: job.id, kind: job.kind });
+      // Only the error's class: its message or cause can carry provider details.
+      console.error("job worker could not record a job outcome", {
+        error: error instanceof Error ? error.name : typeof error,
+        jobId: job.id,
+        kind: job.kind,
+      });
       result = "failed";
     }
 
