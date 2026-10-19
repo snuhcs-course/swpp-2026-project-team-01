@@ -54,12 +54,30 @@ describe("provider grants", () => {
     expect(await readGoogleGrant(db, [key], hostAccountId)).toEqual({ grantedScopes: calendarScopes, refreshToken });
   });
 
-  it("records nothing when the granted scopes are unknown", async () => {
+  it("records nothing when neither Calendar scopes nor a refresh token came back", async () => {
     const hostAccountId = await newHostAccount();
 
-    await recordGoogleGrant(db, key, { grantedScopes: null, hostAccountId, refreshToken: "1//unused" });
+    await recordGoogleGrant(db, key, { grantedScopes: null, hostAccountId, refreshToken: null });
+    await recordGoogleGrant(db, key, { grantedScopes: ["openid", "email"], hostAccountId, refreshToken: null });
 
     expect(await readGoogleGrant(db, [key], hostAccountId)).toBeNull();
+  });
+
+  it("keeps the first consent's refresh token without Calendar scopes, for a later Calendar grant", async () => {
+    const hostAccountId = await newHostAccount();
+    const refreshToken = `1//refresh-${randomBytes(16).toString("hex")}`;
+
+    // Calendar unchecked on first consent: the only time Google returns the token.
+    await recordGoogleGrant(db, key, { grantedScopes: ["openid", "email"], hostAccountId, refreshToken });
+    expect(await readGoogleGrant(db, [key], hostAccountId)).toEqual({ grantedScopes: [], refreshToken });
+
+    // Granted later, with no new token.
+    await recordGoogleGrant(db, key, { grantedScopes: calendarScopes, hostAccountId, refreshToken: null });
+    expect(await readGoogleGrant(db, [key], hostAccountId)).toEqual({ grantedScopes: calendarScopes, refreshToken });
+
+    // A later consent without Calendar revokes nothing.
+    await recordGoogleGrant(db, key, { grantedScopes: ["openid"], hostAccountId, refreshToken: null });
+    expect(await readGoogleGrant(db, [key], hostAccountId)).toEqual({ grantedScopes: calendarScopes, refreshToken });
   });
 
   it("refuses to open a stored token under another key", async () => {

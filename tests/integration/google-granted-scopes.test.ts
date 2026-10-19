@@ -79,20 +79,22 @@ describe("granted Google scopes", () => {
     });
   });
 
-  it("creates the account with no Calendar grant when the Calendar scopes were unchecked", async () => {
+  it("records no Calendar scopes but keeps the refresh token when the Calendar scopes were unchecked", async () => {
     const user = await createGoogleUser(db);
+    const refreshToken = `1//${randomUUID()}`;
 
-    await signInAs(user, identityScopes, `1//${randomUUID()}`);
+    await signInAs(user, identityScopes, refreshToken);
 
-    expect(await grantOf(user.googleSubject)).toBeNull();
+    expect(await grantOf(user.googleSubject)).toEqual({ grantedScopes: [], refreshToken });
   });
 
-  it("creates the account with no Calendar grant when the token information call fails", async () => {
+  it("records no Calendar scopes but keeps the refresh token when the token information call fails", async () => {
     const user = await createGoogleUser(db);
+    const refreshToken = `1//${randomUUID()}`;
 
-    await signInAs(user, 500, `1//${randomUUID()}`);
+    await signInAs(user, 500, refreshToken);
 
-    expect(await grantOf(user.googleSubject)).toBeNull();
+    expect(await grantOf(user.googleSubject)).toEqual({ grantedScopes: [], refreshToken });
   });
 
   it("keeps the stored grant when a repeat sign-in returns no refresh token", async () => {
