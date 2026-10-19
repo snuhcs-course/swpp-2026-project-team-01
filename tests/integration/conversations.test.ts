@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { ClientError } from "eve/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type ChatRouteDependencies, createMessageHandler } from "../../lib/server/chat-routes";
-import { eveRuntime, openSetupSession } from "../../lib/server/conversations";
+import { type ConversationRuntime, deliverNext, eveRuntime, fingerprint, openSetupSession } from "../../lib/server/conversations";
 import { MODEL_LIMITS, sessionIdHash } from "../../lib/server/model-limits";
 import { localAuthConfig, signInHost } from "./support/auth";
 import { clearServiceWindow, testDatabase } from "./support/database";
@@ -321,6 +321,74 @@ describe("message route and session index", () => {
     );
     expect(received.map((event) => event.data.message)).toEqual(["Mornings work best.", "And Tuesdays."]);
   });
+
+  it("lets only one of two concurrent deliveries reconcile an overdue turn", async () => {
+    const host = await signInHost(db);
+    const removeFault = await failTurnEnd(host.hostAccountId, "always");
+    let overdue: { inputId: string };
+
+    try {
+      overdue = (await (await message(host.cookie, "Mornings work best.")).json()) as { inputId: string };
+      await waitForTurn(server.url, host.cookie, (await sessionOf(host.hostAccountId)).session_id);
+      await new Promise((resolve) => setTimeout(resolve, 3_000));
+      expect(await inputState(overdue.inputId)).toBe("sent");
+    } finally {
+      await removeFault();
+    }
+
+    await db`update app.conversation_inputs set sent_at = sent_at - interval '21 minutes' where id = ${overdue.inputId}`;
+    const [{ discussion_id: discussionId }] = await db<{ discussion_id: string }[]>`
+      select discussion_id from app.conversation_inputs where id = ${overdue.inputId}
+    `;
+    const accept = async (text: string) => {
+      const [row] = await db<{ id: string }[]>`
+        insert into app.conversation_inputs (discussion_id, client_input_id, fingerprint, message)
+        values (${discussionId}, ${randomUUID()}, ${fingerprint(text)}, ${text})
+        returning id
+      `;
+      return row!.id;
+    };
+    const next = await accept("And Tuesdays.");
+    const later = await accept("Not Fridays.");
+    // The next input's turn stays in flight while both callers finish.
+    fake.script.push({ delayMs: 8_000, kind: "text", text: "Noted." });
+
+    // Caller A has found the overdue input and holds its read of the runtime's
+    // record until caller B has reconciled it and delivered the next input.
+    let reading!: () => void;
+    const aReading = new Promise<void>((resolve) => (reading = resolve));
+    let bDelivered!: () => void;
+    const bDone = new Promise<void>((resolve) => (bDelivered = resolve));
+    const held: ConversationRuntime = {
+      ...deps.runtime,
+      async *readRecordedEvents(sessionId, bearer, signal) {
+        reading();
+        const events = [];
+        for await (const event of deps.runtime.readRecordedEvents(sessionId, bearer, signal)) events.push(event);
+        await bDone;
+        yield* events;
+      },
+    };
+
+    const a = deliverNext({ ...deps, runtime: held }, host.hostAccountId, discussionId);
+    await aReading;
+    expect(await deliverNext(deps, host.hostAccountId, discussionId)).toBe(next);
+    bDelivered();
+    await a;
+
+    expect(await inputState(overdue.inputId)).toBe("completed");
+    expect(await inputState(next)).toBe("sent");
+    expect(await inputState(later)).toBe("accepted");
+    const session = await sessionOf(host.hostAccountId);
+    expect(session.current_input_id).toBe(next);
+    const [{ count }] = await db<{ count: number }[]>`
+      select count(*)::int as count from app.conversation_inputs where session_id = ${session.session_id} and state = 'sent'
+    `;
+    expect(count).toBe(1);
+
+    await waitFor(async () => (await inputState(later)) === "completed");
+    expect(await inputState(later)).toBe("completed");
+  }, 60_000);
 
   it("returns a refused send to the browser and keeps the input for an exact retry", async () => {
     const host = await signInHost(db);

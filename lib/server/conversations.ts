@@ -7,7 +7,6 @@ import { deploymentEnvironment } from "./deployment";
 import { HostIneligibleError, withActiveHostAccount, withEligibleHost } from "./host-eligibility";
 import { messageFingerprint, signInternalBearer } from "./internal-bearer";
 import { sessionIdHash } from "./model-limits";
-import { recordSessionFailed, recordTurnEnded } from "./session-owner";
 
 // The application side of a host conversation (design decision 7). Only this
 // module creates eve sessions and sends messages: the browser posts to the
@@ -68,6 +67,9 @@ export function eveRuntime(baseUrl: string, { sendTimeoutMs = SEND_TIMEOUT_MS } 
         .stream({ follow, signal, startIndex });
     },
     readRecordedEvents(sessionId, bearer, signal) {
+      // From the start: an active session stores no stream position (the index
+      // records last_stream_index only when a generation retires), and this read
+      // runs only for a turn overdue by 20 minutes, under a 10-second timeout.
       return client(bearer).sessions.attach(sessionId).stream({ follow: false, signal, startIndex: 0 });
     },
   };
@@ -316,7 +318,9 @@ export async function deliverNext(
     `;
 
     if (inFlight) {
-      return inFlight.overdue && !options.reconciled ? { overdueDeliveryIds: inFlight.delivery_ids, session } : null;
+      return inFlight.overdue && !options.reconciled
+        ? { overdue: { deliveryIds: inFlight.delivery_ids, inputId: inFlight.id }, session }
+        : null;
     }
 
     const [next] = await tx<{ id: string; message: string }[]>`
@@ -341,8 +345,8 @@ export async function deliverNext(
 
   if (!claim) return null;
 
-  if (claim.overdueDeliveryIds) {
-    const ended = await reconcileTurnEnd(deps, claim.session, claim.overdueDeliveryIds);
+  if (claim.overdue) {
+    const ended = await reconcileTurnEnd(deps, claim.session, claim.overdue);
     return ended ? deliverNext(deps, hostAccountId, discussionId, { ...options, reconciled: true }) : null;
   }
 
@@ -388,8 +392,15 @@ export async function deliverNext(
 
 // Records, from the runtime's own record, the end of the turn that served the
 // session's overdue input (its delivery IDs name the turn), as the session-owner
-// hook would have. True when the input is now completed.
-async function reconcileTurnEnd(deps: ConversationDependencies, session: SessionRow, deliveryIds: readonly string[]) {
+// hook would have. Concurrent deliveries may both find the same overdue input,
+// so each write acts only while that input is still the session's current one in
+// flight: once another caller has reconciled it and delivered the next input,
+// nothing here touches the turn now running. True when this call completed it.
+async function reconcileTurnEnd(
+  deps: ConversationDependencies,
+  session: SessionRow,
+  overdue: { readonly deliveryIds: readonly string[]; readonly inputId: string },
+) {
   const bearer = signInternalBearer(
     {
       discussionId: session.discussion_id,
@@ -404,7 +415,7 @@ async function reconcileTurnEnd(deps: ConversationDependencies, session: Session
 
   try {
     for await (const event of deps.runtime.readRecordedEvents(session.session_id, bearer, AbortSignal.timeout(10_000))) {
-      const ownsTurn = event.meta.deliveryIds?.some((id) => deliveryIds.includes(id));
+      const ownsTurn = event.meta.deliveryIds?.some((id) => overdue.deliveryIds.includes(id));
 
       if (event.type === "session.failed" || (ownsTurn && TURN_ENDS.has(event.type))) end = event;
     }
@@ -416,12 +427,23 @@ async function reconcileTurnEnd(deps: ConversationDependencies, session: Session
   if (!end) return false;
 
   if (end.type === "session.failed" || (end.type === "turn.failed" && end.data.terminal)) {
-    await recordSessionFailed(deps.db, session.session_id);
+    await deps.db`
+      update app.agent_sessions s set state = 'failed', updated_at = now()
+      from app.conversation_inputs i
+      where i.id = ${overdue.inputId} and i.session_id = s.session_id and s.session_id = ${session.session_id}
+        and s.state = 'active' and s.current_input_id = i.id and i.state = 'sent'
+    `;
     return false;
   }
 
-  await recordTurnEnded(deps.db, session.session_id);
-  return true;
+  const completed = await deps.db`
+    update app.conversation_inputs i
+    set state = 'completed', completed_at = now()
+    from app.agent_sessions s
+    where i.id = ${overdue.inputId} and i.session_id = s.session_id and s.session_id = ${session.session_id}
+      and s.state = 'active' and s.current_input_id = i.id and i.state = 'sent'
+  `;
+  return completed.count > 0;
 }
 
 const TURN_ENDS = new Set(["turn.completed", "turn.failed", "turn.cancelled"]);
