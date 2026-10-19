@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { CardActions } from "./card";
+import { CardActions, EditorForm } from "./card";
 import {
   checkRange,
   copyDay,
@@ -47,17 +47,14 @@ export function WeeklyWindowsEditor({
   const result = validateRows(rows);
   const errorId = useId();
 
+  const submit = () => {
+    if (!result.error) onSave(result.windows);
+  };
+
   const update = (weekday: Weekday, ranges: readonly TimeRange[]) => setRows((current) => ({ ...current, [weekday]: ranges }));
 
   return (
-    <form
-      aria-label="Edit weekly windows"
-      className="flex flex-col gap-3"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!result.error) onSave(result.windows);
-      }}
-    >
+    <EditorForm label="Edit weekly windows" onSubmit={submit}>
       <p className="text-sm text-muted-foreground">Times are 24-hour, in your meeting time zone.</p>
       <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
         {WEEKDAYS.map((weekday) => (
@@ -75,15 +72,15 @@ export function WeeklyWindowsEditor({
           {result.error}
         </p>
       ) : null}
-      <CardActions>
-        <Button aria-describedby={result.error ? errorId : undefined} disabled={Boolean(result.error) || saving} type="submit">
+      <CardActions sticky>
+        <Button aria-describedby={result.error ? errorId : undefined} disabled={Boolean(result.error) || saving} onClick={submit} type="button">
           {saving ? "Saving..." : "Save windows"}
         </Button>
         <Button onClick={onCancel} type="button" variant="outline">
           Cancel
         </Button>
       </CardActions>
-    </form>
+    </EditorForm>
   );
 }
 
@@ -103,8 +100,8 @@ function DayRow({
   const available = ranges.length > 0;
 
   return (
-    <li className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-start sm:gap-4">
-      <label className="flex min-h-11 shrink-0 items-center gap-3 sm:w-36" htmlFor={checkboxId}>
+    <li className="flex flex-col gap-1 px-3 py-1 sm:flex-row sm:items-start sm:gap-4">
+      <label className="flex min-h-11 shrink-0 items-center gap-3 sm:w-40" htmlFor={checkboxId}>
         <input
           checked={available}
           className="size-5 accent-primary"
@@ -116,7 +113,7 @@ function DayRow({
         {!available ? <span className="text-sm text-muted-foreground">Unavailable</span> : null}
       </label>
       {available ? (
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-1 pb-1 sm:py-0">
           {ranges.map((range, index) => (
             <RangeRow
               day={label}
@@ -129,9 +126,10 @@ function DayRow({
               range={range}
             />
           ))}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1">
             <Button
               aria-label={`Add a range on ${label}`}
+              className="min-h-9 px-2"
               onClick={() => onChange([...ranges, nextRange(ranges)])}
               type="button"
               variant="ghost"
@@ -141,7 +139,7 @@ function DayRow({
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button aria-label={`Copy ${label} to other days`} type="button" variant="ghost">
+                <Button aria-label={`Copy ${label} to other days`} className="min-h-9 px-2" type="button" variant="ghost">
                   <CopyIcon aria-hidden />
                   Copy
                 </Button>

@@ -165,3 +165,14 @@ Setup SHALL propose a handle and a display name, let the host edit both on the r
 #### Scenario: Taken handle drafted
 - **WHEN** a host types a handle that another host holds or once held
 - **THEN** the field reports that the handle is unavailable and the draft keeps the previous handle
+
+### Requirement: One setup question at a time
+The workspace SHALL show exactly one setup card at a time, for the current step, after the conversation and above the composer. Each card SHALL ask one question and fit a phone-width viewport above the composer, except editors that scroll inside their card. Progress and a way back to earlier steps SHALL be shown, and the final review SHALL list every answer.
+
+#### Scenario: Walking through suggestions
+- **WHEN** a host has accepted the timezone and weekly windows but not the meeting limit
+- **THEN** only the meeting-limit card is shown, labeled with its step number, and the host can go back to the windows card
+
+#### Scenario: Editing from the review
+- **WHEN** a host chooses Edit beside the duration on the review card
+- **THEN** only the duration card is shown, and saving it returns to the review

@@ -8,9 +8,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuthoredMessages, useAuthoredReveal } from "@/app/_components/setup/authored-messages";
 import { focusCurrentCard, SetupCards } from "@/app/_components/setup/setup-cards";
 import { SetupProvider, useSetupController } from "@/app/_components/setup/setup-context";
+import { describeSetupTool } from "@/app/_components/setup/tool-labels";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { ChatComposer } from "@/components/chat/composer";
-import { ChatConversation, ChatConversationContent, ChatScrollButton } from "@/components/chat/conversation";
+import { ChatConversation, ChatConversationContent, ChatItem, ChatScrollButton } from "@/components/chat/conversation";
 import { AgentMessage } from "@/components/chat/message";
 import { Button } from "@/components/ui/button";
 import {
@@ -257,7 +258,7 @@ export function HostWorkspace() {
   // The menu's Setup item leads to the current step's card, or the composer
   // while setup has not loaded.
   const focusSetup = useCallback(() => {
-    if (setupState && reveal.done) focusCurrentCard(setupState);
+    if (setupState && reveal.done) focusCurrentCard();
     else composerRef.current?.querySelector("textarea")?.focus();
   }, [reveal.done, setupState]);
 
@@ -290,25 +291,29 @@ export function HostWorkspace() {
           </div>
         ) : null}
 
-        <ChatConversation aria-busy={busy} aria-label="Messages">
-          <ChatConversationContent>
+        <ChatConversation>
+          <ChatConversationContent aria-busy={busy} aria-label="Messages">
             <AuthoredMessages messages={reveal.visible} />
             {messages.map((message, index) => (
-              <AgentMessage
-                canRespond={false}
-                isStreaming={phase === "streaming" && index === messages.length - 1}
-                key={message.id}
-                message={message}
-                onInputResponses={() => {}}
-              />
+              <ChatItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
+                <AgentMessage
+                  canRespond={false}
+                  describeTool={describeSetupTool}
+                  isStreaming={phase === "streaming" && index === messages.length - 1}
+                  message={message}
+                  onInputResponses={() => {}}
+                />
+              </ChatItem>
             ))}
             {pendingText ? (
-              <AgentMessage
-                canRespond={false}
-                isStreaming={false}
-                message={{ id: "pending", parts: [{ state: "done", text: pendingText, type: "text" }], role: "user" }}
-                onInputResponses={() => {}}
-              />
+              <ChatItem messageId="pending" scrollAnchor>
+                <AgentMessage
+                  canRespond={false}
+                  isStreaming={false}
+                  message={{ id: "pending", parts: [{ state: "done", text: pendingText, type: "text" }], role: "user" }}
+                  onInputResponses={() => {}}
+                />
+              </ChatItem>
             ) : null}
             {turnFailed && !failed && phase === "ready" ? (
               <p className="px-3 text-sm text-muted-foreground" role="status">
@@ -316,16 +321,18 @@ export function HostWorkspace() {
               </p>
             ) : null}
             {phase === "sending" || phase === "streaming" ? (
-              <p className="px-3 text-sm text-muted-foreground" role="status">
-                Thyme is thinking...
+              <p className="px-3 text-sm" role="status">
+                <span className="shimmer text-muted-foreground motion-reduce:shimmer-none">Thyme is thinking...</span>
               </p>
             ) : null}
             {setup.value && reveal.done ? (
-              <div aria-label="Setup" className="flex min-w-0 flex-col gap-4" role="group">
-                <SetupProvider value={setup.value}>
-                  <SetupCards />
-                </SetupProvider>
-              </div>
+              <ChatItem messageId="setup">
+                <div aria-label="Setup" className="flex min-w-0 flex-col" role="group">
+                  <SetupProvider value={setup.value}>
+                    <SetupCards />
+                  </SetupProvider>
+                </div>
+              </ChatItem>
             ) : null}
           </ChatConversationContent>
           <ChatScrollButton />

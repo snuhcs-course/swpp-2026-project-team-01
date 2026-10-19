@@ -75,6 +75,22 @@ export function summarizeWindows(windows: readonly WeeklyWindow[]) {
   return days.map((row) => `${WEEKDAY_SHORT[row.weekday]} ${row.ranges.join(", ")}`).join("; ");
 }
 
+// Consecutive weekdays with the same ranges, grouped into one compact line each:
+// "Mon–Fri 10:00 – 17:00", "Sat–Sun" unavailable.
+export function groupWindows(windows: readonly WeeklyWindow[]) {
+  const groups: { first: Weekday; last: Weekday; ranges: string }[] = [];
+  for (const row of weeklyPreview(windows)) {
+    const ranges = row.ranges.join(", ");
+    const previous = groups.at(-1);
+    if (previous && previous.ranges === ranges) previous.last = row.weekday;
+    else groups.push({ first: row.weekday, last: row.weekday, ranges });
+  }
+  return groups.map((group) => ({
+    days: group.first === group.last ? WEEKDAY_SHORT[group.first] : `${WEEKDAY_SHORT[group.first]}–${WEEKDAY_SHORT[group.last]}`,
+    ranges: group.ranges || null,
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // The weekly windows editor
 

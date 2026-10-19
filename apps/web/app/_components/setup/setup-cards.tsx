@@ -1,140 +1,136 @@
 "use client";
 
-import { ChevronDownIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import type { SetupState } from "@/lib/setup/client";
-import { cn } from "@/lib/utils";
-import { ANALYSIS_CARD_ID, AnalysisCard } from "./analysis-card";
-import { CALENDARS_CARD_ID, CalendarRolesCard, CONNECT_CARD_ID, ConnectCalendarCard } from "./calendar-cards";
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+import { AnalysisCard, NotesStep, scanNeedsHost } from "./analysis-card";
+import { CalendarRolesCard, ConnectCalendarCard } from "./calendar-cards";
 import { focusCard } from "./card";
-import { answeredMode, LocationCard, ModeCard, TransportCard, TravelBufferCard } from "./question-cards";
-import { CHANGE_CALENDARS_ID, FIELD_TARGETS, REVIEW_CARD_ID, ReviewCard } from "./review-card";
-import { useSetup } from "./setup-context";
-import { LINKS_CARD_ID, ShareLinksCard } from "./share-links-card";
-import { DurationCard, TimezoneCard, WeeklyLimitCard, WeeklyWindowsCard } from "./suggestion-cards";
+import { LocationStep, ModeStep, TransportStep } from "./question-cards";
+import { CHANGE_CALENDARS_ID, IdentityStep, ReviewCard } from "./review-card";
+import { useSetup, useStepper } from "./setup-context";
+import { ShareLinksCard } from "./share-links-card";
+import type { StepTarget } from "./steps";
+import { DurationStep, TimezoneStep, TravelBufferStep, WeeklyLimitStep, WeeklyWindowsStep } from "./suggestion-cards";
 
-// The current step's cards, placed after the conversation and above the
-// composer. Which cards show is derived from the server's next action only.
+// Exactly one setup card, placed after the conversation and above the composer:
+// one thing to think about at once. Which card shows is derived from the
+// server's next action and, inside setup, from the client-side step pointer.
 
-// The card that represents the current step: where focus goes when the step
-// changes and where the workspace menu's Setup item leads.
-export function currentCardId(state: SetupState) {
-  switch (state.nextAction) {
-    case "connect_calendar":
-      return CONNECT_CARD_ID;
-    case "choose_calendars":
-      return CALENDARS_CARD_ID;
-    case "analyzing":
-      return ANALYSIS_CARD_ID;
-    case "review_suggestions": {
-      const first = state.missingFields.map((field) => FIELD_TARGETS[field].card).find((id) => document.getElementById(id));
-      return first ?? REVIEW_CARD_ID;
-    }
-    case "confirm_settings":
-      return REVIEW_CARD_ID;
-    case "ready":
-      return state.pendingChanges ? REVIEW_CARD_ID : LINKS_CARD_ID;
+// Moves focus to the visible card's heading, as the workspace menu's Setup item does.
+export function focusCurrentCard() {
+  const card = document.querySelector<HTMLElement>("[data-setup-card]");
+  if (card) focusCard(card.id);
+}
+
+function StepView({ step }: { readonly step: StepTarget }) {
+  switch (step) {
+    case "timezone":
+      return <TimezoneStep />;
+    case "windows":
+      return <WeeklyWindowsStep />;
+    case "limit":
+      return <WeeklyLimitStep />;
+    case "duration":
+      return <DurationStep />;
+    case "notes":
+      return <NotesStep />;
+    case "mode":
+      return <ModeStep />;
+    case "location":
+      return <LocationStep />;
+    case "transport":
+      return <TransportStep />;
+    case "travelBuffer":
+      return <TravelBufferStep />;
+    case "identity":
+      return <IdentityStep />;
+    case "review":
+      return <ReviewCard />;
   }
 }
 
-export function focusCurrentCard(state: SetupState) {
-  focusCard(currentCardId(state));
-}
-
-function PreferenceCards() {
-  const { state } = useSetup();
-  const mode = answeredMode(state);
-  const inPerson = mode === "in_person" || mode === "either";
-
-  return (
-    <>
-      <TimezoneCard />
-      <WeeklyWindowsCard />
-      <WeeklyLimitCard />
-      <DurationCard />
-      <ModeCard />
-      {inPerson ? (
-        <>
-          <LocationCard />
-          <TransportCard />
-          <TravelBufferCard />
-        </>
-      ) : null}
-    </>
-  );
-}
-
-export function SetupCards() {
-  const { editingCalendars, setEditingCalendars, state } = useSetup();
-  const step = state.nextAction;
-  const previous = useRef(step);
-  const [early, setEarly] = useState(false);
-
-  // A changed step moves focus to its card's heading; the first render leaves
-  // focus where it is (the composer).
-  useEffect(() => {
-    if (previous.current === step) return;
-    previous.current = step;
-    focusCurrentCard(state);
-  }, [state, step]);
+// The one card for the current state, with a key that names it.
+function useCurrentCard() {
+  const { early, editingCalendars, setEarly, setEditingCalendars, state } = useSetup();
+  const stepper = useStepper();
 
   const closeCalendars = (saved: boolean) => {
     setEditingCalendars(false);
-    if (!saved) {
-      window.requestAnimationFrame(() => document.getElementById(CHANGE_CALENDARS_ID)?.focus());
-    }
+    if (!saved) window.requestAnimationFrame(() => document.getElementById(CHANGE_CALENDARS_ID)?.focus());
   };
 
-  const rolesEditor = editingCalendars ? <CalendarRolesCard onClose={closeCalendars} /> : null;
+  if (editingCalendars && state.nextAction !== "connect_calendar") {
+    return { card: <CalendarRolesCard onClose={closeCalendars} />, key: "calendars-edit" };
+  }
 
-  switch (step) {
+  switch (state.nextAction) {
     case "connect_calendar":
-      return (
-        <>
-          <ConnectCalendarCard />
-          <Button
-            aria-expanded={early}
-            className="self-start"
-            onClick={() => setEarly((current) => !current)}
-            type="button"
-            variant="ghost"
-          >
-            <ChevronDownIcon aria-hidden className={cn("transition-transform", early ? "rotate-180" : undefined)} />
-            {early ? "Hide other preferences" : "Set other preferences now"}
-          </Button>
-          {early ? <PreferenceCards /> : null}
-        </>
-      );
+      // Other preferences can be set before Calendar is connected, one step at a
+      // time; once they are done (or skipped), the Connect card returns.
+      if (early && stepper.current !== "review") {
+        return { card: <StepView step={stepper.current} />, key: stepper.current };
+      }
+      return { card: <ConnectCalendarCard onSetOtherPreferences={() => setEarly(true)} />, key: "connect" };
     case "choose_calendars":
-      return <CalendarRolesCard />;
+      return { card: <CalendarRolesCard />, key: "calendars" };
     case "analyzing":
-      return <AnalysisCard />;
+      return { card: <AnalysisCard />, key: "analysis" };
     case "review_suggestions":
     case "confirm_settings":
-      return (
-        <>
-          {rolesEditor}
-          <AnalysisCard />
-          <PreferenceCards />
-          <ReviewCard />
-        </>
-      );
+      if (scanNeedsHost(state)) return { card: <AnalysisCard />, key: "analysis" };
+      return { card: <StepView step={stepper.current} />, key: stepper.current };
     case "ready":
-      return (
-        <>
-          <ShareLinksCard />
-          {rolesEditor}
-          {state.pendingChanges ? (
-            <>
-              <p className="rounded-lg border border-warning/50 bg-card px-4 py-3 text-sm" role="status">
-                <span className="font-medium text-warning">Changes not yet confirmed.</span> Your booking page still uses your
-                confirmed settings.
-              </p>
-              <ReviewCard pending />
-            </>
-          ) : null}
-        </>
-      );
+      if (state.pendingChanges || stepper.current !== "review") {
+        return {
+          card: stepper.current === "review" ? <ReviewCard pending={state.pendingChanges} /> : <StepView step={stepper.current} />,
+          key: stepper.current,
+        };
+      }
+      return { card: <ShareLinksCard />, key: "links" };
   }
+}
+
+// The height a card may take: the conversation's visible height less its
+// padding, so a long card (the weekly windows editor, the review) scrolls inside
+// itself and never pushes its actions under the composer.
+function useCardRoom() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [room, setRoom] = useState<number | null>(null);
+
+  useEffect(() => {
+    const log = ref.current?.closest<HTMLElement>("[data-slot=message-scroller-viewport]");
+    if (!log) return;
+    const measure = () => setRoom(Math.max(240, Math.floor(log.clientHeight - 48)));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(log);
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, style: (room ? { "--setup-card-room": `${room}px` } : undefined) as CSSProperties | undefined };
+}
+
+export function SetupCards() {
+  const { card, key } = useCurrentCard();
+  const previous = useRef(key);
+  const room = useCardRoom();
+
+  // A changed card moves focus to its heading; the first render leaves focus
+  // where it is (the composer).
+  useEffect(() => {
+    if (previous.current === key) return;
+    previous.current = key;
+    const element = document.querySelector<HTMLElement>("[data-setup-card]");
+    if (element) focusCard(element.id);
+  }, [key]);
+
+  return (
+    <div className="flex min-w-0 flex-col" data-setup-step={key} ref={room.ref} style={room.style}>
+      <StepFrame key={key}>{card}</StepFrame>
+    </div>
+  );
+}
+
+// Remounts the card's state when the step changes.
+function StepFrame({ children }: { readonly children: ReactNode }) {
+  return children;
 }

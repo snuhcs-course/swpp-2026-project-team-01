@@ -64,6 +64,7 @@ References: [Cloudflare CLI setup](https://developers.cloudflare.com/cf/get-star
 - Lean on the reference repositories. Before designing or implementing a module, read how the [reference repositories](documentations/technical_specification/02_frontend_architecture.md#reference-repositories) structure, style and test the same thing, and follow their architecture and design wherever our contracts do not say otherwise. Name the repository and revision you followed in the pull request.
 - Keep secrets, credentials, and local environment files out of Git. Add examples when configuration needs to be shared.
 - Run the relevant checks for files you change, and report any checks that cannot run.
+- Ask the user for one thing at a time. A conversation shows one small card or question at once, never a stack to scroll through; follow [one thing to think about at once](documentations/03_design_principles.md#4-one-thing-to-think-about-at-once) and the card recipe in `DESIGN.md`.
 - For every feature change, check whether product, UX, technical, setup, or API documentation needs updating. Update the owning documents in the same change when behavior or setup changes; if no update is needed, say why in the final report.
 
 ## Documentation and specifications

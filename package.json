@@ -28,6 +28,7 @@
     "check": "npm run check:docs && openspec validate --all --strict"
   },
   "dependencies": {
+    "@shadcn/react": "0.3.1",
     "@shikijs/core": "4.3.1",
     "@shikijs/engine-javascript": "4.3.1",
     "@shikijs/engine-oniguruma": "4.3.1",
@@ -53,7 +54,6 @@
     "streamdown": "2.7.0",
     "tailwind-merge": "3.6.0",
     "tailwindcss": "4.3.3",
-    "use-stick-to-bottom": "1.1.6",
     "zod": "4.4.3"
   },
   "devDependencies": {
