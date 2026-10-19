@@ -1,6 +1,6 @@
 # Find Me a Time — Implementation Plan
 
-Status: proposed plan for team review; no implementation has started\
+Status: plan for team review; Phase 1 implemented on `feat/application-foundation` and awaiting review\
 Date: 2026-10-19\
 Basis: [PRD](../02_product_requirements.md), [technical overview](../04_technical_specification.md), [backend](01_backend_architecture.md), [frontend](02_frontend_architecture.md), [provider setup](03_provider_setup.md), [agent configuration](04_agent_configuration.md), [host onboarding flow](../user_experience/05_host_onboarding_flow.md), [guest booking flow](../user_experience/06_guest_booking_flow.md) and the [capability specifications](../../openspec/specs/).
 
@@ -19,7 +19,7 @@ These are agreed and are not reopened by this plan:
 | Agent access | Remote MCP with resource-bound OAuth plus a thin user CLI; a separate administrator CLI | [CLI direction](05_cli.md), [Design principles](../03_design_principles.md) |
 | Authority | The application owns host eligibility, proposal versions, agreement, approval, idempotency and booking reconciliation. A runtime session, tool approval or OAuth grant never approves a meeting | [Agent configuration](04_agent_configuration.md) |
 | Routes | `/`, `/auth/sign-in`, `/app`, `/{handle}`, `/booking/[bookingId]`, `/connect/authorize`, `/SKILL.md`, `/{handle}/SKILL.md`, `llms.txt` | [Page list](../user_experience/04_page_list.md) |
-| Release origin | `https://release.findmeatime.com`; root-domain promotion is a later verification | [Deployment origin](03_provider_setup.md#deployment-origin) |
+| Release origin | `https://release.findmeatime.com`; since 2026-10-19 the same deployment also serves `https://findmeatime.com` as the canonical origin, at the user's request | [Deployment origin](03_provider_setup.md#deployment-origin) |
 
 ## 2. Working model
 
@@ -68,8 +68,8 @@ Scope. Prerequisite for every lane: the skeleton below, done by one person in th
 
 **Lane B — data and identity** (independent; its schema baseline and the CI job that pushes it merge first and alone, and other lanes add tables only after that)
 
-- [ ] Supabase schema baseline: private and exposed namespaces, role matrix, explicit grants and revokes, RLS on exposed tables, and the first pg-delta migration chain verified on a disposable local database and on each sandbox.
-- [ ] Google-only Supabase Auth sign-in with identity and Calendar scopes on one consent screen, PKCE, offline access, recorded granted scopes and encrypted refresh token, `/auth/callback` returning only to `/app`, email login disabled.
+- [ ] Supabase schema baseline: private and exposed namespaces, role matrix, explicit grants and revokes, RLS on exposed tables, and the first pg-delta migration chain verified on a disposable local database and on each sandbox. Open: the deploy workflow (task 2.3) has never run, because its repository secrets are not set.
+- [ ] Google-only Supabase Auth sign-in with identity and Calendar scopes on one consent screen, PKCE, offline access, recorded granted scopes and encrypted refresh token, `/auth/callback` returning only to `/app`, email login disabled. Open: the OAuth app's publishing status and sandbox callbacks are not recorded (task 2.8).
 - [x] Open host sign-up: one active host account per Google identity; the shared eligibility-and-readiness guard.
 
 **Lane C — platform mechanics** (independent; pure server modules with their own tests)
@@ -82,7 +82,7 @@ Scope. Prerequisite for every lane: the skeleton below, done by one person in th
 **Join** (after all lanes): a signed-in host reaches `/app`, opens an authorized empty setup session, and the production deployment serves it on the release origin.
 
 - [x] Wire Lane A's session authorization to Lane B's host account and Lane C's command pipeline.
-- [ ] Run the Phase 1 evidence list below.
+- [x] Run the Phase 1 evidence list below. Recorded in the [acceptance record](07_acceptance_record.md#phase-1--application-foundation).
 
 Specs: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md) (Google-only login, single host workspace, conversation-first entry), [host-admission](../../openspec/specs/host-admission/spec.md) (open sign-up, eligibility guard), [conversation-access](../../openspec/specs/conversation-access/spec.md), [model-execution](../../openspec/specs/model-execution/spec.md), [application-commands](../../openspec/specs/application-commands/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), [messaging-environments](../../openspec/specs/messaging-environments/spec.md).
 

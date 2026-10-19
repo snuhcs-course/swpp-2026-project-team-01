@@ -6,19 +6,33 @@
 
 ## 프로젝트 상태
 
-이 저장소는 문서와 명세 단계에 있습니다. 제품, UX, 아키텍처, 제공자 문서와 OpenSpec 기능 명세는 합의되었습니다. 애플리케이션 코드, SQL, 테스트, 빌드 도구는 아직 없습니다. 런타임 스택 결정이 기록된 이후, 팀이 첫 번째 변경에 대한 범위가 정해진 OpenSpec 변경을 열기 전까지는 scaffold나 구현을 하지 마십시오.
+구현은 [`application-foundation`](openspec/changes/application-foundation/proposal.md) 변경으로 시작되었으며, 그 [설계](openspec/changes/application-foundation/design.md)가 런타임 스택을 기록합니다. Phase 1(로그인, `/app` 작업 공간, Supabase 스키마 기준선, 플랫폼 메커니즘)은 구현과 배포를 마쳤고 [인수 기록](documentations/technical_specification/07_acceptance_record.md)에 기록되어 있습니다. 제품 기능은 이후 변경과 함께 들어옵니다. 열린 OpenSpec 변경 안에서만 구현하십시오.
 
-공유 Supabase 프로젝트는 `anelszynxtvxoxqvzgqt`이며, 애플리케이션 스키마는 비어 있습니다(2026-10-19 검증). 첫 스키마 변경 전에 네임스페이스와 기본 권한을 검토하고, [제공자 설정](documentations/technical_specification/03_provider_setup.md#supabase-project)에 설명된 대로 RLS를 적용하십시오. 상태를 확인하지 않은 프로젝트에 마이그레이션 체인을 푸시하지 마십시오.
+공유 Supabase 프로젝트는 `anelszynxtvxoxqvzgqt`이며, 2026-10-19에 적용된 Phase 1 마이그레이션을 담고 있습니다([환경과 협업](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration) 참고). 네임스페이스, 기본 권한, RLS는 스키마 기준선이 선언한 대로 유지하며, [제공자 설정](documentations/technical_specification/03_provider_setup.md#supabase-project)의 설명을 따르십시오. 상태를 확인하지 않은 프로젝트에 마이그레이션 체인을 푸시하지 마십시오.
 
 ## 저장소 구조
 
-- `apps/`: 애플리케이션 코드. 앱을 만들 때 앱별 설정과 테스트 지침을 추가합니다.
+- `agent/`: eve 에이전트 정의, 지침, 채널입니다. `agent/channels/eve.ts`는 모든 `/eve/v1` 경로를 애플리케이션 코드로 인가합니다.
+- `apps/web/`: Next.js 웹 앱입니다. `/`는 공개 진입점이고 `/app`은 대화를 담습니다.
+- `lib/contracts/`와 `lib/server/`: 에이전트와 웹 앱이 공유하는 브라우저 안전 계약과 서버 전용 코드입니다.
+- `tests/integration/`과 `tests/e2e/`: Vitest 통합 테스트와 Playwright 브라우저 테스트입니다. 단위 테스트는 각 모듈 옆에 있습니다.
 - `documentations/`: 제품 방향, 릴리스 범위, 조사, 설명 문서입니다. `01_one_pager.md`부터 시작합니다.
 - `openspec/specs/`: 주요 기능 명세입니다. 자세한 동작은 `<capability>/spec.md`에 있습니다.
 - `openspec/changes/`: 제안된 동작 변경과 보관된 구현 기록입니다.
 - `supabase/`: 로컬 Supabase 설정과 앞으로의 데이터베이스 마이그레이션입니다.
 
 ## 도구 사전 요구사항
+
+Node.js 24와 npm을 사용합니다. `npm ci`로 설치한 뒤, CI가 실행하는 검사를 실행하십시오.
+
+```sh
+npm run build        # eve build, then next build for apps/web
+npm run lint         # oxlint agent apps lib tests
+npm run typecheck
+npm test             # Vitest unit tests
+```
+
+`npm run test:integration`은 로컬 스택(`supabase start`)에 대해 Vitest 통합 테스트를 한 파일씩 실행합니다. 일부 테스트는 로컬 OpenAI 대역(stand-in)과 함께 `eve dev` 또는 `eve build`와 `eve start`를 띄웁니다. `npm run test:e2e`는 3100–3102번 포트의 `next dev`, `eve dev`, 같은 대역을 대상으로 Playwright를 실행하며, 모두 로컬 스택을 가리킵니다(브라우저는 `npx playwright install chromium`으로 한 번 설치). 테스트는 우회 경로가 아니라 실제 로컬 Auth 흐름으로 로그인합니다. `npm run test:e2e`에 `E2E_LIVE_MODEL=1`을 설정하면 `OPENAI_API_KEY`로 실제 `gpt-5.6-terra`를 사용해 로그인부터 첫 답장까지의 여정만 실행합니다. 비용이 들기 때문에 CI는 이 값을 설정하지 않습니다. 로컬 개발에서는 `.env.example`을 바탕으로 `.env`를 채우고, 로컬 스택 값 같은 로컬 재정의는 `.env.local`에 넣은 뒤 `npm run dev`를 실행하십시오. 이 명령은 3000번 포트의 웹 서비스와 2000번 포트의 `eve dev`를 모두 루트 env 파일로 시작하며(eve와 Next.js의 순서대로 프로세스 환경이 우선하고, 그다음 `.env.development.local`, `.env.local`, `.env.development`, `.env` 순), 공유 프로젝트와 릴리스 프로젝트는 거부합니다. `npm run dev:web`은 같은 환경으로 웹 서비스만 실행하고, `npm run dev:eve`는 터미널 UI와 함께 에이전트를 실행합니다. 로컬에서 만들어진 작업을 `DATABASE_URL`에 대해 처리하려면 `npm run jobs:dev`를 실행하십시오. 이 명령은 공유 프로젝트와 릴리스 프로젝트를 거부합니다.
 
 GitHub CLI(`gh`), Vercel CLI(`vercel`), Supabase CLI(`supabase`)가 설치되어 `PATH`에서 사용할 수 있다고 가정합니다.
 

@@ -1,6 +1,6 @@
 # Find Me a Time — Documentation
 
-Status: documentation and specification phase; implementation and acceptance evidence pending. [Provider setup](technical_specification/03_provider_setup.md) records the selected environment and verification prerequisites.
+Status: Phase 1 foundation implemented, with its evidence in the [acceptance record](technical_specification/07_acceptance_record.md); later phases are in specification. [Provider setup](technical_specification/03_provider_setup.md) records the selected environment and verification prerequisites.
 
 Read product purpose and requirements, then UX and architecture. Detailed agreed behavior lives in [capability specifications](../openspec/specs/); pending requirements live in [active changes](../openspec/changes/). Planning documents do not establish delivery or deployment readiness.
 

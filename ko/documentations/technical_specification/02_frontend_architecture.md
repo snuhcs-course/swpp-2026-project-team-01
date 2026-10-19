@@ -4,13 +4,25 @@
 
 날짜: 2026-10-19
 
-상태: 제안된 설계, 구현 보류
+상태: Phase 1 기반 구현 완료, 이후 단계는 제안 상태
 
 참고 문서: [페이지 목록](../user_experience/04_page_list.md)
 
 ## 범위와 결정 사항
 
-Next.js App Router, React, TypeScript, npm을 사용하며, 대화 런타임으로는 eve를 의도하고 있습니다. shadcn/ui와 선별된 AI Elements를 UI 방향으로 유지하되, 정확한 버전과 프리셋 호환성은 기반 변경(foundation change)에서 새로 고정(pin)해야 합니다. [Thyme 시각 방향](../../DESIGN.md)을 적용합니다. 아직 패키지, 컴포넌트, 실행 가능한 라우트는 존재하지 않습니다.
+Next.js App Router, React, TypeScript, npm을 사용하며, 대화 런타임으로는 eve를 의도하고 있습니다. shadcn/ui와 선별된 AI Elements를 UI 방향으로 유지합니다. [Thyme 시각 방향](../../DESIGN.md)을 적용합니다. Phase 1은 복사한 eve 채팅 템플릿 위에 루트 npm 패키지, `/`, `/auth/sign-in`, `/auth/callback`, `/app` 작업 공간을 만들었습니다. 다른 라우트는 아직 존재하지 않습니다.
+
+**고정된 버전.** [기반 설계](../../openspec/changes/application-foundation/design.md#4-dependency-set)가 기록한 대로 모든 의존성은 정확한 버전으로 고정되며, `package-lock.json`이 커밋되어 있습니다. 2026-10-19에 Node.js 24와 npm 11에서 설치된 버전(`npm ls --depth=0`)은 다음과 같습니다.
+
+| 그룹 | 패키지 |
+|---|---|
+| 런타임과 프레임워크 | `eve` 0.80.1, `ai` 7.0.143, `next` 16.3.8, `react`와 `react-dom` 19.2.8, `zod` 4.4.3 |
+| 데이터와 신원 | `@supabase/supabase-js` 2.118.0, `@supabase/ssr` 0.12.7, `postgres` 3.4.9 |
+| UI | `tailwindcss`와 `@tailwindcss/postcss` 4.3.3, `radix-ui` 1.6.7, `class-variance-authority` 0.7.1, `clsx` 2.1.1, `tailwind-merge` 3.6.0, `cmdk` 1.1.1, `lucide-react` 1.33.0, `use-stick-to-bottom` 1.1.6 |
+| 메시지 렌더링 | `streamdown` 2.7.0, `@streamdown/cjk` 1.0.3, `@streamdown/code` 1.1.1, `@streamdown/math` 1.0.2, `@streamdown/mermaid` 1.0.2, `shiki`와 `@shikijs/{core,engine-javascript,engine-oniguruma}` 4.3.1 |
+| 개발 | `typescript` 7.0.2, `@typescript/native-preview` 7.0.0-dev.20260707.2, `@types/node` 24.19.2, `@types/react` 19.2.18, `@types/react-dom` 19.2.4, `vitest` 5.0.5, `@playwright/test` 1.64.1, `oxlint` 1.88.0, `tsx` 4.23.15 |
+
+버전은 별도의 풀 리퀘스트에서 의도적으로 갱신하고, 이 표도 함께 갱신하십시오.
 
 UI는 클라이언트에서 안전한 계약과 공유되는 권한 검사 작업에만 의존하며, 테이블, RPC, 함수 URL에 직접 의존하지 않습니다. 워크스페이스를 확장하기 전에 별도로 빌드되는 웹/eve 구성을 확인합니다. [소스 템플릿](#reference-repositories)은 참고용이며, 템플릿의 인증, 영속성, 범용 도구 승인은 제품의 권한 체계를 대체할 수 없습니다.
 
@@ -33,12 +45,13 @@ OpenInstinct도 기본 템플릿 후보로 검토했으나 채택하지 않았�
 | [personal-agent template](https://github.com/vercel-labs/personal-agent-template) ([eve 모노레포 내](https://github.com/vercel/eve/tree/main/apps/templates/personal-agent-template)에도 있으며 Sendblue iMessage 포함) | 브라우저와 메시징 간의 계정/채널 연동, 웹 서비스와 에이전트 서비스 간 내부 API, 사용자가 승인하는 `save_memory` 제안, 쓰기 도구에 대한 내구성 있는 승인 | Nuxt/Vue 프론트엔드, Better Auth, Sendblue/Slack/Linear 통합, 개인 비서 수준의 권한 |
 | [eve memory agent template](https://github.com/vercel-labs/eve-memory-agent-template) | eve 메모리 슬롯의 가장 작은 예시: 검증된 채널 신원에 연결된 사용자별/그룹별 메모리를 분리하고, 매 턴 전에 불러오며, 모델이 언제 저장할 수 있는지 지침을 둠 | Slack 전송 수단, Vercel Blob/Sandbox 저장소, 재사용할 웹 UI 없음 |
 | [Vercel chatbot](https://github.com/vercel/chatbot) | 메시지와 입력창(composer) 상호작용, 반응형 완성도, 빈 상태/로딩/오류 상태, 브라우저 테스트 패턴 | Auth.js, 두 번째 사용자 데이터베이스, Neon/Blob 프로비저닝, 게스트 계정, 공개 공유와 업로드, 범용 아티팩트, 모델 선택기 |
+| [cal.diy](https://github.com/calcom/cal.diy) | **디자인 참조 전용.** 예약 페이지의 레이아웃과 상호작용(`apps/web/modules/bookings/components/`: `Booker`, `EventMeta`, `DatePicker`, `AvailableTimes`, `Unavailable`, `BookingSuccessCard`), `apps/web/app/(booking-page-wrapper)/` 아래의 공개 예약 페이지와 완료 페이지, 주간 가용 시간 편집기(`packages/features/schedules/components/ScheduleComponent.tsx`, `packages/platform/atoms/availability/`), 시간대 선택기(`packages/features/timezone/components/`), 그리고 [확인 설계](../user_experience/03_interfaces.md#booking-confirmation-email-and-calendar-invitation)에서 이미 인용한 예약 완료 이메일 표현(`packages/emails/src/templates/{Attendee,Organizer}ScheduledEmail.tsx` 및 `packages/emails/src/components/`) | 아키텍처 전체: tRPC, Prisma, 모노레포와 `packages/ui` 디자인 시스템, Cal 브랜드 토큰과 폰트, 슬롯 예약 모델, 이벤트 타입, 임베드, Cal.com API. 우리는 스케줄링 화면이 보이고 동작하는 방식을 가져오되 [Thyme 방향](../../DESIGN.md)으로 다시 스타일링하며, 구축 방식은 절대 가져오지 않습니다 |
 
 이 템플릿들의 메모리 슬롯은 모델이 사용자에 대한 내구성 있는 사실을 기록하게 하지만, Find Me a Time에서 스케줄링 정책은 확인된 설정 명령으로만 기록하므로 메모리 슬롯에 담기는 내용은 기껏해야 권위가 없는 컨텍스트입니다. 어떤 참조도 이메일 전달이나 Photon Spectrum iMessage 전송 수단을 제공하지 않으며, 사이드바가 없는 [워크스페이스 계약](../../openspec/specs/chat-workspaces/spec.md)을 무효화하는 참조도 없습니다.
 
 ## 소스 구성
 
-다음 경로는 향후의 레이아웃이며 현재 존재하는 파일이 아닙니다.
+Phase 1은 `agent/`, `apps/web/`, `lib/contracts/`, `lib/server/`, `tests/`와 아래의 `supabase/` 경로를 만들었습니다. `lib/server/providers/`, `db/`, `jobs/` 하위 디렉터리는 향후의 레이아웃입니다.
 
 ```text
 agent/                      eve definition, instructions, tools and channel adapters
@@ -55,7 +68,7 @@ supabase/migrations/        reviewed future migration chain
 supabase/tests/             grants, invariants and concurrency tests
 ```
 
-단위 테스트는 모듈 옆에 둡니다. 독립적으로 배포되는 패키지, 새로운 워커 앱, 브리지 배포는 측정된 런타임 필요가 생길 때까지 미룹니다. 루트 빌드/배포 설정은 기반 검증이 통합 형태를 선택한 뒤에 도입합니다. 이 기획 단계의 체크아웃에는 자리 표시용 애플리케이션 디렉터리가 필요하지 않습니다.
+단위 테스트는 모듈 옆에 둡니다. 독립적으로 배포되는 패키지, 새로운 워커 앱, 브리지 배포는 측정된 런타임 필요가 생길 때까지 미룹니다. 루트 `vercel.ts`가 웹 서비스와 eve 서비스를 하나의 배포로 구성합니다.
 
 ## 논리적 경계
 

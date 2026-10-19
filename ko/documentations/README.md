@@ -2,7 +2,7 @@
 
 # Find Me a Time — 문서
 
-상태: 문서 및 명세 단계입니다. 구현과 인수 증거는 아직 준비되지 않았습니다. [제공자 설정](technical_specification/03_provider_setup.md)은 선택된 환경과 검증 전제 조건을 기록합니다.
+상태: Phase 1 기반이 구현되었으며, 그 증거는 [인수 기록](technical_specification/07_acceptance_record.md)에 있습니다. 이후 단계는 명세 단계입니다. [제공자 설정](technical_specification/03_provider_setup.md)은 선택된 환경과 검증 전제 조건을 기록합니다.
 
 제품 목적과 요구사항을 먼저 읽고, 이어서 UX와 아키텍처를 읽으십시오. 상세한 합의 동작은 [기능 명세](../openspec/specs/)에 있고, 대기 중인 요구사항은 [활성 변경](../openspec/changes/)에 있습니다. 기획 문서는 전달 또는 배포 준비 상태를 증명하지 않습니다.
 
@@ -24,6 +24,8 @@
 | [제공자 설정](technical_specification/03_provider_setup.md) | 기록된 환경 방향과 향후 검증 전제 조건 |
 | [에이전트 구성](technical_specification/04_agent_configuration.md) | eve 에이전트가 디스크에 정의되는 방식: 지침, 도구, 스킬, 연결, 채널, 메모리, 모델 |
 | [CLI 방향](technical_specification/05_cli.md) | 분리된 사용자/관리자 클라이언트. 실행 명령은 대기 중 |
+| [구현 계획](technical_specification/06_implementation_plan.md) | 범위가 정해진 OpenSpec 변경의 제안 순서, 결정 기한, 단계별 인수 증거 |
+| [인수 기록](technical_specification/07_acceptance_record.md) | 각 단계가 만든 증거와 그 명령, 날짜, 리비전, 환경, 그리고 알려진 공백 |
 | [경쟁사 조사](business/competitor_research.md) | 날짜가 기록된 조사 맥락. 제품 호환성 주장 없음 |
 | [이식 가이드](transplant/en/transplant-guide.md) | `dev`에서 검토용으로 복사된 반복 1 프로토타입 기능 F01–F11, 여정, 디자인을 재사용 가능하게 분해한 문서. 아직 조정되지 않음 |
 

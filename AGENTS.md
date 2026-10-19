@@ -4,9 +4,9 @@ This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, r
 
 ## Project status
 
-Implementation has started with the [`application-foundation`](openspec/changes/application-foundation/proposal.md) change, whose [design](openspec/changes/application-foundation/design.md) records the runtime stack. The application skeleton (eve agent, Next.js web app, shared libraries and test layers) builds and passes its checks; product features, SQL and the Supabase schema arrive with that change's later tasks. Implement only within an open OpenSpec change.
+Implementation has started with the [`application-foundation`](openspec/changes/application-foundation/proposal.md) change, whose [design](openspec/changes/application-foundation/design.md) records the runtime stack. Phase 1 (sign-in, the `/app` workspace, the Supabase schema baseline and the platform mechanics) is implemented, deployed and recorded in the [acceptance record](documentations/technical_specification/07_acceptance_record.md); product features arrive with later changes. Implement only within an open OpenSpec change.
 
-The shared Supabase project is `anelszynxtvxoxqvzgqt`; its application schema is empty (verified 2026-10-19). Before the first schema change, review namespace and default privileges and apply RLS as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
+The shared Supabase project is `anelszynxtvxoxqvzgqt`; it holds the Phase 1 migrations, applied on 2026-10-19 (see [environments and collaboration](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration)). Keep namespaces, default privileges and RLS as the schema baseline declares them, as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
 
 ## Repository layout
 
