@@ -12,7 +12,7 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { getChatMessageLength, MAX_CHAT_MESSAGE_CHARS } from "@/lib/chat/limits";
+import { getChatMessageLength, MAX_CHAT_MESSAGE_CHARS } from "@lib/contracts/chat-message";
 import { cn } from "@/lib/utils";
 
 export function ChatComposer({

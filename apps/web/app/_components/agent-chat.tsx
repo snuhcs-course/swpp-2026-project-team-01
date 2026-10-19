@@ -20,7 +20,7 @@ import {
 import { AgentMessage } from "@/components/chat/message";
 import { Button } from "@/components/ui/button";
 import { isChatTurnSettledEvent } from "@/lib/chat/events";
-import { getChatMessageLengthError } from "@/lib/chat/limits";
+import { getChatMessageLengthError } from "@lib/contracts/chat-message";
 import type { ActiveChat } from "@/lib/chat/types";
 
 export type DraftHandlers = {

@@ -1,5 +1,5 @@
 import { eveChannel } from "eve/channels/eve";
-import { appAuth } from "../../apps/web/lib/eve-auth";
+import { appAuth } from "../../lib/server/eve-auth";
 
 export default eveChannel({
   auth: [appAuth],
