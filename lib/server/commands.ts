@@ -79,7 +79,8 @@ function claimsActor(input: unknown) {
   return typeof input === "object" && input !== null && ACTOR_CLAIMS.some((key) => key in input);
 }
 
-function canonicalJson(value: unknown): string {
+// JSON with object keys sorted, so equal values always hash alike.
+export function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) {
     return `[${value.map(canonicalJson).join(",")}]`;
   }
