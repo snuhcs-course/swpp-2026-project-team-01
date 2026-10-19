@@ -61,7 +61,6 @@ Recorded 2026-10-19 by the [foundation change](../../openspec/changes/applicatio
   | Environment | Redirect URI |
   |---|---|
   | Local stack | `http://127.0.0.1:54321/auth/v1/callback` |
-  | Sandbox **FindMeATime2** `mriseqztcwmezvtawnbo` | `https://mriseqztcwmezvtawnbo.supabase.co/auth/v1/callback` |
   | Shared `anelszynxtvxoxqvzgqt` (release origin) | `https://anelszynxtvxoxqvzgqt.supabase.co/auth/v1/callback` |
 
   Each teammate's sandbox adds its own `https://<ref>.supabase.co/auth/v1/callback`.
