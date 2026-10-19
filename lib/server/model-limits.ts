@@ -317,8 +317,13 @@ export function modelLimitMiddleware(load: () => ModelLimitDependencies): Langua
 // ID stay the wrapped model's, so eve still adds OpenAI's safety identifier and
 // prompt cache key.
 export function limitModel(
-  model: Exclude<LanguageModel, string>,
+  model: LanguageModel,
   load: () => ModelLimitDependencies = () => ({ db: database() }),
 ) {
+  // A Gateway model ID string would bypass the provider and its prompt cache key.
+  if (typeof model === "string") {
+    throw new Error("limitModel needs a provider model instance, not a Gateway model ID.");
+  }
+
   return wrapLanguageModel({ middleware: modelLimitMiddleware(load), model });
 }
