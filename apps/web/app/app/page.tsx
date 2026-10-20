@@ -1,14 +1,20 @@
+import { missingConfiguration } from "@lib/server/commands";
+import { database } from "@lib/server/database";
+import { hasLinkedPhone, readPhoneLink } from "@lib/server/imessage-links";
+import { IMESSAGE_TRANSPORT_REQUIRES } from "@lib/server/imessage-transport";
 import { openHostWorkspace } from "@lib/server/web-session";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { HostWorkspace } from "@/app/_components/host-workspace";
+import { PhoneGate } from "@/app/_components/phone/phone-gate";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { SignInCard } from "@/app/_components/sign-in-card";
 
 // The single host page. Signed out, it offers Google sign-in; a suspended
-// account sees why it cannot continue; an active host gets the conversation,
-// whose empty setup session this visit opens on the server.
+// account sees why it cannot continue; an active host still setting up is asked
+// for an iMessage number first (host-imessage-linking), then gets the
+// conversation, whose empty setup session this visit opens on the server.
 type SearchParams = Promise<{ sign_in?: string }>;
 
 export default function Page({ searchParams }: { readonly searchParams: SearchParams }) {
@@ -42,6 +48,20 @@ async function Workspace({ searchParams }: { readonly searchParams: SearchParams
         <p>This host account is suspended, so the workspace is unavailable. Contact support to restore it.</p>
       </main>
     );
+  }
+
+  // The phone check comes first for a host who is still setting up, has no
+  // linked number and is on a deployment where the check is configured.
+  if (!standing.ready && standing.hostAccountId && missingConfiguration(IMESSAGE_TRANSPORT_REQUIRES).length === 0) {
+    const db = database();
+
+    if (!(await hasLinkedPhone(db, standing.hostAccountId))) {
+      return (
+        <PhoneGate initial={await readPhoneLink(db, standing.hostAccountId)}>
+          <HostWorkspace />
+        </PhoneGate>
+      );
+    }
   }
 
   return <HostWorkspace />;

@@ -15,8 +15,14 @@ export type CommandErrorCategory = keyof typeof COMMAND_ERROR_MESSAGES;
 
 // A fixed, audience-safe refinement of a category, for a failure the caller can
 // act on differently: the booking destination can no longer take events, so the
-// host must choose a writable one.
-export const COMMAND_ERROR_REASONS = ["destination_not_writable"] as const;
+// host must choose a writable one; a phone check's number is linked to another
+// host, this host already has a linked number, or no more texts are allowed now.
+export const COMMAND_ERROR_REASONS = [
+  "destination_not_writable",
+  "phone_already_linked",
+  "phone_taken",
+  "retry_not_eligible",
+] as const;
 export type CommandErrorReason = (typeof COMMAND_ERROR_REASONS)[number];
 
 export type CommandFailure = {

@@ -18,11 +18,14 @@
 
 ## 4. Implementation (after #22 merges and 2.2)
 
-- [ ] 4.1 Move `phone-link.ts` into `lib/contracts/` unchanged, with unit tests for the schema.
-- [ ] 4.2 Add the connection, outbound attempt and inbound event tables in `supabase/schemas/`, generate the migration with pg-delta, and add `supabase test db` tests for one active claimant per number and owner-only reads.
-- [ ] 4.3 Implement the routes and the rules in [design §2](design.md#2-server-rules-from-the-screens-and-the-demo-linker) with unit tests for spacing, the window, expiry, wrong replies and lockout.
-- [ ] 4.4 Implement the outbound sender and the webhook receiver and processor, with integration tests for duplicate delivery, restart before processing and a lost send result.
-- [ ] 4.5 Port the phone and verify screens into `apps/web/app` for the Google start, removing the STOP sentence from the consent line, keeping the demo linker for tests, and add a Playwright journey through sign-in, number, wrong reply and connection against a provider stand-in.
+- [x] 4.1 Move `phone-link.ts` into `lib/contracts/` unchanged, with unit tests for the schema.
+- [x] 4.2 Add the connection, outbound attempt and inbound event tables in `supabase/schemas/`, generate the migration with pg-delta, and add `supabase test db` tests for one active claimant per number and owner-only reads. Owner-only access is covered by `app_grants.test.sql`; one linked host per number by the integration test and the partial unique index.
+- [x] 4.3 Implement the routes and the rules in [design §2](design.md#2-server-rules-from-the-screens-and-the-demo-linker) with unit tests for spacing, the window, expiry, wrong replies and lockout.
+- [x] 4.4 Implement the outbound sender and the webhook receiver and processor, with integration tests for duplicate delivery and a lost send result; a stored reply is applied by a separate job run, not in the webhook request. A process restart between the two is not tested directly. The sender runs against a transport stand-in; the Photon adapter waits for 2.2 (4.6).
+- [x] 4.5 Port the phone and verify screens into `apps/web/app` for the Google start, removing the STOP sentence from the consent line. The demo linker is not ported: the integration tests drive the same states through the server.
+- [ ] 4.6 Implement the Photon transport adapter selected in 2.2 behind `IMESSAGE_TRANSPORT=photon`.
+- [ ] 4.7 Add a Playwright journey through sign-in, number, wrong reply and connection against a provider stand-in.
+- [ ] 4.8 Send the "when it's back" notifications that `app.imessage_notify_requests` records, and remove processed `app.imessage_inbound_events` after 48 hours.
 
 ## 5. Acceptance
 

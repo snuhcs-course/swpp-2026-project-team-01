@@ -1,10 +1,13 @@
 import { CALENDAR_ANALYSIS_JOB, createCalendarAnalysisHandler } from "./analysis";
+import { createImessageInboundHandler, createImessageSendHandler, IMESSAGE_INBOUND_JOB, IMESSAGE_SEND_JOB } from "./imessage-links";
 import type { JobHandler } from "./jobs";
 
 // Handlers by job kind. The worker claims only kinds registered here, so a job
 // whose handler is not deployed yet stays pending and visible.
 export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
   [CALENDAR_ANALYSIS_JOB]: createCalendarAnalysisHandler(),
+  [IMESSAGE_INBOUND_JOB]: createImessageInboundHandler(),
+  [IMESSAGE_SEND_JOB]: createImessageSendHandler(),
 };
 
 // The most jobs of a kind one worker batch claims; kinds not listed share the

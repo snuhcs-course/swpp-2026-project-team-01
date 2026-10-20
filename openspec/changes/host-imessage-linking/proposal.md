@@ -39,10 +39,11 @@ The documents and the screens agree on these, so they stay as written: linking i
 
 ## Changes to the screens
 
-Two edits to the agreed screens follow from decisions made on 2026-10-20:
+These edits to the agreed screens follow from decisions made on 2026-10-20 and from what this change builds:
 
 - Remove "Reply STOP to stop anytime." from the consent line (`phone.fine`, English and Korean). Unlinking happens on the web.
 - The `sms` notify channel means an iMessage to the number once sending works again; there is no SMS transport.
+- Once connected, the Google start continues to the web chat. The screens offered `/home`, which this app does not have, and said onboarding continues in iMessage, which needs setup over iMessage from a later Phase 6 change.
 
 ## Open decisions
 
