@@ -32,7 +32,7 @@ function unauthenticated() {
 }
 
 // The signed-in host's actor, or the response refusing the request.
-async function eligibleHost(request: Request, deps: SetupRouteDependencies): Promise<Actor | Response> {
+export async function eligibleHost(request: Request, deps: SetupRouteDependencies): Promise<Actor | Response> {
   const userId = await authenticatedUserId(request, deps.auth);
 
   if (!userId) return unauthenticated();
@@ -65,7 +65,7 @@ export function createSetupStateHandler(load: () => SetupRouteDependencies = set
   };
 }
 
-const COMMAND_STATUS: Readonly<Record<CommandErrorCategory, number>> = {
+export const COMMAND_STATUS: Readonly<Record<CommandErrorCategory, number>> = {
   forbidden: 403,
   internal: 500,
   invalid_input: 400,
