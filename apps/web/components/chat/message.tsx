@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/trace";
 import { cn } from "@/lib/utils";
 
-const STREAM_TEXT_TICK_MS = 60;
+// About 28 words a second at one word per tick.
+const STREAM_TEXT_TICK_MS = 35;
 const STREAM_TEXT_CACHE_LIMIT = 40;
 const streamingTextCache = new Map<string, string>();
 
@@ -256,30 +257,32 @@ function useStreamingText(text: string, isStreaming: boolean, streamKey: string)
 
   useEffect(() => {
     const current = visibleTextRef.current;
+    const show = (next: string) => {
+      visibleTextRef.current = next;
+      rememberStreamingText(streamKey, next);
+      setVisibleText(next);
+    };
 
-    if (!isStreaming && (current === text || !text.startsWith(current))) {
-      if (current !== text) {
-        visibleTextRef.current = text;
-        rememberStreamingText(streamKey, text);
-        setVisibleText(text);
-      }
-
+    // Text that was not revealed progressively (history, or a replaced block)
+    // and readers who asked for reduced motion get the whole text at once.
+    if (
+      current === text ||
+      !text.startsWith(current) ||
+      (!isStreaming && current === "" && !streamingTextCache.has(streamKey)) ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      if (current !== text) show(text);
       return;
     }
 
-    const catchUp = !isStreaming;
     let interval: number | undefined;
 
     const advance = () => {
-      const next = nextStreamingText(visibleTextRef.current, text, catchUp);
+      const next = nextStreamingText(visibleTextRef.current, text);
 
-      if (next !== visibleTextRef.current) {
-        visibleTextRef.current = next;
-        rememberStreamingText(streamKey, next);
-        setVisibleText(next);
-      }
+      if (next !== visibleTextRef.current) show(next);
 
-      if (catchUp && next === text && interval !== undefined) {
+      if (next === text && interval !== undefined) {
         window.clearInterval(interval);
         interval = undefined;
       }
@@ -287,7 +290,7 @@ function useStreamingText(text: string, isStreaming: boolean, streamKey: string)
 
     advance();
 
-    if (catchUp && visibleTextRef.current === text) {
+    if (visibleTextRef.current === text) {
       return;
     }
 
@@ -338,7 +341,11 @@ function rememberStreamingText(streamKey: string, text: string) {
   }
 }
 
-function nextStreamingText(current: string, target: string, catchUp = false) {
+// Reveals text at a steady reading pace, a word at a time, whether it is still
+// arriving or already complete: a fast model can finish a reply in under a
+// second, and showing a burst at once reads as no streaming at all. Only a large
+// backlog speeds the reveal up, so long replies never lag far behind.
+function nextStreamingText(current: string, target: string) {
   if (current === target) {
     return current;
   }
@@ -348,27 +355,16 @@ function nextStreamingText(current: string, target: string, catchUp = false) {
   }
 
   const remaining = target.length - current.length;
-  const step = catchUp
-    ? remaining > 160
-      ? 18
-      : remaining > 80
-        ? 12
-        : remaining > 32
-          ? 7
-          : remaining > 12
-            ? 4
-            : 2
-    : remaining > 160
-      ? 6
-      : remaining > 80
-        ? 5
-        : remaining > 32
-          ? 3
-          : remaining > 12
-            ? 2
-            : 1;
+  const words = remaining > 1200 ? 8 : remaining > 600 ? 4 : remaining > 300 ? 2 : 1;
+  let end = current.length;
 
-  return target.slice(0, current.length + Math.min(remaining, step));
+  for (let word = 0; word < words && end < target.length; word += 1) {
+    // Skip leading whitespace, then the word itself.
+    while (end < target.length && /\s/.test(target[end]!)) end += 1;
+    while (end < target.length && !/\s/.test(target[end]!)) end += 1;
+  }
+
+  return target.slice(0, end);
 }
 
 // The model's reasoning as a Trace line: "Thinking" shimmers while it streams

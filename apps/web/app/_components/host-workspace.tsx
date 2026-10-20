@@ -362,7 +362,12 @@ export function HostWorkspace() {
         <ChatConversation>
           <ConversationSetup value={setupValue}>
             <ChatConversationContent aria-busy={busy} aria-label="Messages">
-              <AuthoredMessages messages={reveal.visible} />
+              <AuthoredMessages
+                messages={reveal.visible}
+                onTyped={reveal.onTyped}
+                thinking={reveal.thinking}
+                typingId={reveal.typingId}
+              />
               {timeline.map((entry) =>
                 entry.kind === "receipts" ? (
                   <ChatItem key={`receipts-${entry.receipts[0]!.id}`} messageId={`receipts-${entry.receipts[0]!.id}`}>

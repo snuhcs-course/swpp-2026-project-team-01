@@ -51,7 +51,9 @@ test("Thyme's reply appears progressively while the turn streams, after a thinki
   await composer.press("Enter");
 
   // Thyme's slot shows the loading indicator until the first token.
-  const thinking = page.getByRole("status").filter({ hasText: "Thyme is thinking…" });
+  // The reply's indicator comes after the authored welcome messages, which may
+  // still be typing with their own indicator.
+  const thinking = page.getByRole("status").filter({ hasText: "Thyme is thinking…" }).last();
   await expect(thinking).toBeVisible();
 
   // The visible text grows over several observations before the reply is whole.
@@ -100,7 +102,9 @@ test("under reduced motion the thinking indicator is still and says so in words"
   await composer.fill(`Note this. ${marker}`);
   await composer.press("Enter");
 
-  const thinking = page.getByRole("status").filter({ hasText: "Thyme is thinking…" });
+  // The reply's indicator comes after the authored welcome messages, which may
+  // still be typing with their own indicator.
+  const thinking = page.getByRole("status").filter({ hasText: "Thyme is thinking…" }).last();
   await expect(thinking.getByText("Thyme is thinking…")).toBeVisible();
   const dots = thinking.locator(".ld-linear-dots-dot");
   await expect(dots).toHaveCount(3);

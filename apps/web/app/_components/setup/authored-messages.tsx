@@ -1,17 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChatItem } from "@/components/chat/conversation";
+import { AgentThinking } from "@/components/chat/message";
 import { Message, MessageContent, MessageHeader } from "@/components/ui/message";
 import { storageKey } from "./format";
 import type { SetupState } from "@/lib/setup/client";
 
 // The authored onboarding messages (H3): fixed strings in Thyme's voice, chosen
-// from verified setup state. On a first visit they reveal one at a time; once a
-// message has been shown, revisits and reduced motion show it at once. Browser
-// storage keeps only which messages finished, per host, never their text.
+// from verified setup state. On a first visit each one follows a short thinking
+// pause and types in a word at a time, at the pace of Thyme's streamed replies,
+// before the next begins; once a message has been shown, revisits and reduced
+// motion show it at once. Browser storage keeps only which messages finished,
+// per host, never their text.
 
-export const REVEAL_INTERVAL_MS = 700;
+// The thinking pause before each new message, and the typing pace (one word per tick).
+export const REVEAL_INTERVAL_MS = 500;
+export const TYPING_TICK_MS = 35;
 
 export type AuthoredMessage = { readonly id: string; readonly text: string };
 
@@ -64,12 +69,14 @@ function prefersReducedMotion() {
   }
 }
 
-// Which messages are visible, and whether all of them are, so the step's card
-// can follow the message before it. Nothing shows until setup state has loaded.
+// Which messages are visible, which one is typing, and whether all are shown, so
+// the step's card can follow the message before it. Nothing shows until setup
+// state has loaded.
 export function useAuthoredReveal(state: SetupState | null) {
   const messages = useMemo(() => (state ? authoredMessages(state) : []), [state]);
   const key = state ? `fmat.onboarding.${storageKey(state.account.googleEmail ?? "host")}` : null;
   const [shown, setShown] = useState<{ readonly key: string; readonly ids: ReadonlySet<string> } | null>(null);
+  const [typing, setTyping] = useState<string | null>(null);
 
   // Starts from what this browser already showed this host, or everything under
   // reduced motion.
@@ -80,40 +87,112 @@ export function useAuthoredReveal(state: SetupState | null) {
   const ids = shown?.key === key ? shown.ids : null;
   const nextId = ids ? messages.find((message) => !ids.has(message.id))?.id : undefined;
 
+  // After the thinking pause, the next message starts typing; reduced motion
+  // shows it at once.
   useEffect(() => {
-    if (!key || !nextId) return;
-    // Reduced motion shows the next message at once.
-    const delay = prefersReducedMotion() ? 0 : REVEAL_INTERVAL_MS;
-    const timer = window.setTimeout(() => {
+    if (!key || !nextId || typing) return;
+    const finish = () =>
       setShown((current) => {
         if (!current || current.key !== key) return current;
         const updated = new Set(current.ids).add(nextId);
         writeSeen(key, updated);
         return { ids: updated, key };
       });
-    }, delay);
+    if (prefersReducedMotion()) {
+      finish();
+      return;
+    }
+    const timer = window.setTimeout(() => setTyping(nextId), REVEAL_INTERVAL_MS);
     return () => window.clearTimeout(timer);
-  }, [key, nextId]);
+  }, [key, nextId, typing]);
+
+  // A typed message counts as shown once its last word appears.
+  const typed = (id: string) => {
+    setTyping((current) => (current === id ? null : current));
+    setShown((current) => {
+      if (!current || !key || current.key !== key || current.ids.has(id)) return current;
+      const updated = new Set(current.ids).add(id);
+      writeSeen(key, updated);
+      return { ids: updated, key };
+    });
+  };
 
   return {
     done: ids !== null && nextId === undefined,
-    visible: ids ? messages.filter((message) => ids.has(message.id)) : [],
+    onTyped: typed,
+    thinking: ids !== null && nextId !== undefined && typing === null,
+    typingId: typing,
+    visible: ids ? messages.filter((message) => ids.has(message.id) || message.id === typing) : [],
   };
 }
 
+// Types a fixed text a word at a time, then reports that it finished.
+function TypedText({ onDone, text }: { readonly onDone: () => void; readonly text: string }) {
+  const [length, setLength] = useState(0);
+  const done = useRef(onDone);
+  done.current = onDone;
+
+  useEffect(() => {
+    if (length >= text.length) {
+      done.current();
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      let end = length;
+      while (end < text.length && /\s/.test(text[end]!)) end += 1;
+      while (end < text.length && !/\s/.test(text[end]!)) end += 1;
+      setLength(end);
+    }, TYPING_TICK_MS);
+    return () => window.clearTimeout(timer);
+  }, [length, text]);
+
+  return (
+    <>
+      <span aria-hidden>{text.slice(0, length)}</span>
+      <span className="sr-only">{text}</span>
+    </>
+  );
+}
+
 // Each authored message is a Thyme turn on the same Message pattern as the
-// conversation's replies.
-export function AuthoredMessages({ messages }: { readonly messages: readonly AuthoredMessage[] }) {
-  return messages.map((message) => (
-    <ChatItem key={message.id} messageId={`authored-${message.id}`}>
-      <article className="w-full min-w-0" data-authored-message={message.id}>
-        <Message>
-          <MessageContent className="gap-1.5 text-base leading-[1.65] text-foreground">
-            <MessageHeader>Thyme</MessageHeader>
-            <p className="px-3 break-words">{message.text}</p>
-          </MessageContent>
-        </Message>
-      </article>
-    </ChatItem>
-  ));
+// conversation's replies; while the next one is pending, Thyme's thinking
+// indicator holds its place.
+export function AuthoredMessages({
+  messages,
+  onTyped,
+  thinking = false,
+  typingId = null,
+}: {
+  readonly messages: readonly AuthoredMessage[];
+  readonly onTyped?: (id: string) => void;
+  readonly thinking?: boolean;
+  readonly typingId?: string | null;
+}) {
+  return (
+    <>
+      {messages.map((message) => (
+        <ChatItem key={message.id} messageId={`authored-${message.id}`}>
+          <article className="w-full min-w-0" data-authored-message={message.id}>
+            <Message>
+              <MessageContent className="gap-1.5 text-base leading-[1.65] text-foreground">
+                <MessageHeader>Thyme</MessageHeader>
+                <p className="px-3 break-words">
+                  {message.id === typingId ? (
+                    <TypedText onDone={() => onTyped?.(message.id)} text={message.text} />
+                  ) : (
+                    message.text
+                  )}
+                </p>
+              </MessageContent>
+            </Message>
+          </article>
+        </ChatItem>
+      ))}
+      {thinking ? (
+        <ChatItem messageId="authored-thinking">
+          <AgentThinking withHeader />
+        </ChatItem>
+      ) : null}
+    </>
+  );
 }

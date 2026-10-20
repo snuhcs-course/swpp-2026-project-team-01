@@ -308,7 +308,13 @@ test("authored messages reveal one at a time on a first visit and at once on a r
   };
 
   await page.goto("/app");
+  // Thyme's thinking indicator holds the place of the first message, which then
+  // types in before the next one starts.
+  await expect(page.getByText("Thyme is thinking…").first()).toBeAttached();
   expect(await shownWhenFirstAppears(page)).toBe(1);
+  await expect(page.locator('[data-authored-message="greeting"] p')).toHaveText(
+    "Hi, I'm Thyme. I'll help you set up how people book one-to-one meetings with you.",
+  );
   await expect(page.locator("[data-authored-message]")).toHaveCount(3);
   await expect(card(page, "Choose your calendars")).toBeVisible();
 
