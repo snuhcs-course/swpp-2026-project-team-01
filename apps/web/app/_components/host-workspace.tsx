@@ -2,7 +2,7 @@
 
 import { type DiscussionEvent, isRedeliveredInput } from "@lib/contracts/discussion-events";
 import { isCurrentTurnBoundaryEvent } from "eve/client";
-import { conversationReducer } from "eve/react";
+import { conversationReducer, type EveMessage } from "eve/react";
 import { AlertCircleIcon, XIcon } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuthoredMessages, useAuthoredReveal } from "@/app/_components/setup/authored-messages";
@@ -14,7 +14,7 @@ import { describeSetupTool } from "@/app/_components/setup/tool-labels";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { ChatComposer } from "@/components/chat/composer";
 import { ChatConversation, ChatConversationContent, ChatItem, ChatScrollButton } from "@/components/chat/conversation";
-import { AgentMessage } from "@/components/chat/message";
+import { AgentMessage, AgentThinking } from "@/components/chat/message";
 import { Button } from "@/components/ui/button";
 import {
   ChatRequestError,
@@ -89,6 +89,13 @@ function project(events: readonly DiscussionEvent[]) {
   return { messages: state.messages, times };
 }
 
+// Whether Thyme's latest reply is writing text right now; otherwise a running
+// turn is between steps, calling a tool or not yet answering.
+function isWritingText(message: EveMessage | undefined) {
+  const part = message?.role === "assistant" ? message.parts.at(-1) : undefined;
+  return (part?.type === "text" || part?.type === "reasoning") && part.state === "streaming";
+}
+
 function errorMessage(error: unknown) {
   if (error instanceof ChatRequestError) return error.message;
   return "Something went wrong. Try again.";
@@ -123,15 +130,16 @@ export function HostWorkspace() {
     }
   }, []);
 
-  // Follows the current turn from the discussion cursor until it settles. A
-  // queued message starts its turn when the one before it ends, so following
-  // continues while the discussion still has input pending and the last pass
-  // saw the runtime move.
+  // Follows the current turn from the discussion cursor until it settles, and
+  // resolves to the number of events it received. A queued message starts its
+  // turn when the one before it ends, so following continues while the
+  // discussion still has input pending and the last pass saw the runtime move.
   const follow = useCallback(async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     setPhase("streaming");
+    let total = 0;
 
     try {
       for (;;) {
@@ -143,6 +151,7 @@ export function HostWorkspace() {
         })) {
           append(event);
           received += 1;
+          total += 1;
           if (event.type === "message.received") {
             const text = event.data.message;
             setPendingText((pending) => (pending === text ? null : pending));
@@ -166,6 +175,8 @@ export function HostWorkspace() {
       // A settled turn may have drafted setup values.
       void reloadSetup();
     }
+
+    return total;
   }, [append, refreshStatus, reloadSetup]);
 
   useEffect(() => {
@@ -216,28 +227,36 @@ export function HostWorkspace() {
       setPhase("sending");
       setPendingText(text);
       setDraft("");
+      // A live discussion is followed while the message is posted, so the reply
+      // streams in as the runtime records it rather than arriving at once after
+      // the message route's round trip to the runtime. Without a live session
+      // there is nothing to follow until the post creates one.
+      const following = status?.state === "active" && status.generation !== null ? follow() : null;
 
       try {
         const outcome = await postMessage(retry.id, text);
         retryRef.current = null;
 
         if (outcome.status === "sent" || outcome.status === "queued") {
-          await follow();
+          // An early follow that ended before the turn began is opened again.
+          if (!following || (await following) === 0) await follow();
           return;
         }
 
         // Recorded, and continued after recovery.
+        abortRef.current?.abort();
         setPendingText(null);
         setPhase("ready");
         await refreshStatus();
       } catch (cause) {
+        abortRef.current?.abort();
         setPendingText(null);
         setDraft(text);
         setError(errorMessage(cause));
         setPhase("ready");
       }
     },
-    [follow, refreshStatus],
+    [follow, refreshStatus, status],
   );
 
   const recover = useCallback(async () => {
@@ -271,6 +290,12 @@ export function HostWorkspace() {
   const failed = status?.state === "failed";
   const turnFailed = useMemo(() => lastTurnFailed(events), [events]);
   const busy = phase !== "ready";
+  const openTurn = useMemo(() => hasOpenTurn(events), [events]);
+  const lastMessage = messages.at(-1);
+  // From a send until the first token, and while a running turn writes no text.
+  // A streaming reasoning part has its own "Thinking" line.
+  const thinking =
+    (phase === "sending" || phase === "streaming") && (pendingText !== null || openTurn) && !isWritingText(lastMessage);
   const setupState = setup.state;
   const setupValue = setup.value;
   const showSetup = setupValue !== null && reveal.done;
@@ -374,10 +399,10 @@ export function HostWorkspace() {
                   Thyme couldn&apos;t finish this reply. Your message is saved; try again in a little while.
                 </p>
               ) : null}
-              {phase === "sending" || phase === "streaming" ? (
-                <p className="px-3 text-sm" role="status">
-                  <span className="shimmer text-muted-foreground motion-reduce:shimmer-none">Thyme is thinking...</span>
-                </p>
+              {thinking ? (
+                <ChatItem messageId="thinking">
+                  <AgentThinking withHeader={pendingText !== null || lastMessage?.role !== "assistant"} />
+                </ChatItem>
               ) : null}
               {showSetup ? (
                 <ChatItem messageId="setup">

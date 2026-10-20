@@ -160,8 +160,14 @@ export function createEventsHandler(load: () => ChatRouteDependencies = chatDepe
       },
     });
 
+    // The same streaming headers eve's own session stream sends, so no proxy
+    // transforms or holds back the lines of a followed turn.
     return new Response(body, {
-      headers: { "cache-control": "private, no-store", "content-type": "application/x-ndjson" },
+      headers: {
+        "cache-control": "private, no-store, no-transform",
+        "content-type": "application/x-ndjson",
+        "x-accel-buffering": "no",
+      },
     });
   };
 }

@@ -6,11 +6,19 @@ import type { AddressInfo } from "node:net";
 // (and the real eve runtime pointed at it with OPENAI_BASE_URL) without a network
 // call. Each request takes the next scripted reply; when the script is empty it
 // answers with `defaultReply`. Streaming replies use the event shapes OpenAI sent
-// for gpt-5.6-terra on 2026-10-19.
+// for gpt-5.6-terra on 2026-10-19, with the text in several deltas (one per
+// word, as OpenAI sends small token deltas) flushed as they are written.
 
 export type FakeReply =
-  // delayMs holds the reply back, keeping the turn in flight meanwhile.
-  | { readonly kind: "text"; readonly text: string; readonly inputTokens?: number; readonly delayMs?: number }
+  // delayMs holds the reply back, keeping the turn in flight meanwhile;
+  // chunkDelayMs spaces the streamed text deltas apart.
+  | {
+      readonly kind: "text";
+      readonly text: string;
+      readonly inputTokens?: number;
+      readonly delayMs?: number;
+      readonly chunkDelayMs?: number;
+    }
   | { readonly kind: "error"; readonly status: number; readonly code?: string };
 
 export type FakeRequest = Record<string, unknown> & {
@@ -71,10 +79,6 @@ function responseBody(id: string, model: string, text: string, inputTokens: numb
   };
 }
 
-function sse(events: ({ type: string } & Record<string, unknown>)[]) {
-  return events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join("");
-}
-
 export async function startFakeOpenAI(
   defaultReply: FakeReply = { kind: "text", text: "Hello from Thyme." },
   port = 0,
@@ -129,44 +133,52 @@ export async function startFakeOpenAI(
     const part = { annotations: [], logprobs: [], text: "", type: "output_text" };
     const done = { annotations: [], logprobs: [], text: reply.text, type: "output_text" };
 
+    const send = (event: { type: string } & Record<string, unknown>) =>
+      response.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+    const deltas = reply.text.match(/\S+\s*|\s+/g) ?? [""];
+    let sequence = 0;
+
     response.writeHead(200, { "content-type": "text/event-stream" });
-    response.end(
-      sse([
-        { response: responseBody(id, model, "", inputTokens, "in_progress"), sequence_number: 0, type: "response.created" },
-        { item, output_index: 0, sequence_number: 1, type: "response.output_item.added" },
-        { content_index: 0, item_id: itemId, output_index: 0, part, sequence_number: 2, type: "response.content_part.added" },
-        {
-          content_index: 0,
-          delta: reply.text,
-          item_id: itemId,
-          logprobs: [],
-          output_index: 0,
-          sequence_number: 3,
-          type: "response.output_text.delta",
-        },
-        {
-          content_index: 0,
-          item_id: itemId,
-          logprobs: [],
-          output_index: 0,
-          sequence_number: 4,
-          text: reply.text,
-          type: "response.output_text.done",
-        },
-        { content_index: 0, item_id: itemId, output_index: 0, part: done, sequence_number: 5, type: "response.content_part.done" },
-        {
-          item: { ...item, content: [done], status: "completed" },
-          output_index: 0,
-          sequence_number: 6,
-          type: "response.output_item.done",
-        },
-        {
-          response: responseBody(id, model, reply.text, inputTokens, "completed"),
-          sequence_number: 7,
-          type: "response.completed",
-        },
-      ]),
-    );
+    response.flushHeaders();
+    send({ response: responseBody(id, model, "", inputTokens, "in_progress"), sequence_number: sequence++, type: "response.created" });
+    send({ item, output_index: 0, sequence_number: sequence++, type: "response.output_item.added" });
+    send({ content_index: 0, item_id: itemId, output_index: 0, part, sequence_number: sequence++, type: "response.content_part.added" });
+
+    for (const delta of deltas) {
+      if (reply.chunkDelayMs) await new Promise((resolve) => setTimeout(resolve, reply.chunkDelayMs));
+      send({
+        content_index: 0,
+        delta,
+        item_id: itemId,
+        logprobs: [],
+        output_index: 0,
+        sequence_number: sequence++,
+        type: "response.output_text.delta",
+      });
+    }
+
+    send({
+      content_index: 0,
+      item_id: itemId,
+      logprobs: [],
+      output_index: 0,
+      sequence_number: sequence++,
+      text: reply.text,
+      type: "response.output_text.done",
+    });
+    send({ content_index: 0, item_id: itemId, output_index: 0, part: done, sequence_number: sequence++, type: "response.content_part.done" });
+    send({
+      item: { ...item, content: [done], status: "completed" },
+      output_index: 0,
+      sequence_number: sequence++,
+      type: "response.output_item.done",
+    });
+    send({
+      response: responseBody(id, model, reply.text, inputTokens, "completed"),
+      sequence_number: sequence++,
+      type: "response.completed",
+    });
+    response.end();
   });
 
   await new Promise<void>((resolve) => server.listen(port, "127.0.0.1", resolve));
