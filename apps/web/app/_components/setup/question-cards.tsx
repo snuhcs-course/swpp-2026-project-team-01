@@ -85,8 +85,8 @@ function YouSaid({ children, field, id }: { readonly children: ReactNode; readon
   );
 }
 
-// An answered step revisited with Back or Edit: the answer stays pressed, and
-// Keep this moves on without saving again.
+// An answered step asked again with Edit: the answer stays pressed, and Keep
+// this moves on without saving again.
 function KeepAnswer({ answer }: { readonly answer: ReactNode }) {
   const { busy } = useSetup();
   const stepper = useStepper();
@@ -97,7 +97,7 @@ function KeepAnswer({ answer }: { readonly answer: ReactNode }) {
         <span className="font-medium">{answer}</span>
       </p>
       <Button data-trigger="keep" disabled={busy !== null} onClick={stepper.forward} type="button" variant="outline">
-        {stepper.returnToReview ? "Keep and return" : "Keep this"}
+        Keep this
       </Button>
     </div>
   );
@@ -150,7 +150,7 @@ function AnswerChoices<T extends string>({
           }}
           type="button"
         >
-          {busy === id ? "Saving..." : keeping ? (stepper.returnToReview ? "Keep and return" : "Keep this") : "Continue"}
+          {busy === id ? "Saving..." : keeping ? "Keep this" : "Continue"}
         </Button>
       </CardActions>
     </>

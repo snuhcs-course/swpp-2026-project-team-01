@@ -166,7 +166,9 @@ function at(base: number, days: number, hourUtc: number, minutes = 0) {
   return new Date(base + days * 86_400_000 + hourUtc * 3_600_000 + minutes * 60_000).toISOString();
 }
 
-// A realistic host calendar over the four weeks before `now`, in Asia/Seoul: 12
+// A realistic host calendar over the four weeks ending with the week of `now`
+// (always inside the scan's 28 days either side of `now`, whatever the weekday),
+// in Asia/Seoul: 12
 // counted meetings (three a week on Tuesday 10:00, Wednesday 14:00 and Thursday
 // 16:00 local, internal and external), the Wednesday one each week except the last
 // at one in-person venue, two note-like entries, a Team reader calendar, two
@@ -178,7 +180,7 @@ export function defaultGoogleFixture(now = new Date(), hostEmail = "host@example
   const primary: FakeEvent[] = [];
 
   for (let week = 1; week <= 4; week += 1) {
-    const monday = -7 * week;
+    const monday = -7 * (week - 1);
     const self = { email: hostEmail, responseStatus: "accepted", self: true };
 
     // Tuesday 10:00 KST (01:00 UTC), 30 minutes, internal, online.

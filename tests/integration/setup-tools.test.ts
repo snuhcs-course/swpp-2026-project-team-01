@@ -13,6 +13,7 @@ import {
 import { localAuthConfig } from "./support/auth";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
+import { readSetupState } from "../../lib/server/setup";
 import { updateDraftCommand } from "../../lib/server/setup-commands";
 import {
   draftRevision,
@@ -177,6 +178,44 @@ describe("draft_settings", () => {
     // A stated mode is shown on its card as "You said" and counts only once the host accepts it there.
     expect(drafted.state.missingFields).toContain("meetingMode");
     expect(stale).toMatchObject({ error: "stale_revision", saved: false });
+  });
+
+  it("never records a drafted value as the host's answer, and keeps the host's earlier answer for its receipt", async () => {
+    const host = await seedHost(db, deps, google, { calendar: false });
+    const answered = await runCommand(hostCommandDeps(db, host.hostAccountId), updateDraftCommand, {
+      expectedRevision: 0,
+      input: { action: "choose_own", field: "meetingMode", value: "online" },
+      resourceId: host.hostAccountId,
+      retryKey: randomUUID(),
+    });
+    expect(answered).toMatchObject({ ok: true });
+    const before = await readSetupStateForTool(deps, call(host));
+    const [row] = await db<{ fields: { meetingMode: { acceptedAt: string } } }[]>`
+      select fields from app.setup_drafts where host_account_id = ${host.hostAccountId}
+    `;
+
+    // The host says something else in the conversation; the model records it.
+    const drafted = await draftSettingsForTool(deps, call(host), {
+      expectedRevision: before.draftRevision,
+      values: { meetingMode: { source: "stated", value: "in_person" } },
+    });
+    const repeated = await draftSettingsForTool(deps, call(host), {
+      expectedRevision: before.draftRevision,
+      values: { meetingMode: { source: "stated", value: "in_person" } },
+    });
+
+    expect(drafted).toMatchObject({ changed: true, saved: true });
+    expect(repeated).toMatchObject({ changed: false, saved: true });
+    const state = await readSetupState(deps, host.hostAccountId);
+    expect(state!.fields.meetingMode.draft).toEqual({
+      accepted: false,
+      history: [{ acceptedAt: row!.fields.meetingMode.acceptedAt, source: "stated", value: "online" }],
+      source: "stated",
+      value: "in_person",
+    });
+    // The model's own projection carries neither answer times nor history.
+    if (!drafted.saved) throw new Error("Not saved.");
+    expect(drafted.state.fields.meetingMode.draft).toEqual({ accepted: false, source: "stated", value: "in_person" });
   });
 
   it("cannot answer mode, location or transport without source stated, or replace the host's answer", async () => {

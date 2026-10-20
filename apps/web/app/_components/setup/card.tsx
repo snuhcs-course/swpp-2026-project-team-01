@@ -1,7 +1,7 @@
 "use client";
 
 import type { ValueSource } from "@lib/contracts/setup";
-import { AlertCircleIcon, ChevronLeftIcon, InfoIcon, RotateCcwIcon, XIcon } from "lucide-react";
+import { AlertCircleIcon, InfoIcon, RotateCcwIcon, XIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -9,12 +9,12 @@ import { cn } from "@/lib/utils";
 import { sourceBadgeText } from "./format";
 import { useSetup } from "./setup-context";
 
-// The shell every setup card shares: one small card at a time, a labeled
+// The shell every setup card shares: one small open card at a time, a labeled
 // section whose heading (one question) takes focus when the step changes, a
-// progress label and Back, and the notice for an action taken on this card (a
-// stale revision, a refusal or an uncertain save). A long card (the weekly
-// windows editor, the review) scrolls inside itself with its actions kept in
-// view.
+// quiet eyebrow label, and the notice for an action taken on this card (a stale
+// revision, a refusal or an uncertain save). A long card (the weekly windows
+// editor, the review) scrolls inside itself with its actions kept in view.
+// Answered cards leave the bottom and stay above as receipts (receipt.tsx).
 
 export function cardHeadingId(id: string) {
   return `${id}-heading`;
@@ -57,7 +57,6 @@ export function SetupCard({
   className,
   description,
   label,
-  onBack,
   progress,
   scroll = false,
   id,
@@ -66,9 +65,8 @@ export function SetupCard({
   readonly children?: ReactNode;
   readonly className?: string;
   readonly description?: ReactNode;
-  // A short label above the question, such as "Step 3 of 9" or "Review".
+  // A short eyebrow above the question, such as "Review".
   readonly label?: string;
-  readonly onBack?: () => void;
   // How far along the steps this card is, from 0 to 1, drawn as a hairline.
   readonly progress?: number;
   readonly scroll?: boolean;
@@ -88,12 +86,7 @@ export function SetupCard({
     >
       {progress !== undefined ? <CardProgress value={progress} /> : null}
       <div className="flex shrink-0 flex-col gap-0.5">
-        {label || onBack ? (
-          <div className="-mt-1 flex min-h-7 items-center justify-between gap-2">
-            {onBack ? <BackButton onClick={onBack} /> : <span />}
-            {label ? <p className="text-xs font-medium text-muted-foreground tabular-nums">{label}</p> : null}
-          </div>
-        ) : null}
+        {label ? <p className="min-h-6 text-xs leading-6 font-medium text-muted-foreground tabular-nums">{label}</p> : null}
         <h3 className={HEADING_CLASS} id={cardHeadingId(id)} tabIndex={-1}>
           {title}
         </h3>
@@ -119,21 +112,6 @@ export function CardProgress({ value }: { readonly value: number }) {
       tabIndex={-1}
       value={Math.round(Math.min(1, Math.max(0, value)) * 100)}
     />
-  );
-}
-
-export function BackButton({ onClick }: { readonly onClick: () => void }) {
-  return (
-    <Button
-      className="-ml-2 min-h-9 gap-1 px-2 text-muted-foreground hover:text-foreground"
-      data-trigger="back"
-      onClick={onClick}
-      type="button"
-      variant="ghost"
-    >
-      <ChevronLeftIcon aria-hidden />
-      Back
-    </Button>
   );
 }
 

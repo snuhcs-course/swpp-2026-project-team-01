@@ -29,7 +29,8 @@ import { WeeklyWindowsEditor } from "./weekly-windows-editor";
 // own**, plus a quiet **Skip for now**. Use this accepts the value the card
 // shows: the server saves its own current value and only checks that it is still
 // the one shown. Adjust and Choose my own save the host's own value. A saved step
-// hands over to the next open one; a step revisited with Back offers **Keep this**.
+// collapses into a receipt and hands over to the next open one; an answered step
+// asked again with Edit offers **Keep this**, which leaves it as it was.
 
 type EditorMode = "adjust" | "own";
 type Values = Partial<{ [F in SetupFieldName]: SetupFieldValue<F> }>;
@@ -149,7 +150,7 @@ function SuggestionStep({
           <CardActions>
             {accepted ? (
               <Button data-trigger="keep" disabled={disabled} onClick={stepper.forward} type="button">
-                {stepper.returnToReview ? "Keep and return" : "Keep this"}
+                Keep this
               </Button>
             ) : canUseThis ? (
               <Button data-trigger="use" disabled={disabled} onClick={() => void useThis()} type="button">

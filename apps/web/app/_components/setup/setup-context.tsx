@@ -11,12 +11,14 @@ import {
   SetupRequestError,
   type SetupState,
 } from "@/lib/setup/client";
-import { backTarget, firstOpenStep, forwardTarget, setupSteps, type StepId, type StepTarget } from "./steps";
+import { focusCard } from "./card";
+import { firstOpenStep, setupSteps, type StepId, type StepTarget } from "./steps";
 
 // The setup cards' shared controller: the server-derived state, one command at a
 // time with retry identity, a notice shown beside the card that acted, and the
-// client-side step pointer (Back, Edit, Skip for now). State is reloaded on load,
-// after every card action and after every assistant turn.
+// client-side choices that save nothing: which answered step is being asked again
+// (Edit on a receipt) and which steps were skipped for now. State is reloaded on
+// load, after every card action and after every assistant turn.
 
 export const STALE_MESSAGE = "This changed since you last saw it. Here is the current version.";
 
@@ -36,18 +38,19 @@ export type SetupStep = {
   readonly expectedRevision: number | null | "previous";
 };
 
-// An explicit place in the stepper, set by Back, Edit or moving forward through
-// steps already answered. Without one, the first open step is shown.
-export type StepView = { readonly step: StepTarget; readonly returnToReview: boolean };
+// When each step was skipped for now (ISO time), for its muted receipt. Skips
+// save nothing, so they last only for this visit.
+export type SkippedSteps = ReadonlyMap<StepId, string>;
 
-type SetupContextValue = {
+export type SetupContextValue = {
   readonly state: SetupState;
-  readonly view: StepView | null;
-  readonly skipped: ReadonlySet<StepId>;
+  // The answered step asked again at the bottom after Edit, or the review.
+  readonly editing: StepTarget | null;
+  readonly skipped: SkippedSteps;
   // Before Calendar is connected, the host chose to set other preferences now.
   readonly early: boolean;
-  readonly setView: (view: StepView | null) => void;
-  readonly setSkipped: (skipped: ReadonlySet<StepId>) => void;
+  readonly setEditing: (step: StepTarget | null) => void;
+  readonly setSkipped: (skipped: SkippedSteps) => void;
   readonly setEarly: (early: boolean) => void;
   readonly busy: string | null;
   readonly notice: SetupNotice | null;
@@ -67,61 +70,74 @@ export function useSetup() {
 }
 
 const STEPPER_ACTIONS = new Set(["connect_calendar", "review_suggestions", "confirm_settings", "ready"]);
+const EDITABLE_ACTIONS: ReadonlySet<string> = STEPPER_ACTIONS;
 
-// The current card of the stepper and the moves from it. Inside setup, the card
-// is the explicit view if it still exists, else the first open step; a ready host
-// with pending changes sees the review unless they chose a step to edit.
+// A failed or partial scan that the host has not set aside holds the open card.
+function scanBlocks(state: SetupState) {
+  const analysis = state.analysis;
+  if (!analysis || state.analysisSkipped || state.nextAction === "ready") return false;
+  return analysis.state === "failed" || (analysis.state === "completed" && analysis.calendars.some((calendar) => calendar.ok === false));
+}
+
+// The one open card of setup and the moves from it. Inside setup, the open card
+// is the step being edited if it still exists, else the first open step; a ready
+// host sees the review (or the share links) unless they chose a step to edit.
+// There is no Back: answered steps are receipts in the conversation, and Edit on
+// one asks that step again here, at the bottom.
 export function useStepper() {
-  const { early, setEarly, setSkipped, setView, skipped, state, view } = useSetup();
+  const { early, editing, setEarly, setEditing, setSkipped, skipped, state } = useSetup();
   const steps = setupSteps(state);
-  const open = firstOpenStep(state, skipped);
-  const pointed = view && (view.step === "review" || steps.includes(view.step)) ? view : null;
-  const current: StepTarget = pointed?.step ?? (state.nextAction === "ready" ? "review" : open);
-  const returnToReview = pointed?.returnToReview ?? false;
-  const previous = backTarget(steps, current);
-
-  const forward = (skippedNow: ReadonlySet<StepId> = skipped) => {
-    if (returnToReview) {
-      setView({ returnToReview: false, step: "review" });
-      return;
-    }
-    const target = forwardTarget(steps, current, firstOpenStep(state, skippedNow));
-    setView(target ? { returnToReview: false, step: target } : null);
-  };
+  const skippedSet = new Set(skipped.keys());
+  const open = firstOpenStep(state, skippedSet);
+  const edited = editing && (editing === "review" || steps.includes(editing)) ? editing : null;
+  const current: StepTarget = edited ?? (state.nextAction === "ready" ? "review" : open);
 
   return {
-    canGoBack: current !== "review" && (returnToReview || previous !== null || early),
     current,
-    // Leaves an edit for the review, or goes to the previous step, or, on the
-    // first step before Calendar is connected, back to the Connect card.
-    back() {
-      if (returnToReview) setView({ returnToReview: false, step: "review" });
-      else if (previous) setView({ returnToReview: false, step: previous });
-      else if (early) {
-        setView(null);
-        setEarly(false);
-      }
-    },
+    early,
+    // Whether the open card asks an answered step again.
+    editing: edited !== null && edited !== "review",
+    // Whether Edit on a receipt can open its step now: not while connecting
+    // calendars from scratch, waiting for the scan or resolving a failed one.
+    canEdit: EDITABLE_ACTIONS.has(state.nextAction) && !scanBlocks(state),
+    // Asks a step again at the bottom, with focus on its fresh card. Before
+    // Calendar is connected that is the early steps' card.
     edit(step: StepId) {
-      setView({ returnToReview: true, step });
+      if (state.nextAction === "connect_calendar") setEarly(true);
+      setEditing(step);
+      window.requestAnimationFrame(() => focusOpenCard());
     },
-    forward: () => forward(),
+    // Leaves an edit or an answered step without saving: the next open card.
+    forward() {
+      setEditing(null);
+    },
+    // Before Calendar is connected: back to the Connect card.
+    leaveEarly() {
+      setEditing(null);
+      setEarly(false);
+    },
     position: current === "review" ? null : steps.indexOf(current) + 1,
-    returnToReview,
-    // A saved step hands back to the first open step, which is the review once
+    // A saved step hands over to the first open step, which is the review once
     // everything is accepted or skipped.
     saved() {
-      setView(null);
+      setEditing(null);
     },
     skip() {
       if (current === "review") return;
-      const next = new Set(skipped).add(current);
+      const next = new Map(skipped);
+      next.set(current, new Date().toISOString());
       setSkipped(next);
-      forward(next);
+      setEditing(null);
     },
-    skipped,
+    skipped: skippedSet,
     steps,
   };
+}
+
+// Moves focus to the open card's heading.
+export function focusOpenCard() {
+  const card = document.querySelector<HTMLElement>("[data-setup-card]");
+  if (card) focusCard(card.id);
 }
 
 export const DESTINATION_LOST_MESSAGE =
@@ -146,8 +162,8 @@ export function useSetupController() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<SetupNotice | null>(null);
   const [editingCalendars, setEditingCalendarsState] = useState(false);
-  const [view, setView] = useState<StepView | null>(null);
-  const [skipped, setSkipped] = useState<ReadonlySet<StepId>>(() => new Set());
+  const [editing, setEditing] = useState<StepTarget | null>(null);
+  const [skipped, setSkipped] = useState<SkippedSteps>(() => new Map());
   const [early, setEarly] = useState(false);
   const editingRef = useRef(false);
   const timeZone = useMemo(() => browserTimeZone(), []);
@@ -238,15 +254,15 @@ export function useSetupController() {
     [reload, retryKeys],
   );
 
-  // Leaving the stepper (to connect, choose calendars or wait for the scan, or
-  // once confirmed) forgets its client-side place.
+  // Leaving the steps (to connect, choose calendars or wait for the scan, or once
+  // confirmed) forgets the edit in progress and, outside setup, the skips.
   const nextAction = state?.nextAction;
   const lastAction = useRef(nextAction);
   useEffect(() => {
     if (lastAction.current === nextAction) return;
     lastAction.current = nextAction;
-    setView(null);
-    if (!nextAction || !STEPPER_ACTIONS.has(nextAction) || nextAction === "ready") setSkipped(new Set());
+    setEditing(null);
+    if (!nextAction || !STEPPER_ACTIONS.has(nextAction) || nextAction === "ready") setSkipped(new Map());
     if (nextAction !== "connect_calendar") setEarly(false);
   }, [nextAction]);
 
@@ -262,20 +278,20 @@ export function useSetupController() {
             busy,
             dismissNotice: () => setNotice(null),
             early,
+            editing,
             editingCalendars,
             notice,
             retry,
             run: execute,
             setEarly,
             setEditingCalendars,
+            setEditing,
             setSkipped,
-            setView,
             skipped,
             state,
-            view,
           }
         : null,
-    [busy, early, editingCalendars, execute, notice, retry, setEditingCalendars, skipped, state, view],
+    [busy, early, editing, editingCalendars, execute, notice, retry, setEditingCalendars, skipped, state],
   );
 
   return { loadError, reload, state, value };

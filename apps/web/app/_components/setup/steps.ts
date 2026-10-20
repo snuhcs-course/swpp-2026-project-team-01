@@ -1,10 +1,12 @@
 import type { SetupFieldName } from "@lib/contracts/setup";
+import { FIELD_LABELS } from "./format";
 import type { SetupState } from "@/lib/setup/client";
 
-// The setup stepper, derived from server state on the client: one card at a
+// The setup steps, derived from server state on the client: one open card at a
 // time, in a fixed order, starting at the first step whose value the host has
-// not accepted. Skipping and walking back are client-side only; the server's
-// rules for what confirmation needs are unchanged.
+// not accepted. Answered steps stay in the conversation as receipts, and Edit on
+// a receipt asks that step again at the bottom. Skipping is client-side only; the
+// server's rules for what confirmation needs are unchanged.
 
 export const STEP_IDS = [
   "timezone",
@@ -91,20 +93,21 @@ export function stepIndex(steps: readonly StepId[], target: StepTarget) {
   return target === "review" ? steps.length : steps.indexOf(target);
 }
 
-// Where moving forward from `from` lands: the next step while it comes before
-// the first open one, otherwise the first open one (null, so the pointer clears).
-export function forwardTarget(steps: readonly StepId[], from: StepTarget, open: StepTarget): StepTarget | null {
-  const next = stepIndex(steps, from) + 1;
-  return next < stepIndex(steps, open) ? (steps[next] ?? null) : null;
-}
-
-// Where Back lands: the previous step, or nothing before the first one.
-export function backTarget(steps: readonly StepId[], from: StepTarget): StepTarget | null {
-  const index = stepIndex(steps, from);
-  return index > 0 ? (steps[index - 1] ?? null) : null;
-}
-
 // The step that owns a field, for the review's Edit links and missing values.
 export function stepForField(field: SetupFieldName): StepId {
   return STEP_IDS.find((step) => STEP_FIELDS[step].includes(field)) ?? "timezone";
 }
+
+// A step's name in receipts, the review's missing list and its Edit links.
+export const STEP_LABELS: Readonly<Record<StepId, string>> = {
+  duration: "Meeting length",
+  identity: "Booking page",
+  limit: FIELD_LABELS.weeklyLimit,
+  location: FIELD_LABELS.location,
+  mode: FIELD_LABELS.meetingMode,
+  notes: FIELD_LABELS.noteExclusions,
+  timezone: FIELD_LABELS.timezone,
+  transport: FIELD_LABELS.travelMode,
+  travelBuffer: FIELD_LABELS.travelBufferMinutes,
+  windows: FIELD_LABELS.weeklyWindows,
+};

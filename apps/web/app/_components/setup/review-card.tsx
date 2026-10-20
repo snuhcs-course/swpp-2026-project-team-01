@@ -25,10 +25,11 @@ import {
 } from "./format";
 import { type SetupStep, useSetup, useStepper } from "./setup-context";
 import { StepCard } from "./step-card";
-import { acceptedMode, noteEntries, STEP_CARD_IDS, STEP_FIELDS, type StepId, stepAccepted, stepForField } from "./steps";
+import { acceptedMode, noteEntries, STEP_CARD_IDS, STEP_FIELDS, STEP_LABELS, type StepId, stepAccepted, stepForField } from "./steps";
 
 // The setup review (H8, H9): the exact settings confirmation would save in one
-// compact list, each with its source and an Edit link to its step, the calendar
+// compact list, each with its source and an Edit link that asks its step again
+// in a fresh card at the bottom, the calendar
 // roles, the values still missing, and **Confirm and save proposed settings**,
 // which names the reviewed draft revision and proposal hash so a newer draft
 // rejects it. The identity step (display name and handle) comes just before it.
@@ -79,7 +80,6 @@ export function ReviewCard({ pending = false }: { readonly pending?: boolean }) 
       }
       id={REVIEW_CARD_ID}
       label="Review"
-      onBack={!pending && stepper.steps.length > 0 ? stepper.back : undefined}
       progress={pending ? undefined : 1}
       scroll
       title={pending ? "Review your changes" : "Review your booking settings"}
@@ -207,19 +207,6 @@ export function ReviewCard({ pending = false }: { readonly pending?: boolean }) 
   );
 }
 
-const STEP_LABELS: Readonly<Record<StepId, string>> = {
-  duration: "Meeting length",
-  identity: "Display name and handle",
-  limit: FIELD_LABELS.weeklyLimit,
-  location: FIELD_LABELS.location,
-  mode: FIELD_LABELS.meetingMode,
-  notes: FIELD_LABELS.noteExclusions,
-  timezone: FIELD_LABELS.timezone,
-  transport: FIELD_LABELS.travelMode,
-  travelBuffer: FIELD_LABELS.travelBufferMinutes,
-  windows: FIELD_LABELS.weeklyWindows,
-};
-
 function EditLink({ disabled, id, label, onClick }: { readonly disabled?: boolean; readonly id?: string; readonly label: string; readonly onClick: () => void }) {
   return (
     <Button aria-label={`Edit ${label}`} className="-mr-1 min-h-9 shrink-0 px-1" disabled={disabled} id={id} onClick={onClick} type="button" variant="link">
@@ -229,7 +216,7 @@ function EditLink({ disabled, id, label, onClick }: { readonly disabled?: boolea
 }
 
 // One reviewed value: its label, the value or "Not set yet", its source, and an
-// Edit link to its step. A value the host skipped is marked as only proposed.
+// Edit link that asks its step again. A value the host skipped is marked as only proposed.
 function Row({
   children,
   field,
@@ -401,7 +388,7 @@ export function IdentityStep() {
         </Field>
         <CardActions>
           <Button data-trigger="use" disabled={!canSave || busy !== null} onClick={() => void save()} type="button">
-            {busy === id ? "Saving..." : changed ? "Save" : accepted ? (stepper.returnToReview ? "Keep and return" : "Keep this") : "Use these"}
+            {busy === id ? "Saving..." : changed ? "Save" : accepted ? "Keep this" : "Use these"}
           </Button>
           {accepted ? null : (
             <QuietButton className="ml-auto" disabled={busy !== null} onClick={stepper.skip}>

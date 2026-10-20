@@ -5,20 +5,19 @@ import {
   Questionnaire,
   QuestionnaireDescription,
   QuestionnaireItem,
-  QuestionnairePrevious,
   QuestionnaireProgress,
   QuestionnaireTitle,
 } from "@/components/ui/questionnaire";
 import { cn } from "@/lib/utils";
-import { BackButton, CardNotice, CardProgress, cardHeadingId, HEADING_CLASS } from "./card";
+import { CardNotice, CardProgress, cardHeadingId, HEADING_CLASS, QuietButton } from "./card";
 import { useStepper } from "./setup-context";
 import { STEP_CARD_IDS, type StepId } from "./steps";
 
-// A step of setup, on the shadcn/ui Questionnaire: the steps are its items in
-// order, the stepper controls which one is active, and only that one renders,
-// as one question with its progress and Back. Questionnaire's own navigation
-// (Back, arrow keys) asks the stepper to move rather than moving by itself, so
-// the server-derived order and the Skip and Edit rules stay in one place.
+// A step of setup, on the shadcn/ui Questionnaire: the open step is its one
+// item, rendered as one question with a quiet progress hint in its eyebrow. There is no Back: an answered step collapses into a
+// receipt in the conversation, and Edit on the receipt asks it again here. The
+// Questionnaire's own navigation never moves the step, so the server-derived
+// order and the Skip and Edit rules stay in one place (useStepper).
 export function StepCard({
   children,
   description,
@@ -39,15 +38,6 @@ export function StepCard({
   const total = stepper.steps.length;
   const position = stepper.steps.indexOf(step) + 1;
   const id = STEP_CARD_IDS[step];
-  // Questionnaire's Back shows from the second step; the first one still has a
-  // way back while editing from the review or before Calendar is connected.
-  const ownBack = position <= 1 && stepper.canGoBack;
-
-  const onItemChange = (requested: string) => {
-    const index = stepper.steps.indexOf(requested as StepId) + 1;
-    if (index > 0 && index < position) stepper.back();
-    else if (index > position) stepper.forward();
-  };
 
   return (
     <section
@@ -59,33 +49,32 @@ export function StepCard({
         scroll ? "max-h-[var(--setup-card-room,calc(100dvh-16rem))] overflow-y-auto pb-0" : "overflow-hidden",
       )}
       data-setup-card={id}
+      data-setup-editing={stepper.editing ? "" : undefined}
       id={id}
     >
       {position > 0 ? <CardProgress value={(position - 1) / total} /> : null}
       <Questionnaire
         className="gap-0"
         item={step}
-        items={stepper.steps.map((name) => ({ name }))}
-        // Every card action is its own button; nothing submits the questionnaire.
-        onItemChange={onItemChange}
+        // Only the open step renders, and the Questionnaire never navigates, so
+        // it knows just that one item.
+        items={[{ name: step }]}
+        // Every card action is its own button; nothing submits or navigates the questionnaire.
+        onItemChange={() => {}}
         onSubmit={(event) => event.preventDefault()}
       >
-        <div className="-mt-1 flex min-h-7 items-center justify-between gap-2">
-          {ownBack ? (
-            <BackButton onClick={stepper.back} />
-          ) : (
-            <QuestionnairePrevious
-              className="-ml-2 min-h-9 gap-1 px-2 text-muted-foreground hover:text-foreground data-hidden:invisible sm:min-h-9"
-              data-trigger="back"
-              variant="ghost"
-            >
-              Back
-            </QuestionnairePrevious>
-          )}
+        <div className="flex min-h-6 items-center justify-between gap-2">
           {position > 0 ? (
-            <QuestionnaireProgress aria-label="Setup progress" className="min-w-0 text-right">
-              Step {position} of {total}
+            <QuestionnaireProgress aria-label="Setup progress" className="min-w-0">
+              {stepper.editing ? "Changing an answer" : `${position} of ${total}`}
             </QuestionnaireProgress>
+          ) : (
+            <span />
+          )}
+          {stepper.early ? (
+            <QuietButton className="-mr-2 min-h-8 text-xs" onClick={stepper.leaveEarly}>
+              Connect Calendar first
+            </QuietButton>
           ) : null}
         </div>
         <QuestionnaireItem aria-labelledby={cardHeadingId(id)} className="gap-0" multiple={multiple} name={step}>

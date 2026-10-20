@@ -14,7 +14,7 @@ import { assertRevision, canonicalJson, type CommandDefinition, CommandError } f
 import type { Transaction } from "./database";
 import type { CalendarListEntry } from "./google-calendar";
 import { assignHandle, checkHandle, HandleError } from "./handles";
-import { computeSetupProposal, proposalValues, type SetupLinks, setupLinks } from "./setup";
+import { acceptedEntry, computeSetupProposal, proposalValues, type SetupLinks, setupLinks } from "./setup";
 
 // The draft and confirmation commands of host setup (design decisions 10 to 12).
 // Each runs through runCommand: the actor comes from verified credentials, the
@@ -50,7 +50,8 @@ const updateDraftInput = z
 
 export type UpdateDraftInput = z.infer<typeof updateDraftInput>;
 
-// setup.update_draft: **Use this** accepts the field's current proposed value
+// setup.update_draft: every action stamps the answer with acceptedAt and keeps
+// a replaced answer in the field's history (see acceptedEntry). **Use this** accepts the field's current proposed value
 // (a suggestion, or a value the assistant drafted, such as a "You said" answer)
 // with its label and evidence. The value itself comes from the server; `shown`
 // only proves the card showed that value, and a different current value is a
@@ -65,6 +66,9 @@ export const updateDraftCommand: CommandDefinition<UpdateDraftInput, { revision:
     await lockActiveHost(tx, hostAccountId);
     const draft = await lockDraft(tx, hostAccountId);
     assertRevision(draft.revision, context.expectedRevision);
+    const existing = draft.fields[field] as DraftEntry | undefined;
+    // The answer's time, kept in the draft for its receipt in the conversation.
+    const acceptedAt = new Date().toISOString();
     let entry: DraftEntry;
 
     if (action === "use_suggestion") {
@@ -74,19 +78,17 @@ export const updateDraftCommand: CommandDefinition<UpdateDraftInput, { revision:
       if (!proposed) throw new CommandError("invalid_input");
       if (canonicalJson(proposed.value) !== canonicalJson(context.input.shown)) throw new CommandError("stale_revision");
 
-      entry = {
-        accepted: true,
-        reason: proposed.reason,
-        sampleSize: proposed.sampleSize,
-        source: proposed.source,
-        value: proposed.value,
-      } as DraftEntry;
+      entry = acceptedEntry(
+        existing,
+        { reason: proposed.reason, sampleSize: proposed.sampleSize, source: proposed.source, value: proposed.value } as DraftEntry,
+        acceptedAt,
+      );
     } else {
       const parsed = SETUP_FIELD_SCHEMAS[field].safeParse(context.input.value);
 
       if (!parsed.success) throw new CommandError("invalid_input");
 
-      entry = { accepted: true, source: "stated", value: parsed.data } as DraftEntry;
+      entry = acceptedEntry(existing, { source: "stated", value: parsed.data } as DraftEntry, acceptedAt);
     }
 
     if (field === "handle") await assertHandleAvailable(tx, hostAccountId, entry.value as string);
@@ -198,9 +200,10 @@ export function confirmSettingsCommand(
           settings = excluded.settings, draft_revision = excluded.draft_revision,
           revision = stored.revision + 1, confirmed_at = now(), updated_at = now()
       `;
-      // The live list just showed the destination writable.
+      // The live list just showed the destination writable. updated_at stays the
+      // host's last save of the roles, which their receipt shows.
       await tx`
-        update app.calendar_roles set destination_verified_at = now(), updated_at = now()
+        update app.calendar_roles set destination_verified_at = now()
         where host_account_id = ${hostAccountId} and booking_calendar ->> 'id' = ${destination.id}
       `;
 

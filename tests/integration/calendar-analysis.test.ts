@@ -86,6 +86,8 @@ describe("calendar analysis job", () => {
         { id: host.email, ok: true },
         { id: TEAM, ok: true, summary: "Team" },
       ],
+      // The scan's receipt in the setup conversation sits at its completion.
+      completedAt: expect.any(String),
       failureCategory: null,
       id: host.analysisId,
       state: "completed",

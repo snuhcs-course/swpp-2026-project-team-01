@@ -7,7 +7,8 @@ import { acceptSuggestions, grantCalendar, reviewableHost, runPendingAnalyses } 
 import { expect, signedInHost, test } from "./support/session";
 
 // Host setup in /app (host-onboarding tasks for the cards): the authored
-// messages, one step card at a time, confirmation and the public pages, against the real
+// messages, one open step card at a time with answered ones collapsed into
+// receipts in the history, confirmation and the public pages, against the real
 // web and agent services, the local Supabase stack, the fake Google on port 3103
 // (its default fixture) and the local model stand-in. The analysis job runs from
 // the test process, since the job worker is production-only.
@@ -28,6 +29,29 @@ function uniqueHandle() {
 async function expectOnlyCard(page: Page, name: string | RegExp) {
   await expect(card(page, name)).toBeVisible({ timeout: 15_000 });
   await expect(page.locator("[data-setup-card]")).toHaveCount(1);
+}
+
+// The receipts in the conversation, in order, as "step:state".
+async function receiptsInOrder(page: Page) {
+  return page
+    .locator("[data-setup-receipt]")
+    .evaluateAll((elements) => elements.map((element) => `${element.getAttribute("data-setup-receipt")}:${element.getAttribute("data-state")}`));
+}
+
+// The open card comes after every receipt: it is the last thing before the composer.
+async function expectCardLast(page: Page) {
+  expect(
+    await page.evaluate(() => {
+      const open = document.querySelector("[data-setup-card]");
+      return Boolean(open) && [...document.querySelectorAll("[data-setup-receipt]")].every(
+        (receipt) => receipt.compareDocumentPosition(open!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    }),
+  ).toBe(true);
+}
+
+function receipt(page: Page, step: string, state = "current") {
+  return page.locator(`[data-setup-receipt="${step}"][data-state="${state}"]`);
 }
 
 // The current card fits whole in the conversation, above the composer.
@@ -93,11 +117,17 @@ test("a new host completes setup one card at a time, from the authored messages 
   await expect(analysis.getByRole("heading", { name: "Reading your calendars" })).toBeFocused();
   expect(await runPendingAnalyses(db, host.hostAccountId)).toBe(1);
 
-  // Step 1: the time zone, with the scan's evidence folded away.
+  // The saved calendars and the finished scan stay in the history as receipts.
+  await expect(receipt(page, "calendars")).toContainText(/Checks \d+ calendars?, books into host@example\.test/);
+  await expect(receipt(page, "analysis")).toContainText(/Read \d+ calendars? · \d+ weeks? back and ahead · \d+ meetings?/);
+
+  // The time zone, with the scan's evidence folded away.
   await expectOnlyCard(page, "Which time zone do you meet in?");
   const timezone = card(page, "Which time zone do you meet in?");
   await expect(timezone.getByRole("heading", { name: "Which time zone do you meet in?" })).toBeFocused();
-  await expect(timezone.getByText("Step 1 of 7")).toBeVisible();
+  await expect(timezone.getByText("1 of 7")).toBeVisible();
+  // No stepper chrome: answered steps are receipts, and Edit replaces Back.
+  await expect(timezone.getByRole("button", { name: "Back" })).toHaveCount(0);
   await expectCardFits(page);
   await expect(timezone.getByText("Blue Bottle Coffee", { exact: true })).toBeHidden();
   await timezone.getByRole("button", { name: "What I found" }).click();
@@ -105,20 +135,29 @@ test("a new host completes setup one card at a time, from the authored messages 
   await expect(timezone.getByText("Blue Bottle Coffee", { exact: true })).toBeVisible();
   await timezone.getByRole("button", { name: "Use this" }).click();
 
-  // Step 2: inferred values carry their sample.
+  // The answered card collapses into a receipt where it was answered, and the
+  // next question opens at the bottom: still exactly one open card.
   await expectOnlyCard(page, "When can people book you?");
+  await expect(receipt(page, "timezone")).toContainText("Time zone");
+  await expect(receipt(page, "timezone")).toContainText("Inferred");
+  await expectCardLast(page);
   const windows = card(page, "When can people book you?");
   await expect(windows.getByText(/^Inferred · \d+ meetings$/)).toBeVisible();
-  // Back returns to the answered step, which offers Keep this.
-  await windows.getByRole("button", { name: "Back" }).click();
+  // Edit on a receipt asks that question again in a fresh card at the bottom.
+  await receipt(page, "timezone").getByRole("button", { name: "Edit time zone" }).click();
   await expectOnlyCard(page, "Which time zone do you meet in?");
+  await expect(card(page, "Which time zone do you meet in?").getByRole("heading")).toBeFocused();
+  await expectCardLast(page);
   await card(page, "Which time zone do you meet in?").getByRole("button", { name: "Keep this" }).click();
+  // Keeping it adds no receipt.
   await expectOnlyCard(page, "When can people book you?");
+  await expect(page.locator('[data-setup-receipt="timezone"]')).toHaveCount(1);
   await windows.getByRole("button", { name: "Use this" }).click();
 
-  // Step 3 is skipped for now; it stays listed in the review.
+  // A skipped step leaves a muted receipt; it stays listed in the review.
   await expectOnlyCard(page, "How many meetings a week, at most?");
   await card(page, "How many meetings a week, at most?").getByRole("button", { name: "Skip for now" }).click();
+  await expect(receipt(page, "limit", "skipped")).toContainText("Skipped");
 
   await expectOnlyCard(page, "How long are meetings, with what buffers?");
   await card(page, "How long are meetings, with what buffers?").getByRole("button", { name: "Use this" }).click();
@@ -143,7 +182,7 @@ test("a new host completes setup one card at a time, from the authored messages 
   // Online leaves out the in-person steps; the identity step comes last.
   await expectOnlyCard(page, "What should your booking page show?");
   const identity = card(page, "What should your booking page show?");
-  await expect(identity.getByText("Step 7 of 7")).toBeVisible();
+  await expect(identity.getByText("7 of 7")).toBeVisible();
   const displayName = await identity.getByLabel("Display name").inputValue();
   expect(displayName.length).toBeGreaterThan(0);
   const handle = uniqueHandle();
@@ -158,19 +197,64 @@ test("a new host completes setup one card at a time, from the authored messages 
   await expect(review.getByText("1 excluded from busy time")).toBeVisible();
   await expect(review.getByText(`/${handle}`)).toBeVisible();
   await expect(review.getByText("Proposed, not reviewed")).toHaveCount(1);
-  // Edit opens that step's card and returns to the review.
+  // Receipts accumulated in the order the steps were answered.
+  expect(await receiptsInOrder(page)).toEqual([
+    "calendars:current",
+    "analysis:current",
+    "timezone:current",
+    "windows:current",
+    "limit:skipped",
+    "duration:current",
+    "notes:current",
+    "mode:current",
+    "identity:current",
+  ]);
+  await expect(receipt(page, "identity")).toContainText(`/${handle}`);
+
+  // The review's Edit opens that step in a fresh card and returns to the review.
   await review.getByRole("button", { name: "Edit time zone" }).click();
   await expectOnlyCard(page, "Which time zone do you meet in?");
-  await card(page, "Which time zone do you meet in?").getByRole("button", { name: "Keep and return" }).click();
+  await card(page, "Which time zone do you meet in?").getByRole("button", { name: "Keep this" }).click();
   await expectOnlyCard(page, "Review your booking settings");
+
+  // Changing an earlier answer: the new receipt lands at the bottom and the old
+  // one shows its value struck through with Changed below.
+  await receipt(page, "duration").getByRole("button", { name: "Edit meeting length" }).click();
+  const duration = card(page, "How long are meetings, with what buffers?");
+  await expectOnlyCard(page, "How long are meetings, with what buffers?");
+  await expect(duration.getByRole("heading")).toBeFocused();
+  await duration.getByRole("button", { name: "45 min" }).click();
+  await expectOnlyCard(page, "Review your booking settings");
+  await expect(page.locator('[data-setup-receipt="duration"]')).toHaveCount(2);
+  const changed = receipt(page, "duration", "changed");
+  await expect(changed).toContainText("30 min");
+  await expect(receipt(page, "duration")).toContainText("45 min, 10 min before, 10 min after");
+  expect((await receiptsInOrder(page)).at(-1)).toBe("duration:current");
+  await expectCardLast(page);
+  await changed.getByRole("button", { name: /Changed below/ }).click();
+  await expect(receipt(page, "duration")).toBeFocused();
+
+  // A reload derives the same receipts from the server. A skip saves nothing, so
+  // its receipt is gone and the skipped question is open again.
+  const before = await receiptsInOrder(page);
+  await page.reload();
+  await expectOnlyCard(page, "How many meetings a week, at most?");
+  expect(await receiptsInOrder(page)).toEqual(before.filter((entry) => entry !== "limit:skipped"));
+  await expect(receipt(page, "duration", "changed")).toContainText("30 min");
+  await card(page, "How many meetings a week, at most?").getByRole("button", { name: "Skip for now" }).click();
+  await expectOnlyCard(page, "Review your booking settings");
+  expect((await receiptsInOrder(page)).at(-1)).toBe("limit:skipped");
 
   await review.getByRole("button", { name: "Confirm and save proposed settings" }).click();
 
-  await expectOnlyCard(page, "You're ready.");
+  // The review collapses into a confirmation receipt; the share links stay last.
+    await expectOnlyCard(page, "You're ready.");
   const links = card(page, "You're ready.");
   await expect(links.getByRole("heading", { name: "You're ready." })).toBeFocused();
   await expect(links.getByText(`${baseURL}/${handle}`, { exact: true })).toBeVisible();
   await expect(links.getByText(`${baseURL}/${handle}/SKILL.md`, { exact: true })).toBeVisible();
+  await expect(receipt(page, "confirmed")).toContainText("Settings confirmed");
+  await expectCardLast(page);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await links.getByRole("button", { name: "Copy booking link" }).click();
   await expect(links.getByText("Copied")).toBeVisible();
@@ -201,11 +285,11 @@ test("declined Calendar scopes show Connect Google Calendar with the consent lin
   await expect(connect.getByText(/Signed in as host-.+@example\.test/)).toBeVisible();
   await expect(log.getByText("Next, choose which calendars", { exact: false })).toHaveCount(0);
 
-  // Unrelated preferences stay editable before Calendar is connected, in the
-  // same one-card stepper; Back on its first step returns to Connect.
+  // Unrelated preferences stay editable before Calendar is connected, one card
+  // at a time; Connect Calendar first returns to Connect.
   await connect.getByRole("button", { name: "Set other preferences now" }).click();
   await expectOnlyCard(page, "Which time zone do you meet in?");
-  await card(page, "Which time zone do you meet in?").getByRole("button", { name: "Back" }).click();
+  await card(page, "Which time zone do you meet in?").getByRole("button", { name: "Connect Calendar first" }).click();
   await expectOnlyCard(page, "Connect Google Calendar");
 });
 
@@ -288,8 +372,13 @@ test("a mode the assistant recorded shows as You said and counts only after Use 
   const mode = card(page, modeName);
   await expect(mode.getByText("You said:")).toBeVisible();
   await expect(mode.getByRole("radio", { name: "Online" })).not.toBeChecked();
+  // A value the assistant drafted is no answer, so it has no receipt.
+  await expect(page.locator('[data-setup-receipt="mode"]')).toHaveCount(0);
+  await expect(page.locator('[data-setup-receipt="timezone"]')).toHaveCount(1);
 
   await mode.getByRole("button", { name: "Use this" }).click();
+  await expect(receipt(page, "mode")).toContainText("Online");
+  await expect(receipt(page, "mode")).toContainText("Stated");
 
   await expectOnlyCard(page, "Review your booking settings");
   const review = card(page, "Review your booking settings");
