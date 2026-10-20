@@ -2,6 +2,7 @@
 
 import type { EveDynamicToolPart, EveMessage, EveMessagePart } from "eve/react";
 import { BrainIcon, ChevronRightIcon, CircleCheckIcon, Loader2Icon, XIcon } from "lucide-react";
+import { LinearDots } from "loading-dev";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Markdown } from "@/components/chat/markdown";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -88,6 +89,30 @@ export function AgentMessage({
         </Message>
       )}
     </article>
+  );
+}
+
+// Thyme at work with no new text yet: from a send until the first token, and
+// during tool calls or between steps. Under a reply already on screen it
+// continues that message; otherwise it holds Thyme's slot with its header. The
+// dots are still under reduced motion, where the words show beside them.
+export function AgentThinking({ withHeader }: { readonly withHeader: boolean }) {
+  const indicator = (
+    <div className="flex h-[1.65em] items-center gap-2 text-muted-foreground" role="status">
+      <LinearDots size={18} />
+      <span className="sr-only text-sm motion-reduce:not-sr-only">Thyme is thinking…</span>
+    </div>
+  );
+
+  return withHeader ? (
+    <Message>
+      <MessageContent className="gap-1.5 text-base leading-[1.65] text-foreground">
+        <MessageHeader>Thyme</MessageHeader>
+        {indicator}
+      </MessageContent>
+    </Message>
+  ) : (
+    indicator
   );
 }
 
