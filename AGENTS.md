@@ -161,6 +161,7 @@ Project skills live in `.agents/skills/`. Read the matching `SKILL.md` before wo
 - `supabase`: Supabase CLI, Auth, database, Storage, Realtime, and Edge Functions. Start documentation lookups from the index at [supabase.com/llms.txt](https://supabase.com/llms.txt); each listed page can be fetched as Markdown.
 - `supabase-postgres-best-practices`: Postgres schema, queries, indexes, and RLS.
 - `shadcn`: shadcn/ui components and configuration, if the team adopts shadcn/ui.
+- `motion`: animation with Motion and CSS (best practices, docs search, CSS springs, performance audits), installed by the Motion AI Kit (`npx motion-ai`, project scope, Claude Code and Codex). Claude Code reads its copy in `.claude/skills/motion/` and has the `motion-reviewer` agent in `.claude/agents/`. Both agents get Motion's hosted MCP servers (`motion`, `motion-plus`) from `.mcp.json` and `.codex/config.toml`; Motion+ features need each person to sign in from their agent. Re-run the installer to update; it overwrites these files.
 - `openspec-*`: generated core workflows for exploring, proposing, applying, and archiving behavior changes.
 
 ## Supabase schema changes
