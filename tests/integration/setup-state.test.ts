@@ -118,7 +118,10 @@ describe("setup state", () => {
               ${db.json([{ id: host.primaryId, ok: null, summary: "Me" }])})
     `;
 
-    expect((await readSetupState(deps, host.hostAccountId))!.nextAction).toBe("analyzing");
+    const pending = await readSetupState(deps, host.hostAccountId);
+    expect(pending).toMatchObject({ analysis: { completedAt: null, state: "pending" }, nextAction: "analyzing" });
+    // The roles' save time places the calendars receipt in the conversation.
+    expect(pending!.roles!.savedAt).toEqual(expect.any(String));
 
     await db`insert into app.setup_drafts (host_account_id, analysis_skipped) values (${host.hostAccountId}, true)`;
     expect((await readSetupState(deps, host.hostAccountId))!.nextAction).toBe("review_suggestions");

@@ -200,6 +200,21 @@ button:disabled,
   animation: setup-card-enter 160ms ease-out both;
 }
 
+/* An answered card settling into its one-line receipt: a quiet fade. */
+.setup-receipt-enter {
+  animation: setup-receipt-enter 180ms ease-out both;
+}
+
+@keyframes setup-receipt-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes setup-card-enter {
   from {
     opacity: 0;
@@ -215,7 +230,8 @@ button:disabled,
 /* Reduced motion: no animation, and transitions and scrolling happen at once. */
 @media (prefers-reduced-motion: reduce) {
   .shimmer-text,
-  .setup-card-enter {
+  .setup-card-enter,
+  .setup-receipt-enter {
     animation: none;
   }
 

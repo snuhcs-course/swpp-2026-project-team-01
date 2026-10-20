@@ -82,6 +82,7 @@ describe("modelProjection", () => {
     account: { googleEmail: "alice@example.test" },
     analysis: {
       calendars: [{ id: "secret-calendar-id@group.calendar.google.com", ok: true, summary: "Work" }],
+      completedAt: "2026-10-19T00:01:00.000Z",
       createdAt: "2026-10-19T00:00:00.000Z",
       evidence: {
         durations: { medianMinutes: 30, sampleSize: 8 },
@@ -120,11 +121,21 @@ describe("modelProjection", () => {
         conflict: [{ id: "secret-calendar-id@group.calendar.google.com", reason: "Main." }],
       },
     },
+    confirmedAt: null,
     draft: { revision: 3 },
     fields: buildFieldViews(
       {
         noteExclusions: {
           accepted: true,
+          acceptedAt: "2026-10-19T00:05:00.000Z",
+          // Earlier answers stay in the draft for the receipts; the model never sees them.
+          history: [
+            {
+              acceptedAt: "2026-10-19T00:02:00.000Z",
+              source: "stated",
+              value: [{ calendarId: "secret-calendar-id@group.calendar.google.com", eventId: "other-secret-event", fingerprint: "f" }],
+            },
+          ],
           source: "stated",
           value: [{ calendarId: "secret-calendar-id@group.calendar.google.com", eventId: "secret-event-id", fingerprint: "f" }],
         },
@@ -145,6 +156,7 @@ describe("modelProjection", () => {
       conflictCalendars: [{ accessRole: "owner", id: "secret-calendar-id@group.calendar.google.com", summary: "Work" }],
       destinationVerifiedAt: "2026-10-19T00:00:00.000Z",
       revision: 1,
+      savedAt: "2026-10-19T00:00:00.000Z",
     },
   };
 
@@ -154,6 +166,8 @@ describe("modelProjection", () => {
 
     expect(text).not.toContain("Therapy appointment");
     expect(text).not.toContain("secret-event-id");
+    expect(text).not.toContain("other-secret-event");
+    expect(text).not.toContain("acceptedAt");
     expect(text).not.toContain("secret-calendar-id");
     expect(text).not.toContain("alice@example.test");
     expect(text).not.toMatch(/token|ciphertext/i);

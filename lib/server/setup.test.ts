@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { STARTER_DEFAULTS, type ConfirmedSettings, type DraftFields } from "../contracts/setup";
 import {
+  acceptedEntry,
   alignWindowsWithZone,
   buildFieldViews,
   buildSuggestions,
+  carriedHistory,
   countsAsHostAnswer,
   deriveNextAction,
   destinationLost,
   differsFromConfirmed,
+  draftedEntry,
   missingFields,
   type NextActionInput,
   proposalHash,
@@ -156,6 +159,74 @@ describe("proposalHash", () => {
     expect(proposalHash(one, null)).not.toBe(hash);
     // An online-only proposal does not save the travel buffer, so changing it is no change.
     expect(proposalHash({ ...one, travelBufferMinutes: stated(30) } as ProposedFields, roles)).toBe(hash);
+  });
+});
+
+describe("accepted answers and their history", () => {
+  const at = (minute: number) => `2026-10-20T09:${String(minute).padStart(2, "0")}:00.000Z`;
+
+  it("stamps an accepted value and keeps the replaced answer in the history", () => {
+    const first = acceptedEntry(undefined, { source: "starter_default", value: "UTC" }, at(1));
+    const second = acceptedEntry(first, { source: "stated", value: "Asia/Seoul" }, at(2));
+
+    expect(first).toEqual({ accepted: true, acceptedAt: at(1), source: "starter_default", value: "UTC" });
+    expect(second).toEqual({
+      accepted: true,
+      acceptedAt: at(2),
+      history: [{ acceptedAt: at(1), source: "starter_default", value: "UTC" }],
+      source: "stated",
+      value: "Asia/Seoul",
+    });
+  });
+
+  it("keeps the earlier time when the same value and source are accepted again", () => {
+    const first = acceptedEntry(undefined, { source: "stated", value: 45 }, at(1));
+    expect(acceptedEntry(first, { source: "stated", value: 45 }, at(5))).toEqual(first);
+  });
+
+  it("does not record an unaccepted draft as an answer, and keeps at most five earlier answers", () => {
+    const drafted = { accepted: false, source: "inferred" as const, value: 30 };
+    expect(acceptedEntry(drafted, { source: "stated", value: 45 }, at(1))).toEqual({
+      accepted: true,
+      acceptedAt: at(1),
+      source: "stated",
+      value: 45,
+    });
+
+    let entry = acceptedEntry(undefined, { source: "stated", value: 15 }, at(0));
+    for (let minute = 1; minute <= 7; minute += 1) entry = acceptedEntry(entry, { source: "stated", value: 15 + minute * 5 }, at(minute));
+    expect(entry.history?.map((earlier) => earlier.value)).toEqual([25, 30, 35, 40, 45]);
+  });
+
+  it("drafts a model value unaccepted, with no time, keeping the host's earlier answers", () => {
+    const answered = acceptedEntry(undefined, { source: "stated", value: "online" }, at(1));
+    const drafted = draftedEntry(answered, "in_person", "stated");
+
+    expect(drafted).toEqual({
+      accepted: false,
+      history: [{ acceptedAt: at(1), source: "stated", value: "online" }],
+      source: "stated",
+      value: "in_person",
+    });
+    expect(carriedHistory(drafted)).toEqual(drafted.history);
+  });
+
+  it("leaves the proposal hash to values and sources, never answer times or history", () => {
+    const roles = { bookingCalendar: { accessRole: "owner", id: "p", summary: "Me" }, conflictCalendars: [] };
+    const plain = buildFieldViews({ durationMinutes: { accepted: true, source: "stated", value: 45 } }, null, {});
+    const stamped = buildFieldViews(
+      {
+        durationMinutes: acceptedEntry(
+          acceptedEntry(undefined, { source: "stated", value: 30 }, at(1)),
+          { source: "stated", value: 45 },
+          at(2),
+        ) as DraftFields["durationMinutes"],
+      },
+      null,
+      {},
+    );
+
+    expect(proposalHash(proposedOf(stamped), roles)).toBe(proposalHash(proposedOf(plain), roles));
   });
 });
 

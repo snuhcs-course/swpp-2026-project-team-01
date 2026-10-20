@@ -1,9 +1,9 @@
 import type { SetupFieldName } from "@lib/contracts/setup";
 import { describe, expect, it } from "vitest";
-import { backTarget, firstOpenStep, forwardTarget, setupSteps, stepAccepted, stepForField } from "./steps";
+import { firstOpenStep, setupSteps, stepAccepted, stepForField, stepIndex } from "./steps";
 
-// The stepper's order and where it lands: the first step the host has not
-// accepted, skipping what was skipped, then the review.
+// The steps' order and where the open card lands: the first step the host has
+// not accepted, skipping what was skipped, then the review.
 
 type Fields = Parameters<typeof setupSteps>[0]["fields"];
 
@@ -75,16 +75,10 @@ describe("setup steps", () => {
     expect(setupSteps(state)).toContain("windows");
   });
 
-  it("walks back one step and forward to the first open one", () => {
+  it("places the review after the last step", () => {
     const steps = setupSteps(stateWith([], { mode: "online" }));
-    expect(backTarget(steps, "timezone")).toBeNull();
-    expect(backTarget(steps, "limit")).toBe("windows");
-    expect(backTarget(steps, "review")).toBe("identity");
-    // From an answered step before the open one, forward is the next step.
-    expect(forwardTarget(steps, "timezone", "limit")).toBe("windows");
-    // Reaching the open step clears the pointer.
-    expect(forwardTarget(steps, "windows", "limit")).toBeNull();
-    expect(forwardTarget(steps, "identity", "review")).toBeNull();
+    expect(stepIndex(steps, "timezone")).toBe(0);
+    expect(stepIndex(steps, "review")).toBe(steps.length);
   });
 
   it("maps every field to the step that edits it", () => {

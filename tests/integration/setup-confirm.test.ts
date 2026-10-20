@@ -89,6 +89,38 @@ describe("setup.confirm_settings", () => {
     expect(await readSetupState(deps, host.hostAccountId)).toMatchObject({ links, nextAction: "ready", pendingChanges: false });
   });
 
+  it("exposes the confirmation and roles times for the receipts, and leaves the roles' save time to the host's saves", async () => {
+    const host = await seedHost(db, deps, google);
+    const live = await prepareReviewableHost(db, host);
+    const before = await readSetupState(deps, host.hostAccountId);
+    expect(before!.confirmedAt).toBeNull();
+    expect(before!.roles!.savedAt).toEqual(expect.any(String));
+
+    expect(await confirm(host, live)).toMatchObject({ ok: true });
+
+    const after = await readSetupState(deps, host.hostAccountId);
+    expect(Date.parse(after!.confirmedAt!)).toBeGreaterThanOrEqual(Date.parse(before!.roles!.savedAt));
+    // Verifying the destination at confirmation is not a save of the roles.
+    expect(after!.roles!.savedAt).toBe(before!.roles!.savedAt);
+    expect(Date.parse(after!.roles!.destinationVerifiedAt)).toBeGreaterThan(Date.parse(before!.roles!.destinationVerifiedAt));
+  });
+
+  it("reviews the same proposal after an answer is changed back, whatever its answer history", async () => {
+    const host = await seedHost(db, deps, google);
+    const live = await prepareReviewableHost(db, host);
+    expect(await adjust(host, "durationMinutes", 30)).toMatchObject({ ok: true });
+    const review = await readSetupState(deps, host.hostAccountId);
+
+    expect(await adjust(host, "durationMinutes", 45)).toMatchObject({ ok: true });
+    expect(await adjust(host, "durationMinutes", 30)).toMatchObject({ ok: true });
+
+    const state = await readSetupState(deps, host.hostAccountId);
+    expect(state!.fields.durationMinutes.draft!.history).toHaveLength(2);
+    expect(state!.draft.revision).toBeGreaterThan(review!.draft.revision);
+    expect(state!.proposalHash).toBe(review!.proposalHash);
+    expect(await confirm(host, live)).toMatchObject({ ok: true });
+  });
+
   it("keeps a ready host public on the confirmed policy while the draft changes", async () => {
     const host = await seedHost(db, deps, google);
     const live = await prepareReviewableHost(db, host);

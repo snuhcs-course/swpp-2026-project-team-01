@@ -345,6 +345,7 @@ describe("analysisForModel", () => {
     );
     const projection = analysisForModel({
       calendars: [{ id: host, ok: true, summary: "Me" }],
+      completedAt: "2026-10-19T00:01:00.000Z",
       createdAt: "2026-10-19T00:00:00.000Z",
       evidence,
       failureCategory: null,

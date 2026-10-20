@@ -16,7 +16,7 @@ import type { Queryable, Transaction } from "./database";
 import { encodeDisplayName } from "./entry-documents";
 import { HOST_SETUP_AUDIENCE } from "./eve-auth";
 import { checkHandle } from "./handles";
-import { readSetupState, type SetupDependencies, type SetupLinks, type SetupStateView } from "./setup";
+import { draftedEntry, readSetupState, type SetupDependencies, type SetupLinks, type SetupStateView } from "./setup";
 
 // The setup assistant's two tools (design decision 10), behind the agent's
 // dynamic tool resolver. They exist only in host setup sessions; each call
@@ -334,9 +334,10 @@ export function draftSettingsCommand(
       for (const [field, valid] of parsed) {
         const entry = valid!;
         // An unchanged entry keeps the host's acceptance; a changed one is never
-        // accepted on the host's behalf.
+        // accepted on the host's behalf, so it gets no acceptedAt and no receipt.
+        // The host's earlier answers move to its history and keep their receipts.
         if (!sameEntry(fields[field], entry.value, entry.source)) {
-          fields[field] = { accepted: false, source: entry.source, value: entry.value } as DraftEntry;
+          fields[field] = draftedEntry(fields[field], entry.value, entry.source);
         }
       }
 

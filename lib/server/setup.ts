@@ -2,8 +2,10 @@ import { createHash } from "node:crypto";
 import type { AnalysisCard, PlaceHint } from "../contracts/analysis";
 import {
   type ConfirmedSettings,
+  DRAFT_HISTORY_LIMIT,
   type DraftEntry,
   type DraftFields,
+  type DraftHistoryEntry,
   HOST_ANSWER_FIELDS,
   IN_PERSON_FIELDS,
   isValidTimeZone,
@@ -125,6 +127,8 @@ export type SetupStateView = {
   readonly links: SetupLinks | null;
   // A ready host's proposal differs from the confirmed settings it is public on.
   readonly pendingChanges: boolean;
+  // When the host last confirmed settings (ISO time), for the confirmation receipt.
+  readonly confirmedAt: string | null;
 };
 
 export type SetupReadOptions = {
@@ -215,6 +219,41 @@ export function proposalValues(proposed: ProposedFields) {
   }
 
   return values;
+}
+
+// ---------------------------------------------------------------------------
+// Accepted answers and their history (the setup conversation's receipts)
+
+// The history an entry passes on when it is replaced: its own history, plus the
+// entry itself when the host had accepted it, capped at DRAFT_HISTORY_LIMIT.
+export function carriedHistory(existing: DraftEntry | undefined): DraftHistoryEntry[] {
+  const history = [...(existing?.history ?? [])];
+  if (existing?.accepted && existing.acceptedAt) {
+    history.push({ acceptedAt: existing.acceptedAt, source: existing.source, value: existing.value });
+  }
+  return history.slice(-DRAFT_HISTORY_LIMIT);
+}
+
+function withHistory(entry: DraftEntry, history: readonly DraftHistoryEntry[]): DraftEntry {
+  return history.length > 0 ? { ...entry, history } : entry;
+}
+
+type EntryValue = Omit<DraftEntry, "accepted" | "acceptedAt" | "history">;
+
+// The entry for a value the host accepts on a card at `at`. Accepting the value
+// and source already accepted keeps the earlier time, so it adds no receipt;
+// anything else becomes the newest answer and the replaced one joins the history.
+export function acceptedEntry(existing: DraftEntry | undefined, next: EntryValue, at: string): DraftEntry {
+  if (existing?.accepted && existing.source === next.source && canonicalJson(existing.value) === canonicalJson(next.value)) {
+    return withHistory({ ...next, accepted: true, acceptedAt: existing.acceptedAt ?? at }, existing.history ?? []);
+  }
+  return withHistory({ ...next, accepted: true, acceptedAt: at }, carriedHistory(existing));
+}
+
+// The entry for a value the assistant drafts: never accepted and never a receipt,
+// but it keeps the field's earlier answers, so their receipts stay in place.
+export function draftedEntry(existing: DraftEntry | undefined, value: unknown, source: ValueSource): DraftEntry {
+  return withHistory({ accepted: false, source, value } as DraftEntry, carriedHistory(existing));
 }
 
 type RolesForHash = Pick<SavedCalendarRoles, "bookingCalendar" | "conflictCalendars"> | null;
@@ -377,6 +416,7 @@ type SetupRecords = {
   readonly draftFields: DraftFields;
   readonly analysisSkipped: boolean;
   readonly confirmed: ConfirmedSettings | null;
+  readonly confirmedAt: string | null;
 };
 
 async function readSetupRecords(q: Queryable, hostAccountId: string): Promise<SetupRecords | null> {
@@ -387,6 +427,7 @@ async function readSetupRecords(q: Queryable, hostAccountId: string): Promise<Se
     draft_revision: number | null;
     email: string | null;
     calendar_usable: boolean;
+    confirmed_at: Date | null;
     invalidated: boolean;
     settings: ConfirmedSettings | null;
     status: string;
@@ -394,7 +435,7 @@ async function readSetupRecords(q: Queryable, hostAccountId: string): Promise<Se
     select a.status, a.display_name, i.email,
            ${calendarUsable(q)} as calendar_usable, coalesce(g.invalidated_at is not null, false) as invalidated,
            d.revision as draft_revision, d.fields as draft_fields, d.analysis_skipped,
-           s.settings
+           s.settings, s.confirmed_at
     from app.host_accounts a
     left join app.google_identities i on i.host_account_id = a.id
     left join app.provider_grants g on g.host_account_id = a.id
@@ -409,6 +450,7 @@ async function readSetupRecords(q: Queryable, hostAccountId: string): Promise<Se
     analysisSkipped: row.analysis_skipped ?? false,
     calendarConnected: row.calendar_usable,
     confirmed: row.settings,
+    confirmedAt: row.confirmed_at ? row.confirmed_at.toISOString() : null,
     draftFields: row.draft_fields ?? {},
     draftRevision: row.draft_revision ?? 0,
     email: row.email,
@@ -574,6 +616,7 @@ export async function readSetupState(
     analysis,
     analysisSkipped: records.analysisSkipped,
     calendar: { connected: records.calendarConnected, destinationLost: lost, invalid: records.grantInvalid, ...live },
+    confirmedAt: records.confirmedAt,
     draft: { revision: records.draftRevision },
     fields: proposal.fields,
     handleAvailability: proposal.handleAvailability,

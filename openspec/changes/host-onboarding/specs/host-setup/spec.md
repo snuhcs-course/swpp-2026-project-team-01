@@ -167,12 +167,16 @@ Setup SHALL propose a handle and a display name, let the host edit both on the r
 - **THEN** the field reports that the handle is unavailable and the draft keeps the previous handle
 
 ### Requirement: One setup question at a time
-The workspace SHALL show exactly one setup card at a time, for the current step, after the conversation and above the composer. Each card SHALL ask one question and fit a phone-width viewport above the composer, except editors that scroll inside their card. Progress and a way back to earlier steps SHALL be shown, and the final review SHALL list every answer.
+The workspace SHALL keep exactly one setup card open at a time, for the current step, after the latest message and above the composer, and the card SHALL fit a phone-width viewport above the composer, except editors that scroll inside it. Each answered step SHALL remain in the conversation as a one-line receipt with its value, source and an edit action, derived from durable records. The final review SHALL list every answer.
 
 #### Scenario: Walking through suggestions
-- **WHEN** a host has accepted the timezone and weekly windows but not the meeting limit
-- **THEN** only the meeting-limit card is shown, labeled with its step number, and the host can go back to the windows card
+- **WHEN** a host accepts the timezone and the weekly windows
+- **THEN** two receipts for them stay in the conversation in that order, and only the meeting-limit card is open below them
 
-#### Scenario: Editing from the review
-- **WHEN** a host chooses Edit beside the duration on the review card
-- **THEN** only the duration card is shown, and saving it returns to the review
+#### Scenario: Editing an earlier answer
+- **WHEN** a host chooses Edit on the duration receipt
+- **THEN** a new duration card opens at the bottom as the only open card, and after saving, the earlier receipt shows that it changed below
+
+#### Scenario: Receipts after reload
+- **WHEN** a host reloads `/app` partway through setup
+- **THEN** the same receipts appear in the same order, and none comes from a value the assistant drafted that the host has not accepted

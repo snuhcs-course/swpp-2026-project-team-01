@@ -66,6 +66,9 @@ export type SavedCalendarRoles = {
   readonly conflictCalendars: CalendarRef[];
   readonly bookingCalendar: CalendarRef;
   readonly destinationVerifiedAt: string;
+  // When the host last saved these roles (updated_at, which only a save moves),
+  // for the calendars receipt in the setup conversation.
+  readonly savedAt: string;
 };
 
 export async function readCalendarRoles(db: Queryable, hostAccountId: string): Promise<SavedCalendarRoles | null> {
@@ -74,8 +77,9 @@ export async function readCalendarRoles(db: Queryable, hostAccountId: string): P
     conflict_calendars: CalendarRef[];
     destination_verified_at: Date;
     revision: number;
+    updated_at: Date;
   }[]>`
-    select revision, conflict_calendars, booking_calendar, destination_verified_at
+    select revision, conflict_calendars, booking_calendar, destination_verified_at, updated_at
     from app.calendar_roles
     where host_account_id = ${hostAccountId}
   `;
@@ -87,6 +91,7 @@ export async function readCalendarRoles(db: Queryable, hostAccountId: string): P
     conflictCalendars: row.conflict_calendars,
     destinationVerifiedAt: row.destination_verified_at.toISOString(),
     revision: row.revision,
+    savedAt: row.updated_at.toISOString(),
   };
 }
 
@@ -181,9 +186,10 @@ export async function recordDestinationAccess(
   const accessRole = live.find((calendar) => calendar.id === roles.bookingCalendar.id)?.accessRole ?? "none";
   if (isWritable({ accessRole })) return;
 
+  // updated_at stays the host's last save of the roles, which their receipt shows.
   await db`
     update app.calendar_roles
-    set booking_calendar = jsonb_set(booking_calendar, '{accessRole}', to_jsonb(${accessRole}::text)), updated_at = now()
+    set booking_calendar = jsonb_set(booking_calendar, '{accessRole}', to_jsonb(${accessRole}::text))
     where host_account_id = ${hostAccountId} and booking_calendar ->> 'id' = ${roles.bookingCalendar.id}
   `;
 }

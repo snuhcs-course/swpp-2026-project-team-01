@@ -762,6 +762,7 @@ export function createCalendarAnalysisHandler(
 export async function readLatestAnalysis(db: Queryable, hostAccountId: string): Promise<AnalysisCard | null> {
   const [row] = await db<{
     calendars: ScannedCalendar[];
+    completed_at: Date | null;
     created_at: Date;
     evidence: AnalysisEvidence | null;
     failure_category: string | null;
@@ -770,7 +771,7 @@ export async function readLatestAnalysis(db: Queryable, hostAccountId: string): 
     range_start: Date;
     state: AnalysisState;
   }[]>`
-    select id, range_start, range_end, calendars, evidence, created_at,
+    select id, range_start, range_end, calendars, evidence, created_at, completed_at,
            case when stale then 'failed' else state end as state,
            case when stale then ${ANALYSIS_FAILED} else failure_category end as failure_category
     from (
@@ -786,6 +787,7 @@ export async function readLatestAnalysis(db: Queryable, hostAccountId: string): 
 
   return {
     calendars: row.calendars.map((calendar) => ({ id: calendar.id, ok: calendar.ok ?? null, summary: calendar.summary })),
+    completedAt: row.completed_at ? row.completed_at.toISOString() : null,
     createdAt: row.created_at.toISOString(),
     evidence: row.evidence,
     failureCategory: row.failure_category,

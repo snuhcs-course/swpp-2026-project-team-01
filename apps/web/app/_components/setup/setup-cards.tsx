@@ -11,9 +11,11 @@ import { ShareLinksCard } from "./share-links-card";
 import type { StepTarget } from "./steps";
 import { DurationStep, TimezoneStep, TravelBufferStep, WeeklyLimitStep, WeeklyWindowsStep } from "./suggestion-cards";
 
-// Exactly one setup card, placed after the conversation and above the composer:
-// one thing to think about at once. Which card shows is derived from the
-// server's next action and, inside setup, from the client-side step pointer.
+// Exactly one open setup card, placed after the latest message and above the
+// composer: one thing to think about at once. Answered cards are not here: they
+// are receipts in the conversation (receipt.tsx), placed where they were
+// answered. Which card is open is derived from the server's next action and,
+// inside setup, from the first open step or the step asked again with Edit.
 
 // Moves focus to the visible card's heading, as the workspace menu's Setup item does.
 export function focusCurrentCard() {

@@ -54,7 +54,9 @@ describe("setup.update_draft", () => {
     expect(retry).toMatchObject({ ok: true, replayed: true, result: { revision: 1 } });
     expect(stale).toMatchObject({ error: { category: "stale_revision" }, ok: false });
     expect(await draftRevision(db, host.hostAccountId)).toBe(1);
-    expect(await draftFields(host.hostAccountId)).toEqual({ durationMinutes: { accepted: true, source: "stated", value: 45 } });
+    expect(await draftFields(host.hostAccountId)).toEqual({
+      durationMinutes: { accepted: true, acceptedAt: expect.any(String), source: "stated", value: 45 },
+    });
   });
 
   const use = (hostAccountId: string, expectedRevision: number, field: string, shown: unknown) =>
@@ -75,6 +77,7 @@ describe("setup.update_draft", () => {
     expect(used).toMatchObject({ ok: true, result: { revision: before!.draft.revision + 1 } });
     expect((await draftFields(host.hostAccountId)).timezone).toEqual({
       accepted: true,
+      acceptedAt: expect.any(String),
       reason: before!.fields.timezone.proposed!.reason,
       sampleSize: null,
       source: "starter_default",
@@ -106,6 +109,7 @@ describe("setup.update_draft", () => {
 
     expect((await draftFields(host.hostAccountId)).meetingMode).toEqual({
       accepted: true,
+      acceptedAt: expect.any(String),
       reason: null,
       sampleSize: null,
       source: "stated",
@@ -139,6 +143,56 @@ describe("setup.update_draft", () => {
     expect(await draft(other.local, 1)).toMatchObject({ error: { category: "invalid_input" }, ok: false });
     expect(await draft("admin", 1)).toMatchObject({ error: { category: "invalid_input" }, ok: false });
     expect((await draftFields(host.hostAccountId)).handle).toMatchObject({ value: `${host.local}-x` });
+  });
+
+  it("stamps each answer with its time and keeps a changed answer's predecessors for the receipts", async () => {
+    const host = await seedHost(db, deps, google, { calendar: false });
+    const answer = (value: number, expectedRevision: number) =>
+      runCommand(hostCommandDeps(db, host.hostAccountId), updateDraftCommand, {
+        expectedRevision,
+        input: { action: "adjust", field: "durationMinutes", value },
+        resourceId: host.hostAccountId,
+        retryKey: randomUUID(),
+      });
+    const started = Date.now();
+
+    expect(await answer(30, 0)).toMatchObject({ ok: true });
+    const first = (await draftFields(host.hostAccountId)).durationMinutes as { acceptedAt: string };
+    // Edit, then save a new value: the earlier answer moves to the history.
+    expect(await answer(45, 1)).toMatchObject({ ok: true });
+    // Saving the same value again is no new answer.
+    expect(await answer(45, 2)).toMatchObject({ ok: true });
+
+    const entry = (await draftFields(host.hostAccountId)).durationMinutes as Record<string, unknown>;
+    expect(Date.parse(first.acceptedAt)).toBeGreaterThanOrEqual(started - 1_000);
+    expect(entry).toMatchObject({
+      accepted: true,
+      history: [{ acceptedAt: first.acceptedAt, source: "stated", value: 30 }],
+      value: 45,
+    });
+    expect(Date.parse(entry.acceptedAt as string)).toBeGreaterThanOrEqual(Date.parse(first.acceptedAt));
+
+    // The state read exposes both, and the proposal still depends only on the value.
+    const state = await readSetupState(deps, host.hostAccountId);
+    expect(state!.fields.durationMinutes.draft).toMatchObject({ acceptedAt: entry.acceptedAt, history: entry.history });
+  });
+
+  it("keeps at most five earlier answers", async () => {
+    const host = await seedHost(db, deps, google, { calendar: false });
+
+    for (let index = 0; index < 8; index += 1) {
+      const outcome = await runCommand(hostCommandDeps(db, host.hostAccountId), updateDraftCommand, {
+        expectedRevision: index,
+        input: { action: "adjust", field: "durationMinutes", value: 30 + index * 5 },
+        resourceId: host.hostAccountId,
+        retryKey: randomUUID(),
+      });
+      expect(outcome).toMatchObject({ ok: true });
+    }
+
+    const entry = (await draftFields(host.hostAccountId)).durationMinutes as { history: { value: number }[]; value: number };
+    expect(entry.value).toBe(65);
+    expect(entry.history.map((earlier) => earlier.value)).toEqual([40, 45, 50, 55, 60]);
   });
 
   it("changes nothing for a suspended host", async () => {

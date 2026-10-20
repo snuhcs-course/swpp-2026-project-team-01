@@ -66,6 +66,8 @@ export type AnalysisCard = {
   readonly evidence: AnalysisEvidence | null;
   readonly failureCategory: string | null;
   readonly createdAt: string;
+  // When the scan finished (ISO time), for its receipt in the setup conversation.
+  readonly completedAt: string | null;
 };
 
 // The model's projection: counts and ranges, the number of note-like entries but

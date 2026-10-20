@@ -112,6 +112,17 @@ export const IN_PERSON_FIELDS: readonly SetupFieldName[] = ["location", "travelM
 
 export const OPTIONAL_FIELDS: readonly SetupFieldName[] = ["weeklyLimit", "noteExclusions"];
 
+// A value the host accepted earlier and has since replaced, kept so the setup
+// conversation can show the earlier answer's receipt as changed.
+export type DraftHistoryEntry<F extends SetupFieldName = SetupFieldName> = {
+  readonly value: SetupFieldValue<F>;
+  readonly source: ValueSource;
+  readonly acceptedAt: string;
+};
+
+// How many replaced answers a draft entry keeps, oldest dropped first.
+export const DRAFT_HISTORY_LIMIT = 5;
+
 export type DraftEntry<F extends SetupFieldName = SetupFieldName> = {
   readonly value: SetupFieldValue<F>;
   readonly source: ValueSource;
@@ -119,6 +130,12 @@ export type DraftEntry<F extends SetupFieldName = SetupFieldName> = {
   readonly accepted: boolean;
   readonly sampleSize?: number | null;
   readonly reason?: string | null;
+  // When the host accepted this value on a card (ISO time). Absent on values the
+  // assistant drafted and on entries accepted before receipts existed. Neither
+  // this nor `history` is part of the proposal: only values and sources are.
+  readonly acceptedAt?: string;
+  // Earlier accepted values of this field, oldest first, at most DRAFT_HISTORY_LIMIT.
+  readonly history?: readonly DraftHistoryEntry<F>[];
 };
 
 export type DraftFields = { readonly [F in SetupFieldName]?: DraftEntry<F> };

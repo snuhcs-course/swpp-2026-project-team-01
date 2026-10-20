@@ -4,10 +4,12 @@ import { type DiscussionEvent, isRedeliveredInput } from "@lib/contracts/discuss
 import { isCurrentTurnBoundaryEvent } from "eve/client";
 import { conversationReducer } from "eve/react";
 import { AlertCircleIcon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AuthoredMessages, useAuthoredReveal } from "@/app/_components/setup/authored-messages";
 import { focusCurrentCard, SetupCards } from "@/app/_components/setup/setup-cards";
-import { SetupProvider, useSetupController } from "@/app/_components/setup/setup-context";
+import { ReceiptAnnouncer, SetupReceipts } from "@/app/_components/setup/receipt";
+import { deriveReceipts, interleave, type Receipt } from "@/app/_components/setup/receipts";
+import { type SetupContextValue, SetupProvider, useSetupController } from "@/app/_components/setup/setup-context";
 import { describeSetupTool } from "@/app/_components/setup/tool-labels";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { ChatComposer } from "@/components/chat/composer";
@@ -27,8 +29,9 @@ import {
 // and a compact menu, with no sidebar. History and live output come from the
 // discussion's application routes, so a reload, a reconnect or a recovered
 // runtime continues from the same discussion cursor. Setup lives in the same
-// column: the authored onboarding messages open the conversation, and the
-// current step's cards follow the last message, above the composer.
+// column: the authored onboarding messages open the conversation, answered setup
+// cards stay in the history as one-line receipts where they were answered, and
+// the one open card follows the last message, above the composer.
 
 // While a scan is pending the analysis card polls, since no turn or action
 // would otherwise reveal its result.
@@ -64,11 +67,26 @@ function lastTurnFailed(events: readonly DiscussionEvent[]) {
 }
 
 // A re-sent input's marker counts toward the cursor but is not shown: the host's
-// message already appears once.
+// message already appears once. Each message's time is the meta.at of the event
+// that first produced it, which places setup receipts among the messages.
 function project(events: readonly DiscussionEvent[]) {
   let state = conversationReducer.initial();
-  for (const event of events) if (!isRedeliveredInput(event)) state = conversationReducer.reduce(state, event);
-  return state.messages;
+  const times = new Map<string, string>();
+
+  for (const event of events) {
+    if (isRedeliveredInput(event)) continue;
+    state = conversationReducer.reduce(state, event);
+    const at = event.meta?.at;
+    if (!at) continue;
+    // New messages are appended, so only the tail can be unseen.
+    for (let index = state.messages.length - 1; index >= 0; index -= 1) {
+      const id = state.messages[index]!.id;
+      if (times.has(id)) break;
+      times.set(id, at);
+    }
+  }
+
+  return { messages: state.messages, times };
 }
 
 function errorMessage(error: unknown) {
@@ -249,11 +267,36 @@ export function HostWorkspace() {
     setPhase("ready");
   }, [follow, refreshStatus, status?.generation]);
 
-  const messages = useMemo(() => project(events), [events]);
+  const { messages, times } = useMemo(() => project(events), [events]);
   const failed = status?.state === "failed";
   const turnFailed = useMemo(() => lastTurnFailed(events), [events]);
   const busy = phase !== "ready";
   const setupState = setup.state;
+  const setupValue = setup.value;
+  const showSetup = setupValue !== null && reveal.done;
+  // Answered setup cards, as receipts placed among the messages by time.
+  const receipts = useMemo(
+    () => (showSetup && setupValue ? deriveReceipts(setupValue.state, setupValue.skipped) : []),
+    [setupValue, showSetup],
+  );
+  const timeline = useMemo(() => {
+    const entries = interleave(
+      messages.map((message, index) => ({ at: times.get(message.id) ?? null, message: { index, message } })),
+      receipts,
+    );
+    // Consecutive receipts share one quiet list between messages.
+    const grouped: (
+      | { readonly kind: "message"; readonly index: number; readonly message: (typeof messages)[number] }
+      | { readonly kind: "receipts"; readonly receipts: Receipt[] }
+    )[] = [];
+    for (const entry of entries) {
+      const last = grouped.at(-1);
+      if (entry.kind === "message") grouped.push({ kind: "message", ...entry.message });
+      else if (last?.kind === "receipts") last.receipts.push(entry.receipt);
+      else grouped.push({ kind: "receipts", receipts: [entry.receipt] });
+    }
+    return grouped;
+  }, [messages, receipts, times]);
 
   // The menu's Setup item leads to the current step's card, or the composer
   // while setup has not loaded.
@@ -292,51 +335,62 @@ export function HostWorkspace() {
         ) : null}
 
         <ChatConversation>
-          <ChatConversationContent aria-busy={busy} aria-label="Messages">
-            <AuthoredMessages messages={reveal.visible} />
-            {messages.map((message, index) => (
-              <ChatItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
-                <AgentMessage
-                  canRespond={false}
-                  describeTool={describeSetupTool}
-                  isStreaming={phase === "streaming" && index === messages.length - 1}
-                  message={message}
-                  onInputResponses={() => {}}
-                />
-              </ChatItem>
-            ))}
-            {pendingText ? (
-              <ChatItem messageId="pending" scrollAnchor>
-                <AgentMessage
-                  canRespond={false}
-                  isStreaming={false}
-                  message={{ id: "pending", parts: [{ state: "done", text: pendingText, type: "text" }], role: "user" }}
-                  onInputResponses={() => {}}
-                />
-              </ChatItem>
-            ) : null}
-            {turnFailed && !failed && phase === "ready" ? (
-              <p className="px-3 text-sm text-muted-foreground" role="status">
-                Thyme couldn&apos;t finish this reply. Your message is saved; try again in a little while.
-              </p>
-            ) : null}
-            {phase === "sending" || phase === "streaming" ? (
-              <p className="px-3 text-sm" role="status">
-                <span className="shimmer text-muted-foreground motion-reduce:shimmer-none">Thyme is thinking...</span>
-              </p>
-            ) : null}
-            {setup.value && reveal.done ? (
-              <ChatItem messageId="setup">
-                <div aria-label="Setup" className="flex min-w-0 flex-col" role="group">
-                  <SetupProvider value={setup.value}>
+          <ConversationSetup value={setupValue}>
+            <ChatConversationContent aria-busy={busy} aria-label="Messages">
+              <AuthoredMessages messages={reveal.visible} />
+              {timeline.map((entry) =>
+                entry.kind === "receipts" ? (
+                  <ChatItem key={`receipts-${entry.receipts[0]!.id}`} messageId={`receipts-${entry.receipts[0]!.id}`}>
+                    <SetupReceipts receipts={entry.receipts} />
+                  </ChatItem>
+                ) : (
+                  <ChatItem
+                    key={entry.message.id}
+                    messageId={entry.message.id}
+                    scrollAnchor={entry.message.role === "user"}
+                  >
+                    <AgentMessage
+                      canRespond={false}
+                      describeTool={describeSetupTool}
+                      isStreaming={phase === "streaming" && entry.index === messages.length - 1}
+                      message={entry.message}
+                      onInputResponses={() => {}}
+                    />
+                  </ChatItem>
+                ),
+              )}
+              {pendingText ? (
+                <ChatItem messageId="pending" scrollAnchor>
+                  <AgentMessage
+                    canRespond={false}
+                    isStreaming={false}
+                    message={{ id: "pending", parts: [{ state: "done", text: pendingText, type: "text" }], role: "user" }}
+                    onInputResponses={() => {}}
+                  />
+                </ChatItem>
+              ) : null}
+              {turnFailed && !failed && phase === "ready" ? (
+                <p className="px-3 text-sm text-muted-foreground" role="status">
+                  Thyme couldn&apos;t finish this reply. Your message is saved; try again in a little while.
+                </p>
+              ) : null}
+              {phase === "sending" || phase === "streaming" ? (
+                <p className="px-3 text-sm" role="status">
+                  <span className="shimmer text-muted-foreground motion-reduce:shimmer-none">Thyme is thinking...</span>
+                </p>
+              ) : null}
+              {showSetup ? (
+                <ChatItem messageId="setup">
+                  <div aria-label="Setup" className="flex min-w-0 flex-col" role="group">
                     <SetupCards />
-                  </SetupProvider>
-                </div>
-              </ChatItem>
-            ) : null}
-          </ChatConversationContent>
+                  </div>
+                </ChatItem>
+              ) : null}
+            </ChatConversationContent>
+          </ConversationSetup>
           <ChatScrollButton />
         </ChatConversation>
+        <ReceiptAnnouncer receipts={receipts} />
       </main>
 
       <div className="shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6" ref={composerRef}>
@@ -355,6 +409,11 @@ export function HostWorkspace() {
       </div>
     </div>
   );
+}
+
+// Gives the receipts in the history and the open card the same setup controller.
+function ConversationSetup({ children, value }: { readonly children: ReactNode; readonly value: SetupContextValue | null }) {
+  return value ? <SetupProvider value={value}>{children}</SetupProvider> : children;
 }
 
 function ErrorNotice({ message, onDismiss }: { readonly message: string; readonly onDismiss: () => void }) {
