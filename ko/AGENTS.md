@@ -163,6 +163,7 @@ Not-tested: <known gaps in verification>
 - `supabase`: Supabase CLI, Auth, 데이터베이스, Storage, Realtime, Edge Functions. 문서는 [supabase.com/llms.txt](https://supabase.com/llms.txt) 색인에서 찾기 시작하며, 색인에 나온 각 페이지는 Markdown으로 가져올 수 있습니다.
 - `supabase-postgres-best-practices`: Postgres 스키마, 쿼리, 인덱스, RLS.
 - `shadcn`: shadcn/ui 컴포넌트와 설정. 팀이 shadcn/ui를 채택한 경우에 적용합니다.
+- `motion`: Motion과 CSS 애니메이션(모범 사례, 문서 검색, CSS 스프링, 성능 감사). Motion AI Kit(`npx motion-ai`, 프로젝트 범위, Claude Code와 Codex)으로 설치했습니다. Claude Code는 `.claude/skills/motion/`의 사본과 `.claude/agents/`의 `motion-reviewer` 에이전트를 사용합니다. 두 에이전트 모두 `.mcp.json`과 `.codex/config.toml`에서 Motion의 호스팅 MCP 서버(`motion`, `motion-plus`)를 받으며, Motion+ 기능은 각자 자신의 에이전트에서 로그인해야 합니다. 업데이트하려면 설치 프로그램을 다시 실행하며, 이 파일들을 덮어씁니다.
 - `openspec-*`: 동작 변경을 탐색, 제안, 적용, 보관하기 위해 생성된 핵심 워크플로.
 
 ## Supabase 스키마 변경
