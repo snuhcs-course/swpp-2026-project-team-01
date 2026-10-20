@@ -1,0 +1,23 @@
+{
+  "branch": "docs/host-imessage-linking",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:819f14f7-0396-466f-9fd8-05697dd290de": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 496453,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 76,
+          "cache_read": 6275563,
+          "cache_write_5m": 0,
+          "cache_write_1h": 92992,
+          "output": 44071,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-20T13:08:48.241Z",
+      "last": "2026-10-20T14:28:38.086Z"
+    }
+  }
+}
