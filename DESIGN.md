@@ -152,6 +152,7 @@ Default to flat surfaces and 1px lines. Paper texture supplies the material char
 | Assistant message | Open reading layout, dark text, Thyme speaker label; no decorative paper effects |
 | User message | Subtle surface distinction and actor label; keep long content readable |
 | Proposal card | Compact heading and structured details, prominent current action, visible status text |
+| Conversation card | One open at a time, after the latest message; once answered it collapses into a one-line receipt (value, source badge, **Edit**) that stays in the history; one question as a 16px heading, the proposed value with its source badge, one short reason, then actions; 16px horizontal and 12px vertical padding; fits a phone viewport above the composer, with long editors scrolling inside the card ([one thing at a time](documentations/03_design_principles.md#4-one-thing-to-think-about-at-once)) |
 | Status badge | Short explicit state label, restrained tint, optional icon; never color alone |
 | Empty state | One clear explanation and next action; optional small botanical illustration |
 | Dialog | Smooth paper surface, accessible title, clear action order, preserved focus behavior |

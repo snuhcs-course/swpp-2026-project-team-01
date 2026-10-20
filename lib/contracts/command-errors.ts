@@ -13,8 +13,15 @@ export const COMMAND_ERROR_MESSAGES = {
 
 export type CommandErrorCategory = keyof typeof COMMAND_ERROR_MESSAGES;
 
+// A fixed, audience-safe refinement of a category, for a failure the caller can
+// act on differently: the booking destination can no longer take events, so the
+// host must choose a writable one.
+export const COMMAND_ERROR_REASONS = ["destination_not_writable"] as const;
+export type CommandErrorReason = (typeof COMMAND_ERROR_REASONS)[number];
+
 export type CommandFailure = {
   readonly category: CommandErrorCategory;
   readonly correlationId: string;
   readonly message: string;
+  readonly reason?: CommandErrorReason;
 };

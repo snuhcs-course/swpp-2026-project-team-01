@@ -29,7 +29,7 @@ async function Workspace({ searchParams }: { readonly searchParams: SearchParams
 
   if (!standing || standing.nextAction === "sign_in") {
     const { sign_in: signIn } = await searchParams;
-    return <SignInCard failed={signIn === "failed"} />;
+    return <SignInCard notice={signIn === "failed" || signIn === "limited" ? signIn : null} />;
   }
 
   if (!standing.eligible) {

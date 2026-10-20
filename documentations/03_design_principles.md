@@ -65,6 +65,17 @@ The [CLI direction](technical_specification/05_cli.md) defines the future user a
 
 Final executable names, packaging/distribution, the complete command inventories, and administrator authentication are implementation decisions still to be specified. This document establishes the two-CLI direction without inventing commands or asserting unverified support.
 
+## 4. One thing to think about at once
+
+Never make the user think too much. Each moment asks for one decision, and the next appears only after it is settled.
+
+1. Keep one artifact, card or question open at a time, after the latest message. Do not stack several open cards for the user to scan, compare or scroll between.
+2. Keep each artifact small: one question as its heading, the proposed answer with its source, one short reason, and the actions. It should fit in a phone viewport above the composer; long editors scroll inside their card.
+3. Put the evidence a decision needs inside that decision's artifact, and keep anything else behind a collapsed disclosure.
+4. Leave each answered card in the conversation as a one-line receipt with its value, its source and **Edit**, so earlier answers stay visible in context. **Edit** asks the question again at the bottom rather than reopening the old card. A final review gathers every answer in one compact list.
+
+Added 2026-10-20 after the first hosted onboarding test, where several large cards at once made setup hard to follow.
+
 ## Applying the principles
 
 For each feature, review:
@@ -72,6 +83,7 @@ For each feature, review:
 - Can the user ask the agent to perform the action, and is every exception explicit?
 - Does the agent offer a useful suggestion before requiring manual configuration?
 - Can chat acceptance and interactive controls reach the same authorized outcome while preserving required confirmations?
+- Does each moment ask the user for only one thing, with a small artifact that fits the screen?
 - Does the capability belong in the user CLI, the administrator CLI, or both with distinct authorization?
 
 Track gaps through bounded OpenSpec changes. Keep the owning capability specifications aligned as those changes are implemented and verified.

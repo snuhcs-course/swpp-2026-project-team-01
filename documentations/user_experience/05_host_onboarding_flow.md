@@ -59,7 +59,7 @@ The server derives the state from durable records on every load; the browser nev
 | H10 Links | Agent chat or share-links card | Receives `findmeatime.com/{handle}` and the skill document link | Links are issued only from server-confirmed readiness | Done | Before readiness, no booking link is shown or returned |
 | H11 Optional iMessage link | Inline channel card | **Connect iMessage** or **Maybe later**; sees the line number and a one-time link code with **Copy**, taps **Open Messages** to land in the Messages app with the code already in the input and sends it from their own iMessage (or pastes the copied text), then **Confirm and link** on the masked sender; or **Send me a code instead** to receive a six-digit code and type it in the same browser | The channel consumes the inbound link message before any model turn and matches it to the pending link request bound to this session; the fallback code field posts directly to the server. Neither code enters the transcript or model context. The binding is created only after browser confirmation and can be unlinked later | Linked, skipped or deferred | Wrong, expired or foreign-sender codes and delivery failures leave web setup available; the fallback consumes one of the line's daily new conversations; this delta is proposed and unverified on real devices |
 
-Steps H4 to H9 run inside one conversation. The agent leads with a suggested answer where it safely can and asks one focused question only for an unresolved detail. Precise edits open labeled in-chat editors that restore focus when closed.
+Steps H4 to H9 run inside one conversation, one small card at a time: only the current step's card is open, after the latest message; each answered card stays in the conversation as a one-line receipt with **Edit**, which asks that question again at the bottom; and the review gathers every answer at the end ([one thing to think about at once](../03_design_principles.md#4-one-thing-to-think-about-at-once)). The agent leads with a suggested answer where it safely can and asks one focused question only for an unresolved detail. Precise edits open labeled in-chat editors that restore focus when closed.
 
 ## What is recorded
 
@@ -153,4 +153,6 @@ PRD references: FR-01 to FR-04, FR-18, FR-26, FR-31, FR-33, FR-35; AC-09, AC-17,
 
 ## Open decisions
 
-Handle assignment rules and the numeric sign-up and handle-change limits (host-accounts change design); starter default values for windows, duration and buffers; the retention period of analysis evidence; the host-sent link code delta, with the service-sent code fallback, and its device acceptance; CLI login for terminal-based agents.
+Settled on 2026-10-19 in the [`host-onboarding` design](../../openspec/changes/host-onboarding/design.md): handle assignment rules, the reserved list and the numeric sign-up and handle-change limits; starter default values for windows, duration and buffers; supported travel modes; a 24-hour retention period for analysis evidence.
+
+Still open: the host-sent link code delta, with the service-sent code fallback, and its device acceptance (Phase 6); CLI login for terminal-based agents (Phase 5).

@@ -20,6 +20,7 @@ import {
   localAuthConfig,
   startFakeTokenInfo,
   startGoogleSignIn,
+  UNBOUNDED_SIGN_UPS,
 } from "./support/auth";
 import { testDatabase } from "./support/database";
 
@@ -37,6 +38,7 @@ beforeAll(async () => {
     auth: localAuthConfig(),
     db,
     fetchGrantedScopes: createGrantedScopesFetcher(tokenInfo.url),
+    signUpLimits: UNBOUNDED_SIGN_UPS,
     tokenKey: parseTokenKey(randomBytes(32).toString("base64")),
   };
 });

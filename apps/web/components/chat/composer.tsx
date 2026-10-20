@@ -10,7 +10,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { Button } from "@/components/ui/button";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getChatMessageLength, MAX_CHAT_MESSAGE_CHARS } from "@lib/contracts/chat-message";
 import { cn } from "@/lib/utils";
@@ -88,70 +88,70 @@ export function ChatComposer({
     [submitValue],
   );
 
+  // The shadcn/ui Prompt Input pattern: an Input Group with the textarea and a
+  // send button in its block-end addon. Enter sends; Shift+Enter adds a line.
   const form = (
-    <form
-      className={cn(
-        "min-w-0 rounded-xl border border-input bg-card transition-colors",
-        className,
-      )}
-      data-chat-composer
-      onSubmit={handleSubmit}
-    >
+    <form className={cn("min-w-0", className)} onSubmit={handleSubmit}>
       <label className="sr-only" htmlFor={composerId}>
         Message Thyme
       </label>
-      <textarea
-        autoFocus={autoFocus}
-        className="max-h-32 min-h-12 w-full resize-none bg-transparent px-3 pt-3 pb-1 text-base leading-6 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
-        data-chat-composer-input
-        disabled={textareaDisabled}
-        id={composerId}
-        maxLength={maxLength}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        ref={textareaRef}
-        rows={2}
-        value={value}
-      />
-      <div className="flex min-h-9 items-center justify-between gap-2 px-3 pt-1 pb-2 sm:gap-3 sm:px-4">
-        <div className="-ml-2 flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-          {footerStart ?? <span className="block h-8" />}
-        </div>
-        <div className="flex shrink-0 items-center">
+      <InputGroup
+        className="rounded-xl bg-card shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0"
+        data-chat-composer
+        data-disabled={textareaDisabled || undefined}
+      >
+        <InputGroupTextarea
+          autoFocus={autoFocus}
+          className="max-h-32 min-h-12 px-3 pt-3 pb-1 leading-6 outline-none focus-visible:outline-none disabled:opacity-60 sm:px-4 md:text-base"
+          data-chat-composer-input
+          disabled={textareaDisabled}
+          id={composerId}
+          maxLength={maxLength}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          ref={textareaRef}
+          rows={2}
+          value={value}
+        />
+        <InputGroupAddon align="block-end" className="cursor-default justify-between gap-2 pt-1 pb-2 sm:px-4">
+          <div className="-ml-2 flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+            {footerStart ?? <span className="block h-8" />}
+          </div>
           {isBusy ? (
-            <Button
+            <InputGroupButton
               aria-label="Response in progress"
-              className="size-11 cursor-default rounded-lg bg-secondary text-muted-foreground shadow-none hover:bg-secondary disabled:cursor-default disabled:pointer-events-auto disabled:opacity-100"
+              className="size-11 cursor-default rounded-full bg-secondary text-muted-foreground hover:bg-secondary disabled:pointer-events-auto disabled:cursor-default disabled:opacity-100"
               disabled
-              size="icon"
-              type="button"
+              size="icon-sm"
+              variant="secondary"
             >
               <SquareIcon className="size-3 fill-current" />
-            </Button>
+            </InputGroupButton>
           ) : isPreparing ? (
-            <Button
+            <InputGroupButton
               aria-label="Preparing chat"
-              className="size-11 rounded-lg bg-secondary text-muted-foreground"
+              className="size-11 rounded-full bg-secondary text-muted-foreground"
               disabled
-              size="icon"
-              type="button"
+              size="icon-sm"
+              variant="secondary"
             >
               <Loader2Icon className="size-4 animate-spin" />
-            </Button>
+            </InputGroupButton>
           ) : (
-            <Button
+            <InputGroupButton
               aria-label="Send message"
-              className="size-11 cursor-pointer rounded-lg bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-pressed disabled:cursor-not-allowed disabled:pointer-events-auto disabled:opacity-40"
+              className="size-11 rounded-full disabled:pointer-events-auto disabled:opacity-40"
               disabled={disabled || trimmedValue.length === 0 || isOverMaxLength}
-              size="icon"
+              size="icon-sm"
               type="submit"
+              variant="default"
             >
               <ArrowUpIcon className="size-5" />
-            </Button>
+            </InputGroupButton>
           )}
-        </div>
-      </div>
+        </InputGroupAddon>
+      </InputGroup>
     </form>
   );
 

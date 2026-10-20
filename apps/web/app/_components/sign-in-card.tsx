@@ -1,5 +1,19 @@
+export type SignInNotice = "failed" | "limited" | null;
+
+const NOTICES: Readonly<Record<Exclude<SignInNotice, null>, string>> = {
+  failed: "Sign-in did not complete. Try again.",
+  limited: "New sign-ups are temporarily limited. Try again later; existing hosts can still sign in.",
+};
+
 // Google is the only sign-in method (chat-workspaces: Google-only MVP host login).
-export function SignInCard({ failed = false, heading = "h1" }: { readonly failed?: boolean; readonly heading?: "h1" | "h2" }) {
+// The notice reports why the last sign-in returned without a session.
+export function SignInCard({
+  heading = "h1",
+  notice = null,
+}: {
+  readonly heading?: "h1" | "h2";
+  readonly notice?: SignInNotice;
+}) {
   const Heading = heading;
 
   return (
@@ -8,9 +22,9 @@ export function SignInCard({ failed = false, heading = "h1" }: { readonly failed
         <Heading className="font-display text-3xl">Find Me a Time</Heading>
         <p className="mt-2 text-muted-foreground">Sign in to set up how people book time with you.</p>
       </div>
-      {failed ? (
-        <p className="text-destructive" role="alert">
-          Sign-in did not complete. Try again.
+      {notice ? (
+        <p className={notice === "limited" ? "text-warning" : "text-destructive"} role="alert">
+          {NOTICES[notice]}
         </p>
       ) : null}
       <a

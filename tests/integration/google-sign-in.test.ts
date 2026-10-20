@@ -16,6 +16,7 @@ import {
   sessionCookies,
   startFakeTokenInfo,
   startGoogleSignIn,
+  UNBOUNDED_SIGN_UPS,
 } from "./support/auth";
 import { testDatabase } from "./support/database";
 
@@ -33,6 +34,7 @@ beforeAll(async () => {
     auth: localAuthConfig(),
     db,
     fetchGrantedScopes: createGrantedScopesFetcher(tokenInfo.url),
+    signUpLimits: UNBOUNDED_SIGN_UPS,
     tokenKey: parseTokenKey(randomBytes(32).toString("base64")),
   };
   signIn = createGoogleSignInHandler(() => deps);
@@ -226,5 +228,73 @@ describe("Google sign-in on more than one origin", () => {
         expect(response.headers.get("location")).toBeNull();
       }
     }
+  });
+});
+
+describe("renewed Calendar consent", () => {
+  async function googleUrl(path: string) {
+    const response = await signIn(new Request(`${origin}${path}`));
+    const authorize = await fetch(response.headers.get("location")!, { redirect: "manual" });
+    return new URL(authorize.headers.get("location")!);
+  }
+
+  it("asks Google to show consent again and keep earlier grants for ?consent=calendar", async () => {
+    const google = await googleUrl("/auth/sign-in?consent=calendar");
+
+    expect(google.origin).toBe("https://accounts.google.com");
+    expect(google.searchParams.get("prompt")).toBe("consent");
+    expect(google.searchParams.get("include_granted_scopes")).toBe("true");
+    expect(google.searchParams.get("access_type")).toBe("offline");
+    expect(google.searchParams.get("scope")!.split(" ")).toEqual(expect.arrayContaining([...GOOGLE_CALENDAR_SCOPES]));
+  });
+
+  it("ignores any other consent value", async () => {
+    for (const path of ["/auth/sign-in", "/auth/sign-in?consent=other", "/auth/sign-in?consent=CALENDAR"]) {
+      const google = await googleUrl(path);
+
+      expect(google.searchParams.get("prompt")).toBeNull();
+      expect(google.searchParams.get("include_granted_scopes")).toBeNull();
+      expect(google.searchParams.get("access_type")).toBe("offline");
+    }
+  });
+});
+
+describe("display name from the Google profile", () => {
+  async function signInWithProfile(userId: string, metadata: Record<string, string>) {
+    await db`update auth.users set raw_user_meta_data = ${db.json(metadata)} where id = ${userId}`;
+    const flow = await startGoogleSignIn(signIn, origin);
+    const code = await completeGoogleLeg(db, flow.codeChallenge, userId, { accessToken: `ya29.${randomUUID()}`, refreshToken: null });
+    return callback(new Request(`${origin}/auth/callback?code=${code}`, { headers: { cookie: flow.cookie } }));
+  }
+
+  async function displayNameOf(googleSubject: string) {
+    const [row] = await db<{ display_name: string | null }[]>`
+      select a.display_name
+      from app.google_identities i join app.host_accounts a on a.id = i.host_account_id
+      where i.google_subject = ${googleSubject}
+    `;
+    return row?.display_name;
+  }
+
+  it("fills it on sign-in without control characters and refreshes it on the next sign-in", async () => {
+    const user = await createGoogleUser(db);
+
+    await signInWithProfile(user.userId, { full_name: "  Ada\u0007 Lovelace\n " });
+    expect(await displayNameOf(user.googleSubject)).toBe("Ada Lovelace");
+
+    await signInWithProfile(user.userId, { name: `Countess ${"x".repeat(300)}` });
+    expect(await displayNameOf(user.googleSubject)).toBe(`Countess ${"x".repeat(191)}`);
+  });
+
+  it("leaves a suspended account's name unchanged", async () => {
+    const user = await createGoogleUser(db);
+    await signInWithProfile(user.userId, { full_name: "Before" });
+    await db`
+      update app.host_accounts set status = 'suspended'
+      where id = (select host_account_id from app.google_identities where google_subject = ${user.googleSubject})
+    `;
+
+    await signInWithProfile(user.userId, { full_name: "After" });
+    expect(await displayNameOf(user.googleSubject)).toBe("Before");
   });
 });
