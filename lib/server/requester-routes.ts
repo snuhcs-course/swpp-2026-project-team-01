@@ -344,7 +344,7 @@ function registered<Input, Result>(command: CommandDefinition<Input, Result>): [
 export function requesterCommands(
   deps: Pick<RequesterRouteDependencies, "appOrigin" | "confirmationLimits" | "tokenKey">,
 ): Readonly<Record<string, RequesterCommand>> {
-  const contact = { origin: deps.appOrigin, tokenKey: deps.tokenKey() };
+  const contact = { limits: deps.confirmationLimits, origin: deps.appOrigin, tokenKey: deps.tokenKey() };
 
   return Object.fromEntries([
     registered(applyReviewCommand(contact)),
@@ -357,8 +357,8 @@ export function requesterCommands(
     registered(withdrawRequestCommand),
     registered(useGoogleEmailCommand),
     registered(disconnectCalendarCommand),
-    registered(selectCalendarsCommand),
-    registered(resendConfirmationCommand({ limits: deps.confirmationLimits, ...contact })),
+    registered(selectCalendarsCommand({ tokenKey: contact.tokenKey })),
+    registered(resendConfirmationCommand(contact)),
   ]);
 }
 

@@ -235,25 +235,42 @@ export const disconnectCalendarCommand: CommandDefinition<Record<string, never>,
 
 const selectionInput = z.object({ calendarIds: z.array(z.string().min(1).max(1024)).min(1).max(20) }).strict();
 
-// The calendars whose busy times count for this request. Only IDs from the
-// requester's own calendar list are offered by the card; the evaluation reads
-// whatever is stored here with the request's own grant.
-export const selectCalendarsCommand: CommandDefinition<z.infer<typeof selectionInput>, { calendarIds: string[] }> = {
-  input: selectionInput,
-  operation: "calendar.select",
-  async run(tx, context) {
-    const requestId = requireRequester(context);
-    await lockOpenRequest(tx, requestId);
-    const calendarIds = [...new Set(context.input.calendarIds)];
-    const updated = await tx`
-      update app.requester_grants set calendar_ids = ${calendarIds}, updated_at = now()
-      where request_id = ${requestId} and kind = 'calendar' and revoked_at is null
-    `;
+// The calendars whose busy times count for this request. Every ID must be on the
+// requester's live calendar list, read with the request's own grant (`primary`
+// names the primary calendar); an unknown ID, or a list that cannot be read,
+// rejects the choice.
+export function selectCalendarsCommand(options: {
+  readonly tokenKey: TokenKey;
+  readonly config?: () => GoogleCalendarConfig;
+}): CommandDefinition<z.infer<typeof selectionInput>, { calendarIds: string[] }> {
+  return {
+    input: selectionInput,
+    operation: "calendar.select",
+    async run(tx, context) {
+      const requestId = requireRequester(context);
+      await lockOpenRequest(tx, requestId);
+      const calendarIds = [...new Set(context.input.calendarIds)];
+      const listed = await listRequesterCalendars(
+        tx,
+        [options.tokenKey],
+        requestId,
+        (options.config ?? requesterCalendarConfigFromEnvironment)(),
+      );
+      const known = new Set(listed?.map((calendar) => calendar.id));
 
-    if (updated.count === 0) throw new CommandError("invalid_input");
-    return { calendarIds };
-  },
-};
+      if (listed?.some((calendar) => calendar.primary)) known.add("primary");
+      if (calendarIds.some((id) => !known.has(id))) throw new CommandError("invalid_input");
+
+      const updated = await tx`
+        update app.requester_grants set calendar_ids = ${calendarIds}, updated_at = now()
+        where request_id = ${requestId} and kind = 'calendar' and revoked_at is null
+      `;
+
+      if (updated.count === 0) throw new CommandError("invalid_input");
+      return { calendarIds };
+    },
+  };
+}
 
 export type RequesterCalendarOption = {
   readonly id: string;

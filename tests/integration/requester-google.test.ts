@@ -175,14 +175,19 @@ describe("Continue with Google from the public page", () => {
           { id: "side@example.test", primary: false, selected: false, summary: "Side project" },
         ],
       });
+
+      // Only IDs on the requester's own calendar list are accepted.
+      const unknown = await command(bookingId, "calendar.select", { calendarIds: ["side@example.test", "someone-else@example.test"] });
+      expect(unknown.status).toBe(400);
+      expect((await grants(request!.id))[0]!.calendar_ids).toEqual([]);
+
+      const chosen = await command(bookingId, "calendar.select", { calendarIds: ["side@example.test"] });
+      expect(chosen.status).toBe(200);
+      expect((await grants(request!.id))[0]!.calendar_ids).toEqual(["side@example.test"]);
     } finally {
       process.env.GOOGLE_CALENDAR_API_URL = previous;
       process.env.GOOGLE_OAUTH_TOKEN_URL = previousToken;
     }
-
-    const chosen = await command(bookingId, "calendar.select", { calendarIds: ["side@example.test"] });
-    expect(chosen.status).toBe(200);
-    expect((await grants(request!.id))[0]!.calendar_ids).toEqual(["side@example.test"]);
 
     // The creation email goes out without a confirmation link.
     const [confirmations] = await db<{ count: number }[]>`
