@@ -25,6 +25,7 @@ import {
   type GuestPrincipal,
   guestConversationStatus,
   guestDiscussionEvents,
+  recoverGuestDiscussion,
 } from "./guest-conversations";
 import { IntakeLimitError } from "./intakes";
 import { internalSigningKey } from "./internal-bearer";
@@ -298,6 +299,34 @@ export function createIntakeTranscriptHandler(load: () => RequesterRouteDependen
     const url = new URL(request.url);
     url.searchParams.delete("follow");
     return guestEventsResponse(deps, { id: intake.id, type: "public_intake" }, new Request(url, { signal: request.signal }));
+  };
+}
+
+const recoverBody = z.object({ observedGeneration: z.number().int().positive() });
+
+// POST /api/requests/{bookingId}/recover: **Recover conversation**, explicit
+// terminal recovery of the observed generation, as the host workspace has.
+export function createRequesterRecoverHandler(load: () => RequesterRouteDependencies = requesterRouteDependenciesFromEnvironment) {
+  return async (request: Request, context: Context) => {
+    const deps = load();
+    const refused = crossSiteRefusal(request, deps, { json: true });
+
+    if (refused) return refused;
+
+    const principal = await openRequester(deps.db, (await context.params).bookingId);
+
+    if (!principal) return requestUnavailable();
+
+    const body = recoverBody.safeParse(await request.json().catch(() => null));
+
+    if (!body.success) return requesterJson({ code: "invalid_request", error: "Name the generation to recover." }, 400);
+
+    try {
+      const outcome = await recoverGuestDiscussion(deps, principal, body.data.observedGeneration);
+      return requesterJson(outcome, { not_failed: 409, recovered: 200, stale: 409, unavailable: 503 }[outcome.status]);
+    } catch (error) {
+      return guestError(error);
+    }
   };
 }
 

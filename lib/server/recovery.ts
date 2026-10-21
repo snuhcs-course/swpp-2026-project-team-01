@@ -307,7 +307,7 @@ async function inspect(runtime: ConversationDependencies["runtime"], sessionId: 
   }
 }
 
-function hasTerminalEvidence(events: readonly MessageStreamEvent[]) {
+export function hasTerminalEvidence(events: readonly MessageStreamEvent[]) {
   return events.some(
     (event) =>
       event.type === "session.failed" ||
@@ -315,11 +315,11 @@ function hasTerminalEvidence(events: readonly MessageStreamEvent[]) {
   );
 }
 
-type Settled =
+export type Settled =
   | { readonly status: "recovered"; readonly generation: number }
   | Exclude<RecoveryOutcome, { readonly status: "recovered" }>;
 
-function settled(latest: SessionRow | null, observedGeneration: number): Settled | null {
+export function settled(latest: SessionRow | null, observedGeneration: number): Settled | null {
   if (!latest) return { generation: null, status: "stale" };
   if (latest.generation === observedGeneration + 1) return { generation: latest.generation, status: "recovered" };
   if (latest.generation !== observedGeneration) return { generation: latest.generation, status: "stale" };

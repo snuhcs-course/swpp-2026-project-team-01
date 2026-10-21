@@ -110,16 +110,16 @@
       "agent_ms": 0,
       "models": {
         "claude-opus-5-5": {
-          "input": 278,
-          "cache_read": 47467817,
-          "cache_write_5m": 468399,
+          "input": 298,
+          "cache_read": 52549445,
+          "cache_write_5m": 481865,
           "cache_write_1h": 0,
-          "output": 12861,
+          "output": 14484,
           "reasoning": 0
         }
       },
       "first": "2026-10-21T12:52:38.912Z",
-      "last": "2026-10-21T13:25:08.024Z"
+      "last": "2026-10-21T13:27:25.004Z"
     }
   }
 }

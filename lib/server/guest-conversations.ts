@@ -15,7 +15,15 @@ import type { Queryable, Transaction } from "./database";
 import { INTAKE_LIMITS, IntakeLimitError } from "./intakes";
 import { signInternalBearer } from "./internal-bearer";
 import { sessionIdHash } from "./model-limits";
-import { type ConversationStatus, eventsOfDiscussion } from "./recovery";
+import type { MessageStreamEvent } from "eve/client";
+import {
+  type ConversationStatus,
+  eventsOfDiscussion,
+  hasTerminalEvidence,
+  type RecoveryOutcome,
+  type Settled,
+  settled,
+} from "./recovery";
 import { sameProtectedInput, protectInput } from "./redaction";
 
 // The application side of a requester's and an anonymous intake's conversation,
@@ -251,4 +259,119 @@ export async function* guestDiscussionEvents(
     cursor,
     options,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Recovery
+
+// POST /api/requests/{bookingId}/recover: the requester's counterpart of the
+// host workspace's recovery (recovery.ts, recoverDiscussion). It replaces a
+// generation whose recorded stream shows a terminal failure with at most one
+// successor for the same discussion, keeping its history and continuing its
+// unfinished input; the recovery identity is the discussion and the observed
+// generation, so an exact retry returns the transition's status. The failed
+// session is read with an internal read bearer, since the browser holds no
+// credential the agent could check.
+export async function recoverGuestDiscussion(
+  deps: ConversationDependencies,
+  principal: GuestPrincipal,
+  observedGeneration: number,
+  options: { readonly inspectTimeoutMs?: number } = {},
+): Promise<RecoveryOutcome> {
+  const discussionId = await findGuestDiscussion(deps.db, principal);
+  const observed = discussionId ? await latestSession(deps.db, discussionId) : null;
+
+  const answer = async (outcome: Settled): Promise<RecoveryOutcome> => {
+    if (outcome.status !== "recovered") return outcome;
+
+    try {
+      await deliverNext(deps, principal, discussionId!);
+    } catch {
+      // Left accepted for the next retry.
+    }
+
+    const [inFlight] = await deps.db<{ found: boolean }[]>`
+      select true as found from app.conversation_inputs i
+      join app.agent_sessions s on s.session_id = i.session_id and s.state = 'active'
+      where i.discussion_id = ${discussionId!} and i.state = 'sent'
+      limit 1
+    `;
+    return { ...outcome, delivered: Boolean(inFlight) };
+  };
+
+  const early = settled(observed, observedGeneration);
+  if (early) return answer(early);
+
+  let recorded: MessageStreamEvent[];
+
+  try {
+    const bearer = signInternalBearer(
+      { discussionId: discussionId!, generation: observed!.generation, kind: "read", principal, sessionId: observed!.session_id },
+      deps.signingKey,
+    );
+    recorded = [];
+    for await (const event of deps.runtime.readRecordedEvents(
+      observed!.session_id,
+      bearer,
+      AbortSignal.timeout(options.inspectTimeoutMs ?? 10_000),
+    )) {
+      recorded.push(event);
+    }
+  } catch {
+    return { status: "unavailable" };
+  }
+
+  if (!hasTerminalEvidence(recorded)) return { status: "not_failed" };
+
+  const generation = observedGeneration + 1;
+  let successorId: string;
+
+  try {
+    successorId = await deps.runtime.createSession(
+      signInternalBearer({ discussionId: discussionId!, generation, kind: "create", principal }, deps.signingKey),
+    );
+  } catch (error) {
+    const decided = settled(await latestSession(deps.db, discussionId!), observedGeneration);
+    if (!decided) throw error;
+    return answer(decided);
+  }
+
+  const transition = await withPrincipalAuthority(deps.db, principal, async (tx): Promise<Settled> => {
+    await lockGuestDiscussion(tx, principal);
+    const latest = await latestSession(tx, discussionId!);
+    const decided = settled(latest, observedGeneration);
+
+    if (decided) return decided;
+    if (latest!.session_id !== observed!.session_id) return { status: "not_failed" };
+
+    if (recorded.length > 0) {
+      await tx`
+        insert into app.agent_session_events (session_id, stream_index, event)
+        select ${observed!.session_id}, e.ordinality - 1, e.value
+        from jsonb_array_elements(${tx.json(recorded as never)}::jsonb) with ordinality as e(value, ordinality)
+      `;
+    }
+
+    await tx`
+      update app.agent_sessions
+      set state = 'retired', last_stream_index = ${recorded.length}, current_input_id = null, updated_at = now()
+      where session_id = ${observed!.session_id}
+    `;
+    await tx`
+      insert into app.agent_sessions
+        (session_id, session_id_hash, discussion_id, principal_type, principal_id, generation, agent_version)
+      values
+        (${successorId}, ${sessionIdHash(successorId)}, ${discussionId!}, ${principal.type}, ${principal.id}, ${generation},
+         ${AGENT_VERSION})
+    `;
+    await tx`
+      update app.conversation_inputs
+      set state = 'accepted', session_id = null, sent_at = null, received_session_id = null
+      where discussion_id = ${discussionId!} and state <> 'completed'
+    `;
+
+    return { generation, status: "recovered" };
+  });
+
+  return answer(transition);
 }

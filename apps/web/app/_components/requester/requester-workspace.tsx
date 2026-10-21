@@ -78,6 +78,14 @@ export function RequesterWorkspace({ bookingId, initial }: { readonly bookingId:
         card={<RequesterCards context={cards} />}
         client={client}
         composerFooter={<TimezoneLine onChoose={timezone.choose} zone={timezone.zone} />}
+        onRecover={async (generation) => {
+          const response = await fetch(`/api/requests/${bookingId}/recover`, {
+            body: JSON.stringify({ observedGeneration: generation }),
+            headers: { "content-type": "application/json" },
+            method: "POST",
+          });
+          return (await response.json()) as { status: string; delivered?: boolean };
+        }}
         onSettled={() => void refresh()}
       />
     </div>

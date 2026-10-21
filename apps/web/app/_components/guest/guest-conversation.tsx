@@ -74,6 +74,7 @@ export function GuestConversation({
   extra,
   onAccepted,
   onError,
+  onRecover,
   onSettled,
   placeholder = "Message Thyme",
 }: {
@@ -91,6 +92,9 @@ export function GuestConversation({
   // A message the service accepted; the intake page keeps its new token.
   readonly onAccepted?: (outcome: { intakeToken?: string }) => void;
   readonly onError?: (error: unknown) => void;
+  // **Recover conversation** for a generation that stopped with a terminal
+  // failure; absent where the page offers no recovery.
+  readonly onRecover?: (generation: number) => Promise<{ readonly status: string; readonly delivered?: boolean }>;
   // A followed turn settled: the cards' records may have changed.
   readonly onSettled?: () => void;
   readonly placeholder?: string;
@@ -223,6 +227,24 @@ export function GuestConversation({
   const thinking =
     (phase === "sending" || phase === "streaming") && (pendingText !== null || openTurn) && !isWritingText(lastMessage);
   const failed = status?.state === "failed";
+  const [recovering, setRecovering] = useState(false);
+
+  const recover = useCallback(async () => {
+    if (!onRecover || status?.generation == null) return;
+    setRecovering(true);
+    setError(null);
+
+    try {
+      const outcome = await onRecover(status.generation);
+      setStatus(await client.readStatus());
+      if (outcome.status === "recovered" && outcome.delivered) await follow();
+      else if (outcome.status !== "recovered" && outcome.status !== "stale") setError("The conversation could not be recovered yet. Try again in a moment.");
+    } catch {
+      setError("The conversation could not be recovered yet. Try again in a moment.");
+    } finally {
+      setRecovering(false);
+    }
+  }, [client, follow, onRecover, status]);
 
   return (
     <>
@@ -258,9 +280,14 @@ export function GuestConversation({
               </ChatItem>
             ) : null}
             {failed ? (
-              <p className="px-3 text-sm text-muted-foreground" role="status">
-                Thyme stopped responding in this conversation. Your messages are kept; the cards below still work.
-              </p>
+              <div className="flex flex-wrap items-center gap-2 px-3 text-sm text-muted-foreground" role="status">
+                <p>Thyme stopped responding in this conversation. Your messages are kept; the cards below still work.</p>
+                {onRecover ? (
+                  <Button className="min-h-11" disabled={recovering} onClick={() => void recover()} type="button" variant="outline">
+                    {recovering ? "Recovering..." : "Recover conversation"}
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
             {thinking ? (
               <ChatItem messageId="thinking">
