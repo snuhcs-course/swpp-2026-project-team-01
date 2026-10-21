@@ -95,4 +95,16 @@ describe("requesterCalendarConfigFromEnvironment", () => {
       tokenUrl: "https://oauth2.googleapis.com/token",
     });
   });
+
+  it("falls back to the host sign-in client when the requester client is unset", () => {
+    const host = { GOOGLE_CLIENT_ID: "host-client", GOOGLE_CLIENT_SECRET: "host-secret" };
+
+    for (const requester of [{}, { GOOGLE_REQUESTER_CLIENT_ID: " ", GOOGLE_REQUESTER_CLIENT_SECRET: "" }]) {
+      expect(requesterCalendarConfigFromEnvironment({ ...host, ...requester })).toMatchObject({
+        clientId: "host-client",
+        clientSecret: "host-secret",
+      });
+    }
+    expect(requesterCalendarConfigFromEnvironment({})).toMatchObject({ clientId: "", clientSecret: "" });
+  });
 });

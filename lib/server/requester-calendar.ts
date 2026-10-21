@@ -13,7 +13,8 @@ import { openToken, type TokenKey } from "./token-encryption";
 // A requester's Google Calendar, read only inside an evaluation of its own request
 // (requester-calendar-access: private read-only Calendar access). The refresh
 // token is the request's live calendar grant, sealed under requester_grant:{id},
-// and is exchanged with the requester OAuth client, separate from host sign-in.
+// and is exchanged with the requester OAuth client (the host sign-in client unless
+// GOOGLE_REQUESTER_CLIENT_ID/SECRET name another).
 // Event contents stay in the evaluation's memory: the caller derives busy
 // intervals and adjacent places and stores neither.
 
@@ -26,15 +27,16 @@ const EVENTS_SCOPE = REQUESTER_CALENDAR_SCOPES[1];
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
-// The same stand-in variables as the host client: GOOGLE_OAUTH_TOKEN_URL and
+// GOOGLE_REQUESTER_CLIENT_ID/SECRET, falling back to GOOGLE_CLIENT_ID/SECRET, and
+// the same stand-in variables as the host client: GOOGLE_OAUTH_TOKEN_URL and
 // GOOGLE_CALENDAR_API_URL, ignored on production.
 export function requesterCalendarConfigFromEnvironment(env: Environment = process.env): GoogleCalendarConfig {
   const overridable = deploymentEnvironment(env) !== "production";
 
   return {
     apiBaseUrl: (overridable && env.GOOGLE_CALENDAR_API_URL?.trim()) || GOOGLE_CALENDAR_API_URL,
-    clientId: env.GOOGLE_REQUESTER_CLIENT_ID?.trim() ?? "",
-    clientSecret: env.GOOGLE_REQUESTER_CLIENT_SECRET?.trim() ?? "",
+    clientId: (env.GOOGLE_REQUESTER_CLIENT_ID?.trim() || env.GOOGLE_CLIENT_ID?.trim()) ?? "",
+    clientSecret: (env.GOOGLE_REQUESTER_CLIENT_SECRET?.trim() || env.GOOGLE_CLIENT_SECRET?.trim()) ?? "",
     timeoutMs: GOOGLE_REQUEST_TIMEOUT_MS,
     tokenUrl: (overridable && env.GOOGLE_OAUTH_TOKEN_URL?.trim()) || GOOGLE_OAUTH_TOKEN_URL,
   };
@@ -101,7 +103,7 @@ export class RequesterCalendarUnavailableError extends Error {
 // Every event on the grant's selected calendars in the range. Any failure,
 // including Google rejecting the token, throws RequesterCalendarUnavailableError;
 // a cancelled signal rejects with its own reason, so the caller's deadline decides.
-// Revocation is recorded by the grant lifecycle (Disconnect, closure), not here.
+// Closing the grant is the grant lifecycle's job (Disconnect, closure), not this.
 export async function readRequesterEvents(
   config: GoogleCalendarConfig,
   grant: RequesterCalendarGrant,

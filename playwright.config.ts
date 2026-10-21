@@ -54,7 +54,6 @@ const shared = {
   GOOGLE_CLIENT_SECRET: "e2e-google-secret",
   GOOGLE_OAUTH_TOKEN_URL: `http://127.0.0.1:${FAKE_GOOGLE_PORT}/token`,
   // The requester consent round trip, against the same stand-in.
-  GOOGLE_OAUTH_REVOKE_URL: `http://127.0.0.1:${FAKE_GOOGLE_PORT}/revoke`,
   GOOGLE_REQUESTER_AUTH_URL: `http://127.0.0.1:${FAKE_GOOGLE_PORT}/o/oauth2/v2/auth`,
   GOOGLE_REQUESTER_CLIENT_ID: "e2e-google-requester-client",
   GOOGLE_REQUESTER_CLIENT_SECRET: "e2e-google-requester-secret",

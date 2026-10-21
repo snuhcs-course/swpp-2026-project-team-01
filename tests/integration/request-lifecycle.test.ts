@@ -7,7 +7,6 @@ import {
   REQUEST_EXPIRY_JOB,
   requestExpiresAt,
 } from "../../lib/server/request-lifecycle";
-import { REQUESTER_REVOCATION_JOB } from "../../lib/server/requester-grants";
 import { createRequesterCommandHandler, createRequesterStateHandler } from "../../lib/server/requester-routes";
 import { requesterGrantContext } from "../../lib/server/requester-calendar";
 import { sealToken } from "../../lib/server/token-encryption";
@@ -56,20 +55,21 @@ async function seedClosable(state = "gathering") {
 
 async function closure(requestId: string) {
   const [row] = await db<
-    { closed: boolean; confirmations: number; live_grants: number; pending: number; revocations: number; state: string; tokens: number }[]
+    { closed: boolean; confirmations: number; live_grants: number; not_needed: number; pending: number; state: string; tokens: number }[]
   >`
     select r.state, r.closed_at is not null as closed,
       (select count(*)::int from app.request_reviews where request_id = r.id and state = 'pending') as pending,
       (select count(*)::int from app.contact_confirmations where request_id = r.id and superseded_at is null) as confirmations,
       (select count(*)::int from app.requester_grants where request_id = r.id and revoked_at is null) as live_grants,
       (select count(*)::int from app.requester_grants where request_id = r.id and refresh_token_ciphertext is not null) as tokens,
-      (select count(*)::int from app.jobs where kind = ${REQUESTER_REVOCATION_JOB} and payload ->> 'requestId' = r.id::text) as revocations
+      (select count(*)::int from app.requester_grants where request_id = r.id and provider_revocation = 'not_needed') as not_needed
     from app.requests r where r.id = ${requestId}
   `;
   return row!;
 }
 
-const CLOSED = { closed: true, confirmations: 0, live_grants: 0, pending: 0, revocations: 1, tokens: 0 };
+// Closure deletes the grant's token and records that Google is not called.
+const CLOSED = { closed: true, confirmations: 0, live_grants: 0, not_needed: 1, pending: 0, tokens: 0 };
 
 describe("request.withdraw", () => {
   it.each(["gathering", "negotiating", "awaiting_host_approval"])("withdraws from %s and closes everything the request held", async (state) => {
