@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Route estimates, geography and freshness
-Travel legs SHALL be estimated with Google Routes for the host's confirmed travel mode and the leg's departure time, wherever the provider returns a route; no country list SHALL limit evaluation. A leg SHALL be checked only against the nearest host commitment on the same local day within three hours of the candidate. An adjacent commitment without a physical location SHALL leave its leg unresolved. An estimate MAY be reused for 24 hours for the same endpoints, mode and 15-minute departure slot. Cleartext event locations SHALL NOT be stored with cached estimates.
+Travel legs SHALL be estimated with Google Routes for the host's confirmed travel mode and the leg's departure time, wherever the provider returns a route; no country list SHALL limit evaluation. A leg SHALL be checked against the nearest host commitment within three hours of elapsed time before or after the candidate, regardless of local date. An adjacent commitment with no location, only a conference link, or both a place and a conference link SHALL leave its leg unresolved. An estimate MAY be reused for 24 hours for the same endpoints, mode and 15-minute departure slot. Cleartext event locations SHALL NOT be stored with cached estimates.
 
 #### Scenario: Mode without routes in a region
 - **WHEN** the provider returns no route for the host's mode between two places
@@ -14,6 +14,10 @@ Travel legs SHALL be estimated with Google Routes for the host's confirmed trave
 #### Scenario: Cached estimate
 - **WHEN** two evaluations within 24 hours need the same endpoints, mode and departure slot
 - **THEN** the second uses the saved estimate, and a changed event location requires a new estimate
+
+#### Scenario: Overnight candidate
+- **WHEN** an in-person candidate at 01:00 follows a host commitment that ended at 23:30 the previous local day
+- **THEN** the inbound leg from that commitment is checked
 
 #### Scenario: Distant commitment
 - **WHEN** the nearest earlier commitment ended more than three hours before an in-person candidate

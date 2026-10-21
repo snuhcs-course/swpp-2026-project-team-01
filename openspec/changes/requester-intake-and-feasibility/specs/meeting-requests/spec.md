@@ -20,7 +20,7 @@ The identifier in `/booking/[bookingId]` SHALL be a server-generated random UUID
 - **THEN** no usable booking link can be rebuilt from them
 
 ### Requirement: Bounded requester contact verification
-A currently authorized requester SHALL explicitly request and enter a code sent to the request's current email before that address is trusted for attendee use, except that an address Google reports as verified for the requester's signed-in identity SHALL be filled in and trusted without a code. A code SHALL be six digits, SHALL expire 10 minutes after issue, SHALL permit at most five failed guesses, and SHALL be invalidated by a new code, contact change or closure. Sending SHALL wait at least 60 seconds after the previous code for the same request and SHALL allow at most 5 codes per request and 10 codes per recipient address in any rolling hour.
+A currently authorized requester SHALL explicitly request and enter a code sent to the request's current email before that address is trusted for attendee use, except that an address Google reports as verified for the requester's signed-in identity SHALL be filled in and trusted without a code. A code SHALL be six digits, SHALL expire 10 minutes after issue, SHALL permit at most five failed guesses, and SHALL be invalidated by a new code, contact change or closure. Sending SHALL wait at least 60 seconds after the previous code for the same request and SHALL allow at most 5 codes per request and 10 codes per recipient address in any rolling hour, and 1,000 codes across the service in any rolling day.
 
 #### Scenario: Google-verified address
 - **WHEN** the requester continued with Google and Google reports the address as verified
@@ -62,6 +62,17 @@ Creating a request on a public host page SHALL require a ready host and SHALL be
 #### Scenario: Exact creation retry
 - **WHEN** a creation command is retried with the same retry identity after its response was lost
 - **THEN** the same request and booking link are returned and no bound is charged again
+
+### Requirement: Verified contact before agreement
+Requester agreement SHALL require that the request's current contact email is verified, because the proposal names that address as the invitee. Agreement controls SHALL say why they are unavailable and offer contact verification.
+
+#### Scenario: Unverified contact agrees
+- **WHEN** a requester whose typed address is not yet verified presses **Agree to this proposal**
+- **THEN** no agreement is recorded and the card offers **Send verification code**
+
+#### Scenario: Contact changes after agreement is offered
+- **WHEN** the requester changes their contact address while a proposal awaits agreement
+- **THEN** agreement stays unavailable until the new address is verified
 
 ### Requirement: Online meeting link plan
 A proposal for an online meeting SHALL record its link plan as either a Google Meet conference created with the event in the host's booking destination, offered only when that calendar supports Google Meet, or an `https:` link the requester supplied. Requester agreement and host approval SHALL cover the recorded plan, and a change of plan SHALL create a new proposal version. When neither plan is available, the request SHALL ask the requester for a meeting link instead of creating a proposal.

@@ -17,7 +17,7 @@ Let a requester without any product account prefill their identity and share ava
 
 #### Scenario: Consent cancelled
 - **WHEN** the requester cancels on the Google consent screen
-- **THEN** they return to the page they started from with the meeting purpose and timezone they had entered, and nothing is recorded
+- **THEN** they return to the page they started from with the meeting purpose and timezone they had entered, and no grant or request is recorded
 
 ### Requirement: Identity and Calendar recorded as separate grants
 Identity and Calendar access requested on one consent screen SHALL be recorded as separate grants bound to the request. An identity grant SHALL fill in the requester's name and email; an email Google reports as verified SHALL be the request's verified contact only while it equals the current contact. A Calendar grant SHALL exist only for the Calendar scopes Google reported as granted. Neither grant SHALL confer agreement, host approval, host eligibility or access to any other request.
@@ -46,7 +46,7 @@ A requester Calendar grant SHALL request only free/busy and calendar-list access
 - **THEN** that request's own grants are the only ones consulted and the first request's grant is never read
 
 ### Requirement: Request-bound grant lifetime
-A requester grant SHALL last no longer than its request remains open and its booking link unexpired. Closure, link expiry and **Disconnect** SHALL delete the stored token and request revocation at Google. A revoked, expired or failing grant SHALL pause evaluations that depend on it until the requester reconnects or replaces it with manual or agent-supplied availability; it SHALL NOT be treated as free time.
+A requester grant SHALL last no longer than its request remains open and its booking link unexpired. Closure, link expiry and **Disconnect** SHALL delete the stored token, and SHALL request revocation at Google unless another open request of the same Google identity still holds a grant. Requester grants SHALL use an OAuth client separate from host sign-in, so revoking them never removes a host's Calendar access. A revoked, expired or failing grant SHALL pause evaluations that depend on it until the requester reconnects or replaces it with manual or agent-supplied availability; it SHALL NOT be treated as free time.
 
 #### Scenario: Request closes
 - **WHEN** a request is withdrawn or expires
