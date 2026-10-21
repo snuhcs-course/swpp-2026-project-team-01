@@ -144,32 +144,32 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **레인 A — 라우트, 신원, 시간대**
 
-- [ ] `/{handle}` 공개 접수와, 해시된 무작위 UUID 자격 증명, 30일 수명, `Referrer-Policy: no-referrer`, 색인 금지, 일반적인 이용 불가 화면을 갖춘 `/booking/[bookingId]`.
-- [ ] 게스트 신원 및 시간대 카드; 신원과 읽기 전용 Calendar 스코프를 별도의 요청 바인딩 허가로 기록하는 요청자용 **Google로 계속(Continue with Google)**; 간단한 이름과 이메일 카드를 쓰는 **Google 없이 계속(Continue without Google)**.
-- [ ] 7일 및 구간 종료 시점 만료를 갖춘 요청 수명주기; 철회.
+- [x] `/{handle}` 공개 접수와, 해시된 무작위 UUID 자격 증명, 30일 수명, `Referrer-Policy: no-referrer`, 색인 금지, 일반적인 이용 불가 화면을 갖춘 `/booking/[bookingId]`.
+- [x] 게스트 신원 및 시간대 카드; 신원과 읽기 전용 Calendar 스코프를 별도의 요청 바인딩 허가로 기록하는 요청자용 **Google로 계속(Continue with Google)**; 간단한 이름과 이메일 카드를 쓰는 **Google 없이 계속(Continue without Google)**.
+- [x] 7일 및 구간 종료 시점 만료를 갖춘 요청 수명주기; 철회.
 
 **레인 B — 연락처 증명과 이메일 전달**
 
-- [ ] 전달 증거와 고정된 디스패치 식별자를 갖춘 Cloudflare Email Service 어댑터.
-- [ ] 선택적 연락처 확인: 예약 링크와 일회용 확인 링크를 담은 생성 이메일, 한도가 있는 재전송, 복구 가능한 전송 명령.
-- [ ] 수신자별 및 서비스 전체 예산과 일반적인 피드백을 갖춘 한정된 링크 재전송.
-- [ ] 대화 입력의 자격 증명 마스킹; 대화 접수 예산과 복구 가능한 스로틀링.
+- [x] 전달 증거와 고정된 디스패치 식별자를 갖춘 Cloudflare Email Service 어댑터.
+- [x] 선택적 연락처 확인: 예약 링크와 일회용 확인 링크를 담은 생성 이메일, 한도가 있는 재전송, 복구 가능한 전송 명령.
+- [x] 수신자별 및 서비스 전체 예산과 일반적인 피드백을 갖춘 한정된 링크 재전송.
+- [x] 대화 입력의 자격 증명 마스킹; 대화 접수 예산과 복구 가능한 스로틀링.
 
 **레인 C — 실현 가능성 엔진**
 
-- [ ] 결정론적 실현 가능성: 전체 구간, 날짜별 오프셋과 일광 절약 시간 처리, 바쁨 및 집중 제약, 야간 구간, 선호로서의 주간 미팅 상한.
-- [ ] 호스트 버퍼를 포함해 Google Routes로 계산하는 양방향 이동 구간; 해결되지 않은 이동은 절대 0으로 계산하지 않음; 수동 허용치 입력.
-- [ ] 자격 증명 갱신, Calendar 읽기, Routes, 순위 지정에 걸친 공유 18초 평가 마감 시간; 유효한 후보에 대해서만 수행하는 모델 순위 지정.
+- [x] 결정론적 실현 가능성: 전체 구간, 날짜별 오프셋과 일광 절약 시간 처리, 바쁨 및 집중 제약, 야간 구간, 선호로서의 주간 미팅 상한.
+- [ ] 호스트 버퍼를 포함해 Google Routes로 계산하는 양방향 이동 구간; 해결되지 않은 이동은 절대 0으로 계산하지 않음; 수동 허용치 입력. 남은 일: 서울의 두 주소 사이에서 어떤 이동 수단이 경로를 반환하는지 실제로 확인하는 작업(작업 5.2).
+- [x] 자격 증명 갱신, Calendar 읽기, Routes, 순위 지정에 걸친 공유 18초 평가 마감 시간; 유효한 후보에 대해서만 수행하는 모델 순위 지정.
 
 **레인 D — 요청자 대화**
 
-- [ ] 요청자 세션 도구 `read_request`(요청자 프로젝션), `draft_request_review`, `evaluate_candidates`; 지침 조각 `requester.md`.
-- [ ] 영어와 한국어로 작성된 확인 질문을 갖춘 선언된 의도 추출; 기대 리비전을 갖춘 검토된 적용; 시간적으로 유효한 구간.
-- [ ] 후보 시간 카드, **이 시간으로 선택(Choose this time)**, 정확한 제안 버전, **이 제안에 동의(Agree to this proposal)**.
+- [x] 요청자 세션 도구 `read_request`(요청자 프로젝션), `draft_request_review`, `evaluate_candidates`; 지침 조각 `requester.md`.
+- [x] 영어와 한국어로 작성된 확인 질문을 갖춘 선언된 의도 추출; 기대 리비전을 갖춘 검토된 적용; 시간적으로 유효한 구간.
+- [x] 후보 시간 카드, **이 시간으로 선택(Choose this time)**, 정확한 제안 버전, **이 제안에 동의(Agree to this proposal)**.
 
 **합류**
 
-- [ ] 레인 C가 레인 D의 도구를 통해 공급하는 후보 카드; 불변 버전에 대해 기록되는 동의; 3단계 증거 목록을 실행합니다.
+- [ ] 레인 C가 레인 D의 도구를 통해 공급하는 후보 카드; 불변 버전에 대해 기록되는 동의; 3단계 증거 목록을 실행합니다. 남은 일: 증거 목록에는 운영 배포, 제공자 설정, 통제된 받은편지함이 필요합니다(작업 7.1, 8.1–8.3). 픽스처와 로컬 여정 테스트는 통과합니다.
 
 명세: [meeting-requests](../../openspec/specs/meeting-requests/spec.md), [meeting-feasibility](../../openspec/specs/meeting-feasibility/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md)(트랜잭션 발송, 전달 증거, 불확실한 디스패치), [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md)(접수, 마스킹, 안정적인 요청자 목적지), [conversation-access](../../openspec/specs/conversation-access/spec.md). 또한 기반 변경이 여기로 미룬 저장된 순위 시나리오를 위해 [model-execution](../../openspec/specs/model-execution/spec.md)도 참조합니다.
 

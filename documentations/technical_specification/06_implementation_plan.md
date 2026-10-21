@@ -142,32 +142,32 @@ Scope. Prerequisite: Phase 1 joined, plus Phase 2 Lane C's readiness guard so a 
 
 **Lane A — routes, identity and timezone**
 
-- [ ] `/{handle}` public intake and `/booking/[bookingId]` with the hashed random UUID credential, thirty-day lifetime, `Referrer-Policy: no-referrer`, no indexing, and the generic unavailable view.
-- [ ] Guest identity and timezone cards; **Continue with Google** for requesters with identity and read-only Calendar scopes recorded as separate request-bound grants; **Continue without Google** with a compact name and email card.
-- [ ] Request lifecycle with seven-day and window-end expiry; withdrawal.
+- [x] `/{handle}` public intake and `/booking/[bookingId]` with the hashed random UUID credential, thirty-day lifetime, `Referrer-Policy: no-referrer`, no indexing, and the generic unavailable view.
+- [x] Guest identity and timezone cards; **Continue with Google** for requesters with identity and read-only Calendar scopes recorded as separate request-bound grants; **Continue without Google** with a compact name and email card.
+- [x] Request lifecycle with seven-day and window-end expiry; withdrawal.
 
 **Lane B — contact proof and email delivery**
 
-- [ ] Cloudflare Email Service adapter with delivery evidence and frozen dispatch identity.
-- [ ] Optional contact confirmation: the creation email with the booking link and a single-use confirmation link, its bounded resend, and recoverable send commands.
-- [ ] Bounded link resend with per-recipient and service-wide budgets and generic feedback.
-- [ ] Credential redaction of conversation input; conversation admission budgets and recoverable throttling.
+- [x] Cloudflare Email Service adapter with delivery evidence and frozen dispatch identity.
+- [x] Optional contact confirmation: the creation email with the booking link and a single-use confirmation link, its bounded resend, and recoverable send commands.
+- [x] Bounded link resend with per-recipient and service-wide budgets and generic feedback.
+- [x] Credential redaction of conversation input; conversation admission budgets and recoverable throttling.
 
 **Lane C — feasibility engine**
 
-- [ ] Deterministic feasibility: full intervals, date-specific offsets and daylight-saving handling, busy and focus constraints, overnight windows, weekly meeting limit as a preference.
-- [ ] Both travel legs through Google Routes with host buffers; unresolved travel never counted as zero; manual allowance input.
-- [ ] The shared 18-second evaluation deadline across credential refresh, Calendar reads, Routes and ranking; model ranking of valid candidates only.
+- [x] Deterministic feasibility: full intervals, date-specific offsets and daylight-saving handling, busy and focus constraints, overnight windows, weekly meeting limit as a preference.
+- [ ] Both travel legs through Google Routes with host buffers; unresolved travel never counted as zero; manual allowance input. Open: the live check of which modes route between two Seoul addresses (task 5.2).
+- [x] The shared 18-second evaluation deadline across credential refresh, Calendar reads, Routes and ranking; model ranking of valid candidates only.
 
 **Lane D — requester conversation**
 
-- [ ] Requester session tools `read_request` (requester projection), `draft_request_review`, `evaluate_candidates`; instruction fragment `requester.md`.
-- [ ] Declared-intent extraction with authored English and Korean clarification questions; reviewed application with expected revision; temporally valid windows.
-- [ ] Candidate times card, **Choose this time**, exact proposal version, **Agree to this proposal**.
+- [x] Requester session tools `read_request` (requester projection), `draft_request_review`, `evaluate_candidates`; instruction fragment `requester.md`.
+- [x] Declared-intent extraction with authored English and Korean clarification questions; reviewed application with expected revision; temporally valid windows.
+- [x] Candidate times card, **Choose this time**, exact proposal version, **Agree to this proposal**.
 
 **Join**
 
-- [ ] Candidate card fed by Lane C through Lane D's tool; agreement recorded against the immutable version; run the Phase 3 evidence list.
+- [ ] Candidate card fed by Lane C through Lane D's tool; agreement recorded against the immutable version; run the Phase 3 evidence list. Open: the evidence list needs the production deployment, provider setup and controlled inboxes (tasks 7.1 and 8.1–8.3); fixtures and the local journey pass.
 
 Specs: [meeting-requests](../../openspec/specs/meeting-requests/spec.md), [meeting-feasibility](../../openspec/specs/meeting-feasibility/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md) (transactional sending, delivery evidence, uncertain dispatch), [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md) (admission, redaction, stable requester destination), [conversation-access](../../openspec/specs/conversation-access/spec.md). Also [model-execution](../../openspec/specs/model-execution/spec.md) for the saved-ranking scenario the foundation change deferred here.
 

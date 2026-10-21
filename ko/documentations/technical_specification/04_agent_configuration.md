@@ -95,7 +95,7 @@ eve principal은 사람의 신원이 아니라 대상입니다. 요청자에게�
 | `read_request` | 호스트 또는 요청자 | 현재 요청, 제안 버전, 결정, 허용된 대화를 대상별로 프로젝션하여 제공 | never |
 | `list_host_requests` | 호스트 | 상태와 함께 선택 가능한 요청; 프로젝션을 넘어서는 요청자의 비공개 데이터는 없음 | never |
 | `draft_request_review` | 요청자 | 세부 정보, 가용 시간, 질문 또는 알 수 없는 의도를 작성된 확인 질문과 함께 선언하며, 요청자만 적용할 수 있는 대기 중 검토를 생성 | never |
-| `evaluate_candidates` | 호스트 또는 요청자 | 결정론적 실현 가능성 평가를 내구성 있는 애플리케이션 작업으로 시작하고, 최대 20초 동안 기다려 대상 프로젝션을 반환하며, 아직 실행 중이면 평가의 식별자를 반환; 결과는 버전이 있는 카드로도 도착([3단계 설계](../../openspec/changes/requester-intake-and-feasibility/design.md#8-evaluation-runs-as-an-application-job)) | never |
+| `evaluate_candidates` | 호스트 또는 요청자 | 결정론적 실현 가능성 평가를 내구성 있는 애플리케이션 작업으로 시작하고, 최대 20초 동안 기다려 대상 프로젝션을 반환하며, 아직 실행 중이면 평가의 식별자를 반환; 같은 리비전에서 실행 중인 평가가 있으면 새로 만들지 않고 그것을 반환하며, 요청 하나는 시간당 최대 10회 시작; 결과는 버전이 있는 카드로도 도착([3단계 설계](../../openspec/changes/requester-intake-and-feasibility/design.md#8-evaluation-runs-as-an-application-job)) | never |
 | `propose_shared_changes` | 호스트 | **제안된 공유 변경 검토(Review proposed shared changes)** 카드를 위해 변경된 공유 세부 정보의 초안을 작성; 공유는 별도의 명령 | never |
 | `read_booking_status` | 호스트 또는 요청자 | 도메인 레코드의 대기 중, 불확실, 확정, 전달 실패 상태 | never |
 
