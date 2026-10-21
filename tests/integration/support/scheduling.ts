@@ -185,7 +185,7 @@ export function evaluationDeps(db: Database, google: FakeGoogle, overrides: Part
   return {
     calendar: fakeGoogleConfig(google),
     db,
-    limits: { serviceWindowUsd: "1000000.00" },
+    limits: { anonymousWindowUsd: "1000000.00", serviceWindowUsd: "1000000.00" },
     model: null,
     requesterCalendar: fakeGoogleConfig(google),
     routes: { apiKey: "unused", baseUrl: "http://127.0.0.1:9", timeoutMs: 1_000 },

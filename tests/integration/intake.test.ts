@@ -281,7 +281,7 @@ describe("anonymous model allowance", () => {
     const fresh = await intakeSession();
     const [spent] = await db<{ total: string }[]>`
       select coalesce(sum(amount_usd), 0)::text as total from app.model_reservations
-      where principal_type = 'public_intake'
+      where (anonymous or principal_type = 'public_intake')
         and window_start = date_bin('24 hours', statement_timestamp(), timestamptz '2026-01-01 00:00:00+00')
     `;
     const anonymous = Math.ceil((Number(spent!.total) + 0.6) * 100) / 100;

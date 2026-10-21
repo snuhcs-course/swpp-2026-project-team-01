@@ -138,7 +138,7 @@ function deps(overrides: Partial<EvaluationDependencies> = {}): EvaluationDepend
   return {
     calendar: fakeGoogleConfig(google),
     db,
-    limits: { serviceWindowUsd: "1000000.00" },
+    limits: { anonymousWindowUsd: "1000000.00", serviceWindowUsd: "1000000.00" },
     model: null,
     requesterCalendar: fakeGoogleConfig(google),
     routes: { apiKey: FAKE_ROUTES_API_KEY, baseUrl: routes.baseUrl, timeoutMs: 5_000 },

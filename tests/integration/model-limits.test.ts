@@ -19,9 +19,9 @@ afterAll(async () => {
   await db.end();
 });
 
-// Tests other than the service-wide one lift the service cap, so repeated local
-// runs within one 24-hour window do not exhaust it.
-const roomy: Partial<ModelLimits> = { serviceWindowUsd: "1000000.00" };
+// Tests other than the service-wide and anonymous ones lift those caps, so
+// repeated local runs within one 24-hour window do not exhaust them.
+const roomy: Partial<ModelLimits> = { anonymousWindowUsd: "1000000.00", serviceWindowUsd: "1000000.00" };
 
 type FakeModel = MockLanguageModelV4;
 type CallOptions = FakeModel["doGenerateCalls"][number];
@@ -339,6 +339,60 @@ describe("model limit middleware", () => {
 
     expect(provider.doGenerateCalls.map((sent) => sent.maxOutputTokens)).toEqual([2048, 2048]);
     expect(await reservations(ranking.id)).toBe(2);
+  });
+
+  it("gives an unconfirmed request the intake's cap and counts it as anonymous until it is confirmed", async () => {
+    const { requestId } = await createTestRequest(db);
+    const rank = () =>
+      wrap(fakeOpenAI(), { ranking: { id: randomUUID(), principal: { id: requestId, type: "requester_request" } } }).doGenerate(
+        call(undefined),
+      );
+
+    // USD 3 at USD 0.60 a reservation is five attempts.
+    for (let index = 0; index < 5; index += 1) await rank();
+    await expect(rank()).rejects.toMatchObject({ code: "principal_allowance" });
+    const marked = await db<{ anonymous: boolean }[]>`
+      select distinct anonymous from app.model_reservations where principal_id = ${requestId}
+    `;
+    expect(marked).toEqual([{ anonymous: true }]);
+
+    // Confirmed, the USD 30 cap applies, counting the USD 3 already reserved.
+    await db`update app.requests set contact_confirmed_email = contact_email where id = ${requestId}`;
+    await db`
+      insert into app.model_reservations (work_kind, work_id, principal_type, principal_id, amount_usd, window_start)
+      select 'ranking_check', gen_random_uuid(), 'requester_request', ${requestId}, 0.60,
+             date_bin('24 hours', statement_timestamp(), timestamptz '2026-01-01 00:00:00+00')
+      from generate_series(1, 44)
+    `;
+    await rank();
+    await expect(rank()).rejects.toMatchObject({ code: "principal_allowance" });
+    const [last] = await db<{ anonymous: boolean }[]>`
+      select anonymous from app.model_reservations where principal_id = ${requestId} order by created_at desc limit 1
+    `;
+    expect(last!.anonymous).toBe(false);
+  });
+
+  it("counts an unconfirmed request toward the anonymous allowance, and a live Google identity lifts it", async () => {
+    const { requestId } = await createTestRequest(db);
+    const [spent] = await db<{ total: string }[]>`
+      select coalesce(sum(amount_usd), 0)::text as total from app.model_reservations
+      where (anonymous or principal_type = 'public_intake')
+        and window_start = date_bin('24 hours', statement_timestamp(), timestamptz '2026-01-01 00:00:00+00')
+    `;
+    const limits = { anonymousWindowUsd: (Number(spent!.total) + 0.6).toFixed(2), serviceWindowUsd: "1000000.00" };
+    const rank = () =>
+      wrap(fakeOpenAI(), { limits, ranking: { id: randomUUID(), principal: { id: requestId, type: "requester_request" } } }).doGenerate(
+        call(undefined),
+      );
+
+    await rank();
+    await expect(rank()).rejects.toMatchObject({ code: "anonymous_allowance" });
+
+    await db`
+      insert into app.requester_grants (request_id, kind, google_subject_hash, google_email, email_verified, granted_scopes)
+      values (${requestId}, 'identity', ${randomUUID()}, 'other@example.test', true, '{}')
+    `;
+    await rank();
   });
 
   it("reserves only the principal's remaining capacity under concurrent work", async () => {
