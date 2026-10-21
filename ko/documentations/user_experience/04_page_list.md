@@ -77,7 +77,7 @@
 | 화면 | 목적과 경계 |
 |---|---|
 | `/auth/callback` | 검증된 호스트 인증을 완료하고, 부여된 캘린더 스코프와 리프레시 토큰을 기록하며, 허용 목록에 있는 상대 경로 목적지로 리디렉션합니다. 유효하지 않거나 만료된 상태는 읽을 수 있는 로그인 오류로 돌려보냅니다. |
-| `/connections/google/callback` | 서버에 바인딩된 호스트 또는 요청자 트랜잭션을 사용해 이후 또는 갱신된 캘린더 동의를 완료한 뒤 원래 페이지로 돌아갑니다. 최초의 캘린더 권한 부여는 로그인과 함께 도착합니다. 검증되지 않은 쿼리 매개변수에서 행위자나 복귀 목적지를 도출하지 않습니다. |
+| `/auth/sign-in?consent=calendar` | 호스트의 이후 또는 갱신된 캘린더 동의입니다. `prompt=consent`와 `include_granted_scopes`를 사용하는 동일한 Google 로그인이며, 그 `/auth/callback`이 부여된 스코프와 리프레시 토큰을 기록하고 `/app`으로 돌아갑니다([`host-onboarding` 설계](../../openspec/changes/host-onboarding/design.md#7-google-calendar-client-and-renewed-consent)). 따라서 호스트에게는 별도의 콜백 라우트가 필요 없습니다. 요청자의 요청 바인딩 캘린더 동의는 3단계에서 명세합니다. 검증되지 않은 쿼리 매개변수에서 행위자나 복귀 목적지를 도출하지 않습니다. |
 | 알 수 없거나 만료된 식별자를 가진 `/booking/[bookingId]` | 재전송 컨트롤이 있는 일반 이용 불가 화면을 보여 주며, 요청의 존재 여부는 드러내지 않습니다. [회의 요청 계약](../../openspec/specs/meeting-requests/spec.md)은 링크를 30일로 제한하고, 종료 시 변경/OAuth 권한을 제거하며, 링크가 유효한 동안 최소한의 종료 영수증 읽기만 허용합니다. |
 | `/SKILL.md`, `/[handle]/SKILL.md` | 공개 에이전트 탐색 문서입니다. 공개 지침, 지원되는 연결 경로, 호스트 정보만 노출합니다. 이들은 리소스이며 채팅 페이지가 아닙니다. `/`와 `/[handle]` HTML 페이지가 이를 발견할 수 있게 합니다. 링크가 있는 페이지 내 에이전트 섹션, `<link rel="alternate" type="text/markdown">`, 루트 `llms.txt`, 그리고 같은 URL에 대한 `Accept: text/markdown` 요청에는 Markdown을 제공합니다. |
 | 설정/선택 대화상자 | 호스트 규칙 수정과 캘린더 선택은 `/app` 안에서 열리며, iMessage 연동은 인라인 채팅 카드를 사용합니다. 닫을 때 대화를 보존하고 포커스를 복원합니다. |

@@ -1,6 +1,6 @@
 # Find Me a Time — Implementation Plan
 
-Status: plan for team review; Phase 1 implemented on `feat/application-foundation` and awaiting review\
+Status: plan for team review; Phase 1 merged; Phase 2 implemented on `feat/host-onboarding` and awaiting review\
 Date: 2026-10-19\
 Basis: [PRD](../02_product_requirements.md), [technical overview](../04_technical_specification.md), [backend](01_backend_architecture.md), [frontend](02_frontend_architecture.md), [provider setup](03_provider_setup.md), [agent configuration](04_agent_configuration.md), [host onboarding flow](../user_experience/05_host_onboarding_flow.md), [guest booking flow](../user_experience/06_guest_booking_flow.md) and the [capability specifications](../../openspec/specs/).
 
@@ -98,26 +98,26 @@ Scope. Prerequisite: Phase 1 joined. The three lanes are independent until the f
 
 **Lane A — setup conversation and cards**
 
-- [ ] Setup session tools `read_setup_state` and `draft_settings`; the `host-setup.md` instruction fragment on top of Phase 1's minimal `base.md`; authored onboarding messages revealed one at a time.
-- [ ] Suggestion cards for timezone, weekly windows including overnight windows, weekly meeting limit, note-like exclusions, duration and buffers, each labeled stated, inferred or starter default, with **Use this**, **Adjust** and **Choose my own**.
-- [ ] Explicit mode, location and transport question cards; online-only skips venue and transport.
-- [ ] Final review card and **Confirm and save proposed settings** with the transactional readiness recheck; readiness-derived public profile; share-links card.
+- [x] Setup session tools `read_setup_state` and `draft_settings`; the `host-setup.md` instruction fragment on top of Phase 1's minimal `base.md`; authored onboarding messages revealed one at a time.
+- [x] Suggestion cards for timezone, weekly windows including overnight windows, weekly meeting limit, note-like exclusions, duration and buffers, each labeled stated, inferred or starter default, with **Use this**, **Adjust** and **Choose my own**.
+- [x] Explicit mode, location and transport question cards; online-only skips venue and transport.
+- [x] Final review card and **Confirm and save proposed settings** with the transactional readiness recheck; readiness-derived public profile; share-links card.
 
 **Lane B — Google Calendar and analysis**
 
-- [ ] Calendar roles card from actual calendars with reasons; writable booking destination check; **Connect Google Calendar** when scopes were declined; **Manage Google connection**.
-- [ ] Automatic first scan of saved conflict calendars over the past and next four weeks as a durable job; the four analysis dimensions with sample sizes; **Analyze again**.
-- [ ] 24-hour evidence cleanup by scheduled maintenance that preserves adopted values.
+- [x] Calendar roles card from actual calendars with reasons; writable booking destination check; **Connect Google Calendar** when scopes were declined; **Manage Google connection**.
+- [x] Automatic first scan of saved conflict calendars over the past and next four weeks as a durable job; the four analysis dimensions with sample sizes; **Analyze again**.
+- [x] 24-hour evidence cleanup by scheduled maintenance that preserves adopted values.
 
 **Lane C — identity, entry documents and operator control**
 
-- [ ] Handle with reserved list, uniqueness and change limits; sign-up abuse limits.
-- [ ] Public entry documents `/SKILL.md`, `/{handle}/SKILL.md`, `llms.txt`, the in-page agent section, the alternate link and Markdown content negotiation; reserved route names resolved before handles.
-- [ ] Administrator CLI with suspend and restore and the operator authority boundary.
+- [x] Handle with reserved list, uniqueness and change limits; sign-up abuse limits.
+- [x] Public entry documents `/SKILL.md`, `/{handle}/SKILL.md`, `llms.txt`, the in-page agent section, the alternate link and Markdown content negotiation; reserved route names resolved before handles.
+- [x] Administrator CLI with suspend and restore and the operator authority boundary.
 
 **Join**
 
-- [ ] Connect the review card to analysis evidence and handle validation; run the Phase 2 evidence list.
+- [x] Connect the review card to analysis evidence and handle validation; run the Phase 2 evidence list. Recorded in the [acceptance record](07_acceptance_record.md#phase-2--host-onboarding); the signed-in production run and Google app verification remain open there.
 
 Specs: [host-admission](../../openspec/specs/host-admission/spec.md) (suspension, handles, abuse limits, stable identity), [calendar-analysis-retention](../../openspec/specs/calendar-analysis-retention/spec.md), [public-agent-entry](../../openspec/specs/public-agent-entry/spec.md), [meeting-feasibility](../../openspec/specs/meeting-feasibility/spec.md) (overnight window rules), [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md). Also [conversation-access](../../openspec/specs/conversation-access/spec.md) for the tool-result recovery scenarios the foundation change deferred here.
 
@@ -420,7 +420,7 @@ Not carried: the travel-table heuristic (replaced by Google Routes with buffers)
 | eve version, template revision, model ID, dependency pins | Phase 1 proposal | Frontend architecture, agent configuration |
 | Durable-work placement and dispatcher ownership | Phase 1 exit | Backend architecture |
 | Sign-up and handle limits, reserved handles, starter defaults | Phase 2 proposal | PRD section 10, host-admission spec |
-| Supported geography, travel modes, route freshness, manual allowance granularity | Phase 3 proposal | PRD travel-time checks, meeting-feasibility spec |
+| Supported geography, route freshness, manual allowance granularity (travel modes were settled in Phase 2) | Phase 3 proposal | PRD travel-time checks, meeting-feasibility spec |
 | Online meeting link creation | Phase 4 proposal | PRD section 10 |
 | MCP protocol version, registration, scopes, CLI packaging | Phase 5 proposal | Agent-client authorization spec, CLI direction |
 | iMessage adapter, code expiry, line provisioning | Phase 6 proposal | Provider setup, new iMessage change |

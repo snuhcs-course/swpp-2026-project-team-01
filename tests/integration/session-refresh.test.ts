@@ -107,10 +107,14 @@ describe("session refresh", () => {
   it("never refreshes in the agent's cookie authorization", async () => {
     const host = await signInHost(db);
     const sessionId = `wrun_${randomUUID()}`;
+    const [discussion] = await db<{ id: string }[]>`
+      insert into app.discussions (principal_type, principal_id, audience)
+      values ('host_account', ${host.hostAccountId}, 'host_setup') returning id
+    `;
     await db`
       insert into app.agent_sessions
         (session_id, session_id_hash, discussion_id, principal_type, principal_id, generation, agent_version)
-      values (${sessionId}, ${sessionIdHash(sessionId)}, ${randomUUID()}, 'host_account', ${host.hostAccountId}, 1, 'test')
+      values (${sessionId}, ${sessionIdHash(sessionId)}, ${discussion!.id}, 'host_account', ${host.hostAccountId}, 1, 'test')
     `;
     const appAuth = createAppAuth(() => ({ auth, db, signingKey: "unused-signing-key-of-at-least-32-chars" }));
     const stream = (cookie: string) =>

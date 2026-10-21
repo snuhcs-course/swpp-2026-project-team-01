@@ -26,7 +26,12 @@ export type ClaimedJob = {
   readonly payload: Record<string, unknown>;
 };
 
-export type JobHandler = (tx: Transaction, job: ClaimedJob) => Promise<unknown>;
+export type JobHandler = {
+  (tx: Transaction, job: ClaimedJob): Promise<unknown>;
+  // Runs in the transaction that marks the job exhausted after a failed last
+  // attempt, so a domain record waiting on the job can show the failure.
+  onExhausted?: (tx: Transaction, job: ClaimedJob) => Promise<void>;
+};
 
 export type JobResult = "completed" | "duplicate" | "fenced" | "failed" | "exhausted";
 
@@ -115,29 +120,42 @@ export async function processJob(db: Database, job: ClaimedJob, handler: JobHand
       return "completed";
     })) as JobResult;
   } catch (error) {
-    return failJob(db, job, error instanceof CommandError ? error.category : "internal");
+    return failJob(db, job, error instanceof CommandError ? error.category : "internal", handler.onExhausted);
   }
 }
 
 // Records a failed attempt under the claim's fence: the job is retried after a
 // backoff (doubling from 20 seconds, capped at an hour, computed in double
 // precision so a large attempt count cannot overflow), or left exhausted and
-// visible once its attempts are spent. A job without runAfter is due at the
-// database's own time, the clock the claim compares against.
-async function failJob(db: Database, job: ClaimedJob, category: string): Promise<JobResult> {
-  const [row] = await db<{ state: string }[]>`
-    update app.jobs
-    set state = case when attempts >= max_attempts then 'exhausted' else 'pending' end,
-        failure_category = ${category}, lease_owner = null, lease_expires_at = null,
-        run_after = now() + make_interval(secs => least(power(2, attempts) * 10, 3600)),
-        updated_at = now()
-    where id = ${job.id} and fence = ${job.fence} and state = 'running'
-    returning state
-  `;
+// visible once its attempts are spent, with the handler's onExhausted in the same
+// transaction. A job without runAfter is due at the database's own time, the
+// clock the claim compares against.
+async function failJob(
+  db: Database,
+  job: ClaimedJob,
+  category: string,
+  onExhausted?: JobHandler["onExhausted"],
+): Promise<JobResult> {
+  return (await db.begin(async (tx) => {
+    const [row] = await tx<{ state: string }[]>`
+      update app.jobs
+      set state = case when attempts >= max_attempts then 'exhausted' else 'pending' end,
+          failure_category = ${category}, lease_owner = null, lease_expires_at = null,
+          run_after = now() + make_interval(secs => least(power(2, attempts) * 10, 3600)),
+          updated_at = now()
+      where id = ${job.id} and fence = ${job.fence} and state = 'running'
+      returning state
+    `;
 
-  if (!row) {
-    return "fenced";
-  }
+    if (!row) {
+      return "fenced";
+    }
 
-  return row.state === "exhausted" ? "exhausted" : "failed";
+    if (row.state !== "exhausted") {
+      return "failed";
+    }
+
+    await onExhausted?.(tx, job);
+    return "exhausted";
+  })) as JobResult;
 }

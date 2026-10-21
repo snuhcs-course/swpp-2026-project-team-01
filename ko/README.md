@@ -55,4 +55,4 @@ npm run typecheck
 npm test
 ```
 
-`npm run test:integration`은 통합 테스트를, `npm run test:e2e`는 Playwright 브라우저 테스트를 실행합니다(브라우저는 `npx playwright install chromium`으로 한 번 설치). 둘 다 `supabase start`의 로컬 스택이 필요하며 OpenAI를 호출하지 않습니다. 예외는 선택 실행인 `E2E_LIVE_MODEL=1 npm run test:e2e`로, 로그인부터 첫 답장까지의 여정을 실제 모델로 실행합니다. `npm run dev`는 루트 `.env`와 `.env.local` 재정의로 웹 서비스와 에이전트 서비스를 실행합니다. Supabase CLI **2.119.0**이 팀 버전입니다. 스키마 생성, 데이터베이스 리셋, 배포는 [에이전트 지침](AGENTS.md#supabase-schema-changes)을 따릅니다.
+`npm run test:integration`은 통합 테스트를, `npm run test:e2e`는 Playwright 브라우저 테스트를 실행합니다(브라우저는 `npx playwright install chromium`으로 한 번 설치). 둘 다 `supabase start`의 로컬 스택이 필요하며 OpenAI를 호출하지 않습니다. 예외는 선택 실행인 `E2E_LIVE_MODEL=1 npm run test:e2e`로, 로그인부터 첫 답장까지의 여정을 실제 모델로 실행합니다. `npm run dev`는 루트 `.env`와 `.env.local` 재정의로 웹 서비스와 에이전트 서비스를 실행합니다. 운영자는 `npm run admin -- <show|suspend|restore> --host <handle-or-id> --operator <name> (--local | --project <ref>)`로 호스트를 정지, 복원, 조회하며, 이 `fmat-admin` CLI는 [CLI 방향](documentations/technical_specification/05_cli.md#administrator-cli)에 설명되어 있습니다. Supabase CLI **2.119.0**이 팀 버전입니다. 스키마 생성, 데이터베이스 리셋, 배포는 [에이전트 지침](AGENTS.md#supabase-schema-changes)을 따릅니다.

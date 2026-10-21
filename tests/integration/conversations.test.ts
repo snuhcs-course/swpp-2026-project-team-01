@@ -531,7 +531,7 @@ describe("message route and session index", () => {
     expect(count!.count).toBe(0);
   });
 
-  it("configures sessions with no lifetime deadline and no tools", async () => {
+  it("configures sessions with no lifetime deadline and only the setup tools", async () => {
     // The deployment build's manifest; built here so a fresh checkout has one.
     await buildEve(eveEnvironment({ modelBaseURL: fake.baseURL, signingKey: "build-time-placeholder" }));
     const manifest = JSON.parse(
@@ -541,9 +541,11 @@ describe("message route and session index", () => {
     };
 
     expect(manifest.config.limits?.sessionTimeoutMs).toBe(false);
-    // Task 4.2: nothing the model could call, authored, built in or connected.
+    // Task 4.2: nothing the model could call, built in or connected; the only
+    // tools are the host setup resolver, which resolves per audience.
     expect(manifest.config).toMatchObject({ defaultTools: false, tool: false });
-    const capabilities = ["tools", "dynamicTools", "connections", "dynamicConnections", "subagents", "remoteAgents"];
+    expect((manifest.dynamicTools as { sourceId: string }[]).map((tool) => tool.sourceId)).toEqual(["tools/setup.ts"]);
+    const capabilities = ["tools", "connections", "dynamicConnections", "subagents", "remoteAgents"];
 
     for (const key of [...capabilities, "extensionMounts", "skills"]) {
       expect(manifest[key], key).toEqual([]);

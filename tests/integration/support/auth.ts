@@ -13,6 +13,11 @@ type LocalStatus = { API_URL: string; MAILPIT_URL: string; PUBLISHABLE_KEY: stri
 
 let status: LocalStatus | undefined;
 
+// Suites that are not about the sign-up bounds sign in many new identities from
+// one test process, which shares one source address, so they lift the bounds.
+// tests/integration/signup-limits.test.ts covers the bounds themselves.
+export const UNBOUNDED_SIGN_UPS = { perSource: Number.POSITIVE_INFINITY, service: Number.POSITIVE_INFINITY };
+
 export function localStack() {
   status ??= JSON.parse(execFileSync("supabase", ["status", "-o", "json"], { encoding: "utf8" })) as LocalStatus;
   return status;
@@ -157,6 +162,7 @@ export async function signInHost(db: Database) {
     db,
     // Nothing listens on the discard port, so no Calendar grant is recorded.
     fetchGrantedScopes: createGrantedScopesFetcher("http://127.0.0.1:9/tokeninfo"),
+    signUpLimits: UNBOUNDED_SIGN_UPS,
     tokenKey: parseTokenKey(randomBytes(32).toString("base64")),
   };
   const user = await createGoogleUser(db);

@@ -1,77 +1,56 @@
 "use client";
 
-import { ArrowDownIcon } from "lucide-react";
-import { useCallback, useSyncExternalStore, type ComponentProps } from "react";
-import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
-import { Button } from "@/components/ui/button";
+import type { ComponentProps } from "react";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller";
 import { cn } from "@/lib/utils";
 
-const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+// The workspace thread, on the shadcn/ui Chat pattern: a Message Scroller that
+// opens at the latest turn, anchors each of the host's messages near the top
+// and follows a streaming reply while the reader stays at the live edge. The
+// content is the transcript's log, named by the caller.
 
-function subscribeToReducedMotion(onChange: () => void) {
-  const media = window.matchMedia(REDUCED_MOTION);
-  media.addEventListener("change", onChange);
-  return () => media.removeEventListener("change", onChange);
-}
-
-// Respects the reduced-motion preference: new messages appear in place instead
-// of smooth-scrolling into view.
-function usePrefersReducedMotion() {
-  return useSyncExternalStore(
-    subscribeToReducedMotion,
-    () => window.matchMedia(REDUCED_MOTION).matches,
-    () => false,
-  );
-}
-
-export function ChatConversation({ className, ...props }: ComponentProps<typeof StickToBottom>) {
-  const motion = usePrefersReducedMotion() ? "instant" : "smooth";
-
+export function ChatConversation({ children, className, ...props }: ComponentProps<typeof MessageScroller>) {
   return (
-    <StickToBottom
-      className={cn("relative min-h-0 flex-1 overflow-y-hidden", className)}
-      initial={motion}
-      resize={motion}
-      role="log"
-      {...props}
-    />
+    <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+      <MessageScroller className={cn("min-h-0 flex-1", className)} {...props}>
+        {children}
+      </MessageScroller>
+    </MessageScrollerProvider>
   );
 }
 
 export function ChatConversationContent({
+  children,
   className,
+  viewportLabel = "Conversation",
   ...props
-}: ComponentProps<typeof StickToBottom.Content>) {
+}: ComponentProps<typeof MessageScrollerContent> & { readonly viewportLabel?: string }) {
   return (
-    <StickToBottom.Content
-      className={cn("mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-6 sm:px-6", className)}
-      {...props}
-    />
+    <MessageScrollerViewport aria-label={viewportLabel}>
+      <MessageScrollerContent
+        className={cn("mx-auto w-full max-w-2xl gap-4 px-4 py-6 sm:px-6", className)}
+        {...props}
+      >
+        {children}
+      </MessageScrollerContent>
+    </MessageScrollerViewport>
   );
 }
 
-export function ChatScrollButton({ className, ...props }: ComponentProps<typeof Button>) {
-  const { isAtBottom, scrollToBottom } = useStickToBottomContext();
-  const handleScrollToBottom = useCallback(() => scrollToBottom(), [scrollToBottom]);
+// One turn or block of the thread. The host's own messages anchor the view.
+export function ChatItem(props: ComponentProps<typeof MessageScrollerItem>) {
+  return <MessageScrollerItem {...props} />;
+}
 
-  if (isAtBottom) {
-    return null;
-  }
-
+export function ChatScrollButton({ className, ...props }: ComponentProps<typeof MessageScrollerButton>) {
   return (
-    <Button
-      aria-label="Scroll to latest message"
-      className={cn(
-        "absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full shadow-sm",
-        className,
-      )}
-      onClick={handleScrollToBottom}
-      size="icon-sm"
-      type="button"
-      variant="outline"
-      {...props}
-    >
-      <ArrowDownIcon className="size-4" />
-    </Button>
+    <MessageScrollerButton aria-label="Scroll to latest message" className={cn("rounded-full", className)} variant="outline" {...props} />
   );
 }

@@ -19,6 +19,7 @@
     "dev:web": "tsx scripts/dev.ts web",
     "start:eve": "eve start",
     "jobs:dev": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/jobs-dev.ts",
+    "admin": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/admin.ts",
     "typecheck": "next typegen apps/web && tsgo --noEmit -p apps/web/tsconfig.json && tsgo --noEmit -p tsconfig.json",
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
@@ -27,6 +28,7 @@
     "check": "npm run check:docs && openspec validate --all --strict"
   },
   "dependencies": {
+    "@shadcn/react": "0.3.1",
     "@shikijs/core": "4.3.1",
     "@shikijs/engine-javascript": "4.3.1",
     "@shikijs/engine-oniguruma": "4.3.1",
@@ -42,6 +44,7 @@
     "clsx": "2.1.1",
     "cmdk": "1.1.1",
     "eve": "0.80.1",
+    "loading-dev": "0.3.5",
     "lucide-react": "1.33.0",
     "next": "16.3.8",
     "postgres": "3.4.9",
@@ -52,7 +55,6 @@
     "streamdown": "2.7.0",
     "tailwind-merge": "3.6.0",
     "tailwindcss": "4.3.3",
-    "use-stick-to-bottom": "1.1.6",
     "zod": "4.4.3"
   },
   "devDependencies": {

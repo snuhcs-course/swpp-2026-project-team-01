@@ -32,7 +32,15 @@ const nextConfig: NextConfig = {
   agentRules: false,
   cacheComponents: true,
   async headers() {
-    return [{ headers: securityHeaders, source: "/:path*" }];
+    // `/` and the single-segment host pages negotiate Markdown in the proxy, so
+    // their HTML varies by Accept too (dotted paths are files, not handles).
+    const varyByAccept = [{ key: "Vary", value: "Accept" }];
+
+    return [
+      { headers: securityHeaders, source: "/:path*" },
+      { headers: varyByAccept, source: "/" },
+      { headers: varyByAccept, source: "/:handle([^/.]+)" },
+    ];
   },
 };
 
