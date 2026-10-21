@@ -37,12 +37,10 @@ agent/
     agentmail.ts            요청자 이메일: 내구성 있는 수신 기록 -> 요청 principal
   tools/                    snake_case 파일; 각각 하나의 도메인 연산을 호출
     setup.ts                read_setup_state와 draft_settings, 호스트 설정에서만 해석
-    read_request.ts
-    list_host_requests.ts
-    draft_request_review.ts
-    evaluate_candidates.ts
-    propose_shared_changes.ts
-    read_booking_status.ts
+    request.ts              request-discussion tools, resolved per audience: read_request,
+                            draft_request_review, evaluate_candidates and read_booking_status
+                            for requesters; Phase 4 adds list_host_requests,
+                            propose_shared_changes and the host projections
   skills/                   모델이 필요할 때 불러올 수 있는 작성된 안내
     onboarding_suggestions.md
     requester_clarification.md
@@ -57,7 +55,7 @@ evals/
   *.eval.ts                 주입, 오래된 리비전, 대상 유출, 정직한 상태
 ```
 
-eve는 경로에서 이름을 도출합니다(`tools/read_request.ts`는 `read_request` 도구입니다). 프레임워크 경로에 있는 파일은 기본값을 대체합니다. `tools/setup.ts` 같은 동적 리졸버는 반환하는 키로 도구 이름을 정하고 세션마다 해석합니다. `eve info`는 발견한 항목을 나열하며, 빌드 산출물은 `.eve/` 아래에 생성됩니다. 이 디렉터리는 `apps/web/`와 같은 위치에 있으며, 둘 다 루트 `vercel.ts`로 구성됩니다(배포 참고).
+eve는 경로에서 이름을 도출합니다(`tools/<name>.ts`는 `<name>` 도구입니다). 프레임워크 경로에 있는 파일은 기본값을 대체합니다. `tools/setup.ts`나 `tools/request.ts` 같은 동적 리졸버는 반환하는 키로 도구 이름을 정하고 세션마다 해석합니다. `eve info`는 발견한 항목을 나열하며, 빌드 산출물은 `.eve/` 아래에 생성됩니다. 이 디렉터리는 `apps/web/`와 같은 위치에 있으며, 둘 다 루트 `vercel.ts`로 구성됩니다(배포 참고).
 
 ## 대상과 세션
 
@@ -90,7 +88,7 @@ eve principal은 사람의 신원이 아니라 대상입니다. 요청자에게�
 | `read_request` | 호스트 또는 요청자 | 현재 요청, 제안 버전, 결정, 허용된 대화를 대상별로 프로젝션하여 제공 | never |
 | `list_host_requests` | 호스트 | 상태와 함께 선택 가능한 요청; 프로젝션을 넘어서는 요청자의 비공개 데이터는 없음 | never |
 | `draft_request_review` | 요청자 | 세부 정보, 가용 시간, 질문 또는 알 수 없는 의도를 작성된 확인 질문과 함께 선언하며, 요청자만 적용할 수 있는 대기 중 검토를 생성 | never |
-| `evaluate_candidates` | 호스트 또는 요청자 | 결정론적 실현 가능성 평가를 내구성 있는 애플리케이션 작업으로 시작하고 그 식별자를 반환; 결과는 버전이 있는 카드로 도착 | never |
+| `evaluate_candidates` | 호스트 또는 요청자 | 결정론적 실현 가능성 평가를 내구성 있는 애플리케이션 작업으로 시작하고, 최대 20초 동안 기다려 대상 프로젝션을 반환하며, 아직 실행 중이면 평가의 식별자를 반환; 결과는 버전이 있는 카드로도 도착([3단계 설계](../../openspec/changes/requester-intake-and-feasibility/design.md#8-evaluation-runs-as-an-application-job)) | never |
 | `propose_shared_changes` | 호스트 | **제안된 공유 변경 검토(Review proposed shared changes)** 카드를 위해 변경된 공유 세부 정보의 초안을 작성; 공유는 별도의 명령 | never |
 | `read_booking_status` | 호스트 또는 요청자 | 도메인 레코드의 대기 중, 불확실, 확정, 전달 실패 상태 | never |
 
@@ -173,7 +171,7 @@ eve 훅은 이벤트가 내구성 있게 기록된 뒤에 실행되며, 예외�
 | 실행 | `next dev apps/web`과 함께 `eve dev`; 실행 기록은 `.eve/.workflow-data` 아래에 유지됨 | 루트 `vercel.ts`의 `withEve({ services: { web: { framework: "nextjs", root: "apps/web" } }, routes })`가 에이전트를 독립 서비스로 추가하고 `/eve/v1/**`를 그쪽으로 라우팅함 |
 | 인증 | 팀원의 샌드박스 로그인을 대상으로 하는 애플리케이션 인증; `localDev()` 없음 | 애플리케이션 인증만; 기본 차단 |
 | 모델 | 로컬 환경의 `OPENAI_API_KEY` | Vercel Production의 `OPENAI_API_KEY`; Preview는 별도의 키를 쓰거나 키가 없음 |
-| 메시징 | 거부됨 | 릴리스에서만; 프리뷰는 거부됨 |
+| 메시징 | 거부됨, 루프백 대역 제공자로 향하는 경우는 예외([3단계 제안서](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions-to-settle), D9) | 릴리스에서만; 프리뷰는 거부됨 |
 | Docker | 필요 없음 | 필요 없음 |
 
 환경 변수는 OpenAI 키, Supabase와 데이터베이스 URL, Google OAuth, 토큰 암호화 키, 작업 워커 시크릿, 애플리케이션 origin, Photon, AgentMail, Cloudflare, `EVE_*` 설정으로 제한되며, 이름만 나열한 `.env.example`을 두고 Git에는 포함하지 않습니다. `eve build`는 `next build`와 함께 실행되고, `eve link`는 Vercel 프로젝트를 연결합니다.
@@ -195,4 +193,4 @@ eve 훅은 이벤트가 내구성 있게 기록된 뒤에 실행되며, 예외�
 
 ## 미결 결정
 
-Photon Spectrum과 네이티브 Photon 채널의 호환성 및 발신자 식별자 형식, `evaluate_candidates`를 eve 워크플로 도구로 실행할지 순수 애플리케이션 작업으로 실행할지, AgentMail 채널을 사용자 정의 채널로 할지 Chat SDK Gmail 어댑터로 할지, 세션 보존 및 압축 임계값, 메모리 슬롯이 유용해지는 시점(있다면).
+Photon Spectrum과 네이티브 Photon 채널의 호환성 및 발신자 식별자 형식, `evaluate_candidates`를 eve 워크플로 도구로 실행할지 순수 애플리케이션 작업으로 실행할지([3단계 제안서](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions-to-settle)는 애플리케이션 작업을 권고, D5), AgentMail 채널을 사용자 정의 채널로 할지 Chat SDK Gmail 어댑터로 할지, 세션 보존 및 압축 임계값, 메모리 슬롯이 유용해지는 시점(있다면).

@@ -35,12 +35,10 @@ agent/
     agentmail.ts            requester email: durable receipt -> request principal
   tools/                    snake_case files; each calls one domain operation
     setup.ts                read_setup_state and draft_settings, resolved for host setup only
-    read_request.ts
-    list_host_requests.ts
-    draft_request_review.ts
-    evaluate_candidates.ts
-    propose_shared_changes.ts
-    read_booking_status.ts
+    request.ts              request-discussion tools, resolved per audience: read_request,
+                            draft_request_review, evaluate_candidates and read_booking_status
+                            for requesters; Phase 4 adds list_host_requests,
+                            propose_shared_changes and the host projections
   skills/                   authored guidance the model may load on demand
     onboarding_suggestions.md
     requester_clarification.md
@@ -55,7 +53,7 @@ evals/
   *.eval.ts                 injection, stale revision, audience leakage, honest status
 ```
 
-eve derives names from paths (`tools/read_request.ts` is the tool `read_request`; a file at a framework path replaces the default). A dynamic resolver such as `tools/setup.ts` names its tools by the keys it returns and resolves them per session. `eve info` lists what it discovered; build artifacts live under `.eve/`. The directory is a sibling of `apps/web/` and both are composed by the root `vercel.ts` (see Deployment).
+eve derives names from paths (`tools/<name>.ts` is the tool `<name>`; a file at a framework path replaces the default). A dynamic resolver such as `tools/setup.ts` or `tools/request.ts` names its tools by the keys it returns and resolves them per session. `eve info` lists what it discovered; build artifacts live under `.eve/`. The directory is a sibling of `apps/web/` and both are composed by the root `vercel.ts` (see Deployment).
 
 ## Audiences and sessions
 
@@ -88,7 +86,7 @@ Every tool is `defineTool` with a description, a Zod input schema and an output 
 | `read_request` | host or requester | Current request, proposal version, decisions and permitted conversation, projected per audience | never |
 | `list_host_requests` | host | Selectable requests with status; no requester private data beyond the projection | never |
 | `draft_request_review` | requester | Declares details, availability, question or unknown intent with an authored clarification; creates a pending review that only the requester can apply | never |
-| `evaluate_candidates` | host or requester | Starts the deterministic feasibility evaluation as a durable application job and returns its identity; results arrive as versioned cards | never |
+| `evaluate_candidates` | host or requester | Starts the deterministic feasibility evaluation as a durable application job, waits up to 20 seconds and returns the audience projection, or the evaluation's identity if it is still running; results also arrive as versioned cards ([Phase 3 design](../../openspec/changes/requester-intake-and-feasibility/design.md#8-evaluation-runs-as-an-application-job)) | never |
 | `propose_shared_changes` | host | Drafts changed shared details for the **Review proposed shared changes** card; sharing is a separate command | never |
 | `read_booking_status` | host or requester | Pending, uncertain, confirmed or delivery-failed state from domain records | never |
 
@@ -171,7 +169,7 @@ Each session is a Workflow run: completed steps replay and an interrupted step r
 | Run | `eve dev` beside `next dev apps/web`; runs persist under `.eve/.workflow-data` | `withEve({ services: { web: { framework: "nextjs", root: "apps/web" } }, routes })` in the root `vercel.ts` adds the agent as its own service and routes `/eve/v1/**` to it |
 | Auth | Application auth against the teammate's sandbox sign-in; no `localDev()` | Application auth only; fails closed |
 | Model | `OPENAI_API_KEY` in the local environment | `OPENAI_API_KEY` in Vercel Production; Preview gets its own key or none |
-| Messaging | Denied | Release only; previews denied |
+| Messaging | Denied, except toward a loopback stand-in provider ([Phase 3 proposal](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions-to-settle), D9) | Release only; previews denied |
 | Docker | Not needed | Not needed |
 
 Environment variables are limited to the OpenAI key, Supabase and the database URL, Google OAuth, the token encryption key, the job worker secret, the application origin, Photon, AgentMail, Cloudflare and `EVE_*` settings, kept out of Git with `.env.example` listing names only. `eve build` runs with `next build`; `eve link` binds the Vercel project.
@@ -193,4 +191,4 @@ Environment variables are limited to the OpenAI key, Supabase and the database U
 
 ## Open decisions
 
-Photon Spectrum compatibility with the native Photon channel and the sender identifier format; whether `evaluate_candidates` runs as an eve workflow tool or purely as an application job; whether the AgentMail channel is a custom channel or the Chat SDK Gmail adapter; session retention and compaction thresholds; when, if ever, a memory slot becomes useful.
+Photon Spectrum compatibility with the native Photon channel and the sender identifier format; whether `evaluate_candidates` runs as an eve workflow tool or purely as an application job (the [Phase 3 proposal](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions-to-settle) recommends an application job, D5); whether the AgentMail channel is a custom channel or the Chat SDK Gmail adapter; session retention and compaction thresholds; when, if ever, a memory slot becomes useful.

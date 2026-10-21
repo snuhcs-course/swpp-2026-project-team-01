@@ -8,16 +8,33 @@
       "agent_ms": 0,
       "models": {
         "claude-opus-5-5": {
-          "input": 128,
-          "cache_read": 15369368,
+          "input": 146,
+          "cache_read": 18186484,
           "cache_write_5m": 0,
-          "cache_write_1h": 243728,
-          "output": 79170,
+          "cache_write_1h": 254265,
+          "output": 84420,
           "reasoning": 0
         }
       },
       "first": "2026-10-21T07:02:36.991Z",
-      "last": "2026-10-21T07:19:58.953Z"
+      "last": "2026-10-21T07:24:45.199Z"
+    },
+    "claude:2d607788-ad93-4143-acc8-b2b647f99651/agent-a1446f0e6db1351e6": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 26,
+          "cache_read": 1168600,
+          "cache_write_5m": 116137,
+          "cache_write_1h": 0,
+          "output": 1783,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-21T07:21:01.985Z",
+      "last": "2026-10-21T07:24:35.427Z"
     },
     "claude:2d607788-ad93-4143-acc8-b2b647f99651/agent-a50db0f641377bc09": {
       "agent": "claude-code",

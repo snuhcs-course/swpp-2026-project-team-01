@@ -29,7 +29,7 @@
 - **명세 먼저, 그다음 코드, 그다음 보관.** 변경은 델타 명세와 작업 목록과 함께 제안되고, 검토를 거쳐, 테스트와 함께 구현되고, 검증된 뒤에야 `openspec/specs/`로 보관됩니다. 보류 중인 델타는 주 명세 본문이 절대 일찍 되지 않습니다.
 - **스키마 변경은 한 방향으로만 흐릅니다.** `supabase/schemas/` 아래의 원하는 SQL, 같은 풀 리퀘스트에서 Docker를 가진 팀원이 생성한 검토된 pg-delta 마이그레이션, `supabase db push`로 개인 샌드박스에 적용, 그리고 병합 시 CI만이 공유 프로젝트에 푸시합니다. Studio 편집은 금지됩니다.
 - **증거는 인수 시나리오에 첨부됩니다.** 픽스처는 로직을 증명하고, 통제된 제공자, 기기, 명명된 클라이언트 확인은 연동을 증명합니다. 어느 쪽도 다른 쪽을 대체하지 않습니다. 토큰, 개인 텍스트, 원본 대화 기록은 추적되는 증거에 포함하지 않습니다.
-- **프로덕션 외에서는 메시징이 거부됩니다.** 프리뷰와 로컬 배포는 이메일이나 iMessage를 보낼 수 없으므로, 채널 인수는 식별된 프로덕션 배포에서 허가된 수신자와 함께만 실행됩니다.
+- **프로덕션 외에서는 메시징이 거부됩니다.** 프리뷰와 로컬 배포는 이메일이나 iMessage를 보낼 수 없으므로, 채널 인수는 식별된 프로덕션 배포에서 허가된 수신자와 함께만 실행됩니다. 로컬 실행은 루프백 대역 제공자에만 닿을 수 있으며, [3단계 제안서](../../openspec/changes/requester-intake-and-feasibility/proposal.md#conflicts-resolved-here)가 메시징 환경 계약을 그렇게 바로잡습니다.
 - **참조 저장소를 먼저.** 모듈을 설계하거나 구현하기 전에 5절에서 해당 단계에 나열된 파일을 읽고, 우리 계약이 달리 정하지 않은 곳에서는 그 아키텍처, 스타일, 테스트를 따릅니다. 따른 저장소와 리비전을 풀 리퀘스트에 명시합니다.
 
 팀 병렬 작업: 0단계와 1단계는 모든 것이 이에 의존하므로 직렬입니다. 2단계부터는 4인 팀이 두세 개의 변경을 나란히 진행할 수 있으며, 4절의 의존성 표가 겹칠 수 있는 부분을 보여 줍니다.
@@ -131,7 +131,16 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 목표: 요청자가 준비된 호스트에 도달하고, 이해되고, 실현 가능한 후보를 봅니다. 아직 승인되거나 예약된 것은 없습니다.
 
-범위. 선행 조건: 1단계 합류와, "준비된 호스트"가 존재하도록 2단계 레인 C의 준비도 가드. 그전에는 픽스처 호스트로 충분합니다. 레인 C는 순수 도메인 코드이며 1단계 뼈대가 반영되는 즉시 시작할 수 있습니다.
+범위. 선행 조건: 1단계 합류와, "준비된 호스트"가 존재하도록 2단계 레인 C의 준비도 가드. 그전에는 픽스처 호스트로 충분합니다. 레인 C는 순수 도메인 코드이며 1단계 뼈대가 반영되는 즉시 시작할 수 있습니다. 모든 레인은 아래 제안서도 기다리며, 어떤 레인이 코드를 작성하기 전에 이를 검토합니다.
+
+**제안서 (직렬, 가장 먼저)**
+
+- [x] 결정할 사항과 범위 표를 담은 [`requester-intake-and-feasibility`](../../openspec/changes/requester-intake-and-feasibility/proposal.md) 제안서.
+- [x] [설계](../../openspec/changes/requester-intake-and-feasibility/design.md).
+- [x] [`specs/`](../../openspec/changes/requester-intake-and-feasibility/specs/) 아래의 델타 명세.
+- [x] [작업 목록](../../openspec/changes/requester-intake-and-feasibility/tasks.md).
+- [x] 소유 문서 갱신과 한국어 미러.
+- [ ] 팀원 검토.
 
 **레인 A — 라우트, 신원, 시간대**
 
@@ -164,7 +173,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 명세: [meeting-requests](../../openspec/specs/meeting-requests/spec.md), [meeting-feasibility](../../openspec/specs/meeting-feasibility/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md)(트랜잭션 발송, 전달 증거, 불확실한 디스패치), [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md)(접수, 마스킹, 안정적인 요청자 목적지), [conversation-access](../../openspec/specs/conversation-access/spec.md). 또한 기반 변경이 여기로 미룬 저장된 순위 시나리오를 위해 [model-execution](../../openspec/specs/model-execution/spec.md)도 참조합니다.
 
-여기서 확정할 결정: 지원하는 지역과 경로 최신성; 수동 이동 허용치의 세분도; 온라인 미팅 링크를 누가 만드는가; 검증 코드 만료 및 쿨다운 값; Cloudflare 도메인 검증과 API 권한.
+여기서 확정할 결정: 지원하는 지역과 경로 최신성; 수동 이동 허용치의 세분도; 온라인 미팅 링크를 누가 만드는가(이 단계의 요청자 동의가 링크 계획을 다루므로 4단계에서 옮겨 옴); 검증 코드 만료 및 쿨다운 값; Cloudflare 도메인 검증과 API 권한; `evaluate_candidates`가 eve 워크플로 도구인지 애플리케이션 작업인지; 요청 생성 한도; 재전송을 위한 예약 링크 저장; 로컬 메시징; 요청이 생기기 전에 공개 페이지가 모델 대화를 실행하는지; 동의 전 연락처 인증. [제안서](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions-to-settle)는 각각에 대해 선택지와 권고를 D1–D12로 제시하며, **팀원 검토(Teammate review)** 아래에서 팀의 승인을 기다립니다.
 
 증거: 접수와 후보까지의 AC-01, AC-02, 요청자 측 AC-03, AC-12, 철회에 대한 AC-13, AC-27; 검증 코드와 재전송된 링크를 통제된 Cloudflare 받은편지함으로 전달. [게스트 예약 흐름 체크리스트](../user_experience/06_guest_booking_flow.md#checks-before-calling-the-flow-done)의 키보드 및 휴대폰 너비 확인.
 
@@ -422,8 +431,9 @@ Docker를 갖춘 팀원이 그 주에 마이그레이션이 필요한 레인의 
 | eve 버전, 템플릿 리비전, 모델 ID, 의존성 고정 | 1단계 제안서 | 프런트엔드 아키텍처, 에이전트 구성 |
 | 내구성 있는 작업 배치와 디스패처 소유권 | 1단계 종료 | 백엔드 아키텍처 |
 | 가입 및 핸들 한도, 예약 핸들, 시작용 기본값 | 2단계 제안서 | PRD 10절, host-admission 명세 |
-| 지원 지역, 경로 최신성, 수동 허용치 세분도(이동 수단은 2단계에서 확정됨) | 3단계 제안서 | PRD 이동 시간 확인, meeting-feasibility 명세 |
-| 온라인 미팅 링크 생성 | 4단계 제안서 | PRD 10절 |
+| 지원 지역, 경로 최신성, 수동 허용치 세분도(이동 수단은 2단계에서 확정됨) | 3단계 제안서(D1, D2) | PRD 이동 시간 확인, meeting-feasibility 명세 |
+| 온라인 미팅 링크 생성 | 3단계 제안서(D6), 요청자 동의가 링크를 다루므로 4단계에서 옮겨 옴 | PRD 10절, meeting-requests 명세 |
+| 검증 코드, 요청 생성 한도, Cloudflare 설정, `evaluate_candidates` 배치, 예약 링크 저장, 로컬 메시징, 정적 공개 접수 페이지, 동의 전 인증 | 3단계 제안서(D3–D5, D7–D12) | meeting-requests, email-delivery, messaging-environments 명세; 제공자 설정; 에이전트 구성 |
 | MCP 프로토콜 버전, 등록, 스코프, CLI 패키징 | 5단계 제안서 | 에이전트 클라이언트 인가 명세, CLI 방향 |
 | iMessage 어댑터, 코드 만료, 회선 프로비저닝 | 6단계 제안서 | 제공자 설정, 새 iMessage 변경 |
 | AgentMail 어댑터와 보존 | 7단계 제안서 | 제공자 설정 |
