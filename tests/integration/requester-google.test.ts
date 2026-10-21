@@ -293,6 +293,38 @@ describe("Connect Google Calendar on an existing request", () => {
     expect((await start({ bookingId: request.bookingId, purpose: "request" })).status).toBe(404);
   });
 
+  it("replaces a grant of the same identity without revoking the new token at Google", async () => {
+    const request = await createTestRequest(db);
+    const person = identity();
+
+    for (const refreshToken of ["1//first", "1//second"].map((token) => `${token}-${request.requestId}`)) {
+      google.setConsent({ decision: "approve", identity: person, refreshToken, scopes: ALL_SCOPES });
+      const started = await start({ bookingId: request.bookingId, purpose: "request" });
+      await callback(await consent(started), bindingOf(started));
+    }
+
+    const closed = await db<{ id: string; provider_revocation: string | null }[]>`
+      select id, provider_revocation from app.requester_grants
+      where request_id = ${request.requestId} and kind = 'calendar' and revoked_at is not null
+    `;
+    expect(closed).toHaveLength(1);
+    expect(closed[0]!.provider_revocation).toBe("not_needed");
+    expect(await jobFor(db, REQUESTER_REVOCATION_JOB, `grant:${closed[0]!.id}`)).toBeFalsy();
+    expect(await readRequesterCalendarGrant(db, [testTokenKey], request.requestId)).toMatchObject({
+      refreshToken: `1//second-${request.requestId}`,
+    });
+
+    // Another identity replacing it still revokes the old token at Google.
+    google.setConsent({ decision: "approve", identity: identity(), refreshToken: `1//other-${request.requestId}`, scopes: ALL_SCOPES });
+    const started = await start({ bookingId: request.bookingId, purpose: "request" });
+    await callback(await consent(started), bindingOf(started));
+    const [replaced] = await db<{ id: string }[]>`
+      select id from app.requester_grants
+      where request_id = ${request.requestId} and kind = 'calendar' and revoked_at is not null and provider_revocation is null
+    `;
+    expect(await jobFor(db, REQUESTER_REVOCATION_JOB, `grant:${replaced!.id}`)).toBeTruthy();
+  });
+
   it("keeps another open request's grant of the same identity, and revokes at Google only for the last one", async () => {
     const person = identity();
     const [one, two] = await Promise.all([createTestRequest(db), createTestRequest(db)]);

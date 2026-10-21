@@ -64,7 +64,9 @@ type LiveGrant = {
 // transaction. When it held a token and no other live calendar grant of the same
 // Google identity still holds one, a revocation job carries the sealed token to
 // Google's endpoint after commit; otherwise deleting the token is the revocation.
-async function closeGrant(tx: Transaction, requestId: string, grant: LiveGrant) {
+// A grant replaced by a new consent of the same identity is never revoked at
+// Google: Google revokes per user and client, which would void the new token.
+async function closeGrant(tx: Transaction, requestId: string, grant: LiveGrant, replacingSubjectHash?: string) {
   const holdsToken = Boolean(grant.refresh_token_ciphertext && grant.refresh_token_key_id);
   const [shared] = holdsToken
     ? await tx<{ found: boolean }[]>`
@@ -74,7 +76,7 @@ async function closeGrant(tx: Transaction, requestId: string, grant: LiveGrant) 
         limit 1
       `
     : [];
-  const revokeAtGoogle = holdsToken && !shared;
+  const revokeAtGoogle = holdsToken && !shared && grant.google_subject_hash !== replacingSubjectHash;
 
   await tx`
     update app.requester_grants
@@ -99,11 +101,13 @@ async function closeGrant(tx: Transaction, requestId: string, grant: LiveGrant) 
 }
 
 // Closes the request's live grants (of the given kinds, or all), as closure and
-// Disconnect do. Returns how many were closed.
+// Disconnect do, or as a new consent replaces them (`replacingSubjectHash`, the
+// new consent's identity). Returns how many were closed.
 export async function revokeRequestGrants(
   tx: Transaction,
   requestId: string,
   kinds: readonly LiveGrant["kind"][] = ["identity", "calendar"],
+  replacingSubjectHash?: string,
 ) {
   const grants = await tx<LiveGrant[]>`
     select id, kind, google_subject_hash, refresh_token_ciphertext, refresh_token_key_id
@@ -112,7 +116,7 @@ export async function revokeRequestGrants(
     for update
   `;
 
-  for (const grant of grants) await closeGrant(tx, requestId, grant);
+  for (const grant of grants) await closeGrant(tx, requestId, grant, replacingSubjectHash);
   return grants.length;
 }
 
@@ -129,7 +133,7 @@ export async function recordRequesterGrants(
   const subjectHash = googleSubjectHash(tokenKey, identity.subject);
   const calendar = hasCalendarScopes(identity.scopes) && identity.refreshToken !== null;
 
-  await revokeRequestGrants(tx, requestId, calendar ? ["identity", "calendar"] : ["identity"]);
+  await revokeRequestGrants(tx, requestId, calendar ? ["identity", "calendar"] : ["identity"], subjectHash);
 
   const identityScopes = (identity.scopes ?? []).filter((scope) => !scope.includes("/auth/calendar"));
   await tx`
