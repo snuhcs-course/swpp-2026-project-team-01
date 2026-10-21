@@ -81,26 +81,32 @@ Sending the creation email again SHALL wait at least 60 seconds after the previo
 - **WHEN** the send response is lost after possible provider acceptance
 - **THEN** the email is not sent again automatically and the card shows that delivery is uncertain
 
-### Requirement: Anonymous intake conversation
-A ready host's public page SHALL offer an assistant conversation before any request exists, under an anonymous intake that is bound to one browser tab by a random token stored only as a hash and that lasts at most 24 hours. The intake SHALL see only the host's public profile and its own draft, SHALL have no tool that reads host settings, calendars, requests or other intakes, and SHALL be bounded to 5 new intakes per source address in any rolling hour and 20 in any rolling day, 30 messages per intake before the requester continues, USD 3 of model allowance per intake and USD 50 of anonymous model allowance across the service in any 24 hours. A request created from an intake SHALL keep the intake's USD 3 model allowance, and its spend SHALL count toward the anonymous allowance, until its contact is confirmed or it holds a live Google identity; then the usual request allowance SHALL apply, counting what it already spent. Continuing with or without Google SHALL create at most one request from an intake, carry its draft over as a pending review and show its transcript read-only on the booking page.
+### Requirement: Continuous guest conversation
+A ready host's public page SHALL offer an assistant conversation from the guest's first message, and that conversation SHALL continue in the same thread and assistant session until the request closes. The first message SHALL create a draft request that is invisible to the host, bound to one browser tab by its booking link kept outside the address bar, limited to 30 messages and deleted 24 hours after creation unless the guest is identified. Drafts SHALL be bounded to 5 per source address in any rolling hour and 20 in any rolling day. A request whose contact is unconfirmed and that holds no live Google identity, drafts included, SHALL have at most USD 3 of model allowance per 24 hours, counted toward a USD 50 anonymous allowance across the service; once its contact is confirmed or a Google identity is held, the usual request allowance SHALL apply, counting what it already spent. Candidate evaluation, candidate selection and agreement SHALL require the guest to be identified. Identification SHALL keep the same thread and session, SHALL move the address bar to the booking link without reloading the page, and SHALL send the creation email.
 
 #### Scenario: Visitor asks for the host's calendar
 - **WHEN** a visitor on the public page asks the assistant for the host's free times or calendar
-- **THEN** no tool can read them, nothing is read, and the assistant explains that times are offered once the request exists
+- **THEN** no tool can read them, nothing is read, and the assistant answers within the requester projection
+
+#### Scenario: Times before identification
+- **WHEN** a guest who has not given a name and email asks for available times
+- **THEN** no evaluation runs and the identity card appears in the thread
+
+#### Scenario: Identification keeps the thread
+- **WHEN** a guest who described the meeting on the public page continues without Google
+- **THEN** the request leaves draft, the address bar shows its booking link without a reload, the assistant still has the earlier messages, and the creation email is sent
+
+#### Scenario: Abandoned draft
+- **WHEN** a guest sends a message and leaves without identifying
+- **THEN** the host never sees the draft and it is deleted after 24 hours
 
 #### Scenario: Anonymous budget exhausted
 - **WHEN** the anonymous service-wide allowance is used up
-- **THEN** new intake messages get a temporary-limit response and **Continue without Google** still creates a request
+- **THEN** new draft messages get a temporary-limit response and **Continue without Google** still identifies the guest
 
-#### Scenario: Unconfirmed request keeps the intake's cap
-- **WHEN** a request created without Google has spent USD 3 of model allowance and its contact is still unconfirmed
+#### Scenario: Unconfirmed request keeps the anonymous cap
+- **WHEN** a request identified without Google has spent USD 3 of model allowance and its contact is still unconfirmed
 - **THEN** further model work for it is refused until the requester confirms the address
-
-#### Scenario: Intake continues
-- **WHEN** a requester who described the meeting on the public page continues without Google
-- **THEN** one request is created, the booking page shows the intake transcript and a pending review of the drafted details, and the intake accepts no further messages
-
-
 
 ### Requirement: Bounded request creation
 Creating a request on a public host page SHALL require a ready host and SHALL be bounded to 5 requests per source address in any rolling hour and 20 in any rolling day and 500 across the service in any rolling day, with no per-host bound. Source addresses SHALL be stored only as keyed hashes. Past a bound, the service SHALL create nothing and SHALL return generic temporary-limit feedback that discloses neither the host's existing requests nor which bound applied.

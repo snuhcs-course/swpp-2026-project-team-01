@@ -50,37 +50,36 @@ Decisions D1–D12 in the proposal were decided on 2026-10-21; D12 was withdrawn
 
 Rejected: keeping only the hash. The contract resends the *current* link, and the PRD defers rotation, so the service must be able to rebuild the link for its confirmed contact and the creation email (D10, decision 7).
 
-### 2. Public intake and request creation
+### 2. One guest thread from the first message
 
-Chosen (D11): `/{handle}` opens an assistant conversation before any request exists. Its principal is an anonymous **intake**: the first message creates an `intakes` row and a random intake token, which the page keeps in `sessionStorage` for that tab and sends with each call; the server stores only its hash. The intake lasts 24 hours. The page shows the host's public identity, the conversation, the guest identity card and the timezone line.
+Chosen (D13, revising D11): the guest has one conversation, in one assistant session, from the first message on `/{handle}` to agreement. There is no separate anonymous intake.
+
+**Draft request.** The first message on a ready host's `/{handle}` runs `request.start`, which creates a request in the new state `draft`, its booking link (hashed and sealed, decision 7), the requester discussion and eve session, and records the message as the first accepted input. The page keeps the booking UUID in `sessionStorage` for that tab and sends it with each call; the address bar stays at `/{handle}` until the guest is identified. A draft:
+
+- is invisible to the host: every host projection, list and count filters `draft` out;
+- expires 24 hours after creation unless the guest is identified, and is then deleted with its discussion by the expiry job;
+- accepts at most 30 messages;
+- spends under the unconfirmed-request model cap (USD 3 per 24 hours, counted toward the USD 50 anonymous window), which already applies because a draft has no confirmed contact.
 
 | Bound | Value |
 |---|---|
-| New intakes per keyed source address | 5 per rolling hour, 20 per rolling day |
-| Messages per intake | 20 per minute and 100 per hour (the request numbers), and 30 in total before the requester continues |
-| Model allowance per intake | USD 3 per 24 hours, reserved at USD 0.60 per attempt like any principal |
-| Model allowance per unconfirmed request | USD 3 per 24 hours, the intake's, until the contact is confirmed (email link or a verified Google address) or the request holds a live Google identity grant; then the usual USD 30, counting what was already reserved |
-| Anonymous model allowance service-wide | USD 50 per 24 hours, inside the USD 300 service cap, counting intakes and unconfirmed requests |
-| Requests created | 5 per keyed source address per rolling hour and 20 per rolling day, 500 service-wide per rolling day, no per-host cap (D7) |
+| Drafts created per keyed source address | 5 per rolling hour, 20 per rolling day |
+| Drafts created service-wide | 500 per rolling day, no per-host bound (D7) |
+| Messages per draft | 20 per minute and 100 per hour (the request numbers), and 30 in total before identification |
 
-The intake audience has two tools, resolved by `agent/tools/intake.ts` only for `public_intake`, with the `public-intake.md` fragment: `read_intake` returns the host's public projection (display name and handle, as the public page shows) and the intake's own draft; `draft_intake` records purpose, duration, mode, location and windows in the intake draft with the same validation as a request review. Neither reads host settings, calendars or other intakes. The intake instruction fragment asks for the purpose first and offers the identity card; it states nothing about the host's availability, which is evaluated only after a request exists.
+**Identification.** The assistant asks for name and email in the thread, and the identity card appears there with **Continue with Google** and **Continue without Google**. `request.identify` (with name, email and timezone) or the Google callback moves the request from `draft` to `gathering`, sets `expires_at` to the earlier of creation plus seven days and the latest window end, sends the creation email (decision 6), and the page calls `history.replaceState` to `/booking/{bookingId}`. Nothing reloads and the session is the same, so the assistant keeps the whole conversation as context. After a Google return the booking page loads the same thread from its stored events.
 
-The request is created when the requester continues:
+**While a draft.** `read_request` and `draft_request_review` work, so the assistant can gather purpose, duration, mode, place and windows before identity. `evaluate_candidates`, **Find times**, **Choose this time** and **Agree to this proposal** answer `identity_required`, which the assistant meets by showing the identity card. The tools are the same requester set; the draft state is checked inside each operation (layer 3), not by withholding tools, because the audience is the same.
 
-- **Continue without Google** submits name, email and timezone to `POST /api/intake/{handle}/continue` with the intake token.
-- **Continue with Google** starts the consent round trip (decision 3); the callback creates the request.
+`request.start` runs through `runCommand` with the browser's retry key (a nonce kept with the tab), so a retried first message creates at most one draft; its actor is the anonymous starter, identified by the nonce's hash.
 
-`request.create` runs through `runCommand`. Its actor is the intake (`principalType: public_intake`, the intake ID), and the retry key is the intake token's hash, so one intake creates at most one request and only the browser holding the token can recover the outcome. In one transaction it reads host standing through the shared guard (unready, suspended or unknown hosts get the neutral unavailable result), checks the creation bounds under advisory locks, inserts the request in `gathering` with `expires_at` at creation plus seven days, inserts the hashed and sealed booking link, creates the requester discussion, turns the intake draft into a pending review the requester applies on the booking page, links the intake to the request, inserts the creation email (decision 6) and closes the intake. The response carries the UUID once; the browser replaces the location with `/booking/{uuid}`. An exact retry returns the same UUID by opening the sealed link.
+`/booking/[bookingId]` hashes the path segment and looks it up. A malformed, unknown or expired identifier, or a draft opened from another tab, renders the generic unavailable view with **Resend my booking link** (decision 7) and nothing else. Every response from this route and its APIs sends `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex` and `Cache-Control: no-store`; request logs record the route template, never the path. A closed request with an unexpired link renders only status and, from Phase 4, the receipt.
 
-The intake's conversation is not moved into the request's eve session, because tools and instructions resolve per session principal when a session starts. Instead, the booking page shows the intake transcript read-only above the request conversation, served from the intake discussion's stored events, and the request session's first input is an application-authored summary of the intake draft. The intake discussion is then retired: no further input, and no tool runs under it. Its session stays readable only while the request it became is open and its link unexpired.
+Request APIs live under `/api/requests/{bookingId}/*`, authenticated by hashing the identifier, with the same headers as the page; `/{handle}` uses them too once the draft exists. `appAuth`'s requester branch carries `principalId: request:{requestId}` with `audience: requester`. The browser never calls `/eve/v1/*`: history and the live stream come from the application-proxied `/api/requests/{bookingId}/events` route.
 
-**Continue without Google** gives an anonymous visitor a request without proving any identity, so model spend does not become identified at that step. Each reservation records whether it was anonymous: an unconfirmed request without a live Google identity grant reserves under the intake's USD 3 cap and counts toward the USD 50 anonymous window, under the anonymous lock that every intake and request reservation takes before the service lock. Rejected: the USD 30 principal cap from creation, which would let one source address spend USD 150 an hour through the creation bound without ever giving a reachable address.
+**Retired intake.** The `intakes` table, the `public_intake` audience and `read_intake`/`draft_intake` stop being created or registered. Existing rows from before D13 stay readable only so a request that came from an intake still shows that transcript above its thread; a later migration drops them once no open request refers to one.
 
-`/booking/[bookingId]` hashes the path segment and looks it up. A malformed, unknown or expired identifier renders the generic unavailable view with **Resend my booking link** (decision 7) and nothing else. Every response from this route and its APIs sends `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex` and `Cache-Control: no-store`; request logs record the route template, never the path. A closed request with an unexpired link renders only status and, from Phase 4, the receipt.
-
-Request APIs live under `/api/requests/{bookingId}/*` and intake APIs under `/api/intake/{handle}/*`, authenticated by hashing the identifier or token, with the same headers as the page. `appAuth` gains requester and intake branches: the application route has already resolved the credential, and the signed internal bearer carries `principalId: request:{requestId}` with `audience: requester`, or `principalId: intake:{intakeId}` with `audience: public_intake`. Neither has a Supabase cookie, so the browser never calls `/eve/v1/*`: history and the live stream come from application-proxied `events` routes under the same prefixes, the counterparts of the host events route.
-
-Rejected: a static intake page with the conversation starting at the booking link. It spends nothing on anonymous visitors, but the decision was to keep the conversational intake the page list and guest flow describe. Rejected: creating the request at the first message. Abandoned visits would fill hosts' requests.
+Rejected: stitching a separate intake session to the request session, which keeps the seam under the hood. Rejected: identifying first and talking second (a static page), which D11 already rejected. Rejected: issuing the address-bar link before identification, which would put a credential in the URL while the guest may still leave.
 
 ### 3. Requester Google consent
 
@@ -209,12 +208,12 @@ Chosen (D6): the proposal's `link_plan` is `google_meet` (a Meet conference crea
 
 Clarification categories (`missing_date`, `missing_time`, `missing_timezone`, `ambiguous_local_time`, `missing_duration`, `missing_mode`, `missing_location`, `unclear_location`, `missing_purpose`) each have one authored English and one authored Korean question in `lib/contracts/clarifications.ts`. The language is the request's, set from the browser and changed only by the requester.
 
-Cards on `/booking/[bookingId]`, each posting to `/api/requests/{bookingId}/commands` with the expected revision and a retry key:
+Cards appear **inside the thread** (D13): each is anchored after the assistant message or tool result that calls for it, in order, and stays in the history as a record of what was offered and chosen; a superseded card shows that it is out of date and offers the current one. Only the composer sits below the thread. The page shows no form, panel or card outside it. Cards post to `/api/requests/{bookingId}/commands` with the expected revision and a retry key:
 
 | Card | Command |
 |---|---|
 | Review extracted details: **Apply these details**, **Dismiss** | `request.apply_review`, `request.dismiss_review` |
-| Meeting details (secondary surface): purpose, duration, mode, location or meeting link, availability windows, travel mode for in-person requests, **Save details** | `request.update_details` with the same validation as a review, so details can be set when the model is unavailable. A meeting link entered here is not passed through conversation redaction |
+| Meeting details (opened from the thread with **Edit details**): purpose, duration, mode, location or meeting link, availability windows, travel mode for in-person requests, **Save details** | `request.update_details` with the same validation as a review, so details can be set when the model is unavailable. A meeting link entered here is not passed through conversation redaction |
 | Calendar connection: **Connect Google Calendar**, **Skip for now**, **Disconnect** | Decision 3; `request.set_manual_availability` |
 | Contact confirmation: **Send the email again**, **Use verified Google email** | Decision 6 |
 | Candidate times: **Choose this time**, **Find other times**, and for an unresolved requester leg **Allow … minutes for my trip** | `request.choose_candidate` creates the next proposal version from a candidate of the current evaluation; `request.evaluate` |

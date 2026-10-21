@@ -26,3 +26,22 @@ The website SHALL open host setup and request management on the relevant convers
 #### Scenario: Request link without authority
 - **WHEN** a browser opens a protected request without its continuation credential, or with an unknown, malformed or expired one
 - **THEN** no request details or chat appear, and the page directs the requester to use their private request link and offers only the generic **Resend my booking link** control, with no credential-paste field and no other recovery control
+
+### Requirement: Contextual artifacts and actions
+The website SHALL present draft changes, calendar choices, candidate times, current proposals, and decision status as reviewable artifacts in the relevant conversation. For guests, every card SHALL appear inside the conversation thread at the point it is needed and remain in its history, and no form or card SHALL sit outside the thread. Available actions SHALL be labeled, keyboard-operable buttons adjacent to the artifact and SHALL invoke the authorized commands with current revisions.
+
+#### Scenario: Review a candidate
+- **WHEN** a requester receives feasible candidate times
+- **THEN** the times appear in a conversation artifact with a select action and enough date, time, timezone, and duration detail to identify the choice
+
+#### Scenario: Confirm a proposal
+- **WHEN** the exact current proposal awaits requester agreement or host approval
+- **THEN** the appropriate audience sees its own explicit decision button beside that proposal, and no message text alone records the decision
+
+#### Scenario: Stale artifact
+- **WHEN** a decision artifact refers to a superseded revision
+- **THEN** the action is unavailable or rejected, the current artifact is shown, and no stale decision is saved
+
+#### Scenario: Guest identity in the thread
+- **WHEN** the assistant needs the guest's name and email
+- **THEN** the identity card appears in the thread after that assistant message, and no identity form is shown elsewhere on the page

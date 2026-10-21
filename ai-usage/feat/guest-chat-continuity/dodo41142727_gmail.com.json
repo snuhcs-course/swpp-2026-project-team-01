@@ -1,0 +1,23 @@
+{
+  "branch": "feat/guest-chat-continuity",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:2d607788-ad93-4143-acc8-b2b647f99651": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 16,
+          "cache_read": 4665457,
+          "cache_write_5m": 0,
+          "cache_write_1h": 13877,
+          "output": 11307,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-21T18:53:07.646Z",
+      "last": "2026-10-21T19:05:45.120Z"
+    }
+  }
+}

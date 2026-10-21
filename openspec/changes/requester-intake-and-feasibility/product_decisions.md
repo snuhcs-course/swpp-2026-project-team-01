@@ -41,7 +41,7 @@ Two groups:
   - **Chosen:** a Google Meet conference created with the event when the host's booking calendar allows Meet, otherwise a link the requester supplies. With neither, no proposal is created.
   - **Check:** the Phase 4 proposal must create the conference with the event.
 
-- [ ] **D7. Request creation limits** ([design 2](design.md#2-public-intake-and-request-creation)).
+- [ ] **D7. Request creation limits** ([design 2](design.md#2-one-guest-thread-from-the-first-message)).
   - **Chosen:** 5 per source address per hour, 20 per day, and 500 per day service-wide. There is **no per-host cap**.
   - **Consequence:** a popular or targeted host can receive many requests; only the per-source and service limits apply.
 
@@ -62,14 +62,15 @@ Two groups:
   - **Chosen:** look up by hash, plus a sealed copy, so the current link can be emailed and resent.
   - **Consequence:** a database dump together with `TOKEN_ENCRYPTION_KEY` yields live links.
 
-- [ ] **D11. Assistant conversation on `/{handle}`** ([design 2](design.md#2-public-intake-and-request-creation)).
-  - **Chosen:** an anonymous intake under its own limits:
-    - 5 new intakes per source per hour and 20 per day;
-    - 30 messages per intake;
-    - USD 3 per intake and USD 50 per day across all anonymous visitors.
-  - **Consequence:** anonymous visitors can spend up to USD 50 a day before giving any identity.
+- [ ] **D11. Assistant conversation on `/{handle}`**, revised by D13 ([design 2](design.md#2-one-guest-thread-from-the-first-message)).
+  - **Chosen first:** a separate anonymous intake. Replaced on 2026-10-22 by a draft request in the same thread.
 
 - [ ] **D12. Verification before agreement.** Withdrawn by D3. An unconfirmed address can agree.
+
+- [ ] **D13. Continuous, chat-native guest thread** ([design 2](design.md#2-one-guest-thread-from-the-first-message)).
+  - **Chosen:** the first message creates a draft request, hidden from the host and deleted after 24 hours if the guest never identifies. One assistant session runs from that message to agreement, every card sits inside the thread, and the address bar changes to the booking link in place on identification.
+  - **Rejected:** stitching a separate intake session to the request.
+  - **Consequences:** abandoned conversations create short-lived draft rows; candidates wait until the guest gives a name and email.
 
 ## 2. Implementation choices not yet decided by anyone
 

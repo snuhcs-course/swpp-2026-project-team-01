@@ -5,11 +5,11 @@ Let a requester without any product account prefill their identity and share rea
 ## ADDED Requirements
 
 ### Requirement: Request-bound Google consent flow
-**Continue with Google** and **Connect Google Calendar** for requesters SHALL use a Google OAuth flow owned by the application, separate from host sign-in: it SHALL NOT create a Supabase Auth user, a host account or a product session, and SHALL return to its own callback rather than `/auth/callback`. Each round trip SHALL be bound to one anonymous intake on a ready host's public page or to one open request whose booking link the starting page held, to the starting browser, and to a single-use, short-lived transaction with PKCE. A cancelled, replayed, expired or other-browser return SHALL change no request and reveal no request.
+**Continue with Google** and **Connect Google Calendar** for requesters SHALL use a Google OAuth flow owned by the application, separate from host sign-in: it SHALL NOT create a Supabase Auth user, a host account or a product session, and SHALL return to its own callback rather than `/auth/callback`. Each round trip SHALL be bound to one draft or open request whose booking link the starting page held, to the starting browser, and to a single-use, short-lived transaction with PKCE. A cancelled, replayed, expired or other-browser return SHALL change no request and reveal no request.
 
 #### Scenario: Requester continues with Google
-- **WHEN** a requester on a ready host's public page completes Google consent
-- **THEN** one request is created for that host with the Google name and email, the browser continues at its booking link, and no host account, Supabase user or product session exists for the requester
+- **WHEN** a guest in a draft request on a ready host's public page completes Google consent
+- **THEN** the draft becomes a request with the Google name and email, the browser continues the same thread at its booking link, and no host account, Supabase user or product session exists for the requester
 
 #### Scenario: Return in another browser
 - **WHEN** the callback for a consent started in one browser is opened in another browser or replayed
