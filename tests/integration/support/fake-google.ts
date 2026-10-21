@@ -13,6 +13,8 @@ export type FakeCalendar = {
   readonly accessRole: string;
   readonly primary?: boolean;
   readonly timeZone?: string;
+  // calendarList.get's conferenceProperties.allowedConferenceSolutionTypes.
+  readonly conferenceSolutionTypes?: readonly string[];
 };
 
 export type FakeEvent = Record<string, unknown> & {
@@ -27,6 +29,9 @@ export type FakeGoogleFixture = {
   // Calendars whose events read fails with a server error.
   readonly failingCalendars?: readonly string[];
   readonly revoked?: boolean;
+  // An events page requested with this page token answers its headers and part of
+  // its body, then never finishes, as a stalled Google response does.
+  readonly stallPageToken?: string;
 };
 
 export type FakeGoogle = {
@@ -35,6 +40,8 @@ export type FakeGoogle = {
   readonly origin: string;
   // Requests by method and path (no query), for assertions on what was read.
   readonly requests: { method: string; path: string }[];
+  // Stalled responses whose connection the client closed.
+  readonly abandoned: { count: number };
   setFixture(refreshToken: string, fixture: FakeGoogleFixture): void;
   close(): Promise<void>;
 };
@@ -64,6 +71,7 @@ export async function startFakeGoogle(
 ): Promise<FakeGoogle> {
   const fixtures = new Map<string, FakeGoogleFixture>();
   const requests: { method: string; path: string }[] = [];
+  const abandoned = { count: 0 };
   const fixtureFor = (refreshToken: string) => fixtures.get(refreshToken) ?? options.defaultFixture ?? EMPTY;
 
   const server = createServer(async (request, response) => {
@@ -112,6 +120,20 @@ export async function startFakeGoogle(
       return;
     }
 
+    const entry = url.pathname.match(/^\/calendar\/v3\/users\/me\/calendarList\/([^/]+)$/);
+    if (request.method === "GET" && entry) {
+      const calendar = fixture.calendars.find((candidate) => candidate.id === decodeURIComponent(entry[1]!));
+
+      if (!calendar) {
+        json(response, 404, { error: { code: 404, message: "Not Found" } });
+      } else {
+        json(response, 200, {
+          conferenceProperties: { allowedConferenceSolutionTypes: calendar.conferenceSolutionTypes ?? [] },
+        });
+      }
+      return;
+    }
+
     const events = url.pathname.match(/^\/calendar\/v3\/calendars\/([^/]+)\/events$/);
     if (request.method === "GET" && events) {
       const calendarId = decodeURIComponent(events[1]!);
@@ -123,6 +145,15 @@ export async function startFakeGoogle(
 
       if (!fixture.calendars.some((calendar) => calendar.id === calendarId)) {
         json(response, 404, { error: { code: 404, message: "Not Found" } });
+        return;
+      }
+
+      if (fixture.stallPageToken && url.searchParams.get("pageToken") === fixture.stallPageToken) {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.write('{"items":[');
+        response.on("close", () => {
+          abandoned.count += 1;
+        });
         return;
       }
 
@@ -143,6 +174,7 @@ export async function startFakeGoogle(
   const origin = `http://127.0.0.1:${port}`;
 
   return {
+    abandoned,
     apiBaseUrl: `${origin}/calendar/v3`,
     close: () =>
       new Promise<void>((resolve) => {
