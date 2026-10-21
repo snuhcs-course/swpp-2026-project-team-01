@@ -1,6 +1,6 @@
 # Find Me a Time — Backend Architecture
 
-Status: proposed design; implementation pending
+Status: Phases 1 and 2 implemented; later phases proposed
 
 Date: 2026-10-19
 
@@ -14,9 +14,9 @@ Human waits and accepted operations live in durable state. Process memory, an HT
 
 ## Database starting point
 
-The selected project's application schema is empty, as recorded in [provider setup](03_provider_setup.md#supabase-project). Managed identity, Vault secrets and installed extensions are infrastructure; none supplies host eligibility, participant grants, conversation bindings or scheduling policy.
+The selected project holds the Phase 1 and Phase 2 migrations, as recorded in [provider setup](03_provider_setup.md#supabase-project). Managed identity, Vault secrets and installed extensions are infrastructure; none supplies host eligibility, participant grants, conversation bindings or scheduling policy.
 
-Before the first schema change, specify the private/exposed namespace and role matrix. Existing `public` default privileges can grant newly created tables/sequences/functions to `anon` and `authenticated`; explicitly restrict service-only boundaries and apply RLS to exposed tables. Test direct access and RPC authorization with each role. Avoid editing managed Auth/Storage/Vault tables. The desired SQL and migrations must build the complete application contract from this baseline, with deliberate prerequisites for preinstalled extensions.
+The schema baseline keeps application objects in a private `app` schema that the Data API does not expose, enables RLS with no policies on every table, and revokes the `anon` and `authenticated` default privileges; [`supabase/README.md`](../../supabase/README.md) describes the role matrix and its pgTAP tests. New tables and functions follow that baseline: test direct access and RPC authorization with each role, avoid editing managed Auth/Storage/Vault tables, and keep deliberate prerequisites for preinstalled extensions.
 
 The runtime foundation uses isolated synthetic storage, with test-only principals kept out of production. Reusable product persistence is introduced through the reviewed application migration chain. Before hosted schema/API activation or live effects, identify target credentials and fence any competing consumers.
 

@@ -2,7 +2,7 @@
 
 # 에이전트 구성
 
-상태: 제안된 설계이며 구현은 보류 중\
+상태: 기본 지침, 웹 채널, 호스트 설정 대상 구현 완료(Phase 1과 2); 다른 대상, 채널, 평가는 제안 상태\
 날짜: 2026-10-19\
 근거: [기술 개요](../04_technical_specification.md), [백엔드 아키텍처](01_backend_architecture.md), [프런트엔드 아키텍처](02_frontend_architecture.md), [대화 접근 계약](../../openspec/specs/conversation-access/spec.md), [모델 실행 계약](../../openspec/specs/model-execution/spec.md), [채팅 워크스페이스 계약](../../openspec/specs/chat-workspaces/spec.md)\
 관련 문서: [호스트 온보딩 흐름](../user_experience/05_host_onboarding_flow.md), [게스트 예약 흐름](../user_experience/06_guest_booking_flow.md)
@@ -28,7 +28,7 @@ agent/
   agent.ts                  defineAgent: 모델, 컨텍스트 윈도우, 제공자 옵션
   instructions/             항상 적용되는 기본 규칙과 대상별 조각 하나씩
     base.md
-    host-setup.md
+    host-setup.ts           호스트 설정 세션에서만 host-setup 조각을 해석
     host-review.md
     requester.md
   channels/
@@ -36,8 +36,7 @@ agent/
     photon.ts               Photon을 통한 호스트 iMessage: 검증된 발신자 -> 호스트 principal
     agentmail.ts            요청자 이메일: 내구성 있는 수신 기록 -> 요청 principal
   tools/                    snake_case 파일; 각각 하나의 도메인 연산을 호출
-    read_setup_state.ts
-    draft_settings.ts
+    setup.ts                read_setup_state와 draft_settings, 호스트 설정에서만 해석
     read_request.ts
     list_host_requests.ts
     draft_request_review.ts
@@ -58,7 +57,7 @@ evals/
   *.eval.ts                 주입, 오래된 리비전, 대상 유출, 정직한 상태
 ```
 
-eve는 경로에서 이름을 도출합니다(`tools/read_request.ts`는 `read_request` 도구입니다). 프레임워크 경로에 있는 파일은 기본값을 대체합니다. `eve info`는 발견한 항목을 나열하며, 빌드 산출물은 `.eve/` 아래에 생성됩니다. 이 디렉터리는 `apps/web/`와 같은 위치에 있으며, 둘 다 루트 `vercel.ts`로 구성됩니다(배포 참고).
+eve는 경로에서 이름을 도출합니다(`tools/read_request.ts`는 `read_request` 도구입니다). 프레임워크 경로에 있는 파일은 기본값을 대체합니다. `tools/setup.ts` 같은 동적 리졸버는 반환하는 키로 도구 이름을 정하고 세션마다 해석합니다. `eve info`는 발견한 항목을 나열하며, 빌드 산출물은 `.eve/` 아래에 생성됩니다. 이 디렉터리는 `apps/web/`와 같은 위치에 있으며, 둘 다 루트 `vercel.ts`로 구성됩니다(배포 참고).
 
 ## 대상과 세션
 

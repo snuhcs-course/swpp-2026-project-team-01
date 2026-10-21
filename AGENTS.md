@@ -4,9 +4,9 @@ This repository is the SNU SWPP Project Team 01 workspace. Keep changes small, r
 
 ## Project status
 
-Implementation has started with the [`application-foundation`](openspec/changes/application-foundation/proposal.md) change, whose [design](openspec/changes/application-foundation/design.md) records the runtime stack. Phase 1 (sign-in, the `/app` workspace, the Supabase schema baseline and the platform mechanics) is implemented, deployed and recorded in the [acceptance record](documentations/technical_specification/07_acceptance_record.md); product features arrive with later changes. Implement only within an open OpenSpec change.
+Implementation has started with the [`application-foundation`](openspec/changes/application-foundation/proposal.md) change, whose [design](openspec/changes/application-foundation/design.md) records the runtime stack. Phase 1 (sign-in, the `/app` workspace, the Supabase schema baseline and the platform mechanics) and Phase 2 ([`host-onboarding`](openspec/changes/host-onboarding/proposal.md): host setup, public host pages and skill documents, handles and sign-up limits, and the administrator CLI) are implemented, deployed and recorded in the [acceptance record](documentations/technical_specification/07_acceptance_record.md); requester and booking features arrive with later changes. Implement only within an open OpenSpec change.
 
-The shared Supabase project is `anelszynxtvxoxqvzgqt`; it holds the Phase 1 migrations, applied on 2026-10-19 (see [environments and collaboration](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration)). Keep namespaces, default privileges and RLS as the schema baseline declares them, as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
+The shared Supabase project is `anelszynxtvxoxqvzgqt`; it holds the Phase 1 and Phase 2 migrations, applied on 2026-10-19 and 2026-10-20 (see [environments and collaboration](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration)). Keep namespaces, default privileges and RLS as the schema baseline declares them, as described in [provider setup](documentations/technical_specification/03_provider_setup.md#supabase-project). Never push a migration chain onto a project whose state has not been checked.
 
 ## Repository layout
 
@@ -17,7 +17,7 @@ The shared Supabase project is `anelszynxtvxoxqvzgqt`; it holds the Phase 1 migr
 - `documentations/`: product direction, release scope, research, and explanatory documentation, starting with `01_one_pager.md`.
 - `openspec/specs/`: main capability specifications, with detailed behavior in `<capability>/spec.md`.
 - `openspec/changes/`: proposed behavior changes and archived implementation records.
-- `supabase/`: local Supabase configuration and future database migrations.
+- `supabase/`: local Supabase configuration, the desired schema, the reviewed migration chain and database tests.
 
 ## Tooling prerequisites
 
@@ -169,7 +169,7 @@ Project skills live in `.agents/skills/`. Read the matching `SKILL.md` before wo
 
 This repository uses **pg-delta**, enabled by `[experimental.pgdelta]` in `supabase/config.toml`. Keep the desired schema in `supabase/schemas/` and commit generated migrations in `supabase/migrations/`.
 
-1. For the first schema change, create SQL files under `supabase/schemas/`. Edit these files for tables, RLS policies, grants, functions, and triggers. pg-delta orders dependencies automatically; do not configure `[db.migrations].schema_paths`.
+1. Edit the SQL files under `supabase/schemas/` for tables, RLS policies, grants, functions, and triggers. pg-delta orders dependencies automatically; do not configure `[db.migrations].schema_paths`.
 2. Generate a migration without applying it: `supabase db schema declarative sync --name <short_snake_case_name> --no-apply`. The local stack does not need to be stopped. This compares declarative files against migration history; direct changes in Studio or the SQL editor are not captured. `supabase db diff` compares live database state and does not read declarative files.
 3. Review every generated SQL file in `supabase/migrations/`, including operation order, grants, and destructive changes. pg-delta remains pre-1.0. Keep data backfills and unsupported schema changes in separate versioned migrations created with `supabase migration new <name>`; keep seed data in seed files.
 4. Run `supabase start`, then `supabase db reset --local` to verify that the full migration chain rebuilds the disposable local database. Reset deletes local data. Run relevant app and database tests when schema behavior changes.

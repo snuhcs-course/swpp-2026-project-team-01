@@ -61,9 +61,9 @@ Both CLIs should use the same domain operations and validation as other authoriz
 
 ### Planned tooling and remaining decisions
 
-The [CLI direction](technical_specification/05_cli.md) defines the future user and administrator surfaces. No command or capability parity is implemented yet.
+The [CLI direction](technical_specification/05_cli.md) defines the user and administrator surfaces. The administrator CLI (`fmat-admin`) shows, suspends and restores host accounts; no user CLI command exists yet.
 
-Final executable names, packaging/distribution, the complete command inventories, and administrator authentication are implementation decisions still to be specified. This document establishes the two-CLI direction without inventing commands or asserting unverified support.
+The user CLI's executable name, packaging/distribution and complete command inventory are implementation decisions still to be specified. The administrator CLI's name, packaging and operator authentication were decided in the [`host-onboarding` design](../openspec/changes/host-onboarding/design.md#14-administrator-cli). This document establishes the two-CLI direction without inventing commands or asserting unverified support.
 
 ## 4. One thing to think about at once
 

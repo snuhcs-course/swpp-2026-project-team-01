@@ -2,7 +2,7 @@
 
 > 한국어 번역본 (검토용). 원본: supabase/README.md
 
-공유 프로젝트는 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, `us-east-2`)이며, Supabase CLI **2.119.0**으로 연결되어 있습니다. 링크 메타데이터는 Git에서 무시합니다. 팀원은 개인 프로젝트에서 개발하며, 공유 프로젝트는 CI에서만 마이그레이션을 받습니다. 자세한 내용은 [환경과 협업](../documentations/technical_specification/03_provider_setup.md#environments-and-collaboration)을 참고하십시오. PostgreSQL 17과 Supabase가 관리하는 Auth, Storage, Vault, cron, 큐 인프라로 동작하며, Phase 1 마이그레이션은 2026-10-19에 기록된 예외로서 한 번 수동으로 적용되었습니다. 관찰된 상태와 선행 조건은 [제공자 설정](../documentations/technical_specification/03_provider_setup.md#supabase-project)을 참고하십시오.
+공유 프로젝트는 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, `us-east-2`)이며, Supabase CLI **2.119.0**으로 연결되어 있습니다. 링크 메타데이터는 Git에서 무시합니다. 팀원은 개인 프로젝트에서 개발하며, 공유 프로젝트는 CI에서만 마이그레이션을 받습니다. 자세한 내용은 [환경과 협업](../documentations/technical_specification/03_provider_setup.md#environments-and-collaboration)을 참고하십시오. PostgreSQL 17과 Supabase가 관리하는 Auth, Storage, Vault, cron, 큐 인프라로 동작하며, Phase 1 마이그레이션은 2026-10-19에, Phase 2 마이그레이션은 2026-10-20에 각각 기록된 예외로서 수동으로 적용되었습니다. 관찰된 상태와 선행 조건은 [제공자 설정](../documentations/technical_specification/03_provider_setup.md#supabase-project)을 참고하십시오.
 
 로컬 `config.toml`은 PostgreSQL 주 버전 17을 대상으로 하며, pg-delta와 마이그레이션은 활성화되어 있고 시드는 비활성화되어 있습니다. 이 파일의 `project_id`는 일회용 로컬 스택을 식별하며, 호스팅된 프로젝트를 가리키지 않습니다.
 

@@ -1,6 +1,6 @@
 # Find Me a Time — Technical Specification
 
-Status: proposed architecture; no implementation
+Status: architecture in use; Phases 1 and 2 implemented, later phases proposed
 
 Date: 2026-10-19
 
@@ -20,7 +20,7 @@ The application coordinates one host and one external requester across web, emai
 | Host iMessage | Photon Spectrum | Verified private binding, native/adapter compatibility, attribution and real-device delivery |
 | Hosting | Recorded Vercel release origin | Runtime placement, consumer ownership and fresh deployment checks |
 
-The selected Supabase project is linked and its application schema is empty; see [provider setup](technical_specification/03_provider_setup.md#supabase-project). The release origin and provider/client readiness are verification targets. Model ID, provider entitlement, dependency versions and runtime hosting must be freshly recorded before they are used.
+The selected Supabase project is linked and holds the Phase 1 and Phase 2 migrations, with application objects in a private `app` schema; see [provider setup](technical_specification/03_provider_setup.md#supabase-project). The release origin is deployed, as the [acceptance record](technical_specification/07_acceptance_record.md) shows; provider and named-client readiness remain verification targets. The model ID, dependency versions and runtime hosting are recorded in the [foundation design](../openspec/changes/application-foundation/design.md); record a fresh check before changing any of them.
 
 ### Backend decision
 

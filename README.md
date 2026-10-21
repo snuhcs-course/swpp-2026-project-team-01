@@ -6,7 +6,7 @@ Domain: [findmeatime.com](https://findmeatime.com) · SNU SWPP Project Team 01
 
 ## Status
 
-**Foundation in progress.** The product direction, user experience, architecture, provider setup, visual design and capability specifications are agreed in this repository. Implementation has started with the [`application-foundation`](openspec/changes/application-foundation/proposal.md) change, which records the runtime stack; the application skeleton builds and passes its checks.
+**Phases 1 and 2 implemented.** The product direction, user experience, architecture, provider setup, visual design and capability specifications are agreed in this repository. The [`application-foundation`](openspec/changes/application-foundation/proposal.md) change built Google sign-in, the `/app` workspace and the platform mechanics, and [`host-onboarding`](openspec/changes/host-onboarding/proposal.md) added suggestion-first host setup, public host pages and skill documents, and the administrator CLI. Both are deployed on `findmeatime.com` and `release.findmeatime.com`; the [acceptance record](documentations/technical_specification/07_acceptance_record.md) holds their evidence and open gaps. Requester intake and booking arrive with later phases.
 
 Read the [one-pager](documentations/01_one_pager.md) and the [PRD](documentations/02_product_requirements.md). The [documentation index](documentations/README.md) lists every document.
 
@@ -24,7 +24,7 @@ Shared Supabase project: **`anelszynxtvxoxqvzgqt`** (**FindMeATime**, `us-east-2
 | `DESIGN.md` | Thyme visual direction and brand assets |
 | `openspec/specs/` | Agreed capability behavior; the contract the implementation must satisfy |
 | `openspec/changes/` | Pending change proposals; completed changes are archived here after verification |
-| `supabase/` | Local Supabase configuration; application SQL arrives with the first schema change |
+| `supabase/` | Local Supabase configuration, the desired schema, the reviewed migration chain and database tests |
 | `ai-usage/` | Per-branch AI token and agent-time records required by the course |
 | `.agents/skills/` | Shared project workflows and reference material |
 

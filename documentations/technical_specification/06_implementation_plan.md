@@ -1,6 +1,6 @@
 # Find Me a Time — Implementation Plan
 
-Status: plan for team review; Phase 1 merged; Phase 2 implemented on `feat/host-onboarding` and awaiting review\
+Status: plan for team review; Phases 1 and 2 merged\
 Date: 2026-10-19\
 Basis: [PRD](../02_product_requirements.md), [technical overview](../04_technical_specification.md), [backend](01_backend_architecture.md), [frontend](02_frontend_architecture.md), [provider setup](03_provider_setup.md), [agent configuration](04_agent_configuration.md), [host onboarding flow](../user_experience/05_host_onboarding_flow.md), [guest booking flow](../user_experience/06_guest_booking_flow.md) and the [capability specifications](../../openspec/specs/).
 

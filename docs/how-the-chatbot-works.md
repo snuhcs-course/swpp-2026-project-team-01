@@ -1,5 +1,7 @@
 # How the Chatbot Works
 
+> **Upstream template reference.** This document describes the eve chat template as copied at the commit in [third-party notices](../THIRD_PARTY_NOTICES.md), not this repository. Phase 1 removed its starter mode, Better Auth, Drizzle and Neon, Upstash, browser-local chats, sidebar, connections and pnpm commands, and replaced the call path with application-owned session authorization. Read it for the patterns the [implementation plan](../documentations/technical_specification/06_implementation_plan.md#5-reference-repositories-per-phase) cites; for this repository, follow the [foundation design](../openspec/changes/application-foundation/design.md) and the [frontend architecture](../documentations/technical_specification/02_frontend_architecture.md).
+
 This document explains the eve chat template end to end. It is written for
 future maintainers who need to understand why the app is shaped this way, where
 state lives, how messages stream, and how to safely change the chat experience.
