@@ -49,7 +49,9 @@ function busy(start: Date, end: Date, endpoint: Endpoint = { kind: "unknown", re
   return { allDay: false, end: end.getTime(), endpoint, start: start.getTime() };
 }
 
-function input(overrides: Partial<FeasibilityInput> & { request?: Partial<FeasibilityInput["request"]> } = {}): FeasibilityInput {
+function input(
+  overrides: Partial<Omit<FeasibilityInput, "request">> & { request?: Partial<FeasibilityInput["request"]> } = {},
+): FeasibilityInput {
   const { request, ...rest } = overrides;
   return {
     hostBusy: [],
