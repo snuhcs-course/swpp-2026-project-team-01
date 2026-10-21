@@ -39,6 +39,11 @@ export async function startFakeRoutes(options: { readonly port?: number } = {}):
     for await (const chunk of request) raw += chunk;
     const url = new URL(request.url ?? "/", "http://fake-routes");
 
+    if (request.method === "GET" && url.pathname === "/health") {
+      response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true }));
+      return;
+    }
+
     if (request.method !== "POST" || url.pathname !== "/directions/v2:computeRoutes") {
       response.writeHead(404, { "content-type": "application/json" }).end(JSON.stringify({ error: { code: 404 } }));
       return;

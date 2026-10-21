@@ -65,6 +65,14 @@ export async function startFakeCloudflare(options: { readonly port?: number } = 
       return;
     }
 
+    // Test control: GET /__messages?to=recipient lists what was sent to a
+    // recipient, for a browser test in another process.
+    if (request.method === "GET" && url.pathname === "/__messages") {
+      const to = (url.searchParams.get("to") ?? "").toLowerCase();
+      json(response, 200, messages.filter((message) => message.to.some((entry) => entry.toLowerCase() === to)));
+      return;
+    }
+
     const send = url.pathname.match(/^\/client\/v4\/accounts\/([^/]+)\/email\/sending\/send$/);
     if (request.method !== "POST" || !send) {
       json(response, 404, { errors: [{ code: 7003, message: "No route." }], result: null, success: false });
