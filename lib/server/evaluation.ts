@@ -31,6 +31,7 @@ import {
   openHostCalendar,
 } from "./google-calendar";
 import { type ClaimedJob, type JobHandler, publishJob } from "./jobs";
+import { markNegotiating } from "./request-lifecycle";
 import { limitModel, type ModelLimits, type Principal } from "./model-limits";
 import {
   readRequesterCalendarGrant,
@@ -749,6 +750,8 @@ export function createEvaluationHandler(
           failure_category = ${outcome.failure}, completed_at = now()
       where id = ${evaluationId} and state = 'pending'
     `;
+    // Still under the request lock and after the revision check above.
+    await markNegotiating(tx, evaluation.request_id, projection.candidates.length);
 
     return { candidates: outcome.ordered.length, ranked: outcome.ranking !== null, state: "completed" };
   };

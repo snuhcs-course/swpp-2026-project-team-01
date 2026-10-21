@@ -450,3 +450,27 @@ describe("evaluation job", () => {
     expect(Date.now() - started).toBeLessThan(1_000);
   });
 });
+
+describe("request lifecycle on a completed evaluation", () => {
+  async function requestState(requestId: string) {
+    const [row] = await db<{ revision: number; state: string }[]>`select state, revision from app.requests where id = ${requestId}`;
+    return row!;
+  }
+
+  it("moves a gathering request to negotiating when candidates exist, keeping the revision the evaluation read", async () => {
+    const host = await seedHost();
+    const requestId = await seedRequest(host.hostAccountId);
+    const { result } = await evaluate(requestId);
+
+    expect(result).toBe("completed");
+    expect(await requestState(requestId)).toEqual({ revision: 1, state: "negotiating" });
+  });
+
+  it("leaves the request gathering when no candidate fits", async () => {
+    const host = await seedHost({ events: [busyEvent("09:00", "14:00")] });
+    const requestId = await seedRequest(host.hostAccountId);
+    await evaluate(requestId);
+
+    expect(await requestState(requestId)).toEqual({ revision: 1, state: "gathering" });
+  });
+});
