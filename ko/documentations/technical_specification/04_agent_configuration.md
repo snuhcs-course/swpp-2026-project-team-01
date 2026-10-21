@@ -29,8 +29,9 @@ agent/
   instructions/             항상 적용되는 기본 규칙과 대상별 조각 하나씩
     base.md
     host-setup.ts           호스트 설정 세션에서만 host-setup 조각을 해석
+    public-intake.ts        공개 접수 세션에서만 public-intake 조각을 해석
     host-review.md
-    requester.md
+    requester.ts            요청자 세션에서만 requester 조각을 해석
   channels/
     eve.ts                  웹 채팅: 호스트와 예약 링크를 위한 애플리케이션 세션 인증
     photon.ts               Photon을 통한 호스트 iMessage: 검증된 발신자 -> 호스트 principal
@@ -73,7 +74,9 @@ eve principal은 사람의 신원이 아니라 대상입니다. 요청자에게�
 
 ## 라우트 인증
 
-`channels/eve.ts`는 순서가 있는 인증 목록과 함께 `eveChannel`을 내보냅니다. 첫 번째 항목은 호스트의 Supabase 세션 또는 요청자의 예약 링크에서 도출된 요청 자격 증명을 검증하는 애플리케이션 함수이며, eve 인증 컨텍스트를 반환합니다. 여기에는 위에서 설명한 `principalId`, `principalType: "user"`, `authenticator: "findmeatime"`, 그리고 속성 `audience`, `hostId`, `requestId`, `discussionId`가 포함됩니다. 이것이 유일한 항목입니다. `localDev()`와 `vercelOidc()`는 사용하지 않으므로, 로컬 실행과 배포가 같은 규칙을 적용합니다. 이 함수는 `null`을 반환하지 않고 `UnauthenticatedError` 또는 `ForbiddenError`를 던지므로, 인증 목록 순회가 다음 항목으로 넘어갈 수 없습니다. 업로드는 비활성화되어 있습니다.
+`channels/eve.ts`는 순서가 있는 인증 목록과 함께 `eveChannel`을 내보냅니다. 결정을 내리는 항목은 호스트의 Supabase 세션 또는 요청자의 예약 링크에서 도출된 요청 자격 증명을 검증하는 애플리케이션 함수이며, eve 인증 컨텍스트를 반환합니다. 여기에는 위에서 설명한 `principalId`, `principalType: "user"`, `authenticator: "findmeatime"`, 그리고 속성 `audience`, `hostId`, `requestId`, `discussionId`가 포함됩니다. `vercelOidc()`는 사용하지 않으므로, 로컬 실행과 배포가 같은 규칙을 적용합니다. 이 함수는 `null`을 반환하지 않고 `UnauthenticatedError` 또는 `ForbiddenError`를 던지므로, 인증 목록 순회가 다음 항목으로 넘어갈 수 없습니다. 업로드는 비활성화되어 있습니다.
+
+그 앞에 오는 유일한 항목은 요청자 평가를 처리하며 그 밖의 모든 요청은 건너뜁니다. 이 항목은 Vercel 메타데이터가 없고 `localDev()`가 `eve dev`로 인식하는 프로세스에서 `FMAT_EVAL_AUDIENCE=requester`가 설정되어 있으며, 요청에 베어러도 Supabase 쿠키도 없을 때에만 호출자를 허용합니다. 그러면 평가가 로컬 데이터베이스에 시드한 요청의 요청자 principal을 도구 스텁을 허용한 채로 반환하며(평가 참고), 배포 환경, `eve start`, 일반 `eve dev`는 이 항목에 도달하지 않습니다.
 
 애플리케이션 코드만 세션을 생성하고 메시지를 보냅니다. 브라우저의 메시지는 애플리케이션 라우트로 전달되며, 이 라우트가 호출자를 확인하고, 수락된 입력을 애플리케이션 세션 인덱스에 기록한 뒤, `EVE_INTERNAL_SIGNING_KEY`로 서명한 60초짜리 베어러 토큰과 함께 `eve/client`를 통해 eve를 호출합니다. 브라우저 자체는 인덱스가 자신의 소유라고 알려 주는 세션만 읽고 스트리밍합니다. 자세한 내용은 [기반 설계](../../openspec/changes/application-foundation/design.md#7-call-path-and-session-ownership)에 기록되어 있습니다.
 
@@ -185,6 +188,8 @@ eve 훅은 이벤트가 내구성 있게 기록된 뒤에 실행되며, 예외�
 ## 평가
 
 `evals/`는 스텁 처리된 도구에 대해 `eve eval`로 실행하는 `defineEval` 시나리오를 담습니다. 요청자가 어시스턴트에게 승인 규칙을 무시하거나 캘린더 내용을 공개하라고 지시하는 경우, 동시 수정 이후의 오래된 리비전, 다른 호스트의 요청을 요구받은 호스트 세션, 비공개 예외 사유를 요구받은 요청자 세션, 등록된 도구 목록에 호스트 도구가 하나도 없어야 하는 요청자 세션, 결정을 기록해서는 안 되는 "네"나 "예약해 줘" 같은 메시지, 요청자의 언어로 작성된 확인 질문을 내야 하는 모호한 시간, 이벤트가 존재하기 전에 확인되었다고 주장하는 경우가 있습니다. 이들은 권한을 증명하는 도메인 테스트와 통합 테스트를 보완하며 대체하지 않습니다.
+
+3단계에서는 `evals/requester/` 아래에 요청자 세트를 추가합니다. 캘린더 내용, 규칙 또는 승인을 요구하는 인젝션, "네"와 "예약해 줘", 작성된 한국어 질문을 내야 하는 날짜 없는 시간, 그리고 도구 목록입니다. 이들은 `npm run eval`(`FMAT_EVAL_AUDIENCE=requester`를 설정함)로 로컬 Supabase 스택과 모델 키에 대해 실행합니다. 각 평가는 자체 열린 요청을 시드하고, 모델 한도가 귀속되도록 세션을 인덱싱하며, 모든 요청자 도구를 스텁 처리합니다. 이들은 실제 모델의 동작을 채점하므로 모델 호출 비용이 들고 CI는 이를 실행하지 않으며, 로컬 OpenAI 대역에 대해서는 연결 구성만 확인합니다.
 
 ## 여기에 기록된 결정
 

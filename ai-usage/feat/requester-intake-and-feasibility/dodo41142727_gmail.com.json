@@ -8,16 +8,16 @@
       "agent_ms": 0,
       "models": {
         "claude-opus-5-5": {
-          "input": 296,
-          "cache_read": 46159337,
+          "input": 318,
+          "cache_read": 50046128,
           "cache_write_5m": 0,
-          "cache_write_1h": 1132841,
-          "output": 154751,
+          "cache_write_1h": 1142111,
+          "output": 158465,
           "reasoning": 0
         }
       },
       "first": "2026-10-21T07:02:36.991Z",
-      "last": "2026-10-21T13:29:00.424Z"
+      "last": "2026-10-21T13:45:54.346Z"
     },
     "claude:2d607788-ad93-4143-acc8-b2b647f99651/agent-a1446f0e6db1351e6": {
       "agent": "claude-code",
@@ -104,22 +104,56 @@
       "first": "2026-10-21T07:13:05.517Z",
       "last": "2026-10-21T07:17:24.931Z"
     },
+    "claude:2d607788-ad93-4143-acc8-b2b647f99651/agent-a6a3e2f0284e58ff7": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 92,
+          "cache_read": 8042155,
+          "cache_write_5m": 248240,
+          "cache_write_1h": 0,
+          "output": 1565,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-21T13:40:25.819Z",
+      "last": "2026-10-21T13:45:50.175Z"
+    },
     "claude:2d607788-ad93-4143-acc8-b2b647f99651/agent-a70b25d29e3557881": {
       "agent": "claude-code",
       "client": "claude-desktop",
       "agent_ms": 0,
       "models": {
         "claude-opus-5-5": {
-          "input": 352,
-          "cache_read": 66301571,
-          "cache_write_5m": 506578,
+          "input": 354,
+          "cache_read": 66842238,
+          "cache_write_5m": 507465,
           "cache_write_1h": 0,
-          "output": 16911,
+          "output": 18859,
           "reasoning": 0
         }
       },
       "first": "2026-10-21T12:52:38.912Z",
-      "last": "2026-10-21T13:39:29.593Z"
+      "last": "2026-10-21T13:39:58.935Z"
+    },
+    "claude:2d607788-ad93-4143-acc8-b2b647f99651/agent-ab3c3bf1f7692a652": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 16,
+          "cache_read": 583655,
+          "cache_write_5m": 89679,
+          "cache_write_1h": 0,
+          "output": 2179,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-21T13:44:59.455Z",
+      "last": "2026-10-21T13:45:42.878Z"
     }
   }
 }
