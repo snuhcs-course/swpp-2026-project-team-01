@@ -301,7 +301,7 @@ If the result is unknown, reload: it restores the current status without sending
 
 ### Optional Google identity during requester intake
 
-Choose **Continue with Google** to prefill your name and email, or **Continue without Google** to enter them yourself. The same Google screen asks for read-only calendar access, used privately to find your busy times and check your own travel; you can uncheck it and still use your Google name and email. Your conversation and selected timezone return after consent, including when you cancel. The Google address is filled in and counts as confirmed; review it and edit your display name before continuing. A changed address, or an address Google cannot currently vouch for, gets a confirmation email.
+Choose **Continue with Google** to prefill your name and email, or **Continue without Google** to enter them yourself. The same Google screen asks for read-only calendar access, used privately to find your busy times and check your own travel; you can uncheck it and still use your Google name and email. Your conversation and selected timezone return after consent, including when you cancel: the same thread, at your booking link once Google filled in your details, or still on the host's page after a cancel. The Google address is filled in and counts as confirmed; review it and edit your display name before continuing. A changed address, or an address Google cannot currently vouch for, gets a confirmation email.
 
 On an existing private request, Google identity shows the selected account first. Choose **Use verified Google email** to confirm the matching current recipient. If you want a different recipient, review that change in the request details first. This action does not agree to a proposal or book a meeting.
 
