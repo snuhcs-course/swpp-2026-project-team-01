@@ -1,7 +1,10 @@
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 
-// A stand-in for Google's OAuth token endpoint and the Calendar API, so tests drive
+// A stand-in for Google's OAuth token endpoint and the Calendar API (and, for the
+// requester consent round trip, the consent screen, the authorization-code
+// exchange with PKCE, token information and revocation), so tests drive
 // the real Calendar client (and the browser tests the real app, pointed at it with
 // GOOGLE_OAUTH_TOKEN_URL and GOOGLE_CALENDAR_API_URL) without a network call. Each
 // refresh token has its own fixture; the refresh token "revoked", or a fixture
@@ -34,10 +37,27 @@ export type FakeGoogleFixture = {
   readonly stallPageToken?: string;
 };
 
+// The consent screen's answer for the next requester round trip: approve with
+// this identity and these granted scopes (all requested ones by default), or
+// deny as a cancelled consent does.
+export type FakeConsent = {
+  readonly decision: "approve" | "deny";
+  readonly identity?: { readonly sub: string; readonly email: string; readonly email_verified?: boolean; readonly name?: string };
+  readonly scopes?: readonly string[];
+  // The refresh token the code exchange returns, so a test can set its fixture.
+  readonly refreshToken?: string;
+};
+
 export type FakeGoogle = {
   readonly apiBaseUrl: string;
   readonly tokenUrl: string;
+  readonly authUrl: string;
+  readonly tokenInfoUrl: string;
+  readonly revokeUrl: string;
   readonly origin: string;
+  // Tokens posted to the revocation endpoint.
+  readonly revocations: string[];
+  setConsent(consent: FakeConsent): void;
   // Requests by method and path (no query), for assertions on what was read.
   readonly requests: { method: string; path: string }[];
   // Stalled responses whose connection the client closed.
@@ -73,6 +93,11 @@ export async function startFakeGoogle(
   const requests: { method: string; path: string }[] = [];
   const abandoned = { count: 0 };
   const fixtureFor = (refreshToken: string) => fixtures.get(refreshToken) ?? options.defaultFixture ?? EMPTY;
+  const revocations: string[] = [];
+  let consent: FakeConsent = { decision: "approve" };
+  const codes = new Map<string, { challenge: string; redirectUri: string; consent: FakeConsent; scopes: string[] }>();
+  const scopesOf = new Map<string, string[]>();
+  let issued = 0;
 
   const server = createServer(async (request, response) => {
     let raw = "";
@@ -90,6 +115,79 @@ export async function startFakeGoogle(
     if (request.method === "POST" && control) {
       fixtures.set(decodeURIComponent(control[1]!), JSON.parse(raw) as FakeGoogleFixture);
       response.writeHead(204).end();
+      return;
+    }
+
+    // Test control: POST /__consent sets the next consent from another process.
+    if (request.method === "POST" && url.pathname === "/__consent") {
+      consent = JSON.parse(raw) as FakeConsent;
+      response.writeHead(204).end();
+      return;
+    }
+
+    // The consent screen: answers at once with the configured decision.
+    if (request.method === "GET" && url.pathname === "/o/oauth2/v2/auth") {
+      const redirectUri = url.searchParams.get("redirect_uri") ?? "";
+      const back = new URL(redirectUri);
+      back.searchParams.set("state", url.searchParams.get("state") ?? "");
+
+      if (consent.decision === "deny") {
+        back.searchParams.set("error", "access_denied");
+      } else {
+        const code = `fake-code-${++issued}`;
+        const requested = (url.searchParams.get("scope") ?? "").split(" ").filter(Boolean);
+        codes.set(code, {
+          challenge: url.searchParams.get("code_challenge") ?? "",
+          consent,
+          redirectUri,
+          scopes: [...(consent.scopes ?? requested)],
+        });
+        back.searchParams.set("code", code);
+      }
+
+      response.writeHead(302, { location: back.toString() }).end();
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/tokeninfo") {
+      const accessToken = new URLSearchParams(raw).get("access_token") ?? "";
+      const scopes = scopesOf.get(accessToken);
+      if (scopes) json(response, 200, { scope: scopes.join(" ") });
+      else json(response, 400, { error: "invalid_token" });
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/revoke") {
+      revocations.push(new URLSearchParams(raw).get("token") ?? "");
+      json(response, 200, {});
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/token" && new URLSearchParams(raw).get("grant_type") === "authorization_code") {
+      const form = new URLSearchParams(raw);
+      const entry = codes.get(form.get("code") ?? "");
+      const verifier = form.get("code_verifier") ?? "";
+      const challenge = createHash("sha256").update(verifier).digest("base64url");
+
+      if (!entry || entry.challenge !== challenge || entry.redirectUri !== form.get("redirect_uri") || !form.get("client_secret")) {
+        json(response, 400, { error: "invalid_grant" });
+        return;
+      }
+
+      codes.delete(form.get("code")!);
+      const identity = entry.consent.identity ?? { email: "guest@example.test", email_verified: true, name: "Guest", sub: "1001" };
+      const refreshToken = entry.consent.refreshToken ?? `requester-refresh-${issued}`;
+      const accessToken = `${ACCESS_PREFIX}${refreshToken}`;
+      scopesOf.set(accessToken, entry.scopes);
+      const claims = Buffer.from(JSON.stringify({ email_verified: true, ...identity })).toString("base64url");
+      json(response, 200, {
+        access_token: accessToken,
+        expires_in: 3599,
+        id_token: `${Buffer.from('{"alg":"RS256"}').toString("base64url")}.${claims}.signature`,
+        refresh_token: refreshToken,
+        scope: entry.scopes.join(" "),
+        token_type: "Bearer",
+      });
       return;
     }
 
@@ -176,6 +274,13 @@ export async function startFakeGoogle(
   return {
     abandoned,
     apiBaseUrl: `${origin}/calendar/v3`,
+    authUrl: `${origin}/o/oauth2/v2/auth`,
+    revocations,
+    revokeUrl: `${origin}/revoke`,
+    setConsent: (next) => {
+      consent = next;
+    },
+    tokenInfoUrl: `${origin}/tokeninfo`,
     close: () =>
       new Promise<void>((resolve) => {
         server.closeAllConnections();
