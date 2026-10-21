@@ -50,11 +50,11 @@ A requester Calendar grant SHALL request only calendar-list and read-only event 
 - **THEN** that request's own grants are the only ones consulted and the first request's grant is never read
 
 ### Requirement: Request-bound grant lifetime
-A requester grant SHALL last no longer than its request remains open and its booking link unexpired. Closure, link expiry and **Disconnect** SHALL delete the stored token, and SHALL request revocation at Google unless another open request of the same Google identity still holds a grant. Requester grants SHALL use an OAuth client separate from host sign-in, so revoking them never removes a host's Calendar access. A revoked, expired or failing grant SHALL pause evaluations that depend on it until the requester reconnects or replaces it with manual or agent-supplied availability; it SHALL NOT be treated as free time.
+A requester grant SHALL last no longer than its request remains open and its booking link unexpired. Closure, link expiry and **Disconnect** SHALL delete the stored token; the service SHALL NOT need to call Google's revocation endpoint. Requester grants MAY use the same OAuth client as host sign-in. A revoked, expired or failing grant SHALL pause evaluations that depend on it until the requester reconnects or replaces it with manual or agent-supplied availability; it SHALL NOT be treated as free time.
 
 #### Scenario: Request closes
 - **WHEN** a request is withdrawn or expires
-- **THEN** its Calendar token is deleted, revocation is requested unless another open request of the same Google identity holds a grant, and no later evaluation reads that calendar
+- **THEN** its Calendar token is deleted without a call to Google's revocation endpoint, another open request's grant of the same Google identity keeps its token, and no later evaluation reads that calendar
 
 #### Scenario: Failed availability read
 - **WHEN** reading the requester's busy intervals fails or the grant was revoked at Google

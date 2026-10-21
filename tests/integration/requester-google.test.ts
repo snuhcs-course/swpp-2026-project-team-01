@@ -9,18 +9,20 @@ import {
   createGoogleStartHandler,
   type RequesterGoogleDependencies,
 } from "../../lib/server/requester-google";
-import { createRevocationHandler, REQUESTER_REVOCATION_JOB } from "../../lib/server/requester-grants";
+import { publishJob } from "../../lib/server/jobs";
+import { createRequestExpiryHandler, REQUEST_EXPIRY_JOB } from "../../lib/server/request-lifecycle";
 import { createRequesterCalendarsHandler, createRequesterCommandHandler, createRequesterStateHandler } from "../../lib/server/requester-routes";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
 import { call, guestDependencies, ORIGIN, readyHost, SIGNING_KEY, sourceAddress } from "./support/guests";
-import { createTestRequest, jobFor, runJob, testTokenKey, uniqueEmail } from "./support/requests";
+import { createTestRequest, runJob, testTokenKey, uniqueEmail } from "./support/requests";
 
 // The requester's Google consent (task 3.3) against a fake Google: success with
 // and without the Calendar part, cancellation, replay, another browser, an
 // expired transaction, a closed request, a different Google address, Use
-// verified Google email, two open requests of one Google identity keeping each
-// other's grant, Disconnect, and that no auth.users or host_accounts row appears.
+// verified Google email, open requests of one Google identity keeping each
+// other's grant, withdrawal, expiry and Disconnect deleting the token without
+// calling Google, and that no auth.users or host_accounts row appears.
 
 const db = testDatabase();
 let google: FakeGoogle;
@@ -298,74 +300,88 @@ describe("Connect Google Calendar on an existing request", () => {
     expect((await start({ bookingId: request.bookingId, purpose: "request" })).status).toBe(404);
   });
 
-  it("replaces a grant of the same identity without revoking the new token at Google", async () => {
+  it("replaces a grant of the same or another identity by deleting the old token, without calling Google", async () => {
     const request = await createTestRequest(db);
     const person = identity();
+    const revocations = google.revocations.length;
 
-    for (const refreshToken of ["1//first", "1//second"].map((token) => `${token}-${request.requestId}`)) {
-      google.setConsent({ decision: "approve", identity: person, refreshToken, scopes: ALL_SCOPES });
+    for (const [who, refreshToken] of [
+      [person, `1//first-${request.requestId}`],
+      [person, `1//second-${request.requestId}`],
+      [identity(), `1//other-${request.requestId}`],
+    ] as const) {
+      google.setConsent({ decision: "approve", identity: who, refreshToken, scopes: ALL_SCOPES });
       const started = await start({ bookingId: request.bookingId, purpose: "request" });
       await callback(await consent(started), bindingOf(started));
     }
 
-    const closed = await db<{ id: string; provider_revocation: string | null }[]>`
-      select id, provider_revocation from app.requester_grants
+    const closed = await db<{ has_token: boolean; provider_revocation: string | null }[]>`
+      select refresh_token_ciphertext is not null as has_token, provider_revocation from app.requester_grants
       where request_id = ${request.requestId} and kind = 'calendar' and revoked_at is not null
     `;
-    expect(closed).toHaveLength(1);
-    expect(closed[0]!.provider_revocation).toBe("not_needed");
-    expect(await jobFor(db, REQUESTER_REVOCATION_JOB, `grant:${closed[0]!.id}`)).toBeFalsy();
+    expect(closed).toEqual([
+      { has_token: false, provider_revocation: "not_needed" },
+      { has_token: false, provider_revocation: "not_needed" },
+    ]);
     expect(await readRequesterCalendarGrant(db, [testTokenKey], request.requestId)).toMatchObject({
-      refreshToken: `1//second-${request.requestId}`,
+      refreshToken: `1//other-${request.requestId}`,
     });
-
-    // Another identity replacing it still revokes the old token at Google.
-    google.setConsent({ decision: "approve", identity: identity(), refreshToken: `1//other-${request.requestId}`, scopes: ALL_SCOPES });
-    const started = await start({ bookingId: request.bookingId, purpose: "request" });
-    await callback(await consent(started), bindingOf(started));
-    const [replaced] = await db<{ id: string }[]>`
-      select id from app.requester_grants
-      where request_id = ${request.requestId} and kind = 'calendar' and revoked_at is not null and provider_revocation is null
-    `;
-    expect(await jobFor(db, REQUESTER_REVOCATION_JOB, `grant:${replaced!.id}`)).toBeTruthy();
+    expect(google.revocations).toHaveLength(revocations);
   });
 
-  it("keeps another open request's grant of the same identity, and revokes at Google only for the last one", async () => {
+  it("deletes the token on withdrawal, expiry and Disconnect without calling Google, keeping other requests' grants", async () => {
     const person = identity();
-    const [one, two] = await Promise.all([createTestRequest(db), createTestRequest(db)]);
+    const [withdrawn, expired, disconnected] = await Promise.all([createTestRequest(db), createTestRequest(db), createTestRequest(db)]);
+    const revocations = google.revocations.length;
 
-    for (const request of [one, two]) {
+    for (const request of [withdrawn, expired, disconnected]) {
       google.setConsent({ decision: "approve", identity: person, refreshToken: `1//shared-${request.requestId}`, scopes: ALL_SCOPES });
       const started = await start({ bookingId: request.bookingId, purpose: "request" });
       await callback(await consent(started), bindingOf(started));
     }
 
-    // Withdrawing one deletes its token; the other request still holds one, so Google is not asked.
-    await call(createRequesterCommandHandler(() => guest), { bookingId: one.bookingId }, "/commands", {
+    async function closedEverywhere(requestId: string) {
+      const rows = await db<{ has_token: boolean; provider_revocation: string | null; revoked: boolean }[]>`
+        select refresh_token_ciphertext is not null as has_token, revoked_at is not null as revoked, provider_revocation
+        from app.requester_grants where request_id = ${requestId}
+      `;
+      expect(rows).toHaveLength(2);
+      expect(rows.every((row) => row.revoked && !row.has_token && row.provider_revocation === "not_needed")).toBe(true);
+    }
+
+    // Withdrawal closes only this request's grants; the same identity's other grants keep their tokens.
+    await call(createRequesterCommandHandler(() => guest), { bookingId: withdrawn.bookingId }, "/commands", {
       body: { expectedRevision: 1, input: {}, operation: "request.withdraw", retryKey: randomUUID() },
     });
-    expect((await grants(one.requestId)).every((grant) => grant.revoked && !grant.has_token)).toBe(true);
-    expect((await grants(two.requestId)).find((grant) => grant.kind === "calendar")).toMatchObject({ has_token: true, revoked: false });
-    const [skipped] = await db<{ provider_revocation: string }[]>`
-      select provider_revocation from app.requester_grants where request_id = ${one.requestId} and kind = 'calendar'
-    `;
-    expect(skipped!.provider_revocation).toBe("not_needed");
-    expect(await readRequesterCalendarGrant(db, [testTokenKey], two.requestId)).toMatchObject({ refreshToken: `1//shared-${two.requestId}` });
+    await closedEverywhere(withdrawn.requestId);
+    expect(await readRequesterCalendarGrant(db, [testTokenKey], expired.requestId)).toMatchObject({
+      refreshToken: `1//shared-${expired.requestId}`,
+    });
 
-    // Disconnect on the last one revokes at Google, by a job that keeps no copy of the token.
-    expect((await command(two.bookingId, "calendar.disconnect")).status).toBe(200);
-    const [calendarGrant] = await db<{ id: string }[]>`
-      select id from app.requester_grants where request_id = ${two.requestId} and kind = 'calendar'
+    // Link expiry, by the request_expiry job (long overdue, so it is in the first batch).
+    await db`update app.requests set expires_at = now() - interval '100 years' where id = ${expired.requestId}`;
+    const sweep = await db.begin((tx) => publishJob(tx, { dedupeKey: `test:${randomUUID()}`, kind: REQUEST_EXPIRY_JOB }));
+    expect(await runJob(db, sweep!, createRequestExpiryHandler())).toBe("completed");
+    await closedEverywhere(expired.requestId);
+
+    // Disconnect closes the calendar grant only.
+    expect(await readRequesterCalendarGrant(db, [testTokenKey], disconnected.requestId)).not.toBeNull();
+    expect((await command(disconnected.bookingId, "calendar.disconnect")).status).toBe(200);
+    expect(await grants(disconnected.requestId)).toEqual([
+      { calendar_ids: [], has_token: false, kind: "calendar", revoked: true },
+      { calendar_ids: [], has_token: false, kind: "identity", revoked: false },
+    ]);
+    const [calendarGrant] = await db<{ provider_revocation: string }[]>`
+      select provider_revocation from app.requester_grants where request_id = ${disconnected.requestId} and kind = 'calendar'
     `;
-    const job = await jobFor(db, REQUESTER_REVOCATION_JOB, `grant:${calendarGrant!.id}`);
-    await runJob(db, job!.id, createRevocationHandler(() => ({ revokeUrl: google.revokeUrl, tokenKeys: [testTokenKey] })));
-    expect(google.revocations).toContain(`1//shared-${two.requestId}`);
-    const [after] = await db<{ payload: Record<string, unknown>; provider_revocation: string }[]>`
-      select j.payload, g.provider_revocation from app.jobs j join app.requester_grants g on g.id = ${calendarGrant!.id}
-      where j.id = ${job!.id}
+    expect(calendarGrant!.provider_revocation).toBe("not_needed");
+
+    expect(google.revocations).toHaveLength(revocations);
+    const [jobs] = await db<{ count: number }[]>`
+      select count(*)::int as count from app.jobs
+      where payload ->> 'requestId' in ${db([withdrawn.requestId, expired.requestId, disconnected.requestId])} and payload ? 'ciphertext'
     `;
-    expect(after!.provider_revocation).toBe("revoked");
-    expect(Object.keys(after!.payload).sort()).toEqual(["grantId", "requestId"]);
+    expect(jobs!.count).toBe(0);
     expect(await hostRows(person.email)).toEqual({ accounts: 0, users: 0 });
   });
 });

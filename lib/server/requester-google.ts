@@ -22,9 +22,10 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 
 // The requester's Google consent (design decision 3; requester-calendar-access:
 // request-bound Google consent flow). It is the application's own OAuth 2.0
-// round trip on a client separate from host sign-in, so it never creates a
-// Supabase user, a host account or a product session, and a requester's
-// revocation never touches the same person's host Calendar grant.
+// round trip, so it never creates a Supabase user, a host account or a product
+// session. It may share the host sign-in OAuth client: requester grants are
+// delete-only and never revoked at Google, so closing one never touches the same
+// person's host Calendar grant.
 //
 //   POST /connections/google/start   from /{handle} (purpose intake, with the
 //     tab's intake token) or the booking page (purpose request, with the booking
@@ -55,15 +56,17 @@ export type RequesterGoogleConfig = {
   readonly fetch?: typeof fetch;
 };
 
-// Stand-in URLs (GOOGLE_REQUESTER_AUTH_URL, GOOGLE_OAUTH_TOKEN_URL) are honored
-// only outside production, like the host Calendar client's.
+// The requester client is GOOGLE_REQUESTER_CLIENT_ID/SECRET, falling back to the
+// host sign-in client (GOOGLE_CLIENT_ID/SECRET) when unset. Stand-in URLs
+// (GOOGLE_REQUESTER_AUTH_URL, GOOGLE_OAUTH_TOKEN_URL) are honored only outside
+// production, like the host Calendar client's.
 export function requesterGoogleConfigFromEnvironment(env: Environment = process.env): RequesterGoogleConfig {
   const overridable = deploymentEnvironment(env) !== "production";
 
   return {
     authUrl: (overridable && env.GOOGLE_REQUESTER_AUTH_URL?.trim()) || GOOGLE_AUTH_URL,
-    clientId: env.GOOGLE_REQUESTER_CLIENT_ID?.trim() ?? "",
-    clientSecret: env.GOOGLE_REQUESTER_CLIENT_SECRET?.trim() ?? "",
+    clientId: (env.GOOGLE_REQUESTER_CLIENT_ID?.trim() || env.GOOGLE_CLIENT_ID?.trim()) ?? "",
+    clientSecret: (env.GOOGLE_REQUESTER_CLIENT_SECRET?.trim() || env.GOOGLE_CLIENT_SECRET?.trim()) ?? "",
     tokenUrl: (overridable && env.GOOGLE_OAUTH_TOKEN_URL?.trim()) || GOOGLE_OAUTH_TOKEN_URL,
   };
 }

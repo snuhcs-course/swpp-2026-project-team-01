@@ -2,9 +2,7 @@ import { createHmac } from "node:crypto";
 import { z } from "zod";
 import { type CommandDefinition, CommandError } from "./commands";
 import type { Queryable, Transaction } from "./database";
-import { deploymentEnvironment } from "./deployment";
 import { createGoogleCalendarClient, type GoogleCalendarConfig } from "./google-calendar";
-import { type JobHandler, publishJob } from "./jobs";
 import { lockOpenRequest } from "./request-guard";
 import {
   REQUESTER_CALENDAR_SCOPES,
@@ -12,22 +10,17 @@ import {
   requesterCalendarConfigFromEnvironment,
   requesterGrantContext,
 } from "./requester-calendar";
-import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
+import { sealToken, type TokenKey } from "./token-encryption";
 
 // A requester's request-bound Google grants (design decision 3;
 // requester-calendar-access). Identity and Calendar are separate rows even when
 // one consent screen asked for both: an unchecked Calendar part still records
 // identity. Only a calendar grant holds a refresh token, sealed under
 // requester_grant:{requestId}. Closure, expiry and **Disconnect** delete the
-// sealed token in the closing transaction; Google's revocation endpoint is then
-// called (best effort, recorded) by a requester_revocation job only when no other
-// live calendar grant of the same Google identity still holds a token, because
-// Google revokes per user and client and would otherwise cut that other
-// request's access. No requester grant ever creates an auth.users or
-// host_accounts row.
-
-export const REQUESTER_REVOCATION_JOB = "requester_revocation";
-export const GOOGLE_OAUTH_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
+// sealed token in the closing transaction and never call Google's revocation
+// endpoint (delete-only), so the requester client may be the host sign-in client
+// without a requester's closure touching the same person's host Calendar grant.
+// No requester grant ever creates an auth.users or host_accounts row.
 
 // What the consent round trip learned about the requester's Google identity.
 export type RequesterGoogleIdentity = {
@@ -52,72 +45,28 @@ export function hasCalendarScopes(scopes: readonly string[] | null) {
   return Boolean(scopes && REQUESTER_CALENDAR_SCOPES.every((scope) => scopes.includes(scope)));
 }
 
-type LiveGrant = {
-  readonly id: string;
-  readonly kind: "identity" | "calendar";
-  readonly google_subject_hash: string;
-  readonly refresh_token_ciphertext: string | null;
-  readonly refresh_token_key_id: string | null;
-};
+type GrantKind = "identity" | "calendar";
 
-// Deletes one grant's sealed token and marks it revoked, in the caller's
-// transaction. When it held a token and no other live calendar grant of the same
-// Google identity still holds one, a revocation job carries the sealed token to
-// Google's endpoint after commit; otherwise deleting the token is the revocation.
-// A grant replaced by a new consent of the same identity is never revoked at
-// Google: Google revokes per user and client, which would void the new token.
-async function closeGrant(tx: Transaction, requestId: string, grant: LiveGrant, replacingSubjectHash?: string) {
-  const holdsToken = Boolean(grant.refresh_token_ciphertext && grant.refresh_token_key_id);
-  const [shared] = holdsToken
-    ? await tx<{ found: boolean }[]>`
-        select true as found from app.requester_grants
-        where google_subject_hash = ${grant.google_subject_hash} and revoked_at is null and id <> ${grant.id}
-          and refresh_token_ciphertext is not null
-        limit 1
-      `
-    : [];
-  const revokeAtGoogle = holdsToken && !shared && grant.google_subject_hash !== replacingSubjectHash;
-
-  await tx`
-    update app.requester_grants
-    set refresh_token_ciphertext = null, refresh_token_key_id = null, revoked_at = now(), updated_at = now(),
-        provider_revocation = ${revokeAtGoogle ? null : "not_needed"}
-    where id = ${grant.id}
-  `;
-
-  if (revokeAtGoogle) {
-    await publishJob(tx, {
-      dedupeKey: `grant:${grant.id}`,
-      kind: REQUESTER_REVOCATION_JOB,
-      maxAttempts: 3,
-      payload: {
-        ciphertext: grant.refresh_token_ciphertext,
-        grantId: grant.id,
-        keyId: grant.refresh_token_key_id,
-        requestId,
-      },
-    });
-  }
-}
-
-// Closes the request's live grants (of the given kinds, or all), as closure and
-// Disconnect do, or as a new consent replaces them (`replacingSubjectHash`, the
-// new consent's identity). Returns how many were closed.
+// Closes the request's live grants (of the given kinds, or all), as closure,
+// expiry and Disconnect do, or as a new consent replaces them: each sealed token
+// is deleted and the grant marked revoked in the caller's transaction. Grants are
+// delete-only (product decision D8): the service holds the only copy of the
+// token, so deleting it ends the service's access, and Google's revocation
+// endpoint is never called. provider_revocation is therefore always 'not_needed'
+// ('revoked' and 'failed' remain in the CHECK from the first migration but are
+// no longer written). Returns how many were closed.
 export async function revokeRequestGrants(
   tx: Transaction,
   requestId: string,
-  kinds: readonly LiveGrant["kind"][] = ["identity", "calendar"],
-  replacingSubjectHash?: string,
+  kinds: readonly GrantKind[] = ["identity", "calendar"],
 ) {
-  const grants = await tx<LiveGrant[]>`
-    select id, kind, google_subject_hash, refresh_token_ciphertext, refresh_token_key_id
-    from app.requester_grants
+  const closed = await tx`
+    update app.requester_grants
+    set refresh_token_ciphertext = null, refresh_token_key_id = null, revoked_at = now(), updated_at = now(),
+        provider_revocation = 'not_needed'
     where request_id = ${requestId} and revoked_at is null and kind in ${tx(kinds as string[])}
-    for update
   `;
-
-  for (const grant of grants) await closeGrant(tx, requestId, grant, replacingSubjectHash);
-  return grants.length;
+  return closed.count;
 }
 
 // Records the grants of one completed consent for an open request, replacing the
@@ -133,7 +82,7 @@ export async function recordRequesterGrants(
   const subjectHash = googleSubjectHash(tokenKey, identity.subject);
   const calendar = hasCalendarScopes(identity.scopes) && identity.refreshToken !== null;
 
-  await revokeRequestGrants(tx, requestId, calendar ? ["identity", "calendar"] : ["identity"], subjectHash);
+  await revokeRequestGrants(tx, requestId, calendar ? ["identity", "calendar"] : ["identity"]);
 
   const identityScopes = (identity.scopes ?? []).filter((scope) => !scope.includes("/auth/calendar"));
   await tx`
@@ -221,8 +170,8 @@ export const useGoogleEmailCommand: CommandDefinition<Record<string, never>, { c
   },
 };
 
-// **Disconnect**: closes the request's calendar grant (its token is deleted now,
-// and revoked at Google when no other request of the identity needs it).
+// **Disconnect**: closes the request's calendar grant; its sealed token is
+// deleted now, and Google is not called.
 export const disconnectCalendarCommand: CommandDefinition<Record<string, never>, { disconnected: boolean }> = {
   input: empty,
   operation: "calendar.disconnect",
@@ -312,56 +261,4 @@ export async function listRequesterCalendars(
   } catch {
     return null;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Revocation at Google
-
-type Environment = Readonly<Record<string, string | undefined>>;
-
-export function revokeUrlFromEnvironment(env: Environment = process.env) {
-  return (deploymentEnvironment(env) !== "production" && env.GOOGLE_OAUTH_REVOKE_URL?.trim()) || GOOGLE_OAUTH_REVOKE_URL;
-}
-
-export type RevocationDependencies = {
-  readonly tokenKeys: readonly TokenKey[];
-  readonly revokeUrl: string;
-  readonly fetch?: typeof fetch;
-};
-
-// Calls Google's revocation endpoint once with the sealed token the closing
-// transaction handed over, records the outcome on the grant, and removes the
-// token from the job's payload, so no copy outlives the call.
-export function createRevocationHandler(
-  load: () => RevocationDependencies = () => ({ revokeUrl: revokeUrlFromEnvironment(), tokenKeys: [tokenKeyFromEnvironment()] }),
-): JobHandler {
-  const handler: JobHandler = async (tx, job) => {
-    const { ciphertext, grantId, keyId, requestId } = job.payload as Record<string, string | undefined>;
-
-    if (!grantId || !requestId) return { skipped: true };
-    if (!ciphertext || !keyId) return { skipped: true };
-
-    const deps = load();
-    let outcome: "revoked" | "failed" = "failed";
-
-    try {
-      const token = openToken(deps.tokenKeys, { ciphertext, keyId }, requesterGrantContext(requestId));
-      const response = await (deps.fetch ?? fetch)(deps.revokeUrl, {
-        body: new URLSearchParams({ token }),
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        method: "POST",
-        signal: AbortSignal.timeout(10_000),
-      });
-      // Google answers 400 invalid_token for a token it already revoked.
-      outcome = response.ok || response.status === 400 ? "revoked" : "failed";
-    } catch {
-      outcome = "failed";
-    }
-
-    await tx`update app.requester_grants set provider_revocation = ${outcome}, updated_at = now() where id = ${grantId}`;
-    await tx`update app.jobs set payload = payload - 'ciphertext' - 'keyId' where id = ${job.id}`;
-    return { outcome };
-  };
-
-  return handler;
 }

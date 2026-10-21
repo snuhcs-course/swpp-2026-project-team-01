@@ -5,8 +5,9 @@
 -- them with the request's contact. Only a calendar grant holds a refresh token,
 -- sealed with the context requester_grant:{requestId}, and the calendars the
 -- requester chose. Closure, expiry and Disconnect delete the sealed token and set
--- revoked_at in the same transaction; provider_revocation records the best-effort
--- call to Google's revocation endpoint, made only for the subject's last live grant.
+-- revoked_at in the same transaction and never call Google's revocation endpoint
+-- (delete-only), so provider_revocation is always 'not_needed'; 'revoked' and
+-- 'failed' are no longer written.
 -- Requester event contents are read inside an evaluation and never stored.
 CREATE TABLE "app"."requester_grants" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -34,7 +35,7 @@ CREATE TABLE "app"."requester_grants" (
 CREATE UNIQUE INDEX "requester_grants_one_live_idx" ON "app"."requester_grants" ("request_id", "kind")
   WHERE "revoked_at" IS NULL;
 
--- Whether another live grant shares the Google subject decides revocation.
+-- Live grants of one Google identity, matched by the subject hash.
 CREATE INDEX "requester_grants_live_subject_idx" ON "app"."requester_grants" ("google_subject_hash")
   WHERE "revoked_at" IS NULL;
 

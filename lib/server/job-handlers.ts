@@ -4,7 +4,6 @@ import { createEvaluationHandler, EVALUATION_JOB } from "./evaluation";
 import type { JobHandler } from "./jobs";
 import { createLinkResendHandler, LINK_RESEND_JOB } from "./link-resend";
 import { createRequestExpiryHandler, REQUEST_EXPIRY_JOB } from "./request-lifecycle";
-import { createRevocationHandler, REQUESTER_REVOCATION_JOB } from "./requester-grants";
 
 // Handlers by job kind. The worker claims only kinds registered here, so a job
 // whose handler is not deployed yet stays pending and visible.
@@ -14,7 +13,6 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
   [EVALUATION_JOB]: createEvaluationHandler(),
   [LINK_RESEND_JOB]: createLinkResendHandler(),
   [REQUEST_EXPIRY_JOB]: createRequestExpiryHandler(),
-  [REQUESTER_REVOCATION_JOB]: createRevocationHandler(),
 };
 
 // The most jobs of a kind one worker batch claims; kinds not listed share the

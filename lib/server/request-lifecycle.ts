@@ -24,7 +24,7 @@ import { revokeRequestGrants } from "./requester-grants";
 //   any actionable -> expired    the request_expiry job
 //
 // Closure, in the closing transaction, deletes the requester's grants (their
-// revocation at Google follows as a job), supersedes every live confirmation
+// sealed tokens; Google is not called), supersedes every live confirmation
 // link and every pending review. A closed request never reopens: commands
 // reject it with request_closed (request-guard.ts), and replay of a saved
 // command returns its saved outcome without running it again.
