@@ -35,9 +35,19 @@ const nextConfig: NextConfig = {
     // `/` and the single-segment host pages negotiate Markdown in the proxy, so
     // their HTML varies by Accept too (dotted paths are files, not handles).
     const varyByAccept = [{ key: "Vary", value: "Accept" }];
+    // Booking and confirmation identifiers in the path are credentials: never
+    // sent as a referrer, indexed or cached. Later entries win for the same key.
+    const credentialPath = [
+      { key: "Referrer-Policy", value: "no-referrer" },
+      { key: "X-Robots-Tag", value: "noindex" },
+      { key: "Cache-Control", value: "no-store" },
+    ];
 
     return [
       { headers: securityHeaders, source: "/:path*" },
+      { headers: credentialPath, source: "/booking/:path*" },
+      { headers: credentialPath, source: "/api/requests/:path*" },
+      { headers: credentialPath, source: "/api/booking-links/:path*" },
       { headers: varyByAccept, source: "/" },
       { headers: varyByAccept, source: "/:handle([^/.]+)" },
     ];
