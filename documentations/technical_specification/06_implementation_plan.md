@@ -134,7 +134,7 @@ Scope. Prerequisite: Phase 1 joined, plus Phase 2 Lane C's readiness guard so a 
 **Proposal (serial, first)**
 
 - [x] Proposal for [`requester-intake-and-feasibility`](../../openspec/changes/requester-intake-and-feasibility/proposal.md) with the decisions to settle and the coverage table.
-- [ ] Design.
+- [x] [Design](../../openspec/changes/requester-intake-and-feasibility/design.md).
 - [ ] Delta specs.
 - [ ] Tasks.
 - [ ] Owning-document updates and Korean mirrors.
