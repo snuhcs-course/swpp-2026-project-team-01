@@ -48,3 +48,10 @@ When the requester connected Google Calendar and the meeting is in person, feasi
 #### Scenario: No requester calendar
 - **WHEN** the requester gave availability windows without connecting Google Calendar
 - **THEN** no requester leg is checked
+
+### Requirement: Bounded evaluations per request
+Asking for times again while an evaluation of the same request and settings revisions is still running SHALL return that evaluation instead of starting another, whether the assistant or the **Find times** card asks. A request SHALL start at most 10 new evaluations in any rolling hour; past that, the service SHALL start none and SHALL return temporary-limit feedback.
+
+#### Scenario: Eleventh evaluation in an hour
+- **WHEN** a request that started 10 evaluations in the last hour asks for times again
+- **THEN** no evaluation starts, no calendar or route is read, and the requester is told to try again later

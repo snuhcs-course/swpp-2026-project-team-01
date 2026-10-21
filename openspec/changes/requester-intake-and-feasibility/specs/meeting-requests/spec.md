@@ -36,15 +36,19 @@ The identifier in `/booking/[bookingId]` SHALL be a server-generated random UUID
 ## ADDED Requirements
 
 ### Requirement: Optional contact confirmation
-Confirming the requester's contact address SHALL be optional, and no scheduling step SHALL wait on it: intake, candidates, agreement and later host approval, invitation and status emails SHALL proceed with an unconfirmed address. When a request is created, and whenever its contact address changes, the service SHALL email that address the booking link and a single-use confirmation link. Opening the confirmation link SHALL confirm that address only while it is still the request's contact and the request is open; a newer email, a contact change or closure SHALL void earlier confirmation links. An address Google reports as verified for the requester's identity SHALL count as confirmed without the email. A confirmed address is the request's verified contact wherever this contract names one, and the host SHALL see whether the contact is confirmed. Confirmation SHALL create no login session, agreement, approval or booking.
+Confirming the requester's contact address SHALL be optional, and no scheduling step SHALL wait on it: intake, candidates, agreement and later host approval, invitation and status emails SHALL proceed with an unconfirmed address. When a request is created, and whenever its contact address changes, the service SHALL email that address the booking link and a single-use confirmation link. Opening the confirmation link SHALL confirm nothing by itself and SHALL show a **Confirm this address** button; pressing it SHALL confirm that address only while it is still the request's contact and the request is open; a newer email, a contact change or closure SHALL void earlier confirmation links. An address Google reports as verified for the requester's identity SHALL count as confirmed without the email. A confirmed address is the request's verified contact wherever this contract names one, and the host SHALL see whether the contact is confirmed. Confirmation SHALL create no login session, agreement, approval or booking.
 
 #### Scenario: Creation email
 - **WHEN** a requester continues without Google and the request is created
 - **THEN** one email goes to the typed address with the booking link and a confirmation link, and the requester can go on scheduling before opening it
 
 #### Scenario: Confirmation link opened
-- **WHEN** the recipient opens an unused confirmation link for the request's current contact
+- **WHEN** the recipient opens an unused confirmation link for the request's current contact and presses **Confirm this address**
 - **THEN** that address becomes confirmed and nothing else about the request changes
+
+#### Scenario: Link fetched without a press
+- **WHEN** a mail scanner fetches the confirmation link
+- **THEN** the address stays unconfirmed
 
 #### Scenario: Link after a contact change
 - **WHEN** the requester changes the contact address and the old confirmation link is opened
@@ -59,11 +63,15 @@ Confirming the requester's contact address SHALL be optional, and no scheduling 
 - **THEN** the agreement is recorded and the host sees that the contact is unconfirmed
 
 ### Requirement: Recoverable confirmation email
-Sending the creation email again SHALL wait at least 60 seconds after the previous one for the same request and SHALL allow at most 5 per request and 10 per recipient address in any rolling hour, and 1,000 across the service in any rolling day. Repeated send commands SHALL preserve their logical identity across lost responses, so a duplicate creates no second email. Delivery SHALL use durable Cloudflare messages with frozen sender and content and a recipient recheck; possible dispatch SHALL prevent automatic resending. The requester SHALL have labeled keyboard-operable controls and truthful queued, sent, rejected, uncertain and confirmed states, and browser reload SHALL recover the current status.
+Sending the creation email again SHALL wait at least 60 seconds after the previous one for the same request and SHALL allow at most 5 per request and 10 per recipient address in any rolling hour, and 1,000 across the service in any rolling day. These bounds SHALL apply to every creation email, including the one request creation sends and those a contact change sends, and a contact change past a bound SHALL be rejected with nothing changed. Repeated send commands SHALL preserve their logical identity across lost responses, so a duplicate creates no second email. Delivery SHALL use durable Cloudflare messages with frozen sender and content and a recipient recheck; possible dispatch SHALL prevent automatic resending. The requester SHALL have labeled keyboard-operable controls and truthful queued, sent, rejected, uncertain and confirmed states, and browser reload SHALL recover the current status.
 
 #### Scenario: Too soon or too many
 - **WHEN** the requester asks to send the email again within 60 seconds, or past an hourly or daily bound
 - **THEN** no email is created and the card says when it can be sent again
+
+#### Scenario: Contact changed too often
+- **WHEN** the requester changes the contact address again within 60 seconds of the last creation email
+- **THEN** the change is rejected with a temporary-limit result, the contact stays as it was and no email is created
 
 #### Scenario: Response lost after commit
 - **WHEN** a send command commits but its response is lost
@@ -74,7 +82,7 @@ Sending the creation email again SHALL wait at least 60 seconds after the previo
 - **THEN** the email is not sent again automatically and the card shows that delivery is uncertain
 
 ### Requirement: Anonymous intake conversation
-A ready host's public page SHALL offer an assistant conversation before any request exists, under an anonymous intake that is bound to one browser tab by a random token stored only as a hash and that lasts at most 24 hours. The intake SHALL see only the host's public profile and its own draft, SHALL have no tool that reads host settings, calendars, requests or other intakes, and SHALL be bounded to 5 new intakes per source address in any rolling hour and 20 in any rolling day, 30 messages per intake before the requester continues, USD 3 of model allowance per intake and USD 50 of anonymous model allowance across the service in any 24 hours. Continuing with or without Google SHALL create at most one request from an intake, carry its draft over as a pending review and show its transcript read-only on the booking page.
+A ready host's public page SHALL offer an assistant conversation before any request exists, under an anonymous intake that is bound to one browser tab by a random token stored only as a hash and that lasts at most 24 hours. The intake SHALL see only the host's public profile and its own draft, SHALL have no tool that reads host settings, calendars, requests or other intakes, and SHALL be bounded to 5 new intakes per source address in any rolling hour and 20 in any rolling day, 30 messages per intake before the requester continues, USD 3 of model allowance per intake and USD 50 of anonymous model allowance across the service in any 24 hours. A request created from an intake SHALL keep the intake's USD 3 model allowance, and its spend SHALL count toward the anonymous allowance, until its contact is confirmed or it holds a live Google identity; then the usual request allowance SHALL apply, counting what it already spent. Continuing with or without Google SHALL create at most one request from an intake, carry its draft over as a pending review and show its transcript read-only on the booking page.
 
 #### Scenario: Visitor asks for the host's calendar
 - **WHEN** a visitor on the public page asks the assistant for the host's free times or calendar
@@ -83,6 +91,10 @@ A ready host's public page SHALL offer an assistant conversation before any requ
 #### Scenario: Anonymous budget exhausted
 - **WHEN** the anonymous service-wide allowance is used up
 - **THEN** new intake messages get a temporary-limit response and **Continue without Google** still creates a request
+
+#### Scenario: Unconfirmed request keeps the intake's cap
+- **WHEN** a request created without Google has spent USD 3 of model allowance and its contact is still unconfirmed
+- **THEN** further model work for it is refused until the requester confirms the address
 
 #### Scenario: Intake continues
 - **WHEN** a requester who described the meeting on the public page continues without Google
