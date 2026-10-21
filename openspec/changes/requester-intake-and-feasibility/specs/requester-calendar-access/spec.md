@@ -1,11 +1,11 @@
 ## Purpose
 
-Let a requester without any product account prefill their identity and share availability-only Google Calendar access for one request, through a consent flow that is separate from host sign-in and never grants request authority, agreement or host capabilities.
+Let a requester without any product account prefill their identity and share read-only Google Calendar access for one request, used privately for their busy times and travel, through a consent flow that is separate from host sign-in and never grants request authority, agreement or host capabilities.
 
 ## ADDED Requirements
 
 ### Requirement: Request-bound Google consent flow
-**Continue with Google** and **Connect Google Calendar** for requesters SHALL use a Google OAuth flow owned by the application, separate from host sign-in: it SHALL NOT create a Supabase Auth user, a host account or a product session, and SHALL return to its own callback rather than `/auth/callback`. Each round trip SHALL be bound to one intake on a ready host's public page or to one open request whose booking link the starting page held, to the starting browser, and to a single-use, short-lived transaction with PKCE. A cancelled, replayed, expired or other-browser return SHALL change no request and reveal no request.
+**Continue with Google** and **Connect Google Calendar** for requesters SHALL use a Google OAuth flow owned by the application, separate from host sign-in: it SHALL NOT create a Supabase Auth user, a host account or a product session, and SHALL return to its own callback rather than `/auth/callback`. Each round trip SHALL be bound to one anonymous intake on a ready host's public page or to one open request whose booking link the starting page held, to the starting browser, and to a single-use, short-lived transaction with PKCE. A cancelled, replayed, expired or other-browser return SHALL change no request and reveal no request.
 
 #### Scenario: Requester continues with Google
 - **WHEN** a requester on a ready host's public page completes Google consent
@@ -17,10 +17,10 @@ Let a requester without any product account prefill their identity and share ava
 
 #### Scenario: Consent cancelled
 - **WHEN** the requester cancels on the Google consent screen
-- **THEN** they return to the page they started from with the meeting purpose and timezone they had entered, and no grant or request is recorded
+- **THEN** they return to the page they started from with their conversation and timezone intact, and no grant or request is recorded
 
 ### Requirement: Identity and Calendar recorded as separate grants
-Identity and Calendar access requested on one consent screen SHALL be recorded as separate grants bound to the request. An identity grant SHALL fill in the requester's name and email; an email Google reports as verified SHALL be the request's verified contact only while it equals the current contact. A Calendar grant SHALL exist only for the Calendar scopes Google reported as granted. Neither grant SHALL confer agreement, host approval, host eligibility or access to any other request.
+Identity and Calendar access requested on one consent screen SHALL be recorded as separate grants bound to the request. An identity grant SHALL fill in the requester's name and email; an email Google reports as verified SHALL count as the request's confirmed contact only while it equals the current contact. A Calendar grant SHALL exist only for the Calendar scopes Google reported as granted. Neither grant SHALL confer agreement, host approval, host eligibility or access to any other request.
 
 #### Scenario: Calendar part unchecked
 - **WHEN** the requester unchecks the Calendar scopes on the consent screen
@@ -28,21 +28,25 @@ Identity and Calendar access requested on one consent screen SHALL be recorded a
 
 #### Scenario: Matching existing contact
 - **WHEN** a requester on an existing request continues with Google and the Google-verified address equals the request's current contact
-- **THEN** **Use verified Google email** verifies that contact without a code and changes nothing else
+- **THEN** **Use verified Google email** confirms that contact and changes nothing else
 
 #### Scenario: Different Google address
 - **WHEN** the Google-verified address differs from the request's current contact
-- **THEN** the contact stays unverified until the requester reviews and applies the change and verifies it
+- **THEN** the contact stays as it was until the requester reviews and applies the change, which sends the new address its confirmation email
 
-### Requirement: Availability-only Calendar access
-A requester Calendar grant SHALL request only free/busy and calendar-list access and SHALL be used only to read busy intervals of the calendars the requester selected, for evaluations of its own request. Event titles, attendees, locations and descriptions SHALL NOT be read or stored, and busy intervals SHALL NOT be shown to the host or any agent.
+### Requirement: Private read-only Calendar access
+A requester Calendar grant SHALL request only calendar-list and read-only event access and SHALL be used only by evaluations of its own request, on the calendars the requester selected, to derive busy intervals under the same rules as host calendars and the places of the requester's events adjacent to in-person candidates. Event titles, attendees, descriptions and locations SHALL NOT be stored, logged, placed in a tool result or model context, or shown to the host or any agent; requester-facing text SHALL refer to an adjacent event only generically.
 
 #### Scenario: Busy requester interval
 - **WHEN** a selected requester calendar is busy during an otherwise feasible candidate
 - **THEN** the candidate is excluded and neither the host nor the requester's agent sees the requester's event
 
+#### Scenario: Declined requester event
+- **WHEN** the requester declined an invitation during an otherwise feasible candidate
+- **THEN** that event does not block the candidate
+
 #### Scenario: Grant used for another request
-- **WHEN** an operation for a different request would read availability
+- **WHEN** an operation for a different request would read the requester's calendar
 - **THEN** that request's own grants are the only ones consulted and the first request's grant is never read
 
 ### Requirement: Request-bound grant lifetime
@@ -50,7 +54,7 @@ A requester grant SHALL last no longer than its request remains open and its boo
 
 #### Scenario: Request closes
 - **WHEN** a request is withdrawn or expires
-- **THEN** its Calendar token is deleted, revocation is requested, and no later evaluation reads that calendar
+- **THEN** its Calendar token is deleted, revocation is requested unless another open request of the same Google identity holds a grant, and no later evaluation reads that calendar
 
 #### Scenario: Failed availability read
 - **WHEN** reading the requester's busy intervals fails or the grant was revoked at Google
@@ -59,10 +63,3 @@ A requester grant SHALL last no longer than its request remains open and its boo
 #### Scenario: Skip for now
 - **WHEN** the requester skips Calendar connection and gives availability windows instead
 - **THEN** evaluation uses those windows and requesting continues without any Calendar grant
-
-### Requirement: Requester Google entry is configurable
-Requester Google entry points SHALL appear only when the deployment enables them. When disabled, the public page and booking page SHALL offer **Continue without Google** and manual availability with no broken Google action.
-
-#### Scenario: Google app limited to test users
-- **WHEN** requester Google entry is disabled because the Google app still admits only test users
-- **THEN** a requester sees **Continue without Google** and can complete intake and availability without any Google screen

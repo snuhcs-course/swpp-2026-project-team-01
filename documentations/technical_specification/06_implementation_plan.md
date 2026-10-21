@@ -143,13 +143,13 @@ Scope. Prerequisite: Phase 1 joined, plus Phase 2 Lane C's readiness guard so a 
 **Lane A — routes, identity and timezone**
 
 - [ ] `/{handle}` public intake and `/booking/[bookingId]` with the hashed random UUID credential, thirty-day lifetime, `Referrer-Policy: no-referrer`, no indexing, and the generic unavailable view.
-- [ ] Guest identity and timezone cards; **Continue with Google** for requesters with identity and availability-only scopes recorded as separate request-bound grants; **Continue without Google** with a compact name and email card.
+- [ ] Guest identity and timezone cards; **Continue with Google** for requesters with identity and read-only Calendar scopes recorded as separate request-bound grants; **Continue without Google** with a compact name and email card.
 - [ ] Request lifecycle with seven-day and window-end expiry; withdrawal.
 
 **Lane B — contact proof and email delivery**
 
 - [ ] Cloudflare Email Service adapter with delivery evidence and frozen dispatch identity.
-- [ ] Contact verification codes with expiry, five-guess limit, cooldown and hourly limits; recoverable verification commands.
+- [ ] Optional contact confirmation: the creation email with the booking link and a single-use confirmation link, its bounded resend, and recoverable send commands.
 - [ ] Bounded link resend with per-recipient and service-wide budgets and generic feedback.
 - [ ] Credential redaction of conversation input; conversation admission budgets and recoverable throttling.
 
@@ -171,9 +171,9 @@ Scope. Prerequisite: Phase 1 joined, plus Phase 2 Lane C's readiness guard so a 
 
 Specs: [meeting-requests](../../openspec/specs/meeting-requests/spec.md), [meeting-feasibility](../../openspec/specs/meeting-feasibility/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md) (transactional sending, delivery evidence, uncertain dispatch), [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md) (admission, redaction, stable requester destination), [conversation-access](../../openspec/specs/conversation-access/spec.md). Also [model-execution](../../openspec/specs/model-execution/spec.md) for the saved-ranking scenario the foundation change deferred here.
 
-Decisions settled here: supported geography and route freshness; manual travel allowance granularity; who creates an online meeting link (moved here from Phase 4, because requester agreement in this phase covers the link plan); verification code expiry and cooldown values; Cloudflare domain verification and API permissions; whether `evaluate_candidates` is an eve workflow tool or an application job; request creation bounds; booking-link storage for resend; local messaging; whether the public page runs a model conversation before a request exists; contact verification before agreement. The [proposal](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions-to-settle) gives options and a recommendation for each as D1–D12, pending the team's sign-off under **Teammate review**.
+Decisions settled here: supported geography and route freshness; manual travel allowance granularity; who creates an online meeting link (moved here from Phase 4, because requester agreement in this phase covers the link plan); contact proof (decided as optional confirmation instead of codes); Cloudflare domain verification and API permissions; whether `evaluate_candidates` is an eve workflow tool or an application job; request creation bounds; booking-link storage for resend; local messaging; whether the public page runs a model conversation before a request exists; contact verification before agreement. Dohyeon Park decided them as D1–D12 on 2026-10-21, recorded in the [proposal](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions); **Teammate review** covers reviewing them.
 
-Evidence: AC-01 through intake and candidates, AC-02, AC-03 requester-side, AC-12, AC-13 withdrawal, AC-27; controlled Cloudflare inbox delivery of a verification code and a resent link. Keyboard and phone-width checks from the [guest booking flow checklist](../user_experience/06_guest_booking_flow.md#checks-before-calling-the-flow-done).
+Evidence: AC-01 through intake and candidates, AC-02, AC-03 requester-side, AC-12, AC-13 withdrawal, AC-27; controlled Cloudflare inbox delivery of a creation email with its confirmation link and of a resent link. Keyboard and phone-width checks from the [guest booking flow checklist](../user_experience/06_guest_booking_flow.md#checks-before-calling-the-flow-done).
 
 ### Phase 4 — `host-review-and-booking`
 
@@ -431,7 +431,7 @@ Not carried: the travel-table heuristic (replaced by Google Routes with buffers)
 | Sign-up and handle limits, reserved handles, starter defaults | Phase 2 proposal | PRD section 10, host-admission spec |
 | Supported geography, route freshness, manual allowance granularity (travel modes were settled in Phase 2) | Phase 3 proposal (D1, D2) | PRD travel-time checks, meeting-feasibility spec |
 | Online meeting link creation | Phase 3 proposal (D6), moved from Phase 4 because requester agreement covers the link plan | PRD section 10, meeting-requests spec |
-| Verification codes, request creation bounds, Cloudflare setup, `evaluate_candidates` placement, booking-link storage, local messaging, the static public intake page, verification before agreement | Phase 3 proposal (D3–D5, D7–D12) | Meeting-requests, email-delivery and messaging-environments specs; provider setup; agent configuration |
+| Contact confirmation, request creation bounds, Cloudflare setup, `evaluate_candidates` placement, booking-link storage, local messaging, the public intake conversation, verification before agreement | Phase 3 proposal (D3–D5, D7–D12), decided 2026-10-21 | Meeting-requests, email-delivery and messaging-environments specs; provider setup; agent configuration |
 | MCP protocol version, registration, scopes, CLI packaging | Phase 5 proposal | Agent-client authorization spec, CLI direction |
 | iMessage adapter, code expiry, line provisioning | Phase 6 proposal | Provider setup, new iMessage change |
 | AgentMail adapter and retention | Phase 7 proposal | Provider setup |

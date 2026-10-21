@@ -145,13 +145,13 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 **레인 A — 라우트, 신원, 시간대**
 
 - [ ] `/{handle}` 공개 접수와, 해시된 무작위 UUID 자격 증명, 30일 수명, `Referrer-Policy: no-referrer`, 색인 금지, 일반적인 이용 불가 화면을 갖춘 `/booking/[bookingId]`.
-- [ ] 게스트 신원 및 시간대 카드; 신원과 가용성 전용 스코프를 별도의 요청 바인딩 허가로 기록하는 요청자용 **Google로 계속(Continue with Google)**; 간단한 이름과 이메일 카드를 쓰는 **Google 없이 계속(Continue without Google)**.
+- [ ] 게스트 신원 및 시간대 카드; 신원과 읽기 전용 Calendar 스코프를 별도의 요청 바인딩 허가로 기록하는 요청자용 **Google로 계속(Continue with Google)**; 간단한 이름과 이메일 카드를 쓰는 **Google 없이 계속(Continue without Google)**.
 - [ ] 7일 및 구간 종료 시점 만료를 갖춘 요청 수명주기; 철회.
 
 **레인 B — 연락처 증명과 이메일 전달**
 
 - [ ] 전달 증거와 고정된 디스패치 식별자를 갖춘 Cloudflare Email Service 어댑터.
-- [ ] 만료, 5회 추측 한도, 쿨다운, 시간당 한도를 갖춘 연락처 검증 코드; 복구 가능한 검증 명령.
+- [ ] 선택적 연락처 확인: 예약 링크와 일회용 확인 링크를 담은 생성 이메일, 한도가 있는 재전송, 복구 가능한 전송 명령.
 - [ ] 수신자별 및 서비스 전체 예산과 일반적인 피드백을 갖춘 한정된 링크 재전송.
 - [ ] 대화 입력의 자격 증명 마스킹; 대화 접수 예산과 복구 가능한 스로틀링.
 
@@ -173,9 +173,9 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 명세: [meeting-requests](../../openspec/specs/meeting-requests/spec.md), [meeting-feasibility](../../openspec/specs/meeting-feasibility/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md)(트랜잭션 발송, 전달 증거, 불확실한 디스패치), [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md)(접수, 마스킹, 안정적인 요청자 목적지), [conversation-access](../../openspec/specs/conversation-access/spec.md). 또한 기반 변경이 여기로 미룬 저장된 순위 시나리오를 위해 [model-execution](../../openspec/specs/model-execution/spec.md)도 참조합니다.
 
-여기서 확정할 결정: 지원하는 지역과 경로 최신성; 수동 이동 허용치의 세분도; 온라인 미팅 링크를 누가 만드는가(이 단계의 요청자 동의가 링크 계획을 다루므로 4단계에서 옮겨 옴); 검증 코드 만료 및 쿨다운 값; Cloudflare 도메인 검증과 API 권한; `evaluate_candidates`가 eve 워크플로 도구인지 애플리케이션 작업인지; 요청 생성 한도; 재전송을 위한 예약 링크 저장; 로컬 메시징; 요청이 생기기 전에 공개 페이지가 모델 대화를 실행하는지; 동의 전 연락처 인증. [제안서](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions-to-settle)는 각각에 대해 선택지와 권고를 D1–D12로 제시하며, **팀원 검토(Teammate review)** 아래에서 팀의 승인을 기다립니다.
+여기서 확정할 결정: 지원하는 지역과 경로 최신성; 수동 이동 허용치의 세분도; 온라인 미팅 링크를 누가 만드는가(이 단계의 요청자 동의가 링크 계획을 다루므로 4단계에서 옮겨 옴); 연락처 증명(코드 대신 선택적 확인으로 결정됨); Cloudflare 도메인 검증과 API 권한; `evaluate_candidates`가 eve 워크플로 도구인지 애플리케이션 작업인지; 요청 생성 한도; 재전송을 위한 예약 링크 저장; 로컬 메시징; 요청이 생기기 전에 공개 페이지가 모델 대화를 실행하는지; 동의 전 연락처 인증. Dohyeon Park이 2026-10-21에 이를 D1–D12로 결정했으며 [제안서](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)에 기록되어 있습니다. **팀원 검토(Teammate review)**는 그 검토를 다룹니다.
 
-증거: 접수와 후보까지의 AC-01, AC-02, 요청자 측 AC-03, AC-12, 철회에 대한 AC-13, AC-27; 검증 코드와 재전송된 링크를 통제된 Cloudflare 받은편지함으로 전달. [게스트 예약 흐름 체크리스트](../user_experience/06_guest_booking_flow.md#checks-before-calling-the-flow-done)의 키보드 및 휴대폰 너비 확인.
+증거: 접수와 후보까지의 AC-01, AC-02, 요청자 측 AC-03, AC-12, 철회에 대한 AC-13, AC-27; 확인 링크가 담긴 생성 이메일과 재전송된 링크를 통제된 Cloudflare 받은편지함으로 전달. [게스트 예약 흐름 체크리스트](../user_experience/06_guest_booking_flow.md#checks-before-calling-the-flow-done)의 키보드 및 휴대폰 너비 확인.
 
 ### 4단계 — `host-review-and-booking`
 
@@ -433,7 +433,7 @@ Docker를 갖춘 팀원이 그 주에 마이그레이션이 필요한 레인의 
 | 가입 및 핸들 한도, 예약 핸들, 시작용 기본값 | 2단계 제안서 | PRD 10절, host-admission 명세 |
 | 지원 지역, 경로 최신성, 수동 허용치 세분도(이동 수단은 2단계에서 확정됨) | 3단계 제안서(D1, D2) | PRD 이동 시간 확인, meeting-feasibility 명세 |
 | 온라인 미팅 링크 생성 | 3단계 제안서(D6), 요청자 동의가 링크를 다루므로 4단계에서 옮겨 옴 | PRD 10절, meeting-requests 명세 |
-| 검증 코드, 요청 생성 한도, Cloudflare 설정, `evaluate_candidates` 배치, 예약 링크 저장, 로컬 메시징, 정적 공개 접수 페이지, 동의 전 인증 | 3단계 제안서(D3–D5, D7–D12) | meeting-requests, email-delivery, messaging-environments 명세; 제공자 설정; 에이전트 구성 |
+| 연락처 확인, 요청 생성 한도, Cloudflare 설정, `evaluate_candidates` 배치, 예약 링크 저장, 로컬 메시징, 공개 접수 대화, 동의 전 인증 | 3단계 제안서(D3–D5, D7–D12), 2026-10-21 결정 | meeting-requests, email-delivery, messaging-environments 명세; 제공자 설정; 에이전트 구성 |
 | MCP 프로토콜 버전, 등록, 스코프, CLI 패키징 | 5단계 제안서 | 에이전트 클라이언트 인가 명세, CLI 방향 |
 | iMessage 어댑터, 코드 만료, 회선 프로비저닝 | 6단계 제안서 | 제공자 설정, 새 iMessage 변경 |
 | AgentMail 어댑터와 보존 | 7단계 제안서 | 제공자 설정 |

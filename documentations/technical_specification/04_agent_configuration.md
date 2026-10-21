@@ -11,7 +11,7 @@ This document records how the Find Me a Time conversation agent is defined as an
 
 1. **The application owns authority.** A session, a tool call, an approval prompt or an OAuth grant never establishes host eligibility, requester agreement, host approval or a booking. Those are domain commands with revisions and retry identity (see [application commands](../../openspec/specs/application-commands/spec.md)).
 2. **The model sees an audience projection.** Server-side filtering precedes serialization and model context. Structured contact fields reach the model as presence indicators; recognized credentials are removed before persistence.
-3. **One agent, three audiences.** Host setup, host-private request discussion and the shared requester discussion are separate sessions of the same root agent. The audience is derived from the session principal, never from the message.
+3. **One agent, four audiences.** Host setup, host-private request discussion, the shared requester discussion and the anonymous public intake before a request exists are separate sessions of the same root agent. The audience is derived from the session principal, never from the message.
 4. **Human decisions are not model tools.** Confirming settings, agreeing, approving, declining, withdrawing and booking are application commands invoked from cards or exact authored channel commands. The model can read, draft and propose; it cannot decide.
 5. **Durable waits live in domain state.** A paused eve session is not the record of an agreement or a pending provider effect.
 
@@ -35,6 +35,7 @@ agent/
     agentmail.ts            requester email: durable receipt -> request principal
   tools/                    snake_case files; each calls one domain operation
     setup.ts                read_setup_state and draft_settings, resolved for host setup only
+    intake.ts               read_intake and draft_intake, resolved for public intake only
     request.ts              request-discussion tools, resolved per audience: read_request,
                             draft_request_review, evaluate_candidates and read_booking_status
                             for requesters; Phase 4 adds list_host_requests,
@@ -61,6 +62,7 @@ eve derives names from paths (`tools/<name>.ts` is the tool `<name>`; a file at 
 |---|---|---|---|---|
 | Host setup | `host:{hostId}` | First `/app` visit of an active host; one per host | base + host-setup | `read_setup_state`, `draft_settings` |
 | Host-private request discussion | `host:{hostId}` with `requestId` attribute | Host selects a request in `/app`, or sends the exact `request <reference>` iMessage command | base + host-review | `read_request` (host projection), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status` |
+| Public intake | `intake:{intakeId}` | A visitor's first message on a ready host's `/{handle}`; one per browser tab, at most 24 hours ([D11](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)) | base + public-intake | `read_intake`, `draft_intake` |
 | Shared requester discussion | `request:{requestId}` | Request creation at `/{handle}`; continued through the booking link or verified email | base + requester | `read_request` (requester projection), `draft_request_review`, `evaluate_candidates`, `read_booking_status` |
 
 The application owns the index from discussion to eve session (`sessionId`, last `streamIndex`, agent version, state). eve generates session identifiers, has no per-session ownership check and does not accept caller-assigned identifiers, so every create, read, stream, input and control route is authorized by the application before it reaches `/eve/v1/*` ([conversation access](../../openspec/specs/conversation-access/spec.md)). A host and a requester never share a session; switching the visible discussion in `/app` switches sessions and never merges histories. Terminal recovery creates a successor session, records the fence and keeps accepted inputs and history available.
@@ -83,6 +85,8 @@ Every tool is `defineTool` with a description, a Zod input schema and an output 
 |---|---|---|---|
 | `read_setup_state` | host setup | Current draft, saved roles, analysis evidence and next action; calendar names only as quoted data and no place names from events | never |
 | `draft_settings` | host setup | Writes draft values with a revision and labels each as stated or inferred (starter defaults are the service's own); never policy, and mode, location and transport count only once the host accepts them on a card | never |
+| `read_intake` | public intake | The host's public profile and the intake's own draft; nothing from host settings, calendars or requests | never |
+| `draft_intake` | public intake | Records purpose, duration, mode, location and windows in the intake draft, which becomes a pending review when the request is created | never |
 | `read_request` | host or requester | Current request, proposal version, decisions and permitted conversation, projected per audience | never |
 | `list_host_requests` | host | Selectable requests with status; no requester private data beyond the projection | never |
 | `draft_request_review` | requester | Declares details, availability, question or unknown intent with an authored clarification; creates a pending review that only the requester can apply | never |
@@ -115,16 +119,18 @@ Permissions are enforced in layers, and only the last layer is soft. A requester
 
 Layers 1 to 4 are the authority boundary; domain and integration tests prove them under prompt injection. Layer 5 decides tone and helpfulness and is checked by evals. No instruction grants a capability that layers 1 to 4 withhold, and nothing a user types can restore one.
 
-| Tool | Host setup | Host review | Requester |
-|---|---|---|---|
-| `read_setup_state` | present | absent | absent |
-| `draft_settings` | present | absent | absent |
-| `read_request` | absent | present, host projection | present, requester projection |
-| `list_host_requests` | absent | present | absent |
-| `draft_request_review` | absent | absent | present |
-| `evaluate_candidates` | absent | present | present |
-| `propose_shared_changes` | absent | present | absent |
-| `read_booking_status` | absent | present | present |
+| Tool | Host setup | Host review | Requester | Public intake |
+|---|---|---|---|---|
+| `read_intake` | absent | absent | absent | present |
+| `draft_intake` | absent | absent | absent | present |
+| `read_setup_state` | present | absent | absent | absent |
+| `draft_settings` | present | absent | absent | absent |
+| `read_request` | absent | present, host projection | present, requester projection | absent |
+| `list_host_requests` | absent | present | absent | absent |
+| `draft_request_review` | absent | absent | present | absent |
+| `evaluate_candidates` | absent | present | present | absent |
+| `propose_shared_changes` | absent | present | absent | absent |
+| `read_booking_status` | absent | present | present | absent |
 
 “Absent” means not registered for that principal, not “denied when called”.
 
@@ -169,7 +175,7 @@ Each session is a Workflow run: completed steps replay and an interrupted step r
 | Run | `eve dev` beside `next dev apps/web`; runs persist under `.eve/.workflow-data` | `withEve({ services: { web: { framework: "nextjs", root: "apps/web" } }, routes })` in the root `vercel.ts` adds the agent as its own service and routes `/eve/v1/**` to it |
 | Auth | Application auth against the teammate's sandbox sign-in; no `localDev()` | Application auth only; fails closed |
 | Model | `OPENAI_API_KEY` in the local environment | `OPENAI_API_KEY` in Vercel Production; Preview gets its own key or none |
-| Messaging | Denied, except toward a loopback stand-in provider ([Phase 3 proposal](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions-to-settle), D9) | Release only; previews denied |
+| Messaging | Denied, except toward a loopback stand-in provider ([Phase 3 proposal](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions), D9) | Release only; previews denied |
 | Docker | Not needed | Not needed |
 
 Environment variables are limited to the OpenAI key, Supabase and the database URL, Google OAuth, the token encryption key, the job worker secret, the application origin, Photon, AgentMail, Cloudflare and `EVE_*` settings, kept out of Git with `.env.example` listing names only. `eve build` runs with `next build`; `eve link` binds the Vercel project.
@@ -191,4 +197,4 @@ Environment variables are limited to the OpenAI key, Supabase and the database U
 
 ## Open decisions
 
-Photon Spectrum compatibility with the native Photon channel and the sender identifier format; whether `evaluate_candidates` runs as an eve workflow tool or purely as an application job (the [Phase 3 proposal](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions-to-settle) recommends an application job, D5); whether the AgentMail channel is a custom channel or the Chat SDK Gmail adapter; session retention and compaction thresholds; when, if ever, a memory slot becomes useful.
+Photon Spectrum compatibility with the native Photon channel and the sender identifier format; whether `evaluate_candidates` runs as an eve workflow tool or purely as an application job (decided as an application job in the [Phase 3 proposal](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions), D5); whether the AgentMail channel is a custom channel or the Chat SDK Gmail adapter; session retention and compaction thresholds; when, if ever, a memory slot becomes useful.
