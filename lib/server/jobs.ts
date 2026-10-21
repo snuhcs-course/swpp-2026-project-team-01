@@ -31,6 +31,9 @@ export type JobHandler = {
   // Runs in the transaction that marks the job exhausted after a failed last
   // attempt, so a domain record waiting on the job can show the failure.
   onExhausted?: (tx: Transaction, job: ClaimedJob) => Promise<void>;
+  // A delivery handler names the endpoint of the transport it sends through; the
+  // worker claims its kind only where messaging is admitted toward it.
+  messagingEndpoint?: () => string;
 };
 
 export type JobResult = "completed" | "duplicate" | "fenced" | "failed" | "exhausted";
