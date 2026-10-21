@@ -27,6 +27,7 @@ agent/
   instructions/             always-on base rules plus one fragment per audience
     base.md
     host-setup.ts           resolves the host-setup fragment for host setup sessions only
+    public-intake.ts        resolves the public-intake fragment for public intake sessions only
     host-review.md
     requester.md
   channels/
