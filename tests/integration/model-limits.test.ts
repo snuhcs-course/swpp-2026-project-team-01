@@ -11,6 +11,7 @@ import {
   sessionIdHash,
 } from "../../lib/server/model-limits";
 import { testDatabase } from "./support/database";
+import { createTestRequest } from "./support/requests";
 
 const db = testDatabase();
 
@@ -317,9 +318,19 @@ describe("model limit middleware", () => {
     expect(await reservations(nextInput)).toBe(1);
   });
 
+  it("refuses a ranking check for a closed request", async () => {
+    const { requestId } = await createTestRequest(db);
+    await db`update app.requests set state = 'withdrawn', closed_at = now() where id = ${requestId}`;
+    const model = wrap(fakeOpenAI(), { ranking: { id: randomUUID(), principal: { id: requestId, type: "requester_request" } } });
+
+    await expect(model.doGenerate(call(undefined))).rejects.toMatchObject({ code: "authority_expired" });
+  });
+
   it("caps a synthetic ranking check at two attempts and 2,048 output tokens without a session", async () => {
     const provider = fakeOpenAI();
-    const ranking: RankingWork = { id: randomUUID(), principal: { id: randomUUID(), type: "requester_request" } };
+    // The principal is an open request: the reservation rechecks it.
+    const { requestId } = await createTestRequest(db);
+    const ranking: RankingWork = { id: randomUUID(), principal: { id: requestId, type: "requester_request" } };
     const model = wrap(provider, { ranking });
 
     await model.doGenerate(call(undefined, { maxOutputTokens: 4096 }));

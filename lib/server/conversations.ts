@@ -7,7 +7,7 @@ import type { Database, Transaction } from "./database";
 import { deploymentEnvironment } from "./deployment";
 import { HostIneligibleError, withActiveHostAccount, withEligibleHost } from "./host-eligibility";
 import { messageFingerprint, signInternalBearer } from "./internal-bearer";
-import { sessionIdHash } from "./model-limits";
+import { type Principal, sessionIdHash } from "./model-limits";
 import { protectInput, redactCredentials, sameProtectedInput } from "./redaction";
 
 // The application side of a host conversation (design decision 7). Only this
@@ -42,8 +42,16 @@ export type ConversationRuntime = {
     cookie: string,
     options: { readonly startIndex: number; readonly follow: boolean; readonly signal?: AbortSignal },
   ): AsyncIterable<MessageStreamEvent>;
-  // Reads a session's recorded events with an internal read bearer for it.
-  readRecordedEvents(sessionId: string, bearer: string, signal: AbortSignal): AsyncIterable<MessageStreamEvent>;
+  // Reads a session's recorded events with an internal read bearer for it: from
+  // the start and without following unless the options say otherwise. A
+  // requester's or intake's history and live stream are read this way, since
+  // their browsers hold no credential the agent could check.
+  readRecordedEvents(
+    sessionId: string,
+    bearer: string,
+    signal: AbortSignal,
+    options?: { readonly startIndex?: number; readonly follow?: boolean },
+  ): AsyncIterable<MessageStreamEvent>;
 };
 
 // A send still unanswered after this long is abandoned with an unknown outcome,
@@ -68,11 +76,13 @@ export function eveRuntime(baseUrl: string, { sendTimeoutMs = SEND_TIMEOUT_MS } 
         .attach(sessionId)
         .stream({ follow, signal, startIndex });
     },
-    readRecordedEvents(sessionId, bearer, signal) {
-      // From the start: an active session stores no stream position (the index
-      // records last_stream_index only when a generation retires), and this read
-      // runs only for a turn overdue by 20 minutes, under a 10-second timeout.
-      return client(bearer).sessions.attach(sessionId).stream({ follow: false, signal, startIndex: 0 });
+    readRecordedEvents(sessionId, bearer, signal, options = {}) {
+      // From the start by default: an active session stores no stream position
+      // (the index records last_stream_index only when a generation retires), and
+      // reconciliation reads a turn overdue by 20 minutes, under a 10-second timeout.
+      return client(bearer)
+        .sessions.attach(sessionId)
+        .stream({ follow: options.follow ?? false, signal, startIndex: options.startIndex ?? 0 });
     },
   };
 }
@@ -133,6 +143,7 @@ export class ConversationInputError extends Error {
 export type SessionRow = {
   readonly session_id: string;
   readonly discussion_id: string;
+  readonly principal_type: Principal["type"];
   readonly principal_id: string;
   readonly generation: number;
   readonly state: "active" | "failed" | "retired";
@@ -160,7 +171,7 @@ export async function lockSetupDiscussion(tx: Transaction, hostAccountId: string
 
 export async function latestSession(tx: Transaction | Database, discussionId: string) {
   const [row] = await tx<SessionRow[]>`
-    select session_id, discussion_id, principal_id, generation, state, current_input_id, last_stream_index
+    select session_id, discussion_id, principal_type, principal_id, generation, state, current_input_id, last_stream_index
     from app.agent_sessions
     where discussion_id = ${discussionId}
     order by generation desc
@@ -211,7 +222,7 @@ export async function createIndexedSession(
       values
         (${sessionId}, ${sessionIdHash(sessionId)}, ${discussionId}, 'host_account', ${id}, ${generation},
          ${AGENT_VERSION})
-      returning session_id, discussion_id, principal_id, generation, state, current_input_id, last_stream_index
+      returning session_id, discussion_id, principal_type, principal_id, generation, state, current_input_id, last_stream_index
     `;
     return row!;
   });
@@ -292,6 +303,43 @@ async function recordInput(
   });
 }
 
+// The principal's standing for conversation work, rechecked in the delivering
+// transaction: an active host account; a requester's request that is open with
+// its booking link unexpired; an intake that has neither continued nor expired.
+// The principal's row stays share-locked, so a suspension, closure or
+// continuation waits for the delivery and never races it.
+export class ConversationClosedError extends Error {
+  constructor() {
+    super("This conversation is closed.");
+    this.name = "ConversationClosedError";
+  }
+}
+
+export async function withPrincipalAuthority<T>(
+  db: Database,
+  principal: Principal,
+  operation: (tx: Transaction) => Promise<T>,
+): Promise<T> {
+  if (principal.type === "host_account") return withActiveHostAccount(db, principal.id, operation);
+
+  return (await db.begin(async (tx) => {
+    const [row] =
+      principal.type === "requester_request"
+        ? await tx<{ open: boolean }[]>`
+            select r.closed_at is null and r.expires_at > now() and l.expires_at > now() as open
+            from app.requests r join app.booking_links l on l.request_id = r.id
+            where r.id = ${principal.id}
+            for share of r
+          `
+        : await tx<{ open: boolean }[]>`
+            select closed_at is null and expires_at > now() as open from app.intakes where id = ${principal.id} for share
+          `;
+
+    if (!row?.open) throw new ConversationClosedError();
+    return operation(tx);
+  })) as T;
+}
+
 // Delivers the discussion's oldest accepted input to its live generation, when
 // no input is in flight there: one input at a time, so the session's current
 // accepted input never changes while a turn runs and every model call is
@@ -303,11 +351,13 @@ async function recordInput(
 // delivered input's ID, or null when nothing was delivered.
 export async function deliverNext(
   deps: ConversationDependencies,
-  hostAccountId: string,
+  owner: string | Principal,
   discussionId: string,
   options: { readonly fromSessionId?: string; readonly reconciled?: boolean; readonly skipInputId?: string } = {},
 ): Promise<string | null> {
-  const claim = await withActiveHostAccount(deps.db, hostAccountId, async (tx) => {
+  // A bare ID is a host account, as the host routes call it.
+  const principal: Principal = typeof owner === "string" ? { id: owner, type: "host_account" } : owner;
+  const claim = await withPrincipalAuthority(deps.db, principal, async (tx) => {
     await tx`select id from app.discussions where id = ${discussionId} for update`;
     const session = await latestSession(tx, discussionId);
 
@@ -361,7 +411,7 @@ export async function deliverNext(
 
   if (claim.overdue) {
     const ended = await reconcileTurnEnd(deps, claim.session, claim.overdue);
-    return ended ? deliverNext(deps, hostAccountId, discussionId, { ...options, reconciled: true }) : null;
+    return ended ? deliverNext(deps, principal, discussionId, { ...options, reconciled: true }) : null;
   }
 
   const { session } = claim;
@@ -375,7 +425,7 @@ export async function deliverNext(
       inputId: input.id,
       kind: "send",
       messageFingerprint: messageFingerprint(input.message),
-      principal: { id: session.principal_id, type: "host_account" },
+      principal: { id: session.principal_id, type: session.principal_type },
       sessionId: session.session_id,
     },
     deps.signingKey,
@@ -398,7 +448,7 @@ export async function deliverNext(
     // Input another tab queued behind it would otherwise wait for a turn end
     // that is not coming: it is delivered now, once.
     if (!options.skipInputId) {
-      await deliverNext(deps, hostAccountId, discussionId, { ...options, skipInputId: input.id }).catch(() => null);
+      await deliverNext(deps, principal, discussionId, { ...options, skipInputId: input.id }).catch(() => null);
     }
 
     throw new ConversationInputError("runtime_unavailable", "The assistant is unavailable. Try again.", { cause: error });
@@ -423,7 +473,7 @@ async function reconcileTurnEnd(
       discussionId: session.discussion_id,
       generation: session.generation,
       kind: "read",
-      principal: { id: session.principal_id, type: "host_account" },
+      principal: { id: session.principal_id, type: session.principal_type },
       sessionId: session.session_id,
     },
     deps.signingKey,
@@ -468,13 +518,15 @@ const TURN_ENDS = new Set(["turn.completed", "turn.failed", "turn.cancelled"]);
 // The turn-end side of delivery, from the session-owner hook: delivers the
 // session's discussion's next input when the session is still its live generation.
 export async function deliverNextAfterTurn(deps: ConversationDependencies, sessionId: string) {
-  const [session] = await deps.db<{ discussion_id: string; principal_id: string; principal_type: string }[]>`
+  const [session] = await deps.db<{ discussion_id: string; principal_id: string; principal_type: Principal["type"] }[]>`
     select discussion_id, principal_id, principal_type from app.agent_sessions where session_id = ${sessionId}
   `;
 
-  if (session?.principal_type !== "host_account") return null;
+  if (!session) return null;
 
-  return deliverNext(deps, session.principal_id, session.discussion_id, { fromSessionId: sessionId });
+  return deliverNext(deps, { id: session.principal_id, type: session.principal_type }, session.discussion_id, {
+    fromSessionId: sessionId,
+  });
 }
 
 async function inputOutcome(db: Database, inputId: string): Promise<MessageOutcome> {

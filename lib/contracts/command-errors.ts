@@ -8,6 +8,11 @@ export const COMMAND_ERROR_MESSAGES = {
   stale_revision: "This changed since you last saw it. Refresh and try again.",
   retry_conflict: "This retry key was already used for a different request.",
   unavailable_configuration: "This is not available yet because the service is not fully configured.",
+  // A request command after the request closed (withdrawn, expired or decided);
+  // the caller reads the current status instead.
+  request_closed: "This request is closed.",
+  // A temporary bound, such as request creation per source address.
+  rate_limited: "This is temporarily limited. Try again later.",
   internal: "Something went wrong. Try again later.",
 } as const;
 

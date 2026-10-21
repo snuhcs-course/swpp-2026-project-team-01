@@ -147,38 +147,50 @@ export function createEventsHandler(load: () => ChatRouteDependencies = chatDepe
       return error instanceof HostIneligibleError ? chatError(error) : json({ code: "unavailable", error: "History is unavailable right now." }, 503);
     }
 
-    const encoder = new TextEncoder();
-    const line = (value: unknown) => encoder.encode(`${JSON.stringify(value)}\n`);
-    const body = new ReadableStream<Uint8Array>({
-      start(controller) {
-        if (first.done) controller.close();
-        else controller.enqueue(line(first.value));
-      },
-      async pull(controller) {
-        try {
-          const next = await events.next();
-          if (next.done) controller.close();
-          else controller.enqueue(line(next.value));
-        } catch {
-          // A broken runtime read ends the stream; the client reconnects from its cursor.
-          controller.close();
-        }
-      },
-      async cancel() {
-        await events.return(undefined);
-      },
-    });
-
-    // The same streaming headers eve's own session stream sends, so no proxy
-    // transforms or holds back the lines of a followed turn.
-    return new Response(body, {
-      headers: {
-        "cache-control": "private, no-store, no-transform",
-        "content-type": "application/x-ndjson",
-        "x-accel-buffering": "no",
-      },
-    });
+    return ndjsonResponse(first, events);
   };
+}
+
+// An NDJSON response over an event generator whose first item the caller has
+// already read (so authorization failures surface before the response starts).
+// The same streaming headers eve's own session stream sends, so no proxy
+// transforms or holds back the lines of a followed turn; extra headers (such as
+// the booking routes' no-referrer and noindex) are added.
+export function ndjsonResponse(
+  first: IteratorResult<unknown>,
+  events: AsyncGenerator<unknown>,
+  headers: Readonly<Record<string, string>> = {},
+) {
+  const encoder = new TextEncoder();
+  const line = (value: unknown) => encoder.encode(`${JSON.stringify(value)}\n`);
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      if (first.done) controller.close();
+      else controller.enqueue(line(first.value));
+    },
+    async pull(controller) {
+      try {
+        const next = await events.next();
+        if (next.done) controller.close();
+        else controller.enqueue(line(next.value));
+      } catch {
+        // A broken runtime read ends the stream; the client reconnects from its cursor.
+        controller.close();
+      }
+    },
+    async cancel() {
+      await events.return(undefined);
+    },
+  });
+
+  return new Response(body, {
+    headers: {
+      "cache-control": "private, no-store, no-transform",
+      "content-type": "application/x-ndjson",
+      "x-accel-buffering": "no",
+      ...headers,
+    },
+  });
 }
 
 const recoverBody = z.object({ observedGeneration: z.number().int().positive() });

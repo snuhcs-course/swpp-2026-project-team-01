@@ -11,7 +11,8 @@ import { database, type Database } from "./database";
 //      base64url SHA-256 of the eve session ID) in the session index, a ranking
 //      call by the work item its caller passes;
 //   3. reserve USD 0.60 durably against the work item, the principal and the
-//      service, after taking their locks and rechecking authority;
+//      service (and, for an anonymous intake, the anonymous allowance), after
+//      taking their locks and rechecking authority;
 //   4. call the provider with output clamped (4,096 tokens, 2,048 for ranking),
 //      storage off and the standard tier, under a 30-second idle deadline for a
 //      stream or a 120-second total deadline for a non-streamed call.
@@ -28,6 +29,10 @@ export const MODEL_LIMITS = {
   idleTimeoutMs: 30_000,
   maxInputBytes: 128 * 1024,
   principalWindowUsd: "30.00",
+  // An anonymous public intake's own allowance, and every intake's together
+  // (design decision 2), inside the service window.
+  intakeWindowUsd: "3.00",
+  anonymousWindowUsd: "50.00",
   rankingAttempts: 2,
   rankingOutputTokens: 2048,
   serviceWindowUsd: "300.00",
@@ -38,6 +43,7 @@ export type ModelLimits = {
 };
 
 export type ModelLimitCode =
+  | "anonymous_allowance"
   | "attachment"
   | "attempts_exhausted"
   | "authority_expired"
@@ -59,7 +65,7 @@ export class ModelLimitError extends Error {
 }
 
 export type Principal = {
-  readonly type: "host_account" | "requester_request";
+  readonly type: "host_account" | "requester_request" | "public_intake";
   readonly id: string;
 };
 
@@ -85,8 +91,10 @@ type Attribution = {
   readonly work: { readonly kind: "conversation_input" | "ranking_check"; readonly id: string };
 };
 
-// Lock keys, taken in this order: work item, principal, service.
+// Lock keys, taken in this order: work item, principal, anonymous (intakes
+// only), service.
 export const SERVICE_ALLOWANCE_LOCK = "app.model_allowance:service";
+export const ANONYMOUS_ALLOWANCE_LOCK = "app.model_allowance:anonymous";
 
 export function sessionIdHash(sessionId: string) {
   return createHash("sha256").update(sessionId, "utf8").digest("base64url");
@@ -165,6 +173,8 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
   await db.begin(async (tx) => {
     await tx`select pg_advisory_xact_lock(hashtextextended(${`app.model_allowance:work:${work.kind}:${work.id}`}, 0))`;
     await tx`select pg_advisory_xact_lock(hashtextextended(${`app.model_allowance:principal:${principal.type}:${principal.id}`}, 0))`;
+    const anonymous = principal.type === "public_intake";
+    if (anonymous) await tx`select pg_advisory_xact_lock(hashtextextended(${ANONYMOUS_ALLOWANCE_LOCK}, 0))`;
     await tx`select pg_advisory_xact_lock(hashtextextended(${SERVICE_ALLOWANCE_LOCK}, 0))`;
 
     // Authority is rechecked after the locks: the host may have been suspended,
@@ -180,6 +190,24 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
       }
     }
 
+    // A requester's request, or an intake, must still be open: a closed request
+    // or a continued or expired intake runs no more model work.
+    if (principal.type === "requester_request") {
+      const [request] = await tx<{ open: boolean }[]>`
+        select closed_at is null and expires_at > now() as open from app.requests where id = ${principal.id} for share
+      `;
+
+      if (!request?.open) throw new ModelLimitError("authority_expired");
+    }
+
+    if (principal.type === "public_intake") {
+      const [intake] = await tx<{ open: boolean }[]>`
+        select closed_at is null and expires_at > now() as open from app.intakes where id = ${principal.id} for share
+      `;
+
+      if (!intake?.open) throw new ModelLimitError("authority_expired");
+    }
+
     if (sessionId) {
       const [session] = await tx<{ current_input_id: string | null; state: string }[]>`
         select state, current_input_id from app.agent_sessions where session_id = ${sessionId}
@@ -190,8 +218,9 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
       }
     }
 
+    const principalCap = anonymous ? limits.intakeWindowUsd : limits.principalWindowUsd;
     const [usage] = await tx<
-      { attempts: number; principal_over: boolean; service_over: boolean; window_start: Date }[]
+      { anonymous_over: boolean; attempts: number; principal_over: boolean; service_over: boolean; window_start: Date }[]
     >`
       with w as (select date_bin('24 hours', statement_timestamp(), timestamptz '2026-01-01 00:00:00+00') as start)
       select
@@ -200,7 +229,10 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
           where work_kind = ${work.kind} and work_id = ${work.id}) as attempts,
         (select coalesce(sum(amount_usd), 0) from app.model_reservations
           where principal_type = ${principal.type} and principal_id = ${principal.id} and window_start = w.start)
-          + ${limits.attemptReservationUsd}::numeric > ${limits.principalWindowUsd}::numeric as principal_over,
+          + ${limits.attemptReservationUsd}::numeric > ${principalCap}::numeric as principal_over,
+        ${anonymous}::boolean and (select coalesce(sum(amount_usd), 0) from app.model_reservations
+          where principal_type = 'public_intake' and window_start = w.start)
+          + ${limits.attemptReservationUsd}::numeric > ${limits.anonymousWindowUsd}::numeric as anonymous_over,
         (select coalesce(sum(amount_usd), 0) from app.model_reservations where window_start = w.start)
           + ${limits.attemptReservationUsd}::numeric > ${limits.serviceWindowUsd}::numeric as service_over
       from w
@@ -212,6 +244,10 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
 
     if (usage!.principal_over) {
       throw new ModelLimitError("principal_allowance");
+    }
+
+    if (usage!.anonymous_over) {
+      throw new ModelLimitError("anonymous_allowance");
     }
 
     if (usage!.service_over) {

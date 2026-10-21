@@ -73,9 +73,11 @@ export function createConfirmationStatusHandler(
   };
 }
 
-const COMMAND_STATUS: Readonly<Record<CommandErrorCategory, number>> = {
+export const COMMAND_STATUS: Readonly<Record<CommandErrorCategory, number>> = {
   forbidden: 404,
   internal: 500,
+  rate_limited: 429,
+  request_closed: 409,
   invalid_input: 400,
   retry_conflict: 409,
   stale_revision: 409,

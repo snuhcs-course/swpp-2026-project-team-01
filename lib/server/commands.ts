@@ -22,11 +22,14 @@ import { type SupabaseAuthConfig, verifiedUserId } from "./supabase-auth";
 //      revision, and publishes its jobs) and saves the outcome.
 // Lock order: the retry-key advisory lock first, then the command's domain locks.
 
-// A host account, or a requester holding one request's booking link (id is the
-// request ID, resolved from the link's hash by the route).
+// A host account, a requester holding one request's booking link (id is the
+// request ID, resolved from the link's hash by the route), or an anonymous
+// intake on a public host page (id is the intake ID, resolved from the hash of
+// the tab's intake token), which can only create its one request.
 export type Actor =
   | { readonly kind: "host_account"; readonly id: string }
-  | { readonly kind: "requester_request"; readonly id: string };
+  | { readonly kind: "requester_request"; readonly id: string }
+  | { readonly kind: "public_intake"; readonly id: string };
 
 export type CommandContext<Input> = {
   readonly actor: Actor;
