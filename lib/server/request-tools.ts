@@ -210,7 +210,7 @@ const STATUS_TEXT: Readonly<Record<RequestState, string>> = {
 };
 
 const IDENTITY_NEXT =
-  "Before any times: once the purpose is applied, ask for the guest's name and email. They give them on the identity card in this conversation, with Continue with Google or Continue without Google; never ask them to type their name or email as a message.";
+  "Before any times: once the purpose is known, ask for the guest's name and email and call ask_for_identity in the same turn, which shows the identity card in this conversation with Continue with Google or Continue without Google; never ask them to type their name or email as a message.";
 
 const NEXT_STEPS =
   "Only the cards record decisions: Apply these details on the review card, Find times and Choose this time on the candidate times card, and Agree to this proposal on the proposal card. A message such as yes or book it records nothing; point to the button instead.";
@@ -411,6 +411,30 @@ export async function evaluateCandidatesForTool(
   if (!view) throw new RequestToolDeniedError();
 
   return { evaluated: true as const, ...minimizedEvaluation(view, timezone, language), next: NEXT_STEPS };
+}
+
+// ---------------------------------------------------------------------------
+// ask_for_identity
+
+// The structured signal that the assistant is asking a draft's guest for a
+// name and email (design decision 12): it only records when identity was first
+// requested, which anchors the identity card in the thread right after the
+// assistant's message. It reads and writes nothing else, and on an identified
+// request it does nothing.
+export async function askForIdentityForTool(db: Database, call: RequestToolCall) {
+  const id = await authorizeRequestTool(db, call);
+  const row = await requestRow(db, id);
+
+  if (row.state !== "draft") {
+    return { identityRequested: false as const, message: "The guest already gave a name and email; do not ask again." };
+  }
+
+  await markIdentityRequested(db, id);
+  return {
+    identityRequested: true as const,
+    message:
+      "The identity card now follows your message in the conversation, with Continue with Google and Continue without Google. Point to it; do not ask the guest to type their name or email.",
+  };
 }
 
 // ---------------------------------------------------------------------------

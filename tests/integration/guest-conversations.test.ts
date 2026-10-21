@@ -37,7 +37,7 @@ let deps: RequesterRouteDependencies;
 const HOST_TOOLS = ["read_setup_state", "draft_settings"];
 // The retired public intake's tools, registered for no session any more.
 const INTAKE_TOOLS = ["read_intake", "draft_intake"];
-const REQUESTER_TOOLS = ["read_request", "draft_request_review", "evaluate_candidates", "read_booking_status"];
+const REQUESTER_TOOLS = ["read_request", "draft_request_review", "ask_for_identity", "evaluate_candidates", "read_booking_status"];
 
 beforeAll(async () => {
   fake = await startFakeOpenAI();

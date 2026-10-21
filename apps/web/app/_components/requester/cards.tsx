@@ -6,11 +6,12 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { GuestCard, GuestCardActions, guestCardHeadingId } from "@/app/_components/guest/guest-card";
 import { browserLanguage } from "@/app/_components/guest/timezone";
 import { Button } from "@/components/ui/button";
-import { DetailsButton } from "./request-cards";
 
 // The guest thread's request cards (design decision 12; DESIGN.md: conversation
-// card): the Calendar connection and selection, and the status card with the
-// creation email, **Use verified Google email** and **Withdraw request**. The
+// card): the Calendar connection and selection, and the status lines with the
+// creation email and **Use verified Google email**. **Withdraw request** and
+// **Edit details** are in the thread's menu beside the composer
+// (guest-workspace.tsx). The
 // review, meeting details, proposal and candidate times cards are in
 // request-cards.tsx and the identity card in guest-workspace.tsx. Every card is
 // placed in the thread by guest-workspace.tsx; none sits outside it.
@@ -29,10 +30,9 @@ export type RequesterCardContext = {
   // an exact retry. The view is refreshed afterwards.
   readonly run: (operation: string, input?: unknown, expectedRevision?: number | null) => Promise<CommandOutcome>;
   readonly refresh: () => Promise<void>;
-  // Cards the requester set aside in this tab, such as Skip for now.
-  readonly dismissed: ReadonlySet<string>;
-  readonly dismiss: (cardId: string) => void;
-  readonly reopen: (cardId: string) => void;
+  // Makes the candidate times the open card again, from **Choose another time**
+  // or the times receipt's **Change**, while a proposal waits for agreement.
+  readonly chooseAnotherTime: () => void;
   // The meeting details editor, opened in the thread by **Edit details**.
   readonly openDetails: () => void;
   readonly closeDetails: () => void;
@@ -46,16 +46,6 @@ export function focusCardHeading(domId: string) {
   heading?.focus();
 }
 
-const DISMISSED_KEY = "fmat.cards.dismissed";
-
-function readDismissed() {
-  try {
-    return new Set<string>(JSON.parse(window.sessionStorage.getItem(DISMISSED_KEY) ?? "[]") as string[]);
-  } catch {
-    return new Set<string>();
-  }
-}
-
 // The cards' context, or null until the thread has a request (before the
 // guest's first message on the public page).
 export function useRequesterCards(
@@ -64,20 +54,9 @@ export function useRequesterCards(
   timezone: string,
   refresh: () => Promise<void>,
   details: { readonly open: () => void; readonly close: () => void },
+  chooseAnotherTime: () => void,
 ) {
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   const keys = useRef(new Map<string, string>());
-
-  useEffect(() => setDismissed(readDismissed()), []);
-
-  const store = useCallback((next: Set<string>) => {
-    setDismissed(next);
-    try {
-      window.sessionStorage.setItem(DISMISSED_KEY, JSON.stringify([...next]));
-    } catch {
-      // The choice still applies to this page view.
-    }
-  }, []);
 
   const run = useCallback(
     async (operation: string, input: unknown = {}, expectedRevision: number | null = null): Promise<CommandOutcome> => {
@@ -108,13 +87,11 @@ export function useRequesterCards(
 
   const context: RequesterCardContext = {
     bookingId,
+    chooseAnotherTime,
     closeDetails: details.close,
-    dismiss: (id) => store(new Set([...dismissed, id])),
-    dismissed,
     focusCard: focusCardHeading,
     openDetails: details.open,
     refresh,
-    reopen: (id) => store(new Set([...dismissed].filter((entry) => entry !== id))),
     run,
     timezone,
     view,
@@ -150,7 +127,12 @@ export function ConnectCalendarCard({ context }: { readonly context: RequesterCa
           <Button className="min-h-11" type="submit">
             Connect Google Calendar
           </Button>
-          <Button className="min-h-11" onClick={() => context.dismiss("calendar-connect")} type="button" variant="outline">
+          <Button
+            className="min-h-11"
+            onClick={() => void context.run("request.set_manual_availability", { manual: true })}
+            type="button"
+            variant="outline"
+          >
             Skip for now
           </Button>
         </GuestCardActions>
@@ -189,8 +171,7 @@ export function CalendarSelectionCard({ context }: { readonly context: Requester
     setBusy(true);
     const outcome = await context.run("calendar.select", { calendarIds: [...chosen] });
     setBusy(false);
-    if (outcome.ok) context.dismiss("calendar-selection");
-    else setError(outcome.error.message);
+    if (!outcome.ok) setError(outcome.error.message);
   }
 
   async function disconnect() {
@@ -250,44 +231,27 @@ export function CalendarSelectionCard({ context }: { readonly context: Requester
   );
 }
 
-const STATUS_TITLES: Readonly<Record<string, string>> = {
-  awaiting_host_approval: "Waiting for the host to approve",
-  gathering: "Your request is open",
-  negotiating: "Choosing a time",
-};
-
 const DELIVERY_TEXT: Readonly<Record<string, string>> = {
-  queued: "is on its way",
-  rejected: "could not be delivered",
-  sent: "was sent",
-  suppressed: "was not sent",
-  uncertain: "may not have arrived",
+  queued: "Booking link on its way to",
+  rejected: "Booking link could not be delivered to",
+  sent: "Booking link sent to",
+  suppressed: "Booking link not sent to",
+  uncertain: "Booking link may not have reached",
 };
 
-// The status card, placed where the guest was identified (and at the agreement
-// once agreed): the creation email with **Send the email again** and, when
-// Google verified the same address, **Use verified Google email**; when the
-// request expires; and **Withdraw request** with a confirming step.
-export function StatusCard({ context }: { readonly context: RequesterCardContext }) {
-  const [confirming, setConfirming] = useState(false);
+const QUIET_ACTION = "h-8 min-h-8 px-1 text-xs";
+
+// The request's status as one line in the thread, not a standing card (DESIGN.md:
+// one thing to think about at once): from identification, where the booking
+// link went, with **Send the email again** or **Use verified Google email** as
+// quiet text actions, and that confirming is optional.
+export function SentLine({ context }: { readonly context: RequesterCardContext }) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [sentAgain, setSentAgain] = useState(false);
-  const { confirmation, connection, contact, request } = context.view;
+  const [error, setError] = useState<string | null>(null);
+  const { confirmation, connection, contact } = context.view;
 
-  async function withdraw() {
-    setBusy(true);
-    const outcome = await context.run("request.withdraw", {}, request.revision);
-    setBusy(false);
-
-    if (outcome.ok || outcome.error.category === "request_closed") {
-      window.location.reload();
-      return;
-    }
-
-    setError(outcome.error.category === "stale_revision" ? "This request changed. Check it and try again." : outcome.error.message);
-    setConfirming(false);
-  }
+  if (!contact) return null;
 
   async function command(operation: string, done?: () => void) {
     setBusy(true);
@@ -298,67 +262,49 @@ export function StatusCard({ context }: { readonly context: RequesterCardContext
     else done?.();
   }
 
-  const agreed = context.view.agreement && context.view.proposal ? context.view.proposal : null;
   const retryLater = confirmation?.retryAt ? Date.parse(confirmation.retryAt) > Date.now() : false;
 
   return (
-    <GuestCard
-      description={
-        agreed
-          ? `You agreed to ${displayTime(new Date(agreed.start), context.timezone)} (proposal version ${agreed.version}). The host approves or declines next; nothing is booked yet.`
-          : `It stays open until ${displayTime(new Date(request.expiresAt), context.timezone)} unless a time is agreed and booked.`
-      }
-      id="request-status"
-      label="Status"
-      title={STATUS_TITLES[request.state] ?? "Your request"}
-    >
-      {contact ? (
-        contact.confirmed ? (
-          <p>Your private booking link was emailed to {contact.email}, and the address is confirmed.</p>
-        ) : (
-          <p>
-            Your private booking link {DELIVERY_TEXT[confirmation?.delivery ?? "queued"] ?? "is on its way"} to {contact.email}.
-            Confirming the address from that email is optional.
-          </p>
-        )
-      ) : null}
-      {confirming ? (
-        <>
-          <p>Withdraw this request? It closes for good and cannot be reopened.</p>
-          <GuestCardActions>
-            <Button className="min-h-11" disabled={busy} onClick={() => void withdraw()} type="button" variant="destructive">
-              {busy ? "Withdrawing..." : "Withdraw request"}
-            </Button>
-            <Button className="min-h-11" onClick={() => setConfirming(false)} type="button" variant="outline">
-              Keep the request
-            </Button>
-          </GuestCardActions>
-        </>
+    <div className="flex min-h-8 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-1 text-sm" data-guest-receipt="status" role="note">
+      <span className="min-w-0 break-words">
+        {contact.confirmed ? "Booking link sent to" : (DELIVERY_TEXT[confirmation?.delivery ?? "queued"] ?? "Booking link sent to")}{" "}
+        {contact.email}
+      </span>
+      {contact.confirmed ? (
+        <span className="text-muted-foreground">· Address confirmed</span>
       ) : (
-        <GuestCardActions>
-          {contact && !contact.confirmed && connection.canUseGoogleEmail ? (
-            <Button className="min-h-11" disabled={busy} onClick={() => void command("contact.use_google_email")} type="button">
+        <>
+          {connection.canUseGoogleEmail ? (
+            <Button className={QUIET_ACTION} disabled={busy} onClick={() => void command("contact.use_google_email")} type="button" variant="link">
               Use verified Google email
             </Button>
-          ) : null}
-          {contact && !contact.confirmed && !connection.canUseGoogleEmail ? (
+          ) : (
             <Button
-              className="min-h-11"
+              className={QUIET_ACTION}
               disabled={busy || retryLater || sentAgain}
               onClick={() => void command("contact.resend_confirmation", () => setSentAgain(true))}
               type="button"
-              variant="outline"
+              variant="link"
             >
-              {sentAgain ? "Email sent again" : "Send the email again"}
+              {sentAgain ? "Sent again" : "Send again"}
             </Button>
-          ) : null}
-          {request.state !== "awaiting_host_approval" ? <DetailsButton context={context} /> : null}
-          <Button className="min-h-11" onClick={() => setConfirming(true)} type="button" variant="outline">
-            Withdraw request
-          </Button>
-        </GuestCardActions>
+          )}
+          <span className="text-muted-foreground">· Confirming is optional</span>
+        </>
       )}
       <ErrorLine message={error} />
-    </GuestCard>
+    </div>
+  );
+}
+
+// The wait for the host, as one line in the thread from the agreement.
+export function AwaitingLine({ context }: { readonly context: RequesterCardContext }) {
+  const agreed = context.view.agreement && context.view.proposal ? context.view.proposal : null;
+
+  return (
+    <p className="px-1 text-sm" data-guest-receipt="status" role="status">
+      <span className="font-medium">Waiting for {context.view.host.displayName} to approve</span>
+      {agreed ? ` · you agreed to ${displayTime(new Date(agreed.start), context.timezone)}` : ""} · nothing is booked yet
+    </p>
   );
 }

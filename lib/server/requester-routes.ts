@@ -68,6 +68,7 @@ import {
   listRequesterCalendars,
   readRequesterConnection,
   selectCalendarsCommand,
+  setManualAvailabilityCommand,
   useGoogleEmailCommand,
 } from "./requester-grants";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
@@ -194,6 +195,7 @@ export async function readRequesterView(
       agreedVersion: proposal?.agreement?.proposalVersion ?? null,
       evaluationId: evaluation?.id ?? null,
       proposalVersion: proposal?.proposal.version ?? null,
+      pendingReviewId: review?.id ?? null,
     }),
   };
 
@@ -465,6 +467,7 @@ export function requesterCommands(
     registered(withdrawRequestCommand),
     registered(useGoogleEmailCommand),
     registered(disconnectCalendarCommand),
+    registered(setManualAvailabilityCommand),
     registered(selectCalendarsCommand({ tokenKey: contact.tokenKey })),
     registered(resendConfirmationCommand(contact)),
   ]);

@@ -10,7 +10,12 @@ import { publishJob } from "../../lib/server/jobs";
 import { limitModel, sessionIdHash } from "../../lib/server/model-limits";
 import { createRequestExpiryHandler, REQUEST_EXPIRY_JOB } from "../../lib/server/request-lifecycle";
 import { CREATION_LIMITS, DRAFT_LIMITS, starterId } from "../../lib/server/request-start";
-import { draftRequestReviewForTool, evaluateCandidatesForTool, readRequestForTool } from "../../lib/server/request-tools";
+import {
+  askForIdentityForTool,
+  draftRequestReviewForTool,
+  evaluateCandidatesForTool,
+  readRequestForTool,
+} from "../../lib/server/request-tools";
 import {
   createRequesterCommandHandler,
   createRequesterMessageHandler,
@@ -403,12 +408,12 @@ describe("request.identify", () => {
       thread: { id: string; status: string }[];
     };
     expect(state.contact).toMatchObject({ confirmed: false, email, name: "Grace Hopper" });
-    expect(state.thread.map((card) => [card.id.split(":")[0], card.status])).toEqual([
-      ["review", "answered"],
+    // One open card, the next step's: the Calendar step. Status is a line.
+    expect(state.thread.map((card) => [card.id, card.status])).toEqual([
+      [`review:${review!.id}`, "answered"],
       ["identity", "answered"],
-      ["status", "open"],
+      ["status:sent", "answered"],
       ["calendar", "open"],
-      ["times", "open"],
     ]);
   });
 
@@ -538,5 +543,69 @@ describe("an intake from before D13", () => {
 
     await db`update app.requests set state = 'withdrawn', closed_at = now() where id = ${draft.requestId}`;
     await expect(read()).rejects.toMatchObject({ name: "ForbiddenError" });
+  });
+});
+
+async function threadOf(deps: RequesterRouteDependencies, bookingId: string) {
+  const response = await call(createRequesterStateHandler(() => deps), { bookingId }, "/state");
+  return ((await response.json()) as { thread: { id: string; receipt?: { text: string }; status: string }[] }).thread;
+}
+
+function openCards(thread: { id: string; status: string }[]) {
+  return thread.filter((card) => card.status === "open").map((card) => card.id);
+}
+
+describe("one thing at a time", () => {
+  it("opens the identity card when the assistant calls ask_for_identity, before any review", async () => {
+    const host = await readyHost(db);
+    const deps = guestDependencies(db);
+    const draft = await startedDraft(deps, host.handle);
+    const session = await indexRequestSession(db, draft.requestId);
+    expect(await threadOf(deps, draft.bookingId)).toEqual([]);
+
+    // A pending review is the open card until identity is asked for.
+    await draftRequestReviewForTool(db, requesterCall(draft.requestId, session.sessionId), {
+      details: { purpose: "Research collaboration" },
+      intent: "details",
+    });
+    expect(openCards(await threadOf(deps, draft.bookingId))).toEqual([expect.stringMatching(/^review:/)]);
+
+    expect(await askForIdentityForTool(db, requesterCall(draft.requestId, session.sessionId))).toMatchObject({ identityRequested: true });
+    const thread = await threadOf(deps, draft.bookingId);
+    expect(openCards(thread)).toEqual(["identity"]);
+    expect(thread.find((card) => card.id.startsWith("review:"))).toMatchObject({ status: "waiting" });
+
+    // Once identified, the review drafted while a draft is the open card and
+    // still applies; the tool does nothing.
+    expect((await identify(deps, draft.bookingId)).status).toBe(200);
+    expect(openCards(await threadOf(deps, draft.bookingId))).toEqual([expect.stringMatching(/^review:/)]);
+    const [pending] = await db<{ id: string }[]>`select id from app.request_reviews where request_id = ${draft.requestId} and state = 'pending'`;
+    const [current] = await db<{ revision: number }[]>`select revision from app.requests where id = ${draft.requestId}`;
+    const applied = await call(createRequesterCommandHandler(() => deps), { bookingId: draft.bookingId }, "/commands", {
+      body: { expectedRevision: current!.revision, input: { reviewId: pending!.id }, operation: "request.apply_review", retryKey: randomUUID() },
+    });
+    expect(applied.status).toBe(200);
+    expect(await askForIdentityForTool(db, requesterCall(draft.requestId, session.sessionId))).toMatchObject({ identityRequested: false });
+  });
+
+  it("keeps Skip for now on the server, moves to Find times, and Change offers the Calendar card again", async () => {
+    const host = await readyHost(db);
+    const deps = guestDependencies(db);
+    const draft = await startedDraft(deps, host.handle);
+
+    // Not before identification.
+    const early = await command(deps, draft.bookingId, "request.set_manual_availability", { manual: true });
+    expect(early.status).toBe(409);
+    expect((await identify(deps, draft.bookingId)).status).toBe(200);
+    expect(openCards(await threadOf(deps, draft.bookingId))).toEqual(["calendar"]);
+
+    expect((await command(deps, draft.bookingId, "request.set_manual_availability", { manual: true })).status).toBe(200);
+    // Another read, as after a reload or in another tab: still settled.
+    const skipped = await threadOf(deps, draft.bookingId);
+    expect(openCards(skipped)).toEqual(["times:find"]);
+    expect(skipped.find((card) => card.id === "calendar")).toMatchObject({ receipt: { text: "Skipped" }, status: "answered" });
+
+    expect((await command(deps, draft.bookingId, "request.set_manual_availability", { manual: false })).status).toBe(200);
+    expect(openCards(await threadOf(deps, draft.bookingId))).toEqual(["calendar"]);
   });
 });

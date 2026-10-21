@@ -4,18 +4,30 @@ import type { DiscussionEvent } from "@lib/contracts/discussion-events";
 import type { OpenRequesterView, RequesterView, ThreadCard } from "@lib/contracts/requester-view";
 import { displayTime } from "@lib/contracts/timezone";
 import { type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { EllipsisIcon } from "lucide-react";
 import {
+  AwaitingLine,
   CalendarSelectionCard,
   ConnectCalendarCard,
   focusCardHeading,
   type RequesterCardContext,
-  StatusCard,
+  SentLine,
   useRequesterCards,
 } from "@/app/_components/requester/cards";
-import { CandidatesCard, calendarSettled, DetailsCard, ProposalCard, ReviewCard } from "@/app/_components/requester/request-cards";
+import { CandidatesCard, DetailsCard, ProposalCard, ReviewCard } from "@/app/_components/requester/request-cards";
 import { ResendLinkForm } from "@/app/_components/requester/resend-link-form";
 import { AgentMessage } from "@/components/chat/message";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import type { ChatRequestError } from "@/lib/chat/discussion";
 import { guestDiscussionClient, type GuestPostOutcome, readNdjson } from "@/lib/chat/guest";
@@ -33,11 +45,13 @@ import { browserLanguage, TimezoneLine, useGuestTimezone } from "./timezone";
 // and the thread and its session stay the same. After a Google return or a
 // reload, the booking page loads the same thread from its stored events.
 //
-// Every card (identity, review, details, status with the creation email,
-// Calendar connection and selection, candidate times, proposal) is an entry of
-// the thread, placed where the conversation called for it and kept in the
-// history as a receipt once answered or superseded. The timezone is a chip at
-// the start of the thread. Only the composer sits below it.
+// Every card (identity, review, details, Calendar connection and selection,
+// candidate times, proposal) is an entry of the thread, placed where the
+// conversation called for it. At most one is open, the current next step's
+// (DESIGN.md: one thing to think about at once); every other one is a one-line
+// receipt, with **Change** where changing is allowed. The status is a line in
+// the thread, the timezone a chip at its start. Only the composer sits below
+// it, with a compact menu holding **Edit details** and **Withdraw request**.
 
 function draftKey(handle: string) {
   return `fmat.draft:${handle}`;
@@ -105,6 +119,8 @@ export function GuestWorkspace({
   const [threadKey, setThreadKey] = useState(0);
   const [notice, setNotice] = useState<{ readonly at: string; readonly text: string } | null>(null);
   const [detailsAt, setDetailsAt] = useState<string | null>(null);
+  // The proposal version whose candidate times the guest reopened to choose again.
+  const [choosingAgain, setChoosingAgain] = useState<number | null>(null);
   const timezone = useGuestTimezone();
   const handle = host.handle;
 
@@ -229,10 +245,16 @@ export function GuestWorkspace({
     () => ({ close: () => setDetailsAt(null), open: () => setDetailsAt(new Date().toISOString()) }),
     [],
   );
-  const context = useRequesterCards(bookingId, view, timezone.zone, refresh, details);
+  const chooseAnotherTime = useCallback(() => setChoosingAgain(view?.proposal?.version ?? null), [view?.proposal?.version]);
+  const context = useRequesterCards(bookingId, view, timezone.zone, refresh, details, chooseAnotherTime);
 
   const entries = useMemo(() => {
-    const list: ThreadEntry[] = context ? threadEntries(context, view?.thread ?? []) : [];
+    const list: ThreadEntry[] = context
+      ? threadEntries(context, view?.thread ?? [], {
+          choosingAgain: choosingAgain !== null && choosingAgain === view?.proposal?.version,
+          editing: detailsAt !== null,
+        })
+      : [];
     if (context && detailsAt) list.push({ at: detailsAt, id: "meeting-details", node: <DetailsCard context={context} /> });
     if (notice) {
       list.push({
@@ -246,7 +268,7 @@ export function GuestWorkspace({
       });
     }
     return list;
-  }, [context, detailsAt, notice, view?.thread]);
+  }, [choosingAgain, context, detailsAt, notice, view?.proposal?.version, view?.thread]);
 
   useFocusNewCards(entries);
 
@@ -277,6 +299,7 @@ export function GuestWorkspace({
         ariaLabel={`Meeting request with ${host.displayName}`}
         before={before}
         client={client}
+        composerAside={context && identified ? <ThreadMenu context={context} /> : null}
         entries={entries}
         extra={extra}
         key={threadKey}
@@ -318,97 +341,191 @@ function useFocusNewCards(entries: readonly ThreadEntry[]) {
   }, [entries]);
 }
 
-// The domain cards as thread entries: an open card renders its card, an
-// answered one its receipt, a superseded one its receipt marked out of date
-// with a way to the current card of its kind. Open entries are named
-// open:{card element id}:{thread card id}.
-function threadEntries(context: RequesterCardContext, thread: readonly ThreadCard[]): ThreadEntry[] {
+// The domain cards as thread entries. The server marks at most one card open,
+// the current next step's; the page keeps it that way: while the meeting
+// details editor is open it is the open card, and **Choose another time**
+// reopens the candidate times in place of the proposal. Every other card is a
+// receipt: answered with what was chosen and **Change** where allowed, waiting
+// until its step comes, or out of date with a way to the current card. Open
+// entries are named open:{card element id}:{thread card id}.
+function threadEntries(
+  context: RequesterCardContext,
+  thread: readonly ThreadCard[],
+  options: { readonly editing: boolean; readonly choosingAgain: boolean },
+): ThreadEntry[] {
   const { view } = context;
   const entries: ThreadEntry[] = [];
   const zone = context.timezone;
-  const openKinds = new Set(thread.filter((card) => card.status === "open").map((card) => card.kind));
-  const current = (domId: string, label: string) => (
+  const change = (label: string, onClick: () => void) => (
+    <Button aria-label={label} className="h-8 min-h-8 px-1 text-xs" onClick={onClick} type="button" variant="link">
+      Change
+    </Button>
+  );
+  const goTo = (domId: string, label: string) => (
     <Button className="h-8 min-h-8 px-1 text-xs" onClick={() => context.focusCard(domId)} type="button" variant="link">
       Go to the current {label}
     </Button>
   );
-  const open = (domId: string, card: ThreadCard, node: ReactNode) =>
-    entries.push({ at: card.at, id: `open:${domId}:${card.id}`, node });
+  const status = (card: ThreadCard): ThreadCard["status"] => {
+    if (card.kind === "times" && options.choosingAgain && card.id === `times:${view.evaluation?.id}`) return "open";
+    if (card.status !== "open") return card.status;
+    if (options.editing || (card.kind === "proposal" && options.choosingAgain)) return "waiting";
+    return "open";
+  };
+  const hasOpen = (kind: ThreadCard["kind"]) => thread.some((card) => card.kind === kind && card.status === "open");
+  const open = (domId: string, card: ThreadCard, node: ReactNode) => entries.push({ at: card.at, id: `open:${domId}:${card.id}`, node });
   const receipt = (card: ThreadCard, label: string, value: ReactNode, action?: ReactNode, outOfDate = false) =>
     entries.push({
       at: card.at,
       id: card.id,
       node: <GuestReceipt action={action} id={card.id} label={label} outOfDate={outOfDate} value={value} />,
     });
+  const choosing = view.request.state === "gathering" || view.request.state === "negotiating";
 
   for (const card of thread) {
+    const state = status(card);
+
     switch (card.kind) {
       case "identity":
-        if (card.status === "open") open("guest-identity", card, <IdentityCard context={context} />);
-        else receipt(card, RECEIPT_LABELS.identity, card.receipt?.text);
+        if (state === "open") open("guest-identity", card, <IdentityCard context={context} />);
+        else receipt(card, RECEIPT_LABELS.identity, card.receipt?.text ?? "Next: your name and email");
         break;
       case "review":
-        if (card.status === "open" && view.pendingReview && card.id === `review:${view.pendingReview.id}`) {
+        if (state === "open" && view.pendingReview && card.id === `review:${view.pendingReview.id}`) {
           open("review", card, <ReviewCard context={context} />);
-        } else if (card.status === "superseded") {
-          receipt(card, RECEIPT_LABELS.review, "An earlier draft", openKinds.has("review") ? current("review", "review") : undefined, true);
+        } else if (state === "waiting") {
+          receipt(card, RECEIPT_LABELS.review, `${card.receipt?.text ?? "Details"} · waiting for review`);
+        } else if (state === "superseded") {
+          receipt(card, RECEIPT_LABELS.review, "An earlier draft", hasOpen("review") ? goTo("review", "review") : undefined, true);
         } else {
-          receipt(card, RECEIPT_LABELS.review, card.receipt?.text ?? "Answered");
+          receipt(
+            card,
+            RECEIPT_LABELS.review,
+            card.receipt?.text ?? "Answered",
+            choosing && card.receipt?.text?.startsWith("Applied") ? change("Change the meeting details", context.openDetails) : undefined,
+          );
         }
         break;
       case "status":
-        open("request-status", card, <StatusCard context={context} />);
+        entries.push({
+          at: card.at,
+          id: card.id,
+          node: card.id === "status:awaiting" ? <AwaitingLine context={context} /> : <SentLine context={context} />,
+        });
         break;
       case "calendar":
-        if (!view.connection.calendar) {
-          if (context.dismissed.has("calendar-connect")) {
-            receipt(
-              card,
-              "Your calendar",
-              "Not connected",
-              <Button className="h-8 min-h-8 px-1 text-xs" onClick={() => context.reopen("calendar-connect")} type="button" variant="link">
-                Connect Google Calendar
-              </Button>,
-            );
-          } else {
-            open("calendar-connect", card, <ConnectCalendarCard context={context} />);
-          }
-        } else if (context.dismissed.has("calendar-selection")) {
+        if (state === "open") {
+          if (view.connection.calendar) open("calendar-selection", card, <CalendarSelectionCard context={context} />);
+          else open("calendar-connect", card, <ConnectCalendarCard context={context} />);
+        } else if (state === "answered") {
           receipt(
             card,
-            "Your calendar",
-            "Connected",
-            <Button className="h-8 min-h-8 px-1 text-xs" onClick={() => context.reopen("calendar-selection")} type="button" variant="link">
-              Calendar settings
-            </Button>,
+            "Calendar",
+            card.receipt?.text === "Connected" ? "Connected" : "Skipped",
+            choosing
+              ? change("Change your calendar", () => void context.run("request.set_manual_availability", { manual: false }))
+              : undefined,
           );
         } else {
-          open("calendar-selection", card, <CalendarSelectionCard context={context} />);
+          receipt(card, "Calendar", "Next: whether to check your calendar");
         }
         break;
       case "times":
-        if (card.status === "open") {
-          // Find times waits for the calendar step; an evaluation shows at once.
-          if (card.id !== "times:find" || calendarSettled(context)) open("candidates", card, <CandidatesCard context={context} />);
-        } else if (card.status === "answered" && card.receipt?.start) {
-          receipt(card, RECEIPT_LABELS.times, `You chose ${timeText(card.receipt.start, card.receipt.end, zone)}`);
+        if (state === "open") open("candidates", card, <CandidatesCard context={context} />);
+        else if (state === "answered" && card.receipt?.start) {
+          receipt(
+            card,
+            RECEIPT_LABELS.times,
+            `Chose ${timeText(card.receipt.start, card.receipt.end, zone)}`,
+            choosing && card.id === `times:${view.evaluation?.id}` && !options.choosingAgain
+              ? change("Choose another time", context.chooseAnotherTime)
+              : undefined,
+          );
+        } else if (state === "waiting") {
+          receipt(card, RECEIPT_LABELS.times, "Times found · waiting for the step before");
         } else {
-          receipt(card, RECEIPT_LABELS.times, "Earlier times", openKinds.has("times") ? current("candidates", "times") : undefined, true);
+          receipt(card, RECEIPT_LABELS.times, "Earlier times", hasOpen("times") ? goTo("candidates", "times") : undefined, true);
         }
         break;
       case "proposal":
-        if (card.status === "open" && view.proposal && card.id === `proposal:${view.proposal.version}`) {
+        if (state === "open" && view.proposal && card.id === `proposal:${view.proposal.version}`) {
           open("proposal", card, <ProposalCard context={context} />);
-        } else if (card.status === "answered" && card.receipt?.start) {
+        } else if (state === "answered" && card.receipt?.start) {
           receipt(card, RECEIPT_LABELS.proposal, `You agreed to ${timeText(card.receipt.start, card.receipt.end, zone)}`);
+        } else if (state === "waiting" && card.receipt?.start) {
+          receipt(card, RECEIPT_LABELS.proposal, `Proposed ${timeText(card.receipt.start, card.receipt.end, zone)} · not agreed`);
         } else {
-          receipt(card, RECEIPT_LABELS.proposal, "An earlier proposal", openKinds.has("proposal") ? current("proposal", "proposal") : undefined, true);
+          receipt(card, RECEIPT_LABELS.proposal, "An earlier proposal", hasOpen("proposal") ? goTo("proposal", "proposal") : undefined, true);
         }
         break;
     }
   }
 
   return entries;
+}
+
+// The thread's compact menu beside the composer, after identification: **Edit
+// details** opens the meeting details card in the thread, **Withdraw request**
+// asks for confirmation in a dialog. Radix gives the menu arrow-key movement,
+// closes it on Escape and returns focus to its trigger.
+function ThreadMenu({ context }: { readonly context: RequesterCardContext }) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { request } = context.view;
+  const choosing = request.state === "gathering" || request.state === "negotiating";
+
+  async function withdraw() {
+    setBusy(true);
+    const outcome = await context.run("request.withdraw", {}, request.revision);
+    setBusy(false);
+
+    if (outcome.ok || outcome.error.category === "request_closed") {
+      window.location.reload();
+      return;
+    }
+
+    setError(outcome.error.category === "stale_revision" ? "This request changed. Check it and try again." : outcome.error.message);
+  }
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button aria-label="Request actions" className="mb-1 size-11 shrink-0" size="icon" type="button" variant="outline">
+            <EllipsisIcon aria-hidden className="size-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-48" side="top">
+          {choosing ? <DropdownMenuItem onSelect={() => context.openDetails()}>Edit details</DropdownMenuItem> : null}
+          <DropdownMenuItem onSelect={() => setConfirming(true)}>Withdraw request</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Dialog onOpenChange={setConfirming} open={confirming}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Withdraw this request?</DialogTitle>
+            <DialogDescription>It closes for good and cannot be reopened.</DialogDescription>
+          </DialogHeader>
+          {error ? (
+            <p className="text-destructive text-sm" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button className="min-h-11" type="button" variant="outline">
+                Keep the request
+              </Button>
+            </DialogClose>
+            <Button className="min-h-11" disabled={busy} onClick={() => void withdraw()} type="button" variant="destructive">
+              {busy ? "Withdrawing..." : "Withdraw request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 // The identity card (design decision 2): **Continue with Google** (name and

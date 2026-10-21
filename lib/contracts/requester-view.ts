@@ -48,9 +48,11 @@ export type RequesterConversationView = {
 // One card in the guest thread (design decision 12, D13). Every card sits
 // inside the thread, anchored at `at`, the moment the conversation called for
 // it (the tool result, the gated answer or the action that raised it), and
-// stays in the history: open while it can still be acted on, answered once
-// acted on (a one-line receipt of what was offered and chosen), or superseded
-// by a newer card of its kind (marked out of date, pointing at the current one).
+// stays in the history. At most one card is open: the current next step's
+// (DESIGN.md: one thing to think about at once). Every other one is a one-line
+// receipt: answered (what was offered and chosen), waiting (called for, not
+// yet the current step) or superseded by a newer card of its kind (marked out
+// of date). A status card is a line, never an open card.
 export const THREAD_CARD_KINDS = ["identity", "review", "status", "calendar", "times", "proposal"] as const;
 export type ThreadCardKind = (typeof THREAD_CARD_KINDS)[number];
 
@@ -58,7 +60,7 @@ export type ThreadCard = {
   readonly id: string;
   readonly kind: ThreadCardKind;
   readonly at: string;
-  readonly status: "open" | "answered" | "superseded";
+  readonly status: "open" | "answered" | "waiting" | "superseded";
   // For a receipt: what was chosen, as text and, for a time, its instants.
   readonly receipt?: { readonly text: string; readonly start?: string; readonly end?: string };
 };
@@ -118,5 +120,6 @@ export const REQUESTER_OPERATIONS = [
   "contact.use_google_email",
   "calendar.disconnect",
   "calendar.select",
+  "request.set_manual_availability",
 ] as const;
 export type RequesterOperation = (typeof REQUESTER_OPERATIONS)[number];

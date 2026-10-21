@@ -424,7 +424,7 @@ export function ProposalCard({ context }: { readonly context: RequesterCardConte
         <Button className="min-h-11" disabled={busy} onClick={() => void act("request.agree", { version: proposal.version })} type="button">
           {busy ? "Agreeing..." : "Agree to this proposal"}
         </Button>
-        <Button className="min-h-11" onClick={() => context.focusCard("candidates")} type="button" variant="outline">
+        <Button className="min-h-11" onClick={() => context.chooseAnotherTime()} type="button" variant="outline">
           Choose another time
         </Button>
       </GuestCardActions>
@@ -624,12 +624,4 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
       <StatusLine message={error ?? notice} tone={error ? "error" : "info"} />
     </GuestCard>
   );
-}
-
-// ---------------------------------------------------------------------------
-
-// Find times waits until the calendar step is settled: connected and its
-// calendars saved, or set aside with Skip for now.
-export function calendarSettled({ dismissed, view }: RequesterCardContext) {
-  return view.connection.calendar ? dismissed.has("calendar-selection") : dismissed.has("calendar-connect");
 }

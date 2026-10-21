@@ -1,22 +1,23 @@
 import { randomUUID } from "node:crypto";
 import type { Locator, Page } from "@playwright/test";
-import { draftRequestReviewForTool } from "../../lib/server/request-tools";
+import { askForIdentityForTool, draftRequestReviewForTool } from "../../lib/server/request-tools";
 import { MONDAY } from "../integration/support/scheduling";
 import { readyRequestHost, runEmails, runEvaluations, sentTo } from "./support/requester";
 import { expect as baseExpect, test } from "./support/session";
 
-// The guest's journey in one thread (tasks 9.2 and 7.1; design decision 2,
-// D13): from a ready host's /{handle}, the first message starts a draft and its
-// conversation; the drafted details are applied on the review card in the
-// thread; the identity card appears in the thread and Continue without Google
+// The guest's journey in one thread (tasks 9.2 and 7.1; design decisions 2 and
+// 12, D13): from a ready host's /{handle}, the first message starts a draft and
+// its conversation; the assistant drafts the details and asks for a name and
+// email, so the identity card opens in the thread; Continue without Google
 // moves the address bar to the booking link in place, with no page load; then
-// Skip for now, Find times, Choose this time and Agree to this proposal, all in
-// the same thread, using only the keyboard, at phone and desktop widths; and a
+// Apply these details, Skip for now, Find times, Choose this time and Agree to
+// this proposal, all in the same thread, with exactly one actionable card open
+// after each step, using only the keyboard, at phone and desktop widths; and a
 // reload shows the same thread. The model is the local stand-in, which answers
-// in text only, so the review is drafted through the real draft_request_review
-// tool function, as the model's call would; evaluations and the creation email
-// run through the real job handlers against the fake Google, Routes and
-// Cloudflare.
+// in text only, so draft_request_review and ask_for_identity run through their
+// real tool functions, as the model's calls would; evaluations and the
+// creation email run through the real job handlers against the fake Google,
+// Routes and Cloudflare.
 
 test.use({ locale: "en-US", timezoneId: "Asia/Seoul" });
 
@@ -81,6 +82,13 @@ async function cardsInsideThread(page: Page) {
   expect(await page.locator("[data-guest-thread] [data-guest-card]").count()).toBeGreaterThan(0);
 }
 
+// Exactly `count` actionable cards are open in the thread (DESIGN.md: one thing
+// to think about at once); answered and waiting cards are one-line receipts.
+async function openCardCount(page: Page, count: number) {
+  await expect(page.locator("[data-guest-thread] section[data-guest-card]")).toHaveCount(count);
+  await expect(page.locator("section[data-guest-card]")).toHaveCount(count);
+}
+
 // The draft the first message started, and its live session.
 async function draftOf(db: Database, hostAccountId: string) {
   let row: { id: string; session_id: string; state: string } | undefined;
@@ -127,31 +135,28 @@ for (const viewport of [
     expect(new URL(page.url()).pathname).toBe(`/${host.handle}`);
     expect(await page.evaluate((key) => sessionStorage.getItem(key), `fmat.draft:${host.handle}`)).toMatch(/^[0-9a-f-]{36}$/);
 
-    // G1: the model drafts the details; the next turn shows the review card in the thread.
-    const drafted = await draftRequestReviewForTool(
-      db,
-      {
-        auth: { attributes: { audience: "requester" }, principalId: `request:${draft.id}`, principalType: "user" },
-        callId: randomUUID(),
-        sessionId: draft.session_id,
-      },
-      {
-        details: { durationMinutes: 30, mode: "online", purpose: "Talk about compilers", windows: [{ date: MONDAY, end: "11:00", start: "10:00" }] },
-        intent: "details",
-      },
-    );
+    // G1: in one turn the model drafts the details and asks for a name and
+    // email; the next turn's view shows the identity card as the one open card.
+    const call = () => ({
+      auth: { attributes: { audience: "requester" }, principalId: `request:${draft.id}`, principalType: "user" },
+      callId: randomUUID(),
+      sessionId: draft.session_id,
+    });
+    const drafted = await draftRequestReviewForTool(db, call(), {
+      details: { durationMinutes: 30, mode: "online", purpose: "Talk about compilers", windows: [{ date: MONDAY, end: "11:00", start: "10:00" }] },
+      intent: "details",
+    });
     expect(drafted.recorded).toBe(true);
+    expect(await askForIdentityForTool(db, call())).toMatchObject({ identityRequested: true });
     await typeInto(page, page.getByLabel("Message Thyme", { exact: true }), "Does that work?");
     await page.keyboard.press("Enter");
-    await expect(page.getByRole("heading", { name: "Apply these details?" })).toBeVisible();
-    await expect(page.getByText("Talk about compilers", { exact: true })).toBeVisible();
-    await cardsInsideThread(page);
-    await press(page, /^Apply these details$/);
 
-    // G2: the identity card appears in the thread, and focus moves to it.
+    // G2: the identity card is the one open card, and focus moves to it; the
+    // drafted details wait as a receipt.
     const identityHeading = page.getByRole("heading", { name: "How should the host reach you?" });
     await expect(identityHeading).toBeFocused();
-    await expect(page.locator('[data-guest-receipt="answered"]').getByText(/Applied/)).toBeVisible();
+    await openCardCount(page, 1);
+    await expect(page.locator('[data-guest-receipt="answered"]').getByText(/waiting for review/)).toBeVisible();
     await cardsInsideThread(page);
     await noHorizontalScroll(page);
 
@@ -167,6 +172,8 @@ for (const viewport of [
     expect(loads).toEqual([]);
     await expect(page.getByText(FIRST_MESSAGE)).toBeVisible();
     await expect(page.locator('[data-guest-card="identity"]').getByText(`Grace Hopper · ${email}`)).toBeVisible();
+    // The status is a line in the thread, not a card.
+    await expect(page.locator('[data-guest-receipt="status"]').getByText(`Booking link on its way to ${email}`)).toBeVisible();
 
     const [request] = await db<{ id: string; state: string }[]>`select id, state from app.requests where host_account_id = ${host.hostAccountId}`;
     expect(request).toEqual({ id: draft.id, state: "gathering" });
@@ -175,16 +182,27 @@ for (const viewport of [
     const [creation] = await sentTo(email);
     expect(creation!.text).toContain(page.url());
 
+    // G3: the drafted details are now the one open card.
+    await expect(page.getByRole("heading", { name: "Apply these details?" })).toBeFocused();
+    await expect(page.getByText("Talk about compilers", { exact: true })).toBeVisible();
+    await openCardCount(page, 1);
+    await press(page, /^Apply these details$/);
+    await expect(page.locator('[data-guest-receipt="answered"]').getByText(/Applied/)).toBeVisible();
+
     // G4: no calendar connection for this guest.
-    await expect(page.getByRole("heading", { name: "Check your Google Calendar for times?" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Check your Google Calendar for times?" })).toBeFocused();
+    await openCardCount(page, 1);
     await press(page, /^Skip for now$/);
 
     // G6: Find times, evaluated by the job.
-    await expect(page.getByRole("heading", { name: "Find times that work?" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Find times that work?" })).toBeFocused();
+    await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
+    await openCardCount(page, 1);
     await press(page, /^Find times$/);
     await expect(page.getByRole("heading", { name: "Finding times..." })).toBeVisible();
     await expect.poll(() => runEvaluations(db, request!.id)).toBe(1);
     await expect(page.getByRole("heading", { name: "Choose a time" })).toBeVisible();
+    await openCardCount(page, 1);
     await expect(page.getByRole("list", { name: "Candidate times" }).getByRole("listitem")).toHaveCount(3);
     await expect(page.getByText(/Asia\/Seoul \(GMT\+9\) · 30 minutes · Online/).first()).toBeVisible();
     await noHorizontalScroll(page);
@@ -194,13 +212,17 @@ for (const viewport of [
     await expect(page.getByRole("heading", { name: "Agree to this time?" })).toBeFocused();
     await expect(page.getByText("A Google Meet link is created when the meeting is booked")).toBeVisible();
     await expect(page.getByText(/Not agreed yet/)).toBeVisible();
+    // The candidate times collapsed into what was chosen, with Change.
+    await expect(page.getByText(/^Chose .*10:00 GMT\+9 to 10:30 GMT\+9$/)).toBeVisible();
+    await openCardCount(page, 1);
     await cardsInsideThread(page);
     await noHorizontalScroll(page);
     await press(page, /^Agree to this proposal$/);
 
-    // G8: waiting for the host, with nothing booked.
-    await expect(page.getByRole("heading", { name: "Waiting for the host to approve" })).toBeVisible();
+    // G8: waiting for the host, with nothing booked: a line, and no open card.
+    await expect(page.getByText("Waiting for Ada Lovelace to approve")).toBeVisible();
     await expect(page.getByText(/nothing is booked yet/)).toBeVisible();
+    await openCardCount(page, 0);
     await expect(page.locator('[data-guest-receipt="answered"]').getByText(/You agreed to/)).toBeVisible();
     const [agreed] = await db<{ state: string; version: number }[]>`
       select r.state, p.version from app.requests r
@@ -209,13 +231,20 @@ for (const viewport of [
     `;
     expect(agreed).toEqual({ state: "awaiting_host_approval", version: 1 });
     expect(loads).toEqual([]);
-    await cardsInsideThread(page);
+
+    // Withdraw request is in the thread's menu beside the composer, by keyboard.
+    await press(page, /^Request actions$/);
+    await expect(page.getByRole("menuitem", { name: "Withdraw request" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("button", { name: "Request actions" })).toBeFocused();
 
     // A reload loads the same thread from its stored events, cards in place.
     await page.reload();
     await expect(page.getByText(FIRST_MESSAGE)).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Waiting for the host to approve" })).toBeVisible();
+    await expect(page.getByText("Waiting for Ada Lovelace to approve")).toBeVisible();
     await expect(page.locator('[data-guest-card="identity"]')).toBeVisible();
-    await cardsInsideThread(page);
+    // Skip for now is kept on the server: the Calendar card does not reopen.
+    await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
+    await openCardCount(page, 0);
   });
 }

@@ -14,7 +14,10 @@
 -- discussion by the expiry job. identity_requested_at is when the assistant or
 -- a gated operation first asked for the guest's identity (where the identity
 -- card is anchored in the thread); identified_at is when request.identify or
--- the Google return moved the draft to gathering.
+-- the Google return moved the draft to gathering. calendar_settled_at is when the
+-- guest settled the Calendar step (**Skip for now**, or calendars saved), so the
+-- thread offers the next step instead of the Calendar card; a new Calendar grant
+-- or **Change** clears it.
 CREATE TABLE "app"."requests" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "host_account_id" uuid NOT NULL REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
@@ -34,6 +37,7 @@ CREATE TABLE "app"."requests" (
   "closed_at" timestamptz,
   "identity_requested_at" timestamptz,
   "identified_at" timestamptz,
+  "calendar_settled_at" timestamptz,
   CONSTRAINT "requests_closed" CHECK (
     ("state" IN ('booked', 'declined', 'withdrawn', 'expired')) = ("closed_at" IS NOT NULL)
   ),

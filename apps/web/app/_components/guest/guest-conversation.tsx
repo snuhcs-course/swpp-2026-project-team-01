@@ -20,7 +20,8 @@ import type { GuestDiscussionClient, GuestPostOutcome } from "@/lib/chat/guest";
 // a temporary limit. Every card is an entry of the thread, placed among the
 // messages by the time the conversation called for it, so it follows the
 // assistant message or tool result that raised it and stays in the history.
-// Only the composer sits below the thread.
+// Only the composer, with the thread's compact menu beside it, sits below the
+// thread.
 
 type Phase = "loading" | "ready" | "sending" | "streaming";
 
@@ -119,6 +120,7 @@ export function GuestConversation({
   before,
   client,
   closedReason,
+  composerAside,
   entries = [],
   extra,
   onAccepted,
@@ -134,6 +136,8 @@ export function GuestConversation({
   readonly client: GuestDiscussionClient;
   // Why the composer is closed, when it is.
   readonly closedReason?: string;
+  // The thread's compact menu beside the composer (Edit details, Withdraw request).
+  readonly composerAside?: ReactNode;
   // The thread's cards and receipts, placed among the messages by time.
   readonly entries?: readonly ThreadEntry[];
   // Extra fields the first message carries (the guest's timezone and language).
@@ -359,7 +363,9 @@ export function GuestConversation({
       </main>
 
       <div className="shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6">
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-2 px-4 sm:px-6">
+        <div className="mx-auto flex w-full max-w-2xl items-end gap-2 px-4 sm:px-6">
+          {composerAside}
+          <div className="min-w-0 flex-1">
           <ChatComposer
             autoFocus={false}
             disabled={phase === "loading" || Boolean(closedReason)}
@@ -371,6 +377,7 @@ export function GuestConversation({
             placeholder={placeholder}
             value={draft}
           />
+          </div>
         </div>
       </div>
     </>

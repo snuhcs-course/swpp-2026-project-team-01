@@ -210,6 +210,13 @@ export async function identifyDraft(
     where id = ${request.id}
   `;
 
+  // Identification changes no meeting detail, so a review drafted while a
+  // draft stays applicable at the new revision.
+  await tx`
+    update app.request_reviews set base_revision = ${request.revision + 1}
+    where request_id = ${request.id} and state = 'pending' and base_revision = ${request.revision}
+  `;
+
   if (identity.google) await recordRequesterGrants(tx, options.tokenKey, request.id, identity.google);
 
   await issueContactConfirmation(tx, { origin: options.origin, requestId: request.id, tokenKey: options.tokenKey });
