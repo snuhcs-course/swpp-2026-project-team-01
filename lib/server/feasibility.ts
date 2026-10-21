@@ -922,22 +922,6 @@ export function requesterProjection(
   };
 }
 
-// A display line with the date-specific offset, such as "Mon 3 Nov, 10:00 GMT+9".
-export function displayTime(instant: Date, timeZone: string) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-GB", {
-      day: "numeric",
-      hour: "2-digit",
-      hourCycle: "h23",
-      minute: "2-digit",
-      month: "short",
-      timeZone,
-      timeZoneName: "shortOffset",
-      weekday: "short",
-    })
-      .formatToParts(instant)
-      .map((part) => [part.type, part.value]),
-  );
-
-  return `${parts.weekday} ${parts.day} ${parts.month}, ${parts.hour}:${parts.minute} ${parts.timeZoneName}`;
-}
+// A display line with the date-specific offset, such as "Mon 3 Nov, 10:00 GMT+9";
+// shared with the browser in lib/contracts/timezone.ts.
+export { displayTime } from "../contracts/timezone";
