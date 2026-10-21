@@ -1,4 +1,13 @@
-import type { ClarificationCategory, RequestDetails, RequestState, ReviewIntent } from "./request";
+import type { RequesterEvaluationView } from "./feasibility";
+import type {
+  ClarificationCategory,
+  RequestDetails,
+  RequesterAgreement,
+  RequesterProposal,
+  RequestState,
+  ReviewIntent,
+  ReviewPatch,
+} from "./request";
 
 // What GET /api/requests/{bookingId}/state returns to the requester's booking
 // page, and what its cards read (Lane D's review, details, candidate, proposal
@@ -10,9 +19,11 @@ export type RequesterReviewView = {
   readonly id: string;
   readonly baseRevision: number;
   readonly intent: ReviewIntent;
-  // RequestDetails keys the review would set; null for question and unknown.
-  readonly patch: Partial<RequestDetails> | null;
+  // The fields the review would set; null for question and unknown.
+  readonly patch: ReviewPatch | null;
   readonly clarifications: readonly ClarificationCategory[];
+  // The authored question for each clarification, in the request's language.
+  readonly questions: readonly string[];
 };
 
 export type RequesterConfirmationView = {
@@ -50,6 +61,13 @@ export type OpenRequesterView = {
   readonly conversation: RequesterConversationView;
   // Whether the request began as a public-page intake whose transcript the page shows.
   readonly hasIntakeTranscript: boolean;
+  // The latest evaluation at the request's current revision (pending included),
+  // or null when there is none, as the candidate times card shows it.
+  readonly evaluation: RequesterEvaluationView | null;
+  // The current proposal version while it still rests on the current
+  // evaluation, with the agreement to it once given.
+  readonly proposal: RequesterProposal | null;
+  readonly agreement: RequesterAgreement | null;
 };
 
 // A closed request with an unexpired link: only its final status (and, from
@@ -63,11 +81,16 @@ export type ClosedRequesterView = {
 export type RequesterView = OpenRequesterView | ClosedRequesterView;
 
 // The commands the booking page posts to /api/requests/{bookingId}/commands, as
-// { operation, input, expectedRevision, retryKey }. Lane D adds its operations
-// (request.apply_review, request.dismiss_review, request.update_details,
-// request.evaluate, request.choose_candidate, request.agree, ...) to the same
-// registry in lib/server/requester-routes.ts.
+// { operation, input, expectedRevision, retryKey }, registered in
+// lib/server/requester-routes.ts.
 export const REQUESTER_OPERATIONS = [
+  "request.apply_review",
+  "request.dismiss_review",
+  "request.update_details",
+  "request.evaluate",
+  "request.allow_trip",
+  "request.choose_candidate",
+  "request.agree",
   "request.withdraw",
   "contact.resend_confirmation",
   "contact.use_google_email",

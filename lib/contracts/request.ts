@@ -93,6 +93,17 @@ export type RequestDetails = {
   readonly travelMode: RequesterTravelMode | null;
 };
 
+// The fields a review, the meeting details card or request.update_details may
+// set. Each omitted key leaves the field unchanged. contactName and contactEmail
+// are an explicit contact correction: an empty string is an explicit empty edit,
+// kept exactly for protected review and refused when applied.
+export type ReviewPatch = Partial<
+  Pick<RequestDetails, "purpose" | "durationMinutes" | "mode" | "location" | "linkPlan" | "windows" | "travelMode">
+> & {
+  readonly contactName?: string;
+  readonly contactEmail?: string;
+};
+
 // What the extraction declared (app.request_reviews.intent).
 export const REVIEW_INTENTS = ["details", "availability", "question", "unknown"] as const;
 export type ReviewIntent = (typeof REVIEW_INTENTS)[number];

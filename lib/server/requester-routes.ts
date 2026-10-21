@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { type ClarificationCategory, isActionableRequestState, type RequestDetails, type RequestState, type ReviewIntent } from "../contracts/request";
+import { isActionableRequestState, type RequestDetails, type RequestState, type ReviewPatch } from "../contracts/request";
 import type { OpenRequesterView, RequesterView } from "../contracts/requester-view";
 import { findRequestByBookingId } from "./booking-links";
 import { ndjsonResponse } from "./chat-routes";
@@ -29,6 +29,21 @@ import {
 import { IntakeLimitError } from "./intakes";
 import { internalSigningKey } from "./internal-bearer";
 import { withdrawRequestCommand } from "./request-lifecycle";
+import {
+  agreeCommand,
+  allowTripCommand,
+  chooseCandidateCommand,
+  evaluateCommand,
+  readCurrentEvaluation,
+  readCurrentProposal,
+} from "./request-proposals";
+import {
+  applyReviewCommand,
+  dismissReviewCommand,
+  requestLanguage,
+  storedReview,
+  updateDetailsCommand,
+} from "./request-reviews";
 import {
   disconnectCalendarCommand,
   listRequesterCalendars,
@@ -127,28 +142,24 @@ export async function readRequesterView(
   }
 
   const [review] = await db<
-    { base_revision: number; clarifications: string[]; id: string; intent: string; patch: Partial<RequestDetails> | null }[]
+    { base_revision: number; clarifications: string[]; id: string; intent: string; patch: ReviewPatch | null }[]
   >`
     select id, base_revision, intent, patch, clarifications from app.request_reviews
     where request_id = ${requestId} and state = 'pending'
   `;
+  const proposal = await readCurrentProposal(db, requestId);
   const view: OpenRequesterView = {
+    agreement: proposal?.agreement ?? null,
     confirmation: await readConfirmationStatus(db, requestId, options.confirmationLimits),
     connection: await readRequesterConnection(db, requestId),
     contact: { confirmed: row.confirmed, email: row.contact_email, name: row.requester_name },
     conversation: await guestConversationStatus(db, { id: requestId, type: "requester_request" }),
+    evaluation: await readCurrentEvaluation(db, requestId),
     hasIntakeTranscript: row.has_intake,
     host,
     open: true,
-    pendingReview: review
-      ? {
-          baseRevision: review.base_revision,
-          clarifications: review.clarifications as ClarificationCategory[],
-          id: review.id,
-          intent: review.intent as ReviewIntent,
-          patch: review.patch,
-        }
-      : null,
+    pendingReview: review ? storedReview(review, requestLanguage(row.details)) : null,
+    proposal: proposal?.proposal ?? null,
     request: { details: row.details, expiresAt: row.expires_at.toISOString(), revision: row.revision, state: row.state },
   };
 
@@ -300,16 +311,25 @@ function registered<Input, Result>(command: CommandDefinition<Input, Result>): [
   return [command.operation, command as unknown as RequesterCommand];
 }
 
-// The requester commands by operation. Lane D adds its card commands here.
+// The requester commands by operation.
 export function requesterCommands(
   deps: Pick<RequesterRouteDependencies, "appOrigin" | "confirmationLimits" | "tokenKey">,
 ): Readonly<Record<string, RequesterCommand>> {
+  const contact = { origin: deps.appOrigin, tokenKey: deps.tokenKey() };
+
   return Object.fromEntries([
+    registered(applyReviewCommand(contact)),
+    registered(dismissReviewCommand),
+    registered(updateDetailsCommand(contact)),
+    registered(evaluateCommand),
+    registered(allowTripCommand),
+    registered(chooseCandidateCommand),
+    registered(agreeCommand),
     registered(withdrawRequestCommand),
     registered(useGoogleEmailCommand),
     registered(disconnectCalendarCommand),
     registered(selectCalendarsCommand),
-    registered(resendConfirmationCommand({ limits: deps.confirmationLimits, origin: deps.appOrigin, tokenKey: deps.tokenKey() })),
+    registered(resendConfirmationCommand({ limits: deps.confirmationLimits, ...contact })),
   ]);
 }
 

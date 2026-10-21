@@ -37,6 +37,8 @@ export type CommandContext<Input> = {
   readonly expectedRevision: number | null;
   readonly input: Input;
   readonly resourceId: string;
+  // The caller's retry identity, for records that keep it (an agreement).
+  readonly retryKey: string;
 };
 
 export type CommandDefinition<Input, Result> = {
@@ -232,6 +234,7 @@ export async function runCommand<Input, Result>(
         expectedRevision,
         input: parsed.data,
         resourceId: request.resourceId,
+        retryKey,
       });
 
       const [stored] = await tx<{ result: Result }[]>`
