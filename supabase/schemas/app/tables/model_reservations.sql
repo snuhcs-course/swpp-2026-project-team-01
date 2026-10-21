@@ -6,7 +6,7 @@ CREATE TABLE "app"."model_reservations" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "work_kind" text NOT NULL CHECK ("work_kind" IN ('conversation_input', 'ranking_check')),
   "work_id" uuid NOT NULL,
-  "principal_type" text NOT NULL CHECK ("principal_type" IN ('host_account', 'requester_request')),
+  "principal_type" text NOT NULL CHECK ("principal_type" IN ('host_account', 'requester_request', 'public_intake')),
   "principal_id" uuid NOT NULL,
   "session_id" text REFERENCES "app"."agent_sessions" ("session_id"),
   "amount_usd" numeric(6, 2) NOT NULL CHECK ("amount_usd" > 0),

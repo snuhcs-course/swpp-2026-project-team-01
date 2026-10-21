@@ -10,7 +10,7 @@ Before each group, read the [Phase 3 reference repository files](../../../docume
 
 ## 2. Schema (serial)
 
-- [ ] 2.1 Add the tables in [design 1](design.md#1-records) to `supabase/schemas/app/`, with row-level security on each; extend `discussions.audience` with `requester` and add `conversation_inputs.protected_fingerprint`. Generate the migration with `supabase db schema declarative sync --no-apply`, and put the 5-minute `request_expiry` schedule in its own `supabase migration new` migration mirrored under `supabase/schemas/app/cron/`. Verify `supabase db reset --local` rebuilds the chain and `supabase/tests/` shows `anon` and `authenticated` reach no new table or function.
+- [x] 2.1 Add the tables in [design 1](design.md#1-records) to `supabase/schemas/app/`, with row-level security on each; extend `discussions.audience` with `requester` and add `conversation_inputs.protected_fingerprint`. Generate the migration with `supabase db schema declarative sync --no-apply`, and put the 5-minute `request_expiry` schedule in its own `supabase migration new` migration mirrored under `supabase/schemas/app/cron/`. Verify `supabase db reset --local` rebuilds the chain and `supabase/tests/` shows `anon` and `authenticated` reach no new table or function.
 
 ## 3. Routes, identity and timezone (Lane A)
 

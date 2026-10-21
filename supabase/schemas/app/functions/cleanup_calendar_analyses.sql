@@ -1,8 +1,9 @@
 -- Scheduled maintenance: removes up to `batch` Calendar analysis rows older than 24
--- hours, and as many expired sign-up attempt rows, skipping rows another
--- transaction holds so a pass never waits on active work. Returns the number of
--- analysis rows removed. Execution is revoked from PUBLIC: only the owner role,
--- the database maintenance operator, runs it, from pg_cron every 15 minutes.
+-- hours, and as many expired sign-up attempt and request creation rows, skipping
+-- rows another transaction holds so a pass never waits on active work. Returns the
+-- number of analysis rows removed. Execution is revoked from PUBLIC: only the
+-- owner role, the database maintenance operator, runs it, from pg_cron every 15
+-- minutes.
 CREATE FUNCTION "app"."cleanup_calendar_analyses"("batch" integer DEFAULT 500)
 RETURNS integer
 LANGUAGE plpgsql
@@ -29,6 +30,15 @@ BEGIN
     FOR UPDATE SKIP LOCKED
   )
   DELETE FROM app.signup_attempts s USING doomed WHERE s.id = doomed.id;
+
+  WITH doomed AS (
+    SELECT c.id FROM app.request_creations c
+    WHERE c.created_at < now() - interval '24 hours'
+    ORDER BY c.created_at
+    LIMIT greatest(batch, 0)
+    FOR UPDATE SKIP LOCKED
+  )
+  DELETE FROM app.request_creations c USING doomed WHERE c.id = doomed.id;
 
   RETURN removed;
 END;
