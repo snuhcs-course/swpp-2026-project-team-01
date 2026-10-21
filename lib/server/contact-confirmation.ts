@@ -12,8 +12,9 @@ import type { TokenKey } from "./token-encryption";
 // (a Google-verified address equal to the contact), a single-use **Confirm this
 // address** link to /booking/confirm/{token}. The token is stored only as a hash
 // here and sealed only as the delivery's secret parameter. Opening the link
-// confirms the address while the token is unused and not superseded, the request
-// is open and its contact still equals the address. Nothing waits on it.
+// shows a **Confirm this address** button; pressing it confirms the address
+// while the token is unused and not superseded, the request is open and its
+// contact still equals the address. Nothing waits on it.
 // **Send the email again** (contact.resend_confirmation) issues a fresh creation
 // email to the current contact. The bounds below count every creation email
 // (request creation, a contact change and a resend), and both a contact change
@@ -133,8 +134,9 @@ export async function issueContactConfirmation(tx: Transaction, issue: IssueConf
 
 export type ConfirmOutcome = "confirmed" | "unavailable";
 
-// GET /booking/confirm/{token}: confirms the address the token was issued for,
-// once. Every other case (unknown, used, superseded, a changed contact, a closed
+// **Confirm this address** (POST /api/contact-confirmations, from the page
+// /booking/confirm/{token} renders): confirms the address the token was issued
+// for, once. Every other case (unknown, used, superseded, a changed contact, a closed
 // or expired request) is the same unavailable answer, which reveals nothing.
 export async function confirmContact(db: Database, token: string): Promise<ConfirmOutcome> {
   if (!/^[A-Za-z0-9_-]{16,128}$/.test(token)) return "unavailable";

@@ -4,6 +4,7 @@ import { findRequestByBookingId } from "./booking-links";
 import { type Actor, runCommand } from "./commands";
 import {
   type ConfirmationLimits,
+  confirmContact,
   readConfirmationStatus,
   resendConfirmationCommand,
 } from "./contact-confirmation";
@@ -118,5 +119,26 @@ export function createResendConfirmationHandler(
     }
 
     return requesterJson(outcome, outcome.result.status === "limited" ? 429 : 202);
+  };
+}
+
+const confirmBody = z.object({ token: z.string().min(1).max(256) });
+
+// POST /api/contact-confirmations: **Confirm this address** on the page the
+// creation email's link opens. Opening the page confirms nothing; only this
+// same-origin POST does, so a link scanner that fetches the URL cannot. The
+// token is in the body, not another URL.
+export function createConfirmContactHandler(
+  load: () => Pick<ConfirmationRouteDependencies, "allowedOrigins" | "appOrigin" | "db"> = confirmationRouteDependenciesFromEnvironment,
+) {
+  return async (request: Request) => {
+    const deps = load();
+    const refused = crossSiteRefusal(request, deps, { json: true });
+
+    if (refused) return refused;
+
+    const body = confirmBody.safeParse(await request.json().catch(() => null));
+    const outcome = body.success ? await confirmContact(deps.db, body.data.token) : "unavailable";
+    return requesterJson({ outcome }, outcome === "confirmed" ? 200 : 404);
   };
 }

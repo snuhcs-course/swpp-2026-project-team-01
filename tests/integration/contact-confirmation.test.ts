@@ -9,7 +9,11 @@ import {
   resendConfirmationCommand,
   supersedeConfirmations,
 } from "../../lib/server/contact-confirmation";
-import { createConfirmationStatusHandler, createResendConfirmationHandler } from "../../lib/server/confirmation-routes";
+import {
+  createConfirmContactHandler,
+  createConfirmationStatusHandler,
+  createResendConfirmationHandler,
+} from "../../lib/server/confirmation-routes";
 import { createEmailDeliveryHandler, EMAIL_DELIVERY_JOB } from "../../lib/server/email-delivery";
 import { testDatabase } from "./support/database";
 import { type FakeCloudflare, startFakeCloudflare } from "./support/fake-cloudflare";
@@ -320,5 +324,27 @@ describe("contact confirmation routes", () => {
     );
 
     expect(response.status).toBe(403);
+  });
+  it("confirms only through a same-origin POST of the token", async () => {
+    const request = await createTestRequest(db);
+    await issue(request);
+    const token = tokenIn(lastMessageTo(request.contactEmail).text)!;
+    const confirm = createConfirmContactHandler(deps);
+    const press = (headers: Record<string, string>) =>
+      confirm(new Request(`${origin}/api/contact-confirmations`, { body: JSON.stringify({ token }), headers, method: "POST" }));
+
+    expect((await press({ "content-type": "application/json", origin: "https://evil.example" })).status).toBe(403);
+    expect((await press({ "content-type": "text/plain", origin })).status).toBe(415);
+    expect((await requestRow(request.requestId)).contact_confirmed_email).toBeNull();
+
+    const confirmed = await press({ "content-type": "application/json", origin });
+    expect(confirmed.status).toBe(200);
+    expect(confirmed.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(await confirmed.json()).toEqual({ outcome: "confirmed" });
+    expect((await requestRow(request.requestId)).contact_confirmed_email).toBe(request.contactEmail);
+
+    const again = await press({ "content-type": "application/json", origin });
+    expect(again.status).toBe(404);
+    expect(await again.json()).toEqual({ outcome: "unavailable" });
   });
 });
