@@ -164,7 +164,7 @@ async function recordGuestInput(
       { key: principal.id, scope: principal.type === "public_intake" ? "intake" : "request" },
       deps.admission,
     );
-    const protectedInput = protectInput(deps.signingKey, input.message);
+    const protectedInput = protectInput(deps.signingKey, input.message, { bareUuids: true });
     const [created] = await tx<{ id: string }[]>`
       insert into app.conversation_inputs (discussion_id, client_input_id, fingerprint, protected_fingerprint, message)
       values (${discussionId}, ${input.clientInputId}, ${protectedInput.fingerprint}, ${protectedInput.protectedFingerprint},

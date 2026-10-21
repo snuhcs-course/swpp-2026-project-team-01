@@ -65,6 +65,16 @@ describe("credential redaction", () => {
     expect(redactCredentials(`/booking/${uuid.replaceAll("-", "")}`)).toBe(R);
   });
 
+  it("removes a bare UUID from requester and intake input only", () => {
+    const text = `My booking is ${uuid}, and ${uuid.toUpperCase().replaceAll("-", "")} too`;
+
+    expect(redactCredentials(text, { bareUuids: true })).toBe(`My booking is ${R}, and ${R} too`);
+    expect(protectInput("key", text, { bareUuids: true }).message).not.toMatch(new RegExp(uuid, "i"));
+    expect(redactCredentials(text)).toBe(text);
+    // Part of a longer identifier is not a UUID.
+    expect(redactCredentials(`id-${uuid}x`, { bareUuids: true })).toBe(`id-${uuid}x`);
+  });
+
   it("removes a confirmation link", () => {
     expect(redactCredentials("https://findmeatime.com/booking/confirm/AbC_dEf-0123456789xyzXYZ please")).toBe(`${R} please`);
   });

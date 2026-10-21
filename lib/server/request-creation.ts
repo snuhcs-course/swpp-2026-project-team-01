@@ -184,7 +184,7 @@ export function createRequestCommand(options: CreateRequestOptions): CommandDefi
       await issueContactConfirmation(tx, { bookingId, origin: options.origin, requestId, tokenKey: options.tokenKey });
 
       // The request session's first input, delivered when the booking page opens it.
-      const summary = protectInput(options.signingKey, intakeSummary(intake.draft, input.timezone));
+      const summary = protectInput(options.signingKey, intakeSummary(intake.draft, input.timezone), { bareUuids: true });
       await tx`
         insert into app.conversation_inputs (discussion_id, client_input_id, fingerprint, protected_fingerprint, message)
         values (${discussion!.id}, ${randomUUID()}, ${summary.fingerprint}, ${summary.protectedFingerprint}, ${summary.message})

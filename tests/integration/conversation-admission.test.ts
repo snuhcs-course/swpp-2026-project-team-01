@@ -14,8 +14,10 @@ import {
   deliverNext,
   lockSetupDiscussion,
 } from "../../lib/server/conversations";
+import { acceptGuestMessage } from "../../lib/server/guest-conversations";
 import { messageFingerprint } from "../../lib/server/internal-bearer";
 import { testDatabase } from "./support/database";
+import { createTestRequest } from "./support/requests";
 
 // Conversation admission and credential redaction in the host message path
 // (design decision 14), against the local database with a recording runtime in
@@ -225,5 +227,23 @@ describe("credential redaction in the message path", () => {
 
     expect(sent.map((entry) => entry.message)).toEqual(["Old message with Bearer [removed credential] and [removed credential]"]);
     await expect(send(deps, userId, `${original}!`, clientInputId)).rejects.toMatchObject({ code: "retry_conflict" });
+  });
+  it("removes a bare UUID from requester input, and keeps it in host input", async () => {
+    const { deps, sent } = dependencies();
+    const request = await createTestRequest(db);
+    const original = `My booking is ${uuid}, can we move it?`;
+
+    await acceptGuestMessage(deps, { id: request.requestId, type: "requester_request" }, { clientInputId: randomUUID(), message: original });
+
+    const [stored] = await db<{ message: string }[]>`
+      select i.message from app.conversation_inputs i join app.discussions d on d.id = i.discussion_id
+      where d.principal_type = 'requester_request' and d.principal_id = ${request.requestId}
+    `;
+    expect(stored!.message).toBe("My booking is [removed credential], can we move it?");
+    expect(sent.map((entry) => entry.message)).toEqual([stored!.message]);
+
+    const { hostAccountId, userId } = await host();
+    await send(deps, userId, `Calendar ${uuid} is mine`);
+    expect((await inputs(hostAccountId))[0]!.message).toBe(`Calendar ${uuid} is mine`);
   });
 });

@@ -417,7 +417,8 @@ export async function deliverNext(
   const { session } = claim;
   // Redaction is idempotent, so an input stored before it existed is protected
   // here before its first delivery, and a stored protected one is unchanged.
-  const input = { ...claim.input, message: redactCredentials(claim.input.message) };
+  const bareUuids = principal.type !== "host_account";
+  const input = { ...claim.input, message: redactCredentials(claim.input.message, { bareUuids }) };
   const bearer = signInternalBearer(
     {
       discussionId: session.discussion_id,

@@ -7,7 +7,9 @@ import { messageFingerprint } from "./internal-bearer";
 // proofs, URL parameters or fragments whose percent-decoded, case-folded name is
 // a credential name or ends in _token, and booking or confirmation links (with or
 // without an origin), because the booking UUID is the requester's only
-// credential. Ordinary prose and links keep their content. Redaction confers no
+// credential. Requester and intake input (`bareUuids`) also loses any bare UUID,
+// which could be a booking identifier pasted without its link; host input keeps
+// them. Ordinary prose and links keep their content. Redaction confers no
 // authority: nothing here follows or redeems a link.
 
 export const REMOVED_CREDENTIAL = "[removed credential]";
@@ -39,6 +41,7 @@ const BOOKING_LINK = new RegExp(
 // prose such as "bearer of good news" stays.
 const BEARER = /\b(Bearer)\s+(?=[A-Za-z0-9\-._~+/]*[0-9\-._~+/])[A-Za-z0-9\-._~+/]{8,}=*/gi;
 const LINK_PROOF = new RegExp(String.raw`\bLINK\s+${UUID}\s+\S+`, "gi");
+const BARE_UUID = new RegExp(`(?<![0-9a-z-])${UUID}(?![0-9a-z])`, "gi");
 // A parameter: its separator (?, &, # or ;, possibly percent-encoded), its name,
 // its = (possibly percent-encoded) and its value up to the next separator.
 const PARAMETER = /([?&#;]|%3f|%26|%23)([A-Za-z0-9_.~+%-]+)(=|%3d)([^&#\s<>"'`]*)/gi;
@@ -83,13 +86,17 @@ function redactParameters(text: string, depth = 0): string {
   );
 }
 
-export function redactCredentials(text: string) {
-  return redactParameters(
-    text
-      .replace(BOOKING_LINK, REMOVED_CREDENTIAL)
-      .replace(LINK_PROOF, REMOVED_CREDENTIAL)
-      .replace(BEARER, (_match, word: string) => `${word} ${REMOVED_CREDENTIAL}`),
-  );
+export type RedactionOptions = {
+  // Requester and intake input: remove bare UUIDs too.
+  readonly bareUuids?: boolean;
+};
+
+export function redactCredentials(text: string, options: RedactionOptions = {}) {
+  const redacted = text
+    .replace(BOOKING_LINK, REMOVED_CREDENTIAL)
+    .replace(LINK_PROOF, REMOVED_CREDENTIAL)
+    .replace(BEARER, (_match, word: string) => `${word} ${REMOVED_CREDENTIAL}`);
+  return redactParameters(options.bareUuids ? redacted.replace(BARE_UUID, REMOVED_CREDENTIAL) : redacted);
 }
 
 // The retry fingerprint of the original, unredacted text, kept only as an HMAC,
@@ -108,8 +115,8 @@ export type ProtectedInput = {
   readonly protectedFingerprint: string;
 };
 
-export function protectInput(key: string, original: string): ProtectedInput {
-  const message = redactCredentials(original);
+export function protectInput(key: string, original: string, options: RedactionOptions = {}): ProtectedInput {
+  const message = redactCredentials(original, options);
   return { fingerprint: messageFingerprint(message), message, protectedFingerprint: protectedFingerprint(key, original) };
 }
 
