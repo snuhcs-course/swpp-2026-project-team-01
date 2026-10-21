@@ -129,7 +129,16 @@ Evidence: AC-26 in full, AC-28, FR-04 checks from the [onboarding flow checklist
 
 Goal: a requester reaches a ready host, is understood, and sees feasible candidates. Nothing is yet approved or booked.
 
-Scope. Prerequisite: Phase 1 joined, plus Phase 2 Lane C's readiness guard so a "ready host" exists; a fixture host suffices until then. Lane C is pure domain code and can start the moment Phase 1's skeleton lands.
+Scope. Prerequisite: Phase 1 joined, plus Phase 2 Lane C's readiness guard so a "ready host" exists; a fixture host suffices until then. Lane C is pure domain code and can start the moment Phase 1's skeleton lands. Every lane also waits for the proposal below, reviewed before any lane codes.
+
+**Proposal (serial, first)**
+
+- [ ] Proposal for `requester-intake-and-feasibility` with the decisions to settle and the coverage table.
+- [ ] Design.
+- [ ] Delta specs.
+- [ ] Tasks.
+- [ ] Owning-document updates and Korean mirrors.
+- [ ] Teammate review.
 
 **Lane A — routes, identity and timezone**
 
