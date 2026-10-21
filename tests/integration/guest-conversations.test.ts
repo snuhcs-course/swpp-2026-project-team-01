@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eveRuntime } from "../../lib/server/conversations";
-import { openGuestSession } from "../../lib/server/guest-conversations";
+import { acceptGuestMessage, openGuestSession } from "../../lib/server/guest-conversations";
 import {
   createIntakeContinueHandler,
   createIntakeMessageHandler,
@@ -35,6 +35,7 @@ let deps: IntakeRouteDependencies;
 
 const HOST_TOOLS = ["read_setup_state", "draft_settings"];
 const INTAKE_TOOLS = ["read_intake", "draft_intake"];
+const REQUESTER_TOOLS = ["read_request", "draft_request_review", "evaluate_candidates", "read_booking_status"];
 
 beforeAll(async () => {
   fake = await startFakeOpenAI();
@@ -121,12 +122,34 @@ describe("guest sessions", () => {
     second = await intakeWithRequest();
   }, 180_000);
 
-  it("gives an intake session only the intake tools, and a requester session no host or intake tool", () => {
+  it("gives an intake session only the intake tools, and a requester session only the requester tools", () => {
     expect(toolNames(first.intake.sessionId)).toEqual([...INTAKE_TOOLS].sort());
 
     const requesterTools = toolNames(first.request.sessionId);
     expect(fake.requests.some((entry) => entry.prompt_cache_key === sessionIdHash(first.request.sessionId))).toBe(true);
+    expect(requesterTools).toEqual([...REQUESTER_TOOLS].sort());
     for (const tool of [...HOST_TOOLS, ...INTAKE_TOOLS]) expect(requesterTools).not.toContain(tool);
+  });
+
+  it("records no agreement, proposal or state change for a message such as yes or book it", async () => {
+    const principal = { id: first.request.id, type: "requester_request" } as const;
+    const [before] = await db<{ revision: number; state: string }[]>`select state, revision from app.requests where id = ${first.request.id}`;
+    // Even a reply that claims a booking changes nothing.
+    fake.rules.push({ includes: "book it", reply: { kind: "text", text: "Done, it is booked." } });
+
+    for (const message of ["yes", "book it"]) {
+      await acceptGuestMessage(deps, principal, { clientInputId: randomUUID(), message });
+      await completed(first.request.discussion_id);
+    }
+
+    const [after] = await db<{ revision: number; state: string }[]>`select state, revision from app.requests where id = ${first.request.id}`;
+    const [decisions] = await db<{ agreements: number; proposals: number; reviews: number }[]>`
+      select (select count(*)::int from app.proposals where request_id = ${first.request.id}) as proposals,
+             (select count(*)::int from app.agreements a join app.proposals p on p.id = a.proposal_id where p.request_id = ${first.request.id}) as agreements,
+             (select count(*)::int from app.request_reviews where request_id = ${first.request.id} and state = 'applied') as reviews
+    `;
+    expect(after).toEqual(before);
+    expect(decisions).toEqual({ agreements: 0, proposals: 0, reviews: 0 });
   });
 
   it("delivers the authored intake summary as the request session's first input", async () => {
