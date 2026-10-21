@@ -26,6 +26,7 @@
 | [CLI 방향](technical_specification/05_cli.md) | 분리된 사용자/관리자 클라이언트. 관리자 CLI는 구현되었고 사용자 CLI는 대기 중 |
 | [구현 계획](technical_specification/06_implementation_plan.md) | 범위가 정해진 OpenSpec 변경의 제안 순서, 결정 기한, 단계별 인수 증거 |
 | [인수 기록](technical_specification/07_acceptance_record.md) | 각 단계가 만든 증거와 그 명령, 날짜, 리비전, 환경, 그리고 알려진 공백 |
+| [결정 기록](technical_specification/08_decision_log.md) | 단계별 모든 결정 지점과 그 대안, 기록된 곳과 바꾸는 방법, 그리고 사용자에게 막혀 있는 단계 |
 | [경쟁사 조사](business/competitor_research.md) | 날짜가 기록된 조사 맥락. 제품 호환성 주장 없음 |
 | [이식 가이드](transplant/en/transplant-guide.md) | `dev`에서 검토용으로 복사된 반복 1 프로토타입 기능 F01–F11, 여정, 디자인을 재사용 가능하게 분해한 문서. 아직 조정되지 않음 |
 

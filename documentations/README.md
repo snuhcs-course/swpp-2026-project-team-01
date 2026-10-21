@@ -24,6 +24,7 @@ Read product purpose and requirements, then UX and architecture. Detailed agreed
 | [CLI direction](technical_specification/05_cli.md) | Separate user/admin clients; administrator CLI implemented, user CLI pending |
 | [Implementation plan](technical_specification/06_implementation_plan.md) | Proposed sequence of bounded OpenSpec changes, decision deadlines and acceptance evidence per phase |
 | [Acceptance record](technical_specification/07_acceptance_record.md) | Evidence each phase produced, with command, date, revision and environment, and its known gaps |
+| [Decision log](technical_specification/08_decision_log.md) | Every decision point per phase with its alternatives, where it is recorded and how to change it, plus steps blocked on the user |
 | [Competitor research](business/competitor_research.md) | Dated research context; no product compatibility claim |
 | [Transplant guide](transplant/en/transplant-guide.md) | Iteration 1 prototype features F01–F11, journeys and design decomposed for reuse; copied from `dev` for review, not yet reconciled |
 
