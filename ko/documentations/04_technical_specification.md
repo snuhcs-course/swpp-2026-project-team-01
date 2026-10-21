@@ -2,7 +2,7 @@
 
 # Find Me a Time — 기술 명세
 
-상태: 제안된 아키텍처. 구현 없음
+상태: 사용 중인 아키텍처. Phase 1과 2는 구현되었고 이후 단계는 제안 상태
 
 날짜: 2026-10-19
 
@@ -22,7 +22,7 @@
 | 호스트 iMessage | Photon Spectrum | 검증된 비공개 결합, 네이티브/어댑터 호환성, 귀속, 실제 기기 전달 |
 | 호스팅 | 기록된 Vercel 릴리스 오리진 | 런타임 배치, 소비자(consumer) 소유권, 새 배포 확인 |
 
-선택된 Supabase 프로젝트는 연결되어 있으며 애플리케이션 스키마는 비어 있습니다. [공급자 설정](technical_specification/03_provider_setup.md#supabase-project)을 참조하십시오. 릴리스 오리진과 공급자/클라이언트 준비 상태는 검증 대상입니다. 모델 ID, 공급자 사용 권한, 의존성 버전, 런타임 호스팅은 사용하기 전에 새로 기록해야 합니다.
+선택된 Supabase 프로젝트는 연결되어 있으며 Phase 1과 Phase 2 마이그레이션이 적용되어 있고, 애플리케이션 객체는 비공개 `app` 스키마에 있습니다. [공급자 설정](technical_specification/03_provider_setup.md#supabase-project)을 참조하십시오. 릴리스 오리진은 [인수 기록](technical_specification/07_acceptance_record.md)에 나타난 대로 배포되어 있으며, 공급자와 지정 클라이언트의 준비 상태는 계속 검증 대상입니다. 모델 ID, 의존성 버전, 런타임 호스팅은 [기반 설계](../openspec/changes/application-foundation/design.md)에 기록되어 있으며, 이 중 하나를 바꾸기 전에는 새로 확인한 결과를 기록해야 합니다.
 
 ### 백엔드 결정
 

@@ -8,7 +8,7 @@
 
 ## 상태
 
-**기반 구축 진행 중입니다.** 제품 방향, 사용자 경험, 아키텍처, 제공자 설정, 시각 디자인, 기능 명세는 이 저장소에서 합의되었습니다. 구현은 런타임 스택을 기록한 [`application-foundation`](openspec/changes/application-foundation/proposal.md) 변경으로 시작되었으며, 애플리케이션 골격은 빌드되고 검사를 통과합니다.
+**Phase 1과 2가 구현되었습니다.** 제품 방향, 사용자 경험, 아키텍처, 제공자 설정, 시각 디자인, 기능 명세는 이 저장소에서 합의되었습니다. [`application-foundation`](openspec/changes/application-foundation/proposal.md) 변경이 Google 로그인, `/app` 작업 공간, 플랫폼 메커니즘을 만들었고, [`host-onboarding`](openspec/changes/host-onboarding/proposal.md)이 제안 우선 호스트 설정, 공개 호스트 페이지와 스킬 문서, 관리자 CLI를 추가했습니다. 두 변경 모두 `findmeatime.com`과 `release.findmeatime.com`에 배포되어 있으며, 그 증거와 열린 공백은 [인수 기록](documentations/technical_specification/07_acceptance_record.md)에 있습니다. 요청자 접수와 예약은 이후 단계에서 들어옵니다.
 
 먼저 [원페이저](documentations/01_one_pager.md)와 [PRD](documentations/02_product_requirements.md)를 읽으십시오. [문서 색인](documentations/README.md)에서 모든 문서를 볼 수 있습니다.
 
@@ -26,7 +26,7 @@
 | `DESIGN.md` | Thyme 시각 방향과 브랜드 자산 |
 | `openspec/specs/` | 합의된 기능 동작. 구현이 충족해야 하는 계약 |
 | `openspec/changes/` | 대기 중인 변경 제안. 완료된 변경은 검증 후 여기에 보관 |
-| `supabase/` | 로컬 Supabase 설정. 애플리케이션 SQL은 첫 스키마 변경과 함께 들어옴 |
+| `supabase/` | 로컬 Supabase 설정, 원하는 스키마, 검토를 마친 마이그레이션 체인, 데이터베이스 테스트 |
 | `ai-usage/` | 과정에서 요구하는 브랜치별 AI 토큰 및 에이전트 시간 기록 |
 | `.agents/skills/` | 공유 프로젝트 워크플로와 참고 자료 |
 

@@ -1,0 +1,74 @@
+{
+  "branch": "docs/refresh-stale-status",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:ca6085fd-f72e-4b27-ae52-d1962ecb824e": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 118,
+          "cache_read": 22320550,
+          "cache_write_5m": 0,
+          "cache_write_1h": 465382,
+          "output": 55853,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-21T05:53:21.966Z",
+      "last": "2026-10-21T06:32:27.236Z"
+    },
+    "claude:ca6085fd-f72e-4b27-ae52-d1962ecb824e/agent-a0da2eb4228e55943": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 10,
+          "cache_read": 361650,
+          "cache_write_5m": 57945,
+          "cache_write_1h": 0,
+          "output": 1768,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-21T06:27:36.115Z",
+      "last": "2026-10-21T06:28:09.163Z"
+    },
+    "claude:ca6085fd-f72e-4b27-ae52-d1962ecb824e/agent-a5ac9ccb2eb325083": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 10,
+          "cache_read": 383603,
+          "cache_write_5m": 67503,
+          "cache_write_1h": 0,
+          "output": 486,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-21T06:27:40.349Z",
+      "last": "2026-10-21T06:28:12.355Z"
+    },
+    "claude:ca6085fd-f72e-4b27-ae52-d1962ecb824e/agent-ab97d6842198047af": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 8,
+          "cache_read": 245847,
+          "cache_write_5m": 93679,
+          "cache_write_1h": 0,
+          "output": 5493,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-21T06:27:23.249Z",
+      "last": "2026-10-21T06:27:57.620Z"
+    }
+  }
+}

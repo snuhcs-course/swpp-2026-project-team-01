@@ -6,9 +6,9 @@
 
 ## 프로젝트 상태
 
-구현은 [`application-foundation`](openspec/changes/application-foundation/proposal.md) 변경으로 시작되었으며, 그 [설계](openspec/changes/application-foundation/design.md)가 런타임 스택을 기록합니다. Phase 1(로그인, `/app` 작업 공간, Supabase 스키마 기준선, 플랫폼 메커니즘)은 구현과 배포를 마쳤고 [인수 기록](documentations/technical_specification/07_acceptance_record.md)에 기록되어 있습니다. 제품 기능은 이후 변경과 함께 들어옵니다. 열린 OpenSpec 변경 안에서만 구현하십시오.
+구현은 [`application-foundation`](openspec/changes/application-foundation/proposal.md) 변경으로 시작되었으며, 그 [설계](openspec/changes/application-foundation/design.md)가 런타임 스택을 기록합니다. Phase 1(로그인, `/app` 작업 공간, Supabase 스키마 기준선, 플랫폼 메커니즘)과 Phase 2([`host-onboarding`](openspec/changes/host-onboarding/proposal.md): 호스트 설정, 공개 호스트 페이지와 스킬 문서, 핸들과 가입 한도, 관리자 CLI)는 구현과 배포를 마쳤고 [인수 기록](documentations/technical_specification/07_acceptance_record.md)에 기록되어 있습니다. 요청자 및 예약 기능은 이후 변경과 함께 들어옵니다. 열린 OpenSpec 변경 안에서만 구현하십시오.
 
-공유 Supabase 프로젝트는 `anelszynxtvxoxqvzgqt`이며, 2026-10-19에 적용된 Phase 1 마이그레이션을 담고 있습니다([환경과 협업](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration) 참고). 네임스페이스, 기본 권한, RLS는 스키마 기준선이 선언한 대로 유지하며, [제공자 설정](documentations/technical_specification/03_provider_setup.md#supabase-project)의 설명을 따르십시오. 상태를 확인하지 않은 프로젝트에 마이그레이션 체인을 푸시하지 마십시오.
+공유 Supabase 프로젝트는 `anelszynxtvxoxqvzgqt`이며, 2026-10-19와 2026-10-20에 적용된 Phase 1 및 Phase 2 마이그레이션을 담고 있습니다([환경과 협업](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration) 참고). 네임스페이스, 기본 권한, RLS는 스키마 기준선이 선언한 대로 유지하며, [제공자 설정](documentations/technical_specification/03_provider_setup.md#supabase-project)의 설명을 따르십시오. 상태를 확인하지 않은 프로젝트에 마이그레이션 체인을 푸시하지 마십시오.
 
 ## 저장소 구조
 
@@ -19,7 +19,7 @@
 - `documentations/`: 제품 방향, 릴리스 범위, 조사, 설명 문서입니다. `01_one_pager.md`부터 시작합니다.
 - `openspec/specs/`: 주요 기능 명세입니다. 자세한 동작은 `<capability>/spec.md`에 있습니다.
 - `openspec/changes/`: 제안된 동작 변경과 보관된 구현 기록입니다.
-- `supabase/`: 로컬 Supabase 설정과 앞으로의 데이터베이스 마이그레이션입니다.
+- `supabase/`: 로컬 Supabase 설정, 원하는 스키마, 검토를 마친 마이그레이션 체인, 데이터베이스 테스트입니다.
 
 ## 도구 사전 요구사항
 
@@ -171,7 +171,7 @@ Not-tested: <known gaps in verification>
 
 이 저장소는 `supabase/config.toml`의 `[experimental.pgdelta]`로 활성화된 **pg-delta**를 사용합니다. 원하는 스키마는 `supabase/schemas/`에 두고, 생성된 마이그레이션은 `supabase/migrations/`에 커밋합니다.
 
-1. 첫 스키마 변경에서는 `supabase/schemas/` 아래에 SQL 파일을 만듭니다. 테이블, RLS 정책, 권한 부여, 함수, 트리거는 이 파일들에서 편집합니다. pg-delta가 의존성 순서를 자동으로 정합니다. `[db.migrations].schema_paths`는 설정하지 않습니다.
+1. 테이블, RLS 정책, 권한 부여, 함수, 트리거는 `supabase/schemas/` 아래의 SQL 파일에서 편집합니다. pg-delta가 의존성 순서를 자동으로 정합니다. `[db.migrations].schema_paths`는 설정하지 않습니다.
 2. 적용하지 않고 마이그레이션을 생성합니다. `supabase db schema declarative sync --name <short_snake_case_name> --no-apply`를 실행합니다. 로컬 스택을 멈출 필요는 없습니다. 이 명령은 선언형 파일과 마이그레이션 이력을 비교합니다. Studio나 SQL 편집기에서 직접 한 변경은 포착되지 않습니다. `supabase db diff`는 실시간 데이터베이스 상태를 비교하며, 선언형 파일은 읽지 않습니다.
 3. `supabase/migrations/`에서 생성된 SQL 파일을 모두 검토합니다. 작업 순서, 권한 부여, 파괴적 변경을 포함합니다. pg-delta는 아직 1.0 이전 버전입니다. 데이터 백필과 지원되지 않는 스키마 변경은 `supabase migration new <name>`으로 만든 별도의 버전 관리 마이그레이션에 둡니다. 시드 데이터는 시드 파일에 둡니다.
 4. `supabase start`를 실행한 뒤 `supabase db reset --local`을 실행합니다. 이로써 전체 마이그레이션 체인이 일회용 로컬 데이터베이스를 다시 만드는지 확인합니다. 리셋은 로컬 데이터를 삭제합니다. 스키마 동작이 바뀌면 관련 앱과 데이터베이스 테스트를 실행합니다.

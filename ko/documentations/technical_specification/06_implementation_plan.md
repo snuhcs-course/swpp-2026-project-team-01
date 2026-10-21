@@ -2,7 +2,7 @@
 
 > 한국어 번역본 (검토용). 원본: documentations/technical_specification/06_implementation_plan.md
 
-상태: 팀 검토를 위한 계획. 1단계 병합됨; 2단계는 `feat/host-onboarding`에서 구현되어 검토 대기 중\
+상태: 팀 검토를 위한 계획. 1단계와 2단계 병합됨\
 날짜: 2026-10-19\
 근거: [PRD](../02_product_requirements.md), [기술 개요](../04_technical_specification.md), [백엔드](01_backend_architecture.md), [프런트엔드](02_frontend_architecture.md), [제공자 설정](03_provider_setup.md), [에이전트 구성](04_agent_configuration.md), [호스트 온보딩 흐름](../user_experience/05_host_onboarding_flow.md), [게스트 예약 흐름](../user_experience/06_guest_booking_flow.md), [기능 명세](../../openspec/specs/).
 

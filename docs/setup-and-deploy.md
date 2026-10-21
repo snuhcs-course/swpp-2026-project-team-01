@@ -1,5 +1,7 @@
 # Setup and Deployment
 
+> **Upstream template reference.** This guide describes setting up the eve chat template as copied at the commit in [third-party notices](../THIRD_PARTY_NOTICES.md), not this repository: its pnpm commands, starter password, Better Auth, Neon, Upstash, Blob memory and Vercel Connect steps do not apply here. For this repository, use the commands in the [README](../README.md#checks) and [agent guidance](../AGENTS.md#tooling-prerequisites), and the environment and deployment record in [provider setup](../documentations/technical_specification/03_provider_setup.md).
+
 This guide covers the database-free starter, local development, long-term memory, the production persistence upgrade, Sign in with Vercel, and optional connections.
 
 ## Prerequisites

@@ -7,7 +7,7 @@ Source of truth: [One-pager](01_one_pager.md)
 
 This document turns the one-pager into observable product behavior and acceptance criteria. The core principles come from the one-pager; release boundaries and operational details below are proposed requirements until the team agrees to them. It records the agent access direction, while detailed architecture, schemas, and protocol contracts belong in technical design and capability specifications.
 
-This PRD records the product obligations the implementation must satisfy and verify; no implementation or acceptance result is claimed yet.
+This PRD records the product obligations the implementation must satisfy and verify; it claims no implementation or acceptance result itself. The [acceptance record](technical_specification/07_acceptance_record.md) holds the evidence each phase produced.
 
 ## 1. Product purpose
 
@@ -306,7 +306,7 @@ Calendar changes made outside this product can race with a final availability ch
 
 ## 9. End-to-end release acceptance scenarios
 
-Each scenario below is closed only with evidence attached to it: test references, the exact command and date, the source revision, the environment and versions, and any gap. Fixtures cannot establish inbox or device delivery, live consent or a named client's behavior; those need controlled checks against the real provider, device or client. Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code each need their own two-role check for the client-facing scenarios, and an unresolved required client or provider case is a release blocker. Keep personal attendee text, tokens and raw transcripts out of tracked evidence. A record of evidence starts with the first results; until then every scenario is pending.
+Each scenario below is closed only with evidence attached to it: test references, the exact command and date, the source revision, the environment and versions, and any gap. Fixtures cannot establish inbox or device delivery, live consent or a named client's behavior; those need controlled checks against the real provider, device or client. Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code each need their own two-role check for the client-facing scenarios, and an unresolved required client or provider case is a release blocker. Keep personal attendee text, tokens and raw transcripts out of tracked evidence. The [acceptance record](technical_specification/07_acceptance_record.md) holds that evidence; a scenario without recorded evidence is pending.
 
 | ID | Scenario | Expected outcome |
 |---|---|---|

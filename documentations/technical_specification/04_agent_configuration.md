@@ -1,6 +1,6 @@
 # Agent Configuration
 
-Status: proposed design; implementation pending\
+Status: base instructions, web channel and host setup audience implemented (Phases 1 and 2); other audiences, channels and evals proposed\
 Date: 2026-10-19\
 Basis: [Technical overview](../04_technical_specification.md), [backend architecture](01_backend_architecture.md), [frontend architecture](02_frontend_architecture.md), [conversation access contract](../../openspec/specs/conversation-access/spec.md), [model execution contract](../../openspec/specs/model-execution/spec.md), [chat workspace contract](../../openspec/specs/chat-workspaces/spec.md)\
 Companions: [Host onboarding flow](../user_experience/05_host_onboarding_flow.md), [Guest booking flow](../user_experience/06_guest_booking_flow.md)
@@ -26,7 +26,7 @@ agent/
   agent.ts                  defineAgent: model, context window, provider options
   instructions/             always-on base rules plus one fragment per audience
     base.md
-    host-setup.md
+    host-setup.ts           resolves the host-setup fragment for host setup sessions only
     host-review.md
     requester.md
   channels/
@@ -34,8 +34,7 @@ agent/
     photon.ts               host iMessage through Photon: verified sender -> host principal
     agentmail.ts            requester email: durable receipt -> request principal
   tools/                    snake_case files; each calls one domain operation
-    read_setup_state.ts
-    draft_settings.ts
+    setup.ts                read_setup_state and draft_settings, resolved for host setup only
     read_request.ts
     list_host_requests.ts
     draft_request_review.ts
@@ -56,7 +55,7 @@ evals/
   *.eval.ts                 injection, stale revision, audience leakage, honest status
 ```
 
-eve derives names from paths (`tools/read_request.ts` is the tool `read_request`; a file at a framework path replaces the default). `eve info` lists what it discovered; build artifacts live under `.eve/`. The directory is a sibling of `apps/web/` and both are composed by the root `vercel.ts` (see Deployment).
+eve derives names from paths (`tools/read_request.ts` is the tool `read_request`; a file at a framework path replaces the default). A dynamic resolver such as `tools/setup.ts` names its tools by the keys it returns and resolves them per session. `eve info` lists what it discovered; build artifacts live under `.eve/`. The directory is a sibling of `apps/web/` and both are composed by the root `vercel.ts` (see Deployment).
 
 ## Audiences and sessions
 
