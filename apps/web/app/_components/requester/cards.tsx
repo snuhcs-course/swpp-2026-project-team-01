@@ -3,16 +3,17 @@
 import type { OpenRequesterView } from "@lib/contracts/requester-view";
 import { displayTime } from "@lib/contracts/timezone";
 import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
-import { GuestCard, GuestCardActions } from "@/app/_components/guest/guest-card";
+import { GuestCard, GuestCardActions, guestCardHeadingId } from "@/app/_components/guest/guest-card";
 import { browserLanguage } from "@/app/_components/guest/timezone";
 import { Button } from "@/components/ui/button";
+import { DetailsButton, REQUEST_CARDS } from "./request-cards";
 
 // The booking page's cards (design decision 12; DESIGN.md: one card at a time).
 // REQUESTER_CARDS is the typed slot: the first definition whose isOpen holds is
-// the one open card after the last message. Lane D inserts its review, meeting
-// details, candidate times and proposal cards before the calendar card; this
-// lane provides the calendar connection and selection, Use verified Google
-// email, and the status card with **Withdraw request**, which is always last.
+// the one open card after the last message. The review, meeting details,
+// proposal and candidate times cards (request-cards.tsx) come before the
+// calendar connection and selection, Use verified Google email, and the status
+// card with **Withdraw request**, which is always last.
 
 export type CommandOutcome =
   | { readonly ok: true; readonly result: unknown; readonly replayed: boolean }
@@ -104,6 +105,17 @@ export function useRequesterCards(bookingId: string, view: OpenRequesterView, ti
 
 export function RequesterCards({ context }: { readonly context: RequesterCardContext }) {
   const card = REQUESTER_CARDS.find((definition) => definition.isOpen(context));
+  const shown = useRef<string | null>(null);
+
+  // When an action opens the next card, focus moves to its heading, so keyboard
+  // and screen reader users continue from there.
+  useEffect(() => {
+    if (shown.current !== null && card && shown.current !== card.id) {
+      document.getElementById(guestCardHeadingId(card.id))?.focus();
+    }
+    shown.current = card?.id ?? null;
+  }, [card]);
+
   return card ? <div key={card.id}>{card.render(context)}</div> : null;
 }
 
@@ -298,9 +310,15 @@ function StatusCard({ context }: { readonly context: RequesterCardContext }) {
     setConfirming(false);
   }
 
+  const agreed = context.view.agreement && context.view.proposal ? context.view.proposal : null;
+
   return (
     <GuestCard
-      description={`It stays open until ${displayTime(new Date(request.expiresAt), context.timezone)} unless a time is agreed and booked.`}
+      description={
+        agreed
+          ? `You agreed to ${displayTime(new Date(agreed.start), context.timezone)} (proposal version ${agreed.version}). The host approves or declines next; nothing is booked yet.`
+          : `It stays open until ${displayTime(new Date(request.expiresAt), context.timezone)} unless a time is agreed and booked.`
+      }
       id="request-status"
       label="Status"
       title={STATUS_TITLES[request.state] ?? "Your request"}
@@ -322,6 +340,7 @@ function StatusCard({ context }: { readonly context: RequesterCardContext }) {
           <Button className="min-h-11" onClick={() => setConfirming(true)} type="button" variant="outline">
             Withdraw request
           </Button>
+          {request.state !== "awaiting_host_approval" ? <DetailsButton context={context} /> : null}
           {context.view.connection.calendar && context.dismissed.has("calendar-selection") ? (
             <Button className="min-h-11" onClick={() => context.reopen("calendar-selection")} type="button" variant="ghost">
               Calendar settings
@@ -338,9 +357,10 @@ function StatusCard({ context }: { readonly context: RequesterCardContext }) {
   );
 }
 
-// The card slot, in order. Lane D inserts its cards at the marked place.
+// The card slot, in order: the review, meeting details, proposal and candidate
+// times cards (request-cards.tsx), then the calendar, contact and status cards.
 export const REQUESTER_CARDS: readonly RequesterCardDefinition[] = [
-  // Lane D: review, meeting details, candidate times and proposal cards go here.
+  ...REQUEST_CARDS,
   {
     id: "calendar-connect",
     isOpen: ({ dismissed, view }) => !view.connection.calendar && !dismissed.has("calendar-connect"),
