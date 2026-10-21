@@ -22,10 +22,11 @@ import { type SupabaseAuthConfig, verifiedUserId } from "./supabase-auth";
 //      revision, and publishes its jobs) and saves the outcome.
 // Lock order: the retry-key advisory lock first, then the command's domain locks.
 
-export type Actor = {
-  readonly kind: "host_account";
-  readonly id: string;
-};
+// A host account, or a requester holding one request's booking link (id is the
+// request ID, resolved from the link's hash by the route).
+export type Actor =
+  | { readonly kind: "host_account"; readonly id: string }
+  | { readonly kind: "requester_request"; readonly id: string };
 
 export type CommandContext<Input> = {
   readonly actor: Actor;

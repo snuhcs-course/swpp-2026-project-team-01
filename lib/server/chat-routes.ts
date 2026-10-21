@@ -6,6 +6,7 @@ import {
   type ConversationDependencies,
   eveRuntime,
 } from "./conversations";
+import { ADMISSION_LIMITED_MESSAGE, AdmissionLimitError } from "./conversation-admission";
 import { database } from "./database";
 import { HostIneligibleError } from "./host-eligibility";
 import { internalSigningKey } from "./internal-bearer";
@@ -46,6 +47,14 @@ export function authenticatedUserId(request: Request, auth: SupabaseAuthConfig) 
 export function chatError(error: unknown) {
   if (error instanceof HostIneligibleError) {
     return json({ code: "host_ineligible", error: "Hosting is unavailable for this account.", nextAction: error.nextAction }, 403);
+  }
+
+  // A temporary limit keeps the message unsent in the browser for a later retry.
+  if (error instanceof AdmissionLimitError) {
+    return Response.json(
+      { code: "rate_limited", error: ADMISSION_LIMITED_MESSAGE, retryAfterSeconds: error.retryAfterSeconds },
+      { headers: { "cache-control": "private, no-store", "retry-after": String(error.retryAfterSeconds) }, status: 429 },
+    );
   }
 
   if (error instanceof ConversationInputError) {

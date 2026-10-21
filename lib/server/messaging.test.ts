@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { COMMAND_ERROR_MESSAGES } from "../contracts/command-errors";
-import { gateTransport, type MessagingTransport, withMessagingAdmission } from "./messaging";
+import {
+  gateTransport,
+  isLoopbackEndpoint,
+  messagingAdmitted,
+  type MessagingTransport,
+  withMessagingAdmission,
+} from "./messaging";
 
 type Message = { readonly to: string; readonly text: string; readonly authorizedBy: string | null };
 
@@ -18,18 +24,22 @@ const denied = [
   ],
 ] as const;
 
+const realEndpoint = "https://api.agentmail.test/v0";
+const standIn = "http://127.0.0.1:3104/v0";
+
 // A fake provider adapter: it applies its own authority check, then makes the
 // provider request through fetch, which the tests replace.
-function fakeTransport(): MessagingTransport<Message, { id: string }> & { sent: Message[] } {
+function fakeTransport(endpoint = realEndpoint): MessagingTransport<Message, { id: string }> & { sent: Message[] } {
   const sent: Message[] = [];
 
   return {
+    endpoint,
     send: async (message) => {
       if (!message.authorizedBy) {
         throw new Error("The transport refuses a message without current sender authority.");
       }
 
-      const response = await fetch("https://api.agentmail.test/v0/messages", {
+      const response = await fetch(`${endpoint}/messages`, {
         body: JSON.stringify(message),
         headers: { authorization: `Bearer ${credential}` },
         method: "POST",
@@ -81,7 +91,7 @@ describe("messaging-environment gate", () => {
       delivery.state = "sent";
     });
 
-    await expect(withMessagingAdmission(claim, env)).rejects.toMatchObject({ category: "unavailable_configuration" });
+    await expect(withMessagingAdmission(realEndpoint, claim, env)).rejects.toMatchObject({ category: "unavailable_configuration" });
 
     expect(claim).not.toHaveBeenCalled();
     expect(delivery).toEqual(snapshot);
@@ -108,15 +118,59 @@ describe("messaging-environment gate", () => {
     expect(transport.sent).toEqual([]);
   });
 
-  it("admits standalone local execution, which keeps the transport's checks", async () => {
-    mockNetwork();
+  it("refuses a local run with a real provider token toward the provider's own endpoint", async () => {
+    const network = mockNetwork();
     const transport = fakeTransport();
+
+    await expect(gateTransport(transport, { AGENTMAIL_API_KEY: credential }).send(message)).rejects.toMatchObject({
+      category: "unavailable_configuration",
+    });
+    expect(network).not.toHaveBeenCalled();
+    expect(transport.sent).toEqual([]);
+  });
+
+  it("keeps a local worker with a real endpoint from claiming anything", async () => {
+    const claim = vi.fn(async () => "claimed");
+
+    await expect(withMessagingAdmission(realEndpoint, claim, {})).rejects.toMatchObject({
+      category: "unavailable_configuration",
+    });
+    expect(claim).not.toHaveBeenCalled();
+    await expect(withMessagingAdmission(standIn, claim, {})).resolves.toBe("claimed");
+  });
+
+  it("admits a local run toward a loopback stand-in, which keeps the transport's checks", async () => {
+    const network = mockNetwork();
+    const transport = fakeTransport(standIn);
 
     await expect(gateTransport(transport, { AGENTMAIL_API_KEY: credential }).send(message)).resolves.toEqual({
       id: "msg_1",
     });
-    await expect(
-      gateTransport(transport, {}).send({ ...message, authorizedBy: null }),
-    ).rejects.toThrow("current sender authority");
+    expect(network).toHaveBeenCalledWith(`${standIn}/messages`, expect.anything());
+    await expect(gateTransport(transport, {}).send({ ...message, authorizedBy: null })).rejects.toThrow(
+      "current sender authority",
+    );
+  });
+
+  it("refuses a loopback stand-in outside local execution unless production", () => {
+    for (const [, env] of denied) {
+      expect(messagingAdmitted(standIn, env)).toBe(false);
+    }
+    expect(messagingAdmitted(standIn, production)).toBe(true);
+  });
+
+  it.each([
+    ["http://localhost:3104", true],
+    ["http://LOCALHOST:3104/api", true],
+    ["http://127.0.0.1", true],
+    ["http://[::1]:8080/v4", true],
+    ["https://api.cloudflare.com", false],
+    ["http://localhost.example.com", false],
+    ["http://127.0.0.1.nip.io", false],
+    ["http://10.0.0.1", false],
+    ["not a url", false],
+    ["", false],
+  ])("treats %s as loopback: %s", (endpoint, loopback) => {
+    expect(isLoopbackEndpoint(endpoint)).toBe(loopback);
   });
 });

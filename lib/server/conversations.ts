@@ -2,11 +2,13 @@ import { parseCookieHeader } from "@supabase/ssr";
 import { Client, ClientError, type MessageStreamEvent } from "eve/client";
 import { getChatMessageLengthError } from "../contracts/chat-message";
 import type { Actor } from "./commands";
+import { type AdmissionOptions, admitConversationInput } from "./conversation-admission";
 import type { Database, Transaction } from "./database";
 import { deploymentEnvironment } from "./deployment";
 import { HostIneligibleError, withActiveHostAccount, withEligibleHost } from "./host-eligibility";
 import { messageFingerprint, signInternalBearer } from "./internal-bearer";
 import { sessionIdHash } from "./model-limits";
+import { protectInput, redactCredentials, sameProtectedInput } from "./redaction";
 
 // The application side of a host conversation (design decision 7). Only this
 // module creates eve sessions and sends messages: the browser posts to the
@@ -106,6 +108,9 @@ export type ConversationDependencies = {
   readonly db: Database;
   readonly runtime: ConversationRuntime;
   readonly signingKey: string;
+  // Admission limits and the service window's key; the contract numbers and the
+  // shared service window by default.
+  readonly admission?: AdmissionOptions;
 };
 
 export type MessageOutcome =
@@ -247,34 +252,43 @@ type AcceptedInput = {
   readonly state: "accepted" | "sent" | "completed";
 };
 
+// Records the input under the discussion lock: redacted before it is stored
+// (design decision 14), with only an HMAC of the original's fingerprint kept for
+// retries, and charged against the host and service admission windows. An exact
+// retry returns the saved input without a charge; a changed one conflicts, even
+// when only a removed secret differs.
 async function recordInput(
-  db: Database,
+  deps: ConversationDependencies,
   authUserId: string,
   input: { readonly clientInputId: string; readonly message: string },
 ): Promise<AcceptedInput> {
-  return withEligibleHost(db, authUserId, async (tx, hostAccountId) => {
+  return withEligibleHost(deps.db, authUserId, async (tx, hostAccountId) => {
     const discussionId = await lockSetupDiscussion(tx, hostAccountId);
-    const print = fingerprint(input.message);
-    const [existing] = await tx<{ id: string; fingerprint: string; message: string; state: AcceptedInput["state"] }[]>`
-      select id, fingerprint, message, state from app.conversation_inputs
+    const [existing] = await tx<
+      { id: string; fingerprint: string; message: string; protected_fingerprint: string | null; state: AcceptedInput["state"] }[]
+    >`
+      select id, fingerprint, protected_fingerprint, message, state from app.conversation_inputs
       where discussion_id = ${discussionId} and client_input_id = ${input.clientInputId}
     `;
 
     if (existing) {
-      if (existing.fingerprint !== print) {
+      if (!sameProtectedInput(existing, deps.signingKey, input.message)) {
         throw new ConversationInputError("retry_conflict", "This message conflicts with an earlier one.");
       }
 
       return { discussionId, hostAccountId, inputId: existing.id, message: existing.message, state: existing.state };
     }
 
+    await admitConversationInput(tx, { key: hostAccountId, scope: "host" }, deps.admission);
+    const protectedInput = protectInput(deps.signingKey, input.message);
     const [created] = await tx<{ id: string }[]>`
-      insert into app.conversation_inputs (discussion_id, client_input_id, fingerprint, message)
-      values (${discussionId}, ${input.clientInputId}, ${print}, ${input.message})
+      insert into app.conversation_inputs (discussion_id, client_input_id, fingerprint, protected_fingerprint, message)
+      values (${discussionId}, ${input.clientInputId}, ${protectedInput.fingerprint}, ${protectedInput.protectedFingerprint},
+              ${protectedInput.message})
       returning id
     `;
 
-    return { discussionId, hostAccountId, inputId: created!.id, message: input.message, state: "accepted" };
+    return { discussionId, hostAccountId, inputId: created!.id, message: protectedInput.message, state: "accepted" };
   });
 }
 
@@ -350,7 +364,10 @@ export async function deliverNext(
     return ended ? deliverNext(deps, hostAccountId, discussionId, { ...options, reconciled: true }) : null;
   }
 
-  const { input, session } = claim;
+  const { session } = claim;
+  // Redaction is idempotent, so an input stored before it existed is protected
+  // here before its first delivery, and a stored protected one is unchanged.
+  const input = { ...claim.input, message: redactCredentials(claim.input.message) };
   const bearer = signInternalBearer(
     {
       discussionId: session.discussion_id,
@@ -481,7 +498,7 @@ export async function acceptHostMessage(
     throw new ConversationInputError("invalid_message", lengthError);
   }
 
-  const accepted = await recordInput(deps.db, authUserId, { clientInputId: input.clientInputId, message });
+  const accepted = await recordInput(deps, authUserId, { clientInputId: input.clientInputId, message });
 
   // An exact retry of an input already delivered returns its receipt.
   if (accepted.state !== "accepted") {
