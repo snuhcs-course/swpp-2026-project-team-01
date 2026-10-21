@@ -1,6 +1,7 @@
 import { parseCookieHeader } from "@supabase/ssr";
-import { type AuthFn, extractBearerToken, ForbiddenError, UnauthenticatedError } from "eve/channels/auth";
+import { type AuthFn, extractBearerToken, ForbiddenError, localDev, UnauthenticatedError } from "eve/channels/auth";
 import { type Database, database } from "./database";
+import { deploymentEnvironment } from "./deployment";
 import { readHostStanding } from "./host-eligibility";
 import { type InternalGrant, internalSigningKey, messageFingerprint, verifyInternalBearer } from "./internal-bearer";
 import type { Principal } from "./model-limits";
@@ -317,3 +318,65 @@ export const appAuth: AuthFn<Request> = createAppAuth(() => ({
   db: database(),
   signingKey: internalSigningKey(),
 }));
+
+// ---------------------------------------------------------------------------
+// Evals
+
+// The header an eval names its seeded request with when it creates a session.
+export const EVAL_REQUEST_HEADER = "x-fmat-eval-request";
+
+// Requester evals only (evals/): `eve eval` boots its own `eve dev` and sends no
+// credential, and a stubbed session needs a caller allowed to stub tools. With
+// FMAT_EVAL_AUDIENCE=requester in the environment of a process with no Vercel
+// metadata, and only while it is an `eve dev` server (localDev), a request that
+// carries no bearer and no Supabase cookie becomes the requester principal of
+// a request the eval seeded in the local database: named by EVAL_REQUEST_HEADER
+// on create, and by the session's index row afterwards; the agent info route,
+// which the runner reads first, gets eve's synthetic local caller. Anything else
+// skips to appAuth, so deployments, `eve start` and ordinary local runs are
+// unchanged.
+export function createEvalRequesterAuth(
+  load: () => Pick<AppAuthDependencies, "db">,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): AuthFn<Request> {
+  const local = localDev();
+
+  return async (request) => {
+    if (env.FMAT_EVAL_AUDIENCE !== "requester" || deploymentEnvironment(env) !== "local") return null;
+    if (extractBearerToken(request.headers.get("authorization")) || hasSupabaseSession(request)) return null;
+    const caller = await local(request);
+    if (!caller) return null;
+
+    const path = new URL(request.url).pathname;
+    // The runner reads the agent's info before it starts, which names no
+    // session, and checks a session's stub matches after it ends.
+    if (request.method === "GET" && /\/v1\/info\/?$/.test(path)) return caller;
+
+    const stubs = request.method === "GET" ? /\/v1\/session\/([^/]+)\/stubs\/?$/.exec(path) : null;
+    const route: Route = stubs ? { kind: "stream", sessionId: decodeURIComponent(stubs[1]!) } : routeOf(request);
+
+    const { db } = load();
+    const named = request.headers.get(EVAL_REQUEST_HEADER);
+    const [row] =
+      route.kind === "create" && named && /^[0-9a-f-]{36}$/.test(named)
+        ? await db<{ discussion_id: string; generation: number; request_id: string }[]>`
+            select d.id as discussion_id, 1 as generation, d.principal_id as request_id from app.discussions d
+            where d.principal_type = 'requester_request' and d.principal_id = ${named} and d.audience = ${REQUESTER_AUDIENCE}
+          `
+        : route.kind === "send" || route.kind === "stream"
+          ? await db<{ discussion_id: string; generation: number; request_id: string }[]>`
+              select discussion_id, generation, principal_id as request_id from app.agent_sessions
+              where session_id = ${route.sessionId} and principal_type = 'requester_request'
+            `
+          : [];
+
+    if (!row) return null;
+
+    return {
+      ...sessionAuth({ id: row.request_id, type: "requester_request" }, row.discussion_id, row.generation),
+      allowToolStubs: true,
+    };
+  };
+}
+
+export const evalRequesterAuth: AuthFn<Request> = createEvalRequesterAuth(() => ({ db: database() }));

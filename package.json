@@ -12,7 +12,7 @@
     "build": "npm run build:eve && npm run build:web",
     "build:eve": "eve build",
     "build:web": "next build --turbopack apps/web",
-    "lint": "oxlint agent apps lib tests",
+    "lint": "oxlint agent apps evals lib tests",
     "dev": "tsx scripts/dev.ts",
     "dev:eve": "eve dev",
     "dev:all": "vercel dev --local",
@@ -24,6 +24,7 @@
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:e2e": "playwright test",
+    "eval": "FMAT_EVAL_AUDIENCE=requester eve eval",
     "check:docs": "node scripts/check-documentation.mjs",
     "check": "npm run check:docs && openspec validate --all --strict"
   },

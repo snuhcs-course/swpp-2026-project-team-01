@@ -29,7 +29,7 @@ agent/
     host-setup.ts           resolves the host-setup fragment for host setup sessions only
     public-intake.ts        resolves the public-intake fragment for public intake sessions only
     host-review.md
-    requester.md
+    requester.ts            resolves the requester fragment for requester sessions only
   channels/
     eve.ts                  web chat: application session auth for hosts and booking links
     photon.ts               host iMessage through Photon: verified sender -> host principal
@@ -72,7 +72,9 @@ The eve principal is the audience, not the person's identity: a requester has no
 
 ## Route authentication
 
-`channels/eve.ts` exports `eveChannel` with an ordered auth list. The first entry is an application function that verifies the Supabase session for hosts or the booking-link-derived request credential for requesters and returns the eve auth context: `principalId` as above, `principalType: "user"`, `authenticator: "findmeatime"`, and attributes `audience`, `hostId`, `requestId` and `discussionId`. It is the only entry: `localDev()` and `vercelOidc()` are not used, so local runs and deployments enforce the same rules. The function never returns `null`; it throws `UnauthenticatedError` or `ForbiddenError`, so the walk cannot fall through. Uploads are disabled.
+`channels/eve.ts` exports `eveChannel` with an ordered auth list. The deciding entry is an application function that verifies the Supabase session for hosts or the booking-link-derived request credential for requesters and returns the eve auth context: `principalId` as above, `principalType: "user"`, `authenticator: "findmeatime"`, and attributes `audience`, `hostId`, `requestId` and `discussionId`. `vercelOidc()` is not used, so local runs and deployments enforce the same rules. The function never returns `null`; it throws `UnauthenticatedError` or `ForbiddenError`, so the walk cannot fall through. Uploads are disabled.
+
+The only entry before it serves requester evals and skips every other request: it admits a caller only when `FMAT_EVAL_AUDIENCE=requester` is set in a process with no Vercel metadata that `localDev()` recognizes as `eve dev`, and only for a request with no bearer and no Supabase cookie. It then returns the requester principal of a request the eval seeded in the local database, with tool stubs allowed (see Evals); a deployment, `eve start` and an ordinary `eve dev` never reach it.
 
 Only application code creates sessions and sends messages. A browser message goes to an application route, which checks the caller, records the accepted input in the application session index, and calls eve through `eve/client` with a 60-second bearer signed with `EVE_INTERNAL_SIGNING_KEY`. The browser itself only reads and streams sessions the index says it owns. The [foundation design](../../openspec/changes/application-foundation/design.md#7-call-path-and-session-ownership) records the details.
 
@@ -184,6 +186,8 @@ Environment variables are limited to the OpenAI key, Supabase and the database U
 ## Evals
 
 `evals/` holds `defineEval` scenarios run with `eve eval` against stubbed tools: a requester instructing the assistant to ignore approval rules or reveal calendar contents; a stale revision after a concurrent edit; a host session asked for another host's request; a requester session asked for private exception reasons; a requester session whose registered tools are listed and must contain no host tool; messages such as “yes” or “book it” that must not record a decision; ambiguous times that must yield an authored clarification in the requester's language; and a confirmation claimed before the event exists. These complement, and do not replace, the domain and integration tests that prove authority.
+
+Phase 3 adds the requester set under `evals/requester/`: injection asking for calendar contents, rules or approval; "yes" and "book it"; a date-free time that must produce the authored Korean question; and the tool list. Run them with `npm run eval` (which sets `FMAT_EVAL_AUDIENCE=requester`) against the local Supabase stack and a model key: each eval seeds its own open request, indexes its session so the model limits attribute it, and stubs every requester tool. They grade the live model's behavior, so they spend model calls and CI does not run them; against the local OpenAI stand-in they check only the plumbing.
 
 ## Decisions recorded here
 
