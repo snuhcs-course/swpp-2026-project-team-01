@@ -46,7 +46,8 @@ Two groups:
   - **Consequence:** a popular or targeted host can receive many requests; only the per-source and service limits apply.
 
 - [ ] **D8. Requester Google consent** ([design 3](design.md#3-requester-google-consent)).
-  - **Chosen:** a separate requester OAuth client with `calendar.calendarlist.readonly` and `calendar.events.readonly`. The button is always shown.
+  - **Chosen:** `calendar.calendarlist.readonly` and `calendar.events.readonly` on the host sign-in OAuth client, reused by default (`GOOGLE_REQUESTER_CLIENT_ID`/`GOOGLE_REQUESTER_CLIENT_SECRET` may name a separate one). The button is always shown.
+  - **Delete-only grants:** closure, link expiry and **Disconnect** delete the stored token; the service never calls Google's revocation endpoint, so a requester's closure never touches the same person's host Calendar grant. Google expires the unused grant itself, and it may stay listed in the requester's Google third-party access until then. Decided by Dohyeon Park on 2026-10-22, replacing a separate requester client with revocation at Google.
   - **Use of event details:** host-style busy rules, and the requester's own travel legs. They are never stored, logged, given to the model, or shown to the host or any agent.
   - **Changed:** PRD FR-12 and §5, which said requester access was availability-only.
   - **Consequences:**
