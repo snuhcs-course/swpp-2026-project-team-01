@@ -37,8 +37,8 @@ agent/
   tools/                    snake_case files; each calls one domain operation
     setup.ts                read_setup_state and draft_settings, resolved for host setup only
     request.ts              request-discussion tools, resolved per audience: read_request,
-                            draft_request_review, evaluate_candidates and read_booking_status
-                            for requesters, drafts included; Phase 4 adds list_host_requests,
+                            draft_request_review, ask_for_identity, evaluate_candidates and
+                            read_booking_status for requesters, drafts included; Phase 4 adds list_host_requests,
                             propose_shared_changes and the host projections
   skills/                   authored guidance the model may load on demand
     onboarding_suggestions.md
@@ -62,9 +62,9 @@ eve derives names from paths (`tools/<name>.ts` is the tool `<name>`; a file at 
 |---|---|---|---|---|
 | Host setup | `host:{hostId}` | First `/app` visit of an active host; one per host | base + host-setup | `read_setup_state`, `draft_settings` |
 | Host-private request discussion | `host:{hostId}` with `requestId` attribute | Host selects a request in `/app`, or sends the exact `request <reference>` iMessage command | base + host-review | `read_request` (host projection), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status` |
-| Shared requester discussion | `request:{requestId}` | The guest's first message on a ready host's `/{handle}`, which creates a **draft request** ([D13](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)); the same session continues through identification, the booking link and verified email | base + requester | `read_request` (requester projection), `draft_request_review`, `evaluate_candidates`, `read_booking_status` |
+| Shared requester discussion | `request:{requestId}` | The guest's first message on a ready host's `/{handle}`, which creates a **draft request** ([D13](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)); the same session continues through identification, the booking link and verified email | base + requester | `read_request` (requester projection), `draft_request_review`, `ask_for_identity`, `evaluate_candidates`, `read_booking_status` |
 
-A draft request is the guest's conversation before they give a name and email: one per browser tab, invisible to the host, at most 30 messages, under the unconfirmed-request model cap, and deleted with its discussion after 24 hours unless the guest is identified. It uses the requester audience and its tools; the draft state is checked inside each operation (layer 3), so `read_request` and `draft_request_review` work while `evaluate_candidates`, **Find times**, **Choose this time** and **Agree to this proposal** answer that identity is required and the identity card appears in the thread. Identification keeps the session, so the assistant keeps the whole conversation as context. The anonymous public intake (`intake:{intakeId}`, `read_intake`, `draft_intake`) that preceded D13 is no longer created or registered; an intake transcript from before it stays readable at the booking link of the request it became.
+A draft request is the guest's conversation before they give a name and email: one per browser tab, invisible to the host, at most 30 messages, under the unconfirmed-request model cap, and deleted with its discussion after 24 hours unless the guest is identified. It uses the requester audience and its tools; the draft state is checked inside each operation (layer 3), so `read_request` and `draft_request_review` work, `ask_for_identity` records that the assistant asked for a name and email (which opens the identity card after its message), while `evaluate_candidates`, **Find times**, **Choose this time** and **Agree to this proposal** answer that identity is required and the identity card appears in the thread. Identification keeps the session, so the assistant keeps the whole conversation as context. The anonymous public intake (`intake:{intakeId}`, `read_intake`, `draft_intake`) that preceded D13 is no longer created or registered; an intake transcript from before it stays readable at the booking link of the request it became.
 
 The application owns the index from discussion to eve session (`sessionId`, last `streamIndex`, agent version, state). eve generates session identifiers, has no per-session ownership check and does not accept caller-assigned identifiers, so every create, read, stream, input and control route is authorized by the application before it reaches `/eve/v1/*` ([conversation access](../../openspec/specs/conversation-access/spec.md)). A host and a requester never share a session; switching the visible discussion in `/app` switches sessions and never merges histories. Terminal recovery creates a successor session, records the fence and keeps accepted inputs and history available.
 
@@ -91,6 +91,7 @@ Every tool is `defineTool` with a description, a Zod input schema and an output 
 | `read_request` | host or requester | Current request, proposal version, decisions and permitted conversation, projected per audience; for a draft, `identified: false` and contact presence `absent` | never |
 | `list_host_requests` | host | Selectable requests with status; no requester private data beyond the projection | never |
 | `draft_request_review` | requester | Declares details, availability, question or unknown intent with an authored clarification; creates a pending review that only the requester can apply. Works on a draft, whose name and email come only from the identity card | never |
+| `ask_for_identity` | requester | Called in the turn in which the assistant asks a draft's guest for a name and email; only records when identity was first requested, which places the identity card after that message. Nothing once identified ([Phase 3 design](../../openspec/changes/requester-intake-and-feasibility/design.md#12-requester-conversation)) | never |
 | `evaluate_candidates` | host or requester | Starts the deterministic feasibility evaluation as a durable application job, waits up to 20 seconds and returns the audience projection, or the evaluation's identity if it is still running; a running evaluation at the same revisions is returned instead of a new one, and a request starts at most 10 per hour; results also arrive as versioned cards ([Phase 3 design](../../openspec/changes/requester-intake-and-feasibility/design.md#8-evaluation-runs-as-an-application-job)). On a draft it finds nothing and answers `identityRequired`, which places the identity card in the thread | never |
 | `propose_shared_changes` | host | Drafts changed shared details for the **Review proposed shared changes** card; sharing is a separate command | never |
 | `read_booking_status` | host or requester | Pending, uncertain, confirmed or delivery-failed state from domain records | never |
@@ -127,6 +128,7 @@ Layers 1 to 4 are the authority boundary; domain and integration tests prove the
 | `read_request` | absent | present, host projection | present, requester projection |
 | `list_host_requests` | absent | present | absent |
 | `draft_request_review` | absent | absent | present |
+| `ask_for_identity` | absent | absent | present |
 | `evaluate_candidates` | absent | present | present, `identityRequired` on a draft |
 | `propose_shared_changes` | absent | present | absent |
 | `read_booking_status` | absent | present | present |
