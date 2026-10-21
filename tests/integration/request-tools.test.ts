@@ -158,4 +158,25 @@ describe("evaluate_candidates", () => {
     expect(result).toMatchObject({ candidates: [], message: NO_MATCH_MESSAGE.en, state: "completed" });
     expect(JSON.stringify(result)).not.toMatch(/busy|rule|buffer/i);
   });
+  it("reuses a pending evaluation and bounds new ones to 10 per request per hour", async () => {
+    const r = await requester();
+    const first = (await evaluateCandidatesForTool(db, r.call(), { waitMs: 50 })) as { evaluationId: string };
+    const again = (await evaluateCandidatesForTool(db, r.call(), { waitMs: 50 })) as { evaluationId: string };
+    expect(again.evaluationId).toBe(first.evaluationId);
+
+    // Nine more finished evaluations in the last hour make ten.
+    await db`update app.evaluations set state = 'failed', completed_at = now() where id = ${first.evaluationId}`;
+    await db`
+      insert into app.evaluations (request_id, request_revision, settings_revision, state, completed_at)
+      select request_id, request_revision, settings_revision, 'failed', now()
+      from app.evaluations, generate_series(1, 9) where id = ${first.evaluationId}
+    `;
+
+    expect(await evaluateCandidatesForTool(db, r.call(), { waitMs: 50 })).toEqual({
+      evaluated: false,
+      message: "Times were looked up too often in the last hour. Try again later.",
+    });
+    const [count] = await db<{ count: number }[]>`select count(*)::int as count from app.evaluations where request_id = ${r.requestId}`;
+    expect(count!.count).toBe(10);
+  });
 });

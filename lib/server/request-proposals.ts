@@ -191,7 +191,14 @@ export const allowTripCommand: CommandDefinition<z.infer<typeof allowTripInput>,
       do update set minutes = excluded.minutes, confirmed_at = now()
     `;
 
-    return { evaluationId: (await publishEvaluation(tx, { audience: "requester", requestId: request.id, retryKey: `allow:${context.retryKey}` })).evaluationId };
+    // A pending evaluation may already have read the allowances: this one reads the new one.
+    const published = await publishEvaluation(tx, {
+      audience: "requester",
+      requestId: request.id,
+      retryKey: `allow:${context.retryKey}`,
+      reusePending: false,
+    });
+    return { evaluationId: published.evaluationId };
   },
 };
 

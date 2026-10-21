@@ -137,14 +137,25 @@ function dedupeKey(requestId: string, retryKey: string) {
   return `${EVALUATION_JOB}:${requestId}:${retryKey}`;
 }
 
+// New evaluations of one request per rolling hour.
+export const EVALUATIONS_PER_HOUR = 10;
+
 // Inserts a pending evaluation of the request at its current request and
-// settings revisions and publishes its job, in the caller's transaction. One
-// evaluation per (request, retryKey): publishing the same key again returns the
-// evaluation already published, which an exact retry then reads, with any saved
-// ranking, without another model call.
+// settings revisions and publishes its job, in the caller's transaction, under
+// the request lock. One evaluation per (request, retryKey): publishing the same
+// key again returns the evaluation already published, which an exact retry then
+// reads, with any saved ranking, without another model call. A pending
+// evaluation at the same revisions is returned instead of a new one, unless the
+// caller changed what it reads (`reusePending: false`, a new trip allowance).
+// Past EVALUATIONS_PER_HOUR new evaluations, publishing is rate_limited.
 export async function publishEvaluation(
   tx: Transaction,
-  input: { readonly requestId: string; readonly retryKey: string; readonly audience: EvaluationAudience },
+  input: {
+    readonly requestId: string;
+    readonly retryKey: string;
+    readonly audience: EvaluationAudience;
+    readonly reusePending?: boolean;
+  },
 ): Promise<{ evaluationId: string; created: boolean }> {
   const key = dedupeKey(input.requestId, input.retryKey);
   const [existing] = await tx<{ evaluation_id: string }[]>`
@@ -158,11 +169,25 @@ export async function publishEvaluation(
     from app.requests r
     left join app.host_settings s on s.host_account_id = r.host_account_id
     where r.id = ${input.requestId}
+    for update of r
   `;
 
   if (!revisions || revisions.settings_revision === null) {
     throw new CommandError("invalid_input");
   }
+
+  const [recent] = await tx<{ count: number; pending_id: string | null }[]>`
+    select count(*) filter (where created_at > now() - interval '1 hour')::int as count,
+           (array_agg(id order by created_at desc) filter (
+             where state = 'pending' and request_revision = ${revisions.request_revision}
+               and settings_revision = ${revisions.settings_revision}
+           ))[1] as pending_id
+    from app.evaluations
+    where request_id = ${input.requestId}
+  `;
+
+  if (recent!.pending_id && input.reusePending !== false) return { created: false, evaluationId: recent!.pending_id };
+  if (recent!.count >= EVALUATIONS_PER_HOUR) throw new CommandError("rate_limited");
 
   const evaluationId = randomUUID();
   const jobId = await publishJob(tx, {

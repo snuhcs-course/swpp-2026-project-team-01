@@ -143,6 +143,25 @@ describe("scheduling from the cards without the model", () => {
     expect(current.request.state).toBe("gathering");
     expect(current.proposal).toBeNull();
   });
+  it("returns the pending evaluation to a second Find times, and limits new ones to 10 an hour", async () => {
+    const r = await seedSchedulingRequest(db, google);
+    const first = await command(r.bookingId, "request.evaluate", {}, null);
+    const second = await command(r.bookingId, "request.evaluate", {}, null);
+    expect(second.result!.evaluationId).toBe(first.result!.evaluationId);
+
+    await runEvaluation(db, evaluationDeps(db, google), first.result!.evaluationId as string);
+    await db`
+      insert into app.evaluations (request_id, request_revision, settings_revision, state, completed_at)
+      select request_id, request_revision, settings_revision, 'failed', now()
+      from app.evaluations, generate_series(1, 9) where id = ${first.result!.evaluationId as string}
+    `;
+
+    const response = await call(createRequesterCommandHandler(() => deps), { bookingId: r.bookingId }, `/api/requests/${r.bookingId}/commands`, {
+      body: { expectedRevision: null, input: {}, operation: "request.evaluate", retryKey: randomUUID() },
+    });
+    expect(response.status).toBe(429);
+    expect(await response.json()).toMatchObject({ error: { category: "rate_limited" }, ok: false });
+  });
 });
 
 describe("the link plan", () => {

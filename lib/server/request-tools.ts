@@ -379,6 +379,9 @@ export async function evaluateCandidatesForTool(
     if (outcome.error.category === "invalid_input") {
       return { evaluated: false as const, message: "Times cannot be looked up right now: the request already waits for the host." };
     }
+    if (outcome.error.category === "rate_limited") {
+      return { evaluated: false as const, message: "Times were looked up too often in the last hour. Try again later." };
+    }
     throw new RequestToolDeniedError();
   }
 
