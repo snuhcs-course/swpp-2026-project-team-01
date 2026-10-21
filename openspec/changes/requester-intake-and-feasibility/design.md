@@ -216,7 +216,7 @@ Cards on `/booking/[bookingId]`, each posting to `/api/requests/{bookingId}/comm
 | Proposal: **Agree to this proposal** | `request.agree` names the proposal version; rejected unless it is the current version, its start is still in the future after the lock, and the request is open; an unconfirmed contact does not block it (D3) |
 | Status: **Withdraw request** | `request.withdraw` |
 
-A message such as "yes" records nothing: agreement exists only as an `agreements` row written by `request.agree`.
+A message such as "yes" records nothing: agreement exists only as an `agreements` row written by `request.agree`. Choosing a candidate writes a proposal version without advancing the request revision, so the evaluation it came from stays current; every change of details advances the revision, which leaves that evaluation and its proposals stale for choice and agreement.
 
 When an evaluation finds no candidate, the requester sees the authored no-match message asking for a wider window or other details, with no rule or reason. The host-private request for an exception or revision (FR-10's host half) needs the host review audience and arrives with Phase 4; until then the request stays negotiating or gathering.
 
