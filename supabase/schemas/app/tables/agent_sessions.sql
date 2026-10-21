@@ -9,7 +9,7 @@ CREATE TABLE "app"."agent_sessions" (
   -- The logical conversation the session serves; a recovered successor keeps it
   -- with the next generation.
   "discussion_id" uuid NOT NULL,
-  "principal_type" text NOT NULL CHECK ("principal_type" IN ('host_account', 'requester_request')),
+  "principal_type" text NOT NULL CHECK ("principal_type" IN ('host_account', 'requester_request', 'public_intake')),
   "principal_id" uuid NOT NULL,
   "generation" integer NOT NULL CHECK ("generation" >= 1),
   -- The number of events stored when recovery retired this generation; null

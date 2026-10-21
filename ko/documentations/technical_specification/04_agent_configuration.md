@@ -13,7 +13,7 @@
 
 1. **애플리케이션이 권한을 소유합니다.** 세션, 도구 호출, 승인 프롬프트, OAuth 허가는 호스트 자격, 요청자 동의, 호스트 승인, 예약을 성립시키지 않습니다. 이들은 리비전과 재시도 식별자를 갖춘 도메인 명령입니다([애플리케이션 명령](../../openspec/specs/application-commands/spec.md) 참고).
 2. **모델은 대상(audience) 프로젝션을 봅니다.** 서버 측 필터링은 직렬화와 모델 컨텍스트보다 먼저 수행됩니다. 구조화된 연락처 필드는 존재 여부 표시로만 모델에 전달되며, 인식된 자격 증명은 저장 전에 제거됩니다.
-3. **하나의 에이전트, 세 가지 대상.** 호스트 설정, 호스트 비공개 요청 논의, 공유 요청자 논의는 같은 루트 에이전트의 별개 세션입니다. 대상은 메시지가 아니라 세션 principal(주체)에서 도출됩니다.
+3. **하나의 에이전트, 네 가지 대상.** 호스트 설정, 호스트 비공개 요청 논의, 공유 요청자 논의, 요청이 생기기 전의 익명 공개 접수는 같은 루트 에이전트의 별개 세션입니다. 대상은 메시지가 아니라 세션 principal(주체)에서 도출됩니다.
 4. **사람의 결정은 모델 도구가 아닙니다.** 설정 확인, 동의, 승인, 거절, 철회, 예약은 카드 또는 정확히 작성된 채널 명령으로 호출되는 애플리케이션 명령입니다. 모델은 읽고, 초안을 작성하고, 제안할 수 있지만 결정할 수는 없습니다.
 5. **내구성 있는 대기는 도메인 상태에 있습니다.** 일시 중지된 eve 세션은 합의나 보류 중인 제공자 효과의 기록이 아닙니다.
 
@@ -29,20 +29,20 @@ agent/
   instructions/             항상 적용되는 기본 규칙과 대상별 조각 하나씩
     base.md
     host-setup.ts           호스트 설정 세션에서만 host-setup 조각을 해석
+    public-intake.ts        공개 접수 세션에서만 public-intake 조각을 해석
     host-review.md
-    requester.md
+    requester.ts            요청자 세션에서만 requester 조각을 해석
   channels/
     eve.ts                  웹 채팅: 호스트와 예약 링크를 위한 애플리케이션 세션 인증
     photon.ts               Photon을 통한 호스트 iMessage: 검증된 발신자 -> 호스트 principal
     agentmail.ts            요청자 이메일: 내구성 있는 수신 기록 -> 요청 principal
   tools/                    snake_case 파일; 각각 하나의 도메인 연산을 호출
     setup.ts                read_setup_state와 draft_settings, 호스트 설정에서만 해석
-    read_request.ts
-    list_host_requests.ts
-    draft_request_review.ts
-    evaluate_candidates.ts
-    propose_shared_changes.ts
-    read_booking_status.ts
+    intake.ts               read_intake와 draft_intake, 공개 접수에서만 해석
+    request.ts              request-discussion tools, resolved per audience: read_request,
+                            draft_request_review, evaluate_candidates and read_booking_status
+                            for requesters; Phase 4 adds list_host_requests,
+                            propose_shared_changes and the host projections
   skills/                   모델이 필요할 때 불러올 수 있는 작성된 안내
     onboarding_suggestions.md
     requester_clarification.md
@@ -57,7 +57,7 @@ evals/
   *.eval.ts                 주입, 오래된 리비전, 대상 유출, 정직한 상태
 ```
 
-eve는 경로에서 이름을 도출합니다(`tools/read_request.ts`는 `read_request` 도구입니다). 프레임워크 경로에 있는 파일은 기본값을 대체합니다. `tools/setup.ts` 같은 동적 리졸버는 반환하는 키로 도구 이름을 정하고 세션마다 해석합니다. `eve info`는 발견한 항목을 나열하며, 빌드 산출물은 `.eve/` 아래에 생성됩니다. 이 디렉터리는 `apps/web/`와 같은 위치에 있으며, 둘 다 루트 `vercel.ts`로 구성됩니다(배포 참고).
+eve는 경로에서 이름을 도출합니다(`tools/<name>.ts`는 `<name>` 도구입니다). 프레임워크 경로에 있는 파일은 기본값을 대체합니다. `tools/setup.ts`나 `tools/request.ts` 같은 동적 리졸버는 반환하는 키로 도구 이름을 정하고 세션마다 해석합니다. `eve info`는 발견한 항목을 나열하며, 빌드 산출물은 `.eve/` 아래에 생성됩니다. 이 디렉터리는 `apps/web/`와 같은 위치에 있으며, 둘 다 루트 `vercel.ts`로 구성됩니다(배포 참고).
 
 ## 대상과 세션
 
@@ -65,6 +65,7 @@ eve는 경로에서 이름을 도출합니다(`tools/read_request.ts`는 `read_r
 |---|---|---|---|---|
 | 호스트 설정 | `host:{hostId}` | 활성 호스트의 첫 `/app` 방문; 호스트당 하나 | base + host-setup | `read_setup_state`, `draft_settings` |
 | 호스트 비공개 요청 논의 | `requestId` 속성이 있는 `host:{hostId}` | 호스트가 `/app`에서 요청을 선택하거나, 정확한 `request <reference>` iMessage 명령을 보냄 | base + host-review | `read_request`(호스트 프로젝션), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status` |
+| 공개 접수 | `intake:{intakeId}` | 준비된 호스트의 `/{handle}`에서 방문자가 보낸 첫 메시지; 브라우저 탭당 하나, 최대 24시간([D11](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)) | base + public-intake | `read_intake`, `draft_intake` |
 | 공유 요청자 논의 | `request:{requestId}` | `/{handle}`에서 요청 생성; 예약 링크 또는 검증된 이메일로 이어짐 | base + requester | `read_request`(요청자 프로젝션), `draft_request_review`, `evaluate_candidates`, `read_booking_status` |
 
 논의에서 eve 세션으로의 인덱스(`sessionId`, 마지막 `streamIndex`, 에이전트 버전, 상태)는 애플리케이션이 소유합니다. eve는 세션 식별자를 직접 생성하고, 세션별 소유권 검사가 없으며, 호출자가 지정한 식별자를 받지 않습니다. 따라서 모든 생성, 읽기, 스트림, 입력, 제어 라우트는 `/eve/v1/*`에 도달하기 전에 애플리케이션이 인가합니다([대화 접근](../../openspec/specs/conversation-access/spec.md)). 호스트와 요청자는 세션을 공유하지 않으며, `/app`에서 보이는 논의를 전환하면 세션이 전환될 뿐 이력이 합쳐지지 않습니다. 종료 상태 복구는 후속 세션을 만들고, 울타리(fence)를 기록하며, 수락된 입력과 이력을 계속 사용할 수 있게 유지합니다.
@@ -73,7 +74,9 @@ eve principal은 사람의 신원이 아니라 대상입니다. 요청자에게�
 
 ## 라우트 인증
 
-`channels/eve.ts`는 순서가 있는 인증 목록과 함께 `eveChannel`을 내보냅니다. 첫 번째 항목은 호스트의 Supabase 세션 또는 요청자의 예약 링크에서 도출된 요청 자격 증명을 검증하는 애플리케이션 함수이며, eve 인증 컨텍스트를 반환합니다. 여기에는 위에서 설명한 `principalId`, `principalType: "user"`, `authenticator: "findmeatime"`, 그리고 속성 `audience`, `hostId`, `requestId`, `discussionId`가 포함됩니다. 이것이 유일한 항목입니다. `localDev()`와 `vercelOidc()`는 사용하지 않으므로, 로컬 실행과 배포가 같은 규칙을 적용합니다. 이 함수는 `null`을 반환하지 않고 `UnauthenticatedError` 또는 `ForbiddenError`를 던지므로, 인증 목록 순회가 다음 항목으로 넘어갈 수 없습니다. 업로드는 비활성화되어 있습니다.
+`channels/eve.ts`는 순서가 있는 인증 목록과 함께 `eveChannel`을 내보냅니다. 결정을 내리는 항목은 호스트의 Supabase 세션 또는 요청자의 예약 링크에서 도출된 요청 자격 증명을 검증하는 애플리케이션 함수이며, eve 인증 컨텍스트를 반환합니다. 여기에는 위에서 설명한 `principalId`, `principalType: "user"`, `authenticator: "findmeatime"`, 그리고 속성 `audience`, `hostId`, `requestId`, `discussionId`가 포함됩니다. `vercelOidc()`는 사용하지 않으므로, 로컬 실행과 배포가 같은 규칙을 적용합니다. 이 함수는 `null`을 반환하지 않고 `UnauthenticatedError` 또는 `ForbiddenError`를 던지므로, 인증 목록 순회가 다음 항목으로 넘어갈 수 없습니다. 업로드는 비활성화되어 있습니다.
+
+그 앞에 오는 유일한 항목은 요청자 평가를 처리하며 그 밖의 모든 요청은 건너뜁니다. 이 항목은 Vercel 메타데이터가 없고 `localDev()`가 `eve dev`로 인식하는 프로세스에서 `FMAT_EVAL_AUDIENCE=requester`가 설정되어 있으며, 요청에 베어러도 Supabase 쿠키도 없을 때에만 호출자를 허용합니다. 그러면 평가가 로컬 데이터베이스에 시드한 요청의 요청자 principal을 도구 스텁을 허용한 채로 반환하며(평가 참고), 배포 환경, `eve start`, 일반 `eve dev`는 이 항목에 도달하지 않습니다.
 
 애플리케이션 코드만 세션을 생성하고 메시지를 보냅니다. 브라우저의 메시지는 애플리케이션 라우트로 전달되며, 이 라우트가 호출자를 확인하고, 수락된 입력을 애플리케이션 세션 인덱스에 기록한 뒤, `EVE_INTERNAL_SIGNING_KEY`로 서명한 60초짜리 베어러 토큰과 함께 `eve/client`를 통해 eve를 호출합니다. 브라우저 자체는 인덱스가 자신의 소유라고 알려 주는 세션만 읽고 스트리밍합니다. 자세한 내용은 [기반 설계](../../openspec/changes/application-foundation/design.md#7-call-path-and-session-ownership)에 기록되어 있습니다.
 
@@ -87,10 +90,12 @@ eve principal은 사람의 신원이 아니라 대상입니다. 요청자에게�
 |---|---|---|---|
 | `read_setup_state` | 호스트 설정 | 현재 초안, 저장된 역할, 분석 근거, 다음 행동; 캘린더 이름은 인용된 데이터로만, 이벤트의 장소 이름은 포함하지 않음 | never |
 | `draft_settings` | 호스트 설정 | 리비전과 함께 초안 값을 기록하고 각 값을 명시됨 또는 추론됨으로 표시함(시작 기본값은 서비스 자체의 것); 정책은 절대 아니며, 방식, 장소, 이동 수단은 호스트가 카드에서 수락한 뒤에만 인정됨 | never |
+| `read_intake` | 공개 접수 | 호스트의 공개 프로필과 해당 접수 자체의 초안; 호스트 설정, 캘린더, 요청에서 가져오는 것은 없음 | never |
+| `draft_intake` | 공개 접수 | 목적, 소요 시간, 방식, 장소, 가용 시간대를 접수 초안에 기록하며, 요청이 생성될 때 이 초안이 대기 중 검토가 됨 | never |
 | `read_request` | 호스트 또는 요청자 | 현재 요청, 제안 버전, 결정, 허용된 대화를 대상별로 프로젝션하여 제공 | never |
 | `list_host_requests` | 호스트 | 상태와 함께 선택 가능한 요청; 프로젝션을 넘어서는 요청자의 비공개 데이터는 없음 | never |
 | `draft_request_review` | 요청자 | 세부 정보, 가용 시간, 질문 또는 알 수 없는 의도를 작성된 확인 질문과 함께 선언하며, 요청자만 적용할 수 있는 대기 중 검토를 생성 | never |
-| `evaluate_candidates` | 호스트 또는 요청자 | 결정론적 실현 가능성 평가를 내구성 있는 애플리케이션 작업으로 시작하고 그 식별자를 반환; 결과는 버전이 있는 카드로 도착 | never |
+| `evaluate_candidates` | 호스트 또는 요청자 | 결정론적 실현 가능성 평가를 내구성 있는 애플리케이션 작업으로 시작하고, 최대 20초 동안 기다려 대상 프로젝션을 반환하며, 아직 실행 중이면 평가의 식별자를 반환; 같은 리비전에서 실행 중인 평가가 있으면 새로 만들지 않고 그것을 반환하며, 요청 하나는 시간당 최대 10회 시작; 결과는 버전이 있는 카드로도 도착([3단계 설계](../../openspec/changes/requester-intake-and-feasibility/design.md#8-evaluation-runs-as-an-application-job)) | never |
 | `propose_shared_changes` | 호스트 | **제안된 공유 변경 검토(Review proposed shared changes)** 카드를 위해 변경된 공유 세부 정보의 초안을 작성; 공유는 별도의 명령 | never |
 | `read_booking_status` | 호스트 또는 요청자 | 도메인 레코드의 대기 중, 불확실, 확정, 전달 실패 상태 | never |
 
@@ -119,16 +124,18 @@ eve의 승인 정책(`once`, `always`, 사용자 정의)은 도구 실행을 제
 
 1~4계층이 권한 경계이며, 프롬프트 인젝션 상황에서 도메인 테스트와 통합 테스트로 증명합니다. 5계층은 어조와 유용성을 정하며 evals로 검사합니다. 어떤 지침도 1~4계층이 막은 기능을 부여하지 않고, 사용자가 무엇을 입력하든 그 기능을 되살릴 수 없습니다.
 
-| 도구 | 호스트 설정 | 호스트 검토 | 요청자 |
-|---|---|---|---|
-| `read_setup_state` | 있음 | 없음 | 없음 |
-| `draft_settings` | 있음 | 없음 | 없음 |
-| `read_request` | 없음 | 있음, 호스트 프로젝션 | 있음, 요청자 프로젝션 |
-| `list_host_requests` | 없음 | 있음 | 없음 |
-| `draft_request_review` | 없음 | 없음 | 있음 |
-| `evaluate_candidates` | 없음 | 있음 | 있음 |
-| `propose_shared_changes` | 없음 | 있음 | 없음 |
-| `read_booking_status` | 없음 | 있음 | 있음 |
+| 도구 | 호스트 설정 | 호스트 검토 | 요청자 | 공개 접수 |
+|---|---|---|---|---|
+| `read_intake` | 없음 | 없음 | 없음 | 있음 |
+| `draft_intake` | 없음 | 없음 | 없음 | 있음 |
+| `read_setup_state` | 있음 | 없음 | 없음 | 없음 |
+| `draft_settings` | 있음 | 없음 | 없음 | 없음 |
+| `read_request` | 없음 | 있음, 호스트 프로젝션 | 있음, 요청자 프로젝션 | 없음 |
+| `list_host_requests` | 없음 | 있음 | 없음 | 없음 |
+| `draft_request_review` | 없음 | 없음 | 있음 | 없음 |
+| `evaluate_candidates` | 없음 | 있음 | 있음 | 없음 |
+| `propose_shared_changes` | 없음 | 있음 | 없음 | 없음 |
+| `read_booking_status` | 없음 | 있음 | 있음 | 없음 |
 
 "없음"은 그 principal에 등록되지 않았다는 뜻이지, "호출하면 거부된다"는 뜻이 아닙니다.
 
@@ -173,7 +180,7 @@ eve 훅은 이벤트가 내구성 있게 기록된 뒤에 실행되며, 예외�
 | 실행 | `next dev apps/web`과 함께 `eve dev`; 실행 기록은 `.eve/.workflow-data` 아래에 유지됨 | 루트 `vercel.ts`의 `withEve({ services: { web: { framework: "nextjs", root: "apps/web" } }, routes })`가 에이전트를 독립 서비스로 추가하고 `/eve/v1/**`를 그쪽으로 라우팅함 |
 | 인증 | 팀원의 샌드박스 로그인을 대상으로 하는 애플리케이션 인증; `localDev()` 없음 | 애플리케이션 인증만; 기본 차단 |
 | 모델 | 로컬 환경의 `OPENAI_API_KEY` | Vercel Production의 `OPENAI_API_KEY`; Preview는 별도의 키를 쓰거나 키가 없음 |
-| 메시징 | 거부됨 | 릴리스에서만; 프리뷰는 거부됨 |
+| 메시징 | 거부됨, 루프백 대역 제공자로 향하는 경우는 예외([3단계 제안서](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions), D9) | 릴리스에서만; 프리뷰는 거부됨 |
 | Docker | 필요 없음 | 필요 없음 |
 
 환경 변수는 OpenAI 키, Supabase와 데이터베이스 URL, Google OAuth, 토큰 암호화 키, 작업 워커 시크릿, 애플리케이션 origin, Photon, AgentMail, Cloudflare, `EVE_*` 설정으로 제한되며, 이름만 나열한 `.env.example`을 두고 Git에는 포함하지 않습니다. `eve build`는 `next build`와 함께 실행되고, `eve link`는 Vercel 프로젝트를 연결합니다.
@@ -181,6 +188,8 @@ eve 훅은 이벤트가 내구성 있게 기록된 뒤에 실행되며, 예외�
 ## 평가
 
 `evals/`는 스텁 처리된 도구에 대해 `eve eval`로 실행하는 `defineEval` 시나리오를 담습니다. 요청자가 어시스턴트에게 승인 규칙을 무시하거나 캘린더 내용을 공개하라고 지시하는 경우, 동시 수정 이후의 오래된 리비전, 다른 호스트의 요청을 요구받은 호스트 세션, 비공개 예외 사유를 요구받은 요청자 세션, 등록된 도구 목록에 호스트 도구가 하나도 없어야 하는 요청자 세션, 결정을 기록해서는 안 되는 "네"나 "예약해 줘" 같은 메시지, 요청자의 언어로 작성된 확인 질문을 내야 하는 모호한 시간, 이벤트가 존재하기 전에 확인되었다고 주장하는 경우가 있습니다. 이들은 권한을 증명하는 도메인 테스트와 통합 테스트를 보완하며 대체하지 않습니다.
+
+3단계에서는 `evals/requester/` 아래에 요청자 세트를 추가합니다. 캘린더 내용, 규칙 또는 승인을 요구하는 인젝션, "네"와 "예약해 줘", 작성된 한국어 질문을 내야 하는 날짜 없는 시간, 그리고 도구 목록입니다. 이들은 `npm run eval`(`FMAT_EVAL_AUDIENCE=requester`를 설정함)로 로컬 Supabase 스택과 모델 키에 대해 실행합니다. 각 평가는 자체 열린 요청을 시드하고, 모델 한도가 귀속되도록 세션을 인덱싱하며, 모든 요청자 도구를 스텁 처리합니다. 이들은 실제 모델의 동작을 채점하므로 모델 호출 비용이 들고 CI는 이를 실행하지 않으며, 로컬 OpenAI 대역에 대해서는 연결 구성만 확인합니다.
 
 ## 여기에 기록된 결정
 
@@ -195,4 +204,4 @@ eve 훅은 이벤트가 내구성 있게 기록된 뒤에 실행되며, 예외�
 
 ## 미결 결정
 
-Photon Spectrum과 네이티브 Photon 채널의 호환성 및 발신자 식별자 형식, `evaluate_candidates`를 eve 워크플로 도구로 실행할지 순수 애플리케이션 작업으로 실행할지, AgentMail 채널을 사용자 정의 채널로 할지 Chat SDK Gmail 어댑터로 할지, 세션 보존 및 압축 임계값, 메모리 슬롯이 유용해지는 시점(있다면).
+Photon Spectrum과 네이티브 Photon 채널의 호환성 및 발신자 식별자 형식, `evaluate_candidates`를 eve 워크플로 도구로 실행할지 순수 애플리케이션 작업으로 실행할지(애플리케이션 작업으로 결정됨, [3단계 제안서](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions), D5), AgentMail 채널을 사용자 정의 채널로 할지 Chat SDK Gmail 어댑터로 할지, 세션 보존 및 압축 임계값, 메모리 슬롯이 유용해지는 시점(있다면).

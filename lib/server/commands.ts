@@ -22,10 +22,14 @@ import { type SupabaseAuthConfig, verifiedUserId } from "./supabase-auth";
 //      revision, and publishes its jobs) and saves the outcome.
 // Lock order: the retry-key advisory lock first, then the command's domain locks.
 
-export type Actor = {
-  readonly kind: "host_account";
-  readonly id: string;
-};
+// A host account, a requester holding one request's booking link (id is the
+// request ID, resolved from the link's hash by the route), or an anonymous
+// intake on a public host page (id is the intake ID, resolved from the hash of
+// the tab's intake token), which can only create its one request.
+export type Actor =
+  | { readonly kind: "host_account"; readonly id: string }
+  | { readonly kind: "requester_request"; readonly id: string }
+  | { readonly kind: "public_intake"; readonly id: string };
 
 export type CommandContext<Input> = {
   readonly actor: Actor;
@@ -33,6 +37,8 @@ export type CommandContext<Input> = {
   readonly expectedRevision: number | null;
   readonly input: Input;
   readonly resourceId: string;
+  // The caller's retry identity, for records that keep it (an agreement).
+  readonly retryKey: string;
 };
 
 export type CommandDefinition<Input, Result> = {
@@ -228,6 +234,7 @@ export async function runCommand<Input, Result>(
         expectedRevision,
         input: parsed.data,
         resourceId: request.resourceId,
+        retryKey,
       });
 
       const [stored] = await tx<{ result: Result }[]>`

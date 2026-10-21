@@ -11,7 +11,7 @@ This document records how the Find Me a Time conversation agent is defined as an
 
 1. **The application owns authority.** A session, a tool call, an approval prompt or an OAuth grant never establishes host eligibility, requester agreement, host approval or a booking. Those are domain commands with revisions and retry identity (see [application commands](../../openspec/specs/application-commands/spec.md)).
 2. **The model sees an audience projection.** Server-side filtering precedes serialization and model context. Structured contact fields reach the model as presence indicators; recognized credentials are removed before persistence.
-3. **One agent, three audiences.** Host setup, host-private request discussion and the shared requester discussion are separate sessions of the same root agent. The audience is derived from the session principal, never from the message.
+3. **One agent, four audiences.** Host setup, host-private request discussion, the shared requester discussion and the anonymous public intake before a request exists are separate sessions of the same root agent. The audience is derived from the session principal, never from the message.
 4. **Human decisions are not model tools.** Confirming settings, agreeing, approving, declining, withdrawing and booking are application commands invoked from cards or exact authored channel commands. The model can read, draft and propose; it cannot decide.
 5. **Durable waits live in domain state.** A paused eve session is not the record of an agreement or a pending provider effect.
 
@@ -27,20 +27,20 @@ agent/
   instructions/             always-on base rules plus one fragment per audience
     base.md
     host-setup.ts           resolves the host-setup fragment for host setup sessions only
+    public-intake.ts        resolves the public-intake fragment for public intake sessions only
     host-review.md
-    requester.md
+    requester.ts            resolves the requester fragment for requester sessions only
   channels/
     eve.ts                  web chat: application session auth for hosts and booking links
     photon.ts               host iMessage through Photon: verified sender -> host principal
     agentmail.ts            requester email: durable receipt -> request principal
   tools/                    snake_case files; each calls one domain operation
     setup.ts                read_setup_state and draft_settings, resolved for host setup only
-    read_request.ts
-    list_host_requests.ts
-    draft_request_review.ts
-    evaluate_candidates.ts
-    propose_shared_changes.ts
-    read_booking_status.ts
+    intake.ts               read_intake and draft_intake, resolved for public intake only
+    request.ts              request-discussion tools, resolved per audience: read_request,
+                            draft_request_review, evaluate_candidates and read_booking_status
+                            for requesters; Phase 4 adds list_host_requests,
+                            propose_shared_changes and the host projections
   skills/                   authored guidance the model may load on demand
     onboarding_suggestions.md
     requester_clarification.md
@@ -55,7 +55,7 @@ evals/
   *.eval.ts                 injection, stale revision, audience leakage, honest status
 ```
 
-eve derives names from paths (`tools/read_request.ts` is the tool `read_request`; a file at a framework path replaces the default). A dynamic resolver such as `tools/setup.ts` names its tools by the keys it returns and resolves them per session. `eve info` lists what it discovered; build artifacts live under `.eve/`. The directory is a sibling of `apps/web/` and both are composed by the root `vercel.ts` (see Deployment).
+eve derives names from paths (`tools/<name>.ts` is the tool `<name>`; a file at a framework path replaces the default). A dynamic resolver such as `tools/setup.ts` or `tools/request.ts` names its tools by the keys it returns and resolves them per session. `eve info` lists what it discovered; build artifacts live under `.eve/`. The directory is a sibling of `apps/web/` and both are composed by the root `vercel.ts` (see Deployment).
 
 ## Audiences and sessions
 
@@ -63,6 +63,7 @@ eve derives names from paths (`tools/read_request.ts` is the tool `read_request`
 |---|---|---|---|---|
 | Host setup | `host:{hostId}` | First `/app` visit of an active host; one per host | base + host-setup | `read_setup_state`, `draft_settings` |
 | Host-private request discussion | `host:{hostId}` with `requestId` attribute | Host selects a request in `/app`, or sends the exact `request <reference>` iMessage command | base + host-review | `read_request` (host projection), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status` |
+| Public intake | `intake:{intakeId}` | A visitor's first message on a ready host's `/{handle}`; one per browser tab, at most 24 hours ([D11](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)) | base + public-intake | `read_intake`, `draft_intake` |
 | Shared requester discussion | `request:{requestId}` | Request creation at `/{handle}`; continued through the booking link or verified email | base + requester | `read_request` (requester projection), `draft_request_review`, `evaluate_candidates`, `read_booking_status` |
 
 The application owns the index from discussion to eve session (`sessionId`, last `streamIndex`, agent version, state). eve generates session identifiers, has no per-session ownership check and does not accept caller-assigned identifiers, so every create, read, stream, input and control route is authorized by the application before it reaches `/eve/v1/*` ([conversation access](../../openspec/specs/conversation-access/spec.md)). A host and a requester never share a session; switching the visible discussion in `/app` switches sessions and never merges histories. Terminal recovery creates a successor session, records the fence and keeps accepted inputs and history available.
@@ -71,7 +72,9 @@ The eve principal is the audience, not the person's identity: a requester has no
 
 ## Route authentication
 
-`channels/eve.ts` exports `eveChannel` with an ordered auth list. The first entry is an application function that verifies the Supabase session for hosts or the booking-link-derived request credential for requesters and returns the eve auth context: `principalId` as above, `principalType: "user"`, `authenticator: "findmeatime"`, and attributes `audience`, `hostId`, `requestId` and `discussionId`. It is the only entry: `localDev()` and `vercelOidc()` are not used, so local runs and deployments enforce the same rules. The function never returns `null`; it throws `UnauthenticatedError` or `ForbiddenError`, so the walk cannot fall through. Uploads are disabled.
+`channels/eve.ts` exports `eveChannel` with an ordered auth list. The deciding entry is an application function that verifies the Supabase session for hosts or the booking-link-derived request credential for requesters and returns the eve auth context: `principalId` as above, `principalType: "user"`, `authenticator: "findmeatime"`, and attributes `audience`, `hostId`, `requestId` and `discussionId`. `vercelOidc()` is not used, so local runs and deployments enforce the same rules. The function never returns `null`; it throws `UnauthenticatedError` or `ForbiddenError`, so the walk cannot fall through. Uploads are disabled.
+
+The only entry before it serves requester evals and skips every other request: it admits a caller only when `FMAT_EVAL_AUDIENCE=requester` is set in a process with no Vercel metadata that `localDev()` recognizes as `eve dev`, and only for a request with no bearer and no Supabase cookie. It then returns the requester principal of a request the eval seeded in the local database, with tool stubs allowed (see Evals); a deployment, `eve start` and an ordinary `eve dev` never reach it.
 
 Only application code creates sessions and sends messages. A browser message goes to an application route, which checks the caller, records the accepted input in the application session index, and calls eve through `eve/client` with a 60-second bearer signed with `EVE_INTERNAL_SIGNING_KEY`. The browser itself only reads and streams sessions the index says it owns. The [foundation design](../../openspec/changes/application-foundation/design.md#7-call-path-and-session-ownership) records the details.
 
@@ -85,10 +88,12 @@ Every tool is `defineTool` with a description, a Zod input schema and an output 
 |---|---|---|---|
 | `read_setup_state` | host setup | Current draft, saved roles, analysis evidence and next action; calendar names only as quoted data and no place names from events | never |
 | `draft_settings` | host setup | Writes draft values with a revision and labels each as stated or inferred (starter defaults are the service's own); never policy, and mode, location and transport count only once the host accepts them on a card | never |
+| `read_intake` | public intake | The host's public profile and the intake's own draft; nothing from host settings, calendars or requests | never |
+| `draft_intake` | public intake | Records purpose, duration, mode, location and windows in the intake draft, which becomes a pending review when the request is created | never |
 | `read_request` | host or requester | Current request, proposal version, decisions and permitted conversation, projected per audience | never |
 | `list_host_requests` | host | Selectable requests with status; no requester private data beyond the projection | never |
 | `draft_request_review` | requester | Declares details, availability, question or unknown intent with an authored clarification; creates a pending review that only the requester can apply | never |
-| `evaluate_candidates` | host or requester | Starts the deterministic feasibility evaluation as a durable application job and returns its identity; results arrive as versioned cards | never |
+| `evaluate_candidates` | host or requester | Starts the deterministic feasibility evaluation as a durable application job, waits up to 20 seconds and returns the audience projection, or the evaluation's identity if it is still running; a running evaluation at the same revisions is returned instead of a new one, and a request starts at most 10 per hour; results also arrive as versioned cards ([Phase 3 design](../../openspec/changes/requester-intake-and-feasibility/design.md#8-evaluation-runs-as-an-application-job)) | never |
 | `propose_shared_changes` | host | Drafts changed shared details for the **Review proposed shared changes** card; sharing is a separate command | never |
 | `read_booking_status` | host or requester | Pending, uncertain, confirmed or delivery-failed state from domain records | never |
 
@@ -117,16 +122,18 @@ Permissions are enforced in layers, and only the last layer is soft. A requester
 
 Layers 1 to 4 are the authority boundary; domain and integration tests prove them under prompt injection. Layer 5 decides tone and helpfulness and is checked by evals. No instruction grants a capability that layers 1 to 4 withhold, and nothing a user types can restore one.
 
-| Tool | Host setup | Host review | Requester |
-|---|---|---|---|
-| `read_setup_state` | present | absent | absent |
-| `draft_settings` | present | absent | absent |
-| `read_request` | absent | present, host projection | present, requester projection |
-| `list_host_requests` | absent | present | absent |
-| `draft_request_review` | absent | absent | present |
-| `evaluate_candidates` | absent | present | present |
-| `propose_shared_changes` | absent | present | absent |
-| `read_booking_status` | absent | present | present |
+| Tool | Host setup | Host review | Requester | Public intake |
+|---|---|---|---|---|
+| `read_intake` | absent | absent | absent | present |
+| `draft_intake` | absent | absent | absent | present |
+| `read_setup_state` | present | absent | absent | absent |
+| `draft_settings` | present | absent | absent | absent |
+| `read_request` | absent | present, host projection | present, requester projection | absent |
+| `list_host_requests` | absent | present | absent | absent |
+| `draft_request_review` | absent | absent | present | absent |
+| `evaluate_candidates` | absent | present | present | absent |
+| `propose_shared_changes` | absent | present | absent | absent |
+| `read_booking_status` | absent | present | present | absent |
 
 “Absent” means not registered for that principal, not “denied when called”.
 
@@ -171,7 +178,7 @@ Each session is a Workflow run: completed steps replay and an interrupted step r
 | Run | `eve dev` beside `next dev apps/web`; runs persist under `.eve/.workflow-data` | `withEve({ services: { web: { framework: "nextjs", root: "apps/web" } }, routes })` in the root `vercel.ts` adds the agent as its own service and routes `/eve/v1/**` to it |
 | Auth | Application auth against the teammate's sandbox sign-in; no `localDev()` | Application auth only; fails closed |
 | Model | `OPENAI_API_KEY` in the local environment | `OPENAI_API_KEY` in Vercel Production; Preview gets its own key or none |
-| Messaging | Denied | Release only; previews denied |
+| Messaging | Denied, except toward a loopback stand-in provider ([Phase 3 proposal](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions), D9) | Release only; previews denied |
 | Docker | Not needed | Not needed |
 
 Environment variables are limited to the OpenAI key, Supabase and the database URL, Google OAuth, the token encryption key, the job worker secret, the application origin, Photon, AgentMail, Cloudflare and `EVE_*` settings, kept out of Git with `.env.example` listing names only. `eve build` runs with `next build`; `eve link` binds the Vercel project.
@@ -179,6 +186,8 @@ Environment variables are limited to the OpenAI key, Supabase and the database U
 ## Evals
 
 `evals/` holds `defineEval` scenarios run with `eve eval` against stubbed tools: a requester instructing the assistant to ignore approval rules or reveal calendar contents; a stale revision after a concurrent edit; a host session asked for another host's request; a requester session asked for private exception reasons; a requester session whose registered tools are listed and must contain no host tool; messages such as “yes” or “book it” that must not record a decision; ambiguous times that must yield an authored clarification in the requester's language; and a confirmation claimed before the event exists. These complement, and do not replace, the domain and integration tests that prove authority.
+
+Phase 3 adds the requester set under `evals/requester/`: injection asking for calendar contents, rules or approval; "yes" and "book it"; a date-free time that must produce the authored Korean question; and the tool list. Run them with `npm run eval` (which sets `FMAT_EVAL_AUDIENCE=requester`) against the local Supabase stack and a model key: each eval seeds its own open request, indexes its session so the model limits attribute it, and stubs every requester tool. They grade the live model's behavior, so they spend model calls and CI does not run them; against the local OpenAI stand-in they check only the plumbing.
 
 ## Decisions recorded here
 
@@ -193,4 +202,4 @@ Environment variables are limited to the OpenAI key, Supabase and the database U
 
 ## Open decisions
 
-Photon Spectrum compatibility with the native Photon channel and the sender identifier format; whether `evaluate_candidates` runs as an eve workflow tool or purely as an application job; whether the AgentMail channel is a custom channel or the Chat SDK Gmail adapter; session retention and compaction thresholds; when, if ever, a memory slot becomes useful.
+Photon Spectrum compatibility with the native Photon channel and the sender identifier format; whether `evaluate_candidates` runs as an eve workflow tool or purely as an application job (decided as an application job in the [Phase 3 proposal](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions), D5); whether the AgentMail channel is a custom channel or the Chat SDK Gmail adapter; session retention and compaction thresholds; when, if ever, a memory slot becomes useful.

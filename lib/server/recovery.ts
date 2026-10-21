@@ -154,12 +154,42 @@ export async function* discussionEvents(
 
   if (!discussionId) return;
 
-  const sessions = await deps.db<Pick<SessionRow, "session_id" | "state" | "last_stream_index">[]>`
-    select session_id, state, last_stream_index from app.agent_sessions
+  yield* eventsOfDiscussion(
+    deps.db,
+    discussionId,
+    (session, read) => deps.runtime.readEvents(session.session_id, cookie, read),
+    cursor,
+    options,
+  );
+}
+
+// Reads one live generation's recorded events, from a start index, following or not.
+export type GenerationReader = (
+  session: Pick<SessionRow, "session_id" | "discussion_id" | "generation" | "principal_id" | "principal_type">,
+  options: { readonly startIndex: number; readonly follow: boolean; readonly signal: AbortSignal },
+) => AsyncIterable<MessageStreamEvent>;
+
+// Events of any discussion from `cursor`, across its generations: retired ones
+// from their stored copies, the live one through `read`, which carries the
+// caller's own credential for the runtime (a host's cookie, or an internal read
+// bearer for a requester or intake). With `follow`, the current generation is
+// followed to the end of its current turn.
+export async function* eventsOfDiscussion(
+  db: ConversationDependencies["db"],
+  discussionId: string,
+  read: GenerationReader,
+  cursor: number,
+  options: { readonly follow: boolean; readonly signal?: AbortSignal; readonly idleMs?: number },
+): AsyncGenerator<DiscussionEvent> {
+  const sessions = await db<
+    Pick<SessionRow, "session_id" | "state" | "last_stream_index" | "discussion_id" | "generation" | "principal_id" | "principal_type">[]
+  >`
+    select session_id, state, last_stream_index, discussion_id, generation, principal_id, principal_type
+    from app.agent_sessions
     where discussion_id = ${discussionId}
     order by generation
   `;
-  const served = await redeliveryFilter(deps.db, discussionId);
+  const served = await redeliveryFilter(db, discussionId);
   let offset = 0;
 
   for (const session of sessions) {
@@ -167,7 +197,7 @@ export async function* discussionEvents(
       const count = session.last_stream_index ?? 0;
       // Earlier received messages are read even behind the cursor, so a re-sent
       // input is recognized wherever reading starts.
-      const stored = await deps.db<{ event: MessageStreamEvent; stream_index: number }[]>`
+      const stored = await db<{ event: MessageStreamEvent; stream_index: number }[]>`
         select event, stream_index from app.agent_session_events
         where session_id = ${session.session_id}
           and (stream_index >= ${cursor - offset} or event->>'type' = 'message.received')
@@ -187,7 +217,7 @@ export async function* discussionEvents(
     // silent for the idle bound: an idle session may have no turn coming.
     const controller = new AbortController();
     const signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal;
-    const events = deps.runtime.readEvents(session.session_id, cookie, {
+    const events = read(session, {
       follow: options.follow,
       signal,
       startIndex: Math.max(0, cursor - offset),
@@ -277,7 +307,7 @@ async function inspect(runtime: ConversationDependencies["runtime"], sessionId: 
   }
 }
 
-function hasTerminalEvidence(events: readonly MessageStreamEvent[]) {
+export function hasTerminalEvidence(events: readonly MessageStreamEvent[]) {
   return events.some(
     (event) =>
       event.type === "session.failed" ||
@@ -285,11 +315,11 @@ function hasTerminalEvidence(events: readonly MessageStreamEvent[]) {
   );
 }
 
-type Settled =
+export type Settled =
   | { readonly status: "recovered"; readonly generation: number }
   | Exclude<RecoveryOutcome, { readonly status: "recovered" }>;
 
-function settled(latest: SessionRow | null, observedGeneration: number): Settled | null {
+export function settled(latest: SessionRow | null, observedGeneration: number): Settled | null {
   if (!latest) return { generation: null, status: "stale" };
   if (latest.generation === observedGeneration + 1) return { generation: latest.generation, status: "recovered" };
   if (latest.generation !== observedGeneration) return { generation: latest.generation, status: "stale" };

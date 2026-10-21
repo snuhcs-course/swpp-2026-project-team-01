@@ -6,10 +6,12 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { AgentSection } from "@/app/_components/agent-section";
+import { IntakeWorkspace } from "@/app/_components/guest/intake-workspace";
 
-// A ready host's public page (public-agent-entry). Everything else, including a
-// released, unready or suspended host, gets the neutral not-found page. Reserved
-// names never reach here: their routes are resolved first or fail the format.
+// A ready host's public page (public-agent-entry) with the anonymous intake
+// conversation (design decision 2). Everything else, including a released,
+// unready or suspended host, gets the neutral not-found page. Reserved names
+// never reach here: their routes are resolved first or fail the format.
 type Params = Promise<{ handle: string }>;
 
 export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
@@ -40,19 +42,15 @@ async function HostProfile({ params }: { readonly params: Params }) {
   if (!host) notFound();
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col justify-center gap-8 px-4 py-16">
-      <section className="flex flex-col gap-2">
-        <p className="font-medium text-muted-foreground text-sm">Find Me a Time host</p>
-        <h1 className="break-words font-display text-[clamp(28px,4vw,40px)] leading-tight">{host.displayName}</h1>
-        <p className="font-mono text-muted-foreground">@{host.handle}</p>
-      </section>
-      <p>
-        Requests at this page open in a later release, so nothing can be requested here yet. You will not need an account
-        to request a meeting.
-      </p>
-      <AgentSection href={`/${host.handle}/SKILL.md`}>
-        Requests are not accepted yet, so an agent cannot request or book a meeting with this host today.
-      </AgentSection>
-    </main>
+    <IntakeWorkspace
+      agentSection={
+        <AgentSection href={`/${host.handle}/SKILL.md`}>
+          Requests are accepted on this page in a web browser. Connecting a personal agent is not available yet, so an
+          agent should send the person here.
+        </AgentSection>
+      }
+      displayName={host.displayName}
+      handle={host.handle}
+    />
   );
 }

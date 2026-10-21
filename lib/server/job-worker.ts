@@ -5,12 +5,16 @@ import { database, type Database } from "./database";
 import { type DeploymentEnvironment, deploymentEnvironment } from "./deployment";
 import { JOB_BATCH_LIMITS, JOB_HANDLERS } from "./job-handlers";
 import { type ClaimedJob, claimJobs, type JobHandler, type JobResult, processJob } from "./jobs";
+import { messagingAdmitted } from "./messaging";
 
 // The one job worker. The internal route (POST /api/internal/jobs) and
 // `npm run jobs:dev` both run a bounded batch through runWorkerBatch: claim due
 // jobs of the registered kinds produced by one environment, then process each,
 // recording its outcome before the batch answers. A kind with a batch limit is
 // claimed on its own, at most that many; the other kinds share one default claim.
+// A delivery kind is claimed only where messaging is admitted toward its
+// transport's endpoint, so a local worker aimed at a real provider leaves its
+// deliveries pending and untouched.
 
 export type JobWorkerDependencies = {
   readonly db: Database;
@@ -21,6 +25,8 @@ export type JobWorkerDependencies = {
   readonly batchLimits?: Readonly<Record<string, number>>;
   readonly leaseSeconds?: number;
   readonly owner?: string;
+  // The process environment the messaging gate reads; process.env by default.
+  readonly env?: Readonly<Record<string, string | undefined>>;
 };
 
 export type WorkerBatch = {
@@ -30,7 +36,10 @@ export type WorkerBatch = {
 
 export async function runWorkerBatch(deps: JobWorkerDependencies): Promise<WorkerBatch> {
   const limits = deps.batchLimits ?? JOB_BATCH_LIMITS;
-  const kinds = Object.keys(deps.handlers);
+  const kinds = Object.keys(deps.handlers).filter((kind) => {
+    const endpoint = deps.handlers[kind]!.messagingEndpoint;
+    return !endpoint || messagingAdmitted(endpoint(), deps.env);
+  });
   const claims = [
     ...kinds.filter((kind) => limits[kind] !== undefined).map((kind) => ({ kinds: [kind], limit: limits[kind] })),
     { kinds: kinds.filter((kind) => limits[kind] === undefined), limit: undefined },

@@ -29,7 +29,7 @@
 - **명세 먼저, 그다음 코드, 그다음 보관.** 변경은 델타 명세와 작업 목록과 함께 제안되고, 검토를 거쳐, 테스트와 함께 구현되고, 검증된 뒤에야 `openspec/specs/`로 보관됩니다. 보류 중인 델타는 주 명세 본문이 절대 일찍 되지 않습니다.
 - **스키마 변경은 한 방향으로만 흐릅니다.** `supabase/schemas/` 아래의 원하는 SQL, 같은 풀 리퀘스트에서 Docker를 가진 팀원이 생성한 검토된 pg-delta 마이그레이션, `supabase db push`로 개인 샌드박스에 적용, 그리고 병합 시 CI만이 공유 프로젝트에 푸시합니다. Studio 편집은 금지됩니다.
 - **증거는 인수 시나리오에 첨부됩니다.** 픽스처는 로직을 증명하고, 통제된 제공자, 기기, 명명된 클라이언트 확인은 연동을 증명합니다. 어느 쪽도 다른 쪽을 대체하지 않습니다. 토큰, 개인 텍스트, 원본 대화 기록은 추적되는 증거에 포함하지 않습니다.
-- **프로덕션 외에서는 메시징이 거부됩니다.** 프리뷰와 로컬 배포는 이메일이나 iMessage를 보낼 수 없으므로, 채널 인수는 식별된 프로덕션 배포에서 허가된 수신자와 함께만 실행됩니다.
+- **프로덕션 외에서는 메시징이 거부됩니다.** 프리뷰와 로컬 배포는 이메일이나 iMessage를 보낼 수 없으므로, 채널 인수는 식별된 프로덕션 배포에서 허가된 수신자와 함께만 실행됩니다. 로컬 실행은 루프백 대역 제공자에만 닿을 수 있으며, [3단계 제안서](../../openspec/changes/requester-intake-and-feasibility/proposal.md#conflicts-resolved-here)가 메시징 환경 계약을 그렇게 바로잡습니다.
 - **참조 저장소를 먼저.** 모듈을 설계하거나 구현하기 전에 5절에서 해당 단계에 나열된 파일을 읽고, 우리 계약이 달리 정하지 않은 곳에서는 그 아키텍처, 스타일, 테스트를 따릅니다. 따른 저장소와 리비전을 풀 리퀘스트에 명시합니다.
 
 팀 병렬 작업: 0단계와 1단계는 모든 것이 이에 의존하므로 직렬입니다. 2단계부터는 4인 팀이 두세 개의 변경을 나란히 진행할 수 있으며, 4절의 의존성 표가 겹칠 수 있는 부분을 보여 줍니다.
@@ -131,42 +131,51 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 목표: 요청자가 준비된 호스트에 도달하고, 이해되고, 실현 가능한 후보를 봅니다. 아직 승인되거나 예약된 것은 없습니다.
 
-범위. 선행 조건: 1단계 합류와, "준비된 호스트"가 존재하도록 2단계 레인 C의 준비도 가드. 그전에는 픽스처 호스트로 충분합니다. 레인 C는 순수 도메인 코드이며 1단계 뼈대가 반영되는 즉시 시작할 수 있습니다.
+범위. 선행 조건: 1단계 합류와, "준비된 호스트"가 존재하도록 2단계 레인 C의 준비도 가드. 그전에는 픽스처 호스트로 충분합니다. 레인 C는 순수 도메인 코드이며 1단계 뼈대가 반영되는 즉시 시작할 수 있습니다. 모든 레인은 아래 제안서도 기다리며, 어떤 레인이 코드를 작성하기 전에 이를 검토합니다.
+
+**제안서 (직렬, 가장 먼저)**
+
+- [x] 결정할 사항과 범위 표를 담은 [`requester-intake-and-feasibility`](../../openspec/changes/requester-intake-and-feasibility/proposal.md) 제안서.
+- [x] [설계](../../openspec/changes/requester-intake-and-feasibility/design.md).
+- [x] [`specs/`](../../openspec/changes/requester-intake-and-feasibility/specs/) 아래의 델타 명세.
+- [x] [작업 목록](../../openspec/changes/requester-intake-and-feasibility/tasks.md).
+- [x] 소유 문서 갱신과 한국어 미러.
+- [ ] 팀원 검토.
 
 **레인 A — 라우트, 신원, 시간대**
 
-- [ ] `/{handle}` 공개 접수와, 해시된 무작위 UUID 자격 증명, 30일 수명, `Referrer-Policy: no-referrer`, 색인 금지, 일반적인 이용 불가 화면을 갖춘 `/booking/[bookingId]`.
-- [ ] 게스트 신원 및 시간대 카드; 신원과 가용성 전용 스코프를 별도의 요청 바인딩 허가로 기록하는 요청자용 **Google로 계속(Continue with Google)**; 간단한 이름과 이메일 카드를 쓰는 **Google 없이 계속(Continue without Google)**.
-- [ ] 7일 및 구간 종료 시점 만료를 갖춘 요청 수명주기; 철회.
+- [x] `/{handle}` 공개 접수와, 해시된 무작위 UUID 자격 증명, 30일 수명, `Referrer-Policy: no-referrer`, 색인 금지, 일반적인 이용 불가 화면을 갖춘 `/booking/[bookingId]`.
+- [x] 게스트 신원 및 시간대 카드; 신원과 읽기 전용 Calendar 스코프를 별도의 요청 바인딩 허가로 기록하는 요청자용 **Google로 계속(Continue with Google)**; 간단한 이름과 이메일 카드를 쓰는 **Google 없이 계속(Continue without Google)**.
+- [x] 7일 및 구간 종료 시점 만료를 갖춘 요청 수명주기; 철회.
 
 **레인 B — 연락처 증명과 이메일 전달**
 
-- [ ] 전달 증거와 고정된 디스패치 식별자를 갖춘 Cloudflare Email Service 어댑터.
-- [ ] 만료, 5회 추측 한도, 쿨다운, 시간당 한도를 갖춘 연락처 검증 코드; 복구 가능한 검증 명령.
-- [ ] 수신자별 및 서비스 전체 예산과 일반적인 피드백을 갖춘 한정된 링크 재전송.
-- [ ] 대화 입력의 자격 증명 마스킹; 대화 접수 예산과 복구 가능한 스로틀링.
+- [x] 전달 증거와 고정된 디스패치 식별자를 갖춘 Cloudflare Email Service 어댑터.
+- [x] 선택적 연락처 확인: 예약 링크와 일회용 확인 링크를 담은 생성 이메일, 한도가 있는 재전송, 복구 가능한 전송 명령.
+- [x] 수신자별 및 서비스 전체 예산과 일반적인 피드백을 갖춘 한정된 링크 재전송.
+- [x] 대화 입력의 자격 증명 마스킹; 대화 접수 예산과 복구 가능한 스로틀링.
 
 **레인 C — 실현 가능성 엔진**
 
-- [ ] 결정론적 실현 가능성: 전체 구간, 날짜별 오프셋과 일광 절약 시간 처리, 바쁨 및 집중 제약, 야간 구간, 선호로서의 주간 미팅 상한.
-- [ ] 호스트 버퍼를 포함해 Google Routes로 계산하는 양방향 이동 구간; 해결되지 않은 이동은 절대 0으로 계산하지 않음; 수동 허용치 입력.
-- [ ] 자격 증명 갱신, Calendar 읽기, Routes, 순위 지정에 걸친 공유 18초 평가 마감 시간; 유효한 후보에 대해서만 수행하는 모델 순위 지정.
+- [x] 결정론적 실현 가능성: 전체 구간, 날짜별 오프셋과 일광 절약 시간 처리, 바쁨 및 집중 제약, 야간 구간, 선호로서의 주간 미팅 상한.
+- [ ] 호스트 버퍼를 포함해 Google Routes로 계산하는 양방향 이동 구간; 해결되지 않은 이동은 절대 0으로 계산하지 않음; 수동 허용치 입력. 남은 일: 서울의 두 주소 사이에서 어떤 이동 수단이 경로를 반환하는지 실제로 확인하는 작업(작업 5.2).
+- [x] 자격 증명 갱신, Calendar 읽기, Routes, 순위 지정에 걸친 공유 18초 평가 마감 시간; 유효한 후보에 대해서만 수행하는 모델 순위 지정.
 
 **레인 D — 요청자 대화**
 
-- [ ] 요청자 세션 도구 `read_request`(요청자 프로젝션), `draft_request_review`, `evaluate_candidates`; 지침 조각 `requester.md`.
-- [ ] 영어와 한국어로 작성된 확인 질문을 갖춘 선언된 의도 추출; 기대 리비전을 갖춘 검토된 적용; 시간적으로 유효한 구간.
-- [ ] 후보 시간 카드, **이 시간으로 선택(Choose this time)**, 정확한 제안 버전, **이 제안에 동의(Agree to this proposal)**.
+- [x] 요청자 세션 도구 `read_request`(요청자 프로젝션), `draft_request_review`, `evaluate_candidates`; 지침 조각 `requester.md`.
+- [x] 영어와 한국어로 작성된 확인 질문을 갖춘 선언된 의도 추출; 기대 리비전을 갖춘 검토된 적용; 시간적으로 유효한 구간.
+- [x] 후보 시간 카드, **이 시간으로 선택(Choose this time)**, 정확한 제안 버전, **이 제안에 동의(Agree to this proposal)**.
 
 **합류**
 
-- [ ] 레인 C가 레인 D의 도구를 통해 공급하는 후보 카드; 불변 버전에 대해 기록되는 동의; 3단계 증거 목록을 실행합니다.
+- [ ] 레인 C가 레인 D의 도구를 통해 공급하는 후보 카드; 불변 버전에 대해 기록되는 동의; 3단계 증거 목록을 실행합니다. 남은 일: 증거 목록에는 운영 배포, 제공자 설정, 통제된 받은편지함이 필요합니다(작업 7.1, 8.1–8.3). 픽스처와 로컬 여정 테스트는 통과합니다.
 
 명세: [meeting-requests](../../openspec/specs/meeting-requests/spec.md), [meeting-feasibility](../../openspec/specs/meeting-feasibility/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md)(트랜잭션 발송, 전달 증거, 불확실한 디스패치), [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md)(접수, 마스킹, 안정적인 요청자 목적지), [conversation-access](../../openspec/specs/conversation-access/spec.md). 또한 기반 변경이 여기로 미룬 저장된 순위 시나리오를 위해 [model-execution](../../openspec/specs/model-execution/spec.md)도 참조합니다.
 
-여기서 확정할 결정: 지원하는 지역과 경로 최신성; 수동 이동 허용치의 세분도; 온라인 미팅 링크를 누가 만드는가; 검증 코드 만료 및 쿨다운 값; Cloudflare 도메인 검증과 API 권한.
+여기서 확정할 결정: 지원하는 지역과 경로 최신성; 수동 이동 허용치의 세분도; 온라인 미팅 링크를 누가 만드는가(이 단계의 요청자 동의가 링크 계획을 다루므로 4단계에서 옮겨 옴); 연락처 증명(코드 대신 선택적 확인으로 결정됨); Cloudflare 도메인 검증과 API 권한; `evaluate_candidates`가 eve 워크플로 도구인지 애플리케이션 작업인지; 요청 생성 한도; 재전송을 위한 예약 링크 저장; 로컬 메시징; 요청이 생기기 전에 공개 페이지가 모델 대화를 실행하는지; 동의 전 연락처 인증. Dohyeon Park이 2026-10-21에 이를 D1–D12로 결정했으며 [제안서](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)에 기록되어 있습니다. **팀원 검토(Teammate review)**는 그 검토를 다룹니다.
 
-증거: 접수와 후보까지의 AC-01, AC-02, 요청자 측 AC-03, AC-12, 철회에 대한 AC-13, AC-27; 검증 코드와 재전송된 링크를 통제된 Cloudflare 받은편지함으로 전달. [게스트 예약 흐름 체크리스트](../user_experience/06_guest_booking_flow.md#checks-before-calling-the-flow-done)의 키보드 및 휴대폰 너비 확인.
+증거: 접수와 후보까지의 AC-01, AC-02, 요청자 측 AC-03, AC-12, 철회에 대한 AC-13, AC-27; 확인 링크가 담긴 생성 이메일과 재전송된 링크를 통제된 Cloudflare 받은편지함으로 전달. [게스트 예약 흐름 체크리스트](../user_experience/06_guest_booking_flow.md#checks-before-calling-the-flow-done)의 키보드 및 휴대폰 너비 확인.
 
 ### 4단계 — `host-review-and-booking`
 
@@ -422,8 +431,9 @@ Docker를 갖춘 팀원이 그 주에 마이그레이션이 필요한 레인의 
 | eve 버전, 템플릿 리비전, 모델 ID, 의존성 고정 | 1단계 제안서 | 프런트엔드 아키텍처, 에이전트 구성 |
 | 내구성 있는 작업 배치와 디스패처 소유권 | 1단계 종료 | 백엔드 아키텍처 |
 | 가입 및 핸들 한도, 예약 핸들, 시작용 기본값 | 2단계 제안서 | PRD 10절, host-admission 명세 |
-| 지원 지역, 경로 최신성, 수동 허용치 세분도(이동 수단은 2단계에서 확정됨) | 3단계 제안서 | PRD 이동 시간 확인, meeting-feasibility 명세 |
-| 온라인 미팅 링크 생성 | 4단계 제안서 | PRD 10절 |
+| 지원 지역, 경로 최신성, 수동 허용치 세분도(이동 수단은 2단계에서 확정됨) | 3단계 제안서(D1, D2) | PRD 이동 시간 확인, meeting-feasibility 명세 |
+| 온라인 미팅 링크 생성 | 3단계 제안서(D6), 요청자 동의가 링크를 다루므로 4단계에서 옮겨 옴 | PRD 10절, meeting-requests 명세 |
+| 연락처 확인, 요청 생성 한도, Cloudflare 설정, `evaluate_candidates` 배치, 예약 링크 저장, 로컬 메시징, 공개 접수 대화, 동의 전 인증 | 3단계 제안서(D3–D5, D7–D12), 2026-10-21 결정 | meeting-requests, email-delivery, messaging-environments 명세; 제공자 설정; 에이전트 구성 |
 | MCP 프로토콜 버전, 등록, 스코프, CLI 패키징 | 5단계 제안서 | 에이전트 클라이언트 인가 명세, CLI 방향 |
 | iMessage 어댑터, 코드 만료, 회선 프로비저닝 | 6단계 제안서 | 제공자 설정, 새 iMessage 변경 |
 | AgentMail 어댑터와 보존 | 7단계 제안서 | 제공자 설정 |
