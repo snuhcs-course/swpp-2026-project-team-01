@@ -569,8 +569,11 @@ function CandidatesCard({ context }: { readonly context: RequesterCardContext })
 
   const offered = evaluation.candidates.filter((candidate) => !candidate.unresolvedRequesterLeg);
   const trips = evaluation.candidates.filter((candidate) => candidate.unresolvedRequesterLeg);
-  const needsLink =
-    request.details.mode !== "in_person" && evaluation.meetAvailable === false && request.details.linkPlan?.kind !== "requester_link";
+  // An online time with neither a Google Meet plan nor the requester's own link
+  // cannot become a proposal (design decision 11).
+  const linkMissing = (candidate: RequesterCandidate) =>
+    candidate.mode === "online" && !candidate.linkPlan && request.details.linkPlan?.kind !== "requester_link";
+  const needsLink = offered.some(linkMissing);
   const message = evaluation.failure
     ? EVALUATION_FAILURE_MESSAGES[evaluation.failure][lang]
     : offered.length === 0 && trips.length === 0
@@ -602,7 +605,7 @@ function CandidatesCard({ context }: { readonly context: RequesterCardContext })
               <Button
                 aria-label={`Choose this time: ${timeRange(candidate, context.timezone)}`}
                 className="min-h-11"
-                disabled={busy || needsLink}
+                disabled={busy || linkMissing(candidate)}
                 onClick={() => void choose(candidate)}
                 type="button"
               >
