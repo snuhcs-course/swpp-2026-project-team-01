@@ -110,7 +110,8 @@ function sessionAuth(principal: Principal, discussionId: string, generation: num
 // A requester or intake principal reaches only its own discussion of its own
 // audience, while it is open: a request whose link and lifetime are current, an
 // intake that has not continued or expired. Reading an intake's session stays
-// allowed once its request exists, so the application can keep its transcript.
+// allowed once its request exists, so the application can keep its transcript,
+// but only while that request is open and its link unexpired.
 async function guestMayUse(db: Database, principal: Principal, discussionId: string, kind: InternalGrant["kind"]) {
   if (principal.type === "requester_request") {
     const [row] = await db<{ allowed: boolean }[]>`
@@ -125,9 +126,12 @@ async function guestMayUse(db: Database, principal: Principal, discussionId: str
   }
 
   const [row] = await db<{ open: boolean; continued: boolean }[]>`
-    select i.closed_at is null and i.expires_at > now() as open, i.request_id is not null as continued
+    select i.closed_at is null and i.expires_at > now() as open,
+           coalesce(r.closed_at is null and r.expires_at > now() and l.expires_at > now(), false) as continued
     from app.discussions d
     join app.intakes i on i.id = d.principal_id and i.discussion_id = d.id
+    left join app.requests r on r.id = i.request_id
+    left join app.booking_links l on l.request_id = r.id
     where d.id = ${discussionId} and d.principal_type = 'public_intake' and d.principal_id = ${principal.id}
       and d.audience = ${PUBLIC_INTAKE_AUDIENCE}
   `;

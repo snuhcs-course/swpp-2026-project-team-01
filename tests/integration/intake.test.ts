@@ -9,12 +9,24 @@ import {
   createIntakeStateHandler,
   type IntakeRouteDependencies,
 } from "../../lib/server/intake-routes";
+import { createAppAuth } from "../../lib/server/eve-auth";
 import { draftIntakeForTool, readIntakeForTool } from "../../lib/server/intake-tools";
 import { createIntake, hashIntakeToken, INTAKE_LIMITS } from "../../lib/server/intakes";
+import { signInternalBearer } from "../../lib/server/internal-bearer";
 import { limitModel, sessionIdHash } from "../../lib/server/model-limits";
 import { CREATION_LIMITS } from "../../lib/server/request-creation";
+import { localAuthConfig } from "./support/auth";
 import { testDatabase } from "./support/database";
-import { call, guestDependencies, indexIntakeSession, readyHost, recordingRuntime, type Sent, sourceAddress } from "./support/guests";
+import {
+  call,
+  guestDependencies,
+  indexIntakeSession,
+  readyHost,
+  recordingRuntime,
+  SIGNING_KEY,
+  type Sent,
+  sourceAddress,
+} from "./support/guests";
 import { uniqueEmail } from "./support/requests";
 
 // The public intake and request creation (task 3.1): the intake token and its
@@ -195,6 +207,46 @@ describe("intake tools", () => {
 
     await db`update app.intakes set closed_at = now() where id = ${first.intakeId}`;
     await expect(readIntakeForTool(db, as(`intake:${first.intakeId}`))).rejects.toThrow("cannot use intake tools");
+  });
+});
+
+describe("reading a continued intake's transcript", () => {
+  it("is allowed only while the request it became is open and its link unexpired", async () => {
+    const host = await readyHost(db);
+    const deps = guestDependencies(db);
+    const { intakeId, token } = await startedIntake(deps, host.handle);
+    const session = await indexIntakeSession(db, intakeId);
+    const [discussion] = await db<{ discussion_id: string }[]>`select discussion_id from app.intakes where id = ${intakeId}`;
+    const appAuth = createAppAuth(() => ({ auth: localAuthConfig(), db, signingKey: SIGNING_KEY }));
+    const read = () =>
+      appAuth(
+        new Request(`http://127.0.0.1/eve/v1/session/${session.sessionId}/stream`, {
+          headers: {
+            authorization: `Bearer ${signInternalBearer(
+              {
+                discussionId: discussion!.discussion_id,
+                generation: 1,
+                kind: "read",
+                principal: { id: intakeId, type: "public_intake" },
+                sessionId: session.sessionId,
+              },
+              SIGNING_KEY,
+            )}`,
+          },
+          method: "GET",
+        }),
+      );
+
+    expect((await continueWithout(deps, host.handle, token)).status).toBe(201);
+    const [intake] = await db<{ request_id: string }[]>`select request_id from app.intakes where id = ${intakeId}`;
+    await expect(read()).resolves.toMatchObject({ attributes: { audience: "public_intake" } });
+
+    await db`update app.booking_links set expires_at = now() - interval '1 second' where request_id = ${intake!.request_id}`;
+    await expect(read()).rejects.toMatchObject({ name: "ForbiddenError" });
+
+    await db`update app.booking_links set expires_at = now() + interval '1 day' where request_id = ${intake!.request_id}`;
+    await db`update app.requests set state = 'withdrawn', closed_at = now() where id = ${intake!.request_id}`;
+    await expect(read()).rejects.toMatchObject({ name: "ForbiddenError" });
   });
 });
 
