@@ -341,7 +341,7 @@ describe("model limit middleware", () => {
     expect(await reservations(ranking.id)).toBe(2);
   });
 
-  it("gives an unconfirmed request the intake's cap and counts it as anonymous until it is confirmed", async () => {
+  it("gives an unconfirmed request the anonymous cap and counts it as anonymous until it is confirmed", async () => {
     const { requestId } = await createTestRequest(db);
     const rank = () =>
       wrap(fakeOpenAI(), { ranking: { id: randomUUID(), principal: { id: requestId, type: "requester_request" } } }).doGenerate(

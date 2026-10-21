@@ -1,23 +1,20 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { parseCookieHeader } from "@supabase/ssr";
-import { normalizeHandle } from "../contracts/handles";
 import { REQUEST_LANGUAGES, type RequestLanguage } from "../contracts/request";
 import { isValidTimeZone } from "../contracts/timezone";
 import { bookingUrl, findRequestByBookingId } from "./booking-links";
-import { runCommand } from "./commands";
+import { CommandError } from "./commands";
 import { REQUESTER_HEADERS } from "./confirmation-routes";
 import { database, type Database } from "./database";
 import { deploymentEnvironment } from "./deployment";
 import { GOOGLE_OAUTH_TOKEN_URL } from "./google-calendar";
 import { createGrantedScopesFetcher, type FetchGrantedScopes, GOOGLE_TOKEN_INFO_URL } from "./google-token-info";
 import { internalSigningKey } from "./internal-bearer";
-import { createIntake, findIntake, IntakeLimitError, IntakeUnavailableError } from "./intakes";
-import { findReadyHostByHandle } from "./readiness";
-import { createRequestCommand, openRequestBookingId } from "./request-creation";
+import { lockOpenRequest } from "./request-guard";
+import { identifyDraft, openRequestBookingId } from "./request-start";
 import { REQUESTER_CALENDAR_SCOPES } from "./requester-calendar";
 import { recordRequesterGrants, type RequesterGoogleIdentity } from "./requester-grants";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal, requestAppOrigin, unknownHost } from "./same-origin";
-import { sourceHash } from "./signup-limits";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // The requester's Google consent (design decision 3; requester-calendar-access:
@@ -27,18 +24,21 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 // delete-only and never revoked at Google, so closing one never touches the same
 // person's host Calendar grant.
 //
-//   POST /connections/google/start   from /{handle} (purpose intake, with the
-//     tab's intake token) or the booking page (purpose request, with the booking
-//     identifier, which proves the link). It records a transaction with a hashed
-//     random state, a sealed PKCE verifier and a hashed browser binding, sets the
-//     binding in an HttpOnly cookie scoped to /connections/google for 10 minutes
-//     and redirects to Google.
+//   POST /connections/google/start   from the guest thread, on /{handle} while
+//     the request is a draft or on the booking page after, with the booking
+//     identifier the page holds, which proves the link (purpose request). It
+//     records a transaction with a hashed random state, a sealed PKCE verifier
+//     and a hashed browser binding, sets the binding in an HttpOnly cookie
+//     scoped to /connections/google for 10 minutes and redirects to Google.
 //   GET /connections/google/callback  claims the transaction once (unconsumed,
 //     unexpired, the same browser), then exchanges the code with the verifier,
-//     reads the ID token claims and the granted scopes, and creates the request
-//     (intake) or records the grants (existing request). A cancelled consent
-//     returns to where it started with nothing recorded. Every other failure
-//     consumes nothing it did not claim and reveals no request.
+//     reads the ID token claims and the granted scopes, and records the grants.
+//     A draft is identified with the Google name and email at the same time
+//     (design decision 2), and the browser continues the same thread at the
+//     booking link. A cancelled consent returns to where it started (the public
+//     page for a draft) with nothing recorded. Every other failure consumes
+//     nothing it did not claim and reveals no request. Transactions with the
+//     purpose intake, from before D13, are refused.
 
 export const REQUESTER_GOOGLE_SCOPES = ["openid", "email", "profile", ...REQUESTER_CALENDAR_SCOPES] as const;
 export const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -158,48 +158,18 @@ export function createGoogleStartHandler(load: () => RequesterGoogleDependencies
       language: language(field(form, "language")),
       timezone: isValidTimeZone(timezone) ? timezone : "UTC",
     };
-    let target: { hostAccountId: string; handle: string | null; intakeId: string | null; requestId: string | null };
+    if (purpose !== "request") return failurePage(null);
 
-    if (purpose === "intake") {
-      const handle = normalizeHandle(field(form, "handle"));
-      const host = await findReadyHostByHandle(deps.db, handle);
+    const link = await findRequestByBookingId(deps.db, field(form, "bookingId"));
+    const [open] = link && !link.expired
+      ? await deps.db<{ host_account_id: string }[]>`
+          select host_account_id from app.requests where id = ${link.requestId} and closed_at is null and expires_at > now()
+        `
+      : [];
 
-      if (!host) return failurePage(null, 404);
+    if (!open) return failurePage(null, 404);
 
-      let intake = await findIntake(deps.db, host.hostAccountId, field(form, "intakeToken"));
-
-      // Continue with Google before any message: the round trip starts its own intake.
-      if (!intake?.open) {
-        try {
-          const created = await createIntake(deps.db, {
-            draft,
-            hostAccountId: host.hostAccountId,
-            sourceHash: sourceHash(deps.tokenKey, request),
-          });
-          intake = await findIntake(deps.db, host.hostAccountId, created.token);
-        } catch (error) {
-          if (error instanceof IntakeLimitError || error instanceof IntakeUnavailableError) {
-            return redirect(`${origin}/${host.handle}?google=limited`);
-          }
-          throw error;
-        }
-      }
-
-      target = { handle: host.handle, hostAccountId: host.hostAccountId, intakeId: intake!.id, requestId: null };
-    } else if (purpose === "request") {
-      const link = await findRequestByBookingId(deps.db, field(form, "bookingId"));
-      const [open] = link && !link.expired
-        ? await deps.db<{ host_account_id: string }[]>`
-            select host_account_id from app.requests where id = ${link.requestId} and closed_at is null and expires_at > now()
-          `
-        : [];
-
-      if (!open) return failurePage(null, 404);
-
-      target = { handle: null, hostAccountId: open.host_account_id, intakeId: null, requestId: link!.requestId };
-    } else {
-      return failurePage(null);
-    }
+    const target = { hostAccountId: open.host_account_id, requestId: link!.requestId };
 
     const state = randomBytes(32).toString("base64url");
     const binding = randomBytes(32).toString("base64url");
@@ -213,7 +183,7 @@ export function createGoogleStartHandler(load: () => RequesterGoogleDependencies
          request_id, draft, expires_at)
       values
         (${transactionId}, ${sha256(state)}, ${sha256(binding)}, ${sealed.ciphertext}, ${sealed.keyId}, ${purpose},
-         ${target.hostAccountId}, ${target.intakeId}, ${target.requestId}, ${deps.db.json(draft)},
+         ${target.hostAccountId}, ${null}, ${target.requestId}, ${deps.db.json(draft)},
          now() + make_interval(secs => ${TRANSACTION_SECONDS}))
     `;
 
@@ -346,16 +316,22 @@ export function createGoogleCallbackHandler(load: () => RequesterGoogleDependenc
       const [known] = await deps.db<{ host_account_id: string; purpose: string }[]>`
         select host_account_id, purpose from app.requester_oauth_transactions where state_hash = ${sha256(state)}
       `;
-      return failurePage(known?.purpose === "intake" ? await handleOf(deps.db, known.host_account_id) : null);
+      return failurePage(known ? await handleOf(deps.db, known.host_account_id) : null);
     }
 
     const handle = await handleOf(deps.db, claimed.host_account_id);
+
+    if (claimed.purpose !== "request" || !claimed.request_id) return failurePage(handle);
+
+    const requestId = claimed.request_id;
+    // A draft's thread lives on the public page until the guest is identified;
+    // its booking link never reaches the address bar before then.
     const returnTo = async (query: string) => {
-      if (claimed.purpose === "request" && claimed.request_id) {
-        const bookingId = await openRequestBookingId(deps.db, [deps.tokenKey], claimed.request_id);
-        if (bookingId) return redirect(`${bookingUrl(origin, bookingId)}?google=${query}`, clear);
-      }
-      return redirect(`${origin}/${handle ?? ""}?google=${query}`, clear);
+      const [request] = await deps.db<{ state: string }[]>`select state from app.requests where id = ${requestId}`;
+      const bookingId = request && request.state !== "draft" ? await openRequestBookingId(deps.db, [deps.tokenKey], requestId) : null;
+      return bookingId
+        ? redirect(`${bookingUrl(origin, bookingId)}?google=${query}`, clear)
+        : redirect(`${origin}/${handle ?? ""}?google=${query}`, clear);
     };
 
     // A cancelled consent records nothing and returns to the conversation.
@@ -370,56 +346,38 @@ export function createGoogleCallbackHandler(load: () => RequesterGoogleDependenc
 
     if (!identity) return failurePage(handle);
 
-    if (claimed.purpose === "intake") {
-      const [intake] = await deps.db<{ token_hash: string }[]>`
-        select token_hash from app.intakes where id = ${claimed.intake_id}
-      `;
+    // The request, still open with its link unexpired, under its lock: a
+    // draft is identified with the Google name and email, an identified request
+    // records the grants.
+    const recorded = await deps.db
+      .begin(async (tx) => {
+        const request = await lockOpenRequest(tx, requestId);
 
-      if (!intake || !identity.email) return failurePage(handle);
+        if (request.state === "draft") {
+          if (!identity.email) return null;
+          await identifyDraft(
+            tx,
+            request,
+            {
+              email: identity.email,
+              google: identity,
+              language: claimed.draft?.language,
+              name: identity.name ?? identity.email.split("@")[0]!.slice(0, 200),
+              timezone: claimed.draft?.timezone && isValidTimeZone(claimed.draft.timezone) ? claimed.draft.timezone : "UTC",
+            },
+            { origin, tokenKey: deps.tokenKey },
+          );
+          return "identified";
+        }
 
-      const outcome = await runCommand(
-        { authenticate: async () => ({ id: claimed.intake_id!, kind: "public_intake" }), db: deps.db },
-        createRequestCommand({
-          google: identity,
-          origin,
-          signingKey: deps.signingKey,
-          sourceHash: sourceHash(deps.tokenKey, request),
-          tokenKey: deps.tokenKey,
-        }),
-        {
-          input: {
-            email: identity.email,
-            language: claimed.draft?.language ?? "en",
-            name: identity.name ?? identity.email.split("@")[0]!.slice(0, 200),
-            timezone: claimed.draft?.timezone && isValidTimeZone(claimed.draft.timezone) ? claimed.draft.timezone : "UTC",
-          },
-          resourceId: claimed.intake_id!,
-          retryKey: intake.token_hash,
-        },
-      );
+        await recordRequesterGrants(tx, deps.tokenKey, request.id, identity);
+        return "connected";
+      })
+      .catch((error: unknown) => {
+        if (error instanceof CommandError) return null;
+        throw error;
+      });
 
-      if (!outcome.ok) {
-        return outcome.error.category === "rate_limited" ? redirect(`${origin}/${handle ?? ""}?google=limited`, clear) : failurePage(handle);
-      }
-
-      const bookingId = await openRequestBookingId(deps.db, [deps.tokenKey], outcome.result.requestId);
-      return bookingId ? redirect(bookingUrl(origin, bookingId), clear) : failurePage(handle);
-    }
-
-    // An existing request: still open with its link unexpired, under its lock.
-    const recorded = await deps.db.begin(async (tx) => {
-      const [open] = await tx<{ id: string }[]>`
-        select r.id from app.requests r join app.booking_links l on l.request_id = r.id
-        where r.id = ${claimed.request_id} and r.closed_at is null and r.expires_at > now() and l.expires_at > now()
-        for update of r
-      `;
-
-      if (!open) return false;
-
-      await recordRequesterGrants(tx, deps.tokenKey, open.id, identity);
-      return true;
-    });
-
-    return recorded ? returnTo("connected") : failurePage(handle);
+    return recorded ? returnTo(recorded) : failurePage(handle);
   };
 }

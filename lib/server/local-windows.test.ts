@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyDraftPatch, draftReviewPatch, isIntakeToken, resolveLocalWindow } from "./intakes";
+import { resolveLocalWindow } from "./local-windows";
 
 const now = Date.parse("2026-10-21T00:00:00Z");
 
@@ -40,30 +40,5 @@ describe("local windows", () => {
       problem: "too_short",
     });
     expect(resolveLocalWindow({ date: "2026-02-30", end: "10:30", start: "10:00" }, "UTC", { now })).toMatchObject({ problem: "invalid_date" });
-  });
-});
-
-describe("intake draft", () => {
-  it("records stated fields, converts windows in the draft's timezone and records nothing for a bad window", () => {
-    const draft = { language: "en" as const, timezone: "Asia/Seoul" };
-    expect(applyDraftPatch(draft, { durationMinutes: 30, windows: [{ date: "2026-11-03", end: "12:00", start: "10:00" }] }, now)).toEqual({
-      draft: { ...draft, durationMinutes: 30, windows: [{ end: "2026-11-03T03:00:00.000Z", start: "2026-11-03T01:00:00.000Z" }] },
-      recorded: true,
-    });
-    expect(applyDraftPatch(draft, { durationMinutes: 30, windows: [{ date: "2026-10-01", end: "12:00", start: "10:00" }] }, now)).toMatchObject({
-      problem: "past_window",
-      recorded: false,
-    });
-  });
-
-  it("turns the drafted meeting fields into the first review's patch", () => {
-    expect(draftReviewPatch({ language: "en", timezone: "UTC" })).toBeNull();
-    expect(draftReviewPatch({ mode: "online", purpose: "Intro", timezone: "UTC" })).toEqual({ mode: "online", purpose: "Intro" });
-  });
-
-  it("accepts only a 32-byte base64url intake token", () => {
-    expect(isIntakeToken("a".repeat(43))).toBe(true);
-    expect(isIntakeToken("a".repeat(42))).toBe(false);
-    expect(isIntakeToken("../".repeat(15))).toBe(false);
   });
 });

@@ -2,18 +2,18 @@
 
 import type { OpenRequesterView } from "@lib/contracts/requester-view";
 import { displayTime } from "@lib/contracts/timezone";
-import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { GuestCard, GuestCardActions, guestCardHeadingId } from "@/app/_components/guest/guest-card";
 import { browserLanguage } from "@/app/_components/guest/timezone";
 import { Button } from "@/components/ui/button";
-import { DetailsButton, REQUEST_CARDS } from "./request-cards";
+import { DetailsButton } from "./request-cards";
 
-// The booking page's cards (design decision 12; DESIGN.md: one card at a time).
-// REQUESTER_CARDS is the typed slot: the first definition whose isOpen holds is
-// the one open card after the last message. The review, meeting details,
-// proposal and candidate times cards (request-cards.tsx) come before the
-// calendar connection and selection, Use verified Google email, and the status
-// card with **Withdraw request**, which is always last.
+// The guest thread's request cards (design decision 12; DESIGN.md: conversation
+// card): the Calendar connection and selection, and the status card with the
+// creation email, **Use verified Google email** and **Withdraw request**. The
+// review, meeting details, proposal and candidate times cards are in
+// request-cards.tsx and the identity card in guest-workspace.tsx. Every card is
+// placed in the thread by guest-workspace.tsx; none sits outside it.
 
 export type CommandOutcome =
   | { readonly ok: true; readonly result: unknown; readonly replayed: boolean }
@@ -33,13 +33,18 @@ export type RequesterCardContext = {
   readonly dismissed: ReadonlySet<string>;
   readonly dismiss: (cardId: string) => void;
   readonly reopen: (cardId: string) => void;
+  // The meeting details editor, opened in the thread by **Edit details**.
+  readonly openDetails: () => void;
+  readonly closeDetails: () => void;
+  // Moves focus to an open card's heading, as "the current one" from a receipt.
+  readonly focusCard: (domId: string) => void;
 };
 
-export type RequesterCardDefinition = {
-  readonly id: string;
-  readonly isOpen: (context: RequesterCardContext) => boolean;
-  readonly render: (context: RequesterCardContext) => ReactNode;
-};
+export function focusCardHeading(domId: string) {
+  const heading = document.getElementById(guestCardHeadingId(domId));
+  heading?.scrollIntoView({ block: "center" });
+  heading?.focus();
+}
 
 const DISMISSED_KEY = "fmat.cards.dismissed";
 
@@ -51,7 +56,15 @@ function readDismissed() {
   }
 }
 
-export function useRequesterCards(bookingId: string, view: OpenRequesterView, timezone: string, refresh: () => Promise<void>) {
+// The cards' context, or null until the thread has a request (before the
+// guest's first message on the public page).
+export function useRequesterCards(
+  bookingId: string | null,
+  view: OpenRequesterView | null,
+  timezone: string,
+  refresh: () => Promise<void>,
+  details: { readonly open: () => void; readonly close: () => void },
+) {
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   const keys = useRef(new Map<string, string>());
 
@@ -68,6 +81,8 @@ export function useRequesterCards(bookingId: string, view: OpenRequesterView, ti
 
   const run = useCallback(
     async (operation: string, input: unknown = {}, expectedRevision: number | null = null): Promise<CommandOutcome> => {
+      if (!bookingId) return { error: { category: "internal", message: "Send a message first." }, ok: false };
+
       const identity = JSON.stringify([operation, input, expectedRevision]);
       const retryKey = keys.current.get(identity) ?? crypto.randomUUID();
       keys.current.set(identity, retryKey);
@@ -89,10 +104,15 @@ export function useRequesterCards(bookingId: string, view: OpenRequesterView, ti
     [bookingId, refresh],
   );
 
+  if (!bookingId || !view) return null;
+
   const context: RequesterCardContext = {
     bookingId,
+    closeDetails: details.close,
     dismiss: (id) => store(new Set([...dismissed, id])),
     dismissed,
+    focusCard: focusCardHeading,
+    openDetails: details.open,
     refresh,
     reopen: (id) => store(new Set([...dismissed].filter((entry) => entry !== id))),
     run,
@@ -101,22 +121,6 @@ export function useRequesterCards(bookingId: string, view: OpenRequesterView, ti
   };
 
   return context;
-}
-
-export function RequesterCards({ context }: { readonly context: RequesterCardContext }) {
-  const card = REQUESTER_CARDS.find((definition) => definition.isOpen(context));
-  const shown = useRef<string | null>(null);
-
-  // When an action opens the next card, focus moves to its heading, so keyboard
-  // and screen reader users continue from there.
-  useEffect(() => {
-    if (shown.current !== null && card && shown.current !== card.id) {
-      document.getElementById(guestCardHeadingId(card.id))?.focus();
-    }
-    shown.current = card?.id ?? null;
-  }, [card]);
-
-  return card ? <div key={card.id}>{card.render(context)}</div> : null;
 }
 
 function ErrorLine({ message }: { readonly message: string | null }) {
@@ -129,7 +133,7 @@ function ErrorLine({ message }: { readonly message: string | null }) {
 
 // **Connect Google Calendar** and **Skip for now**: the request-bound consent
 // round trip, which returns to this page.
-function ConnectCalendarCard({ context }: { readonly context: RequesterCardContext }) {
+export function ConnectCalendarCard({ context }: { readonly context: RequesterCardContext }) {
   return (
     <GuestCard
       description="Your busy times then count automatically. Access is read-only, used only for this request, and event details are never shown to the host or the assistant."
@@ -158,7 +162,7 @@ function ConnectCalendarCard({ context }: { readonly context: RequesterCardConte
 type CalendarOption = { readonly id: string; readonly summary: string; readonly primary: boolean; readonly selected: boolean };
 
 // The requester's calendar selection, primary preselected, with **Disconnect**.
-function CalendarSelectionCard({ context }: { readonly context: RequesterCardContext }) {
+export function CalendarSelectionCard({ context }: { readonly context: RequesterCardContext }) {
   const id = useId();
   const [calendars, setCalendars] = useState<CalendarOption[] | null>(null);
   const [chosen, setChosen] = useState<Set<string>>(new Set());
@@ -246,55 +250,30 @@ function CalendarSelectionCard({ context }: { readonly context: RequesterCardCon
   );
 }
 
-// **Use verified Google email**: offered only when the verified Google address
-// equals the current, unconfirmed contact.
-function GoogleEmailCard({ context }: { readonly context: RequesterCardContext }) {
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  return (
-    <GuestCard
-      description={`Google verified ${context.view.contact.email}, so it can count as confirmed without the email link.`}
-      id="google-email"
-      label="Your contact"
-      title="Use your verified Google email?"
-    >
-      <GuestCardActions>
-        <Button
-          className="min-h-11"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            const outcome = await context.run("contact.use_google_email");
-            setBusy(false);
-            if (!outcome.ok) setError(outcome.error.message);
-          }}
-          type="button"
-        >
-          Use verified Google email
-        </Button>
-        <Button className="min-h-11" onClick={() => context.dismiss("google-email")} type="button" variant="outline">
-          Not now
-        </Button>
-      </GuestCardActions>
-      <ErrorLine message={error} />
-    </GuestCard>
-  );
-}
-
 const STATUS_TITLES: Readonly<Record<string, string>> = {
   awaiting_host_approval: "Waiting for the host to approve",
   gathering: "Your request is open",
   negotiating: "Choosing a time",
 };
 
-// The status card, always the last card: the current status, when the request
-// expires, and **Withdraw request** with a confirming step.
-function StatusCard({ context }: { readonly context: RequesterCardContext }) {
+const DELIVERY_TEXT: Readonly<Record<string, string>> = {
+  queued: "is on its way",
+  rejected: "could not be delivered",
+  sent: "was sent",
+  suppressed: "was not sent",
+  uncertain: "may not have arrived",
+};
+
+// The status card, placed where the guest was identified (and at the agreement
+// once agreed): the creation email with **Send the email again** and, when
+// Google verified the same address, **Use verified Google email**; when the
+// request expires; and **Withdraw request** with a confirming step.
+export function StatusCard({ context }: { readonly context: RequesterCardContext }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { request } = context.view;
+  const [sentAgain, setSentAgain] = useState(false);
+  const { confirmation, connection, contact, request } = context.view;
 
   async function withdraw() {
     setBusy(true);
@@ -310,7 +289,17 @@ function StatusCard({ context }: { readonly context: RequesterCardContext }) {
     setConfirming(false);
   }
 
+  async function command(operation: string, done?: () => void) {
+    setBusy(true);
+    setError(null);
+    const outcome = await context.run(operation);
+    setBusy(false);
+    if (!outcome.ok) setError(outcome.error.message);
+    else done?.();
+  }
+
   const agreed = context.view.agreement && context.view.proposal ? context.view.proposal : null;
+  const retryLater = confirmation?.retryAt ? Date.parse(confirmation.retryAt) > Date.now() : false;
 
   return (
     <GuestCard
@@ -323,6 +312,16 @@ function StatusCard({ context }: { readonly context: RequesterCardContext }) {
       label="Status"
       title={STATUS_TITLES[request.state] ?? "Your request"}
     >
+      {contact ? (
+        contact.confirmed ? (
+          <p>Your private booking link was emailed to {contact.email}, and the address is confirmed.</p>
+        ) : (
+          <p>
+            Your private booking link {DELIVERY_TEXT[confirmation?.delivery ?? "queued"] ?? "is on its way"} to {contact.email}.
+            Confirming the address from that email is optional.
+          </p>
+        )
+      ) : null}
       {confirming ? (
         <>
           <p>Withdraw this request? It closes for good and cannot be reopened.</p>
@@ -337,44 +336,29 @@ function StatusCard({ context }: { readonly context: RequesterCardContext }) {
         </>
       ) : (
         <GuestCardActions>
+          {contact && !contact.confirmed && connection.canUseGoogleEmail ? (
+            <Button className="min-h-11" disabled={busy} onClick={() => void command("contact.use_google_email")} type="button">
+              Use verified Google email
+            </Button>
+          ) : null}
+          {contact && !contact.confirmed && !connection.canUseGoogleEmail ? (
+            <Button
+              className="min-h-11"
+              disabled={busy || retryLater || sentAgain}
+              onClick={() => void command("contact.resend_confirmation", () => setSentAgain(true))}
+              type="button"
+              variant="outline"
+            >
+              {sentAgain ? "Email sent again" : "Send the email again"}
+            </Button>
+          ) : null}
+          {request.state !== "awaiting_host_approval" ? <DetailsButton context={context} /> : null}
           <Button className="min-h-11" onClick={() => setConfirming(true)} type="button" variant="outline">
             Withdraw request
           </Button>
-          {request.state !== "awaiting_host_approval" ? <DetailsButton context={context} /> : null}
-          {context.view.connection.calendar && context.dismissed.has("calendar-selection") ? (
-            <Button className="min-h-11" onClick={() => context.reopen("calendar-selection")} type="button" variant="ghost">
-              Calendar settings
-            </Button>
-          ) : !context.view.connection.calendar && context.dismissed.has("calendar-connect") ? (
-            <Button className="min-h-11" onClick={() => context.reopen("calendar-connect")} type="button" variant="ghost">
-              Connect Google Calendar
-            </Button>
-          ) : null}
         </GuestCardActions>
       )}
       <ErrorLine message={error} />
     </GuestCard>
   );
 }
-
-// The card slot, in order: the review, meeting details, proposal and candidate
-// times cards (request-cards.tsx), then the calendar, contact and status cards.
-export const REQUESTER_CARDS: readonly RequesterCardDefinition[] = [
-  ...REQUEST_CARDS,
-  {
-    id: "calendar-connect",
-    isOpen: ({ dismissed, view }) => !view.connection.calendar && !dismissed.has("calendar-connect"),
-    render: (context) => <ConnectCalendarCard context={context} />,
-  },
-  {
-    id: "calendar-selection",
-    isOpen: ({ dismissed, view }) => view.connection.calendar && !dismissed.has("calendar-selection"),
-    render: (context) => <CalendarSelectionCard context={context} />,
-  },
-  {
-    id: "google-email",
-    isOpen: ({ dismissed, view }) => view.connection.canUseGoogleEmail && !dismissed.has("google-email"),
-    render: (context) => <GoogleEmailCard context={context} />,
-  },
-  { id: "request-status", isOpen: () => true, render: (context) => <StatusCard context={context} /> },
-];

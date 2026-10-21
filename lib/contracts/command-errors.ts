@@ -11,6 +11,10 @@ export const COMMAND_ERROR_MESSAGES = {
   // A request command after the request closed (withdrawn, expired or decided);
   // the caller reads the current status instead.
   request_closed: "This request is closed.",
+  // A guest in a draft request asked for something that needs their name and
+  // email first (candidate times, choosing one, agreeing); the identity card
+  // in the thread collects them.
+  identity_required: "Give your name and email first, with or without Google.",
   // A temporary bound, such as request creation per source address.
   rate_limited: "This is temporarily limited. Try again later.",
   internal: "Something went wrong. Try again later.",

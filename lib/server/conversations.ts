@@ -44,7 +44,7 @@ export type ConversationRuntime = {
   ): AsyncIterable<MessageStreamEvent>;
   // Reads a session's recorded events with an internal read bearer for it: from
   // the start and without following unless the options say otherwise. A
-  // requester's or intake's history and live stream are read this way, since
+  // guest's history and live stream are read this way, since
   // their browsers hold no credential the agent could check.
   readRecordedEvents(
     sessionId: string,
@@ -304,8 +304,9 @@ async function recordInput(
 }
 
 // The principal's standing for conversation work, rechecked in the delivering
-// transaction: an active host account; a requester's request that is open with
-// its booking link unexpired; an intake that has neither continued nor expired.
+// transaction: an active host account; a requester's request (a draft
+// included) that is open with its booking link unexpired. An intake from before
+// D13 takes no more conversation work.
 // The principal's row stays share-locked, so a suspension, closure or
 // continuation waits for the delivery and never races it.
 export class ConversationClosedError extends Error {
@@ -323,17 +324,14 @@ export async function withPrincipalAuthority<T>(
   if (principal.type === "host_account") return withActiveHostAccount(db, principal.id, operation);
 
   return (await db.begin(async (tx) => {
-    const [row] =
-      principal.type === "requester_request"
-        ? await tx<{ open: boolean }[]>`
-            select r.closed_at is null and r.expires_at > now() and l.expires_at > now() as open
-            from app.requests r join app.booking_links l on l.request_id = r.id
-            where r.id = ${principal.id}
-            for share of r
-          `
-        : await tx<{ open: boolean }[]>`
-            select closed_at is null and expires_at > now() as open from app.intakes where id = ${principal.id} for share
-          `;
+    if (principal.type !== "requester_request") throw new ConversationClosedError();
+
+    const [row] = await tx<{ open: boolean }[]>`
+      select r.closed_at is null and r.expires_at > now() and l.expires_at > now() as open
+      from app.requests r join app.booking_links l on l.request_id = r.id
+      where r.id = ${principal.id}
+      for share of r
+    `;
 
     if (!row?.open) throw new ConversationClosedError();
     return operation(tx);

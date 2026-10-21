@@ -12,7 +12,6 @@ import {
   withPrincipalAuthority,
 } from "./conversations";
 import type { Queryable, Transaction } from "./database";
-import { INTAKE_LIMITS, IntakeLimitError } from "./intakes";
 import { signInternalBearer } from "./internal-bearer";
 import { sessionIdHash } from "./model-limits";
 import type { MessageStreamEvent } from "eve/client";
@@ -25,25 +24,38 @@ import {
   settled,
 } from "./recovery";
 import { sameProtectedInput, protectInput } from "./redaction";
+import { DRAFT_LIMITS, markIdentityRequested } from "./request-start";
 
-// The application side of a requester's and an anonymous intake's conversation,
-// the counterparts of the host path in conversations.ts and recovery.ts. The
-// application route has already resolved the credential (the booking link's hash
-// or the intake token's), so the principal here is verified. Each discussion
-// has its own audience (requester or public_intake); input is redacted and
-// admitted before it is stored, the session index row is written before the
-// session's first message, and history and the live stream are read with an
-// internal read bearer, so a requester's browser never calls /eve/v1.
+// The application side of a guest's conversation, the counterpart of the host
+// path in conversations.ts and recovery.ts. The application route has already
+// resolved the credential (the booking link's hash), so the principal here is
+// verified. One requester discussion serves the guest from the first message on
+// the public page, while the request is a draft, to agreement (design decision
+// 2): input is redacted and admitted before it is stored, the session index row
+// is written before the session's first message, and history and the live
+// stream are read with an internal read bearer, so a guest's browser never
+// calls /eve/v1. A draft accepts at most 30 messages.
+//
+// A public_intake principal names an anonymous intake from before D13. Intakes
+// are no longer created, and their discussions are only read, so a request
+// that came from one still shows that transcript above its thread.
+
+export class DraftMessageLimitError extends Error {
+  constructor() {
+    super("The draft message limit is reached.");
+    this.name = "DraftMessageLimitError";
+  }
+}
 
 export type GuestPrincipal = { readonly type: "requester_request" | "public_intake"; readonly id: string };
 
 export type GuestConversationDependencies = ConversationDependencies & {
-  // Messages one intake accepts before the visitor continues.
-  readonly intakeMessageLimit?: number;
+  // Messages a draft accepts before the guest gives a name and email.
+  readonly draftMessageLimit?: number;
 };
 
 // The principal's one discussion, row-locked: a request's requester discussion
-// (created with the request, or here on first use), an intake's own.
+// (created with the draft, or here on first use for a request from before D13).
 async function lockGuestDiscussion(tx: Transaction, principal: GuestPrincipal) {
   if (principal.type === "requester_request") {
     await tx`
@@ -151,19 +163,15 @@ async function recordGuestInput(
       return { discussionId, inputId: existing.id, state: existing.state };
     }
 
-    if (principal.type === "public_intake") {
-      const [count] = await tx<{ count: number }[]>`
-        select count(*)::int as count from app.conversation_inputs where discussion_id = ${discussionId}
-      `;
+    // withPrincipalAuthority share-locked the request; a draft has a cap.
+    const [count] = await tx<{ count: number; draft: boolean }[]>`
+      select (select state = 'draft' from app.requests where id = ${principal.id}) as draft,
+             (select count(*)::int from app.conversation_inputs where discussion_id = ${discussionId}) as count
+    `;
 
-      if (count!.count >= (deps.intakeMessageLimit ?? INTAKE_LIMITS.messages)) throw new IntakeLimitError("messages");
-    }
+    if (count!.draft && count!.count >= (deps.draftMessageLimit ?? DRAFT_LIMITS.messages)) throw new DraftMessageLimitError();
 
-    await admitConversationInput(
-      tx,
-      { key: principal.id, scope: principal.type === "public_intake" ? "intake" : "request" },
-      deps.admission,
-    );
+    await admitConversationInput(tx, { key: principal.id, scope: "request" }, deps.admission);
     const protectedInput = protectInput(deps.signingKey, input.message, { bareUuids: true });
     const [created] = await tx<{ id: string }[]>`
       insert into app.conversation_inputs (discussion_id, client_input_id, fingerprint, protected_fingerprint, message)
@@ -176,8 +184,8 @@ async function recordGuestInput(
   });
 }
 
-// POST /api/intake/{handle}/messages and /api/requests/{bookingId}/messages: the
-// guest counterpart of acceptHostMessage.
+// POST /api/requests/start (the first message) and
+// /api/requests/{bookingId}/messages: the guest counterpart of acceptHostMessage.
 export async function acceptGuestMessage(
   deps: GuestConversationDependencies,
   principal: GuestPrincipal,
@@ -188,7 +196,15 @@ export async function acceptGuestMessage(
 
   if (lengthError) throw new ConversationInputError("invalid_message", lengthError);
 
-  const accepted = await recordGuestInput(deps, principal, { clientInputId: input.clientInputId, message });
+  let accepted: AcceptedInput;
+
+  try {
+    accepted = await recordGuestInput(deps, principal, { clientInputId: input.clientInputId, message });
+  } catch (error) {
+    // At the cap, the thread calls for the identity card to keep going.
+    if (error instanceof DraftMessageLimitError) await markIdentityRequested(deps.db, principal.id);
+    throw error;
+  }
 
   if (accepted.state !== "accepted") return { inputId: accepted.inputId, status: "sent" };
 
@@ -226,7 +242,8 @@ export async function guestConversationStatus(db: Queryable, principal: GuestPri
 
 // The guest discussion's events from `cursor`, read with an internal read
 // bearer for each live generation. The agent refuses the read once the request
-// closed (or, for an intake, unless it is open or has continued into a request).
+// closed (or, for an intake from before D13, unless the request it became is
+// open).
 export async function* guestDiscussionEvents(
   deps: Pick<ConversationDependencies, "db" | "runtime" | "signingKey">,
   principal: GuestPrincipal,

@@ -263,7 +263,8 @@ test("a new host completes setup one card at a time, from the authored messages 
   // The public pages exist only now.
   await page.goto(`/${handle}`);
   await expect(page.getByRole("heading", { name: displayName })).toBeVisible();
-  await expect(page.getByRole("region", { name: "For AI agents" })).toBeVisible();
+  // The agent section is collapsed page chrome above the guest thread.
+  await expect(page.locator("summary", { hasText: "For AI agents" })).toBeVisible();
   const skill = await page.request.get(`/${handle}/SKILL.md`);
   expect(skill.status()).toBe(200);
   expect(skill.headers()["content-type"]).toContain("text/markdown");

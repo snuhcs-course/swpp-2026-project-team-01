@@ -542,11 +542,10 @@ describe("message route and session index", () => {
 
     expect(manifest.config.limits?.sessionTimeoutMs).toBe(false);
     // Task 4.2: nothing the model could call, built in or connected; the only
-    // tools are the audience resolvers (host setup, public intake, request
-    // discussions), each of which resolves for its own audience only.
+    // tools are the audience resolvers (host setup and request discussions,
+    // drafts included), each of which resolves for its own audience only.
     expect(manifest.config).toMatchObject({ defaultTools: false, tool: false });
     expect((manifest.dynamicTools as { sourceId: string }[]).map((tool) => tool.sourceId).sort()).toEqual([
-      "tools/intake.ts",
       "tools/request.ts",
       "tools/setup.ts",
     ]);

@@ -9,11 +9,11 @@ import type {
   ReviewPatch,
 } from "./request";
 
-// What GET /api/requests/{bookingId}/state returns to the requester's booking
-// page, and what its cards read (Lane D's review, details, candidate, proposal
-// and status cards build on the same view). It is the requester projection:
-// their own details and contact, connection state and status; nothing from the
-// host's settings, calendar or private discussion.
+// What GET /api/requests/{bookingId}/state returns to the guest thread, on the
+// public host page while the request is a draft and on the booking page after,
+// and what its cards read. It is the requester projection: their own details
+// and contact, connection state and status; nothing from the host's settings,
+// calendar or private discussion.
 
 export type RequesterReviewView = {
   readonly id: string;
@@ -45,6 +45,24 @@ export type RequesterConversationView = {
   readonly pendingInputs: number;
 };
 
+// One card in the guest thread (design decision 12, D13). Every card sits
+// inside the thread, anchored at `at`, the moment the conversation called for
+// it (the tool result, the gated answer or the action that raised it), and
+// stays in the history: open while it can still be acted on, answered once
+// acted on (a one-line receipt of what was offered and chosen), or superseded
+// by a newer card of its kind (marked out of date, pointing at the current one).
+export const THREAD_CARD_KINDS = ["identity", "review", "status", "calendar", "times", "proposal"] as const;
+export type ThreadCardKind = (typeof THREAD_CARD_KINDS)[number];
+
+export type ThreadCard = {
+  readonly id: string;
+  readonly kind: ThreadCardKind;
+  readonly at: string;
+  readonly status: "open" | "answered" | "superseded";
+  // For a receipt: what was chosen, as text and, for a time, its instants.
+  readonly receipt?: { readonly text: string; readonly start?: string; readonly end?: string };
+};
+
 export type OpenRequesterView = {
   readonly open: true;
   readonly request: {
@@ -54,7 +72,8 @@ export type OpenRequesterView = {
     readonly details: Partial<RequestDetails>;
   };
   readonly host: { readonly displayName: string; readonly handle: string | null };
-  readonly contact: { readonly name: string; readonly email: string; readonly confirmed: boolean };
+  // Null while the request is a draft: the guest has not given a name and email.
+  readonly contact: { readonly name: string; readonly email: string; readonly confirmed: boolean } | null;
   readonly confirmation: RequesterConfirmationView | null;
   readonly connection: RequesterConnectionView;
   readonly pendingReview: RequesterReviewView | null;
@@ -68,6 +87,8 @@ export type OpenRequesterView = {
   // evaluation, with the agreement to it once given.
   readonly proposal: RequesterProposal | null;
   readonly agreement: RequesterAgreement | null;
+  // The thread's cards in order.
+  readonly thread: readonly ThreadCard[];
 };
 
 // A closed request with an unexpired link: only its final status (and, from
@@ -84,6 +105,7 @@ export type RequesterView = OpenRequesterView | ClosedRequesterView;
 // { operation, input, expectedRevision, retryKey }, registered in
 // lib/server/requester-routes.ts.
 export const REQUESTER_OPERATIONS = [
+  "request.identify",
   "request.apply_review",
   "request.dismiss_review",
   "request.update_details",

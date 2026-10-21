@@ -11,7 +11,7 @@ import type {
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
 import type { Queryable, Transaction } from "./database";
 import { publishEvaluation, readEvaluation, type StoredCandidate } from "./evaluation";
-import { lockOpenRequest } from "./request-guard";
+import { assertIdentified, lockOpenRequest } from "./request-guard";
 import { detailsComplete } from "./request-lifecycle";
 
 // Candidates, proposals and agreement (design decisions 8, 10, 11 and 12).
@@ -29,6 +29,9 @@ import { detailsComplete } from "./request-lifecycle";
 //   current version while its start is still in the future after the lock and
 //   the request is open, and moves the request to awaiting host approval. An
 //   unconfirmed contact does not block it (D3).
+//
+// All four answer identity_required while the request is a draft: candidate
+// times wait until the guest gives a name and email (design decision 2).
 //
 // The current evaluation is the latest one made at the request's current
 // revision. Choosing a candidate does not advance the revision: the proposal
@@ -123,6 +126,7 @@ export const evaluateCommand: CommandDefinition<Record<string, never>, EvaluateR
   async run(tx, context) {
     const request = await lockOpenRequest(tx, requester(context));
 
+    assertIdentified(request);
     if (request.state === "awaiting_host_approval") throw new CommandError("invalid_input");
 
     return { evaluationId: (await publishEvaluation(tx, { audience: "requester", requestId: request.id, retryKey: context.retryKey })).evaluationId };
@@ -173,6 +177,7 @@ export const allowTripCommand: CommandDefinition<z.infer<typeof allowTripInput>,
   operation: ALLOW_TRIP_OPERATION,
   async run(tx, context) {
     const request = await lockOpenRequest(tx, requester(context));
+    assertIdentified(request);
     const { shown, stored } = await currentCandidate(tx, request.id, context.input.evaluationId, context.input.candidateId);
     const leg =
       "legs" in stored
@@ -221,6 +226,7 @@ export const chooseCandidateCommand: CommandDefinition<z.infer<typeof chooseInpu
   operation: CHOOSE_CANDIDATE_OPERATION,
   async run(tx, context) {
     const request = await lockOpenRequest(tx, requester(context));
+    assertIdentified(request);
     assertRevision(request.revision, context.expectedRevision);
 
     // Incomplete details (no duration, mode or window) cannot authorize selection.
@@ -236,7 +242,7 @@ export const chooseCandidateCommand: CommandDefinition<z.infer<typeof chooseInpu
     const linkPlan = linkPlanOf(shown, request.details);
     if (shown.mode === "online" && !linkPlan) return { outcome: "needs_meeting_link" };
 
-    const [names] = await tx<{ host_name: string | null; host_timezone: string | null; requester_name: string }[]>`
+    const [names] = await tx<{ host_name: string | null; host_timezone: string | null; requester_name: string | null }[]>`
       select r.requester_name, s.settings ->> 'displayName' as host_name, s.settings ->> 'timezone' as host_timezone
       from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
       where r.id = ${request.id}
@@ -254,7 +260,7 @@ export const chooseCandidateCommand: CommandDefinition<z.infer<typeof chooseInpu
       mode: shown.mode,
       participants: [
         { name: names?.host_name ?? "Host", role: "host" },
-        { name: names!.requester_name, role: "requester" },
+        { name: names!.requester_name ?? "Requester", role: "requester" },
       ],
       start: shown.start,
     };
@@ -285,6 +291,7 @@ export const agreeCommand: CommandDefinition<z.infer<typeof agreeInput>, AgreeRe
   operation: AGREE_OPERATION,
   async run(tx, context) {
     const request = await lockOpenRequest(tx, requester(context));
+    assertIdentified(request);
     assertRevision(request.revision, context.expectedRevision);
 
     const latest = await latestProposal(tx, request.id);

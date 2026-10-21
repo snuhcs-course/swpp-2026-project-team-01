@@ -1,39 +1,41 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eveRuntime } from "../../lib/server/conversations";
-import { acceptGuestMessage, openGuestSession } from "../../lib/server/guest-conversations";
-import {
-  createIntakeContinueHandler,
-  createIntakeMessageHandler,
-  type IntakeRouteDependencies,
-} from "../../lib/server/intake-routes";
-import { hashIntakeToken } from "../../lib/server/intakes";
+import { acceptGuestMessage } from "../../lib/server/guest-conversations";
 import { signInternalBearer } from "../../lib/server/internal-bearer";
 import { sessionIdHash } from "../../lib/server/model-limits";
-import { createIntakeTranscriptHandler, createRequesterEventsHandler } from "../../lib/server/requester-routes";
+import {
+  createIntakeTranscriptHandler,
+  createRequesterCommandHandler,
+  createRequesterEventsHandler,
+  createRequesterMessageHandler,
+  type RequesterRouteDependencies,
+} from "../../lib/server/requester-routes";
 import { clearServiceWindow, testDatabase } from "./support/database";
 import { type EveServer, startEve } from "./support/eve-server";
 import { type FakeOpenAI, startFakeOpenAI } from "./support/fake-openai";
-import { call, guestDependencies, readyHost } from "./support/guests";
+import { call, guestDependencies, readyHost, startDraft } from "./support/guests";
 import { uniqueEmail } from "./support/requests";
 
 // Framework tools eve registers itself (task control, and dev-only self
 // modification) are named with "__"; the application's tools never are.
 const isApplicationTool = (name: string) => !name.includes("__");
 
-// The intake and requester conversations against a real `eve dev` agent whose
-// model is a local Responses API stand-in (tasks 3.1 and 3.2): each session
-// registers only its audience's tools, history and the live stream come through
-// the application's routes with an internal read bearer, a requester principal
-// reaches no other request's session, and nothing a requester's browser holds
-// lets it call /eve/v1.
+// The guest conversation against a real `eve dev` agent whose model is a local
+// Responses API stand-in (tasks 3.2 and 9.1): the first message on the public
+// page starts a draft whose session registers only the requester tools,
+// identification keeps the same session with the earlier messages as context,
+// history and the live stream come through the application's routes with an
+// internal read bearer, a requester principal reaches no other request's
+// session, and nothing a guest's browser holds lets it call /eve/v1.
 
 const db = testDatabase();
 let fake: FakeOpenAI;
 let server: EveServer;
-let deps: IntakeRouteDependencies;
+let deps: RequesterRouteDependencies;
 
 const HOST_TOOLS = ["read_setup_state", "draft_settings"];
+// The retired public intake's tools, registered for no session any more.
 const INTAKE_TOOLS = ["read_intake", "draft_intake"];
 const REQUESTER_TOOLS = ["read_request", "draft_request_review", "evaluate_candidates", "read_booking_status"];
 
@@ -82,49 +84,51 @@ async function lines(response: Response) {
     .map((line) => JSON.parse(line) as { type: string; data?: { message?: string } });
 }
 
-async function intakeWithRequest() {
-  const host = await readyHost(db);
-  const sent = await call(createIntakeMessageHandler(() => deps), { handle: host.handle }, `/api/intake/${host.handle}/messages`, {
-    body: { clientInputId: randomUUID(), language: "en", message: "What is the host's calendar next week?", timezone: "Asia/Seoul" },
-  });
-  expect(sent.status).toBe(202);
-  const { intakeToken } = (await sent.json()) as { intakeToken: string };
-  const [intake] = await db<{ discussion_id: string; id: string }[]>`
-    select id, discussion_id from app.intakes where token_hash = ${hashIntakeToken(intakeToken)}
+async function sessionsOf(discussionId: string) {
+  return db<{ generation: number; session_id: string }[]>`
+    select session_id, generation from app.agent_sessions where discussion_id = ${discussionId} order by generation
   `;
-  await completed(intake!.discussion_id);
-  const [intakeSession] = await db<{ session_id: string }[]>`
-    select session_id from app.agent_sessions where discussion_id = ${intake!.discussion_id}
-  `;
+}
 
-  const continued = await call(createIntakeContinueHandler(() => deps), { handle: host.handle }, `/api/intake/${host.handle}/continue`, {
-    body: { email: uniqueEmail(), language: "en", name: "Grace Hopper", timezone: "Asia/Seoul" },
-    headers: { "x-intake-token": intakeToken },
-  });
-  const { bookingId } = (await continued.json()) as { bookingId: string };
-  const [request] = await db<{ discussion_id: string; id: string }[]>`
-    select r.id, d.id as discussion_id from app.requests r
+// A guest's thread: the first message on the public page starts the draft, and
+// Continue without Google identifies it.
+async function guestThread() {
+  const host = await readyHost(db);
+  const sent = await startDraft(deps, host.handle, "What is the host's calendar next week?");
+  expect(sent.status).toBe(202);
+  const { bookingId } = (await sent.json()) as { bookingId: string };
+  const [request] = await db<{ discussion_id: string; id: string; state: string }[]>`
+    select r.id, r.state, d.id as discussion_id from app.requests r
     join app.discussions d on d.principal_type = 'requester_request' and d.principal_id = r.id
     where r.host_account_id = ${host.hostAccountId}
   `;
-  const session = await openGuestSession(deps, { id: request!.id, type: "requester_request" });
+  expect(request!.state).toBe("draft");
   await completed(request!.discussion_id);
+  const [draftSession] = await sessionsOf(request!.discussion_id);
 
-  return { bookingId, intake: { ...intake!, sessionId: intakeSession!.session_id }, request: { ...request!, sessionId: session!.session_id } };
+  const identified = await call(createRequesterCommandHandler(() => deps), { bookingId }, "/commands", {
+    body: {
+      expectedRevision: null,
+      input: { email: uniqueEmail(), name: "Grace Hopper", timezone: "Asia/Seoul" },
+      operation: "request.identify",
+      retryKey: randomUUID(),
+    },
+  });
+  expect(identified.status).toBe(200);
+
+  return { bookingId, request: { ...request!, sessionId: draftSession!.session_id } };
 }
 
 describe("guest sessions", () => {
-  let first: Awaited<ReturnType<typeof intakeWithRequest>>;
-  let second: Awaited<ReturnType<typeof intakeWithRequest>>;
+  let first: Awaited<ReturnType<typeof guestThread>>;
+  let second: Awaited<ReturnType<typeof guestThread>>;
 
   beforeAll(async () => {
-    first = await intakeWithRequest();
-    second = await intakeWithRequest();
+    first = await guestThread();
+    second = await guestThread();
   }, 180_000);
 
-  it("gives an intake session only the intake tools, and a requester session only the requester tools", () => {
-    expect(toolNames(first.intake.sessionId)).toEqual([...INTAKE_TOOLS].sort());
-
+  it("gives the draft's session only the requester tools", () => {
     const requesterTools = toolNames(first.request.sessionId);
     expect(fake.requests.some((entry) => entry.prompt_cache_key === sessionIdHash(first.request.sessionId))).toBe(true);
     expect(requesterTools).toEqual([...REQUESTER_TOOLS].sort());
@@ -152,21 +156,42 @@ describe("guest sessions", () => {
     expect(decisions).toEqual({ agreements: 0, proposals: 0, reviews: 0 });
   });
 
-  it("delivers the authored intake summary as the request session's first input", async () => {
-    const response = await call(createRequesterEventsHandler(() => deps), { bookingId: first.bookingId }, "/events?cursor=0");
-    expect(response.status).toBe(200);
-    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
-    expect(response.headers.get("x-robots-tag")).toBe("noindex");
-    expect(response.headers.get("cache-control")).toContain("no-store");
+  it("keeps the draft's session through identification, with the earlier messages as context", async () => {
+    const response = await call(createRequesterMessageHandler(() => deps), { bookingId: first.bookingId }, "/messages", {
+      body: { clientInputId: randomUUID(), message: "Thirty minutes online would be great." },
+    });
+    expect(response.status).toBe(202);
+    await completed(first.request.discussion_id);
 
-    const received = (await lines(response)).filter((event) => event.type === "message.received");
-    expect(received[0]?.data?.message).toMatch(/^Intake summary from the public page/);
+    // One session served the draft and the identified request: no new
+    // generation, and no authored summary input.
+    expect(await sessionsOf(first.request.discussion_id)).toEqual([{ generation: 1, session_id: first.request.sessionId }]);
+    const inputs = await db<{ message: string }[]>`
+      select message from app.conversation_inputs where discussion_id = ${first.request.discussion_id} order by accepted_at
+    `;
+    expect(inputs.map((input) => input.message)).toEqual([
+      "What is the host's calendar next week?",
+      "yes",
+      "book it",
+      "Thirty minutes online would be great.",
+    ]);
+
+    // The model's last call for this session still carries the first message.
+    const calls = fake.requests.filter((entry) => entry.prompt_cache_key === sessionIdHash(first.request.sessionId));
+    expect(JSON.stringify(calls.at(-1)?.input)).toContain("What is the host's calendar next week?");
+
+    const events = await call(createRequesterEventsHandler(() => deps), { bookingId: first.bookingId }, "/events?cursor=0");
+    expect(events.status).toBe(200);
+    expect(events.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(events.headers.get("x-robots-tag")).toBe("noindex");
+    expect(events.headers.get("cache-control")).toContain("no-store");
+    const received = (await lines(events)).filter((event) => event.type === "message.received");
+    expect(received[0]?.data?.message).toBe("What is the host's calendar next week?");
   });
 
-  it("serves the intake transcript read-only from the intake discussion", async () => {
+  it("serves no intake transcript for a request that began as a draft", async () => {
     const response = await call(createIntakeTranscriptHandler(() => deps), { bookingId: first.bookingId }, "/intake?cursor=0");
-    const received = (await lines(response)).filter((event) => event.type === "message.received");
-    expect(received.map((event) => event.data?.message)).toEqual(["What is the host's calendar next week?"]);
+    expect(await lines(response)).toEqual([]);
   });
 
   it("keeps one request's principal out of another request's session", async () => {

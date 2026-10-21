@@ -165,15 +165,15 @@ describe("conversation admission", () => {
     expect(await response.json()).toEqual({ code: "rate_limited", error: ADMISSION_LIMITED_MESSAGE, retryAfterSeconds: 42 });
   });
 
-  it("serializes admission inside the caller's transaction for other scopes", async () => {
-    const intake = randomUUID();
+  it("serializes admission inside the caller's transaction for a request, a draft included", async () => {
+    const request = randomUUID();
     const serviceKey = `test:${randomUUID()}`;
-    const admit = () => db.begin((tx) => admitConversationInput(tx, { key: intake, scope: "intake" }, { limits: { scopeMinute: 2 }, serviceKey }));
+    const admit = () => db.begin((tx) => admitConversationInput(tx, { key: request, scope: "request" }, { limits: { scopeMinute: 2 }, serviceKey }));
 
     const outcomes = await Promise.allSettled([admit(), admit(), admit()]);
 
     expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(2);
-    expect(await window("intake", intake, "minute")).toBe(2);
+    expect(await window("request", request, "minute")).toBe(2);
   });
 });
 

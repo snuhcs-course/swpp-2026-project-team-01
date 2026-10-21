@@ -10,21 +10,26 @@ import { ChatConversation, ChatConversationContent, ChatItem, ChatScrollButton }
 import { AgentMessage, AgentThinking } from "@/components/chat/message";
 import { Button } from "@/components/ui/button";
 import { ChatRequestError, type DiscussionStatus } from "@/lib/chat/discussion";
-import type { GuestDiscussionClient } from "@/lib/chat/guest";
+import type { GuestDiscussionClient, GuestPostOutcome } from "@/lib/chat/guest";
 
-// The conversation column of the public intake page and the booking page,
-// following the host workspace (host-workspace.tsx): history and live output
-// come from the application's events route from a discussion cursor, a message
-// is posted with a retry identity kept until it is accepted, the reply streams
-// in as the runtime records it, and the unsent text stays in the composer on a
-// failure or a temporary limit. One open card (the `card` slot) follows the
-// last message, above the composer.
+// The guest thread (design decisions 2 and 12, D13), following the host
+// workspace (host-workspace.tsx): history and live output come from the
+// application's events route from a discussion cursor, a message is posted with
+// a retry identity kept until it is accepted, the reply streams in as the
+// runtime records it, and the unsent text stays in the composer on a failure or
+// a temporary limit. Every card is an entry of the thread, placed among the
+// messages by the time the conversation called for it, so it follows the
+// assistant message or tool result that raised it and stays in the history.
+// Only the composer sits below the thread.
 
 type Phase = "loading" | "ready" | "sending" | "streaming";
 
-// An application-authored message, such as a new request's intake summary,
-// starts with this line and is shown as a quiet note rather than as the
-// requester's own words.
+// One card or receipt in the thread, placed by `at`.
+export type ThreadEntry = { readonly id: string; readonly at: string; readonly node: ReactNode };
+
+// An application-authored message from before D13 (a request's intake
+// summary) starts with this line and is shown as a quiet note rather than as
+// the requester's own words.
 const AUTHORED_PREFIX = "Intake summary from the public page, written by Find Me a Time";
 
 function hasOpenTurn(events: readonly DiscussionEvent[]) {
@@ -40,14 +45,59 @@ function hasOpenTurn(events: readonly DiscussionEvent[]) {
 }
 
 export function projectMessages(events: readonly DiscussionEvent[]) {
+  return project(events).messages;
+}
+
+// Each message's time is the meta.at of the event that first produced it,
+// which places the thread's cards among the messages.
+function project(events: readonly DiscussionEvent[]) {
   let state = conversationReducer.initial();
+  const times = new Map<string, number>();
 
   for (const event of events) {
     if (isRedeliveredInput(event)) continue;
     state = conversationReducer.reduce(state, event);
+    const at = event.meta?.at ? Date.parse(event.meta.at) : Number.NaN;
+    if (Number.isNaN(at)) continue;
+    // New messages are appended, so only the tail can be unseen.
+    for (let index = state.messages.length - 1; index >= 0; index -= 1) {
+      const id = state.messages[index]!.id;
+      if (times.has(id)) break;
+      times.set(id, at);
+    }
   }
 
-  return state.messages;
+  return { messages: state.messages, times };
+}
+
+type Placed =
+  | { readonly kind: "message"; readonly index: number; readonly message: EveMessage }
+  | { readonly kind: "entry"; readonly entry: ThreadEntry };
+
+// Messages in order, with each entry before the first message that started
+// after it: an entry follows the message during which it was called for.
+export function placeEntries(
+  messages: readonly EveMessage[],
+  times: ReadonlyMap<string, number>,
+  entries: readonly ThreadEntry[],
+): Placed[] {
+  const sorted = [...entries].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const placed: Placed[] = [];
+  let next = 0;
+  let previous = Number.NEGATIVE_INFINITY;
+
+  messages.forEach((message, index) => {
+    const started = times.get(message.id) ?? previous;
+    previous = started;
+    while (next < sorted.length && Date.parse(sorted[next]!.at) < started) {
+      placed.push({ entry: sorted[next]!, kind: "entry" });
+      next += 1;
+    }
+    placed.push({ index, kind: "message", message });
+  });
+
+  for (; next < sorted.length; next += 1) placed.push({ entry: sorted[next]!, kind: "entry" });
+  return placed;
 }
 
 function isWritingText(message: EveMessage | undefined) {
@@ -67,10 +117,9 @@ function errorMessage(error: unknown) {
 export function GuestConversation({
   ariaLabel,
   before,
-  card,
   client,
   closedReason,
-  composerFooter,
+  entries = [],
   extra,
   onAccepted,
   onError,
@@ -79,18 +128,19 @@ export function GuestConversation({
   placeholder = "Message Thyme",
 }: {
   readonly ariaLabel: string;
-  // Read-only content above the messages (host identity, an intake transcript).
+  // The start of the thread: the host's identity, the timezone chip and, on
+  // the public page, its collapsed page chrome.
   readonly before?: ReactNode;
-  // The one open card, after the last message.
-  readonly card?: ReactNode;
   readonly client: GuestDiscussionClient;
   // Why the composer is closed, when it is.
   readonly closedReason?: string;
-  readonly composerFooter?: ReactNode;
-  // Extra fields each message carries (the intake's timezone and language).
+  // The thread's cards and receipts, placed among the messages by time.
+  readonly entries?: readonly ThreadEntry[];
+  // Extra fields the first message carries (the guest's timezone and language).
   readonly extra?: () => Record<string, unknown>;
-  // A message the service accepted; the intake page keeps its new token.
-  readonly onAccepted?: (outcome: { intakeToken?: string }) => void;
+  // A message the service accepted; the first one answers the draft's booking
+  // identifier, which the page keeps (also from a failure after the draft exists).
+  readonly onAccepted?: (outcome: GuestPostOutcome) => void;
   readonly onError?: (error: unknown) => void;
   // **Recover conversation** for a generation that stopped with a terminal
   // failure; absent where the page offers no recovery.
@@ -207,9 +257,9 @@ export function GuestConversation({
         setPhase("ready");
       } catch (cause) {
         abortRef.current?.abort();
-        // A token the failed message's new intake got is kept all the same.
-        const token = (cause as { intakeToken?: string }).intakeToken;
-        if (token) onAccepted?.({ intakeToken: token });
+        // A draft the failed first message started is kept all the same.
+        const bookingId = (cause as { bookingId?: string }).bookingId;
+        if (bookingId) onAccepted?.({ bookingId });
         setPendingText(null);
         setDraft(text);
         setError(errorMessage(cause));
@@ -220,7 +270,8 @@ export function GuestConversation({
     [client, extra, follow, onAccepted, onError, status],
   );
 
-  const messages = useMemo(() => projectMessages(events), [events]);
+  const { messages, times } = useMemo(() => project(events), [events]);
+  const placed = useMemo(() => placeEntries(messages, times, entries), [entries, messages, times]);
   const busy = phase !== "ready";
   const openTurn = useMemo(() => hasOpenTurn(events), [events]);
   const lastMessage = messages.at(-1);
@@ -251,10 +302,18 @@ export function GuestConversation({
       <main aria-label={ariaLabel} className="flex min-h-0 flex-1 flex-col">
         {error ? <ErrorNotice message={error} onDismiss={() => setError(null)} /> : null}
         <ChatConversation>
-          <ChatConversationContent aria-busy={busy} aria-label="Messages">
+          <ChatConversationContent aria-busy={busy} aria-label="Messages" data-guest-thread="">
             {before}
-            {messages.map((message, index) =>
-              authored(message) ? (
+            {placed.map((item) => {
+              if (item.kind === "entry") {
+                return (
+                  <ChatItem key={`entry-${item.entry.id}`} messageId={`entry-${item.entry.id}`}>
+                    <div className="flex min-w-0 flex-col">{item.entry.node}</div>
+                  </ChatItem>
+                );
+              }
+              const { index, message } = item;
+              return authored(message) ? (
                 <ChatItem key={message.id} messageId={message.id}>
                   <p className="px-3 text-sm text-muted-foreground">Your details from the public page were passed on to Thyme.</p>
                 </ChatItem>
@@ -267,8 +326,8 @@ export function GuestConversation({
                     onInputResponses={() => {}}
                   />
                 </ChatItem>
-              ),
-            )}
+              );
+            })}
             {pendingText ? (
               <ChatItem messageId="pending" scrollAnchor>
                 <AgentMessage
@@ -281,7 +340,7 @@ export function GuestConversation({
             ) : null}
             {failed ? (
               <div className="flex flex-wrap items-center gap-2 px-3 text-sm text-muted-foreground" role="status">
-                <p>Thyme stopped responding in this conversation. Your messages are kept; the cards below still work.</p>
+                <p>Thyme stopped responding in this conversation. Your messages are kept; the cards in it still work.</p>
                 {onRecover ? (
                   <Button className="min-h-11" disabled={recovering} onClick={() => void recover()} type="button" variant="outline">
                     {recovering ? "Recovering..." : "Recover conversation"}
@@ -294,13 +353,6 @@ export function GuestConversation({
                 <AgentThinking withHeader={pendingText !== null || lastMessage?.role !== "assistant"} />
               </ChatItem>
             ) : null}
-            {card ? (
-              <ChatItem messageId="card">
-                <div className="flex min-w-0 flex-col" role="group" aria-label="Next step">
-                  {card}
-                </div>
-              </ChatItem>
-            ) : null}
           </ChatConversationContent>
           <ChatScrollButton />
         </ChatConversation>
@@ -308,7 +360,6 @@ export function GuestConversation({
 
       <div className="shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-2 px-4 sm:px-6">
-          {composerFooter}
           <ChatComposer
             autoFocus={false}
             disabled={phase === "loading" || Boolean(closedReason)}

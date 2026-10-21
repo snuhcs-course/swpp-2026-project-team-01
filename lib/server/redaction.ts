@@ -7,7 +7,7 @@ import { messageFingerprint } from "./internal-bearer";
 // proofs, URL parameters or fragments whose percent-decoded, case-folded name is
 // a credential name or ends in _token, and booking or confirmation links (with or
 // without an origin), because the booking UUID is the requester's only
-// credential. Requester and intake input (`bareUuids`) also loses any bare UUID,
+// credential. Requester input (`bareUuids`) also loses any bare UUID,
 // which could be a booking identifier pasted without its link; host input keeps
 // them. Ordinary prose and links keep their content. Redaction confers no
 // authority: nothing here follows or redeems a link.
@@ -87,7 +87,7 @@ function redactParameters(text: string, depth = 0): string {
 }
 
 export type RedactionOptions = {
-  // Requester and intake input: remove bare UUIDs too.
+  // Requester input, drafts included: remove bare UUIDs too.
   readonly bareUuids?: boolean;
 };
 

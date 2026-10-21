@@ -3,7 +3,7 @@ import type { Transaction } from "./database";
 // Conversation admission (design decision 14; chat-workspaces: bounded
 // conversation admission). Every new conversation input is charged, in the
 // transaction that records it, against fixed windows: 20 a minute and 100 an
-// hour for its host account, request or intake, and 200 a minute and 2,000 an
+// hour for its host account or request, and 200 a minute and 2,000 an
 // hour service-wide. A window starts at the first accepted input after the
 // previous one expired. Rows are locked in a fixed order (the input's scope,
 // minute then hour, then the service, minute then hour), and the clock is read
@@ -22,8 +22,8 @@ export const ADMISSION_LIMITS = {
 export type AdmissionLimits = { readonly [Key in keyof typeof ADMISSION_LIMITS]: number };
 
 export type AdmissionScope = {
-  readonly scope: "host" | "request" | "intake";
-  // The host account, request or intake ID.
+  readonly scope: "host" | "request";
+  // The host account or request ID.
   readonly key: string;
 };
 

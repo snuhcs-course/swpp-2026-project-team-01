@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { isActionableRequestState, type RequestDetails, type RequestState, type ReviewPatch } from "../contracts/request";
+import { isUsableHandle, normalizeHandle } from "../contracts/handles";
+import {
+  isActionableRequestState,
+  REQUEST_LANGUAGES,
+  type RequestDetails,
+  type RequestState,
+  type ReviewPatch,
+} from "../contracts/request";
 import type { OpenRequesterView, RequesterView } from "../contracts/requester-view";
 import { findRequestByBookingId } from "./booking-links";
 import { ndjsonResponse } from "./chat-routes";
@@ -21,14 +28,16 @@ import {
 import { database, type Database, type Queryable } from "./database";
 import {
   acceptGuestMessage,
+  DraftMessageLimitError,
   type GuestConversationDependencies,
   type GuestPrincipal,
   guestConversationStatus,
   guestDiscussionEvents,
   recoverGuestDiscussion,
 } from "./guest-conversations";
-import { IntakeLimitError } from "./intakes";
+import { readGuestThread } from "./guest-thread";
 import { internalSigningKey } from "./internal-bearer";
+import { findReadyHostByHandle } from "./readiness";
 import { withdrawRequestCommand } from "./request-lifecycle";
 import {
   agreeCommand,
@@ -46,6 +55,15 @@ import {
   updateDetailsCommand,
 } from "./request-reviews";
 import {
+  type CreationLimits,
+  identifyRequestCommand,
+  isStarterNonce,
+  markIdentityRequested,
+  openRequestBookingId,
+  startRequestCommand,
+  starterId,
+} from "./request-start";
+import {
   disconnectCalendarCommand,
   listRequesterCalendars,
   readRequesterConnection,
@@ -53,23 +71,29 @@ import {
   useGoogleEmailCommand,
 } from "./requester-grants";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
+import { sourceHash } from "./signup-limits";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
-// The requester's application routes under /api/requests/{bookingId}/ (design
-// decision 2). The booking identifier in the path is the only credential: it is
-// looked up by hash, and a malformed, unknown or expired one, or a closed
-// request where the route needs an open one, gets the same generic answer. The
-// requester's browser never calls /eve/v1: history and the live stream are read
-// here with an internal bearer, the requester principal (`request:{id}`,
-// audience requester) and its own discussion only. Every response sends
-// Referrer-Policy: no-referrer, X-Robots-Tag: noindex and Cache-Control:
-// no-store, and nothing here logs the path.
+// The guest's application routes (design decision 2). POST /api/requests/start
+// takes the first message on a ready host's public page and starts the draft
+// request; everything after goes to /api/requests/{bookingId}/, on the public
+// page while the request is a draft (the tab keeps the identifier in
+// sessionStorage) and on the booking page after. The booking identifier in the
+// path is the only credential: it is looked up by hash, and a malformed,
+// unknown or expired one, or a closed request where the route needs an open
+// one, gets the same generic answer. The guest's browser never calls /eve/v1:
+// history and the live stream are read here with an internal bearer, the
+// requester principal (`request:{id}`, audience requester) and its own
+// discussion only. Every response sends Referrer-Policy: no-referrer,
+// X-Robots-Tag: noindex and Cache-Control: no-store, and nothing here logs the
+// path.
 
 export type RequesterRouteDependencies = ConversationDependencies &
   GuestConversationDependencies &
   AppOrigins & {
     readonly tokenKey: () => TokenKey;
     readonly confirmationLimits?: Partial<ConfirmationLimits>;
+    readonly creationLimits?: Partial<CreationLimits>;
     readonly followIdleMs?: number;
   };
 
@@ -85,8 +109,8 @@ export function requesterRouteDependenciesFromEnvironment(): RequesterRouteDepen
 
 type Context = { readonly params: Promise<{ readonly bookingId: string }> };
 
-// The open request the identifier names, or null (unknown, malformed, expired
-// link, or a closed or expired request).
+// The open request the identifier names, a draft included, or null (unknown,
+// malformed, expired link, or a closed or expired request).
 export async function openRequester(db: Database, bookingId: string): Promise<GuestPrincipal | null> {
   const link = await findRequestByBookingId(db, bookingId);
 
@@ -110,13 +134,13 @@ export async function readRequesterView(
     {
       closed: boolean;
       confirmed: boolean;
-      contact_email: string;
+      contact_email: string | null;
       details: Partial<RequestDetails>;
       display_name: string | null;
       expires_at: Date;
       handle: string | null;
       has_intake: boolean;
-      requester_name: string;
+      requester_name: string | null;
       revision: number;
       state: RequestState;
     }[]
@@ -149,19 +173,28 @@ export async function readRequesterView(
     where request_id = ${requestId} and state = 'pending'
   `;
   const proposal = await readCurrentProposal(db, requestId);
+  const evaluation = await readCurrentEvaluation(db, requestId);
   const view: OpenRequesterView = {
     agreement: proposal?.agreement ?? null,
     confirmation: await readConfirmationStatus(db, requestId, options.confirmationLimits),
     connection: await readRequesterConnection(db, requestId),
-    contact: { confirmed: row.confirmed, email: row.contact_email, name: row.requester_name },
+    contact:
+      row.contact_email && row.requester_name
+        ? { confirmed: row.confirmed, email: row.contact_email, name: row.requester_name }
+        : null,
     conversation: await guestConversationStatus(db, { id: requestId, type: "requester_request" }),
-    evaluation: await readCurrentEvaluation(db, requestId),
+    evaluation,
     hasIntakeTranscript: row.has_intake,
     host,
     open: true,
     pendingReview: review ? storedReview(review, requestLanguage(row.details)) : null,
     proposal: proposal?.proposal ?? null,
     request: { details: row.details, expiresAt: row.expires_at.toISOString(), revision: row.revision, state: row.state },
+    thread: await readGuestThread(db, requestId, {
+      agreedVersion: proposal?.agreement?.proposalVersion ?? null,
+      evaluationId: evaluation?.id ?? null,
+      proposalVersion: proposal?.proposal.version ?? null,
+    }),
   };
 
   return view;
@@ -192,11 +225,11 @@ export function guestError(error: unknown) {
     );
   }
 
-  if (error instanceof IntakeLimitError) {
+  if (error instanceof DraftMessageLimitError) {
     return requesterJson(
       {
-        code: "intake_limit",
-        error: "This conversation has reached its message limit. Continue with or without Google to keep going.",
+        code: "draft_limit",
+        error: "This conversation has reached its message limit. Give your name and email on the card in the conversation, with or without Google, to keep going.",
       },
       429,
     );
@@ -237,6 +270,80 @@ export function createRequesterMessageHandler(load: () => RequesterRouteDependen
       return requesterJson(outcome, outcome.status === "recovery_required" ? 409 : 202);
     } catch (error) {
       return guestError(error);
+    }
+  };
+}
+
+const startBody = z.object({
+  handle: z.string().min(1).max(64),
+  nonce: z.string().min(1).max(64),
+  clientInputId: z.uuid(),
+  message: z.string(),
+  timezone: z.string().max(64),
+  language: z.enum(REQUEST_LANGUAGES),
+});
+
+function hostUnavailable() {
+  return requesterJson({ code: "unavailable", error: "This page is not taking requests." }, 404);
+}
+
+// POST /api/requests/start: the guest's first message on a ready host's public
+// page. It runs request.start as the anonymous starter (the hash of the tab's
+// nonce, with the nonce as the retry key), then records the message as the
+// draft's first accepted input, which starts the thread's eve session. The
+// answer carries the booking identifier for the tab to keep in sessionStorage,
+// also when the message itself failed after the draft exists; an exact retry
+// with the same nonce answers the same draft and the same input.
+export function createRequestStartHandler(load: () => RequesterRouteDependencies = requesterRouteDependenciesFromEnvironment) {
+  return async (request: Request) => {
+    const deps = load();
+    const refused = crossSiteRefusal(request, deps, { json: true });
+
+    if (refused) return refused;
+
+    const body = startBody.safeParse(await request.json().catch(() => null));
+
+    if (!body.success || !isStarterNonce(body.data.nonce)) {
+      return requesterJson({ code: "invalid_message", error: "Send a message with its client input ID." }, 400);
+    }
+
+    const handle = normalizeHandle(body.data.handle);
+    const host = isUsableHandle(handle) ? await findReadyHostByHandle(deps.db, handle) : null;
+
+    if (!host) return hostUnavailable();
+
+    const tokenKey = deps.tokenKey();
+    const outcome = await runCommand(
+      { authenticate: async () => ({ id: starterId(body.data.nonce), kind: "guest_starter" }), db: deps.db },
+      startRequestCommand({ limits: deps.creationLimits, sourceHash: sourceHash(tokenKey, request), tokenKey }),
+      {
+        input: { language: body.data.language, timezone: body.data.timezone },
+        resourceId: host.hostAccountId,
+        retryKey: body.data.nonce,
+      },
+    );
+
+    if (!outcome.ok) {
+      if (outcome.error.category === "rate_limited") {
+        return requesterJson({ code: "rate_limited", error: "Too many new conversations from your network right now. Try again later." }, 429);
+      }
+      if (outcome.error.category === "invalid_input") {
+        return requesterJson({ code: "invalid_message", error: "Send a message with your time zone." }, 400);
+      }
+      return outcome.error.category === "retry_conflict" ? requesterJson(outcome, 409) : hostUnavailable();
+    }
+
+    const bookingId = await openRequestBookingId(deps.db, [tokenKey], outcome.result.requestId);
+
+    if (!bookingId) return hostUnavailable();
+
+    try {
+      const accepted = await acceptGuestMessage(deps, { id: outcome.result.requestId, type: "requester_request" }, body.data);
+      return requesterJson({ ...accepted, bookingId }, accepted.status === "recovery_required" ? 409 : 202);
+    } catch (error) {
+      const response = guestError(error);
+      const payload = (await response.json()) as Record<string, unknown>;
+      return Response.json({ ...payload, bookingId }, { headers: response.headers, status: response.status });
     }
   };
 }
@@ -347,6 +454,7 @@ export function requesterCommands(
   const contact = { limits: deps.confirmationLimits, origin: deps.appOrigin, tokenKey: deps.tokenKey() };
 
   return Object.fromEntries([
+    registered(identifyRequestCommand({ origin: contact.origin, tokenKey: contact.tokenKey })),
     registered(applyReviewCommand(contact)),
     registered(dismissReviewCommand),
     registered(updateDetailsCommand(contact)),
@@ -400,6 +508,8 @@ export function createRequesterCommandHandler(load: () => RequesterRouteDependen
 
     if (!outcome.ok) {
       if (outcome.error.category === "forbidden" || outcome.error.category === "unauthenticated") return requestUnavailable();
+      // The identity card is now called for in the thread.
+      if (outcome.error.category === "identity_required") await markIdentityRequested(deps.db, link.requestId);
 
       const view = outcome.error.category === "request_closed" ? await readRequesterView(deps.db, link.requestId) : null;
       return requesterJson(

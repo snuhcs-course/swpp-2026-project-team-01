@@ -41,6 +41,10 @@ test("a ready host's page shows the public identity and its agent document", asy
   await expect(page.getByRole("heading", { name: "Grace Hopper" })).toBeVisible();
   await expect(page.getByText(`@${handle}`)).toBeVisible();
   await expect(page.getByText(/Requests are accepted/).first()).toBeVisible();
+  // The agent section is page chrome above the guest thread, collapsed by
+  // default; its link is in the HTML an agent converts to text either way.
+  await expect(page.locator(`a[href="/${handle}/SKILL.md"]`)).toHaveCount(1);
+  await page.locator("summary", { hasText: "For AI agents" }).click();
   await expect(page.getByRole("link", { name: `/${handle}/SKILL.md` })).toHaveAttribute("href", `/${handle}/SKILL.md`);
   await expect(page.locator('link[rel="alternate"][type="text/markdown"]')).toHaveAttribute("href", new RegExp(`/${handle}/SKILL\\.md$`));
 

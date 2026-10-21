@@ -129,7 +129,7 @@ describe("scheduling from the cards without the model", () => {
     `;
     expect(record).toEqual({ contact_confirmed_email: null, state: "awaiting_host_approval" });
     current = await view(r.bookingId);
-    expect(current.contact.confirmed).toBe(false);
+    expect(current.contact?.confirmed).toBe(false);
     expect(current.agreement).toMatchObject({ proposalVersion: 1 });
   });
 
