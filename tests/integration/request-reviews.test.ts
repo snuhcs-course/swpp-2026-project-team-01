@@ -325,6 +325,48 @@ describe("minimized contact context", () => {
     `;
     expect(confirmations.map((entry) => entry.contact_email)).toEqual([changed]);
   });
+  it("bounds the creation emails contact changes send, writing nothing past a bound", async () => {
+    const r = await requester();
+    const deliveries = async () => {
+      const [row] = await db<{ count: number }[]>`
+        select count(*)::int as count from app.email_deliveries where request_id = ${r.requestId} and kind = 'request_creation'
+      `;
+      return row!.count;
+    };
+    const change = (address: string, expectedRevision: number, limits?: object) =>
+      asRequester(db, r.requestId, updateDetailsCommand({ ...contact, limits }), { details: { contactEmail: address }, timezone: "Asia/Seoul" }, {
+        expectedRevision,
+      });
+    const address = () => `changed-${randomUUID().slice(0, 8)}@example.test`;
+
+    expect(await change(address(), 1)).toMatchObject({ ok: true, result: { revision: 2 } });
+    const after = await details(r.requestId);
+
+    // Within 60 seconds of the last creation email: rejected, nothing written.
+    expect(await change(address(), 2)).toMatchObject({ error: { category: "rate_limited" }, ok: false });
+    expect(await details(r.requestId)).toEqual(after);
+    expect(await deliveries()).toBe(1);
+
+    // Past the spacing, the per-request hourly bound counts the earlier change.
+    await db`update app.email_deliveries set created_at = created_at - interval '61 seconds' where request_id = ${r.requestId}`;
+    expect(await change(address(), 2, { perRequestHour: 1 })).toMatchObject({ error: { category: "rate_limited" }, ok: false });
+    expect(await deliveries()).toBe(1);
+    expect(await change(address(), 2)).toMatchObject({ ok: true, result: { revision: 3 } });
+  });
+
+  it("rejects a review that changes the contact past the bounds, keeping it pending", async () => {
+    const r = await requester();
+    const first = `first-${randomUUID().slice(0, 8)}@example.test`;
+    await asRequester(db, r.requestId, updateDetailsCommand(contact), { details: { contactEmail: first }, timezone: "Asia/Seoul" }, { expectedRevision: 1 });
+    await draftRequestReviewForTool(db, r.call(), { details: { contactEmail: `new-${randomUUID().slice(0, 8)}@example.test` }, intent: "details" });
+    const [review] = await reviews(r.requestId);
+
+    const applied = await asRequester(db, r.requestId, applyReviewCommand(contact), { reviewId: review!.id }, { expectedRevision: 2 });
+
+    expect(applied).toMatchObject({ error: { category: "rate_limited" }, ok: false });
+    expect((await details(r.requestId)).contact_email).toBe(first);
+    expect((await reviews(r.requestId)).map((entry) => entry.state)).toEqual(["pending"]);
+  });
 });
 
 describe("meeting details card", () => {

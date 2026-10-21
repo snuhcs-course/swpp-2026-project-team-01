@@ -16,7 +16,7 @@ import {
 import { MEETING_MODES } from "../contracts/setup";
 import { isValidTimeZone } from "../contracts/timezone";
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
-import { issueContactConfirmation } from "./contact-confirmation";
+import { CONFIRMATION_LIMITS, type ConfirmationLimits, issueContactConfirmation, lockConfirmationBounds } from "./contact-confirmation";
 import type { Transaction } from "./database";
 import { type LocalWindow, localWindowSchema, resolveLocalWindow, type WindowProblem } from "./intakes";
 import { type LockedRequest, lockOpenRequest } from "./request-guard";
@@ -199,15 +199,23 @@ async function clock(tx: Transaction) {
   return row!.now.getTime();
 }
 
+type ContactOptions = {
+  readonly origin: string;
+  readonly tokenKey: TokenKey;
+  readonly limits?: Partial<ConfirmationLimits>;
+};
+
 // Writes a changed request after a review or the details card: the merged
 // details and contact, the next revision, the recomputed expiry and, when
 // details changed in negotiation, the return to gathering. A changed contact
-// address voids its confirmation and is emailed its own creation email.
+// address voids its confirmation and is emailed its own creation email, within
+// the creation email bounds: past one, the change is rejected before anything
+// is written.
 async function writeDetails(
   tx: Transaction,
   request: LockedRequest & { readonly requester_name: string },
   patch: ReviewPatch,
-  options: { readonly origin: string; readonly tokenKey: TokenKey },
+  options: ContactOptions,
 ): Promise<{ revision: number; state: RequestState }> {
   const details = applyPatch(request.details, patch);
   const changed = detailsChanged(request.details, details);
@@ -216,6 +224,12 @@ async function writeDetails(
   const emailChanged = email.toLowerCase() !== request.contact_email.toLowerCase();
   const state: RequestState = changed && request.state === "negotiating" ? "gathering" : request.state;
   const confirmed = emailChanged ? null : request.contact_confirmed_email;
+
+  if (emailChanged) {
+    const limits = { ...CONFIRMATION_LIMITS, ...options.limits };
+    // The request lock is held; then the new recipient's and the service's.
+    if (await lockConfirmationBounds(tx, request.id, email, limits)) throw new CommandError("rate_limited");
+  }
 
   await tx`
     update app.requests
@@ -375,10 +389,7 @@ async function lockPendingReview(tx: Transaction, requestId: string, reviewId: s
 // that revision, with no clarification left, whose windows still start in the
 // future and fit the duration once the lock is held. A rejection preserves the
 // pending review and the request; an exact retry returns the saved decision.
-export function applyReviewCommand(options: {
-  readonly origin: string;
-  readonly tokenKey: TokenKey;
-}): CommandDefinition<z.infer<typeof reviewInput>, ReviewDecision> {
+export function applyReviewCommand(options: ContactOptions): CommandDefinition<z.infer<typeof reviewInput>, ReviewDecision> {
   return {
     input: reviewInput,
     operation: APPLY_REVIEW_OPERATION,
@@ -429,10 +440,7 @@ const updateDetailsInput = z
 // **Save details** on the meeting details card: the same validation as a review,
 // applied at once. The card's local times are in its display zone. A meeting
 // link typed here is the requester's own entry and is not conversation input.
-export function updateDetailsCommand(options: {
-  readonly origin: string;
-  readonly tokenKey: TokenKey;
-}): CommandDefinition<z.infer<typeof updateDetailsInput>, ReviewDecision> {
+export function updateDetailsCommand(options: ContactOptions): CommandDefinition<z.infer<typeof updateDetailsInput>, ReviewDecision> {
   return {
     input: updateDetailsInput,
     operation: UPDATE_DETAILS_OPERATION,

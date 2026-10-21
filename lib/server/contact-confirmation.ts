@@ -15,7 +15,9 @@ import type { TokenKey } from "./token-encryption";
 // confirms the address while the token is unused and not superseded, the request
 // is open and its contact still equals the address. Nothing waits on it.
 // **Send the email again** (contact.resend_confirmation) issues a fresh creation
-// email to the current contact within the resend bounds.
+// email to the current contact. The bounds below count every creation email
+// (request creation, a contact change and a resend), and both a contact change
+// and a resend are checked against them before anything is written.
 
 export const CONFIRMATION_LIMITS = {
   // Seconds between creation emails for one request.
@@ -29,8 +31,7 @@ export type ConfirmationLimits = { readonly [Key in keyof typeof CONFIRMATION_LI
 
 export const RESEND_CONFIRMATION_OPERATION = "contact.resend_confirmation";
 
-// Creation emails a resend issued carry this dedupe prefix, so the bounds count
-// resends and not the email request creation sent.
+// The delivery identity of a creation email a resend issued.
 const RESEND_PREFIX = "resend:";
 
 export function hashConfirmationToken(token: string) {
@@ -165,45 +166,58 @@ export async function confirmContact(db: Database, token: string): Promise<Confi
 }
 
 // When the next creation email may be sent, or null when it may be sent now.
+// Every creation email counts, whichever path issued it.
 async function nextAllowedAt(db: Queryable, requestId: string, contactEmail: string, limits: ConfirmationLimits) {
   const [row] = await db<{ retry_at: Date | null }[]>`
     with sent as (
-      select created_at, dedupe_key, recipients
+      select created_at, request_id, recipients
       from app.email_deliveries
       where kind = 'request_creation' and created_at > now() - interval '24 hours'
     ),
     bounds as (
       select (
         select max(created_at) + make_interval(secs => ${limits.spacingSeconds})
-        from app.email_deliveries
-        where request_id = ${requestId} and kind = 'request_creation'
+        from sent
+        where request_id = ${requestId}
         having max(created_at) > now() - make_interval(secs => ${limits.spacingSeconds})
       ) as spacing,
       (
         select min(created_at) + interval '1 hour' from (
           select created_at from sent
-          where dedupe_key like ${`${RESEND_PREFIX}${requestId}:%`} and created_at > now() - interval '1 hour'
+          where request_id = ${requestId} and created_at > now() - interval '1 hour'
           order by created_at desc limit ${limits.perRequestHour}
         ) recent having count(*) >= ${limits.perRequestHour}
       ) as per_request,
       (
         select min(created_at) + interval '1 hour' from (
           select created_at from sent
-          where dedupe_key like ${`${RESEND_PREFIX}%`} and created_at > now() - interval '1 hour'
-            and lower(recipients[1]) = ${contactEmail.toLowerCase()}
+          where created_at > now() - interval '1 hour' and lower(recipients[1]) = ${contactEmail.toLowerCase()}
           order by created_at desc limit ${limits.perAddressHour}
         ) recent having count(*) >= ${limits.perAddressHour}
       ) as per_address,
       (
         select min(created_at) + interval '24 hours' from (
-          select created_at from sent where dedupe_key like ${`${RESEND_PREFIX}%`}
-          order by created_at desc limit ${limits.serviceDay}
+          select created_at from sent order by created_at desc limit ${limits.serviceDay}
         ) recent having count(*) >= ${limits.serviceDay}
       ) as service
     )
     select greatest(spacing, per_request, per_address, service) as retry_at from bounds
   `;
   return row?.retry_at ?? null;
+}
+
+// Takes the recipient's and the service's confirmation locks, after the caller's
+// request lock, and returns when the next creation email to `contactEmail` may
+// be sent, or null when it may be sent now.
+export async function lockConfirmationBounds(
+  tx: Transaction,
+  requestId: string,
+  contactEmail: string,
+  limits: ConfirmationLimits = CONFIRMATION_LIMITS,
+) {
+  await tx`select pg_advisory_xact_lock(hashtextextended(${`app.confirmation_address:${contactEmail.toLowerCase()}`}, 0))`;
+  await tx`select pg_advisory_xact_lock(hashtextextended('app.confirmation_service', 0))`;
+  return nextAllowedAt(tx, requestId, contactEmail, limits);
 }
 
 type OpenRequest = { readonly contact_email: string; readonly contact_confirmed_email: string | null };
@@ -249,10 +263,7 @@ export function resendConfirmationCommand(options: {
       const requestId = context.actor.id;
       const request = await lockOpenRequest(tx, requestId);
       // Request lock first (above), then the recipient's, then the service's.
-      await tx`select pg_advisory_xact_lock(hashtextextended(${`app.confirmation_address:${request.contact_email.toLowerCase()}`}, 0))`;
-      await tx`select pg_advisory_xact_lock(hashtextextended('app.confirmation_service', 0))`;
-
-      const retryAt = await nextAllowedAt(tx, requestId, request.contact_email, limits);
+      const retryAt = await lockConfirmationBounds(tx, requestId, request.contact_email, limits);
 
       if (retryAt) return { retryAt: retryAt.toISOString(), status: "limited" };
 

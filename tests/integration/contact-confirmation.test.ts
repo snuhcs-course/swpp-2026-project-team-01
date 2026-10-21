@@ -197,7 +197,7 @@ describe("contact confirmation", () => {
   it("stops at the service-wide daily bound", async () => {
     const [row] = await db<{ count: number }[]>`
       select count(*)::int as count from app.email_deliveries
-      where kind = 'request_creation' and dedupe_key like 'resend:%' and created_at > now() - interval '24 hours'
+      where kind = 'request_creation' and created_at > now() - interval '24 hours'
     `;
     const limits = { serviceDay: row!.count + 1 };
     const first = await createTestRequest(db);
@@ -205,6 +205,19 @@ describe("contact confirmation", () => {
 
     expect(await resend(first, randomUUID(), limits)).toMatchObject({ result: { status: "queued" } });
     expect(await resend(second, randomUUID(), limits)).toMatchObject({ result: { status: "limited" } });
+  });
+
+  it("counts the email request creation sent toward the per-request bound", async () => {
+    const request = await createTestRequest(db);
+    await issue(request);
+    await age(request.requestId);
+
+    for (let index = 0; index < 4; index += 1) {
+      expect(await resend(request)).toMatchObject({ result: { status: "queued" } });
+      await age(request.requestId);
+    }
+
+    expect(await resend(request)).toMatchObject({ result: { status: "limited" } });
   });
 
   it("recovers a lost response with the same retry key without a second email", async () => {
