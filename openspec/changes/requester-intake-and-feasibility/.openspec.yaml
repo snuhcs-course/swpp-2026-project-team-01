@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-21
+# Removed with the delta specs step; set only so the proposal step validates on its own.
+skip_specs: true
