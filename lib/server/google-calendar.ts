@@ -11,7 +11,8 @@ import type { TokenKey } from "./token-encryption";
 // the sealed refresh token for an access token, then reads calendarList.list and
 // events.list with a timeout per request and a page cap. A list still unfinished
 // at its cap is reported as unavailable, never returned truncated: a partial event
-// list would read as free time. Tokens are never logged.
+// list would read as free time. Tokens are never logged. The same client reads a
+// requester's calendars from their own grant (requester-calendar.ts).
 
 export type CalendarAccessCategory = "calendar_not_connected" | "calendar_access_revoked" | "calendar_unavailable";
 
@@ -99,6 +100,9 @@ export type HostCalendar = {
     range: { readonly start: Date; readonly end: Date },
     options?: { readonly signal?: AbortSignal },
   ): Promise<CalendarEvent[]>;
+  // One calendar list entry's allowed conference solution types (design decision
+  // 11: hangoutsMeet means Google Meet can be created with the event).
+  conferenceSolutionTypes(calendarId: string, options?: { readonly signal?: AbortSignal }): Promise<string[]>;
 };
 
 export type GoogleCalendarDependencies = {
@@ -199,8 +203,17 @@ export async function openHostCalendar(deps: GoogleCalendarDependencies, hostAcc
     throw new CalendarAccessError("calendar_not_connected");
   }
 
-  const refreshToken = grant.refreshToken;
-  const config = deps.config;
+  return createGoogleCalendarClient(deps.config, grant.refreshToken, () => markGoogleGrantInvalid(deps.db, hostAccountId));
+}
+
+// A Calendar client over one refresh token. onInvalidGrant runs when Google
+// rejects the token (invalid_grant), before calendar_access_revoked is thrown, so
+// the caller can record that its grant is no longer usable.
+export function createGoogleCalendarClient(
+  config: GoogleCalendarConfig,
+  refreshToken: string,
+  onInvalidGrant: () => Promise<unknown>,
+): HostCalendar {
   const fetcher = config.fetch ?? fetch;
   let access: { token: string; expiresAt: number } | null = null;
 
@@ -245,7 +258,7 @@ export async function openHostCalendar(deps: GoogleCalendarDependencies, hostAcc
     }
 
     if (body?.error === "invalid_grant") {
-      await markGoogleGrantInvalid(deps.db, hostAccountId);
+      await onInvalidGrant();
       throw new CalendarAccessError("calendar_access_revoked");
     }
 
@@ -346,6 +359,16 @@ export async function openHostCalendar(deps: GoogleCalendarDependencies, hostAcc
       if (pageToken) throw new CalendarAccessError("calendar_unavailable");
 
       return events;
+    },
+
+    async conferenceSolutionTypes(calendarId, options) {
+      const body = await getJson<{ conferenceProperties?: { allowedConferenceSolutionTypes?: string[] } }>(
+        `/users/me/calendarList/${encodeURIComponent(calendarId)}`,
+        { fields: "conferenceProperties(allowedConferenceSolutionTypes)" },
+        options?.signal,
+      );
+
+      return body.conferenceProperties?.allowedConferenceSolutionTypes ?? [];
     },
   };
 }
