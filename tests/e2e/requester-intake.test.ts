@@ -3,7 +3,7 @@ import type { Locator, Page } from "@playwright/test";
 import { draftIntakeForTool } from "../../lib/server/intake-tools";
 import { MONDAY } from "../integration/support/scheduling";
 import { readyRequestHost, runEmails, runEvaluations, sentTo } from "./support/requester";
-import { expect, test } from "./support/session";
+import { expect as baseExpect, test } from "./support/session";
 
 // The requester's journey (tasks 6.3 and 7.1): from a ready host's /{handle}
 // through the intake conversation, Continue without Google, applying the
@@ -15,6 +15,10 @@ import { expect, test } from "./support/session";
 // handlers against the fake Google, Routes and Cloudflare.
 
 test.use({ locale: "en-US", timezoneId: "Asia/Seoul" });
+
+// Each step waits on a command and a view refresh, and the first request to a
+// route compiles it under next dev while other suites run in parallel.
+const expect = baseExpect.configure({ timeout: 30_000 });
 
 type Database = Parameters<typeof readyRequestHost>[0];
 
@@ -89,7 +93,7 @@ for (const viewport of [
   { height: 900, width: 1280 },
 ]) {
   test(`a requester goes from the public page to agreement with the keyboard at ${viewport.width} px`, async ({ db, page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
     await page.setViewportSize(viewport);
     const host = await readyRequestHost(db, "Ada Lovelace");
     const email = `grace-${randomUUID().slice(0, 8)}@example.test`;
