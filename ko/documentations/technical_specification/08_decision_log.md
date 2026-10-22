@@ -110,6 +110,9 @@
 | 새 오류 범주 | 발송이 시작됐을 수 있는 뒤의 철회, 거절, 변경에 대한 `booking_pending` | `request_closed` 재사용 | `lib/contracts/command-errors.ts` | 계약과 경로 상태 맵 |
 | 링크 없는 알림 | 요청자의 봉인된 예약 링크를 열 수 없으면(폐기된 키) 상태 이메일이나 확인을 기록하지 않으며, 도메인 변경은 그대로 커밋됩니다 | 변경을 실패시킴 | `lib/server/booking-notices.ts` | 그 파일의 `requesterBookingUrl` |
 | 공유 변경 확인 | 공유 제안은 고정 간격의 일반 평가 작업으로 확인하며, 그 하나의 후보가 다음 제안이 됩니다 | 별도의 확인 작업 | 설계 4 | `lib/server/shared-change-settle.ts`의 `settleSharedChange`; `lib/server/evaluation.ts`의 `interval` 페이로드 |
+| 호스트 논의 범위 | `/api/chat/*`는 선택적 `request`(UUID)를 받으며, 다른 호스트의 요청, 초안, 알 수 없는 ID, 형식이 잘못된 ID는 모두 404 `request_unavailable`로 답합니다 | 별도의 `/api/host/requests/{id}/messages` 경로 | 설계 2 | `lib/server/chat-routes.ts`의 `requestScope`; `lib/server/conversations.ts`의 `lockHostDiscussion` |
+| 호스트 검토 허용 한도 | 호스트 검토 메시지는 설정과 같은 호스트별 허용 구간에 함께 집계됩니다 | 요청마다 별도의 구간 | 설계 2 | `lib/server/conversations.ts`의 `recordInput` |
+| 호스트 모델 투영 | 요청자의 이름과 목적은 인용된 문자열로, 연락처 이메일은 `present`로, 시간은 호스트의 시간대로 모델에 전달됩니다 | 원본 값 | 설계 12 | `lib/server/host-review-tools.ts`의 `hostModelProjection` |
 
 ### 운영 결정
 

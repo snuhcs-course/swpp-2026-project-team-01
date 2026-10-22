@@ -108,6 +108,9 @@ The [proposal](../../openspec/changes/host-review-and-booking/proposal.md#decisi
 | New error category | `booking_pending` for a withdrawal, decline or change after dispatch may have begun | Reusing `request_closed` | `lib/contracts/command-errors.ts` | The contract and the route status maps |
 | Notices without a link | A status email or confirmation is not recorded when the requester's sealed booking link cannot be opened (a retired key), so the domain change still commits | Failing the change | `lib/server/booking-notices.ts` | `requesterBookingUrl` there |
 | Shared-change check | A shared suggestion is checked by an ordinary evaluation job with a fixed interval, whose one candidate becomes the next proposal | A separate check job | Design 4 | `settleSharedChange` in `lib/server/shared-change-settle.ts`; the `interval` payload in `lib/server/evaluation.ts` |
+| Host discussion scope | `/api/chat/*` takes an optional `request` (a UUID); another host's request, a draft, an unknown or malformed ID all answer 404 `request_unavailable` | A separate `/api/host/requests/{id}/messages` route | Design 2 | `requestScope` in `lib/server/chat-routes.ts`; `lockHostDiscussion` in `lib/server/conversations.ts` |
+| Host-review admission | Host-review messages count against the same per-host admission windows as setup | Separate windows per request | Design 2 | `recordInput` in `lib/server/conversations.ts` |
+| Host model projection | The requester's name and purpose reach the model as quoted strings, contact email as `present`, times in the host's timezone | Raw values | Design 12 | `hostModelProjection` in `lib/server/host-review-tools.ts` |
 
 ### Operational decisions
 
