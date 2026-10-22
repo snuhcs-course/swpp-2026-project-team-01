@@ -130,7 +130,14 @@ The [proposal](../../openspec/changes/host-review-and-booking/proposal.md#decisi
 
 ### Blocked on the user
 
-None yet.
+These steps were not taken because they cannot be undone by a revert, need a provider console, or send to people outside the team:
+
+- **Shared-project migration:** `20261022021159_host_review_and_booking.sql` is not on `anelszynxtvxoxqvzgqt`. It needs a shown dry run, then the deploy workflow or `supabase db push --linked` with the user's approval. The two newest Phase 3 migrations, still pending there, must go first.
+- **Production deploy** of this branch once merged.
+- **Controlled Google Calendar evidence:** a booking in a team-controlled Google Calendar. `sendUpdates=all` makes Google email the attendee, so the requester address must be a team inbox.
+- **Controlled inbox evidence:** both confirmation copies and a status email in team inboxes, including whether the `text/calendar` attachment shows as an invitation in Gmail and Outlook.
+- **Merge:** the pull request needs a teammate's approval; no admin bypass was used.
+- **Teammate review** of D1–D12 and the implementation decisions, then `openspec archive` of the change.
 
 ## Phase 5 — `agent-access`
 

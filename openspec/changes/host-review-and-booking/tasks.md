@@ -34,7 +34,7 @@ Before each group, read the [Phase 4 reference repository files](../../../docume
 
 ## 6. Join
 
-- [ ] 6.1 Run the approval from Lane A through Lane B's job to Lane C's emails and receipt. Run the Phase 4 evidence list and record each item: AC-01 in full, AC-03, AC-04, AC-06 web-only, AC-07, AC-08, AC-09, AC-10 web-only and AC-13, with fixtures and the local stack. Verify a Playwright journey from a request awaiting approval to the receipt on both sides against fake Google, fake Cloudflare and the OpenAI stand-in.
+- [x] 6.1 Run the approval from Lane A through Lane B's job to Lane C's emails and receipt. Run the Phase 4 evidence list and record each item: AC-01 in full, AC-03, AC-04, AC-06 web-only, AC-07, AC-08, AC-09, AC-10 web-only and AC-13, with fixtures and the local stack. Verify a Playwright journey from a request awaiting approval to the receipt on both sides against fake Google, fake Cloudflare and the OpenAI stand-in.
 
 ## 7. Release
 

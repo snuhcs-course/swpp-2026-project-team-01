@@ -2,7 +2,7 @@
 
 > 한국어 번역본 (검토용). 원본: documentations/technical_specification/07_acceptance_record.md
 
-상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 열린 공백은 아래에 나열
+상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 4단계(`host-review-and-booking`) 로컬 증거 기록됨, 프로덕션 증거 보류 중; 열린 공백은 아래에 나열
 
 날짜: 2026-10-20
 
@@ -154,3 +154,41 @@
 - **실제 Google Calendar 데이터.** 로그인한 프로덕션 점검이 실행되기 전까지 분석과 역할은 대역을 상대로만 검증되었습니다.
 - **핸들 확인 속도.** `/api/setup/handle`에는 속도 제한이 없으며, 설계에 위험으로 기록되어 있습니다.
 - **호스트 페이지 상태 코드.** 이용할 수 없는 `/{handle}` 페이지는 스트리밍되는 페이지가 상태를 바꿀 수 없으므로 상태 200과 `noindex`로 중립적인 찾을 수 없음 화면을 렌더링하며, `SKILL.md` 라우트는 실제 404를 반환합니다.
+
+## 4단계 — `host-review-and-booking`
+
+변경: [`host-review-and-booking`](../../openspec/changes/host-review-and-booking/tasks.md). 증거 목록: [4단계](06_implementation_plan.md#phase-4--host-review-and-booking). 환경은 1단계와 같으며, 로컬 Google 대역은 `events.insert`와 `events.get`(고정 이벤트 ID, 중복 시 `409`, 생성 전후의 응답 유실)으로 확장되고 로컬 Cloudflare 대역은 `reply_to`와 첨부 파일을 기록합니다. 여기의 어느 것도 프로덕션에서 실행되지 않았습니다.
+
+### 테스트 묶음 실행
+
+| 명령 | 날짜 | 리비전 | 환경 | 결과 |
+|---|---|---|---|---|
+| `supabase db reset --local` 후 선언적 동기화 | 2026-10-22 | `b45b794d` | 로컬 스택 | `20261022021159_host_review_and_booking.sql`로 체인이 다시 구축됨; 동기화가 추가 마이그레이션을 생성하지 않음 |
+| `supabase test db` | 2026-10-22 | `70f5fb63` | 로컬 스택 | 파일 6개, pgTAP 테스트 92개 통과, `host_review_booking.test.sql` 포함 |
+| `npm test` | 2026-10-22 | `70f5fb63` | 로컬 스택 | 테스트 404개 통과(파일 41개) |
+| `npm run test:integration` | 2026-10-22 | `70f5fb63` | 로컬 스택 | 테스트 495개 통과(파일 47개), 영수증에 맞춰 닫힌 화면 단언 두 개를 고친 뒤 |
+| `npm run test:e2e` | 2026-10-22 | `70f5fb63` | 로컬 스택 | Playwright 테스트 35개 통과; 1280 픽셀 요청자 여정을 한 번 병렬로 실행했을 때 제목 포커스를 놓쳤으나 단독 실행에서는 통과 |
+
+### 항목별 증거
+
+픽스처와 로컬 스택 증거뿐이며, 각 항목은 이를 보여 주는 테스트를 명시합니다.
+
+| 항목 | 증거 |
+|---|---|
+| AC-01 전체 | 합의까지의 3단계 `tests/e2e/requester-intake.test.ts`, 이어서 390 및 1280 픽셀의 `tests/e2e/host-review.test.ts` "the host approves from the inbox and both sides see the receipt": 받은 요청함, 승인, 예약 작업, **미팅 참여(Join meeting)**가 있는 호스트 영수증과 예약 링크의 요청자 영수증 |
+| AC-03 | `tests/integration/host-requests.test.ts` "holds every candidate in a full week until the host waives the limit"와 "applies a host allowance for an unresolved trip of one candidate": 요청자 투영에는 규칙, 한도, 허용이 없음 |
+| AC-04 | `host-requests.test.ts` "shares a feasible later time as a checked new version": 이전 버전은 더 이상 승인할 수 없고, 요청자가 동의한 뒤 호스트가 다시 승인함 |
+| AC-06 웹 전용 | `tests/integration/bookings.test.ts` "returns the same booking to a second approval with another retry key" |
+| AC-07 | `bookings.test.ts` "stops at revalidation when a busy event appeared"와 "dispatches only one of two competing bookings for the same host" |
+| AC-08 | `bookings.test.ts` "reconciles a lost response by reading the event, never inserting twice"와 "inserts the same frozen payload again when the first insert never arrived" |
+| AC-09 | `bookings.test.ts` "fails definitively on a refused write and lets the host retry", "records revoked Calendar access"; `tests/integration/booking-emails.test.ts` "keeps the booking confirmed when a copy bounces, and sends nothing twice" |
+| AC-10 웹 전용 | `tests/integration/host-review.test.ts`: 비공개 논의의 "Approve it and book it."은 아무것도 기록하지 않으며 세션에는 호스트 검토 도구만 나열됨; 요청자 쪽은 3단계의 것 |
+| AC-13 | `bookings.test.ts` "lets the requester withdraw a reserved booking", "refuses withdrawal and decline once dispatch may have begun", "declines with the requester's status email"(늦은 승인은 `request_closed`로 답함), "cancels a reserved booking whose request expired" |
+| 확인 일관성 | `booking-emails.test.ts` "sends each party a copy with the host's name, Reply-To the other party and the matching calendar part"; 두 언어와 캘린더 파트에 대한 `lib/server/booking-emails.test.ts` |
+
+### 알려진 공백
+
+- **통제된 Google Calendar와 받은편지함.** 팀이 통제하는 Google Calendar의 확정된 이벤트와, 팀이 통제하는 받은편지함에 캘린더 파트가 포함된 확인 메일이 보류 중입니다. 마이그레이션이 공유 프로젝트에 없고 프로덕션도 다시 배포되지 않았습니다(결정 기록의 "사용자 대기 항목").
+- **Cloudflare 첨부 파일.** Cloudflare의 REST API가 전달한 `text/calendar` 첨부 파일을 Gmail과 Outlook이 초대로 처리하는지는 검증되지 않았습니다.
+- **알림**은 D3에 따라 미뤄졌습니다.
+

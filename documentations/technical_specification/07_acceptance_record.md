@@ -1,6 +1,6 @@
 # Acceptance Record
 
-Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; open gaps listed below
+Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 4 (`host-review-and-booking`) local evidence recorded, production evidence pending; open gaps listed below
 
 Date: 2026-10-20
 
@@ -152,3 +152,41 @@ The manual push is the exception recorded in the [design](../../openspec/changes
 - **Real Google Calendar data.** Analysis and roles are verified against the stand-in only until the signed-in production check runs.
 - **Handle check rate.** `/api/setup/handle` has no rate limit; recorded as a risk in the design.
 - **Host page status code.** The unavailable `/{handle}` page renders the neutral not-found view with status 200 and `noindex`, because the streamed page cannot change its status; the `SKILL.md` routes return a real 404.
+
+## Phase 4 — `host-review-and-booking`
+
+Change: [`host-review-and-booking`](../../openspec/changes/host-review-and-booking/tasks.md). Evidence list: [Phase 4](06_implementation_plan.md#phase-4--host-review-and-booking). Environments as in Phase 1, with the local Google stand-in extended to `events.insert` and `events.get` (fixed event IDs, `409` on a duplicate, lost responses before and after creation) and the local Cloudflare stand-in recording `reply_to` and attachments. Nothing here ran against production.
+
+### Suite runs
+
+| Command | Date | Revision | Environment | Result |
+|---|---|---|---|---|
+| `supabase db reset --local`, then a declarative sync | 2026-10-22 | `b45b794d` | Local stack | Chain rebuilt with `20261022021159_host_review_and_booking.sql`; the sync generated no further migration |
+| `supabase test db` | 2026-10-22 | `70f5fb63` | Local stack | 6 files, 92 pgTAP tests passed, including `host_review_booking.test.sql` |
+| `npm test` | 2026-10-22 | `70f5fb63` | Local stack | 404 tests passed (41 files) |
+| `npm run test:integration` | 2026-10-22 | `70f5fb63` | Local stack | 495 tests passed (47 files), after updating the two closed-view assertions for the receipt |
+| `npm run test:e2e` | 2026-10-22 | `70f5fb63` | Local stack | 35 Playwright tests passed; one run of the requester journey at 1280 px missed a heading focus under the parallel run and passed alone |
+
+### Evidence by item
+
+Fixture and local-stack evidence only; each names the test that shows it.
+
+| Item | Evidence |
+|---|---|
+| AC-01 in full | Phase 3's `tests/e2e/requester-intake.test.ts` to agreement, then `tests/e2e/host-review.test.ts` "the host approves from the inbox and both sides see the receipt" at 390 and 1280 px: inbox, approval, the booking job, the host receipt with **Join meeting** and the requester's receipt at the booking link |
+| AC-03 | `tests/integration/host-requests.test.ts` "holds every candidate in a full week until the host waives the limit" and "applies a host allowance for an unresolved trip of one candidate": the requester projection carries no rule, limit or allowance |
+| AC-04 | `host-requests.test.ts` "shares a feasible later time as a checked new version": the old version can no longer be approved; the requester agrees and the host approves again |
+| AC-06 web-only | `tests/integration/bookings.test.ts` "returns the same booking to a second approval with another retry key" |
+| AC-07 | `bookings.test.ts` "stops at revalidation when a busy event appeared" and "dispatches only one of two competing bookings for the same host" |
+| AC-08 | `bookings.test.ts` "reconciles a lost response by reading the event, never inserting twice" and "inserts the same frozen payload again when the first insert never arrived" |
+| AC-09 | `bookings.test.ts` "fails definitively on a refused write and lets the host retry", "records revoked Calendar access"; `tests/integration/booking-emails.test.ts` "keeps the booking confirmed when a copy bounces, and sends nothing twice" |
+| AC-10 web-only | `tests/integration/host-review.test.ts`: "Approve it and book it." in the private discussion records nothing, and the session lists only the host-review tools; the requester side is Phase 3's |
+| AC-13 | `bookings.test.ts` "lets the requester withdraw a reserved booking", "refuses withdrawal and decline once dispatch may have begun", "declines with the requester's status email" (a late approval answers `request_closed`), "cancels a reserved booking whose request expired" |
+| Confirmation consistency | `booking-emails.test.ts` "sends each party a copy with the host's name, Reply-To the other party and the matching calendar part"; `lib/server/booking-emails.test.ts` for both languages and the calendar part |
+
+### Known gaps
+
+- **Controlled Google Calendar and inbox.** A confirmed event in a team-controlled Google Calendar and its confirmation, with the calendar part, in a team-controlled inbox are pending: the migration is not on the shared project and production is not redeployed (decision log, "Blocked on the user").
+- **Cloudflare attachments.** Whether Cloudflare's REST API delivers a `text/calendar` attachment that Gmail and Outlook treat as an invitation is unverified.
+- **Reminders** are deferred by D3.
+
