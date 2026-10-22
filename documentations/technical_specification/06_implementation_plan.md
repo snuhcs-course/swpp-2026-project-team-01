@@ -228,7 +228,7 @@ Scope. Prerequisite: Phase 3 for requester operations and Phase 4 for host decis
 **Proposal (serial, first)**
 
 - [x] Proposal for [`agent-access`](../../openspec/changes/agent-access/proposal.md) with the decisions to settle and the coverage table.
-- [ ] [Design](../../openspec/changes/agent-access/design.md).
+- [x] [Design](../../openspec/changes/agent-access/design.md).
 - [ ] Delta specs under [`specs/`](../../openspec/changes/agent-access/specs/), including the one-future-request grant.
 - [ ] [Tasks](../../openspec/changes/agent-access/tasks.md).
 - [ ] Owning-document updates and Korean mirrors.
