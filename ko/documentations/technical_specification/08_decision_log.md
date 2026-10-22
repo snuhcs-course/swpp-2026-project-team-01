@@ -55,9 +55,9 @@
 
 | 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
-| 검토 우회 | PR #26과 #27은 사용자의 요청으로 팀원 승인 없이 `--admin`으로 squash 병합했습니다 | 승인을 기다림 | squash 커밋 메시지 | 팀원이 나중에 [제품 결정](../../openspec/changes/requester-intake-and-feasibility/product_decisions.md)을 사용해 검토 |
-| 마이그레이션 경로 | 3단계 마이그레이션 세 개를 드라이 런 후 사용자의 승인을 받아, `anelszynxtvxoxqvzgqt`에 연결된 워크트리에서 `supabase db push --linked`로 푸시했습니다. 메인 체크아웃은 예약된 `mriseqztcwmezvtawnbo`에 연결된 채로 두었고 사용하지 않았습니다 | 시크릿이 설정되지 않아 실패하는 `Deploy shared Supabase` 워크플로 | 이 기록; 인수 기록은 아직 갱신해야 함 | 이후 마이그레이션이 CI를 거치도록 워크플로의 저장소 시크릿을 설정 |
-| 프로덕션 배포 | 병합할 때마다 `origin/main`의 깨끗한 체크아웃에서 `findmeatime-release`에 연결해 `vercel deploy --prod` | Git 연동 배포(구성되지 않음) | 이 기록 | 자동 배포를 원하면 Vercel 프로젝트를 저장소에 연결 |
+| 검토 우회 | PR #26, #27, #28은 사용자의 요청으로 팀원 승인 없이 `--admin`으로 squash 병합했습니다 | 승인을 기다림 | squash 커밋 메시지 | 팀원이 나중에 [제품 결정](../../openspec/changes/requester-intake-and-feasibility/product_decisions.md)을 사용해 검토 |
+| 마이그레이션 경로 | 3단계 마이그레이션 다섯 개를 `anelszynxtvxoxqvzgqt`에 `supabase db push --linked`로 푸시했으며, 매번 드라이 런 후 사용자의 승인을 받아 해당 프로젝트에 연결된 워크트리에서 실행했습니다. PR #26 뒤인 2026-10-22에 세 개, PR #28 뒤인 2026-10-22에 `guest_draft_requests`와 `guest_calendar_step`입니다. 메인 체크아웃은 예약된 `mriseqztcwmezvtawnbo`에 연결된 채로 두었고 사용하지 않았습니다 | 시크릿이 설정되지 않아 실패하는 `Deploy shared Supabase` 워크플로 | 이 기록; [인수 기록](07_acceptance_record.md#production-deployment-2) | 이후 마이그레이션이 CI를 거치도록 워크플로의 저장소 시크릿을 설정 |
+| 프로덕션 배포 | PR #26, #27, #28 각각을 병합한 뒤 `origin/main`의 깨끗한 체크아웃에서 `findmeatime-release`에 연결해 `vercel deploy --prod`; 게스트 스레드 코드는 마이그레이션이 적용된 뒤에야 라이브가 되었습니다 | Git 연동 배포(구성되지 않음) | 이 기록; [인수 기록](07_acceptance_record.md#production-deployment-2) | 자동 배포를 원하면 Vercel 프로젝트를 저장소에 연결; 그때까지는 마이그레이션이 필요한 변경을 배포하기 전에 마이그레이션을 먼저 푸시 |
 
 ### 사용자 대기 항목
 
