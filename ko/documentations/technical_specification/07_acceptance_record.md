@@ -231,12 +231,12 @@
 
 | 명령 | 날짜 | 리비전 | 환경 | 결과 |
 |---|---|---|---|---|
-| `supabase db reset --local` 후 선언적 동기화 | 2026-10-22 | `aef1a9e8` | 별도 로컬 스택 | `20261022132547_email_ingress.sql`과 `20261022133116_email_threads.sql`로 체인이 다시 구축됨; 동기화가 추가 마이그레이션을 생성하지 않음 |
-| `supabase test db` | 2026-10-22 | `aef1a9e8` | 별도 로컬 스택 | 파일 7개, pgTAP 테스트 103개 통과, `email_channel.test.sql` 포함 |
-| `npm test` | 2026-10-22 | `aef1a9e8` | 로컬 | 테스트 429개 통과(파일 43개) |
-| `npm run test:integration` | 2026-10-22 | `aef1a9e8` | 별도 로컬 스택 | 538개 중 535개 통과(파일 52개); 실패 3개는 `email-receiver.test.ts`가 이전 실행의 수신 기록이 남은 데이터베이스에서 고정된 Svix ID를 재사용했기 때문입니다. 고유 ID를 쓰면 이 파일은 통과합니다(테스트 9개) |
-| `npm run test:e2e` | 2026-10-22 | `aef1a9e8` | 별도 로컬 스택 | Playwright 테스트 38개 중 37개가 처음에 통과했으며 390 및 1280 픽셀의 `email-link.test.ts`도 포함됩니다; 1280 픽셀의 3단계 요청자 여정은 4단계에 기록된 대로 병렬 실행 중 신원 제목 포커스를 놓쳤고 재시도에서 통과했습니다. 앞선 전체 실행에서는 다른 묶음이 페이지를 컴파일하는 동안 카드가 첫 대기 시간을 더 길게 요구한다는 점과, 공개 페이지의 이메일 줄이 호스트의 핸들 텍스트를 되풀이한다는 점이 드러났고 둘 다 고쳤습니다 |
-| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-22 | `aef1a9e8` | 로컬 | 통과; lint는 이 변경 이전부터 있던 경고만 보고함 |
+| `supabase db reset --local` 후 선언적 동기화 | 2026-10-23 | `ea295024` | 별도 로컬 스택 | `20261022132547_email_ingress.sql`, `20261022133116_email_threads.sql`, `20261022143811_email_review_fixes.sql`로 체인이 다시 구축됨 |
+| `supabase test db` | 2026-10-23 | `ea295024` | 별도 로컬 스택 | 파일 7개, pgTAP 테스트 106개 통과, `email_channel.test.sql` 포함 |
+| `npm test` | 2026-10-23 | `ea295024` | 로컬 | 테스트 429개 통과(파일 43개) |
+| `npm run test:integration` | 2026-10-23 | `ea295024` | 별도 로컬 스택 | 검토 수정 이후 테스트 547개 통과(파일 52개). `aef1a9e8`의 앞선 실행에서는 538개 중 535개가 통과했으며, 실패 3개는 `email-receiver.test.ts`가 실행 사이에 유지된 데이터베이스에서 고정된 Svix ID를 재사용했기 때문이고 이후 고쳤습니다 |
+| `npm run test:e2e` | 2026-10-23 | `ea295024` | 별도 로컬 스택 | Playwright 테스트 38개 통과, 34개는 처음에, 4개는 병렬 실행 중 재시도에서 통과했습니다(호스트 설정 2회, 390 픽셀의 워크스페이스, 390 픽셀의 3단계 요청자 여정); 이메일 테스트는 하나도 없습니다. `aef1a9e8`에서는 38개 중 37개가 처음에 통과했습니다. 앞선 전체 실행에서는 다른 묶음이 페이지를 컴파일하는 동안 카드가 첫 대기 시간을 더 길게 요구한다는 점과, 공개 페이지의 이메일 줄이 호스트의 핸들 텍스트를 되풀이한다는 점이 드러났고 둘 다 고쳤습니다 |
+| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-23 | `ea295024` | 로컬 | 통과; lint는 이 변경 이전부터 있던 경고만 보고함 |
 
 ### 항목별 증거
 
@@ -249,6 +249,7 @@
 | AC-05 | 같은 테스트: 이전 메시지의 "option 2"를 고르는 이메일은 합의를 기록하지 않고 두 번째 요청도 만들지 않으며, 답장은 예약 페이지로 안내함 |
 | AC-11 | 같은 테스트: 확정 후 예약 페이지 메시지는 이메일 메시지를 처리한 하나의 세션에 도달함. "links a thread and continues the same conversation by email"은 반대 방향을 다루며, 연결 코드는 모델에 도달하지 않음 |
 | 발신자 진위와 전달된 링크(D3, D5) | `tests/integration/email-threads.test.ts`(위조, 스팸 라벨, 자체 받은편지함, 복사된 수신자 메시지는 아무것도 전달하지 않음)와 `tests/integration/email-links.test.ts`(전달됨, 인증되지 않음, 스레드 내 코드는 코드를 무효화함) |
+| 검토 수정 | `email-links.test.ts` "forwards later replies whose subject or quoted text repeats the code, with the code removed"; `email-threads.test.ts` "holds a reply that arrives before its thread's first message is processed", "answers a started thread once when its first message could not be processed", "sends the fallback when the session failed for good, and redacts the turn's text", "ignores auto-replies and bulk mail"; `email-notices.test.ts` "keeps the booking link sealed while a notice may be sent again" |
 | 답장(D8) | `email-threads.test.ts` "retries a lost response with the same key and sends one email", "records uncertain without sending once the retry horizon passed", "records a refusal as rejected", "is refused before any provider call in a preview" |
 | 이메일로 계속 | `email-links.test.ts`; 390 및 1280 픽셀에서 키보드로 진행한 `tests/e2e/email-link.test.ts` |
 | 스레드 알림 | `tests/integration/email-notices.test.ts` |

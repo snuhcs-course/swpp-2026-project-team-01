@@ -230,12 +230,12 @@ Change: [`requester-email-channel`](../../openspec/changes/requester-email-chann
 
 | Command | Date | Revision | Environment | Result |
 |---|---|---|---|---|
-| `supabase db reset --local`, then a declarative sync | 2026-10-22 | `aef1a9e8` | Separate local stack | Chain rebuilt with `20261022132547_email_ingress.sql` and `20261022133116_email_threads.sql`; the sync generated no further migration |
-| `supabase test db` | 2026-10-22 | `aef1a9e8` | Separate local stack | 7 files, 103 pgTAP tests passed, including `email_channel.test.sql` |
-| `npm test` | 2026-10-22 | `aef1a9e8` | Local | 429 tests passed (43 files) |
-| `npm run test:integration` | 2026-10-22 | `aef1a9e8` | Separate local stack | 535 of 538 passed (52 files); the 3 failures were `email-receiver.test.ts` reusing fixed Svix IDs on a database that kept an earlier run's receipts. With unique IDs the file passes (9 tests) |
-| `npm run test:e2e` | 2026-10-22 | `aef1a9e8` | Separate local stack | 37 of 38 Playwright tests passed first time, including `email-link.test.ts` at 390 and 1280 px; the Phase 3 requester journey at 1280 px missed the identity heading's focus under the parallel run, as recorded for Phase 4, and passed on retry. An earlier full run showed that the card needs a longer first wait while other suites compile pages, and that the public page's email line repeated the host's handle text; both were fixed |
-| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-22 | `aef1a9e8` | Local | Passed; lint reports only warnings that predate this change |
+| `supabase db reset --local`, then a declarative sync | 2026-10-23 | `ea295024` | Separate local stack | Chain rebuilt with `20261022132547_email_ingress.sql`, `20261022133116_email_threads.sql` and `20261022143811_email_review_fixes.sql` |
+| `supabase test db` | 2026-10-23 | `ea295024` | Separate local stack | 7 files, 106 pgTAP tests passed, including `email_channel.test.sql` |
+| `npm test` | 2026-10-23 | `ea295024` | Local | 429 tests passed (43 files) |
+| `npm run test:integration` | 2026-10-23 | `ea295024` | Separate local stack | 547 tests passed (52 files), after the review fixes. An earlier run at `aef1a9e8` passed 535 of 538; its 3 failures were `email-receiver.test.ts` reusing fixed Svix IDs on a database kept between runs, since fixed |
+| `npm run test:e2e` | 2026-10-23 | `ea295024` | Separate local stack | 38 Playwright tests passed, 34 first time and 4 on retry under the parallel run (host setup twice, the workspace at 390 px, the Phase 3 requester journey at 390 px); none is an email test. At `aef1a9e8`, 37 of 38 passed first time. An earlier full run showed that the card needs a longer first wait while other suites compile pages, and that the public page's email line repeated the host's handle text; both were fixed |
+| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-23 | `ea295024` | Local | Passed; lint reports only warnings that predate this change |
 
 ### Evidence by item
 
@@ -248,6 +248,7 @@ Fixture and local-stack evidence only; each names the test that shows it.
 | AC-05 | The same test: an email choosing "option 2" of an earlier message records no agreement and creates no second request; the reply directs to the booking page |
 | AC-11 | The same test: after confirmation, a booking-page message lands in the one session that served the email messages. "links a thread and continues the same conversation by email" covers the other direction, and the linking code never reaches the model |
 | Sender authenticity and forwarded links (D3, D5) | `tests/integration/email-threads.test.ts` (spoofed, spam-labelled, own-inbox and copied-recipient messages forward nothing) and `tests/integration/email-links.test.ts` (forwarded, unauthenticated and in-thread codes void the code) |
+| Review fixes | `email-links.test.ts` "forwards later replies whose subject or quoted text repeats the code, with the code removed"; `email-threads.test.ts` "holds a reply that arrives before its thread's first message is processed", "answers a started thread once when its first message could not be processed", "sends the fallback when the session failed for good, and redacts the turn's text", "ignores auto-replies and bulk mail"; `email-notices.test.ts` "keeps the booking link sealed while a notice may be sent again" |
 | Replies (D8) | `email-threads.test.ts` "retries a lost response with the same key and sends one email", "records uncertain without sending once the retry horizon passed", "records a refusal as rejected", "is refused before any provider call in a preview" |
 | Continue by email | `email-links.test.ts`; `tests/e2e/email-link.test.ts` by keyboard at 390 and 1280 px |
 | Thread notices | `tests/integration/email-notices.test.ts` |
