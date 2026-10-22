@@ -10,8 +10,8 @@ Before each group, read the [Phase 7 reference repository files](../../../docume
 
 ## 2. Ingress (Lane A)
 
-- [ ] 2.1 Add `email_receivers` and `email_receipts` ([design 8](design.md#8-records)) with row-level security, generate the migration with `supabase db schema declarative sync --no-apply`, and verify `supabase db reset --local` and the grant tests.
-- [ ] 2.2 Add the Svix verification, the receiver (`lib/server/agentmail-receiver.ts`), the `agent/channels/agentmail.ts` route and its `vercel.ts` route ([design 1](design.md#1-the-channel-and-the-receiver)), and the `email-receiver` operator commands. Verify unit tests for signatures and integration tests for a stored receipt and job before `204`, concurrent identical deliveries, a lost response, a changed retry (`409`), a disabled, replaced or unknown receiver, a stale signature, an unsupported event, and that the receipt holds no body or sender.
+- [x] 2.1 Add `email_receivers` and `email_receipts` ([design 8](design.md#8-records)) with row-level security, generate the migration with `supabase db schema declarative sync --no-apply`, and verify `supabase db reset --local` and the grant tests.
+- [x] 2.2 Add the Svix verification, the receiver (`lib/server/agentmail-receiver.ts`), the `agent/channels/agentmail.ts` route and its `vercel.ts` route ([design 1](design.md#1-the-channel-and-the-receiver)), and the `email-receiver` operator commands. Verify unit tests for signatures and integration tests for a stored receipt and job before `204`, concurrent identical deliveries, a lost response, a changed retry (`409`), a disabled, replaced or unknown receiver, a stale signature, an unsupported event, and that the receipt holds no body or sender.
 
 ## 3. Thread binding and forwarding (Lane B)
 

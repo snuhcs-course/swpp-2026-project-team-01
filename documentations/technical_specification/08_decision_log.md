@@ -167,6 +167,17 @@ The [proposal](../../openspec/changes/requester-email-channel/proposal.md#decisi
 | D10 | The operator CLI registers a receiver with the secret's fingerprint and disables the inbox's previous one; the webhook URL carries the receiver ID; creating the webhook at AgentMail stays an operator step | One unversioned webhook URL | Proposal; design 1; `requester-email-ingress` delta | `email-receiver` commands in `lib/server/operator.ts` |
 | D11 | Over-long messages and closed requests get one fixed reply; attachments are never fetched; our own messages are ignored; admission limits delay a receipt instead of dropping it | Truncating long messages; dropping mail at the limit | Proposal; design 5 | `lib/server/email-receipts.ts` |
 
+### Implementation decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Signature verification | Svix's scheme written in `lib/server/svix.ts` (HMAC-SHA256 over `{id}.{timestamp}.{body}`, any listed `v1` signature, five-minute window) | The `svix` package, a new dependency for one function | Design 1 | `verifySvixSignature` in `lib/server/svix.ts` |
+| Where the receiver runs | The agent service, as the custom channel's route; `vercel.ts` routes `^/agentmail/(.*)$` to the generated `eve` service before the web catch-all | A Next.js route in the web service | Design 1 | `vercel.ts` and `agent/channels/agentmail.ts` |
+| Refusal codes | An unknown, disabled, replaced or re-keyed receiver, an unconfigured deployment or another inbox's message answer `404`; a bad or stale signature `401`; an over-large body (256 KiB) `413`; a changed retry `409`; other event types `204` | Distinguishing a disabled receiver from an unknown one | `lib/server/agentmail-receiver.ts` | `receiveAgentMailWebhook` there |
+| Receipt identity | The provider `event_id`, with the delivery and message IDs also unique; a duplicate must match event, inbox, thread, message and payload hash, so a second subscription's delivery of the same event is still a duplicate | Keying on the Svix ID, which differs per subscription | `email_receipts` schema | `storeReceipt` in `lib/server/agentmail-receiver.ts` |
+| Receipt job attempts | 10, so an admission window or an AgentMail outage delays a message by up to about three hours of backoff before the job is left exhausted and visible | The default 5 | `lib/server/agentmail-receiver.ts` | `EMAIL_RECEIPT_ATTEMPTS` |
+| Receiver audit | The receiver rows themselves record who registered and disabled each one and in which environment; registration takes a per-inbox advisory lock | A separate audit table | `email_receivers` schema; `app.operator_register_email_receiver` | The schema and a new migration |
+
 ### Blocked on the user
 
 These steps were not taken because they cannot be undone by a revert, need a provider console, or send to people outside the team:

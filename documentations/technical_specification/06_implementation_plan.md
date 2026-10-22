@@ -301,8 +301,8 @@ Scope. Prerequisite: Phase 3 for request binding and Phase 4 for notifications. 
 
 **Lane A — ingress**
 
-- [ ] AgentMail inbox `findmeatime@agentmail.to` with narrowly scoped runtime permissions; operator-owned receiver registration.
-- [ ] Signed webhook receiver that stores a deduplicated receipt and one job before acknowledgment; conflicting reuse rejected.
+- [ ] AgentMail inbox `findmeatime@agentmail.to` with narrowly scoped runtime permissions; operator-owned receiver registration. Open: the inbox is blocked by the three-inbox limit; receiver registration is built as the `email-receiver` operator commands.
+- [x] Signed webhook receiver that stores a deduplicated receipt and one job before acknowledgment; conflicting reuse rejected.
 
 **Lane B — channel and linking**
 

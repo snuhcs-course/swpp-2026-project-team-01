@@ -169,6 +169,17 @@
 | D10 | 운영자 CLI는 비밀의 지문과 함께 수신기를 등록하고 받은편지함의 이전 수신기를 비활성화합니다. 웹훅 URL에는 수신기 ID가 들어 있으며, AgentMail에서 웹훅을 만드는 일은 운영자 단계로 남습니다 | 버전 없는 단일 웹훅 URL | 제안서; 설계 1; `requester-email-ingress` 델타 | `lib/server/operator.ts`의 `email-receiver` 명령 |
 | D11 | 너무 긴 메시지와 닫힌 요청에는 고정된 회신 하나를 보냅니다. 첨부 파일은 가져오지 않으며, 우리 쪽에서 보낸 메시지는 무시합니다. 허용 한도에 걸리면 수신 기록을 버리지 않고 지연시킵니다 | 메시지 잘라 내기; 한도에서 메일 버리기 | 제안서; 설계 5 | `lib/server/email-receipts.ts` |
 
+### 구현 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 서명 검증 | `lib/server/svix.ts`에 직접 작성한 Svix 방식(`{id}.{timestamp}.{body}`에 대한 HMAC-SHA256, 나열된 `v1` 서명 중 하나라도 일치하면 통과, 5분 허용 구간) | `svix` 패키지, 함수 하나를 위한 새 의존성 | 설계 1 | `lib/server/svix.ts`의 `verifySvixSignature` |
+| 수신기가 실행되는 곳 | 사용자 지정 채널의 라우트로서 에이전트 서비스에서 실행합니다. `vercel.ts`가 `^/agentmail/(.*)$`를 웹 전체 포괄 라우트보다 먼저 생성된 `eve` 서비스로 보냅니다 | Next.js 웹 서비스의 라우트 | 설계 1 | `vercel.ts`와 `agent/channels/agentmail.ts` |
+| 거부 코드 | 알 수 없거나, 비활성화되었거나, 교체되었거나, 키가 바뀐 수신기, 설정되지 않은 배포, 다른 받은편지함의 메시지는 `404`; 잘못되었거나 오래된 서명은 `401`; 너무 큰 본문(256 KiB)은 `413`; 내용이 바뀐 재시도는 `409`; 그 밖의 이벤트 유형은 `204`로 응답합니다 | 비활성화된 수신기와 알 수 없는 수신기를 구분하기 | `lib/server/agentmail-receiver.ts` | 같은 파일의 `receiveAgentMailWebhook` |
+| 수신 기록 식별 | 제공자의 `event_id`를 쓰고, 전달 ID와 메시지 ID도 각각 고유해야 합니다. 중복은 이벤트, 받은편지함, 스레드, 메시지, 페이로드 해시가 모두 일치해야 하므로, 두 번째 구독이 같은 이벤트를 전달해도 여전히 중복입니다 | 구독마다 달라지는 Svix ID를 키로 쓰기 | `email_receipts` 스키마 | `lib/server/agentmail-receiver.ts`의 `storeReceipt` |
+| 수신 기록 작업 시도 | 10회. 허용 구간이나 AgentMail 장애로 메시지가 최대 약 세 시간의 백오프만큼 지연된 뒤, 작업은 소진된 채 눈에 보이는 상태로 남습니다 | 기본값 5회 | `lib/server/agentmail-receiver.ts` | `EMAIL_RECEIPT_ATTEMPTS` |
+| 수신기 감사 | 수신기 행 자체에 각 수신기를 누가 어느 환경에서 등록하고 비활성화했는지 기록합니다. 등록은 받은편지함별 권고 잠금을 잡습니다 | 별도의 감사 테이블 | `email_receivers` 스키마; `app.operator_register_email_receiver` | 스키마와 새 마이그레이션 |
+
 ### 사용자 대기 항목
 
 다음 단계는 되돌려도 취소할 수 없거나, 제공자 콘솔이 필요하거나, 팀 밖의 사람에게 발송되기 때문에 수행하지 않았습니다.
