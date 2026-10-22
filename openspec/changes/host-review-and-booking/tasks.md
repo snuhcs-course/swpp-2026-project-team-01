@@ -10,7 +10,7 @@ Before each group, read the [Phase 4 reference repository files](../../../docume
 
 ## 2. Schema (serial)
 
-- [ ] 2.1 Add `approvals`, `bookings`, `request_exceptions` and `shared_change_drafts`, `discussions.request_id` with the `host_review` audience, and the new email kinds with `reply_to` and `attachments` ([design 1](design.md#1-records)) to `supabase/schemas/app/`, each table with row-level security. Generate the migration with `supabase db schema declarative sync --no-apply`. Verify `supabase db reset --local` rebuilds the chain and `supabase/tests/` shows `anon` and `authenticated` reach no new table.
+- [x] 2.1 Add `approvals`, `bookings`, `request_exceptions` and `shared_change_drafts`, `discussions.request_id` with the `host_review` audience, and the new email kinds with `reply_to` and `attachments` ([design 1](design.md#1-records)) to `supabase/schemas/app/`, each table with row-level security. Generate the migration with `supabase db schema declarative sync --no-apply`. Verify `supabase db reset --local` rebuilds the chain and `supabase/tests/` shows `anon` and `authenticated` reach no new table.
 
 ## 3. Host review conversation (Lane A)
 
