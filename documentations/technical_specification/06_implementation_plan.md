@@ -223,27 +223,36 @@ Evidence: AC-01 in full, AC-03, AC-04, AC-06 web-only, AC-07, AC-08, AC-09, AC-1
 
 Goal: personal agents work for both roles through MCP and the user CLI, with per-client acceptance.
 
-Scope. Prerequisite: Phase 3 for requester operations and Phase 4 for host decisions. Lane A has no product dependency beyond Phase 1 and can start as soon as Phase 4 begins.
+Scope. Prerequisite: Phase 3 for requester operations and Phase 4 for host decisions. Lane A has no product dependency beyond Phase 1 and can start as soon as Phase 4 begins. Every lane also waits for the proposal below, reviewed before any lane codes.
+
+**Proposal (serial, first)**
+
+- [x] Proposal for [`agent-access`](../../openspec/changes/agent-access/proposal.md) with the decisions to settle and the coverage table.
+- [x] [Design](../../openspec/changes/agent-access/design.md).
+- [x] Delta specs under [`specs/`](../../openspec/changes/agent-access/specs/), including the one-future-request grant.
+- [x] [Tasks](../../openspec/changes/agent-access/tasks.md).
+- [x] Owning-document updates and Korean mirrors.
+- [ ] Teammate review.
 
 **Lane A — authorization server**
 
-- [ ] Authorization server following the MCP authorization specification with S256 PKCE, exact callbacks, protected-resource and authorization-server discovery, resource-bound signed tokens, atomic single-use codes, refresh rotation, revocation and current-grant checks.
-- [ ] `/connect/authorize` consent page; connected-client inspection and revocation in `/app`.
+- [x] Authorization server following the MCP authorization specification with S256 PKCE, exact callbacks, protected-resource and authorization-server discovery, resource-bound signed tokens, atomic single-use codes, refresh rotation, revocation and current-grant checks.
+- [x] `/connect/authorize` consent page; connected-client inspection and revocation in `/app`.
 
 **Lane B — MCP server and user CLI**
 
-- [ ] Remote MCP server over the shared scheduling API with role-appropriate operations and audience projections.
-- [ ] User CLI as a thin client with structured JSON results, headless and interactive login, secure storage and reauthorization on lost responses.
+- [x] Remote MCP server over the shared scheduling API with role-appropriate operations and audience projections.
+- [x] User CLI as a thin client with structured JSON results, headless and interactive login, secure storage and reauthorization on lost responses.
 
 **Lane C — requester bootstrap and client acceptance**
 
-- [ ] Specify the one-future-request grant delta: bound to the displayed host, exact-retry recovery, permanent restriction to that request. Specification precedes implementation.
-- [ ] Implement the grant and its continuation restriction.
-- [ ] Skill document wording verified against each client; per-client discovery and connection notes.
+- [x] Specify the one-future-request grant delta: bound to the displayed host, exact-retry recovery, permanent restriction to that request. Specification precedes implementation.
+- [x] Implement the grant and its continuation restriction.
+- [ ] Skill document wording verified against each client; per-client discovery and connection notes. Open: the documents name both MCP endpoints and the CLI and the [per-client notes](09_agent_clients.md) list each client's connection path, but no named client has been run; that needs the production deployment and each client under a team member's account (task 6.1).
 
 **Join**
 
-- [ ] Both skill prompts run through each named client in both roles; run the Phase 5 evidence list.
+- [ ] Both skill prompts run through each named client in both roles; run the Phase 5 evidence list. Open: a scripted MCP client and the CLI pass the local join on one request through booking (`tests/integration/agent-join.test.ts`); every named client still needs its run on production after the deploy (tasks 6.1 and 7.1, and the [per-client notes](09_agent_clients.md)).
 
 Specs: [agent-client-authorization](../../openspec/specs/agent-client-authorization/spec.md), [public-agent-entry](../../openspec/specs/public-agent-entry/spec.md), [application-commands](../../openspec/specs/application-commands/spec.md), plus the new requester-bootstrap delta.
 

@@ -2,9 +2,9 @@
 
 > 한국어 번역본 (검토용). 원본: documentations/technical_specification/07_acceptance_record.md
 
-상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 릴리스되고 프로덕션에서 확인됨; 게스트 받은편지함 확인은 보류 중; 7단계(`requester-email-channel`) 로컬 증거 기록됨, 받은편지함과 프로덕션 증거 보류 중; 열린 공백은 아래에 나열
+상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 릴리스되고 프로덕션에서 확인됨; 게스트 받은편지함 확인은 보류 중; 5단계(`agent-access`) 로컬 증거 기록됨, 명명된 클라이언트와 프로덕션 증거 보류 중; 7단계(`requester-email-channel`) 로컬 증거 기록됨, 받은편지함과 프로덕션 증거 보류 중; 열린 공백은 아래에 나열
 
-날짜: 2026-10-22
+날짜: 2026-10-23
 
 이 기록은 [구현 계획](06_implementation_plan.md)의 각 단계가 해당 단계의 증거 목록에 맞춰 만들어 낸 증거를 나열합니다. 모든 항목에는 실행한 명령, 날짜, 리비전, 환경이 명시되어 있습니다. 픽스처와 로컬 스택 실행은 로직을 증명할 뿐이며, **production**으로 표시된 항목만 배포된 연동을 증명합니다. 토큰, 시크릿, 이메일 주소, 개인 메시지 본문은 이 기록에 넣지 않습니다.
 
@@ -254,6 +254,41 @@
 - **Outlook.** `text/calendar` 첨부 파일은 Gmail에 도착했으며, Outlook은 확인하지 않았습니다.
 - **알림**은 D3에 따라 미뤄졌습니다.
 
+## 5단계 — `agent-access`
+
+변경: [`agent-access`](../../openspec/changes/agent-access/tasks.md). 증거 목록: [5단계](06_implementation_plan.md#phase-5--agent-access). 환경은 1단계와 같습니다. 일반 `fetch`로 만든 스크립트된 MCP 클라이언트와 CLI `fmat`이 에이전트를 대신하며, 명명된 클라이언트는 실행되지 않았고 여기의 어느 것도 프로덕션에서 실행되지 않았습니다. 클라이언트별 결과는 [개인 에이전트 클라이언트](09_agent_clients.md)에 속합니다.
+
+### 테스트 묶음 실행
+
+| 명령 | 날짜 | 리비전 | 환경 | 결과 |
+|---|---|---|---|---|
+| `supabase db reset --local` 후 `supabase test db` | 2026-10-22 | `dada09ac` | 로컬 스택 | `20261022132708_agent_access.sql`로 체인이 다시 구축됨; 파일 7개, pgTAP 테스트 100개 통과, `agent_access.test.sql` 포함 |
+| `npm test` | 2026-10-22 | `15a1e43e` | 로컬 스택 | 파일 44개, 테스트 421개 통과 |
+| `npm run test:integration` | 2026-10-22 | `15a1e43e`와 합류 테스트 | 로컬 스택 | 파일 52개, 테스트 538개 통과 |
+| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-22 | `15a1e43e` | 로컬 스택 | 모두 종료 코드 0; 린트는 이미 `main`에 있던 경고 세 개만 보고함 |
+| `npm run test:e2e` | 2026-10-23 | `15a1e43e`와 합류 커밋의 테스트 변경 | 로컬 스택 | 기본 워커로, 기기의 다른 작업 때문에 부하 평균이 68 가까운 상태에서 24개 통과, 10개는 재시도에서 통과, 5개는 시간 초과로 실패; 5개는 `--last-failed --workers=2`로 다시 실행하자 통과했고, `--workers=2`로 전체를 다시 실행하자 39개 모두 통과 |
+
+### 항목별 증거
+
+로컬 증거뿐이며, 각 항목은 이를 보여 주는 테스트를 명시합니다.
+
+| 항목 | 증거 |
+|---|---|
+| AC-14, 스크립트 | `tests/integration/agent-join.test.ts`: 한 요청에서 요청자 MCP 클라이언트와 호스트의 CLI가 같은 상태와 제안 버전을 보고, 재시도한 동의는 재생되며, 호스트 결정 도구는 아무것도 예약하지 않고, 호스트가 직접 두 번 한 승인은 이벤트 하나만 예약하며, 철회되면 양쪽 모두 접근을 잃음 |
+| AC-15, 스크립트 | `tests/integration/agent-mcp-requester.test.ts` "creates exactly one request, emails its link, and binds the grant to it"와 "finds times, refuses a stale version and agrees to the current one"; 합류 테스트는 호스트가 승인한 뒤 예약된 영수증을 읽음 |
+| AC-19 | 390 및 1280 픽셀의 `tests/e2e/agent-connect.test.ts`: 좁혀진 동의, 에이전트의 코드, **Connected agents**와 **Revoke**; "a denied connection returns access_denied and connects nothing"; `tests/integration/agent-mcp-host.test.ts` "lists only the tools the permissions allow and challenges a missing one" |
+| AC-20 | `lib/server/agent-tokens.test.ts`(틀린 키, 발급자, 대상, 유형, 만료, 바뀐 클레임, `alg: none`, 토큰이 제공한 키); `agent-mcp-host.test.ts` "challenges a missing, foreign or wrong-audience token"과 "prepares a decision only for the current version and never approves" |
+| AC-21 | `agent-mcp-requester.test.ts`: 다른 호스트의 예약 링크는 동의에서 거절되고, 바인딩된 허가는 자기 요청에만 닿으며, 바인딩되지 않은 허가는 24시간 뒤 만료됨; `agent-mcp-host.test.ts` "reads only the host's own requests in the host projection" |
+| AC-22 | `tests/integration/agent-cli.test.ts`: 헤드리스 로그인, JSON 출력, 출력된 키로 한 정확한 재시도, 충돌하는 재사용, 새 로그인을 요구하는 거절된 갱신; 합류 테스트는 한 요청에서 MCP와 CLI를 사용함 |
+| AC-23 ~ AC-25, 문서만 | 지침 버전 3에 대한 `lib/server/entry-documents.test.ts`와 `tests/integration/entry-documents.test.ts`; `agent-mcp-requester.test.ts` "refuses a resource for an unknown host" |
+| 인증 서버 | `tests/integration/agent-authorization.test.ts`(19개): 디스커버리, 등록과 그 한도, 검증 순서, 메타데이터 문서, 동의와 로그인 복귀, 동시 및 재생된 코드, 리프레시 회전과 재생, 없는 서명 키, 철회와 정지 |
+
+### 알려진 공백
+
+- **명명된 클라이언트.** Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code는 어느 역할로도 실행되지 않았습니다. [개인 에이전트 클라이언트](09_agent_clients.md)에 기록되기 전까지 AC-14, AC-15, AC-19 ~ AC-25는 각 클라이언트에 대해 열려 있습니다. 해결되지 않은 클라이언트는 릴리스 차단 요인입니다.
+- **프로덕션.** 마이그레이션, 서명 키, 배포가 보류 중입니다(결정 기록의 "사용자 대기 항목").
+- **CLI의 시스템 저장소.** macOS 키체인과 Secret Service 경로는 파일 저장소를 쓰는 테스트 묶음에서 실행되지 않았습니다.
+
 ## 7단계 — `requester-email-channel`
 
 변경: [`requester-email-channel`](../../openspec/changes/requester-email-channel/tasks.md). 증거 목록: [7단계](06_implementation_plan.md#phase-7--requester-email-channel). 환경은 1단계와 같으나, 병렬로 진행된 5단계 세션의 스택을 초기화하지 않도록 로컬 스택은 별도의 것(`project_id` `fmat-phase7`, 포트 553xx)이었고([결정 기록](08_decision_log.md#phase-7--requester-email-channel)), 로컬 AgentMail 스탠드인(`tests/integration/support/fake-agentmail.ts`)이 메시지 API를 제공하고 답장을 기록하며 `Idempotency-Key`를 따랐습니다. 받은편지함은 존재하지 않으며 AgentMail이나 프로덕션을 상대로 실행된 것은 없습니다.
@@ -262,7 +297,7 @@
 
 | 명령 | 날짜 | 리비전 | 환경 | 결과 |
 |---|---|---|---|---|
-| `supabase db reset --local` 후 선언적 동기화 | 2026-10-23 | `ea295024` | 별도 로컬 스택 | `20261022132547_email_ingress.sql`, `20261022133116_email_threads.sql`, `20261022143811_email_review_fixes.sql`로 체인이 다시 구축됨 |
+| `supabase db reset --local` 후 선언적 동기화 | 2026-10-23 | `ea295024` | 별도 로컬 스택 | `20261023010000_email_ingress.sql`, `20261023010100_email_threads.sql`, `20261023010200_email_review_fixes.sql`로 체인이 다시 구축됨 |
 | `supabase test db` | 2026-10-23 | `ea295024` | 별도 로컬 스택 | 파일 7개, pgTAP 테스트 106개 통과, `email_channel.test.sql` 포함 |
 | `npm test` | 2026-10-23 | `ea295024` | 로컬 | 테스트 429개 통과(파일 43개) |
 | `npm run test:integration` | 2026-10-23 | `ea295024` | 별도 로컬 스택 | 검토 수정 이후 테스트 547개 통과(파일 52개). `aef1a9e8`의 앞선 실행에서는 538개 중 535개가 통과했으며, 실패 3개는 `email-receiver.test.ts`가 실행 사이에 유지된 데이터베이스에서 고정된 Svix ID를 재사용했기 때문이고 이후 고쳤습니다 |

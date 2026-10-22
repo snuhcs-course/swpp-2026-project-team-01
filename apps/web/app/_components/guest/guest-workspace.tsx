@@ -15,6 +15,7 @@ import {
   SentLine,
   useRequesterCards,
 } from "@/app/_components/requester/cards";
+import { ConnectedAgentsDialog, requestGrantSource } from "@/app/_components/connected-agents";
 import { CandidatesCard, DetailsCard, ProposalCard, ReviewCard } from "@/app/_components/requester/request-cards";
 import { ResendLinkForm } from "@/app/_components/requester/resend-link-form";
 import { AgentMessage } from "@/components/chat/message";
@@ -474,10 +475,14 @@ function threadEntries(
 }
 
 // The thread's compact menu beside the composer, after identification: **Edit
-// details** opens the meeting details card in the thread, **Withdraw request**
-// asks for confirmation in a dialog. Radix gives the menu arrow-key movement,
-// closes it on Escape and returns focus to its trigger.
+// details** opens the meeting details card in the thread, **Connected agents**
+// lists and revokes the personal agents connected to this request
+// (agent-access design 10), **Withdraw request** asks for confirmation in a
+// dialog. Radix gives the menu arrow-key movement, closes it on Escape and
+// returns focus to its trigger.
 function ThreadMenu({ context }: { readonly context: RequesterCardContext }) {
+  const [agentsOpen, setAgentsOpen] = useState(false);
+  const agents = useMemo(() => (context.bookingId ? requestGrantSource(context.bookingId) : null), [context.bookingId]);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -507,9 +512,11 @@ function ThreadMenu({ context }: { readonly context: RequesterCardContext }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="min-w-48" side="top">
           {choosing ? <DropdownMenuItem onSelect={() => context.openDetails()}>Edit details</DropdownMenuItem> : null}
+          {agents ? <DropdownMenuItem onSelect={() => setAgentsOpen(true)}>Connected agents</DropdownMenuItem> : null}
           <DropdownMenuItem onSelect={() => setConfirming(true)}>Withdraw request</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {agents ? <ConnectedAgentsDialog onOpenChange={setAgentsOpen} open={agentsOpen} source={agents} /> : null}
       <Dialog onOpenChange={setConfirming} open={confirming}>
         <DialogContent>
           <DialogHeader>

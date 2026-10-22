@@ -1,5 +1,7 @@
+import { parseCookieHeader } from "@supabase/ssr";
 import type { User } from "@supabase/supabase-js";
 import { GOOGLE_CALENDAR_SCOPES } from "../contracts/google-scopes";
+import { isLiveHostTransaction } from "./agent-authorize";
 import { type Database, database } from "./database";
 import { createGrantedScopesFetcher, type FetchGrantedScopes } from "./google-token-info";
 import { ensureHostAccount, type HostAccount } from "./host-accounts";
@@ -97,6 +99,24 @@ export async function completeGoogleSignIn(
   })) as HostAccount;
 }
 
+// The sign-in return to an agent consent transaction (agent-access D7). Sign-in
+// started from /connect/consent with `return=consent&transaction={id}` records
+// the transaction in this HttpOnly cookie, scoped to /auth, after checking that
+// it is a live, undecided host transaction; the callback clears it, checks the
+// transaction again and returns there, otherwise to /app. No query parameter
+// ever chooses the destination.
+export const RETURN_COOKIE = "fmat_auth_return";
+const RETURN_SECONDS = 10 * 60;
+
+function returnCookie(value: string, origin: string, maxAge: number) {
+  const secure = origin.startsWith("https:") ? "; Secure" : "";
+  return `${RETURN_COOKIE}=${value}; Path=/auth; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
+}
+
+function recordedReturn(request: Request) {
+  return parseCookieHeader(request.headers.get("cookie") ?? "").find((cookie) => cookie.name === RETURN_COOKIE)?.value ?? null;
+}
+
 // GET /auth/sign-in: one Google consent for identity and the Calendar scopes,
 // with PKCE (the verifier stays in this browser's cookie) and offline access.
 // `?consent=calendar` (Connect Google Calendar) asks Google to show the consent
@@ -109,7 +129,10 @@ export function createGoogleSignInHandler(load: () => GoogleSignInDependencies =
 
     if (!origin) return unknownHost();
 
-    const renewConsent = new URL(request.url).searchParams.get("consent") === "calendar";
+    const params = new URL(request.url).searchParams;
+    const renewConsent = params.get("consent") === "calendar";
+    const transaction = params.get("return") === "consent" ? params.get("transaction") : null;
+    const consentReturn = transaction && (await isLiveHostTransaction(deps.db, transaction)) ? transaction : null;
     const auth = createRequestAuthClient(request, deps.auth);
     const { data, error } = await auth.client.auth.signInWithOAuth({
       options: {
@@ -128,13 +151,14 @@ export function createGoogleSignInHandler(load: () => GoogleSignInDependencies =
       return auth.redirect(`${origin}/app?sign_in=failed`);
     }
 
-    return auth.redirect(data.url);
+    return auth.redirect(data.url, [returnCookie(consentReturn ?? "", origin, consentReturn ? RETURN_SECONDS : 0)]);
   };
 }
 
-// GET /auth/callback: always returns to /app and never reads a caller-supplied
-// destination. A cancelled, replayed or other-browser return establishes no session,
-// and neither does a new identity past a sign-up bound (`?sign_in=limited`).
+// GET /auth/callback: returns to /app, or to the live agent consent transaction
+// sign-in recorded (D7), and never reads a caller-supplied destination. A
+// cancelled, replayed or other-browser return establishes no session, and
+// neither does a new identity past a sign-up bound (`?sign_in=limited`).
 export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies = dependenciesFromEnvironment) {
   return async (request: Request) => {
     const deps = load();
@@ -145,15 +169,17 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
     const auth = createRequestAuthClient(request, deps.auth);
     const failed = `${origin}/app?sign_in=failed`;
     const code = new URL(request.url).searchParams.get("code");
+    const recorded = recordedReturn(request);
+    const clear = recorded === null ? [] : [returnCookie("", origin, 0)];
 
     if (!code) {
-      return auth.redirect(failed);
+      return auth.redirect(failed, clear);
     }
 
     const { data, error } = await auth.client.auth.exchangeCodeForSession(code);
 
     if (error || !data.session) {
-      return auth.redirect(failed);
+      return auth.redirect(failed, clear);
     }
 
     try {
@@ -168,10 +194,11 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       );
     } catch (caught) {
       await auth.client.auth.signOut();
-      return auth.redirect(caught instanceof SignUpLimitError ? `${origin}/app?sign_in=limited` : failed);
+      return auth.redirect(caught instanceof SignUpLimitError ? `${origin}/app?sign_in=limited` : failed, clear);
     }
 
-    return auth.redirect(`${origin}/app`);
+    const consent = recorded && (await isLiveHostTransaction(deps.db, recorded)) ? `${origin}/connect/consent?transaction=${recorded}` : null;
+    return auth.redirect(consent ?? `${origin}/app`, clear);
   };
 }
 

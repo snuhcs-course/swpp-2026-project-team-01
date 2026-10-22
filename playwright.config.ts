@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { generateKeyPairSync } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { defineConfig, devices } from "@playwright/test";
@@ -70,6 +71,8 @@ const shared = {
   AGENTMAIL_INBOX_ID: "findmeatime@agentmail.test",
   // One key per run, shared with the tests so they can seal a Calendar grant.
   TOKEN_ENCRYPTION_KEY: E2E_TOKEN_ENCRYPTION_KEY,
+  // A fresh Ed25519 key per run for agent access tokens.
+  AGENT_TOKEN_SIGNING_KEY: generateKeyPairSync("ed25519").privateKey.export({ format: "der", type: "pkcs8" }).toString("base64"),
 };
 
 export default defineConfig({

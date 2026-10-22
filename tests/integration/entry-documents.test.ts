@@ -43,7 +43,7 @@ describe("root documents", () => {
     expect(response.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
     expect(response.headers.get("vary")).toBe("Accept");
     expectPublicHeaders(response);
-    expect(body).toContain("Instruction version: 2");
+    expect(body).toContain("Instruction version: 3");
     expect(body).toContain(`${origin}/auth/sign-in`);
 
     const fromRelease = await createRootSkillHandler(deps)(new Request(`${release}/SKILL.md`));

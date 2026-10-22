@@ -74,7 +74,7 @@ export type StartRequestInput = z.infer<typeof startRequestInput>;
 
 export type StartRequestResult = { readonly requestId: string };
 
-export async function admitCreation(tx: Transaction, sourceHash: string, limits: CreationLimits = CREATION_LIMITS) {
+export async function admitCreation(tx: Transaction, sourceHash: string, limits: CreationLimits) {
   await tx`select pg_advisory_xact_lock(hashtextextended(${`app.request_creation_source:${sourceHash}`}, 0))`;
   await tx`select pg_advisory_xact_lock(hashtextextended('app.request_creation_service', 0))`;
 
@@ -109,23 +109,15 @@ export function startRequestCommand(options: {
       if (!(await hostAcceptsRequests(tx, context.resourceId))) throw new CommandError("forbidden");
 
       await admitCreation(tx, options.sourceHash, limits);
-
-      return createDraftRequest(tx, {
-        hostAccountId: context.resourceId,
-        language: context.input.language,
-        sourceHash: options.sourceHash,
-        timezone: context.input.timezone,
-        tokenKey: options.tokenKey,
-      });
+      return { requestId: await insertDraftRequest(tx, { ...context.input, hostAccountId: context.resourceId, sourceHash: options.sourceHash, tokenKey: options.tokenKey }) };
     },
   };
 }
 
-// Writes a draft request, its hashed and sealed booking link, its requester
-// discussion and the creation record, in the caller's transaction, after the
-// caller checked the host and the creation bounds: request.start, and an email
-// that starts a request (requester-email-channel design 3).
-export async function createDraftRequest(
+// The draft request, its hashed and sealed booking link, its requester
+// discussion and the creation record, after the caller checked the host and
+// admitted the creation. request.start and an agent's create_request share it.
+export async function insertDraftRequest(
   tx: Transaction,
   draft: {
     readonly hostAccountId: string;
@@ -134,7 +126,7 @@ export async function createDraftRequest(
     readonly sourceHash: string;
     readonly tokenKey: TokenKey;
   },
-): Promise<StartRequestResult> {
+) {
   const requestId = randomUUID();
   const bookingId = randomUUID();
   const details: RequestDetails = {
@@ -168,7 +160,7 @@ export async function createDraftRequest(
     values (${draft.sourceHash}, ${draft.hostAccountId})
   `;
 
-  return { requestId };
+  return requestId;
 }
 
 // ---------------------------------------------------------------------------

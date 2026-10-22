@@ -6,9 +6,10 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Every page and route except static assets, the agent service's own paths and
-  // the public entry documents, which never touch the session.
+  // Every page and route except static assets, the agent service's own paths,
+  // the public entry documents and the agent protocol endpoints (discovery,
+  // OAuth and MCP), which never touch the session.
   matcher: [
-    "/((?!_next/static|_next/image|eve/|icon.svg|apple-icon|eve.svg|paper-grain.svg|SKILL\\.md$|llms\\.txt$|[^/]+/SKILL\\.md$).*)",
+    "/((?!_next/static|_next/image|eve/|icon.svg|apple-icon|eve.svg|paper-grain.svg|SKILL\\.md$|llms\\.txt$|[^/]+/SKILL\\.md$|\\.well-known/|oauth/|mcp$|[^/]+/mcp$).*)",
   ],
 };

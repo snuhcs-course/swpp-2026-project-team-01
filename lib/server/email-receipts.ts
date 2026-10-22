@@ -29,7 +29,7 @@ import type { JobHandler } from "./jobs";
 import { findReadyHostByHandle } from "./readiness";
 import { assertMessagingAdmitted } from "./messaging";
 import { lockOpenRequest } from "./request-guard";
-import { admitCreation, CREATION_LIMITS, type CreationLimits, createDraftRequest, identifyDraft } from "./request-start";
+import { admitCreation, CREATION_LIMITS, type CreationLimits, identifyDraft, insertDraftRequest } from "./request-start";
 import { appOriginsFromEnvironment } from "./same-origin";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -294,7 +294,7 @@ async function start(
         select settings ->> 'timezone' as timezone from app.host_settings where host_account_id = ${host!.hostAccountId}
       `;
       const timezone = settings?.timezone && isValidTimeZone(settings.timezone) ? settings.timezone : "UTC";
-      const { requestId } = await createDraftRequest(tx, {
+      const requestId = await insertDraftRequest(tx, {
         hostAccountId: host!.hostAccountId,
         language,
         sourceHash: emailSourceHash(deps.tokenKey, address),

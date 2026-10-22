@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidTimeZone } from "../contracts/setup";
+import { revokeGrantCommand } from "./agent-grants";
 import { checkBookingCommand, readBookingStatus } from "./bookings";
 import { isUsableHandle, normalizeHandle } from "../contracts/handles";
 import {
@@ -490,6 +491,7 @@ export function requesterCommands(
     registered(checkBookingCommand),
     registered(createEmailLinkCommand({ tokenKey: contact.tokenKey })),
     registered(unlinkEmailCommand()),
+    registered(revokeGrantCommand),
   ]);
 }
 

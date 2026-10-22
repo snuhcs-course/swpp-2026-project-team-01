@@ -69,8 +69,12 @@ export function createRequestAuthClient(request: Request, config: SupabaseAuthCo
 
   return {
     client,
-    redirect(location: string) {
+    // `cookies` are further Set-Cookie values of the caller's own, such as the
+    // sign-in return to an agent consent transaction.
+    redirect(location: string, cookies: readonly string[] = []) {
       const headers = new Headers({ "cache-control": "private, no-store", location });
+
+      for (const cookie of cookies) headers.append("set-cookie", cookie);
 
       // Only the last write of each cookie, so a session created and then
       // signed out never reaches the browser.

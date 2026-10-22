@@ -20,6 +20,12 @@ export const contentSecurityPolicy = [
   "frame-ancestors 'none'",
 ].join("; ");
 
+// The consent page's form posts to /connect/decision, which redirects to the
+// agent's own callback: an https URL or a loopback http one, checked against
+// the client's registration on the server (agent-access design 7). Chrome
+// applies form-action to that redirect, so this page widens it to those schemes.
+export const consentContentSecurityPolicy = contentSecurityPolicy.replace("form-action 'self'", "form-action 'self' https: http:");
+
 export const securityHeaders = [
   { key: "Content-Security-Policy", value: contentSecurityPolicy },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
@@ -51,6 +57,7 @@ const nextConfig: NextConfig = {
       { headers: credentialPath, source: "/api/contact-confirmations" },
       // The requester's Google return can redirect to a booking link.
       { headers: credentialPath, source: "/connections/:path*" },
+      { headers: [{ key: "Content-Security-Policy", value: consentContentSecurityPolicy }], source: "/connect/consent" },
       { headers: varyByAccept, source: "/" },
       { headers: varyByAccept, source: "/:handle([^/.]+)" },
     ];

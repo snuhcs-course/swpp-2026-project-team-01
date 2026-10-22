@@ -58,7 +58,8 @@ export default function Page() {
       </section>
 
       <AgentSection href="/SKILL.md">
-        Sign-in and setup happen in the browser. Connecting a personal agent directly is not available yet.
+        Sign-in and setup happen in the browser. A personal agent can connect to the MCP server at /mcp once you allow it in
+        the browser; the instructions explain how.
       </AgentSection>
     </main>
   );
