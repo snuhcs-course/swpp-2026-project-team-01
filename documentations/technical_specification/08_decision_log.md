@@ -141,7 +141,28 @@ These steps were not taken because they cannot be undone by a revert, need a pro
 
 ## Phase 5 — `agent-access`
 
-No decisions yet.
+The [proposal](../../openspec/changes/agent-access/proposal.md#decisions) records D1–D16 and the [design](../../openspec/changes/agent-access/design.md) the reasoning. The implementing session took them on 2026-10-22, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
+
+### Product decisions
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | One MCP endpoint per role serves both protocol eras: `2026-07-28` with per-request metadata, and `2025-11-25`, `2025-06-18` and `2025-03-26` through a stateless `initialize`. JSON responses and tools only | `2026-07-28` alone; `2025-11-25` alone | Proposal; design 6; `agent-interfaces` delta | The proposal and the protocol versions in the MCP handler |
+| D2 | Client ID metadata documents first, dynamic client registration for clients without them, and the pre-registered `fmat-cli` | Dynamic registration only; metadata documents only | Proposal; design 3; `agent-client-authorization` delta "Bounded client registration" | The proposal, the authorization-server metadata and the client resolver |
+| D3 | Scopes `host:read`, `host:write`, `host:decide`, `request:read`, `request:write`, `request:decide`; each resource takes only its role's; consent can narrow them | One scope per tool; one read-write scope | Proposal; design 4; `agent-client-authorization` delta "Role-bound permission scopes" | The proposal, the delta and the scope table in the contracts |
+| D4 | CLI `fmat` from `@findmeatime/cli` in `cli/`, Node.js 20 or later, no dependencies; macOS Keychain and Linux Secret Service; Windows only with a file store, untested | A Go or Rust binary; the command `findmeatime` | Proposal; design 9; CLI direction | The proposal and `cli/` |
+| D5 | Hosts use `{origin}/mcp`, requesters `{origin}/{handle}/mcp`; tokens are bound to the exact resource | One resource with a host parameter | Proposal; design 2 | The proposal, the routes and the resource parser |
+| D6 | Ed25519 JWT access tokens for 10 minutes; opaque refresh tokens rotated on use, 30 days; codes 60 seconds; key `AGENT_TOKEN_SIGNING_KEY` | Opaque access tokens; RS256 | Proposal; design 5 | The proposal and the token lifetimes in the token module |
+| D7 | Sign-in from consent keeps the transaction in an HTTP-only cookie; the callback returns there only for a live transaction, otherwise to `/app` | A `next` query parameter | Proposal; design 7; `chat-workspaces` delta | The delta and `google-sign-in.ts` |
+| D8 | `/connect/authorize` is the protocol route; the page is `/connect/consent` | One URL rendering HTML from a route handler | Proposal; design 7; page list | The proposal and the routes |
+| D9 | Host approval and decline always need the host's click in `/app`; the agent's decision tool returns the review link | Approving from a client's elicitation | Proposal; design 4; `agent-interfaces` delta | The proposal and the host decision tool |
+| D10 | A requester's agent with `request:decide` may agree and withdraw | Requester's browser for agreement | Proposal; design 4 | The proposal and the requester tools |
+| D11 | A closed request's grants read only its closed status and receipt, and refresh for that, until the booking link's closed-access lifetime ends | Denying all access at closure, as the main spec said | Proposal; design 5; `agent-client-authorization` delta | The delta and the grant check |
+| D12 | The bootstrap grant lives 24 hours; `create_request` creates and identifies one request, sends the booking link by email, returns the same request for the same retry key and refuses any other; creation counts toward the consenting browser's source bounds | Binding at consent | Proposal; design 8; `agent-client-authorization` delta "One future request grant" | The delta and the creation module |
+| D13 | The requester consent page also connects an existing request by its booking link, same host only | A connect button on the booking page | Proposal; design 8 | The proposal and the consent page |
+| D14 | Headless CLI login shows the code at `{origin}/connect/code` | The device authorization grant | Proposal; design 9 | The proposal, the first-party client and the page |
+| D15 | Redirect URIs: exact scheme, host, path and query; `https` or loopback `http`; a loopback IP literal's port may differ | Exact ports for loopback | Proposal; design 3 | The proposal and the redirect matcher |
+| D16 | Per-client runs on production after deploy, with a team host account and a team requester inbox, each client at its current version under a team member's account; results in the acceptance record | A staging deployment; SDK fixtures | Proposal; design 11 | The proposal and the per-client notes |
 
 ## Phase 6 — `host-imessage-channel`
 

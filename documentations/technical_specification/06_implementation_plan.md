@@ -223,7 +223,16 @@ Evidence: AC-01 in full, AC-03, AC-04, AC-06 web-only, AC-07, AC-08, AC-09, AC-1
 
 Goal: personal agents work for both roles through MCP and the user CLI, with per-client acceptance.
 
-Scope. Prerequisite: Phase 3 for requester operations and Phase 4 for host decisions. Lane A has no product dependency beyond Phase 1 and can start as soon as Phase 4 begins.
+Scope. Prerequisite: Phase 3 for requester operations and Phase 4 for host decisions. Lane A has no product dependency beyond Phase 1 and can start as soon as Phase 4 begins. Every lane also waits for the proposal below, reviewed before any lane codes.
+
+**Proposal (serial, first)**
+
+- [x] Proposal for [`agent-access`](../../openspec/changes/agent-access/proposal.md) with the decisions to settle and the coverage table.
+- [ ] [Design](../../openspec/changes/agent-access/design.md).
+- [ ] Delta specs under [`specs/`](../../openspec/changes/agent-access/specs/), including the one-future-request grant.
+- [ ] [Tasks](../../openspec/changes/agent-access/tasks.md).
+- [ ] Owning-document updates and Korean mirrors.
+- [ ] Teammate review.
 
 **Lane A — authorization server**
 
