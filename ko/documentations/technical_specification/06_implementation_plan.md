@@ -189,7 +189,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 - [x] [설계](../../openspec/changes/host-review-and-booking/design.md).
 - [x] [`specs/`](../../openspec/changes/host-review-and-booking/specs/) 아래의 델타 명세.
 - [x] [작업 목록](../../openspec/changes/host-review-and-booking/tasks.md).
-- [ ] 소유 문서 갱신과 한국어 미러.
+- [x] 소유 문서 갱신과 한국어 미러.
 - [ ] 팀원 검토.
 
 **레인 A — 호스트 검토 대화**

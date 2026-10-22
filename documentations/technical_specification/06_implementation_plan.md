@@ -187,7 +187,7 @@ Scope. Prerequisite: Phase 3 joined for a real awaiting-approval request; Lanes 
 - [x] [Design](../../openspec/changes/host-review-and-booking/design.md).
 - [x] Delta specs under [`specs/`](../../openspec/changes/host-review-and-booking/specs/).
 - [x] [Tasks](../../openspec/changes/host-review-and-booking/tasks.md).
-- [ ] Owning-document updates and Korean mirrors.
+- [x] Owning-document updates and Korean mirrors.
 - [ ] Teammate review.
 
 **Lane A — host review conversation**

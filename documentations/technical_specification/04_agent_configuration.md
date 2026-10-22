@@ -1,6 +1,6 @@
 # Agent Configuration
 
-Status: base instructions, web channel and host setup audience implemented (Phases 1 and 2); other audiences, channels and evals proposed\
+Status: base instructions, web channel, host setup and requester audiences implemented (Phases 1 to 3); host review audience proposed in the [`host-review-and-booking` change](../../openspec/changes/host-review-and-booking/design.md#12-host-review-tools-and-fragment) (Phase 4); other channels proposed\
 Date: 2026-10-19\
 Basis: [Technical overview](../04_technical_specification.md), [backend architecture](01_backend_architecture.md), [frontend architecture](02_frontend_architecture.md), [conversation access contract](../../openspec/specs/conversation-access/spec.md), [model execution contract](../../openspec/specs/model-execution/spec.md), [chat workspace contract](../../openspec/specs/chat-workspaces/spec.md)\
 Companions: [Host onboarding flow](../user_experience/05_host_onboarding_flow.md), [Guest booking flow](../user_experience/06_guest_booking_flow.md)
@@ -27,7 +27,7 @@ agent/
   instructions/             always-on base rules plus one fragment per audience
     base.md
     host-setup.ts           resolves the host-setup fragment for host setup sessions only
-    host-review.md
+    host-review.ts          resolves the host-review fragment for host-review sessions only
     requester.ts            resolves the requester fragment for requester sessions only,
                             drafts included
   channels/
@@ -38,8 +38,9 @@ agent/
     setup.ts                read_setup_state and draft_settings, resolved for host setup only
     request.ts              request-discussion tools, resolved per audience: read_request,
                             draft_request_review, ask_for_identity, evaluate_candidates and
-                            read_booking_status for requesters, drafts included; Phase 4 adds list_host_requests,
-                            propose_shared_changes and the host projections
+                            read_booking_status for requesters, drafts included; for host-review
+                            sessions read_request and evaluate_candidates with the host projection,
+                            list_host_requests, propose_shared_changes and read_booking_status
   skills/                   authored guidance the model may load on demand
     onboarding_suggestions.md
     requester_clarification.md
@@ -61,7 +62,7 @@ eve derives names from paths (`tools/<name>.ts` is the tool `<name>`; a file at 
 | Discussion | Principal | Opened by | Instructions | Tools |
 |---|---|---|---|---|
 | Host setup | `host:{hostId}` | First `/app` visit of an active host; one per host | base + host-setup | `read_setup_state`, `draft_settings` |
-| Host-private request discussion | `host:{hostId}` with `requestId` attribute | Host selects a request in `/app`, or sends the exact `request <reference>` iMessage command | base + host-review | `read_request` (host projection), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status` |
+| Host-private request discussion | `host:{hostId}` with `requestId` attribute and audience `host_review`; one discussion per host and request | Host selects a request in `/app` (`/app?request={requestId}`), or sends the exact `request <reference>` iMessage command | base + host-review | `read_request` (host projection), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status` |
 | Shared requester discussion | `request:{requestId}` | The guest's first message on a ready host's `/{handle}`, which creates a **draft request** ([D13](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)); the same session continues through identification, the booking link and verified email | base + requester | `read_request` (requester projection), `draft_request_review`, `ask_for_identity`, `evaluate_candidates`, `read_booking_status` |
 
 A draft request is the guest's conversation before they give a name and email: one per browser tab, invisible to the host, at most 30 messages, under the unconfirmed-request model cap, and deleted with its discussion after 24 hours unless the guest is identified. It uses the requester audience and its tools; the draft state is checked inside each operation (layer 3), so `read_request` and `draft_request_review` work, `ask_for_identity` records that the assistant asked for a name and email (which opens the identity card after its message), while `evaluate_candidates`, **Find times**, **Choose this time** and **Agree to this proposal** answer that identity is required and the identity card appears in the thread. Identification keeps the session, so the assistant keeps the whole conversation as context. The anonymous public intake (`intake:{intakeId}`, `read_intake`, `draft_intake`) that preceded D13 is no longer created or registered; an intake transcript from before it stays readable at the booking link of the request it became.
@@ -93,8 +94,8 @@ Every tool is `defineTool` with a description, a Zod input schema and an output 
 | `draft_request_review` | requester | Declares details, availability, question or unknown intent with an authored clarification; creates a pending review that only the requester can apply. Works on a draft, whose name and email come only from the identity card | never |
 | `ask_for_identity` | requester | Called in the turn in which the assistant asks a draft's guest for a name and email; only records when identity was first requested, which places the identity card after that message. Nothing once identified ([Phase 3 design](../../openspec/changes/requester-intake-and-feasibility/design.md#12-requester-conversation)) | never |
 | `evaluate_candidates` | host or requester | Starts the deterministic feasibility evaluation as a durable application job, waits up to 20 seconds and returns the audience projection, or the evaluation's identity if it is still running; a running evaluation at the same revisions is returned instead of a new one, and a request starts at most 10 per hour; results also arrive as versioned cards ([Phase 3 design](../../openspec/changes/requester-intake-and-feasibility/design.md#8-evaluation-runs-as-an-application-job)). On a draft it finds nothing and answers `identityRequired`, which places the identity card in the thread | never |
-| `propose_shared_changes` | host | Drafts changed shared details for the **Review proposed shared changes** card; sharing is a separate command | never |
-| `read_booking_status` | host or requester | Pending, uncertain, confirmed or delivery-failed state from domain records | never |
+| `propose_shared_changes` | host | Drafts changed shared details (time, duration, mode, place or link) for the **Review proposed shared changes** card, superseding the pending suggestion; sharing is a separate command that checks the time and creates the next proposal version | never |
+| `read_booking_status` | host or requester | Reserved, in progress (uncertain), confirmed with the receipt, or failed with its category, from domain records | never |
 
 eve's approval policies (`once`, `always`, custom) gate tool execution; they are not product consent and are left at `never` for these read and draft tools. Operations that need a human decision are not tools at all:
 
