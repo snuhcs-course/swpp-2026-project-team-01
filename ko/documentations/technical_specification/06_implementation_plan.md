@@ -232,7 +232,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 - [x] 결정할 사항과 범위 표를 담은 [`agent-access`](../../openspec/changes/agent-access/proposal.md) 제안서.
 - [x] [설계](../../openspec/changes/agent-access/design.md).
 - [x] 한 건의 미래 요청 허가를 포함한 [`specs/`](../../openspec/changes/agent-access/specs/) 아래의 델타 명세.
-- [ ] [작업 목록](../../openspec/changes/agent-access/tasks.md).
+- [x] [작업 목록](../../openspec/changes/agent-access/tasks.md).
 - [ ] 소유 문서 갱신과 한국어 미러.
 - [ ] 팀원 검토.
 
