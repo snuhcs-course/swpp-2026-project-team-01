@@ -39,6 +39,8 @@ import {
   recoverGuestDiscussion,
 } from "./guest-conversations";
 import { readGuestThread } from "./guest-thread";
+import { agentMailConfigFromEnvironment } from "./agentmail";
+import { createEmailLinkCommand, readEmailLinkStatus, unlinkEmailCommand } from "./email-links";
 import { internalSigningKey } from "./internal-bearer";
 import { findReadyHostByHandle } from "./readiness";
 import { withdrawRequestCommand } from "./request-lifecycle";
@@ -99,6 +101,9 @@ export type RequesterRouteDependencies = ConversationDependencies &
     readonly confirmationLimits?: Partial<ConfirmationLimits>;
     readonly creationLimits?: Partial<CreationLimits>;
     readonly followIdleMs?: number;
+    // The product inbox Continue by email names (AGENTMAIL_INBOX_ID); empty when
+    // the email channel is off.
+    readonly emailInbox?: string;
   };
 
 export function requesterRouteDependenciesFromEnvironment(): RequesterRouteDependencies {
@@ -106,6 +111,7 @@ export function requesterRouteDependenciesFromEnvironment(): RequesterRouteDepen
     ...appOriginsFromEnvironment(),
     db: database(),
     runtime: eveRuntime(agentUrlFromEnvironment()),
+    emailInbox: agentMailConfigFromEnvironment().inboxId,
     signingKey: internalSigningKey(),
     tokenKey: tokenKeyFromEnvironment,
   };
@@ -483,6 +489,8 @@ export function requesterCommands(
     registered(selectCalendarsCommand({ tokenKey: contact.tokenKey })),
     registered(resendConfirmationCommand(contact)),
     registered(checkBookingCommand),
+    registered(createEmailLinkCommand({ tokenKey: contact.tokenKey })),
+    registered(unlinkEmailCommand()),
     registered(revokeGrantCommand),
   ]);
 }
@@ -552,5 +560,21 @@ export function createRequesterCalendarsHandler(load: () => RequesterRouteDepend
     return calendars
       ? requesterJson({ calendars })
       : requesterJson({ code: "calendar_unavailable", error: "Your calendar list could not be read right now." }, 503);
+  };
+}
+
+// GET /api/requests/{bookingId}/email-link: the Continue by email card's status
+// (requester-email-channel design 4), so **Check email link** and a reload
+// recover it; a pending code is opened from its sealed copy. The card's
+// commands go through the commands route.
+export function createEmailLinkStatusHandler(load: () => RequesterRouteDependencies = requesterRouteDependenciesFromEnvironment) {
+  return async (_request: Request, context: Context) => {
+    const deps = load();
+    const principal = await openRequester(deps.db, (await context.params).bookingId);
+
+    if (!principal || principal.type !== "requester_request") return requestUnavailable();
+
+    const status = await readEmailLinkStatus(deps.db, [deps.tokenKey()], principal.id, deps.emailInbox ?? "");
+    return status ? requesterJson(status) : requestUnavailable();
   };
 }

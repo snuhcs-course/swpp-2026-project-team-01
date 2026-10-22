@@ -297,22 +297,31 @@ Evidence: AC-16, AC-17, AC-18 on a controlled iPhone against the production depl
 
 Goal: a requester can start and continue a request by email.
 
-Scope. Prerequisite: Phase 3 for request binding and Phase 4 for notifications. The two lanes meet at the channel.
+Scope. Prerequisite: Phase 3 for request binding and Phase 4 for notifications. The two lanes meet at the channel. Every lane also waits for the proposal below, reviewed before any lane codes.
+
+**Proposal (serial, first)**
+
+- [x] Proposal for [`requester-email-channel`](../../openspec/changes/requester-email-channel/proposal.md) with the decisions to settle and the coverage table.
+- [x] [Design](../../openspec/changes/requester-email-channel/design.md).
+- [x] Delta specs under [`specs/`](../../openspec/changes/requester-email-channel/specs/).
+- [x] [Tasks](../../openspec/changes/requester-email-channel/tasks.md).
+- [x] Owning-document updates and Korean mirrors.
+- [ ] Teammate review.
 
 **Lane A — ingress**
 
-- [ ] AgentMail inbox `findmeatime@agentmail.to` with narrowly scoped runtime permissions; operator-owned receiver registration.
-- [ ] Signed webhook receiver that stores a deduplicated receipt and one job before acknowledgment; conflicting reuse rejected.
+- [ ] AgentMail inbox `findmeatime@agentmail.to` with narrowly scoped runtime permissions; operator-owned receiver registration. Open: the inbox is blocked by the three-inbox limit; receiver registration is built as the `email-receiver` operator commands.
+- [x] Signed webhook receiver that stores a deduplicated receipt and one job before acknowledgment; conflicting reuse rejected.
 
 **Lane B — channel and linking**
 
-- [ ] Thread-to-request binding; `channels/agentmail.ts` forwarding verified text to `request:{requestId}`; replies in the same thread.
-- [ ] **Continue by email** linking from the booking page with **Check email link** and **Unlink email**.
-- [ ] Status notifications in the thread for email-originated requests.
+- [x] Thread-to-request binding; `channels/agentmail.ts` forwarding verified text to `request:{requestId}`; replies in the same thread.
+- [x] **Continue by email** linking from the booking page with **Check email link** and **Unlink email**.
+- [x] Status notifications in the thread for email-originated requests.
 
 **Join**
 
-- [ ] A requester starts by email, verifies contact, continues at the booking link and receives thread notifications; run the Phase 7 evidence list.
+- [ ] A requester starts by email, verifies contact, continues at the booking link and receives thread notifications; run the Phase 7 evidence list. Open: real multi-turn inbox delivery needs the AgentMail inbox, its webhook, the shared-project migrations and a production deploy (tasks 6.1 and 6.2); the journey passes locally against `eve dev` and an AgentMail stand-in.
 
 Specs: [requester-email-ingress](../../openspec/specs/requester-email-ingress/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md) (conversational retry identity), [meeting-requests](../../openspec/specs/meeting-requests/spec.md).
 
@@ -452,7 +461,7 @@ Not carried: the travel-table heuristic (replaced by Google Routes with buffers)
 | Contact confirmation, request creation bounds, Cloudflare setup, `evaluate_candidates` placement, booking-link storage, local messaging, the public page's conversation, verification before agreement, one continuous guest thread | Phase 3 proposal (D3–D5, D7–D12 decided 2026-10-21; D13 decided 2026-10-22) | Meeting-requests, email-delivery and messaging-environments specs; provider setup; agent configuration |
 | MCP protocol version, registration, scopes, CLI packaging | Phase 5 proposal | Agent-client authorization spec, CLI direction |
 | iMessage adapter, code expiry, line provisioning | Phase 6 proposal | Provider setup, new iMessage change |
-| AgentMail adapter and retention | Phase 7 proposal | Provider setup |
+| AgentMail adapter and retention | Phase 7 proposal (D1–D11 decided 2026-10-22) | Provider setup |
 | Measurement targets, retention and deletion, support ownership | Phase 8 proposal | PRD sections 2 and 10 |
 
 ## 8. Risks

@@ -1,6 +1,7 @@
 import { parseArgs } from "node:util";
 import { isUsableHandle, normalizeHandle } from "../contracts/handles";
 import { GOOGLE_CALENDAR_SCOPES } from "../contracts/google-scopes";
+import { secretFingerprint } from "./agentmail-receiver";
 import { createDatabase } from "./database";
 
 // The administrator CLI, `fmat-admin` (host-admission: operator suspension and
@@ -28,10 +29,18 @@ Usage:
   npm run admin -- show --host <handle-or-id> --operator <name> (--local | --project <ref>)
   npm run admin -- suspend --host <handle-or-id> --reason <text> --operator <name> (--local | --project <ref>) [--yes]
   npm run admin -- restore --host <handle-or-id> --reason <text> --operator <name> (--local | --project <ref>) [--yes]
+  npm run admin -- email-receiver list --operator <name> (--local | --project <ref>)
+  npm run admin -- email-receiver register --inbox <inbox-id> --webhook <webhook-id> --operator <name> (--local | --project <ref>) [--yes]
+  npm run admin -- email-receiver disable --receiver <id> --operator <name> (--local | --project <ref>) [--yes]
 
   --local            Use DATABASE_URL, which must point at the local stack (127.0.0.1 or localhost).
   --project <ref>    Use the Supabase Management API with your own SUPABASE_ACCESS_TOKEN.
-  --yes              Skip the typed confirmation of a suspension or restoration.`;
+  --yes              Skip the typed confirmation of a change.
+
+email-receiver register records an enabled AgentMail receiver for the inbox with
+the fingerprint of AGENTMAIL_WEBHOOK_SECRET from your environment, and disables
+the inbox's earlier receiver. Point the AgentMail webhook at
+{origin}/agentmail/webhooks/{receiver id}. The secret itself is never printed.`;
 
 const COMMANDS = ["show", "suspend", "restore"] as const;
 type Command = (typeof COMMANDS)[number];
@@ -231,6 +240,173 @@ async function runProject(sql: string, ref: string, deps: AdminDependencies): Pr
   return JSON.parse(text) as Row[];
 }
 
+// ---------------------------------------------------------------------------
+// AgentMail receivers (requester-email-channel D10)
+
+const RECEIVER_COMMANDS = ["list", "register", "disable"] as const;
+type ReceiverCommand = (typeof RECEIVER_COMMANDS)[number];
+
+export type ReceiverRequest = {
+  readonly command: ReceiverCommand;
+  readonly inbox: string | null;
+  readonly webhook: string | null;
+  readonly receiver: string | null;
+  readonly operator: string;
+  readonly target: AdminRequest["target"];
+  readonly yes: boolean;
+};
+
+const RECEIVER_OPTIONS = {
+  inbox: { type: "string" },
+  local: { type: "boolean" },
+  operator: { type: "string" },
+  project: { type: "string" },
+  receiver: { type: "string" },
+  webhook: { type: "string" },
+  yes: { type: "boolean" },
+} as const;
+
+// An inbox ID is an address; a webhook ID is an opaque provider identifier.
+const INBOX_ID = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$/;
+const WEBHOOK_ID = /^[A-Za-z0-9_-]{1,200}$/;
+
+export function parseReceiverArguments(argv: readonly string[]): ReceiverRequest {
+  let parsed;
+
+  try {
+    parsed = parseArgs({ allowPositionals: true, args: [...argv], options: RECEIVER_OPTIONS, strict: true });
+  } catch (error) {
+    throw new AdminUsageError((error as Error).message);
+  }
+
+  const { positionals, values } = parsed;
+  const command = positionals[1];
+
+  if (positionals[0] !== "email-receiver" || positionals.length !== 2 || !RECEIVER_COMMANDS.includes(command as ReceiverCommand)) {
+    throw new AdminUsageError("Name one email-receiver command: list, register or disable.");
+  }
+
+  if (Boolean(values.local) === (values.project !== undefined)) {
+    throw new AdminUsageError("Name exactly one environment: --local or --project <ref>.");
+  }
+
+  if (values.project !== undefined && !PROJECT_REF.test(values.project)) {
+    throw new AdminUsageError("--project must be a Supabase project ref (20 lowercase letters).");
+  }
+
+  const inbox = values.inbox?.trim().toLowerCase() ?? null;
+  const webhook = values.webhook?.trim() ?? null;
+  const receiver = values.receiver?.trim().toLowerCase() ?? null;
+
+  if (command === "register") {
+    if (!inbox || inbox.length > 320 || !INBOX_ID.test(inbox)) throw new AdminUsageError("--inbox must be the inbox address.");
+    if (!webhook || !WEBHOOK_ID.test(webhook)) throw new AdminUsageError("--webhook must be the AgentMail webhook ID.");
+    if (receiver) throw new AdminUsageError("register takes no --receiver.");
+  } else if (command === "disable") {
+    if (!receiver || !UUID.test(receiver)) throw new AdminUsageError("--receiver must be a receiver ID.");
+    if (inbox || webhook) throw new AdminUsageError("disable takes only --receiver.");
+  } else if (inbox || webhook || receiver) {
+    throw new AdminUsageError("list takes no --inbox, --webhook or --receiver.");
+  }
+
+  return {
+    command: command as ReceiverCommand,
+    inbox,
+    operator: boundedText(values.operator, "operator", 100),
+    receiver,
+    target: values.project === undefined ? { kind: "local" } : { kind: "project", ref: values.project },
+    webhook,
+    yes: Boolean(values.yes),
+  };
+}
+
+// The one SQL statement a receiver request runs. register needs the signing
+// secret's fingerprint; only the fingerprint reaches the database.
+export function receiverSql(request: ReceiverRequest, fingerprint: string | null) {
+  switch (request.command) {
+    case "list":
+      return `select id::text as receiver_id, inbox_id, webhook_id, state, operator, created_at::text, disabled_at::text
+from app.email_receivers order by created_at desc limit 20`;
+    case "register":
+      return `select result_receiver_id::text as receiver_id, result_inbox_id as inbox_id, result_state as state
+from app.operator_register_email_receiver(${sqlLiteral(request.inbox!)}, ${sqlLiteral(request.webhook!)}, ${sqlLiteral(fingerprint!)}, ${sqlLiteral(request.operator)}, ${sqlLiteral(environmentName(request.target))})`;
+    case "disable":
+      return `select result_receiver_id::text as receiver_id, result_inbox_id as inbox_id, result_state as state
+from app.operator_disable_email_receiver(${sqlLiteral(request.receiver!)}::uuid, ${sqlLiteral(request.operator)})`;
+  }
+}
+
+async function runReceiverAdmin(argv: readonly string[], deps: AdminDependencies): Promise<number> {
+  let request: ReceiverRequest;
+
+  try {
+    request = parseReceiverArguments(argv);
+  } catch (error) {
+    deps.stderr(`fmat-admin: ${(error as Error).message}`);
+    deps.stderr(ADMIN_USAGE);
+    return 2;
+  }
+
+  const environment = environmentName(request.target);
+  let fingerprint: string | null = null;
+
+  if (request.command === "register") {
+    const secret = deps.env.AGENTMAIL_WEBHOOK_SECRET?.trim();
+
+    if (!secret?.startsWith("whsec_")) {
+      deps.stderr("fmat-admin: register needs the webhook's signing secret (whsec_...) in AGENTMAIL_WEBHOOK_SECRET.");
+      return 1;
+    }
+
+    fingerprint = secretFingerprint(secret);
+  }
+
+  if (request.command !== "list") {
+    const subject = request.command === "register" ? request.inbox! : request.receiver!;
+    deps.stdout(`Environment: ${environment}`);
+    deps.stdout(`Action: email-receiver ${request.command} ${subject}`);
+
+    if (!request.yes) {
+      if (!deps.interactive) {
+        deps.stderr("fmat-admin: refusing to change a receiver without --yes when no one can confirm interactively.");
+        return 1;
+      }
+
+      const answer = await deps.prompt(`Type ${subject} to confirm: `);
+
+      if (answer.trim().toLowerCase() !== subject) {
+        deps.stderr("fmat-admin: confirmation did not match; nothing changed.");
+        return 1;
+      }
+    }
+  }
+
+  const sql = receiverSql(request, fingerprint);
+  let rows: Row[];
+
+  try {
+    rows = request.target.kind === "local" ? await runLocal(sql, deps.env) : await runProject(sql, request.target.ref, deps);
+  } catch (error) {
+    const message = (error as Error).message;
+    deps.stderr(`fmat-admin: ${/unknown receiver/.test(message) ? `no receiver matches ${request.receiver}.` : message}`);
+    return 1;
+  }
+
+  if (request.command === "list") deps.stdout(`Environment: ${environment}`);
+  if (rows.length === 0) deps.stdout("No receivers.");
+
+  for (const row of rows) {
+    deps.stdout(
+      [row.receiver_id, row.inbox_id, row.state, row.webhook_id, row.created_at]
+        .filter((value) => value !== undefined && value !== null)
+        .map(String)
+        .join("  "),
+    );
+  }
+
+  return 0;
+}
+
 // Runs one CLI invocation and returns its exit code: 0 done, 1 refused or failed,
 // 2 usage error.
 export async function runAdmin(argv: readonly string[], deps: AdminDependencies): Promise<number> {
@@ -238,6 +414,8 @@ export async function runAdmin(argv: readonly string[], deps: AdminDependencies)
     deps.stdout(ADMIN_USAGE);
     return argv.length === 0 ? 2 : 0;
   }
+
+  if (argv[0] === "email-receiver") return runReceiverAdmin(argv, deps);
 
   let request: AdminRequest;
 

@@ -67,6 +67,8 @@ const shared = {
   CLOUDFLARE_EMAIL_FROM: "no-reply@e2e.example.test",
   GOOGLE_MAPS_API_KEY: "fake-routes-key",
   GOOGLE_ROUTES_API_URL: `http://127.0.0.1:${FAKE_ROUTES_PORT}`,
+  // The product inbox Continue by email names; nothing reaches AgentMail.
+  AGENTMAIL_INBOX_ID: "findmeatime@agentmail.test",
   // One key per run, shared with the tests so they can seal a Calendar grant.
   TOKEN_ENCRYPTION_KEY: E2E_TOKEN_ENCRYPTION_KEY,
   // A fresh Ed25519 key per run for agent access tokens.

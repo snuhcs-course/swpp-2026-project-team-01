@@ -35,7 +35,7 @@ agent/
   channels/
     eve.ts                  웹 채팅: 호스트와 예약 링크를 위한 애플리케이션 세션 인증
     photon.ts               Photon을 통한 호스트 iMessage: 검증된 발신자 -> 호스트 principal
-    agentmail.ts            요청자 이메일: 내구성 있는 수신 기록 -> 요청 principal
+    agentmail.ts            요청자 이메일: 서명된 수신기; 작업이 검증된 텍스트를 전달
   tools/                    snake_case 파일; 각각 하나의 도메인 연산을 호출
     setup.ts                read_setup_state와 draft_settings, 호스트 설정에서만 해석
     request.ts              request-discussion tools, resolved per audience: read_request,
@@ -160,7 +160,7 @@ eve의 승인 정책(`once`, `always`, 사용자 정의)은 도구 실행을 제
 |---|---|---|---|---|
 | 웹 | `channels/eve.ts` | 위에서 설명한 애플리케이션 라우트 인증 | steer | 같은 오리진의 `/eve/v1/*`와 함께 `eve/react`의 `useEveAgent`, 애플리케이션 인덱스의 `initialSession`, `resume: true` |
 | 호스트 iMessage | `channels/photon.ts` | `onMessage`가 발신자의 검증된 바인딩을 조회; 연동된 호스트는 현재 선택된 요청과 함께 `host:{hostId}`로 매핑; 연동되지 않았거나 그룹인 발신자는 `null`을 반환하며 비공개 상태를 받지 않음 | queue | 정확한 명령(`request <reference>`, `review`, `changes`, 검토 참조와 함께하는 승인 또는 거절, `setup`)은 모델 턴 이전에 애플리케이션 명령으로 파싱되어 실행되며, 대기 중인 일회용 연결 코드를 담은 수신 메시지도 연동 증명으로서 같은 방식으로 소비되어 모델에 도달하지 않음. 온보딩은 `/app`과 같은 설정 세션에서 실행되며, 제안 질문과 평범한 텍스트 답변은 공유 초안을 갱신하고 최종 설정 확정은 현재 검토에 대한 정확한 사전 작성 명령을 사용함. Photon Spectrum과 네이티브 채널의 호환성은 보류 중인 스파이크이며, 애플리케이션이 소유하는 어댑터가 대안임 |
-| 요청자 이메일 | `channels/agentmail.ts` | 인증된 AgentMail 이벤트를 먼저 내구성 있게 기록하고([요청자 이메일 수신](../../openspec/specs/requester-email-ingress/spec.md)), 검증된 스레드를 `request:{requestId}`로 확인한 뒤에야 텍스트를 전달하는 사용자 정의 채널 | queue | 답장은 같은 AgentMail 스레드로 돌아가며, 발신자의 주장이나 전달된 링크는 아무 권한도 부여하지 않음 |
+| 요청자 이메일 | `channels/agentmail.ts` | 유일한 경로인 `POST /agentmail/webhooks/:receiverId`가 인증된 AgentMail 이벤트를 먼저 내구성 있게 기록하는 사용자 정의 채널입니다([요청자 이메일 수신](../../openspec/specs/requester-email-ingress/spec.md)). 이후 `email_receipt` 작업이 인증된 발신자의 스레드를 `request:{requestId}`로 확인하고, 텍스트를 해당 요청의 단일 요청자 논의에 수락된 입력으로 전달하므로 웹과 이메일이 하나의 세션을 공유합니다([`requester-email-channel`](../../openspec/changes/requester-email-channel/proposal.md#decisions), D1) | queue, 애플리케이션의 한 번에 하나씩 입력 전달 방식을 통해 | 턴이 끝나면 최종 텍스트가 같은 AgentMail 스레드로 답장되며, 발신자의 주장, 전달된 링크 코드, 복사된 수신자는 아무 권한도 부여하지 않음 |
 
 비프로덕션 배포는 [메시징 환경 계약](../../openspec/specs/messaging-environments/spec.md)에 따라 메시징 디스패치를 거부합니다. 접수 예산을 초과하는 메시징 수신은 순서대로 대기열에 남습니다([채팅 워크스페이스](../../openspec/specs/chat-workspaces/spec.md#requirement-recoverable-conversation-throttling)).
 
@@ -203,4 +203,4 @@ eve 훅은 이벤트가 내구성 있게 기록된 뒤에 실행되며, 예외�
 
 ## 미결 결정
 
-Photon Spectrum과 네이티브 Photon 채널의 호환성 및 발신자 식별자 형식, `evaluate_candidates`를 eve 워크플로 도구로 실행할지 순수 애플리케이션 작업으로 실행할지(애플리케이션 작업으로 결정됨, [3단계 제안서](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions), D5), AgentMail 채널을 사용자 정의 채널로 할지 Chat SDK Gmail 어댑터로 할지, 세션 보존 및 압축 임계값, 메모리 슬롯이 유용해지는 시점(있다면).
+Photon Spectrum과 네이티브 Photon 채널의 호환성 및 발신자 식별자 형식, `evaluate_candidates`를 eve 워크플로 도구로 실행할지 순수 애플리케이션 작업으로 실행할지(애플리케이션 작업으로 결정됨, [3단계 제안서](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions), D5), AgentMail 채널을 사용자 정의 채널로 할지 Chat SDK Gmail 어댑터로 할지(사용자 정의 채널로 결정됨, [7단계 제안서](../../openspec/changes/requester-email-channel/proposal.md#decisions), D1), 세션 보존 및 압축 임계값, 메모리 슬롯이 유용해지는 시점(있다면).

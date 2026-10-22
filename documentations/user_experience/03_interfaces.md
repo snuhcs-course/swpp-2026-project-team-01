@@ -125,7 +125,7 @@ The host should be able to email the scheduling assistant as part of managing a 
 
 For the proposed initial email experience, a reply such as “Approve” directs the host to web review rather than recording approval. Inline email approval can be considered later after identity and proposal binding are designed and tested. A typed sender address, forwarded thread, quoted approval, or newly added recipient is not sufficient authority for private access or host actions. When verification or context is uncertain, move the action to authenticated web review.
 
-AgentMail is the provider for managed conversational inboxes, threads, and replies. Cloudflare Email Service separately sends fixed transactional verification, recovery, and booking messages, including Supabase Auth mail through custom SMTP. The conversational address scheme, reply verification, thread linking, unlinking behavior, and recovery still need design. This is request-specific scheduling assistance; it does not require general access to the host's inbox.
+AgentMail is the provider for managed conversational inboxes, threads, and replies. Cloudflare Email Service separately sends fixed transactional verification, recovery, and booking messages, including Supabase Auth mail through custom SMTP. For requesters, the address scheme, reply verification, thread linking, unlinking and recovery are designed in the [`requester-email-channel` change](../../openspec/changes/requester-email-channel/design.md): one product inbox with the host's `@handle` in a new thread's subject, DMARC or aligned DKIM before anything binds, and a thread bound to one request. This is request-specific scheduling assistance; it does not require general access to the host's inbox.
 
 ## Personal agents and authorization
 
@@ -167,7 +167,7 @@ An approved request can still show **Withdraw request** to its requester and **D
 
 The private booking conversation offers **Continue by email** below contact verification. A requester with a verified current contact can create a private linking message and send it exactly as shown in a new thread from that address to the displayed inbox. The page remains pending until the authenticated message binds successfully. The linking text stays outside chat and browser storage, disappears after binding, unlinking or expiry, and is recoverable after reloading the protected page while still pending.
 
-**Check email link** refreshes status; **Unlink email** revokes the old thread even during a receiver outage. An uncertain command offers **Retry same linking action**, preserving its operation identity. Unavailable email always offers continuation in the private web conversation. The controls alone do not establish live channel readiness: worker routing and controlled end-to-end acceptance remain open.
+**Check email link** refreshes status; **Unlink email** revokes the old thread even during a receiver outage. An uncertain command offers **Retry same linking action**, preserving its operation identity. Unavailable email always offers continuation in the private web conversation. The linking message is a one-time `FMAT-` code valid for 30 minutes; it binds only as the first message of a new thread from the confirmed address, and a forwarded or late copy voids it ([design 4 and 5](../../openspec/changes/requester-email-channel/design.md#4-continue-by-email)). The controls alone do not establish live channel readiness: the product inbox, its webhook and controlled end-to-end acceptance remain open.
 
 ## Optional iMessage contact card
 

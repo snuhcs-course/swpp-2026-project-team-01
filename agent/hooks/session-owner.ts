@@ -1,6 +1,7 @@
 import { defineHook } from "eve/hooks";
 import { agentUrlFromEnvironment, deliverNextAfterTurn, eveRuntime } from "../../lib/server/conversations";
 import { database } from "../../lib/server/database";
+import { wakeTurnReplies } from "../../lib/server/email-replies";
 import { internalSigningKey } from "../../lib/server/internal-bearer";
 import { recordInputReceived, recordSessionFailed, recordTurnEnded, retried } from "../../lib/server/session-owner";
 
@@ -9,7 +10,9 @@ import { recordInputReceived, recordSessionFailed, recordTurnEnded, retried } fr
 // Each write is retried, since eve does not retry a hook that throws.
 // Once the session is idle again, the discussion's next accepted input is
 // delivered through the same application path as a browser message: a signed
-// internal bearer that appAuth checks against the index.
+// internal bearer that appAuth checks against the index. A turn that served a
+// message forwarded from email makes that message's thread reply due
+// (requester-email-channel design 6).
 export default defineHook({
   events: {
     async "message.received"(event, ctx) {
@@ -17,13 +20,16 @@ export default defineHook({
     },
     async "turn.completed"(_event, ctx) {
       await retried(() => recordTurnEnded(database(), ctx.session.id));
+      await retried(() => wakeTurnReplies(database(), ctx.session.id));
     },
     async "turn.failed"(event, ctx) {
       if (event.data.terminal) await retried(() => recordSessionFailed(database(), ctx.session.id));
       else await retried(() => recordTurnEnded(database(), ctx.session.id));
+      await retried(() => wakeTurnReplies(database(), ctx.session.id));
     },
     async "turn.cancelled"(_event, ctx) {
       await retried(() => recordTurnEnded(database(), ctx.session.id));
+      await retried(() => wakeTurnReplies(database(), ctx.session.id));
     },
     async "session.waiting"(_event, ctx) {
       await deliverNextAfterTurn(

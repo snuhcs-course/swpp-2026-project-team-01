@@ -229,7 +229,80 @@
 
 ## 7단계 — `requester-email-channel`
 
-아직 결정이 없습니다.
+[제안서](../../openspec/changes/requester-email-channel/proposal.md#decisions)가 D1–D11을 기록합니다. 계획은 D1–D4를 이 단계에 배정했고 설계에서 D5–D11이 추가되었습니다. 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-22에 이를 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
+
+### 제품 결정
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| D1 | 사용자 지정 eve 채널 `agent/channels/agentmail.ts`는 서명된 수신기만 호스팅합니다. 애플리케이션 작업이 검증된 텍스트를 요청의 기존 요청자 논의에 수락된 입력으로 전달하므로, 이메일과 웹이 하나의 세션을 공유합니다 | Chat SDK 브리지(Gmail 어댑터는 있으나 AgentMail 어댑터는 없음); 스레드마다 채널이 소유하는 eve 세션 | 제안서; 설계 1; 에이전트 구성 | 제안서와 설계 1, 그다음 채널과 `lib/server/email-receipts.ts` |
+| D2 | 모든 호스트와 요청에 제품 받은편지함 `findmeatime@agentmail.to` 하나를 씁니다. 새 스레드는 제목의 `@handle`로 호스트를 지정하며, 공개 호스트 페이지가 미리 채워진 `mailto:` 링크를 제공합니다 | 호스트별 받은편지함(최대 세 개, 호스트마다 되돌릴 수 없음); 요청별 받은편지함; 플러스 주소 지정(문서화되지 않음) | 제안서; 설계 2; 제공자 설정 | `AGENTMAIL_INBOX_ID`와 `lib/server/email-receipts.ts`의 핸들 파싱 |
+| D3 | 연결 코드는 확인된 연락처가 만료 전에 인증된 발신자 증거와 함께 보낸 새 스레드의 첫 메시지일 때만 바인딩되며, 그 밖의 도착은 조용히 코드를 무효로 만듭니다. 바인딩된 스레드는 바인딩된 주소의 메시지만 전달합니다. 예약 링크와 코드는 모델에 전달되기 전에 가려집니다 | 보낸 사람 주소만으로 바인딩 | 제안서; 설계 5; `requester-email-threads` 델타 | 제안서, 그다음 `lib/server/email-receipts.ts`와 `lib/server/redaction.ts` |
+| D4 | 수신 기록은 위치 정보와 페이로드 해시만 남겨 30일간 보관합니다. 바인딩은 요청이 닫히면 중단되고 요청 생성 30일 뒤에 삭제되며, 최종 회신에는 텍스트나 비밀이 없습니다. 제공자 쪽 스레드는 8단계까지 AgentMail에 남습니다 | 수신 기록을 무기한 보관; 제공자 스레드를 지금 삭제 | 제안서; 설계 9; `requester-email-threads` 델타 | 스키마의 `app.cleanup_email_records`와 새 마이그레이션 |
+| D5 | 메시지는 `unauthenticated`나 `spam` 라벨이 없는 `message.received`이면서, `authentication_results`가 `dmarc: pass`이거나 `dkim: pass`이고 `dkim_domain`이 From 도메인과 같을 때만 인정됩니다 | From 헤더를 신뢰; AgentMail의 라벨만 사용 | 제안서; 설계 5; `requester-email-threads` 델타 | `lib/server/agentmail.ts`의 `senderAuthenticated` |
+| D6 | 준비된 호스트를 지정한 인증된 새 스레드는 식별된 요청을 만듭니다. 보낸 사람의 이름과 주소는 확인되지 않은 연락처로, 시간대는 호스트의 시간대로, 텍스트에 한글이 있으면 한국어로 설정하고, 이어서 3단계의 생성 이메일이 나갑니다. 생성 횟수 제한은 키가 있는 발신자 해시별로 집계합니다 | 신원을 기다리는 초안, 이메일로는 신원을 받을 수 없음 | 제안서; 설계 3; `meeting-requests` 델타 | `lib/server/email-receipts.ts`의 `startByEmail` |
+| D7 | **이메일로 계속(Continue by email)**에는 확인된 연락처가 필요합니다. 코드는 `FMAT-`에 크록포드 base32 문자 열 개를 붙인 형태로 30분간 유효하며, 해시 후 봉인되고 요청당 시간당 최대 5개입니다. 바인딩은 이전 스레드를 대체하며, 연결 메시지는 모델에 전달되지 않습니다 | 확인된 연락처 없는 코드; 더 긴 유효 기간 | 제안서; 설계 4; `meeting-requests` 델타 | `lib/server/email-links.ts`의 `EMAIL_LINK_LIMITS` |
+| D8 | 전달된 메시지마다 턴이 끝난 뒤 그 턴의 최종 텍스트를 담은 일반 텍스트 회신 하나를 보냅니다. 먼저 내용을 고정하고 회신 ID와 같은 `Idempotency-Key`로 보내며, 결과가 불확실한 발송은 같은 키로 23시간 동안 재시도한 뒤 불확실로 기록합니다 | 부분 회신을 스트리밍; 멱등성 키 없이 회신 | 제안서; 설계 6; `email-delivery` 델타 | `lib/server/email-replies.ts`의 `REPLY_RETRY_HOURS` |
+| D9 | **이메일 연결 해제(Unlink email)**는 데이터베이스에서만 바인딩을 끝내므로 AgentMail 장애 중에도 동작합니다 | 연결 해제 시 스레드에 알림 | 제안서; 설계 4 | `lib/server/email-links.ts`의 `request.email_link.unlink` |
+| D10 | 운영자 CLI는 비밀의 지문과 함께 수신기를 등록하고 받은편지함의 이전 수신기를 비활성화합니다. 웹훅 URL에는 수신기 ID가 들어 있으며, AgentMail에서 웹훅을 만드는 일은 운영자 단계로 남습니다 | 버전 없는 단일 웹훅 URL | 제안서; 설계 1; `requester-email-ingress` 델타 | `lib/server/operator.ts`의 `email-receiver` 명령 |
+| D11 | 너무 긴 메시지와 닫힌 요청에는 고정된 회신 하나를 보냅니다. 첨부 파일은 가져오지 않으며, 우리 쪽에서 보낸 메시지는 무시합니다. 허용 한도에 걸리면 수신 기록을 버리지 않고 지연시킵니다 | 메시지 잘라 내기; 한도에서 메일 버리기 | 제안서; 설계 5 | `lib/server/email-receipts.ts` |
+
+### 구현 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 서명 검증 | `lib/server/svix.ts`에 직접 작성한 Svix 방식(`{id}.{timestamp}.{body}`에 대한 HMAC-SHA256, 나열된 `v1` 서명 중 하나라도 일치하면 통과, 5분 허용 구간) | `svix` 패키지, 함수 하나를 위한 새 의존성 | 설계 1 | `lib/server/svix.ts`의 `verifySvixSignature` |
+| 수신기가 실행되는 곳 | 사용자 지정 채널의 라우트로서 에이전트 서비스에서 실행합니다. `vercel.ts`가 `^/agentmail/(.*)$`를 웹 전체 포괄 라우트보다 먼저 생성된 `eve` 서비스로 보냅니다 | Next.js 웹 서비스의 라우트 | 설계 1 | `vercel.ts`와 `agent/channels/agentmail.ts` |
+| 거부 코드 | 알 수 없거나, 비활성화되었거나, 교체되었거나, 키가 바뀐 수신기, 설정되지 않은 배포, 다른 받은편지함의 메시지는 `404`; 잘못되었거나 오래된 서명은 `401`; 너무 큰 본문(256 KiB)은 `413`; 내용이 바뀐 재시도는 `409`; 그 밖의 이벤트 유형은 `204`로 응답합니다 | 비활성화된 수신기와 알 수 없는 수신기를 구분하기 | `lib/server/agentmail-receiver.ts` | 같은 파일의 `receiveAgentMailWebhook` |
+| 수신 기록 식별 | 제공자의 `event_id`를 쓰고, 전달 ID와 메시지 ID도 각각 고유해야 합니다. 중복은 이벤트, 받은편지함, 스레드, 메시지, 페이로드 해시가 모두 일치해야 하므로, 두 번째 구독이 같은 이벤트를 전달해도 여전히 중복입니다 | 구독마다 달라지는 Svix ID를 키로 쓰기 | `email_receipts` 스키마 | `lib/server/agentmail-receiver.ts`의 `storeReceipt` |
+| 수신 기록 작업 시도 | 10회. 허용 구간이나 AgentMail 장애로 메시지가 최대 약 세 시간의 백오프만큼 지연된 뒤, 작업은 소진된 채 눈에 보이는 상태로 남습니다 | 기본값 5회 | `lib/server/agentmail-receiver.ts` | `EMAIL_RECEIPT_ATTEMPTS` |
+| 수신기 감사 | 수신기 행 자체에 각 수신기를 누가 어느 환경에서 등록하고 비활성화했는지 기록합니다. 등록은 받은편지함별 권고 잠금을 잡습니다 | 별도의 감사 테이블 | `email_receivers` 스키마; `app.operator_register_email_receiver` | 스키마와 새 마이그레이션 |
+| 전달 경로 | 수신 기록 작업은 수신 기록 ID를 클라이언트 입력 ID로 삼아 `acceptGuestMessage`를 거쳐 전달하므로, 웹과 똑같이 가림 처리, 허용, 세션 색인, 모델 한도가 적용되고 재시도된 작업은 같은 입력을 찾습니다 | 별도의 이메일 입력 경로 | `lib/server/email-receipts.ts` | 같은 파일의 `forward` |
+| 바인딩 먼저, 생성 먼저 | 이메일로 시작하면 메시지를 전달하기 전에 스레드별 권고 잠금 아래의 커밋된 트랜잭션 하나에서 생성, 식별, 바인딩을 마칩니다. 재시도는 `bound_by_receipt_id`로 자신의 바인딩을 알아봅니다 | 작업의 트랜잭션 안에서 요청 생성하기. 대화 경로의 자체 연결에서는 보이지 않습니다 | `email_threads` 스키마 | `lib/server/email-receipts.ts`의 `start` |
+| 이메일 요청 기본값 | 호스트의 시간대(설정되지 않았으면 UTC), 제목이나 본문에 한글이 있으면 한국어이고 없으면 영어입니다. 이름은 From 표시 이름이며 없으면 주소의 로컬 파트입니다 | 먼저 이메일로 시간대를 묻기 | 설계 3 | `lib/server/email-receipts.ts`의 `start`와 `messageLanguage` |
+| 첫 메시지 텍스트 | 추출한 새 텍스트 앞에 `Subject: …`와 빈 줄을 붙여, 제목의 의미가 어시스턴트에게 닿게 합니다 | 제목 버리기 | `lib/server/email-receipts.ts` | 같은 파일의 `forward` |
+| 턴 회신 시점 | 회신 작업은 전달 30초 뒤가 기한이며 턴이 실행되는 동안 재시도합니다. 턴이 끝나면 세션 소유자 훅이 앞당기고, 분당 스윕이 보냅니다. 12회 시도 뒤 대기 중인 회신은 억제됩니다 | 훅에서 직접 보내는 회신. 훅은 에이전트 서비스에서 실행되어 턴을 실패시킬 수 없습니다 | 설계 6 | `lib/server/email-replies.ts`의 `TURN_REPLY_DELAY_SECONDS`와 `REPLY_ATTEMPTS`; `agent/hooks/session-owner.ts` |
+| 회신 텍스트 | 도구 호출로 끝나지 않는 턴의 `message.completed` 텍스트를 이어 붙인 뒤, 이메일로 보낸 예약 링크를 안내하는 두 줄짜리 바닥글을 붙입니다. 최대 20,000자입니다 | 중간 메시지를 모두 스트리밍하기 | 설계 6 | `lib/server/email-replies.ts`의 `turnReplyText`와 `withFooter` |
+| 회신 응답 처리 | 메시지 ID가 있는 `200`은 수락, `409`(다른 텍스트에 키 재사용)는 즉시 불확실로 기록, `429`, `5xx`, 시간 초과, 유실된 응답은 같은 키로 재시도, 그 밖의 `4xx`는 거부됩니다 | `429`를 거부로 처리하기 | `lib/server/agentmail.ts` | 같은 파일의 `classifyReplyResponse` |
+| 관문 위치 | 두 이메일 작업 모두 수신 기록이나 회신을 읽기 전에, 그리고 작업자의 클레임과 모든 전송 호출에서도 메시지 허용 여부를 확인합니다 | 전송에서만 확인하기 | `lib/server/email-receipts.ts`, `lib/server/email-replies.ts` | 핸들러 |
+| 텍스트의 링크 코드 | 가림 처리는 호스트와 요청자를 가리지 않고 모든 대화 입력에서 `FMAT-` 코드를 제거합니다 | 이메일에서만 가리기 | `lib/server/redaction.ts` | 같은 파일의 `LINK_CODE` |
+| 지침 | 요청자 지침 한 줄: 이메일 회신에는 카드가 보이지 않으므로, 어시스턴트는 카드를 이름으로 부르고 예약 페이지에 있다고 알리며 링크는 절대 쓰지 않습니다 | 별도의 이메일 대상 | `agent/instructions/requester.ts` | 해당 조각 |
+| 연결 명령 | `request.email_link.create`와 `request.email_link.unlink`는 예약 페이지의 기존 명령 경로에서 실행되고, `GET /api/requests/{bookingId}/email-link`는 상태만 제공합니다. 저장된 명령 결과에는 링크 ID가 들어가며 코드는 절대 들어가지 않습니다 | 동작마다 별도의 POST 경로 | 설계 4 | `lib/server/requester-routes.ts`의 `requesterCommands`와 `createEmailLinkStatusHandler` |
+| 연결 전 대기 | 다른 스레드가 연결되어 있어도 대기 중인 코드는 표시되며, 그 코드를 보내면 대화가 옮겨 갑니다. 코드의 **취소(Cancel)**는 `pendingOnly`를 넘겨 연결된 스레드를 유지합니다 | 연결된 동안 코드 숨기기 | 설계 4 | `lib/server/email-links.ts`의 `readEmailLinkStatus`와 `unlinkEmailCommand` |
+| 확인되지 않은 연락처 | 코드를 만들면 `invalid_input`으로 응답하고, 카드는 먼저 주소를 확인하라고 안내하며 버튼을 보이지 않습니다 | 새 오류 범주 | 설계 4 | `lib/server/email-links.ts`의 `createEmailLinkCommand`, `apps/web/app/_components/requester/cards.tsx`의 `EmailLinkLine` |
+| 카드 배치 | **이메일로 계속(Continue by email)**은 상태 줄 아래의 조용한 한 줄이며, 대기 중인 코드는 **이메일 열기(Open email)**, **복사(Copy)**, **이메일 링크 확인(Check email link)**, **취소(Cancel)**가 있는 대화 카드 하나로 열립니다. 명령 응답이 유실되면 같은 재시도 키로 **같은 연결 동작 다시 시도(Retry same linking action)**를 보입니다 | 상시 설정 패널 | 설계 4, DESIGN.md 대화 카드 | `EmailLinkLine` |
+| 공개 페이지의 이메일 시작 | `AGENTMAIL_INBOX_ID`가 설정된 경우에만, 제목이 `Meeting with @{handle}`인 `mailto:`와 함께 "Prefer email? Write to {inbox}"를 보입니다 | 항상 보이기 | 설계 2 | `apps/web/app/[handle]/page.tsx` |
+| 연결 확인 문구 | 요청의 언어로 "This thread is now linked to your request with {host}. Reply here to continue." | 코드 되풀이하기 | `lib/server/email-links.ts` | 같은 파일의 `CONFIRMATION` |
+| 스레드 알림 복사본 | `enqueueStatusNotice`는 알림과 바인딩마다 스레드 회신 하나를 기록하며, 이메일의 템플릿과 매개변수로 만들어 바인딩의 최신 메시지에 회신하고 예약 링크는 발송 때까지 봉인해 둡니다. 확인 이메일은 Cloudflare로만 보냅니다 | 확인도 스레드로 보내기 | 설계 7 | `lib/server/booking-notices.ts`의 `enqueueStatusNotice` |
+| 알림 유효성 | 스레드 알림도 이메일과 같은 규칙(`noticeStillCurrent`)으로 발송 때 확인하고, 바인딩이 더 이상 활성이 아니면 보내지 않습니다 | 바인딩만 확인하기 | 설계 7 | `lib/server/email-delivery.ts`의 `noticeStillCurrent`, `createEmailReplyHandler` |
+| 바인딩된 스레드의 코드 (검토) | 코드는 바인딩되지 않은 스레드에만 바인딩됩니다. 바인딩된 스레드에서 회신의 `Re:` 제목이나 인용문이 연결 코드를 되풀이하면, 아직 대기 중인 코드는 무효로 처리하고 메시지는 코드를 가린 채 전달합니다. 바인딩 메시지 자체는 재시도 때 절대 전달하지 않습니다 | 모든 코드를 연결 시도로 취급하기. 이 방식은 연결 이후의 모든 회신을 폐기했습니다 | 설계 5 | `lib/server/email-receipts.ts`의 `processReceivedMessage` |
+| 보관 중인 알림 텍스트 (검토) | 알림은 발송 중에는 렌더링된 텍스트를 저장하지 않으며, 보낼 때마다 봉인된 매개변수로 다시 렌더링해 같은 키에는 같은 페이로드가 나옵니다 | 렌더링된 텍스트 고정하기. 이 방식은 최대 23시간 동안 쓸 수 있는 예약 링크를 남겼습니다 | 설계 6 | `lib/server/email-replies.ts`의 `renderNotice` |
+| 실패한 세션과 가림 처리 (검토) | 세션이 끝내 실패한 턴 회신은 대체 문구를 즉시 보내며(훅이 깨웁니다), 턴 텍스트는 보내기 전에 가립니다 | 시도가 끝나기를 기다린 뒤 보내지 않기 | 설계 6 | `lib/server/email-replies.ts`의 `turnText`, `wakeTurnReplies` |
+| 소진된 수신과 순서 (검토) | 소진된 수신은 무시됨으로 기록하고, 그 메시지가 시작한 스레드에는 고정된 회신 하나를 보냅니다. 스레드의 처리되지 않은 첫 메시지를 앞지른 회신은 재시도하며, 재시도할 수 없는 입력 거부는 무시합니다 | 결과를 비워 두기 | 설계 5 | `lib/server/email-receipts.ts`의 `createEmailReceiptHandler` |
+| 자동 회신과 DMARC 정렬 (검토) | `Auto-Submitted`, `Precedence: bulk/junk/list/auto_reply`, `X-Autoreply`는 무시하며, DMARC 통과는 `dmarc_domain`이 주어진 경우 그것이 From 도메인일 때만 인정합니다 | 회신 루프를 승인 한도에 맡기기 | 설계 5 | `lib/server/email-receipts.ts`의 `autoSubmitted`; `lib/server/agentmail.ts`의 `senderAuthenticated` |
+| 보관 완전성 (검토) | 정리 작업은 만료된 대기 코드도 무효로 처리하고, 30일이 지난 최종 상태가 아닌 회신과 모든 상태의 링크를 삭제합니다 | 최종 상태 행만 | 설계 9; 마이그레이션 `20261023010200_email_review_fixes.sql` | `app.cleanup_email_records` |
+| 연결 잠금 순서 (검토) | 연결은 카드의 명령과 같이 링크 행보다 요청을 먼저 잠급니다 | 링크 행 먼저. 이 방식은 **이메일로 계속(Continue by email)**이나 **취소(Cancel)**와 교착될 수 있었습니다 | `lib/server/email-links.ts` | `bindByCode` |
+| 수신기 입력 (검토) | 웹훅 본문은 256 KiB 상한을 두고 스트림으로 읽으며, 받은편지함 ID는 대소문자를 구분하지 않고 비교합니다 | `Content-Length` 신뢰하기 | `lib/server/agentmail-receiver.ts` | `readBody`, `receiverConfigFromEnvironment` |
+
+### 운영 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 로컬 스택 | 이 브랜치의 테스트는 별도의 로컬 Supabase 스택(`project_id` `fmat-phase7`, 포트 553xx, `SUPABASE_WORKDIR`와 `TEST_DATABASE_URL`로 선택)에서 실행했습니다. 5단계 세션이 기본 로컬 스택을 공유하고 있어서 이 브랜치의 마이그레이션으로 `db reset`을 하면 그 실행이 깨지기 때문입니다 | 공유된 기본 스택 초기화 | 이 기록; 인수 기록 | — (로컬 전용) |
+| 따른 참조 | `7fa24384`의 eve memory 에이전트 템플릿: `agent/lib/integrations/slack/{channel,identity}.ts`와 그 테스트, `agent/lib/testing/slack.ts`(턴 전에 애플리케이션 코드에서 신원 확인, 검증되지 않았거나 자체 작성한 메시지는 대체 principal 없이 폐기, 테스트용 타입 있는 픽스처). `3c25e62d`의 eve chat 템플릿: `agent/channels/slack.ts`(기본 내보내기 하나짜리 채널 파일) | — | 풀 리퀘스트 | — |
+| A 레인 테스트 수정 | 수신기의 `environment` 열보다 먼저 작성된 A 레인 pgTAP 테스트를 첫 B 레인 커밋에서 고쳤습니다 | 기록을 다시 쓰게 되는 A 레인 커밋 수정(amend) | B 레인 커밋 메시지 | — |
+| 독립 검토 | 별도의 검토 에이전트가 풀 리퀘스트 전에 브랜치를 읽었으며, 높음 등급 발견(연결 이후 회신 폐기)과 확인된 중간·낮음 등급 발견은 회귀 테스트와 새 마이그레이션 하나와 함께 한 커밋에서 고쳤습니다 | 풀 리퀘스트를 먼저 열기 | 이 기록(“검토”로 표시된 행); 수정 커밋 | — |
+| 5단계 이후 마이그레이션 순서 | 5단계가 먼저 병합되어, 7단계 마이그레이션 세 개를 `20261023010000_email_ingress.sql`, `20261023010100_email_threads.sql`, `20261023010200_email_review_fixes.sql`로 이름을 바꿔 `20261022132708_agent_access.sql` 뒤에 오게 했습니다. 내용은 바뀌지 않았고, 브랜치에 이미 푸시된 병합이 있었으므로 리베이스하지 않고 `main`을 병합했습니다 | 기존 타임스탬프를 유지하기(5단계 것과 뒤섞임) | 이 기록; 병합 커밋 | — |
+
+### 사용자 대기 항목
+
+다음 단계는 되돌려도 취소할 수 없거나, 제공자 콘솔이 필요하거나, 팀 밖의 사람에게 발송되기 때문에 수행하지 않았습니다.
+
+- **AgentMail 받은편지함:** `findmeatime@agentmail.to`는 만들지 않았습니다. 계정이 받은편지함 세 개 한도에 도달했고, 받은편지함을 비우거나 만드는 일은 되돌릴 수 없습니다.
+- **AgentMail 웹훅:** AgentMail에 등록한 웹훅이 없고, 공유 프로젝트에 등록한 수신기도 없습니다.
+- **공유 프로젝트 마이그레이션과 프로덕션 배포:** 이 브랜치의 것.
+- **실제 다중 턴 받은편지함 전달:** 팀이 통제하는 주소로 하는 증거(7단계 증거)이며, 받은편지함, 웹훅, 배포가 필요합니다.
+- **팀원 검토:** D1–D11에 대한 검토, 이어서 변경의 `openspec archive`.
 
 ## 8단계 — `operations-and-release`
 

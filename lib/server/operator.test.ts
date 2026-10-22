@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminSql, AdminUsageError, parseAdminArguments, runAdmin, sqlLiteral } from "./operator";
+import { adminSql, AdminUsageError, parseAdminArguments, parseReceiverArguments, receiverSql, runAdmin, sqlLiteral } from "./operator";
 
 // Argument validation and SQL building for fmat-admin; the database and transport
 // paths are covered in tests/integration/operator.test.ts.
@@ -104,5 +104,52 @@ describe("fmat-admin runner", () => {
     const { deps, err } = capture();
     expect(await runAdmin(["show", "--host", "alice", ...base], deps)).toBe(1);
     expect(err.join("\n")).toMatch(/not the local stack/);
+  });
+});
+
+describe("fmat-admin email receivers", () => {
+  it("parses a registration", () => {
+    expect(
+      parseReceiverArguments(["email-receiver", "register", "--inbox", "FindMeATime@AgentMail.to", "--webhook", "ep_123", ...base]),
+    ).toEqual({
+      command: "register",
+      inbox: "findmeatime@agentmail.to",
+      operator: "ops",
+      receiver: null,
+      target: { kind: "local" },
+      webhook: "ep_123",
+      yes: false,
+    });
+  });
+
+  it.each([
+    [["email-receiver", "register", "--webhook", "ep_1", ...base], /--inbox/],
+    [["email-receiver", "register", "--inbox", "x'; drop", "--webhook", "ep_1", ...base], /--inbox/],
+    [["email-receiver", "register", "--inbox", "a@b.to", "--webhook", "ep 1", ...base], /--webhook/],
+    [["email-receiver", "disable", "--receiver", "nope", ...base], /--receiver/],
+    [["email-receiver", "list", "--inbox", "a@b.to", ...base], /list takes no/],
+    [["email-receiver", "delete", ...base], /one email-receiver command/],
+  ])("refuses %j", (argv, message) => {
+    expect(() => parseReceiverArguments(argv)).toThrow(message);
+  });
+
+  it("sends only the secret's fingerprint", () => {
+    const request = parseReceiverArguments(["email-receiver", "register", "--inbox", "a@b.to", "--webhook", "ep_1", ...base]);
+    const sql = receiverSql(request, "f".repeat(64));
+    expect(sql).toContain("operator_register_email_receiver('a@b.to', 'ep_1', 'ffff");
+    expect(sql).not.toContain("whsec_");
+  });
+
+  it("refuses to register without the signing secret", async () => {
+    const err: string[] = [];
+    const code = await runAdmin(["email-receiver", "register", "--inbox", "a@b.to", "--webhook", "ep_1", "--yes", ...base], {
+      env: {},
+      interactive: false,
+      prompt: async () => "",
+      stderr: (line) => err.push(line),
+      stdout: () => {},
+    });
+    expect(code).toBe(1);
+    expect(err.join("\n")).toMatch(/AGENTMAIL_WEBHOOK_SECRET/);
   });
 });

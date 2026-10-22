@@ -5,6 +5,7 @@ import { bookingUrl } from "./booking-links";
 import { eventTitle } from "./calendar-events";
 import type { Transaction } from "./database";
 import { enqueueEmail, frozenSender } from "./email-delivery";
+import { recordReply } from "./email-replies";
 import { openRequestBookingId } from "./request-start";
 import { appOriginsFromEnvironment } from "./same-origin";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
@@ -16,7 +17,9 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 // timezone, the From header with the host's display name for a confirmation, and
 // Reply-To the other party. The requester's booking link is opened from its
 // sealed copy and sealed again as the delivery's secret parameter; the host's
-// copy links to the request in /app and carries no booking link.
+// copy links to the request in /app and carries no booking link. A requester
+// whose request has an active email thread also gets each status notice in that
+// thread (requester-email-channel design 7).
 
 export type NoticeDependencies = {
   readonly origin: string;
@@ -229,4 +232,26 @@ export async function enqueueStatusNotice(tx: Transaction, deps: NoticeDependenc
     secrets: { bookingUrl: link },
     tokenKey: deps.tokenKey,
   });
+
+  // The same notice in the requester's email thread, replying to its latest
+  // message; the booking link stays sealed until dispatch.
+  const [thread] = await tx<{ id: string; inbox_id: string; last_message_id: string }[]>`
+    select id, inbox_id, last_message_id from app.email_threads where request_id = ${requestId} and state = 'active'
+  `;
+
+  if (thread) {
+    await recordReply(tx, {
+      bindingId: thread.id,
+      dedupeKey: `${notice.kind}:${dedupeKeyOf(requestId, notice)}:${thread.id}`,
+      inboxId: thread.inbox_id,
+      kind: "notice",
+      language: parties.language,
+      parameters,
+      replyToMessageId: thread.last_message_id,
+      requestId,
+      secrets: { bookingUrl: link },
+      template: notice.kind,
+      tokenKey: deps.tokenKey,
+    });
+  }
 }
