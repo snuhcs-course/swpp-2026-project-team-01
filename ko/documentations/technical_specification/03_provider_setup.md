@@ -124,6 +124,8 @@ Photon의 전달 가능성 안내에 따라 인바운드 우선이 기본값입�
 
 선택된 인가 서버를 [리소스 바인딩 인가 계약](../../openspec/specs/agent-client-authorization/spec.md)에 비추어 Supabase 로그인과는 독립적으로 검증합니다. 정확한 리소스, 콜백, PKCE, 현재 권한 부여, 리프레시 회전/재사용 처리, 철회, 잘못된 대상(audience)/범위 거부를 요구합니다. 연결 안내를 게시하기 전에 지원되는 프로토콜/클라이언트 등록 버전을 기록합니다.
 
+[`agent-access` 변경](../../openspec/changes/agent-access/proposal.md#decisions)은 MCP 프로토콜 리비전 `2026-07-28`, `2025-11-25`, `2025-06-18`, `2025-03-26`과 클라이언트 ID 메타데이터 문서, 동적 클라이언트 등록, 사전 등록된 CLI 클라이언트 `fmat-cli`를 지원합니다. 각 환경에는 고유한 `AGENT_TOKEN_SIGNING_KEY`가 필요합니다. 이는 base64 PKCS#8 Ed25519 개인 키이며 `openssl genpkey -algorithm ed25519 -outform DER | base64`로 생성하고, Vercel 프로젝트의 Production과 Preview에 서로 다른 값으로 설정하며 브라우저와는 절대 공유하지 않습니다. 이 키가 없으면 토큰 엔드포인트가 구성 불가 상태를 보고하며 어떤 에이전트도 연결할 수 없습니다. 키를 교체하면 모든 액세스 토큰이 10분 이내에 무효화되며, 리프레시 토큰은 계속 작동합니다.
+
 Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code를 각각 개별적으로 테스트하며, 두 가지 스킬 프롬프트, 호스트/요청자 범위, 사람의 확인을 포함합니다. SDK 픽스처나 다른 클라이언트의 성공으로는 충분하지 않습니다.
 
 ## 환경 및 활성화 체크리스트

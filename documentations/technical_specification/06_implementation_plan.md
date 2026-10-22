@@ -231,7 +231,7 @@ Scope. Prerequisite: Phase 3 for requester operations and Phase 4 for host decis
 - [x] [Design](../../openspec/changes/agent-access/design.md).
 - [x] Delta specs under [`specs/`](../../openspec/changes/agent-access/specs/), including the one-future-request grant.
 - [x] [Tasks](../../openspec/changes/agent-access/tasks.md).
-- [ ] Owning-document updates and Korean mirrors.
+- [x] Owning-document updates and Korean mirrors.
 - [ ] Teammate review.
 
 **Lane A — authorization server**

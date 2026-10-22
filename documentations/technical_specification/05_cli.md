@@ -1,10 +1,10 @@
 # CLI Direction
 
-Status: administrator CLI implemented for suspension and restoration; no executable user CLI
+Status: administrator CLI implemented for suspension and restoration; user CLI `fmat` decided in the `agent-access` change
 
 Date: 2026-10-19
 
-No executable user CLI exists yet; its packaging, names, login/storage strategy and concrete commands are specified with their owning future changes. The administrator CLI is described below.
+The user CLI is `fmat`, decided in the [`agent-access` change](../../openspec/changes/agent-access/design.md#9-user-cli) and described under [User CLI](#user-cli) below. The administrator CLI is described after it.
 
 ## Separate authority
 
@@ -21,9 +21,21 @@ Protected host access uses resource-bound OAuth with explicit consent, PKCE, cur
 
 CLI and MCP expose the same domain semantics without separate scheduling state. Structured output identifies operation/resource, revision/proposal where relevant, status, error and next action. Current human approval remains required; return protected review when attributable confirmation cannot be established. Freeze mutation identity across exact retries and give lost token exchange/refresh responses an explicit reauthorization path.
 
-## Future command design and acceptance
+## User CLI
 
-Define commands only after their domain operation exists; record JSON schemas, errors/exit codes, pagination, headless/interactive login, OS support, secure storage and private output. Test login cancellation, wrong resource, expiry, revoked grants, foreign requests, stale proposals and lost responses. Do not advertise old `npm run` commands.
+Decided in the [`agent-access` proposal](../../openspec/changes/agent-access/proposal.md#decisions) (D4, D14) on 2026-10-22. The package is `@findmeatime/cli` in `cli/`, with the command `fmat`; it needs Node.js 20 or later and has no dependencies. Publishing it to npm waits for the user; until then run it from a checkout with `npm run fmat -- <command>`. It is a client of the MCP endpoints, so every command reaches the same domain operations as the web and keeps no scheduling state.
+
+| Command | Effect |
+|---|---|
+| `login --host` or `login --handle <handle>` | Connects as the first-party client `fmat-cli` to the host resource or to one host's requester resource, after the person allows it in the browser. `--no-browser` prints the URL and reads the code shown at `/connect/code` |
+| `status` | The stored connection: origin, resource, permissions and expiry, never a token |
+| `tools` | The tools the connection's permissions allow |
+| `call <tool> [--input <json>] [--input-file <path>] [--retry-key <key>]` | Calls one tool. A mutation without `--retry-key` gets a new key, which the output prints so the exact call can be repeated |
+| `logout` | Revokes the connection and deletes the stored credential |
+
+Every command prints one JSON object on stdout, with `ok` and either `result` or `error` (`category`, `message`, `nextAction`). Exit codes: 0 success, 1 tool error, 2 usage, 3 authorization needed, 4 unknown outcome (repeat with the printed retry key), 5 service or protocol error. A lost or refused token refresh deletes the stored credential and asks for `fmat login` again. Credentials go to the macOS Keychain or the Linux Secret Service; elsewhere only `--credential-store file` writes a `0600` file. `FMAT_ORIGIN` points the CLI at another origin, such as `http://localhost:3000`. Windows is untested.
+
+Tests cover login cancellation, wrong resource, expiry, revoked grants, foreign requests, stale proposals and lost responses. Do not advertise old `npm run` commands.
 
 Administrator suspension and restoration commands land with host accounts so operators have abuse control from the first open sign-in.
 
