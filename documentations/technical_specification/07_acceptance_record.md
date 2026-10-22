@@ -1,6 +1,6 @@
 # Acceptance Record
 
-Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) released, local evidence recorded, production acceptance evidence pending; open gaps listed below
+Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) released and checked on production; the guest's inbox check pending; open gaps listed below
 
 Date: 2026-10-22
 
@@ -227,9 +227,28 @@ Run by the implementing session on 2026-10-22, at the user's request, against th
 | Deployment | `708381cb`, `dpl_7LXD9swHWQEXkBHC8LtX7adjMte3` | `vercel deploy --prod` from a clean checkout of `origin/main` | Ready; aliased to `findmeatime.com` and `release.findmeatime.com` |
 | Smoke test | `708381cb` | `curl` of `/`, `/app`, `/app?view=requests`, `release.findmeatime.com/SKILL.md`, an unknown `/booking/{uuid}`, and `/api/host/requests` signed out | 200 for each page; the host requests API answers 401 without a session |
 
+### Production acceptance check
+
+Run by the implementing session on 2026-10-22, at the user's request, in the built-in browser against `https://findmeatime.com` (`708381cb`): host Dodo Park (`/dodo41142727`), signed in by the user; the guest address `dodo4114@snu.ac.kr`, a team member's own inbox, given by the user. Request `70de0d77-e596-4428-a3d7-c2cf769a486e`.
+
+| Step | Result |
+|---|---|
+| Guest thread on `/dodo41142727` | The first message started a draft; the assistant drafted the details and called the identity card; **Continue without Google** identified the guest, the address bar moved to the booking link in place and the creation email was recorded |
+| Tuesday 27 Oct 14:00–17:00 | No times: outside the host's Tuesday hours (10:00–14:00); the guest saw the authored no-match message |
+| Monday 26 Oct 15:00–17:00, Thursday 29 Oct 14:00–22:00 | No times: every slot overlaps an all-day event on the host's primary calendar spanning 12 Oct to 2 Nov, which counts as busy under the agreed rule; the host's private view named the reason, the guest's did not. The second turn of the guest conversation ended after `read_request` without drafting, so the windows were set through **Edit details** |
+| Monday 2 Nov 10:00–13:00 | One feasible slot, held back from the guest because that week already had the host's limit of 6 meetings (D8); the host's rule and travel review showed the hold |
+| **Allow this request beyond my weekly limit** | The host's evaluation then offered Mon 2 Nov 10:00 to the guest |
+| **Choose this time**, **Agree to this proposal** | Version 1 agreed; the guest saw "Waiting for Dodo Park to approve" |
+| **Approve this proposal** in `/app?request=…` | Booked within about 20 seconds; the host receipt shows the organizer from Google, the guest, **Join meeting** and **Open in Google Calendar** |
+| Host's Google Calendar | Event `cd6da3e53fca4f558834313ac1bcf740` (the booking ID's hex) on `dodo41142727@gmail.com`, 10:00–10:30 Asia/Seoul, the guest as the only attendee, a Google Meet link, and a description without the booking link |
+| Guest's booking link | Only "Your meeting is booked" and the receipt, with **Join meeting** and no calendar link |
+| Host's confirmation | Delivered to the host's Gmail: subject "Review the Phase 4 booking flow between Dodo Park and Dohyeon Park", the four blocks in Asia/Seoul, **View booking** to `/app?request=…` with no booking link, **Join meeting**, and an `invite.ics` `text/calendar` attachment |
+
+Found: the receipt shows the organizer as "address <address>" when Google returns no organizer name; fixed in a follow-up pull request.
+
 ### Known gaps
 
-- **Controlled Google Calendar and inbox.** A confirmed event in a team-controlled Google Calendar and its confirmation, with the calendar part, in a team-controlled inbox are pending. The release is done; the check needs a host signed in with Google on production (decision log, "Blocked on the user").
-- **Cloudflare attachments.** Whether Cloudflare's REST API delivers a `text/calendar` attachment that Gmail and Outlook treat as an invitation is unverified.
+- **Guest's inbox.** The guest's confirmation copy and Google's own invitation in `dodo4114@snu.ac.kr` were not read by the session; a team member checks them.
+- **Outlook.** The `text/calendar` attachment arrived in Gmail; Outlook is unchecked.
 - **Reminders** are deferred by D3.
 

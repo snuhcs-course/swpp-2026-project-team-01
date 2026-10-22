@@ -130,13 +130,13 @@ The [proposal](../../openspec/changes/host-review-and-booking/proposal.md#decisi
 | Review bypass | PR #30 was squash-merged with `--admin` on 2026-10-22, without a teammate approval, at the user's request, after CI passed (7 of 7) | Waiting for approval | The squash commit message | Teammates review afterwards against the [proposal](../../openspec/changes/host-review-and-booking/proposal.md#decisions) and this log |
 | Migration path | `20261022021159_host_review_and_booking.sql` went to `anelszynxtvxoxqvzgqt` with `supabase db push --linked` on 2026-10-22, after a dry run that listed only it, at the user's request, before the deploy that needs it; 22 migrations are now applied | The `Deploy shared Supabase` workflow, whose secrets are still unset | [Acceptance record](07_acceptance_record.md#phase-4--host-review-and-booking) | Set the workflow's repository secrets so later migrations go through CI |
 | Production deploy | `vercel deploy --prod` from a clean checkout of `origin/main` at `708381cb`, linked to `findmeatime-release`, after `npm ci` (compiling `vercel.ts` needs `eve` installed) | Git-integrated deploys (not configured) | Acceptance record | As in Phase 3 |
+| Production acceptance check | Run in the built-in browser on the user's own host account with a team member's second address as the guest, after the user signed in and named the address | A separate test host account | [Acceptance record](07_acceptance_record.md#production-acceptance-check) | Use a dedicated test host once one exists |
 
 ### Blocked on the user
 
 These steps were not taken because they cannot be undone by a revert, need a provider console, or send to people outside the team:
 
-- **Controlled Google Calendar evidence:** a booking in a team-controlled Google Calendar. It needs a host signed in with Google on `https://findmeatime.com`, which only the account owner can do; the migration and the deploy are done. `sendUpdates=all` makes Google email the attendee, so the requester address must be a team inbox.
-- **Controlled inbox evidence:** both confirmation copies and a status email in team inboxes, including whether the `text/calendar` attachment shows as an invitation in Gmail and Outlook.
+- **Guest's inbox:** the guest's confirmation copy and Google's invitation in `dodo4114@snu.ac.kr`, which the session cannot read; the host's copy, the event and the `text/calendar` attachment in Gmail were checked on 2026-10-22 ([acceptance record](07_acceptance_record.md#production-acceptance-check)).
 - **Teammate review** of D1–D12 and the implementation decisions, then `openspec archive` of the change.
 
 ## Phase 5 — `agent-access`

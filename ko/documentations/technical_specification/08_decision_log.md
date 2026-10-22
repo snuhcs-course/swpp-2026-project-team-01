@@ -132,13 +132,13 @@
 | 검토 우회 | PR #30은 2026-10-22에 사용자의 요청으로 CI가 통과한(7개 중 7개) 뒤 팀원 승인 없이 `--admin`으로 squash 병합했습니다 | 승인을 기다림 | squash 커밋 메시지 | 팀원이 나중에 [제안서](../../openspec/changes/host-review-and-booking/proposal.md#decisions)와 이 기록을 기준으로 검토 |
 | 마이그레이션 경로 | `20261022021159_host_review_and_booking.sql`을 2026-10-22에 `anelszynxtvxoxqvzgqt`에 `supabase db push --linked`로 푸시했으며, 이것만 나열한 드라이 런 뒤 사용자의 요청으로 이를 필요로 하는 배포보다 먼저 실행했습니다. 이제 마이그레이션 22개가 적용되어 있습니다 | 시크릿이 아직 설정되지 않은 `Deploy shared Supabase` 워크플로 | [인수 기록](07_acceptance_record.md#phase-4--host-review-and-booking) | 이후 마이그레이션이 CI를 거치도록 워크플로의 저장소 시크릿을 설정 |
 | 프로덕션 배포 | `708381cb`의 `origin/main` 깨끗한 체크아웃에서 `findmeatime-release`에 연결해 `npm ci`(`vercel.ts` 컴파일에는 `eve` 설치가 필요함) 뒤 `vercel deploy --prod` | Git 연동 배포(구성되지 않음) | 인수 기록 | 3단계와 같음 |
+| 프로덕션 인수 확인 | 사용자가 로그인하고 주소를 알려 준 뒤, 사용자 본인의 호스트 계정과 게스트로서의 팀원 두 번째 주소를 사용해 내장 브라우저에서 실행했습니다 | 별도의 테스트 호스트 계정 | [인수 기록](07_acceptance_record.md#production-acceptance-check) | 전용 테스트 호스트가 생기면 그것을 사용 |
 
 ### 사용자 대기 항목
 
 다음 단계는 되돌려도 취소할 수 없거나, 제공자 콘솔이 필요하거나, 팀 밖의 사람에게 발송되기 때문에 수행하지 않았습니다.
 
-- **통제된 Google Calendar 증거:** 팀이 통제하는 Google Calendar의 예약. `https://findmeatime.com`에서 Google로 로그인한 호스트가 필요하며 이는 계정 소유자만 할 수 있습니다. 마이그레이션과 배포는 완료되었습니다. `sendUpdates=all`은 Google이 참석자에게 이메일을 보내게 하므로 요청자 주소는 팀 받은편지함이어야 합니다.
-- **통제된 받은편지함 증거:** 팀 받은편지함에서의 확인 사본 두 개와 상태 이메일 하나, `text/calendar` 첨부 파일이 Gmail과 Outlook에서 초대로 보이는지 포함.
+- **게스트 받은편지함:** `dodo4114@snu.ac.kr`에 도착한 게스트의 확인 사본과 Google의 초대는 세션이 읽을 수 없습니다; 호스트의 사본, 이벤트, Gmail의 `text/calendar` 첨부 파일은 2026-10-22에 확인했습니다([인수 기록](07_acceptance_record.md#production-acceptance-check)).
 - **팀원 검토:** D1–D12와 구현 결정에 대한 검토, 이어서 변경의 `openspec archive`.
 
 ## 5단계 — `agent-access`

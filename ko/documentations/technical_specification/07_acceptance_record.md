@@ -2,7 +2,7 @@
 
 > 한국어 번역본 (검토용). 원본: documentations/technical_specification/07_acceptance_record.md
 
-상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 릴리스됨, 로컬 증거 기록됨, 프로덕션 인수 증거 보류 중; 열린 공백은 아래에 나열
+상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 릴리스되고 프로덕션에서 확인됨; 게스트 받은편지함 확인은 보류 중; 열린 공백은 아래에 나열
 
 날짜: 2026-10-22
 
@@ -229,9 +229,28 @@
 | 배포 | `708381cb`, `dpl_7LXD9swHWQEXkBHC8LtX7adjMte3` | `origin/main`의 깨끗한 체크아웃에서 `vercel deploy --prod` | Ready; `findmeatime.com`과 `release.findmeatime.com`에 별칭 지정됨 |
 | 스모크 테스트 | `708381cb` | `/`, `/app`, `/app?view=requests`, `release.findmeatime.com/SKILL.md`, 알 수 없는 `/booking/{uuid}`, 로그아웃 상태의 `/api/host/requests`의 `curl` | 각 페이지 200; 호스트 요청 API는 세션이 없으면 401로 답함 |
 
+### 프로덕션 인수 확인
+
+2026-10-22에 구현 세션이 사용자의 요청으로 내장 브라우저에서 `https://findmeatime.com`(`708381cb`)을 대상으로 실행했습니다: 호스트 Dodo Park(`/dodo41142727`)는 사용자가 로그인했고, 게스트 주소 `dodo4114@snu.ac.kr`은 팀원 본인의 받은편지함으로 사용자가 알려 주었습니다. 요청 `70de0d77-e596-4428-a3d7-c2cf769a486e`.
+
+| 절차 | 결과 |
+|---|---|
+| `/dodo41142727`의 게스트 스레드 | 첫 메시지가 초안을 시작했고, 어시스턴트가 세부 정보를 작성한 뒤 신원 카드를 호출했으며, **Continue without Google**(Google 없이 계속)로 게스트가 식별되자 주소 표시줄이 제자리에서 예약 링크로 바뀌고 생성 이메일이 기록됨 |
+| 10월 27일 화요일 14:00–17:00 | 시간 없음: 호스트의 화요일 시간(10:00–14:00) 밖이며, 게스트에게 작성된 일치 없음 메시지가 표시됨 |
+| 10월 26일 월요일 15:00–17:00, 10월 29일 목요일 14:00–22:00 | 시간 없음: 모든 슬롯이 10월 12일부터 11월 2일까지 이어지는 호스트 기본 캘린더의 종일 이벤트와 겹치며, 합의된 규칙에 따라 바쁨으로 계산됨; 호스트의 비공개 화면에는 이유가 표시되었고 게스트 화면에는 표시되지 않음. 게스트 대화의 두 번째 턴은 초안 작성 없이 `read_request` 뒤에 끝나서 창은 **Edit details**(세부 정보 편집)로 설정함 |
+| 11월 2일 월요일 10:00–13:00 | 가능한 슬롯 하나가 있었으나, 그 주에 이미 호스트의 한도인 6회 회의가 있어(D8) 게스트에게는 제시되지 않음; 호스트의 규칙 및 이동 검토에 보류가 표시됨 |
+| **Allow this request beyond my weekly limit**(이 요청은 주간 한도를 넘어 허용) | 이후 호스트의 평가가 게스트에게 11월 2일 월요일 10:00을 제시함 |
+| **Choose this time**(이 시간 선택), **Agree to this proposal**(이 제안에 동의) | 버전 1에 합의됨; 게스트에게 "Waiting for Dodo Park to approve"(Dodo Park의 승인을 기다리는 중)가 표시됨 |
+| `/app?request=…`에서 **Approve this proposal**(이 제안 승인) | 약 20초 안에 예약됨; 호스트 영수증에 Google이 알려 준 주최자, 게스트, **Join meeting**(회의 참여), **Open in Google Calendar**(Google Calendar에서 열기)가 표시됨 |
+| 호스트의 Google Calendar | `dodo41142727@gmail.com`의 이벤트 `cd6da3e53fca4f558834313ac1bcf740`(예약 ID의 16진수), Asia/Seoul 10:00–10:30, 유일한 참석자는 게스트, Google Meet 링크, 예약 링크가 없는 설명 |
+| 게스트의 예약 링크 | "Your meeting is booked"(회의가 예약되었습니다)와 영수증만 표시되며, **Join meeting**이 있고 캘린더 링크는 없음 |
+| 호스트의 확인 메일 | 호스트의 Gmail로 전달됨: 제목 "Review the Phase 4 booking flow between Dodo Park and Dohyeon Park", Asia/Seoul 기준 네 블록, 예약 링크 없이 `/app?request=…`로 가는 **View booking**(예약 보기), **Join meeting**, `text/calendar` 첨부 파일 `invite.ics` |
+
+발견: Google이 주최자 이름을 돌려주지 않으면 영수증이 주최자를 "address <address>"로 표시합니다; 후속 풀 리퀘스트에서 수정됩니다.
+
 ### 알려진 공백
 
-- **통제된 Google Calendar와 받은편지함.** 팀이 통제하는 Google Calendar의 확정된 이벤트와, 팀이 통제하는 받은편지함에 캘린더 파트가 포함된 확인 메일이 보류 중입니다. 릴리스는 끝났으며, 이 확인에는 프로덕션에서 Google로 로그인한 호스트가 필요합니다(결정 기록의 "사용자 대기 항목").
-- **Cloudflare 첨부 파일.** Cloudflare의 REST API가 전달한 `text/calendar` 첨부 파일을 Gmail과 Outlook이 초대로 처리하는지는 검증되지 않았습니다.
+- **게스트 받은편지함.** `dodo4114@snu.ac.kr`에 도착한 게스트의 확인 사본과 Google 자체 초대는 세션이 읽지 않았으며, 팀원이 확인합니다.
+- **Outlook.** `text/calendar` 첨부 파일은 Gmail에 도착했으며, Outlook은 확인하지 않았습니다.
 - **알림**은 D3에 따라 미뤄졌습니다.
 
