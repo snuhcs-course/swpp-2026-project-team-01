@@ -307,7 +307,7 @@ Scope. Prerequisite: Phase 3 for request binding and Phase 4 for notifications. 
 **Lane B — channel and linking**
 
 - [x] Thread-to-request binding; `channels/agentmail.ts` forwarding verified text to `request:{requestId}`; replies in the same thread.
-- [ ] **Continue by email** linking from the booking page with **Check email link** and **Unlink email**.
+- [x] **Continue by email** linking from the booking page with **Check email link** and **Unlink email**.
 - [ ] Status notifications in the thread for email-originated requests.
 
 **Join**

@@ -60,13 +60,12 @@ A new thread naming no ready host gets one fixed reply, "Find Me a Time could no
 
 ### 4. Continue by email
 
-`/api/requests/{bookingId}/email-link` serves the card (D7, D9):
+`GET /api/requests/{bookingId}/email-link` serves the card's status (D7, D9): `unavailable` (no inbox configured), `needs_confirmation` (the contact is not confirmed), `none`, `pending` with the code, the inbox address and the expiry, or `linked` with the masked address and the time. A pending code shows before a linked thread, so a requester can move the conversation to a new thread. The commands go through the booking page's commands route with the card's retry key:
 
-- `GET` returns `unavailable` (no inbox configured), `needs_confirmation` (the contact is not confirmed), `none`, `pending` with the code, the inbox address and the expiry, or `linked` with the masked address and the time.
-- `POST { action: "create", retryKey }` runs `request.email_link.create`: the request must be open and its contact confirmed; at most 5 codes per request per hour; a pending code is voided; the new code is stored as its SHA-256 and sealed under the token key for display after a reload. The exact retry returns the same code.
-- `POST { action: "unlink", retryKey }` runs `request.email_link.unlink`: the active binding becomes `unlinked` and any pending code is voided, in the database only, so it works while AgentMail is unreachable.
+- `request.email_link.create`: the request must be open and its contact confirmed (otherwise `invalid_input`); at most 5 codes per request per hour (`rate_limited`); a pending code is voided; the new code is stored as its SHA-256 and sealed under the token key for display after a reload. The saved outcome holds only the link's ID, never the code, and the exact retry returns it.
+- `request.email_link.unlink`: the active binding becomes `unlinked` and any pending code is voided, in the database only, so it works while AgentMail is unreachable. With `pendingOnly` (the card's **Cancel**), only the pending code is voided.
 
-The card shows the inbox address, the code in a copyable block, **Open email** (a `mailto:` with the code as the subject), the expiry, **Check email link** and **Cancel**. A link code in the thread's first message, from the confirmed contact with authenticated evidence, binds the thread (origin `linked`), consumes the code, replaces any earlier binding of the request and records a fixed confirmation reply: "This thread is now linked to your request with {host}. Reply here to continue." The linking message is never forwarded to the model. An uncertain command answer offers **Retry same linking action**, which repeats the request with the same retry key.
+The card shows the inbox address, the code in a copyable block, **Open email** (a `mailto:` with the code as the subject and body), **Copy**, the expiry, **Check email link** and **Cancel**. Before a code it is one quiet line under the status line: **Continue by email**, or, while the address is unconfirmed, a note to confirm it first; once linked, the masked address with **Unlink email**. A link code in the thread's first message, from the confirmed contact with authenticated evidence, binds the thread (origin `linked`), consumes the code, replaces any earlier binding of the request and records a fixed confirmation reply: "This thread is now linked to your request with {host}. Reply here to continue." The linking message is never forwarded to the model. An uncertain command answer offers **Retry same linking action**, which repeats the request with the same retry key.
 
 ### 5. What a message must prove
 
@@ -105,17 +104,17 @@ A reply found in `dispatching` by a later attempt is sent again with the same ke
 
 | Table | Holds |
 |---|---|
-| `email_receivers` | ID, inbox ID, AgentMail webhook ID, secret fingerprint, state (`enabled`, `disabled`), created and disabled times. One enabled receiver per inbox |
-| `email_receipts` | ID, receiver, event ID, Svix ID, event type, inbox, thread and message IDs, payload SHA-256, received time, outcome (`forwarded`, `linked`, `started`, `ignored`, `refused`) |
-| `email_threads` | ID, request, inbox and thread IDs, origin (`started`, `linked`), keyed hash of the bound address, state (`active`, `unlinked`, `closed`), latest received message ID, closed-notice time, bound and ended times. One active binding per thread and per request |
-| `email_links` | ID, request, code hash, sealed code, state (`pending`, `consumed`, `voided`), retry key, expiry, created, consumed and voided times, the binding it created |
+| `email_receivers` | ID, inbox ID, AgentMail webhook ID, secret fingerprint, state (`enabled`, `disabled`), the registering operator and environment, who disabled it, created and disabled times. One enabled receiver per inbox |
+| `email_receipts` | ID, receiver, event ID, Svix ID, event type, inbox, thread and message IDs, payload SHA-256, received time, outcome (`forwarded`, `linked`, `started`, `replied`, `ignored`) and processing time |
+| `email_threads` | ID, request, inbox and thread IDs, origin (`started`, `linked`), keyed hash of the bound address, state (`active`, `unlinked`), the receipt that bound it, latest received message ID, closed-notice time, bound and ended times. One active binding per thread and per request; a closed request's binding stays active but forwards nothing |
+| `email_links` | ID, request, code hash, sealed code (cleared when no longer pending), state (`pending`, `consumed`, `voided`), expiry, created and ended times, the binding it created. One pending code per request |
 | `email_replies` | ID (the idempotency key), request, binding, kind (`turn`, `link_confirmation`, `start_refusal`, `closed`, `too_long`, `notice`), dedupe key, inbox and replied-to message IDs, input, template, language, parameters, frozen text, sealed secret, state (`waiting`, `queued`, `dispatching`, `accepted`, `rejected`, `uncertain`, `suppressed`), first dispatch time, provider message ID, evidence |
 
 All have row-level security and no grants to `anon` or `authenticated`.
 
 ### 9. Retention
 
-`app.cleanup_email_records(limit)` runs every 15 minutes (D4): it deletes receipts older than 30 days, bindings and consumed or voided links of requests created more than 30 days ago, and replies in a final state older than 30 days. A request's closure marks its active binding `closed`, so nothing more is forwarded. Final replies already hold no text or secret.
+`app.cleanup_email_records(limit)` runs every 15 minutes (D4): it deletes receipts older than 30 days, bindings and consumed or voided links of requests created more than 30 days ago, and replies in a final state older than 30 days. A closed request's binding forwards nothing: the conversation path refuses a closed request, and the thread gets one closed notice. Final replies already hold no text or secret.
 
 ### 10. Testing
 

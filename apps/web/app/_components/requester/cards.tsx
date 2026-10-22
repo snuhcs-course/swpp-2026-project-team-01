@@ -1,5 +1,6 @@
 "use client";
 
+import { EMAIL_LINK_CREATE_OPERATION, EMAIL_LINK_UNLINK_OPERATION, type EmailLinkStatus } from "@lib/contracts/email-link";
 import type { OpenRequesterView } from "@lib/contracts/requester-view";
 import { displayTime } from "@lib/contracts/timezone";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -9,7 +10,8 @@ import { Button } from "@/components/ui/button";
 
 // The guest thread's request cards (design decision 12; DESIGN.md: conversation
 // card): the Calendar connection and selection, and the status lines with the
-// creation email and **Use verified Google email**. **Withdraw request** and
+// creation email, **Use verified Google email** and **Continue by email**.
+// **Withdraw request** and
 // **Edit details** are in the thread's menu beside the composer
 // (guest-workspace.tsx). The
 // review, meeting details, proposal and candidate times cards are in
@@ -294,6 +296,138 @@ export function SentLine({ context }: { readonly context: RequesterCardContext }
       )}
       <ErrorLine message={error} />
     </div>
+  );
+}
+
+// **Continue by email** below the status line (requester-email-channel design
+// 4): with a confirmed address, a one-time code to send, as shown, from that
+// address in a new email to the product inbox. **Check email link** refreshes
+// the status, **Unlink email** ends a linked thread at once, and a command whose
+// answer was lost offers **Retry same linking action**, which repeats it with the
+// same retry key. Email is never required; nothing shows when the deployment
+// has no inbox.
+export function EmailLinkLine({ context }: { readonly context: RequesterCardContext }) {
+  const [status, setStatus] = useState<EmailLinkStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState<{ operation: string; input: Record<string, unknown> } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const { bookingId, run } = context;
+
+  const check = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/requests/${bookingId}/email-link`, { cache: "no-store" });
+      setStatus(response.ok ? ((await response.json()) as EmailLinkStatus) : null);
+      setError(response.ok ? null : "The email link status is not available right now.");
+    } catch {
+      setError("The email link status is not available right now.");
+    }
+  }, [bookingId]);
+
+  useEffect(() => {
+    void check();
+  }, [check]);
+
+  async function command(operation: string, input: Record<string, unknown> = {}) {
+    setBusy(true);
+    setError(null);
+    const outcome = await run(operation, input);
+    setBusy(false);
+
+    if (outcome.ok) {
+      setRetry(null);
+    } else if (outcome.error.category === "internal") {
+      // The answer was lost: the same action keeps its retry key.
+      setRetry({ input, operation });
+      setError("That did not go through.");
+    } else {
+      setRetry(null);
+      setError(outcome.error.category === "rate_limited" ? "Too many codes this hour. Try again later." : outcome.error.message);
+    }
+
+    await check();
+  }
+
+  if (!status || status.state === "unavailable") return null;
+
+  const actions = (
+    <>
+      {retry ? (
+        <Button className={QUIET_ACTION} disabled={busy} onClick={() => void command(retry.operation, retry.input)} type="button" variant="link">
+          Retry same linking action
+        </Button>
+      ) : null}
+      <ErrorLine message={error} />
+    </>
+  );
+
+  if (status.state === "needs_confirmation") {
+    return (
+      <p className="px-1 text-sm text-muted-foreground" data-email-link="needs_confirmation">
+        To continue by email, first confirm your address from the email we sent.
+      </p>
+    );
+  }
+
+  if (status.state === "none") {
+    return (
+      <div className="flex min-h-8 flex-wrap items-center gap-x-2 px-1 text-sm" data-email-link="none">
+        <Button className={QUIET_ACTION} disabled={busy} onClick={() => void command(EMAIL_LINK_CREATE_OPERATION)} type="button" variant="link">
+          Continue by email
+        </Button>
+        <span className="text-muted-foreground">· optional; this page keeps working</span>
+        {actions}
+      </div>
+    );
+  }
+
+  if (status.state === "linked") {
+    return (
+      <div className="flex min-h-8 flex-wrap items-center gap-x-2 px-1 text-sm" data-email-link="linked" role="note">
+        <span>
+          Email linked: replies from {status.address} to {status.inbox} continue this conversation
+        </span>
+        <Button className={QUIET_ACTION} disabled={busy} onClick={() => void command(EMAIL_LINK_UNLINK_OPERATION)} type="button" variant="link">
+          Unlink email
+        </Button>
+        {actions}
+      </div>
+    );
+  }
+
+  const mailto = `mailto:${status.inbox}?subject=${encodeURIComponent(status.code)}&body=${encodeURIComponent(status.code)}`;
+
+  return (
+    <GuestCard
+      description={`Send a new email from your confirmed address to ${status.inbox} with this code. It works once, until ${displayTime(new Date(status.expiresAt), context.timezone)}.`}
+      id="email-link"
+      title="Continue by email"
+    >
+      <code className="w-fit rounded-md bg-muted px-2 py-1 font-mono text-base tracking-wide select-all" data-email-link-code="">
+        {status.code}
+      </code>
+      <GuestCardActions>
+        <Button asChild>
+          <a href={mailto}>Open email</a>
+        </Button>
+        <Button
+          onClick={() => {
+            void navigator.clipboard?.writeText(status.code).then(() => setCopied(true));
+          }}
+          type="button"
+          variant="outline"
+        >
+          {copied ? "Copied" : "Copy"}
+        </Button>
+        <Button disabled={busy} onClick={() => void check()} type="button" variant="outline">
+          Check email link
+        </Button>
+        <Button disabled={busy} onClick={() => void command(EMAIL_LINK_UNLINK_OPERATION, { pendingOnly: true })} type="button" variant="ghost">
+          Cancel
+        </Button>
+      </GuestCardActions>
+      {actions}
+    </GuestCard>
   );
 }
 

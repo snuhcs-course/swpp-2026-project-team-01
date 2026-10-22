@@ -67,7 +67,7 @@ Phases 3 and 4 are not archived yet. This change only adds requirements, so it c
 
 ## Impact
 
-- **New code:** `agent/channels/agentmail.ts`; `lib/server/{agentmail,agentmail-receiver,email-receipts,email-threads,email-links,email-replies}.ts`; `lib/contracts/email-link.ts`; `/api/requests/{bookingId}/email-link`; the **Continue by email** card; the `email-receiver` operator commands.
+- **New code:** `agent/channels/agentmail.ts`; `lib/server/{svix,agentmail,agentmail-receiver,email-receipts,email-links,email-replies}.ts`; `lib/contracts/email-link.ts`; `GET /api/requests/{bookingId}/email-link`; the **Continue by email** card; the `email-receiver` operator commands.
 - **Changed code:** `vercel.ts` routes `/agentmail/*` to the agent service; the session-owner hook wakes a waiting reply when a turn ends; `booking-notices.ts` adds thread notices; the job registry gains `email_receipt` and `email_reply`; the requester instructions say that email continues at the booking link for times and agreement; the public host page shows the email start link when the inbox is configured.
 - **Schema:** `email_receivers`, `email_receipts`, `email_threads`, `email_links` and `email_replies`, each with row-level security and no client grants, and a cleanup function on the existing pg_cron schedule pattern, generated through pg-delta.
 - **Systems:** AgentMail, with the runtime key's `inbox_read`, `message_read` and `message_send` permissions. Creating `findmeatime@agentmail.to` (blocked by the three-inbox limit), registering the webhook at AgentMail, the shared-project migration, the production deploy and any real email to people outside the team are left to the user (decision log, "Blocked on the user").

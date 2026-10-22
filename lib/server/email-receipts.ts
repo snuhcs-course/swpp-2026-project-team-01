@@ -21,6 +21,7 @@ import { AdmissionLimitError } from "./conversation-admission";
 import { agentUrlFromEnvironment, ConversationClosedError, ConversationInputError, eveRuntime } from "./conversations";
 import { CommandError } from "./commands";
 import { database, type Database, type Transaction } from "./database";
+import { bindByCode, findLinkCode } from "./email-links";
 import { recordReply } from "./email-replies";
 import { acceptGuestMessage, type GuestConversationDependencies } from "./guest-conversations";
 import { internalSigningKey } from "./internal-bearer";
@@ -124,7 +125,7 @@ export function messageLanguage(text: string): RequestLanguage {
 
 // The first @handle in the subject that names a usable handle.
 export function subjectHandles(subject: string | null | undefined) {
-  return [...(subject ?? "").matchAll(/(?:^|[\s(<\[])@([A-Za-z0-9][A-Za-z0-9_-]{0,62})/g)]
+  return [...(subject ?? "").matchAll(/(?:^|[\s(<[])@([A-Za-z0-9][A-Za-z0-9_-]{0,62})/g)]
     .map((match) => normalizeHandle(match[1]!))
     .filter(isUsableHandle);
 }
@@ -345,15 +346,16 @@ export async function processReceivedMessage(
 }
 
 // A message carrying a link code binds only as Continue by email wrote it
-// (email-links.ts); without that module this deployment ignores it.
+// (email-links.ts), and is never forwarded either way.
 async function linkByCode(
-  _deps: EmailReceiptDependencies,
-  _receipt: Receipt,
-  _message: ReceivedMessage,
-  _address: string,
-  _authenticated: boolean,
+  deps: EmailReceiptDependencies,
+  receipt: Receipt,
+  message: ReceivedMessage,
+  address: string,
+  authenticated: boolean,
 ): Promise<ReceiptOutcome> {
-  return "ignored";
+  const code = findLinkCode(`${message.subject ?? ""}\n${newText(message)}`);
+  return code ? bindByCode(deps.db, deps.tokenKey, receipt, message, code, address, authenticated) : "ignored";
 }
 
 export function createEmailReceiptHandler(load: () => EmailReceiptDependencies = receiptDependenciesFromEnvironment): JobHandler {

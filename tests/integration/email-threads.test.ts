@@ -1,22 +1,14 @@
-import { randomBytes, randomUUID } from "node:crypto";
-import type { MessageStreamEvent } from "eve/client";
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agentMailConfigFromEnvironment, agentMailTransport, senderHash } from "../../lib/server/agentmail";
-import {
-  EMAIL_RECEIPT_JOB,
-  receiveAgentMailWebhook,
-  type ReceiverDependencies,
-  secretFingerprint,
-} from "../../lib/server/agentmail-receiver";
+import { agentMailTransport, senderHash } from "../../lib/server/agentmail";
 import { AdmissionLimitError } from "../../lib/server/conversation-admission";
-import type { ConversationRuntime } from "../../lib/server/conversations";
-import { createEmailReceiptHandler, type EmailReceiptDependencies, FIXED_REPLIES } from "../../lib/server/email-receipts";
-import { createEmailReplyHandler, EMAIL_REPLY_JOB, type EmailReplyDependencies } from "../../lib/server/email-replies";
-import { recordInputReceived, recordTurnEnded } from "../../lib/server/session-owner";
+import { createEmailReceiptHandler, FIXED_REPLIES } from "../../lib/server/email-receipts";
+import { EMAIL_RECEIPT_JOB } from "../../lib/server/agentmail-receiver";
 import { testDatabase } from "./support/database";
-import { type FakeAgentMail, type InboundEmail, receivedMessage, startFakeAgentMail, webhookRequest } from "./support/fake-agentmail";
+import { emailHarness } from "./support/email";
+import { type FakeAgentMail, startFakeAgentMail } from "./support/fake-agentmail";
 import { readyHost, SIGNING_KEY } from "./support/guests";
-import { closeTestRequest, runJob, testTokenKey, uniqueEmail } from "./support/requests";
+import { closeTestRequest, testTokenKey, uniqueEmail } from "./support/requests";
 
 // The requester email channel's Lane B against the local stack and a fake
 // AgentMail (tasks 3.1 to 3.3): an authenticated email naming a ready host
@@ -30,121 +22,19 @@ import { closeTestRequest, runJob, testTokenKey, uniqueEmail } from "./support/r
 // a recording stand-in; tests/integration/email-journey.test.ts runs a real eve.
 
 const db = testDatabase();
-const inbox = `fmat-${randomUUID().slice(0, 8)}@agentmail.test`;
-const secret = `whsec_${randomBytes(24).toString("base64")}`;
 let agentmail: FakeAgentMail;
-let receiverId: string;
-
-type Session = { sent: { message: string }[]; events: MessageStreamEvent[] };
-const sessions = new Map<string, Session>();
-
-const runtime: ConversationRuntime = {
-  createSession: async () => {
-    const id = `wrun_${randomUUID()}`;
-    sessions.set(id, { events: [], sent: [] });
-    return id;
-  },
-  readEvents: () => (async function* () {})(),
-  readRecordedEvents: (sessionId) =>
-    (async function* () {
-      yield* sessions.get(sessionId)?.events ?? [];
-    })(),
-  sendMessage: async (sessionId, _bearer, message) => {
-    sessions.get(sessionId)!.sent.push({ message });
-  },
-};
-
-const config = () => ({ ...agentMailConfigFromEnvironment({}), apiKey: "am_test_key", baseUrl: agentmail.baseUrl, inboxId: inbox });
-
-function receiptDeps(overrides: Partial<EmailReceiptDependencies> = {}): EmailReceiptDependencies {
-  return {
-    config: config(),
-    conversation: { admission: { serviceKey: `test:${randomUUID()}` }, db, runtime, signingKey: SIGNING_KEY },
-    creationLimits: { perSourceDay: 1000, perSourceHour: 1000, serviceDay: 100000 },
-    db,
-    origin: "http://localhost:3000",
-    tokenKey: testTokenKey,
-    ...overrides,
-  };
-}
-
-function replyDeps(overrides: Partial<EmailReplyDependencies> = {}): EmailReplyDependencies {
-  return { config: config(), db, runtime, signingKey: SIGNING_KEY, tokenKeys: [testTokenKey], ...overrides };
-}
+const email = emailHarness(db, () => agentmail);
+const { bindingOf, config, deliver, endTurn, inbox, inputsOf, receiptDeps, repliesFor, replyDeps, runReply, runtime } = email;
 
 beforeAll(async () => {
   agentmail = await startFakeAgentMail();
-  const [row] = await db<{ id: string }[]>`
-    select result_receiver_id as id from app.operator_register_email_receiver(${inbox}, 'ep_test', ${secretFingerprint(secret)}, 'tester', 'local')
-  `;
-  receiverId = row!.id;
+  await email.register();
 });
 
 afterAll(async () => {
   await agentmail?.close();
   await db.end();
 });
-
-// Delivers an email as AgentMail would: stored at the fake, sent to the
-// receiver, then the receipt job runs. Returns the message and the outcome.
-async function deliver(email: InboundEmail, deps: EmailReceiptDependencies = receiptDeps()) {
-  const message = receivedMessage(inbox, email);
-  agentmail.addMessage(message);
-  const receiver: ReceiverDependencies = { config: { inboxId: inbox, secret }, db };
-  const response = await receiveAgentMailWebhook(webhookRequest("http://localhost/agentmail/webhooks/x", secret, message), receiverId, () => receiver);
-  expect(response.status).toBe(204);
-
-  const [receipt] = await db<{ id: string }[]>`select id from app.email_receipts where inbox_id = ${inbox} and message_id = ${message.message_id}`;
-  const [job] = await db<{ id: string }[]>`select id from app.jobs where kind = ${EMAIL_RECEIPT_JOB} and dedupe_key = ${`receipt:${receipt!.id}`}`;
-  const result = await runJob(db, job!.id, createEmailReceiptHandler(() => deps));
-  const [after] = await db<{ outcome: string | null }[]>`select outcome from app.email_receipts where id = ${receipt!.id}`;
-  return { jobId: job!.id, message, outcome: after!.outcome, receiptId: receipt!.id, result };
-}
-
-async function bindingOf(threadId: string) {
-  const [row] = await db<{ id: string; request_id: string; origin: string; sender_hash: string; state: string }[]>`
-    select id, request_id, origin, sender_hash, state from app.email_threads where inbox_id = ${inbox} and thread_id = ${threadId}
-  `;
-  return row ?? null;
-}
-
-async function inputsOf(requestId: string) {
-  return db<{ id: string; message: string; state: string; session_id: string | null }[]>`
-    select i.id, i.message, i.state, i.session_id from app.conversation_inputs i
-    join app.discussions d on d.id = i.discussion_id
-    where d.principal_type = 'requester_request' and d.principal_id = ${requestId}
-    order by i.accepted_at
-  `;
-}
-
-async function repliesFor(threadId: string) {
-  return db<{ id: string; kind: string; state: string; text: string | null; input_id: string | null }[]>`
-    select e.id, e.kind, e.state, e.text, e.input_id from app.email_replies e
-    where e.inbox_id = ${inbox} and e.reply_to_message_id in (select message_id from app.email_receipts where thread_id = ${threadId})
-    order by e.created_at
-  `;
-}
-
-// What the session-owner hook records when the turn that served the input ends.
-async function endTurn(inputId: string, finalText: string | null) {
-  const [input] = await db<{ session_id: string }[]>`select session_id from app.conversation_inputs where id = ${inputId}`;
-  const sessionId = input!.session_id;
-  const deliveryId = `dlv_${randomUUID()}`;
-  await recordInputReceived(db, sessionId, [deliveryId]);
-  const meta = { at: new Date().toISOString(), deliveryIds: [deliveryId] };
-  const events = sessions.get(sessionId)!.events;
-  events.push({ data: { finishReason: "tool-calls", message: "Let me check.", sequence: 0, stepIndex: 0, turnId: "t" }, meta, type: "message.completed" } as unknown as MessageStreamEvent);
-  if (finalText) {
-    events.push({ data: { finishReason: "stop", message: finalText, sequence: 1, stepIndex: 1, turnId: "t" }, meta, type: "message.completed" } as unknown as MessageStreamEvent);
-  }
-  await recordTurnEnded(db, sessionId);
-}
-
-async function runReply(replyId: string, deps: EmailReplyDependencies = replyDeps()) {
-  const [job] = await db<{ id: string }[]>`select id from app.jobs where kind = ${EMAIL_REPLY_JOB} and dedupe_key = ${`reply:${replyId}`}`;
-  await db`update app.jobs set run_after = now() where id = ${job!.id}`;
-  return runJob(db, job!.id, createEmailReplyHandler(() => deps));
-}
 
 async function startRequest(from = `Grace Hopper <${uniqueEmail()}>`, text = "Could we meet for 30 minutes next week?") {
   const host = await readyHost(db);

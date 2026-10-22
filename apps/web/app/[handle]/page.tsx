@@ -1,4 +1,5 @@
 import { isUsableHandle, normalizeHandle } from "@lib/contracts/handles";
+import { agentMailConfigFromEnvironment } from "@lib/server/agentmail";
 import { database } from "@lib/server/database";
 import { findReadyHostByHandle } from "@lib/server/readiness";
 import type { Metadata } from "next";
@@ -12,7 +13,9 @@ import { GuestWorkspace, PublicPageChrome } from "@/app/_components/guest/guest-
 // decision 2): the guest's first message starts a draft request, and the same
 // thread continues at the booking link once they give a name and email. Everything else, including a released,
 // unready or suspended host, gets the neutral not-found page. Reserved names
-// never reach here: their routes are resolved first or fail the format.
+// never reach here: their routes are resolved first or fail the format. When the
+// product inbox is configured, the page also offers starting by email, with the
+// host's @handle in the subject (requester-email-channel D2).
 type Params = Promise<{ handle: string }>;
 
 export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
@@ -42,15 +45,31 @@ async function HostProfile({ params }: { readonly params: Params }) {
 
   if (!host) notFound();
 
+  const inbox = agentMailConfigFromEnvironment().inboxId;
+
   return (
     <GuestWorkspace
       chrome={
         <PublicPageChrome
           agentSection={
-            <AgentSection href={`/${host.handle}/SKILL.md`}>
-              Requests are accepted on this page in a web browser. Connecting a personal agent is not available yet, so
-              an agent should send the person here.
-            </AgentSection>
+            <>
+              <AgentSection href={`/${host.handle}/SKILL.md`}>
+                Requests are accepted on this page in a web browser. Connecting a personal agent is not available yet, so
+                an agent should send the person here.
+              </AgentSection>
+              {inbox ? (
+                <p className="pt-2 text-sm text-muted-foreground" data-email-start="">
+                  Prefer email?{" "}
+                  <a
+                    className="underline underline-offset-4"
+                    href={`mailto:${inbox}?subject=${encodeURIComponent(`Meeting with @${host.handle}`)}`}
+                  >
+                    Write to {inbox}
+                  </a>{" "}
+                  with @{host.handle} in the subject.
+                </p>
+              ) : null}
+            </>
           }
         />
       }

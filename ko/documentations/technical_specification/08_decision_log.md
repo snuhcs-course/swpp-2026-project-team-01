@@ -189,6 +189,12 @@
 | 관문 위치 | 두 이메일 작업 모두 수신 기록이나 회신을 읽기 전에, 그리고 작업자의 클레임과 모든 전송 호출에서도 메시지 허용 여부를 확인합니다 | 전송에서만 확인하기 | `lib/server/email-receipts.ts`, `lib/server/email-replies.ts` | 핸들러 |
 | 텍스트의 링크 코드 | 가림 처리는 호스트와 요청자를 가리지 않고 모든 대화 입력에서 `FMAT-` 코드를 제거합니다 | 이메일에서만 가리기 | `lib/server/redaction.ts` | 같은 파일의 `LINK_CODE` |
 | 지침 | 요청자 지침 한 줄: 이메일 회신에는 카드가 보이지 않으므로, 어시스턴트는 카드를 이름으로 부르고 예약 페이지에 있다고 알리며 링크는 절대 쓰지 않습니다 | 별도의 이메일 대상 | `agent/instructions/requester.ts` | 해당 조각 |
+| 연결 명령 | `request.email_link.create`와 `request.email_link.unlink`는 예약 페이지의 기존 명령 경로에서 실행되고, `GET /api/requests/{bookingId}/email-link`는 상태만 제공합니다. 저장된 명령 결과에는 링크 ID가 들어가며 코드는 절대 들어가지 않습니다 | 동작마다 별도의 POST 경로 | 설계 4 | `lib/server/requester-routes.ts`의 `requesterCommands`와 `createEmailLinkStatusHandler` |
+| 연결 전 대기 | 다른 스레드가 연결되어 있어도 대기 중인 코드는 표시되며, 그 코드를 보내면 대화가 옮겨 갑니다. 코드의 **취소(Cancel)**는 `pendingOnly`를 넘겨 연결된 스레드를 유지합니다 | 연결된 동안 코드 숨기기 | 설계 4 | `lib/server/email-links.ts`의 `readEmailLinkStatus`와 `unlinkEmailCommand` |
+| 확인되지 않은 연락처 | 코드를 만들면 `invalid_input`으로 응답하고, 카드는 먼저 주소를 확인하라고 안내하며 버튼을 보이지 않습니다 | 새 오류 범주 | 설계 4 | `lib/server/email-links.ts`의 `createEmailLinkCommand`, `apps/web/app/_components/requester/cards.tsx`의 `EmailLinkLine` |
+| 카드 배치 | **이메일로 계속(Continue by email)**은 상태 줄 아래의 조용한 한 줄이며, 대기 중인 코드는 **이메일 열기(Open email)**, **복사(Copy)**, **이메일 링크 확인(Check email link)**, **취소(Cancel)**가 있는 대화 카드 하나로 열립니다. 명령 응답이 유실되면 같은 재시도 키로 **같은 연결 동작 다시 시도(Retry same linking action)**를 보입니다 | 상시 설정 패널 | 설계 4, DESIGN.md 대화 카드 | `EmailLinkLine` |
+| 공개 페이지의 이메일 시작 | `AGENTMAIL_INBOX_ID`가 설정된 경우에만, 제목이 `Meeting with @{handle}`인 `mailto:`와 함께 "Prefer email? Write to {inbox}"를 보입니다 | 항상 보이기 | 설계 2 | `apps/web/app/[handle]/page.tsx` |
+| 연결 확인 문구 | 요청의 언어로 "This thread is now linked to your request with {host}. Reply here to continue." | 코드 되풀이하기 | `lib/server/email-links.ts` | 같은 파일의 `CONFIRMATION` |
 
 ### 사용자 대기 항목
 

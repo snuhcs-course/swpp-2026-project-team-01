@@ -9,6 +9,7 @@ import {
   AwaitingLine,
   CalendarSelectionCard,
   ConnectCalendarCard,
+  EmailLinkLine,
   focusCardHeading,
   type RequesterCardContext,
   SentLine,
@@ -410,7 +411,15 @@ function threadEntries(
         entries.push({
           at: card.at,
           id: card.id,
-          node: card.id === "status:awaiting" ? <AwaitingLine context={context} /> : <SentLine context={context} />,
+          node:
+            card.id === "status:awaiting" ? (
+              <AwaitingLine context={context} />
+            ) : (
+              <>
+                <SentLine context={context} />
+                <EmailLinkLine context={context} />
+              </>
+            ),
         });
         break;
       case "calendar":
