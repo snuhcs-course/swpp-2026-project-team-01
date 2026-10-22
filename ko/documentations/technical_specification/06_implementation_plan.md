@@ -290,7 +290,16 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 목표: 요청자가 이메일로 요청을 시작하고 이어 갈 수 있습니다.
 
-범위. 선행 조건: 요청 바인딩을 위해 3단계, 알림을 위해 4단계. 두 레인은 채널에서 만납니다.
+범위. 선행 조건: 요청 바인딩을 위해 3단계, 알림을 위해 4단계. 두 레인은 채널에서 만납니다. 모든 레인은 아래 제안서도 기다리며, 어떤 레인이 코드를 작성하기 전에 이를 검토합니다.
+
+**제안서 (직렬, 가장 먼저)**
+
+- [x] 결정할 사항과 범위 표를 담은 [`requester-email-channel`](../../openspec/changes/requester-email-channel/proposal.md) 제안서.
+- [x] [설계](../../openspec/changes/requester-email-channel/design.md).
+- [x] [`specs/`](../../openspec/changes/requester-email-channel/specs/) 아래의 델타 명세.
+- [x] [작업 목록](../../openspec/changes/requester-email-channel/tasks.md).
+- [ ] 소유 문서 갱신과 한국어 미러.
+- [ ] 팀원 검토.
 
 **레인 A — 수신**
 

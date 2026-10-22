@@ -151,7 +151,33 @@
 
 ## 7단계 — `requester-email-channel`
 
-아직 결정이 없습니다.
+[제안서](../../openspec/changes/requester-email-channel/proposal.md#decisions)가 D1–D11을 기록합니다. 계획은 D1–D4를 이 단계에 배정했고 설계에서 D5–D11이 추가되었습니다. 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-22에 이를 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
+
+### 제품 결정
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| D1 | 사용자 지정 eve 채널 `agent/channels/agentmail.ts`는 서명된 수신기만 호스팅합니다. 애플리케이션 작업이 검증된 텍스트를 요청의 기존 요청자 논의에 수락된 입력으로 전달하므로, 이메일과 웹이 하나의 세션을 공유합니다 | Chat SDK 브리지(Gmail 어댑터는 있으나 AgentMail 어댑터는 없음); 스레드마다 채널이 소유하는 eve 세션 | 제안서; 설계 1; 에이전트 구성 | 제안서와 설계 1, 그다음 채널과 `lib/server/email-receipts.ts` |
+| D2 | 모든 호스트와 요청에 제품 받은편지함 `findmeatime@agentmail.to` 하나를 씁니다. 새 스레드는 제목의 `@handle`로 호스트를 지정하며, 공개 호스트 페이지가 미리 채워진 `mailto:` 링크를 제공합니다 | 호스트별 받은편지함(최대 세 개, 호스트마다 되돌릴 수 없음); 요청별 받은편지함; 플러스 주소 지정(문서화되지 않음) | 제안서; 설계 2; 제공자 설정 | `AGENTMAIL_INBOX_ID`와 `lib/server/email-receipts.ts`의 핸들 파싱 |
+| D3 | 연결 코드는 확인된 연락처가 만료 전에 인증된 발신자 증거와 함께 보낸 새 스레드의 첫 메시지일 때만 바인딩되며, 그 밖의 도착은 조용히 코드를 무효로 만듭니다. 바인딩된 스레드는 바인딩된 주소의 메시지만 전달합니다. 예약 링크와 코드는 모델에 전달되기 전에 가려집니다 | 보낸 사람 주소만으로 바인딩 | 제안서; 설계 5; `requester-email-threads` 델타 | 제안서, 그다음 `lib/server/email-receipts.ts`와 `lib/server/redaction.ts` |
+| D4 | 수신 기록은 위치 정보와 페이로드 해시만 남겨 30일간 보관합니다. 바인딩은 요청이 닫히면 중단되고 요청 생성 30일 뒤에 삭제되며, 최종 회신에는 텍스트나 비밀이 없습니다. 제공자 쪽 스레드는 8단계까지 AgentMail에 남습니다 | 수신 기록을 무기한 보관; 제공자 스레드를 지금 삭제 | 제안서; 설계 9; `requester-email-threads` 델타 | 스키마의 `app.cleanup_email_records`와 새 마이그레이션 |
+| D5 | 메시지는 `unauthenticated`나 `spam` 라벨이 없는 `message.received`이면서, `authentication_results`가 `dmarc: pass`이거나 `dkim: pass`이고 `dkim_domain`이 From 도메인과 같을 때만 인정됩니다 | From 헤더를 신뢰; AgentMail의 라벨만 사용 | 제안서; 설계 5; `requester-email-threads` 델타 | `lib/server/agentmail.ts`의 `senderAuthenticated` |
+| D6 | 준비된 호스트를 지정한 인증된 새 스레드는 식별된 요청을 만듭니다. 보낸 사람의 이름과 주소는 확인되지 않은 연락처로, 시간대는 호스트의 시간대로, 텍스트에 한글이 있으면 한국어로 설정하고, 이어서 3단계의 생성 이메일이 나갑니다. 생성 횟수 제한은 키가 있는 발신자 해시별로 집계합니다 | 신원을 기다리는 초안, 이메일로는 신원을 받을 수 없음 | 제안서; 설계 3; `meeting-requests` 델타 | `lib/server/email-receipts.ts`의 `startByEmail` |
+| D7 | **이메일로 계속(Continue by email)**에는 확인된 연락처가 필요합니다. 코드는 `FMAT-`에 크록포드 base32 문자 열 개를 붙인 형태로 30분간 유효하며, 해시 후 봉인되고 요청당 시간당 최대 5개입니다. 바인딩은 이전 스레드를 대체하며, 연결 메시지는 모델에 전달되지 않습니다 | 확인된 연락처 없는 코드; 더 긴 유효 기간 | 제안서; 설계 4; `meeting-requests` 델타 | `lib/server/email-links.ts`의 `EMAIL_LINK_LIMITS` |
+| D8 | 전달된 메시지마다 턴이 끝난 뒤 그 턴의 최종 텍스트를 담은 일반 텍스트 회신 하나를 보냅니다. 먼저 내용을 고정하고 회신 ID와 같은 `Idempotency-Key`로 보내며, 결과가 불확실한 발송은 같은 키로 23시간 동안 재시도한 뒤 불확실로 기록합니다 | 부분 회신을 스트리밍; 멱등성 키 없이 회신 | 제안서; 설계 6; `email-delivery` 델타 | `lib/server/email-replies.ts`의 `REPLY_RETRY_HOURS` |
+| D9 | **이메일 연결 해제(Unlink email)**는 데이터베이스에서만 바인딩을 끝내므로 AgentMail 장애 중에도 동작합니다 | 연결 해제 시 스레드에 알림 | 제안서; 설계 4 | `lib/server/email-links.ts`의 `request.email_link.unlink` |
+| D10 | 운영자 CLI는 비밀의 지문과 함께 수신기를 등록하고 받은편지함의 이전 수신기를 비활성화합니다. 웹훅 URL에는 수신기 ID가 들어 있으며, AgentMail에서 웹훅을 만드는 일은 운영자 단계로 남습니다 | 버전 없는 단일 웹훅 URL | 제안서; 설계 1; `requester-email-ingress` 델타 | `lib/server/operator.ts`의 `email-receiver` 명령 |
+| D11 | 너무 긴 메시지와 닫힌 요청에는 고정된 회신 하나를 보냅니다. 첨부 파일은 가져오지 않으며, 우리 쪽에서 보낸 메시지는 무시합니다. 허용 한도에 걸리면 수신 기록을 버리지 않고 지연시킵니다 | 메시지 잘라 내기; 한도에서 메일 버리기 | 제안서; 설계 5 | `lib/server/email-receipts.ts` |
+
+### 사용자 대기 항목
+
+다음 단계는 되돌려도 취소할 수 없거나, 제공자 콘솔이 필요하거나, 팀 밖의 사람에게 발송되기 때문에 수행하지 않았습니다.
+
+- **AgentMail 받은편지함:** `findmeatime@agentmail.to`는 만들지 않았습니다. 계정이 받은편지함 세 개 한도에 도달했고, 받은편지함을 비우거나 만드는 일은 되돌릴 수 없습니다.
+- **AgentMail 웹훅:** AgentMail에 등록한 웹훅이 없고, 공유 프로젝트에 등록한 수신기도 없습니다.
+- **공유 프로젝트 마이그레이션과 프로덕션 배포:** 이 브랜치의 것.
+- **실제 다중 턴 받은편지함 전달:** 팀이 통제하는 주소로 하는 증거(7단계 증거)이며, 받은편지함, 웹훅, 배포가 필요합니다.
+- **팀원 검토:** D1–D11에 대한 검토, 이어서 변경의 `openspec archive`.
 
 ## 8단계 — `operations-and-release`
 

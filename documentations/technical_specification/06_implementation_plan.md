@@ -288,7 +288,16 @@ Evidence: AC-16, AC-17, AC-18 on a controlled iPhone against the production depl
 
 Goal: a requester can start and continue a request by email.
 
-Scope. Prerequisite: Phase 3 for request binding and Phase 4 for notifications. The two lanes meet at the channel.
+Scope. Prerequisite: Phase 3 for request binding and Phase 4 for notifications. The two lanes meet at the channel. Every lane also waits for the proposal below, reviewed before any lane codes.
+
+**Proposal (serial, first)**
+
+- [x] Proposal for [`requester-email-channel`](../../openspec/changes/requester-email-channel/proposal.md) with the decisions to settle and the coverage table.
+- [x] [Design](../../openspec/changes/requester-email-channel/design.md).
+- [x] Delta specs under [`specs/`](../../openspec/changes/requester-email-channel/specs/).
+- [x] [Tasks](../../openspec/changes/requester-email-channel/tasks.md).
+- [ ] Owning-document updates and Korean mirrors.
+- [ ] Teammate review.
 
 **Lane A — ingress**
 

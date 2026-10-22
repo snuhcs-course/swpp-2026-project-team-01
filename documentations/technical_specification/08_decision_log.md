@@ -149,7 +149,33 @@ No decisions yet.
 
 ## Phase 7 — `requester-email-channel`
 
-No decisions yet.
+The [proposal](../../openspec/changes/requester-email-channel/proposal.md#decisions) records D1–D11; the plan assigns D1–D4 to this phase and the design raised D5–D11. The implementing session took them on 2026-10-22, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
+
+### Product decisions
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | A custom eve channel, `agent/channels/agentmail.ts`, hosts only the signed receiver. The application job forwards verified text as an accepted input of the request's existing requester discussion, so email and web share one session | The Chat SDK bridge (a Gmail adapter, no AgentMail adapter); a channel-owned eve session per thread | Proposal; design 1; agent configuration | The proposal and design 1, then the channel and `lib/server/email-receipts.ts` |
+| D2 | One product inbox, `findmeatime@agentmail.to`, for every host and request. A new thread names its host by `@handle` in the subject; the public host page offers a prefilled `mailto:` link | An inbox per host (three at most, irreversible per host); an inbox per request; plus-addressing (undocumented) | Proposal; design 2; provider setup | `AGENTMAIL_INBOX_ID`, and the handle parsing in `lib/server/email-receipts.ts` |
+| D3 | A link code binds only as the first message of a new thread from the confirmed contact with authenticated sender evidence before it expires; any other arrival voids it silently. A bound thread forwards only its bound address. Booking links and codes are redacted before the model | Binding on the From address alone | Proposal; design 5; `requester-email-threads` delta | The proposal, then `lib/server/email-receipts.ts` and `lib/server/redaction.ts` |
+| D4 | Receipts kept 30 days with locators and a payload hash only; bindings stop on closure and are deleted 30 days after the request's creation; final replies hold no text or secret. Provider-side threads stay in AgentMail until Phase 8 | Keeping receipts indefinitely; deleting provider threads now | Proposal; design 9; `requester-email-threads` delta | `app.cleanup_email_records` in the schema and a new migration |
+| D5 | A message counts only as a `message.received` without the `unauthenticated` or `spam` labels whose `authentication_results` show `dmarc: pass`, or `dkim: pass` with `dkim_domain` equal to the From domain | Trusting the From header; AgentMail's label alone | Proposal; design 5; `requester-email-threads` delta | `senderAuthenticated` in `lib/server/agentmail.ts` |
+| D6 | An authenticated new thread naming a ready host creates an identified request: the sender's name and address as unconfirmed contact, the host's timezone, Korean when the text has Hangul; the Phase 3 creation email follows. Creation bounds count per keyed sender hash | A draft that waits for identity, which email cannot collect | Proposal; design 3; `meeting-requests` delta | `startByEmail` in `lib/server/email-receipts.ts` |
+| D7 | **Continue by email** needs a confirmed contact. Code `FMAT-` plus ten Crockford base32 characters, valid 30 minutes, hashed and sealed, at most 5 per request per hour; binding replaces the earlier thread; the linking message never reaches the model | Codes without a confirmed contact; longer validity | Proposal; design 4; `meeting-requests` delta | `EMAIL_LINK_LIMITS` in `lib/server/email-links.ts` |
+| D8 | One plain-text reply per forwarded message after its turn ends, with the turn's final text, frozen first and sent with `Idempotency-Key` equal to the reply ID; an uncertain dispatch is retried with the same key for 23 hours, then recorded uncertain | Streaming partial replies; replying without an idempotency key | Proposal; design 6; `email-delivery` delta | `REPLY_RETRY_HOURS` in `lib/server/email-replies.ts` |
+| D9 | **Unlink email** ends the binding in the database only, so it works during an AgentMail outage | Notifying the thread on unlink | Proposal; design 4 | `request.email_link.unlink` in `lib/server/email-links.ts` |
+| D10 | The operator CLI registers a receiver with the secret's fingerprint and disables the inbox's previous one; the webhook URL carries the receiver ID; creating the webhook at AgentMail stays an operator step | One unversioned webhook URL | Proposal; design 1; `requester-email-ingress` delta | `email-receiver` commands in `lib/server/operator.ts` |
+| D11 | Over-long messages and closed requests get one fixed reply; attachments are never fetched; our own messages are ignored; admission limits delay a receipt instead of dropping it | Truncating long messages; dropping mail at the limit | Proposal; design 5 | `lib/server/email-receipts.ts` |
+
+### Blocked on the user
+
+These steps were not taken because they cannot be undone by a revert, need a provider console, or send to people outside the team:
+
+- **AgentMail inbox:** `findmeatime@agentmail.to` is not created; the account is at its three-inbox limit, and freeing or creating an inbox is irreversible.
+- **AgentMail webhook:** no webhook is registered at AgentMail, and no receiver is registered in the shared project.
+- **Shared-project migration and production deploy** of this branch.
+- **Real multi-turn inbox delivery** with a team-controlled address (the Phase 7 evidence), which needs the inbox, the webhook and the deploy.
+- **Teammate review** of D1–D11, then `openspec archive` of the change.
 
 ## Phase 8 — `operations-and-release`
 
