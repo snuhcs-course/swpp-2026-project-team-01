@@ -181,6 +181,11 @@ The [proposal](../../openspec/changes/agent-access/proposal.md#decisions) record
 | Consent page referrer | `same-origin`, since with `no-referrer` Chrome sends `Origin: null` on the form post and the same-origin check refuses it | `no-referrer` | `apps/web/app/connect/consent/page.tsx` | Its `metadata` |
 | Consent form without scripts | Allow and Deny are a plain HTML form posted to `/connect/decision`, so consent works without JavaScript | A client component calling a JSON route | `apps/web/app/connect/consent/page.tsx` | That page and `createDecisionHandler` |
 | Suspended hosts and grants | A suspended host can still list and revoke its agents in the menu, as the page list keeps grant revocation available; its agents' calls already fail | Hiding Connected agents while suspended | `agent-grant-routes.ts` | `hostAccountOf` there |
+| Tool names | Plain verbs without a product prefix (`list_requests`, `get_request`); clients already scope tools by server | A `fmat_` prefix | `agent-host-tools.ts` | The tool lists |
+| Command arguments | A tool that runs a card command takes `requestId`, `retryKey`, an optional `expectedRevision` and the command's own arguments under `input`, whose schema is the command's | Flattening every command's fields into the tool | `agent-host-tools.ts` | `requestCommandTool` there |
+| Failures | A command failure, invalid arguments, a closed request or a tool the grant cannot use is a tool result with `isError` and a `nextAction`; only an unknown tool or a malformed request is a protocol error; a scope the token lacks answers 403 with `insufficient_scope` | Protocol errors for everything | `agent-mcp.ts` | `callTool` there |
+| Unsupported handshake versions | `initialize` with an unknown version answers `2025-11-25`; a later call with an unknown `MCP-Protocol-Version` answers `400` with the supported list | Refusing the handshake | `agent-mcp.ts` | `createMcpHandler` there |
+| Server name and version | `find-me-a-time` 1.0.0 with the title "Find Me a Time" | The package version | `agent-mcp.ts` | `SERVER_INFO` there |
 
 ## Phase 6 — `host-imessage-channel`
 

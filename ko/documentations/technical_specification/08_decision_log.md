@@ -183,6 +183,11 @@
 | 동의 페이지 리퍼러 | `same-origin`입니다. `no-referrer`이면 Chrome이 폼 전송에 `Origin: null`을 보내 동일 출처 검사가 거부하기 때문입니다 | `no-referrer` | `apps/web/app/connect/consent/page.tsx` | 그 파일의 `metadata` |
 | 스크립트 없는 동의 폼 | 허용과 거부는 `/connect/decision`으로 전송하는 일반 HTML 폼이므로 JavaScript 없이도 동의할 수 있습니다 | JSON 라우트를 호출하는 클라이언트 컴포넌트 | `apps/web/app/connect/consent/page.tsx` | 그 페이지와 `createDecisionHandler` |
 | 정지된 호스트와 허가 | 정지된 호스트도 메뉴에서 자신의 에이전트를 조회하고 철회할 수 있습니다. 페이지 목록이 허가 철회를 계속 제공하기 때문이며, 그 에이전트의 호출은 이미 실패합니다 | 정지된 동안 연결된 에이전트 숨기기 | `agent-grant-routes.ts` | 같은 파일의 `hostAccountOf` |
+| 도구 이름 | 제품 접두사 없는 평범한 동사(`list_requests`, `get_request`)입니다. 클라이언트가 이미 서버별로 도구를 구분하기 때문입니다 | `fmat_` 접두사 | `agent-host-tools.ts` | 도구 목록 |
+| 명령 인자 | 카드 명령을 실행하는 도구는 `requestId`, `retryKey`, 선택 사항인 `expectedRevision`, 그리고 `input` 아래에 명령 자체의 인자를 받으며 `input`의 스키마는 그 명령의 스키마입니다 | 모든 명령의 필드를 도구에 평탄화 | `agent-host-tools.ts` | 같은 파일의 `requestCommandTool` |
+| 실패 처리 | 명령 실패, 잘못된 인자, 닫힌 요청, 허가가 쓸 수 없는 도구는 `isError`와 `nextAction`이 있는 도구 결과입니다. 알 수 없는 도구와 잘못된 형식의 요청만 프로토콜 오류이며, 토큰에 없는 범위는 `insufficient_scope`와 함께 403으로 답합니다 | 모든 경우를 프로토콜 오류로 처리 | `agent-mcp.ts` | 같은 파일의 `callTool` |
+| 지원하지 않는 핸드셰이크 버전 | 알 수 없는 버전의 `initialize`에는 `2025-11-25`로 답하고, 이후 호출에서 알 수 없는 `MCP-Protocol-Version`이 오면 지원 목록과 함께 `400`으로 답합니다 | 핸드셰이크 거부 | `agent-mcp.ts` | 같은 파일의 `createMcpHandler` |
+| 서버 이름과 버전 | `find-me-a-time` 1.0.0, 제목은 "Find Me a Time"입니다 | 패키지 버전 | `agent-mcp.ts` | 같은 파일의 `SERVER_INFO` |
 
 ## 6단계 — `host-imessage-channel`
 

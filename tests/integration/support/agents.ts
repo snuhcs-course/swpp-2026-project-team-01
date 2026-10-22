@@ -163,3 +163,98 @@ export async function connectHost(
 export function grantIdOf(accessToken: string) {
   return (JSON.parse(Buffer.from(accessToken.split(".")[1]!, "base64url").toString()) as { grant_id: string }).grant_id;
 }
+
+// ---------------------------------------------------------------------------
+// Tokens without the browser, and MCP calls
+
+export async function issueToken(
+  deps: AgentTestDependencies,
+  grant: {
+    readonly role: "host" | "requester";
+    readonly hostAccountId: string;
+    readonly requestId?: string | null;
+    readonly bootstrap?: boolean;
+    readonly scopes: readonly string[];
+    readonly resource: string;
+  },
+) {
+  const { resolveClient } = await import("../../../lib/server/agent-clients");
+  const { createGrantWithCode } = await import("../../../lib/server/agent-grants");
+  const client = await resolveClient(deps, "fmat-cli", [ORIGIN]);
+  const { challenge, verifier } = pkce();
+  const redirectUri = "http://127.0.0.1:53682/callback";
+  const { code } = await deps.db.begin((tx) =>
+    createGrantWithCode(
+      tx,
+      {
+        bootstrap: grant.bootstrap ?? false,
+        clientId: client.id,
+        hostAccountId: grant.hostAccountId,
+        requestId: grant.requestId ?? null,
+        resource: grant.resource,
+        role: grant.role,
+        scopes: grant.scopes as never,
+        sourceHash: `test-${randomBytes(8).toString("hex")}`,
+      },
+      { codeChallenge: challenge, redirectUri },
+    ),
+  );
+  const response = await exchange(deps, { clientId: client.id, redirectUri, resource: grant.resource, scope: grant.scopes.join(" "), state: "", verifier }, code);
+  if (response.status !== 200) throw new Error(`Token exchange failed: ${await response.text()}`);
+  return (await response.json()) as Tokens;
+}
+
+let rpcId = 0;
+
+export type McpCall = {
+  readonly token?: string;
+  readonly method: string;
+  readonly params?: Record<string, unknown>;
+  // modern (2026-07-28 with _meta and headers) or a legacy version header.
+  readonly era?: "modern" | "2025-11-25" | "2025-06-18" | "2025-03-26";
+  readonly headers?: Record<string, string>;
+  readonly notification?: boolean;
+};
+
+export function mcpRequest(path: string, call: McpCall) {
+  const era = call.era ?? "modern";
+  const params =
+    era === "modern"
+      ? {
+          ...call.params,
+          _meta: { "io.modelcontextprotocol/clientCapabilities": {}, "io.modelcontextprotocol/clientInfo": { name: "test", version: "1" }, "io.modelcontextprotocol/protocolVersion": "2026-07-28" },
+        }
+      : call.params;
+  const headers: Record<string, string> = {
+    accept: "application/json, text/event-stream",
+    "content-type": "application/json",
+    ...(call.token ? { authorization: `Bearer ${call.token}` } : {}),
+    ...(era === "modern"
+      ? { "mcp-method": call.method, "mcp-protocol-version": "2026-07-28", ...(call.method === "tools/call" ? { "mcp-name": String(call.params?.name) } : {}) }
+      : era === "2025-03-26"
+        ? {}
+        : { "mcp-protocol-version": era }),
+    ...call.headers,
+  };
+  rpcId += 1;
+  return new Request(`${ORIGIN}${path}`, {
+    body: JSON.stringify({ jsonrpc: "2.0", method: call.method, ...(call.notification ? {} : { id: rpcId }), ...(params ? { params } : {}) }),
+    headers,
+    method: "POST",
+  });
+}
+
+export type ToolCallResult = { isError: boolean; structuredContent: Record<string, unknown> & { error?: { category: string; nextAction: string } } };
+
+export async function callTool(
+  handler: (request: Request, context?: { params: Promise<{ handle: string }> }) => Promise<Response>,
+  path: string,
+  token: string,
+  name: string,
+  args: Record<string, unknown> = {},
+  handle?: string,
+) {
+  const response = await handler(mcpRequest(path, { method: "tools/call", params: { arguments: args, name }, token }), handle ? { params: Promise.resolve({ handle }) } : undefined);
+  if (response.status !== 200) throw new Error(`tools/call ${name} answered ${response.status}: ${await response.text()}`);
+  return ((await response.json()) as { result: ToolCallResult }).result;
+}
