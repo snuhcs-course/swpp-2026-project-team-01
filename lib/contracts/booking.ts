@@ -64,3 +64,12 @@ export const BOOKING_STATUS_TEXT: Readonly<Record<BookingState, { readonly en: s
   failed: { en: "Booking did not go through.", ko: "예약이 완료되지 않았습니다." },
   reserved: { en: "Booking in progress.", ko: "예약 진행 중입니다." },
 };
+
+// One person on a receipt: "Name <address>", or the address alone when there is
+// no name or the name is the address itself (Google returns no display name for
+// a primary calendar's owner).
+export function personLine(name: string | null, email: string | null) {
+  const trimmed = name?.trim() || null;
+  if (!email) return trimmed ?? "";
+  return trimmed && trimmed.toLowerCase() !== email.toLowerCase() ? `${trimmed} <${email}>` : email;
+}
