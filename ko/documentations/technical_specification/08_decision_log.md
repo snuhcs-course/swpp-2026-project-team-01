@@ -129,16 +129,16 @@
 | 하나의 커밋으로 낸 B 레인 | B 레인 계획 항목 세 개를 하나의 커밋으로 냈습니다. 예약, 발송, 대조가 하나의 모듈이자 하나의 작업이기 때문이며, 이 커밋에는 평가 작업이 가져다 쓰는 A 레인의 공유 변경과 예외용 서버 모듈, 그리고 새 논의 키가 요구하는 호스트 논의의 요청 범위도 들어 있습니다 | 반쪽을 스텁으로 둔 커밋 세 개 | 이 기록; 커밋 메시지 | 이후 변경에서 필요하면 모듈을 나눔 |
 | 하나의 커밋으로 낸 A 레인 카드 | 선택 카드와 전환, 제안서 카드와 제안 카드, 규칙 및 이동 검토를 함께 냈습니다. 하나의 화면, 하나의 카드 모듈, 하나의 브라우저 테스트를 공유하기 때문입니다 | 커밋 세 개 | 이 기록 | — |
 | 이벤트 생성에 따른 참조 | OpenInstinct `agent/lib/google-workspace/calendar.ts` `0c2a7c6e`: 32자리 16진수 이벤트 ID, 참석자가 있을 때 `sendUpdates: "all"`, `409`는 `events.get`으로 다시 읽기 | Google이 지정하는 ID | 풀 리퀘스트 | — |
+| 검토 우회 | PR #30은 2026-10-22에 사용자의 요청으로 CI가 통과한(7개 중 7개) 뒤 팀원 승인 없이 `--admin`으로 squash 병합했습니다 | 승인을 기다림 | squash 커밋 메시지 | 팀원이 나중에 [제안서](../../openspec/changes/host-review-and-booking/proposal.md#decisions)와 이 기록을 기준으로 검토 |
+| 마이그레이션 경로 | `20261022021159_host_review_and_booking.sql`을 2026-10-22에 `anelszynxtvxoxqvzgqt`에 `supabase db push --linked`로 푸시했으며, 이것만 나열한 드라이 런 뒤 사용자의 요청으로 이를 필요로 하는 배포보다 먼저 실행했습니다. 이제 마이그레이션 22개가 적용되어 있습니다 | 시크릿이 아직 설정되지 않은 `Deploy shared Supabase` 워크플로 | [인수 기록](07_acceptance_record.md#phase-4--host-review-and-booking) | 이후 마이그레이션이 CI를 거치도록 워크플로의 저장소 시크릿을 설정 |
+| 프로덕션 배포 | `708381cb`의 `origin/main` 깨끗한 체크아웃에서 `findmeatime-release`에 연결해 `npm ci`(`vercel.ts` 컴파일에는 `eve` 설치가 필요함) 뒤 `vercel deploy --prod` | Git 연동 배포(구성되지 않음) | 인수 기록 | 3단계와 같음 |
 
 ### 사용자 대기 항목
 
 다음 단계는 되돌려도 취소할 수 없거나, 제공자 콘솔이 필요하거나, 팀 밖의 사람에게 발송되기 때문에 수행하지 않았습니다.
 
-- **공유 프로젝트 마이그레이션:** `20261022021159_host_review_and_booking.sql`은 `anelszynxtvxoxqvzgqt`에 없습니다. 먼저 드라이런을 보여 준 뒤, 사용자의 승인을 받아 배포 워크플로나 `supabase db push --linked`로 적용해야 합니다. 3단계를 포함한 이전 마이그레이션 21개는 이미 그곳에 적용되어 있으므로(인수 기록, 3단계) 대기 중인 것은 이것 하나뿐입니다. 이 브랜치를 배포하기 전에 푸시해야 합니다.
-- **프로덕션 배포:** 병합된 뒤 이 브랜치의 배포.
-- **통제된 Google Calendar 증거:** 팀이 통제하는 Google Calendar의 예약. `sendUpdates=all`은 Google이 참석자에게 이메일을 보내게 하므로 요청자 주소는 팀 받은편지함이어야 합니다.
+- **통제된 Google Calendar 증거:** 팀이 통제하는 Google Calendar의 예약. `https://findmeatime.com`에서 Google로 로그인한 호스트가 필요하며 이는 계정 소유자만 할 수 있습니다. 마이그레이션과 배포는 완료되었습니다. `sendUpdates=all`은 Google이 참석자에게 이메일을 보내게 하므로 요청자 주소는 팀 받은편지함이어야 합니다.
 - **통제된 받은편지함 증거:** 팀 받은편지함에서의 확인 사본 두 개와 상태 이메일 하나, `text/calendar` 첨부 파일이 Gmail과 Outlook에서 초대로 보이는지 포함.
-- **병합:** 풀 리퀘스트에는 팀원의 승인이 필요하며, 관리자 우회는 사용하지 않았습니다.
 - **팀원 검토:** D1–D12와 구현 결정에 대한 검토, 이어서 변경의 `openspec archive`.
 
 ## 5단계 — `agent-access`

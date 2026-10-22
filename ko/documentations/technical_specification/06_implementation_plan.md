@@ -213,7 +213,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **합류**
 
-- [ ] 레인 A의 승인이 레인 B를 디스패치하고, 그 확정된 이벤트가 레인 C를 구동합니다. 통제된 Google Calendar와 받은편지함을 대상으로 4단계 증거 목록을 종단 간 실행합니다. 열림: 통제된 Google Calendar와 받은편지함에는 공유 프로젝트 마이그레이션과 프로덕션 배포(작업 7.1, 7.2)가 필요하며, 픽스처와 로컬 여정은 통과합니다.
+- [ ] 레인 A의 승인이 레인 B를 디스패치하고, 그 확정된 이벤트가 레인 C를 구동합니다. 통제된 Google Calendar와 받은편지함을 대상으로 4단계 증거 목록을 종단 간 실행합니다. 열림: 통제된 Google Calendar와 받은편지함 확인(작업 7.2)에는 프로덕션에 로그인한 호스트가 필요하며, 마이그레이션과 배포는 완료되었고(작업 7.1) 픽스처와 로컬 여정은 통과합니다.
 
 명세: [meeting-requests](../../openspec/specs/meeting-requests/spec.md)(불변 제안, 종료 가드, 대상 프로젝션), [meeting-feasibility](../../openspec/specs/meeting-feasibility/spec.md)(재검증 중 마감 시간, 예외), [email-delivery](../../openspec/specs/email-delivery/spec.md)(상태 알림, 확인 메시지), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), [application-commands](../../openspec/specs/application-commands/spec.md). 또한 요청 탐색과 받은편지함 진입을 위해 [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md), 별도의 논의 대상을 위해 [conversation-access](../../openspec/specs/conversation-access/spec.md)도 참조하며, 둘 다 기반 변경이 여기로 미룬 것입니다.
 

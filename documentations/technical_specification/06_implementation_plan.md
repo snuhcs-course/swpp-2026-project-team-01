@@ -211,7 +211,7 @@ Scope. Prerequisite: Phase 3 joined for a real awaiting-approval request; Lanes 
 
 **Join**
 
-- [ ] Approval from Lane A dispatches Lane B, whose confirmed event drives Lane C; run the Phase 4 evidence list end to end against a controlled Google Calendar and inbox. Open: the controlled Google Calendar and inbox need the shared-project migration and a production deploy (tasks 7.1 and 7.2); fixtures and the local journey pass.
+- [ ] Approval from Lane A dispatches Lane B, whose confirmed event drives Lane C; run the Phase 4 evidence list end to end against a controlled Google Calendar and inbox. Open: the controlled Google Calendar and inbox check (task 7.2) needs a host signed in on production; the migration and the deploy are done (task 7.1), and fixtures and the local journey pass.
 
 Specs: [meeting-requests](../../openspec/specs/meeting-requests/spec.md) (immutable proposals, closure guards, audience projections), [meeting-feasibility](../../openspec/specs/meeting-feasibility/spec.md) (deadline during revalidation, exceptions), [email-delivery](../../openspec/specs/email-delivery/spec.md) (status notifications, confirmation message), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), [application-commands](../../openspec/specs/application-commands/spec.md). Also [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md) for request browsing and the inbox entry, and [conversation-access](../../openspec/specs/conversation-access/spec.md) for separate discussion audiences, both deferred here by the foundation change.
 

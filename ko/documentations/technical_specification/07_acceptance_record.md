@@ -2,7 +2,7 @@
 
 > 한국어 번역본 (검토용). 원본: documentations/technical_specification/07_acceptance_record.md
 
-상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 로컬 증거 기록됨, 프로덕션 증거 보류 중; 열린 공백은 아래에 나열
+상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 릴리스됨, 로컬 증거 기록됨, 프로덕션 인수 증거 보류 중; 열린 공백은 아래에 나열
 
 날짜: 2026-10-22
 
@@ -188,7 +188,7 @@
 
 ## 4단계 — `host-review-and-booking`
 
-변경: [`host-review-and-booking`](../../openspec/changes/host-review-and-booking/tasks.md). 증거 목록: [4단계](06_implementation_plan.md#phase-4--host-review-and-booking). 환경은 1단계와 같으며, 로컬 Google 대역은 `events.insert`와 `events.get`(고정 이벤트 ID, 중복 시 `409`, 생성 전후의 응답 유실)으로 확장되고 로컬 Cloudflare 대역은 `reply_to`와 첨부 파일을 기록합니다. 여기의 어느 것도 프로덕션에서 실행되지 않았습니다.
+변경: [`host-review-and-booking`](../../openspec/changes/host-review-and-booking/tasks.md). 증거 목록: [4단계](06_implementation_plan.md#phase-4--host-review-and-booking). 환경은 1단계와 같으며, 로컬 Google 대역은 `events.insert`와 `events.get`(고정 이벤트 ID, 중복 시 `409`, 생성 전후의 응답 유실)으로 확장되고 로컬 Cloudflare 대역은 `reply_to`와 첨부 파일을 기록합니다. 프로덕션에서 실행된 것은 아래의 릴리스 절차뿐입니다.
 
 ### 테스트 묶음 실행
 
@@ -217,9 +217,21 @@
 | AC-13 | `bookings.test.ts` "lets the requester withdraw a reserved booking", "refuses withdrawal and decline once dispatch may have begun", "declines with the requester's status email"(늦은 승인은 `request_closed`로 답함), "cancels a reserved booking whose request expired" |
 | 확인 일관성 | `booking-emails.test.ts` "sends each party a copy with the host's name, Reply-To the other party and the matching calendar part"; 두 언어와 캘린더 파트에 대한 `lib/server/booking-emails.test.ts` |
 
+### 프로덕션 배포
+
+2026-10-22에 구현 세션이 사용자의 요청으로 **production** 배포 `findmeatime-release`를 대상으로 실행했습니다.
+
+| 절차 | 리비전과 배포 | 명령 | 결과 |
+|---|---|---|---|
+| 푸시 전 공유 프로젝트 | `708381cb` | `supabase migration list --linked` 후 `supabase db push --linked --dry-run` | 1~3단계 마이그레이션 21개가 적용됨; `20261022021159_host_review_and_booking.sql`만 나열됨 |
+| 마이그레이션 | `708381cb` | `supabase db push --linked`, `supabase migration list --linked` | 적용됨; 22개가 나열되고 대기 중인 것은 없음 |
+| PR #30 병합(관리자 우회) | `708381cb` | `gh pr merge 30 --squash --admin` | CI 7개 중 7개가 통과한 뒤 병합됨 |
+| 배포 | `708381cb`, `dpl_7LXD9swHWQEXkBHC8LtX7adjMte3` | `origin/main`의 깨끗한 체크아웃에서 `vercel deploy --prod` | Ready; `findmeatime.com`과 `release.findmeatime.com`에 별칭 지정됨 |
+| 스모크 테스트 | `708381cb` | `/`, `/app`, `/app?view=requests`, `release.findmeatime.com/SKILL.md`, 알 수 없는 `/booking/{uuid}`, 로그아웃 상태의 `/api/host/requests`의 `curl` | 각 페이지 200; 호스트 요청 API는 세션이 없으면 401로 답함 |
+
 ### 알려진 공백
 
-- **통제된 Google Calendar와 받은편지함.** 팀이 통제하는 Google Calendar의 확정된 이벤트와, 팀이 통제하는 받은편지함에 캘린더 파트가 포함된 확인 메일이 보류 중입니다. 마이그레이션이 공유 프로젝트에 없고 프로덕션도 다시 배포되지 않았습니다(결정 기록의 "사용자 대기 항목").
+- **통제된 Google Calendar와 받은편지함.** 팀이 통제하는 Google Calendar의 확정된 이벤트와, 팀이 통제하는 받은편지함에 캘린더 파트가 포함된 확인 메일이 보류 중입니다. 릴리스는 끝났으며, 이 확인에는 프로덕션에서 Google로 로그인한 호스트가 필요합니다(결정 기록의 "사용자 대기 항목").
 - **Cloudflare 첨부 파일.** Cloudflare의 REST API가 전달한 `text/calendar` 첨부 파일을 Gmail과 Outlook이 초대로 처리하는지는 검증되지 않았습니다.
 - **알림**은 D3에 따라 미뤄졌습니다.
 

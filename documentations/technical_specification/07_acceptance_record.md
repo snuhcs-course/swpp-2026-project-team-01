@@ -1,6 +1,6 @@
 # Acceptance Record
 
-Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) local evidence recorded, production evidence pending; open gaps listed below
+Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) released, local evidence recorded, production acceptance evidence pending; open gaps listed below
 
 Date: 2026-10-22
 
@@ -186,7 +186,7 @@ The manual pushes repeat the exception from Phases 1 and 2: the user approved ea
 
 ## Phase 4 — `host-review-and-booking`
 
-Change: [`host-review-and-booking`](../../openspec/changes/host-review-and-booking/tasks.md). Evidence list: [Phase 4](06_implementation_plan.md#phase-4--host-review-and-booking). Environments as in Phase 1, with the local Google stand-in extended to `events.insert` and `events.get` (fixed event IDs, `409` on a duplicate, lost responses before and after creation) and the local Cloudflare stand-in recording `reply_to` and attachments. Nothing here ran against production.
+Change: [`host-review-and-booking`](../../openspec/changes/host-review-and-booking/tasks.md). Evidence list: [Phase 4](06_implementation_plan.md#phase-4--host-review-and-booking). Environments as in Phase 1, with the local Google stand-in extended to `events.insert` and `events.get` (fixed event IDs, `409` on a duplicate, lost responses before and after creation) and the local Cloudflare stand-in recording `reply_to` and attachments. Only the release steps below ran against production.
 
 ### Suite runs
 
@@ -215,9 +215,21 @@ Fixture and local-stack evidence only; each names the test that shows it.
 | AC-13 | `bookings.test.ts` "lets the requester withdraw a reserved booking", "refuses withdrawal and decline once dispatch may have begun", "declines with the requester's status email" (a late approval answers `request_closed`), "cancels a reserved booking whose request expired" |
 | Confirmation consistency | `booking-emails.test.ts` "sends each party a copy with the host's name, Reply-To the other party and the matching calendar part"; `lib/server/booking-emails.test.ts` for both languages and the calendar part |
 
+### Production deployment
+
+Run by the implementing session on 2026-10-22, at the user's request, against the **production** deployment `findmeatime-release`.
+
+| Step | Revision and deployment | Command | Result |
+|---|---|---|---|
+| Shared project before the push | `708381cb` | `supabase migration list --linked`, then `supabase db push --linked --dry-run` | The 21 Phase 1 to 3 migrations applied; only `20261022021159_host_review_and_booking.sql` listed |
+| Migration | `708381cb` | `supabase db push --linked`, `supabase migration list --linked` | Applied; 22 listed, none pending |
+| PR #30 merged (admin bypass) | `708381cb` | `gh pr merge 30 --squash --admin` | Merged after CI passed 7 of 7 |
+| Deployment | `708381cb`, `dpl_7LXD9swHWQEXkBHC8LtX7adjMte3` | `vercel deploy --prod` from a clean checkout of `origin/main` | Ready; aliased to `findmeatime.com` and `release.findmeatime.com` |
+| Smoke test | `708381cb` | `curl` of `/`, `/app`, `/app?view=requests`, `release.findmeatime.com/SKILL.md`, an unknown `/booking/{uuid}`, and `/api/host/requests` signed out | 200 for each page; the host requests API answers 401 without a session |
+
 ### Known gaps
 
-- **Controlled Google Calendar and inbox.** A confirmed event in a team-controlled Google Calendar and its confirmation, with the calendar part, in a team-controlled inbox are pending: the migration is not on the shared project and production is not redeployed (decision log, "Blocked on the user").
+- **Controlled Google Calendar and inbox.** A confirmed event in a team-controlled Google Calendar and its confirmation, with the calendar part, in a team-controlled inbox are pending. The release is done; the check needs a host signed in with Google on production (decision log, "Blocked on the user").
 - **Cloudflare attachments.** Whether Cloudflare's REST API delivers a `text/calendar` attachment that Gmail and Outlook treat as an invitation is unverified.
 - **Reminders** are deferred by D3.
 
