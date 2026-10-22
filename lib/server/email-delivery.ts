@@ -199,6 +199,38 @@ async function recipientCurrent(tx: Transaction, delivery: DeliveryRow) {
   }
 }
 
+// Whether a status notice of this kind and parameters is still current for the
+// request, as its email would be checked at dispatch: the thread copy of a
+// notice (requester-email-channel design 7) is suppressed under the same rule.
+export async function noticeStillCurrent(
+  tx: Transaction,
+  kind: EmailKind,
+  requestId: string,
+  parameters: EmailParameters,
+) {
+  const [request] = await tx<{ contact_email: string | null }[]>`
+    select contact_email from app.requests where id = ${requestId}
+  `;
+  if (!request?.contact_email) return false;
+
+  return recipientCurrent(tx, {
+    attachments: [],
+    dispatch_id: "",
+    id: "",
+    kind,
+    language: "en",
+    parameters,
+    recipients: [request.contact_email],
+    reply_to: null,
+    request_id: requestId,
+    secret_ciphertext: null,
+    secret_key_id: null,
+    sender: "",
+    state: "queued",
+    template: kind,
+  });
+}
+
 // Records a final state and deletes the sealed secrets in the same write.
 async function finish(
   tx: Transaction | Database,

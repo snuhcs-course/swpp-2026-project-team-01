@@ -4,13 +4,13 @@ import { messageFingerprint } from "./internal-bearer";
 // Credential redaction for conversation input (design decision 14). Before a
 // message is persisted or reaches the runtime, recognized credentials are
 // replaced with a visible marker: Bearer values, `LINK <UUID> <proof>` linking
-// proofs, URL parameters or fragments whose percent-decoded, case-folded name is
-// a credential name or ends in _token, and booking or confirmation links (with or
-// without an origin), because the booking UUID is the requester's only
-// credential. Requester input (`bareUuids`) also loses any bare UUID,
-// which could be a booking identifier pasted without its link; host input keeps
-// them. Ordinary prose and links keep their content. Redaction confers no
-// authority: nothing here follows or redeems a link.
+// proofs, Continue by email link codes, URL parameters or fragments whose
+// percent-decoded, case-folded name is a credential name or ends in _token, and
+// booking or confirmation links (with or without an origin), because the booking
+// UUID is the requester's only credential. Requester input (`bareUuids`) also
+// loses any bare UUID, which could be a booking identifier pasted without its
+// link; host input keeps them. Ordinary prose and links keep their content.
+// Redaction confers no authority: nothing here follows or redeems a link.
 
 export const REMOVED_CREDENTIAL = "[removed credential]";
 
@@ -41,6 +41,8 @@ const BOOKING_LINK = new RegExp(
 // prose such as "bearer of good news" stays.
 const BEARER = /\b(Bearer)\s+(?=[A-Za-z0-9\-._~+/]*[0-9\-._~+/])[A-Za-z0-9\-._~+/]{8,}=*/gi;
 const LINK_PROOF = new RegExp(String.raw`\bLINK\s+${UUID}\s+\S+`, "gi");
+// A Continue by email link code (requester-email-channel D7).
+export const LINK_CODE = /\bFMAT-[0-9A-HJKMNP-TV-Z]{10}\b/gi;
 const BARE_UUID = new RegExp(`(?<![0-9a-z-])${UUID}(?![0-9a-z])`, "gi");
 // A parameter: its separator (?, &, # or ;, possibly percent-encoded), its name,
 // its = (possibly percent-encoded) and its value up to the next separator.
@@ -95,6 +97,7 @@ export function redactCredentials(text: string, options: RedactionOptions = {}) 
   const redacted = text
     .replace(BOOKING_LINK, REMOVED_CREDENTIAL)
     .replace(LINK_PROOF, REMOVED_CREDENTIAL)
+    .replace(LINK_CODE, REMOVED_CREDENTIAL)
     .replace(BEARER, (_match, word: string) => `${word} ${REMOVED_CREDENTIAL}`);
   return redactParameters(options.bareUuids ? redacted.replace(BARE_UUID, REMOVED_CREDENTIAL) : redacted);
 }

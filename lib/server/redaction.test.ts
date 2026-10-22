@@ -19,6 +19,12 @@ describe("credential redaction", () => {
     expect(redactCredentials("bearer abc123def456")).toBe(`bearer ${R}`);
   });
 
+  it("removes a Continue by email link code", () => {
+    expect(redactCredentials("My code is FMAT-0123456789, see you")).toBe(`My code is ${R}, see you`);
+    expect(redactCredentials("fmat-abcdefghjk")).toBe(R);
+    expect(redactCredentials("FMAT-SHORT")).toBe("FMAT-SHORT");
+  });
+
   it("removes a LINK proof", () => {
     expect(redactCredentials(`Please LINK ${uuid} 8f3k2-proof and book Friday`)).toBe(`Please ${R} and book Friday`);
     expect(redactCredentials(`link ${uuid.toUpperCase()} abcdef`)).toBe(R);

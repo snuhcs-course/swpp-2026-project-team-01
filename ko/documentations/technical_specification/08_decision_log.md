@@ -179,6 +179,16 @@
 | 수신 기록 식별 | 제공자의 `event_id`를 쓰고, 전달 ID와 메시지 ID도 각각 고유해야 합니다. 중복은 이벤트, 받은편지함, 스레드, 메시지, 페이로드 해시가 모두 일치해야 하므로, 두 번째 구독이 같은 이벤트를 전달해도 여전히 중복입니다 | 구독마다 달라지는 Svix ID를 키로 쓰기 | `email_receipts` 스키마 | `lib/server/agentmail-receiver.ts`의 `storeReceipt` |
 | 수신 기록 작업 시도 | 10회. 허용 구간이나 AgentMail 장애로 메시지가 최대 약 세 시간의 백오프만큼 지연된 뒤, 작업은 소진된 채 눈에 보이는 상태로 남습니다 | 기본값 5회 | `lib/server/agentmail-receiver.ts` | `EMAIL_RECEIPT_ATTEMPTS` |
 | 수신기 감사 | 수신기 행 자체에 각 수신기를 누가 어느 환경에서 등록하고 비활성화했는지 기록합니다. 등록은 받은편지함별 권고 잠금을 잡습니다 | 별도의 감사 테이블 | `email_receivers` 스키마; `app.operator_register_email_receiver` | 스키마와 새 마이그레이션 |
+| 전달 경로 | 수신 기록 작업은 수신 기록 ID를 클라이언트 입력 ID로 삼아 `acceptGuestMessage`를 거쳐 전달하므로, 웹과 똑같이 가림 처리, 허용, 세션 색인, 모델 한도가 적용되고 재시도된 작업은 같은 입력을 찾습니다 | 별도의 이메일 입력 경로 | `lib/server/email-receipts.ts` | 같은 파일의 `forward` |
+| 바인딩 먼저, 생성 먼저 | 이메일로 시작하면 메시지를 전달하기 전에 스레드별 권고 잠금 아래의 커밋된 트랜잭션 하나에서 생성, 식별, 바인딩을 마칩니다. 재시도는 `bound_by_receipt_id`로 자신의 바인딩을 알아봅니다 | 작업의 트랜잭션 안에서 요청 생성하기. 대화 경로의 자체 연결에서는 보이지 않습니다 | `email_threads` 스키마 | `lib/server/email-receipts.ts`의 `start` |
+| 이메일 요청 기본값 | 호스트의 시간대(설정되지 않았으면 UTC), 제목이나 본문에 한글이 있으면 한국어이고 없으면 영어입니다. 이름은 From 표시 이름이며 없으면 주소의 로컬 파트입니다 | 먼저 이메일로 시간대를 묻기 | 설계 3 | `lib/server/email-receipts.ts`의 `start`와 `messageLanguage` |
+| 첫 메시지 텍스트 | 추출한 새 텍스트 앞에 `Subject: …`와 빈 줄을 붙여, 제목의 의미가 어시스턴트에게 닿게 합니다 | 제목 버리기 | `lib/server/email-receipts.ts` | 같은 파일의 `forward` |
+| 턴 회신 시점 | 회신 작업은 전달 30초 뒤가 기한이며 턴이 실행되는 동안 재시도합니다. 턴이 끝나면 세션 소유자 훅이 앞당기고, 분당 스윕이 보냅니다. 12회 시도 뒤 대기 중인 회신은 억제됩니다 | 훅에서 직접 보내는 회신. 훅은 에이전트 서비스에서 실행되어 턴을 실패시킬 수 없습니다 | 설계 6 | `lib/server/email-replies.ts`의 `TURN_REPLY_DELAY_SECONDS`와 `REPLY_ATTEMPTS`; `agent/hooks/session-owner.ts` |
+| 회신 텍스트 | 도구 호출로 끝나지 않는 턴의 `message.completed` 텍스트를 이어 붙인 뒤, 이메일로 보낸 예약 링크를 안내하는 두 줄짜리 바닥글을 붙입니다. 최대 20,000자입니다 | 중간 메시지를 모두 스트리밍하기 | 설계 6 | `lib/server/email-replies.ts`의 `turnReplyText`와 `withFooter` |
+| 회신 응답 처리 | 메시지 ID가 있는 `200`은 수락, `409`(다른 텍스트에 키 재사용)는 즉시 불확실로 기록, `429`, `5xx`, 시간 초과, 유실된 응답은 같은 키로 재시도, 그 밖의 `4xx`는 거부됩니다 | `429`를 거부로 처리하기 | `lib/server/agentmail.ts` | 같은 파일의 `classifyReplyResponse` |
+| 관문 위치 | 두 이메일 작업 모두 수신 기록이나 회신을 읽기 전에, 그리고 작업자의 클레임과 모든 전송 호출에서도 메시지 허용 여부를 확인합니다 | 전송에서만 확인하기 | `lib/server/email-receipts.ts`, `lib/server/email-replies.ts` | 핸들러 |
+| 텍스트의 링크 코드 | 가림 처리는 호스트와 요청자를 가리지 않고 모든 대화 입력에서 `FMAT-` 코드를 제거합니다 | 이메일에서만 가리기 | `lib/server/redaction.ts` | 같은 파일의 `LINK_CODE` |
+| 지침 | 요청자 지침 한 줄: 이메일 회신에는 카드가 보이지 않으므로, 어시스턴트는 카드를 이름으로 부르고 예약 페이지에 있다고 알리며 링크는 절대 쓰지 않습니다 | 별도의 이메일 대상 | `agent/instructions/requester.ts` | 해당 조각 |
 
 ### 사용자 대기 항목
 

@@ -74,7 +74,7 @@ export type StartRequestInput = z.infer<typeof startRequestInput>;
 
 export type StartRequestResult = { readonly requestId: string };
 
-async function admitCreation(tx: Transaction, sourceHash: string, limits: CreationLimits) {
+export async function admitCreation(tx: Transaction, sourceHash: string, limits: CreationLimits = CREATION_LIMITS) {
   await tx`select pg_advisory_xact_lock(hashtextextended(${`app.request_creation_source:${sourceHash}`}, 0))`;
   await tx`select pg_advisory_xact_lock(hashtextextended('app.request_creation_service', 0))`;
 
@@ -110,42 +110,65 @@ export function startRequestCommand(options: {
 
       await admitCreation(tx, options.sourceHash, limits);
 
-      const requestId = randomUUID();
-      const bookingId = randomUUID();
-      const details: RequestDetails = {
-        durationMinutes: null,
+      return createDraftRequest(tx, {
+        hostAccountId: context.resourceId,
         language: context.input.language,
-        linkPlan: null,
-        location: null,
-        mode: null,
-        purpose: null,
+        sourceHash: options.sourceHash,
         timezone: context.input.timezone,
-        travelMode: null,
-        windows: [],
-      };
-
-      await tx`
-        insert into app.requests (id, host_account_id, state, details, expires_at)
-        values (${requestId}, ${context.resourceId}, 'draft', ${tx.json(details as unknown as Parameters<typeof tx.json>[0])},
-                now() + make_interval(hours => ${DRAFT_LIMITS.lifetimeHours}))
-      `;
-      const sealed = sealBookingLink(options.tokenKey, requestId, bookingId);
-      await tx`
-        insert into app.booking_links (request_id, link_hash, link_ciphertext, link_key_id)
-        values (${requestId}, ${hashBookingId(bookingId)}, ${sealed.ciphertext}, ${sealed.keyId})
-      `;
-      await tx`
-        insert into app.discussions (principal_type, principal_id, audience)
-        values ('requester_request', ${requestId}, 'requester')
-      `;
-      await tx`
-        insert into app.request_creations (source_hash, host_account_id)
-        values (${options.sourceHash}, ${context.resourceId})
-      `;
-
-      return { requestId };
+        tokenKey: options.tokenKey,
+      });
     },
   };
+}
+
+// Writes a draft request, its hashed and sealed booking link, its requester
+// discussion and the creation record, in the caller's transaction, after the
+// caller checked the host and the creation bounds: request.start, and an email
+// that starts a request (requester-email-channel design 3).
+export async function createDraftRequest(
+  tx: Transaction,
+  draft: {
+    readonly hostAccountId: string;
+    readonly language: RequestLanguage;
+    readonly timezone: string;
+    readonly sourceHash: string;
+    readonly tokenKey: TokenKey;
+  },
+): Promise<StartRequestResult> {
+  const requestId = randomUUID();
+  const bookingId = randomUUID();
+  const details: RequestDetails = {
+    durationMinutes: null,
+    language: draft.language,
+    linkPlan: null,
+    location: null,
+    mode: null,
+    purpose: null,
+    timezone: draft.timezone,
+    travelMode: null,
+    windows: [],
+  };
+
+  await tx`
+    insert into app.requests (id, host_account_id, state, details, expires_at)
+    values (${requestId}, ${draft.hostAccountId}, 'draft', ${tx.json(details as unknown as Parameters<typeof tx.json>[0])},
+            now() + make_interval(hours => ${DRAFT_LIMITS.lifetimeHours}))
+  `;
+  const sealed = sealBookingLink(draft.tokenKey, requestId, bookingId);
+  await tx`
+    insert into app.booking_links (request_id, link_hash, link_ciphertext, link_key_id)
+    values (${requestId}, ${hashBookingId(bookingId)}, ${sealed.ciphertext}, ${sealed.keyId})
+  `;
+  await tx`
+    insert into app.discussions (principal_type, principal_id, audience)
+    values ('requester_request', ${requestId}, 'requester')
+  `;
+  await tx`
+    insert into app.request_creations (source_hash, host_account_id)
+    values (${draft.sourceHash}, ${draft.hostAccountId})
+  `;
+
+  return { requestId };
 }
 
 // ---------------------------------------------------------------------------

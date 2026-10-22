@@ -15,9 +15,9 @@ Before each group, read the [Phase 7 reference repository files](../../../docume
 
 ## 3. Thread binding and forwarding (Lane B)
 
-- [ ] 3.1 Add `email_threads`, `email_links` and `email_replies` and the AgentMail transport (get message, reply with `Idempotency-Key`) behind the messaging gate. Verify unit tests for the transport's outcome classification and the gate.
-- [ ] 3.2 Add the `email_receipt` job ([design 5](design.md#5-what-a-message-must-prove)): sender evidence, starting by email ([design 3](design.md#3-starting-by-email)), forwarding into the request's discussion, the closed, over-long and unknown-host replies. Verify integration tests for a start, a reply forwarded once across a retried job, a spoofed sender, a copied recipient, a closed request, a reply in an unbound thread, and an admission refusal that keeps the receipt pending.
-- [ ] 3.3 Add the `email_reply` job and the session-owner wake-up ([design 6](design.md#6-replies)). Verify integration tests against a real `eve dev` with the OpenAI stand-in for a reply with the turn's final text in the same thread, a lost response retried with the same key, the 23-hour horizon, and the fallback.
+- [x] 3.1 Add `email_threads`, `email_links` and `email_replies` and the AgentMail transport (get message, reply with `Idempotency-Key`) behind the messaging gate. Verify unit tests for the transport's outcome classification and the gate.
+- [x] 3.2 Add the `email_receipt` job ([design 5](design.md#5-what-a-message-must-prove)): sender evidence, starting by email ([design 3](design.md#3-starting-by-email)), forwarding into the request's discussion, the closed, over-long and unknown-host replies. Verify integration tests for a start, a reply forwarded once across a retried job, a spoofed sender, a copied recipient, a closed request, a reply in an unbound thread, and an admission refusal that keeps the receipt pending.
+- [x] 3.3 Add the `email_reply` job and the session-owner wake-up ([design 6](design.md#6-replies)). Verify integration tests, with the session's recorded events, for a reply with the turn's final text in the same thread, a lost response retried with the same key, the 23-hour horizon, a refusal, an unlinked thread and the fallback; the real `eve dev` run is task 5.1.
 
 ## 4. Linking and notices (Lane B)
 

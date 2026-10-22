@@ -308,7 +308,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **레인 B — 채널과 연동**
 
-- [ ] 스레드와 요청의 바인딩; 검증된 텍스트를 `request:{requestId}`로 전달하는 `channels/agentmail.ts`; 같은 스레드의 답장.
+- [x] 스레드와 요청의 바인딩; 검증된 텍스트를 `request:{requestId}`로 전달하는 `channels/agentmail.ts`; 같은 스레드의 답장.
 - [ ] 예약 페이지에서 **이메일 링크 확인(Check email link)**과 **이메일 연결 해제(Unlink email)**를 갖춘 **이메일로 계속(Continue by email)** 연동.
 - [ ] 이메일에서 시작된 요청에 대한 스레드 내 상태 알림.
 
