@@ -60,7 +60,7 @@ for (const width of [390, 1280]) {
     await page.getByRole("button", { name: "Allow" }).focus();
     await page.keyboard.press("Enter");
 
-    await expect.poll(() => returned.length).toBe(1);
+    await expect.poll(() => returned.length, { timeout: 20_000 }).toBe(1);
     const response = new URL(returned[0]!);
     expect(response.searchParams.get("code")).toBeTruthy();
     expect(response.searchParams.get("state")).toBe("browser-state");
@@ -73,12 +73,13 @@ for (const width of [390, 1280]) {
     await app.getByRole("button", { name: "Open menu" }).click();
     await app.getByRole("menuitem", { name: "Connected agents" }).click();
     const dialog = app.getByRole("dialog", { name: "Connected agents" });
-    await expect(dialog.getByText("Browser Test Agent", { exact: true })).toBeVisible();
+    // The list route compiles on first use under next dev.
+    await expect(dialog.getByText("Browser Test Agent", { exact: true })).toBeVisible({ timeout: 20_000 });
     await expect(dialog.getByText("Can read, change.")).toBeVisible();
 
     await dialog.getByRole("button", { name: "Revoke Browser Test Agent" }).click();
     await dialog.getByRole("button", { name: "Revoke", exact: true }).click();
-    await expect(dialog.getByText(/No agents are connected/)).toBeVisible();
+    await expect(dialog.getByText(/No agents are connected/)).toBeVisible({ timeout: 20_000 });
   });
 }
 
@@ -94,7 +95,7 @@ test("a denied connection returns access_denied and connects nothing", async ({ 
 
   await startConsent(page, baseURL!, clientId);
   await page.getByRole("button", { name: "Deny" }).click();
-  await expect.poll(() => returned.length).toBe(1);
+  await expect.poll(() => returned.length, { timeout: 20_000 }).toBe(1);
   expect(new URL(returned[0]!).searchParams.get("error")).toBe("access_denied");
 });
 
@@ -116,7 +117,7 @@ test("a requester allows one new request without an account, by keyboard at 390p
 
   await page.getByRole("button", { name: "Allow" }).focus();
   await page.keyboard.press("Enter");
-  await expect.poll(() => returned.length).toBe(1);
+  await expect.poll(() => returned.length, { timeout: 20_000 }).toBe(1);
   expect(new URL(returned[0]!).searchParams.get("code")).toBeTruthy();
 
   const [grant] = await db<{ bootstrap: boolean; request_id: string | null }[]>`

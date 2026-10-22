@@ -122,7 +122,7 @@ export async function decide(
 
 export function tokenRequest(deps: AgentTestDependencies, form: Record<string, string>) {
   return createTokenHandler(() => deps)(
-    new Request(`${ORIGIN}/oauth/token`, {
+    new Request(`${deps.appOrigin}/oauth/token`, {
       body: new URLSearchParams(form).toString(),
       headers: { "content-type": "application/x-www-form-urlencoded" },
       method: "POST",
@@ -180,7 +180,7 @@ export async function issueToken(
 ) {
   const { resolveClient } = await import("../../../lib/server/agent-clients");
   const { createGrantWithCode } = await import("../../../lib/server/agent-grants");
-  const client = await resolveClient(deps, "fmat-cli", [ORIGIN]);
+  const client = await resolveClient(deps, "fmat-cli", [deps.appOrigin]);
   const { challenge, verifier } = pkce();
   const redirectUri = "http://127.0.0.1:53682/callback";
   const { code } = await deps.db.begin((tx) =>

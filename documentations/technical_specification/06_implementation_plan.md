@@ -252,7 +252,7 @@ Scope. Prerequisite: Phase 3 for requester operations and Phase 4 for host decis
 
 **Join**
 
-- [ ] Both skill prompts run through each named client in both roles; run the Phase 5 evidence list.
+- [ ] Both skill prompts run through each named client in both roles; run the Phase 5 evidence list. Open: a scripted MCP client and the CLI pass the local join on one request through booking (`tests/integration/agent-join.test.ts`); every named client still needs its run on production after the deploy (tasks 6.1 and 7.1, and the [per-client notes](09_agent_clients.md)).
 
 Specs: [agent-client-authorization](../../openspec/specs/agent-client-authorization/spec.md), [public-agent-entry](../../openspec/specs/public-agent-entry/spec.md), [application-commands](../../openspec/specs/application-commands/spec.md), plus the new requester-bootstrap delta.
 

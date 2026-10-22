@@ -201,6 +201,26 @@ The [proposal](../../openspec/changes/agent-access/proposal.md#decisions) record
 | Entry documents | Instruction version 3 names each role's MCP endpoint and permissions, the consent step, the requester's numbered steps and the unpublished CLI, and keeps the web continuation; the HTML agent sections say the same in one sentence | Keeping version 2's "not available yet" until a client passes | `entry-documents.ts`, `apps/web/app/page.tsx`, `apps/web/app/[handle]/page.tsx` | `hostEntryDocument` and `requesterEntryDocument` |
 | Per-client notes | A new technical document, `09_agent_clients.md`, holds each client's connection path to try and its results per role, "not yet run" until recorded | Rows in the acceptance record only | `09_agent_clients.md` | That document |
 
+### Operational decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Local join | The join ran locally with a scripted MCP client for the requester and the CLI for the host on one request, through the host's own approval and the booking job against the Google stand-in; no named client ran | Waiting for named clients before any join evidence | `tests/integration/agent-join.test.ts`; [acceptance record](07_acceptance_record.md#phase-5--agent-access) | Record each named client's run in [personal-agent clients](09_agent_clients.md) |
+| Shared local stack | Every worktree shares one local Supabase stack, so this branch's `supabase db reset --local` replaced other branches' tables until they reset again; noted for the parallel Phase 7 session | A separate stack per worktree | The session notes | Give each worktree its own `project_id` in `supabase/config.toml` locally |
+| Browser test waits | The agent-connect journeys wait up to 20 seconds for the agent's redirect and the Connected agents list, because `next dev` compiles those routes on first use and the shared machine ran at a load average near 68 | The default 5 seconds | `tests/e2e/agent-connect.test.ts` | Those expectations |
+
+### Blocked on the user
+
+These steps were not taken because they cannot be undone by a revert, need a provider console or a person's own account, or publish something:
+
+- **Shared-project migration:** `20261022132708_agent_access.sql` is not on `anelszynxtvxoxqvzgqt`. It follows Phase 4's `20261022021159_host_review_and_booking.sql`, which is also still pending there. Both need a shown dry run, then the deploy workflow or `supabase db push --linked` with the user's approval.
+- **Signing keys:** generate an `AGENT_TOKEN_SIGNING_KEY` for Production and another for Preview and set them on the Vercel project `findmeatime-release`. Until then the token endpoint reports unavailable configuration.
+- **Production deploy** of this branch once merged, after the migrations.
+- **Publishing the CLI:** `@findmeatime/cli` to npm, which also needs the package scope.
+- **Named-client runs:** Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code, each in both roles, under team members' own accounts on production, recorded in [personal-agent clients](09_agent_clients.md) and the acceptance record (AC-14, AC-15, AC-19 to AC-25). An unresolved client is a release blocker.
+- **Merge:** the pull request needs a teammate's approval; no admin bypass was used.
+- **Teammate review** of D1–D16 and the implementation decisions, then `openspec archive` of the change.
+
 ## Phase 6 — `host-imessage-channel`
 
 No decisions yet.

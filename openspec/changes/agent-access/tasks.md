@@ -30,7 +30,7 @@ Before each group, read the [Phase 5 reference repository files](../../../docume
 
 ## 6. Join
 
-- [ ] 6.1 Run both skill prompts through each named client in both roles and record the Phase 5 evidence list: AC-14, AC-15 and AC-19 to AC-25 for Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code. Locally, verify a scripted MCP client and the CLI on the same request against the local stack: consistent status and versions, one booking after a retried action, and no access after revocation.
+- [ ] 6.1 Run both skill prompts through each named client in both roles and record the Phase 5 evidence list: AC-14, AC-15 and AC-19 to AC-25 for Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code. Locally, verify a scripted MCP client and the CLI on the same request against the local stack: consistent status and versions, one booking after a retried action, and no access after revocation. Open: the local part passes (`tests/integration/agent-join.test.ts`); the named-client runs need the production deployment and team members' own client accounts (decision log, "Blocked on the user").
 
 ## 7. Release
 

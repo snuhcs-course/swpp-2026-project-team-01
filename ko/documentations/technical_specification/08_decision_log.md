@@ -203,6 +203,26 @@
 | 진입 문서 | 지침 버전 3은 각 역할의 MCP 엔드포인트와 권한, 동의 단계, 요청자의 번호 매긴 단계, 게시되지 않은 CLI를 명시하고 웹 이어가기를 유지하며, HTML 에이전트 섹션은 같은 내용을 한 문장으로 말합니다 | 클라이언트가 통과할 때까지 버전 2의 "아직 사용할 수 없음" 유지 | `entry-documents.ts`, `apps/web/app/page.tsx`, `apps/web/app/[handle]/page.tsx` | `hostEntryDocument`와 `requesterEntryDocument` |
 | 클라이언트별 메모 | 새 기술 문서 `09_agent_clients.md`는 각 클라이언트가 시도할 연결 경로와 역할별 결과를 담으며, 기록되기 전까지는 "아직 실행되지 않음"입니다 | 인수 기록의 행만 사용 | `09_agent_clients.md` | 해당 문서 |
 
+### 운영 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 로컬 합류 | 합류는 한 요청에서 요청자에는 스크립트된 MCP 클라이언트를, 호스트에는 CLI를 써서 호스트의 직접 승인과 Google 대역을 상대로 한 예약 작업까지 로컬에서 실행했으며, 명명된 클라이언트는 실행되지 않았습니다 | 합류 증거 전에 명명된 클라이언트를 기다림 | `tests/integration/agent-join.test.ts`; [인수 기록](07_acceptance_record.md#phase-5--agent-access) | 명명된 클라이언트별 실행을 [개인 에이전트 클라이언트](09_agent_clients.md)에 기록 |
+| 공유 로컬 스택 | 모든 워크트리가 하나의 로컬 Supabase 스택을 공유하므로, 이 브랜치의 `supabase db reset --local`이 다른 브랜치들이 다시 리셋하기 전까지 그 테이블을 대체했습니다; 병렬 7단계 세션을 위해 적어 둠 | 워크트리마다 별도 스택 | 세션 노트 | 로컬에서 `supabase/config.toml`의 `project_id`를 워크트리마다 따로 지정 |
+| 브라우저 테스트 대기 | agent-connect 여정은 에이전트의 리디렉션과 Connected agents 목록을 최대 20초 기다립니다. `next dev`가 그 라우트를 처음 쓸 때 컴파일하고 공유 기기의 부하 평균이 68 가까이였기 때문입니다 | 기본 5초 | `tests/e2e/agent-connect.test.ts` | 해당 기대식 |
+
+### 사용자 대기 항목
+
+다음 단계는 되돌려도 취소할 수 없거나, 제공자 콘솔이나 개인 계정이 필요하거나, 무언가를 게시하기 때문에 수행하지 않았습니다.
+
+- **공유 프로젝트 마이그레이션:** `20261022132708_agent_access.sql`은 `anelszynxtvxoxqvzgqt`에 없습니다. 이는 4단계의 `20261022021159_host_review_and_booking.sql` 다음이며, 그것도 아직 그곳에 대기 중입니다. 둘 다 드라이런을 보여 준 뒤, 사용자의 승인을 받아 배포 워크플로나 `supabase db push --linked`로 적용해야 합니다.
+- **서명 키:** Production용 `AGENT_TOKEN_SIGNING_KEY`와 Preview용 하나를 따로 생성해 Vercel 프로젝트 `findmeatime-release`에 설정합니다. 그때까지 토큰 엔드포인트는 구성 사용 불가를 보고합니다.
+- **프로덕션 배포:** 병합된 뒤 이 브랜치의 배포, 마이그레이션 다음에.
+- **CLI 게시:** `@findmeatime/cli`를 npm에 게시하며, 패키지 스코프도 필요합니다.
+- **명명된 클라이언트 실행:** Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code를 각각 두 역할로, 프로덕션에서 팀원 본인의 계정으로 실행하고 [개인 에이전트 클라이언트](09_agent_clients.md)와 인수 기록(AC-14, AC-15, AC-19 ~ AC-25)에 기록합니다. 해결되지 않은 클라이언트는 릴리스 차단 요인입니다.
+- **병합:** 풀 리퀘스트에는 팀원의 승인이 필요하며, 관리자 우회는 사용하지 않았습니다.
+- **팀원 검토:** D1–D16과 구현 결정에 대한 검토, 이어서 변경의 `openspec archive`.
+
 ## 6단계 — `host-imessage-channel`
 
 아직 결정이 없습니다.

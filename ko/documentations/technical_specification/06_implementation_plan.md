@@ -254,7 +254,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **합류**
 
-- [ ] 두 스킬 프롬프트를 명명된 각 클라이언트에서 두 역할로 실행하고, 5단계 증거 목록을 실행합니다.
+- [ ] 두 스킬 프롬프트를 명명된 각 클라이언트에서 두 역할로 실행하고, 5단계 증거 목록을 실행합니다. 열림: 스크립트된 MCP 클라이언트와 CLI는 한 요청에서 예약까지 로컬 합류를 통과합니다(`tests/integration/agent-join.test.ts`); 이름이 지정된 클라이언트는 모두 배포 뒤 프로덕션에서 각자 실행되어야 합니다(작업 6.1과 7.1, 그리고 [클라이언트별 메모](09_agent_clients.md)).
 
 명세: [agent-client-authorization](../../openspec/specs/agent-client-authorization/spec.md), [public-agent-entry](../../openspec/specs/public-agent-entry/spec.md), [application-commands](../../openspec/specs/application-commands/spec.md), 그리고 새로운 요청자 부트스트랩 델타.
 
