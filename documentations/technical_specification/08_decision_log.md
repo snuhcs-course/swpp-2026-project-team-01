@@ -196,6 +196,14 @@ The [proposal](../../openspec/changes/requester-email-channel/proposal.md#decisi
 | Thread notice copy | `enqueueStatusNotice` records one thread reply per notice and binding, from the email's template and parameters, replying to the binding's latest message, with the booking link sealed until dispatch; the confirmation email stays Cloudflare-only | Sending the confirmation into the thread too | Design 7 | `enqueueStatusNotice` in `lib/server/booking-notices.ts` |
 | Notice currency | A thread notice is checked at dispatch by the same rule as its email (`noticeStillCurrent`), and suppressed when its binding is no longer active | Checking only the binding | Design 7 | `noticeStillCurrent` in `lib/server/email-delivery.ts`; `createEmailReplyHandler` |
 
+### Operational decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Local stack | This branch's tests ran on a separate local Supabase stack (`project_id` `fmat-phase7`, ports 553xx, selected with `SUPABASE_WORKDIR` and `TEST_DATABASE_URL`), because the Phase 5 session shares the default local stack and a `db reset` with this branch's migrations would break its runs | Resetting the shared default stack | This log; the acceptance record | — (local only) |
+| References followed | eve memory agent template at `7fa24384`: `agent/lib/integrations/slack/{channel,identity}.ts` with their tests and `agent/lib/testing/slack.ts` (identity resolved in application code before any turn, unverified or self-authored messages dropped with no fallback principal, typed fixtures for tests). eve chat template at `3c25e62d`: `agent/channels/slack.ts` (a one-file default-export channel) | — | The pull request | — |
+| Lane A test fix | The Lane A pgTAP test, written before the receivers' `environment` column, was fixed in the first Lane B commit | Amending the Lane A commit, which rewrites history | The Lane B commit message | — |
+
 ### Blocked on the user
 
 These steps were not taken because they cannot be undone by a revert, need a provider console, or send to people outside the team:

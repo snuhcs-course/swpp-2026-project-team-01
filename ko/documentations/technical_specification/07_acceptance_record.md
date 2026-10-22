@@ -2,7 +2,7 @@
 
 > 한국어 번역본 (검토용). 원본: documentations/technical_specification/07_acceptance_record.md
 
-상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 로컬 증거 기록됨, 프로덕션 증거 보류 중; 열린 공백은 아래에 나열
+상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 로컬 증거 기록됨, 프로덕션 증거 보류 중; 7단계(`requester-email-channel`) 로컬 증거 기록됨, 받은편지함과 프로덕션 증거 보류 중; 열린 공백은 아래에 나열
 
 날짜: 2026-10-22
 
@@ -223,3 +223,39 @@
 - **Cloudflare 첨부 파일.** Cloudflare의 REST API가 전달한 `text/calendar` 첨부 파일을 Gmail과 Outlook이 초대로 처리하는지는 검증되지 않았습니다.
 - **알림**은 D3에 따라 미뤄졌습니다.
 
+## 7단계 — `requester-email-channel`
+
+변경: [`requester-email-channel`](../../openspec/changes/requester-email-channel/tasks.md). 증거 목록: [7단계](06_implementation_plan.md#phase-7--requester-email-channel). 환경은 1단계와 같으나, 병렬로 진행된 5단계 세션의 스택을 초기화하지 않도록 로컬 스택은 별도의 것(`project_id` `fmat-phase7`, 포트 553xx)이었고([결정 기록](08_decision_log.md#phase-7--requester-email-channel)), 로컬 AgentMail 스탠드인(`tests/integration/support/fake-agentmail.ts`)이 메시지 API를 제공하고 답장을 기록하며 `Idempotency-Key`를 따랐습니다. 받은편지함은 존재하지 않으며 AgentMail이나 프로덕션을 상대로 실행된 것은 없습니다.
+
+### 테스트 묶음 실행
+
+| 명령 | 날짜 | 리비전 | 환경 | 결과 |
+|---|---|---|---|---|
+| `supabase db reset --local` 후 선언적 동기화 | 2026-10-22 | `aef1a9e8` | 별도 로컬 스택 | `20261022132547_email_ingress.sql`과 `20261022133116_email_threads.sql`로 체인이 다시 구축됨; 동기화가 추가 마이그레이션을 생성하지 않음 |
+| `supabase test db` | 2026-10-22 | `aef1a9e8` | 별도 로컬 스택 | 파일 7개, pgTAP 테스트 103개 통과, `email_channel.test.sql` 포함 |
+| `npm test` | 2026-10-22 | `aef1a9e8` | 로컬 | 테스트 429개 통과(파일 43개) |
+| `npm run test:integration` | 2026-10-22 | `aef1a9e8` | 별도 로컬 스택 | 538개 중 535개 통과(파일 52개); 실패 3개는 `email-receiver.test.ts`가 이전 실행의 수신 기록이 남은 데이터베이스에서 고정된 Svix ID를 재사용했기 때문입니다. 고유 ID를 쓰면 이 파일은 통과합니다(테스트 9개) |
+| `npm run test:e2e` | 2026-10-22 | `aef1a9e8` | 별도 로컬 스택 | Playwright 테스트 38개 중 37개가 처음에 통과했으며 390 및 1280 픽셀의 `email-link.test.ts`도 포함됩니다; 1280 픽셀의 3단계 요청자 여정은 4단계에 기록된 대로 병렬 실행 중 신원 제목 포커스를 놓쳤고 재시도에서 통과했습니다. 앞선 전체 실행에서는 다른 묶음이 페이지를 컴파일하는 동안 카드가 첫 대기 시간을 더 길게 요구한다는 점과, 공개 페이지의 이메일 줄이 호스트의 핸들 텍스트를 되풀이한다는 점이 드러났고 둘 다 고쳤습니다 |
+| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-22 | `aef1a9e8` | 로컬 | 통과; lint는 이 변경 이전부터 있던 경고만 보고함 |
+
+### 항목별 증거
+
+픽스처와 로컬 스택 증거뿐이며, 각 항목은 이를 보여 주는 테스트를 명시합니다.
+
+| 항목 | 증거 |
+|---|---|
+| 서명되고 중복이 제거된 수신 | `tests/integration/email-receiver.test.ts`: `204` 전에 수신 기록 하나와 작업 하나; 동시 전달 네 건과 응답 유실 후 재시도는 하나로 정리됨; 다른 증거로 재사용된 이벤트, 메시지, 전달은 `409`로 답하고 아무것도 바꾸지 않음; 비활성, 교체됨, 알 수 없음, 키가 바뀐 수신기와 잘못되었거나 오래된 서명은 아무것도 저장하지 않음; 수신 기록에는 본문, 발신자, 제목이 없음. `tests/integration/eve-surface.test.ts`는 빌드된 에이전트 서비스에서 서명되지 않은 경로를 거부함 |
+| 이메일로 시작 | `tests/integration/email-journey.test.ts` "is answered in the thread, continues at the booking link in the same session, and hears the decline": 서명된 웹훅이 `eve dev` 채널 경로에 도달하고, 발신자를 확인되지 않은 연락처로 하는 요청과 생성 이메일이 만들어지며, 턴이 eve에서 실행되고, 세션 소유자 훅이 답장을 발송 대상으로 만들며, 답장은 같은 스레드에 그 턴의 텍스트를 담음 |
+| AC-05 | 같은 테스트: 이전 메시지의 "option 2"를 고르는 이메일은 합의를 기록하지 않고 두 번째 요청도 만들지 않으며, 답장은 예약 페이지로 안내함 |
+| AC-11 | 같은 테스트: 확정 후 예약 페이지 메시지는 이메일 메시지를 처리한 하나의 세션에 도달함. "links a thread and continues the same conversation by email"은 반대 방향을 다루며, 연결 코드는 모델에 도달하지 않음 |
+| 발신자 진위와 전달된 링크(D3, D5) | `tests/integration/email-threads.test.ts`(위조, 스팸 라벨, 자체 받은편지함, 복사된 수신자 메시지는 아무것도 전달하지 않음)와 `tests/integration/email-links.test.ts`(전달됨, 인증되지 않음, 스레드 내 코드는 코드를 무효화함) |
+| 답장(D8) | `email-threads.test.ts` "retries a lost response with the same key and sends one email", "records uncertain without sending once the retry horizon passed", "records a refusal as rejected", "is refused before any provider call in a preview" |
+| 이메일로 계속 | `email-links.test.ts`; 390 및 1280 픽셀에서 키보드로 진행한 `tests/e2e/email-link.test.ts` |
+| 스레드 알림 | `tests/integration/email-notices.test.ts` |
+| 보존(D4) | `supabase/tests/email_channel.test.sql` |
+
+### 알려진 공백
+
+- **실제 다중 턴 받은편지함 전달**은 허가된 수신자와 함께하는 것이 보류 중입니다: `findmeatime@agentmail.to`는 받은편지함 세 개 한도에 막혀 있고, 등록된 웹훅이 없으며, 마이그레이션이 공유 프로젝트에 없습니다(결정 기록의 "사용자 대기 항목").
+- **문서를 근거로 가정한 AgentMail 동작:** `authentication_results`, `extracted_text`, 답장 엔드포인트의 `Idempotency-Key` 의미, Svix 서명은 스탠드인을 상대로만 검증되었습니다.
+- **이메일을 통한 실제 모델 답장**은 평가되지 않았으며, 이 여정은 OpenAI 스탠드인을 사용했습니다.

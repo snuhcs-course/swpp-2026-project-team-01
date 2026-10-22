@@ -65,8 +65,8 @@ async function HostProfile({ params }: { readonly params: Params }) {
                     href={`mailto:${inbox}?subject=${encodeURIComponent(`Meeting with @${host.handle}`)}`}
                   >
                     Write to {inbox}
-                  </a>{" "}
-                  with @{host.handle} in the subject.
+                  </a>
+                  ; the link fills in the subject that names this host.
                 </p>
               ) : null}
             </>

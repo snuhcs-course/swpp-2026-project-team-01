@@ -296,7 +296,7 @@ Scope. Prerequisite: Phase 3 for request binding and Phase 4 for notifications. 
 - [x] [Design](../../openspec/changes/requester-email-channel/design.md).
 - [x] Delta specs under [`specs/`](../../openspec/changes/requester-email-channel/specs/).
 - [x] [Tasks](../../openspec/changes/requester-email-channel/tasks.md).
-- [ ] Owning-document updates and Korean mirrors.
+- [x] Owning-document updates and Korean mirrors.
 - [ ] Teammate review.
 
 **Lane A — ingress**
@@ -312,7 +312,7 @@ Scope. Prerequisite: Phase 3 for request binding and Phase 4 for notifications. 
 
 **Join**
 
-- [ ] A requester starts by email, verifies contact, continues at the booking link and receives thread notifications; run the Phase 7 evidence list.
+- [ ] A requester starts by email, verifies contact, continues at the booking link and receives thread notifications; run the Phase 7 evidence list. Open: real multi-turn inbox delivery needs the AgentMail inbox, its webhook, the shared-project migrations and a production deploy (tasks 6.1 and 6.2); the journey passes locally against `eve dev` and an AgentMail stand-in.
 
 Specs: [requester-email-ingress](../../openspec/specs/requester-email-ingress/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md) (conversational retry identity), [meeting-requests](../../openspec/specs/meeting-requests/spec.md).
 
@@ -452,7 +452,7 @@ Not carried: the travel-table heuristic (replaced by Google Routes with buffers)
 | Contact confirmation, request creation bounds, Cloudflare setup, `evaluate_candidates` placement, booking-link storage, local messaging, the public page's conversation, verification before agreement, one continuous guest thread | Phase 3 proposal (D3–D5, D7–D12 decided 2026-10-21; D13 decided 2026-10-22) | Meeting-requests, email-delivery and messaging-environments specs; provider setup; agent configuration |
 | MCP protocol version, registration, scopes, CLI packaging | Phase 5 proposal | Agent-client authorization spec, CLI direction |
 | iMessage adapter, code expiry, line provisioning | Phase 6 proposal | Provider setup, new iMessage change |
-| AgentMail adapter and retention | Phase 7 proposal | Provider setup |
+| AgentMail adapter and retention | Phase 7 proposal (D1–D11 decided 2026-10-22) | Provider setup |
 | Measurement targets, retention and deletion, support ownership | Phase 8 proposal | PRD sections 2 and 10 |
 
 ## 8. Risks

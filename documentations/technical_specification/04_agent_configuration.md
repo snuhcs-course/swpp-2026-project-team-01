@@ -33,7 +33,7 @@ agent/
   channels/
     eve.ts                  web chat: application session auth for hosts and booking links
     photon.ts               host iMessage through Photon: verified sender -> host principal
-    agentmail.ts            requester email: durable receipt -> request principal
+    agentmail.ts            requester email: the signed receiver; a job forwards verified text
   tools/                    snake_case files; each calls one domain operation
     setup.ts                read_setup_state and draft_settings, resolved for host setup only
     request.ts              request-discussion tools, resolved per audience: read_request,
@@ -158,7 +158,7 @@ No memory slot in the first release: scheduling policy is written only through c
 |---|---|---|---|---|
 | Web | `channels/eve.ts` | Application route auth as above | steer | `useEveAgent` from `eve/react` with same-origin `/eve/v1/*`, `initialSession` from the application index and `resume: true` |
 | Host iMessage | `channels/photon.ts` | `onMessage` looks up the verified binding for the sender; a linked host maps to `host:{hostId}` with the currently selected request; an unlinked or group sender returns `null` and receives no private state | queue | Exact commands (`request <reference>`, `review`, `changes`, approve or decline with the review reference, `setup`) are parsed and executed as application commands before any model turn, and an inbound message that carries a pending one-time link code is consumed the same way as the linking proof and never reaches the model. Onboarding runs in the same setup session as `/app`: suggestion questions and plain-text answers update the shared draft, and the final settings confirmation uses the exact authored command on the current review. Photon Spectrum compatibility with the native channel is a pending spike; an application-owned adapter is the fallback |
-| Requester email | `channels/agentmail.ts` | A custom channel whose route records the authenticated AgentMail event durably first ([requester email ingress](../../openspec/specs/requester-email-ingress/spec.md)), resolves the verified thread to `request:{requestId}` and only then forwards the text | queue | Replies go back through the same AgentMail thread; a sender claim or forwarded link grants nothing |
+| Requester email | `channels/agentmail.ts` | A custom channel whose only route, `POST /agentmail/webhooks/:receiverId`, records the authenticated AgentMail event durably first ([requester email ingress](../../openspec/specs/requester-email-ingress/spec.md)). The `email_receipt` job then resolves the authenticated sender's thread to `request:{requestId}` and forwards the text as an accepted input of that request's one requester discussion, so web and email share a session ([`requester-email-channel`](../../openspec/changes/requester-email-channel/proposal.md#decisions), D1) | queue, through the application's one-input-at-a-time delivery | After the turn ends, its final text is replied in the same AgentMail thread; a sender claim, a forwarded link code or a copied recipient grants nothing |
 
 Non-production deployments deny messaging dispatch under the [messaging environments contract](../../openspec/specs/messaging-environments/spec.md). Messaging receipts that exceed admission budgets stay queued in order ([chat workspaces](../../openspec/specs/chat-workspaces/spec.md#requirement-recoverable-conversation-throttling)).
 
@@ -201,4 +201,4 @@ Phase 3 adds the requester set under `evals/requester/`: injection asking for ca
 
 ## Open decisions
 
-Photon Spectrum compatibility with the native Photon channel and the sender identifier format; whether `evaluate_candidates` runs as an eve workflow tool or purely as an application job (decided as an application job in the [Phase 3 proposal](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions), D5); whether the AgentMail channel is a custom channel or the Chat SDK Gmail adapter; session retention and compaction thresholds; when, if ever, a memory slot becomes useful.
+Photon Spectrum compatibility with the native Photon channel and the sender identifier format; whether `evaluate_candidates` runs as an eve workflow tool or purely as an application job (decided as an application job in the [Phase 3 proposal](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions), D5); whether the AgentMail channel is a custom channel or the Chat SDK Gmail adapter (a custom channel, decided in the [Phase 7 proposal](../../openspec/changes/requester-email-channel/proposal.md#decisions), D1); session retention and compaction thresholds; when, if ever, a memory slot becomes useful.

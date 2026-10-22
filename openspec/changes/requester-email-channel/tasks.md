@@ -27,7 +27,7 @@ Before each group, read the [Phase 7 reference repository files](../../../docume
 
 ## 5. Join
 
-- [ ] 5.1 A requester starts by email, confirms the address, continues at the booking link and receives thread notices, and an old-option reply cannot book (AC-05); a web requester links a thread and continues by email (AC-11). Run the Phase 7 evidence list against the fake AgentMail, the fake Cloudflare, the OpenAI stand-in and the local stack, and record it.
+- [x] 5.1 A requester starts by email, confirms the address, continues at the booking link and receives thread notices, and an old-option reply cannot book (AC-05); a web requester links a thread and continues by email (AC-11). Run the Phase 7 evidence list against the fake AgentMail, the fake Cloudflare, the OpenAI stand-in and the local stack, and record it.
 
 ## 6. Release (blocked on the user)
 

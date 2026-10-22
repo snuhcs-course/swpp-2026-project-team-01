@@ -93,12 +93,13 @@ describe("AgentMail receiver", () => {
     const receiver = await register(inbox, secret);
     const body = payload(inbox);
 
-    const response = await receiveAgentMailWebhook(signed(secret, body, { id: "msg_first" }), receiver, () => deps);
+    const id = `msg_${randomUUID()}`;
+    const response = await receiveAgentMailWebhook(signed(secret, body, { id }), receiver, () => deps);
     expect(response.status).toBe(204);
 
     const stored = await receipts(inbox);
     expect(stored).toHaveLength(1);
-    expect(stored[0]!.delivery_id).toBe("msg_first");
+    expect(stored[0]!.delivery_id).toBe(id);
     const jobs = await jobsFor(stored.map((row) => row.id));
     expect(jobs).toEqual([{ payload: { receiptId: stored[0]!.id } }]);
   });
@@ -123,14 +124,15 @@ describe("AgentMail receiver", () => {
     const receiver = await register(inbox, secret);
     const body = payload(inbox);
     const at = Math.floor(Date.now() / 1000);
+    const id = `msg_${randomUUID()}`;
 
     const answers = await Promise.all(
-      Array.from({ length: 4 }, () => receiveAgentMailWebhook(signed(secret, body, { at, id: "msg_same" }), receiver, () => deps)),
+      Array.from({ length: 4 }, () => receiveAgentMailWebhook(signed(secret, body, { at, id }), receiver, () => deps)),
     );
     expect(answers.map((answer) => answer.status)).toEqual([204, 204, 204, 204]);
 
     // The response was lost and AgentMail retries the same delivery later.
-    const retried = await receiveAgentMailWebhook(signed(secret, body, { id: "msg_same" }), receiver, () => deps);
+    const retried = await receiveAgentMailWebhook(signed(secret, body, { id }), receiver, () => deps);
     expect(retried.status).toBe(204);
 
     const stored = await receipts(inbox);
@@ -144,8 +146,9 @@ describe("AgentMail receiver", () => {
     const event = `evt_${randomUUID()}`;
     const message = `<${randomUUID()}@example.test>`;
     const thread = `thr_${randomUUID()}`;
+    const delivery = `msg_${randomUUID()}`;
 
-    expect((await receiveAgentMailWebhook(signed(secret, payload(inbox, { event, message, thread }), { id: "msg_a" }), receiver, () => deps)).status).toBe(204);
+    expect((await receiveAgentMailWebhook(signed(secret, payload(inbox, { event, message, thread }), { id: delivery }), receiver, () => deps)).status).toBe(204);
     const before = await receipts(inbox);
 
     const changes = [
@@ -162,7 +165,7 @@ describe("AgentMail receiver", () => {
     }
 
     // The same delivery ID carrying another event.
-    expect((await receiveAgentMailWebhook(signed(secret, payload(inbox), { id: "msg_a" }), receiver, () => deps)).status).toBe(409);
+    expect((await receiveAgentMailWebhook(signed(secret, payload(inbox), { id: delivery }), receiver, () => deps)).status).toBe(409);
 
     expect(await receipts(inbox)).toEqual(before);
     expect(await jobsFor(before.map((row) => row.id))).toHaveLength(1);

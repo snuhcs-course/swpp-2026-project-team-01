@@ -198,6 +198,14 @@
 | 스레드 알림 복사본 | `enqueueStatusNotice`는 알림과 바인딩마다 스레드 회신 하나를 기록하며, 이메일의 템플릿과 매개변수로 만들어 바인딩의 최신 메시지에 회신하고 예약 링크는 발송 때까지 봉인해 둡니다. 확인 이메일은 Cloudflare로만 보냅니다 | 확인도 스레드로 보내기 | 설계 7 | `lib/server/booking-notices.ts`의 `enqueueStatusNotice` |
 | 알림 유효성 | 스레드 알림도 이메일과 같은 규칙(`noticeStillCurrent`)으로 발송 때 확인하고, 바인딩이 더 이상 활성이 아니면 보내지 않습니다 | 바인딩만 확인하기 | 설계 7 | `lib/server/email-delivery.ts`의 `noticeStillCurrent`, `createEmailReplyHandler` |
 
+### 운영 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 로컬 스택 | 이 브랜치의 테스트는 별도의 로컬 Supabase 스택(`project_id` `fmat-phase7`, 포트 553xx, `SUPABASE_WORKDIR`와 `TEST_DATABASE_URL`로 선택)에서 실행했습니다. 5단계 세션이 기본 로컬 스택을 공유하고 있어서 이 브랜치의 마이그레이션으로 `db reset`을 하면 그 실행이 깨지기 때문입니다 | 공유된 기본 스택 초기화 | 이 기록; 인수 기록 | — (로컬 전용) |
+| 따른 참조 | `7fa24384`의 eve memory 에이전트 템플릿: `agent/lib/integrations/slack/{channel,identity}.ts`와 그 테스트, `agent/lib/testing/slack.ts`(턴 전에 애플리케이션 코드에서 신원 확인, 검증되지 않았거나 자체 작성한 메시지는 대체 principal 없이 폐기, 테스트용 타입 있는 픽스처). `3c25e62d`의 eve chat 템플릿: `agent/channels/slack.ts`(기본 내보내기 하나짜리 채널 파일) | — | 풀 리퀘스트 | — |
+| A 레인 테스트 수정 | 수신기의 `environment` 열보다 먼저 작성된 A 레인 pgTAP 테스트를 첫 B 레인 커밋에서 고쳤습니다 | 기록을 다시 쓰게 되는 A 레인 커밋 수정(amend) | B 레인 커밋 메시지 | — |
+
 ### 사용자 대기 항목
 
 다음 단계는 되돌려도 취소할 수 없거나, 제공자 콘솔이 필요하거나, 팀 밖의 사람에게 발송되기 때문에 수행하지 않았습니다.

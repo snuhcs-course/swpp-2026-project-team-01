@@ -54,9 +54,11 @@ for (const width of [390, 1280]) {
     const request = await identifiedRequest(db, true);
     await page.goto(`/booking/${request.bookingId}`);
 
+    // The first visit compiles the page under next dev, slow while other suites run.
+    await expect(page.getByRole("button", { exact: true, name: "Continue by email" })).toBeVisible({ timeout: 20_000 });
     await pressByKeyboard(page, "Continue by email");
     const card = page.locator('[data-guest-card="email-link"]');
-    await expect(card.getByRole("heading", { name: "Continue by email" })).toBeVisible();
+    await expect(card.getByRole("heading", { name: "Continue by email" })).toBeVisible({ timeout: 15_000 });
     await expect(card).toContainText(INBOX);
     const code = (await card.locator("[data-email-link-code]").textContent())!.trim();
     expect(code).toMatch(/^FMAT-[0-9A-HJKMNP-TV-Z]{10}$/);

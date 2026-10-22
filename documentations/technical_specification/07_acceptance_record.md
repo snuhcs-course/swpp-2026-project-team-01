@@ -1,6 +1,6 @@
 # Acceptance Record
 
-Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) local evidence recorded, production evidence pending; open gaps listed below
+Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) local evidence recorded, production evidence pending; Phase 7 (`requester-email-channel`) local evidence recorded, inbox and production evidence pending; open gaps listed below
 
 Date: 2026-10-22
 
@@ -221,3 +221,40 @@ Fixture and local-stack evidence only; each names the test that shows it.
 - **Cloudflare attachments.** Whether Cloudflare's REST API delivers a `text/calendar` attachment that Gmail and Outlook treat as an invitation is unverified.
 - **Reminders** are deferred by D3.
 
+
+## Phase 7 — `requester-email-channel`
+
+Change: [`requester-email-channel`](../../openspec/changes/requester-email-channel/tasks.md). Evidence list: [Phase 7](06_implementation_plan.md#phase-7--requester-email-channel). Environments as in Phase 1, except that the local stack was a separate one (`project_id` `fmat-phase7`, ports 553xx) so the parallel Phase 5 session's stack was never reset ([decision log](08_decision_log.md#phase-7--requester-email-channel)), and a local AgentMail stand-in (`tests/integration/support/fake-agentmail.ts`) served the message API, recorded replies and honored `Idempotency-Key`. No inbox exists and nothing ran against AgentMail or production.
+
+### Suite runs
+
+| Command | Date | Revision | Environment | Result |
+|---|---|---|---|---|
+| `supabase db reset --local`, then a declarative sync | 2026-10-22 | `aef1a9e8` | Separate local stack | Chain rebuilt with `20261022132547_email_ingress.sql` and `20261022133116_email_threads.sql`; the sync generated no further migration |
+| `supabase test db` | 2026-10-22 | `aef1a9e8` | Separate local stack | 7 files, 103 pgTAP tests passed, including `email_channel.test.sql` |
+| `npm test` | 2026-10-22 | `aef1a9e8` | Local | 429 tests passed (43 files) |
+| `npm run test:integration` | 2026-10-22 | `aef1a9e8` | Separate local stack | 535 of 538 passed (52 files); the 3 failures were `email-receiver.test.ts` reusing fixed Svix IDs on a database that kept an earlier run's receipts. With unique IDs the file passes (9 tests) |
+| `npm run test:e2e` | 2026-10-22 | `aef1a9e8` | Separate local stack | 37 of 38 Playwright tests passed first time, including `email-link.test.ts` at 390 and 1280 px; the Phase 3 requester journey at 1280 px missed the identity heading's focus under the parallel run, as recorded for Phase 4, and passed on retry. An earlier full run showed that the card needs a longer first wait while other suites compile pages, and that the public page's email line repeated the host's handle text; both were fixed |
+| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-22 | `aef1a9e8` | Local | Passed; lint reports only warnings that predate this change |
+
+### Evidence by item
+
+Fixture and local-stack evidence only; each names the test that shows it.
+
+| Item | Evidence |
+|---|---|
+| Signed, deduplicated ingress | `tests/integration/email-receiver.test.ts`: one receipt and one job before `204`; four concurrent deliveries and a lost-response retry resolve to one; a reused event, message or delivery with other evidence answers `409` and changes nothing; disabled, replaced, unknown and re-keyed receivers and bad or stale signatures store nothing; the receipt holds no body, sender or subject. `tests/integration/eve-surface.test.ts` refuses the unsigned route on the built agent service |
+| Start by email | `tests/integration/email-journey.test.ts` "is answered in the thread, continues at the booking link in the same session, and hears the decline": the signed webhook reaches the `eve dev` channel route, the request is created with the sender as unconfirmed contact and the creation email, the turn runs in eve, the session-owner hook makes the reply due, and the reply carries the turn's text in the same thread |
+| AC-05 | The same test: an email choosing "option 2" of an earlier message records no agreement and creates no second request; the reply directs to the booking page |
+| AC-11 | The same test: after confirmation, a booking-page message lands in the one session that served the email messages. "links a thread and continues the same conversation by email" covers the other direction, and the linking code never reaches the model |
+| Sender authenticity and forwarded links (D3, D5) | `tests/integration/email-threads.test.ts` (spoofed, spam-labelled, own-inbox and copied-recipient messages forward nothing) and `tests/integration/email-links.test.ts` (forwarded, unauthenticated and in-thread codes void the code) |
+| Replies (D8) | `email-threads.test.ts` "retries a lost response with the same key and sends one email", "records uncertain without sending once the retry horizon passed", "records a refusal as rejected", "is refused before any provider call in a preview" |
+| Continue by email | `email-links.test.ts`; `tests/e2e/email-link.test.ts` by keyboard at 390 and 1280 px |
+| Thread notices | `tests/integration/email-notices.test.ts` |
+| Retention (D4) | `supabase/tests/email_channel.test.sql` |
+
+### Known gaps
+
+- **Real multi-turn inbox delivery** with an authorized recipient is pending: `findmeatime@agentmail.to` is blocked by the three-inbox limit, no webhook is registered, and the migrations are not on the shared project (decision log, "Blocked on the user").
+- **AgentMail behavior assumed from its documentation:** `authentication_results`, `extracted_text`, the reply endpoint's `Idempotency-Key` semantics and Svix signing are exercised only against the stand-in.
+- **Real model replies by email** were not graded; the journey used the OpenAI stand-in.

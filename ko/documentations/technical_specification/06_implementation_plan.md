@@ -298,7 +298,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 - [x] [설계](../../openspec/changes/requester-email-channel/design.md).
 - [x] [`specs/`](../../openspec/changes/requester-email-channel/specs/) 아래의 델타 명세.
 - [x] [작업 목록](../../openspec/changes/requester-email-channel/tasks.md).
-- [ ] 소유 문서 갱신과 한국어 미러.
+- [x] 소유 문서 갱신과 한국어 미러.
 - [ ] 팀원 검토.
 
 **레인 A — 수신**
@@ -314,7 +314,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **합류**
 
-- [ ] 요청자가 이메일로 시작하고, 연락처를 검증하고, 예약 링크에서 이어 가며, 스레드 알림을 받습니다. 7단계 증거 목록을 실행합니다.
+- [ ] 요청자가 이메일로 시작하고, 연락처를 검증하고, 예약 링크에서 이어 가며, 스레드 알림을 받습니다. 7단계 증거 목록을 실행합니다. 미해결: 실제 다중 턴 받은편지함 전달에는 AgentMail 받은편지함, 그 웹훅, 공유 프로젝트 마이그레이션, 프로덕션 배포가 필요합니다(작업 6.1과 6.2). 이 여정은 `eve dev`와 AgentMail 스탠드인을 상대로 로컬에서 통과합니다.
 
 명세: [requester-email-ingress](../../openspec/specs/requester-email-ingress/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md)(대화형 재시도 식별자), [meeting-requests](../../openspec/specs/meeting-requests/spec.md).
 
@@ -454,7 +454,7 @@ Docker를 갖춘 팀원이 그 주에 마이그레이션이 필요한 레인의 
 | 연락처 확인, 요청 생성 한도, Cloudflare 설정, `evaluate_candidates` 배치, 예약 링크 저장, 로컬 메시징, 공개 페이지의 대화, 동의 전 인증, 하나로 이어진 게스트 스레드 | 3단계 제안서(D3–D5, D7–D12는 2026-10-21 결정; D13은 2026-10-22 결정) | meeting-requests, email-delivery, messaging-environments 명세; 제공자 설정; 에이전트 구성 |
 | MCP 프로토콜 버전, 등록, 스코프, CLI 패키징 | 5단계 제안서 | 에이전트 클라이언트 인가 명세, CLI 방향 |
 | iMessage 어댑터, 코드 만료, 회선 프로비저닝 | 6단계 제안서 | 제공자 설정, 새 iMessage 변경 |
-| AgentMail 어댑터와 보존 | 7단계 제안서 | 제공자 설정 |
+| AgentMail 어댑터와 보존 | 7단계 제안서(D1–D11은 2026-10-22에 결정됨) | 제공자 설정 |
 | 측정 목표, 보존 및 삭제, 지원 담당 | 8단계 제안서 | PRD 2절과 10절 |
 
 ## 8. 위험

@@ -15,7 +15,7 @@ Covered: public entry and the draft request, identity and timezone, the booking 
 |---|---|---|---|
 | Web | Opens `findmeatime.com/{handle}` | One conversation with the assistant, started at `/{handle}` and continued in the same thread at `/booking/[bookingId]` | None; this is the reference path |
 | Agent-led | Pastes `Let me schedule a meeting with findmeatime.com/dodo` into a personal agent | The requester's agent, through MCP or the CLI, within delegated authority | Account-free and request-scoped; the agent asks the requester only for missing details or decisions beyond its delegation |
-| Email | Writes to the host's conversational inbox | The assistant over AgentMail | Verified continuation returns to the booking link; a sender claim grants nothing |
+| Email | Writes to the product inbox with the host's `@handle` in the subject | The assistant over AgentMail | Verified continuation returns to the booking link; a sender claim grants nothing |
 
 ## Request states
 
@@ -72,7 +72,7 @@ States follow the [lifecycle contract](../../openspec/specs/meeting-requests/spe
 
 ## Email differences
 
-A requester who writes to the host's conversational inbox gets an AgentMail-backed assistant reply. Authenticated receipts are recorded durably before processing, deduplicated and never treated as verified contact or request authority. Browser steps (Calendar consent, candidate selection, agreement) continue at the booking link that the assistant sends after contact verification. The host's own email channel is a proposed extension and is not part of this flow.
+A requester who writes to the product inbox, `findmeatime@agentmail.to`, with the host's `@handle` in the subject (the public host page offers the link) gets an AgentMail-backed assistant reply in the same thread. Authenticated receipts are recorded durably before processing, deduplicated and never treated as verified contact or request authority. The first authenticated message creates the request with the sender's address as an unconfirmed contact, and the creation email sends the booking link and **Confirm this address** there, as on the web. Browser steps (Calendar consent, candidate selection, agreement) continue at that booking link; the thread itself never carries it. A requester who started on the web can link a thread with **Continue by email**. See the [`requester-email-channel` change](../../openspec/changes/requester-email-channel/design.md). The host's own email channel is a proposed extension and is not part of this flow.
 
 ## What the requester can and cannot see
 
