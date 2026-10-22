@@ -20,6 +20,7 @@ import { awaitEvaluation } from "./evaluation";
 import { REQUESTER_AUDIENCE } from "./eve-auth";
 import { detailsComplete } from "./request-lifecycle";
 import { evaluateCommand, readCurrentEvaluation, readCurrentProposal } from "./request-proposals";
+import { markIdentityRequested } from "./request-start";
 import {
   draftReviewCommand,
   type DraftReviewInput,
@@ -44,6 +45,9 @@ import type { SessionPrincipal } from "./setup-tools";
 // replayed step returns its recorded outcome. Results are the requester
 // projection: no host rule, buffer, travel estimate, calendar detail or other
 // request, and the requester's name and email only as presence indicators.
+// The same tools serve a draft (design decision 2): reading and drafting work,
+// while evaluate_candidates answers identity_required until the guest gives a
+// name and email, which shows the identity card in the thread.
 
 export const REQUEST_EVALUATION_WAIT_MS = 20_000;
 
@@ -193,6 +197,8 @@ function minimizedProposal(proposal: RequesterProposal, timezone: string) {
 }
 
 const STATUS_TEXT: Readonly<Record<RequestState, string>> = {
+  draft:
+    "Not yet a request: the guest has not given a name and email. The host cannot see it. Times are offered once they continue with or without Google on the identity card in this conversation.",
   awaiting_host_approval: "The requester agreed to the proposal; it waits for the host's approval. Nothing is booked.",
   booked: "Booked.",
   booking: "Booking is in progress.",
@@ -203,10 +209,14 @@ const STATUS_TEXT: Readonly<Record<RequestState, string>> = {
   withdrawn: "The requester withdrew. The request is closed.",
 };
 
+const IDENTITY_NEXT =
+  "Before any times: once the purpose is known, ask for the guest's name and email and call ask_for_identity in the same turn, which shows the identity card in this conversation with Continue with Google or Continue without Google; never ask them to type their name or email as a message.";
+
 const NEXT_STEPS =
   "Only the cards record decisions: Apply these details on the review card, Find times and Choose this time on the candidate times card, and Agree to this proposal on the proposal card. A message such as yes or book it records nothing; point to the button instead.";
 
 type RequestRow = {
+  contact_email: string | null;
   details: Partial<RequestDetails>;
   display_name: string | null;
   expires_at: Date;
@@ -216,7 +226,7 @@ type RequestRow = {
 
 async function requestRow(q: Queryable, id: string) {
   const [row] = await q<RequestRow[]>`
-    select r.details, r.state, r.revision, r.expires_at, s.settings ->> 'displayName' as display_name
+    select r.details, r.state, r.revision, r.expires_at, r.contact_email, s.settings ->> 'displayName' as display_name
     from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
     where r.id = ${id}
   `;
@@ -240,8 +250,11 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
   const current = await readCurrentProposal(db, id);
   const { details } = row;
 
+  const identified = row.state !== "draft";
+
   return {
-    contact: { email: "present" as const, name: "present" as const },
+    contact: { email: presence(row.contact_email ?? undefined), name: presence(row.contact_email ?? undefined) },
+    identified,
     current: {
       evaluation: evaluation ? minimizedEvaluation(evaluation, timezone, language) : null,
       proposal: current ? { ...minimizedProposal(current.proposal, timezone), agreed: current.agreement !== null } : null,
@@ -260,9 +273,9 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
     },
     host: { displayName: encodeDisplayName(row.display_name ?? "Your host") },
     missing: missingFields(details),
-    next: NEXT_STEPS,
+    next: identified ? NEXT_STEPS : `${IDENTITY_NEXT} ${NEXT_STEPS}`,
     pendingReview: review ? minimizedReview(storedReview(review, language), timezone) : null,
-    readyForTimes: detailsComplete(details),
+    readyForTimes: identified && detailsComplete(details),
     status: { expiresAt: displayTime(row.expires_at, timezone), state: row.state, text: STATUS_TEXT[row.state] },
   };
 }
@@ -376,6 +389,15 @@ export async function evaluateCandidatesForTool(
   });
 
   if (!outcome.ok) {
+    if (outcome.error.category === "identity_required") {
+      await markIdentityRequested(db, id);
+      return {
+        evaluated: false as const,
+        identityRequired: true as const,
+        message:
+          "Times are offered once the guest gives a name and email. The identity card is now in the conversation: point to Continue with Google or Continue without Google.",
+      };
+    }
     if (outcome.error.category === "invalid_input") {
       return { evaluated: false as const, message: "Times cannot be looked up right now: the request already waits for the host." };
     }
@@ -389,6 +411,30 @@ export async function evaluateCandidatesForTool(
   if (!view) throw new RequestToolDeniedError();
 
   return { evaluated: true as const, ...minimizedEvaluation(view, timezone, language), next: NEXT_STEPS };
+}
+
+// ---------------------------------------------------------------------------
+// ask_for_identity
+
+// The structured signal that the assistant is asking a draft's guest for a
+// name and email (design decision 12): it only records when identity was first
+// requested, which anchors the identity card in the thread right after the
+// assistant's message. It reads and writes nothing else, and on an identified
+// request it does nothing.
+export async function askForIdentityForTool(db: Database, call: RequestToolCall) {
+  const id = await authorizeRequestTool(db, call);
+  const row = await requestRow(db, id);
+
+  if (row.state !== "draft") {
+    return { identityRequested: false as const, message: "The guest already gave a name and email; do not ask again." };
+  }
+
+  await markIdentityRequested(db, id);
+  return {
+    identityRequested: true as const,
+    message:
+      "The identity card now follows your message in the conversation, with Continue with Google and Continue without Google. Point to it; do not ask the guest to type their name or email.",
+  };
 }
 
 // ---------------------------------------------------------------------------

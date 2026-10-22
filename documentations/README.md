@@ -13,9 +13,9 @@ Read product purpose and requirements, then UX and architecture. Detailed agreed
 | [User journeys](user_experience/01_user_journeys.md) | End-to-end experience across channels |
 | [User stories](user_experience/02_user_stories.md) | Actor needs linked to PRD requirements |
 | [Interfaces](user_experience/03_interfaces.md) | Web, requester email, host iMessage, personal agents, MCP and CLI responsibilities |
-| [Page list](user_experience/04_page_list.md) | Single host workspace, public intake, protected requester destination and action cards |
+| [Page list](user_experience/04_page_list.md) | Single host workspace, the guest thread from the public page to the protected requester destination, and action cards |
 | [Host onboarding flow](user_experience/05_host_onboarding_flow.md) | Setup states, step-by-step server checks, recorded data and resume behavior for hosts |
-| [Guest booking flow](user_experience/06_guest_booking_flow.md) | Request states, intake to confirmation, agent and email variants, recovery and closure |
+| [Guest booking flow](user_experience/06_guest_booking_flow.md) | Request states from the draft to confirmation, agent and email variants, recovery and closure |
 | [Technical overview](04_technical_specification.md) | System responsibilities and retained technical direction |
 | [Backend architecture](technical_specification/01_backend_architecture.md) | Authority, domain transactions, feasibility and external-effect recovery |
 | [Frontend architecture](technical_specification/02_frontend_architecture.md) | Proposed layout, UI/server boundaries, chat state and recovery |
@@ -24,6 +24,7 @@ Read product purpose and requirements, then UX and architecture. Detailed agreed
 | [CLI direction](technical_specification/05_cli.md) | Separate user/admin clients; administrator CLI implemented, user CLI pending |
 | [Implementation plan](technical_specification/06_implementation_plan.md) | Proposed sequence of bounded OpenSpec changes, decision deadlines and acceptance evidence per phase |
 | [Acceptance record](technical_specification/07_acceptance_record.md) | Evidence each phase produced, with command, date, revision and environment, and its known gaps |
+| [Decision log](technical_specification/08_decision_log.md) | Every decision point per phase with its alternatives, where it is recorded and how to change it, plus steps blocked on the user |
 | [Competitor research](business/competitor_research.md) | Dated research context; no product compatibility claim |
 | [Transplant guide](transplant/en/transplant-guide.md) | Iteration 1 prototype features F01–F11, journeys and design decomposed for reuse; copied from `dev` for review, not yet reconciled |
 

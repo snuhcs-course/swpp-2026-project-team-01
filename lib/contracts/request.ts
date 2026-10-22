@@ -6,10 +6,13 @@ import type { MeetingMode } from "./setup";
 // app.evaluations; the requester projections carry only what the requester
 // audience may see (no rule, buffer, travel estimate or event detail).
 
-// Every state app.requests admits. Phase 3 reaches gathering, negotiating,
-// awaiting_host_approval, withdrawn and expired; booking, booked and declined
-// arrive with host approval.
+// Every state app.requests admits. Phase 3 reaches draft, gathering,
+// negotiating, awaiting_host_approval, withdrawn and expired; booking, booked
+// and declined arrive with host approval. A draft (design decision 2, D13) is
+// the guest's conversation before they give a name and email: invisible to the
+// host, deleted 24 hours after creation unless the guest is identified.
 export const REQUEST_STATES = [
+  "draft",
   "gathering",
   "negotiating",
   "awaiting_host_approval",
@@ -21,7 +24,8 @@ export const REQUEST_STATES = [
 ] as const;
 export type RequestState = (typeof REQUEST_STATES)[number];
 
-// The states withdrawal and expiry can close.
+// The states withdrawal and expiry can close. A draft is not among them: it is
+// deleted, never closed.
 export const ACTIONABLE_REQUEST_STATES = ["gathering", "negotiating", "awaiting_host_approval"] as const;
 export type ActionableRequestState = (typeof ACTIONABLE_REQUEST_STATES)[number];
 
@@ -31,6 +35,11 @@ export type ClosedRequestState = (typeof CLOSED_REQUEST_STATES)[number];
 
 export function isActionableRequestState(state: RequestState): state is ActionableRequestState {
   return (ACTIONABLE_REQUEST_STATES as readonly string[]).includes(state);
+}
+
+// Hosts never see a draft: every host projection, list and count filters it out.
+export function isHostVisibleRequestState(state: RequestState) {
+  return state !== "draft";
 }
 
 export function isClosedRequestState(state: RequestState): state is ClosedRequestState {

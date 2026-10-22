@@ -49,9 +49,7 @@ const nextConfig: NextConfig = {
       { headers: credentialPath, source: "/api/requests/:path*" },
       { headers: credentialPath, source: "/api/booking-links/:path*" },
       { headers: credentialPath, source: "/api/contact-confirmations" },
-      // The intake API carries the tab's intake token; the requester's Google
-      // return can redirect to a booking link.
-      { headers: credentialPath, source: "/api/intake/:path*" },
+      // The requester's Google return can redirect to a booking link.
       { headers: credentialPath, source: "/connections/:path*" },
       { headers: varyByAccept, source: "/" },
       { headers: varyByAccept, source: "/:handle([^/.]+)" },

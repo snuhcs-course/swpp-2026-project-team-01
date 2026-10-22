@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createGrantedScopesFetcher } from "../../lib/server/google-token-info";
-import { createIntakeMessageHandler } from "../../lib/server/intake-routes";
 import { readRequesterCalendarGrant, REQUESTER_CALENDAR_SCOPES } from "../../lib/server/requester-calendar";
 import {
   BINDING_COOKIE,
@@ -14,10 +13,11 @@ import { createRequestExpiryHandler, REQUEST_EXPIRY_JOB } from "../../lib/server
 import { createRequesterCalendarsHandler, createRequesterCommandHandler, createRequesterStateHandler } from "../../lib/server/requester-routes";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
-import { call, guestDependencies, ORIGIN, readyHost, SIGNING_KEY, sourceAddress } from "./support/guests";
+import { call, guestDependencies, ORIGIN, readyHost, SIGNING_KEY, sourceAddress, startedDraft } from "./support/guests";
 import { createTestRequest, runJob, testTokenKey, uniqueEmail } from "./support/requests";
 
-// The requester's Google consent (task 3.3) against a fake Google: success with
+// The requester's Google consent (tasks 3.3 and 9.1) against a fake Google: a
+// draft on the public page identified by Continue with Google, success with
 // and without the Calendar part, cancellation, replay, another browser, an
 // expired transaction, a closed request, a different Google address, Use
 // verified Google email, open requests of one Google identity keeping each
@@ -77,11 +77,9 @@ function callback(url: string, cookie?: string) {
   );
 }
 
-async function intakeToken(handle: string) {
-  const response = await call(createIntakeMessageHandler(() => guest), { handle }, `/api/intake/${handle}/messages`, {
-    body: { clientInputId: randomUUID(), language: "en", message: "A coffee chat", timezone: "Asia/Seoul" },
-  });
-  return ((await response.json()) as { intakeToken: string }).intakeToken;
+// The tab's draft on the public page, started by its first message.
+async function draftBooking(handle: string) {
+  return (await startedDraft(guest, handle)).bookingId;
 }
 
 function identity(email = uniqueEmail(), sub = `sub-${randomUUID()}`) {
@@ -120,7 +118,7 @@ function command(bookingId: string, operation: string, input: unknown = {}) {
 }
 
 describe("Continue with Google from the public page", () => {
-  it("creates one request with the Google name and email, a confirmed contact and separate grants, and no account", async () => {
+  it("identifies the draft with the Google name and email, a confirmed contact and separate grants, and no account", async () => {
     const host = await readyHost(db);
     const person = identity();
     const refreshToken = `1//requester-${randomUUID()}`;
@@ -133,7 +131,8 @@ describe("Continue with Google from the public page", () => {
       events: {},
     });
 
-    const started = await start({ handle: host.handle, intakeToken: await intakeToken(host.handle), purpose: "intake" });
+    const draft = await draftBooking(host.handle);
+    const started = await start({ bookingId: draft, purpose: "request" });
     const authorize = new URL(started.headers.get("location")!);
     expect(authorize.searchParams.get("scope")).toBe(ALL_SCOPES.join(" "));
     expect(Object.fromEntries(["access_type", "prompt", "include_granted_scopes", "code_challenge_method"].map((name) => [name, authorize.searchParams.get(name)]))).toEqual({
@@ -152,8 +151,16 @@ describe("Continue with Google from the public page", () => {
     expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
 
     const { bookingId, request } = await requestOfBooking(response.headers.get("location")!);
-    expect(response.headers.get("location")).toBe(`${ORIGIN}/booking/${bookingId}`);
+    // The same draft, now identified: the browser continues the same thread at its booking link.
+    expect(bookingId).toBe(draft);
+    expect(response.headers.get("location")).toBe(`${ORIGIN}/booking/${bookingId}?google=identified`);
     expect(request).toMatchObject({ contact_confirmed_email: person.email, contact_email: person.email, requester_name: "Grace Hopper" });
+    const [moved] = await db<{ count: number; identified: boolean; state: string }[]>`
+      select state, identified_at is not null as identified,
+             (select count(*)::int from app.requests where host_account_id = ${host.hostAccountId}) as count
+      from app.requests where id = ${request!.id}
+    `;
+    expect(moved).toEqual({ count: 1, identified: true, state: "gathering" });
     expect(await grants(request!.id)).toEqual([
       { calendar_ids: [], has_token: true, kind: "calendar", revoked: false },
       { calendar_ids: [], has_token: false, kind: "identity", revoked: false },
@@ -201,7 +208,7 @@ describe("Continue with Google from the public page", () => {
   it("records identity only when the Calendar part is unchecked", async () => {
     const host = await readyHost(db);
     google.setConsent({ decision: "approve", identity: identity(), scopes: ["openid", "email", "profile"] });
-    const started = await start({ handle: host.handle, purpose: "intake" });
+    const started = await start({ bookingId: await draftBooking(host.handle), purpose: "request" });
     const response = await callback(await consent(started), bindingOf(started));
     const { bookingId, request } = await requestOfBooking(response.headers.get("location")!);
 
@@ -210,19 +217,29 @@ describe("Continue with Google from the public page", () => {
     expect(await state.json()).toMatchObject({ connection: { calendar: false, identity: true } });
   });
 
-  it("returns a cancelled consent to the public page with nothing recorded", async () => {
+  it("returns a cancelled consent to the public page with the draft and its thread intact", async () => {
     const host = await readyHost(db);
     google.setConsent({ decision: "deny" });
-    const started = await start({ handle: host.handle, intakeToken: await intakeToken(host.handle), purpose: "intake" });
+    const draft = await startedDraft(guest, host.handle);
+    const started = await start({ bookingId: draft.bookingId, purpose: "request" });
     const response = await callback(await consent(started), bindingOf(started));
 
     expect(response.status).toBe(303);
+    // The draft's booking link never reaches the address bar before identification.
     expect(response.headers.get("location")).toBe(`${ORIGIN}/${host.handle}?google=cancelled`);
-    const [counts] = await db<{ open: number; requests: number }[]>`
-      select (select count(*)::int from app.requests where host_account_id = ${host.hostAccountId}) as requests,
-             (select count(*)::int from app.intakes where host_account_id = ${host.hostAccountId} and closed_at is null) as open
+    const [row] = await db<{ grants: number; inputs: number; state: string }[]>`
+      select r.state,
+             (select count(*)::int from app.requester_grants where request_id = r.id) as grants,
+             (select count(*)::int from app.conversation_inputs where discussion_id = ${draft.discussionId}) as inputs
+      from app.requests r where r.id = ${draft.requestId}
     `;
-    expect(counts).toEqual({ open: 1, requests: 0 });
+    expect(row).toEqual({ grants: 0, inputs: 1, state: "draft" });
+  });
+
+  it("refuses a transaction for an intake from before D13", async () => {
+    const host = await readyHost(db);
+    const response = await start({ handle: host.handle, purpose: "intake" });
+    expect(response.status).toBe(400);
   });
 
   it("changes nothing on a replay, in another browser or after the transaction expired", async () => {
@@ -230,7 +247,7 @@ describe("Continue with Google from the public page", () => {
     google.setConsent({ decision: "approve", identity: identity(), scopes: ALL_SCOPES });
 
     // Another browser: no binding cookie, or another one. Nothing is consumed.
-    const started = await start({ handle: host.handle, purpose: "intake" });
+    const started = await start({ bookingId: await draftBooking(host.handle), purpose: "request" });
     const url = await consent(started);
     for (const cookie of [undefined, `${BINDING_COOKIE}=someone-else`]) {
       const other = await callback(url, cookie);
@@ -245,13 +262,15 @@ describe("Continue with Google from the public page", () => {
     expect(await replay.text()).not.toMatch(/booking\//);
 
     // An expired transaction.
-    const late = await start({ handle: host.handle, purpose: "intake" });
+    const late = await start({ bookingId: await draftBooking(host.handle), purpose: "request" });
     const lateUrl = await consent(late);
     await db`update app.requester_oauth_transactions set expires_at = now() - interval '1 second' where host_account_id = ${host.hostAccountId} and consumed_at is null`;
     expect((await callback(lateUrl, bindingOf(late))).status).toBe(400);
 
-    const [count] = await db<{ count: number }[]>`select count(*)::int as count from app.requests where host_account_id = ${host.hostAccountId}`;
-    expect(count!.count).toBe(1);
+    const states = await db<{ state: string }[]>`
+      select state from app.requests where host_account_id = ${host.hostAccountId} order by created_at
+    `;
+    expect(states.map((row) => row.state)).toEqual(["gathering", "draft"]);
   });
 });
 

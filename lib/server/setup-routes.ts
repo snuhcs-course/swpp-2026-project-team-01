@@ -67,6 +67,7 @@ export function createSetupStateHandler(load: () => SetupRouteDependencies = set
 
 const COMMAND_STATUS: Readonly<Record<CommandErrorCategory, number>> = {
   forbidden: 403,
+  identity_required: 409,
   internal: 500,
   rate_limited: 429,
   request_closed: 409,

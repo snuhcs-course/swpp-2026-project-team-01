@@ -6,14 +6,17 @@ import { readRequesterView, requesterRouteDependenciesFromEnvironment } from "@l
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Suspense } from "react";
-import { RequesterWorkspace } from "@/app/_components/requester/requester-workspace";
+import { GuestWorkspace } from "@/app/_components/guest/guest-workspace";
 import { ResendLinkForm } from "@/app/_components/requester/resend-link-form";
 
 // The requester's protected destination (design decision 2; meeting-requests:
 // protected request continuation). The identifier is the only credential: it is
 // looked up by hash, and a malformed, unknown or expired one gets the generic
-// unavailable view with **Resend my booking link** and nothing else. A closed
-// request with an unexpired link shows only its status. next.config.ts sends
+// unavailable view with **Resend my booking link** and nothing else, as does a
+// draft, whose thread lives only in the tab that started it on the public page
+// until the guest is identified. A closed request with an unexpired link shows
+// only its status. Otherwise it is the guest thread, the same one the public
+// page began, loaded from its stored events. next.config.ts sends
 // no-referrer, noindex and no-store for every /booking path, and nothing here
 // logs the path.
 type Params = Promise<{ bookingId: string }>;
@@ -39,18 +42,19 @@ async function Booking({ params }: { readonly params: Params }) {
   const link = await findRequestByBookingId(db, bookingId);
   const view = link && !link.expired ? await readRequesterView(db, link.requestId) : null;
 
-  if (!link || !view) return <Unavailable />;
+  if (!link || !view || (view.open && view.request.state === "draft")) return <Unavailable />;
   if (!view.open) return <Closed hostName={view.host.displayName} state={view.request.state} />;
 
-  // Opens the request session (and delivers the intake summary) before the page
-  // reads it; the page still renders when the agent is unreachable.
+  // Opens the request session if a request from before D13 has none yet (and
+  // delivers its intake summary); the page still renders when the agent is
+  // unreachable.
   try {
     await openGuestSession(requesterRouteDependenciesFromEnvironment(), { id: link.requestId, type: "requester_request" });
   } catch (error) {
     console.error(JSON.stringify({ error: error instanceof Error ? error.name : typeof error, event: "requester_session_unavailable" }));
   }
 
-  return <RequesterWorkspace bookingId={bookingId.toLowerCase()} initial={view} />;
+  return <GuestWorkspace bookingId={bookingId.toLowerCase()} host={view.host} initialView={view} />;
 }
 
 function Unavailable() {

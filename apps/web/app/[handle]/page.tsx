@@ -6,10 +6,11 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { AgentSection } from "@/app/_components/agent-section";
-import { IntakeWorkspace } from "@/app/_components/guest/intake-workspace";
+import { GuestWorkspace, PublicPageChrome } from "@/app/_components/guest/guest-workspace";
 
-// A ready host's public page (public-agent-entry) with the anonymous intake
-// conversation (design decision 2). Everything else, including a released,
+// A ready host's public page (public-agent-entry) with the guest thread (design
+// decision 2): the guest's first message starts a draft request, and the same
+// thread continues at the booking link once they give a name and email. Everything else, including a released,
 // unready or suspended host, gets the neutral not-found page. Reserved names
 // never reach here: their routes are resolved first or fail the format.
 type Params = Promise<{ handle: string }>;
@@ -42,15 +43,18 @@ async function HostProfile({ params }: { readonly params: Params }) {
   if (!host) notFound();
 
   return (
-    <IntakeWorkspace
-      agentSection={
-        <AgentSection href={`/${host.handle}/SKILL.md`}>
-          Requests are accepted on this page in a web browser. Connecting a personal agent is not available yet, so an
-          agent should send the person here.
-        </AgentSection>
+    <GuestWorkspace
+      chrome={
+        <PublicPageChrome
+          agentSection={
+            <AgentSection href={`/${host.handle}/SKILL.md`}>
+              Requests are accepted on this page in a web browser. Connecting a personal agent is not available yet, so
+              an agent should send the person here.
+            </AgentSection>
+          }
+        />
       }
-      displayName={host.displayName}
-      handle={host.handle}
+      host={{ displayName: host.displayName, handle: host.handle }}
     />
   );
 }

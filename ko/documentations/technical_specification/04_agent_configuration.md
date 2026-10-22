@@ -13,7 +13,7 @@
 
 1. **애플리케이션이 권한을 소유합니다.** 세션, 도구 호출, 승인 프롬프트, OAuth 허가는 호스트 자격, 요청자 동의, 호스트 승인, 예약을 성립시키지 않습니다. 이들은 리비전과 재시도 식별자를 갖춘 도메인 명령입니다([애플리케이션 명령](../../openspec/specs/application-commands/spec.md) 참고).
 2. **모델은 대상(audience) 프로젝션을 봅니다.** 서버 측 필터링은 직렬화와 모델 컨텍스트보다 먼저 수행됩니다. 구조화된 연락처 필드는 존재 여부 표시로만 모델에 전달되며, 인식된 자격 증명은 저장 전에 제거됩니다.
-3. **하나의 에이전트, 네 가지 대상.** 호스트 설정, 호스트 비공개 요청 논의, 공유 요청자 논의, 요청이 생기기 전의 익명 공개 접수는 같은 루트 에이전트의 별개 세션입니다. 대상은 메시지가 아니라 세션 principal(주체)에서 도출됩니다.
+3. **하나의 에이전트, 세 가지 대상.** 호스트 설정, 호스트 비공개 요청 논의, 공유 요청자 논의는 같은 루트 에이전트의 별개 세션이며, 공유 요청자 논의는 공개 페이지에서 게스트가 보낸 첫 메시지와 함께 초안 요청으로 시작됩니다. 대상은 메시지가 아니라 세션 principal(주체)에서 도출됩니다.
 4. **사람의 결정은 모델 도구가 아닙니다.** 설정 확인, 동의, 승인, 거절, 철회, 예약은 카드 또는 정확히 작성된 채널 명령으로 호출되는 애플리케이션 명령입니다. 모델은 읽고, 초안을 작성하고, 제안할 수 있지만 결정할 수는 없습니다.
 5. **내구성 있는 대기는 도메인 상태에 있습니다.** 일시 중지된 eve 세션은 합의나 보류 중인 제공자 효과의 기록이 아닙니다.
 
@@ -29,19 +29,18 @@ agent/
   instructions/             항상 적용되는 기본 규칙과 대상별 조각 하나씩
     base.md
     host-setup.ts           호스트 설정 세션에서만 host-setup 조각을 해석
-    public-intake.ts        공개 접수 세션에서만 public-intake 조각을 해석
     host-review.md
-    requester.ts            요청자 세션에서만 requester 조각을 해석
+    requester.ts            요청자 세션에서만 requester 조각을 해석,
+                            초안 포함
   channels/
     eve.ts                  웹 채팅: 호스트와 예약 링크를 위한 애플리케이션 세션 인증
     photon.ts               Photon을 통한 호스트 iMessage: 검증된 발신자 -> 호스트 principal
     agentmail.ts            요청자 이메일: 내구성 있는 수신 기록 -> 요청 principal
   tools/                    snake_case 파일; 각각 하나의 도메인 연산을 호출
     setup.ts                read_setup_state와 draft_settings, 호스트 설정에서만 해석
-    intake.ts               read_intake와 draft_intake, 공개 접수에서만 해석
     request.ts              request-discussion tools, resolved per audience: read_request,
-                            draft_request_review, evaluate_candidates and read_booking_status
-                            for requesters; Phase 4 adds list_host_requests,
+                            draft_request_review, ask_for_identity, evaluate_candidates and
+                            read_booking_status for requesters, drafts included; Phase 4 adds list_host_requests,
                             propose_shared_changes and the host projections
   skills/                   모델이 필요할 때 불러올 수 있는 작성된 안내
     onboarding_suggestions.md
@@ -65,8 +64,9 @@ eve는 경로에서 이름을 도출합니다(`tools/<name>.ts`는 `<name>` 도�
 |---|---|---|---|---|
 | 호스트 설정 | `host:{hostId}` | 활성 호스트의 첫 `/app` 방문; 호스트당 하나 | base + host-setup | `read_setup_state`, `draft_settings` |
 | 호스트 비공개 요청 논의 | `requestId` 속성이 있는 `host:{hostId}` | 호스트가 `/app`에서 요청을 선택하거나, 정확한 `request <reference>` iMessage 명령을 보냄 | base + host-review | `read_request`(호스트 프로젝션), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status` |
-| 공개 접수 | `intake:{intakeId}` | 준비된 호스트의 `/{handle}`에서 방문자가 보낸 첫 메시지; 브라우저 탭당 하나, 최대 24시간([D11](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)) | base + public-intake | `read_intake`, `draft_intake` |
-| 공유 요청자 논의 | `request:{requestId}` | `/{handle}`에서 요청 생성; 예약 링크 또는 검증된 이메일로 이어짐 | base + requester | `read_request`(요청자 프로젝션), `draft_request_review`, `evaluate_candidates`, `read_booking_status` |
+| 공유 요청자 논의 | `request:{requestId}` | 준비된 호스트의 `/{handle}`에서 게스트가 보낸 첫 메시지로, **초안 요청**을 만듦([D13](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)); 같은 세션이 신원 확인, 예약 링크, 검증된 이메일을 거쳐 이어짐 | base + requester | `read_request`(요청자 프로젝션), `draft_request_review`, `ask_for_identity`, `evaluate_candidates`, `read_booking_status` |
+
+초안 요청은 게스트가 이름과 이메일을 밝히기 전의 대화입니다. 브라우저 탭당 하나이며 호스트에게 보이지 않고, 메시지는 최대 30개, 미확인 요청 모델 한도 아래에 있으며, 게스트가 신원을 밝히지 않으면 24시간 뒤 논의와 함께 삭제됩니다. 요청자 대상과 그 도구를 사용하며, 초안 상태는 각 연산 안에서 검사되므로(3계층) `read_request`와 `draft_request_review`는 동작하고, `ask_for_identity`는 어시스턴트가 이름과 이메일을 요청했다는 사실을 기록하며(그 메시지 뒤에 신원 카드가 열림), `evaluate_candidates`, **Find times**, **Choose this time**, **Agree to this proposal**은 신원이 필요하다고 답하고 신원 카드가 스레드에 나타납니다. 신원 확인은 세션을 유지하므로 어시스턴트는 대화 전체를 컨텍스트로 유지합니다. D13 이전의 익명 공개 접수(`intake:{intakeId}`, `read_intake`, `draft_intake`)는 더 이상 만들어지거나 등록되지 않으며, 그 이전의 접수 대화 기록은 그것이 된 요청의 예약 링크에서 계속 읽을 수 있습니다.
 
 논의에서 eve 세션으로의 인덱스(`sessionId`, 마지막 `streamIndex`, 에이전트 버전, 상태)는 애플리케이션이 소유합니다. eve는 세션 식별자를 직접 생성하고, 세션별 소유권 검사가 없으며, 호출자가 지정한 식별자를 받지 않습니다. 따라서 모든 생성, 읽기, 스트림, 입력, 제어 라우트는 `/eve/v1/*`에 도달하기 전에 애플리케이션이 인가합니다([대화 접근](../../openspec/specs/conversation-access/spec.md)). 호스트와 요청자는 세션을 공유하지 않으며, `/app`에서 보이는 논의를 전환하면 세션이 전환될 뿐 이력이 합쳐지지 않습니다. 종료 상태 복구는 후속 세션을 만들고, 울타리(fence)를 기록하며, 수락된 입력과 이력을 계속 사용할 수 있게 유지합니다.
 
@@ -90,12 +90,11 @@ eve principal은 사람의 신원이 아니라 대상입니다. 요청자에게�
 |---|---|---|---|
 | `read_setup_state` | 호스트 설정 | 현재 초안, 저장된 역할, 분석 근거, 다음 행동; 캘린더 이름은 인용된 데이터로만, 이벤트의 장소 이름은 포함하지 않음 | never |
 | `draft_settings` | 호스트 설정 | 리비전과 함께 초안 값을 기록하고 각 값을 명시됨 또는 추론됨으로 표시함(시작 기본값은 서비스 자체의 것); 정책은 절대 아니며, 방식, 장소, 이동 수단은 호스트가 카드에서 수락한 뒤에만 인정됨 | never |
-| `read_intake` | 공개 접수 | 호스트의 공개 프로필과 해당 접수 자체의 초안; 호스트 설정, 캘린더, 요청에서 가져오는 것은 없음 | never |
-| `draft_intake` | 공개 접수 | 목적, 소요 시간, 방식, 장소, 가용 시간대를 접수 초안에 기록하며, 요청이 생성될 때 이 초안이 대기 중 검토가 됨 | never |
-| `read_request` | 호스트 또는 요청자 | 현재 요청, 제안 버전, 결정, 허용된 대화를 대상별로 프로젝션하여 제공 | never |
+| `read_request` | 호스트 또는 요청자 | 현재 요청, 제안 버전, 결정, 허용된 대화를 대상별로 프로젝션하여 제공; 초안의 경우 `identified: false`와 연락처 존재 여부 `absent` | never |
 | `list_host_requests` | 호스트 | 상태와 함께 선택 가능한 요청; 프로젝션을 넘어서는 요청자의 비공개 데이터는 없음 | never |
-| `draft_request_review` | 요청자 | 세부 정보, 가용 시간, 질문 또는 알 수 없는 의도를 작성된 확인 질문과 함께 선언하며, 요청자만 적용할 수 있는 대기 중 검토를 생성 | never |
-| `evaluate_candidates` | 호스트 또는 요청자 | 결정론적 실현 가능성 평가를 내구성 있는 애플리케이션 작업으로 시작하고, 최대 20초 동안 기다려 대상 프로젝션을 반환하며, 아직 실행 중이면 평가의 식별자를 반환; 같은 리비전에서 실행 중인 평가가 있으면 새로 만들지 않고 그것을 반환하며, 요청 하나는 시간당 최대 10회 시작; 결과는 버전이 있는 카드로도 도착([3단계 설계](../../openspec/changes/requester-intake-and-feasibility/design.md#8-evaluation-runs-as-an-application-job)) | never |
+| `draft_request_review` | 요청자 | 세부 정보, 가용 시간, 질문 또는 알 수 없는 의도를 작성된 확인 질문과 함께 선언하며, 요청자만 적용할 수 있는 대기 중 검토를 생성. 초안에서도 동작하며, 이름과 이메일은 신원 카드에서만 받음 | never |
+| `ask_for_identity` | 요청자 | 어시스턴트가 초안의 게스트에게 이름과 이메일을 요청하는 턴에 호출; 신원이 처음 요청된 시점만 기록하며, 이로써 신원 카드가 그 메시지 뒤에 놓임. 신원이 확인된 뒤에는 아무 일도 하지 않음([3단계 설계](../../openspec/changes/requester-intake-and-feasibility/design.md#12-requester-conversation)) | never |
+| `evaluate_candidates` | 호스트 또는 요청자 | 결정론적 실현 가능성 평가를 내구성 있는 애플리케이션 작업으로 시작하고, 최대 20초 동안 기다려 대상 프로젝션을 반환하며, 아직 실행 중이면 평가의 식별자를 반환; 같은 리비전에서 실행 중인 평가가 있으면 새로 만들지 않고 그것을 반환하며, 요청 하나는 시간당 최대 10회 시작; 결과는 버전이 있는 카드로도 도착([3단계 설계](../../openspec/changes/requester-intake-and-feasibility/design.md#8-evaluation-runs-as-an-application-job)). 초안에서는 아무것도 찾지 않고 `identityRequired`로 답하며, 이로써 신원 카드가 스레드에 놓임 | never |
 | `propose_shared_changes` | 호스트 | **제안된 공유 변경 검토(Review proposed shared changes)** 카드를 위해 변경된 공유 세부 정보의 초안을 작성; 공유는 별도의 명령 | never |
 | `read_booking_status` | 호스트 또는 요청자 | 도메인 레코드의 대기 중, 불확실, 확정, 전달 실패 상태 | never |
 
@@ -124,18 +123,17 @@ eve의 승인 정책(`once`, `always`, 사용자 정의)은 도구 실행을 제
 
 1~4계층이 권한 경계이며, 프롬프트 인젝션 상황에서 도메인 테스트와 통합 테스트로 증명합니다. 5계층은 어조와 유용성을 정하며 evals로 검사합니다. 어떤 지침도 1~4계층이 막은 기능을 부여하지 않고, 사용자가 무엇을 입력하든 그 기능을 되살릴 수 없습니다.
 
-| 도구 | 호스트 설정 | 호스트 검토 | 요청자 | 공개 접수 |
-|---|---|---|---|---|
-| `read_intake` | 없음 | 없음 | 없음 | 있음 |
-| `draft_intake` | 없음 | 없음 | 없음 | 있음 |
-| `read_setup_state` | 있음 | 없음 | 없음 | 없음 |
-| `draft_settings` | 있음 | 없음 | 없음 | 없음 |
-| `read_request` | 없음 | 있음, 호스트 프로젝션 | 있음, 요청자 프로젝션 | 없음 |
-| `list_host_requests` | 없음 | 있음 | 없음 | 없음 |
-| `draft_request_review` | 없음 | 없음 | 있음 | 없음 |
-| `evaluate_candidates` | 없음 | 있음 | 있음 | 없음 |
-| `propose_shared_changes` | 없음 | 있음 | 없음 | 없음 |
-| `read_booking_status` | 없음 | 있음 | 있음 | 없음 |
+| 도구 | 호스트 설정 | 호스트 검토 | 요청자(초안 포함) |
+|---|---|---|---|
+| `read_setup_state` | 있음 | 없음 | 없음 |
+| `draft_settings` | 있음 | 없음 | 없음 |
+| `read_request` | 없음 | 있음, 호스트 프로젝션 | 있음, 요청자 프로젝션 |
+| `list_host_requests` | 없음 | 있음 | 없음 |
+| `draft_request_review` | 없음 | 없음 | 있음 |
+| `ask_for_identity` | 없음 | 없음 | 있음 |
+| `evaluate_candidates` | 없음 | 있음 | 있음, 초안에서는 `identityRequired` |
+| `propose_shared_changes` | 없음 | 있음 | 없음 |
+| `read_booking_status` | 없음 | 있음 | 있음 |
 
 "없음"은 그 principal에 등록되지 않았다는 뜻이지, "호출하면 거부된다"는 뜻이 아닙니다.
 

@@ -18,7 +18,7 @@ import { isValidTimeZone } from "../contracts/timezone";
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
 import { CONFIRMATION_LIMITS, type ConfirmationLimits, issueContactConfirmation, lockConfirmationBounds } from "./contact-confirmation";
 import type { Transaction } from "./database";
-import { type LocalWindow, localWindowSchema, resolveLocalWindow, type WindowProblem } from "./intakes";
+import { type LocalWindow, localWindowSchema, resolveLocalWindow, type WindowProblem } from "./local-windows";
 import { type LockedRequest, lockOpenRequest } from "./request-guard";
 import { requestExpiresAt } from "./request-lifecycle";
 import type { TokenKey } from "./token-encryption";
@@ -210,19 +210,34 @@ type ContactOptions = {
 // details changed in negotiation, the return to gathering. A changed contact
 // address voids its confirmation and is emailed its own creation email, within
 // the creation email bounds: past one, the change is rejected before anything
-// is written.
+// is written. A draft has no contact yet (request.identify gives it one) and
+// keeps its 24-hour expiry; once its details hold a purpose, the identity card
+// is called for in the thread (design decision 2: purpose first, then name and
+// email).
 async function writeDetails(
   tx: Transaction,
-  request: LockedRequest & { readonly requester_name: string },
+  request: LockedRequest,
   patch: ReviewPatch,
   options: ContactOptions,
 ): Promise<{ revision: number; state: RequestState }> {
   const details = applyPatch(request.details, patch);
   const changed = detailsChanged(request.details, details);
+  const state: RequestState = changed && request.state === "negotiating" ? "gathering" : request.state;
+
+  if (request.state === "draft" || request.contact_email === null) {
+    await tx`
+      update app.requests
+      set details = ${tx.json(details as Parameters<typeof tx.json>[0])}, revision = revision + 1, updated_at = now(),
+          identity_requested_at = case when ${Boolean(details.purpose)} then coalesce(identity_requested_at, now())
+                                       else identity_requested_at end
+      where id = ${request.id}
+    `;
+    return { revision: request.revision + 1, state };
+  }
+
   const name = patch.contactName?.trim() || request.requester_name;
   const email = patch.contactEmail?.trim() || request.contact_email;
   const emailChanged = email.toLowerCase() !== request.contact_email.toLowerCase();
-  const state: RequestState = changed && request.state === "negotiating" ? "gathering" : request.state;
   const confirmed = emailChanged ? null : request.contact_confirmed_email;
 
   if (emailChanged) {
@@ -245,12 +260,17 @@ async function writeDetails(
   return { revision: request.revision + 1, state };
 }
 
+// A draft's name and email come only from request.identify or the Google
+// return, never from a review or the details card.
+function draftContactProblem(request: LockedRequest, patch: ReviewPatch): PatchProblem | null {
+  return request.state === "draft" && (patch.contactName !== undefined || patch.contactEmail !== undefined)
+    ? "invalid_contact"
+    : null;
+}
+
 async function lockRequester(tx: Transaction, context: { readonly actor: { kind: string; id: string }; readonly resourceId: string }) {
   if (context.actor.kind !== "requester_request" || context.actor.id !== context.resourceId) throw new CommandError("forbidden");
-
-  const request = await lockOpenRequest(tx, context.actor.id);
-  const [row] = await tx<{ requester_name: string }[]>`select requester_name from app.requests where id = ${request.id}`;
-  return { ...request, requester_name: row!.requester_name };
+  return lockOpenRequest(tx, context.actor.id);
 }
 
 // ---------------------------------------------------------------------------
@@ -341,7 +361,8 @@ export function draftReviewCommand(
       const patch = input.intent === "question" || input.intent === "unknown" ? null : input.patch;
 
       if (patch) {
-        const problem = checkWindows(request.details, patch, await clock(tx)) ?? contactProblem(patch, { draft: true });
+        const problem =
+          checkWindows(request.details, patch, await clock(tx)) ?? draftContactProblem(request, patch) ?? contactProblem(patch, { draft: true });
         if (problem) return reject(problem);
       }
 
@@ -403,7 +424,8 @@ export function applyReviewCommand(options: ContactOptions): CommandDefinition<z
       if (!review.patch || review.clarifications.length > 0) throw new CommandError("invalid_input");
       if (request.state === "awaiting_host_approval") throw new CommandError("invalid_input");
 
-      const problem = checkWindows(request.details, review.patch, await clock(tx)) ?? contactProblem(review.patch);
+      const problem =
+        checkWindows(request.details, review.patch, await clock(tx)) ?? draftContactProblem(request, review.patch) ?? contactProblem(review.patch);
 
       if (problem) {
         throw new CommandError("invalid_input", problem === "started_window" ? { reason: "start_passed" } : undefined);
@@ -453,7 +475,10 @@ export function updateDetailsCommand(options: ContactOptions): CommandDefinition
       const converted = storedPatch(context.input.details, context.input.timezone);
       if (!converted.ok || !hasPatchFields(converted.patch)) throw new CommandError("invalid_input");
 
-      const problem = checkWindows(request.details, converted.patch, await clock(tx)) ?? contactProblem(converted.patch);
+      const problem =
+        checkWindows(request.details, converted.patch, await clock(tx)) ??
+        draftContactProblem(request, converted.patch) ??
+        contactProblem(converted.patch);
       if (problem) throw new CommandError("invalid_input", problem === "started_window" ? { reason: "start_passed" } : undefined);
 
       // Superseded: a pending review was made against the revision this changes.

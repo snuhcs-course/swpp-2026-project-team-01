@@ -15,9 +15,9 @@
 | [사용자 여정](user_experience/01_user_journeys.md) | 채널 전반의 end-to-end 경험 |
 | [사용자 스토리](user_experience/02_user_stories.md) | PRD 요구사항과 연결된 행위자별 필요 |
 | [인터페이스](user_experience/03_interfaces.md) | 웹, 요청자 이메일, 호스트 iMessage, 개인 에이전트, MCP, CLI의 책임 |
-| [페이지 목록](user_experience/04_page_list.md) | 단일 호스트 작업 공간, 공개 접수, 보호된 요청자 목적지, 액션 카드 |
+| [페이지 목록](user_experience/04_page_list.md) | 단일 호스트 작업 공간, 공개 페이지에서 보호된 요청자 목적지까지 이어지는 게스트 스레드, 액션 카드 |
 | [호스트 온보딩 흐름](user_experience/05_host_onboarding_flow.md) | 호스트의 설정 상태, 단계별 서버 확인, 기록되는 데이터, 재개 동작 |
-| [게스트 예약 흐름](user_experience/06_guest_booking_flow.md) | 요청 상태, 접수부터 확정까지, 에이전트·이메일 변형, 복구와 종료 |
+| [게스트 예약 흐름](user_experience/06_guest_booking_flow.md) | 초안부터 확정까지의 요청 상태, 에이전트·이메일 변형, 복구와 종료 |
 | [기술 개요](04_technical_specification.md) | 시스템 책임과 유지되는 기술 방향 |
 | [백엔드 아키텍처](technical_specification/01_backend_architecture.md) | 권한, 도메인 트랜잭션, 실현 가능성, 외부 효과 복구 |
 | [프론트엔드 아키텍처](technical_specification/02_frontend_architecture.md) | 제안된 레이아웃, UI/서버 경계, 채팅 상태와 복구 |
@@ -26,6 +26,7 @@
 | [CLI 방향](technical_specification/05_cli.md) | 분리된 사용자/관리자 클라이언트. 관리자 CLI는 구현되었고 사용자 CLI는 대기 중 |
 | [구현 계획](technical_specification/06_implementation_plan.md) | 범위가 정해진 OpenSpec 변경의 제안 순서, 결정 기한, 단계별 인수 증거 |
 | [인수 기록](technical_specification/07_acceptance_record.md) | 각 단계가 만든 증거와 그 명령, 날짜, 리비전, 환경, 그리고 알려진 공백 |
+| [결정 기록](technical_specification/08_decision_log.md) | 단계별 모든 결정 지점과 그 대안, 기록된 곳과 바꾸는 방법, 그리고 사용자에게 막혀 있는 단계 |
 | [경쟁사 조사](business/competitor_research.md) | 날짜가 기록된 조사 맥락. 제품 호환성 주장 없음 |
 | [이식 가이드](transplant/en/transplant-guide.md) | `dev`에서 검토용으로 복사된 반복 1 프로토타입 기능 F01–F11, 여정, 디자인을 재사용 가능하게 분해한 문서. 아직 조정되지 않음 |
 

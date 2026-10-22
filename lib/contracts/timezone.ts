@@ -1,5 +1,5 @@
-// Guest timezone display (design decision 15), shared by the booking page, the
-// public intake page and server projections. Times always carry the offset of
+// Guest timezone display (design decision 15), shared by the guest thread on
+// the public host page and the booking page, and server projections. Times always carry the offset of
 // their own date, so a meeting on the far side of a daylight-saving change shows
 // the offset that applies then, not today's.
 

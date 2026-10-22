@@ -172,7 +172,7 @@ export type GenerationReader = (
 // Events of any discussion from `cursor`, across its generations: retired ones
 // from their stored copies, the live one through `read`, which carries the
 // caller's own credential for the runtime (a host's cookie, or an internal read
-// bearer for a requester or intake). With `follow`, the current generation is
+// bearer for a guest). With `follow`, the current generation is
 // followed to the end of its current turn.
 export async function* eventsOfDiscussion(
   db: ConversationDependencies["db"],

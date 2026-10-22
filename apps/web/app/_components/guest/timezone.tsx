@@ -52,7 +52,7 @@ export function browserLanguage(): "en" | "ko" {
   }
 }
 
-// The timezone line beside the composer: the zone with today's offset, and a
+// The timezone chip at the start of the guest thread: the zone with today's offset, and a
 // labeled control that opens the selector in place.
 export function TimezoneLine({
   onChoose,

@@ -7,19 +7,14 @@ import { type FormEvent, type ReactNode, useEffect, useId, useState } from "reac
 import { GuestCard, GuestCardActions } from "@/app/_components/guest/guest-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { CommandOutcome, RequesterCardContext, RequesterCardDefinition } from "./cards";
+import type { CommandOutcome, RequesterCardContext } from "./cards";
 
-// The requester's scheduling cards (design decision 12; DESIGN.md: conversation
-// card and proposal card), in the order the booking page offers them: the
-// review of extracted details, the meeting details editor (a secondary surface
-// opened from a card), the proposal awaiting agreement and the candidate times.
-// Each posts one command with the expected revision and keeps its retry key
-// until the service answers. A message in the conversation records none of
-// these decisions.
-
-// The meeting details editor is open while this marker is in the tab's card
-// set (the set records cards set aside, and this one is opened instead).
-export const DETAILS_OPEN = "meeting-details:open";
+// The guest's scheduling cards (design decision 12; DESIGN.md: conversation
+// card and proposal card): the review of extracted details, the meeting details
+// editor (opened in the thread with **Edit details**), the proposal awaiting
+// agreement and the candidate times. Each posts one command with the expected
+// revision and keeps its retry key until the service answers. A message in the
+// conversation records none of these decisions.
 
 const MODE_LABELS = { either: "Online or in person", in_person: "In person", online: "Online" } as const;
 const TRAVEL_LABELS = { driving: "Driving", transit: "Public transit", walking: "Walking" } as const;
@@ -119,7 +114,7 @@ function patchRows(patch: ReviewPatch, timeZone: string): [string, ReactNode][] 
 // ---------------------------------------------------------------------------
 // Review extracted details: **Apply these details** and **Dismiss**
 
-function ReviewCard({ context }: { readonly context: RequesterCardContext }) {
+export function ReviewCard({ context }: { readonly context: RequesterCardContext }) {
   const review = context.view.pendingReview!;
   const { act, busy, error } = useAction(context);
   const canApply = review.patch !== null && review.clarifications.length === 0;
@@ -200,7 +195,7 @@ function windowRows(windows: readonly RequestWindow[] | undefined, timeZone: str
   });
 }
 
-function DetailsCard({ context }: { readonly context: RequesterCardContext }) {
+export function DetailsCard({ context }: { readonly context: RequesterCardContext }) {
   const id = useId();
   const { details } = context.view.request;
   const [purpose, setPurpose] = useState(details.purpose ?? "");
@@ -237,12 +232,12 @@ function DetailsCard({ context }: { readonly context: RequesterCardContext }) {
     if (filled.length > 0 && !sameWindows) changes.windows = filled.map(({ date, end, start }) => ({ date, end, start }));
 
     if (Object.keys(changes).length === 0) {
-      context.reopen(DETAILS_OPEN);
+      context.closeDetails();
       return;
     }
 
     const outcome = await act("request.update_details", { details: changes, timezone: context.timezone });
-    if (outcome.ok) context.reopen(DETAILS_OPEN);
+    if (outcome.ok) context.closeDetails();
   }
 
   const field = "flex flex-col gap-1";
@@ -382,7 +377,7 @@ function DetailsCard({ context }: { readonly context: RequesterCardContext }) {
           <Button className="min-h-11" disabled={busy} type="submit">
             {busy ? "Saving..." : "Save details"}
           </Button>
-          <Button className="min-h-11" onClick={() => context.reopen(DETAILS_OPEN)} type="button" variant="outline">
+          <Button className="min-h-11" onClick={() => context.closeDetails()} type="button" variant="outline">
             Cancel
           </Button>
         </GuestCardActions>
@@ -392,9 +387,9 @@ function DetailsCard({ context }: { readonly context: RequesterCardContext }) {
   );
 }
 
-export function DetailsButton({ context, label = "Meeting details" }: { readonly context: RequesterCardContext; readonly label?: string }) {
+export function DetailsButton({ context, label = "Edit details" }: { readonly context: RequesterCardContext; readonly label?: string }) {
   return (
-    <Button className="min-h-11" onClick={() => context.dismiss(DETAILS_OPEN)} type="button" variant="ghost">
+    <Button className="min-h-11" onClick={() => context.openDetails()} type="button" variant="ghost">
       {label}
     </Button>
   );
@@ -403,7 +398,7 @@ export function DetailsButton({ context, label = "Meeting details" }: { readonly
 // ---------------------------------------------------------------------------
 // Proposal: **Agree to this proposal**
 
-function ProposalCard({ context }: { readonly context: RequesterCardContext }) {
+export function ProposalCard({ context }: { readonly context: RequesterCardContext }) {
   const proposal = context.view.proposal!;
   const { act, busy, error } = useAction(context);
   const host = proposal.participants.find((participant) => participant.role === "host")?.name ?? context.view.host.displayName;
@@ -429,7 +424,7 @@ function ProposalCard({ context }: { readonly context: RequesterCardContext }) {
         <Button className="min-h-11" disabled={busy} onClick={() => void act("request.agree", { version: proposal.version })} type="button">
           {busy ? "Agreeing..." : "Agree to this proposal"}
         </Button>
-        <Button className="min-h-11" onClick={() => context.dismiss(`proposal:${proposal.version}`)} type="button" variant="outline">
+        <Button className="min-h-11" onClick={() => context.chooseAnotherTime()} type="button" variant="outline">
           Choose another time
         </Button>
       </GuestCardActions>
@@ -514,7 +509,7 @@ function missingLabels(context: RequesterCardContext) {
   ];
 }
 
-function CandidatesCard({ context }: { readonly context: RequesterCardContext }) {
+export function CandidatesCard({ context }: { readonly context: RequesterCardContext }) {
   const { evaluation, request } = context.view;
   const { act, busy, error } = useAction(context);
   const [notice, setNotice] = useState<string | null>(null);
@@ -624,50 +619,9 @@ function CandidatesCard({ context }: { readonly context: RequesterCardContext })
       ) : null}
       <GuestCardActions>
         {findButton("Find other times")}
-        <DetailsButton context={context} label={needsLink ? "Add a meeting link" : "Meeting details"} />
+        <DetailsButton context={context} label={needsLink ? "Add a meeting link" : "Edit details"} />
       </GuestCardActions>
       <StatusLine message={error ?? notice} tone={error ? "error" : "info"} />
     </GuestCard>
   );
 }
-
-// ---------------------------------------------------------------------------
-// The slot entries, inserted before the calendar cards
-
-function scheduling(context: RequesterCardContext) {
-  return context.view.request.state === "gathering" || context.view.request.state === "negotiating";
-}
-
-// Candidate times open once there is an evaluation, or once the calendar step is
-// settled (connected and its calendars saved, or set aside with Skip for now).
-function calendarSettled({ dismissed, view }: RequesterCardContext) {
-  const calendar = view.connection.calendar ? dismissed.has("calendar-selection") : dismissed.has("calendar-connect");
-  return calendar && !(view.connection.canUseGoogleEmail && !dismissed.has("google-email"));
-}
-
-export const REQUEST_CARDS: readonly RequesterCardDefinition[] = [
-  {
-    id: "review",
-    isOpen: ({ view }) => view.pendingReview !== null,
-    render: (context) => <ReviewCard context={context} />,
-  },
-  {
-    id: "meeting-details",
-    isOpen: (context) => context.dismissed.has(DETAILS_OPEN) && scheduling(context),
-    render: (context) => <DetailsCard context={context} />,
-  },
-  {
-    id: "proposal",
-    isOpen: (context) =>
-      context.view.proposal !== null &&
-      context.view.agreement === null &&
-      context.view.request.state === "negotiating" &&
-      !context.dismissed.has(`proposal:${context.view.proposal.version}`),
-    render: (context) => <ProposalCard context={context} />,
-  },
-  {
-    id: "candidates",
-    isOpen: (context) => scheduling(context) && (context.view.evaluation !== null || calendarSettled(context)),
-    render: (context) => <CandidatesCard context={context} />,
-  },
-];

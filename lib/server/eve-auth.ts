@@ -11,8 +11,9 @@ import { type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment, verifiedUse
 // exactly two shapes and never returns null, so the walk cannot fall through:
 //   1. an internal bearer the application signed, on creating a session,
 //      sending its current accepted input, or reading the one session it names,
-//      for a host, a requester (`request:{id}`, audience requester) or an
-//      anonymous intake (`intake:{id}`, audience public_intake);
+//      for a host or a requester (`request:{id}`, audience requester, a draft
+//      included), and reading an intake from before D13 (`intake:{id}`,
+//      audience public_intake), whose transcript a request may still show;
 //   2. a Supabase session cookie, on streaming the caller's own indexed session
 //      at its discussion's current generation (hosts only: a requester's browser
 //      holds no cookie and never calls /eve/v1; its application routes read with
@@ -20,7 +21,7 @@ import { type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment, verifiedUse
 // No credential is UnauthenticatedError; every other request is ForbiddenError.
 // The session attributes name the discussion's audience, generation and ID; the
 // setup tools and instructions resolve only for the host setup audience, the
-// intake tools only for public_intake.
+// request tools and instructions only for the requester audience.
 // Route auth runs before eve records or starts anything, so a denial leaves no
 // event and no model work.
 
@@ -107,11 +108,11 @@ function sessionAuth(principal: Principal, discussionId: string, generation: num
   };
 }
 
-// A requester or intake principal reaches only its own discussion of its own
-// audience, while it is open: a request whose link and lifetime are current, an
-// intake that has not continued or expired. Reading an intake's session stays
-// allowed once its request exists, so the application can keep its transcript,
-// but only while that request is open and its link unexpired.
+// A requester principal reaches only its own discussion of its own audience,
+// while its request (a draft included) has a current link and lifetime. An
+// intake from before D13 is only read, so a request that came from it can show
+// its transcript, and only while that request is open and its link unexpired;
+// no intake session is created or sent to any more.
 async function guestMayUse(db: Database, principal: Principal, discussionId: string, kind: InternalGrant["kind"]) {
   if (principal.type === "requester_request") {
     const [row] = await db<{ allowed: boolean }[]>`
@@ -125,9 +126,8 @@ async function guestMayUse(db: Database, principal: Principal, discussionId: str
     return Boolean(row?.allowed);
   }
 
-  const [row] = await db<{ open: boolean; continued: boolean }[]>`
-    select i.closed_at is null and i.expires_at > now() as open,
-           coalesce(r.closed_at is null and r.expires_at > now() and l.expires_at > now(), false) as continued
+  const [row] = await db<{ continued: boolean }[]>`
+    select coalesce(r.closed_at is null and r.expires_at > now() and l.expires_at > now(), false) as continued
     from app.discussions d
     join app.intakes i on i.id = d.principal_id and i.discussion_id = d.id
     left join app.requests r on r.id = i.request_id
@@ -135,7 +135,7 @@ async function guestMayUse(db: Database, principal: Principal, discussionId: str
     where d.id = ${discussionId} and d.principal_type = 'public_intake' and d.principal_id = ${principal.id}
       and d.audience = ${PUBLIC_INTAKE_AUDIENCE}
   `;
-  return Boolean(row && (row.open || (kind === "read" && row.continued)));
+  return Boolean(row && kind === "read" && row.continued);
 }
 
 // A host principal may reach only its own host setup discussion; any other

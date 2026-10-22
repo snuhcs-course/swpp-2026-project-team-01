@@ -3,7 +3,7 @@ import { z } from "zod";
 import { type CommandDefinition, CommandError } from "./commands";
 import type { Queryable, Transaction } from "./database";
 import { createGoogleCalendarClient, type GoogleCalendarConfig } from "./google-calendar";
-import { lockOpenRequest } from "./request-guard";
+import { assertIdentified, lockOpenRequest } from "./request-guard";
 import {
   REQUESTER_CALENDAR_SCOPES,
   readRequesterCalendarGrant,
@@ -91,6 +91,8 @@ export async function recordRequesterGrants(
   `;
 
   if (calendar) {
+    // A new Calendar grant reopens the step, so its calendars can be chosen.
+    await tx`update app.requests set calendar_settled_at = null where id = ${requestId}`;
     const sealed = sealToken(tokenKey, identity.refreshToken!, requesterGrantContext(requestId));
     await tx`
       insert into app.requester_grants
@@ -216,6 +218,7 @@ export function selectCalendarsCommand(options: {
       `;
 
       if (updated.count === 0) throw new CommandError("invalid_input");
+      await tx`update app.requests set calendar_settled_at = now() where id = ${requestId}`;
       return { calendarIds };
     },
   };
@@ -262,3 +265,25 @@ export async function listRequesterCalendars(
     return null;
   }
 }
+
+const manualInput = z.object({ manual: z.boolean() }).strict();
+
+// request.set_manual_availability: **Skip for now** on the Calendar card
+// (manual: true) settles the Calendar step on the server, so a reload or
+// another tab does not offer it again and the thread moves to the next step;
+// **Change** on its receipt (manual: false) offers the Calendar card again.
+export const setManualAvailabilityCommand: CommandDefinition<z.infer<typeof manualInput>, { manual: boolean }> = {
+  input: manualInput,
+  operation: "request.set_manual_availability",
+  async run(tx, context) {
+    const requestId = requireRequester(context);
+    const request = await lockOpenRequest(tx, requestId);
+    assertIdentified(request);
+
+    await tx`
+      update app.requests set calendar_settled_at = case when ${context.input.manual} then now() end
+      where id = ${requestId}
+    `;
+    return { manual: context.input.manual };
+  },
+};

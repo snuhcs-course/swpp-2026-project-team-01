@@ -77,12 +77,12 @@ export async function issueContactConfirmation(tx: Transaction, issue: IssueConf
   const [request] = await tx<
     {
       contact_confirmed_email: string | null;
-      contact_email: string;
+      contact_email: string | null;
       host_name: string | null;
       language: string | null;
       link_ciphertext: string;
       link_key_id: string;
-      requester_name: string;
+      requester_name: string | null;
     }[]
   >`
     select r.contact_email, r.contact_confirmed_email, r.requester_name, r.details ->> 'language' as language,
@@ -93,7 +93,7 @@ export async function issueContactConfirmation(tx: Transaction, issue: IssueConf
     where r.id = ${issue.requestId}
   `;
 
-  if (!request) throw new CommandError("forbidden");
+  if (!request?.contact_email) throw new CommandError("forbidden");
 
   const bookingId =
     issue.bookingId ??
@@ -112,7 +112,7 @@ export async function issueContactConfirmation(tx: Transaction, issue: IssueConf
     dedupeKey: issue.dedupeKey ?? `creation:${confirmationId}`,
     kind: "request_creation",
     language: request.language === "ko" ? "ko" : "en",
-    parameters: { hostName: request.host_name ?? undefined, requesterName: request.requester_name },
+    parameters: { hostName: request.host_name ?? undefined, requesterName: request.requester_name ?? undefined },
     recipient: request.contact_email,
     requestId: issue.requestId,
     secrets: {
@@ -222,7 +222,7 @@ export async function lockConfirmationBounds(
   return nextAllowedAt(tx, requestId, contactEmail, limits);
 }
 
-type OpenRequest = { readonly contact_email: string; readonly contact_confirmed_email: string | null };
+type OpenRequest = { readonly contact_email: string | null; readonly contact_confirmed_email: string | null };
 
 async function lockOpenRequest(tx: Transaction, requestId: string): Promise<OpenRequest> {
   const [request] = await tx<(OpenRequest & { open: boolean })[]>`
@@ -264,6 +264,10 @@ export function resendConfirmationCommand(options: {
 
       const requestId = context.actor.id;
       const request = await lockOpenRequest(tx, requestId);
+
+      // A draft has no address to email until the guest is identified.
+      if (!request.contact_email) throw new CommandError("identity_required");
+
       // Request lock first (above), then the recipient's, then the service's.
       const retryAt = await lockConfirmationBounds(tx, requestId, request.contact_email, limits);
 
@@ -305,7 +309,7 @@ export async function readConfirmationStatus(
   requestId: string,
   limits: Partial<ConfirmationLimits> = {},
 ): Promise<ConfirmationStatus | null> {
-  const [request] = await db<{ confirmed: boolean; contact_email: string; state: DeliveryState | null }[]>`
+  const [request] = await db<{ confirmed: boolean; contact_email: string | null; state: DeliveryState | null }[]>`
     select r.contact_email,
            coalesce(lower(r.contact_confirmed_email) = lower(r.contact_email), false) as confirmed,
            (
@@ -318,7 +322,8 @@ export async function readConfirmationStatus(
     where r.id = ${requestId}
   `;
 
-  if (!request) return null;
+  // A draft has no contact and no creation email yet.
+  if (!request?.contact_email) return null;
 
   const retryAt = await nextAllowedAt(db, requestId, request.contact_email, { ...CONFIRMATION_LIMITS, ...limits });
   return {

@@ -12,10 +12,10 @@ import { database, type Database } from "./database";
 //      call by the work item its caller passes;
 //   3. reserve USD 0.60 durably against the work item, the principal and the
 //      service (and, for an anonymous principal, the anonymous allowance), after
-//      taking their locks and rechecking authority. An intake is anonymous, and
-//      so is a request until its contact is confirmed or it holds a live Google
-//      identity grant: until then it gets the intake's cap, and its spend
-//      counts toward the anonymous allowance;
+//      taking their locks and rechecking authority. A request is anonymous,
+//      drafts included, until its contact is confirmed or it holds a live
+//      Google identity grant: until then it gets the anonymous cap (USD 3 per
+//      24 hours), and its spend counts toward the anonymous allowance;
 //   4. call the provider with output clamped (4,096 tokens, 2,048 for ranking),
 //      storage off and the standard tier, under a 30-second idle deadline for a
 //      stream or a 120-second total deadline for a non-streamed call.
@@ -32,10 +32,11 @@ export const MODEL_LIMITS = {
   idleTimeoutMs: 30_000,
   maxInputBytes: 128 * 1024,
   principalWindowUsd: "30.00",
-  // An anonymous principal's own allowance (an intake, or an unconfirmed
-  // request), and every anonymous principal's together (design decision 2),
-  // inside the service window.
-  intakeWindowUsd: "3.00",
+  // An anonymous principal's own allowance (a request, drafts included, whose
+  // contact is unconfirmed and that holds no live Google identity), and every
+  // anonymous principal's together (design decision 2), inside the service
+  // window. Spend of intakes from before D13 still counts toward the latter.
+  anonymousPrincipalWindowUsd: "3.00",
   anonymousWindowUsd: "50.00",
   rankingAttempts: 2,
   rankingOutputTokens: 2048,
@@ -95,8 +96,8 @@ type Attribution = {
   readonly work: { readonly kind: "conversation_input" | "ranking_check"; readonly id: string };
 };
 
-// Lock keys, taken in this order: work item, principal, anonymous (intakes and
-// requests, which may be anonymous), service.
+// Lock keys, taken in this order: work item, principal, anonymous (requests,
+// which may be anonymous), service.
 export const SERVICE_ALLOWANCE_LOCK = "app.model_allowance:service";
 export const ANONYMOUS_ALLOWANCE_LOCK = "app.model_allowance:anonymous";
 
@@ -195,10 +196,12 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
       }
     }
 
-    // A requester's request, or an intake, must still be open: a closed request
-    // or a continued or expired intake runs no more model work. The request row
-    // stays share-locked, so a confirmation waits for this reservation.
-    let anonymous = principal.type === "public_intake";
+    // A requester's request must still be open: a closed request, an expired
+    // draft or an intake from before D13 runs no more model work. The request
+    // row stays share-locked, so a confirmation waits for this reservation.
+    if (principal.type === "public_intake") throw new ModelLimitError("authority_expired");
+
+    let anonymous = false;
 
     if (principal.type === "requester_request") {
       const [request] = await tx<{ confirmed: boolean; open: boolean }[]>`
@@ -214,14 +217,6 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
       anonymous = !request.confirmed;
     }
 
-    if (principal.type === "public_intake") {
-      const [intake] = await tx<{ open: boolean }[]>`
-        select closed_at is null and expires_at > now() as open from app.intakes where id = ${principal.id} for share
-      `;
-
-      if (!intake?.open) throw new ModelLimitError("authority_expired");
-    }
-
     if (sessionId) {
       const [session] = await tx<{ current_input_id: string | null; state: string }[]>`
         select state, current_input_id from app.agent_sessions where session_id = ${sessionId}
@@ -232,7 +227,7 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
       }
     }
 
-    const principalCap = anonymous ? limits.intakeWindowUsd : limits.principalWindowUsd;
+    const principalCap = anonymous ? limits.anonymousPrincipalWindowUsd : limits.principalWindowUsd;
     const [usage] = await tx<
       { anonymous_over: boolean; attempts: number; principal_over: boolean; service_over: boolean; window_start: Date }[]
     >`
