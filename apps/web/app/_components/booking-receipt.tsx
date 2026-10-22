@@ -1,4 +1,4 @@
-import type { BookingReceipt } from "@lib/contracts/booking";
+import { type BookingReceipt, personLine } from "@lib/contracts/booking";
 import { displayTime } from "@lib/contracts/timezone";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -39,10 +39,9 @@ export function Receipt({ receipt, timeZone }: { readonly receipt: BookingReceip
           [
             "Who",
             <>
-              {receipt.organizer.name ?? receipt.organizer.email ?? "Organizer"}
-              {receipt.organizer.email ? ` <${receipt.organizer.email}>` : ""} (organizer)
+              {personLine(receipt.organizer.name, receipt.organizer.email) || "Organizer"} (organizer)
               <br />
-              {receipt.requester.name} &lt;{receipt.requester.email}&gt; (guest)
+              {personLine(receipt.requester.name, receipt.requester.email)} (guest)
             </>,
           ],
           ["Where", receipt.mode === "in_person" ? (receipt.location ?? "") : "Online"],
