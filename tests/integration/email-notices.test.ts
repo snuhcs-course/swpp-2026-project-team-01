@@ -67,6 +67,24 @@ describe("thread notices", () => {
 
     const [after] = await notices(binding.request_id);
     expect(after).toMatchObject({ secret_ciphertext: null, state: "accepted", text: null });
+  });
+
+  it("keeps the booking link sealed while a notice may be sent again", async () => {
+    const { binding, message } = await emailRequest();
+    await decline(binding.request_id);
+    const [notice] = await notices(binding.request_id);
+
+    agentmail.nextReply("drop");
+    expect(await runReply(notice!.id)).toBe("failed");
+    const [dispatching] = await notices(binding.request_id);
+    expect(dispatching).toMatchObject({ state: "dispatching", text: null });
+    expect(dispatching!.secret_ciphertext).not.toBeNull();
+
+    expect(await runReply(notice!.id)).toBe("completed");
+    const attempts = agentmail.attempts.filter((attempt) => attempt.idempotencyKey === notice!.id);
+    expect(attempts).toHaveLength(2);
+    expect(attempts[0]!.text).toBe(attempts[1]!.text);
+    expect(agentmail.repliesIn(message.thread_id)).toHaveLength(1);
 
     // Recording the same notice again makes no second reply.
     await db.begin((tx) => enqueueStatusNotice(tx, testNotices, binding.request_id, { kind: "status_declined" }));

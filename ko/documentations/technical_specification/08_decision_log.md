@@ -197,6 +197,14 @@
 | 연결 확인 문구 | 요청의 언어로 "This thread is now linked to your request with {host}. Reply here to continue." | 코드 되풀이하기 | `lib/server/email-links.ts` | 같은 파일의 `CONFIRMATION` |
 | 스레드 알림 복사본 | `enqueueStatusNotice`는 알림과 바인딩마다 스레드 회신 하나를 기록하며, 이메일의 템플릿과 매개변수로 만들어 바인딩의 최신 메시지에 회신하고 예약 링크는 발송 때까지 봉인해 둡니다. 확인 이메일은 Cloudflare로만 보냅니다 | 확인도 스레드로 보내기 | 설계 7 | `lib/server/booking-notices.ts`의 `enqueueStatusNotice` |
 | 알림 유효성 | 스레드 알림도 이메일과 같은 규칙(`noticeStillCurrent`)으로 발송 때 확인하고, 바인딩이 더 이상 활성이 아니면 보내지 않습니다 | 바인딩만 확인하기 | 설계 7 | `lib/server/email-delivery.ts`의 `noticeStillCurrent`, `createEmailReplyHandler` |
+| 바인딩된 스레드의 코드 (검토) | 코드는 바인딩되지 않은 스레드에만 바인딩됩니다. 바인딩된 스레드에서 회신의 `Re:` 제목이나 인용문이 연결 코드를 되풀이하면, 아직 대기 중인 코드는 무효로 처리하고 메시지는 코드를 가린 채 전달합니다. 바인딩 메시지 자체는 재시도 때 절대 전달하지 않습니다 | 모든 코드를 연결 시도로 취급하기. 이 방식은 연결 이후의 모든 회신을 폐기했습니다 | 설계 5 | `lib/server/email-receipts.ts`의 `processReceivedMessage` |
+| 보관 중인 알림 텍스트 (검토) | 알림은 발송 중에는 렌더링된 텍스트를 저장하지 않으며, 보낼 때마다 봉인된 매개변수로 다시 렌더링해 같은 키에는 같은 페이로드가 나옵니다 | 렌더링된 텍스트 고정하기. 이 방식은 최대 23시간 동안 쓸 수 있는 예약 링크를 남겼습니다 | 설계 6 | `lib/server/email-replies.ts`의 `renderNotice` |
+| 실패한 세션과 가림 처리 (검토) | 세션이 끝내 실패한 턴 회신은 대체 문구를 즉시 보내며(훅이 깨웁니다), 턴 텍스트는 보내기 전에 가립니다 | 시도가 끝나기를 기다린 뒤 보내지 않기 | 설계 6 | `lib/server/email-replies.ts`의 `turnText`, `wakeTurnReplies` |
+| 소진된 수신과 순서 (검토) | 소진된 수신은 무시됨으로 기록하고, 그 메시지가 시작한 스레드에는 고정된 회신 하나를 보냅니다. 스레드의 처리되지 않은 첫 메시지를 앞지른 회신은 재시도하며, 재시도할 수 없는 입력 거부는 무시합니다 | 결과를 비워 두기 | 설계 5 | `lib/server/email-receipts.ts`의 `createEmailReceiptHandler` |
+| 자동 회신과 DMARC 정렬 (검토) | `Auto-Submitted`, `Precedence: bulk/junk/list/auto_reply`, `X-Autoreply`는 무시하며, DMARC 통과는 `dmarc_domain`이 주어진 경우 그것이 From 도메인일 때만 인정합니다 | 회신 루프를 승인 한도에 맡기기 | 설계 5 | `lib/server/email-receipts.ts`의 `autoSubmitted`; `lib/server/agentmail.ts`의 `senderAuthenticated` |
+| 보관 완전성 (검토) | 정리 작업은 만료된 대기 코드도 무효로 처리하고, 30일이 지난 최종 상태가 아닌 회신과 모든 상태의 링크를 삭제합니다 | 최종 상태 행만 | 설계 9; 마이그레이션 `20261022143811_email_review_fixes.sql` | `app.cleanup_email_records` |
+| 연결 잠금 순서 (검토) | 연결은 카드의 명령과 같이 링크 행보다 요청을 먼저 잠급니다 | 링크 행 먼저. 이 방식은 **이메일로 계속(Continue by email)**이나 **취소(Cancel)**와 교착될 수 있었습니다 | `lib/server/email-links.ts` | `bindByCode` |
+| 수신기 입력 (검토) | 웹훅 본문은 256 KiB 상한을 두고 스트림으로 읽으며, 받은편지함 ID는 대소문자를 구분하지 않고 비교합니다 | `Content-Length` 신뢰하기 | `lib/server/agentmail-receiver.ts` | `readBody`, `receiverConfigFromEnvironment` |
 
 ### 운영 결정
 
@@ -205,6 +213,7 @@
 | 로컬 스택 | 이 브랜치의 테스트는 별도의 로컬 Supabase 스택(`project_id` `fmat-phase7`, 포트 553xx, `SUPABASE_WORKDIR`와 `TEST_DATABASE_URL`로 선택)에서 실행했습니다. 5단계 세션이 기본 로컬 스택을 공유하고 있어서 이 브랜치의 마이그레이션으로 `db reset`을 하면 그 실행이 깨지기 때문입니다 | 공유된 기본 스택 초기화 | 이 기록; 인수 기록 | — (로컬 전용) |
 | 따른 참조 | `7fa24384`의 eve memory 에이전트 템플릿: `agent/lib/integrations/slack/{channel,identity}.ts`와 그 테스트, `agent/lib/testing/slack.ts`(턴 전에 애플리케이션 코드에서 신원 확인, 검증되지 않았거나 자체 작성한 메시지는 대체 principal 없이 폐기, 테스트용 타입 있는 픽스처). `3c25e62d`의 eve chat 템플릿: `agent/channels/slack.ts`(기본 내보내기 하나짜리 채널 파일) | — | 풀 리퀘스트 | — |
 | A 레인 테스트 수정 | 수신기의 `environment` 열보다 먼저 작성된 A 레인 pgTAP 테스트를 첫 B 레인 커밋에서 고쳤습니다 | 기록을 다시 쓰게 되는 A 레인 커밋 수정(amend) | B 레인 커밋 메시지 | — |
+| 독립 검토 | 별도의 검토 에이전트가 풀 리퀘스트 전에 브랜치를 읽었으며, 높음 등급 발견(연결 이후 회신 폐기)과 확인된 중간·낮음 등급 발견은 회귀 테스트와 새 마이그레이션 하나와 함께 한 커밋에서 고쳤습니다 | 풀 리퀘스트를 먼저 열기 | 이 기록(“검토”로 표시된 행); 수정 커밋 | — |
 
 ### 사용자 대기 항목
 

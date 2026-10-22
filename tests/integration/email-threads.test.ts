@@ -3,12 +3,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { agentMailTransport, senderHash } from "../../lib/server/agentmail";
 import { AdmissionLimitError } from "../../lib/server/conversation-admission";
 import { createEmailReceiptHandler, FIXED_REPLIES } from "../../lib/server/email-receipts";
-import { EMAIL_RECEIPT_JOB } from "../../lib/server/agentmail-receiver";
+import { EMAIL_RECEIPT_JOB, receiveAgentMailWebhook } from "../../lib/server/agentmail-receiver";
 import { testDatabase } from "./support/database";
 import { emailHarness } from "./support/email";
-import { type FakeAgentMail, startFakeAgentMail } from "./support/fake-agentmail";
+import { type FakeAgentMail, receivedMessage, startFakeAgentMail, webhookRequest } from "./support/fake-agentmail";
 import { readyHost, SIGNING_KEY } from "./support/guests";
-import { closeTestRequest, testTokenKey, uniqueEmail } from "./support/requests";
+import { closeTestRequest, runJob, testTokenKey, uniqueEmail } from "./support/requests";
 
 // The requester email channel's Lane B against the local stack and a fake
 // AgentMail (tasks 3.1 to 3.3): an authenticated email naming a ready host
@@ -93,6 +93,22 @@ describe("starting by email", () => {
 
     const [after] = await repliesFor(message.thread_id);
     expect(after).toMatchObject({ state: "accepted", text: null });
+  });
+
+  it("sends the fallback when the session failed for good, and redacts the turn's text", async () => {
+    const failed = await startRequest();
+    const [input] = await inputsOf(failed.binding.request_id);
+    const [waiting] = await repliesFor(failed.message.thread_id);
+    await db`update app.agent_sessions set state = 'failed' where session_id = ${input!.session_id}`;
+    expect(await runReply(waiting!.id)).toBe("completed");
+    expect(agentmail.repliesIn(failed.message.thread_id)[0]!.text).toMatch(/^I could not finish a reply\./);
+
+    const leaky = await startRequest();
+    const [leakyInput] = await inputsOf(leaky.binding.request_id);
+    const [leakyReply] = await repliesFor(leaky.message.thread_id);
+    await endTurn(leakyInput!.id, `Open https://findmeatime.com/booking/${randomUUID()} now.`);
+    expect(await runReply(leakyReply!.id)).toBe("completed");
+    expect(agentmail.repliesIn(leaky.message.thread_id)[0]!.text).toMatch(/^Open \[removed credential\] now\./);
   });
 
   it("sends a fixed fallback when the turn produced no final text", async () => {
@@ -214,6 +230,71 @@ describe("a bound thread", () => {
 
     // The same error class the conversation path throws.
     expect(new AdmissionLimitError(60)).toBeInstanceOf(Error);
+  });
+});
+
+describe("ordering and auto-replies", () => {
+  it("ignores auto-replies and bulk mail from the bound sender", async () => {
+    const address = uniqueEmail("auto");
+    const { binding, message: first } = await startRequest(`Grace <${address}>`);
+    const autoHeaders: Record<string, string>[] = [{ "Auto-Submitted": "auto-replied" }, { Precedence: "bulk" }, { "X-Autoreply": "yes" }];
+    for (const headers of autoHeaders) {
+      const { outcome } = await deliver({ from: `Grace <${address}>`, headers, inReplyTo: first.message_id, text: "I am out of office.", threadId: first.thread_id });
+      expect(outcome).toBe("ignored");
+    }
+    expect(await inputsOf(binding.request_id)).toHaveLength(1);
+  });
+
+  it("refuses DMARC that speaks for another domain", async () => {
+    const host = await readyHost(db);
+    const { outcome } = await deliver({
+      authenticationResults: { dmarc: "pass", dmarc_domain: "elsewhere.example" },
+      from: `Spoof <${uniqueEmail()}>`,
+      subject: `Meeting with @${host.handle}`,
+      text: "Hello",
+    });
+    expect(outcome).toBe("ignored");
+  });
+
+  it("holds a reply that arrives before its thread's first message is processed", async () => {
+    const host = await readyHost(db);
+    const address = uniqueEmail("order");
+    const first = receivedMessage(inbox, { from: `Grace <${address}>`, subject: `Meeting with @${host.handle}`, text: "Hello" });
+    agentmail.addMessage(first);
+    const receiver = { config: { inboxId: inbox, secret: email.secret }, db };
+    await receiveAgentMailWebhook(webhookRequest("http://localhost/x", email.secret, first), email.receiverId(), () => receiver);
+
+    // The reply's receipt is processed while the first one still waits.
+    const early = await deliver({ from: `Grace <${address}>`, inReplyTo: first.message_id, text: "Also, 30 minutes.", threadId: first.thread_id });
+    expect(early.result).toBe("failed");
+    expect(early.outcome).toBeNull();
+
+    const [firstReceipt] = await db<{ id: string }[]>`select id from app.email_receipts where message_id = ${first.message_id}`;
+    const [firstJob] = await db<{ id: string }[]>`select id from app.jobs where kind = ${EMAIL_RECEIPT_JOB} and dedupe_key = ${`receipt:${firstReceipt!.id}`}`;
+    expect(await runJob(db, firstJob!.id, createEmailReceiptHandler(() => receiptDeps()))).toBe("completed");
+
+    await db`update app.jobs set run_after = now() where id = ${early.jobId}`;
+    expect(await runJob(db, early.jobId, createEmailReceiptHandler(() => receiptDeps()))).toBe("completed");
+    const binding = (await bindingOf(first.thread_id))!;
+    expect((await inputsOf(binding.request_id)).map((input) => input.message)).toEqual([expect.stringContaining("Hello"), "Also, 30 minutes."]);
+  });
+
+  it("answers a started thread once when its first message could not be processed", async () => {
+    const host = await readyHost(db);
+    const limited = receiptDeps({
+      conversation: { admission: { limits: { scopeHour: 0, scopeMinute: 0 }, serviceKey: `test:${randomUUID()}` }, db, runtime, signingKey: SIGNING_KEY },
+    });
+    const { jobId, message, receiptId } = await deliver({ from: `Grace <${uniqueEmail("stuck")}>`, subject: `Meeting with @${host.handle}`, text: "Hello" }, limited);
+    expect((await bindingOf(message.thread_id))!.origin).toBe("started");
+
+    // The last attempt fails too.
+    await db`update app.jobs set attempts = max_attempts - 1, run_after = now() where id = ${jobId}`;
+    expect(await runJob(db, jobId, createEmailReceiptHandler(() => limited))).toBe("exhausted");
+
+    const [receipt] = await db<{ outcome: string }[]>`select outcome from app.email_receipts where id = ${receiptId}`;
+    expect(receipt!.outcome).toBe("ignored");
+    const replies = await repliesFor(message.thread_id);
+    expect(replies.map((entry) => entry.kind)).toEqual(["unprocessed"]);
   });
 });
 

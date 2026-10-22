@@ -63,6 +63,7 @@ export type ReceivedMessage = {
   readonly in_reply_to?: string | null;
   readonly references?: readonly string[] | null;
   readonly authentication_results?: AuthenticationResults | null;
+  readonly headers?: Readonly<Record<string, string>> | null;
 };
 
 export type ReadOutcome =
@@ -222,7 +223,8 @@ export function senderAuthenticated(message: ReceivedMessage) {
   const results = message.authentication_results ?? {};
   const domain = domainOf(address);
 
-  return results.dmarc === "pass" || (results.dkim === "pass" && results.dkim_domain?.toLowerCase() === domain);
+  const dmarc = results.dmarc === "pass" && (!results.dmarc_domain || results.dmarc_domain.toLowerCase() === domain);
+  return dmarc || (results.dkim === "pass" && results.dkim_domain?.toLowerCase() === domain);
 }
 
 // The keyed hash a binding stores instead of the sender address.

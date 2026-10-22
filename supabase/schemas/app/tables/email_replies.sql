@@ -2,7 +2,7 @@
 -- 6 and 7, D8). The id is the AgentMail Idempotency-Key. A turn reply waits for
 -- the turn that served its input, then freezes the turn's final text; fixed
 -- replies are frozen when recorded; a notice keeps its template parameters and
--- seals the booking link, rendered only at dispatch. dispatching commits before
+-- seals the booking link, rendered at each send and never stored as text. dispatching commits before
 -- the send; a reply found dispatching is sent again with the same key while its
 -- first dispatch is under 23 hours old, otherwise it becomes uncertain. Every
 -- final state clears the text and the sealed secret. (kind, dedupe_key) makes a
@@ -10,7 +10,9 @@
 -- replies to an unbound thread.
 CREATE TABLE "app"."email_replies" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "kind" text NOT NULL CHECK ("kind" IN ('turn', 'link_confirmation', 'start_refusal', 'closed', 'too_long', 'notice')),
+  "kind" text NOT NULL CHECK (
+    "kind" IN ('turn', 'link_confirmation', 'start_refusal', 'closed', 'too_long', 'unprocessed', 'notice')
+  ),
   "dedupe_key" text NOT NULL CHECK (char_length("dedupe_key") BETWEEN 1 AND 300),
   "request_id" uuid REFERENCES "app"."requests" ("id") ON DELETE CASCADE,
   "binding_id" uuid REFERENCES "app"."email_threads" ("id") ON DELETE CASCADE,

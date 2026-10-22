@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   EMAIL_RECEIPT_JOB,
   receiveAgentMailWebhook,
+  receiverConfigFromEnvironment,
   type ReceiverDependencies,
   secretFingerprint,
 } from "../../lib/server/agentmail-receiver";
@@ -222,6 +223,22 @@ describe("AgentMail receiver", () => {
     // A received message for another inbox is not this receiver's.
     expect((await receiveAgentMailWebhook(signed(secret, payload("other@agentmail.test")), receiver, () => deps)).status).toBe(404);
     expect(await receipts(inbox)).toHaveLength(0);
+  });
+
+  it("caps a body without a declared length, and accepts the inbox in any case", async () => {
+    const { deps, inbox, secret } = fixture();
+    const receiver = await register(inbox, secret);
+    const huge = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let index = 0; index < 300; index += 1) controller.enqueue(new Uint8Array(1024).fill(32));
+        controller.close();
+      },
+    });
+    const streamed = new Request("http://localhost/agentmail/webhooks/x", { body: huge, duplex: "half", method: "POST" } as RequestInit);
+    expect((await receiveAgentMailWebhook(streamed, receiver, () => deps)).status).toBe(413);
+
+    const upper: ReceiverDependencies = { ...deps, config: receiverConfigFromEnvironment({ AGENTMAIL_INBOX_ID: inbox.toUpperCase(), AGENTMAIL_WEBHOOK_SECRET: secret }) };
+    expect((await receiveAgentMailWebhook(signed(secret, payload(inbox)), receiver, () => upper)).status).toBe(204);
   });
 
   it("is unavailable without an inbox or secret configured", async () => {

@@ -32,7 +32,7 @@ export type ReceiverConfig = {
 };
 
 export function receiverConfigFromEnvironment(env: Environment = process.env): ReceiverConfig {
-  return { inboxId: env.AGENTMAIL_INBOX_ID?.trim() ?? "", secret: env.AGENTMAIL_WEBHOOK_SECRET?.trim() ?? "" };
+  return { inboxId: env.AGENTMAIL_INBOX_ID?.trim().toLowerCase() ?? "", secret: env.AGENTMAIL_WEBHOOK_SECRET?.trim() ?? "" };
 }
 
 export function secretFingerprint(secret: string) {
@@ -83,12 +83,27 @@ export function receivedEvent(payload: unknown): ReceivedEvent | null {
   return eventId && inboxId && threadId && messageId ? { eventId, inboxId, messageId, threadId } : null;
 }
 
+// The raw body, read with a byte cap whether or not a length is declared.
 async function readBody(request: Request) {
   const length = Number(request.headers.get("content-length") ?? "0");
-  if (length > MAX_WEBHOOK_BYTES) return null;
+  if (length > MAX_WEBHOOK_BYTES || !request.body) return length > MAX_WEBHOOK_BYTES ? null : "";
 
-  const body = await request.text();
-  return Buffer.byteLength(body, "utf8") > MAX_WEBHOOK_BYTES ? null : body;
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_WEBHOOK_BYTES) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 type ReceiptRow = {
@@ -163,7 +178,7 @@ export async function receiveAgentMailWebhook(
     select inbox_id, secret_fingerprint from app.email_receivers where id = ${receiverId} and state = 'enabled'
   `;
 
-  if (!receiver || receiver.inbox_id !== inboxId || receiver.secret_fingerprint !== secretFingerprint(secret)) {
+  if (!receiver || receiver.inbox_id.toLowerCase() !== inboxId || receiver.secret_fingerprint !== secretFingerprint(secret)) {
     return answer(404);
   }
 
@@ -187,7 +202,7 @@ export async function receiveAgentMailWebhook(
   if (!event) return answer(204);
 
   // A message for another inbox is not this receiver's to accept.
-  if (event.inboxId !== inboxId) return answer(404);
+  if (event.inboxId.toLowerCase() !== inboxId) return answer(404);
 
   const outcome = await storeReceipt(
     deps.db,

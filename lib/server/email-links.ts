@@ -182,6 +182,14 @@ const CONFIRMATION = {
   ko: (host: string) => `이 스레드가 ${host}님과의 요청에 연결되었습니다. 여기에 답장하면 이어서 진행됩니다.`,
 };
 
+// A pending code seen where it should not be (a bound thread) is voided.
+export async function voidPendingCode(db: Database, code: string) {
+  await db`
+    update app.email_links set state = 'voided', ended_at = now(), code_ciphertext = null, code_key_id = null
+    where code_hash = ${hashLinkCode(code)} and state = 'pending'
+  `;
+}
+
 async function voidLink(tx: Transaction, linkId: string) {
   await tx`
     update app.email_links set state = 'voided', ended_at = now(), code_ciphertext = null, code_key_id = null
@@ -200,7 +208,22 @@ export async function bindByCode(
   address: string,
   authenticated: boolean,
 ): Promise<LinkOutcome> {
+  // The request is locked before the link, in the same order as the card's
+  // commands, so linking never deadlocks against them.
+  const [named] = await db<{ request_id: string }[]>`
+    select request_id from app.email_links where code_hash = ${hashLinkCode(code)}
+  `;
+  if (!named) return "ignored";
+
   return (await db.begin(async (tx) => {
+    let request: Awaited<ReturnType<typeof lockOpenRequest>> | null = null;
+
+    try {
+      request = await lockOpenRequest(tx, named.request_id);
+    } catch (error) {
+      if (!(error instanceof CommandError)) throw error;
+    }
+
     const [link] = await tx<
       { id: string; request_id: string; state: string; expired: boolean; thread_binding_id: string | null }[]
     >`
@@ -225,14 +248,6 @@ export async function bindByCode(
     const [bound] = await tx<{ id: string }[]>`
       select id from app.email_threads where inbox_id = ${receipt.inbox_id} and thread_id = ${receipt.thread_id} and state = 'active'
     `;
-
-    let request: Awaited<ReturnType<typeof lockOpenRequest>> | null = null;
-
-    try {
-      request = await lockOpenRequest(tx, link.request_id);
-    } catch (error) {
-      if (!(error instanceof CommandError)) throw error;
-    }
 
     const matches =
       authenticated &&

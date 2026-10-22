@@ -140,6 +140,40 @@ describe("binding by code", () => {
     expect((await inputsOf(request.requestId)).map((input) => input.message)).toEqual(["Thursday works."]);
   });
 
+  it("forwards later replies whose subject or quoted text repeats the code, with the code removed", async () => {
+    const request = await linkableRequest();
+    const code = await createCode(request);
+    const { message } = await deliver({ from: `Grace <${request.contactEmail}>`, subject: code, text: code });
+
+    // What a mail client sends: "Re:" and the earlier message quoted, with no
+    // extracted new text.
+    const reply = await deliver({
+      from: `Grace <${request.contactEmail}>`,
+      inReplyTo: message.message_id,
+      subject: `Re: ${code}`,
+      text: `Thursday works.\n\nOn Tue, Grace wrote:\n> ${code}`,
+      threadId: message.thread_id,
+    });
+
+    expect(reply.outcome).toBe("forwarded");
+    const inputs = await inputsOf(request.requestId);
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]!.message).toContain("Thursday works.");
+    expect(inputs[0]!.message).not.toContain(code);
+    expect((await bindingOf(message.thread_id))!.state).toBe("active");
+  });
+
+  it("voids another pending code seen in a bound thread", async () => {
+    const request = await linkableRequest();
+    const { message } = await deliver({ from: `Grace <${request.contactEmail}>`, subject: "x", text: await createCode(request) });
+    const other = await linkableRequest();
+    const otherCode = await createCode(other);
+
+    const leaked = await deliver({ from: `Grace <${request.contactEmail}>`, inReplyTo: message.message_id, text: `Is this right? ${otherCode}`, threadId: message.thread_id });
+    expect(leaked.outcome).toBe("forwarded");
+    expect((await status(other.bookingId)).body).toEqual({ inbox, state: "none" });
+  });
+
   it.each([
     ["another sender (a forwarded copy)", { from: () => `Someone <${uniqueEmail("fwd")}>` }],
     ["an unauthenticated message", { authenticated: false }],

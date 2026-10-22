@@ -159,13 +159,18 @@ export type InboundEmail = {
   readonly inReplyTo?: string;
   readonly authenticated?: boolean;
   readonly labels?: readonly string[];
+  readonly headers?: Readonly<Record<string, string>>;
+  // Overrides the authentication results when given.
+  readonly authenticationResults?: ReceivedMessage["authentication_results"];
 };
 
 // A received message as AgentMail stores it: authenticated by DMARC unless told
 // otherwise.
 export function receivedMessage(inboxId: string, email: InboundEmail): ReceivedMessage {
   return {
-    authentication_results: email.authenticated === false ? { dmarc: "fail" } : { dkim: "pass", dmarc: "pass", spf: "pass" },
+    authentication_results:
+      email.authenticationResults ?? (email.authenticated === false ? { dmarc: "fail" } : { dkim: "pass", dmarc: "pass", spf: "pass" }),
+    headers: email.headers ?? {},
     extracted_text: email.text,
     from: email.from,
     in_reply_to: email.inReplyTo ?? null,

@@ -74,6 +74,7 @@ export function emailHarness(db: Database, agentmail: () => FakeAgentMail) {
     runtime,
     secret,
     sessions,
+    receiverId: () => receiverId,
     async register() {
       const [row] = await db<{ id: string }[]>`
         select result_receiver_id as id from app.operator_register_email_receiver(${inbox}, 'ep_test', ${secretFingerprint(secret)}, 'tester', 'local')

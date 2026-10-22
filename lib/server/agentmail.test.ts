@@ -35,6 +35,8 @@ describe("sender evidence", () => {
 
   it("refuses unaligned DKIM, SPF alone, failures and AgentMail's refusal labels", () => {
     expect(senderAuthenticated(message({ authentication_results: { dkim: "pass", dkim_domain: "mailer.example.net" } }))).toBe(false);
+    expect(senderAuthenticated(message({ authentication_results: { dmarc: "pass", dmarc_domain: "elsewhere.example" } }))).toBe(false);
+    expect(senderAuthenticated(message({ authentication_results: { dmarc: "pass", dmarc_domain: "Example.com" } }))).toBe(true);
     expect(senderAuthenticated(message({ authentication_results: { spf: "pass" } }))).toBe(false);
     expect(senderAuthenticated(message({ authentication_results: { dmarc: "fail" } }))).toBe(false);
     expect(senderAuthenticated(message({ authentication_results: null }))).toBe(false);

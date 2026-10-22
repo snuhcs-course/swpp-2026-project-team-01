@@ -8,7 +8,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(11);
+select plan(14);
 
 select is_empty(
   $$
@@ -100,6 +100,26 @@ select ok(
     and exists (select 1 from app.email_threads where thread_id = 'thr_new')
     and not exists (select 1 from app.email_receipts where event_id = 'evt_1'),
   'the cleanup removes the old binding and receipt and keeps the recent binding'
+);
+
+-- Expired pending codes are voided, and old requests' links and stuck replies go too.
+insert into app.email_links (request_id, code_hash, code_ciphertext, code_key_id, expires_at)
+values ('00000000-0000-4000-8000-0000000000c7', repeat('3', 64), 'sealed', 'k', now() - interval '1 minute');
+update app.email_links set expires_at = now() - interval '1 minute' where code_hash = repeat('1', 64);
+insert into app.email_replies (kind, dedupe_key, inbox_id, reply_to_message_id, text, state, created_at)
+values ('closed', 'stuck', 'inbox@example.test', '<m@x>', 'kept', 'queued', now() - interval '31 days');
+
+select ok(app.cleanup_email_records(500) >= 2, 'the cleanup removes the old link and the stuck reply');
+
+select is_empty(
+  $$ select 1 from app.email_links where code_hash = repeat('3', 64)
+     union all select 1 from app.email_replies where dedupe_key = 'stuck' $$,
+  'an old request''s link and a stuck reply older than 30 days are deleted'
+);
+
+select ok(
+  (select state = 'voided' and code_ciphertext is null from app.email_links where code_hash = repeat('1', 64)),
+  'an expired pending code is voided and its sealed copy cleared'
 );
 
 select * from finish();

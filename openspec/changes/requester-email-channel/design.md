@@ -74,14 +74,16 @@ The `email_receipt` job reads the message with `GET /v0/inboxes/{inbox}/messages
 | Check | Fails when | Effect |
 |---|---|---|
 | Our own message | From is the product inbox | Nothing |
+| Auto-reply | `Auto-Submitted` other than `no`, `Precedence: bulk`, `junk`, `list` or `auto_reply`, or an `X-Autoreply` header | Nothing, so an out-of-office answer cannot start a reply loop |
 | Delivery class | Labels include `unauthenticated`, `spam` or `blocked` | Nothing |
-| Sender evidence (D5) | Neither `dmarc: pass` nor `dkim: pass` with `dkim_domain` equal to the From domain | Nothing, and a carried link code is voided |
-| Link code | The text carries `FMAT-` and ten characters | Bind (section 4) if every condition holds, else void the code; never forwarded |
+| Sender evidence (D5) | Neither `dmarc: pass` (for the From domain when `dmarc_domain` is given) nor `dkim: pass` with `dkim_domain` equal to the From domain | Nothing, and a carried link code is voided |
+| Link code in an unbound thread | The subject or text carries `FMAT-` and ten characters | Bind (section 4) if every condition holds, else void the code; never forwarded |
+| Link code in a bound thread | A reply's subject or quoted text repeats a code | A still-pending code is voided; the message goes on to the bound-thread check, and redaction removes the code before the model sees it. The message that bound the thread is never forwarded on a retry |
 | Bound thread | The thread has an active binding | Forward if the From address hashes to the binding's address and the request is open; a closed request gets one closed notice per binding; another sender gets nothing |
 | New thread | No binding and the message starts the thread | Start (section 3) |
-| Anything else | A reply in an unbound or unlinked thread | Nothing |
+| Anything else | A reply in an unbound or unlinked thread | Nothing; while an earlier receipt of the same thread is unprocessed, the attempt fails and retries, so a reply never overtakes its thread's first message |
 
-Forwarding uses `acceptGuestMessage` with the receipt ID as the client input ID, so a retried job finds the same input. The text is the provider's extracted new text (quoted history removed), falling back to the plain text. Over-long messages get one fixed reply and are not forwarded (D11). Redaction already removes booking links and bearer-like values; link codes are added to it. An admission refusal fails the job's attempt, so the receipt is retried with backoff rather than dropped.
+Forwarding uses `acceptGuestMessage` with the receipt ID as the client input ID, so a retried job finds the same input. The text is the provider's extracted new text (quoted history removed), falling back to the plain text. Over-long messages get one fixed reply and are not forwarded (D11). Redaction already removes booking links and bearer-like values; link codes are added to it. An admission refusal fails the job's attempt, so the receipt is retried with backoff rather than dropped; a refusal that a retry cannot change (a retry conflict) is ignored. When the attempts run out the receipt is recorded as ignored, and a thread that this message already bound by starting a request gets one fixed reply saying the message did not reach the assistant. A closed request's notice and its record commit in one transaction.
 
 The job has a messaging endpoint (the AgentMail base URL), so the worker claims it only where messaging is admitted, and the transport is gated as every other one is.
 
@@ -90,8 +92,8 @@ The job has a messaging endpoint (the AgentMail base URL), so the worker claims 
 Each forwarded message gets an `email_replies` row in `waiting` with its input, and an `email_reply` job due 30 seconds later (D8). The session-owner hook, on `turn.completed`, `turn.failed` and `turn.cancelled`, moves the jobs of replies waiting on the completed input to now, so the per-minute sweep picks them up. The job:
 
 1. while its input is not completed, fails the attempt with `not_ready` (12 attempts span about 3 hours);
-2. reads the session's recorded events with an internal read bearer and joins the `message.completed` texts whose finish reason is not `tool-calls` and whose delivery IDs belong to the input; none gives the fixed fallback "I could not finish a reply. Continue at your booking link.";
-3. freezes the text with the footer and moves the reply to `queued`, then `dispatching`, committing before the network call;
+2. reads the session's recorded events with an internal read bearer and joins the `message.completed` texts whose finish reason is not `tool-calls` and whose delivery IDs belong to the input; none, or a session that failed for good (whose replies the hook also wakes), gives the fixed fallback "I could not finish a reply. Please write again, or continue at your booking link.";
+3. redacts the text as conversation input is redacted, freezes it with the footer and moves the reply to `dispatching`, committing before the network call. A notice stores no text: it is rendered again from its template and sealed booking link at each send, which gives the same payload for the same key;
 4. sends `POST /v0/inboxes/{inbox}/messages/{message}/reply` with `text` and `Idempotency-Key: {replyId}`; `200` with a message ID is `accepted`, `4xx` other than `409` and `429` is `rejected`, anything else uncertain.
 
 A reply found in `dispatching` by a later attempt is sent again with the same key while its first dispatch is under 23 hours old; AgentMail returns the original message without a second email. After that it is recorded `uncertain` and never sent again. Fixed replies (link confirmation, start refusal, closed notice, over-long message) skip step 1 and 2.
@@ -114,7 +116,7 @@ All have row-level security and no grants to `anon` or `authenticated`.
 
 ### 9. Retention
 
-`app.cleanup_email_records(limit)` runs every 15 minutes (D4): it deletes receipts older than 30 days, bindings and consumed or voided links of requests created more than 30 days ago, and replies in a final state older than 30 days. A closed request's binding forwards nothing: the conversation path refuses a closed request, and the thread gets one closed notice. Final replies already hold no text or secret.
+`app.cleanup_email_records(limit)` runs every 15 minutes (D4): it voids expired pending codes and clears their sealed copy, and deletes receipts and replies older than 30 days whatever their state, and the bindings and links of requests created more than 30 days ago. A closed request's binding forwards nothing: the conversation path refuses a closed request, and the thread gets one closed notice. Final replies already hold no text or secret.
 
 ### 10. Testing
 

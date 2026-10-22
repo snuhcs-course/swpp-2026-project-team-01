@@ -15,6 +15,7 @@ import { type EmailParameters, type EmailSecrets, isEmailTemplate, renderEmail }
 import { signInternalBearer, internalSigningKey } from "./internal-bearer";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
+import { redactCredentials } from "./redaction";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // Replies the product inbox sends into a requester's thread
@@ -23,9 +24,10 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 // waits for the turn that served its forwarded message: the session-owner hook
 // brings its job forward when that turn ends, and the job otherwise retries
 // until it does. The job then:
-//   1. freezes the text: the turn's final assistant text with the footer (a
-//      fixed fallback when the turn produced none), a fixed reply as recorded, a
-//      notice rendered from its template with the sealed booking link;
+//   1. freezes the text: the turn's final assistant text, redacted, with the
+//      footer (a fixed fallback when the turn produced none or its session
+//      failed for good), a fixed reply as recorded; a notice is rendered from its
+//      template and sealed booking link at each send and stores no text;
 //   2. suppresses a reply whose thread was unlinked, and a notice no longer
 //      current;
 //   3. moves the reply to dispatching and commits before the network call;
@@ -47,7 +49,7 @@ export const REPLY_ATTEMPTS = 12;
 export const TURN_REPLY_DELAY_SECONDS = 30;
 export const MAX_REPLY_CHARS = 20_000;
 
-export type ReplyKind = "turn" | "link_confirmation" | "start_refusal" | "closed" | "too_long" | "notice";
+export type ReplyKind = "turn" | "link_confirmation" | "start_refusal" | "closed" | "too_long" | "unprocessed" | "notice";
 export type ReplyState = "waiting" | "queued" | "dispatching" | "accepted" | "rejected" | "uncertain" | "suppressed";
 
 export type RecordReply = {
@@ -114,13 +116,15 @@ export async function recordReply(tx: Transaction, reply: RecordReply): Promise<
 }
 
 // From the session-owner hook when a turn ends: the replies waiting on inputs
-// that session completed are due now, so the next worker run sends them.
+// that session completed, or on any input of a session that failed for good,
+// are due now, so the next worker run sends them.
 export async function wakeTurnReplies(db: Database, sessionId: string) {
   await db`
     update app.jobs j set run_after = now(), updated_at = now()
     from app.email_replies e
     join app.conversation_inputs i on i.id = e.input_id
-    where i.session_id = ${sessionId} and i.state = 'completed' and e.state = 'waiting'
+    join app.agent_sessions s on s.session_id = i.session_id
+    where i.session_id = ${sessionId} and (i.state = 'completed' or s.state = 'failed') and e.state = 'waiting'
       and j.kind = ${EMAIL_REPLY_JOB} and j.state = 'pending' and j.payload ->> 'replyId' = e.id::text
   `;
 }
@@ -219,6 +223,20 @@ async function finish(
   return rows.count > 0;
 }
 
+// A notice's text, rendered from its template and sealed secrets, or null.
+function renderNotice(deps: EmailReplyDependencies, reply: ReplyRow) {
+  if (!reply.template || !isEmailTemplate(reply.template) || !reply.secret_ciphertext || !reply.secret_key_id) return null;
+
+  try {
+    const secrets = JSON.parse(
+      openToken(deps.tokenKeys, { ciphertext: reply.secret_ciphertext, keyId: reply.secret_key_id }, replySecretContext(reply.id)),
+    ) as EmailSecrets;
+    return renderEmail(reply.template, reply.language, reply.parameters, secrets).text;
+  } catch {
+    return null;
+  }
+}
+
 // The turn is not over yet: the attempt fails and the job tries again later.
 export class TurnNotEndedError extends Error {
   constructor() {
@@ -238,14 +256,18 @@ async function turnText(deps: EmailReplyDependencies, reply: ReplyRow) {
       generation: number | null;
       principal_id: string | null;
       principal_type: string | null;
+      session_state: string | null;
     }[]
   >`
-    select i.state, i.delivery_ids, i.session_id, i.discussion_id, s.generation, s.principal_id, s.principal_type
+    select i.state, i.delivery_ids, i.session_id, i.discussion_id, s.generation, s.principal_id, s.principal_type,
+           s.state as session_state
     from app.conversation_inputs i left join app.agent_sessions s on s.session_id = i.session_id
     where i.id = ${reply.input_id!}
   `;
 
   if (!input) return { done: true as const, text: null };
+  // A session that failed for good ends no turn: the fallback answers instead.
+  if (input.session_state === "failed") return { done: true as const, text: null };
   if (input.state !== "completed") throw new TurnNotEndedError();
   if (!input.session_id || input.delivery_ids.length === 0) return { done: true as const, text: null };
 
@@ -311,9 +333,15 @@ export function createEmailReplyHandler(load: () => EmailReplyDependencies = rep
           await finish(claimTx, reply.id, "dispatching", "uncertain", { reason: "retry_horizon" });
           return { state: "uncertain" as const };
         }
-        // Sent again below with the same key and text.
+        // Sent again below with the same key and the same text: a notice is
+        // rendered again from its sealed parameters, which gives the same text.
         assertMessagingAdmitted(transport.endpoint, deps.env);
-        return { reply, state: "dispatching" as const, text: reply.text! };
+        const again = reply.kind === "notice" ? renderNotice(deps, reply) : reply.text;
+        if (again === null) {
+          await finish(claimTx, reply.id, "dispatching", "uncertain", { reason: "unrenderable" });
+          return { state: "uncertain" as const };
+        }
+        return { reply, state: "dispatching" as const, text: again };
       }
 
       if (reply.state !== "waiting" && reply.state !== "queued") return { state: reply.state };
@@ -341,29 +369,24 @@ export function createEmailReplyHandler(load: () => EmailReplyDependencies = rep
 
       if (reply.kind === "turn") {
         if (readText === undefined) throw new TurnNotEndedError();
-        text = withFooter(readText ?? FALLBACK[reply.language], reply.language);
+        // The model's text is redacted like any input, so no link or code leaves.
+        text = withFooter(redactCredentials(readText ?? FALLBACK[reply.language], { bareUuids: true }), reply.language);
       } else if (reply.kind === "notice") {
-        if (!reply.template || !isEmailTemplate(reply.template) || !reply.secret_ciphertext || !reply.secret_key_id) {
+        const rendered = renderNotice(deps, reply);
+        if (rendered === null) {
           await finish(claimTx, reply.id, reply.state, "rejected", { reason: "unrenderable" });
           return { state: "rejected" as const };
         }
-
-        try {
-          const secrets = JSON.parse(
-            openToken(deps.tokenKeys, { ciphertext: reply.secret_ciphertext, keyId: reply.secret_key_id }, replySecretContext(reply.id)),
-          ) as EmailSecrets;
-          text = renderEmail(reply.template, reply.language, reply.parameters, secrets).text;
-        } catch {
-          await finish(claimTx, reply.id, reply.state, "rejected", { reason: "unrenderable" });
-          return { state: "rejected" as const };
-        }
+        text = rendered;
       } else {
         text = reply.text ?? "";
       }
 
+      // A notice keeps only its sealed parameters until a final state, so no
+      // usable booking link is stored while it may be sent again.
       await claimTx`
         update app.email_replies
-        set state = 'dispatching', text = ${text}, secret_ciphertext = null, secret_key_id = null,
+        set state = 'dispatching', text = ${reply.kind === "notice" ? null : text},
             first_dispatched_at = coalesce(first_dispatched_at, now()), updated_at = now()
         where id = ${reply.id}
       `;

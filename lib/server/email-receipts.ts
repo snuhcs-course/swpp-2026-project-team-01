@@ -21,14 +21,13 @@ import { AdmissionLimitError } from "./conversation-admission";
 import { agentUrlFromEnvironment, ConversationClosedError, ConversationInputError, eveRuntime } from "./conversations";
 import { CommandError } from "./commands";
 import { database, type Database, type Transaction } from "./database";
-import { bindByCode, findLinkCode } from "./email-links";
+import { bindByCode, findLinkCode, voidPendingCode } from "./email-links";
 import { recordReply } from "./email-replies";
-import { acceptGuestMessage, type GuestConversationDependencies } from "./guest-conversations";
+import { acceptGuestMessage, DraftMessageLimitError, type GuestConversationDependencies } from "./guest-conversations";
 import { internalSigningKey } from "./internal-bearer";
 import type { JobHandler } from "./jobs";
 import { findReadyHostByHandle } from "./readiness";
 import { assertMessagingAdmitted } from "./messaging";
-import { LINK_CODE } from "./redaction";
 import { lockOpenRequest } from "./request-guard";
 import { admitCreation, CREATION_LIMITS, type CreationLimits, createDraftRequest, identifyDraft } from "./request-start";
 import { appOriginsFromEnvironment } from "./same-origin";
@@ -107,6 +106,10 @@ export const FIXED_REPLIES = {
     en: "Find Me a Time cannot start another request from this address right now. Try again later.",
     ko: "지금은 이 주소로 요청을 더 시작할 수 없습니다. 나중에 다시 시도해 주세요.",
   },
+  unprocessed: {
+    en: "Your request is created, but this message could not reach the assistant. Please write again, or continue at the booking link we emailed you.",
+    ko: "요청은 만들어졌지만 이 메시지는 어시스턴트에게 전달되지 못했습니다. 다시 보내 주시거나 이메일로 받은 예약 링크에서 이어 가 주세요.",
+  },
   tooLong: {
     en: "This message is too long for the assistant. Please send a shorter one.",
     ko: "이 메시지는 어시스턴트가 받기에 너무 깁니다. 더 짧게 보내 주세요.",
@@ -131,7 +134,7 @@ export function subjectHandles(subject: string | null | undefined) {
 }
 
 export function carriesLinkCode(text: string) {
-  return new RegExp(LINK_CODE.source, "i").test(text);
+  return findLinkCode(text) !== null;
 }
 
 // The keyed hash a sender address counts under for the creation bounds.
@@ -194,19 +197,36 @@ async function forward(
     await acceptGuestMessage(deps.conversation, principal, { clientInputId: receipt.id, message: text });
   } catch (error) {
     if (error instanceof ConversationClosedError) {
-      const [first] = await deps.db<{ id: string }[]>`
-        update app.email_threads set closed_notice_at = now()
-        where id = ${binding.id} and closed_notice_at is null
-        returning id
-      `;
-      return first ? reply(deps, receipt, "closed", FIXED_REPLIES.closed[language], language, binding) : "ignored";
+      // The notice and its record commit together, so a retry never loses it.
+      return deps.db.begin(async (tx) => {
+        const [notice] = await tx<{ id: string }[]>`
+          update app.email_threads set closed_notice_at = now()
+          where id = ${binding.id} and closed_notice_at is null
+          returning id
+        `;
+        if (!notice) return "ignored" as const;
+        await recordReply(tx, {
+          bindingId: binding.id,
+          dedupeKey: `receipt:${receipt.id}`,
+          inboxId: receipt.inbox_id,
+          kind: "closed",
+          language,
+          replyToMessageId: receipt.message_id,
+          requestId: binding.request_id,
+          text: FIXED_REPLIES.closed[language],
+        });
+        return "replied" as const;
+      });
     }
 
     // Admission limits retry the receipt later. A runtime refusal leaves the
     // input recorded and accepted: the next message or recovery delivers it, and
-    // its reply waits for that turn.
+    // its reply waits for that turn. Any other refusal of the message itself
+    // (a retry conflict, a draft at its cap) will not change on retry.
     if (error instanceof AdmissionLimitError) throw error;
-    if (!(error instanceof ConversationInputError && error.code === "runtime_unavailable")) throw error;
+    if (error instanceof DraftMessageLimitError) return "ignored";
+    if (error instanceof ConversationInputError && error.code !== "runtime_unavailable") return "ignored";
+    if (!(error instanceof ConversationInputError)) throw error;
   }
 
   const [input] = await deps.db<{ id: string }[]>`
@@ -324,17 +344,26 @@ export async function processReceivedMessage(
 
   if (!address || address === deps.config.inboxId) return "ignored";
 
+  if (autoSubmitted(message)) return "ignored";
+
   const text = `${message.subject ?? ""}\n${newText(message)}`;
   const authenticated = senderAuthenticated(message);
+  const binding = await activeBinding(deps.db, receipt.inbox_id, receipt.thread_id);
+  const code = findLinkCode(text);
 
-  if (carriesLinkCode(text)) return linkByCode(deps, receipt, message, address, authenticated);
+  // A code binds only an unbound thread. In a bound thread a reply's subject or
+  // quoted text often repeats the code that linked it; a different pending code
+  // seen there is voided, and the text is forwarded with codes redacted.
+  if (code && !binding) return linkByCode(deps, receipt, message, code, address, authenticated);
+  if (binding?.bound_by_receipt_id === receipt.id && binding.origin === "linked") return "linked";
+  if (code) await voidPendingCode(deps.db, code);
   if (!authenticated) return "ignored";
 
-  const binding = await activeBinding(deps.db, receipt.inbox_id, receipt.thread_id);
-
   if (binding) {
-    // The message that started this thread's request, seen again by a retry.
+    // The message that bound this thread, seen again by a retry: a linking
+    // message is never forwarded; a starting one is forwarded once.
     if (binding.bound_by_receipt_id === receipt.id) {
+      if (binding.origin === "linked") return "linked";
       const outcome = await forward(deps, receipt, message, binding, true);
       return outcome === "forwarded" ? "started" : outcome;
     }
@@ -342,20 +371,40 @@ export async function processReceivedMessage(
     return binding.sender_hash === senderHash(deps.tokenKey, address) ? forward(deps, receipt, message, binding, false) : "ignored";
   }
 
-  return startsThread(message) ? start(deps, receipt, message, address) : "ignored";
+  if (startsThread(message)) return start(deps, receipt, message, address);
+
+  // A reply that arrived before the thread's first message was processed waits
+  // for it, rather than being ignored for good.
+  const [earlier] = await deps.db<{ id: string }[]>`
+    select id from app.email_receipts
+    where inbox_id = ${receipt.inbox_id} and thread_id = ${receipt.thread_id} and outcome is null and id <> ${receipt.id}
+      and received_at <= (select received_at from app.email_receipts where id = ${receipt.id})
+    limit 1
+  `;
+  if (earlier) throw new Error("An earlier message of this thread is not processed yet.");
+
+  return "ignored";
+}
+
+// Auto-replies and bulk mail never reach the assistant, so an out-of-office
+// answer cannot start a reply loop.
+export function autoSubmitted(message: ReceivedMessage) {
+  const headers = Object.fromEntries(Object.entries(message.headers ?? {}).map(([name, value]) => [name.toLowerCase(), String(value).toLowerCase()]));
+  const auto = headers["auto-submitted"];
+  return Boolean((auto && auto !== "no") || /^(bulk|junk|list|auto_reply)$/.test(headers.precedence ?? "") || headers["x-autoreply"] || headers["x-autorespond"]);
 }
 
 // A message carrying a link code binds only as Continue by email wrote it
 // (email-links.ts), and is never forwarded either way.
-async function linkByCode(
+function linkByCode(
   deps: EmailReceiptDependencies,
   receipt: Receipt,
   message: ReceivedMessage,
+  code: string,
   address: string,
   authenticated: boolean,
 ): Promise<ReceiptOutcome> {
-  const code = findLinkCode(`${message.subject ?? ""}\n${newText(message)}`);
-  return code ? bindByCode(deps.db, deps.tokenKey, receipt, message, code, address, authenticated) : "ignored";
+  return bindByCode(deps.db, deps.tokenKey, receipt, message, code, address, authenticated);
 }
 
 export function createEmailReceiptHandler(load: () => EmailReceiptDependencies = receiptDependenciesFromEnvironment): JobHandler {
@@ -391,6 +440,40 @@ export function createEmailReceiptHandler(load: () => EmailReceiptDependencies =
       where id = ${receipt.id} and outcome is null
     `;
     return { outcome, receiptId };
+  };
+
+  // Attempts spent (AgentMail or admission unavailable for hours): the receipt
+  // is recorded as ignored so it shows as handled, and a thread this message
+  // already bound by starting a request gets one fixed reply instead of silence.
+  handler.onExhausted = async (tx, job) => {
+    const receiptId = typeof job.payload.receiptId === "string" ? job.payload.receiptId : null;
+    if (!receiptId) return;
+
+    const [receipt] = await tx<Receipt[]>`
+      update app.email_receipts set outcome = 'ignored', processed_at = now()
+      where id = ${receiptId} and outcome is null
+      returning id, inbox_id, thread_id, message_id, outcome
+    `;
+    if (!receipt) return;
+
+    const [binding] = await tx<(Binding & { language: string | null })[]>`
+      select t.id, t.request_id, t.origin, t.sender_hash, t.bound_by_receipt_id, r.details ->> 'language' as language
+      from app.email_threads t join app.requests r on r.id = t.request_id
+      where t.bound_by_receipt_id = ${receipt.id} and t.origin = 'started' and t.state = 'active'
+    `;
+    if (!binding) return;
+
+    const language = binding.language === "ko" ? "ko" : "en";
+    await recordReply(tx, {
+      bindingId: binding.id,
+      dedupeKey: `receipt:${receipt.id}`,
+      inboxId: receipt.inbox_id,
+      kind: "unprocessed",
+      language,
+      replyToMessageId: receipt.message_id,
+      requestId: binding.request_id,
+      text: FIXED_REPLIES.unprocessed[language],
+    });
   };
 
   handler.messagingEndpoint = () => {
