@@ -20,7 +20,7 @@ Before each group, read the [Phase 5 reference repository files](../../../docume
 ## 4. MCP server and user CLI (Lane B)
 
 - [x] 4.1 Add the dual-era MCP handler and the host tools ([design 4 and 6](design.md#6-mcp-server)). Verify integration tests for both eras' methods and errors, the tool list per scope, each host tool, another host's request, a retried and a conflicting mutation, host decision preparation and a suspended host.
-- [ ] 4.2 Add `cli/` with `fmat` ([design 9](design.md#9-user-cli)). Verify unit tests for argument parsing and output, and an integration test that logs in headlessly against a local server, lists tools, calls one, retries a mutation with its printed key, and reports a refused refresh as a new login.
+- [x] 4.2 Add `cli/` with `fmat` ([design 9](design.md#9-user-cli)). Verify unit tests for argument parsing and output, and an integration test that logs in headlessly against a local server, lists tools, calls one, retries a mutation with its printed key, and reports a refused refresh as a new login.
 
 ## 5. Requester bootstrap and client notes (Lane C)
 

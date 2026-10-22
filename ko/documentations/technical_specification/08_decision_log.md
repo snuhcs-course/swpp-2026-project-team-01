@@ -188,6 +188,12 @@
 | 실패 처리 | 명령 실패, 잘못된 인자, 닫힌 요청, 허가가 쓸 수 없는 도구는 `isError`와 `nextAction`이 있는 도구 결과입니다. 알 수 없는 도구와 잘못된 형식의 요청만 프로토콜 오류이며, 토큰에 없는 범위는 `insufficient_scope`와 함께 403으로 답합니다 | 모든 경우를 프로토콜 오류로 처리 | `agent-mcp.ts` | 같은 파일의 `callTool` |
 | 지원하지 않는 핸드셰이크 버전 | 알 수 없는 버전의 `initialize`에는 `2025-11-25`로 답하고, 이후 호출에서 알 수 없는 `MCP-Protocol-Version`이 오면 지원 목록과 함께 `400`으로 답합니다 | 핸드셰이크 거부 | `agent-mcp.ts` | 같은 파일의 `createMcpHandler` |
 | 서버 이름과 버전 | `find-me-a-time` 1.0.0, 제목은 "Find Me a Time"입니다 | 패키지 버전 | `agent-mcp.ts` | 같은 파일의 `SERVER_INFO` |
+| CLI 프로토콜 | CLI는 자체 엔드포인트와만 통신하므로 MCP `2026-07-28`만 사용합니다 | 서버처럼 두 세대 모두 지원 | `cli/src/mcp.ts` | 같은 파일의 `PROTOCOL_VERSION` |
+| CLI 도구 탐색 | `fmat call`은 먼저 `tools/list`를 읽으므로, 알 수 없거나 허가되지 않은 도구는 호출 전에 사용법 오류가 되며, 재시도 키는 스키마가 받는 도구에만 붙입니다 | 무조건 호출 | `cli/src/app.ts` | 같은 파일의 `main` |
+| CLI 키체인 쓰기 | 자격 증명은 `security -i`의 표준 입력으로 16진수 인코딩해 macOS 키체인에 저장하므로 프로세스 목록에 나타나지 않습니다 | 값을 argv에 넣는 `security add-generic-password -w` | `cli/src/store.ts` | 같은 파일의 `writeSaved` |
+| CLI 갱신 | 만료 30초 이내의 토큰은 먼저 갱신하며, 갱신이 거부되거나 응답이 없으면 저장된 연결을 지우고 종료 코드 3으로 끝냅니다 | 갱신 재시도. 이미 쓴 토큰을 다시 보내 허가를 철회시키게 됩니다 | `cli/src/app.ts`, `cli/src/oauth.ts` | 해당 파일의 `fresh`와 `refresh` |
+| CLI 출처 | `https` 출처, 또는 로컬 실행용으로 `localhost`, `127.0.0.1`, `[::1]`의 `http` | 모든 출처 | `cli/src/app.ts` | 같은 파일의 `originOf` |
+| CLI 빌드 | `npm run build:cli`는 `tsgo`로 `cli/src`를 `cli/dist`로 컴파일하고, `npm run fmat -- <command>`는 체크아웃에서 `tsx`로 실행합니다 | 번들러 | `package.json`, `cli/package.json` | 해당 파일 |
 
 ## 6단계 — `host-imessage-channel`
 

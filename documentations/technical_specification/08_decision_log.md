@@ -186,6 +186,12 @@ The [proposal](../../openspec/changes/agent-access/proposal.md#decisions) record
 | Failures | A command failure, invalid arguments, a closed request or a tool the grant cannot use is a tool result with `isError` and a `nextAction`; only an unknown tool or a malformed request is a protocol error; a scope the token lacks answers 403 with `insufficient_scope` | Protocol errors for everything | `agent-mcp.ts` | `callTool` there |
 | Unsupported handshake versions | `initialize` with an unknown version answers `2025-11-25`; a later call with an unknown `MCP-Protocol-Version` answers `400` with the supported list | Refusing the handshake | `agent-mcp.ts` | `createMcpHandler` there |
 | Server name and version | `find-me-a-time` 1.0.0 with the title "Find Me a Time" | The package version | `agent-mcp.ts` | `SERVER_INFO` there |
+| CLI protocol | The CLI speaks only MCP `2026-07-28`, since it talks to our own endpoint | Dual-era like the server | `cli/src/mcp.ts` | `PROTOCOL_VERSION` there |
+| CLI tool discovery | `fmat call` reads `tools/list` first, so an unknown or unpermitted tool is a usage error before any call, and a retry key is added only to tools whose schema takes one | Calling blindly | `cli/src/app.ts` | `main` there |
+| CLI keychain write | The credential goes to the macOS Keychain through `security -i` on stdin, hex-encoded, so it never appears in a process list | `security add-generic-password -w` with the value in argv | `cli/src/store.ts` | `writeSaved` there |
+| CLI refresh | A token within 30 seconds of expiry is refreshed first; a refused or unanswered refresh deletes the stored connection and exits 3 | Retrying the refresh, which would replay a spent token and revoke the grant | `cli/src/app.ts`, `cli/src/oauth.ts` | `fresh` and `refresh` there |
+| CLI origins | `https` origins, or `http` on `localhost`, `127.0.0.1` or `[::1]` for local runs | Any origin | `cli/src/app.ts` | `originOf` there |
+| CLI build | `npm run build:cli` compiles `cli/src` to `cli/dist` with `tsgo`; `npm run fmat -- <command>` runs it from a checkout with `tsx` | A bundler | `package.json`, `cli/package.json` | Those files |
 
 ## Phase 6 — `host-imessage-channel`
 

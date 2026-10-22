@@ -12,7 +12,7 @@
     "build": "npm run build:eve && npm run build:web",
     "build:eve": "eve build",
     "build:web": "next build --turbopack apps/web",
-    "lint": "oxlint agent apps evals lib tests",
+    "lint": "oxlint agent apps cli evals lib tests",
     "dev": "tsx scripts/dev.ts",
     "dev:eve": "eve dev",
     "dev:all": "vercel dev --local",
@@ -20,13 +20,15 @@
     "start:eve": "eve start",
     "jobs:dev": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/jobs-dev.ts",
     "admin": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/admin.ts",
-    "typecheck": "next typegen apps/web && tsgo --noEmit -p apps/web/tsconfig.json && tsgo --noEmit -p tsconfig.json",
+    "typecheck": "next typegen apps/web && tsgo --noEmit -p apps/web/tsconfig.json && tsgo --noEmit -p tsconfig.json && tsgo --noEmit -p cli/tsconfig.json",
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:e2e": "playwright test",
     "eval": "FMAT_EVAL_AUDIENCE=requester eve eval",
     "check:docs": "node scripts/check-documentation.mjs",
-    "check": "npm run check:docs && openspec validate --all --strict"
+    "check": "npm run check:docs && openspec validate --all --strict",
+    "build:cli": "tsgo -p cli/tsconfig.json",
+    "fmat": "tsx cli/src/fmat.ts"
   },
   "dependencies": {
     "@shadcn/react": "0.3.1",

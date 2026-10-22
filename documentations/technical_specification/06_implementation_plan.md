@@ -242,7 +242,7 @@ Scope. Prerequisite: Phase 3 for requester operations and Phase 4 for host decis
 **Lane B — MCP server and user CLI**
 
 - [ ] Remote MCP server over the shared scheduling API with role-appropriate operations and audience projections.
-- [ ] User CLI as a thin client with structured JSON results, headless and interactive login, secure storage and reauthorization on lost responses.
+- [x] User CLI as a thin client with structured JSON results, headless and interactive login, secure storage and reauthorization on lost responses.
 
 **Lane C — requester bootstrap and client acceptance**
 
