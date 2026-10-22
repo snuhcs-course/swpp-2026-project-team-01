@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayTime, offsetLabel, zoneLabel } from "./timezone";
+import { displayTime, instantFromLocal, offsetLabel, zoneLabel } from "./timezone";
 
 // Date-specific offsets (design decision 15): each time carries the offset of
 // its own date, on both sides of a daylight-saving change.
@@ -22,5 +22,16 @@ describe("date-specific offsets", () => {
   it("labels a zone with the offset at the given instant", () => {
     expect(zoneLabel("America/New_York", new Date("2026-07-01T12:00:00Z"))).toBe("America/New York (GMT-4)");
     expect(zoneLabel("America/New_York", new Date("2026-12-01T12:00:00Z"))).toBe("America/New York (GMT-5)");
+  });
+});
+
+describe("instantFromLocal", () => {
+  it("reads a local time in the zone", () => {
+    expect(instantFromLocal("2026-11-02", "10:00", "Asia/Seoul")).toBe("2026-11-02T01:00:00.000Z");
+  });
+
+  it("returns null for a skipped time and the earlier instant for a repeated one", () => {
+    expect(instantFromLocal("2026-03-08", "02:30", "America/New_York")).toBeNull();
+    expect(instantFromLocal("2026-11-01", "01:30", "America/New_York")).toBe("2026-11-01T05:30:00.000Z");
   });
 });

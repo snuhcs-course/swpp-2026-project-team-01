@@ -193,9 +193,9 @@ Scope. Prerequisite: Phase 3 joined for a real awaiting-approval request; Lanes 
 **Lane A — host review conversation**
 
 - [x] Host-private request discussion session with `read_request` (host projection), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status`; instruction fragment `host-review.md`.
-- [ ] Request selection cards and the shared-versus-private discussion switch in `/app`.
-- [ ] Proposal review card with **Approve this proposal**, **Request changes**, **Decline**; **Review proposed shared changes** with **Share revised details** and **Dismiss suggestions**.
-- [ ] Rule and travel review with private exception controls that waive preferences only.
+- [x] Request selection cards and the shared-versus-private discussion switch in `/app`.
+- [x] Proposal review card with **Approve this proposal**, **Request changes**, **Decline**; **Review proposed shared changes** with **Share revised details** and **Dismiss suggestions**.
+- [x] Rule and travel review with private exception controls that waive preferences only.
 
 **Lane B — booking job**
 

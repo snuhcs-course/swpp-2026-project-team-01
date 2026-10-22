@@ -1,6 +1,6 @@
 "use client";
 
-import { ListChecksIcon, LogOutIcon, MenuIcon } from "lucide-react";
+import { InboxIcon, ListChecksIcon, LogOutIcon, MenuIcon } from "lucide-react";
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,10 +11,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// The workspace's compact, keyboard-operable navigation. Radix gives the menu
-// arrow-key movement, closes it on Escape and returns focus to the trigger,
-// except after Setup, which moves focus to the current setup card instead.
-export function WorkspaceMenu({ onSelectSetup }: { readonly onSelectSetup?: () => void }) {
+// The workspace's compact, keyboard-operable navigation: Setup, Requests (the
+// inbox of meeting requests) and Sign out. Radix gives the menu arrow-key
+// movement, closes it on Escape and returns focus to the trigger, except after
+// Setup, which moves focus to the current setup card instead.
+export function WorkspaceMenu({
+  onSelectRequests,
+  onSelectSetup,
+}: {
+  readonly onSelectRequests?: () => void;
+  readonly onSelectSetup?: () => void;
+}) {
   const signOutRef = useRef<HTMLFormElement>(null);
   const setupSelected = useRef(false);
 
@@ -46,7 +53,13 @@ export function WorkspaceMenu({ onSelectSetup }: { readonly onSelectSetup?: () =
               Setup
             </DropdownMenuItem>
           ) : null}
-          {onSelectSetup ? <DropdownMenuSeparator /> : null}
+          {onSelectRequests ? (
+            <DropdownMenuItem onSelect={onSelectRequests}>
+              <InboxIcon aria-hidden />
+              Requests
+            </DropdownMenuItem>
+          ) : null}
+          {onSelectSetup || onSelectRequests ? <DropdownMenuSeparator /> : null}
           <DropdownMenuItem onSelect={() => signOutRef.current?.requestSubmit()}>
             <LogOutIcon aria-hidden />
             Sign out

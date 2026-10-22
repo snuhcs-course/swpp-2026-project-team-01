@@ -195,9 +195,9 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 **레인 A — 호스트 검토 대화**
 
 - [x] `read_request`(호스트 프로젝션), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status`를 갖춘 호스트 비공개 요청 논의 세션; 지침 조각 `host-review.md`.
-- [ ] `/app`의 요청 선택 카드와 공유 논의 대 비공개 논의 전환.
-- [ ] **이 제안 승인(Approve this proposal)**, **변경 요청(Request changes)**, **거절(Decline)**을 갖춘 제안 검토 카드; **수정한 세부 정보 공유(Share revised details)**와 **제안 무시(Dismiss suggestions)**를 갖춘 **제안된 공유 변경 검토(Review proposed shared changes)**.
-- [ ] 선호만 면제하는 비공개 예외 제어를 갖춘 규칙 및 이동 검토.
+- [x] `/app`의 요청 선택 카드와 공유 논의 대 비공개 논의 전환.
+- [x] **이 제안 승인(Approve this proposal)**, **변경 요청(Request changes)**, **거절(Decline)**을 갖춘 제안 검토 카드; **수정한 세부 정보 공유(Share revised details)**와 **제안 무시(Dismiss suggestions)**를 갖춘 **제안된 공유 변경 검토(Review proposed shared changes)**.
+- [x] 선호만 면제하는 비공개 예외 제어를 갖춘 규칙 및 이동 검토.
 
 **레인 B — 예약 작업**
 
