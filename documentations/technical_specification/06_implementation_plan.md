@@ -179,7 +179,16 @@ Evidence: AC-01 through intake and candidates, AC-02, AC-03 requester-side, AC-1
 
 Goal: the first end-to-end booking. A host reviews, approves and the event exists in Google Calendar with confirmation delivered.
 
-Scope. Prerequisite: Phase 3 joined for a real awaiting-approval request; Lanes B and C can start earlier against a fixture request.
+Scope. Prerequisite: Phase 3 joined for a real awaiting-approval request; Lanes B and C can start earlier against a fixture request. Every lane also waits for the proposal below, reviewed before any lane codes.
+
+**Proposal (serial, first)**
+
+- [x] Proposal for [`host-review-and-booking`](../../openspec/changes/host-review-and-booking/proposal.md) with the decisions to settle and the coverage table.
+- [ ] Design.
+- [ ] Delta specs under `specs/`.
+- [ ] Tasks.
+- [ ] Owning-document updates and Korean mirrors.
+- [ ] Teammate review.
 
 **Lane A — host review conversation**
 
