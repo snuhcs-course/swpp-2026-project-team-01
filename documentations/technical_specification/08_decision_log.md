@@ -177,6 +177,10 @@ The [proposal](../../openspec/changes/agent-access/proposal.md#decisions) record
 | Cross-origin protocol calls | Discovery, registration, token and revocation answer `Access-Control-Allow-Origin: *`, since they read no cookie and browser-based clients call them | No CORS | `agent-oauth-routes.ts` | `CORS` there |
 | Metadata cache | Client metadata documents are cached for their `max-age`, at least 5 minutes and at most 24 hours, and fetched at most 30 times per client ID per hour | No cache | `agent-clients.ts` | `METADATA_LIMITS` there and `AGENT_LIMITS` in `lib/server/agent-limits.ts` |
 | Protocol bounds | Registration 10 per source per hour and 500 per day; authorization 30 per source per hour; tokens 60 per client per minute; tool calls 120 per grant per minute | Unbounded | Design 12 | `AGENT_LIMITS` in `lib/server/agent-limits.ts` |
+| Consent form and the content security policy | `/connect/consent` alone allows `form-action 'self' https: http:`, because Chrome applies `form-action` to the decision's redirect to the agent's callback; the callback itself is checked on the server | Answering the decision with a page that links to the callback | `apps/web/next.config.ts` | `consentContentSecurityPolicy` there |
+| Consent page referrer | `same-origin`, since with `no-referrer` Chrome sends `Origin: null` on the form post and the same-origin check refuses it | `no-referrer` | `apps/web/app/connect/consent/page.tsx` | Its `metadata` |
+| Consent form without scripts | Allow and Deny are a plain HTML form posted to `/connect/decision`, so consent works without JavaScript | A client component calling a JSON route | `apps/web/app/connect/consent/page.tsx` | That page and `createDecisionHandler` |
+| Suspended hosts and grants | A suspended host can still list and revoke its agents in the menu, as the page list keeps grant revocation available; its agents' calls already fail | Hiding Connected agents while suspended | `agent-grant-routes.ts` | `hostAccountOf` there |
 
 ## Phase 6 — `host-imessage-channel`
 

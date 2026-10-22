@@ -121,7 +121,8 @@ describe("registration", () => {
 
   it("bounds registrations per source and grants nothing", async () => {
     const deps = agentDependencies(db);
-    for (let index = 0; index < 10; index += 1) await registerTestClient(deps);
+    const clients: string[] = [];
+    for (let index = 0; index < 10; index += 1) clients.push(await registerTestClient(deps));
 
     const refused = await createRegistrationHandler(() => deps)(
       new Request(`${ORIGIN}/oauth/register`, {
@@ -133,10 +134,7 @@ describe("registration", () => {
     expect(refused.status).toBe(429);
     expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
 
-    const [{ count }] = Array.from(await db<{ count: number }[]>`
-      select count(*)::int as count from app.agent_grants g join app.agent_clients c on c.id = g.client_id
-      where c.registration_source_hash is not null and g.created_at > now() - interval '1 minute'
-    `);
+    const [{ count }] = Array.from(await db<{ count: number }[]>`select count(*)::int as count from app.agent_grants where client_id = any(${clients})`);
     expect(count).toBe(0);
   });
 });
@@ -432,5 +430,42 @@ describe("codes and refresh tokens", () => {
     );
     expect(revoked.status).toBe(200);
     expect(await currentGrantAccess(db, grantId)).toBeNull();
+  });
+});
+
+describe("connected agents", () => {
+  it("lists and revokes only the signed-in host's own grants", async () => {
+    const { createHostGrantListHandler, createHostGrantRevokeHandler } = await import("../../lib/server/agent-grant-routes");
+    const deps = agentDependencies(db);
+    const host = await signInHost(db);
+    const other = await signInHost(db);
+    const mine = await connectHost(deps, host.cookie, { scope: "host:read" });
+    const theirs = await connectHost(deps, other.cookie, { scope: "host:read" });
+    const routeDeps = () => ({ appOrigin: ORIGIN, auth: localAuthConfig(), db });
+
+    const list = await createHostGrantListHandler(routeDeps)(new Request(`${ORIGIN}/api/agent-grants`, { headers: { cookie: host.cookie } }));
+    const grants = ((await list.json()) as { grants: { id: string; clientName: string; redirectHost: string }[] }).grants;
+    expect(grants.map((grant) => grant.id)).toEqual([grantIdOf(mine.tokens.access_token)]);
+    expect(grants[0]).toMatchObject({ clientName: "Test Agent", redirectHost: "agent.example.test" });
+
+    const revoke = (grantId: string) =>
+      createHostGrantRevokeHandler(routeDeps)(
+        new Request(`${ORIGIN}/api/agent-grants/revoke`, {
+          body: JSON.stringify({ grantId, retryKey: crypto.randomUUID() }),
+          headers: { "content-type": "application/json", cookie: host.cookie, origin: ORIGIN },
+          method: "POST",
+        }),
+      );
+
+    expect((await revoke(grantIdOf(theirs.tokens.access_token))).status).toBe(404);
+    expect(await currentGrantAccess(db, grantIdOf(theirs.tokens.access_token))).not.toBeNull();
+
+    const revoked = await revoke(grantIdOf(mine.tokens.access_token));
+    expect(revoked.status).toBe(200);
+    expect(((await revoked.json()) as { grants: unknown[] }).grants).toEqual([]);
+    expect(await currentGrantAccess(db, grantIdOf(mine.tokens.access_token))).toBeNull();
+
+    const signedOut = await createHostGrantListHandler(routeDeps)(new Request(`${ORIGIN}/api/agent-grants`));
+    expect(signedOut.status).toBe(401);
   });
 });

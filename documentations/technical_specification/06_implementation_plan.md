@@ -237,7 +237,7 @@ Scope. Prerequisite: Phase 3 for requester operations and Phase 4 for host decis
 **Lane A — authorization server**
 
 - [x] Authorization server following the MCP authorization specification with S256 PKCE, exact callbacks, protected-resource and authorization-server discovery, resource-bound signed tokens, atomic single-use codes, refresh rotation, revocation and current-grant checks.
-- [ ] `/connect/authorize` consent page; connected-client inspection and revocation in `/app`.
+- [x] `/connect/authorize` consent page; connected-client inspection and revocation in `/app`.
 
 **Lane B — MCP server and user CLI**
 

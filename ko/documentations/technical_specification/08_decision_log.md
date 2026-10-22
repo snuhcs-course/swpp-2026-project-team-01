@@ -179,6 +179,10 @@
 | 교차 출처 프로토콜 호출 | 디스커버리, 등록, 토큰, 철회는 쿠키를 읽지 않고 브라우저 기반 클라이언트가 호출하므로 `Access-Control-Allow-Origin: *`로 답합니다 | CORS 없음 | `agent-oauth-routes.ts` | 같은 파일의 `CORS` |
 | 메타데이터 캐시 | 클라이언트 메타데이터 문서는 `max-age`만큼 캐시하며 최소 5분, 최대 24시간입니다. 클라이언트 ID당 시간당 최대 30번 가져옵니다 | 캐시 없음 | `agent-clients.ts` | 같은 파일의 `METADATA_LIMITS`와 `lib/server/agent-limits.ts`의 `AGENT_LIMITS` |
 | 프로토콜 한도 | 등록은 출처당 시간당 10회, 하루 500회; 인가는 출처당 시간당 30회; 토큰은 클라이언트당 분당 60회; 도구 호출은 허가당 분당 120회 | 무제한 | 설계 12 | `lib/server/agent-limits.ts`의 `AGENT_LIMITS` |
+| 동의 폼과 콘텐츠 보안 정책 | `/connect/consent`만 `form-action 'self' https: http:`를 허용합니다. Chrome이 `form-action`을 결정 뒤 에이전트 콜백으로 가는 리디렉션에도 적용하기 때문이며, 콜백 자체는 서버에서 검사합니다 | 콜백으로 가는 링크가 있는 페이지로 결정에 답하기 | `apps/web/next.config.ts` | 같은 파일의 `consentContentSecurityPolicy` |
+| 동의 페이지 리퍼러 | `same-origin`입니다. `no-referrer`이면 Chrome이 폼 전송에 `Origin: null`을 보내 동일 출처 검사가 거부하기 때문입니다 | `no-referrer` | `apps/web/app/connect/consent/page.tsx` | 그 파일의 `metadata` |
+| 스크립트 없는 동의 폼 | 허용과 거부는 `/connect/decision`으로 전송하는 일반 HTML 폼이므로 JavaScript 없이도 동의할 수 있습니다 | JSON 라우트를 호출하는 클라이언트 컴포넌트 | `apps/web/app/connect/consent/page.tsx` | 그 페이지와 `createDecisionHandler` |
+| 정지된 호스트와 허가 | 정지된 호스트도 메뉴에서 자신의 에이전트를 조회하고 철회할 수 있습니다. 페이지 목록이 허가 철회를 계속 제공하기 때문이며, 그 에이전트의 호출은 이미 실패합니다 | 정지된 동안 연결된 에이전트 숨기기 | `agent-grant-routes.ts` | 같은 파일의 `hostAccountOf` |
 
 ## 6단계 — `host-imessage-channel`
 
