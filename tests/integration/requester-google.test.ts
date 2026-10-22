@@ -14,7 +14,7 @@ import { createRequesterCalendarsHandler, createRequesterCommandHandler, createR
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
 import { call, guestDependencies, ORIGIN, readyHost, SIGNING_KEY, sourceAddress, startedDraft } from "./support/guests";
-import { createTestRequest, runJob, testTokenKey, uniqueEmail } from "./support/requests";
+import { createTestRequest, runJob, testNotices, testTokenKey, uniqueEmail } from "./support/requests";
 
 // The requester's Google consent (tasks 3.3 and 9.1) against a fake Google: a
 // draft on the public page identified by Continue with Google, success with
@@ -380,7 +380,7 @@ describe("Connect Google Calendar on an existing request", () => {
     // Link expiry, by the request_expiry job (long overdue, so it is in the first batch).
     await db`update app.requests set expires_at = now() - interval '100 years' where id = ${expired.requestId}`;
     const sweep = await db.begin((tx) => publishJob(tx, { dedupeKey: `test:${randomUUID()}`, kind: REQUEST_EXPIRY_JOB }));
-    expect(await runJob(db, sweep!, createRequestExpiryHandler())).toBe("completed");
+    expect(await runJob(db, sweep!, createRequestExpiryHandler(() => testNotices))).toBe("completed");
     await closedEverywhere(expired.requestId);
 
     // Disconnect closes the calendar grant only.

@@ -116,7 +116,7 @@ export async function indexRequestSession(db: Database, requestId: string) {
   const [discussion] = await db<{ id: string }[]>`
     insert into app.discussions (principal_type, principal_id, audience)
     values ('requester_request', ${requestId}, 'requester')
-    on conflict (principal_type, principal_id, audience) do update set audience = excluded.audience
+    on conflict (principal_type, principal_id, audience, request_id) do update set audience = excluded.audience
     returning id
   `;
   const inputId = randomUUID();

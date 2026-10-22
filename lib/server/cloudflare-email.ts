@@ -46,10 +46,21 @@ export function cloudflareEmailConfigured(config: CloudflareEmailConfig) {
   return Boolean(config.accountId && config.apiToken && config.from);
 }
 
-// The frozen From header of a new message.
-export function senderHeader(address: string) {
-  return `${SENDER_NAME} <${address}>`;
+// The frozen From header of a new message. A booking confirmation names the
+// host instead of the product (email-delivery: booking confirmation message);
+// the name is stripped of characters that could break the header.
+export function senderHeader(address: string, name: string = SENDER_NAME) {
+  const display = name.replace(/[\r\n"<>\\]/g, " ").replace(/\s+/g, " ").trim().slice(0, 100) || SENDER_NAME;
+  return `${display} <${address}>`;
 }
+
+// A frozen, non-secret attachment, such as the calendar part.
+export type EmailAttachment = {
+  readonly filename: string;
+  readonly type: string;
+  // Base64.
+  readonly content: string;
+};
 
 export type OutgoingEmail = {
   readonly dispatchId: string;
@@ -59,6 +70,8 @@ export type OutgoingEmail = {
   readonly subject: string;
   readonly html: string;
   readonly text: string;
+  readonly replyTo?: string | null;
+  readonly attachments?: readonly EmailAttachment[];
 };
 
 export type SendOutcome =
@@ -156,6 +169,17 @@ export function cloudflareEmailTransport(
               subject: message.subject,
               text: message.text,
               to: [...message.to],
+              ...(message.replyTo ? { reply_to: message.replyTo } : {}),
+              ...(message.attachments?.length
+                ? {
+                    attachments: message.attachments.map((attachment) => ({
+                      content: attachment.content,
+                      disposition: "attachment",
+                      filename: attachment.filename,
+                      type: attachment.type,
+                    })),
+                  }
+                : {}),
             }),
             headers: { authorization: `Bearer ${config.apiToken}`, "content-type": "application/json" },
             method: "POST",

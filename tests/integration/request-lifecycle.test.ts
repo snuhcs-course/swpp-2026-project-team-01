@@ -12,7 +12,7 @@ import { requesterGrantContext } from "../../lib/server/requester-calendar";
 import { sealToken } from "../../lib/server/token-encryption";
 import { testDatabase } from "./support/database";
 import { call, guestDependencies } from "./support/guests";
-import { createTestRequest, runJob, testTokenKey } from "./support/requests";
+import { createTestRequest, runJob, testNotices, testTokenKey } from "./support/requests";
 
 // Withdrawal and expiry (task 3.5): request.withdraw from each actionable state
 // at the expected revision, the request_expiry job at seven days and at an
@@ -104,14 +104,20 @@ describe("request.withdraw", () => {
     expect((await closure(request.requestId)).state).toBe("withdrawn");
 
     const state = await call(createRequesterStateHandler(() => deps), { bookingId: request.bookingId }, "/state");
-    expect(await state.json()).toEqual({ host: { displayName: "Your host", handle: null }, open: false, request: { state: "withdrawn" } });
+    expect(await state.json()).toEqual({
+      booking: null,
+      host: { displayName: "Your host", handle: null },
+      open: false,
+      request: { state: "withdrawn" },
+      timezone: "Asia/Seoul",
+    });
   });
 });
 
 describe("expiry", () => {
   async function sweep() {
     const id = await db.begin((tx) => publishJob(tx, { dedupeKey: `test:${randomUUID()}`, kind: REQUEST_EXPIRY_JOB }));
-    return runJob(db, id!, createRequestExpiryHandler());
+    return runJob(db, id!, createRequestExpiryHandler(() => testNotices));
   }
 
   it("ends an actionable request seven days after creation", async () => {
@@ -161,13 +167,13 @@ describe("expiry", () => {
       from generate_series(1, ${EXPIRY_BATCH + 1})
     `;
     const id = await db.begin((tx) => publishJob(tx, { dedupeKey: `test:${randomUUID()}`, kind: REQUEST_EXPIRY_JOB }));
-    await runJob(db, id!, createRequestExpiryHandler());
+    await runJob(db, id!, createRequestExpiryHandler(() => testNotices));
 
     const [next] = await db<{ id: string }[]>`
       select id from app.jobs where kind = ${REQUEST_EXPIRY_JOB} and dedupe_key = ${`continue:${id}`}
     `;
     expect(next).toBeDefined();
-    await runJob(db, next!.id, createRequestExpiryHandler());
+    await runJob(db, next!.id, createRequestExpiryHandler(() => testNotices));
 
     const [open] = await db<{ count: number }[]>`
       select count(*)::int as count from app.requests where host_account_id = ${request.hostAccountId} and closed_at is null

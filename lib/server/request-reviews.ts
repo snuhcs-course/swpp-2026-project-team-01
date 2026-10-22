@@ -18,6 +18,7 @@ import { isValidTimeZone } from "../contracts/timezone";
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
 import { CONFIRMATION_LIMITS, type ConfirmationLimits, issueContactConfirmation, lockConfirmationBounds } from "./contact-confirmation";
 import type { Transaction } from "./database";
+import { invalidateExceptions } from "./request-exceptions";
 import { type LocalWindow, localWindowSchema, resolveLocalWindow, type WindowProblem } from "./local-windows";
 import { type LockedRequest, lockOpenRequest } from "./request-guard";
 import { requestExpiresAt } from "./request-lifecycle";
@@ -256,6 +257,8 @@ async function writeDetails(
   `;
 
   if (emailChanged) await issueContactConfirmation(tx, { origin: options.origin, requestId: request.id, tokenKey: options.tokenKey });
+  // A host's preference exception is bound to the details it was granted for.
+  if (changed) await invalidateExceptions(tx, request.id);
 
   return { revision: request.revision + 1, state };
 }

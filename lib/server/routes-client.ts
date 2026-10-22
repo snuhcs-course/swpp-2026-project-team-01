@@ -133,7 +133,9 @@ export type TravelDependencies = {
 export async function estimateTravel(
   deps: TravelDependencies,
   queries: readonly LegQuery[],
-  options: { readonly signal?: AbortSignal; readonly now?: Date } = {},
+  // maxAgeHours: how old a saved estimate may be (24 hours by default; booking
+  // revalidation asks for one hour).
+  options: { readonly signal?: AbortSignal; readonly now?: Date; readonly maxAgeHours?: number } = {},
 ): Promise<Map<string, RouteEstimate>> {
   const estimates = new Map<string, RouteEstimate>();
   if (queries.length === 0) return estimates;
@@ -154,7 +156,7 @@ export async function estimateTravel(
     where origin_hash = any(${queries.map((query) => query.originKey)}::text[])
       and departure_slot = any(${queries.map((query) => departureSlot(query.departure).toISOString())}::text[]::timestamptz[])
       and outcome in ('route', 'no_route')
-      and fetched_at > now() - make_interval(hours => ${ROUTE_ESTIMATE_TTL_HOURS})
+      and fetched_at > now() - make_interval(hours => ${Math.min(options.maxAgeHours ?? ROUTE_ESTIMATE_TTL_HOURS, ROUTE_ESTIMATE_TTL_HOURS)})
   `;
 
   for (const row of saved) {

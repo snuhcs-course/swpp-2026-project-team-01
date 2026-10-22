@@ -8,7 +8,7 @@ import { sessionIdHash } from "../../../lib/server/model-limits";
 import type { SessionPrincipal } from "../../../lib/server/setup-tools";
 import { parseTokenKey } from "../../../lib/server/token-encryption";
 import { createCalendarHost, fakeGoogleConfig, runJob } from "./calendar-host";
-import type { FakeEvent, FakeGoogle } from "./fake-google";
+import type { FakeEvent, FakeGoogle, FakeGoogleFixture } from "./fake-google";
 import { testTokenKey } from "./requests";
 
 // Requests ready for scheduling, for the requester review, tool and proposal
@@ -72,6 +72,11 @@ export type SchedulingRequest = {
   readonly contactEmail: string;
   readonly hostAccountId: string;
   readonly requestId: string;
+  // The host's grant and calendar on the fake Google, to change its fixture.
+  readonly refreshToken: string;
+  readonly calendarId: string;
+  // Replaces the host's fixture: the same calendar with these events and extras.
+  readonly setCalendar: (fixture: Partial<FakeGoogleFixture>) => void;
 };
 
 export async function seedSchedulingRequest(
@@ -87,18 +92,18 @@ export async function seedSchedulingRequest(
 ): Promise<SchedulingRequest> {
   const host = await createCalendarHost(db, calendarKey);
   const calendarId = host.email;
-  google.setFixture(host.refreshToken!, {
-    calendars: [
-      {
-        accessRole: "owner",
-        conferenceSolutionTypes: options.conferenceSolutionTypes ?? ["hangoutsMeet"],
-        id: calendarId,
-        primary: true,
-        summary: "Work",
-      },
-    ],
-    events: { [calendarId]: options.events ?? [] },
-  });
+  const calendars = [
+    {
+      accessRole: "owner",
+      conferenceSolutionTypes: options.conferenceSolutionTypes ?? ["hangoutsMeet"],
+      id: calendarId,
+      primary: true,
+      summary: "Work",
+    },
+  ];
+  const setCalendar = (fixture: Partial<FakeGoogleFixture>) =>
+    google.setFixture(host.refreshToken!, { calendars, events: { [calendarId]: options.events ?? [] }, ...fixture });
+  setCalendar({});
   await db`
     insert into app.host_settings (host_account_id, settings, draft_revision)
     values (${host.hostAccountId}, ${db.json(settingsFor(calendarId, options.settings) as never)}, 1)
@@ -123,7 +128,15 @@ export async function seedSchedulingRequest(
     values ('requester_request', ${request!.id}, 'requester')
   `;
 
-  return { bookingId, contactEmail, hostAccountId: host.hostAccountId, requestId: request!.id };
+  return {
+    bookingId,
+    calendarId,
+    contactEmail,
+    hostAccountId: host.hostAccountId,
+    refreshToken: host.refreshToken!,
+    requestId: request!.id,
+    setCalendar,
+  };
 }
 
 // Indexes the requester discussion's next session generation, as the message
@@ -132,7 +145,7 @@ export async function indexRequesterSession(db: Database, requestId: string) {
   await db`
     insert into app.discussions (principal_type, principal_id, audience)
     values ('requester_request', ${requestId}, 'requester')
-    on conflict (principal_type, principal_id, audience) do nothing
+    on conflict (principal_type, principal_id, audience, request_id) do nothing
   `;
   const [discussion] = await db<{ id: string }[]>`
     select id from app.discussions where principal_type = 'requester_request' and principal_id = ${requestId}

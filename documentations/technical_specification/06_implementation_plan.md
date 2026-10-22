@@ -179,30 +179,39 @@ Evidence: AC-01 through intake and candidates, AC-02, AC-03 requester-side, AC-1
 
 Goal: the first end-to-end booking. A host reviews, approves and the event exists in Google Calendar with confirmation delivered.
 
-Scope. Prerequisite: Phase 3 joined for a real awaiting-approval request; Lanes B and C can start earlier against a fixture request.
+Scope. Prerequisite: Phase 3 joined for a real awaiting-approval request; Lanes B and C can start earlier against a fixture request. Every lane also waits for the proposal below, reviewed before any lane codes.
+
+**Proposal (serial, first)**
+
+- [x] Proposal for [`host-review-and-booking`](../../openspec/changes/host-review-and-booking/proposal.md) with the decisions to settle and the coverage table.
+- [x] [Design](../../openspec/changes/host-review-and-booking/design.md).
+- [x] Delta specs under [`specs/`](../../openspec/changes/host-review-and-booking/specs/).
+- [x] [Tasks](../../openspec/changes/host-review-and-booking/tasks.md).
+- [x] Owning-document updates and Korean mirrors.
+- [ ] Teammate review.
 
 **Lane A — host review conversation**
 
-- [ ] Host-private request discussion session with `read_request` (host projection), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status`; instruction fragment `host-review.md`.
-- [ ] Request selection cards and the shared-versus-private discussion switch in `/app`.
-- [ ] Proposal review card with **Approve this proposal**, **Request changes**, **Decline**; **Review proposed shared changes** with **Share revised details** and **Dismiss suggestions**.
-- [ ] Rule and travel review with private exception controls that waive preferences only.
+- [x] Host-private request discussion session with `read_request` (host projection), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status`; instruction fragment `host-review.md`.
+- [x] Request selection cards and the shared-versus-private discussion switch in `/app`.
+- [x] Proposal review card with **Approve this proposal**, **Request changes**, **Decline**; **Review proposed shared changes** with **Share revised details** and **Dismiss suggestions**.
+- [x] Rule and travel review with private exception controls that waive preferences only.
 
 **Lane B — booking job**
 
-- [ ] Revalidation of agreement, approval and feasibility immediately before dispatch; persisted booking identity, destination, frozen payload and reservation.
-- [ ] Coordination of competing requests for one host; event creation in the booking destination with the requester as attendee.
-- [ ] Reconciliation of uncertain writes; definitive-failure retry that revalidates everything; withdrawal and decline allowed only before dispatch evidence.
+- [x] Revalidation of agreement, approval and feasibility immediately before dispatch; persisted booking identity, destination, frozen payload and reservation.
+- [x] Coordination of competing requests for one host; event creation in the booking destination with the requester as attendee.
+- [x] Reconciliation of uncertain writes; definitive-failure retry that revalidates everything; withdrawal and decline allowed only before dispatch evidence.
 
 **Lane C — confirmation and notifications**
 
-- [ ] Confirmation email per recipient in their language and timezone with host display name on the product sender, Reply-To to the other party, what/when/who/where blocks, **View booking**, **Join meeting**, and the calendar part only when the UID matches the event's `iCalUID`.
-- [ ] Requester status notifications for new versions, decline, expiry and prolonged pending.
-- [ ] The receipt at the booking link and in `/app`; **Check booking status**.
+- [x] Confirmation email per recipient in their language and timezone with host display name on the product sender, Reply-To to the other party, what/when/who/where blocks, **View booking**, **Join meeting**, and the calendar part only when the UID matches the event's `iCalUID`.
+- [x] Requester status notifications for new versions, decline, expiry and prolonged pending.
+- [x] The receipt at the booking link and in `/app`; **Check booking status**.
 
 **Join**
 
-- [ ] Approval from Lane A dispatches Lane B, whose confirmed event drives Lane C; run the Phase 4 evidence list end to end against a controlled Google Calendar and inbox.
+- [ ] Approval from Lane A dispatches Lane B, whose confirmed event drives Lane C; run the Phase 4 evidence list end to end against a controlled Google Calendar and inbox. Open: the controlled Google Calendar and inbox need the shared-project migration and a production deploy (tasks 7.1 and 7.2); fixtures and the local journey pass.
 
 Specs: [meeting-requests](../../openspec/specs/meeting-requests/spec.md) (immutable proposals, closure guards, audience projections), [meeting-feasibility](../../openspec/specs/meeting-feasibility/spec.md) (deadline during revalidation, exceptions), [email-delivery](../../openspec/specs/email-delivery/spec.md) (status notifications, confirmation message), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), [application-commands](../../openspec/specs/application-commands/spec.md). Also [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md) for request browsing and the inbox entry, and [conversation-access](../../openspec/specs/conversation-access/spec.md) for separate discussion audiences, both deferred here by the foundation change.
 

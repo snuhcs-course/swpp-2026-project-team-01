@@ -76,6 +76,7 @@ export function createConfirmationStatusHandler(
 
 export const COMMAND_STATUS: Readonly<Record<CommandErrorCategory, number>> = {
   forbidden: 404,
+  booking_pending: 409,
   identity_required: 409,
   internal: 500,
   rate_limited: 429,

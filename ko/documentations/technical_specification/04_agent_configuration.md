@@ -2,7 +2,7 @@
 
 # 에이전트 구성
 
-상태: 기본 지침, 웹 채널, 호스트 설정 대상 구현 완료(Phase 1과 2); 다른 대상, 채널, 평가는 제안 상태\
+상태: 기본 지침, 웹 채널, 호스트 설정 및 요청자 대상 구현 완료(Phase 1부터 3까지); 호스트 검토 대상은 [`host-review-and-booking` 변경](../../openspec/changes/host-review-and-booking/design.md#12-host-review-tools-and-fragment)에서 제안됨(Phase 4); 다른 채널은 제안 상태\
 날짜: 2026-10-19\
 근거: [기술 개요](../04_technical_specification.md), [백엔드 아키텍처](01_backend_architecture.md), [프런트엔드 아키텍처](02_frontend_architecture.md), [대화 접근 계약](../../openspec/specs/conversation-access/spec.md), [모델 실행 계약](../../openspec/specs/model-execution/spec.md), [채팅 워크스페이스 계약](../../openspec/specs/chat-workspaces/spec.md)\
 관련 문서: [호스트 온보딩 흐름](../user_experience/05_host_onboarding_flow.md), [게스트 예약 흐름](../user_experience/06_guest_booking_flow.md)
@@ -29,7 +29,7 @@ agent/
   instructions/             항상 적용되는 기본 규칙과 대상별 조각 하나씩
     base.md
     host-setup.ts           호스트 설정 세션에서만 host-setup 조각을 해석
-    host-review.md
+    host-review.ts          호스트 검토 세션에서만 host-review 조각을 해석
     requester.ts            요청자 세션에서만 requester 조각을 해석,
                             초안 포함
   channels/
@@ -40,8 +40,9 @@ agent/
     setup.ts                read_setup_state와 draft_settings, 호스트 설정에서만 해석
     request.ts              request-discussion tools, resolved per audience: read_request,
                             draft_request_review, ask_for_identity, evaluate_candidates and
-                            read_booking_status for requesters, drafts included; Phase 4 adds list_host_requests,
-                            propose_shared_changes and the host projections
+                            read_booking_status for requesters, drafts included; for host-review
+                            sessions read_request and evaluate_candidates with the host projection,
+                            list_host_requests, propose_shared_changes and read_booking_status
   skills/                   모델이 필요할 때 불러올 수 있는 작성된 안내
     onboarding_suggestions.md
     requester_clarification.md
@@ -63,7 +64,7 @@ eve는 경로에서 이름을 도출합니다(`tools/<name>.ts`는 `<name>` 도�
 | 논의 | Principal(주체) | 시작 계기 | 지침 | 도구 |
 |---|---|---|---|---|
 | 호스트 설정 | `host:{hostId}` | 활성 호스트의 첫 `/app` 방문; 호스트당 하나 | base + host-setup | `read_setup_state`, `draft_settings` |
-| 호스트 비공개 요청 논의 | `requestId` 속성이 있는 `host:{hostId}` | 호스트가 `/app`에서 요청을 선택하거나, 정확한 `request <reference>` iMessage 명령을 보냄 | base + host-review | `read_request`(호스트 프로젝션), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status` |
+| 호스트 비공개 요청 논의 | `requestId` 속성과 `host_review` 대상이 있는 `host:{hostId}`; 호스트와 요청마다 논의 하나 | 호스트가 `/app`에서 요청을 선택(`/app?request={requestId}`)하거나, 정확한 `request <reference>` iMessage 명령을 보냄 | base + host-review | `read_request`(호스트 프로젝션), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status` |
 | 공유 요청자 논의 | `request:{requestId}` | 준비된 호스트의 `/{handle}`에서 게스트가 보낸 첫 메시지로, **초안 요청**을 만듦([D13](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)); 같은 세션이 신원 확인, 예약 링크, 검증된 이메일을 거쳐 이어짐 | base + requester | `read_request`(요청자 프로젝션), `draft_request_review`, `ask_for_identity`, `evaluate_candidates`, `read_booking_status` |
 
 초안 요청은 게스트가 이름과 이메일을 밝히기 전의 대화입니다. 브라우저 탭당 하나이며 호스트에게 보이지 않고, 메시지는 최대 30개, 미확인 요청 모델 한도 아래에 있으며, 게스트가 신원을 밝히지 않으면 24시간 뒤 논의와 함께 삭제됩니다. 요청자 대상과 그 도구를 사용하며, 초안 상태는 각 연산 안에서 검사되므로(3계층) `read_request`와 `draft_request_review`는 동작하고, `ask_for_identity`는 어시스턴트가 이름과 이메일을 요청했다는 사실을 기록하며(그 메시지 뒤에 신원 카드가 열림), `evaluate_candidates`, **Find times**, **Choose this time**, **Agree to this proposal**은 신원이 필요하다고 답하고 신원 카드가 스레드에 나타납니다. 신원 확인은 세션을 유지하므로 어시스턴트는 대화 전체를 컨텍스트로 유지합니다. D13 이전의 익명 공개 접수(`intake:{intakeId}`, `read_intake`, `draft_intake`)는 더 이상 만들어지거나 등록되지 않으며, 그 이전의 접수 대화 기록은 그것이 된 요청의 예약 링크에서 계속 읽을 수 있습니다.
@@ -95,8 +96,8 @@ eve principal은 사람의 신원이 아니라 대상입니다. 요청자에게�
 | `draft_request_review` | 요청자 | 세부 정보, 가용 시간, 질문 또는 알 수 없는 의도를 작성된 확인 질문과 함께 선언하며, 요청자만 적용할 수 있는 대기 중 검토를 생성. 초안에서도 동작하며, 이름과 이메일은 신원 카드에서만 받음 | never |
 | `ask_for_identity` | 요청자 | 어시스턴트가 초안의 게스트에게 이름과 이메일을 요청하는 턴에 호출; 신원이 처음 요청된 시점만 기록하며, 이로써 신원 카드가 그 메시지 뒤에 놓임. 신원이 확인된 뒤에는 아무 일도 하지 않음([3단계 설계](../../openspec/changes/requester-intake-and-feasibility/design.md#12-requester-conversation)) | never |
 | `evaluate_candidates` | 호스트 또는 요청자 | 결정론적 실현 가능성 평가를 내구성 있는 애플리케이션 작업으로 시작하고, 최대 20초 동안 기다려 대상 프로젝션을 반환하며, 아직 실행 중이면 평가의 식별자를 반환; 같은 리비전에서 실행 중인 평가가 있으면 새로 만들지 않고 그것을 반환하며, 요청 하나는 시간당 최대 10회 시작; 결과는 버전이 있는 카드로도 도착([3단계 설계](../../openspec/changes/requester-intake-and-feasibility/design.md#8-evaluation-runs-as-an-application-job)). 초안에서는 아무것도 찾지 않고 `identityRequired`로 답하며, 이로써 신원 카드가 스레드에 놓임 | never |
-| `propose_shared_changes` | 호스트 | **제안된 공유 변경 검토(Review proposed shared changes)** 카드를 위해 변경된 공유 세부 정보의 초안을 작성; 공유는 별도의 명령 | never |
-| `read_booking_status` | 호스트 또는 요청자 | 도메인 레코드의 대기 중, 불확실, 확정, 전달 실패 상태 | never |
+| `propose_shared_changes` | 호스트 | **제안된 공유 변경 검토(Review proposed shared changes)** 카드를 위해 변경된 공유 세부 정보(시간, 소요 시간, 방식, 장소 또는 링크)의 초안을 작성하며 대기 중인 제안을 대체; 공유는 시간을 확인하고 다음 제안 버전을 만드는 별도의 명령 | never |
+| `read_booking_status` | 호스트 또는 요청자 | 도메인 레코드의 예약됨, 진행 중(불확실), 영수증이 있는 확정, 분류가 있는 실패 상태 | never |
 
 eve의 승인 정책(`once`, `always`, 사용자 정의)은 도구 실행을 제어하는 장치이며 제품상의 동의가 아니므로, 이러한 읽기 및 초안 도구에서는 `never`로 둡니다. 사람의 결정이 필요한 연산은 아예 도구가 아닙니다.
 

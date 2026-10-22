@@ -12,6 +12,9 @@ import { newHostAccount } from "./ready-host";
 
 export const testTokenKey = parseTokenKey(randomBytes(32).toString("base64"));
 
+// Where notices link and which key opens the booking links sealed above.
+export const testNotices = { origin: "http://localhost:3000", tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
+
 export function uniqueEmail(prefix = "guest") {
   return `${prefix}-${randomUUID().slice(0, 12)}@example.test`;
 }

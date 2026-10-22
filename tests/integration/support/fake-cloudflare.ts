@@ -26,6 +26,8 @@ export type FakeCloudflareMessage = {
   readonly html: string;
   readonly text: string;
   readonly headers: Readonly<Record<string, string>>;
+  readonly reply_to?: string;
+  readonly attachments?: readonly { content: string; disposition: string; filename: string; type: string }[];
 };
 
 export type FakeCloudflare = {
@@ -91,8 +93,10 @@ export async function startFakeCloudflare(options: { readonly port?: number } = 
       accountId: decodeURIComponent(send[1]!),
       authorization,
       from: body.from,
+      attachments: body.attachments,
       headers: body.headers ?? {},
       html: body.html,
+      reply_to: body.reply_to,
       subject: body.subject,
       text: body.text,
       to,

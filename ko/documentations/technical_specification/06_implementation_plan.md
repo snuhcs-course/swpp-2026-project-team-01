@@ -181,30 +181,39 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 목표: 첫 종단 간 예약. 호스트가 검토하고 승인하면 이벤트가 Google Calendar에 존재하고 확인이 전달됩니다.
 
-범위. 선행 조건: 실제 승인 대기 요청을 위한 3단계 합류. 레인 B와 C는 픽스처 요청을 대상으로 더 일찍 시작할 수 있습니다.
+범위. 선행 조건: 실제 승인 대기 요청을 위한 3단계 합류. 레인 B와 C는 픽스처 요청을 대상으로 더 일찍 시작할 수 있습니다. 모든 레인은 아래 제안서도 기다리며, 어떤 레인이 코드를 작성하기 전에 이를 검토합니다.
+
+**제안서 (직렬, 가장 먼저)**
+
+- [x] 결정할 사항과 범위 표를 담은 [`host-review-and-booking`](../../openspec/changes/host-review-and-booking/proposal.md) 제안서.
+- [x] [설계](../../openspec/changes/host-review-and-booking/design.md).
+- [x] [`specs/`](../../openspec/changes/host-review-and-booking/specs/) 아래의 델타 명세.
+- [x] [작업 목록](../../openspec/changes/host-review-and-booking/tasks.md).
+- [x] 소유 문서 갱신과 한국어 미러.
+- [ ] 팀원 검토.
 
 **레인 A — 호스트 검토 대화**
 
-- [ ] `read_request`(호스트 프로젝션), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status`를 갖춘 호스트 비공개 요청 논의 세션; 지침 조각 `host-review.md`.
-- [ ] `/app`의 요청 선택 카드와 공유 논의 대 비공개 논의 전환.
-- [ ] **이 제안 승인(Approve this proposal)**, **변경 요청(Request changes)**, **거절(Decline)**을 갖춘 제안 검토 카드; **수정한 세부 정보 공유(Share revised details)**와 **제안 무시(Dismiss suggestions)**를 갖춘 **제안된 공유 변경 검토(Review proposed shared changes)**.
-- [ ] 선호만 면제하는 비공개 예외 제어를 갖춘 규칙 및 이동 검토.
+- [x] `read_request`(호스트 프로젝션), `list_host_requests`, `evaluate_candidates`, `propose_shared_changes`, `read_booking_status`를 갖춘 호스트 비공개 요청 논의 세션; 지침 조각 `host-review.md`.
+- [x] `/app`의 요청 선택 카드와 공유 논의 대 비공개 논의 전환.
+- [x] **이 제안 승인(Approve this proposal)**, **변경 요청(Request changes)**, **거절(Decline)**을 갖춘 제안 검토 카드; **수정한 세부 정보 공유(Share revised details)**와 **제안 무시(Dismiss suggestions)**를 갖춘 **제안된 공유 변경 검토(Review proposed shared changes)**.
+- [x] 선호만 면제하는 비공개 예외 제어를 갖춘 규칙 및 이동 검토.
 
 **레인 B — 예약 작업**
 
-- [ ] 디스패치 직전에 합의, 승인, 실현 가능성을 재검증; 영속화된 예약 식별자, 목적지, 고정된 페이로드, 예약(reservation).
-- [ ] 한 호스트에 대한 경쟁 요청의 조율; 요청자를 참석자로 하여 예약 대상 캘린더에 이벤트 생성.
-- [ ] 불확실한 쓰기의 조정; 모든 것을 재검증하는 확정적 실패 재시도; 디스패치 증거 이전에만 허용되는 철회와 거절.
+- [x] 디스패치 직전에 합의, 승인, 실현 가능성을 재검증; 영속화된 예약 식별자, 목적지, 고정된 페이로드, 예약(reservation).
+- [x] 한 호스트에 대한 경쟁 요청의 조율; 요청자를 참석자로 하여 예약 대상 캘린더에 이벤트 생성.
+- [x] 불확실한 쓰기의 조정; 모든 것을 재검증하는 확정적 실패 재시도; 디스패치 증거 이전에만 허용되는 철회와 거절.
 
 **레인 C — 확인과 알림**
 
-- [ ] 제품 발신자 아래 호스트 표시 이름, 상대방에게 가는 Reply-To, 무엇/언제/누구/어디 블록, **예약 보기(View booking)**, **미팅 참여(Join meeting)**를 갖추고, 캘린더 파트는 UID가 이벤트의 `iCalUID`와 일치할 때만 포함하는, 수신자별 언어와 시간대의 확인 이메일.
-- [ ] 새 버전, 거절, 만료, 장기 보류에 대한 요청자 상태 알림.
-- [ ] 예약 링크와 `/app`의 영수증; **예약 상태 확인(Check booking status)**.
+- [x] 제품 발신자 아래 호스트 표시 이름, 상대방에게 가는 Reply-To, 무엇/언제/누구/어디 블록, **예약 보기(View booking)**, **미팅 참여(Join meeting)**를 갖추고, 캘린더 파트는 UID가 이벤트의 `iCalUID`와 일치할 때만 포함하는, 수신자별 언어와 시간대의 확인 이메일.
+- [x] 새 버전, 거절, 만료, 장기 보류에 대한 요청자 상태 알림.
+- [x] 예약 링크와 `/app`의 영수증; **예약 상태 확인(Check booking status)**.
 
 **합류**
 
-- [ ] 레인 A의 승인이 레인 B를 디스패치하고, 그 확정된 이벤트가 레인 C를 구동합니다. 통제된 Google Calendar와 받은편지함을 대상으로 4단계 증거 목록을 종단 간 실행합니다.
+- [ ] 레인 A의 승인이 레인 B를 디스패치하고, 그 확정된 이벤트가 레인 C를 구동합니다. 통제된 Google Calendar와 받은편지함을 대상으로 4단계 증거 목록을 종단 간 실행합니다. 열림: 통제된 Google Calendar와 받은편지함에는 공유 프로젝트 마이그레이션과 프로덕션 배포(작업 7.1, 7.2)가 필요하며, 픽스처와 로컬 여정은 통과합니다.
 
 명세: [meeting-requests](../../openspec/specs/meeting-requests/spec.md)(불변 제안, 종료 가드, 대상 프로젝션), [meeting-feasibility](../../openspec/specs/meeting-feasibility/spec.md)(재검증 중 마감 시간, 예외), [email-delivery](../../openspec/specs/email-delivery/spec.md)(상태 알림, 확인 메시지), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), [application-commands](../../openspec/specs/application-commands/spec.md). 또한 요청 탐색과 받은편지함 진입을 위해 [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md), 별도의 논의 대상을 위해 [conversation-access](../../openspec/specs/conversation-access/spec.md)도 참조하며, 둘 다 기반 변경이 여기로 미룬 것입니다.
 

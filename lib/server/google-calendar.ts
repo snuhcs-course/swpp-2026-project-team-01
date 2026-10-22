@@ -103,7 +103,39 @@ export type HostCalendar = {
   // One calendar list entry's allowed conference solution types (design decision
   // 11: hangoutsMeet means Google Meet can be created with the event).
   conferenceSolutionTypes(calendarId: string, options?: { readonly signal?: AbortSignal }): Promise<string[]>;
+  // events.insert with the caller's event ID (host-review-and-booking design 5):
+  // conferenceDataVersion=1 and sendUpdates=all. The outcome is classified, never
+  // thrown, except a revoked grant (calendar_access_revoked); a network failure,
+  // a timeout or a 5xx is "uncertain", since Google may have created the event.
+  insertEvent(calendarId: string, event: Record<string, unknown>, options?: { readonly signal?: AbortSignal }): Promise<EventWriteOutcome>;
+  // events.get by ID, for reconciliation.
+  getEvent(calendarId: string, eventId: string, options?: { readonly signal?: AbortSignal }): Promise<EventReadOutcome>;
 };
+
+// What Google returned for a created or read event: the evidence a receipt and
+// the confirmation are built from.
+export type CreatedEvent = {
+  readonly id: string;
+  readonly status: string;
+  readonly iCalUID: string | null;
+  readonly htmlLink: string | null;
+  readonly joinUrl: string | null;
+  readonly organizerEmail: string | null;
+  readonly organizerName: string | null;
+};
+
+export type EventWriteOutcome =
+  | { readonly outcome: "created"; readonly event: CreatedEvent }
+  // 409: an event with this ID already exists.
+  | { readonly outcome: "duplicate" }
+  // 400, 403, 404: Google refused the write.
+  | { readonly outcome: "rejected"; readonly httpStatus: number }
+  | { readonly outcome: "uncertain"; readonly httpStatus: number | null };
+
+export type EventReadOutcome =
+  | { readonly outcome: "found"; readonly event: CreatedEvent }
+  | { readonly outcome: "absent" }
+  | { readonly outcome: "uncertain"; readonly httpStatus: number | null };
 
 export type GoogleCalendarDependencies = {
   readonly db: Queryable;
@@ -119,6 +151,30 @@ type RawCalendarListEntry = {
   primary?: boolean;
   timeZone?: string;
 };
+
+type RawWrittenEvent = {
+  id?: string;
+  status?: string;
+  iCalUID?: string;
+  htmlLink?: string;
+  hangoutLink?: string;
+  conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
+  organizer?: { email?: string; displayName?: string };
+};
+
+function toCreatedEvent(raw: RawWrittenEvent, fallbackId: string): CreatedEvent {
+  const video = raw.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === "video")?.uri;
+
+  return {
+    htmlLink: raw.htmlLink ?? null,
+    iCalUID: raw.iCalUID ?? null,
+    id: raw.id ?? fallbackId,
+    joinUrl: raw.hangoutLink ?? video ?? null,
+    organizerEmail: raw.organizer?.email ?? null,
+    organizerName: raw.organizer?.displayName ?? null,
+    status: raw.status ?? "confirmed",
+  };
+}
 
 type RawEvent = {
   id?: string;
@@ -292,7 +348,79 @@ export function createGoogleCalendarClient(
     }
   }
 
+  // A write or read whose answer decides a booking: Google's status is
+  // classified by the caller, a refused access token is refreshed once, and a
+  // network failure or a timeout is reported as no response (null).
+  async function exchange(url: string, init: RequestInit, signal?: AbortSignal) {
+    for (let attempt = 0; ; attempt += 1) {
+      const token = await accessToken(signal);
+      let response: Response;
+
+      try {
+        response = await send(
+          url,
+          { ...init, headers: { ...init.headers, authorization: `Bearer ${token}` } },
+          signal,
+        );
+      } catch {
+        return null;
+      }
+
+      if (response.status === 401 && attempt === 0) {
+        access = null;
+        continue;
+      }
+
+      return response;
+    }
+  }
+
+  async function body<T>(response: Response) {
+    try {
+      return (await response.json()) as T;
+    } catch {
+      return null;
+    }
+  }
+
   return {
+    async insertEvent(calendarId, event, options) {
+      const url = `${config.apiBaseUrl}/calendars/${encodeURIComponent(calendarId)}/events?${new URLSearchParams({
+        conferenceDataVersion: "1",
+        sendUpdates: "all",
+      })}`;
+      const response = await exchange(
+        url,
+        { body: JSON.stringify(event), headers: { "content-type": "application/json" }, method: "POST" },
+        options?.signal,
+      );
+
+      if (!response) return { httpStatus: null, outcome: "uncertain" };
+      if (response.status === 409) return { outcome: "duplicate" };
+      if (response.status === 400 || response.status === 403 || response.status === 404) {
+        return { httpStatus: response.status, outcome: "rejected" };
+      }
+      if (!response.ok) return { httpStatus: response.status, outcome: "uncertain" };
+
+      const written = await body<RawWrittenEvent>(response);
+      // A lost body after a 2xx: the event exists, but its evidence must be read.
+      if (!written) return { httpStatus: response.status, outcome: "uncertain" };
+      return { event: toCreatedEvent(written, String(event.id ?? "")), outcome: "created" };
+    },
+
+    async getEvent(calendarId, eventId, options) {
+      const url = `${config.apiBaseUrl}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`;
+      const response = await exchange(url, { method: "GET" }, options?.signal);
+
+      if (!response) return { httpStatus: null, outcome: "uncertain" };
+      if (response.status === 404 || response.status === 410) return { outcome: "absent" };
+      if (!response.ok) return { httpStatus: response.status, outcome: "uncertain" };
+
+      const read = await body<RawWrittenEvent>(response);
+      if (!read) return { httpStatus: response.status, outcome: "uncertain" };
+      return { event: toCreatedEvent(read, eventId), outcome: "found" };
+    },
+
     async listCalendars(options) {
       const calendars: CalendarListEntry[] = [];
       let pageToken: string | undefined;

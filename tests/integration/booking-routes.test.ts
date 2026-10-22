@@ -79,7 +79,13 @@ describe("booking routes", () => {
     const state = await routes.state(request.bookingId);
     expect(state.status).toBe(200);
     expectCredentialHeaders(state);
-    expect(await state.json()).toEqual({ host: { displayName: "Your host", handle: null }, open: false, request: { state: "withdrawn" } });
+    expect(await state.json()).toEqual({
+      booking: null,
+      host: { displayName: "Your host", handle: null },
+      open: false,
+      request: { state: "withdrawn" },
+      timezone: "Asia/Seoul",
+    });
 
     for (const route of [routes.events, routes.messages, routes.intake, routes.calendars]) {
       const response = await route(request.bookingId);

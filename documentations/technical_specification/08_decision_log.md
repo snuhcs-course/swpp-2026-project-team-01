@@ -75,7 +75,69 @@ These steps were not taken because they need a provider console, a person's own 
 
 ## Phase 4 — `host-review-and-booking`
 
-No decisions yet.
+The [proposal](../../openspec/changes/host-review-and-booking/proposal.md#decisions) records D1–D12. The implementing session took them on 2026-10-22, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
+
+### Product decisions
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | The event is created with the host's own Google grant in the host's confirmed booking destination calendar, so the organizer is that calendar's owner as Google reports it. The requester is the only attendee | A service-owned calendar that invites both parties | Proposal | The proposal and the event builder |
+| D2 | A booking still unconfirmed 15 minutes after its first dispatch sends the requester one "still in progress" email | 5 minutes; 1 hour | Proposal | The proposal |
+| D3 | Reminders are deferred: no reminder or follow-up email from the service; the event keeps the calendar's default reminders | A service reminder email 24 hours before | Proposal; PRD section 10 | The proposal, then a new job and template |
+| D4 | The event ID is derived from the booking ID and stored before dispatch, so Google refuses a second insert and reconciliation reads the event by ID | Google-assigned IDs | Proposal | The proposal and the event builder |
+| D5 | Google sends its own invitation (`sendUpdates=all`); our confirmation email follows | `sendUpdates=none` with only our calendar part | Proposal | The proposal and the event builder |
+| D6 | The host's **Shared** view is the requester conversation, read-only, with the proposal and status; the host acts there only through cards | Relaying host messages into the requester thread | Proposal | The proposal and the host request view |
+| D7 | **Request changes** and `propose_shared_changes` create one pending suggestion; **Share revised details** applies it, checks the time and writes the next proposal version | Sharing without a feasibility check | Proposal | The proposal and the shared-changes module |
+| D8 | When every candidate falls in a full week, nothing is offered until the host waives the weekly limit for the request or the requester widens the window (main spec "Only full weeks"); replaces Phase 3's ordering-only behavior | Keeping ordering only | Proposal | The proposal and the requester projection in the evaluation job |
+| D9 | After dispatch may have begun, the job only reconciles by event ID and re-inserts the frozen payload under the same ID; no feasibility revalidation; 8 attempts, then **Booking in progress** with **Check booking status** | Revalidating before every retry | Proposal | The proposal and the booking job |
+| D10 | Both parties get a confirmation. Requester's Reply-To: the host's Google email; host's Reply-To: the requester's contact address, confirmed or not | Reply-To only after confirmation | Proposal; `email-delivery` delta | The proposal and the confirmation builder |
+| D11 | Status emails go to the requester's contact address, confirmed or not | Confirmed addresses only | Proposal; `email-delivery` delta | The proposal and the notification module |
+| D12 | The host opens a request at `/app?request={requestId}`; the booking UUID never reaches the host | `/app?request={bookingId}` as the interfaces document said | Proposal; interfaces | The proposal and the host workspace |
+
+### Implementation decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Revalidation scope | Booking revalidation rechecks the host side only: fresh host Calendar reads, route estimates under an hour old, the host's other dispatching and confirmed bookings as busy. The requester's calendar is not read again, since they agreed to the time | Rereading the requester's calendar, which would block a booking on a requester read failure | Design 6 | `checkInterval` options in `lib/server/bookings.ts` (`requesterCalendar: false`) |
+| Booking locks | The request row, then a per-host advisory lock `app.booking_host:{hostId}`, held across revalidation (up to 18 s) and the dispatch mark | No host lock, relying on the calendar alone | Design 6 | `lockHost` in `lib/server/bookings.ts` |
+| Booking attempts | 8 attempts with the queue's doubling backoff, then **Booking in progress** until **Check booking status**; at most 3 booking jobs per worker batch | Unlimited retries | Design 7 | `BOOKING_ATTEMPTS` in `lib/server/bookings.ts`; `JOB_BATCH_LIMITS` in `lib/server/job-handlers.ts` |
+| Repeated approval | A second approval of the same version, with any retry key, returns the live booking | Rejecting it as stale | `calendar-booking` delta | `approveCommand` in `lib/server/bookings.ts` |
+| Stale decision at booking | An approval or agreement that no longer names the latest version fails the booking as `stale_decision` and returns the request to awaiting approval | Treating it as a conflict | Design 7 | `claimBooking` in `lib/server/bookings.ts` |
+| Unknown errors after dispatch | A failed token refresh or transport error after the dispatch mark is treated as uncertain and reconciled, never as "not sent" | Treating it as definitive | Design 7 | `write` in `lib/server/bookings.ts` |
+| Event ID constraint | `^[0-9a-v]{5,}$` with a length check of at most 1024, because Postgres regular expressions cap repetition counts at 255 | `{5,1024}` in the pattern | `supabase/schemas/app/tables/bookings.sql` | The schema file and a new migration |
+| New error category | `booking_pending` for a withdrawal, decline or change after dispatch may have begun | Reusing `request_closed` | `lib/contracts/command-errors.ts` | The contract and the route status maps |
+| Notices without a link | A status email or confirmation is not recorded when the requester's sealed booking link cannot be opened (a retired key), so the domain change still commits | Failing the change | `lib/server/booking-notices.ts` | `requesterBookingUrl` there |
+| Shared-change check | A shared suggestion is checked by an ordinary evaluation job with a fixed interval, whose one candidate becomes the next proposal | A separate check job | Design 4 | `settleSharedChange` in `lib/server/shared-change-settle.ts`; the `interval` payload in `lib/server/evaluation.ts` |
+| Host discussion scope | `/api/chat/*` takes an optional `request` (a UUID); another host's request, a draft, an unknown or malformed ID all answer 404 `request_unavailable` | A separate `/api/host/requests/{id}/messages` route | Design 2 | `requestScope` in `lib/server/chat-routes.ts`; `lockHostDiscussion` in `lib/server/conversations.ts` |
+| Host-review admission | Host-review messages count against the same per-host admission windows as setup | Separate windows per request | Design 2 | `recordInput` in `lib/server/conversations.ts` |
+| Host model projection | The requester's name and purpose reach the model as quoted strings, contact email as `present`, times in the host's timezone | Raw values | Design 12 | `hostModelProjection` in `lib/server/host-review-tools.ts` |
+| Request view navigation | The menu gains **Requests**; `/app?view=requests` is the inbox and `/app?request={requestId}` a request, inside the same `/app` page. An unknown or foreign request returns to the inbox with "That request is not available." | Separate `/app/requests` routes | Design 3; page list | `HostWorkspace` in `apps/web/app/_components/host-workspace.tsx` |
+| Discussion switch | Two tabs, **Private with Thyme** and **Shared with {requester}**, switched with the arrow keys; the shared tab is the requester history read from its recorded events, not followed live | A live-following shared view | Design 2 | `RequestView` and `SharedConversation` in `apps/web/app/_components/host/host-requests.tsx` |
+| Open card order | One actionable card: a pending or checking suggestion, then a booking in flight or a retryable failure, then the rule and travel review while it has a hold or an unresolved trip, then the proposal review | Showing every card at once | Design 3 | `nextHostStep` in `apps/web/app/_components/host/host-request-cards.tsx` |
+| Suggestion editor | Times entered in the host's zone, durations of 15 to 480 minutes in 5-minute steps; a skipped local time is refused in the browser and a repeated one takes the earlier instant | Free-text times | Design 4 | `SuggestionEditor`; `instantFromLocal` in `lib/contracts/timezone.ts`; `sharedChangesSchema` in `lib/server/shared-changes.ts` |
+| Settling poll | The request view polls every 3 s while a booking, a suggestion check or an evaluation is pending | Push updates | Design 3 | `SETTLING_POLL_MS` in `host-requests.tsx` |
+| Requester while booking | The thread's status line becomes **Booking in progress** with **Check booking status**; a booked request's link shows only the status and the receipt in the requester's timezone | Keeping the conversation open after booking | Design 10 | `AwaitingLine` in `apps/web/app/_components/requester/cards.tsx`; `Closed` in `apps/web/app/booking/[bookingId]/page.tsx` |
+| Email reply line | The confirmation says that replying reaches the other participant, instead of a support address, since none is decided | A support address | Design 9 | `LABELS` in `lib/server/booking-emails.ts` |
+| Host copy language | The host's confirmation is in English, in the host's timezone | The requester's language | Design 9 | `enqueueConfirmations` in `lib/server/booking-notices.ts` |
+
+### Operational decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Lane B as one commit | The three Lane B plan items landed in one commit, because the reservation, the dispatch and reconciliation are one module and one job; the commit also carries the server modules for Lane A's shared changes and exceptions, which the evaluation job imports, and the host discussions' request scope, which the new discussions key requires | Three commits with stubbed halves | This log; the commit message | Split the module if a later change needs it |
+| Lane A cards as one commit | The selection cards and switch, the proposal and suggestion cards and the rule and travel review landed together, since they share one view, one card module and one browser test | Three commits | This log | — |
+| Reference followed for event creation | OpenInstinct `agent/lib/google-workspace/calendar.ts` at `0c2a7c6e`: a 32-hex event ID, `sendUpdates: "all"` with attendees, and `409` read back with `events.get` | Google-assigned IDs | The pull request | — |
+
+### Blocked on the user
+
+These steps were not taken because they cannot be undone by a revert, need a provider console, or send to people outside the team:
+
+- **Shared-project migration:** `20261022021159_host_review_and_booking.sql` is not on `anelszynxtvxoxqvzgqt`. It needs a shown dry run, then the deploy workflow or `supabase db push --linked` with the user's approval. All 21 earlier migrations, Phase 3's included, are already applied there (acceptance record, Phase 3), so it is the only pending one; push it before deploying this branch.
+- **Production deploy** of this branch once merged.
+- **Controlled Google Calendar evidence:** a booking in a team-controlled Google Calendar. `sendUpdates=all` makes Google email the attendee, so the requester address must be a team inbox.
+- **Controlled inbox evidence:** both confirmation copies and a status email in team inboxes, including whether the `text/calendar` attachment shows as an invitation in Gmail and Outlook.
+- **Merge:** the pull request needs a teammate's approval; no admin bypass was used.
+- **Teammate review** of D1–D12 and the implementation decisions, then `openspec archive` of the change.
 
 ## Phase 5 — `agent-access`
 

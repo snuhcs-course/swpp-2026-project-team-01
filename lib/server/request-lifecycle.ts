@@ -9,6 +9,7 @@ import { assertRevision, type CommandDefinition, CommandError } from "./commands
 import { supersedeConfirmations } from "./contact-confirmation";
 import type { Transaction } from "./database";
 import { type JobHandler, publishJob } from "./jobs";
+import { enqueueStatusNotice, type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { lockOpenRequest } from "./request-guard";
 import { revokeRequestGrants } from "./requester-grants";
 
@@ -45,15 +46,25 @@ export function requestExpiresAt(createdAt: Date, windows: readonly RequestWindo
   return new Date(Number.isFinite(latestEnd) ? Math.min(lifetime, latestEnd) : lifetime);
 }
 
-export type ClosingState = "withdrawn" | "expired";
+export type ClosingState = "withdrawn" | "expired" | "declined" | "booked";
 
 // Closes a request locked by the caller. Returns false when it was already
-// closed or not actionable (a booking in flight is left to Phase 4's guard).
-export async function closeRequest(tx: Transaction, requestId: string, state: ClosingState) {
+// closed or not actionable. A request in booking closes only when the booking
+// module says so (`fromBooking`): booked on confirmation, or withdrawn,
+// declined or expired while its booking was still only reserved.
+export async function closeRequest(
+  tx: Transaction,
+  requestId: string,
+  state: ClosingState,
+  options: { readonly fromBooking?: boolean } = {},
+) {
+  const closable = options.fromBooking
+    ? ["gathering", "negotiating", "awaiting_host_approval", "booking"]
+    : ["gathering", "negotiating", "awaiting_host_approval"];
   const closed = await tx`
     update app.requests
     set state = ${state}, closed_at = now(), revision = revision + 1, updated_at = now()
-    where id = ${requestId} and state in ('gathering', 'negotiating', 'awaiting_host_approval')
+    where id = ${requestId} and state in ${tx(closable)}
   `;
 
   if (closed.count === 0) return false;
@@ -64,6 +75,27 @@ export async function closeRequest(tx: Transaction, requestId: string, state: Cl
     update app.request_reviews set state = 'superseded', resolved_at = now()
     where request_id = ${requestId} and state = 'pending'
   `;
+  return true;
+}
+
+// Cancels the request's reserved booking and spends its approval, under the
+// request lock the caller holds. A dispatching booking may already be in the
+// calendar: booking_pending, and nothing is undone (design 11).
+export async function cancelReservedBooking(tx: Transaction, requestId: string, reason: "withdrawn" | "declined" | "expired") {
+  const [booking] = await tx<{ approval_id: string; id: string; state: string }[]>`
+    select id, approval_id, state from app.bookings
+    where request_id = ${requestId} and state in ('reserved', 'dispatching', 'confirmed')
+    for update
+  `;
+
+  if (!booking) return false;
+  if (booking.state !== "reserved") throw new CommandError("booking_pending");
+
+  await tx`
+    update app.bookings set state = 'cancelled', failure_category = ${reason}, settled_at = now(), updated_at = now()
+    where id = ${booking.id}
+  `;
+  await tx`update app.approvals set spent_at = now() where id = ${booking.approval_id} and spent_at is null`;
   return true;
 }
 
@@ -85,6 +117,16 @@ export const withdrawRequestCommand: CommandDefinition<Record<string, never>, Wi
 
     // A draft is left, not withdrawn: it is deleted after 24 hours.
     if (request.state === "draft") throw new CommandError("invalid_input");
+
+    // While booking, only a reserved booking can still be cancelled; once its
+    // dispatch may have begun, booking_pending reports the pending outcome and
+    // nothing claims the event was prevented (design 11).
+    if (request.state === "booking") {
+      await cancelReservedBooking(tx, request.id, "withdrawn");
+      await closeRequest(tx, request.id, "withdrawn", { fromBooking: true });
+      return { revision: request.revision + 1, state: "withdrawn" };
+    }
+
     if (!isActionableRequestState(request.state)) throw new CommandError("request_closed");
 
     await closeRequest(tx, request.id, "withdrawn");
@@ -97,7 +139,9 @@ export const withdrawRequestCommand: CommandDefinition<Record<string, never>, Wi
 // to 200 due drafts with their discussions, skipping rows another transaction
 // holds (a command finishing on one closes or rejects it itself), and publishes
 // a follow-up job while a full batch suggests more are due.
-export function createRequestExpiryHandler(): JobHandler {
+export function createRequestExpiryHandler(
+  loadNotices: () => NoticeDependencies = noticeDependenciesFromEnvironment,
+): JobHandler {
   return async (tx, job) => {
     const due = await tx<{ id: string }[]>`
       select id from app.requests
@@ -107,7 +151,11 @@ export function createRequestExpiryHandler(): JobHandler {
       for update skip locked
     `;
 
-    for (const request of due) await closeRequest(tx, request.id, "expired");
+    for (const request of due) {
+      if (await closeRequest(tx, request.id, "expired")) {
+        await enqueueStatusNotice(tx, loadNotices(), request.id, { kind: "status_expired" });
+      }
+    }
 
     const drafts = await tx<{ id: string }[]>`
       select id from app.requests

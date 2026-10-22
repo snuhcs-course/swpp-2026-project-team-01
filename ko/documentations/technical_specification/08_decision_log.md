@@ -77,7 +77,69 @@
 
 ## 4단계 — `host-review-and-booking`
 
-아직 결정이 없습니다.
+[제안서](../../openspec/changes/host-review-and-booking/proposal.md#decisions)가 D1–D12를 기록합니다. 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-22에 이를 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
+
+### 제품 결정
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| D1 | 이벤트는 호스트 본인의 Google 권한 부여로 호스트가 확인한 예약 대상 캘린더에 생성되므로, 주최자는 Google이 보고하는 그 캘린더의 소유자입니다. 요청자만 참석자입니다 | 양쪽 모두를 초대하는 서비스 소유 캘린더 | 제안서 | 제안서와 이벤트 빌더 |
+| D2 | 첫 디스패치 후 15분이 지나도 확정되지 않은 예약은 요청자에게 "아직 진행 중" 이메일을 한 번 보냅니다 | 5분; 1시간 | 제안서 | 제안서 |
+| D3 | 리마인더는 미룹니다. 서비스는 리마인더나 후속 이메일을 보내지 않으며, 이벤트는 캘린더의 기본 알림을 유지합니다 | 24시간 전 서비스 리마인더 이메일 | 제안서; PRD 10절 | 제안서, 그다음 새 작업과 템플릿 |
+| D4 | 이벤트 ID는 예약 ID에서 도출해 디스패치 전에 저장하므로, Google이 두 번째 삽입을 거부하고 재조정은 ID로 이벤트를 읽습니다 | Google이 부여하는 ID | 제안서 | 제안서와 이벤트 빌더 |
+| D5 | Google이 자체 초대장을 보냅니다(`sendUpdates=all`). 우리 확인 이메일은 그 뒤에 보냅니다 | `sendUpdates=none`에 우리 캘린더 파트만 사용 | 제안서 | 제안서와 이벤트 빌더 |
+| D6 | 호스트의 **공유됨(Shared)** 보기는 제안과 상태가 담긴 읽기 전용 요청자 대화이며, 호스트는 거기서 카드로만 행동합니다 | 호스트 메시지를 요청자 스레드로 전달 | 제안서 | 제안서와 호스트 요청 보기 |
+| D7 | **변경 요청(Request changes)**과 `propose_shared_changes`는 대기 중인 제안 하나를 만들고, **수정된 내용 공유(Share revised details)**가 이를 적용하고 시간을 확인한 뒤 다음 제안 버전을 기록합니다 | 실현 가능성 확인 없이 공유 | 제안서 | 제안서와 공유 변경 모듈 |
+| D8 | 모든 후보가 가득 찬 주에 걸리면, 호스트가 해당 요청의 주간 한도를 면제하거나 요청자가 기간을 넓힐 때까지 아무것도 제시하지 않습니다(주 명세 "Only full weeks"). 3단계의 순서만 정하던 동작을 대체합니다 | 순서만 정하는 동작 유지 | 제안서 | 제안서와 평가 작업의 요청자 프로젝션 |
+| D9 | 디스패치가 시작되었을 수 있는 시점 이후에는 작업이 이벤트 ID로 재조정하고 고정된 페이로드를 같은 ID로 다시 삽입하기만 하며, 실현 가능성을 다시 검증하지 않습니다. 8번 시도한 뒤 **예약 진행 중(Booking in progress)**과 **예약 상태 확인(Check booking status)**을 표시합니다 | 재시도마다 다시 검증 | 제안서 | 제안서와 예약 작업 |
+| D10 | 양쪽 모두 확인을 받습니다. 요청자의 Reply-To는 호스트의 Google 이메일이고, 호스트의 Reply-To는 확인 여부와 관계없이 요청자의 연락처 주소입니다 | 확인 후에만 Reply-To | 제안서; `email-delivery` 델타 | 제안서와 확인 빌더 |
+| D11 | 상태 이메일은 확인 여부와 관계없이 요청자의 연락처 주소로 보냅니다 | 확인된 주소만 | 제안서; `email-delivery` 델타 | 제안서와 알림 모듈 |
+| D12 | 호스트는 `/app?request={requestId}`에서 요청을 열며, 예약 UUID는 호스트에게 전달되지 않습니다 | 인터페이스 문서의 `/app?request={bookingId}` | 제안서; 인터페이스 | 제안서와 호스트 워크스페이스 |
+
+### 구현 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 재검증 범위 | 예약 재검증은 호스트 쪽만 다시 확인합니다. 새로 읽은 호스트 Calendar, 한 시간이 지나지 않은 경로 추정, 호스트의 다른 발송 중·확정 예약을 바쁜 시간으로 봅니다. 요청자가 그 시간에 동의했으므로 요청자의 캘린더는 다시 읽지 않습니다 | 요청자의 캘린더를 다시 읽기, 이 경우 요청자 읽기 실패가 예약을 막게 됨 | 설계 6 | `lib/server/bookings.ts`의 `checkInterval` 옵션(`requesterCalendar: false`) |
+| 예약 잠금 | 요청 행, 이어서 호스트별 권고 잠금 `app.booking_host:{hostId}`를 재검증(최대 18초)과 발송 표시 동안 유지합니다 | 호스트 잠금 없이 캘린더에만 의존 | 설계 6 | `lib/server/bookings.ts`의 `lockHost` |
+| 예약 시도 | 대기열의 배가 백오프로 8회 시도한 뒤, **예약 상태 확인(Check booking status)**을 누를 때까지 **예약 진행 중(Booking in progress)**; 작업자 배치당 예약 작업은 최대 3건 | 무제한 재시도 | 설계 7 | `lib/server/bookings.ts`의 `BOOKING_ATTEMPTS`; `lib/server/job-handlers.ts`의 `JOB_BATCH_LIMITS` |
+| 반복 승인 | 같은 버전을 재시도 키와 관계없이 다시 승인하면 현재 예약을 돌려줍니다 | 오래된 요청으로 거부 | `calendar-booking` 델타 | `lib/server/bookings.ts`의 `approveCommand` |
+| 예약 시점의 오래된 결정 | 최신 버전을 가리키지 않는 승인이나 합의는 예약을 `stale_decision`으로 실패시키고 요청을 승인 대기로 되돌립니다 | 충돌로 처리 | 설계 7 | `lib/server/bookings.ts`의 `claimBooking` |
+| 발송 후 알 수 없는 오류 | 발송 표시 이후의 토큰 갱신 실패나 전송 오류는 불확실로 보고 대조하며, "보내지 않음"으로 처리하지 않습니다 | 확정으로 처리 | 설계 7 | `lib/server/bookings.ts`의 `write` |
+| 이벤트 ID 제약 | `^[0-9a-v]{5,}$`에 길이 검사 1024 이하; Postgres 정규식이 반복 횟수를 255로 제한하기 때문입니다 | 패턴에 `{5,1024}` | `supabase/schemas/app/tables/bookings.sql` | 스키마 파일과 새 마이그레이션 |
+| 새 오류 범주 | 발송이 시작됐을 수 있는 뒤의 철회, 거절, 변경에 대한 `booking_pending` | `request_closed` 재사용 | `lib/contracts/command-errors.ts` | 계약과 경로 상태 맵 |
+| 링크 없는 알림 | 요청자의 봉인된 예약 링크를 열 수 없으면(폐기된 키) 상태 이메일이나 확인을 기록하지 않으며, 도메인 변경은 그대로 커밋됩니다 | 변경을 실패시킴 | `lib/server/booking-notices.ts` | 그 파일의 `requesterBookingUrl` |
+| 공유 변경 확인 | 공유 제안은 고정 간격의 일반 평가 작업으로 확인하며, 그 하나의 후보가 다음 제안이 됩니다 | 별도의 확인 작업 | 설계 4 | `lib/server/shared-change-settle.ts`의 `settleSharedChange`; `lib/server/evaluation.ts`의 `interval` 페이로드 |
+| 호스트 논의 범위 | `/api/chat/*`는 선택적 `request`(UUID)를 받으며, 다른 호스트의 요청, 초안, 알 수 없는 ID, 형식이 잘못된 ID는 모두 404 `request_unavailable`로 답합니다 | 별도의 `/api/host/requests/{id}/messages` 경로 | 설계 2 | `lib/server/chat-routes.ts`의 `requestScope`; `lib/server/conversations.ts`의 `lockHostDiscussion` |
+| 호스트 검토 허용 한도 | 호스트 검토 메시지는 설정과 같은 호스트별 허용 구간에 함께 집계됩니다 | 요청마다 별도의 구간 | 설계 2 | `lib/server/conversations.ts`의 `recordInput` |
+| 호스트 모델 투영 | 요청자의 이름과 목적은 인용된 문자열로, 연락처 이메일은 `present`로, 시간은 호스트의 시간대로 모델에 전달됩니다 | 원본 값 | 설계 12 | `lib/server/host-review-tools.ts`의 `hostModelProjection` |
+| 요청 화면 이동 | 메뉴에 **요청(Requests)**이 추가됩니다. `/app?view=requests`는 받은 요청함, `/app?request={requestId}`는 개별 요청이며 모두 같은 `/app` 페이지 안에 있습니다. 알 수 없거나 다른 호스트의 요청은 "That request is not available." 안내와 함께 받은 요청함으로 돌아갑니다 | 별도의 `/app/requests` 경로 | 설계 3; 페이지 목록 | `apps/web/app/_components/host-workspace.tsx`의 `HostWorkspace` |
+| 논의 전환 | 탭 두 개, **Thyme과 비공개(Private with Thyme)**와 **{requester}와 공유(Shared with {requester})**를 화살표 키로 전환합니다. 공유 탭은 기록된 이벤트에서 읽은 요청자 대화 내역이며 실시간으로 따라가지 않습니다 | 실시간으로 따라가는 공유 화면 | 설계 2 | `apps/web/app/_components/host/host-requests.tsx`의 `RequestView`와 `SharedConversation` |
+| 열린 카드 순서 | 실행할 수 있는 카드는 하나만 보입니다. 대기 중이거나 확인 중인 제안이 먼저이고, 그다음 진행 중인 예약이나 재시도할 수 있는 실패, 그다음 보류가 있거나 해결되지 않은 이동이 있는 동안의 규칙 및 이동 검토, 마지막으로 제안서 검토입니다 | 모든 카드를 한꺼번에 보여주기 | 설계 3 | `apps/web/app/_components/host/host-request-cards.tsx`의 `nextHostStep` |
+| 제안 편집기 | 시간은 호스트의 시간대로 입력하고, 길이는 15분에서 480분까지 5분 단위입니다. 존재하지 않는 현지 시간은 브라우저에서 거부하고, 두 번 나타나는 시간은 더 이른 시점을 씁니다 | 자유 입력 시간 | 설계 4 | `SuggestionEditor`; `lib/contracts/timezone.ts`의 `instantFromLocal`; `lib/server/shared-changes.ts`의 `sharedChangesSchema` |
+| 정산 폴링 | 예약, 제안 확인, 평가가 대기 중인 동안 요청 화면은 3초마다 폴링합니다 | 푸시 업데이트 | 설계 3 | `host-requests.tsx`의 `SETTLING_POLL_MS` |
+| 예약 중인 요청자 | 스레드의 상태 줄이 **예약 진행 중(Booking in progress)**과 **예약 상태 확인(Check booking status)**으로 바뀝니다. 예약이 끝난 요청의 링크에는 상태와 요청자의 시간대로 된 영수증만 보입니다 | 예약 뒤에도 대화를 열어 두기 | 설계 10 | `apps/web/app/_components/requester/cards.tsx`의 `AwaitingLine`; `apps/web/app/booking/[bookingId]/page.tsx`의 `Closed` |
+| 이메일 회신 안내 | 확인 메일은 지원 주소 대신, 회신하면 상대 참석자에게 전달된다고 안내합니다. 지원 주소는 아직 정해지지 않았기 때문입니다 | 지원 주소 | 설계 9 | `lib/server/booking-emails.ts`의 `LABELS` |
+| 호스트 안내문 언어 | 호스트의 확인 메일은 영어로, 호스트의 시간대로 보냅니다 | 요청자의 언어 | 설계 9 | `lib/server/booking-notices.ts`의 `enqueueConfirmations` |
+
+### 운영 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 하나의 커밋으로 낸 B 레인 | B 레인 계획 항목 세 개를 하나의 커밋으로 냈습니다. 예약, 발송, 대조가 하나의 모듈이자 하나의 작업이기 때문이며, 이 커밋에는 평가 작업이 가져다 쓰는 A 레인의 공유 변경과 예외용 서버 모듈, 그리고 새 논의 키가 요구하는 호스트 논의의 요청 범위도 들어 있습니다 | 반쪽을 스텁으로 둔 커밋 세 개 | 이 기록; 커밋 메시지 | 이후 변경에서 필요하면 모듈을 나눔 |
+| 하나의 커밋으로 낸 A 레인 카드 | 선택 카드와 전환, 제안서 카드와 제안 카드, 규칙 및 이동 검토를 함께 냈습니다. 하나의 화면, 하나의 카드 모듈, 하나의 브라우저 테스트를 공유하기 때문입니다 | 커밋 세 개 | 이 기록 | — |
+| 이벤트 생성에 따른 참조 | OpenInstinct `agent/lib/google-workspace/calendar.ts` `0c2a7c6e`: 32자리 16진수 이벤트 ID, 참석자가 있을 때 `sendUpdates: "all"`, `409`는 `events.get`으로 다시 읽기 | Google이 지정하는 ID | 풀 리퀘스트 | — |
+
+### 사용자 대기 항목
+
+다음 단계는 되돌려도 취소할 수 없거나, 제공자 콘솔이 필요하거나, 팀 밖의 사람에게 발송되기 때문에 수행하지 않았습니다.
+
+- **공유 프로젝트 마이그레이션:** `20261022021159_host_review_and_booking.sql`은 `anelszynxtvxoxqvzgqt`에 없습니다. 먼저 드라이런을 보여 준 뒤, 사용자의 승인을 받아 배포 워크플로나 `supabase db push --linked`로 적용해야 합니다. 3단계를 포함한 이전 마이그레이션 21개는 이미 그곳에 적용되어 있으므로(인수 기록, 3단계) 대기 중인 것은 이것 하나뿐입니다. 이 브랜치를 배포하기 전에 푸시해야 합니다.
+- **프로덕션 배포:** 병합된 뒤 이 브랜치의 배포.
+- **통제된 Google Calendar 증거:** 팀이 통제하는 Google Calendar의 예약. `sendUpdates=all`은 Google이 참석자에게 이메일을 보내게 하므로 요청자 주소는 팀 받은편지함이어야 합니다.
+- **통제된 받은편지함 증거:** 팀 받은편지함에서의 확인 사본 두 개와 상태 이메일 하나, `text/calendar` 첨부 파일이 Gmail과 Outlook에서 초대로 보이는지 포함.
+- **병합:** 풀 리퀘스트에는 팀원의 승인이 필요하며, 관리자 우회는 사용하지 않았습니다.
+- **팀원 검토:** D1–D12와 구현 결정에 대한 검토, 이어서 변경의 `openspec archive`.
 
 ## 5단계 — `agent-access`
 

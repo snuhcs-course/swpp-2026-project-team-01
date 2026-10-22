@@ -61,7 +61,7 @@ async function lockGuestDiscussion(tx: Transaction, principal: GuestPrincipal) {
     await tx`
       insert into app.discussions (principal_type, principal_id, audience)
       values ('requester_request', ${principal.id}, 'requester')
-      on conflict (principal_type, principal_id, audience) do nothing
+      on conflict (principal_type, principal_id, audience, request_id) do nothing
     `;
   }
 

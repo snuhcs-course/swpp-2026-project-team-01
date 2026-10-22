@@ -72,6 +72,7 @@ function forbidden(): never {
 }
 
 export const HOST_SETUP_AUDIENCE = "host_setup";
+export const HOST_REVIEW_AUDIENCE = "host_review";
 export const REQUESTER_AUDIENCE = "requester";
 export const PUBLIC_INTAKE_AUDIENCE = "public_intake";
 
@@ -85,22 +86,27 @@ export function sessionPrincipalId(principal: Principal) {
   return principal.id;
 }
 
-function audienceOf(principal: Principal) {
+// A host discussion: setup, or the host's private review of one request.
+type HostDiscussion = { readonly audience: typeof HOST_SETUP_AUDIENCE | typeof HOST_REVIEW_AUDIENCE; readonly requestId: string | null };
+
+function audienceOf(principal: Principal, host: HostDiscussion | null) {
   if (principal.type === "requester_request") return REQUESTER_AUDIENCE;
   if (principal.type === "public_intake") return PUBLIC_INTAKE_AUDIENCE;
-  return HOST_SETUP_AUDIENCE;
+  return host?.audience ?? HOST_SETUP_AUDIENCE;
 }
 
-function sessionAuth(principal: Principal, discussionId: string, generation: number) {
+function sessionAuth(principal: Principal, discussionId: string, generation: number, host: HostDiscussion | null = null) {
   const subject: Record<string, string> =
     principal.type === "requester_request"
       ? { requestId: principal.id }
       : principal.type === "public_intake"
         ? { intakeId: principal.id }
-        : {};
+        : host?.requestId
+          ? { requestId: host.requestId }
+          : {};
 
   return {
-    attributes: { audience: audienceOf(principal), discussionId, generation: String(generation), ...subject },
+    attributes: { audience: audienceOf(principal, host), discussionId, generation: String(generation), ...subject },
     authenticator: "findmeatime",
     issuer: "findmeatime",
     principalId: sessionPrincipalId(principal),
@@ -138,14 +144,23 @@ async function guestMayUse(db: Database, principal: Principal, discussionId: str
   return Boolean(row && kind === "read" && row.continued);
 }
 
-// A host principal may reach only its own host setup discussion; any other
-// audience, or a discussion that is missing or someone else's, is refused.
-async function isHostSetupDiscussion(db: Database, discussionId: string, hostAccountId: string) {
-  const [row] = await db<{ audience: string }[]>`
-    select audience from app.discussions
-    where id = ${discussionId} and principal_type = 'host_account' and principal_id = ${hostAccountId}
+// A host principal may reach only its own setup discussion and its private
+// review discussions of requests it hosts that are not drafts
+// (host-review-and-booking design 2); any other audience, or a discussion that
+// is missing or someone else's, is refused (null).
+async function hostDiscussion(db: Database, discussionId: string, hostAccountId: string): Promise<HostDiscussion | null> {
+  const [row] = await db<{ audience: string; request_id: string | null; request_ok: boolean | null }[]>`
+    select d.audience, d.request_id,
+           (select r.host_account_id = d.principal_id and r.state <> 'draft' from app.requests r where r.id = d.request_id) as request_ok
+    from app.discussions d
+    where d.id = ${discussionId} and d.principal_type = 'host_account' and d.principal_id = ${hostAccountId}
   `;
-  return row?.audience === HOST_SETUP_AUDIENCE;
+
+  if (row?.audience === HOST_SETUP_AUDIENCE) return { audience: HOST_SETUP_AUDIENCE, requestId: null };
+  if (row?.audience === HOST_REVIEW_AUDIENCE && row.request_id && row.request_ok) {
+    return { audience: HOST_REVIEW_AUDIENCE, requestId: row.request_id };
+  }
+  return null;
 }
 
 async function hostIsActive(db: Database, hostAccountId: string) {
@@ -249,18 +264,18 @@ async function authorizeBearer(deps: AppAuthDependencies, request: Request, rout
 
   if (!allowed) forbidden();
 
+  let host: HostDiscussion | null = null;
+
   if (grant.principal.type === "host_account") {
-    if (
-      !(await hostIsActive(deps.db, grant.principal.id)) ||
-      !(await isHostSetupDiscussion(deps.db, grant.discussionId, grant.principal.id))
-    ) {
-      forbidden();
-    }
+    host = (await hostIsActive(deps.db, grant.principal.id))
+      ? await hostDiscussion(deps.db, grant.discussionId, grant.principal.id)
+      : null;
+    if (!host) forbidden();
   } else if (!(await guestMayUse(deps.db, grant.principal, grant.discussionId, grant.kind))) {
     forbidden();
   }
 
-  return sessionAuth(grant.principal, grant.discussionId, grant.generation);
+  return sessionAuth(grant.principal, grant.discussionId, grant.generation, host);
 }
 
 // The browser may stream only its own session at the discussion's current
@@ -283,16 +298,16 @@ async function authorizeCookie(deps: AppAuthDependencies, request: Request, sess
     from app.agent_sessions s
     join app.discussions d on d.id = s.discussion_id
       and d.principal_type = 'host_account' and d.principal_id = s.principal_id
-      and d.audience = ${HOST_SETUP_AUDIENCE}
     where s.session_id = ${sessionId}
       and s.principal_type = 'host_account' and s.principal_id = ${standing.hostAccountId}
       and s.state in ('active', 'failed')
       and s.generation = (select max(generation) from app.agent_sessions where discussion_id = s.discussion_id)
   `;
+  const host = row ? await hostDiscussion(deps.db, row.discussion_id, standing.hostAccountId) : null;
 
-  if (!row) forbidden();
+  if (!row || !host) forbidden();
 
-  return sessionAuth({ id: standing.hostAccountId, type: "host_account" }, row.discussion_id, row.generation);
+  return sessionAuth({ id: standing.hostAccountId, type: "host_account" }, row.discussion_id, row.generation, host);
 }
 
 export function createAppAuth(load: () => AppAuthDependencies): AuthFn<Request> {

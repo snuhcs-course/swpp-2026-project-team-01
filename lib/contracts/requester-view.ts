@@ -1,3 +1,4 @@
+import type { BookingStatusView } from "./booking";
 import type { RequesterEvaluationView } from "./feasibility";
 import type {
   ClarificationCategory,
@@ -91,14 +92,19 @@ export type OpenRequesterView = {
   readonly agreement: RequesterAgreement | null;
   // The thread's cards in order.
   readonly thread: readonly ThreadCard[];
+  // The booking once the host approved: in progress, failed, or confirmed with
+  // its receipt (host-review-and-booking design 10).
+  readonly booking: BookingStatusView | null;
 };
 
-// A closed request with an unexpired link: only its final status (and, from
-// Phase 4, the confirmed receipt).
+// A closed request with an unexpired link: only its final status and, once
+// booked, the confirmed receipt in the requester's timezone.
 export type ClosedRequesterView = {
   readonly open: false;
   readonly request: { readonly state: RequestState };
   readonly host: { readonly displayName: string; readonly handle: string | null };
+  readonly booking: BookingStatusView | null;
+  readonly timezone: string;
 };
 
 export type RequesterView = OpenRequesterView | ClosedRequesterView;
@@ -121,5 +127,6 @@ export const REQUESTER_OPERATIONS = [
   "calendar.disconnect",
   "calendar.select",
   "request.set_manual_availability",
+  "booking.check",
 ] as const;
 export type RequesterOperation = (typeof REQUESTER_OPERATIONS)[number];
