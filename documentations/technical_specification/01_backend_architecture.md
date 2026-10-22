@@ -45,7 +45,9 @@ Recheck relevant authority and expected revision inside the transaction that cha
 
 Use resource-specific tokens, explicit scoped consent, PKCE, exact registered callbacks, discovery, current-grant checks and refresh/revocation semantics from [agent-client authorization](../../openspec/specs/agent-client-authorization/spec.md). Supabase login or a Calendar token cannot substitute for this boundary. An authenticated SDK fixture does not prove any named client works.
 
-Account-free requester bootstrap is a pending delta: select the host, obtain a grant for one future request, create exactly one request on retry, then permanently restrict continuation to it. Specify this behavior before implementation. Both CLIs are described in [CLI direction](05_cli.md).
+The [`agent-access` change](../../openspec/changes/agent-access/design.md) builds the authorization server into the web service: each listed origin is its own issuer, `/mcp` is the host resource and `/{handle}/mcp` the requester resource of one ready host, access tokens are Ed25519 JWTs signed with `AGENT_TOKEN_SIGNING_KEY`, and codes, refresh families, grants and clients live in the private `app` schema. The MCP handler is stateless and serves the current and the handshake protocol revisions; its tools call the same commands and projections as the web through the command pipeline, with retry keys bound to the grant. Host approval and decline stay a click in `/app`.
+
+Account-free requester bootstrap: the consent page for `/{handle}/mcp` shows that host and grants one future request; `create_request` creates exactly one request, also on retry, sends the booking link to the requester's own email and permanently restricts the grant to that request. Both CLIs are described in [CLI direction](05_cli.md).
 
 ## Command and query pipeline
 

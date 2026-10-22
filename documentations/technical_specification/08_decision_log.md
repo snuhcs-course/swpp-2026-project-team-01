@@ -141,7 +141,85 @@ These steps were not taken because they cannot be undone by a revert, need a pro
 
 ## Phase 5 — `agent-access`
 
-No decisions yet.
+The [proposal](../../openspec/changes/agent-access/proposal.md#decisions) records D1–D16 and the [design](../../openspec/changes/agent-access/design.md) the reasoning. The implementing session took them on 2026-10-22, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
+
+### Product decisions
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | One MCP endpoint per role serves both protocol eras: `2026-07-28` with per-request metadata, and `2025-11-25`, `2025-06-18` and `2025-03-26` through a stateless `initialize`. JSON responses and tools only | `2026-07-28` alone; `2025-11-25` alone | Proposal; design 6; `agent-interfaces` delta | The proposal and the protocol versions in the MCP handler |
+| D2 | Client ID metadata documents first, dynamic client registration for clients without them, and the pre-registered `fmat-cli` | Dynamic registration only; metadata documents only | Proposal; design 3; `agent-client-authorization` delta "Bounded client registration" | The proposal, the authorization-server metadata and the client resolver |
+| D3 | Scopes `host:read`, `host:write`, `host:decide`, `request:read`, `request:write`, `request:decide`; each resource takes only its role's; consent can narrow them | One scope per tool; one read-write scope | Proposal; design 4; `agent-client-authorization` delta "Role-bound permission scopes" | The proposal, the delta and the scope table in the contracts |
+| D4 | CLI `fmat` from `@findmeatime/cli` in `cli/`, Node.js 20 or later, no dependencies; macOS Keychain and Linux Secret Service; Windows only with a file store, untested | A Go or Rust binary; the command `findmeatime` | Proposal; design 9; CLI direction | The proposal and `cli/` |
+| D5 | Hosts use `{origin}/mcp`, requesters `{origin}/{handle}/mcp`; tokens are bound to the exact resource | One resource with a host parameter | Proposal; design 2 | The proposal, the routes and the resource parser |
+| D6 | Ed25519 JWT access tokens for 10 minutes; opaque refresh tokens rotated on use, 30 days; codes 60 seconds; key `AGENT_TOKEN_SIGNING_KEY` | Opaque access tokens; RS256 | Proposal; design 5 | The proposal and the token lifetimes in the token module |
+| D7 | Sign-in from consent keeps the transaction in an HTTP-only cookie; the callback returns there only for a live transaction, otherwise to `/app` | A `next` query parameter | Proposal; design 7; `chat-workspaces` delta | The delta and `google-sign-in.ts` |
+| D8 | `/connect/authorize` is the protocol route; the page is `/connect/consent` | One URL rendering HTML from a route handler | Proposal; design 7; page list | The proposal and the routes |
+| D9 | Host approval and decline always need the host's click in `/app`; the agent's decision tool returns the review link | Approving from a client's elicitation | Proposal; design 4; `agent-interfaces` delta | The proposal and the host decision tool |
+| D10 | A requester's agent with `request:decide` may agree and withdraw | Requester's browser for agreement | Proposal; design 4 | The proposal and the requester tools |
+| D11 | A closed request's grants read only its closed status and receipt, and refresh for that, until the booking link's closed-access lifetime ends | Denying all access at closure, as the main spec said | Proposal; design 5; `agent-client-authorization` delta | The delta and the grant check |
+| D12 | The bootstrap grant lives 24 hours; `create_request` creates and identifies one request, sends the booking link by email, returns the same request for the same retry key and refuses any other; creation counts toward the consenting browser's source bounds | Binding at consent | Proposal; design 8; `agent-client-authorization` delta "One future request grant" | The delta and the creation module |
+| D13 | The requester consent page also connects an existing request by its booking link, same host only | A connect button on the booking page | Proposal; design 8 | The proposal and the consent page |
+| D14 | Headless CLI login shows the code at `{origin}/connect/code` | The device authorization grant | Proposal; design 9 | The proposal, the first-party client and the page |
+| D15 | Redirect URIs: exact scheme, host, path and query; `https` or loopback `http`; a loopback IP literal's port may differ | Exact ports for loopback | Proposal; design 3 | The proposal and the redirect matcher |
+| D16 | Per-client runs on production after deploy, with a team host account and a team requester inbox, each client at its current version under a team member's account; results in the acceptance record | A staging deployment; SDK fixtures | Proposal; design 11 | The proposal and the per-client notes |
+
+### Implementation decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Replay response | A replayed code or refresh token revokes the whole grant, so access tokens of that consent stop at their next call, not only the refresh family | Revoking only the family, which would need the family in every access token | `agent-grants.ts` | `exchangeCode` and `refreshTokens` in `lib/server/agent-grants.ts` |
+| Refresh boundary | A family's 30 days start at the code exchange and never move; rotation keeps that expiry, so a host reconnects at least monthly | A sliding 30 days per rotation | `agent-grants.ts` | `issueTokens` and `REFRESH_DAYS` in `lib/server/agent-grants.ts` |
+| Registration auth method | Registration accepts any requested `token_endpoint_auth_method` and answers `none`, as RFC 7591 allows; no client secret exists | Refusing confidential requests | `agent-clients.ts` | `registerClient` in `lib/server/agent-clients.ts` |
+| Resource errors | A wrong or missing resource answers `invalid_target` (RFC 8707) at both endpoints, except that a code bound to another resource answers `invalid_grant` | `invalid_request` | `agent-authorize.ts`, `agent-oauth-routes.ts` | Those modules |
+| Browser binding | One random nonce per browser in an HttpOnly cookie on `/connect` for 24 hours, reused by every transaction that browser opens; the transaction stores its hash | A cookie per transaction | `agent-authorize.ts` | `BINDING_COOKIE` and `bindingCookie` there |
+| Sign-in return cookie | `fmat_auth_return` on `/auth` for 10 minutes, set only for a live host transaction and cleared by every callback | Carrying the transaction through Supabase's redirect URL | `google-sign-in.ts` | `RETURN_COOKIE` there |
+| Cross-origin protocol calls | Discovery, registration, token and revocation answer `Access-Control-Allow-Origin: *`, since they read no cookie and browser-based clients call them | No CORS | `agent-oauth-routes.ts` | `CORS` there |
+| Metadata cache | Client metadata documents are cached for their `max-age`, at least 5 minutes and at most 24 hours, and fetched at most 30 times per client ID per hour | No cache | `agent-clients.ts` | `METADATA_LIMITS` there and `AGENT_LIMITS` in `lib/server/agent-limits.ts` |
+| Protocol bounds | Registration 10 per source per hour and 500 per day; authorization 30 per source per hour; tokens 60 per client per minute; tool calls 120 per grant per minute | Unbounded | Design 12 | `AGENT_LIMITS` in `lib/server/agent-limits.ts` |
+| Consent form and the content security policy | `/connect/consent` alone allows `form-action 'self' https: http:`, because Chrome applies `form-action` to the decision's redirect to the agent's callback; the callback itself is checked on the server | Answering the decision with a page that links to the callback | `apps/web/next.config.ts` | `consentContentSecurityPolicy` there |
+| Consent page referrer | `same-origin`, since with `no-referrer` Chrome sends `Origin: null` on the form post and the same-origin check refuses it | `no-referrer` | `apps/web/app/connect/consent/page.tsx` | Its `metadata` |
+| Consent form without scripts | Allow and Deny are a plain HTML form posted to `/connect/decision`, so consent works without JavaScript | A client component calling a JSON route | `apps/web/app/connect/consent/page.tsx` | That page and `createDecisionHandler` |
+| Suspended hosts and grants | A suspended host can still list and revoke its agents in the menu, as the page list keeps grant revocation available; its agents' calls already fail | Hiding Connected agents while suspended | `agent-grant-routes.ts` | `hostAccountOf` there |
+| Tool names | Plain verbs without a product prefix (`list_requests`, `get_request`); clients already scope tools by server | A `fmat_` prefix | `agent-host-tools.ts` | The tool lists |
+| Command arguments | A tool that runs a card command takes `requestId`, `retryKey`, an optional `expectedRevision` and the command's own arguments under `input`, whose schema is the command's | Flattening every command's fields into the tool | `agent-host-tools.ts` | `requestCommandTool` there |
+| Failures | A command failure, invalid arguments, a closed request or a tool the grant cannot use is a tool result with `isError` and a `nextAction`; only an unknown tool or a malformed request is a protocol error; a scope the token lacks answers 403 with `insufficient_scope` | Protocol errors for everything | `agent-mcp.ts` | `callTool` there |
+| Unsupported handshake versions | `initialize` with an unknown version answers `2025-11-25`; a later call with an unknown `MCP-Protocol-Version` answers `400` with the supported list | Refusing the handshake | `agent-mcp.ts` | `createMcpHandler` there |
+| Server name and version | `find-me-a-time` 1.0.0 with the title "Find Me a Time" | The package version | `agent-mcp.ts` | `SERVER_INFO` there |
+| CLI protocol | The CLI speaks only MCP `2026-07-28`, since it talks to our own endpoint | Dual-era like the server | `cli/src/mcp.ts` | `PROTOCOL_VERSION` there |
+| CLI tool discovery | `fmat call` reads `tools/list` first, so an unknown or unpermitted tool is a usage error before any call, and a retry key is added only to tools whose schema takes one | Calling blindly | `cli/src/app.ts` | `main` there |
+| CLI keychain write | The credential goes to the macOS Keychain through `security -i` on stdin, hex-encoded, so it never appears in a process list | `security add-generic-password -w` with the value in argv | `cli/src/store.ts` | `writeSaved` there |
+| CLI refresh | A token within 30 seconds of expiry is refreshed first; a refused or unanswered refresh deletes the stored connection and exits 3 | Retrying the refresh, which would replay a spent token and revoke the grant | `cli/src/app.ts`, `cli/src/oauth.ts` | `fresh` and `refresh` there |
+| CLI origins | `https` origins, or `http` on `localhost`, `127.0.0.1` or `[::1]` for local runs | Any origin | `cli/src/app.ts` | `originOf` there |
+| CLI build | `npm run build:cli` compiles `cli/src` to `cli/dist` with `tsgo`; `npm run fmat -- <command>` runs it from a checkout with `tsx` | A bundler | `package.json`, `cli/package.json` | Those files |
+| Creation retry identity | `create_request` with the retry key that created the request returns that request, whatever the other arguments; any other key is refused as already created. It is callable on a bound bootstrap grant though no longer listed | Hashing the creation input like the command pipeline | `agent-requests.ts`, `agent-mcp.ts` | `createRequestForGrant` and `callable` there |
+| Creation transaction | Creation runs in its own transaction under the grant's row lock rather than through `runCommand`, because the actor (the bound request) does not exist until the transaction creates it; it reuses `insertDraftRequest`, `identifyDraft` and the details command | A new actor kind for unbound grants | `agent-requests.ts` | That module |
+| Details at creation | The details the agent gives are applied with the details card's validation in the same transaction; a refusal creates nothing | Creating first and applying details separately | `agent-requests.ts` | `createRequestForGrant` there |
+| Requester projection | The booking page's view without the thread, the conversation state, the calendar connection or any link; the host's display name is encoded as quoted data | The eve requester tool's minimized view | `agent-requester-tools.ts` | `agentRequesterProjection` there |
+| Finding times | `find_times` waits up to 15 seconds for the evaluation, then returns it pending; `get_request` shows it when done | The eve tool's 20 seconds | `agent-requester-tools.ts` | `FIND_TIMES_WAIT_MS` there |
+| Requester agent list | The booking page's thread menu gains **Connected agents**, the same dialog as `/app`, revoking through `agent.revoke_grant` | A separate page | `guest-workspace.tsx` | `ThreadMenu` there |
+| Entry documents | Instruction version 3 names each role's MCP endpoint and permissions, the consent step, the requester's numbered steps and the unpublished CLI, and keeps the web continuation; the HTML agent sections say the same in one sentence | Keeping version 2's "not available yet" until a client passes | `entry-documents.ts`, `apps/web/app/page.tsx`, `apps/web/app/[handle]/page.tsx` | `hostEntryDocument` and `requesterEntryDocument` |
+| Per-client notes | A new technical document, `09_agent_clients.md`, holds each client's connection path to try and its results per role, "not yet run" until recorded | Rows in the acceptance record only | `09_agent_clients.md` | That document |
+
+### Operational decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Local join | The join ran locally with a scripted MCP client for the requester and the CLI for the host on one request, through the host's own approval and the booking job against the Google stand-in; no named client ran | Waiting for named clients before any join evidence | `tests/integration/agent-join.test.ts`; [acceptance record](07_acceptance_record.md#phase-5--agent-access) | Record each named client's run in [personal-agent clients](09_agent_clients.md) |
+| Shared local stack | Every worktree shares one local Supabase stack, so this branch's `supabase db reset --local` replaced other branches' tables until they reset again; noted for the parallel Phase 7 session | A separate stack per worktree | The session notes | Give each worktree its own `project_id` in `supabase/config.toml` locally |
+| Browser test waits | The agent-connect journeys wait up to 20 seconds for the agent's redirect and the Connected agents list, because `next dev` compiles those routes on first use and the shared machine ran at a load average near 68 | The default 5 seconds | `tests/e2e/agent-connect.test.ts` | Those expectations |
+
+### Blocked on the user
+
+These steps were not taken because they cannot be undone by a revert, need a provider console or a person's own account, or publish something:
+
+- **Shared-project migration:** `20261022132708_agent_access.sql` is not on `anelszynxtvxoxqvzgqt`. The 22 earlier migrations, Phase 4's included, are applied there (Phase 4 operational decisions), so it is the only pending one. It needs a shown dry run, then the deploy workflow or `supabase db push --linked` with the user's approval, before the deploy that needs it.
+- **Signing keys:** generate an `AGENT_TOKEN_SIGNING_KEY` for Production and another for Preview and set them on the Vercel project `findmeatime-release`. Until then the token endpoint reports unavailable configuration.
+- **Production deploy** of this branch once merged, after the migrations.
+- **Publishing the CLI:** `@findmeatime/cli` to npm, which also needs the package scope.
+- **Named-client runs:** Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code, each in both roles, under team members' own accounts on production, recorded in [personal-agent clients](09_agent_clients.md) and the acceptance record (AC-14, AC-15, AC-19 to AC-25). An unresolved client is a release blocker.
+- **Merge:** the pull request needs a teammate's approval; no admin bypass was used.
+- **Teammate review** of D1–D16 and the implementation decisions, then `openspec archive` of the change.
 
 ## Phase 6 — `host-imessage-channel`
 

@@ -1,8 +1,8 @@
 # Acceptance Record
 
-Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) released and checked on production; the guest's inbox check pending; open gaps listed below
+Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) released and checked on production; the guest's inbox check pending; Phase 5 (`agent-access`) local evidence recorded, named-client and production evidence pending; open gaps listed below
 
-Date: 2026-10-22
+Date: 2026-10-23
 
 This record lists the evidence each phase of the [implementation plan](06_implementation_plan.md) produced, against the evidence list of that phase. Every entry names the command, the date, the revision and the environment it ran in. Fixture and local-stack runs prove logic; only the entries marked **production** prove the deployed integration. Tokens, secrets, email addresses and personal message text are kept out of this record.
 
@@ -251,4 +251,39 @@ Found: the receipt shows the organizer as "address <address>" when Google return
 - **Guest's inbox.** The guest's confirmation copy and Google's own invitation in `dodo4114@snu.ac.kr` were not read by the session; a team member checks them.
 - **Outlook.** The `text/calendar` attachment arrived in Gmail; Outlook is unchecked.
 - **Reminders** are deferred by D3.
+
+## Phase 5 — `agent-access`
+
+Change: [`agent-access`](../../openspec/changes/agent-access/tasks.md). Evidence list: [Phase 5](06_implementation_plan.md#phase-5--agent-access). Environments as in Phase 1. A scripted MCP client over plain `fetch` and the CLI `fmat` stand in for agents; no named client ran, and nothing here ran against production. Per-client results belong in [personal-agent clients](09_agent_clients.md).
+
+### Suite runs
+
+| Command | Date | Revision | Environment | Result |
+|---|---|---|---|---|
+| `supabase db reset --local`, then `supabase test db` | 2026-10-22 | `dada09ac` | Local stack | Chain rebuilt with `20261022132708_agent_access.sql`; 7 files, 100 pgTAP tests passed, including `agent_access.test.sql` |
+| `npm test` | 2026-10-22 | `15a1e43e` | Local stack | 44 files, 421 tests passed |
+| `npm run test:integration` | 2026-10-22 | `15a1e43e` plus the join test | Local stack | 52 files, 538 tests passed |
+| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-22 | `15a1e43e` | Local stack | Each exit 0; lint reports only the three warnings that were already on `main` |
+| `npm run test:e2e` | 2026-10-23 | `15a1e43e` plus the join commit's test changes | Local stack | With the default workers, at a load average near 68 from other work on the machine, 24 passed, 10 passed on retry and 5 failed on timeouts; the 5 passed when rerun with `--last-failed --workers=2`, and a full rerun with `--workers=2` passed all 39 tests |
+
+### Evidence by item
+
+Local evidence only; each names the test that shows it.
+
+| Item | Evidence |
+|---|---|
+| AC-14, scripted | `tests/integration/agent-join.test.ts`: a requester MCP client and the host's CLI on one request see the same state and proposal version, a retried agreement replays, the host decision tool books nothing, the host's own approval made twice books one event, and both lose access on revocation |
+| AC-15, scripted | `tests/integration/agent-mcp-requester.test.ts` "creates exactly one request, emails its link, and binds the grant to it" and "finds times, refuses a stale version and agrees to the current one"; the join test reads the booked receipt after the host approves |
+| AC-19 | `tests/e2e/agent-connect.test.ts` at 390 and 1280 px: narrowed consent, the agent's code, **Connected agents** and **Revoke**; "a denied connection returns access_denied and connects nothing"; `tests/integration/agent-mcp-host.test.ts` "lists only the tools the permissions allow and challenges a missing one" |
+| AC-20 | `lib/server/agent-tokens.test.ts` (wrong key, issuer, audience, type, expiry, changed claim, `alg: none`, token-supplied key); `agent-mcp-host.test.ts` "challenges a missing, foreign or wrong-audience token" and "prepares a decision only for the current version and never approves" |
+| AC-21 | `agent-mcp-requester.test.ts`: another host's booking link is refused at consent, the bound grant reaches only its request, an unbound grant expires after 24 hours; `agent-mcp-host.test.ts` "reads only the host's own requests in the host projection" |
+| AC-22 | `tests/integration/agent-cli.test.ts`: headless login, JSON output, an exact retry by the printed key, a conflicting reuse and a refused refresh asking for a new login; the join test uses MCP and the CLI on one request |
+| AC-23 to AC-25, documents only | `lib/server/entry-documents.test.ts` and `tests/integration/entry-documents.test.ts` for instruction version 3; `agent-mcp-requester.test.ts` "refuses a resource for an unknown host" |
+| Authorization server | `tests/integration/agent-authorization.test.ts` (19): discovery, registration and its bound, the validation order, metadata documents, consent and the sign-in return, concurrent and replayed codes, refresh rotation and replay, a missing signing key, revocation and suspension |
+
+### Known gaps
+
+- **Named clients.** Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code have not run in either role; AC-14, AC-15 and AC-19 to AC-25 stay open for each until [personal-agent clients](09_agent_clients.md) records them. An unresolved client is a release blocker.
+- **Production.** The migration, the signing keys and the deploy are pending (decision log, "Blocked on the user").
+- **The CLI's system stores.** The macOS Keychain and Secret Service paths were not exercised by the suites, which use the file store.
 

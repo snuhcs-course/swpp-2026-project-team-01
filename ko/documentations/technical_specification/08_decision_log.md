@@ -143,7 +143,85 @@
 
 ## 5단계 — `agent-access`
 
-아직 결정이 없습니다.
+[제안서](../../openspec/changes/agent-access/proposal.md#decisions)가 D1–D16을 기록하고 [설계](../../openspec/changes/agent-access/design.md)가 그 근거를 기록합니다. 구현 세션이 2026-10-22에 모든 결정을 기록하고 변경 가능하게 유지하라는 사용자의 지시에 따라 이를 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
+
+### 제품 결정
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| D1 | 역할별 MCP 엔드포인트 하나가 두 프로토콜 세대를 모두 처리합니다: 요청별 메타데이터를 쓰는 `2026-07-28`, 그리고 상태 비저장 `initialize`를 통한 `2025-11-25`, `2025-06-18`, `2025-03-26`. JSON 응답과 도구만 지원합니다 | `2026-07-28`만; `2025-11-25`만 | 제안서; 설계 6; `agent-interfaces` 델타 | 제안서와 MCP 핸들러의 프로토콜 버전 |
+| D2 | 클라이언트 ID 메타데이터 문서를 우선하고, 이를 쓰지 않는 클라이언트에는 동적 클라이언트 등록, 그리고 사전 등록된 `fmat-cli` | 동적 등록만; 메타데이터 문서만 | 제안서; 설계 3; `agent-client-authorization` 델타 "Bounded client registration" | 제안서, 인가 서버 메타데이터, 클라이언트 리졸버 |
+| D3 | 스코프 `host:read`, `host:write`, `host:decide`, `request:read`, `request:write`, `request:decide`; 각 리소스는 자기 역할의 스코프만 받으며 동의 시 좁힐 수 있습니다 | 도구별 스코프 하나; 읽기-쓰기 스코프 하나 | 제안서; 설계 4; `agent-client-authorization` 델타 "Role-bound permission scopes" | 제안서, 델타, 계약의 스코프 표 |
+| D4 | `cli/`의 `@findmeatime/cli`가 제공하는 CLI `fmat`, Node.js 20 이상, 의존성 없음; macOS Keychain과 Linux Secret Service; Windows는 파일 저장소만 지원하며 테스트하지 않음 | Go 또는 Rust 바이너리; 명령어 `findmeatime` | 제안서; 설계 9; CLI 방향 | 제안서와 `cli/` |
+| D5 | 호스트는 `{origin}/mcp`, 요청자는 `{origin}/{handle}/mcp`를 쓰며, 토큰은 정확한 리소스에 바인딩됩니다 | 호스트 매개변수를 쓰는 단일 리소스 | 제안서; 설계 2 | 제안서, 라우트, 리소스 파서 |
+| D6 | Ed25519 JWT 액세스 토큰 10분; 사용 시 회전하는 불투명 리프레시 토큰 30일; 코드 60초; 키 `AGENT_TOKEN_SIGNING_KEY` | 불투명 액세스 토큰; RS256 | 제안서; 설계 5 | 제안서와 토큰 모듈의 토큰 수명 |
+| D7 | 동의 화면에서 시작한 로그인은 트랜잭션을 HTTP 전용 쿠키에 보관하며, 콜백은 살아 있는 트랜잭션일 때만 그곳으로 돌아가고 아니면 `/app`으로 갑니다 | `next` 쿼리 매개변수 | 제안서; 설계 7; `chat-workspaces` 델타 | 델타와 `google-sign-in.ts` |
+| D8 | `/connect/authorize`는 프로토콜 라우트이고 페이지는 `/connect/consent`입니다 | 라우트 핸들러가 HTML을 렌더링하는 단일 URL | 제안서; 설계 7; 페이지 목록 | 제안서와 라우트 |
+| D9 | 호스트의 승인과 거절에는 항상 `/app`에서의 호스트 클릭이 필요하며, 에이전트의 결정 도구는 검토 링크를 반환합니다 | 클라이언트의 엘리싯테이션으로 승인 | 제안서; 설계 4; `agent-interfaces` 델타 | 제안서와 호스트 결정 도구 |
+| D10 | `request:decide`를 가진 요청자의 에이전트는 동의와 철회를 할 수 있습니다 | 동의는 요청자의 브라우저에서 | 제안서; 설계 4 | 제안서와 요청자 도구 |
+| D11 | 종료된 요청의 허가는 종료 상태와 영수증만 읽을 수 있고, 예약 링크의 종료 후 접근 수명이 끝날 때까지 그 용도로만 갱신됩니다 | 주 명세대로 종료 시 모든 접근 거부 | 제안서; 설계 5; `agent-client-authorization` 델타 | 델타와 허가 검사 |
+| D12 | 부트스트랩 허가는 24시간 유지됩니다. `create_request`는 요청 하나를 만들고 식별하며, 예약 링크를 이메일로 보내고, 같은 재시도 키에는 같은 요청을 반환하고 다른 키는 거부합니다. 생성은 동의한 브라우저의 출처 한도에 포함됩니다 | 동의 시점에 바인딩 | 제안서; 설계 8; `agent-client-authorization` 델타 "One future request grant" | 델타와 생성 모듈 |
+| D13 | 요청자 동의 페이지는 기존 요청도 예약 링크로 연결하며, 같은 호스트만 허용합니다 | 예약 페이지의 연결 버튼 | 제안서; 설계 8 | 제안서와 동의 페이지 |
+| D14 | 헤드리스 CLI 로그인은 코드를 `{origin}/connect/code`에 표시합니다 | 디바이스 인가 그랜트 | 제안서; 설계 9 | 제안서, 퍼스트파티 클라이언트, 페이지 |
+| D15 | 리디렉션 URI: 스킴, 호스트, 경로, 쿼리가 정확히 일치; `https` 또는 루프백 `http`; 루프백 IP 리터럴은 포트가 달라도 됩니다 | 루프백에도 정확한 포트 | 제안서; 설계 3 | 제안서와 리디렉션 매처 |
+| D16 | 배포 후 프로덕션에서 클라이언트별 실행. 팀 호스트 계정과 팀 요청자 수신함을 쓰고, 각 클라이언트는 팀원 계정 아래 현재 버전으로 실행하며, 결과는 인수 기록에 남깁니다 | 스테이징 배포; SDK 픽스처 | 제안서; 설계 11 | 제안서와 클라이언트별 메모 |
+
+### 구현 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 재전송 대응 | 재전송된 코드나 리프레시 토큰은 허가 전체를 철회하므로, 그 동의의 액세스 토큰은 리프레시 계열만이 아니라 다음 호출부터 모두 멈춥니다 | 계열만 철회, 이 경우 모든 액세스 토큰에 계열을 담아야 합니다 | `agent-grants.ts` | `lib/server/agent-grants.ts`의 `exchangeCode`와 `refreshTokens` |
+| 리프레시 경계 | 계열의 30일은 코드 교환 시점에 시작해 움직이지 않습니다. 회전해도 만료가 유지되므로 호스트는 최소 한 달에 한 번 다시 연결합니다 | 회전마다 30일 슬라이딩 | `agent-grants.ts` | `lib/server/agent-grants.ts`의 `issueTokens`와 `REFRESH_DAYS` |
+| 등록 인증 방식 | 등록은 요청된 `token_endpoint_auth_method`를 모두 받아들이고 RFC 7591이 허용하는 대로 `none`으로 답합니다. 클라이언트 시크릿은 없습니다 | 기밀 클라이언트 요청 거부 | `agent-clients.ts` | `lib/server/agent-clients.ts`의 `registerClient` |
+| 리소스 오류 | 잘못되었거나 없는 리소스는 두 엔드포인트 모두 `invalid_target`(RFC 8707)으로 답합니다. 다만 다른 리소스에 바인딩된 코드는 `invalid_grant`로 답합니다 | `invalid_request` | `agent-authorize.ts`, `agent-oauth-routes.ts` | 해당 모듈 |
+| 브라우저 바인딩 | 브라우저마다 무작위 논스 하나를 `/connect`의 HttpOnly 쿠키에 24시간 두고, 그 브라우저가 여는 모든 트랜잭션이 재사용합니다. 트랜잭션에는 그 해시를 저장합니다 | 트랜잭션별 쿠키 | `agent-authorize.ts` | 같은 파일의 `BINDING_COOKIE`와 `bindingCookie` |
+| 로그인 복귀 쿠키 | `fmat_auth_return`을 `/auth`에 10분간 두며, 살아 있는 호스트 트랜잭션일 때만 설정하고 모든 콜백에서 지웁니다 | Supabase 리디렉션 URL로 트랜잭션 전달 | `google-sign-in.ts` | 같은 파일의 `RETURN_COOKIE` |
+| 교차 출처 프로토콜 호출 | 디스커버리, 등록, 토큰, 철회는 쿠키를 읽지 않고 브라우저 기반 클라이언트가 호출하므로 `Access-Control-Allow-Origin: *`로 답합니다 | CORS 없음 | `agent-oauth-routes.ts` | 같은 파일의 `CORS` |
+| 메타데이터 캐시 | 클라이언트 메타데이터 문서는 `max-age`만큼 캐시하며 최소 5분, 최대 24시간입니다. 클라이언트 ID당 시간당 최대 30번 가져옵니다 | 캐시 없음 | `agent-clients.ts` | 같은 파일의 `METADATA_LIMITS`와 `lib/server/agent-limits.ts`의 `AGENT_LIMITS` |
+| 프로토콜 한도 | 등록은 출처당 시간당 10회, 하루 500회; 인가는 출처당 시간당 30회; 토큰은 클라이언트당 분당 60회; 도구 호출은 허가당 분당 120회 | 무제한 | 설계 12 | `lib/server/agent-limits.ts`의 `AGENT_LIMITS` |
+| 동의 폼과 콘텐츠 보안 정책 | `/connect/consent`만 `form-action 'self' https: http:`를 허용합니다. Chrome이 `form-action`을 결정 뒤 에이전트 콜백으로 가는 리디렉션에도 적용하기 때문이며, 콜백 자체는 서버에서 검사합니다 | 콜백으로 가는 링크가 있는 페이지로 결정에 답하기 | `apps/web/next.config.ts` | 같은 파일의 `consentContentSecurityPolicy` |
+| 동의 페이지 리퍼러 | `same-origin`입니다. `no-referrer`이면 Chrome이 폼 전송에 `Origin: null`을 보내 동일 출처 검사가 거부하기 때문입니다 | `no-referrer` | `apps/web/app/connect/consent/page.tsx` | 그 파일의 `metadata` |
+| 스크립트 없는 동의 폼 | 허용과 거부는 `/connect/decision`으로 전송하는 일반 HTML 폼이므로 JavaScript 없이도 동의할 수 있습니다 | JSON 라우트를 호출하는 클라이언트 컴포넌트 | `apps/web/app/connect/consent/page.tsx` | 그 페이지와 `createDecisionHandler` |
+| 정지된 호스트와 허가 | 정지된 호스트도 메뉴에서 자신의 에이전트를 조회하고 철회할 수 있습니다. 페이지 목록이 허가 철회를 계속 제공하기 때문이며, 그 에이전트의 호출은 이미 실패합니다 | 정지된 동안 연결된 에이전트 숨기기 | `agent-grant-routes.ts` | 같은 파일의 `hostAccountOf` |
+| 도구 이름 | 제품 접두사 없는 평범한 동사(`list_requests`, `get_request`)입니다. 클라이언트가 이미 서버별로 도구를 구분하기 때문입니다 | `fmat_` 접두사 | `agent-host-tools.ts` | 도구 목록 |
+| 명령 인자 | 카드 명령을 실행하는 도구는 `requestId`, `retryKey`, 선택 사항인 `expectedRevision`, 그리고 `input` 아래에 명령 자체의 인자를 받으며 `input`의 스키마는 그 명령의 스키마입니다 | 모든 명령의 필드를 도구에 평탄화 | `agent-host-tools.ts` | 같은 파일의 `requestCommandTool` |
+| 실패 처리 | 명령 실패, 잘못된 인자, 닫힌 요청, 허가가 쓸 수 없는 도구는 `isError`와 `nextAction`이 있는 도구 결과입니다. 알 수 없는 도구와 잘못된 형식의 요청만 프로토콜 오류이며, 토큰에 없는 범위는 `insufficient_scope`와 함께 403으로 답합니다 | 모든 경우를 프로토콜 오류로 처리 | `agent-mcp.ts` | 같은 파일의 `callTool` |
+| 지원하지 않는 핸드셰이크 버전 | 알 수 없는 버전의 `initialize`에는 `2025-11-25`로 답하고, 이후 호출에서 알 수 없는 `MCP-Protocol-Version`이 오면 지원 목록과 함께 `400`으로 답합니다 | 핸드셰이크 거부 | `agent-mcp.ts` | 같은 파일의 `createMcpHandler` |
+| 서버 이름과 버전 | `find-me-a-time` 1.0.0, 제목은 "Find Me a Time"입니다 | 패키지 버전 | `agent-mcp.ts` | 같은 파일의 `SERVER_INFO` |
+| CLI 프로토콜 | CLI는 자체 엔드포인트와만 통신하므로 MCP `2026-07-28`만 사용합니다 | 서버처럼 두 세대 모두 지원 | `cli/src/mcp.ts` | 같은 파일의 `PROTOCOL_VERSION` |
+| CLI 도구 탐색 | `fmat call`은 먼저 `tools/list`를 읽으므로, 알 수 없거나 허가되지 않은 도구는 호출 전에 사용법 오류가 되며, 재시도 키는 스키마가 받는 도구에만 붙입니다 | 무조건 호출 | `cli/src/app.ts` | 같은 파일의 `main` |
+| CLI 키체인 쓰기 | 자격 증명은 `security -i`의 표준 입력으로 16진수 인코딩해 macOS 키체인에 저장하므로 프로세스 목록에 나타나지 않습니다 | 값을 argv에 넣는 `security add-generic-password -w` | `cli/src/store.ts` | 같은 파일의 `writeSaved` |
+| CLI 갱신 | 만료 30초 이내의 토큰은 먼저 갱신하며, 갱신이 거부되거나 응답이 없으면 저장된 연결을 지우고 종료 코드 3으로 끝냅니다 | 갱신 재시도. 이미 쓴 토큰을 다시 보내 허가를 철회시키게 됩니다 | `cli/src/app.ts`, `cli/src/oauth.ts` | 해당 파일의 `fresh`와 `refresh` |
+| CLI 출처 | `https` 출처, 또는 로컬 실행용으로 `localhost`, `127.0.0.1`, `[::1]`의 `http` | 모든 출처 | `cli/src/app.ts` | 같은 파일의 `originOf` |
+| CLI 빌드 | `npm run build:cli`는 `tsgo`로 `cli/src`를 `cli/dist`로 컴파일하고, `npm run fmat -- <command>`는 체크아웃에서 `tsx`로 실행합니다 | 번들러 | `package.json`, `cli/package.json` | 해당 파일 |
+| 생성 재시도 식별 | 요청을 만든 재시도 키로 `create_request`를 부르면 다른 인자와 무관하게 그 요청을 돌려주고, 다른 키는 이미 만들어졌다며 거절합니다. 더 이상 목록에 나오지 않더라도 바인딩된 부트스트랩 허가로 호출할 수 있습니다 | 명령 파이프라인처럼 생성 입력을 해시 | `agent-requests.ts`, `agent-mcp.ts` | 해당 파일의 `createRequestForGrant`와 `callable` |
+| 생성 트랜잭션 | 생성은 `runCommand`를 거치지 않고 허가의 행 잠금 아래 자체 트랜잭션에서 실행됩니다. 행위자(바인딩된 요청)가 그 트랜잭션에서 만들어지기 전에는 존재하지 않기 때문이며, `insertDraftRequest`, `identifyDraft`와 세부 정보 명령을 재사용합니다 | 바인딩되지 않은 허가를 위한 새 행위자 종류 | `agent-requests.ts` | 해당 모듈 |
+| 생성 시 세부 정보 | 에이전트가 준 세부 정보는 같은 트랜잭션에서 세부 정보 카드의 검증으로 적용되며, 거절되면 아무것도 만들지 않습니다 | 먼저 만들고 세부 정보를 따로 적용 | `agent-requests.ts` | 같은 파일의 `createRequestForGrant` |
+| 요청자 투영 | 스레드, 대화 상태, 캘린더 연결, 링크를 뺀 예약 페이지의 뷰이며, 호스트 표시 이름은 따옴표로 묶은 데이터로 인코딩합니다 | eve 요청자 도구의 최소화된 뷰 | `agent-requester-tools.ts` | 같은 파일의 `agentRequesterProjection` |
+| 시간 찾기 | `find_times`는 평가를 최대 15초 기다린 뒤 보류 상태로 돌려주며, 끝나면 `get_request`가 보여 줍니다 | eve 도구의 20초 | `agent-requester-tools.ts` | 같은 파일의 `FIND_TIMES_WAIT_MS` |
+| 요청자 에이전트 목록 | 예약 페이지의 스레드 메뉴에 `/app`과 같은 대화상자인 **Connected agents**가 추가되며, 철회는 `agent.revoke_grant`를 거칩니다 | 별도 페이지 | `guest-workspace.tsx` | 같은 파일의 `ThreadMenu` |
+| 진입 문서 | 지침 버전 3은 각 역할의 MCP 엔드포인트와 권한, 동의 단계, 요청자의 번호 매긴 단계, 게시되지 않은 CLI를 명시하고 웹 이어가기를 유지하며, HTML 에이전트 섹션은 같은 내용을 한 문장으로 말합니다 | 클라이언트가 통과할 때까지 버전 2의 "아직 사용할 수 없음" 유지 | `entry-documents.ts`, `apps/web/app/page.tsx`, `apps/web/app/[handle]/page.tsx` | `hostEntryDocument`와 `requesterEntryDocument` |
+| 클라이언트별 메모 | 새 기술 문서 `09_agent_clients.md`는 각 클라이언트가 시도할 연결 경로와 역할별 결과를 담으며, 기록되기 전까지는 "아직 실행되지 않음"입니다 | 인수 기록의 행만 사용 | `09_agent_clients.md` | 해당 문서 |
+
+### 운영 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 로컬 합류 | 합류는 한 요청에서 요청자에는 스크립트된 MCP 클라이언트를, 호스트에는 CLI를 써서 호스트의 직접 승인과 Google 대역을 상대로 한 예약 작업까지 로컬에서 실행했으며, 명명된 클라이언트는 실행되지 않았습니다 | 합류 증거 전에 명명된 클라이언트를 기다림 | `tests/integration/agent-join.test.ts`; [인수 기록](07_acceptance_record.md#phase-5--agent-access) | 명명된 클라이언트별 실행을 [개인 에이전트 클라이언트](09_agent_clients.md)에 기록 |
+| 공유 로컬 스택 | 모든 워크트리가 하나의 로컬 Supabase 스택을 공유하므로, 이 브랜치의 `supabase db reset --local`이 다른 브랜치들이 다시 리셋하기 전까지 그 테이블을 대체했습니다; 병렬 7단계 세션을 위해 적어 둠 | 워크트리마다 별도 스택 | 세션 노트 | 로컬에서 `supabase/config.toml`의 `project_id`를 워크트리마다 따로 지정 |
+| 브라우저 테스트 대기 | agent-connect 여정은 에이전트의 리디렉션과 Connected agents 목록을 최대 20초 기다립니다. `next dev`가 그 라우트를 처음 쓸 때 컴파일하고 공유 기기의 부하 평균이 68 가까이였기 때문입니다 | 기본 5초 | `tests/e2e/agent-connect.test.ts` | 해당 기대식 |
+
+### 사용자 대기 항목
+
+다음 단계는 되돌려도 취소할 수 없거나, 제공자 콘솔이나 개인 계정이 필요하거나, 무언가를 게시하기 때문에 수행하지 않았습니다.
+
+- **공유 프로젝트 마이그레이션:** `20261022132708_agent_access.sql`은 `anelszynxtvxoxqvzgqt`에 없습니다. 4단계를 포함한 이전 22개 마이그레이션은 그곳에 적용되어 있으므로(4단계 운영 결정), 대기 중인 것은 이것 하나뿐입니다. 드라이런을 보여 준 뒤, 그것이 필요한 배포보다 먼저 사용자의 승인을 받아 배포 워크플로나 `supabase db push --linked`로 적용해야 합니다.
+- **서명 키:** Production용 `AGENT_TOKEN_SIGNING_KEY`와 Preview용 하나를 따로 생성해 Vercel 프로젝트 `findmeatime-release`에 설정합니다. 그때까지 토큰 엔드포인트는 구성 사용 불가를 보고합니다.
+- **프로덕션 배포:** 병합된 뒤 이 브랜치의 배포, 마이그레이션 다음에.
+- **CLI 게시:** `@findmeatime/cli`를 npm에 게시하며, 패키지 스코프도 필요합니다.
+- **명명된 클라이언트 실행:** Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code를 각각 두 역할로, 프로덕션에서 팀원 본인의 계정으로 실행하고 [개인 에이전트 클라이언트](09_agent_clients.md)와 인수 기록(AC-14, AC-15, AC-19 ~ AC-25)에 기록합니다. 해결되지 않은 클라이언트는 릴리스 차단 요인입니다.
+- **병합:** 풀 리퀘스트에는 팀원의 승인이 필요하며, 관리자 우회는 사용하지 않았습니다.
+- **팀원 검토:** D1–D16과 구현 결정에 대한 검토, 이어서 변경의 `openspec archive`.
 
 ## 6단계 — `host-imessage-channel`
 

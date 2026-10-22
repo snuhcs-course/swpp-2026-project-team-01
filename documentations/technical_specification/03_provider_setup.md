@@ -123,7 +123,9 @@ The agent service accepts only two credentials on `/eve/v1` (foundation design d
 
 Verify the chosen authorization server against the [resource-bound authorization contract](../../openspec/specs/agent-client-authorization/spec.md), independently of Supabase login. Require exact resource, callbacks, PKCE, current grants, refresh rotation/reuse handling, revocation and wrong-audience/scope denial. Record supported protocol/client registration versions before publishing connection instructions.
 
-Test Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code individually, including both skill prompts, host/requester scopes and human confirmation. An SDK fixture or another client's success is insufficient.
+The [`agent-access` change](../../openspec/changes/agent-access/proposal.md#decisions) supports MCP protocol revisions `2026-07-28`, `2025-11-25`, `2025-06-18` and `2025-03-26`, and client ID metadata documents, dynamic client registration and the pre-registered CLI client `fmat-cli`. Each environment needs its own `AGENT_TOKEN_SIGNING_KEY`: a base64 PKCS#8 Ed25519 private key, generated with `openssl genpkey -algorithm ed25519 -outform DER | base64`, set on the Vercel project for Production and Preview with different values and never shared with a browser. Without it the token endpoint reports unavailable configuration and no agent can connect. Rotating it invalidates every access token within 10 minutes; refresh tokens keep working.
+
+Test Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code individually, including both skill prompts, host/requester scopes and human confirmation. An SDK fixture or another client's success is insufficient. The connection paths, the test environment and each client's results live in [personal-agent clients](09_agent_clients.md).
 
 ## Environment and activation checklist
 
