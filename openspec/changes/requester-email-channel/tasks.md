@@ -23,7 +23,7 @@ Before each group, read the [Phase 7 reference repository files](../../../docume
 
 - [x] 4.1 Add `request.email_link.create` and `request.email_link.unlink`, the `/api/requests/{bookingId}/email-link` route and the binding by code ([design 4](design.md#4-continue-by-email)). Verify integration tests for an unconfirmed contact, a code bound as written, a forwarded code, an expired code, a code in an existing thread, a replaced binding, unlinking without AgentMail, and the exact retry.
 - [x] 4.2 Add the **Continue by email** card with **Check email link**, **Unlink email** and **Retry same linking action**, and the email start link on the public host page. Verify a Playwright check of the card by keyboard at 390 and 1280 pixels.
-- [ ] 4.3 Add thread notices ([design 7](design.md#7-thread-notices)) and the retention cleanup ([design 9](design.md#9-retention)). Verify integration tests for each notice in the thread, suppression after unlinking, and the cleanup.
+- [x] 4.3 Add thread notices ([design 7](design.md#7-thread-notices)) and the retention cleanup ([design 9](design.md#9-retention)). Verify integration tests for each notice in the thread, suppression after unlinking, and the cleanup.
 
 ## 5. Join
 

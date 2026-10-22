@@ -195,6 +195,8 @@
 | 카드 배치 | **이메일로 계속(Continue by email)**은 상태 줄 아래의 조용한 한 줄이며, 대기 중인 코드는 **이메일 열기(Open email)**, **복사(Copy)**, **이메일 링크 확인(Check email link)**, **취소(Cancel)**가 있는 대화 카드 하나로 열립니다. 명령 응답이 유실되면 같은 재시도 키로 **같은 연결 동작 다시 시도(Retry same linking action)**를 보입니다 | 상시 설정 패널 | 설계 4, DESIGN.md 대화 카드 | `EmailLinkLine` |
 | 공개 페이지의 이메일 시작 | `AGENTMAIL_INBOX_ID`가 설정된 경우에만, 제목이 `Meeting with @{handle}`인 `mailto:`와 함께 "Prefer email? Write to {inbox}"를 보입니다 | 항상 보이기 | 설계 2 | `apps/web/app/[handle]/page.tsx` |
 | 연결 확인 문구 | 요청의 언어로 "This thread is now linked to your request with {host}. Reply here to continue." | 코드 되풀이하기 | `lib/server/email-links.ts` | 같은 파일의 `CONFIRMATION` |
+| 스레드 알림 복사본 | `enqueueStatusNotice`는 알림과 바인딩마다 스레드 회신 하나를 기록하며, 이메일의 템플릿과 매개변수로 만들어 바인딩의 최신 메시지에 회신하고 예약 링크는 발송 때까지 봉인해 둡니다. 확인 이메일은 Cloudflare로만 보냅니다 | 확인도 스레드로 보내기 | 설계 7 | `lib/server/booking-notices.ts`의 `enqueueStatusNotice` |
+| 알림 유효성 | 스레드 알림도 이메일과 같은 규칙(`noticeStillCurrent`)으로 발송 때 확인하고, 바인딩이 더 이상 활성이 아니면 보내지 않습니다 | 바인딩만 확인하기 | 설계 7 | `lib/server/email-delivery.ts`의 `noticeStillCurrent`, `createEmailReplyHandler` |
 
 ### 사용자 대기 항목
 

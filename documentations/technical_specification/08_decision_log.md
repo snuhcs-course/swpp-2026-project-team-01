@@ -193,6 +193,8 @@ The [proposal](../../openspec/changes/requester-email-channel/proposal.md#decisi
 | Card placement | **Continue by email** is a quiet line under the status line; the pending code opens as one conversation card with **Open email**, **Copy**, **Check email link** and **Cancel**; a lost command answer shows **Retry same linking action** with the same retry key | A standing settings panel | Design 4; DESIGN.md conversation card | `EmailLinkLine` |
 | Email start on the public page | "Prefer email? Write to {inbox}" with a `mailto:` whose subject is `Meeting with @{handle}`, shown only when `AGENTMAIL_INBOX_ID` is set | Showing it always | Design 2 | `apps/web/app/[handle]/page.tsx` |
 | Link confirmation text | "This thread is now linked to your request with {host}. Reply here to continue." in the request's language | Echoing the code | `lib/server/email-links.ts` | `CONFIRMATION` there |
+| Thread notice copy | `enqueueStatusNotice` records one thread reply per notice and binding, from the email's template and parameters, replying to the binding's latest message, with the booking link sealed until dispatch; the confirmation email stays Cloudflare-only | Sending the confirmation into the thread too | Design 7 | `enqueueStatusNotice` in `lib/server/booking-notices.ts` |
+| Notice currency | A thread notice is checked at dispatch by the same rule as its email (`noticeStillCurrent`), and suppressed when its binding is no longer active | Checking only the binding | Design 7 | `noticeStillCurrent` in `lib/server/email-delivery.ts`; `createEmailReplyHandler` |
 
 ### Blocked on the user
 
