@@ -97,8 +97,9 @@ async function requesterCall(resource: string, token: string, name: string, args
     },
     method: "POST",
   });
-  if (response.status !== 200) return { status: response.status } as const;
-  return { status: 200, ...((await response.json()) as { result: { isError: boolean; structuredContent: Record<string, unknown> } }).result } as const;
+  type Result = { status: number; isError?: boolean; structuredContent?: Record<string, unknown> };
+  if (response.status !== 200) return { status: response.status } as Result;
+  return { status: 200, ...((await response.json()) as { result: { isError: boolean; structuredContent: Record<string, unknown> } }).result } as Result;
 }
 
 const configDir = mkdtempSync(join(tmpdir(), "fmat-join-"));
