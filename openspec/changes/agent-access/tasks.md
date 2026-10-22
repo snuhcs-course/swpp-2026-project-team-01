@@ -10,7 +10,7 @@ Before each group, read the [Phase 5 reference repository files](../../../docume
 
 ## 2. Schema (serial)
 
-- [ ] 2.1 Add `agent_clients`, `agent_authorization_transactions`, `agent_grants`, `agent_authorization_codes`, `agent_refresh_tokens` and `agent_protocol_attempts` ([design 1](design.md#1-records)) to `supabase/schemas/app/`, each with row-level security. Generate the migration with `supabase db schema declarative sync --no-apply`. Verify `supabase db reset --local` rebuilds the chain and `supabase/tests/` shows `anon` and `authenticated` reach no new table.
+- [x] 2.1 Add `agent_clients`, `agent_authorization_transactions`, `agent_grants`, `agent_authorization_codes`, `agent_refresh_tokens` and `agent_protocol_attempts` ([design 1](design.md#1-records)) to `supabase/schemas/app/`, each with row-level security. Generate the migration with `supabase db schema declarative sync --no-apply`. Verify `supabase db reset --local` rebuilds the chain and `supabase/tests/` shows `anon` and `authenticated` reach no new table.
 
 ## 3. Authorization server (Lane A)
 
