@@ -103,6 +103,14 @@ export function visibleTools(access: GrantAccess): readonly AgentTool[] {
   });
 }
 
+// The tools this access may call: the visible ones, plus create_request on a
+// bound bootstrap grant, so an exact retry after a lost response returns the
+// request it created (and any other creation is refused as already created).
+function callable(access: GrantAccess, tool: AgentTool) {
+  if (visibleTools(access).includes(tool)) return true;
+  return access.bootstrap && access.requestId !== null && !access.closed && tool.name === "create_request" && access.scopes.includes(tool.scope);
+}
+
 function toolResultBody(result: ToolResult) {
   const structured = result.ok
     ? result.result
@@ -269,7 +277,7 @@ async function callTool(deps: AgentToolDependencies, access: GrantAccess, params
     };
   }
 
-  if (!visibleTools(access).includes(tool)) {
+  if (!callable(access, tool)) {
     const closed = access.closed;
     return {
       result: toolResultBody({

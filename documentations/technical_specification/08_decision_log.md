@@ -192,6 +192,12 @@ The [proposal](../../openspec/changes/agent-access/proposal.md#decisions) record
 | CLI refresh | A token within 30 seconds of expiry is refreshed first; a refused or unanswered refresh deletes the stored connection and exits 3 | Retrying the refresh, which would replay a spent token and revoke the grant | `cli/src/app.ts`, `cli/src/oauth.ts` | `fresh` and `refresh` there |
 | CLI origins | `https` origins, or `http` on `localhost`, `127.0.0.1` or `[::1]` for local runs | Any origin | `cli/src/app.ts` | `originOf` there |
 | CLI build | `npm run build:cli` compiles `cli/src` to `cli/dist` with `tsgo`; `npm run fmat -- <command>` runs it from a checkout with `tsx` | A bundler | `package.json`, `cli/package.json` | Those files |
+| Creation retry identity | `create_request` with the retry key that created the request returns that request, whatever the other arguments; any other key is refused as already created. It is callable on a bound bootstrap grant though no longer listed | Hashing the creation input like the command pipeline | `agent-requests.ts`, `agent-mcp.ts` | `createRequestForGrant` and `callable` there |
+| Creation transaction | Creation runs in its own transaction under the grant's row lock rather than through `runCommand`, because the actor (the bound request) does not exist until the transaction creates it; it reuses `insertDraftRequest`, `identifyDraft` and the details command | A new actor kind for unbound grants | `agent-requests.ts` | That module |
+| Details at creation | The details the agent gives are applied with the details card's validation in the same transaction; a refusal creates nothing | Creating first and applying details separately | `agent-requests.ts` | `createRequestForGrant` there |
+| Requester projection | The booking page's view without the thread, the conversation state, the calendar connection or any link; the host's display name is encoded as quoted data | The eve requester tool's minimized view | `agent-requester-tools.ts` | `agentRequesterProjection` there |
+| Finding times | `find_times` waits up to 15 seconds for the evaluation, then returns it pending; `get_request` shows it when done | The eve tool's 20 seconds | `agent-requester-tools.ts` | `FIND_TIMES_WAIT_MS` there |
+| Requester agent list | The booking page's thread menu gains **Connected agents**, the same dialog as `/app`, revoking through `agent.revoke_grant` | A separate page | `guest-workspace.tsx` | `ThreadMenu` there |
 
 ## Phase 6 — `host-imessage-channel`
 

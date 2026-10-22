@@ -241,13 +241,13 @@ Scope. Prerequisite: Phase 3 for requester operations and Phase 4 for host decis
 
 **Lane B — MCP server and user CLI**
 
-- [ ] Remote MCP server over the shared scheduling API with role-appropriate operations and audience projections.
+- [x] Remote MCP server over the shared scheduling API with role-appropriate operations and audience projections.
 - [x] User CLI as a thin client with structured JSON results, headless and interactive login, secure storage and reauthorization on lost responses.
 
 **Lane C — requester bootstrap and client acceptance**
 
-- [ ] Specify the one-future-request grant delta: bound to the displayed host, exact-retry recovery, permanent restriction to that request. Specification precedes implementation.
-- [ ] Implement the grant and its continuation restriction.
+- [x] Specify the one-future-request grant delta: bound to the displayed host, exact-retry recovery, permanent restriction to that request. Specification precedes implementation.
+- [x] Implement the grant and its continuation restriction.
 - [ ] Skill document wording verified against each client; per-client discovery and connection notes.
 
 **Join**

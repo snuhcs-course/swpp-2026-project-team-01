@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Page } from "@playwright/test";
+import { makeHostReady, newHostAccount } from "../integration/support/ready-host";
 import { expect, signedInHost, test } from "./support/session";
 
 // A host connects a personal agent (agent-access task 3.2): the consent page
@@ -19,7 +20,7 @@ async function registerClient(baseURL: string) {
   return ((await response.json()) as { client_id: string }).client_id;
 }
 
-async function startConsent(page: Page, baseURL: string, clientId: string) {
+async function startConsent(page: Page, baseURL: string, clientId: string, resource = `${baseURL}/mcp`, scope = "host:read host:write host:decide") {
   const verifier = randomBytes(32).toString("base64url");
   const url = new URL(`${baseURL}/connect/authorize`);
   url.search = new URLSearchParams({
@@ -27,9 +28,9 @@ async function startConsent(page: Page, baseURL: string, clientId: string) {
     code_challenge: createHash("sha256").update(verifier).digest("base64url"),
     code_challenge_method: "S256",
     redirect_uri: REDIRECT,
-    resource: `${baseURL}/mcp`,
+    resource,
     response_type: "code",
-    scope: "host:read host:write host:decide",
+    scope,
     state: "browser-state",
   }).toString();
   await page.goto(url.toString());
@@ -95,4 +96,31 @@ test("a denied connection returns access_denied and connects nothing", async ({ 
   await page.getByRole("button", { name: "Deny" }).click();
   await expect.poll(() => returned.length).toBe(1);
   expect(new URL(returned[0]!).searchParams.get("error")).toBe("access_denied");
+});
+
+test("a requester allows one new request without an account, by keyboard at 390px", async ({ baseURL, db, page }) => {
+  await page.setViewportSize({ height: 900, width: 390 });
+  const hostAccountId = await newHostAccount(db);
+  const { handle } = await makeHostReady(db, hostAccountId, { displayName: "Dodo Host" });
+  const clientId = await registerClient(baseURL!);
+  const returned: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).hostname === "agent.example.test") returned.push(request.url());
+  });
+
+  await startConsent(page, baseURL!, clientId, `${baseURL}/${handle}/mcp`, "request:read request:write request:decide");
+  await expect(page.getByRole("heading", { name: "Let Browser Test Agent request a meeting for you?" })).toBeVisible();
+  await expect(page.getByText("Dodo Host", { exact: false }).first()).toBeVisible();
+  await expect(page.getByRole("radio", { name: /Start a new request with Dodo Host/ })).toBeChecked();
+  await expect(page.getByRole("link", { name: "Sign in with Google" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Allow" }).focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(() => returned.length).toBe(1);
+  expect(new URL(returned[0]!).searchParams.get("code")).toBeTruthy();
+
+  const [grant] = await db<{ bootstrap: boolean; request_id: string | null }[]>`
+    select bootstrap, request_id from app.agent_grants where host_account_id = ${hostAccountId} and role = 'requester'
+  `;
+  expect(grant).toEqual({ bootstrap: true, request_id: null });
 });

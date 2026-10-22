@@ -25,7 +25,7 @@ Before each group, read the [Phase 5 reference repository files](../../../docume
 ## 5. Requester bootstrap and client notes (Lane C)
 
 - [x] 5.1 Specify the one-future-request grant (the `agent-client-authorization` delta "One future request grant") before implementing it, in task 1.1.
-- [ ] 5.2 Add the requester resource, its consent choices, `create_request` and the requester tools ([design 8](design.md#8-requester-bootstrap)), and the booking page's agent list. Verify integration tests for creation, its exact retry, a second creation, an unready host, another host's booking link, the bound restriction, a stale proposal, agreement within delegation and a closed request read after booking, and Playwright for a requester consenting without an account.
+- [x] 5.2 Add the requester resource, its consent choices, `create_request` and the requester tools ([design 8](design.md#8-requester-bootstrap)), and the booking page's agent list. Verify integration tests for creation, its exact retry, a second creation, an unready host, another host's booking link, the bound restriction, a stale proposal, agreement within delegation and a closed request read after booking, and Playwright for a requester consenting without an account.
 - [ ] 5.3 Rewrite the entry documents' connection text and add the per-client notes ([design 11](design.md#11-per-client-acceptance)). Verify unit tests for the documents and that each named client has a row.
 
 ## 6. Join
