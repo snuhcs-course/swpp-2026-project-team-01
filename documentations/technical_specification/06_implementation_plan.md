@@ -199,9 +199,9 @@ Scope. Prerequisite: Phase 3 joined for a real awaiting-approval request; Lanes 
 
 **Lane B — booking job**
 
-- [ ] Revalidation of agreement, approval and feasibility immediately before dispatch; persisted booking identity, destination, frozen payload and reservation.
-- [ ] Coordination of competing requests for one host; event creation in the booking destination with the requester as attendee.
-- [ ] Reconciliation of uncertain writes; definitive-failure retry that revalidates everything; withdrawal and decline allowed only before dispatch evidence.
+- [x] Revalidation of agreement, approval and feasibility immediately before dispatch; persisted booking identity, destination, frozen payload and reservation.
+- [x] Coordination of competing requests for one host; event creation in the booking destination with the requester as attendee.
+- [x] Reconciliation of uncertain writes; definitive-failure retry that revalidates everything; withdrawal and decline allowed only before dispatch evidence.
 
 **Lane C — confirmation and notifications**
 

@@ -96,7 +96,25 @@ The [proposal](../../openspec/changes/host-review-and-booking/proposal.md#decisi
 
 ### Implementation decisions
 
-None yet.
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Revalidation scope | Booking revalidation rechecks the host side only: fresh host Calendar reads, route estimates under an hour old, the host's other dispatching and confirmed bookings as busy. The requester's calendar is not read again, since they agreed to the time | Rereading the requester's calendar, which would block a booking on a requester read failure | Design 6 | `checkInterval` options in `lib/server/bookings.ts` (`requesterCalendar: false`) |
+| Booking locks | The request row, then a per-host advisory lock `app.booking_host:{hostId}`, held across revalidation (up to 18 s) and the dispatch mark | No host lock, relying on the calendar alone | Design 6 | `lockHost` in `lib/server/bookings.ts` |
+| Booking attempts | 8 attempts with the queue's doubling backoff, then **Booking in progress** until **Check booking status**; at most 3 booking jobs per worker batch | Unlimited retries | Design 7 | `BOOKING_ATTEMPTS` in `lib/server/bookings.ts`; `JOB_BATCH_LIMITS` in `lib/server/job-handlers.ts` |
+| Repeated approval | A second approval of the same version, with any retry key, returns the live booking | Rejecting it as stale | `calendar-booking` delta | `approveCommand` in `lib/server/bookings.ts` |
+| Stale decision at booking | An approval or agreement that no longer names the latest version fails the booking as `stale_decision` and returns the request to awaiting approval | Treating it as a conflict | Design 7 | `claimBooking` in `lib/server/bookings.ts` |
+| Unknown errors after dispatch | A failed token refresh or transport error after the dispatch mark is treated as uncertain and reconciled, never as "not sent" | Treating it as definitive | Design 7 | `write` in `lib/server/bookings.ts` |
+| Event ID constraint | `^[0-9a-v]{5,}$` with a length check of at most 1024, because Postgres regular expressions cap repetition counts at 255 | `{5,1024}` in the pattern | `supabase/schemas/app/tables/bookings.sql` | The schema file and a new migration |
+| New error category | `booking_pending` for a withdrawal, decline or change after dispatch may have begun | Reusing `request_closed` | `lib/contracts/command-errors.ts` | The contract and the route status maps |
+| Notices without a link | A status email or confirmation is not recorded when the requester's sealed booking link cannot be opened (a retired key), so the domain change still commits | Failing the change | `lib/server/booking-notices.ts` | `requesterBookingUrl` there |
+| Shared-change check | A shared suggestion is checked by an ordinary evaluation job with a fixed interval, whose one candidate becomes the next proposal | A separate check job | Design 4 | `settleSharedChange` in `lib/server/shared-change-settle.ts`; the `interval` payload in `lib/server/evaluation.ts` |
+
+### Operational decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Lane B as one commit | The three Lane B plan items landed in one commit, because the reservation, the dispatch and reconciliation are one module and one job; the commit also carries the server modules for Lane A's shared changes and exceptions, which the evaluation job imports, and the host discussions' request scope, which the new discussions key requires | Three commits with stubbed halves | This log; the commit message | Split the module if a later change needs it |
+| Reference followed for event creation | OpenInstinct `agent/lib/google-workspace/calendar.ts` at `0c2a7c6e`: a 32-hex event ID, `sendUpdates: "all"` with attendees, and `409` read back with `events.get` | Google-assigned IDs | The pull request | — |
 
 ### Blocked on the user
 

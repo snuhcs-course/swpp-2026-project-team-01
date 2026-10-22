@@ -15,6 +15,10 @@ export const COMMAND_ERROR_MESSAGES = {
   // email first (candidate times, choosing one, agreeing); the identity card
   // in the thread collects them.
   identity_required: "Give your name and email first, with or without Google.",
+  // A withdrawal, decline or change after a booking's dispatch may have begun:
+  // the event may exist, so nothing is undone and the outcome follows
+  // (host-review-and-booking design 11).
+  booking_pending: "Booking is already in progress. Its outcome will show here.",
   // A temporary bound, such as request creation per source address.
   rate_limited: "This is temporarily limited. Try again later.",
   internal: "Something went wrong. Try again later.",

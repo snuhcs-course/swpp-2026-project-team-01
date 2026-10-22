@@ -58,7 +58,7 @@ export async function setupDiscussion(db: Database, hostAccountId: string) {
   await db`
     insert into app.discussions (principal_type, principal_id, audience)
     values ('host_account', ${hostAccountId}, 'host_setup')
-    on conflict (principal_type, principal_id, audience) do nothing
+    on conflict (principal_type, principal_id, audience, request_id) do nothing
   `;
   const [row] = await db<{ id: string }[]>`
     select id from app.discussions

@@ -3,6 +3,7 @@ import type { RequestLanguage } from "../contracts/request";
 import {
   CLOUDFLARE_API_URL,
   type CloudflareEmailConfig,
+  type EmailAttachment,
   cloudflareEmailConfigFromEnvironment,
   cloudflareEmailConfigured,
   cloudflareEmailTransport,
@@ -50,16 +51,22 @@ export type EnqueueEmail = {
   readonly parameters: EmailParameters;
   readonly secrets: EmailSecrets;
   readonly tokenKey: TokenKey;
-  // The sending address; CLOUDFLARE_EMAIL_FROM, else the product sender.
+  // The complete From header; the product name on CLOUDFLARE_EMAIL_FROM, else on
+  // the product sender.
   readonly from?: string;
+  // The frozen Reply-To and non-secret attachments of a booking confirmation.
+  readonly replyTo?: string | null;
+  readonly attachments?: readonly EmailAttachment[];
 };
 
 export function secretContext(deliveryId: string) {
   return `email_delivery:${deliveryId}`;
 }
 
-export function frozenSender(env: Readonly<Record<string, string | undefined>> = process.env) {
-  return senderHeader(env.CLOUDFLARE_EMAIL_FROM?.trim() || PRODUCT_SENDER);
+// The From header frozen on a delivery: the product's name, or the host's
+// display name on a booking confirmation, on the configured sending address.
+export function frozenSender(env: Readonly<Record<string, string | undefined>> = process.env, name?: string) {
+  return senderHeader(env.CLOUDFLARE_EMAIL_FROM?.trim() || PRODUCT_SENDER, name);
 }
 
 export async function enqueueEmail(tx: Transaction, email: EnqueueEmail): Promise<{ id: string; created: boolean }> {
@@ -68,11 +75,12 @@ export async function enqueueEmail(tx: Transaction, email: EnqueueEmail): Promis
   const [created] = await tx<{ id: string }[]>`
     insert into app.email_deliveries
       (id, kind, request_id, dedupe_key, sender, recipients, template, language, parameters,
-       secret_ciphertext, secret_key_id)
+       secret_ciphertext, secret_key_id, reply_to, attachments)
     values
       (${id}, ${email.kind}, ${email.requestId}, ${email.dedupeKey}, ${email.from ?? frozenSender()},
        ${[email.recipient]}, ${email.kind}, ${email.language},
-       ${tx.json(email.parameters as Parameters<typeof tx.json>[0])}, ${sealed.ciphertext}, ${sealed.keyId})
+       ${tx.json(email.parameters as Parameters<typeof tx.json>[0])}, ${sealed.ciphertext}, ${sealed.keyId},
+       ${email.replyTo ?? null}, ${tx.json((email.attachments ?? []) as unknown as Parameters<typeof tx.json>[0])})
     on conflict (kind, dedupe_key) do nothing
     returning id
   `;
@@ -101,36 +109,94 @@ type DeliveryRow = {
   readonly secret_key_id: string | null;
   readonly dispatch_id: string;
   readonly state: DeliveryState;
+  readonly reply_to: string | null;
+  readonly attachments: EmailAttachment[];
 };
 
-// Whether the recipient is still current for the delivery's purpose: the request
-// is open and unexpired with an unexpired booking link, and the address is still
-// its contact (for a creation email, whose confirmation link must not be
-// superseded) or still its confirmed contact (for a link resend).
+// Whether the recipient is still current for the delivery's purpose. Request
+// emails (creation, link resend) need the request open and unexpired with an
+// unexpired booking link, and the address still its contact (for a creation
+// email, whose confirmation link must not be superseded) or still its
+// confirmed contact (for a link resend). Booking emails (host-review-and-booking
+// design 9) need their condition to still hold: a confirmation its confirmed
+// booking; a new-version notice its version still the latest and unagreed on an
+// open request; a decline or expiry notice that closed state; a pending notice
+// its booking still unconfirmed and dispatched.
 async function recipientCurrent(tx: Transaction, delivery: DeliveryRow) {
   if (!delivery.request_id || delivery.recipients.length !== 1) return false;
 
   const recipient = delivery.recipients[0]!.toLowerCase();
-  const [row] = await tx<{ current: boolean }[]>`
-    select (
-      r.closed_at is null
-      and r.expires_at > now()
-      and l.expires_at > now()
-      and case ${delivery.kind}
-        when 'request_creation' then lower(r.contact_email) = ${recipient}
-          and not exists (
-            select 1 from app.contact_confirmations c
-            where c.delivery_id = ${delivery.id} and c.superseded_at is not null
-          )
-        when 'link_resend' then lower(coalesce(r.contact_confirmed_email, '')) = ${recipient}
-        else false
-      end
-    ) as current
-    from app.requests r
-    join app.booking_links l on l.request_id = r.id
-    where r.id = ${delivery.request_id}
-  `;
-  return row?.current ?? false;
+  const parameters = delivery.parameters as { version?: number; bookingId?: string };
+
+  switch (delivery.kind) {
+    case "booking_confirmation": {
+      const [row] = await tx<{ current: boolean }[]>`
+        select exists (
+          select 1 from app.bookings where request_id = ${delivery.request_id} and state = 'confirmed'
+        ) as current
+      `;
+      return row?.current ?? false;
+    }
+    case "status_new_version": {
+      const [row] = await tx<{ current: boolean }[]>`
+        select (
+          r.closed_at is null and r.expires_at > now() and l.expires_at > now()
+          and lower(r.contact_email) = ${recipient}
+          and p.version = ${parameters.version ?? -1}
+          and not exists (select 1 from app.agreements a where a.proposal_id = p.id)
+        ) as current
+        from app.requests r
+        join app.booking_links l on l.request_id = r.id
+        join lateral (
+          select id, version from app.proposals where request_id = r.id order by version desc limit 1
+        ) p on true
+        where r.id = ${delivery.request_id}
+      `;
+      return row?.current ?? false;
+    }
+    case "status_declined":
+    case "status_expired": {
+      const [row] = await tx<{ current: boolean }[]>`
+        select (r.state = ${delivery.kind === "status_declined" ? "declined" : "expired"}
+                and l.expires_at > now() and lower(r.contact_email) = ${recipient}) as current
+        from app.requests r join app.booking_links l on l.request_id = r.id
+        where r.id = ${delivery.request_id}
+      `;
+      return row?.current ?? false;
+    }
+    case "status_pending": {
+      const [row] = await tx<{ current: boolean }[]>`
+        select (b.state = 'dispatching' and l.expires_at > now() and lower(r.contact_email) = ${recipient}) as current
+        from app.bookings b
+        join app.requests r on r.id = b.request_id
+        join app.booking_links l on l.request_id = r.id
+        where b.id = ${parameters.bookingId ?? null}::uuid and b.request_id = ${delivery.request_id}
+      `;
+      return row?.current ?? false;
+    }
+    default: {
+      const [row] = await tx<{ current: boolean }[]>`
+        select (
+          r.closed_at is null
+          and r.expires_at > now()
+          and l.expires_at > now()
+          and case ${delivery.kind}
+            when 'request_creation' then lower(r.contact_email) = ${recipient}
+              and not exists (
+                select 1 from app.contact_confirmations c
+                where c.delivery_id = ${delivery.id} and c.superseded_at is not null
+              )
+            when 'link_resend' then lower(coalesce(r.contact_confirmed_email, '')) = ${recipient}
+            else false
+          end
+        ) as current
+        from app.requests r
+        join app.booking_links l on l.request_id = r.id
+        where r.id = ${delivery.request_id}
+      `;
+      return row?.current ?? false;
+    }
+  }
 }
 
 // Records a final state and deletes the sealed secrets in the same write.
@@ -194,7 +260,7 @@ export function createEmailDeliveryHandler(
     const claim = await deps.db.begin(async (claimTx) => {
       const [delivery] = await claimTx<DeliveryRow[]>`
         select id, kind, request_id, sender, recipients, template, language, parameters,
-               secret_ciphertext, secret_key_id, dispatch_id, state
+               secret_ciphertext, secret_key_id, dispatch_id, state, reply_to, attachments
         from app.email_deliveries where id = ${deliveryId}
         for update
       `;
@@ -238,19 +304,27 @@ export function createEmailDeliveryHandler(
         ),
       ) as EmailSecrets;
 
+      let rendered: ReturnType<typeof renderEmail>;
+
+      try {
+        rendered = renderEmail(delivery.template as EmailTemplate, delivery.language, delivery.parameters, secrets);
+      } catch {
+        await finish(claimTx, delivery.id, "queued", "rejected", { reason: "unrenderable" });
+        return { state: "rejected" as const };
+      }
+
       await claimTx`
         update app.email_deliveries
         set state = 'dispatching', dispatched_at = now(), updated_at = now()
         where id = ${delivery.id} and state = 'queued'
       `;
 
-      return { delivery, secrets, state: "dispatching" as const };
+      return { delivery, rendered, state: "dispatching" as const };
     });
 
     if (claim.state !== "dispatching") return { deliveryId, state: claim.state };
 
-    const { delivery, secrets } = claim;
-    const rendered = renderEmail(delivery.template as EmailTemplate, delivery.language, delivery.parameters, secrets);
+    const { delivery, rendered } = claim;
     let outcome: SendOutcome;
 
     try {
@@ -261,6 +335,8 @@ export function createEmailDeliveryHandler(
         subject: rendered.subject,
         text: rendered.text,
         to: delivery.recipients,
+        ...(delivery.reply_to ? { replyTo: delivery.reply_to } : {}),
+        ...(delivery.attachments.length > 0 ? { attachments: delivery.attachments } : {}),
       });
     } catch {
       // The adapter classifies every provider answer; anything thrown past it

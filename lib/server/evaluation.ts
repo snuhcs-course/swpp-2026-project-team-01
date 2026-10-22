@@ -32,6 +32,8 @@ import {
 } from "./google-calendar";
 import { type ClaimedJob, type JobHandler, publishJob } from "./jobs";
 import { markNegotiating } from "./request-lifecycle";
+import type { NoticeDependencies } from "./booking-notices";
+import { settleSharedChange } from "./shared-change-settle";
 import { limitModel, type ModelLimits, type Principal } from "./model-limits";
 import {
   readRequesterCalendarGrant,
@@ -155,6 +157,10 @@ export async function publishEvaluation(
     readonly retryKey: string;
     readonly audience: EvaluationAudience;
     readonly reusePending?: boolean;
+    // A fixed interval to check instead of the requested windows, and the shared
+    // change it settles (host-review-and-booking design 4); never reused.
+    readonly interval?: { readonly start: string; readonly end: string };
+    readonly sharedChangeId?: string;
   },
 ): Promise<{ evaluationId: string; created: boolean }> {
   const key = dedupeKey(input.requestId, input.retryKey);
@@ -186,7 +192,9 @@ export async function publishEvaluation(
     where request_id = ${input.requestId}
   `;
 
-  if (recent!.pending_id && input.reusePending !== false) return { created: false, evaluationId: recent!.pending_id };
+  if (recent!.pending_id && input.reusePending !== false && !input.interval) {
+    return { created: false, evaluationId: recent!.pending_id };
+  }
   if (recent!.count >= EVALUATIONS_PER_HOUR) throw new CommandError("rate_limited");
 
   const evaluationId = randomUUID();
@@ -196,7 +204,12 @@ export async function publishEvaluation(
     // One attempt: a failed run records its failure on the evaluation instead of
     // spending another 18 seconds and another ranking reservation.
     maxAttempts: 1,
-    payload: { audience: input.audience, evaluationId },
+    payload: {
+      audience: input.audience,
+      evaluationId,
+      ...(input.interval ? { interval: input.interval } : {}),
+      ...(input.sharedChangeId ? { sharedChangeId: input.sharedChangeId } : {}),
+    },
   });
 
   if (!jobId) {
@@ -407,20 +420,27 @@ export type EvaluationDependencies = {
   readonly deadlineMs?: number;
   readonly now?: () => number;
   readonly limits?: Partial<ModelLimits>;
+  // Where a settled shared change's email links; the environment's by default.
+  readonly notices?: NoticeDependencies;
 };
 
-// The OpenAI provider is loaded only when an evaluation runs.
-async function defaultDependencies(): Promise<EvaluationDependencies> {
-  const { openai } = await import("eve/models/openai");
-
+// The providers an evaluation reads, without a ranking model unless one is
+// given: booking revalidation never ranks.
+export function evaluationDependenciesFromEnvironment(model: LanguageModel | null = null): EvaluationDependencies {
   return {
     calendar: googleCalendarConfigFromEnvironment(),
     db: database(),
-    model: openai(RANKING_MODEL_ID),
+    model,
     requesterCalendar: requesterCalendarConfigFromEnvironment(),
     routes: routesConfigFromEnvironment(),
     tokenKeys: [tokenKeyFromEnvironment()],
   };
+}
+
+// The OpenAI provider is loaded only when an evaluation runs.
+async function defaultDependencies(): Promise<EvaluationDependencies> {
+  const { openai } = await import("eve/models/openai");
+  return evaluationDependenciesFromEnvironment(openai(RANKING_MODEL_ID));
 }
 
 type Loaded = {
@@ -506,12 +526,26 @@ function windowsOf(details: RequestDetails) {
     .filter((window) => !Number.isNaN(window.start.getTime()) && window.end > window.start);
 }
 
+// How an evaluation differs from the ordinary search over the requested windows
+// (host-review-and-booking design 4 and 6): a fixed interval checks exactly one
+// candidate (a shared change, or booking revalidation); extra busy time adds the
+// host's in-flight bookings; ranking and the requester's calendar can be left
+// out; route estimates can be required fresher than the cache's 24 hours.
+export type EvaluateOptions = {
+  readonly interval?: { readonly start: Date; readonly end: Date };
+  readonly extraHostBusy?: readonly BusyInterval[];
+  readonly rank?: boolean;
+  readonly requesterCalendar?: boolean;
+  readonly routeMaxAgeHours?: number;
+};
+
 async function evaluate(
   tx: Transaction,
   deps: EvaluationDependencies,
   evaluation: { readonly id: string; readonly requestId: string },
   audience: EvaluationAudience,
   deadline: EvaluationDeadline,
+  options: EvaluateOptions = {},
 ): Promise<Outcome> {
   const loaded = await load(tx, evaluation.requestId);
   if (!loaded) return { category: "host_unavailable", kind: "failed" };
@@ -523,7 +557,10 @@ async function evaluate(
   const now = new Date((deps.now ?? Date.now)());
   const hash = endpointHasher(deps.tokenKeys[0]!);
   const requesterZone = details.timezone && isValidTimeZone(details.timezone) ? details.timezone : settings.timezone;
-  const windows = windowsOf(details);
+  const windows = options.interval ? [options.interval] : windowsOf(details);
+  const durationMinutes = options.interval
+    ? Math.round((options.interval.end.getTime() - options.interval.start.getTime()) / 60_000)
+    : (details.durationMinutes ?? settings.durationMinutes);
   const mode = resolveMeetingMode(settings.meetingMode, details.mode ?? null, Boolean(details.location));
 
   const emptyResult = (failure: "needs_details" | null, input: FeasibilityInput): Outcome => ({
@@ -550,7 +587,7 @@ async function evaluate(
     hostBusy: [],
     now,
     request: {
-      durationMinutes: details.durationMinutes ?? settings.durationMinutes,
+      durationMinutes,
       linkPlan: details.linkPlan ?? null,
       location: details.location ? { key: hash(details.location), text: details.location } : null,
       mode: details.mode ?? null,
@@ -595,7 +632,8 @@ async function evaluate(
   let requesterBusy: BusyInterval[] | null = null;
 
   try {
-    const grant = await readRequesterCalendarGrant(tx, deps.tokenKeys, evaluation.requestId);
+    const grant =
+      options.requesterCalendar === false ? null : await readRequesterCalendarGrant(tx, deps.tokenKeys, evaluation.requestId);
 
     if (grant) {
       const events = await deadline.run((signal) => readRequesterEvents(deps.requesterCalendar, grant, range, { signal }));
@@ -635,12 +673,15 @@ async function evaluate(
       originKey: row.origin_hash,
       party: row.party,
     })),
-    hostBusy: normalizeBusy(hostEvents, {
-      endpointKey: hash,
-      noteExclusions: settings.noteExclusions,
-      selfEmail: loaded.hostEmail,
-      timezone: settings.timezone,
-    }),
+    hostBusy: [
+      ...normalizeBusy(hostEvents, {
+        endpointKey: hash,
+        noteExclusions: settings.noteExclusions,
+        selfEmail: loaded.hostEmail,
+        timezone: settings.timezone,
+      }),
+      ...(options.extraHostBusy ?? []),
+    ].sort((a, b) => a.start - b.start),
     meetAvailable: meetAvailable ?? false,
     requesterBusy,
   };
@@ -648,7 +689,9 @@ async function evaluate(
   const queries = travelQueries(input);
   const estimates =
     queries.length > 0
-      ? await deadline.run((signal) => estimateTravel({ config: deps.routes, db: deps.db }, queries, { now, signal }))
+      ? await deadline.run((signal) =>
+          estimateTravel({ config: deps.routes, db: deps.db }, queries, { maxAgeHours: options.routeMaxAgeHours, now, signal }),
+        )
       : new Map();
   const result = evaluateFeasibility({ ...input, estimate: (query) => estimates.get(legQueryKey(query)) });
 
@@ -657,7 +700,7 @@ async function evaluate(
   const valid = result.candidates.filter((candidate) => candidate.status === "offered").slice(0, RANKING_LIMIT);
   let ranking: string[] | null = null;
 
-  if (deps.model && valid.length > 1) {
+  if (deps.model && valid.length > 1 && options.rank !== false) {
     const principal: Principal =
       audience === "host"
         ? { id: loaded.request.hostAccountId, type: "host_account" }
@@ -691,6 +734,92 @@ async function evaluate(
   };
 }
 
+// ---------------------------------------------------------------------------
+// One fixed interval
+
+// Why a fixed interval is not bookable, in host-private terms.
+export type IntervalProblem = "busy" | "travel" | "travel_unresolved" | "outside_hours" | "requester_unavailable" | "needs_details";
+
+export type IntervalCheck =
+  | { readonly ok: true; readonly candidate: EvaluatedCandidate }
+  | { readonly ok: false; readonly problem: IntervalProblem; readonly explanation: string | null }
+  | { readonly ok: false; readonly problem: "unavailable"; readonly category: EvaluationFailureCategory };
+
+// Whether exactly this interval passes the deterministic checks.
+export function intervalVerdict(
+  outcome: Extract<Outcome, { kind: "result" }>,
+  interval: { readonly start: Date; readonly end: Date },
+): IntervalCheck {
+  if (outcome.failure === "needs_details") return { explanation: null, ok: false, problem: "needs_details" };
+
+  const start = interval.start.toISOString();
+  const candidate = outcome.ordered.find((entry) => entry.start === start);
+
+  if (candidate?.status === "offered") return { candidate, ok: true };
+  if (candidate) return { explanation: candidate.basis.at(-1) ?? null, ok: false, problem: "travel_unresolved" };
+
+  const excluded = outcome.candidates.find(
+    (entry): entry is ExcludedEntry => entry.status === "excluded" && entry.start === start,
+  );
+  if (excluded) {
+    const problem: IntervalProblem =
+      excluded.reason === "host_travel" ? "travel" : excluded.reason === "requester_unavailable" ? "requester_unavailable" : "busy";
+    return { explanation: excluded.explanation, ok: false, problem };
+  }
+
+  return { explanation: null, ok: false, problem: "outside_hours" };
+}
+
+// Checks one interval of a request under its own shared deadline, publishing
+// nothing: booking revalidation (design 6) reads the host's calendars fresh,
+// counts the host's other in-flight bookings as busy, refetches route estimates
+// older than an hour, and leaves out ranking and the requester's calendar (the
+// requester agreed to this time).
+export async function checkInterval(
+  tx: Transaction,
+  deps: EvaluationDependencies,
+  requestId: string,
+  interval: { readonly start: Date; readonly end: Date },
+  options: Omit<EvaluateOptions, "interval"> = {},
+): Promise<IntervalCheck> {
+  const deadline = startDeadline(deps.deadlineMs ?? EVALUATION_DEADLINE_MS, deps.now);
+
+  try {
+    const outcome = await evaluate(tx, deps, { id: randomUUID(), requestId }, "host", deadline, {
+      ...options,
+      interval,
+      rank: false,
+    });
+
+    if (outcome.kind !== "result") return { category: outcome.category, ok: false, problem: "unavailable" };
+    if (deadline.passed()) return { category: "deadline", ok: false, problem: "unavailable" };
+    return intervalVerdict(outcome, interval);
+  } catch (error) {
+    if (error instanceof EvaluationDeadlineError) return { category: "deadline", ok: false, problem: "unavailable" };
+    if (error instanceof FailedEvaluation) return { category: error.category, ok: false, problem: "unavailable" };
+    throw error;
+  } finally {
+    deadline.clear();
+  }
+}
+
+// D8: when the weekly limit is set, at least one candidate is offered and every
+// offered candidate falls in a week at or above the limit, nothing is offered to
+// the requester until the host waives the limit for this request.
+export function weeklyLimitHold(candidates: readonly EvaluatedCandidate[], weeklyLimit: number | null) {
+  const offered = candidates.filter((candidate) => candidate.status === "offered");
+  return weeklyLimit !== null && offered.length > 0 && offered.every((candidate) => !candidate.belowWeeklyLimit);
+}
+
+async function weeklyLimitWaived(tx: Transaction, requestId: string, settingsRevision: number) {
+  const [row] = await tx<{ found: boolean }[]>`
+    select true as found from app.request_exceptions
+    where request_id = ${requestId} and kind = 'weekly_limit' and invalidated_at is null
+      and settings_revision = ${settingsRevision}
+  `;
+  return Boolean(row);
+}
+
 async function finish(
   tx: Transaction,
   evaluationId: string,
@@ -705,6 +834,14 @@ async function finish(
     where id = ${evaluationId} and state = 'pending'
   `;
   return { failureCategory: category, state };
+}
+
+function fixedInterval(value: unknown) {
+  const raw = value as { start?: unknown; end?: unknown } | null | undefined;
+  if (typeof raw?.start !== "string" || typeof raw.end !== "string") return null;
+  const start = new Date(raw.start);
+  const end = new Date(raw.end);
+  return Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start ? null : { end, start };
 }
 
 export function createEvaluationHandler(
@@ -723,10 +860,19 @@ export function createEvaluationHandler(
 
     const deps = await loadDependencies();
     const deadline = startDeadline(deps.deadlineMs ?? EVALUATION_DEADLINE_MS, deps.now);
+    const fixed = fixedInterval(job.payload.interval);
+    const sharedChangeId = typeof job.payload.sharedChangeId === "string" ? job.payload.sharedChangeId : null;
     let outcome: Outcome;
 
     try {
-      outcome = await evaluate(tx, deps, { id: evaluationId!, requestId: evaluation.request_id }, audience, deadline);
+      outcome = await evaluate(
+        tx,
+        deps,
+        { id: evaluationId!, requestId: evaluation.request_id },
+        audience,
+        deadline,
+        fixed ? { interval: fixed, rank: false } : {},
+      );
     } catch (error) {
       if (error instanceof EvaluationDeadlineError) outcome = { category: "deadline", kind: "incomplete" };
       else if (error instanceof FailedEvaluation) outcome = { category: error.category, kind: "failed" };
@@ -736,6 +882,7 @@ export function createEvaluationHandler(
     }
 
     if (outcome.kind !== "result") {
+      if (sharedChangeId) await settleSharedChange(tx, sharedChangeId, evaluationId!, { category: outcome.category, ok: false, problem: "unavailable" }, deps.notices);
       return finish(tx, evaluationId!, outcome.kind, outcome.category, deadline.at);
     }
 
@@ -750,14 +897,29 @@ export function createEvaluationHandler(
       for update of r
     `;
 
-    if (deadline.passed()) return finish(tx, evaluationId!, "incomplete", "deadline", deadline.at);
-    if (!current || current.closed) return finish(tx, evaluationId!, "incomplete", "request_closed", deadline.at);
+    const stale = (category: EvaluationFailureCategory) => async () => {
+      if (sharedChangeId) await settleSharedChange(tx, sharedChangeId, evaluationId!, { category, ok: false, problem: "unavailable" }, deps.notices);
+      return finish(tx, evaluationId!, "incomplete", category, deadline.at);
+    };
+
+    if (deadline.passed()) return stale("deadline")();
+    if (!current || current.closed) return stale("request_closed")();
     if (current.revision !== evaluation.request_revision || current.settings_revision !== evaluation.settings_revision) {
-      return finish(tx, evaluationId!, "incomplete", "revision_changed", deadline.at);
+      return stale("revision_changed")();
     }
 
+    const held =
+      !fixed &&
+      weeklyLimitHold(outcome.ordered, outcome.input.host.weeklyLimit) &&
+      !(await weeklyLimitWaived(tx, evaluation.request_id, evaluation.settings_revision));
+    const offered = fixed
+      ? outcome.ordered.filter((candidate) => candidate.status === "offered" && candidate.start === fixed.start.toISOString())
+      : held
+        ? []
+        : outcome.ordered;
+
     const projection: RequesterEvaluationView = {
-      ...requesterProjection(outcome.ordered, {
+      ...requesterProjection(offered, {
         displayTimezone: outcome.input.request.timezone,
         id: evaluationId!,
         state: "completed",
@@ -778,7 +940,11 @@ export function createEvaluationHandler(
     // Still under the request lock and after the revision check above.
     await markNegotiating(tx, evaluation.request_id, projection.candidates.length);
 
-    return { candidates: outcome.ordered.length, ranked: outcome.ranking !== null, state: "completed" };
+    if (sharedChangeId && fixed) {
+      await settleSharedChange(tx, sharedChangeId, evaluationId!, intervalVerdict(outcome, fixed), deps.notices);
+    }
+
+    return { candidates: outcome.ordered.length, held, ranked: outcome.ranking !== null, state: "completed" };
   };
 
   // A run that failed unexpectedly leaves its evaluation failed, so the card
@@ -786,6 +952,14 @@ export function createEvaluationHandler(
   handler.onExhausted = async (tx, job) => {
     const evaluationId = typeof job.payload.evaluationId === "string" ? job.payload.evaluationId : null;
     if (!evaluationId) return;
+
+    if (typeof job.payload.sharedChangeId === "string") {
+      await settleSharedChange(tx, job.payload.sharedChangeId, evaluationId, {
+        category: "evaluation_failed",
+        ok: false,
+        problem: "unavailable",
+      });
+    }
 
     await tx`
       update app.evaluations

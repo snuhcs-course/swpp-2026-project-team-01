@@ -35,6 +35,12 @@ export type FakeGoogleFixture = {
   // An events page requested with this page token answers its headers and part of
   // its body, then never finishes, as a stalled Google response does.
   readonly stallPageToken?: string;
+  // How events.insert answers, per calendar: created (default); created, then
+  // the response is lost ("lost_after_create"); lost before anything is created
+  // ("lost_before_create"); or an HTTP error status, creating nothing.
+  readonly insertBehavior?: Readonly<Record<string, "created" | "lost_after_create" | "lost_before_create" | { readonly status: number }>>;
+  // How events.get answers, per calendar, before falling back to the store.
+  readonly getBehavior?: Readonly<Record<string, { readonly status: number }>>;
 };
 
 // The consent screen's answer for the next requester round trip: approve with
@@ -63,6 +69,10 @@ export type FakeGoogle = {
   // Stalled responses whose connection the client closed.
   readonly abandoned: { count: number };
   setFixture(refreshToken: string, fixture: FakeGoogleFixture): void;
+  // Events created through events.insert, by calendar.
+  createdEvents(calendarId: string): FakeEvent[];
+  // Marks a created event cancelled, as a host deleting it does.
+  cancelEvent(calendarId: string, eventId: string): void;
   close(): Promise<void>;
 };
 
@@ -97,6 +107,11 @@ export async function startFakeGoogle(
   let consent: FakeConsent = { decision: "approve" };
   const codes = new Map<string, { challenge: string; redirectUri: string; consent: FakeConsent; scopes: string[] }>();
   const scopesOf = new Map<string, string[]>();
+  const created = new Map<string, FakeEvent[]>();
+  const createdIn = (calendarId: string) => {
+    if (!created.has(calendarId)) created.set(calendarId, []);
+    return created.get(calendarId)!;
+  };
   let issued = 0;
 
   const server = createServer(async (request, response) => {
@@ -232,6 +247,63 @@ export async function startFakeGoogle(
       return;
     }
 
+    const insert = url.pathname.match(/^\/calendar\/v3\/calendars\/([^/]+)\/events$/);
+    if (request.method === "POST" && insert) {
+      const calendarId = decodeURIComponent(insert[1]!);
+      const behavior = fixture.insertBehavior?.[calendarId] ?? "created";
+
+      if (!fixture.calendars.some((calendar) => calendar.id === calendarId)) {
+        json(response, 404, { error: { code: 404, message: "Not Found" } });
+        return;
+      }
+      if (typeof behavior === "object") {
+        json(response, behavior.status, { error: { code: behavior.status, message: "Refused" } });
+        return;
+      }
+      if (behavior === "lost_before_create") {
+        request.socket.destroy();
+        return;
+      }
+
+      const body = JSON.parse(raw) as FakeEvent & { conferenceData?: unknown };
+      const store = createdIn(calendarId);
+      if (store.some((event) => event.id === body.id)) {
+        json(response, 409, { error: { code: 409, message: "The requested identifier already exists." } });
+        return;
+      }
+
+      const event: FakeEvent = {
+        ...body,
+        hangoutLink: body.conferenceData ? `https://meet.google.com/${String(body.id).slice(0, 3)}-fake-link` : undefined,
+        htmlLink: `https://www.google.com/calendar/event?eid=${body.id}`,
+        iCalUID: `${body.id}@google.com`,
+        organizer: { displayName: "Ada Lovelace", email: calendarId, self: true },
+        status: "confirmed",
+      };
+      store.push(event);
+
+      if (behavior === "lost_after_create") {
+        request.socket.destroy();
+        return;
+      }
+      json(response, 200, event);
+      return;
+    }
+
+    const single = url.pathname.match(/^\/calendar\/v3\/calendars\/([^/]+)\/events\/([^/]+)$/);
+    if (request.method === "GET" && single) {
+      const calendarId = decodeURIComponent(single[1]!);
+      const forced = fixture.getBehavior?.[calendarId];
+      if (forced) {
+        json(response, forced.status, { error: { code: forced.status, message: "Error" } });
+        return;
+      }
+      const event = (created.get(calendarId) ?? []).find((entry) => entry.id === decodeURIComponent(single[2]!));
+      if (event) json(response, 200, event);
+      else json(response, 404, { error: { code: 404, message: "Not Found" } });
+      return;
+    }
+
     const events = url.pathname.match(/^\/calendar\/v3\/calendars\/([^/]+)\/events$/);
     if (request.method === "GET" && events) {
       const calendarId = decodeURIComponent(events[1]!);
@@ -257,7 +329,7 @@ export async function startFakeGoogle(
 
       const timeMin = Date.parse(url.searchParams.get("timeMin") ?? "");
       const timeMax = Date.parse(url.searchParams.get("timeMax") ?? "");
-      const inRange = (fixture.events[calendarId] ?? [])
+      const inRange = [...(fixture.events[calendarId] ?? []), ...(created.get(calendarId) ?? [])]
         .filter((event) => eventInstant(event.end) > timeMin && eventInstant(event.start) < timeMax)
         .sort((a, b) => eventInstant(a.start) - eventInstant(b.start));
       json(response, 200, page(inRange, url.searchParams));
@@ -275,6 +347,12 @@ export async function startFakeGoogle(
     abandoned,
     apiBaseUrl: `${origin}/calendar/v3`,
     authUrl: `${origin}/o/oauth2/v2/auth`,
+    cancelEvent: (calendarId, eventId) => {
+      const store = createdIn(calendarId);
+      const index = store.findIndex((event) => event.id === eventId);
+      if (index >= 0) store[index] = { ...store[index]!, status: "cancelled" };
+    },
+    createdEvents: (calendarId) => [...(created.get(calendarId) ?? [])],
     revocations,
     revokeUrl: `${origin}/revoke`,
     setConsent: (next) => {

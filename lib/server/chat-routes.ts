@@ -5,6 +5,7 @@ import {
   ConversationInputError,
   type ConversationDependencies,
   eveRuntime,
+  HostRequestNotFoundError,
 } from "./conversations";
 import { ADMISSION_LIMITED_MESSAGE, AdmissionLimitError } from "./conversation-admission";
 import { database } from "./database";
@@ -45,6 +46,11 @@ export function authenticatedUserId(request: Request, auth: SupabaseAuthConfig) 
 }
 
 export function chatError(error: unknown) {
+  // Another host's request, a draft or an unknown one: the same answer.
+  if (error instanceof HostRequestNotFoundError) {
+    return json({ code: "request_unavailable", error: "This request is not available." }, 404);
+  }
+
   if (error instanceof HostIneligibleError) {
     return json({ code: "host_ineligible", error: "Hosting is unavailable for this account.", nextAction: error.nextAction }, 403);
   }
@@ -65,7 +71,19 @@ export function chatError(error: unknown) {
   throw error;
 }
 
-const messageBody = z.object({ clientInputId: z.uuid(), message: z.string() });
+const messageBody = z.object({ clientInputId: z.uuid(), message: z.string(), request: z.uuid().optional() });
+
+// The host's request discussion a route names with `request`, or null for setup
+// (host-review-and-booking design 2). A malformed value is refused.
+function requestScope(url: URL): { readonly ok: true; readonly requestId: string | null } | { readonly ok: false } {
+  const value = url.searchParams.get("request");
+  if (value === null) return { ok: true, requestId: null };
+  return z.uuid().safeParse(value).success ? { ok: true, requestId: value } : { ok: false };
+}
+
+function badScope() {
+  return json({ code: "request_unavailable", error: "This request is not available." }, 404);
+}
 
 // POST /api/chat/messages
 export function createMessageHandler(load: () => ChatRouteDependencies = chatDependenciesFromEnvironment) {
@@ -88,7 +106,8 @@ export function createMessageHandler(load: () => ChatRouteDependencies = chatDep
     }
 
     try {
-      const outcome = await acceptHostMessage(deps, userId, body.data);
+      const { request: requestId, ...input } = body.data;
+      const outcome = await acceptHostMessage(deps, userId, input, requestId ?? null);
       return json(outcome, outcome.status === "recovery_required" ? 409 : 202);
     } catch (error) {
       return chatError(error);
@@ -108,8 +127,11 @@ export function createStateHandler(load: () => ChatRouteDependencies = chatDepen
 
     if (!userId) return unauthenticated();
 
+    const scope = requestScope(new URL(request.url));
+    if (!scope.ok) return badScope();
+
     try {
-      return json(await conversationStatus(deps.db, userId));
+      return json(await conversationStatus(deps.db, userId, scope.requestId));
     } catch (error) {
       return chatError(error);
     }
@@ -128,6 +150,9 @@ export function createEventsHandler(load: () => ChatRouteDependencies = chatDepe
 
     const url = new URL(request.url);
     const cursor = Number(url.searchParams.get("cursor") ?? "0");
+    const scope = requestScope(url);
+
+    if (!scope.ok) return badScope();
 
     if (!Number.isInteger(cursor) || cursor < 0) {
       return json({ code: "invalid_cursor", error: "The cursor is not valid." }, 400);
@@ -136,6 +161,7 @@ export function createEventsHandler(load: () => ChatRouteDependencies = chatDepe
     const events = discussionEvents(deps, userId, request.headers.get("cookie") ?? "", cursor, {
       follow: url.searchParams.get("follow") === "1",
       idleMs: deps.followIdleMs,
+      requestId: scope.requestId,
       signal: request.signal,
     });
     let first: IteratorResult<unknown>;
@@ -144,7 +170,9 @@ export function createEventsHandler(load: () => ChatRouteDependencies = chatDepe
       // Authorization failures surface before the response starts.
       first = await events.next();
     } catch (error) {
-      return error instanceof HostIneligibleError ? chatError(error) : json({ code: "unavailable", error: "History is unavailable right now." }, 503);
+      return error instanceof HostIneligibleError || error instanceof HostRequestNotFoundError
+        ? chatError(error)
+        : json({ code: "unavailable", error: "History is unavailable right now." }, 503);
     }
 
     return ndjsonResponse(first, events);
@@ -193,7 +221,7 @@ export function ndjsonResponse(
   });
 }
 
-const recoverBody = z.object({ observedGeneration: z.number().int().positive() });
+const recoverBody = z.object({ observedGeneration: z.number().int().positive(), request: z.uuid().optional() });
 
 // POST /api/chat/recover: explicit terminal recovery of the observed generation.
 export function createRecoverHandler(load: () => ChatRouteDependencies = chatDependenciesFromEnvironment) {
@@ -214,7 +242,9 @@ export function createRecoverHandler(load: () => ChatRouteDependencies = chatDep
     }
 
     try {
-      const outcome = await recoverDiscussion(deps, userId, request.headers.get("cookie") ?? "", body.data.observedGeneration);
+      const outcome = await recoverDiscussion(deps, userId, request.headers.get("cookie") ?? "", body.data.observedGeneration, {
+        requestId: body.data.request ?? null,
+      });
       const status = { not_failed: 409, recovered: 200, stale: 409, unavailable: 503 }[outcome.status];
       return json(outcome, status);
     } catch (error) {

@@ -1,4 +1,5 @@
 import { CALENDAR_ANALYSIS_JOB, createCalendarAnalysisHandler } from "./analysis";
+import { BOOKING_JOB, BOOKING_PENDING_JOB, createBookingHandler, createBookingPendingHandler } from "./bookings";
 import { createEmailDeliveryHandler, EMAIL_DELIVERY_JOB } from "./email-delivery";
 import { createEvaluationHandler, EVALUATION_JOB } from "./evaluation";
 import type { JobHandler } from "./jobs";
@@ -8,6 +9,8 @@ import { createRequestExpiryHandler, REQUEST_EXPIRY_JOB } from "./request-lifecy
 // Handlers by job kind. The worker claims only kinds registered here, so a job
 // whose handler is not deployed yet stays pending and visible.
 export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
+  [BOOKING_JOB]: createBookingHandler(),
+  [BOOKING_PENDING_JOB]: createBookingPendingHandler(),
   [CALENDAR_ANALYSIS_JOB]: createCalendarAnalysisHandler(),
   [EMAIL_DELIVERY_JOB]: createEmailDeliveryHandler(),
   [EVALUATION_JOB]: createEvaluationHandler(),
@@ -18,8 +21,10 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
 // The most jobs of a kind one worker batch claims; kinds not listed share the
 // default batch. A Calendar analysis may read Google for up to 30 seconds, so two
 // fit within the 120-second lease; an evaluation stops at its 18-second deadline,
-// so four do.
+// so four do; a booking revalidates under that deadline and then writes with a
+// 10-second timeout, so three do.
 export const JOB_BATCH_LIMITS: Readonly<Record<string, number>> = {
+  [BOOKING_JOB]: 3,
   [CALENDAR_ANALYSIS_JOB]: 2,
   [EVALUATION_JOB]: 4,
 };

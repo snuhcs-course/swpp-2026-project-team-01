@@ -98,7 +98,25 @@
 
 ### 구현 결정
 
-아직 없습니다.
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 재검증 범위 | 예약 재검증은 호스트 쪽만 다시 확인합니다. 새로 읽은 호스트 Calendar, 한 시간이 지나지 않은 경로 추정, 호스트의 다른 발송 중·확정 예약을 바쁜 시간으로 봅니다. 요청자가 그 시간에 동의했으므로 요청자의 캘린더는 다시 읽지 않습니다 | 요청자의 캘린더를 다시 읽기, 이 경우 요청자 읽기 실패가 예약을 막게 됨 | 설계 6 | `lib/server/bookings.ts`의 `checkInterval` 옵션(`requesterCalendar: false`) |
+| 예약 잠금 | 요청 행, 이어서 호스트별 권고 잠금 `app.booking_host:{hostId}`를 재검증(최대 18초)과 발송 표시 동안 유지합니다 | 호스트 잠금 없이 캘린더에만 의존 | 설계 6 | `lib/server/bookings.ts`의 `lockHost` |
+| 예약 시도 | 대기열의 배가 백오프로 8회 시도한 뒤, **예약 상태 확인(Check booking status)**을 누를 때까지 **예약 진행 중(Booking in progress)**; 작업자 배치당 예약 작업은 최대 3건 | 무제한 재시도 | 설계 7 | `lib/server/bookings.ts`의 `BOOKING_ATTEMPTS`; `lib/server/job-handlers.ts`의 `JOB_BATCH_LIMITS` |
+| 반복 승인 | 같은 버전을 재시도 키와 관계없이 다시 승인하면 현재 예약을 돌려줍니다 | 오래된 요청으로 거부 | `calendar-booking` 델타 | `lib/server/bookings.ts`의 `approveCommand` |
+| 예약 시점의 오래된 결정 | 최신 버전을 가리키지 않는 승인이나 합의는 예약을 `stale_decision`으로 실패시키고 요청을 승인 대기로 되돌립니다 | 충돌로 처리 | 설계 7 | `lib/server/bookings.ts`의 `claimBooking` |
+| 발송 후 알 수 없는 오류 | 발송 표시 이후의 토큰 갱신 실패나 전송 오류는 불확실로 보고 대조하며, "보내지 않음"으로 처리하지 않습니다 | 확정으로 처리 | 설계 7 | `lib/server/bookings.ts`의 `write` |
+| 이벤트 ID 제약 | `^[0-9a-v]{5,}$`에 길이 검사 1024 이하; Postgres 정규식이 반복 횟수를 255로 제한하기 때문입니다 | 패턴에 `{5,1024}` | `supabase/schemas/app/tables/bookings.sql` | 스키마 파일과 새 마이그레이션 |
+| 새 오류 범주 | 발송이 시작됐을 수 있는 뒤의 철회, 거절, 변경에 대한 `booking_pending` | `request_closed` 재사용 | `lib/contracts/command-errors.ts` | 계약과 경로 상태 맵 |
+| 링크 없는 알림 | 요청자의 봉인된 예약 링크를 열 수 없으면(폐기된 키) 상태 이메일이나 확인을 기록하지 않으며, 도메인 변경은 그대로 커밋됩니다 | 변경을 실패시킴 | `lib/server/booking-notices.ts` | 그 파일의 `requesterBookingUrl` |
+| 공유 변경 확인 | 공유 제안은 고정 간격의 일반 평가 작업으로 확인하며, 그 하나의 후보가 다음 제안이 됩니다 | 별도의 확인 작업 | 설계 4 | `lib/server/shared-change-settle.ts`의 `settleSharedChange`; `lib/server/evaluation.ts`의 `interval` 페이로드 |
+
+### 운영 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 하나의 커밋으로 낸 B 레인 | B 레인 계획 항목 세 개를 하나의 커밋으로 냈습니다. 예약, 발송, 대조가 하나의 모듈이자 하나의 작업이기 때문이며, 이 커밋에는 평가 작업이 가져다 쓰는 A 레인의 공유 변경과 예외용 서버 모듈, 그리고 새 논의 키가 요구하는 호스트 논의의 요청 범위도 들어 있습니다 | 반쪽을 스텁으로 둔 커밋 세 개 | 이 기록; 커밋 메시지 | 이후 변경에서 필요하면 모듈을 나눔 |
+| 이벤트 생성에 따른 참조 | OpenInstinct `agent/lib/google-workspace/calendar.ts` `0c2a7c6e`: 32자리 16진수 이벤트 ID, 참석자가 있을 때 `sendUpdates: "all"`, `409`는 `events.get`으로 다시 읽기 | Google이 지정하는 ID | 풀 리퀘스트 | — |
 
 ### 사용자 대기 항목
 

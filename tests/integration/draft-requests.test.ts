@@ -36,7 +36,7 @@ import {
   startDraft,
   startedDraft,
 } from "./support/guests";
-import { runJob, uniqueEmail } from "./support/requests";
+import { runJob, testNotices, uniqueEmail } from "./support/requests";
 import { MONDAY } from "./support/scheduling";
 
 // One guest thread from the first message (task 9.1; design decision 2, D13):
@@ -274,7 +274,7 @@ describe("a draft", () => {
     await db`update app.requests set expires_at = now() - interval '1 second' where id = ${draft.requestId}`;
     expect((await message(deps, draft.bookingId, "Still there?")).status).toBe(404);
     const job = await db.begin((tx) => publishJob(tx, { dedupeKey: `test:${randomUUID()}`, kind: REQUEST_EXPIRY_JOB }));
-    expect(await runJob(db, job!, createRequestExpiryHandler())).toBe("completed");
+    expect(await runJob(db, job!, createRequestExpiryHandler(() => testNotices))).toBe("completed");
 
     const [left] = await db<{ discussions: number; inputs: number; links: number; requests: number; sessions: number }[]>`
       select (select count(*)::int from app.requests where id = ${draft.requestId}) as requests,

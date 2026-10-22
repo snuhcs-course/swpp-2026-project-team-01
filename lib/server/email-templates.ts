@@ -1,25 +1,34 @@
 import type { RequestLanguage } from "../contracts/request";
+import {
+  BOOKING_EMAIL_TEMPLATES,
+  type BookingEmailParameters,
+  isBookingEmailTemplate,
+  renderBookingEmail,
+} from "./booking-emails";
 
 // The transactional email templates, in English and Korean, each rendered as
 // HTML with a plain-text alternative. Templates render at dispatch from the
 // delivery's frozen non-secret parameters and its sealed secret parameters (the
 // booking link and the confirmation link), so neither link is stored usable.
 
-export const EMAIL_TEMPLATES = ["request_creation", "link_resend"] as const;
+export const EMAIL_TEMPLATES = ["request_creation", "link_resend", ...BOOKING_EMAIL_TEMPLATES] as const;
 export type EmailTemplate = (typeof EMAIL_TEMPLATES)[number];
 
 export function isEmailTemplate(value: string): value is EmailTemplate {
   return (EMAIL_TEMPLATES as readonly string[]).includes(value);
 }
 
-export type EmailParameters = {
-  // The host's public display name.
-  readonly hostName?: string;
-  readonly requesterName?: string;
-};
+export type EmailParameters =
+  | {
+      // The host's public display name.
+      readonly hostName?: string;
+      readonly requesterName?: string;
+    }
+  | BookingEmailParameters;
 
 export type EmailSecrets = {
-  readonly bookingUrl: string;
+  // Absent only on the host's copy of a booking email, which links to /app.
+  readonly bookingUrl?: string;
   // Present only on a creation email whose address is not already confirmed.
   readonly confirmUrl?: string;
 };
@@ -110,7 +119,7 @@ function button(url: string, label: string) {
   return `<p style="margin:24px 0"><a href="${escapeHtml(url)}" style="background:#111;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">${escapeHtml(label)}</a></p>`;
 }
 
-function render(language: RequestLanguage, copy: Copy, secrets: EmailSecrets): RenderedEmail {
+function render(language: RequestLanguage, copy: Copy, secrets: EmailSecrets & { readonly bookingUrl: string }): RenderedEmail {
   const html = [
     `<!doctype html><html lang="${language}"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>${escapeHtml(copy.subject)}</title></head>`,
     `<body style="font-family:system-ui,-apple-system,sans-serif;line-height:1.5;color:#111;max-width:560px;margin:0 auto;padding:24px">`,
@@ -145,10 +154,15 @@ export function renderEmail(
   parameters: EmailParameters,
   secrets: EmailSecrets,
 ): RenderedEmail {
+  if (isBookingEmailTemplate(template)) {
+    return renderBookingEmail(template, language, parameters as BookingEmailParameters, secrets);
+  }
+
   const copy =
     template === "request_creation"
       ? creationCopy(language, parameters, Boolean(secrets.confirmUrl))
       : resendCopy(language, parameters);
 
-  return render(language, copy, secrets);
+  if (!secrets.bookingUrl) throw new Error("A request email needs its booking link.");
+  return render(language, copy, { ...secrets, bookingUrl: secrets.bookingUrl });
 }

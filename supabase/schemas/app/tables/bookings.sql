@@ -22,7 +22,7 @@ CREATE TABLE "app"."bookings" (
   "approval_id" uuid NOT NULL REFERENCES "app"."approvals" ("id") ON DELETE CASCADE,
   "host_account_id" uuid NOT NULL REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
   "calendar_id" text NOT NULL,
-  "event_id" text NOT NULL UNIQUE CHECK ("event_id" ~ '^[0-9a-v]{5,1024}$'),
+  "event_id" text NOT NULL UNIQUE CHECK ("event_id" ~ '^[0-9a-v]{5,}$' AND char_length("event_id") <= 1024),
   "start_at" timestamptz NOT NULL,
   "end_at" timestamptz NOT NULL,
   "reserved_start" timestamptz NOT NULL,

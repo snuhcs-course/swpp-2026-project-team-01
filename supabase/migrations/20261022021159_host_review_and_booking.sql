@@ -48,7 +48,7 @@ CREATE TABLE "app"."bookings" (
   "settled_at"       timestamp with time zone,
   CONSTRAINT "bookings_confirmed" CHECK (((state = 'confirmed'::text) = (confirmed_at IS NOT NULL))),
   CONSTRAINT "bookings_dispatched" CHECK (((state = 'reserved'::text) OR (state = 'cancelled'::text) OR (dispatched_at IS NOT NULL) OR (state = 'failed'::text))),
-  CONSTRAINT "bookings_event_id_check" CHECK ((event_id ~ '^[0-9a-v]{5,1024}$'::text)),
+  CONSTRAINT "bookings_event_id_check" CHECK (((event_id ~ '^[0-9a-v]{5,}$'::text) AND (char_length(event_id) <= 1024))),
   CONSTRAINT "bookings_event_id_key" UNIQUE (event_id),
   CONSTRAINT "bookings_evidence_check" CHECK ((jsonb_typeof(evidence) = 'object'::text)),
   CONSTRAINT "bookings_interval" CHECK (((start_at < end_at) AND (reserved_start <= start_at) AND (end_at <= reserved_end))),

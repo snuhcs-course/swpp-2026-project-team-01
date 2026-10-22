@@ -153,20 +153,57 @@ export type SessionRow = {
 
 export const fingerprint = messageFingerprint;
 
-// The host's setup discussion, created on first use and row-locked, which
-// serializes accepting input, creating sessions and recovery for it.
-export async function lockSetupDiscussion(tx: Transaction, hostAccountId: string) {
+// A host's discussions: its one setup discussion (requestId null) or its
+// private review discussion of one request it hosts (host-review-and-booking
+// design 2). A request that is not the host's, or is still a draft, has none.
+export class HostRequestNotFoundError extends Error {
+  constructor() {
+    super("This request is not available.");
+    this.name = "HostRequestNotFoundError";
+  }
+}
+
+async function assertHostRequest(tx: Transaction | Database, hostAccountId: string, requestId: string) {
+  const [row] = await tx<{ found: boolean }[]>`
+    select true as found from app.requests
+    where id = ${requestId} and host_account_id = ${hostAccountId} and state <> 'draft'
+  `;
+  if (!row) throw new HostRequestNotFoundError();
+}
+
+// The host's discussion for the scope, created on first use and row-locked,
+// which serializes accepting input, creating sessions and recovery for it.
+export async function lockHostDiscussion(tx: Transaction, hostAccountId: string, requestId: string | null = null) {
+  if (requestId) await assertHostRequest(tx, hostAccountId, requestId);
+  const audience = requestId ? "host_review" : "host_setup";
+
   await tx`
-    insert into app.discussions (principal_type, principal_id, audience)
-    values ('host_account', ${hostAccountId}, 'host_setup')
-    on conflict (principal_type, principal_id, audience) do nothing
+    insert into app.discussions (principal_type, principal_id, audience, request_id)
+    values ('host_account', ${hostAccountId}, ${audience}, ${requestId})
+    on conflict (principal_type, principal_id, audience, request_id) do nothing
   `;
   const [discussion] = await tx<{ id: string }[]>`
     select id from app.discussions
-    where principal_type = 'host_account' and principal_id = ${hostAccountId} and audience = 'host_setup'
+    where principal_type = 'host_account' and principal_id = ${hostAccountId} and audience = ${audience}
+      and request_id is not distinct from ${requestId}
     for update
   `;
   return discussion!.id;
+}
+
+export function lockSetupDiscussion(tx: Transaction, hostAccountId: string) {
+  return lockHostDiscussion(tx, hostAccountId, null);
+}
+
+// The host's discussion for the scope, without creating it.
+export async function findHostDiscussion(db: Transaction | Database, hostAccountId: string, requestId: string | null = null) {
+  if (requestId) await assertHostRequest(db, hostAccountId, requestId);
+  const [row] = await db<{ id: string }[]>`
+    select id from app.discussions
+    where principal_type = 'host_account' and principal_id = ${hostAccountId}
+      and audience = ${requestId ? "host_review" : "host_setup"} and request_id is not distinct from ${requestId}
+  `;
+  return row?.id ?? null;
 }
 
 export async function latestSession(tx: Transaction | Database, discussionId: string) {
@@ -190,6 +227,7 @@ export async function createIndexedSession(
   authUserId: string,
   discussionId: string,
   generation: number,
+  requestId: string | null = null,
 ) {
   const hostAccountId = await withEligibleHost(deps.db, authUserId, async (_tx, id) => id);
   let sessionId: string;
@@ -209,7 +247,7 @@ export async function createIndexedSession(
   }
 
   return withEligibleHost(deps.db, authUserId, async (tx, id) => {
-    await lockSetupDiscussion(tx, id);
+    await lockHostDiscussion(tx, id, requestId);
     const latest = await latestSession(tx, discussionId);
 
     if (latest && latest.generation >= generation) {
@@ -272,9 +310,10 @@ async function recordInput(
   deps: ConversationDependencies,
   authUserId: string,
   input: { readonly clientInputId: string; readonly message: string },
+  requestId: string | null,
 ): Promise<AcceptedInput> {
   return withEligibleHost(deps.db, authUserId, async (tx, hostAccountId) => {
-    const discussionId = await lockSetupDiscussion(tx, hostAccountId);
+    const discussionId = await lockHostDiscussion(tx, hostAccountId, requestId);
     const [existing] = await tx<
       { id: string; fingerprint: string; message: string; protected_fingerprint: string | null; state: AcceptedInput["state"] }[]
     >`
@@ -536,11 +575,14 @@ async function inputOutcome(db: Database, inputId: string): Promise<MessageOutco
 }
 
 // POST /api/chat/messages: authenticate (by the caller), check eligibility,
-// record the accepted input, create the session on first use, then send.
+// record the accepted input, create the session on first use, then send. With a
+// request ID, the input goes to the host's private review discussion of that
+// request instead of setup.
 export async function acceptHostMessage(
   deps: ConversationDependencies,
   authUserId: string,
   input: { readonly clientInputId: string; readonly message: string },
+  requestId: string | null = null,
 ): Promise<MessageOutcome> {
   const message = input.message.trim();
   const lengthError = message ? getChatMessageLengthError(message) : "Write a message first.";
@@ -549,7 +591,7 @@ export async function acceptHostMessage(
     throw new ConversationInputError("invalid_message", lengthError);
   }
 
-  const accepted = await recordInput(deps, authUserId, { clientInputId: input.clientInputId, message });
+  const accepted = await recordInput(deps, authUserId, { clientInputId: input.clientInputId, message }, requestId);
 
   // An exact retry of an input already delivered returns its receipt.
   if (accepted.state !== "accepted") {
@@ -559,7 +601,7 @@ export async function acceptHostMessage(
   let session = await latestSession(deps.db, accepted.discussionId);
 
   if (!session) {
-    session = await createIndexedSession(deps, authUserId, accepted.discussionId, 1);
+    session = await createIndexedSession(deps, authUserId, accepted.discussionId, 1, requestId);
   }
 
   if (session.state !== "active") {
