@@ -1,8 +1,8 @@
 # Acceptance Record
 
-Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 4 (`host-review-and-booking`) local evidence recorded, production evidence pending; open gaps listed below
+Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) local evidence recorded, production evidence pending; open gaps listed below
 
-Date: 2026-10-20
+Date: 2026-10-22
 
 This record lists the evidence each phase of the [implementation plan](06_implementation_plan.md) produced, against the evidence list of that phase. Every entry names the command, the date, the revision and the environment it ran in. Fixture and local-stack runs prove logic; only the entries marked **production** prove the deployed integration. Tokens, secrets, email addresses and personal message text are kept out of this record.
 
@@ -153,6 +153,37 @@ The manual push is the exception recorded in the [design](../../openspec/changes
 - **Handle check rate.** `/api/setup/handle` has no rate limit; recorded as a risk in the design.
 - **Host page status code.** The unavailable `/{handle}` page renders the neutral not-found view with status 200 and `noindex`, because the streamed page cannot change its status; the `SKILL.md` routes return a real 404.
 
+## Phase 3 — `requester-intake-and-feasibility`
+
+The change was merged and released in three pull requests. Its acceptance evidence (task 7.1) is not recorded yet; this section records the release so far. Every decision behind it is in the [decision log](08_decision_log.md#phase-3--requester-intake-and-feasibility).
+
+### Production deployment
+
+Run by the lead on 2026-10-22 against the **production** deployment `findmeatime-release`.
+
+| Step | Revision and deployment | Command | Result |
+|---|---|---|---|
+| PR #26 merged (admin bypass) | `5f2681ea` | `supabase migration list --linked`, then `supabase db push --linked --dry-run` | The 16 Phase 1 and 2 migrations applied; `20261021110927_requester_intake_and_feasibility.sql`, `20261021110942_request_expiry_schedule.sql` and `20261021135225_model_reservation_anonymous.sql` listed. `supabase db diff --linked` showed only the Phase 3 objects and the preinstalled `pgmq` extension |
+| Migrations | `5f2681ea` | `supabase db push --linked` | The three applied; 19 listed |
+| Deployment | `5f2681ea`, `dpl_HboMKsV1Lhgn31p1hvwWAiioGYUe` | `vercel deploy --prod` from a clean checkout of `origin/main` | Ready; aliased to `findmeatime.com` and `release.findmeatime.com` |
+| PR #27 merged (admin bypass) | `fdccf26e`, `dpl_MoVx2TjuyxmyjtseY3GzK4javxKx` | `vercel deploy --prod` | Ready; no migration |
+| PR #28 merged (admin bypass) | `9415fe11` | `supabase db push --linked --dry-run` | `20261021191248_guest_draft_requests.sql` and `20261021194840_guest_calendar_step.sql` listed |
+| Migrations | `9415fe11` | `supabase db push --linked`, `supabase migration list --linked` | Both applied; 21 listed, none pending |
+| Deployment | `9415fe11`, `dpl_3PDifXmnhwYn59rdBdSo3cBYwdxM` | `vercel deploy --prod` from a clean checkout of `origin/main` | Ready |
+| Smoke test, after each deployment | `9415fe11` | `curl` of `/`, `release.findmeatime.com/`, `/app`, `/SKILL.md`, `/llms.txt`, a ready host's `/{handle}` and `/{handle}/SKILL.md`, an unknown `/booking/{uuid}` | All 200. The booking view sends `referrer-policy: no-referrer`, `x-robots-tag: noindex`, `cache-control: no-store` and offers **Resend my booking link**. The retired `/api/intake/{handle}/messages` returns 404. The host document says requests are accepted |
+| Public page | `9415fe11` | Browser, no message sent | The host header, the collapsed agent and resend sections, the timezone line and an empty thread with the composer; no form outside the thread |
+| Google redirect URIs | — | Google's authorization endpoint with the host client and each callback, no sign-in | The three `/connections/google/callback` URIs reach the sign-in page; an unregistered one gets `redirect_uri_mismatch` |
+
+The manual pushes repeat the exception from Phases 1 and 2: the user approved each on 2026-10-22, because the deploy workflow's secrets are still not set. Local suites on the merged revisions are listed in the pull requests: 384 unit and 459–460 integration tests, the guest Playwright journey, the build and `npm run check`.
+
+### Known gaps
+
+- **Acceptance evidence (task 7.1).** AC-01 through intake and candidates, AC-02, AC-03 requester side, AC-12, AC-13 withdrawal and AC-27 on production, and the controlled Cloudflare delivery of a creation email with its confirmation link and of a resent link, are pending. No message was sent in production.
+- **Routes API.** Not confirmed enabled for `GOOGLE_MAPS_API_KEY`; the live Seoul routing check (task 5.2) has not run.
+- **Real-model evals (task 6.4).** Not run.
+- **Requester Google consent.** The redirect URIs are registered; consent with a test user has not been completed.
+- **Shared-project data.** An earlier test intake and request remain; they were not deleted.
+
 ## Phase 4 — `host-review-and-booking`
 
 Change: [`host-review-and-booking`](../../openspec/changes/host-review-and-booking/tasks.md). Evidence list: [Phase 4](06_implementation_plan.md#phase-4--host-review-and-booking). Environments as in Phase 1, with the local Google stand-in extended to `events.insert` and `events.get` (fixed event IDs, `409` on a duplicate, lost responses before and after creation) and the local Cloudflare stand-in recording `reply_to` and attachments. Nothing here ran against production.
@@ -165,7 +196,7 @@ Change: [`host-review-and-booking`](../../openspec/changes/host-review-and-booki
 | `supabase test db` | 2026-10-22 | `70f5fb63` | Local stack | 6 files, 92 pgTAP tests passed, including `host_review_booking.test.sql` |
 | `npm test` | 2026-10-22 | `70f5fb63` | Local stack | 404 tests passed (41 files) |
 | `npm run test:integration` | 2026-10-22 | `70f5fb63` | Local stack | 495 tests passed (47 files), after updating the two closed-view assertions for the receipt |
-| `npm run test:e2e` | 2026-10-22 | `70f5fb63` | Local stack | 35 Playwright tests passed; one run of the requester journey at 1280 px missed a heading focus under the parallel run and passed alone |
+| `npm run test:e2e` | 2026-10-22 | `70f5fb63` | Local stack | 34 of 35 Playwright tests passed; the Phase 3 requester journey at 1280 px missed a heading focus under the parallel run, and passed when rerun alone |
 
 ### Evidence by item
 

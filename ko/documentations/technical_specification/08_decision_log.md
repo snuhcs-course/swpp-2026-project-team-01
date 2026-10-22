@@ -55,9 +55,9 @@
 
 | 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
-| 검토 우회 | PR #26과 #27은 사용자의 요청으로 팀원 승인 없이 `--admin`으로 squash 병합했습니다 | 승인을 기다림 | squash 커밋 메시지 | 팀원이 나중에 [제품 결정](../../openspec/changes/requester-intake-and-feasibility/product_decisions.md)을 사용해 검토 |
-| 마이그레이션 경로 | 3단계 마이그레이션 세 개를 드라이 런 후 사용자의 승인을 받아, `anelszynxtvxoxqvzgqt`에 연결된 워크트리에서 `supabase db push --linked`로 푸시했습니다. 메인 체크아웃은 예약된 `mriseqztcwmezvtawnbo`에 연결된 채로 두었고 사용하지 않았습니다 | 시크릿이 설정되지 않아 실패하는 `Deploy shared Supabase` 워크플로 | 이 기록; 인수 기록은 아직 갱신해야 함 | 이후 마이그레이션이 CI를 거치도록 워크플로의 저장소 시크릿을 설정 |
-| 프로덕션 배포 | 병합할 때마다 `origin/main`의 깨끗한 체크아웃에서 `findmeatime-release`에 연결해 `vercel deploy --prod` | Git 연동 배포(구성되지 않음) | 이 기록 | 자동 배포를 원하면 Vercel 프로젝트를 저장소에 연결 |
+| 검토 우회 | PR #26, #27, #28은 사용자의 요청으로 팀원 승인 없이 `--admin`으로 squash 병합했습니다 | 승인을 기다림 | squash 커밋 메시지 | 팀원이 나중에 [제품 결정](../../openspec/changes/requester-intake-and-feasibility/product_decisions.md)을 사용해 검토 |
+| 마이그레이션 경로 | 3단계 마이그레이션 다섯 개를 `anelszynxtvxoxqvzgqt`에 `supabase db push --linked`로 푸시했으며, 매번 드라이 런 후 사용자의 승인을 받아 해당 프로젝트에 연결된 워크트리에서 실행했습니다. PR #26 뒤인 2026-10-22에 세 개, PR #28 뒤인 2026-10-22에 `guest_draft_requests`와 `guest_calendar_step`입니다. 메인 체크아웃은 예약된 `mriseqztcwmezvtawnbo`에 연결된 채로 두었고 사용하지 않았습니다 | 시크릿이 설정되지 않아 실패하는 `Deploy shared Supabase` 워크플로 | 이 기록; [인수 기록](07_acceptance_record.md#production-deployment-2) | 이후 마이그레이션이 CI를 거치도록 워크플로의 저장소 시크릿을 설정 |
+| 프로덕션 배포 | PR #26, #27, #28 각각을 병합한 뒤 `origin/main`의 깨끗한 체크아웃에서 `findmeatime-release`에 연결해 `vercel deploy --prod`; 게스트 스레드 코드는 마이그레이션이 적용된 뒤에야 라이브가 되었습니다 | Git 연동 배포(구성되지 않음) | 이 기록; [인수 기록](07_acceptance_record.md#production-deployment-2) | 자동 배포를 원하면 Vercel 프로젝트를 저장소에 연결; 그때까지는 마이그레이션이 필요한 변경을 배포하기 전에 마이그레이션을 먼저 푸시 |
 
 ### 사용자 대기 항목
 
@@ -134,7 +134,7 @@
 
 다음 단계는 되돌려도 취소할 수 없거나, 제공자 콘솔이 필요하거나, 팀 밖의 사람에게 발송되기 때문에 수행하지 않았습니다.
 
-- **공유 프로젝트 마이그레이션:** `20261022021159_host_review_and_booking.sql`은 `anelszynxtvxoxqvzgqt`에 없습니다. 먼저 드라이런을 보여 준 뒤, 사용자의 승인을 받아 배포 워크플로나 `supabase db push --linked`로 적용해야 합니다. 그곳에 아직 대기 중인 3단계 최신 마이그레이션 두 개가 먼저 나가야 합니다.
+- **공유 프로젝트 마이그레이션:** `20261022021159_host_review_and_booking.sql`은 `anelszynxtvxoxqvzgqt`에 없습니다. 먼저 드라이런을 보여 준 뒤, 사용자의 승인을 받아 배포 워크플로나 `supabase db push --linked`로 적용해야 합니다. 3단계를 포함한 이전 마이그레이션 21개는 이미 그곳에 적용되어 있으므로(인수 기록, 3단계) 대기 중인 것은 이것 하나뿐입니다. 이 브랜치를 배포하기 전에 푸시해야 합니다.
 - **프로덕션 배포:** 병합된 뒤 이 브랜치의 배포.
 - **통제된 Google Calendar 증거:** 팀이 통제하는 Google Calendar의 예약. `sendUpdates=all`은 Google이 참석자에게 이메일을 보내게 하므로 요청자 주소는 팀 받은편지함이어야 합니다.
 - **통제된 받은편지함 증거:** 팀 받은편지함에서의 확인 사본 두 개와 상태 이메일 하나, `text/calendar` 첨부 파일이 Gmail과 Outlook에서 초대로 보이는지 포함.
