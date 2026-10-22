@@ -205,9 +205,9 @@ Scope. Prerequisite: Phase 3 joined for a real awaiting-approval request; Lanes 
 
 **Lane C — confirmation and notifications**
 
-- [ ] Confirmation email per recipient in their language and timezone with host display name on the product sender, Reply-To to the other party, what/when/who/where blocks, **View booking**, **Join meeting**, and the calendar part only when the UID matches the event's `iCalUID`.
-- [ ] Requester status notifications for new versions, decline, expiry and prolonged pending.
-- [ ] The receipt at the booking link and in `/app`; **Check booking status**.
+- [x] Confirmation email per recipient in their language and timezone with host display name on the product sender, Reply-To to the other party, what/when/who/where blocks, **View booking**, **Join meeting**, and the calendar part only when the UID matches the event's `iCalUID`.
+- [x] Requester status notifications for new versions, decline, expiry and prolonged pending.
+- [x] The receipt at the booking link and in `/app`; **Check booking status**.
 
 **Join**
 

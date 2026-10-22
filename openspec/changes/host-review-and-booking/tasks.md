@@ -28,9 +28,9 @@ Before each group, read the [Phase 4 reference repository files](../../../docume
 
 ## 5. Confirmation and notifications (Lane C)
 
-- [ ] 5.1 Extend the Cloudflare adapter and the delivery pipeline with Reply-To and attachments, and add the confirmation for both recipients with the calendar part only when the `iCalUID` is known ([design 9](design.md#9-confirmation-and-notifications)). Verify unit tests for both languages and the calendar part, and integration tests for both copies, with and without `iCalUID`, against a fake Cloudflare.
-- [ ] 5.2 Add the status notifications: new version, decline, expiry and the 15-minute pending notice, each suppressed when no longer current. Verify integration tests for each and for a rejected delivery leaving the request unchanged.
-- [ ] 5.3 Add the receipt and **Check booking status** on the booking page and in `/app` ([design 10](design.md#10-receipt-and-check-booking-status)). Verify integration tests for the receipt after closure, booking in progress without a join action, and the host projection.
+- [x] 5.1 Extend the Cloudflare adapter and the delivery pipeline with Reply-To and attachments, and add the confirmation for both recipients with the calendar part only when the `iCalUID` is known ([design 9](design.md#9-confirmation-and-notifications)). Verify unit tests for both languages and the calendar part, and integration tests for both copies, with and without `iCalUID`, against a fake Cloudflare.
+- [x] 5.2 Add the status notifications: new version, decline, expiry and the 15-minute pending notice, each suppressed when no longer current. Verify integration tests for each and for a rejected delivery leaving the request unchanged.
+- [x] 5.3 Add the receipt and **Check booking status** on the booking page and in `/app` ([design 10](design.md#10-receipt-and-check-booking-status)). Verify integration tests for the receipt after closure, booking in progress without a join action, and the host projection.
 
 ## 6. Join
 

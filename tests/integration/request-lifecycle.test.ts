@@ -104,7 +104,13 @@ describe("request.withdraw", () => {
     expect((await closure(request.requestId)).state).toBe("withdrawn");
 
     const state = await call(createRequesterStateHandler(() => deps), { bookingId: request.bookingId }, "/state");
-    expect(await state.json()).toEqual({ host: { displayName: "Your host", handle: null }, open: false, request: { state: "withdrawn" } });
+    expect(await state.json()).toEqual({
+      booking: null,
+      host: { displayName: "Your host", handle: null },
+      open: false,
+      request: { state: "withdrawn" },
+      timezone: "Asia/Seoul",
+    });
   });
 });
 

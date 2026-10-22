@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { isValidTimeZone } from "../contracts/setup";
+import { checkBookingCommand, readBookingStatus } from "./bookings";
 import { isUsableHandle, normalizeHandle } from "../contracts/handles";
 import {
   isActionableRequestState,
@@ -163,8 +165,16 @@ export async function readRequesterView(
 
   // An actionable request past its expiry reads as expired even before the
   // sweep closes it, as every command treats it.
+  const booking = await readBookingStatus(db, requestId, "requester");
+
   if (row.closed) {
-    return { host, open: false, request: { state: isActionableRequestState(row.state) ? "expired" : row.state } };
+    return {
+      booking,
+      host,
+      open: false,
+      request: { state: isActionableRequestState(row.state) ? "expired" : row.state },
+      timezone: row.details.timezone && isValidTimeZone(row.details.timezone) ? row.details.timezone : "UTC",
+    };
   }
 
   const [review] = await db<
@@ -177,6 +187,7 @@ export async function readRequesterView(
   const evaluation = await readCurrentEvaluation(db, requestId);
   const view: OpenRequesterView = {
     agreement: proposal?.agreement ?? null,
+    booking,
     confirmation: await readConfirmationStatus(db, requestId, options.confirmationLimits),
     connection: await readRequesterConnection(db, requestId),
     contact:
@@ -470,6 +481,7 @@ export function requesterCommands(
     registered(setManualAvailabilityCommand),
     registered(selectCalendarsCommand({ tokenKey: contact.tokenKey })),
     registered(resendConfirmationCommand(contact)),
+    registered(checkBookingCommand),
   ]);
 }
 

@@ -300,11 +300,44 @@ export function SentLine({ context }: { readonly context: RequesterCardContext }
 // The wait for the host, as one line in the thread from the agreement.
 export function AwaitingLine({ context }: { readonly context: RequesterCardContext }) {
   const agreed = context.view.agreement && context.view.proposal ? context.view.proposal : null;
+  const booking = context.view.booking;
+
+  // Approved: the booking is reserved or being confirmed with Google Calendar,
+  // with no join link until it is (host-review-and-booking design 10).
+  if (context.view.request.state === "booking" && booking) {
+    return <BookingLine context={context} />;
+  }
 
   return (
     <p className="px-1 text-sm" data-guest-receipt="status" role="status">
       <span className="font-medium">Waiting for {context.view.host.displayName} to approve</span>
       {agreed ? ` · you agreed to ${displayTime(new Date(agreed.start), context.timezone)}` : ""} · nothing is booked yet
     </p>
+  );
+}
+
+function BookingLine({ context }: { readonly context: RequesterCardContext }) {
+  const [checking, setChecking] = useState(false);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 px-1 text-sm" data-guest-receipt="status" role="status">
+      <span>
+        <span className="font-medium">Booking in progress</span> · {context.view.host.displayName} approved, and the meeting is being
+        confirmed with Google Calendar · not booked yet
+      </span>
+      <Button
+        disabled={checking}
+        onClick={async () => {
+          setChecking(true);
+          await context.run("booking.check", {}, null);
+          setChecking(false);
+        }}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        Check booking status
+      </Button>
+    </div>
   );
 }
