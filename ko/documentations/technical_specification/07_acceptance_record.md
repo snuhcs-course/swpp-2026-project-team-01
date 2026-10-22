@@ -2,9 +2,9 @@
 
 > 한국어 번역본 (검토용). 원본: documentations/technical_specification/07_acceptance_record.md
 
-상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 열린 공백은 아래에 나열
+상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 열린 공백은 아래에 나열
 
-날짜: 2026-10-20
+날짜: 2026-10-22
 
 이 기록은 [구현 계획](06_implementation_plan.md)의 각 단계가 해당 단계의 증거 목록에 맞춰 만들어 낸 증거를 나열합니다. 모든 항목에는 실행한 명령, 날짜, 리비전, 환경이 명시되어 있습니다. 픽스처와 로컬 스택 실행은 로직을 증명할 뿐이며, **production**으로 표시된 항목만 배포된 연동을 증명합니다. 토큰, 시크릿, 이메일 주소, 개인 메시지 본문은 이 기록에 넣지 않습니다.
 
@@ -154,3 +154,35 @@
 - **실제 Google Calendar 데이터.** 로그인한 프로덕션 점검이 실행되기 전까지 분석과 역할은 대역을 상대로만 검증되었습니다.
 - **핸들 확인 속도.** `/api/setup/handle`에는 속도 제한이 없으며, 설계에 위험으로 기록되어 있습니다.
 - **호스트 페이지 상태 코드.** 이용할 수 없는 `/{handle}` 페이지는 스트리밍되는 페이지가 상태를 바꿀 수 없으므로 상태 200과 `noindex`로 중립적인 찾을 수 없음 화면을 렌더링하며, `SKILL.md` 라우트는 실제 404를 반환합니다.
+
+## 3단계 — `requester-intake-and-feasibility`
+
+이 변경은 풀 리퀘스트 세 건으로 병합되고 릴리스되었습니다. 인수 증거(작업 7.1)는 아직 기록되지 않았으며, 이 절은 지금까지의 릴리스를 기록합니다. 그 뒤에 있는 모든 결정은 [결정 기록](08_decision_log.md#phase-3--requester-intake-and-feasibility)에 있습니다.
+
+### 프로덕션 배포
+
+2026-10-22에 리드가 **production** 배포 `findmeatime-release`를 대상으로 실행했습니다.
+
+| 절차 | 리비전과 배포 | 명령 | 결과 |
+|---|---|---|---|
+| PR #26 병합(관리자 우회) | `5f2681ea` | `supabase migration list --linked` 후 `supabase db push --linked --dry-run` | 1·2단계 마이그레이션 16개가 적용됨; `20261021110927_requester_intake_and_feasibility.sql`, `20261021110942_request_expiry_schedule.sql`, `20261021135225_model_reservation_anonymous.sql`이 나열됨. `supabase db diff --linked`는 3단계 객체와 미리 설치된 `pgmq` 확장만 보여 줌 |
+| 마이그레이션 | `5f2681ea` | `supabase db push --linked` | 세 개가 적용됨; 19개가 나열됨 |
+| 배포 | `5f2681ea`, `dpl_HboMKsV1Lhgn31p1hvwWAiioGYUe` | `origin/main`의 깨끗한 체크아웃에서 `vercel deploy --prod` | Ready; `findmeatime.com`과 `release.findmeatime.com`에 별칭 지정됨 |
+| PR #27 병합(관리자 우회) | `fdccf26e`, `dpl_MoVx2TjuyxmyjtseY3GzK4javxKx` | `vercel deploy --prod` | Ready; 마이그레이션 없음 |
+| PR #28 병합(관리자 우회) | `9415fe11` | `supabase db push --linked --dry-run` | `20261021191248_guest_draft_requests.sql`과 `20261021194840_guest_calendar_step.sql`이 나열됨 |
+| 마이그레이션 | `9415fe11` | `supabase db push --linked`, `supabase migration list --linked` | 둘 다 적용됨; 21개가 나열되고 대기 중인 것은 없음 |
+| 배포 | `9415fe11`, `dpl_3PDifXmnhwYn59rdBdSo3cBYwdxM` | `origin/main`의 깨끗한 체크아웃에서 `vercel deploy --prod` | Ready |
+| 각 배포 후 스모크 테스트 | `9415fe11` | `/`, `release.findmeatime.com/`, `/app`, `/SKILL.md`, `/llms.txt`, 준비된 호스트의 `/{handle}`과 `/{handle}/SKILL.md`, 알 수 없는 `/booking/{uuid}`의 `curl` | 모두 200. 예약 화면은 `referrer-policy: no-referrer`, `x-robots-tag: noindex`, `cache-control: no-store`를 보내며 **Resend my booking link**를 제공함. 폐기된 `/api/intake/{handle}/messages`는 404를 반환함. 호스트 문서에는 요청을 받는다고 적혀 있음 |
+| 공개 페이지 | `9415fe11` | 브라우저, 메시지는 보내지 않음 | 호스트 헤더, 접힌 에이전트 및 재전송 구역, 시간대 줄, 입력창이 있는 빈 스레드; 스레드 밖에는 폼이 없음 |
+| Google 리디렉션 URI | — | 호스트 클라이언트와 각 콜백으로 Google 인증 엔드포인트 요청, 로그인은 하지 않음 | 세 개의 `/connections/google/callback` URI는 로그인 페이지에 도달함; 등록되지 않은 URI는 `redirect_uri_mismatch`를 받음 |
+
+수동 푸시는 1·2단계의 예외를 되풀이한 것입니다. 배포 워크플로의 시크릿이 아직 설정되지 않았으므로 사용자가 2026-10-22에 각각 승인했습니다. 병합된 리비전의 로컬 테스트 묶음은 풀 리퀘스트에 나열되어 있습니다. 단위 테스트 384개, 통합 테스트 459~460개, 게스트 Playwright 여정, 빌드, `npm run check`입니다.
+
+### 알려진 공백
+
+- **인수 증거(작업 7.1).** 프로덕션에서 수신 및 후보까지의 AC-01, AC-02, 요청자 측 AC-03, AC-12, 철회에 대한 AC-13, AC-27과, 생성 이메일과 그 확인 링크 및 재전송된 링크의 통제된 Cloudflare 전달이 보류 중입니다. 프로덕션에서는 메시지를 보내지 않았습니다.
+- **Routes API.** `GOOGLE_MAPS_API_KEY`에 대해 활성화되었는지 확인되지 않았으며, 서울 실시간 경로 점검(작업 5.2)은 실행되지 않았습니다.
+- **실제 모델 평가(작업 6.4).** 실행하지 않았습니다.
+- **요청자 Google 동의.** 리디렉션 URI는 등록되었으며, 테스트 사용자로 한 동의는 완료되지 않았습니다.
+- **공유 프로젝트 데이터.** 이전의 테스트 수신과 요청이 남아 있으며 삭제하지 않았습니다.
+
