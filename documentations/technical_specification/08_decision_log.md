@@ -198,6 +198,8 @@ The [proposal](../../openspec/changes/agent-access/proposal.md#decisions) record
 | Requester projection | The booking page's view without the thread, the conversation state, the calendar connection or any link; the host's display name is encoded as quoted data | The eve requester tool's minimized view | `agent-requester-tools.ts` | `agentRequesterProjection` there |
 | Finding times | `find_times` waits up to 15 seconds for the evaluation, then returns it pending; `get_request` shows it when done | The eve tool's 20 seconds | `agent-requester-tools.ts` | `FIND_TIMES_WAIT_MS` there |
 | Requester agent list | The booking page's thread menu gains **Connected agents**, the same dialog as `/app`, revoking through `agent.revoke_grant` | A separate page | `guest-workspace.tsx` | `ThreadMenu` there |
+| Entry documents | Instruction version 3 names each role's MCP endpoint and permissions, the consent step, the requester's numbered steps and the unpublished CLI, and keeps the web continuation; the HTML agent sections say the same in one sentence | Keeping version 2's "not available yet" until a client passes | `entry-documents.ts`, `apps/web/app/page.tsx`, `apps/web/app/[handle]/page.tsx` | `hostEntryDocument` and `requesterEntryDocument` |
+| Per-client notes | A new technical document, `09_agent_clients.md`, holds each client's connection path to try and its results per role, "not yet run" until recorded | Rows in the acceptance record only | `09_agent_clients.md` | That document |
 
 ## Phase 6 — `host-imessage-channel`
 

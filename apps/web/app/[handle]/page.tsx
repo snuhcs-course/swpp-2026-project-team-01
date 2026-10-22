@@ -48,8 +48,8 @@ async function HostProfile({ params }: { readonly params: Params }) {
         <PublicPageChrome
           agentSection={
             <AgentSection href={`/${host.handle}/SKILL.md`}>
-              Requests are accepted on this page in a web browser. Connecting a personal agent is not available yet, so
-              an agent should send the person here.
+              Requests are accepted on this page in a web browser, or by a personal agent through the MCP server at{" "}
+              {`/${host.handle}/mcp`} once the person allows it. The instructions explain how.
             </AgentSection>
           }
         />

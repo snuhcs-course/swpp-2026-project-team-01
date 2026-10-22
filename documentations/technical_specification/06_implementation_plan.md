@@ -248,7 +248,7 @@ Scope. Prerequisite: Phase 3 for requester operations and Phase 4 for host decis
 
 - [x] Specify the one-future-request grant delta: bound to the displayed host, exact-retry recovery, permanent restriction to that request. Specification precedes implementation.
 - [x] Implement the grant and its continuation restriction.
-- [ ] Skill document wording verified against each client; per-client discovery and connection notes.
+- [ ] Skill document wording verified against each client; per-client discovery and connection notes. Open: the documents name both MCP endpoints and the CLI and the [per-client notes](09_agent_clients.md) list each client's connection path, but no named client has been run; that needs the production deployment and each client under a team member's account (task 6.1).
 
 **Join**
 

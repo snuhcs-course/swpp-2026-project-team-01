@@ -59,8 +59,12 @@ describe("entry documents", () => {
     expect(document).toMatch(/Google only/);
     expect(document).toMatch(/separate grants/);
     expect(document).toMatch(/installs no tools/);
-    expect(document).toMatch(/not available yet/);
     expect(document).toMatch(/only after the host confirms setup/);
+    expect(document).toContain(`MCP endpoint (Streamable HTTP, OAuth): ${origin}/mcp`);
+    expect(document).toMatch(/allows or denies your connection/);
+    expect(document).toMatch(/host's own click/);
+    expect(document).toContain("`fmat login --host`");
+    expect(document).toMatch(/web continuation/);
   });
 
   it("puts the requester document's host in a marked data field and invents no endpoint", () => {
@@ -76,6 +80,11 @@ describe("entry documents", () => {
     expect(document).toMatch(/explicit approval/);
     expect(document).not.toMatch(/\/api\/|\/eve\/|\/requests?\b/);
     expect(document).not.toContain("](");
+    expect(document).toContain(`MCP endpoint (Streamable HTTP, OAuth): ${origin}/ada/mcp`);
+    expect(document).toMatch(/without creating an account/);
+    expect(document).toMatch(/same retryKey; a second request is refused/);
+    expect(document).toMatch(/Never ask for it, copy it or store it/);
+    expect(document).toMatch(/only when get_request shows the state booked/);
   });
 
   it("gives every unavailable host the same body", () => {
@@ -86,6 +95,8 @@ describe("entry documents", () => {
   it("lists both documents in llms.txt", () => {
     expect(llmsTxt(origin)).toContain(`${origin}/SKILL.md`);
     expect(llmsTxt(origin)).toContain(`${origin}/{handle}/SKILL.md`);
+    expect(llmsTxt(origin)).toContain(`${origin}/mcp`);
+    expect(llmsTxt(origin)).toContain(`${origin}/{handle}/mcp`);
   });
 });
 
