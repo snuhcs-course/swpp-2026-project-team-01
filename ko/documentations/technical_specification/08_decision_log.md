@@ -166,6 +166,20 @@
 | D15 | 리디렉션 URI: 스킴, 호스트, 경로, 쿼리가 정확히 일치; `https` 또는 루프백 `http`; 루프백 IP 리터럴은 포트가 달라도 됩니다 | 루프백에도 정확한 포트 | 제안서; 설계 3 | 제안서와 리디렉션 매처 |
 | D16 | 배포 후 프로덕션에서 클라이언트별 실행. 팀 호스트 계정과 팀 요청자 수신함을 쓰고, 각 클라이언트는 팀원 계정 아래 현재 버전으로 실행하며, 결과는 인수 기록에 남깁니다 | 스테이징 배포; SDK 픽스처 | 제안서; 설계 11 | 제안서와 클라이언트별 메모 |
 
+### 구현 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 재전송 대응 | 재전송된 코드나 리프레시 토큰은 허가 전체를 철회하므로, 그 동의의 액세스 토큰은 리프레시 계열만이 아니라 다음 호출부터 모두 멈춥니다 | 계열만 철회, 이 경우 모든 액세스 토큰에 계열을 담아야 합니다 | `agent-grants.ts` | `lib/server/agent-grants.ts`의 `exchangeCode`와 `refreshTokens` |
+| 리프레시 경계 | 계열의 30일은 코드 교환 시점에 시작해 움직이지 않습니다. 회전해도 만료가 유지되므로 호스트는 최소 한 달에 한 번 다시 연결합니다 | 회전마다 30일 슬라이딩 | `agent-grants.ts` | `lib/server/agent-grants.ts`의 `issueTokens`와 `REFRESH_DAYS` |
+| 등록 인증 방식 | 등록은 요청된 `token_endpoint_auth_method`를 모두 받아들이고 RFC 7591이 허용하는 대로 `none`으로 답합니다. 클라이언트 시크릿은 없습니다 | 기밀 클라이언트 요청 거부 | `agent-clients.ts` | `lib/server/agent-clients.ts`의 `registerClient` |
+| 리소스 오류 | 잘못되었거나 없는 리소스는 두 엔드포인트 모두 `invalid_target`(RFC 8707)으로 답합니다. 다만 다른 리소스에 바인딩된 코드는 `invalid_grant`로 답합니다 | `invalid_request` | `agent-authorize.ts`, `agent-oauth-routes.ts` | 해당 모듈 |
+| 브라우저 바인딩 | 브라우저마다 무작위 논스 하나를 `/connect`의 HttpOnly 쿠키에 24시간 두고, 그 브라우저가 여는 모든 트랜잭션이 재사용합니다. 트랜잭션에는 그 해시를 저장합니다 | 트랜잭션별 쿠키 | `agent-authorize.ts` | 같은 파일의 `BINDING_COOKIE`와 `bindingCookie` |
+| 로그인 복귀 쿠키 | `fmat_auth_return`을 `/auth`에 10분간 두며, 살아 있는 호스트 트랜잭션일 때만 설정하고 모든 콜백에서 지웁니다 | Supabase 리디렉션 URL로 트랜잭션 전달 | `google-sign-in.ts` | 같은 파일의 `RETURN_COOKIE` |
+| 교차 출처 프로토콜 호출 | 디스커버리, 등록, 토큰, 철회는 쿠키를 읽지 않고 브라우저 기반 클라이언트가 호출하므로 `Access-Control-Allow-Origin: *`로 답합니다 | CORS 없음 | `agent-oauth-routes.ts` | 같은 파일의 `CORS` |
+| 메타데이터 캐시 | 클라이언트 메타데이터 문서는 `max-age`만큼 캐시하며 최소 5분, 최대 24시간입니다. 클라이언트 ID당 시간당 최대 30번 가져옵니다 | 캐시 없음 | `agent-clients.ts` | 같은 파일의 `METADATA_LIMITS`와 `lib/server/agent-limits.ts`의 `AGENT_LIMITS` |
+| 프로토콜 한도 | 등록은 출처당 시간당 10회, 하루 500회; 인가는 출처당 시간당 30회; 토큰은 클라이언트당 분당 60회; 도구 호출은 허가당 분당 120회 | 무제한 | 설계 12 | `lib/server/agent-limits.ts`의 `AGENT_LIMITS` |
+
 ## 6단계 — `host-imessage-channel`
 
 아직 결정이 없습니다.

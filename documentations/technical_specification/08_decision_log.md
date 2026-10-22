@@ -164,6 +164,20 @@ The [proposal](../../openspec/changes/agent-access/proposal.md#decisions) record
 | D15 | Redirect URIs: exact scheme, host, path and query; `https` or loopback `http`; a loopback IP literal's port may differ | Exact ports for loopback | Proposal; design 3 | The proposal and the redirect matcher |
 | D16 | Per-client runs on production after deploy, with a team host account and a team requester inbox, each client at its current version under a team member's account; results in the acceptance record | A staging deployment; SDK fixtures | Proposal; design 11 | The proposal and the per-client notes |
 
+### Implementation decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Replay response | A replayed code or refresh token revokes the whole grant, so access tokens of that consent stop at their next call, not only the refresh family | Revoking only the family, which would need the family in every access token | `agent-grants.ts` | `exchangeCode` and `refreshTokens` in `lib/server/agent-grants.ts` |
+| Refresh boundary | A family's 30 days start at the code exchange and never move; rotation keeps that expiry, so a host reconnects at least monthly | A sliding 30 days per rotation | `agent-grants.ts` | `issueTokens` and `REFRESH_DAYS` in `lib/server/agent-grants.ts` |
+| Registration auth method | Registration accepts any requested `token_endpoint_auth_method` and answers `none`, as RFC 7591 allows; no client secret exists | Refusing confidential requests | `agent-clients.ts` | `registerClient` in `lib/server/agent-clients.ts` |
+| Resource errors | A wrong or missing resource answers `invalid_target` (RFC 8707) at both endpoints, except that a code bound to another resource answers `invalid_grant` | `invalid_request` | `agent-authorize.ts`, `agent-oauth-routes.ts` | Those modules |
+| Browser binding | One random nonce per browser in an HttpOnly cookie on `/connect` for 24 hours, reused by every transaction that browser opens; the transaction stores its hash | A cookie per transaction | `agent-authorize.ts` | `BINDING_COOKIE` and `bindingCookie` there |
+| Sign-in return cookie | `fmat_auth_return` on `/auth` for 10 minutes, set only for a live host transaction and cleared by every callback | Carrying the transaction through Supabase's redirect URL | `google-sign-in.ts` | `RETURN_COOKIE` there |
+| Cross-origin protocol calls | Discovery, registration, token and revocation answer `Access-Control-Allow-Origin: *`, since they read no cookie and browser-based clients call them | No CORS | `agent-oauth-routes.ts` | `CORS` there |
+| Metadata cache | Client metadata documents are cached for their `max-age`, at least 5 minutes and at most 24 hours, and fetched at most 30 times per client ID per hour | No cache | `agent-clients.ts` | `METADATA_LIMITS` there and `AGENT_LIMITS` in `lib/server/agent-limits.ts` |
+| Protocol bounds | Registration 10 per source per hour and 500 per day; authorization 30 per source per hour; tokens 60 per client per minute; tool calls 120 per grant per minute | Unbounded | Design 12 | `AGENT_LIMITS` in `lib/server/agent-limits.ts` |
+
 ## Phase 6 — `host-imessage-channel`
 
 No decisions yet.

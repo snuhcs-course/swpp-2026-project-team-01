@@ -14,7 +14,7 @@ Before each group, read the [Phase 5 reference repository files](../../../docume
 
 ## 3. Authorization server (Lane A)
 
-- [ ] 3.1 Add discovery, registration and tokens ([design 2, 3 and 5](design.md#2-resources-and-discovery)): the metadata documents and key set, client resolution with metadata documents and dynamic registration, the signing key, codes, refresh rotation, revocation and the grant check. Verify unit tests for the token checks and redirect matching, and integration tests for each discovery document, registration and its bound, concurrent and replayed code redemption, refresh replay, a changed resource, a wrong verifier, revocation and missing signing configuration.
+- [x] 3.1 Add discovery, registration and tokens ([design 2, 3 and 5](design.md#2-resources-and-discovery)): the metadata documents and key set, client resolution with metadata documents and dynamic registration, the signing key, codes, refresh rotation, revocation and the grant check. Verify unit tests for the token checks and redirect matching, and integration tests for each discovery document, registration and its bound, concurrent and replayed code redemption, refresh replay, a changed resource, a wrong verifier, revocation and missing signing configuration.
 - [ ] 3.2 Add `/connect/authorize`, `/connect/consent` and `/connect/decision` with the sign-in return ([design 7](design.md#7-consent-and-sign-in)), and **Connected agents** in `/app` ([design 10](design.md#10-connected-agents)). Verify integration tests for the validation order, allow, deny and narrowing, another browser, the sign-in return and a stale transaction, and Playwright for a host connecting with sign-in on the way, then revoking, at 390 and 1280 pixels.
 
 ## 4. MCP server and user CLI (Lane B)
