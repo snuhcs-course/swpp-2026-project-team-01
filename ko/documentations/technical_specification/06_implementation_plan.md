@@ -266,32 +266,41 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 목표: 연동된 호스트가 일상적인 스케줄링을 iMessage에서 처리합니다.
 
-범위. 선행 조건: 새 OpenSpec 변경이 먼저 작성되고 검토됨; iMessage를 통한 설정을 위해 2단계, 결정을 위해 4단계. 레인 A의 스파이크는 레인 C의 전송 선택을 좌우하지만 명령 파싱은 좌우하지 않습니다.
+범위. 선행 조건: iMessage를 통한 설정을 위해 2단계, 결정을 위해 4단계. 레인 A의 스파이크는 레인 C의 전송 선택을 좌우하지만 명령 파싱은 좌우하지 않습니다. 폐기된 1차 이터레이션의 산출물을 확장해서는 안 되므로, 모든 레인은 아래 제안서가 어떤 레인이 코딩하기 전에 검토될 때까지 기다립니다.
 
-**레인 A — 명세와 전송 스파이크**
+**제안서(직렬, 먼저)**
 
-- [ ] 폐기된 1차 이터레이션의 `imessage-agent` 명세와 `host-imessage-assistant` 변경을 선택된 설계로 대체하는 새 OpenSpec 변경을 작성합니다.
-- [ ] 스파이크: 네이티브 Photon 채널 대 애플리케이션이 소유하는 어댑터를 내구성 있는 수신, 확인 응답, 정확한 발신자 식별, 복구 증거를 기준으로 선택하고, 발신자 식별자 형식을 기록합니다.
+- [x] [`host-imessage-channel`](../../openspec/changes/host-imessage-channel/proposal.md)의 제안서: 폐기된 1차 이터레이션의 `imessage-agent` 명세와 `host-imessage-assistant` 변경을 대체하며, 정해야 할 결정과 커버리지 표를 담습니다.
+- [x] [설계](../../openspec/changes/host-imessage-channel/design.md).
+- [x] [`specs/`](../../openspec/changes/host-imessage-channel/specs/) 아래의 델타 명세, 새로운 `host-imessage-channel` 기능.
+- [x] [작업](../../openspec/changes/host-imessage-channel/tasks.md).
+- [x] 소유 문서 갱신과 한국어 미러, 2026-10-23에 사용자가 결정한 원탭 딥링크 포함.
+- [ ] 팀원 검토.
+
+**레인 A — 전송 스파이크**
+
+- [x] 스파이크: 네이티브 Photon 채널 대 애플리케이션이 소유하는 어댑터를 내구성 있는 수신, 확인 응답, 정확한 발신자 식별, 복구 증거를 기준으로 선택하고, 발신자 식별자 형식을 기록합니다.
+- [x] 내구성 있는 수신 기록이 있는 서명된 수신기와 발신함이 있는 격리된 발신 전송을, Photon 대역과 서명된 웹훅 픽스처를 상대로 구현합니다.
 
 **레인 B — 웹 워크스페이스의 연동 카드**
 
-- [ ] 인라인 **iMessage 연결(Connect iMessage)** 카드: **복사(Copy)**와 **메시지 앱 열기(Open Messages)**가 있는 일회용 연결 코드, 마스킹된 발신자의 **확인 및 연결(Confirm and link)**, 보호된 코드 입력란이 있는 서비스 발송 6자리 대체 경로, 만료 및 재전송 한도, 연결 해제, **나중에(Maybe later)**.
-- [ ] 큐에 있음, 수락됨, 실패, 불확실의 상태를 사실대로 보여 주는 선택 사항인 **연락처에 추가(Add to contacts)** 카드.
+- [x] **iMessage 연결(Connect iMessage)**은 서버에서 일회용 연결 코드를 받아 곧바로 메시지 앱을 엽니다. 수신자는 회선 번호이고 입력란에는 정확한 연결 메시지가 들어갑니다(iOS는 `sms:<number>&body=<text>`, Android는 `sms:<number>?body=<text>`); 메시지 앱을 열 수 없는 곳에서는 인라인 카드가 번호, 코드, **복사(Copy)**, 같은 딥링크의 QR 코드를 보여 줍니다. 이어서 마스킹된 발신자의 **확인 및 연결(Confirm and link)**, 서비스 발송 6자리 대체 경로(**코드를 대신 보내 주세요(Send me a code instead)**)와 보호된 코드 입력란, 만료 및 재전송 한도, 연결 해제, **나중에(Maybe later)**. 메시지 앱을 여는 것은 연결로 간주되지 않습니다.
+- [x] 큐에 있음, 수락됨, 실패, 불확실의 상태를 사실대로 보여 주는 선택 사항인 **연락처에 추가(Add to contacts)** 카드.
 
 **레인 C — 채널과 명령**
 
-- [ ] 검증된 발신자를 선택된 요청과 함께 `host:{hostId}`로 매핑하는 `channels/photon.ts`; 연동되지 않았거나 그룹인 발신자에게는 세션이 없음; 수신 연결 메시지는 모델 턴 이전에 소비됨.
-- [ ] 정확한 명령 `request <reference>`, `review`, `changes`, 검토 참조가 있는 승인 및 거절, `setup`을 모델 턴 이전에 애플리케이션 명령으로 파싱.
-- [ ] 연동된 대화로 전달되는 제안 요약과 결과; `/app`에서 볼 수 있는 전달 실패; 접수 예산 아래의 큐에 있는 수신.
-- [ ] iMessage를 통한 설정: 제안 질문과 평범한 텍스트 답변이 공유 초안을 갱신; 최종 설정 확정은 현재 검토에 대해 작성된 정확한 명령을 사용.
+- [x] 검증된 발신자를 선택된 요청과 함께 `host:{hostId}`로 매핑하는 `channels/photon.ts`; 연동되지 않았거나 그룹인 발신자에게는 세션이 없음; 수신 연결 메시지는 모델 턴 이전에 소비됨.
+- [x] 정확한 명령 `request <reference>`, `review`, `changes`, 검토 참조가 있는 승인 및 거절, `setup`을 모델 턴 이전에 애플리케이션 명령으로 파싱.
+- [x] 연동된 대화로 전달되는 제안 요약과 결과; `/app`에서 볼 수 있는 전달 실패; 접수 예산 아래의 큐에 있는 수신.
+- [x] iMessage를 통한 설정: 제안 질문과 평범한 텍스트 답변이 공유 초안을 갱신; 최종 설정 확정은 현재 검토에 대해 작성된 정확한 명령을 사용.
 
 **합류**
 
 - [ ] 통제된 iPhone에서 연동하고, 요청을 선택하고, 수정하고, 승인한 뒤 6단계 증거 목록을 실행합니다.
 
-명세: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md)(메시징 배압, 연동 증명의 마스킹), [messaging-environments](../../openspec/specs/messaging-environments/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), 그리고 새로운 iMessage 델타.
+명세: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md)(메시징 배압, 연동 증명의 마스킹), [messaging-environments](../../openspec/specs/messaging-environments/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), 그리고 새로운 `host-imessage-channel` 델타.
 
-여기서 확정할 결정: 어댑터 선택과 발신자 식별자 형식; 회선 프로비저닝과 일일 신규 대화 허용량; 코드 만료와 재전송 한도; iPhone과 macOS 메시지 앱에서 검증한 `sms:` 딥링크 본문 형식.
+여기서 확정할 결정: 어댑터 선택과 발신자 식별자 형식; 회선 프로비저닝과 일일 신규 대화 허용량; 코드 만료와 재전송 한도; 플랫폼별 원탭 딥링크의 `sms:` 형식(2026-10-23에 사용자가 결정), 합류 단계에서 실제 iPhone으로 검증.
 
 증거: 재시작 후 재생과 모의 전달 실패를 포함해 프로덕션 배포를 대상으로 통제된 iPhone에서 수행한 AC-16, AC-17, AC-18; 기록된 기기 및 클라이언트 버전.
 
@@ -462,7 +471,7 @@ Docker를 갖춘 팀원이 그 주에 마이그레이션이 필요한 레인의 
 | 온라인 미팅 링크 생성 | 3단계 제안서(D6), 요청자 동의가 링크를 다루므로 4단계에서 옮겨 옴 | PRD 10절, meeting-requests 명세 |
 | 연락처 확인, 요청 생성 한도, Cloudflare 설정, `evaluate_candidates` 배치, 예약 링크 저장, 로컬 메시징, 공개 페이지의 대화, 동의 전 인증, 하나로 이어진 게스트 스레드 | 3단계 제안서(D3–D5, D7–D12는 2026-10-21 결정; D13은 2026-10-22 결정) | meeting-requests, email-delivery, messaging-environments 명세; 제공자 설정; 에이전트 구성 |
 | MCP 프로토콜 버전, 등록, 스코프, CLI 패키징 | 5단계 제안서 | 에이전트 클라이언트 인가 명세, CLI 방향 |
-| iMessage 어댑터, 코드 만료, 회선 프로비저닝 | 6단계 제안서 | 제공자 설정, 새 iMessage 변경 |
+| iMessage 어댑터, 코드 만료, 회선 프로비저닝, 원탭 딥링크 | 6단계 제안서(D1–D14는 2026-10-23에 결정됨) | 제공자 설정, 새 iMessage 변경 |
 | AgentMail 어댑터와 보존 | 7단계 제안서(D1–D11은 2026-10-22에 결정됨) | 제공자 설정 |
 | 측정 목표, 보존 및 삭제, 지원 담당 | 8단계 제안서 | PRD 2절과 10절 |
 

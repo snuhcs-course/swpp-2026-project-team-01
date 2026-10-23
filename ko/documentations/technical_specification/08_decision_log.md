@@ -225,7 +225,76 @@
 
 ## 6단계 — `host-imessage-channel`
 
-아직 결정이 없습니다.
+[제안서](../../openspec/changes/host-imessage-channel/proposal.md#decisions)가 D1–D14를 기록합니다. 계획은 어댑터와 발신자 형식, 회선 프로비저닝과 신규 대화 허용량, 코드 만료와 재전송 한도, 딥링크 형식을 이 단계에 배정했습니다. 사용자가 2026-10-23에 D3과 D4를 정했고, 나머지는 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-23에 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
+
+**팀원의 초안 PR #23은 채택하지 않았습니다.** PR #23(enu3379, `docs/host-imessage-linking`)은 호스트가 `/app`에서 번호를 입력하면 Thyme이 먼저 문자를 보내고, 두 자리 숫자 답장이 일치하면 번호를 연결합니다. 그러면 Thyme의 첫 메시지가 요청하지 않은 것이 되어 수신자에게는 스팸 배너로 보이고 회선의 일일 신규 대화 한도를 하나 소모하는데, PRD의 수신 우선 연결 코드는 바로 이를 피하기 위한 것이며 사용자는 2026-10-23에 PRD의 설계를 유지하기로 했습니다. 세 부분은 재사용하며 풀 리퀘스트에서 출처를 밝힙니다: Photon 웹훅 서명 검증(원본 본문에 대한 `v0:` HMAC, 5분 허용 구간, 웹훅 ID 확인), `2xx` 이전에 저장하고 처리 뒤 텍스트를 지우는 내구성 있는 수신 이벤트, 간격을 둔 발송 한도. 이 PR의 마이그레이션 타임스탬프는 이미 공유 프로젝트에 적용된 마이그레이션보다 앞서므로 스키마 파일은 하나도 복사하지 않았습니다. PR 자체는 건드리지 않았습니다.
+
+### 제품 결정
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| D1 | 애플리케이션이 소유하는 어댑터: `agent/channels/photon.ts`는 `200` 이전에 수신 기록과 작업을 저장하는 서명된 수신기만 호스팅하고, 애플리케이션이 발신자를 호스트가 선택한 논의로 매핑하며, 발신 텍스트는 하나의 전송 모듈(프로덕션은 Spectrum SDK, 그 밖에는 루프백 대역)과 발신함을 거칩니다 | eve의 네이티브 `photonIMessageChannel`: 아무것도 저장하지 않고 프로세스 내 디스패치 뒤에 확인 응답하며, iMessage 스레드마다 세션 색인 밖의 eve 세션 하나를 두고, 접수 한도 아래에서 메시지를 보류할 수 없고, 발신함이나 불확실 발송 기록이 없음 | 제안서; 설계 1; 에이전트 구성; 제공자 설정 | 제안서와 설계 1, 이어서 `agent/channels/photon.ts`와 `lib/server/photon.ts` |
+| D2 | 발신자는 Photon의 `message.sender.id`입니다: E.164(`+15551234567`) 또는 소문자로 바꾼 Apple ID 이메일이며, 키 해시로 저장하고 봉인하고, `space.type = "dm"`만 인정하며, 텍스트나 스페이스 ID에서 파싱하지 않습니다 | 스페이스 ID로 매칭; 채팅 GUID에서 번호 파싱 | 제안서; 설계 1; 제공자 설정 | `lib/server/photon-receiver.ts`의 `normalizeSender` |
+| D3 | (사용자, 2026-10-23.) PRD의 범위: 호스트가 보내는 일회용 코드이므로 Thyme의 첫 메시지는 답장이며, 인증된 브라우저에서 마스킹된 발신자의 **확인 및 연결(Confirm and link)**을 거친 뒤에만 바인딩되고, 대체 경로는 **코드를 대신 보내 주세요(Send me a code instead)**이며, 호스트 계정을 만들거나 들어가는 유일한 방법은 계속 Google입니다 | PR #23의 발신 우선 문자 및 답장 확인; 전화번호 계정; iMessage 우선 계정 생성 | PRD 10절; 제안서; 설계 4 | PRD 먼저, 이어서 제안서 |
+| D4 | (사용자, 2026-10-23.) **iMessage 연결(Connect iMessage)**은 코드를 받아 곧바로 메시지 앱을 엽니다: iOS와 iPadOS는 `sms:<number>&body=<text>`, Android는 `sms:<number>?body=<text>`이고 텍스트는 퍼센트 인코딩하며, 데스크톱과 그 밖의 브라우저는 번호, 코드, **복사(Copy)**, iOS 딥링크의 QR 코드가 있는 인라인 카드를 받고, 메시지 앱을 여는 것은 연결로 간주되지 않습니다 | 펼친 카드의 두 번째 탭으로서의 **메시지 앱 열기(Open Messages)**(이전 문서); `SMSTO:` QR 페이로드 | PRD 10절; 페이지 목록; 인터페이스; 호스트 온보딩 H11; 프론트엔드 아키텍처; 제공자 설정; 설계 5 | `lib/contracts/imessage.ts`의 `deepLinkFor`와 `messagesPlatform` |
+| D5 | 연결 코드는 `FMAT-`에 크록포드 base32 문자 열 개(이미 모든 곳에서 마스킹되는 이메일 계열)를 붙인 형태이며, 메시지는 `Link my Find Me a Time account: FMAT-…`이고, 15분간 유효하며, 해시하고 봉인하며, 호스트당 시간당 최대 5개이고, 도착 뒤 확인까지 15분입니다 | 짧은 숫자 코드(유효 기간 안에 추측 가능); 별도의 마스킹이 필요한 코드 계열 | 제안서; 설계 4 | `lib/server/imessage-links.ts`의 `IMESSAGE_LINK_LIMITS` |
+| D6 | 대체 경로: 6자리, 10분간 유효, 시도당 3회 발송에 60초 간격, 호스트당 24시간에 5회 발송, 잘못 입력 5회면 무효, 회선당 24시간에 대체 경로 발송 최대 20회(`PHOTON_FALLBACK_DAILY_LIMIT`) | 회선 전체 한도 없음(Photon은 회선당 일일 신규 대화를 제한하며 수치는 공개되지 않음) | 제안서; 설계 6 | `lib/server/imessage-links.ts`의 `IMESSAGE_FALLBACK_LIMITS`; 환경 변수 |
+| D7 | 하나의 Photon 프로젝트에 회선 하나(`PHOTON_LINE_NUMBER`)와 수신기가 ID와 서명 비밀을 확인하는 웹훅 하나(`PHOTON_WEBHOOK_ID`, `PHOTON_WEBHOOK_SECRET`) | AgentMail처럼 지문이 있는 운영자 등록 수신기(웹훅 하나에 비해 움직이는 부분이 많음) | 제안서; 설계 2; 제공자 설정 | `lib/server/photon-receiver.ts`의 `photonReceiverConfig` |
+| D8 | 메시지 전체가 명령이며 대소문자를 구분하지 않습니다: `help`, `requests`, `request <ref>`, `setup`, `review`, `changes`, `share <ref>`, `dismiss <ref>`, `approve <ref>`, `decline <ref>`, `confirm <ref>`; 참조는 요청 ID의 크록포드 문자 여섯 개, `<request>-<version>`, `<request>-S<n>`, 설정 제안 해시의 여덟 문자이며, 결정은 재시도 키 `imessage:{receiptId}`로 명령 파이프라인을 통해 실행됩니다 | 자연어 승인; 버튼(iMessage에는 신뢰할 만한 버튼이 없음) | 제안서; 설계 8; 에이전트 구성 | `lib/server/imessage-commands.ts`의 `parseCommand`와 참조 도우미 |
+| D9 | 발신 메시지마다 고정되고 봉인된 발신함 행 하나를 `imessage_send`가 보내며, 시작되었지만 응답을 잃은 발송은 `uncertain`이 되어 다시 보내지 않고, 발송 전 거부는 최대 5회 재시도하며, 호스트 전용 행은 연결 해제 뒤 억제됩니다 | 불확실 발송 재시도(Photon은 확인 가능한 멱등성 키를 주지 않으므로 호스트가 중복을 받을 수 있음) | 제안서; 설계 3 | `lib/server/imessage-outbox.ts` |
+| D10 | 연동되지 않은 직접 발신자에게는 24시간에 한 번 `/app`을 안내하는 고정 회신 하나를 보내고, 그룹 대화, 에코, 리액션에는 아무것도 보내지 않습니다 | 침묵(iMessage 우선 소개에는 안내가 없음); 모든 메시지에 회신 | 제안서; 설계 7 | `lib/server/imessage-receipts.ts`의 `UNLINKED_REPLY_HOURS` |
+| D11 | 전달된 텍스트는 공유 논의에 `[iMessage] …`로 저장하고, 호스트 지시 조각이 iMessage에는 카드가 없음을 알리고 결정에 쓸 명령을 명시합니다 | 별도의 iMessage 논의; 표시 없음 | 제안서; 설계 9; 에이전트 구성 | `lib/server/imessage-receipts.ts`의 `IMESSAGE_PREFIX`; `agent/instructions/host-imessage.ts` |
+| D12 | 새 요청, 승인 대기 중인 제안(정확한 명령 포함), 확정된 예약, 확정되지 않은 예약, 아직 보류 중인 예약에 대한 호스트 요약을 이벤트당 `imessage_notice` 작업 하나로 도메인 트랜잭션에 기록하고, 작업이 이벤트의 레코드로부터 고정합니다 | 모든 상태 변경에 대한 요약. 도메인 트랜잭션에서 아웃박스 행을 봉인하는 방식(모든 명령에 토큰 키가 필요해짐) | 제안서; 설계 10 | `lib/server/imessage-notices.ts`의 `enqueueHostNotice`; `lib/server/imessage-notice-job.ts` |
+| D13 | **연락처에 추가(Add to contacts)**는 네이티브 연락처 카드 공유 하나를 큐에 넣고, 상태는 큐에 있음, 수락됨, 실패, 불확실이며 "저장됨"은 절대 아니고, 불확실한 동안에는 재전송하지 않습니다 | 연동 시 카드를 자동으로 공유 | 제안서; 설계 11 | `lib/server/imessage-links.ts`의 `imessage.contact_card.share` |
+| D14 | 수신 텍스트는 처리 시 지우고 수신 기록은 30일 뒤 삭제하며, 발신함 텍스트는 최종 상태에서 지우고, 연결 시도와 종료된 바인딩은 종료 30일 뒤 삭제합니다 | 진단용으로 수신 텍스트 보관 | 제안서; 설계 13 | `app.cleanup_imessage_records`와 새 마이그레이션 |
+
+### 구현 결정
+
+| Spectrum SDK 패키지 | `@spectrum-ts/core`와 `@spectrum-ts/imessage` 12.14.0을 정확한 버전으로 고정하고, `lib/server/photon.ts`에서만 동적 import로 불러오며, SDK가 Photon에 OpenTelemetry 데이터를 보내지 않도록 `telemetry: false`로 둡니다; 두 패키지가 `^5 \|\| ^6` peer를 선언하므로 패키지 단위 `overrides` 항목으로 TypeScript 7을 받아들이게 합니다. `npm audit`은 이들의 `@photon-ai/otel` OpenTelemetry 체인에서 중간 등급 권고를 보고하지만, telemetry를 끄면 그 체인은 쓰이지 않습니다 | `spectrum-ts` 메타 패키지(Slack, Telegram, WhatsApp 제공자도 포함); eve에 번들된 사본(export되지 않음); 전체 트리에 `--legacy-peer-deps` | `package.json`; 설계 1 | `lib/server/photon.ts`의 `spectrumTransport`; `overrides` 항목 |
+| 불확실한 전송 | 이후 시도에서 `dispatching` 상태로 발견된 행, 또는 응답이 유실되었거나 20초 후 시간 초과된 전송은 즉시 `uncertain`이 되며 다시 보내지 않습니다; `unavailable`(연결 거부, 클라이언트 없음)만 행을 `queued`로 되돌립니다 | 23시간 동안 같은 키로 재전송하는 7단계 방식, 이는 제공자의 멱등성 키가 필요합니다 | 설계 3 | `lib/server/imessage-outbox.ts`의 `createImessageSendHandler` |
+| 전송 작업 배치와 시도 횟수 | 워커 배치당 전송 네 건; 메시지는 5회, 턴 답장은 8회(약 40분) 시도하며, 턴 답장의 텍스트는 아무것도 잠그기 전에 세션의 기록된 이벤트에서 읽습니다 | 기본 배치 | `lib/server/job-handlers.ts`; `lib/server/imessage-outbox.ts` | `JOB_BATCH_LIMITS`; `SEND_ATTEMPTS`와 `TURN_REPLY_ATTEMPTS` |
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 카드 상태 순서 | 진행 중인 연결 시도(대기 중인 코드, 수신한 발신자 또는 대체 코드)가 활성 연결보다 먼저 표시되므로, 시도를 마치면 연결이 새 발신자로 옮겨 갑니다; 상태에는 대체 코드가 담기지 않으며, 발신자는 마지막 네 자리 또는 이메일의 첫 글자와 도메인으로 가려집니다 | 연결된 동안 시도를 숨김 | 설계 4 | `lib/server/imessage-links.ts`의 `readImessageStatus` |
+| 잘못된 대체 코드 입력 | 틀린 코드는 오류가 아니라 결과(`wrong`과 남은 시도 횟수)로 응답하므로, 횟수가 명령의 트랜잭션에 저장됩니다; 다섯 번째 입력은 코드의 해시를 지웁니다 | 오류로 거절, 이 경우 횟수가 롤백됨 | 설계 6 | `lib/server/imessage-links.ts`의 `verifyImessageCodeCommand` |
+| 다른 곳에 연결된 번호 | 다른 호스트가 이미 연결한 번호로 `send_code`를 보내면 전송처럼 응답하되 아무것도 큐에 넣지 않으므로, 카드로 이 제품에서 누가 iMessage를 쓰는지 알아낼 수 없습니다 | 눈에 보이게 거절 | 설계 6 | `sendImessageCodeCommand` |
+| 카드 배치 | iMessage 연결 카드는 설정이 준비되면 공유 링크 다음에 표시되며, 호스트가 연결하거나 **Maybe later**를 누를 때까지(이 브라우저의 저장소에 기억됨) 유지됩니다; 메뉴의 새 **iMessage** 항목은 어느 단계에서든 카드를 열고, 연결된 호스트의 카드는 전송 실패, **Add to contacts**, **Unlink**를 보여 주기 위해 계속 남습니다 | 설정 대화상자; 설정이 준비되기 전에 표시 | 설계 5; 호스트 온보딩 H11 | `apps/web/app/_components/host-workspace.tsx`의 `SetupWorkspace` |
+| 메시지 앱 열기 | **Connect iMessage**는 코드를 기다린 뒤 플랫폼의 딥링크로 `window.location.assign`을 호출합니다; 카드는 **Open Messages**를 일반 링크로 유지하며, QR 코드는 클라이언트에서 `uqr` 0.1.2로 렌더링한 SVG입니다. 기다린 요청 뒤에 iOS Safari가 메시지 앱을 여는지는 실제 기기에서만 확인합니다 | 페이지를 불러올 때 코드를 미리 가져와 탭하면 메시지 앱이 동기적으로 열리게 함(탭하지 않을 호스트에게도 코드가 발급됨) | 설계 5 | `apps/web/app/_components/imessage/imessage-card.tsx`의 `connect` |
+| 대체 코드 재전송 | 재전송은 번호가 아니라 열려 있는 시도(`{ resend: true }`)를 지정하는데, 카드는 번호를 가려진 형태로만 알기 때문입니다 | 번호를 브라우저로 반환 | 설계 6 | `sendImessageCodeCommand` |
+| 결정 리비전 | `approve`, `decline`, `share`, `dismiss`는 참조와 함께 읽은 요청 리비전을 명령의 기대 리비전으로 넘기고, `confirm`은 초안 리비전을 넘기므로, 읽은 뒤 결정하기 전에 변경이 생기면 거절됩니다 | 리비전을 넘기지 않음(명령이 이를 거절함) | 설계 8 | `lib/server/imessage-commands.ts`의 `decide`, `changes`, `confirmSettings` |
+| 채널 트랜잭션 | 명령과 전달은 바인딩 갱신과 응답을 위해 수신 작업의 트랜잭션 안에서 실행되므로, 응답이 수신의 결과와 함께 커밋됩니다; 결정과 대화 입력은 각자의 연결에서 별도 트랜잭션으로 커밋하며, 재시도 키와 클라이언트 입력 ID 덕분에 반복해도 안전합니다 | 모든 쓰기를 각자의 연결에서 실행(바인딩에 대한 작업의 행 잠금이 선택 갱신을 막음) | 설계 8 | `lib/server/imessage-receipts.ts`의 `ChannelProcessor` |
+| 수락 보류 | 수락 예산이 거절한 수신은 결과 `deferred`로 작업을 완료하고, 60초 뒤에 처리될 새 수신 작업을 게시합니다(최대 240회, 이후 수신은 무시됨). 작업 자체의 백오프가 20초에서 시작하는 반면 chat-workspaces 계약은 1분보다 일찍 처리하지 말라고 하기 때문입니다; 같은 대화의 이후 메시지는 그 뒤에서 계속 기다립니다 | 예외를 던져 20초 백오프를 따름 | 설계 7 | `lib/server/imessage-receipts.ts`의 `ADMISSION_RETRY_SECONDS`와 `ADMISSION_DEFERRALS` |
+| 선택한 요청이 사라짐 | 더 이상 호스트의 것이 아니거나 초안인 요청을 선택한 상태에서 온 자유 텍스트는 선택을 해제하고, 설정으로 보내며, 안내를 한 번 보냅니다 | 메시지를 거절함 | 설계 9 | `lib/server/imessage-receipts.ts`의 `forward` |
+| 턴 응답 길이 | 턴 응답은 가린 뒤 2,000자로 자르고 나머지는 `/app`에서 보도록 안내합니다; 최종 텍스트가 없는 턴이나 실패한 세션은 고정된 대체 문구를 보내고, 30분 안에 끝나지 않은 턴의 응답은 보내지 않습니다 | 긴 응답을 여러 메시지로 나눔 | 설계 9 | `lib/server/imessage-outbox.ts`의 `imessageTurnText`와 `TURN_REPLY_WAIT_MINUTES` |
+| 안정적인 설정 제공자 | `/app` 대화는 항상 설정 제공자로 감싸므로(설정이 로드되기 전에는 값이 null), 설정 로딩이 끝나도 그 항목들이 다시 마운트되지 않습니다. 이전에는 이렇게 해서 부하 중에 Connect iMessage 카드가 입력한 번호와 단계를 잃었습니다 | 카드의 상태를 워크스페이스로 끌어올리기 | `apps/web/app/_components/host-workspace.tsx` | `ConversationSetup`과 `SetupProvider` |
+| 장애 뒤 턴 응답(검토) | Photon을 쓸 수 없던 턴 응답은 고정된 텍스트와 함께 `queued`로 돌아가고, 다음 시도가 그 텍스트를 보냅니다 | 턴을 다시 읽는 것; 앞선 코드는 `queued` 행에서 이를 건너뛰어 응답이 전혀 전송되지 않았습니다 | 설계 3 | `lib/server/imessage-outbox.ts`의 `createImessageSendHandler` |
+| 그룹 대화의 코드(검토) | 연결 코드는 그룹 확인보다 먼저 처리되므로, 그룹에 올린 코드는 그룹에 답장 없이 그 코드가 가리키는 시도를 무효로 합니다 | 그룹 메시지를 먼저 무시하는 것; 유출된 코드가 15분 동안 쓸 수 있는 채로 남았습니다 | 설계 4와 7 | `lib/server/imessage-receipts.ts`의 `processReceipt` |
+| 다른 곳에 연결된 번호도 기록(검토) | 다른 호스트가 연결한 번호로의 억제된 전송은 `foreign_binding` 범주의 `suppressed` 발신함 행으로 기록되어 한도에 포함되고 카드에 전송됨으로 표시됩니다 | 행을 쓰지 않는 것; 카드의 상태와 한도가 이를 구별하지 못했습니다 | 설계 6 | `sendImessageCodeCommand`; `recordOutbound`의 `suppressedAs` |
+| 재전송된 결정 응답(검토) | 결정 명령은 먼저 재시도 키로 저장된 결과를 찾아 그것으로 응답하므로, 요청이 넘어간 뒤에도 재시도된 수신은 첫 시도와 같게 응답합니다 | 요청을 다시 읽는 것; "바뀐 것 없음"이나 재시도 충돌로 응답했습니다 | 설계 8 | `lib/server/imessage-commands.ts`의 `savedDecisionReply` |
+| 순서 대기(검토) | 먼저 온 수신이 아직 처리되지 않은 수신은 결과 `waiting`으로 작업을 끝내고 30초 뒤(최대 600번) 새 작업을 게시하며, 어떤 수신이든 결과가 기록되면 그 대화의 대기 중인 작업이 앞당겨집니다 | 시도를 실패시키는 것; 수신의 시도 횟수를 소진해 긴 연기 뒤로 밀려 버려질 수 있었습니다 | 설계 7 | `lib/server/imessage-receipts.ts`의 `ORDER_RETRY_SECONDS`, `ORDER_WAITS`, `record` |
+| 처리 중 연결 해제(검토) | 수신 작업은 처리하는 내내 발신자의 바인딩을 행 잠금하고, 연결 명령의 바인딩 쓰기는 잠금을 최대 5초까지만 기다립니다 | 잠금 없는 읽기; 호스트가 연결을 해제한 뒤에도 결정이 실행될 수 있었습니다 | 설계 7 | `lib/server/imessage-links.ts`의 `lockActiveBindingOfSender` |
+| 그 밖의 작은 검토 수정(검토) | 전송 전 Spectrum 실패는 최종 거절이 아니라 `unavailable`입니다; 연락처 카드는 명령의 재시도 키로 식별합니다; 같은 발신자가 코드를 다시 보내면 아무 일도 하지 않습니다; Apple ID 이메일은 처음 두 글자와 마지막 글자로 가립니다; 회선마다 하루 고정 거절은 최대 200개입니다; 정지된 호스트도 연결을 해제할 수 있습니다; 재시도된 전달은 첫 시도가 쓴 토론을 다시 씁니다; 작업 배치당 전송은 두 번입니다; 카드는 연락처 카드가 대기 중일 때 폴링하고 확인 창이 닫히면 새로 고칩니다 | — | 설계 3~9 | 지명된 모듈 |
+| 계획의 목록을 넘는 명령 | 계획은 `request`, `review`, `changes`, 승인, 거절, `setup`을 꼽습니다; 이 변경은 `help`, `requests`(참조를 알기 위해), `share`와 `dismiss`(AC-16이 요구하듯 수정된 세부 사항을 텍스트로 공유할 수 있게), `confirm`(온보딩 흐름이 요구하는 설정 확인)을 더합니다 | 변경 공유를 웹에서만 허용 | 설계 8 | `lib/server/imessage-commands.ts`의 `parseCommand` |
+
+### 운영 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 로컬 스택 | 이 브랜치의 체인으로 초기화한 기본 로컬 Supabase 스택. 다른 단계의 세션이 이 스택을 상대로 실행 중이지 않았기 때문입니다(5단계와 7단계는 병합됨) | 7단계처럼 별도 스택 | 인수 기록 | — (로컬 전용) |
+| 따른 참조 | personal-agent 템플릿(`1c444386`의 `vercel-labs/personal-agent-template`): `agent/channels/photon.ts`(핸들은 번호 또는 Apple ID이며 D2가 이를 유지함; 메시지 텍스트가 실행 제목이 되지 않도록 고정된 실행 제목; 알 수 없는 번호에 대한 낯선 사람 세션은 따르지 않음: 세션 자체를 만들지 않음)와 `app/components/profile/PhoneInput.vue`(마스크가 있는 국가 선택기; 우리 대체 입력란은 E.164 번호를 직접 받고 공백과 구두점을 제거함). OpenInstinct(`0c2a7c6e`의 `Merit-Systems/OpenInstinct`): `agent/channels/linq.ts`와 `agent/lib/linq/transport.ts`(채널 뒤의 전송 모듈 하나, `lib/server/photon.ts`가 이를 따름), 그리고 지금은 `db/services/auth/tests/linq.test.ts`, `db/services/auth/tests/linq-delivery.test.ts`, `tests/agent/channels/linq-inbound-auth.test.ts`에 있는 테스트(결과마다 테스트 하나: 거부된 포워더, 버려지는 연결되지 않은 핸들, 범위가 정해진 검증된 핸들)이며, 우리 수신기, 채널, 발신함 테스트가 그 구성을 따릅니다. `e3c01d2`의 폐기된 반복 1 설계(발신함, 확인 응답 전 내구성 있는 웹훅, 불확실한 전송 잠금)와 eve 0.80.1에 포함된 `@photon-ai/chat-adapter-imessage`(서명 방식, 네이티브 채널 동작). 2026-10-23에 읽었으며 코드는 복사하지 않았습니다 | — | 풀 리퀘스트 | — |
+| 독립 검토 | 별도의 검토 에이전트가 풀 리퀘스트 전에 브랜치를 읽었습니다. 연결되지 않은 발신자, 그룹, 다른 호스트, 위조된 웹훅이 권한을 얻을 방법은 찾지 못했고, 중간 수준 6건과 낮은 수준 9건을 찾았습니다; 중간 수준 6건과 위에 표시한 낮은 수준 항목은 모두 회귀 테스트와 함께 한 커밋에서 고쳤습니다. 바꾸지 않은 것: 검토가 열린 질문으로 제기한 연결 간 잠금 대기는 구조를 바꾸는 대신 5초 잠금 제한시간으로 한정했고, 요청을 기다린 뒤 iOS Safari가 메시지를 여는지는 기기 확인에 맡깁니다 | 풀 리퀘스트를 먼저 여는 것 | 이 기록("검토"로 표시한 행); 수정 커밋 | — |
+| 회선 없는 스파이크 | 회선 프로비저닝과 번호로 문자 보내기는 사용자에게 막혀 있으므로, 스파이크는 eve 0.80.1에 포함된 Photon 어댑터 소스, Photon의 웹훅 문서, Spectrum SDK 12.14.0 타입 선언, PR #23으로 어댑터를 비교했고, 기기에 의존하는 사실(딥링크 동작, 실제 iPhone의 발신자 형식, 발송 경로)은 합류 단계로 남겼습니다 | 회선을 기다린 뒤 선택 | 설계 1; 이 기록 | — |
+
+### 사용자 대기 항목
+
+다음 단계는 되돌려도 취소할 수 없거나, 제공자 콘솔이 필요하거나, 사람들에게 문자를 보내기 때문에 수행하지 않았습니다.
+
+- **Photon 회선:** 프로비저닝된 회선이 없고 프로젝트 자격 증명도 설정되지 않았습니다.
+- **Photon 웹훅:** `{origin}/photon/webhook`에 등록된 웹훅이 없습니다.
+- **실제 번호로의 문자 발송,** 스파이크 중 포함. 통제된 iPhone을 가진 사용자가 함께 있어야 합니다.
+- **공유 프로젝트 마이그레이션과 프로덕션 배포**(이 브랜치).
+- **실제 기기 확인**(AC-16 ~ AC-18, 딥링크와 QR 코드, 발신자 식별자), 통제된 iPhone에서.
+- **팀원 검토**(D1–D14), 이어서 변경의 `openspec archive`.
 
 ## 7단계 — `requester-email-channel`
 

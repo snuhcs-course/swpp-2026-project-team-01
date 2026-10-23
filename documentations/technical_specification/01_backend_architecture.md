@@ -89,7 +89,7 @@ Cloudflare delivers contact-verification and recovery messages and confirmed-boo
 
 ### iMessage
 
-Photon Spectrum is the selected transport direction. A host-sent one-time link code, consumed by the channel before any model turn and confirmed in the authenticated browser, binds that sender to the active host; the service-sent six-digit code typed into the browser is the fallback, and either path binds only after browser confirmation. Unlinked/group senders get no private state. Freeze explicit request selection before dispatch; ambiguous replies do not select a request or approve a proposal. Unlinking revokes future access. Contact-card saving is optional and establishes no identity proof. Native versus application-owned adapter suitability needs a fresh spike.
+Photon Spectrum is the selected transport direction. A host-sent one-time link code, consumed by the channel before any model turn and confirmed in the authenticated browser, binds that sender to the active host; the service-sent six-digit code typed into the browser is the fallback, and either path binds only after browser confirmation. Unlinked/group senders get no private state. Freeze explicit request selection before dispatch; ambiguous replies do not select a request or approve a proposal. Unlinking revokes future access. Contact-card saving is optional and establishes no identity proof. The Phase 6 spike chose an application-owned adapter: a signed receiver that stores receipts before acknowledging, and an outbox whose uncertain sends are never repeated ([`host-imessage-channel` design 1](../../openspec/changes/host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter)).
 
 ## Operations and verification
 

@@ -264,32 +264,41 @@ Evidence: AC-14, AC-15, AC-19 through AC-25 for Dots, Muse, Instinct, ChatGPT, C
 
 Goal: a linked host handles everyday scheduling in iMessage.
 
-Scope. Prerequisite: the new OpenSpec change is written and reviewed first; Phase 2 for setup over iMessage and Phase 4 for decisions. The spike in Lane A gates Lane C's transport choice but not its command parsing.
+Scope. Prerequisite: Phase 2 for setup over iMessage and Phase 4 for decisions. The spike in Lane A gates Lane C's transport choice but not its command parsing. Every lane also waits for the proposal below, reviewed before any lane codes, since the retired iteration-1 artifacts must not be extended.
 
-**Lane A — specification and transport spike**
+**Proposal (serial, first)**
 
-- [ ] Write the fresh OpenSpec change that replaces the retired iteration-1 `imessage-agent` spec and `host-imessage-assistant` change with the selected design.
-- [ ] Spike: native Photon channel versus an application-owned adapter, chosen on durable receipt, acknowledgment, exact sender identity and recovery evidence; record the sender identifier format.
+- [x] Proposal for [`host-imessage-channel`](../../openspec/changes/host-imessage-channel/proposal.md), replacing the retired iteration-1 `imessage-agent` spec and `host-imessage-assistant` change, with the decisions to settle and the coverage table.
+- [x] [Design](../../openspec/changes/host-imessage-channel/design.md).
+- [x] Delta spec under [`specs/`](../../openspec/changes/host-imessage-channel/specs/), the new `host-imessage-channel` capability.
+- [x] [Tasks](../../openspec/changes/host-imessage-channel/tasks.md).
+- [x] Owning-document updates and Korean mirrors, including the one-tap deep link the user decided on 2026-10-23.
+- [ ] Teammate review.
+
+**Lane A — transport spike**
+
+- [x] Spike: native Photon channel versus an application-owned adapter, chosen on durable receipt, acknowledgment, exact sender identity and recovery evidence; record the sender identifier format.
+- [x] Signed receiver with durable receipts, and the isolated outbound transport with its outbox, against a Photon stand-in and signed-webhook fixtures.
 
 **Lane B — linking card in the web workspace**
 
-- [ ] Inline **Connect iMessage** card: one-time link code with **Copy** and **Open Messages**, masked-sender **Confirm and link**, the service-sent six-digit fallback with a protected code field, expiry and resend limits, unlink, **Maybe later**.
-- [ ] Optional **Add to contacts** card with truthful queued, accepted, failed and uncertain states.
+- [x] **Connect iMessage** gets a one-time link code from the server and at once opens Messages with the line's number as the recipient and the exact link message in the input (`sms:<number>&body=<text>` on iOS, `sms:<number>?body=<text>` on Android); where Messages cannot open, the inline card shows the number, the code, **Copy** and a QR code of the same deep link. Then the masked-sender **Confirm and link**, the service-sent six-digit fallback (**Send me a code instead**) with a protected code field, expiry and resend limits, unlink, **Maybe later**. Opening Messages never counts as linking.
+- [x] Optional **Add to contacts** card with truthful queued, accepted, failed and uncertain states.
 
 **Lane C — channel and commands**
 
-- [ ] `channels/photon.ts` mapping a verified sender to `host:{hostId}` with the selected request; unlinked and group senders get no session; inbound link message consumed before any model turn.
-- [ ] Exact commands `request <reference>`, `review`, `changes`, approve and decline with the review reference, and `setup`, parsed as application commands before any model turn.
-- [ ] Proposal summaries and outcomes delivered to the linked conversation; delivery failure visible in `/app`; queued receipts under admission budgets.
-- [ ] Setup over iMessage: suggestion questions and plain-text answers update the shared draft; final settings confirmation uses the exact authored command on the current review.
+- [x] `channels/photon.ts` mapping a verified sender to `host:{hostId}` with the selected request; unlinked and group senders get no session; inbound link message consumed before any model turn.
+- [x] Exact commands `request <reference>`, `review`, `changes`, approve and decline with the review reference, and `setup`, parsed as application commands before any model turn.
+- [x] Proposal summaries and outcomes delivered to the linked conversation; delivery failure visible in `/app`; queued receipts under admission budgets.
+- [x] Setup over iMessage: suggestion questions and plain-text answers update the shared draft; final settings confirmation uses the exact authored command on the current review.
 
 **Join**
 
 - [ ] Link on a controlled iPhone, select a request, revise, approve; run the Phase 6 evidence list.
 
-Specs: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md) (messaging backpressure, redaction of linking proofs), [messaging-environments](../../openspec/specs/messaging-environments/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), plus the new iMessage delta.
+Specs: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md) (messaging backpressure, redaction of linking proofs), [messaging-environments](../../openspec/specs/messaging-environments/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), plus the new `host-imessage-channel` delta.
 
-Decisions settled here: adapter choice and sender identifier format; line provisioning and the daily new-conversation allowance; code expiry and resend limits; the `sms:` deep-link body format verified on iPhone and macOS Messages.
+Decisions settled here: adapter choice and sender identifier format; line provisioning and the daily new-conversation allowance; code expiry and resend limits; the one-tap deep link's `sms:` formats per platform (decided by the user on 2026-10-23), verified on a real iPhone at the join.
 
 Evidence: AC-16, AC-17, AC-18 on a controlled iPhone against the production deployment, including replay after restart and simulated delivery failure; recorded device and client versions.
 
@@ -460,7 +469,7 @@ Not carried: the travel-table heuristic (replaced by Google Routes with buffers)
 | Online meeting link creation | Phase 3 proposal (D6), moved from Phase 4 because requester agreement covers the link plan | PRD section 10, meeting-requests spec |
 | Contact confirmation, request creation bounds, Cloudflare setup, `evaluate_candidates` placement, booking-link storage, local messaging, the public page's conversation, verification before agreement, one continuous guest thread | Phase 3 proposal (D3–D5, D7–D12 decided 2026-10-21; D13 decided 2026-10-22) | Meeting-requests, email-delivery and messaging-environments specs; provider setup; agent configuration |
 | MCP protocol version, registration, scopes, CLI packaging | Phase 5 proposal | Agent-client authorization spec, CLI direction |
-| iMessage adapter, code expiry, line provisioning | Phase 6 proposal | Provider setup, new iMessage change |
+| iMessage adapter, code expiry, line provisioning, the one-tap deep link | Phase 6 proposal (D1–D14 decided 2026-10-23) | Provider setup, new iMessage change |
 | AgentMail adapter and retention | Phase 7 proposal (D1–D11 decided 2026-10-22) | Provider setup |
 | Measurement targets, retention and deletion, support ownership | Phase 8 proposal | PRD sections 2 and 10 |
 
