@@ -101,7 +101,7 @@ A linked host's free text SHALL become an accepted input of the discussion the h
 - **THEN** the question appears in that request's private discussion in `/app` and the assistant's answer arrives in iMessage
 
 ### Requirement: Summaries and outcomes
-A host with an active binding SHALL receive in the linked conversation one summary per event when a request arrives, when a proposal awaits approval (with the exact approve and decline commands for its reference) and when a booking is confirmed or not confirmed. Summaries SHALL be frozen from domain records in the transaction of the change they report.
+A host with an active binding SHALL receive in the linked conversation one summary per event when a request arrives, when a proposal awaits approval (with the exact approve and decline commands for its reference) and when a booking is confirmed, not confirmed or still pending. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
 
 #### Scenario: Proposal awaits approval
 - **WHEN** the requester agrees to a proposal of a host with an active binding

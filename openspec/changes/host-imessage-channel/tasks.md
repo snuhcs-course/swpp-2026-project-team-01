@@ -25,7 +25,7 @@ Before each group, read the [Phase 6 reference repository files](../../../docume
 - [x] 4.1 Add the receipt job's channel side ([design 7](design.md#7-what-an-inbound-message-may-do)): order, backpressure, unlinked and group senders, non-text content. Verify integration tests for each row of the table.
 - [x] 4.2 Add the exact commands and references ([design 8](design.md#8-exact-commands)). Verify tests for each command, stale and ambiguous references, a replayed approval after a restart while a web action occurs, and "yes" forwarded rather than approving.
 - [x] 4.3 Add forwarding and turn replies ([design 9](design.md#9-forwarding-and-replies)) with the host instruction fragment. Verify an integration test through `eve dev` with the OpenAI stand-in for a forwarded message and its reply, and the fallback text.
-- [ ] 4.4 Add the host summaries ([design 10](design.md#10-summaries-and-outcomes)) and the failure display in `/app`. Verify tests for each summary queued once, suppression after unlinking and a failed delivery shown on the web with no change to the request.
+- [x] 4.4 Add the host summaries ([design 10](design.md#10-summaries-and-outcomes)) and the failure display in `/app`. Verify tests for each summary queued once, suppression after unlinking and a failed delivery shown on the web with no change to the request.
 - [ ] 4.5 Add setup over iMessage ([design 12](design.md#12-setup-over-imessage)) and the retention cleanup ([design 13](design.md#13-retention)). Verify tests for `setup`, `review` and `confirm` with a stale reference, and the cleanup.
 
 ## 5. Join

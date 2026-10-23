@@ -11,6 +11,7 @@ import type {
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
 import type { Queryable, Transaction } from "./database";
 import { publishEvaluation, readEvaluation, type StoredCandidate } from "./evaluation";
+import { enqueueHostNotice } from "./imessage-notices";
 import { assertIdentified, lockOpenRequest } from "./request-guard";
 import { detailsComplete } from "./request-lifecycle";
 
@@ -311,6 +312,7 @@ export const agreeCommand: CommandDefinition<z.infer<typeof agreeInput>, AgreeRe
       update app.requests set state = 'awaiting_host_approval', revision = revision + 1, updated_at = now()
       where id = ${request.id}
     `;
+    await enqueueHostNotice(tx, request.id, { kind: "awaiting_approval", version: latest.version });
 
     return { revision: request.revision + 1, state: "awaiting_host_approval", version: latest.version };
   },

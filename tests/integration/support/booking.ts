@@ -35,9 +35,12 @@ export async function agreedRequest(
     readonly events?: FakeEvent[];
     readonly settings?: Partial<ConfirmedSettings>;
     readonly candidateIndex?: number;
+    // Runs once the request exists, before the requester agrees.
+    readonly beforeAgree?: (request: SchedulingRequest) => Promise<void>;
   } = {},
 ): Promise<AgreedRequest> {
   const request = await seedSchedulingRequest(db, google, options);
+  await options.beforeAgree?.(request);
   const evaluated = await asRequester(db, request.requestId, evaluateCommand, {});
   if (!evaluated.ok) throw new Error(`evaluate failed: ${evaluated.error.category}`);
   await runEvaluation(db, evaluationDeps(db, google), evaluated.result.evaluationId);

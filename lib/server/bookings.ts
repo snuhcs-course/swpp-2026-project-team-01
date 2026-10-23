@@ -17,6 +17,7 @@ import {
   type HostCalendar,
   openHostCalendar,
 } from "./google-calendar";
+import { enqueueHostNotice } from "./imessage-notices";
 import { type ClaimedJob, type JobHandler, publishJob } from "./jobs";
 import { cancelReservedBooking, closeRequest } from "./request-lifecycle";
 import { endpointHasher } from "./routes-client";
@@ -418,6 +419,7 @@ async function settleFailure(
     update app.requests set state = ${requestState}, revision = revision + 1, updated_at = now()
     where id = ${booking.request_id} and state = 'booking'
   `;
+  await enqueueHostNotice(tx, booking.request_id, { bookingId: booking.id, kind: "booking_failed" });
 }
 
 async function cancelForClosure(tx: Transaction, booking: JobBooking, failure: "withdrawn" | "declined" | "expired") {
@@ -641,6 +643,7 @@ async function confirm(tx: Transaction, deps: BookingDependencies, booking: JobB
   if (confirmed.length === 0) return false;
 
   await closeRequest(tx, booking.request_id, "booked", { fromBooking: true });
+  await enqueueHostNotice(tx, booking.request_id, { bookingId: booking.id, kind: "booking_confirmed" });
   const [proposal] = await tx<{ details: LatestProposal["details"] }[]>`select details from app.proposals where id = ${booking.proposal_id}`;
   const linkPlan = proposal?.details.linkPlan ?? null;
 
@@ -703,6 +706,8 @@ export function createBookingPendingHandler(load: () => NoticeDependencies = not
       where b.id = ${bookingId}
     `;
     if (booking?.state !== "dispatching") return { sent: false };
+
+    await enqueueHostNotice(tx, booking.request_id, { bookingId, kind: "booking_pending" });
 
     await enqueueStatusNotice(tx, load(), booking.request_id, {
       bookingId,

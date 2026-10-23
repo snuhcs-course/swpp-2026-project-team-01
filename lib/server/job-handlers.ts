@@ -6,6 +6,8 @@ import { createEmailReceiptHandler } from "./email-receipts";
 import { createEmailReplyHandler, EMAIL_REPLY_JOB } from "./email-replies";
 import { createEvaluationHandler, EVALUATION_JOB } from "./evaluation";
 import { createImessageSendHandler, IMESSAGE_SEND_JOB } from "./imessage-outbox";
+import { createImessageNoticeHandler } from "./imessage-notice-job";
+import { IMESSAGE_NOTICE_JOB } from "./imessage-notices";
 import { createImessageReceiptHandler } from "./imessage-receipts";
 import type { JobHandler } from "./jobs";
 import { createLinkResendHandler, LINK_RESEND_JOB } from "./link-resend";
@@ -22,6 +24,7 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
   [EMAIL_RECEIPT_JOB]: createEmailReceiptHandler(),
   [EMAIL_REPLY_JOB]: createEmailReplyHandler(),
   [EVALUATION_JOB]: createEvaluationHandler(),
+  [IMESSAGE_NOTICE_JOB]: createImessageNoticeHandler(),
   [IMESSAGE_RECEIPT_JOB]: createImessageReceiptHandler(),
   [IMESSAGE_SEND_JOB]: createImessageSendHandler(),
   [LINK_RESEND_JOB]: createLinkResendHandler(),

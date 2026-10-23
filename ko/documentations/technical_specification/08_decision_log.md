@@ -244,7 +244,7 @@
 | D9 | 발신 메시지마다 고정되고 봉인된 발신함 행 하나를 `imessage_send`가 보내며, 시작되었지만 응답을 잃은 발송은 `uncertain`이 되어 다시 보내지 않고, 발송 전 거부는 최대 5회 재시도하며, 호스트 전용 행은 연결 해제 뒤 억제됩니다 | 불확실 발송 재시도(Photon은 확인 가능한 멱등성 키를 주지 않으므로 호스트가 중복을 받을 수 있음) | 제안서; 설계 3 | `lib/server/imessage-outbox.ts` |
 | D10 | 연동되지 않은 직접 발신자에게는 24시간에 한 번 `/app`을 안내하는 고정 회신 하나를 보내고, 그룹 대화, 에코, 리액션에는 아무것도 보내지 않습니다 | 침묵(iMessage 우선 소개에는 안내가 없음); 모든 메시지에 회신 | 제안서; 설계 7 | `lib/server/imessage-receipts.ts`의 `UNLINKED_REPLY_HOURS` |
 | D11 | 전달된 텍스트는 공유 논의에 `[iMessage] …`로 저장하고, 호스트 지시 조각이 iMessage에는 카드가 없음을 알리고 결정에 쓸 명령을 명시합니다 | 별도의 iMessage 논의; 표시 없음 | 제안서; 설계 9; 에이전트 구성 | `lib/server/imessage-receipts.ts`의 `IMESSAGE_PREFIX`; `agent/instructions/host-imessage.ts` |
-| D12 | 새 요청, 승인 대기 중인 제안(정확한 명령 포함), 확정된 예약, 확정되지 않은 예약에 대한 호스트 요약을 도메인 트랜잭션에서 고정해 이벤트당 한 번 보냅니다 | 모든 상태 변경에 대한 요약 | 제안서; 설계 10 | `lib/server/imessage-notices.ts`의 `enqueueHostNotice` |
+| D12 | 새 요청, 승인 대기 중인 제안(정확한 명령 포함), 확정된 예약, 확정되지 않은 예약, 아직 보류 중인 예약에 대한 호스트 요약을 이벤트당 `imessage_notice` 작업 하나로 도메인 트랜잭션에 기록하고, 작업이 이벤트의 레코드로부터 고정합니다 | 모든 상태 변경에 대한 요약. 도메인 트랜잭션에서 아웃박스 행을 봉인하는 방식(모든 명령에 토큰 키가 필요해짐) | 제안서; 설계 10 | `lib/server/imessage-notices.ts`의 `enqueueHostNotice`; `lib/server/imessage-notice-job.ts` |
 | D13 | **연락처에 추가(Add to contacts)**는 네이티브 연락처 카드 공유 하나를 큐에 넣고, 상태는 큐에 있음, 수락됨, 실패, 불확실이며 "저장됨"은 절대 아니고, 불확실한 동안에는 재전송하지 않습니다 | 연동 시 카드를 자동으로 공유 | 제안서; 설계 11 | `lib/server/imessage-links.ts`의 `imessage.contact_card.share` |
 | D14 | 수신 텍스트는 처리 시 지우고 수신 기록은 30일 뒤 삭제하며, 발신함 텍스트는 최종 상태에서 지우고, 연결 시도와 종료된 바인딩은 종료 30일 뒤 삭제합니다 | 진단용으로 수신 텍스트 보관 | 제안서; 설계 13 | `app.cleanup_imessage_records`와 새 마이그레이션 |
 

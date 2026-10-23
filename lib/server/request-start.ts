@@ -6,6 +6,7 @@ import { hashBookingId, openBookingLink, sealBookingLink } from "./booking-links
 import { type CommandDefinition, CommandError } from "./commands";
 import { issueContactConfirmation } from "./contact-confirmation";
 import type { Queryable, Transaction } from "./database";
+import { enqueueHostNotice } from "./imessage-notices";
 import { hostAcceptsRequests, type LockedRequest, lockOpenRequest } from "./request-guard";
 import { requestExpiresAt } from "./request-lifecycle";
 import { recordRequesterGrants, type RequesterGoogleIdentity } from "./requester-grants";
@@ -235,6 +236,7 @@ export async function identifyDraft(
   if (identity.google) await recordRequesterGrants(tx, options.tokenKey, request.id, identity.google);
 
   await issueContactConfirmation(tx, { origin: options.origin, requestId: request.id, tokenKey: options.tokenKey });
+  await enqueueHostNotice(tx, request.id, { kind: "new_request" });
 
   return { revision: request.revision + 1, state: "gathering" };
 }
