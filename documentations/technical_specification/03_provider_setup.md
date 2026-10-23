@@ -149,3 +149,9 @@ The [`operations-and-release` change](../../openspec/changes/operations-and-rele
 - **Uncertain email, thread reply or iMessage.** No command resends it: the delivery contracts forbid a second send of a message that may have arrived. If the person needs the information, answer them through support.
 
 Both commands print the environment and the action and ask for the typed ID unless `--yes` is given. Every recovery is recorded in `app.operator_operations` with the operator, the action, the target, the state found, the reason and the environment.
+
+### Backup restoration
+
+- **Drill.** `npm run restore:drill` (add `-- --keep` to inspect the result) runs inside the local stack's database container. It builds `fmat_drill_source` from the local schema and migration history, fills it with the synthetic fixture `supabase/tests/fixtures/restore-drill.sql`, backs it up with `pg_dump --format=custom`, restores the backup into the empty `fmat_drill_restored` with `pg_restore`, and compares every table's row count and row hash, the migration history and constraint validity, then runs the diagnostics snapshot on the restored copy. It prints counts and hashes only, checks that the local database did not change, and drops both databases. Run it before the release and after every change that adds migrations; the [acceptance record](07_acceptance_record.md#phase-8--operations-and-release) holds the last run.
+- **Hosted backup.** Restore only into a **new** project, never over a live one: either Supabase's daily backup or point-in-time restore into a new project from the dashboard, or a `supabase db dump` file restored with `pg_restore` into a new project's database. Compare the restored project with the drill's checks before pointing anything at it. Real backups hold personal data: keep them in the provider, never copy them to a laptop or into Git. Restoring is the repository owner's step (D3).
+

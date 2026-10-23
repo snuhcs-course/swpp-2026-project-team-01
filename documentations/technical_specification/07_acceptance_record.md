@@ -368,3 +368,16 @@ Fixture and local-stack evidence only; each names the test that shows it.
 - **Real multi-turn inbox delivery** with an authorized recipient is pending: `findmeatime@agentmail.to` is blocked by the three-inbox limit, no webhook is registered, and the migrations are not on the shared project (decision log, "Blocked on the user").
 - **AgentMail behavior assumed from its documentation:** `authentication_results`, `extracted_text`, the reply endpoint's `Idempotency-Key` semantics and Svix signing are exercised only against the stand-in.
 - **Real model replies by email** were not graded; the journey used the OpenAI stand-in.
+
+## Phase 8 — `operations-and-release`
+
+Change: [`operations-and-release`](../../openspec/changes/operations-and-release/tasks.md). Evidence list: [Phase 8](06_implementation_plan.md#phase-8--operations-and-release). Environments as in Phase 1; this branch ran on the default local stack, reset with its own migration chain.
+
+### Evidence by item
+
+| Item | Evidence |
+|---|---|
+| Diagnostics snapshot and rejection counts | `tests/integration/diagnostics.test.ts`: ten categories in a fixed order with the coverage not measured; counts over every match with an oldest-first, bounded and repeatable sample; no payload, outcome, kind or failure text in the output; an uncertain booking and email reported unchanged; an expired lease left in place; Data API roles denied; recognized command rejections counted only while enabled; the original rejection kept when collection fails or hangs; 40 concurrent increments; pruning and saturation. Unit tests in `lib/server/diagnostics.test.ts` and `lib/server/diagnostics-admin.test.ts` |
+| Recovery | `tests/integration/recovery-operations.test.ts`: a requeued exhausted job completes and a stale claim is fenced out; a job that is not exhausted and an unknown job are refused; no change without `--yes` or the typed ID; a booking whose write was lost is reconciled into the existing event, with one event in the fake Google Calendar; a booking with a live job or not dispatching is refused; Data API roles denied; audit rows for each recovery |
+| Backup restoration | `npm run restore:drill` on 2026-10-23 at `d6e470fa`, local stack: 85 tables and 415 synthetic rows compared equal after `pg_dump --format=custom` and `pg_restore` into `fmat_drill_restored`; migration history 29 records to `20261023063140` on both sides; 0 constraints not valid; the diagnostics snapshot ran on the restored copy; the local database unchanged. `tests/integration/restore-drill.test.ts` repeats the drill and shows the comparison names a changed table |
+

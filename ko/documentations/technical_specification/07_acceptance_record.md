@@ -370,3 +370,16 @@
 - **실제 다중 턴 받은편지함 전달**은 허가된 수신자와 함께하는 것이 보류 중입니다: `findmeatime@agentmail.to`는 받은편지함 세 개 한도에 막혀 있고, 등록된 웹훅이 없으며, 마이그레이션이 공유 프로젝트에 없습니다(결정 기록의 "사용자 대기 항목").
 - **문서를 근거로 가정한 AgentMail 동작:** `authentication_results`, `extracted_text`, 답장 엔드포인트의 `Idempotency-Key` 의미, Svix 서명은 스탠드인을 상대로만 검증되었습니다.
 - **이메일을 통한 실제 모델 답장**은 평가되지 않았으며, 이 여정은 OpenAI 스탠드인을 사용했습니다.
+
+## 8단계 — `operations-and-release`
+
+변경: [`operations-and-release`](../../openspec/changes/operations-and-release/tasks.md). 증거 목록: [8단계](06_implementation_plan.md#phase-8--operations-and-release). 환경은 1단계와 같으며, 이 브랜치는 기본 로컬 스택에서 자체 마이그레이션 체인으로 초기화한 뒤 실행되었습니다.
+
+### 항목별 증거
+
+| 항목 | 증거 |
+|---|---|
+| 진단 스냅샷과 거부 횟수 | `tests/integration/diagnostics.test.ts`: 고정된 순서의 범주 열 개와 측정되지 않은 범위; 모든 일치 항목에 대한 횟수와 오래된 것부터, 제한되고, 반복 가능한 표본; 출력에 페이로드, 결과, 종류, 실패 문구가 없음; 불확실한 예약과 이메일은 바뀌지 않은 채 보고됨; 만료된 임대는 그대로 남음; Data API 역할은 거부됨; 인식된 명령 거부는 활성화된 동안에만 집계됨; 수집이 실패하거나 멈추면 원래의 거부가 유지됨; 동시 증가 40건; 정리와 포화. 단위 테스트는 `lib/server/diagnostics.test.ts`와 `lib/server/diagnostics-admin.test.ts` |
+| 복구 | `tests/integration/recovery-operations.test.ts`: 재큐된 소진 작업은 완료되고 오래된 점유는 차단됨; 소진되지 않은 작업과 알 수 없는 작업은 거부됨; `--yes`나 입력된 ID 없이는 변경 없음; 쓰기가 유실된 예약은 기존 이벤트로 조정되며 가짜 Google Calendar에는 이벤트가 하나; 라이브 작업이 있거나 발송 중이 아닌 예약은 거부됨; Data API 역할은 거부됨; 복구마다 감사 행 |
+| 백업 복원 | 2026-10-23 `d6e470fa`에서 로컬 스택으로 실행한 `npm run restore:drill`: `pg_dump --format=custom`과 `pg_restore`로 `fmat_drill_restored`에 복원한 뒤 테이블 85개와 합성 행 415개가 동일하게 비교됨; 마이그레이션 이력은 양쪽 모두 `20261023063140`까지 29개 기록; 유효하지 않은 제약 조건 0개; 복원본에서 진단 스냅샷이 실행됨; 로컬 데이터베이스는 변하지 않음. `tests/integration/restore-drill.test.ts`가 훈련을 반복하고 비교가 바뀐 테이블을 지목함을 보여 줌 |
+

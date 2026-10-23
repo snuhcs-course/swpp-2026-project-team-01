@@ -360,7 +360,7 @@ Scope. Prerequisite: Phase 4 for diagnostics to have something to inspect; the r
 
 **Lane B — data stewardship**
 
-- [ ] Backup restoration into an isolated database with synthetic populated state.
+- [x] Backup restoration into an isolated database with synthetic populated state.
 - [ ] Retention and deletion rules; AI-provider data handling and consent disclosures.
 
 **Lane C — environments and domain**

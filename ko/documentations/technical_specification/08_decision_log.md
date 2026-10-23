@@ -409,6 +409,9 @@
 | 조정 작업 | 종류 `booking`, `bookingId` 페이로드, 승인 작업과 같은 8회 시도, 감사 행을 이름으로 가리키는 중복 제거 키, 그리고 올바른 워커가 가져가도록 `--project`에는 생산자 환경 `production`, `--local`에는 `local` | CLI에서 예약 핸들러를 직접 호출하기: 운영자의 컴퓨터에 호스트의 Calendar 자격 증명이 필요해집니다 | `app.operator_reconcile_booking` | 함수와 `lib/server/recovery-operations.ts`의 `producerFor` |
 | 복구 감사 | 외래 키가 없는 `operator_operations`이며, 레인 B의 삭제에도 사용합니다. 정지 감사는 `operator_actions`에 그대로 둡니다 | 모든 운영자 작업을 위한 감사 테이블 하나: 2단계의 테이블이 바뀝니다 | `operator_operations` 스키마 | 테이블과 새 마이그레이션 |
 | 확인 | 공유 `confirmChange`가 환경과 작업을 출력하고 입력된 ID를 대소문자 구분 없이 비교합니다 | 명령마다 별도의 프롬프트 | `lib/server/operator-shared.ts` | 그 안의 `confirmChange` |
+| 훈련 데이터베이스 | 로컬 스택 컨테이너 안의 데이터베이스 두 개이며, `auth` 스키마를 읽을 수 있는 `supabase_admin`으로 훈련이 만들고 삭제하고, 덤프 파일은 컨테이너 안에 머물렀다가 삭제됩니다 | 두 번째 Postgres 컨테이너; 호스트 디스크의 덤프 | `scripts/restore-drill.ts` | 그 안의 `SOURCE`, `RESTORED`, `DUMP` |
+| 훈련 비교 | `app`, `auth`, `supabase_migrations`에 대해 테이블별 행 수와 정렬된 모든 행의 텍스트 형태에 대한 MD5, 그리고 마이그레이션 이력과 `pg_constraint.convalidated` | 행 수만 비교하기 | `scripts/restore-drill.ts` | 그 안의 `tableFingerprints` |
+| 훈련 픽스처 | 생성된 호스트, 신원, 핸들, 설정, 다섯 가지 상태의 요청, 예약 링크, 전달, 작업, 명령 결과, 운영자 작업, 거부 구간을 담은 일반 SQL 파일이며 주소는 모두 `example.test`입니다 | 통합 스위트를 원본에 실행하기 | `supabase/tests/fixtures/restore-drill.sql` | 그 픽스처 |
 
 ### 운영 결정
 

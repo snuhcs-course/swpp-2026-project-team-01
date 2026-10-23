@@ -17,7 +17,7 @@ Before each group, read the [Phase 8 reference repository files](../../../docume
 
 ## 3. Data stewardship (Lane B)
 
-- [ ] 3.1 Add `scripts/restore-drill.ts` and its synthetic fixture ([design 7](design.md#7-backup-restoration)) and the runbook. Verify one drill run on the local stack and record its summary.
+- [x] 3.1 Add `scripts/restore-drill.ts` and its synthetic fixture ([design 7](design.md#7-backup-restoration)) and the runbook. Verify one drill run on the local stack and record its summary.
 - [ ] 3.2 Add `app.cleanup_retained_records` and its hourly schedule ([design 8](design.md#8-retention)), `app.operator_delete_host`, `app.operator_delete_request` and their commands ([design 9](design.md#9-deletion-on-request)). Verify integration tests per retention rule, the open-request guard, host deletion with the handle tombstone and the Auth user, a refused restore and a deleted request.
 - [ ] 3.3 Add `/privacy` in English and Korean and its links ([design 11](design.md#11-disclosures)). Verify a Playwright check of both languages and the links at 390 and 1280 pixels.
 
