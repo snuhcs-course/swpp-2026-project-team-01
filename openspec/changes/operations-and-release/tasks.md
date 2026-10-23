@@ -11,9 +11,9 @@ Before each group, read the [Phase 8 reference repository files](../../../docume
 
 ## 2. Diagnostics and recovery (Lane A)
 
-- [ ] 2.1 Add `rejection_observations` and `operator_operations`, `app.operator_diagnostics_snapshot`, `app.record_rejection` and `app.operator_rejection_snapshot` ([design 4](design.md#4-the-snapshot), [5](design.md#5-rejection-observations)), generate the migration, and verify `supabase db reset --local` and the grant tests.
-- [ ] 2.2 Add `diagnostics snapshot` and `diagnostics rejections` to the administrator CLI and rejection collection to the command pipeline. Verify unit tests for parsing and categorization and integration tests for every category, bounded deterministic samples, redaction, concurrent increments, saturation, pruning, and disabled, failing and slow collection.
-- [ ] 2.3 Add `app.operator_requeue_job`, `app.operator_reconcile_booking` and the `recover job` and `recover booking` commands ([design 6](design.md#6-recovery)). Verify integration tests for a requeued job that completes, a stale claim fenced out, a refused non-exhausted job, a reconciled booking after a lost response, a refused booking with a live job, confirmation and audit rows.
+- [x] 2.1 Add `rejection_observations`, `app.operator_diagnostics_snapshot`, `app.record_rejection` and `app.operator_rejection_snapshot` ([design 4](design.md#4-the-snapshot), [5](design.md#5-rejection-observations)), generate the migration, and verify `supabase db reset --local` and the grant tests.
+- [x] 2.2 Add `diagnostics snapshot` and `diagnostics rejections` to the administrator CLI and rejection collection to the command pipeline. Verify unit tests for parsing and categorization and integration tests for every category, bounded deterministic samples, redaction, concurrent increments, saturation, pruning, and disabled, failing and slow collection.
+- [ ] 2.3 Add `operator_operations`, `app.operator_requeue_job`, `app.operator_reconcile_booking` and the `recover job` and `recover booking` commands ([design 6](design.md#6-recovery)). Verify integration tests for a requeued job that completes, a stale claim fenced out, a refused non-exhausted job, a reconciled booking after a lost response, a refused booking with a live job, confirmation and audit rows.
 
 ## 3. Data stewardship (Lane B)
 

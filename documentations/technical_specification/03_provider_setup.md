@@ -131,4 +131,13 @@ Test Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code individually, 
 
 Before the first remote application schema/API activation and each controlled provider test, identify local/preview/release configuration, project-bound credentials and consumers without printing secrets. This gate applies to every change that activates a provider; it is not deferred until a release audit. Previews default to no live delivery. Inventory and fence any competing callback/worker consumers before activation, and preserve rollback ownership. Record exact commands only when the owning implementation exists and is verified. Remote schema push requires the identified target and reviewed dry run under repository guidance.
 
-Backups, redacted diagnostics, retention/deletion and measured budgets need runbooks in the operations change. Nothing in this document grants external messaging, migration deployment or production promotion.
+Backups, redacted diagnostics, retention/deletion and measured budgets have runbooks in [Operations runbook](#operations-runbook) below. Nothing in this document grants external messaging, migration deployment or production promotion.
+
+## Operations runbook
+
+The [`operations-and-release` change](../../openspec/changes/operations-and-release/design.md) adds these operator steps. Every command runs from a checkout with `npm run admin --`, names exactly one environment (`--local` for the local stack, or `--project <ref>` with the operator's own `SUPABASE_ACCESS_TOKEN` through the Management API) and an `--operator` name, and never prints credentials, recipients, payloads or message text. The operator on rotation (D3) runs them.
+
+### Daily diagnostics
+
+- `npm run admin -- diagnostics snapshot --operator <name> --project <ref>` prints ten categories: exhausted, lease-expired and overdue jobs; bookings whose write may exist (`bookings_uncertain`) and reservations older than 15 minutes; uncertain transactional emails and thread replies; uncertain or failed iMessage sends; failed conversation sessions; and inputs unanswered after 10 minutes. Each shows its count, its oldest timestamp and up to 20 identifiers (`--samples` lowers it; `--json` prints the object). It changes nothing, an expired lease included, and an empty snapshot is not proof that providers or deliveries work.
+- `npm run admin -- diagnostics rejections --operator <name> --project <ref>` prints the authorization-denial and stale-action counts of the current and preceding 23 UTC hours. They are recorded only while `DIAGNOSTICS_REJECTIONS=1` is set on the deployment, only for failures that reached the command pipeline, and a bucket stops at 10,000 and says so. A rise in denials points to probing or a broken client; a rise in stale actions to people acting on old proposals.

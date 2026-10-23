@@ -355,7 +355,7 @@ Scope. Prerequisite: Phase 4 for diagnostics to have something to inspect; the r
 
 **Lane A — diagnostics and recovery**
 
-- [ ] Operational diagnostics snapshot and bounded rejection observations through the administrator CLI.
+- [x] Operational diagnostics snapshot and bounded rejection observations through the administrator CLI.
 - [ ] Audited recovery operations for uncertain writes and exhausted jobs.
 
 **Lane B — data stewardship**

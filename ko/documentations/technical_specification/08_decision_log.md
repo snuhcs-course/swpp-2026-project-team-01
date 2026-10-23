@@ -396,6 +396,16 @@
 | D13 | 릴리스: `findmeatime-release` 뒤의 `mriseqztcwmezvtawnbo`; 스테이징: `dev.findmeatime.com`의 `findmeatime-dev` 뒤의 공유 프로젝트; 릴리스 마이그레이션은 환경 승인을 거치는 수동 워크플로로 | 단일 환경 유지; 릴리스용 두 번째 Vercel 프로젝트 | 제안서; 설계 12; 제공자 설정 | `.github/workflows/deploy-release.yml`과 제공자 설정 |
 | D14 | `APP_ORIGIN`이 설정되어 있지만 릴리스 출처가 아닌 프로덕션 배포는 스테이징이며 메시지 발송이 거부됨 | 릴리스 프로젝트의 새 옵트인 변수. 설정할 때까지 프로덕션 메일이 멈추게 됨 | 제안서; 설계 12; `messaging-environments` 델타 | `lib/server/messaging.ts`의 `RELEASE_ORIGINS` |
 
+### 구현 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 스냅샷 형태 | `app.operator_diagnostics_snapshot`이 만드는 `jsonb` 객체 하나이며, `app.diagnostics_category`가 상수 쿼리 열 개로 구성합니다. 세션은 런타임 세션 ID가 아니라 저장된 해시로 식별합니다 | 범주마다 뷰 하나; CLI에서 범주마다 쿼리 하나 | `supabase/schemas/app/functions/operator_diagnostics.sql` | 함수와 새 마이그레이션 |
+| 버킷 정렬 | `date_bin('1 hour', …, '2000-01-01 00:00:00+00')`, 세션 시간대에 의존하지 않으며 테이블의 체크 제약에도 사용합니다 | `date_trunc('hour', …)`, 세션의 `TimeZone`을 따릅니다 | `rejection_observations` 스키마 | 테이블, 함수, 새 마이그레이션 |
+| 수집 지점 | `runCommand`에서 `commandFailure` 뒤에, `deps.db`(풀)와 `deps.env`로 실행하므로 롤백된 명령 트랜잭션이 횟수를 잃게 하지 않고 테스트의 환경이 결정합니다 | 명령 트랜잭션 안; 각 라우트 안 | `lib/server/commands.ts` | `lib/server/diagnostics.ts`의 `observeRejection` |
+| CLI 구성 | 공유 헬퍼는 `lib/server/operator-shared.ts`로 옮기고, 진단은 `lib/server/diagnostics-admin.ts`에 두며, `operator.ts`는 첫 단어로 분기합니다 | 계속 커지는 `operator.ts` 하나 | 해당 모듈들 | — |
+| 출력 | 기본은 읽기 쉬운 줄이고, `--json`은 환경을 더한 데이터베이스의 객체를 출력합니다. 모두 0인 스냅샷은 정상의 증거가 아님을 출력합니다 | JSON만 | `lib/server/diagnostics-admin.ts` | 같은 파일의 `printSnapshot`과 `printRejections` |
+
 ### 운영 결정
 
 | 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |

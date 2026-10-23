@@ -394,6 +394,16 @@ The [proposal](../../openspec/changes/operations-and-release/proposal.md#decisio
 | D13 | Release: `mriseqztcwmezvtawnbo` behind `findmeatime-release`; staging: the shared project behind `findmeatime-dev` on `dev.findmeatime.com`; release migrations through a manual, environment-approved workflow | Keeping one environment; a second Vercel project for release | Proposal; design 12; provider setup | `.github/workflows/deploy-release.yml` and provider setup |
 | D14 | A production deployment with a set `APP_ORIGIN` that is not a release origin is staging and is denied messaging | A new opt-in variable on the release project, which would stop production mail until set | Proposal; design 12; `messaging-environments` delta | `RELEASE_ORIGINS` in `lib/server/messaging.ts` |
 
+### Implementation decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Snapshot shape | One `jsonb` object from `app.operator_diagnostics_snapshot`, built by `app.diagnostics_category` from ten constant queries; sessions are identified by their stored hash, never the runtime session ID | A view per category; a query per category from the CLI | `supabase/schemas/app/functions/operator_diagnostics.sql` | The function and a new migration |
+| Bucket alignment | `date_bin('1 hour', …, '2000-01-01 00:00:00+00')`, which does not depend on the session time zone, also in the table's check | `date_trunc('hour', …)`, which follows the session's `TimeZone` | `rejection_observations` schema | The table, the functions and a new migration |
+| Collection point | After `commandFailure` in `runCommand`, on `deps.db` (the pool) with `deps.env`, so the rolled-back command transaction cannot drop the count and a test's environment decides | Inside the command transaction; in each route | `lib/server/commands.ts` | `observeRejection` in `lib/server/diagnostics.ts` |
+| CLI layout | The shared helpers moved to `lib/server/operator-shared.ts`; diagnostics live in `lib/server/diagnostics-admin.ts`; `operator.ts` dispatches by the first word | One growing `operator.ts` | The modules | — |
+| Output | Readable lines by default and `--json` for the database's object with the environment added; an all-zero snapshot prints that it is not proof of health | JSON only | `lib/server/diagnostics-admin.ts` | `printSnapshot` and `printRejections` there |
+
 ### Operational decisions
 
 | Decision | Choice | Alternatives | Recorded in | To change it |
