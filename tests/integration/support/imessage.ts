@@ -1,15 +1,18 @@
 import { randomUUID } from "node:crypto";
+import type { MessageStreamEvent } from "eve/client";
 import type { ConversationRuntime } from "../../../lib/server/conversations";
 import type { Database } from "../../../lib/server/database";
 import { runCommand } from "../../../lib/server/commands";
 import { imessageCommands, readImessageStatus } from "../../../lib/server/imessage-links";
-import { createImessageSendHandler, IMESSAGE_SEND_JOB, type ImessageSendDependencies } from "../../../lib/server/imessage-outbox";
+import { createImessageSendHandler, IMESSAGE_SEND_JOB, type ImessageSendDependencies, wakeImessageReplies } from "../../../lib/server/imessage-outbox";
+import { recordInputReceived, recordTurnEnded } from "../../../lib/server/session-owner";
 import { createImessageReceiptHandler, type ImessageReceiptDependencies } from "../../../lib/server/imessage-receipts";
 import { photonConfig } from "../../../lib/server/photon";
 import type { SetupDependencies } from "../../../lib/server/setup";
 import { IMESSAGE_RECEIPT_JOB, receivePhotonWebhook } from "../../../lib/server/photon-receiver";
 import { linkMessage } from "../../../lib/contracts/imessage";
 import { createGoogleUser } from "./auth";
+import { SIGNING_KEY } from "./guests";
 import type { FakePhoton } from "./fake-photon";
 import { type MessageFixture, messagesEvent, newSender, signedWebhook, TEST_LINE, TEST_WEBHOOK_ID, TEST_WEBHOOK_SECRET } from "./photon";
 import { runJob, testNotices, testTokenKey } from "./requests";
@@ -29,6 +32,7 @@ export function imessageHarness(
   const config = () => ({ ...photonConfig({}), apiUrl: photon().baseUrl, lineNumber: TEST_LINE });
   const receiptDeps = (): ImessageReceiptDependencies => ({
     config: config(),
+    conversation: { admission: { serviceKey: admissionKey }, db, runtime, signingKey: SIGNING_KEY },
     db,
     env: {},
     notices: testNotices,
@@ -38,19 +42,31 @@ export function imessageHarness(
     tokenKeys: [testTokenKey],
     ...options.receipt?.(),
   });
+  // A recording runtime whose sessions can be given a turn's recorded events.
+  const sessions = new Map<string, { sent: { message: string }[]; events: MessageStreamEvent[] }>();
   const runtime: ConversationRuntime = options.runtime ?? {
-    createSession: async () => "unused",
+    createSession: async () => {
+      const id = `wrun_${randomUUID()}`;
+      sessions.set(id, { events: [], sent: [] });
+      return id;
+    },
     readEvents: () => (async function* () {})(),
-    readRecordedEvents: () => (async function* () {})(),
-    sendMessage: async () => undefined,
+    readRecordedEvents: (sessionId) =>
+      (async function* () {
+        yield* sessions.get(sessionId)?.events ?? [];
+      })(),
+    sendMessage: async (sessionId, _bearer, message) => {
+      sessions.get(sessionId)?.sent.push({ message });
+    },
   };
+  const admissionKey = `test:${randomUUID()}`;
   const sendDeps = (): ImessageSendDependencies => ({
     config: config(),
     db,
     env: {},
     origin: "http://localhost:3000",
     runtime,
-    signingKey: "s".repeat(40),
+    signingKey: SIGNING_KEY,
     tokenKeys: [testTokenKey],
   });
   const commands = (lineDayLimit = 1000) =>
@@ -59,7 +75,59 @@ export function imessageHarness(
   return {
     config,
     receiptDeps,
+    runtime,
     sendDeps,
+    sessions,
+    // What the session-owner hook records when the turn that served the input ends.
+    async endTurn(inputId: string, finalText: string | null) {
+      const [input] = await db<{ session_id: string }[]>`select session_id from app.conversation_inputs where id = ${inputId}`;
+      const sessionId = input!.session_id;
+      const deliveryId = `dlv_${randomUUID()}`;
+      await recordInputReceived(db, sessionId, [deliveryId]);
+      const meta = { at: new Date().toISOString(), deliveryIds: [deliveryId] };
+      const events = sessions.get(sessionId)!.events;
+      events.push({ data: { finishReason: "tool-calls", message: "Let me check.", sequence: 0, stepIndex: 0, turnId: "t" }, meta, type: "message.completed" } as unknown as MessageStreamEvent);
+      if (finalText) {
+        events.push({ data: { finishReason: "stop", message: finalText, sequence: 1, stepIndex: 1, turnId: "t" }, meta, type: "message.completed" } as unknown as MessageStreamEvent);
+      }
+      await recordTurnEnded(db, sessionId);
+      await wakeImessageReplies(db, sessionId);
+    },
+    async inputsOf(hostAccountId: string) {
+      return db<{ id: string; message: string; state: string; session_id: string | null; request_id: string | null }[]>`
+        select i.id, i.message, i.state, i.session_id, d.request_id from app.conversation_inputs i
+        join app.discussions d on d.id = i.discussion_id
+        where d.principal_type = 'host_account' and d.principal_id = ${hostAccountId}
+        order by i.accepted_at
+      `;
+    },
+    // Stores a message as the receiver would, without running its job.
+    async store(fixture: MessageFixture & { readonly sender: string }) {
+      const id = fixture.id ?? `msg_${randomUUID()}`;
+      const response = await receivePhotonWebhook(signedWebhook(messagesEvent({ ...fixture, id })), () => ({
+        config: { secret: TEST_WEBHOOK_SECRET, webhookId: TEST_WEBHOOK_ID },
+        db,
+        tokenKey: testTokenKey,
+      }));
+      if (response.status !== 200) throw new Error(`The receiver answered ${response.status}.`);
+      return (await db<{ id: string }[]>`select id from app.imessage_receipts where message_id = ${id}`)[0]!.id;
+    },
+    // Processes a stored receipt, then puts it back as a rolled-back job would
+    // leave it (unprocessed, its sealed values intact) and processes it again.
+    async processTwice(receiptId: string) {
+      const [before] = await db<{ text_ciphertext: string | null; sender_ciphertext: string; space_ciphertext: string }[]>`
+        select text_ciphertext, sender_ciphertext, space_ciphertext from app.imessage_receipts where id = ${receiptId}
+      `;
+      await this.runReceipt(receiptId);
+      await db`
+        update app.imessage_receipts
+        set outcome = null, processed_at = null, text_ciphertext = ${before!.text_ciphertext},
+            sender_ciphertext = ${before!.sender_ciphertext}, space_ciphertext = ${before!.space_ciphertext}
+        where id = ${receiptId}
+      `;
+      await db`update app.jobs set state = 'pending' where kind = ${IMESSAGE_RECEIPT_JOB} and dedupe_key = ${`receipt:${receiptId}`}`;
+      return this.runReceipt(receiptId);
+    },
     // Delivers a message as Photon would and runs its receipt job once.
     async deliver(fixture: MessageFixture & { readonly sender: string }, deps: ImessageReceiptDependencies = receiptDeps()) {
       const id = fixture.id ?? `msg_${randomUUID()}`;
@@ -129,7 +197,7 @@ export function imessageHarness(
 }
 
 export function textOf(sent: { readonly content: { readonly kind: string; readonly text?: string } }[]) {
-  return sent.map((send) => (send.content.kind === "text" ? send.content.text : `[${send.content.kind}]`));
+  return sent.map((send) => (send.content.kind === "text" ? (send.content.text ?? "") : `[${send.content.kind}]`));
 }
 
 // A host account behind a real local Auth user and Google identity, as sign-in

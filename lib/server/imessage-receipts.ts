@@ -1,13 +1,25 @@
+import { getChatMessageLengthError } from "../contracts/chat-message";
 import { type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
+import { AdmissionLimitError } from "./conversation-admission";
+import {
+  acceptHostMessage,
+  agentUrlFromEnvironment,
+  type ConversationDependencies,
+  ConversationInputError,
+  eveRuntime,
+  HostRequestNotFoundError,
+} from "./conversations";
 import { database, type Database, type Transaction } from "./database";
 import { findLinkCode } from "./email-links";
+import { HostIneligibleError } from "./host-eligibility";
+import { internalSigningKey } from "./internal-bearer";
 import { activeBindingOfSender, bindingContext, receiveLinkCode, refusalSentRecently } from "./imessage-links";
 import { recordOutbound } from "./imessage-outbox";
-import type { JobHandler } from "./jobs";
+import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
 import { executeCommand, parseCommand } from "./imessage-commands";
 import { photonConfig, type PhotonConfig, photonTransport, SPECTRUM_ENDPOINT } from "./photon";
-import { receiptSealContext } from "./photon-receiver";
+import { IMESSAGE_RECEIPT_JOB, receiptSealContext } from "./photon-receiver";
 import { type SetupDependencies, setupDependenciesFromEnvironment } from "./setup";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -43,15 +55,19 @@ export type ImessageReceiptDependencies = {
   readonly setup: SetupDependencies;
   // A decline notifies the requester, as from the web.
   readonly notices: NoticeDependencies;
+  // Free text enters the host's discussions through the same path as /app.
+  readonly conversation: ConversationDependencies;
   readonly env?: Environment;
 };
 
 function receiptDependenciesFromEnvironment(): ImessageReceiptDependencies {
   const tokenKey = tokenKeyFromEnvironment();
   const setup = setupDependenciesFromEnvironment();
+  const db = database();
   return {
     config: photonConfig(),
-    db: database(),
+    conversation: { db, runtime: eveRuntime(agentUrlFromEnvironment()), signingKey: internalSigningKey() },
+    db,
     notices: noticeDependenciesFromEnvironment(),
     origin: setup.appOrigin,
     setup,
@@ -60,11 +76,111 @@ function receiptDependenciesFromEnvironment(): ImessageReceiptDependencies {
   };
 }
 
-// The bound host's text: an exact command runs before any model turn.
+// Forwarded text is marked, so the shared transcript and the assistant know
+// where it came from (D11).
+export const IMESSAGE_PREFIX = "[iMessage] ";
+
+export const FORWARD_TEXTS = {
+  tooLong: "That message is too long for Thyme. Please send a shorter one.",
+  requestGone: "That request isn't available any more, so this went to your setup conversation. Send requests to choose another.",
+} as const;
+
+// An admission budget refused the message: the receipt waits at least a minute.
+export class AdmissionDeferredError extends Error {
+  constructor() {
+    super("An admission budget deferred this message.");
+    this.name = "AdmissionDeferredError";
+  }
+}
+
+async function fixedReply(tx: Transaction, deps: ImessageReceiptDependencies, message: BoundMessage, kind: "command", text: string) {
+  await recordOutbound(tx, {
+    bindingId: message.bindingId,
+    dedupeKey: `receipt:${message.receipt.id}`,
+    hostAccountId: message.hostAccountId,
+    kind,
+    recipient: message.recipient,
+    recipientHash: message.receipt.senderHash,
+    text,
+    tokenKey: deps.tokenKey,
+  });
+}
+
+// Free text becomes an accepted input of the selected discussion (setup, or the
+// selected request's private review), keyed by the receipt so a retried job
+// finds the same input, and a reply waits for the turn that serves it.
+async function forward(tx: Transaction, deps: ImessageReceiptDependencies, message: BoundMessage): Promise<ReceiptOutcome> {
+  const text = `${IMESSAGE_PREFIX}${message.text}`;
+  if (getChatMessageLengthError(text)) {
+    await fixedReply(tx, deps, message, "command", FORWARD_TEXTS.tooLong);
+    return "replied";
+  }
+
+  let requestId = message.selectedRequestId;
+  let fellBack = false;
+
+  for (;;) {
+    try {
+      await acceptHostMessage(deps.conversation, message.authUserId, { clientInputId: message.receipt.id, message: text }, requestId);
+      break;
+    } catch (error) {
+      if (error instanceof AdmissionLimitError) throw new AdmissionDeferredError();
+      if (error instanceof HostRequestNotFoundError && requestId) {
+        await tx`update app.imessage_bindings set selected_request_id = null where id = ${message.bindingId} and state = 'active'`;
+        requestId = null;
+        fellBack = true;
+        continue;
+      }
+      if (error instanceof HostIneligibleError) return "ignored";
+      // A runtime refusal leaves the input recorded and accepted: the next
+      // message or recovery delivers it, and its reply waits for that turn.
+      if (error instanceof ConversationInputError && error.code === "runtime_unavailable") break;
+      if (error instanceof ConversationInputError) return "ignored";
+      throw error;
+    }
+  }
+
+  const [input] = await deps.db<{ id: string }[]>`
+    select i.id from app.conversation_inputs i
+    join app.discussions d on d.id = i.discussion_id
+    where d.principal_type = 'host_account' and d.principal_id = ${message.hostAccountId}
+      and d.request_id is not distinct from ${requestId} and i.client_input_id = ${message.receipt.id}
+  `;
+  if (!input) throw new Error("The forwarded input was not recorded.");
+
+  if (fellBack) {
+    await recordOutbound(tx, {
+      bindingId: message.bindingId,
+      dedupeKey: `receipt:${message.receipt.id}:fallback`,
+      hostAccountId: message.hostAccountId,
+      kind: "command",
+      recipient: message.recipient,
+      recipientHash: message.receipt.senderHash,
+      text: FORWARD_TEXTS.requestGone,
+      tokenKey: deps.tokenKey,
+    });
+  }
+
+  await recordOutbound(tx, {
+    bindingId: message.bindingId,
+    dedupeKey: `input:${input.id}`,
+    hostAccountId: message.hostAccountId,
+    inputId: input.id,
+    kind: "turn",
+    recipient: message.recipient,
+    recipientHash: message.receipt.senderHash,
+    requestId,
+    tokenKey: deps.tokenKey,
+  });
+  return "forwarded";
+}
+
+// The bound host's text: an exact command runs before any model turn; anything
+// else is forwarded.
 export const channelProcessor: ChannelProcessor = async (tx, deps, message) => {
   const command = parseCommand(message.text);
   if (command) return executeCommand(tx, deps, message, command);
-  return "ignored";
+  return forward(tx, deps, message);
 };
 
 type ReceiptRow = {
@@ -111,6 +227,11 @@ function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedReceipt 
     return null;
   }
 }
+
+// A receipt an admission budget refused waits this long before its next try,
+// and gives up after this many tries (about four hours).
+export const ADMISSION_RETRY_SECONDS = 60;
+export const ADMISSION_DEFERRALS = 240;
 
 // An earlier message of the same conversation is not processed yet.
 export class EarlierReceiptPendingError extends Error {
@@ -260,7 +381,28 @@ export function createImessageReceiptHandler(load: () => ImessageReceiptDependen
     if (earlier) throw new EarlierReceiptPendingError();
 
     const opened = openReceipt(deps.tokenKeys, row);
-    const outcome = opened ? await processReceipt(tx, deps, opened, channelProcessor) : "ignored";
+    let outcome: ReceiptOutcome;
+
+    try {
+      outcome = opened ? await processReceipt(tx, deps, opened, channelProcessor) : "ignored";
+    } catch (error) {
+      if (!(error instanceof AdmissionDeferredError)) throw error;
+      // Retried no earlier than a minute later by a new job, so the job's own
+      // shorter backoff does not apply; later messages still wait behind it.
+      const deferrals = typeof job.payload.deferrals === "number" ? job.payload.deferrals : 0;
+      if (deferrals >= ADMISSION_DEFERRALS) {
+        await record(tx, row.id, "ignored");
+        return { outcome: "ignored", receiptId };
+      }
+      await publishJob(tx, {
+        dedupeKey: `receipt:${row.id}:deferred:${deferrals + 1}`,
+        kind: IMESSAGE_RECEIPT_JOB,
+        maxAttempts: job.maxAttempts,
+        payload: { deferrals: deferrals + 1, receiptId: row.id },
+        runAfter: new Date(Date.now() + ADMISSION_RETRY_SECONDS * 1000),
+      });
+      return { outcome: "deferred", receiptId };
+    }
 
     await record(tx, row.id, outcome);
     return { outcome, receiptId };

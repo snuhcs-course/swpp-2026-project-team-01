@@ -105,22 +105,11 @@ describe("request commands", () => {
     // A restart after the approval committed but before the receipt's job did:
     // the job's transaction rolled back, so the receipt is unprocessed again and
     // its retry replays the saved approval.
-    const replayId = `msg_${randomUUID()}`;
-    const stored = await receivePhotonWebhook(signedWebhook(messagesEvent({ id: replayId, sender, text: `approve ${decision}` })), receiver);
-    expect(stored.status).toBe(200);
-    const [receipt] = await db<Record<string, unknown>[]>`select * from app.imessage_receipts where message_id = ${replayId}`;
-    await im.runReceipt(receipt!.id as string);
-    await db`
-      update app.imessage_receipts
-      set outcome = null, processed_at = null, text_ciphertext = ${receipt!.text_ciphertext as string},
-          sender_ciphertext = ${receipt!.sender_ciphertext as string}, space_ciphertext = ${receipt!.space_ciphertext as string}
-      where id = ${receipt!.id as string}
-    `;
-    await db`update app.jobs set state = 'pending' where dedupe_key = ${`receipt:${receipt!.id as string}`}`;
-    await im.runReceipt(receipt!.id as string);
+    const replayId = await im.store({ sender, text: `approve ${decision}` });
+    await im.processTwice(replayId);
     expect(await approvalsOf(request.requestId)).toHaveLength(1);
     expect(await db`select 1 from app.bookings where request_id = ${request.requestId}`).toHaveLength(1);
-    expect(await db`select 1 from app.imessage_outbox where dedupe_key = ${`receipt:${receipt!.id as string}`}`).toHaveLength(1);
+    expect(await db`select 1 from app.imessage_outbox where dedupe_key = ${`receipt:${replayId}`}`).toHaveLength(1);
 
     // A web approval meanwhile, then another iMessage approval: still one booking.
     const web = await asHost(db, request.hostAccountId, request.requestId, approveCommand, { version: 1 });

@@ -49,6 +49,7 @@ async function hostSends(db: Database, sender: string, text: string) {
     job!.id,
     createImessageReceiptHandler(() => ({
       config,
+      conversation: { db, runtime, signingKey: "s".repeat(40) },
       db,
       env: {},
       notices: { origin: "http://localhost:3100", tokenKey, tokenKeys: [tokenKey] },

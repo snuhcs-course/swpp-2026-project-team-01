@@ -263,6 +263,9 @@
 | 대체 코드 재전송 | 재전송은 번호가 아니라 열려 있는 시도(`{ resend: true }`)를 지정하는데, 카드는 번호를 가려진 형태로만 알기 때문입니다 | 번호를 브라우저로 반환 | 설계 6 | `sendImessageCodeCommand` |
 | 결정 리비전 | `approve`, `decline`, `share`, `dismiss`는 참조와 함께 읽은 요청 리비전을 명령의 기대 리비전으로 넘기고, `confirm`은 초안 리비전을 넘기므로, 읽은 뒤 결정하기 전에 변경이 생기면 거절됩니다 | 리비전을 넘기지 않음(명령이 이를 거절함) | 설계 8 | `lib/server/imessage-commands.ts`의 `decide`, `changes`, `confirmSettings` |
 | 채널 트랜잭션 | 명령과 전달은 바인딩 갱신과 응답을 위해 수신 작업의 트랜잭션 안에서 실행되므로, 응답이 수신의 결과와 함께 커밋됩니다; 결정과 대화 입력은 각자의 연결에서 별도 트랜잭션으로 커밋하며, 재시도 키와 클라이언트 입력 ID 덕분에 반복해도 안전합니다 | 모든 쓰기를 각자의 연결에서 실행(바인딩에 대한 작업의 행 잠금이 선택 갱신을 막음) | 설계 8 | `lib/server/imessage-receipts.ts`의 `ChannelProcessor` |
+| 수락 보류 | 수락 예산이 거절한 수신은 결과 `deferred`로 작업을 완료하고, 60초 뒤에 처리될 새 수신 작업을 게시합니다(최대 240회, 이후 수신은 무시됨). 작업 자체의 백오프가 20초에서 시작하는 반면 chat-workspaces 계약은 1분보다 일찍 처리하지 말라고 하기 때문입니다; 같은 대화의 이후 메시지는 그 뒤에서 계속 기다립니다 | 예외를 던져 20초 백오프를 따름 | 설계 7 | `lib/server/imessage-receipts.ts`의 `ADMISSION_RETRY_SECONDS`와 `ADMISSION_DEFERRALS` |
+| 선택한 요청이 사라짐 | 더 이상 호스트의 것이 아니거나 초안인 요청을 선택한 상태에서 온 자유 텍스트는 선택을 해제하고, 설정으로 보내며, 안내를 한 번 보냅니다 | 메시지를 거절함 | 설계 9 | `lib/server/imessage-receipts.ts`의 `forward` |
+| 턴 응답 길이 | 턴 응답은 가린 뒤 2,000자로 자르고 나머지는 `/app`에서 보도록 안내합니다; 최종 텍스트가 없는 턴이나 실패한 세션은 고정된 대체 문구를 보내고, 30분 안에 끝나지 않은 턴의 응답은 보내지 않습니다 | 긴 응답을 여러 메시지로 나눔 | 설계 9 | `lib/server/imessage-outbox.ts`의 `imessageTurnText`와 `TURN_REPLY_WAIT_MINUTES` |
 | 계획의 목록을 넘는 명령 | 계획은 `request`, `review`, `changes`, 승인, 거절, `setup`을 꼽습니다; 이 변경은 `help`, `requests`(참조를 알기 위해), `share`와 `dismiss`(AC-16이 요구하듯 수정된 세부 사항을 텍스트로 공유할 수 있게), `confirm`(온보딩 흐름이 요구하는 설정 확인)을 더합니다 | 변경 공유를 웹에서만 허용 | 설계 8 | `lib/server/imessage-commands.ts`의 `parseCommand` |
 
 ### 운영 결정
