@@ -157,3 +157,13 @@ Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code를 각각 개별적으
 - **훈련.** `npm run restore:drill`(결과를 살펴보려면 `-- --keep`을 추가)은 로컬 스택의 데이터베이스 컨테이너 안에서 실행됩니다. 로컬 스키마와 마이그레이션 이력으로 `fmat_drill_source`를 만들고, 합성 픽스처 `supabase/tests/fixtures/restore-drill.sql`로 채운 뒤, `pg_dump --format=custom`으로 백업하고, 그 백업을 비어 있는 `fmat_drill_restored`에 `pg_restore`로 복원하며, 모든 테이블의 행 수와 행 해시, 마이그레이션 이력, 제약 조건의 유효성을 비교한 다음 복원본에서 진단 스냅샷을 실행합니다. 횟수와 해시만 출력하고, 로컬 데이터베이스가 바뀌지 않았는지 확인하며, 두 데이터베이스를 삭제합니다. 출시 전과 마이그레이션을 추가하는 모든 변경 뒤에 실행하십시오. 마지막 실행은 [인수 기록](07_acceptance_record.md#phase-8--operations-and-release)에 있습니다.
 - **호스팅된 백업.** 라이브 프로젝트 위에는 절대 복원하지 말고 **새** 프로젝트에만 복원하십시오. 대시보드에서 Supabase의 일일 백업 또는 시점 복구(point-in-time restore)를 새 프로젝트로 복원하거나, `supabase db dump` 파일을 새 프로젝트의 데이터베이스에 `pg_restore`로 복원합니다. 무엇이든 그 프로젝트로 연결하기 전에 훈련의 검사와 같은 항목으로 복원된 프로젝트를 비교하십시오. 실제 백업에는 개인 정보가 들어 있으므로 공급자 안에 두고, 노트북으로 복사하거나 Git에 넣지 마십시오. 복원은 저장소 소유자의 단계입니다(D3).
 
+### 보존과 삭제
+
+- **보존**은 저절로 실행됩니다. `pg_cron` 작업 `app-retention`이 매시간 17분에 `app.cleanup_retained_records(1000)`을 호출합니다. 종료된 요청은 하위 항목 전체와 함께 종료 90일 뒤에, 완료된 작업, 명령 결과, 링크 재발송 기록, 승인 구간, 에이전트 프로토콜 시도는 30일 뒤에, 소진된 작업과 모델 예약은 90일 뒤에, 운영자 감사 행은 1년 뒤에 삭제하며, 실행 한 번당 규칙마다 최대 1,000행까지 삭제합니다. 앞선 규칙은 그대로입니다. Calendar 분석, 가입과 생성 시도, 초안은 24시간 뒤, 이메일과 iMessage 기록은 30일 뒤, 요청자 권한 부여는 종료 시점에 삭제합니다. 다음으로 확인하십시오: `select * from cron.job_run_details where jobid = (select jobid from cron.job where jobname = 'app-retention') order by start_time desc limit 5`.
+- **요청에 따른 삭제.** 요청이 계정에 등록된 주소에서 왔는지 확인한 뒤 `npm run admin -- delete-host --host <handle-or-id> --reason <text> --operator <name> --project <ref>` 또는 `npm run admin -- delete-request --request <id> --reason <text> --operator <name> --project <ref>`를 실행하십시오. 요청자의 경우 그가 보낸 예약 링크로 요청을 찾습니다: `select request_id from app.booking_links where link_hash = encode(sha256(convert_to(lower('<bookingId>'), 'UTF8')), 'hex')`(`lib/server/booking-links.ts`의 `hashBookingId`가 계산하는 해시). 호스트에게는 핸들 이력이 담긴 정지 상태의 이름 없는 계정 행만 남으므로 그 핸들은 다른 누구에게도 배정되지 않으며, `restore`는 이를 거부하고, 같은 Google 계정은 나중에 새로 가입합니다. 두 명령 모두 예약 쓰기가 있을 수 있는 동안에는 거부하므로, 먼저 `recover booking`으로 조정하십시오. 이미 만들어진 Calendar 이벤트, 본인의 메일, AgentMail 스레드, Photon 대화, OpenAI의 악용 로그는 데이터베이스 밖에 있으므로 답장에서 그렇게 알리십시오.
+- **고지.** [`/privacy`](../../apps/web/app/privacy/page.tsx)는 이 규칙을 호스트와 요청자를 위해 영어와 한국어로 밝힙니다. 보존이나 공급자가 바뀌는 변경과 같은 풀 리퀘스트에서 이 페이지도 바꾸십시오.
+
+### 지원
+
+지원 메일은 `support@findmeatime.com`으로 오며, 이는 영역의 Cloudflare MX 레코드 위에 있는 Email Routing 별칭으로 당번 운영자에게 전달됩니다(D3). 별칭을 만드는 일은 아직 하지 않은 콘솔 단계입니다. 영업일 이틀 안에 답하십시오. 토큰, 예약 링크, 다른 사람의 데이터는 답장에 붙여 넣지 마십시오.
+

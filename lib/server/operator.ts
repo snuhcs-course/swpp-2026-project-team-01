@@ -17,6 +17,7 @@ import {
 } from "./operator-shared";
 import { DIAGNOSTICS_USAGE, runDiagnosticsAdmin } from "./diagnostics-admin";
 import { RECOVERY_USAGE, runRecoveryAdmin } from "./recovery-operations";
+import { DELETION_USAGE, runDeletionAdmin } from "./data-deletion";
 
 export { type AdminDependencies, AdminUsageError, environmentName, sqlLiteral } from "./operator-shared";
 
@@ -27,7 +28,7 @@ export { type AdminDependencies, AdminUsageError, environmentName, sqlLiteral } 
 // same statement. It holds no user credential: `--local` uses the local stack's
 // DATABASE_URL and `--project` the operator's own Supabase access token.
 
-export const ADMIN_USAGE = `fmat-admin: operate Find Me a Time: hosts, email receivers, diagnostics and recovery.
+export const ADMIN_USAGE = `fmat-admin: operate Find Me a Time: hosts, email receivers, diagnostics, recovery and deletion.
 
 Usage:
   npm run admin -- show --host <handle-or-id> --operator <name> (--local | --project <ref>)
@@ -38,6 +39,7 @@ Usage:
   npm run admin -- email-receiver disable --receiver <id> --operator <name> (--local | --project <ref>) [--yes]
 ${DIAGNOSTICS_USAGE}
 ${RECOVERY_USAGE}
+${DELETION_USAGE}
 
   --local            Use DATABASE_URL, which must point at the local stack (127.0.0.1 or localhost).
   --project <ref>    Use the Supabase Management API with your own SUPABASE_ACCESS_TOKEN.
@@ -51,7 +53,10 @@ the inbox's earlier receiver. Point the AgentMail webhook at
 diagnostics prints the redacted snapshot and the hourly rejection counts and
 changes nothing. recover job gives an exhausted job more attempts; recover
 booking starts the reconciliation of a booking whose write is uncertain. Neither
-resends an uncertain message, and each is audited.`;
+resends an uncertain message, and each is audited. delete-host and
+delete-request erase a host's or a request's data on request; a deleted host
+keeps only a suspended, nameless account with its handle history and cannot be
+restored.`;
 
 const COMMANDS = ["show", "suspend", "restore"] as const;
 type Command = (typeof COMMANDS)[number];
@@ -339,6 +344,7 @@ export async function runAdmin(argv: readonly string[], deps: AdminDependencies)
   if (argv[0] === "email-receiver") return runReceiverAdmin(argv, deps);
   if (argv[0] === "diagnostics") return runDiagnosticsAdmin(argv, deps, ADMIN_USAGE);
   if (argv[0] === "recover") return runRecoveryAdmin(argv, deps, ADMIN_USAGE);
+  if (argv[0] === "delete-host" || argv[0] === "delete-request") return runDeletionAdmin(argv, deps, ADMIN_USAGE);
 
   let request: AdminRequest;
 
@@ -380,7 +386,9 @@ export async function runAdmin(argv: readonly string[], deps: AdminDependencies)
       request.target.kind === "local" ? await runLocal(sql, deps.env) : await runProject(sql, request.target.ref, deps);
   } catch (error) {
     const message = (error as Error).message;
-    deps.stderr(`fmat-admin: ${/unknown host/.test(message) ? `no host matches ${request.host}.` : message}`);
+    deps.stderr(
+      `fmat-admin: ${/unknown host/.test(message) ? `no host matches ${request.host}.` : /deleted host/.test(message) ? "that host's data was deleted on request; it cannot be changed." : message}`,
+    );
     return 1;
   }
 

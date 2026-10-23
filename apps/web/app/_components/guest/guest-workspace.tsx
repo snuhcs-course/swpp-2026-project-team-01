@@ -285,7 +285,10 @@ export function GuestWorkspace({
       <p className="text-sm">
         {identified
           ? "This conversation is private to you: anyone with its link can act on this request, so keep the link to yourself."
-          : "Requests are accepted here, and you do not need an account. Tell Thyme what the meeting is about; when Thyme asks, give your name and email in this conversation, with or without Google."}
+          : "Requests are accepted here, and you do not need an account. Tell Thyme what the meeting is about; when Thyme asks, give your name and email in this conversation, with or without Google."}{" "}
+        <a className="underline underline-offset-4" href="/privacy">
+          How we handle your data
+        </a>
       </p>
       {chrome && !identified ? chrome : null}
       <TimezoneLine onChoose={timezone.choose} zone={timezone.zone} />
@@ -605,6 +608,11 @@ function IdentityCard({ context }: { readonly context: RequesterCardContext }) {
             </Button>
           ) : null}
         </GuestCardActions>
+        <p className="pt-2 text-muted-foreground text-sm">
+          <a className="underline underline-offset-4" href="/privacy#calendar">
+            How we use your calendar
+          </a>
+        </p>
       </form>
       {manual ? (
         <form className="flex flex-col gap-2" noValidate onSubmit={(event) => void continueWithoutGoogle(event)}>

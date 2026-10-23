@@ -383,3 +383,6 @@
 | 복구 | `tests/integration/recovery-operations.test.ts`: 재큐된 소진 작업은 완료되고 오래된 점유는 차단됨; 소진되지 않은 작업과 알 수 없는 작업은 거부됨; `--yes`나 입력된 ID 없이는 변경 없음; 쓰기가 유실된 예약은 기존 이벤트로 조정되며 가짜 Google Calendar에는 이벤트가 하나; 라이브 작업이 있거나 발송 중이 아닌 예약은 거부됨; Data API 역할은 거부됨; 복구마다 감사 행 |
 | 백업 복원 | 2026-10-23 `d6e470fa`에서 로컬 스택으로 실행한 `npm run restore:drill`: `pg_dump --format=custom`과 `pg_restore`로 `fmat_drill_restored`에 복원한 뒤 테이블 85개와 합성 행 415개가 동일하게 비교됨; 마이그레이션 이력은 양쪽 모두 `20261023063140`까지 29개 기록; 유효하지 않은 제약 조건 0개; 복원본에서 진단 스냅샷이 실행됨; 로컬 데이터베이스는 변하지 않음. `tests/integration/restore-drill.test.ts`가 훈련을 반복하고 비교가 바뀐 테이블을 지목함을 보여 줌 |
 
+| 보존 | `tests/integration/data-stewardship.test.ts`: 종료 91일 뒤의 예약된 요청은 제안, 예약, 예약 링크, 전달, 논의, 세션, 이벤트와 함께 삭제되고 모델 지출은 분리되며 Calendar 이벤트는 유지됨; 89일 전에 종료된 요청과 200일 된 열린 요청은 유지됨; 운영 규칙마다 각자의 기간; 실행당 규칙별 행 제한; 매시간 일정 |
+| 요청에 따른 삭제 | 같은 파일: 삭제된 호스트에는 핸들이 남은 정지 상태의 이름 없는 계정이 남아 `checkHandle`이 사용 중이라고 보고함; 신원, 권한 부여, 설정, 요청, 논의, Auth 사용자는 사라짐; 복원과 재삭제는 거부됨; 같은 Google subject는 새 계정을 얻음. 요청 하나는 그 대화와 함께 삭제됨; 예약 쓰기가 있을 수 있는 동안에는 삭제가 거부됨; Data API 역할은 모든 함수에서 거부됨. `lib/server/data-deletion.test.ts`의 단위 테스트 |
+| 데이터 고지 | 390px와 1280px에서의 `tests/e2e/privacy.test.ts`: 영어와 한국어 고지가 각 절과 함께 표시되고 가로 스크롤이 없음, 그리고 `/`와 호스트 페이지에서의 링크; `tests/e2e/requester-intake.test.ts`가 **Continue with Google** 아래의 링크를 확인함 |

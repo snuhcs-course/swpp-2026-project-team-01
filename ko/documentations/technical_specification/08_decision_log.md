@@ -411,6 +411,12 @@
 | 확인 | 공유 `confirmChange`가 환경과 작업을 출력하고 입력된 ID를 대소문자 구분 없이 비교합니다 | 명령마다 별도의 프롬프트 | `lib/server/operator-shared.ts` | 그 안의 `confirmChange` |
 | 훈련 데이터베이스 | 로컬 스택 컨테이너 안의 데이터베이스 두 개이며, `auth` 스키마를 읽을 수 있는 `supabase_admin`으로 훈련이 만들고 삭제하고, 덤프 파일은 컨테이너 안에 머물렀다가 삭제됩니다 | 두 번째 Postgres 컨테이너; 호스트 디스크의 덤프 | `scripts/restore-drill.ts` | 그 안의 `SOURCE`, `RESTORED`, `DUMP` |
 | 훈련 비교 | `app`, `auth`, `supabase_migrations`에 대해 테이블별 행 수와 정렬된 모든 행의 텍스트 형태에 대한 MD5, 그리고 마이그레이션 이력과 `pg_constraint.convalidated` | 행 수만 비교하기 | `scripts/restore-drill.ts` | 그 안의 `tableFingerprints` |
+| 요청 삭제 순서 | `app.delete_request_records`가 먼저 요청의 논의(호스트 검토, 요청자의 논의, 공개 페이지 접수의 논의)를 삭제하며 `deleteDraft`처럼 세션에서 모델 지출을 분리하고, 이어서 요청을 삭제하면 외래 키가 나머지로 연쇄 삭제됩니다 | 제한적 외래 키를 연쇄 삭제로 바꾸기 | `supabase/schemas/app/functions/data_deletion.sql` | 그 함수와 새 마이그레이션 |
+| 호스트 삭제 범위 | `host_accounts`를 가리키는 외래 키가 있는 모든 테이블(`host_handles`, `handle_assignments`, `operator_actions` 제외)을 `pg_constraint`에서 읽고, 여기에 호스트의 논의와 명령 결과, 그리고 `auth.users` 행을 더합니다. `host_accounts.deleted_at`에는 삭제된 행이 정지 상태이고 이름이 없어야 한다는 검사를 둡니다 | 고정된 테이블 목록: 나중에 추가되는 테이블이 빠져나갑니다 | `app.operator_delete_host`; `host_accounts` 스키마 | 그 함수와 새 마이그레이션 |
+| 예약 쓰기 중의 삭제 | `dispatching` 예약이 있는 요청이나 호스트는 거부하고 `recover booking`을 안내합니다 | 그래도 삭제하기: 예약이 더는 없는 이벤트가 남을 수 있습니다 | `app.operator_delete_request`, `app.operator_delete_host` | 그 함수들 |
+| 보존의 한도와 시각 | 실행당 규칙마다 1,000행, 매시간 17분: 15분 단위 정리와 겹치지 않습니다 | 하루에 한 번 제한 없는 일괄 처리 | `supabase/schemas/app/cron/retention.sql` | 일정과 새 마이그레이션 |
+| 고지 링크 | 공개 페이지의 시작 문구 아래 한 줄(호스트 페이지와 예약 페이지에 표시), **Continue with Google** 카드의 버튼 아래 "How we use your calendar", 그리고 `/`의 바닥글 링크 | 루트 레이아웃의 사이트 전체 바닥글: 화면 전체 높이의 대화 페이지가 이를 숨겨야 합니다 | `apps/web/app/_components/guest/guest-workspace.tsx`, `apps/web/app/page.tsx` | 그 파일들 |
+| 고지 언어 | `?lang=ko`를 쓰는 페이지 하나이며, 주장이 파일 하나 곁에 있도록 본문을 페이지 모듈에 둡니다 | 언어별 별도 경로; CMS | `apps/web/app/privacy/page.tsx` | 그 페이지 |
 | 훈련 픽스처 | 생성된 호스트, 신원, 핸들, 설정, 다섯 가지 상태의 요청, 예약 링크, 전달, 작업, 명령 결과, 운영자 작업, 거부 구간을 담은 일반 SQL 파일이며 주소는 모두 `example.test`입니다 | 통합 스위트를 원본에 실행하기 | `supabase/tests/fixtures/restore-drill.sql` | 그 픽스처 |
 
 ### 운영 결정
