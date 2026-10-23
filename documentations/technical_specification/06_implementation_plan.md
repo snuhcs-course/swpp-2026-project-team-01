@@ -347,7 +347,7 @@ Scope. Prerequisite: Phase 4 for diagnostics to have something to inspect; the r
 **Proposal (serial, first)**
 
 - [x] Proposal for [`operations-and-release`](../../openspec/changes/operations-and-release/proposal.md) with the decisions to settle and the coverage table.
-- [ ] [Design](../../openspec/changes/operations-and-release/design.md).
+- [x] [Design](../../openspec/changes/operations-and-release/design.md).
 - [ ] Delta specs under [`specs/`](../../openspec/changes/operations-and-release/specs/).
 - [ ] [Tasks](../../openspec/changes/operations-and-release/tasks.md).
 - [ ] Owning-document updates and Korean mirrors.

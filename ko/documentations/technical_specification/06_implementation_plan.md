@@ -349,7 +349,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 **제안서 (직렬, 가장 먼저)**
 
 - [x] 결정할 사항과 범위 표를 담은 [`operations-and-release`](../../openspec/changes/operations-and-release/proposal.md) 제안서.
-- [ ] [설계](../../openspec/changes/operations-and-release/design.md).
+- [x] [설계](../../openspec/changes/operations-and-release/design.md).
 - [ ] [`specs/`](../../openspec/changes/operations-and-release/specs/) 아래의 델타 명세.
 - [ ] [작업 목록](../../openspec/changes/operations-and-release/tasks.md).
 - [ ] 소유 문서 갱신과 한국어 미러.
