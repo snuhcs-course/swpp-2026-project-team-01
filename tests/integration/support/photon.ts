@@ -40,7 +40,8 @@ export function messagesEvent(fixture: MessageFixture = {}) {
       platform: "imessage",
       sender: { id: sender, platform: "imessage" },
       space,
-      timestamp: new Date().toISOString(),
+      // Fixed, so a redelivery of the same fixture is byte-identical, as Photon's is.
+      timestamp: "2026-10-23T09:00:00.000Z",
     },
     space,
   });

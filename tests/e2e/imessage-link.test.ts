@@ -8,6 +8,7 @@ import { IMESSAGE_RECEIPT_JOB, receivePhotonWebhook } from "../../lib/server/pho
 import { parseTokenKey } from "../../lib/server/token-encryption";
 import type { ConversationRuntime } from "../../lib/server/conversations";
 import { messagesEvent, newSender, signedWebhook, TEST_WEBHOOK_ID, TEST_WEBHOOK_SECRET } from "../integration/support/photon";
+import { unreachableSetup } from "../integration/support/imessage";
 import { runJob } from "../integration/support/requests";
 import { expect, signedInHost, test } from "./support/session";
 import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
@@ -43,7 +44,20 @@ async function hostSends(db: Database, sender: string, text: string) {
   expect(response.status).toBe(200);
   const [receipt] = await db<{ id: string }[]>`select id from app.imessage_receipts where message_id = ${id}`;
   const [job] = await db<{ id: string }[]>`select id from app.jobs where kind = ${IMESSAGE_RECEIPT_JOB} and dedupe_key = ${`receipt:${receipt!.id}`}`;
-  await runJob(db, job!.id, createImessageReceiptHandler(() => ({ config, db, env: {}, tokenKey, tokenKeys: [tokenKey] })));
+  await runJob(
+    db,
+    job!.id,
+    createImessageReceiptHandler(() => ({
+      config,
+      db,
+      env: {},
+      notices: { origin: "http://localhost:3100", tokenKey, tokenKeys: [tokenKey] },
+      origin: "http://localhost:3100",
+      setup: unreachableSetup(db),
+      tokenKey,
+      tokenKeys: [tokenKey],
+    })),
+  );
 }
 
 // Sends the host's queued messages through the stand-in and returns their texts.
@@ -67,7 +81,7 @@ async function sendQueued(db: Database, hostAccountId: string, kind: string) {
 async function openCard(page: Page) {
   await page.goto("/app");
   const menu = page.getByRole("button", { name: "Open menu" });
-  await expect(menu).toBeVisible({ timeout: 20_000 });
+  await expect(menu).toBeVisible({ timeout: 45_000 });
   await menu.click();
   await page.getByRole("menuitem", { name: "iMessage" }).click();
   const card = page.locator("[data-imessage-card]");
@@ -97,7 +111,7 @@ for (const width of [390, 1280]) {
 
     // A desktop browser opens nothing: the number, the message, Copy and the QR code.
     // The first command compiles its route under next dev, slow while other suites run.
-    await expect(card.getByRole("heading", { name: "Send the message from your iMessage" })).toBeVisible({ timeout: 20_000 });
+    await expect(card.getByRole("heading", { name: "Send the message from your iMessage" })).toBeVisible({ timeout: 45_000 });
     await expect(card).toContainText(LINE);
     const message = (await card.getByTestId("imessage-link-message").textContent())!.trim();
     expect(message).toMatch(/^Link my Find Me a Time account: FMAT-[0-9A-HJKMNP-TV-Z]{10}$/);
@@ -144,7 +158,7 @@ test("at 390px a host links by a texted code, typed back without ever being show
   await press(page, "Send me a code instead");
   await card.getByLabel("Your iPhone number, with country code").fill(number);
   await press(page, "Send code");
-  await expect(card.getByRole("heading", { name: "Enter the code we texted you" })).toBeVisible({ timeout: 20_000 });
+  await expect(card.getByRole("heading", { name: "Enter the code we texted you" })).toBeVisible({ timeout: 45_000 });
   await expect(card).toContainText(`•••• ${number.slice(-4)}`);
 
   const [text] = await sendQueued(db, host.hostAccountId, "fallback_code");

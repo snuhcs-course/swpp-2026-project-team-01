@@ -288,7 +288,7 @@ Scope. Prerequisite: Phase 2 for setup over iMessage and Phase 4 for decisions. 
 **Lane C — channel and commands**
 
 - [ ] `channels/photon.ts` mapping a verified sender to `host:{hostId}` with the selected request; unlinked and group senders get no session; inbound link message consumed before any model turn.
-- [ ] Exact commands `request <reference>`, `review`, `changes`, approve and decline with the review reference, and `setup`, parsed as application commands before any model turn.
+- [x] Exact commands `request <reference>`, `review`, `changes`, approve and decline with the review reference, and `setup`, parsed as application commands before any model turn.
 - [ ] Proposal summaries and outcomes delivered to the linked conversation; delivery failure visible in `/app`; queued receipts under admission budgets.
 - [ ] Setup over iMessage: suggestion questions and plain-text answers update the shared draft; final settings confirmation uses the exact authored command on the current review.
 

@@ -261,6 +261,8 @@
 | 카드 배치 | iMessage 연결 카드는 설정이 준비되면 공유 링크 다음에 표시되며, 호스트가 연결하거나 **Maybe later**를 누를 때까지(이 브라우저의 저장소에 기억됨) 유지됩니다; 메뉴의 새 **iMessage** 항목은 어느 단계에서든 카드를 열고, 연결된 호스트의 카드는 전송 실패, **Add to contacts**, **Unlink**를 보여 주기 위해 계속 남습니다 | 설정 대화상자; 설정이 준비되기 전에 표시 | 설계 5; 호스트 온보딩 H11 | `apps/web/app/_components/host-workspace.tsx`의 `SetupWorkspace` |
 | 메시지 앱 열기 | **Connect iMessage**는 코드를 기다린 뒤 플랫폼의 딥링크로 `window.location.assign`을 호출합니다; 카드는 **Open Messages**를 일반 링크로 유지하며, QR 코드는 클라이언트에서 `uqr` 0.1.2로 렌더링한 SVG입니다. 기다린 요청 뒤에 iOS Safari가 메시지 앱을 여는지는 실제 기기에서만 확인합니다 | 페이지를 불러올 때 코드를 미리 가져와 탭하면 메시지 앱이 동기적으로 열리게 함(탭하지 않을 호스트에게도 코드가 발급됨) | 설계 5 | `apps/web/app/_components/imessage/imessage-card.tsx`의 `connect` |
 | 대체 코드 재전송 | 재전송은 번호가 아니라 열려 있는 시도(`{ resend: true }`)를 지정하는데, 카드는 번호를 가려진 형태로만 알기 때문입니다 | 번호를 브라우저로 반환 | 설계 6 | `sendImessageCodeCommand` |
+| 결정 리비전 | `approve`, `decline`, `share`, `dismiss`는 참조와 함께 읽은 요청 리비전을 명령의 기대 리비전으로 넘기고, `confirm`은 초안 리비전을 넘기므로, 읽은 뒤 결정하기 전에 변경이 생기면 거절됩니다 | 리비전을 넘기지 않음(명령이 이를 거절함) | 설계 8 | `lib/server/imessage-commands.ts`의 `decide`, `changes`, `confirmSettings` |
+| 채널 트랜잭션 | 명령과 전달은 바인딩 갱신과 응답을 위해 수신 작업의 트랜잭션 안에서 실행되므로, 응답이 수신의 결과와 함께 커밋됩니다; 결정과 대화 입력은 각자의 연결에서 별도 트랜잭션으로 커밋하며, 재시도 키와 클라이언트 입력 ID 덕분에 반복해도 안전합니다 | 모든 쓰기를 각자의 연결에서 실행(바인딩에 대한 작업의 행 잠금이 선택 갱신을 막음) | 설계 8 | `lib/server/imessage-receipts.ts`의 `ChannelProcessor` |
 | 계획의 목록을 넘는 명령 | 계획은 `request`, `review`, `changes`, 승인, 거절, `setup`을 꼽습니다; 이 변경은 `help`, `requests`(참조를 알기 위해), `share`와 `dismiss`(AC-16이 요구하듯 수정된 세부 사항을 텍스트로 공유할 수 있게), `confirm`(온보딩 흐름이 요구하는 설정 확인)을 더합니다 | 변경 공유를 웹에서만 허용 | 설계 8 | `lib/server/imessage-commands.ts`의 `parseCommand` |
 
 ### 운영 결정

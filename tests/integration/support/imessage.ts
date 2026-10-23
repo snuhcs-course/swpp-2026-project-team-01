@@ -6,12 +6,13 @@ import { imessageCommands, readImessageStatus } from "../../../lib/server/imessa
 import { createImessageSendHandler, IMESSAGE_SEND_JOB, type ImessageSendDependencies } from "../../../lib/server/imessage-outbox";
 import { createImessageReceiptHandler, type ImessageReceiptDependencies } from "../../../lib/server/imessage-receipts";
 import { photonConfig } from "../../../lib/server/photon";
+import type { SetupDependencies } from "../../../lib/server/setup";
 import { IMESSAGE_RECEIPT_JOB, receivePhotonWebhook } from "../../../lib/server/photon-receiver";
 import { linkMessage } from "../../../lib/contracts/imessage";
 import { createGoogleUser } from "./auth";
 import type { FakePhoton } from "./fake-photon";
 import { type MessageFixture, messagesEvent, newSender, signedWebhook, TEST_LINE, TEST_WEBHOOK_ID, TEST_WEBHOOK_SECRET } from "./photon";
-import { runJob, testTokenKey } from "./requests";
+import { runJob, testNotices, testTokenKey } from "./requests";
 
 // The iMessage suites' shared harness: delivers a message the way Photon would
 // (signed to the receiver, then the receipt job run), runs the card's commands
@@ -30,6 +31,9 @@ export function imessageHarness(
     config: config(),
     db,
     env: {},
+    notices: testNotices,
+    origin: "http://localhost:3000",
+    setup: unreachableSetup(db),
     tokenKey: testTokenKey,
     tokenKeys: [testTokenKey],
     ...options.receipt?.(),
@@ -138,4 +142,18 @@ export async function hostWithUser(db: Database) {
     values (${user.googleSubject}, ${account!.id}, ${user.userId}, ${user.email})
   `;
   return { hostAccountId: account!.id, userId: user.userId };
+}
+
+// Setup dependencies whose Google endpoints refuse connections, for suites that
+// never read a calendar; suites that confirm settings pass a fake Google's.
+export function unreachableSetup(db: Database): SetupDependencies {
+  return {
+    appOrigin: "http://localhost:3000",
+    calendar: {
+      config: { apiBaseUrl: "http://127.0.0.1:9/calendar/v3", clientId: "client", clientSecret: "secret", timeoutMs: 1_000, tokenUrl: "http://127.0.0.1:9/token" },
+      db,
+      tokenKeys: [testTokenKey],
+    },
+    db,
+  };
 }

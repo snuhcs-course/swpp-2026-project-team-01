@@ -1,11 +1,14 @@
+import { type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { database, type Database, type Transaction } from "./database";
 import { findLinkCode } from "./email-links";
 import { activeBindingOfSender, bindingContext, receiveLinkCode, refusalSentRecently } from "./imessage-links";
 import { recordOutbound } from "./imessage-outbox";
 import type { JobHandler } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
+import { executeCommand, parseCommand } from "./imessage-commands";
 import { photonConfig, type PhotonConfig, photonTransport, SPECTRUM_ENDPOINT } from "./photon";
 import { receiptSealContext } from "./photon-receiver";
+import { type SetupDependencies, setupDependenciesFromEnvironment } from "./setup";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // The imessage_receipt job (host-imessage-channel design 7): what one stored
@@ -34,13 +37,35 @@ export type ImessageReceiptDependencies = {
   readonly config: PhotonConfig;
   readonly tokenKey: TokenKey;
   readonly tokenKeys: readonly TokenKey[];
+  // The canonical origin replies point to.
+  readonly origin: string;
+  // Settings review and confirmation read setup and the live calendar list.
+  readonly setup: SetupDependencies;
+  // A decline notifies the requester, as from the web.
+  readonly notices: NoticeDependencies;
   readonly env?: Environment;
 };
 
 function receiptDependenciesFromEnvironment(): ImessageReceiptDependencies {
   const tokenKey = tokenKeyFromEnvironment();
-  return { config: photonConfig(), db: database(), tokenKey, tokenKeys: [tokenKey] };
+  const setup = setupDependenciesFromEnvironment();
+  return {
+    config: photonConfig(),
+    db: database(),
+    notices: noticeDependenciesFromEnvironment(),
+    origin: setup.appOrigin,
+    setup,
+    tokenKey,
+    tokenKeys: [tokenKey],
+  };
 }
+
+// The bound host's text: an exact command runs before any model turn.
+export const channelProcessor: ChannelProcessor = async (tx, deps, message) => {
+  const command = parseCommand(message.text);
+  if (command) return executeCommand(tx, deps, message, command);
+  return "ignored";
+};
 
 type ReceiptRow = {
   readonly id: string;
@@ -111,13 +136,16 @@ export type BoundMessage = {
   readonly recipient: { readonly address: string; readonly spaceId: string };
 };
 
-export type ChannelProcessor = (deps: ImessageReceiptDependencies, message: BoundMessage) => Promise<ReceiptOutcome>;
+// Runs in the receipt job's transaction, which holds the receipt and binding
+// rows: binding changes and replies use it, while decisions and forwarding run
+// in their own transactions on deps.db.
+export type ChannelProcessor = (tx: Transaction, deps: ImessageReceiptDependencies, message: BoundMessage) => Promise<ReceiptOutcome>;
 
 export async function processReceipt(
   tx: Transaction,
   deps: ImessageReceiptDependencies,
   receipt: OpenedReceipt,
-  channel: ChannelProcessor | null = null,
+  channel: ChannelProcessor | null = channelProcessor,
 ): Promise<ReceiptOutcome> {
   if (receipt.spaceType !== "dm" || receipt.contentType === "reaction") return "ignored";
 
@@ -181,7 +209,7 @@ export async function processReceipt(
 
   if (!channel) return "ignored";
 
-  return channel(deps, {
+  return channel(tx, deps, {
     authUserId: host.auth_user_id,
     bindingId: binding.id,
     hostAccountId: binding.host_account_id,
@@ -232,7 +260,7 @@ export function createImessageReceiptHandler(load: () => ImessageReceiptDependen
     if (earlier) throw new EarlierReceiptPendingError();
 
     const opened = openReceipt(deps.tokenKeys, row);
-    const outcome = opened ? await processReceipt(tx, deps, opened) : "ignored";
+    const outcome = opened ? await processReceipt(tx, deps, opened, channelProcessor) : "ignored";
 
     await record(tx, row.id, outcome);
     return { outcome, receiptId };
