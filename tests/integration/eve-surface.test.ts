@@ -7,7 +7,7 @@ import { type FakeOpenAI, startFakeOpenAI } from "./support/fake-openai";
 // build served by `eve start`. Callback, task-input, cron and workflow webhook
 // paths are reachable on the public origin; with no channel, tool or schedule
 // registered, each must refuse an unauthenticated caller without starting work,
-// as must the AgentMail receiver without a registered receiver and a signature,
+// as must the AgentMail and Photon receivers without a registered webhook and a signature,
 // and no response, health included, may reveal configuration or internals.
 
 let fake: FakeOpenAI;
@@ -62,6 +62,10 @@ describe("agent service surface", () => {
     ["POST", "/agentmail/webhooks/abc"],
     ["POST", "/agentmail/webhooks/00000000-0000-4000-8000-000000000000"],
     ["GET", "/agentmail/webhooks/00000000-0000-4000-8000-000000000000"],
+    // The Photon receiver (host-imessage-channel design 2): unsigned, or on a
+    // deployment naming no webhook, it stores nothing and starts no work.
+    ["POST", "/photon/webhook"],
+    ["GET", "/photon/webhook"],
   ])("refuses %s %s without starting work or leaking internals", async (method, path) => {
     const requests = fake.requests.length;
     const response = await fetch(`${server.url}${path}`, {
