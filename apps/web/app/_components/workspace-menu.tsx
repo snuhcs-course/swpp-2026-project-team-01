@@ -1,6 +1,6 @@
 "use client";
 
-import { InboxIcon, ListChecksIcon, LogOutIcon, MenuIcon, PlugIcon } from "lucide-react";
+import { InboxIcon, ListChecksIcon, LogOutIcon, MenuIcon, MessageCircleIcon, PlugIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { ConnectedAgentsDialog, HOST_GRANT_SOURCE } from "@/app/_components/connected-agents";
 import { Button } from "@/components/ui/button";
@@ -13,19 +13,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 // The workspace's compact, keyboard-operable navigation: Setup, Requests (the
-// inbox of meeting requests), Connected agents (agent-access design 10, also
-// for a suspended host, who keeps revocation) and Sign out. Radix gives the menu arrow-key
-// movement, closes it on Escape and returns focus to the trigger, except after
-// Setup, which moves focus to the current setup card instead.
+// inbox of meeting requests), iMessage (the Connect iMessage card), Connected
+// agents (agent-access design 10, also for a suspended host, who keeps
+// revocation) and Sign out. Radix gives the menu arrow-key movement, closes it on
+// Escape and returns focus to the trigger, except after Setup and iMessage, which
+// move focus to the current setup card or the iMessage card instead.
 export function WorkspaceMenu({
+  onSelectImessage,
   onSelectRequests,
   onSelectSetup,
 }: {
+  readonly onSelectImessage?: () => void;
   readonly onSelectRequests?: () => void;
   readonly onSelectSetup?: () => void;
 }) {
   const signOutRef = useRef<HTMLFormElement>(null);
   const setupSelected = useRef(false);
+  const imessageSelected = useRef(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
 
   return (
@@ -40,6 +44,12 @@ export function WorkspaceMenu({
           align="end"
           className="min-w-48"
           onCloseAutoFocus={(event) => {
+            if (imessageSelected.current) {
+              imessageSelected.current = false;
+              event.preventDefault();
+              onSelectImessage?.();
+              return;
+            }
             if (!setupSelected.current) return;
             setupSelected.current = false;
             event.preventDefault();
@@ -60,6 +70,16 @@ export function WorkspaceMenu({
             <DropdownMenuItem onSelect={onSelectRequests}>
               <InboxIcon aria-hidden />
               Requests
+            </DropdownMenuItem>
+          ) : null}
+          {onSelectImessage ? (
+            <DropdownMenuItem
+              onSelect={() => {
+                imessageSelected.current = true;
+              }}
+            >
+              <MessageCircleIcon aria-hidden />
+              iMessage
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem onSelect={() => setAgentsOpen(true)}>

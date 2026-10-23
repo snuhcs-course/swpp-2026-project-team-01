@@ -45,7 +45,7 @@ async function linkedHost() {
   await im.deliver({ sender, text: message });
   const status = await im.status(hostAccountId);
   if (status.state !== "received") throw new Error("Expected a received code.");
-  const linkId = (await db<{ id: string }[]>`select id from app.imessage_links where host_account_id = ${hostAccountId} and state = 'received'`)[0]!.id;
+  const linkId = status.linkId;
   const confirmed = await im.command(hostAccountId, "imessage.link.confirm", { linkId });
   expect(confirmed.ok).toBe(true);
   return { hostAccountId, linkId, message, sender };
@@ -170,6 +170,7 @@ describe("the fallback code", () => {
     const number = newSender();
     const code = await codeSentTo(hostAccountId, number);
     expect(await im.command(hostAccountId, "imessage.link.send_code", { number })).toMatchObject({ error: { category: "rate_limited" } });
+    expect(await im.command(hostAccountId, "imessage.link.send_code", { resend: true })).toMatchObject({ error: { category: "rate_limited" } });
 
     const wrong = code === "000000" ? "111111" : "000000";
     for (let left = 4; left >= 0; left -= 1) {
@@ -177,6 +178,19 @@ describe("the fallback code", () => {
     }
     expect(await im.command(hostAccountId, "imessage.link.verify_code", { code })).toMatchObject({ error: { category: "stale_revision" } });
     expect(await im.bindingOf(hostAccountId)).toBeNull();
+  });
+
+  it("resends to the open attempt's number after the spacing, with a new code", async () => {
+    const hostAccountId = await newHostAccount(db);
+    const number = newSender();
+    const first = await codeSentTo(hostAccountId, number);
+    await db`update app.imessage_links set last_sent_at = now() - interval '61 seconds' where host_account_id = ${hostAccountId} and state = 'pending'`;
+    expect((await im.command(hostAccountId, "imessage.link.send_code", { resend: true })).ok).toBe(true);
+    const rows = await im.outbox({ hostAccountId, kind: "fallback_code" });
+    const { sent } = await im.send(rows.at(-1)!.id);
+    expect(sent[0]!.recipient.address).toBe(number);
+    expect(await im.status(hostAccountId)).toMatchObject({ sendsLeft: 1 });
+    expect(await im.command(hostAccountId, "imessage.link.verify_code", { code: first })).toMatchObject({ result: { status: "wrong" } });
   });
 
   it("caps sends per host and per line", async () => {

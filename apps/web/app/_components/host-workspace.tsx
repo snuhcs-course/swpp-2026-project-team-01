@@ -2,13 +2,15 @@
 
 import { AlertCircleIcon, XIcon } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HostRequests } from "@/app/_components/host/host-requests";
+import { IMESSAGE_CARD_ID, ImessageCard } from "@/app/_components/imessage/imessage-card";
 import { AuthoredMessages, useAuthoredReveal } from "@/app/_components/setup/authored-messages";
 import { focusCurrentCard, SetupCards } from "@/app/_components/setup/setup-cards";
 import { ReceiptAnnouncer, SetupReceipts } from "@/app/_components/setup/receipt";
 import { deriveReceipts, interleave, type Receipt } from "@/app/_components/setup/receipts";
 import { type SetupContextValue, SetupProvider, useSetupController } from "@/app/_components/setup/setup-context";
+import { focusCard } from "@/app/_components/setup/card";
 import { describeSetupTool } from "@/app/_components/setup/tool-labels";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { ChatComposer } from "@/components/chat/composer";
@@ -28,6 +30,27 @@ import { useHostDiscussion } from "@/lib/chat/use-host-discussion";
 // While a scan is pending the analysis card polls, since no turn or action
 // would otherwise reveal its result.
 const ANALYSIS_POLL_MS = 4000;
+
+// The Connect iMessage card (H11) follows the share links once setup is ready,
+// until the host links or chooses Maybe later, which this browser remembers; the
+// menu's iMessage item opens it at any step.
+const IMESSAGE_LATER_KEY = "fmat:imessage-later";
+
+function rememberedLater() {
+  try {
+    return window.localStorage.getItem(IMESSAGE_LATER_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function rememberLater() {
+  try {
+    window.localStorage.setItem(IMESSAGE_LATER_KEY, "1");
+  } catch {
+    // Without storage the card simply shows again next visit.
+  }
+}
 
 export function HostWorkspace() {
   const params = useSearchParams();
@@ -65,10 +88,19 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
     return () => window.clearInterval(timer);
   }, [analyzing, reloadSetup]);
 
+  const [imessageLater, setImessageLater] = useState(false);
+  const [imessageOpened, setImessageOpened] = useState(false);
+  useEffect(() => setImessageLater(rememberedLater()), []);
+
   const busy = phase !== "ready";
   const setupState = setup.state;
   const setupValue = setup.value;
   const showSetup = setupValue !== null && reveal.done;
+  const showImessage = imessageOpened || (showSetup && setupState?.nextAction === "ready" && !imessageLater);
+  const openImessage = useCallback(() => {
+    setImessageOpened(true);
+    focusCard(IMESSAGE_CARD_ID);
+  }, []);
   // Answered setup cards, as receipts placed among the messages by time.
   const receipts = useMemo(
     () => (showSetup && setupValue ? deriveReceipts(setupValue.state, setupValue.skipped) : []),
@@ -104,7 +136,7 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
     <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <header className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 sm:px-6">
         <h1 className="truncate font-display text-lg">Find Me a Time</h1>
-        <WorkspaceMenu onSelectRequests={onOpenRequests} onSelectSetup={focusSetup} />
+        <WorkspaceMenu onSelectImessage={openImessage} onSelectRequests={onOpenRequests} onSelectSetup={focusSetup} />
       </header>
 
       <main aria-label="Setup conversation with Thyme" className="flex min-h-0 flex-1 flex-col">
@@ -184,6 +216,17 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
                   <div aria-label="Setup" className="flex min-w-0 flex-col" role="group">
                     <SetupCards />
                   </div>
+                </ChatItem>
+              ) : null}
+              {showImessage ? (
+                <ChatItem messageId="imessage">
+                  <ImessageCard
+                    onLater={() => {
+                      rememberLater();
+                      setImessageLater(true);
+                      setImessageOpened(false);
+                    }}
+                  />
                 </ChatItem>
               ) : null}
             </ChatConversationContent>

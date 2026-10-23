@@ -282,8 +282,8 @@ Scope. Prerequisite: Phase 2 for setup over iMessage and Phase 4 for decisions. 
 
 **Lane B — linking card in the web workspace**
 
-- [ ] **Connect iMessage** gets a one-time link code from the server and at once opens Messages with the line's number as the recipient and the exact link message in the input (`sms:<number>&body=<text>` on iOS, `sms:<number>?body=<text>` on Android); where Messages cannot open, the inline card shows the number, the code, **Copy** and a QR code of the same deep link. Then the masked-sender **Confirm and link**, the service-sent six-digit fallback (**Send me a code instead**) with a protected code field, expiry and resend limits, unlink, **Maybe later**. Opening Messages never counts as linking.
-- [ ] Optional **Add to contacts** card with truthful queued, accepted, failed and uncertain states.
+- [x] **Connect iMessage** gets a one-time link code from the server and at once opens Messages with the line's number as the recipient and the exact link message in the input (`sms:<number>&body=<text>` on iOS, `sms:<number>?body=<text>` on Android); where Messages cannot open, the inline card shows the number, the code, **Copy** and a QR code of the same deep link. Then the masked-sender **Confirm and link**, the service-sent six-digit fallback (**Send me a code instead**) with a protected code field, expiry and resend limits, unlink, **Maybe later**. Opening Messages never counts as linking.
+- [x] Optional **Add to contacts** card with truthful queued, accepted, failed and uncertain states.
 
 **Lane C — channel and commands**
 

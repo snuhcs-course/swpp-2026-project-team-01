@@ -21,6 +21,7 @@ const FAKE_OPENAI_PORT = "3102";
 const FAKE_GOOGLE_PORT = "3103";
 const FAKE_CLOUDFLARE_PORT = "3104";
 const FAKE_ROUTES_PORT = "3105";
+const FAKE_PHOTON_PORT = "3106";
 const baseURL = `http://localhost:${PORT}`;
 const live = process.env.E2E_LIVE_MODEL === "1";
 
@@ -67,6 +68,13 @@ const shared = {
   CLOUDFLARE_EMAIL_FROM: "no-reply@e2e.example.test",
   GOOGLE_MAPS_API_KEY: "fake-routes-key",
   GOOGLE_ROUTES_API_URL: `http://127.0.0.1:${FAKE_ROUTES_PORT}`,
+  // The iMessage line the Connect iMessage card shows, and the Photon stand-in
+  // the outbox sends to; nothing reaches Photon.
+  PHOTON_API_URL: `http://127.0.0.1:${FAKE_PHOTON_PORT}`,
+  // Integration runs share the local stack's outbox, so the line's daily
+  // fallback cap is lifted here; its own tests run it at small values.
+  PHOTON_FALLBACK_DAILY_LIMIT: "100000",
+  PHOTON_LINE_NUMBER: "+15550001111",
   // The product inbox Continue by email names; nothing reaches AgentMail.
   AGENTMAIL_INBOX_ID: "findmeatime@agentmail.test",
   // One key per run, shared with the tests so they can seal a Calendar grant.
@@ -106,6 +114,12 @@ export default defineConfig({
       env: { FAKE_CLOUDFLARE_PORT },
       reuseExistingServer: false,
       url: `http://127.0.0.1:${FAKE_CLOUDFLARE_PORT}/health`,
+    },
+    {
+      command: "npx tsx tests/e2e/support/fake-photon-server.ts",
+      env: { FAKE_PHOTON_PORT },
+      reuseExistingServer: false,
+      url: `http://127.0.0.1:${FAKE_PHOTON_PORT}/health`,
     },
     {
       command: "npx tsx tests/e2e/support/fake-routes-server.ts",

@@ -40,6 +40,11 @@ export async function startFakePhoton(options: { readonly port?: number } = {}):
     for await (const chunk of request) raw += chunk;
     const url = new URL(request.url ?? "/", "http://fake-photon");
 
+    if (request.method === "GET" && url.pathname === "/health") {
+      json(response, 200, { ok: true });
+      return;
+    }
+
     // Test control from another process (the browser journey).
     if (request.method === "GET" && url.pathname === "/__sends") {
       json(response, 200, sends);

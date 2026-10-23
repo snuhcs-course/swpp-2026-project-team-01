@@ -258,6 +258,9 @@
 | 카드 상태 순서 | 진행 중인 연결 시도(대기 중인 코드, 수신한 발신자 또는 대체 코드)가 활성 연결보다 먼저 표시되므로, 시도를 마치면 연결이 새 발신자로 옮겨 갑니다; 상태에는 대체 코드가 담기지 않으며, 발신자는 마지막 네 자리 또는 이메일의 첫 글자와 도메인으로 가려집니다 | 연결된 동안 시도를 숨김 | 설계 4 | `lib/server/imessage-links.ts`의 `readImessageStatus` |
 | 잘못된 대체 코드 입력 | 틀린 코드는 오류가 아니라 결과(`wrong`과 남은 시도 횟수)로 응답하므로, 횟수가 명령의 트랜잭션에 저장됩니다; 다섯 번째 입력은 코드의 해시를 지웁니다 | 오류로 거절, 이 경우 횟수가 롤백됨 | 설계 6 | `lib/server/imessage-links.ts`의 `verifyImessageCodeCommand` |
 | 다른 곳에 연결된 번호 | 다른 호스트가 이미 연결한 번호로 `send_code`를 보내면 전송처럼 응답하되 아무것도 큐에 넣지 않으므로, 카드로 이 제품에서 누가 iMessage를 쓰는지 알아낼 수 없습니다 | 눈에 보이게 거절 | 설계 6 | `sendImessageCodeCommand` |
+| 카드 배치 | iMessage 연결 카드는 설정이 준비되면 공유 링크 다음에 표시되며, 호스트가 연결하거나 **Maybe later**를 누를 때까지(이 브라우저의 저장소에 기억됨) 유지됩니다; 메뉴의 새 **iMessage** 항목은 어느 단계에서든 카드를 열고, 연결된 호스트의 카드는 전송 실패, **Add to contacts**, **Unlink**를 보여 주기 위해 계속 남습니다 | 설정 대화상자; 설정이 준비되기 전에 표시 | 설계 5; 호스트 온보딩 H11 | `apps/web/app/_components/host-workspace.tsx`의 `SetupWorkspace` |
+| 메시지 앱 열기 | **Connect iMessage**는 코드를 기다린 뒤 플랫폼의 딥링크로 `window.location.assign`을 호출합니다; 카드는 **Open Messages**를 일반 링크로 유지하며, QR 코드는 클라이언트에서 `uqr` 0.1.2로 렌더링한 SVG입니다. 기다린 요청 뒤에 iOS Safari가 메시지 앱을 여는지는 실제 기기에서만 확인합니다 | 페이지를 불러올 때 코드를 미리 가져와 탭하면 메시지 앱이 동기적으로 열리게 함(탭하지 않을 호스트에게도 코드가 발급됨) | 설계 5 | `apps/web/app/_components/imessage/imessage-card.tsx`의 `connect` |
+| 대체 코드 재전송 | 재전송은 번호가 아니라 열려 있는 시도(`{ resend: true }`)를 지정하는데, 카드는 번호를 가려진 형태로만 알기 때문입니다 | 번호를 브라우저로 반환 | 설계 6 | `sendImessageCodeCommand` |
 | 계획의 목록을 넘는 명령 | 계획은 `request`, `review`, `changes`, 승인, 거절, `setup`을 꼽습니다; 이 변경은 `help`, `requests`(참조를 알기 위해), `share`와 `dismiss`(AC-16이 요구하듯 수정된 세부 사항을 텍스트로 공유할 수 있게), `confirm`(온보딩 흐름이 요구하는 설정 확인)을 더합니다 | 변경 공유를 웹에서만 허용 | 설계 8 | `lib/server/imessage-commands.ts`의 `parseCommand` |
 
 ### 운영 결정

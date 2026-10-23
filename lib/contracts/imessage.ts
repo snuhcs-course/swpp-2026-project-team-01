@@ -35,7 +35,14 @@ export type ImessageStatus =
       readonly expiresAt: string;
     }
   // The code's message arrived; the host confirms the masked sender.
-  | { readonly state: "received"; readonly lineNumber: string; readonly sender: string; readonly confirmBy: string }
+  | {
+      readonly state: "received";
+      readonly lineNumber: string;
+      // The attempt Confirm and link names.
+      readonly linkId: string;
+      readonly sender: string;
+      readonly confirmBy: string;
+    }
   // The fallback: a code sent to the entered number, typed back here.
   | {
       readonly state: "fallback";

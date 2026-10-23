@@ -267,29 +267,44 @@ export const cancelImessageLinkCommand: CommandDefinition<Record<string, never>,
 
 export function sendImessageCodeCommand(
   options: LinkOptions & { readonly lineDayLimit?: number },
-): CommandDefinition<{ number: string }, { linkId: string }> {
+): CommandDefinition<{ number?: string; resend?: true }, { linkId: string }> {
   const limits = { ...IMESSAGE_FALLBACK_LIMITS, ...options.fallbackLimits };
   const lineDay = options.lineDayLimit ?? limits.perLineDay;
 
   return {
-    input: z.object({ number: z.string().trim().min(1).max(40) }).strict(),
+    // A number to send to, or a resend to the open attempt's number, which the
+    // card only knows masked.
+    input: z.union([
+      z.object({ number: z.string().trim().min(1).max(40) }).strict(),
+      z.object({ resend: z.literal(true) }).strict(),
+    ]),
     operation: "imessage.link.send_code",
     async run(tx, context) {
       const hostAccountId = assertSelf(context);
       if (!options.lineNumber) throw new CommandError("unavailable_configuration");
-      const number = normalizeNumber(context.input.number);
-      if (!number) throw new CommandError("invalid_input");
 
       await lockHostLinking(tx, hostAccountId);
       await tx`select pg_advisory_xact_lock(hashtextextended('app.imessage_fallback_line', 0))`;
 
-      const phoneHash = imessageHash(options.tokenKey, "phone", number);
-      const [open] = await tx<{ id: string; method: string; phone_hash: string | null; sends: number; spaced: boolean }[]>`
-        select id, method, phone_hash, sends,
+      const [open] = await tx<
+        { id: string; method: string; phone_hash: string | null; phone_ciphertext: string | null; sealed_key_id: string | null; sends: number; spaced: boolean }[]
+      >`
+        select id, method, phone_hash, phone_ciphertext, sealed_key_id, sends,
                coalesce(last_sent_at <= now() - make_interval(secs => ${limits.spacingSeconds}), true) as spaced
-        from app.imessage_links where host_account_id = ${hostAccountId} and state = 'pending'
+        from app.imessage_links where host_account_id = ${hostAccountId} and state = 'pending' and expires_at > now()
         for update
       `;
+
+      let number: string | null;
+      if (context.input.resend) {
+        if (open?.method !== "fallback" || !open.phone_ciphertext || !open.sealed_key_id) throw new CommandError("stale_revision");
+        number = openToken(options.tokenKeys, { ciphertext: open.phone_ciphertext, keyId: open.sealed_key_id }, codeContext(open.id));
+      } else {
+        number = normalizeNumber(context.input.number ?? "");
+      }
+      if (!number) throw new CommandError("invalid_input");
+
+      const phoneHash = imessageHash(options.tokenKey, "phone", number);
       const resend = open?.method === "fallback" && open.phone_hash === phoneHash;
       if (resend && (open.sends >= limits.sendsPerAttempt || !open.spaced)) throw new CommandError("rate_limited");
 
@@ -540,7 +555,7 @@ async function openAttemptStatus(
   try {
     if (link.state === "received") {
       const sender = openToken(keys, { ciphertext: link.sender_ciphertext!, keyId: link.sender_key_id! }, senderContext(link.id));
-      return { confirmBy: link.confirm_by!.toISOString(), lineNumber, sender: maskSender(sender), state: "received" };
+      return { confirmBy: link.confirm_by!.toISOString(), lineNumber, linkId: link.id, sender: maskSender(sender), state: "received" };
     }
 
     if (link.method === "code") {
