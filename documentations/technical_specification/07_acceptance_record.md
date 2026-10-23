@@ -410,6 +410,17 @@ Fixture and local-stack evidence only; each names the test that shows it.
 
 Change: [`operations-and-release`](../../openspec/changes/operations-and-release/tasks.md). Evidence list: [Phase 8](06_implementation_plan.md#phase-8--operations-and-release). Environments as in Phase 1; this branch ran on the default local stack, reset with its own migration chain.
 
+### Suite runs
+
+| Command | Date | Revision | Environment | Result |
+|---|---|---|---|---|
+| `supabase db reset --local` | 2026-10-23 | `4fc71283` | Local stack | The 31-migration chain rebuilt, exit 0 |
+| `supabase test db` | 2026-10-23 | `4fc71283` | Local stack | 9 files, 127 pgTAP tests passed |
+| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-23 | `4fc71283` | Local | Each exit 0; lint reports only warnings that predate this change |
+| `npm test` | 2026-10-23 | `4fc71283` | Local | 55 files, 528 tests passed |
+| `npm run test:integration` | 2026-10-23 | `4fc71283` | Local stack | 70 of 71 files passed (684 of 685 tests). `tests/integration/recovery.test.ts` "shows a re-sent input once even before its new receipt is recorded" failed once on its 2-second receipt wait and passed when the file ran alone (14 tests); at `05f1f021`, before the review fixes, all 71 files and 683 tests passed |
+| `npx playwright test --workers=2` | 2026-10-23 | `4fc71283` | Local stack | 47 of 49 passed; `first-reply.test.ts` and `host-setup.test.ts` "a new host completes setup one card at a time…" missed 5-second waits early in the run and passed when run alone (9 tests). An earlier full run with the default workers failed widely because the local Docker daemon stopped mid-run |
+
 ### Evidence by item
 
 | Item | Evidence |

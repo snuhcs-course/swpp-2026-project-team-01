@@ -33,7 +33,7 @@ Before each group, read the [Phase 8 reference repository files](../../../docume
 
 ## 6. Join
 
-- [ ] 6.1 Run `npm run check`, build, lint, typecheck, unit, integration and browser tests and `supabase test db`; record the runs.
+- [x] 6.1 Run `npm run check`, build, lint, typecheck, unit, integration and browser tests and `supabase test db`; record the runs.
 
 ## 7. Release (blocked on the user)
 

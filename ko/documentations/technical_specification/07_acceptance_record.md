@@ -412,6 +412,17 @@
 
 변경: [`operations-and-release`](../../openspec/changes/operations-and-release/tasks.md). 증거 목록: [8단계](06_implementation_plan.md#phase-8--operations-and-release). 환경은 1단계와 같으며, 이 브랜치는 기본 로컬 스택에서 자체 마이그레이션 체인으로 초기화한 뒤 실행되었습니다.
 
+### 테스트 묶음 실행
+
+| 명령 | 날짜 | 리비전 | 환경 | 결과 |
+|---|---|---|---|---|
+| `supabase db reset --local` | 2026-10-23 | `4fc71283` | 로컬 스택 | 마이그레이션 31개 체인이 다시 구축됨, 종료 코드 0 |
+| `supabase test db` | 2026-10-23 | `4fc71283` | 로컬 스택 | 파일 9개, pgTAP 테스트 127개 통과 |
+| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-23 | `4fc71283` | 로컬 | 모두 종료 코드 0; lint는 이 변경 이전부터 있던 경고만 보고함 |
+| `npm test` | 2026-10-23 | `4fc71283` | 로컬 | 파일 55개, 테스트 528개 통과 |
+| `npm run test:integration` | 2026-10-23 | `4fc71283` | 로컬 스택 | 71개 파일 중 70개 통과(685개 테스트 중 684개). `tests/integration/recovery.test.ts`의 "shows a re-sent input once even before its new receipt is recorded"가 영수증 2초 대기에서 한 번 실패했고 파일을 단독으로 실행하자 통과했습니다(테스트 14개). 검토 수정 이전인 `05f1f021`에서는 71개 파일과 테스트 683개가 모두 통과했습니다 |
+| `npx playwright test --workers=2` | 2026-10-23 | `4fc71283` | 로컬 스택 | 49개 중 47개 통과; `first-reply.test.ts`와 `host-setup.test.ts`의 "a new host completes setup one card at a time…"가 실행 초반에 5초 대기를 넘겼고 단독으로 실행하자 통과했습니다(테스트 9개). 기본 워커 수로 한 앞선 전체 실행은 실행 도중 로컬 Docker 데몬이 멈춰 넓게 실패했습니다 |
+
 ### 항목별 증거
 
 | 항목 | 증거 |

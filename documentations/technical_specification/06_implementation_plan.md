@@ -376,7 +376,7 @@ Scope. Prerequisite: Phase 4 for diagnostics to have something to inspect; the r
 
 **Join**
 
-- [ ] Run `npm run check`, the build, lint, typecheck, unit, integration, browser and database tests on the branch, and record the runs.
+- [x] Run `npm run check`, the build, lint, typecheck, unit, integration, browser and database tests on the branch, and record the runs.
 - [ ] Run the release checklist in the [decision log](08_decision_log.md#phase-8--operations-and-release) and the production acceptance it ends with. Open: every step needs the user, a teammate or a provider console.
 
 Specs: [operational-diagnostics](../../openspec/specs/operational-diagnostics/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md) (Auth notifications), [messaging-environments](../../openspec/specs/messaging-environments/spec.md).

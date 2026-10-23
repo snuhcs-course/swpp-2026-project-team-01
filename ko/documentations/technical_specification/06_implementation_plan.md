@@ -378,7 +378,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **합류**
 
-- [ ] 브랜치에서 `npm run check`, 빌드, 린트, 타입 검사, 단위, 통합, 브라우저, 데이터베이스 테스트를 실행하고 실행 결과를 기록합니다.
+- [x] 브랜치에서 `npm run check`, 빌드, 린트, 타입 검사, 단위, 통합, 브라우저, 데이터베이스 테스트를 실행하고 실행 결과를 기록합니다.
 - [ ] [결정 기록](08_decision_log.md#phase-8--operations-and-release)의 릴리스 체크리스트와 그 끝의 프로덕션 인수를 실행합니다. 열림: 모든 단계에 사용자, 팀원 또는 제공자 콘솔이 필요합니다.
 
 명세: [operational-diagnostics](../../openspec/specs/operational-diagnostics/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md)(Auth 알림), [messaging-environments](../../openspec/specs/messaging-environments/spec.md).
