@@ -2,11 +2,48 @@
 
 > 한국어 번역본 (검토용). 원본: documentations/technical_specification/07_acceptance_record.md
 
-상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 릴리스되고 프로덕션에서 확인됨; 게스트 받은편지함 확인은 보류 중; 5단계(`agent-access`) 로컬 증거 기록됨, 명명된 클라이언트와 프로덕션 증거 보류 중; 6단계(`host-imessage-channel`) 로컬 증거 기록됨, 회선, 기기, 프로덕션 증거 보류 중; 7단계(`requester-email-channel`) 로컬 증거 기록됨, 받은편지함과 프로덕션 증거 보류 중; 열린 공백은 아래에 나열
+상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 릴리스되고 프로덕션에서 확인됨; 게스트 받은편지함 확인은 보류 중; 5단계(`agent-access`) 로컬 증거 기록됨, 명명된 클라이언트와 프로덕션 증거 보류 중; 6단계(`host-imessage-channel`) 로컬 증거 기록됨, 회선, 기기, 프로덕션 증거 보류 중; 7단계(`requester-email-channel`) 로컬 증거 기록됨, 받은편지함과 프로덕션 증거 보류 중; 8단계(`operations-and-release`) 로컬 증거 기록됨; [릴리스 요약](#release-summary)이 모든 시나리오의 상태를 나열; 열린 공백은 아래에 나열
 
 날짜: 2026-10-23
 
 이 기록은 [구현 계획](06_implementation_plan.md)의 각 단계가 해당 단계의 증거 목록에 맞춰 만들어 낸 증거를 나열합니다. 모든 항목에는 실행한 명령, 날짜, 리비전, 환경이 명시되어 있습니다. 픽스처와 로컬 스택 실행은 로직을 증명할 뿐이며, **production**으로 표시된 항목만 배포된 연동을 증명합니다. 토큰, 시크릿, 이메일 주소, 개인 메시지 본문은 이 기록에 넣지 않습니다.
+
+## 릴리스 요약
+
+2026-10-23에 [`operations-and-release`](../../openspec/changes/operations-and-release/proposal.md) 변경(레인 D)이 아래 각 단계 절을 바탕으로 정리했습니다. **로컬**은 픽스처 또는 로컬 스택 증거로 로직을 증명하며, **프로덕션**은 배포된 연동에 대한 점검을 뜻하고, **보류**는 [PRD](../02_product_requirements.md#9-end-to-end-release-acceptance-scenarios)가 여전히 요구하는 항목입니다. 보류 항목이 하나라도 있는 시나리오는 종료된 것이 아니며, 해결되지 않은 명명된 클라이언트, 기기, 받은편지함 사례는 릴리스 차단 요인이므로 **릴리스는 아직 수용할 수 없습니다**. 무관용 지표(인가되지 않은 예약, 중복 이벤트, 비공개 정보 노출)는 지금까지 실행한 테스트 묶음에서 실패한 사례가 없습니다.
+
+| ID | 로컬 | 프로덕션 | 보류 |
+|---|---|---|---|
+| AC-01 | 합의까지 `tests/e2e/requester-intake.test.ts`, 이어서 예약된 이벤트 하나까지 `tests/e2e/host-review.test.ts` ([4단계](#phase-4--host-review-and-booking)) | 2026-10-22의 웹 예약: 호스트의 실제 Google Calendar에 이벤트 하나 ([4단계 프로덕션 점검](#production-acceptance-check)) | 게스트의 받은편지함; 같은 여정을 이메일, iMessage, 각 명명된 클라이언트로 수행 |
+| AC-02 | `tests/integration/evaluation.test.ts` "checks the host's inbound trip through Routes and reuses the estimate within 24 hours"와 "leaves a leg with no route unresolved and out of the requester's list"; `host-requests.test.ts` 수동 허용; `bookings.test.ts` "stops at revalidation when a busy event appeared" | — | 실제 Routes 점검(3단계 작업 5.2)과 프로덕션 실행 |
+| AC-03 | `tests/integration/host-requests.test.ts` ([4단계](#phase-4--host-review-and-booking)) | 4단계 프로덕션 점검의 주간 한도 보류와 **Allow this request beyond my weekly limit** | 웹 경로는 없음; 다른 채널은 AC-14와 AC-16과 같음 |
+| AC-04 | `host-requests.test.ts` "shares a feasible later time as a checked new version" | — | 프로덕션 실행 |
+| AC-05 | `tests/integration/email-journey.test.ts` ([7단계](#phase-7--requester-email-channel)) | — | 실제 받은편지함 전달: AgentMail 받은편지함이 차단됨 |
+| AC-06 | `bookings.test.ts`(웹), `imessage-commands.test.ts`(iMessage와 웹), `agent-join.test.ts`(에이전트) | — | 프로덕션 실행; 명명된 클라이언트 |
+| AC-07 | `bookings.test.ts` "stops at revalidation when a busy event appeared"와 "dispatches only one of two competing bookings for the same host" | — | 프로덕션 실행 |
+| AC-08 | `bookings.test.ts` 유실된 응답 조정; `tests/integration/recovery-operations.test.ts`는 운영자가 찾은 불확실한 예약을 조정 | — | Google을 상대로 안전하게 유발할 수 있는 것은 없음; 픽스처 증거로 갈음 |
+| AC-09 | `bookings.test.ts` 거부된 쓰기와 취소된 접근; `booking-emails.test.ts` 반송된 사본 | — | 취소된 접근의 프로덕션 실행 |
+| AC-10 | `tests/integration/host-review.test.ts`; `agent-mcp-host.test.ts`(OAuth 부여로는 아무것도 예약되지 않음) | — | 명명된 클라이언트 |
+| AC-11 | `email-journey.test.ts`, `email-links.test.ts` ([7단계](#phase-7--requester-email-channel)) | — | 실제 받은편지함 전달 |
+| AC-12 | `lib/server/feasibility.test.ts` "yields nothing for a window whose end is ambiguous or does not exist"; `tests/integration/request-reviews.test.ts` "asks the authored Korean question for an ambiguous local time and records no window" | — | 서머타임 변경 구간에 걸친 프로덕션 실행 |
+| AC-13 | `bookings.test.ts` 발송 전후의 철회, 거절, 만료 | — | 프로덕션 실행 |
+| AC-14 | `tests/integration/agent-join.test.ts`, 스크립트 방식 ([5단계](#phase-5--agent-access)) | — | Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code, 각각 두 역할 모두 |
+| AC-15 | `agent-mcp-requester.test.ts`, 스크립트 방식 | — | 명명된 클라이언트 일곱 개 |
+| AC-16 | `eve dev`를 통한 `tests/integration/imessage-journey.test.ts` ([6단계](#phase-6--host-imessage-channel)) | — | Photon 회선, 그 웹훅, 통제된 iPhone |
+| AC-17 | `imessage-journey.test.ts`, `imessage-channel.test.ts`, `imessage-commands.test.ts` | — | 통제된 iPhone |
+| AC-18 | `imessage-journey.test.ts`, `imessage-commands.test.ts`, `imessage-notices.test.ts` | — | 서비스 재시작을 포함한 통제된 iPhone |
+| AC-19 | `tests/e2e/agent-connect.test.ts`; `agent-mcp-host.test.ts` | — | 명명된 클라이언트; 프로덕션 서명 키 |
+| AC-20 | `lib/server/agent-tokens.test.ts`; `agent-mcp-host.test.ts` | — | 명명된 클라이언트 |
+| AC-21 | `agent-mcp-requester.test.ts`; `agent-mcp-host.test.ts` | — | 명명된 클라이언트 |
+| AC-22 | `tests/integration/agent-cli.test.ts`; 합류 테스트 | — | 프로덕션을 상대로 한 CLI |
+| AC-23 | `lib/server/entry-documents.test.ts`, `tests/integration/entry-documents.test.ts`, 문서만 | 두 오리진 모두에서 `/SKILL.md` 제공(2단계) | 각 명명된 클라이언트가 일반 URL과 `/SKILL.md` URL을 붙여 넣기 |
+| AC-24 | 같은 문서 테스트 | `/{handle}/SKILL.md` 제공(3단계 스모크 테스트) | 각 명명된 클라이언트 |
+| AC-25 | 같은 문서 테스트; `agent-mcp-requester.test.ts` "refuses a resource for an unknown host" | — | 각 명명된 클라이언트와 거부된 동의 |
+| AC-26 | `tests/integration/host-admission.test.ts`, `setup-tools.test.ts`, `entry-documents.test.ts`, `operator.test.ts` ([1단계](#phase-1--application-foundation), [2단계](#phase-2--host-onboarding)) | `https://findmeatime.com`에서의 실제 로그인 1회로 호스트 계정 하나 생성(1단계) | 설정 전 MCP와 CLI를 통한 게시 시도; 프로덕션에서의 정지 |
+| AC-27 | `tests/integration/requester-google.test.ts`; `evaluation.test.ts` "uses the requester's busy time without storing or showing their events" | — | 실제 요청자 동의, Google 앱이 **Testing** 상태인 동안 차단됨 |
+| AC-28 | 항목별 [2단계](#phase-2--host-onboarding) 증거 | — | 프로덕션에서 로그인한 설정; Google 앱 검증 |
+
+앞서 기록된 두 공백이 해당 단계가 기록된 이후 바뀌었습니다. 6단계까지의 모든 마이그레이션이 이제 공유 프로젝트에 있으며(2026-10-23에 확인), 현재 프로덕션 배포(2026-10-23 07:02 KST)는 6단계 병합보다 앞서므로 6~8단계는 배포되지 않았습니다.
 
 ## 1단계 — `application-foundation`
 

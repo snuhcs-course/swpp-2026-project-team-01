@@ -29,7 +29,7 @@ Before each group, read the [Phase 8 reference repository files](../../../docume
 
 ## 5. Acceptance record (Lane D)
 
-- [ ] 5.1 Add the release summary of AC-01 to AC-28 to the acceptance record: where each scenario's evidence is, its kind, and what is pending.
+- [x] 5.1 Add the release summary of AC-01 to AC-28 to the acceptance record: where each scenario's evidence is, its kind, and what is pending.
 
 ## 6. Join
 

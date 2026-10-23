@@ -372,7 +372,7 @@ Scope. Prerequisite: Phase 4 for diagnostics to have something to inspect; the r
 
 **Lane D — acceptance record**
 
-- [ ] The acceptance evidence record for AC-01 through AC-28 with commands, dates, revisions and gaps, maintained from Phase 1 onward and completed here.
+- [ ] The acceptance evidence record for AC-01 through AC-28 with commands, dates, revisions and gaps, maintained from Phase 1 onward and completed here. Open: the [release summary](07_acceptance_record.md#release-summary) of 2026-10-23 gives every scenario its local evidence and production evidence where it exists; production, named-client, device and inbox cases are still pending for most scenarios.
 
 Specs: [operational-diagnostics](../../openspec/specs/operational-diagnostics/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md) (Auth notifications), [messaging-environments](../../openspec/specs/messaging-environments/spec.md).
 

@@ -1,10 +1,47 @@
 # Acceptance Record
 
-Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) released and checked on production; the guest's inbox check pending; Phase 5 (`agent-access`) local evidence recorded, named-client and production evidence pending; Phase 6 (`host-imessage-channel`) local evidence recorded, line, device and production evidence pending; Phase 7 (`requester-email-channel`) local evidence recorded, inbox and production evidence pending; open gaps listed below
+Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) released and checked on production; the guest's inbox check pending; Phase 5 (`agent-access`) local evidence recorded, named-client and production evidence pending; Phase 6 (`host-imessage-channel`) local evidence recorded, line, device and production evidence pending; Phase 7 (`requester-email-channel`) local evidence recorded, inbox and production evidence pending; Phase 8 (`operations-and-release`) local evidence recorded; the [release summary](#release-summary) lists every scenario's state; open gaps listed below
 
 Date: 2026-10-23
 
 This record lists the evidence each phase of the [implementation plan](06_implementation_plan.md) produced, against the evidence list of that phase. Every entry names the command, the date, the revision and the environment it ran in. Fixture and local-stack runs prove logic; only the entries marked **production** prove the deployed integration. Tokens, secrets, email addresses and personal message text are kept out of this record.
+
+## Release summary
+
+Compiled on 2026-10-23 by the [`operations-and-release`](../../openspec/changes/operations-and-release/proposal.md) change (Lane D) from the phase sections below. **Local** means fixture or local-stack evidence, which proves logic; **Production** means a check against the deployed integration; **Pending** is what the [PRD](../02_product_requirements.md#9-end-to-end-release-acceptance-scenarios) still requires. A scenario with anything pending is not closed, and an unresolved named-client, device or inbox case is a release blocker, so **the release is not yet acceptable**. The zero-tolerance measures (unauthorized bookings, duplicate events, private disclosures) have no failing case in the suites run so far.
+
+| ID | Local | Production | Pending |
+|---|---|---|---|
+| AC-01 | `tests/e2e/requester-intake.test.ts` to agreement, then `tests/e2e/host-review.test.ts` to one booked event ([Phase 4](#phase-4--host-review-and-booking)) | Web booking on 2026-10-22: one event on the host's real Google Calendar ([Phase 4 production check](#production-acceptance-check)) | The guest's inbox; the same journey by email, iMessage and each named client |
+| AC-02 | `tests/integration/evaluation.test.ts` "checks the host's inbound trip through Routes and reuses the estimate within 24 hours" and "leaves a leg with no route unresolved and out of the requester's list"; `host-requests.test.ts` manual allowance; `bookings.test.ts` "stops at revalidation when a busy event appeared" | — | The live Routes check (Phase 3 task 5.2) and a production run |
+| AC-03 | `tests/integration/host-requests.test.ts` ([Phase 4](#phase-4--host-review-and-booking)) | The weekly-limit hold and **Allow this request beyond my weekly limit** in the Phase 4 production check | — for the web path; other channels as AC-14 and AC-16 |
+| AC-04 | `host-requests.test.ts` "shares a feasible later time as a checked new version" | — | A production run |
+| AC-05 | `tests/integration/email-journey.test.ts` ([Phase 7](#phase-7--requester-email-channel)) | — | Real inbox delivery: the AgentMail inbox is blocked |
+| AC-06 | `bookings.test.ts` (web), `imessage-commands.test.ts` (iMessage and web), `agent-join.test.ts` (agent) | — | A production run; named clients |
+| AC-07 | `bookings.test.ts` "stops at revalidation when a busy event appeared" and "dispatches only one of two competing bookings for the same host" | — | A production run |
+| AC-08 | `bookings.test.ts` lost-response reconciliation; `tests/integration/recovery-operations.test.ts` reconciles an uncertain booking an operator finds | — | None that can be induced safely against Google; fixture evidence stands |
+| AC-09 | `bookings.test.ts` refused write and revoked access; `booking-emails.test.ts` bounced copy | — | A production run of revoked access |
+| AC-10 | `tests/integration/host-review.test.ts`; `agent-mcp-host.test.ts` (an OAuth grant books nothing) | — | Named clients |
+| AC-11 | `email-journey.test.ts`, `email-links.test.ts` ([Phase 7](#phase-7--requester-email-channel)) | — | Real inbox delivery |
+| AC-12 | `lib/server/feasibility.test.ts` "yields nothing for a window whose end is ambiguous or does not exist"; `tests/integration/request-reviews.test.ts` "asks the authored Korean question for an ambiguous local time and records no window" | — | A production run across a daylight-saving change |
+| AC-13 | `bookings.test.ts` withdrawal, decline and expiry around dispatch | — | A production run |
+| AC-14 | `tests/integration/agent-join.test.ts`, scripted ([Phase 5](#phase-5--agent-access)) | — | Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code, each in both roles |
+| AC-15 | `agent-mcp-requester.test.ts`, scripted | — | The seven named clients |
+| AC-16 | `tests/integration/imessage-journey.test.ts` through `eve dev` ([Phase 6](#phase-6--host-imessage-channel)) | — | The Photon line, its webhook and a controlled iPhone |
+| AC-17 | `imessage-journey.test.ts`, `imessage-channel.test.ts`, `imessage-commands.test.ts` | — | A controlled iPhone |
+| AC-18 | `imessage-journey.test.ts`, `imessage-commands.test.ts`, `imessage-notices.test.ts` | — | A controlled iPhone with a service restart |
+| AC-19 | `tests/e2e/agent-connect.test.ts`; `agent-mcp-host.test.ts` | — | Named clients; the production signing key |
+| AC-20 | `lib/server/agent-tokens.test.ts`; `agent-mcp-host.test.ts` | — | Named clients |
+| AC-21 | `agent-mcp-requester.test.ts`; `agent-mcp-host.test.ts` | — | Named clients |
+| AC-22 | `tests/integration/agent-cli.test.ts`; the join test | — | The CLI against production |
+| AC-23 | `lib/server/entry-documents.test.ts`, `tests/integration/entry-documents.test.ts`, documents only | `/SKILL.md` served on both origins (Phase 2) | Each named client pasting the plain and the `/SKILL.md` URL |
+| AC-24 | The same documents tests | `/{handle}/SKILL.md` served (Phase 3 smoke test) | Each named client |
+| AC-25 | The same documents tests; `agent-mcp-requester.test.ts` "refuses a resource for an unknown host" | — | Each named client, and denied consent |
+| AC-26 | `tests/integration/host-admission.test.ts`, `setup-tools.test.ts`, `entry-documents.test.ts`, `operator.test.ts` ([Phase 1](#phase-1--application-foundation), [Phase 2](#phase-2--host-onboarding)) | One real sign-in on `https://findmeatime.com` creating one host account (Phase 1) | Publishing attempts through MCP and the CLI before setup; suspension on production |
+| AC-27 | `tests/integration/requester-google.test.ts`; `evaluation.test.ts` "uses the requester's busy time without storing or showing their events" | — | Real requester consent, blocked while the Google app is in **Testing** |
+| AC-28 | [Phase 2](#phase-2--host-onboarding) evidence by item | — | Signed-in setup on production; Google app verification |
+
+Two earlier gaps changed since their phases were recorded: every migration through Phase 6 is now on the shared project (read on 2026-10-23), and the current production deployment (2026-10-23 07:02 KST) predates the Phase 6 merge, so Phases 6 to 8 are not deployed.
 
 ## Phase 1 — `application-foundation`
 

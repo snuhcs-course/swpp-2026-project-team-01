@@ -374,7 +374,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **레인 D — 인수 기록**
 
-- [ ] 명령, 날짜, 리비전, 공백을 포함한 AC-01부터 AC-28까지의 인수 증거 기록. 1단계부터 유지하여 여기서 완성합니다.
+- [ ] 명령, 날짜, 리비전, 공백을 포함한 AC-01부터 AC-28까지의 인수 증거 기록. 1단계부터 유지하여 여기서 완성합니다. 열림: 2026-10-23의 [릴리스 요약](07_acceptance_record.md#release-summary)은 모든 시나리오에 로컬 증거를, 있는 경우 프로덕션 증거를 제공합니다. 대부분의 시나리오에서 프로덕션, 명명된 클라이언트, 기기, 받은편지함 사례는 아직 보류 중입니다.
 
 명세: [operational-diagnostics](../../openspec/specs/operational-diagnostics/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md)(Auth 알림), [messaging-environments](../../openspec/specs/messaging-environments/spec.md).
 
