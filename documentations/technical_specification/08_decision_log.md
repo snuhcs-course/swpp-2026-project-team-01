@@ -223,7 +223,51 @@ These steps were not taken because they cannot be undone by a revert, need a pro
 
 ## Phase 6 — `host-imessage-channel`
 
-No decisions yet.
+The [proposal](../../openspec/changes/host-imessage-channel/proposal.md#decisions) records D1–D14. The plan assigns the adapter and sender format, line provisioning and the new-conversation allowance, code expiry and resend limits, and the deep-link format to this phase. The user decided D3 and D4 on 2026-10-23; the implementing session took the others on 2026-10-23, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
+
+**Teammate draft PR #23 is not adopted.** PR #23 (enu3379, `docs/host-imessage-linking`) has the host enter a number in `/app`, Thyme text it first, and a matching two-digit reply link the number. That makes Thyme's first message unsolicited: it shows the recipient a junk banner and spends one of the line's daily new conversations, which the PRD's inbound-first link code exists to avoid, and the user kept the PRD's design on 2026-10-23. Three pieces of it are reused and credited in the pull request: the Photon webhook signature check (`v0:` HMAC over the raw body, five-minute window, webhook-ID check), durable inbound events stored before the `2xx` with the text cleared after processing, and send limits with spacing. Its migration timestamps predate migrations already applied to the shared project, so none of its schema files is copied. The PR itself is left untouched.
+
+### Product decisions
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | An application-owned adapter: `agent/channels/photon.ts` hosts only the signed receiver, which stores a receipt and job before the `200`; the application maps the sender to the host's selected discussion; outbound text goes through one transport module (Spectrum SDK in production, a loopback stand-in elsewhere) and an outbox | eve's native `photonIMessageChannel`: acknowledges after an in-process dispatch with nothing stored, one eve session per iMessage thread outside the session index, no way to hold a message under admission limits, no outbox or uncertain-send record | Proposal; design 1; agent configuration; provider setup | The proposal and design 1, then `agent/channels/photon.ts` and `lib/server/photon.ts` |
+| D2 | The sender is Photon's `message.sender.id`: E.164 (`+15551234567`) or an Apple ID email, lower-cased; stored as a keyed hash and sealed; only `space.type = "dm"` counts; never parsed from text or the space ID | Matching on the space ID; parsing a number from the chat GUID | Proposal; design 1; provider setup | `normalizeSender` in `lib/server/photon-receiver.ts` |
+| D3 | (User, 2026-10-23.) The PRD's scope: a host-sent one-time code, so the first message from Thyme is a reply; binding only after **Confirm and link** on the masked sender in the authenticated browser; **Send me a code instead** as the fallback; Google stays the only way to create or enter a host account | PR #23's outbound-first text-and-reply check; phone accounts; iMessage-first account creation | PRD section 10; proposal; design 4 | The PRD first, then the proposal |
+| D4 | (User, 2026-10-23.) **Connect iMessage** gets the code and at once opens Messages: `sms:<number>&body=<text>` on iOS and iPadOS, `sms:<number>?body=<text>` on Android, text percent-encoded; desktops and other browsers get the inline card with number, code, **Copy** and a QR code of the iOS deep link; opening Messages never counts as linking | **Open Messages** as a second tap on an expanded card (the earlier documents); an `SMSTO:` QR payload | PRD section 10; page list; interfaces; host onboarding H11; frontend architecture; provider setup; design 5 | `deepLinkFor` and `messagesPlatform` in `lib/contracts/imessage.ts` |
+| D5 | Link code `FMAT-` plus ten Crockford base32 characters (the email family, already redacted everywhere); message `Link my Find Me a Time account: FMAT-…`; valid 15 minutes; hashed and sealed; at most 5 per host per hour; 15 minutes to confirm after it arrives | A short numeric code (guessable within its window); a separate code family needing its own redaction | Proposal; design 4 | `IMESSAGE_LINK_LIMITS` in `lib/server/imessage-links.ts` |
+| D6 | Fallback: six digits, valid 10 minutes, 3 sends per attempt 60 seconds apart, 5 sends per host per 24 hours, 5 wrong entries void it, at most 20 fallback sends per line per 24 hours (`PHOTON_FALLBACK_DAILY_LIMIT`) | No line-wide cap (Photon caps new conversations per line per day, number unpublished) | Proposal; design 6 | `IMESSAGE_FALLBACK_LIMITS` in `lib/server/imessage-links.ts`; the environment variable |
+| D7 | One Photon project with one line (`PHOTON_LINE_NUMBER`) and one webhook whose ID and signing secret the receiver checks (`PHOTON_WEBHOOK_ID`, `PHOTON_WEBHOOK_SECRET`) | Operator-registered receivers with fingerprints, as for AgentMail (more moving parts for one webhook) | Proposal; design 2; provider setup | `photonReceiverConfig` in `lib/server/photon-receiver.ts` |
+| D8 | Whole-message commands, case-insensitive: `help`, `requests`, `request <ref>`, `setup`, `review`, `changes`, `share <ref>`, `dismiss <ref>`, `approve <ref>`, `decline <ref>`, `confirm <ref>`; references are six Crockford characters from the request ID, `<request>-<version>`, `<request>-S<n>` and eight characters of the setup proposal hash; decisions run through the command pipeline with retry key `imessage:{receiptId}` | Natural-language approval; buttons (iMessage has none we can trust) | Proposal; design 8; agent configuration | `parseCommand` and the reference helpers in `lib/server/imessage-commands.ts` |
+| D9 | One frozen, sealed outbox row per outbound message, sent by `imessage_send`; a send that began and lost its answer is `uncertain` and never repeated; a refusal before sending retries up to 5 times; host-private rows are suppressed after unlinking | Retrying uncertain sends (Photon gives no checkable idempotency key, so the host could get duplicates) | Proposal; design 3 | `lib/server/imessage-outbox.ts` |
+| D10 | An unlinked direct sender gets one fixed reply per 24 hours pointing to `/app`; group conversations, echoes and reactions get nothing | Silence (an iMessage-first introduction would get no direction); a reply to every message | Proposal; design 7 | `UNLINKED_REPLY_HOURS` in `lib/server/imessage-receipts.ts` |
+| D11 | Forwarded text is stored as `[iMessage] …` in the shared discussion, and a host instruction fragment says iMessage shows no cards and names the commands for decisions | A separate iMessage discussion; no marker | Proposal; design 9; agent configuration | `IMESSAGE_PREFIX` in `lib/server/imessage-receipts.ts`; `agent/instructions/host-imessage.ts` |
+| D12 | Host summaries for a new request, a proposal awaiting approval (with the exact commands), a confirmed booking and a booking not confirmed, frozen in the domain transaction, once per event | Summaries for every state change | Proposal; design 10 | `enqueueHostNotice` in `lib/server/imessage-notices.ts` |
+| D13 | **Add to contacts** queues one native contact-card share; status queued, accepted, failed or uncertain, never "saved"; no resend while uncertain | Sharing the card automatically at linking | Proposal; design 11 | `imessage.contact_card.share` in `lib/server/imessage-links.ts` |
+| D14 | Receipt text cleared at processing and receipts deleted after 30 days; outbox text cleared at a final state; link attempts and ended bindings deleted 30 days after ending | Keeping inbound text for diagnostics | Proposal; design 13 | `app.cleanup_imessage_records` and a new migration |
+
+### Implementation decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Commands beyond the plan's list | The plan names `request`, `review`, `changes`, approve, decline and `setup`; the change adds `help`, `requests` (to learn references), `share` and `dismiss` (so revised details can be shared from text, as AC-16 needs) and `confirm` (the settings confirmation the onboarding flow asks for) | Sharing changes only on the web | Design 8 | `parseCommand` in `lib/server/imessage-commands.ts` |
+
+### Operational decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Spike without a line | The spike compared the adapters from eve 0.80.1's bundled Photon adapter source, Photon's webhook documentation, the Spectrum SDK 12.14.0 type declarations and PR #23, because provisioning a line and texting a number are blocked on the user; the device-dependent facts (deep-link behavior, sender format on a real iPhone, send path) are left to the join | Waiting for a line before choosing | Design 1; this log | — |
+
+### Blocked on the user
+
+These steps were not taken because they cannot be undone by a revert, need a provider console, or text people:
+
+- **Photon line:** no line is provisioned and no project credentials are set.
+- **Photon webhook:** no webhook is registered for `{origin}/photon/webhook`.
+- **Texting any real number,** including during the spike, which needs the user present with a controlled iPhone.
+- **Shared-project migration and production deploy** of this branch.
+- **Real-device checks** (AC-16 to AC-18, the deep link and QR code, the sender identifier) on a controlled iPhone.
+- **Teammate review** of D1–D14, then `openspec archive` of the change.
 
 ## Phase 7 — `requester-email-channel`
 

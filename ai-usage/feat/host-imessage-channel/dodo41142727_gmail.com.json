@@ -1,0 +1,40 @@
+{
+  "branch": "feat/host-imessage-channel",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:120d7e08-2391-46dc-bfb5-6b2fca518bcc": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 146,
+          "cache_read": 16676058,
+          "cache_write_5m": 0,
+          "cache_write_1h": 261344,
+          "output": 72797,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T02:27:09.159Z",
+      "last": "2026-10-23T02:42:29.586Z"
+    },
+    "claude:120d7e08-2391-46dc-bfb5-6b2fca518bcc/agent-a10e826227f07fbcc": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 16,
+          "cache_read": 641701,
+          "cache_write_5m": 105637,
+          "cache_write_1h": 0,
+          "output": 10617,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T02:40:35.001Z",
+      "last": "2026-10-23T02:41:50.634Z"
+    }
+  }
+}

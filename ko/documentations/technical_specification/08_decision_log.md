@@ -225,7 +225,51 @@
 
 ## 6단계 — `host-imessage-channel`
 
-아직 결정이 없습니다.
+[제안서](../../openspec/changes/host-imessage-channel/proposal.md#decisions)가 D1–D14를 기록합니다. 계획은 어댑터와 발신자 형식, 회선 프로비저닝과 신규 대화 허용량, 코드 만료와 재전송 한도, 딥링크 형식을 이 단계에 배정했습니다. 사용자가 2026-10-23에 D3과 D4를 정했고, 나머지는 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-23에 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
+
+**팀원의 초안 PR #23은 채택하지 않았습니다.** PR #23(enu3379, `docs/host-imessage-linking`)은 호스트가 `/app`에서 번호를 입력하면 Thyme이 먼저 문자를 보내고, 두 자리 숫자 답장이 일치하면 번호를 연결합니다. 그러면 Thyme의 첫 메시지가 요청하지 않은 것이 되어 수신자에게는 스팸 배너로 보이고 회선의 일일 신규 대화 한도를 하나 소모하는데, PRD의 수신 우선 연결 코드는 바로 이를 피하기 위한 것이며 사용자는 2026-10-23에 PRD의 설계를 유지하기로 했습니다. 세 부분은 재사용하며 풀 리퀘스트에서 출처를 밝힙니다: Photon 웹훅 서명 검증(원본 본문에 대한 `v0:` HMAC, 5분 허용 구간, 웹훅 ID 확인), `2xx` 이전에 저장하고 처리 뒤 텍스트를 지우는 내구성 있는 수신 이벤트, 간격을 둔 발송 한도. 이 PR의 마이그레이션 타임스탬프는 이미 공유 프로젝트에 적용된 마이그레이션보다 앞서므로 스키마 파일은 하나도 복사하지 않았습니다. PR 자체는 건드리지 않았습니다.
+
+### 제품 결정
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| D1 | 애플리케이션이 소유하는 어댑터: `agent/channels/photon.ts`는 `200` 이전에 수신 기록과 작업을 저장하는 서명된 수신기만 호스팅하고, 애플리케이션이 발신자를 호스트가 선택한 논의로 매핑하며, 발신 텍스트는 하나의 전송 모듈(프로덕션은 Spectrum SDK, 그 밖에는 루프백 대역)과 발신함을 거칩니다 | eve의 네이티브 `photonIMessageChannel`: 아무것도 저장하지 않고 프로세스 내 디스패치 뒤에 확인 응답하며, iMessage 스레드마다 세션 색인 밖의 eve 세션 하나를 두고, 접수 한도 아래에서 메시지를 보류할 수 없고, 발신함이나 불확실 발송 기록이 없음 | 제안서; 설계 1; 에이전트 구성; 제공자 설정 | 제안서와 설계 1, 이어서 `agent/channels/photon.ts`와 `lib/server/photon.ts` |
+| D2 | 발신자는 Photon의 `message.sender.id`입니다: E.164(`+15551234567`) 또는 소문자로 바꾼 Apple ID 이메일이며, 키 해시로 저장하고 봉인하고, `space.type = "dm"`만 인정하며, 텍스트나 스페이스 ID에서 파싱하지 않습니다 | 스페이스 ID로 매칭; 채팅 GUID에서 번호 파싱 | 제안서; 설계 1; 제공자 설정 | `lib/server/photon-receiver.ts`의 `normalizeSender` |
+| D3 | (사용자, 2026-10-23.) PRD의 범위: 호스트가 보내는 일회용 코드이므로 Thyme의 첫 메시지는 답장이며, 인증된 브라우저에서 마스킹된 발신자의 **확인 및 연결(Confirm and link)**을 거친 뒤에만 바인딩되고, 대체 경로는 **코드를 대신 보내 주세요(Send me a code instead)**이며, 호스트 계정을 만들거나 들어가는 유일한 방법은 계속 Google입니다 | PR #23의 발신 우선 문자 및 답장 확인; 전화번호 계정; iMessage 우선 계정 생성 | PRD 10절; 제안서; 설계 4 | PRD 먼저, 이어서 제안서 |
+| D4 | (사용자, 2026-10-23.) **iMessage 연결(Connect iMessage)**은 코드를 받아 곧바로 메시지 앱을 엽니다: iOS와 iPadOS는 `sms:<number>&body=<text>`, Android는 `sms:<number>?body=<text>`이고 텍스트는 퍼센트 인코딩하며, 데스크톱과 그 밖의 브라우저는 번호, 코드, **복사(Copy)**, iOS 딥링크의 QR 코드가 있는 인라인 카드를 받고, 메시지 앱을 여는 것은 연결로 간주되지 않습니다 | 펼친 카드의 두 번째 탭으로서의 **메시지 앱 열기(Open Messages)**(이전 문서); `SMSTO:` QR 페이로드 | PRD 10절; 페이지 목록; 인터페이스; 호스트 온보딩 H11; 프론트엔드 아키텍처; 제공자 설정; 설계 5 | `lib/contracts/imessage.ts`의 `deepLinkFor`와 `messagesPlatform` |
+| D5 | 연결 코드는 `FMAT-`에 크록포드 base32 문자 열 개(이미 모든 곳에서 마스킹되는 이메일 계열)를 붙인 형태이며, 메시지는 `Link my Find Me a Time account: FMAT-…`이고, 15분간 유효하며, 해시하고 봉인하며, 호스트당 시간당 최대 5개이고, 도착 뒤 확인까지 15분입니다 | 짧은 숫자 코드(유효 기간 안에 추측 가능); 별도의 마스킹이 필요한 코드 계열 | 제안서; 설계 4 | `lib/server/imessage-links.ts`의 `IMESSAGE_LINK_LIMITS` |
+| D6 | 대체 경로: 6자리, 10분간 유효, 시도당 3회 발송에 60초 간격, 호스트당 24시간에 5회 발송, 잘못 입력 5회면 무효, 회선당 24시간에 대체 경로 발송 최대 20회(`PHOTON_FALLBACK_DAILY_LIMIT`) | 회선 전체 한도 없음(Photon은 회선당 일일 신규 대화를 제한하며 수치는 공개되지 않음) | 제안서; 설계 6 | `lib/server/imessage-links.ts`의 `IMESSAGE_FALLBACK_LIMITS`; 환경 변수 |
+| D7 | 하나의 Photon 프로젝트에 회선 하나(`PHOTON_LINE_NUMBER`)와 수신기가 ID와 서명 비밀을 확인하는 웹훅 하나(`PHOTON_WEBHOOK_ID`, `PHOTON_WEBHOOK_SECRET`) | AgentMail처럼 지문이 있는 운영자 등록 수신기(웹훅 하나에 비해 움직이는 부분이 많음) | 제안서; 설계 2; 제공자 설정 | `lib/server/photon-receiver.ts`의 `photonReceiverConfig` |
+| D8 | 메시지 전체가 명령이며 대소문자를 구분하지 않습니다: `help`, `requests`, `request <ref>`, `setup`, `review`, `changes`, `share <ref>`, `dismiss <ref>`, `approve <ref>`, `decline <ref>`, `confirm <ref>`; 참조는 요청 ID의 크록포드 문자 여섯 개, `<request>-<version>`, `<request>-S<n>`, 설정 제안 해시의 여덟 문자이며, 결정은 재시도 키 `imessage:{receiptId}`로 명령 파이프라인을 통해 실행됩니다 | 자연어 승인; 버튼(iMessage에는 신뢰할 만한 버튼이 없음) | 제안서; 설계 8; 에이전트 구성 | `lib/server/imessage-commands.ts`의 `parseCommand`와 참조 도우미 |
+| D9 | 발신 메시지마다 고정되고 봉인된 발신함 행 하나를 `imessage_send`가 보내며, 시작되었지만 응답을 잃은 발송은 `uncertain`이 되어 다시 보내지 않고, 발송 전 거부는 최대 5회 재시도하며, 호스트 전용 행은 연결 해제 뒤 억제됩니다 | 불확실 발송 재시도(Photon은 확인 가능한 멱등성 키를 주지 않으므로 호스트가 중복을 받을 수 있음) | 제안서; 설계 3 | `lib/server/imessage-outbox.ts` |
+| D10 | 연동되지 않은 직접 발신자에게는 24시간에 한 번 `/app`을 안내하는 고정 회신 하나를 보내고, 그룹 대화, 에코, 리액션에는 아무것도 보내지 않습니다 | 침묵(iMessage 우선 소개에는 안내가 없음); 모든 메시지에 회신 | 제안서; 설계 7 | `lib/server/imessage-receipts.ts`의 `UNLINKED_REPLY_HOURS` |
+| D11 | 전달된 텍스트는 공유 논의에 `[iMessage] …`로 저장하고, 호스트 지시 조각이 iMessage에는 카드가 없음을 알리고 결정에 쓸 명령을 명시합니다 | 별도의 iMessage 논의; 표시 없음 | 제안서; 설계 9; 에이전트 구성 | `lib/server/imessage-receipts.ts`의 `IMESSAGE_PREFIX`; `agent/instructions/host-imessage.ts` |
+| D12 | 새 요청, 승인 대기 중인 제안(정확한 명령 포함), 확정된 예약, 확정되지 않은 예약에 대한 호스트 요약을 도메인 트랜잭션에서 고정해 이벤트당 한 번 보냅니다 | 모든 상태 변경에 대한 요약 | 제안서; 설계 10 | `lib/server/imessage-notices.ts`의 `enqueueHostNotice` |
+| D13 | **연락처에 추가(Add to contacts)**는 네이티브 연락처 카드 공유 하나를 큐에 넣고, 상태는 큐에 있음, 수락됨, 실패, 불확실이며 "저장됨"은 절대 아니고, 불확실한 동안에는 재전송하지 않습니다 | 연동 시 카드를 자동으로 공유 | 제안서; 설계 11 | `lib/server/imessage-links.ts`의 `imessage.contact_card.share` |
+| D14 | 수신 텍스트는 처리 시 지우고 수신 기록은 30일 뒤 삭제하며, 발신함 텍스트는 최종 상태에서 지우고, 연결 시도와 종료된 바인딩은 종료 30일 뒤 삭제합니다 | 진단용으로 수신 텍스트 보관 | 제안서; 설계 13 | `app.cleanup_imessage_records`와 새 마이그레이션 |
+
+### 구현 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 계획의 목록을 넘는 명령 | 계획은 `request`, `review`, `changes`, 승인, 거절, `setup`을 꼽습니다; 이 변경은 `help`, `requests`(참조를 알기 위해), `share`와 `dismiss`(AC-16이 요구하듯 수정된 세부 사항을 텍스트로 공유할 수 있게), `confirm`(온보딩 흐름이 요구하는 설정 확인)을 더합니다 | 변경 공유를 웹에서만 허용 | 설계 8 | `lib/server/imessage-commands.ts`의 `parseCommand` |
+
+### 운영 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 회선 없는 스파이크 | 회선 프로비저닝과 번호로 문자 보내기는 사용자에게 막혀 있으므로, 스파이크는 eve 0.80.1에 포함된 Photon 어댑터 소스, Photon의 웹훅 문서, Spectrum SDK 12.14.0 타입 선언, PR #23으로 어댑터를 비교했고, 기기에 의존하는 사실(딥링크 동작, 실제 iPhone의 발신자 형식, 발송 경로)은 합류 단계로 남겼습니다 | 회선을 기다린 뒤 선택 | 설계 1; 이 기록 | — |
+
+### 사용자 대기 항목
+
+다음 단계는 되돌려도 취소할 수 없거나, 제공자 콘솔이 필요하거나, 사람들에게 문자를 보내기 때문에 수행하지 않았습니다.
+
+- **Photon 회선:** 프로비저닝된 회선이 없고 프로젝트 자격 증명도 설정되지 않았습니다.
+- **Photon 웹훅:** `{origin}/photon/webhook`에 등록된 웹훅이 없습니다.
+- **실제 번호로의 문자 발송,** 스파이크 중 포함. 통제된 iPhone을 가진 사용자가 함께 있어야 합니다.
+- **공유 프로젝트 마이그레이션과 프로덕션 배포**(이 브랜치).
+- **실제 기기 확인**(AC-16 ~ AC-18, 딥링크와 QR 코드, 발신자 식별자), 통제된 iPhone에서.
+- **팀원 검토**(D1–D14), 이어서 변경의 `openspec archive`.
 
 ## 7단계 — `requester-email-channel`
 
