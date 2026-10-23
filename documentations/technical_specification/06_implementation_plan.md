@@ -272,7 +272,7 @@ Scope. Prerequisite: Phase 2 for setup over iMessage and Phase 4 for decisions. 
 - [x] [Design](../../openspec/changes/host-imessage-channel/design.md).
 - [x] Delta spec under [`specs/`](../../openspec/changes/host-imessage-channel/specs/), the new `host-imessage-channel` capability.
 - [x] [Tasks](../../openspec/changes/host-imessage-channel/tasks.md).
-- [ ] Owning-document updates and Korean mirrors, including the one-tap deep link the user decided on 2026-10-23.
+- [x] Owning-document updates and Korean mirrors, including the one-tap deep link the user decided on 2026-10-23.
 - [ ] Teammate review.
 
 **Lane A — transport spike**

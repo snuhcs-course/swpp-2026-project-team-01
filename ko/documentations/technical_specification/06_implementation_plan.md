@@ -274,7 +274,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 - [x] [설계](../../openspec/changes/host-imessage-channel/design.md).
 - [x] [`specs/`](../../openspec/changes/host-imessage-channel/specs/) 아래의 델타 명세, 새로운 `host-imessage-channel` 기능.
 - [x] [작업](../../openspec/changes/host-imessage-channel/tasks.md).
-- [ ] 소유 문서 갱신과 한국어 미러, 2026-10-23에 사용자가 결정한 원탭 딥링크 포함.
+- [x] 소유 문서 갱신과 한국어 미러, 2026-10-23에 사용자가 결정한 원탭 딥링크 포함.
 - [ ] 팀원 검토.
 
 **레인 A — 전송 스파이크**
