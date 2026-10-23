@@ -18,13 +18,15 @@ import { ResendLinkForm } from "@/app/_components/requester/resend-link-form";
 // draft, whose thread lives only in the tab that started it on the public page
 // until the guest is identified. A closed request with an unexpired link shows
 // only its status and, once booked, the confirmed receipt. Otherwise it is the guest thread, the same one the public
-// page began, loaded from its stored events. next.config.ts sends
-// no-referrer, noindex and no-store for every /booking path, and nothing here
-// logs the path.
+// page began, loaded from its stored events. next.config.ts sends noindex and
+// no-store for every /booking path, and nothing here logs the path. The
+// referrer is same-origin, not no-referrer: with no-referrer Chrome sends
+// `Origin: null` on the Connect Google Calendar form post, which the start
+// route's same-origin check refuses; the link still never leaves the origin.
 type Params = Promise<{ bookingId: string }>;
 
 export const metadata: Metadata = {
-  referrer: "no-referrer",
+  referrer: "same-origin",
   robots: { follow: false, index: false },
   title: "Your meeting request",
 };
