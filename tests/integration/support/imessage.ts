@@ -70,7 +70,7 @@ export function imessageHarness(
     tokenKeys: [testTokenKey],
   });
   const commands = (lineDayLimit = 1000) =>
-    imessageCommands({ lineDayLimit, lineNumber: TEST_LINE, tokenKey: testTokenKey, tokenKeys: [testTokenKey] });
+    imessageCommands({ lineDayLimit, lineNumber: TEST_LINE, origin: "http://localhost:3000", tokenKey: testTokenKey, tokenKeys: [testTokenKey] });
 
   return {
     config,

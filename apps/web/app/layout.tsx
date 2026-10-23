@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Merriweather } from "next/font/google";
+import { Big_Shoulders, Geist, Geist_Mono, Merriweather } from "next/font/google";
 import type { ReactNode } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -30,6 +30,14 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
 });
 
+// The wordmark and headings of the landing and the iMessage link screens (the ink
+// screens, apps/web/app/_components/ink).
+const bigShoulders = Big_Shoulders({
+  axes: ["opsz"],
+  subsets: ["latin"],
+  variable: "--font-big-shoulders",
+});
+
 // Editorial display headings (DESIGN.md typography).
 const merriweather = Merriweather({
   subsets: ["latin"],
@@ -57,7 +65,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { readonly children: ReactNode }) {
   return (
-    <html className={`${geistSans.variable} ${geistMono.variable} ${merriweather.variable}`} lang="en">
+    <html className={`${geistSans.variable} ${geistMono.variable} ${merriweather.variable} ${bigShoulders.variable}`} lang="en" suppressHydrationWarning>
       <body className="antialiased">
         <TooltipProvider>{children}</TooltipProvider>
       </body>

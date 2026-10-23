@@ -3,12 +3,15 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { HostWorkspace } from "@/app/_components/host-workspace";
+import { LOCALE_COOKIE, localeOf } from "@/app/_components/ink/copy";
+import { LinkStep } from "@/app/_components/ink/link-step";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { SignInCard } from "@/app/_components/sign-in-card";
 
 // The single host page. Signed out, it offers Google sign-in; a suspended
 // account sees why it cannot continue; an active host gets the conversation,
-// whose empty setup session this visit opens on the server.
+// whose empty setup session this visit opens on the server, after the iMessage
+// link step when it applies.
 type SearchParams = Promise<{ sign_in?: string }>;
 
 export default function Page({ searchParams }: { readonly searchParams: SearchParams }) {
@@ -21,7 +24,8 @@ export default function Page({ searchParams }: { readonly searchParams: SearchPa
 
 async function Workspace({ searchParams }: { readonly searchParams: SearchParams }) {
   await connection();
-  const cookie = (await cookies())
+  const jar = await cookies();
+  const cookie = jar
     .getAll()
     .map(({ name, value }) => `${name}=${value}`)
     .join("; ");
@@ -44,5 +48,9 @@ async function Workspace({ searchParams }: { readonly searchParams: SearchParams
     );
   }
 
-  return <HostWorkspace />;
+  return (
+    <LinkStep locale={localeOf(jar.get(LOCALE_COOKIE)?.value)} ready={standing.ready}>
+      <HostWorkspace />
+    </LinkStep>
+  );
 }

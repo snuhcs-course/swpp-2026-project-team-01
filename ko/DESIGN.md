@@ -49,6 +49,8 @@ material:
 
 선택된 로고와 잘리지 않은 참고 이미지는 문서 자산으로 보관합니다. 컴포넌트 구조, 메시지·작성창 상호작용, 반응형 마감은 [참고 저장소](documentations/technical_specification/02_frontend_architecture.md#reference-repositories)의 Vercel chatbot과 eve 채팅 템플릿을 연구해 이 팔레트에 맞게 가져옵니다. Phase 1 테마는 `apps/web/app/globals.css`([제안된 구현 매핑](#proposed-implementation-mapping)에 설명한 대로 토큰을 shadcn 역할에 매핑), 루트 레이아웃의 글꼴, 공유 `components/ui`와 `components/chat` 레시피에 있습니다. [알려진 공백](#known-gaps)을 참고하십시오.
 
+**예외: 잉크 화면.** 공개 랜딩(`/`와 `/?flow=imessage`)과 `/app`의 iMessage 연결 단계는 2026-10-23 사용자 결정([`host-imessage-channel` D18](openspec/changes/host-imessage-channel/proposal.md#decisions))에 따라 랜딩 재설계의 잉크 팔레트(`#F6F7F9` 위의 `#2C3E63`), Big Shoulders 제목, Geist 본문을 사용합니다. 스타일은 `.ink` 범위로 묶인 `apps/web/app/_components/ink/ink.css`에 있으므로, 그 밖의 모든 곳에는 이 문서의 Thyme 테마가 그대로 적용됩니다. 앱 전체를 잉크로 옮길지는 별도의 팀 결정입니다.
+
 ## 분위기
 
 차분하고 사려 깊으며, 식물적이고, 조용히 편집적인 느낌입니다. 섬세한 식물 형태를 읽기 쉬운 제품 UI, 따뜻한 종이 질감, 넉넉한 여백과 어울리게 씁니다. 신중하게 쓴 좋은 문구지처럼 환영받는 느낌, 촉각적인 느낌, 쉽게 실행할 수 있는 느낌을 주어야 합니다.

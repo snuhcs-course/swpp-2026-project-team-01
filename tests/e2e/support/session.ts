@@ -24,8 +24,22 @@ export const test = base.extend<object, { db: Database }>({
 
 export { expect } from "@playwright/test";
 
-export async function signedInHost(db: Database, context: BrowserContext, baseURL: string) {
+// Most suites test the setup conversation, so their host has chosen Set up here
+// in web chat on the iMessage link step that opens /app (host-imessage-channel
+// D16), which this browser remembers; the iMessage suite opts in to the step.
+// Set up here in web chat, as this browser would remember it.
+export function skipImessageStep(context: BrowserContext) {
+  return context.addInitScript(() => window.localStorage.setItem("fmat:imessage-later", "1"));
+}
+
+export async function signedInHost(
+  db: Database,
+  context: BrowserContext,
+  baseURL: string,
+  options: { readonly imessageStep?: boolean } = {},
+) {
   const host = await signInHost(db);
+  if (!options.imessageStep) await skipImessageStep(context);
   const url = new URL(baseURL);
 
   await context.addCookies(

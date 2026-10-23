@@ -9,10 +9,12 @@ import {
 } from "../contracts/imessage";
 import { lockActiveHost } from "./analysis";
 import { type CommandDefinition, CommandError } from "./commands";
-import type { Queryable, Transaction } from "./database";
+import type { Database, Queryable, Transaction } from "./database";
 import { generateLinkCode, hashLinkCode } from "./email-links";
 import { recordOutbound } from "./imessage-outbox";
+import { imessageContinuationUrl } from "./imessage-continuation";
 import { imessageHash } from "./photon-receiver";
+import { calendarUsable, readReadiness } from "./readiness";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
 
 // Linking a host's iMessage (host-imessage-channel design 4, 6 and 11; D3, D5,
@@ -57,6 +59,8 @@ export type LinkOptions = {
   readonly tokenKeys: readonly TokenKey[];
   // The line's number; linking is unavailable without one.
   readonly lineNumber: string;
+  // The canonical origin (APP_ORIGIN) that links in Thyme's messages point to.
+  readonly origin: string;
   readonly fallbackLimits?: Partial<typeof IMESSAGE_FALLBACK_LIMITS>;
   readonly linkLimits?: Partial<typeof IMESSAGE_LINK_LIMITS>;
 };
@@ -68,8 +72,17 @@ export function fallbackDailyLimit(env: Readonly<Record<string, string | undefin
 
 export const LINK_TEXTS = {
   received: "Got it. Go back to Find Me a Time in your browser and tap Confirm and link to finish.",
+  // An attempt from the iMessage start has no host until a browser signs in (D15);
+  // the link lets the sender sign in from this thread (D19).
+  receivedBeforeSignIn: (url: string) =>
+    `Got it. To finish, sign in with Google and connect your calendar: ${url}\nThen tap Confirm and link on the page.`,
   refused: "That link code is not valid any more. Start again from Connect iMessage in Find Me a Time.",
+  // A ready host gets this; one still setting up gets a welcome into setup here (D19).
   linked: "Linked. Send help for what I can do here.",
+  welcomeCalendar: (url: string) =>
+    `You're connected! I'm Thyme, and we can set up your meetings right here. First, connect Google Calendar: ${url}`,
+  welcomeSetup: "You're connected! I'm Thyme, and we can set up your meetings right here. How long should a typical meeting be?",
+  backFromGoogle: "You're back from Google. Let's keep going here: tell me your meeting preferences, or send setup to see what's next.",
   fallbackCode: (code: string, minutes: number) => `Your Find Me a Time code is ${code}. It expires in ${minutes} minutes.`,
 } as const;
 
@@ -81,11 +94,11 @@ export const FOREIGN_BINDING = "foreign_binding";
 // send many first messages.
 export const LINE_REFUSALS_PER_DAY = 200;
 
-function codeContext(linkId: string) {
+export function codeContext(linkId: string) {
   return `imessage_link_code:${linkId}`;
 }
 
-function senderContext(linkId: string) {
+export function senderContext(linkId: string) {
   return `imessage_link_sender:${linkId}`;
 }
 
@@ -103,13 +116,18 @@ function assertSelf(context: { actor: { kind: string; id: string }; resourceId: 
   return context.actor.id;
 }
 
-async function lockHostLinking(tx: Transaction, hostAccountId: string) {
+// The advisory lock an attempt's changes take: its host's, or before sign-in its starter's.
+export function linkLockKey(owner: { readonly host_account_id: string | null; readonly starter_hash: string | null }) {
+  return owner.host_account_id ? `app.imessage_link:${owner.host_account_id}` : `app.imessage_link_start:${owner.starter_hash}`;
+}
+
+export async function lockHostLinking(tx: Transaction, hostAccountId: string) {
   await lockActiveHost(tx, hostAccountId);
   await tx`select pg_advisory_xact_lock(hashtextextended(${`app.imessage_link:${hostAccountId}`}, 0))`;
 }
 
 // Open attempts end with every sealed value cleared.
-async function endOpenAttempts(tx: Transaction, hostAccountId: string, state: "voided" | "cancelled") {
+export async function endOpenAttempts(tx: Transaction, hostAccountId: string, state: "voided" | "cancelled") {
   await tx`
     update app.imessage_links
     set state = ${state}, ended_at = now(), code_ciphertext = null, phone_ciphertext = null, sender_ciphertext = null,
@@ -209,10 +227,26 @@ async function bind(
     linkId,
     recipient: { address: sender, spaceId },
     recipientHash: senderHash,
-    text: LINK_TEXTS.linked,
+    text: await linkedText(tx, hostAccountId, options.origin),
     tokenKey: options.tokenKey,
   });
   return bindingId;
+}
+
+// Google sign-in asking for Calendar that returns to the iMessage conversation (D19).
+export function calendarConnectUrl(origin: string) {
+  return `${origin}/auth/sign-in?consent=calendar&return=imessage`;
+}
+
+// The linked message (D19): a ready host is told what Thyme can do; a host still
+// setting up is welcomed into setup in this conversation, with Calendar first when
+// it is not usable yet, since setup cannot go further without it.
+async function linkedText(tx: Transaction, hostAccountId: string, origin: string) {
+  if ((await readReadiness(tx, hostAccountId)).ready) return LINK_TEXTS.linked;
+  const [grant] = await tx<{ usable: boolean }[]>`
+    select ${calendarUsable(tx)} as usable from app.provider_grants g where g.host_account_id = ${hostAccountId}
+  `;
+  return grant?.usable ? LINK_TEXTS.welcomeSetup : LINK_TEXTS.welcomeCalendar(calendarConnectUrl(origin));
 }
 
 const noInput = z.object({}).strict() as unknown as z.ZodType<Record<string, never>>;
@@ -638,16 +672,19 @@ export async function refusalSentRecently(q: Queryable, recipientHash: string) {
 // conversation, from a sender no other host has linked, records the sender for
 // the host's confirmation and replies in that conversation; anything else voids
 // the attempt the code names and gets at most one refusal a day. Never forwarded.
-export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions, "tokenKey" | "linkLimits">, arrival: LinkArrival): Promise<LinkArrivalOutcome> {
+// An attempt from the iMessage start has no host yet (D15): it takes its
+// starter's lock instead, and any sender may arrive, since the bind on Confirm
+// and link refuses a sender another host holds.
+export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions, "tokenKey" | "linkLimits" | "origin">, arrival: LinkArrival): Promise<LinkArrivalOutcome> {
   const limits = { ...IMESSAGE_LINK_LIMITS, ...options.linkLimits };
-  const [named] = await tx<{ host_account_id: string }[]>`
-    select host_account_id from app.imessage_links where code_hash = ${hashLinkCode(arrival.code)}
+  const [named] = await tx<{ host_account_id: string | null; starter_hash: string | null }[]>`
+    select host_account_id, starter_hash from app.imessage_links where code_hash = ${hashLinkCode(arrival.code)}
   `;
 
   if (named) {
-    await tx`select pg_advisory_xact_lock(hashtextextended(${`app.imessage_link:${named.host_account_id}`}, 0))`;
+    await tx`select pg_advisory_xact_lock(hashtextextended(${linkLockKey(named)}, 0))`;
     const [link] = await tx<
-      { id: string; host_account_id: string; state: string; live: boolean; received_by_receipt_id: string | null; sender_hash: string | null }[]
+      { id: string; host_account_id: string | null; state: string; live: boolean; received_by_receipt_id: string | null; sender_hash: string | null }[]
     >`
       select id, host_account_id, state, expires_at > now() as live, received_by_receipt_id, sender_hash
       from app.imessage_links where code_hash = ${hashLinkCode(arrival.code)}
@@ -659,7 +696,7 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
     if (link?.received_by_receipt_id === arrival.receiptId) return "link_received";
     if (link?.state === "received" && link.sender_hash === arrival.senderHash) return "link_received";
 
-    const owner = await activeBindingOfSender(tx, arrival.senderHash);
+    const owner = link?.host_account_id ? await activeBindingOfSender(tx, arrival.senderHash) : null;
     const usable =
       link?.state === "pending" && link.live && arrival.spaceType === "dm" && (!owner || owner.host_account_id === link.host_account_id);
 
@@ -681,7 +718,9 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
         linkId: link.id,
         recipient: { address: arrival.sender, spaceId: arrival.spaceId },
         recipientHash: arrival.senderHash,
-        text: LINK_TEXTS.received,
+        text: link.host_account_id
+          ? LINK_TEXTS.received
+          : LINK_TEXTS.receivedBeforeSignIn(imessageContinuationUrl(options.origin, options.tokenKey, link.id, arrival.senderHash)),
         tokenKey: options.tokenKey,
       });
       return "link_received";
@@ -707,5 +746,27 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
     });
   }
   return "link_refused";
+}
+
+// A Google sign-in started from Thyme's Calendar link (D19) tells the linked
+// conversation to carry on, through the outbox like every other reply. The
+// redeemed authorization code keys it, so a replayed callback queues nothing
+// twice; it does not claim that Calendar was granted.
+export async function resumeImessageOnboarding(db: Database, key: TokenKey, hostAccountId: string, authCode: string) {
+  await db.begin(async (tx) => {
+    await lockHostLinking(tx, hostAccountId);
+    const binding = await activeBindingOfHost(tx, hostAccountId);
+    if (!binding) return;
+    await recordOutbound(tx, {
+      bindingId: binding.id,
+      dedupeKey: `google-return:${createHmac("sha256", key.key).update(`imessage-google-return:${authCode}`).digest("hex")}`,
+      hostAccountId,
+      kind: "command",
+      recipient: bindingRecipient([key], binding),
+      recipientHash: binding.sender_hash,
+      text: LINK_TEXTS.backFromGoogle,
+      tokenKey: key,
+    });
+  });
 }
 

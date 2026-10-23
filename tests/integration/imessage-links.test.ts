@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { linkMessage } from "../../lib/contracts/imessage";
 import { generateLinkCode } from "../../lib/server/email-links";
-import { lockActiveBindingOfSender } from "../../lib/server/imessage-links";
+import { calendarConnectUrl, LINK_TEXTS, lockActiveBindingOfSender } from "../../lib/server/imessage-links";
 import { imessageHash } from "../../lib/server/photon-receiver";
 import { testDatabase } from "./support/database";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
 import { imessageHarness, textOf } from "./support/imessage";
 import { newSender } from "./support/photon";
-import { newHostAccount } from "./support/ready-host";
+import { makeHostReady, newHostAccount } from "./support/ready-host";
 import { testTokenKey } from "./support/requests";
 
 // Linking a host's iMessage against the local stack and the Photon stand-in
@@ -38,8 +38,8 @@ async function pendingCode(hostAccountId: string) {
   return status;
 }
 
-async function linkedHost() {
-  const hostAccountId = await newHostAccount(db);
+async function linkedHost(existing?: string) {
+  const hostAccountId = existing ?? (await newHostAccount(db));
   const sender = newSender();
   const { code } = await pendingCode(hostAccountId);
   const message = linkMessage(code);
@@ -79,7 +79,27 @@ describe("linking by a host-sent code", () => {
     expect(await im.status(hostAccountId)).toMatchObject({ contactCard: null, delivery: null, sender: `•••• ${sender.slice(-4)}`, state: "linked" });
 
     const [linked] = await im.outbox({ hostAccountId, kind: "linked" });
-    expect(textOf((await im.send(linked!.id)).sent)).toEqual(["Linked. Send help for what I can do here."]);
+    expect(textOf((await im.send(linked!.id)).sent)).toEqual([
+      `You're connected! I'm Thyme, and we can set up your meetings right here. First, connect Google Calendar: ${calendarConnectUrl("http://localhost:3000")}`,
+    ]);
+  });
+
+  it("welcomes a host still setting up into setup, Calendar first, and tells a ready host what Thyme can do", async () => {
+    const welcomeOf = async (hostAccountId: string) => {
+      await linkedHost(hostAccountId);
+      const [linked] = await im.outbox({ hostAccountId, kind: "linked" });
+      return textOf((await im.send(linked!.id)).sent);
+    };
+    expect(await welcomeOf(await newHostAccount(db))).toEqual([LINK_TEXTS.welcomeCalendar(calendarConnectUrl("http://localhost:3000"))]);
+
+    const calendarOnly = await newHostAccount(db);
+    await makeHostReady(db, calendarOnly);
+    await db`delete from app.host_settings where host_account_id = ${calendarOnly}`;
+    expect(await welcomeOf(calendarOnly)).toEqual([LINK_TEXTS.welcomeSetup]);
+
+    const ready = await newHostAccount(db);
+    await makeHostReady(db, ready);
+    expect(await welcomeOf(ready)).toEqual(["Linked. Send help for what I can do here."]);
   });
 
   it("refuses an unknown, expired, replayed or group code and voids the attempt it names", async () => {

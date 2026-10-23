@@ -277,7 +277,7 @@ export async function processReceipt(
   const code = receipt.text ? findLinkCode(receipt.text) : null;
 
   if (code) {
-    return receiveLinkCode(tx, { tokenKey: deps.tokenKey }, {
+    return receiveLinkCode(tx, { origin: deps.origin, tokenKey: deps.tokenKey }, {
       code,
       receiptId: receipt.id,
       sender: receipt.sender,
@@ -287,7 +287,7 @@ export async function processReceipt(
     });
   }
 
-  if (receipt.spaceType !== "dm" || receipt.contentType === "reaction") return "ignored";
+  if (receipt.spaceType !== "dm" || ["reaction", "read", "typing"].includes(receipt.contentType)) return "ignored";
 
   const recipient = { address: receipt.sender, spaceId: receipt.spaceId };
   const binding = await lockActiveBindingOfSender(tx, receipt.senderHash);

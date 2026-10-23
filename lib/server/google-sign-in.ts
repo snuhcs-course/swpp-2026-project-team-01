@@ -5,6 +5,9 @@ import { isLiveHostTransaction } from "./agent-authorize";
 import { type Database, database } from "./database";
 import { createGrantedScopesFetcher, type FetchGrantedScopes } from "./google-token-info";
 import { ensureHostAccount, type HostAccount } from "./host-accounts";
+import { claimContinuedLink, claimStartedLink, clearStartCookie, startSecretOf } from "./imessage-start";
+import { continuationCookie, continuationOf } from "./imessage-continuation";
+import { resumeImessageOnboarding } from "./imessage-links";
 import { recordGoogleGrant } from "./provider-grants";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal, requestAppOrigin, unknownHost } from "./same-origin";
 import { admitSignUp, SIGNUP_LIMITS, SignUpLimitError, type SignUpLimits, sourceHash } from "./signup-limits";
@@ -104,8 +107,11 @@ export async function completeGoogleSignIn(
 // the transaction in this HttpOnly cookie, scoped to /auth, after checking that
 // it is a live, undecided host transaction; the callback clears it, checks the
 // transaction again and returns there, otherwise to /app. No query parameter
-// ever chooses the destination.
+// ever chooses the destination. Sign-in started from Thyme's iMessage links
+// (`return=imessage`, host-imessage-channel D19) records "imessage" instead, so
+// the callback tells the linked conversation to carry on; it still returns to /app.
 export const RETURN_COOKIE = "fmat_auth_return";
+const RETURN_IMESSAGE = "imessage";
 const RETURN_SECONDS = 10 * 60;
 
 function returnCookie(value: string, origin: string, maxAge: number) {
@@ -121,7 +127,9 @@ function recordedReturn(request: Request) {
 // with PKCE (the verifier stays in this browser's cookie) and offline access.
 // `?consent=calendar` (Connect Google Calendar) asks Google to show the consent
 // screen again and keep earlier grants, so declined Calendar scopes can be granted
-// and a fresh refresh token comes back; any other value is ignored.
+// and a fresh refresh token comes back; any other value is ignored. `?calendar=0`
+// (the landing's Calendar box left unchecked, D18) asks for identity only;
+// setup's Connect Google Calendar card asks for Calendar later.
 export function createGoogleSignInHandler(load: () => GoogleSignInDependencies = dependenciesFromEnvironment) {
   return async (request: Request) => {
     const deps = load();
@@ -131,6 +139,7 @@ export function createGoogleSignInHandler(load: () => GoogleSignInDependencies =
 
     const params = new URL(request.url).searchParams;
     const renewConsent = params.get("consent") === "calendar";
+    const identityOnly = !renewConsent && params.get("calendar") === "0";
     const transaction = params.get("return") === "consent" ? params.get("transaction") : null;
     const consentReturn = transaction && (await isLiveHostTransaction(deps.db, transaction)) ? transaction : null;
     const auth = createRequestAuthClient(request, deps.auth);
@@ -141,7 +150,7 @@ export function createGoogleSignInHandler(load: () => GoogleSignInDependencies =
           ...(renewConsent ? { include_granted_scopes: "true", prompt: "consent" } : {}),
         },
         redirectTo: `${origin}/auth/callback`,
-        scopes: GOOGLE_CALENDAR_SCOPES.join(" "),
+        ...(identityOnly ? {} : { scopes: GOOGLE_CALENDAR_SCOPES.join(" ") }),
         skipBrowserRedirect: true,
       },
       provider: "google",
@@ -151,7 +160,8 @@ export function createGoogleSignInHandler(load: () => GoogleSignInDependencies =
       return auth.redirect(`${origin}/app?sign_in=failed`);
     }
 
-    return auth.redirect(data.url, [returnCookie(consentReturn ?? "", origin, consentReturn ? RETURN_SECONDS : 0)]);
+    const returnTo = consentReturn ?? (params.get("return") === RETURN_IMESSAGE ? RETURN_IMESSAGE : null);
+    return auth.redirect(data.url, [returnCookie(returnTo ?? "", origin, returnTo ? RETURN_SECONDS : 0)]);
   };
 }
 
@@ -170,7 +180,9 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
     const failed = `${origin}/app?sign_in=failed`;
     const code = new URL(request.url).searchParams.get("code");
     const recorded = recordedReturn(request);
-    const clear = recorded === null ? [] : [returnCookie("", origin, 0)];
+    const started = startSecretOf(request);
+    const continued = continuationOf(request);
+    const clear = [...(recorded === null ? [] : [returnCookie("", origin, 0)]), ...(started === null ? [] : [clearStartCookie(origin)]), ...(continued === null ? [] : [continuationCookie("", origin, 0)])];
 
     if (!code) {
       return auth.redirect(failed, clear);
@@ -182,8 +194,9 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       return auth.redirect(failed, clear);
     }
 
+    let account: HostAccount;
     try {
-      await completeGoogleSignIn(
+      account = await completeGoogleSignIn(
         deps,
         {
           accessToken: data.session.provider_token ?? null,
@@ -197,7 +210,24 @@ export function createGoogleCallbackHandler(load: () => GoogleSignInDependencies
       return auth.redirect(caught instanceof SignUpLimitError ? `${origin}/app?sign_in=limited` : failed, clear);
     }
 
-    const consent = recorded && (await isLiveHostTransaction(deps.db, recorded)) ? `${origin}/connect/consent?transaction=${recorded}` : null;
+    // An attempt from the iMessage start moves to the host, whose link step then
+    // asks for Confirm and link (D15): the one named by the sign-in link in
+    // Thyme's reply (D19), else this browser's. A sign-in begun from Thyme's
+    // Calendar link tells the linked conversation to carry on (D19). Sign-in has
+    // succeeded either way; a lost claim only means linking again from /app, and
+    // a lost message only means the host writes first.
+    const logged = (event: string) => (error: unknown) => {
+      console.error(JSON.stringify({ error: error instanceof Error ? error.name : typeof error, event }));
+    };
+    if (account.status === "active") {
+      if (continued) await claimContinuedLink(deps.db, deps.tokenKey, account.id, continued).catch(logged("imessage_continue_claim_failed"));
+      else if (started) await claimStartedLink(deps.db, deps.tokenKey, account.id, started).catch(logged("imessage_start_claim_failed"));
+      if (recorded === RETURN_IMESSAGE) {
+        await resumeImessageOnboarding(deps.db, deps.tokenKey, account.id, code).catch(logged("imessage_resume_failed"));
+      }
+    }
+
+    const consent = recorded && recorded !== RETURN_IMESSAGE && (await isLiveHostTransaction(deps.db, recorded)) ? `${origin}/connect/consent?transaction=${recorded}` : null;
     return auth.redirect(consent ?? `${origin}/app`, clear);
   };
 }

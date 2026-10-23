@@ -48,7 +48,8 @@ test("the paper layer is omitted in forced colors", async ({ page }) => {
 });
 
 test("headings use Merriweather and body text Geist", async ({ page }) => {
-  await page.goto("/");
+  // The landing uses the ink screens' own type (D18); the signed-out workspace keeps the Thyme theme.
+  await page.goto("/app");
 
   const fonts = await page.evaluate(() => ({
     body: getComputedStyle(document.body).fontFamily,
