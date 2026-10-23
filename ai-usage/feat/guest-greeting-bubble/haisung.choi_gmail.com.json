@@ -1,0 +1,40 @@
+{
+  "branch": "feat/guest-greeting-bubble",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:3797898c-5964-4857-b872-e7ef63f26d8c": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 80,
+          "cache_read": 5063287,
+          "cache_write_5m": 0,
+          "cache_write_1h": 114448,
+          "output": 21670,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T12:19:52.350Z",
+      "last": "2026-10-23T13:09:37.709Z"
+    },
+    "claude:9fe9828b-c880-4b75-8c6e-cf5d0181dffc": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 448,
+          "cache_read": 49222936,
+          "cache_write_5m": 0,
+          "cache_write_1h": 516785,
+          "output": 117679,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T08:12:50.871Z",
+      "last": "2026-10-23T13:06:12.553Z"
+    }
+  }
+}

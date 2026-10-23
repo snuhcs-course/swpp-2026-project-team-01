@@ -18,7 +18,9 @@ import {
 import { ConnectedAgentsDialog, requestGrantSource } from "@/app/_components/connected-agents";
 import { CandidatesCard, DetailsCard, ProposalCard, ReviewCard } from "@/app/_components/requester/request-cards";
 import { ResendLinkForm } from "@/app/_components/requester/resend-link-form";
+import { ChatItem } from "@/components/chat/conversation";
 import { AgentMessage } from "@/components/chat/message";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Message, MessageContent, MessageHeader } from "@/components/ui/message";
 import type { ChatRequestError } from "@/lib/chat/discussion";
 import { guestDiscussionClient, type GuestPostOutcome, readNdjson } from "@/lib/chat/guest";
 import { GuestCard, GuestCardActions, GuestReceipt } from "./guest-card";
@@ -282,14 +285,16 @@ export function GuestWorkspace({
         <h1 className="break-words font-display text-[clamp(28px,4vw,40px)] leading-tight">{host.displayName}</h1>
         {host.handle ? <p className="font-mono text-muted-foreground">@{host.handle}</p> : null}
       </section>
-      <p className="text-sm">
-        {identified
-          ? "This conversation is private to you: anyone with its link can act on this request, so keep the link to yourself."
-          : "Requests are accepted here, and you do not need an account. Tell Thyme what the meeting is about; when Thyme asks, give your name and email in this conversation, with or without Google."}
-      </p>
-      {chrome && !identified ? chrome : null}
-      <TimezoneLine onChoose={timezone.choose} zone={timezone.zone} />
+      {identified ? (
+        <p className="text-sm">
+          This conversation is private to you: anyone with its link can act on this request, so keep the link to yourself.
+        </p>
+      ) : null}
       {view?.hasIntakeTranscript && bookingId ? <IntakeTranscript bookingId={bookingId} /> : null}
+      <GuestGreeting hostName={host.displayName}>
+        {chrome && !identified ? chrome : null}
+        <TimezoneLine onChoose={timezone.choose} zone={timezone.zone} />
+      </GuestGreeting>
     </div>
   );
 
@@ -656,7 +661,32 @@ function IdentityCard({ context }: { readonly context: RequesterCardContext }) {
   );
 }
 
-// The public page's chrome, collapsed by default above the thread: the agent
+// Thyme's opening message (G0), the thread's first message on the public page
+// and the booking page alike: a fixed greeting in a bubble, with the agent
+// section, link resend and timezone chip right below it. It is never recorded,
+// so the assistant's session starts with the guest's first message.
+function GuestGreeting({ children, hostName }: { readonly children: ReactNode; readonly hostName: string }) {
+  return (
+    <ChatItem messageId="guest-greeting">
+      <article className="w-full min-w-0" data-guest-greeting="">
+        <Message>
+          <MessageContent className="gap-1.5 text-base leading-[1.65] text-foreground">
+            <MessageHeader>Thyme</MessageHeader>
+            <Bubble className="max-w-[85%]" variant="muted">
+              <BubbleContent className="rounded-xl text-base leading-[1.65]">
+                <p>Hi, I'm Thyme! I help schedule meetings with {hostName}.</p>
+                <p>Tell me what you'd like to meet about, and I'll find a time that works. No account needed.</p>
+              </BubbleContent>
+            </Bubble>
+            <div className="flex flex-col gap-2 pt-1">{children}</div>
+          </MessageContent>
+        </Message>
+      </article>
+    </ChatItem>
+  );
+}
+
+// The public page's chrome, collapsed by default below Thyme's greeting: the agent
 // section for AI agents and **Resend my booking link**.
 export function PublicPageChrome({ agentSection }: { readonly agentSection: ReactNode }) {
   return (
