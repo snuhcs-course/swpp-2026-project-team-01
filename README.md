@@ -17,7 +17,9 @@
 
 ## Demo video
 
-_Added as `demos/iteration-2-demo.mov` after recording._
+[Watch / download the Iteration 2 demo](demos/iteration-2-demo.mp4) (MP4, about 5 MB, 3 min 24 sec; 1080p, no audio).
+
+The upload preserves the full recording, compressed from the original 4K MOV for repository playback.
 
 This branch is `main` at `873804b` plus the pull requests that were still open at the end of Iteration 2:
 
@@ -28,11 +30,11 @@ This branch is `main` at `873804b` plus the pull requests that were still open a
 | [#38](https://github.com/snuhcs-course/swpp-2026-project-team-01/pull/38) | Windows local development fix |
 | [#39](https://github.com/snuhcs-course/swpp-2026-project-team-01/pull/39) | iMessage link screens and setup in iMessage |
 
-The only change beyond those pull requests is the `/privacy` link in the new landing's footer, which #36 requires. The video was recorded with the **local run** below plus live iMessage and Google.
+The only application change beyond those pull requests is the `/privacy` link in the new landing's footer, which #36 requires. This branch also includes the demo recording and submission documentation. The video was recorded with the **local run** below plus live iMessage and Google.
 
 ## Demo scope
 
-The demo video covers:
+The recording shows the iMessage-first flow: the desktop linking popup, Google sign-in and Calendar selection, and setup replies in iMessage. The branch supports the following entry and setup paths; the recording does not demonstrate every variant:
 
 1. **Two ways in.**
    - `/` starts with Google, and its Calendar box decides whether Calendar is connected now.
@@ -59,7 +61,7 @@ This branch also implements features that the video does not show:
 
 ## What changed in Iteration 2
 
-The Iteration 1 prototype (Drizzle, the app's own Google OAuth, Ollama) was rebuilt on a new architecture from 2026-10-19. The phases merged during Iteration 2:
+The Iteration 1 prototype (Drizzle, the app's own Google OAuth, Ollama) was rebuilt on a new architecture from 2026-10-19. The phases included in this demo branch (including the open pull requests listed above):
 
 | Phase | PR | What it added |
 |---|---|---|
@@ -95,7 +97,8 @@ The production deployment is at [https://findmeatime.com](https://findmeatime.co
 - Node.js 24 and npm. The video was recorded with Node.js 25.9.0.
 - Docker Desktop and Supabase CLI **2.119.0** (check with `supabase --version`).
 - An OpenAI API key for the agent's conversation. It costs money.
-- A Google OAuth client in a Google Cloud project with the Calendar API enabled. Register `http://127.0.0.1:54321/auth/v1/callback` as a redirect URI.
+- A Google OAuth **Web application** client in a Google Cloud project with the Calendar API enabled. Register `http://127.0.0.1:54321/auth/v1/callback` for host sign-in and `http://localhost:3000/connections/google/callback` for requester consent. If the consent screen is in Testing, add the accounts you will use as test users.
+- Configure the host Calendar scopes listed in [`lib/contracts/google-scopes.ts`](lib/contracts/google-scopes.ts): `calendar.calendarlist.readonly`, `calendar.events`, and `calendar.events.freebusy` (each prefixed with `https://www.googleapis.com/auth/`). Requester consent additionally uses `calendar.events.readonly`.
 - For live iMessage: a Photon Spectrum project with one line, an iPhone, and the Mac's Messages on the same Apple ID.
 
 ```bash
@@ -107,18 +110,7 @@ cp .env.example .env
 
 ## Running locally
 
-1. Start Docker and the local Supabase stack. `db reset --local` deletes existing local data.
-
-```bash
-supabase start
-supabase db reset --local
-supabase status
-```
-
-2. Fill in the values below in `.env`, and put the local stack's values from `supabase status` (URL, keys, DB URL) in `.env.local`. `.env.example` explains every variable.
-   - Generate `TOKEN_ENCRYPTION_KEY` with `openssl rand -base64 32`.
-   - Use different random values for the two signing keys.
-   - Never commit `.env` or any key.
+1. Fill `.env` **before** starting Supabase: its Google provider reads `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` at startup. Keep the local Auth URLs from `.env.example`. Never commit `.env` or any key.
 
 ```dotenv
 OPENAI_API_KEY=<OPENAI_API_KEY>
@@ -126,10 +118,38 @@ GOOGLE_CLIENT_ID=<GOOGLE_OAUTH_CLIENT_ID>
 GOOGLE_CLIENT_SECRET=<GOOGLE_OAUTH_CLIENT_SECRET>
 APP_ORIGIN=http://localhost:3000
 TOKEN_ENCRYPTION_KEY=<32 bytes, base64>
-EVE_INTERNAL_SIGNING_KEY=<random value>
-AGENT_TOKEN_SIGNING_KEY=<random value>
+EVE_INTERNAL_SIGNING_KEY=<at least 32 characters>
+AGENT_TOKEN_SIGNING_KEY=<base64 PKCS#8 Ed25519 private key>
 PHOTON_LINE_NUMBER=<the Photon line's number, such as +15550001111>
 ```
+
+Generate the keys separately and copy each output to its matching variable. `AGENT_TOKEN_SIGNING_KEY` is needed for MCP agent access, not for the recorded onboarding flow.
+
+```bash
+openssl rand -base64 32                         # TOKEN_ENCRYPTION_KEY
+openssl rand -base64 48                         # EVE_INTERNAL_SIGNING_KEY
+openssl genpkey -algorithm ed25519 -outform DER | openssl base64 -A  # AGENT_TOKEN_SIGNING_KEY
+```
+
+2. Start Docker and the local Supabase stack. `db reset --local` deletes existing local data.
+
+```bash
+supabase start
+supabase db reset --local
+supabase status
+```
+
+Put the local stack's values from `supabase status` in `.env.local`:
+
+```dotenv
+SUPABASE_PROJECT_REF=
+SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_PUBLISHABLE_KEY=<local publishable key>
+SUPABASE_SECRET_KEY=<local secret key>
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+```
+
+Use the actual URL and keys printed by your stack if they differ. `.env.example` documents the remaining optional providers.
 
 3. Run the web and agent services and the job worker, each in its own terminal. Both refuse to run against the shared or release Supabase project.
 
@@ -149,13 +169,13 @@ Messaging is production-only by design: a local run sends only to a local stand-
 - **Receiving.**
   - Expose the agent's `/photon/webhook` (:2000) through an HTTPS tunnel, such as a Cloudflare quick tunnel.
   - Register that address as the Photon project's webhook, then set `PHOTON_WEBHOOK_ID` and `PHOTON_WEBHOOK_SECRET`.
-- **Sending.** Point `PHOTON_API_URL` at a local stand-in that forwards to Photon only for the presenter's own number. That stand-in uses `PHOTON_PROJECT_ID` and `PHOTON_PROJECT_SECRET`.
+- **Sending.** Point `PHOTON_API_URL` at a local stand-in that forwards to Photon only for the presenter's own number. That stand-in uses `PHOTON_PROJECT_ID` and `PHOTON_PROJECT_SECRET`. The presenter's forwarding adapter is not included in this repository, so a fresh clone alone cannot reproduce live outbound iMessage. The web-chat path above and the automated tests do not require it.
 - **Google sign-in.** The OAuth redirect URI above must be registered. A phone cannot reach the local callback, so the web steps run in the Mac's browser and the iPhone is used only for Messages.
 
 The video goes in this order:
 
-1. Open `/?flow=imessage` on the Mac, scan the popup's QR code with the iPhone and send the message.
-2. When the page shows the message as received, sign in with Google and press **Confirm and link**.
+1. Open `/?flow=imessage` on the Mac and send the popup's prewritten message using Messages (or scan its QR code with an iPhone).
+2. When the page shows the message as received, sign in with Google, press **Confirm and link**, and select the calendars to use.
 3. Reply to Thyme's greeting on the iPhone to carry on with setup.
 
 ## Checks
@@ -172,7 +192,7 @@ supabase test db               # pgTAP, on a freshly reset database
 npm run check:docs
 ```
 
-Integration and browser tests use local stand-ins for OpenAI, Google, Photon and AgentMail, so they run without keys. The Testing Documentation page on the Wiki records how we tested and the results.
+Integration and browser tests use local stand-ins for OpenAI, Google, Photon and AgentMail, so they run without keys. The [Testing Documentation](https://github.com/snuhcs-course/swpp-2026-project-team-01/wiki/Testing-Documentation) page on the Wiki records how we tested and the results.
 
 ## Expected errors and fixes
 
