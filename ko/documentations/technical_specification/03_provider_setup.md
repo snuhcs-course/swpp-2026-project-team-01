@@ -143,3 +143,11 @@ Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code를 각각 개별적으
 
 - `npm run admin -- diagnostics snapshot --operator <name> --project <ref>`는 열 가지 범주를 출력합니다. 소진된 작업, 리스가 만료된 작업, 기한이 지난 작업; 쓰기가 존재할 수 있는 예약(`bookings_uncertain`)과 15분보다 오래된 예약 확보; 불확실한 트랜잭션 이메일과 스레드 답장; 불확실하거나 실패한 iMessage 발송; 실패한 대화 세션; 10분이 지나도 답이 없는 입력입니다. 각 범주는 개수, 가장 오래된 타임스탬프, 최대 20개의 식별자를 보여 줍니다(`--samples`로 줄이고, `--json`으로 객체를 출력). 만료된 리스를 포함해 아무것도 바꾸지 않으며, 비어 있는 스냅샷이 공급자나 전달이 정상이라는 증거는 아닙니다.
 - `npm run admin -- diagnostics rejections --operator <name> --project <ref>`는 현재 시간과 직전 23개 UTC 시간의 권한 거부 및 오래된 작업 횟수를 출력합니다. 배포에 `DIAGNOSTICS_REJECTIONS=1`이 설정되어 있는 동안에만, 명령 파이프라인에 도달한 실패에 한해 기록되며, 버킷은 10,000에서 멈추고 그 사실을 알립니다. 거부가 늘면 탐색 시도나 고장 난 클라이언트를, 오래된 작업이 늘면 사람들이 오래된 제안에 따라 행동하고 있음을 가리킵니다.
+
+### 복구
+
+- **소진된 작업.** 먼저 원인(공급자 장애, 철회된 자격 증명)을 고친 다음 `npm run admin -- recover job --job <id> --reason <text> --operator <name> --project <ref>`를 실행하며, `--attempts`는 `1`부터 `10`(기본 3)까지입니다. 소진된 작업만 받아들이며, 작업은 새 펜스(fence)로 대기 상태가 되어 즉시 처리 대상이 됩니다. 핸들러는 이미 부작용을 반복하지 않습니다. 발송 중으로 발견된 전달은 다시 보내지 않고 불확실로 바뀌며, 발송 중으로 발견된 예약은 조정됩니다.
+- **쓰기가 불확실한 예약**(`bookings_uncertain`). `npm run admin -- recover booking --booking <id> --reason <text> --operator <name> --project <ref>`는 대기 중이거나 실행 중인 작업이 없을 때 조정 작업 하나를 게시합니다. 고정된 ID로 이벤트를 읽어 예약을 확정하거나, 같은 고정 페이로드를 삽입하며 이벤트가 이미 있으면 Google이 거부합니다. 당사자의 **Check booking status**도 같은 일을 합니다. 이 명령은 예약을 확정 또는 실패로 표시하지 않으며 예약 확보도 해제하지 않습니다.
+- **불확실한 이메일, 스레드 답장 또는 iMessage.** 이를 다시 보내는 명령은 없습니다. 전달 계약은 도착했을 수 있는 메시지의 두 번째 발송을 금지합니다. 그 사람에게 정보가 필요하면 지원을 통해 답하십시오.
+
+두 명령 모두 환경과 작업을 출력하고, `--yes`가 없으면 입력된 ID를 요구합니다. 모든 복구는 운영자, 작업, 대상, 발견한 상태, 사유, 환경과 함께 `app.operator_operations`에 기록됩니다.

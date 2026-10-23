@@ -16,6 +16,7 @@ import {
   UUID,
 } from "./operator-shared";
 import { DIAGNOSTICS_USAGE, runDiagnosticsAdmin } from "./diagnostics-admin";
+import { RECOVERY_USAGE, runRecoveryAdmin } from "./recovery-operations";
 
 export { type AdminDependencies, AdminUsageError, environmentName, sqlLiteral } from "./operator-shared";
 
@@ -26,7 +27,7 @@ export { type AdminDependencies, AdminUsageError, environmentName, sqlLiteral } 
 // same statement. It holds no user credential: `--local` uses the local stack's
 // DATABASE_URL and `--project` the operator's own Supabase access token.
 
-export const ADMIN_USAGE = `fmat-admin: operate Find Me a Time: hosts, email receivers and diagnostics.
+export const ADMIN_USAGE = `fmat-admin: operate Find Me a Time: hosts, email receivers, diagnostics and recovery.
 
 Usage:
   npm run admin -- show --host <handle-or-id> --operator <name> (--local | --project <ref>)
@@ -36,6 +37,7 @@ Usage:
   npm run admin -- email-receiver register --inbox <inbox-id> --webhook <webhook-id> --operator <name> (--local | --project <ref>) [--yes]
   npm run admin -- email-receiver disable --receiver <id> --operator <name> (--local | --project <ref>) [--yes]
 ${DIAGNOSTICS_USAGE}
+${RECOVERY_USAGE}
 
   --local            Use DATABASE_URL, which must point at the local stack (127.0.0.1 or localhost).
   --project <ref>    Use the Supabase Management API with your own SUPABASE_ACCESS_TOKEN.
@@ -47,7 +49,9 @@ the inbox's earlier receiver. Point the AgentMail webhook at
 {origin}/agentmail/webhooks/{receiver id}. The secret itself is never printed.
 
 diagnostics prints the redacted snapshot and the hourly rejection counts and
-changes nothing.`;
+changes nothing. recover job gives an exhausted job more attempts; recover
+booking starts the reconciliation of a booking whose write is uncertain. Neither
+resends an uncertain message, and each is audited.`;
 
 const COMMANDS = ["show", "suspend", "restore"] as const;
 type Command = (typeof COMMANDS)[number];
@@ -334,6 +338,7 @@ export async function runAdmin(argv: readonly string[], deps: AdminDependencies)
 
   if (argv[0] === "email-receiver") return runReceiverAdmin(argv, deps);
   if (argv[0] === "diagnostics") return runDiagnosticsAdmin(argv, deps, ADMIN_USAGE);
+  if (argv[0] === "recover") return runRecoveryAdmin(argv, deps, ADMIN_USAGE);
 
   let request: AdminRequest;
 

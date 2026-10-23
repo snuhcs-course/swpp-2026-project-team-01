@@ -405,6 +405,10 @@
 | 수집 지점 | `runCommand`에서 `commandFailure` 뒤에, `deps.db`(풀)와 `deps.env`로 실행하므로 롤백된 명령 트랜잭션이 횟수를 잃게 하지 않고 테스트의 환경이 결정합니다 | 명령 트랜잭션 안; 각 라우트 안 | `lib/server/commands.ts` | `lib/server/diagnostics.ts`의 `observeRejection` |
 | CLI 구성 | 공유 헬퍼는 `lib/server/operator-shared.ts`로 옮기고, 진단은 `lib/server/diagnostics-admin.ts`에 두며, `operator.ts`는 첫 단어로 분기합니다 | 계속 커지는 `operator.ts` 하나 | 해당 모듈들 | — |
 | 출력 | 기본은 읽기 쉬운 줄이고, `--json`은 환경을 더한 데이터베이스의 객체를 출력합니다. 모두 0인 스냅샷은 정상의 증거가 아님을 출력합니다 | JSON만 | `lib/server/diagnostics-admin.ts` | 같은 파일의 `printSnapshot`과 `printRejections` |
+| 재큐 시도 횟수 | 기본 3회, 복구 한 번당 최대 10회이며, 테이블의 총 한도 100회를 넘지 않습니다 | 시도 횟수 카운터 초기화: 작업이 몇 번 실패했는지 가려집니다 | `app.operator_requeue_job` | 함수와 `lib/server/recovery-operations.ts` |
+| 조정 작업 | 종류 `booking`, `bookingId` 페이로드, 승인 작업과 같은 8회 시도, 감사 행을 이름으로 가리키는 중복 제거 키, 그리고 올바른 워커가 가져가도록 `--project`에는 생산자 환경 `production`, `--local`에는 `local` | CLI에서 예약 핸들러를 직접 호출하기: 운영자의 컴퓨터에 호스트의 Calendar 자격 증명이 필요해집니다 | `app.operator_reconcile_booking` | 함수와 `lib/server/recovery-operations.ts`의 `producerFor` |
+| 복구 감사 | 외래 키가 없는 `operator_operations`이며, 레인 B의 삭제에도 사용합니다. 정지 감사는 `operator_actions`에 그대로 둡니다 | 모든 운영자 작업을 위한 감사 테이블 하나: 2단계의 테이블이 바뀝니다 | `operator_operations` 스키마 | 테이블과 새 마이그레이션 |
+| 확인 | 공유 `confirmChange`가 환경과 작업을 출력하고 입력된 ID를 대소문자 구분 없이 비교합니다 | 명령마다 별도의 프롬프트 | `lib/server/operator-shared.ts` | 그 안의 `confirmChange` |
 
 ### 운영 결정
 

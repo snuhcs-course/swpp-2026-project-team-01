@@ -403,6 +403,10 @@ The [proposal](../../openspec/changes/operations-and-release/proposal.md#decisio
 | Collection point | After `commandFailure` in `runCommand`, on `deps.db` (the pool) with `deps.env`, so the rolled-back command transaction cannot drop the count and a test's environment decides | Inside the command transaction; in each route | `lib/server/commands.ts` | `observeRejection` in `lib/server/diagnostics.ts` |
 | CLI layout | The shared helpers moved to `lib/server/operator-shared.ts`; diagnostics live in `lib/server/diagnostics-admin.ts`; `operator.ts` dispatches by the first word | One growing `operator.ts` | The modules | — |
 | Output | Readable lines by default and `--json` for the database's object with the environment added; an all-zero snapshot prints that it is not proof of health | JSON only | `lib/server/diagnostics-admin.ts` | `printSnapshot` and `printRejections` there |
+| Requeue attempts | Default 3, at most 10 per recovery, and never past the table's limit of 100 in total | Resetting the attempt counter, which hides how often a job failed | `app.operator_requeue_job` | The function and `lib/server/recovery-operations.ts` |
+| Reconciliation job | Kind `booking`, `bookingId` payload, 8 attempts like an approval's job, a dedupe key that names the audit row, and the producer environment `production` for `--project` or `local` for `--local`, so the right worker claims it | Calling the booking handler from the CLI, which would need the host's Calendar credentials on the operator's machine | `app.operator_reconcile_booking` | The function and `producerFor` in `lib/server/recovery-operations.ts` |
+| Recovery audit | `operator_operations` without a foreign key, also used by the deletions of Lane B; the suspension audit stays in `operator_actions` | One audit table for every operator action, which would change Phase 2's table | `operator_operations` schema | The table and a new migration |
+| Confirmation | The shared `confirmChange` prints the environment and action and compares the typed ID case-insensitively | Each command with its own prompt | `lib/server/operator-shared.ts` | `confirmChange` there |
 
 ### Operational decisions
 
