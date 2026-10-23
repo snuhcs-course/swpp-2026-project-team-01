@@ -18,7 +18,7 @@
 
 Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-east-2`**)를 팀의 공유 프로젝트로 사용합니다. 사용 방식은 [환경과 협업](#environments-and-collaboration)을 참고하십시오. Supabase CLI 2.119.0으로 `supabase link --project-ref anelszynxtvxoxqvzgqt`를 실행해 각 클론을 연결하며, 연결 메타데이터는 Git에서 제외됩니다. 애플리케이션과 공급자 자격 증명은 이 프로젝트에 대해 검증되지 않았습니다.
 
-**`mriseqztcwmezvtawnbo`**(**FindMeATime2**, `us-west-1`, PostgreSQL 17.11)는 같은 조직에 존재하며 향후 릴리스 프로젝트로 예약되어 있습니다. 현재는 관련 없는 내용이 들어 있어 사용하기 전에 비워야 하며, 개발용으로 연결하지 않습니다. 샌드박스가 아닙니다. Phase 1은 이 프로젝트를 예약된 채로 건드리지 않았으며, 마이그레이션, 설정 푸시, 배포 모두 하지 않았습니다.
+**`mriseqztcwmezvtawnbo`**(**FindMeATime2**, `us-west-1`, PostgreSQL 17.11)는 같은 조직에 존재하며 향후 릴리스 프로젝트로 예약되어 있습니다. 현재는 관련 없는 내용이 들어 있어 사용하기 전에 비워야 하며, 개발용으로 연결하지 않습니다. 샌드박스가 아닙니다. Phase 1은 이 프로젝트를 예약된 채로 건드리지 않았으며, 마이그레이션, 설정 푸시, 배포 모두 하지 않았습니다. 2026-10-23의 읽기 전용 점검([`operations-and-release` 설계 12](../../openspec/changes/operations-and-release/design.md#12-environments))에서 1차 반복의 프로토타입이 아직 남아 있는 것을 확인했습니다. 테이블 103개와 라이브 행 84개가 있는 `fmat` 스키마, `20261011125843`까지의 마이그레이션 기록 143건, Auth 사용자 2명, Vault 비밀 5개, 매분 또는 10분마다 실행되는 `pg_cron` 작업 17개입니다. CLI의 쿼리가 임시 `cli_login_postgres` 역할을 만들었습니다. 프로젝트를 비우는 일은 사용자에게 맡깁니다.
 
 스키마 기준선과 Phase 1 마이그레이션은 2026-10-19에, Phase 2 마이그레이션은 2026-10-20에 적용되었습니다([환경과 협업](#environments-and-collaboration) 참고). 그 전에는 이 프로젝트의 애플리케이션 스키마가 비어 있었습니다. `public`에는 애플리케이션 관계(relation), 함수, 타입이 없었고, 애플리케이션 마이그레이션 기록, 예약된 작업(scheduled job), 등록된 큐도 없습니다. Supabase가 관리하는 Auth, Storage, Realtime, Vault, 네트워크, cron, 큐 인프라는 남아 있으며, Auth 신원, Storage 객체, Vault 시크릿은 없습니다. 2026-10-19에 어느 브랜치에도 속하지 않던 실험 잔여물(애플리케이션 스키마 2개, 역할 2개, 마이그레이션 기록 5개, Vault 시크릿 2개, 테스트 신원 1개)을 제거한 뒤 검증했으며, 첫 마이그레이션 전에 다시 확인하십시오. PostgreSQL은 **17.6**으로 로컬의 메이저 버전과 일치합니다. 설치된 확장은 `pg_cron` 1.6.4, `pg_net` 0.20.4, `pgmq` 1.5.1, `pgcrypto` 1.3, `pg_stat_statements` 1.11, `supabase_vault` 0.3.1, `uuid-ossp` 1.1, `plpgsql` 1.0이며, 이는 전제 조건일 뿐 애플리케이션 큐, 워커, 권한이 존재한다는 증거가 아닙니다.
 
@@ -34,7 +34,7 @@ Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-e
 |---|---|---|---|
 | 개인 샌드박스 | 각 팀원이 개인 Supabase 조직에 만든 본인의 무료 프로젝트 | 팀원 컴퓨터의 `eve dev`와 `next dev`. eve는 대화 상태를 로컬 `.eve/.workflow-data` 디렉터리에 보관하며 Docker는 필요하지 않음 | 팀원이 자유롭게 |
 | 공유 | **FindMeATime** `anelszynxtvxoxqvzgqt` | `findmeatime.com`과 `release.findmeatime.com`에서 제공되는 `findmeatime-release`의 Vercel **Production** 배포. 풀 리퀘스트는 같은 프로젝트를 대상으로 하는 Vercel **Preview** 배포를 받음 | `main`에 머지될 때 CI가 수행. 사람이 직접 변경하지 않음(아래에 기록된 예외 한 번) |
-| 릴리스 | 비운 뒤의 **FindMeATime2** `mriseqztcwmezvtawnbo` | 별도의 Vercel production 대상 | 아직 사용하지 않음. 예약된 채로 건드리지 않음 |
+| 릴리스 | 비운 뒤의 **FindMeATime2** `mriseqztcwmezvtawnbo` | 분리가 이루어진 뒤 `findmeatime.com`과 `release.findmeatime.com`을 서비스하는 `findmeatime-release`의 Vercel **Production**. 그러면 위의 공유 행은 스테이징으로서 `dev.findmeatime.com`의 `findmeatime-dev`로 옮겨집니다(D13) | GitHub 환경 승인 뒤의 `Deploy release Supabase` 워크플로; 병합된 `main` 리비전에서 저장소 소유자가 실행하는 `vercel deploy --prod`. 아직 사용하지 않음 |
 
 스키마 변경은 한 방향으로 흐릅니다.
 
@@ -52,6 +52,7 @@ Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-e
 설정: 공유 프로젝트의 URL과 키는 Git이 아니라 팀의 비밀번호 관리자를 통해 공유하며, `.env.example`에는 변수 이름만 나열합니다. Vercel 환경 변수는 Production과 Preview로 범위를 나눕니다. 로컬에서 로그인이 동작하도록 `http://localhost:3000/**`와 각 팀원의 샌드박스 콜백을 Auth 리디렉션 허용 목록과 Google OAuth 클라이언트에 등록합니다.
 
 다음 중 하나가 일어나기 **전에** 릴리스 환경을 분리합니다. 외부 호스트가 실제 Google 캘린더를 연결하는 경우, 팀 외부 사람들에게 실제 이메일이나 iMessage 전달을 활성화하는 경우, 스키마가 변경되어도 데이터를 유지해야 하는 경우입니다. 그 전까지는 보호할 것이 없으며 하나의 환경이 일관성을 유지하기에 더 간단합니다.
+
 
 ## Google 신원과 캘린더
 

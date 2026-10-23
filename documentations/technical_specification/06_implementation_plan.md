@@ -350,7 +350,7 @@ Scope. Prerequisite: Phase 4 for diagnostics to have something to inspect; the r
 - [x] [Design](../../openspec/changes/operations-and-release/design.md).
 - [x] Delta specs under [`specs/`](../../openspec/changes/operations-and-release/specs/).
 - [x] [Tasks](../../openspec/changes/operations-and-release/tasks.md).
-- [ ] Owning-document updates and Korean mirrors.
+- [x] Owning-document updates and Korean mirrors.
 - [ ] Teammate review.
 
 **Lane A — diagnostics and recovery**
@@ -480,7 +480,7 @@ Not carried: the travel-table heuristic (replaced by Google Routes with buffers)
 | MCP protocol version, registration, scopes, CLI packaging | Phase 5 proposal | Agent-client authorization spec, CLI direction |
 | iMessage adapter, code expiry, line provisioning, the one-tap deep link | Phase 6 proposal (D1–D14 decided 2026-10-23) | Provider setup, new iMessage change |
 | AgentMail adapter and retention | Phase 7 proposal (D1–D11 decided 2026-10-22) | Provider setup |
-| Measurement targets, retention and deletion, support ownership | Phase 8 proposal | PRD sections 2 and 10 |
+| Measurement targets, retention and deletion, support ownership | Phase 8 proposal (D1–D14 decided 2026-10-23) | PRD sections 2 and 10 |
 
 ## 8. Risks
 

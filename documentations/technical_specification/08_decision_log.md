@@ -373,4 +373,39 @@ These steps were not taken because they cannot be undone by a revert, need a pro
 
 ## Phase 8 — `operations-and-release`
 
-No decisions yet.
+The [proposal](../../openspec/changes/operations-and-release/proposal.md#decisions) records D1–D14; the plan assigns D1–D4 and the retention and deletion rules to this phase, and the design raised the rest. The implementing session took them on 2026-10-23, under the user's instruction to log every decision and keep it changeable; none has had teammate review yet.
+
+### Product decisions
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | Measurement window: eight weeks from the day the first host outside the team joins the release environment, reported weekly | A fixed calendar quarter; measuring from the first deploy | Proposal; design 1; PRD section 2 | The PRD and design 1 |
+| D2 | Targets: median host actions per booked request at most 2; at least 50 % of valid requests booked; submission to booking median at most 24 h and p90 at most 72 h; 0 infeasible offers on code-checked constraints; 0 trust incidents. A conversion or speed miss opens a review, not a rollback | Targets taken from mature scheduling products; no targets until data exists | Proposal; design 1; PRD section 2 | The PRD and design 1 |
+| D3 | One operator per week on rotation reads the snapshot daily, answers support within two working days and runs recoveries with their own token; the repository owner keeps deploys, release migrations, DNS and consoles; support at `support@findmeatime.com` (Cloudflare Email Routing alias, not yet created) | A shared personal inbox; GitHub issues; on-call | Proposal; design 2; PRD section 10 | Design 2 and the notice in `apps/web/app/privacy/` |
+| D4 | `npm run perf:check`: p50 at most 800 ms and p95 at most 2,000 ms per public route over 20 sequential samples; approval to confirmed within 2 min and first streamed reply within 10 s at p95, reported unmeasured until a tool exists | Load tests against production; no pre-release targets | Proposal; design 3; PRD section 10 | `TARGETS` in `scripts/perf-check.ts` |
+| D5 | Ten fixed snapshot categories, oldest first, at most 20 identifiers, no payload or failure text | Per-kind breakdowns; provider reads | Proposal; design 4; `operational-diagnostics` delta | `app.operator_diagnostics_snapshot` and a new migration |
+| D6 | Rejections counted in the command pipeline (`unauthenticated`, `forbidden`; `stale_revision`, `request_closed`) when `DIAGNOSTICS_REJECTIONS=1`, 500 ms bound, 24 hourly buckets saturating at 10,000 | Counting database RPCs, which the application does not have; in-memory counters | Proposal; design 5; `operational-diagnostics` delta | `REJECTION_CATEGORIES` in `lib/server/diagnostics.ts` |
+| D7 | `recover job` only for exhausted jobs (1 to 10 new attempts); `recover booking` only for a dispatching booking with no live job, publishing one reconciliation job; uncertain messages are never resent; audited in `operator_operations` | Manual confirm or fail of a booking; resending uncertain messages | Proposal; design 6; `operational-recovery` delta | `lib/server/recovery-operations.ts` and the operator functions |
+| D8 | Restore drill with `pg_dump` and `pg_restore` into a separate local database filled with synthetic data; hosted backups restored only into a new project | Drilling with a copy of the shared project | Proposal; design 7; `data-stewardship` delta | `scripts/restore-drill.ts` |
+| D9 | Closed requests 90 days after closure; finished jobs, command outcomes and attempt records 30 days; exhausted jobs and model reservations 90 days; operator audit one year; hourly pass | One year for requests; deletion at closure | Proposal; design 8; PRD section 8 | `app.cleanup_retained_records` and a new migration |
+| D10 | Deletion on request through `delete-host` and `delete-request`; a deleted host keeps a suspended, nameless account row with its handle history, and cannot be restored | Soft deletion with a flag; deleting the handle history | Proposal; design 9; `data-stewardship` delta | `app.operator_delete_host` and `app.operator_delete_request` |
+| D11 | OpenAI directly with storage off; no training on API data; up to 30 days of abuse-monitoring logs; no zero-retention claim; the runtime's own session copy is disclosed as outside the pass | Claiming zero retention; routing through a gateway | Proposal; design 10; PRD section 8 | The notice |
+| D12 | `/privacy` in English and Korean, linked from `/`, the host page, the booking page and the **Continue with Google** card; no consent checkbox | A consent checkbox in intake; English only | Proposal; design 11; page list P11 | `apps/web/app/privacy/` |
+| D13 | Release: `mriseqztcwmezvtawnbo` behind `findmeatime-release`; staging: the shared project behind `findmeatime-dev` on `dev.findmeatime.com`; release migrations through a manual, environment-approved workflow | Keeping one environment; a second Vercel project for release | Proposal; design 12; provider setup | `.github/workflows/deploy-release.yml` and provider setup |
+| D14 | A production deployment with a set `APP_ORIGIN` that is not a release origin is staging and is denied messaging | A new opt-in variable on the release project, which would stop production mail until set | Proposal; design 12; `messaging-environments` delta | `RELEASE_ORIGINS` in `lib/server/messaging.ts` |
+
+### Operational decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Release project inspection | Read-only queries through `supabase db query --linked --project-ref mriseqztcwmezvtawnbo` on 2026-10-23, without linking the repository; the CLI created its temporary `cli_login_postgres` login role on the project | Linking a checkout to the project | Design 12; provider setup | — |
+| Shared-project state | A read-only query on 2026-10-23 found every migration through Phase 6's `20261023024435_imessage_channel.sql` already applied to `anelszynxtvxoxqvzgqt`, although the `Deploy shared Supabase` workflow still fails on every push for want of its secrets; this phase adds one more migration, not yet applied | Assuming the Phase 6 and 7 migrations were missing | This log | — |
+| Root domain | Not repeated: `findmeatime.com` and `release.findmeatime.com` have been on `findmeatime-release` since 2026-10-19; verified read-only on 2026-10-23 | Re-attaching the domain | Design 12; the acceptance record | — |
+
+### Blocked on the user
+
+These steps were not taken because they cannot be undone by a revert, need a provider console, or change a shared or release environment. They are listed in the order the release needs them.
+
+1. **Repository secrets and variables** for `Deploy shared Supabase`: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `WORKER_URL`, `WORKER_SECRET`, `GOOGLE_CLIENT_SECRET` and the variables `SUPABASE_AUTH_SITE_URL`, `SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS`, `GOOGLE_CLIENT_ID`. Until then this phase's migration reaches the shared project only by hand.
+2. **Production deploy of `main`**: the current `findmeatime-release` production deployment (2026-10-23 07:02 KST, a CLI deploy) predates the Phase 6 merge.
+3. **Teammate review** of D1–D14, then `openspec archive operations-and-release`.

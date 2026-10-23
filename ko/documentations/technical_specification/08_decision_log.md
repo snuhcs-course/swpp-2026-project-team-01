@@ -375,4 +375,39 @@
 
 ## 8단계 — `operations-and-release`
 
-아직 결정이 없습니다.
+[제안서](../../openspec/changes/operations-and-release/proposal.md#decisions)가 D1–D14를 기록합니다. 계획은 D1–D4와 보존 및 삭제 규칙을 이 단계에 배정했고 나머지는 설계에서 제기되었습니다. 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-23에 이를 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
+
+### 제품 결정
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| D1 | 측정 기간: 첫 외부 호스트가 릴리스 환경에 합류한 날부터 8주, 매주 보고 | 고정된 분기 단위 달력 기간; 첫 배포부터 측정 | 제안서; 설계 1; PRD 2절 | PRD와 설계 1 |
+| D2 | 목표: 예약된 요청당 호스트 조치 중앙값 2회 이하; 유효한 요청의 50 % 이상 예약; 제출부터 예약까지 중앙값 24시간 이하, p90 72시간 이하; 코드로 확인되는 제약에 대한 실행 불가능한 제안 0건; 신뢰 사고 0건. 전환율이나 속도 미달은 롤백이 아니라 검토를 시작 | 성숙한 일정 조율 제품에서 가져온 목표; 데이터가 생길 때까지 목표 없음 | 제안서; 설계 1; PRD 2절 | PRD와 설계 1 |
+| D3 | 주마다 순환하는 운영자 한 명이 매일 스냅샷을 읽고, 영업일 기준 이틀 안에 지원에 답하며, 자기 토큰으로 복구를 실행합니다. 저장소 소유자는 배포, 릴리스 마이그레이션, DNS, 콘솔을 계속 맡습니다. 지원은 `support@findmeatime.com`(Cloudflare Email Routing 별칭, 아직 만들지 않음) | 공유 개인 받은편지함; GitHub 이슈; 온콜 | 제안서; 설계 2; PRD 10절 | 설계 2와 `apps/web/app/privacy/`의 고지 |
+| D4 | `npm run perf:check`: 공개 경로마다 순차 샘플 20회에서 p50 800 ms 이하, p95 2,000 ms 이하; 승인부터 확정까지 2분 이내, 첫 스트리밍 회신은 p95 기준 10초 이내이며, 도구가 생길 때까지 측정되지 않음으로 보고 | 프로덕션 대상 부하 테스트; 출시 전 목표 없음 | 제안서; 설계 3; PRD 10절 | `scripts/perf-check.ts`의 `TARGETS` |
+| D5 | 고정된 스냅샷 범주 열 가지, 오래된 것부터, 식별자 최대 20개, 페이로드나 실패 텍스트 없음 | 종류별 세부 분류; 제공자 읽기 | 제안서; 설계 4; `operational-diagnostics` 델타 | `app.operator_diagnostics_snapshot`과 새 마이그레이션 |
+| D6 | 거절은 명령 파이프라인에서 집계(`unauthenticated`, `forbidden`; `stale_revision`, `request_closed`). `DIAGNOSTICS_REJECTIONS=1`일 때, 500 ms 제한, 시간별 24개 버킷이 10,000에서 포화 | 애플리케이션에 없는 데이터베이스 RPC 집계; 메모리 내 카운터 | 제안서; 설계 5; `operational-diagnostics` 델타 | `lib/server/diagnostics.ts`의 `REJECTION_CATEGORIES` |
+| D7 | `recover job`은 소진된 작업에만(새 시도 1~10회); `recover booking`은 라이브 작업이 없는 dispatching 예약에만 쓰이며 조정 작업 하나를 게시. 불확실한 메시지는 다시 보내지 않음; `operator_operations`에 감사 기록 | 예약의 수동 확정 또는 실패 처리; 불확실한 메시지 재전송 | 제안서; 설계 6; `operational-recovery` 델타 | `lib/server/recovery-operations.ts`와 운영자 함수 |
+| D8 | `pg_dump`와 `pg_restore`로 합성 데이터를 채운 별도 로컬 데이터베이스에 복원 훈련; 호스팅 백업은 새 프로젝트에만 복원 | 공유 프로젝트의 사본으로 훈련 | 제안서; 설계 7; `data-stewardship` 델타 | `scripts/restore-drill.ts` |
+| D9 | 종료된 요청은 종료 90일 뒤; 끝난 작업, 명령 결과, 시도 기록은 30일; 소진된 작업과 모델 예약은 90일; 운영자 감사는 1년; 시간별 패스 | 요청은 1년; 종료 시 삭제 | 제안서; 설계 8; PRD 8절 | `app.cleanup_retained_records`와 새 마이그레이션 |
+| D10 | `delete-host`와 `delete-request`를 통한 요청 시 삭제. 삭제된 호스트는 핸들 이력과 함께 정지된, 이름 없는 계정 행을 남기며 복원할 수 없음 | 플래그를 쓰는 소프트 삭제; 핸들 이력 삭제 | 제안서; 설계 9; `data-stewardship` 델타 | `app.operator_delete_host`와 `app.operator_delete_request` |
+| D11 | 저장을 끈 OpenAI 직접 호출; API 데이터로 학습하지 않음; 최대 30일의 악용 모니터링 로그; 무보존 주장은 하지 않음; 런타임 자체의 세션 사본은 패스 밖이라고 고지 | 무보존을 주장; 게이트웨이 경유 | 제안서; 설계 10; PRD 8절 | 고지 |
+| D12 | 영어와 한국어의 `/privacy`, `/`, 호스트 페이지, 예약 페이지, **Continue with Google** 카드에서 링크; 동의 체크박스 없음 | 접수 단계의 동의 체크박스; 영어만 | 제안서; 설계 11; 페이지 목록 P11 | `apps/web/app/privacy/` |
+| D13 | 릴리스: `findmeatime-release` 뒤의 `mriseqztcwmezvtawnbo`; 스테이징: `dev.findmeatime.com`의 `findmeatime-dev` 뒤의 공유 프로젝트; 릴리스 마이그레이션은 환경 승인을 거치는 수동 워크플로로 | 단일 환경 유지; 릴리스용 두 번째 Vercel 프로젝트 | 제안서; 설계 12; 제공자 설정 | `.github/workflows/deploy-release.yml`과 제공자 설정 |
+| D14 | `APP_ORIGIN`이 설정되어 있지만 릴리스 출처가 아닌 프로덕션 배포는 스테이징이며 메시지 발송이 거부됨 | 릴리스 프로젝트의 새 옵트인 변수. 설정할 때까지 프로덕션 메일이 멈추게 됨 | 제안서; 설계 12; `messaging-environments` 델타 | `lib/server/messaging.ts`의 `RELEASE_ORIGINS` |
+
+### 운영 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 릴리스 프로젝트 점검 | 저장소를 프로젝트에 연결하지 않고 2026-10-23에 `supabase db query --linked --project-ref mriseqztcwmezvtawnbo`로 읽기 전용 쿼리를 실행했으며, CLI가 프로젝트에 임시 `cli_login_postgres` 로그인 역할을 만들었습니다 | 체크아웃을 프로젝트에 연결하기 | 설계 12; 제공자 설정 | — |
+| 공유 프로젝트 상태 | 2026-10-23의 읽기 전용 쿼리에서 6단계의 `20261023024435_imessage_channel.sql`까지 모든 마이그레이션이 이미 `anelszynxtvxoxqvzgqt`에 적용되어 있음을 확인했습니다. `Deploy shared Supabase` 워크플로는 비밀이 없어 푸시마다 여전히 실패하는데도 그렇습니다. 이 단계는 마이그레이션을 하나 더 추가하며, 아직 적용되지 않았습니다 | 6단계와 7단계 마이그레이션이 빠져 있다고 가정하기 | 이 기록 | — |
+| 루트 도메인 | 반복하지 않음: `findmeatime.com`과 `release.findmeatime.com`은 2026-10-19부터 `findmeatime-release`에 있으며, 2026-10-23에 읽기 전용으로 확인했습니다 | 도메인 다시 연결 | 설계 12; 인수 기록 | — |
+
+### 사용자 대기 항목
+
+다음 단계는 되돌려도 취소할 수 없거나, 제공자 콘솔이 필요하거나, 공유 환경 또는 릴리스 환경을 바꾸기 때문에 수행하지 않았습니다. 릴리스가 필요로 하는 순서대로 나열합니다.
+
+1. `Deploy shared Supabase`용 **저장소 비밀과 변수**: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `WORKER_URL`, `WORKER_SECRET`, `GOOGLE_CLIENT_SECRET`, 그리고 변수 `SUPABASE_AUTH_SITE_URL`, `SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS`, `GOOGLE_CLIENT_ID`. 그때까지 이 단계의 마이그레이션은 수동으로만 공유 프로젝트에 닿습니다.
+2. **`main`의 프로덕션 배포**: 현재 `findmeatime-release`의 프로덕션 배포(2026-10-23 07:02 KST, CLI 배포)는 6단계 병합보다 앞선 것입니다.
+3. D1–D14에 대한 **팀원 검토**, 이어서 `openspec archive operations-and-release`.

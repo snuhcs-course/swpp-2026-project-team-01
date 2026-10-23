@@ -6,8 +6,8 @@ Before each group, read the [Phase 8 reference repository files](../../../docume
 
 ## 1. Decisions (serial, first)
 
-- [ ] 1.1 Record D1–D14 from the [proposal](proposal.md#decisions) in the proposal, the design, the delta specs and the [decision log](../../../documentations/technical_specification/08_decision_log.md#phase-8--operations-and-release). Verify `openspec validate operations-and-release --strict` and `npm run check` pass.
-- [ ] 1.2 Update the owning documents (PRD sections 2, 8 and 10, provider setup, the page list) and regenerate their Korean mirrors.
+- [x] 1.1 Record D1–D14 from the [proposal](proposal.md#decisions) in the proposal, the design, the delta specs and the [decision log](../../../documentations/technical_specification/08_decision_log.md#phase-8--operations-and-release). Verify `openspec validate operations-and-release --strict` and `npm run check` pass.
+- [x] 1.2 Update the owning documents (PRD sections 2, 8 and 10, provider setup, the page list) and regenerate their Korean mirrors.
 
 ## 2. Diagnostics and recovery (Lane A)
 

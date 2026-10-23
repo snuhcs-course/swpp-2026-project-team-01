@@ -352,7 +352,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 - [x] [설계](../../openspec/changes/operations-and-release/design.md).
 - [x] [`specs/`](../../openspec/changes/operations-and-release/specs/) 아래의 델타 명세.
 - [x] [작업 목록](../../openspec/changes/operations-and-release/tasks.md).
-- [ ] 소유 문서 갱신과 한국어 미러.
+- [x] 소유 문서 갱신과 한국어 미러.
 - [ ] 팀원 검토.
 
 **레인 A — 진단과 복구**
@@ -482,7 +482,7 @@ Docker를 갖춘 팀원이 그 주에 마이그레이션이 필요한 레인의 
 | MCP 프로토콜 버전, 등록, 스코프, CLI 패키징 | 5단계 제안서 | 에이전트 클라이언트 인가 명세, CLI 방향 |
 | iMessage 어댑터, 코드 만료, 회선 프로비저닝, 원탭 딥링크 | 6단계 제안서(D1–D14는 2026-10-23에 결정됨) | 제공자 설정, 새 iMessage 변경 |
 | AgentMail 어댑터와 보존 | 7단계 제안서(D1–D11은 2026-10-22에 결정됨) | 제공자 설정 |
-| 측정 목표, 보존 및 삭제, 지원 담당 | 8단계 제안서 | PRD 2절과 10절 |
+| 측정 목표, 보존 및 삭제, 지원 담당 | 8단계 제안서(D1–D14는 2026-10-23에 결정) | PRD 2절과 10절 |
 
 ## 8. 위험
 
