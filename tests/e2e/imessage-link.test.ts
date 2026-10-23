@@ -112,6 +112,8 @@ for (const width of [390, 1280]) {
     const card = await openCard(page);
 
     await expect(card.getByRole("heading", { name: "Use Find Me a Time from iMessage" })).toBeVisible();
+    // The line can only answer a host's first message, so no code is texted first (D16).
+    await expect(card.getByRole("button", { name: "Send me a code instead" })).toHaveCount(0);
     await press(page, "Connect iMessage");
 
     // A desktop browser opens nothing: the number, the message, Copy and the QR code.
@@ -154,27 +156,60 @@ for (const width of [390, 1280]) {
   });
 }
 
-test("at 390px a host links by a texted code, typed back without ever being shown", async ({ baseURL, context, db, page }) => {
-  await page.setViewportSize({ height: 800, width: 390 });
-  const host = await signedInHost(db, context, baseURL!);
-  const card = await openCard(page);
-  const number = newSender();
+test("at 1280px the link step after sign-in links by the sent message, then opens the chat", async ({ baseURL, context, db, page }) => {
+  await page.setViewportSize({ height: 900, width: 1280 });
+  const host = await signedInHost(db, context, baseURL!, { imessageStep: true });
+  await page.goto("/app");
 
-  await press(page, "Send me a code instead");
-  await card.getByLabel("Your iPhone number, with country code").fill(number);
-  await press(page, "Send code");
-  await expect(card.getByRole("heading", { name: "Enter the code we texted you" })).toBeVisible({ timeout: 45_000 });
-  await expect(card).toContainText(`•••• ${number.slice(-4)}`);
+  // The step opens with a code already made: the message, the QR code and how long it works.
+  await expect(page.getByRole("heading", { level: 1, name: "Connect Thyme to your iMessage" })).toBeVisible({ timeout: 45_000 });
+  const message = (await page.getByTestId("imessage-link-message").textContent())!.trim();
+  expect(message).toMatch(/^Link my Find Me a Time account: FMAT-[0-9A-HJKMNP-TV-Z]{10}$/);
+  await expect(page.getByTestId("imessage-qr").locator("svg")).toBeVisible();
+  await expect(page.getByText(/code works for \d+:\d\d/)).toBeVisible();
+  expect(await hasNoHorizontalScroll(page)).toBe(true);
 
-  const [text] = await sendQueued(db, host.hostAccountId, "fallback_code");
-  const code = /(\d{6})/.exec(text ?? "")![1]!;
+  const sender = newSender();
+  await hostSends(db, sender, message);
+  await expect(page.getByRole("heading", { name: "Is this you?" })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(`•••• ${sender.slice(-4)}`)).toBeVisible();
+  expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(0);
+
+  await page.getByRole("button", { name: "Confirm and link" }).click();
+  await expect(page.getByRole("heading", { name: "Your iMessage is connected." })).toBeVisible();
+  expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(1);
+
+  await page.getByRole("button", { name: "Go to Home" }).click();
+  await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible({ timeout: 45_000 });
+});
+
+test("Set up here in web chat leaves the step, and this browser remembers it", async ({ baseURL, context, db, page }) => {
+  await signedInHost(db, context, baseURL!, { imessageStep: true });
+  await page.goto("/app");
+
+  await page.getByRole("button", { name: "Set up here in web chat" }).click({ timeout: 45_000 });
+  await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible({ timeout: 45_000 });
   await page.reload();
-  const again = await openCard(page);
-  await expect(again).not.toContainText(code);
+  await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByRole("heading", { name: "Connect Thyme to your iMessage" })).toHaveCount(0);
+});
 
-  await again.getByLabel("Six-digit code").fill(code);
-  await press(page, "Confirm and link");
-  await expect(again.getByRole("heading", { name: "iMessage is linked" })).toBeVisible();
+test("the landing's iMessage start opens the send popup, and the arriving message asks for Google", async ({ db, page }) => {
+  await page.setViewportSize({ height: 900, width: 1280 });
+  await page.goto("/?flow=imessage");
+
+  await page.getByRole("button", { name: "Onboard with iMessage" }).click();
+  const popup = page.getByRole("dialog", { name: "Send Thyme one message" });
+  await expect(popup).toBeVisible({ timeout: 45_000 });
+  const message = (await popup.getByTestId("imessage-link-message").textContent())!.trim();
+  expect(message).toMatch(/^Link my Find Me a Time account: FMAT-[0-9A-HJKMNP-TV-Z]{10}$/);
+  await expect(popup.getByTestId("imessage-qr").locator("svg")).toBeVisible();
+
+  const sender = newSender();
+  await hostSends(db, sender, message);
+  await expect(page.getByRole("heading", { name: "Got your message." })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(`•••• ${sender.slice(-4)}`)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Continue with Google" })).toHaveAttribute("href", "/auth/sign-in");
 });
 
 test.describe("on an iPhone", () => {
@@ -193,5 +228,16 @@ test.describe("on an iPhone", () => {
     const message = (await card.getByTestId("imessage-link-message").textContent())!.trim();
     await expect(link).toHaveAttribute("href", `sms:${LINE}&body=${encodeURIComponent(message)}`);
     await expect(card.getByTestId("imessage-qr")).toHaveCount(0);
+  });
+
+  test("the link step's Open Messages carries the deep link, with no QR code", async ({ baseURL, context, db, page }) => {
+    await signedInHost(db, context, baseURL!, { imessageStep: true });
+    await page.goto("/app");
+
+    const link = page.getByRole("link", { name: "Open Messages" });
+    await expect(link).toBeVisible({ timeout: 45_000 });
+    const message = (await page.getByTestId("imessage-link-message").textContent())!.trim();
+    await expect(link).toHaveAttribute("href", `sms:${LINE}&body=${encodeURIComponent(message)}`);
+    await expect(page.getByTestId("imessage-qr")).toHaveCount(0);
   });
 });

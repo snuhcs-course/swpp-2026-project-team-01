@@ -1,11 +1,30 @@
 import { makeHostReady, newHostAccount } from "../integration/support/ready-host";
 import { expect, test } from "./support/session";
 
-test("home offers Google sign-in", async ({ page }) => {
+test("home offers Google sign-in, with Calendar unless the box is cleared", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Find Me a Time" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Sign in with Google" })).toHaveAttribute("href", "/auth/sign-in");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Send one link.");
+  const google = page.getByRole("link", { name: "Continue with Google" });
+  await expect(google).toHaveAttribute("href", "/auth/sign-in");
+  await page.getByLabel(/Connect my Google Calendar too/).uncheck();
+  await expect(google).toHaveAttribute("href", "/auth/sign-in?calendar=0");
+});
+
+test("the iMessage start offers Messages instead of Google first", async ({ page }) => {
+  await page.goto("/?flow=imessage");
+
+  await expect(page.getByRole("button", { name: "Onboard with iMessage" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Continue with Google" })).toHaveAttribute("href", "/auth/sign-in");
+});
+
+test("the landing follows the lang cookie", async ({ context, page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Language: English/ }).click();
+  await page.getByRole("menuitemradio", { name: "한국어" }).click();
+
+  await expect(page.getByRole("link", { name: "Google로 계속하기" })).toBeVisible();
+  expect((await context.cookies()).find((cookie) => cookie.name === "lang")?.value).toBe("ko");
 });
 
 test("home points agents at the host instructions", async ({ page, request }) => {

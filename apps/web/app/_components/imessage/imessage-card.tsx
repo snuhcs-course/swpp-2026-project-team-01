@@ -21,17 +21,39 @@ import { cn } from "@/lib/utils";
 //   - none: Connect iMessage asks the server for a one-time code and, on a phone,
 //     opens Messages at once with the line's number and the exact link message
 //     in the input (iOS `&body=`, Android `?body=`); elsewhere it shows the
-//     number, the code, Copy and a QR code of the same deep link. Send me a code
-//     instead and Maybe later are quiet actions.
+//     number, the code, Copy and a QR code of the same deep link. Maybe later is
+//     a quiet action. Send me a code instead is not offered (D16): the line can
+//     only answer a host's first message on Photon's shared lines.
 //   - pending: the message to send, with Open Messages to try again on a phone;
 //     the card polls until the message arrives. Opening Messages changes nothing.
 //   - received: the masked sender with Confirm and link and This isn't me.
-//   - fallback: the masked number, the send's state and a protected code field.
+//   - fallback: the masked number, the send's state and a protected code field,
+//     for an attempt the server already holds.
 //   - linked: the masked sender, the latest failed or uncertain message, Add to
 //     contacts and Unlink behind an inline confirmation.
 // A command whose answer was lost offers Try again with the same retry key.
 
 export const IMESSAGE_CARD_ID = "imessage-card";
+
+// Maybe later on the card or Set up here in web chat on the /app link step,
+// which this browser remembers.
+const IMESSAGE_LATER_KEY = "fmat:imessage-later";
+
+export function rememberedLater() {
+  try {
+    return window.localStorage.getItem(IMESSAGE_LATER_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function rememberLater() {
+  try {
+    window.localStorage.setItem(IMESSAGE_LATER_KEY, "1");
+  } catch {
+    // Without storage the card simply shows again next visit.
+  }
+}
 const POLL_MS = 3000;
 
 type CommandFailure = { readonly category: string; readonly message: string };
@@ -44,12 +66,12 @@ const ERRORS: Readonly<Record<string, string>> = {
   unavailable_configuration: "iMessage isn't available right now.",
 };
 
-async function readStatus(): Promise<ImessageStatus | null> {
+export async function readStatus(): Promise<ImessageStatus | null> {
   const response = await fetch("/api/host/imessage", { cache: "no-store" }).catch(() => null);
   return response?.ok ? ((await response.json()) as ImessageStatus) : null;
 }
 
-async function sendCommand(pending: Pending) {
+export async function sendCommand(pending: Pending) {
   const response = await fetch("/api/host/imessage/commands", {
     body: JSON.stringify(pending),
     headers: { "content-type": "application/json" },
@@ -79,7 +101,6 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
   const [busy, setBusy] = useState<ImessageOperation | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lost, setLost] = useState<Pending | null>(null);
-  const [enteringNumber, setEnteringNumber] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   const platform = useMessagesPlatform();
   const openOnArrival = useRef(false);
@@ -141,7 +162,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
 
   // Connect iMessage: the code first, then Messages at once on a phone.
   const connect = async () => {
-    openOnArrival.current = platform !== "other";
+    openOnArrival.current = platform === "ios" || platform === "android";
     const outcome = await command("imessage.link.create");
     const next = outcome?.status;
     if (openOnArrival.current && next?.state === "pending") {
@@ -191,18 +212,6 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
       );
 
     case "none":
-      if (enteringNumber) {
-        return (
-          <NumberForm
-            busy={busy === "imessage.link.send_code"}
-            notice={notice}
-            onBack={() => setEnteringNumber(false)}
-            onSubmit={async (number) => {
-              if (await command("imessage.link.send_code", { number })) setEnteringNumber(false);
-            }}
-          />
-        );
-      }
       return (
         <CardShell
           description="Get request summaries and approve meetings from your own iMessage. You send one message to link it."
@@ -214,9 +223,6 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
               <MessageCircleIcon aria-hidden />
               {busy === "imessage.link.create" ? "Getting your code..." : "Connect iMessage"}
             </Button>
-            <QuietButton disabled={busy !== null} onClick={() => setEnteringNumber(true)}>
-              Send me a code instead
-            </QuietButton>
             {onLater ? <QuietButton onClick={onLater}>Maybe later</QuietButton> : null}
           </CardActions>
         </CardShell>
@@ -381,7 +387,8 @@ function PendingCode({
   readonly platform: MessagesPlatform;
   readonly status: Extract<ImessageStatus, { state: "pending" }>;
 }) {
-  const link = deepLinkFor(platform, status.lineNumber, status.message);
+  // A Mac gets the QR code too (D17): only a phone opens Messages from this card.
+  const link = platform === "ios" || platform === "android" ? deepLinkFor(platform, status.lineNumber, status.message) : null;
   const qr = useMemo(() => (link ? null : renderSVG(qrDeepLink(status.lineNumber, status.message), { border: 2 })), [link, status]);
 
   return (
@@ -430,44 +437,6 @@ function PendingCode({
           Cancel
         </QuietButton>
       </CardActions>
-    </CardShell>
-  );
-}
-
-function NumberForm({
-  busy,
-  notice,
-  onBack,
-  onSubmit,
-}: {
-  readonly busy: boolean;
-  readonly notice: React.ReactNode;
-  readonly onBack: () => void;
-  readonly onSubmit: (number: string) => void;
-}) {
-  const id = useId();
-  const [number, setNumber] = useState("");
-  return (
-    <CardShell description="We'll text a six-digit code to this number from Find Me a Time's line." title="Send me a code instead">
-      {notice}
-      <form
-        className="flex flex-col gap-2"
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          onSubmit(number);
-        }}
-      >
-        <label className="text-sm font-medium" htmlFor={id}>
-          Your iPhone number, with country code
-        </label>
-        <Input autoComplete="tel" id={id} inputMode="tel" onChange={(event) => setNumber(event.target.value)} placeholder="+1 555 123 4567" required type="tel" value={number} />
-        <CardActions>
-          <Button disabled={busy || !number.trim()} type="submit">
-            {busy ? "Sending..." : "Send code"}
-          </Button>
-          <QuietButton onClick={onBack}>Back</QuietButton>
-        </CardActions>
-      </form>
     </CardShell>
   );
 }

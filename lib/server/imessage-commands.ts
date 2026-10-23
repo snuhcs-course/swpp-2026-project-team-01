@@ -8,6 +8,7 @@ import type { Database, Transaction } from "./database";
 import { recordDestinationAccess } from "./calendar-roles";
 import { CalendarAccessError, openHostCalendar } from "./google-calendar";
 import { listHostRequests, readHostRequest } from "./host-requests";
+import { calendarConnectUrl } from "./imessage-links";
 import { recordOutbound } from "./imessage-outbox";
 import type { BoundMessage, ImessageReceiptDependencies } from "./imessage-receipts";
 import { computeSetupProposal, readSetupState } from "./setup";
@@ -482,7 +483,10 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
     case "setup": {
       await tx`update app.imessage_bindings set selected_request_id = null where id = ${message.bindingId} and state = 'active'`;
       const state = await readSetupState(deps.setup, message.hostAccountId);
-      result = { text: `Setup selected. ${NEXT_STEP_TEXT[state?.nextAction ?? "connect_calendar"]}\n${deps.origin}/app` };
+      const next = state?.nextAction ?? "connect_calendar";
+      // Calendar is connected in the browser and returns here (D19); the rest can be done in this conversation or /app.
+      const link = next === "connect_calendar" ? calendarConnectUrl(deps.origin) : `${deps.origin}/app`;
+      result = { text: `Setup selected. ${NEXT_STEP_TEXT[next]}\n${link}` };
       break;
     }
     case "review": {

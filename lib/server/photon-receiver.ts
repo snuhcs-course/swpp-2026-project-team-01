@@ -72,7 +72,7 @@ export function normalizeSender(value: unknown) {
 }
 
 // The keyed hash a sender, conversation or entered number is looked up by.
-export function imessageHash(key: TokenKey, kind: "sender" | "space" | "phone", value: string) {
+export function imessageHash(key: TokenKey, kind: "sender" | "space" | "phone" | "starter", value: string) {
   const derived = createHmac("sha256", key.key).update(`find-me-a-time/imessage-${kind}/v1`).digest();
   return createHmac("sha256", derived).update(value, "utf8").digest("hex");
 }
@@ -124,6 +124,10 @@ export function inboundMessage(payload: unknown): InboundMessage | null {
   const spaceId = text(space?.id, 500);
   const spaceType = space?.type === "dm" || space?.type === "group" ? space.type : null;
   const contentType = text(message.content?.type, 50);
+
+  // Read receipts and typing signals are not messages from the user. Replying
+  // to a read receipt would generate another one whenever they read our reply.
+  if (contentType === "read" || contentType === "typing") return null;
 
   if (!messageId || !sender || !spaceId || !spaceType || !contentType) return null;
 

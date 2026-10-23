@@ -4,7 +4,7 @@ import { runCommand } from "../../lib/server/commands";
 import { updateDraftCommand } from "../../lib/server/setup-commands";
 import { draftRevision, hostCommandDeps } from "../integration/support/setup-host";
 import { acceptSuggestions, grantCalendar, reviewableHost, runPendingAnalyses } from "./support/setup-host";
-import { expect, signedInHost, test } from "./support/session";
+import { expect, signedInHost, skipImessageStep, test } from "./support/session";
 
 // Host setup in /app (host-onboarding tasks for the cards): the authored
 // messages, one open step card at a time with answered ones collapsed into
@@ -326,6 +326,7 @@ test("authored messages reveal one at a time on a first visit and at once on a r
   // A fresh browser that prefers reduced motion shows everything at once.
   const reduced = await browser.newContext({ reducedMotion: "reduce" });
   await reduced.addCookies(await context.cookies());
+  await skipImessageStep(reduced);
   const reducedPage = await reduced.newPage();
   await reducedPage.goto(`${baseURL}/app`);
   expect(await shownWhenFirstAppears(reducedPage)).toBe(3);
