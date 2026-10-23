@@ -344,7 +344,16 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 목표: 팀이 제품을 운영하고, 점검하고, 복구할 수 있으며 루트 도메인에서 릴리스됩니다.
 
-범위. 선행 조건: 진단이 점검할 대상을 갖도록 4단계; 나머지는 4단계 이후 언제든 시작할 수 있습니다. 네 레인은 모두 독립적입니다.
+범위. 선행 조건: 진단이 점검할 대상을 갖도록 4단계; 나머지는 4단계 이후 언제든 시작할 수 있습니다. 네 레인은 서로 독립적이며, 모든 레인은 아래 제안서도 기다리며 어떤 레인이 코드를 작성하기 전에 이를 검토합니다.
+
+**제안서 (직렬, 가장 먼저)**
+
+- [x] 결정할 사항과 범위 표를 담은 [`operations-and-release`](../../openspec/changes/operations-and-release/proposal.md) 제안서.
+- [ ] [설계](../../openspec/changes/operations-and-release/design.md).
+- [ ] [`specs/`](../../openspec/changes/operations-and-release/specs/) 아래의 델타 명세.
+- [ ] [작업 목록](../../openspec/changes/operations-and-release/tasks.md).
+- [ ] 소유 문서 갱신과 한국어 미러.
+- [ ] 팀원 검토.
 
 **레인 A — 진단과 복구**
 

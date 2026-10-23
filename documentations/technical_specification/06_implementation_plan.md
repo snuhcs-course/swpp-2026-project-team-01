@@ -342,7 +342,16 @@ Evidence: AC-05, AC-11, and real multi-turn inbox delivery with an authorized re
 
 Goal: the product can be run, inspected and recovered by the team, and released on the root domain.
 
-Scope. Prerequisite: Phase 4 for diagnostics to have something to inspect; the rest can start any time after Phase 4. All four lanes are independent.
+Scope. Prerequisite: Phase 4 for diagnostics to have something to inspect; the rest can start any time after Phase 4. All four lanes are independent of one another, and each waits for the proposal below, reviewed before any lane codes.
+
+**Proposal (serial, first)**
+
+- [x] Proposal for [`operations-and-release`](../../openspec/changes/operations-and-release/proposal.md) with the decisions to settle and the coverage table.
+- [ ] [Design](../../openspec/changes/operations-and-release/design.md).
+- [ ] Delta specs under [`specs/`](../../openspec/changes/operations-and-release/specs/).
+- [ ] [Tasks](../../openspec/changes/operations-and-release/tasks.md).
+- [ ] Owning-document updates and Korean mirrors.
+- [ ] Teammate review.
 
 **Lane A — diagnostics and recovery**
 

@@ -1,0 +1,40 @@
+{
+  "branch": "feat/operations-and-release",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 94,
+          "cache_read": 9962449,
+          "cache_write_5m": 0,
+          "cache_write_1h": 150000,
+          "output": 35684,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T06:06:55.732Z",
+      "last": "2026-10-23T06:15:06.094Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-a06971a0dab44c574": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 10,
+          "cache_read": 330235,
+          "cache_write_5m": 86389,
+          "cache_write_1h": 0,
+          "output": 1241,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T06:13:56.317Z",
+      "last": "2026-10-23T06:14:15.425Z"
+    }
+  }
+}
