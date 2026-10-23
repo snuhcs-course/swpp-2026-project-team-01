@@ -7,6 +7,7 @@ import {
   type CommandFailure,
 } from "../contracts/command-errors";
 import type { Database, Queryable, Transaction } from "./database";
+import { observeRejection } from "./diagnostics";
 import { findHostAccountByAuthUser } from "./host-accounts";
 import { type SupabaseAuthConfig, verifiedUserId } from "./supabase-auth";
 
@@ -19,7 +20,9 @@ import { type SupabaseAuthConfig, verifiedUserId } from "./supabase-auth";
 //   4. in one transaction, checks that the connection is the application owner,
 //      takes the retry-key lock, replays or rejects a used retry key, runs the
 //      command (which takes its domain locks, rechecks authority and the expected
-//      revision, and publishes its jobs) and saves the outcome.
+//      revision, and publishes its jobs) and saves the outcome;
+//   5. on failure, reports the category to the bounded rejection observations
+//      (lib/server/diagnostics.ts), which never change the result.
 // Lock order: the retry-key advisory lock first, then the command's domain locks.
 
 // A host account, a requester holding one request's booking link (id is the
@@ -249,7 +252,9 @@ export async function runCommand<Input, Result>(
 
     return { correlationId, ok: true, ...outcome };
   } catch (error) {
-    return { error: commandFailure(error, correlationId, command.operation), ok: false };
+    const failure = commandFailure(error, correlationId, command.operation);
+    await observeRejection(deps.db, failure.category, deps.env ?? process.env);
+    return { error: failure, ok: false };
   }
 }
 
