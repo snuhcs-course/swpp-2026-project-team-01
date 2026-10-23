@@ -102,7 +102,7 @@ MVP는 Supabase Auth를 통한 Google 전용 호스트 로그인을 요구합니
 
 ## Photon
 
-Photon Spectrum이 iMessage 전송 수단 방향입니다. SDK/공급자 버전, 공유/전용 경로 정책, 웹훅 인증, 네이티브 eve 어댑터 대 애플리케이션 자체 수신기 동작을 검증합니다. 내구성 있는 수신, 확인 응답, 정확한 발신자/채팅 신원, 복구 증거를 기준으로 어댑터를 선택합니다.
+Photon Spectrum이 iMessage 전송 수단입니다. 6단계 스파이크는 내구성 있는 수신, 확인 응답, 정확한 발신자 신원, 복구를 기준으로 eve의 네이티브 `photonIMessageChannel` 대신 애플리케이션 자체 어댑터를 선택했습니다 ([`host-imessage-channel` 설계 1](../../openspec/changes/host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter), D1). 네이티브 채널은 프로세스 내 디스패치 이후에 웹훅에 응답하며 아무것도 저장하지 않고, iMessage 스레드마다 eve 세션 하나를 유지하며, 발신함이 없습니다. `{origin}/photon/webhook`의 수신기(에이전트 서비스로 라우팅)는 `X-Spectrum-Webhook-Id`를 `PHOTON_WEBHOOK_ID`와, `X-Spectrum-Signature`(`v0=`와 `PHOTON_WEBHOOK_SECRET` 아래 `v0:{X-Spectrum-Timestamp}:{raw body}`의 16진수 HMAC-SHA256, 300초 이내)를 검사하고, `200`으로 응답하기 전에 영수증을 저장합니다. 발신 메시지는 `PHOTON_PROJECT_ID`와 `PHOTON_PROJECT_SECRET`으로 Spectrum SDK(`@spectrum-ts/core`와 `@spectrum-ts/imessage` 12.14.0)를 사용하며, 테스트와 로컬 실행은 `PHOTON_API_URL`을 루프백 대역으로 지정합니다. 프로젝트 하나에 회선 하나입니다(D7). 그 번호는 `PHOTON_LINE_NUMBER`입니다. 발신자 식별자(D2)는 Photon의 `message.sender.id`로, E.164 번호 또는 Apple ID 이메일이며, 정확히 일치 비교하고 해시 및 봉인해서만 저장합니다. 직접 대화(`space.type = "dm"`)만 인정됩니다. 이 사실들은 Photon의 문서, SDK, eve에 포함된 어댑터에서 얻은 것이며, 회선 프로비저닝, 웹훅 등록, 실제 iPhone에서의 식별자 확인은 아직 열려 있는 운영자 단계입니다.
 
 ### 첫 메시지와 호스트 온보딩
 

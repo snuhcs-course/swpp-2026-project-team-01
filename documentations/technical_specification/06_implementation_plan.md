@@ -277,7 +277,7 @@ Scope. Prerequisite: Phase 2 for setup over iMessage and Phase 4 for decisions. 
 
 **Lane A — transport spike**
 
-- [ ] Spike: native Photon channel versus an application-owned adapter, chosen on durable receipt, acknowledgment, exact sender identity and recovery evidence; record the sender identifier format.
+- [x] Spike: native Photon channel versus an application-owned adapter, chosen on durable receipt, acknowledgment, exact sender identity and recovery evidence; record the sender identifier format.
 - [ ] Signed receiver with durable receipts, and the isolated outbound transport with its outbox, against a Photon stand-in and signed-webhook fixtures.
 
 **Lane B — linking card in the web workspace**
