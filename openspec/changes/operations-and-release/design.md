@@ -75,7 +75,7 @@ Both commands print the environment and the action, then ask the operator to typ
 
 D8. A backup is only as good as a restore that has been tried. `scripts/restore-drill.ts` (`npm run restore:drill`) runs against the local stack's database container and touches no database that a service uses:
 
-1. It creates the source database `fmat_drill_source` by restoring a schema-only dump of the local `postgres` database's `app`, `auth` and `supabase_migrations` schemas, then fills it with synthetic state from `supabase/tests/fixtures/restore-drill.sql`: hosts with handles and settings, requests in every state, proposals, approvals, bookings in every state, jobs and outbox rows, all with `example.test` addresses and generated text.
+1. It creates the source database `fmat_drill_source` by restoring a schema-only dump of the local `postgres` database's `app`, `auth` and `supabase_migrations` schemas, then fills it with synthetic state from `scripts/fixtures/restore-drill.sql`: hosts with handles and settings, requests in every state, proposals, approvals, bookings in every state, jobs and outbox rows, all with `example.test` addresses and generated text.
 2. It takes a logical backup with `pg_dump --format=custom` of the same schemas, the format Supabase's downloadable backups and `supabase db dump` restore from.
 3. It restores the backup with `pg_restore` into a new, empty database `fmat_drill_restored`, which no service is configured to reach.
 4. It compares the two databases table by table (row count and an ordered MD5 of every row), the migration history, and the validity of every foreign key and check constraint, and runs the diagnostics snapshot on the restored copy to show the functions work.

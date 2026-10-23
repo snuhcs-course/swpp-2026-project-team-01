@@ -18,6 +18,14 @@ BEGIN
   DELETE FROM app.agent_session_events
   WHERE session_id IN (SELECT s.session_id FROM app.agent_sessions s WHERE s.discussion_id = ANY (p_ids));
 
+  -- A turn reply still waiting on an input can no longer be sent; deleting it
+  -- first keeps the outboxes' turn-input checks satisfied.
+  DELETE FROM app.email_replies
+  WHERE completed_at IS NULL
+    AND input_id IN (SELECT i.id FROM app.conversation_inputs i WHERE i.discussion_id = ANY (p_ids));
+  DELETE FROM app.imessage_outbox
+  WHERE completed_at IS NULL
+    AND input_id IN (SELECT i.id FROM app.conversation_inputs i WHERE i.discussion_id = ANY (p_ids));
   DELETE FROM app.conversation_inputs WHERE discussion_id = ANY (p_ids);
   DELETE FROM app.agent_sessions WHERE discussion_id = ANY (p_ids);
   DELETE FROM app.intakes WHERE discussion_id = ANY (p_ids);
@@ -133,6 +141,11 @@ BEGIN
   IF was_deleted IS NOT NULL THEN
     RAISE EXCEPTION 'host already deleted' USING ERRCODE = '55000';
   END IF;
+
+  -- The booking worker locks a request before it commits a dispatch, so locking
+  -- every request of the host first makes the check below see any dispatch that
+  -- was in progress.
+  PERFORM 1 FROM app.requests r WHERE r.host_account_id = account_id ORDER BY r.id FOR UPDATE;
 
   IF EXISTS (SELECT 1 FROM app.bookings b WHERE b.host_account_id = account_id AND b.state = 'dispatching') THEN
     RAISE EXCEPTION 'booking in flight' USING ERRCODE = '55000';

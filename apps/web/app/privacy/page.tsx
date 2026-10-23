@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 // The public data notice, P11 (data-stewardship: public data notice;
 // operations-and-release design 10 and 11, D11 and D12): what each audience's
@@ -196,7 +197,18 @@ const KO: Notice = {
   updated: "최종 수정 2026-10-23",
 };
 
-export default async function Page({ searchParams }: { readonly searchParams: Promise<{ lang?: string | string[] }> }) {
+type SearchParams = Promise<{ lang?: string | string[] }>;
+
+// The language comes from the request, so the notice renders inside Suspense.
+export default function Page({ searchParams }: { readonly searchParams: SearchParams }) {
+  return (
+    <Suspense fallback={<p className="sr-only" role="status">Loading...</p>}>
+      <NoticePage searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function NoticePage({ searchParams }: { readonly searchParams: SearchParams }) {
   const { lang } = await searchParams;
   const notice = lang === "ko" ? KO : EN;
 

@@ -102,7 +102,7 @@ const REFUSALS = [
   [/job attempt limit reached/, "the job has used its 100 attempts."],
   [/unknown booking/, "no booking matches that ID."],
   [/booking not dispatching/, "the booking is not waiting on an uncertain write."],
-  [/reconciliation already running/, "a booking job for it is already pending or running."],
+  [/reconciliation already running/, "a booking job for that booking is already pending or running."],
 ] as const;
 
 // Runs one recover invocation: 0 done, 1 refused or failed, 2 usage error.

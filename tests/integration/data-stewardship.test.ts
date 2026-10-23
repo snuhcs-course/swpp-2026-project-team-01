@@ -73,7 +73,7 @@ async function conversationFor(requestId: string) {
     values ('conversation_input', ${input!.id}, 'requester_request', ${requestId}, ${sessionId}, 0.10, now())
     returning id
   `;
-  return { discussionId: discussion!.id, reservationId: reservation!.id, sessionId };
+  return { discussionId: discussion!.id, inputId: input!.id, reservationId: reservation!.id, sessionId };
 }
 
 async function exists(table: string, column: string, value: string) {
@@ -107,6 +107,21 @@ describe("retention", () => {
     expect(await exists("app.agent_session_events", "session_id", conversation.sessionId)).toBe(false);
     expect(await db`select session_id from app.model_reservations where id = ${conversation.reservationId}`).toEqual([{ session_id: null }]);
     expect(google.createdEvents(request.calendarId).some((event) => event.id === booking.event_id)).toBe(true);
+  });
+
+  it("keeps a closed request whose booking write may exist", async () => {
+    const request = await agreedRequest(db, google);
+    const approved = await asHost(db, request.hostAccountId, request.requestId, approveCommand, { version: 1 }, {
+      expectedRevision: await revisionOf(db, request.requestId),
+    });
+    if (!approved.ok) throw new Error(`approve failed: ${approved.error.category}`);
+    await db`update app.bookings set state = 'dispatching', dispatched_at = now(), payload = '{}'::jsonb where id = ${approved.result.bookingId}`;
+    await db`update app.requests set state = 'expired', closed_at = now() - interval '91 days' where id = ${request.requestId}`;
+
+    await retention();
+
+    expect(await exists("app.requests", "id", request.requestId)).toBe(true);
+    await db`update app.bookings set state = 'cancelled' where id = ${approved.result.bookingId}`;
   });
 
   it("keeps a recently closed request and an old open one", async () => {
@@ -226,6 +241,11 @@ describe("deletion on request", () => {
     const hostAccountId = await newHostAccount(db);
     const request = await createTestRequest(db, { hostAccountId });
     const conversation = await conversationFor(request.requestId);
+    // A turn reply still waiting on the deleted input.
+    await db`
+      insert into app.email_replies (kind, dedupe_key, request_id, inbox_id, reply_to_message_id, input_id, state)
+      values ('turn', ${randomUUID()}, ${request.requestId}, 'inbox@example.test', '<m@example.test>', ${conversation.inputId}, 'waiting')
+    `;
 
     const run = admin();
     expect(await runAdmin(["delete-request", "--request", request.requestId, "--reason", "requester asked", "--operator", "dana", "--local", "--yes"], run.deps)).toBe(0);

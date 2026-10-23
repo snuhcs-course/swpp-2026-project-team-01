@@ -33,6 +33,16 @@ BEGIN
     RAISE EXCEPTION 'job not exhausted' USING ERRCODE = '55000';
   END IF;
 
+  -- A booking job is not requeued while another one for the same booking is
+  -- live, as recover booking requires.
+  IF job.kind = 'booking' AND EXISTS (
+    SELECT 1 FROM app.jobs j
+    WHERE j.kind = 'booking' AND j.id <> job.id AND j.payload ->> 'bookingId' = job.payload ->> 'bookingId'
+      AND j.state IN ('pending', 'running')
+  ) THEN
+    RAISE EXCEPTION 'reconciliation already running' USING ERRCODE = '55000';
+  END IF;
+
   new_max := least(job.attempts + extra_attempts, 100);
 
   IF new_max <= job.attempts THEN

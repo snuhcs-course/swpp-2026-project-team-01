@@ -368,15 +368,20 @@ Scope. Prerequisite: Phase 4 for diagnostics to have something to inspect; the r
 - [x] Migration promotion path: the manual [`Deploy release Supabase`](../../.github/workflows/deploy-release.yml) workflow in the GitHub environment `release`, which refuses any ref but `main` and a project still holding the prototype, plus the staging messaging denial so the shared project can become staging.
 - [ ] Release environment split: empty and link `mriseqztcwmezvtawnbo` (FindMeATime2), separate Vercel production target. Open: the project still holds the iteration-1 prototype (inspected read-only on 2026-10-23); emptying it, the `release` environment's secrets, and moving the shared project to `findmeatime-dev` are blocked on the user.
 - [x] Root-domain promotion: attach `findmeatime.com` to the release project, apply Vercel's required records through `cf` with proxying off, verify with domain inspection, DNS lookup and an HTTPS request; keep `release.findmeatime.com` working. Attached at the user's request on 2026-10-19; verified read-only on 2026-10-23 ([acceptance record](07_acceptance_record.md#production-checks-read-only)).
-- [ ] Google app verification for the sensitive Calendar scopes; Photon and AgentMail production configuration; Cloudflare custom SMTP for applicable Auth notifications.
+- [ ] Google app verification for the sensitive Calendar scopes; Photon and AgentMail production configuration; Cloudflare custom SMTP for applicable Auth notifications. Open: console steps, listed in the [decision log's release checklist](08_decision_log.md#phase-8--operations-and-release) (steps 7, 8, 13 and 14); `/privacy` now gives Google's verification its privacy policy URL once deployed.
 
 **Lane D — acceptance record**
 
 - [ ] The acceptance evidence record for AC-01 through AC-28 with commands, dates, revisions and gaps, maintained from Phase 1 onward and completed here. Open: the [release summary](07_acceptance_record.md#release-summary) of 2026-10-23 gives every scenario its local evidence and production evidence where it exists; production, named-client, device and inbox cases are still pending for most scenarios.
 
+**Join**
+
+- [ ] Run `npm run check`, the build, lint, typecheck, unit, integration, browser and database tests on the branch, and record the runs.
+- [ ] Run the release checklist in the [decision log](08_decision_log.md#phase-8--operations-and-release) and the production acceptance it ends with. Open: every step needs the user, a teammate or a provider console.
+
 Specs: [operational-diagnostics](../../openspec/specs/operational-diagnostics/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md) (Auth notifications), [messaging-environments](../../openspec/specs/messaging-environments/spec.md).
 
-Decisions settled here: measurement window and numerical targets from PRD section 2; support and recovery ownership; performance targets.
+Decisions settled here: measurement window and numerical targets from PRD section 2; support and recovery ownership; performance targets. Decided on 2026-10-23 with retention, deletion, disclosures and the environment split as D1–D14 of the [`operations-and-release` proposal](../../openspec/changes/operations-and-release/proposal.md#decisions).
 
 Evidence: a complete acceptance record with no pending required client or provider case, and the release checklist in [provider setup](03_provider_setup.md#environment-and-activation-checklist) satisfied.
 

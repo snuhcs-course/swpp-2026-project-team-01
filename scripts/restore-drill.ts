@@ -4,13 +4,13 @@
 // database a service uses:
 //   1. builds fmat_drill_source from the local database's schema and migration
 //      history, then fills it with the synthetic fixture
-//      supabase/tests/fixtures/restore-drill.sql;
+//      scripts/fixtures/restore-drill.sql;
 //   2. takes a logical backup of it with pg_dump --format=custom;
 //   3. restores the backup with pg_restore into the empty fmat_drill_restored;
 //   4. compares every table's row count and ordered row hash, the migration
 //      history and constraint validity, and runs the diagnostics snapshot on the
 //      restored copy;
-//   5. checks that the local database itself did not change, and drops both
+//   5. warns when the local database changed meanwhile, and drops both
 //      drill databases unless --keep is given.
 // It prints counts and hashes only, and exits 1 when anything differs.
 import { execFileSync } from "node:child_process";
@@ -89,7 +89,7 @@ function dropDrillDatabases(container: string) {
 
 export function runDrill(options: { readonly keep: boolean; readonly log: (line: string) => void }) {
   const container = containerName(readFileSync(`${root}supabase/config.toml`, "utf8"));
-  const fixture = readFileSync(`${root}supabase/tests/fixtures/restore-drill.sql`, "utf8");
+  const fixture = readFileSync(`${root}scripts/fixtures/restore-drill.sql`, "utf8");
   const schemaFlags = SCHEMAS.flatMap((schema) => ["-n", schema]);
   const before = tableFingerprints(container, "postgres");
 
@@ -135,9 +135,11 @@ export function runDrill(options: { readonly keep: boolean; readonly log: (line:
       ...(notValid === "0" ? [] : [`${notValid} constraints are not valid`]),
       ...(snapshot === "10" ? [] : ["the diagnostics snapshot did not run"]),
       ...(rows > 0 ? [] : ["the source holds no rows"]),
-      ...touched.map((table) => `the local database's ${table} changed during the drill`),
     ];
 
+    // The drill never writes to the local database, but the local stack's own
+    // schedules or a running dev server may, so a change there is a warning.
+    for (const table of touched) options.log(`WARNING: the local database's ${table} changed during the drill (another process wrote to it)`);
     for (const failure of failures) options.log(`FAILED: ${failure}`);
     options.log(failures.length === 0 ? "Restore drill passed." : "Restore drill failed.");
     return failures.length === 0;

@@ -1,7 +1,8 @@
 -- The retention pass (data-stewardship: retention schedule; operations-and-
 -- release design 8, D9), run every hour by pg_cron. Each rule deletes at most
 -- row_limit rows per run, so a backlog drains over several runs instead of
--- holding locks: closed requests with everything under them 90 days after
+-- holding locks (closed requests count per request, at most 100 per run, since
+-- each cascades to many rows): closed requests with everything under them 90 days after
 -- closure; completed jobs, command outcomes, link-resend records, admission
 -- windows and agent protocol attempts after 30 days; exhausted jobs and model
 -- reservations after 90 days; operator audit rows after a year. Returns the
@@ -20,7 +21,12 @@ BEGIN
 
   rule := 'closed_requests';
   deleted := app.delete_request_records(array(
-    SELECT r.id FROM app.requests r WHERE r.closed_at < now() - interval '90 days' ORDER BY r.closed_at LIMIT row_limit
+    SELECT r.id FROM app.requests r
+    WHERE r.closed_at < now() - interval '90 days'
+      -- A booking whose write may exist keeps its record until reconciled.
+      AND NOT EXISTS (SELECT 1 FROM app.bookings b WHERE b.request_id = r.id AND b.state = 'dispatching')
+    ORDER BY r.closed_at
+    LIMIT least(row_limit, 100)
   ));
   RETURN NEXT;
 

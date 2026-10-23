@@ -370,15 +370,20 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 - [x] 마이그레이션 승격 경로: GitHub 환경 `release`의 수동 [`Deploy release Supabase`](../../.github/workflows/deploy-release.yml) 워크플로는 `main` 외의 ref와 프로토타입이 아직 남아 있는 프로젝트를 거부하며, 공유 프로젝트가 스테이징이 될 수 있도록 스테이징 메시지 차단도 함께 추가.
 - [ ] 릴리스 환경 분리: `mriseqztcwmezvtawnbo`(FindMeATime2)를 비우고 연결, 별도의 Vercel 프로덕션 대상. 미결: 프로젝트에 아직 1차 반복의 프로토타입이 남아 있으며(2026-10-23에 읽기 전용으로 점검), 이를 비우는 일, `release` 환경의 비밀, 공유 프로젝트를 `findmeatime-dev`로 옮기는 일은 사용자의 조치를 기다리는 중.
 - [x] 루트 도메인 승격: `findmeatime.com`을 릴리스 프로젝트에 연결하고, Vercel이 요구하는 레코드를 프록시 없이 `cf`로 적용하고, 도메인 점검, DNS 조회, HTTPS 요청으로 검증하며, `release.findmeatime.com`이 계속 동작하도록 유지. 사용자의 요청으로 2026-10-19에 연결했으며, 2026-10-23에 읽기 전용으로 검증했습니다([인수 기록](07_acceptance_record.md#production-checks-read-only)).
-- [ ] 민감한 Calendar 스코프에 대한 Google 앱 검증; Photon과 AgentMail의 프로덕션 구성; 해당하는 Auth 알림을 위한 Cloudflare 사용자 정의 SMTP.
+- [ ] 민감한 Calendar 스코프에 대한 Google 앱 검증; Photon과 AgentMail의 프로덕션 구성; 해당하는 Auth 알림을 위한 Cloudflare 사용자 정의 SMTP. 열림: 콘솔 단계는 [결정 기록의 릴리스 체크리스트](08_decision_log.md#phase-8--operations-and-release)(7, 8, 13, 14단계)에 나열되어 있으며, `/privacy`가 배포되면 Google 검증에 필요한 개인정보 처리방침 URL이 됩니다.
 
 **레인 D — 인수 기록**
 
 - [ ] 명령, 날짜, 리비전, 공백을 포함한 AC-01부터 AC-28까지의 인수 증거 기록. 1단계부터 유지하여 여기서 완성합니다. 열림: 2026-10-23의 [릴리스 요약](07_acceptance_record.md#release-summary)은 모든 시나리오에 로컬 증거를, 있는 경우 프로덕션 증거를 제공합니다. 대부분의 시나리오에서 프로덕션, 명명된 클라이언트, 기기, 받은편지함 사례는 아직 보류 중입니다.
 
+**합류**
+
+- [ ] 브랜치에서 `npm run check`, 빌드, 린트, 타입 검사, 단위, 통합, 브라우저, 데이터베이스 테스트를 실행하고 실행 결과를 기록합니다.
+- [ ] [결정 기록](08_decision_log.md#phase-8--operations-and-release)의 릴리스 체크리스트와 그 끝의 프로덕션 인수를 실행합니다. 열림: 모든 단계에 사용자, 팀원 또는 제공자 콘솔이 필요합니다.
+
 명세: [operational-diagnostics](../../openspec/specs/operational-diagnostics/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md)(Auth 알림), [messaging-environments](../../openspec/specs/messaging-environments/spec.md).
 
-여기서 확정할 결정: PRD 2절의 측정 기간과 수치 목표; 지원 및 복구 담당; 성능 목표.
+여기서 확정할 결정: PRD 2절의 측정 기간과 수치 목표; 지원 및 복구 담당; 성능 목표. 보존, 삭제, 고지, 환경 분리와 함께 2026-10-23에 [`operations-and-release` 제안서](../../openspec/changes/operations-and-release/proposal.md#decisions)의 D1–D14로 결정했습니다.
 
 증거: 보류 중인 필수 클라이언트나 제공자 사례가 없는 완전한 인수 기록, 그리고 충족된 [제공자 설정](03_provider_setup.md#environment-and-activation-checklist)의 릴리스 체크리스트.
 

@@ -172,6 +172,19 @@ describe("recover booking", () => {
     expect(await audits(bookingId)).toEqual([]);
   });
 
+  it("refuses to requeue an old booking job while a reconciliation for the booking is live", async () => {
+    const { bookingId } = await approvedBooking();
+    const [old] = await bookingJobs(db, bookingId);
+    await db`update app.bookings set state = 'dispatching', dispatched_at = now(), payload = '{}'::jsonb where id = ${bookingId}`;
+    await db`update app.jobs set state = 'exhausted', failure_category = 'handler_failed' where id = ${old!.id}`;
+
+    expect(await runAdmin(["recover", "booking", "--booking", bookingId, "--reason", "x", "--operator", "dana", "--local", "--yes"], admin().deps)).toBe(0);
+    const requeue = admin();
+    expect(await runAdmin(["recover", "job", "--job", old!.id, "--reason", "x", "--operator", "dana", "--local", "--yes"], requeue.deps)).toBe(1);
+    expect(requeue.err.join("\n")).toMatch(/already pending or running/);
+    expect(await db`select state from app.jobs where id = ${old!.id}`).toEqual([{ state: "exhausted" }]);
+  });
+
   it("denies the recovery functions to Data API roles", async () => {
     for (const role of ["anon", "authenticated"]) {
       for (const statement of [
