@@ -7,6 +7,7 @@
 // `npm run dev:web` runs only the web service with the same environment.
 import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { PROTECTED_PROJECT_REFS } from "./jobs-dev";
 
 export const ENV_FILES = [".env.development.local", ".env.local", ".env.development", ".env"];
@@ -40,25 +41,40 @@ function main() {
     services.push(["eve", ["dev", "--no-ui"]]);
   }
 
+  // On Windows the package binaries are .cmd shims, which Node starts only
+  // through a shell; the arguments above are fixed, so one command line is safe.
   const children: ChildProcess[] = services.map(([command, args]) =>
-    spawn(command, args, { env: process.env, stdio: "inherit" }),
+    process.platform === "win32"
+      ? spawn([command, ...args].join(" "), { env: process.env, shell: true, stdio: "inherit" })
+      : spawn(command, args, { env: process.env, stdio: "inherit" }),
   );
+
+  // A signal to a Windows shell stops only the shell, so there the service's
+  // whole process tree is ended instead.
+  const stop = (child: ChildProcess, signal: NodeJS.Signals) => {
+    if (child.exitCode !== null) return;
+    if (process.platform === "win32" && child.pid !== undefined) {
+      spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    } else {
+      child.kill(signal);
+    }
+  };
 
   // When one service stops, stop the other and exit with its status.
   for (const child of children) {
     child.once("exit", (code, signal) => {
-      for (const other of children) if (other !== child && other.exitCode === null) other.kill("SIGTERM");
+      for (const other of children) if (other !== child) stop(other, "SIGTERM");
       process.exitCode = code ?? (signal ? 1 : 0);
     });
   }
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.once(signal, () => {
-      for (const child of children) if (child.exitCode === null) child.kill(signal);
+      for (const child of children) stop(child, signal);
     });
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

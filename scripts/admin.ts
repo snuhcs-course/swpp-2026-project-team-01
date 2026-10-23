@@ -2,6 +2,7 @@
 // fmat-admin. A separate entry point from the web and agent services; the logic
 // lives in lib/server/operator.ts. Run it without arguments for usage.
 import { createInterface } from "node:readline/promises";
+import { pathToFileURL } from "node:url";
 import { runAdmin } from "../lib/server/operator";
 
 async function prompt(question: string) {
@@ -14,7 +15,7 @@ async function prompt(question: string) {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.exitCode = await runAdmin(process.argv.slice(2), {
     env: process.env,
     interactive: process.stdin.isTTY === true,
