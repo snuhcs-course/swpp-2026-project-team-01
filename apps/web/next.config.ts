@@ -26,6 +26,23 @@ export const contentSecurityPolicy = [
 // applies form-action to that redirect, so this page widens it to those schemes.
 export const consentContentSecurityPolicy = contentSecurityPolicy.replace("form-action 'self'", "form-action 'self' https: http:");
 
+// The requester's Continue with Google and Connect Google Calendar post to
+// /connections/google/start, which redirects to Google's consent screen; Chrome
+// applies form-action to that redirect, so the requester's pages allow Google's
+// origin. Outside production the consent screen may be a local stand-in
+// (GOOGLE_REQUESTER_AUTH_URL), as lib/server/requester-google.ts allows. The
+// config loader cannot import lib/server/deployment.ts, so any VERCEL_ENV of
+// production counts as production here, a stricter reading than that module's.
+const requesterAuthOverride = process.env.VERCEL_ENV?.trim() !== "production" ? process.env.GOOGLE_REQUESTER_AUTH_URL?.trim() : undefined;
+const requesterConsentOrigins = [
+  "https://accounts.google.com",
+  ...(requesterAuthOverride && URL.canParse(requesterAuthOverride) ? [new URL(requesterAuthOverride).origin] : []),
+];
+export const requesterContentSecurityPolicy = contentSecurityPolicy.replace(
+  "form-action 'self'",
+  `form-action 'self' ${requesterConsentOrigins.join(" ")}`,
+);
+
 export const securityHeaders = [
   { key: "Content-Security-Policy", value: contentSecurityPolicy },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
@@ -58,6 +75,12 @@ const nextConfig: NextConfig = {
       // The requester's Google return can redirect to a booking link.
       { headers: credentialPath, source: "/connections/:path*" },
       { headers: [{ key: "Content-Security-Policy", value: consentContentSecurityPolicy }], source: "/connect/consent" },
+      { headers: [{ key: "Content-Security-Policy", value: requesterContentSecurityPolicy }], source: "/:handle([^/.]+)" },
+      { headers: [{ key: "Content-Security-Policy", value: requesterContentSecurityPolicy }], source: "/booking/:path*" },
+      // The booking page posts Connect Google Calendar as a form, which Chrome
+      // sends with `Origin: null` under no-referrer; same-origin keeps the link
+      // inside the origin (see apps/web/app/booking/[bookingId]/page.tsx).
+      { headers: [{ key: "Referrer-Policy", value: "same-origin" }], source: "/booking/:bookingId([^/]+)" },
       { headers: varyByAccept, source: "/" },
       { headers: varyByAccept, source: "/:handle([^/.]+)" },
     ];
