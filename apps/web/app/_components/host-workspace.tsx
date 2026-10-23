@@ -4,7 +4,7 @@ import { AlertCircleIcon, XIcon } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HostRequests } from "@/app/_components/host/host-requests";
-import { IMESSAGE_CARD_ID, ImessageCard } from "@/app/_components/imessage/imessage-card";
+import { IMESSAGE_CARD_ID, ImessageCard, rememberedLater, rememberLater } from "@/app/_components/imessage/imessage-card";
 import { AuthoredMessages, useAuthoredReveal } from "@/app/_components/setup/authored-messages";
 import { focusCurrentCard, SetupCards } from "@/app/_components/setup/setup-cards";
 import { ReceiptAnnouncer, SetupReceipts } from "@/app/_components/setup/receipt";
@@ -34,23 +34,6 @@ const ANALYSIS_POLL_MS = 4000;
 // The Connect iMessage card (H11) follows the share links once setup is ready,
 // until the host links or chooses Maybe later, which this browser remembers; the
 // menu's iMessage item opens it at any step.
-const IMESSAGE_LATER_KEY = "fmat:imessage-later";
-
-function rememberedLater() {
-  try {
-    return window.localStorage.getItem(IMESSAGE_LATER_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function rememberLater() {
-  try {
-    window.localStorage.setItem(IMESSAGE_LATER_KEY, "1");
-  } catch {
-    // Without storage the card simply shows again next visit.
-  }
-}
 
 export function HostWorkspace() {
   const params = useSearchParams();

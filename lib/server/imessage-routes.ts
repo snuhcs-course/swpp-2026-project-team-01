@@ -2,12 +2,15 @@ import { z } from "zod";
 import { COMMAND_ERROR_MESSAGES, type CommandErrorCategory } from "../contracts/command-errors";
 import { IMESSAGE_OPERATIONS } from "../contracts/imessage";
 import { json } from "./chat-routes";
-import { runCommand } from "./commands";
+import { CommandError, runCommand } from "./commands";
 import { database, type Database } from "./database";
 import { readHostStanding } from "./host-eligibility";
 import { fallbackDailyLimit, imessageCommands, readImessageStatus } from "./imessage-links";
+import { readStartStatus, startCookieFor, startImessageLink, startSecretOf } from "./imessage-start";
+import { CONTINUATION_SECONDS, continuationCookie, readReceivedContinuation } from "./imessage-continuation";
 import { photonConfig } from "./photon";
-import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
+import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal, requestAppOrigin, unknownHost } from "./same-origin";
+import { sourceHash } from "./signup-limits";
 import { type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment, verifiedUserId } from "./supabase-auth";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -17,6 +20,10 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 //   POST /api/host/imessage/commands   a card's command
 // Each authenticates the Supabase session and the host's eligibility itself,
 // answers private, uncached JSON, and never returns a code the service sent.
+// The iMessage start on the public page (D15) needs no session:
+//   GET  /api/imessage/start           this browser's attempt, by its cookie
+//   POST /api/imessage/start           a new attempt for this browser
+//   GET  /imessage/continue            the sign-in link in Thyme's reply (D19)
 
 export type ImessageRouteDependencies = AppOrigins & {
   readonly auth: SupabaseAuthConfig;
@@ -105,6 +112,7 @@ export function createImessageCommandHandler(load: () => ImessageRouteDependenci
     const commands = imessageCommands({
       lineDayLimit: deps.lineDayLimit,
       lineNumber: deps.lineNumber,
+      origin: deps.appOrigin,
       tokenKey: deps.tokenKey,
       tokenKeys: deps.tokenKeys,
     });
@@ -118,5 +126,55 @@ export function createImessageCommandHandler(load: () => ImessageRouteDependenci
     return outcome.ok
       ? json({ result: outcome.result, status }, outcome.replayed ? 200 : 201)
       : json({ error: outcome.error, status }, COMMAND_STATUS[outcome.error.category]);
+  };
+}
+
+// GET /api/imessage/start: this browser's attempt from the iMessage start.
+export function createImessageStartStatusHandler(load: () => ImessageRouteDependencies = imessageRouteDependenciesFromEnvironment) {
+  return async (request: Request) => {
+    const deps = load();
+    return json(await readStartStatus(deps.db, deps, startSecretOf(request)));
+  };
+}
+
+// POST /api/imessage/start: a new link code for this browser, which keeps the
+// cookie it already has or gets one. Bounded per source address and service-wide.
+export function createImessageStartHandler(load: () => ImessageRouteDependencies = imessageRouteDependenciesFromEnvironment) {
+  return async (request: Request) => {
+    const deps = load();
+    const refused = crossSiteRefusal(request, deps, { json: true });
+    if (refused) return refused;
+    const origin = requestAppOrigin(request, deps);
+    if (!origin) return unknownHost();
+
+    const cookie = startCookieFor(origin, startSecretOf(request));
+    try {
+      await startImessageLink(deps.db, deps, cookie.secret, sourceHash(deps.tokenKey, request));
+    } catch (error) {
+      if (!(error instanceof CommandError)) throw error;
+      return json({ error: { category: error.category, message: COMMAND_ERROR_MESSAGES[error.category] } }, COMMAND_STATUS[error.category]);
+    }
+
+    const response = json(await readStartStatus(deps.db, deps, cookie.secret), 201);
+    response.headers.append("set-cookie", cookie.header);
+    return response;
+  };
+}
+
+// GET /imessage/continue?token=…, the link in Thyme's reply to a code from the
+// iMessage start (D19). A live one is kept in an HttpOnly cookie for the
+// callback, then Google sign-in asks for Calendar; one that ran out, was used or
+// was tampered with goes back to the iMessage start to begin again.
+export function createImessageContinueHandler(load: () => ImessageRouteDependencies = imessageRouteDependenciesFromEnvironment) {
+  return async (request: Request) => {
+    const deps = load();
+    const origin = requestAppOrigin(request, deps);
+    if (!origin) return unknownHost();
+    const token = new URL(request.url).searchParams.get("token") ?? "";
+    const live = await readReceivedContinuation(deps.db, deps.tokenKey, token);
+    const headers = new Headers({ "cache-control": "private, no-store", "referrer-policy": "no-referrer", "x-robots-tag": "noindex" });
+    if (live) headers.set("set-cookie", continuationCookie(token, origin, CONTINUATION_SECONDS));
+    headers.set("location", live ? `${origin}/auth/sign-in?return=imessage` : `${origin}/?flow=imessage`);
+    return new Response(null, { status: 303, headers });
   };
 }

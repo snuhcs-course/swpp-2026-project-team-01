@@ -1,11 +1,14 @@
 import { defineDynamic, defineInstructions } from "eve/instructions";
 import { isHostReviewSession } from "../../lib/server/host-review-tools";
+import { calendarConnectUrl } from "../../lib/server/imessage-links";
 import { isHostSetupSession } from "../../lib/server/setup-tools";
 
 // The host iMessage fragment (host-imessage-channel design 9, D11), for both of a
 // host's discussions, which a linked iMessage shares with /app. A message that
 // arrived from iMessage starts with "[iMessage] ", and the reply goes back there
-// as plain text with no cards.
+// as plain text with no cards. Links name the deployment's origin, findmeatime.com
+// when APP_ORIGIN is unset; the Calendar link returns here (D19).
+const ORIGIN = process.env.APP_ORIGIN?.trim() || "https://findmeatime.com";
 const HOST_IMESSAGE = `## Messages from iMessage
 
 A host message that starts with "[iMessage]" came from the host's linked
@@ -21,8 +24,11 @@ cards or buttons are shown.
 - A text reply such as "yes", "approve it" or "save it" decides nothing, in
   iMessage as on the web. Only the exact command with its reference, or the
   button on the web, does.
-- Sign-in, Google consent and protected fields happen in the browser; send the
-  host to findmeatime.com/app for them.`;
+- Sign-in, Google consent and protected fields happen in the browser. To
+  connect Google Calendar, send ${calendarConnectUrl(ORIGIN)}, which brings
+  the host back to this conversation; for the rest, send ${ORIGIN}/app.
+- A plain reply to a setup question, such as the welcome's "How long should a
+  typical meeting be?", is a setup answer; the host need not send setup first.`;
 
 export default defineDynamic({
   events: {

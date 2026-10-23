@@ -38,8 +38,35 @@ An authenticated active host SHALL be able to create a one-time link code that t
 - **WHEN** a sender already bound to one host sends another host's code
 - **THEN** the attempt is voided and the existing binding is unchanged
 
+### Requirement: Link step after sign-in
+Right after Google sign-in, before the conversation, `/app` SHALL show the link step to an active host with an open link attempt, or with no binding who is not ready and has not chosen to set up in web chat in that browser. The step SHALL open with a link code already made, show the message, the line and how long the code works, open Messages from a tap on a phone, and on a computer show a QR code of the deep link, **Copy**, and on a Mac **Open Messages**. A code that ran out SHALL be replaced only when the host asks. Choosing **Set up here in web chat** SHALL open the conversation and be remembered in that browser.
+
+#### Scenario: Link right after sign-in
+- **WHEN** a new host signs in, sends the shown message from their iMessage and confirms the masked sender
+- **THEN** the sender is bound and the host continues to the conversation
+
+#### Scenario: Skip to the web chat
+- **WHEN** the host chooses **Set up here in web chat**
+- **THEN** the conversation opens, nothing is bound, and the step does not open again in that browser
+
+### Requirement: iMessage start before sign-in
+The landing's iMessage start SHALL create a link attempt owned only by the browser that started it, through an HttpOnly cookie whose secret the service stores only as a keyed hash; starts SHALL be bounded per source address and across the service. The attempt SHALL record an arriving sender like any attempt and SHALL bind nothing. Google sign-in in the same browser SHALL give the attempt to the signed-in active host, and the binding SHALL follow only that host's confirmation of the masked sender in `/app`. Thyme's reply to the arriving code SHALL carry a sign-in link bound to the attempt and the sender, usable in any browser only while the attempt awaits confirmation; Google sign-in from it SHALL give the attempt to that host unless another host holds it, and SHALL NOT bind anything by itself.
+
+#### Scenario: Start, sign in, confirm
+- **WHEN** a visitor starts from iMessage, sends the message, signs in with Google and confirms the masked sender
+- **THEN** the sender is bound to that host
+
+#### Scenario: Another browser
+- **WHEN** a different browser reads the iMessage start or signs in without the reply's sign-in link
+- **THEN** it sees and claims nothing of the first browser's attempt
+
+#### Scenario: Sign in from Thyme's reply
+- **WHEN** the sender opens the sign-in link from Thyme's reply, signs in with Google and confirms the masked sender
+- **THEN** the sender is bound to that host, and the link no longer works
+- **AND** a tampered, expired, cancelled or used link, or one another host holds, claims nothing and leads back to the iMessage start
+
 ### Requirement: Fallback code
-When the host cannot send from the device, the service SHALL offer a six-digit code sent by the line to a number the host enters, typed back into a protected field in the same browser together with **Confirm and link**. The browser SHALL never receive a sent code. Codes SHALL expire, resends SHALL be spaced and limited per attempt, per host and per line, and repeated wrong entries SHALL void the code. Each fallback send SHALL be counted as a new outbound conversation.
+The browser SHALL NOT offer the fallback while the line cannot open a conversation with a number that has not written first (D16); an attempt the service already holds SHALL stay usable. When offered, it SHALL be a six-digit code sent by the line to a number the host enters, typed back into a protected field in the same browser together with **Confirm and link**. The browser SHALL never receive a sent code. Codes SHALL expire, resends SHALL be spaced and limited per attempt, per host and per line, and repeated wrong entries SHALL void the code. Each fallback send SHALL be counted as a new outbound conversation.
 
 #### Scenario: Fallback within limits
 - **WHEN** the host requests a code, receives it and types it before it expires
@@ -115,7 +142,15 @@ Every outbound iMessage SHALL be a frozen record dispatched by a job behind the 
 - **THEN** `/app` shows the failed or uncertain message and the request's state is unchanged
 
 ### Requirement: Setup over iMessage
-A linked host SHALL be able to enter the shared setup discussion with `setup` and answer setup questions in plain text that update the same draft as the web workspace. Sign-in, Google consent and protected fields SHALL stay browser steps. Settings SHALL be saved only by the exact `confirm <ref>` command naming the current settings review, under the same checks as the web confirmation.
+A linked host SHALL be able to enter the shared setup discussion with `setup` and answer setup questions in plain text that update the same draft as the web workspace. Sign-in, Google consent and protected fields SHALL stay browser steps; Thyme SHALL send a link for connecting Google Calendar that returns the host to the conversation. Linking SHALL send a welcome by where the host stands: a ready host is told what Thyme can do, a host without a usable Calendar gets the Calendar link, and any other host gets the first setup question. Settings SHALL be saved only by the exact `confirm <ref>` command naming the current settings review, under the same checks as the web confirmation.
+
+#### Scenario: Welcome into setup
+- **WHEN** a host who is not ready confirms the received sender, after either entry
+- **THEN** the welcome asks for Calendar or the first setup question, and a plain reply joins the shared setup discussion without `setup`
+
+#### Scenario: Back from Google
+- **WHEN** a linked host signs in with Google from Thyme's Calendar link
+- **THEN** one message is queued to the linked conversation even if the sign-in is replayed, it does not claim Calendar was granted, and the browser returns to `/app`
 
 #### Scenario: Stale settings review
 - **WHEN** the host sends `confirm <ref>` after the draft changed

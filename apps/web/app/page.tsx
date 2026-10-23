@@ -1,66 +1,27 @@
 import type { Metadata } from "next";
-import { AgentSection } from "@/app/_components/agent-section";
+import { cookies } from "next/headers";
+import { Suspense } from "react";
+import { LOCALE_COOKIE, localeOf } from "@/app/_components/ink/copy";
+import { Landing } from "@/app/_components/ink/landing";
 
-// The public entry page: what the product is, Google sign-in, and where agents
-// find the host instructions (also declared as the Markdown alternate).
+// The public entry page: what the product is, the Google start (or, with `?flow=imessage`, the iMessage start,
+// D15), the agent prompt, and where agents find the host instructions (also declared as the Markdown
+// alternate). Its words follow the `lang` cookie.
 export const metadata: Metadata = {
   alternates: { types: { "text/markdown": "/SKILL.md" } },
 };
 
-const STEPS = [
-  {
-    body: "One Google screen asks for your identity and Calendar access. They are recorded as separate grants, and you can connect Calendar later.",
-    title: "Sign in with Google",
-  },
-  {
-    body: "Thyme, the scheduling assistant, reads your calendars to suggest hours, meeting length and buffers. You confirm every value.",
-    title: "Confirm your rules",
-  },
-  {
-    body: "Once setup is confirmed you get a public link. Nothing is booked without your explicit approval.",
-    title: "Share your link",
-  },
-] as const;
+type SearchParams = Promise<{ flow?: string }>;
 
-export default function Page() {
+export default function Page({ searchParams }: { readonly searchParams: SearchParams }) {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-16 px-4 py-16 sm:px-8 sm:py-24">
-      <section className="flex max-w-2xl flex-col gap-6">
-        <h1 className="font-display text-[clamp(40px,6vw,72px)] leading-[1.12] tracking-[-0.01em]">Find Me a Time</h1>
-        <p className="text-lg text-muted-foreground">
-          Let&apos;s find a time. Find Me a Time schedules external one-to-one meetings from your Google Calendar and the
-          rules you confirm. Anyone with a Google account can become a host, and people who book with you never need an
-          account.
-        </p>
-        <div>
-          <a
-            className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-5 font-medium text-primary-foreground transition-colors hover:bg-primary-hover active:bg-primary-pressed"
-            href="/auth/sign-in"
-          >
-            Sign in with Google
-          </a>
-        </div>
-      </section>
-
-      <section aria-labelledby="how-heading" className="flex flex-col gap-6">
-        <h2 className="font-display text-2xl" id="how-heading">
-          How it works
-        </h2>
-        <ol className="grid gap-4 sm:grid-cols-3">
-          {STEPS.map((step, index) => (
-            <li className="rounded-xl border border-border bg-card p-6" key={step.title}>
-              <p className="font-medium text-muted-foreground text-sm">Step {index + 1}</p>
-              <h3 className="mt-1 font-semibold text-lg">{step.title}</h3>
-              <p className="mt-2 text-muted-foreground">{step.body}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <AgentSection href="/SKILL.md">
-        Sign-in and setup happen in the browser. A personal agent can connect to the MCP server at /mcp once you allow it in
-        the browser; the instructions explain how.
-      </AgentSection>
-    </main>
+    <Suspense fallback={null}>
+      <Entry searchParams={searchParams} />
+    </Suspense>
   );
+}
+
+async function Entry({ searchParams }: { readonly searchParams: SearchParams }) {
+  const [{ flow }, jar] = await Promise.all([searchParams, cookies()]);
+  return <Landing imessage={flow === "imessage"} locale={localeOf(jar.get(LOCALE_COOKIE)?.value)} />;
 }

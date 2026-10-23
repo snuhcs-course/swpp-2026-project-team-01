@@ -7,6 +7,7 @@ import {
   type GoogleSignInDependencies,
 } from "../../lib/server/google-sign-in";
 import { createGrantedScopesFetcher } from "../../lib/server/google-token-info";
+import { START_COOKIE, startImessageLink } from "../../lib/server/imessage-start";
 import { parseTokenKey } from "../../lib/server/token-encryption";
 import {
   completeGoogleLeg,
@@ -92,6 +93,25 @@ describe("Google sign-in", () => {
 
     const requested = flow.google.searchParams.get("scope")!.split(" ");
     expect(requested).toEqual(expect.arrayContaining(["email", "profile", ...GOOGLE_CALENDAR_SCOPES]));
+  });
+
+  it("gives this browser's iMessage start to the host who signs in, and clears its cookie (D15)", async () => {
+    const { code, flow, user } = await signedInFlow();
+    const secret = randomBytes(32).toString("base64url");
+    const options = { lineNumber: "+15550001111", tokenKey: deps.tokenKey, tokenKeys: [deps.tokenKey] };
+    await startImessageLink(db, options, secret, randomBytes(32).toString("hex"));
+
+    const response = await callback(
+      new Request(`${origin}/auth/callback?code=${code}`, { headers: { cookie: `${flow.cookie}; ${START_COOKIE}=${secret}` } }),
+    );
+
+    expect(response.headers.get("location")).toBe(`${origin}/app`);
+    expect(response.headers.getSetCookie()).toEqual(expect.arrayContaining([expect.stringMatching(new RegExp(`^${START_COOKIE}=;.*Max-Age=0`))]));
+    const [link] = await db<{ state: string }[]>`
+      select l.state from app.imessage_links l join app.google_identities g on g.host_account_id = l.host_account_id
+      where g.google_subject = ${user.googleSubject}
+    `;
+    expect(link).toEqual({ state: "pending" });
   });
 
   it("returns a completed sign-in to /app with a session, ignoring a supplied destination", async () => {
@@ -246,6 +266,16 @@ describe("renewed Calendar consent", () => {
     expect(google.searchParams.get("include_granted_scopes")).toBe("true");
     expect(google.searchParams.get("access_type")).toBe("offline");
     expect(google.searchParams.get("scope")!.split(" ")).toEqual(expect.arrayContaining([...GOOGLE_CALENDAR_SCOPES]));
+  });
+
+  it("asks for identity only for ?calendar=0, and for Calendar with any other value", async () => {
+    const identity = (await googleUrl("/auth/sign-in?calendar=0")).searchParams.get("scope")!.split(" ");
+    expect(identity).toEqual(expect.arrayContaining(["email", "profile"]));
+    for (const scope of GOOGLE_CALENDAR_SCOPES) expect(identity).not.toContain(scope);
+
+    for (const path of ["/auth/sign-in?calendar=1", "/auth/sign-in?calendar=0&consent=calendar"]) {
+      expect((await googleUrl(path)).searchParams.get("scope")!.split(" ")).toEqual(expect.arrayContaining([...GOOGLE_CALENDAR_SCOPES]));
+    }
   });
 
   it("ignores any other consent value", async () => {
