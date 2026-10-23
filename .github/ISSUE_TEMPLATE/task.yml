@@ -1,0 +1,51 @@
+name: Task
+description: A bounded piece of planned work, such as an implementation-plan task, setup or maintenance.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A task is either a piece of work for one branch and pull request, or the tracking issue of an OpenSpec change. A small fix that keeps existing behavior needs only this task.
+
+        For an OpenSpec change, open one tracking issue, not one per `tasks.md` item. Name the change in Source, put this issue's number in the change's `proposal.md`, and keep the requirements in the change. Pull requests that implement part of it say `Part of #N`; the pull request that archives the change says `Closes #N`.
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      description: The commit type the branch and pull request will use.
+      options:
+        - feat
+        - fix
+        - docs
+        - refactor
+        - test
+        - build
+        - ci
+        - chore
+        - perf
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: The outcome when this is done, in one or two sentences.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Source
+      description: The OpenSpec change this issue tracks, or the implementation-plan phase, pull request or parent issue it comes from, if any.
+      placeholder: "application-foundation"
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: Observable completion criteria, such as behavior someone can check or checks that pass.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Dependencies, constraints and open questions.
