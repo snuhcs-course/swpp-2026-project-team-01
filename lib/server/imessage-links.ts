@@ -73,6 +73,14 @@ export const LINK_TEXTS = {
   fallbackCode: (code: string, minutes: number) => `Your Find Me a Time code is ${code}. It expires in ${minutes} minutes.`,
 } as const;
 
+// The category of a fallback send to a number another host has linked.
+export const FOREIGN_BINDING = "foreign_binding";
+
+// Fixed replies to senders who are not linked (bad codes and unlinked senders)
+// across the line per rolling 24 hours, so many sender IDs cannot make the line
+// send many first messages.
+export const LINE_REFUSALS_PER_DAY = 200;
+
 function codeContext(linkId: string) {
   return `imessage_link_code:${linkId}`;
 }
@@ -137,6 +145,17 @@ export async function activeBindingOfSender(q: Queryable, senderHash: string) {
   return row ?? null;
 }
 
+// The sender's active binding, row-locked until the transaction ends, so an
+// unlink waits for a message already being processed instead of racing it.
+export async function lockActiveBindingOfSender(tx: Transaction, senderHash: string) {
+  const [row] = await tx<ActiveBinding[]>`
+    select id, host_account_id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, selected_request_id, linked_at
+    from app.imessage_bindings where sender_hash = ${senderHash} and state = 'active'
+    for update
+  `;
+  return row ?? null;
+}
+
 // The binding's sender and conversation, for a reply.
 export function bindingRecipient(keys: readonly TokenKey[], binding: Pick<ActiveBinding, "id" | "sender_ciphertext" | "space_ciphertext" | "sealed_key_id">) {
   const open = (ciphertext: string) => openToken(keys, { ciphertext, keyId: binding.sealed_key_id }, bindingContext(binding.id));
@@ -154,6 +173,10 @@ async function bind(
   spaceId: string | null,
 ) {
   const senderHash = imessageHash(options.tokenKey, "sender", sender);
+  // A receipt being processed holds its binding row while it waits on other
+  // connections, which Postgres cannot see; a bounded wait here keeps a lock
+  // queue behind this command from turning into an undetected cycle.
+  await tx`set local lock_timeout = '5s'`;
   await tx`select pg_advisory_xact_lock(hashtextextended(${`app.imessage_sender:${senderHash}`}, 0))`;
   const owner = await activeBindingOfSender(tx, senderHash);
   if (owner && owner.host_account_id !== hostAccountId) throw new CommandError("invalid_input");
@@ -340,10 +363,12 @@ export function sendImessageCodeCommand(
         returning sends
       `;
 
-      // A number another host has linked gets nothing, and the card cannot tell.
+      // A number another host has linked gets nothing; the send is recorded as
+      // suppressed, so it counts toward the limits and the card shows it sent,
+      // as for any number, and cannot tell who uses this product.
       const senderHash = imessageHash(options.tokenKey, "sender", number);
       const owner = await activeBindingOfSender(tx, senderHash);
-      if (owner && owner.host_account_id !== hostAccountId) return { linkId };
+      const foreign = Boolean(owner && owner.host_account_id !== hostAccountId);
 
       await recordOutbound(tx, {
         dedupeKey: `link:${linkId}:send:${sent!.sends}`,
@@ -354,6 +379,7 @@ export function sendImessageCodeCommand(
         recipientHash: senderHash,
         text: LINK_TEXTS.fallbackCode(code, limits.validMinutes),
         tokenKey: options.tokenKey,
+        ...(foreign ? { suppressedAs: FOREIGN_BINDING } : {}),
       });
       return { linkId };
     },
@@ -403,6 +429,7 @@ export const unlinkImessageCommand: CommandDefinition<Record<string, never>, { u
   operation: "imessage.unlink",
   async run(tx, context) {
     const hostAccountId = assertSelf(context);
+    await tx`set local lock_timeout = '5s'`;
     await tx`select pg_advisory_xact_lock(hashtextextended(${`app.imessage_link:${hostAccountId}`}, 0))`;
     const ended = await tx<{ id: string }[]>`
       update app.imessage_bindings set state = 'unlinked', ended_at = now(), sender_ciphertext = null, space_ciphertext = null
@@ -441,7 +468,7 @@ export function shareContactCardCommand(options: LinkOptions): CommandDefinition
 
       const { id } = await recordOutbound(tx, {
         bindingId: binding.id,
-        dedupeKey: `binding:${binding.id}:card:${cards.length + 1}`,
+        dedupeKey: `binding:${binding.id}:card:${context.retryKey}`,
         hostAccountId,
         kind: "contact_card",
         recipient: bindingRecipient(options.tokenKeys, binding),
@@ -564,8 +591,8 @@ async function openAttemptStatus(
     }
 
     const number = openToken(keys, { ciphertext: link.phone_ciphertext!, keyId: link.sealed_key_id! }, codeContext(link.id));
-    const [send] = await db<{ state: string }[]>`
-      select state from app.imessage_outbox where link_id = ${link.id} and kind = 'fallback_code' order by created_at desc limit 1
+    const [send] = await db<{ state: string; failure_category: string | null }[]>`
+      select state, failure_category from app.imessage_outbox where link_id = ${link.id} and kind = 'fallback_code' order by created_at desc limit 1
     `;
     const sendsLeft = Math.max(limits.sendsPerAttempt - link.sends, 0);
     return {
@@ -574,7 +601,7 @@ async function openAttemptStatus(
       number: maskSender(number),
       resendAt:
         sendsLeft > 0 && link.last_sent_at ? new Date(link.last_sent_at.getTime() + limits.spacingSeconds * 1000).toISOString() : null,
-      send: deliveryState(send?.state ?? "queued"),
+      send: send?.failure_category === FOREIGN_BINDING ? "sent" : deliveryState(send?.state ?? "queued"),
       sendsLeft,
       state: "fallback",
     };
@@ -600,13 +627,11 @@ export type LinkArrivalOutcome = "link_received" | "link_refused";
 
 // One fixed refusal per sender per day, whether for a bad code or an unlinked sender.
 export async function refusalSentRecently(q: Queryable, recipientHash: string) {
-  const [row] = await q<{ found: boolean }[]>`
-    select true as found from app.imessage_outbox
-    where recipient_hash = ${recipientHash} and kind in ('link_refused', 'unlinked_sender')
-      and created_at > now() - interval '24 hours'
-    limit 1
+  const [row] = await q<{ sender: boolean; line: number }[]>`
+    select bool_or(recipient_hash = ${recipientHash}) as sender, count(*)::int as line from app.imessage_outbox
+    where kind in ('link_refused', 'unlinked_sender') and created_at > now() - interval '24 hours'
   `;
-  return Boolean(row);
+  return Boolean(row?.sender) || (row?.line ?? 0) >= LINE_REFUSALS_PER_DAY;
 }
 
 // A message carrying a link code. A pending, unexpired code from a direct
@@ -621,14 +646,18 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
 
   if (named) {
     await tx`select pg_advisory_xact_lock(hashtextextended(${`app.imessage_link:${named.host_account_id}`}, 0))`;
-    const [link] = await tx<{ id: string; host_account_id: string; state: string; live: boolean; received_by_receipt_id: string | null }[]>`
-      select id, host_account_id, state, expires_at > now() as live, received_by_receipt_id
+    const [link] = await tx<
+      { id: string; host_account_id: string; state: string; live: boolean; received_by_receipt_id: string | null; sender_hash: string | null }[]
+    >`
+      select id, host_account_id, state, expires_at > now() as live, received_by_receipt_id, sender_hash
       from app.imessage_links where code_hash = ${hashLinkCode(arrival.code)}
       for update
     `;
 
-    // A retried job finds what this message already did.
+    // A retried job finds what this message already did, and the same sender
+    // sending the code again (a double tap) changes nothing.
     if (link?.received_by_receipt_id === arrival.receiptId) return "link_received";
+    if (link?.state === "received" && link.sender_hash === arrival.senderHash) return "link_received";
 
     const owner = await activeBindingOfSender(tx, arrival.senderHash);
     const usable =

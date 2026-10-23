@@ -267,6 +267,13 @@
 | 선택한 요청이 사라짐 | 더 이상 호스트의 것이 아니거나 초안인 요청을 선택한 상태에서 온 자유 텍스트는 선택을 해제하고, 설정으로 보내며, 안내를 한 번 보냅니다 | 메시지를 거절함 | 설계 9 | `lib/server/imessage-receipts.ts`의 `forward` |
 | 턴 응답 길이 | 턴 응답은 가린 뒤 2,000자로 자르고 나머지는 `/app`에서 보도록 안내합니다; 최종 텍스트가 없는 턴이나 실패한 세션은 고정된 대체 문구를 보내고, 30분 안에 끝나지 않은 턴의 응답은 보내지 않습니다 | 긴 응답을 여러 메시지로 나눔 | 설계 9 | `lib/server/imessage-outbox.ts`의 `imessageTurnText`와 `TURN_REPLY_WAIT_MINUTES` |
 | 안정적인 설정 제공자 | `/app` 대화는 항상 설정 제공자로 감싸므로(설정이 로드되기 전에는 값이 null), 설정 로딩이 끝나도 그 항목들이 다시 마운트되지 않습니다. 이전에는 이렇게 해서 부하 중에 Connect iMessage 카드가 입력한 번호와 단계를 잃었습니다 | 카드의 상태를 워크스페이스로 끌어올리기 | `apps/web/app/_components/host-workspace.tsx` | `ConversationSetup`과 `SetupProvider` |
+| 장애 뒤 턴 응답(검토) | Photon을 쓸 수 없던 턴 응답은 고정된 텍스트와 함께 `queued`로 돌아가고, 다음 시도가 그 텍스트를 보냅니다 | 턴을 다시 읽는 것; 앞선 코드는 `queued` 행에서 이를 건너뛰어 응답이 전혀 전송되지 않았습니다 | 설계 3 | `lib/server/imessage-outbox.ts`의 `createImessageSendHandler` |
+| 그룹 대화의 코드(검토) | 연결 코드는 그룹 확인보다 먼저 처리되므로, 그룹에 올린 코드는 그룹에 답장 없이 그 코드가 가리키는 시도를 무효로 합니다 | 그룹 메시지를 먼저 무시하는 것; 유출된 코드가 15분 동안 쓸 수 있는 채로 남았습니다 | 설계 4와 7 | `lib/server/imessage-receipts.ts`의 `processReceipt` |
+| 다른 곳에 연결된 번호도 기록(검토) | 다른 호스트가 연결한 번호로의 억제된 전송은 `foreign_binding` 범주의 `suppressed` 발신함 행으로 기록되어 한도에 포함되고 카드에 전송됨으로 표시됩니다 | 행을 쓰지 않는 것; 카드의 상태와 한도가 이를 구별하지 못했습니다 | 설계 6 | `sendImessageCodeCommand`; `recordOutbound`의 `suppressedAs` |
+| 재전송된 결정 응답(검토) | 결정 명령은 먼저 재시도 키로 저장된 결과를 찾아 그것으로 응답하므로, 요청이 넘어간 뒤에도 재시도된 수신은 첫 시도와 같게 응답합니다 | 요청을 다시 읽는 것; "바뀐 것 없음"이나 재시도 충돌로 응답했습니다 | 설계 8 | `lib/server/imessage-commands.ts`의 `savedDecisionReply` |
+| 순서 대기(검토) | 먼저 온 수신이 아직 처리되지 않은 수신은 결과 `waiting`으로 작업을 끝내고 30초 뒤(최대 600번) 새 작업을 게시하며, 어떤 수신이든 결과가 기록되면 그 대화의 대기 중인 작업이 앞당겨집니다 | 시도를 실패시키는 것; 수신의 시도 횟수를 소진해 긴 연기 뒤로 밀려 버려질 수 있었습니다 | 설계 7 | `lib/server/imessage-receipts.ts`의 `ORDER_RETRY_SECONDS`, `ORDER_WAITS`, `record` |
+| 처리 중 연결 해제(검토) | 수신 작업은 처리하는 내내 발신자의 바인딩을 행 잠금하고, 연결 명령의 바인딩 쓰기는 잠금을 최대 5초까지만 기다립니다 | 잠금 없는 읽기; 호스트가 연결을 해제한 뒤에도 결정이 실행될 수 있었습니다 | 설계 7 | `lib/server/imessage-links.ts`의 `lockActiveBindingOfSender` |
+| 그 밖의 작은 검토 수정(검토) | 전송 전 Spectrum 실패는 최종 거절이 아니라 `unavailable`입니다; 연락처 카드는 명령의 재시도 키로 식별합니다; 같은 발신자가 코드를 다시 보내면 아무 일도 하지 않습니다; Apple ID 이메일은 처음 두 글자와 마지막 글자로 가립니다; 회선마다 하루 고정 거절은 최대 200개입니다; 정지된 호스트도 연결을 해제할 수 있습니다; 재시도된 전달은 첫 시도가 쓴 토론을 다시 씁니다; 작업 배치당 전송은 두 번입니다; 카드는 연락처 카드가 대기 중일 때 폴링하고 확인 창이 닫히면 새로 고칩니다 | — | 설계 3~9 | 지명된 모듈 |
 | 계획의 목록을 넘는 명령 | 계획은 `request`, `review`, `changes`, 승인, 거절, `setup`을 꼽습니다; 이 변경은 `help`, `requests`(참조를 알기 위해), `share`와 `dismiss`(AC-16이 요구하듯 수정된 세부 사항을 텍스트로 공유할 수 있게), `confirm`(온보딩 흐름이 요구하는 설정 확인)을 더합니다 | 변경 공유를 웹에서만 허용 | 설계 8 | `lib/server/imessage-commands.ts`의 `parseCommand` |
 
 ### 운영 결정
@@ -275,6 +282,7 @@
 |---|---|---|---|---|
 | 로컬 스택 | 이 브랜치의 체인으로 초기화한 기본 로컬 Supabase 스택. 다른 단계의 세션이 이 스택을 상대로 실행 중이지 않았기 때문입니다(5단계와 7단계는 병합됨) | 7단계처럼 별도 스택 | 인수 기록 | — (로컬 전용) |
 | 따른 참조 | personal-agent 템플릿(`1c444386`의 `vercel-labs/personal-agent-template`): `agent/channels/photon.ts`(핸들은 번호 또는 Apple ID이며 D2가 이를 유지함; 메시지 텍스트가 실행 제목이 되지 않도록 고정된 실행 제목; 알 수 없는 번호에 대한 낯선 사람 세션은 따르지 않음: 세션 자체를 만들지 않음)와 `app/components/profile/PhoneInput.vue`(마스크가 있는 국가 선택기; 우리 대체 입력란은 E.164 번호를 직접 받고 공백과 구두점을 제거함). OpenInstinct(`0c2a7c6e`의 `Merit-Systems/OpenInstinct`): `agent/channels/linq.ts`와 `agent/lib/linq/transport.ts`(채널 뒤의 전송 모듈 하나, `lib/server/photon.ts`가 이를 따름), 그리고 지금은 `db/services/auth/tests/linq.test.ts`, `db/services/auth/tests/linq-delivery.test.ts`, `tests/agent/channels/linq-inbound-auth.test.ts`에 있는 테스트(결과마다 테스트 하나: 거부된 포워더, 버려지는 연결되지 않은 핸들, 범위가 정해진 검증된 핸들)이며, 우리 수신기, 채널, 발신함 테스트가 그 구성을 따릅니다. `e3c01d2`의 폐기된 반복 1 설계(발신함, 확인 응답 전 내구성 있는 웹훅, 불확실한 전송 잠금)와 eve 0.80.1에 포함된 `@photon-ai/chat-adapter-imessage`(서명 방식, 네이티브 채널 동작). 2026-10-23에 읽었으며 코드는 복사하지 않았습니다 | — | 풀 리퀘스트 | — |
+| 독립 검토 | 별도의 검토 에이전트가 풀 리퀘스트 전에 브랜치를 읽었습니다. 연결되지 않은 발신자, 그룹, 다른 호스트, 위조된 웹훅이 권한을 얻을 방법은 찾지 못했고, 중간 수준 6건과 낮은 수준 9건을 찾았습니다; 중간 수준 6건과 위에 표시한 낮은 수준 항목은 모두 회귀 테스트와 함께 한 커밋에서 고쳤습니다. 바꾸지 않은 것: 검토가 열린 질문으로 제기한 연결 간 잠금 대기는 구조를 바꾸는 대신 5초 잠금 제한시간으로 한정했고, 요청을 기다린 뒤 iOS Safari가 메시지를 여는지는 기기 확인에 맡깁니다 | 풀 리퀘스트를 먼저 여는 것 | 이 기록("검토"로 표시한 행); 수정 커밋 | — |
 | 회선 없는 스파이크 | 회선 프로비저닝과 번호로 문자 보내기는 사용자에게 막혀 있으므로, 스파이크는 eve 0.80.1에 포함된 Photon 어댑터 소스, Photon의 웹훅 문서, Spectrum SDK 12.14.0 타입 선언, PR #23으로 어댑터를 비교했고, 기기에 의존하는 사실(딥링크 동작, 실제 iPhone의 발신자 형식, 발송 경로)은 합류 단계로 남겼습니다 | 회선을 기다린 뒤 선택 | 설계 1; 이 기록 | — |
 
 ### 사용자 대기 항목

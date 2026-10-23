@@ -54,11 +54,16 @@ const COMMAND_STATUS: Readonly<Record<CommandErrorCategory, number>> = {
   unavailable_configuration: 503,
 };
 
-async function hostOf(deps: ImessageRouteDependencies, request: Request) {
+// The signed-in host. Unlinking stays available to a suspended host, who keeps
+// the right to end a binding, as with revoking agent connections.
+async function hostOf(deps: ImessageRouteDependencies, request: Request, options: { readonly allowSuspended?: boolean } = {}) {
   const userId = await verifiedUserId(request, deps.auth);
   if (!userId) return { refusal: json({ code: "authentication_required", error: "Sign in to continue." }, 401) };
 
   const standing = await readHostStanding(deps.db, userId);
+  if (options.allowSuspended && standing.hostAccountId && standing.nextAction === "account_suspended") {
+    return { hostAccountId: standing.hostAccountId };
+  }
   if (!standing.eligible || !standing.hostAccountId) {
     return { refusal: json({ code: "host_ineligible", error: "Hosting is unavailable for this account.", nextAction: standing.nextAction }, 403) };
   }
@@ -88,13 +93,13 @@ export function createImessageCommandHandler(load: () => ImessageRouteDependenci
     const refused = crossSiteRefusal(request, deps, { json: true });
     if (refused) return refused;
 
-    const host = await hostOf(deps, request);
-    if (!host.hostAccountId) return host.refusal!;
-
     const body = commandBody.safeParse(await request.json().catch(() => null));
     if (!body.success) {
       return json({ error: { category: "invalid_input", message: COMMAND_ERROR_MESSAGES.invalid_input } }, 400);
     }
+
+    const host = await hostOf(deps, request, { allowSuspended: body.data.operation === "imessage.unlink" });
+    if (!host.hostAccountId) return host.refusal!;
 
     const hostAccountId = host.hostAccountId;
     const commands = imessageCommands({

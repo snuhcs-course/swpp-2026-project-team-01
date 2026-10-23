@@ -83,6 +83,8 @@ async function openCard(page: Page) {
   await page.goto("/app");
   const menu = page.getByRole("button", { name: "Open menu" });
   await expect(menu).toBeVisible({ timeout: 45_000 });
+  // The conversation has loaded, so nothing moves focus after the menu does.
+  await expect(page.getByRole("textbox", { name: "Message Thyme" })).toBeEnabled({ timeout: 45_000 });
   await menu.click();
   await page.getByRole("menuitem", { name: "iMessage" }).click();
   const card = page.locator("[data-imessage-card]");

@@ -299,8 +299,9 @@ Change: [`host-imessage-channel`](../../openspec/changes/host-imessage-channel/t
 | `supabase test db` | 2026-10-23 | `708ac2f2` | Local stack, after a reset | 9 files, 127 pgTAP tests passed, including `imessage_channel.test.sql`. A run without a reset failed only `agent_access.test.sql`, which inserts the `fmat-cli` client that the integration run had just left behind |
 | `npm test` | 2026-10-23 | `708ac2f2` | Local | 470 tests passed (51 files) |
 | `npm run test:integration` | 2026-10-23 | `708ac2f2` | Local stack | 647 of 648 passed (66 files). The failure, `conversations.test.ts` "lets only one of two concurrent deliveries reconcile an overdue turn", is a timing check on `eve dev` that this change does not touch; rerun alone it passed (19 of 19) |
-| `npm run test:e2e` | 2026-10-23 | the join commit | Local stack | 46 Playwright tests passed, 45 first time and 1 on retry (the Phase 3 requester journey at 1280 px, a focus wait). Earlier full runs found that the Connect iMessage card remounted and lost its state when setup finished loading, and that the menu moved focus after the test focused a button; both were fixed |
-| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-23 | the join commit | Local | Passed; lint reports only warnings that predate this change |
+| `npm run test:e2e` | 2026-10-23 | `65b0dff0` | Local stack | 46 Playwright tests passed, 45 first time and 1 on retry (the Phase 3 requester journey at 1280 px, a focus wait). Earlier full runs found that the Connect iMessage card remounted and lost its state when setup finished loading, and that the menu moved focus after the test focused a button; both were fixed |
+| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-23 | `65b0dff0` | Local | Passed; lint reports only warnings that predate this change |
+| After the independent review's fixes: the iMessage, agent-surface, booking and job-worker integration suites; `supabase test db`; `npm test`; `npm run lint`; `npm run typecheck`; `tests/e2e/imessage-link.test.ts` twice with retries off | 2026-10-23 | the review-fix commit | Local stack | 122 integration tests (12 files), 127 pgTAP tests, 470 unit tests and 4 of 4 browser tests passed. A full browser run started after the fixes was cut short when the machine's disk filled (`ENOSPC`) and Docker stopped; it was not repeated, to keep the disk from filling again |
 
 ### Evidence by item
 
@@ -321,6 +322,7 @@ Fixture and local-stack evidence only; each names the test that shows it.
 | Summaries (D12) | `tests/integration/imessage-notices.test.ts`: new request, awaiting approval (once, with commands), confirmed, not confirmed and still pending; none without a binding; an outdated version skipped |
 | Setup over iMessage | `tests/integration/imessage-setup.test.ts` and `imessage-commands.test.ts` "reviews settings with their reference and saves them only for the current one" |
 | Retention (D14) | `supabase/tests/imessage_channel.test.sql`; `imessage-setup.test.ts` "retention" |
+| Review fixes | `imessage-forwarding.test.ts` "sends a turn reply frozen by an attempt that found Photon unavailable"; `imessage-links.test.ts` (a group-posted code voids its attempt; a double tap is one arrival; a number linked elsewhere is recorded and shown sent; a contact card can be shared again after a final outcome; an unlink waits for a message being processed); `imessage-channel.test.ts` (a later message waits on a new job and is brought forward); `imessage-commands.test.ts` (a retried approval answers from its saved outcome after the request moved on) |
 
 ### Known gaps
 

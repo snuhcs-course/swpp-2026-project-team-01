@@ -61,16 +61,16 @@ Every outbound message is one `imessage_outbox` row: the kind, the host, the bin
 - it checks messaging admission toward the transport's endpoint before reading the row;
 - a host-private message whose binding is no longer active is `suppressed`;
 - it marks the row `dispatching` and commits before calling the transport;
-- the transport answers `accepted` (with the provider message ID and space ID), `rejected` (a definitive refusal, such as a recipient that is not on iMessage), `unavailable` (refused before anything was sent, for example no connection) or `uncertain` (the send began and its answer was lost or timed out after 20 seconds).
+- the transport answers `accepted` (with the provider message ID and space ID), `rejected` (a definitive refusal, such as a recipient that is not on iMessage), `unavailable` (refused before anything was sent, for example no connection, or no conversation could be opened, which the SDK does not tell apart from a network fault) or `uncertain` (the send began and its answer was lost or timed out after 20 seconds).
 
-`accepted` and `rejected` are final. `unavailable` fails the attempt and retries with backoff, five attempts in all, then `failed`. `uncertain` is final and is never sent again (D9): Photon's gRPC client deduplicates its own retries but offers no idempotency key we can check, so a second send could reach the host twice. The retired design's lockout is kept in this form: the outbox row stays visible as uncertain, and the web says the message may or may not have arrived. Text is cleared when a row reaches a final state.
+`accepted` and `rejected` are final. `unavailable` returns the row to `queued` with its frozen text, fails the attempt and retries with backoff, five attempts in all, then `failed`. `uncertain` is final and is never sent again (D9): Photon's gRPC client deduplicates its own retries but offers no idempotency key we can check, so a second send could reach the host twice. The retired design's lockout is kept in this form: the outbox row stays visible as uncertain, and the web says the message may or may not have arrived. Text is cleared when a row reaches a final state.
 
 ### 4. Linking by a host-sent code
 
 The user kept the PRD's scope on 2026-10-23 (D3). `imessage_links` holds attempts; `imessage_bindings` holds bound senders.
 
 - `imessage.link.create` (the card): an active host, at most 5 attempts per hour; a pending attempt is voided; a new `FMAT-` code (D5) is stored as its SHA-256 and sealed so a reload shows it again; valid 15 minutes. The answer is the line number, the exact message `Link my Find Me a Time account: FMAT-XXXXXXXXXX` and the expiry. The saved command outcome holds only the attempt's ID.
-- The host sends the message. The receipt job finds the code anywhere in the text. If the attempt is pending and unexpired, the sender is not bound to another host, and the conversation is direct, the attempt becomes `received` with the sealed sender and space ID and a 15-minute confirmation window, and the line replies in that conversation: "Got it. Go back to Find Me a Time in your browser and tap Confirm and link to finish." Any other arrival voids the attempt and gets "That link code is not valid any more. Start again from Connect iMessage in Find Me a Time." A linking message is never forwarded to the model.
+- The host sends the message. The receipt job finds the code anywhere in the text. If the attempt is pending and unexpired, the sender is not bound to another host, and the conversation is direct, the attempt becomes `received` with the sealed sender and space ID and a 15-minute confirmation window, and the line replies in that conversation: "Got it. Go back to Find Me a Time in your browser and tap Confirm and link to finish." The same sender sending the code again changes nothing. Any other arrival voids the attempt and gets "That link code is not valid any more. Start again from Connect iMessage in Find Me a Time.", except that a code posted in a group conversation voids the attempt with no reply into the group. A linking message is never forwarded to the model.
 - The card polls the status and shows the masked sender (the last four digits of a number, or the first character and domain of an email) with **Confirm and link** and **This isn't me**.
 - `imessage.link.confirm` binds the sender to the host: one active binding per host and per sender; an earlier binding of the host ends. The line replies "Linked. Send help for what I can do here." `imessage.link.cancel` voids the attempt.
 - `imessage.unlink` ends the active binding in the database only, so it works during a Photon outage; later messages from that sender get the unlinked-sender reply (section 7) and no private data. An outbox message not yet dispatched for that binding is suppressed.
@@ -87,7 +87,7 @@ Every other platform, including macOS and Windows desktops, gets no automatic na
 
 ### 6. The fallback code
 
-**Send me a code instead** (D6) shows an E.164 number field. `imessage.link.send_code` stores the number sealed and its keyed hash, creates a six-digit code (stored as a keyed hash), and queues one outbox message to that number: "Your Find Me a Time code is 123456. It expires in 10 minutes." The limits: valid 10 minutes; 3 sends per attempt, at least 60 seconds apart (a resend makes a new code and voids the old one); 5 sends per host per rolling 24 hours; at most `PHOTON_FALLBACK_DAILY_LIMIT` (default 20) fallback sends per line per rolling 24 hours, because each opens a new conversation and Photon caps those per line per day; a number already bound to another host is refused without saying so. `imessage.link.verify_code` with the typed code and **Confirm and link** binds the number; 5 wrong entries void the code. The browser never receives the code: the status says only queued, sent, failed or uncertain, with the masked number. An uncertain send counts toward the limits, and the card says the code may still arrive. The bound sender for a fallback binding is the number as entered; its replies flow like any other once the host writes from that number.
+**Send me a code instead** (D6) shows an E.164 number field. `imessage.link.send_code` stores the number sealed and its keyed hash, creates a six-digit code (stored as a keyed hash), and queues one outbox message to that number: "Your Find Me a Time code is 123456. It expires in 10 minutes." The limits: valid 10 minutes; 3 sends per attempt, at least 60 seconds apart (a resend makes a new code and voids the old one); 5 sends per host per rolling 24 hours; at most `PHOTON_FALLBACK_DAILY_LIMIT` (default 20) fallback sends per line per rolling 24 hours, because each opens a new conversation and Photon caps those per line per day; a number already bound to another host gets nothing, but the send is recorded as suppressed, so it counts toward the limits and the card shows it sent as for any number. `imessage.link.verify_code` with the typed code and **Confirm and link** binds the number; 5 wrong entries void the code. The browser never receives the code: the status says only queued, sent, failed or uncertain, with the masked number. An uncertain send counts toward the limits, and the card says the code may still arrive. The bound sender for a fallback binding is the number as entered; its replies flow like any other once the host writes from that number.
 
 ### 7. What an inbound message may do
 
@@ -95,16 +95,16 @@ The `imessage_receipt` job checks messaging admission first, then opens the rece
 
 | Check | Effect |
 |---|---|
+| An earlier receipt from the same conversation is still unprocessed | The receipt waits on a new job, spending no attempt; the earlier receipt's completion brings it forward, so a later message never overtakes an earlier one |
+| The text carries an `FMAT-` code | Linking (section 4), also from a group conversation; never forwarded |
 | `space.type` is not `dm`, or the content is a reaction | Nothing (no session, no reply) |
-| An earlier receipt from the same conversation is still unprocessed | The attempt fails and retries, so a later message never overtakes an earlier one |
-| The text carries an `FMAT-` code | Linking (section 4); never forwarded |
-| The sender has no active binding | One fixed reply per sender per 24 hours (D10): "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect iMessage." No private data |
+| The sender has no active binding | One fixed reply per sender per 24 hours (D10), and at most 200 such replies per line per day: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect iMessage." No private data |
 | The binding's host is no longer eligible (suspended) | The same fixed reply; nothing else |
 | Content other than text | "I can read text messages only." |
 | An exact command (section 8) | The command runs and its fixed reply is queued |
 | Anything else | Forwarded (section 9) |
 
-An admission limit throws, so the receipt stays unprocessed and retries no earlier than one minute later, with ordering kept by the second check. If the binding ends or the host is suspended before the retry, the retry reaches the unlinked outcome and admits no model work. After 10 attempts the receipt is recorded `ignored`. The sealed text is cleared once the outcome is recorded.
+The binding is row-locked for the receipt's whole processing, so an unlink waits for a message already being processed instead of racing it. An admission limit leaves the receipt unprocessed and a new job retries it no earlier than one minute later, with ordering kept by the first check. If the binding ends or the host is suspended before the retry, the retry reaches the unlinked outcome and admits no model work. After 10 attempts the receipt is recorded `ignored`. The sealed text is cleared once the outcome is recorded.
 
 ### 8. Exact commands
 
@@ -128,7 +128,7 @@ A command is the whole message, trimmed, compared case-insensitively (D8). Refer
 | `decline <ref>` | `request.decline`, if the reference's version is still the latest |
 | `confirm <ref>` | `setup.confirm_settings` with the current proposal hash, if the reference matches it; the live calendar list is read first |
 
-A decision runs through `runCommand` as the linked host, with the retry key `imessage:{receiptId}`, so a replayed or retried receipt replays the saved outcome rather than deciding twice, and a concurrent web action finds the request already moved on (AC-18). A stale reference is refused with the current reference and the web link; nothing changes. Free text, including an unqualified "yes", is forwarded to the assistant, which has no tool that approves (AC-17).
+A decision runs through `runCommand` as the linked host, with the retry key `imessage:{receiptId}`, so a replayed or retried receipt replays the saved outcome rather than deciding twice, and its reply is built from that saved outcome even when the request has moved on since; a concurrent web action finds the request already moved on (AC-18). A stale reference is refused with the current reference and the web link; nothing changes. Free text, including an unqualified "yes", is forwarded to the assistant, which has no tool that approves (AC-17).
 
 ### 9. Forwarding and replies
 

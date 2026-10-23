@@ -70,11 +70,14 @@ export function linkMessage(code: string) {
 }
 
 // The masked sender the card shows: the last four digits of a number, or the
-// first character and the domain of an Apple ID email.
+// first two and the last character of an Apple ID email's local part with the
+// domain, so two addresses that share a first letter still look different.
 export function maskSender(sender: string) {
   if (sender.startsWith("+")) return `•••• ${sender.slice(-4)}`;
   const at = sender.lastIndexOf("@");
-  return at > 0 ? `${sender[0]}•••${sender.slice(at)}` : "••••";
+  if (at <= 0) return "••••";
+  const local = sender.slice(0, at);
+  return local.length <= 3 ? `${local[0]}•••${sender.slice(at)}` : `${local.slice(0, 2)}•••${local.slice(-1)}${sender.slice(at)}`;
 }
 
 export type MessagesPlatform = "ios" | "android" | "other";

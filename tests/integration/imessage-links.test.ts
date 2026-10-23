@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { linkMessage } from "../../lib/contracts/imessage";
 import { generateLinkCode } from "../../lib/server/email-links";
+import { lockActiveBindingOfSender } from "../../lib/server/imessage-links";
 import { imessageHash } from "../../lib/server/photon-receiver";
 import { testDatabase } from "./support/database";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
@@ -91,13 +92,27 @@ describe("linking by a host-sent code", () => {
     expect((await im.deliver({ sender: newSender(), text: expired.message })).outcome).toBe("link_refused");
     expect(await im.status(hostAccountId)).toMatchObject({ state: "none" });
 
+    // A code posted in a group conversation voids its attempt, with no reply into the group.
     const group = await pendingCode(hostAccountId);
-    expect((await im.deliver({ sender: newSender(), spaceType: "group", text: group.message })).outcome).toBe("ignored");
+    const groupSender = newSender();
+    expect((await im.deliver({ sender: groupSender, spaceType: "group", text: group.message })).outcome).toBe("link_refused");
+    expect(await im.status(hostAccountId)).toMatchObject({ state: "none" });
+    expect(await im.outbox({ recipientHash: imessageHash(testTokenKey, "sender", groupSender) })).toHaveLength(0);
 
     // The message that linked a sender, sent again, binds nothing more.
     const { hostAccountId: linkedId, message, sender } = await linkedHost();
     expect((await im.deliver({ sender, text: message })).outcome).toBe("link_refused");
     expect(await im.bindingOf(linkedId)).toMatchObject({ state: "active" });
+  });
+
+  it("treats the same sender sending the code again as the same arrival", async () => {
+    const hostAccountId = await newHostAccount(db);
+    const sender = newSender();
+    const { message } = await pendingCode(hostAccountId);
+    await im.deliver({ sender, text: message });
+    expect((await im.deliver({ sender, text: message })).outcome).toBe("link_received");
+    expect(await im.status(hostAccountId)).toMatchObject({ state: "received" });
+    expect(await im.outbox({ hostAccountId, kind: "link_received" })).toHaveLength(1);
   });
 
   it("sends one refusal per sender per day", async () => {
@@ -204,15 +219,31 @@ describe("the fallback code", () => {
     expect(await im.command(hostAccountId, "imessage.link.send_code", { number: newSender() })).toMatchObject({ error: { category: "rate_limited" } });
   });
 
-  it("sends nothing to a number another host has linked, without telling the card", async () => {
+  it("sends nothing to a number another host has linked, shows it sent, and counts it", async () => {
     const { sender } = await linkedHost();
     const other = await newHostAccount(db);
     expect((await im.command(other, "imessage.link.send_code", { number: sender })).ok).toBe(true);
-    expect(await im.outbox({ hostAccountId: other, kind: "fallback_code" })).toHaveLength(0);
+    expect(await im.outbox({ hostAccountId: other, kind: "fallback_code" })).toEqual([expect.objectContaining({ state: "suppressed" })]);
+    expect(await im.status(other)).toMatchObject({ send: "sent", state: "fallback" });
+    expect(photon.sentTo(sender)).toHaveLength(0);
   });
 });
 
 describe("unlinking and the contact card", () => {
+  it("makes an unlink wait for a message already being processed", async () => {
+    const { hostAccountId, sender } = await linkedHost();
+    const holder = db.begin(async (tx) => {
+      await lockActiveBindingOfSender(tx, imessageHash(testTokenKey, "sender", sender));
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const started = Date.now();
+    const unlinked = await im.command(hostAccountId, "imessage.unlink");
+    await holder;
+    expect(unlinked).toMatchObject({ ok: true, result: { unlinked: true } });
+    expect(Date.now() - started).toBeGreaterThan(300);
+  });
+
   it("unlinks in the database only and suppresses what was not sent", async () => {
     const { hostAccountId } = await linkedHost();
     const [linked] = await im.outbox({ hostAccountId, kind: "linked" });
@@ -233,6 +264,16 @@ describe("unlinking and the contact card", () => {
     const [card] = await im.outbox({ hostAccountId, kind: "contact_card" });
     expect(textOf((await im.send(card!.id)).sent)).toEqual(["[contact_card]"]);
     expect(await im.status(hostAccountId)).toMatchObject({ contactCard: { state: "sent" } });
+
+    // Once that card has a final outcome, the host may share again.
+    photon.nextSend({ category: "provider_rejected", status: 400 });
+    expect((await im.command(hostAccountId, "imessage.contact_card.share")).ok).toBe(true);
+    const cards = await im.outbox({ hostAccountId, kind: "contact_card" });
+    expect(cards).toHaveLength(2);
+    await im.send(cards[1]!.id);
+    expect(await im.status(hostAccountId)).toMatchObject({ contactCard: { state: "failed" } });
+    expect((await im.command(hostAccountId, "imessage.contact_card.share")).ok).toBe(true);
+    expect(await im.outbox({ hostAccountId, kind: "contact_card" })).toHaveLength(3);
 
     const unlinked = await newHostAccount(db);
     expect(await im.command(unlinked, "imessage.contact_card.share")).toMatchObject({ error: { category: "invalid_input" } });

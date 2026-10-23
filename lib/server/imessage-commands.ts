@@ -408,9 +408,51 @@ async function confirmSettings(deps: CommandDependencies, message: BoundMessage,
   return { text: outcome.error.category === "stale_revision" ? "Your settings changed meanwhile. Send review for the current ones." : `I couldn't save that here. Open ${deps.origin}/app.` };
 }
 
+// The reply to a decision this receipt already made, from its saved command
+// outcome, so a retried receipt answers as the first attempt did even when the
+// request has moved on since.
+async function savedDecisionReply(deps: CommandDependencies, message: BoundMessage): Promise<(Reply & { requestId: string | null }) | null> {
+  const [saved] = await deps.db<{ operation: string; resource_id: string; result: Record<string, unknown> | null }[]>`
+    select operation, resource_id, result from app.command_outcomes
+    where actor = ${`host_account:${message.hostAccountId}`} and retry_key = ${`imessage:${message.receipt.id}`}
+  `;
+  if (!saved) return null;
+  const requestId = saved.operation === "setup.confirm_settings" ? null : saved.resource_id;
+
+  switch (saved.operation) {
+    case "request.approve":
+      return {
+        requestId,
+        text: saved.result?.repeated
+          ? "That proposal is already approved; the booking is under way."
+          : "Approved. I'm adding it to your calendar and will tell you when it's confirmed.",
+      };
+    case "request.decline":
+      return { requestId, text: "Declined. The requester will be told; nothing was booked." };
+    case "request.share_changes":
+      return { requestId, text: "Shared. I'll check the new time and send it to the requester for agreement." };
+    case "request.dismiss_changes":
+      return { requestId, text: "Dropped those suggestions; nothing was shared." };
+    case "setup.confirm_settings": {
+      const links = saved.result?.links as { booking?: string } | undefined;
+      return { requestId, text: `Saved. Your booking link is ${links?.booking ?? `${deps.origin}/app`}` };
+    }
+    default:
+      return null;
+  }
+}
+
+const DECISIONS = new Set(["approve", "decline", "share", "dismiss", "confirm"]);
+
 // Runs a parsed command for a bound host and queues its reply.
 export async function executeCommand(tx: Transaction, deps: CommandDependencies, message: BoundMessage, command: ParsedCommand) {
   let result: Reply & { requestId?: string | null };
+
+  const replayed = DECISIONS.has(command.name) ? await savedDecisionReply(deps, message) : null;
+  if (replayed) {
+    await reply(tx, deps, message, replayed.text, replayed.requestId);
+    return "command" as const;
+  }
 
   switch (command.name) {
     case "help":

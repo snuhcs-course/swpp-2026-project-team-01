@@ -13,7 +13,7 @@ import { database, type Database, type Transaction } from "./database";
 import { findLinkCode } from "./email-links";
 import { HostIneligibleError } from "./host-eligibility";
 import { internalSigningKey } from "./internal-bearer";
-import { activeBindingOfSender, bindingContext, receiveLinkCode, refusalSentRecently } from "./imessage-links";
+import { bindingContext, lockActiveBindingOfSender, receiveLinkCode, refusalSentRecently } from "./imessage-links";
 import { recordOutbound } from "./imessage-outbox";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
@@ -116,7 +116,14 @@ async function forward(tx: Transaction, deps: ImessageReceiptDependencies, messa
     return "replied";
   }
 
-  let requestId = message.selectedRequestId;
+  // A retry finds the input an earlier attempt recorded, in whichever
+  // discussion it went to, so the message is never recorded twice.
+  const [earlier] = await deps.db<{ request_id: string | null }[]>`
+    select d.request_id from app.conversation_inputs i
+    join app.discussions d on d.id = i.discussion_id
+    where d.principal_type = 'host_account' and d.principal_id = ${message.hostAccountId} and i.client_input_id = ${message.receipt.id}
+  `;
+  let requestId = earlier ? earlier.request_id : message.selectedRequestId;
   let fellBack = false;
 
   for (;;) {
@@ -233,13 +240,10 @@ function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedReceipt 
 export const ADMISSION_RETRY_SECONDS = 60;
 export const ADMISSION_DEFERRALS = 240;
 
-// An earlier message of the same conversation is not processed yet.
-export class EarlierReceiptPendingError extends Error {
-  constructor() {
-    super("An earlier message of this conversation is not processed yet.");
-    this.name = "EarlierReceiptPendingError";
-  }
-}
+// A receipt behind an unprocessed earlier one of its conversation checks again
+// this often, at most this many times (longer than a deferral's four hours).
+export const ORDER_RETRY_SECONDS = 30;
+export const ORDER_WAITS = 600;
 
 export const CHANNEL_TEXTS = {
   unlinked: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect iMessage.",
@@ -268,8 +272,8 @@ export async function processReceipt(
   receipt: OpenedReceipt,
   channel: ChannelProcessor | null = channelProcessor,
 ): Promise<ReceiptOutcome> {
-  if (receipt.spaceType !== "dm" || receipt.contentType === "reaction") return "ignored";
-
+  // A code is linking wherever it appears: from a group conversation it voids
+  // the attempt it names, with no reply into the group.
   const code = receipt.text ? findLinkCode(receipt.text) : null;
 
   if (code) {
@@ -283,8 +287,10 @@ export async function processReceipt(
     });
   }
 
+  if (receipt.spaceType !== "dm" || receipt.contentType === "reaction") return "ignored";
+
   const recipient = { address: receipt.sender, spaceId: receipt.spaceId };
-  const binding = await activeBindingOfSender(tx, receipt.senderHash);
+  const binding = await lockActiveBindingOfSender(tx, receipt.senderHash);
   const [host] = binding
     ? await tx<{ status: string; auth_user_id: string | null }[]>`
         select a.status, i.auth_user_id from app.host_accounts a
@@ -346,11 +352,22 @@ function keyFor(deps: ImessageReceiptDependencies, keyId: string) {
   return key.key;
 }
 
+// Records the outcome with the sealed values cleared, and brings forward the
+// jobs of the conversation's later receipts that wait behind this one.
 async function record(q: Transaction | Database, receiptId: string, outcome: ReceiptOutcome) {
-  await q`
+  const [row] = await q<{ space_hash: string }[]>`
     update app.imessage_receipts
     set outcome = ${outcome}, processed_at = now(), text_ciphertext = null, sender_ciphertext = null, space_ciphertext = null
     where id = ${receiptId} and outcome is null
+    returning space_hash
+  `;
+  if (!row) return;
+  await q`
+    update app.jobs set run_after = now(), updated_at = now()
+    where kind = ${IMESSAGE_RECEIPT_JOB} and state = 'pending' and run_after > now()
+      and payload ->> 'receiptId' in (
+        select id::text from app.imessage_receipts where space_hash = ${row.space_hash} and outcome is null
+      )
   `;
 }
 
@@ -378,7 +395,23 @@ export function createImessageReceiptHandler(load: () => ImessageReceiptDependen
         and (received_at, id) < (${row.received_at}, ${row.id})
       limit 1
     `;
-    if (earlier) throw new EarlierReceiptPendingError();
+    if (earlier) {
+      // Waiting spends no attempt: a new job checks again later, and the earlier
+      // receipt's completion brings it forward.
+      const waits = typeof job.payload.waits === "number" ? job.payload.waits : 0;
+      if (waits >= ORDER_WAITS) {
+        await record(tx, row.id, "ignored");
+        return { outcome: "ignored", receiptId };
+      }
+      await publishJob(tx, {
+        dedupeKey: `receipt:${row.id}:wait:${waits + 1}`,
+        kind: IMESSAGE_RECEIPT_JOB,
+        maxAttempts: job.maxAttempts,
+        payload: { ...job.payload, receiptId: row.id, waits: waits + 1 },
+        runAfter: new Date(Date.now() + ORDER_RETRY_SECONDS * 1000),
+      });
+      return { outcome: "waiting", receiptId };
+    }
 
     const opened = openReceipt(deps.tokenKeys, row);
     let outcome: ReceiptOutcome;

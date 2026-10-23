@@ -1,3 +1,5 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { requestRef } from "../../lib/server/imessage-commands";
 import { TURN_FALLBACK } from "../../lib/server/imessage-outbox";
@@ -30,6 +32,15 @@ afterAll(async () => {
   await google.close();
   await db.end();
 });
+
+// A loopback URL nothing listens on, so a connection is refused.
+async function closedPort() {
+  const server = createServer();
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  await new Promise((resolve) => server.close(resolve));
+  return `http://127.0.0.1:${port}`;
+}
 
 async function turnRowOf(hostAccountId: string) {
   const rows = await im.outbox({ hostAccountId, kind: "turn" });
@@ -79,6 +90,21 @@ describe("forwarding free text", () => {
     expect(textOf((await im.send((await turnRowOf(hostAccountId)).id)).sent)).toEqual([TURN_FALLBACK]);
   });
 
+  it("sends a turn reply frozen by an attempt that found Photon unavailable", async () => {
+    const { hostAccountId } = await hostWithUser(db);
+    const { sender } = await im.link(hostAccountId);
+    await im.deliver({ sender, text: "Are Fridays free?" });
+    const [input] = await im.inputsOf(hostAccountId);
+    await im.endTurn(input!.id, "Fridays after 2 pm are free.");
+
+    const turn = await turnRowOf(hostAccountId);
+    const down = { ...im.sendDeps(), config: { ...im.sendDeps().config, apiUrl: await closedPort() } };
+    expect((await im.send(turn.id, down)).result).toBe("failed");
+    expect((await im.outbox({ hostAccountId, kind: "turn" }))[0]).toMatchObject({ state: "queued" });
+
+    expect(textOf((await im.send(turn.id)).sent)).toEqual(["Fridays after 2 pm are free."]);
+  });
+
   it("refuses an over-long message with a fixed reply", async () => {
     const { hostAccountId } = await hostWithUser(db);
     const { sender } = await im.link(hostAccountId);
@@ -100,7 +126,7 @@ describe("forwarding free text", () => {
     expect(deferred!.run_after.getTime() - Date.now()).toBeGreaterThan(55_000);
 
     const second = await im.deliver({ sender, text: "second" });
-    expect(second.result).toBe("failed");
+    expect(second.result).toBe("completed");
     expect(second.outcome).toBeNull();
     expect(await im.inputsOf(hostAccountId)).toHaveLength(0);
   });

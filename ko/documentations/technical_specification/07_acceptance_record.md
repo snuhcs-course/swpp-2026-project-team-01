@@ -301,8 +301,9 @@
 | `supabase test db` | 2026-10-23 | `708ac2f2` | 로컬 스택, 초기화 후 | 파일 9개, pgTAP 테스트 127개 통과, `imessage_channel.test.sql` 포함. 초기화 없이 실행하면 `agent_access.test.sql`만 실패했는데, 통합 테스트 실행이 막 남겨 둔 `fmat-cli` 클라이언트를 이 테스트가 삽입하기 때문입니다 |
 | `npm test` | 2026-10-23 | `708ac2f2` | 로컬 | 테스트 470개 통과(파일 51개) |
 | `npm run test:integration` | 2026-10-23 | `708ac2f2` | 로컬 스택 | 648개 중 647개 통과(파일 66개). 실패한 `conversations.test.ts` "lets only one of two concurrent deliveries reconcile an overdue turn"은 이 변경이 건드리지 않는 `eve dev`의 타이밍 검사이며, 단독으로 다시 실행하면 통과했습니다(19개 중 19개) |
-| `npm run test:e2e` | 2026-10-23 | 병합 커밋 | 로컬 스택 | Playwright 테스트 46개 통과, 45개는 처음에, 1개는 재시도에서 통과(1280px의 3단계 요청자 여정, 포커스 대기). 앞선 전체 실행에서 설정 로딩이 끝나면 Connect iMessage 카드가 다시 마운트되어 상태를 잃는 문제와, 테스트가 버튼에 포커스를 둔 뒤 메뉴가 포커스를 옮기는 문제가 발견되어 둘 다 수정했습니다 |
-| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-23 | 병합 커밋 | 로컬 | 통과; lint는 이 변경 이전부터 있던 경고만 보고함 |
+| `npm run test:e2e` | 2026-10-23 | `65b0dff0` | 로컬 스택 | Playwright 테스트 46개 통과, 45개는 처음에, 1개는 재시도에서 통과(1280px의 3단계 요청자 여정, 포커스 대기). 앞선 전체 실행에서 설정 로딩이 끝나면 Connect iMessage 카드가 다시 마운트되어 상태를 잃는 문제와, 테스트가 버튼에 포커스를 둔 뒤 메뉴가 포커스를 옮기는 문제가 발견되어 둘 다 수정했습니다 |
+| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-23 | `65b0dff0` | 로컬 | 통과; lint는 이 변경 이전부터 있던 경고만 보고함 |
+| 독립 검토의 수정 이후: iMessage, 에이전트 표면, 예약, 작업 처리기 통합 스위트; `supabase test db`; `npm test`; `npm run lint`; `npm run typecheck`; 재시도 없이 두 번 실행한 `tests/e2e/imessage-link.test.ts` | 2026-10-23 | 검토 수정 커밋 | 로컬 스택 | 통합 테스트 122개(파일 12개), pgTAP 테스트 127개, 단위 테스트 470개, 브라우저 테스트 4개 중 4개 통과. 수정 뒤 시작한 전체 브라우저 실행은 기기의 디스크가 가득 차(`ENOSPC`) Docker가 멈추면서 중단됐고, 디스크가 다시 차지 않도록 반복하지 않았습니다 |
 
 ### 항목별 증거
 
@@ -324,6 +325,7 @@
 | iMessage를 통한 설정 | `tests/integration/imessage-setup.test.ts`와 `imessage-commands.test.ts` "reviews settings with their reference and saves them only for the current one" |
 | 보존(D14) | `supabase/tests/imessage_channel.test.sql`; `imessage-setup.test.ts` "retention" |
 
+| 검토 수정 | `imessage-forwarding.test.ts` "sends a turn reply frozen by an attempt that found Photon unavailable"; `imessage-links.test.ts`(그룹에 올린 코드는 그 시도를 무효로 함; 두 번 탭해도 도착은 한 번; 다른 곳에 연결된 번호는 기록되고 전송됨으로 표시; 연락처 카드는 최종 결과 뒤 다시 공유 가능; 처리 중인 메시지가 있으면 연결 해제가 기다림); `imessage-channel.test.ts`(나중 메시지는 새 작업에서 기다리다 앞당겨짐); `imessage-commands.test.ts`(요청이 넘어간 뒤에도 재시도된 승인은 저장된 결과로 응답함) |
 ### 알려진 공백
 
 - **실제 회선, 웹훅, 기기 실행 없음:** Photon 회선 프로비저닝, 웹훅 등록, 그리고 통제된 iPhone에서의 모든 확인(iOS Safari에서 기다린 요청 이후 딥링크가 메시지 앱을 여는지, 데스크톱의 QR 코드, 실제 iPhone이 보내는 발신자 식별자, 프로덕션에 대한 AC-16부터 AC-18, 기기와 클라이언트 버전)이 보류 중입니다(결정 기록의 "사용자 대기 항목").

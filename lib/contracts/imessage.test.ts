@@ -41,7 +41,8 @@ describe("deepLinkFor", () => {
 describe("maskSender and normalizeNumber", () => {
   it("shows the last four digits of a number and the first character and domain of an email", () => {
     expect(maskSender("+15551234567")).toBe("•••• 4567");
-    expect(maskSender("host@icloud.com")).toBe("h•••@icloud.com");
+    expect(maskSender("host@icloud.com")).toBe("ho•••t@icloud.com");
+    expect(maskSender("jo@icloud.com")).toBe("j•••@icloud.com");
   });
 
   it("accepts an E.164 number written with spaces or dashes and refuses anything else", () => {

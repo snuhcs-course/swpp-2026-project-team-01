@@ -4,10 +4,11 @@ import { testDatabase } from "./support/database";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
 import { hostWithUser, imessageHarness, textOf } from "./support/imessage";
 import { messagesEvent, newSender, signedWebhook } from "./support/photon";
-import { testTokenKey } from "./support/requests";
+import { runJob, testTokenKey } from "./support/requests";
 import { receivePhotonWebhook } from "../../lib/server/photon-receiver";
 import { TEST_WEBHOOK_ID, TEST_WEBHOOK_SECRET } from "./support/photon";
 import { sealToken } from "../../lib/server/token-encryption";
+import { createImessageReceiptHandler } from "../../lib/server/imessage-receipts";
 
 // What an inbound message may do before commands and forwarding
 // (host-imessage-channel task 4.1): group conversations and reactions get
@@ -88,10 +89,20 @@ describe("the receipt job before the channel", () => {
     const first = await store(`msg_${crypto.randomUUID()}`, "first");
     const second = await store(`msg_${crypto.randomUUID()}`, "second");
 
-    expect(await im.runReceipt(second)).toBe("failed");
-    expect(await db`select 1 from app.imessage_receipts where id = ${second} and outcome is null`).toHaveLength(1);
-    expect(await im.runReceipt(first)).toBe("completed");
+    // The later one waits without spending an attempt, on a new job...
     expect(await im.runReceipt(second)).toBe("completed");
+    expect(await db`select 1 from app.imessage_receipts where id = ${second} and outcome is null`).toHaveLength(1);
+    const [wait] = await db<{ id: string; run_after: Date }[]>`
+      select id, run_after from app.jobs where kind = 'imessage_receipt' and dedupe_key = ${`receipt:${second}:wait:1`}
+    `;
+    expect(wait!.run_after.getTime()).toBeGreaterThan(Date.now() + 20_000);
+
+    // ...which the earlier receipt's completion brings forward.
+    expect(await im.runReceipt(first)).toBe("completed");
+    const [due] = await db<{ due: boolean }[]>`select run_after <= now() as due from app.jobs where id = ${wait!.id}`;
+    expect(due!.due).toBe(true);
+    expect(await runJob(db, wait!.id, createImessageReceiptHandler(() => im.receiptDeps()))).toBe("completed");
+    expect(await db`select 1 from app.imessage_receipts where id = ${second} and outcome is not null`).toHaveLength(1);
   });
 
   it("teaches a fallback binding the conversation the host writes from", async () => {

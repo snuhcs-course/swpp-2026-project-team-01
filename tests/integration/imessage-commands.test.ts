@@ -107,6 +107,27 @@ describe("request commands", () => {
     // its retry replays the saved approval.
     const replayId = await im.store({ sender, text: `approve ${decision}` });
     await im.processTwice(replayId);
+
+    // The retry answers from the saved outcome even once the request moved on:
+    // here the first attempt's reply is gone with its rolled-back transaction
+    // and the booking finished meanwhile.
+    const movedId = await im.store({ sender, text: `approve ${decision}` });
+    const [sealedRow] = await db<{ text_ciphertext: string; sender_ciphertext: string; space_ciphertext: string }[]>`
+      select text_ciphertext, sender_ciphertext, space_ciphertext from app.imessage_receipts where id = ${movedId}
+    `;
+    await im.runReceipt(movedId);
+    await db`delete from app.imessage_outbox where dedupe_key = ${`receipt:${movedId}`}`;
+    await db`update app.requests set state = 'booked', closed_at = now() where id = ${request.requestId}`;
+    await db`
+      update app.imessage_receipts set outcome = null, processed_at = null, text_ciphertext = ${sealedRow!.text_ciphertext},
+        sender_ciphertext = ${sealedRow!.sender_ciphertext}, space_ciphertext = ${sealedRow!.space_ciphertext}
+      where id = ${movedId}
+    `;
+    await db`update app.jobs set state = 'pending' where dedupe_key = ${`receipt:${movedId}`}`;
+    await im.runReceipt(movedId);
+    const [movedReply] = await db<{ id: string }[]>`select id from app.imessage_outbox where dedupe_key = ${`receipt:${movedId}`}`;
+    expect(textOf((await im.send(movedReply!.id)).sent)).toEqual(["That proposal is already approved; the booking is under way."]);
+    await db`update app.requests set state = 'booking', closed_at = null where id = ${request.requestId}`;
     expect(await approvalsOf(request.requestId)).toHaveLength(1);
     expect(await db`select 1 from app.bookings where request_id = ${request.requestId}`).toHaveLength(1);
     expect(await db`select 1 from app.imessage_outbox where dedupe_key = ${`receipt:${replayId}`}`).toHaveLength(1);

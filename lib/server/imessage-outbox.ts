@@ -21,7 +21,7 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 //   2. suppresses a host-private message whose binding is no longer active;
 //   3. moves the row to dispatching and commits before the network call;
 //   4. sends once: accepted and rejected are final; unavailable (nothing left)
-//      returns the row to queued and fails the attempt; uncertain is final and
+//      returns the row to queued with its frozen text and fails the attempt; uncertain is final and
 //      never sent again. A row found dispatching by a later attempt means a send
 //      began and its answer was lost, so it becomes uncertain.
 // Every final state clears the sealed recipient and text.
@@ -67,6 +67,9 @@ export type RecordOutbound = {
   readonly inputId?: string;
   // The frozen text; none for a turn reply or a contact card.
   readonly text?: string;
+  // Records the message as already suppressed with this category, sending
+  // nothing, so it still counts toward the send limits.
+  readonly suppressedAs?: string;
 };
 
 export function outboxSealContext(outboxId: string) {
@@ -82,18 +85,21 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
   const [row] = await tx<{ id: string }[]>`select gen_random_uuid() as id`;
   const id = row!.id;
   const context = outboxSealContext(id);
-  const recipient = sealToken(message.tokenKey, JSON.stringify(message.recipient), context);
-  const text = message.text === undefined ? null : sealToken(message.tokenKey, message.text, context);
+  const suppressed = message.suppressedAs ?? null;
+  const recipient = suppressed ? null : sealToken(message.tokenKey, JSON.stringify(message.recipient), context);
+  const text = suppressed || message.text === undefined ? null : sealToken(message.tokenKey, message.text, context);
   const turn = message.kind === "turn";
 
   const [created] = await tx<{ id: string }[]>`
     insert into app.imessage_outbox
       (id, kind, dedupe_key, host_account_id, binding_id, link_id, request_id, input_id, recipient_hash,
-       recipient_ciphertext, text_ciphertext, sealed_key_id, state)
+       recipient_ciphertext, text_ciphertext, sealed_key_id, state, failure_category, completed_at)
     values
       (${id}, ${message.kind}, ${message.dedupeKey}, ${message.hostAccountId ?? null}, ${message.bindingId ?? null},
        ${message.linkId ?? null}, ${message.requestId ?? null}, ${message.inputId ?? null}, ${message.recipientHash},
-       ${recipient.ciphertext}, ${text?.ciphertext ?? null}, ${message.tokenKey.id}, ${turn ? "waiting" : "queued"})
+       ${recipient?.ciphertext ?? null}, ${text?.ciphertext ?? null}, ${message.tokenKey.id},
+       ${suppressed ? "suppressed" : turn ? "waiting" : "queued"}, ${suppressed},
+       ${suppressed ? new Date() : null})
     on conflict (kind, dedupe_key) do nothing
     returning id
   `;
@@ -104,6 +110,8 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
     `;
     return { created: false, id: raced!.id };
   }
+
+  if (suppressed) return { created: true, id };
 
   await publishJob(tx, {
     dedupeKey: `outbox:${id}`,
@@ -333,10 +341,12 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
       let text: string | null = null;
 
-      if (row.kind === "turn") {
+      if (row.kind === "turn" && row.state === "waiting") {
         if (readText === undefined) throw new TurnNotEndedError();
         text = imessageTurnText(readText, deps.origin);
       } else if (row.kind !== "contact_card") {
+        // Every other message, a turn reply already frozen by an attempt that
+        // found Photon unavailable included, sends its recorded text.
         text = open(deps, row, row.text_ciphertext);
         if (text === null) {
           await finish(claimTx, row.id, row.state, "failed", { category: "unreadable" });

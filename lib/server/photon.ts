@@ -157,8 +157,10 @@ export function spectrumTransport(config: Pick<PhotonConfig, "projectId" | "proj
             ? await withTimeout(instance.space.get(request.recipient.spaceId), SEND_TIMEOUT_MS)
             : await withTimeout(instance.space.create(await instance.user(request.recipient.address)), SEND_TIMEOUT_MS);
         } catch {
-          // No conversation could be opened, so nothing was sent.
-          return { category: "invalid_recipient", status: "rejected" };
+          // No conversation could be opened, so nothing was sent. The SDK does
+          // not tell a bad recipient from a network fault, so the attempt is
+          // retried and the outbox fails the message once its attempts are spent.
+          return { status: "unavailable" };
         }
 
         try {

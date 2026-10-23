@@ -36,14 +36,15 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
 // fit within the 120-second lease; an evaluation stops at its 18-second deadline,
 // so four do; a booking revalidates under that deadline and then writes with a
 // 10-second timeout, so three do. An email receipt may read AgentMail and then
-// deliver into a conversation (25 seconds at most), so four do. An iMessage send
-// opens a Spectrum client and sends within 20 seconds each, and an iMessage
-// receipt may deliver into a conversation (25 seconds at most), so four of each do.
+// deliver into a conversation (25 seconds at most), so four do. An iMessage
+// receipt may deliver into a conversation (25 seconds at most), so four of those
+// do; a send can wait on three 20-second steps (client, conversation, send), so
+// two do.
 export const JOB_BATCH_LIMITS: Readonly<Record<string, number>> = {
   [BOOKING_JOB]: 3,
   [CALENDAR_ANALYSIS_JOB]: 2,
   [EMAIL_RECEIPT_JOB]: 4,
   [EVALUATION_JOB]: 4,
   [IMESSAGE_RECEIPT_JOB]: 4,
-  [IMESSAGE_SEND_JOB]: 4,
+  [IMESSAGE_SEND_JOB]: 2,
 };

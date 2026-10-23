@@ -95,13 +95,25 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
     void reload();
   }, [reload]);
 
-  // Waiting for the host's message or the fallback code's send: poll.
-  const waiting = status?.state === "pending" || (status?.state === "fallback" && status.send === "queued");
+  // Waiting for the host's message, the fallback code's send or the contact
+  // card's send: poll.
+  const waiting =
+    status?.state === "pending" ||
+    (status?.state === "fallback" && status.send === "queued") ||
+    (status?.state === "linked" && status.contactCard?.state === "queued");
   useEffect(() => {
     if (!waiting) return;
     const timer = window.setInterval(() => void reload(), POLL_MS);
     return () => window.clearInterval(timer);
   }, [reload, waiting]);
+
+  // A received sender not confirmed in time: refresh when the window closes.
+  const confirmBy = status?.state === "received" ? status.confirmBy : null;
+  useEffect(() => {
+    if (!confirmBy) return;
+    const timer = window.setTimeout(() => void reload(), Math.max(0, Date.parse(confirmBy) - Date.now()) + 1000);
+    return () => window.clearTimeout(timer);
+  }, [confirmBy, reload]);
 
   const run = useCallback(async (pending: Pending) => {
     setBusy(pending.operation);
