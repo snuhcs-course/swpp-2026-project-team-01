@@ -417,6 +417,8 @@
 | 보존의 한도와 시각 | 실행당 규칙마다 1,000행, 매시간 17분: 15분 단위 정리와 겹치지 않습니다 | 하루에 한 번 제한 없는 일괄 처리 | `supabase/schemas/app/cron/retention.sql` | 일정과 새 마이그레이션 |
 | 고지 링크 | 공개 페이지의 시작 문구 아래 한 줄(호스트 페이지와 예약 페이지에 표시), **Continue with Google** 카드의 버튼 아래 "How we use your calendar", 그리고 `/`의 바닥글 링크 | 루트 레이아웃의 사이트 전체 바닥글: 화면 전체 높이의 대화 페이지가 이를 숨겨야 합니다 | `apps/web/app/_components/guest/guest-workspace.tsx`, `apps/web/app/page.tsx` | 그 파일들 |
 | 고지 언어 | `?lang=ko`를 쓰는 페이지 하나이며, 주장이 파일 하나 곁에 있도록 본문을 페이지 모듈에 둡니다 | 언어별 별도 경로; CMS | `apps/web/app/privacy/page.tsx` | 그 페이지 |
+| 스테이징 판정 | `isStagingOrigin`은 `APP_ORIGIN`을 파싱한 출처를 `RELEASE_ORIGINS`와 정확히 비교하므로, 비슷하게 생긴 호스트나 `http://`는 스테이징이고 읽을 수 없는 값도 스테이징입니다. 작업 워커는 `messagingAdmitted`를 통해 이를 물려받아 스테이징에서는 어떤 전달 종류도 가져가지 않습니다 | 부분 문자열 또는 접미사 일치 | `lib/server/messaging.ts` | 그곳의 `RELEASE_ORIGINS`와 `isStagingOrigin` |
+| 릴리스 워크플로 방어 | `workflow_dispatch`만, GitHub 환경 `release`, `main`이 아니면 실패하는 단계, 사전 실행 전에 `fmat` 스키마가 존재하면 실패하는 단계 | 공유 워크플로처럼 병합 시 푸시하기 | `.github/workflows/deploy-release.yml` | 그 워크플로 |
 | 훈련 픽스처 | 생성된 호스트, 신원, 핸들, 설정, 다섯 가지 상태의 요청, 예약 링크, 전달, 작업, 명령 결과, 운영자 작업, 거부 구간을 담은 일반 SQL 파일이며 주소는 모두 `example.test`입니다 | 통합 스위트를 원본에 실행하기 | `supabase/tests/fixtures/restore-drill.sql` | 그 픽스처 |
 
 ### 운영 결정
@@ -425,6 +427,7 @@
 |---|---|---|---|---|
 | 릴리스 프로젝트 점검 | 저장소를 프로젝트에 연결하지 않고 2026-10-23에 `supabase db query --linked --project-ref mriseqztcwmezvtawnbo`로 읽기 전용 쿼리를 실행했으며, CLI가 프로젝트에 임시 `cli_login_postgres` 로그인 역할을 만들었습니다 | 체크아웃을 프로젝트에 연결하기 | 설계 12; 제공자 설정 | — |
 | 공유 프로젝트 상태 | 2026-10-23의 읽기 전용 쿼리에서 6단계의 `20261023024435_imessage_channel.sql`까지 모든 마이그레이션이 이미 `anelszynxtvxoxqvzgqt`에 적용되어 있음을 확인했습니다. `Deploy shared Supabase` 워크플로는 비밀이 없어 푸시마다 여전히 실패하는데도 그렇습니다. 이 단계는 마이그레이션을 하나 더 추가하며, 아직 적용되지 않았습니다 | 6단계와 7단계 마이그레이션이 빠져 있다고 가정하기 | 이 기록 | — |
+| 워크플로 린트 | GitHub 릴리스에서 세션의 임시 디렉터리로 내려받은 `actionlint` 1.7.7로 두 배포 워크플로를 모두 점검했으며, 저장소나 CI에는 추가하지 않습니다 | 이번 변경에서 CI에 추가하기 | 이 기록 | — |
 | 루트 도메인 | 반복하지 않음: `findmeatime.com`과 `release.findmeatime.com`은 2026-10-19부터 `findmeatime-release`에 있으며, 2026-10-23에 읽기 전용으로 확인했습니다 | 도메인 다시 연결 | 설계 12; 인수 기록 | — |
 
 ### 사용자 대기 항목

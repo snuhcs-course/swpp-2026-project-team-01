@@ -367,7 +367,8 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **레인 C — 환경과 도메인**
 
-- [ ] 릴리스 환경 분리: `mriseqztcwmezvtawnbo`(FindMeATime2)를 비우고 연결, 별도의 Vercel 프로덕션 대상, 마이그레이션 승격 경로.
+- [x] 마이그레이션 승격 경로: GitHub 환경 `release`의 수동 [`Deploy release Supabase`](../../.github/workflows/deploy-release.yml) 워크플로는 `main` 외의 ref와 프로토타입이 아직 남아 있는 프로젝트를 거부하며, 공유 프로젝트가 스테이징이 될 수 있도록 스테이징 메시지 차단도 함께 추가.
+- [ ] 릴리스 환경 분리: `mriseqztcwmezvtawnbo`(FindMeATime2)를 비우고 연결, 별도의 Vercel 프로덕션 대상. 미결: 프로젝트에 아직 1차 반복의 프로토타입이 남아 있으며(2026-10-23에 읽기 전용으로 점검), 이를 비우는 일, `release` 환경의 비밀, 공유 프로젝트를 `findmeatime-dev`로 옮기는 일은 사용자의 조치를 기다리는 중.
 - [ ] 루트 도메인 승격: `findmeatime.com`을 릴리스 프로젝트에 연결하고, Vercel이 요구하는 레코드를 프록시 없이 `cf`로 적용하고, 도메인 점검, DNS 조회, HTTPS 요청으로 검증하며, `release.findmeatime.com`이 계속 동작하도록 유지.
 - [ ] 민감한 Calendar 스코프에 대한 Google 앱 검증; Photon과 AgentMail의 프로덕션 구성; 해당하는 Auth 알림을 위한 Cloudflare 사용자 정의 SMTP.
 

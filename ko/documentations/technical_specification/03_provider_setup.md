@@ -51,6 +51,8 @@ Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-e
 
 설정: 공유 프로젝트의 URL과 키는 Git이 아니라 팀의 비밀번호 관리자를 통해 공유하며, `.env.example`에는 변수 이름만 나열합니다. Vercel 환경 변수는 Production과 Preview로 범위를 나눕니다. 로컬에서 로그인이 동작하도록 `http://localhost:3000/**`와 각 팀원의 샌드박스 콜백을 Auth 리디렉션 허용 목록과 Google OAuth 클라이언트에 등록합니다.
 
+**승격 경로(D13, D14).** 릴리스 프로젝트를 비운 뒤에는 릴리스 마이그레이션이 수동 [`Deploy release Supabase`](../../.github/workflows/deploy-release.yml) 워크플로를 통해서만 릴리스 프로젝트에 반영됩니다. 사람이 `main`에서 이를 시작하고, GitHub 환경 `release`가 릴리스 프로젝트의 `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `WORKER_URL`, `WORKER_SECRET`, `GOOGLE_CLIENT_SECRET`과 대응하는 변수를 보관하며 검토자를 요구할 수 있고, 작업은 다른 ref와 프로토타입의 `fmat` 스키마가 아직 남아 있는 프로젝트를 거부한 뒤에야 사전 실행 결과를 출력하고 푸시합니다. `APP_ORIGIN`이 설정되어 있고 `https://findmeatime.com`도 `https://release.findmeatime.com`도 아닌 프로덕션 배포는 스테이징이며 이메일과 iMessage를 보내지 않으므로([`lib/server/messaging.ts`](../../lib/server/messaging.ts)의 `RELEASE_ORIGINS`), `dev.findmeatime.com`의 `findmeatime-dev`가 공유 프로젝트를 스테이징으로 제공할 수 있습니다. 이 배포에는 `APP_ORIGIN=https://dev.findmeatime.com`을 지정합니다.
+
 다음 중 하나가 일어나기 **전에** 릴리스 환경을 분리합니다. 외부 호스트가 실제 Google 캘린더를 연결하는 경우, 팀 외부 사람들에게 실제 이메일이나 iMessage 전달을 활성화하는 경우, 스키마가 변경되어도 데이터를 유지해야 하는 경우입니다. 그 전까지는 보호할 것이 없으며 하나의 환경이 일관성을 유지하기에 더 간단합니다.
 
 

@@ -3,6 +3,7 @@ import { COMMAND_ERROR_MESSAGES } from "../contracts/command-errors";
 import {
   gateTransport,
   isLoopbackEndpoint,
+  isStagingOrigin,
   messagingAdmitted,
   type MessagingTransport,
   withMessagingAdmission,
@@ -22,6 +23,11 @@ const denied = [
     "a production label on another target",
     { AGENTMAIL_API_KEY: credential, VERCEL: "1", VERCEL_ENV: "production", VERCEL_TARGET_ENV: "qa" },
   ],
+  [
+    "a staging production deployment on another origin",
+    { AGENTMAIL_API_KEY: credential, APP_ORIGIN: "https://dev.findmeatime.com", VERCEL: "1", VERCEL_ENV: "production" },
+  ],
+  ["a production deployment with an unreadable origin", { AGENTMAIL_API_KEY: credential, APP_ORIGIN: "findmeatime", VERCEL: "1", VERCEL_ENV: "production" }],
 ] as const;
 
 const realEndpoint = "https://api.agentmail.test/v0";
@@ -150,6 +156,20 @@ describe("messaging-environment gate", () => {
     await expect(gateTransport(transport, {}).send({ ...message, authorizedBy: null })).rejects.toThrow(
       "current sender authority",
     );
+  });
+
+  it.each(["https://findmeatime.com", "https://release.findmeatime.com/", " https://findmeatime.com ", ""])(
+    "admits the release deployment with APP_ORIGIN %j",
+    (origin) => {
+      expect(messagingAdmitted(realEndpoint, { ...production, APP_ORIGIN: origin })).toBe(true);
+    },
+  );
+
+  it("treats a lookalike of a release origin as staging", () => {
+    for (const origin of ["https://findmeatime.com.evil.test", "http://findmeatime.com", "https://dev.findmeatime.com"]) {
+      expect(isStagingOrigin({ APP_ORIGIN: origin })).toBe(true);
+      expect(messagingAdmitted(realEndpoint, { ...production, APP_ORIGIN: origin })).toBe(false);
+    }
   });
 
   it("refuses a loopback stand-in outside local execution unless production", () => {

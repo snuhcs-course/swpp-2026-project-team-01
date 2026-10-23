@@ -415,6 +415,8 @@ The [proposal](../../openspec/changes/operations-and-release/proposal.md#decisio
 | Retention bound and time | 1,000 rows per rule per run, hourly at minute 17, so it does not coincide with the quarter-hour cleanups | One unbounded pass a day | `supabase/schemas/app/cron/retention.sql` | The schedule and a new migration |
 | Notice links | One line under the public page's opening text (shown on the host page and the booking page), "How we use your calendar" under the **Continue with Google** card's buttons, and a footer link on `/` | A site-wide footer in the root layout, which the full-height conversation pages would have to hide | `apps/web/app/_components/guest/guest-workspace.tsx`, `apps/web/app/page.tsx` | Those files |
 | Notice languages | One page with `?lang=ko`, the text kept in the page module so the claims sit beside one file | Separate routes per language; a CMS | `apps/web/app/privacy/page.tsx` | The page |
+| Staging test | `isStagingOrigin` compares the parsed origin of `APP_ORIGIN` with `RELEASE_ORIGINS` exactly, so a lookalike host or `http://` is staging and an unreadable value is too; the job worker inherits it through `messagingAdmitted` and claims no delivery kind on staging | A substring or suffix match | `lib/server/messaging.ts` | `RELEASE_ORIGINS` and `isStagingOrigin` there |
+| Release workflow guards | `workflow_dispatch` only, the GitHub environment `release`, a step that fails off `main`, and a step that fails while the `fmat` schema exists, before the dry run | Pushing on merge as the shared workflow does | `.github/workflows/deploy-release.yml` | The workflow |
 | Drill fixture | A plain SQL file of generated hosts, identities, handles, settings, requests in five states, booking links, deliveries, jobs, command outcomes, operator actions and rejection buckets, all with `example.test` addresses | Running the integration suites into the source | `supabase/tests/fixtures/restore-drill.sql` | The fixture |
 
 ### Operational decisions
@@ -423,6 +425,7 @@ The [proposal](../../openspec/changes/operations-and-release/proposal.md#decisio
 |---|---|---|---|---|
 | Release project inspection | Read-only queries through `supabase db query --linked --project-ref mriseqztcwmezvtawnbo` on 2026-10-23, without linking the repository; the CLI created its temporary `cli_login_postgres` login role on the project | Linking a checkout to the project | Design 12; provider setup | — |
 | Shared-project state | A read-only query on 2026-10-23 found every migration through Phase 6's `20261023024435_imessage_channel.sql` already applied to `anelszynxtvxoxqvzgqt`, although the `Deploy shared Supabase` workflow still fails on every push for want of its secrets; this phase adds one more migration, not yet applied | Assuming the Phase 6 and 7 migrations were missing | This log | — |
+| Workflow lint | `actionlint` 1.7.7, downloaded from its GitHub release into the session's scratch directory, checked both deploy workflows; it is not added to the repository or CI | Adding it to CI in this change | This log | — |
 | Root domain | Not repeated: `findmeatime.com` and `release.findmeatime.com` have been on `findmeatime-release` since 2026-10-19; verified read-only on 2026-10-23 | Re-attaching the domain | Design 12; the acceptance record | — |
 
 ### Blocked on the user

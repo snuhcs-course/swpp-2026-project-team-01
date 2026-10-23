@@ -23,7 +23,7 @@ Before each group, read the [Phase 8 reference repository files](../../../docume
 
 ## 4. Environments and domain (Lane C)
 
-- [ ] 4.1 Add the staging messaging denial ([design 12](design.md#12-environments)). Verify unit tests for staging, release and unset origins.
+- [x] 4.1 Add the staging messaging denial ([design 12](design.md#12-environments)). Verify unit tests for staging, release and unset origins.
 - [ ] 4.2 Add `.github/workflows/deploy-release.yml` and `scripts/perf-check.ts` ([design 3](design.md#3-performance-targets)). Verify the workflow with `actionlint` when available and the statistics with unit tests.
 - [ ] 4.3 Verify the root domain read-only (`vercel domains inspect`, `cf dns records list`, DNS lookup, HTTPS on both origins) and run `npm run perf:check` against production; record both.
 

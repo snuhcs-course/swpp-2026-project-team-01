@@ -49,6 +49,8 @@ Rules for the shared project: never change its schema through Studio or the SQL 
 
 Configuration: share the shared project's URL and keys through the team's password manager, never through Git; `.env.example` lists the variable names. Scope Vercel environment variables by Production and Preview. Register `http://localhost:3000/**` and each teammate's sandbox callback in the Auth redirect allowlist and the Google OAuth client so sign-in works locally.
 
+**Promotion path (D13, D14).** Once the release project is emptied, release migrations reach it only through the manual [`Deploy release Supabase`](../../.github/workflows/deploy-release.yml) workflow: a person starts it on `main`, the GitHub environment `release` holds the release project's `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `WORKER_URL`, `WORKER_SECRET` and `GOOGLE_CLIENT_SECRET` and the matching variables and can require a reviewer, and the job refuses any other ref and a project that still has the prototype's `fmat` schema before it prints the dry run and pushes. A production deployment whose `APP_ORIGIN` is set and is neither `https://findmeatime.com` nor `https://release.findmeatime.com` is staging and sends no email or iMessage (`RELEASE_ORIGINS` in [`lib/server/messaging.ts`](../../lib/server/messaging.ts)), so `findmeatime-dev` on `dev.findmeatime.com` can serve the shared project as staging; give it `APP_ORIGIN=https://dev.findmeatime.com`.
+
 Split a release environment **before** the first of these happens: an external host connects a real Google Calendar, real email or iMessage delivery is enabled for people outside the team, or data must survive schema changes. Until then there is nothing to protect, and one environment is simpler to keep consistent.
 
 
