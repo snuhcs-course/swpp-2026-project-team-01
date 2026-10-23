@@ -17,7 +17,7 @@ Before each group, read the [Phase 6 reference repository files](../../../docume
 
 ## 3. Linking card (Lane B)
 
-- [ ] 3.1 Add the linking commands and `/api/host/imessage` routes ([design 4](design.md#4-linking-by-a-host-sent-code), [design 6](design.md#6-the-fallback-code)) and the receipt job's linking side. Verify integration tests for a code bound only after confirmation, a wrong, expired, replayed and foreign code, a sender bound to another host, the fallback's limits and wrong entries, unlinking without Photon, and exact retries.
+- [x] 3.1 Add the linking commands and `/api/host/imessage` routes ([design 4](design.md#4-linking-by-a-host-sent-code), [design 6](design.md#6-the-fallback-code)) and the receipt job's linking side. Verify integration tests for a code bound only after confirmation, a wrong, expired, replayed and foreign code, a sender bound to another host, the fallback's limits and wrong entries, unlinking without Photon, and exact retries.
 - [ ] 3.2 Add the **Connect iMessage** card with the one-tap deep link, the inline fallback with **Copy** and the QR code, the masked-sender confirmation, **Send me a code instead**, the connected card with **Unlink**, delivery failure, and **Add to contacts** ([design 5](design.md#5-the-one-tap-deep-link), [design 11](design.md#11-add-to-contacts)). Verify unit tests for platform detection and deep links, and a Playwright journey at 390 and 1280 pixels by keyboard.
 
 ## 4. Channel and commands (Lane C)

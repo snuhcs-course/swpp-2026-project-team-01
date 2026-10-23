@@ -255,6 +255,9 @@
 | 전송 작업 배치와 시도 횟수 | 워커 배치당 전송 네 건; 메시지는 5회, 턴 답장은 8회(약 40분) 시도하며, 턴 답장의 텍스트는 아무것도 잠그기 전에 세션의 기록된 이벤트에서 읽습니다 | 기본 배치 | `lib/server/job-handlers.ts`; `lib/server/imessage-outbox.ts` | `JOB_BATCH_LIMITS`; `SEND_ATTEMPTS`와 `TURN_REPLY_ATTEMPTS` |
 | 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
+| 카드 상태 순서 | 진행 중인 연결 시도(대기 중인 코드, 수신한 발신자 또는 대체 코드)가 활성 연결보다 먼저 표시되므로, 시도를 마치면 연결이 새 발신자로 옮겨 갑니다; 상태에는 대체 코드가 담기지 않으며, 발신자는 마지막 네 자리 또는 이메일의 첫 글자와 도메인으로 가려집니다 | 연결된 동안 시도를 숨김 | 설계 4 | `lib/server/imessage-links.ts`의 `readImessageStatus` |
+| 잘못된 대체 코드 입력 | 틀린 코드는 오류가 아니라 결과(`wrong`과 남은 시도 횟수)로 응답하므로, 횟수가 명령의 트랜잭션에 저장됩니다; 다섯 번째 입력은 코드의 해시를 지웁니다 | 오류로 거절, 이 경우 횟수가 롤백됨 | 설계 6 | `lib/server/imessage-links.ts`의 `verifyImessageCodeCommand` |
+| 다른 곳에 연결된 번호 | 다른 호스트가 이미 연결한 번호로 `send_code`를 보내면 전송처럼 응답하되 아무것도 큐에 넣지 않으므로, 카드로 이 제품에서 누가 iMessage를 쓰는지 알아낼 수 없습니다 | 눈에 보이게 거절 | 설계 6 | `sendImessageCodeCommand` |
 | 계획의 목록을 넘는 명령 | 계획은 `request`, `review`, `changes`, 승인, 거절, `setup`을 꼽습니다; 이 변경은 `help`, `requests`(참조를 알기 위해), `share`와 `dismiss`(AC-16이 요구하듯 수정된 세부 사항을 텍스트로 공유할 수 있게), `confirm`(온보딩 흐름이 요구하는 설정 확인)을 더합니다 | 변경 공유를 웹에서만 허용 | 설계 8 | `lib/server/imessage-commands.ts`의 `parseCommand` |
 
 ### 운영 결정

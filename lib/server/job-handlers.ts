@@ -6,8 +6,10 @@ import { createEmailReceiptHandler } from "./email-receipts";
 import { createEmailReplyHandler, EMAIL_REPLY_JOB } from "./email-replies";
 import { createEvaluationHandler, EVALUATION_JOB } from "./evaluation";
 import { createImessageSendHandler, IMESSAGE_SEND_JOB } from "./imessage-outbox";
+import { createImessageReceiptHandler } from "./imessage-receipts";
 import type { JobHandler } from "./jobs";
 import { createLinkResendHandler, LINK_RESEND_JOB } from "./link-resend";
+import { IMESSAGE_RECEIPT_JOB } from "./photon-receiver";
 import { createRequestExpiryHandler, REQUEST_EXPIRY_JOB } from "./request-lifecycle";
 
 // Handlers by job kind. The worker claims only kinds registered here, so a job
@@ -20,6 +22,7 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
   [EMAIL_RECEIPT_JOB]: createEmailReceiptHandler(),
   [EMAIL_REPLY_JOB]: createEmailReplyHandler(),
   [EVALUATION_JOB]: createEvaluationHandler(),
+  [IMESSAGE_RECEIPT_JOB]: createImessageReceiptHandler(),
   [IMESSAGE_SEND_JOB]: createImessageSendHandler(),
   [LINK_RESEND_JOB]: createLinkResendHandler(),
   [REQUEST_EXPIRY_JOB]: createRequestExpiryHandler(),
@@ -31,11 +34,13 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
 // so four do; a booking revalidates under that deadline and then writes with a
 // 10-second timeout, so three do. An email receipt may read AgentMail and then
 // deliver into a conversation (25 seconds at most), so four do. An iMessage send
-// opens a Spectrum client and sends within 20 seconds each, so four do.
+// opens a Spectrum client and sends within 20 seconds each, and an iMessage
+// receipt may deliver into a conversation (25 seconds at most), so four of each do.
 export const JOB_BATCH_LIMITS: Readonly<Record<string, number>> = {
   [BOOKING_JOB]: 3,
   [CALENDAR_ANALYSIS_JOB]: 2,
   [EMAIL_RECEIPT_JOB]: 4,
   [EVALUATION_JOB]: 4,
+  [IMESSAGE_RECEIPT_JOB]: 4,
   [IMESSAGE_SEND_JOB]: 4,
 };
