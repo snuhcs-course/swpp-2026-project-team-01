@@ -35,6 +35,8 @@
     "@shikijs/core": "4.3.1",
     "@shikijs/engine-javascript": "4.3.1",
     "@shikijs/engine-oniguruma": "4.3.1",
+    "@spectrum-ts/core": "12.14.0",
+    "@spectrum-ts/imessage": "12.14.0",
     "@streamdown/cjk": "1.0.3",
     "@streamdown/code": "1.1.1",
     "@streamdown/math": "1.0.2",
@@ -58,6 +60,7 @@
     "streamdown": "2.7.0",
     "tailwind-merge": "3.6.0",
     "tailwindcss": "4.3.3",
+    "uqr": "0.1.2",
     "zod": "4.4.3"
   },
   "devDependencies": {
@@ -70,5 +73,13 @@
     "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vitest": "5.0.5"
+  },
+  "overrides": {
+    "@spectrum-ts/core": {
+      "typescript": "$typescript"
+    },
+    "@spectrum-ts/imessage": {
+      "typescript": "$typescript"
+    }
   }
 }

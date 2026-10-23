@@ -13,7 +13,7 @@ Before each group, read the [Phase 6 reference repository files](../../../docume
 - [x] 2.1 Record the spike ([design 1](design.md#1-the-transport-spike-and-the-adapter)) and the sender identifier format in the provider setup and the agent configuration.
 - [x] 2.2 Add `imessage_receipts`, `imessage_links`, `imessage_bindings` and `imessage_outbox` ([design 14](design.md#14-records)) with row-level security, generate the migration with `supabase db schema declarative sync --no-apply`, and verify `supabase db reset --local` and the grant tests.
 - [x] 2.3 Add the signature check, the receiver (`lib/server/photon-receiver.ts`), the `agent/channels/photon.ts` route and its `vercel.ts` route ([design 2](design.md#2-receiver-and-receipts)). Verify unit tests for the signature and payload, and integration tests for a receipt and job stored before `200`, a duplicate, a changed payload (`409`), a stale signature, another webhook's delivery and an ignored event.
-- [ ] 2.4 Add the transport (`lib/server/photon.ts`) with the Spectrum adapter and the loopback stand-in behind the messaging gate, the outbox and the `imessage_send` job ([design 3](design.md#3-the-transport-and-the-outbox)). Verify tests for accepted, rejected, unavailable and uncertain sends, suppression after unlinking and the gate in a preview.
+- [x] 2.4 Add the transport (`lib/server/photon.ts`) with the Spectrum adapter and the loopback stand-in behind the messaging gate, the outbox and the `imessage_send` job ([design 3](design.md#3-the-transport-and-the-outbox)). Verify tests for accepted, rejected, unavailable and uncertain sends, suppression after unlinking and the gate in a preview.
 
 ## 3. Linking card (Lane B)
 

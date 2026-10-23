@@ -250,6 +250,9 @@
 
 ### 구현 결정
 
+| Spectrum SDK 패키지 | `@spectrum-ts/core`와 `@spectrum-ts/imessage` 12.14.0을 정확한 버전으로 고정하고, `lib/server/photon.ts`에서만 동적 import로 불러오며, SDK가 Photon에 OpenTelemetry 데이터를 보내지 않도록 `telemetry: false`로 둡니다; 두 패키지가 `^5 \|\| ^6` peer를 선언하므로 패키지 단위 `overrides` 항목으로 TypeScript 7을 받아들이게 합니다. `npm audit`은 이들의 `@photon-ai/otel` OpenTelemetry 체인에서 중간 등급 권고를 보고하지만, telemetry를 끄면 그 체인은 쓰이지 않습니다 | `spectrum-ts` 메타 패키지(Slack, Telegram, WhatsApp 제공자도 포함); eve에 번들된 사본(export되지 않음); 전체 트리에 `--legacy-peer-deps` | `package.json`; 설계 1 | `lib/server/photon.ts`의 `spectrumTransport`; `overrides` 항목 |
+| 불확실한 전송 | 이후 시도에서 `dispatching` 상태로 발견된 행, 또는 응답이 유실되었거나 20초 후 시간 초과된 전송은 즉시 `uncertain`이 되며 다시 보내지 않습니다; `unavailable`(연결 거부, 클라이언트 없음)만 행을 `queued`로 되돌립니다 | 23시간 동안 같은 키로 재전송하는 7단계 방식, 이는 제공자의 멱등성 키가 필요합니다 | 설계 3 | `lib/server/imessage-outbox.ts`의 `createImessageSendHandler` |
+| 전송 작업 배치와 시도 횟수 | 워커 배치당 전송 네 건; 메시지는 5회, 턴 답장은 8회(약 40분) 시도하며, 턴 답장의 텍스트는 아무것도 잠그기 전에 세션의 기록된 이벤트에서 읽습니다 | 기본 배치 | `lib/server/job-handlers.ts`; `lib/server/imessage-outbox.ts` | `JOB_BATCH_LIMITS`; `SEND_ATTEMPTS`와 `TURN_REPLY_ATTEMPTS` |
 | 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
 | 계획의 목록을 넘는 명령 | 계획은 `request`, `review`, `changes`, 승인, 거절, `setup`을 꼽습니다; 이 변경은 `help`, `requests`(참조를 알기 위해), `share`와 `dismiss`(AC-16이 요구하듯 수정된 세부 사항을 텍스트로 공유할 수 있게), `confirm`(온보딩 흐름이 요구하는 설정 확인)을 더합니다 | 변경 공유를 웹에서만 허용 | 설계 8 | `lib/server/imessage-commands.ts`의 `parseCommand` |
