@@ -2,11 +2,12 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  // The web app's own import aliases, for its component tests.
+  // The web app's own import aliases, for its component tests. Targets use
+  // forward slashes so the aliases also resolve on Windows.
   resolve: {
     alias: {
-      "@/": fileURLToPath(new URL("./apps/web/", import.meta.url)),
-      "@lib/": fileURLToPath(new URL("./lib/", import.meta.url)),
+      "@/": fileURLToPath(new URL("./apps/web/", import.meta.url)).replaceAll("\\", "/"),
+      "@lib/": fileURLToPath(new URL("./lib/", import.meta.url)).replaceAll("\\", "/"),
     },
   },
   test: {
