@@ -2,11 +2,48 @@
 
 > 한국어 번역본 (검토용). 원본: documentations/technical_specification/07_acceptance_record.md
 
-상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 릴리스되고 프로덕션에서 확인됨; 게스트 받은편지함 확인은 보류 중; 5단계(`agent-access`) 로컬 증거 기록됨, 명명된 클라이언트와 프로덕션 증거 보류 중; 6단계(`host-imessage-channel`) 로컬 증거 기록됨, 회선, 기기, 프로덕션 증거 보류 중; 7단계(`requester-email-channel`) 로컬 증거 기록됨, 받은편지함과 프로덕션 증거 보류 중; 열린 공백은 아래에 나열
+상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 릴리스되고 프로덕션에서 확인됨; 게스트 받은편지함 확인은 보류 중; 5단계(`agent-access`) 로컬 증거 기록됨, 명명된 클라이언트와 프로덕션 증거 보류 중; 6단계(`host-imessage-channel`) 로컬 증거 기록됨, 회선, 기기, 프로덕션 증거 보류 중; 7단계(`requester-email-channel`) 로컬 증거 기록됨, 받은편지함과 프로덕션 증거 보류 중; 8단계(`operations-and-release`) 로컬 증거 기록됨; [릴리스 요약](#release-summary)이 모든 시나리오의 상태를 나열; 열린 공백은 아래에 나열
 
 날짜: 2026-10-23
 
 이 기록은 [구현 계획](06_implementation_plan.md)의 각 단계가 해당 단계의 증거 목록에 맞춰 만들어 낸 증거를 나열합니다. 모든 항목에는 실행한 명령, 날짜, 리비전, 환경이 명시되어 있습니다. 픽스처와 로컬 스택 실행은 로직을 증명할 뿐이며, **production**으로 표시된 항목만 배포된 연동을 증명합니다. 토큰, 시크릿, 이메일 주소, 개인 메시지 본문은 이 기록에 넣지 않습니다.
+
+## 릴리스 요약
+
+2026-10-23에 [`operations-and-release`](../../openspec/changes/operations-and-release/proposal.md) 변경(레인 D)이 아래 각 단계 절을 바탕으로 정리했습니다. **로컬**은 픽스처 또는 로컬 스택 증거로 로직을 증명하며, **프로덕션**은 배포된 연동에 대한 점검을 뜻하고, **보류**는 [PRD](../02_product_requirements.md#9-end-to-end-release-acceptance-scenarios)가 여전히 요구하는 항목입니다. 보류 항목이 하나라도 있는 시나리오는 종료된 것이 아니며, 해결되지 않은 명명된 클라이언트, 기기, 받은편지함 사례는 릴리스 차단 요인이므로 **릴리스는 아직 수용할 수 없습니다**. 무관용 지표(인가되지 않은 예약, 중복 이벤트, 비공개 정보 노출)는 지금까지 실행한 테스트 묶음에서 실패한 사례가 없습니다.
+
+| ID | 로컬 | 프로덕션 | 보류 |
+|---|---|---|---|
+| AC-01 | 합의까지 `tests/e2e/requester-intake.test.ts`, 이어서 예약된 이벤트 하나까지 `tests/e2e/host-review.test.ts` ([4단계](#phase-4--host-review-and-booking)) | 2026-10-22의 웹 예약: 호스트의 실제 Google Calendar에 이벤트 하나 ([4단계 프로덕션 점검](#production-acceptance-check)) | 게스트의 받은편지함; 같은 여정을 이메일, iMessage, 각 명명된 클라이언트로 수행 |
+| AC-02 | `tests/integration/evaluation.test.ts` "checks the host's inbound trip through Routes and reuses the estimate within 24 hours"와 "leaves a leg with no route unresolved and out of the requester's list"; `host-requests.test.ts` 수동 허용; `bookings.test.ts` "stops at revalidation when a busy event appeared" | — | 실제 Routes 점검(3단계 작업 5.2)과 프로덕션 실행 |
+| AC-03 | `tests/integration/host-requests.test.ts` ([4단계](#phase-4--host-review-and-booking)) | 4단계 프로덕션 점검의 주간 한도 보류와 **Allow this request beyond my weekly limit** | 웹 경로는 없음; 다른 채널은 AC-14와 AC-16과 같음 |
+| AC-04 | `host-requests.test.ts` "shares a feasible later time as a checked new version" | — | 프로덕션 실행 |
+| AC-05 | `tests/integration/email-journey.test.ts` ([7단계](#phase-7--requester-email-channel)) | — | 실제 받은편지함 전달: AgentMail 받은편지함이 차단됨 |
+| AC-06 | `bookings.test.ts`(웹), `imessage-commands.test.ts`(iMessage와 웹), `agent-join.test.ts`(에이전트) | — | 프로덕션 실행; 명명된 클라이언트 |
+| AC-07 | `bookings.test.ts` "stops at revalidation when a busy event appeared"와 "dispatches only one of two competing bookings for the same host" | — | 프로덕션 실행 |
+| AC-08 | `bookings.test.ts` 유실된 응답 조정; `tests/integration/recovery-operations.test.ts`는 운영자가 찾은 불확실한 예약을 조정 | — | Google을 상대로 안전하게 유발할 수 있는 것은 없음; 픽스처 증거로 갈음 |
+| AC-09 | `bookings.test.ts` 거부된 쓰기와 취소된 접근; `booking-emails.test.ts` 반송된 사본 | — | 취소된 접근의 프로덕션 실행 |
+| AC-10 | `tests/integration/host-review.test.ts`; `agent-mcp-host.test.ts`(OAuth 부여로는 아무것도 예약되지 않음) | — | 명명된 클라이언트 |
+| AC-11 | `email-journey.test.ts`, `email-links.test.ts` ([7단계](#phase-7--requester-email-channel)) | — | 실제 받은편지함 전달 |
+| AC-12 | `lib/server/feasibility.test.ts` "yields nothing for a window whose end is ambiguous or does not exist"; `tests/integration/request-reviews.test.ts` "asks the authored Korean question for an ambiguous local time and records no window" | — | 서머타임 변경 구간에 걸친 프로덕션 실행 |
+| AC-13 | `bookings.test.ts` 발송 전후의 철회, 거절, 만료 | — | 프로덕션 실행 |
+| AC-14 | `tests/integration/agent-join.test.ts`, 스크립트 방식 ([5단계](#phase-5--agent-access)) | — | Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code, 각각 두 역할 모두 |
+| AC-15 | `agent-mcp-requester.test.ts`, 스크립트 방식 | — | 명명된 클라이언트 일곱 개 |
+| AC-16 | `eve dev`를 통한 `tests/integration/imessage-journey.test.ts` ([6단계](#phase-6--host-imessage-channel)) | — | Photon 회선, 그 웹훅, 통제된 iPhone |
+| AC-17 | `imessage-journey.test.ts`, `imessage-channel.test.ts`, `imessage-commands.test.ts` | — | 통제된 iPhone |
+| AC-18 | `imessage-journey.test.ts`, `imessage-commands.test.ts`, `imessage-notices.test.ts` | — | 서비스 재시작을 포함한 통제된 iPhone |
+| AC-19 | `tests/e2e/agent-connect.test.ts`; `agent-mcp-host.test.ts` | — | 명명된 클라이언트; 프로덕션 서명 키 |
+| AC-20 | `lib/server/agent-tokens.test.ts`; `agent-mcp-host.test.ts` | — | 명명된 클라이언트 |
+| AC-21 | `agent-mcp-requester.test.ts`; `agent-mcp-host.test.ts` | — | 명명된 클라이언트 |
+| AC-22 | `tests/integration/agent-cli.test.ts`; 합류 테스트 | — | 프로덕션을 상대로 한 CLI |
+| AC-23 | `lib/server/entry-documents.test.ts`, `tests/integration/entry-documents.test.ts`, 문서만 | 두 오리진 모두에서 `/SKILL.md` 제공(2단계) | 각 명명된 클라이언트가 일반 URL과 `/SKILL.md` URL을 붙여 넣기 |
+| AC-24 | 같은 문서 테스트 | `/{handle}/SKILL.md` 제공(3단계 스모크 테스트) | 각 명명된 클라이언트 |
+| AC-25 | 같은 문서 테스트; `agent-mcp-requester.test.ts` "refuses a resource for an unknown host" | — | 각 명명된 클라이언트와 거부된 동의 |
+| AC-26 | `tests/integration/host-admission.test.ts`, `setup-tools.test.ts`, `entry-documents.test.ts`, `operator.test.ts` ([1단계](#phase-1--application-foundation), [2단계](#phase-2--host-onboarding)) | `https://findmeatime.com`에서의 실제 로그인 1회로 호스트 계정 하나 생성(1단계) | 설정 전 MCP와 CLI를 통한 게시 시도; 프로덕션에서의 정지 |
+| AC-27 | `tests/integration/requester-google.test.ts`; `evaluation.test.ts` "uses the requester's busy time without storing or showing their events" | — | 실제 요청자 동의, Google 앱이 **Testing** 상태인 동안 차단됨 |
+| AC-28 | 항목별 [2단계](#phase-2--host-onboarding) 증거 | — | 프로덕션에서 로그인한 설정; Google 앱 검증 |
+
+앞서 기록된 두 공백이 해당 단계가 기록된 이후 바뀌었습니다. 6단계까지의 모든 마이그레이션이 이제 공유 프로젝트에 있으며(2026-10-23에 확인), 현재 프로덕션 배포(2026-10-23 07:02 KST)는 6단계 병합보다 앞서므로 6~8단계는 배포되지 않았습니다.
 
 ## 1단계 — `application-foundation`
 
@@ -331,7 +368,7 @@
 - **실제 회선, 웹훅, 기기 실행 없음:** Photon 회선 프로비저닝, 웹훅 등록, 그리고 통제된 iPhone에서의 모든 확인(iOS Safari에서 기다린 요청 이후 딥링크가 메시지 앱을 여는지, 데스크톱의 QR 코드, 실제 iPhone이 보내는 발신자 식별자, 프로덕션에 대한 AC-16부터 AC-18, 기기와 클라이언트 버전)이 보류 중입니다(결정 기록의 "사용자 대기 항목").
 - **SDK에서 가정한 Spectrum 전송 경로:** `space.get`, `space.create`, `send`, `shareContactCard`는 `@spectrum-ts` 12.14.0에 맞춰 타입이 지정되었고 스탠드인을 통해서만 실행되었습니다.
 - **iMessage를 통한 실제 모델 응답**은 평가하지 않았으며, 여정에는 OpenAI 스탠드인을 썼습니다.
-- **마이그레이션이 공유 프로젝트에 적용되지 않았습니다.**
+- **프로덕션 배포.** 마이그레이션은 이것만 나열한 드라이 런 뒤 2026-10-23에 `873804b`에서 `supabase db push --linked`로 공유 프로젝트에 적용했으며, 이후 드라이 런은 원격 데이터베이스가 최신이라고 보고했습니다. `findmeatime-release`는 6단계로 다시 배포되지 않았습니다.
 
 ## 7단계 — `requester-email-channel`
 
@@ -370,3 +407,45 @@
 - **실제 다중 턴 받은편지함 전달**은 허가된 수신자와 함께하는 것이 보류 중입니다: `findmeatime@agentmail.to`는 받은편지함 세 개 한도에 막혀 있고, 등록된 웹훅이 없으며, 마이그레이션이 공유 프로젝트에 없습니다(결정 기록의 "사용자 대기 항목").
 - **문서를 근거로 가정한 AgentMail 동작:** `authentication_results`, `extracted_text`, 답장 엔드포인트의 `Idempotency-Key` 의미, Svix 서명은 스탠드인을 상대로만 검증되었습니다.
 - **이메일을 통한 실제 모델 답장**은 평가되지 않았으며, 이 여정은 OpenAI 스탠드인을 사용했습니다.
+
+## 8단계 — `operations-and-release`
+
+변경: [`operations-and-release`](../../openspec/changes/operations-and-release/tasks.md). 증거 목록: [8단계](06_implementation_plan.md#phase-8--operations-and-release). 환경은 1단계와 같으며, 이 브랜치는 기본 로컬 스택에서 자체 마이그레이션 체인으로 초기화한 뒤 실행되었습니다.
+
+### 테스트 묶음 실행
+
+| 명령 | 날짜 | 리비전 | 환경 | 결과 |
+|---|---|---|---|---|
+| `supabase db reset --local` | 2026-10-23 | `4fc71283` | 로컬 스택 | 마이그레이션 31개 체인이 다시 구축됨, 종료 코드 0 |
+| `supabase test db` | 2026-10-23 | `4fc71283` | 로컬 스택 | 파일 9개, pgTAP 테스트 127개 통과 |
+| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-23 | `4fc71283` | 로컬 | 모두 종료 코드 0; lint는 이 변경 이전부터 있던 경고만 보고함 |
+| `npm test` | 2026-10-23 | `4fc71283` | 로컬 | 파일 55개, 테스트 528개 통과 |
+| `npm run test:integration` | 2026-10-23 | `4fc71283` | 로컬 스택 | 71개 파일 중 70개 통과(685개 테스트 중 684개). `tests/integration/recovery.test.ts`의 "shows a re-sent input once even before its new receipt is recorded"가 영수증 2초 대기에서 한 번 실패했고 파일을 단독으로 실행하자 통과했습니다(테스트 14개). 검토 수정 이전인 `05f1f021`에서는 71개 파일과 테스트 683개가 모두 통과했습니다 |
+| `npx playwright test --workers=2` | 2026-10-23 | `4fc71283` | 로컬 스택 | 49개 중 47개 통과; `first-reply.test.ts`와 `host-setup.test.ts`의 "a new host completes setup one card at a time…"가 실행 초반에 5초 대기를 넘겼고 단독으로 실행하자 통과했습니다(테스트 9개). 기본 워커 수로 한 앞선 전체 실행은 실행 도중 로컬 Docker 데몬이 멈춰 넓게 실패했습니다 |
+
+### 항목별 증거
+
+| 항목 | 증거 |
+|---|---|
+| 진단 스냅샷과 거부 횟수 | `tests/integration/diagnostics.test.ts`: 고정된 순서의 범주 열 개와 측정되지 않은 범위; 모든 일치 항목에 대한 횟수와 오래된 것부터, 제한되고, 반복 가능한 표본; 출력에 페이로드, 결과, 종류, 실패 문구가 없음; 불확실한 예약과 이메일은 바뀌지 않은 채 보고됨; 만료된 임대는 그대로 남음; Data API 역할은 거부됨; 인식된 명령 거부는 활성화된 동안에만 집계됨; 수집이 실패하거나 멈추면 원래의 거부가 유지됨; 동시 증가 40건; 정리와 포화. 단위 테스트는 `lib/server/diagnostics.test.ts`와 `lib/server/diagnostics-admin.test.ts` |
+| 복구 | `tests/integration/recovery-operations.test.ts`: 재큐된 소진 작업은 완료되고 오래된 점유는 차단됨; 소진되지 않은 작업과 알 수 없는 작업은 거부됨; `--yes`나 입력된 ID 없이는 변경 없음; 쓰기가 유실된 예약은 기존 이벤트로 조정되며 가짜 Google Calendar에는 이벤트가 하나; 라이브 작업이 있거나 발송 중이 아닌 예약은 거부되며, 조정이 라이브인 동안 오래된 예약 작업을 재큐하는 것도 거부됨; Data API 역할은 거부됨; 복구마다 감사 행 |
+| 백업 복원 | 2026-10-23 `d6e470fa`에서 로컬 스택으로 실행한 `npm run restore:drill`: `pg_dump --format=custom`과 `pg_restore`로 `fmat_drill_restored`에 복원한 뒤 테이블 85개와 합성 행 415개가 동일하게 비교됨; 마이그레이션 이력은 양쪽 모두 `20261023063140`까지 29개 기록; 유효하지 않은 제약 조건 0개; 복원본에서 진단 스냅샷이 실행됨; 로컬 데이터베이스는 변하지 않음. `tests/integration/restore-drill.test.ts`가 훈련을 반복하고 비교가 바뀐 테이블을 지목함을 보여 줌 |
+
+| 보존 | `tests/integration/data-stewardship.test.ts`: 종료 91일 뒤의 예약된 요청은 제안, 예약, 예약 링크, 전달, 논의, 세션, 이벤트와 함께 삭제되고 모델 지출은 분리되며 Calendar 이벤트는 유지됨; 89일 전에 종료된 요청과 200일 된 열린 요청은 유지됨; 운영 규칙마다 각자의 기간; 실행당 규칙별 행 제한; 매시간 일정 |
+| 요청에 따른 삭제 | 같은 파일: 삭제된 호스트에는 핸들이 남은 정지 상태의 이름 없는 계정이 남아 `checkHandle`이 사용 중이라고 보고함; 신원, 권한 부여, 설정, 요청, 논의, Auth 사용자는 사라짐; 복원과 재삭제는 거부됨; 같은 Google subject는 새 계정을 얻음. 요청 하나는 그 대화 및 그 위에서 아직 기다리는 턴 응답과 함께 삭제됨; 예약 쓰기가 있을 수 있는 종료된 요청은 보존으로 유지됨; 예약 쓰기가 있을 수 있는 동안에는 삭제가 거부됨; Data API 역할은 모든 함수에서 거부됨. `lib/server/data-deletion.test.ts`의 단위 테스트 |
+| 데이터 고지 | 390px와 1280px에서의 `tests/e2e/privacy.test.ts`: 영어와 한국어 고지가 각 절과 함께 표시되고 가로 스크롤이 없음, 그리고 `/`와 호스트 페이지에서의 링크; `tests/e2e/requester-intake.test.ts`가 **Continue with Google** 아래의 링크를 확인함 |
+### 프로덕션 확인, 읽기 전용
+
+2026-10-23(06:55 UTC)에 구현 세션이 `findmeatime-release`의 현재 **production** 배포(`dpl_2kZrdFKxF1eukJH1irgwH4VMM9wF`, 6단계 병합보다 앞선 2026-10-23 07:02 KST의 CLI 배포)를 대상으로 실행했습니다. 아무것도 변경하지 않았습니다.
+
+| 점검 | 명령 | 결과 |
+|---|---|---|
+| 도메인 | `vercel domains inspect findmeatime.com --scope justdodos-projects` | `findmeatime-release`가 `findmeatime.com`과 `release.findmeatime.com`을 서비스함; `findmeatime-dev`는 `dev.findmeatime.com`을 보유함. 네임서버는 의도대로 Cloudflare 것을 유지함 |
+| DNS 레코드 | `cf dns records list --zone findmeatime.com` | 세 이름의 `A` 레코드가 `proxied: false`로 `76.76.21.21`을 가리킴; Cloudflare Email Routing의 MX, SPF, DKIM, DMARC 레코드는 바뀌지 않음 |
+| DNS 조회 | `dig +short A findmeatime.com @1.1.1.1`과 `release.findmeatime.com`에 대한 같은 명령 | 둘 다 `76.76.21.21` |
+| 두 오리진의 HTTPS | `/`, `/app`, `/eve/v1/health`, `/SKILL.md`, `/llms.txt`의 `curl` | 모두 200; HSTS와 Content Security Policy가 있음 |
+| 원시 런타임 경로 | 인증되지 않은 `POST /eve/v1/session` | 401 |
+| `dev.findmeatime.com` | `/`의 `curl` | 404: `findmeatime-dev`에 이를 서비스하는 현재 배포가 없으므로 스테이징은 라이브가 아님 |
+| 지연(D4) | `npm run perf:check -- --origin https://findmeatime.com`과 `--origin https://release.findmeatime.com`, 서울에서 경로마다 순차 표본 20개 | 모든 경로 통과. `findmeatime.com`: `/` p50 155ms, p95 267ms; `/SKILL.md` 269ms와 431ms; `/llms.txt` 255ms와 286ms; `/eve/v1/health` 250ms와 470ms. `release.findmeatime.com`: 200ms와 446ms; 262ms와 287ms; 250ms와 831ms; 273ms와 321ms. 승인에서 예약까지의 시간과 첫 응답 시간은 측정되지 않음 |
+| 릴리스 프로젝트 | 읽기 전용 `supabase db query --linked --project-ref mriseqztcwmezvtawnbo` | 여전히 1차 반복의 프로토타입임([공급자 설정](03_provider_setup.md#supabase-project)); 비워지지 않음 |
+

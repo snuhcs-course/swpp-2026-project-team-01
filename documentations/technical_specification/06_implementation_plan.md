@@ -342,31 +342,46 @@ Evidence: AC-05, AC-11, and real multi-turn inbox delivery with an authorized re
 
 Goal: the product can be run, inspected and recovered by the team, and released on the root domain.
 
-Scope. Prerequisite: Phase 4 for diagnostics to have something to inspect; the rest can start any time after Phase 4. All four lanes are independent.
+Scope. Prerequisite: Phase 4 for diagnostics to have something to inspect; the rest can start any time after Phase 4. All four lanes are independent of one another, and each waits for the proposal below, reviewed before any lane codes.
+
+**Proposal (serial, first)**
+
+- [x] Proposal for [`operations-and-release`](../../openspec/changes/operations-and-release/proposal.md) with the decisions to settle and the coverage table.
+- [x] [Design](../../openspec/changes/operations-and-release/design.md).
+- [x] Delta specs under [`specs/`](../../openspec/changes/operations-and-release/specs/).
+- [x] [Tasks](../../openspec/changes/operations-and-release/tasks.md).
+- [x] Owning-document updates and Korean mirrors.
+- [ ] Teammate review.
 
 **Lane A — diagnostics and recovery**
 
-- [ ] Operational diagnostics snapshot and bounded rejection observations through the administrator CLI.
-- [ ] Audited recovery operations for uncertain writes and exhausted jobs.
+- [x] Operational diagnostics snapshot and bounded rejection observations through the administrator CLI.
+- [x] Audited recovery operations for uncertain writes and exhausted jobs.
 
 **Lane B — data stewardship**
 
-- [ ] Backup restoration into an isolated database with synthetic populated state.
-- [ ] Retention and deletion rules; AI-provider data handling and consent disclosures.
+- [x] Backup restoration into an isolated database with synthetic populated state.
+- [x] Retention and deletion rules; AI-provider data handling and consent disclosures.
 
 **Lane C — environments and domain**
 
-- [ ] Release environment split: empty and link `mriseqztcwmezvtawnbo` (FindMeATime2), separate Vercel production target, migration promotion path.
-- [ ] Root-domain promotion: attach `findmeatime.com` to the release project, apply Vercel's required records through `cf` with proxying off, verify with domain inspection, DNS lookup and an HTTPS request; keep `release.findmeatime.com` working.
-- [ ] Google app verification for the sensitive Calendar scopes; Photon and AgentMail production configuration; Cloudflare custom SMTP for applicable Auth notifications.
+- [x] Migration promotion path: the manual [`Deploy release Supabase`](../../.github/workflows/deploy-release.yml) workflow in the GitHub environment `release`, which refuses any ref but `main` and a project still holding the prototype, plus the staging messaging denial so the shared project can become staging.
+- [ ] Release environment split: empty and link `mriseqztcwmezvtawnbo` (FindMeATime2), separate Vercel production target. Open: the project still holds the iteration-1 prototype (inspected read-only on 2026-10-23); emptying it, the `release` environment's secrets, and moving the shared project to `findmeatime-dev` are blocked on the user.
+- [x] Root-domain promotion: attach `findmeatime.com` to the release project, apply Vercel's required records through `cf` with proxying off, verify with domain inspection, DNS lookup and an HTTPS request; keep `release.findmeatime.com` working. Attached at the user's request on 2026-10-19; verified read-only on 2026-10-23 ([acceptance record](07_acceptance_record.md#production-checks-read-only)).
+- [ ] Google app verification for the sensitive Calendar scopes; Photon and AgentMail production configuration; Cloudflare custom SMTP for applicable Auth notifications. Open: console steps, listed in the [decision log's release checklist](08_decision_log.md#phase-8--operations-and-release) (steps 7, 8, 13 and 14); `/privacy` now gives Google's verification its privacy policy URL once deployed.
 
 **Lane D — acceptance record**
 
-- [ ] The acceptance evidence record for AC-01 through AC-28 with commands, dates, revisions and gaps, maintained from Phase 1 onward and completed here.
+- [ ] The acceptance evidence record for AC-01 through AC-28 with commands, dates, revisions and gaps, maintained from Phase 1 onward and completed here. Open: the [release summary](07_acceptance_record.md#release-summary) of 2026-10-23 gives every scenario its local evidence and production evidence where it exists; production, named-client, device and inbox cases are still pending for most scenarios.
+
+**Join**
+
+- [x] Run `npm run check`, the build, lint, typecheck, unit, integration, browser and database tests on the branch, and record the runs.
+- [ ] Run the release checklist in the [decision log](08_decision_log.md#phase-8--operations-and-release) and the production acceptance it ends with. Open: every step needs the user, a teammate or a provider console.
 
 Specs: [operational-diagnostics](../../openspec/specs/operational-diagnostics/spec.md), [email-delivery](../../openspec/specs/email-delivery/spec.md) (Auth notifications), [messaging-environments](../../openspec/specs/messaging-environments/spec.md).
 
-Decisions settled here: measurement window and numerical targets from PRD section 2; support and recovery ownership; performance targets.
+Decisions settled here: measurement window and numerical targets from PRD section 2; support and recovery ownership; performance targets. Decided on 2026-10-23 with retention, deletion, disclosures and the environment split as D1–D14 of the [`operations-and-release` proposal](../../openspec/changes/operations-and-release/proposal.md#decisions).
 
 Evidence: a complete acceptance record with no pending required client or provider case, and the release checklist in [provider setup](03_provider_setup.md#environment-and-activation-checklist) satisfied.
 
@@ -471,7 +486,7 @@ Not carried: the travel-table heuristic (replaced by Google Routes with buffers)
 | MCP protocol version, registration, scopes, CLI packaging | Phase 5 proposal | Agent-client authorization spec, CLI direction |
 | iMessage adapter, code expiry, line provisioning, the one-tap deep link | Phase 6 proposal (D1–D14 decided 2026-10-23) | Provider setup, new iMessage change |
 | AgentMail adapter and retention | Phase 7 proposal (D1–D11 decided 2026-10-22) | Provider setup |
-| Measurement targets, retention and deletion, support ownership | Phase 8 proposal | PRD sections 2 and 10 |
+| Measurement targets, retention and deletion, support ownership | Phase 8 proposal (D1–D14 decided 2026-10-23) | PRD sections 2 and 10 |
 
 ## 8. Risks
 

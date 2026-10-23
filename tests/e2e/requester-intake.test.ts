@@ -159,6 +159,11 @@ for (const viewport of [
     await expect(page.locator('[data-guest-receipt="answered"]').getByText(/waiting for review/)).toBeVisible();
     await cardsInsideThread(page);
     await noHorizontalScroll(page);
+    // The data notice's Calendar section is linked before any Google consent.
+    await baseExpect(page.locator('[data-guest-card="guest-identity"]').getByRole("link", { name: "How we use your calendar" })).toHaveAttribute(
+      "href",
+      "/privacy#calendar",
+    );
 
     await press(page, /^Continue without Google$/);
     const identity = page.locator('[data-guest-card="guest-identity"]');

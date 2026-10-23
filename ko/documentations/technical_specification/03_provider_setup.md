@@ -18,7 +18,7 @@
 
 Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-east-2`**)를 팀의 공유 프로젝트로 사용합니다. 사용 방식은 [환경과 협업](#environments-and-collaboration)을 참고하십시오. Supabase CLI 2.119.0으로 `supabase link --project-ref anelszynxtvxoxqvzgqt`를 실행해 각 클론을 연결하며, 연결 메타데이터는 Git에서 제외됩니다. 애플리케이션과 공급자 자격 증명은 이 프로젝트에 대해 검증되지 않았습니다.
 
-**`mriseqztcwmezvtawnbo`**(**FindMeATime2**, `us-west-1`, PostgreSQL 17.11)는 같은 조직에 존재하며 향후 릴리스 프로젝트로 예약되어 있습니다. 현재는 관련 없는 내용이 들어 있어 사용하기 전에 비워야 하며, 개발용으로 연결하지 않습니다. 샌드박스가 아닙니다. Phase 1은 이 프로젝트를 예약된 채로 건드리지 않았으며, 마이그레이션, 설정 푸시, 배포 모두 하지 않았습니다.
+**`mriseqztcwmezvtawnbo`**(**FindMeATime2**, `us-west-1`, PostgreSQL 17.11)는 같은 조직에 존재하며 향후 릴리스 프로젝트로 예약되어 있습니다. 현재는 관련 없는 내용이 들어 있어 사용하기 전에 비워야 하며, 개발용으로 연결하지 않습니다. 샌드박스가 아닙니다. Phase 1은 이 프로젝트를 예약된 채로 건드리지 않았으며, 마이그레이션, 설정 푸시, 배포 모두 하지 않았습니다. 2026-10-23의 읽기 전용 점검([`operations-and-release` 설계 12](../../openspec/changes/operations-and-release/design.md#12-environments))에서 1차 반복의 프로토타입이 아직 남아 있는 것을 확인했습니다. 테이블 103개와 라이브 행 84개가 있는 `fmat` 스키마, `20261011125843`까지의 마이그레이션 기록 143건, Auth 사용자 2명, Vault 비밀 5개, 매분 또는 10분마다 실행되는 `pg_cron` 작업 17개입니다. CLI의 쿼리가 임시 `cli_login_postgres` 역할을 만들었습니다. 프로젝트를 비우는 일은 사용자에게 맡깁니다.
 
 스키마 기준선과 Phase 1 마이그레이션은 2026-10-19에, Phase 2 마이그레이션은 2026-10-20에 적용되었습니다([환경과 협업](#environments-and-collaboration) 참고). 그 전에는 이 프로젝트의 애플리케이션 스키마가 비어 있었습니다. `public`에는 애플리케이션 관계(relation), 함수, 타입이 없었고, 애플리케이션 마이그레이션 기록, 예약된 작업(scheduled job), 등록된 큐도 없습니다. Supabase가 관리하는 Auth, Storage, Realtime, Vault, 네트워크, cron, 큐 인프라는 남아 있으며, Auth 신원, Storage 객체, Vault 시크릿은 없습니다. 2026-10-19에 어느 브랜치에도 속하지 않던 실험 잔여물(애플리케이션 스키마 2개, 역할 2개, 마이그레이션 기록 5개, Vault 시크릿 2개, 테스트 신원 1개)을 제거한 뒤 검증했으며, 첫 마이그레이션 전에 다시 확인하십시오. PostgreSQL은 **17.6**으로 로컬의 메이저 버전과 일치합니다. 설치된 확장은 `pg_cron` 1.6.4, `pg_net` 0.20.4, `pgmq` 1.5.1, `pgcrypto` 1.3, `pg_stat_statements` 1.11, `supabase_vault` 0.3.1, `uuid-ossp` 1.1, `plpgsql` 1.0이며, 이는 전제 조건일 뿐 애플리케이션 큐, 워커, 권한이 존재한다는 증거가 아닙니다.
 
@@ -34,7 +34,7 @@ Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-e
 |---|---|---|---|
 | 개인 샌드박스 | 각 팀원이 개인 Supabase 조직에 만든 본인의 무료 프로젝트 | 팀원 컴퓨터의 `eve dev`와 `next dev`. eve는 대화 상태를 로컬 `.eve/.workflow-data` 디렉터리에 보관하며 Docker는 필요하지 않음 | 팀원이 자유롭게 |
 | 공유 | **FindMeATime** `anelszynxtvxoxqvzgqt` | `findmeatime.com`과 `release.findmeatime.com`에서 제공되는 `findmeatime-release`의 Vercel **Production** 배포. 풀 리퀘스트는 같은 프로젝트를 대상으로 하는 Vercel **Preview** 배포를 받음 | `main`에 머지될 때 CI가 수행. 사람이 직접 변경하지 않음(아래에 기록된 예외 한 번) |
-| 릴리스 | 비운 뒤의 **FindMeATime2** `mriseqztcwmezvtawnbo` | 별도의 Vercel production 대상 | 아직 사용하지 않음. 예약된 채로 건드리지 않음 |
+| 릴리스 | 비운 뒤의 **FindMeATime2** `mriseqztcwmezvtawnbo` | 분리가 이루어진 뒤 `findmeatime.com`과 `release.findmeatime.com`을 서비스하는 `findmeatime-release`의 Vercel **Production**. 그러면 위의 공유 행은 스테이징으로서 `dev.findmeatime.com`의 `findmeatime-dev`로 옮겨집니다(D13) | GitHub 환경 승인 뒤의 `Deploy release Supabase` 워크플로; 병합된 `main` 리비전에서 저장소 소유자가 실행하는 `vercel deploy --prod`. 아직 사용하지 않음 |
 
 스키마 변경은 한 방향으로 흐릅니다.
 
@@ -51,7 +51,10 @@ Supabase 프로젝트 **`anelszynxtvxoxqvzgqt`**(**FindMeATime**, 리전 **`us-e
 
 설정: 공유 프로젝트의 URL과 키는 Git이 아니라 팀의 비밀번호 관리자를 통해 공유하며, `.env.example`에는 변수 이름만 나열합니다. Vercel 환경 변수는 Production과 Preview로 범위를 나눕니다. 로컬에서 로그인이 동작하도록 `http://localhost:3000/**`와 각 팀원의 샌드박스 콜백을 Auth 리디렉션 허용 목록과 Google OAuth 클라이언트에 등록합니다.
 
+**승격 경로(D13, D14).** 릴리스 프로젝트를 비운 뒤에는 릴리스 마이그레이션이 수동 [`Deploy release Supabase`](../../.github/workflows/deploy-release.yml) 워크플로를 통해서만 릴리스 프로젝트에 반영됩니다. 사람이 `main`에서 이를 시작하고, GitHub 환경 `release`가 릴리스 프로젝트의 `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `WORKER_URL`, `WORKER_SECRET`, `GOOGLE_CLIENT_SECRET`과 대응하는 변수를 보관하며 검토자를 요구할 수 있고, 작업은 다른 ref와 프로토타입의 `fmat` 스키마가 아직 남아 있는 프로젝트를 거부한 뒤에야 사전 실행 결과를 출력하고 푸시합니다. `APP_ORIGIN`이 설정되어 있고 `https://findmeatime.com`도 `https://release.findmeatime.com`도 아닌 프로덕션 배포는 스테이징이며 이메일과 iMessage를 보내지 않으므로([`lib/server/messaging.ts`](../../lib/server/messaging.ts)의 `RELEASE_ORIGINS`), `dev.findmeatime.com`의 `findmeatime-dev`가 공유 프로젝트를 스테이징으로 제공할 수 있습니다. 이 배포에는 `APP_ORIGIN=https://dev.findmeatime.com`을 지정합니다.
+
 다음 중 하나가 일어나기 **전에** 릴리스 환경을 분리합니다. 외부 호스트가 실제 Google 캘린더를 연결하는 경우, 팀 외부 사람들에게 실제 이메일이나 iMessage 전달을 활성화하는 경우, 스키마가 변경되어도 데이터를 유지해야 하는 경우입니다. 그 전까지는 보호할 것이 없으며 하나의 환경이 일관성을 유지하기에 더 간단합니다.
+
 
 ## Google 신원과 캘린더
 
@@ -132,4 +135,41 @@ Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code를 각각 개별적으
 
 첫 원격 애플리케이션 스키마/API 활성화 전과 각 통제된 공급자 테스트 전에, 시크릿을 출력하지 않고 로컬/프리뷰/릴리스 설정, 프로젝트에 바인딩된 자격 증명, 소비자(consumer)를 식별합니다. 이 게이트는 공급자를 활성화하는 모든 변경에 적용되며 릴리스 감사까지 미루지 않습니다. 프리뷰는 기본적으로 실제 전달을 하지 않습니다. 활성화 전에 경쟁하는 콜백/워커 소비자를 파악해 펜싱하고, 롤백 책임 주체를 유지합니다. 정확한 명령은 해당 구현이 존재하고 검증된 뒤에만 기록합니다. 원격 스키마 푸시에는 저장소 지침에 따라 식별된 대상과 검토된 드라이 런이 필요합니다.
 
-백업, 비식별 진단, 보존/삭제, 측정된 예산에는 운영 변경에서 런북이 필요합니다. 이 문서는 외부 메시징, 마이그레이션 배포, 프로덕션 승격을 허가하지 않습니다.
+백업, 비식별 진단, 보존/삭제, 측정된 예산의 런북은 아래 [운영 런북](#operations-runbook)에 있습니다. 이 문서는 외부 메시징, 마이그레이션 배포, 프로덕션 승격을 허가하지 않습니다.
+
+## 운영 런북
+
+[`operations-and-release` 변경](../../openspec/changes/operations-and-release/design.md)은 다음 운영자 절차를 추가합니다. 모든 명령은 체크아웃에서 `npm run admin --`으로 실행하며, 환경을 정확히 하나(로컬 스택은 `--local`, 또는 운영자 본인의 `SUPABASE_ACCESS_TOKEN`을 Management API로 사용하는 `--project <ref>`)와 `--operator` 이름을 지정하고, 자격 증명, 수신자, 페이로드, 메시지 본문을 절대 출력하지 않습니다. 순번을 맡은 운영자(D3)가 실행합니다.
+
+### 일일 진단
+
+- `npm run admin -- diagnostics snapshot --operator <name> --project <ref>`는 열 가지 범주를 출력합니다. 소진된 작업, 리스가 만료된 작업, 기한이 지난 작업; 쓰기가 존재할 수 있는 예약(`bookings_uncertain`)과 15분보다 오래된 예약 확보; 불확실한 트랜잭션 이메일과 스레드 답장; 불확실하거나 실패한 iMessage 발송; 실패한 대화 세션; 10분이 지나도 답이 없는 입력입니다. 각 범주는 개수, 가장 오래된 타임스탬프, 최대 20개의 식별자를 보여 줍니다(`--samples`로 줄이고, `--json`으로 객체를 출력). 만료된 리스를 포함해 아무것도 바꾸지 않으며, 비어 있는 스냅샷이 공급자나 전달이 정상이라는 증거는 아닙니다.
+- `npm run admin -- diagnostics rejections --operator <name> --project <ref>`는 현재 시간과 직전 23개 UTC 시간의 권한 거부 및 오래된 작업 횟수를 출력합니다. 배포에 `DIAGNOSTICS_REJECTIONS=1`이 설정되어 있는 동안에만, 명령 파이프라인에 도달한 실패에 한해 기록되며, 버킷은 10,000에서 멈추고 그 사실을 알립니다. 거부가 늘면 탐색 시도나 고장 난 클라이언트를, 오래된 작업이 늘면 사람들이 오래된 제안에 따라 행동하고 있음을 가리킵니다.
+
+### 복구
+
+- **소진된 작업.** 먼저 원인(공급자 장애, 철회된 자격 증명)을 고친 다음 `npm run admin -- recover job --job <id> --reason <text> --operator <name> --project <ref>`를 실행하며, `--attempts`는 `1`부터 `10`(기본 3)까지입니다. 소진된 작업만 받아들이며, 작업은 새 펜스(fence)로 대기 상태가 되어 즉시 처리 대상이 됩니다. 핸들러는 이미 부작용을 반복하지 않습니다. 발송 중으로 발견된 전달은 다시 보내지 않고 불확실로 바뀌며, 발송 중으로 발견된 예약은 조정됩니다.
+- **쓰기가 불확실한 예약**(`bookings_uncertain`). `npm run admin -- recover booking --booking <id> --reason <text> --operator <name> --project <ref>`는 대기 중이거나 실행 중인 작업이 없을 때 조정 작업 하나를 게시합니다. 고정된 ID로 이벤트를 읽어 예약을 확정하거나, 같은 고정 페이로드를 삽입하며 이벤트가 이미 있으면 Google이 거부합니다. 당사자의 **Check booking status**도 같은 일을 합니다. 이 명령은 예약을 확정 또는 실패로 표시하지 않으며 예약 확보도 해제하지 않습니다.
+- **불확실한 이메일, 스레드 답장 또는 iMessage.** 이를 다시 보내는 명령은 없습니다. 전달 계약은 도착했을 수 있는 메시지의 두 번째 발송을 금지합니다. 그 사람에게 정보가 필요하면 지원을 통해 답하십시오.
+
+두 명령 모두 환경과 작업을 출력하고, `--yes`가 없으면 입력된 ID를 요구합니다. 모든 복구는 운영자, 작업, 대상, 발견한 상태, 사유, 환경과 함께 `app.operator_operations`에 기록됩니다.
+
+### 백업 복원
+
+- **훈련.** `npm run restore:drill`(결과를 살펴보려면 `-- --keep`을 추가)은 로컬 스택의 데이터베이스 컨테이너 안에서 실행됩니다. 로컬 스키마와 마이그레이션 이력으로 `fmat_drill_source`를 만들고, 합성 픽스처 `scripts/fixtures/restore-drill.sql`로 채운 뒤, `pg_dump --format=custom`으로 백업하고, 그 백업을 비어 있는 `fmat_drill_restored`에 `pg_restore`로 복원하며, 모든 테이블의 행 수와 행 해시, 마이그레이션 이력, 제약 조건의 유효성을 비교한 다음 복원본에서 진단 스냅샷을 실행합니다. 횟수와 해시만 출력하고, 로컬 데이터베이스가 바뀌지 않았는지 확인하며, 두 데이터베이스를 삭제합니다. 출시 전과 마이그레이션을 추가하는 모든 변경 뒤에 실행하십시오. 마지막 실행은 [인수 기록](07_acceptance_record.md#phase-8--operations-and-release)에 있습니다.
+- **호스팅된 백업.** 라이브 프로젝트 위에는 절대 복원하지 말고 **새** 프로젝트에만 복원하십시오. 대시보드에서 Supabase의 일일 백업 또는 시점 복구(point-in-time restore)를 새 프로젝트로 복원하거나, `supabase db dump` 파일을 새 프로젝트의 데이터베이스에 `pg_restore`로 복원합니다. 무엇이든 그 프로젝트로 연결하기 전에 훈련의 검사와 같은 항목으로 복원된 프로젝트를 비교하십시오. 실제 백업에는 개인 정보가 들어 있으므로 공급자 안에 두고, 노트북으로 복사하거나 Git에 넣지 마십시오. 복원은 저장소 소유자의 단계입니다(D3).
+
+### 보존과 삭제
+
+- **보존**은 저절로 실행됩니다. `pg_cron` 작업 `app-retention`이 매시간 17분에 `app.cleanup_retained_records(1000)`을 호출합니다. 종료된 요청은 하위 항목 전체와 함께 종료 90일 뒤에, 완료된 작업, 명령 결과, 링크 재발송 기록, 승인 구간, 에이전트 프로토콜 시도는 30일 뒤에, 소진된 작업과 모델 예약은 90일 뒤에, 운영자 감사 행은 1년 뒤에 삭제하며, 실행 한 번당 규칙마다 최대 1,000행까지 삭제합니다. 앞선 규칙은 그대로입니다. Calendar 분석, 가입과 생성 시도, 초안은 24시간 뒤, 이메일과 iMessage 기록은 30일 뒤, 요청자 권한 부여는 종료 시점에 삭제합니다. 다음으로 확인하십시오: `select * from cron.job_run_details where jobid = (select jobid from cron.job where jobname = 'app-retention') order by start_time desc limit 5`.
+- **요청에 따른 삭제.** 요청이 계정에 등록된 주소에서 왔는지 확인한 뒤 `npm run admin -- delete-host --host <handle-or-id> --reason <text> --operator <name> --project <ref>` 또는 `npm run admin -- delete-request --request <id> --reason <text> --operator <name> --project <ref>`를 실행하십시오. 요청자의 경우 그가 보낸 예약 링크로 요청을 찾습니다: `select request_id from app.booking_links where link_hash = encode(sha256(convert_to(lower('<bookingId>'), 'UTF8')), 'hex')`(`lib/server/booking-links.ts`의 `hashBookingId`가 계산하는 해시). 호스트에게는 핸들 이력이 담긴 정지 상태의 이름 없는 계정 행만 남으므로 그 핸들은 다른 누구에게도 배정되지 않으며, `restore`는 이를 거부하고, 같은 Google 계정은 나중에 새로 가입합니다. 두 명령 모두 예약 쓰기가 있을 수 있는 동안에는 거부하므로, 먼저 `recover booking`으로 조정하십시오. 이미 만들어진 Calendar 이벤트, 본인의 메일, AgentMail 스레드, Photon 대화, OpenAI의 악용 로그는 데이터베이스 밖에 있으므로 답장에서 그렇게 알리십시오.
+- **고지.** [`/privacy`](../../apps/web/app/privacy/page.tsx)는 이 규칙을 호스트와 요청자를 위해 영어와 한국어로 밝힙니다. 보존이나 공급자가 바뀌는 변경과 같은 풀 리퀘스트에서 이 페이지도 바꾸십시오.
+
+### 지원
+
+지원 메일은 `support@findmeatime.com`으로 오며, 이는 영역의 Cloudflare MX 레코드 위에 있는 Email Routing 별칭으로 당번 운영자에게 전달됩니다(D3). 별칭을 만드는 일은 아직 하지 않은 콘솔 단계입니다. 영업일 이틀 안에 답하십시오. 토큰, 예약 링크, 다른 사람의 데이터는 답장에 붙여 넣지 마십시오.
+
+### 성능 점검
+
+`npm run perf:check -- --origin <origin> [--handle <handle>] [--samples 20]`은 `/`, `/SKILL.md`, `/llms.txt`, `/eve/v1/health`, 그리고 `--handle`이 있으면 호스트 페이지에 순차적으로 `GET` 요청을 보내며, p50이 800ms를 넘거나 p95가 2,000ms를 넘는 경로는 실패로 처리합니다(D4). 공개 페이지만 읽습니다. 프로덕션 배포마다 두 오리진을 대상으로 실행하십시오. 승인에서 예약까지의 시간과 첫 응답 시간은 아직 도구가 없으므로 측정되지 않음으로 보고합니다.
+

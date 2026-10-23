@@ -284,6 +284,7 @@
 | 따른 참조 | personal-agent 템플릿(`1c444386`의 `vercel-labs/personal-agent-template`): `agent/channels/photon.ts`(핸들은 번호 또는 Apple ID이며 D2가 이를 유지함; 메시지 텍스트가 실행 제목이 되지 않도록 고정된 실행 제목; 알 수 없는 번호에 대한 낯선 사람 세션은 따르지 않음: 세션 자체를 만들지 않음)와 `app/components/profile/PhoneInput.vue`(마스크가 있는 국가 선택기; 우리 대체 입력란은 E.164 번호를 직접 받고 공백과 구두점을 제거함). OpenInstinct(`0c2a7c6e`의 `Merit-Systems/OpenInstinct`): `agent/channels/linq.ts`와 `agent/lib/linq/transport.ts`(채널 뒤의 전송 모듈 하나, `lib/server/photon.ts`가 이를 따름), 그리고 지금은 `db/services/auth/tests/linq.test.ts`, `db/services/auth/tests/linq-delivery.test.ts`, `tests/agent/channels/linq-inbound-auth.test.ts`에 있는 테스트(결과마다 테스트 하나: 거부된 포워더, 버려지는 연결되지 않은 핸들, 범위가 정해진 검증된 핸들)이며, 우리 수신기, 채널, 발신함 테스트가 그 구성을 따릅니다. `e3c01d2`의 폐기된 반복 1 설계(발신함, 확인 응답 전 내구성 있는 웹훅, 불확실한 전송 잠금)와 eve 0.80.1에 포함된 `@photon-ai/chat-adapter-imessage`(서명 방식, 네이티브 채널 동작). 2026-10-23에 읽었으며 코드는 복사하지 않았습니다 | — | 풀 리퀘스트 | — |
 | 독립 검토 | 별도의 검토 에이전트가 풀 리퀘스트 전에 브랜치를 읽었습니다. 연결되지 않은 발신자, 그룹, 다른 호스트, 위조된 웹훅이 권한을 얻을 방법은 찾지 못했고, 중간 수준 6건과 낮은 수준 9건을 찾았습니다; 중간 수준 6건과 위에 표시한 낮은 수준 항목은 모두 회귀 테스트와 함께 한 커밋에서 고쳤습니다. 바꾸지 않은 것: 검토가 열린 질문으로 제기한 연결 간 잠금 대기는 구조를 바꾸는 대신 5초 잠금 제한시간으로 한정했고, 요청을 기다린 뒤 iOS Safari가 메시지를 여는지는 기기 확인에 맡깁니다 | 풀 리퀘스트를 먼저 여는 것 | 이 기록("검토"로 표시한 행); 수정 커밋 | — |
 | 회선 없는 스파이크 | 회선 프로비저닝과 번호로 문자 보내기는 사용자에게 막혀 있으므로, 스파이크는 eve 0.80.1에 포함된 Photon 어댑터 소스, Photon의 웹훅 문서, Spectrum SDK 12.14.0 타입 선언, PR #23으로 어댑터를 비교했고, 기기에 의존하는 사실(딥링크 동작, 실제 iPhone의 발신자 형식, 발송 경로)은 합류 단계로 남겼습니다 | 회선을 기다린 뒤 선택 | 설계 1; 이 기록 | — |
+| 마이그레이션 경로 | `20261023024435_imessage_channel.sql`을 2026-10-23에 사용자의 요청으로 `anelszynxtvxoxqvzgqt`에 `supabase db push --linked`로 푸시했으며, 해당 프로젝트에 연결된 `origin/main`의 `873804b` 임시 분리 워크트리에서 Supabase CLI 2.119.0으로 실행했습니다. 앞선 드라이 런은 이것만 나열했으므로 5단계와 7단계의 마이그레이션은 이미 적용되어 있었고, 이후 드라이 런은 원격 데이터베이스가 최신이며 마이그레이션 27개가 모두 적용되었다고 보고했습니다. `mriseqztcwmezvtawnbo`에 연결된 메인 체크아웃은 사용하지 않았습니다 | 비밀이 아직 설정되지 않은 `Deploy shared Supabase` 워크플로 | [인수 기록](07_acceptance_record.md#phase-6--host-imessage-channel) | 이후 마이그레이션이 CI를 거치도록 워크플로의 저장소 시크릿을 설정 |
 
 ### 사용자 대기 항목
 
@@ -292,7 +293,7 @@
 - **Photon 회선:** 프로비저닝된 회선이 없고 프로젝트 자격 증명도 설정되지 않았습니다.
 - **Photon 웹훅:** `{origin}/photon/webhook`에 등록된 웹훅이 없습니다.
 - **실제 번호로의 문자 발송,** 스파이크 중 포함. 통제된 iPhone을 가진 사용자가 함께 있어야 합니다.
-- **공유 프로젝트 마이그레이션과 프로덕션 배포**(이 브랜치).
+- 이 브랜치의 **프로덕션 배포**: `findmeatime-release`는 병합 이후 다시 배포되지 않았습니다. 마이그레이션은 2026-10-23에 적용했습니다(운영 결정).
 - **실제 기기 확인**(AC-16 ~ AC-18, 딥링크와 QR 코드, 발신자 식별자), 통제된 iPhone에서.
 - **팀원 검토**(D1–D14), 이어서 변경의 `openspec archive`.
 
@@ -375,4 +376,84 @@
 
 ## 8단계 — `operations-and-release`
 
-아직 결정이 없습니다.
+[제안서](../../openspec/changes/operations-and-release/proposal.md#decisions)가 D1–D14를 기록합니다. 계획은 D1–D4와 보존 및 삭제 규칙을 이 단계에 배정했고 나머지는 설계에서 제기되었습니다. 구현을 맡은 세션이 사용자의 지시(모든 결정을 기록하고 바꿀 수 있게 유지)에 따라 2026-10-23에 이를 정했으며, 아직 팀원 검토를 받은 결정은 없습니다.
+
+### 제품 결정
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| D1 | 측정 기간: 첫 외부 호스트가 릴리스 환경에 합류한 날부터 8주, 매주 보고 | 고정된 분기 단위 달력 기간; 첫 배포부터 측정 | 제안서; 설계 1; PRD 2절 | PRD와 설계 1 |
+| D2 | 목표: 예약된 요청당 호스트 조치 중앙값 2회 이하; 유효한 요청의 50 % 이상 예약; 제출부터 예약까지 중앙값 24시간 이하, p90 72시간 이하; 코드로 확인되는 제약에 대한 실행 불가능한 제안 0건; 신뢰 사고 0건. 전환율이나 속도 미달은 롤백이 아니라 검토를 시작 | 성숙한 일정 조율 제품에서 가져온 목표; 데이터가 생길 때까지 목표 없음 | 제안서; 설계 1; PRD 2절 | PRD와 설계 1 |
+| D3 | 주마다 순환하는 운영자 한 명이 매일 스냅샷을 읽고, 영업일 기준 이틀 안에 지원에 답하며, 자기 토큰으로 복구를 실행합니다. 저장소 소유자는 배포, 릴리스 마이그레이션, DNS, 콘솔을 계속 맡습니다. 지원은 `support@findmeatime.com`(Cloudflare Email Routing 별칭, 아직 만들지 않음) | 공유 개인 받은편지함; GitHub 이슈; 온콜 | 제안서; 설계 2; PRD 10절 | 설계 2와 `apps/web/app/privacy/`의 고지 |
+| D4 | `npm run perf:check`: 공개 경로마다 순차 샘플 20회에서 p50 800 ms 이하, p95 2,000 ms 이하; 승인부터 확정까지 2분 이내, 첫 스트리밍 회신은 p95 기준 10초 이내이며, 도구가 생길 때까지 측정되지 않음으로 보고 | 프로덕션 대상 부하 테스트; 출시 전 목표 없음 | 제안서; 설계 3; PRD 10절 | `scripts/perf-check.ts`의 `TARGETS` |
+| D5 | 고정된 스냅샷 범주 열 가지, 오래된 것부터, 식별자 최대 20개, 페이로드나 실패 텍스트 없음 | 종류별 세부 분류; 제공자 읽기 | 제안서; 설계 4; `operational-diagnostics` 델타 | `app.operator_diagnostics_snapshot`과 새 마이그레이션 |
+| D6 | 거절은 명령 파이프라인에서 집계(`unauthenticated`, `forbidden`; `stale_revision`, `request_closed`). `DIAGNOSTICS_REJECTIONS=1`일 때, 500 ms 제한, 시간별 24개 버킷이 10,000에서 포화 | 애플리케이션에 없는 데이터베이스 RPC 집계; 메모리 내 카운터 | 제안서; 설계 5; `operational-diagnostics` 델타 | `lib/server/diagnostics.ts`의 `REJECTION_CATEGORIES` |
+| D7 | `recover job`은 소진된 작업에만(새 시도 1~10회); `recover booking`은 라이브 작업이 없는 dispatching 예약에만 쓰이며 조정 작업 하나를 게시. 불확실한 메시지는 다시 보내지 않음; `operator_operations`에 감사 기록 | 예약의 수동 확정 또는 실패 처리; 불확실한 메시지 재전송 | 제안서; 설계 6; `operational-recovery` 델타 | `lib/server/recovery-operations.ts`와 운영자 함수 |
+| D8 | `pg_dump`와 `pg_restore`로 합성 데이터를 채운 별도 로컬 데이터베이스에 복원 훈련; 호스팅 백업은 새 프로젝트에만 복원 | 공유 프로젝트의 사본으로 훈련 | 제안서; 설계 7; `data-stewardship` 델타 | `scripts/restore-drill.ts` |
+| D9 | 종료된 요청은 종료 90일 뒤; 끝난 작업, 명령 결과, 시도 기록은 30일; 소진된 작업과 모델 예약은 90일; 운영자 감사는 1년; 시간별 패스 | 요청은 1년; 종료 시 삭제 | 제안서; 설계 8; PRD 8절 | `app.cleanup_retained_records`와 새 마이그레이션 |
+| D10 | `delete-host`와 `delete-request`를 통한 요청 시 삭제. 삭제된 호스트는 핸들 이력과 함께 정지된, 이름 없는 계정 행을 남기며 복원할 수 없음 | 플래그를 쓰는 소프트 삭제; 핸들 이력 삭제 | 제안서; 설계 9; `data-stewardship` 델타 | `app.operator_delete_host`와 `app.operator_delete_request` |
+| D11 | 저장을 끈 OpenAI 직접 호출; API 데이터로 학습하지 않음; 최대 30일의 악용 모니터링 로그; 무보존 주장은 하지 않음; 런타임 자체의 세션 사본은 패스 밖이라고 고지 | 무보존을 주장; 게이트웨이 경유 | 제안서; 설계 10; PRD 8절 | 고지 |
+| D12 | 영어와 한국어의 `/privacy`, `/`, 호스트 페이지, 예약 페이지, **Continue with Google** 카드에서 링크; 동의 체크박스 없음 | 접수 단계의 동의 체크박스; 영어만 | 제안서; 설계 11; 페이지 목록 P11 | `apps/web/app/privacy/` |
+| D13 | 릴리스: `findmeatime-release` 뒤의 `mriseqztcwmezvtawnbo`; 스테이징: `dev.findmeatime.com`의 `findmeatime-dev` 뒤의 공유 프로젝트; 릴리스 마이그레이션은 환경 승인을 거치는 수동 워크플로로 | 단일 환경 유지; 릴리스용 두 번째 Vercel 프로젝트 | 제안서; 설계 12; 제공자 설정 | `.github/workflows/deploy-release.yml`과 제공자 설정 |
+| D14 | `APP_ORIGIN`이 설정되어 있지만 릴리스 출처가 아닌 프로덕션 배포는 스테이징이며 메시지 발송이 거부됨 | 릴리스 프로젝트의 새 옵트인 변수. 설정할 때까지 프로덕션 메일이 멈추게 됨 | 제안서; 설계 12; `messaging-environments` 델타 | `lib/server/messaging.ts`의 `RELEASE_ORIGINS` |
+
+### 구현 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 스냅샷 형태 | `app.operator_diagnostics_snapshot`이 만드는 `jsonb` 객체 하나이며, `app.diagnostics_category`가 상수 쿼리 열 개로 구성합니다. 세션은 런타임 세션 ID가 아니라 저장된 해시로 식별합니다 | 범주마다 뷰 하나; CLI에서 범주마다 쿼리 하나 | `supabase/schemas/app/functions/operator_diagnostics.sql` | 함수와 새 마이그레이션 |
+| 버킷 정렬 | `date_bin('1 hour', …, '2000-01-01 00:00:00+00')`, 세션 시간대에 의존하지 않으며 테이블의 체크 제약에도 사용합니다 | `date_trunc('hour', …)`, 세션의 `TimeZone`을 따릅니다 | `rejection_observations` 스키마 | 테이블, 함수, 새 마이그레이션 |
+| 수집 지점 | `runCommand`에서 `commandFailure` 뒤에, `deps.db`(풀)와 `deps.env`로 실행하므로 롤백된 명령 트랜잭션이 횟수를 잃게 하지 않고 테스트의 환경이 결정합니다 | 명령 트랜잭션 안; 각 라우트 안 | `lib/server/commands.ts` | `lib/server/diagnostics.ts`의 `observeRejection` |
+| CLI 구성 | 공유 헬퍼는 `lib/server/operator-shared.ts`로 옮기고, 진단은 `lib/server/diagnostics-admin.ts`에 두며, `operator.ts`는 첫 단어로 분기합니다 | 계속 커지는 `operator.ts` 하나 | 해당 모듈들 | — |
+| 출력 | 기본은 읽기 쉬운 줄이고, `--json`은 환경을 더한 데이터베이스의 객체를 출력합니다. 모두 0인 스냅샷은 정상의 증거가 아님을 출력합니다 | JSON만 | `lib/server/diagnostics-admin.ts` | 같은 파일의 `printSnapshot`과 `printRejections` |
+| 재큐 시도 횟수 | 기본 3회, 복구 한 번당 최대 10회이며, 테이블의 총 한도 100회를 넘지 않습니다 | 시도 횟수 카운터 초기화: 작업이 몇 번 실패했는지 가려집니다 | `app.operator_requeue_job` | 함수와 `lib/server/recovery-operations.ts` |
+| 조정 작업 | 종류 `booking`, `bookingId` 페이로드, 승인 작업과 같은 8회 시도, 감사 행을 이름으로 가리키는 중복 제거 키, 그리고 올바른 워커가 가져가도록 `--project`에는 생산자 환경 `production`, `--local`에는 `local` | CLI에서 예약 핸들러를 직접 호출하기: 운영자의 컴퓨터에 호스트의 Calendar 자격 증명이 필요해집니다 | `app.operator_reconcile_booking` | 함수와 `lib/server/recovery-operations.ts`의 `producerFor` |
+| 복구 감사 | 외래 키가 없는 `operator_operations`이며, 레인 B의 삭제에도 사용합니다. 정지 감사는 `operator_actions`에 그대로 둡니다 | 모든 운영자 작업을 위한 감사 테이블 하나: 2단계의 테이블이 바뀝니다 | `operator_operations` 스키마 | 테이블과 새 마이그레이션 |
+| 확인 | 공유 `confirmChange`가 환경과 작업을 출력하고 입력된 ID를 대소문자 구분 없이 비교합니다 | 명령마다 별도의 프롬프트 | `lib/server/operator-shared.ts` | 그 안의 `confirmChange` |
+| 훈련 데이터베이스 | 로컬 스택 컨테이너 안의 데이터베이스 두 개이며, `auth` 스키마를 읽을 수 있는 `supabase_admin`으로 훈련이 만들고 삭제하고, 덤프 파일은 컨테이너 안에 머물렀다가 삭제됩니다 | 두 번째 Postgres 컨테이너; 호스트 디스크의 덤프 | `scripts/restore-drill.ts` | 그 안의 `SOURCE`, `RESTORED`, `DUMP` |
+| 훈련 비교 | `app`, `auth`, `supabase_migrations`에 대해 테이블별 행 수와 정렬된 모든 행의 텍스트 형태에 대한 MD5, 그리고 마이그레이션 이력과 `pg_constraint.convalidated` | 행 수만 비교하기 | `scripts/restore-drill.ts` | 그 안의 `tableFingerprints` |
+| 요청 삭제 순서 | `app.delete_request_records`가 먼저 요청의 논의(호스트 검토, 요청자의 논의, 공개 페이지 접수의 논의)를 삭제하며 `deleteDraft`처럼 세션에서 모델 지출을 분리하고, 이어서 요청을 삭제하면 외래 키가 나머지로 연쇄 삭제됩니다 | 제한적 외래 키를 연쇄 삭제로 바꾸기 | `supabase/schemas/app/functions/data_deletion.sql` | 그 함수와 새 마이그레이션 |
+| 호스트 삭제 범위 | `host_accounts`를 가리키는 외래 키가 있는 모든 테이블(`host_handles`, `handle_assignments`, `operator_actions` 제외)을 `pg_constraint`에서 읽고, 여기에 호스트의 논의와 명령 결과, 그리고 `auth.users` 행을 더합니다. `host_accounts.deleted_at`에는 삭제된 행이 정지 상태이고 이름이 없어야 한다는 검사를 둡니다 | 고정된 테이블 목록: 나중에 추가되는 테이블이 빠져나갑니다 | `app.operator_delete_host`; `host_accounts` 스키마 | 그 함수와 새 마이그레이션 |
+| 예약 쓰기 중의 삭제 | `dispatching` 예약이 있는 요청이나 호스트는 거부하고 `recover booking`을 안내합니다 | 그래도 삭제하기: 예약이 더는 없는 이벤트가 남을 수 있습니다 | `app.operator_delete_request`, `app.operator_delete_host` | 그 함수들 |
+| 보존의 한도와 시각 | 실행당 규칙마다 1,000행, 매시간 17분: 15분 단위 정리와 겹치지 않습니다 | 하루에 한 번 제한 없는 일괄 처리 | `supabase/schemas/app/cron/retention.sql` | 일정과 새 마이그레이션 |
+| 고지 링크 | 공개 페이지의 시작 문구 아래 한 줄(호스트 페이지와 예약 페이지에 표시), **Continue with Google** 카드의 버튼 아래 "How we use your calendar", 그리고 `/`의 바닥글 링크 | 루트 레이아웃의 사이트 전체 바닥글: 화면 전체 높이의 대화 페이지가 이를 숨겨야 합니다 | `apps/web/app/_components/guest/guest-workspace.tsx`, `apps/web/app/page.tsx` | 그 파일들 |
+| 고지 언어 | `?lang=ko`를 쓰는 페이지 하나이며, 주장이 파일 하나 곁에 있도록 본문을 페이지 모듈에 둡니다 | 언어별 별도 경로; CMS | `apps/web/app/privacy/page.tsx` | 그 페이지 |
+| 스테이징 판정 | `isStagingOrigin`은 `APP_ORIGIN`을 파싱한 출처를 `RELEASE_ORIGINS`와 정확히 비교하므로, 비슷하게 생긴 호스트나 `http://`는 스테이징이고 읽을 수 없는 값도 스테이징입니다. 작업 워커는 `messagingAdmitted`를 통해 이를 물려받아 스테이징에서는 어떤 전달 종류도 가져가지 않습니다 | 부분 문자열 또는 접미사 일치 | `lib/server/messaging.ts` | 그곳의 `RELEASE_ORIGINS`와 `isStagingOrigin` |
+| 릴리스 워크플로 방어 | `workflow_dispatch`만, GitHub 환경 `release`, `main`이 아니면 실패하는 단계, 사전 실행 전에 `fmat` 스키마가 존재하면 실패하는 단계 | 공유 워크플로처럼 병합 시 푸시하기 | `.github/workflows/deploy-release.yml` | 그 워크플로 |
+| 호스트 삭제 잠금(검토) | `operator_delete_host`는 발송 중인 예약이 있는지 확인하기 전에 호스트의 모든 요청을 잠급니다. 예약 워커는 호스트 행을 건드리지 않고 요청 잠금 아래에서 발송을 커밋하기 때문입니다 | 요청 잠금 없이 확인하기: 그사이에 커밋되는 발송이 통과해 버립니다 | 마이그레이션 `20261023070353_operations_review_fixes.sql` | `app.operator_delete_host` |
+| 대기 중인 턴 응답(검토) | 논의를 삭제할 때는 먼저 그 입력을 기다리는 이메일 응답과 iMessage 메시지를 삭제합니다. 이들은 더 이상 전송될 수 없고 발신함의 턴 입력 확인을 깨뜨리기 때문입니다 | 연쇄 삭제가 `input_id`를 null로 설정하게 두기: 삭제와 모든 보존 실행이 중단되었습니다 | `app.delete_discussion_records` | 그 함수 |
+| 보존 방어(검토) | 발송 중인 예약이 있는 종료된 요청은 조정될 때까지 유지하며, 각 삭제가 넓게 연쇄되므로 실행당 종료된 요청은 최대 100건만 삭제합니다 | 요청과 행에 하나의 `row_limit` 쓰기 | `app.cleanup_retained_records` | 그 함수 |
+| 예약 재큐(검토) | `recover job`은 `recover booking`처럼 같은 예약의 다른 작업이 라이브인 동안 예약 작업을 거부합니다 | 한 예약의 조정 두 번 | `app.operator_requeue_job` | 그 함수 |
+| 훈련 격리(검토) | 훈련 중 로컬 데이터베이스가 바뀌면 경고로 처리합니다. 로컬 스택의 일정이나 개발 서버가 쓸 수 있기 때문입니다 | 훈련 실패 처리 | `scripts/restore-drill.ts` | 그곳의 최종 점검 |
+| 훈련 픽스처 | 생성된 호스트, 신원, 핸들, 설정, 다섯 가지 상태의 요청, 예약 링크, 전달, 작업, 명령 결과, 운영자 작업, 거부 구간을 담은 일반 SQL 파일이며 주소는 모두 `example.test`이고, `supabase test db`가 `supabase/tests/` 아래의 모든 SQL 파일을 실행하므로 `scripts/fixtures/`에 둡니다 | 통합 스위트를 원본에 실행하기 | `scripts/fixtures/restore-drill.sql` | 그 픽스처 |
+
+### 운영 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 릴리스 프로젝트 점검 | 저장소를 프로젝트에 연결하지 않고 2026-10-23에 `supabase db query --linked --project-ref mriseqztcwmezvtawnbo`로 읽기 전용 쿼리를 실행했으며, CLI가 프로젝트에 임시 `cli_login_postgres` 로그인 역할을 만들었습니다 | 체크아웃을 프로젝트에 연결하기 | 설계 12; 제공자 설정 | — |
+| 공유 프로젝트 상태 | 2026-10-23의 읽기 전용 쿼리에서 6단계의 `20261023024435_imessage_channel.sql`까지 모든 마이그레이션이 `anelszynxtvxoxqvzgqt`에 적용되어 있음을 확인했습니다(그날 사용자의 요청으로 푸시함; 6단계 운영 결정). `Deploy shared Supabase` 워크플로는 비밀이 없어 푸시마다 여전히 실패하는데도 그렇습니다. 이 단계는 마이그레이션을 하나 더 추가하며, 아직 적용되지 않았습니다 | 6단계와 7단계 마이그레이션이 빠져 있다고 가정하기 | 이 기록 | — |
+| 독립 검토 | 별도의 검토 에이전트가 풀 리퀘스트 전에 브랜치의 코드를 읽었습니다. 높음 판정 하나(호스트 삭제가 예약 발송과 경합할 수 있음), 중간 판정 둘, 낮음 판정 셋을 회귀 테스트와 마이그레이션 하나와 함께 한 커밋으로 고쳤으며, 경합 자체에는 자동 테스트가 없습니다 | 풀 리퀘스트를 먼저 열기 | 이 기록("검토"로 표시된 행); 수정 커밋 | — |
+| 워크플로 린트 | GitHub 릴리스에서 세션의 임시 디렉터리로 내려받은 `actionlint` 1.7.7로 두 배포 워크플로를 모두 점검했으며, 저장소나 CI에는 추가하지 않습니다 | 이번 변경에서 CI에 추가하기 | 이 기록 | — |
+| 루트 도메인 | 반복하지 않음: `findmeatime.com`과 `release.findmeatime.com`은 2026-10-19부터 `findmeatime-release`에 있으며, 2026-10-23에 읽기 전용으로 확인했습니다 | 도메인 다시 연결 | 설계 12; 인수 기록 | — |
+
+### 사용자 대기 항목
+
+다음 단계는 되돌려도 취소할 수 없거나, 제공자 콘솔이 필요하거나, 공유 환경 또는 릴리스 환경을 바꾸기 때문에 수행하지 않았습니다. 이것이 릴리스 체크리스트이며, 릴리스가 필요로 하는 순서대로 나열하고 각 단계가 무엇에 의존하는지 적습니다.
+
+1. D1–D14와 풀 리퀘스트에 대한 **팀원 검토**, 이어서 일반 병합(관리자 우회 없음).
+2. `Deploy shared Supabase`용 **저장소 비밀과 변수**: 비밀 `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `WORKER_URL`, `WORKER_SECRET`, `GOOGLE_CLIENT_SECRET`과 변수 `SUPABASE_AUTH_SITE_URL`, `SUPABASE_AUTH_ADDITIONAL_REDIRECT_URLS`, `GOOGLE_CLIENT_ID`. 설정하기 전에는 `main`에 푸시할 때마다 워크플로가 실패합니다.
+3. **공유 프로젝트의 이 단계 마이그레이션**(`20261023062139_operational_diagnostics.sql`, `20261023063140_operator_recovery.sql`, `20261023063957_data_stewardship.sql`, `20261023070353_operations_review_fixes.sql`): 2단계가 끝나면 워크플로로, 아니면 사용자의 승인 아래 `supabase db push --linked --dry-run` 뒤에 수동으로. 이전 마이그레이션은 모두 이미 적용되어 있습니다.
+4. `findmeatime-release`로의 **`main` 프로덕션 배포**(깨끗한 체크아웃에서 `vercel deploy --prod`)로, `/privacy`를 포함한 6, 7, 8단계가 반영됩니다. 이어서 두 오리진에 `npm run perf:check`를, 그리고 `npm run admin -- diagnostics snapshot --operator <name> --project anelszynxtvxoxqvzgqt`를 실행합니다.
+5. 팀이 거부 횟수를 원한다면 Vercel Production의 **`DIAGNOSTICS_REJECTIONS=1`**.
+6. 교대 근무 중인 운영자에게 가는 Cloudflare Email Routing 규칙으로 만든 **지원 별칭** `support@findmeatime.com`. `/privacy`가 이미 이를 명시합니다.
+7. **Google**: OAuth 앱을 **In production**으로 옮기고, 홈페이지 `https://findmeatime.com`과 개인정보 처리방침 `https://findmeatime.com/privacy`로 Calendar 스코프 검증을 제출합니다(4단계 필요).
+8. 프로덕션이 사용하는 프로젝트에서 `no-reply@findmeatime.com`으로 보내는 해당 Supabase Auth 알림용 **Cloudflare 사용자 정의 SMTP**.
+9. **릴리스 프로젝트 `mriseqztcwmezvtawnbo` 비우기**: 1차 반복 프로토타입의 `fmat` 스키마, `pg_cron` 작업 17개, Vault 비밀 5개, Auth 사용자 2명, 마이그레이션 기록 143개, 그리고 CLI의 `cli_login_postgres` 역할. 파괴적이며, `fmat` 스키마가 사라지기 전에는 워크플로가 이 프로젝트를 거부합니다.
+10. 필수 검토자와 릴리스 프로젝트의 비밀 및 변수를 갖춘 **GitHub 환경 `release`**(2단계와 같되 새 `WORKER_SECRET` 사용); Google OAuth 클라이언트에 `https://mriseqztcwmezvtawnbo.supabase.co/auth/v1/callback`을 추가하고, `main`에서 `Deploy release Supabase`를 실행합니다.
+11. **프로덕션을 릴리스 프로젝트로 전환**: `findmeatime-release` Production의 `DATABASE_URL`, `SUPABASE_URL`, 키를 이 프로젝트로 돌리고 새 `TOKEN_ENCRYPTION_KEY`, `EVE_INTERNAL_SIGNING_KEY`, `AGENT_TOKEN_SIGNING_KEY`를 설정한 뒤 다시 배포하며, 실제 데이터가 생기면 [제공자 설정](03_provider_setup.md#backup-restoration)이 설명하는 대로 호스팅된 백업을 새 프로젝트에 복원합니다. 공유 프로젝트의 데이터는 옮겨 가지 않습니다.
+12. **스테이징**: `findmeatime-dev`에 `APP_ORIGIN=https://dev.findmeatime.com`과 자체 키로 공유 프로젝트의 값을 주고 배포하며, 공유 워크플로의 `WORKER_URL`과 Auth 사이트 URL을 `dev.findmeatime.com`으로 옮깁니다.
+13. **Photon**: 회선을 프로비저닝하고, 웹훅을 `https://findmeatime.com/photon/webhook`에 등록하고, 프로덕션에 `PHOTON_*` 변수를 설정합니다(6단계).
+14. **AgentMail**: `findmeatime@agentmail.to`(받은편지함 세 개 제한에 막힘), 그 웹훅, `AGENTMAIL_*` 변수, 그리고 `npm run admin -- email-receiver register … --project <release ref>`를 만듭니다(7단계).
+15. `findmeatime-release`의 **오래된 프로토타입 변수 제거**.
+16. **프로덕션 인수**: [personal-agent 클라이언트](09_agent_clients.md)의 명명된 클라이언트 점검, 통제된 iPhone 실행, 실제 받은편지함 전달, 손님의 받은편지함 확인, 로그인한 설정을 [릴리스 요약](07_acceptance_record.md#release-summary)에 맞춰 기록하고, 이어서 `openspec archive operations-and-release`.

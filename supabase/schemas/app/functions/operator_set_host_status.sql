@@ -35,6 +35,11 @@ BEGIN
     RAISE EXCEPTION 'unknown host' USING ERRCODE = 'P0002';
   END IF;
 
+  -- A host whose data was deleted on request is never restored or changed.
+  IF EXISTS (SELECT 1 FROM app.host_accounts a WHERE a.id = account_id AND a.deleted_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'deleted host' USING ERRCODE = '55000';
+  END IF;
+
   UPDATE app.host_accounts a SET status = new_status, updated_at = now() WHERE a.id = account_id;
 
   INSERT INTO app.operator_actions (operator, action, host_account_id, previous_status, reason, environment)

@@ -1,0 +1,278 @@
+{
+  "branch": "feat/operations-and-release",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 540,
+          "cache_read": 107167977,
+          "cache_write_5m": 0,
+          "cache_write_1h": 456823,
+          "output": 235693,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T06:06:55.732Z",
+      "last": "2026-10-23T07:39:42.406Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-a0606d4fc3ad767cb": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 14,
+          "cache_read": 596665,
+          "cache_write_5m": 69688,
+          "cache_write_1h": 0,
+          "output": 10292,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T06:57:35.686Z",
+      "last": "2026-10-23T06:58:55.861Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-a06971a0dab44c574": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 10,
+          "cache_read": 330235,
+          "cache_write_5m": 86389,
+          "cache_write_1h": 0,
+          "output": 1241,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T06:13:56.317Z",
+      "last": "2026-10-23T06:14:15.425Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-a30dd955c8d3fd292": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 18,
+          "cache_read": 782133,
+          "cache_write_5m": 68237,
+          "cache_write_1h": 0,
+          "output": 8960,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T07:00:46.171Z",
+      "last": "2026-10-23T07:01:58.161Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-a3e296f381b5bc129": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 10,
+          "cache_read": 315885,
+          "cache_write_5m": 98065,
+          "cache_write_1h": 0,
+          "output": 1268,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T07:09:55.645Z",
+      "last": "2026-10-23T07:24:47.675Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-a428ebae04e0c8c09": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 16,
+          "cache_read": 652140,
+          "cache_write_5m": 59886,
+          "cache_write_1h": 0,
+          "output": 7063,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T06:53:29.962Z",
+      "last": "2026-10-23T06:54:49.396Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-a54e01f0109c5abf0": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 14,
+          "cache_read": 566372,
+          "cache_write_5m": 61961,
+          "cache_write_1h": 0,
+          "output": 4309,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T06:32:57.270Z",
+      "last": "2026-10-23T06:33:38.648Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-a5e5da61309092661": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 18,
+          "cache_read": 708471,
+          "cache_write_5m": 98009,
+          "cache_write_1h": 0,
+          "output": 7237,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T06:29:44.970Z",
+      "last": "2026-10-23T06:31:01.705Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-a7a4bd44d3059cf39": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 14,
+          "cache_read": 558755,
+          "cache_write_5m": 59748,
+          "cache_write_1h": 0,
+          "output": 5792,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T06:37:10.947Z",
+      "last": "2026-10-23T06:38:03.504Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-a85575775269071d9": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 10,
+          "cache_read": 339944,
+          "cache_write_5m": 94397,
+          "cache_write_1h": 0,
+          "output": 5007,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T06:49:31.239Z",
+      "last": "2026-10-23T06:50:09.384Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-a9b8f70e5d2867f10": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 12,
+          "cache_read": 470123,
+          "cache_write_5m": 60104,
+          "cache_write_1h": 0,
+          "output": 3441,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T06:56:18.464Z",
+      "last": "2026-10-23T06:56:47.795Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-aba50d0911e05147b": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 18,
+          "cache_read": 761025,
+          "cache_write_5m": 61577,
+          "cache_write_1h": 0,
+          "output": 3792,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T07:05:39.483Z",
+      "last": "2026-10-23T07:06:18.122Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-aceeaacb606333d6c": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 26,
+          "cache_read": 1210241,
+          "cache_write_5m": 111996,
+          "cache_write_1h": 0,
+          "output": 12082,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T06:19:45.291Z",
+      "last": "2026-10-23T06:21:35.326Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-adbeff56b1f9d1006": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 40,
+          "cache_read": 2461598,
+          "cache_write_5m": 157714,
+          "cache_write_1h": 0,
+          "output": 15315,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T06:57:51.579Z",
+      "last": "2026-10-23T07:00:49.343Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-ae0f266cb699f008d": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 12,
+          "cache_read": 413105,
+          "cache_write_5m": 85403,
+          "cache_write_1h": 0,
+          "output": 1333,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T07:22:34.581Z",
+      "last": "2026-10-23T07:24:57.070Z"
+    },
+    "claude:8c4c3574-96bd-46cd-bc74-cf49bbd867ee/agent-af131b930e1432de9": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 14,
+          "cache_read": 419903,
+          "cache_write_5m": 177752,
+          "cache_write_1h": 0,
+          "output": 3257,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-23T07:30:41.893Z",
+      "last": "2026-10-23T07:39:34.838Z"
+    }
+  }
+}
