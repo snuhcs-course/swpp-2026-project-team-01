@@ -7,8 +7,10 @@ import { createImessageSendHandler, IMESSAGE_SEND_JOB, type ImessageSendDependen
 import { createImessageReceiptHandler, type ImessageReceiptDependencies } from "../../../lib/server/imessage-receipts";
 import { photonConfig } from "../../../lib/server/photon";
 import { IMESSAGE_RECEIPT_JOB, receivePhotonWebhook } from "../../../lib/server/photon-receiver";
+import { linkMessage } from "../../../lib/contracts/imessage";
+import { createGoogleUser } from "./auth";
 import type { FakePhoton } from "./fake-photon";
-import { type MessageFixture, messagesEvent, signedWebhook, TEST_LINE, TEST_WEBHOOK_ID, TEST_WEBHOOK_SECRET } from "./photon";
+import { type MessageFixture, messagesEvent, newSender, signedWebhook, TEST_LINE, TEST_WEBHOOK_ID, TEST_WEBHOOK_SECRET } from "./photon";
 import { runJob, testTokenKey } from "./requests";
 
 // The iMessage suites' shared harness: delivers a message the way Photon would
@@ -100,6 +102,18 @@ export function imessageHarness(
       const result = await runJob(db, job!.id, createImessageSendHandler(() => deps));
       return { result, sent: photon().sends.slice(before) };
     },
+    // Links a sender to the host the way the card and the host's message do.
+    async link(hostAccountId: string, sender: string = newSender()) {
+      await this.command(hostAccountId, "imessage.link.create");
+      const pending = await this.status(hostAccountId);
+      if (pending.state !== "pending") throw new Error(`Expected a pending code, got ${pending.state}.`);
+      await this.deliver({ sender, text: linkMessage(pending.code) });
+      const received = await this.status(hostAccountId);
+      if (received.state !== "received") throw new Error(`Expected a received code, got ${received.state}.`);
+      const confirmed = await this.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId });
+      if (!confirmed.ok) throw new Error("Confirming the link failed.");
+      return { hostAccountId, message: linkMessage(pending.code), sender };
+    },
     async bindingOf(hostAccountId: string) {
       const [row] = await db<{ id: string; state: string; sender_hash: string; space_ciphertext: string | null; selected_request_id: string | null }[]>`
         select id, state, sender_hash, space_ciphertext, selected_request_id from app.imessage_bindings
@@ -112,4 +126,16 @@ export function imessageHarness(
 
 export function textOf(sent: { readonly content: { readonly kind: string; readonly text?: string } }[]) {
   return sent.map((send) => (send.content.kind === "text" ? send.content.text : `[${send.content.kind}]`));
+}
+
+// A host account behind a real local Auth user and Google identity, as sign-in
+// leaves it, so the channel can act as that host's user.
+export async function hostWithUser(db: Database) {
+  const user = await createGoogleUser(db);
+  const [account] = await db<{ id: string }[]>`insert into app.host_accounts default values returning id`;
+  await db`
+    insert into app.google_identities (google_subject, host_account_id, auth_user_id, email)
+    values (${user.googleSubject}, ${account!.id}, ${user.userId}, ${user.email})
+  `;
+  return { hostAccountId: account!.id, userId: user.userId };
 }

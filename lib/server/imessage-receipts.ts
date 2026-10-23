@@ -1,11 +1,12 @@
 import { database, type Database, type Transaction } from "./database";
 import { findLinkCode } from "./email-links";
-import { receiveLinkCode } from "./imessage-links";
+import { activeBindingOfSender, bindingContext, receiveLinkCode, refusalSentRecently } from "./imessage-links";
+import { recordOutbound } from "./imessage-outbox";
 import type { JobHandler } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
 import { photonConfig, type PhotonConfig, photonTransport, SPECTRUM_ENDPOINT } from "./photon";
 import { receiptSealContext } from "./photon-receiver";
-import { openToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
+import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // The imessage_receipt job (host-imessage-channel design 7): what one stored
 // Photon receipt may do. It checks messaging admission first, then opens the
@@ -14,8 +15,15 @@ import { openToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encry
 //   - an earlier receipt of the same conversation still unprocessed fails the
 //     attempt, so a later message never overtakes it;
 //   - a message carrying an FMAT- code is linking (imessage-links.ts) and never
-//     reaches the model.
-// The outcome is recorded with the sealed values cleared in the same write.
+//     reaches the model;
+//   - a sender with no active binding, or whose host may no longer host, gets
+//     one fixed reply a day pointing to /app and no session (D10);
+//   - content other than text gets one fixed reply;
+//   - otherwise the bound host's message goes on to the channel (commands and
+//     forwarding).
+// The outcome is recorded with the sealed values cleared in the same write. An
+// admission limit fails the attempt, so the receipt waits and retries no earlier
+// than the job's backoff, and the ordering check keeps later messages behind it.
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -87,7 +95,30 @@ export class EarlierReceiptPendingError extends Error {
   }
 }
 
-export async function processReceipt(tx: Transaction, deps: ImessageReceiptDependencies, receipt: OpenedReceipt): Promise<ReceiptOutcome> {
+export const CHANNEL_TEXTS = {
+  unlinked: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect iMessage.",
+  textOnly: "I can read text messages only.",
+} as const;
+
+// A bound host's message, with what the channel needs to act as that host.
+export type BoundMessage = {
+  readonly receipt: OpenedReceipt;
+  readonly text: string;
+  readonly bindingId: string;
+  readonly hostAccountId: string;
+  readonly authUserId: string;
+  readonly selectedRequestId: string | null;
+  readonly recipient: { readonly address: string; readonly spaceId: string };
+};
+
+export type ChannelProcessor = (deps: ImessageReceiptDependencies, message: BoundMessage) => Promise<ReceiptOutcome>;
+
+export async function processReceipt(
+  tx: Transaction,
+  deps: ImessageReceiptDependencies,
+  receipt: OpenedReceipt,
+  channel: ChannelProcessor | null = null,
+): Promise<ReceiptOutcome> {
   if (receipt.spaceType !== "dm" || receipt.contentType === "reaction") return "ignored";
 
   const code = receipt.text ? findLinkCode(receipt.text) : null;
@@ -103,7 +134,67 @@ export async function processReceipt(tx: Transaction, deps: ImessageReceiptDepen
     });
   }
 
-  return "ignored";
+  const recipient = { address: receipt.sender, spaceId: receipt.spaceId };
+  const binding = await activeBindingOfSender(tx, receipt.senderHash);
+  const [host] = binding
+    ? await tx<{ status: string; auth_user_id: string | null }[]>`
+        select a.status, i.auth_user_id from app.host_accounts a
+        left join app.google_identities i on i.host_account_id = a.id
+        where a.id = ${binding.host_account_id}
+      `
+    : [];
+
+  if (!binding || host?.status !== "active" || !host.auth_user_id) {
+    if (await refusalSentRecently(tx, receipt.senderHash)) return "ignored";
+    await recordOutbound(tx, {
+      dedupeKey: `receipt:${receipt.id}`,
+      kind: "unlinked_sender",
+      recipient,
+      recipientHash: receipt.senderHash,
+      text: CHANNEL_TEXTS.unlinked,
+      tokenKey: deps.tokenKey,
+    });
+    return "unlinked_reply";
+  }
+
+  // The conversation the host writes from is where replies go; a fallback
+  // binding learns it from the host's first message.
+  const space = sealToken({ id: binding.sealed_key_id, key: keyFor(deps, binding.sealed_key_id) }, receipt.spaceId, bindingContext(binding.id));
+  await tx`
+    update app.imessage_bindings set space_ciphertext = ${space.ciphertext}, last_inbound_at = now()
+    where id = ${binding.id} and state = 'active'
+  `;
+
+  if (receipt.contentType !== "text" || !receipt.text?.trim()) {
+    await recordOutbound(tx, {
+      bindingId: binding.id,
+      dedupeKey: `receipt:${receipt.id}`,
+      hostAccountId: binding.host_account_id,
+      kind: "text_only",
+      recipient,
+      recipientHash: receipt.senderHash,
+      text: CHANNEL_TEXTS.textOnly,
+      tokenKey: deps.tokenKey,
+    });
+    return "replied";
+  }
+
+  if (!channel) return "ignored";
+
+  return channel(deps, {
+    authUserId: host.auth_user_id,
+    bindingId: binding.id,
+    hostAccountId: binding.host_account_id,
+    receipt,
+    recipient,
+    selectedRequestId: binding.selected_request_id,
+    text: receipt.text.trim(),
+  });
+}
+
+function keyFor(deps: ImessageReceiptDependencies, keyId: string) {
+  const key = deps.tokenKeys.find((candidate) => candidate.id === keyId) ?? deps.tokenKey;
+  return key.key;
 }
 
 async function record(q: Transaction | Database, receiptId: string, outcome: ReceiptOutcome) {
