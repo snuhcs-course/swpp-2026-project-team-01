@@ -1,6 +1,6 @@
 # Acceptance Record
 
-Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) released and checked on production; the guest's inbox check pending; Phase 5 (`agent-access`) local evidence recorded, named-client and production evidence pending; Phase 7 (`requester-email-channel`) local evidence recorded, inbox and production evidence pending; open gaps listed below
+Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) released and checked on production; the guest's inbox check pending; Phase 5 (`agent-access`) local evidence recorded, named-client and production evidence pending; Phase 6 (`host-imessage-channel`) local evidence recorded, line, device and production evidence pending; Phase 7 (`requester-email-channel`) local evidence recorded, inbox and production evidence pending; open gaps listed below
 
 Date: 2026-10-23
 
@@ -286,6 +286,48 @@ Local evidence only; each names the test that shows it.
 - **Named clients.** Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code have not run in either role; AC-14, AC-15 and AC-19 to AC-25 stay open for each until [personal-agent clients](09_agent_clients.md) records them. An unresolved client is a release blocker.
 - **Production.** The migration, the signing keys and the deploy are pending (decision log, "Blocked on the user").
 - **The CLI's system stores.** The macOS Keychain and Secret Service paths were not exercised by the suites, which use the file store.
+
+## Phase 6 — `host-imessage-channel`
+
+Change: [`host-imessage-channel`](../../openspec/changes/host-imessage-channel/tasks.md). Evidence list: [Phase 6](06_implementation_plan.md#phase-6--host-imessage-channel). Environments as in Phase 1, with the default local stack, and a loopback Photon stand-in (`tests/integration/support/fake-photon.ts`, and `tests/e2e/support/fake-photon-server.ts` for the browser tests) that records sends and can refuse a send or drop its answer. Inbound messages were signed with Photon's documented scheme (`tests/integration/support/photon.ts`). No Photon line exists, no webhook is registered, and nothing ran against Photon, a real phone or production.
+
+### Suite runs
+
+| Command | Date | Revision | Environment | Result |
+|---|---|---|---|---|
+| `supabase db reset --local`, then a declarative sync | 2026-10-23 | `b2f6fe95` | Local stack | Chain rebuilt with `20261023024435_imessage_channel.sql` |
+| `supabase test db` | 2026-10-23 | `708ac2f2` | Local stack, after a reset | 9 files, 127 pgTAP tests passed, including `imessage_channel.test.sql`. A run without a reset failed only `agent_access.test.sql`, which inserts the `fmat-cli` client that the integration run had just left behind |
+| `npm test` | 2026-10-23 | `708ac2f2` | Local | 470 tests passed (51 files) |
+| `npm run test:integration` | 2026-10-23 | `708ac2f2` | Local stack | 647 of 648 passed (66 files). The failure, `conversations.test.ts` "lets only one of two concurrent deliveries reconcile an overdue turn", is a timing check on `eve dev` that this change does not touch; rerun alone it passed (19 of 19) |
+| `npm run test:e2e` | 2026-10-23 | the join commit | Local stack | 46 Playwright tests passed, 45 first time and 1 on retry (the Phase 3 requester journey at 1280 px, a focus wait). Earlier full runs found that the Connect iMessage card remounted and lost its state when setup finished loading, and that the menu moved focus after the test focused a button; both were fixed |
+| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-23 | the join commit | Local | Passed; lint reports only warnings that predate this change |
+
+### Evidence by item
+
+Fixture and local-stack evidence only; each names the test that shows it.
+
+| Item | Evidence |
+|---|---|
+| Spike and adapter (D1, D2) | [Design 1](../../openspec/changes/host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter) records the comparison; `lib/server/photon-receiver.test.ts` covers the signature scheme, the sender identifier format and the payload |
+| Durable signed receipt | `tests/integration/imessage-receiver.test.ts`: one sealed receipt and one job before `200`; concurrent and repeated deliveries resolve to one; a changed payload answers `409`; stale, badly signed, foreign-webhook, unconfigured and over-large deliveries store nothing. `tests/integration/eve-surface.test.ts` refuses the unsigned route on the built agent service |
+| Linking (D3, D5) | `tests/integration/imessage-links.test.ts`: binding only after **Confirm and link**; unknown, expired, replayed and group codes bind nothing; one refusal a day; a sender bound to one host; the confirmation window; five codes an hour and the exact retry |
+| One-tap deep link (D4) | `lib/contracts/imessage.test.ts` (platforms, `&body=` and `?body=`, the QR code's link); `tests/e2e/imessage-link.test.ts` at 390 and 1280 px (desktop shows the number, the message, **Copy** and the QR code and opens nothing) and with an iPhone user agent (the card's **Open Messages** carries the exact iOS link) |
+| Fallback code (D6) | `imessage-links.test.ts` (the code never reaches the browser, spacing, resend, five wrong entries, per-host and per-line caps, a number linked elsewhere); the 390 px Playwright journey types the texted code back |
+| Outbox (D9) | `tests/integration/imessage-outbox.test.ts`: accepted once, refused, unreachable then failed, a lost answer uncertain and never resent, suppressed after unlinking, nothing in a preview; `lib/server/photon.test.ts` for the transport and the gate |
+| AC-16 | `tests/integration/imessage-journey.test.ts` "links, discusses, revises, approves and books from iMessage, and declines another request", through `eve dev` with the OpenAI stand-in: link by code through the agent service's webhook route, the awaiting-approval summary with its exact commands, `request <ref>`, a private question answered by the turn in iMessage, `changes` and `share <ref>-S1`, the requester's agreement to version 2, `approve <ref>-2` and the confirmed booking. The revision was recorded by the command `propose_shared_changes` runs, since the stand-in model cannot call tools. The separate decline case creates no event |
+| AC-17 | The same journey: a plain "yes" and an outdated `approve <ref>-1` record nothing; "gives an unlinked sender and a group conversation nothing private"; `tests/integration/imessage-channel.test.ts` (unlinked and suspended senders, group conversations, reactions) and `imessage-commands.test.ts` (stale and unknown references) |
+| AC-18 | The journey and `imessage-commands.test.ts` "approves the current proposal once, also when replayed and after a web approval": the same message delivered twice is one receipt, the receipt reprocessed as after a restart replays the saved approval, and a concurrent web approval leaves one booking; a refused delivery of the booked summary shows on the `/app` card while the request stays booked (`imessage-notices.test.ts` too) |
+| Backpressure | `imessage-forwarding.test.ts` "defers a message an admission budget refuses by at least a minute, keeping later ones behind it"; `imessage-channel.test.ts` keeps a later message behind an unprocessed earlier one |
+| Summaries (D12) | `tests/integration/imessage-notices.test.ts`: new request, awaiting approval (once, with commands), confirmed, not confirmed and still pending; none without a binding; an outdated version skipped |
+| Setup over iMessage | `tests/integration/imessage-setup.test.ts` and `imessage-commands.test.ts` "reviews settings with their reference and saves them only for the current one" |
+| Retention (D14) | `supabase/tests/imessage_channel.test.sql`; `imessage-setup.test.ts` "retention" |
+
+### Known gaps
+
+- **No real line, webhook or device run:** provisioning the Photon line, registering the webhook and every check on a controlled iPhone (the deep link opening Messages after the awaited request on iOS Safari, the QR code from a desktop, the sender identifier a real iPhone sends, AC-16 to AC-18 against production, device and client versions) are pending (decision log, "Blocked on the user").
+- **Spectrum send path assumed from the SDK:** `space.get`, `space.create`, `send` and `shareContactCard` are typed against `@spectrum-ts` 12.14.0 and exercised only through the stand-in.
+- **Real model replies over iMessage** were not graded; the journey used the OpenAI stand-in.
+- **The migration is not on the shared project.**
 
 ## Phase 7 — `requester-email-channel`
 

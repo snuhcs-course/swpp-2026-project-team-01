@@ -30,7 +30,7 @@ Before each group, read the [Phase 6 reference repository files](../../../docume
 
 ## 5. Join
 
-- [ ] 5.1 Against the stand-in Photon, the OpenAI stand-in and the local stack: link by code, select a request, ask a private question, revise, approve the resulting proposal; decline a second request; replay the approval; simulate a failed delivery. Record the Phase 6 evidence list for what fixtures can prove.
+- [x] 5.1 Against the stand-in Photon, the OpenAI stand-in and the local stack: link by code, select a request, ask a private question, revise, approve the resulting proposal; decline a second request; replay the approval; simulate a failed delivery. Record the Phase 6 evidence list for what fixtures can prove.
 
 ## 6. Release (blocked on the user)
 

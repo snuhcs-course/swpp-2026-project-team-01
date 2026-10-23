@@ -90,7 +90,12 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
 
   const [imessageLater, setImessageLater] = useState(false);
   const [imessageOpened, setImessageOpened] = useState(false);
+  // Counts openings from the menu, so each one moves focus once the card is shown.
+  const [imessageFocus, setImessageFocus] = useState(0);
   useEffect(() => setImessageLater(rememberedLater()), []);
+  useEffect(() => {
+    if (imessageFocus > 0) focusCard(IMESSAGE_CARD_ID);
+  }, [imessageFocus]);
 
   const busy = phase !== "ready";
   const setupState = setup.state;
@@ -99,7 +104,7 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
   const showImessage = imessageOpened || (showSetup && setupState?.nextAction === "ready" && !imessageLater);
   const openImessage = useCallback(() => {
     setImessageOpened(true);
-    focusCard(IMESSAGE_CARD_ID);
+    setImessageFocus((count) => count + 1);
   }, []);
   // Answered setup cards, as receipts placed among the messages by time.
   const receipts = useMemo(
@@ -255,8 +260,10 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
 }
 
 // Gives the receipts in the history and the open card the same setup controller.
+// The provider is always there, so the conversation does not remount (and the
+// iMessage card keeps its state) when setup finishes loading.
 function ConversationSetup({ children, value }: { readonly children: ReactNode; readonly value: SetupContextValue | null }) {
-  return value ? <SetupProvider value={value}>{children}</SetupProvider> : children;
+  return <SetupProvider value={value}>{children}</SetupProvider>;
 }
 
 function ErrorNotice({ message, onDismiss }: { readonly message: string; readonly onDismiss: () => void }) {

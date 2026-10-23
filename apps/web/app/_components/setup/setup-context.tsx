@@ -297,6 +297,8 @@ export function useSetupController() {
   return { loadError, reload, state, value };
 }
 
-export function SetupProvider({ children, value }: { readonly children: ReactNode; readonly value: SetupContextValue }) {
+// A null value (setup not loaded yet) keeps the same tree, so the children do
+// not remount and lose their state when it loads; useSetup still requires one.
+export function SetupProvider({ children, value }: { readonly children: ReactNode; readonly value: SetupContextValue | null }) {
   return <SetupContext.Provider value={value}>{children}</SetupContext.Provider>;
 }

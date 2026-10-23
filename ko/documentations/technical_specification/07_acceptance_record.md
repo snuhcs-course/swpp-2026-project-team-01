@@ -2,7 +2,7 @@
 
 > 한국어 번역본 (검토용). 원본: documentations/technical_specification/07_acceptance_record.md
 
-상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 릴리스되고 프로덕션에서 확인됨; 게스트 받은편지함 확인은 보류 중; 5단계(`agent-access`) 로컬 증거 기록됨, 명명된 클라이언트와 프로덕션 증거 보류 중; 7단계(`requester-email-channel`) 로컬 증거 기록됨, 받은편지함과 프로덕션 증거 보류 중; 열린 공백은 아래에 나열
+상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 릴리스되고 프로덕션에서 확인됨; 게스트 받은편지함 확인은 보류 중; 5단계(`agent-access`) 로컬 증거 기록됨, 명명된 클라이언트와 프로덕션 증거 보류 중; 6단계(`host-imessage-channel`) 로컬 증거 기록됨, 회선, 기기, 프로덕션 증거 보류 중; 7단계(`requester-email-channel`) 로컬 증거 기록됨, 받은편지함과 프로덕션 증거 보류 중; 열린 공백은 아래에 나열
 
 날짜: 2026-10-23
 
@@ -288,6 +288,48 @@
 - **명명된 클라이언트.** Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code는 어느 역할로도 실행되지 않았습니다. [개인 에이전트 클라이언트](09_agent_clients.md)에 기록되기 전까지 AC-14, AC-15, AC-19 ~ AC-25는 각 클라이언트에 대해 열려 있습니다. 해결되지 않은 클라이언트는 릴리스 차단 요인입니다.
 - **프로덕션.** 마이그레이션, 서명 키, 배포가 보류 중입니다(결정 기록의 "사용자 대기 항목").
 - **CLI의 시스템 저장소.** macOS 키체인과 Secret Service 경로는 파일 저장소를 쓰는 테스트 묶음에서 실행되지 않았습니다.
+
+## 6단계 — `host-imessage-channel`
+
+변경: [`host-imessage-channel`](../../openspec/changes/host-imessage-channel/tasks.md). 증거 목록: [6단계](06_implementation_plan.md#phase-6--host-imessage-channel). 환경은 기본 로컬 스택을 쓰는 1단계와 같고, 여기에 전송을 기록하고 전송을 거부하거나 응답을 버릴 수 있는 루프백 Photon 스탠드인(`tests/integration/support/fake-photon.ts`, 브라우저 테스트용은 `tests/e2e/support/fake-photon-server.ts`)이 더해졌습니다. 수신 메시지는 Photon의 문서화된 방식(`tests/integration/support/photon.ts`)으로 서명했습니다. Photon 회선은 존재하지 않고, 등록된 웹훅도 없으며, Photon, 실제 휴대폰, 프로덕션을 상대로 실행된 것은 없습니다.
+
+### 테스트 묶음 실행
+
+| 명령 | 날짜 | 리비전 | 환경 | 결과 |
+|---|---|---|---|---|
+| `supabase db reset --local` 후 선언적 동기화 | 2026-10-23 | `b2f6fe95` | 로컬 스택 | `20261023024435_imessage_channel.sql`로 체인이 다시 구축됨 |
+| `supabase test db` | 2026-10-23 | `708ac2f2` | 로컬 스택, 초기화 후 | 파일 9개, pgTAP 테스트 127개 통과, `imessage_channel.test.sql` 포함. 초기화 없이 실행하면 `agent_access.test.sql`만 실패했는데, 통합 테스트 실행이 막 남겨 둔 `fmat-cli` 클라이언트를 이 테스트가 삽입하기 때문입니다 |
+| `npm test` | 2026-10-23 | `708ac2f2` | 로컬 | 테스트 470개 통과(파일 51개) |
+| `npm run test:integration` | 2026-10-23 | `708ac2f2` | 로컬 스택 | 648개 중 647개 통과(파일 66개). 실패한 `conversations.test.ts` "lets only one of two concurrent deliveries reconcile an overdue turn"은 이 변경이 건드리지 않는 `eve dev`의 타이밍 검사이며, 단독으로 다시 실행하면 통과했습니다(19개 중 19개) |
+| `npm run test:e2e` | 2026-10-23 | 병합 커밋 | 로컬 스택 | Playwright 테스트 46개 통과, 45개는 처음에, 1개는 재시도에서 통과(1280px의 3단계 요청자 여정, 포커스 대기). 앞선 전체 실행에서 설정 로딩이 끝나면 Connect iMessage 카드가 다시 마운트되어 상태를 잃는 문제와, 테스트가 버튼에 포커스를 둔 뒤 메뉴가 포커스를 옮기는 문제가 발견되어 둘 다 수정했습니다 |
+| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-23 | 병합 커밋 | 로컬 | 통과; lint는 이 변경 이전부터 있던 경고만 보고함 |
+
+### 항목별 증거
+
+픽스처와 로컬 스택 증거뿐이며, 각 항목은 이를 보여 주는 테스트를 명시합니다.
+
+| 항목 | 증거 |
+|---|---|
+| 스파이크와 어댑터(D1, D2) | [설계 1](../../openspec/changes/host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter)이 비교를 기록하며, `lib/server/photon-receiver.test.ts`가 서명 방식, 발신자 식별자 형식, 페이로드를 다룹니다 |
+| 내구성 있는 서명 영수증 | `tests/integration/imessage-receiver.test.ts`: `200` 이전에 봉인된 영수증 하나와 작업 하나; 동시 전달과 반복 전달은 하나로 귀결; 페이로드가 바뀌면 `409`로 응답; 오래되었거나, 서명이 잘못되었거나, 다른 웹훅이거나, 구성되지 않았거나, 너무 큰 전달은 아무것도 저장하지 않음. `tests/integration/eve-surface.test.ts`는 빌드된 에이전트 서비스에서 서명되지 않은 라우트를 거부함 |
+| 연결(D3, D5) | `tests/integration/imessage-links.test.ts`: **Confirm and link** 이후에만 바인딩; 알 수 없거나 만료되었거나 재사용되었거나 그룹에서 온 코드는 아무것도 바인딩하지 않음; 하루 한 번의 거절; 하나의 호스트에만 바인딩되는 발신자; 확인 창; 시간당 코드 5개와 정확한 재시도 |
+| 원탭 딥링크(D4) | `lib/contracts/imessage.test.ts`(플랫폼, `&body=`와 `?body=`, QR 코드의 링크); 390px 및 1280px의 `tests/e2e/imessage-link.test.ts`(데스크톱은 번호, 메시지, **Copy**, QR 코드를 보여 주고 아무것도 열지 않음)와 iPhone 사용자 에이전트(카드의 **Open Messages**가 정확한 iOS 링크를 담음) |
+| 대체 코드(D6) | `imessage-links.test.ts`(코드가 브라우저에 도달하지 않음, 간격, 재전송, 잘못된 입력 5회, 호스트별 및 회선별 한도, 다른 곳에 연결된 번호); 390px Playwright 여정은 문자로 받은 코드를 다시 입력함 |
+| 발신함(D9) | `tests/integration/imessage-outbox.test.ts`: 한 번 수락됨, 거부됨, 도달 불가 후 실패, 응답이 유실되어 불확실하며 다시 보내지 않음, 연결 해제 후 억제됨, 미리보기에서는 아무것도 없음; 전송과 게이트는 `lib/server/photon.test.ts` |
+| AC-16 | `tests/integration/imessage-journey.test.ts` "links, discusses, revises, approves and books from iMessage, and declines another request", OpenAI 스탠드인을 둔 `eve dev`를 통해: 에이전트 서비스의 웹훅 라우트로 코드 연결, 정확한 명령이 담긴 승인 대기 요약, `request <ref>`, iMessage의 턴이 답하는 비공개 질문, `changes`와 `share <ref>-S1`, 요청자의 버전 2 동의, `approve <ref>-2`, 확정된 예약. 스탠드인 모델은 도구를 호출할 수 없으므로 수정은 `propose_shared_changes`가 실행하는 명령으로 기록했습니다. 별도의 거절 사례는 이벤트를 만들지 않습니다 |
+| AC-17 | 같은 여정: 평범한 "yes"와 오래된 `approve <ref>-1`은 아무것도 기록하지 않음; "gives an unlinked sender and a group conversation nothing private"; `tests/integration/imessage-channel.test.ts`(연결되지 않았거나 정지된 발신자, 그룹 대화, 반응)와 `imessage-commands.test.ts`(오래되었거나 알 수 없는 참조) |
+| AC-18 | 여정과 `imessage-commands.test.ts` "approves the current proposal once, also when replayed and after a web approval": 같은 메시지를 두 번 전달해도 영수증은 하나이고, 재시작 때처럼 다시 처리한 영수증은 저장된 승인을 재생하며, 동시에 일어난 웹 승인은 예약을 하나만 남김; 예약 완료 요약의 전달이 거부되면 요청은 예약된 채로 `/app` 카드에 표시됨(`imessage-notices.test.ts`도 해당) |
+| 배압 | `imessage-forwarding.test.ts` "defers a message an admission budget refuses by at least a minute, keeping later ones behind it"; `imessage-channel.test.ts`는 처리되지 않은 앞선 메시지 뒤에 나중 메시지를 유지함 |
+| 요약(D12) | `tests/integration/imessage-notices.test.ts`: 새 요청, 승인 대기(명령과 함께 한 번), 확정, 확정되지 않음, 여전히 대기 중; 바인딩이 없으면 없음; 오래된 버전은 건너뜀 |
+| iMessage를 통한 설정 | `tests/integration/imessage-setup.test.ts`와 `imessage-commands.test.ts` "reviews settings with their reference and saves them only for the current one" |
+| 보존(D14) | `supabase/tests/imessage_channel.test.sql`; `imessage-setup.test.ts` "retention" |
+
+### 알려진 공백
+
+- **실제 회선, 웹훅, 기기 실행 없음:** Photon 회선 프로비저닝, 웹훅 등록, 그리고 통제된 iPhone에서의 모든 확인(iOS Safari에서 기다린 요청 이후 딥링크가 메시지 앱을 여는지, 데스크톱의 QR 코드, 실제 iPhone이 보내는 발신자 식별자, 프로덕션에 대한 AC-16부터 AC-18, 기기와 클라이언트 버전)이 보류 중입니다(결정 기록의 "사용자 대기 항목").
+- **SDK에서 가정한 Spectrum 전송 경로:** `space.get`, `space.create`, `send`, `shareContactCard`는 `@spectrum-ts` 12.14.0에 맞춰 타입이 지정되었고 스탠드인을 통해서만 실행되었습니다.
+- **iMessage를 통한 실제 모델 응답**은 평가하지 않았으며, 여정에는 OpenAI 스탠드인을 썼습니다.
+- **마이그레이션이 공유 프로젝트에 적용되지 않았습니다.**
 
 ## 7단계 — `requester-email-channel`
 

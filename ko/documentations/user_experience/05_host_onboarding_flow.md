@@ -2,7 +2,7 @@
 
 # 호스트 온보딩 흐름
 
-상태: 직접 웹 경로(H0, H1, H3–H10)는 2단계에서 구현됨. H2가 포함된 에이전트 주도 경로(5단계), H11, iMessage를 통한 설정(6단계)은 대기 중\
+상태: 직접 웹 경로(H0, H1, H3–H10)는 2단계에서 구현됨. H2가 포함된 에이전트 주도 경로는 5단계에서 구현됨; H11과 iMessage를 통한 설정은 6단계에서 Photon 스탠드인을 상대로 구현되었고 기기 인수는 대기 중\
 날짜: 2026-10-19\
 근거: [J-01 호스트 설정](01_user_journeys.md#j-01--host-setup), [PRD 5절](../02_product_requirements.md#5-main-user-journey), [호스트 계정 계약](../../openspec/specs/host-admission/spec.md), [채팅 작업 공간 계약](../../openspec/specs/chat-workspaces/spec.md), [분석 보존 계약](../../openspec/specs/calendar-analysis-retention/spec.md)\
 관련 문서: [게스트 예약 흐름](06_guest_booking_flow.md), [에이전트 구성](../technical_specification/04_agent_configuration.md)

@@ -102,7 +102,7 @@ MVP는 Supabase Auth를 통한 Google 전용 호스트 로그인을 요구합니
 
 ## Photon
 
-Photon Spectrum이 iMessage 전송 수단입니다. 6단계 스파이크는 내구성 있는 수신, 확인 응답, 정확한 발신자 신원, 복구를 기준으로 eve의 네이티브 `photonIMessageChannel` 대신 애플리케이션 자체 어댑터를 선택했습니다 ([`host-imessage-channel` 설계 1](../../openspec/changes/host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter), D1). 네이티브 채널은 프로세스 내 디스패치 이후에 웹훅에 응답하며 아무것도 저장하지 않고, iMessage 스레드마다 eve 세션 하나를 유지하며, 발신함이 없습니다. `{origin}/photon/webhook`의 수신기(에이전트 서비스로 라우팅)는 `X-Spectrum-Webhook-Id`를 `PHOTON_WEBHOOK_ID`와, `X-Spectrum-Signature`(`v0=`와 `PHOTON_WEBHOOK_SECRET` 아래 `v0:{X-Spectrum-Timestamp}:{raw body}`의 16진수 HMAC-SHA256, 300초 이내)를 검사하고, `200`으로 응답하기 전에 영수증을 저장합니다. 발신 메시지는 `PHOTON_PROJECT_ID`와 `PHOTON_PROJECT_SECRET`으로 Spectrum SDK(`@spectrum-ts/core`와 `@spectrum-ts/imessage` 12.14.0)를 사용하며, 테스트와 로컬 실행은 `PHOTON_API_URL`을 루프백 대역으로 지정합니다. 프로젝트 하나에 회선 하나입니다(D7). 그 번호는 `PHOTON_LINE_NUMBER`입니다. 발신자 식별자(D2)는 Photon의 `message.sender.id`로, E.164 번호 또는 Apple ID 이메일이며, 정확히 일치 비교하고 해시 및 봉인해서만 저장합니다. 직접 대화(`space.type = "dm"`)만 인정됩니다. 이 사실들은 Photon의 문서, SDK, eve에 포함된 어댑터에서 얻은 것이며, 회선 프로비저닝, 웹훅 등록, 실제 iPhone에서의 식별자 확인은 아직 열려 있는 운영자 단계입니다.
+Photon Spectrum이 iMessage 전송 수단입니다. 6단계 스파이크는 내구성 있는 수신, 확인 응답, 정확한 발신자 신원, 복구를 기준으로 eve의 네이티브 `photonIMessageChannel` 대신 애플리케이션 자체 어댑터를 선택했습니다 ([`host-imessage-channel` 설계 1](../../openspec/changes/host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter), D1). 네이티브 채널은 프로세스 내 디스패치 이후에 웹훅에 응답하며 아무것도 저장하지 않고, iMessage 스레드마다 eve 세션 하나를 유지하며, 발신함이 없습니다. `{origin}/photon/webhook`의 수신기(에이전트 서비스로 라우팅)는 `X-Spectrum-Webhook-Id`를 `PHOTON_WEBHOOK_ID`와, `X-Spectrum-Signature`(`v0=`와 `PHOTON_WEBHOOK_SECRET` 아래 `v0:{X-Spectrum-Timestamp}:{raw body}`의 16진수 HMAC-SHA256, 300초 이내)를 검사하고, `200`으로 응답하기 전에 영수증을 저장합니다. 발신 메시지는 `PHOTON_PROJECT_ID`와 `PHOTON_PROJECT_SECRET`으로 Spectrum SDK(`@spectrum-ts/core`와 `@spectrum-ts/imessage` 12.14.0)를 사용하며, 테스트와 로컬 실행은 `PHOTON_API_URL`을 루프백 대역으로 지정합니다. 프로젝트 하나에 회선 하나입니다(D7). 그 번호는 `PHOTON_LINE_NUMBER`이며, `PHOTON_FALLBACK_DAILY_LIMIT`(기본값 20)가 대체 코드로 시작되는 회선당 하루(롤링) 신규 대화 수를 제한합니다. 발신자 식별자(D2)는 Photon의 `message.sender.id`로, E.164 번호 또는 Apple ID 이메일이며, 정확히 일치 비교하고 해시 및 봉인해서만 저장합니다. 직접 대화(`space.type = "dm"`)만 인정됩니다. 이 사실들은 Photon의 문서, SDK, eve에 포함된 어댑터에서 얻은 것이며, 회선 프로비저닝, 웹훅 등록, 실제 iPhone에서의 식별자 확인은 아직 열려 있는 운영자 단계입니다.
 
 ### 첫 메시지와 호스트 온보딩
 
@@ -112,7 +112,7 @@ Photon의 전달 가능성 안내에 따라 인바운드 우선이 기본값입�
 
 ### 표시 이름, 연락처 카드, 프로필 동기화
 
-검증된 비공개 대화 이후 제안된 호스트 동작으로서 선택적인 **연락처에 추가(Add to contacts)**를 제공합니다. 실제로 선택된 경로를 고정하고, 공급자의 수락/불확실성을 사실대로 보고합니다. 저장 여부는 수신자가 선택하며, 제품은 표시되는 이름을 약속하거나 연락처 카드로부터 신원/동의를 추론할 수 없습니다. 지원한다고 주장하기 전에 실제 계정 프로필과 실제 디바이스에서의 표시를 각각 독립적으로 검증합니다.
+검증된 비공개 대화 이후 호스트 동작으로서 선택적인 **연락처에 추가(Add to contacts)**를 제공하며, 연결된 카드는 Spectrum SDK를 통해 네이티브 연락처 카드 공유 하나를 대기열에 넣습니다([`host-imessage-channel` 설계 11](../../openspec/changes/host-imessage-channel/design.md#11-add-to-contacts)). 실제로 선택된 경로를 고정하고, 공급자의 수락/불확실성을 사실대로 보고합니다. 저장 여부는 수신자가 선택하며, 제품은 표시되는 이름을 약속하거나 연락처 카드로부터 신원/동의를 추론할 수 없습니다. 지원한다고 주장하기 전에 실제 계정 프로필과 실제 디바이스에서의 표시를 각각 독립적으로 검증합니다.
 
 ## 모델 접근과 런타임
 

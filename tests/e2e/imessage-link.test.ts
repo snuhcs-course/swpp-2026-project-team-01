@@ -87,6 +87,8 @@ async function openCard(page: Page) {
   await page.getByRole("menuitem", { name: "iMessage" }).click();
   const card = page.locator("[data-imessage-card]");
   await expect(card).toBeVisible({ timeout: 15_000 });
+  // The menu moves focus to the card's heading once it is shown.
+  await expect(card.getByRole("heading").first()).toBeFocused();
   return card;
 }
 

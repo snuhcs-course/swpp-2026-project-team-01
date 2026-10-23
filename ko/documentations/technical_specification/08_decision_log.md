@@ -266,12 +266,15 @@
 | 수락 보류 | 수락 예산이 거절한 수신은 결과 `deferred`로 작업을 완료하고, 60초 뒤에 처리될 새 수신 작업을 게시합니다(최대 240회, 이후 수신은 무시됨). 작업 자체의 백오프가 20초에서 시작하는 반면 chat-workspaces 계약은 1분보다 일찍 처리하지 말라고 하기 때문입니다; 같은 대화의 이후 메시지는 그 뒤에서 계속 기다립니다 | 예외를 던져 20초 백오프를 따름 | 설계 7 | `lib/server/imessage-receipts.ts`의 `ADMISSION_RETRY_SECONDS`와 `ADMISSION_DEFERRALS` |
 | 선택한 요청이 사라짐 | 더 이상 호스트의 것이 아니거나 초안인 요청을 선택한 상태에서 온 자유 텍스트는 선택을 해제하고, 설정으로 보내며, 안내를 한 번 보냅니다 | 메시지를 거절함 | 설계 9 | `lib/server/imessage-receipts.ts`의 `forward` |
 | 턴 응답 길이 | 턴 응답은 가린 뒤 2,000자로 자르고 나머지는 `/app`에서 보도록 안내합니다; 최종 텍스트가 없는 턴이나 실패한 세션은 고정된 대체 문구를 보내고, 30분 안에 끝나지 않은 턴의 응답은 보내지 않습니다 | 긴 응답을 여러 메시지로 나눔 | 설계 9 | `lib/server/imessage-outbox.ts`의 `imessageTurnText`와 `TURN_REPLY_WAIT_MINUTES` |
+| 안정적인 설정 제공자 | `/app` 대화는 항상 설정 제공자로 감싸므로(설정이 로드되기 전에는 값이 null), 설정 로딩이 끝나도 그 항목들이 다시 마운트되지 않습니다. 이전에는 이렇게 해서 부하 중에 Connect iMessage 카드가 입력한 번호와 단계를 잃었습니다 | 카드의 상태를 워크스페이스로 끌어올리기 | `apps/web/app/_components/host-workspace.tsx` | `ConversationSetup`과 `SetupProvider` |
 | 계획의 목록을 넘는 명령 | 계획은 `request`, `review`, `changes`, 승인, 거절, `setup`을 꼽습니다; 이 변경은 `help`, `requests`(참조를 알기 위해), `share`와 `dismiss`(AC-16이 요구하듯 수정된 세부 사항을 텍스트로 공유할 수 있게), `confirm`(온보딩 흐름이 요구하는 설정 확인)을 더합니다 | 변경 공유를 웹에서만 허용 | 설계 8 | `lib/server/imessage-commands.ts`의 `parseCommand` |
 
 ### 운영 결정
 
 | 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
+| 로컬 스택 | 이 브랜치의 체인으로 초기화한 기본 로컬 Supabase 스택. 다른 단계의 세션이 이 스택을 상대로 실행 중이지 않았기 때문입니다(5단계와 7단계는 병합됨) | 7단계처럼 별도 스택 | 인수 기록 | — (로컬 전용) |
+| 따른 참조 | personal-agent 템플릿(`1c444386`의 `vercel-labs/personal-agent-template`): `agent/channels/photon.ts`(핸들은 번호 또는 Apple ID이며 D2가 이를 유지함; 메시지 텍스트가 실행 제목이 되지 않도록 고정된 실행 제목; 알 수 없는 번호에 대한 낯선 사람 세션은 따르지 않음: 세션 자체를 만들지 않음)와 `app/components/profile/PhoneInput.vue`(마스크가 있는 국가 선택기; 우리 대체 입력란은 E.164 번호를 직접 받고 공백과 구두점을 제거함). OpenInstinct(`0c2a7c6e`의 `Merit-Systems/OpenInstinct`): `agent/channels/linq.ts`와 `agent/lib/linq/transport.ts`(채널 뒤의 전송 모듈 하나, `lib/server/photon.ts`가 이를 따름), 그리고 지금은 `db/services/auth/tests/linq.test.ts`, `db/services/auth/tests/linq-delivery.test.ts`, `tests/agent/channels/linq-inbound-auth.test.ts`에 있는 테스트(결과마다 테스트 하나: 거부된 포워더, 버려지는 연결되지 않은 핸들, 범위가 정해진 검증된 핸들)이며, 우리 수신기, 채널, 발신함 테스트가 그 구성을 따릅니다. `e3c01d2`의 폐기된 반복 1 설계(발신함, 확인 응답 전 내구성 있는 웹훅, 불확실한 전송 잠금)와 eve 0.80.1에 포함된 `@photon-ai/chat-adapter-imessage`(서명 방식, 네이티브 채널 동작). 2026-10-23에 읽었으며 코드는 복사하지 않았습니다 | — | 풀 리퀘스트 | — |
 | 회선 없는 스파이크 | 회선 프로비저닝과 번호로 문자 보내기는 사용자에게 막혀 있으므로, 스파이크는 eve 0.80.1에 포함된 Photon 어댑터 소스, Photon의 웹훅 문서, Spectrum SDK 12.14.0 타입 선언, PR #23으로 어댑터를 비교했고, 기기에 의존하는 사실(딥링크 동작, 실제 iPhone의 발신자 형식, 발송 경로)은 합류 단계로 남겼습니다 | 회선을 기다린 뒤 선택 | 설계 1; 이 기록 | — |
 
 ### 사용자 대기 항목

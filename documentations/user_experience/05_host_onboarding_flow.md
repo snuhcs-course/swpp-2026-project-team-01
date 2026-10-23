@@ -1,6 +1,6 @@
 # Host Onboarding Flow
 
-Status: direct web path (H0, H1, H3–H10) implemented in Phase 2; agent-led path with H2 (Phase 5), H11 and setup over iMessage (Phase 6) pending\
+Status: direct web path (H0, H1, H3–H10) implemented in Phase 2; agent-led path with H2 implemented in Phase 5; H11 and setup over iMessage implemented in Phase 6 against a Photon stand-in, with device acceptance pending\
 Date: 2026-10-19\
 Basis: [J-01 host setup](01_user_journeys.md#j-01--host-setup), [PRD section 5](../02_product_requirements.md#5-main-user-journey), [host account contract](../../openspec/specs/host-admission/spec.md), [chat workspace contract](../../openspec/specs/chat-workspaces/spec.md), [analysis retention contract](../../openspec/specs/calendar-analysis-retention/spec.md)\
 Companions: [Guest booking flow](06_guest_booking_flow.md), [Agent configuration](../technical_specification/04_agent_configuration.md)
