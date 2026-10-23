@@ -384,3 +384,18 @@ Change: [`operations-and-release`](../../openspec/changes/operations-and-release
 | Deletion on request | The same file: a deleted host keeps a suspended, nameless account with its handle, which `checkHandle` reports taken; identity, grants, settings, requests, discussions and the Auth user are gone; restoring and deleting again are refused; the same Google subject gets a new account. One request is deleted with its conversation; deletion is refused while a booking write may exist; Data API roles are denied every function. Unit tests in `lib/server/data-deletion.test.ts` |
 | Data notice | `tests/e2e/privacy.test.ts` at 390 and 1280 px: the English and Korean notice with its sections and no horizontal scroll, and the links from `/` and a host page; `tests/e2e/requester-intake.test.ts` checks the link under **Continue with Google** |
 
+### Production checks, read only
+
+Run by the implementing session on 2026-10-23 (06:55 UTC) against the current **production** deployment of `findmeatime-release` (`dpl_2kZrdFKxF1eukJH1irgwH4VMM9wF`, a CLI deploy of 2026-10-23 07:02 KST that predates the Phase 6 merge). Nothing was changed.
+
+| Check | Command | Result |
+|---|---|---|
+| Domains | `vercel domains inspect findmeatime.com --scope justdodos-projects` | `findmeatime-release` serves `findmeatime.com` and `release.findmeatime.com`; `findmeatime-dev` holds `dev.findmeatime.com`. Nameservers stay Cloudflare's, as intended |
+| DNS records | `cf dns records list --zone findmeatime.com` | `A` records for the three names point to `76.76.21.21` with `proxied: false`; the Cloudflare Email Routing MX, SPF, DKIM and DMARC records are unchanged |
+| DNS lookup | `dig +short A findmeatime.com @1.1.1.1` and the same for `release.findmeatime.com` | `76.76.21.21` for both |
+| HTTPS, both origins | `curl` of `/`, `/app`, `/eve/v1/health`, `/SKILL.md`, `/llms.txt` | 200 each; HSTS and Content Security Policy present |
+| Raw runtime route | Unauthenticated `POST /eve/v1/session` | 401 |
+| `dev.findmeatime.com` | `curl` of `/` | 404: `findmeatime-dev` has no current deployment serving it, so staging is not live |
+| Latency (D4) | `npm run perf:check -- --origin https://findmeatime.com` and `--origin https://release.findmeatime.com`, 20 sequential samples per route from Seoul | All routes pass. `findmeatime.com`: `/` p50 155 ms, p95 267 ms; `/SKILL.md` 269 and 431 ms; `/llms.txt` 255 and 286 ms; `/eve/v1/health` 250 and 470 ms. `release.findmeatime.com`: 200 and 446; 262 and 287; 250 and 831; 273 and 321 ms. Approval-to-booking and first-reply times are not measured |
+| Release project | Read-only `supabase db query --linked --project-ref mriseqztcwmezvtawnbo` | Still the iteration-1 prototype ([provider setup](03_provider_setup.md#supabase-project)); not emptied |
+

@@ -386,3 +386,18 @@
 | 보존 | `tests/integration/data-stewardship.test.ts`: 종료 91일 뒤의 예약된 요청은 제안, 예약, 예약 링크, 전달, 논의, 세션, 이벤트와 함께 삭제되고 모델 지출은 분리되며 Calendar 이벤트는 유지됨; 89일 전에 종료된 요청과 200일 된 열린 요청은 유지됨; 운영 규칙마다 각자의 기간; 실행당 규칙별 행 제한; 매시간 일정 |
 | 요청에 따른 삭제 | 같은 파일: 삭제된 호스트에는 핸들이 남은 정지 상태의 이름 없는 계정이 남아 `checkHandle`이 사용 중이라고 보고함; 신원, 권한 부여, 설정, 요청, 논의, Auth 사용자는 사라짐; 복원과 재삭제는 거부됨; 같은 Google subject는 새 계정을 얻음. 요청 하나는 그 대화와 함께 삭제됨; 예약 쓰기가 있을 수 있는 동안에는 삭제가 거부됨; Data API 역할은 모든 함수에서 거부됨. `lib/server/data-deletion.test.ts`의 단위 테스트 |
 | 데이터 고지 | 390px와 1280px에서의 `tests/e2e/privacy.test.ts`: 영어와 한국어 고지가 각 절과 함께 표시되고 가로 스크롤이 없음, 그리고 `/`와 호스트 페이지에서의 링크; `tests/e2e/requester-intake.test.ts`가 **Continue with Google** 아래의 링크를 확인함 |
+### 프로덕션 확인, 읽기 전용
+
+2026-10-23(06:55 UTC)에 구현 세션이 `findmeatime-release`의 현재 **production** 배포(`dpl_2kZrdFKxF1eukJH1irgwH4VMM9wF`, 6단계 병합보다 앞선 2026-10-23 07:02 KST의 CLI 배포)를 대상으로 실행했습니다. 아무것도 변경하지 않았습니다.
+
+| 점검 | 명령 | 결과 |
+|---|---|---|
+| 도메인 | `vercel domains inspect findmeatime.com --scope justdodos-projects` | `findmeatime-release`가 `findmeatime.com`과 `release.findmeatime.com`을 서비스함; `findmeatime-dev`는 `dev.findmeatime.com`을 보유함. 네임서버는 의도대로 Cloudflare 것을 유지함 |
+| DNS 레코드 | `cf dns records list --zone findmeatime.com` | 세 이름의 `A` 레코드가 `proxied: false`로 `76.76.21.21`을 가리킴; Cloudflare Email Routing의 MX, SPF, DKIM, DMARC 레코드는 바뀌지 않음 |
+| DNS 조회 | `dig +short A findmeatime.com @1.1.1.1`과 `release.findmeatime.com`에 대한 같은 명령 | 둘 다 `76.76.21.21` |
+| 두 오리진의 HTTPS | `/`, `/app`, `/eve/v1/health`, `/SKILL.md`, `/llms.txt`의 `curl` | 모두 200; HSTS와 Content Security Policy가 있음 |
+| 원시 런타임 경로 | 인증되지 않은 `POST /eve/v1/session` | 401 |
+| `dev.findmeatime.com` | `/`의 `curl` | 404: `findmeatime-dev`에 이를 서비스하는 현재 배포가 없으므로 스테이징은 라이브가 아님 |
+| 지연(D4) | `npm run perf:check -- --origin https://findmeatime.com`과 `--origin https://release.findmeatime.com`, 서울에서 경로마다 순차 표본 20개 | 모든 경로 통과. `findmeatime.com`: `/` p50 155ms, p95 267ms; `/SKILL.md` 269ms와 431ms; `/llms.txt` 255ms와 286ms; `/eve/v1/health` 250ms와 470ms. `release.findmeatime.com`: 200ms와 446ms; 262ms와 287ms; 250ms와 831ms; 273ms와 321ms. 승인에서 예약까지의 시간과 첫 응답 시간은 측정되지 않음 |
+| 릴리스 프로젝트 | 읽기 전용 `supabase db query --linked --project-ref mriseqztcwmezvtawnbo` | 여전히 1차 반복의 프로토타입임([공급자 설정](03_provider_setup.md#supabase-project)); 비워지지 않음 |
+

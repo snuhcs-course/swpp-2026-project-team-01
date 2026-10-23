@@ -18,6 +18,7 @@
     "dev:all": "vercel dev --local",
     "dev:web": "tsx scripts/dev.ts web",
     "start:eve": "eve start",
+    "perf:check": "tsx scripts/perf-check.ts",
     "restore:drill": "tsx scripts/restore-drill.ts",
     "jobs:dev": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/jobs-dev.ts",
     "admin": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/admin.ts",

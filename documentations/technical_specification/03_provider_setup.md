@@ -167,3 +167,7 @@ Both commands print the environment and the action and ask for the typed ID unle
 
 Support mail goes to `support@findmeatime.com`, an Email Routing alias on the zone's Cloudflare MX records that forwards to the operator on rotation (D3); creating the alias is a console step still to be done. Answer within two working days. Never paste tokens, booking links or another person's data into a reply.
 
+### Performance check
+
+`npm run perf:check -- --origin <origin> [--handle <handle>] [--samples 20]` sends sequential `GET` requests to `/`, `/SKILL.md`, `/llms.txt`, `/eve/v1/health` and, with `--handle`, the host page, and fails a route whose p50 is over 800 ms or whose p95 is over 2,000 ms (D4). It reads public pages only. Run it against both origins after each production deploy; approval-to-booking and first-reply times have no tool yet and are reported as not measured.
+

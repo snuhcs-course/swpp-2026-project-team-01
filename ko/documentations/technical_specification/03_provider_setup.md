@@ -169,3 +169,7 @@ Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code를 각각 개별적으
 
 지원 메일은 `support@findmeatime.com`으로 오며, 이는 영역의 Cloudflare MX 레코드 위에 있는 Email Routing 별칭으로 당번 운영자에게 전달됩니다(D3). 별칭을 만드는 일은 아직 하지 않은 콘솔 단계입니다. 영업일 이틀 안에 답하십시오. 토큰, 예약 링크, 다른 사람의 데이터는 답장에 붙여 넣지 마십시오.
 
+### 성능 점검
+
+`npm run perf:check -- --origin <origin> [--handle <handle>] [--samples 20]`은 `/`, `/SKILL.md`, `/llms.txt`, `/eve/v1/health`, 그리고 `--handle`이 있으면 호스트 페이지에 순차적으로 `GET` 요청을 보내며, p50이 800ms를 넘거나 p95가 2,000ms를 넘는 경로는 실패로 처리합니다(D4). 공개 페이지만 읽습니다. 프로덕션 배포마다 두 오리진을 대상으로 실행하십시오. 승인에서 예약까지의 시간과 첫 응답 시간은 아직 도구가 없으므로 측정되지 않음으로 보고합니다.
+

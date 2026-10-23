@@ -367,7 +367,7 @@ Scope. Prerequisite: Phase 4 for diagnostics to have something to inspect; the r
 
 - [x] Migration promotion path: the manual [`Deploy release Supabase`](../../.github/workflows/deploy-release.yml) workflow in the GitHub environment `release`, which refuses any ref but `main` and a project still holding the prototype, plus the staging messaging denial so the shared project can become staging.
 - [ ] Release environment split: empty and link `mriseqztcwmezvtawnbo` (FindMeATime2), separate Vercel production target. Open: the project still holds the iteration-1 prototype (inspected read-only on 2026-10-23); emptying it, the `release` environment's secrets, and moving the shared project to `findmeatime-dev` are blocked on the user.
-- [ ] Root-domain promotion: attach `findmeatime.com` to the release project, apply Vercel's required records through `cf` with proxying off, verify with domain inspection, DNS lookup and an HTTPS request; keep `release.findmeatime.com` working.
+- [x] Root-domain promotion: attach `findmeatime.com` to the release project, apply Vercel's required records through `cf` with proxying off, verify with domain inspection, DNS lookup and an HTTPS request; keep `release.findmeatime.com` working. Attached at the user's request on 2026-10-19; verified read-only on 2026-10-23 ([acceptance record](07_acceptance_record.md#production-checks-read-only)).
 - [ ] Google app verification for the sensitive Calendar scopes; Photon and AgentMail production configuration; Cloudflare custom SMTP for applicable Auth notifications.
 
 **Lane D — acceptance record**
