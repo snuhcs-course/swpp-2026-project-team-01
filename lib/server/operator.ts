@@ -2,7 +2,24 @@ import { parseArgs } from "node:util";
 import { isUsableHandle, normalizeHandle } from "../contracts/handles";
 import { GOOGLE_CALENDAR_SCOPES } from "../contracts/google-scopes";
 import { secretFingerprint } from "./agentmail-receiver";
-import { createDatabase } from "./database";
+import {
+  type AdminDependencies,
+  type AdminTarget,
+  AdminUsageError,
+  boundedText,
+  environmentName,
+  PROJECT_REF,
+  type Row,
+  runLocal,
+  runProject,
+  sqlLiteral,
+  UUID,
+} from "./operator-shared";
+import { DIAGNOSTICS_USAGE, runDiagnosticsAdmin } from "./diagnostics-admin";
+import { RECOVERY_USAGE, runRecoveryAdmin } from "./recovery-operations";
+import { DELETION_USAGE, runDeletionAdmin } from "./data-deletion";
+
+export { type AdminDependencies, AdminUsageError, environmentName, sqlLiteral } from "./operator-shared";
 
 // The administrator CLI, `fmat-admin` (host-admission: operator suspension and
 // restoration; design §14). It names exactly one environment, validates every
@@ -11,19 +28,7 @@ import { createDatabase } from "./database";
 // same statement. It holds no user credential: `--local` uses the local stack's
 // DATABASE_URL and `--project` the operator's own Supabase access token.
 
-export type AdminDependencies = {
-  readonly env: Readonly<Record<string, string | undefined>>;
-  readonly stdout: (line: string) => void;
-  readonly stderr: (line: string) => void;
-  // Whether a person can answer the typed confirmation.
-  readonly interactive: boolean;
-  readonly prompt: (question: string) => Promise<string>;
-  readonly fetch?: typeof fetch;
-  // The Management API origin; tests point it at a fake server.
-  readonly managementApiUrl?: string;
-};
-
-export const ADMIN_USAGE = `fmat-admin: suspend, restore or inspect a Find Me a Time host.
+export const ADMIN_USAGE = `fmat-admin: operate Find Me a Time: hosts, email receivers, diagnostics, recovery and deletion.
 
 Usage:
   npm run admin -- show --host <handle-or-id> --operator <name> (--local | --project <ref>)
@@ -32,6 +37,9 @@ Usage:
   npm run admin -- email-receiver list --operator <name> (--local | --project <ref>)
   npm run admin -- email-receiver register --inbox <inbox-id> --webhook <webhook-id> --operator <name> (--local | --project <ref>) [--yes]
   npm run admin -- email-receiver disable --receiver <id> --operator <name> (--local | --project <ref>) [--yes]
+${DIAGNOSTICS_USAGE}
+${RECOVERY_USAGE}
+${DELETION_USAGE}
 
   --local            Use DATABASE_URL, which must point at the local stack (127.0.0.1 or localhost).
   --project <ref>    Use the Supabase Management API with your own SUPABASE_ACCESS_TOKEN.
@@ -40,23 +48,18 @@ Usage:
 email-receiver register records an enabled AgentMail receiver for the inbox with
 the fingerprint of AGENTMAIL_WEBHOOK_SECRET from your environment, and disables
 the inbox's earlier receiver. Point the AgentMail webhook at
-{origin}/agentmail/webhooks/{receiver id}. The secret itself is never printed.`;
+{origin}/agentmail/webhooks/{receiver id}. The secret itself is never printed.
+
+diagnostics prints the redacted snapshot and the hourly rejection counts and
+changes nothing. recover job gives an exhausted job more attempts; recover
+booking starts the reconciliation of a booking whose write is uncertain. Neither
+resends an uncertain message, and each is audited. delete-host and
+delete-request erase a host's or a request's data on request; a deleted host
+keeps only a suspended, nameless account with its handle history and cannot be
+restored.`;
 
 const COMMANDS = ["show", "suspend", "restore"] as const;
 type Command = (typeof COMMANDS)[number];
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PROJECT_REF = /^[a-z]{20}$/;
-// oxlint-disable-next-line no-control-regex -- refusing control characters is the point
-const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
-const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost"]);
-
-export class AdminUsageError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "AdminUsageError";
-  }
-}
 
 export type AdminRequest = {
   readonly command: Command;
@@ -64,19 +67,9 @@ export type AdminRequest = {
   readonly host: string;
   readonly operator: string;
   readonly reason: string | null;
-  readonly target: { readonly kind: "local" } | { readonly kind: "project"; readonly ref: string };
+  readonly target: AdminTarget;
   readonly yes: boolean;
 };
-
-function boundedText(value: string | undefined, name: string, max: number) {
-  const text = value?.trim() ?? "";
-
-  if (!text) throw new AdminUsageError(`--${name} is required.`);
-  if (text.length > max) throw new AdminUsageError(`--${name} must be at most ${max} characters.`);
-  if (CONTROL.test(text)) throw new AdminUsageError(`--${name} must not contain control characters.`);
-
-  return text;
-}
 
 const OPTIONS = {
   host: { type: "string" },
@@ -136,16 +129,6 @@ export function parseAdminArguments(argv: readonly string[]): AdminRequest {
   };
 }
 
-// A SQL string literal: the value in single quotes with each quote doubled. The
-// inputs were validated first and contain no control characters.
-export function sqlLiteral(value: string) {
-  return `'${value.replaceAll("'", "''")}'`;
-}
-
-export function environmentName(target: AdminRequest["target"]) {
-  return target.kind === "local" ? "local" : `project:${target.ref}`;
-}
-
 // The one SQL statement a request runs. show reads status, current handle and
 // readiness with the same shape as readReadiness in lib/server/readiness.ts.
 export function adminSql(request: AdminRequest) {
@@ -181,63 +164,6 @@ where ${match}`;
 
   return `select result_host_account_id::text as host_account_id, result_status as status, result_previous_status as previous_status
 from app.operator_set_host_status(${host}, ${sqlLiteral(status)}, ${sqlLiteral(request.operator)}, ${sqlLiteral(request.reason ?? "")}, ${sqlLiteral(environmentName(request.target))})`;
-}
-
-type Row = Record<string, unknown>;
-
-async function runLocal(sql: string, env: AdminDependencies["env"]): Promise<Row[]> {
-  const url = env.DATABASE_URL;
-
-  if (!url) throw new AdminUsageError("--local needs DATABASE_URL.");
-
-  let hostname: string;
-
-  try {
-    hostname = new URL(url).hostname;
-  } catch {
-    throw new AdminUsageError("DATABASE_URL is not a valid URL.");
-  }
-
-  if (!LOCAL_HOSTS.has(hostname)) {
-    throw new AdminUsageError("--local refuses a DATABASE_URL that is not the local stack (127.0.0.1 or localhost).");
-  }
-
-  const db = createDatabase(url);
-
-  try {
-    return [...(await db.unsafe<Row[]>(sql))];
-  } finally {
-    await db.end();
-  }
-}
-
-async function runProject(sql: string, ref: string, deps: AdminDependencies): Promise<Row[]> {
-  const token = deps.env.SUPABASE_ACCESS_TOKEN;
-
-  if (!token) throw new AdminUsageError("--project needs your own SUPABASE_ACCESS_TOKEN.");
-
-  const base = deps.managementApiUrl ?? "https://api.supabase.com";
-  const response = await (deps.fetch ?? fetch)(`${base}/v1/projects/${ref}/database/query`, {
-    body: JSON.stringify({ query: sql }),
-    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-    method: "POST",
-    signal: AbortSignal.timeout(30_000),
-  });
-  const text = await response.text();
-
-  if (!response.ok) {
-    let message = text;
-
-    try {
-      message = (JSON.parse(text) as { message?: string }).message ?? text;
-    } catch {
-      // The raw body is the message.
-    }
-
-    throw new Error(`The Management API answered ${response.status}: ${message.slice(0, 500)}`);
-  }
-
-  return JSON.parse(text) as Row[];
 }
 
 // ---------------------------------------------------------------------------
@@ -416,6 +342,9 @@ export async function runAdmin(argv: readonly string[], deps: AdminDependencies)
   }
 
   if (argv[0] === "email-receiver") return runReceiverAdmin(argv, deps);
+  if (argv[0] === "diagnostics") return runDiagnosticsAdmin(argv, deps, ADMIN_USAGE);
+  if (argv[0] === "recover") return runRecoveryAdmin(argv, deps, ADMIN_USAGE);
+  if (argv[0] === "delete-host" || argv[0] === "delete-request") return runDeletionAdmin(argv, deps, ADMIN_USAGE);
 
   let request: AdminRequest;
 
@@ -457,7 +386,9 @@ export async function runAdmin(argv: readonly string[], deps: AdminDependencies)
       request.target.kind === "local" ? await runLocal(sql, deps.env) : await runProject(sql, request.target.ref, deps);
   } catch (error) {
     const message = (error as Error).message;
-    deps.stderr(`fmat-admin: ${/unknown host/.test(message) ? `no host matches ${request.host}.` : message}`);
+    deps.stderr(
+      `fmat-admin: ${/unknown host/.test(message) ? `no host matches ${request.host}.` : /deleted host/.test(message) ? "that host's data was deleted on request; it cannot be changed." : message}`,
+    );
     return 1;
   }
 

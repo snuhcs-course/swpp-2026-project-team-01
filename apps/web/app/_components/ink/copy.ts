@@ -44,6 +44,7 @@ const en = {
     ],
     tagline: "Thoughtful scheduling. One meeting at a time.",
     rights: "All rights reserved.",
+    privacy: "Privacy and your data",
   },
   examples: {
     label: "Example conversations with Thyme",
@@ -185,6 +186,7 @@ const ko: Copy = {
     ],
     tagline: "신중한 일정 조율. 한 번에 한 미팅씩.",
     rights: "모든 권리 보유.",
+    privacy: "개인정보와 데이터",
   },
   examples: {
     label: "Thyme과의 대화 예시",

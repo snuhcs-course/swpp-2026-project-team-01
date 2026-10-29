@@ -51,6 +51,7 @@ export function Landing({ imessage, locale }: { readonly imessage: boolean; read
       <footer className="foot">
         <p>{t.tagline}</p>
         <p>© 2026 Find Me a Time. {t.rights}</p>
+        <a href={locale === "ko" ? "/privacy?lang=ko" : "/privacy"}>{t.privacy}</a>
       </footer>
     </div>
   );
