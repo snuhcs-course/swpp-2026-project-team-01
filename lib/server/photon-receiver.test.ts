@@ -92,4 +92,8 @@ describe("inboundMessage", () => {
     expect(inboundMessage({ ...event, message: { ...event.message, id: "" } })).toBeNull();
     expect(inboundMessage(null)).toBeNull();
   });
+
+  it.each(["read", "typing"])("does not turn an inbound %s signal into a message", (type) => {
+    expect(inboundMessage({ ...event, message: { ...event.message, content: { type } } })).toBeNull();
+  });
 });

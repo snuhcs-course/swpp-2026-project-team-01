@@ -47,6 +47,8 @@ This document defines the visual direction developed from the Thyme logo explora
 
 The selected logo and uncropped reference are retained as documentation assets. For component structure, message and composer interactions and responsive polish, study the Vercel chatbot and the eve chat template listed in the [reference repositories](documentations/technical_specification/02_frontend_architecture.md#reference-repositories) and adapt their shapes to this palette. The Phase 1 theme lives in `apps/web/app/globals.css` (tokens mapped onto the shadcn roles as described under [Proposed implementation mapping](#proposed-implementation-mapping)), the root layout's fonts and the shared `components/ui` and `components/chat` recipes. See [Known gaps](#known-gaps).
 
+**Exception: the ink screens.** The public landing (`/` and `/?flow=imessage`) and the iMessage link step in `/app` use the landing redesign's ink palette (`#2C3E63` on `#F6F7F9`), Big Shoulders headings and Geist body, by the user's decision on 2026-10-23 ([`host-imessage-channel` D18](openspec/changes/host-imessage-channel/proposal.md#decisions)). Their styles live in `apps/web/app/_components/ink/ink.css`, scoped under `.ink`, so this document's Thyme theme still holds everywhere else. Whether the whole app moves to ink is a separate team decision.
+
 ## Mood
 
 Calm, thoughtful, botanical, and quietly editorial. Pair delicate plant forms with readable product UI, warm paper, and generous space. The experience should feel like a considered note on good stationery: welcoming, tactile, and easy to act on.

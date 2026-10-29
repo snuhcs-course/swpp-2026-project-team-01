@@ -1,0 +1,302 @@
+// Every word the ink screens show (the landing, the iMessage start and the /app link step), in English (the
+// default) and Korean. The landing copy is the landing redesign's (feat/web-language-switch d3ca3be8,
+// components/thyme/copy.ts); the link copy follows the "iMessage 연결 화면 시안" canvas. The choice lives in
+// the `lang` cookie, so the server-rendered landing and the client screens agree.
+
+export type Locale = "en" | "ko";
+export const LOCALE_COOKIE = "lang";
+export const DEFAULT_LOCALE: Locale = "en";
+
+export function localeOf(value: string | undefined | null): Locale {
+  return value === "ko" ? "ko" : DEFAULT_LOCALE;
+}
+
+export type ExampleRow = string | { readonly name: string; readonly rest: string };
+export type ExampleThread = {
+  readonly tag?: string;
+  readonly stamp: string;
+  readonly alt: boolean;
+  readonly lines: readonly { readonly who: "thyme" | "me"; readonly rows: readonly ExampleRow[]; readonly more?: boolean }[];
+};
+
+const en = {
+  language: "Language",
+  copy: { idle: "Copy", done: "Copied", fallback: "Select the text" },
+  landing: {
+    signIn: "Sign in",
+    headline: ["Send one link.", "Thyme finds the time.", "All you need is to chat."],
+    lede: "Setting up a meeting is tiring, isn't it? Send anyone your link without showing your calendar. Thyme works out the time with them and texts you the plan. You just reply back.",
+    google: "Continue with Google",
+    calendar: "Connect my Google Calendar too",
+    calendarNote: "Thyme reads when you're busy. Nothing is booked until you say OK.",
+    noImessage: "No iMessage?",
+    agentOr: "Or start from the AI agent you already use",
+    agentPrompt: "Let me use findmeatime.com/SKILL.md for my scheduling",
+    agentLabel: "Prompt for your agent",
+    agentNote: "Paste it into your agent. It walks you through the same setup.",
+    agentRegion: "For AI agents",
+    agentDoc: "Instructions for agents:",
+    stepsTitle: "Three steps, then it runs in your messages.",
+    steps: [
+      ["Start with Google", "Sign in and connect your calendar in one step."],
+      ["Link your phone", "Thyme texts you from then on."],
+      ["Share your link", "Anyone can ask for a time. They need no account."],
+    ],
+    tagline: "Thoughtful scheduling. One meeting at a time.",
+    rights: "All rights reserved.",
+    privacy: "Privacy and your data",
+  },
+  examples: {
+    label: "Example conversations with Thyme",
+    channel: "Text message",
+    slide: (i: number, n: number) => `${i} of ${n}`,
+    choose: "Choose an example",
+    dot: (i: number, n: number) => `Example ${i} of ${n}`,
+    threads: [
+      {
+        tag: "During setup", stamp: "Today 9:02 AM", alt: true,
+        lines: [
+          { who: "thyme", rows: ["I read the last 8 weeks of your calendar.", "• Meetings land Tue to Thu, 1 to 5 PM", "• Mornings stay clear", "• Fridays end by 3:00 PM"] },
+          { who: "thyme", rows: ["I'll offer people those hours. OK?"] },
+          { who: "me", rows: ["Perfect."] },
+        ],
+      },
+      {
+        tag: "During setup", stamp: "Today 9:04 AM", alt: true,
+        lines: [
+          { who: "thyme", rows: ["Your Wednesdays run back to back. 5 of the last 6 had no break after 2 PM."] },
+          { who: "thyme", rows: ["Keep 15 minutes free between meetings?"] },
+          { who: "me", rows: ["Yes please."] },
+          { who: "thyme", rows: ["Done. Wednesdays get a breather."] },
+        ],
+      },
+      {
+        tag: "Anytime", stamp: "Yesterday 6:40 PM", alt: true,
+        lines: [
+          { who: "me", rows: ["By the way, who is Daniel Lee?"] },
+          { who: "thyme", rows: ["Daniel is a partner at Lumen Ventures. You met for coffee on Sep 3 and had a call on Oct 1."] },
+          { who: "me", rows: ["Find us a time next week."] },
+          { who: "thyme", rows: ["Asking him now."] },
+        ],
+      },
+      {
+        stamp: "Today 8:30 AM", alt: false,
+        lines: [
+          { who: "thyme", rows: ["Two requests want Thu 3:00 PM.", { name: "Jisoo Kim", rest: ", investor → Thu 3:00 PM" }, { name: "Minho Park", rest: ", coffee → Fri 10:00 AM" }, "Investors come first. OK?"] },
+          { who: "me", rows: ["Who's Minho again?"], more: true },
+          { who: "thyme", rows: ["A PM at a robotics startup. You met at demo day in May. He wants hiring advice."], more: true },
+          { who: "me", rows: ["OK, go ahead."] },
+          { who: "thyme", rows: ["Jisoo is booked. I'll text you when Minho picks a time."] },
+        ],
+      },
+    ] as readonly ExampleThread[],
+  },
+  // Sending Thyme the link message: the iMessage start on the landing and the /app link step.
+  send: {
+    start: "Onboard with iMessage",
+    startOpensPhone: "Your Messages app opens with a note to Thyme already written. Tap send, then come back here.",
+    startOpensDesktop: "Opens Messages with a note to Thyme already written: on a Mac, right here; on another computer, through a QR code for your iPhone.",
+    fine: "By sending, you agree to get texts from Thyme about your meetings. Message and data rates may apply. Reply STOP to stop anytime.",
+    to: "To",
+    open: "Open Messages",
+    opensNote: "Your Messages app opens with this note written. Tap send, then come back here.",
+    qrTag: "IPHONE",
+    qrTitle: "Scan with your iPhone",
+    qrBody: "Messages opens with the note written. Tap send.",
+    qrAlt: "QR code that opens Messages on your iPhone with the note to Thyme written",
+    macTag: "MAC",
+    macTitle: "Open Messages on this Mac",
+    macBody: "Sends from the iMessage signed in on this Mac.",
+    copyTag: "ANYWHERE",
+    copyTitle: "Copy and send it yourself",
+    copyBody: "Send this exact text to Thyme's number.",
+    waitingFor: (time: string) => `Waiting · code works for ${time}`,
+    expiredAt: (time: string) => `Expired at ${time}`,
+    expiredMark: "Expired",
+    close: "Close",
+    popupTitle: "Send Thyme one message",
+    popupLede: "It's already written. Send it from the iMessage you use, and this page moves on by itself.",
+    expiredTitle: "This code expired.",
+    expiredLede: "Codes work for 15 minutes, so nobody else can use one later. Make a new one and send it the same way.",
+    newCode: "Make a new code",
+    left: (time: string) => `${time} left`,
+    waiting: "Waiting for your message…",
+    waitingLede: "Tap send in Messages. This page moves on as soon as it arrives.",
+    waitingStartLede: "Tap send in Messages, then come back here. Next, you sign in with Google once.",
+    reopen: "Messages didn't open, or the note is gone? Open it again",
+    received: "Got your message.",
+    receivedLede: "One step left: sign in with Google, then confirm it was you.",
+    from: "From",
+    finishBy: (time: string) => `Finish within ${time}`,
+    unavailable: "Starting from iMessage isn't available yet.",
+    error: "Couldn't reach Thyme. Try again in a moment.",
+    limited: "Too many tries for now. Wait a little and try again.",
+    lost: "The answer was lost. Try again; it won't be repeated.",
+  },
+  // The /app link step after Google sign-in.
+  link: {
+    heading: "Connect Thyme to your iMessage",
+    lede: "Send Thyme one message from the iMessage you use. It's already written, and sending it links this account.",
+    ledePhone: "Send Thyme one message. It's already written for you, and sending it links this account.",
+    altDesktop: "No iPhone, or rather not now?",
+    altPhone: "On Android, or rather not now?",
+    skip: "Set up here in web chat",
+    confirmTitle: "Is this you?",
+    confirmLede: "We got your message. Link it only if it came from your iPhone.",
+    sentFrom: "Sent from",
+    confirmWithin: (time: string) => `Confirm within ${time}`,
+    confirm: "Confirm and link",
+    notMe: "This isn't me",
+    linking: "Linking…",
+    connected: "Your iMessage is connected.",
+    connectedLede: "You can onboard with Thyme in iMessage. Thyme just sent you a hello there.",
+    linkedTo: "Linked to",
+    goHome: "Go to Home",
+    chatWeb: "Or chat with Thyme on the web",
+    expired: "Time's up.",
+    expiredLede: "The note ran out before your message came in. A new one takes a tap.",
+    again: "Write a new message",
+  },
+};
+
+export type Copy = typeof en;
+
+const ko: Copy = {
+  language: "언어",
+  copy: { idle: "복사", done: "복사했어요", fallback: "직접 선택해 복사하세요" },
+  landing: {
+    signIn: "로그인",
+    headline: ["링크 하나만 보내세요.", "시간은 Thyme이 찾아요.", "당신은 대화만 하면 돼요."],
+    lede: "미팅 시간 잡기, 번거롭죠? 캘린더를 보여 주지 않고도 누구에게나 링크를 보내세요. Thyme이 상대와 시간을 맞추고 계획을 문자로 알려 드려요. 답장만 하면 돼요.",
+    google: "Google로 계속하기",
+    calendar: "Google Calendar도 함께 연결",
+    calendarNote: "Thyme은 바쁜 시간만 읽어요. 확인하기 전에는 아무것도 예약하지 않아요.",
+    noImessage: "iMessage가 없나요?",
+    agentOr: "또는 이미 쓰는 AI 에이전트에서 시작하기",
+    agentPrompt: "내 일정 조율에 findmeatime.com/SKILL.md를 써 줘",
+    agentLabel: "에이전트에 넣을 프롬프트",
+    agentNote: "에이전트에 붙여 넣으면 같은 설정을 안내해요.",
+    agentRegion: "AI 에이전트용",
+    agentDoc: "에이전트용 안내:",
+    stepsTitle: "세 단계면, 나머지는 메시지로 진행돼요.",
+    steps: [
+      ["Google로 시작", "로그인하고 캘린더까지 한 번에 연결해요."],
+      ["휴대폰 연결", "그다음부터 Thyme이 문자로 연락해요."],
+      ["링크 공유", "누구나 시간을 요청할 수 있어요. 계정이 없어도 돼요."],
+    ],
+    tagline: "신중한 일정 조율. 한 번에 한 미팅씩.",
+    rights: "모든 권리 보유.",
+    privacy: "개인정보와 데이터",
+  },
+  examples: {
+    label: "Thyme과의 대화 예시",
+    channel: "문자 메시지",
+    slide: (i: number, n: number) => `${n}개 중 ${i}번째`,
+    choose: "예시 고르기",
+    dot: (i: number, n: number) => `예시 ${i} / ${n}`,
+    threads: [
+      {
+        tag: "설정 중", stamp: "오늘 오전 9:02", alt: true,
+        lines: [
+          { who: "thyme", rows: ["지난 8주 캘린더를 읽었어요.", "• 미팅은 화–목 오후 1–5시에 몰려 있어요", "• 오전은 비어 있어요", "• 금요일은 오후 3시 전에 끝나요"] },
+          { who: "thyme", rows: ["사람들에게 이 시간대를 제안할게요. 괜찮을까요?"] },
+          { who: "me", rows: ["좋아요."] },
+        ],
+      },
+      {
+        tag: "설정 중", stamp: "오늘 오전 9:04", alt: true,
+        lines: [
+          { who: "thyme", rows: ["수요일은 미팅이 연달아 있어요. 최근 6번 중 5번은 오후 2시 이후 쉬는 시간이 없었어요."] },
+          { who: "thyme", rows: ["미팅 사이에 15분을 비워 둘까요?"] },
+          { who: "me", rows: ["네, 그렇게 해 주세요."] },
+          { who: "thyme", rows: ["완료했어요. 수요일에 숨 돌릴 틈이 생겼어요."] },
+        ],
+      },
+      {
+        tag: "언제든", stamp: "어제 오후 6:40", alt: true,
+        lines: [
+          { who: "me", rows: ["그런데 Daniel Lee가 누구였지?"] },
+          { who: "thyme", rows: ["Lumen Ventures 파트너예요. 9월 3일에 커피를 마셨고 10월 1일에 통화했어요."] },
+          { who: "me", rows: ["다음 주에 시간 잡아 줘."] },
+          { who: "thyme", rows: ["지금 물어볼게요."] },
+        ],
+      },
+      {
+        stamp: "오늘 오전 8:30", alt: false,
+        lines: [
+          { who: "thyme", rows: ["두 요청이 목요일 오후 3시를 원해요.", { name: "김지수", rest: ", 투자자 → 목 오후 3:00" }, { name: "박민호", rest: ", 커피챗 → 금 오전 10:00" }, "투자자를 먼저 잡을게요. 괜찮을까요?"] },
+          { who: "me", rows: ["민호가 누구였지?"], more: true },
+          { who: "thyme", rows: ["로봇 스타트업 PM이에요. 5월 데모데이에서 만났고, 채용 조언을 원해요."], more: true },
+          { who: "me", rows: ["좋아, 진행해."] },
+          { who: "thyme", rows: ["지수 님 일정은 확정했어요. 민호 님이 시간을 고르면 문자로 알려 드릴게요."] },
+        ],
+      },
+    ],
+  },
+  send: {
+    start: "iMessage로 시작하기",
+    startOpensPhone: "Thyme에게 보낼 메시지가 미리 적힌 채로 메시지 앱이 열려요. 보내기를 누른 뒤 여기로 돌아오세요.",
+    startOpensDesktop: "Thyme에게 보낼 메시지가 미리 적힌 채로 메시지 앱이 열려요. Mac에서는 바로 열리고, 다른 컴퓨터에서는 iPhone으로 찍을 QR 코드를 보여 드려요.",
+    fine: "메시지를 보내면 미팅에 관한 Thyme의 문자를 받는 데 동의하게 돼요. 메시지·데이터 요금이 부과될 수 있어요. 언제든 STOP으로 답하면 멈춰요.",
+    to: "받는 사람",
+    open: "메시지 앱 열기",
+    opensNote: "이 내용이 적힌 채로 메시지 앱이 열려요. 보내기를 누른 뒤 여기로 돌아오세요.",
+    qrTag: "IPHONE",
+    qrTitle: "iPhone으로 찍기",
+    qrBody: "메시지 앱이 내용이 적힌 채로 열려요. 보내기만 누르세요.",
+    qrAlt: "iPhone에서 Thyme에게 보낼 메시지가 적힌 메시지 앱을 여는 QR 코드",
+    macTag: "MAC",
+    macTitle: "이 Mac의 메시지 앱 열기",
+    macBody: "이 Mac에 로그인된 iMessage로 보내요.",
+    copyTag: "어디서나",
+    copyTitle: "복사해서 직접 보내기",
+    copyBody: "Thyme의 번호에 이 문장을 그대로 보내 주세요.",
+    waitingFor: (time: string) => `기다리는 중 · ${time} 동안 유효`,
+    expiredAt: (time: string) => `${time}에 만료됨`,
+    expiredMark: "만료됨",
+    close: "닫기",
+    popupTitle: "Thyme에게 메시지 하나만 보내 주세요",
+    popupLede: "내용은 미리 적어 두었어요. 쓰고 있는 iMessage로 보내면 이 화면이 알아서 넘어가요.",
+    expiredTitle: "코드가 만료됐어요.",
+    expiredLede: "코드는 15분 동안만 쓸 수 있어요. 나중에 다른 사람이 쓰지 못하게 하려는 거예요. 새 코드를 만들어 같은 방법으로 보내 주세요.",
+    newCode: "새 코드 만들기",
+    left: (time: string) => `${time} 남음`,
+    waiting: "메시지를 기다리고 있어요…",
+    waitingLede: "메시지 앱에서 보내기를 눌러 주세요. 도착하면 이 화면이 바로 넘어가요.",
+    waitingStartLede: "메시지 앱에서 보내기를 누른 뒤 여기로 돌아오세요. 다음으로 Google 로그인을 한 번만 하면 돼요.",
+    reopen: "메시지 앱이 안 열렸거나 내용이 지워졌나요? 다시 열기",
+    received: "메시지를 받았어요.",
+    receivedLede: "한 단계만 남았어요. Google로 로그인한 뒤 본인이 보낸 게 맞는지 확인해 주세요.",
+    from: "보낸 번호",
+    finishBy: (time: string) => `${time} 안에 마쳐 주세요`,
+    unavailable: "지금은 iMessage로 시작할 수 없어요.",
+    error: "Thyme에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.",
+    limited: "시도가 너무 많아요. 잠시 후 다시 해 주세요.",
+    lost: "응답을 받지 못했어요. 다시 시도해도 두 번 처리되지 않아요.",
+  },
+  link: {
+    heading: "Thyme을 iMessage에 연결해요",
+    lede: "쓰고 있는 iMessage로 Thyme에게 메시지 하나만 보내 주세요. 내용은 미리 적어 두었고, 보내면 이 계정에 연결돼요.",
+    ledePhone: "Thyme에게 메시지 하나만 보내 주세요. 내용은 미리 적어 두었고, 보내면 이 계정에 연결돼요.",
+    altDesktop: "iPhone이 없거나, 지금은 하고 싶지 않나요?",
+    altPhone: "Android폰이거나, 지금은 하고 싶지 않나요?",
+    skip: "여기서 웹 채팅으로 설정하기",
+    confirmTitle: "본인이 맞나요?",
+    confirmLede: "메시지를 받았어요. 내 iPhone에서 보낸 게 맞을 때만 연결해 주세요.",
+    sentFrom: "보낸 번호",
+    confirmWithin: (time: string) => `${time} 안에 확인해 주세요`,
+    confirm: "확인하고 연결하기",
+    notMe: "제가 보낸 게 아니에요",
+    linking: "연결하는 중…",
+    connected: "iMessage가 연결됐어요.",
+    connectedLede: "이제 iMessage에서 Thyme과 설정을 이어 갈 수 있어요. Thyme이 방금 인사를 보냈어요.",
+    linkedTo: "연결된 번호",
+    goHome: "홈으로 가기",
+    chatWeb: "또는 웹에서 Thyme과 채팅하기",
+    expired: "시간이 지났어요.",
+    expiredLede: "메시지가 오기 전에 유효 시간이 끝났어요. 한 번만 누르면 새로 만들어요.",
+    again: "새 메시지 만들기",
+  },
+};
+
+export const COPY: Record<Locale, Copy> = { en, ko };

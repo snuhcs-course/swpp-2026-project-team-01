@@ -17,8 +17,8 @@ describe("messagesPlatform", () => {
     expect(messagesPlatform(ANDROID)).toBe("android");
   });
 
-  it("shows the inline card on desktops, macOS included", () => {
-    expect(messagesPlatform(IPAD_DESKTOP, 0)).toBe("other");
+  it("tells a Mac (a Macintosh user agent without touch) from other desktops", () => {
+    expect(messagesPlatform(IPAD_DESKTOP, 0)).toBe("mac");
     expect(messagesPlatform(WINDOWS)).toBe("other");
   });
 });
@@ -26,10 +26,11 @@ describe("messagesPlatform", () => {
 describe("deepLinkFor", () => {
   const text = linkMessage("FMAT-7KQ2M9XD3A");
 
-  it("uses &body= on iOS and ?body= on Android, percent-encoding the message", () => {
+  it("uses &body= on iOS and a Mac and ?body= on Android, percent-encoding the message", () => {
     expect(text).toBe("Link my Find Me a Time account: FMAT-7KQ2M9XD3A");
     expect(deepLinkFor("ios", "+15550001111", text)).toBe("sms:+15550001111&body=Link%20my%20Find%20Me%20a%20Time%20account%3A%20FMAT-7KQ2M9XD3A");
     expect(deepLinkFor("android", "+15550001111", text)).toBe("sms:+15550001111?body=Link%20my%20Find%20Me%20a%20Time%20account%3A%20FMAT-7KQ2M9XD3A");
+    expect(deepLinkFor("mac", "+15550001111", text)).toBe(deepLinkFor("ios", "+15550001111", text));
     expect(deepLinkFor("other", "+15550001111", text)).toBeNull();
   });
 

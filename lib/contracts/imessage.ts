@@ -63,6 +63,22 @@ export type ImessageStatus =
       readonly contactCard: { readonly state: ImessageDeliveryState } | null;
     };
 
+// The iMessage start on the public page (D15), as GET /api/imessage/start
+// answers it for this browser before sign-in: the same code and message as the
+// card, then the masked sender once it arrived. Signing in with Google in this
+// browser carries the attempt to the host's card, where Confirm and link binds it.
+export type ImessageStartStatus =
+  | { readonly state: "unavailable" }
+  | { readonly state: "none"; readonly lineNumber: string }
+  | {
+      readonly state: "pending";
+      readonly lineNumber: string;
+      readonly code: string;
+      readonly message: string;
+      readonly expiresAt: string;
+    }
+  | { readonly state: "received"; readonly lineNumber: string; readonly sender: string; readonly confirmBy: string };
+
 export const LINK_MESSAGE_PREFIX = "Link my Find Me a Time account:";
 
 export function linkMessage(code: string) {
@@ -80,22 +96,25 @@ export function maskSender(sender: string) {
   return local.length <= 3 ? `${local[0]}•••${sender.slice(at)}` : `${local.slice(0, 2)}•••${local.slice(-1)}${sender.slice(at)}`;
 }
 
-export type MessagesPlatform = "ios" | "android" | "other";
+export type MessagesPlatform = "ios" | "android" | "mac" | "other";
 
 // Where the Messages app can be opened with a prefilled body: iPhone, iPad and
 // iPod, an iPad that reports a Macintosh user agent (it has touch points), and
-// Android. Everything else, desktops included, gets the inline card.
+// Android. A Mac (a Macintosh user agent without touch points) has Messages too,
+// which the link screens offer beside the QR code and Copy (D17); everything
+// else gets only those two.
 export function messagesPlatform(userAgent: string, maxTouchPoints = 0): MessagesPlatform {
   if (/iPhone|iPad|iPod/.test(userAgent)) return "ios";
-  if (/Macintosh/.test(userAgent) && maxTouchPoints > 1) return "ios";
+  if (/Macintosh/.test(userAgent)) return maxTouchPoints > 1 ? "ios" : "mac";
   if (/Android/.test(userAgent)) return "android";
   return "other";
 }
 
-// The sms: deep link for a platform: `&body=` on iOS, `?body=` on Android.
+// The sms: deep link for a platform: `&body=` on iOS and a Mac, `?body=` on
+// Android. Whether a Mac's Messages takes the body is not verified on a device.
 export function deepLinkFor(platform: MessagesPlatform, number: string, text: string) {
   const body = encodeURIComponent(text);
-  if (platform === "ios") return `sms:${number}&body=${body}`;
+  if (platform === "ios" || platform === "mac") return `sms:${number}&body=${body}`;
   if (platform === "android") return `sms:${number}?body=${body}`;
   return null;
 }
