@@ -61,6 +61,12 @@ export default function Page() {
         Sign-in and setup happen in the browser. A personal agent can connect to the MCP server at /mcp once you allow it in
         the browser; the instructions explain how.
       </AgentSection>
+
+      <footer className="text-sm text-muted-foreground">
+        <a className="underline underline-offset-4" href="/privacy">
+          Privacy and your data
+        </a>
+      </footer>
     </main>
   );
 }

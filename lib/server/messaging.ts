@@ -8,8 +8,11 @@ import { deploymentEnvironment } from "./deployment";
 // .env.local (design decision 13). Previews, Vercel development, custom
 // environments and missing or contradictory Vercel metadata are refused with a
 // sanitized configuration error before any network access or delivery-state
-// read. Admission grants nothing by itself: an admitted send still passes the
-// transport's own authority and credential checks.
+// read. A production deployment whose canonical origin (APP_ORIGIN) is set and
+// is not a release origin is staging (operations-and-release D14) and is refused
+// the same way, so the staging project never messages anyone. Admission grants
+// nothing by itself: an admitted send still passes the transport's own
+// authority and credential checks.
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -29,9 +32,26 @@ export function isLoopbackEndpoint(endpoint: string) {
   }
 }
 
+// The origins the release deployment serves. Any other canonical origin on a
+// production deployment is staging.
+export const RELEASE_ORIGINS: readonly string[] = ["https://findmeatime.com", "https://release.findmeatime.com"];
+
+export function isStagingOrigin(env: Environment = process.env) {
+  const configured = env.APP_ORIGIN?.trim();
+
+  if (!configured) return false;
+
+  try {
+    return !RELEASE_ORIGINS.includes(new URL(configured).origin);
+  } catch {
+    // An unreadable origin is not a release origin.
+    return true;
+  }
+}
+
 export function messagingAdmitted(endpoint: string, env: Environment = process.env) {
   const environment = deploymentEnvironment(env);
-  return environment === "production" || (environment === "local" && isLoopbackEndpoint(endpoint));
+  return (environment === "production" && !isStagingOrigin(env)) || (environment === "local" && isLoopbackEndpoint(endpoint));
 }
 
 export function assertMessagingAdmitted(endpoint: string, env: Environment = process.env) {

@@ -1,10 +1,47 @@
 # Acceptance Record
 
-Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) released and checked on production; the guest's inbox check pending; Phase 5 (`agent-access`) local evidence recorded, named-client and production evidence pending; Phase 6 (`host-imessage-channel`) local evidence recorded, line, device and production evidence pending; Phase 7 (`requester-email-channel`) local evidence recorded, inbox and production evidence pending; open gaps listed below
+Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) released and checked on production; the guest's inbox check pending; Phase 5 (`agent-access`) local evidence recorded, named-client and production evidence pending; Phase 6 (`host-imessage-channel`) local evidence recorded, line, device and production evidence pending; Phase 7 (`requester-email-channel`) local evidence recorded, inbox and production evidence pending; Phase 8 (`operations-and-release`) local evidence recorded; the [release summary](#release-summary) lists every scenario's state; open gaps listed below
 
 Date: 2026-10-23
 
 This record lists the evidence each phase of the [implementation plan](06_implementation_plan.md) produced, against the evidence list of that phase. Every entry names the command, the date, the revision and the environment it ran in. Fixture and local-stack runs prove logic; only the entries marked **production** prove the deployed integration. Tokens, secrets, email addresses and personal message text are kept out of this record.
+
+## Release summary
+
+Compiled on 2026-10-23 by the [`operations-and-release`](../../openspec/changes/operations-and-release/proposal.md) change (Lane D) from the phase sections below. **Local** means fixture or local-stack evidence, which proves logic; **Production** means a check against the deployed integration; **Pending** is what the [PRD](../02_product_requirements.md#9-end-to-end-release-acceptance-scenarios) still requires. A scenario with anything pending is not closed, and an unresolved named-client, device or inbox case is a release blocker, so **the release is not yet acceptable**. The zero-tolerance measures (unauthorized bookings, duplicate events, private disclosures) have no failing case in the suites run so far.
+
+| ID | Local | Production | Pending |
+|---|---|---|---|
+| AC-01 | `tests/e2e/requester-intake.test.ts` to agreement, then `tests/e2e/host-review.test.ts` to one booked event ([Phase 4](#phase-4--host-review-and-booking)) | Web booking on 2026-10-22: one event on the host's real Google Calendar ([Phase 4 production check](#production-acceptance-check)) | The guest's inbox; the same journey by email, iMessage and each named client |
+| AC-02 | `tests/integration/evaluation.test.ts` "checks the host's inbound trip through Routes and reuses the estimate within 24 hours" and "leaves a leg with no route unresolved and out of the requester's list"; `host-requests.test.ts` manual allowance; `bookings.test.ts` "stops at revalidation when a busy event appeared" | — | The live Routes check (Phase 3 task 5.2) and a production run |
+| AC-03 | `tests/integration/host-requests.test.ts` ([Phase 4](#phase-4--host-review-and-booking)) | The weekly-limit hold and **Allow this request beyond my weekly limit** in the Phase 4 production check | — for the web path; other channels as AC-14 and AC-16 |
+| AC-04 | `host-requests.test.ts` "shares a feasible later time as a checked new version" | — | A production run |
+| AC-05 | `tests/integration/email-journey.test.ts` ([Phase 7](#phase-7--requester-email-channel)) | — | Real inbox delivery: the AgentMail inbox is blocked |
+| AC-06 | `bookings.test.ts` (web), `imessage-commands.test.ts` (iMessage and web), `agent-join.test.ts` (agent) | — | A production run; named clients |
+| AC-07 | `bookings.test.ts` "stops at revalidation when a busy event appeared" and "dispatches only one of two competing bookings for the same host" | — | A production run |
+| AC-08 | `bookings.test.ts` lost-response reconciliation; `tests/integration/recovery-operations.test.ts` reconciles an uncertain booking an operator finds | — | None that can be induced safely against Google; fixture evidence stands |
+| AC-09 | `bookings.test.ts` refused write and revoked access; `booking-emails.test.ts` bounced copy | — | A production run of revoked access |
+| AC-10 | `tests/integration/host-review.test.ts`; `agent-mcp-host.test.ts` (an OAuth grant books nothing) | — | Named clients |
+| AC-11 | `email-journey.test.ts`, `email-links.test.ts` ([Phase 7](#phase-7--requester-email-channel)) | — | Real inbox delivery |
+| AC-12 | `lib/server/feasibility.test.ts` "yields nothing for a window whose end is ambiguous or does not exist"; `tests/integration/request-reviews.test.ts` "asks the authored Korean question for an ambiguous local time and records no window" | — | A production run across a daylight-saving change |
+| AC-13 | `bookings.test.ts` withdrawal, decline and expiry around dispatch | — | A production run |
+| AC-14 | `tests/integration/agent-join.test.ts`, scripted ([Phase 5](#phase-5--agent-access)) | — | Dots, Muse, Instinct, ChatGPT, Codex, Claude and Claude Code, each in both roles |
+| AC-15 | `agent-mcp-requester.test.ts`, scripted | — | The seven named clients |
+| AC-16 | `tests/integration/imessage-journey.test.ts` through `eve dev` ([Phase 6](#phase-6--host-imessage-channel)) | — | The Photon line, its webhook and a controlled iPhone |
+| AC-17 | `imessage-journey.test.ts`, `imessage-channel.test.ts`, `imessage-commands.test.ts` | — | A controlled iPhone |
+| AC-18 | `imessage-journey.test.ts`, `imessage-commands.test.ts`, `imessage-notices.test.ts` | — | A controlled iPhone with a service restart |
+| AC-19 | `tests/e2e/agent-connect.test.ts`; `agent-mcp-host.test.ts` | — | Named clients; the production signing key |
+| AC-20 | `lib/server/agent-tokens.test.ts`; `agent-mcp-host.test.ts` | — | Named clients |
+| AC-21 | `agent-mcp-requester.test.ts`; `agent-mcp-host.test.ts` | — | Named clients |
+| AC-22 | `tests/integration/agent-cli.test.ts`; the join test | — | The CLI against production |
+| AC-23 | `lib/server/entry-documents.test.ts`, `tests/integration/entry-documents.test.ts`, documents only | `/SKILL.md` served on both origins (Phase 2) | Each named client pasting the plain and the `/SKILL.md` URL |
+| AC-24 | The same documents tests | `/{handle}/SKILL.md` served (Phase 3 smoke test) | Each named client |
+| AC-25 | The same documents tests; `agent-mcp-requester.test.ts` "refuses a resource for an unknown host" | — | Each named client, and denied consent |
+| AC-26 | `tests/integration/host-admission.test.ts`, `setup-tools.test.ts`, `entry-documents.test.ts`, `operator.test.ts` ([Phase 1](#phase-1--application-foundation), [Phase 2](#phase-2--host-onboarding)) | One real sign-in on `https://findmeatime.com` creating one host account (Phase 1) | Publishing attempts through MCP and the CLI before setup; suspension on production |
+| AC-27 | `tests/integration/requester-google.test.ts`; `evaluation.test.ts` "uses the requester's busy time without storing or showing their events" | — | Real requester consent, blocked while the Google app is in **Testing** |
+| AC-28 | [Phase 2](#phase-2--host-onboarding) evidence by item | — | Signed-in setup on production; Google app verification |
+
+Two earlier gaps changed since their phases were recorded: every migration through Phase 6 is now on the shared project (read on 2026-10-23), and the current production deployment (2026-10-23 07:02 KST) predates the Phase 6 merge, so Phases 6 to 8 are not deployed.
 
 ## Phase 1 — `application-foundation`
 
@@ -329,7 +366,7 @@ Fixture and local-stack evidence only; each names the test that shows it.
 - **No real line, webhook or device run:** provisioning the Photon line, registering the webhook and every check on a controlled iPhone (the deep link opening Messages after the awaited request on iOS Safari, the QR code from a desktop, the sender identifier a real iPhone sends, AC-16 to AC-18 against production, device and client versions) are pending (decision log, "Blocked on the user").
 - **Spectrum send path assumed from the SDK:** `space.get`, `space.create`, `send` and `shareContactCard` are typed against `@spectrum-ts` 12.14.0 and exercised only through the stand-in.
 - **Real model replies over iMessage** were not graded; the journey used the OpenAI stand-in.
-- **The migration is not on the shared project.**
+- **Production deploy.** The migration was applied to the shared project on 2026-10-23 with `supabase db push --linked` from `873804b`, after a dry run that listed only it; a dry run afterwards reported the remote database up to date. `findmeatime-release` has not been redeployed with Phase 6.
 
 ## Phase 7 — `requester-email-channel`
 
@@ -368,3 +405,45 @@ Fixture and local-stack evidence only; each names the test that shows it.
 - **Real multi-turn inbox delivery** with an authorized recipient is pending: `findmeatime@agentmail.to` is blocked by the three-inbox limit, no webhook is registered, and the migrations are not on the shared project (decision log, "Blocked on the user").
 - **AgentMail behavior assumed from its documentation:** `authentication_results`, `extracted_text`, the reply endpoint's `Idempotency-Key` semantics and Svix signing are exercised only against the stand-in.
 - **Real model replies by email** were not graded; the journey used the OpenAI stand-in.
+
+## Phase 8 — `operations-and-release`
+
+Change: [`operations-and-release`](../../openspec/changes/operations-and-release/tasks.md). Evidence list: [Phase 8](06_implementation_plan.md#phase-8--operations-and-release). Environments as in Phase 1; this branch ran on the default local stack, reset with its own migration chain.
+
+### Suite runs
+
+| Command | Date | Revision | Environment | Result |
+|---|---|---|---|---|
+| `supabase db reset --local` | 2026-10-23 | `4fc71283` | Local stack | The 31-migration chain rebuilt, exit 0 |
+| `supabase test db` | 2026-10-23 | `4fc71283` | Local stack | 9 files, 127 pgTAP tests passed |
+| `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-23 | `4fc71283` | Local | Each exit 0; lint reports only warnings that predate this change |
+| `npm test` | 2026-10-23 | `4fc71283` | Local | 55 files, 528 tests passed |
+| `npm run test:integration` | 2026-10-23 | `4fc71283` | Local stack | 70 of 71 files passed (684 of 685 tests). `tests/integration/recovery.test.ts` "shows a re-sent input once even before its new receipt is recorded" failed once on its 2-second receipt wait and passed when the file ran alone (14 tests); at `05f1f021`, before the review fixes, all 71 files and 683 tests passed |
+| `npx playwright test --workers=2` | 2026-10-23 | `4fc71283` | Local stack | 47 of 49 passed; `first-reply.test.ts` and `host-setup.test.ts` "a new host completes setup one card at a time…" missed 5-second waits early in the run and passed when run alone (9 tests). An earlier full run with the default workers failed widely because the local Docker daemon stopped mid-run |
+
+### Evidence by item
+
+| Item | Evidence |
+|---|---|
+| Diagnostics snapshot and rejection counts | `tests/integration/diagnostics.test.ts`: ten categories in a fixed order with the coverage not measured; counts over every match with an oldest-first, bounded and repeatable sample; no payload, outcome, kind or failure text in the output; an uncertain booking and email reported unchanged; an expired lease left in place; Data API roles denied; recognized command rejections counted only while enabled; the original rejection kept when collection fails or hangs; 40 concurrent increments; pruning and saturation. Unit tests in `lib/server/diagnostics.test.ts` and `lib/server/diagnostics-admin.test.ts` |
+| Recovery | `tests/integration/recovery-operations.test.ts`: a requeued exhausted job completes and a stale claim is fenced out; a job that is not exhausted and an unknown job are refused; no change without `--yes` or the typed ID; a booking whose write was lost is reconciled into the existing event, with one event in the fake Google Calendar; a booking with a live job or not dispatching is refused, and so is requeueing an old booking job while its reconciliation is live; Data API roles denied; audit rows for each recovery |
+| Backup restoration | `npm run restore:drill` on 2026-10-23 at `d6e470fa`, local stack: 85 tables and 415 synthetic rows compared equal after `pg_dump --format=custom` and `pg_restore` into `fmat_drill_restored`; migration history 29 records to `20261023063140` on both sides; 0 constraints not valid; the diagnostics snapshot ran on the restored copy; the local database unchanged. `tests/integration/restore-drill.test.ts` repeats the drill and shows the comparison names a changed table |
+| Retention | `tests/integration/data-stewardship.test.ts`: a booked request 91 days after closure is deleted with its proposals, booking, booking link, deliveries, discussion, session and events, its model spend detached and the Calendar event kept; a request closed 89 days ago and an open 200-day-old request are kept; each operational rule at its own age; at most the row limit per rule per run; the hourly schedule |
+| Deletion on request | The same file: a deleted host keeps a suspended, nameless account with its handle, which `checkHandle` reports taken; identity, grants, settings, requests, discussions and the Auth user are gone; restoring and deleting again are refused; the same Google subject gets a new account. One request is deleted with its conversation and a turn reply still waiting on it; a closed request whose booking write may exist is kept by retention; deletion is refused while a booking write may exist; Data API roles are denied every function. Unit tests in `lib/server/data-deletion.test.ts` |
+| Data notice | `tests/e2e/privacy.test.ts` at 390 and 1280 px: the English and Korean notice with its sections and no horizontal scroll, and the links from `/` and a host page; `tests/e2e/requester-intake.test.ts` checks the link under **Continue with Google** |
+
+### Production checks, read only
+
+Run by the implementing session on 2026-10-23 (06:55 UTC) against the current **production** deployment of `findmeatime-release` (`dpl_2kZrdFKxF1eukJH1irgwH4VMM9wF`, a CLI deploy of 2026-10-23 07:02 KST that predates the Phase 6 merge). Nothing was changed.
+
+| Check | Command | Result |
+|---|---|---|
+| Domains | `vercel domains inspect findmeatime.com --scope justdodos-projects` | `findmeatime-release` serves `findmeatime.com` and `release.findmeatime.com`; `findmeatime-dev` holds `dev.findmeatime.com`. Nameservers stay Cloudflare's, as intended |
+| DNS records | `cf dns records list --zone findmeatime.com` | `A` records for the three names point to `76.76.21.21` with `proxied: false`; the Cloudflare Email Routing MX, SPF, DKIM and DMARC records are unchanged |
+| DNS lookup | `dig +short A findmeatime.com @1.1.1.1` and the same for `release.findmeatime.com` | `76.76.21.21` for both |
+| HTTPS, both origins | `curl` of `/`, `/app`, `/eve/v1/health`, `/SKILL.md`, `/llms.txt` | 200 each; HSTS and Content Security Policy present |
+| Raw runtime route | Unauthenticated `POST /eve/v1/session` | 401 |
+| `dev.findmeatime.com` | `curl` of `/` | 404: `findmeatime-dev` has no current deployment serving it, so staging is not live |
+| Latency (D4) | `npm run perf:check -- --origin https://findmeatime.com` and `--origin https://release.findmeatime.com`, 20 sequential samples per route from Seoul | All routes pass. `findmeatime.com`: `/` p50 155 ms, p95 267 ms; `/SKILL.md` 269 and 431 ms; `/llms.txt` 255 and 286 ms; `/eve/v1/health` 250 and 470 ms. `release.findmeatime.com`: 200 and 446; 262 and 287; 250 and 831; 273 and 321 ms. Approval-to-booking and first-reply times are not measured |
+| Release project | Read-only `supabase db query --linked --project-ref mriseqztcwmezvtawnbo` | Still the iteration-1 prototype ([provider setup](03_provider_setup.md#supabase-project)); not emptied |
+
