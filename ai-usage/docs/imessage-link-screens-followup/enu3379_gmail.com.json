@@ -1,0 +1,23 @@
+{
+  "branch": "docs/imessage-link-screens-followup",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:fd9eae6a-744c-4bac-be8d-5a7135bf7f8f": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 22,
+          "cache_read": 1234340,
+          "cache_write_5m": 0,
+          "cache_write_1h": 36734,
+          "output": 12818,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-29T06:45:58.862Z",
+      "last": "2026-10-29T06:47:59.098Z"
+    }
+  }
+}

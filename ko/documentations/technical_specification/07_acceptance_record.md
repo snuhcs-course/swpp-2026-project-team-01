@@ -328,7 +328,7 @@
 
 ## 6단계 — `host-imessage-channel`
 
-변경: [`host-imessage-channel`](../../openspec/changes/host-imessage-channel/tasks.md). 증거 목록: [6단계](06_implementation_plan.md#phase-6--host-imessage-channel). 환경은 기본 로컬 스택을 쓰는 1단계와 같고, 여기에 전송을 기록하고 전송을 거부하거나 응답을 버릴 수 있는 루프백 Photon 스탠드인(`tests/integration/support/fake-photon.ts`, 브라우저 테스트용은 `tests/e2e/support/fake-photon-server.ts`)이 더해졌습니다. 수신 메시지는 Photon의 문서화된 방식(`tests/integration/support/photon.ts`)으로 서명했습니다. Photon 회선은 존재하지 않고, 등록된 웹훅도 없으며, Photon, 실제 휴대폰, 프로덕션을 상대로 실행된 것은 없습니다.
+변경: [`host-imessage-channel`](../../openspec/changes/host-imessage-channel/tasks.md). 증거 목록: [6단계](06_implementation_plan.md#phase-6--host-imessage-channel). 환경은 기본 로컬 스택을 쓰는 1단계와 같고, 여기에 전송을 기록하고 전송을 거부하거나 응답을 버릴 수 있는 루프백 Photon 스탠드인(`tests/integration/support/fake-photon.ts`, 브라우저 테스트용은 `tests/e2e/support/fake-photon-server.ts`)이 더해졌습니다. 수신 메시지는 Photon의 문서화된 방식(`tests/integration/support/photon.ts`)으로 서명했습니다. Photon 회선은 존재하지 않고, 등록된 웹훅도 없으며, Photon, 실제 휴대폰, 프로덕션을 상대로 실행된 것은 없습니다. 이후 추가된 연결 화면(PR #39, D15–D19)은 로컬 수신기를 통해 사용자의 iPhone과 Mac에서 `fmat-spike` 회선으로 한 번 확인했으며, 프로덕션을 상대로 실행된 것은 없습니다.
 
 ### 테스트 묶음 실행
 
@@ -341,6 +341,11 @@
 | `npm run test:e2e` | 2026-10-23 | `65b0dff0` | 로컬 스택 | Playwright 테스트 46개 통과, 45개는 처음에, 1개는 재시도에서 통과(1280px의 3단계 요청자 여정, 포커스 대기). 앞선 전체 실행에서 설정 로딩이 끝나면 Connect iMessage 카드가 다시 마운트되어 상태를 잃는 문제와, 테스트가 버튼에 포커스를 둔 뒤 메뉴가 포커스를 옮기는 문제가 발견되어 둘 다 수정했습니다 |
 | `npm run build`, `npm run lint`, `npm run typecheck`, `npm run check` | 2026-10-23 | `65b0dff0` | 로컬 | 통과; lint는 이 변경 이전부터 있던 경고만 보고함 |
 | 독립 검토의 수정 이후: iMessage, 에이전트 표면, 예약, 작업 처리기 통합 스위트; `supabase test db`; `npm test`; `npm run lint`; `npm run typecheck`; 재시도 없이 두 번 실행한 `tests/e2e/imessage-link.test.ts` | 2026-10-23 | 검토 수정 커밋 | 로컬 스택 | 통합 테스트 122개(파일 12개), pgTAP 테스트 127개, 단위 테스트 470개, 브라우저 테스트 4개 중 4개 통과. 수정 뒤 시작한 전체 브라우저 실행은 기기의 디스크가 가득 차(`ENOSPC`) Docker가 멈추면서 중단됐고, 디스크가 다시 차지 않도록 반복하지 않았습니다 |
+| PR #39: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` | 2026-10-23 | `e49b9c65` | 로컬 | 통과. 단위 테스트 472개(파일 51개). lint는 이 변경 이전부터 있던 경고 3개만 보고합니다 |
+| PR #39: `npm run test:integration` | 2026-10-23 | `e49b9c65` | 로컬 스택 | 테스트 662개(파일 67개). 전체 실행에서 수정된 로컬 Auth 컨테이너 때문에 실패가 하나 있었고, `config.toml`로 스택을 다시 시작한 뒤 그 파일은 통과했습니다 |
+| PR #39: `npm run test:e2e` | 2026-10-23 | `e49b9c65` | 로컬 스택 | Playwright 테스트 51개. 두 개가 오래된 단언 때문에 실패했고, 수정 뒤 그 파일은 통과했습니다(7개 중 7개) |
+| PR #39: 새로 리셋한 뒤의 `supabase test db`(2.119.0), `openspec validate --all --strict`, `npm run check:docs` | 2026-10-23 | `e49b9c65` | 로컬 스택 | 통과(OpenSpec 항목 22개, 링크 792개) |
+| #36 병합 이후의 PR #39: `npm run typecheck`, `npm run lint`, `npm test` | 2026-10-29 | `e7e35de2` | 로컬 | 통과. 단위 테스트 530개(파일 55개). lint는 이 변경 이전부터 있던 경고 3개만 보고합니다. 이 리비전에서는 브라우저 테스트를 실행하지 않았습니다 |
 
 ### 항목별 증거
 
@@ -362,10 +367,15 @@
 | iMessage를 통한 설정 | `tests/integration/imessage-setup.test.ts`와 `imessage-commands.test.ts` "reviews settings with their reference and saves them only for the current one" |
 | 보존(D14) | `supabase/tests/imessage_channel.test.sql`; `imessage-setup.test.ts` "retention" |
 
+| iMessage 시작(D15) | `tests/integration/imessage-start.test.ts`: 발신자는 이 브라우저에만 기록되고 로그인과 **확인 후 연결(Confirm and link)** 뒤에 바인딩됨; 대체된 시작과 만료된 시작; 다른 호스트가 가진 발신자는 확인 시점에 거부됨; 출처별 한도. `google-sign-in.test.ts` "gives this browser's iMessage start to the host who signs in, and clears its cookie (D15)"; `tests/e2e/imessage-link.test.ts` "the landing's iMessage start opens the send popup, and the arriving message asks for Google" |
+| 연결 단계와 랜딩(D16–D18) | `tests/e2e/imessage-link.test.ts`: 1280 px의 연결 단계, **여기 웹 채팅에서 설정하기(Set up here in web chat)**, iPhone에서 연결 단계의 딥링크; `tests/e2e/public-entry.test.ts`: 캘린더 상자, iMessage 시작, `lang` 쿠키; `google-sign-in.test.ts` "asks for identity only for ?calendar=0, and for Calendar with any other value"; Mac 플랫폼은 `lib/contracts/imessage.test.ts` |
+| iMessage에서 이어가기(D19) | `imessage-start.test.ts`: **확인 후 연결(Confirm and link)** 전까지 한 호스트에게만 유효한 로그인 링크, 기한이 지나면 거부, 로컬 Auth를 거쳐 "Google에서 돌아왔다" 메시지까지 이어짐; `imessage-links.test.ts` "welcomes a host still setting up into setup, Calendar first, and tells a ready host what Thyme can do" |
+| 읽음 확인과 입력 중 신호 | `lib/server/photon-receiver.test.ts` "does not turn an inbound read/typing signal into a message" |
+| 기기 확인(PR #39) | 2026-10-23, 사용자의 iPhone과 Mac에서 `fmat-spike` 회선과 로컬 수신기(저장소 밖의 임시 재정의)로: 랜딩의 **메시지 열기(Open Messages)**가 iOS Safari와 Mac에서 회선 번호와 메시지를 채움; 보낸 코드로 페이지가 받음 상태로 바뀜; 환영 메시지가 도착했고 답장하자 다음 설정 질문이 옴 |
 | 검토 수정 | `imessage-forwarding.test.ts` "sends a turn reply frozen by an attempt that found Photon unavailable"; `imessage-links.test.ts`(그룹에 올린 코드는 그 시도를 무효로 함; 두 번 탭해도 도착은 한 번; 다른 곳에 연결된 번호는 기록되고 전송됨으로 표시; 연락처 카드는 최종 결과 뒤 다시 공유 가능; 처리 중인 메시지가 있으면 연결 해제가 기다림); `imessage-channel.test.ts`(나중 메시지는 새 작업에서 기다리다 앞당겨짐); `imessage-commands.test.ts`(요청이 넘어간 뒤에도 재시도된 승인은 저장된 결과로 응답함) |
 ### 알려진 공백
 
-- **실제 회선, 웹훅, 기기 실행 없음:** Photon 회선 프로비저닝, 웹훅 등록, 그리고 통제된 iPhone에서의 모든 확인(iOS Safari에서 기다린 요청 이후 딥링크가 메시지 앱을 여는지, 데스크톱의 QR 코드, 실제 iPhone이 보내는 발신자 식별자, 프로덕션에 대한 AC-16부터 AC-18, 기기와 클라이언트 버전)이 보류 중입니다(결정 기록의 "사용자 대기 항목").
+- **프로덕션 회선, 웹훅, 기기 실행 없음:** 프로덕션 Photon 회선 프로비저닝, 프로덕션의 `PHOTON_*` 변수 설정, 웹훅 등록, 그리고 통제된 iPhone에서의 남은 확인(휴대폰에서의 연결 단계, 데스크톱의 QR 코드, 실제 iPhone이 보내는 발신자 식별자, 휴대폰에서의 Google 로그인, 기기에서의 조건부 환영 메시지, 프로덕션에 대한 AC-16부터 AC-18, 기기와 클라이언트 버전)이 보류 중입니다(결정 기록의 "사용자 대기 항목"). 위의 PR #39 기기 확인은 `fmat-spike` 회선과 로컬 수신기만 사용했습니다.
 - **SDK에서 가정한 Spectrum 전송 경로:** `space.get`, `space.create`, `send`, `shareContactCard`는 `@spectrum-ts` 12.14.0에 맞춰 타입이 지정되었고 스탠드인을 통해서만 실행되었습니다.
 - **iMessage를 통한 실제 모델 응답**은 평가하지 않았으며, 여정에는 OpenAI 스탠드인을 썼습니다.
 - **프로덕션 배포.** 마이그레이션은 이것만 나열한 드라이 런 뒤 2026-10-23에 `873804b`에서 `supabase db push --linked`로 공유 프로젝트에 적용했으며, 이후 드라이 런은 원격 데이터베이스가 최신이라고 보고했습니다. `findmeatime-release`는 6단계로 다시 배포되지 않았습니다.
