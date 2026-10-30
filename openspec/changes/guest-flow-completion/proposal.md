@@ -1,6 +1,6 @@
 # Proposal
 
-Tracking issue: not opened yet (the tracking issue rule arrives with PR #20; the issue is opened before this change's pull request).
+Tracking issue: [#49](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/49).
 
 ## Why
 

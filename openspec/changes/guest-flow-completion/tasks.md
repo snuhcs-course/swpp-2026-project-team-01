@@ -2,7 +2,7 @@
 
 - [ ] 0.1 User review of D1–D10 and the open decisions O1–O4; record each answer in the proposal and the decision log.
 - [x] 0.2 Team agreement on U2, including the reversal of Phase 3 design 3.
-- [ ] 0.3 Open the tracking issue with the feature form, link it from this proposal, and refer to it as `Part of #N` from each pull request.
+- [x] 0.3 Open the tracking issue with the feature form, link it from this proposal, and refer to it as `Part of #N` from each pull request.
 
 ## 1. Guest browser test on PR #37
 

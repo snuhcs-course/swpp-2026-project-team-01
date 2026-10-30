@@ -5,19 +5,36 @@
     "claude:ed62b947-61af-49ab-a644-27eafd2b7e66": {
       "agent": "claude-code",
       "client": "cli",
-      "agent_ms": 3333101,
+      "agent_ms": 3842475,
       "models": {
         "claude-opus-5-5": {
-          "input": 642,
-          "cache_read": 70823557,
+          "input": 764,
+          "cache_read": 79212204,
           "cache_write_5m": 0,
-          "cache_write_1h": 1222953,
-          "output": 284439,
+          "cache_write_1h": 1580279,
+          "output": 333590,
           "reasoning": 0
         }
       },
       "first": "2026-10-29T07:58:47.489Z",
-      "last": "2026-10-30T04:05:44.841Z"
+      "last": "2026-10-30T14:28:58.821Z"
+    },
+    "claude:ed62b947-61af-49ab-a644-27eafd2b7e66/agent-aguest-googlecalendar-60b84b1e67b99e6c": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 8,
+          "cache_read": 195037,
+          "cache_write_5m": 150336,
+          "cache_write_1h": 0,
+          "output": 1801,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-30T13:40:44.509Z",
+      "last": "2026-10-30T13:41:19.873Z"
     }
   }
 }
