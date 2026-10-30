@@ -47,6 +47,7 @@ import { withdrawRequestCommand } from "./request-lifecycle";
 import {
   agreeCommand,
   allowTripCommand,
+  changeAgreementCommand,
   chooseCandidateCommand,
   evaluateCommand,
   readCurrentEvaluation,
@@ -76,6 +77,13 @@ import {
   setManualAvailabilityCommand,
   useGoogleEmailCommand,
 } from "./requester-grants";
+import {
+  confirmRequesterImessageLinkCommand,
+  createRequesterImessageLinkCommand,
+  readRequesterImessageStatus,
+  unlinkRequesterImessageCommand,
+} from "./requester-imessage-links";
+import { photonConfig } from "./photon";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
 import { sourceHash } from "./signup-limits";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
@@ -104,6 +112,9 @@ export type RequesterRouteDependencies = ConversationDependencies &
     // The product inbox Continue by email names (AGENTMAIL_INBOX_ID); empty when
     // the email channel is off.
     readonly emailInbox?: string;
+    // The iMessage line Get updates in iMessage names (PHOTON_LINE_NUMBER);
+    // empty when the line is off.
+    readonly lineNumber?: string;
   };
 
 export function requesterRouteDependenciesFromEnvironment(): RequesterRouteDependencies {
@@ -112,6 +123,7 @@ export function requesterRouteDependenciesFromEnvironment(): RequesterRouteDepen
     db: database(),
     runtime: eveRuntime(agentUrlFromEnvironment()),
     emailInbox: agentMailConfigFromEnvironment().inboxId,
+    lineNumber: photonConfig().lineNumber,
     signingKey: internalSigningKey(),
     tokenKey: tokenKeyFromEnvironment,
   };
@@ -469,9 +481,10 @@ function registered<Input, Result>(command: CommandDefinition<Input, Result>): [
 
 // The requester commands by operation.
 export function requesterCommands(
-  deps: Pick<RequesterRouteDependencies, "appOrigin" | "confirmationLimits" | "tokenKey">,
+  deps: Pick<RequesterRouteDependencies, "appOrigin" | "confirmationLimits" | "lineNumber" | "tokenKey">,
 ): Readonly<Record<string, RequesterCommand>> {
   const contact = { limits: deps.confirmationLimits, origin: deps.appOrigin, tokenKey: deps.tokenKey() };
+  const imessage = { lineNumber: deps.lineNumber ?? "", tokenKey: contact.tokenKey, tokenKeys: [contact.tokenKey] };
 
   return Object.fromEntries([
     registered(identifyRequestCommand({ origin: contact.origin, tokenKey: contact.tokenKey })),
@@ -482,6 +495,7 @@ export function requesterCommands(
     registered(allowTripCommand),
     registered(chooseCandidateCommand),
     registered(agreeCommand),
+    registered(changeAgreementCommand),
     registered(withdrawRequestCommand),
     registered(useGoogleEmailCommand),
     registered(disconnectCalendarCommand),
@@ -491,6 +505,9 @@ export function requesterCommands(
     registered(checkBookingCommand),
     registered(createEmailLinkCommand({ tokenKey: contact.tokenKey })),
     registered(unlinkEmailCommand()),
+    registered(createRequesterImessageLinkCommand(imessage)),
+    registered(confirmRequesterImessageLinkCommand(imessage)),
+    registered(unlinkRequesterImessageCommand),
     registered(revokeGrantCommand),
   ]);
 }
@@ -576,5 +593,20 @@ export function createEmailLinkStatusHandler(load: () => RequesterRouteDependenc
 
     const status = await readEmailLinkStatus(deps.db, [deps.tokenKey()], principal.id, deps.emailInbox ?? "");
     return status ? requesterJson(status) : requestUnavailable();
+  };
+}
+
+// GET /api/requests/{bookingId}/imessage: the Get updates in iMessage card's
+// status (guest-flow-completion design 1), so the card can poll for the arrived
+// sender and a reload recovers a pending code. The card's commands go through
+// the commands route.
+export function createRequesterImessageStatusHandler(load: () => RequesterRouteDependencies = requesterRouteDependenciesFromEnvironment) {
+  return async (_request: Request, context: Context) => {
+    const deps = load();
+    const principal = await openRequester(deps.db, (await context.params).bookingId);
+
+    if (!principal || principal.type !== "requester_request") return requestUnavailable();
+
+    return requesterJson(await readRequesterImessageStatus(deps.db, [deps.tokenKey()], principal.id, deps.lineNumber ?? ""));
   };
 }

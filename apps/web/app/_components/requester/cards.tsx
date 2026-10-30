@@ -1,16 +1,21 @@
 "use client";
 
 import { EMAIL_LINK_CREATE_OPERATION, EMAIL_LINK_UNLINK_OPERATION, type EmailLinkStatus } from "@lib/contracts/email-link";
+import { deepLinkFor, qrDeepLink } from "@lib/contracts/imessage";
+import { REQUESTER_IMESSAGE_OPERATIONS, type RequesterImessageStatus } from "@lib/contracts/requester-imessage";
 import type { OpenRequesterView } from "@lib/contracts/requester-view";
 import { displayTime } from "@lib/contracts/timezone";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { renderSVG } from "uqr";
 import { GuestCard, GuestCardActions, guestCardHeadingId } from "@/app/_components/guest/guest-card";
 import { browserLanguage } from "@/app/_components/guest/timezone";
+import { useMessagesPlatform } from "@/app/_components/imessage/imessage-card";
 import { Button } from "@/components/ui/button";
 
 // The guest thread's request cards (design decision 12; DESIGN.md: conversation
 // card): the Calendar connection and selection, and the status lines with the
-// creation email, **Use verified Google email** and **Continue by email**.
+// creation email, **Use verified Google email**, **Continue by email** and
+// **Get updates in iMessage**.
 // **Withdraw request** and
 // **Edit details** are in the thread's menu beside the composer
 // (guest-workspace.tsx). The
@@ -431,6 +436,157 @@ export function EmailLinkLine({ context }: { readonly context: RequesterCardCont
   );
 }
 
+// **Get updates in iMessage** below the status line (guest-flow-completion
+// design 1): a one-time code the guest sends, as shown, from their iMessage to
+// the line; on a phone Messages opens at once with it written, elsewhere a QR
+// code opens it on an iPhone. The card polls until the message arrives, then
+// shows the masked sender with **Confirm and link**; only that click binds.
+// Linked, the line names the masked sender with **Unlink iMessage**. Like
+// email, it is never required; nothing shows when the deployment has no line.
+export function ImessageUpdatesLine({ context }: { readonly context: RequesterCardContext }) {
+  const [status, setStatus] = useState<RequesterImessageStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const platform = useMessagesPlatform();
+  const { bookingId, run } = context;
+
+  const check = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/requests/${bookingId}/imessage`, { cache: "no-store" });
+      const next = response.ok ? ((await response.json()) as RequesterImessageStatus) : null;
+      setStatus(next);
+      return next;
+    } catch {
+      return null;
+    }
+  }, [bookingId]);
+
+  useEffect(() => {
+    void check();
+  }, [check]);
+
+  // While the code waits for its message, the card checks again.
+  useEffect(() => {
+    if (status?.state !== "pending") return;
+    const timer = window.setInterval(() => void check(), 3000);
+    return () => window.clearInterval(timer);
+  }, [check, status?.state]);
+
+  async function command(operation: string, input: Record<string, unknown> = {}) {
+    setBusy(true);
+    setError(null);
+    const outcome = await run(operation, input);
+    setBusy(false);
+    if (!outcome.ok) setError(outcome.error.category === "rate_limited" ? "Too many codes this hour. Try again later." : outcome.error.message);
+    return check();
+  }
+
+  const phone = platform === "ios" || platform === "android";
+  const pending = status?.state === "pending" ? status : null;
+  const link = pending && phone ? deepLinkFor(platform, pending.lineNumber, pending.message) : null;
+  const qr = useMemo(() => (pending && !phone ? renderSVG(qrDeepLink(pending.lineNumber, pending.message), { border: 2 }) : null), [pending, phone]);
+
+  if (!status || status.state === "unavailable") return null;
+
+  if (status.state === "none") {
+    return (
+      <div className="flex min-h-8 flex-wrap items-center gap-x-2 px-1 text-sm" data-imessage-link="none">
+        <Button
+          className={QUIET_ACTION}
+          disabled={busy}
+          onClick={async () => {
+            const next = await command(REQUESTER_IMESSAGE_OPERATIONS.create);
+            const opened = next?.state === "pending" && phone ? deepLinkFor(platform, next.lineNumber, next.message) : null;
+            if (opened) window.location.assign(opened);
+          }}
+          type="button"
+          variant="link"
+        >
+          Get updates in iMessage
+        </Button>
+        <span className="text-muted-foreground">· optional; your email still gets every update</span>
+        <ErrorLine message={error} />
+      </div>
+    );
+  }
+
+  if (status.state === "linked") {
+    return (
+      <div className="flex min-h-8 flex-wrap items-center gap-x-2 px-1 text-sm" data-imessage-link="linked" role="note">
+        <span>iMessage linked: updates go to {status.sender}, and you can reply there</span>
+        <Button className={QUIET_ACTION} disabled={busy} onClick={() => void command(REQUESTER_IMESSAGE_OPERATIONS.unlink)} type="button" variant="link">
+          Unlink iMessage
+        </Button>
+        <ErrorLine message={error} />
+      </div>
+    );
+  }
+
+  if (status.state === "received") {
+    return (
+      <GuestCard
+        description={`Your message arrived from ${status.sender}. Link it only if that is you.`}
+        id="imessage-link"
+        title="Is this your iMessage?"
+      >
+        <GuestCardActions>
+          <Button
+            disabled={busy}
+            onClick={() => void command(REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: status.linkId })}
+            type="button"
+          >
+            Confirm and link
+          </Button>
+          <Button disabled={busy} onClick={() => void command(REQUESTER_IMESSAGE_OPERATIONS.unlink, { pendingOnly: true })} type="button" variant="ghost">
+            This isn't me
+          </Button>
+        </GuestCardActions>
+        <ErrorLine message={error} />
+      </GuestCard>
+    );
+  }
+
+  return (
+    <GuestCard
+      description={link ? "Messages should open with the message written. Tap send there." : "Send this message from your iPhone's Messages."}
+      id="imessage-link"
+      title="Get updates in iMessage"
+    >
+      <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border px-3 py-2">
+        <p className="text-xs font-medium text-muted-foreground">To</p>
+        <p className="font-mono text-sm tabular-nums">{status.lineNumber}</p>
+        <p className="pt-1 text-xs font-medium text-muted-foreground">Message</p>
+        <p className="font-mono text-sm break-all select-all" data-imessage-link-message="">
+          {status.message}
+        </p>
+      </div>
+      {qr ? (
+        <div
+          aria-label="QR code that opens Messages with this message on your iPhone"
+          className="size-40 rounded-lg bg-white p-1 [&_svg]:size-full"
+          // The SVG is generated locally from the line number and the message.
+          dangerouslySetInnerHTML={{ __html: qr }}
+          role="img"
+        />
+      ) : null}
+      <p className="text-sm text-muted-foreground" role="status">
+        Waiting for your message. The code works until {displayTime(new Date(status.expiresAt), context.timezone)}.
+      </p>
+      <GuestCardActions>
+        {link ? (
+          <Button asChild>
+            <a href={link}>Open Messages</a>
+          </Button>
+        ) : null}
+        <Button disabled={busy} onClick={() => void command(REQUESTER_IMESSAGE_OPERATIONS.unlink, { pendingOnly: true })} type="button" variant="ghost">
+          Cancel
+        </Button>
+      </GuestCardActions>
+      <ErrorLine message={error} />
+    </GuestCard>
+  );
+}
+
 // The wait for the host, as one line in the thread from the agreement.
 export function AwaitingLine({ context }: { readonly context: RequesterCardContext }) {
   const agreed = context.view.agreement && context.view.proposal ? context.view.proposal : null;
@@ -440,6 +596,15 @@ export function AwaitingLine({ context }: { readonly context: RequesterCardConte
   // with no join link until it is (host-review-and-booking design 10).
   if (context.view.request.state === "booking" && booking) {
     return <BookingLine context={context} />;
+  }
+
+  // Changed with Change before the host approved (D10): the wait is over.
+  if (context.view.request.state === "gathering" || context.view.request.state === "negotiating") {
+    return (
+      <p className="px-1 text-sm text-muted-foreground" data-guest-receipt="status" role="status">
+        You reopened the agreed time to change it · nothing is booked yet
+      </p>
+    );
   }
 
   return (

@@ -61,9 +61,10 @@ need none.
   nothing; say what you can do instead.
 - Never ask for or repeat the guest's name or email address; the cards hold
   them.
-- The guest may also write by email, and then your reply is sent back by
-  email, where no card shows. Name the card and say it is on their booking
-  page, whose link they received by email; never write a link yourself.`;
+- The guest may also write by email, or by iMessage (those messages start
+  with [iMessage]), and then your reply goes back the same way, where no card
+  shows. Name the card and say it is on their booking page, whose link
+  they received by email; never write a link yourself.`;
 
 export default defineDynamic({
   events: {

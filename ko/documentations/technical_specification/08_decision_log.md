@@ -464,3 +464,21 @@
 14. **AgentMail**: `findmeatime@agentmail.to`(받은편지함 세 개 제한에 막힘), 그 웹훅, `AGENTMAIL_*` 변수, 그리고 `npm run admin -- email-receiver register … --project <release ref>`를 만듭니다(7단계).
 15. `findmeatime-release`의 **오래된 프로토타입 변수 제거**.
 16. **프로덕션 인수**: [personal-agent 클라이언트](09_agent_clients.md)의 명명된 클라이언트 점검, 통제된 iPhone 실행, 실제 받은편지함 전달, 손님의 받은편지함 확인, 로그인한 설정을 [릴리스 요약](07_acceptance_record.md#release-summary)에 맞춰 기록하고, 이어서 `openspec archive operations-and-release`.
+
+## `guest-flow-completion`
+
+[제안서](../../openspec/changes/guest-flow-completion/proposal.md#decisions)는 사용자와 팀이 2026-10-29과 2026-10-30에 합의한 U1–U5와 D1–D10을 기록하며, [설계](../../openspec/changes/guest-flow-completion/design.md)가 그 근거를 기록합니다. 아래 결정은 2026-10-30에 풀 리퀘스트 1(작업 그룹 1–5a)을 구현하면서 내렸으며, 아직 팀원 검토를 거치지 않았습니다.
+
+### 구현 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 게스트 바인딩이 끝나는 방식 | 네 상태: `active`, `unlinked`(게스트의 **Unlink iMessage**, 게스트에게 아직 발송되지 않은 메시지를 막음), `ended`(`closeRequest`의 철회; 예약 확정 알림이 큐에 들어간 뒤의 예약 완료; 정리 작업의 30일) 그리고 `moved`(수정된 요청으로). 발송 시점에는 `unlinked`만 막으므로 예약된 요청의 마지막 알림은 그대로 나갑니다 | `closeRequest` 안에서 예약 완료 시 끝내기. 알림 작업이 수신자를 고정하기 전에 수신자를 지웠음 | 설계 2; `requester_imessage_bindings` 스키마 | `lib/server/requester-imessage-bindings.ts`의 `endRequesterBindings` |
+| 라우팅이 읽는 것 | `imessage_outbox.requester_binding_id`가 게스트 메시지를 표시하고, 어느 바인딩이든 그 발신자에게 간 마지막 발신 행이 경로를 정합니다 | 별도의 라우팅 테이블 | 설계 3; `imessage_outbox` 스키마 | `lib/server/imessage-receipts.ts`의 `guestRoute` |
+| 연동된 호스트의 명령 | 호스트 바인딩이 있는 발신자의 정확한 명령은 마지막 메시지가 게스트 것이어도 호스트 경로를 탑니다. 단, 자신의 게스트 요청을 지정하는 `request <ref>`는 예외입니다 | 게스트 알림 뒤의 모든 메시지를 게스트의 어시스턴트로 보내기 | 설계 3 | `lib/server/imessage-receipts.ts`의 `guestRoute` |
+| 카드 엔드포인트 | 상태는 `GET /api/requests/{bookingId}/imessage`, `request.imessage_link.*` 명령은 **Continue by email**처럼 요청자 명령 경로에 둡니다 | 별도의 `POST` 경로 | 작업 3.2 | `lib/server/requester-routes.ts` |
+| 이메일 스레드 옮기기 | 활성 `email_threads` 행을 제자리에서 다시 바인딩(`request_id`가 바뀜)하므로, 활성 스레드 고유성이 유지되고 재시도된 수신이 `bound_by_receipt_id`로 이를 알아봅니다 | 행을 끝내고 새 행 삽입 | 설계 5 | `lib/server/revised-requests.ts`의 `moveChannel` |
+| 수정된 요청의 요약 | 수정된 논의의 첫 입력으로, 수정된 요청의 ID를 키로 하고 `REVISED_SUMMARY_PREFIX`로 시작하며 게스트 스레드는 이를 조용한 메모로 보여 줍니다. 게스트의 메시지가 다음 입력이므로 어시스턴트는 두 턴을 진행합니다 | 요약을 게스트의 메시지에 합치기. 게스트의 말이 메모 뒤에 숨게 됨 | 설계 5(D6) | `lib/server/revised-requests.ts`의 `revisedSummary` |
+| **Change**의 위치 | 승인 대기 중에는 합의된 시간의 영수증(제안 영수증)에 두고, 그 뒤 대기 줄은 다시 열렸다고 표시합니다 | 시간 영수증. 요청이 승인 대기에 들어가면 더 이상 현재 것이 아님 | 설계 10 | `apps/web/app/_components/guest/guest-workspace.tsx`의 `threadEntries` |
+| 요청 참조 | `requestRef`를 `lib/server/request-ref.ts`로 옮겨(`imessage-commands.ts`에서 다시 내보냄) 호스트 화면이 순환 import 없이 이전 요청을 지칭할 수 있게 합니다 | `imessage-commands.ts`에서 가져오기 | 작업 5.3 | `lib/server/request-ref.ts` |
+| 게스트의 긴 답장 | 호스트와 같이 잘라내되, `/app` 대신 "your booking page, linked in your email"을 가리킵니다 | 호스트의 `/app` 안내 | 설계 4 | `lib/server/imessage-outbox.ts`의 `imessageTurnText` |

@@ -18,7 +18,8 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 //   1. freezes the text: the turn's final assistant text, redacted and capped
 //      (a fixed fallback when the turn produced none or its session failed for
 //      good), or the recorded text;
-//   2. suppresses a host-private message whose binding is no longer active;
+//   2. suppresses a host-private message whose binding is no longer active, and
+//      a guest's message whose guest binding was unlinked;
 //   3. moves the row to dispatching and commits before the network call;
 //   4. sends once: accepted and rejected are final; unavailable (nothing left)
 //      returns the row to queued with its frozen text and fails the attempt; uncertain is final and
@@ -61,6 +62,9 @@ export type RecordOutbound = {
   readonly hostAccountId?: string | null;
   // Set for a host-private message, which is suppressed once the binding ends.
   readonly bindingId?: string | null;
+  // Set for a guest's message (guest-flow-completion design 3 and 4), which is
+  // suppressed once the guest unlinks; inbound routing reads it.
+  readonly requesterBindingId?: string | null;
   readonly linkId?: string | null;
   readonly requestId?: string | null;
   // A turn reply names its input and waits for its turn.
@@ -92,11 +96,11 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
 
   const [created] = await tx<{ id: string }[]>`
     insert into app.imessage_outbox
-      (id, kind, dedupe_key, host_account_id, binding_id, link_id, request_id, input_id, recipient_hash,
+      (id, kind, dedupe_key, host_account_id, binding_id, requester_binding_id, link_id, request_id, input_id, recipient_hash,
        recipient_ciphertext, text_ciphertext, sealed_key_id, state, failure_category, completed_at)
     values
       (${id}, ${message.kind}, ${message.dedupeKey}, ${message.hostAccountId ?? null}, ${message.bindingId ?? null},
-       ${message.linkId ?? null}, ${message.requestId ?? null}, ${message.inputId ?? null}, ${message.recipientHash},
+       ${message.requesterBindingId ?? null}, ${message.linkId ?? null}, ${message.requestId ?? null}, ${message.inputId ?? null}, ${message.recipientHash},
        ${recipient?.ciphertext ?? null}, ${text?.ciphertext ?? null}, ${message.tokenKey.id},
        ${suppressed ? "suppressed" : turn ? "waiting" : "queued"}, ${suppressed},
        ${suppressed ? new Date() : null})
@@ -140,13 +144,15 @@ export async function wakeImessageReplies(db: Database, sessionId: string) {
 export const TURN_FALLBACK = "I couldn't finish that. You can continue in Find Me a Time on the web.";
 
 // A turn's text as iMessage sends it: redacted like any input, so no link or
-// code leaves, and capped with a pointer to the web.
-export function imessageTurnText(text: string | null, origin: string) {
+// code leaves, and capped with a pointer to the web: /app for a host, and for a
+// guest the booking page, whose link only their email carries.
+export function imessageTurnText(text: string | null, origin: string, audience: "host" | "requester" = "host") {
   if (!text) return TURN_FALLBACK;
   const redacted = redactCredentials(text, { bareUuids: true }).trim();
   const chars = Array.from(redacted);
   if (chars.length <= MAX_TURN_REPLY_CHARS) return redacted;
-  return `${chars.slice(0, MAX_TURN_REPLY_CHARS - 80).join("").trimEnd()}…\n\nThe rest is in Find Me a Time: ${origin.replace(/\/+$/, "")}/app`;
+  const rest = audience === "requester" ? "The rest is on your booking page, linked in your email." : `The rest is in Find Me a Time: ${origin.replace(/\/+$/, "")}/app`;
+  return `${chars.slice(0, MAX_TURN_REPLY_CHARS - 80).join("").trimEnd()}…\n\n${rest}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -181,6 +187,7 @@ type OutboxRow = {
   readonly id: string;
   readonly kind: OutboxKind;
   readonly binding_id: string | null;
+  readonly requester_binding_id: string | null;
   readonly input_id: string | null;
   readonly recipient_ciphertext: string | null;
   readonly text_ciphertext: string | null;
@@ -278,7 +285,7 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
     // A denied environment touches no outbound state.
     assertMessagingAdmitted(transport.endpoint, deps.env);
     const select = (q: Transaction | Database) => q<OutboxRow[]>`
-      select id, kind, binding_id, input_id, recipient_ciphertext, text_ciphertext, sealed_key_id, state,
+      select id, kind, binding_id, requester_binding_id, input_id, recipient_ciphertext, text_ciphertext, sealed_key_id, state,
              created_at < now() - make_interval(mins => ${TURN_REPLY_WAIT_MINUTES}) as stale
       from app.imessage_outbox where id = ${outboxId}
       for update
@@ -329,6 +336,16 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
         }
       }
 
+      if (row.requester_binding_id) {
+        const [binding] = await claimTx<{ state: string }[]>`
+          select state from app.requester_imessage_bindings where id = ${row.requester_binding_id}
+        `;
+        if (binding?.state === "unlinked") {
+          await finish(claimTx, row.id, row.state, "suppressed", { category: "unlinked" });
+          return { state: "suppressed" as const };
+        }
+      }
+
       // Denied environments fail the attempt before dispatching; nothing is
       // marked and nothing falls back.
       assertMessagingAdmitted(transport.endpoint, deps.env);
@@ -343,7 +360,7 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
       if (row.kind === "turn" && row.state === "waiting") {
         if (readText === undefined) throw new TurnNotEndedError();
-        text = imessageTurnText(readText, deps.origin);
+        text = imessageTurnText(readText, deps.origin, row.requester_binding_id ? "requester" : "host");
       } else if (row.kind !== "contact_card") {
         // Every other message, a turn reply already frozen by an attempt that
         // found Photon unavailable included, sends its recorded text.

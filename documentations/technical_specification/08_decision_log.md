@@ -462,3 +462,21 @@ These steps were not taken because they cannot be undone by a revert, need a pro
 14. **AgentMail**: create `findmeatime@agentmail.to` (blocked by the three-inbox limit), its webhook, the `AGENTMAIL_*` variables, and `npm run admin -- email-receiver register … --project <release ref>` (Phase 7).
 15. **Remove the stale prototype variables** on `findmeatime-release`.
 16. **Production acceptance**: the named-client checks in [personal-agent clients](09_agent_clients.md), the controlled iPhone run, real inbox delivery, the guest's inbox check and a signed-in setup, recorded against the [release summary](07_acceptance_record.md#release-summary); then `openspec archive operations-and-release`.
+
+## `guest-flow-completion`
+
+The [proposal](../../openspec/changes/guest-flow-completion/proposal.md#decisions) records U1–U5 and D1–D10, which the user and the team agreed on 2026-10-29 and 2026-10-30; the [design](../../openspec/changes/guest-flow-completion/design.md) records the reasoning. The decisions below were taken while implementing pull request 1 (task groups 1–5a) on 2026-10-30; none has had teammate review yet.
+
+### Implementation decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| How a guest binding ends | Four states: `active`, `unlinked` (the guest's **Unlink iMessage**, which suppresses the guest's undispatched messages), `ended` (withdrawn in `closeRequest`; booked once the booking confirmation notice is queued; 30 days by the cleanup) and `moved` (to a revised request). Only `unlinked` suppresses at send time, so the last notice of a booked request still goes out | Ending at booked inside `closeRequest`, which cleared the recipient before the notice job could freeze it | Design 2; `requester_imessage_bindings` schema | `endRequesterBindings` in `lib/server/requester-imessage-bindings.ts` |
+| What routing reads | `imessage_outbox.requester_binding_id` names a guest message; the last outbound row to the sender with either binding decides the route | A separate routing table | Design 3; `imessage_outbox` schema | `guestRoute` in `lib/server/imessage-receipts.ts` |
+| A linked host's commands | An exact command from a sender with a host binding takes the host path even when the last message was a guest's, except `request <ref>` naming one of their guest requests | Sending every message after a guest notice to the guest's assistant | Design 3 | `guestRoute` in `lib/server/imessage-receipts.ts` |
+| Card endpoints | `GET /api/requests/{bookingId}/imessage` for the status and the `request.imessage_link.*` commands on the requester commands route, as **Continue by email** does | A separate `POST` route | Task 3.2 | `lib/server/requester-routes.ts` |
+| Moving an email thread | The active `email_threads` row is re-bound in place (its `request_id` changes), so the active-thread uniqueness holds and a retried receipt recognizes it by `bound_by_receipt_id` | Ending the row and inserting a new one | Design 5 | `moveChannel` in `lib/server/revised-requests.ts` |
+| The revised summary | A first input of the revised discussion, keyed by the revised request's ID and starting with `REVISED_SUMMARY_PREFIX`, which the guest thread shows as a quiet note; the guest's message is the next input, so the assistant takes two turns | Merging the summary into the guest's message, which would hide the guest's words behind the note | Design 5 (D6) | `revisedSummary` in `lib/server/revised-requests.ts` |
+| Where **Change** sits | On the agreed time's receipt (the proposal receipt) while awaiting approval; afterwards the wait line reads as reopened | On the times receipt, which is no longer current once the request awaits approval | Design 10 | `threadEntries` in `apps/web/app/_components/guest/guest-workspace.tsx` |
+| Request references | `requestRef` moved to `lib/server/request-ref.ts` (re-exported from `imessage-commands.ts`) so the host view can name an earlier request without an import cycle | Importing it from `imessage-commands.ts` | Task 5.3 | `lib/server/request-ref.ts` |
+| A guest's long reply | Capped like a host's, pointing to "your booking page, linked in your email" instead of `/app` | The host's `/app` pointer | Design 4 | `imessageTurnText` in `lib/server/imessage-outbox.ts` |

@@ -385,6 +385,14 @@ Decisions settled here: measurement window and numerical targets from PRD sectio
 
 Evidence: a complete acceptance record with no pending required client or provider case, and the release checklist in [provider setup](03_provider_setup.md#environment-and-activation-checklist) satisfied.
 
+### Guest flow completion — `guest-flow-completion`
+
+Goal: the guest side runs end to end: Google from the guest's forms, updates and replies in iMessage, a revised request after a decline or an expiry, changes until the host approves, and a guest who is a host reusing their settings. Prerequisite: Phases 3, 4, 6 and 7. Delivered as three pull requests, each a whole feature ([proposal](../../openspec/changes/guest-flow-completion/proposal.md#impact)).
+
+- [ ] Pull request 1: guest channel and request changes (task groups 1–5a). Implemented on `feat/guest-flow`; not yet opened.
+- [ ] Pull request 2: host profile and soft preferences (task groups 6–7).
+- [ ] Pull request 3: guest screen redesign (task group 8), after the teammate's app-wide ink migration.
+
 ### Dependencies and overlap
 
 | Phase | Depends on | Can overlap with |

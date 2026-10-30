@@ -12,6 +12,7 @@ import { type JobHandler, publishJob } from "./jobs";
 import { enqueueStatusNotice, type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { lockOpenRequest } from "./request-guard";
 import { revokeRequestGrants } from "./requester-grants";
+import { endRequesterBindings } from "./requester-imessage-bindings";
 
 // The request lifecycle (design decision 4; meeting-requests: persisted
 // lifecycle and closure guards).
@@ -71,6 +72,10 @@ export async function closeRequest(
 
   await revokeRequestGrants(tx, requestId);
   await supersedeConfirmations(tx, requestId);
+  // A withdrawn request's guest binding ends here; a booked one's ends once its
+  // last notice is queued (guest-flow-completion design 2), and a declined or
+  // expired one's stays for a revised request (design 5).
+  if (state === "withdrawn") await endRequesterBindings(tx, requestId, "ended");
   await tx`
     update app.request_reviews set state = 'superseded', resolved_at = now()
     where request_id = ${requestId} and state = 'pending'

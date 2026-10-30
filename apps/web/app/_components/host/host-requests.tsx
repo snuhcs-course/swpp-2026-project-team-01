@@ -238,6 +238,11 @@ function RequestView({ onBack, onUnavailable, requestId }: { readonly onBack: ()
             <p className="text-sm text-muted-foreground" role="status">
               {STATE_LABELS[view.state]}
               {view.details.purpose ? ` · ${view.details.purpose}` : ""}
+              {view.revisedFrom
+                ? view.revisedFrom.outcome === "declined"
+                  ? ` · Follows your decline of request ${view.revisedFrom.ref}`
+                  : ` · Follows request ${view.revisedFrom.ref}, which expired`
+                : ""}
             </p>
           ) : null}
         </div>

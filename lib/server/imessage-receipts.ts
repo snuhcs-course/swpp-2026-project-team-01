@@ -4,6 +4,7 @@ import { AdmissionLimitError } from "./conversation-admission";
 import {
   acceptHostMessage,
   agentUrlFromEnvironment,
+  ConversationClosedError,
   type ConversationDependencies,
   ConversationInputError,
   eveRuntime,
@@ -11,15 +12,20 @@ import {
 } from "./conversations";
 import { database, type Database, type Transaction } from "./database";
 import { findLinkCode } from "./email-links";
+import { acceptGuestMessage, DraftMessageLimitError } from "./guest-conversations";
 import { HostIneligibleError } from "./host-eligibility";
 import { internalSigningKey } from "./internal-bearer";
-import { bindingContext, lockActiveBindingOfSender, receiveLinkCode, refusalSentRecently } from "./imessage-links";
+import { activeBindingOfSender, bindingContext, lockActiveBindingOfSender, receiveLinkCode, refusalSentRecently } from "./imessage-links";
 import { recordOutbound } from "./imessage-outbox";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
-import { executeCommand, parseCommand } from "./imessage-commands";
+import { executeCommand, parseCommand, requestRef } from "./imessage-commands";
 import { photonConfig, type PhotonConfig, photonTransport, SPECTRUM_ENDPOINT } from "./photon";
 import { IMESSAGE_RECEIPT_JOB, receiptSealContext } from "./photon-receiver";
+import { emailSourceHash } from "./email-receipts";
+import { requesterBindingContext } from "./requester-imessage-bindings";
+import { type CreationLimits } from "./request-start";
+import { isRevisable, reviseClosedRequest, revisedSummary } from "./revised-requests";
 import { type SetupDependencies, setupDependenciesFromEnvironment } from "./setup";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -31,6 +37,8 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 //     attempt, so a later message never overtakes it;
 //   - a message carrying an FMAT- code is linking (imessage-links.ts) and never
 //     reaches the model;
+//   - a guest's message goes to a request's requester discussion
+//     (guest-flow-completion design 3; guestRoute below says which);
 //   - a sender with no active binding, or whose host may no longer host, gets
 //     one fixed reply a day pointing to /app and no session (D10);
 //   - content other than text gets one fixed reply;
@@ -57,6 +65,8 @@ export type ImessageReceiptDependencies = {
   readonly notices: NoticeDependencies;
   // Free text enters the host's discussions through the same path as /app.
   readonly conversation: ConversationDependencies;
+  // Bounds on revised requests (guest-flow-completion design 5).
+  readonly creationLimits?: Partial<CreationLimits>;
   readonly env?: Environment;
 };
 
@@ -266,6 +276,250 @@ export type BoundMessage = {
 // in their own transactions on deps.db.
 export type ChannelProcessor = (tx: Transaction, deps: ImessageReceiptDependencies, message: BoundMessage) => Promise<ReceiptOutcome>;
 
+// ---------------------------------------------------------------------------
+// A guest's message (guest-flow-completion design 3)
+
+export const GUEST_TEXTS = {
+  closed: "This request is closed, so messages here no longer reach Thyme. Your booking page, linked in your email, shows its final status.",
+  switched: (host: string) => `Now talking about your request with ${host}.`,
+  tooLong: "That message is too long for Thyme. Please send a shorter one.",
+} as const;
+
+type GuestBinding = {
+  readonly id: string;
+  readonly request_id: string;
+  readonly state: "active" | "unlinked" | "ended" | "moved";
+  readonly moved_to_request_id: string | null;
+  readonly sealed_key_id: string | null;
+};
+
+async function guestBindingById(tx: Transaction, id: string) {
+  const [row] = await tx<GuestBinding[]>`
+    select id, request_id, state, moved_to_request_id, sealed_key_id from app.requester_imessage_bindings where id = ${id}
+  `;
+  return row ?? null;
+}
+
+async function activeGuestBindings(tx: Transaction, senderHash: string) {
+  return tx<GuestBinding[]>`
+    select id, request_id, state, moved_to_request_id, sealed_key_id from app.requester_imessage_bindings
+    where sender_hash = ${senderHash} and state = 'active'
+    order by created_at desc
+  `;
+}
+
+// Which guest binding, if any, a message from this sender is for:
+//   1. `request <ref>` naming one of the sender's guest requests switches to it
+//      (until the host side's conversational selection lands);
+//   2. any other exact command from a linked host is the host's;
+//   3. otherwise the last message the line sent this sender decides: a guest
+//      message's binding (following a move to the revised request), unless the
+//      guest unlinked it; a host message, the host path;
+//   4. with neither, the host binding if there is one, else the most recent
+//      guest binding; null means the host path, which answers a sender with no
+//      binding at all with the unlinked reply.
+async function guestRoute(tx: Transaction, receipt: OpenedReceipt): Promise<{ binding: GuestBinding; switched: boolean } | null> {
+  const command = receipt.text ? parseCommand(receipt.text) : null;
+  const guests = await activeGuestBindings(tx, receipt.senderHash);
+
+  if (command?.name === "request") {
+    const named = guests.find((binding) => requestRef(binding.request_id) === command.ref);
+    if (named) return { binding: named, switched: true };
+  }
+
+  const host = await activeBindingOfSender(tx, receipt.senderHash);
+  if (command && host) return null;
+
+  const [last] = await tx<{ binding_id: string | null; requester_binding_id: string | null }[]>`
+    select binding_id, requester_binding_id from app.imessage_outbox
+    where recipient_hash = ${receipt.senderHash} and (binding_id is not null or requester_binding_id is not null)
+    order by created_at desc, id desc
+    limit 1
+  `;
+
+  if (last?.requester_binding_id) {
+    let binding = await guestBindingById(tx, last.requester_binding_id);
+    for (let hops = 0; binding?.state === "moved" && binding.moved_to_request_id && hops < 10; hops += 1) {
+      const [next] = await tx<GuestBinding[]>`
+        select id, request_id, state, moved_to_request_id, sealed_key_id from app.requester_imessage_bindings
+        where request_id = ${binding.moved_to_request_id} and sender_hash = ${receipt.senderHash}
+        order by created_at desc limit 1
+      `;
+      binding = next ?? null;
+    }
+    if (binding && binding.state !== "unlinked" && binding.state !== "moved") return { binding, switched: false };
+  } else if (last?.binding_id && host) {
+    return null;
+  }
+
+  if (host) return null;
+  return guests[0] ? { binding: guests[0], switched: false } : null;
+}
+
+async function guestReply(
+  tx: Transaction,
+  deps: ImessageReceiptDependencies,
+  receipt: OpenedReceipt,
+  binding: Pick<GuestBinding, "id" | "request_id">,
+  message: { readonly kind: "command" | "text_only"; readonly dedupeKey: string; readonly text: string },
+) {
+  return recordOutbound(tx, {
+    dedupeKey: message.dedupeKey,
+    kind: message.kind,
+    recipient: { address: receipt.sender, spaceId: receipt.spaceId },
+    recipientHash: receipt.senderHash,
+    requestId: binding.request_id,
+    requesterBindingId: binding.id,
+    text: message.text,
+    tokenKey: deps.tokenKey,
+  });
+}
+
+// The guest's message: a switch is answered; content other than text gets one
+// fixed reply; a declined or expired request's message starts a revised
+// request (design 5) and goes there; any other closed request's binding
+// answers once with the closed notice; text is forwarded into the request's
+// requester discussion as an accepted input keyed by the receipt, and the
+// turn's final text is the reply.
+async function guestMessage(
+  tx: Transaction,
+  deps: ImessageReceiptDependencies,
+  receipt: OpenedReceipt,
+  route: { binding: GuestBinding; switched: boolean },
+): Promise<ReceiptOutcome> {
+  const [request] = await tx<{ open: boolean; state: string; host_name: string | null }[]>`
+    select r.closed_at is null and r.expires_at > now() as open, r.state, s.settings ->> 'displayName' as host_name
+    from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
+    where r.id = ${route.binding.request_id}
+  `;
+  const text = receipt.contentType === "text" ? (receipt.text?.trim() ?? "") : "";
+
+  // Revising moves the binding in its own transaction, so this one locks
+  // nothing of the binding's first.
+  if (!route.switched && text && request && !request.open && isRevisable(request.state) && route.binding.state === "active") {
+    return revise(tx, deps, receipt, route.binding, text);
+  }
+
+  const [binding] = await tx<GuestBinding[]>`
+    select id, request_id, state, moved_to_request_id, sealed_key_id from app.requester_imessage_bindings
+    where id = ${route.binding.id}
+    for update
+  `;
+  if (!binding) return "ignored";
+
+  if (binding.state === "active") {
+    // Replies go to the conversation the guest writes from.
+    const space = sealToken({ id: binding.sealed_key_id!, key: keyFor(deps, binding.sealed_key_id!) }, receipt.spaceId, requesterBindingContext(binding.id));
+    await tx`
+      update app.requester_imessage_bindings set space_ciphertext = ${space.ciphertext}, last_inbound_at = now()
+      where id = ${binding.id} and state = 'active'
+    `;
+  }
+
+  if (route.switched) {
+    await guestReply(tx, deps, receipt, binding, { dedupeKey: `receipt:${receipt.id}`, kind: "command", text: GUEST_TEXTS.switched(request?.host_name ?? "your host") });
+    return "command";
+  }
+
+  if (!text) {
+    await guestReply(tx, deps, receipt, binding, { dedupeKey: `receipt:${receipt.id}`, kind: "text_only", text: CHANNEL_TEXTS.textOnly });
+    return "replied";
+  }
+
+  if (!request?.open || binding.state !== "active") return closedNotice(tx, deps, receipt, binding);
+  return forwardGuest(tx, deps, receipt, binding, text);
+}
+
+// The closed notice, at most once per binding.
+async function closedNotice(tx: Transaction, deps: ImessageReceiptDependencies, receipt: OpenedReceipt, binding: Pick<GuestBinding, "id" | "request_id">) {
+  const { created } = await guestReply(tx, deps, receipt, binding, {
+    dedupeKey: `requester-binding:${binding.id}:closed`,
+    kind: "command",
+    text: GUEST_TEXTS.closed,
+  });
+  return created ? ("replied" as const) : ("ignored" as const);
+}
+
+// A revised request for the declined or expired one, created or found, then
+// its opening summary and the guest's message in its discussion. A refusal
+// (the host unavailable, the chain full, the bounds) answers with the closed
+// notice and creates nothing.
+async function revise(tx: Transaction, deps: ImessageReceiptDependencies, receipt: OpenedReceipt, binding: GuestBinding, text: string): Promise<ReceiptOutcome> {
+  const outcome = await deps.db.begin((revising) =>
+    reviseClosedRequest(
+      revising,
+      { creationLimits: deps.creationLimits, origin: deps.origin, tokenKey: deps.tokenKey, tokenKeys: deps.tokenKeys },
+      binding.request_id,
+      { bindingId: binding.id, kind: "imessage" },
+      (address) => emailSourceHash(deps.tokenKey, address),
+    ),
+  );
+  if (outcome.kind === "refused" || !outcome.bindingId) return closedNotice(tx, deps, receipt, binding);
+
+  const [earlier] = await tx<{ id: string; state: string; details: Parameters<typeof revisedSummary>[0]["details"] }[]>`
+    select id, state, details from app.requests where id = ${binding.request_id}
+  `;
+  const accepted = await acceptRevisedSummary(deps, outcome.requestId, revisedSummary(earlier!));
+  if (accepted !== "accepted") return accepted;
+  return forwardGuest(tx, deps, receipt, { id: outcome.bindingId, request_id: outcome.requestId }, text);
+}
+
+async function acceptRevisedSummary(deps: ImessageReceiptDependencies, requestId: string, summary: string) {
+  try {
+    await acceptGuestMessage(deps.conversation, { id: requestId, type: "requester_request" }, { clientInputId: requestId, message: summary });
+  } catch (error) {
+    if (error instanceof AdmissionLimitError) throw new AdmissionDeferredError();
+    if (!(error instanceof ConversationInputError) || error.code !== "runtime_unavailable") throw error;
+  }
+  return "accepted" as const;
+}
+
+async function forwardGuest(
+  tx: Transaction,
+  deps: ImessageReceiptDependencies,
+  receipt: OpenedReceipt,
+  binding: Pick<GuestBinding, "id" | "request_id">,
+  message: string,
+): Promise<ReceiptOutcome> {
+  const text = `${IMESSAGE_PREFIX}${message}`;
+  if (getChatMessageLengthError(text)) {
+    await guestReply(tx, deps, receipt, binding, { dedupeKey: `receipt:${receipt.id}`, kind: "command", text: GUEST_TEXTS.tooLong });
+    return "replied";
+  }
+
+  const principal = { id: binding.request_id, type: "requester_request" as const };
+  try {
+    await acceptGuestMessage(deps.conversation, principal, { clientInputId: receipt.id, message: text });
+  } catch (error) {
+    if (error instanceof ConversationClosedError) return closedNotice(tx, deps, receipt, binding);
+    if (error instanceof AdmissionLimitError) throw new AdmissionDeferredError();
+    if (error instanceof DraftMessageLimitError) return "ignored";
+    // A runtime refusal leaves the input recorded and accepted, as for a host.
+    if (!(error instanceof ConversationInputError)) throw error;
+    if (error.code !== "runtime_unavailable") return "ignored";
+  }
+
+  const [input] = await deps.db<{ id: string }[]>`
+    select i.id from app.conversation_inputs i
+    join app.discussions d on d.id = i.discussion_id
+    where d.principal_type = 'requester_request' and d.principal_id = ${binding.request_id} and d.audience = 'requester'
+      and i.client_input_id = ${receipt.id}
+  `;
+  if (!input) throw new Error("The forwarded input was not recorded.");
+
+  await recordOutbound(tx, {
+    dedupeKey: `input:${input.id}`,
+    inputId: input.id,
+    kind: "turn",
+    recipient: { address: receipt.sender, spaceId: receipt.spaceId },
+    recipientHash: receipt.senderHash,
+    requestId: binding.request_id,
+    requesterBindingId: binding.id,
+    tokenKey: deps.tokenKey,
+  });
+  return "forwarded";
+}
+
 export async function processReceipt(
   tx: Transaction,
   deps: ImessageReceiptDependencies,
@@ -288,6 +542,9 @@ export async function processReceipt(
   }
 
   if (receipt.spaceType !== "dm" || ["reaction", "read", "typing"].includes(receipt.contentType)) return "ignored";
+
+  const guest = await guestRoute(tx, receipt);
+  if (guest) return channel ? guestMessage(tx, deps, receipt, guest) : "ignored";
 
   const recipient = { address: receipt.sender, spaceId: receipt.spaceId };
   const binding = await lockActiveBindingOfSender(tx, receipt.senderHash);

@@ -30,6 +30,7 @@ import { findReadyHostByHandle } from "./readiness";
 import { assertMessagingAdmitted } from "./messaging";
 import { lockOpenRequest } from "./request-guard";
 import { admitCreation, CREATION_LIMITS, type CreationLimits, identifyDraft, insertDraftRequest } from "./request-start";
+import { isRevisable, reviseClosedRequest, revisedSummary } from "./revised-requests";
 import { appOriginsFromEnvironment } from "./same-origin";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -197,6 +198,11 @@ async function forward(
     await acceptGuestMessage(deps.conversation, principal, { clientInputId: receipt.id, message: text });
   } catch (error) {
     if (error instanceof ConversationClosedError) {
+      // A declined or expired request continues as a revised request
+      // (guest-flow-completion design 5); a refusal gets the closed notice.
+      const revised = await revise(deps, receipt, binding);
+      if (revised) return forward(deps, receipt, message, { ...binding, request_id: revised }, false);
+
       // The notice and its record commit together, so a retry never loses it.
       return deps.db.begin(async (tx) => {
         const [notice] = await tx<{ id: string }[]>`
@@ -260,6 +266,37 @@ async function forward(
   });
 
   return "forwarded";
+}
+
+// The revised request the thread now belongs to, with its opening summary
+// recorded, or null when the closed request is not revisable or was refused.
+async function revise(deps: EmailReceiptDependencies, receipt: Receipt, binding: Binding) {
+  const [earlier] = await deps.db<{ id: string; state: string; details: Parameters<typeof revisedSummary>[0]["details"] }[]>`
+    select id, state, details from app.requests where id = ${binding.request_id}
+  `;
+  if (!earlier || !isRevisable(earlier.state)) return null;
+
+  const outcome = await deps.db.begin((tx) =>
+    reviseClosedRequest(
+      tx,
+      { creationLimits: deps.creationLimits, origin: deps.origin, tokenKey: deps.tokenKey, tokenKeys: [deps.tokenKey] },
+      earlier.id,
+      { kind: "email", messageId: receipt.message_id, receiptId: receipt.id, threadId: binding.id },
+      (address) => emailSourceHash(deps.tokenKey, address),
+    ),
+  );
+  if (outcome.kind === "refused") return null;
+
+  try {
+    await acceptGuestMessage(
+      deps.conversation,
+      { id: outcome.requestId, type: "requester_request" },
+      { clientInputId: outcome.requestId, message: revisedSummary(earlier) },
+    );
+  } catch (error) {
+    if (!(error instanceof ConversationInputError) || error.code !== "runtime_unavailable") throw error;
+  }
+  return outcome.requestId;
 }
 
 // A new thread naming a ready host starts an identified request (D6) and binds
