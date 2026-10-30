@@ -5,7 +5,7 @@ Keep every section. When one does not apply, replace its prompt with one line sa
 
 ## What this does
 
-<!-- The resulting behavior, and the OpenSpec change, implementation-plan phase or issue it belongs to. Write `Closes #123` when this pull request finishes the issue. For an OpenSpec change, write `Part of #123` until the pull request that archives the change. -->
+<!-- The resulting behavior, and the OpenSpec change, implementation-plan phase or issue it belongs to. Write `Closes #123` when this pull request finishes the issue. For an OpenSpec change, write `Part of #123` until the pull request that archives the change. Every pull request links an issue; only a hotfix may go without one, and then says it is a hotfix. -->
 
 ## Why
 
@@ -30,4 +30,5 @@ Keep every section. When one does not apply, replace its prompt with one line sa
 ## Before requesting review
 
 - [ ] The title follows `type(scope): intent`.
+- [ ] The description links its issue (`Closes #N` or `Part of #N`), or says this is a hotfix.
 - [ ] A commit was made after the last agent run, so the AI usage record is current.
