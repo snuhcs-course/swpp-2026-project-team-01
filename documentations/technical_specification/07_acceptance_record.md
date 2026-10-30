@@ -1,8 +1,8 @@
 # Acceptance Record
 
-Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) released and checked on production; the guest's inbox check pending; Phase 5 (`agent-access`) local evidence recorded, named-client and production evidence pending; Phase 6 (`host-imessage-channel`) local evidence recorded, line, device and production evidence pending; Phase 7 (`requester-email-channel`) local evidence recorded, inbox and production evidence pending; Phase 8 (`operations-and-release`) local evidence recorded; the [release summary](#release-summary) lists every scenario's state; open gaps listed below
+Status: Phase 1 (`application-foundation`) and Phase 2 (`host-onboarding`) evidence recorded; Phase 3 (`requester-intake-and-feasibility`) release recorded, its acceptance evidence pending; Phase 4 (`host-review-and-booking`) released and checked on production; the guest's inbox check pending; Phase 5 (`agent-access`) local evidence recorded, named-client and production evidence pending; Phase 6 (`host-imessage-channel`) local evidence recorded, line, device and production evidence pending; Phase 7 (`requester-email-channel`) local evidence recorded, inbox and production evidence pending; Phase 8 (`operations-and-release`) local evidence recorded; Phases 1 to 8 deployed to production on 2026-10-30 at `7c317609`, with iMessage still off; the [release summary](#release-summary) lists every scenario's state; open gaps listed below
 
-Date: 2026-10-23
+Date: 2026-10-30
 
 This record lists the evidence each phase of the [implementation plan](06_implementation_plan.md) produced, against the evidence list of that phase. Every entry names the command, the date, the revision and the environment it ran in. Fixture and local-stack runs prove logic; only the entries marked **production** prove the deployed integration. Tokens, secrets, email addresses and personal message text are kept out of this record.
 
@@ -41,7 +41,7 @@ Compiled on 2026-10-23 by the [`operations-and-release`](../../openspec/changes/
 | AC-27 | `tests/integration/requester-google.test.ts`; `evaluation.test.ts` "uses the requester's busy time without storing or showing their events" | — | Real requester consent, blocked while the Google app is in **Testing** |
 | AC-28 | [Phase 2](#phase-2--host-onboarding) evidence by item | — | Signed-in setup on production; Google app verification |
 
-Two earlier gaps changed since their phases were recorded: every migration through Phase 6 is now on the shared project (read on 2026-10-23), and the current production deployment (2026-10-23 07:02 KST) predates the Phase 6 merge, so Phases 6 to 8 are not deployed.
+Two earlier gaps changed since their phases were recorded: every migration is now on the shared project, the last five pushed on 2026-10-30, and production runs `7c317609`, deployed the same day, so Phases 1 to 8 are all deployed ([Phase 8 production deployment](#production-deployment-2026-10-30)). Deployment closes no scenario above by itself, and iMessage is still off on production because the Photon line and webhook are not provisioned.
 
 ## Phase 1 — `application-foundation`
 
@@ -456,4 +456,21 @@ Run by the implementing session on 2026-10-23 (06:55 UTC) against the current **
 | `dev.findmeatime.com` | `curl` of `/` | 404: `findmeatime-dev` has no current deployment serving it, so staging is not live |
 | Latency (D4) | `npm run perf:check -- --origin https://findmeatime.com` and `--origin https://release.findmeatime.com`, 20 sequential samples per route from Seoul | All routes pass. `findmeatime.com`: `/` p50 155 ms, p95 267 ms; `/SKILL.md` 269 and 431 ms; `/llms.txt` 255 and 286 ms; `/eve/v1/health` 250 and 470 ms. `release.findmeatime.com`: 200 and 446; 262 and 287; 250 and 831; 273 and 321 ms. Approval-to-booking and first-reply times are not measured |
 | Release project | Read-only `supabase db query --linked --project-ref mriseqztcwmezvtawnbo` | Still the iteration-1 prototype ([provider setup](03_provider_setup.md#supabase-project)); not emptied |
+
+### Production deployment, 2026-10-30
+
+Run by a Claude Code session on 2026-10-30 (KST), at the user's request, against the **production** deployment of `findmeatime-release` and the shared project `anelszynxtvxoxqvzgqt`. The `Deploy shared Supabase` workflow could not push the migrations because the repository has no secrets set ([provider setup](03_provider_setup.md#environments-and-collaboration)), so they were pushed by hand with the user's approval. The Supabase CLI ran on an export of `origin/main`'s `supabase/` directory with `--project-ref anelszynxtvxoxqvzgqt`, because the main checkout is linked to the release project.
+
+| Step | Revision and deployment | Command | Result |
+|---|---|---|---|
+| Shared project before the push | `7c317609` | `supabase migration list --linked --project-ref anelszynxtvxoxqvzgqt` | 27 applied, through `20261023024435_imessage_channel.sql`; five pending: the four Phase 8 migrations and `20261023134957_imessage_start.sql` (PR #39) |
+| Dry run | `7c317609` | `supabase db push --dry-run` on the same target, with CLI 2.122.0 and again with 2.119.0 | The same five listed. Outside function bodies they only add tables, columns, constraints and indexes and schedule `app-retention`; no drop or type change |
+| Migrations | `7c317609` | `npx supabase@2.119.0 db push --linked --project-ref anelszynxtvxoxqvzgqt --yes`, then `supabase migration list` | The five applied; 32 listed, none pending |
+| Retention schedule | `7c317609` | Read-only `supabase db query` of `cron.job` | `app-retention` active at `17 * * * *` |
+| Deployment | `7c317609`, `dpl_EqYL9C8rBa6jiefnYoAvYijkKm1a` | `vercel deploy --prod` from a clean checkout of `origin/main`, 23:39 KST | Ready; `findmeatime.com` and `release.findmeatime.com` both resolve to it |
+| Smoke test | `7c317609` | `curl` of `/`, `/llms.txt`, `/SKILL.md`, `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource/mcp`, `/.well-known/jwks.json` and `release.findmeatime.com/` | 200 each |
+| Loopback redirect (PR #40) | `7c317609` | `GET /connect/authorize` with Claude Code's client ID metadata document and `redirect_uri` `http://localhost:54545/callback`, then `http://127.0.0.1:54545/callback` | 303 to `/connect/consent` for both; `localhost` answered 400 before PR #40 |
+| Photon webhook | `7c317609` | `curl` of `/photon/webhook` | 404, as designed while `PHOTON_WEBHOOK_ID` and `PHOTON_WEBHOOK_SECRET` are unset |
+
+Not checked on this deployment: signed-in pages, the job worker's wake-ups and the latency budget. iMessage stays off. The Photon project `findmeatime` is on the free tier with no line of its own (`photon spectrum lines list` lists none) and no webhook, and Vercel Production does not set `PHOTON_WEBHOOK_ID`, `PHOTON_WEBHOOK_SECRET`, `PHOTON_LINE_NUMBER`, `PHOTON_FALLBACK_DAILY_LIMIT` or `DIAGNOSTICS_REJECTIONS`. So the receiver answers 404, the **Connect iMessage** card says iMessage is unavailable, and rejection counts are not collected.
 

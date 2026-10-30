@@ -2,9 +2,9 @@
 
 > 한국어 번역본 (검토용). 원본: documentations/technical_specification/07_acceptance_record.md
 
-상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 릴리스되고 프로덕션에서 확인됨; 게스트 받은편지함 확인은 보류 중; 5단계(`agent-access`) 로컬 증거 기록됨, 명명된 클라이언트와 프로덕션 증거 보류 중; 6단계(`host-imessage-channel`) 로컬 증거 기록됨, 회선, 기기, 프로덕션 증거 보류 중; 7단계(`requester-email-channel`) 로컬 증거 기록됨, 받은편지함과 프로덕션 증거 보류 중; 8단계(`operations-and-release`) 로컬 증거 기록됨; [릴리스 요약](#release-summary)이 모든 시나리오의 상태를 나열; 열린 공백은 아래에 나열
+상태: 1단계(`application-foundation`)와 2단계(`host-onboarding`) 증거 기록됨; 3단계(`requester-intake-and-feasibility`) 릴리스 기록됨, 인수 증거는 보류 중; 4단계(`host-review-and-booking`) 릴리스되고 프로덕션에서 확인됨; 게스트 받은편지함 확인은 보류 중; 5단계(`agent-access`) 로컬 증거 기록됨, 명명된 클라이언트와 프로덕션 증거 보류 중; 6단계(`host-imessage-channel`) 로컬 증거 기록됨, 회선, 기기, 프로덕션 증거 보류 중; 7단계(`requester-email-channel`) 로컬 증거 기록됨, 받은편지함과 프로덕션 증거 보류 중; 8단계(`operations-and-release`) 로컬 증거 기록됨; 1~8단계가 2026-10-30에 `7c317609`로 프로덕션에 배포됨, iMessage는 여전히 꺼져 있음; [릴리스 요약](#release-summary)이 모든 시나리오의 상태를 나열; 열린 공백은 아래에 나열
 
-날짜: 2026-10-23
+날짜: 2026-10-30
 
 이 기록은 [구현 계획](06_implementation_plan.md)의 각 단계가 해당 단계의 증거 목록에 맞춰 만들어 낸 증거를 나열합니다. 모든 항목에는 실행한 명령, 날짜, 리비전, 환경이 명시되어 있습니다. 픽스처와 로컬 스택 실행은 로직을 증명할 뿐이며, **production**으로 표시된 항목만 배포된 연동을 증명합니다. 토큰, 시크릿, 이메일 주소, 개인 메시지 본문은 이 기록에 넣지 않습니다.
 
@@ -43,7 +43,7 @@
 | AC-27 | `tests/integration/requester-google.test.ts`; `evaluation.test.ts` "uses the requester's busy time without storing or showing their events" | — | 실제 요청자 동의, Google 앱이 **Testing** 상태인 동안 차단됨 |
 | AC-28 | 항목별 [2단계](#phase-2--host-onboarding) 증거 | — | 프로덕션에서 로그인한 설정; Google 앱 검증 |
 
-앞서 기록된 두 공백이 해당 단계가 기록된 이후 바뀌었습니다. 6단계까지의 모든 마이그레이션이 이제 공유 프로젝트에 있으며(2026-10-23에 확인), 현재 프로덕션 배포(2026-10-23 07:02 KST)는 6단계 병합보다 앞서므로 6~8단계는 배포되지 않았습니다.
+앞서 기록된 두 공백이 해당 단계가 기록된 이후 바뀌었습니다. 이제 모든 마이그레이션이 공유 프로젝트에 있으며(마지막 다섯 개는 2026-10-30에 푸시), 프로덕션은 같은 날 배포된 `7c317609`로 실행되므로 1~8단계가 모두 배포되었습니다([8단계 프로덕션 배포](#production-deployment-2026-10-30)). 배포만으로 위의 시나리오가 닫히지는 않으며, Photon 회선과 웹훅이 준비되지 않았으므로 프로덕션에서 iMessage는 여전히 꺼져 있습니다.
 
 ## 1단계 — `application-foundation`
 
@@ -458,4 +458,21 @@
 | `dev.findmeatime.com` | `/`의 `curl` | 404: `findmeatime-dev`에 이를 서비스하는 현재 배포가 없으므로 스테이징은 라이브가 아님 |
 | 지연(D4) | `npm run perf:check -- --origin https://findmeatime.com`과 `--origin https://release.findmeatime.com`, 서울에서 경로마다 순차 표본 20개 | 모든 경로 통과. `findmeatime.com`: `/` p50 155ms, p95 267ms; `/SKILL.md` 269ms와 431ms; `/llms.txt` 255ms와 286ms; `/eve/v1/health` 250ms와 470ms. `release.findmeatime.com`: 200ms와 446ms; 262ms와 287ms; 250ms와 831ms; 273ms와 321ms. 승인에서 예약까지의 시간과 첫 응답 시간은 측정되지 않음 |
 | 릴리스 프로젝트 | 읽기 전용 `supabase db query --linked --project-ref mriseqztcwmezvtawnbo` | 여전히 1차 반복의 프로토타입임([공급자 설정](03_provider_setup.md#supabase-project)); 비워지지 않음 |
+
+### 프로덕션 배포, 2026-10-30
+
+2026-10-30(KST)에 Claude Code 세션이 사용자의 요청으로 `findmeatime-release`의 **production** 배포와 공유 프로젝트 `anelszynxtvxoxqvzgqt`를 대상으로 실행했습니다. 저장소에 시크릿이 설정되어 있지 않아 `Deploy shared Supabase` 워크플로가 마이그레이션을 푸시할 수 없었으므로([공급자 설정](03_provider_setup.md#environments-and-collaboration)), 사용자의 승인을 받아 수동으로 푸시했습니다. 메인 체크아웃이 릴리스 프로젝트에 연결되어 있으므로, Supabase CLI는 `origin/main`의 `supabase/` 디렉터리를 내보낸 사본에서 `--project-ref anelszynxtvxoxqvzgqt`로 실행했습니다.
+
+| 절차 | 리비전과 배포 | 명령 | 결과 |
+|---|---|---|---|
+| 푸시 전 공유 프로젝트 | `7c317609` | `supabase migration list --linked --project-ref anelszynxtvxoxqvzgqt` | 27개가 적용됨, `20261023024435_imessage_channel.sql`까지; 다섯 개가 대기 중: 8단계 마이그레이션 네 개와 `20261023134957_imessage_start.sql`(PR #39) |
+| 드라이 런 | `7c317609` | 같은 대상에 대한 `supabase db push --dry-run`, CLI 2.122.0으로, 이어서 2.119.0으로 | 같은 다섯 개가 나열됨. 함수 본문 밖에서는 테이블, 열, 제약 조건, 인덱스를 추가하고 `app-retention`을 예약하기만 하며, 삭제나 타입 변경은 없음 |
+| 마이그레이션 | `7c317609` | `npx supabase@2.119.0 db push --linked --project-ref anelszynxtvxoxqvzgqt --yes`, 이어서 `supabase migration list` | 다섯 개가 적용됨; 32개가 나열되고 대기 중인 것은 없음 |
+| 보존 일정 | `7c317609` | `cron.job`에 대한 읽기 전용 `supabase db query` | `app-retention`이 `17 * * * *`로 활성 |
+| 배포 | `7c317609`, `dpl_EqYL9C8rBa6jiefnYoAvYijkKm1a` | `origin/main`의 깨끗한 체크아웃에서 `vercel deploy --prod`, 23:39 KST | Ready; `findmeatime.com`과 `release.findmeatime.com`이 모두 이 배포를 가리킴 |
+| 스모크 테스트 | `7c317609` | `/`, `/llms.txt`, `/SKILL.md`, `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource/mcp`, `/.well-known/jwks.json`, `release.findmeatime.com/`의 `curl` | 각각 200 |
+| 루프백 리디렉션(PR #40) | `7c317609` | Claude Code의 클라이언트 ID 메타데이터 문서와 `redirect_uri` `http://localhost:54545/callback`, 이어서 `http://127.0.0.1:54545/callback`으로 `GET /connect/authorize` | 둘 다 `/connect/consent`로 303; PR #40 이전에는 `localhost`가 400으로 답함 |
+| Photon 웹훅 | `7c317609` | `/photon/webhook`의 `curl` | 404, `PHOTON_WEBHOOK_ID`와 `PHOTON_WEBHOOK_SECRET`이 설정되지 않은 동안의 설계대로 |
+
+이 배포에서 확인하지 않은 것: 로그인한 페이지, 작업 워커의 깨우기(wake-up), 지연 예산. iMessage는 꺼진 채로 유지됩니다. Photon 프로젝트 `findmeatime`은 무료 등급이며 자체 회선이 없고(`photon spectrum lines list`가 아무것도 나열하지 않음) 웹훅도 없으며, Vercel Production에는 `PHOTON_WEBHOOK_ID`, `PHOTON_WEBHOOK_SECRET`, `PHOTON_LINE_NUMBER`, `PHOTON_FALLBACK_DAILY_LIMIT`, `DIAGNOSTICS_REJECTIONS`가 설정되어 있지 않습니다. 그래서 수신기는 404로 답하고, **iMessage 연결(Connect iMessage)** 카드는 iMessage를 사용할 수 없다고 안내하며, 거부 횟수는 수집되지 않습니다.
 
