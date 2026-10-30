@@ -56,7 +56,7 @@ Each MCP endpoint SHALL be a protected resource whose identifier is its exact UR
 - **THEN** the answer is a neutral not-found that reveals no reason
 
 ### Requirement: Bounded client registration
-The service SHALL accept clients identified by a client ID metadata document, clients registered dynamically and its own pre-registered command-line client. Metadata documents SHALL be fetched only from `https` URLs with a path on public addresses, without redirects, within fixed time and size limits, and SHALL be accepted only when their `client_id` equals the URL. Redirect URIs SHALL be `https` or loopback `http`, matched exactly except that a loopback IP literal's port may differ. Registration SHALL be rate-limited and SHALL grant no application authority.
+The service SHALL accept clients identified by a client ID metadata document, clients registered dynamically and its own pre-registered command-line client. Metadata documents SHALL be fetched only from `https` URLs with a path on public addresses, without redirects, within fixed time and size limits, and SHALL be accepted only when their `client_id` equals the URL. Redirect URIs SHALL be `https` or loopback `http`, matched exactly except that a loopback redirect's port, on `127.0.0.1`, `[::1]` or `localhost`, may differ. Registration SHALL be rate-limited and SHALL grant no application authority.
 
 #### Scenario: Metadata document names another client
 - **WHEN** the fetched document's `client_id` differs from its URL or it lists no redirect URIs
@@ -65,6 +65,10 @@ The service SHALL accept clients identified by a client ID metadata document, cl
 #### Scenario: Unregistered callback
 - **WHEN** an authorization request names a redirect URI its client did not register
 - **THEN** the service shows an error page and never redirects to that URI
+
+#### Scenario: Native client on a free loopback port
+- **WHEN** a client that registered `http://localhost/callback` asks to return to `http://localhost:54545/callback`
+- **THEN** the redirect is accepted, while a different host or path on that port is refused
 
 #### Scenario: Registration flood
 - **WHEN** one source registers more clients than the hourly bound

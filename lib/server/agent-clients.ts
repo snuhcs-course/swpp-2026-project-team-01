@@ -37,7 +37,6 @@ export class ClientResolutionError extends Error {
 // Redirect URIs
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "[::1]", "localhost"]);
-const LOOPBACK_IP_HOSTS = new Set(["127.0.0.1", "[::1]"]);
 
 function parseUrl(value: string) {
   try {
@@ -56,14 +55,16 @@ export function isValidRedirectUri(value: string) {
   return url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname);
 }
 
-// Exact match of scheme, host, path and query. A loopback IP literal's port may
+// Exact match of scheme, host, path and query. A loopback redirect's port may
 // differ from the registered one, as OAuth 2.1 requires for native clients.
+// This includes localhost: Claude Code's client ID metadata document registers
+// http://localhost/callback and returns to a free port on it.
 export function matchesRedirectUri(registered: readonly string[], requested: string) {
   if (!isValidRedirectUri(requested)) return false;
   if (registered.includes(requested)) return true;
 
   const wanted = parseUrl(requested)!;
-  if (wanted.protocol !== "http:" || !LOOPBACK_IP_HOSTS.has(wanted.hostname)) return false;
+  if (wanted.protocol !== "http:" || !LOOPBACK_HOSTS.has(wanted.hostname)) return false;
 
   return registered.some((candidate) => {
     const url = parseUrl(candidate);

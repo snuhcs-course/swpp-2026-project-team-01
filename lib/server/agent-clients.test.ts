@@ -20,17 +20,29 @@ describe("redirect URIs", () => {
     expect(isValidRedirectUri("cursor://anysphere.cursor-mcp/oauth/callback")).toBe(false);
   });
 
-  it("match exactly, except a loopback IP literal's port", () => {
+  it("match exactly, except a loopback redirect's port", () => {
     const registered = ["https://agent.example/cb?x=1", "http://127.0.0.1/callback", "http://localhost:3000/cb"];
     expect(matchesRedirectUri(registered, "https://agent.example/cb?x=1")).toBe(true);
     expect(matchesRedirectUri(registered, "https://agent.example/cb")).toBe(false);
     expect(matchesRedirectUri(registered, "https://agent.example/cb?x=2")).toBe(false);
     expect(matchesRedirectUri(registered, "http://127.0.0.1:49152/callback")).toBe(true);
     expect(matchesRedirectUri(registered, "http://127.0.0.1:49152/other")).toBe(false);
+    // The host itself must still match: [::1] and localhost are not 127.0.0.1.
     expect(matchesRedirectUri(registered, "http://[::1]:49152/callback")).toBe(false);
-    // localhost is a name, not an IP literal: its port must match.
-    expect(matchesRedirectUri(registered, "http://localhost:3001/cb")).toBe(false);
+    expect(matchesRedirectUri(registered, "http://localhost:49152/callback")).toBe(false);
+    expect(matchesRedirectUri(registered, "http://localhost:3001/cb")).toBe(true);
     expect(matchesRedirectUri(registered, "http://localhost:3000/cb")).toBe(true);
+    expect(matchesRedirectUri(registered, "http://localhost:3001/cb?x=1")).toBe(false);
+    expect(matchesRedirectUri(registered, "https://localhost:3001/cb")).toBe(false);
+  });
+
+  it("accept Claude Code's registered loopback callbacks on any port", () => {
+    // From https://claude.ai/oauth/claude-code-client-metadata.
+    const registered = ["http://localhost/callback", "http://127.0.0.1/callback"];
+    expect(matchesRedirectUri(registered, "http://localhost:54545/callback")).toBe(true);
+    expect(matchesRedirectUri(registered, "http://127.0.0.1:54545/callback")).toBe(true);
+    expect(matchesRedirectUri(registered, "http://localhost:54545/other")).toBe(false);
+    expect(matchesRedirectUri(registered, "http://localhost.evil.example:54545/callback")).toBe(false);
   });
 });
 
