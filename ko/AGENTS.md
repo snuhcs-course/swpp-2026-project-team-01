@@ -6,9 +6,9 @@
 
 ## 프로젝트 상태
 
-구현은 [`application-foundation`](openspec/changes/application-foundation/proposal.md) 변경으로 시작되었으며, 그 [설계](openspec/changes/application-foundation/design.md)가 런타임 스택을 기록합니다. Phase 1(로그인, `/app` 작업 공간, Supabase 스키마 기준선, 플랫폼 메커니즘)과 Phase 2([`host-onboarding`](openspec/changes/host-onboarding/proposal.md): 호스트 설정, 공개 호스트 페이지와 스킬 문서, 핸들과 가입 한도, 관리자 CLI)는 구현과 배포를 마쳤고 [인수 기록](documentations/technical_specification/07_acceptance_record.md)에 기록되어 있습니다. 요청자 및 예약 기능은 이후 변경과 함께 들어옵니다. 열린 OpenSpec 변경 안에서만 구현하십시오.
+구현은 [`application-foundation`](openspec/changes/application-foundation/proposal.md) 변경으로 시작되었으며, 그 [설계](openspec/changes/application-foundation/design.md)가 런타임 스택을 기록합니다. Phase 1(로그인, `/app` 작업 공간, Supabase 스키마 기준선, 플랫폼 메커니즘)과 Phase 2([`host-onboarding`](openspec/changes/host-onboarding/proposal.md): 호스트 설정, 공개 호스트 페이지와 스킬 문서, 핸들과 가입 한도, 관리자 CLI)는 구현과 배포를 마쳤고 [인수 기록](documentations/technical_specification/07_acceptance_record.md)에 기록되어 있습니다. Phase 3부터 8까지(요청자 접수, 호스트 검토와 예약, 에이전트 접근, 호스트 iMessage 채널, 요청자 이메일 채널, 운영과 릴리스)는 병합되었고 2026-10-30부터 프로덕션에 배포되어 있습니다. 이들의 프로덕션, 명명된 클라이언트, 기기, 받은편지함 증거는 아직 보류 중이며, iMessage는 Photon 회선과 웹훅이 준비될 때까지 꺼져 있습니다. 열린 OpenSpec 변경 안에서만 구현하십시오.
 
-공유 Supabase 프로젝트는 `anelszynxtvxoxqvzgqt`이며, 2026-10-19와 2026-10-20에 적용된 Phase 1 및 Phase 2 마이그레이션을 담고 있습니다([환경과 협업](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration) 참고). 네임스페이스, 기본 권한, RLS는 스키마 기준선이 선언한 대로 유지하며, [제공자 설정](documentations/technical_specification/03_provider_setup.md#supabase-project)의 설명을 따르십시오. 상태를 확인하지 않은 프로젝트에 마이그레이션 체인을 푸시하지 마십시오.
+공유 Supabase 프로젝트는 `anelszynxtvxoxqvzgqt`이며, `20261023134957_imessage_start.sql`까지의 마이그레이션 체인 전체를 담고 있습니다. 마지막 푸시는 배포 워크플로의 저장소 시크릿이 설정되지 않아 2026-10-30에 수동으로 했습니다([환경과 협업](documentations/technical_specification/03_provider_setup.md#environments-and-collaboration) 참고). 네임스페이스, 기본 권한, RLS는 스키마 기준선이 선언한 대로 유지하며, [제공자 설정](documentations/technical_specification/03_provider_setup.md#supabase-project)의 설명을 따르십시오. 상태를 확인하지 않은 프로젝트에 마이그레이션 체인을 푸시하지 마십시오.
 
 ## 저장소 구조
 
