@@ -101,8 +101,10 @@ Reference: [OpenSpec quickstart](https://openspec.dev/docs/quickstart).
 
 ## Git workflow and pull requests
 
-The four-person team uses GitHub Flow: `main` -> short-lived working branch -> pull request -> review and checks -> merge -> branch deletion. Keep `main` ready to deploy as application code is added; use working branches for incomplete work.
+The four-person team uses GitHub Flow, starting from an issue: issue -> `main` -> short-lived working branch -> pull request -> review and checks -> merge -> branch deletion. Keep `main` ready to deploy as application code is added; use working branches for incomplete work.
 
+- Start every piece of work from an issue, so the team can see who is doing what and two people do not do the same work. Search the open issues first (`gh issue list --search "<words>"`) and reuse a matching one instead of opening a duplicate. Assign yourself when you start (`gh issue edit <N> --add-assignee @me`), and ask the assignee before taking over an issue someone else holds.
+- Link every pull request to its issue with `Closes #N` or `Part of #N`. Only a hotfix, an urgent fix for a broken `main` or deployment, may go without an issue, and its description says it is a hotfix.
 - Create each working branch from the latest `main` and give it one bounded purpose, named as described in the branch conventions above.
 - Keep PRs small and separate unrelated changes. Describe the resulting behavior, rationale, and validation, including any checks that could not run. Reflect new changes on `main` regularly and resolve conflicts before merging.
 - Write the PR description with the sections of [`.github/pull_request_template.md`](.github/pull_request_template.md). GitHub fills it in on the web, but `gh pr create --body` does not, so agents copy its sections themselves.
