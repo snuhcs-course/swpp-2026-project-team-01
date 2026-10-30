@@ -10,6 +10,7 @@ import {
   CalendarSelectionCard,
   ConnectCalendarCard,
   EmailLinkLine,
+  ImessageUpdatesLine,
   focusCardHeading,
   type RequesterCardContext,
   SentLine,
@@ -422,6 +423,7 @@ function threadEntries(
               <>
                 <SentLine context={context} />
                 <EmailLinkLine context={context} />
+                <ImessageUpdatesLine context={context} />
               </>
             ),
         });
@@ -464,7 +466,15 @@ function threadEntries(
         if (state === "open" && view.proposal && card.id === `proposal:${view.proposal.version}`) {
           open("proposal", card, <ProposalCard context={context} />);
         } else if (state === "answered" && card.receipt?.start) {
-          receipt(card, RECEIPT_LABELS.proposal, `You agreed to ${timeText(card.receipt.start, card.receipt.end, zone)}`);
+          // Until the host approves, the agreed time can be changed (D10).
+          receipt(
+            card,
+            RECEIPT_LABELS.proposal,
+            `You agreed to ${timeText(card.receipt.start, card.receipt.end, zone)}`,
+            view.request.state === "awaiting_host_approval" && card.id === `proposal:${view.proposal?.version}`
+              ? change("Change the agreed time", () => void context.run("request.change_agreement", {}, view.request.revision))
+              : undefined,
+          );
         } else if (state === "waiting" && card.receipt?.start) {
           receipt(card, RECEIPT_LABELS.proposal, `Proposed ${timeText(card.receipt.start, card.receipt.end, zone)} · not agreed`);
         } else {

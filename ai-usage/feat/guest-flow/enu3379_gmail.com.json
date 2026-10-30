@@ -1,0 +1,23 @@
+{
+  "branch": "feat/guest-flow",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:ed62b947-61af-49ab-a644-27eafd2b7e66": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 3333101,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 642,
+          "cache_read": 70823557,
+          "cache_write_5m": 0,
+          "cache_write_1h": 1222953,
+          "output": 284439,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-29T07:58:47.489Z",
+      "last": "2026-10-30T04:05:44.841Z"
+    }
+  }
+}

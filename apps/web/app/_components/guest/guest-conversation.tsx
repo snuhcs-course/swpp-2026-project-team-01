@@ -1,6 +1,7 @@
 "use client";
 
 import { type DiscussionEvent, isRedeliveredInput } from "@lib/contracts/discussion-events";
+import { REVISED_SUMMARY_PREFIX } from "@lib/contracts/request";
 import { isCurrentTurnBoundaryEvent } from "eve/client";
 import { conversationReducer, type EveMessage } from "eve/react";
 import { AlertCircleIcon, XIcon } from "lucide-react";
@@ -28,10 +29,14 @@ type Phase = "loading" | "ready" | "sending" | "streaming";
 // One card or receipt in the thread, placed by `at`.
 export type ThreadEntry = { readonly id: string; readonly at: string; readonly node: ReactNode };
 
-// An application-authored message from before D13 (a request's intake
-// summary) starts with this line and is shown as a quiet note rather than as
-// the requester's own words.
-const AUTHORED_PREFIX = "Intake summary from the public page, written by Find Me a Time";
+// An application-authored message starts with one of these lines and is shown
+// as a quiet note rather than as the requester's own words: a request's intake
+// summary from before D13, and a revised request's summary of the earlier one
+// (guest-flow-completion design 5).
+const AUTHORED_NOTES = [
+  { note: "Your details from the public page were passed on to Thyme.", prefix: "Intake summary from the public page, written by Find Me a Time" },
+  { note: "Your earlier request's details were passed on to Thyme.", prefix: REVISED_SUMMARY_PREFIX },
+] as const;
 
 function hasOpenTurn(events: readonly DiscussionEvent[]) {
   let open = false;
@@ -106,9 +111,10 @@ function isWritingText(message: EveMessage | undefined) {
   return (part?.type === "text" || part?.type === "reasoning") && part.state === "streaming";
 }
 
-function authored(message: EveMessage) {
+function authoredNote(message: EveMessage) {
   const part = message.parts[0];
-  return message.role === "user" && part?.type === "text" && part.text.startsWith(AUTHORED_PREFIX);
+  if (message.role !== "user" || part?.type !== "text") return null;
+  return AUTHORED_NOTES.find((authored) => part.text.startsWith(authored.prefix))?.note ?? null;
 }
 
 function errorMessage(error: unknown) {
@@ -317,9 +323,10 @@ export function GuestConversation({
                 );
               }
               const { index, message } = item;
-              return authored(message) ? (
+              const note = authoredNote(message);
+              return note ? (
                 <ChatItem key={message.id} messageId={message.id}>
-                  <p className="px-3 text-sm text-muted-foreground">Your details from the public page were passed on to Thyme.</p>
+                  <p className="px-3 text-sm text-muted-foreground">{note}</p>
                 </ChatItem>
               ) : (
                 <ChatItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>

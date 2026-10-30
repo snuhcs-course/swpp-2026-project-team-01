@@ -305,7 +305,8 @@ export type DraftRequestReviewToolInput = z.infer<typeof draftRequestReviewToolI
 
 const PROBLEM_MESSAGES: Readonly<Record<PatchProblem, string>> = {
   ambiguous_local_time: "",
-  awaiting_host_approval: "The requester already agreed to a proposal that waits for the host; details cannot change here now.",
+  awaiting_host_approval:
+    "The requester already agreed to a proposal that waits for the host; details cannot change here now. Until the host approves, the requester can press Change on the agreed time to reopen the request, then change details or choose another time.",
   empty_patch: "A details or availability draft needs at least one field the requester stated.",
   invalid_contact: "That name or email address is not usable. Ask the requester to give it again.",
   invalid_date: "That date does not exist. Ask for the date again.",

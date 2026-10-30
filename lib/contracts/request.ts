@@ -162,3 +162,7 @@ export type RequesterAgreement = {
   readonly proposalVersion: number;
   readonly agreedAt: string;
 };
+
+// The first line of a revised request's opening summary (guest-flow-completion
+// design 5), which the guest thread shows as a quiet note.
+export const REVISED_SUMMARY_PREFIX = "Earlier request summary, written by Find Me a Time";

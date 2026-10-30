@@ -171,6 +171,10 @@ Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code는 PRD의 필수 호�
 
 **이메일 연동 확인(Check email link)**은 상태를 새로고침하고, **이메일 연동 해제(Unlink email)**는 수신 측 장애 중에도 이전 스레드를 철회합니다. 불확실한 명령에는 **같은 연동 동작 재시도(Retry same linking action)**를 제공하여 작업 식별자를 보존합니다. 이메일을 사용할 수 없을 때는 항상 비공개 웹 대화에서 이어갈 수 있게 합니다. 연결 메시지는 30분간 유효한 일회용 `FMAT-` 코드이며, 확인된 주소에서 온 새 스레드의 첫 메시지로만 바인딩되고 전달되었거나 늦게 도착한 사본은 코드를 무효화합니다([설계 4와 5](../../openspec/changes/requester-email-channel/design.md#4-continue-by-email)). 컨트롤만으로는 실제 채널이 준비되었음을 성립시키지 못합니다. 제품 인박스, 그 웹훅, 통제된 종단 간 인수 검증은 아직 열려 있습니다.
 
+## 보호된 요청자 iMessage 알림
+
+요청자가 식별되면 비공개 예약 대화는 **Continue by email** 옆에 **iMessage로 알림 받기(Get updates in iMessage)**를 제공합니다. 이는 요청이 소유하는 일회용 `FMAT-` 코드를 만들며, 15분간 유효하고 시간당 최대 5개입니다. 회선 번호와 메시지 `Get Find Me a Time updates: FMAT-…`를 보여 주는데, 휴대폰에서는 그 메시지가 작성된 채로 메시지 앱이 열리고 다른 브라우저에서는 QR 코드와 선택 가능한 메시지를 보여 줍니다. 카드는 메시지가 도착할 때까지 확인하고, 도착하면 가려진 발신자를 **확인하고 연동(Confirm and link)**과 **내가 아님(This isn't me)**과 함께 보여 줍니다. 예약 링크를 가진 사람의 **Confirm and link**만 바인딩하므로, 전달된 코드는 보이지 않게 누구도 바인딩하지 않습니다. 연동되면 한 줄이 가려진 발신자와 **iMessage 연동 해제(Unlink iMessage)**를 보여 주며, 이는 데이터베이스에서 즉시 연동을 끝냅니다. **취소(Cancel)**는 열린 코드만 끝냅니다. 이메일이 공식 채널로 남고 예약 링크는 iMessage에 절대 나타나지 않습니다([설계 1과 4](../../openspec/changes/guest-flow-completion/design.md#1-guest-linking)).
+
 ## 선택적 iMessage 연락처 카드
 
 연동이 검증된 후 **연락처에 추가(Add to contacts)**는 연결된 카드의 선택적 동작이며, 호스트가 연결 메시지를 보냈기 때문에 대화는 이미 존재하고 카드는 답장으로 도착합니다. 이 동작 전에, 이것이 연동된 대화에서 카드를 요청하는 것이며 수신자가 저장할지 선택한다는 점을 설명합니다. 이 선택을 하지 않아도 설정과 웹 채팅은 계속 사용할 수 있습니다.

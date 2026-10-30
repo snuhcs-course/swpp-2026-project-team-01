@@ -6,6 +6,7 @@ import { eventTitle } from "./calendar-events";
 import type { Transaction } from "./database";
 import { enqueueEmail, frozenSender } from "./email-delivery";
 import { recordReply } from "./email-replies";
+import { enqueueGuestNotice, type GuestNotice } from "./imessage-notices";
 import { openRequestBookingId } from "./request-start";
 import { appOriginsFromEnvironment } from "./same-origin";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
@@ -19,7 +20,8 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 // sealed copy and sealed again as the delivery's secret parameter; the host's
 // copy links to the request in /app and carries no booking link. A requester
 // whose request has an active email thread also gets each status notice in that
-// thread (requester-email-channel design 7).
+// thread (requester-email-channel design 7), and one with an active guest
+// iMessage binding gets it in that conversation (guest-flow-completion design 4).
 
 export type NoticeDependencies = {
   readonly origin: string;
@@ -133,6 +135,8 @@ export async function enqueueConfirmations(tx: Transaction, deps: NoticeDependen
   const parties = await partiesOf(tx, requestId);
   if (!parties) return;
 
+  await enqueueGuestNotice(tx, requestId, { bookingId: meeting.bookingId, kind: "booking_confirmation" });
+
   const sender = frozenSender(process.env, parties.hostName);
   const attachmentFor = (parameters: MeetingParameters) =>
     meeting.iCalUID
@@ -205,6 +209,17 @@ function dedupeKeyOf(requestId: string, notice: StatusNotice) {
   }
 }
 
+function guestNoticeOf(notice: StatusNotice): GuestNotice {
+  switch (notice.kind) {
+    case "status_new_version":
+      return { kind: notice.kind, version: notice.version };
+    case "status_pending":
+      return { bookingId: notice.bookingId, kind: notice.kind };
+    default:
+      return { kind: notice.kind };
+  }
+}
+
 // One status notice to the requester's contact address, confirmed or not (D11).
 export async function enqueueStatusNotice(tx: Transaction, deps: NoticeDependencies, requestId: string, notice: StatusNotice) {
   const parties = await partiesOf(tx, requestId);
@@ -238,6 +253,8 @@ export async function enqueueStatusNotice(tx: Transaction, deps: NoticeDependenc
   const [thread] = await tx<{ id: string; inbox_id: string; last_message_id: string }[]>`
     select id, inbox_id, last_message_id from app.email_threads where request_id = ${requestId} and state = 'active'
   `;
+
+  await enqueueGuestNotice(tx, requestId, guestNoticeOf(notice));
 
   if (thread) {
     await recordReply(tx, {
