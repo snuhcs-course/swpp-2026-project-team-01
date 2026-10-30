@@ -1,0 +1,57 @@
+{
+  "branch": "docs/issue-first-prs",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:4fb453b7-2c14-474a-a7a0-18eb65508fc7": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 42,
+          "cache_read": 2196367,
+          "cache_write_5m": 0,
+          "cache_write_1h": 28181,
+          "output": 12893,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-30T13:11:30.066Z",
+      "last": "2026-10-30T13:32:13.872Z"
+    },
+    "claude:4fb453b7-2c14-474a-a7a0-18eb65508fc7/agent-a45a2dafd259c0668": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 8,
+          "cache_read": 258654,
+          "cache_write_5m": 96594,
+          "cache_write_1h": 0,
+          "output": 3726,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-30T13:12:33.945Z",
+      "last": "2026-10-30T13:14:54.959Z"
+    },
+    "claude:4fb453b7-2c14-474a-a7a0-18eb65508fc7/agent-aadd8c7d0f983ca09": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 10,
+          "cache_read": 346121,
+          "cache_write_5m": 92487,
+          "cache_write_1h": 0,
+          "output": 3073,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-10-30T13:30:42.663Z",
+      "last": "2026-10-30T13:32:11.097Z"
+    }
+  }
+}

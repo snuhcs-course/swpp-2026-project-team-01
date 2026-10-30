@@ -77,6 +77,8 @@ Keep the documents complementary rather than duplicating the same requirements:
 
 Use OpenSpec for substantial feature or behavior changes. Routine documentation edits, maintenance, and small fixes that preserve existing behavior do not need a new proposal. Start with a bounded change, review its requirements, implement and test it, then archive it to update the main specs. Do not promote unresolved PRD decisions or draft requirements into settled specifications.
 
+Give each change one tracking issue and link them both ways: the issue names the change, and `proposal.md` names the issue number. Do not open an issue per `tasks.md` item; split off a sub-issue only when part of the change goes to another person or pull request. Pull requests that implement part of a change refer to the issue without a closing keyword, such as `Part of #N`, and the pull request that archives the change, even if it also implements it, closes it with `Closes #N`. Before archiving, update the deltas with what implementation changed. An archived change is a record: change the behavior later with a new change, not by editing the archive.
+
 If product documents and capability specs disagree, resolve the discrepancy explicitly before implementing the affected behavior. Update the owning document and its links instead of silently choosing one interpretation or maintaining conflicting copies.
 
 OpenSpec validation checks artifact structure and specification consistency; it does not prove the implementation works. Run relevant automated tests and review the code before treating a change as complete. Keep `openspec/config.yaml`, specifications, change artifacts, and generated project skills in Git.
@@ -99,15 +101,20 @@ Reference: [OpenSpec quickstart](https://openspec.dev/docs/quickstart).
 
 ## Git workflow and pull requests
 
-The four-person team uses GitHub Flow: `main` -> short-lived working branch -> pull request -> review and checks -> merge -> branch deletion. Keep `main` ready to deploy as application code is added; use working branches for incomplete work.
+The four-person team uses GitHub Flow, starting from an issue: issue -> `main` -> short-lived working branch -> pull request -> review and checks -> merge -> branch deletion. Keep `main` ready to deploy as application code is added; use working branches for incomplete work.
 
+- Before starting work or opening an issue, check whether the work is already tracked or under way: search open and closed issues (`gh issue list --state all --search "<words>"`) and open pull requests (`gh pr list --search "<words>"`). Reuse a matching open issue instead of opening a duplicate. When a closed issue or merged pull request already covers the work, confirm the problem remains before reopening the issue or opening a new one.
+- Start every piece of work from an issue, so the team can see who is doing what and two people do not do the same work. Assign yourself when you start (`gh issue edit <N> --add-assignee @me`). If someone else holds the issue or has a pull request open for it, ask them before taking it over.
+- Link every pull request to its issue with `Closes #N` or `Part of #N`. Only a hotfix, an urgent fix for a broken `main` or deployment, may go without an issue, and its description says it is a hotfix.
 - Create each working branch from the latest `main` and give it one bounded purpose, named as described in the branch conventions above.
 - Keep PRs small and separate unrelated changes. Describe the resulting behavior, rationale, and validation, including any checks that could not run. Reflect new changes on `main` regularly and resolve conflicts before merging.
-- All changes to `main` go through a PR. Require approval from at least one teammate other than the author and passing relevant CI checks before merging. Until relevant CI exists, run the applicable local checks and record the results and gaps in the PR.
-- Configure GitHub branch protection or rulesets to enforce the review and required checks on `main`.
+- Write the PR description with the sections of [`.github/pull_request_template.md`](.github/pull_request_template.md). GitHub fills it in on the web, but `gh pr create --body` does not, so agents copy its sections themselves.
+- Open issues for bugs, document or specification mismatches, feature ideas and planned tasks with the forms in `.github/ISSUE_TEMPLATE/`; blank issues are disabled. Issues track ideas and work. The requirements of a substantial behavior change live in its OpenSpec change, and the tracking issue links to that change, or to the pull request that adds it, instead of restating them.
+- All changes to `main` go through a PR. Require approval from at least one teammate other than the author and passing relevant CI checks before merging.
+- Branch protection on `main` requires one approval (a new push dismisses earlier approvals), resolved review conversations, and the `application`, `database` and `documentation` checks on a branch that is up to date with `main`. Administrators can bypass it.
 - Use **Squash and merge** by default so each PR becomes one logical commit on `main`. Use the commit-message format below for the PR title and final squash message, and preserve useful Lore decision context in the final message.
 - Use **Rebase and merge** as an exception when the PR's individual commits are already meaningful, independently reviewable, and worth retaining. Ordinary PRs do not need merge commits.
-- Delete the working branch after merging and start the next task from the latest `main`, especially after a squash merge. Coordinate with teammates before rewriting history on shared branches.
+- GitHub deletes the remote branch when its PR merges. Delete the local branch and start the next task from the latest `main`, especially after a squash merge. Coordinate with teammates before rewriting history on shared branches.
 
 Use this workflow without a permanent `develop` branch. Reconsider Git Flow or release branches if the project needs concurrent supported versions or a separate release-stabilization period.
 
