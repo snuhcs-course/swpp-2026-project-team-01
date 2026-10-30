@@ -9,6 +9,7 @@ context: |
 rules:
   proposal:
     - Link relevant product documents and existing capability specs; identify unresolved decisions explicitly.
+    - Name the change's GitHub tracking issue number; if none exists yet, say so.
   specs:
     - Specify observable behavior and testable scenarios; reference product documents instead of duplicating their narrative.
   tasks:

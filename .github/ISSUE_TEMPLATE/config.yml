@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: How behavior changes are specified
+    url: https://github.com/snuhcs-course/swpp-2026-project-team-01/blob/main/openspec/README.md
+    about: Requirements for a substantial behavior change live in an OpenSpec change in openspec/changes/. Issues track ideas and work, and link to that change or the pull request that adds it.
