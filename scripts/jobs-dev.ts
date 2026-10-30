@@ -3,6 +3,7 @@
 // that local processes produced, and refuses to point at a hosted team project.
 import { hostname } from "node:os";
 import { setTimeout as sleep } from "node:timers/promises";
+import { pathToFileURL } from "node:url";
 import { database } from "../lib/server/database";
 import { deploymentEnvironment } from "../lib/server/deployment";
 import { JOB_HANDLERS } from "../lib/server/job-handlers";
@@ -69,6 +70,6 @@ async function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   await main();
 }
