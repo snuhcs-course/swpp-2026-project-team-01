@@ -439,7 +439,16 @@ describe("the unconfirmed model cap on drafts", () => {
     },
     warnings: [],
   };
-  const model = () => new MockLanguageModelV4({ doGenerate: async () => reply, modelId: "gpt-5.6-terra", provider: "openai.responses" });
+  // A reply with no reported usage keeps the full reservation of its attempt.
+  const unmetered = {
+    ...reply,
+    usage: {
+      inputTokens: { cacheRead: undefined, cacheWrite: undefined, noCache: undefined, total: undefined },
+      outputTokens: { reasoning: undefined, text: undefined, total: undefined },
+    },
+  };
+  const model = (answer: typeof reply | typeof unmetered = unmetered) =>
+    new MockLanguageModelV4({ doGenerate: async () => answer, modelId: "gpt-5.6-terra", provider: "openai.responses" });
   const prompt = (key: string) => ({ prompt: "Hello", providerOptions: { openai: { promptCacheKey: key } } });
 
   it("caps a draft at USD 3 and counts it as anonymous", async () => {
@@ -448,13 +457,29 @@ describe("the unconfirmed model cap on drafts", () => {
     const session = await indexRequestSession(db, draft.requestId);
     const wrapped = limitModel(model(), () => ({ db, limits: { serviceWindowUsd: "1000000.00" } }));
 
-    // USD 3 at USD 0.60 a reservation is five attempts; one input has eight.
+    // USD 3 at the USD 0.60 upper bound is five attempts whose usage is unreported.
     for (let index = 0; index < 5; index += 1) await generateText({ model: wrapped, ...prompt(session.key) });
     await expect(generateText({ model: wrapped, ...prompt(session.key) })).rejects.toMatchObject({ code: "principal_allowance" });
     const marked = await db<{ anonymous: boolean }[]>`
       select distinct anonymous from app.model_reservations where principal_id = ${draft.requestId}
     `;
     expect(marked).toEqual([{ anonymous: true }]);
+  });
+
+  it("counts a draft's replies at their actual cost, so the USD 3 cap is not spent in five attempts", async () => {
+    const host = await readyHost(db);
+    const draft = await startedDraft(guestDependencies(db), host.handle);
+    const session = await indexRequestSession(db, draft.requestId);
+    const wrapped = limitModel(model(reply), () => ({ db, limits: { serviceWindowUsd: "1000000.00" } }));
+
+    // More attempts than the five a flat USD 0.60 each would allow, and past the old cap of eight.
+    for (let index = 0; index < 12; index += 1) await generateText({ model: wrapped, ...prompt(session.key) });
+
+    const [spent] = await db<{ attempts: number; spent: string }[]>`
+      select count(*)::int as attempts, sum(amount_usd)::text as spent from app.model_reservations where principal_id = ${draft.requestId}
+    `;
+    // One input token and one output token cost 2 + 12 = 14 millionths of a dollar.
+    expect(spent).toEqual({ attempts: 12, spent: "0.000168" });
   });
 
   it("lets Continue without Google identify the guest while anonymous messages are refused", async () => {

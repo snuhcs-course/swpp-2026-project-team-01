@@ -22,15 +22,19 @@ Each model attempt SHALL reject serialized input exceeding 128 KiB, accept only 
 - **THEN** the enforced limits and standard tier remain in effect
 
 ### Requirement: Durable model allowance
-The service SHALL reserve USD 0.60 of model allowance before each actual provider attempt, at most eight attempts per accepted conversation input and two per ranking check. It SHALL allow at most USD 30 per host account or requester request and USD 300 service-wide in independent fixed 24-hour windows. Failed or uncertain attempts SHALL retain reservations; restarting, switching channels or replacing credentials SHALL not reset allowance.
+The service SHALL reserve an upper bound of USD 0.60 of model allowance before each actual provider attempt, so concurrent attempts cannot overspend, and SHALL settle the reservation to the attempt's actual cost, from the input, cached input and output tokens the provider reports and the model's published prices, once the provider reports usage. It SHALL NOT limit the number of attempts for an accepted conversation input or a ranking check. It SHALL allow at most USD 30 per host account or requester request and USD 300 service-wide in independent fixed 24-hour windows. Failed, aborted or uncertain attempts, and attempts whose usage is not reported, SHALL retain their full reservations; restarting, switching channels or replacing credentials SHALL not reset allowance.
 
 #### Scenario: Retry after process failure
 - **WHEN** execution restarts after reserving an attempt, even without a recorded provider response
 - **THEN** another actual provider call requires another reservation against the same work and principal limits
 
+#### Scenario: Settled to actual cost
+- **WHEN** a provider attempt reports its usage
+- **THEN** its reservation becomes the cost of that usage at the model's published prices, and the difference is available to later attempts
+
 #### Scenario: Concurrent work
 - **WHEN** concurrent authorized work exceeds remaining principal or service capacity
-- **THEN** only the remaining capacity is reserved and all other provider calls are denied
+- **THEN** only the remaining capacity is reserved at the upper bound and all other provider calls are denied
 
 #### Scenario: Saved result
 - **WHEN** an exact authorized retry reads a saved ranking without invoking the provider
@@ -44,11 +48,11 @@ Reservations SHALL require current work authority and canonical runtime identity
 - **THEN** no reservation or provider execution is authorized
 
 #### Scenario: Exhausted work
-- **WHEN** a conversation or ranking reaches its attempt limit
+- **WHEN** a conversation or ranking reaches a principal or service allowance
 - **THEN** further model work stops, existing confirmed state remains readable and structured controls remain available
 
 ### Requirement: Recovery retains model limits
-Recovering a conversation SHALL retain its message, principal and service model allowances and accumulated session usage. A failed attempt SHALL remain charged. Provider configuration errors SHALL fail safely without exposing raw provider errors or creating scheduling changes; correcting configuration SHALL NOT itself authorize another model call.
+Recovering a conversation SHALL retain its message, principal and service model allowances and accumulated session usage. A failed attempt SHALL remain charged in full. Provider configuration errors SHALL fail safely without exposing raw provider errors or creating scheduling changes; correcting configuration SHALL NOT itself authorize another model call.
 
 #### Scenario: Corrected key after failure
 - **WHEN** credentials are corrected after a model authentication failure
