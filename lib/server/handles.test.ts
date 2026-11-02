@@ -32,13 +32,13 @@ describe("handle format", () => {
 
 describe("reserved handles", () => {
   it("reserves route and impersonation names", () => {
-    for (const handle of ["app", "booking", "auth", "connect", "connections", "api", "eve", "support", "findmeatime", "sign-in", "well-known", "llms", "skill"]) {
+    for (const handle of ["app", "booking", "auth", "connect", "connections", "api", "eve", "support", "findmeatime", "sign-in", "well-known", "llms", "skill", "privacy-policy", "terms-of-service"]) {
       expect(handleProblem(handle)).toBe("reserved");
     }
   });
 
-  it("holds exactly the design's 69 names, each a valid handle shape", () => {
-    expect(RESERVED_HANDLES.size).toBe(69);
+  it("holds exactly the design's 71 names, each a valid handle shape", () => {
+    expect(RESERVED_HANDLES.size).toBe(71);
     for (const handle of RESERVED_HANDLES) expect(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(handle)).toBe(true);
   });
 });

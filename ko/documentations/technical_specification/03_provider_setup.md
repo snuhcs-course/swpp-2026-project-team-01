@@ -65,7 +65,7 @@ MVP는 Supabase Auth를 통한 Google 전용 호스트 로그인을 요구합니
 2026-10-19에 [기반 변경](../../openspec/changes/application-foundation/design.md#12-authentication-details)이 기록했습니다.
 
 - **OAuth 클라이언트.** Google Cloud 프로젝트 `findmeatime`의 웹 OAuth 클라이언트 하나가 모든 환경을 담당합니다. 그 ID와 시크릿은 `GOOGLE_CLIENT_ID`와 `GOOGLE_CLIENT_SECRET`입니다. 로컬 스택은 루트 `.env`를 쓰고, 공유 프로젝트는 `GOOGLE_CLIENT_ID` GitHub 변수와 `GOOGLE_CLIENT_SECRET` GitHub 시크릿을 쓰며, 배포 워크플로가 `supabase config push`로 이를 기록합니다.
-- **스코프.** Supabase Auth는 `openid`, `email`, `profile`을 요청하고, 애플리케이션은 `access_type=offline`과 함께 `https://www.googleapis.com/auth/calendar.calendarlist.readonly`(캘린더 목록), `https://www.googleapis.com/auth/calendar.events`(선택한 캘린더의 이벤트 읽기와 예약 이벤트 생성), `https://www.googleapis.com/auth/calendar.events.freebusy`(호스트가 접근할 수 있는 캘린더의 free/busy)를 추가합니다. 각 스코프가 인가하는 API 메서드와 함께 [`lib/contracts/google-scopes.ts`](../../lib/contracts/google-scopes.ts)에 정의되어 있습니다.
+- **스코프.** Supabase Auth는 `openid`, `email`, `profile`을 요청하고, 애플리케이션은 `access_type=offline`과 함께 `https://www.googleapis.com/auth/calendar.calendarlist.readonly`(캘린더 목록)와 `https://www.googleapis.com/auth/calendar.events`(선택한 캘린더의 이벤트 읽기와 예약 이벤트 생성)를 추가합니다. 각 스코프가 인가하는 API 메서드와 함께 [`lib/contracts/google-scopes.ts`](../../lib/contracts/google-scopes.ts)에 정의되어 있습니다. `calendar.events.freebusy`는 2026-11-02까지 요청했으나 아무것도 호출하지 않아 뺐습니다. free/busy만 있는 캘린더는 이벤트를 읽을 수 없으므로 제외됩니다. 요청자 흐름은 `calendar.calendarlist.readonly`와 `calendar.events.readonly`를 요청합니다([`lib/server/requester-calendar.ts`](../../lib/server/requester-calendar.ts)). Google Cloud 동의 화면은 정확히 이 스코프들만 선언하며 Gmail 스코프는 선언하지 않습니다.
 - OAuth 클라이언트의 **승인된 리디렉션 URI**는 Supabase Auth 서버마다 하나씩입니다.
 
   | 환경 | 리디렉션 URI |
@@ -161,13 +161,13 @@ Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code를 각각 개별적으
 
 ### 보존과 삭제
 
-- **보존**은 저절로 실행됩니다. `pg_cron` 작업 `app-retention`이 매시간 17분에 `app.cleanup_retained_records(1000)`을 호출합니다. 종료된 요청은 하위 항목 전체와 함께 종료 90일 뒤에, 완료된 작업, 명령 결과, 링크 재발송 기록, 승인 구간, 에이전트 프로토콜 시도는 30일 뒤에, 소진된 작업과 모델 예약은 90일 뒤에, 운영자 감사 행은 1년 뒤에 삭제하며, 실행 한 번당 규칙마다 최대 1,000행까지 삭제합니다. 앞선 규칙은 그대로입니다. Calendar 분석, 가입과 생성 시도, 초안은 24시간 뒤, 이메일과 iMessage 기록은 30일 뒤, 요청자 권한 부여는 종료 시점에 삭제합니다. 다음으로 확인하십시오: `select * from cron.job_run_details where jobid = (select jobid from cron.job where jobname = 'app-retention') order by start_time desc limit 5`.
+- **보존**은 저절로 실행됩니다. `pg_cron` 작업 `app-retention`이 매시간 17분에 `app.cleanup_retained_records(1000)`을 호출합니다. 종료된 요청은 하위 항목 전체와 함께 종료 90일 뒤에, 완료된 작업, 명령 결과, 링크 재발송 기록, 승인 구간, 에이전트 프로토콜 시도는 30일 뒤에, 소진된 작업과 모델 예약은 90일 뒤에, 운영자 감사 행은 1년 뒤에 삭제하며, 실행 한 번당 규칙마다 최대 1,000행까지 삭제합니다. 앞선 규칙은 그대로입니다. Calendar 분석, 가입과 생성 시도, 초안은 24시간 뒤, 이메일과 iMessage 기록은 30일 뒤, 요청자 권한 부여는 종료 시점에 삭제합니다. 다음으로 확인하십시오: `select * from cron.job_run_details where jobid = (select jobid from cron.job where jobname = 'app-retention') order by start_time desc limit 5`. 이 이력은 7일 동안 보관됩니다. `app-cron-history` 작업이 매시간 47분에 7일보다 전에 끝난 실행과, 재시작으로 중단되었고 7일보다 전에 시작된 실행을 삭제합니다. 확보된 공간은 이후 실행이 다시 쓰므로, 대시보드의 데이터베이스 크기는 줄어들지 않고 더 늘지 않게 됩니다.
 - **요청에 따른 삭제.** 요청이 계정에 등록된 주소에서 왔는지 확인한 뒤 `npm run admin -- delete-host --host <handle-or-id> --reason <text> --operator <name> --project <ref>` 또는 `npm run admin -- delete-request --request <id> --reason <text> --operator <name> --project <ref>`를 실행하십시오. 요청자의 경우 그가 보낸 예약 링크로 요청을 찾습니다: `select request_id from app.booking_links where link_hash = encode(sha256(convert_to(lower('<bookingId>'), 'UTF8')), 'hex')`(`lib/server/booking-links.ts`의 `hashBookingId`가 계산하는 해시). 호스트에게는 핸들 이력이 담긴 정지 상태의 이름 없는 계정 행만 남으므로 그 핸들은 다른 누구에게도 배정되지 않으며, `restore`는 이를 거부하고, 같은 Google 계정은 나중에 새로 가입합니다. 두 명령 모두 예약 쓰기가 있을 수 있는 동안에는 거부하므로, 먼저 `recover booking`으로 조정하십시오. 이미 만들어진 Calendar 이벤트, 본인의 메일, AgentMail 스레드, Photon 대화, OpenAI의 악용 로그는 데이터베이스 밖에 있으므로 답장에서 그렇게 알리십시오.
 - **고지.** [`/privacy`](../../apps/web/app/privacy/page.tsx)는 이 규칙을 호스트와 요청자를 위해 영어와 한국어로 밝힙니다. 보존이나 공급자가 바뀌는 변경과 같은 풀 리퀘스트에서 이 페이지도 바꾸십시오.
 
 ### 지원
 
-지원 메일은 `support@findmeatime.com`으로 오며, 이는 영역의 Cloudflare MX 레코드 위에 있는 Email Routing 별칭으로 당번 운영자에게 전달됩니다(D3). 별칭을 만드는 일은 아직 하지 않은 콘솔 단계입니다. 영업일 이틀 안에 답하십시오. 토큰, 예약 링크, 다른 사람의 데이터는 답장에 붙여 넣지 마십시오.
+지원 메일은 `support@findmeatime.com`으로 오며, 이는 영역의 Cloudflare MX 레코드 위에 있는 `support`라는 이름의 Email Routing 규칙입니다(D3). 2026-11-02부터 영역의 catch-all 규칙과 마찬가지로 저장소 소유자의 인증된 주소로 전달되며, 순환이 시작되면 당번 운영자를 가리키도록 바꾸고 변경 후에는 `cf email-routing rules list-account --zone findmeatime.com`으로 규칙을 다시 읽으십시오. 영업일 이틀 안에 답하십시오. 토큰, 예약 링크, 다른 사람의 데이터는 답장에 붙여 넣지 마십시오.
 
 ### 성능 점검
 

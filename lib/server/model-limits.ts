@@ -10,21 +10,39 @@ import { database, type Database } from "./database";
 //   2. attribute the call: a conversation call by its prompt cache key (the
 //      base64url SHA-256 of the eve session ID) in the session index, a ranking
 //      call by the work item its caller passes;
-//   3. reserve USD 0.60 durably against the work item, the principal and the
-//      service (and, for an anonymous principal, the anonymous allowance), after
-//      taking their locks and rechecking authority. A request is anonymous,
+//   3. reserve an upper bound of USD 0.60 durably against the work item, the
+//      principal and the service (and, for an anonymous principal, the anonymous
+//      allowance), after taking their locks and rechecking authority, so
+//      concurrent calls cannot overspend. A request is anonymous,
 //      drafts included, until its contact is confirmed or it holds a live
 //      Google identity grant: until then it gets the anonymous cap (USD 3 per
 //      24 hours), and its spend counts toward the anonymous allowance;
 //   4. call the provider with output clamped (4,096 tokens, 2,048 for ranking),
 //      storage off and the standard tier, under a 30-second idle deadline for a
-//      stream or a 120-second total deadline for a non-streamed call.
-// A denial throws ModelLimitError before any provider request. A reservation is
-// never released, so a failed or uncertain attempt stays charged.
+//      stream or a 120-second total deadline for a non-streamed call;
+//   5. when the provider reports usage (a generated result's, or a stream's
+//      finish part), settle the reservation to the actual cost at the model's
+//      published prices.
+// A denial throws ModelLimitError before any provider request. Only reported
+// usage settles a reservation, so a failed, aborted or usage-less attempt stays
+// charged at the full upper bound. No count of attempts limits a work item: only
+// the USD windows do.
+
+// USD per million tokens on the standard tier, which every call selects. One home
+// for the models in use: `gpt-5.6-terra` serves the agent (agent/agent.ts) and
+// the ranking call (lib/server/evaluation.ts). A model absent here cannot be
+// settled, so its reservations stay at the upper bound.
+// Source: OpenAI's model page, https://developers.openai.com/api/docs/models/gpt-5.6-terra,
+// and pricing page, https://developers.openai.com/api/docs/pricing, both read on
+// 2026-11-01: input $2.00, cached input $0.20, output $12.00. The pages price a
+// prompt over 272K input tokens at twice the input and 1.5 times the output; the
+// 128 KiB input cap keeps every call below that.
+export const MODEL_PRICES: Readonly<Record<string, { readonly cachedInputUsd: string; readonly inputUsd: string; readonly outputUsd: string }>> = {
+  "gpt-5.6-terra": { cachedInputUsd: "0.20", inputUsd: "2.00", outputUsd: "12.00" },
+};
 
 export const MODEL_LIMITS = {
   attemptReservationUsd: "0.60",
-  conversationAttempts: 8,
   conversationOutputTokens: 4096,
   // A non-streamed call has no chunks to be idle between, so it gets one total
   // deadline instead, long enough for a full reasoning response.
@@ -38,7 +56,6 @@ export const MODEL_LIMITS = {
   // window. Spend of intakes from before D13 still counts toward the latter.
   anonymousPrincipalWindowUsd: "3.00",
   anonymousWindowUsd: "50.00",
-  rankingAttempts: 2,
   rankingOutputTokens: 2048,
   serviceWindowUsd: "300.00",
 } as const;
@@ -50,7 +67,6 @@ export type ModelLimits = {
 export type ModelLimitCode =
   | "anonymous_allowance"
   | "attachment"
-  | "attempts_exhausted"
   | "authority_expired"
   | "deadline"
   | "input_too_large"
@@ -171,11 +187,11 @@ async function attribute(db: Database, params: CallOptions, ranking: RankingWork
   };
 }
 
+// Returns the new reservation's ID, for settling it.
 async function reserve(db: Database, attribution: Attribution, limits: ModelLimits) {
   const { principal, sessionId, work } = attribution;
-  const attemptCap = work.kind === "ranking_check" ? limits.rankingAttempts : limits.conversationAttempts;
 
-  await db.begin(async (tx) => {
+  return db.begin(async (tx) => {
     await tx`select pg_advisory_xact_lock(hashtextextended(${`app.model_allowance:work:${work.kind}:${work.id}`}, 0))`;
     await tx`select pg_advisory_xact_lock(hashtextextended(${`app.model_allowance:principal:${principal.type}:${principal.id}`}, 0))`;
     // Whether a request is anonymous is known only after its row is read, so it
@@ -229,13 +245,11 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
 
     const principalCap = anonymous ? limits.anonymousPrincipalWindowUsd : limits.principalWindowUsd;
     const [usage] = await tx<
-      { anonymous_over: boolean; attempts: number; principal_over: boolean; service_over: boolean; window_start: Date }[]
+      { anonymous_over: boolean; principal_over: boolean; service_over: boolean; window_start: Date }[]
     >`
       with w as (select date_bin('24 hours', statement_timestamp(), timestamptz '2026-01-01 00:00:00+00') as start)
       select
         w.start as window_start,
-        (select count(*)::int from app.model_reservations
-          where work_kind = ${work.kind} and work_id = ${work.id}) as attempts,
         (select coalesce(sum(amount_usd), 0) from app.model_reservations
           where principal_type = ${principal.type} and principal_id = ${principal.id} and window_start = w.start)
           + ${limits.attemptReservationUsd}::numeric > ${principalCap}::numeric as principal_over,
@@ -246,10 +260,6 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
           + ${limits.attemptReservationUsd}::numeric > ${limits.serviceWindowUsd}::numeric as service_over
       from w
     `;
-
-    if (usage!.attempts >= attemptCap) {
-      throw new ModelLimitError("attempts_exhausted");
-    }
 
     if (usage!.principal_over) {
       throw new ModelLimitError("principal_allowance");
@@ -263,14 +273,51 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
       throw new ModelLimitError("service_allowance");
     }
 
-    await tx`
+    const [reservation] = await tx<{ id: string }[]>`
       insert into app.model_reservations
         (work_kind, work_id, principal_type, principal_id, session_id, amount_usd, window_start, anonymous)
       values
         (${work.kind}, ${work.id}, ${principal.type}, ${principal.id}, ${sessionId},
          ${limits.attemptReservationUsd}::numeric, ${usage!.window_start}, ${anonymous})
+      returning id
     `;
+
+    return reservation!.id;
   });
+}
+
+type Usage = Awaited<ReturnType<InnerModel["doGenerate"]>>["usage"];
+type StreamPart = Awaited<ReturnType<InnerModel["doStream"]>>["stream"] extends ReadableStream<infer Part> ? Part : never;
+
+// Settles a reservation to the call's actual cost: uncached input, cached input
+// and output (reasoning included) tokens at the model's prices, rounded up to a
+// whole millionth of a dollar. Usage the provider did not report, or a model
+// without a listed price, leaves the reservation at its upper bound, and so does
+// a failed update: an uncounted call is never cheaper than a charged one.
+async function settle(db: Database, reservationId: string, modelId: string, usage: Usage | undefined) {
+  const price = MODEL_PRICES[modelId];
+  const input = usage?.inputTokens.total;
+  const output = usage?.outputTokens.total;
+
+  if (!price || input === undefined || output === undefined) return;
+
+  const cached = Math.min(usage?.inputTokens.cacheRead ?? 0, input);
+
+  try {
+    // Tokens times USD per million tokens is millionths of a dollar.
+    await db`
+      update app.model_reservations
+      set amount_usd = greatest(
+        ceil(${input - cached}::numeric * ${price.inputUsd}::numeric
+           + ${cached}::numeric * ${price.cachedInputUsd}::numeric
+           + ${output}::numeric * ${price.outputUsd}::numeric),
+        1
+      ) / 1000000
+      where id = ${reservationId}
+    `;
+  } catch {
+    // The reservation stays charged in full.
+  }
 }
 
 // The caller's options with the enforced limits applied over anything it asked for.
@@ -331,6 +378,19 @@ function withIdleDeadline<T>(stream: ReadableStream<T>, ms: number, controller: 
   });
 }
 
+// Settles when the stream's finish part passes; a stream cut short never
+// finishes, so its reservation stays.
+function settleOnFinish(stream: ReadableStream<StreamPart>, onFinish: (usage: Usage) => Promise<void>) {
+  return stream.pipeThrough(
+    new TransformStream<StreamPart, StreamPart>({
+      async transform(part, output) {
+        if (part.type === "finish") await onFinish(part.usage);
+        output.enqueue(part);
+      },
+    }),
+  );
+}
+
 export function modelLimitMiddleware(load: () => ModelLimitDependencies): LanguageModelMiddleware {
   async function prepare(params: CallOptions) {
     const deps = load();
@@ -338,13 +398,18 @@ export function modelLimitMiddleware(load: () => ModelLimitDependencies): Langua
 
     checkInput(params, limits);
     const attribution = await attribute(deps.db, params, deps.ranking);
-    await reserve(deps.db, attribution, limits);
+    const reservationId = await reserve(deps.db, attribution, limits);
 
     const controller = new AbortController();
     const signal = params.abortSignal ? AbortSignal.any([params.abortSignal, controller.signal]) : controller.signal;
     const outputCap = deps.ranking ? limits.rankingOutputTokens : limits.conversationOutputTokens;
 
-    return { controller, limits, params: enforce(params, outputCap, signal) };
+    return {
+      controller,
+      limits,
+      params: enforce(params, outputCap, signal),
+      settle: (modelId: string, usage: Usage | undefined) => settle(deps.db, reservationId, modelId, usage),
+    };
   }
 
   return {
@@ -354,7 +419,9 @@ export function modelLimitMiddleware(load: () => ModelLimitDependencies): Langua
       const wait = deadline(call.limits.generateTimeoutMs, call.controller);
 
       try {
-        return await Promise.race([(model as InnerModel).doGenerate(call.params), wait.expired]);
+        const result = await Promise.race([(model as InnerModel).doGenerate(call.params), wait.expired]);
+        await call.settle(model.modelId, result.usage);
+        return result;
       } finally {
         wait.clear();
       }
@@ -365,7 +432,8 @@ export function modelLimitMiddleware(load: () => ModelLimitDependencies): Langua
 
       try {
         const result = await Promise.race([(model as InnerModel).doStream(call.params), wait.expired]);
-        return { ...result, stream: withIdleDeadline(result.stream, call.limits.idleTimeoutMs, call.controller) };
+        const guarded = withIdleDeadline(result.stream, call.limits.idleTimeoutMs, call.controller);
+        return { ...result, stream: settleOnFinish(guarded, (usage) => call.settle(model.modelId, usage)) };
       } finally {
         wait.clear();
       }

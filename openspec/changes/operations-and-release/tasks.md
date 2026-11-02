@@ -20,6 +20,8 @@ Before each group, read the [Phase 8 reference repository files](../../../docume
 - [x] 3.1 Add `scripts/restore-drill.ts` and its synthetic fixture ([design 7](design.md#7-backup-restoration)) and the runbook. Verify one drill run on the local stack and record its summary.
 - [x] 3.2 Add `app.cleanup_retained_records` and its hourly schedule ([design 8](design.md#8-retention)), `app.operator_delete_host`, `app.operator_delete_request` and their commands ([design 9](design.md#9-deletion-on-request)). Verify integration tests per retention rule, the open-request guard, host deletion with the handle tombstone and the Auth user, a refused restore and a deleted request.
 - [x] 3.3 Add `/privacy` in English and Korean and its links ([design 11](design.md#11-disclosures)). Verify a Playwright check of both languages and the links at 390 and 1280 pixels.
+- [x] 3.4 Add the hourly `app-cron-history` job, which deletes pg_cron's run history after 7 days ([design 8](design.md#8-retention), issue #56). Verify a pgTAP test of its schedule, of old and restart-interrupted runs deleted, and of recent and running runs kept.
+- [x] 3.5 Serve the notice at `/privacy-policy` with its Google user data section, add `/terms-of-service` in English and Korean, link both from `/` and reserve both handles ([design 11](design.md#11-disclosures)). Verify the unit test of the reserved list, a Playwright check of the terms in both languages at 390 and 1280 pixels, of `/privacy-policy`, and of the links from `/`.
 
 ## 4. Environments and domain (Lane C)
 

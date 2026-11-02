@@ -93,7 +93,7 @@ test("a new host signs in, lands on /app with an empty setup session and gets Th
     where r.work_kind = 'conversation_input' and r.principal_id = ${hostAccountId}
   `;
   expect(reservations.length).toBeGreaterThanOrEqual(1);
-  expect(reservations.every((row) => row.session_id === sessions[0]!.session_id && row.amount_usd === "0.60")).toBe(true);
+  expect(reservations.every((row) => row.session_id === sessions[0]!.session_id && Number(row.amount_usd) > 0 && Number(row.amount_usd) < 0.6)).toBe(true);
 
   console.log(
     JSON.stringify({
