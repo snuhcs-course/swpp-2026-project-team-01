@@ -115,6 +115,25 @@ Verify request selection, private discussion, revision and exact-proposal approv
 
 Offer optional **Add to contacts** as a host action after a verified private exchange; the connected card queues one native contact-card share through the Spectrum SDK ([`host-imessage-channel` design 11](../../openspec/changes/host-imessage-channel/design.md#11-add-to-contacts)). Freeze the actual selected route and report provider acceptance/uncertainty truthfully. The recipient chooses whether to save it; the product cannot promise the displayed name or infer identity/consent from a contact card. Verify the actual account profile and real-device presentation independently before claiming support.
 
+## WhatsApp Business
+
+WhatsApp Business is the host WhatsApp channel's transport. It was proposed on 2026-11-02 in the [`host-whatsapp-channel` change](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions) and is not implemented yet. It runs through Photon Spectrum's `whatsapp_business` platform on the same Photon project as iMessage (`findmeatime`), where the user enabled it on 2026-11-02. Photon delivers WhatsApp events to the same webhook, `https://findmeatime.com/photon/webhook`, with the same signature. The receiver checks the signature once and routes by platform (D2). Until the change lands, the iMessage receiver acknowledges and ignores them (issue #62, PR #63). Outbound messages use `@spectrum-ts/whatsapp-business` 12.14.0 in cloud mode with the existing `PHOTON_PROJECT_ID` and `PHOTON_PROJECT_SECRET`, so Photon holds the Meta credentials (D1). The sender is the WhatsApp contact ID, the international number as digits without `+` (D3).
+
+Facts from Photon's documentation and the provider package, not yet seen on a real event:
+
+- Photon registers a Photon SMS number for WhatsApp Business. Photon's iMessage numbers are not eligible, so the WhatsApp number is not the iMessage line. Photon sets a two-step verification PIN on the number, and disconnecting it in Photon leaves it on the WhatsApp Business Account at Meta.
+- Free-form messages are accepted only within 24 hours of the user's last message. Outside that window Meta refuses them with error 131047, and only approved templates are accepted. Templates are created and approved in Meta's WhatsApp Manager.
+- The provider supports one-to-one conversations only, and the conversation ID is the contact ID.
+
+Operator steps, all blocked on the user until the implementing pull requests land:
+
+1. In WhatsApp Manager, for the business portfolio that owns the number, submit the three utility templates of [design 8](../../openspec/changes/host-whatsapp-channel/design.md#8-templates) in `en_US`, with their exact names and bodies, and wait for approval. Record each template's status and category. A reclassification to marketing goes back to the team.
+2. Confirm the display name "Find Me a Time", business verification and the number's messaging tier. Before verification, Meta allows business-initiated messages to 250 unique users a day.
+3. Set `PHOTON_WHATSAPP_NUMBER` (digits, for the card and `https://wa.me/<number>`) and, if the default of 50 is wrong, `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` on Vercel Production only. Previews and staging keep messaging denied.
+4. Send one message from a controlled Android phone to the number and confirm that the stored receipt has channel `whatsapp`. Record the exact `platform` spelling and sender format in the change and here. Then run AC-29 to AC-31.
+
+Never change the Photon project's platforms, lines or webhook, register templates or send a WhatsApp message from an agent session without the user's approval.
+
 ## Model access and runtime
 
 Keep model configuration server-side and call OpenAI directly with the team's own API key; the AI Gateway is not used. The model is `gpt-5.6-terra`, decided 2026-10-19 and recorded in the [foundation design](../../openspec/changes/application-foundation/design.md#5-model-route-and-model). Confirm the model ID, price and tool support against the team's key in the foundation change, while enforcing the agreed [model limits](../../openspec/specs/model-execution/spec.md). Test invalid/refused outputs, provider deadlines, rate/credit failures, durable usage accounting and private-data filtering using synthetic context. A model failure never advances scheduling state or creates approval.
