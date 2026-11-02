@@ -36,6 +36,19 @@ const reply = {
   warnings: [],
 };
 
+// A reply that reports no usage: its reservation cannot be settled.
+const unmetered = {
+  ...reply,
+  usage: {
+    inputTokens: { cacheRead: undefined, cacheWrite: undefined, noCache: undefined, total: undefined },
+    outputTokens: { reasoning: undefined, text: undefined, total: undefined },
+  },
+};
+
+// 10 input and 4 output tokens at USD 2.00 and 12.00 per million: 68 millionths.
+const REPLY_COST = "0.000068";
+const RESERVED = "0.600000";
+
 // A fake OpenAI model: no request ever leaves the process.
 function fakeOpenAI(doGenerate: FakeModel["doGenerate"] = async () => reply) {
   return new MockLanguageModelV4({ doGenerate, modelId: "gpt-5.6-terra", provider: "openai.responses" });
@@ -79,6 +92,13 @@ async function reservations(workId: string) {
     select count(*)::int as count from app.model_reservations where work_id = ${workId}
   `;
   return row!.count;
+}
+
+async function amounts(workId: string) {
+  const rows = await db<{ amount: string }[]>`
+    select amount_usd::text as amount from app.model_reservations where work_id = ${workId} order by created_at
+  `;
+  return rows.map((row) => row.amount);
 }
 
 describe("model limit middleware", () => {
@@ -295,27 +315,138 @@ describe("model limit middleware", () => {
     expect(await reservations(session.inputId!)).toBe(2);
 
     await wrap(fakeOpenAI()).doGenerate(call(session.key));
-    expect(await reservations(session.inputId!)).toBe(3);
+    expect(await amounts(session.inputId!)).toEqual([RESERVED, RESERVED, REPLY_COST]);
   });
 
-  it("caps a conversation input at eight attempts", async () => {
+  it("settles a generated result to its actual cost: input, cached input and output tokens at the published prices", async () => {
+    const session = await indexedSession();
+    const provider = fakeOpenAI(async () => ({
+      ...reply,
+      usage: {
+        inputTokens: { cacheRead: 400, cacheWrite: 0, noCache: 600, total: 1000 },
+        outputTokens: { reasoning: 120, text: 380, total: 500 },
+      },
+    }));
+
+    await wrap(provider).doGenerate(call(session.key));
+
+    // 600 * 2.00 + 400 * 0.20 + 500 * 12.00 = 7,280 millionths of a dollar.
+    expect(await amounts(session.inputId!)).toEqual(["0.007280"]);
+  });
+
+  it("rounds a settled cost up to a whole millionth and never to zero", async () => {
+    const session = await indexedSession();
+    const tiny = fakeOpenAI(async () => ({
+      ...reply,
+      usage: {
+        inputTokens: { cacheRead: 0, cacheWrite: 0, noCache: 0, total: 0 },
+        outputTokens: { reasoning: 0, text: 0, total: 0 },
+      },
+    }));
+
+    await wrap(tiny).doGenerate(call(session.key));
+    // One cached token is 0.2 millionths.
+    await wrap(
+      fakeOpenAI(async () => ({
+        ...reply,
+        usage: {
+          inputTokens: { cacheRead: 1, cacheWrite: 0, noCache: 0, total: 1 },
+          outputTokens: { reasoning: 0, text: 0, total: 0 },
+        },
+      })),
+    ).doGenerate(call(session.key));
+
+    expect(await amounts(session.inputId!)).toEqual(["0.000001", "0.000001"]);
+  });
+
+  it("settles a stream when its finish part arrives, and keeps the reservation of a stream cut short", async () => {
+    const usage = {
+      inputTokens: { cacheRead: 0, cacheWrite: 0, noCache: 1000, total: 1000 },
+      outputTokens: { reasoning: 0, text: 100, total: 100 },
+    };
+    const streamOf = (parts: unknown[], closes: boolean) =>
+      new ReadableStream({
+        start(controller) {
+          for (const part of parts) controller.enqueue(part);
+          if (closes) controller.close();
+        },
+      });
+    const finishing = new MockLanguageModelV4({
+      doStream: async () => ({
+        stream: streamOf([
+          { type: "stream-start", warnings: [] },
+          { id: "t1", type: "text-start" },
+          { delta: "Hi", id: "t1", type: "text-delta" },
+          { id: "t1", type: "text-end" },
+          { finishReason: { raw: "stop", unified: "stop" }, type: "finish", usage },
+        ], true) as never,
+      }),
+      modelId: "gpt-5.6-terra",
+      provider: "openai.responses",
+    });
+    const cut = new MockLanguageModelV4({
+      doStream: async () => ({
+        stream: streamOf([
+          { type: "stream-start", warnings: [] },
+          { id: "t1", type: "text-start" },
+          { delta: "Hi", id: "t1", type: "text-delta" },
+        ], false) as never,
+      }),
+      modelId: "gpt-5.6-terra",
+      provider: "openai.responses",
+    });
+    const finished = await indexedSession();
+    const aborted = await indexedSession();
+
+    const { stream } = await wrap(finishing).doStream(call(finished.key));
+    const reader = stream.getReader();
+    // The reservation is still the upper bound until the finish part has passed.
+    expect(await amounts(finished.inputId!)).toEqual([RESERVED]);
+    while (!(await reader.read()).done);
+    // 1,000 * 2.00 + 100 * 12.00 = 3,200 millionths of a dollar.
+    expect(await amounts(finished.inputId!)).toEqual(["0.003200"]);
+
+    const cutResult = await wrap(cut, { limits: { ...roomy, idleTimeoutMs: 100 } }).doStream(call(aborted.key));
+    await cutResult.stream.cancel();
+    expect(await amounts(aborted.inputId!)).toEqual([RESERVED]);
+  });
+
+  it("keeps the reservation when the provider reports no usage or the model has no listed price", async () => {
+    const silent = await indexedSession();
+    const unpriced = await indexedSession();
+
+    await wrap(fakeOpenAI(async () => unmetered)).doGenerate(call(silent.key));
+    await wrap(
+      new MockLanguageModelV4({ doGenerate: async () => reply, modelId: "gpt-unlisted", provider: "openai.responses" }),
+    ).doGenerate(call(unpriced.key));
+
+    expect(await amounts(silent.inputId!)).toEqual([RESERVED]);
+    expect(await amounts(unpriced.inputId!)).toEqual([RESERVED]);
+  });
+
+  it("keeps the reservation of a call the deadline aborted", async () => {
+    const session = await indexedSession();
+    const provider = fakeOpenAI(() => new Promise(() => {}));
+
+    await expect(
+      wrap(provider, { limits: { ...roomy, generateTimeoutMs: 100 } }).doGenerate(call(session.key)),
+    ).rejects.toMatchObject({ code: "deadline" });
+
+    expect(await amounts(session.inputId!)).toEqual([RESERVED]);
+  });
+
+  it("puts no cap on the attempts of an accepted input, only on the USD windows", async () => {
     const provider = fakeOpenAI();
     const session = await indexedSession();
     const model = wrap(provider);
 
-    for (let attempt = 0; attempt < 8; attempt += 1) {
+    // The old cap was eight attempts per input.
+    for (let attempt = 0; attempt < 10; attempt += 1) {
       await model.doGenerate(call(session.key));
     }
 
-    await expect(model.doGenerate(call(session.key))).rejects.toMatchObject({ code: "attempts_exhausted" });
-    expect(provider.doGenerateCalls).toHaveLength(8);
-    expect(await reservations(session.inputId!)).toBe(8);
-
-    // A new accepted input on the same session gets its own attempts.
-    const nextInput = randomUUID();
-    await db`update app.agent_sessions set current_input_id = ${nextInput} where session_id = ${session.sessionId}`;
-    await model.doGenerate(call(session.key));
-    expect(await reservations(nextInput)).toBe(1);
+    expect(provider.doGenerateCalls).toHaveLength(10);
+    expect(await amounts(session.inputId!)).toEqual(Array(10).fill(REPLY_COST));
   });
 
   it("refuses a ranking check for a closed request", async () => {
@@ -326,7 +457,7 @@ describe("model limit middleware", () => {
     await expect(model.doGenerate(call(undefined))).rejects.toMatchObject({ code: "authority_expired" });
   });
 
-  it("caps a synthetic ranking check at two attempts and 2,048 output tokens without a session", async () => {
+  it("clamps a synthetic ranking check to 2,048 output tokens without a session, with no cap on its attempts", async () => {
     const provider = fakeOpenAI();
     // The principal is an open request: the reservation rechecks it.
     const { requestId } = await createTestRequest(db);
@@ -335,20 +466,21 @@ describe("model limit middleware", () => {
 
     await model.doGenerate(call(undefined, { maxOutputTokens: 4096 }));
     await model.doGenerate(call(undefined));
-    await expect(model.doGenerate(call(undefined))).rejects.toMatchObject({ code: "attempts_exhausted" });
+    await model.doGenerate(call(undefined));
 
-    expect(provider.doGenerateCalls.map((sent) => sent.maxOutputTokens)).toEqual([2048, 2048]);
-    expect(await reservations(ranking.id)).toBe(2);
+    expect(provider.doGenerateCalls.map((sent) => sent.maxOutputTokens)).toEqual([2048, 2048, 2048]);
+    expect(await reservations(ranking.id)).toBe(3);
   });
 
   it("gives an unconfirmed request the anonymous cap and counts it as anonymous until it is confirmed", async () => {
     const { requestId } = await createTestRequest(db);
+    // Without reported usage each attempt keeps its full reservation.
     const rank = () =>
-      wrap(fakeOpenAI(), { ranking: { id: randomUUID(), principal: { id: requestId, type: "requester_request" } } }).doGenerate(
+      wrap(fakeOpenAI(async () => unmetered), { ranking: { id: randomUUID(), principal: { id: requestId, type: "requester_request" } } }).doGenerate(
         call(undefined),
       );
 
-    // USD 3 at USD 0.60 a reservation is five attempts.
+    // USD 3 at the USD 0.60 upper bound is five attempts.
     for (let index = 0; index < 5; index += 1) await rank();
     await expect(rank()).rejects.toMatchObject({ code: "principal_allowance" });
     const marked = await db<{ anonymous: boolean }[]>`
@@ -375,13 +507,14 @@ describe("model limit middleware", () => {
   it("counts an unconfirmed request toward the anonymous allowance, and a live Google identity lifts it", async () => {
     const { requestId } = await createTestRequest(db);
     const [spent] = await db<{ total: string }[]>`
-      select coalesce(sum(amount_usd), 0)::text as total from app.model_reservations
+      select (coalesce(sum(amount_usd), 0) + 0.6)::text as total from app.model_reservations
       where (anonymous or principal_type = 'public_intake')
         and window_start = date_bin('24 hours', statement_timestamp(), timestamptz '2026-01-01 00:00:00+00')
     `;
-    const limits = { anonymousWindowUsd: (Number(spent!.total) + 0.6).toFixed(2), serviceWindowUsd: "1000000.00" };
+    // Room for exactly one more upper-bound reservation.
+    const limits = { anonymousWindowUsd: spent!.total, serviceWindowUsd: "1000000.00" };
     const rank = () =>
-      wrap(fakeOpenAI(), { limits, ranking: { id: randomUUID(), principal: { id: requestId, type: "requester_request" } } }).doGenerate(
+      wrap(fakeOpenAI(async () => unmetered), { limits, ranking: { id: randomUUID(), principal: { id: requestId, type: "requester_request" } } }).doGenerate(
         call(undefined),
       );
 
@@ -405,7 +538,7 @@ describe("model limit middleware", () => {
       from generate_series(1, 48)
     `;
     const sessions = await Promise.all(Array.from({ length: 5 }, () => indexedSession({ principalId })));
-    const provider = fakeOpenAI();
+    const provider = fakeOpenAI(async () => unmetered);
     const model = wrap(provider);
 
     const outcomes = await Promise.allSettled(sessions.map((session) => model.doGenerate(call(session.key))));
@@ -418,7 +551,56 @@ describe("model limit middleware", () => {
     const [total] = await db<{ sum: string }[]>`
       select sum(amount_usd)::text as sum from app.model_reservations where principal_id = ${principalId}
     `;
-    expect(total!.sum).toBe("30.00");
+    expect(total!.sum).toBe("30.000000");
+  });
+
+  it("holds the upper bound for calls in flight, and frees the difference when they settle", async () => {
+    const principalId = randomUUID();
+    // USD 28.80 of USD 30 already reserved in this window: room for two upper bounds.
+    await db`
+      insert into app.model_reservations (work_kind, work_id, principal_type, principal_id, amount_usd, window_start)
+      select 'conversation_input', gen_random_uuid(), 'host_account', ${principalId}, 0.60,
+             date_bin('24 hours', statement_timestamp(), timestamptz '2026-01-01 00:00:00+00')
+      from generate_series(1, 48)
+    `;
+    const sessions = await Promise.all(Array.from({ length: 5 }, () => indexedSession({ principalId })));
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => (open = resolve));
+    const provider = fakeOpenAI(async () => {
+      await gate;
+      return reply;
+    });
+    const model = wrap(provider);
+
+    const outcomes = Promise.allSettled(sessions.map((session) => model.doGenerate(call(session.key))));
+    const total = async () => {
+      const [row] = await db<{ sum: string }[]>`
+        select sum(amount_usd)::text as sum from app.model_reservations where principal_id = ${principalId}
+      `;
+      return row!.sum;
+    };
+
+    // Two calls are in flight at the upper bound; the other three were denied
+    // before the provider, whatever their actual cost will turn out to be.
+    for (let waited = 0; provider.doGenerateCalls.length < 2 && waited < 100; waited += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(provider.doGenerateCalls).toHaveLength(2);
+    expect(await total()).toBe("30.000000");
+
+    open();
+    const settled = await outcomes;
+
+    expect(settled.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(2);
+    expect(
+      settled.filter((outcome) => outcome.status === "rejected").map((outcome) => outcome.reason.code),
+    ).toEqual(["principal_allowance", "principal_allowance", "principal_allowance"]);
+    expect(await total()).toBe("28.800136");
+
+    // The settled difference is capacity again.
+    await model.doGenerate(call(sessions[0]!.key));
+    expect(provider.doGenerateCalls).toHaveLength(3);
   });
 
   it("reserves only the service's remaining capacity under concurrent work", async () => {
@@ -426,10 +608,11 @@ describe("model limit middleware", () => {
       select coalesce(sum(amount_usd), 0)::text as sum from app.model_reservations
       where window_start = date_bin('24 hours', statement_timestamp(), timestamptz '2026-01-01 00:00:00+00')
     `;
-    // Room for exactly two more attempts service-wide.
-    const serviceWindowUsd = (Number(current!.sum) + 1.2).toFixed(2);
+    // Room for exactly two more upper-bound reservations service-wide.
+    const [room] = await db<{ sum: string }[]>`select (${current!.sum}::numeric + 1.2)::text as sum`;
+    const serviceWindowUsd = room!.sum;
     const sessions = await Promise.all(Array.from({ length: 4 }, () => indexedSession()));
-    const provider = fakeOpenAI();
+    const provider = fakeOpenAI(async () => unmetered);
     const model = wrap(provider, { limits: { serviceWindowUsd } });
 
     const outcomes = await Promise.allSettled(sessions.map((session) => model.doGenerate(call(session.key))));
