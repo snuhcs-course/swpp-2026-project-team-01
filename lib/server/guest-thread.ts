@@ -1,4 +1,4 @@
-import type { RequestState } from "../contracts/request";
+import type { RequestState, ReviewPatch } from "../contracts/request";
 import { THREAD_CARD_KINDS, type ThreadCard, type ThreadCardKind } from "../contracts/requester-view";
 import type { Queryable } from "./database";
 
@@ -49,6 +49,9 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   contactEmail: "email",
   contactName: "name",
   durationMinutes: "length",
+  preferredWindows: "preferred times",
+  lessPreferredWindows: "less preferred times",
+  preferredWeeklyWindows: "weekly preferences",
   linkPlan: "meeting link",
   location: "place",
   mode: "mode",
@@ -66,6 +69,7 @@ type RequestRow = {
   created_at: Date;
   identified_at: Date | null;
   identity_requested_at: Date | null;
+  identity_google: boolean;
   latest_applied: Date | null;
   latest_evaluation: Date | null;
   profile_at: Date | null;
@@ -112,7 +116,9 @@ export async function readGuestThread(db: Queryable, requestId: string, current:
              where p.request_id = r.id) as agreed_at,
            p.created_at as profile_at, p.decided_at as profile_decided_at, p.items as profile_items,
            exists (select 1 from app.requester_grants g
-                   where g.request_id = r.id and g.kind = 'calendar' and g.revoked_at is null) as calendar_grant
+                   where g.request_id = r.id and g.kind = 'calendar' and g.revoked_at is null) as calendar_grant,
+           exists (select 1 from app.requester_grants g
+                   where g.request_id = r.id and g.kind = 'identity' and g.created_at = r.identified_at) as identity_google
     from app.requests r left join app.requester_host_profiles p on p.request_id = r.id
     where r.id = ${requestId}
   `;
@@ -133,12 +139,12 @@ export async function readGuestThread(db: Queryable, requestId: string, current:
       kind: "identity",
       ...(draft
         ? { status: step === "identity" ? "open" : "waiting" }
-        : { receipt: { text: [request.requester_name, request.contact_email].filter(Boolean).join(" · ") }, status: "answered" }),
+        : { receipt: { text: request.identity_google ? "Continued with Google" : [request.requester_name, request.contact_email].filter(Boolean).join(" · ") }, status: "answered" }),
     });
   }
 
-  const reviews = await db<{ created_at: Date; fields: string[] | null; id: string; resolved_at: Date | null; state: string }[]>`
-    select id, state, created_at, resolved_at, (select array_agg(key) from jsonb_object_keys(patch) as key) as fields
+  const reviews = await db<{ created_at: Date; fields: string[] | null; id: string; patch: ReviewPatch | null; resolved_at: Date | null; state: string }[]>`
+    select id, state, created_at, resolved_at, patch, (select array_agg(key) from jsonb_object_keys(patch) as key) as fields
     from app.request_reviews where request_id = ${requestId} order by created_at
   `;
   const fieldText = (fields: string[] | null) => (fields ?? []).map((field) => FIELD_LABELS[field] ?? field).join(", ");
@@ -153,7 +159,7 @@ export async function readGuestThread(db: Queryable, requestId: string, current:
       cards.push({
         ...base,
         at: iso(review.resolved_at ?? review.created_at),
-        receipt: { text: review.state === "applied" ? `Applied: ${fieldText(review.fields)}` : "Dismissed" },
+        receipt: { text: review.state === "applied" ? `Applied: ${fieldText(review.fields)}` : "Dismissed", ...(review.state === "applied" && review.patch ? { patch: review.patch } : {}) },
         status: "answered",
       });
     }
@@ -218,7 +224,6 @@ export async function readGuestThread(db: Queryable, requestId: string, current:
     else if (chosen) {
       cards.push({
         ...base,
-        at: iso(chosen.created_at),
         receipt: { end: iso(chosen.end_at), start: iso(chosen.start_at), text: "You chose" },
         status: "answered",
       });

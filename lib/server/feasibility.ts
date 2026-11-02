@@ -252,6 +252,9 @@ export type RequestTerms = {
   // The windows are the default search range, not the requester's own: keep
   // candidates spread across its days (guest-flow-completion U9).
   readonly spreadDays?: boolean;
+  readonly preferredWindows?: readonly { readonly start: Date; readonly end: Date }[];
+  readonly lessPreferredWindows?: readonly { readonly start: Date; readonly end: Date }[];
+  readonly preferredWeeklyWindows?: readonly WeeklyWindow[];
   readonly timezone: string;
   readonly travelMode: RequesterTravelMode | null;
 };
@@ -631,7 +634,41 @@ function plan(input: FeasibilityInput): Plan {
     (a, b) =>
       Number(b.belowLimit) - Number(a.belowLimit) || (dayRank.get(a.start) ?? 0) - (dayRank.get(b.start) ?? 0) || a.start - b.start,
   );
-  const kept = free.slice(0, CANDIDATE_LIMIT);
+  const preferred = request.preferredWindows ?? [];
+  const weekly = request.preferredWeeklyWindows ?? [];
+  const lessPreferred = request.lessPreferredWindows ?? [];
+  const dates = new Set(weekly.length ? free.flatMap((entry) => {
+    const date = localParts(entry.start, request.timezone).date;
+    return [date, addDays(date, -1)];
+  }) : []);
+  const recurring: { start: number; end: number }[] = [];
+  for (const date of dates) {
+    const weekday = WEEKDAYS[(new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7]!;
+    for (const rule of weekly) {
+      if (rule.weekday !== weekday) continue;
+      const starts = resolveLocalTime(date, rule.start, request.timezone);
+      const ends = resolveLocalTime(endsNextDay(rule) ? addDays(date, 1) : date, rule.end, request.timezone);
+      if (starts.length === 1 && ends.length === 1 && ends[0]! > starts[0]!) recurring.push({ start: starts[0]!, end: ends[0]! });
+    }
+  }
+  const score = (entry: (typeof free)[number]) =>
+    Number(preferred.some((window) => entry.start >= window.start.getTime() && entry.end <= window.end.getTime())) +
+    Number(recurring.some((window) => entry.start >= window.start && entry.end <= window.end)) -
+    3 * Number(lessPreferred.some((window) => entry.start < window.end.getTime() && entry.end > window.start.getTime()));
+  // The host's weekly-limit preference outweighs all guest preference signals.
+  const weighted = (entry: (typeof free)[number]) => 10 * Number(entry.belowLimit) + score(entry);
+  const ranked = [...free].sort((a, b) => weighted(b) - weighted(a));
+  const kept = ranked.slice(0, CANDIDATE_LIMIT);
+  // Retain some non-preferred alternatives when doing so preserves host priority.
+  if (preferred.length || weekly.length || lessPreferred.length) {
+    const alternatives = ranked.filter((entry) => score(entry) <= 0 && !kept.includes(entry));
+    for (const alternative of alternatives) {
+      const replace = kept.findLastIndex((entry) => entry.belowLimit === alternative.belowLimit && score(entry) > score(alternative));
+      if (replace < 0 || kept.filter((entry) => score(entry) <= score(alternative) && entry.belowLimit === alternative.belowLimit).length >= 10) continue;
+      kept[replace] = alternative;
+    }
+    kept.sort((a, b) => weighted(b) - weighted(a));
+  }
 
   if (mode === "online") {
     return { exclusionCounts, exclusions, linkPlan, mode, planned: kept.map((entry) => ({ ...entry, legs: [] })), unresolvedWindows };

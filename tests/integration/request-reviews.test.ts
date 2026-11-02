@@ -166,8 +166,8 @@ describe("applying and dismissing reviews", () => {
   it("applies a review at the expected revision, recomputing expiry and returning negotiation to gathering", async () => {
     const r = await requester({ windows: [{ end: seoul("11:00"), start: seoul("10:00") }] });
     await db`update app.requests set state = 'negotiating' where id = ${r.requestId}`;
-    await draftRequestReviewForTool(db, r.call(), {
-      details: { windows: [{ date: "2099-03-02", end: "12:00", start: "10:00" }] },
+    await asRequester(db, r.requestId, draftReviewCommand(), {
+      clarifications: [], patch: { windows: [{ end: "2099-03-02T03:00:00.000Z", start: "2099-03-02T01:00:00.000Z" }] },
       intent: "availability",
     });
     const [review] = await reviews(r.requestId);
@@ -370,6 +370,17 @@ describe("minimized contact context", () => {
 });
 
 describe("meeting details card", () => {
+  it("saves and clears weekly preferences without changing availability", async () => {
+    const r = await requester();
+    const weekly = [{ weekday: "monday", start: "12:00", end: "18:00" }];
+    const saved = await asRequester(db, r.requestId, updateDetailsCommand(contact), { details: { preferredWeeklyWindows: weekly }, timezone: "Asia/Seoul" }, { expectedRevision: 1 });
+    expect(saved).toMatchObject({ ok: true });
+    expect((await details(r.requestId)).details).toMatchObject({ preferredWeeklyWindows: weekly, windows: [] });
+    const cleared = await asRequester(db, r.requestId, updateDetailsCommand(contact), { details: { preferredWeeklyWindows: [] }, timezone: "Asia/Seoul" }, { expectedRevision: 2 });
+    expect(cleared).toMatchObject({ ok: true });
+    expect((await details(r.requestId)).details).toMatchObject({ preferredWeeklyWindows: [], windows: [] });
+  });
+
   it("saves details directly with the review's validation", async () => {
     const r = await requester({ durationMinutes: null, mode: null, purpose: null });
     const saved = await asRequester(

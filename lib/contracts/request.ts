@@ -1,4 +1,4 @@
-import type { MeetingMode } from "./setup";
+import type { MeetingMode, WeeklyWindow } from "./setup";
 
 // The meeting request contract shared by the request domain, the requester
 // tools, the /api/requests routes and the booking page cards. It mirrors
@@ -96,6 +96,9 @@ export type RequestDetails = {
   // The link plan for an online request.
   readonly linkPlan: LinkPlan | null;
   readonly windows: readonly RequestWindow[];
+  readonly preferredWindows?: readonly RequestWindow[];
+  readonly lessPreferredWindows?: readonly RequestWindow[];
+  readonly preferredWeeklyWindows?: readonly WeeklyWindow[];
   // The requester's IANA zone, used to interpret local times in windows.
   readonly timezone: string;
   readonly language: RequestLanguage;
@@ -111,7 +114,7 @@ export type RequestDetails = {
 // are an explicit contact correction: an empty string is an explicit empty edit,
 // kept exactly for protected review and refused when applied.
 export type ReviewPatch = Partial<
-  Pick<RequestDetails, "purpose" | "durationMinutes" | "mode" | "location" | "linkPlan" | "windows" | "travelMode" | "timezone">
+  Pick<RequestDetails, "purpose" | "durationMinutes" | "mode" | "location" | "linkPlan" | "windows" | "preferredWindows" | "lessPreferredWindows" | "preferredWeeklyWindows" | "travelMode" | "timezone">
 > & {
   readonly contactName?: string;
   readonly contactEmail?: string;

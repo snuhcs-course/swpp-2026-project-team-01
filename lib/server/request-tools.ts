@@ -154,12 +154,14 @@ function linkPlanLabel(plan: LinkPlan | null | undefined) {
 // kind, and contact fields as presence indicators. An omitted field stays
 // omitted; an explicitly emptied one is "absent".
 export function minimizedPatch(patch: ReviewPatch, timezone: string) {
-  const { contactEmail, contactName, linkPlan, windows, ...fields } = patch;
+  const { contactEmail, contactName, linkPlan, windows, preferredWindows, lessPreferredWindows, ...fields } = patch;
 
   return {
     ...fields,
     ...(linkPlan ? { meetingLink: linkPlanLabel(linkPlan) } : {}),
     ...(windows ? { windows: windows.map((entry) => window(entry, timezone)) } : {}),
+    ...(preferredWindows ? { preferredWindows: preferredWindows.map((entry) => window(entry, timezone)) } : {}),
+    ...(lessPreferredWindows ? { lessPreferredWindows: lessPreferredWindows.map((entry) => window(entry, timezone)) } : {}),
     ...(contactName !== undefined ? { contactName: presence(contactName) } : {}),
     ...(contactEmail !== undefined ? { contactEmail: presence(contactEmail) } : {}),
   };
@@ -318,6 +320,9 @@ export async function readRequestForTool(db: Database, call: RequestToolCall) {
       timezone,
       travelMode: details.travelMode ?? null,
       windows: (details.windows ?? []).map((entry) => window(entry, timezone)),
+      preferredWindows: (details.preferredWindows ?? []).map((entry) => window(entry, timezone)),
+      lessPreferredWindows: (details.lessPreferredWindows ?? []).map((entry) => window(entry, timezone)),
+      preferredWeeklyWindows: details.preferredWeeklyWindows ?? [],
     },
     host: { displayName: encodeDisplayName(row.display_name ?? "Your host"), offer: hostOffer(row.offer) },
     missing: missingFields(details),
@@ -345,8 +350,8 @@ function today(timezone: string) {
 // When the model names each clarification category. Without these meanings the
 // model chose ambiguous_local_time for a vague time of day such as "afternoon".
 const CLARIFICATION_USES: Readonly<Record<ClarificationCategory, string>> = {
-  missing_date: "no date, or only a relative one such as next week",
-  missing_time: "a date without clock times, or a vague time of day such as afternoon or evening",
+  missing_date: "no day that can be worked out from today (next week, a weekday and a date without clock times can)",
+  missing_time: "only when a time cannot reasonably be inferred and needs clarification",
   missing_timezone: "clock times whose timezone is unclear",
   ambiguous_local_time:
     "only after draft_request_review rejected a time with ambiguous_local_time, because a daylight-saving change makes that clock time occur twice or not at all",
@@ -366,8 +371,9 @@ export const draftRequestReviewToolInput = z.object({
   details: localPatchSchema
     .optional()
     .describe(
-      "Only what the requester stated. Omit entirely for question and unknown. windows are local dates (YYYY-MM-DD) with start and end clock times (HH:MM, 24-hour) in the requester's timezone; never convert them yourself. Omit durationMinutes unless the requester said it.",
+      "Omit for question and unknown. windows are required availability; preferredWindows and lessPreferredWindows are date-specific soft preferences; preferredWeeklyWindows are recurring weekday/start/end soft preferences for this request. Preferences never remove other times. Date-specific windows use local dates (YYYY-MM-DD); weekly windows use weekdays. All start/end clock times use HH:MM in the requester's timezone. Set inferredTime when using newly assumed morning or afternoon bounds. Omit durationMinutes unless stated.",
     ),
+  inferredTime: z.boolean().optional().describe("True if a time-of-day boundary was inferred, so the guest must review it before it is applied."),
   clarifications: z
     .array(z.string())
     .max(CLARIFICATION_CATEGORIES.length)
@@ -398,6 +404,7 @@ const PROBLEM_MESSAGES: Readonly<Record<PatchProblem, string>> = {
 
 export type DraftRequestReviewToolResult =
   | { readonly recorded: true; readonly review: ReturnType<typeof minimizedReview> }
+  | ({ readonly review: ReturnType<typeof minimizedReview> } & Awaited<ReturnType<typeof applyAndEvaluate>>)
   | { readonly recorded: false; readonly problem: PatchProblem; readonly question: string };
 
 function rejected(problem: PatchProblem, language: RequestLanguage): DraftRequestReviewToolResult {
@@ -412,6 +419,7 @@ export async function draftRequestReviewForTool(
   db: Database,
   call: RequestToolCall,
   input: DraftRequestReviewToolInput,
+  options: { readonly waitMs?: number } = {},
 ): Promise<DraftRequestReviewToolResult> {
   const id = await authorizeRequestTool(db, call);
   const row = await requestRow(db, id);
@@ -443,9 +451,19 @@ export async function draftRequestReviewForTool(
   if (!outcome.ok) throw new RequestToolDeniedError();
 
   const result: DraftReviewResult = outcome.result;
-  return result.recorded
-    ? { recorded: true, review: minimizedReview(result.review, timezone) }
-    : rejected(result.problem, language);
+  if (!result.recorded) return rejected(result.problem, language);
+
+  // The guest only said which days or times they prefer, once the meeting has
+  // everything else: their own words are the decision, so the draft is applied
+  // at once and the times are found, with no review card (guest-flow-completion
+  // U21). Any other change waits for Apply these details.
+  const onlyTimeConditions = patch !== null && Object.keys(patch).length > 0 && Object.keys(patch).every((field) => ["windows", "preferredWindows", "lessPreferredWindows", "preferredWeeklyWindows"].includes(field));
+  if (input.intent === "availability" && !input.inferredTime && onlyTimeConditions && row.state !== "draft" && missingFields(row.details).length === 0) {
+    const applied = await applyAndEvaluate(db, call, result.review.id, `tool:${call.callId}:apply`, options);
+    return { ...applied, review: minimizedReview(result.review, timezone) };
+  }
+
+  return { recorded: true, review: minimizedReview(result.review, timezone) };
 }
 
 // ---------------------------------------------------------------------------
@@ -579,9 +597,20 @@ export async function applyRequestReviewForTool(db: Database, call: RequestToolC
     select id from app.request_reviews where request_id = ${id} and state = 'pending'
   `;
   if (!review) return { message: "There is no pending review to apply: draft one first.", recorded: false as const };
+  return applyAndEvaluate(db, call, review.id, `tool:${call.callId}`, options);
+}
 
+// Applies one pending review, then finds times when the meeting has what it
+// needs. retryKey names the apply; the evaluation's key extends it.
+async function applyAndEvaluate(
+  db: Database,
+  call: RequestToolCall,
+  reviewId: string,
+  retryKey: string,
+  options: { readonly waitMs?: number } = {},
+) {
   const contact = { origin: appOriginFromEnvironment(), tokenKey: tokenKeyFromEnvironment() };
-  const { outcome } = await decide(db, call, applyReviewCommand(contact), { reviewId: review.id });
+  const { id, outcome } = await decide(db, call, applyReviewCommand(contact), { reviewId }, retryKey);
   if (!outcome.ok) return refused(outcome.error.category);
 
   const row = await requestRow(db, id);
@@ -589,7 +618,7 @@ export async function applyRequestReviewForTool(db: Database, call: RequestToolC
     return { message: "Applied. Something is still missing before times can be found.", recorded: true as const, state: row.state };
   }
 
-  const found = await decide(db, call, evaluateCommand, {}, `tool:${call.callId}:evaluate`);
+  const found = await decide(db, call, evaluateCommand, {}, `${retryKey}:evaluate`);
   if (!found.outcome.ok) return { message: "Applied, but times could not be looked up now.", recorded: true as const, state: row.state };
   const view = await awaitEvaluation(db, found.outcome.result.evaluationId, options.waitMs ?? REQUEST_EVALUATION_WAIT_MS);
   const evaluation = view ? minimizedEvaluation(view, zoneOf(row.details), requestLanguage(row.details)) : null;

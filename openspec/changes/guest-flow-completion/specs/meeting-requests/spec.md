@@ -55,7 +55,7 @@ The booking page SHALL offer **Get updates in iMessage** while the request is op
 ## MODIFIED Requirements
 
 ### Requirement: Complete account-free intake
-Ready public hosts SHALL accept requests without requester signup. The service SHALL collect purpose, requester identity/contact, timezone, duration, mode, and location or meeting link, clarifying missing or ambiguous fields; date windows SHALL be optional, and without them times SHALL be found over the next two weeks. A new request SHALL start with the host's meeting length, and with the meeting form when the host offers only one. The requester's assistant SHALL ask only for what is still open, one question at a time, using what the host offers every guest and nothing else of the host's settings, and SHALL draft the details in one review once nothing is missing. The requester website SHALL allow the requester to supply and refine scheduling details through conversation, review extracted changes before applying them, evaluate availability, select a feasible candidate, and explicitly agree to the exact current proposal.
+Ready public hosts SHALL accept requests without requester signup. The service SHALL collect purpose, requester identity/contact, timezone, duration, mode, and location or meeting link, clarifying missing or ambiguous fields; date windows SHALL be optional, and without them times SHALL be found over the next two weeks. A new request SHALL start with the host's meeting length, and with the meeting form when the host offers only one. The requester's assistant SHALL ask only for what is still open, one question at a time, using what the host offers every guest and nothing else of the host's settings, and SHALL draft the details in one review once nothing is missing. The requester website SHALL allow the requester to supply and refine scheduling details through conversation, review extracted changes before applying them, except that availability alone is applied and searched immediately when the meeting details are complete; evaluate availability, select a feasible candidate, and explicitly agree to the exact current proposal. Determinable days and relative weeks use the requester's timezone and cover the whole named days; genuinely ambiguous times still require clarification.
 
 #### Scenario: Missing details
 - **WHEN** a requester asks for thirty minutes next week without timezone or location
@@ -66,8 +66,26 @@ Ready public hosts SHALL accept requests without requester signup. The service S
 - **THEN** the service normalizes validated details and preserves the requester's stated intent
 
 #### Scenario: Reviewed conversational details
-- **WHEN** a requester message contains an unambiguous purpose, meeting mode, location, or availability window
+- **WHEN** a requester message contains an unambiguous purpose, meeting mode, or location
 - **THEN** the website presents the extracted changes for review and does not change the request until the requester applies them, on the card or in words
+
+#### Scenario: A guest names days after completing meeting details
+- **WHEN** a requester with complete meeting details names only a date or a determinable relative week
+- **THEN** the service applies those days and searches for feasible times without asking for clock times or a separate review
+
+#### Scenario: A preferred afternoon with an inferred boundary
+- **WHEN** a guest says next week is possible and afternoon is preferred
+- **THEN** the assistant proposes next week's days with an afternoon preference of 12:00–18:00 in the guest's timezone, states that the hours are assumed, and asks for confirmation before applying them
+- **AND** the preference does not exclude other times within the stated days
+
+#### Scenario: Recurring weekly guest preferences
+- **WHEN** the guest saves or confirms preferred weekdays and times for the request
+- **THEN** those preferences remain available when the request is reopened, and matching candidates are offered before other feasible times
+- **AND** other feasible times remain available and the preferences do not carry into unrelated requests
+
+#### Scenario: Choosing the meeting form
+- **WHEN** the host offers both online and in-person meetings and the guest has not chosen a form
+- **THEN** the website offers both as buttons alongside the assistant's question
 
 #### Scenario: Conversational candidate agreement
 - **WHEN** evaluated candidates are available in the requester conversation

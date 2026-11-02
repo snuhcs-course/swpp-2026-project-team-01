@@ -537,7 +537,7 @@ export function imessageCommands(options: LinkOptions & { readonly lineDayLimit?
 // ---------------------------------------------------------------------------
 // The card's status
 
-function deliveryState(state: string): ImessageDeliveryState {
+export function deliveryState(state: string): ImessageDeliveryState {
   if (state === "accepted") return "sent";
   if (state === "failed" || state === "suppressed") return "failed";
   if (state === "uncertain") return "uncertain";

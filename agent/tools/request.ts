@@ -58,7 +58,7 @@ function requesterTools() {
     }),
     draft_request_review: defineTool({
       description:
-        "Declare what the requester's message means for the request: details or availability with only the fields they stated, or question or unknown with the clarification categories to ask about. It creates a review the requester applies or dismisses on the review card; it never changes the request, agrees, approves or books. If it returns a question, ask exactly that question.",
+        "Declare what the requester's message means for the request: details or availability with only the fields they stated, or question or unknown with the clarification categories to ask about. It creates a review the requester applies or dismisses on the review card; it never agrees, approves or books. An availability draft with only explicit time fields, including preferences, is applied at once and returns the times found once the meeting has its purpose, length and form. Set inferredTime only when newly interpreting morning or afternoon; such drafts remain for the guest to confirm. A question with missing_mode shows online and in person as buttons. If it returns a question, ask exactly that question.",
       inputSchema: draftRequestReviewToolInput,
       execute: (input, toolCtx) => draftRequestReviewForTool(database(), call(toolCtx), input),
     }),

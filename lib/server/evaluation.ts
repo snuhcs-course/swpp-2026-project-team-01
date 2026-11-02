@@ -609,6 +609,9 @@ async function evaluate(
       location: details.location ? { key: hash(details.location), text: details.location } : null,
       mode: details.mode ?? null,
       spreadDays: searchDefault,
+      preferredWindows: (details.preferredWindows ?? []).map((window) => ({ start: new Date(window.start), end: new Date(window.end) })),
+      lessPreferredWindows: (details.lessPreferredWindows ?? []).map((window) => ({ start: new Date(window.start), end: new Date(window.end) })),
+      preferredWeeklyWindows: details.preferredWeeklyWindows ?? [],
       timezone: requesterZone,
       travelMode: details.travelMode ?? null,
       windows,
@@ -744,7 +747,7 @@ async function evaluate(
 
   // The default two-week search is the fixed slot step, before any model call
   // (guest-flow-completion U9): it keeps the deterministic order, spread across days.
-  if (deps.model && valid.length > 1 && options.rank !== false && !searchDefault) {
+  if (deps.model && valid.length > 1 && options.rank !== false && !searchDefault && !(details.preferredWindows?.length) && !(details.lessPreferredWindows?.length) && !(details.preferredWeeklyWindows?.length)) {
     const principal: Principal =
       audience === "host"
         ? { id: loaded.request.hostAccountId, type: "host_account" }

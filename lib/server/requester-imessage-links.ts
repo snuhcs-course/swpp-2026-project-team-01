@@ -4,7 +4,8 @@ import { guestLinkMessage, REQUESTER_IMESSAGE_OPERATIONS, type RequesterImessage
 import { type CommandDefinition, CommandError } from "./commands";
 import type { Queryable, Transaction } from "./database";
 import { generateLinkCode, hashLinkCode } from "./email-links";
-import { codeContext, IMESSAGE_LINK_LIMITS, linkLockKey, senderContext } from "./imessage-links";
+import { codeContext, deliveryState, IMESSAGE_LINK_LIMITS, linkLockKey, senderContext } from "./imessage-links";
+import { recordOutbound } from "./imessage-outbox";
 import { activeRequesterBinding, bindRequester, endRequesterBindings, requesterBindingRecipient } from "./requester-imessage-bindings";
 import { assertIdentified, lockOpenRequest } from "./request-guard";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
@@ -150,6 +151,32 @@ export const unlinkRequesterImessageCommand: CommandDefinition<{ pendingOnly?: b
   },
 };
 
+export function shareRequesterContactCardCommand(options: RequesterLinkOptions): CommandDefinition<Record<string, never>, { outboxId: string }> {
+  return {
+    input: noInput,
+    operation: REQUESTER_IMESSAGE_OPERATIONS.shareContactCard,
+    async run(tx, context) {
+      const requestId = assertRequest(context);
+      await tx`select id from app.requests where id = ${requestId} for update`;
+      await tx`select pg_advisory_xact_lock(hashtextextended(${linkLockKey({ host_account_id: null, request_id: requestId, starter_hash: null })}, 0))`;
+      const binding = await activeRequesterBinding(tx, requestId);
+      if (!binding) throw new CommandError("invalid_input");
+      const [card] = await tx<{ state: string }[]>`select state from app.imessage_outbox where requester_binding_id = ${binding.id} and kind = 'contact_card' order by created_at desc limit 1`;
+      if (card && ["queued", "dispatching", "uncertain"].includes(card.state)) throw new CommandError("rate_limited");
+      const { id } = await recordOutbound(tx, {
+        dedupeKey: `requester-binding:${binding.id}:card:${context.retryKey}`,
+        kind: "contact_card",
+        recipient: requesterBindingRecipient(options.tokenKeys, binding),
+        recipientHash: binding.sender_hash,
+        requestId,
+        requesterBindingId: binding.id,
+        tokenKey: options.tokenKey,
+      });
+      return { outboxId: id };
+    },
+  };
+}
+
 // The card's status: an open attempt first, also while a sender is linked
 // (confirming it moves the link to the new sender), then the binding.
 export async function readRequesterImessageStatus(
@@ -200,5 +227,6 @@ export async function readRequesterImessageStatus(
   } catch {
     // Sealed under a key the service no longer holds: still linked.
   }
-  return { linkedAt: binding.created_at.toISOString(), lineNumber, sender, state: "linked" };
+  const [card] = await db<{ state: string }[]>`select state from app.imessage_outbox where requester_binding_id = ${binding.id} and kind = 'contact_card' order by created_at desc limit 1`;
+  return { contactCard: card ? { state: deliveryState(card.state) } : null, linkedAt: binding.created_at.toISOString(), lineNumber, sender, state: "linked" };
 }

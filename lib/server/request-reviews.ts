@@ -13,7 +13,7 @@ import {
   type ReviewIntent,
   type ReviewPatch,
 } from "../contracts/request";
-import { MEETING_MODES } from "../contracts/setup";
+import { MEETING_MODES, weeklyWindowSchema } from "../contracts/setup";
 import { isValidTimeZone } from "../contracts/timezone";
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
 import { CONFIRMATION_LIMITS, type ConfirmationLimits, issueContactConfirmation, lockConfirmationBounds } from "./contact-confirmation";
@@ -74,7 +74,10 @@ export const reviewPatchSchema = z
     mode: z.enum(MEETING_MODES).optional(),
     location: z.string().trim().min(1).max(300).optional(),
     linkPlan: linkPlanSchema.optional(),
-    windows: z.array(isoWindow).min(1).max(10).optional(),
+    windows: z.array(isoWindow).min(1).max(31).optional(),
+    preferredWindows: z.array(isoWindow).max(31).optional(),
+    lessPreferredWindows: z.array(isoWindow).max(31).optional(),
+    preferredWeeklyWindows: z.array(weeklyWindowSchema).max(21).optional(),
     travelMode: z.enum(REQUESTER_TRAVEL_MODES).optional(),
     // Only from a guest-host's Basic details (guest-flow-completion design 6).
     timezone: z.string().refine(isValidTimeZone).optional(),
@@ -92,7 +95,10 @@ export const localPatchSchema = z
     mode: z.enum(MEETING_MODES).optional(),
     location: z.string().trim().min(1).max(300).optional(),
     meetingLink: httpsLink.optional(),
-    windows: z.array(localWindowSchema).min(1).max(10).optional(),
+    windows: z.array(localWindowSchema).min(1).max(31).optional(),
+    preferredWindows: z.array(localWindowSchema).max(31).optional(),
+    lessPreferredWindows: z.array(localWindowSchema).max(31).optional(),
+    preferredWeeklyWindows: z.array(weeklyWindowSchema).max(21).optional(),
     travelMode: z.enum(REQUESTER_TRAVEL_MODES).optional(),
     contactName: z.string().trim().max(200).optional(),
     contactEmail: z.string().trim().max(320).optional(),
@@ -120,14 +126,17 @@ export function storedPatch(
   timeZone: string,
 ): { readonly ok: true; readonly patch: ReviewPatch } | { readonly ok: false; readonly problem: WindowProblem; readonly window: LocalWindow } {
   const zone = isValidTimeZone(timeZone) ? timeZone : "UTC";
-  const { meetingLink, windows: local, ...fields } = patch;
+  const { meetingLink, windows: local, preferredWindows: localPreferred, lessPreferredWindows: localLessPreferred, ...fields } = patch;
   const windows: RequestWindow[] = [];
+  const preferredWindows: RequestWindow[] = [];
+  const lessPreferredWindows: RequestWindow[] = [];
 
-  for (const window of local ?? []) {
-    // now = 0: only the conversion runs; the clock is checked by the command.
-    const resolved = resolveLocalWindow(window, zone, { now: 0 });
-    if (!resolved.ok) return { ok: false, problem: resolved.problem, window };
-    windows.push(resolved.window);
+  for (const [source, target] of [[local, windows], [localPreferred, preferredWindows], [localLessPreferred, lessPreferredWindows]] as const) {
+    for (const window of source ?? []) {
+      const resolved = resolveLocalWindow(window, zone, { now: 0 });
+      if (!resolved.ok) return { ok: false, problem: resolved.problem, window };
+      target.push(resolved.window);
+    }
   }
 
   return {
@@ -136,6 +145,8 @@ export function storedPatch(
       ...fields,
       ...(meetingLink ? { linkPlan: { kind: "requester_link", url: meetingLink } satisfies LinkPlan } : {}),
       ...(local ? { windows: windows.sort((a, b) => a.start.localeCompare(b.start)) } : {}),
+      ...(localPreferred ? { preferredWindows: preferredWindows.sort((a, b) => a.start.localeCompare(b.start)) } : {}),
+      ...(localLessPreferred ? { lessPreferredWindows: lessPreferredWindows.sort((a, b) => a.start.localeCompare(b.start)) } : {}),
     },
   };
 }
@@ -147,14 +158,27 @@ export function storedPatch(
 export function checkWindows(details: Partial<RequestDetails>, patch: ReviewPatch, now: number): PatchProblem | null {
   const duration = patch.durationMinutes ?? details.durationMinutes ?? null;
 
+  const wholeDay = (window: RequestWindow) => {
+    const zone = patch.timezone ?? details.timezone;
+    if (!zone || !isValidTimeZone(zone)) return false;
+    const format = new Intl.DateTimeFormat("en-CA", {
+      timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    });
+    const parts = (instant: string) => Object.fromEntries(format.formatToParts(new Date(instant)).map((part) => [part.type, part.value]));
+    const start = parts(window.start);
+    const end = parts(window.end);
+    return start.year === end.year && start.month === end.month && start.day === end.day &&
+      start.hour === "00" && start.minute === "00" && end.hour === "23" && end.minute === "59";
+  };
+
   for (const window of patch.windows ?? []) {
-    if (Date.parse(window.start) <= now) return "started_window";
+    if (Date.parse(window.start) <= now && !(wholeDay(window) && Date.parse(window.end) > now)) return "started_window";
   }
 
   const windows = patch.windows ?? (patch.durationMinutes ? (details.windows ?? []) : []);
 
   for (const window of windows) {
-    const length = Date.parse(window.end) - Date.parse(window.start);
+    const length = Date.parse(window.end) - (wholeDay(window) ? Math.max(Date.parse(window.start), now) : Date.parse(window.start));
     if (length <= 0 || (duration && length < duration * 60_000)) return "too_short";
   }
 

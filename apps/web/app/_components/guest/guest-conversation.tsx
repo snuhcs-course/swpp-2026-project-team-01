@@ -5,7 +5,7 @@ import { REVISED_SUMMARY_PREFIX } from "@lib/contracts/request";
 import { isCurrentTurnBoundaryEvent } from "eve/client";
 import { conversationReducer, type EveMessage } from "eve/react";
 import { AlertCircleIcon, XIcon } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatComposer } from "@/components/chat/composer";
 import { ChatConversation, ChatConversationContent, ChatItem, ChatScrollButton } from "@/components/chat/conversation";
 import { AgentMessage, AgentThinking } from "@/components/chat/message";
@@ -134,6 +134,7 @@ export function GuestConversation({
   onRecover,
   onSettled,
   placeholder = "Message Thyme",
+  sendRef,
 }: {
   readonly ariaLabel: string;
   // The start of the thread: the host's identity and the timezone chip.
@@ -155,6 +156,9 @@ export function GuestConversation({
   // Why the composer cannot be used yet: before the fixed steps hand over to
   // the assistant (guest-flow-completion U9), it is shown but closed.
   readonly lockedReason?: string | null;
+  // Filled with this thread's send, for a card whose buttons answer in the
+  // conversation (the online or in person choice).
+  readonly sendRef?: RefObject<((text: string) => Promise<void>) | null>;
 }) {
   const [events, setEvents] = useState<DiscussionEvent[]>([]);
   const eventsRef = useRef<DiscussionEvent[]>([]);
@@ -272,6 +276,10 @@ export function GuestConversation({
     },
     [client, follow, onError, status],
   );
+
+  useEffect(() => {
+    if (sendRef) sendRef.current = send;
+  }, [send, sendRef]);
 
   const { messages, times } = useMemo(() => project(events), [events]);
   const placed = useMemo(() => placeEntries(messages, times, entries), [entries, messages, times]);

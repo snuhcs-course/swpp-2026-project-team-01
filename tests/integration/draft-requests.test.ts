@@ -150,6 +150,20 @@ describe("request.start", () => {
     expect(counts).toEqual({ creations: 1, requests: 1 });
   });
 
+  it("does not reuse a start nonce after its draft has been identified", async () => {
+    const host = await readyHost(db);
+    const deps = guestDependencies(db);
+    const nonce = randomUUID();
+    const first = await startDraft(deps, host.handle, { nonce });
+    const { bookingId } = (await first.json()) as { bookingId: string };
+    expect((await identify(deps, bookingId)).status).toBe(200);
+
+    const retry = await startDraft(deps, host.handle, { nonce });
+    expect(retry.status).toBe(409);
+    expect(await retry.json()).toMatchObject({ code: "draft_identified" });
+    expect((await startDraft(deps, host.handle, { nonce: randomUUID() })).status).toBe(201);
+  });
+
   it("bounds drafts to 5 per source an hour, 20 a day and 500 across the service a day", async () => {
     const host = await readyHost(db);
     const deps = guestDependencies(db, { creationLimits: { serviceDay: Number.POSITIVE_INFINITY } });

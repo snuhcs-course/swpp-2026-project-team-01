@@ -37,14 +37,17 @@ export function WeeklyWindowsEditor({
   onCancel,
   onSave,
   saving,
+  preferences = false,
 }: {
   readonly initial: readonly WeeklyWindow[] | null;
   readonly onCancel: () => void;
   readonly onSave: (windows: WeeklyWindow[]) => void;
   readonly saving: boolean;
+  readonly preferences?: boolean;
 }) {
   const [rows, setRows] = useState<WindowRows>(() => (initial ? rowsFromWindows(initial) : emptyRows()));
-  const result = validateRows(rows);
+  const validation = validateRows(rows);
+  const result = preferences && validation.windows.length === 0 ? { ...validation, error: null } : validation;
   const errorId = useId();
 
   const submit = () => {
@@ -55,7 +58,7 @@ export function WeeklyWindowsEditor({
 
   return (
     <EditorForm label="Edit weekly windows" onSubmit={submit}>
-      <p className="text-sm text-muted-foreground">Times are 24-hour, in your meeting time zone.</p>
+      <p className="text-sm text-muted-foreground">{preferences ? "These times are preferred for this request; other times can still be offered." : "Times are 24-hour, in your meeting time zone."}</p>
       <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
         {WEEKDAYS.map((weekday) => (
           <DayRow
@@ -64,6 +67,7 @@ export function WeeklyWindowsEditor({
             onCopy={(targets) => setRows((current) => copyDay(current, weekday, targets))}
             ranges={rows[weekday]}
             weekday={weekday}
+            preferences={preferences}
           />
         ))}
       </ul>
@@ -74,7 +78,7 @@ export function WeeklyWindowsEditor({
       ) : null}
       <CardActions sticky>
         <Button aria-describedby={result.error ? errorId : undefined} disabled={Boolean(result.error) || saving} onClick={submit} type="button">
-          {saving ? "Saving..." : "Save windows"}
+          {saving ? "Saving..." : preferences ? "Save preferences" : "Save windows"}
         </Button>
         <Button onClick={onCancel} type="button" variant="outline">
           Cancel
@@ -89,7 +93,9 @@ function DayRow({
   onCopy,
   ranges,
   weekday,
+  preferences,
 }: {
+  readonly preferences: boolean;
   readonly onChange: (ranges: readonly TimeRange[]) => void;
   readonly onCopy: (targets: readonly Weekday[]) => void;
   readonly ranges: readonly TimeRange[];
@@ -110,7 +116,7 @@ function DayRow({
           type="checkbox"
         />
         <span className="font-medium">{label}</span>
-        {!available ? <span className="text-sm text-muted-foreground">Unavailable</span> : null}
+        {!available ? <span className="text-sm text-muted-foreground">{preferences ? "No preference" : "Unavailable"}</span> : null}
       </label>
       {available ? (
         <div className="flex min-w-0 flex-1 flex-col gap-1 pb-1 sm:py-0">

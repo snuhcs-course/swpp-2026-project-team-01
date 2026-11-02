@@ -6,19 +6,19 @@ import { displayTime } from "@lib/contracts/timezone";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EllipsisIcon } from "lucide-react";
 import {
-  AwaitingLine,
+  AwaitingCard,
   CalendarSelectionCard,
   ConnectCalendarCard,
   HostProfileCard,
+  ImessageUpdates,
   EmailLinkLine,
-  ImessageUpdatesLine,
   focusCardHeading,
   type RequesterCardContext,
   SentLine,
   useRequesterCards,
 } from "@/app/_components/requester/cards";
 import { ConnectedAgentsDialog, requestGrantSource } from "@/app/_components/connected-agents";
-import { CandidatesCard, DetailsCard, ProposalCard, ReviewCard } from "@/app/_components/requester/request-cards";
+import { AppliedDetailsCard, CandidatesCard, DetailsCard, MeetingDetailsList, ModeChoiceCard, ProposalCard, ReviewCard, searchedFor } from "@/app/_components/requester/request-cards";
 import { AgentMessage } from "@/components/chat/message";
 import { Button } from "@/components/ui/button";
 import {
@@ -101,6 +101,8 @@ export function GuestWorkspace({
   // **Change** on the host-profile receipt reopens its card until the guest decides again.
   const [profileAgain, setProfileAgain] = useState(false);
   const timezone = useGuestTimezone();
+  // The thread's send, for the online or in person buttons.
+  const sendRef = useRef<((text: string) => Promise<void>) | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -153,6 +155,7 @@ export function GuestWorkspace({
           editing: detailsAt !== null,
           handedOver,
           profile: { again: profileAgain, close: () => setProfileAgain(false), reopen: () => setProfileAgain(true) },
+          send: async (text) => sendRef.current?.(text),
         })
       : { entries: [], panel: [] };
     const list: ThreadEntry[] = placed.entries.map((entry) =>
@@ -178,6 +181,20 @@ export function GuestWorkspace({
 
   // **Request details** (U12): whose request it is, the timezone, a summary of
   // every answered step, the creation email's line and how private the page is.
+  const meetingDetails = view.request.details;
+  const hasMeetingDetails = Boolean(meetingDetails.purpose || meetingDetails.mode || meetingDetails.location || meetingDetails.windows?.length || meetingDetails.preferredWindows?.length || meetingDetails.lessPreferredWindows?.length || meetingDetails.preferredWeeklyWindows?.length);
+  const meetingPatch = {
+    ...(meetingDetails.purpose ? { purpose: meetingDetails.purpose } : {}),
+    ...(meetingDetails.durationMinutes ? { durationMinutes: meetingDetails.durationMinutes } : {}),
+    ...(meetingDetails.mode ? { mode: meetingDetails.mode } : {}),
+    ...(meetingDetails.location ? { location: meetingDetails.location } : {}),
+    ...(meetingDetails.linkPlan ? { linkPlan: meetingDetails.linkPlan } : {}),
+    ...(meetingDetails.travelMode ? { travelMode: meetingDetails.travelMode } : {}),
+    ...(meetingDetails.windows?.length ? { windows: meetingDetails.windows } : {}),
+    ...(meetingDetails.preferredWindows?.length ? { preferredWindows: meetingDetails.preferredWindows } : {}),
+    ...(meetingDetails.lessPreferredWindows?.length ? { lessPreferredWindows: meetingDetails.lessPreferredWindows } : {}),
+    ...(meetingDetails.preferredWeeklyWindows?.length ? { preferredWeeklyWindows: meetingDetails.preferredWeeklyWindows } : {}),
+  };
   const aside = (
     <RequestPanel
       host={host}
@@ -191,8 +208,10 @@ export function GuestWorkspace({
       }
       timezone={<TimezoneLine onChoose={timezone.choose} zone={timezone.zone} />}
     >
+      {hasMeetingDetails ? <section className="flex flex-col gap-2 py-2"><h3 className="font-semibold">Meeting details</h3><MeetingDetailsList patch={meetingPatch} timeZone={timezone.zone} preferenceTimezone={meetingDetails.timezone} contact={view.contact} /></section> : null}
+      {context && view.request.state !== "awaiting_host_approval" ? <ImessageUpdates context={context} onlyLinked /> : null}
       {panel.length
-        ? [...panel].sort((a, b) => a.at.localeCompare(b.at)).map((entry) => <div key={entry.id}>{entry.node}</div>)
+        ? [...panel].filter((entry) => !hasMeetingDetails || entry.id !== "identity").sort((a, b) => a.at.localeCompare(b.at)).map((entry) => <div key={entry.id}>{entry.node}</div>)
         : null}
     </RequestPanel>
   );
@@ -225,6 +244,7 @@ export function GuestWorkspace({
         onSettled={() => void refresh()}
         placeholder="Write to Thyme"
         lockedReason={handedOver ? null : COMPOSER_LOCKED}
+        sendRef={sendRef}
       />
     </GuestFrame>
   );
@@ -287,6 +307,7 @@ function threadEntries(
     readonly choosingAgain: boolean;
     readonly handedOver: boolean;
     readonly profile: { readonly again: boolean; readonly close: () => void; readonly reopen: () => void };
+    readonly send: (text: string) => Promise<void>;
   },
 ): { readonly entries: ThreadEntry[]; readonly panel: ThreadEntry[] } {
   const { view } = context;
@@ -320,7 +341,12 @@ function threadEntries(
 
     switch (card.kind) {
       case "identity":
-        receipt(card, RECEIPT_LABELS.identity, card.receipt?.text ?? "Your name and email");
+        if (card.receipt?.text === "Continued with Google") {
+          entries.push({ at: card.at, id: card.id, node: <GuestReceipt id={card.id} label="" value="Continued with Google" /> });
+          panel.push({ at: card.at, id: card.id, node: <SummaryRow label={RECEIPT_LABELS.identity} value={view.contact ? `${view.contact.name} · ${view.contact.email}` : "Your name and email"} /> });
+        } else {
+          receipt(card, RECEIPT_LABELS.identity, card.receipt?.text ?? "Your name and email");
+        }
         break;
       case "meeting":
         // Thyme's question, once the Calendar step is done; the guest answers
@@ -328,18 +354,21 @@ function threadEntries(
         if (options.handedOver) {
           entries.push({ at: card.at, id: "meeting-question", node: <FixedMessage text={meetingQuestion(view)} /> });
         }
-        if (state === "answered") panel.push({ at: card.at, id: card.id, node: <SummaryRow label={RECEIPT_LABELS.meeting} value={card.receipt?.text} /> });
         break;
       case "review":
         if (state === "open" && view.pendingReview && card.id === `review:${view.pendingReview.id}`) {
-          open("review", card, <ReviewCard context={context} />);
-        } else if (state === "answered") {
-          receipt(
-            card,
-            RECEIPT_LABELS.review,
-            card.receipt?.text ?? "Answered",
-            choosing && card.receipt?.text?.startsWith("Applied") ? change("Change the meeting details", context.openDetails) : undefined,
-          );
+          // A question with nothing to apply is Thyme's message alone, except
+          // online or in person, which gets its two buttons (U22).
+          if (view.pendingReview.patch) open("review", card, <ReviewCard context={context} />);
+          else if (view.pendingReview.clarifications.includes("missing_mode")) {
+            open("mode-choice", card, <ModeChoiceCard context={context} onAnswer={options.send} />);
+          }
+        } else if (state === "answered" && card.receipt?.patch) {
+          entries.push({
+            at: card.at,
+            id: card.id,
+            node: <AppliedDetailsCard contact={view.contact} patch={card.receipt.patch} timeZone={zone} preferenceTimezone={view.request.details.timezone} action={choosing ? change("Change the meeting details", context.openDetails) : undefined} />,
+          });
         }
         break;
       case "status":
@@ -350,10 +379,7 @@ function threadEntries(
           id: card.id,
           node:
             card.id === "status:awaiting" ? (
-              <>
-                <AwaitingLine context={context} />
-                <ImessageUpdatesLine context={context} />
-              </>
+              <AwaitingCard context={context} />
             ) : (
               <>
                 <SentLine context={context} />
@@ -374,33 +400,48 @@ function threadEntries(
           if (view.connection.calendar) open("calendar-selection", card, <CalendarSelectionCard context={context} />);
           else open("calendar-connect", card, <ConnectCalendarCard context={context} />);
         } else if (state === "answered") {
-          receipt(
-            card,
-            "Calendar",
-            card.receipt?.text === "Connected" ? "Connected" : "Skipped",
-            choosing
-              ? change("Change your calendar", () => void context.run("request.set_manual_availability", { manual: false }))
-              : undefined,
-          );
+          const action = choosing
+            ? change("Change your calendar", () => void context.run("request.set_manual_availability", { manual: false }))
+            : undefined;
+          if (card.receipt?.text === "Connected") {
+            const name = view.contact?.name ?? "your";
+            const value = name === "your" ? "Connected your calendar" : `Connected ${name}’s Calendar`;
+            entries.push({ at: card.at, id: card.id, node: <GuestReceipt action={action} id={card.id} label="" value={value} /> });
+            panel.push({ at: card.at, id: card.id, node: <SummaryRow label="Calendar" value="Connected" /> });
+          } else {
+            receipt(card, "Calendar", "Skipped", action);
+          }
         }
         break;
       case "times":
-        if (state === "open") open("candidates", card, <CandidatesCard context={context} />);
+        if (state === "open") {
+          const ready = view.evaluation?.state === "completed";
+          const found = view.evaluation?.candidates.some((candidate) => !candidate.unresolvedRequesterLeg) ?? false;
+          const text = searchedFor(context, found);
+          open("candidates", card, <>{ready ? <FixedMessage text={text} /> : null}<CandidatesCard context={context} /></>);
+        }
         else if (state === "answered" && card.receipt?.start) {
-          receipt(
-            card,
-            RECEIPT_LABELS.times,
-            `Chose ${timeText(card.receipt.start, card.receipt.end, zone)}`,
-            choosing && card.id === `times:${view.evaluation?.id}` && !options.choosingAgain
-              ? change("Choose another time", context.chooseAnotherTime)
-              : undefined,
-          );
+          const text = card.id === `times:${view.evaluation?.id}`
+            ? searchedFor(context, true)
+            : view.request.details.language === "ko" ? "가능한 시간을 찾았어요. 편한 시간을 골라 주세요." : "I found some available times. Please choose one that works for you.";
+          entries.push({ at: card.at, id: `${card.id}:intro`, node: <FixedMessage text={text} /> });
+          // No reply bubble: the guest named the time in a message or pressed
+          // it on the card, and the proposal that follows shows it (U22). The
+          // choice stays in **Request details**.
+          panel.push({
+            at: card.at,
+            id: card.id,
+            node: <SummaryRow label={RECEIPT_LABELS.times} value={timeText(card.receipt.start, card.receipt.end, zone)} />,
+          });
         }
         break;
       case "proposal":
         if (state === "open" && view.proposal && card.id === `proposal:${view.proposal.version}`) {
-          open("proposal", card, <ProposalCard context={context} />);
+          const text = view.request.details.language === "ko" ? "선택하신 시간을 확인해 주세요. 동의하시면 호스트의 승인을 기다립니다." : "Please review the time you chose. If you agree, the host can review it.";
+          open("proposal", card, <><FixedMessage text={text} /><ProposalCard context={context} /></>);
         } else if (state === "answered" && card.receipt?.start) {
+          const text = view.request.details.language === "ko" ? "선택하신 시간을 확인해 주세요. 동의하시면 호스트의 승인을 기다립니다." : "Please review the time you chose. If you agree, the host can review it.";
+          entries.push({ at: card.at, id: `${card.id}:intro`, node: <FixedMessage text={text} /> });
           // Until the host approves, the agreed time can be changed (D10).
           receipt(
             card,

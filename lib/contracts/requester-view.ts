@@ -70,7 +70,7 @@ export type ThreadCard = {
   readonly at: string;
   readonly status: "open" | "answered" | "waiting" | "superseded";
   // For a receipt: what was chosen, as text and, for a time, its instants.
-  readonly receipt?: { readonly text: string; readonly start?: string; readonly end?: string };
+  readonly receipt?: { readonly text: string; readonly start?: string; readonly end?: string; readonly patch?: ReviewPatch };
 };
 
 export type OpenRequesterView = {

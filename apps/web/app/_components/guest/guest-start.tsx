@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { EllipsisIcon } from "lucide-react";
 import { InkStage, Brand, CopyButton } from "@/app/_components/ink/chrome";
 import { COPY } from "@/app/_components/ink/copy";
 import { ResendLinkForm } from "@/app/_components/requester/resend-link-form";
-import { AuthoredMessages } from "@/app/_components/setup/authored-messages";
+import { AuthoredMessages, useAuthoredMessageReveal } from "@/app/_components/setup/authored-messages";
 import { ChatComposer } from "@/components/chat/composer";
 import { ChatConversation, ChatConversationContent, ChatItem } from "@/components/chat/conversation";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,8 @@ import { browserLanguage, TimezoneLine, useGuestTimezone } from "./timezone";
 //
 // It opens on an ink landing that names whose link it is, with two starts:
 // **Continue with web** and **Start with agent** (the guest's own AI agent reads
-// /{handle}/SKILL.md or connects to /{handle}/mcp). Starting by email and
-// resending a booking link are secondary links under them.
+// /{handle}/SKILL.md or connects to /{handle}/mcp). Resending a booking link is
+// a secondary link under them; the page offers no email start (U20).
 //
 // **Continue with web** opens a chat-only screen, styled like the host
 // onboarding: two fixed messages from the host's assistant (a greeting, then a
@@ -74,14 +74,7 @@ async function startDraft(handle: string, timezone: string): Promise<StartOutcom
   return { message: "This page is not taking requests right now.", ok: false };
 }
 
-export function GuestStart({
-  host,
-  inbox,
-}: {
-  readonly host: { readonly displayName: string; readonly handle: string };
-  // The product inbox for starting by email, when that channel is on.
-  readonly inbox: string | null;
-}) {
+export function GuestStart({ host }: { readonly host: { readonly displayName: string; readonly handle: string } }) {
   const [web, setWeb] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -95,16 +88,14 @@ export function GuestStart({
   }, []);
 
   if (web) return <WebStart host={host} notice={notice} />;
-  return <BookingLanding host={host} inbox={inbox} onWeb={() => setWeb(true)} />;
+  return <BookingLanding host={host} onWeb={() => setWeb(true)} />;
 }
 
 function BookingLanding({
   host,
-  inbox,
   onWeb,
 }: {
   readonly host: { readonly displayName: string; readonly handle: string };
-  readonly inbox: string | null;
   readonly onWeb: () => void;
 }) {
   const [agent, setAgent] = useState(false);
@@ -155,12 +146,6 @@ function BookingLanding({
             </p>
           </section>
           <div className="alt">
-            {inbox ? (
-              <p data-email-start="">
-                Prefer email?{" "}
-                <a href={`mailto:${inbox}?subject=${encodeURIComponent(`Meeting with @${host.handle}`)}`}>Write to {inbox}</a>
-              </p>
-            ) : null}
             <details>
               <summary className="link-btn faint">Already made a request?</summary>
               <ResendLinkForm heading="Lost your booking link?" />
@@ -183,6 +168,8 @@ function WebStart({
   readonly notice: string | null;
 }) {
   const timezone = useGuestTimezone();
+  const messages = useMemo(() => openingMessages(host.displayName), [host.displayName]);
+  const reveal = useAuthoredMessageReveal(messages, `fmat.guest-opening.${host.handle}`, false);
   const panel = (
     <RequestPanel
       host={host}
@@ -200,10 +187,12 @@ function WebStart({
       <main aria-label={`Meeting request with ${host.displayName}`} className="flex min-h-0 flex-1 flex-col">
         <ChatConversation>
           <ChatConversationContent aria-label="Messages">
-            <AuthoredMessages messages={openingMessages(host.displayName)} />
-            <ChatItem messageId="identity">
-              <IdentityCard handle={host.handle} zone={timezone.zone} />
-            </ChatItem>
+            <AuthoredMessages messages={reveal.visible} onTyped={reveal.onTyped} thinking={reveal.thinking} typingId={reveal.typingId} />
+            {reveal.done ? (
+              <ChatItem messageId="identity">
+                <IdentityCard handle={host.handle} zone={timezone.zone} />
+              </ChatItem>
+            ) : null}
             {notice ? (
               <ChatItem messageId="notice">
                 <p className="px-1 text-sm text-muted-foreground" role="status">

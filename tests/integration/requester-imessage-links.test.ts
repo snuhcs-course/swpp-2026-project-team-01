@@ -8,6 +8,7 @@ import {
   confirmRequesterImessageLinkCommand,
   createRequesterImessageLinkCommand,
   readRequesterImessageStatus,
+  shareRequesterContactCardCommand,
   unlinkRequesterImessageCommand,
 } from "../../lib/server/requester-imessage-links";
 import { imessageHash } from "../../lib/server/photon-receiver";
@@ -30,7 +31,7 @@ let photon: FakePhoton;
 const im = imessageHarness(db, () => photon);
 const options = { lineNumber: TEST_LINE, tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
 const commands: Readonly<Record<string, CommandDefinition<unknown, unknown>>> = Object.fromEntries(
-  [createRequesterImessageLinkCommand(options), confirmRequesterImessageLinkCommand(options), unlinkRequesterImessageCommand].map(
+  [createRequesterImessageLinkCommand(options), confirmRequesterImessageLinkCommand(options), unlinkRequesterImessageCommand, shareRequesterContactCardCommand(options)].map(
     (command) => [command.operation, command as unknown as CommandDefinition<unknown, unknown>],
   ),
 );
@@ -81,6 +82,28 @@ async function linkedGuest(sender: string = newSender()) {
 }
 
 describe("linking a guest's iMessage", () => {
+  it("sends a contact card only to the linked guest and prevents duplicate queued sends", async () => {
+    const guest = await linkedGuest();
+    expect((await asGuest(guest.requestId, REQUESTER_IMESSAGE_OPERATIONS.shareContactCard)).ok).toBe(true);
+    expect(await asGuest(guest.requestId, REQUESTER_IMESSAGE_OPERATIONS.shareContactCard)).toMatchObject({ error: { category: "rate_limited" } });
+    expect(await status(guest.requestId)).toMatchObject({ contactCard: { state: "queued" } });
+    const binding = await bindingOf(guest.requestId);
+    const [card] = await db<{ id: string }[]>`select id from app.imessage_outbox where requester_binding_id = ${binding!.id} and kind = 'contact_card'`;
+    const { sent } = await im.send(card!.id);
+    expect(textOf(sent)).toEqual(["[contact_card]"]);
+    expect(sent[0]!.recipient.address).toBe(guest.sender);
+    expect(await status(guest.requestId)).toMatchObject({ contactCard: { state: "sent" } });
+    const other = await createTestRequest(db);
+    expect(await asGuest(other.requestId, REQUESTER_IMESSAGE_OPERATIONS.shareContactCard)).toMatchObject({ error: { category: "invalid_input" } });
+  });
+
+  it("still lets a linked guest share a contact card and unlink after the request closes", async () => {
+    const guest = await linkedGuest();
+    await db`update app.requests set state = 'withdrawn', closed_at = now() where id = ${guest.requestId}`;
+    expect((await asGuest(guest.requestId, REQUESTER_IMESSAGE_OPERATIONS.shareContactCard)).ok).toBe(true);
+    expect((await asGuest(guest.requestId, REQUESTER_IMESSAGE_OPERATIONS.unlink)).ok).toBe(true);
+    expect(await status(guest.requestId)).toMatchObject({ state: "none" });
+  });
   it("shows the code and the guest message, records the arriving sender, and binds only after confirmation", async () => {
     const request = await createTestRequest(db);
     const sender = newSender();

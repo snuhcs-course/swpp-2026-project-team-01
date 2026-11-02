@@ -1,5 +1,4 @@
 import { isUsableHandle, normalizeHandle } from "@lib/contracts/handles";
-import { agentMailConfigFromEnvironment } from "@lib/server/agentmail";
 import { database } from "@lib/server/database";
 import { findReadyHostByHandle } from "@lib/server/readiness";
 import type { Metadata } from "next";
@@ -13,9 +12,9 @@ import { GuestStart } from "@/app/_components/guest/guest-start";
 // web start's fixed messages and identity card. Everything else, including a
 // released, unready or suspended host, gets the neutral not-found page.
 // Reserved names never reach here: their routes are resolved first or fail the
-// format. When the product inbox is configured, the landing also offers
-// starting by email, with the host's @handle in the subject
-// (requester-email-channel D2).
+// format. The landing offers no email start (guest-flow-completion U20): an
+// email that names the host's @handle still starts a request
+// (requester-email-channel D6), but the page does not advertise it.
 type Params = Promise<{ handle: string }>;
 
 export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
@@ -45,5 +44,5 @@ async function HostProfile({ params }: { readonly params: Params }) {
 
   if (!host) notFound();
 
-  return <GuestStart host={{ displayName: host.displayName, handle: host.handle }} inbox={agentMailConfigFromEnvironment().inboxId || null} />;
+  return <GuestStart host={{ displayName: host.displayName, handle: host.handle }} />;
 }

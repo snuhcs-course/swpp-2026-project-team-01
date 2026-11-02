@@ -161,13 +161,14 @@ for (const viewport of [
     await openCardCount(page, 1);
     await press(page, /^Agree to this proposal$/);
 
-    // G8: waiting for the host, with nothing booked: a line, and no open card.
-    await expect(page.getByText("Waiting for Ada Lovelace to approve")).toBeVisible();
-    await expect(page.getByText(/nothing is booked yet/)).toBeVisible();
-    await openCardCount(page, 0);
+    // G8: waiting for the host, with nothing booked: the waiting card (U22),
+    // with Get updates in iMessage as its button (U10).
+    const waiting = page.locator('[data-guest-card="awaiting"]');
+    await expect(waiting.getByRole("heading", { name: "Waiting for Ada Lovelace to approve" })).toBeVisible();
+    await expect(waiting.getByText(/nothing is booked yet/)).toBeVisible();
+    await openCardCount(page, 1);
     await expect(page.locator('[data-guest-receipt="answered"]').getByText(/You agreed to/)).toBeVisible();
-    // U10: Get updates in iMessage follows the agreement.
-    await expect(page.getByRole("button", { exact: true, name: "Get updates in iMessage" })).toBeVisible();
+    await expect(waiting.getByRole("button", { exact: true, name: "Get updates in iMessage" })).toBeVisible();
     const [agreed] = await db<{ state: string; version: number }[]>`
       select r.state, p.version from app.requests r
       join app.proposals p on p.request_id = r.id join app.agreements a on a.proposal_id = p.id
@@ -184,8 +185,8 @@ for (const viewport of [
     // A reload loads the same thread from its stored records, cards in place.
     await page.reload();
     await expect(page.getByText("Talk about compilers, online.")).toBeVisible();
-    await expect(page.getByText("Waiting for Ada Lovelace to approve")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Waiting for Ada Lovelace to approve" })).toBeVisible();
     await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
-    await openCardCount(page, 0);
+    await openCardCount(page, 1);
   });
 }

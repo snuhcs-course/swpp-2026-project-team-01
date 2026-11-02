@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 // heading, a short reason, then actions, in 16px by 12px padding. It is the
 // setup card's shell without the host setup controller.
 
+export const GUEST_CARD_SURFACE = "mx-auto my-3 w-[94%] max-w-xl rounded-[22px] border border-primary/25 bg-[color-mix(in_srgb,var(--card)_94%,var(--primary)_6%)] px-4 py-4 text-sm text-card-foreground shadow-[0_8px_24px_rgba(44,62,99,0.12)] sm:px-5";
+
 export function guestCardHeadingId(id: string) {
   return `${id}-heading`;
 }
@@ -31,14 +33,14 @@ export function GuestCard({
     <section
       aria-labelledby={guestCardHeadingId(id)}
       className={cn(
-        "flex min-w-0 flex-col rounded-xl border border-border bg-card px-4 py-3 text-sm text-card-foreground",
+        "flex min-w-0 flex-col", GUEST_CARD_SURFACE,
         className,
       )}
       data-guest-card={id}
       id={id}
     >
       <div className="flex flex-col gap-0.5">
-        {label ? <p className="min-h-6 text-xs leading-6 font-medium text-muted-foreground">{label}</p> : null}
+        {label ? <p className="min-h-6 text-xs leading-6 font-semibold text-primary">{label}</p> : null}
         <h3 className="text-base leading-snug font-semibold text-foreground outline-none" id={guestCardHeadingId(id)} tabIndex={-1}>
           {title}
         </h3>
@@ -80,7 +82,7 @@ export function GuestReceipt({
               id={`receipt-${id.replace(/[^a-zA-Z0-9_-]/g, "-")}`}
               role="note"
             >
-              <span className="text-muted-foreground text-xs">{label}</span>
+              {label ? <span className="text-muted-foreground text-xs">{label}</span> : null}
               {value ? <span className="min-w-0 break-words">{value}</span> : null}
             </div>
           </BubbleContent>

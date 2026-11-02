@@ -5,17 +5,17 @@ import { deepLinkFor, qrDeepLink } from "@lib/contracts/imessage";
 import { REQUESTER_IMESSAGE_OPERATIONS, type RequesterImessageStatus } from "@lib/contracts/requester-imessage";
 import type { HostProfileItem, OpenRequesterView } from "@lib/contracts/requester-view";
 import { displayTime } from "@lib/contracts/timezone";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { renderSVG } from "uqr";
 import { GuestCard, GuestCardActions, guestCardHeadingId } from "@/app/_components/guest/guest-card";
 import { browserLanguage } from "@/app/_components/guest/timezone";
-import { useMessagesPlatform } from "@/app/_components/imessage/imessage-card";
+import { ContactCardLine, CopyButton, useMessagesPlatform } from "@/app/_components/imessage/imessage-card";
 import { Button } from "@/components/ui/button";
 
 // The guest thread's request cards (design decision 12; DESIGN.md: conversation
-// card): the Calendar connection and selection, and the status lines with the
-// creation email, **Use verified Google email**, **Continue by email** and
-// **Get updates in iMessage**.
+// card): the Calendar connection and selection, the status lines with the
+// creation email, **Use verified Google email** and **Continue by email**, and
+// the waiting card with **Get updates in iMessage**.
 // **Withdraw request** and
 // **Edit details** are in the thread's menu beside the composer
 // (guest-workspace.tsx). The
@@ -505,14 +505,15 @@ export function EmailLinkLine({ context }: { readonly context: RequesterCardCont
   );
 }
 
-// **Get updates in iMessage** below the status line (guest-flow-completion
-// design 1): a one-time code the guest sends, as shown, from their iMessage to
-// the line; on a phone Messages opens at once with it written, elsewhere a QR
-// code opens it on an iPhone. The card polls until the message arrives, then
-// shows the masked sender with **Confirm and link**; only that click binds.
-// Linked, the line names the masked sender with **Unlink iMessage**. Like
-// email, it is never required; nothing shows when the deployment has no line.
-export function ImessageUpdatesLine({ context }: { readonly context: RequesterCardContext }) {
+// **Get updates in iMessage**, a button in the waiting card (guest-flow-completion
+// design 1, U22): a one-time code the guest sends, as shown, from their
+// iMessage to the line; on a phone Messages opens at once with it written,
+// elsewhere a QR code opens it on an iPhone. The card polls until the message
+// arrives, then shows the masked sender with **Confirm and link**; only that
+// click binds. Linked, a line names the masked sender with **Unlink iMessage**.
+// Like email, it is never required; nothing shows when the deployment has no
+// line.
+export function ImessageUpdates({ context, onlyLinked = false }: { readonly context: Pick<RequesterCardContext, "bookingId" | "timezone" | "run">; readonly onlyLinked?: boolean }) {
   const [status, setStatus] = useState<RequesterImessageStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -536,10 +537,10 @@ export function ImessageUpdatesLine({ context }: { readonly context: RequesterCa
 
   // While the code waits for its message, the card checks again.
   useEffect(() => {
-    if (status?.state !== "pending") return;
+    if (status?.state !== "pending" && !(status?.state === "linked" && status.contactCard?.state === "queued")) return;
     const timer = window.setInterval(() => void check(), 3000);
     return () => window.clearInterval(timer);
-  }, [check, status?.state]);
+  }, [check, status?.state, status?.state === "linked" ? status.contactCard?.state : null]);
 
   async function command(operation: string, input: Record<string, unknown> = {}) {
     setBusy(true);
@@ -556,24 +557,27 @@ export function ImessageUpdatesLine({ context }: { readonly context: RequesterCa
   const qr = useMemo(() => (pending && !phone ? renderSVG(qrDeepLink(pending.lineNumber, pending.message), { border: 2 }) : null), [pending, phone]);
 
   if (!status || status.state === "unavailable") return null;
+  if (onlyLinked && status.state !== "linked") return null;
 
   if (status.state === "none") {
     return (
-      <div className="flex min-h-8 flex-wrap items-center gap-x-2 px-1 text-sm" data-imessage-link="none">
-        <Button
-          className={QUIET_ACTION}
-          disabled={busy}
-          onClick={async () => {
-            const next = await command(REQUESTER_IMESSAGE_OPERATIONS.create);
-            const opened = next?.state === "pending" && phone ? deepLinkFor(platform, next.lineNumber, next.message) : null;
-            if (opened) window.location.assign(opened);
-          }}
-          type="button"
-          variant="link"
-        >
-          Get updates in iMessage
-        </Button>
-        <span className="text-muted-foreground">· optional; your email still gets every update</span>
+      <div className="flex flex-col gap-1" data-imessage-link="none">
+        <GuestCardActions>
+          <Button
+            className="min-h-11"
+            disabled={busy}
+            onClick={async () => {
+              const next = await command(REQUESTER_IMESSAGE_OPERATIONS.create);
+              const opened = next?.state === "pending" && phone ? deepLinkFor(platform, next.lineNumber, next.message) : null;
+              if (opened) window.location.assign(opened);
+            }}
+            type="button"
+            variant="outline"
+          >
+            Get updates in iMessage
+          </Button>
+        </GuestCardActions>
+        <p className="text-muted-foreground">Optional: your email still gets every update.</p>
         <ErrorLine message={error} />
       </div>
     );
@@ -581,8 +585,9 @@ export function ImessageUpdatesLine({ context }: { readonly context: RequesterCa
 
   if (status.state === "linked") {
     return (
-      <div className="flex min-h-8 flex-wrap items-center gap-x-2 px-1 text-sm" data-imessage-link="linked" role="note">
+      <div className="flex min-h-8 flex-col gap-2 text-sm" data-imessage-link="linked" role="note">
         <span>iMessage linked: updates go to {status.sender}, and you can reply there</span>
+        <ContactCardLine busy={busy} onShare={() => void command(REQUESTER_IMESSAGE_OPERATIONS.shareContactCard)} onCheck={() => void check()} state={status.contactCard?.state ?? null} />
         <Button className={QUIET_ACTION} disabled={busy} onClick={() => void command(REQUESTER_IMESSAGE_OPERATIONS.unlink)} type="button" variant="link">
           Unlink iMessage
         </Button>
@@ -593,11 +598,7 @@ export function ImessageUpdatesLine({ context }: { readonly context: RequesterCa
 
   if (status.state === "received") {
     return (
-      <GuestCard
-        description={`Your message arrived from ${status.sender}. Link it only if that is you.`}
-        id="imessage-link"
-        title="Is this your iMessage?"
-      >
+      <InnerStep description={`Your message arrived from ${status.sender}. Link it only if that is you.`} title="Is this your iMessage?">
         <GuestCardActions>
           <Button
             disabled={busy}
@@ -611,14 +612,13 @@ export function ImessageUpdatesLine({ context }: { readonly context: RequesterCa
           </Button>
         </GuestCardActions>
         <ErrorLine message={error} />
-      </GuestCard>
+      </InnerStep>
     );
   }
 
   return (
-    <GuestCard
+    <InnerStep
       description={link ? "Messages should open with the message written. Tap send there." : "Send this message from your iPhone's Messages."}
-      id="imessage-link"
       title="Get updates in iMessage"
     >
       <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border px-3 py-2">
@@ -628,6 +628,7 @@ export function ImessageUpdatesLine({ context }: { readonly context: RequesterCa
         <p className="font-mono text-sm break-all select-all" data-imessage-link-message="">
           {status.message}
         </p>
+        <CopyButton label="Copy the link message" text={status.message} />
       </div>
       {qr ? (
         <div
@@ -652,12 +653,45 @@ export function ImessageUpdatesLine({ context }: { readonly context: RequesterCa
         </Button>
       </GuestCardActions>
       <ErrorLine message={error} />
-    </GuestCard>
+    </InnerStep>
   );
 }
 
-// The wait for the host, as one line in the thread from the agreement.
-export function AwaitingLine({ context }: { readonly context: RequesterCardContext }) {
+export function ClosedImessageUpdates({ bookingId, timezone }: { readonly bookingId: string; readonly timezone: string }) {
+  const run = useCallback(async (operation: string, input: unknown = {}): Promise<CommandOutcome> => {
+    try {
+      const response = await fetch(`/api/requests/${bookingId}/commands`, {
+        body: JSON.stringify({ input, operation, retryKey: crypto.randomUUID() }),
+        headers: { "content-type": "application/json" }, method: "POST",
+      });
+      return await response.json() as CommandOutcome;
+    } catch {
+      return { ok: false, error: { category: "internal", message: "That did not go through. Try again." } };
+    }
+  }, [bookingId]);
+  return <ImessageUpdates context={{ bookingId, timezone, run }} onlyLinked />;
+}
+
+// One step of linking iMessage inside the waiting card: a heading and a short
+// reason, then its controls, under a rule rather than a second card.
+function InnerStep({ children, description, title }: { readonly children: ReactNode; readonly description: string; readonly title: string }) {
+  const heading = useId();
+  return (
+    <div aria-labelledby={heading} className="flex min-w-0 flex-col gap-3 border-t border-border pt-3" data-guest-card="imessage-link" role="group">
+      <div className="flex flex-col gap-0.5">
+        <h4 className="text-base leading-snug font-semibold text-foreground" id={heading}>
+          {title}
+        </h4>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// The wait for the host, as a card in the thread from the agreement (U22), with
+// **Get updates in iMessage** as its button.
+export function AwaitingCard({ context }: { readonly context: RequesterCardContext }) {
   const agreed = context.view.agreement && context.view.proposal ? context.view.proposal : null;
   const booking = context.view.booking;
 
@@ -677,10 +711,14 @@ export function AwaitingLine({ context }: { readonly context: RequesterCardConte
   }
 
   return (
-    <p className="px-1 text-sm" data-guest-receipt="status" role="status">
-      <span className="font-medium">Waiting for {context.view.host.displayName} to approve</span>
-      {agreed ? ` · you agreed to ${displayTime(new Date(agreed.start), context.timezone)}` : ""} · nothing is booked yet
-    </p>
+    <GuestCard
+      description={`${agreed ? `You agreed to ${displayTime(new Date(agreed.start), context.timezone)}` : "You agreed"} · nothing is booked yet`}
+      id="awaiting"
+      label="Request"
+      title={`Waiting for ${context.view.host.displayName} to approve`}
+    >
+      <ImessageUpdates context={context} />
+    </GuestCard>
   );
 }
 

@@ -9,6 +9,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { Receipt } from "@/app/_components/booking-receipt";
 import { GuestWorkspace } from "@/app/_components/guest/guest-workspace";
+import { ClosedImessageUpdates } from "@/app/_components/requester/cards";
 import { ResendLinkForm } from "@/app/_components/requester/resend-link-form";
 
 // The requester's protected destination (design decision 2; meeting-requests:
@@ -48,7 +49,7 @@ async function Booking({ params }: { readonly params: Params }) {
 
   if (!link || !view || (view.open && view.request.state === "draft")) return <Unavailable />;
   if (!view.open) {
-    return <Closed booking={view.booking} hostName={view.host.displayName} state={view.request.state} timezone={view.timezone} />;
+    return <Closed bookingId={bookingId.toLowerCase()} booking={view.booking} hostName={view.host.displayName} state={view.request.state} timezone={view.timezone} />;
   }
 
   // Opens the request session if a request from before D13 has none yet (and
@@ -85,11 +86,13 @@ const CLOSED_TEXT: Readonly<Partial<Record<RequestState, string>>> = {
 };
 
 function Closed({
+  bookingId,
   booking,
   hostName,
   state,
   timezone,
 }: {
+  readonly bookingId: string;
   readonly booking: BookingStatusView | null;
   readonly hostName: string;
   readonly state: RequestState;
@@ -111,6 +114,7 @@ function Closed({
           <Receipt receipt={receipt} timeZone={timezone} />
         </section>
       ) : null}
+      <ClosedImessageUpdates bookingId={bookingId} timezone={timezone} />
     </main>
   );
 }

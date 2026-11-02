@@ -82,6 +82,7 @@ import {
   confirmRequesterImessageLinkCommand,
   createRequesterImessageLinkCommand,
   readRequesterImessageStatus,
+  shareRequesterContactCardCommand,
   unlinkRequesterImessageCommand,
 } from "./requester-imessage-links";
 import { photonConfig } from "./photon";
@@ -373,6 +374,13 @@ export function createRequestStartHandler(load: () => RequesterRouteDependencies
       return outcome.error.category === "retry_conflict" ? requesterJson(outcome, 409) : hostUnavailable();
     }
 
+    const [draft] = await deps.db<{ state: string }[]>`
+      select state from app.requests where id = ${outcome.result.requestId}
+    `;
+    if (draft && draft.state !== "draft") {
+      return requesterJson({ code: "draft_identified", error: "Start a new request." }, 409);
+    }
+
     const bookingId = await openRequestBookingId(deps.db, [tokenKey], outcome.result.requestId);
 
     return bookingId ? requesterJson({ bookingId }, 201) : hostUnavailable();
@@ -508,6 +516,7 @@ export function requesterCommands(
     registered(createRequesterImessageLinkCommand(imessage)),
     registered(confirmRequesterImessageLinkCommand(imessage)),
     registered(unlinkRequesterImessageCommand),
+    registered(shareRequesterContactCardCommand(imessage)),
     registered(revokeGrantCommand),
   ]);
 }
@@ -603,10 +612,8 @@ export function createEmailLinkStatusHandler(load: () => RequesterRouteDependenc
 export function createRequesterImessageStatusHandler(load: () => RequesterRouteDependencies = requesterRouteDependenciesFromEnvironment) {
   return async (_request: Request, context: Context) => {
     const deps = load();
-    const principal = await openRequester(deps.db, (await context.params).bookingId);
-
-    if (!principal || principal.type !== "requester_request") return requestUnavailable();
-
-    return requesterJson(await readRequesterImessageStatus(deps.db, [deps.tokenKey()], principal.id, deps.lineNumber ?? ""));
+    const link = await findRequestByBookingId(deps.db, (await context.params).bookingId);
+    if (!link || link.expired) return requestUnavailable();
+    return requesterJson(await readRequesterImessageStatus(deps.db, [deps.tokenKey()], link.requestId, deps.lineNumber ?? ""));
   };
 }

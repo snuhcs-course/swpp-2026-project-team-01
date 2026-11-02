@@ -8,6 +8,7 @@ export const REQUESTER_IMESSAGE_OPERATIONS = {
   create: "request.imessage_link.create",
   confirm: "request.imessage_link.confirm",
   unlink: "request.imessage_link.unlink",
+  shareContactCard: "request.imessage_contact_card.share",
 } as const;
 
 export type RequesterImessageStatus =
@@ -30,7 +31,7 @@ export type RequesterImessageStatus =
       readonly sender: string;
       readonly confirmBy: string;
     }
-  | { readonly state: "linked"; readonly lineNumber: string; readonly sender: string; readonly linkedAt: string };
+  | { readonly state: "linked"; readonly lineNumber: string; readonly sender: string; readonly linkedAt: string; readonly contactCard: { readonly state: "queued" | "sent" | "failed" | "uncertain" } | null };
 
 export const GUEST_LINK_MESSAGE_PREFIX = "Get Find Me a Time updates:";
 

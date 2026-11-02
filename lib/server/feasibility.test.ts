@@ -115,6 +115,54 @@ describe("deterministic intervals", () => {
     expect(result.candidates[0]!.basis[0]).toBe("Inside your Monday hours 10:00–17:00 in Asia/Seoul.");
   });
 
+  it("orders preferred afternoon times first while keeping other feasible times", () => {
+    const result = evaluateFeasibility(input({ request: {
+      windows: [{ start: kst("2026-11-02", "10:00"), end: kst("2026-11-02", "17:00") }],
+      preferredWindows: [{ start: kst("2026-11-02", "12:00"), end: kst("2026-11-02", "17:00") }],
+    } }));
+    expect(starts(result)[0]).toBe(kst("2026-11-02", "12:00").toISOString());
+    expect(starts(result)).toContain(kst("2026-11-02", "10:00").toISOString());
+  });
+
+  it("still offers morning when all preferred afternoon times are busy", () => {
+    const day = "2026-11-02";
+    const result = evaluateFeasibility(input({
+      hostBusy: [busy(kst(day, "12:00"), kst(day, "17:00"))],
+      request: {
+        windows: [{ start: kst(day, "10:00"), end: kst(day, "17:00") }],
+        preferredWindows: [{ start: kst(day, "12:00"), end: kst(day, "17:00") }],
+      },
+    }));
+    expect(starts(result)).toContain(kst(day, "10:00").toISOString());
+    expect(starts(result).every((start) => new Date(start) < kst(day, "12:00"))).toBe(true);
+  });
+
+  it("keeps non-preferred alternatives when preferred candidates fill the limit", () => {
+    const windows = ["2026-11-02", "2026-11-03", "2026-11-04"].map((date) => ({ start: kst(date, "10:00"), end: kst(date, "17:00") }));
+    const preferredWindows = ["2026-11-02", "2026-11-03", "2026-11-04"].map((date) => ({ start: kst(date, "12:00"), end: kst(date, "17:00") }));
+    const result = evaluateFeasibility(input({ request: { windows, preferredWindows } }));
+    expect(result.candidates.length).toBe(40);
+    expect(starts(result)[0]).toBe(kst("2026-11-02", "12:00").toISOString());
+    expect(starts(result)).toContain(kst("2026-11-02", "10:00").toISOString());
+  });
+
+  it("prioritizes a weekly preference without excluding other feasible times", () => {
+    const windows = ["2026-11-02", "2026-11-03"].map((date) => ({ start: kst(date, "10:00"), end: kst(date, "17:00") }));
+    const result = evaluateFeasibility(input({ request: { windows, preferredWeeklyWindows: [{ weekday: "tuesday", start: "12:00", end: "17:00" }] } }));
+    expect(starts(result)[0]).toBe(kst("2026-11-03", "12:00").toISOString());
+    expect(starts(result)).toContain(kst("2026-11-02", "10:00").toISOString());
+  });
+
+  it("recognizes a weekly preference crossing midnight", () => {
+    const result = evaluateFeasibility(input({
+      host: { ...HOST, weeklyWindows: [{ weekday: "monday", start: "21:00", end: "03:00" }] },
+      request: { windows: [{ start: kst("2026-11-02", "21:00"), end: kst("2026-11-03", "03:00") }], preferredWeeklyWindows: [{ weekday: "monday", start: "23:00", end: "02:00" }] },
+    }));
+    expect(starts(result)[0]).toBe(kst("2026-11-02", "23:00").toISOString());
+    expect(starts(result)).toContain(kst("2026-11-03", "01:00").toISOString());
+    expect(starts(result)).toContain(kst("2026-11-02", "21:00").toISOString());
+  });
+
   it("never offers a start at or before the clock", () => {
     const result = evaluateFeasibility(input({ now: kst("2026-11-02", "12:20") }));
     expect(starts(result)).toEqual([kst("2026-11-02", "12:30").toISOString()]);
@@ -267,6 +315,22 @@ describe("overnight windows and clock changes", () => {
 });
 
 describe("weekly limit", () => {
+  it("prioritizes the host's weekly limit over the guest's preferred time", () => {
+    const thisWeek = { end: kst("2026-11-02", "11:00"), start: kst("2026-11-02", "10:00") };
+    const nextWeek = { end: kst("2026-11-09", "11:00"), start: kst("2026-11-09", "10:00") };
+    const result = evaluateFeasibility(input({ host: { ...HOST, weeklyLimit: 1 }, hostBusy: [busy(kst("2026-11-03", "15:00"), kst("2026-11-03", "15:30"))], request: { windows: [thisWeek, nextWeek], preferredWindows: [thisWeek] } }));
+    expect(starts(result)[0]).toBe(nextWeek.start.toISOString());
+    expect(starts(result)).toContain(thisWeek.start.toISOString());
+  });
+
+  it("places a less preferred day after other available days without excluding it", () => {
+    const monday = { start: kst("2026-11-02", "10:00"), end: kst("2026-11-02", "11:00") };
+    const tuesday = { start: kst("2026-11-03", "10:00"), end: kst("2026-11-03", "11:00") };
+    const result = evaluateFeasibility(input({ request: { windows: [monday, tuesday], lessPreferredWindows: [monday] } }));
+    expect(starts(result)[0]).toBe(tuesday.start.toISOString());
+    expect(starts(result)).toContain(monday.start.toISOString());
+  });
+
   it("offers weeks below the limit first without explaining the limit to the requester", () => {
     const thisWeek = { end: kst("2026-11-02", "11:00"), start: kst("2026-11-02", "10:00") };
     const nextWeek = { end: kst("2026-11-09", "11:00"), start: kst("2026-11-09", "10:00") };
