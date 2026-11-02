@@ -1,0 +1,23 @@
+{
+  "branch": "fix/prune-cron-history",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:d91c1f27-d6dc-4da1-89c8-050de8fc09eb": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 56,
+          "cache_read": 4951936,
+          "cache_write_5m": 0,
+          "cache_write_1h": 37692,
+          "output": 23339,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-02T03:11:09.101Z",
+      "last": "2026-11-02T03:17:02.945Z"
+    }
+  }
+}

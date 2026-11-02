@@ -397,7 +397,7 @@
 | D6 | 거절은 명령 파이프라인에서 집계(`unauthenticated`, `forbidden`; `stale_revision`, `request_closed`). `DIAGNOSTICS_REJECTIONS=1`일 때, 500 ms 제한, 시간별 24개 버킷이 10,000에서 포화 | 애플리케이션에 없는 데이터베이스 RPC 집계; 메모리 내 카운터 | 제안서; 설계 5; `operational-diagnostics` 델타 | `lib/server/diagnostics.ts`의 `REJECTION_CATEGORIES` |
 | D7 | `recover job`은 소진된 작업에만(새 시도 1~10회); `recover booking`은 라이브 작업이 없는 dispatching 예약에만 쓰이며 조정 작업 하나를 게시. 불확실한 메시지는 다시 보내지 않음; `operator_operations`에 감사 기록 | 예약의 수동 확정 또는 실패 처리; 불확실한 메시지 재전송 | 제안서; 설계 6; `operational-recovery` 델타 | `lib/server/recovery-operations.ts`와 운영자 함수 |
 | D8 | `pg_dump`와 `pg_restore`로 합성 데이터를 채운 별도 로컬 데이터베이스에 복원 훈련; 호스팅 백업은 새 프로젝트에만 복원 | 공유 프로젝트의 사본으로 훈련 | 제안서; 설계 7; `data-stewardship` 델타 | `scripts/restore-drill.ts` |
-| D9 | 종료된 요청은 종료 90일 뒤; 끝난 작업, 명령 결과, 시도 기록은 30일; 소진된 작업과 모델 예약은 90일; 운영자 감사는 1년; 시간별 패스 | 요청은 1년; 종료 시 삭제 | 제안서; 설계 8; PRD 8절 | `app.cleanup_retained_records`와 새 마이그레이션 |
+| D9 | 종료된 요청은 종료 90일 뒤; 끝난 작업, 명령 결과, 시도 기록은 30일; 소진된 작업과 모델 예약은 90일; 운영자 감사는 1년; pg_cron 실행 이력은 7일; 시간별 패스 | 요청은 1년; 종료 시 삭제 | 제안서; 설계 8; PRD 8절 | `app.cleanup_retained_records`, `app-cron-history` 작업과 새 마이그레이션 |
 | D10 | `delete-host`와 `delete-request`를 통한 요청 시 삭제. 삭제된 호스트는 핸들 이력과 함께 정지된, 이름 없는 계정 행을 남기며 복원할 수 없음 | 플래그를 쓰는 소프트 삭제; 핸들 이력 삭제 | 제안서; 설계 9; `data-stewardship` 델타 | `app.operator_delete_host`와 `app.operator_delete_request` |
 | D11 | 저장을 끈 OpenAI 직접 호출; API 데이터로 학습하지 않음; 최대 30일의 악용 모니터링 로그; 무보존 주장은 하지 않음; 런타임 자체의 세션 사본은 패스 밖이라고 고지 | 무보존을 주장; 게이트웨이 경유 | 제안서; 설계 10; PRD 8절 | 고지 |
 | D12 | 영어와 한국어의 `/privacy`, `/`, 호스트 페이지, 예약 페이지, **Continue with Google** 카드에서 링크; 동의 체크박스 없음 | 접수 단계의 동의 체크박스; 영어만 | 제안서; 설계 11; 페이지 목록 P11 | `apps/web/app/privacy/` |
