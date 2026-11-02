@@ -59,7 +59,10 @@ export async function findReadyHostByHandle(db: Queryable, handle: string) {
   if (!row) return null;
 
   const readiness = await readReadiness(db, row.host_account_id);
-  return readiness.ready && readiness.handle && readiness.displayName
+  const [preference] = await db<{ accepting_requests: boolean }[]>`
+    select accepting_requests from app.host_accounts where id = ${row.host_account_id}
+  `;
+  return preference?.accepting_requests && readiness.ready && readiness.handle && readiness.displayName
     ? { displayName: readiness.displayName, handle: readiness.handle, hostAccountId: row.host_account_id }
     : null;
 }
