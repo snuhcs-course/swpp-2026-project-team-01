@@ -90,7 +90,7 @@ export function HostRequests({ onOpenSetup, request }: { readonly onOpenSetup: (
   return (
     <div className="onboarding-ink flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <header className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 sm:px-6">
-        <h1 className="truncate font-display text-lg">Find Me a Time</h1>
+        <h1 className="truncate font-display text-[clamp(26px,3vw,33px)] leading-none">Find Me a Time</h1>
         <div className="flex items-center"><WorkspaceMenu onSelectRequests={openInbox} onSelectSetup={onOpenSetup} /><HostSettingsDialog /></div>
       </header>
       {notice ? <ErrorNotice message={notice} onDismiss={() => setNotice(null)} /> : null}

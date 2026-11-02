@@ -113,9 +113,12 @@ export function HostSettingsDialog() {
               {setup.pendingChanges && !editing ? <Button disabled={busy || setup.missingFields.length > 0} onClick={() => void confirmWindows()} type="button">Review and confirm changes</Button> : null}
             </section>
             <section className="space-y-2 border-t pt-4" aria-label="New requests">
-              <label className="flex items-center justify-between gap-4 font-medium">
+              <label className="intake-toggle flex min-h-11 items-center justify-between gap-4 font-medium">
                 Accept new meeting requests
-                <input aria-label="Accept new meeting requests" checked={intake.accepting} disabled={busy || !setup.readiness.ready} onChange={(event) => void setAccepting(event.target.checked)} type="checkbox" className="size-5 accent-primary" />
+                <span className="shrink-0">
+                  <input aria-label="Accept new meeting requests" checked={intake.accepting} disabled={busy || !setup.readiness.ready} onChange={(event) => void setAccepting(event.target.checked)} type="checkbox" className="sr-only" />
+                  <span aria-hidden="true" className="intake-switch" />
+                </span>
               </label>
               <p className="text-sm text-muted-foreground">{!setup.readiness.ready ? "Complete setup or reconnect your calendar before receiving requests." : intake.accepting ? "New guests can send requests." : "New requests are paused. Existing requests remain available."}</p>
             </section>
