@@ -165,7 +165,7 @@ Both commands print the environment and the action and ask for the typed ID unle
 
 ### Support
 
-Support mail goes to `support@findmeatime.com`, an Email Routing alias on the zone's Cloudflare MX records that forwards to the operator on rotation (D3); creating the alias is a console step still to be done. Answer within two working days. Never paste tokens, booking links or another person's data into a reply.
+Support mail goes to `support@findmeatime.com`, an Email Routing rule named `support` on the zone's Cloudflare MX records (D3). Since 2026-11-02 it forwards to the repository owner's verified address, as the zone's catch-all rule also does; point it at the operator on rotation once the rotation starts, and re-read the rules with `cf email-routing rules list-account --zone findmeatime.com` after any change. Answer within two working days. Never paste tokens, booking links or another person's data into a reply.
 
 ### Performance check
 

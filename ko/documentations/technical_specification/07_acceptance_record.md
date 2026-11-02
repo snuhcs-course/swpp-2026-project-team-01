@@ -443,7 +443,8 @@
 
 | 보존 | `tests/integration/data-stewardship.test.ts`: 종료 91일 뒤의 예약된 요청은 제안, 예약, 예약 링크, 전달, 논의, 세션, 이벤트와 함께 삭제되고 모델 지출은 분리되며 Calendar 이벤트는 유지됨; 89일 전에 종료된 요청과 200일 된 열린 요청은 유지됨; 운영 규칙마다 각자의 기간; 실행당 규칙별 행 제한; 매시간 일정 |
 | 요청에 따른 삭제 | 같은 파일: 삭제된 호스트에는 핸들이 남은 정지 상태의 이름 없는 계정이 남아 `checkHandle`이 사용 중이라고 보고함; 신원, 권한 부여, 설정, 요청, 논의, Auth 사용자는 사라짐; 복원과 재삭제는 거부됨; 같은 Google subject는 새 계정을 얻음. 요청 하나는 그 대화 및 그 위에서 아직 기다리는 턴 응답과 함께 삭제됨; 예약 쓰기가 있을 수 있는 종료된 요청은 보존으로 유지됨; 예약 쓰기가 있을 수 있는 동안에는 삭제가 거부됨; Data API 역할은 모든 함수에서 거부됨. `lib/server/data-deletion.test.ts`의 단위 테스트 |
-| 데이터 고지 | 390px와 1280px에서의 `tests/e2e/privacy.test.ts`: 영어와 한국어 고지가 각 절과 함께 표시되고 가로 스크롤이 없음, 그리고 `/`와 호스트 페이지에서의 링크; `tests/e2e/requester-intake.test.ts`가 **Continue with Google** 아래의 링크를 확인함 |
+| 데이터 고지 | 390px와 1280px에서의 `tests/e2e/privacy.test.ts`: 영어와 한국어 고지가 각 절과 함께 표시되고 가로 스크롤이 없음, 그리고 `/`와 호스트 페이지에서의 링크; `tests/e2e/requester-intake.test.ts`가 **Continue with Google** 아래의 링크를 확인함. 2026-11-02부터 같은 파일이 Limited Use 명시를 담은 Google 사용자 데이터 절과 `/privacy-policy`가 이 고지를 제공하는지도 확인함(로컬 스택에서 `terms-of-service.test.ts`, `requester-intake.test.ts`와 함께 8개 중 8개 통과, 브랜치 `feat/legal-pages`) |
+| 이용약관 | 390px와 1280px에서의 `tests/e2e/terms-of-service.test.ts`: `/terms-of-service`가 영어와 한국어로 각 절, 고지로 가는 링크와 함께 표시되고 가로 스크롤이 없음; `privacy.test.ts`가 `/`에서의 링크를 확인함; `lib/server/handles.test.ts`가 `privacy-policy`와 `terms-of-service`가 예약어임을 확인함 |
 ### 프로덕션 확인, 읽기 전용
 
 2026-10-23(06:55 UTC)에 구현 세션이 `findmeatime-release`의 현재 **production** 배포(`dpl_2kZrdFKxF1eukJH1irgwH4VMM9wF`, 6단계 병합보다 앞선 2026-10-23 07:02 KST의 CLI 배포)를 대상으로 실행했습니다. 아무것도 변경하지 않았습니다.
