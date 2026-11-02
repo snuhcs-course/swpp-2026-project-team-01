@@ -464,3 +464,51 @@
 14. **AgentMail**: `findmeatime@agentmail.to`(받은편지함 세 개 제한에 막힘), 그 웹훅, `AGENTMAIL_*` 변수, 그리고 `npm run admin -- email-receiver register … --project <release ref>`를 만듭니다(7단계).
 15. `findmeatime-release`의 **오래된 프로토타입 변수 제거**.
 16. **프로덕션 인수**: [personal-agent 클라이언트](09_agent_clients.md)의 명명된 클라이언트 점검, 통제된 iPhone 실행, 실제 받은편지함 전달, 손님의 받은편지함 확인, 로그인한 설정을 [릴리스 요약](07_acceptance_record.md#release-summary)에 맞춰 기록하고, 이어서 `openspec archive operations-and-release`.
+
+## 9단계 — `host-whatsapp-channel`
+
+[제안서](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 팀은 WhatsApp Business를 프로덕션 Photon 프로젝트에 연결한 뒤인 2026-11-02에, 이제부터 WhatsApp을 통해 Android 호스트를 지원하기로 결정했습니다. 이 변경을 작성한 세션은 같은 날 그 결정에 따라 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안이며, 아직 이를 구현하는 코드는 없습니다. 추적 이슈: #66.
+
+**이전 경위.** 2026-11-02에 이슈 #62와 PR #63이 iMessage 수신기가 플랫폼이 iMessage가 아닌 모든 이벤트를 버리도록 만들었습니다. 이 변경이 구현되기 전까지 회선으로 오는 WhatsApp 메시지는 확인 응답한 뒤 무시됩니다.
+
+### 제품 결정
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| — | (팀, 2026-11-02.) 옵트인 WhatsApp 채널로 Android 호스트를 지원합니다. 호스트의 채널만 다루며, 요청자는 웹과 이메일을 유지합니다. SMS, RCS, KakaoTalk, 개인 WhatsApp, WhatsApp 그룹, 요청자 메시징은 범위 밖으로 유지합니다 | Android를 계속 보류(2026-10-07 결정); Photon을 통한 SMS 또는 RCS; 한국 호스트를 위한 KakaoTalk | PRD 1, 3, 6, 9, 10절 | PRD를 먼저, 그다음 제안서 |
+| D5 | iMessage와 WhatsApp을 가로질러 호스트당 활성 메시징 바인딩 하나. 다른 채널을 확인하면 카드의 안내 뒤에 이전 바인딩을 대체합니다 | 두 채널 동시 사용, 요약이 두 배가 되고 두 대화가 하나의 결정을 두고 경합할 수 있음 | 제안서; 설계 5; PRD FR-37 | PRD의 FR-37을 먼저, 그다음 `imessage_bindings_active_host_key`와 `confirmImessageLinkCommand` |
+| D7 | Android는 WhatsApp만 받습니다. iPhone, iPad, Mac은 **대신 WhatsApp 사용(Use WhatsApp instead)**이 있는 iMessage를 받습니다. 그 밖의 컴퓨터는 호스트가 어떤 앱을 쓰는지 묻습니다 | 모든 호스트에게 묻기; 두 가지를 나란히 제공(한 번에 두 가지를 생각하게 되어 디자인 원칙에 어긋남) | 제안서; 설계 6 | `lib/contracts/messaging-channel.ts` |
+| D9 | 창 밖에서는 `en_US` 유틸리티 템플릿 세 개를 사용합니다. 유일한 매개변수는 요청 참조이며, 요청자 이름, 시간, 장소는 없습니다. 호스트당 12시간에 최대 하나, 회선당 하루 최대 50개 | 모든 세부 정보를 담은 요약별 템플릿(비공개 텍스트가 Meta의 검토와 알림을 거침); 범용 템플릿 하나; 알림 없음(조용한 유실) | 제안서; 설계 8 | 설계 8, 그다음 `lib/server/whatsapp.ts`의 템플릿 이름과 WhatsApp Manager |
+| D12 | 호스트 자신의 메시지와 카드의 문장이 있는 **확인 및 연결(Confirm and link)**이 옵트인입니다. `stop`은 연결을 해제합니다 | 별도의 옵트인 체크박스 | 제안서; 설계 8 | 설계 8과 카드의 문구 |
+
+### 구현 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| D1 | 클라우드 모드의 Spectrum `whatsapp_business` 공급자(`@spectrum-ts/whatsapp-business` 12.14.0, MIT)를 기존 `PHOTON_PROJECT_ID`와 `PHOTON_PROJECT_SECRET`으로 사용하며, WhatsApp 회선 하나를 `PHOTON_WHATSAPP_NUMBER`에 둡니다 | 우리 환경에 Meta 토큰을 두는 직접 모드; 네이티브 eve 채널(없으며, iMessage D1의 이유가 적용됨) | 제안서; 설계 1; 제공자 설정 | `lib/server/photon.ts` |
+| D2 | 웹훅 하나와 서명 확인 한 번 뒤에 플랫폼에 따라 라우팅합니다. `inboundMessage`는 iMessage 전용으로 유지되고, `inboundWhatsAppMessage`는 모든 플랫폼 필드가 `whatsappbusiness`로 정규화되어야 합니다 | iMessage 확인을 넓히기; WhatsApp용 두 번째 웹훅(Photon은 등록된 모든 웹훅에 모든 플랫폼을 보냄) | 제안서; 설계 2 | `receivePhotonWebhook`과 `inboundWhatsAppMessage` |
+| D3 | 발신자는 `message.sender.id`이며 `+` 없는 숫자입니다(8–15자리, 앞에 0 없음). 스페이스 ID는 이와 같아야 하고, `space.type`은 없거나 `dm`이어야 합니다. 해시는 `whatsapp:<digits>`이며 iMessage와 별도의 네임스페이스입니다 | iMessage 해시 재사용, 한 번호의 iMessage 바인딩이 WhatsApp 메시지와 일치하게 됨; `+` 형식을 별개의 발신자로 인정 | 제안서; 설계 3 | `normalizeWhatsAppSender` |
+| D4 | 네 개의 `imessage_*` 테이블에 `channel` 열; 이름은 유지하고 이름 변경은 미룹니다 | `whatsapp_*` 테이블 네 개; pg-delta로 지금 이름 변경(프로덕션 테이블의 삭제와 생성) | 제안서; 설계 4 | `supabase/schemas/app/tables/imessage_*.sql` |
+| D6 | 채널을 기록한 `FMAT-` 코드; `https://wa.me/<digits>?text=<message>`. 다른 채널의 코드는 시도를 무효로 하며, 서비스가 보내는 대체 코드는 제공하지 않습니다 | WhatsApp 전용 코드 계열; `api.whatsapp.com/send` 링크; 인증 템플릿을 통한 대체 경로 | 제안서; 설계 6 | `imessage.link.create`; `whatsAppLinkFor` |
+| D8 | 발송 시점에 호스트의 마지막 메시지가 23시간 50분 이하일 때만 자유 형식 텍스트를 보냅니다. 그렇지 않을 때와 Meta 오류 131047에서는 행이 `window_closed`로 최종 상태가 되고 `/app`에 표시됩니다 | 보내고 Meta가 거부하게 두기; 호스트가 다시 쓸 때까지 메시지 보류 | 제안서; 설계 7 | `createImessageSendHandler`의 창 확인 |
+| D10 | Meta 오류 매핑: 131047은 `window_closed`; 131026은 거부됨; 132xxx는 `template_unavailable`; 130429와 131056은 사용 불가로 보고 재시도. 불확실한 전송은 다시 보내지 않습니다 | 모든 오류 재시도 | 제안서; 설계 9 | `lib/server/whatsapp.ts`의 오류 맵 |
+| D11 | 명령, 참조, 전달(`[WhatsApp] …`), 요약, 설정, 접수, 순서, 보존은 6단계와 같습니다. WhatsApp에는 **연락처에 추가(Add to contacts)**가 없습니다 | WhatsApp 전용 명령 집합; 결정을 위한 대화형 버튼 | 제안서; 설계 10 | 채널별 6단계 모듈 |
+| D13 | 식별된 프로덕션 배포에서만 메시징합니다. 대역이 WhatsApp 전송, 템플릿, 131047에 응답합니다 | — | 제안서; 설계 10 | `lib/server/messaging.ts`; 대역 |
+
+### 운영 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 회선 없는 출처 | 설계는 2026-11-02에 npm tarball의 `@spectrum-ts/whatsapp-business` 12.14.0과 Photon 문서를 읽었습니다. WhatsApp 메시지는 보내거나 받지 않았으므로, 플랫폼 철자와 발신자 형식은 합류 단계에서만 확인됩니다 | 사용자에게 막혀 있는 테스트 메시지 전송 | 설계 맥락 | — |
+| 계획만 | 이 풀 리퀘스트는 문서와 OpenSpec 변경만 바꾸며, 코드, 스키마, 구성은 없습니다 | 레인 A를 곧바로 구현 | 계획 9단계 | — |
+
+### 사용자 대기 항목
+
+다음 단계는 제공자 콘솔을 바꾸거나, 사람에게 메시지를 보내거나, 공유 환경 또는 릴리스 환경을 바꾸기 때문에 수행하지 않았습니다:
+
+- **Meta WhatsApp Manager**: 설계 8의 템플릿 세 개를 제출하고 승인받습니다. 2026-11-02에 연결한 번호의 비즈니스 표시 이름, 비즈니스 검증, 회선의 메시징 등급을 확인합니다.
+- **Photon 프로젝트**: 구성은 바꾸지 않았습니다. WhatsApp 회선, 그 등록, 공유 웹훅은 2026-11-02에 사용자가 둔 그대로입니다.
+- **모든 WhatsApp 메시지 전송**, 합류 단계의 이벤트 하나 수집과 Android 인수 실행을 포함합니다.
+- **Vercel 변수**: 코드가 반영된 뒤 Production의 `PHOTON_WHATSAPP_NUMBER`, 그리고 바뀐 경우 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`.
+- 구현하는 풀 리퀘스트의 **마이그레이션과 배포**, 그리고 이 풀 리퀘스트의 병합을 포함한 모든 병합.
+- D1–D13과 설계의 미해결 질문에 대한 **팀원 검토**.
