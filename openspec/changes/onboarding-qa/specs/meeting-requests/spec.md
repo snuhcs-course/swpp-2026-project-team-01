@@ -20,3 +20,11 @@ The service SHALL let a guest offer a calendar screenshot as an optional source 
 #### Scenario: Private image contents
 - **WHEN** a host or an agent reads the request after a guest uploads a screenshot
 - **THEN** the image and its unconfirmed or private extracted contents are absent from their projections
+
+#### Scenario: OCR suggests visible free time
+- **WHEN** a configured extractor finds clear free ranges in a day or week screenshot
+- **THEN** those ranges are preselected only in the guest's editable review, and no availability is saved until the guest confirms them
+
+#### Scenario: OCR is unavailable or the request reaches its budget
+- **WHEN** extraction is disabled, the provider fails, or three attempts have been reserved for the request
+- **THEN** no image-derived availability is saved and the guest can enter free times manually

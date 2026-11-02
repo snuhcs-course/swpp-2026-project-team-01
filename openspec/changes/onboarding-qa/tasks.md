@@ -12,6 +12,7 @@
 - [ ] 2.2 Add **Upload calendar screenshot**, preview, remove, pending and unavailable states to the Calendar card while keeping Google and manual paths; verify browser tests use the keyboard, cancel the image, and enter manual availability when extraction is unavailable.
 - [ ] 2.3 Add the review of extracted busy/free interpretation, dates, timezone and editable windows, applying only confirmed windows with the current revision; verify tests cover ambiguity, stale revision, no automatic evaluation, and no image or private event contents in host or agent projections.
 - [ ] 2.4 Document the optional screenshot path, its accepted PNG/JPEG/WebP and 10 MB limit, privacy behavior and manual fallback in the guest booking flow and Korean mirror; verify the documents link to this change and describe the production OCR dependency without claiming live extraction works.
+- [ ] 2.5 Connect server-side OpenAI vision extraction under an explicit environment flag and the shared durable spending allowance; verify mocked structured outputs, request-scoped attempt limits, no raw event text in saved state, the public privacy notice in both languages, and a controlled synthetic-image live call before enabling OCR remotely.
 
 ## 3. Candidate readability (QA 8)
 

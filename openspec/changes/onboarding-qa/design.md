@@ -8,7 +8,7 @@ See the [proposal](proposal.md) for the QA findings. The guest flow is one conve
 
 **Goals:** Keep one request and thread through identity retries; make screenshot-based availability an optional, review-before-apply path; shorten the candidate card without changing feasibility or ranking; verify host and guest onboarding against the ink design.
 
-**Non-Goals:** Select, purchase, configure or deploy a production OCR provider; infer free time automatically from an ambiguous image; change candidate generation, scoring, Google consent or host approval; duplicate issue #43's app-wide migration or issue #49's broader guest redesign.
+**Non-Goals:** Infer free time automatically from an ambiguous image or save it without review; change candidate generation, scoring, Google consent or host approval; duplicate issue #43's app-wide migration or issue #49's broader guest redesign.
 
 ## Decisions
 
@@ -20,7 +20,7 @@ Reproduce the reported Enter path in a browser and record the request/response c
 
 Add a labeled file input to the guest Calendar card, separate from **Connect Google Calendar** and **Skip for now**. Accept PNG, JPEG and WebP images up to 10 MB; validate signature, type and decoded size on the server as well as the browser. Show a local preview with remove/cancel, upload progress and an explicit reading status. A request-scoped same-origin endpoint receives the image only under current booking-link authority, limits request size, and does not persist image bytes or raw OCR text. The extraction adapter has a fake implementation for tests and a production implementation only after a provider is selected and configured. If unavailable, the card says automatic reading is unavailable and points to the existing manual availability editor. Do not send images or extracted event titles to the assistant, host or logging pipeline.
 
-The adapter returns candidate date/time marks with confidence and source bounds, not request mutations. The review card asks whether marked blocks mean busy or free, shows each inferred window with date and timezone, and makes ambiguous entries editable or removable. Only a guest confirmation invokes the same revision-guarded availability update used for manual windows; a stale revision reloads current state before another confirmation. An alternative of saving OCR output immediately could misread busy blocks as free, so it is rejected. The exact provider and its data-retention terms are a separate decision before live extraction is enabled.
+The production adapter sends one image and the guest's IANA timezone to OpenAI `gpt-5.6-terra` via the Responses API with `store: false`, a strict date/time-only schema and a 30-second deadline. It uses a server-only `CALENDAR_OCR_API_KEY` or `OPENAI_API_KEY` and never logs the image or raw provider response. `CALENDAR_OCR_ENABLED` keeps live extraction off until an environment-specific provider gate and synthetic test are complete. The adapter returns candidate date/time marks, not request mutations. Clearly free marks are preselected only in the review card; busy and unknown marks are ignored by default. The guest checks each inferred window, its date and timezone and can edit or ignore it. Only guest confirmation invokes the same revision-guarded availability update used for manual windows; a stale revision reloads current state before another confirmation. An alternative of saving OCR output immediately could misread busy blocks as free, so it is rejected. A live provider test, budget verification and the provider activation gate are required before relying on remote OCR.
 
 ### 3. Reveal existing candidates in batches
 
@@ -35,14 +35,14 @@ Use the tokens, type, component recipes and accessibility rules already defined 
 - **The reported identity error lacks a captured response** → reproduce it first; use the observed failure path to choose the smallest fix and retain the current command and retry semantics.
 - **A screenshot can expose private event details** → keep bytes and raw extraction transient, authorize the request before processing, redact telemetry, and save only guest-confirmed windows.
 - **A calendar image may not identify timezone or whether marks are busy** → require explicit interpretation and offer manual entry; never turn uncertainty into free time.
-- **No OCR provider is configured** → exercise the complete upload/review path against a fake adapter, show an honest unavailable state in production, and track provider selection and credentials separately.
+- **The key may be absent or OCR may fail** → exercise the upload/review path against a fake adapter and a mocked OpenAI response, then show an honest manual fallback. Do not claim live OCR accuracy without a controlled test on a synthetic image.
 - **Theme work overlaps #43 and #49** → do shared token migration once in those owners, then run this change's onboarding QA against the integrated result.
 
 ## Migration Plan
 
-No existing request data needs migration. Land the identity and candidate fixes independently of screenshot extraction. The upload control can ship with an unavailable/manual fallback until a reviewed OCR adapter is configured. Apply ink tokens through issue #43's shared theme work, then verify onboarding screens and update `DESIGN.md`'s known gaps only when the relevant surfaces are actually migrated. Rollback can disable image extraction while retaining manual availability; UI fixes do not change stored request data.
+No existing request data needs migration. Land the identity and candidate fixes independently of screenshot extraction. The upload control falls back to manual availability when the web runtime has no OCR key or the provider fails. Apply ink tokens through issue #43's shared theme work, then verify onboarding screens and update `DESIGN.md`'s known gaps only when the relevant surfaces are actually migrated. Rollback sets `CALENDAR_OCR_ENABLED=false` while retaining manual availability; UI fixes do not change stored request data.
 
 ## Open Questions
 
-- Which OCR provider, credentials, cost ceiling and retention terms will be approved for production? This is intentionally outside this change and does not affect the upload/review contract.
+- Has a controlled live request confirmed `gpt-5.6-terra` access, OCR quality on representative synthetic day/week screenshots, budget and deployment-specific credentials? Local mocked tests do not establish those conditions.
 - What exact error response appears in QA item 5? Capture it during reproduction; the contract and task order do not depend on its current unknown cause.

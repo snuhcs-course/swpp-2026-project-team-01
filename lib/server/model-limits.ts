@@ -3,8 +3,10 @@ import { type LanguageModel, type LanguageModelMiddleware, wrapLanguageModel } f
 import { database, type Database } from "./database";
 
 // The model limit middleware (design decision 6). Wrapping the agent's model with
-// limitModel puts every provider request through it, including eve's retries and
-// compaction calls, because they all use the same model. Per attempt, in order:
+// limitModel puts agent provider requests through it, including eve's retries
+// and compaction calls. Calendar screenshot OCR reserves through the same
+// allowance table with reserveCalendarOcr before its direct vision call.
+// Per agent attempt, in order:
 //   1. reject serialized input over 128 KiB, attachments and provider-executed
 //      tools;
 //   2. attribute the call: a conversation call by its prompt cache key (the
@@ -25,6 +27,7 @@ import { database, type Database } from "./database";
 export const MODEL_LIMITS = {
   attemptReservationUsd: "0.60",
   conversationAttempts: 8,
+  calendarOcrAttempts: 3,
   conversationOutputTokens: 4096,
   // A non-streamed call has no chunks to be idle between, so it gets one total
   // deadline instead, long enough for a full reasoning response.
@@ -93,7 +96,7 @@ type InnerModel = Parameters<NonNullable<Middleware["wrapGenerate"]>>[0]["model"
 type Attribution = {
   readonly principal: Principal;
   readonly sessionId: string | null;
-  readonly work: { readonly kind: "conversation_input" | "ranking_check"; readonly id: string };
+  readonly work: { readonly kind: "conversation_input" | "ranking_check" | "calendar_ocr"; readonly id: string };
 };
 
 // Lock keys, taken in this order: work item, principal, anonymous (requests,
@@ -173,7 +176,7 @@ async function attribute(db: Database, params: CallOptions, ranking: RankingWork
 
 async function reserve(db: Database, attribution: Attribution, limits: ModelLimits) {
   const { principal, sessionId, work } = attribution;
-  const attemptCap = work.kind === "ranking_check" ? limits.rankingAttempts : limits.conversationAttempts;
+  const attemptCap = work.kind === "ranking_check" ? limits.rankingAttempts : work.kind === "calendar_ocr" ? limits.calendarOcrAttempts : limits.conversationAttempts;
 
   await db.begin(async (tx) => {
     await tx`select pg_advisory_xact_lock(hashtextextended(${`app.model_allowance:work:${work.kind}:${work.id}`}, 0))`;
@@ -271,6 +274,17 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
          ${limits.attemptReservationUsd}::numeric, ${usage!.window_start}, ${anonymous})
     `;
   });
+}
+
+// A screenshot is an explicit request-scoped provider attempt. Reserve before
+// sending bytes so retries, failed calls and concurrent uploads share the same
+// principal, anonymous and service allowance as other model work.
+export async function reserveCalendarOcr(db: Database, requestId: string) {
+  await reserve(db, {
+    principal: { type: "requester_request", id: requestId },
+    sessionId: null,
+    work: { kind: "calendar_ocr", id: requestId },
+  }, MODEL_LIMITS);
 }
 
 // The caller's options with the enforced limits applied over anything it asked for.

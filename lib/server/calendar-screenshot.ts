@@ -1,6 +1,9 @@
-import { MAX_CALENDAR_IMAGE_BYTES, type ScreenshotMark } from "../contracts/calendar-screenshot";
+import { MAX_CALENDAR_IMAGE_BYTES } from "../contracts/calendar-screenshot";
+import { isValidTimeZone } from "../contracts/timezone";
+import { createOpenAiCalendarExtractor } from "./calendar-screenshot-openai";
 import { REQUESTER_HEADERS, requesterJson, requestUnavailable } from "./confirmation-routes";
 import { database, type Database } from "./database";
+import { ModelLimitError, reserveCalendarOcr } from "./model-limits";
 import { openRequester } from "./requester-routes";
 import { appOriginsFromEnvironment, crossSiteRefusal, type AppOrigins } from "./same-origin";
 import { z } from "zod";
@@ -38,14 +41,14 @@ export function validateCalendarImage(bytes: Uint8Array, claimedType: string): C
   return type && type === claimedType ? { kind: "valid", type } : { kind: "invalid" };
 }
 
-export type CalendarScreenshotExtractor = (image: Uint8Array, type: CalendarImageType) => Promise<readonly ScreenshotMark[]>;
+export type CalendarScreenshotExtractor = (image: Uint8Array, type: CalendarImageType, timezone: string) => Promise<unknown>;
 export type CalendarScreenshotDependencies = AppOrigins & { readonly db: Database; readonly extract?: CalendarScreenshotExtractor };
 const markSchema = z.object({
   date: z.iso.date(),
   start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   interpretation: z.enum(["busy", "free", "unknown"]),
-});
+}).strict().refine((mark) => mark.start < mark.end);
 
 async function boundedFormData(request: Request) {
   const reader = request.body?.getReader();
@@ -69,13 +72,17 @@ async function boundedFormData(request: Request) {
 }
 
 export function createCalendarScreenshotHandler(
-  load: () => CalendarScreenshotDependencies = () => ({ ...appOriginsFromEnvironment(), db: database() }),
+  load: () => CalendarScreenshotDependencies = () => {
+    const apiKey = process.env.CALENDAR_OCR_API_KEY || process.env.OPENAI_API_KEY;
+    return { ...appOriginsFromEnvironment(), db: database(), extract: process.env.CALENDAR_OCR_ENABLED === "true" && apiKey ? createOpenAiCalendarExtractor({ apiKey }) : undefined };
+  },
 ) {
   return async (request: Request, context: { params: Promise<{ bookingId: string }> }) => {
     const deps = load();
     const refused = crossSiteRefusal(request, deps, { json: false });
     if (refused) return new Response(refused.body, { headers: REQUESTER_HEADERS, status: refused.status });
-    if (!(await openRequester(deps.db, (await context.params).bookingId))) return requestUnavailable();
+    const requester = await openRequester(deps.db, (await context.params).bookingId);
+    if (!requester) return requestUnavailable();
     if (!request.headers.get("content-type")?.startsWith("multipart/form-data;")) return requesterJson({ error: "Select a PNG, JPEG or WebP image." }, 415);
     const length = Number(request.headers.get("content-length"));
     if (Number.isFinite(length) && length > MAX_CALENDAR_IMAGE_BYTES + 1024) return requesterJson({ error: "Use an image under 10 MB." }, 413);
@@ -83,6 +90,8 @@ export function createCalendarScreenshotHandler(
     if (form === "too_large") return requesterJson({ error: "Use an image under 10 MB." }, 413);
     const file = form?.get("image");
     if (!(file instanceof File)) return requesterJson({ error: "Select a calendar screenshot." }, 400);
+    const timezone = form?.get("timezone");
+    if (typeof timezone !== "string" || timezone.length > 64 || !isValidTimeZone(timezone)) return requesterJson({ error: "Choose a valid time zone before reading the screenshot." }, 400);
     if (file.size > MAX_CALENDAR_IMAGE_BYTES) return requesterJson({ error: "Use an image under 10 MB." }, 413);
     const bytes = new Uint8Array(await file.arrayBuffer());
     const validation = validateCalendarImage(bytes, file.type);
@@ -90,7 +99,13 @@ export function createCalendarScreenshotHandler(
     if (validation.kind !== "valid") return requesterJson({ error: "Select a valid PNG, JPEG or WebP image." }, 415);
     if (!deps.extract) return requesterJson({ error: "Automatic reading is unavailable. Enter your free times manually." }, 503);
     try {
-      const extracted = await deps.extract(bytes, validation.type!);
+      await reserveCalendarOcr(deps.db, requester.id);
+    } catch (cause) {
+      if (cause instanceof ModelLimitError) return requesterJson({ error: "Screenshot reading is limited for this request right now. Enter your free times manually." }, 429);
+      return requesterJson({ error: "Screenshot reading is unavailable. Enter your free times manually." }, 503);
+    }
+    try {
+      const extracted = await deps.extract(bytes, validation.type!, timezone);
       const marks = z.array(markSchema).max(50).parse(extracted);
       return requesterJson({ marks });
     } catch {

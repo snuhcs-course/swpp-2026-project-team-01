@@ -1,12 +1,13 @@
 -- Model allowance, reserved durably before every provider attempt and never
 -- released: a failed or uncertain attempt stays charged. Attempts are counted per
--- work item (an accepted conversation input or a ranking check), and spend per
+-- work item (an accepted conversation input, a ranking check or a request's
+-- calendar screenshot OCR), and spend per
 -- principal and service-wide in fixed 24-hour windows. `anonymous` marks spend
 -- that counts toward the anonymous allowance: an intake's, and a request's while
 -- its contact is unconfirmed and it has no live Google identity grant.
 CREATE TABLE "app"."model_reservations" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "work_kind" text NOT NULL CHECK ("work_kind" IN ('conversation_input', 'ranking_check')),
+  "work_kind" text NOT NULL CHECK ("work_kind" IN ('conversation_input', 'ranking_check', 'calendar_ocr')),
   "work_id" uuid NOT NULL,
   "principal_type" text NOT NULL CHECK ("principal_type" IN ('host_account', 'requester_request', 'public_intake')),
   "principal_id" uuid NOT NULL,

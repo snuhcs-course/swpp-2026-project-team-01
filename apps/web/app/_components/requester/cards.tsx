@@ -151,6 +151,7 @@ export function ConnectCalendarCard({ context }: { readonly context: RequesterCa
     try {
       const form = new FormData();
       form.set("image", file);
+      form.set("timezone", context.timezone);
       const response = await fetch(`/api/requests/${context.bookingId}/calendar-screenshot`, { method: "POST", body: form });
       const body = await response.json() as { marks?: ScreenshotMark[]; error?: string };
       if (!response.ok) throw new Error(body.error ?? "The screenshot could not be read.");
@@ -189,7 +190,7 @@ export function ConnectCalendarCard({ context }: { readonly context: RequesterCa
       <div className="flex flex-col gap-2 border-t border-border pt-3">
         <label className="font-medium" htmlFor="calendar-screenshot">Upload calendar screenshot (optional)</label>
         <input accept="image/png,image/jpeg,image/webp" className="min-h-11 max-w-full text-sm file:mr-3 file:rounded-md file:border file:border-border file:bg-background file:px-3 file:py-2" id="calendar-screenshot" onChange={(event) => choose(event.target.files?.[0])} ref={inputRef} type="file" />
-        <p className="text-muted-foreground">PNG, JPEG or WebP, up to 10 MB. Nothing is saved until you review free times.</p>
+        <p className="text-muted-foreground">Use a day or week view with visible date and hour labels. PNG, JPEG or WebP, up to 10 MB. The image is sent to OpenAI for reading and is not saved here. Remove private event details before uploading. Review suggested free times before saving any availability.</p>
         {preview ? <img alt="Selected calendar screenshot" className="max-h-48 max-w-full rounded-lg border border-border object-contain" src={preview} /> : null}
         {file ? <p className="break-all">Selected: {file.name}</p> : null}
         {file ? <GuestCardActions><Button disabled={reading} onClick={() => void readScreenshot()} type="button">{reading ? "Reading screenshot..." : "Read screenshot"}</Button><Button onClick={() => { setFile(null); setMarks(null); setError(null); if (inputRef.current) inputRef.current.value = ""; }} type="button" variant="outline">Remove image</Button></GuestCardActions> : null}
@@ -202,9 +203,9 @@ export function ConnectCalendarCard({ context }: { readonly context: RequesterCa
 }
 
 function ScreenshotReview({ context, marks, onError }: { readonly context: RequesterCardContext; readonly marks: readonly ScreenshotMark[]; readonly onError: (message: string) => void }) {
-  const [rows, setRows] = useState(() => marks.map((mark) => ({ ...mark, free: false })));
+  const [rows, setRows] = useState(() => marks.map((mark) => ({ ...mark, free: mark.interpretation === "free" })));
   const [busy, setBusy] = useState(false);
-  useEffect(() => setRows(marks.map((mark) => ({ ...mark, free: false }))), [marks]);
+  useEffect(() => setRows(marks.map((mark) => ({ ...mark, free: mark.interpretation === "free" }))), [marks]);
   function change(index: number, patch: Partial<(typeof rows)[number]>) {
     setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row));
   }
@@ -220,7 +221,7 @@ function ScreenshotReview({ context, marks, onError }: { readonly context: Reque
   }
   return <fieldset className="flex flex-col gap-2 rounded-lg border border-border p-3">
     <legend className="font-medium">Review the screenshot in {context.timezone}</legend>
-    <p>Check only times you are free. Marked blocks may be busy; nothing is applied automatically.</p>
+    <p>Suggested free times are preselected. Check every date and time, remove any that are not free, then confirm. Nothing is applied automatically.</p>
     {rows.map((row, index) => <div className="grid min-w-0 grid-cols-2 gap-2 rounded-md border border-border p-2" key={index}>
       <label className="col-span-2 flex flex-col gap-1">Interpretation
         <select className="min-h-11 rounded-md border border-input bg-background px-2" onChange={(event) => change(index, { free: event.target.value === "free" })} value={row.free ? "free" : "ignore"}>
