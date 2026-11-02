@@ -1,25 +1,21 @@
 import { randomUUID } from "node:crypto";
 import type { Locator, Page } from "@playwright/test";
-import { askForIdentityForTool, draftRequestReviewForTool } from "../../lib/server/request-tools";
-import { MONDAY } from "../integration/support/scheduling";
-import { readyRequestHost } from "./support/requester";
+import { readyRequestHost, runEvaluations } from "./support/requester";
 import { expect as baseExpect, test } from "./support/session";
 
-// The guest's two Google buttons reach the consent screen and come back to the
-// same thread (guest-flow-completion task 1.1): **Continue with Google** on the
-// identity card at /{handle} and **Connect Google Calendar** on the calendar
-// card at /booking/[bookingId], both plain form posts to
-// /connections/google/start, which answers with a redirect to the consent
-// screen. The fake Google is that screen and approves at once. The consent
-// answer is one value on the fake server, so the tests in this file run one
-// at a time.
+// The guest's two Google buttons reach the consent screen and come back
+// (guest-flow-completion task 1.1, U7, U10, U13): **Continue with Google** on the
+// web start of /{handle}, which writes the hidden draft and posts it to
+// /connections/google/start, and **Connect Google Calendar** on the booking
+// page after the Calendar receipt's **Change**. Both are plain form posts that
+// /connections/google/start answers with a redirect to the consent screen. The
+// fake Google is that screen and approves at once. The consent answer is one
+// value on the fake server, so the tests in this file run one at a time.
 
 test.use({ locale: "en-US", timezoneId: "Asia/Seoul" });
 test.describe.configure({ mode: "serial" });
 
 const expect = baseExpect.configure({ timeout: 30_000 });
-
-type Database = Parameters<typeof readyRequestHost>[0];
 
 const FAKE_GOOGLE_ORIGIN = `http://127.0.0.1:${process.env.FAKE_GOOGLE_PORT ?? "3103"}`;
 
@@ -30,16 +26,23 @@ async function nextConsent(consent: object) {
 }
 
 // Moves focus with Tab until the focused control's accessible name matches,
-// then activates it with Enter.
-async function press(page: Page, name: RegExp) {
+// then activates it with the key (Enter by default).
+async function press(page: Page, name: RegExp, key = "Enter") {
   for (let step = 0; step < 150; step += 1) {
     const focused = await page.evaluate(() => {
       const element = document.activeElement as HTMLElement | null;
       if (!element || element === document.body) return "";
-      return (element.getAttribute("aria-label") ?? element.textContent ?? "").trim();
+      const labelled = element.getAttribute("aria-labelledby");
+      const wrapping = element.closest("label");
+      return (
+        element.getAttribute("aria-label") ??
+        (labelled ? document.getElementById(labelled)?.textContent : null) ??
+        (element.textContent || wrapping?.textContent) ??
+        ""
+      ).trim();
     });
     if (name.test(focused)) {
-      await page.keyboard.press("Enter");
+      await page.keyboard.press(key);
       return;
     }
     await page.keyboard.press("Tab");
@@ -57,23 +60,6 @@ async function typeInto(page: Page, field: Locator, text: string) {
   await page.keyboard.type(text);
 }
 
-// The draft the first message started, and its live session.
-async function draftOf(db: Database, hostAccountId: string) {
-  let row: { id: string; session_id: string } | undefined;
-  await expect
-    .poll(async () => {
-      [row] = await db<{ id: string; session_id: string }[]>`
-        select r.id, s.session_id from app.requests r
-        join app.discussions d on d.principal_type = 'requester_request' and d.principal_id = r.id
-        join app.agent_sessions s on s.discussion_id = d.id and s.state = 'active'
-        where r.host_account_id = ${hostAccountId}
-      `;
-      return Boolean(row);
-    })
-    .toBe(true);
-  return row!;
-}
-
 for (const viewport of [
   { height: 844, width: 390 },
   { height: 900, width: 1280 },
@@ -84,32 +70,24 @@ for (const viewport of [
     const host = await readyRequestHost(db, "Ada Lovelace");
     const email = `grace-${randomUUID().slice(0, 8)}@example.test`;
     const identity = { email, email_verified: true, name: "Grace Hopper", sub: `e2e-${randomUUID()}` };
-    const message = "I'd like 30 minutes online next Monday morning to talk about compilers.";
+    const requests = async () =>
+      (await db<{ count: number }[]>`select count(*)::int as count from app.requests where host_account_id = ${host.hostAccountId}`)[0]!.count;
 
     await page.goto(`/${host.handle}`);
-    await typeInto(page, page.getByLabel("Message Thyme", { exact: true }), message);
-    await page.keyboard.press("Enter");
-    await expect(page.getByText("Hello from Thyme.").first()).toBeVisible();
+    await press(page, /^Continue with web$/);
+    await expect(page.getByRole("heading", { name: "How should the host reach you?" })).toBeVisible();
+    expect(await requests()).toBe(0);
 
-    // The model drafts the details and asks for a name and email, through the
-    // real tool functions; the next turn opens the identity card.
-    const draft = await draftOf(db, host.hostAccountId);
-    const call = () => ({
-      auth: { attributes: { audience: "requester" }, principalId: `request:${draft.id}`, principalType: "user" },
-      callId: randomUUID(),
-      sessionId: draft.session_id,
-    });
-    await draftRequestReviewForTool(db, call(), {
-      details: { durationMinutes: 30, mode: "online", purpose: "Talk about compilers", windows: [{ date: MONDAY, end: "11:00", start: "10:00" }] },
-      intent: "details",
-    });
-    await askForIdentityForTool(db, call());
-    await typeInto(page, page.getByLabel("Message Thyme", { exact: true }), "Does that work?");
-    await page.keyboard.press("Enter");
-    await expect(page.getByRole("heading", { name: "How should the host reach you?" })).toBeFocused();
+    // Cancelling the consent returns to the web start with nothing identified.
+    await nextConsent({ decision: "deny" });
+    await press(page, /^Continue with Google$/);
+    await expect(page).toHaveURL(new RegExp(`/${host.handle}$`));
+    await expect(page.getByText("Google sign-in was cancelled.", { exact: false })).toBeVisible();
+    const [draft] = await db<{ id: string; state: string }[]>`select id, state from app.requests where host_account_id = ${host.hostAccountId}`;
+    expect(draft!.state).toBe("draft");
 
-    // Continue with Google, granting the name and email but not the calendar,
-    // so the calendar card asks again later.
+    // Continue with Google again, granting the name and email but not the
+    // calendar: the same draft is identified.
     await nextConsent({
       decision: "approve",
       identity,
@@ -117,17 +95,31 @@ for (const viewport of [
     });
     await press(page, /^Continue with Google$/);
 
-    // Back in the same thread, now at the booking link.
-    await expect(page).toHaveURL(/\/booking\/[0-9a-f-]{36}\?google=identified$/);
-    await expect(page.getByText("Google filled in your name and email. Your request continues here.")).toBeVisible();
-    await expect(page.getByText(message)).toBeVisible();
+    await expect(page).toHaveURL(/\/booking\/[0-9a-f-]{36}$/);
+    await expect(page.getByText("Google filled in your name and email.")).toBeVisible();
     await expect(page.locator('[data-guest-card="identity"]').getByText(`Grace Hopper · ${email}`)).toBeVisible();
-    const [identified] = await db<{ state: string }[]>`select state from app.requests where id = ${draft.id}`;
-    expect(identified).toEqual({ state: "gathering" });
+    const [identified] = await db<{ id: string; state: string }[]>`select id, state from app.requests where host_account_id = ${host.hostAccountId}`;
+    expect(identified).toEqual({ id: draft!.id, state: "gathering" });
+    await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
 
-    // A page load starts focus at the top; the open card is the drafted details.
+    // U13: the fixed question opens the composer; the assistant's drafted review
+    // (recorded as its tool would, the model being the local stand-in) is
+    // applied, which finds times without the guest's calendar.
+    await typeInto(page, page.getByPlaceholder("Write to Thyme"), "Talk about compilers, online.");
+    const [{ revision }] = await db<{ revision: number }[]>`select revision from app.requests where id = ${identified!.id}`;
+    await db`
+      insert into app.request_reviews (request_id, base_revision, intent, patch, clarifications)
+      values (${identified!.id}, ${revision}, 'details', ${db.json({ mode: "online", purpose: "Talk about compilers" })}, ${[]})
+    `;
+    await page.keyboard.press("Enter");
     await expect(page.getByRole("heading", { name: "Apply these details?" })).toBeVisible();
     await press(page, /^Apply these details$/);
+    await expect.poll(() => runEvaluations(db, identified!.id)).toBe(1);
+    await expect(page.getByRole("heading", { name: "Choose a time" })).toBeVisible();
+
+    // Change on the Calendar receipt offers the Calendar card.
+    await press(page, /^Change your calendar$/);
+    await expect(page.getByRole("heading", { name: "Check your Google Calendar for times?" })).toBeVisible();
 
     // Connect Google Calendar, granting the calendar this time; its refresh
     // token reads one primary calendar.
@@ -148,9 +140,8 @@ for (const viewport of [
     });
     await press(page, /^Connect Google Calendar$/);
 
-    await expect(page).toHaveURL(/\/booking\/[0-9a-f-]{36}\?google=connected$/);
+    await expect(page).toHaveURL(/\/booking\/[0-9a-f-]{36}$/);
     await expect(page.getByText("Google is connected for this request.")).toBeVisible();
-    await expect(page.getByText(message)).toBeVisible();
     await expect(page.getByRole("heading", { name: "Which calendars should count?" })).toBeVisible();
     await expect(page.getByText("Grace's calendar")).toBeVisible();
   });

@@ -220,7 +220,7 @@ describe("a guest's notices", () => {
     expect(texts.join("\n")).not.toContain(request.bookingId);
   });
 
-  it("tells the guest the meeting is booked, ends the binding, and answers later messages once", async () => {
+  it("tells the guest the meeting is booked, keeps the binding, and forwards later questions (U18)", async () => {
     const sender = newSender();
     const request = await agreedRequest(db, google);
     await linkGuest(sender, request.requestId);
@@ -233,17 +233,14 @@ describe("a guest's notices", () => {
     const since = await outboxOf(sender);
     await runGuestNotice(request.requestId, { bookingId: approved.result.bookingId, kind: "booking_confirmation" });
     const [text] = await sentTo(sender, since);
-    expect(text).toMatch(/^Booked with Ada Lovelace: .+\. The invitation and details are in your email\.$/);
+    expect(text).toMatch(/^Booked with Ada Lovelace: .+\. The invitation is in your email\. Ask here anytime about the time or place\.$/);
     expect(text).not.toContain(request.bookingId);
     const [binding] = await db<{ state: string }[]>`select state from app.requester_imessage_bindings where request_id = ${request.requestId}`;
-    expect(binding!.state).toBe("ended");
+    expect(binding!.state).toBe("active");
 
-    // A later message gets the closed notice, once.
-    const closed = await outboxOf(sender);
-    expect((await im.deliver({ sender, text: "When is it again?" })).outcome).toBe("replied");
-    expect((await im.deliver({ sender, text: "Anyone?" })).outcome).toBe("ignored");
-    expect(await sentTo(sender, closed)).toEqual([GUEST_TEXTS.closed]);
-    expect(await guestInputs(request.requestId)).toHaveLength(0);
+    // A later question reaches the booked request's discussion.
+    expect((await im.deliver({ sender, text: "When is it again?" })).outcome).toBe("forwarded");
+    expect(await guestInputs(request.requestId)).toHaveLength(1);
   });
 
   it("sends nothing to a guest who unlinked, and their text goes nowhere", async () => {

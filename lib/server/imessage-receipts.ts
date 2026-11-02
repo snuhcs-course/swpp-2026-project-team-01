@@ -25,7 +25,7 @@ import { IMESSAGE_RECEIPT_JOB, receiptSealContext } from "./photon-receiver";
 import { emailSourceHash } from "./email-receipts";
 import { requesterBindingContext } from "./requester-imessage-bindings";
 import { type CreationLimits } from "./request-start";
-import { isRevisable, reviseClosedRequest, revisedSummary } from "./revised-requests";
+import { isRevisable, readRevisedSummary, reviseClosedRequest } from "./revised-requests";
 import { type SetupDependencies, setupDependenciesFromEnvironment } from "./setup";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -280,7 +280,7 @@ export type ChannelProcessor = (tx: Transaction, deps: ImessageReceiptDependenci
 // A guest's message (guest-flow-completion design 3)
 
 export const GUEST_TEXTS = {
-  closed: "This request is closed, so messages here no longer reach Thyme. Your booking page, linked in your email, shows its final status.",
+  closed: "This request is closed, so messages here no longer reach Thyme.",
   switched: (host: string) => `Now talking about your request with ${host}.`,
   tooLong: "That message is too long for Thyme. Please send a shorter one.",
 } as const;
@@ -376,9 +376,10 @@ async function guestReply(
 }
 
 // The guest's message: a switch is answered; content other than text gets one
-// fixed reply; a declined or expired request's message starts a revised
-// request (design 5) and goes there; any other closed request's binding
-// answers once with the closed notice; text is forwarded into the request's
+// fixed reply; a declined, expired or withdrawn request's message starts a
+// revised request (design 5, U16) and goes there, or gets the closed notice
+// once when none can be made; a booked request's text is forwarded like an
+// open one's (U18); text is forwarded into the request's
 // requester discussion as an accepted input keyed by the receipt, and the
 // turn's final text is the reply.
 async function guestMessage(
@@ -387,8 +388,10 @@ async function guestMessage(
   receipt: OpenedReceipt,
   route: { binding: GuestBinding; switched: boolean },
 ): Promise<ReceiptOutcome> {
+  // A booked request stays reachable for questions about its meeting (U18).
   const [request] = await tx<{ open: boolean; state: string; host_name: string | null }[]>`
-    select r.closed_at is null and r.expires_at > now() as open, r.state, s.settings ->> 'displayName' as host_name
+    select (r.closed_at is null and r.expires_at > now()) or r.state = 'booked' as open, r.state,
+           s.settings ->> 'displayName' as host_name
     from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
     where r.id = ${route.binding.request_id}
   `;
@@ -440,7 +443,7 @@ async function closedNotice(tx: Transaction, deps: ImessageReceiptDependencies, 
   return created ? ("replied" as const) : ("ignored" as const);
 }
 
-// A revised request for the declined or expired one, created or found, then
+// A revised request for the declined, expired or withdrawn one, created or found, then
 // its opening summary and the guest's message in its discussion. A refusal
 // (the host unavailable, the chain full, the bounds) answers with the closed
 // notice and creates nothing.
@@ -456,10 +459,7 @@ async function revise(tx: Transaction, deps: ImessageReceiptDependencies, receip
   );
   if (outcome.kind === "refused" || !outcome.bindingId) return closedNotice(tx, deps, receipt, binding);
 
-  const [earlier] = await tx<{ id: string; state: string; details: Parameters<typeof revisedSummary>[0]["details"] }[]>`
-    select id, state, details from app.requests where id = ${binding.request_id}
-  `;
-  const accepted = await acceptRevisedSummary(deps, outcome.requestId, revisedSummary(earlier!));
+  const accepted = await acceptRevisedSummary(deps, outcome.requestId, (await readRevisedSummary(tx, binding.request_id))!);
   if (accepted !== "accepted") return accepted;
   return forwardGuest(tx, deps, receipt, { id: outcome.bindingId, request_id: outcome.requestId }, text);
 }

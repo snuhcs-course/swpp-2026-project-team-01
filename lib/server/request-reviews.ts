@@ -76,6 +76,8 @@ export const reviewPatchSchema = z
     linkPlan: linkPlanSchema.optional(),
     windows: z.array(isoWindow).min(1).max(10).optional(),
     travelMode: z.enum(REQUESTER_TRAVEL_MODES).optional(),
+    // Only from a guest-host's Basic details (guest-flow-completion design 6).
+    timezone: z.string().refine(isValidTimeZone).optional(),
     contactName: z.string().trim().max(200).optional(),
     contactEmail: z.string().trim().max(320).optional(),
   })
@@ -107,7 +109,8 @@ export type PatchProblem =
   | "missing_clarification"
   | "unsupported_clarification"
   | "invalid_contact"
-  | "awaiting_host_approval";
+  | "awaiting_host_approval"
+  | "excluded_window";
 
 // Converts a local patch to a stored one in `timeZone`. A local time a clock
 // change repeats or skips, or a date that does not exist, rejects the whole
@@ -156,6 +159,16 @@ export function checkWindows(details: Partial<RequestDetails>, patch: ReviewPatc
   }
 
   return null;
+}
+
+// Whether a window the patch proposes lies wholly inside the times the host no
+// longer has (U17), so the assistant says so before drafting it rather than after
+// a search that finds nothing.
+function excludedWindowProblem(details: Partial<RequestDetails>, patch: ReviewPatch): PatchProblem | null {
+  const excluded = details.excludedTimes ?? [];
+  const inside = (window: RequestWindow) =>
+    excluded.some((time) => Date.parse(time.start) <= Date.parse(window.start) && Date.parse(window.end) <= Date.parse(time.end));
+  return (patch.windows ?? []).some(inside) ? "excluded_window" : null;
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -365,7 +378,10 @@ export function draftReviewCommand(
 
       if (patch) {
         const problem =
-          checkWindows(request.details, patch, await clock(tx)) ?? draftContactProblem(request, patch) ?? contactProblem(patch, { draft: true });
+          checkWindows(request.details, patch, await clock(tx)) ??
+          excludedWindowProblem(request.details, patch) ??
+          draftContactProblem(request, patch) ??
+          contactProblem(patch, { draft: true });
         if (problem) return reject(problem);
       }
 

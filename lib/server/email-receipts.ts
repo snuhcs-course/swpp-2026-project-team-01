@@ -30,7 +30,7 @@ import { findReadyHostByHandle } from "./readiness";
 import { assertMessagingAdmitted } from "./messaging";
 import { lockOpenRequest } from "./request-guard";
 import { admitCreation, CREATION_LIMITS, type CreationLimits, identifyDraft, insertDraftRequest } from "./request-start";
-import { isRevisable, reviseClosedRequest, revisedSummary } from "./revised-requests";
+import { isRevisable, readRevisedSummary, reviseClosedRequest } from "./revised-requests";
 import { appOriginsFromEnvironment } from "./same-origin";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -44,8 +44,10 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 //   - a message in a bound thread from the bound address is forwarded into the
 //     request's own requester discussion as an accepted input keyed by the
 //     receipt, so a retried job finds the same input, and gets a reply when its
-//     turn ends; another sender's message does nothing (D3), a closed request's
-//     thread gets one closed notice;
+//     turn ends; another sender's message does nothing (D3); a declined,
+//     expired or withdrawn request's thread starts a revised request, or gets
+//     one closed notice when none can be made, and a booked request's message
+//     is forwarded (guest-flow-completion U16, U18);
 //   - a new thread whose subject names a ready host starts a request (D6), and
 //     one that names none gets one fixed reply;
 //   - anything else does nothing.
@@ -175,6 +177,10 @@ async function reply(
   return "replied" as const;
 }
 
+// Forwarded text is marked, as iMessage text is, so the shared transcript and
+// the assistant know it came by email and the reply goes back as plain text.
+export const EMAIL_PREFIX = "[Email] ";
+
 // Forwards the message's text into the request's discussion and records the
 // reply its turn will produce. The message that started a request carries its
 // subject too.
@@ -186,10 +192,11 @@ async function forward(
   first: boolean,
 ): Promise<ReceiptOutcome> {
   const body = newText(message);
-  const text = first && message.subject?.trim() ? `Subject: ${message.subject.trim()}\n\n${body}` : body;
+  const content = first && message.subject?.trim() ? `Subject: ${message.subject.trim()}\n\n${body}` : body;
   const language = messageLanguage(`${message.subject ?? ""} ${body}`);
 
-  if (!text.trim()) return "ignored";
+  if (!content.trim()) return "ignored";
+  const text = `${EMAIL_PREFIX}${content}`;
   if (getChatMessageLengthError(text)) return reply(deps, receipt, "too_long", FIXED_REPLIES.tooLong[language], language, binding);
 
   const principal = { id: binding.request_id, type: "requester_request" as const };
@@ -271,8 +278,8 @@ async function forward(
 // The revised request the thread now belongs to, with its opening summary
 // recorded, or null when the closed request is not revisable or was refused.
 async function revise(deps: EmailReceiptDependencies, receipt: Receipt, binding: Binding) {
-  const [earlier] = await deps.db<{ id: string; state: string; details: Parameters<typeof revisedSummary>[0]["details"] }[]>`
-    select id, state, details from app.requests where id = ${binding.request_id}
+  const [earlier] = await deps.db<{ id: string; state: string }[]>`
+    select id, state from app.requests where id = ${binding.request_id}
   `;
   if (!earlier || !isRevisable(earlier.state)) return null;
 
@@ -291,7 +298,7 @@ async function revise(deps: EmailReceiptDependencies, receipt: Receipt, binding:
     await acceptGuestMessage(
       deps.conversation,
       { id: outcome.requestId, type: "requester_request" },
-      { clientInputId: outcome.requestId, message: revisedSummary(earlier) },
+      { clientInputId: outcome.requestId, message: (await readRevisedSummary(deps.db, earlier.id))! },
     );
   } catch (error) {
     if (!(error instanceof ConversationInputError) || error.code !== "runtime_unavailable") throw error;

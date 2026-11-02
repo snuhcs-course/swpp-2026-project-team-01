@@ -11,12 +11,6 @@ import { limitModel, sessionIdHash } from "../../lib/server/model-limits";
 import { createRequestExpiryHandler, REQUEST_EXPIRY_JOB } from "../../lib/server/request-lifecycle";
 import { CREATION_LIMITS, DRAFT_LIMITS, starterId } from "../../lib/server/request-start";
 import {
-  askForIdentityForTool,
-  draftRequestReviewForTool,
-  evaluateCandidatesForTool,
-  readRequestForTool,
-} from "../../lib/server/request-tools";
-import {
   createRequesterCommandHandler,
   createRequesterMessageHandler,
   createRequesterStateHandler,
@@ -33,20 +27,21 @@ import {
   SIGNING_KEY,
   type Sent,
   sourceAddress,
+  identifiedRequest,
   startDraft,
   startedDraft,
 } from "./support/guests";
 import { runJob, testNotices, uniqueEmail } from "./support/requests";
-import { MONDAY } from "./support/scheduling";
 
-// One guest thread from the first message (task 9.1; design decision 2, D13):
-// request.start with its bounds and retry identity, the draft's message cap,
-// invisibility to the host, expiry and deletion, identity_required on each
-// gated operation, request.identify keeping the same session and sending the
-// creation email, the unconfirmed-request model cap on drafts, and the
-// transcript of an intake from before D13 staying readable. A recording runtime
-// stands in for eve; the session's tool list is covered against a real agent in
-// guest-conversations.
+// The web start and its fixed steps (guest-flow-completion U7 to U10):
+// request.start on Continue with or without Google, with its bounds and retry
+// identity and no message; the hidden draft, which accepts no message, is
+// invisible to the host and is deleted after 24 hours; identity_required on
+// each gated operation; request.identify sending the creation email and
+// settling the Calendar step; the meeting step as the first open card, then
+// Find times with no windows; the unconfirmed-request model cap on drafts; and
+// the transcript of an intake from before D13 staying readable. A recording
+// runtime stands in for eve.
 
 const db = testDatabase();
 
@@ -87,27 +82,18 @@ async function requestRow(requestId: string) {
   return row;
 }
 
-function requesterCall(requestId: string, sessionId: string) {
-  return {
-    auth: { attributes: { audience: "requester" }, principalId: `request:${requestId}`, principalType: "user" },
-    callId: randomUUID(),
-    sessionId,
-  };
-}
-
 describe("request.start", () => {
-  it("starts a draft on the first message with a hashed and sealed link, its discussion and the message as its first input", async () => {
+  it("writes a hidden draft with a hashed and sealed link and its discussion, and sends no message", async () => {
     const host = await readyHost(db);
     const sent: Sent[] = [];
     const deps = guestDependencies(db, { runtime: recordingRuntime(sent) });
     const nonce = randomUUID();
 
-    const response = await startDraft(deps, host.handle, "I'd like to talk about a research collaboration.", { nonce });
-    expect(response.status).toBe(202);
+    const response = await startDraft(deps, host.handle, { nonce });
+    expect(response.status).toBe(201);
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
     expect(response.headers.get("cache-control")).toBe("no-store");
-    const { bookingId, status } = (await response.json()) as { bookingId: string; status: string };
-    expect(status).toBe("sent");
+    const { bookingId } = (await response.json()) as { bookingId: string };
 
     const [request] = await db<
       { contact_email: string | null; details: Record<string, unknown>; expires_at: Date; id: string; link_ciphertext: string; requester_name: string | null; state: string }[]
@@ -122,13 +108,14 @@ describe("request.start", () => {
     // A draft lasts 24 hours.
     expect(Math.abs(request!.expires_at.getTime() - Date.now() - DRAFT_LIMITS.lifetimeHours * 3_600_000)).toBeLessThan(60_000);
 
-    const inputs = await db<{ message: string }[]>`
-      select i.message from app.conversation_inputs i
+    // No message and no session: nothing reaches the model before identification.
+    const [inputs] = await db<{ count: number }[]>`
+      select count(*)::int as count from app.conversation_inputs i
       join app.discussions d on d.id = i.discussion_id
-      where d.principal_type = 'requester_request' and d.principal_id = ${request!.id} and d.audience = 'requester'
+      where d.principal_type = 'requester_request' and d.principal_id = ${request!.id}
     `;
-    expect(inputs.map((input) => input.message)).toEqual(["I'd like to talk about a research collaboration."]);
-    expect(sent.map((entry) => entry.message)).toEqual(["I'd like to talk about a research collaboration."]);
+    expect(inputs!.count).toBe(0);
+    expect(sent).toEqual([]);
 
     // The saved outcome holds no booking link; the actor is the nonce's hash.
     const [outcome] = await db<{ result: unknown }[]>`
@@ -137,36 +124,30 @@ describe("request.start", () => {
     expect(JSON.stringify(outcome!.result)).not.toContain(bookingId);
     expect(JSON.stringify(outcome)).not.toContain(nonce);
 
-    // The tab continues the same draft through the booking identifier.
-    expect((await message(deps, bookingId, "Thirty minutes, online.")).status).toBe(202);
     const state = await call(createRequesterStateHandler(() => deps), { bookingId }, "/state");
     expect(await state.json()).toMatchObject({ contact: null, open: true, request: { state: "draft" }, thread: [] });
   });
 
-  it("creates one draft for a retried first message and charges its bound once", async () => {
+  it("answers the same draft to a retried start, as after a cancelled Google consent, and charges its bound once", async () => {
     const host = await readyHost(db);
     const deps = guestDependencies(db);
     const nonce = randomUUID();
-    const clientInputId = randomUUID();
-    const send = () => startDraft(deps, host.handle, "Hello", { clientInputId, nonce });
+    const send = () => startDraft(deps, host.handle, { nonce });
 
     const [first, second] = await Promise.all([send(), send()]);
     const answers = await Promise.all([first.json(), second.json()]);
-    expect([first.status, second.status]).toEqual([202, 202]);
+    expect([first.status, second.status]).toEqual([201, 201]);
     expect(answers[0].bookingId).toBe(answers[1].bookingId);
-    expect(answers[0].inputId).toBe(answers[1].inputId);
 
-    // A later retry after the response was lost answers the same draft too.
+    // A later retry, as when the guest tries Google again, answers the same draft too.
     const third = await send();
     expect(((await third.json()) as { bookingId: string }).bookingId).toBe(answers[0].bookingId);
 
-    const [counts] = await db<{ creations: number; inputs: number; requests: number }[]>`
+    const [counts] = await db<{ creations: number; requests: number }[]>`
       select (select count(*)::int from app.requests where host_account_id = ${host.hostAccountId}) as requests,
-             (select count(*)::int from app.request_creations where host_account_id = ${host.hostAccountId}) as creations,
-             (select count(*)::int from app.conversation_inputs i join app.discussions d on d.id = i.discussion_id
-               join app.requests r on r.id = d.principal_id where r.host_account_id = ${host.hostAccountId}) as inputs
+             (select count(*)::int from app.request_creations where host_account_id = ${host.hostAccountId}) as creations
     `;
-    expect(counts).toEqual({ creations: 1, inputs: 1, requests: 1 });
+    expect(counts).toEqual({ creations: 1, requests: 1 });
   });
 
   it("bounds drafts to 5 per source an hour, 20 a day and 500 across the service a day", async () => {
@@ -175,16 +156,16 @@ describe("request.start", () => {
     const source = sourceAddress();
 
     for (let index = 0; index < CREATION_LIMITS.perSourceHour; index += 1) {
-      expect((await startDraft(deps, host.handle, "Hello", { source })).status).toBe(202);
+      expect((await startDraft(deps, host.handle, { source })).status).toBe(201);
     }
 
-    const sixth = await startDraft(deps, host.handle, "Hello", { source });
+    const sixth = await startDraft(deps, host.handle, { source });
     expect(sixth.status).toBe(429);
-    expect(await sixth.json()).toEqual({ code: "rate_limited", error: "Too many new conversations from your network right now. Try again later." });
+    expect(await sixth.json()).toEqual({ code: "rate_limited", error: "Too many new requests from your network right now. Try again later." });
 
     // A day's worth from one source, older than an hour.
     const daily = sourceAddress();
-    await startDraft(deps, host.handle, "Hello", { source: daily });
+    await startDraft(deps, host.handle, { source: daily });
     const [hash] = await db<{ source_hash: string }[]>`
       select source_hash from app.request_creations where host_account_id = ${host.hostAccountId} order by created_at desc limit 1
     `;
@@ -193,14 +174,14 @@ describe("request.start", () => {
       insert into app.request_creations (source_hash, host_account_id, created_at)
       select ${hash!.source_hash}, ${host.hostAccountId}, now() - interval '3 hours' from generate_series(1, 19)
     `;
-    expect((await startDraft(deps, host.handle, "Hello", { source: daily })).status).toBe(429);
+    expect((await startDraft(deps, host.handle, { source: daily })).status).toBe(429);
 
     // The service bound, with the day's count as the limit; no per-host bound.
     const [service] = await db<{ count: number }[]>`
       select count(*)::int as count from app.request_creations where created_at > now() - interval '24 hours'
     `;
     const full = guestDependencies(db, { creationLimits: { perSourceDay: 100, perSourceHour: 100, serviceDay: service!.count } });
-    expect((await startDraft(full, host.handle, "Hello")).status).toBe(429);
+    expect((await startDraft(full, host.handle)).status).toBe(429);
     expect(CREATION_LIMITS).toEqual({ perSourceDay: 20, perSourceHour: 5, serviceDay: 500 });
   });
 
@@ -212,7 +193,7 @@ describe("request.start", () => {
     const deps = guestDependencies(db);
 
     for (const host of [suspended, unready]) {
-      const sent = await startDraft(deps, host.handle, "Hello");
+      const sent = await startDraft(deps, host.handle);
       expect(sent.status).toBe(404);
       expect(await sent.json()).toEqual({ code: "unavailable", error: "This page is not taking requests." });
       const [count] = await db<{ count: number }[]>`
@@ -221,41 +202,32 @@ describe("request.start", () => {
       expect(count!.count).toBe(0);
     }
 
-    expect((await startDraft(deps, "no-such-host-here", "Hello")).status).toBe(404);
+    expect((await startDraft(deps, "no-such-host-here")).status).toBe(404);
   });
 });
 
 describe("a draft", () => {
-  it("accepts 30 messages, then calls for the identity card", async () => {
+  it("accepts no message until the guest is identified", async () => {
     const host = await readyHost(db);
-    const deps = guestDependencies(db, { draftMessageLimit: 3 });
-    const { bookingId, requestId } = await startedDraft(deps, host.handle);
+    const sent: Sent[] = [];
+    const deps = guestDependencies(db, { runtime: recordingRuntime(sent) });
+    const { bookingId } = await startedDraft(deps, host.handle);
 
-    expect((await message(deps, bookingId, "Two")).status).toBe(202);
-    expect((await message(deps, bookingId, "Three")).status).toBe(202);
-    expect((await requestRow(requestId))!.identity_requested_at).toBeNull();
-    const fourth = await message(deps, bookingId, "Four");
-    expect(fourth.status).toBe(429);
-    expect(await fourth.json()).toMatchObject({ code: "draft_limit" });
-    expect((await requestRow(requestId))!.identity_requested_at).not.toBeNull();
-    expect(DRAFT_LIMITS.messages).toBe(30);
+    const refused = await message(deps, bookingId, "Hello");
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toMatchObject({ code: "draft_limit" });
+    expect(DRAFT_LIMITS.messages).toBe(0);
+    expect(sent).toEqual([]);
 
-    // Identified, the cap no longer applies.
     expect((await identify(deps, bookingId)).status).toBe(200);
-    expect((await message(deps, bookingId, "Four")).status).toBe(202);
+    expect((await message(deps, bookingId, "Mornings, please.")).status).toBe(202);
+    expect(sent.map((entry) => entry.message)).toEqual(["Mornings, please."]);
   });
 
   it("is invisible to the host, holds no contact or email, and is deleted with its discussion after 24 hours", async () => {
     const host = await readyHost(db);
     const deps = guestDependencies(db);
     const draft = await startedDraft(deps, host.handle);
-    const session = await indexRequestSession(db, draft.requestId);
-    // Spend that must survive the deletion, toward the service and anonymous allowances.
-    await db`
-      insert into app.model_reservations (work_kind, work_id, principal_type, principal_id, session_id, amount_usd, window_start, anonymous)
-      values ('conversation_input', ${session.inputId}, 'requester_request', ${draft.requestId}, ${session.sessionId}, 0.60,
-              date_bin('24 hours', statement_timestamp(), timestamptz '2026-01-01 00:00:00+00'), true)
-    `;
 
     // Host projections filter drafts out; the host has no request to see, and
     // link resend, which matches confirmed contacts, has none to match.
@@ -276,18 +248,12 @@ describe("a draft", () => {
     const job = await db.begin((tx) => publishJob(tx, { dedupeKey: `test:${randomUUID()}`, kind: REQUEST_EXPIRY_JOB }));
     expect(await runJob(db, job!, createRequestExpiryHandler(() => testNotices))).toBe("completed");
 
-    const [left] = await db<{ discussions: number; inputs: number; links: number; requests: number; sessions: number }[]>`
+    const [left] = await db<{ discussions: number; links: number; requests: number }[]>`
       select (select count(*)::int from app.requests where id = ${draft.requestId}) as requests,
              (select count(*)::int from app.booking_links where request_id = ${draft.requestId}) as links,
-             (select count(*)::int from app.discussions where id = ${draft.discussionId}) as discussions,
-             (select count(*)::int from app.conversation_inputs where discussion_id = ${draft.discussionId}) as inputs,
-             (select count(*)::int from app.agent_sessions where discussion_id = ${draft.discussionId}) as sessions
+             (select count(*)::int from app.discussions where id = ${draft.discussionId}) as discussions
     `;
-    expect(left).toEqual({ discussions: 0, inputs: 0, links: 0, requests: 0, sessions: 0 });
-    const [spend] = await db<{ count: number }[]>`
-      select count(*)::int as count from app.model_reservations where principal_id = ${draft.requestId} and session_id is null
-    `;
-    expect(spend!.count).toBe(1);
+    expect(left).toEqual({ discussions: 0, links: 0, requests: 0 });
     const [creation] = await db<{ count: number }[]>`
       select count(*)::int as count from app.request_creations where host_account_id = ${host.hostAccountId}
     `;
@@ -295,7 +261,7 @@ describe("a draft", () => {
     expect((await call(createRequesterStateHandler(() => deps), { bookingId: draft.bookingId }, "/state")).status).toBe(404);
   });
 
-  it("answers identity_required for evaluation, selection and agreement, and calls for the identity card", async () => {
+  it("answers identity_required for evaluation, selection and agreement", async () => {
     const host = await readyHost(db);
     const deps = guestDependencies(db);
     const { bookingId, requestId } = await startedDraft(deps, host.handle);
@@ -305,6 +271,7 @@ describe("a draft", () => {
       ["request.choose_candidate", { candidateId: "c1", evaluationId: randomUUID() }],
       ["request.allow_trip", { candidateId: "c1", evaluationId: randomUUID(), minutes: 30 }],
       ["request.agree", { version: 1 }],
+      ["request.set_manual_availability", { manual: true }],
     ] as const) {
       const response = await command(deps, bookingId, operation, input);
       expect(response.status, operation).toBe(409);
@@ -313,63 +280,14 @@ describe("a draft", () => {
 
     const [evaluations] = await db<{ count: number }[]>`select count(*)::int as count from app.evaluations where request_id = ${requestId}`;
     expect(evaluations!.count).toBe(0);
-
-    const state = (await (await call(createRequesterStateHandler(() => deps), { bookingId }, "/state")).json()) as {
-      thread: { id: string; status: string }[];
-    };
-    expect(state.thread).toEqual([expect.objectContaining({ id: "identity", status: "open" })]);
-  });
-
-  it("gives the tools the same draft: reading and drafting work, evaluate_candidates answers identityRequired", async () => {
-    const host = await readyHost(db);
-    const deps = guestDependencies(db);
-    const { requestId } = await startedDraft(deps, host.handle);
-    const session = await indexRequestSession(db, requestId);
-
-    const read = await readRequestForTool(db, requesterCall(requestId, session.sessionId));
-    expect(read).toMatchObject({ contact: { email: "absent", name: "absent" }, identified: false, readyForTimes: false, status: { state: "draft" } });
-
-    const drafted = await draftRequestReviewForTool(db, requesterCall(requestId, session.sessionId), {
-      details: { durationMinutes: 30, mode: "online", purpose: "Research collaboration", windows: [{ date: MONDAY, end: "12:00", start: "10:00" }] },
-      intent: "details",
-    });
-    expect(drafted).toMatchObject({ recorded: true });
-
-    // A draft's contact comes only from identification.
-    const contact = await draftRequestReviewForTool(db, requesterCall(requestId, session.sessionId), {
-      details: { contactEmail: "someone@example.test" },
-      intent: "details",
-    });
-    expect(contact).toMatchObject({ problem: "invalid_contact", recorded: false });
-
-    const evaluated = await evaluateCandidatesForTool(db, requesterCall(requestId, session.sessionId), { waitMs: 100 });
-    expect(evaluated).toMatchObject({ evaluated: false, identityRequired: true });
-    expect((await requestRow(requestId))!.identity_requested_at).not.toBeNull();
   });
 });
 
 describe("request.identify", () => {
-  it("moves the draft to gathering in the same session, recomputes the expiry and sends the creation email", async () => {
+  it("moves the draft to gathering, sets the seven-day expiry, sends the creation email and settles the Calendar step", async () => {
     const host = await readyHost(db);
-    const sent: Sent[] = [];
-    const deps = guestDependencies(db, { runtime: recordingRuntime(sent) });
+    const deps = guestDependencies(db);
     const draft = await startedDraft(deps, host.handle);
-    const session = await indexRequestSession(db, draft.requestId);
-
-    // Details applied while a draft keep its 24-hour expiry and call for the identity card.
-    await draftRequestReviewForTool(db, requesterCall(draft.requestId, session.sessionId), {
-      details: { durationMinutes: 30, mode: "online", purpose: "Research collaboration", windows: [{ date: MONDAY, end: "12:00", start: "10:00" }] },
-      intent: "details",
-    });
-    const [review] = await db<{ id: string }[]>`select id from app.request_reviews where request_id = ${draft.requestId} and state = 'pending'`;
-    const before = await requestRow(draft.requestId);
-    expect((await call(createRequesterCommandHandler(() => deps), { bookingId: draft.bookingId }, "/commands", {
-      body: { expectedRevision: before!.revision, input: { reviewId: review!.id }, operation: "request.apply_review", retryKey: randomUUID() },
-    })).status).toBe(200);
-    const applied = await requestRow(draft.requestId);
-    expect(applied).toMatchObject({ state: "draft" });
-    expect(applied!.expires_at.getTime()).toBe(before!.expires_at.getTime());
-    expect(applied!.identity_requested_at).not.toBeNull();
 
     const email = uniqueEmail();
     const retryKey = randomUUID();
@@ -380,23 +298,13 @@ describe("request.identify", () => {
     const identified = await requestRow(draft.requestId);
     expect(identified).toMatchObject({ contact_email: email, requester_name: "Grace Hopper", state: "gathering" });
     expect(identified!.identified_at).not.toBeNull();
-    // The earlier of creation plus seven days and the latest window end, no
-    // longer the draft's 24 hours.
-    const windowEnd = Date.parse(`${MONDAY}T12:00:00+09:00`);
-    expect(identified!.expires_at.getTime()).toBe(Math.min(identified!.created_at.getTime() + 7 * 86_400_000, windowEnd));
+    // No windows: creation plus seven days, no longer the draft's 24 hours.
+    expect(identified!.expires_at.getTime()).toBe(identified!.created_at.getTime() + 7 * 86_400_000);
 
     const deliveries = await db<{ kind: string; recipients: string[] }[]>`
       select kind, recipients from app.email_deliveries where request_id = ${draft.requestId}
     `;
     expect(deliveries).toEqual([{ kind: "request_creation", recipients: [email] }]);
-
-    // The same discussion, session and inputs: no new generation and no summary input.
-    const sessions = await db<{ session_id: string }[]>`select session_id from app.agent_sessions where discussion_id = ${draft.discussionId}`;
-    expect(sessions.map((row) => row.session_id)).toEqual([session.sessionId]);
-    const inputs = await db<{ count: number }[]>`
-      select count(*)::int as count from app.conversation_inputs where discussion_id = ${draft.discussionId}
-    `;
-    expect(inputs[0]!.count).toBe(1);
 
     // An exact retry answers the saved result; another identification is refused.
     expect((await identify(deps, draft.bookingId, email, retryKey)).status).toBe(200);
@@ -405,16 +313,19 @@ describe("request.identify", () => {
 
     const state = (await (await call(createRequesterStateHandler(() => deps), { bookingId: draft.bookingId }, "/state")).json()) as {
       contact: unknown;
-      thread: { id: string; status: string }[];
+      meeting: unknown;
+      thread: { id: string; receipt?: { text: string }; status: string }[];
     };
     expect(state.contact).toMatchObject({ confirmed: false, email, name: "Grace Hopper" });
-    // One open card, the next step's: the Calendar step. Status is a line.
-    expect(state.thread.map((card) => [card.id, card.status])).toEqual([
-      [`review:${review!.id}`, "answered"],
-      ["identity", "answered"],
-      ["status:sent", "answered"],
-      ["calendar", "open"],
+    // Without Google the Calendar step is settled as skipped; the one open
+    // card is the meeting step, with the host's meeting.
+    expect(state.thread.map((card) => [card.id, card.status, card.receipt?.text])).toEqual([
+      ["identity", "answered", `Grace Hopper · ${email}`],
+      ["status:sent", "answered", undefined],
+      ["calendar", "answered", "Skipped"],
+      ["meeting", "open", undefined],
     ]);
+    expect(state.meeting).toEqual({ durationMinutes: 30, meetingMode: expect.any(String), venue: null });
   });
 
   it("refuses an invalid email and an identification after the host stopped taking requests", async () => {
@@ -555,51 +466,42 @@ function openCards(thread: { id: string; status: string }[]) {
   return thread.filter((card) => card.status === "open").map((card) => card.id);
 }
 
-describe("one thing at a time", () => {
-  it("opens the identity card when the assistant calls ask_for_identity, before any review", async () => {
+describe("the fixed steps", () => {
+  it("opens the meeting step, then finds times over the default range with no windows", async () => {
     const host = await readyHost(db);
     const deps = guestDependencies(db);
-    const draft = await startedDraft(deps, host.handle);
-    const session = await indexRequestSession(db, draft.requestId);
-    expect(await threadOf(deps, draft.bookingId)).toEqual([]);
+    const draft = await identifiedRequest(deps, host.handle, { email: uniqueEmail() });
+    expect(openCards(await threadOf(deps, draft.bookingId))).toEqual(["meeting"]);
 
-    // A pending review is the open card until identity is asked for.
-    await draftRequestReviewForTool(db, requesterCall(draft.requestId, session.sessionId), {
-      details: { purpose: "Research collaboration" },
-      intent: "details",
+    // Find times waits for the meeting step: no purpose yet.
+    const [before] = await db<{ revision: number }[]>`select revision from app.requests where id = ${draft.requestId}`;
+    const saved = await call(createRequesterCommandHandler(() => deps), { bookingId: draft.bookingId }, "/commands", {
+      body: {
+        expectedRevision: before!.revision,
+        input: { details: { durationMinutes: 30, mode: "online", purpose: "Talk about compilers" }, timezone: "Asia/Seoul" },
+        operation: "request.update_details",
+        retryKey: randomUUID(),
+      },
     });
-    expect(openCards(await threadOf(deps, draft.bookingId))).toEqual([expect.stringMatching(/^review:/)]);
+    expect(saved.status).toBe(200);
 
-    expect(await askForIdentityForTool(db, requesterCall(draft.requestId, session.sessionId))).toMatchObject({ identityRequested: true });
     const thread = await threadOf(deps, draft.bookingId);
-    expect(openCards(thread)).toEqual(["identity"]);
-    expect(thread.find((card) => card.id.startsWith("review:"))).toMatchObject({ status: "waiting" });
+    expect(thread.find((card) => card.id === "meeting")).toMatchObject({ receipt: { text: "Talk about compilers" }, status: "answered" });
+    expect(openCards(thread)).toEqual(["times:find"]);
 
-    // Once identified, the review drafted while a draft is the open card and
-    // still applies; the tool does nothing.
-    expect((await identify(deps, draft.bookingId)).status).toBe(200);
-    expect(openCards(await threadOf(deps, draft.bookingId))).toEqual([expect.stringMatching(/^review:/)]);
-    const [pending] = await db<{ id: string }[]>`select id from app.request_reviews where request_id = ${draft.requestId} and state = 'pending'`;
-    const [current] = await db<{ revision: number }[]>`select revision from app.requests where id = ${draft.requestId}`;
-    const applied = await call(createRequesterCommandHandler(() => deps), { bookingId: draft.bookingId }, "/commands", {
-      body: { expectedRevision: current!.revision, input: { reviewId: pending!.id }, operation: "request.apply_review", retryKey: randomUUID() },
-    });
-    expect(applied.status).toBe(200);
-    expect(await askForIdentityForTool(db, requesterCall(draft.requestId, session.sessionId))).toMatchObject({ identityRequested: false });
+    // No windows are needed: the evaluation is published at once.
+    const evaluated = await command(deps, draft.bookingId, "request.evaluate");
+    expect(evaluated.status).toBe(200);
+    const [evaluations] = await db<{ count: number }[]>`select count(*)::int as count from app.evaluations where request_id = ${draft.requestId}`;
+    expect(evaluations!.count).toBe(1);
   });
 
-  it("keeps Skip for now on the server, moves to Find times, and Change offers the Calendar card again", async () => {
+  it("keeps the Calendar step on the server, and Change offers the Calendar card again", async () => {
     const host = await readyHost(db);
     const deps = guestDependencies(db);
-    const draft = await startedDraft(deps, host.handle);
+    const draft = await identifiedRequest(deps, host.handle, { email: uniqueEmail() });
+    await db`update app.requests set details = details || '{"purpose": "Talk about compilers"}'::jsonb where id = ${draft.requestId}`;
 
-    // Not before identification.
-    const early = await command(deps, draft.bookingId, "request.set_manual_availability", { manual: true });
-    expect(early.status).toBe(409);
-    expect((await identify(deps, draft.bookingId)).status).toBe(200);
-    expect(openCards(await threadOf(deps, draft.bookingId))).toEqual(["calendar"]);
-
-    expect((await command(deps, draft.bookingId, "request.set_manual_availability", { manual: true })).status).toBe(200);
     // Another read, as after a reload or in another tab: still settled.
     const skipped = await threadOf(deps, draft.bookingId);
     expect(openCards(skipped)).toEqual(["times:find"]);
@@ -607,5 +509,7 @@ describe("one thing at a time", () => {
 
     expect((await command(deps, draft.bookingId, "request.set_manual_availability", { manual: false })).status).toBe(200);
     expect(openCards(await threadOf(deps, draft.bookingId))).toEqual(["calendar"]);
+    expect((await command(deps, draft.bookingId, "request.set_manual_availability", { manual: true })).status).toBe(200);
+    expect(openCards(await threadOf(deps, draft.bookingId))).toEqual(["times:find"]);
   });
 });

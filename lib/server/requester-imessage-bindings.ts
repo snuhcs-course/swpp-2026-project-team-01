@@ -7,9 +7,11 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 // requests, and may be a host too; a request has one active binding. The sender
 // and the conversation are sealed with requesterBindingContext(id) for replies
 // and notices. A binding ends as unlinked when the guest presses Unlink
-// iMessage, which suppresses the guest's undispatched messages; as ended when
-// the request is withdrawn or booked, or after 30 days (the cleanup); or as moved
-// when a revised request continues the conversation.
+// iMessage, which suppresses the guest's undispatched messages; as ended after
+// 30 days (the cleanup); or as moved when a revised request continues the
+// conversation. Closing never ends it: a declined, expired or withdrawn request
+// continues as a revised request (U16), and a booked one answers questions
+// about its meeting (U18).
 
 export function requesterBindingContext(bindingId: string) {
   return `requester_imessage_binding:${bindingId}`;
@@ -55,7 +57,8 @@ export async function bindRequester(
   tokenKey: TokenKey,
   binding: {
     readonly requestId: string;
-    readonly linkId: string;
+    // Null when the guest-host's own host conversation is bound (design 6).
+    readonly linkId: string | null;
     readonly sender: string;
     readonly senderHash: string;
     readonly spaceId: string | null;

@@ -24,8 +24,9 @@ import { createTestRequest, testTokenKey, uniqueEmail } from "./support/requests
 
 // Revised requests against the local stack, a fake AgentMail and the Photon
 // stand-in (guest-flow-completion task 5.4): the bound guest's next message
-// after a decline or an expiry starts one revised request with the same host,
-// carrying the earlier details but no times, opening with a summary that holds
+// after a decline, an expiry or a withdrawal starts one revised request with the
+// same host, carrying the earlier details, the windows still ahead and the
+// excluded times (U17), opening with a summary that holds
 // nothing of the host's, and moves the channel there, so the next message goes
 // to the revised discussion; a retried receipt creates nothing more; a full
 // chain, an unavailable host and refused creation bounds create nothing and
@@ -67,7 +68,11 @@ const DETAILS = {
   purpose: "Thesis feedback",
   timezone: "Asia/Seoul",
   travelMode: "transit",
-  windows: [{ end: "2026-11-02T03:00:00.000Z", start: "2026-11-02T01:00:00.000Z" }],
+  windows: [
+    { end: "2020-01-01T03:00:00.000Z", start: "2020-01-01T01:00:00.000Z" },
+    { end: "2099-11-02T03:00:00.000Z", start: "2099-11-02T01:00:00.000Z" },
+  ],
+  excludedTimes: [{ end: "2099-11-04T00:00:00.000Z", start: "2099-11-03T00:00:00.000Z" }],
 };
 
 function asGuest(requestId: string, operation: string, input: unknown = {}) {
@@ -79,7 +84,7 @@ function asGuest(requestId: string, operation: string, input: unknown = {}) {
 }
 
 // A ready host's request with details, the sender linked as its guest, closed as `state`.
-async function closedGuestRequest(sender: string, state: "declined" | "expired") {
+async function closedGuestRequest(sender: string, state: "declined" | "expired" | "withdrawn") {
   const host = await readyHost(db);
   const request = await createTestRequest(db, { confirmed: true, hostAccountId: host.hostAccountId });
   await db`update app.requests set details = ${db.json(DETAILS)} where id = ${request.requestId}`;
@@ -106,7 +111,7 @@ async function inputsOf(requestId: string) {
 }
 
 describe("a revised request by iMessage", () => {
-  it("starts one revised request after a decline, carrying the details but no times, and moves the conversation", async () => {
+  it("starts one revised request after a decline, carrying the details, the windows still ahead and the excluded times, and moves the conversation", async () => {
     const sender = newSender();
     const earlier = await closedGuestRequest(sender, "declined");
 
@@ -120,7 +125,15 @@ describe("a revised request by iMessage", () => {
       requester_name: "Grace Hopper",
       state: "gathering",
     });
-    expect(revised!.details).toMatchObject({ durationMinutes: 45, location: "Room 301", mode: "in_person", purpose: "Thesis feedback", travelMode: "transit", windows: [] });
+    expect(revised!.details).toMatchObject({
+      durationMinutes: 45,
+      excludedTimes: DETAILS.excludedTimes,
+      location: "Room 301",
+      mode: "in_person",
+      purpose: "Thesis feedback",
+      travelMode: "transit",
+      windows: [DETAILS.windows[1]],
+    });
     expect(await db`select 1 from app.requests where revised_from_request_id = ${earlier.requestId}`).toHaveLength(1);
 
     // A new booking link, sent by the creation email.
@@ -133,7 +146,9 @@ describe("a revised request by iMessage", () => {
     expect(inputs[0]).toContain(REVISED_SUMMARY_PREFIX);
     expect(inputs[0]).toContain(`request ${requestRef(earlier.requestId)} was declined by the host`);
     expect(inputs[0]).toContain("Purpose: Thesis feedback");
-    expect(inputs[0]).not.toContain("2026-11-02");
+    expect(inputs[0]).toContain("The guest's preferred times, carried over:");
+    expect(inputs[0]).toContain("These times no longer work for the host and are left out of the search; never give or guess a reason:");
+    expect(inputs[0]).not.toContain("2020");
     expect(inputs[1]).toBe("[iMessage] Could we try the week after?");
 
     const bindings = await db<{ request_id: string; state: string }[]>`
@@ -153,6 +168,22 @@ describe("a revised request by iMessage", () => {
     // The host's view and summary name the earlier request.
     const view = await readHostRequest(db, earlier.hostAccountId, revised!.id);
     expect(view?.revisedFrom).toEqual({ outcome: "declined", ref: requestRef(earlier.requestId) });
+  });
+
+  it("starts a revised request after the guest withdrew (U16)", async () => {
+    const sender = newSender();
+    const earlier = await closedGuestRequest(sender, "withdrawn");
+
+    expect((await im.deliver({ sender, text: "My plans are clearer now, can we try again?" })).outcome).toBe("forwarded");
+
+    const revised = await revisionOf(earlier.requestId);
+    expect(revised).toMatchObject({ state: "gathering" });
+    const inputs = await inputsOf(revised!.id);
+    expect(inputs[0]).toContain(`request ${requestRef(earlier.requestId)} was withdrawn by the guest`);
+    expect((await readHostRequest(db, earlier.hostAccountId, revised!.id))?.revisedFrom).toEqual({
+      outcome: "withdrawn",
+      ref: requestRef(earlier.requestId),
+    });
   });
 
   it("answers with the closed notice and creates nothing when the chain is full, the host is unavailable or the bounds refuse", async () => {
@@ -201,7 +232,7 @@ describe("a revised request by email", () => {
     expect(await email.bindingOf(first.message.thread_id)).toMatchObject({ request_id: revised!.id, state: "active" });
     const inputs = await inputsOf(revised!.id);
     expect(inputs[0]).toContain("expired, and the guest wrote again");
-    expect(inputs[1]).toBe("Sorry I missed it. Can we try again?");
+    expect(inputs[1]).toBe("[Email] Sorry I missed it. Can we try again?");
 
     expect((await reply("Tuesday works.")).outcome).toBe("forwarded");
     expect(await inputsOf(revised!.id)).toHaveLength(3);

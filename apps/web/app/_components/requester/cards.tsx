@@ -3,7 +3,7 @@
 import { EMAIL_LINK_CREATE_OPERATION, EMAIL_LINK_UNLINK_OPERATION, type EmailLinkStatus } from "@lib/contracts/email-link";
 import { deepLinkFor, qrDeepLink } from "@lib/contracts/imessage";
 import { REQUESTER_IMESSAGE_OPERATIONS, type RequesterImessageStatus } from "@lib/contracts/requester-imessage";
-import type { OpenRequesterView } from "@lib/contracts/requester-view";
+import type { HostProfileItem, OpenRequesterView } from "@lib/contracts/requester-view";
 import { displayTime } from "@lib/contracts/timezone";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { renderSVG } from "uqr";
@@ -231,6 +231,75 @@ export function CalendarSelectionCard({ context }: { readonly context: Requester
         ) : null}
         <Button className="min-h-11" disabled={busy} onClick={() => void disconnect()} type="button" variant="outline">
           Disconnect
+        </Button>
+      </GuestCardActions>
+      <ErrorLine message={error} />
+    </GuestCard>
+  );
+}
+
+// Use your host settings for this request (guest-flow-completion design 6): a
+// guest whose Google account is another host's chooses which of their host
+// settings this request uses; nothing is used before **Use these settings**,
+// and **Not now** keeps the card from returning.
+const HOST_PROFILE_LINES: Readonly<Record<HostProfileItem, { readonly label: string; readonly line: string }>> = {
+  calendars: { label: "Calendars", line: "Check your busy time on the calendars you use as a host." },
+  details: { label: "Basic details", line: "Fill in your time zone and travel mode." },
+};
+
+export function HostProfileCard({ context, onDone }: { readonly context: RequesterCardContext; readonly onDone: () => void }) {
+  const profile = context.view.hostProfile;
+  const [chosen, setChosen] = useState<Set<HostProfileItem>>(
+    () => new Set(profile?.decided ? profile.items : (profile?.offered ?? [])),
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!profile) return null;
+
+  async function decide(items: readonly HostProfileItem[]) {
+    setBusy(true);
+    const outcome = await context.run("request.host_profile.decide", { items });
+    setBusy(false);
+    if (outcome.ok) onDone();
+    else setError(outcome.error.message);
+  }
+
+  return (
+    <GuestCard
+      description="Your Google account is also a host's on Find Me a Time. Choose what this request may use; the other host never sees it."
+      id="host-profile"
+      label="Your host settings"
+      title="Use your host settings for this request"
+    >
+      <fieldset className="flex flex-col gap-1">
+        <legend className="sr-only">Host settings to use</legend>
+        {profile.offered.map((item) => (
+          <label className="flex min-h-11 items-start gap-2" key={item}>
+            <input
+              checked={chosen.has(item)}
+              className="mt-1 size-4"
+              onChange={(event) => {
+                const next = new Set(chosen);
+                if (event.target.checked) next.add(item);
+                else next.delete(item);
+                setChosen(next);
+              }}
+              type="checkbox"
+            />
+            <span className="min-w-0 break-words">
+              {HOST_PROFILE_LINES[item].label}
+              <span className="block text-sm text-muted-foreground">{HOST_PROFILE_LINES[item].line}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      <GuestCardActions>
+        <Button className="min-h-11" disabled={busy || chosen.size === 0} onClick={() => void decide([...chosen])} type="button">
+          Use these settings
+        </Button>
+        <Button className="min-h-11" disabled={busy} onClick={() => void decide([])} type="button" variant="outline">
+          Not now
         </Button>
       </GuestCardActions>
       <ErrorLine message={error} />

@@ -12,11 +12,11 @@ On the requester Google return, the service SHALL compare the verified Google su
 - **THEN** no host-profile card is shown
 
 ### Requirement: Opt-in host profile per request
-A matched guest SHALL see one card offering calendars, iMessage (only with an active host binding), preferences and basic details, each uncheckable, and nothing SHALL be used before **Use these settings**. **Not now** SHALL be kept so the card does not return; **Change** on its receipt SHALL reopen it. The choice SHALL be stored per request and deleted when the request closes or is deleted.
+A matched guest SHALL see one card offering calendars and basic details, each uncheckable, and nothing SHALL be used before **Use these settings**. **Not now** SHALL be kept so the card does not return; **Change** on its receipt SHALL reopen it. The choice SHALL be stored per request and deleted when the request closes or is deleted.
 
 #### Scenario: Partial opt-in
-- **WHEN** the guest unchecks Preferences and presses **Use these settings**
-- **THEN** calendars, iMessage and basic details are used for this request and candidate ordering ignores their host preferences
+- **WHEN** the guest unchecks Basic details and presses **Use these settings**
+- **THEN** their host calendars are used for this request and no review is drafted from their host settings
 
 #### Scenario: Closure
 - **WHEN** the request is declined
@@ -34,7 +34,7 @@ Host-profile data used for a request SHALL NOT reach the request's host, the hos
 - **THEN** nothing shows that the guest is a host or which of their settings are in use
 
 ### Requirement: Basic details through review
-Timezone, language and travel mode from a host profile SHALL be applied only through a pending review the guest applies.
+Timezone and travel mode from a host profile SHALL be applied only through a pending review the guest applies.
 
 #### Scenario: Prefilled details
 - **WHEN** the guest opts in to Basic details

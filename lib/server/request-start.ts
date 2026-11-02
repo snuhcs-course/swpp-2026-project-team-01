@@ -12,24 +12,25 @@ import { requestExpiresAt } from "./request-lifecycle";
 import { recordRequesterGrants, type RequesterGoogleIdentity } from "./requester-grants";
 import type { TokenKey } from "./token-encryption";
 
-// One guest thread from the first message (design decision 2, D13).
+// One guest thread from the web start (design decision 2; guest-flow-completion
+// U7, U8, which replace D13's first message).
 //
-// request.start runs on the guest's first message on a ready host's /{handle}:
-// in one transaction it rechecks the host through the shared guard (an unready,
+// request.start runs when the guest presses **Continue with Google** or
+// **Continue without Google** on a ready host's /{handle}, after the two fixed
+// opening messages and before any model call: in one transaction it rechecks the host through the shared guard (an unready,
 // suspended or unknown host gets the neutral unavailable result), checks the
 // draft bounds under advisory locks, and writes a request in the state draft,
-// its hashed and sealed booking link and its requester discussion. The route
-// then records the message as the discussion's first accepted input, which
-// starts the eve session that serves the whole thread. The actor is the
-// anonymous starter, identified by the hash of the tab's nonce, and the retry
-// key is the nonce itself, so a retried first message creates at most one
-// draft and only the tab holding the nonce recovers it. The saved outcome holds
-// only the request ID: the route opens the sealed link to answer, so no
-// plaintext link is stored with it.
+// its hashed and sealed booking link and its requester discussion. The actor is
+// the anonymous starter, identified by the hash of the tab's nonce, and the
+// retry key is the nonce itself, so a retried start (a second try after a
+// cancelled Google consent) answers the same draft and only the tab holding the
+// nonce recovers it. The saved outcome holds only the request ID: the route
+// opens the sealed link to answer, so no plaintext link is stored with it.
 //
-// A draft is invisible to the host, accepts at most 30 messages and is deleted
-// with its discussion (request-lifecycle.ts, deleteDraft) 24 hours after
-// creation unless the guest is identified.
+// The draft only spans the identity step: it is invisible to the host, accepts
+// no message, so no model runs for it, and is deleted with its discussion
+// (request-lifecycle.ts, deleteDraft) 24 hours after creation unless the guest
+// is identified.
 // request.identify (name, email and timezone) or the requester's Google return
 // moves it to gathering, sets expires_at to the earlier of creation plus seven
 // days and the latest window end, and sends the creation email. The thread and
@@ -49,8 +50,9 @@ export type CreationLimits = { readonly [Key in keyof typeof CREATION_LIMITS]: n
 
 export const DRAFT_LIMITS = {
   lifetimeHours: 24,
-  // Messages a draft accepts before the guest gives a name and email.
-  messages: 30,
+  // Messages a draft accepts before the guest gives a name and email: none, so
+  // the assistant first speaks to an identified guest (U8).
+  messages: 0,
 } as const;
 
 const NONCE = /^[A-Za-z0-9_-]{22,64}$/;
@@ -118,6 +120,10 @@ export function startRequestCommand(options: {
 // The draft request, its hashed and sealed booking link, its requester
 // discussion and the creation record, after the caller checked the host and
 // admitted the creation. request.start and an agent's create_request share it.
+// The request starts with the host's meeting length, and with the form of the
+// meeting when the host offers only one (guest-flow-completion U13), so the
+// assistant asks only for what is open: the purpose, online or in person when
+// the host allows either, and the place for in person.
 export async function insertDraftRequest(
   tx: Transaction,
   draft: {
@@ -130,12 +136,16 @@ export async function insertDraftRequest(
 ) {
   const requestId = randomUUID();
   const bookingId = randomUUID();
+  const [offer] = await tx<{ duration_minutes: number | null; meeting_mode: string | null }[]>`
+    select (settings ->> 'durationMinutes')::int as duration_minutes, settings ->> 'meetingMode' as meeting_mode
+    from app.host_settings where host_account_id = ${draft.hostAccountId}
+  `;
   const details: RequestDetails = {
-    durationMinutes: null,
+    durationMinutes: offer?.duration_minutes ?? null,
     language: draft.language,
     linkPlan: null,
     location: null,
-    mode: null,
+    mode: offer?.meeting_mode === "online" || offer?.meeting_mode === "in_person" ? offer.meeting_mode : null,
     purpose: null,
     timezone: draft.timezone,
     travelMode: null,
@@ -241,7 +251,9 @@ export async function identifyDraft(
   return { revision: request.revision + 1, state: "gathering" };
 }
 
-// request.identify: **Continue without Google** on the identity card.
+// request.identify: **Continue without Google** on the web start. The guest
+// chose not to share a calendar, so the Calendar step is settled as skipped and
+// times are found on the host's side alone (U9).
 export function identifyRequestCommand(options: IdentifyOptions): CommandDefinition<IdentifyRequestInput, IdentifyResult> {
   return {
     input: identifyRequestInput,
@@ -252,9 +264,27 @@ export function identifyRequestCommand(options: IdentifyOptions): CommandDefinit
       }
 
       const request = await lockOpenRequest(tx, context.actor.id);
-      return identifyDraft(tx, request, context.input, options);
+      const result = await identifyDraft(tx, request, context.input, options);
+      await settleCalendarStep(tx, request.id);
+      return result;
     },
   };
+}
+
+// The web start decides the Calendar step together with identity (U7, U9,
+// U10): without Google, or when the Google consent left out its Calendar part,
+// the step is settled as skipped. A granted Calendar leaves it open, for the
+// guest to choose which calendars count before any times are found. The guest
+// can still change it from the Calendar receipt.
+export async function settleCalendarStep(tx: Transaction, requestId: string) {
+  await tx`
+    update app.requests set calendar_settled_at = coalesce(calendar_settled_at, now())
+    where id = ${requestId}
+      and not exists (
+        select 1 from app.requester_grants g
+        where g.request_id = ${requestId} and g.kind = 'calendar' and g.revoked_at is null
+      )
+  `;
 }
 
 // Records that the thread now calls for the identity card: a gated operation

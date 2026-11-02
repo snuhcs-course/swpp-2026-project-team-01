@@ -40,6 +40,7 @@ import {
   readRequesterEvents,
   requesterCalendarConfigFromEnvironment,
 } from "./requester-calendar";
+import { dropGuestHostCalendars, readGuestHostSource } from "./requester-host-profiles";
 import { endpointHasher, estimateTravel, type RoutesConfig, routesConfigFromEnvironment } from "./routes-client";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -520,10 +521,23 @@ class FailedEvaluation extends Error {
   }
 }
 
+// The search range when the requester gave no windows (guest-flow-completion
+// U9): from now to two weeks ahead, within the host's weekly windows as always.
+export const DEFAULT_SEARCH_DAYS = 14;
+
 function windowsOf(details: RequestDetails) {
   return (details.windows ?? [])
     .map((window) => ({ end: new Date(window.end), start: new Date(window.start) }))
     .filter((window) => !Number.isNaN(window.start.getTime()) && window.end > window.start);
+}
+
+// The times a host declined or named as no longer working (guest-flow-completion
+// U17), as blocked time that anchors no trip.
+function excludedBusy(details: RequestDetails): BusyInterval[] {
+  return (details.excludedTimes ?? [])
+    .map((entry) => ({ end: Date.parse(entry.end), start: Date.parse(entry.start) }))
+    .filter((entry) => !Number.isNaN(entry.start) && entry.end > entry.start)
+    .map((entry) => ({ ...entry, allDay: true, endpoint: { kind: "unknown" as const, reason: "no_location" as const } }));
 }
 
 // How an evaluation differs from the ordinary search over the requested windows
@@ -557,7 +571,10 @@ async function evaluate(
   const now = new Date((deps.now ?? Date.now)());
   const hash = endpointHasher(deps.tokenKeys[0]!);
   const requesterZone = details.timezone && isValidTimeZone(details.timezone) ? details.timezone : settings.timezone;
-  const windows = options.interval ? [options.interval] : windowsOf(details);
+  const requested = options.interval ? [options.interval] : windowsOf(details);
+  // Without the requester's windows: the next two weeks, spread across days.
+  const searchDefault = requested.length === 0;
+  const windows = searchDefault ? [{ end: new Date(now.getTime() + DEFAULT_SEARCH_DAYS * 86_400_000), start: now }] : requested;
   const durationMinutes = options.interval
     ? Math.round((options.interval.end.getTime() - options.interval.start.getTime()) / 60_000)
     : (details.durationMinutes ?? settings.durationMinutes);
@@ -591,6 +608,7 @@ async function evaluate(
       linkPlan: details.linkPlan ?? null,
       location: details.location ? { key: hash(details.location), text: details.location } : null,
       mode: details.mode ?? null,
+      spreadDays: searchDefault,
       timezone: requesterZone,
       travelMode: details.travelMode ?? null,
       windows,
@@ -630,11 +648,10 @@ async function evaluate(
 
   // The requester's own events, in memory only, when they connected a calendar.
   let requesterBusy: BusyInterval[] | null = null;
+  const grant =
+    options.requesterCalendar === false ? null : await readRequesterCalendarGrant(tx, deps.tokenKeys, evaluation.requestId);
 
   try {
-    const grant =
-      options.requesterCalendar === false ? null : await readRequesterCalendarGrant(tx, deps.tokenKeys, evaluation.requestId);
-
     if (grant) {
       const events = await deadline.run((signal) => readRequesterEvents(deps.requesterCalendar, grant, range, { signal }));
       requesterBusy = normalizeBusy(events, { endpointKey: hash, selfEmail: grant.email, timezone: requesterZone });
@@ -642,6 +659,27 @@ async function evaluate(
   } catch (error) {
     if (error instanceof EvaluationDeadlineError) throw error;
     throw new FailedEvaluation("requester_calendar_unavailable", { cause: error });
+  }
+
+  // Without a request-bound grant: a guest who is a host and chose Calendars
+  // (design 6, D8) is busy on their host conflict calendars, read with their
+  // host grant and kept in memory only. A failed read drops the item and
+  // reopens the Calendar step, never free time.
+  const guestHost = !grant && options.requesterCalendar !== false ? await readGuestHostSource(tx, evaluation.requestId) : null;
+
+  if (guestHost) {
+    try {
+      const calendar = await openHostCalendar({ config: deps.calendar, db: tx, tokenKeys: deps.tokenKeys }, guestHost.hostAccountId);
+      const events: CalendarEvent[] = [];
+      for (const entry of guestHost.conflictCalendars) {
+        events.push(...(await deadline.run((signal) => calendar.listEvents(entry.id, range, { signal }))));
+      }
+      requesterBusy = normalizeBusy(events, { endpointKey: hash, selfEmail: guestHost.email, timezone: requesterZone });
+    } catch (error) {
+      if (error instanceof EvaluationDeadlineError) throw error;
+      await dropGuestHostCalendars(tx, evaluation.requestId);
+      throw new FailedEvaluation("requester_calendar_unavailable", { cause: error });
+    }
   }
 
   const allowances = await tx<
@@ -681,6 +719,7 @@ async function evaluate(
         timezone: settings.timezone,
       }),
       ...(options.extraHostBusy ?? []),
+      ...excludedBusy(details),
     ].sort((a, b) => a.start - b.start),
     meetAvailable: meetAvailable ?? false,
     requesterBusy,
@@ -700,7 +739,9 @@ async function evaluate(
   const valid = result.candidates.filter((candidate) => candidate.status === "offered").slice(0, RANKING_LIMIT);
   let ranking: string[] | null = null;
 
-  if (deps.model && valid.length > 1 && options.rank !== false) {
+  // The default two-week search is the fixed slot step, before any model call
+  // (guest-flow-completion U9): it keeps the deterministic order, spread across days.
+  if (deps.model && valid.length > 1 && options.rank !== false && !searchDefault) {
     const principal: Principal =
       audience === "host"
         ? { id: loaded.request.hostAccountId, type: "host_account" }

@@ -13,7 +13,7 @@ import { createRequestExpiryHandler, REQUEST_EXPIRY_JOB } from "../../lib/server
 import { createRequesterCalendarsHandler, createRequesterCommandHandler, createRequesterStateHandler } from "../../lib/server/requester-routes";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
-import { call, guestDependencies, ORIGIN, readyHost, SIGNING_KEY, sourceAddress, startedDraft } from "./support/guests";
+import { call, guestDependencies, ORIGIN, readyHost, SIGNING_KEY, sourceAddress, startDraft, startedDraft } from "./support/guests";
 import { createTestRequest, runJob, testNotices, testTokenKey, uniqueEmail } from "./support/requests";
 
 // The requester's Google consent (tasks 3.3 and 9.1) against a fake Google: a
@@ -77,7 +77,7 @@ function callback(url: string, cookie?: string) {
   );
 }
 
-// The tab's draft on the public page, started by its first message.
+// The tab's draft on the web start, written when the guest presses Continue with Google.
 async function draftBooking(handle: string) {
   return (await startedDraft(guest, handle)).bookingId;
 }
@@ -161,6 +161,12 @@ describe("Continue with Google from the public page", () => {
       from app.requests where id = ${request!.id}
     `;
     expect(moved).toEqual({ count: 1, identified: true, state: "gathering" });
+    // With the Calendar part granted, the Calendar step stays open to choose
+    // which calendars count (guest-flow-completion U11 (4)).
+    const opened = (await (await call(createRequesterStateHandler(() => guest), { bookingId }, "/state")).json()) as {
+      thread: { id: string; receipt?: { text: string }; status: string }[];
+    };
+    expect(opened.thread.filter((card) => card.status === "open").map((card) => card.id)).toEqual(["calendar"]);
     expect(await grants(request!.id)).toEqual([
       { calendar_ids: [], has_token: true, kind: "calendar", revoked: false },
       { calendar_ids: [], has_token: false, kind: "identity", revoked: false },
@@ -220,7 +226,8 @@ describe("Continue with Google from the public page", () => {
   it("returns a cancelled consent to the public page with the draft and its thread intact", async () => {
     const host = await readyHost(db);
     google.setConsent({ decision: "deny" });
-    const draft = await startedDraft(guest, host.handle);
+    const nonce = randomUUID();
+    const draft = { ...(await startedDraft(guest, host.handle, { nonce })), nonce };
     const started = await start({ bookingId: draft.bookingId, purpose: "request" });
     const response = await callback(await consent(started), bindingOf(started));
 
@@ -233,7 +240,11 @@ describe("Continue with Google from the public page", () => {
              (select count(*)::int from app.conversation_inputs where discussion_id = ${draft.discussionId}) as inputs
       from app.requests r where r.id = ${draft.requestId}
     `;
-    expect(row).toEqual({ grants: 0, inputs: 1, state: "draft" });
+    expect(row).toEqual({ grants: 0, inputs: 0, state: "draft" });
+
+    // Trying again with the same tab answers the same draft.
+    const again = await startDraft(guest, host.handle, { nonce: draft.nonce });
+    expect(((await again.json()) as { bookingId: string }).bookingId).toBe(draft.bookingId);
   });
 
   it("refuses a transaction for an intake from before D13", async () => {

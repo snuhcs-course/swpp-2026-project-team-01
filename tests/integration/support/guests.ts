@@ -3,7 +3,11 @@ import { hashBookingId } from "../../../lib/server/booking-links";
 import type { ConversationRuntime } from "../../../lib/server/conversations";
 import type { Database } from "../../../lib/server/database";
 import { sessionIdHash } from "../../../lib/server/model-limits";
-import { createRequestStartHandler, type RequesterRouteDependencies } from "../../../lib/server/requester-routes";
+import {
+  createRequesterCommandHandler,
+  createRequestStartHandler,
+  type RequesterRouteDependencies,
+} from "../../../lib/server/requester-routes";
 import { makeHostReady, newHostAccount } from "./ready-host";
 import { testTokenKey } from "./requests";
 
@@ -75,20 +79,18 @@ export function call<P>(
   );
 }
 
-// A guest's first message on the public page, as the browser sends it: it
-// starts a draft request with the tab's nonce.
+// **Continue with Google** or **Continue without Google** on the web start, as
+// the browser sends it (guest-flow-completion U8): request.start writes the
+// hidden draft under the tab's nonce. No message is sent.
 export function startDraft(
   deps: RequesterRouteDependencies,
   handle: string,
-  text: string,
-  options: { readonly nonce?: string; readonly source?: string; readonly clientInputId?: string; readonly language?: "en" | "ko"; readonly timezone?: string } = {},
+  options: { readonly nonce?: string; readonly source?: string; readonly language?: "en" | "ko"; readonly timezone?: string } = {},
 ) {
   return call(createRequestStartHandler(() => deps), {}, "/api/requests/start", {
     body: {
-      clientInputId: options.clientInputId ?? randomUUID(),
       handle,
       language: options.language ?? "en",
-      message: text,
       nonce: options.nonce ?? randomUUID(),
       timezone: options.timezone ?? "Asia/Seoul",
     },
@@ -97,9 +99,9 @@ export function startDraft(
 }
 
 // Starts a draft and returns its request and booking identifier.
-export async function startedDraft(deps: RequesterRouteDependencies, handle: string, options: Parameters<typeof startDraft>[3] = {}) {
-  const response = await startDraft(deps, handle, "I'd like to talk about a research collaboration.", options);
-  if (response.status !== 202) throw new Error(`Starting a draft answered ${response.status}.`);
+export async function startedDraft(deps: RequesterRouteDependencies, handle: string, options: Parameters<typeof startDraft>[2] = {}) {
+  const response = await startDraft(deps, handle, options);
+  if (response.status !== 201) throw new Error(`Starting a draft answered ${response.status}.`);
   const { bookingId } = (await response.json()) as { bookingId: string };
   const [row] = await deps.db<{ discussion_id: string; id: string }[]>`
     select r.id, d.id as discussion_id from app.requests r
@@ -108,6 +110,26 @@ export async function startedDraft(deps: RequesterRouteDependencies, handle: str
     where l.link_hash = ${hashBookingId(bookingId)}
   `;
   return { bookingId, discussionId: row!.discussion_id, requestId: row!.id };
+}
+
+// The web start's **Continue without Google**: a draft identified with a name
+// and email, as the booking page then receives it.
+export async function identifiedRequest(
+  deps: RequesterRouteDependencies,
+  handle: string,
+  identity: { readonly email: string; readonly name?: string },
+) {
+  const draft = await startedDraft(deps, handle);
+  const response = await call(createRequesterCommandHandler(() => deps), { bookingId: draft.bookingId }, "/commands", {
+    body: {
+      expectedRevision: null,
+      input: { email: identity.email, name: identity.name ?? "Grace Hopper", timezone: "Asia/Seoul" },
+      operation: "request.identify",
+      retryKey: randomUUID(),
+    },
+  });
+  if (response.status !== 200) throw new Error(`Identifying the draft answered ${response.status}.`);
+  return draft;
 }
 
 // Indexes a live session for a request's discussion, as the message route does

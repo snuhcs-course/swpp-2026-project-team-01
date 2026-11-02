@@ -325,3 +325,36 @@
   .ink .status-mark, .ink .status-mark .disc { transition: none; }
   .ink .card-dots button::before { transition: none; }
 }
+
+/* The guest's web chat (the web start and the booking page, guest-flow-completion U7): the shared chat
+   parts and cards are styled with the app's shadcn roles, so inside the ink stage those roles take the ink
+   tokens, and their display headings the ink heading face. The chat fills the viewport under the same top
+   bar as the other ink screens. */
+.ink {
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary-foreground: var(--on-primary);
+  --secondary: var(--soft-surface);
+  --secondary-foreground: var(--ink);
+  --muted: var(--soft-surface);
+  --muted-foreground: var(--muted-ink);
+  --accent: var(--soft-surface);
+  --accent-foreground: var(--ink);
+  --border: var(--hairline);
+  --input: var(--botanical);
+  --ring: var(--primary);
+}
+.ink .font-display { font-family: var(--wm-family); font-weight: var(--wm-weight); letter-spacing: 0; }
+.ink .chat-frame { position: relative; display: flex; flex-direction: column; height: 100dvh; min-height: 0; }
+.ink .chat-frame > .top { flex: none; width: 100%; max-width: 1120px; margin-inline: auto; box-sizing: border-box; padding: 20px clamp(20px, 5cqi, 56px) 8px; }
+/* Thyme's messages in the guest chat read as messages: each one its own bubble, as on the landing's thread. */
+.ink [data-slot="message"][data-align="start"] > [data-slot="message-content"] {
+  width: fit-content; max-width: min(88%, 62ch); box-sizing: border-box;
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: 16px; border-bottom-left-radius: 6px;
+  padding: 10px 16px 12px; box-shadow: 0 1px 2px rgb(30 36 48 / 0.04);
+}
+.ink [data-slot="message"][data-align="start"] [data-slot="message-header"] { padding-inline: 0; }

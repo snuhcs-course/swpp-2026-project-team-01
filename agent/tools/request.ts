@@ -2,13 +2,19 @@ import { defineDynamic, defineTool } from "eve/tools";
 import { z } from "zod";
 import { database } from "../../lib/server/database";
 import {
-  askForIdentityForTool,
+  agreeToolInput,
+  agreeToProposalForTool,
+  applyRequestReviewForTool,
+  changeAgreementForTool,
+  chooseTimeForTool,
+  chooseTimeToolInput,
   draftRequestReviewForTool,
   draftRequestReviewToolInput,
   evaluateCandidatesForTool,
   isRequesterSession,
   readBookingStatusForTool,
   readRequestForTool,
+  withdrawRequestForTool,
 } from "../../lib/server/request-tools";
 import {
   evaluateCandidatesForHostTool,
@@ -24,9 +30,8 @@ import type { SessionPrincipal } from "../../lib/server/setup-tools";
 // The request-discussion tools (agent configuration: tools and permission layer
 // 2; design decision 12). One resolver serves every request discussion and
 // returns the tool set of the session's audience: the requester set for a
-// requester session (a draft included, whose state is checked inside each
-// operation; ask_for_identity is the structured signal that the assistant asked
-// for a name and email, which places the identity card), and the host-review set
+// requester session, which starts only once the guest is identified
+// (guest-flow-completion U8), and the host-review set
 // for a host's private review of one request (host-review-and-booking design
 // 12), whose shared tools return the host projection. Host setup sessions get
 // nothing from here, a requester session gets no host tool, and no audience gets
@@ -47,7 +52,7 @@ function requesterTools() {
   return {
     read_request: defineTool({
       description:
-        "Read this meeting request as the requester may see it: status, meeting details (purpose, duration, mode, place or meeting link plan, availability windows in the requester's timezone), what is still missing, the pending review, the current candidate times and proposal. Contact details appear only as present or absent. It contains nothing about the host's calendar or rules. Call it at the start of each turn.",
+        "Read this meeting request as the requester may see it: status, meeting details (purpose, duration, mode, place or meeting link plan, availability windows in the requester's timezone), what is still missing, the pending review, the current candidate times and proposal, and what the host offers every guest (meeting length, online or in person or either, and the places they meet in). Contact details appear only as present or absent. It contains nothing else about the host's settings, nor their calendar or rules. Call it at the start of each turn.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => readRequestForTool(database(), call(toolCtx)),
     }),
@@ -59,21 +64,45 @@ function requesterTools() {
     }),
     evaluate_candidates: defineTool({
       description:
-        "Find feasible meeting times for the current details. It waits up to 20 seconds and returns candidate times for the requester, or the evaluation's identity while it is still running; the candidate times card shows the same result. It cannot choose a time: the requester presses Choose this time on the card. Before the guest has given a name and email it returns identityRequired and finds nothing; the identity card then appears in the conversation.",
+        "Find feasible meeting times for the current details. It waits up to 20 seconds and returns candidate times for the requester, or the evaluation's identity while it is still running; the candidate times card shows the same result. Without free times from the requester it searches the next two weeks within the host's hours. It chooses nothing: choose_time does, when the guest names a time.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => evaluateCandidatesForTool(database(), call(toolCtx)),
     }),
-    ask_for_identity: defineTool({
-      description:
-        "Call this in the same turn as you ask the guest for their name and email, while read_request says identified: false. It shows the identity card (Continue with Google, Continue without Google) in the conversation right after your message; it records nothing about the guest. Never ask them to type their name or email as a message.",
-      inputSchema: z.object({}),
-      execute: (_input, toolCtx) => askForIdentityForTool(database(), call(toolCtx)),
-    }),
     read_booking_status: defineTool({
       description:
-        "Read the request's status from the records: gathering, negotiating, awaiting the host's approval, or closed, and which proposal version the requester agreed to. Nothing is booked until the host approves.",
+        "Read the request's status from the records: gathering, negotiating, awaiting the host's approval, booked with the confirmed meeting (time, length, place or join link), or closed, and which proposal version the requester agreed to. Nothing is booked until the host approves.",
       inputSchema: z.object({}),
       execute: (_input, toolCtx) => readBookingStatusForTool(database(), call(toolCtx)),
+    }),
+    apply_request_review: defineTool({
+      description:
+        "Apply the pending review, as Apply these details does, when the guest confirmed its details in words, then find times for them. It changes only what the review holds.",
+      inputSchema: z.object({}),
+      execute: (_input, toolCtx) => applyRequestReviewForTool(database(), call(toolCtx)),
+    }),
+    choose_time: defineTool({
+      description:
+        "Choose one of the current candidate times, as Choose this time does, when the guest named it: give its id from read_request. It makes a proposal for the guest to agree to; it agrees to nothing.",
+      inputSchema: chooseTimeToolInput,
+      execute: (input, toolCtx) => chooseTimeForTool(database(), call(toolCtx), input),
+    }),
+    agree_to_proposal: defineTool({
+      description:
+        "Agree to the current proposal version, as Agree to this proposal does, when the guest clearly agreed to that exact time and details. The request then waits for the host's approval; nothing is booked.",
+      inputSchema: agreeToolInput,
+      execute: (input, toolCtx) => agreeToProposalForTool(database(), call(toolCtx), input),
+    }),
+    change_agreement: defineTool({
+      description:
+        "Reopen an agreed request, as Change does, while it waits for the host's approval, when the guest wants another time or detail. After the host approves nothing changes here.",
+      inputSchema: z.object({}),
+      execute: (_input, toolCtx) => changeAgreementForTool(database(), call(toolCtx)),
+    }),
+    withdraw_request: defineTool({
+      description:
+        "Withdraw the request, as Withdraw request does, only after the guest confirmed they want to withdraw. They can write again later to ask for a new request with the same host.",
+      inputSchema: z.object({}),
+      execute: (_input, toolCtx) => withdrawRequestForTool(database(), call(toolCtx)),
     }),
   };
 }

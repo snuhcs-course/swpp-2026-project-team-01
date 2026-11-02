@@ -16,7 +16,7 @@ A guest SHALL link iMessage to a request only by sending a request-owned one-tim
 - **THEN** no iMessage is sent to them for any notice
 
 ### Requirement: Guest bindings are request-scoped
-A guest binding SHALL belong to one request and SHALL record the sender only as a keyed hash and sealed values. A request SHALL have at most one active guest binding; a sender MAY hold active bindings on several requests. A binding SHALL end on **Unlink iMessage**, when the request is booked or withdrawn, and when the booking link's receipt window ends, and SHALL move to a revised request created from it.
+A guest binding SHALL belong to one request and SHALL record the sender only as a keyed hash and sealed values. A request SHALL have at most one active guest binding; a sender MAY hold active bindings on several requests. A binding SHALL end on **Unlink iMessage** and when the booking link's receipt window ends, and SHALL move to a revised request created from it.
 
 #### Scenario: Unlink
 - **WHEN** the guest presses **Unlink iMessage**
@@ -41,5 +41,5 @@ After link codes, an inbound message SHALL route to the conversation of the last
 The assistant's final text for a routed message SHALL be sent back in the same conversation through the frozen outbox, and a send that began without a confirmed result SHALL be recorded uncertain and never repeated. Guest notices and replies SHALL NOT contain the booking link, link codes, host notes, host rules, exception reasons or calendar contents.
 
 #### Scenario: Guest asks to book
-- **WHEN** a linked guest writes "book it"
-- **THEN** nothing is recorded and the reply names the card on the booking page
+- **WHEN** a linked guest writes "book it" about the current proposal
+- **THEN** the assistant records the guest's agreement to that version, the request waits for the host's approval, and the reply carries no booking link

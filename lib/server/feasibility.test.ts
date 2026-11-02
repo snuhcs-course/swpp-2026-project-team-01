@@ -285,6 +285,29 @@ describe("weekly limit", () => {
   });
 });
 
+describe("the default search range", () => {
+  // guest-flow-completion U9: without the requester's windows the evaluation
+  // searches two weeks; each day's first start comes before any day's second.
+  const twoWeeks = { end: new Date(NOW.getTime() + 14 * 86_400_000), start: NOW };
+
+  it("keeps candidates across the range's days, earliest day first, when spreading", () => {
+    const spread = evaluateFeasibility(input({ request: { spreadDays: true, windows: [twoWeeks] } }));
+    const days = spread.candidates.slice(0, 10).map((candidate) => candidate.start.slice(0, 10));
+
+    // Ten weekdays from Friday 30 October (Seoul): 30 Oct, 2 to 6 Nov, 9 to 12 Nov.
+    expect(new Set(days).size).toBe(10);
+    expect(spread.candidates[0]!.start).toBe(kst("2026-10-30", "10:00").toISOString());
+    expect(spread.candidates[1]!.start).toBe(kst("2026-11-02", "10:00").toISOString());
+    // The second start of the first day follows every day's first.
+    expect(spread.candidates[10]!.start).toBe(kst("2026-10-30", "10:15").toISOString());
+  });
+
+  it("keeps the soonest-first order over the requester's own windows", () => {
+    const own = evaluateFeasibility(input({ request: { windows: [twoWeeks] } }));
+    expect(starts(own).slice(0, 2)).toEqual([kst("2026-10-30", "10:00").toISOString(), kst("2026-10-30", "10:15").toISOString()]);
+  });
+});
+
 describe("travel legs", () => {
   const office = place("Gangnam office");
   const inPerson = { location: MEETING, mode: "in_person" as const, travelMode: "transit" as const };

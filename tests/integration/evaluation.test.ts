@@ -432,12 +432,26 @@ describe("evaluation job", () => {
     expect((await readHostEvaluation(db, evaluationId))!.failureCategory).toBe("request_closed");
   });
 
-  it("asks for details when the request has no windows", async () => {
+  it("searches the next two weeks, one start per day first and unranked, when the request has no windows", async () => {
     const host = await seedHost();
     const requestId = await seedRequest(host.hostAccountId, { windows: [] });
-    const { evaluationId } = await evaluate(requestId);
+    const started = Date.now();
+    const model = rankingModel((ids) => JSON.stringify({ order: [...ids].reverse() }));
+    const { evaluationId } = await evaluate(requestId, deps({ model }));
+    const view = await awaitEvaluation(db, evaluationId, 1_000);
 
-    expect(await awaitEvaluation(db, evaluationId, 1_000)).toMatchObject({ candidates: [], failure: "needs_details", state: "completed" });
+    // The fixed slot step makes no model call (guest-flow-completion U9).
+    expect(model.doGenerateCalls).toHaveLength(0);
+    expect(await reservations(evaluationId)).toBe(0);
+    expect(await readHostEvaluation(db, evaluationId)).toMatchObject({ ranking: null, state: "completed" });
+
+    expect(view).toMatchObject({ failure: null, state: "completed" });
+    const starts = view!.candidates.map((candidate) => Date.parse(candidate.start));
+    expect(starts.length).toBeGreaterThanOrEqual(8);
+    expect(starts.every((start) => start > started && start < started + 14 * 86_400_000 + 60_000)).toBe(true);
+    // The two weeks hold at least eight weekdays; the first eight candidates fall on eight of them.
+    const days = view!.candidates.slice(0, 8).map((candidate) => new Date(candidate.start).toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }));
+    expect(new Set(days).size).toBe(8);
   });
 
   it("returns a pending evaluation when the wait ends first", async () => {

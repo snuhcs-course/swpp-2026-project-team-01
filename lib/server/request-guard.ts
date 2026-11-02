@@ -43,8 +43,9 @@ export async function lockOpenRequest(tx: Transaction, requestId: string): Promi
 }
 
 // Candidate evaluation, selection and agreement need the guest's name and
-// email (design decision 2): a draft answers identity_required, which the
-// assistant and the page meet with the identity card in the thread. The state
+// email (design decision 2): a draft answers identity_required. On the web a
+// draft only exists between the web start's buttons and identification
+// (guest-flow-completion U10), so no conversation meets it. The state
 // is checked inside each operation (permission layer 3), not by withholding
 // tools, since a draft and its identified request share one audience.
 export function assertIdentified(request: Pick<LockedRequest, "state">) {

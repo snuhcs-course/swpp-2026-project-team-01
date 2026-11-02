@@ -24,6 +24,11 @@ export type RequesterEvaluationView = RequesterEvaluation & {
 // The authored requester messages for an evaluation without candidates (design
 // decision 12: the no-match message asks for a wider window or other details
 // and gives no rule or reason), in the request's language.
+// The times shown at once: the first three of the evaluation's order. The
+// times card shows them and **Find other times** shows the next three before
+// it searches again; the assistant describes the same three (U11).
+export const TIMES_SHOWN = 3;
+
 export const NO_MATCH_MESSAGE = {
   en: "No time in your windows works yet. Try a wider window, other days or a shorter meeting.",
   ko: "말씀하신 시간대에서는 아직 맞는 시간이 없어요. 시간대를 넓히거나 다른 날짜, 더 짧은 미팅으로 다시 찾아보세요.",

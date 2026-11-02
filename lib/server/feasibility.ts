@@ -249,6 +249,9 @@ export type RequestTerms = {
   readonly location: { readonly text: string; readonly key: string } | null;
   readonly linkPlan: LinkPlan | null;
   readonly windows: readonly { readonly start: Date; readonly end: Date }[];
+  // The windows are the default search range, not the requester's own: keep
+  // candidates spread across its days (guest-flow-completion U9).
+  readonly spreadDays?: boolean;
   readonly timezone: string;
   readonly travelMode: RequesterTravelMode | null;
 };
@@ -612,8 +615,22 @@ function plan(input: FeasibilityInput): Plan {
     });
   }
 
-  // Weeks below the limit first; the limit never removes a candidate.
-  free.sort((a, b) => Number(b.belowLimit) - Number(a.belowLimit) || a.start - b.start);
+  // Weeks below the limit first; the limit never removes a candidate. Over the
+  // default range, each day's first start comes before any day's second, so
+  // the kept candidates cover the range rather than its first day.
+  const dayRank = new Map<number, number>();
+  if (request.spreadDays) {
+    const perDay = new Map<string, number>();
+    for (const entry of free) {
+      const day = localParts(entry.start, request.timezone).date;
+      dayRank.set(entry.start, perDay.get(day) ?? 0);
+      perDay.set(day, (perDay.get(day) ?? 0) + 1);
+    }
+  }
+  free.sort(
+    (a, b) =>
+      Number(b.belowLimit) - Number(a.belowLimit) || (dayRank.get(a.start) ?? 0) - (dayRank.get(b.start) ?? 0) || a.start - b.start,
+  );
   const kept = free.slice(0, CANDIDATE_LIMIT);
 
   if (mode === "online") {

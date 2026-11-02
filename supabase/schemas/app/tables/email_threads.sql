@@ -7,21 +7,25 @@
 -- last_message_id is the latest forwarded or binding message, which thread
 -- notices reply to; closed_notice_at records the one closed-request notice.
 -- bound_by_receipt_id is the receipt that created the binding, so a retried
--- job recognizes the linking or starting message it already handled.
+-- job recognizes the linking or starting message it already handled. A thread
+-- the product inbox started with a status notice to a request that had none
+-- (origin notified, guest-flow-completion U15) has none until a revised
+-- request moves it.
 CREATE TABLE "app"."email_threads" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "request_id" uuid NOT NULL REFERENCES "app"."requests" ("id") ON DELETE CASCADE,
   "inbox_id" text NOT NULL CHECK (char_length("inbox_id") BETWEEN 1 AND 320),
   "thread_id" text NOT NULL CHECK (char_length("thread_id") BETWEEN 1 AND 500),
-  "origin" text NOT NULL CHECK ("origin" IN ('started', 'linked')),
+  "origin" text NOT NULL CHECK ("origin" IN ('started', 'linked', 'notified')),
   "sender_hash" text NOT NULL CHECK ("sender_hash" ~ '^[0-9a-f]{64}$'),
   "state" text NOT NULL DEFAULT 'active' CHECK ("state" IN ('active', 'unlinked')),
-  "bound_by_receipt_id" uuid NOT NULL,
+  "bound_by_receipt_id" uuid,
   "last_message_id" text NOT NULL CHECK (char_length("last_message_id") BETWEEN 1 AND 1000),
   "closed_notice_at" timestamptz,
   "bound_at" timestamptz NOT NULL DEFAULT now(),
   "ended_at" timestamptz,
-  CONSTRAINT "email_threads_ended" CHECK (("state" = 'active') = ("ended_at" IS NULL))
+  CONSTRAINT "email_threads_ended" CHECK (("state" = 'active') = ("ended_at" IS NULL)),
+  CONSTRAINT "email_threads_receipt" CHECK ("origin" = 'notified' OR "bound_by_receipt_id" IS NOT NULL)
 );
 
 CREATE UNIQUE INDEX "email_threads_active_thread_key" ON "app"."email_threads" ("inbox_id", "thread_id") WHERE "state" = 'active';

@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
-import { hashBookingId, sealBookingLink } from "../../lib/server/booking-links";
 import type { ConversationRuntime } from "../../lib/server/conversations";
 import type { Database } from "../../lib/server/database";
 import { createImessageReceiptHandler } from "../../lib/server/imessage-receipts";
@@ -10,13 +9,15 @@ import { parseTokenKey } from "../../lib/server/token-encryption";
 import { unreachableSetup } from "../integration/support/imessage";
 import { messagesEvent, newSender, signedWebhook, TEST_WEBHOOK_ID, TEST_WEBHOOK_SECRET } from "../integration/support/photon";
 import { runJob } from "../integration/support/requests";
+import { agreedReviewRequest } from "./support/host-review";
 import { readyRequestHost } from "./support/requester";
 import { expect, test } from "./support/session";
 import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 
 // **Get updates in iMessage** on the booking page (guest-flow-completion design
 // 1; task 8.4's linking part), by keyboard at 390 and 1280 pixels, against the
-// real web and agent services, the local stack and the Photon stand-in. The
+// real web and agent services, the local stack and the Photon stand-in, for a
+// request the guest agreed to (the line follows the agreement). The
 // guest's message is driven here through the real receiver and receipt job, as
 // Photon and the worker would: a desktop shows the number, the message and a QR
 // code; the arrived message shows the masked sender, and only **Confirm and
@@ -33,24 +34,11 @@ const runtime: ConversationRuntime = {
   sendMessage: async () => undefined,
 };
 
-async function identifiedRequest(db: Database) {
+// The line appears once the guest agreed, while the request waits for the
+// host's approval (guest-flow-completion U10).
+async function agreedRequest(db: Database) {
   const host = await readyRequestHost(db);
-  const bookingId = randomUUID();
-  const email = `grace-${randomUUID().slice(0, 8)}@example.test`;
-  const details = { language: "en", timezone: "Asia/Seoul", windows: [] };
-  const [request] = await db<{ id: string }[]>`
-    insert into app.requests
-      (host_account_id, details, requester_name, contact_email, contact_confirmed_email, state, identified_at, expires_at)
-    values (${host.hostAccountId}, ${db.json(details)}, 'Grace Hopper', ${email}, ${email}, 'gathering', now(), now() + interval '7 days')
-    returning id
-  `;
-  const sealed = sealBookingLink(tokenKey, request!.id, bookingId);
-  await db`
-    insert into app.booking_links (request_id, link_hash, link_ciphertext, link_key_id)
-    values (${request!.id}, ${hashBookingId(bookingId)}, ${sealed.ciphertext}, ${sealed.keyId})
-  `;
-  await db`insert into app.discussions (principal_type, principal_id, audience) values ('requester_request', ${request!.id}, 'requester')`;
-  return { bookingId, requestId: request!.id };
+  return agreedReviewRequest(db, host.hostAccountId);
 }
 
 // The guest's message, signed to the receiver and processed by the receipt job.
@@ -91,7 +79,7 @@ async function pressByKeyboard(page: Page, name: string) {
 for (const width of [390, 1280]) {
   test(`at ${width}px a guest links and unlinks iMessage updates by keyboard`, async ({ db, page }) => {
     await page.setViewportSize({ height: 800, width });
-    const request = await identifiedRequest(db);
+    const request = await agreedRequest(db);
     await page.goto(`/booking/${request.bookingId}`);
 
     // The first visit compiles the page under next dev, slow while other suites run.

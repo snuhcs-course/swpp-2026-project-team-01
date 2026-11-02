@@ -5,11 +5,15 @@ import { EVALUATION_JOB } from "../../lib/server/evaluation";
 import { closeRequest } from "../../lib/server/request-lifecycle";
 import { applyReviewCommand } from "../../lib/server/request-reviews";
 import {
+  agreeToProposalForTool,
+  changeAgreementForTool,
+  chooseTimeForTool,
   draftRequestReviewForTool,
   evaluateCandidatesForTool,
   readBookingStatusForTool,
   readRequestForTool,
   RequestToolDeniedError,
+  withdrawRequestForTool,
 } from "../../lib/server/request-tools";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
@@ -178,5 +182,70 @@ describe("evaluate_candidates", () => {
     });
     const [count] = await db<{ count: number }[]>`select count(*)::int as count from app.evaluations where request_id = ${r.requestId}`;
     expect(count!.count).toBe(10);
+  });
+});
+
+describe("decisions in words (U15)", () => {
+  async function withTimes() {
+    const r = await requester({ details: { linkPlan: { kind: "google_meet" } }, events: [busy("10:00", "10:30")] });
+    const call = r.call();
+    const waiting = evaluateCandidatesForTool(db, call, { waitMs: 10_000 });
+    await runEvaluation(db, evaluationDeps(db, google), await evaluationJobFor(r.requestId, call.callId));
+    const result = (await waiting) as { candidates: { id: string }[] };
+    return { ...r, candidateId: result.candidates[0]!.id };
+  }
+
+  it("chooses a named time, agrees to its proposal, reopens it, and withdraws", async () => {
+    const r = await withTimes();
+
+    expect(await agreeToProposalForTool(db, r.call(), { version: 1 })).toMatchObject({ recorded: false });
+    expect(await chooseTimeForTool(db, r.call(), { candidateId: r.candidateId })).toMatchObject({ recorded: true, state: "negotiating" });
+    expect(await agreeToProposalForTool(db, r.call(), { version: 1 })).toMatchObject({ recorded: true, state: "awaiting_host_approval" });
+    expect(await readBookingStatusForTool(db, r.call())).toMatchObject({ agreedVersion: 1, state: "awaiting_host_approval" });
+
+    expect(await changeAgreementForTool(db, r.call())).toMatchObject({ recorded: true, state: "negotiating" });
+    expect(await changeAgreementForTool(db, r.call())).toMatchObject({ recorded: false });
+
+    expect(await withdrawRequestForTool(db, r.call())).toMatchObject({ recorded: true, state: "withdrawn" });
+    await expect(readRequestForTool(db, r.call())).rejects.toBeInstanceOf(RequestToolDeniedError);
+  });
+
+  it("replays a decision on the same call instead of repeating it", async () => {
+    const r = await withTimes();
+    const call = r.call();
+    const first = await chooseTimeForTool(db, call, { candidateId: r.candidateId });
+    expect(await chooseTimeForTool(db, call, { candidateId: r.candidateId })).toEqual(first);
+    const [count] = await db<{ count: number }[]>`select count(*)::int as count from app.proposals where request_id = ${r.requestId}`;
+    expect(count!.count).toBe(1);
+  });
+});
+
+describe("a booked request (U18)", () => {
+  it("can be read with its meeting, and refuses decisions", async () => {
+    const r = await requester();
+    await db`update app.requests set state = 'booked', closed_at = now() where id = ${r.requestId}`;
+
+    expect(await readRequestForTool(db, r.call())).toMatchObject({ booking: null, status: { state: "booked" } });
+    expect(await readBookingStatusForTool(db, r.call())).toMatchObject({ state: "booked" });
+    await expect(withdrawRequestForTool(db, r.call())).rejects.toBeInstanceOf(RequestToolDeniedError);
+  });
+});
+
+
+describe("draft_request_review on a revised request (U17)", () => {
+  it("refuses a time wholly inside the host's excluded times, with no reason", async () => {
+    const r = await requester();
+    const day = (offset: number) => new Date(Date.now() + offset * 86_400_000);
+    const excluded = { end: day(9).toISOString(), start: day(5).toISOString() };
+    await db`update app.requests set details = details || ${db.json({ excludedTimes: [excluded] })} where id = ${r.requestId}`;
+    const local = (offset: number) => ({ date: day(offset).toISOString().slice(0, 10), end: "11:00", start: "10:00" });
+
+    const refused = await draftRequestReviewForTool(db, r.call(), { details: { windows: [local(7)] }, intent: "availability" });
+    expect(refused).toMatchObject({ problem: "excluded_window", recorded: false });
+    expect(JSON.stringify(refused)).not.toMatch(/busy|rule|event|note/i);
+
+    expect(await draftRequestReviewForTool(db, r.call(), { details: { windows: [local(20)] }, intent: "availability" })).toMatchObject({
+      recorded: true,
+    });
   });
 });

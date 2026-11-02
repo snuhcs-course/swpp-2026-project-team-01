@@ -100,6 +100,10 @@ export type RequestDetails = {
   readonly timezone: string;
   readonly language: RequestLanguage;
   readonly travelMode: RequesterTravelMode | null;
+  // Times left out of every search (guest-flow-completion U17): the time a host
+  // declined and the days they named as no longer working when declining,
+  // carried to a revised request. Never a reason.
+  readonly excludedTimes?: readonly RequestWindow[];
 };
 
 // The fields a review, the meeting details card or request.update_details may
@@ -107,7 +111,7 @@ export type RequestDetails = {
 // are an explicit contact correction: an empty string is an explicit empty edit,
 // kept exactly for protected review and refused when applied.
 export type ReviewPatch = Partial<
-  Pick<RequestDetails, "purpose" | "durationMinutes" | "mode" | "location" | "linkPlan" | "windows" | "travelMode">
+  Pick<RequestDetails, "purpose" | "durationMinutes" | "mode" | "location" | "linkPlan" | "windows" | "travelMode" | "timezone">
 > & {
   readonly contactName?: string;
   readonly contactEmail?: string;

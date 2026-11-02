@@ -1,6 +1,6 @@
 "use client";
 
-import { EVALUATION_FAILURE_MESSAGES, NO_MATCH_MESSAGE } from "@lib/contracts/feasibility";
+import { EVALUATION_FAILURE_MESSAGES, NO_MATCH_MESSAGE, TIMES_SHOWN } from "@lib/contracts/feasibility";
 import type { LinkPlan, RequesterCandidate, RequestLanguage, RequestWindow, ReviewPatch } from "@lib/contracts/request";
 import { displayTime, zoneLabel } from "@lib/contracts/timezone";
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
@@ -10,9 +10,10 @@ import { Input } from "@/components/ui/input";
 import type { CommandOutcome, RequesterCardContext } from "./cards";
 
 // The guest's scheduling cards (design decision 12; DESIGN.md: conversation
-// card and proposal card): the review of extracted details, the meeting details
-// editor (opened in the thread with **Edit details**), the proposal awaiting
-// agreement and the candidate times. Each posts one command with the expected
+// card and proposal card): the meeting step (guest-flow-completion U9), the
+// review of extracted details, the meeting details editor (opened in the
+// thread with **Edit details**), the proposal awaiting agreement and the
+// candidate times. Each posts one command with the expected
 // revision and keeps its retry key until the service answers. A message in the
 // conversation records none of these decisions.
 
@@ -95,6 +96,7 @@ function patchRows(patch: ReviewPatch, timeZone: string): [string, ReactNode][] 
   if (patch.location) rows.push(["Place", patch.location]);
   if (patch.linkPlan) rows.push(["Meeting link", linkPlanText(patch.linkPlan)]);
   if (patch.travelMode) rows.push(["Your travel", TRAVEL_LABELS[patch.travelMode]]);
+  if (patch.timezone) rows.push(["Your time zone", patch.timezone]);
   if (patch.windows) {
     rows.push([
       "Free times",
@@ -119,6 +121,18 @@ export function ReviewCard({ context }: { readonly context: RequesterCardContext
   const { act, busy, error } = useAction(context);
   const canApply = review.patch !== null && review.clarifications.length === 0;
   const awaiting = context.view.request.state === "awaiting_host_approval";
+
+  // Applying details finds times for them at once (U13) when the meeting then
+  // has its purpose, length and form; the assistant gathers them first.
+  async function apply() {
+    const applied = await act("request.apply_review", { reviewId: review.id });
+    const { details, state } = context.view.request;
+    const patch = review.patch ?? {};
+    const ready =
+      state !== "draft" &&
+      Boolean((patch.purpose ?? details.purpose) && (patch.durationMinutes ?? details.durationMinutes) && (patch.mode ?? details.mode));
+    if (applied.ok && ready) await act("request.evaluate", {}, null);
+  }
 
   return (
     <GuestCard
@@ -145,7 +159,7 @@ export function ReviewCard({ context }: { readonly context: RequesterCardContext
           <Button
             className="min-h-11"
             disabled={busy}
-            onClick={() => void act("request.apply_review", { reviewId: review.id })}
+            onClick={() => void apply()}
             type="button"
           >
             {busy ? "Applying..." : "Apply these details"}
@@ -505,7 +519,6 @@ function missingLabels(context: RequesterCardContext) {
   return [
     ...(details.durationMinutes ? [] : ["the meeting length"]),
     ...(details.mode ? [] : ["online or in person"]),
-    ...(details.windows?.length ? [] : ["when you are free"]),
   ];
 }
 
@@ -513,8 +526,11 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
   const { evaluation, request } = context.view;
   const { act, busy, error } = useAction(context);
   const [notice, setNotice] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
   const missing = missingLabels(context);
   const lang = language(context);
+
+  useEffect(() => setPage(0), [evaluation?.id]);
 
   useEffect(() => {
     if (evaluation?.state !== "pending") return;
@@ -522,8 +538,14 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
     return () => clearInterval(timer);
   }, [evaluation?.state, context.refresh]);
 
+  const offeredCount = evaluation?.candidates.filter((candidate) => !candidate.unresolvedRequesterLeg).length ?? 0;
+
   const findTimes = async () => {
     setNotice(null);
+    if ((page + 1) * TIMES_SHOWN < offeredCount) {
+      setPage(page + 1);
+      return;
+    }
     await act("request.evaluate", {}, null);
   };
 
@@ -557,7 +579,7 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
   if (evaluation.state === "pending") {
     return (
       <GuestCard id="candidates" label="Times" title="Finding times...">
-        <p role="status">Checking your windows. This takes a few seconds.</p>
+        <p role="status">Checking both calendars. This takes a few seconds.</p>
       </GuestCard>
     );
   }
@@ -594,7 +616,7 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
       {needsLink && offered.length > 0 ? <p>The host cannot create a Google Meet link, so add your own meeting link to choose a time.</p> : null}
       {offered.length > 0 ? (
         <ul aria-label="Candidate times" className="flex flex-col gap-2">
-          {offered.map((candidate) => (
+          {offered.slice(page * TIMES_SHOWN, (page + 1) * TIMES_SHOWN).map((candidate) => (
             <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3" key={candidate.id}>
               <CandidateTime candidate={candidate} timeZone={context.timezone} />
               <Button

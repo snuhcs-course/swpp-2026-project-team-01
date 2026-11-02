@@ -205,7 +205,7 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
 
     if (principal.type === "requester_request") {
       const [request] = await tx<{ confirmed: boolean; open: boolean }[]>`
-        select r.closed_at is null and r.expires_at > now() as open,
+        select (r.closed_at is null and r.expires_at > now()) or r.state = 'booked' as open,
                r.contact_confirmed_email is not null or exists (
                  select 1 from app.requester_grants g
                  where g.request_id = r.id and g.kind = 'identity' and g.revoked_at is null

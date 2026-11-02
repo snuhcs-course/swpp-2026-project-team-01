@@ -5,7 +5,7 @@ import { requestRef, requestSummary } from "./imessage-commands";
 import { activeBindingOfHost, bindingRecipient } from "./imessage-links";
 import { type GuestNotice, guestNoticeKey, type HostNotice, noticeKey } from "./imessage-notices";
 import { recordOutbound } from "./imessage-outbox";
-import { activeRequesterBinding, endRequesterBindings, requesterBindingRecipient } from "./requester-imessage-bindings";
+import { activeRequesterBinding, requesterBindingRecipient } from "./requester-imessage-bindings";
 import type { JobHandler } from "./jobs";
 import { isValidTimeZone } from "../contracts/timezone";
 import { appOriginsFromEnvironment } from "./same-origin";
@@ -41,21 +41,23 @@ function meetingTime(start: Date, end: Date, zone: string, locale = "en-US") {
 export const GUEST_NOTICE_TEXTS = {
   en: {
     status_new_version: (host: string, when: string) =>
-      `${host} sent back changed meeting details: ${when}. Nothing is agreed yet. Open your booking page from your email to review and agree.`,
+      `${host} sent back changed meeting details: ${when}. Nothing is agreed yet. Reply here to agree or to ask for something else.`,
     status_declined: (host: string) => `${host} declined this meeting request, so it is closed. Reply here if you'd like to ask again.`,
     status_expired: (host: string) => `Your meeting request with ${host} expired. Reply here if you'd like to try again.`,
     status_pending: (host: string, when: string) =>
-      `${host} approved ${when}. It's still being confirmed in Google Calendar, so nothing is booked yet. Your booking page will show the result.`,
-    booking_confirmation: (host: string, when: string) => `Booked with ${host}: ${when}. The invitation and details are in your email.`,
+      `${host} approved ${when}. It's still being confirmed in Google Calendar, so nothing is booked yet. I'll tell you here when it is.`,
+    booking_confirmation: (host: string, when: string) =>
+      `Booked with ${host}: ${when}. The invitation is in your email. Ask here anytime about the time or place.`,
   },
   ko: {
     status_new_version: (host: string, when: string) =>
-      `${host}님이 미팅 세부 정보를 바꾸어 다시 보냈습니다: ${when}. 아직 합의된 것은 없습니다. 이메일의 예약 페이지에서 확인하고 동의해 주세요.`,
+      `${host}님이 미팅 세부 정보를 바꾸어 다시 보냈습니다: ${when}. 아직 합의된 것은 없습니다. 동의하시거나 다른 것을 원하시면 여기에 답장해 주세요.`,
     status_declined: (host: string) => `${host}님이 이번 미팅 요청을 거절해 요청이 종료되었습니다. 다시 요청하려면 여기에 답장해 주세요.`,
     status_expired: (host: string) => `${host}님과의 미팅 요청이 기한이 지나 종료되었습니다. 다시 시도하려면 여기에 답장해 주세요.`,
     status_pending: (host: string, when: string) =>
-      `${host}님이 ${when} 미팅을 승인했습니다. Google Calendar에서 아직 확인 중이라 예약이 확정된 것은 아닙니다. 결과는 예약 페이지에 표시됩니다.`,
-    booking_confirmation: (host: string, when: string) => `${host}님과의 미팅이 예약되었습니다: ${when}. 초대장과 세부 정보는 이메일에 있습니다.`,
+      `${host}님이 ${when} 미팅을 승인했습니다. Google Calendar에서 아직 확인 중이라 예약이 확정된 것은 아닙니다. 확정되면 여기로 알려 드릴게요.`,
+    booking_confirmation: (host: string, when: string) =>
+      `${host}님과의 미팅이 예약되었습니다: ${when}. 초대장은 이메일에 있습니다. 시간이나 장소가 궁금하면 언제든 여기에 물어보세요.`,
   },
 } as const;
 
@@ -103,7 +105,6 @@ async function recordGuestNotice(tx: Transaction, deps: NoticeJobDependencies, r
     text,
     tokenKey: deps.tokenKey,
   });
-  if (notice.kind === "booking_confirmation") await endRequesterBindings(tx, requestId, "ended");
   return { queued: true };
 }
 

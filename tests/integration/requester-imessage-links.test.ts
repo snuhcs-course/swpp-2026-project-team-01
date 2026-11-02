@@ -23,7 +23,7 @@ import { createTestRequest, testTokenKey } from "./support/requests";
 // carries no booking link; a code that ran out binds nothing; a forwarded code
 // binds nothing until the holder of the booking link confirms, and confirms
 // only the sender it shows; a host may also be a guest; unlinking ends the
-// binding and suppresses what had not left; and a withdrawn request ends it.
+// binding and suppresses what had not left; and a withdrawn request keeps it.
 
 const db = testDatabase();
 let photon: FakePhoton;
@@ -174,7 +174,7 @@ describe("ending a guest binding", () => {
     expect((await im.send(welcome!.id)).sent).toEqual([]);
   });
 
-  it("ends the binding when the request is withdrawn, still sending what was queued", async () => {
+  it("keeps the binding when the request is withdrawn, for a revised request later (U16)", async () => {
     const guest = await linkedGuest();
     const [request] = await db<{ revision: number }[]>`select revision from app.requests where id = ${guest.requestId}`;
     const withdrawn = await runCommand(
@@ -183,7 +183,7 @@ describe("ending a guest binding", () => {
       { expectedRevision: request!.revision, input: {}, resourceId: guest.requestId, retryKey: randomUUID() },
     );
     expect(withdrawn.ok).toBe(true);
-    expect(await bindingOf(guest.requestId)).toMatchObject({ state: "ended" });
+    expect(await bindingOf(guest.requestId)).toMatchObject({ state: "active" });
 
     const [welcome] = await im.outbox({ kind: "linked", recipientHash: imessageHash(testTokenKey, "sender", guest.sender) });
     expect(textOf((await im.send(welcome!.id)).sent)).toHaveLength(1);
