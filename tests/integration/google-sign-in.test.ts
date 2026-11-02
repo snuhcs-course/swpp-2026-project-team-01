@@ -93,6 +93,8 @@ describe("Google sign-in", () => {
 
     const requested = flow.google.searchParams.get("scope")!.split(" ");
     expect(requested).toEqual(expect.arrayContaining(["email", "profile", ...GOOGLE_CALENDAR_SCOPES]));
+    // Exactly the Calendar scopes submitted for Google's verification, nothing unused.
+    expect(requested.filter((scope) => scope.includes("/auth/calendar")).sort()).toEqual([...GOOGLE_CALENDAR_SCOPES].sort());
   });
 
   it("gives this browser's iMessage start to the host who signs in, and clears its cookie (D15)", async () => {
