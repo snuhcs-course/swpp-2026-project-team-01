@@ -3,7 +3,7 @@
    Ink palette, Big Shoulders for the wordmark and headings, Geist for body text; plus the send-a-message
    panel and popup, the way cards and the Messages-green glyph from the "iMessage 연결 화면 시안" canvas.
    Every rule is scoped under .ink, so the olive app theme (globals.css) is untouched elsewhere. */
-.ink {
+:is(.ink, .onboarding-ink) {
   color-scheme: light;
   --canvas: #F6F7F9;
   --surface: #FFFFFF;
@@ -18,6 +18,32 @@
   --hairline: #D4D9E2;
   --logo: #4A5E85;
   --destructive: #9B3F35;
+}
+.onboarding-ink {
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary-foreground: var(--on-primary);
+  --secondary: var(--soft-surface);
+  --secondary-foreground: var(--ink);
+  --muted: var(--soft-surface);
+  --muted-foreground: var(--muted-ink);
+  --accent: var(--soft-surface);
+  --accent-foreground: var(--ink);
+  --border: var(--hairline);
+  --input: var(--botanical);
+  --ring: var(--primary);
+  --font-display: var(--font-big-shoulders), system-ui, sans-serif;
+  font-family: var(--font-geist-sans), "Geist", system-ui, sans-serif;
+}
+.onboarding-ink[data-slot="dialog-content"],
+.onboarding-ink [data-slot="dropdown-menu-content"] {
+  box-shadow: 0 8px 24px rgb(30 36 48 / 0.12);
+}
+.ink {
   --font-body: var(--font-geist-sans), "Geist", system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
   --wm-family: var(--font-big-shoulders), system-ui, sans-serif;

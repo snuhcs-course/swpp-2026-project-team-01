@@ -2,6 +2,7 @@
 
 import type { WeeklyWindow } from "@lib/contracts/setup";
 import { SettingsIcon } from "lucide-react";
+import "@/app/_components/ink/ink.css";
 import { useEffect, useState } from "react";
 import { summarizeWindows } from "@/app/_components/setup/format";
 import { WeeklyWindowsEditor } from "@/app/_components/setup/weekly-windows-editor";
@@ -91,7 +92,7 @@ export function HostSettingsDialog() {
       <DialogTrigger asChild>
         <Button aria-label="Open settings" size="icon" type="button" variant="ghost"><SettingsIcon aria-hidden className="size-5" /></Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto border-border bg-card text-card-foreground sm:max-w-xl">
+      <DialogContent className="onboarding-ink max-h-[calc(100dvh-2rem)] overflow-y-auto border-border bg-card text-card-foreground sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>Manage your available times and new meeting requests.</DialogDescription>

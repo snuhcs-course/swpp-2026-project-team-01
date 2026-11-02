@@ -11,7 +11,7 @@ Hosts currently edit weekly meeting windows through setup cards and sign out thr
 - Add a host-controlled **Accept new meeting requests** toggle. Turning it off stops new requests across the public web page, agent and email entry points while preserving existing requests and confirmed settings. Turning it back on resumes intake only when the host is otherwise ready. This is distinct from operator suspension.
 - Put **Sign out** in the modal, preserving the existing sign-out action. Keep navigation to setup, requests, iMessage and connected agents reachable from the workspace.
 
-No dedicated GitHub tracking issue exists yet. The shared ink migration in [issue #43](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/43) is related but does not cover this dashboard.
+[Issue #68](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/68) tracks this dashboard. The shared ink migration in [issue #43](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/43) is related but does not cover its behavior.
 
 ## Suggested Follow-ups
 

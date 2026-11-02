@@ -513,6 +513,8 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
   const { evaluation, request } = context.view;
   const { act, busy, error } = useAction(context);
   const [notice, setNotice] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState<{ evaluationId: string; count: number } | null>(null);
+  const [tripRevealed, setTripRevealed] = useState<{ evaluationId: string; count: number } | null>(null);
   const missing = missingLabels(context);
   const lang = language(context);
 
@@ -564,6 +566,10 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
 
   const offered = evaluation.candidates.filter((candidate) => !candidate.unresolvedRequesterLeg);
   const trips = evaluation.candidates.filter((candidate) => candidate.unresolvedRequesterLeg);
+  const visibleCount = revealed?.evaluationId === evaluation.id ? revealed.count : 5;
+  const remaining = Math.max(0, offered.length - visibleCount);
+  const tripVisibleCount = tripRevealed?.evaluationId === evaluation.id ? tripRevealed.count : Math.max(0, 5 - Math.min(offered.length, 5));
+  const remainingTrips = Math.max(0, trips.length - tripVisibleCount);
   // An online time with neither a Google Meet plan nor the requester's own link
   // cannot become a proposal (design decision 11).
   const linkMissing = (candidate: RequesterCandidate) =>
@@ -594,7 +600,7 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
       {needsLink && offered.length > 0 ? <p>The host cannot create a Google Meet link, so add your own meeting link to choose a time.</p> : null}
       {offered.length > 0 ? (
         <ul aria-label="Candidate times" className="flex flex-col gap-2">
-          {offered.map((candidate) => (
+          {offered.slice(0, visibleCount).map((candidate) => (
             <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3" key={candidate.id}>
               <CandidateTime candidate={candidate} timeZone={context.timezone} />
               <Button
@@ -610,13 +616,25 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
           ))}
         </ul>
       ) : null}
+      {remaining > 0 ? (
+        <Button
+          aria-label={`Show ${Math.min(5, remaining)} more candidate times, ${remaining} remaining`}
+          className="min-h-11 self-start"
+          onClick={() => setRevealed({ evaluationId: evaluation.id, count: visibleCount + 5 })}
+          type="button"
+          variant="outline"
+        >
+          Show {Math.min(5, remaining)} more ({remaining} remaining)
+        </Button>
+      ) : null}
       {trips.length > 0 ? (
         <ul aria-label="Times that depend on your trip" className="flex flex-col gap-2">
-          {trips.map((candidate) => (
+          {trips.slice(0, tripVisibleCount).map((candidate) => (
             <TripAllowance candidate={candidate} context={context} evaluationId={evaluation.id} key={candidate.id} />
           ))}
         </ul>
       ) : null}
+      {remainingTrips > 0 ? <Button className="min-h-11 self-start" onClick={() => setTripRevealed({ evaluationId: evaluation.id, count: tripVisibleCount + 5 })} type="button" variant="outline">Show {Math.min(5, remainingTrips)} more trip-dependent times ({remainingTrips} remaining)</Button> : null}
       <GuestCardActions>
         {findButton("Find other times")}
         <DetailsButton context={context} label={needsLink ? "Add a meeting link" : "Edit details"} />

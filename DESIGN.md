@@ -209,7 +209,7 @@ Review a landing page, a conversation with long messages, a proposal awaiting ho
 
 ## Known gaps
 
-- Only the landing and the iMessage link step use this direction. `/app`'s conversation, host pages, booking and the privacy page still run the Thyme tokens in `apps/web/app/globals.css` (olive on warm ivory, Merriweather headings); `apps/web/app/theme.test.ts` and `tests/e2e/theme.test.ts` check those Thyme values until the migration replaces them.
+- The landing and iMessage link step use the full ink treatment. Host setup, the host request workspace and the guest conversation now share the ink color roles through `apps/web/app/_components/ink/ink.css`; visual acceptance at phone width and zoom is still pending. Other host pages, booking chrome and privacy remain on the Thyme globals until the shared migration. `apps/web/app/theme.test.ts` still checks the global Thyme tokens.
 - The logo mask is shown at 10–20px with no simplified small-size version. The new calligraphic logo, SVG favicon and chat profile picture are in progress.
 - The example thread's shadow still uses the earlier olive ink color (`rgb(48 54 43)`); the menu and popup shadows use ink (`rgb(30 36 48)`). Align them when the shadows are tokenized.
 - The ink paper texture is not removed in forced-colors mode or for printing yet.

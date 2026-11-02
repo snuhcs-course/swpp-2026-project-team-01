@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import type { ChatRequestError } from "@/lib/chat/discussion";
 import { guestDiscussionClient, type GuestPostOutcome, readNdjson } from "@/lib/chat/guest";
 import { GuestCard, GuestCardActions, GuestReceipt } from "./guest-card";
+import "@/app/_components/ink/ink.css";
 import { GuestConversation, projectMessages, type ThreadEntry } from "./guest-conversation";
 import { browserLanguage, TimezoneLine, useGuestTimezone } from "./timezone";
 
@@ -299,7 +300,7 @@ export function GuestWorkspace({
   if (!ready) return <p className="sr-only" role="status">Loading...</p>;
 
   return (
-    <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
+    <div className="onboarding-ink flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <GuestConversation
         ariaLabel={`Meeting request with ${host.displayName}`}
         before={before}
@@ -562,9 +563,17 @@ function IdentityCard({ context }: { readonly context: RequesterCardContext }) {
 
   async function continueWithoutGoogle(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy) return;
 
-    if (!name.trim() || !email.trim()) {
-      setError("Enter your name and email address.");
+    if (!name.trim()) {
+      setError("Enter your name.");
+      document.getElementById(`${id}-name`)?.focus();
+      return;
+    }
+    const emailField = event.currentTarget.elements.namedItem("email") as HTMLInputElement | null;
+    if (!email.trim() || !emailField?.checkValidity()) {
+      setError("Enter a valid email address.");
+      emailField?.focus();
       return;
     }
 
@@ -625,7 +634,9 @@ function IdentityCard({ context }: { readonly context: RequesterCardContext }) {
               autoFocus
               className="min-h-11"
               id={`${id}-name`}
-              onChange={(event) => setName(event.target.value)}
+              name="name"
+              onChange={(event) => { setName(event.target.value); setError(null); }}
+              required
               value={name}
             />
           </div>
@@ -640,7 +651,9 @@ function IdentityCard({ context }: { readonly context: RequesterCardContext }) {
               className="min-h-11"
               id={`${id}-email`}
               inputMode="email"
-              onChange={(event) => setEmail(event.target.value)}
+              name="email"
+              onChange={(event) => { setEmail(event.target.value); setError(null); }}
+              required
               type="email"
               value={email}
             />
