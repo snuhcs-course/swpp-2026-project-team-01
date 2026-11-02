@@ -7,7 +7,7 @@ Let a host inspect and change their availability and control new request intake 
 ## ADDED Requirements
 
 ### Requirement: In-place settings dialog
-The signed-in host workspace SHALL show a labeled gear button at the upper right of both setup and request conversation views. Activating it SHALL open a settings modal above the current view, with a translucent backdrop, a readable panel, a visible **X** close button at the panel's upper right and the current view preserved beneath it. The modal SHALL have an accessible title, keep keyboard focus inside while open, close by **X** or Escape, and return focus to the gear button. Closing the modal SHALL not silently apply unfinished edits. Setup, requests, iMessage and connected-agent navigation SHALL remain reachable in the workspace.
+The signed-in host workspace SHALL show a labeled gear button immediately left of the upper-right navigation menu in both setup and request conversation views. Activating it SHALL open a settings modal above the current view, with a translucent backdrop, a readable panel, a visible **X** close button at the panel's upper right and the current view preserved beneath it. The modal SHALL have an accessible title, keep keyboard focus inside while open, close by **X** or Escape, and return focus to the gear button. Closing the modal SHALL not silently apply unfinished edits. Setup, requests, iMessage and connected-agent navigation SHALL remain reachable in the workspace.
 
 #### Scenario: Open and close from setup
 - **WHEN** a host opens settings from an incomplete onboarding conversation and presses the **X** button
@@ -55,9 +55,9 @@ A ready active host SHALL be able to turn **Accept new meeting requests** off or
 - **WHEN** a toggle response is lost or an older settings view submits a conflicting choice
 - **THEN** the current saved state is shown without applying a duplicate or silently replacing a newer choice
 
-### Requirement: Sign out from settings
-The settings modal SHALL offer **Sign out**, using the same authenticated session-ending behavior as the existing workspace action. After sign-out, private settings and conversations SHALL no longer be visible through the former session.
+### Requirement: Sign out from workspace menu
+The workspace navigation menu SHALL offer **Sign out**, using the existing authenticated session-ending behavior. The settings modal SHALL not duplicate that action. After sign-out, private settings and conversations SHALL no longer be visible through the former session.
 
-#### Scenario: Sign out from the modal
-- **WHEN** a host activates **Sign out** in settings
+#### Scenario: Sign out from the menu
+- **WHEN** a host activates **Sign out** in the workspace menu
 - **THEN** the host session ends and a later attempt to open `/app` requires sign-in before any private host data is shown

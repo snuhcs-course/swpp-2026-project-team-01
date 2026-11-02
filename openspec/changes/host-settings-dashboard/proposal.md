@@ -9,7 +9,7 @@ Hosts currently edit weekly meeting windows through setup cards and sign out thr
 - Place a labeled gear button at the upper right of the host setup and host request/chat views in `/app`. It opens a floating settings modal over a translucent backdrop. A visible **X** at the modal's upper right closes it; keyboard and screen-reader operation remain available.
 - Show the host's confirmed weekly available windows in their meeting timezone and let them edit them. Saving follows the existing draft, review and confirmation rules, so the public schedule changes only after a successful confirmation.
 - Add a host-controlled **Accept new meeting requests** toggle. Turning it off stops new requests across the public web page, agent and email entry points while preserving existing requests and confirmed settings. Turning it back on resumes intake only when the host is otherwise ready. This is distinct from operator suspension.
-- Put **Sign out** in the modal, preserving the existing sign-out action. Keep navigation to setup, requests, iMessage and connected agents reachable from the workspace.
+- Place the gear immediately left of the upper-right menu. Keep **Sign out** in that menu, alongside navigation to setup, requests, iMessage and connected agents.
 
 [Issue #68](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/68) tracks this dashboard. The shared ink migration in [issue #43](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/43) is related but does not cover its behavior.
 
@@ -26,7 +26,7 @@ These are useful settings candidates, not part of the first dashboard implementa
 
 ### New Capabilities
 
-- `host-settings`: a host-authorized settings dialog, revision-safe weekly-window changes, host-controlled intake pause and resume, and sign-out access.
+- `host-settings`: a host-authorized settings dialog, revision-safe weekly-window changes, and host-controlled intake pause and resume.
 
 ### Modified Capabilities
 

@@ -44,7 +44,7 @@ The candidate card SHALL show at most five feasible times initially in their exi
 - **THEN** the card remains understandable and the previously offered options can still be reached without a new evaluation
 
 ### Requirement: Ink onboarding presentation
-The host setup conversation and guest onboarding cards SHALL use the ink design roles in [DESIGN.md](../../../../../DESIGN.md) for canvas, typography, controls, conversation surfaces, focus and status. The presentation SHALL preserve clear hierarchy, field labels, error and pending states, readable proposal details, and the current action at phone width, 200% zoom and keyboard-only use. Texture SHALL not sit behind task content and color SHALL not be the only status cue.
+The signed-out host page, its loading state, the host setup conversation and guest onboarding cards SHALL use the ink design roles in [DESIGN.md](../../../../../DESIGN.md) for canvas, typography, controls, conversation surfaces, focus and status. The presentation SHALL preserve clear hierarchy, field labels, error and pending states, readable proposal details, and the current action at phone width, 200% zoom and keyboard-only use. Texture SHALL not sit behind task content and color SHALL not be the only status cue.
 
 #### Scenario: Host setup on a phone
 - **WHEN** a host completes setup cards at a phone width using the keyboard

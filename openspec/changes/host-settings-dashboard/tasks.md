@@ -9,9 +9,9 @@
 
 ## 2. Settings modal and schedule editing
 
-- [ ] 2.1 Mount a shared upper-right gear and ink-styled settings dialog in setup, inbox and selected-request views, with a translucent backdrop, visible **X**, focus containment and focus return; verify browser tests cover X, Escape, phone width, 200% zoom and retained conversation/scroll state.
+- [ ] 2.1 Mount a shared gear immediately left of the upper-right menu and an ink-styled settings dialog in setup, inbox and selected-request views, with a translucent backdrop, visible **X**, focus containment and focus return; verify browser tests cover X, Escape, phone width, 200% zoom and retained conversation/scroll state.
 - [ ] 2.2 Show confirmed weekly windows and timezone, reuse the weekday editor for a draft change, and review before `setup.confirm_settings`; verify tests show old confirmed windows during a pending edit, next-day labeling, equal-time rejection, stale confirmation and successful new-window evaluation.
-- [ ] 2.3 Add the saved **Accept new meeting requests** switch, effective status explanation and **Sign out** to the dialog; verify browser tests cover toggle persistence, paused/unready messages, session termination and navigation still reachable from the existing menu.
+- [ ] 2.3 Add the saved **Accept new meeting requests** switch and effective status explanation to the dialog; keep **Sign out** in the existing menu. Verify browser tests cover toggle persistence, paused/unready messages, menu sign-out and navigation.
 - [ ] 2.4 Update the host-onboarding flow, page list and their Korean mirrors with the modal, draft/confirmed distinction and sign-out; verify `npm run check:docs` passes and the documents link to this change.
 
 ## 3. Integrated acceptance

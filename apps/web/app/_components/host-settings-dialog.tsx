@@ -122,7 +122,6 @@ export function HostSettingsDialog() {
               </label>
               <p className="text-sm text-muted-foreground">{!setup.readiness.ready ? "Complete setup or reconnect your calendar before receiving requests." : intake.accepting ? "New guests can send requests." : "New requests are paused. Existing requests remain available."}</p>
             </section>
-            <form action="/auth/sign-out" method="post" className="border-t pt-4"><Button type="submit" variant="outline">Sign out</Button></form>
           </div>
         ) : <p role="status">Loading settings…</p>}
         {notice ? <p role="status" className="text-sm">{notice}</p> : null}
