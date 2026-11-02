@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Retention schedule
-A maintenance pass SHALL delete, at most a bounded number of rows per rule per pass: closed requests and everything under them 90 days after closure; completed jobs, command outcomes, link-resend records, admission windows and agent protocol attempts after 30 days; exhausted jobs and model reservations after 90 days; operator audit rows after one year. The scheduler's record of its own runs SHALL be deleted 7 days after each run ended. Open requests, live accounts and their confirmed settings SHALL NOT be deleted by retention.
+A maintenance pass SHALL delete, at most a bounded number of rows per rule per pass: closed requests and everything under them 90 days after closure; completed jobs, command outcomes, link-resend records, admission windows and agent protocol attempts after 30 days; exhausted jobs and model reservations after 90 days; operator audit rows after one year. Separately, the scheduler's record of each of its own runs SHALL be deleted 7 days after the run ended, or 7 days after it started if a restart interrupted it. Open requests, live accounts and their confirmed settings SHALL NOT be deleted by retention.
 
 #### Scenario: Old closed request
 - **WHEN** the pass runs 91 days after a request closed
@@ -13,7 +13,7 @@ A maintenance pass SHALL delete, at most a bounded number of rows per rule per p
 
 #### Scenario: Scheduler run history
 - **WHEN** the scheduler's history cleanup runs
-- **THEN** records of runs that ended more than 7 days ago are gone, and records of newer runs and of runs still in progress are kept
+- **THEN** records of runs that ended more than 7 days ago, and of interrupted runs that started more than 7 days ago, are gone, and records of newer runs and of runs in progress are kept
 
 ### Requirement: Deletion on request
 An operator SHALL be able to delete a host's data or a single request's data on request, with the same explicit environment, reason, confirmation and audit as recovery. Host deletion SHALL remove the host's identity, Auth user, grants, settings, requests, channel bindings and agent grants, and SHALL keep only a suspended, nameless account record with its handle history so that no handle is ever assigned to another host. A deleted account SHALL NOT be restored.

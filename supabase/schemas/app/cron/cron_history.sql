@@ -1,5 +1,6 @@
--- pg_cron records every run in cron.job_run_details and never removes them, even
--- after a job is unscheduled (operations-and-release design 8). At minute 47 of
--- every hour this deletes the runs that ended more than 7 days ago; a running
--- job has no end_time and stays.
-SELECT cron.schedule('app-cron-history', '47 * * * *', $$delete from cron.job_run_details where end_time < now() - interval '7 days'$$);
+-- Mirrors migration 20261102032102_prune_cron_history, so declarative syncs keep
+-- the hourly pg_cron history cleanup instead of unscheduling it. pg_cron never
+-- removes its run records (operations-and-release design 8); this deletes those
+-- older than 7 days. A run a server restart interrupted is marked failed with no
+-- end_time, so it counts from its start_time.
+SELECT cron.schedule('app-cron-history', '47 * * * *', $$delete from cron.job_run_details where coalesce(end_time, start_time) < now() - interval '7 days'$$);
