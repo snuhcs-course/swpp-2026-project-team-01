@@ -11,7 +11,7 @@
 ## 2. Schema
 
 - [x] 2.1 Add `requester_imessage_bindings`, a request owner on `imessage_links`, `imessage_outbox.requester_binding_id` and `requests.revised_from_request_id` (unique) under `supabase/schemas/app/`, each with row-level security and no client grants; extend the cleanup function for guest bindings. Generate with `supabase db schema declarative sync --name guest_flow_completion --no-apply` and review the SQL.
-- [ ] 2.1b Add `requester_host_profiles` the same way, with its cleanup (moved into pull request 1, user, 2026-11-02).
+- [x] 2.1b Add `requester_host_profiles` the same way, with its cleanup (moved into pull request 1, user, 2026-11-02).
 - [x] 2.2 Verify `supabase db reset --local` rebuilds the chain and the database tests pass.
 
 ## 3. Guest linking and bindings (design 1, 2)
@@ -46,12 +46,12 @@
 
 ## 6. Host profile (design 6)
 
-- [ ] 6.1 The host match on the requester Google return, the `requester_host_profiles` record and its deletion at closure.
-- [ ] 6.2 The guest-host's conflict calendars as the requester busy source in `evaluation.ts`, with fallback to **Connect Google Calendar** on a failed grant.
+- [x] 6.1 The host match on the requester Google return, the `requester_host_profiles` record and its deletion at closure.
+- [x] 6.2 The guest-host's conflict calendars as the requester busy source in `evaluation.ts`, with fallback to **Connect Google Calendar** on a failed grant. Combined with a Calendar connected for the request (user, 2026-11-02).
 - [ ] 6.3 Moved to #61 (user, 2026-11-02: host-side). The iMessage item: notices to the host binding's conversation and `request <ref>` for that host's guest requests.
-- [ ] 6.4 Basic details as a pending review.
-- [ ] 6.5 Tests: subject match only; not the request's own host; partial opt-in; revoked grant pauses evaluation; nothing in the host projection or host model context; deletion at closure.
-- [ ] 6.6 The host-profile card and its receipt in the booking page thread (two items: Calendars, Basic details).
+- [x] 6.4 Basic details as a pending review.
+- [x] 6.5 Tests: subject match only; not the request's own host; partial opt-in; revoked grant pauses evaluation; nothing in the host projection or host model context; deletion at closure. Verified by CI on `e2e5d65a` (`tests/integration/requester-host-profiles.test.ts`, 11 tests).
+- [ ] 6.6 The host-profile card and its receipt in the booking page thread (two items: Calendars, Basic details). Built; not yet seen in a browser or covered by an e2e test.
 
 ## 7. Soft preferences (design 7)
 
