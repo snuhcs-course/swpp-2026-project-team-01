@@ -167,7 +167,7 @@ Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code를 각각 개별적으
 
 ### 지원
 
-지원 메일은 `support@findmeatime.com`으로 오며, 이는 영역의 Cloudflare MX 레코드 위에 있는 Email Routing 별칭으로 당번 운영자에게 전달됩니다(D3). 별칭을 만드는 일은 아직 하지 않은 콘솔 단계입니다. 영업일 이틀 안에 답하십시오. 토큰, 예약 링크, 다른 사람의 데이터는 답장에 붙여 넣지 마십시오.
+지원 메일은 `support@findmeatime.com`으로 오며, 이는 영역의 Cloudflare MX 레코드 위에 있는 `support`라는 이름의 Email Routing 규칙입니다(D3). 2026-11-02부터 영역의 catch-all 규칙과 마찬가지로 저장소 소유자의 인증된 주소로 전달되며, 순환이 시작되면 당번 운영자를 가리키도록 바꾸고 변경 후에는 `cf email-routing rules list-account --zone findmeatime.com`으로 규칙을 다시 읽으십시오. 영업일 이틀 안에 답하십시오. 토큰, 예약 링크, 다른 사람의 데이터는 답장에 붙여 넣지 마십시오.
 
 ### 성능 점검
 

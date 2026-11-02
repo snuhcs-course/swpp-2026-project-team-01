@@ -391,7 +391,7 @@
 |---|---|---|---|---|
 | D1 | 측정 기간: 첫 외부 호스트가 릴리스 환경에 합류한 날부터 8주, 매주 보고 | 고정된 분기 단위 달력 기간; 첫 배포부터 측정 | 제안서; 설계 1; PRD 2절 | PRD와 설계 1 |
 | D2 | 목표: 예약된 요청당 호스트 조치 중앙값 2회 이하; 유효한 요청의 50 % 이상 예약; 제출부터 예약까지 중앙값 24시간 이하, p90 72시간 이하; 코드로 확인되는 제약에 대한 실행 불가능한 제안 0건; 신뢰 사고 0건. 전환율이나 속도 미달은 롤백이 아니라 검토를 시작 | 성숙한 일정 조율 제품에서 가져온 목표; 데이터가 생길 때까지 목표 없음 | 제안서; 설계 1; PRD 2절 | PRD와 설계 1 |
-| D3 | 주마다 순환하는 운영자 한 명이 매일 스냅샷을 읽고, 영업일 기준 이틀 안에 지원에 답하며, 자기 토큰으로 복구를 실행합니다. 저장소 소유자는 배포, 릴리스 마이그레이션, DNS, 콘솔을 계속 맡습니다. 지원은 `support@findmeatime.com`(Cloudflare Email Routing 별칭, 아직 만들지 않음) | 공유 개인 받은편지함; GitHub 이슈; 온콜 | 제안서; 설계 2; PRD 10절 | 설계 2와 `apps/web/app/privacy/`의 고지 |
+| D3 | 주마다 순환하는 운영자 한 명이 매일 스냅샷을 읽고, 영업일 기준 이틀 안에 지원에 답하며, 자기 토큰으로 복구를 실행합니다. 저장소 소유자는 배포, 릴리스 마이그레이션, DNS, 콘솔을 계속 맡습니다. 지원은 `support@findmeatime.com`(Cloudflare Email Routing 규칙으로, 2026-11-02에 만들었고 순환이 시작될 때까지 저장소 소유자에게 전달됨) | 공유 개인 받은편지함; GitHub 이슈; 온콜 | 제안서; 설계 2; PRD 10절 | 설계 2와 `apps/web/app/privacy/`의 고지 |
 | D4 | `npm run perf:check`: 공개 경로마다 순차 샘플 20회에서 p50 800 ms 이하, p95 2,000 ms 이하; 승인부터 확정까지 2분 이내, 첫 스트리밍 회신은 p95 기준 10초 이내이며, 도구가 생길 때까지 측정되지 않음으로 보고 | 프로덕션 대상 부하 테스트; 출시 전 목표 없음 | 제안서; 설계 3; PRD 10절 | `scripts/perf-check.ts`의 `TARGETS` |
 | D5 | 고정된 스냅샷 범주 열 가지, 오래된 것부터, 식별자 최대 20개, 페이로드나 실패 텍스트 없음 | 종류별 세부 분류; 제공자 읽기 | 제안서; 설계 4; `operational-diagnostics` 델타 | `app.operator_diagnostics_snapshot`과 새 마이그레이션 |
 | D6 | 거절은 명령 파이프라인에서 집계(`unauthenticated`, `forbidden`; `stale_revision`, `request_closed`). `DIAGNOSTICS_REJECTIONS=1`일 때, 500 ms 제한, 시간별 24개 버킷이 10,000에서 포화 | 애플리케이션에 없는 데이터베이스 RPC 집계; 메모리 내 카운터 | 제안서; 설계 5; `operational-diagnostics` 델타 | `lib/server/diagnostics.ts`의 `REJECTION_CATEGORIES` |
@@ -453,7 +453,7 @@
 3. **공유 프로젝트의 이 단계 마이그레이션**(`20261023062139_operational_diagnostics.sql`, `20261023063140_operator_recovery.sql`, `20261023063957_data_stewardship.sql`, `20261023070353_operations_review_fixes.sql`): 2단계가 끝나면 워크플로로, 아니면 사용자의 승인 아래 `supabase db push --linked --dry-run` 뒤에 수동으로. 이전 마이그레이션은 모두 이미 적용되어 있습니다.
 4. `findmeatime-release`로의 **`main` 프로덕션 배포**(깨끗한 체크아웃에서 `vercel deploy --prod`)로, `/privacy`를 포함한 6, 7, 8단계가 반영됩니다. 이어서 두 오리진에 `npm run perf:check`를, 그리고 `npm run admin -- diagnostics snapshot --operator <name> --project anelszynxtvxoxqvzgqt`를 실행합니다.
 5. 팀이 거부 횟수를 원한다면 Vercel Production의 **`DIAGNOSTICS_REJECTIONS=1`**.
-6. 교대 근무 중인 운영자에게 가는 Cloudflare Email Routing 규칙으로 만든 **지원 별칭** `support@findmeatime.com`. `/privacy`가 이미 이를 명시합니다.
+6. Cloudflare Email Routing 규칙으로 만든 **지원 별칭** `support@findmeatime.com`. `/privacy`가 이미 이를 명시합니다. 2026-11-02에 완료: `support` 규칙이 순환이 시작될 때까지 저장소 소유자의 인증된 주소로 전달하고, 시작된 뒤에는 당번 운영자에게 전달합니다.
 7. **Google**: OAuth 앱을 **In production**으로 옮기고, 홈페이지 `https://findmeatime.com`, 개인정보 처리방침 `https://findmeatime.com/privacy-policy`(`/privacy` 고지), 이용약관 `https://findmeatime.com/terms-of-service`로 Calendar 스코프 검증을 제출합니다(4단계 필요).
 8. 프로덕션이 사용하는 프로젝트에서 `no-reply@findmeatime.com`으로 보내는 해당 Supabase Auth 알림용 **Cloudflare 사용자 정의 SMTP**.
 9. **릴리스 프로젝트 `mriseqztcwmezvtawnbo` 비우기**: 1차 반복 프로토타입의 `fmat` 스키마, `pg_cron` 작업 17개, Vault 비밀 5개, Auth 사용자 2명, 마이그레이션 기록 143개, 그리고 CLI의 `cli_login_postgres` 역할. 파괴적이며, `fmat` 스키마가 사라지기 전에는 워크플로가 이 프로젝트를 거부합니다.
