@@ -1,31 +1,22 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
+import { type LegalDocument, LegalPage, type LegalSearchParams } from "../_components/legal-document";
 
 // The public data notice, P11 (data-stewardship: public data notice;
 // operations-and-release design 10 and 11, D11 and D12): what each audience's
 // data is used for, who processes it, how long it is kept, deletion on request
 // and the support contact, in English and in Korean (?lang=ko). It states only
 // what the code does; change it together with the retention rules in
-// supabase/schemas/app/functions/cleanup_retained_records.sql.
+// supabase/schemas/app/functions/cleanup_retained_records.sql. /privacy-policy
+// serves the same notice.
 export const metadata: Metadata = {
   description: "How Find Me a Time uses, keeps and deletes the data of hosts and the people who book with them.",
   title: "Privacy and your data",
 };
 
 const SUPPORT_ADDRESS = "support@findmeatime.com";
+const GOOGLE_POLICY = "https://developers.google.com/terms/api-services-user-data-policy";
 
-type Section = { readonly id: string; readonly title: string; readonly paragraphs: readonly string[]; readonly items?: readonly string[] };
-
-type Notice = {
-  readonly lang: "en" | "ko";
-  readonly title: string;
-  readonly updated: string;
-  readonly intro: string;
-  readonly other: { readonly href: string; readonly label: string };
-  readonly sections: readonly Section[];
-};
-
-const EN: Notice = {
+const EN: LegalDocument = {
   intro:
     "Find Me a Time schedules external one-to-one meetings for hosts who sign in with Google. People who book with a host do not need an account. This page says what we collect, why, who processes it, how long we keep it and how to have it deleted.",
   lang: "en",
@@ -54,7 +45,7 @@ const EN: Notice = {
       items: [
         "Your name and email address, to send you the booking link and the meeting's status.",
         "The details of your request and your conversation with the assistant.",
-        "If you choose Continue with Google: your Google name and email, and, only if you allow it, read-only access to your calendar's busy times.",
+        "If you choose Continue with Google: your Google name and email, and, only if you allow it, read-only access to your calendars and their events. We use your events only to find when you are free and to plan your own travel between places; they are never shown to the host or any agent.",
         "If you write by email: the messages in your email thread with the service.",
       ],
       paragraphs: ["When you ask a host for a meeting we collect:"],
@@ -67,6 +58,15 @@ const EN: Notice = {
         "A requester's calendar access lasts only for one request and is deleted when the request closes, when its link expires or when you choose Disconnect. A host can disconnect Google at any time.",
       ],
       title: "How we use your calendar",
+    },
+    {
+      id: "google",
+      links: [{ href: GOOGLE_POLICY, label: "Google API Services User Data Policy" }],
+      paragraphs: [
+        "Find Me a Time's use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements.",
+        "We use Google user data only for the scheduling features this page describes, and share it only as those features need: with the other party, the names, email addresses and meeting details that scheduling requires (the times offered, the agreed meeting and its calendar invitation), and with the providers below that run the service. We do not use it for advertising, and we do not use it to develop, improve or train generalized AI or machine-learning models.",
+      ],
+      title: "Google user data",
     },
     {
       id: "processors",
@@ -110,10 +110,10 @@ const EN: Notice = {
     },
   ],
   title: "Privacy and your data",
-  updated: "Last updated 2026-10-23",
+  updated: "Last updated 2026-11-02",
 };
 
-const KO: Notice = {
+const KO: LegalDocument = {
   intro:
     "Find Me a Time은 Google로 로그인한 호스트를 위해 외부 1:1 미팅 일정을 잡아 줍니다. 호스트와 미팅을 잡는 분은 계정이 필요 없습니다. 이 페이지는 무엇을 왜 수집하는지, 누가 처리하는지, 얼마나 보관하는지, 어떻게 삭제를 요청하는지 설명합니다.",
   lang: "ko",
@@ -140,7 +140,7 @@ const KO: Notice = {
       items: [
         "예약 링크와 미팅 상태를 보내기 위한 이름과 이메일 주소.",
         "요청 내용과 어시스턴트와의 대화.",
-        "Continue with Google을 선택한 경우: Google 이름과 이메일, 그리고 허용한 경우에만 캘린더 바쁨 시간에 대한 읽기 전용 접근.",
+        "Continue with Google을 선택한 경우: Google 이름과 이메일, 그리고 허용한 경우에만 캘린더와 그 일정에 대한 읽기 전용 접근. 일정은 비어 있는 시간을 찾고 본인의 이동을 계획하는 데만 쓰며, 호스트나 어떤 에이전트에게도 보여 주지 않습니다.",
         "이메일로 요청한 경우: 서비스와 주고받은 이메일 스레드의 메시지.",
       ],
       paragraphs: ["호스트에게 미팅을 요청하면 다음을 수집합니다."],
@@ -153,6 +153,15 @@ const KO: Notice = {
         "요청한 분의 캘린더 접근은 한 요청에만 유효하며, 요청이 닫히거나 링크가 만료되거나 Disconnect를 누르면 삭제합니다. 호스트는 언제든 Google 연결을 끊을 수 있습니다.",
       ],
       title: "캘린더를 쓰는 방식",
+    },
+    {
+      id: "google",
+      links: [{ href: GOOGLE_POLICY, label: "Google API 서비스 사용자 데이터 정책" }],
+      paragraphs: [
+        "Find Me a Time이 Google API에서 받은 정보를 사용하고 다른 앱으로 전송하는 방식은 Limited Use 요건을 포함한 Google API 서비스 사용자 데이터 정책을 따릅니다.",
+        "Google 사용자 데이터는 이 페이지에 적힌 일정 조율 기능에만 쓰며, 그 기능에 필요한 만큼만 공유합니다. 상대방에게는 일정 조율에 필요한 이름, 이메일 주소, 미팅 정보(제안된 시간, 합의된 미팅과 그 캘린더 초대)만 보이고, 그 밖에는 서비스를 운영하는 아래 업체에만 전달합니다. 광고에 쓰지 않으며, 범용 AI나 머신러닝 모델을 개발하거나 개선하거나 학습시키는 데 쓰지 않습니다.",
+      ],
+      title: "Google 사용자 데이터",
     },
     {
       id: "processors",
@@ -194,57 +203,9 @@ const KO: Notice = {
     },
   ],
   title: "개인정보와 데이터",
-  updated: "최종 수정 2026-10-23",
+  updated: "최종 수정 2026-11-02",
 };
 
-type SearchParams = Promise<{ lang?: string | string[] }>;
-
-// The language comes from the request, so the notice renders inside Suspense.
-export default function Page({ searchParams }: { readonly searchParams: SearchParams }) {
-  return (
-    <Suspense fallback={<p className="sr-only" role="status">Loading...</p>}>
-      <NoticePage searchParams={searchParams} />
-    </Suspense>
-  );
-}
-
-async function NoticePage({ searchParams }: { readonly searchParams: SearchParams }) {
-  const { lang } = await searchParams;
-  const notice = lang === "ko" ? KO : EN;
-
-  return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-4 py-16 sm:px-8" lang={notice.lang}>
-      <header className="flex flex-col gap-3">
-        <p className="text-sm">
-          <a className="underline underline-offset-4" href="/">
-            Find Me a Time
-          </a>
-          {" · "}
-          <a className="underline underline-offset-4" href={notice.other.href} hrefLang={notice.lang === "en" ? "ko" : "en"}>
-            {notice.other.label}
-          </a>
-        </p>
-        <h1 className="font-display text-[clamp(32px,5vw,48px)] leading-tight">{notice.title}</h1>
-        <p className="text-muted-foreground text-sm">{notice.updated}</p>
-        <p className="text-lg">{notice.intro}</p>
-      </header>
-      {notice.sections.map((section) => (
-        <section aria-labelledby={`${section.id}-heading`} className="flex scroll-mt-8 flex-col gap-3" id={section.id} key={section.id}>
-          <h2 className="font-display text-2xl" id={`${section.id}-heading`}>
-            {section.title}
-          </h2>
-          {section.paragraphs.map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
-          ))}
-          {section.items ? (
-            <ul className="flex list-disc flex-col gap-2 pl-5">
-              {section.items.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          ) : null}
-        </section>
-      ))}
-    </main>
-  );
+export default function Page({ searchParams }: { readonly searchParams: LegalSearchParams }) {
+  return <LegalPage en={EN} ko={KO} searchParams={searchParams} />;
 }

@@ -400,7 +400,7 @@
 | D9 | 종료된 요청은 종료 90일 뒤; 끝난 작업, 명령 결과, 시도 기록은 30일; 소진된 작업과 모델 예약은 90일; 운영자 감사는 1년; pg_cron 실행 이력은 7일; 시간별 패스 | 요청은 1년; 종료 시 삭제 | 제안서; 설계 8; PRD 8절 | `app.cleanup_retained_records`, `app-cron-history` 작업과 새 마이그레이션 |
 | D10 | `delete-host`와 `delete-request`를 통한 요청 시 삭제. 삭제된 호스트는 핸들 이력과 함께 정지된, 이름 없는 계정 행을 남기며 복원할 수 없음 | 플래그를 쓰는 소프트 삭제; 핸들 이력 삭제 | 제안서; 설계 9; `data-stewardship` 델타 | `app.operator_delete_host`와 `app.operator_delete_request` |
 | D11 | 저장을 끈 OpenAI 직접 호출; API 데이터로 학습하지 않음; 최대 30일의 악용 모니터링 로그; 무보존 주장은 하지 않음; 런타임 자체의 세션 사본은 패스 밖이라고 고지 | 무보존을 주장; 게이트웨이 경유 | 제안서; 설계 10; PRD 8절 | 고지 |
-| D12 | 영어와 한국어의 `/privacy`, `/`, 호스트 페이지, 예약 페이지, **Continue with Google** 카드에서 링크; 동의 체크박스 없음 | 접수 단계의 동의 체크박스; 영어만 | 제안서; 설계 11; 페이지 목록 P11 | `apps/web/app/privacy/` |
+| D12 | 영어와 한국어의 `/privacy`, `/`, 호스트 페이지, 예약 페이지, **Continue with Google** 카드에서 링크; 동의 체크박스 없음. 2026-11-02 추가: 같은 고지를 Google의 Limited Use 명시와 함께 `/privacy-policy`에 두고, 영어와 한국어의 `/terms-of-service`를 `/`에서 링크 | 접수 단계의 동의 체크박스; 영어만; `/privacy-policy`에서의 리디렉션; 팀 결정 없이 준거법이나 최소 연령을 명시하는 것 | 제안서; 설계 11; 페이지 목록 P11, P12 | `apps/web/app/privacy/`, `apps/web/app/privacy-policy/`, `apps/web/app/terms-of-service/` |
 | D13 | 릴리스: `findmeatime-release` 뒤의 `mriseqztcwmezvtawnbo`; 스테이징: `dev.findmeatime.com`의 `findmeatime-dev` 뒤의 공유 프로젝트; 릴리스 마이그레이션은 환경 승인을 거치는 수동 워크플로로 | 단일 환경 유지; 릴리스용 두 번째 Vercel 프로젝트 | 제안서; 설계 12; 제공자 설정 | `.github/workflows/deploy-release.yml`과 제공자 설정 |
 | D14 | `APP_ORIGIN`이 설정되어 있지만 릴리스 출처가 아닌 프로덕션 배포는 스테이징이며 메시지 발송이 거부됨 | 릴리스 프로젝트의 새 옵트인 변수. 설정할 때까지 프로덕션 메일이 멈추게 됨 | 제안서; 설계 12; `messaging-environments` 델타 | `lib/server/messaging.ts`의 `RELEASE_ORIGINS` |
 
@@ -454,7 +454,7 @@
 4. `findmeatime-release`로의 **`main` 프로덕션 배포**(깨끗한 체크아웃에서 `vercel deploy --prod`)로, `/privacy`를 포함한 6, 7, 8단계가 반영됩니다. 이어서 두 오리진에 `npm run perf:check`를, 그리고 `npm run admin -- diagnostics snapshot --operator <name> --project anelszynxtvxoxqvzgqt`를 실행합니다.
 5. 팀이 거부 횟수를 원한다면 Vercel Production의 **`DIAGNOSTICS_REJECTIONS=1`**.
 6. 교대 근무 중인 운영자에게 가는 Cloudflare Email Routing 규칙으로 만든 **지원 별칭** `support@findmeatime.com`. `/privacy`가 이미 이를 명시합니다.
-7. **Google**: OAuth 앱을 **In production**으로 옮기고, 홈페이지 `https://findmeatime.com`과 개인정보 처리방침 `https://findmeatime.com/privacy`로 Calendar 스코프 검증을 제출합니다(4단계 필요).
+7. **Google**: OAuth 앱을 **In production**으로 옮기고, 홈페이지 `https://findmeatime.com`, 개인정보 처리방침 `https://findmeatime.com/privacy-policy`(`/privacy` 고지), 이용약관 `https://findmeatime.com/terms-of-service`로 Calendar 스코프 검증을 제출합니다(4단계 필요).
 8. 프로덕션이 사용하는 프로젝트에서 `no-reply@findmeatime.com`으로 보내는 해당 Supabase Auth 알림용 **Cloudflare 사용자 정의 SMTP**.
 9. **릴리스 프로젝트 `mriseqztcwmezvtawnbo` 비우기**: 1차 반복 프로토타입의 `fmat` 스키마, `pg_cron` 작업 17개, Vault 비밀 5개, Auth 사용자 2명, 마이그레이션 기록 143개, 그리고 CLI의 `cli_login_postgres` 역할. 파괴적이며, `fmat` 스키마가 사라지기 전에는 워크플로가 이 프로젝트를 거부합니다.
 10. 필수 검토자와 릴리스 프로젝트의 비밀 및 변수를 갖춘 **GitHub 환경 `release`**(2단계와 같되 새 `WORKER_SECRET` 사용); Google OAuth 클라이언트에 `https://mriseqztcwmezvtawnbo.supabase.co/auth/v1/callback`을 추가하고, `main`에서 `Deploy release Supabase`를 실행합니다.

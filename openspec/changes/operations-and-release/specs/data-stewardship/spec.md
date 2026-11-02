@@ -38,8 +38,19 @@ The team SHALL be able to restore a logical backup into a separate database that
 - **THEN** the restored database matches the source table by table and is dropped afterwards, and the local stack's own database is unchanged
 
 ### Requirement: Public data notice
-A public page SHALL state, in English and Korean, what each audience's data is used for, which providers process it, how long it is kept, how to request deletion and whom to contact, including that the AI provider is called with storage off, does not train on the data and may keep abuse-monitoring logs, and that provider-side copies are outside the retention pass. The public entry, the public host page, the booking page and the requester's Google Calendar connection SHALL link to it.
+A public page SHALL state, in English and Korean, what each audience's data is used for, which providers process it, how long it is kept, how to request deletion and whom to contact, including that the AI provider is called with storage off, does not train on the data and may keep abuse-monitoring logs, that provider-side copies are outside the retention pass, and that the use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements. The page SHALL be served at `/privacy` and `/privacy-policy`. The public entry, the public host page, the booking page and the requester's Google Calendar connection SHALL link to it.
 
 #### Scenario: Requester before connecting Calendar
 - **WHEN** a requester sees the Continue with Google card
 - **THEN** a link to the notice's Calendar section is shown before any consent
+
+#### Scenario: Conventional address
+- **WHEN** anyone opens `/privacy-policy`
+- **THEN** the same notice is shown, including its Google user data section
+
+### Requirement: Terms of service
+A public page at `/terms-of-service` SHALL state, in English and Korean, the terms of using the service: that only the host's approval of the current proposal books a meeting and booked meetings are changed in the calendar, what hosts, requesters and their agents are responsible for, acceptable use, the rights in what people send, suspension, the absence of warranties, how the terms change and whom to contact. It SHALL claim nothing the service does not do and SHALL link to the data notice. The public entry SHALL link to it.
+
+#### Scenario: Visitor reads the terms
+- **WHEN** anyone opens `/terms-of-service`, or `/terms-of-service?lang=ko`
+- **THEN** the terms are shown in that language with a link to the data notice and to the other language

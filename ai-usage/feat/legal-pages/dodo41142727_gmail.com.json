@@ -1,0 +1,74 @@
+{
+  "branch": "feat/legal-pages",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:4ca4b0b3-d179-468f-9f1d-8c936babe361": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 180,
+          "cache_read": 18348282,
+          "cache_write_5m": 0,
+          "cache_write_1h": 337625,
+          "output": 68581,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-02T07:59:06.024Z",
+      "last": "2026-11-02T09:33:58.483Z"
+    },
+    "claude:4ca4b0b3-d179-468f-9f1d-8c936babe361/agent-a304b261f07bb253c": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 16,
+          "cache_read": 547502,
+          "cache_write_5m": 97367,
+          "cache_write_1h": 0,
+          "output": 4028,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-02T08:59:01.440Z",
+      "last": "2026-11-02T09:04:08.791Z"
+    },
+    "claude:4ca4b0b3-d179-468f-9f1d-8c936babe361/agent-aea157dc18247c21f": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 98,
+          "cache_read": 7239861,
+          "cache_write_5m": 200778,
+          "cache_write_1h": 0,
+          "output": 34714,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-02T08:59:00.910Z",
+      "last": "2026-11-02T09:06:34.023Z"
+    },
+    "claude:a682e974-97c2-415d-b58f-3bb76cfe2c9a": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 12,
+          "cache_read": 1119094,
+          "cache_write_5m": 0,
+          "cache_write_1h": 4568,
+          "output": 4829,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-02T09:34:10.260Z",
+      "last": "2026-11-02T09:34:57.186Z"
+    }
+  }
+}

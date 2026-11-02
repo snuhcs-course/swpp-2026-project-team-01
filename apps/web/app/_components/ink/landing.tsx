@@ -51,7 +51,10 @@ export function Landing({ imessage, locale }: { readonly imessage: boolean; read
       <footer className="foot">
         <p>{t.tagline}</p>
         <p>© 2026 Find Me a Time. {t.rights}</p>
-        <a href={locale === "ko" ? "/privacy?lang=ko" : "/privacy"}>{t.privacy}</a>
+        <nav aria-label={t.legal} className="foot-links">
+          <a href={locale === "ko" ? "/privacy-policy?lang=ko" : "/privacy-policy"}>{t.privacy}</a>
+          <a href={locale === "ko" ? "/terms-of-service?lang=ko" : "/terms-of-service"}>{t.terms}</a>
+        </nav>
       </footer>
     </div>
   );
