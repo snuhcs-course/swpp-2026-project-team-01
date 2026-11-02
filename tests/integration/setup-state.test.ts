@@ -209,7 +209,7 @@ describe("ready host rechecks", () => {
     expect((await readReadiness(db, host.hostAccountId)).ready).toBe(true);
 
     await db`
-      update app.provider_grants set granted_scopes = ${[GOOGLE_CALENDAR_SCOPES[0], GOOGLE_CALENDAR_SCOPES[1]]}
+      update app.provider_grants set granted_scopes = ${GOOGLE_CALENDAR_SCOPES.slice(0, -1)}
       where host_account_id = ${host.hostAccountId}
     `;
 

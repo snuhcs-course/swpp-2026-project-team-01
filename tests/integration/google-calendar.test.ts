@@ -77,7 +77,7 @@ describe("Google Calendar client", () => {
 
   it("refuses a host who declined the Calendar scopes as not connected, without calling Google", async () => {
     const host = await createCalendarHost(db, key, {
-      scopes: ["https://www.googleapis.com/auth/calendar.events.freebusy"],
+      scopes: ["https://www.googleapis.com/auth/calendar.calendarlist.readonly"],
     });
     const before = google.requests.length;
 
