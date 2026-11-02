@@ -170,7 +170,7 @@ describe("a bound thread", () => {
     await db.begin((tx) => createEmailReceiptHandler(() => receiptDeps())(tx, { attempts: 1, fence: 0, id: randomUUID(), kind: EMAIL_RECEIPT_JOB, maxAttempts: 10, payload: { receiptId } }));
 
     const inputs = await inputsOf(binding.request_id);
-    expect(inputs.map((input) => input.message)).toEqual([expect.stringContaining("Subject:"), "Thirty minutes, online."]);
+    expect(inputs.map((input) => input.message)).toEqual([expect.stringContaining("Subject:"), "[Email] Thirty minutes, online."]);
     const replies = (await repliesFor(first.thread_id)).filter((entry) => entry.kind === "turn");
     expect(replies).toHaveLength(2);
     const [row] = await db<{ last_message_id: string }[]>`select last_message_id from app.email_threads where id = ${binding.id}`;
@@ -282,7 +282,7 @@ describe("ordering and auto-replies", () => {
     await db`update app.jobs set run_after = now() where id = ${early.jobId}`;
     expect(await runJob(db, early.jobId, createEmailReceiptHandler(() => receiptDeps()))).toBe("completed");
     const binding = (await bindingOf(first.thread_id))!;
-    expect((await inputsOf(binding.request_id)).map((input) => input.message)).toEqual([expect.stringContaining("Hello"), "Also, 30 minutes."]);
+    expect((await inputsOf(binding.request_id)).map((input) => input.message)).toEqual([expect.stringContaining("Hello"), "[Email] Also, 30 minutes."]);
   });
 
   it("answers a started thread once when its first message could not be processed", async () => {
