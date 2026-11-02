@@ -165,7 +165,16 @@ describe("the rule and travel review", () => {
   it("holds every candidate in a full week until the host waives the limit (Only full weeks)", async () => {
     const tuesday = new Date(Date.parse(`${MONDAY}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
     const request = await seedSchedulingRequest(db, google, {
-      events: [{ end: { dateTime: seoul("11:00", tuesday) }, id: `event-${randomUUID()}`, start: { dateTime: seoul("10:00", tuesday) }, status: "confirmed" }],
+      // A meeting with a guest fills the week; busy time without one would not.
+      events: [
+        {
+          attendees: [{ email: "client@example.test", responseStatus: "accepted" }],
+          end: { dateTime: seoul("11:00", tuesday) },
+          id: `event-${randomUUID()}`,
+          start: { dateTime: seoul("10:00", tuesday) },
+          status: "confirmed",
+        },
+      ],
       settings: { weeklyLimit: 1 },
     });
     const found = await asHost(db, request.hostAccountId, request.requestId, hostEvaluateCommand(), {}, { retryKey: "find" });

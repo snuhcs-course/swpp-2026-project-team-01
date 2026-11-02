@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WeeklyWindow } from "../contracts/setup";
+import { computeEvidence } from "./analysis";
 import {
   applyRanking,
   type BusyInterval,
@@ -46,7 +47,7 @@ const place = (text: string): Endpoint => ({ key: hashed(text), kind: "place", t
 const MEETING = { key: hashed("Cafe Onion, Seongsu"), text: "Cafe Onion, Seongsu" };
 
 function busy(start: Date, end: Date, endpoint: Endpoint = { kind: "unknown", reason: "no_location" }): BusyInterval {
-  return { allDay: false, end: end.getTime(), endpoint, start: start.getTime() };
+  return { allDay: false, end: end.getTime(), endpoint, meeting: false, start: start.getTime() };
 }
 
 function input(
@@ -334,7 +335,7 @@ describe("weekly limit", () => {
   it("offers weeks below the limit first without explaining the limit to the requester", () => {
     const thisWeek = { end: kst("2026-11-02", "11:00"), start: kst("2026-11-02", "10:00") };
     const nextWeek = { end: kst("2026-11-09", "11:00"), start: kst("2026-11-09", "10:00") };
-    const meetings = [3, 4].map((day) => busy(kst(`2026-11-0${day}`, "15:00"), kst(`2026-11-0${day}`, "15:30")));
+    const meetings = [3, 4].map((day) => ({ ...busy(kst(`2026-11-0${day}`, "15:00"), kst(`2026-11-0${day}`, "15:30")), meeting: true }));
     const result = evaluateFeasibility(
       input({ host: { ...HOST, weeklyLimit: 2 }, hostBusy: meetings, request: { windows: [thisWeek, nextWeek] } }),
     );
@@ -346,6 +347,79 @@ describe("weekly limit", () => {
     const projected = requesterProjection(result.candidates, { displayTimezone: "Asia/Seoul", id: "e", state: "completed" });
     expect(projected.candidates[0]!.start).toBe(nextWeek.start.toISOString());
     expect(JSON.stringify(projected)).not.toMatch(/limit|week/i);
+  });
+
+  // The week of Mon 2 Nov: a holiday, a class, a focus block, a routine and a
+  // task block time without being meetings; a guest who declined leaves a busy
+  // event that is no meeting, and neither an invitation the host declined nor a
+  // zero-length one is busy.
+  const hostEmail = "host@example.test";
+  const hostSelf = { email: hostEmail, responseStatus: "accepted", self: true };
+  const guest = (responseStatus: string | null) => ({ email: "guest@client.test", responseStatus, self: false });
+  const mixedWeek = [
+    event({ end: { date: "2026-11-05" }, id: "holiday", start: { date: "2026-11-04" }, summary: "Holiday" }),
+    event({
+      end: "2026-11-02T06:15:00Z",
+      id: "class",
+      location: "Engineering Bldg 302",
+      recurringEventId: "algorithms",
+      start: "2026-11-02T05:00:00Z",
+      summary: "Algorithms",
+    }),
+    event({ end: "2026-11-03T03:00:00Z", id: "focus", start: "2026-11-03T00:00:00Z", summary: "Focus time" }),
+    event({ end: "2026-11-03T11:00:00Z", id: "gym", start: "2026-11-03T10:00:00Z", summary: "Gym" }),
+    event({ attendees: [hostSelf], end: "2026-11-05T00:30:00Z", id: "task", start: "2026-11-05T00:00:00Z", summary: "Grade reports" }),
+    event({ attendees: [hostSelf, guest("accepted")], end: "2026-11-03T05:30:00Z", id: "accepted", start: "2026-11-03T05:00:00Z" }),
+    event({ attendees: [guest(null)], end: "2026-11-05T05:30:00Z", id: "invited", start: "2026-11-05T05:00:00Z" }),
+    event({ attendees: [hostSelf, guest("accepted")], end: "2026-11-05T07:00:00Z", id: "zero-length", start: "2026-11-05T07:00:00Z" }),
+    ...["primary", "work"].map((calendarId) =>
+      event({
+        attendees: [hostSelf, guest("tentative")],
+        calendarId,
+        end: "2026-11-06T02:30:00Z",
+        iCalUID: "copied@google.com",
+        id: `copied-${calendarId}`,
+        start: "2026-11-06T02:00:00Z",
+      }),
+    ),
+    event({ attendees: [hostSelf, guest("declined")], end: "2026-11-06T06:30:00Z", id: "guest-declined", start: "2026-11-06T06:00:00Z" }),
+    event({
+      attendees: [{ ...hostSelf, responseStatus: "declined" }, guest("accepted")],
+      end: "2026-11-06T08:30:00Z",
+      id: "host-declined",
+      start: "2026-11-06T08:00:00Z",
+    }),
+  ];
+  const mondayMorning = { end: kst("2026-11-02", "11:00"), start: kst("2026-11-02", "10:00") };
+
+  it("fills a week with its meetings only, never with all-day events, classes, focus blocks or routines", () => {
+    const hostBusy = normalizeBusy(mixedWeek, { endpointKey: hashed, selfEmail: hostEmail, timezone: "Asia/Seoul" });
+    expect(hostBusy).toHaveLength(9);
+    expect(hostBusy.filter((interval) => interval.meeting)).toHaveLength(3);
+
+    const result = evaluateFeasibility(
+      input({ host: { ...HOST, weeklyLimit: 4 }, hostBusy, request: { windows: [mondayMorning] } }),
+    );
+
+    expect(result.candidates[0]).toMatchObject({ belowWeeklyLimit: true, weekCount: 3, weekStart: "2026-11-02" });
+    expect(result.candidates[0]!.basis).toContain("That week has 3 of your 4 weekly meetings.");
+  });
+
+  it("counts the same meetings that setup inferred the limit from", () => {
+    const evidence = computeEvidence(mixedWeek, {
+      calendars: [{ id: "primary", ok: true, summary: "Me" }],
+      hostEmail,
+      timezone: "Asia/Seoul",
+    });
+    const hostBusy = normalizeBusy(mixedWeek, { endpointKey: hashed, selfEmail: hostEmail, timezone: "Asia/Seoul" });
+    const result = evaluateFeasibility(
+      input({ host: { ...HOST, weeklyLimit: 3 }, hostBusy, request: { windows: [mondayMorning] } }),
+    );
+    const [week] = evidence.meetingLoad.weeks;
+
+    expect(evidence.meetingLoad.weeks).toHaveLength(1);
+    expect(week!.internal + week!.external).toBe(result.candidates[0]!.weekCount);
+    expect(result.candidates[0]!.belowWeeklyLimit).toBe(false);
   });
 });
 

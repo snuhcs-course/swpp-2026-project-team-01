@@ -1,0 +1,40 @@
+{
+  "branch": "fix/weekly-meeting-count",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:247af141-545f-4475-80a1-e4c1721bc349": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 86,
+          "cache_read": 8733722,
+          "cache_write_5m": 0,
+          "cache_write_1h": 79614,
+          "output": 34005,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-02T12:33:56.696Z",
+      "last": "2026-11-02T12:41:18.313Z"
+    },
+    "claude:247af141-545f-4475-80a1-e4c1721bc349/agent-a28125fa0d7215c84": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 14,
+          "cache_read": 611405,
+          "cache_write_5m": 114190,
+          "cache_write_1h": 0,
+          "output": 4864,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-02T12:39:11.669Z",
+      "last": "2026-11-02T12:40:05.650Z"
+    }
+  }
+}

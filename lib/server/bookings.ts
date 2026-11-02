@@ -449,6 +449,7 @@ async function otherBookingsBusy(tx: Transaction, booking: JobBooking, hash: (te
       row.details.mode === "in_person" && row.details.location
         ? { key: hash(row.details.location), kind: "place" as const, text: row.details.location }
         : { kind: "unknown" as const, reason: row.details.mode === "online" ? ("conference_only" as const) : ("no_location" as const) },
+    meeting: true,
     start: row.reserved_start.getTime(),
   }));
 }

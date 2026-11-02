@@ -21,7 +21,8 @@ import type { CalendarEvent } from "./google-calendar";
 //      keeping only full intervals that start in the future;
 //   3. removes candidates overlapping host busy intervals widened by the buffers,
 //      and requester busy intervals as they are;
-//   4. orders weeks below the weekly limit first (a preference, never a filter);
+//   4. orders weeks below the weekly limit first (a preference, never a filter),
+//      counting only the meetings in each week;
 //   5. for in-person candidates, checks both host travel legs and, with a
 //      requester calendar, both requester legs (design decision 9).
 // Every explanation is a sentence computed here from the candidate's basis
@@ -158,6 +159,8 @@ export type BusyInterval = {
   readonly end: number;
   // All-day events block time but never anchor travel.
   readonly allDay: boolean;
+  // A counted meeting, which fills its week toward the weekly limit.
+  readonly meeting: boolean;
   readonly endpoint: Endpoint;
 };
 
@@ -178,6 +181,18 @@ function identity(event: CalendarEvent) {
   return `uid:${event.iCalUID}|${start}`;
 }
 
+// The attendees besides the calendar owner who did not decline. A busy, timed
+// event with any is a counted meeting (host-onboarding design 8): setup infers
+// the weekly limit from counted meetings and evaluation fills each week with the
+// same ones, so all-day events, timetables, routines and focus blocks block time
+// without filling a week.
+export function meetingGuests(event: CalendarEvent, ownerEmail: string | null) {
+  const owner = ownerEmail?.trim().toLowerCase() ?? null;
+  return event.attendees.filter(
+    (attendee) => !attendee.self && attendee.email.toLowerCase() !== owner && attendee.responseStatus !== "declined",
+  );
+}
+
 function endpointOf(event: CalendarEvent, endpointKey: (text: string) => string): Endpoint {
   if (event.location && event.hasConferenceLink) return { kind: "unknown", reason: "place_and_link" };
   if (event.hasConferenceLink) return { kind: "unknown", reason: "conference_only" };
@@ -188,7 +203,8 @@ function endpointOf(event: CalendarEvent, endpointKey: (text: string) => string)
 // Busy unless cancelled, transparent or declined by the owner; copies of one
 // event on several calendars merged by provider identity; note-like entries the
 // host excluded (with an unchanged fingerprint) removed; all-day events blocking
-// their local dates in the given zone.
+// their local dates in the given zone; timed events with a guest who did not
+// decline marked as meetings.
 export function normalizeBusy(events: readonly CalendarEvent[], options: NormalizeOptions): BusyInterval[] {
   const self = options.selfEmail?.trim().toLowerCase() ?? null;
   const excluded = new Set(
@@ -216,12 +232,18 @@ export function normalizeBusy(events: readonly CalendarEvent[], options: Normali
       const start = Date.parse(event.start.dateTime);
       const end = Date.parse(event.end.dateTime);
       if (Number.isNaN(start) || Number.isNaN(end) || end <= start) continue;
-      busy.push({ allDay: false, end, endpoint: endpointOf(event, options.endpointKey), start });
+      busy.push({
+        allDay: false,
+        end,
+        endpoint: endpointOf(event, options.endpointKey),
+        meeting: meetingGuests(event, self).length > 0,
+        start,
+      });
     } else if (event.start.date && event.end.date) {
       const start = startOfLocalDay(event.start.date, options.timezone);
       const end = startOfLocalDay(event.end.date, options.timezone);
       if (end <= start) continue;
-      busy.push({ allDay: true, end, endpoint: { kind: "unknown", reason: "no_location" }, start });
+      busy.push({ allDay: true, end, endpoint: { kind: "unknown", reason: "no_location" }, meeting: false, start });
     }
   }
 
@@ -584,8 +606,10 @@ function plan(input: FeasibilityInput): Plan {
 
   intervals.sort((a, b) => a.start - b.start);
 
+  // Each week's load counts its meetings only, as setup counted them.
   const weekCounts = new Map<string, number>();
   for (const interval of input.hostBusy) {
+    if (!interval.meeting) continue;
     const week = weekOf(interval.start, host.timezone);
     weekCounts.set(week, (weekCounts.get(week) ?? 0) + 1);
   }

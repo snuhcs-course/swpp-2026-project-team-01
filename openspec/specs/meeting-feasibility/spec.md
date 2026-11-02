@@ -63,7 +63,7 @@ Preference exceptions SHALL require an explicit host decision, remain bound to a
 - **THEN** the host receives private exception/revision controls and requester output omits rule or exception reasoning
 
 ### Requirement: Weekly meeting load preference
-A confirmed weekly meeting limit SHALL be a host preference, not a hard constraint. The count for a week SHALL include confirmed bookings and the calendar events the host has not excluded as note-like, grouped by week in the host's timezone. When a candidate's week already holds the limit, candidates from weeks below the limit SHALL be offered first, and the host SHALL be able to waive the limit for one request through the existing private exception controls.
+A confirmed weekly meeting limit SHALL be a host preference, not a hard constraint. The count for a week SHALL include confirmed bookings and the counted meetings on the host's conflict calendars, grouped by week in the host's timezone. A counted meeting, as setup counts it to infer the limit, SHALL be a busy, timed event with an attendee besides the host who has not declined. When a candidate's week already holds the limit, candidates from weeks below the limit SHALL be offered first, and the host SHALL be able to waive the limit for one request through the existing private exception controls.
 
 #### Scenario: Week at the limit
 - **WHEN** the requested window spans a week that already holds the limit and a later week below it
@@ -72,6 +72,10 @@ A confirmed weekly meeting limit SHALL be a host preference, not a hard constrai
 #### Scenario: Only full weeks
 - **WHEN** every feasible candidate falls in a week at or above the limit
 - **THEN** the host receives the private exception control and no candidate is offered until the host waives the limit or the requester widens the window
+
+#### Scenario: Busy events that are not meetings
+- **WHEN** a week holds three meetings with guests besides all-day events, class timetables, focus blocks and routines without guests, and the host's limit is four
+- **THEN** the week counts three meetings, stays below the limit, and its candidates are offered first
 
 ### Requirement: Versioned asynchronous results
 Calendar, travel, and model results SHALL carry relevant request/rule context and SHALL be discarded or recomputed when that context changes before persistence. AI SHALL only rank candidates that pass deterministic checks.
