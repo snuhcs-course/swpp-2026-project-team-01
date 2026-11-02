@@ -12,11 +12,15 @@ On the requester Google return, the service SHALL compare the verified Google su
 - **THEN** no host-profile card is shown
 
 ### Requirement: Opt-in host profile per request
-A matched guest SHALL see one card offering calendars and basic details, each uncheckable, and nothing SHALL be used before **Use these settings**. **Not now** SHALL be kept so the card does not return; **Change** on its receipt SHALL reopen it. The choice SHALL be stored per request and deleted when the request closes or is deleted.
+A matched guest SHALL see one card offering calendars and basic details, each uncheckable, and nothing SHALL be used before **Use these settings**. **Not now** SHALL be kept so the card does not return; **Change** on its receipt SHALL reopen it. The choice SHALL be stored per request and deleted when the request closes or is deleted. With Calendars chosen, busy time from the guest's host conflict calendars SHALL be combined with busy time from any Calendar connected for the request.
 
 #### Scenario: Partial opt-in
 - **WHEN** the guest unchecks Basic details and presses **Use these settings**
 - **THEN** their host calendars are used for this request and no review is drafted from their host settings
+
+#### Scenario: Both calendars count
+- **WHEN** the guest chose Calendars and also connected a Calendar for the request
+- **THEN** no candidate overlaps busy time from either
 
 #### Scenario: Closure
 - **WHEN** the request is declined

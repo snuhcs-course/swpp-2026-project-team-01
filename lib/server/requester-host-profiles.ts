@@ -52,8 +52,8 @@ const decideInput = z.object({ items: z.array(z.enum(HOST_PROFILE_ITEMS)).max(HO
 
 // request.host_profile.decide: **Use these settings** with the checked items,
 // or **Not now** with none; **Change** on the receipt decides again. Calendars
-// settle the Calendar step (a request-bound Calendar grant still wins in the
-// evaluation); taking them back reopens it. Basic details become a pending
+// settle the Calendar step (the evaluation also counts any calendars connected
+// for the request); taking them back reopens it unless such a grant exists. Basic details become a pending
 // review the guest applies.
 export function decideHostProfileCommand(): CommandDefinition<z.infer<typeof decideInput>, { items: HostProfileItem[] }> {
   return {

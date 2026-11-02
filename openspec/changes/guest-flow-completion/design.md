@@ -93,7 +93,7 @@ It is one card, consistent with "one thing at a time". **Not now** records the c
 
 **Record.** `requester_host_profiles`: `request_id` (primary key), `host_account_id`, `items text[]`, `decided_at`. It is deleted when the request closes or is deleted, in the same transaction that deletes requester grants. Nothing about the guest-host reaches the request's host, their projection or their model context; the requester projection says only which items are in use.
 
-**Calendars (D8).** `evaluation.ts` reads busy intervals for the requester side from the guest-host's calendars with the conflict role (`calendar_roles`), using the guest-host's provider grant, inside the evaluation. Events are never stored or shown, as for requester calendars today. A failed or revoked grant clears the item, shows **Connect Google Calendar** and pauses dependent evaluation. A request-bound requester grant, when present, wins.
+**Calendars (D8).** `evaluation.ts` reads busy intervals for the requester side from the guest-host's calendars with the conflict role (`calendar_roles`), using the guest-host's provider grant, inside the evaluation. Events are never stored or shown, as for requester calendars today. A failed or revoked grant clears the item, shows **Connect Google Calendar** and pauses dependent evaluation. Busy time from a Calendar connected for the request counts as well: the two sources are combined, so the item still matters after a Google consent that included Calendar (user, 2026-11-02; it replaces "a request-bound grant wins").
 
 **Basic details.** They are applied through the existing review path, as a pending review the guest applies, so nothing changes without the guest's action. The Google-verified address is already handled by Phase 3.
 

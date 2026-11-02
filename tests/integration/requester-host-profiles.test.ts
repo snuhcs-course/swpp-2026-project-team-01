@@ -5,7 +5,9 @@ import type { Database } from "../../lib/server/database";
 import { awaitEvaluation, publishEvaluation } from "../../lib/server/evaluation";
 import { readHostRequest } from "../../lib/server/host-requests";
 import { closeRequest } from "../../lib/server/request-lifecycle";
+import { REQUESTER_CALENDAR_SCOPES, requesterGrantContext } from "../../lib/server/requester-calendar";
 import { decideHostProfileCommand, recordHostProfileMatch } from "../../lib/server/requester-host-profiles";
+import { sealToken } from "../../lib/server/token-encryption";
 import { createCalendarHost } from "./support/calendar-host";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
@@ -23,8 +25,9 @@ import {
 // A guest who is also a host (guest-flow-completion design 6, tasks 6.1, 6.2,
 // 6.4 and 6.5): the match by Google subject only, never the request's own host;
 // the card's choice per request; their host conflict calendars as the guest's
-// busy time inside the evaluation; a failed host grant reopening the Calendar
-// step; basic details as a pending review; nothing reaching the request's host;
+// busy time inside the evaluation, together with a calendar connected for the
+// request; a failed host grant reopening the Calendar step; basic details as a
+// pending review; nothing reaching the request's host;
 // deletion at closure.
 
 const db = testDatabase();
@@ -66,6 +69,21 @@ async function profileOf(requestId: string) {
     select host_account_id, items, decided_at is not null as decided from app.requester_host_profiles where request_id = ${requestId}
   `;
   return row ?? null;
+}
+
+// A Calendar the guest connected for this request, busy at `events`.
+async function connectRequestCalendar(requestId: string, events: ReturnType<typeof busy>[]) {
+  const refreshToken = `1//requester-${randomUUID()}`;
+  const calendarId = `requester-${randomUUID()}@example.test`;
+  const sealed = sealToken(calendarKey, refreshToken, requesterGrantContext(requestId));
+  google.setFixture(refreshToken, { calendars: [{ accessRole: "owner", id: calendarId, primary: true, summary: "Me" }], events: { [calendarId]: events } });
+  await db`
+    insert into app.requester_grants
+      (request_id, kind, google_subject_hash, google_email, email_verified, granted_scopes,
+       refresh_token_ciphertext, refresh_token_key_id, calendar_ids)
+    values (${requestId}, 'calendar', ${randomUUID()}, 'grace@example.test', true, ${[...REQUESTER_CALENDAR_SCOPES]},
+            ${sealed.ciphertext}, ${sealed.keyId}, ${[calendarId]})
+  `;
 }
 
 async function evaluateOnce(requestId: string) {
@@ -172,6 +190,19 @@ describe("the guest-host's calendars in the evaluation", () => {
     const hostView = JSON.stringify(await readHostRequest(db, request.hostAccountId, request.requestId));
     expect(hostView).not.toContain(other.email);
     expect(hostView).not.toContain(other.hostAccountId);
+  });
+
+  it("counts both their host calendars and a calendar connected for the request", async () => {
+    const request = await seedSchedulingRequest(db, google, { details: { windows: [{ end: seoul("12:00"), start: seoul("10:00") }] } });
+    const other = await guestHost({ events: [busy("10:30", "11:00")] });
+    await match(db, request.requestId, other.subject);
+    await asRequester(db, request.requestId, decideHostProfileCommand(), { items: ["calendars"] });
+    await connectRequestCalendar(request.requestId, [busy("10:00", "10:30")]);
+
+    const starts = (await evaluateOnce(request.requestId))!.candidates.map((candidate) => candidate.start);
+    expect(starts).not.toContain(seoul("10:00"));
+    expect(starts).not.toContain(seoul("10:30"));
+    expect(starts).toContain(seoul("11:00"));
   });
 
   it("ignores their calendars when the guest did not choose Calendars", async () => {

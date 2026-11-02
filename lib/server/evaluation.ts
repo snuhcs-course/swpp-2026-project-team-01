@@ -661,11 +661,11 @@ async function evaluate(
     throw new FailedEvaluation("requester_calendar_unavailable", { cause: error });
   }
 
-  // Without a request-bound grant: a guest who is a host and chose Calendars
-  // (design 6, D8) is busy on their host conflict calendars, read with their
-  // host grant and kept in memory only. A failed read drops the item and
-  // reopens the Calendar step, never free time.
-  const guestHost = !grant && options.requesterCalendar !== false ? await readGuestHostSource(tx, evaluation.requestId) : null;
+  // A guest who is a host and chose Calendars (design 6, D8) is also busy on
+  // their host conflict calendars, read with their host grant and kept in
+  // memory only; both sources count (user, 2026-11-02). A failed read drops
+  // the item and reopens the Calendar step, never free time.
+  const guestHost = options.requesterCalendar === false ? null : await readGuestHostSource(tx, evaluation.requestId);
 
   if (guestHost) {
     try {
@@ -674,7 +674,10 @@ async function evaluate(
       for (const entry of guestHost.conflictCalendars) {
         events.push(...(await deadline.run((signal) => calendar.listEvents(entry.id, range, { signal }))));
       }
-      requesterBusy = normalizeBusy(events, { endpointKey: hash, selfEmail: guestHost.email, timezone: requesterZone });
+      requesterBusy = [
+        ...(requesterBusy ?? []),
+        ...normalizeBusy(events, { endpointKey: hash, selfEmail: guestHost.email, timezone: requesterZone }),
+      ];
     } catch (error) {
       if (error instanceof EvaluationDeadlineError) throw error;
       await dropGuestHostCalendars(tx, evaluation.requestId);
