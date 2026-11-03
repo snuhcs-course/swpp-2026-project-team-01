@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Big_Shoulders, Geist, Geist_Mono, Merriweather } from "next/font/google";
+import { Big_Shoulders, Geist, Geist_Mono, Hahmlet, Instrument_Serif, Merriweather } from "next/font/google";
 import type { ReactNode } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -38,6 +38,20 @@ const bigShoulders = Big_Shoulders({
   variable: "--font-big-shoulders",
 });
 
+// The landing's display face (apps/web/app/_components/ink/landing.css), and its Korean counterpart. Hahmlet's
+// Korean glyphs come as unicode-range slices, which next/font cannot preload.
+const instrumentSerif = Instrument_Serif({
+  style: ["normal", "italic"],
+  subsets: ["latin"],
+  variable: "--font-instrument-serif",
+  weight: "400",
+});
+
+const hahmlet = Hahmlet({
+  preload: false,
+  variable: "--font-hahmlet",
+});
+
 // Editorial display headings (DESIGN.md typography).
 const merriweather = Merriweather({
   subsets: ["latin"],
@@ -65,7 +79,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { readonly children: ReactNode }) {
   return (
-    <html className={`${geistSans.variable} ${geistMono.variable} ${merriweather.variable} ${bigShoulders.variable}`} lang="en" suppressHydrationWarning>
+    <html className={`${geistSans.variable} ${geistMono.variable} ${merriweather.variable} ${bigShoulders.variable} ${instrumentSerif.variable} ${hahmlet.variable}`} lang="en" suppressHydrationWarning>
       <body className="antialiased">
         <TooltipProvider>{children}</TooltipProvider>
       </body>

@@ -4,7 +4,7 @@ import { expect, test } from "./support/session";
 test("home offers Google sign-in, with Calendar unless the box is cleared", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Send one link.");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("The assistant that");
   const google = page.getByRole("link", { name: "Continue with Google" });
   await expect(google).toHaveAttribute("href", "/auth/sign-in");
   await page.getByLabel(/Connect my Google Calendar too/).uncheck();
