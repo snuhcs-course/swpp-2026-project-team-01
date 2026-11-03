@@ -125,7 +125,7 @@ A linked host's whole-message commands SHALL be parsed and executed by the appli
 - **THEN** at most one approval and one booking exist and both channels show the same decision
 
 ### Requirement: Shared discussions and replies
-A linked host's free text SHALL become an accepted input of the discussion the host selected (setup by default, or the private review discussion of a selected request), marked as coming from iMessage, under the same redaction, admission, session index and model limits as web input; a retried receipt SHALL resolve to the same input. When that input's turn ends, the assistant's final text SHALL be sent to the linked conversation, and a turn that fails or yields no text SHALL send a fixed fallback pointing to the web. In `/app`, a discussion that holds messages from iMessage SHALL show them, each with the assistant's reply to it, on their own read-only tab beside the web chat, and the web chat SHALL show only the rest; the discussion, its session and the assistant's context stay shared.
+A linked host's free text SHALL become an accepted input of the discussion the host selected (setup by default, or the private review discussion of a selected request), marked as coming from iMessage, under the same redaction, admission, session index and model limits as web input; a retried receipt SHALL resolve to the same input. When that input's turn ends, the assistant's final text SHALL be sent to the linked conversation, and a turn that fails or yields no text SHALL send a fixed fallback pointing to the web. In `/app`, a discussion that holds messages from iMessage SHALL show them, each with the assistant's reply to it, on their own read-only tab beside the web chat, and the web chat SHALL show only the rest; the discussion, its session and the assistant's context stay shared. Only forwarding SHALL mark a message as coming from a messaging channel or email: a message posted from the web, by a host or a requester, SHALL lose any such marker it starts with.
 
 #### Scenario: Private question
 - **WHEN** the linked host selects a request and asks a question in text
@@ -134,6 +134,10 @@ A linked host's free text SHALL become an accepted input of the discussion the h
 #### Scenario: Web chat without iMessage messages
 - **WHEN** the linked host answers a setup question in iMessage and then opens `/app`
 - **THEN** the setup conversation shows a Web chat tab without that exchange and an iMessage tab with it, without its `[iMessage]` marker, and a message written on the Web chat tab continues the same setup discussion
+
+#### Scenario: A marker typed on the web
+- **WHEN** a host sends `[iMessage] Thirty minutes` from the web composer
+- **THEN** the discussion receives `Thirty minutes` as a web message, and it stays on the Web chat tab
 
 ### Requirement: Summaries and outcomes
 A host with an active binding SHALL receive in the linked conversation one summary per event when a request arrives, when a proposal awaits approval (with the exact approve and decline commands for its reference) and when a booking is confirmed, not confirmed or still pending. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.

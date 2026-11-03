@@ -1,4 +1,4 @@
-import { CHANNEL_MARKERS, CHANNEL_NAMES, MESSAGING_CHANNELS, type MessagingChannel } from "@lib/contracts/messaging-channel";
+import { CHANNEL_MARKERS, channelName, MESSAGING_CHANNELS, type MessagingChannel } from "@lib/contracts/messaging-channel";
 import type { EveMessage } from "eve/react";
 
 // Which channel each message of a host discussion came through. A linked
@@ -57,5 +57,5 @@ export function messagingChannels(entries: readonly ChannelEntry[]): MessagingCh
 // The tab label for a discussion's messaging channels; a host who switched
 // channels sees both on one tab.
 export function messagingLabel(channels: readonly MessagingChannel[]) {
-  return channels.map((channel) => CHANNEL_NAMES[channel]).join(" & ");
+  return channels.map(channelName).join(" & ");
 }

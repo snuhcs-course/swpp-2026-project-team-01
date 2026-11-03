@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { channelName, channelOffer, displayWhatsAppNumber, otherChannel, shownChannel, whatsAppLinkFor } from "./messaging-channel";
+import {
+  channelName,
+  channelOffer,
+  displayWhatsAppNumber,
+  otherChannel,
+  shownChannel,
+  whatsAppLinkFor,
+  withoutForwardingMarkers,
+} from "./messaging-channel";
 
 // Which channel a device is offered (host-whatsapp-channel D7) and the wa.me link (D6).
 
@@ -73,5 +81,19 @@ describe("channelName", () => {
   it("names each channel", () => {
     expect(channelName("imessage")).toBe("iMessage");
     expect(channelName("whatsapp")).toBe("WhatsApp");
+  });
+});
+
+// Web input never carries a forwarding marker (host-imessage-channel D21).
+describe("withoutForwardingMarkers", () => {
+  it("drops every marker the message starts with, in any letter case", () => {
+    expect(withoutForwardingMarkers("[iMessage] 30 minutes")).toBe("30 minutes");
+    expect(withoutForwardingMarkers("  [whatsapp][EMAIL] hi")).toBe("hi");
+    expect(withoutForwardingMarkers("[iMessage]")).toBe("");
+  });
+
+  it("keeps a marker that is not at the start, and other brackets", () => {
+    expect(withoutForwardingMarkers("I said [iMessage] earlier")).toBe("I said [iMessage] earlier");
+    expect(withoutForwardingMarkers("[Note] keep this")).toBe("[Note] keep this");
   });
 });
