@@ -561,3 +561,14 @@
 | **Change**의 위치 | 승인 대기 중에는 합의된 시간의 영수증(제안 영수증)에 두고, 그 뒤 대기 줄은 다시 열렸다고 표시합니다 | 시간 영수증. 요청이 승인 대기에 들어가면 더 이상 현재 것이 아님 | 설계 10 | `apps/web/app/_components/guest/guest-workspace.tsx`의 `threadEntries` |
 | 요청 참조 | `requestRef`를 `lib/server/request-ref.ts`로 옮겨(`imessage-commands.ts`에서 다시 내보냄) 호스트 화면이 순환 import 없이 이전 요청을 지칭할 수 있게 합니다 | `imessage-commands.ts`에서 가져오기 | 작업 5.3 | `lib/server/request-ref.ts` |
 | 게스트의 긴 답장 | 호스트와 같이 잘라내되, `/app` 대신 "your booking page, linked in your email"을 가리킵니다 | 호스트의 `/app` 안내 | 설계 4 | `lib/server/imessage-outbox.ts`의 `imessageTurnText` |
+
+## `imessage-number-registration`
+
+[제안](../../openspec/changes/imessage-number-registration/proposal.md#decisions)은 D1–D3을 기록합니다. 이슈 #94에서 Photon의 공유 회선이 등록된 사용자의 메시지만 전달한다는 것이 확인된 뒤, 사용자가 2026-11-04에 정했습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 모든 iMessage 연결 시작은 먼저 번호를 묻고 Photon 공유 사용자로 등록하며, 그 뒤 메시지를 보내고 확인하는 흐름이 이어집니다 | Business 요금제의 전용 회선; 수동으로 등록한 테스터에게만 iMessage 제공 | 제안; 설계 1 | `lib/server/imessage-links.ts`의 `registeredLineNumber`; `lib/server/photon.ts`의 `photonRegistrar` |
+| D2 | 코드는 Photon이 배정한 번호로 보내도록 안내하며, 이 번호는 `imessage_links.line_number`에 보관합니다 | 항상 `PHOTON_LINE_NUMBER` | 제안; 설계 2 | `imessage-links.ts`, `imessage-start.ts`, `requester-imessage-links.ts`의 상태 읽기 함수 |
+| D3 | 랜딩 리디자인의 전화번호 필드(d3ca3be8)를 ink 화면에서는 ink 모양으로, 카드에서는 PR #23의 카드 모양으로 씁니다 | 새 필드 | 제안; 설계 3 | `apps/web/app/_components/ink/number-form.tsx` |
+| 2026-10-20 실험 재해석 | `Target not allowed for this project`는 먼저 메시지를 보내지 않았다는 뜻만이 아니라 등록된 사용자가 아니라는 뜻이었습니다. 공유 회선에서 먼저 보내는 것은 필요하지만 충분하지 않습니다 | — | 이슈 #94 | — |

@@ -86,6 +86,13 @@ for (const width of [390, 1280]) {
     await expect(page.getByRole("button", { exact: true, name: "Get updates in iMessage" })).toBeVisible({ timeout: 20_000 });
     await pressByKeyboard(page, "Get updates in iMessage");
 
+    // The guest's number first (imessage-number-registration D1), typed by keyboard and sent with Enter.
+    const field = page.getByRole("textbox", { name: "Mobile number" });
+    await expect(field).toBeVisible();
+    await field.focus();
+    await page.keyboard.type("10-1234-5678");
+    await page.keyboard.press("Enter");
+
     // A desktop browser opens nothing: the number, the message and a QR code.
     const card = page.locator('[data-guest-card="imessage-link"]');
     await expect(card.getByRole("heading", { name: "Get updates in iMessage" })).toBeVisible();

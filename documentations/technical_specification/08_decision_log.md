@@ -577,3 +577,14 @@ The user reviewed D1–D10 and O1–O4 one at a time on 2026-11-01 (task 0.1).
 | Where **Change** sits | On the agreed time's receipt (the proposal receipt) while awaiting approval; afterwards the wait line reads as reopened | On the times receipt, which is no longer current once the request awaits approval | Design 10 | `threadEntries` in `apps/web/app/_components/guest/guest-workspace.tsx` |
 | Request references | `requestRef` moved to `lib/server/request-ref.ts` (re-exported from `imessage-commands.ts`) so the host view can name an earlier request without an import cycle | Importing it from `imessage-commands.ts` | Task 5.3 | `lib/server/request-ref.ts` |
 | A guest's long reply | Capped like a host's, pointing to "your booking page, linked in your email" instead of `/app` | The host's `/app` pointer | Design 4 | `imessageTurnText` in `lib/server/imessage-outbox.ts` |
+
+## `imessage-number-registration`
+
+The [proposal](../../openspec/changes/imessage-number-registration/proposal.md#decisions) records D1–D3, which the user took on 2026-11-04 after issue #94 found that Photon's shared lines deliver only registered users' messages.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | Every iMessage link start asks for the number first and registers it as a shared Photon user; the message-and-confirm flow follows | A Business-plan dedicated line; iMessage only for manually registered testers | Proposal; design 1 | `registeredLineNumber` in `lib/server/imessage-links.ts`; `photonRegistrar` in `lib/server/photon.ts` |
+| D2 | The code is addressed to the number Photon assigned, kept as `imessage_links.line_number` | Always `PHOTON_LINE_NUMBER` | Proposal; design 2 | The status readers in `imessage-links.ts`, `imessage-start.ts` and `requester-imessage-links.ts` |
+| D3 | The landing redesign's phone field (d3ca3be8), in the ink look on ink screens and PR #23's card look in the cards | A new field | Proposal; design 3 | `apps/web/app/_components/ink/number-form.tsx` |
+| The 2026-10-20 spike, read again | `Target not allowed for this project` meant the recipient was not a registered user, not only that it had not written first; writing first is necessary on a shared line but not enough | — | Issue #94 | — |

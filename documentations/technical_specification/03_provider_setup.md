@@ -111,6 +111,10 @@ Photon's deliverability guidance makes inbound-first the default: an authenticat
 
 Verify request selection, private discussion, revision and exact-proposal approval/decline on a controlled iPhone. Unsupported recipients/groups must not receive private state. Record actual device/client versions; transport send success alone cannot establish device receipt or attribution.
 
+### Shared lines and registered users
+
+The production project is on Photon's Free plan, whose iMessage lines are shared: a shared line delivers only messages from registered project users and sends only to them ([troubleshooting](https://photon.codes/docs/spectrum-ts/troubleshooting/imessage), issue #94). Every iMessage link start therefore asks for the person's number first and registers it as a shared user through `POST https://spectrum.photon.codes/projects/{projectId}/users/` with the project credentials. The code is then addressed to the `assignedPhoneNumber` Photon returns, kept on the attempt as `imessage_links.line_number` ([`imessage-number-registration`](../../openspec/changes/imessage-number-registration/proposal.md#decisions) D1, D2). `PHOTON_LINE_NUMBER` only turns iMessage on. The Free plan allows 10 registered users and Pro 100 ([pricing](https://photon.codes/pricing)); a full project refuses new numbers. Read the registered users with `photon spectrum users ls --project <id>`. A dedicated line (Business) has no such list.
+
 ### Display-name, contact cards and profile sync
 
 Offer optional **Add to contacts** as a host action after a verified private exchange; the connected card queues one native contact-card share through the Spectrum SDK ([`host-imessage-channel` design 11](../../openspec/changes/host-imessage-channel/design.md#11-add-to-contacts)). Freeze the actual selected route and report provider acceptance/uncertainty truthfully. The recipient chooses whether to save it; the product cannot promise the displayed name or infer identity/consent from a contact card. Verify the actual account profile and real-device presentation independently before claiming support.

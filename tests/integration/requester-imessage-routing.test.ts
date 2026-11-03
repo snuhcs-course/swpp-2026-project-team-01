@@ -36,7 +36,7 @@ import { createTestRequest, jobFor, runJob, testNotices, testTokenKey } from "./
 const db = testDatabase();
 let photon: FakePhoton;
 const im = imessageHarness(db, () => photon);
-const options = { lineNumber: TEST_LINE, tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
+const options = { lineNumber: TEST_LINE, registrar: im.registrar, tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
 const commands: Readonly<Record<string, CommandDefinition<unknown, unknown>>> = Object.fromEntries(
   [createRequesterImessageLinkCommand(options), confirmRequesterImessageLinkCommand(options), unlinkRequesterImessageCommand].map(
     (command) => [command.operation, command as unknown as CommandDefinition<unknown, unknown>],
@@ -67,7 +67,7 @@ function asGuest(requestId: string, operation: string, input: unknown = {}) {
 
 // Links the sender as the request's guest, as the card and the guest's message do.
 async function linkGuest(sender: string, requestId: string) {
-  expect((await asGuest(requestId, REQUESTER_IMESSAGE_OPERATIONS.create)).ok).toBe(true);
+  expect((await asGuest(requestId, REQUESTER_IMESSAGE_OPERATIONS.create, { number: "+15557654321" })).ok).toBe(true);
   const pending = await readRequesterImessageStatus(db, [testTokenKey], requestId, TEST_LINE);
   if (pending.state !== "pending") throw new Error("Expected a pending code.");
   await im.deliver({ sender, text: pending.message });
