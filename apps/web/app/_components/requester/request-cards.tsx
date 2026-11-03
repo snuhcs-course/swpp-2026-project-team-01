@@ -548,7 +548,16 @@ export function DetailsButton({ context, label = "Edit details" }: { readonly co
 
 export function ProposalCard({ context }: { readonly context: RequesterCardContext }) {
   const proposal = context.view.proposal!;
-  const { act, busy, error } = useAction(context);
+  const { act, busy, error, setError } = useAction(context);
+
+  // The host's calendar is read again on agreement; a time that stopped fitting
+  // records nothing and new times are found.
+  async function agree() {
+    const outcome = await act("request.agree", { version: proposal.version });
+    if (outcome.ok && (outcome.result as { outcome?: string }).outcome === "time_unavailable") {
+      setError("This time is no longer free on the host's calendar, so nothing was agreed. Choose another time.");
+    }
+  }
   const host = proposal.participants.find((participant) => participant.role === "host")?.name ?? context.view.host.displayName;
   const rows: [string, ReactNode][] = [
     ["Meeting", context.view.request.details.purpose ?? `With ${host}`],
@@ -569,7 +578,7 @@ export function ProposalCard({ context }: { readonly context: RequesterCardConte
     >
       <DetailList rows={rows} />
       <GuestCardActions>
-        <Button className="min-h-11" disabled={busy} onClick={() => void act("request.agree", { version: proposal.version })} type="button">
+        <Button className="min-h-11" disabled={busy} onClick={() => void agree()} type="button">
           {busy ? "Agreeing..." : "Agree to this proposal"}
         </Button>
         <Button className="min-h-11" onClick={() => context.chooseAnotherTime()} type="button" variant="outline">

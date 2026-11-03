@@ -185,7 +185,7 @@ describe("the Phase 6 join", () => {
     expect((await arrive(sender, `share ${ref}-S1`)).outcome).toBe("command");
     const [evaluation] = await db<{ id: string }[]>`select id from app.evaluations where request_id = ${request.requestId} order by created_at desc limit 1`;
     await runEvaluation(db, { ...evaluationDeps(db, google), notices: testNotices }, evaluation!.id);
-    const agreed = await asRequester(db, request.requestId, agreeCommand, { version: 2 }, { expectedRevision: await revisionOf(db, request.requestId) });
+    const agreed = await asRequester(db, request.requestId, agreeCommand(() => evaluationDeps(db, google)), { version: 2 }, { expectedRevision: await revisionOf(db, request.requestId) });
     expect(agreed.ok).toBe(true);
     expect((await summaries(host, request.requestId))[0]).toContain(`approve ${reviewRef(request.requestId, 2)}`);
 
