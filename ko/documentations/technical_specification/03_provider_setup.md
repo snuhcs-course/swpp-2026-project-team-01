@@ -119,7 +119,7 @@ Photon의 전달 가능성 안내에 따라 인바운드 우선이 기본값입�
 
 ## WhatsApp Business
 
-WhatsApp Business는 호스트 WhatsApp 채널의 전송 수단입니다. 2026-11-02에 [`host-whatsapp-channel` 변경](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)에서 제안되었으며 아직 구현되지 않았습니다. 사용자가 2026-11-02에 활성화한, iMessage와 같은 Photon 프로젝트(`findmeatime`)의 Photon Spectrum `whatsapp_business` 플랫폼을 통해 동작합니다. Photon은 WhatsApp 이벤트를 같은 서명이 붙은 같은 웹훅 `https://findmeatime.com/photon/webhook`으로 전달합니다. 수신기는 서명을 한 번 확인하고 플랫폼에 따라 라우팅합니다(D2). 변경이 반영되기 전까지 iMessage 수신기는 이를 확인 응답하고 무시합니다(이슈 #62, PR #63). 발신 메시지는 기존 `PHOTON_PROJECT_ID`와 `PHOTON_PROJECT_SECRET`을 사용해 클라우드 모드의 `@spectrum-ts/whatsapp-business` 12.14.0으로 보내므로, Meta 자격 증명은 Photon이 보관합니다(D1). 발신자는 WhatsApp 연락처 ID, 즉 `+` 없이 숫자만 적은 국제 전화번호입니다(D3).
+WhatsApp Business는 호스트 WhatsApp 채널의 전송 수단입니다. 2026-11-02에 [`host-whatsapp-channel` 변경](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)에서 제안되었고 2026-11-03에 루프백 대역(`PHOTON_API_URL`이 `/whatsapp/messages`에서 WhatsApp에 응답함)을 상대로 구현되었으며, 실제 WhatsApp 메시지는 아직 보내거나 받은 적이 없습니다. 사용자가 2026-11-02에 활성화한, iMessage와 같은 Photon 프로젝트(`findmeatime`)의 Photon Spectrum `whatsapp_business` 플랫폼을 통해 동작합니다. Photon은 WhatsApp 이벤트를 같은 서명이 붙은 같은 웹훅 `https://findmeatime.com/photon/webhook`으로 전달합니다. 수신기는 서명을 한 번 확인하고 플랫폼에 따라 라우팅합니다(D2). 이 변경 이전에는 iMessage 수신기가 이를 확인 응답하고 무시했으며(이슈 #62, PR #63), 지금도 그렇게 하고, WhatsApp 이벤트는 그 뒤에 WhatsApp 파서에 도달합니다. 발신 메시지는 기존 `PHOTON_PROJECT_ID`와 `PHOTON_PROJECT_SECRET`을 사용해 클라우드 모드의 `@spectrum-ts/whatsapp-business` 12.14.0으로 보내므로, Meta 자격 증명은 Photon이 보관합니다(D1). 발신자는 WhatsApp 연락처 ID, 즉 `+` 없이 숫자만 적은 국제 전화번호입니다(D3).
 
 Photon의 문서와 공급자 패키지에서 확인한 사실이며, 아직 실제 이벤트에서는 확인하지 못했습니다:
 

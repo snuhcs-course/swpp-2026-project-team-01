@@ -52,7 +52,7 @@ flowchart LR
     B -->|Pending or confirmed outcome| S
 ```
 
-The arrows show communication, not equal permissions: requester interfaces cannot grant host approval or read host-only information. iMessage is a host channel in this release. Email is shown as a requester negotiation channel; it is not a host approval surface in these journeys. The MVP targets iPhone/iMessage hosts and recommends iMessage for everyday scheduling. Agent connections and iMessage linking remain opt-in; hosts can start onboarding in either channel and use web throughout. Private iMessage entry leads through verified browser handoffs before accessing host state. Android-specific flows are deferred; requester links remain account-free without device-based blocking. Photon Spectrum is the selected iMessage transport direction; the bridge and its application identity mapping must be implemented and verified against the contracts.
+The arrows show communication, not equal permissions: requester interfaces cannot grant host approval or read host-only information. iMessage is a host channel in this release. Email is shown as a requester negotiation channel; it is not a host approval surface in these journeys. The MVP targets iPhone/iMessage hosts and recommends iMessage for everyday scheduling. Agent connections and iMessage linking remain opt-in; hosts can start onboarding in either channel and use web throughout. Private iMessage entry leads through verified browser handoffs before accessing host state. Android hosts link WhatsApp instead (2026-11-02, [`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)): the same journeys run in a private WhatsApp conversation, J-06 included; requester links remain account-free without device-based blocking. Photon Spectrum is the selected iMessage transport direction; the bridge and its application identity mapping must be implemented and verified against the contracts.
 
 Remote MCP is the primary agent interface; the CLI serves clients with terminal access. Both use the shared scheduling API. Host MCP access uses OAuth, while requester access stays account-free and request-scoped. The diagram shows intended paths, not verified support for either interface in every named client. OAuth connection and revocation are covered in J-09.
 
@@ -209,6 +209,8 @@ Before discussing a request, the host asks for their request list and sends its 
 5. The host receives the booking outcome or continues in `/app` if delivery fails. They can unlink iMessage to stop notifications and further private processing or host actions through that identity; relinking requires fresh proofs.
 
 **Outcome:** iMessage operates on the same request as web and agent clients. Delivery/read receipts are not approval; unlinked senders and group conversations cannot retrieve host-only information or act as the host.
+
+The same journey runs in WhatsApp for a host who linked it ([`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)). One step differs: when the host has not written for a day, step 1's summary arrives as a short template notice with the request reference, and the host replies `request <reference>` to see it. `stop` unlinks from either app.
 
 Photon Spectrum is the selected transport direction described in the [PRD dependencies section](../02_product_requirements.md#10-dependencies-and-open-decisions). The product journey does not depend on an agent framework; an adapter's message rendering alone does not establish host approval.
 

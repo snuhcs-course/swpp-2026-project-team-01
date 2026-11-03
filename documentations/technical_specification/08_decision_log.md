@@ -523,6 +523,7 @@ The [proposal](../../openspec/changes/host-whatsapp-channel/proposal.md#decision
 | Sources without a line | The design read `@spectrum-ts/whatsapp-business` 12.14.0 from the npm tarball and Photon's documentation on 2026-11-02. No WhatsApp message was sent or received, so the platform spelling and sender format are confirmed only at the join | Sending a test message, which is blocked on the user | Design context | — |
 | Planning only | This pull request changes documents and the OpenSpec change only, with no code, schema or configuration | Implementing Lane A at once | Plan Phase 9 | — |
 | Supabase CLI | The migration was generated and the chain rebuilt with Supabase CLI 2.122.0, the version installed on this machine, not the 2.119.0 AGENTS.md names; the generated SQL only adds columns and constraints, and `supabase test db` passes on the rebuilt stack | Downgrading the CLI for one migration | This log | Regenerate with 2.119.0 if the team wants the pinned version to produce it |
+| Korean mirror drift | Four mirrors (`03_provider_setup`, `04_page_list`, `05_host_onboarding_flow`, `08_decision_log`) were already a few lines out of step with their English source before this change; the WhatsApp lines were placed by content, and the older gaps are left for a separate pass | Fixing the older gaps here | This log | A mirror pass on those files |
 
 ### Blocked on the user
 
