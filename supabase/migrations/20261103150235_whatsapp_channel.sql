@@ -25,6 +25,9 @@ ALTER TABLE "app"."imessage_links"
 ALTER TABLE "app"."imessage_links"
   ADD CONSTRAINT "imessage_links_fallback_channel" CHECK (((method <> 'fallback'::text) OR (channel = 'imessage'::text)));
 
+ALTER TABLE "app"."imessage_links"
+  ADD CONSTRAINT "imessage_links_request_channel" CHECK (((request_id IS NULL) OR (channel = 'imessage'::text)));
+
 ALTER TABLE "app"."imessage_outbox"
   ADD CONSTRAINT "imessage_outbox_channel_check" CHECK ((channel = ANY (ARRAY['imessage'::text, 'whatsapp'::text])));
 

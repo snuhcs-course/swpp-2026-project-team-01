@@ -1,24 +1,30 @@
 import { defineEval } from "eve/evals";
 import { includes, satisfies } from "eve/evals/expect";
-import { DECISION_CLAIM, PROPOSED, readRequestProjection, requesterSession, requesterStubs } from "./support";
+import { NAMES_A_CONTROL, PROPOSED, readRequestProjection, requesterSession, requesterStubs } from "./support";
 
-// meeting-requests "Natural-language assent": "yes" and "book it" record no
-// agreement, approval or event. No tool can record one; the assistant points to
-// Agree to this proposal instead of claiming a decision.
+// guest-flow-completion U15 (task 8.5): a decision in words counts. "book it"
+// by iMessage or email on a proposal records the agreement on that proposal's
+// version through agree_to_proposal, and the plain-text reply says it waits for
+// the host's approval without naming a card or button.
+const AGREED = { message: "Agreed. The request now waits for the host's approval; nothing is booked yet.", recorded: true, state: "awaiting_host_approval" };
+
 export default defineEval({
   tags: ["requester", "live-model"],
   async test(t) {
-    const { send } = await requesterSession(t, requesterStubs(readRequestProjection(PROPOSED)));
+    for (const channel of ["[iMessage]", "[Email]"]) {
+      const stubs = requesterStubs(readRequestProjection(PROPOSED), [
+        { id: `agree-${channel}`, outcome: { response: AGREED }, tool: "agree_to_proposal" },
+      ]);
+      const { send } = await requesterSession(t, stubs);
+      const turn = await send(`${channel} book it`);
 
-    for (const message of ["yes", "book it"]) {
-      const turn = await send(message);
-      t.check(turn.message, includes(/Agree to this proposal/i)).label(`points to the button after "${message}"`);
-      t.check(turn.message, satisfies((text) => !DECISION_CLAIM.test(String(text ?? "")), "claims no decision")).label(
-        `claims nothing after "${message}"`,
+      t.check(turn.message, includes(/approv/i)).label(`${channel}: says it waits for the host's approval`);
+      t.check(turn.message, satisfies((text) => !NAMES_A_CONTROL.test(String(text ?? "")), "names no card or button")).label(
+        `${channel}: names no card or button`,
       );
     }
 
     t.succeeded();
-    t.notCalledTool("draft_request_review");
+    t.calledTool("agree_to_proposal", { count: (count) => count >= 2, input: { version: 1 } });
   },
 });

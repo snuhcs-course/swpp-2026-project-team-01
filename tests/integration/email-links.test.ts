@@ -137,7 +137,7 @@ describe("binding by code", () => {
     // The bound sender's next message is forwarded.
     const next = await deliver({ from: `Grace <${request.contactEmail}>`, inReplyTo: message.message_id, text: "Thursday works.", threadId: message.thread_id });
     expect(next.outcome).toBe("forwarded");
-    expect((await inputsOf(request.requestId)).map((input) => input.message)).toEqual(["Thursday works."]);
+    expect((await inputsOf(request.requestId)).map((input) => input.message)).toEqual(["[Email] Thursday works."]);
   });
 
   it("forwards later replies whose subject or quoted text repeats the code, with the code removed", async () => {

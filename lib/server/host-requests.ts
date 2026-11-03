@@ -6,6 +6,7 @@ import type { CommandDefinition } from "./commands";
 import type { Database, Queryable, Transaction } from "./database";
 import { readHostEvaluation, weeklyLimitHold } from "./evaluation";
 import { allowHostTripCommand, hostEvaluateCommand, waiveWeeklyLimitCommand } from "./request-exceptions";
+import { requestRef } from "./request-ref";
 import { dismissChangesCommand, shareChangesCommand, suggestChangesCommand } from "./shared-changes";
 
 // The host's projection of its requests (host-review-and-booking design 3): the
@@ -60,6 +61,8 @@ type RequestRow = {
   expires_at: Date;
   id: string;
   requester_name: string;
+  revised_from_request_id: string | null;
+  revised_from_state: RequestState | null;
   revision: number;
   settings: { timezone?: string; weeklyLimit?: number | null } | null;
   settings_revision: number | null;
@@ -130,8 +133,10 @@ async function evaluationSummary(db: Queryable, request: RequestRow, waived: boo
 export async function readHostRequest(db: Database | Transaction, hostAccountId: string, requestId: string): Promise<HostRequestView | null> {
   const [request] = await db<RequestRow[]>`
     select r.id, r.state, r.revision, r.details, r.requester_name, r.contact_email, r.contact_confirmed_email,
-           r.expires_at, s.settings, s.revision as settings_revision
+           r.expires_at, s.settings, s.revision as settings_revision, r.revised_from_request_id,
+           p.state as revised_from_state
     from app.requests r left join app.host_settings s on s.host_account_id = r.host_account_id
+    left join app.requests p on p.id = r.revised_from_request_id
     where r.id = ${requestId} and r.host_account_id = ${hostAccountId} and r.state <> 'draft'
   `;
   if (!request) return null;
@@ -168,6 +173,10 @@ export async function readHostRequest(db: Database | Transaction, hostAccountId:
     },
     evaluation,
     expiresAt: request.expires_at.toISOString(),
+    revisedFrom:
+      request.revised_from_request_id && (request.revised_from_state === "declined" || request.revised_from_state === "expired")
+        ? { outcome: request.revised_from_state, ref: requestRef(request.revised_from_request_id) }
+        : null,
     hostTimezone,
     needsDecision:
       request.state === "awaiting_host_approval" ||

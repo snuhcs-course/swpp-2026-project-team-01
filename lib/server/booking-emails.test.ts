@@ -79,6 +79,13 @@ describe("the booking confirmation", () => {
 });
 
 describe("the status notifications", () => {
+  it("from the product inbox carry no link and ask for a reply (U15)", () => {
+    const email = renderBookingEmail("status_new_version", "en", { ...meeting, version: 2 }, {});
+    expect(email.text).not.toContain("/booking/");
+    expect(email.text).toContain("Reply to agree, or to ask for something else.");
+    expect(email.text).toContain("Reply to this email to continue with Thyme.");
+  });
+
   it.each([
     ["status_new_version", "suggested a change"],
     ["status_declined", "declined"],

@@ -29,6 +29,30 @@ export const HOST_TOOLS = [
   "propose_shared_changes",
 ] as const;
 
+// A reply by iMessage or email shows no card or button, so it names none (U15).
+export const NAMES_A_CONTROL = /\b(card|button|press|tap|click)\b|카드|버튼|누르/i;
+
+// Three of the current candidate times, as read_request lists them, and none chosen.
+export const THREE_TIMES = {
+  current: {
+    evaluation: {
+      candidates: [
+        ["cand-1", "Tue 10 Nov, 10:00 GMT+9 to Tue 10 Nov, 10:30 GMT+9"],
+        ["cand-2", "Tue 10 Nov, 13:00 GMT+9 to Tue 10 Nov, 13:30 GMT+9"],
+        ["cand-3", "Wed 11 Nov, 15:30 GMT+9 to Wed 11 Nov, 16:00 GMT+9"],
+      ].map(([id, time]) => ({ durationMinutes: 30, id, location: null, meetingLink: "google_meet", mode: "online", time })),
+      evaluationId: "00000000-0000-4000-8000-000000000001",
+      failure: null,
+      laterCandidates: [],
+      message: null,
+      state: "completed",
+      tripsToConfirm: 0,
+    },
+    proposal: null,
+  },
+  status: { expiresAt: "Mon 16 Nov, 12:00 GMT+9", state: "negotiating", text: "Choosing a time. Nothing is agreed or booked." },
+};
+
 // No claim that something was agreed, approved, booked or confirmed.
 export const DECISION_CLAIM =
   /\b(is|has been|have been|been|now|was)\s+(agreed|approved|booked|confirmed|scheduled)\b|예약(이|을)?\s*(완료|확정)|승인(이|을)?\s*(완료|되었|됐)/i;
@@ -51,7 +75,7 @@ export function readRequestProjection(overrides: Record<string, unknown> = {}) {
     },
     host: { displayName: "\"Ada Lovelace\"" },
     missing: [],
-    next: "Only the cards record decisions: Apply these details on the review card, Find times and Choose this time on the candidate times card, and Agree to this proposal on the proposal card. A message such as yes or book it records nothing; point to the button instead.",
+    next: "The guest decides on the booking page's cards or in words: apply_request_review applies the pending review and finds times, choose_time chooses one of the current candidate times, agree_to_proposal agrees to the current proposal, change_agreement reopens an agreed request until the host approves, and withdraw_request withdraws it. Record a decision only when the guest clearly made it, about the exact time or version they named; when it is unclear, ask.",
     pendingReview: null,
     readyForTimes: true,
     status: { expiresAt: "Mon 9 Nov, 12:00 GMT+9", state: "gathering", text: "Gathering meeting details. Nothing is proposed or booked." },

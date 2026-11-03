@@ -34,7 +34,7 @@ import { DRAFT_LIMITS, markIdentityRequested } from "./request-start";
 // 2): input is redacted and admitted before it is stored, the session index row
 // is written before the session's first message, and history and the live
 // stream are read with an internal read bearer, so a guest's browser never
-// calls /eve/v1. A draft accepts at most 30 messages.
+// calls /eve/v1. A draft accepts no messages (guest-flow-completion U8).
 //
 // A public_intake principal names an anonymous intake from before D13. Intakes
 // are no longer created, and their discussions are only read, so a request

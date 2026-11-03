@@ -1,4 +1,4 @@
-import type { MeetingMode } from "./setup";
+import type { MeetingMode, WeeklyWindow } from "./setup";
 
 // The meeting request contract shared by the request domain, the requester
 // tools, the /api/requests routes and the booking page cards. It mirrors
@@ -96,10 +96,17 @@ export type RequestDetails = {
   // The link plan for an online request.
   readonly linkPlan: LinkPlan | null;
   readonly windows: readonly RequestWindow[];
+  readonly preferredWindows?: readonly RequestWindow[];
+  readonly lessPreferredWindows?: readonly RequestWindow[];
+  readonly preferredWeeklyWindows?: readonly WeeklyWindow[];
   // The requester's IANA zone, used to interpret local times in windows.
   readonly timezone: string;
   readonly language: RequestLanguage;
   readonly travelMode: RequesterTravelMode | null;
+  // Times left out of every search (guest-flow-completion U17): the time a host
+  // declined and the days they named as no longer working when declining,
+  // carried to a revised request. Never a reason.
+  readonly excludedTimes?: readonly RequestWindow[];
 };
 
 // The fields a review, the meeting details card or request.update_details may
@@ -107,7 +114,7 @@ export type RequestDetails = {
 // are an explicit contact correction: an empty string is an explicit empty edit,
 // kept exactly for protected review and refused when applied.
 export type ReviewPatch = Partial<
-  Pick<RequestDetails, "purpose" | "durationMinutes" | "mode" | "location" | "linkPlan" | "windows" | "travelMode">
+  Pick<RequestDetails, "purpose" | "durationMinutes" | "mode" | "location" | "linkPlan" | "windows" | "preferredWindows" | "lessPreferredWindows" | "preferredWeeklyWindows" | "travelMode" | "timezone">
 > & {
   readonly contactName?: string;
   readonly contactEmail?: string;
@@ -162,3 +169,7 @@ export type RequesterAgreement = {
   readonly proposalVersion: number;
   readonly agreedAt: string;
 };
+
+// The first line of a revised request's opening summary (guest-flow-completion
+// design 5), which the guest thread shows as a quiet note.
+export const REVISED_SUMMARY_PREFIX = "Earlier request summary, written by Find Me a Time";

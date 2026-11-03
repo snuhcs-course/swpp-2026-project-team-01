@@ -1,9 +1,8 @@
 import { createHash } from "node:crypto";
 
-// A request's reference in text (host-imessage-channel D8): six Crockford base32
-// characters from the SHA-256 of the request ID. Kept apart from the command
-// parser so the outbox can name a request in a WhatsApp template
-// (host-whatsapp-channel design 8) without importing the commands.
+// A request's reference in iMessage and in the host's view of a revised request
+// (host-imessage-channel design 8): six Crockford base32 characters from the
+// SHA-256 of its ID.
 
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

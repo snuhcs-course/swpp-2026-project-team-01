@@ -70,7 +70,12 @@ export async function closeRequest(
   if (closed.count === 0) return false;
 
   await revokeRequestGrants(tx, requestId);
+  // A guest-host's choice of their host settings goes with the grants (design 6).
+  await tx`delete from app.requester_host_profiles where request_id = ${requestId}`;
   await supersedeConfirmations(tx, requestId);
+  // The guest binding stays at every closing: a declined, expired or withdrawn
+  // request continues as a revised request (guest-flow-completion design 5,
+  // U16), and a booked one answers questions about its meeting (U18).
   await tx`
     update app.request_reviews set state = 'superseded', resolved_at = now()
     where request_id = ${requestId} and state = 'pending'
@@ -203,10 +208,11 @@ export async function deleteDraft(tx: Transaction, requestId: string) {
   return deleted.count > 0;
 }
 
-// Whether the details the evaluation needs are present: a duration, a mode and
-// at least one window.
+// Whether the details the evaluation needs are present: a duration and a mode.
+// Windows are optional: without them the evaluation searches the next two
+// weeks (guest-flow-completion U9).
 export function detailsComplete(details: Partial<RequestDetails>) {
-  return Boolean(details.durationMinutes && details.mode && (details.windows?.length ?? 0) > 0);
+  return Boolean(details.durationMinutes && details.mode);
 }
 
 // gathering -> negotiating, run by the evaluation job in its publishing

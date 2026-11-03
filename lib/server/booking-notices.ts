@@ -1,11 +1,13 @@
 import type { RequestLanguage } from "../contracts/request";
 import { isValidTimeZone } from "../contracts/setup";
+import { agentMailConfigFromEnvironment } from "./agentmail";
 import { type BookingEmailParameters, calendarInvitation, type MeetingParameters } from "./booking-emails";
 import { bookingUrl } from "./booking-links";
 import { eventTitle } from "./calendar-events";
 import type { Transaction } from "./database";
 import { enqueueEmail, frozenSender } from "./email-delivery";
 import { recordReply } from "./email-replies";
+import { enqueueGuestNotice, type GuestNotice } from "./imessage-notices";
 import { openRequestBookingId } from "./request-start";
 import { appOriginsFromEnvironment } from "./same-origin";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
@@ -18,18 +20,25 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 // Reply-To the other party. The requester's booking link is opened from its
 // sealed copy and sealed again as the delivery's secret parameter; the host's
 // copy links to the request in /app and carries no booking link. A requester
-// whose request has an active email thread also gets each status notice in that
-// thread (requester-email-channel design 7).
+// status notice goes from the product inbox with no booking link, in the
+// request's email thread or as the first message of a new one
+// (guest-flow-completion U15; the no-reply email with the link without an
+// inbox), and one with an active guest iMessage binding gets it in that
+// conversation (guest-flow-completion design 4).
 
 export type NoticeDependencies = {
   readonly origin: string;
   readonly tokenKey: TokenKey;
   readonly tokenKeys: readonly TokenKey[];
+  // The product inbox requester status notices go from (U15); without one they
+  // are no-reply emails with the booking link.
+  readonly inboxId?: string | null;
 };
 
 export function noticeDependenciesFromEnvironment(): NoticeDependencies {
   const tokenKey = tokenKeyFromEnvironment();
-  return { origin: appOriginsFromEnvironment().appOrigin, tokenKey, tokenKeys: [tokenKey] };
+  const inboxId = agentMailConfigFromEnvironment().inboxId;
+  return { inboxId: inboxId || null, origin: appOriginsFromEnvironment().appOrigin, tokenKey, tokenKeys: [tokenKey] };
 }
 
 export function hostRequestUrl(origin: string, requestId: string) {
@@ -133,6 +142,8 @@ export async function enqueueConfirmations(tx: Transaction, deps: NoticeDependen
   const parties = await partiesOf(tx, requestId);
   if (!parties) return;
 
+  await enqueueGuestNotice(tx, requestId, { bookingId: meeting.bookingId, kind: "booking_confirmation" });
+
   const sender = frozenSender(process.env, parties.hostName);
   const attachmentFor = (parameters: MeetingParameters) =>
     meeting.iCalUID
@@ -205,6 +216,17 @@ function dedupeKeyOf(requestId: string, notice: StatusNotice) {
   }
 }
 
+function guestNoticeOf(notice: StatusNotice): GuestNotice {
+  switch (notice.kind) {
+    case "status_new_version":
+      return { kind: notice.kind, version: notice.version };
+    case "status_pending":
+      return { bookingId: notice.bookingId, kind: notice.kind };
+    default:
+      return { kind: notice.kind };
+  }
+}
+
 // One status notice to the requester's contact address, confirmed or not (D11).
 export async function enqueueStatusNotice(tx: Transaction, deps: NoticeDependencies, requestId: string, notice: StatusNotice) {
   const parties = await partiesOf(tx, requestId);
@@ -222,36 +244,42 @@ export async function enqueueStatusNotice(tx: Transaction, deps: NoticeDependenc
     ...(notice.kind === "status_pending" ? { bookingId: notice.bookingId } : {}),
   };
 
-  await enqueueEmail(tx, {
-    dedupeKey: dedupeKeyOf(requestId, notice),
-    kind: notice.kind,
-    language: parties.language,
-    parameters,
-    recipient: parties.requesterEmail,
-    requestId,
-    secrets: { bookingUrl: link },
-    tokenKey: deps.tokenKey,
-  });
-
-  // The same notice in the requester's email thread, replying to its latest
-  // message; the booking link stays sealed until dispatch.
+  // The notice goes from the product inbox so the guest can answer it by
+  // replying (guest-flow-completion U15): in the request's thread, or as the
+  // first message of a new one, with no booking link. Without an inbox it is
+  // the no-reply email with the link.
   const [thread] = await tx<{ id: string; inbox_id: string; last_message_id: string }[]>`
     select id, inbox_id, last_message_id from app.email_threads where request_id = ${requestId} and state = 'active'
   `;
+  const inboxId = thread?.inbox_id ?? deps.inboxId ?? null;
 
-  if (thread) {
-    await recordReply(tx, {
-      bindingId: thread.id,
-      dedupeKey: `${notice.kind}:${dedupeKeyOf(requestId, notice)}:${thread.id}`,
-      inboxId: thread.inbox_id,
-      kind: "notice",
+  await enqueueGuestNotice(tx, requestId, guestNoticeOf(notice));
+
+  if (!inboxId) {
+    await enqueueEmail(tx, {
+      dedupeKey: dedupeKeyOf(requestId, notice),
+      kind: notice.kind,
       language: parties.language,
       parameters,
-      replyToMessageId: thread.last_message_id,
+      recipient: parties.requesterEmail,
       requestId,
       secrets: { bookingUrl: link },
-      template: notice.kind,
       tokenKey: deps.tokenKey,
     });
+    return;
   }
+
+  await recordReply(tx, {
+    bindingId: thread?.id ?? null,
+    dedupeKey: `${notice.kind}:${dedupeKeyOf(requestId, notice)}:${thread?.id ?? "new"}`,
+    inboxId,
+    kind: "notice",
+    language: parties.language,
+    parameters,
+    replyToMessageId: thread?.last_message_id ?? null,
+    requestId,
+    secrets: {},
+    template: notice.kind,
+    tokenKey: deps.tokenKey,
+  });
 }

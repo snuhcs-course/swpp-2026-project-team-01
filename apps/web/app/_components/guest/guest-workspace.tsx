@@ -3,12 +3,14 @@
 import type { DiscussionEvent } from "@lib/contracts/discussion-events";
 import type { OpenRequesterView, RequesterView, ThreadCard } from "@lib/contracts/requester-view";
 import { displayTime } from "@lib/contracts/timezone";
-import { type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EllipsisIcon } from "lucide-react";
 import {
-  AwaitingLine,
+  AwaitingCard,
   CalendarSelectionCard,
   ConnectCalendarCard,
+  HostProfileCard,
+  ImessageUpdates,
   EmailLinkLine,
   focusCardHeading,
   type RequesterCardContext,
@@ -16,8 +18,7 @@ import {
   useRequesterCards,
 } from "@/app/_components/requester/cards";
 import { ConnectedAgentsDialog, requestGrantSource } from "@/app/_components/connected-agents";
-import { CandidatesCard, DetailsCard, ProposalCard, ReviewCard } from "@/app/_components/requester/request-cards";
-import { ResendLinkForm } from "@/app/_components/requester/resend-link-form";
+import { AppliedDetailsCard, CandidatesCard, DetailsCard, MeetingDetailsList, ModeChoiceCard, ProposalCard, ReviewCard, searchedFor } from "@/app/_components/requester/request-cards";
 import { AgentMessage } from "@/components/chat/message";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,66 +31,49 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
+import { Message, MessageContent, MessageHeader } from "@/components/ui/message";
 import type { ChatRequestError } from "@/lib/chat/discussion";
-import { guestDiscussionClient, type GuestPostOutcome, readNdjson } from "@/lib/chat/guest";
-import { GuestCard, GuestCardActions, GuestReceipt } from "./guest-card";
-import "@/app/_components/ink/ink.css";
+import { guestDiscussionClient, readNdjson } from "@/lib/chat/guest";
+import { GuestReceipt } from "./guest-card";
 import { GuestConversation, projectMessages, type ThreadEntry } from "./guest-conversation";
-import { browserLanguage, TimezoneLine, useGuestTimezone } from "./timezone";
+import { AuthoredMessages } from "@/app/_components/setup/authored-messages";
+import { COMPOSER_LOCKED, GuestFrame, openingMessages, RequestPanel } from "./guest-frame";
+import { TimezoneLine, useGuestTimezone } from "./timezone";
 
-// The guest workspace (design decisions 2 and 12, D13): one conversation with
-// Thyme from the guest's first message on a ready host's /{handle} to
-// agreement, the same component on the public page and on /booking/{bookingId}.
-// The first message starts a draft request; the tab keeps its booking
-// identifier in sessionStorage, never in the address bar, until the guest gives
-// a name and email on the identity card. Identification then moves the address
-// bar to the booking link with history.replaceState, in place: nothing reloads
-// and the thread and its session stay the same. After a Google return or a
-// reload, the booking page loads the same thread from its stored events.
+// The guest workspace on the booking page (design decisions 2 and 12;
+// guest-flow-completion U13): one conversation with Thyme for an identified
+// request. The fixed steps come first and need no model: identity, then the
+// Calendar step. A fixed message then asks what the meeting is for, with what
+// the host offers, and from there the composer is open and the assistant
+// gathers the rest in conversation; its review card records it, and applying
+// it finds times.
 //
-// Every card (identity, review, details, Calendar connection and selection,
-// candidate times, proposal) is an entry of the thread, placed where the
-// conversation called for it. At most one is open, the current next step's
-// (DESIGN.md: one thing to think about at once); every other one is a one-line
-// receipt, with **Change** where changing is allowed. The status is a line in
-// the thread, the timezone a chip at its start. Only the composer sits below
-// it, with a compact menu holding **Edit details** and **Withdraw request**.
+// Every card (review, details, Calendar, candidate times, proposal) is an
+// entry of the thread, placed where the conversation called for it. At most
+// one is open, the current next step's (DESIGN.md: one thing to think about at
+// once); an answered one stays as the guest's reply, with **Change** where
+// changing is allowed. Only the composer sits below it, with a compact menu
+// holding **Edit details** and **Withdraw request**.
 
-function draftKey(handle: string) {
-  return `fmat.draft:${handle}`;
-}
-
-function nonceKey(handle: string) {
-  return `fmat.draft-nonce:${handle}`;
-}
-
-function readStored(key: string) {
-  try {
-    return window.sessionStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function writeStored(key: string, value: string | null) {
-  try {
-    if (value) window.sessionStorage.setItem(key, value);
-    else window.sessionStorage.removeItem(key);
-  } catch {
-    // Without storage the draft lasts for this page view only.
-  }
-}
-
-const GOOGLE_NOTICES: Readonly<Record<string, string>> = {
-  cancelled: "Google sign-in was cancelled. Nothing was changed; continue with or without Google.",
-  connected: "Google is connected for this request.",
-  identified: "Google filled in your name and email. Your request continues here.",
-  limited: "Too many new requests from your network right now. Try again later.",
+// What Google's return says, under the card it concerns: the name and email
+// receipt, or the Calendar card.
+const GOOGLE_NOTICES: Readonly<Record<string, { readonly card: string; readonly text: string }>> = {
+  connected: { card: "calendar", text: "Google is connected for this request." },
+  identified: { card: "identity", text: "Google filled in your name and email." },
 };
+
+// The fixed question that hands over to the assistant, with what the host
+// offers every guest.
+function meetingQuestion(view: OpenRequesterView) {
+  const { durationMinutes, meetingMode, venue } = view.meeting;
+  const form =
+    meetingMode === "either" ? "online or in person" : meetingMode === "online" ? "online" : venue ? `in person at ${venue}` : "in person";
+  return `What would you like to meet ${view.host.displayName} about? ${view.host.displayName} offers ${durationMinutes}-minute meetings, ${form}. If you already know when suits you, tell me that too.`;
+}
 
 const RECEIPT_LABELS = {
   identity: "Your details",
+  meeting: "Meeting",
   proposal: "Proposal",
   review: "Drafted details",
   times: "Times",
@@ -101,232 +85,193 @@ function timeText(start: string, end: string | undefined, timeZone: string) {
 }
 
 export function GuestWorkspace({
-  bookingId: initialBookingId = null,
-  chrome,
+  bookingId,
   host,
-  initialView = null,
+  initialView,
 }: {
-  // The booking page's identifier and view; the public page passes neither.
-  readonly bookingId?: string | null;
-  // The public page's collapsed chrome (the agent section and link resend).
-  readonly chrome?: ReactNode;
+  readonly bookingId: string;
   readonly host: { readonly displayName: string; readonly handle: string | null };
-  readonly initialView?: OpenRequesterView | null;
+  readonly initialView: OpenRequesterView;
 }) {
-  const bookingRef = useRef<string | null>(initialBookingId);
-  const nonceRef = useRef("");
-  const [bookingId, setBookingId] = useState<string | null>(initialBookingId);
-  const [view, setView] = useState<OpenRequesterView | null>(initialView);
-  const [ready, setReady] = useState(initialBookingId !== null);
-  // A new key starts a fresh thread, when the tab's draft is gone.
-  const [threadKey, setThreadKey] = useState(0);
-  const [notice, setNotice] = useState<{ readonly at: string; readonly text: string } | null>(null);
+  const [view, setView] = useState<OpenRequesterView>(initialView);
+  const [notice, setNotice] = useState<{ readonly card: string; readonly text: string } | null>(null);
   const [detailsAt, setDetailsAt] = useState<string | null>(null);
   // The proposal version whose candidate times the guest reopened to choose again.
   const [choosingAgain, setChoosingAgain] = useState<number | null>(null);
+  // **Change** on the host-profile receipt reopens its card until the guest decides again.
+  const [profileAgain, setProfileAgain] = useState(false);
   const timezone = useGuestTimezone();
-  const handle = host.handle;
-
-  const forgetDraft = useCallback(() => {
-    if (handle) {
-      writeStored(draftKey(handle), null);
-      writeStored(nonceKey(handle), null);
-    }
-    nonceRef.current = crypto.randomUUID();
-    if (handle) writeStored(nonceKey(handle), nonceRef.current);
-  }, [handle]);
-
-  // A view from the state route; on the public page, an identified request
-  // takes its booking link into the address bar in place.
-  const accept = useCallback(
-    (id: string, next: OpenRequesterView) => {
-      setView(next);
-      if (next.request.state !== "draft" && window.location.pathname !== `/booking/${id}`) {
-        window.history.replaceState(null, "", `/booking/${id}`);
-        if (handle) writeStored(draftKey(handle), null);
-      }
-    },
-    [handle],
-  );
+  // The thread's send, for the online or in person buttons.
+  const sendRef = useRef<((text: string) => Promise<void>) | null>(null);
 
   const refresh = useCallback(async () => {
-    const id = bookingRef.current;
-    if (!id) return;
-
     try {
-      const response = await fetch(`/api/requests/${id}/state`, { cache: "no-store" });
+      const response = await fetch(`/api/requests/${bookingId}/state`, { cache: "no-store" });
       const next = (await response.json()) as RequesterView;
 
       if (response.ok && next.open) {
-        accept(id, next);
+        setView(next);
         return;
       }
 
-      // The booking page shows the closed or unavailable request itself; a
-      // draft that is gone from the public page starts over.
-      if (window.location.pathname.startsWith("/booking/")) {
-        window.location.reload();
-        return;
-      }
-
-      forgetDraft();
-      bookingRef.current = null;
-      setBookingId(null);
-      setView(null);
-      setThreadKey((key) => key + 1);
+      // The booking page shows the closed or unavailable request itself.
+      window.location.reload();
     } catch {
       // The cards keep their last view; the next action refreshes again.
     }
-  }, [accept, forgetDraft]);
+  }, [bookingId]);
 
   useEffect(() => {
     const google = new URLSearchParams(window.location.search).get("google");
-    if (google) {
-      setNotice(GOOGLE_NOTICES[google] ? { at: new Date().toISOString(), text: GOOGLE_NOTICES[google]! } : null);
-      window.history.replaceState(null, "", window.location.pathname);
-    }
+    if (!google) return;
+    setNotice(GOOGLE_NOTICES[google] ?? null);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
 
-    if (initialBookingId !== null || !handle) return;
-
-    nonceRef.current = readStored(nonceKey(handle)) ?? crypto.randomUUID();
-    writeStored(nonceKey(handle), nonceRef.current);
-    const stored = readStored(draftKey(handle));
-
-    if (!stored) {
-      setReady(true);
-      return;
-    }
-
-    void (async () => {
-      try {
-        const response = await fetch(`/api/requests/${stored}/state`, { cache: "no-store" });
-        const next = (await response.json()) as RequesterView;
-        if (response.ok && next.open) {
-          bookingRef.current = stored;
-          setBookingId(stored);
-          accept(stored, next);
-        } else {
-          forgetDraft();
-        }
-      } catch {
-        // The tab's draft is kept for the next load.
-      } finally {
-        setReady(true);
-      }
-    })();
-  }, [accept, forgetDraft, handle, initialBookingId]);
-
-  const client = useMemo(
-    () => guestDiscussionClient(() => ({ bookingId: bookingRef.current, handle, nonce: nonceRef.current })),
-    [handle],
-  );
-
-  // The first message answers the draft's identifier, also when it failed after
-  // the draft existed.
-  const onAccepted = useCallback(
-    (outcome: GuestPostOutcome) => {
-      if (!outcome.bookingId || bookingRef.current === outcome.bookingId) return;
-      bookingRef.current = outcome.bookingId;
-      setBookingId(outcome.bookingId);
-      if (handle) writeStored(draftKey(handle), outcome.bookingId);
-      void refresh();
-    },
-    [handle, refresh],
-  );
+  const client = useMemo(() => guestDiscussionClient(bookingId), [bookingId]);
 
   const onError = useCallback(
     (error: unknown) => {
       const code = (error as ChatRequestError).code;
-      if (bookingRef.current && (code === "unavailable" || code === "closed")) void refresh();
+      if (code === "unavailable" || code === "closed") void refresh();
     },
     [refresh],
   );
-
-  const extra = useCallback(() => ({ language: browserLanguage(), timezone: timezone.zone }), [timezone.zone]);
 
   const details = useMemo(
     () => ({ close: () => setDetailsAt(null), open: () => setDetailsAt(new Date().toISOString()) }),
     [],
   );
-  const chooseAnotherTime = useCallback(() => setChoosingAgain(view?.proposal?.version ?? null), [view?.proposal?.version]);
+  const chooseAnotherTime = useCallback(() => setChoosingAgain(view.proposal?.version ?? null), [view.proposal?.version]);
   const context = useRequesterCards(bookingId, view, timezone.zone, refresh, details, chooseAnotherTime);
 
-  const entries = useMemo(() => {
-    const list: ThreadEntry[] = context
-      ? threadEntries(context, view?.thread ?? [], {
-          choosingAgain: choosingAgain !== null && choosingAgain === view?.proposal?.version,
+  // The fixed steps hand over to the assistant once the Calendar step is done.
+  const handedOver = view.thread.some((card) => card.kind === "calendar" && card.status === "answered");
+
+  const { entries, panel } = useMemo(() => {
+    const placed = context
+      ? threadEntries(context, view.thread, {
+          choosingAgain: choosingAgain !== null && choosingAgain === view.proposal?.version,
           editing: detailsAt !== null,
+          handedOver,
+          profile: { again: profileAgain, close: () => setProfileAgain(false), reopen: () => setProfileAgain(true) },
+          send: async (text) => sendRef.current?.(text),
         })
-      : [];
+      : { entries: [], panel: [] };
+    const list: ThreadEntry[] = placed.entries.map((entry) =>
+      notice && (entry.id === notice.card || entry.id.endsWith(`:${notice.card}`))
+        ? {
+            ...entry,
+            node: (
+              <>
+                {entry.node}
+                <p className="mt-2 px-1 text-sm text-muted-foreground" role="status">
+                  {notice.text}
+                </p>
+              </>
+            ),
+          }
+        : entry,
+    );
     if (context && detailsAt) list.push({ at: detailsAt, id: "meeting-details", node: <DetailsCard context={context} /> });
-    if (notice) {
-      list.push({
-        at: notice.at,
-        id: "notice",
-        node: (
-          <p className="px-1 text-sm text-muted-foreground" role="status">
-            {notice.text}
-          </p>
-        ),
-      });
-    }
-    return list;
-  }, [choosingAgain, context, detailsAt, notice, view?.proposal?.version, view?.thread]);
+    return { entries: list, panel: placed.panel };
+  }, [choosingAgain, context, detailsAt, handedOver, notice, profileAgain, view.proposal?.version, view.thread]);
 
   useFocusNewCards(entries);
 
-  const identified = view !== null && view.request.state !== "draft";
-  const before = (
-    <div className="flex flex-col gap-3 pb-2">
-      <section className="flex flex-col gap-1">
-        <p className="font-medium text-muted-foreground text-sm">{identified ? "Meeting request with" : "Find Me a Time host"}</p>
-        <h1 className="break-words font-display text-[clamp(28px,4vw,40px)] leading-tight">{host.displayName}</h1>
-        {host.handle ? <p className="font-mono text-muted-foreground">@{host.handle}</p> : null}
-      </section>
-      <p className="text-sm">
-        {identified
-          ? "This conversation is private to you: anyone with its link can act on this request, so keep the link to yourself."
-          : "Requests are accepted here, and you do not need an account. Tell Thyme what the meeting is about; when Thyme asks, give your name and email in this conversation, with or without Google."}{" "}
-        <a className="underline underline-offset-4" href="/privacy">
-          How we handle your data
-        </a>
-      </p>
-      {chrome && !identified ? chrome : null}
-      <TimezoneLine onChoose={timezone.choose} zone={timezone.zone} />
-      {view?.hasIntakeTranscript && bookingId ? <IntakeTranscript bookingId={bookingId} /> : null}
-    </div>
+  // **Request details** (U12): whose request it is, the timezone, a summary of
+  // every answered step, the creation email's line and how private the page is.
+  const meetingDetails = view.request.details;
+  const hasMeetingDetails = Boolean(meetingDetails.purpose || meetingDetails.mode || meetingDetails.location || meetingDetails.windows?.length || meetingDetails.preferredWindows?.length || meetingDetails.lessPreferredWindows?.length || meetingDetails.preferredWeeklyWindows?.length);
+  const meetingPatch = {
+    ...(meetingDetails.purpose ? { purpose: meetingDetails.purpose } : {}),
+    ...(meetingDetails.durationMinutes ? { durationMinutes: meetingDetails.durationMinutes } : {}),
+    ...(meetingDetails.mode ? { mode: meetingDetails.mode } : {}),
+    ...(meetingDetails.location ? { location: meetingDetails.location } : {}),
+    ...(meetingDetails.linkPlan ? { linkPlan: meetingDetails.linkPlan } : {}),
+    ...(meetingDetails.travelMode ? { travelMode: meetingDetails.travelMode } : {}),
+    ...(meetingDetails.windows?.length ? { windows: meetingDetails.windows } : {}),
+    ...(meetingDetails.preferredWindows?.length ? { preferredWindows: meetingDetails.preferredWindows } : {}),
+    ...(meetingDetails.lessPreferredWindows?.length ? { lessPreferredWindows: meetingDetails.lessPreferredWindows } : {}),
+    ...(meetingDetails.preferredWeeklyWindows?.length ? { preferredWeeklyWindows: meetingDetails.preferredWeeklyWindows } : {}),
+  };
+  const aside = (
+    <RequestPanel
+      host={host}
+      note={
+        <>
+          This conversation is private to you: anyone with its link can act on this request, so keep the link to yourself.{" "}
+          <a className="underline underline-offset-4" href="/privacy">
+            How we handle your data
+          </a>
+        </>
+      }
+      timezone={<TimezoneLine onChoose={timezone.choose} zone={timezone.zone} />}
+    >
+      {hasMeetingDetails ? <section className="flex flex-col gap-2 py-2"><h3 className="font-semibold">Meeting details</h3><MeetingDetailsList patch={meetingPatch} timeZone={timezone.zone} preferenceTimezone={meetingDetails.timezone} contact={view.contact} /></section> : null}
+      {context && view.request.state !== "awaiting_host_approval" ? <ImessageUpdates context={context} onlyLinked /> : null}
+      {panel.length
+        ? [...panel].filter((entry) => !hasMeetingDetails || entry.id !== "identity").sort((a, b) => a.at.localeCompare(b.at)).map((entry) => <div key={entry.id}>{entry.node}</div>)
+        : null}
+    </RequestPanel>
   );
 
-  if (!ready) return <p className="sr-only" role="status">Loading...</p>;
+  // The web start's opening messages stay at the top of the thread.
+  const before = (
+    <>
+      <AuthoredMessages messages={openingMessages(host.displayName)} />
+      {view.hasIntakeTranscript ? <IntakeTranscript bookingId={bookingId} /> : null}
+    </>
+  );
 
   return (
-    <div className="onboarding-ink flex h-dvh min-h-0 flex-col bg-background text-foreground">
+    <GuestFrame aside={aside} asideLabel={`Request with ${host.displayName}`}>
       <GuestConversation
         ariaLabel={`Meeting request with ${host.displayName}`}
         before={before}
         client={client}
-        composerAside={context && identified ? <ThreadMenu context={context} /> : null}
+        composerAside={context ? <ThreadMenu context={context} /> : null}
         entries={entries}
-        extra={extra}
-        key={threadKey}
-        onAccepted={onAccepted}
         onError={onError}
-        onRecover={
-          bookingId
-            ? async (generation) => {
-                const response = await fetch(`/api/requests/${bookingId}/recover`, {
-                  body: JSON.stringify({ observedGeneration: generation }),
-                  headers: { "content-type": "application/json" },
-                  method: "POST",
-                });
-                return (await response.json()) as { status: string; delivered?: boolean };
-              }
-            : undefined
-        }
+        onRecover={async (generation) => {
+          const response = await fetch(`/api/requests/${bookingId}/recover`, {
+            body: JSON.stringify({ observedGeneration: generation }),
+            headers: { "content-type": "application/json" },
+            method: "POST",
+          });
+          return (await response.json()) as { status: string; delivered?: boolean };
+        }}
         onSettled={() => void refresh()}
-        placeholder="Message Thyme"
+        placeholder="Write to Thyme"
+        lockedReason={handedOver ? null : COMPOSER_LOCKED}
+        sendRef={sendRef}
       />
+    </GuestFrame>
+  );
+}
+
+// One answered step in **Request details**: what it was and what was chosen.
+function SummaryRow({ label, value }: { readonly label: string; readonly value: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col py-1.5">
+      <span className="text-muted-foreground text-sm">{label}</span>
+      <span className="break-words text-base">{value}</span>
     </div>
+  );
+}
+
+// A fixed message in Thyme's voice, written by the page rather than the model,
+// on the same Message pattern as the onboarding's authored messages.
+function FixedMessage({ text }: { readonly text: string }) {
+  return (
+    <article className="w-full min-w-0" data-authored-message="">
+      <Message>
+        <MessageContent className="gap-1.5 text-base leading-[1.65] text-foreground">
+          <MessageHeader>Thyme</MessageHeader>
+          <p className="px-3 break-words">{text}</p>
+        </MessageContent>
+      </Message>
+    </article>
   );
 }
 
@@ -357,35 +302,38 @@ function useFocusNewCards(entries: readonly ThreadEntry[]) {
 function threadEntries(
   context: RequesterCardContext,
   thread: readonly ThreadCard[],
-  options: { readonly editing: boolean; readonly choosingAgain: boolean },
-): ThreadEntry[] {
+  options: {
+    readonly editing: boolean;
+    readonly choosingAgain: boolean;
+    readonly handedOver: boolean;
+    readonly profile: { readonly again: boolean; readonly close: () => void; readonly reopen: () => void };
+    readonly send: (text: string) => Promise<void>;
+  },
+): { readonly entries: ThreadEntry[]; readonly panel: ThreadEntry[] } {
   const { view } = context;
   const entries: ThreadEntry[] = [];
+  // What was answered stays in the thread as the guest's reply, and is listed
+  // again in **Request details** (U12); a waiting or out-of-date step is left
+  // out.
+  const panel: ThreadEntry[] = [];
   const zone = context.timezone;
   const change = (label: string, onClick: () => void) => (
     <Button aria-label={label} className="h-8 min-h-8 px-1 text-xs" onClick={onClick} type="button" variant="link">
       Change
     </Button>
   );
-  const goTo = (domId: string, label: string) => (
-    <Button className="h-8 min-h-8 px-1 text-xs" onClick={() => context.focusCard(domId)} type="button" variant="link">
-      Go to the current {label}
-    </Button>
-  );
   const status = (card: ThreadCard): ThreadCard["status"] => {
     if (card.kind === "times" && options.choosingAgain && card.id === `times:${view.evaluation?.id}`) return "open";
+    if (card.kind === "host_profile" && options.profile.again) return "open";
     if (card.status !== "open") return card.status;
     if (options.editing || (card.kind === "proposal" && options.choosingAgain)) return "waiting";
     return "open";
   };
-  const hasOpen = (kind: ThreadCard["kind"]) => thread.some((card) => card.kind === kind && card.status === "open");
   const open = (domId: string, card: ThreadCard, node: ReactNode) => entries.push({ at: card.at, id: `open:${domId}:${card.id}`, node });
-  const receipt = (card: ThreadCard, label: string, value: ReactNode, action?: ReactNode, outOfDate = false) =>
-    entries.push({
-      at: card.at,
-      id: card.id,
-      node: <GuestReceipt action={action} id={card.id} label={label} outOfDate={outOfDate} value={value} />,
-    });
+  const receipt = (card: ThreadCard, label: string, value: ReactNode, action?: ReactNode) => {
+    entries.push({ at: card.at, id: card.id, node: <GuestReceipt action={action} id={card.id} label={label} value={value} /> });
+    panel.push({ at: card.at, id: card.id, node: <SummaryRow label={label} value={value} /> });
+  };
   const choosing = view.request.state === "gathering" || view.request.state === "negotiating";
 
   for (const card of thread) {
@@ -393,32 +341,45 @@ function threadEntries(
 
     switch (card.kind) {
       case "identity":
-        if (state === "open") open("guest-identity", card, <IdentityCard context={context} />);
-        else receipt(card, RECEIPT_LABELS.identity, card.receipt?.text ?? "Next: your name and email");
+        if (card.receipt?.text === "Continued with Google") {
+          entries.push({ at: card.at, id: card.id, node: <GuestReceipt id={card.id} label="" value="Continued with Google" /> });
+          panel.push({ at: card.at, id: card.id, node: <SummaryRow label={RECEIPT_LABELS.identity} value={view.contact ? `${view.contact.name} · ${view.contact.email}` : "Your name and email"} /> });
+        } else {
+          receipt(card, RECEIPT_LABELS.identity, card.receipt?.text ?? "Your name and email");
+        }
+        break;
+      case "meeting":
+        // Thyme's question, once the Calendar step is done; the guest answers
+        // it in the composer. The purpose is in the details summary.
+        if (options.handedOver) {
+          entries.push({ at: card.at, id: "meeting-question", node: <FixedMessage text={meetingQuestion(view)} /> });
+        }
         break;
       case "review":
         if (state === "open" && view.pendingReview && card.id === `review:${view.pendingReview.id}`) {
-          open("review", card, <ReviewCard context={context} />);
-        } else if (state === "waiting") {
-          receipt(card, RECEIPT_LABELS.review, `${card.receipt?.text ?? "Details"} · waiting for review`);
-        } else if (state === "superseded") {
-          receipt(card, RECEIPT_LABELS.review, "An earlier draft", hasOpen("review") ? goTo("review", "review") : undefined, true);
-        } else {
-          receipt(
-            card,
-            RECEIPT_LABELS.review,
-            card.receipt?.text ?? "Answered",
-            choosing && card.receipt?.text?.startsWith("Applied") ? change("Change the meeting details", context.openDetails) : undefined,
-          );
+          // A question with nothing to apply is Thyme's message alone, except
+          // online or in person, which gets its two buttons (U22).
+          if (view.pendingReview.patch) open("review", card, <ReviewCard context={context} />);
+          else if (view.pendingReview.clarifications.includes("missing_mode")) {
+            open("mode-choice", card, <ModeChoiceCard context={context} onAnswer={options.send} />);
+          }
+        } else if (state === "answered" && card.receipt?.patch) {
+          entries.push({
+            at: card.at,
+            id: card.id,
+            node: <AppliedDetailsCard contact={view.contact} patch={card.receipt.patch} timeZone={zone} preferenceTimezone={view.request.details.timezone} action={choosing ? change("Change the meeting details", context.openDetails) : undefined} />,
+          });
         }
         break;
       case "status":
-        entries.push({
+        // Waiting for the host is where the request stands now, so it stays in
+        // the thread; the creation email's line goes to the panel.
+        (card.id === "status:awaiting" ? entries : panel).push({
           at: card.at,
           id: card.id,
           node:
             card.id === "status:awaiting" ? (
-              <AwaitingLine context={context} />
+              <AwaitingCard context={context} />
             ) : (
               <>
                 <SentLine context={context} />
@@ -427,55 +388,75 @@ function threadEntries(
             ),
         });
         break;
+      case "host_profile":
+        if (state === "open") {
+          open("host-profile", card, <HostProfileCard context={context} onDone={options.profile.close} />);
+        } else if (state === "answered") {
+          receipt(card, "Host settings", card.receipt?.text ?? "Not now", choosing ? change("Change your host settings", options.profile.reopen) : undefined);
+        }
+        break;
       case "calendar":
         if (state === "open") {
           if (view.connection.calendar) open("calendar-selection", card, <CalendarSelectionCard context={context} />);
           else open("calendar-connect", card, <ConnectCalendarCard context={context} />);
         } else if (state === "answered") {
-          receipt(
-            card,
-            "Calendar",
-            card.receipt?.text === "Connected" ? "Connected" : "Skipped",
-            choosing
-              ? change("Change your calendar", () => void context.run("request.set_manual_availability", { manual: false }))
-              : undefined,
-          );
-        } else {
-          receipt(card, "Calendar", "Next: whether to check your calendar");
+          const action = choosing
+            ? change("Change your calendar", () => void context.run("request.set_manual_availability", { manual: false }))
+            : undefined;
+          if (card.receipt?.text === "Connected") {
+            const name = view.contact?.name ?? "your";
+            const value = name === "your" ? "Connected your calendar" : `Connected ${name}’s Calendar`;
+            entries.push({ at: card.at, id: card.id, node: <GuestReceipt action={action} id={card.id} label="" value={value} /> });
+            panel.push({ at: card.at, id: card.id, node: <SummaryRow label="Calendar" value="Connected" /> });
+          } else {
+            receipt(card, "Calendar", "Skipped", action);
+          }
         }
         break;
       case "times":
-        if (state === "open") open("candidates", card, <CandidatesCard context={context} />);
+        if (state === "open") {
+          const ready = view.evaluation?.state === "completed";
+          const found = view.evaluation?.candidates.some((candidate) => !candidate.unresolvedRequesterLeg) ?? false;
+          const text = searchedFor(context, found);
+          open("candidates", card, <>{ready ? <FixedMessage text={text} /> : null}<CandidatesCard context={context} /></>);
+        }
         else if (state === "answered" && card.receipt?.start) {
-          receipt(
-            card,
-            RECEIPT_LABELS.times,
-            `Chose ${timeText(card.receipt.start, card.receipt.end, zone)}`,
-            choosing && card.id === `times:${view.evaluation?.id}` && !options.choosingAgain
-              ? change("Choose another time", context.chooseAnotherTime)
-              : undefined,
-          );
-        } else if (state === "waiting") {
-          receipt(card, RECEIPT_LABELS.times, "Times found · waiting for the step before");
-        } else {
-          receipt(card, RECEIPT_LABELS.times, "Earlier times", hasOpen("times") ? goTo("candidates", "times") : undefined, true);
+          const text = card.id === `times:${view.evaluation?.id}`
+            ? searchedFor(context, true)
+            : view.request.details.language === "ko" ? "가능한 시간을 찾았어요. 편한 시간을 골라 주세요." : "I found some available times. Please choose one that works for you.";
+          entries.push({ at: card.at, id: `${card.id}:intro`, node: <FixedMessage text={text} /> });
+          // No reply bubble: the guest named the time in a message or pressed
+          // it on the card, and the proposal that follows shows it (U22). The
+          // choice stays in **Request details**.
+          panel.push({
+            at: card.at,
+            id: card.id,
+            node: <SummaryRow label={RECEIPT_LABELS.times} value={timeText(card.receipt.start, card.receipt.end, zone)} />,
+          });
         }
         break;
       case "proposal":
         if (state === "open" && view.proposal && card.id === `proposal:${view.proposal.version}`) {
-          open("proposal", card, <ProposalCard context={context} />);
+          const text = view.request.details.language === "ko" ? "선택하신 시간을 확인해 주세요. 동의하시면 호스트의 승인을 기다립니다." : "Please review the time you chose. If you agree, the host can review it.";
+          open("proposal", card, <><FixedMessage text={text} /><ProposalCard context={context} /></>);
         } else if (state === "answered" && card.receipt?.start) {
-          receipt(card, RECEIPT_LABELS.proposal, `You agreed to ${timeText(card.receipt.start, card.receipt.end, zone)}`);
-        } else if (state === "waiting" && card.receipt?.start) {
-          receipt(card, RECEIPT_LABELS.proposal, `Proposed ${timeText(card.receipt.start, card.receipt.end, zone)} · not agreed`);
-        } else {
-          receipt(card, RECEIPT_LABELS.proposal, "An earlier proposal", hasOpen("proposal") ? goTo("proposal", "proposal") : undefined, true);
+          const text = view.request.details.language === "ko" ? "선택하신 시간을 확인해 주세요. 동의하시면 호스트의 승인을 기다립니다." : "Please review the time you chose. If you agree, the host can review it.";
+          entries.push({ at: card.at, id: `${card.id}:intro`, node: <FixedMessage text={text} /> });
+          // Until the host approves, the agreed time can be changed (D10).
+          receipt(
+            card,
+            RECEIPT_LABELS.proposal,
+            `You agreed to ${timeText(card.receipt.start, card.receipt.end, zone)}`,
+            view.request.state === "awaiting_host_approval" && card.id === `proposal:${view.proposal?.version}`
+              ? change("Change the agreed time", () => void context.run("request.change_agreement", {}, view.request.revision))
+              : undefined,
+          );
         }
         break;
     }
   }
 
-  return entries;
+  return { entries, panel };
 }
 
 // The thread's compact menu beside the composer, after identification: **Edit
@@ -545,154 +526,6 @@ function ThreadMenu({ context }: { readonly context: RequesterCardContext }) {
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-// The identity card (design decision 2): **Continue with Google** (name and
-// email, and optionally read-only Calendar, on one Google screen) or **Continue
-// without Google** with a name and email. The Google button is always shown.
-// Either moves the draft to gathering; the page then shows the booking link in
-// the address bar, in place.
-function IdentityCard({ context }: { readonly context: RequesterCardContext }) {
-  const id = useId();
-  const [manual, setManual] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function continueWithoutGoogle(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (busy) return;
-
-    if (!name.trim()) {
-      setError("Enter your name.");
-      document.getElementById(`${id}-name`)?.focus();
-      return;
-    }
-    const emailField = event.currentTarget.elements.namedItem("email") as HTMLInputElement | null;
-    if (!email.trim() || !emailField?.checkValidity()) {
-      setError("Enter a valid email address.");
-      emailField?.focus();
-      return;
-    }
-
-    setBusy(true);
-    setError(null);
-    const outcome = await context.run(
-      "request.identify",
-      { email: email.trim(), language: browserLanguage(), name: name.trim(), timezone: context.timezone },
-      null,
-    );
-    setBusy(false);
-
-    if (!outcome.ok) {
-      setError(
-        outcome.error.category === "invalid_input"
-          ? "Enter your name and a valid email address."
-          : (outcome.error.message ?? "That did not go through. Try again in a moment."),
-      );
-    }
-  }
-
-  return (
-    <GuestCard
-      description="Continue with Google to fill in your name and email, and optionally let the service check your calendar privately. Or enter them yourself. Times are offered right after."
-      id="guest-identity"
-      label="Your details"
-      title="How should the host reach you?"
-    >
-      <form action="/connections/google/start" method="post">
-        <input name="purpose" type="hidden" value="request" />
-        <input name="bookingId" type="hidden" value={context.bookingId} />
-        <input name="timezone" type="hidden" value={context.timezone} />
-        <input name="language" type="hidden" value={browserLanguage()} />
-        <GuestCardActions>
-          <Button className="min-h-11" type="submit">
-            Continue with Google
-          </Button>
-          {!manual ? (
-            <Button className="min-h-11" onClick={() => setManual(true)} type="button" variant="outline">
-              Continue without Google
-            </Button>
-          ) : null}
-        </GuestCardActions>
-        <p className="pt-2 text-muted-foreground text-sm">
-          <a className="underline underline-offset-4" href="/privacy#calendar">
-            How we use your calendar
-          </a>
-        </p>
-      </form>
-      {manual ? (
-        <form className="flex flex-col gap-2" noValidate onSubmit={(event) => void continueWithoutGoogle(event)}>
-          <div className="flex flex-col gap-1">
-            <label className="font-medium" htmlFor={`${id}-name`}>
-              Your name
-            </label>
-            <Input
-              autoComplete="name"
-              autoFocus
-              className="min-h-11"
-              id={`${id}-name`}
-              name="name"
-              onChange={(event) => { setName(event.target.value); setError(null); }}
-              required
-              value={name}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="font-medium" htmlFor={`${id}-email`}>
-              Email address
-            </label>
-            <Input
-              aria-describedby={error ? `${id}-error` : undefined}
-              aria-invalid={error ? true : undefined}
-              autoComplete="email"
-              className="min-h-11"
-              id={`${id}-email`}
-              inputMode="email"
-              name="email"
-              onChange={(event) => { setEmail(event.target.value); setError(null); }}
-              required
-              type="email"
-              value={email}
-            />
-          </div>
-          <p className="text-muted-foreground">We email you a private booking link. Confirming the address is optional.</p>
-          <GuestCardActions>
-            <Button className="min-h-11" disabled={busy} type="submit">
-              {busy ? "Continuing..." : "Continue without Google"}
-            </Button>
-          </GuestCardActions>
-        </form>
-      ) : null}
-      <div aria-live="polite" role="status">
-        {error ? (
-          <p className="text-destructive" id={`${id}-error`}>
-            {error}
-          </p>
-        ) : null}
-      </div>
-    </GuestCard>
-  );
-}
-
-// The public page's chrome, collapsed by default above the thread: the agent
-// section for AI agents and **Resend my booking link**.
-export function PublicPageChrome({ agentSection }: { readonly agentSection: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2 text-sm">
-      <details className="rounded-xl border border-border bg-card px-4 py-3">
-        <summary className="cursor-pointer font-medium">For AI agents</summary>
-        <div className="pt-3">{agentSection}</div>
-      </details>
-      <details className="rounded-xl border border-border bg-card px-4 py-3">
-        <summary className="cursor-pointer font-medium">Already made a request?</summary>
-        <div className="pt-3">
-          <ResendLinkForm heading="Lost your booking link?" />
-        </div>
-      </details>
-    </div>
   );
 }
 

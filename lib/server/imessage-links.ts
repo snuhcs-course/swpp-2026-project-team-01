@@ -14,6 +14,7 @@ import { type CommandDefinition, CommandError } from "./commands";
 import type { Database, Queryable, Transaction } from "./database";
 import { generateLinkCode, hashLinkCode } from "./email-links";
 import { recordOutbound } from "./imessage-outbox";
+import { REQUESTER_LINK_TEXTS } from "./requester-imessage-bindings";
 import { imessageContinuationUrl } from "./imessage-continuation";
 import { channelHash, imessageHash } from "./photon-receiver";
 import { calendarUsable, readReadiness } from "./readiness";
@@ -135,9 +136,16 @@ function assertSelf(context: { actor: { kind: string; id: string }; resourceId: 
   return context.actor.id;
 }
 
-// The advisory lock an attempt's changes take: its host's, or before sign-in its starter's.
-export function linkLockKey(owner: { readonly host_account_id: string | null; readonly starter_hash: string | null }) {
-  return owner.host_account_id ? `app.imessage_link:${owner.host_account_id}` : `app.imessage_link_start:${owner.starter_hash}`;
+// The advisory lock an attempt's changes take: its host's, a guest's request's
+// (guest-flow-completion design 1), or before sign-in its starter's.
+export function linkLockKey(owner: {
+  readonly host_account_id: string | null;
+  readonly request_id?: string | null;
+  readonly starter_hash: string | null;
+}) {
+  if (owner.host_account_id) return `app.imessage_link:${owner.host_account_id}`;
+  if (owner.request_id) return `app.imessage_link_request:${owner.request_id}`;
+  return `app.imessage_link_start:${owner.starter_hash}`;
 }
 
 export async function lockHostLinking(tx: Transaction, hostAccountId: string) {
@@ -572,7 +580,7 @@ export function imessageCommands(options: LinkOptions & { readonly lineDayLimit?
 // ---------------------------------------------------------------------------
 // The card's status
 
-function deliveryState(state: string): ImessageDeliveryState {
+export function deliveryState(state: string): ImessageDeliveryState {
   if (state === "accepted") return "sent";
   if (state === "failed" || state === "suppressed") return "failed";
   if (state === "uncertain") return "uncertain";
@@ -744,11 +752,13 @@ export async function refusalSentRecently(q: Queryable, recipientHash: string, c
 // the attempt the code names and gets at most one refusal a day. Never forwarded.
 // An attempt from the iMessage start has no host yet (D15): it takes its
 // starter's lock instead, and any sender may arrive, since the bind on Confirm
-// and link refuses a sender another host holds.
+// and link refuses a sender another host holds. An attempt a guest's booking
+// page made (guest-flow-completion design 1) takes its request's lock, and any
+// sender may arrive too, a host included: a guest binding is separate.
 export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions, "tokenKey" | "linkLimits" | "origin">, arrival: LinkArrival): Promise<LinkArrivalOutcome> {
   const limits = { ...IMESSAGE_LINK_LIMITS, ...options.linkLimits };
-  const [named] = await tx<{ host_account_id: string | null; starter_hash: string | null }[]>`
-    select host_account_id, starter_hash from app.imessage_links where code_hash = ${hashLinkCode(arrival.code)}
+  const [named] = await tx<{ host_account_id: string | null; request_id: string | null; starter_hash: string | null }[]>`
+    select host_account_id, request_id, starter_hash from app.imessage_links where code_hash = ${hashLinkCode(arrival.code)}
   `;
 
   if (named) {
@@ -758,13 +768,14 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
         id: string;
         channel: MessagingChannel;
         host_account_id: string | null;
+        request_id: string | null;
         state: string;
         live: boolean;
         received_by_receipt_id: string | null;
         sender_hash: string | null;
       }[]
     >`
-      select id, channel, host_account_id, state, expires_at > now() as live, received_by_receipt_id, sender_hash
+      select id, channel, host_account_id, request_id, state, expires_at > now() as live, received_by_receipt_id, sender_hash
       from app.imessage_links where code_hash = ${hashLinkCode(arrival.code)}
       for update
     `;
@@ -802,7 +813,10 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
         linkId: link.id,
         recipient: { address: arrival.sender, spaceId: arrival.spaceId },
         recipientHash: arrival.senderHash,
-        text: link.host_account_id
+        requestId: link.request_id,
+        text: link.request_id
+          ? REQUESTER_LINK_TEXTS.received
+          : link.host_account_id
           ? LINK_TEXTS.received
           : LINK_TEXTS.receivedBeforeSignIn(imessageContinuationUrl(options.origin, options.tokenKey, link.id, arrival.senderHash)),
         tokenKey: options.tokenKey,

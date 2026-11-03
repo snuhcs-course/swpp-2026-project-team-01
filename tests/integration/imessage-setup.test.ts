@@ -35,7 +35,8 @@ afterAll(async () => {
 
 async function reply(hostAccountId: string, receiptId: string) {
   const [row] = await db<{ id: string }[]>`
-    select id from app.imessage_outbox where host_account_id = ${hostAccountId} and dedupe_key = ${`receipt:${receiptId}`}
+    select id from app.imessage_outbox where host_account_id = ${hostAccountId}
+      and dedupe_key in (${`receipt:${receiptId}`}, ${`host-selection:${receiptId}`})
   `;
   return textOf((await im.send(row!.id)).sent)[0] ?? "";
 }

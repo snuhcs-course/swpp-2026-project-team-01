@@ -10,7 +10,7 @@ import { CalendarAccessError, openHostCalendar } from "./google-calendar";
 import { listHostRequests, readHostRequest } from "./host-requests";
 import { calendarConnectUrl } from "./imessage-links";
 import { recordOutbound } from "./imessage-outbox";
-import { requestRef } from "./imessage-refs";
+import { requestRef } from "./request-ref";
 import type { BoundMessage, ImessageReceiptDependencies } from "./imessage-receipts";
 import { computeSetupProposal, readSetupState } from "./setup";
 import { confirmSettingsCommand } from "./setup-commands";
@@ -48,7 +48,7 @@ export function parseCommand(text: string): ParsedCommand | null {
   return null;
 }
 
-export { requestRef };
+export { requestRef } from "./request-ref";
 
 export function reviewRef(requestId: string, version: number) {
   return `${requestRef(requestId)}-${version}`;
@@ -203,10 +203,10 @@ export type CommandDependencies = ImessageReceiptDependencies;
 
 type Reply = { readonly text: string };
 
-function reply(tx: Transaction, deps: CommandDependencies, message: BoundMessage, text: string, requestId: string | null = null) {
+function reply(tx: Transaction, deps: CommandDependencies, message: BoundMessage, text: string, requestId: string | null = null, selectHost = false) {
   return recordOutbound(tx, {
     bindingId: message.bindingId,
-    dedupeKey: `receipt:${message.receipt.id}`,
+    dedupeKey: `${selectHost ? "host-selection" : "receipt"}:${message.receipt.id}`,
     hostAccountId: message.hostAccountId,
     kind: "command",
     recipient: message.recipient,
@@ -531,6 +531,6 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       break;
   }
 
-  await reply(tx, deps, message, result.text, result.requestId ?? null);
+  await reply(tx, deps, message, result.text, result.requestId ?? null, command.name === "setup" || (command.name === "request" && Boolean(result.requestId)));
   return "command" as const;
 }

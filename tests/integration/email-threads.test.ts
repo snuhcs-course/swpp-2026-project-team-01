@@ -63,7 +63,7 @@ describe("starting by email", () => {
 
     const inputs = await inputsOf(binding.request_id);
     expect(inputs).toHaveLength(1);
-    expect(inputs[0]!.message).toBe(`Subject: Meeting with @${host.handle}\n\nCould we meet for 30 minutes next week?`);
+    expect(inputs[0]!.message).toBe(`[Email] Subject: Meeting with @${host.handle}\n\nCould we meet for 30 minutes next week?`);
     expect(inputs[0]!.state).toBe("sent");
     const [clientInput] = await db<{ client_input_id: string }[]>`select client_input_id from app.conversation_inputs where id = ${inputs[0]!.id}`;
     expect(clientInput!.client_input_id).toBe(receiptId);
@@ -170,7 +170,7 @@ describe("a bound thread", () => {
     await db.begin((tx) => createEmailReceiptHandler(() => receiptDeps())(tx, { attempts: 1, fence: 0, id: randomUUID(), kind: EMAIL_RECEIPT_JOB, maxAttempts: 10, payload: { receiptId } }));
 
     const inputs = await inputsOf(binding.request_id);
-    expect(inputs.map((input) => input.message)).toEqual([expect.stringContaining("Subject:"), "Thirty minutes, online."]);
+    expect(inputs.map((input) => input.message)).toEqual([expect.stringContaining("Subject:"), "[Email] Thirty minutes, online."]);
     const replies = (await repliesFor(first.thread_id)).filter((entry) => entry.kind === "turn");
     expect(replies).toHaveLength(2);
     const [row] = await db<{ last_message_id: string }[]>`select last_message_id from app.email_threads where id = ${binding.id}`;
@@ -192,10 +192,16 @@ describe("a bound thread", () => {
     expect(await inputsOf(binding.request_id)).toHaveLength(1);
   });
 
-  it("answers a closed request's thread once", async () => {
+  // A withdrawn request's thread otherwise continues as a revised request (U16),
+  // so here the host is unavailable and the revision is refused.
+  it("answers a closed request's thread once when no revised request can follow", async () => {
     const address = uniqueEmail("closed");
     const { binding, message: first } = await startRequest(`Grace <${address}>`);
     await closeTestRequest(db, binding.request_id);
+    await db`
+      update app.host_accounts set status = 'suspended'
+      where id = (select host_account_id from app.requests where id = ${binding.request_id})
+    `;
     const reply = () => deliver({ from: `Grace <${address}>`, inReplyTo: first.message_id, text: "Still there?", threadId: first.thread_id });
 
     expect((await reply()).outcome).toBe("replied");
@@ -276,7 +282,7 @@ describe("ordering and auto-replies", () => {
     await db`update app.jobs set run_after = now() where id = ${early.jobId}`;
     expect(await runJob(db, early.jobId, createEmailReceiptHandler(() => receiptDeps()))).toBe("completed");
     const binding = (await bindingOf(first.thread_id))!;
-    expect((await inputsOf(binding.request_id)).map((input) => input.message)).toEqual([expect.stringContaining("Hello"), "Also, 30 minutes."]);
+    expect((await inputsOf(binding.request_id)).map((input) => input.message)).toEqual([expect.stringContaining("Hello"), "[Email] Also, 30 minutes."]);
   });
 
   it("answers a started thread once when its first message could not be processed", async () => {

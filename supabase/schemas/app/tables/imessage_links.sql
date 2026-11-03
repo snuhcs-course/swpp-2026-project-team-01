@@ -13,9 +13,13 @@
 -- callback of that browser gives it to the signed-in host (D15).
 -- channel is the platform whose message may complete the attempt
 -- (host-whatsapp-channel design 6); a fallback attempt is iMessage only.
+-- A code attempt started from a guest's booking page belongs to that request
+-- (request_id; guest-flow-completion design 1); confirming it creates a
+-- requester_imessage_bindings row, which binding_id then names.
 CREATE TABLE "app"."imessage_links" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "host_account_id" uuid REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
+  "request_id" uuid REFERENCES "app"."requests" ("id") ON DELETE CASCADE,
   "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp')),
   "method" text NOT NULL CHECK ("method" IN ('code', 'fallback')),
   "starter_hash" text CHECK ("starter_hash" ~ '^[0-9a-f]{64}$'),
@@ -54,16 +58,25 @@ CREATE TABLE "app"."imessage_links" (
         AND "space_ciphertext" IS NULL AND "fallback_code_hash" IS NULL)
   ),
   CONSTRAINT "imessage_links_owner" CHECK (
-    "host_account_id" IS NOT NULL OR ("method" = 'code' AND "starter_hash" IS NOT NULL AND "source_hash" IS NOT NULL)
+    ("host_account_id" IS NOT NULL AND "request_id" IS NULL)
+    OR ("request_id" IS NOT NULL AND "host_account_id" IS NULL AND "method" = 'code')
+    OR ("host_account_id" IS NULL AND "request_id" IS NULL AND "method" = 'code' AND "starter_hash" IS NOT NULL AND "source_hash" IS NOT NULL)
   ),
   CONSTRAINT "imessage_links_fallback_channel" CHECK ("method" <> 'fallback' OR "channel" = 'imessage'),
+  -- Requester messaging over WhatsApp is out of scope (host-whatsapp-channel non-goals).
+  CONSTRAINT "imessage_links_request_channel" CHECK ("request_id" IS NULL OR "channel" = 'imessage'),
   CONSTRAINT "imessage_links_received" CHECK ("state" <> 'received' OR ("sender_hash" IS NOT NULL AND "confirm_by" IS NOT NULL))
 );
 
 CREATE UNIQUE INDEX "imessage_links_open_host_key" ON "app"."imessage_links" ("host_account_id") WHERE "state" IN ('pending', 'received');
 
 CREATE UNIQUE INDEX "imessage_links_open_starter_key" ON "app"."imessage_links" ("starter_hash")
-  WHERE "host_account_id" IS NULL AND "state" IN ('pending', 'received');
+  WHERE "host_account_id" IS NULL AND "request_id" IS NULL AND "state" IN ('pending', 'received');
+
+CREATE UNIQUE INDEX "imessage_links_open_request_key" ON "app"."imessage_links" ("request_id") WHERE "state" IN ('pending', 'received');
+
+CREATE INDEX "imessage_links_request_created_idx" ON "app"."imessage_links" ("request_id", "created_at")
+  WHERE "request_id" IS NOT NULL;
 
 CREATE INDEX "imessage_links_source_created_idx" ON "app"."imessage_links" ("source_hash", "created_at")
   WHERE "source_hash" IS NOT NULL;

@@ -100,6 +100,9 @@ export type HostRequestView = {
   readonly weeklyLimitWaived: boolean;
   readonly weeklyLimit: number | null;
   readonly needsDecision: boolean;
+  // The earlier request a revised request follows (guest-flow-completion
+  // design 5), by its reference, and how that one ended.
+  readonly revisedFrom: { readonly ref: string; readonly outcome: "declined" | "expired" } | null;
 };
 
 // The host commands of the request view, each a card action.
