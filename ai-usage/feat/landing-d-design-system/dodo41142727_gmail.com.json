@@ -8,16 +8,16 @@
       "agent_ms": 0,
       "models": {
         "claude-opus-5-5": {
-          "input": 246,
-          "cache_read": 38047338,
+          "input": 280,
+          "cache_read": 44407363,
           "cache_write_5m": 0,
-          "cache_write_1h": 247013,
-          "output": 107955,
+          "cache_write_1h": 264856,
+          "output": 114011,
           "reasoning": 0
         }
       },
       "first": "2026-11-03T18:27:19.238Z",
-      "last": "2026-11-03T19:03:44.989Z"
+      "last": "2026-11-03T19:25:56.550Z"
     },
     "claude:5db95cc8-d7c6-4418-b988-c7ce85c38efb/agent-ac60f835211af530a": {
       "agent": "claude-code",

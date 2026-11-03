@@ -136,8 +136,16 @@ test.describe("on a Mac", () => {
     await expect(page.getByRole("button", { exact: true, name: "Get updates in iMessage" })).toBeVisible({ timeout: 20_000 });
     await pressByKeyboard(page, "Get updates in iMessage");
 
+    // The guest's number comes first (imessage-number-registration D1).
+    const field = page.getByRole("textbox", { name: "Mobile number" });
+    await expect(field).toBeVisible();
+    await field.focus();
+    await page.keyboard.type("10-1234-5678");
+    await page.keyboard.press("Enter");
+
     const card = page.locator('[data-guest-card="imessage-link"]');
     await expect(card.getByRole("heading", { name: "Get updates in iMessage" })).toBeVisible();
+    await expect(card.getByText(LINE)).toBeVisible();
     const message = (await card.locator("[data-imessage-link-message]").textContent())!.trim();
     await expect(card.getByRole("link", { name: "Open Messages on this Mac" })).toHaveAttribute("href", `sms:${LINE}&body=${encodeURIComponent(message)}`);
     await expect(card.getByRole("link", { exact: true, name: "Open Messages" })).toHaveCount(0);
