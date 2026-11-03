@@ -2,22 +2,39 @@
   "branch": "test/requester-defense-evals",
   "user": "haisung.choi@gmail.com",
   "sessions": {
+    "claude:1b1d6270-228f-4502-89d0-e0eb2b8ea85d": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 14,
+          "cache_read": 1778433,
+          "cache_write_5m": 0,
+          "cache_write_1h": 233058,
+          "output": 4282,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T16:20:41.172Z",
+      "last": "2026-11-03T16:21:46.648Z"
+    },
     "claude:2826a6df-cce6-46f3-980b-d5575a6b16ec": {
       "agent": "claude-code",
       "client": "claude-desktop",
       "agent_ms": 0,
       "models": {
         "claude-opus-5-5": {
-          "input": 80,
-          "cache_read": 25832789,
+          "input": 94,
+          "cache_read": 30611710,
           "cache_write_5m": 0,
-          "cache_write_1h": 58019,
-          "output": 39618,
+          "cache_write_1h": 70382,
+          "output": 47495,
           "reasoning": 0
         }
       },
       "first": "2026-11-03T15:06:07.595Z",
-      "last": "2026-11-03T16:17:05.630Z"
+      "last": "2026-11-03T16:25:52.479Z"
     }
   }
 }
