@@ -1,4 +1,5 @@
 import { getChatMessageLengthError } from "../contracts/chat-message";
+import type { MessagingChannel } from "../contracts/messaging-channel";
 import { type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { AdmissionLimitError } from "./conversation-admission";
 import {
@@ -192,6 +193,7 @@ export const channelProcessor: ChannelProcessor = async (tx, deps, message) => {
 
 type ReceiptRow = {
   readonly id: string;
+  readonly channel: MessagingChannel;
   readonly sender_hash: string;
   readonly space_hash: string;
   readonly space_type: "dm" | "group";
@@ -381,13 +383,19 @@ export function createImessageReceiptHandler(load: () => ImessageReceiptDependen
     assertMessagingAdmitted(photonTransport(deps.config, deps.env).endpoint, deps.env);
 
     const [row] = await tx<ReceiptRow[]>`
-      select id, sender_hash, space_hash, space_type, content_type, text_ciphertext, sender_ciphertext, space_ciphertext,
+      select id, channel, sender_hash, space_hash, space_type, content_type, text_ciphertext, sender_ciphertext, space_ciphertext,
              sealed_key_id, outcome, received_at
       from app.imessage_receipts where id = ${receiptId}
       for update
     `;
     if (!row) return { outcome: "missing", receiptId };
     if (row.outcome) return { outcome: row.outcome, receiptId };
+    // WhatsApp receipts are stored from task 2.2 on; until the channel can
+    // answer them (tasks 3.1 to 4.2) they are recorded and do nothing.
+    if (row.channel !== "imessage") {
+      await record(tx, row.id, "ignored");
+      return { outcome: "ignored", receiptId };
+    }
 
     const [earlier] = await tx<{ id: string }[]>`
       select id from app.imessage_receipts

@@ -68,6 +68,7 @@ describe("inboundMessage", () => {
 
   it("reads a direct text message", () => {
     expect(inboundMessage(event)).toEqual({
+      channel: "imessage",
       contentType: "text",
       messageId: "msg_1",
       sender: "+15551234567",

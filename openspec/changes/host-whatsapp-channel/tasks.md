@@ -12,7 +12,7 @@ Before each group, read the [Phase 9 reference files](../../../documentations/te
 ## 2. Routing, records and transport (Lane A)
 
 - [x] 2.1 Add the `channel` column, the outbox's `template_name` and the new categories to the four `imessage_*` tables ([design 4](design.md#4-records)); generate the migration with `supabase db schema declarative sync --no-apply`, and verify `supabase db reset --local`, the grant tests and that existing rows read as `imessage`.
-- [ ] 2.2 Add `inboundWhatsAppMessage` and `normalizeWhatsAppSender` in `lib/server/whatsapp.ts` and route by platform in `receivePhotonWebhook` ([design 2](design.md#2-receiver-routing), [design 3](design.md#3-sender-identity)). Verify unit tests for each accepted spelling, a mixed event, an unlabelled event, a group, a mismatched space and the separate hash namespace, and keep PR #63's iMessage tests passing unchanged.
+- [x] 2.2 Add `inboundWhatsAppMessage` and `normalizeWhatsAppSender` in `lib/server/whatsapp.ts` and route by platform in `receivePhotonWebhook` ([design 2](design.md#2-receiver-routing), [design 3](design.md#3-sender-identity)). Verify unit tests for each accepted spelling, a mixed event, an unlabelled event, a group, a mismatched space and the separate hash namespace, and keep PR #63's iMessage tests passing unchanged.
 - [ ] 2.3 Add the WhatsApp provider and template sends to `lib/server/photon.ts`, the error mapping, and the stand-in's WhatsApp branch with its 131047 switch ([design 1](design.md#1-transport), [design 9](design.md#9-transport-and-outbox)). Verify tests for accepted, rejected, `window_closed`, `template_unavailable`, rate-limited, unavailable and uncertain sends, and the gate in a preview.
 
 ## 3. Linking in the browser (Lane B)

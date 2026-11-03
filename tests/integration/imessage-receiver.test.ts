@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import {
   IMESSAGE_RECEIPT_JOB,
+  channelHash,
   imessageHash,
   receivePhotonWebhook,
   type ReceiverDependencies,
@@ -9,7 +10,7 @@ import {
 } from "../../lib/server/photon-receiver";
 import { openToken } from "../../lib/server/token-encryption";
 import { testDatabase } from "./support/database";
-import { messagesEvent, newSender, signedWebhook, TEST_WEBHOOK_ID, TEST_WEBHOOK_SECRET } from "./support/photon";
+import { messagesEvent, newSender, newWhatsAppSender, signedWebhook, TEST_WEBHOOK_ID, TEST_WEBHOOK_SECRET, whatsAppEvent } from "./support/photon";
 import { testTokenKey } from "./support/requests";
 
 // The Photon receiver against the local stack (host-imessage-channel task 2.3):
@@ -122,5 +123,66 @@ describe("receivePhotonWebhook", () => {
     const id = `msg_${randomUUID()}`;
     await receivePhotonWebhook(signedWebhook(messagesEvent({ id, spaceType: "group" })), load);
     expect((await receiptOf(id))[0]?.space_type).toBe("group");
+  });
+});
+
+// host-whatsapp-channel task 2.2: the same webhook and signature, routed by platform.
+describe("receivePhotonWebhook with WhatsApp Business", () => {
+  async function channelOf(messageId: string) {
+    return db<{ channel: string; sender_hash: string; space_hash: string; space_type: string }[]>`
+      select channel, sender_hash, space_hash, space_type from app.imessage_receipts where message_id = ${messageId}
+    `;
+  }
+
+  it("stores a WhatsApp message as a whatsapp receipt with its job, hashed in its own namespace", async () => {
+    const id = `wamid.${randomUUID()}`;
+    const sender = newWhatsAppSender();
+    const response = await receivePhotonWebhook(signedWebhook(whatsAppEvent({ id, sender, text: "help" })), load);
+
+    expect(response.status).toBe(200);
+    const [receipt] = await channelOf(id);
+    expect(receipt).toEqual({
+      channel: "whatsapp",
+      sender_hash: channelHash(testTokenKey, "whatsapp", "sender", sender),
+      space_hash: channelHash(testTokenKey, "whatsapp", "space", sender),
+      space_type: "dm",
+    });
+    expect(receipt!.sender_hash).not.toBe(imessageHash(testTokenKey, "sender", sender));
+    const [stored] = await receiptOf(id);
+    expect(await jobsOf(stored!.id)).toHaveLength(1);
+  });
+
+  it("keeps iMessage receipts on the iMessage channel", async () => {
+    const id = `msg_${randomUUID()}`;
+    await receivePhotonWebhook(signedWebhook(messagesEvent({ id })), load);
+    expect((await channelOf(id))[0]?.channel).toBe("imessage");
+  });
+
+  it("acknowledges and drops unlabelled, mixed, personal-WhatsApp and group events", async () => {
+    const ids = [1, 2, 3, 4, 5].map(() => `wamid.${randomUUID()}`);
+    const mixed = JSON.parse(whatsAppEvent({ id: ids[1] })) as { space: { platform: string } };
+    mixed.space.platform = "iMessage";
+    const unlabelled = JSON.parse(whatsAppEvent({ id: ids[0] })) as { message: Record<string, unknown> & { sender: Record<string, unknown>; space: Record<string, unknown> }; space: Record<string, unknown> };
+    delete unlabelled.message.platform;
+    delete unlabelled.message.sender.platform;
+    delete unlabelled.message.space.platform;
+    delete unlabelled.space.platform;
+    const answers = [
+      await receivePhotonWebhook(signedWebhook(JSON.stringify(unlabelled)), load),
+      await receivePhotonWebhook(signedWebhook(JSON.stringify(mixed)), load),
+      await receivePhotonWebhook(signedWebhook(whatsAppEvent({ id: ids[2], platform: "whatsapp" })), load),
+      await receivePhotonWebhook(signedWebhook(whatsAppEvent({ id: ids[3], spaceType: "group" })), load),
+      await receivePhotonWebhook(signedWebhook(whatsAppEvent({ id: ids[4], spaceId: newWhatsAppSender() })), load),
+    ];
+
+    expect(answers.map((response) => response.status)).toEqual([200, 200, 200, 200, 200]);
+    for (const id of ids) expect(await channelOf(id)).toHaveLength(0);
+  });
+
+  it("refuses an unsigned WhatsApp delivery like any other", async () => {
+    const id = `wamid.${randomUUID()}`;
+    const response = await receivePhotonWebhook(signedWebhook(whatsAppEvent({ id }), { secret: "another" }), load);
+    expect(response.status).toBe(401);
+    expect(await channelOf(id)).toHaveLength(0);
   });
 });

@@ -1,7 +1,9 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import type { MessagingChannel } from "../contracts/messaging-channel";
 import { database, type Database } from "./database";
 import { publishJob } from "./jobs";
 import { sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
+import { inboundWhatsAppMessage } from "./whatsapp";
 
 // The Photon webhook receiver (host-imessage-channel design 2, D1, D7).
 // agent/channels/photon.ts routes POST /photon/webhook here. In order, before
@@ -18,6 +20,10 @@ import { sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encry
 // signature check and durable-before-acknowledgment shape follow teammate draft
 // PR #23 (docs/host-imessage-linking). Nothing here binds a sender or grants
 // access: the job decides what a message may do.
+// WhatsApp Business shares the webhook (host-whatsapp-channel design 2, D2):
+// after the one signature check, an event goes to the iMessage parser or the
+// WhatsApp parser by its platform, and is stored with its channel; an event
+// neither takes is acknowledged and dropped.
 
 export const IMESSAGE_RECEIPT_JOB = "imessage_receipt";
 export const MAX_WEBHOOK_BYTES = 64 * 1024;
@@ -77,11 +83,19 @@ export function imessageHash(key: TokenKey, kind: "sender" | "space" | "phone" |
   return createHmac("sha256", derived).update(value, "utf8").digest("hex");
 }
 
+// The keyed hash of a channel's sender or conversation. WhatsApp values are
+// hashed as "whatsapp:<digits>" (host-whatsapp-channel D3), so one number on
+// both platforms gives two unrelated hashes and no iMessage hash changes.
+export function channelHash(key: TokenKey, channel: MessagingChannel, kind: "sender" | "space", value: string) {
+  return imessageHash(key, kind, channel === "whatsapp" ? `whatsapp:${value}` : value);
+}
+
 export function receiptSealContext(receiptId: string) {
   return `imessage_receipt:${receiptId}`;
 }
 
 export type InboundMessage = {
+  readonly channel: MessagingChannel;
   readonly messageId: string;
   readonly sender: string;
   readonly spaceId: string;
@@ -145,7 +159,7 @@ export function inboundMessage(payload: unknown): InboundMessage | null {
   const sentAt = typeof message.timestamp === "string" && !Number.isNaN(Date.parse(message.timestamp)) ? new Date(message.timestamp) : null;
   const body = contentType === "text" && typeof message.content?.text === "string" ? message.content.text : null;
 
-  return { contentType, messageId, sender, sentAt, spaceId, spaceType, text: body };
+  return { channel: "imessage", contentType, messageId, sender, sentAt, spaceId, spaceType, text: body };
 }
 
 export type ReceiverDependencies = {
@@ -222,10 +236,10 @@ export async function storeReceipt(
 
     const [created] = await tx<{ id: string }[]>`
       insert into app.imessage_receipts
-        (id, message_id, webhook_id, sender_hash, space_hash, space_type, content_type, provider_sent_at, payload_sha256,
+        (id, channel, message_id, webhook_id, sender_hash, space_hash, space_type, content_type, provider_sent_at, payload_sha256,
          text_ciphertext, sender_ciphertext, space_ciphertext, sealed_key_id)
-      values (${id}, ${message.messageId}, ${webhookId}, ${imessageHash(tokenKey, "sender", message.sender)},
-              ${imessageHash(tokenKey, "space", message.spaceId)}, ${message.spaceType}, ${message.contentType},
+      values (${id}, ${message.channel}, ${message.messageId}, ${webhookId}, ${channelHash(tokenKey, message.channel, "sender", message.sender)},
+              ${channelHash(tokenKey, message.channel, "space", message.spaceId)}, ${message.spaceType}, ${message.contentType},
               ${message.sentAt}, ${payloadSha256}, ${sealed.text?.ciphertext ?? null}, ${sealed.sender.ciphertext},
               ${sealed.space.ciphertext}, ${tokenKey.id})
       on conflict (message_id) do nothing
@@ -274,9 +288,10 @@ export async function receivePhotonWebhook(
     return answer(400);
   }
 
-  const message = inboundMessage(payload);
+  // iMessage first, unchanged since PR #63, then WhatsApp; each takes only its own platform.
+  const message = inboundMessage(payload) ?? inboundWhatsAppMessage(payload);
 
-  // Other events, outbound echoes and payloads without locators create no work.
+  // Other events and platforms, outbound echoes and payloads without locators create no work.
   if (!message) return answer(200);
 
   const outcome = await storeReceipt(deps, webhookId, message, createHash("sha256").update(body, "utf8").digest("hex"));
