@@ -192,7 +192,8 @@ test("messages from iMessage are on their own tab, apart from the web chat", asy
   const forwarded = `Thirty minutes, please. ${marker}`;
   await page.route("**/api/chat/events**", async (route) => {
     const response = await route.fetch();
-    const body = (await response.text()).replaceAll(`"message":"${forwarded}"`, `"message":"[iMessage] ${forwarded}"`);
+    // Both the received message and its text part carry the marker, as forwarded input does.
+    const body = (await response.text()).replaceAll(`"${forwarded}"`, `"[iMessage] ${forwarded}"`);
     await route.fulfill({ body, response });
   });
   await page.goto("/app");
