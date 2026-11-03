@@ -1,13 +1,11 @@
 "use client";
 
-import type { DiscussionEvent } from "@lib/contracts/discussion-events";
 import type { HostRequestItem, HostRequestOperation, HostRequestView } from "@lib/contracts/host-request";
 import type { RequestState } from "@lib/contracts/request";
 import { displayTime } from "@lib/contracts/timezone";
 import { AlertCircleIcon, ArrowLeftIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Receipt } from "@/app/_components/booking-receipt";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GuestCard, GuestCardActions } from "@/app/_components/guest/guest-card";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { HostSettingsDialog } from "@/app/_components/host-settings-dialog";
@@ -16,8 +14,8 @@ import { ChatComposer } from "@/components/chat/composer";
 import { ChatConversation, ChatConversationContent, ChatItem, ChatScrollButton } from "@/components/chat/conversation";
 import { AgentMessage, AgentThinking } from "@/components/chat/message";
 import { Button } from "@/components/ui/button";
-import { postHostCommand, readHostRequest, readHostRequests, readSharedEvents } from "@/lib/chat/host-requests";
-import { errorMessage, project, useHostDiscussion } from "@/lib/chat/use-host-discussion";
+import { postHostCommand, readHostRequest, readHostRequests } from "@/lib/chat/host-requests";
+import { errorMessage, useHostDiscussion } from "@/lib/chat/use-host-discussion";
 import {
   BookingCard,
   type HostCardContext,
@@ -29,13 +27,12 @@ import {
 } from "./host-request-cards";
 
 // The host's requests in /app (host-review-and-booking design 2 and 3;
-// chat-workspaces: host request inbox and discussion switch). With no request
-// selected, the inbox lists the host's requests as selectable cards. A selected
-// request (`/app?request={requestId}`) opens with a labeled switch between
-// **Private with Thyme**, the host-private discussion followed by the one open
-// decision card above the composer, and **Shared with {requester}**, the
-// requester conversation read-only with the current proposal and status and no
-// composer. Nothing from the private side is ever sent to the requester.
+// chat-workspaces: host request inbox). With no request selected, the inbox
+// lists the host's requests as selectable cards. A selected request
+// (`/app?request={requestId}`) opens the host-private discussion with Thyme,
+// followed by the one open decision card above the composer. The requester's
+// own conversation is theirs alone and never shown here (D6), and nothing from
+// the private side is ever sent to the requester.
 
 const STATE_LABELS: Readonly<Record<RequestState, string>> = {
   awaiting_host_approval: "Waiting for your approval",
@@ -166,11 +163,8 @@ function Inbox({ onSelect }: { readonly onSelect: (requestId: string) => void })
 // ---------------------------------------------------------------------------
 // One request
 
-type View = "private" | "shared";
-
 function RequestView({ onBack, onUnavailable, requestId }: { readonly onBack: () => void; readonly onUnavailable: () => void; readonly requestId: string }) {
   const [view, setView] = useState<HostRequestView | null>(null);
-  const [tab, setTab] = useState<View>("private");
   const [editing, setEditing] = useState(false);
   const retryKeys = useRef(new Map<string, string>());
 
@@ -210,19 +204,6 @@ function RequestView({ onBack, onUnavailable, requestId }: { readonly onBack: ()
     [requestId, view?.revision],
   );
 
-  const tabs: readonly { readonly id: View; readonly label: string }[] = [
-    { id: "private", label: "Private with Thyme" },
-    { id: "shared", label: view ? `Shared with ${view.requester.name}` : "Shared" },
-  ];
-
-  function onTabKey(event: KeyboardEvent<HTMLButtonElement>) {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-    event.preventDefault();
-    const next: View = tab === "private" ? "shared" : "private";
-    setTab(next);
-    document.getElementById(`tab-${next}`)?.focus();
-  }
-
   return (
     <main aria-labelledby="request-heading" className="flex min-h-0 flex-1 flex-col">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-2 px-4 sm:px-6">
@@ -248,40 +229,14 @@ function RequestView({ onBack, onUnavailable, requestId }: { readonly onBack: ()
             </p>
           ) : null}
         </div>
-        <div aria-label="Discussion" className="flex gap-1 rounded-lg border border-border p-1" role="tablist">
-          {tabs.map((entry) => (
-            <button
-              aria-controls={`panel-${entry.id}`}
-              aria-selected={tab === entry.id}
-              className="min-w-0 flex-1 truncate rounded-md px-3 py-1.5 text-sm aria-selected:bg-accent aria-selected:font-medium focus-visible:outline-2 focus-visible:outline-ring"
-              id={`tab-${entry.id}`}
-              key={entry.id}
-              onClick={() => setTab(entry.id)}
-              onKeyDown={onTabKey}
-              role="tab"
-              tabIndex={tab === entry.id ? 0 : -1}
-              type="button"
-            >
-              {entry.label}
-            </button>
-          ))}
-        </div>
       </div>
-      {tab === "private" ? (
-        <div aria-labelledby="tab-private" className="flex min-h-0 flex-1 flex-col" id="panel-private" role="tabpanel">
-          <PrivateDiscussion
-            context={view ? { run, view } : null}
-            editing={editing}
-            onReload={reload}
-            requestId={requestId}
-            setEditing={setEditing}
-          />
-        </div>
-      ) : (
-        <div aria-labelledby="tab-shared" className="flex min-h-0 flex-1 flex-col" id="panel-shared" role="tabpanel">
-          <SharedConversation requestId={requestId} view={view} />
-        </div>
-      )}
+      <PrivateDiscussion
+        context={view ? { run, view } : null}
+        editing={editing}
+        onReload={reload}
+        requestId={requestId}
+        setEditing={setEditing}
+      />
     </main>
   );
 }
@@ -434,72 +389,5 @@ function PrivateDiscussion({
         </div>
       </div>
     </>
-  );
-}
-
-// The shared requester conversation, read-only: the messages, the current
-// proposal and the status. No composer and no private card.
-function SharedConversation({ requestId, view }: { readonly requestId: string; readonly view: HostRequestView | null }) {
-  const [events, setEvents] = useState<DiscussionEvent[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void (async () => {
-      try {
-        const loaded: DiscussionEvent[] = [];
-        for await (const event of readSharedEvents(requestId, controller.signal)) loaded.push(event);
-        setEvents(loaded);
-      } catch (cause) {
-        if (!controller.signal.aborted) setError(errorMessage(cause));
-      }
-    })();
-    return () => controller.abort();
-  }, [requestId]);
-
-  const { messages } = useMemo(() => project(events ?? []), [events]);
-
-  return (
-    <ChatConversation>
-      <ChatConversationContent aria-label="Shared messages">
-        <p className="px-3 text-sm text-muted-foreground">
-          What {view?.requester.name ?? "the requester"} and Thyme said. You can read it here; your private discussion is never shown to them.
-        </p>
-        {error ? (
-          <p className="px-3 text-sm" role="status">
-            {error === "History is unavailable right now." ? "The shared conversation is not available for this request now." : error}
-          </p>
-        ) : null}
-        {events === null && !error ? (
-          <p className="px-3 text-sm text-muted-foreground" role="status">
-            Loading the conversation...
-          </p>
-        ) : null}
-        {messages.map((message) => (
-          <ChatItem key={message.id} messageId={`shared-${message.id}`}>
-            <AgentMessage canRespond={false} isStreaming={false} message={message} onInputResponses={() => {}} />
-          </ChatItem>
-        ))}
-        {view ? (
-          <ChatItem messageId="shared-status">
-            <GuestCard
-              description={view.proposal ? undefined : "No proposal yet."}
-              id="shared-status"
-              label="Shared with the requester"
-              title={STATE_LABELS[view.state]}
-            >
-              {view.proposal ? (
-                <p>
-                  Proposal version {view.proposal.version}: {displayTime(new Date(view.proposal.start), view.hostTimezone)},{" "}
-                  {view.proposal.durationMinutes} minutes{view.proposal.agreedAt ? ", agreed by the requester" : ""}.
-                </p>
-              ) : null}
-              {view.booking?.receipt ? <Receipt receipt={view.booking.receipt} timeZone={view.hostTimezone} /> : null}
-            </GuestCard>
-          </ChatItem>
-        ) : null}
-      </ChatConversationContent>
-      <ChatScrollButton />
-    </ChatConversation>
   );
 }
