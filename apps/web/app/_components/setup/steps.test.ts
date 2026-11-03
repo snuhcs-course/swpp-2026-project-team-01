@@ -53,6 +53,7 @@ describe("setup steps", () => {
       "timezone",
       "weeklyWindows",
       "weeklyLimit",
+      "weeklyLimitCounts",
       "durationMinutes",
       "bufferBeforeMinutes",
       "bufferAfterMinutes",

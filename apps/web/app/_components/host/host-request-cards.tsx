@@ -449,7 +449,7 @@ export function RuleTravelCard({ context }: { readonly context: HostCardContext 
       {evaluation?.weeklyLimitHold ? (
         <div className="flex flex-col gap-2">
           <p>
-            Each time that fits falls in a week that already has {view.weeklyLimit} meetings, so none is offered to {view.requester.name}.
+            Each time that fits falls in a week already at your limit of {view.weeklyLimit}, so none is offered to {view.requester.name}.
           </p>
           <GuestCardActions>
             <Button disabled={busy} onClick={() => void act("request.waive_weekly_limit", {}, null)} type="button">

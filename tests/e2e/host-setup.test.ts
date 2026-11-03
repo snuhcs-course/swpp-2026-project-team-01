@@ -394,6 +394,32 @@ test("a mode the assistant recorded shows as You said and counts only after Use 
   await expect(review.getByRole("button", { name: "Confirm and save proposed settings" })).toBeEnabled();
 });
 
+test("the weekly limit counts Find Me a Time bookings unless the host chooses every meeting", async ({ baseURL, context, db, page }) => {
+  const host = await signedInHost(db, context, baseURL!);
+  await reviewableHost(db, host.hostAccountId);
+  await acceptSuggestions(db, host.hostAccountId, { displayName: "E2E Host", handle: uniqueHandle() });
+  // The limit step is open again and the mode already answered.
+  await db`
+    update app.setup_drafts
+    set fields = jsonb_set(fields - 'weeklyLimit' - 'weeklyLimitCounts', '{meetingMode}', ${db.json({ accepted: true, source: "stated", value: "online" })})
+    where host_account_id = ${host.hostAccountId}
+  `;
+  await page.goto("/app");
+
+  const limitName = "How many meetings a week, at most?";
+  await expectOnlyCard(page, limitName);
+  const limit = card(page, limitName);
+  await limit.getByRole("button", { name: "Choose my own" }).click();
+  await limit.getByLabel("Meetings per week, at most (1–50)").fill("4");
+  await expect(limit.getByRole("radio", { name: "Find Me a Time bookings only" })).toBeChecked();
+  await limit.getByRole("radio", { name: "All meetings with guests" }).check();
+  await limit.getByRole("button", { name: "Save limit" }).click();
+
+  await expect(receipt(page, "limit")).toContainText("At most 4 a week, counting all meetings with guests");
+  await expectOnlyCard(page, "Review your booking settings");
+  await expect(card(page, "Review your booking settings").getByText("At most 4 a week, counting all meetings with guests")).toBeVisible();
+});
+
 test("the identity step and the review work by keyboard alone", async ({ baseURL, context, db, page }) => {
   const host = await signedInHost(db, context, baseURL!);
   await reviewableHost(db, host.hostAccountId);

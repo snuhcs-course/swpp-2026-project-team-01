@@ -23,6 +23,7 @@ import {
   openHostCalendar,
 } from "./google-calendar";
 import { encodeDisplayName } from "./entry-documents";
+import { meetingGuests } from "./feasibility";
 import { HostIneligibleError } from "./host-eligibility";
 import { type ClaimedJob, type JobHandler, publishJob } from "./jobs";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
@@ -163,7 +164,8 @@ function median(values: readonly number[]) {
 
 // The evidence dimensions over the scanned events (design decision 8):
 // - a counted meeting is busy, timed, and has at least one other attendee who did
-//   not decline; all-day events are never meetings;
+//   not decline (meetingGuests, which evaluation counts toward the weekly limit
+//   too); all-day events are never meetings;
 // - it is internal when every such attendee shares the host's email domain;
 // - note-like entries (timed or all-day) have no other attendee, no location and
 //   no link, and stay busy;
@@ -220,7 +222,9 @@ export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceC
     const start = new Date(event.start.dateTime!);
     const end = new Date(event.end.dateTime!);
 
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
+    // An event that ends at or before its start blocks no time and, as at
+    // evaluation, is no meeting.
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) continue;
 
     if (event.location && !event.hasConferenceLink) {
       const [venue, area] = event.location.split(",").map((part) => part.trim());
@@ -229,7 +233,7 @@ export function computeEvidence(events: readonly CalendarEvent[], ctx: EvidenceC
       if (area) tally(areas, area);
     }
 
-    const present = others.filter((attendee) => attendee.responseStatus !== "declined");
+    const present = meetingGuests(event, hostEmail);
     if (present.length === 0) continue;
 
     meetings += 1;

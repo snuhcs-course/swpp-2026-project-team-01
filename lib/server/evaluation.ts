@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { generateText, type LanguageModel } from "ai";
 import type { RequesterEvaluationFailure, RequesterEvaluationView } from "../contracts/feasibility";
 import type { EvaluationState, RequestDetails } from "../contracts/request";
-import { type ConfirmedSettings, isValidTimeZone, WEEKDAYS } from "../contracts/setup";
+import { type ConfirmedSettings, isValidTimeZone, WEEKDAYS, weeklyLimitCountsOf } from "../contracts/setup";
 import { CommandError } from "./commands";
 import { database, type Database, type Transaction } from "./database";
 import {
@@ -532,12 +532,17 @@ function windowsOf(details: RequestDetails) {
 }
 
 // The times a host declined or named as no longer working (guest-flow-completion
-// U17), as blocked time that anchors no trip.
+// U17), as blocked time that anchors no trip and fills no week.
 function excludedBusy(details: RequestDetails): BusyInterval[] {
   return (details.excludedTimes ?? [])
     .map((entry) => ({ end: Date.parse(entry.end), start: Date.parse(entry.start) }))
     .filter((entry) => !Number.isNaN(entry.start) && entry.end > entry.start)
-    .map((entry) => ({ ...entry, allDay: true, endpoint: { kind: "unknown" as const, reason: "no_location" as const } }));
+    .map((entry) => ({
+      ...entry,
+      allDay: true,
+      endpoint: { kind: "unknown" as const, reason: "no_location" as const },
+      meeting: false,
+    }));
 }
 
 // How an evaluation differs from the ordinary search over the requested windows
@@ -599,6 +604,7 @@ async function evaluate(
       travelBufferMinutes: settings.travelBufferMinutes,
       travelMode: settings.travelMode,
       weeklyLimit: settings.weeklyLimit,
+      weeklyLimitCounts: weeklyLimitCountsOf(settings),
       weeklyWindows: settings.weeklyWindows,
     },
     hostBusy: [],
@@ -688,6 +694,16 @@ async function evaluate(
     }
   }
 
+  // The host's live bookings for other requests, which fill their weeks toward
+  // the weekly limit whether or not their events are on a conflict calendar.
+  const bookings = await tx<{ event_id: string; start_at: Date }[]>`
+    select event_id, start_at
+    from app.bookings
+    where host_account_id = ${loaded.request.hostAccountId} and request_id <> ${evaluation.requestId}
+      and state in ('reserved', 'dispatching', 'confirmed')
+      and end_at > ${range.start} and start_at < ${range.end}
+  `;
+
   const allowances = await tx<
     {
       candidate_end: Date;
@@ -717,8 +733,10 @@ async function evaluate(
       originKey: row.origin_hash,
       party: row.party,
     })),
+    bookedStarts: bookings.map((row) => row.start_at.getTime()),
     hostBusy: [
       ...normalizeBusy(hostEvents, {
+        bookedEventIds: new Set(bookings.map((row) => row.event_id)),
         endpointKey: hash,
         noteExclusions: settings.noteExclusions,
         selfEmail: loaded.hostEmail,

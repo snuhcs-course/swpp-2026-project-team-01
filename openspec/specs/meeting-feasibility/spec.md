@@ -63,7 +63,7 @@ Preference exceptions SHALL require an explicit host decision, remain bound to a
 - **THEN** the host receives private exception/revision controls and requester output omits rule or exception reasoning
 
 ### Requirement: Weekly meeting load preference
-A confirmed weekly meeting limit SHALL be a host preference, not a hard constraint. The count for a week SHALL include confirmed bookings and the calendar events the host has not excluded as note-like, grouped by week in the host's timezone. When a candidate's week already holds the limit, candidates from weeks below the limit SHALL be offered first, and the host SHALL be able to waive the limit for one request through the existing private exception controls.
+A confirmed weekly meeting limit SHALL be a host preference, not a hard constraint. By default the count for a week SHALL be the host's Find Me a Time bookings for other requests that are reserved, being written or confirmed, grouped by week in the host's timezone. A host MAY choose in setup to count every meeting instead; the count SHALL then also include the counted meetings on the host's conflict calendars other than those bookings' own events, so each booking counts once. A counted meeting, as setup counts it to infer the limit, SHALL be a busy, timed event with an attendee besides the host who has not declined. A policy confirmed before the choice existed SHALL count bookings only. When a candidate's week already holds the limit, candidates from weeks below the limit SHALL be offered first, and the host SHALL be able to waive the limit for one request through the existing private exception controls.
 
 #### Scenario: Week at the limit
 - **WHEN** the requested window spans a week that already holds the limit and a later week below it
@@ -72,6 +72,18 @@ A confirmed weekly meeting limit SHALL be a host preference, not a hard constrai
 #### Scenario: Only full weeks
 - **WHEN** every feasible candidate falls in a week at or above the limit
 - **THEN** the host receives the private exception control and no candidate is offered until the host waives the limit or the requester widens the window
+
+#### Scenario: Meetings set up outside Find Me a Time
+- **WHEN** the host keeps the default count, their limit is two, and a week holds one Find Me a Time booking and several meetings with guests they set up themselves
+- **THEN** the week counts one booking, stays below the limit, and its candidates are offered first
+
+#### Scenario: Busy events that are not meetings
+- **WHEN** the host counts every meeting, their limit is four, and a week holds three meetings with guests besides all-day events, class timetables, focus blocks and routines without guests
+- **THEN** the week counts three meetings, stays below the limit, and its candidates are offered first
+
+#### Scenario: A booking on a conflict calendar
+- **WHEN** the host counts every meeting and a Find Me a Time booking's event is also on a conflict calendar
+- **THEN** the booking counts once toward its week
 
 ### Requirement: Versioned asynchronous results
 Calendar, travel, and model results SHALL carry relevant request/rule context and SHALL be discarded or recomputed when that context changes before persistence. AI SHALL only rank candidates that pass deterministic checks.
