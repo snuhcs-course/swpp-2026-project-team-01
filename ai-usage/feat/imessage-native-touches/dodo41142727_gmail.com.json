@@ -1,0 +1,23 @@
+{
+  "branch": "feat/imessage-native-touches",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:94cd59cb-e28c-4d1d-881d-19038103b7f4": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 90,
+          "cache_read": 6232703,
+          "cache_write_5m": 0,
+          "cache_write_1h": 45601,
+          "output": 15011,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T17:16:49.942Z",
+      "last": "2026-11-03T17:39:48.301Z"
+    }
+  }
+}
