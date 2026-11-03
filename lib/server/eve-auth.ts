@@ -115,14 +115,15 @@ function sessionAuth(principal: Principal, discussionId: string, generation: num
 }
 
 // A requester principal reaches only its own discussion of its own audience,
-// while its request (a draft included) has a current link and lifetime. An
+// while its request (a draft included) has a current link and lifetime, or is
+// booked and its link is current (questions about the meeting, U18). An
 // intake from before D13 is only read, so a request that came from it can show
 // its transcript, and only while that request is open and its link unexpired;
 // no intake session is created or sent to any more.
 async function guestMayUse(db: Database, principal: Principal, discussionId: string, kind: InternalGrant["kind"]) {
   if (principal.type === "requester_request") {
     const [row] = await db<{ allowed: boolean }[]>`
-      select r.closed_at is null and r.expires_at > now() and l.expires_at > now() as allowed
+      select ((r.closed_at is null and r.expires_at > now()) or r.state = 'booked') and l.expires_at > now() as allowed
       from app.discussions d
       join app.requests r on r.id = d.principal_id
       join app.booking_links l on l.request_id = r.id

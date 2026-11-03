@@ -11,9 +11,10 @@ import { GOOGLE_OAUTH_TOKEN_URL } from "./google-calendar";
 import { createGrantedScopesFetcher, type FetchGrantedScopes, GOOGLE_TOKEN_INFO_URL } from "./google-token-info";
 import { internalSigningKey } from "./internal-bearer";
 import { lockOpenRequest } from "./request-guard";
-import { identifyDraft, openRequestBookingId } from "./request-start";
+import { identifyDraft, openRequestBookingId, settleCalendarStep } from "./request-start";
 import { REQUESTER_CALENDAR_SCOPES } from "./requester-calendar";
 import { recordRequesterGrants, type RequesterGoogleIdentity } from "./requester-grants";
+import { recordHostProfileMatch } from "./requester-host-profiles";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal, requestAppOrigin, unknownHost } from "./same-origin";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -24,8 +25,8 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 // delete-only and never revoked at Google, so closing one never touches the same
 // person's host Calendar grant.
 //
-//   POST /connections/google/start   from the guest thread, on /{handle} while
-//     the request is a draft or on the booking page after, with the booking
+//   POST /connections/google/start   from the web start on /{handle}, for the
+//     hidden draft request.start just made, or from the booking page after, with the booking
 //     identifier the page holds, which proves the link (purpose request). It
 //     records a transaction with a hashed random state, a sealed PKCE verifier
 //     and a hashed browser binding, sets the binding in an HttpOnly cookie
@@ -34,8 +35,9 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 //     unexpired, the same browser), then exchanges the code with the verifier,
 //     reads the ID token claims and the granted scopes, and records the grants.
 //     A draft is identified with the Google name and email at the same time
-//     (design decision 2), and the browser continues the same thread at the
-//     booking link. A cancelled consent returns to where it started (the public
+//     (design decision 2), its Calendar step settled by the consent's Calendar
+//     part (guest-flow-completion U7), and the browser continues at the booking
+//     link. A cancelled consent returns to where it started (the public
 //     page for a draft) with nothing recorded. Every other failure consumes
 //     nothing it did not claim and reveals no request. Transactions with the
 //     purpose intake, from before D13, are refused.
@@ -367,10 +369,13 @@ export function createGoogleCallbackHandler(load: () => RequesterGoogleDependenc
             },
             { origin, tokenKey: deps.tokenKey },
           );
+          await settleCalendarStep(tx, request.id);
+          await recordHostProfileMatch(tx, request.id, identity.subject);
           return "identified";
         }
 
         await recordRequesterGrants(tx, deps.tokenKey, request.id, identity);
+        await recordHostProfileMatch(tx, request.id, identity.subject);
         return "connected";
       })
       .catch((error: unknown) => {

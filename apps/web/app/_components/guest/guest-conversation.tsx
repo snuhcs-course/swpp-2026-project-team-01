@@ -1,18 +1,19 @@
 "use client";
 
 import { type DiscussionEvent, isRedeliveredInput } from "@lib/contracts/discussion-events";
+import { REVISED_SUMMARY_PREFIX } from "@lib/contracts/request";
 import { isCurrentTurnBoundaryEvent } from "eve/client";
 import { conversationReducer, type EveMessage } from "eve/react";
 import { AlertCircleIcon, XIcon } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatComposer } from "@/components/chat/composer";
 import { ChatConversation, ChatConversationContent, ChatItem, ChatScrollButton } from "@/components/chat/conversation";
 import { AgentMessage, AgentThinking } from "@/components/chat/message";
 import { Button } from "@/components/ui/button";
 import { ChatRequestError, type DiscussionStatus } from "@/lib/chat/discussion";
-import type { GuestDiscussionClient, GuestPostOutcome } from "@/lib/chat/guest";
+import type { GuestDiscussionClient } from "@/lib/chat/guest";
 
-// The guest thread (design decisions 2 and 12, D13), following the host
+// The guest thread on the booking page (design decisions 2 and 12), following the host
 // workspace (host-workspace.tsx): history and live output come from the
 // application's events route from a discussion cursor, a message is posted with
 // a retry identity kept until it is accepted, the reply streams in as the
@@ -21,17 +22,22 @@ import type { GuestDiscussionClient, GuestPostOutcome } from "@/lib/chat/guest";
 // messages by the time the conversation called for it, so it follows the
 // assistant message or tool result that raised it and stays in the history.
 // Only the composer, with the thread's compact menu beside it, sits below the
-// thread.
+// thread, and only once the fixed steps hand over to the assistant
+// (guest-flow-completion U9).
 
 type Phase = "loading" | "ready" | "sending" | "streaming";
 
 // One card or receipt in the thread, placed by `at`.
 export type ThreadEntry = { readonly id: string; readonly at: string; readonly node: ReactNode };
 
-// An application-authored message from before D13 (a request's intake
-// summary) starts with this line and is shown as a quiet note rather than as
-// the requester's own words.
-const AUTHORED_PREFIX = "Intake summary from the public page, written by Find Me a Time";
+// An application-authored message starts with one of these lines and is shown
+// as a quiet note rather than as the requester's own words: a request's intake
+// summary from before D13, and a revised request's summary of the earlier one
+// (guest-flow-completion design 5).
+const AUTHORED_NOTES = [
+  { note: "Your details from the public page were passed on to Thyme.", prefix: "Intake summary from the public page, written by Find Me a Time" },
+  { note: "Your earlier request's details were passed on to Thyme.", prefix: REVISED_SUMMARY_PREFIX },
+] as const;
 
 function hasOpenTurn(events: readonly DiscussionEvent[]) {
   let open = false;
@@ -106,9 +112,10 @@ function isWritingText(message: EveMessage | undefined) {
   return (part?.type === "text" || part?.type === "reasoning") && part.state === "streaming";
 }
 
-function authored(message: EveMessage) {
+function authoredNote(message: EveMessage) {
   const part = message.parts[0];
-  return message.role === "user" && part?.type === "text" && part.text.startsWith(AUTHORED_PREFIX);
+  if (message.role !== "user" || part?.type !== "text") return null;
+  return AUTHORED_NOTES.find((authored) => part.text.startsWith(authored.prefix))?.note ?? null;
 }
 
 function errorMessage(error: unknown) {
@@ -122,16 +129,15 @@ export function GuestConversation({
   closedReason,
   composerAside,
   entries = [],
-  extra,
-  onAccepted,
   onError,
+  lockedReason = null,
   onRecover,
   onSettled,
   placeholder = "Message Thyme",
+  sendRef,
 }: {
   readonly ariaLabel: string;
-  // The start of the thread: the host's identity, the timezone chip and, on
-  // the public page, its collapsed page chrome.
+  // The start of the thread: the host's identity and the timezone chip.
   readonly before?: ReactNode;
   readonly client: GuestDiscussionClient;
   // Why the composer is closed, when it is.
@@ -140,11 +146,6 @@ export function GuestConversation({
   readonly composerAside?: ReactNode;
   // The thread's cards and receipts, placed among the messages by time.
   readonly entries?: readonly ThreadEntry[];
-  // Extra fields the first message carries (the guest's timezone and language).
-  readonly extra?: () => Record<string, unknown>;
-  // A message the service accepted; the first one answers the draft's booking
-  // identifier, which the page keeps (also from a failure after the draft exists).
-  readonly onAccepted?: (outcome: GuestPostOutcome) => void;
   readonly onError?: (error: unknown) => void;
   // **Recover conversation** for a generation that stopped with a terminal
   // failure; absent where the page offers no recovery.
@@ -152,6 +153,12 @@ export function GuestConversation({
   // A followed turn settled: the cards' records may have changed.
   readonly onSettled?: () => void;
   readonly placeholder?: string;
+  // Why the composer cannot be used yet: before the fixed steps hand over to
+  // the assistant (guest-flow-completion U9), it is shown but closed.
+  readonly lockedReason?: string | null;
+  // Filled with this thread's send, for a card whose buttons answer in the
+  // conversation (the online or in person choice).
+  readonly sendRef?: RefObject<((text: string) => Promise<void>) | null>;
 }) {
   const [events, setEvents] = useState<DiscussionEvent[]>([]);
   const eventsRef = useRef<DiscussionEvent[]>([]);
@@ -247,9 +254,8 @@ export function GuestConversation({
       const following = status?.state === "active" && status.generation !== null ? follow() : null;
 
       try {
-        const outcome = await client.postMessage(retry.id, text, extra?.());
+        const outcome = await client.postMessage(retry.id, text);
         retryRef.current = null;
-        onAccepted?.(outcome);
 
         if (outcome.status === "sent" || outcome.status === "queued") {
           if (!following || (await following) === 0) await follow();
@@ -261,9 +267,6 @@ export function GuestConversation({
         setPhase("ready");
       } catch (cause) {
         abortRef.current?.abort();
-        // A draft the failed first message started is kept all the same.
-        const bookingId = (cause as { bookingId?: string }).bookingId;
-        if (bookingId) onAccepted?.({ bookingId });
         setPendingText(null);
         setDraft(text);
         setError(errorMessage(cause));
@@ -271,8 +274,12 @@ export function GuestConversation({
         setPhase("ready");
       }
     },
-    [client, extra, follow, onAccepted, onError, status],
+    [client, follow, onError, status],
   );
+
+  useEffect(() => {
+    if (sendRef) sendRef.current = send;
+  }, [send, sendRef]);
 
   const { messages, times } = useMemo(() => project(events), [events]);
   const placed = useMemo(() => placeEntries(messages, times, entries), [entries, messages, times]);
@@ -317,9 +324,10 @@ export function GuestConversation({
                 );
               }
               const { index, message } = item;
-              return authored(message) ? (
+              const note = authoredNote(message);
+              return note ? (
                 <ChatItem key={message.id} messageId={message.id}>
-                  <p className="px-3 text-sm text-muted-foreground">Your details from the public page were passed on to Thyme.</p>
+                  <p className="px-3 text-sm text-muted-foreground">{note}</p>
                 </ChatItem>
               ) : (
                 <ChatItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
@@ -368,13 +376,13 @@ export function GuestConversation({
           <div className="min-w-0 flex-1">
           <ChatComposer
             autoFocus={false}
-            disabled={phase === "loading" || Boolean(closedReason)}
-            disabledReason={closedReason}
+            disabled={phase === "loading" || Boolean(closedReason) || Boolean(lockedReason)}
+            disabledReason={closedReason ?? lockedReason ?? undefined}
             isBusy={phase === "sending" || phase === "streaming"}
             onChange={setDraft}
             onStop={() => {}}
             onSubmit={send}
-            placeholder={placeholder}
+            placeholder={lockedReason ?? placeholder}
             value={draft}
           />
           </div>

@@ -6,7 +6,6 @@ import { signInternalBearer } from "../../lib/server/internal-bearer";
 import { sessionIdHash } from "../../lib/server/model-limits";
 import {
   createIntakeTranscriptHandler,
-  createRequesterCommandHandler,
   createRequesterEventsHandler,
   createRequesterMessageHandler,
   type RequesterRouteDependencies,
@@ -14,7 +13,7 @@ import {
 import { clearServiceWindow, testDatabase } from "./support/database";
 import { type EveServer, startEve } from "./support/eve-server";
 import { type FakeOpenAI, startFakeOpenAI } from "./support/fake-openai";
-import { call, guestDependencies, readyHost, startDraft } from "./support/guests";
+import { call, guestDependencies, identifiedRequest, readyHost } from "./support/guests";
 import { uniqueEmail } from "./support/requests";
 
 // Framework tools eve registers itself (task control, and dev-only self
@@ -22,10 +21,10 @@ import { uniqueEmail } from "./support/requests";
 const isApplicationTool = (name: string) => !name.includes("__");
 
 // The guest conversation against a real `eve dev` agent whose model is a local
-// Responses API stand-in (tasks 3.2 and 9.1): the first message on the public
-// page starts a draft whose session registers only the requester tools,
-// identification keeps the same session with the earlier messages as context,
-// history and the live stream come through the application's routes with an
+// Responses API stand-in (tasks 3.2 and 9.1; guest-flow-completion U8): the
+// guest's first message comes once they are identified, on the booking page,
+// and starts a session that registers only the requester tools and keeps the
+// earlier messages as context; history and the live stream come through the application's routes with an
 // internal read bearer, a requester principal reaches no other request's
 // session, and nothing a guest's browser holds lets it call /eve/v1.
 
@@ -37,7 +36,18 @@ let deps: RequesterRouteDependencies;
 const HOST_TOOLS = ["read_setup_state", "draft_settings"];
 // The retired public intake's tools, registered for no session any more.
 const INTAKE_TOOLS = ["read_intake", "draft_intake"];
-const REQUESTER_TOOLS = ["read_request", "draft_request_review", "ask_for_identity", "evaluate_candidates", "read_booking_status"];
+// The guest's decisions in words (guest-flow-completion U15) are requester tools too.
+const REQUESTER_TOOLS = [
+  "read_request",
+  "draft_request_review",
+  "evaluate_candidates",
+  "read_booking_status",
+  "apply_request_review",
+  "choose_time",
+  "agree_to_proposal",
+  "change_agreement",
+  "withdraw_request",
+];
 
 beforeAll(async () => {
   fake = await startFakeOpenAI();
@@ -90,33 +100,19 @@ async function sessionsOf(discussionId: string) {
   `;
 }
 
-// A guest's thread: the first message on the public page starts the draft, and
-// Continue without Google identifies it.
+// A guest's thread: Continue without Google identifies the web start's draft,
+// then the guest's first message on the booking page starts its session.
 async function guestThread() {
   const host = await readyHost(db);
-  const sent = await startDraft(deps, host.handle, "What is the host's calendar next week?");
-  expect(sent.status).toBe(202);
-  const { bookingId } = (await sent.json()) as { bookingId: string };
-  const [request] = await db<{ discussion_id: string; id: string; state: string }[]>`
-    select r.id, r.state, d.id as discussion_id from app.requests r
-    join app.discussions d on d.principal_type = 'requester_request' and d.principal_id = r.id
-    where r.host_account_id = ${host.hostAccountId}
-  `;
-  expect(request!.state).toBe("draft");
-  await completed(request!.discussion_id);
-  const [draftSession] = await sessionsOf(request!.discussion_id);
-
-  const identified = await call(createRequesterCommandHandler(() => deps), { bookingId }, "/commands", {
-    body: {
-      expectedRevision: null,
-      input: { email: uniqueEmail(), name: "Grace Hopper", timezone: "Asia/Seoul" },
-      operation: "request.identify",
-      retryKey: randomUUID(),
-    },
+  const { bookingId, discussionId, requestId } = await identifiedRequest(deps, host.handle, { email: uniqueEmail() });
+  const sent = await call(createRequesterMessageHandler(() => deps), { bookingId }, "/messages", {
+    body: { clientInputId: randomUUID(), message: "What is the host's calendar next week?" },
   });
-  expect(identified.status).toBe(200);
+  expect(sent.status).toBe(202);
+  await completed(discussionId);
+  const [session] = await sessionsOf(discussionId);
 
-  return { bookingId, request: { ...request!, sessionId: draftSession!.session_id } };
+  return { bookingId, request: { discussion_id: discussionId, id: requestId, sessionId: session!.session_id } };
 }
 
 describe("guest sessions", () => {
@@ -128,7 +124,7 @@ describe("guest sessions", () => {
     second = await guestThread();
   }, 180_000);
 
-  it("gives the draft's session only the requester tools", () => {
+  it("gives the guest's session only the requester tools", () => {
     const requesterTools = toolNames(first.request.sessionId);
     expect(fake.requests.some((entry) => entry.prompt_cache_key === sessionIdHash(first.request.sessionId))).toBe(true);
     expect(requesterTools).toEqual([...REQUESTER_TOOLS].sort());
@@ -156,15 +152,14 @@ describe("guest sessions", () => {
     expect(decisions).toEqual({ agreements: 0, proposals: 0, reviews: 0 });
   });
 
-  it("keeps the draft's session through identification, with the earlier messages as context", async () => {
+  it("keeps one session for the thread, with the earlier messages as context", async () => {
     const response = await call(createRequesterMessageHandler(() => deps), { bookingId: first.bookingId }, "/messages", {
       body: { clientInputId: randomUUID(), message: "Thirty minutes online would be great." },
     });
     expect(response.status).toBe(202);
     await completed(first.request.discussion_id);
 
-    // One session served the draft and the identified request: no new
-    // generation, and no authored summary input.
+    // One session serves the thread: no new generation, and no authored summary input.
     expect(await sessionsOf(first.request.discussion_id)).toEqual([{ generation: 1, session_id: first.request.sessionId }]);
     const inputs = await db<{ message: string }[]>`
       select message from app.conversation_inputs where discussion_id = ${first.request.discussion_id} order by accepted_at
@@ -189,7 +184,7 @@ describe("guest sessions", () => {
     expect(received[0]?.data?.message).toBe("What is the host's calendar next week?");
   });
 
-  it("serves no intake transcript for a request that began as a draft", async () => {
+  it("serves no intake transcript for a request from the web start", async () => {
     const response = await call(createIntakeTranscriptHandler(() => deps), { bookingId: first.bookingId }, "/intake?cursor=0");
     expect(await lines(response)).toEqual([]);
   });

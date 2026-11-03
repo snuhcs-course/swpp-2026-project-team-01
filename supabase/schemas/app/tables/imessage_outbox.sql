@@ -4,7 +4,9 @@
 -- turn that served its input, then freezes the turn's final text. dispatching
 -- commits before the send; a send whose answer is lost is uncertain and never
 -- sent again. Final states clear the sealed values. A host-private message
--- (binding_id set) is suppressed when its binding is no longer active.
+-- (binding_id set) is suppressed when its binding is no longer active, and so is
+-- a guest's message (requester_binding_id set; guest-flow-completion design 3
+-- and 4) when that guest binding is.
 -- recipient_hash is the keyed hash of the recipient, for the unlinked-sender
 -- reply's daily limit. (kind, dedupe_key) makes a retried recording one message.
 CREATE TABLE "app"."imessage_outbox" (
@@ -18,6 +20,7 @@ CREATE TABLE "app"."imessage_outbox" (
   "dedupe_key" text NOT NULL CHECK (char_length("dedupe_key") BETWEEN 1 AND 300),
   "host_account_id" uuid REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
   "binding_id" uuid REFERENCES "app"."imessage_bindings" ("id") ON DELETE CASCADE,
+  "requester_binding_id" uuid REFERENCES "app"."requester_imessage_bindings" ("id") ON DELETE CASCADE,
   "link_id" uuid REFERENCES "app"."imessage_links" ("id") ON DELETE SET NULL,
   "request_id" uuid REFERENCES "app"."requests" ("id") ON DELETE SET NULL,
   "input_id" uuid REFERENCES "app"."conversation_inputs" ("id") ON DELETE SET NULL,
@@ -41,6 +44,7 @@ CREATE TABLE "app"."imessage_outbox" (
   CONSTRAINT "imessage_outbox_final_cleared" CHECK (
     "completed_at" IS NULL OR ("recipient_ciphertext" IS NULL AND "text_ciphertext" IS NULL)
   ),
+  CONSTRAINT "imessage_outbox_one_binding" CHECK ("binding_id" IS NULL OR "requester_binding_id" IS NULL),
   CONSTRAINT "imessage_outbox_turn_input" CHECK ("kind" <> 'turn' OR "input_id" IS NOT NULL OR "completed_at" IS NOT NULL)
 );
 
@@ -49,6 +53,9 @@ CREATE INDEX "imessage_outbox_input_idx" ON "app"."imessage_outbox" ("input_id")
 CREATE INDEX "imessage_outbox_host_idx" ON "app"."imessage_outbox" ("host_account_id", "created_at");
 
 CREATE INDEX "imessage_outbox_recipient_idx" ON "app"."imessage_outbox" ("recipient_hash", "created_at") WHERE "kind" = 'unlinked_sender';
+
+-- Inbound routing reads the last message the line sent to a sender.
+CREATE INDEX "imessage_outbox_recipient_last_idx" ON "app"."imessage_outbox" ("recipient_hash", "created_at" DESC);
 
 CREATE INDEX "imessage_outbox_created_idx" ON "app"."imessage_outbox" ("created_at");
 

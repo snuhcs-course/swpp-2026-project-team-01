@@ -1,5 +1,6 @@
 import type { BookingStatusView } from "./booking";
 import type { RequesterEvaluationView } from "./feasibility";
+import type { MeetingMode } from "./setup";
 import type {
   ClarificationCategory,
   RequestDetails,
@@ -10,11 +11,11 @@ import type {
   ReviewPatch,
 } from "./request";
 
-// What GET /api/requests/{bookingId}/state returns to the guest thread, on the
-// public host page while the request is a draft and on the booking page after,
-// and what its cards read. It is the requester projection: their own details
-// and contact, connection state and status; nothing from the host's settings,
-// calendar or private discussion.
+// What GET /api/requests/{bookingId}/state returns to the guest thread on the
+// booking page, and what its cards read. It is the requester projection: their
+// own details and contact, connection state and status, and the meeting the
+// host offers (guest-flow-completion U9); nothing else from the host's
+// settings, and nothing from their calendar or private discussion.
 
 export type RequesterReviewView = {
   readonly id: string;
@@ -40,6 +41,12 @@ export type RequesterConnectionView = {
   readonly canUseGoogleEmail: boolean;
 };
 
+export type HostMeetingView = {
+  readonly durationMinutes: number;
+  readonly meetingMode: MeetingMode;
+  readonly venue: string | null;
+};
+
 export type RequesterConversationView = {
   readonly generation: number | null;
   readonly state: "none" | "active" | "failed";
@@ -54,7 +61,7 @@ export type RequesterConversationView = {
 // receipt: answered (what was offered and chosen), waiting (called for, not
 // yet the current step) or superseded by a newer card of its kind (marked out
 // of date). A status card is a line, never an open card.
-export const THREAD_CARD_KINDS = ["identity", "review", "status", "calendar", "times", "proposal"] as const;
+export const THREAD_CARD_KINDS = ["identity", "review", "host_profile", "status", "calendar", "meeting", "times", "proposal"] as const;
 export type ThreadCardKind = (typeof THREAD_CARD_KINDS)[number];
 
 export type ThreadCard = {
@@ -63,7 +70,7 @@ export type ThreadCard = {
   readonly at: string;
   readonly status: "open" | "answered" | "waiting" | "superseded";
   // For a receipt: what was chosen, as text and, for a time, its instants.
-  readonly receipt?: { readonly text: string; readonly start?: string; readonly end?: string };
+  readonly receipt?: { readonly text: string; readonly start?: string; readonly end?: string; readonly patch?: ReviewPatch };
 };
 
 export type OpenRequesterView = {
@@ -75,10 +82,18 @@ export type OpenRequesterView = {
     readonly details: Partial<RequestDetails>;
   };
   readonly host: { readonly displayName: string; readonly handle: string | null };
+  // The meeting the host offers, as the page's fixed question names it (U13):
+  // its length, the modes it allows and, for in person, the host's venue when
+  // they named one.
+  readonly meeting: HostMeetingView;
   // Null while the request is a draft: the guest has not given a name and email.
   readonly contact: { readonly name: string; readonly email: string; readonly confirmed: boolean } | null;
   readonly confirmation: RequesterConfirmationView | null;
   readonly connection: RequesterConnectionView;
+  // Set when the guest's Google account belongs to another active host
+  // (guest-flow-completion design 6): the items offered, the ones in use, and
+  // whether the guest has decided.
+  readonly hostProfile: RequesterHostProfileView | null;
   readonly pendingReview: RequesterReviewView | null;
   readonly conversation: RequesterConversationView;
   // Whether the request began as a public-page intake whose transcript the page shows.
@@ -109,6 +124,18 @@ export type ClosedRequesterView = {
 
 export type RequesterView = OpenRequesterView | ClosedRequesterView;
 
+// The host settings a guest who is a host may use for one request (design 6):
+// busy time from their host calendars, and their timezone and travel mode as a
+// review. iMessage and Preferences items are host-side issues.
+export const HOST_PROFILE_ITEMS = ["calendars", "details"] as const;
+export type HostProfileItem = (typeof HOST_PROFILE_ITEMS)[number];
+
+export type RequesterHostProfileView = {
+  readonly offered: readonly HostProfileItem[];
+  readonly items: readonly HostProfileItem[];
+  readonly decided: boolean;
+};
+
 // The commands the booking page posts to /api/requests/{bookingId}/commands, as
 // { operation, input, expectedRevision, retryKey }, registered in
 // lib/server/requester-routes.ts.
@@ -127,6 +154,7 @@ export const REQUESTER_OPERATIONS = [
   "calendar.disconnect",
   "calendar.select",
   "request.set_manual_availability",
+  "request.host_profile.decide",
   "booking.check",
 ] as const;
 export type RequesterOperation = (typeof REQUESTER_OPERATIONS)[number];

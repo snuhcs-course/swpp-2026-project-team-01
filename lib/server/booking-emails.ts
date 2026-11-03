@@ -212,7 +212,13 @@ function renderConfirmation(language: RequestLanguage, parameters: BookingEmailP
 
 type StatusCopy = { readonly subject: string; readonly paragraphs: readonly string[]; readonly action: string };
 
-function statusCopy(template: Exclude<BookingEmailTemplate, "booking_confirmation">, language: RequestLanguage, parameters: BookingEmailParameters): StatusCopy {
+// byReply: the product inbox's notice, answered by replying (U15).
+function statusCopy(
+  template: Exclude<BookingEmailTemplate, "booking_confirmation">,
+  language: RequestLanguage,
+  parameters: BookingEmailParameters,
+  byReply: boolean,
+): StatusCopy {
   const host = parameters.hostName;
   const when = whenLine(parameters.start, parameters.end, parameters.timezone, language);
 
@@ -223,7 +229,9 @@ function statusCopy(template: Exclude<BookingEmailTemplate, "booking_confirmatio
           action: "새 제안 검토하기",
           paragraphs: [
             `${host}님이 미팅 세부 정보를 바꾸어 다시 보냈습니다: ${when}.`,
-            "아직 합의된 것은 없습니다. 예약 페이지에서 새 제안을 확인하고 동의해 주세요.",
+            byReply
+              ? "아직 합의된 것은 없습니다. 동의하시거나 다른 것을 원하시면 이 메일에 답장해 주세요."
+              : "아직 합의된 것은 없습니다. 예약 페이지에서 새 제안을 확인하고 동의해 주세요.",
           ],
           subject: `${host}님이 미팅 변경을 제안했습니다`,
         };
@@ -236,7 +244,9 @@ function statusCopy(template: Exclude<BookingEmailTemplate, "booking_confirmatio
       case "status_expired":
         return {
           action: "요청 보기",
-          paragraphs: [`${host}님과의 미팅 요청이 기한이 지나 종료되었습니다. 다시 원하시면 새 요청을 시작해 주세요.`],
+          paragraphs: [
+            `${host}님과의 미팅 요청이 기한이 지나 종료되었습니다. ${byReply ? "다시 원하시면 이 메일에 답장해 주세요." : "다시 원하시면 새 요청을 시작해 주세요."}`,
+          ],
           subject: `${host}님과의 미팅 요청이 만료되었습니다`,
         };
       case "status_pending":
@@ -244,7 +254,7 @@ function statusCopy(template: Exclude<BookingEmailTemplate, "booking_confirmatio
           action: "예약 상태 확인",
           paragraphs: [
             `${host}님이 승인한 미팅(${when})을 Google Calendar에서 아직 확인하는 중입니다.`,
-            "아직 예약이 확정된 것은 아닙니다. 결과가 나오면 예약 페이지에 표시됩니다.",
+            byReply ? "아직 예약이 확정된 것은 아닙니다. 확정되면 알려 드릴게요." : "아직 예약이 확정된 것은 아닙니다. 결과가 나오면 예약 페이지에 표시됩니다.",
           ],
           subject: `${host}님과의 미팅 예약이 진행 중입니다`,
         };
@@ -257,7 +267,9 @@ function statusCopy(template: Exclude<BookingEmailTemplate, "booking_confirmatio
         action: "Review the new proposal",
         paragraphs: [
           `${host} sent back changed meeting details: ${when}.`,
-          "Nothing is agreed yet. Open your booking page to review the new proposal and agree to it.",
+          byReply
+            ? "Nothing is agreed yet. Reply to agree, or to ask for something else."
+            : "Nothing is agreed yet. Open your booking page to review the new proposal and agree to it.",
         ],
         subject: `${host} suggested a change to your meeting`,
       };
@@ -270,7 +282,9 @@ function statusCopy(template: Exclude<BookingEmailTemplate, "booking_confirmatio
     case "status_expired":
       return {
         action: "View request",
-        paragraphs: [`Your meeting request with ${host} expired and is closed. Start a new request if you still want to meet.`],
+        paragraphs: [
+          `Your meeting request with ${host} expired and is closed. ${byReply ? "Reply if you'd like to try again." : "Start a new request if you still want to meet."}`,
+        ],
         subject: `Your meeting request with ${host} expired`,
       };
     case "status_pending":
@@ -278,40 +292,55 @@ function statusCopy(template: Exclude<BookingEmailTemplate, "booking_confirmatio
         action: "Check booking status",
         paragraphs: [
           `${host} approved your meeting (${when}), and we are still confirming it with Google Calendar.`,
-          "It is not booked yet. Your booking page will show the outcome.",
+          byReply ? "It is not booked yet. We'll tell you when it is." : "It is not booked yet. Your booking page will show the outcome.",
         ],
         subject: `Your meeting with ${host} is still being booked`,
       };
   }
 }
 
+// A status notice. Without a view link it is the requester's notice from the
+// product inbox (guest-flow-completion U15): no booking link, and the guest
+// answers by replying.
 function renderStatus(
   template: Exclude<BookingEmailTemplate, "booking_confirmation">,
   language: RequestLanguage,
   parameters: BookingEmailParameters,
-  viewUrl: string,
+  viewUrl: string | null,
 ): RenderedBookingEmail {
-  const copy = statusCopy(template, language, parameters);
+  const copy = statusCopy(template, language, parameters, viewUrl === null);
   const greeting = language === "ko" ? `${parameters.requesterName}님, 안녕하세요.` : `Hi ${parameters.requesterName},`;
-  const footer =
-    language === "ko"
+  const footer = viewUrl
+    ? language === "ko"
       ? "이 링크는 요청을 여는 유일한 수단이니 다른 사람과 공유하지 마세요."
-      : "This link is the only way into your request, so keep it to yourself.";
+      : "This link is the only way into your request, so keep it to yourself."
+    : language === "ko"
+      ? "이 메일에 답장하면 Thyme과 이어서 이야기할 수 있습니다."
+      : "Reply to this email to continue with Thyme.";
 
   const html = page(language, copy.subject, [
     `<p>${escapeHtml(greeting)}</p>`,
     ...copy.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`),
-    button(viewUrl, copy.action),
+    ...(viewUrl ? [button(viewUrl, copy.action)] : []),
     `<p style="color:#555;font-size:14px">${escapeHtml(footer)}</p>`,
   ]);
-  const text = [greeting, "", ...copy.paragraphs.flatMap((paragraph) => [paragraph, ""]), `${copy.action}: ${viewUrl}`, "", footer, "", "Find Me a Time"].join("\n");
+  const text = [
+    greeting,
+    "",
+    ...copy.paragraphs.flatMap((paragraph) => [paragraph, ""]),
+    ...(viewUrl ? [`${copy.action}: ${viewUrl}`, ""] : []),
+    footer,
+    "",
+    "Find Me a Time",
+  ].join("\n");
 
   return { html, subject: copy.subject, text };
 }
 
 // Renders one booking email at dispatch. The view link is the booking link
 // (opened from the sealed secret) for the requester and the /app link for the
-// host; without one, the email cannot be rendered.
+// host; a confirmation cannot be rendered without one, and a requester's status
+// notice without one is the product inbox's notice.
 export function renderBookingEmail(
   template: BookingEmailTemplate,
   language: RequestLanguage,
@@ -319,11 +348,12 @@ export function renderBookingEmail(
   secrets: { readonly bookingUrl?: string },
 ): RenderedBookingEmail {
   const viewUrl = parameters.audience === "host" ? parameters.viewUrl : secrets.bookingUrl;
-  if (!viewUrl) throw new Error("A booking email needs its view link.");
 
-  return template === "booking_confirmation"
-    ? renderConfirmation(language, parameters, viewUrl)
-    : renderStatus(template, language, parameters, viewUrl);
+  if (template === "booking_confirmation") {
+    if (!viewUrl) throw new Error("A booking email needs its view link.");
+    return renderConfirmation(language, parameters, viewUrl);
+  }
+  return renderStatus(template, language, parameters, viewUrl ?? null);
 }
 
 // ---------------------------------------------------------------------------

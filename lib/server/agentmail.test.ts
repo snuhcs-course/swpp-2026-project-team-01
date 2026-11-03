@@ -95,6 +95,11 @@ describe("turn reply text", () => {
     expect(turnReplyText(events, ["d9"])).toBeNull();
   });
 
+  it("drops Markdown marks, which plain-text email and iMessage would show", () => {
+    const events = [event(["d1"], "## Times\n1. **Fri 13 Nov 15:00–15:30** with `Ada`\n__Reply__ with a number; 3 * 4 stays.")];
+    expect(turnReplyText(events, ["d1"])).toBe("Times\n1. Fri 13 Nov 15:00–15:30 with Ada\nReply with a number; 3 * 4 stays.");
+  });
+
   it("adds the footer in the request's language", () => {
     expect(withFooter("Hi", "en")).toMatch(/^Hi\n\n--\nTo pick a time/);
     expect(withFooter("안녕하세요", "ko")).toContain("예약 링크");

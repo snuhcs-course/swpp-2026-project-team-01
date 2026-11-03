@@ -72,7 +72,7 @@ Never make the user think too much. Each moment asks for one decision, and the n
 1. Keep one artifact, card or question open at a time, after the latest message. Do not stack several open cards for the user to scan, compare or scroll between.
 2. Keep each artifact small: one question as its heading, the proposed answer with its source, one short reason, and the actions. It should fit in a phone viewport above the composer; long editors scroll inside their card.
 3. Put the evidence a decision needs inside that decision's artifact, and keep anything else behind a collapsed disclosure.
-4. Leave each answered card in the conversation as a one-line receipt with its value, its source and **Edit**, so earlier answers stay visible in context. **Edit** asks the question again at the bottom rather than reopening the old card. A final review gathers every answer in one compact list.
+4. Leave each answered card in the conversation as a one-line receipt with its value, its source and **Edit**, so earlier answers stay visible in context. On the guest pages the receipt is the guest's own reply bubble with **Change**, so what they chose reads as part of the conversation ([`guest-flow-completion` U12](../openspec/changes/guest-flow-completion/proposal.md#decisions)). **Edit** asks the question again at the bottom rather than reopening the old card. A final review gathers every answer in one compact list.
 
 Added 2026-10-20 after the first hosted onboarding test, where several large cards at once made setup hard to follow.
 

@@ -365,8 +365,10 @@ export async function withPrincipalAuthority<T>(
   return (await db.begin(async (tx) => {
     if (principal.type !== "requester_request") throw new ConversationClosedError();
 
+    // A booked request stays open to questions about its meeting while its
+    // booking link lasts (guest-flow-completion U18).
     const [row] = await tx<{ open: boolean }[]>`
-      select r.closed_at is null and r.expires_at > now() and l.expires_at > now() as open
+      select ((r.closed_at is null and r.expires_at > now()) or r.state = 'booked') and l.expires_at > now() as open
       from app.requests r join app.booking_links l on l.request_id = r.id
       where r.id = ${principal.id}
       for share of r

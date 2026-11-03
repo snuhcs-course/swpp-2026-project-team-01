@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { HostRequestView } from "../contracts/host-request";
 import type { RequestState } from "../contracts/request";
 import { SETUP_FIELD_NAMES, type SetupFieldName, TRAVEL_MODE_LABELS, type WeeklyWindow } from "../contracts/setup";
@@ -10,6 +9,7 @@ import { CalendarAccessError, openHostCalendar } from "./google-calendar";
 import { listHostRequests, readHostRequest } from "./host-requests";
 import { calendarConnectUrl } from "./imessage-links";
 import { recordOutbound } from "./imessage-outbox";
+import { requestRef } from "./request-ref";
 import type { BoundMessage, ImessageReceiptDependencies } from "./imessage-receipts";
 import { computeSetupProposal, readSetupState } from "./setup";
 import { confirmSettingsCommand } from "./setup-commands";
@@ -46,24 +46,7 @@ export function parseCommand(text: string): ParsedCommand | null {
   return null;
 }
 
-const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-
-export function requestRef(requestId: string) {
-  const bytes = createHash("sha256").update(requestId, "utf8").digest();
-  let bits = 0;
-  let value = 0;
-  let out = "";
-  for (const byte of bytes) {
-    value = (value << 8) | byte;
-    bits += 8;
-    while (bits >= 5 && out.length < 6) {
-      out += ALPHABET[(value >> (bits - 5)) & 31];
-      bits -= 5;
-    }
-    if (out.length === 6) break;
-  }
-  return out;
-}
+export { requestRef } from "./request-ref";
 
 export function reviewRef(requestId: string, version: number) {
   return `${requestRef(requestId)}-${version}`;
@@ -212,10 +195,10 @@ export type CommandDependencies = ImessageReceiptDependencies;
 
 type Reply = { readonly text: string };
 
-function reply(tx: Transaction, deps: CommandDependencies, message: BoundMessage, text: string, requestId: string | null = null) {
+function reply(tx: Transaction, deps: CommandDependencies, message: BoundMessage, text: string, requestId: string | null = null, selectHost = false) {
   return recordOutbound(tx, {
     bindingId: message.bindingId,
-    dedupeKey: `receipt:${message.receipt.id}`,
+    dedupeKey: `${selectHost ? "host-selection" : "receipt"}:${message.receipt.id}`,
     hostAccountId: message.hostAccountId,
     kind: "command",
     recipient: message.recipient,
@@ -514,6 +497,6 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       break;
   }
 
-  await reply(tx, deps, message, result.text, result.requestId ?? null);
+  await reply(tx, deps, message, result.text, result.requestId ?? null, command.name === "setup" || (command.name === "request" && Boolean(result.requestId)));
   return "command" as const;
 }

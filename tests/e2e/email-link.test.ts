@@ -12,6 +12,8 @@ import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 // services and the local stack: a confirmed address gets a one-time code with
 // the product inbox, **Check email link** shows the thread once it is bound,
 // **Unlink email** ends it, and an unconfirmed address is asked to confirm first.
+// The line sits in **Request details**, which stays closed until opened
+// (guest-flow-completion U12).
 
 const tokenKey = parseTokenKey(E2E_TOKEN_ENCRYPTION_KEY);
 const INBOX = "findmeatime@agentmail.test";
@@ -44,6 +46,12 @@ async function pressByKeyboard(page: Page, name: string) {
   await page.keyboard.press("Enter");
 }
 
+async function openDetails(page: Page) {
+  await expect(page.getByRole("button", { exact: true, name: "Request details" })).toBeVisible({ timeout: 20_000 });
+  await pressByKeyboard(page, "Request details");
+  await expect(page.getByRole("button", { exact: true, name: "Close details" })).toBeVisible();
+}
+
 async function hasNoHorizontalScroll(page: Page) {
   return page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
 }
@@ -55,6 +63,7 @@ for (const width of [390, 1280]) {
     await page.goto(`/booking/${request.bookingId}`);
 
     // The first visit compiles the page under next dev, slow while other suites run.
+    await openDetails(page);
     await expect(page.getByRole("button", { exact: true, name: "Continue by email" })).toBeVisible({ timeout: 20_000 });
     await pressByKeyboard(page, "Continue by email");
     const card = page.locator('[data-guest-card="email-link"]');
@@ -67,6 +76,7 @@ for (const width of [390, 1280]) {
 
     // A reload shows the same pending code.
     await page.reload();
+    await openDetails(page);
     await expect(page.locator("[data-email-link-code]")).toHaveText(code);
 
     // The requester sends it; the receipt job binds the thread.
@@ -96,6 +106,7 @@ for (const width of [390, 1280]) {
 test("an unconfirmed requester is asked to confirm first", async ({ db, page }) => {
   const request = await identifiedRequest(db, false);
   await page.goto(`/booking/${request.bookingId}`);
+  await openDetails(page);
   await expect(page.locator('[data-email-link="needs_confirmation"]')).toContainText("first confirm your address");
   await expect(page.getByRole("button", { name: "Continue by email", exact: true })).toHaveCount(0);
 });

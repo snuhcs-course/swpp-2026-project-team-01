@@ -7,6 +7,7 @@ import {
   agentMailTransport,
   type AgentMailTransport,
   type ReplyOutcome,
+  senderHash,
 } from "./agentmail";
 import { agentUrlFromEnvironment, type ConversationRuntime, eveRuntime } from "./conversations";
 import { database, type Database, type Transaction } from "./database";
@@ -33,7 +34,10 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 //   3. moves the reply to dispatching and commits before the network call;
 //   4. replies to the recorded message with Idempotency-Key equal to the reply
 //      ID, recording accepted with the provider's message ID or rejected on a
-//      refusal. An uncertain outcome leaves it dispatching for the next attempt,
+//      refusal. A notice with no message to reply to (a request with no thread,
+//      guest-flow-completion U15) replies in the thread the request has gained
+//      since, or is sent as a new message to the contact address, whose thread
+//      is then bound to the request (origin notified). An uncertain outcome leaves it dispatching for the next attempt,
 //      which sends the same text under the same key while the first dispatch is
 //      under 23 hours old; after that, or on a key conflict, it is recorded
 //      uncertain and never sent again. Every final state clears the text and
@@ -59,7 +63,8 @@ export type RecordReply = {
   readonly requestId: string | null;
   readonly bindingId: string | null;
   readonly inboxId: string;
-  readonly replyToMessageId: string;
+  // Null for a notice that starts the request's thread.
+  readonly replyToMessageId: string | null;
   readonly language: RequestLanguage;
   // A turn reply names its input and waits for its turn.
   readonly inputId?: string;
@@ -147,9 +152,19 @@ export function withFooter(text: string, language: RequestLanguage) {
   return `${body}\n\n--\n${FOOTER[language]}`;
 }
 
+// Email and iMessage replies are plain text, so the chat's Markdown marks
+// (bold, headings, code) would show as symbols: they are dropped, their words kept.
+export function plainText(text: string) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/`([^`\n]+)`/g, "$1");
+}
+
 // The turn's final assistant text: the message.completed texts that end a step
 // with something other than tool calls, among the events the input's delivery
-// owns, in order.
+// owns, in order, as plain text.
 export function turnReplyText(events: readonly MessageStreamEvent[], deliveryIds: readonly string[]) {
   const owned = new Set(deliveryIds);
   const texts = events
@@ -157,7 +172,7 @@ export function turnReplyText(events: readonly MessageStreamEvent[], deliveryIds
     .filter((event) => event.type === "message.completed")
     .map((event) => event.data as { message?: string; finishReason?: string })
     .filter((data) => data.finishReason !== "tool-calls" && typeof data.message === "string" && data.message.trim())
-    .map((data) => data.message!.trim());
+    .map((data) => plainText(data.message!.trim()));
 
   return texts.length > 0 ? texts.join("\n\n") : null;
 }
@@ -193,7 +208,7 @@ type ReplyRow = {
   readonly request_id: string | null;
   readonly binding_id: string | null;
   readonly inbox_id: string;
-  readonly reply_to_message_id: string;
+  readonly reply_to_message_id: string | null;
   readonly input_id: string | null;
   readonly template: string | null;
   readonly language: RequestLanguage;
@@ -223,7 +238,7 @@ async function finish(
   return rows.count > 0;
 }
 
-// A notice's text, rendered from its template and sealed secrets, or null.
+// A notice's subject and text, rendered from its template and sealed secrets, or null.
 function renderNotice(deps: EmailReplyDependencies, reply: ReplyRow) {
   if (!reply.template || !isEmailTemplate(reply.template) || !reply.secret_ciphertext || !reply.secret_key_id) return null;
 
@@ -231,10 +246,45 @@ function renderNotice(deps: EmailReplyDependencies, reply: ReplyRow) {
     const secrets = JSON.parse(
       openToken(deps.tokenKeys, { ciphertext: reply.secret_ciphertext, keyId: reply.secret_key_id }, replySecretContext(reply.id)),
     ) as EmailSecrets;
-    return renderEmail(reply.template, reply.language, reply.parameters, secrets).text;
+    const rendered = renderEmail(reply.template, reply.language, reply.parameters, secrets);
+    return { subject: rendered.subject, text: rendered.text };
   } catch {
     return null;
   }
+}
+
+async function activeThreadOf(q: Transaction, requestId: string) {
+  const [thread] = await q<{ id: string; last_message_id: string }[]>`
+    select id, last_message_id from app.email_threads where request_id = ${requestId} and state = 'active'
+  `;
+  return thread ?? null;
+}
+
+// The contact address a thread-starting notice goes to, read at dispatch.
+async function newThreadRecipient(q: Transaction, reply: Pick<ReplyRow, "reply_to_message_id" | "request_id">) {
+  if (reply.reply_to_message_id !== null || !reply.request_id) return null;
+  const [request] = await q<{ contact_email: string | null }[]>`select contact_email from app.requests where id = ${reply.request_id}`;
+  return request?.contact_email ?? null;
+}
+
+// Binds the thread a notice started to its request and the contact address, as
+// a started thread is bound to its sender (guest-flow-completion U15). A thread
+// the request gained meanwhile keeps it.
+async function bindNotifiedThread(
+  tx: Transaction,
+  deps: EmailReplyDependencies,
+  reply: Pick<ReplyRow, "id" | "inbox_id" | "request_id">,
+  address: string,
+  threadId: string,
+  messageId: string,
+) {
+  const [bound] = await tx<{ id: string }[]>`
+    insert into app.email_threads (request_id, inbox_id, thread_id, origin, sender_hash, bound_by_receipt_id, last_message_id)
+    values (${reply.request_id}, ${reply.inbox_id}, ${threadId}, 'notified', ${senderHash(deps.tokenKeys[0]!, address)}, null, ${messageId})
+    on conflict do nothing
+    returning id
+  `;
+  if (bound) await tx`update app.email_replies set binding_id = ${bound.id} where id = ${reply.id}`;
 }
 
 // The turn is not over yet: the attempt fails and the job tries again later.
@@ -336,12 +386,12 @@ export function createEmailReplyHandler(load: () => EmailReplyDependencies = rep
         // Sent again below with the same key and the same text: a notice is
         // rendered again from its sealed parameters, which gives the same text.
         assertMessagingAdmitted(transport.endpoint, deps.env);
-        const again = reply.kind === "notice" ? renderNotice(deps, reply) : reply.text;
-        if (again === null) {
+        const again = reply.kind === "notice" ? renderNotice(deps, reply) : { subject: "", text: reply.text };
+        if (again === null || again.text === null) {
           await finish(claimTx, reply.id, "dispatching", "uncertain", { reason: "unrenderable" });
           return { state: "uncertain" as const };
         }
-        return { reply, state: "dispatching" as const, text: again };
+        return { reply, state: "dispatching" as const, subject: again.subject, text: again.text, to: await newThreadRecipient(claimTx, reply) };
       }
 
       if (reply.state !== "waiting" && reply.state !== "queued") return { state: reply.state };
@@ -366,6 +416,7 @@ export function createEmailReplyHandler(load: () => EmailReplyDependencies = rep
       assertMessagingAdmitted(transport.endpoint, deps.env);
 
       let text: string;
+      let subject = "";
 
       if (reply.kind === "turn") {
         if (readText === undefined) throw new TurnNotEndedError();
@@ -377,20 +428,31 @@ export function createEmailReplyHandler(load: () => EmailReplyDependencies = rep
           await finish(claimTx, reply.id, reply.state, "rejected", { reason: "unrenderable" });
           return { state: "rejected" as const };
         }
-        text = rendered;
+        ({ subject, text } = rendered);
       } else {
         text = reply.text ?? "";
       }
 
       // A notice keeps only its sealed parameters until a final state, so no
       // usable booking link is stored while it may be sent again.
+      // A notice with no message to reply to replies in the thread the request
+      // has gained since it was recorded, if any; the choice is fixed here.
+      const target = reply.reply_to_message_id === null && reply.request_id ? await activeThreadOf(claimTx, reply.request_id) : null;
+      if (target) {
+        await claimTx`
+          update app.email_replies set reply_to_message_id = ${target.last_message_id}, binding_id = ${target.id}
+          where id = ${reply.id}
+        `;
+      }
+      const fixed = target ? { ...reply, binding_id: target.id, reply_to_message_id: target.last_message_id } : reply;
+
       await claimTx`
         update app.email_replies
         set state = 'dispatching', text = ${reply.kind === "notice" ? null : text},
             first_dispatched_at = coalesce(first_dispatched_at, now()), updated_at = now()
         where id = ${reply.id}
       `;
-      return { reply, state: "dispatching" as const, text };
+      return { reply: fixed, state: "dispatching" as const, subject, text, to: await newThreadRecipient(claimTx, fixed) };
     });
 
     if (claim.state !== "dispatching") return { replyId, state: claim.state };
@@ -398,12 +460,21 @@ export function createEmailReplyHandler(load: () => EmailReplyDependencies = rep
     let outcome: ReplyOutcome;
 
     try {
-      outcome = await transport.reply(claim.reply.inbox_id, claim.reply.reply_to_message_id, claim.text, claim.reply.id);
+      outcome =
+        claim.reply.reply_to_message_id === null
+          ? claim.to
+            ? await transport.send(claim.reply.inbox_id, { subject: claim.subject, text: claim.text, to: claim.to }, claim.reply.id)
+            : // No contact address left to write to: nothing can be sent.
+              ({ httpStatus: 0, status: "rejected" } as const)
+          : await transport.reply(claim.reply.inbox_id, claim.reply.reply_to_message_id, claim.text, claim.reply.id);
     } catch {
       outcome = { httpStatus: null, reason: "lost_response", status: "uncertain" };
     }
 
     if (outcome.status === "accepted") {
+      if (claim.reply.reply_to_message_id === null && claim.to && outcome.threadId && claim.reply.request_id) {
+        await bindNotifiedThread(tx, deps, claim.reply, claim.to, outcome.threadId, outcome.messageId);
+      }
       await finish(tx, replyId, "dispatching", "accepted", { threadId: outcome.threadId }, outcome.messageId);
       return { replyId, state: "accepted" };
     }

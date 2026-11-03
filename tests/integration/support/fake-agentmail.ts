@@ -11,7 +11,9 @@ import { svixSignature } from "../../../lib/server/svix";
 // POST .../reply honoring Idempotency-Key as AgentMail does: a repeated key with
 // the same text returns the original message and sends nothing; the same key
 // with other text answers 409. A reply can be made to drop its response after
-// recording it (a lost response) or to answer an HTTP status.
+// recording it (a lost response) or to answer an HTTP status. POST
+// .../messages/send starts a new thread and is recorded with the replies, with
+// its recipient and subject and an empty inReplyTo.
 
 export type FakeReply = {
   readonly inboxId: string;
@@ -20,6 +22,9 @@ export type FakeReply = {
   readonly idempotencyKey: string;
   readonly messageId: string;
   readonly threadId: string;
+  // A new message's recipient and subject.
+  readonly to?: string;
+  readonly subject?: string;
 };
 
 export type FakeAgentMail = {
@@ -62,6 +67,50 @@ export async function startFakeAgentMail(options: { readonly port?: number } = {
 
     if (request.method === "GET" && url.pathname === "/__replies") {
       json(response, 200, replies);
+      return;
+    }
+
+    const send = url.pathname.match(/^\/v0\/inboxes\/([^/]+)\/messages\/send$/);
+
+    if (send && request.method === "POST") {
+      if (request.headers.authorization !== "Bearer am_test_key") {
+        json(response, 401, { message: "Unauthorized", name: "UnauthorizedError" });
+        return;
+      }
+      const idempotencyKey = String(request.headers["idempotency-key"] ?? "");
+      const body = JSON.parse(raw) as { to: string; subject: string; text: string };
+      attempts.push({ idempotencyKey, text: body.text });
+      const behavior = behaviors.shift();
+      if (behavior && behavior !== "drop") {
+        json(response, behavior.status, { message: "Refused", name: "Error" });
+        return;
+      }
+      const earlier = idempotencyKey ? byKey.get(idempotencyKey) : undefined;
+      if (earlier && earlier.text !== body.text) {
+        json(response, 409, { code: "idempotency_conflict", message: "Key reused", name: "ConflictError" });
+        return;
+      }
+      const sent =
+        earlier ??
+        ({
+          idempotencyKey,
+          inReplyTo: "",
+          inboxId: decodeURIComponent(send[1]!),
+          messageId: `<${randomUUID()}@agentmail.test>`,
+          subject: body.subject,
+          text: body.text,
+          threadId: randomUUID(),
+          to: body.to,
+        } satisfies FakeReply);
+      if (!earlier) {
+        replies.push(sent);
+        if (idempotencyKey) byKey.set(idempotencyKey, sent);
+      }
+      if (behavior === "drop") {
+        response.destroy();
+        return;
+      }
+      json(response, 200, { message_id: sent.messageId, thread_id: sent.threadId });
       return;
     }
 

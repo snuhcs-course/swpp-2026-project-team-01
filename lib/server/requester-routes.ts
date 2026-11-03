@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isValidTimeZone } from "../contracts/setup";
+import { isValidTimeZone, type LocationAnswer, type MeetingMode } from "../contracts/setup";
 import { revokeGrantCommand } from "./agent-grants";
 import { checkBookingCommand, readBookingStatus } from "./bookings";
 import { isUsableHandle, normalizeHandle } from "../contracts/handles";
@@ -47,6 +47,7 @@ import { withdrawRequestCommand } from "./request-lifecycle";
 import {
   agreeCommand,
   allowTripCommand,
+  changeAgreementCommand,
   chooseCandidateCommand,
   evaluateCommand,
   readCurrentEvaluation,
@@ -76,6 +77,15 @@ import {
   setManualAvailabilityCommand,
   useGoogleEmailCommand,
 } from "./requester-grants";
+import { decideHostProfileCommand, readHostProfileView } from "./requester-host-profiles";
+import {
+  confirmRequesterImessageLinkCommand,
+  createRequesterImessageLinkCommand,
+  readRequesterImessageStatus,
+  shareRequesterContactCardCommand,
+  unlinkRequesterImessageCommand,
+} from "./requester-imessage-links";
+import { photonConfig } from "./photon";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
 import { sourceHash } from "./signup-limits";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
@@ -104,6 +114,9 @@ export type RequesterRouteDependencies = ConversationDependencies &
     // The product inbox Continue by email names (AGENTMAIL_INBOX_ID); empty when
     // the email channel is off.
     readonly emailInbox?: string;
+    // The iMessage line Get updates in iMessage names (PHOTON_LINE_NUMBER);
+    // empty when the line is off.
+    readonly lineNumber?: string;
   };
 
 export function requesterRouteDependenciesFromEnvironment(): RequesterRouteDependencies {
@@ -112,6 +125,7 @@ export function requesterRouteDependenciesFromEnvironment(): RequesterRouteDepen
     db: database(),
     runtime: eveRuntime(agentUrlFromEnvironment()),
     emailInbox: agentMailConfigFromEnvironment().inboxId,
+    lineNumber: photonConfig().lineNumber,
     signingKey: internalSigningKey(),
     tokenKey: tokenKeyFromEnvironment,
   };
@@ -150,6 +164,7 @@ export async function readRequesterView(
       expires_at: Date;
       handle: string | null;
       has_intake: boolean;
+      meeting: { durationMinutes?: number; meetingMode?: MeetingMode; location?: LocationAnswer | null } | null;
       requester_name: string | null;
       revision: number;
       state: RequestState;
@@ -159,6 +174,8 @@ export async function readRequesterView(
            (r.closed_at is not null or r.expires_at <= now()) as closed,
            coalesce(lower(r.contact_confirmed_email) = lower(r.contact_email), false) as confirmed,
            s.settings ->> 'displayName' as display_name, h.handle,
+           jsonb_build_object('durationMinutes', s.settings -> 'durationMinutes', 'meetingMode', s.settings -> 'meetingMode',
+                              'location', s.settings -> 'location') as meeting,
            exists (select 1 from app.intakes i where i.request_id = r.id) as has_intake
     from app.requests r
     left join app.host_settings s on s.host_account_id = r.host_account_id
@@ -197,6 +214,7 @@ export async function readRequesterView(
     booking,
     confirmation: await readConfirmationStatus(db, requestId, options.confirmationLimits),
     connection: await readRequesterConnection(db, requestId),
+    hostProfile: await readHostProfileView(db, requestId),
     contact:
       row.contact_email && row.requester_name
         ? { confirmed: row.confirmed, email: row.contact_email, name: row.requester_name }
@@ -205,6 +223,11 @@ export async function readRequesterView(
     evaluation,
     hasIntakeTranscript: row.has_intake,
     host,
+    meeting: {
+      durationMinutes: row.meeting?.durationMinutes ?? 30,
+      meetingMode: row.meeting?.meetingMode ?? "online",
+      venue: row.meeting?.location?.kind === "places" ? row.meeting.location.venue : null,
+    },
     open: true,
     pendingReview: review ? storedReview(review, requestLanguage(row.details)) : null,
     proposal: proposal?.proposal ?? null,
@@ -297,8 +320,6 @@ export function createRequesterMessageHandler(load: () => RequesterRouteDependen
 const startBody = z.object({
   handle: z.string().min(1).max(64),
   nonce: z.string().min(1).max(64),
-  clientInputId: z.uuid(),
-  message: z.string(),
   timezone: z.string().max(64),
   language: z.enum(REQUEST_LANGUAGES),
 });
@@ -307,13 +328,13 @@ function hostUnavailable() {
   return requesterJson({ code: "unavailable", error: "This page is not taking requests." }, 404);
 }
 
-// POST /api/requests/start: the guest's first message on a ready host's public
-// page. It runs request.start as the anonymous starter (the hash of the tab's
-// nonce, with the nonce as the retry key), then records the message as the
-// draft's first accepted input, which starts the thread's eve session. The
-// answer carries the booking identifier for the tab to keep in sessionStorage,
-// also when the message itself failed after the draft exists; an exact retry
-// with the same nonce answers the same draft and the same input.
+// POST /api/requests/start: **Continue with Google** or **Continue without
+// Google** on the web start of a ready host's public page (guest-flow-completion
+// U7, U8). No message is sent and no model runs: it runs request.start as the
+// anonymous starter (the hash of the tab's nonce, with the nonce as the retry
+// key), which writes the hidden draft the identity step then identifies, and
+// answers its booking identifier. An exact retry with the same nonce answers the
+// same draft, so trying Google again after a cancelled consent creates nothing.
 export function createRequestStartHandler(load: () => RequesterRouteDependencies = requesterRouteDependenciesFromEnvironment) {
   return async (request: Request) => {
     const deps = load();
@@ -324,7 +345,7 @@ export function createRequestStartHandler(load: () => RequesterRouteDependencies
     const body = startBody.safeParse(await request.json().catch(() => null));
 
     if (!body.success || !isStarterNonce(body.data.nonce)) {
-      return requesterJson({ code: "invalid_message", error: "Send a message with its client input ID." }, 400);
+      return requesterJson({ code: "invalid_request", error: "Send the tab's nonce, time zone and language." }, 400);
     }
 
     const handle = normalizeHandle(body.data.handle);
@@ -345,26 +366,24 @@ export function createRequestStartHandler(load: () => RequesterRouteDependencies
 
     if (!outcome.ok) {
       if (outcome.error.category === "rate_limited") {
-        return requesterJson({ code: "rate_limited", error: "Too many new conversations from your network right now. Try again later." }, 429);
+        return requesterJson({ code: "rate_limited", error: "Too many new requests from your network right now. Try again later." }, 429);
       }
       if (outcome.error.category === "invalid_input") {
-        return requesterJson({ code: "invalid_message", error: "Send a message with your time zone." }, 400);
+        return requesterJson({ code: "invalid_request", error: "Send a valid time zone." }, 400);
       }
       return outcome.error.category === "retry_conflict" ? requesterJson(outcome, 409) : hostUnavailable();
     }
 
+    const [draft] = await deps.db<{ state: string }[]>`
+      select state from app.requests where id = ${outcome.result.requestId}
+    `;
+    if (draft && draft.state !== "draft") {
+      return requesterJson({ code: "draft_identified", error: "Start a new request." }, 409);
+    }
+
     const bookingId = await openRequestBookingId(deps.db, [tokenKey], outcome.result.requestId);
 
-    if (!bookingId) return hostUnavailable();
-
-    try {
-      const accepted = await acceptGuestMessage(deps, { id: outcome.result.requestId, type: "requester_request" }, body.data);
-      return requesterJson({ ...accepted, bookingId }, accepted.status === "recovery_required" ? 409 : 202);
-    } catch (error) {
-      const response = guestError(error);
-      const payload = (await response.json()) as Record<string, unknown>;
-      return Response.json({ ...payload, bookingId }, { headers: response.headers, status: response.status });
-    }
+    return bookingId ? requesterJson({ bookingId }, 201) : hostUnavailable();
   };
 }
 
@@ -469,9 +488,10 @@ function registered<Input, Result>(command: CommandDefinition<Input, Result>): [
 
 // The requester commands by operation.
 export function requesterCommands(
-  deps: Pick<RequesterRouteDependencies, "appOrigin" | "confirmationLimits" | "tokenKey">,
+  deps: Pick<RequesterRouteDependencies, "appOrigin" | "confirmationLimits" | "lineNumber" | "tokenKey">,
 ): Readonly<Record<string, RequesterCommand>> {
   const contact = { limits: deps.confirmationLimits, origin: deps.appOrigin, tokenKey: deps.tokenKey() };
+  const imessage = { lineNumber: deps.lineNumber ?? "", tokenKey: contact.tokenKey, tokenKeys: [contact.tokenKey] };
 
   return Object.fromEntries([
     registered(identifyRequestCommand({ origin: contact.origin, tokenKey: contact.tokenKey })),
@@ -482,15 +502,21 @@ export function requesterCommands(
     registered(allowTripCommand),
     registered(chooseCandidateCommand),
     registered(agreeCommand),
+    registered(changeAgreementCommand),
     registered(withdrawRequestCommand),
     registered(useGoogleEmailCommand),
     registered(disconnectCalendarCommand),
     registered(setManualAvailabilityCommand),
+    registered(decideHostProfileCommand()),
     registered(selectCalendarsCommand({ tokenKey: contact.tokenKey })),
     registered(resendConfirmationCommand(contact)),
     registered(checkBookingCommand),
     registered(createEmailLinkCommand({ tokenKey: contact.tokenKey })),
     registered(unlinkEmailCommand()),
+    registered(createRequesterImessageLinkCommand(imessage)),
+    registered(confirmRequesterImessageLinkCommand(imessage)),
+    registered(unlinkRequesterImessageCommand),
+    registered(shareRequesterContactCardCommand(imessage)),
     registered(revokeGrantCommand),
   ]);
 }
@@ -576,5 +602,18 @@ export function createEmailLinkStatusHandler(load: () => RequesterRouteDependenc
 
     const status = await readEmailLinkStatus(deps.db, [deps.tokenKey()], principal.id, deps.emailInbox ?? "");
     return status ? requesterJson(status) : requestUnavailable();
+  };
+}
+
+// GET /api/requests/{bookingId}/imessage: the Get updates in iMessage card's
+// status (guest-flow-completion design 1), so the card can poll for the arrived
+// sender and a reload recovers a pending code. The card's commands go through
+// the commands route.
+export function createRequesterImessageStatusHandler(load: () => RequesterRouteDependencies = requesterRouteDependenciesFromEnvironment) {
+  return async (_request: Request, context: Context) => {
+    const deps = load();
+    const link = await findRequestByBookingId(deps.db, (await context.params).bookingId);
+    if (!link || link.expired) return requestUnavailable();
+    return requesterJson(await readRequesterImessageStatus(deps.db, [deps.tokenKey()], link.requestId, deps.lineNumber ?? ""));
   };
 }

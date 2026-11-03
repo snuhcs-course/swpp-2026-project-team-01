@@ -17,7 +17,9 @@
 -- the Google return moved the draft to gathering. calendar_settled_at is when the
 -- guest settled the Calendar step (**Skip for now**, or calendars saved), so the
 -- thread offers the next step instead of the Calendar card; a new Calendar grant
--- or **Change** clears it.
+-- or **Change** clears it. revised_from_request_id names the declined or expired
+-- request this one continues (guest-flow-completion design 5); it is unique, so
+-- a closed request has at most one direct successor.
 CREATE TABLE "app"."requests" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "host_account_id" uuid NOT NULL REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
@@ -38,6 +40,7 @@ CREATE TABLE "app"."requests" (
   "identity_requested_at" timestamptz,
   "identified_at" timestamptz,
   "calendar_settled_at" timestamptz,
+  "revised_from_request_id" uuid UNIQUE REFERENCES "app"."requests" ("id") ON DELETE SET NULL,
   CONSTRAINT "requests_closed" CHECK (
     ("state" IN ('booked', 'declined', 'withdrawn', 'expired')) = ("closed_at" IS NOT NULL)
   ),

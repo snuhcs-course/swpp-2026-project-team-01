@@ -1,10 +1,14 @@
 import type { ReactNode } from "react";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
+import { Message, MessageContent } from "@/components/ui/message";
 import { cn } from "@/lib/utils";
 
 // The guest thread's conversation card (DESIGN.md: conversation card): placed in
 // the thread after the message that calls for it, one question as a 16px
 // heading, a short reason, then actions, in 16px by 12px padding. It is the
 // setup card's shell without the host setup controller.
+
+export const GUEST_CARD_SURFACE = "mx-auto my-3 w-[94%] max-w-xl rounded-[22px] border border-primary/25 bg-[color-mix(in_srgb,var(--card)_94%,var(--primary)_6%)] px-4 py-4 text-sm text-card-foreground shadow-[0_8px_24px_rgba(44,62,99,0.12)] sm:px-5";
 
 export function guestCardHeadingId(id: string) {
   return `${id}-heading`;
@@ -29,14 +33,14 @@ export function GuestCard({
     <section
       aria-labelledby={guestCardHeadingId(id)}
       className={cn(
-        "flex min-w-0 flex-col rounded-xl border border-border bg-card px-4 py-3 text-sm text-card-foreground",
+        "flex min-w-0 flex-col", GUEST_CARD_SURFACE,
         className,
       )}
       data-guest-card={id}
       id={id}
     >
       <div className="flex flex-col gap-0.5">
-        {label ? <p className="min-h-6 text-xs leading-6 font-medium text-muted-foreground">{label}</p> : null}
+        {label ? <p className="min-h-6 text-xs leading-6 font-semibold text-primary">{label}</p> : null}
         <h3 className="text-base leading-snug font-semibold text-foreground outline-none" id={guestCardHeadingId(id)} tabIndex={-1}>
           {title}
         </h3>
@@ -51,36 +55,40 @@ export function GuestCardActions({ children }: { readonly children: ReactNode })
   return <div className="flex flex-wrap items-center gap-2">{children}</div>;
 }
 
-// An answered or superseded card, kept in the thread where it was called for
-// as one quiet line (DESIGN.md: conversation card receipts): what was offered
-// and chosen, or **Out of date** with a way to the current card of its kind.
+// An answered card, kept in the thread where it was called for as the guest's
+// own reply (guest-flow-completion U12): a bubble on the guest's side, like a
+// message they wrote, with what was chosen and its **Change** under it.
 export function GuestReceipt({
   action,
   id,
   label,
-  outOfDate = false,
   value,
 }: {
   readonly action?: ReactNode;
   readonly id: string;
   readonly label: string;
-  readonly outOfDate?: boolean;
   readonly value?: ReactNode;
 }) {
   return (
-    <div
-      className="flex min-h-8 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-1 text-sm"
-      data-guest-card={id}
-      data-guest-receipt={outOfDate ? "out-of-date" : "answered"}
-      id={`receipt-${id.replace(/[^a-zA-Z0-9_-]/g, "-")}`}
-      role="note"
-    >
-      <span className="shrink-0 text-muted-foreground">{label}</span>
-      {value ? <span className={cn("min-w-0 break-words", outOfDate && "text-muted-foreground line-through")}>{value}</span> : null}
-      {outOfDate ? (
-        <span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">Out of date</span>
-      ) : null}
-      {action}
-    </div>
+    <Message align="end">
+      <MessageContent>
+        <p className="sr-only">You</p>
+        <Bubble align="end" className="max-w-[85%]" variant="muted">
+          <BubbleContent className="rounded-xl text-base leading-[1.65]">
+            <div
+              className="flex min-w-0 flex-col"
+              data-guest-card={id}
+              data-guest-receipt="answered"
+              id={`receipt-${id.replace(/[^a-zA-Z0-9_-]/g, "-")}`}
+              role="note"
+            >
+              {label ? <span className="text-muted-foreground text-xs">{label}</span> : null}
+              {value ? <span className="min-w-0 break-words">{value}</span> : null}
+            </div>
+          </BubbleContent>
+        </Bubble>
+        {action ? <div className="self-end">{action}</div> : null}
+      </MessageContent>
+    </Message>
   );
 }

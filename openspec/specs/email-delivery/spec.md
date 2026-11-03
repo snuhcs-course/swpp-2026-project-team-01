@@ -26,11 +26,19 @@ New transactional emails SHALL use Cloudflare Email Service. Supabase Auth SHALL
 - **THEN** it uses Cloudflare SMTP without enabling email login or changing identity or session validation
 
 ### Requirement: Evidence-based delivery outcomes
-The system SHALL record successful submission only with a provider message identity and affirmative acceptance for the intended recipients. Suppressed or bounced recipients SHALL NOT be marked successfully sent. Email submission SHALL NOT establish contact verification or change booking state.
+The system SHALL record successful submission only with affirmative provider acceptance for every intended recipient and with a dispatch identity: the provider's message identity when the provider returns one, otherwise an application dispatch identity frozen before dispatch and sent with the message. Suppressed or bounced recipients SHALL NOT be marked successfully sent. Email submission SHALL NOT establish contact verification or change booking state.
 
 #### Scenario: Successful HTTP response without recipient acceptance
 - **WHEN** the provider response omits acceptance evidence or lists a recipient as suppressed
 - **THEN** the application does not record successful submission
+
+#### Scenario: Accepted without a provider message identity
+- **WHEN** Cloudflare lists every intended recipient as delivered or queued and returns no message identity
+- **THEN** the submission is recorded as accepted with the application dispatch identity that the message carried
+
+#### Scenario: Permanent bounce
+- **WHEN** Cloudflare lists an intended recipient as a permanent bounce
+- **THEN** the delivery is recorded as rejected for that recipient and no contact or request state changes
 
 ### Requirement: Preserve uncertain dispatch identities
 The system SHALL freeze sender identity and content before dispatch. Previously dispatched Cloudflare messages SHALL NOT be automatically sent again after an uncertain outcome or process interruption. Previously dispatched AgentMail messages SHALL retain their original provider identity and bounded idempotent retry behavior.

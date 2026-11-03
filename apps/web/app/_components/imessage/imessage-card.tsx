@@ -342,7 +342,7 @@ function CardShell({
   );
 }
 
-function CopyButton({ text, label }: { readonly text: string; readonly label: string }) {
+export function CopyButton({ text, label }: { readonly text: string; readonly label: string }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   useEffect(() => {
     if (state === "idle") return;
@@ -525,7 +525,7 @@ function FallbackCode({
   );
 }
 
-function ContactCardLine({
+export function ContactCardLine({
   busy,
   onCheck,
   onShare,

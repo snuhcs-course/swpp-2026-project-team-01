@@ -7,7 +7,9 @@
 -- first dispatch is under 23 hours old, otherwise it becomes uncertain. Every
 -- final state clears the text and the sealed secret. (kind, dedupe_key) makes a
 -- retried recording one reply. binding_id is null for a start refusal, which
--- replies to an unbound thread.
+-- replies to an unbound thread. reply_to_message_id is null for a status notice
+-- to a request with no thread: it is sent as a new message, and its thread is
+-- bound to the request (guest-flow-completion U15).
 CREATE TABLE "app"."email_replies" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "kind" text NOT NULL CHECK (
@@ -17,7 +19,7 @@ CREATE TABLE "app"."email_replies" (
   "request_id" uuid REFERENCES "app"."requests" ("id") ON DELETE CASCADE,
   "binding_id" uuid REFERENCES "app"."email_threads" ("id") ON DELETE CASCADE,
   "inbox_id" text NOT NULL CHECK (char_length("inbox_id") BETWEEN 1 AND 320),
-  "reply_to_message_id" text NOT NULL CHECK (char_length("reply_to_message_id") BETWEEN 1 AND 1000),
+  "reply_to_message_id" text CHECK (char_length("reply_to_message_id") BETWEEN 1 AND 1000),
   "input_id" uuid REFERENCES "app"."conversation_inputs" ("id") ON DELETE SET NULL,
   "template" text,
   "language" text NOT NULL DEFAULT 'en' CHECK ("language" IN ('en', 'ko')),

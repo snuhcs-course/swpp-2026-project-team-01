@@ -43,6 +43,7 @@ export const EVALUATE_OPERATION = "request.evaluate";
 export const ALLOW_TRIP_OPERATION = "request.allow_trip";
 export const CHOOSE_CANDIDATE_OPERATION = "request.choose_candidate";
 export const AGREE_OPERATION = "request.agree";
+export const CHANGE_AGREEMENT_OPERATION = "request.change_agreement";
 
 function requester(context: { readonly actor: { kind: string; id: string }; readonly resourceId: string }) {
   if (context.actor.kind !== "requester_request" || context.actor.id !== context.resourceId) throw new CommandError("forbidden");
@@ -315,5 +316,34 @@ export const agreeCommand: CommandDefinition<z.infer<typeof agreeInput>, AgreeRe
     await enqueueHostNotice(tx, request.id, { kind: "awaiting_approval", version: latest.version });
 
     return { revision: request.revision + 1, state: "awaiting_host_approval", version: latest.version };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// request.change_agreement
+
+export type ChangeAgreementResult = { readonly revision: number; readonly state: RequestState };
+
+// **Change** on the agreed time's receipt (guest-flow-completion design 10, D10):
+// until the host approves, the requester can reopen the request. It returns to
+// negotiating at a new revision, so the earlier times and the agreed version
+// are no longer current, and a new agreement needs a new proposal version; the
+// agreement stays as history. The host's approval takes the same request lock,
+// so whichever commits first wins: after an approval the request is booking and
+// this is stale, and after a change the approval is stale. No host notice is
+// sent; the host's view shows the request negotiating again.
+export const changeAgreementCommand: CommandDefinition<Record<string, never>, ChangeAgreementResult> = {
+  input: z.object({}).strict() as unknown as z.ZodType<Record<string, never>>,
+  operation: CHANGE_AGREEMENT_OPERATION,
+  async run(tx, context) {
+    const request = await lockOpenRequest(tx, requester(context));
+    assertRevision(request.revision, context.expectedRevision);
+    if (request.state !== "awaiting_host_approval") throw new CommandError("stale_revision");
+
+    await tx`
+      update app.requests set state = 'negotiating', revision = revision + 1, updated_at = now()
+      where id = ${request.id}
+    `;
+    return { revision: request.revision + 1, state: "negotiating" };
   },
 };

@@ -6,7 +6,7 @@ Provide a conversation-first workspace that keeps scheduling progress and decisi
 ## Requirements
 
 ### Requirement: Conversation-first entry
-The website SHALL open host setup and request management on the relevant conversation, with the current next action and a message composer available without navigating through structured forms. The primary workspace SHALL have no persistent sidebar or dashboard panel. Navigation SHALL remain available through a compact, keyboard-operable control. Structured controls SHALL remain reachable from a secondary, clearly labeled surface.
+The website SHALL open host setup and request management on the relevant conversation, with the current next action and a message composer available without navigating through structured forms. The primary workspace SHALL have no persistent sidebar or dashboard panel. Navigation SHALL remain available through a compact, keyboard-operable control. Structured controls SHALL remain reachable from a secondary, clearly labeled surface. A protected request opened without valid authority SHALL show only the generic unavailable view with the link resend control that the meeting-request contract requires.
 
 #### Scenario: Resume host setup
 - **WHEN** an active host returns to incomplete setup
@@ -29,11 +29,11 @@ The website SHALL open host setup and request management on the relevant convers
 - **THEN** setup, inbox, and sign-out actions are available, the menu closes with Escape, and focus returns to its trigger
 
 #### Scenario: Request link without authority
-- **WHEN** a browser opens a protected request without its continuation credential
-- **THEN** no request details or chat appear, and the page directs the requester to use their private request link without credential-paste or recovery controls
+- **WHEN** a browser opens a protected request without its continuation credential, or with an unknown, malformed or expired one
+- **THEN** no request details or chat appear, and the page directs the requester to use their private request link and offers only the generic **Resend my booking link** control, with no credential-paste field and no other recovery control
 
 ### Requirement: Contextual artifacts and actions
-The website SHALL present draft changes, calendar choices, candidate times, current proposals, and decision status as reviewable artifacts in the relevant conversation. Available actions SHALL be labeled, keyboard-operable buttons adjacent to the artifact and SHALL invoke the authorized commands with current revisions.
+The website SHALL present draft changes, calendar choices, candidate times, current proposals, and decision status as reviewable artifacts in the relevant conversation. For guests, every card SHALL appear inside the conversation thread at the point it is needed and remain in its history, and no form or card SHALL sit outside the thread. Available actions SHALL be labeled, keyboard-operable buttons adjacent to the artifact and SHALL invoke the authorized commands with current revisions.
 
 #### Scenario: Review a candidate
 - **WHEN** a requester receives feasible candidate times
@@ -46,6 +46,10 @@ The website SHALL present draft changes, calendar choices, candidate times, curr
 #### Scenario: Stale artifact
 - **WHEN** a decision artifact refers to a superseded revision
 - **THEN** the action is unavailable or rejected, the current artifact is shown, and no stale decision is saved
+
+#### Scenario: Guest identity in the thread
+- **WHEN** the assistant needs the guest's name and email
+- **THEN** the identity card appears in the thread after that assistant message, and no identity form is shown elsewhere on the page
 
 ### Requirement: Equivalent safe recovery
 The conversation and secondary controls SHALL report the same authoritative server outcome. Moving controls SHALL not weaken admission, consent, privacy, or approval checks, and a failed chat or model interpretation SHALL leave structured recovery available.

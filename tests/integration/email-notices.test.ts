@@ -6,16 +6,19 @@ import { type FakeAgentMail, startFakeAgentMail } from "./support/fake-agentmail
 import { readyHost } from "./support/guests";
 import { testNotices, uniqueEmail } from "./support/requests";
 
-// Thread notices (requester-email-channel design 7; task 4.3): a request with a
-// bound thread gets each status notice in that thread as well as by email, from
-// the same template with the booking link sealed until dispatch, replying to
-// the thread's latest message; a notice whose thread was unlinked, or whose
-// condition no longer holds, is suppressed, and the email is unaffected.
+// Status notices from the product inbox (requester-email-channel design 7,
+// guest-flow-completion U15): a request with a bound thread gets each status
+// notice in that thread, replying to its latest message, with no booking link
+// and no no-reply email; one with no thread gets it as the first message of a
+// new thread, which is then bound to the request so the guest's reply reaches
+// it; without an inbox the notice is the no-reply email with the link; a notice
+// whose thread was unlinked, or whose condition no longer holds, is suppressed.
 
 const db = testDatabase();
 let agentmail: FakeAgentMail;
 const email = emailHarness(db, () => agentmail);
-const { bindingOf, deliver, runReply } = email;
+const { bindingOf, deliver, inbox, runReply } = email;
+const inboxNotices = { ...testNotices, inboxId: inbox };
 
 beforeAll(async () => {
   agentmail = await startFakeAgentMail();
@@ -37,18 +40,18 @@ async function emailRequest() {
 
 async function decline(requestId: string) {
   await db`update app.requests set state = 'declined', closed_at = now() where id = ${requestId}`;
-  await db.begin((tx) => enqueueStatusNotice(tx, testNotices, requestId, { kind: "status_declined" }));
+  await db.begin((tx) => enqueueStatusNotice(tx, inboxNotices, requestId, { kind: "status_declined" }));
 }
 
 async function notices(requestId: string) {
-  return db<{ id: string; state: string; text: string | null; secret_ciphertext: string | null; reply_to_message_id: string }[]>`
-    select id, state, text, secret_ciphertext, reply_to_message_id from app.email_replies where request_id = ${requestId} and kind = 'notice'
+  return db<{ id: string; state: string; text: string | null; secret_ciphertext: string | null; reply_to_message_id: string | null; binding_id: string | null }[]>`
+    select id, state, text, secret_ciphertext, reply_to_message_id, binding_id from app.email_replies where request_id = ${requestId} and kind = 'notice'
   `;
 }
 
 describe("thread notices", () => {
-  it("sends the decline notice in the thread and by email", async () => {
-    const { address, binding, message } = await emailRequest();
+  it("sends the decline notice in the thread, with no link and no no-reply email", async () => {
+    const { binding, message } = await emailRequest();
     await decline(binding.request_id);
 
     const [notice] = await notices(binding.request_id);
@@ -57,19 +60,20 @@ describe("thread notices", () => {
     const deliveries = await db<{ kind: string; recipients: string[] }[]>`
       select kind, recipients from app.email_deliveries where request_id = ${binding.request_id} and kind = 'status_declined'
     `;
-    expect(deliveries).toEqual([{ kind: "status_declined", recipients: [address] }]);
+    expect(deliveries).toEqual([]);
 
     expect(await runReply(notice!.id)).toBe("completed");
     const [sent] = agentmail.repliesIn(message.thread_id);
     expect(sent!.inReplyTo).toBe(message.message_id);
     expect(sent!.text).toMatch(/declined/i);
-    expect(sent!.text).toMatch(/http:\/\/localhost:3000\/booking\/[0-9a-f-]{36}/);
+    expect(sent!.text).not.toMatch(/\/booking\//);
+    expect(sent!.text).toContain("Reply to this email to continue with Thyme.");
 
     const [after] = await notices(binding.request_id);
     expect(after).toMatchObject({ secret_ciphertext: null, state: "accepted", text: null });
   });
 
-  it("keeps the booking link sealed while a notice may be sent again", async () => {
+  it("sends the same notice again under the same key after a lost response", async () => {
     const { binding, message } = await emailRequest();
     await decline(binding.request_id);
     const [notice] = await notices(binding.request_id);
@@ -87,7 +91,7 @@ describe("thread notices", () => {
     expect(agentmail.repliesIn(message.thread_id)).toHaveLength(1);
 
     // Recording the same notice again makes no second reply.
-    await db.begin((tx) => enqueueStatusNotice(tx, testNotices, binding.request_id, { kind: "status_declined" }));
+    await db.begin((tx) => enqueueStatusNotice(tx, inboxNotices, binding.request_id, { kind: "status_declined" }));
     expect(await notices(binding.request_id)).toHaveLength(1);
   });
 
@@ -109,10 +113,37 @@ describe("thread notices", () => {
     expect((await notices(reopened.binding.request_id))[0]!.state).toBe("suppressed");
   });
 
-  it("records no thread copy for a request without a thread", async () => {
-    const { binding } = await emailRequest();
+  it("starts a thread for a request without one, binds it, and the guest's reply reaches the request", async () => {
+    const { address, binding } = await emailRequest();
     await db`update app.email_threads set state = 'unlinked', ended_at = now() where id = ${binding.id}`;
     await decline(binding.request_id);
+
+    const [notice] = await notices(binding.request_id);
+    expect(notice).toMatchObject({ binding_id: null, reply_to_message_id: null, state: "queued" });
+    expect(await runReply(notice!.id)).toBe("completed");
+
+    const sent = agentmail.replies.find((entry) => entry.idempotencyKey === notice!.id)!;
+    expect(sent).toMatchObject({ inReplyTo: "", to: address });
+    expect(sent.subject).toMatch(/closed/i);
+    const started = (await bindingOf(sent.threadId))!;
+    expect(started).toMatchObject({ origin: "notified", request_id: binding.request_id, state: "active" });
+    expect((await notices(binding.request_id))[0]).toMatchObject({ binding_id: started.id, state: "accepted" });
+
+    // The guest answers the notice: the declined request continues as a revised one.
+    const answered = await deliver({ from: `Grace <${address}>`, inReplyTo: sent.messageId, text: "Could we try next week?", threadId: sent.threadId });
+    expect(answered.outcome).toBe("forwarded");
+  });
+
+  it("is the no-reply email with the link when no inbox is configured", async () => {
+    const { address, binding } = await emailRequest();
+    await db`update app.email_threads set state = 'unlinked', ended_at = now() where id = ${binding.id}`;
+    await db`update app.requests set state = 'declined', closed_at = now() where id = ${binding.request_id}`;
+    await db.begin((tx) => enqueueStatusNotice(tx, testNotices, binding.request_id, { kind: "status_declined" }));
+
     expect(await notices(binding.request_id)).toEqual([]);
+    const deliveries = await db<{ kind: string; recipients: string[] }[]>`
+      select kind, recipients from app.email_deliveries where request_id = ${binding.request_id} and kind = 'status_declined'
+    `;
+    expect(deliveries).toEqual([{ kind: "status_declined", recipients: [address] }]);
   });
 });

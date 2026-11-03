@@ -8,7 +8,7 @@ This log lists every decision point taken while implementing each phase, so that
 
 ## Phase 3 — `requester-intake-and-feasibility`
 
-The [proposal](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions) records D1–D13, the [design](../../openspec/changes/requester-intake-and-feasibility/design.md) records the reasoning, and [product decisions](../../openspec/changes/requester-intake-and-feasibility/product_decisions.md) is the review checklist. Dohyeon Park decided D1–D13 on 2026-10-21 and 2026-10-22, before teammate review.
+The [proposal](../../openspec/changes/archive/2026-11-02-requester-intake-and-feasibility/proposal.md#decisions) records D1–D13, the [design](../../openspec/changes/archive/2026-11-02-requester-intake-and-feasibility/design.md) records the reasoning, and [product decisions](../../openspec/changes/archive/2026-11-02-requester-intake-and-feasibility/product_decisions.md) is the review checklist. Dohyeon Park decided D1–D13 on 2026-10-21 and 2026-10-22, before teammate review.
 
 ### Product decisions
 
@@ -54,7 +54,7 @@ The [proposal](../../openspec/changes/requester-intake-and-feasibility/proposal.
 
 | Decision | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
-| Review bypass | PRs #26, #27 and #28 were squash-merged with `--admin`, without a teammate approval, at the user's request | Waiting for approval | The squash commit messages | Teammates review afterwards using [product decisions](../../openspec/changes/requester-intake-and-feasibility/product_decisions.md) |
+| Review bypass | PRs #26, #27 and #28 were squash-merged with `--admin`, without a teammate approval, at the user's request | Waiting for approval | The squash commit messages | Teammates review afterwards using [product decisions](../../openspec/changes/archive/2026-11-02-requester-intake-and-feasibility/product_decisions.md) |
 | Migration path | The five Phase 3 migrations went to `anelszynxtvxoxqvzgqt` with `supabase db push --linked`, each time after a dry run and with the user's approval, from a worktree linked to that project: three after PR #26 on 2026-10-22, and `guest_draft_requests` and `guest_calendar_step` after PR #28 on 2026-10-22. The main checkout stays linked to the reserved `mriseqztcwmezvtawnbo` and was not used | The `Deploy shared Supabase` workflow, which fails because its secrets are unset | This log; [acceptance record](07_acceptance_record.md#production-deployment-2) | Set the workflow's repository secrets so later migrations go through CI |
 | Production deploy | `vercel deploy --prod` from a clean checkout of `origin/main`, linked to `findmeatime-release`, after each of PRs #26, #27 and #28; the guest-thread code went live only after its migrations | Git-integrated deploys (not configured) | This log; [acceptance record](07_acceptance_record.md#production-deployment-2) | Connect the Vercel project to the repository if automatic deploys are wanted; until then, push migrations before deploying a change that needs them |
 
@@ -463,7 +463,6 @@ These steps were not taken because they cannot be undone by a revert, need a pro
 14. **AgentMail**: create `findmeatime@agentmail.to` (blocked by the three-inbox limit), its webhook, the `AGENTMAIL_*` variables, and `npm run admin -- email-receiver register … --project <release ref>` (Phase 7).
 15. **Remove the stale prototype variables** on `findmeatime-release`.
 16. **Production acceptance**: the named-client checks in [personal-agent clients](09_agent_clients.md), the controlled iPhone run, real inbox delivery, the guest's inbox check and a signed-in setup, recorded against the [release summary](07_acceptance_record.md#release-summary); then `openspec archive operations-and-release`.
-
 ## Phase 9 — `host-whatsapp-channel`
 
 The [proposal](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions) records D1–D13. The team decided on 2026-11-02 to support Android hosts through WhatsApp from now on, after linking WhatsApp Business to the production Photon project. The session that wrote the change took D1–D13 the same day under that decision. They are proposals awaiting teammate review, and no code implements them yet. Tracking issue: #66.
@@ -511,3 +510,38 @@ These steps were not taken because they change a provider console, message a per
 - **Vercel variables**: `PHOTON_WHATSAPP_NUMBER` and, if changed, `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` on Production once the code lands.
 - **Migration and deploy** of the implementing pull requests, and every merge, including this pull request's.
 - **Teammate review** of D1–D13 and the design's open questions.
+
+## `guest-flow-completion`
+
+The [proposal](../../openspec/changes/guest-flow-completion/proposal.md#decisions) records U1–U5 and D1–D10, which the user and the team agreed on 2026-10-29 and 2026-10-30; the [design](../../openspec/changes/guest-flow-completion/design.md) records the reasoning. The decisions below were taken while implementing pull request 1 (task groups 1–5a) on 2026-10-30; none has had teammate review yet.
+
+### Product decisions (user review, 2026-11-01)
+
+The user reviewed D1–D10 and O1–O4 one at a time on 2026-11-01 (task 0.1).
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1–D3, D7–D9 | Approved as written | — | Proposal | — |
+| Guest-host calendars with a request Calendar (D8) | Busy time from the guest-host's conflict calendars and from a Calendar connected for the request are combined (user, 2026-11-02) | A request-bound grant replacing the host calendars, which left the item unused after a Google consent with Calendar | Proposal D8; design 6 | `readGuestHostSource` in `lib/server/requester-host-profiles.ts`, the requester busy read in `lib/server/evaluation.ts` |
+| Host-side split (U2, U16, U17, D9) | Host-side code is not part of this change (user, 2026-11-02): the host's days beside **Decline** (#58), a withdrawn origin on the host's views (#59), soft preferences in the engine's order (#60) and the host-profile iMessage item (#61) are issues | Changing host screens, host iMessage commands and the engine's order here | Proposal U2, U17, D9 | — |
+| U15 (D4, O2) | The guest decides in words in iMessage, email and the web chat: apply details, choose a time, agree, **Change**, withdraw; after the host approves, contact the host. Status notices carry no booking link; every one goes from the product inbox, in the request's thread or a new thread bound to it (the iMessage part was a team decision of 2026-10-30) | Decisions only on the booking page's cards; the link kept in no-reply notices | Proposal U15; `meeting-requests` and `email-delivery` deltas | `lib/server/request-tools.ts`, `agent/instructions/requester.ts`, `lib/server/booking-notices.ts`, `lib/server/email-replies.ts` |
+| U16 (O4) | A withdrawn request continues as a revised request, like a declined or expired one | No revision after a withdrawal | Proposal U16; design 5 | `isRevisable` in `lib/server/revised-requests.ts` |
+| U17 (D5, D6) | A revised request carries the guest's windows still ahead and the excluded times: the declined time and the closed request's own excluded times, never a reason; its opening summary lists the times proposed before. Days the host names when declining are host-side and left to #58 | Carrying no times | Proposal U17; `meeting-requests` delta | `excludedBusy` in `lib/server/evaluation.ts`, `lib/server/revised-requests.ts`, `excludedWindowProblem` in `lib/server/request-reviews.ts` (a drafted time wholly inside them is refused with no reason) |
+| U18 (O1) | After a booking the conversation stays open for questions about the meeting, read-only | The closed notice | Proposal U18 | `fenced` in `lib/server/request-tools.ts`, `withPrincipalAuthority` in `lib/server/conversations.ts` |
+| U19 (O3) | No host block on revised requests; the chain of 10 and the creation bounds remain | A host's "no more from this guest" | Proposal U19 | `REVISED_CHAIN_LIMIT` |
+
+### Implementation decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Excluded times | `requests.details.excludedTimes`, intervals added as all-day host busy time in every evaluation | A new table or column, which needs a migration | Proposal U17 | `excludedBusy` in `lib/server/evaluation.ts` |
+| A thread for a notice | `email_replies.reply_to_message_id` null sends a new message through AgentMail's `messages/send`; on acceptance the thread is bound as `email_threads.origin = 'notified'` with no binding receipt. A request that gained a thread before dispatch gets a reply there instead | Keeping the no-reply email for requests without a thread | Proposal U15; migration `20261101120000_notified_email_threads` | `lib/server/email-replies.ts` |
+| How a guest binding ends | Four states: `active`, `unlinked` (the guest's **Unlink iMessage**, which suppresses the guest's undispatched messages), `ended` (30 days by the cleanup) and `moved` (to a revised request). Closing never ends it since 2026-11-01: a withdrawn request continues as a revised request (U16) and a booked one answers questions (U18). Only `unlinked` suppresses at send time | Ending it at withdrawal and at booking (the pull request 1 behavior) | Design 2; `requester_imessage_bindings` schema | `closeRequest` in `lib/server/request-lifecycle.ts`; `lib/server/imessage-notice-job.ts` |
+| What routing reads | `imessage_outbox.requester_binding_id` names a guest message; the last outbound row to the sender with either binding decides the route | A separate routing table | Design 3; `imessage_outbox` schema | `guestRoute` in `lib/server/imessage-receipts.ts` |
+| A linked host's commands | An exact command from a sender with a host binding takes the host path even when the last message was a guest's, except `request <ref>` naming one of their guest requests | Sending every message after a guest notice to the guest's assistant | Design 3 | `guestRoute` in `lib/server/imessage-receipts.ts` |
+| Card endpoints | `GET /api/requests/{bookingId}/imessage` for the status and the `request.imessage_link.*` commands on the requester commands route, as **Continue by email** does | A separate `POST` route | Task 3.2 | `lib/server/requester-routes.ts` |
+| Moving an email thread | The active `email_threads` row is re-bound in place (its `request_id` changes), so the active-thread uniqueness holds and a retried receipt recognizes it by `bound_by_receipt_id` | Ending the row and inserting a new one | Design 5 | `moveChannel` in `lib/server/revised-requests.ts` |
+| The revised summary | A first input of the revised discussion, keyed by the revised request's ID and starting with `REVISED_SUMMARY_PREFIX`, which the guest thread shows as a quiet note; the guest's message is the next input, so the assistant takes two turns | Merging the summary into the guest's message, which would hide the guest's words behind the note | Design 5 (D6) | `revisedSummary` in `lib/server/revised-requests.ts` |
+| Where **Change** sits | On the agreed time's receipt (the proposal receipt) while awaiting approval; afterwards the wait line reads as reopened | On the times receipt, which is no longer current once the request awaits approval | Design 10 | `threadEntries` in `apps/web/app/_components/guest/guest-workspace.tsx` |
+| Request references | `requestRef` moved to `lib/server/request-ref.ts` (re-exported from `imessage-commands.ts`) so the host view can name an earlier request without an import cycle | Importing it from `imessage-commands.ts` | Task 5.3 | `lib/server/request-ref.ts` |
+| A guest's long reply | Capped like a host's, pointing to "your booking page, linked in your email" instead of `/app` | The host's `/app` pointer | Design 4 | `imessageTurnText` in `lib/server/imessage-outbox.ts` |

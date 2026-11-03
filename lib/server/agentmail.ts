@@ -85,6 +85,8 @@ export type AgentMailTransport = {
   readonly inboxId: string;
   getMessage(inboxId: string, messageId: string): Promise<ReadOutcome>;
   reply(inboxId: string, messageId: string, text: string, idempotencyKey: string): Promise<ReplyOutcome>;
+  // A new message, which starts a thread (guest-flow-completion U15).
+  send(inboxId: string, message: { readonly to: string; readonly subject: string; readonly text: string }, idempotencyKey: string): Promise<ReplyOutcome>;
 };
 
 function messagePath(config: AgentMailConfig, inboxId: string, messageId: string) {
@@ -159,33 +161,42 @@ export function agentMailTransport(
       const message = asMessage(await response.json().catch(() => null));
       return message ? { message, status: "found" } : { httpStatus: response.status, status: "unavailable" };
     },
-    async reply(inboxId, messageId, text, idempotencyKey) {
-      const headers = authorize();
-      let response: Response;
-
-      try {
-        response = await fetchImpl(`${messagePath(config, inboxId, messageId)}/reply`, {
-          body: JSON.stringify({ text }),
-          headers: { ...headers, "content-type": "application/json", "idempotency-key": idempotencyKey },
-          method: "POST",
-          redirect: "error",
-          signal: AbortSignal.timeout(config.timeoutMs),
-        });
-      } catch (error) {
-        return { httpStatus: null, reason: isTimeout(error) ? "timeout" : "lost_response", status: "uncertain" };
-      }
-
-      let body: unknown = null;
-
-      try {
-        body = await response.json();
-      } catch {
-        if (response.ok) return { httpStatus: response.status, reason: "lost_response", status: "uncertain" };
-      }
-
-      return classifyReplyResponse(response.status, body);
+    reply(inboxId, messageId, text, idempotencyKey) {
+      return post(`${messagePath(config, inboxId, messageId)}/reply`, { text }, idempotencyKey);
+    },
+    send(inboxId, message, idempotencyKey) {
+      return post(`${config.baseUrl}/v0/inboxes/${encodeURIComponent(inboxId)}/messages/send`, message, idempotencyKey);
     },
   };
+
+  // One POST under an idempotency key, classified as a reply is. AgentMail's
+  // send reference documents no idempotency key; the same header is sent.
+  async function post(url: string, payload: unknown, idempotencyKey: string): Promise<ReplyOutcome> {
+    const headers = authorize();
+    let response: Response;
+
+    try {
+      response = await fetchImpl(url, {
+        body: JSON.stringify(payload),
+        headers: { ...headers, "content-type": "application/json", "idempotency-key": idempotencyKey },
+        method: "POST",
+        redirect: "error",
+        signal: AbortSignal.timeout(config.timeoutMs),
+      });
+    } catch (error) {
+      return { httpStatus: null, reason: isTimeout(error) ? "timeout" : "lost_response", status: "uncertain" };
+    }
+
+    let body: unknown = null;
+
+    try {
+      body = await response.json();
+    } catch {
+      if (response.ok) return { httpStatus: response.status, reason: "lost_response", status: "uncertain" };
+    }
+
+    return classifyReplyResponse(response.status, body);
+  }
 }
 
 // ---------------------------------------------------------------------------

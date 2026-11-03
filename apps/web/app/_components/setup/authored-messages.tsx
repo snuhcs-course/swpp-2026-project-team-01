@@ -75,13 +75,17 @@ function prefersReducedMotion() {
 export function useAuthoredReveal(state: SetupState | null) {
   const messages = useMemo(() => (state ? authoredMessages(state) : []), [state]);
   const key = state ? `fmat.onboarding.${storageKey(state.account.googleEmail ?? "host")}` : null;
+  return useAuthoredMessageReveal(messages, key);
+}
+
+export function useAuthoredMessageReveal(messages: readonly AuthoredMessage[], key: string | null, persist = true) {
   const [shown, setShown] = useState<{ readonly key: string; readonly ids: ReadonlySet<string> } | null>(null);
   const [typing, setTyping] = useState<string | null>(null);
 
   // Starts from what this browser already showed this host, or everything under
   // reduced motion.
   if (key && shown?.key !== key) {
-    setShown({ ids: prefersReducedMotion() ? new Set(messages.map((message) => message.id)) : readSeen(key), key });
+    setShown({ ids: prefersReducedMotion() ? new Set(messages.map((message) => message.id)) : persist ? readSeen(key) : new Set(), key });
   }
 
   const ids = shown?.key === key ? shown.ids : null;
@@ -95,7 +99,7 @@ export function useAuthoredReveal(state: SetupState | null) {
       setShown((current) => {
         if (!current || current.key !== key) return current;
         const updated = new Set(current.ids).add(nextId);
-        writeSeen(key, updated);
+        if (persist) writeSeen(key, updated);
         return { ids: updated, key };
       });
     if (prefersReducedMotion()) {
@@ -104,7 +108,7 @@ export function useAuthoredReveal(state: SetupState | null) {
     }
     const timer = window.setTimeout(() => setTyping(nextId), REVEAL_INTERVAL_MS);
     return () => window.clearTimeout(timer);
-  }, [key, nextId, typing]);
+  }, [key, nextId, persist, typing]);
 
   // A typed message counts as shown once its last word appears.
   const typed = (id: string) => {
@@ -112,7 +116,7 @@ export function useAuthoredReveal(state: SetupState | null) {
     setShown((current) => {
       if (!current || !key || current.key !== key || current.ids.has(id)) return current;
       const updated = new Set(current.ids).add(id);
-      writeSeen(key, updated);
+      if (persist) writeSeen(key, updated);
       return { ids: updated, key };
     });
   };
