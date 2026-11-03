@@ -23,7 +23,7 @@ Before designing each module, read the reference files the [plan names for Phase
 
 ### 1. The transport spike and the adapter
 
-The spike read eve 0.80.1's native channel (`eve/channels/photon` and the bundled `@photon-ai/chat-adapter-imessage`), Photon's webhook documentation, the Spectrum SDK (`@spectrum-ts/core` and `@spectrum-ts/imessage` 12.14.0) and teammate draft PR #23. No real line was used: provisioning one and texting a number are blocked on the user. The four criteria the plan names:
+The spike read eve 0.80.1's native channel (`eve/channels/photon` and the bundled `@photon-ai/chat-adapter-imessage`), Photon's webhook documentation, the Spectrum SDK (`@spectrum-ts/core` and `@spectrum-ts/imessage` 12.14.0) and teammate draft PR #23. It did not read Photon's [Spectrum iMessage provider](https://photon.codes/docs/spectrum-ts/providers/imessage.md) reference, its [Chat SDK integration](https://photon.codes/docs/integrations/chat-sdk) or [eve's Photon channel page](https://eve.dev/docs/channels/photon); [provider setup](../../../documentations/technical_specification/03_provider_setup.md#references) lists them with Photon's documentation indexes, and reviewing this design against them is [issue #80](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/80). No real line was used: provisioning one and texting a number are blocked on the user. The four criteria the plan names:
 
 | Criterion | Native `photonIMessageChannel` | Application-owned adapter |
 |---|---|---|

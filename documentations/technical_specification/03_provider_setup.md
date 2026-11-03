@@ -115,6 +115,15 @@ Verify request selection, private discussion, revision and exact-proposal approv
 
 Offer optional **Add to contacts** as a host action after a verified private exchange; the connected card queues one native contact-card share through the Spectrum SDK ([`host-imessage-channel` design 11](../../openspec/changes/host-imessage-channel/design.md#11-add-to-contacts)). Freeze the actual selected route and report provider acceptance/uncertainty truthfully. The recipient chooses whether to save it; the product cannot promise the displayed name or infer identity/consent from a contact card. Verify the actual account profile and real-device presentation independently before claiming support.
 
+### References
+
+Photon and eve documentation for the iMessage channel. Phase 6 relied on the Spectrum SDK, eve's bundled adapter and Photon's webhook documentation and did not read the first three pages below; reviewing the channel against all five is [issue #80](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/80).
+
+- [Spectrum iMessage provider](https://photon.codes/docs/spectrum-ts/providers/imessage.md): the provider's message, space and sender model, lines and supported content.
+- [Chat SDK integration](https://photon.codes/docs/integrations/chat-sdk): Photon through the Chat SDK adapter, the alternative to an application-owned adapter.
+- [eve Photon channel](https://eve.dev/docs/channels/photon): eve's native `photonIMessageChannel`, which [`host-imessage-channel` design 1](../../openspec/changes/host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter) (D1) did not adopt.
+- [Photon documentation index](https://photon.codes/docs/llms.txt) and [Photon site index](https://photon.codes/llms.txt): machine-readable lists of every documentation page, including [webhook events](https://photon.codes/docs/webhooks/events.md) and [iMessage deliverability](https://photon.codes/docs/best-practices/imessage-deliverability).
+
 ## WhatsApp Business
 
 WhatsApp Business is the host WhatsApp channel's transport. It was proposed on 2026-11-02 in the [`host-whatsapp-channel` change](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions) and implemented on 2026-11-03 against the loopback stand-in (`PHOTON_API_URL` answers WhatsApp at `/whatsapp/messages`); no real WhatsApp message has been sent or received. It runs through Photon Spectrum's `whatsapp_business` platform on the same Photon project as iMessage (`findmeatime`), where the user enabled it on 2026-11-02. Photon delivers WhatsApp events to the same webhook, `https://findmeatime.com/photon/webhook`, with the same signature. The receiver checks the signature once and routes by platform (D2). Before this change the iMessage receiver acknowledged and ignored them (issue #62, PR #63); it still does, and WhatsApp events now reach the WhatsApp parser after it. Outbound messages use `@spectrum-ts/whatsapp-business` 12.14.0 in cloud mode with the existing `PHOTON_PROJECT_ID` and `PHOTON_PROJECT_SECRET`, so Photon holds the Meta credentials (D1). The sender is the WhatsApp contact ID, the international number as digits without `+` (D3).

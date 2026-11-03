@@ -117,6 +117,15 @@ Photon의 전달 가능성 안내에 따라 인바운드 우선이 기본값입�
 
 검증된 비공개 대화 이후 호스트 동작으로서 선택적인 **연락처에 추가(Add to contacts)**를 제공하며, 연결된 카드는 Spectrum SDK를 통해 네이티브 연락처 카드 공유 하나를 대기열에 넣습니다([`host-imessage-channel` 설계 11](../../openspec/changes/host-imessage-channel/design.md#11-add-to-contacts)). 실제로 선택된 경로를 고정하고, 공급자의 수락/불확실성을 사실대로 보고합니다. 저장 여부는 수신자가 선택하며, 제품은 표시되는 이름을 약속하거나 연락처 카드로부터 신원/동의를 추론할 수 없습니다. 지원한다고 주장하기 전에 실제 계정 프로필과 실제 디바이스에서의 표시를 각각 독립적으로 검증합니다.
 
+### 참고 자료
+
+iMessage 채널에 관한 Photon과 eve 문서입니다. 6단계는 Spectrum SDK, eve에 포함된 어댑터, Photon의 웹훅 문서를 기준으로 삼았으며 아래 처음 세 페이지는 읽지 않았습니다. 다섯 가지 모두를 기준으로 채널을 검토하는 일이 [issue #80](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/80)입니다.
+
+- [Spectrum iMessage provider](https://photon.codes/docs/spectrum-ts/providers/imessage.md): 공급자의 메시지, 스페이스, 발신자 모델과 회선, 지원하는 콘텐츠.
+- [Chat SDK integration](https://photon.codes/docs/integrations/chat-sdk): 애플리케이션 자체 어댑터의 대안인 Chat SDK 어댑터를 통한 Photon.
+- [eve Photon channel](https://eve.dev/docs/channels/photon): eve의 네이티브 `photonIMessageChannel`로, [`host-imessage-channel` 설계 1](../../openspec/changes/host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter)(D1)은 이를 채택하지 않았습니다.
+- [Photon documentation index](https://photon.codes/docs/llms.txt)와 [Photon site index](https://photon.codes/llms.txt): [webhook events](https://photon.codes/docs/webhooks/events.md)와 [iMessage deliverability](https://photon.codes/docs/best-practices/imessage-deliverability)를 포함해 모든 문서 페이지를 기계가 읽을 수 있게 나열한 목록.
+
 ## WhatsApp Business
 
 WhatsApp Business는 호스트 WhatsApp 채널의 전송 수단입니다. 2026-11-02에 [`host-whatsapp-channel` 변경](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)에서 제안되었고 2026-11-03에 루프백 대역(`PHOTON_API_URL`이 `/whatsapp/messages`에서 WhatsApp에 응답함)을 상대로 구현되었으며, 실제 WhatsApp 메시지는 아직 보내거나 받은 적이 없습니다. 사용자가 2026-11-02에 활성화한, iMessage와 같은 Photon 프로젝트(`findmeatime`)의 Photon Spectrum `whatsapp_business` 플랫폼을 통해 동작합니다. Photon은 WhatsApp 이벤트를 같은 서명이 붙은 같은 웹훅 `https://findmeatime.com/photon/webhook`으로 전달합니다. 수신기는 서명을 한 번 확인하고 플랫폼에 따라 라우팅합니다(D2). 이 변경 이전에는 iMessage 수신기가 이를 확인 응답하고 무시했으며(이슈 #62, PR #63), 지금도 그렇게 하고, WhatsApp 이벤트는 그 뒤에 WhatsApp 파서에 도달합니다. 발신 메시지는 기존 `PHOTON_PROJECT_ID`와 `PHOTON_PROJECT_SECRET`을 사용해 클라우드 모드의 `@spectrum-ts/whatsapp-business` 12.14.0으로 보내므로, Meta 자격 증명은 Photon이 보관합니다(D1). 발신자는 WhatsApp 연락처 ID, 즉 `+` 없이 숫자만 적은 국제 전화번호입니다(D3).
