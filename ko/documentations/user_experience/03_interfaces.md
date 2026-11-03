@@ -174,7 +174,7 @@ Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code는 PRD의 필수 호�
 
 ## 보호된 요청자 iMessage 알림
 
-요청자가 식별되면 비공개 예약 대화는 **Continue by email** 옆에 **iMessage로 알림 받기(Get updates in iMessage)**를 제공합니다. 이는 요청이 소유하는 일회용 `FMAT-` 코드를 만들며, 15분간 유효하고 시간당 최대 5개입니다. 회선 번호와 메시지 `Get Find Me a Time updates: FMAT-…`를 보여 주는데, 휴대폰에서는 그 메시지가 작성된 채로 메시지 앱이 열리고 다른 브라우저에서는 QR 코드와 선택 가능한 메시지를 보여 줍니다. 카드는 메시지가 도착할 때까지 확인하고, 도착하면 가려진 발신자를 **확인하고 연동(Confirm and link)**과 **내가 아님(This isn't me)**과 함께 보여 줍니다. 예약 링크를 가진 사람의 **Confirm and link**만 바인딩하므로, 전달된 코드는 보이지 않게 누구도 바인딩하지 않습니다. 연동되면 한 줄이 가려진 발신자와 **iMessage 연동 해제(Unlink iMessage)**를 보여 주며, 이는 데이터베이스에서 즉시 연동을 끝냅니다. **취소(Cancel)**는 열린 코드만 끝냅니다. 이메일이 공식 채널로 남고 예약 링크는 iMessage에 절대 나타나지 않습니다([설계 1과 4](../../openspec/changes/guest-flow-completion/design.md#1-guest-linking)).
+요청자가 식별되면 비공개 예약 대화는 **Continue by email** 옆에 **iMessage로 알림 받기(Get updates in iMessage)**를 제공합니다. 이는 요청이 소유하는 일회용 `FMAT-` 코드를 만들며, 15분간 유효하고 시간당 최대 5개입니다. 회선 번호와 메시지 `Get Find Me a Time updates: FMAT-…`를 보여 주는데, 휴대폰에서는 그 메시지가 작성된 채로 메시지 앱이 열리고 다른 브라우저에서는 QR 코드와 선택 가능한 메시지를 보여 주며, Mac에서는 **이 Mac에서 메시지 열기(Open Messages on this Mac)**도 제공합니다(host-imessage-channel D17). 카드는 메시지가 도착할 때까지 확인하고, 도착하면 가려진 발신자를 **확인하고 연동(Confirm and link)**과 **내가 아님(This isn't me)**과 함께 보여 줍니다. 예약 링크를 가진 사람의 **Confirm and link**만 바인딩하므로, 전달된 코드는 보이지 않게 누구도 바인딩하지 않습니다. 연동되면 한 줄이 가려진 발신자와 **iMessage 연동 해제(Unlink iMessage)**를 보여 주며, 이는 데이터베이스에서 즉시 연동을 끝냅니다. **취소(Cancel)**는 열린 코드만 끝냅니다. 이메일이 공식 채널로 남고 예약 링크는 iMessage에 절대 나타나지 않습니다([설계 1과 4](../../openspec/changes/guest-flow-completion/design.md#1-guest-linking)).
 
 ## 선택적 iMessage 연락처 카드
 
