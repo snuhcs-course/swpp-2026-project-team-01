@@ -134,12 +134,16 @@ export function requesterStubs(projection: Record<string, unknown>, extra: ToolS
 
 // Seeds an open request with its requester discussion and returns the headers
 // that name it when the eval creates its session.
-async function seedRequest(language: "en" | "ko") {
+// A confirmed contact lifts the request from the anonymous model allowance
+// (USD 3, five attempts per 24 hours) to the principal one, so a multi-turn eval
+// is not cut off by the limit rather than graded on what the model said.
+async function seedRequest(language: "en" | "ko", confirmed: boolean, details: Record<string, unknown>) {
   const [host] = await db<{ id: string }[]>`insert into app.host_accounts default values returning id`;
+  const contact = `eval-${randomUUID().slice(0, 8)}@example.test`;
   const [request] = await db<{ id: string }[]>`
-    insert into app.requests (host_account_id, details, requester_name, contact_email, expires_at)
-    values (${host!.id}, ${db.json({ language, timezone: "Asia/Seoul", windows: [] })}, 'Eval Requester',
-            ${`eval-${randomUUID().slice(0, 8)}@example.test`}, now() + interval '7 days')
+    insert into app.requests (host_account_id, details, requester_name, contact_email, contact_confirmed_email, expires_at)
+    values (${host!.id}, ${db.json({ language, timezone: "Asia/Seoul", windows: [], ...details } as Parameters<typeof db.json>[0])}, 'Eval Requester',
+            ${contact}, ${confirmed ? contact : null}, now() + interval '7 days')
     returning id
   `;
   // An open link, as every request has; nothing ever opens its sealed copy here.
@@ -162,10 +166,31 @@ type EvalContext = {
   }>;
 };
 
+// Every row that names the request, from the request itself and each app table
+// with a request_id column, so an eval can show that a turn changed nothing.
+export async function snapshotRequest(requestId: string) {
+  const tables = await db<{ table_name: string }[]>`
+    select table_name from information_schema.columns
+    where table_schema = 'app' and column_name = 'request_id'
+    order by table_name
+  `;
+  const rows: Record<string, Record<string, unknown>[]> = {
+    requests: await db.unsafe("select * from app.requests where id = $1", [requestId]),
+  };
+  for (const { table_name: table } of tables) {
+    rows[table] = await db.unsafe(`select * from app.${table} where request_id = $1 order by 1`, [requestId]);
+  }
+  return rows;
+}
+
 // A requester session over a seeded request; `send` moves the session to a
 // fresh accepted input before each turn, as the message route does.
-export async function requesterSession(t: EvalContext, stubs: ToolStub[], options: { language?: "en" | "ko" } = {}) {
-  const seeded = await seedRequest(options.language ?? "en");
+export async function requesterSession(
+  t: EvalContext,
+  stubs: ToolStub[],
+  options: { confirmed?: boolean; details?: Record<string, unknown>; language?: "en" | "ko" } = {},
+) {
+  const seeded = await seedRequest(options.language ?? "en", options.confirmed ?? false, options.details ?? {});
   const session = await t.session({ headers: { [EVAL_REQUEST_HEADER]: seeded.requestId }, stubs });
   await db`
     insert into app.agent_sessions
@@ -175,6 +200,7 @@ export async function requesterSession(t: EvalContext, stubs: ToolStub[], option
   `;
 
   return {
+    requestId: seeded.requestId,
     session,
     async send(message: string) {
       await db`update app.agent_sessions set current_input_id = ${randomUUID()} where session_id = ${session.sessionId}`;

@@ -189,6 +189,8 @@ Environment variables are limited to the OpenAI key, Supabase and the database U
 
 Phase 3 adds the requester set under `evals/requester/`: injection asking for calendar contents, rules or approval; "yes" and "book it"; a date-free time that must produce the authored Korean question; and the tool list. Run them with `npm run eval` (which sets `FMAT_EVAL_AUDIENCE=requester`) against the local Supabase stack and a model key: each eval seeds its own open request, indexes its session so the model limits attribute it, and stubs every requester tool. They grade the live model's behavior, so they spend model calls and CI does not run them; against the local OpenAI stand-in they check only the plumbing.
 
+The fixed defense set (`defense-cases.ts`, run by `defense.eval.ts` through `defense-runner.ts`) attacks the guest assistant by OWASP LLM category, three runs per case, and also compares the request's rows before and after each conversation; in the gathering state its guest tools run against the local database except `evaluate_candidates`. Its grading, pass criteria and results are in [Guest defense evaluation](10_guest_defense_evaluation.md); run it with `FMAT_EVAL_AUDIENCE=requester npx eve eval requester/defense`.
+
 ## Decisions recorded here
 
 | Decision | Choice | Rejected |
