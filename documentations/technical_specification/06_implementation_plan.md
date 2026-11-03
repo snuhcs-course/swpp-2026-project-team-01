@@ -427,6 +427,14 @@ Decisions settled here: platform routing and the WhatsApp sender format; records
 
 Evidence: AC-29, AC-30, AC-31 on a controlled Android phone against the production deployment, including a template outside the window, replay after restart and simulated delivery failure; recorded device, WhatsApp and browser versions.
 
+### Guest flow completion — `guest-flow-completion`
+
+Goal: the guest side runs end to end: Google from the guest's forms, updates and replies in iMessage, a revised request after a decline or an expiry, changes until the host approves, and a guest who is a host reusing their settings. Prerequisite: Phases 3, 4, 6 and 7. Delivered as two pull requests, each a whole feature ([proposal](../../openspec/changes/guest-flow-completion/proposal.md#impact)).
+
+- [ ] Pull request 1: guest channel and request changes (task groups 1–5a). Opened as #44.
+- [ ] The user's review of 2026-11-01 (U15–U19): decisions in words in every channel, status notices from the product inbox without the booking link, revisions after a withdrawal with the declined time left out, and questions after a booking (tasks 4.5, 5.5, 5.6, 8.11). Implemented on `feat/guest-web-flow`, not yet tested.
+- [ ] Host profile (task group 6 without 6.3), in pull request 1 (user, 2026-11-02). Soft preferences (group 7) and the host-profile iMessage item are host-side issues #60 and #61.
+- [ ] Pull request 2: guest screen redesign (task group 8), after the teammate's app-wide ink migration.
 ### Dependencies and overlap
 
 | Phase | Depends on | Can overlap with |
