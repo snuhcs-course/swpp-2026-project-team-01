@@ -48,7 +48,7 @@ Webhook signature, from Photon's documentation, the bundled adapter and PR #23 a
 1. configuration: `PHOTON_WEBHOOK_SECRET` and `PHOTON_WEBHOOK_ID` must be set, else `404`;
 2. the raw body, at most 64 KiB, read as a stream (`413` beyond);
 3. the webhook ID header must equal `PHOTON_WEBHOOK_ID` (`404` otherwise: another webhook's delivery is not ours), and the signature must verify in constant time within the window (`401`);
-4. the payload: only `event = "messages"` with an inbound `message` carrying `id`, `sender.id`, `space.id`, `space.type` and a `content.type` is stored; anything else is acknowledged with `200` and stores nothing.
+4. the payload: only `event = "messages"` from iMessage (every `platform` the event names, on the message, its space or its sender, is iMessage in any letter case, and at least one is named; Photon delivers every platform enabled on the project, such as WhatsApp Business, to the same webhook) with an inbound `message` carrying `id`, `sender.id`, `space.id`, `space.type` and a `content.type` is stored; anything else is acknowledged with `200` and stores nothing.
 
 One transaction then inserts the receipt and publishes the `imessage_receipt` job keyed by the receipt. The receipt holds the provider message ID, the webhook ID, the keyed hash of the normalized sender, the keyed hash of the space ID, the space type, the content type, the provider timestamp, the payload's SHA-256, and the text (at most the chat limit plus a margin) sealed under the token key with the receipt ID as context, together with the sealed sender and space ID that replies need. A second delivery with the same message ID and payload hash is a duplicate (`200`); the same ID with another hash is a conflict (`409`) and writes nothing.
 

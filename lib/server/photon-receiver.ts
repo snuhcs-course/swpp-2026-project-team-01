@@ -96,8 +96,17 @@ function text(value: unknown, max: number) {
   return typeof value === "string" && value.length > 0 && value.length <= max ? value : null;
 }
 
-// The inbound message of a `messages` event, or null for any other event, an
-// outbound echo or a payload without its locators.
+// Photon delivers every platform enabled on the project to the one webhook
+// (iMessage, WhatsApp Business, ...); this channel takes only iMessage. Every
+// platform the event names must be iMessage, and it must name at least one, so
+// an unlabelled or mixed event creates no work. Photon writes "iMessage".
+function isIMessageEvent(...platforms: unknown[]) {
+  const named = platforms.filter((value) => value !== undefined && value !== null);
+  return named.length > 0 && named.every((value) => typeof value === "string" && value.toLowerCase() === "imessage");
+}
+
+// The inbound iMessage message of a `messages` event, or null for any other
+// event or platform, an outbound echo or a payload without its locators.
 export function inboundMessage(payload: unknown): InboundMessage | null {
   if (!payload || typeof payload !== "object") return null;
 
@@ -107,17 +116,19 @@ export function inboundMessage(payload: unknown): InboundMessage | null {
   const message = event.message as {
     id?: unknown;
     direction?: unknown;
-    sender?: { id?: unknown } | null;
-    space?: { id?: unknown; type?: unknown } | null;
+    platform?: unknown;
+    sender?: { id?: unknown; platform?: unknown } | null;
+    space?: { id?: unknown; type?: unknown; platform?: unknown } | null;
     content?: { type?: unknown; text?: unknown } | null;
     timestamp?: unknown;
   };
   const space = (event.space && typeof event.space === "object" ? event.space : message.space) as
-    | { id?: unknown; type?: unknown }
+    | { id?: unknown; type?: unknown; platform?: unknown }
     | null
     | undefined;
 
   if (message.direction !== "inbound") return null;
+  if (!isIMessageEvent(message.platform, space?.platform, message.space?.platform, message.sender?.platform)) return null;
 
   const messageId = text(message.id, 500);
   const sender = normalizeSender(message.sender?.id);

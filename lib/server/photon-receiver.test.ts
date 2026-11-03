@@ -93,6 +93,40 @@ describe("inboundMessage", () => {
     expect(inboundMessage(null)).toBeNull();
   });
 
+  it("takes Photon's own spelling of the platform", () => {
+    const spelled = {
+      ...event,
+      message: { ...event.message, platform: "iMessage", sender: { id: "+15551234567", platform: "iMessage" }, space: { ...event.space, platform: "iMessage" } },
+      space: { ...event.space, platform: "iMessage" },
+    };
+    expect(inboundMessage(spelled)?.messageId).toBe("msg_1");
+  });
+
+  it("drops messages from any other platform, even with a phone-number sender", () => {
+    // WhatsApp Business on the same Photon project reaches the same webhook.
+    const whatsapp = {
+      ...event,
+      message: {
+        ...event.message,
+        platform: "whatsapp_business",
+        sender: { id: "+15551234567", platform: "whatsapp_business" },
+        space: { ...event.space, platform: "whatsapp_business" },
+      },
+      space: { ...event.space, platform: "whatsapp_business" },
+    };
+    expect(inboundMessage(whatsapp)).toBeNull();
+    // One field saying another platform is enough to refuse it.
+    expect(inboundMessage({ ...event, space: { ...event.space, platform: "WhatsApp" } })).toBeNull();
+    expect(inboundMessage({ ...event, message: { ...event.message, sender: { id: "+15551234567", platform: "telegram" } } })).toBeNull();
+  });
+
+  it("drops an event that names no platform at all", () => {
+    const { platform: _message, ...unlabelled } = event.message;
+    const { platform: _space, ...space } = event.space;
+    const bare = { ...event, message: { ...unlabelled, sender: { id: "+15551234567" }, space }, space };
+    expect(inboundMessage(bare)).toBeNull();
+  });
+
   it.each(["read", "typing"])("does not turn an inbound %s signal into a message", (type) => {
     expect(inboundMessage({ ...event, message: { ...event.message, content: { type } } })).toBeNull();
   });
