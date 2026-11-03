@@ -22,7 +22,7 @@ Before each group, read the [Phase 9 reference files](../../../documentations/te
 
 ## 4. Window, templates and channel behavior (Lane C)
 
-- [ ] 4.1 Check the window at dispatch, suppress or reject free-form rows as [design 7](design.md#7-the-24-hour-window) says, and queue template rows under the 12-hour and daily limits ([design 8](design.md#8-templates)). Verify tests with a fixed clock for each row kind, a 131047 refusal, coalescing and the daily limit.
+- [x] 4.1 Check the window at dispatch, suppress or reject free-form rows as [design 7](design.md#7-the-24-hour-window) says, and queue template rows under the 12-hour and daily limits ([design 8](design.md#8-templates)). Verify tests with a fixed clock for each row kind, a 131047 refusal, coalescing and the daily limit.
 - [ ] 4.2 Add `stop` to the command parser, the `[WhatsApp]` transcript prefix, the host instructions' WhatsApp fragment, per-channel unlinked-sender limits and the `/app` notices for `window_closed` and `template_unavailable` ([design 10](design.md#10-reused-behavior)). Verify integration tests for an approval and a replay after restart, an ambiguous "yes", a stale reference, setup over WhatsApp and `stop`.
 - [ ] 4.3 Update the page list, the interfaces, the host onboarding flow, the user journeys, the frontend architecture and the agent configuration, with their Korean mirrors.
 

@@ -234,9 +234,12 @@ async function bind(
   const sealedSender = sealToken(options.tokenKey, sender, context);
   const sealedSpace = spaceId === null ? null : sealToken(options.tokenKey, spaceId, context);
   await tx`
-    insert into app.imessage_bindings (id, channel, host_account_id, link_id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id)
+    insert into app.imessage_bindings
+      (id, channel, host_account_id, link_id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, last_inbound_at)
     values (${bindingId}, ${channel}, ${hostAccountId}, ${linkId}, ${senderHash}, ${sealedSender.ciphertext}, ${sealedSpace?.ciphertext ?? null},
-            ${options.tokenKey.id})
+            ${options.tokenKey.id},
+            -- The link message is the host's last message so far; WhatsApp's window starts there (design 7).
+            (select r.received_at from app.imessage_links l join app.imessage_receipts r on r.id = l.received_by_receipt_id where l.id = ${linkId}))
   `;
   await tx`
     update app.imessage_links

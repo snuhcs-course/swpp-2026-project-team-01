@@ -414,7 +414,7 @@ Scope. Prerequisite: Phase 6, whose receiver, tables, commands, outbox and cards
 **Lane C — window, templates and channel behavior**
 
 - [ ] The 24-hour window check at dispatch, suppression and the `/app` notices for `window_closed` and `template_unavailable`.
-- [ ] The three utility templates with the 12-hour per-host and daily per-line limits.
+- [x] The three utility templates with the 12-hour per-host and daily per-line limits.
 - [ ] `stop`, the `[WhatsApp]` transcript prefix, the host instructions fragment and per-channel unlinked-sender limits; commands, summaries, setup and admission reused from Phase 6.
 
 **Join**
