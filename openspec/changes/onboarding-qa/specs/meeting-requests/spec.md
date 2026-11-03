@@ -26,5 +26,5 @@ The service SHALL let a guest offer a calendar screenshot as an optional source 
 - **THEN** those ranges are preselected only in the guest's editable review, and no availability is saved until the guest confirms them
 
 #### Scenario: OCR is unavailable or the request reaches its budget
-- **WHEN** extraction is disabled, the provider fails, or three attempts have been reserved for the request
+- **WHEN** extraction is disabled, the provider fails, or five attempts have been reserved for the request
 - **THEN** no image-derived availability is saved and the guest can enter free times manually

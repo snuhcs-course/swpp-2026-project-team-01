@@ -59,7 +59,7 @@ describe("calendar screenshot intake", () => {
     expect((await response.json()).error).toMatch(/manually/);
   });
 
-  it("reserves at most three OCR attempts per request before calling the provider", async () => {
+  it("reserves at most five OCR attempts per request before calling the provider", async () => {
     const host = await readyHost(db);
     const draft = await startedDraft(guestDependencies(db), host.handle);
     let calls = 0;
@@ -67,15 +67,15 @@ describe("calendar screenshot intake", () => {
       appOrigin: ORIGIN, db,
       extract: async () => { calls++; return [{ date: "2026-11-09", start: "10:00", end: "11:00", interpretation: "free" }]; },
     }));
-    for (let attempt = 0; attempt < 3; attempt++) expect((await upload(handler, draft.bookingId, image())).status).toBe(200);
+    for (let attempt = 0; attempt < 5; attempt++) expect((await upload(handler, draft.bookingId, image())).status).toBe(200);
     const limited = await upload(handler, draft.bookingId, image());
     expect(limited.status).toBe(429);
     expect((await limited.json()).error).toMatch(/manually/);
-    expect(calls).toBe(3);
+    expect(calls).toBe(5);
     const [usage] = await db<{ count: number }[]>`
       select count(*)::int as count from app.model_reservations
       where work_kind = 'calendar_ocr' and work_id = ${draft.requestId}
     `;
-    expect(usage?.count).toBe(3);
+    expect(usage?.count).toBe(5);
   });
 });
