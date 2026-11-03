@@ -463,3 +463,51 @@ These steps were not taken because they cannot be undone by a revert, need a pro
 14. **AgentMail**: create `findmeatime@agentmail.to` (blocked by the three-inbox limit), its webhook, the `AGENTMAIL_*` variables, and `npm run admin -- email-receiver register … --project <release ref>` (Phase 7).
 15. **Remove the stale prototype variables** on `findmeatime-release`.
 16. **Production acceptance**: the named-client checks in [personal-agent clients](09_agent_clients.md), the controlled iPhone run, real inbox delivery, the guest's inbox check and a signed-in setup, recorded against the [release summary](07_acceptance_record.md#release-summary); then `openspec archive operations-and-release`.
+
+## Phase 9 — `host-whatsapp-channel`
+
+The [proposal](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions) records D1–D13. The team decided on 2026-11-02 to support Android hosts through WhatsApp from now on, after linking WhatsApp Business to the production Photon project. The session that wrote the change took D1–D13 the same day under that decision. They are proposals awaiting teammate review, and no code implements them yet. Tracking issue: #66.
+
+**What came before.** On 2026-11-02, issue #62 and PR #63 made the iMessage receiver drop every event whose platform is not iMessage. Until this change is implemented, WhatsApp messages to the line are acknowledged and ignored.
+
+### Product decisions
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| — | (Team, 2026-11-02.) Support Android hosts through an opt-in WhatsApp channel. It covers the host's channel only: requesters keep web and email. SMS, RCS, KakaoTalk, personal WhatsApp, WhatsApp groups and requester messaging stay out | Keep Android deferred (the 2026-10-07 decision); SMS or RCS through Photon; KakaoTalk for Korean hosts | PRD sections 1, 3, 6, 9 and 10 | The PRD first, then the proposal |
+| D5 | One active messaging binding per host across iMessage and WhatsApp. Confirming the other channel replaces the earlier one after a notice on the card | Both channels at once, which doubles summaries and lets two conversations race on one decision | Proposal; design 5; PRD FR-37 | The PRD's FR-37 first, then `imessage_bindings_active_host_key` and `confirmImessageLinkCommand` |
+| D7 | Android gets WhatsApp only. iPhone, iPad and Mac get iMessage with **Use WhatsApp instead**. Other computers ask which app the host uses | Asking every host; offering both side by side (two things at once, against the design principles) | Proposal; design 6 | `lib/contracts/messaging-channel.ts` |
+| D9 | Outside the window, three `en_US` utility templates are used. Their only parameter is the request reference, with no requester name, time or place. At most one per host per 12 hours, and at most 50 per line per day | A template per summary with full details (private text through Meta's review and in notifications); one generic template; no notice at all (silent loss) | Proposal; design 8 | Design 8, then the template names in `lib/server/whatsapp.ts` and WhatsApp Manager |
+| D12 | The host's own message and **Confirm and link**, with a sentence on the card, are the opt-in. `stop` unlinks | A separate opt-in checkbox | Proposal; design 8 | Design 8 and the card's copy |
+
+### Implementation decisions
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | Spectrum's `whatsapp_business` provider (`@spectrum-ts/whatsapp-business` 12.14.0, MIT) in cloud mode, using the existing `PHOTON_PROJECT_ID` and `PHOTON_PROJECT_SECRET`, with one WhatsApp line in `PHOTON_WHATSAPP_NUMBER` | Direct mode with Meta tokens in our environment; a native eve channel (none exists, and iMessage D1's reasons apply) | Proposal; design 1; provider setup | `lib/server/photon.ts` |
+| D2 | One webhook and one signature check, then routing by platform. `inboundMessage` stays iMessage-only, and `inboundWhatsAppMessage` requires every platform field to normalize to `whatsappbusiness` | Widening the iMessage check; a second webhook for WhatsApp (Photon sends every platform to the registered webhooks) | Proposal; design 2 | `receivePhotonWebhook` and `inboundWhatsAppMessage` |
+| D3 | The sender is `message.sender.id`, digits without `+` (8–15, no leading 0). The space ID must equal it, and `space.type` must be absent or `dm`. The hash is `whatsapp:<digits>`, a namespace separate from iMessage | Reusing the iMessage hash, which would let one number's iMessage binding match its WhatsApp messages; accepting a `+` form as a distinct sender | Proposal; design 3 | `normalizeWhatsAppSender` |
+| D4 | A `channel` column on the four `imessage_*` tables; the names are kept and a rename is deferred | Four `whatsapp_*` tables; renaming now through pg-delta (a drop and create of production tables) | Proposal; design 4 | `supabase/schemas/app/tables/imessage_*.sql` |
+| D6 | The `FMAT-` code with the channel recorded; `https://wa.me/<digits>?text=<message>`. A code from the other channel voids the attempt, and no service-sent fallback code is offered | A WhatsApp-specific code family; an `api.whatsapp.com/send` link; a fallback through an authentication template | Proposal; design 6 | `imessage.link.create`; `whatsAppLinkFor` |
+| D8 | Free-form text only while the host's last message is at most 23 h 50 min old at dispatch. Otherwise, and on Meta error 131047, the row is final with `window_closed` and shown in `/app` | Sending and letting Meta refuse; holding messages until the host writes again | Proposal; design 7 | The window check in `createImessageSendHandler` |
+| D10 | Meta error mapping: 131047 to `window_closed`; 131026 to rejected; 132xxx to `template_unavailable`; 130429 and 131056 to unavailable and retried. Uncertain sends are never resent | Retrying every error | Proposal; design 9 | The error map in `lib/server/whatsapp.ts` |
+| D11 | Commands, references, forwarding (`[WhatsApp] …`), summaries, setup, admission, ordering and retention are as in Phase 6. No **Add to contacts** on WhatsApp | A WhatsApp-specific command set; interactive buttons for decisions | Proposal; design 10 | The Phase 6 modules, by channel |
+| D13 | Messaging only from the identified production deployment; the stand-in answers WhatsApp sends, templates and 131047 | — | Proposal; design 10 | `lib/server/messaging.ts`; the stand-in |
+
+### Operational decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Sources without a line | The design read `@spectrum-ts/whatsapp-business` 12.14.0 from the npm tarball and Photon's documentation on 2026-11-02. No WhatsApp message was sent or received, so the platform spelling and sender format are confirmed only at the join | Sending a test message, which is blocked on the user | Design context | — |
+| Planning only | This pull request changes documents and the OpenSpec change only, with no code, schema or configuration | Implementing Lane A at once | Plan Phase 9 | — |
+
+### Blocked on the user
+
+These steps were not taken because they change a provider console, message a person or change a shared or release environment:
+
+- **Meta WhatsApp Manager**: submit the three templates of design 8 and get them approved. Confirm the business display name, business verification and the line's messaging tier for the number linked on 2026-11-02.
+- **Photon project**: no configuration was changed. The WhatsApp line, its registration and the shared webhook are as the user left them on 2026-11-02.
+- **Sending any WhatsApp message**, including the one-event capture at the join and the Android acceptance run.
+- **Vercel variables**: `PHOTON_WHATSAPP_NUMBER` and, if changed, `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` on Production once the code lands.
+- **Migration and deploy** of the implementing pull requests, and every merge, including this pull request's.
+- **Teammate review** of D1–D13 and the design's open questions.

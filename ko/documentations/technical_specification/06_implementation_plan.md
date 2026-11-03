@@ -387,6 +387,48 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 증거: 보류 중인 필수 클라이언트나 제공자 사례가 없는 완전한 인수 기록, 그리고 충족된 [제공자 설정](03_provider_setup.md#environment-and-activation-checklist)의 릴리스 체크리스트.
 
+### 9단계 — `host-whatsapp-channel`
+
+목표: 연동된 Android 호스트가 iPhone 호스트가 iMessage에서 하듯 일상적인 스케줄링을 WhatsApp에서 처리합니다. 팀이 WhatsApp을 통해 Android 호스트를 지원하기로 결정한 2026-11-02에 추가되었습니다([PRD Android 대상 사용자 결정](../02_product_requirements.md#target-users), 이슈 #66).
+
+범위. 선행 조건: 6단계, 그리고 iMessage 전용 수신기 수정(이슈 #62, PR #63). 이 단계는 6단계의 수신기, 테이블, 명령, 발신함, 카드를 채널로 확장합니다. 모든 레인은 아래 제안서가 검토될 때까지 기다립니다. 레인 B와 C는 레인 A의 `channel` 열에는 의존하지만 전송에는 의존하지 않습니다.
+
+**제안서(직렬, 먼저)**
+
+- [x] D1–D13과 커버리지 표를 담은 [`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/proposal.md)의 제안서.
+- [x] [설계](../../openspec/changes/host-whatsapp-channel/design.md).
+- [x] [`specs/`](../../openspec/changes/host-whatsapp-channel/specs/) 아래의 델타 명세, 새로운 `host-whatsapp-channel` 기능.
+- [x] [작업](../../openspec/changes/host-whatsapp-channel/tasks.md).
+- [x] PRD 갱신(대상 사용자 결정, 비목표, FR-37부터 FR-39까지, AC-29부터 AC-31까지), 제공자 설정, 한국어 미러.
+- [ ] 템플릿 문구, 언어, 병합에 관한 미해결 질문을 포함한 팀원 검토.
+
+**레인 A — 라우팅, 기록, 전송**
+
+- [ ] 검증된 Photon 이벤트를 플랫폼에 따라 라우팅: iMessage는 변경 없는 `inboundMessage`로, WhatsApp Business는 `inboundWhatsAppMessage`로 보내고, 라벨이 없거나 섞인 이벤트는 아무 곳으로도 보내지 않습니다.
+- [ ] 네 개의 `imessage_*` 테이블에 `channel` 열, 별도의 발신자 해시 네임스페이스, 발신함의 템플릿 필드를 pg-delta로 추가.
+- [ ] `lib/server/photon.ts`의 클라우드 모드 `@spectrum-ts/whatsapp-business`, Meta 오류 매핑, 대역의 WhatsApp 및 131047 분기.
+
+**레인 B — 브라우저에서의 연동**
+
+- [ ] `wa.me` 링크, QR 코드, **복사(Copy)**, 마스킹된 번호의 **확인 및 연결(Confirm and link)**을 갖춘 **WhatsApp 연결(Connect WhatsApp)**; 기기 규칙(Android는 WhatsApp, Apple 기기는 **대신 WhatsApp 사용(Use WhatsApp instead)**이 있는 iMessage, 그 밖의 컴퓨터는 질문); 교체 안내와 옵트인 문장; 로그인 뒤의 연동 단계와 `/?flow=whatsapp`.
+- [ ] 호스트당 채널 전체에서 활성 바인딩 하나, 확인 시 다른 채널의 바인딩 종료.
+
+**레인 C — 창, 템플릿, 채널 동작**
+
+- [ ] 발송 시점의 24시간 창 확인, 억제, `window_closed`와 `template_unavailable`에 대한 `/app` 안내.
+- [ ] 호스트당 12시간, 회선당 일일 한도가 있는 유틸리티 템플릿 세 개.
+- [ ] `stop`, `[WhatsApp]` 대화 기록 접두사, 호스트 지침 조각, 채널별 연동되지 않은 발신자 한도; 명령, 요약, 설정, 접수는 6단계에서 재사용.
+
+**합류**
+
+- [ ] 실제 WhatsApp 이벤트를 수집해 플랫폼 철자와 발신자 형식을 확인한 뒤, 통제된 Android 폰에서 연동하고, 요청을 선택하고, 수정하고, 승인하고, 창이 닫히게 두어 템플릿을 받고, 9단계 증거 목록을 실행합니다.
+
+명세: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md), [messaging-environments](../../openspec/specs/messaging-environments/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), 그리고 새로운 `host-whatsapp-channel` 델타, 아카이브되기 전까지는 `host-imessage-channel`.
+
+여기서 확정할 결정: 플랫폼 라우팅과 WhatsApp 발신자 형식; `channel` 열을 통해 iMessage와 공유하는 기록; 호스트당 하나의 채널; 기기 규칙; 창 여유; 템플릿 이름, 매개변수, 한도. 2026-11-02에 [`host-whatsapp-channel` 제안서](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)의 D1–D13으로 제안되었으며 팀원 검토를 기다립니다. 템플릿 문구는 Meta가 승인해야 비로소 확정됩니다.
+
+증거: 프로덕션 배포를 대상으로 통제된 Android 폰에서 수행한 AC-29, AC-30, AC-31. 창 밖의 템플릿, 재시작 후 재생, 모의 전달 실패를 포함하며, 기기, WhatsApp, 브라우저 버전을 기록합니다.
+
 ### 의존성과 중복
 
 | 단계 | 의존 대상 | 겹칠 수 있는 대상 |
@@ -399,6 +441,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 | 6 호스트 iMessage 채널 | iMessage를 통한 설정은 2, 결정은 4 | 5, 7 |
 | 7 요청자 이메일 채널 | 3, 4 | 5, 6 |
 | 8 운영과 릴리스 | 전체 | 진단은 4 이후 시작 가능 |
+| 9 호스트 WhatsApp 채널 | 6, 그리고 iMessage 전용 수신기 수정(PR #63) | 8단계 릴리스 단계; 레인 A의 열이 반영된 뒤에는 레인이 겹침 |
 
 첫 번째 시연 가능한 마일스톤은 4단계의 끝입니다. 실제 Google Calendar를 통한 웹 전용 예약입니다. 그 이후 5, 6, 7단계는 각자 명명된 클라이언트, 기기, 받은편지함 인수를 갖는 세 개의 병렬 브랜치로 진행할 수 있습니다.
 
@@ -450,6 +493,7 @@ Docker를 갖춘 팀원이 그 주에 마이그레이션이 필요한 레인의 
 | 6 호스트 iMessage 채널 | personal-agent 템플릿: `agent/channels/photon.ts`(`photonIMessageChannel`, `onMessage`는 `agent/lib/phone-internal.ts`를 통해 발신자 전화번호를 앱 사용자에 매핑하고 연동된 계정에서 세션 인증을 구성), `app/components/profile/PhoneInput.vue`. OpenInstinct: `agent/channels/linq.ts`, `agent/lib/linq/transport.ts`(하나의 모듈 뒤에 격리된 전송), `db/services/auth/linq.ts`와 `tests/linq.test.ts`, `tests/linq-delivery.test.ts`(전화번호 검증 및 전달 테스트). 폐기된 1차 이터레이션 `host-imessage-assistant/design.md`는 `git show e3c01d2:openspec/changes/host-imessage-assistant/design.md`로 읽음: 별도 워커를 쓰는 아웃박스, 확인 응답 전에 영속화되는 서명된 웹훅, 불확실한 발송 잠금, 한정된 시도 횟수 | 채널 형태와 발신자-principal 매핑, 전송 격리, 검증 및 전달 테스트 구조, 확인 응답 전 내구성 있는 웹훅과 불확실한 발송 처리 | 연동되지 않은 발신자를 위한 템플릿의 낯선 사람 세션(우리는 `null`을 반환하여 세션이 존재하지 않음), `@vercel/connect` 자격 증명(스파이크가 끝날 때까지 Photon Spectrum 프로젝트 자격 증명을 사용), 전송으로서의 Linq, 폐기된 서비스 발송 환영 메시지와 전화번호 제출 흐름 |
 | 7 요청자 이메일 채널 | eve 메모리 템플릿: `agent/lib/integrations/slack/{channel,identity}.ts`와 그 테스트, `agent/lib/testing/slack.ts`(신원 확인과 테스트 도우미를 갖춘 사용자 정의 채널). eve 채팅 템플릿: `agent/channels/slack.ts`(최소 채널). OpenInstinct: Chat SDK Gmail 어댑터를 평가하는 경우에만 클라이언트 형태를 위한 `agent/lib/google-workspace/gmail.ts` | 사용자 정의 채널 구조, 모델 턴 밖에 두는 신원 확인, 채널 테스트 도우미 | Slack 자체, 도구로서의 Gmail, 신원으로 쓰이는 모든 발신자 주장 |
 | 8 운영과 릴리스 | OpenInstinct: `agent/instrumentation/{otel,evlog}.ts`, `agent/hooks/evlog.ts`. eve 채팅 템플릿: `scripts/setup.sh`, `docs/setup-and-deploy.md`, `apps/web/lib/setup.ts`. personal-agent 템플릿: `.github/workflows/ci.yml`, `docs/ENVIRONMENT.md` | 비공개 텍스트가 없는 계측, 설정 및 준비도 스크립트, CI 구성, 환경 문서 구조 | 그들의 호스팅 전제와 제공자 목록 |
+| 9 호스트 WhatsApp 채널 | 이 저장소의 6단계 모듈(`lib/server/photon-receiver.ts`, `photon.ts`, `imessage-{links,receipts,commands,notices,outbox}.ts`와 그 테스트)과 `@spectrum-ts/whatsapp-business` 12.14.0(`dist/index.js`: 클라우드 모드 회선 탐색, `space.create`, `whatsappTemplate`, 131047 주석) | 복사하지 않고 채널로 확장한 6단계의 형태, 공급자의 템플릿 헬퍼 | 두 번째 수신기, 중복된 테이블, 대화형 버튼 |
 
 설계 참조도 같은 규칙을 따릅니다. [DESIGN.md](../../DESIGN.md)가 토큰, 타입, 간격, 컴포넌트 레시피를 소유합니다. 메시지와 작성기 상호작용은 Vercel chatbot과 AI Elements 스킬을 따릅니다. 1차 이터레이션의 [디자인 시스템](../transplant/en/design-system.md)은 Thyme 팔레트에 맞게 조정한 시그니처 패턴만 제공합니다. 업무 및 미팅 가능 시간대 트랙을 갖춘 주간 차트, 출처를 보여 주는 칩, 한 줄 후보, 긴 편집기의 고정 액션 바, 포커스가 복귀하는 오른쪽 상세 시트, 인라인 삭제 확인이 그것입니다. 차가운 청록 토큰과 Pretendard는 채택하지 않습니다.
 
@@ -489,6 +533,7 @@ Docker를 갖춘 팀원이 그 주에 마이그레이션이 필요한 레인의 
 | iMessage 어댑터, 코드 만료, 회선 프로비저닝, 원탭 딥링크 | 6단계 제안서(D1–D14는 2026-10-23에 결정됨) | 제공자 설정, 새 iMessage 변경 |
 | AgentMail 어댑터와 보존 | 7단계 제안서(D1–D11은 2026-10-22에 결정됨) | 제공자 설정 |
 | 측정 목표, 보존 및 삭제, 지원 담당 | 8단계 제안서(D1–D14는 2026-10-23에 결정) | PRD 2절과 10절 |
+| WhatsApp 라우팅, 발신자 형식, 호스트당 하나의 채널, 창 여유, 템플릿 | 9단계 제안서(D1–D13은 2026-11-02에 제안) | PRD 1절, 3절, 10절, 제공자 설정, 새 WhatsApp 변경 |
 
 ## 8. 위험
 
@@ -497,6 +542,7 @@ Docker를 갖춘 팀원이 그 주에 마이그레이션이 필요한 레인의 
 | eve 구성이 인가, 재연결, 재시작 검사를 충족하지 못함 | 런타임 선택이 뒤늦게 다시 열림 | 1단계가 한정된 증명이며, 대체는 조용한 두 번째 엔진이 아니라 명시적인 설계 결정임 |
 | Calendar 스코프에 대한 Google 앱 검증이 느림 | 테스트 사용자 상한이 외부 호스트를 막음 | 2단계 중에 제출; 첫 외부 호스트 전에 릴리스 분리를 유지 |
 | Photon 전달 가능성 또는 채널 모호성(SMS/RCS 대체) | iMessage 인수를 닫을 수 없음 | 수신 우선 연결 코드; 대체 사용을 기록; iMessage 통과를 주장하는 대신 롤아웃 게이트에서 중단 |
+| Meta가 WhatsApp 템플릿을 거부하거나 재분류하거나 비즈니스가 검증되지 않은 채로 남음 | Android 호스트는 24시간 창 밖에서 알림을 받지 못하고, 하루 250명 한도가 적용됨 | 참조만 담은 중립적인 유틸리티 문구; `template_unavailable`을 `/app`에 사실대로 표시; 9단계 합류 전에 템플릿과 검증을 제출 |
 | 디스커버리와 MCP 지원이 서로 다른 일곱 개의 명명된 클라이언트 | AC-14, AC-15, AC-23, AC-24가 열린 채로 남음 | 5단계에서 정하는 클라이언트별 테스트 환경; 대체 수단으로 명시적인 `/SKILL.md` 붙여넣기 경로; 보편 호환성 주장은 하지 않음 |
 | 불확실한 Calendar 쓰기 또는 제공자 타임아웃 | 중복 또는 유령 예약 | 디스패치 전 예약과 고정된 페이로드, 재시도 전 조정, 보류 상태를 사실대로 표시 |
 | Docker가 없는 팀원 | 마이그레이션을 생성할 수 없음 | Docker를 갖춘 한 팀원이 같은 풀 리퀘스트 안에서 마이그레이션을 생성 |
