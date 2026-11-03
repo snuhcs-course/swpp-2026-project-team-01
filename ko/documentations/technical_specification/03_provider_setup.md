@@ -65,7 +65,7 @@ MVP는 Supabase Auth를 통한 Google 전용 호스트 로그인을 요구합니
 2026-10-19에 [기반 변경](../../openspec/changes/application-foundation/design.md#12-authentication-details)이 기록했습니다.
 
 - **OAuth 클라이언트.** Google Cloud 프로젝트 `findmeatime`의 웹 OAuth 클라이언트 하나가 모든 환경을 담당합니다. 그 ID와 시크릿은 `GOOGLE_CLIENT_ID`와 `GOOGLE_CLIENT_SECRET`입니다. 로컬 스택은 루트 `.env`를 쓰고, 공유 프로젝트는 `GOOGLE_CLIENT_ID` GitHub 변수와 `GOOGLE_CLIENT_SECRET` GitHub 시크릿을 쓰며, 배포 워크플로가 `supabase config push`로 이를 기록합니다.
-- **스코프.** Supabase Auth는 `openid`, `email`, `profile`을 요청하고, 애플리케이션은 `access_type=offline`과 함께 `https://www.googleapis.com/auth/calendar.calendarlist.readonly`(캘린더 목록), `https://www.googleapis.com/auth/calendar.events`(선택한 캘린더의 이벤트 읽기와 예약 이벤트 생성), `https://www.googleapis.com/auth/calendar.events.freebusy`(호스트가 접근할 수 있는 캘린더의 free/busy)를 추가합니다. 각 스코프가 인가하는 API 메서드와 함께 [`lib/contracts/google-scopes.ts`](../../lib/contracts/google-scopes.ts)에 정의되어 있습니다.
+- **스코프.** Supabase Auth는 `openid`, `email`, `profile`을 요청하고, 애플리케이션은 `access_type=offline`과 함께 `https://www.googleapis.com/auth/calendar.calendarlist.readonly`(캘린더 목록)와 `https://www.googleapis.com/auth/calendar.events`(선택한 캘린더의 이벤트 읽기와 예약 이벤트 생성)를 추가합니다. 각 스코프가 인가하는 API 메서드와 함께 [`lib/contracts/google-scopes.ts`](../../lib/contracts/google-scopes.ts)에 정의되어 있습니다. `calendar.events.freebusy`는 2026-11-02까지 요청했으나 아무것도 호출하지 않아 뺐습니다. free/busy만 있는 캘린더는 이벤트를 읽을 수 없으므로 제외됩니다. 요청자 흐름은 `calendar.calendarlist.readonly`와 `calendar.events.readonly`를 요청합니다([`lib/server/requester-calendar.ts`](../../lib/server/requester-calendar.ts)). Google Cloud 동의 화면은 정확히 이 스코프들만 선언하며 Gmail 스코프는 선언하지 않습니다.
 - OAuth 클라이언트의 **승인된 리디렉션 URI**는 Supabase Auth 서버마다 하나씩입니다.
 
   | 환경 | 리디렉션 URI |

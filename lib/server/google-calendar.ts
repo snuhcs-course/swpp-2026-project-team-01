@@ -40,8 +40,8 @@ const PAGE_SIZE = 250;
 const MAX_EVENT_PAGES = 8;
 const MAX_CALENDAR_PAGES = 10;
 
-// What reading calendars and events needs; calendar.events.freebusy is not enough.
-const REQUIRED_SCOPES = [GOOGLE_CALENDAR_SCOPES[0], GOOGLE_CALENDAR_SCOPES[1]];
+// Reading calendars and events needs both Calendar scopes.
+const REQUIRED_SCOPES = GOOGLE_CALENDAR_SCOPES;
 
 export type GoogleCalendarConfig = {
   readonly clientId: string;

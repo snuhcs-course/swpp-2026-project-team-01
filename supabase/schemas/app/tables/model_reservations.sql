@@ -1,10 +1,12 @@
--- Model allowance, reserved durably before every provider attempt and never
--- released: a failed or uncertain attempt stays charged. Attempts are counted per
--- work item (an accepted conversation input, a ranking check or a request's
--- calendar screenshot OCR), and spend per
--- principal and service-wide in fixed 24-hour windows. `anonymous` marks spend
--- that counts toward the anonymous allowance: an intake's, and a request's while
--- its contact is unconfirmed and it has no live Google identity grant.
+-- Model allowance, reserved durably before every provider attempt at an upper
+-- bound, then settled down to the attempt's actual cost, in millionths of a
+-- dollar, once the provider reports usage. A failed, aborted or usage-less
+-- attempt keeps its full reservation. Each row is one attempt for a work item (an
+-- accepted conversation input, a ranking check or a request's calendar screenshot
+-- OCR); spend is summed per principal and service-wide in fixed 24-hour windows.
+-- `anonymous` marks spend that counts toward the anonymous allowance: an intake's,
+-- and a request's while its contact is unconfirmed and it has no live Google
+-- identity grant.
 CREATE TABLE "app"."model_reservations" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "work_kind" text NOT NULL CHECK ("work_kind" IN ('conversation_input', 'ranking_check', 'calendar_ocr')),
@@ -12,7 +14,7 @@ CREATE TABLE "app"."model_reservations" (
   "principal_type" text NOT NULL CHECK ("principal_type" IN ('host_account', 'requester_request', 'public_intake')),
   "principal_id" uuid NOT NULL,
   "session_id" text REFERENCES "app"."agent_sessions" ("session_id"),
-  "amount_usd" numeric(6, 2) NOT NULL CHECK ("amount_usd" > 0),
+  "amount_usd" numeric(12, 6) NOT NULL CHECK ("amount_usd" > 0),
   "window_start" timestamptz NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT now(),
   "anonymous" boolean NOT NULL DEFAULT false

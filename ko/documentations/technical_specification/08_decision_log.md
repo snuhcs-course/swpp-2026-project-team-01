@@ -454,7 +454,7 @@
 4. `findmeatime-release`로의 **`main` 프로덕션 배포**(깨끗한 체크아웃에서 `vercel deploy --prod`)로, `/privacy`를 포함한 6, 7, 8단계가 반영됩니다. 이어서 두 오리진에 `npm run perf:check`를, 그리고 `npm run admin -- diagnostics snapshot --operator <name> --project anelszynxtvxoxqvzgqt`를 실행합니다.
 5. 팀이 거부 횟수를 원한다면 Vercel Production의 **`DIAGNOSTICS_REJECTIONS=1`**.
 6. Cloudflare Email Routing 규칙으로 만든 **지원 별칭** `support@findmeatime.com`. `/privacy`가 이미 이를 명시합니다. 2026-11-02에 완료: `support` 규칙이 순환이 시작될 때까지 저장소 소유자의 인증된 주소로 전달하고, 시작된 뒤에는 당번 운영자에게 전달합니다.
-7. **Google**: OAuth 앱을 **In production**으로 옮기고, 홈페이지 `https://findmeatime.com`, 개인정보 처리방침 `https://findmeatime.com/privacy-policy`(`/privacy` 고지), 이용약관 `https://findmeatime.com/terms-of-service`로 Calendar 스코프 검증을 제출합니다(4단계 필요).
+7. **Google**: OAuth 앱을 **In production**으로 옮기고, 홈페이지 `https://findmeatime.com`, 개인정보 처리방침 `https://findmeatime.com/privacy-policy`(`/privacy` 고지), 이용약관 `https://findmeatime.com/terms-of-service`로 Calendar 스코프 검증을 제출합니다(4단계 필요). 코드가 요청하는 스코프만 정확히 선언합니다. 호스트용 `calendar.calendarlist.readonly`와 `calendar.events`, 요청자용 `calendar.events.readonly`, 그리고 `openid`, `email`, `profile`입니다. 프로토타입에서 남은 다른 스코프는 모두 제거하십시오. 제한된 스코프라 보안 평가가 필요해지는 Gmail 스코프도 포함합니다.
 8. 프로덕션이 사용하는 프로젝트에서 `no-reply@findmeatime.com`으로 보내는 해당 Supabase Auth 알림용 **Cloudflare 사용자 정의 SMTP**.
 9. **릴리스 프로젝트 `mriseqztcwmezvtawnbo` 비우기**: 1차 반복 프로토타입의 `fmat` 스키마, `pg_cron` 작업 17개, Vault 비밀 5개, Auth 사용자 2명, 마이그레이션 기록 143개, 그리고 CLI의 `cli_login_postgres` 역할. 파괴적이며, `fmat` 스키마가 사라지기 전에는 워크플로가 이 프로젝트를 거부합니다.
 10. 필수 검토자와 릴리스 프로젝트의 비밀 및 변수를 갖춘 **GitHub 환경 `release`**(2단계와 같되 새 `WORKER_SECRET` 사용); Google OAuth 클라이언트에 `https://mriseqztcwmezvtawnbo.supabase.co/auth/v1/callback`을 추가하고, `main`에서 `Deploy release Supabase`를 실행합니다.

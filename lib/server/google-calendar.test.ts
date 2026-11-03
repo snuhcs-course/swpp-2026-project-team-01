@@ -96,7 +96,7 @@ describe("googleCalendarConfigFromEnvironment", () => {
 
 describe("openHostCalendar", () => {
   it.each([
-    ["declined Calendar scopes", { scopes: ["https://www.googleapis.com/auth/calendar.events.freebusy"] }],
+    ["declined Calendar scopes", { scopes: ["https://www.googleapis.com/auth/calendar.calendarlist.readonly"] }],
     ["an invalidated grant", { invalidated: true }],
     ["no refresh token", { token: null }],
   ])("refuses %s as not connected", async (_label, grant) => {
