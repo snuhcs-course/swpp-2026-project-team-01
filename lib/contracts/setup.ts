@@ -219,6 +219,9 @@ export type ConfirmedSettings = {
   // Absent on a policy confirmed before the choice existed, which counts bookings
   // only (weeklyLimitCountsOf).
   readonly weeklyLimitCounts?: WeeklyLimitCount;
+  // Whether in-person candidates are ordered to share trips by day
+  // (same-day-trips); absent reads as off (groupTripsOf).
+  readonly groupTrips?: boolean;
   readonly noteExclusions: readonly z.infer<typeof noteExclusionSchema>[];
   readonly durationMinutes: number;
   readonly bufferBeforeMinutes: number;
@@ -234,6 +237,10 @@ export type ConfirmedSettings = {
   // Where each confirmed value came from, kept after the evidence expires.
   readonly provenance: { readonly [F in SetupFieldName]?: ValueSource };
 };
+
+export function groupTripsOf(settings: Pick<ConfirmedSettings, "groupTrips">): boolean {
+  return settings.groupTrips ?? false;
+}
 
 export function weeklyLimitCountsOf(settings: Pick<ConfirmedSettings, "weeklyLimitCounts">): WeeklyLimitCount {
   return settings.weeklyLimitCounts ?? STARTER_DEFAULTS.weeklyLimitCounts;

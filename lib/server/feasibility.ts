@@ -25,7 +25,10 @@ import type { CalendarEvent } from "./google-calendar";
 //   4. orders weeks below the weekly limit first (a preference, never a filter),
 //      counting the host's Find Me a Time bookings in each week, and other
 //      meetings with guests too when the host chose to count every meeting;
-//   5. for in-person candidates, checks both host travel legs and, with a
+//   5. with the host's same-day trip preference, for an in-person meeting far
+//      from the preferred area, orders days already out that way first and days
+//      spent in the preferred area last (same-day-trips design 2 and 3);
+//   6. for in-person candidates, checks both host travel legs and, with a
 //      requester calendar, both requester legs (design decision 9).
 // Every explanation is a sentence computed here from the candidate's basis
 // (iteration 1's F09), never model text. Event titles, attendees and locations
@@ -41,6 +44,13 @@ export const GRID_MINUTES = 15;
 export const CANDIDATE_LIMIT = 40;
 // Host-private exclusion records kept per evaluation; the counts cover them all.
 export const MAX_EXCLUSIONS = 100;
+// The same-day trip preference: a meeting place beyond TRIP_FAR_MINUTES of the
+// preferred area is far, and a commitment within TRIP_NEAR_MINUTES of a place
+// is near it. At most TRIP_COMMITMENT_LIMIT commitments, whole days earliest
+// first, are estimated, which bounds the extra Routes calls.
+export const TRIP_FAR_MINUTES = 30;
+export const TRIP_NEAR_MINUTES = 15;
+export const TRIP_COMMITMENT_LIMIT = 16;
 
 export type RouteMode = RequesterTravelMode;
 
@@ -270,6 +280,9 @@ export type HostRules = {
   readonly meetingMode: MeetingMode;
   readonly travelMode: TravelMode | null;
   readonly travelBufferMinutes: number | null;
+  // The preferred area, keyed like event places, when the host groups trips by
+  // day; null or absent leaves the order without the trip rank.
+  readonly preferredArea?: { readonly text: string; readonly key: string } | null;
 };
 
 export type RequestTerms = {
@@ -396,7 +409,7 @@ export type UnresolvedWindow = {
 export type FeasibilityResult = {
   readonly mode: "online" | "in_person" | null;
   readonly linkPlan: LinkPlan | null;
-  // Ordered: weeks below the weekly limit first, then by start.
+  // Ordered: weeks below the weekly limit first, then the trip rank, then by start.
   readonly candidates: readonly EvaluatedCandidate[];
   readonly exclusions: readonly Exclusion[];
   readonly exclusionCounts: Readonly<Record<ExclusionReason, number>>;
@@ -511,6 +524,14 @@ type LegPlan = {
   readonly unresolved: UnresolvedReason | null;
 };
 
+// How a candidate's day stands for a far meeting place: already out that way
+// (a commitment near the place), spent in the preferred area, or neither.
+type TripDay = {
+  readonly rank: "out_that_way" | "neutral" | "preferred_area";
+  readonly farMinutes: number;
+  readonly nearMinutes: number | null;
+};
+
 type Planned = {
   readonly start: number;
   readonly end: number;
@@ -518,6 +539,7 @@ type Planned = {
   readonly weekStart: string;
   readonly weekCount: number;
   readonly belowLimit: boolean;
+  readonly trip: TripDay | null;
   readonly legs: readonly LegPlan[];
 };
 
@@ -525,6 +547,7 @@ type Plan = {
   readonly mode: "online" | "in_person" | null;
   readonly linkPlan: LinkPlan | null;
   readonly planned: readonly Planned[];
+  readonly tripQueries: readonly LegQuery[];
   readonly exclusions: Exclusion[];
   readonly exclusionCounts: Record<ExclusionReason, number>;
   readonly unresolvedWindows: readonly UnresolvedWindow[];
@@ -532,6 +555,95 @@ type Plan = {
 
 function endpointOfLocation(location: RequestTerms["location"]): Endpoint | null {
   return location ? { key: location.key, kind: "place", text: location.text } : null;
+}
+
+function routeModeOf(mode: TravelMode | RequesterTravelMode | null): RouteMode | null {
+  return mode === "driving" || mode === "transit" || mode === "walking" ? mode : null;
+}
+
+function tripQuery(origin: Endpoint, destination: Endpoint, departure: number, mode: RouteMode): LegQuery | null {
+  if (origin.kind !== "place" || destination.kind !== "place" || origin.key === destination.key) return null;
+  return {
+    departure: new Date(departure),
+    destination: destination.text,
+    destinationKey: destination.key,
+    mode,
+    origin: origin.text,
+    originKey: origin.key,
+  };
+}
+
+// The trip rank of each candidate day (same-day-trips design 2), and the
+// estimates it needs. A day whose estimates are missing keeps the middle rank,
+// and with the meeting place not far, or its estimate missing, no day is ranked.
+function tripDays(
+  input: FeasibilityInput,
+  mode: "online" | "in_person",
+  free: readonly { readonly start: number }[],
+): { readonly queries: LegQuery[]; readonly dayOf: (start: number) => TripDay | null } {
+  const none = { dayOf: () => null, queries: [] };
+  const { host } = input;
+  const area = host.preferredArea ? endpointOfLocation(host.preferredArea)! : null;
+  const meeting = endpointOfLocation(input.request.location);
+  const routeMode = routeModeOf(host.travelMode);
+  if (mode !== "in_person" || !area || !meeting || !routeMode || placeKey(meeting) === placeKey(area) || free.length === 0) return none;
+
+  const dateOf = (instant: number) => localParts(instant, host.timezone).date;
+  const days = new Set(free.map((entry) => dateOf(entry.start)));
+  const byDay = new Map<string, BusyInterval[]>();
+  for (const interval of [...input.hostBusy].sort((a, b) => a.start - b.start)) {
+    if (interval.allDay || interval.endpoint.kind !== "place") continue;
+    const date = dateOf(interval.start);
+    if (!days.has(date)) continue;
+    byDay.set(date, [...(byDay.get(date) ?? []), interval]);
+  }
+
+  // Whole days only, so a day is never judged on part of its commitments.
+  const counted = new Map<string, BusyInterval[]>();
+  let total = 0;
+  for (const [date, commitments] of byDay) {
+    if (total + commitments.length > TRIP_COMMITMENT_LIMIT) break;
+    counted.set(date, commitments);
+    total += commitments.length;
+  }
+
+  const queries: LegQuery[] = [];
+  const minutes = (query: LegQuery | null) => {
+    if (!query) return 0;
+    queries.push(query);
+    const outcome = input.estimate?.(query);
+    return outcome?.outcome === "route" ? Math.ceil(outcome.durationSeconds / 60) : undefined;
+  };
+
+  const far = minutes(tripQuery(area, meeting, free[0]!.start, routeMode));
+  const judged = new Map<string, { near: number | null; inArea: boolean }>();
+  for (const [date, commitments] of counted) {
+    let near: number | null = null;
+    let inArea = true;
+    for (const commitment of commitments) {
+      const toMeeting = minutes(tripQuery(commitment.endpoint, meeting, commitment.end, routeMode));
+      const toArea = minutes(tripQuery(commitment.endpoint, area, commitment.end, routeMode));
+      if (toMeeting !== undefined && toMeeting <= TRIP_NEAR_MINUTES) near = Math.min(near ?? toMeeting, toMeeting);
+      if (toArea === undefined || toArea > TRIP_NEAR_MINUTES) inArea = false;
+    }
+    judged.set(date, { inArea, near });
+  }
+
+  if (far === undefined || far <= TRIP_FAR_MINUTES) return { dayOf: () => null, queries };
+
+  return {
+    dayOf: (start) => {
+      const day = judged.get(dateOf(start));
+      if (day?.near != null) return { farMinutes: far, nearMinutes: day.near, rank: "out_that_way" };
+      if (day?.inArea) return { farMinutes: far, nearMinutes: null, rank: "preferred_area" };
+      return { farMinutes: far, nearMinutes: null, rank: "neutral" };
+    },
+    queries,
+  };
+}
+
+function tripScore(entry: { readonly trip: TripDay | null }) {
+  return entry.trip?.rank === "out_that_way" ? 1 : entry.trip?.rank === "preferred_area" ? -1 : 0;
 }
 
 function planLeg(
@@ -547,7 +659,7 @@ function planLeg(
   const destination = direction === "inbound" ? meeting : commitment.endpoint;
   const gap =
     direction === "inbound" ? (candidate.start - commitment.end) / MINUTE : (commitment.start - candidate.end) / MINUTE;
-  const routeMode = mode === "driving" || mode === "transit" || mode === "walking" ? mode : null;
+  const routeMode = routeModeOf(mode);
   const unknown = commitment.endpoint.kind === "unknown" ? commitment.endpoint.reason : null;
   const unresolved: UnresolvedReason | null =
     unknown ??
@@ -591,7 +703,7 @@ function plan(input: FeasibilityInput): Plan {
   };
 
   if (mode === null || duration <= 0) {
-    return { exclusionCounts, exclusions, linkPlan, mode, planned: [], unresolvedWindows };
+    return { exclusionCounts, exclusions, linkPlan, mode, planned: [], tripQueries: [], unresolvedWindows };
   }
 
   const before = host.bufferBeforeMinutes * MINUTE;
@@ -631,7 +743,7 @@ function plan(input: FeasibilityInput): Plan {
     weekCounts.set(week, (weekCounts.get(week) ?? 0) + 1);
   }
 
-  const free: Omit<Planned, "legs">[] = [];
+  const open: Omit<Planned, "legs" | "trip">[] = [];
 
   for (const interval of intervals) {
     if (overlaps(input.hostBusy, interval.start - before, interval.end + after)) {
@@ -651,7 +763,7 @@ function plan(input: FeasibilityInput): Plan {
 
     const weekStart = weekOf(interval.start, host.timezone);
     const weekCount = weekCounts.get(weekStart) ?? 0;
-    free.push({
+    open.push({
       ...interval,
       belowLimit: host.weeklyLimit === null || weekCount < host.weeklyLimit,
       weekCount,
@@ -659,9 +771,13 @@ function plan(input: FeasibilityInput): Plan {
     });
   }
 
-  // Weeks below the limit first; the limit never removes a candidate. Over the
-  // default range, each day's first start comes before any day's second, so
-  // the kept candidates cover the range rather than its first day.
+  const trips = tripDays(input, mode, open);
+  const free = open.map((entry) => ({ ...entry, trip: trips.dayOf(entry.start) }));
+
+  // Weeks below the limit first, then the trip rank; neither removes a
+  // candidate. Over the default range, each day's first start comes before any
+  // day's second among days of equal rank, so the kept candidates cover the
+  // range rather than its first day.
   const dayRank = new Map<number, number>();
   if (request.spreadDays) {
     const perDay = new Map<string, number>();
@@ -673,7 +789,10 @@ function plan(input: FeasibilityInput): Plan {
   }
   free.sort(
     (a, b) =>
-      Number(b.belowLimit) - Number(a.belowLimit) || (dayRank.get(a.start) ?? 0) - (dayRank.get(b.start) ?? 0) || a.start - b.start,
+      Number(b.belowLimit) - Number(a.belowLimit) ||
+      tripScore(b) - tripScore(a) ||
+      (dayRank.get(a.start) ?? 0) - (dayRank.get(b.start) ?? 0) ||
+      a.start - b.start,
   );
   const preferred = request.preferredWindows ?? [];
   const weekly = request.preferredWeeklyWindows ?? [];
@@ -696,23 +815,33 @@ function plan(input: FeasibilityInput): Plan {
     Number(preferred.some((window) => entry.start >= window.start.getTime() && entry.end <= window.end.getTime())) +
     Number(recurring.some((window) => entry.start >= window.start && entry.end <= window.end)) -
     3 * Number(lessPreferred.some((window) => entry.start < window.end.getTime() && entry.end > window.start.getTime()));
-  // The host's weekly-limit preference outweighs all guest preference signals.
-  const weighted = (entry: (typeof free)[number]) => 10 * Number(entry.belowLimit) + score(entry);
+  // The host's weekly-limit preference, then their trip preference, outweigh
+  // all guest preference signals (score is within [-3, 2]).
+  const hostWeight = (entry: (typeof free)[number]) => 20 * Number(entry.belowLimit) + 6 * tripScore(entry);
+  const weighted = (entry: (typeof free)[number]) => hostWeight(entry) + score(entry);
   const ranked = [...free].sort((a, b) => weighted(b) - weighted(a));
   const kept = ranked.slice(0, CANDIDATE_LIMIT);
   // Retain some non-preferred alternatives when doing so preserves host priority.
   if (preferred.length || weekly.length || lessPreferred.length) {
     const alternatives = ranked.filter((entry) => score(entry) <= 0 && !kept.includes(entry));
     for (const alternative of alternatives) {
-      const replace = kept.findLastIndex((entry) => entry.belowLimit === alternative.belowLimit && score(entry) > score(alternative));
-      if (replace < 0 || kept.filter((entry) => score(entry) <= score(alternative) && entry.belowLimit === alternative.belowLimit).length >= 10) continue;
+      const replace = kept.findLastIndex((entry) => hostWeight(entry) === hostWeight(alternative) && score(entry) > score(alternative));
+      if (replace < 0 || kept.filter((entry) => score(entry) <= score(alternative) && hostWeight(entry) === hostWeight(alternative)).length >= 10) continue;
       kept[replace] = alternative;
     }
     kept.sort((a, b) => weighted(b) - weighted(a));
   }
 
   if (mode === "online") {
-    return { exclusionCounts, exclusions, linkPlan, mode, planned: kept.map((entry) => ({ ...entry, legs: [] })), unresolvedWindows };
+    return {
+      exclusionCounts,
+      exclusions,
+      linkPlan,
+      mode,
+      planned: kept.map((entry) => ({ ...entry, legs: [] })),
+      tripQueries: trips.queries,
+      unresolvedWindows,
+    };
   }
 
   const meeting = endpointOfLocation(request.location);
@@ -748,7 +877,7 @@ function plan(input: FeasibilityInput): Plan {
     return { ...entry, legs };
   });
 
-  return { exclusionCounts, exclusions, linkPlan, mode, planned, unresolvedWindows };
+  return { exclusionCounts, exclusions, linkPlan, mode, planned, tripQueries: trips.queries, unresolvedWindows };
 }
 
 function placeKey(endpoint: Endpoint | null) {
@@ -781,6 +910,15 @@ export function travelQueries(input: FeasibilityInput): LegQuery[] {
     }
   }
 
+  return [...queries.values()];
+}
+
+// The trips the same-day trip rank needs, deduplicated like travelQueries. The
+// evaluation estimates them before travelQueries, so the candidates kept for
+// the travel check are cut from the ranked order.
+export function tripQueries(input: FeasibilityInput): LegQuery[] {
+  const queries = new Map<string, LegQuery>();
+  for (const query of plan(input).tripQueries) if (!queries.has(legQueryKey(query))) queries.set(legQueryKey(query), query);
   return [...queries.values()];
 }
 
@@ -892,6 +1030,17 @@ function basisFor(input: FeasibilityInput, entry: Planned, mode: "online" | "in_
       entry.belowLimit
         ? `That week has ${entry.weekCount} of your ${host.weeklyLimit} weekly ${counted(host.weeklyLimit)}.`
         : `That week already has ${entry.weekCount} ${counted(entry.weekCount)}, at or over your limit of ${host.weeklyLimit}, so it comes after weeks below the limit.`,
+    );
+  }
+
+  if (mode === "in_person" && entry.trip) {
+    const { farMinutes, nearMinutes, rank } = entry.trip;
+    sentences.push(
+      rank === "out_that_way"
+        ? `That day you are already ${nearMinutes} minutes from the meeting place, which is ${farMinutes} minutes from your usual area, so days like it come first.`
+        : rank === "preferred_area"
+          ? `That day you stay near your usual area, ${farMinutes} minutes from the meeting place, so it comes after days you are already out that way.`
+          : `The meeting place is ${farMinutes} minutes from your usual area, so days you are already out that way come first.`,
     );
   }
 
