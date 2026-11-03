@@ -115,9 +115,11 @@ Three utility templates, all `en_US`, each with one body parameter `{{1}}`, the 
 
 | Name | Event | Body |
 |---|---|---|
-| `fmat_request_received` | New request | `You have a new meeting request in Find Me a Time ({{1}}). Reply request {{1}} to see it here, or open findmeatime.com/app.` |
-| `fmat_proposal_waiting` | Proposal awaits approval | `A meeting proposal is waiting for your decision ({{1}}). Reply request {{1}} to review it here, or open findmeatime.com/app.` |
-| `fmat_booking_update` | Booking confirmed or not confirmed | `There is an update on your meeting request {{1}}. Reply request {{1}} for details, or open findmeatime.com/app.` |
+| `fmat_request_received` | New request | `You have a new meeting request in Find Me a Time. Reply request {{1}} to see it here, or open findmeatime.com/app.` |
+| `fmat_proposal_waiting` | Proposal awaits approval | `A meeting proposal is waiting for your decision in Find Me a Time. Reply request {{1}} to review it here, or open findmeatime.com/app.` |
+| `fmat_booking_update` | Booking confirmed or not confirmed | `There is an update on one of your meeting requests in Find Me a Time. Reply request {{1}} for details, or open findmeatime.com/app.` |
+
+Each body uses `{{1}}` once: WhatsApp Manager refuses a template that repeats a variable (found when submitting them on 2026-11-04), so the reference appears only in the reply instruction. The code sends the one parameter unchanged.
 
 The bodies hold no requester name, time, place or proposal detail. Meta reviews the text, and the parameter is a reference that means nothing outside the host's account. The host's `request <reference>` reply opens the window and selects the request, and the next turn shows the details as text.
 

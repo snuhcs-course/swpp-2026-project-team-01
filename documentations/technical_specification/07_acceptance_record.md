@@ -488,10 +488,19 @@ Fixture and local-stack evidence only.
 | Window and templates (D8, D9) | `tests/integration/whatsapp-window.test.ts` |
 | Reused behavior and `stop` (D11) | `tests/integration/whatsapp-channel.test.ts`; `lib/server/imessage-commands.test.ts` |
 
+### Production deployment
+
+| Step | Date | Revision | Result |
+|---|---|---|---|
+| Shared-project migration | 2026-11-04 | `44c71257` | The `Deploy shared Supabase` workflow on the merge applied `20261103150235_whatsapp_channel.sql` (success) |
+| `PHOTON_WHATSAPP_NUMBER` | 2026-11-04 | — | Set to `17114549153` on `findmeatime-release` Production |
+| `vercel deploy --prod` from a clean checkout | 2026-11-04 | `44c71257` | Ready and aliased to `https://findmeatime.com` |
+| Read-only checks | 2026-11-04 | `44c71257` | `/` and `/?flow=whatsapp` answer 200; `GET /api/imessage/start` names both channels with the WhatsApp number; an unsigned `POST /photon/webhook` is refused |
+
 ### Known gaps
 
 - **No real WhatsApp event or send.** The platform spelling, the contact ID format and where Photon carries Meta's error code come from the provider package and Photon's documentation; the one-event capture (task 5.1) is blocked on the user.
 - **Templates not registered.** The three templates of design 8 are not in WhatsApp Manager, so `template_unavailable` is what production would answer until they are approved.
 - **Refusals Meta reports after acceptance** (a 131047 in a status event) are not observed; the dispatch-time window check is the safeguard.
-- **No controlled Android run** of AC-29 to AC-31, and no production deploy or shared-project migration of this change.
+- **No controlled Android run** of AC-29 to AC-31. The change is deployed and migrated (above), but the templates are not registered, since the number's display name in WhatsApp Manager is Astia, not Find Me a Time.
 

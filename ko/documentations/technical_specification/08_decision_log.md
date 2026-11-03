@@ -527,16 +527,18 @@
 | 한국어 미러 어긋남 | 네 개의 미러(`03_provider_setup`, `04_page_list`, `05_host_onboarding_flow`, `08_decision_log`)는 이 변경 이전에 이미 영어 원문과 몇 줄 어긋나 있었습니다. WhatsApp 줄은 내용에 따라 배치했고, 이전의 어긋남은 별도 작업으로 남깁니다 | 여기서 이전의 어긋남 바로잡기 | 이 기록 | 그 파일들에 대한 미러 작업 |
 | `main`과의 병합 | `origin/main`의 `fdd09ac6`(PR #75, 게스트 예약)을 이 브랜치에 일반 병합으로 합쳤습니다. iMessage 테이블, 발신함, 연결, 명령의 충돌은 양쪽을 모두 유지했고, 마이그레이션은 병합된 체인에 맞춰 `20261103150235_whatsapp_channel.sql`로 다시 생성했습니다. `main`의 모든 마이그레이션보다 늦으므로 단순한 `supabase db push`로 적용되며, 병합된 체인에서 `supabase db reset --local`과 `supabase test db`가 통과합니다 | 리베이스(작업 규칙이 배제함) | 이 기록 | — |
 | WhatsApp 번호와 등급 | 사용자가 2026-11-04에 WhatsApp Business 번호는 +1 711-454-9153(`PHOTON_WHATSAPP_NUMBER=17114549153`)이고 메시징 한도는 24시간당 고객 250명이라고 알려 주었습니다. 템플릿이 유일한 비즈니스 발신 메시지이므로 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`는 그 한도보다 낮은 기본값 50을 유지합니다 | 템플릿 한도를 등급까지 올리기 | 제공자 설정, WhatsApp Business | Vercel Production의 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` |
+| 템플릿 문구 (2026-11-04) | 각 템플릿 본문은 참조를 한 번만 언급합니다("Reply request {{1}} …"). WhatsApp Manager는 변수가 반복되는 본문을 제출받지 않기 때문입니다. 코드는 매개변수 하나를 보내므로 그대로입니다 | 같은 값의 매개변수 두 개, 전송 코드가 바뀌게 됩니다 | 설계 8 | 설계 8과 WhatsApp Manager, 매개변수가 바뀌면 `lib/server/imessage-outbox.ts`의 `contentOf` |
+| 두 번째 WhatsApp 회선 제거 (2026-11-04) | 사용자가 Photon 프로젝트에 연결해 두었던 +1 555-701-1140을 사용자의 요청에 따라 `photon spectrum lines rm`으로 제거했으므로, 설계 1이 요구하는 대로 제공자에는 발신할 회선이 하나뿐입니다 | 둘 다 유지하기, 다른 번호로 답장이 나갈 수 있게 됩니다 | 설계 1 | — |
 
 ### 사용자 대기 항목
 
 다음 단계는 제공자 콘솔을 바꾸거나, 사람에게 메시지를 보내거나, 공유 환경 또는 릴리스 환경을 바꾸기 때문에 수행하지 않았습니다:
 
-- **Meta WhatsApp Manager**: 설계 8의 템플릿 세 개를 제출하고 승인받습니다. 비즈니스 표시 이름과 비즈니스 검증을 확인합니다. 사용자가 2026-11-04에 번호 +1 711-454-9153과 메시징 한도 24시간당 고객 250명을 알려 주었습니다.
-- **Photon 프로젝트**: 구성은 바꾸지 않았습니다. WhatsApp 회선, 그 등록, 공유 웹훅은 2026-11-02에 사용자가 둔 그대로입니다.
+- **Meta WhatsApp Manager**: 설계 8의 템플릿 세 개는 2026-11-04에 사용자의 요청으로 영어(미국)의 유틸리티로, 샘플 `K7Q2MX`와 함께 제출되었으며 **검토 중**입니다. Meta가 `{{1}}`을 반복하는 본문을 거부했으므로 각 본문은 이를 한 번만 사용합니다(설계 8). 번호에는 아직 표시 이름 **Astia**가 표시됩니다. Meta는 2026-11-03 16:21 UTC에 "Find Me a Time"을 승인했지만 적용하려면 번호를 다시 등록해야 하며, 사용자가 Photon에 이를 요청했습니다. 비즈니스 검증도 아직 남아 있습니다.
 - **모든 WhatsApp 메시지 전송**, 합류 단계의 이벤트 하나 수집과 Android 인수 실행을 포함합니다.
-- **Vercel 변수**: 코드가 반영된 뒤 Production의 `PHOTON_WHATSAPP_NUMBER=17114549153`, 그리고 바뀐 경우 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`.
-- 구현하는 풀 리퀘스트의 **마이그레이션과 배포**, 그리고 이 풀 리퀘스트의 병합을 포함한 모든 병합.
+- **Android에서의 프로덕션 점검**(AC-29부터 AC-31), AC-31에는 템플릿이 필요합니다.
+- **2026-11-04에 사용자의 요청으로 완료:** 병합 시 `Deploy shared Supabase` 워크플로가 `20261103150235_whatsapp_channel.sql`을 `anelszynxtvxoxqvzgqt`에 적용했고(`44c71257`, 성공), `findmeatime-release` Production에 `PHOTON_WHATSAPP_NUMBER=17114549153`을 추가했으며, `44c71257`의 `main`을 깨끗한 분리 체크아웃에서 `vercel deploy --prod`로 배포해 `https://findmeatime.com`에 별칭을 연결했습니다. 이후 읽기 전용 점검: `/`와 `/?flow=whatsapp`가 200으로 응답하고, `GET /api/imessage/start`가 두 채널을 모두 명시하며(`"whatsapp":"17114549153"`), 서명 없는 `POST /photon/webhook`은 거부됩니다. Photon 프로젝트는 읽기만 했고(`photon projects ls`: `imessage, whatsapp_business`) 아무것도 바꾸지 않았습니다.
+- **병합**: PR #79는 사용자의 요청으로 팀원 승인 없이 관리자 우회로 스쿼시 병합했습니다.
 - D1–D13과 설계의 미해결 질문에 대한 **팀원 검토**.
 
 ## `guest-flow-completion`
