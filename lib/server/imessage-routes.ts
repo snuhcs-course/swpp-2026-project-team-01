@@ -5,7 +5,7 @@ import { json } from "./chat-routes";
 import { CommandError, runCommand } from "./commands";
 import { database, type Database } from "./database";
 import { readHostStanding } from "./host-eligibility";
-import { fallbackDailyLimit, imessageCommands, readImessageStatus } from "./imessage-links";
+import { fallbackDailyLimit, imessageCommands, linkChannels, readImessageStatus } from "./imessage-links";
 import { readStartStatus, startCookieFor, startImessageLink, startSecretOf } from "./imessage-start";
 import { CONTINUATION_SECONDS, continuationCookie, readReceivedContinuation } from "./imessage-continuation";
 import { photonConfig } from "./photon";
@@ -31,17 +31,21 @@ export type ImessageRouteDependencies = AppOrigins & {
   readonly tokenKey: TokenKey;
   readonly tokenKeys: readonly TokenKey[];
   readonly lineNumber: string;
+  // The WhatsApp number as digits (host-whatsapp-channel D1), or "".
+  readonly whatsappNumber?: string;
   readonly lineDayLimit: number;
 };
 
 export function imessageRouteDependenciesFromEnvironment(): ImessageRouteDependencies {
   const tokenKey = tokenKeyFromEnvironment();
+  const photon = photonConfig();
   return {
     ...appOriginsFromEnvironment(),
     auth: supabaseAuthConfigFromEnvironment(),
     db: database(),
     lineDayLimit: fallbackDailyLimit(),
-    lineNumber: photonConfig().lineNumber,
+    lineNumber: photon.lineNumber,
+    whatsappNumber: photon.whatsappNumber,
     tokenKey,
     tokenKeys: [tokenKey],
   };
@@ -84,7 +88,7 @@ export function createImessageStatusHandler(load: () => ImessageRouteDependencie
     const host = await hostOf(deps, request);
     if (!host.hostAccountId) return host.refusal!;
 
-    return json(await readImessageStatus(deps.db, deps.tokenKeys, host.hostAccountId, deps.lineNumber));
+    return json(await readImessageStatus(deps.db, deps.tokenKeys, host.hostAccountId, linkChannels(deps)));
   };
 }
 
@@ -113,6 +117,7 @@ export function createImessageCommandHandler(load: () => ImessageRouteDependenci
       lineDayLimit: deps.lineDayLimit,
       lineNumber: deps.lineNumber,
       origin: deps.appOrigin,
+      whatsappNumber: deps.whatsappNumber,
       tokenKey: deps.tokenKey,
       tokenKeys: deps.tokenKeys,
     });
@@ -121,7 +126,7 @@ export function createImessageCommandHandler(load: () => ImessageRouteDependenci
       commands[body.data.operation]!,
       { input: body.data.input ?? {}, resourceId: hostAccountId, retryKey: body.data.retryKey },
     );
-    const status = await readImessageStatus(deps.db, deps.tokenKeys, hostAccountId, deps.lineNumber);
+    const status = await readImessageStatus(deps.db, deps.tokenKeys, hostAccountId, linkChannels(deps));
 
     return outcome.ok
       ? json({ result: outcome.result, status }, outcome.replayed ? 200 : 201)
@@ -137,7 +142,8 @@ export function createImessageStartStatusHandler(load: () => ImessageRouteDepend
   };
 }
 
-// POST /api/imessage/start: a new link code for this browser, which keeps the
+// POST /api/imessage/start: a new link code for this browser (iMessage, or
+// WhatsApp with {"channel":"whatsapp"}), which keeps the
 // cookie it already has or gets one. Bounded per source address and service-wide.
 export function createImessageStartHandler(load: () => ImessageRouteDependencies = imessageRouteDependenciesFromEnvironment) {
   return async (request: Request) => {
@@ -147,9 +153,12 @@ export function createImessageStartHandler(load: () => ImessageRouteDependencies
     const origin = requestAppOrigin(request, deps);
     if (!origin) return unknownHost();
 
+    // iMessage unless the page asks for WhatsApp (/?flow=whatsapp, host-whatsapp-channel D7).
+    const body = (await request.json().catch(() => null)) as { channel?: unknown } | null;
+    const channel = body?.channel === "whatsapp" ? "whatsapp" : "imessage";
     const cookie = startCookieFor(origin, startSecretOf(request));
     try {
-      await startImessageLink(deps.db, deps, cookie.secret, sourceHash(deps.tokenKey, request));
+      await startImessageLink(deps.db, deps, cookie.secret, sourceHash(deps.tokenKey, request), channel);
     } catch (error) {
       if (!(error instanceof CommandError)) throw error;
       return json({ error: { category: error.category, message: COMMAND_ERROR_MESSAGES[error.category] } }, COMMAND_STATUS[error.category]);

@@ -289,6 +289,12 @@
 /* the Messages-app green, so the control reads as "this opens Messages" */
 .ink .im-glyph { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(180deg, #65E06C 0%, #1BB52C 100%); color: #FFFFFF; flex: none; box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.12); }
 .ink .im-glyph svg { display: block; }
+/* WhatsApp's green, for controls that open WhatsApp and the message as WhatsApp shows it */
+.ink .wa-glyph { background: linear-gradient(180deg, #5FFC7B 0%, #28D146 100%); }
+.ink .blue.wa { background: #008069; }
+/* the app question on the link step: two equal choices */
+.ink .choices { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
+.ink .choices > * { flex: 1 1 160px; min-height: 48px; }
 .ink .field-help { font-size: 13px; color: var(--muted-ink); min-height: 20px; }
 .ink .field-help.error { color: var(--destructive); font-weight: 500; }
 .ink .fine { font-size: 12px; line-height: 1.55; color: var(--muted-ink); max-width: 56ch; }

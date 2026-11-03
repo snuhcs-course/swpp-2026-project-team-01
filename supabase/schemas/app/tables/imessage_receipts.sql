@@ -5,8 +5,12 @@
 -- keyed hashes for lookup; the text, the sender and the conversation ID are kept
 -- only sealed under the token key (context imessage_receipt:{id}) and only until
 -- the job records an outcome. outcome is what the job did with the message.
+-- channel is the platform the receiver parsed it from (host-whatsapp-channel
+-- design 4): WhatsApp receipts share this table, their sender and conversation
+-- hashed in their own namespace.
 CREATE TABLE "app"."imessage_receipts" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp')),
   "message_id" text NOT NULL CHECK (char_length("message_id") BETWEEN 1 AND 500),
   "webhook_id" text NOT NULL CHECK (char_length("webhook_id") BETWEEN 1 AND 200),
   "sender_hash" text NOT NULL CHECK ("sender_hash" ~ '^[0-9a-f]{64}$'),

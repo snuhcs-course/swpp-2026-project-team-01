@@ -493,6 +493,29 @@
 | D10 | Meta 오류 매핑: 131047은 `window_closed`; 131026은 거부됨; 132xxx는 `template_unavailable`; 130429와 131056은 사용 불가로 보고 재시도. 불확실한 전송은 다시 보내지 않습니다 | 모든 오류 재시도 | 제안서; 설계 9 | `lib/server/whatsapp.ts`의 오류 맵 |
 | D11 | 명령, 참조, 전달(`[WhatsApp] …`), 요약, 설정, 접수, 순서, 보존은 6단계와 같습니다. WhatsApp에는 **연락처에 추가(Add to contacts)**가 없습니다 | WhatsApp 전용 명령 집합; 결정을 위한 대화형 버튼 | 제안서; 설계 10 | 채널별 6단계 모듈 |
 | D13 | 식별된 프로덕션 배포에서만 메시징합니다. 대역이 WhatsApp 전송, 템플릿, 131047에 응답합니다 | — | 제안서; 설계 10 | `lib/server/messaging.ts`; 대역 |
+| 템플릿과 대체 제약(2.1) | 스키마는 강제할 수 있는 채널 규칙을 강제합니다. 대체 시도는 iMessage 전용이고, `template` 발신함 행은 WhatsApp 전용이며 템플릿 이름을 가져야 하고, 템플릿 행만 이름을 가집니다. 기존 행은 `imessage`가 기본값입니다 | 애플리케이션 코드에 맡기기 | `supabase/schemas/app/tables/imessage_{links,outbox}.sql`; `supabase/tests/whatsapp_channel.test.sql` | 해당 파일, 그다음 새 마이그레이션 |
+| 수신기의 WhatsApp 그룹(2.2) | 대화가 그룹이거나 발신자와 같지 않은 WhatsApp 이벤트는 수신기가 영수증 없이 버립니다. iMessage 그룹 메시지는 저장되므로 거기에 올린 코드는 해당 시도를 무효로 합니다. WhatsApp 공급자는 일대일 대화만 지원하므로 그런 이벤트에는 답장할 대화가 없습니다 | iMessage처럼 그룹 영수증으로 저장 | `lib/server/whatsapp.ts`의 `inboundWhatsAppMessage` | 그 함수와 설계 3 |
+| 채널이 답하기 전의 저장(2.2) | 작업 2.2부터 수신기는 WhatsApp 영수증을 저장합니다. 채널이 완성되기 전까지 영수증 작업은 이를 `ignored`로 기록하므로 WhatsApp 메시지는 iMessage 경로에 도달하지 않습니다 | 채널이 생기기 전에 라우팅; 끝날 때까지 아무것도 저장하지 않기 | `createImessageReceiptHandler` | WhatsApp 영수증을 처리하는 커밋에서 제거 |
+| Meta 오류 코드(2.3) | `whatsAppSendFailure`는 오류, 그 원인, 메시지, 세부 정보, 컨텍스트에서 Meta 코드(`130xxx`–`132xxx`)를 읽고, 없으면 SDK 오류 클래스로 대체합니다. `RateLimitError`는 사용 불가, `AuthenticationError`는 거부됨, 그 밖은 불확실로 처리합니다 | 공급자 패키지가 문서화하지 않은 필드 하나만 신뢰; 모든 SDK 오류를 사용 불가로 처리(이미 나간 메시지를 다시 보낼 수 있음) | `lib/server/whatsapp.ts` | 합류 단계에서 Photon이 코드를 어디에 두는지 확인한 뒤 그 함수 |
+| Meta가 나중에 보고하는 거부(2.3) | Cloud API는 전송을 수락한 뒤 상태 이벤트로 131047을 나중에 보고할 수 있으며, Photon은 이를 웹훅으로 전달하지 않으므로 그런 행은 `accepted`로 남습니다. 닫힌 창에서 텍스트가 나가지 않게 하는 것은 이 매핑이 아니라 발송 시점의 창 확인(D8)입니다 | 웹훅 설계 밖에서 SDK 스트림으로 상태 이벤트 구독 | 설계 9; 이 기록 | Photon이 상태 이벤트를 전달하기 시작하면 설계 9 |
+| 공급자 패키지(2.3) | `@spectrum-ts/whatsapp-business` 12.14.0을 정확히 고정하고, 다른 Spectrum 패키지와 같은 TypeScript `overrides` 항목을 두며, `lib/server/photon.ts`에서만 동적 import로 불러오고, 전송마다 WhatsApp 공급자와 `telemetry: false`만 가진 Spectrum 인스턴스를 만듭니다. `npm audit`은 iMessage 패키지와 같은 `@photon-ai/otel` 권고를 통해 이를 moderate로 보고합니다 | 두 공급자가 하나의 인스턴스를 공유 | `package.json`; `lib/server/photon.ts` | `sendWhatsApp` |
+| 카드 계약(3.1) | `GET /api/host/imessage`와 `/api/imessage/start`의 모든 상태는 `channels`(iMessage 회선과 WhatsApp 번호, 구성되지 않았으면 `null`)를 명시하고, 시도나 바인딩은 자신의 `channel`을 명시하며, `lineNumber`는 그 채널의 번호입니다. `received`에는 `replaces`가 추가되어, 확인하면 끝나게 될 바인딩의 다른 채널을 설계 5의 알림에 알려 줍니다. 두 채널 모두 구성되지 않았을 때만 카드를 사용할 수 없습니다 | WhatsApp용 두 번째 엔드포인트와 카드 | `lib/contracts/imessage.ts`; `readImessageStatus` | 해당 파일, 그리고 이를 읽는 카드 |
+| 대체된 바인딩의 대기열(3.1) | 발신자를 확인하면 호스트의 이전 바인딩이 어느 채널이든 끝나고, 그 바인딩 앞으로 대기 중이거나 대기열에 있던 것은 연결 해제가 `unlinked`로 하듯이 즉시 범주 `replaced`로 `suppressed` 처리됩니다. 발송 작업에 맡기지 않습니다 | 발송 시점에만 억제 | `lib/server/imessage-links.ts`의 `bind`와 `suppressQueued` | `suppressQueued` |
+| 채널별 거절 한도(3.1) | 발신자당 하루 한 번의 거절과 회선당 하루 200건은 채널마다 자기 회선이 있으므로 채널별로 셉니다 | 두 회선을 합쳐 한 번에 계산 | `refusalSentRecently` | 그 함수 |
+| 연결 시점의 창 시작(4.1) | 새 바인딩의 `last_inbound_at`은 연결 메시지가 도착한 시각이므로, 연결된 메시지와 환영 메시지는 그 메시지가 연 창 안에 들어갑니다 | 호스트가 다시 쓸 때까지 비워 두기(환영 메시지에서 창이 닫혔음) | `lib/server/imessage-links.ts`의 `bind` | 그 insert |
+| 바인딩 없는 답장(4.1) | 바인딩 없이 기록된 WhatsApp 답장(연결 답장이나 연동되지 않은 발신자에 대한 답장)은 23시간 50분 이내에 기록되었다면 창 안에 있는 것으로 셉니다. 답하려는 메시지를 처리할 때 함께 기록되기 때문입니다 | 답하려는 영수증을 조회 | `createImessageSendHandler` | select의 `fresh` 열 |
+| 템플릿 한도(4.1) | 호스트당 12시간 확인은 보냈든 아니든 모든 템플릿 행을 세고, 회선당 개수는 지난 24시간의 모든 템플릿을 포함합니다. 둘 다 하나의 어드바이저리 락 아래에서 읽으므로, 요약 두 건이 동시에 닫혀도 템플릿은 하나만 대기열에 들어갑니다 | 수락된 템플릿만 세기 | `lib/server/imessage-outbox.ts`의 `queueTemplate` | `TEMPLATE_HOST_HOURS`, `TEMPLATE_DAILY_LIMIT` |
+| 요청 참조(4.1) | 발신함은 `main`에서 PR #75가 옮겨 둔 `lib/server/request-ref.ts`의 `requestRef`로 템플릿에서 요청을 이름으로 가리키며, 명령 모듈을 가져오지 않습니다(이 변경이 열려 있는 동안 옮겨졌고, 이 변경은 한동안 자체 사본을 두었습니다) | 요약을 기록할 때 참조 계산 | `lib/server/request-ref.ts` | — |
+| 두 채널의 `stop`(4.2) | `stop`과 `unlink`는 WhatsApp과 마찬가지로 iMessage에서도 정확한 명령이므로 파서는 하나로 유지됩니다. 이 명령은 영수증의 트랜잭션 안에서 바인딩을 끝내고, 그 바인딩 앞으로 대기열에 있던 것을 억제하며, 바인딩에 묶이지 않은 확인 메시지 하나를 대기열에 넣어 그대로 나가게 합니다 | WhatsApp 전용 명령; "stop"을 어시스턴트에 전달 | `lib/server/imessage-commands.ts`의 `executeCommand` | `parseCommand`와 그 case |
+| 지침(4.2) | 호스트 채널 조각은 두 접두사를 모두 다루고 WhatsApp 규칙 하나를 더합니다. 창이 닫힐 수 있으므로 나중에 호스트에게 먼저 쓰겠다고 약속하지 않습니다 | WhatsApp용 두 번째 지침 파일 | `agent/instructions/host-imessage.ts` | 그 파일 |
+| 상태의 전달 사유(4.2) | 연결된 카드의 `delivery`는 바인딩 앞으로 간 최근 메시지가 창이나 Meta에 의해 중단되었을 때 `reason`(`window_closed`, `template_unavailable`)을 명시하며, 억제된 그 행도 실패한 전달로 셉니다 | 실패로만 표시 | `readImessageStatus`; `ImessageDelivery` | 해당 항목, 그리고 카드 |
+| 다시 전환(3.2) | Android가 아닌 모든 기기에서 WhatsApp 화면은 iPhone의 iMessage 화면이 **대신 WhatsApp 사용(Use WhatsApp instead)**을 제공하듯 **대신 iMessage 사용(Use iMessage instead)**을 제공합니다. 전환은 "none" 상태와 코드가 대기 중일 때 보이며, 전환하면 새 코드가 만들어져 대기 중이던 코드는 무효가 됩니다 | 한 방향 전환 | `lib/contracts/messaging-channel.ts`의 `otherChannel`; 카드와 연결 단계 | `otherChannel` |
+| 랜딩의 시작(3.2) | 기기 규칙을 적용하지 않는 랜딩에서는 `/?flow=whatsapp`만이 WhatsApp을 고릅니다. 이 브라우저에 이미 있는 시도는 자기 채널을 유지합니다. 작은 글씨는 "By sending, you agree to get WhatsApp messages from Thyme about your meetings. Reply STOP to stop anytime."입니다 | 랜딩에 기기 규칙 적용(설계 10의 미해결 질문) | `apps/web/app/_components/ink/imessage-start.tsx`, `copy.ts` | 해당 파일 |
+| 화면 문구(3.2) | 앱 질문은 "Which app do you use on your phone?"("휴대폰에서 어떤 앱을 쓰나요?"), 전환은 "Use {app} instead"("대신 {app} 쓰기"), 대체 문구는 "This replaces your {app} link."("기존 {app} 연결을 대신해요."), 컴퓨터의 WhatsApp 패널은 "Open WhatsApp here"(WhatsApp 웹 또는 데스크톱 앱)를 제공하고, 카드의 사용 불가 오류는 채널 중립적이며, `/app` 메뉴 항목은 "iMessage"로 유지됩니다 | 다른 문구 | `apps/web/app/_components/ink/copy.ts`; `imessage-card.tsx` | 해당 파일 |
+| 전달 알림(3.2) | 연결된 카드는 `window_closed`에 "Not sent on WhatsApp: you haven't written for a day. Send Thyme any message to pick up here, or check your requests below."를, `template_unavailable`에 "A WhatsApp notice couldn't be sent. Your requests are all here in Find Me a Time."를 보여 주고, 다른 실패는 기존 문구를 유지하되 채널을 이름으로 가리킵니다 | 일반적인 실패 문구 하나 | `imessage-card.tsx`의 `deliveryNotice` | 그 함수 |
+| WhatsApp 색(3.2) | 잉크 화면은 iMessage 파랑 옆에서 WhatsApp을 아이콘과 초록 말풍선(`#008069`)으로 표시합니다 | Thyme 색만 사용 | `apps/web/app/_components/ink/ink.css`, `icons.tsx` | 해당 파일 |
+| iMessage e2e 사용자 에이전트(3.2) | iMessage 브라우저 여정은 Mac 사용자 에이전트로 실행합니다. WhatsApp이 구성되어 있으면 Playwright의 기본 Windows 에이전트가 앱 질문을 먼저 받기 때문입니다 | 그 스위트에서 WhatsApp 번호 해제 | `tests/e2e/imessage-link.test.ts` | 그 파일 |
+| 게스트 시도는 iMessage 유지(병합) | PR #75(게스트 iMessage)를 병합한 뒤, 요청(게스트의 요청)에 속한 연결 시도는 제약에 따라 iMessage여야 합니다. WhatsApp을 통한 요청자 메시징은 범위 밖이기 때문입니다. WhatsApp 해시는 자체 네임스페이스를 가지므로 게스트 바인딩은 WhatsApp 발신자와 일치하지 않습니다 | 애플리케이션 코드에 맡기기 | `supabase/schemas/app/tables/imessage_links.sql`의 `imessage_links_request_channel` | 요청자 WhatsApp을 추가하는 변경과 함께 그 제약 |
 
 ### 운영 결정
 
@@ -500,15 +523,19 @@
 |---|---|---|---|---|
 | 회선 없는 출처 | 설계는 2026-11-02에 npm tarball의 `@spectrum-ts/whatsapp-business` 12.14.0과 Photon 문서를 읽었습니다. WhatsApp 메시지는 보내거나 받지 않았으므로, 플랫폼 철자와 발신자 형식은 합류 단계에서만 확인됩니다 | 사용자에게 막혀 있는 테스트 메시지 전송 | 설계 맥락 | — |
 | 계획만 | 이 풀 리퀘스트는 문서와 OpenSpec 변경만 바꾸며, 코드, 스키마, 구성은 없습니다 | 레인 A를 곧바로 구현 | 계획 9단계 | — |
+| Supabase CLI | 마이그레이션은 AGENTS.md가 명시한 2.119.0이 아니라 이 기기에 설치된 Supabase CLI 2.122.0으로 생성하고 체인을 다시 구성했습니다. 생성된 SQL은 열과 제약만 추가하며, 다시 구성한 스택에서 `supabase test db`가 통과합니다 | 마이그레이션 하나를 위해 CLI 낮추기 | 이 기록 | 팀이 고정된 버전으로 생성하기를 원하면 2.119.0으로 다시 생성 |
+| 한국어 미러 어긋남 | 네 개의 미러(`03_provider_setup`, `04_page_list`, `05_host_onboarding_flow`, `08_decision_log`)는 이 변경 이전에 이미 영어 원문과 몇 줄 어긋나 있었습니다. WhatsApp 줄은 내용에 따라 배치했고, 이전의 어긋남은 별도 작업으로 남깁니다 | 여기서 이전의 어긋남 바로잡기 | 이 기록 | 그 파일들에 대한 미러 작업 |
+| `main`과의 병합 | `origin/main`의 `fdd09ac6`(PR #75, 게스트 예약)을 이 브랜치에 일반 병합으로 합쳤습니다. iMessage 테이블, 발신함, 연결, 명령의 충돌은 양쪽을 모두 유지했고, 마이그레이션은 병합된 체인에 맞춰 `20261103150235_whatsapp_channel.sql`로 다시 생성했습니다. `main`의 모든 마이그레이션보다 늦으므로 단순한 `supabase db push`로 적용되며, 병합된 체인에서 `supabase db reset --local`과 `supabase test db`가 통과합니다 | 리베이스(작업 규칙이 배제함) | 이 기록 | — |
+| WhatsApp 번호와 등급 | 사용자가 2026-11-04에 WhatsApp Business 번호는 +1 711-454-9153(`PHOTON_WHATSAPP_NUMBER=17114549153`)이고 메시징 한도는 24시간당 고객 250명이라고 알려 주었습니다. 템플릿이 유일한 비즈니스 발신 메시지이므로 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`는 그 한도보다 낮은 기본값 50을 유지합니다 | 템플릿 한도를 등급까지 올리기 | 제공자 설정, WhatsApp Business | Vercel Production의 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` |
 
 ### 사용자 대기 항목
 
 다음 단계는 제공자 콘솔을 바꾸거나, 사람에게 메시지를 보내거나, 공유 환경 또는 릴리스 환경을 바꾸기 때문에 수행하지 않았습니다:
 
-- **Meta WhatsApp Manager**: 설계 8의 템플릿 세 개를 제출하고 승인받습니다. 2026-11-02에 연결한 번호의 비즈니스 표시 이름, 비즈니스 검증, 회선의 메시징 등급을 확인합니다.
+- **Meta WhatsApp Manager**: 설계 8의 템플릿 세 개를 제출하고 승인받습니다. 비즈니스 표시 이름과 비즈니스 검증을 확인합니다. 사용자가 2026-11-04에 번호 +1 711-454-9153과 메시징 한도 24시간당 고객 250명을 알려 주었습니다.
 - **Photon 프로젝트**: 구성은 바꾸지 않았습니다. WhatsApp 회선, 그 등록, 공유 웹훅은 2026-11-02에 사용자가 둔 그대로입니다.
 - **모든 WhatsApp 메시지 전송**, 합류 단계의 이벤트 하나 수집과 Android 인수 실행을 포함합니다.
-- **Vercel 변수**: 코드가 반영된 뒤 Production의 `PHOTON_WHATSAPP_NUMBER`, 그리고 바뀐 경우 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`.
+- **Vercel 변수**: 코드가 반영된 뒤 Production의 `PHOTON_WHATSAPP_NUMBER=17114549153`, 그리고 바뀐 경우 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`.
 - 구현하는 풀 리퀘스트의 **마이그레이션과 배포**, 그리고 이 풀 리퀘스트의 병합을 포함한 모든 병합.
 - D1–D13과 설계의 미해결 질문에 대한 **팀원 검토**.
 

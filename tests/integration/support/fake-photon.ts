@@ -8,8 +8,13 @@ import type { PhotonContent, PhotonRecipient } from "../../../lib/server/photon"
 // answers accepted with a message ID and the conversation; a send can be told to
 // answer a status (a 4xx with a category is a refusal, a 5xx is uncertain) or to
 // drop its answer after recording it (uncertain).
+// WhatsApp sends (host-whatsapp-channel design 9) go to POST /whatsapp/messages:
+// free-form text to a contact whose window was closed is refused as Meta's
+// 131047 (422 window_closed); a template is accepted unless templates were made
+// unavailable (422 template_unavailable).
 
 export type FakeSend = {
+  readonly channel: "imessage" | "whatsapp";
   readonly idempotencyKey: string;
   readonly recipient: PhotonRecipient;
   readonly content: PhotonContent;
@@ -22,6 +27,10 @@ export type FakePhoton = {
   // The next send is recorded and then answered as given.
   nextSend(behavior: "drop" | { readonly status: number; readonly category?: string }): void;
   sentTo(address: string): FakeSend[];
+  // Meta refuses free-form text to this WhatsApp contact (131047) from now on.
+  closeWindow(address: string): void;
+  // Meta refuses every template (132001).
+  templatesUnavailable(value?: boolean): void;
   close(): Promise<void>;
 };
 
@@ -34,6 +43,8 @@ export async function startFakePhoton(options: { readonly port?: number } = {}):
   const sends: FakeSend[] = [];
   const behaviors: ("drop" | { status: number; category?: string })[] = [];
   let counter = 0;
+  const closed = new Set<string>();
+  let templatesOff = false;
 
   const server = createServer(async (request, response) => {
     let raw = "";
@@ -51,7 +62,8 @@ export async function startFakePhoton(options: { readonly port?: number } = {}):
       return;
     }
 
-    if (request.method !== "POST" || url.pathname !== "/messages") {
+    const whatsapp = url.pathname === "/whatsapp/messages";
+    if (request.method !== "POST" || (url.pathname !== "/messages" && !whatsapp)) {
       json(response, 404, { error: "not_found" });
       return;
     }
@@ -60,11 +72,23 @@ export async function startFakePhoton(options: { readonly port?: number } = {}):
     const behavior = behaviors.shift();
     counter += 1;
     const send: FakeSend = {
+      channel: whatsapp ? "whatsapp" : "imessage",
       content: body.content,
       idempotencyKey: String(request.headers["idempotency-key"] ?? ""),
       messageId: `pmsg_${counter}`,
       recipient: body.recipient,
     };
+
+    if (whatsapp && !behavior) {
+      if (body.content.kind === "template" && templatesOff) {
+        json(response, 422, { category: "template_unavailable" });
+        return;
+      }
+      if (body.content.kind === "text" && closed.has(body.recipient.address)) {
+        json(response, 422, { category: "window_closed" });
+        return;
+      }
+    }
 
     if (behavior && behavior !== "drop") {
       if (behavior.status >= 500) sends.push(send);
@@ -79,7 +103,10 @@ export async function startFakePhoton(options: { readonly port?: number } = {}):
       return;
     }
 
-    json(response, 200, { messageId: send.messageId, spaceId: body.recipient.spaceId ?? `any;-;${body.recipient.address}` });
+    json(response, 200, {
+      messageId: whatsapp ? `wamid.${counter}` : send.messageId,
+      spaceId: body.recipient.spaceId ?? (whatsapp ? body.recipient.address : `any;-;${body.recipient.address}`),
+    });
   });
 
   await new Promise<void>((resolve) => server.listen(options.port ?? 0, "127.0.0.1", resolve));
@@ -88,6 +115,10 @@ export async function startFakePhoton(options: { readonly port?: number } = {}):
   return {
     baseUrl: `http://127.0.0.1:${port}`,
     close: () => new Promise((resolve) => server.close(() => resolve())),
+    closeWindow: (address) => closed.add(address),
+    templatesUnavailable: (value = true) => {
+      templatesOff = value;
+    },
     nextSend: (behavior) => behaviors.push(behavior),
     sends,
     sentTo: (address) => sends.filter((send) => send.recipient.address === address),

@@ -1,19 +1,34 @@
 "use client";
 
 import { deepLinkFor, type MessagesPlatform, messagesPlatform, qrDeepLink } from "@lib/contracts/imessage";
+import { displayWhatsAppNumber, type MessagingChannel, whatsAppLinkFor } from "@lib/contracts/messaging-channel";
 import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { renderSVG } from "uqr";
 import { CopyButton } from "./chrome";
 import type { Copy } from "./copy";
-import { CloseIcon, MessagesGlyph } from "./icons";
+import { AppGlyph, CloseIcon } from "./icons";
 
 // The send-a-message panel (the "iMessage 연결 화면 시안" canvas): the message as Messages will show it, then
 // the ways to send it from here: the iPhone's camera (a QR code of the same sms: deep link), this Mac's
 // Messages (shown on a Mac only) and copying the number and the text. It shows how long the code works and,
 // once it ran out, the same panel greyed out with Make a new code. The landing shows it as a popup over the
 // page; /app shows it in the page.
+// For a WhatsApp code (host-whatsapp-channel D6) the QR code carries the wa.me link, the middle way opens
+// WhatsApp Web or the desktop app on any computer, and the number shows with its plus.
 
-export type SendCode = { readonly lineNumber: string; readonly message: string; readonly expiresAt: string };
+export type SendCode = {
+  readonly channel: MessagingChannel;
+  readonly lineNumber: string;
+  readonly message: string;
+  readonly expiresAt: string;
+};
+
+// The line's number as the screens show it.
+export const shownNumber = (code: SendCode) => (code.channel === "whatsapp" ? displayWhatsAppNumber(code.lineNumber) : code.lineNumber);
+
+// The link a QR code carries: wa.me for WhatsApp, the iOS sms: link for iMessage.
+const qrLink = (code: SendCode) =>
+  code.channel === "whatsapp" ? (whatsAppLinkFor(code.lineNumber, code.message) ?? "") : qrDeepLink(code.lineNumber, code.message);
 
 export function usePlatform(): MessagesPlatform {
   const [platform, setPlatform] = useState<MessagesPlatform>("other");
@@ -47,10 +62,10 @@ export function MessagePreview({ code, gone, t }: { readonly code: SendCode; rea
     <div className={gone ? "preview gone" : "preview"}>
       <div className="preview-to">
         <span>{t.to}</span>
-        <b>Thyme · {code.lineNumber}</b>
+        <b>Thyme · {shownNumber(code)}</b>
       </div>
       <div className="preview-body">
-        <p className="blue" data-testid="imessage-link-message">
+        <p className={code.channel === "whatsapp" ? "blue wa" : "blue"} data-testid="imessage-link-message">
           {code.message}
         </p>
       </div>
@@ -59,7 +74,7 @@ export function MessagePreview({ code, gone, t }: { readonly code: SendCode; rea
 }
 
 function Qr({ code, gone, label, mark }: { readonly code: SendCode; readonly gone: boolean; readonly label: string; readonly mark: string }) {
-  const svg = useMemo(() => renderSVG(qrDeepLink(code.lineNumber, code.message), { border: 1 }), [code.lineNumber, code.message]);
+  const svg = useMemo(() => renderSVG(qrLink(code), { border: 1 }), [code]);
   return (
     <div className={gone ? "qr gone" : "qr"}>
       <div
@@ -75,13 +90,15 @@ function Qr({ code, gone, label, mark }: { readonly code: SendCode; readonly gon
   );
 }
 
-function Ways({ code, gone, labels, mac, t }: { readonly code: SendCode; readonly gone: boolean; readonly labels: Copy["copy"]; readonly mac: boolean; readonly t: Copy["send"] }) {
+function Ways({ code, gone, labels, here, t }: { readonly code: SendCode; readonly gone: boolean; readonly labels: Copy["copy"]; readonly here: boolean; readonly t: Copy["send"] }) {
   const numberRef = useRef<HTMLSpanElement>(null);
   const messageRef = useRef<HTMLSpanElement>(null);
-  const link = deepLinkFor("mac", code.lineNumber, code.message);
+  const whatsapp = code.channel === "whatsapp";
+  const link = whatsapp ? whatsAppLinkFor(code.lineNumber, code.message) : deepLinkFor("mac", code.lineNumber, code.message);
+  const number = shownNumber(code);
   const way = gone ? "way gone" : "way";
   return (
-    <div className={mac ? "ways" : "ways two"}>
+    <div className={here ? "ways" : "ways two"}>
       <section className={way}>
         <span className="way-tag">{t.qrTag}</span>
         <h3>{t.qrTitle}</h3>
@@ -90,7 +107,7 @@ function Ways({ code, gone, labels, mac, t }: { readonly code: SendCode; readonl
           <Qr code={code} gone={gone} label={t.qrAlt} mark={t.expiredMark} />
         </div>
       </section>
-      {mac ? (
+      {here ? (
         <section className={way}>
           <span className="way-tag">{t.macTag}</span>
           <h3>{t.macTitle}</h3>
@@ -98,12 +115,12 @@ function Ways({ code, gone, labels, mac, t }: { readonly code: SendCode; readonl
           <div className="soft roomy">
             {gone || !link ? (
               <button className="primary-btn" disabled type="button">
-                <MessagesGlyph />
+                <AppGlyph channel={code.channel} />
                 {t.open}
               </button>
             ) : (
               <a className="primary-btn" href={link}>
-                <MessagesGlyph />
+                <AppGlyph channel={code.channel} />
                 {t.open}
               </a>
             )}
@@ -117,9 +134,9 @@ function Ways({ code, gone, labels, mac, t }: { readonly code: SendCode; readonl
         {gone ? null : (
           <div className="copyrow">
             <span className="val" ref={numberRef}>
-              {code.lineNumber}
+              {number}
             </span>
-            <CopyButton className="copy" fallbackTarget={numberRef} labels={labels} text={code.lineNumber} />
+            <CopyButton className="copy" fallbackTarget={numberRef} labels={labels} text={number} />
           </div>
         )}
         <div className="copyrow">
@@ -199,7 +216,8 @@ export function SendPanel({
         </button>
       ) : null}
       <MessagePreview code={code} gone={gone} t={t} />
-      <Ways code={code} gone={gone} labels={labels} mac={platform === "mac"} t={t} />
+      {/* A Mac opens its Messages; any computer opens WhatsApp Web or the desktop app. */}
+      <Ways code={code} gone={gone} labels={labels} here={code.channel === "whatsapp" || platform === "mac"} t={t} />
       <div className="modal-foot">{foot}</div>
     </>
   );

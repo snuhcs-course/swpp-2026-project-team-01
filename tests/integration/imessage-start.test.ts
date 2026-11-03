@@ -144,7 +144,7 @@ describe("the iMessage start", () => {
     const sender = newSender();
     const pending = await started(browser);
     expect(pending.message).toBe(`Link my Find Me a Time account: ${pending.code}`);
-    expect(await readStartStatus(db, options, secret())).toEqual({ lineNumber: TEST_LINE, state: "none" });
+    expect(await readStartStatus(db, options, secret())).toEqual({ channels: { imessage: TEST_LINE, whatsapp: null }, lineNumber: TEST_LINE, state: "none" });
 
     expect((await im.deliver({ sender, text: pending.message })).outcome).toBe("link_received");
     expect(await readStartStatus(db, options, browser)).toMatchObject({ sender: `•••• ${sender.slice(-4)}`, state: "received" });
@@ -160,7 +160,7 @@ describe("the iMessage start", () => {
     const hostAccountId = await newHostAccount(db);
     expect(await claimStartedLink(db, testTokenKey, hostAccountId, secret())).toBe(false);
     expect(await claimStartedLink(db, testTokenKey, hostAccountId, browser)).toBe(true);
-    expect(await readStartStatus(db, options, browser)).toEqual({ lineNumber: TEST_LINE, state: "none" });
+    expect(await readStartStatus(db, options, browser)).toEqual({ channels: { imessage: TEST_LINE, whatsapp: null }, lineNumber: TEST_LINE, state: "none" });
 
     const received = await im.status(hostAccountId);
     if (received.state !== "received") throw new Error(`Expected a received code, got ${received.state}.`);
@@ -189,7 +189,7 @@ describe("the iMessage start", () => {
     expect((await im.deliver({ sender: newSender(), text: first.message })).outcome).toBe("link_refused");
 
     await db`update app.imessage_links set expires_at = now() - interval '1 second' where code_hash is not null and host_account_id is null and state = 'pending' and created_at > now() - interval '1 minute'`;
-    expect(await readStartStatus(db, options, browser)).toEqual({ lineNumber: TEST_LINE, state: "none" });
+    expect(await readStartStatus(db, options, browser)).toEqual({ channels: { imessage: TEST_LINE, whatsapp: null }, lineNumber: TEST_LINE, state: "none" });
     expect(await claimStartedLink(db, testTokenKey, await newHostAccount(db), browser)).toBe(false);
   });
 

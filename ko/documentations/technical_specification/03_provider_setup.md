@@ -119,7 +119,7 @@ Photon의 전달 가능성 안내에 따라 인바운드 우선이 기본값입�
 
 ## WhatsApp Business
 
-WhatsApp Business는 호스트 WhatsApp 채널의 전송 수단입니다. 2026-11-02에 [`host-whatsapp-channel` 변경](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)에서 제안되었으며 아직 구현되지 않았습니다. 사용자가 2026-11-02에 활성화한, iMessage와 같은 Photon 프로젝트(`findmeatime`)의 Photon Spectrum `whatsapp_business` 플랫폼을 통해 동작합니다. Photon은 WhatsApp 이벤트를 같은 서명이 붙은 같은 웹훅 `https://findmeatime.com/photon/webhook`으로 전달합니다. 수신기는 서명을 한 번 확인하고 플랫폼에 따라 라우팅합니다(D2). 변경이 반영되기 전까지 iMessage 수신기는 이를 확인 응답하고 무시합니다(이슈 #62, PR #63). 발신 메시지는 기존 `PHOTON_PROJECT_ID`와 `PHOTON_PROJECT_SECRET`을 사용해 클라우드 모드의 `@spectrum-ts/whatsapp-business` 12.14.0으로 보내므로, Meta 자격 증명은 Photon이 보관합니다(D1). 발신자는 WhatsApp 연락처 ID, 즉 `+` 없이 숫자만 적은 국제 전화번호입니다(D3).
+WhatsApp Business는 호스트 WhatsApp 채널의 전송 수단입니다. 2026-11-02에 [`host-whatsapp-channel` 변경](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)에서 제안되었고 2026-11-03에 루프백 대역(`PHOTON_API_URL`이 `/whatsapp/messages`에서 WhatsApp에 응답함)을 상대로 구현되었으며, 실제 WhatsApp 메시지는 아직 보내거나 받은 적이 없습니다. 사용자가 2026-11-02에 활성화한, iMessage와 같은 Photon 프로젝트(`findmeatime`)의 Photon Spectrum `whatsapp_business` 플랫폼을 통해 동작합니다. Photon은 WhatsApp 이벤트를 같은 서명이 붙은 같은 웹훅 `https://findmeatime.com/photon/webhook`으로 전달합니다. 수신기는 서명을 한 번 확인하고 플랫폼에 따라 라우팅합니다(D2). 이 변경 이전에는 iMessage 수신기가 이를 확인 응답하고 무시했으며(이슈 #62, PR #63), 지금도 그렇게 하고, WhatsApp 이벤트는 그 뒤에 WhatsApp 파서에 도달합니다. 발신 메시지는 기존 `PHOTON_PROJECT_ID`와 `PHOTON_PROJECT_SECRET`을 사용해 클라우드 모드의 `@spectrum-ts/whatsapp-business` 12.14.0으로 보내므로, Meta 자격 증명은 Photon이 보관합니다(D1). 발신자는 WhatsApp 연락처 ID, 즉 `+` 없이 숫자만 적은 국제 전화번호입니다(D3).
 
 Photon의 문서와 공급자 패키지에서 확인한 사실이며, 아직 실제 이벤트에서는 확인하지 못했습니다:
 
@@ -130,8 +130,8 @@ Photon의 문서와 공급자 패키지에서 확인한 사실이며, 아직 실
 운영자 단계이며, 구현하는 풀 리퀘스트가 반영될 때까지 모두 사용자에게 막혀 있습니다:
 
 1. 번호를 소유한 비즈니스 포트폴리오의 WhatsApp Manager에서 [설계 8](../../openspec/changes/host-whatsapp-channel/design.md#8-templates)의 유틸리티 템플릿 세 개를 정확한 이름과 본문 그대로 `en_US`로 제출하고 승인을 기다립니다. 각 템플릿의 상태와 카테고리를 기록합니다. 마케팅으로 재분류되면 팀에 돌려보냅니다.
-2. 표시 이름 "Find Me a Time", 비즈니스 검증, 번호의 메시징 등급을 확인합니다. 검증 전에는 Meta가 하루 고유 사용자 250명에게만 비즈니스 발신 메시지를 허용합니다.
-3. `PHOTON_WHATSAPP_NUMBER`(카드와 `https://wa.me/<number>`용 숫자)를, 그리고 기본값 50이 맞지 않으면 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`를 Vercel Production에만 설정합니다. 프리뷰와 스테이징은 메시징을 계속 거부합니다.
+2. 표시 이름 "Find Me a Time"과 비즈니스 검증을 확인합니다. 번호는 **+1 711-454-9153**이며, 메시징 한도는 **롤링 24시간당 고객 250명**(사용자, 2026-11-04)으로, 비즈니스 검증 전 Meta의 등급입니다. 이 한도는 비즈니스 발신 대화, 여기서는 템플릿 알림만 집계하므로, 하루 템플릿 50건이라는 기본값은 한도 안에 머뭅니다.
+3. `PHOTON_WHATSAPP_NUMBER=17114549153`(카드와 `https://wa.me/17114549153`용 숫자)를, 그리고 기본값 50이 맞지 않으면 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`를 Vercel Production에만 설정합니다. 프리뷰와 스테이징은 메시징을 계속 거부합니다.
 4. 통제된 Android 폰에서 번호로 메시지 하나를 보내 저장된 수신 기록의 채널이 `whatsapp`인지 확인합니다. 정확한 `platform` 철자와 발신자 형식을 변경과 여기에 기록합니다. 그다음 AC-29–AC-31을 실행합니다.
 
 사용자의 승인 없이는 에이전트 세션에서 Photon 프로젝트의 플랫폼, 회선, 웹훅을 바꾸거나, 템플릿을 등록하거나, WhatsApp 메시지를 보내서는 안 됩니다.

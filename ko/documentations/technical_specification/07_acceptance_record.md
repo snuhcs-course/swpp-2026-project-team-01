@@ -42,6 +42,9 @@
 | AC-26 | `tests/integration/host-admission.test.ts`, `setup-tools.test.ts`, `entry-documents.test.ts`, `operator.test.ts` ([1단계](#phase-1--application-foundation), [2단계](#phase-2--host-onboarding)) | `https://findmeatime.com`에서의 실제 로그인 1회로 호스트 계정 하나 생성(1단계) | 설정 전 MCP와 CLI를 통한 게시 시도; 프로덕션에서의 정지 |
 | AC-27 | `tests/integration/requester-google.test.ts`; `evaluation.test.ts` "uses the requester's busy time without storing or showing their events" | — | 실제 요청자 동의, Google 앱이 **Testing** 상태인 동안 차단됨 |
 | AC-28 | 항목별 [2단계](#phase-2--host-onboarding) 증거 | — | 프로덕션에서 로그인한 설정; Google 앱 검증 |
+| AC-29 | `tests/e2e/whatsapp-link.test.ts`(Android, iPhone, Windows 에이전트), `tests/integration/whatsapp-links.test.ts`, `whatsapp-channel.test.ts` ([9단계](#phase-9--host-whatsapp-channel)) | — | WhatsApp 회선, 승인된 템플릿, 통제된 Android 휴대폰 |
+| AC-30 | `lib/server/whatsapp.test.ts`, `tests/integration/imessage-receiver.test.ts`(WhatsApp Business), `whatsapp-links.test.ts`, `whatsapp-channel.test.ts` | — | 통제된 Android 휴대폰 |
+| AC-31 | `tests/integration/whatsapp-window.test.ts`, `whatsapp-outbox.test.ts`, `whatsapp-channel.test.ts` | — | 통제된 Android 휴대폰, 닫힌 창, 승인된 템플릿 |
 
 앞서 기록된 두 공백이 해당 단계가 기록된 이후 바뀌었습니다. 6단계까지의 모든 마이그레이션이 이제 공유 프로젝트에 있으며(2026-10-23에 확인), 현재 프로덕션 배포(2026-10-23 07:02 KST)는 6단계 병합보다 앞서므로 6~8단계는 배포되지 않았습니다.
 
@@ -459,4 +462,38 @@
 | `dev.findmeatime.com` | `/`의 `curl` | 404: `findmeatime-dev`에 이를 서비스하는 현재 배포가 없으므로 스테이징은 라이브가 아님 |
 | 지연(D4) | `npm run perf:check -- --origin https://findmeatime.com`과 `--origin https://release.findmeatime.com`, 서울에서 경로마다 순차 표본 20개 | 모든 경로 통과. `findmeatime.com`: `/` p50 155ms, p95 267ms; `/SKILL.md` 269ms와 431ms; `/llms.txt` 255ms와 286ms; `/eve/v1/health` 250ms와 470ms. `release.findmeatime.com`: 200ms와 446ms; 262ms와 287ms; 250ms와 831ms; 273ms와 321ms. 승인에서 예약까지의 시간과 첫 응답 시간은 측정되지 않음 |
 | 릴리스 프로젝트 | 읽기 전용 `supabase db query --linked --project-ref mriseqztcwmezvtawnbo` | 여전히 1차 반복의 프로토타입임([공급자 설정](03_provider_setup.md#supabase-project)); 비워지지 않음 |
+
+## 9단계 — `host-whatsapp-channel`
+
+변경: [`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/tasks.md). 증거 목록: [9단계](06_implementation_plan.md#phase-9--host-whatsapp-channel). 환경은 6단계와 같이 기본 로컬 스택과 루프백 Photon 스탠드인(`tests/integration/support/fake-photon.ts`)이며, 이 스탠드인은 이제 `/whatsapp/messages`에서 WhatsApp에 응답하고, 닫힌 창에 대한 자유 텍스트를 거부하며(131047), 모든 템플릿을 거부할 수도 있습니다.
+
+### 테스트 묶음 실행
+
+| 명령 | 날짜 | 리비전 | 환경 | 결과 |
+|---|---|---|---|---|
+| `supabase db reset --local`, `supabase test db` | 2026-11-04 | `a7abf566`(`fdd09ac6`의 `main`을 병합한 뒤) | 로컬 스택, Supabase CLI 2.122.0 | `20261103150235_whatsapp_channel.sql`로 체인이 다시 구축됨; 파일 12개, pgTAP 테스트 151개 통과, `whatsapp_channel.test.sql` 포함 |
+| `npm run check`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build` | 2026-11-04 | `a7abf566` | 로컬 | 통과; 단위 테스트 586개(파일 60개); OpenSpec 항목 27개; lint는 이 변경 이전부터 있던 경고만 보고함 |
+| `npm run test:integration` | 2026-11-04 | `a7abf566` | 로컬 스택 | 789개 중 788개 통과(파일 83개). 실패한 것은 이 변경의 `whatsapp-channel.test.ts`로, PR #75가 설정 응답에 부여한 `host-selection:` 키를 조회가 찾지 못했기 때문이며 다음 커밋에서 수정한 뒤 4개 중 4개 통과 |
+| `npm run test:e2e` | 2026-11-04 | `a7abf566` | 로컬 스택 | 68개 중 63개 통과, 2개는 실행되지 않음. 실패한 세 개(390px의 `first-reply`, `requester-google`, `requester-imessage`)는 이 변경과 무관하며 단독으로 실행하면 통과했습니다(6개 중 6개). `tests/e2e/whatsapp-link.test.ts`(6개)와 `imessage-link.test.ts`(7개)는 통과 |
+
+### 항목별 증거
+
+픽스처와 로컬 스택 증거만 있습니다.
+
+| 항목 | 증거 |
+|---|---|
+| 라우팅과 발신자(D2, D3) | `lib/server/whatsapp.test.ts`(플랫폼 표기, 섞이거나 라벨이 없는 이벤트, 연락처 ID, 그룹, 해시 네임스페이스); `tests/integration/imessage-receiver.test.ts` "with WhatsApp Business" |
+| 레코드(D4) | `supabase/tests/whatsapp_channel.test.sql` |
+| 전송과 결과(D1, D10) | `lib/server/photon.test.ts` "WhatsApp sends"; `lib/server/whatsapp.test.ts` "whatsAppSendFailure"; `tests/integration/whatsapp-outbox.test.ts` |
+| 연결과 호스트당 채널 하나(D5, D6) | `tests/integration/whatsapp-links.test.ts` |
+| 기기 규칙과 카드(D7, D12) | `lib/contracts/messaging-channel.test.ts`; `tests/e2e/whatsapp-link.test.ts` |
+| 창과 템플릿(D8, D9) | `tests/integration/whatsapp-window.test.ts` |
+| 재사용된 동작과 `stop`(D11) | `tests/integration/whatsapp-channel.test.ts`; `lib/server/imessage-commands.test.ts` |
+
+### 알려진 공백
+
+- **실제 WhatsApp 이벤트나 전송 없음.** 플랫폼 표기, 연락처 ID 형식, Photon이 Meta의 오류 코드를 싣는 위치는 공급자 패키지와 Photon의 문서에서 가져왔으며, 이벤트 한 건의 캡처(작업 5.1)는 사용자 대기 중입니다.
+- **등록되지 않은 템플릿.** 설계 8의 템플릿 세 개가 WhatsApp Manager에 없으므로, 승인되기 전까지 프로덕션은 `template_unavailable`로 응답하게 됩니다.
+- **수락 이후 Meta가 보고하는 거부**(상태 이벤트의 131047)는 관찰되지 않았으며, 전송 시점의 창 확인이 안전장치입니다.
+- **통제된 Android 실행 없음**(AC-29부터 AC-31), 이 변경의 프로덕션 배포나 공유 프로젝트 마이그레이션도 없습니다.
 

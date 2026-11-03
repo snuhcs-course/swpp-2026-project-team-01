@@ -2,14 +2,25 @@
 
 import {
   deepLinkFor,
+  type ImessageDelivery,
   type ImessageOperation,
   type ImessageStatus,
   messagesPlatform,
   type MessagesPlatform,
   qrDeepLink,
 } from "@lib/contracts/imessage";
+import {
+  channelName,
+  channelOffer,
+  type ChannelOffer,
+  displayWhatsAppNumber,
+  type MessagingChannel,
+  otherChannel,
+  shownChannel,
+  whatsAppLinkFor,
+} from "@lib/contracts/messaging-channel";
 import { AlertCircleIcon, CheckIcon, CopyIcon, MessageCircleIcon, RotateCcwIcon } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useId, useMemo, useState } from "react";
 import { renderSVG } from "uqr";
 import { CardActions, cardHeadingId, HEADING_CLASS, QuietButton } from "@/app/_components/setup/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +43,13 @@ import { cn } from "@/lib/utils";
 //   - linked: the masked sender, the latest failed or uncertain message, Add to
 //     contacts and Unlink behind an inline confirmation.
 // A command whose answer was lost offers Try again with the same retry key.
+// The same card links WhatsApp (host-whatsapp-channel design 5 and 6, D5 to D7,
+// D12): which channel "none" offers follows the device (Android gets WhatsApp
+// only; iPhone, iPad and Mac get iMessage with Use WhatsApp instead; any other
+// computer first asks which app the host uses), an attempt or a binding shows
+// its own channel, WhatsApp opens wa.me on a phone and shows its QR code on a
+// computer, Confirm and link says what it replaces and what Thyme will send on
+// WhatsApp, and a WhatsApp binding offers no Add to contacts or fallback code.
 
 export const IMESSAGE_CARD_ID = "imessage-card";
 
@@ -63,7 +81,7 @@ const ERRORS: Readonly<Record<string, string>> = {
   invalid_input: "That didn't work. Check what you entered and try again.",
   rate_limited: "Too many tries for now. Wait a little and try again.",
   stale_revision: "That step has expired. Start again.",
-  unavailable_configuration: "iMessage isn't available right now.",
+  unavailable_configuration: "That app isn't available right now.",
 };
 
 export async function readStatus(): Promise<ImessageStatus | null> {
@@ -95,6 +113,19 @@ export function useMessagesPlatform(): MessagesPlatform {
   return platform;
 }
 
+// What this device is offered (D7), known once the card runs in the browser.
+export function useChannelOffer(): ChannelOffer | null {
+  const [offer, setOffer] = useState<ChannelOffer | null>(null);
+  useEffect(() => setOffer(channelOffer(navigator.userAgent)), []);
+  return offer;
+}
+
+// The link that opens the channel's app with the message written: wa.me for
+// WhatsApp, the platform's sms: link for iMessage.
+export function appLinkFor(channel: MessagingChannel, platform: MessagesPlatform, lineNumber: string, message: string) {
+  return channel === "whatsapp" ? whatsAppLinkFor(lineNumber, message) : deepLinkFor(platform, lineNumber, message);
+}
+
 export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
   const [status, setStatus] = useState<ImessageStatus | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -103,7 +134,9 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
   const [lost, setLost] = useState<Pending | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   const platform = useMessagesPlatform();
-  const openOnArrival = useRef(false);
+  const offer = useChannelOffer();
+  // The channel the host chose with the app question or Use ... instead.
+  const [chosen, setChosen] = useState<MessagingChannel | null>(null);
 
   const reload = useCallback(async () => {
     const next = await readStatus();
@@ -160,19 +193,19 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
     [run],
   );
 
-  // Connect iMessage: the code first, then Messages at once on a phone.
-  const connect = async () => {
-    openOnArrival.current = platform === "ios" || platform === "android";
-    const outcome = await command("imessage.link.create");
+  // Connect iMessage or Connect WhatsApp: the code first, then the app at once on a phone.
+  const connect = async (channel: MessagingChannel) => {
+    setChosen(channel);
+    const phone = platform === "ios" || platform === "android";
+    const outcome = await command("imessage.link.create", { channel });
     const next = outcome?.status;
-    if (openOnArrival.current && next?.state === "pending") {
-      const link = deepLinkFor(platform, next.lineNumber, next.message);
+    if (phone && next?.state === "pending") {
+      const link = appLinkFor(next.channel, platform, next.lineNumber, next.message);
       if (link) window.location.assign(link);
     }
-    openOnArrival.current = false;
   };
 
-  if (!status) {
+  if (!status || (status.state === "none" && !offer)) {
     return (
       <CardShell title="Use Find Me a Time from iMessage">
         <p className="text-sm text-muted-foreground" role="status">
@@ -211,41 +244,73 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
         </CardShell>
       );
 
-    case "none":
+    case "none": {
+      const channel = shownChannel(offer!, status.channels, chosen);
+      if (!channel) {
+        // Another computer: which app the host uses decides the card (D7).
+        return (
+          <CardShell
+            description="Find Me a Time links to it, so you can get request summaries and approve meetings there."
+            label="Messaging"
+            title="Which app do you use on your phone?"
+          >
+            <CardActions>
+              <Button onClick={() => setChosen("imessage")} type="button" variant="outline">
+                iMessage
+              </Button>
+              <Button onClick={() => setChosen("whatsapp")} type="button" variant="outline">
+                WhatsApp
+              </Button>
+              {onLater ? <QuietButton onClick={onLater}>Maybe later</QuietButton> : null}
+            </CardActions>
+          </CardShell>
+        );
+      }
+      const name = channelName(channel);
+      const other = otherChannel(offer!, status.channels, channel);
       return (
         <CardShell
-          description="Get request summaries and approve meetings from your own iMessage. You send one message to link it."
-          title="Use Find Me a Time from iMessage"
+          description={`Get request summaries and approve meetings from your own ${name}. You send one message to link it.`}
+          label={name}
+          title={`Use Find Me a Time from ${name}`}
         >
           {notice}
           <CardActions>
-            <Button disabled={busy !== null} onClick={() => void connect()} type="button">
+            <Button disabled={busy !== null} onClick={() => void connect(channel)} type="button">
               <MessageCircleIcon aria-hidden />
-              {busy === "imessage.link.create" ? "Getting your code..." : "Connect iMessage"}
+              {busy === "imessage.link.create" ? "Getting your code..." : `Connect ${name}`}
             </Button>
+            {other ? <QuietButton onClick={() => setChosen(other)}>{`Use ${channelName(other)} instead`}</QuietButton> : null}
             {onLater ? <QuietButton onClick={onLater}>Maybe later</QuietButton> : null}
           </CardActions>
         </CardShell>
       );
+    }
 
-    case "pending":
+    case "pending": {
+      const other = offer ? otherChannel(offer, status.channels, status.channel) : null;
       return (
         <PendingCode
           busy={busy !== null}
           notice={notice}
           onCancel={() => void command("imessage.link.cancel")}
+          onSwitch={other ? () => void connect(other) : null}
+          other={other}
           platform={platform}
           status={status}
         />
       );
+    }
 
     case "received":
       return (
-        <CardShell description="We got your message. Check that it came from you before linking." title="Is this you?">
+        <CardShell description="We got your message. Check that it came from you before linking." label={channelName(status.channel)} title="Is this you?">
           {notice}
           <p className="text-sm">
             Sent from <span className="font-medium tabular-nums">{status.sender}</span>
           </p>
+          {status.replaces ? <p className="text-sm">This replaces your {channelName(status.replaces)} link.</p> : null}
+          {status.channel === "whatsapp" ? <p className="text-sm text-muted-foreground">{WHATSAPP_OPT_IN}</p> : null}
           <CardActions>
             <Button disabled={busy !== null} onClick={() => void command("imessage.link.confirm", { linkId: status.linkId })} type="button">
               <CheckIcon aria-hidden />
@@ -271,23 +336,29 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
         />
       );
 
-    case "linked":
+    case "linked": {
+      const name = channelName(status.channel);
       return (
-        <CardShell title="iMessage is linked">
+        <CardShell label={name} title={`${name} is linked`}>
           {notice}
           <p className="text-sm">
-            Linked to <span className="font-medium tabular-nums">{status.sender}</span>. Send <span className="font-mono">help</span> there for what you
-            can do.
+            Linked on {name} <span className="font-medium tabular-nums">{status.sender}</span>. Send <span className="font-mono">help</span> there for what
+            you can do.
           </p>
           {status.delivery ? (
             <p className="rounded-lg border border-destructive/40 px-3 py-2 text-sm" role="status">
-              {status.delivery.state === "failed"
-                ? `A message to your iMessage couldn't be delivered at ${when(status.delivery.at)}.`
-                : `A message to your iMessage at ${when(status.delivery.at)} may not have arrived.`}{" "}
-              Continue here; nothing about your requests changed.
+              {deliveryNotice(status.delivery, name)}
             </p>
           ) : null}
-          <ContactCardLine busy={busy !== null} onShare={() => void command("imessage.contact_card.share")} onCheck={() => void reload()} state={status.contactCard?.state ?? null} />
+          {/* WhatsApp shows the business's verified name, so it has no contact card (D11). */}
+          {status.channel === "imessage" ? (
+            <ContactCardLine
+              busy={busy !== null}
+              onCheck={() => void reload()}
+              onShare={() => void command("imessage.contact_card.share")}
+              state={status.contactCard?.state ?? null}
+            />
+          ) : null}
           {confirmUnlink ? (
             <CardActions>
               <span className="text-sm">Unlink {status.sender}? You'll stop getting messages there.</span>
@@ -306,21 +377,43 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
             </CardActions>
           ) : (
             <CardActions>
-              <QuietButton onClick={() => setConfirmUnlink(true)}>Unlink iMessage</QuietButton>
+              <QuietButton onClick={() => setConfirmUnlink(true)}>{`Unlink ${name}`}</QuietButton>
             </CardActions>
           )}
         </CardShell>
       );
+    }
   }
 }
+
+// The latest message that failed or may not have arrived, as the linked card says it. WhatsApp's closed
+// window and an unavailable template have their own words (host-whatsapp-channel design 7 and 8).
+export function deliveryNotice(delivery: ImessageDelivery, name: string) {
+  if (delivery.reason === "window_closed") {
+    return "Not sent on WhatsApp: you haven't written for a day. Send Thyme any message to pick up here, or check your requests below.";
+  }
+  if (delivery.reason === "template_unavailable") return "A WhatsApp notice couldn't be sent. Your requests are all here in Find Me a Time.";
+  return `${
+    delivery.state === "failed"
+      ? `A message to your ${name} couldn't be delivered at ${when(delivery.at)}.`
+      : `A message to your ${name} at ${when(delivery.at)} may not have arrived.`
+  } Continue here; nothing about your requests changed.`;
+}
+
+// What Thyme sends on WhatsApp, said before Confirm and link (D12).
+export const WHATSAPP_OPT_IN =
+  "Thyme will message you on WhatsApp about your requests. If you have not written for a day, it sends a short notice instead.";
 
 function CardShell({
   children,
   description,
+  label = "iMessage",
   title,
 }: {
   readonly children?: React.ReactNode;
   readonly description?: React.ReactNode;
+  // The channel the card is about, or "Messaging" while the host chooses.
+  readonly label?: string;
   readonly title: string;
 }) {
   return (
@@ -331,7 +424,7 @@ function CardShell({
       id={IMESSAGE_CARD_ID}
     >
       <div className="flex shrink-0 flex-col gap-0.5">
-        <p className="min-h-6 text-xs leading-6 font-medium text-muted-foreground">iMessage</p>
+        <p className="min-h-6 text-xs leading-6 font-medium text-muted-foreground">{label}</p>
         <h3 className={HEADING_CLASS} id={cardHeadingId(IMESSAGE_CARD_ID)} tabIndex={-1}>
           {title}
         </h3>
@@ -378,28 +471,43 @@ function PendingCode({
   busy,
   notice,
   onCancel,
+  onSwitch,
+  other,
   platform,
   status,
 }: {
   readonly busy: boolean;
   readonly notice: React.ReactNode;
   readonly onCancel: () => void;
+  // Use ... instead: a new attempt on the other channel, which ends this one.
+  readonly onSwitch: (() => void) | null;
+  readonly other: MessagingChannel | null;
   readonly platform: MessagesPlatform;
   readonly status: Extract<ImessageStatus, { state: "pending" }>;
 }) {
-  // A Mac gets the QR code too (D17): only a phone opens Messages from this card.
-  const link = platform === "ios" || platform === "android" ? deepLinkFor(platform, status.lineNumber, status.message) : null;
-  const qr = useMemo(() => (link ? null : renderSVG(qrDeepLink(status.lineNumber, status.message), { border: 2 })), [link, status]);
+  const whatsapp = status.channel === "whatsapp";
+  const phone = platform === "ios" || platform === "android";
+  // A Mac gets the QR code too (D17): only a phone opens Messages from this card. WhatsApp's link opens
+  // WhatsApp Web or the desktop app on a computer, so it is offered everywhere, beside the QR code.
+  const link = whatsapp ? whatsAppLinkFor(status.lineNumber, status.message) : phone ? deepLinkFor(platform, status.lineNumber, status.message) : null;
+  const qr = useMemo(
+    () => (phone ? null : renderSVG(whatsapp ? (whatsAppLinkFor(status.lineNumber, status.message) ?? "") : qrDeepLink(status.lineNumber, status.message), { border: 2 })),
+    [phone, status, whatsapp],
+  );
+  const description = whatsapp
+    ? phone
+      ? "WhatsApp should open with the message written. Tap send there."
+      : "Send this message from WhatsApp on your phone, or open WhatsApp on this computer."
+    : link
+      ? "Messages should open with the message written. Tap send there."
+      : "Send this message from your iPhone's Messages to link it.";
 
   return (
-    <CardShell
-      description={link ? "Messages should open with the message written. Tap send there." : "Send this message from your iPhone's Messages to link it."}
-      title="Send the message from your iMessage"
-    >
+    <CardShell description={description} label={channelName(status.channel)} title={`Send the message from your ${channelName(status.channel)}`}>
       {notice}
       <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border px-3 py-2">
         <p className="text-xs font-medium text-muted-foreground">To</p>
-        <p className="font-mono text-sm tabular-nums">{status.lineNumber}</p>
+        <p className="font-mono text-sm tabular-nums">{whatsapp ? displayWhatsAppNumber(status.lineNumber) : status.lineNumber}</p>
         <p className="pt-1 text-xs font-medium text-muted-foreground">Message</p>
         <p className="font-mono text-sm break-all" data-testid="imessage-link-message">
           {status.message}
@@ -409,7 +517,7 @@ function PendingCode({
             <Button asChild>
               <a href={link}>
                 <MessageCircleIcon aria-hidden />
-                Open Messages
+                {whatsapp ? "Open WhatsApp" : "Open Messages"}
               </a>
             </Button>
           ) : null}
@@ -419,20 +527,27 @@ function PendingCode({
       {qr ? (
         <figure className="flex flex-col items-start gap-1">
           <div
-            aria-label="QR code that opens Messages with this message on your iPhone"
+            aria-label={whatsapp ? "QR code that opens WhatsApp with this message on your phone" : "QR code that opens Messages with this message on your iPhone"}
             className="size-40 rounded-lg bg-white p-1 [&_svg]:size-full"
             data-testid="imessage-qr"
             // The SVG is generated locally from the line number and the message.
             dangerouslySetInnerHTML={{ __html: qr }}
             role="img"
           />
-          <figcaption className="text-xs text-muted-foreground">Scan with your iPhone's camera to open Messages.</figcaption>
+          <figcaption className="text-xs text-muted-foreground">
+            {whatsapp ? "Scan with your phone's camera to open WhatsApp." : "Scan with your iPhone's camera to open Messages."}
+          </figcaption>
         </figure>
       ) : null}
       <p className="text-sm text-muted-foreground" role="status">
         Waiting for your message. The code works until {when(status.expiresAt)}.
       </p>
       <CardActions>
+        {onSwitch && other ? (
+          <QuietButton disabled={busy} onClick={onSwitch}>
+            {`Use ${channelName(other)} instead`}
+          </QuietButton>
+        ) : null}
         <QuietButton disabled={busy} onClick={onCancel}>
           Cancel
         </QuietButton>

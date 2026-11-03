@@ -8,6 +8,8 @@ import { photonSignature } from "../../../lib/server/photon-receiver";
 export const TEST_WEBHOOK_ID = "11111111-2222-4333-8444-555555555555";
 export const TEST_WEBHOOK_SECRET = "whsec_photon_test_secret";
 export const TEST_LINE = "+15550001111";
+// The WhatsApp line (host-whatsapp-channel D1), a different number, as digits.
+export const TEST_WHATSAPP_NUMBER = "15550002222";
 
 export type MessageFixture = {
   readonly id?: string;
@@ -42,6 +44,33 @@ export function messagesEvent(fixture: MessageFixture = {}) {
       space,
       // Fixed, so a redelivery of the same fixture is byte-identical, as Photon's is.
       timestamp: "2026-10-23T09:00:00.000Z",
+    },
+    space,
+  });
+}
+
+export function newWhatsAppSender() {
+  return `1555${String(Math.floor(Math.random() * 1e7)).padStart(7, "0")}`;
+}
+
+// A WhatsApp Business `messages` event as the provider maps it: the sender and
+// the conversation are the contact ID, and every platform field names
+// whatsapp_business (the spelling of @spectrum-ts/whatsapp-business 12.14.0;
+// the join confirms Photon's webhook spelling).
+export function whatsAppEvent(fixture: MessageFixture & { readonly platform?: string } = {}) {
+  const sender = fixture.sender ?? newWhatsAppSender();
+  const platform = fixture.platform ?? "whatsapp_business";
+  const space = { id: fixture.spaceId ?? sender, platform, ...(fixture.spaceType ? { type: fixture.spaceType } : {}) };
+  return JSON.stringify({
+    event: "messages",
+    message: {
+      content: fixture.content ?? { text: fixture.text ?? "Hello", type: "text" },
+      direction: fixture.direction ?? "inbound",
+      id: fixture.id ?? `wamid.${randomUUID()}`,
+      platform,
+      sender: { id: sender, platform },
+      space,
+      timestamp: "2026-11-03T09:00:00.000Z",
     },
     space,
   });

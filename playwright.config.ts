@@ -75,6 +75,8 @@ const shared = {
   // fallback cap is lifted here; its own tests run it at small values.
   PHOTON_FALLBACK_DAILY_LIMIT: "100000",
   PHOTON_LINE_NUMBER: "+15550001111",
+  // The WhatsApp line (host-whatsapp-channel D1), as digits, so the card and the link step offer both.
+  PHOTON_WHATSAPP_NUMBER: "15550002222",
   // The product inbox Continue by email names; nothing reaches AgentMail.
   AGENTMAIL_INBOX_ID: "findmeatime@agentmail.test",
   // One key per run, shared with the tests so they can seal a Calendar grant.

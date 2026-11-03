@@ -79,6 +79,13 @@ async function sendQueued(db: Database, hostAccountId: string, kind: string) {
   return sends.filter((send) => ids.has(send.idempotencyKey)).map((send) => send.content.text ?? "");
 }
 
+// The deployment also offers WhatsApp, so a computer other than a Mac first asks which app the host uses
+// (host-whatsapp-channel D7; tests/e2e/whatsapp-link.test.ts). This suite is about iMessage, so it runs as a
+// Mac, which goes straight to iMessage.
+test.use({
+  userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+});
+
 async function openCard(page: Page) {
   await page.goto("/app");
   const menu = page.getByRole("button", { name: "Open menu" });

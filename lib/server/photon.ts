@@ -1,5 +1,7 @@
+import type { MessagingChannel } from "../contracts/messaging-channel";
 import { deploymentEnvironment } from "./deployment";
 import { gateTransport, type MessagingTransport } from "./messaging";
+import { whatsAppSendFailure } from "./whatsapp";
 
 // The one module that sends iMessages (host-imessage-channel design 1 and 3, D1,
 // D9). Production uses Photon's Spectrum SDK, loaded with a dynamic import so
@@ -14,6 +16,10 @@ import { gateTransport, type MessagingTransport } from "./messaging";
 //   - uncertain: the send began and its answer was lost or timed out.
 // Photon deduplicates its own gRPC retries but offers no idempotency key we can
 // check, so the outbox never repeats an uncertain send.
+// WhatsApp Business goes through the same module (host-whatsapp-channel design 1
+// and 9, D1, D10): the request names its channel, Spectrum's whatsapp_business
+// provider sends it in cloud mode with the same project credentials, and Meta's
+// refusals map onto the same four outcomes. Only WhatsApp sends templates.
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -27,16 +33,29 @@ export type PhotonRecipient = {
   readonly spaceId: string | null;
 };
 
-export type PhotonContent = { readonly kind: "text"; readonly text: string } | { readonly kind: "contact_card" };
+export type PhotonContent =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "contact_card" }
+  // A pre-approved WhatsApp template with positional body parameters.
+  | { readonly kind: "template"; readonly name: string; readonly languageCode: string; readonly params: readonly string[] };
 
 export type PhotonSendRequest = {
+  readonly channel: MessagingChannel;
   readonly recipient: PhotonRecipient;
   readonly content: PhotonContent;
   // The outbox row's ID; the stand-in records it, Spectrum has no field for it.
   readonly idempotencyKey: string;
 };
 
-export type PhotonRejection = "not_imessage" | "invalid_recipient" | "provider_rejected" | "provider_authentication";
+export type PhotonRejection =
+  | "not_imessage"
+  | "invalid_recipient"
+  | "provider_rejected"
+  | "provider_authentication"
+  // WhatsApp (D10): outside the 24-hour window; no WhatsApp account or not deliverable; a template Meta has not approved.
+  | "window_closed"
+  | "undeliverable"
+  | "template_unavailable";
 
 export type PhotonSendResult =
   | { readonly status: "accepted"; readonly messageId: string | null; readonly spaceId: string | null }
@@ -53,6 +72,8 @@ export type PhotonConfig = {
   readonly apiUrl: string | null;
   // The line's number (PHOTON_LINE_NUMBER), which the card shows and links to.
   readonly lineNumber: string;
+  // The WhatsApp line's number as digits (PHOTON_WHATSAPP_NUMBER), for the card and wa.me.
+  readonly whatsappNumber: string;
 };
 
 export function photonConfig(env: Environment = process.env): PhotonConfig {
@@ -61,18 +82,28 @@ export function photonConfig(env: Environment = process.env): PhotonConfig {
     lineNumber: env.PHOTON_LINE_NUMBER?.trim() ?? "",
     projectId: env.PHOTON_PROJECT_ID?.trim() ?? "",
     projectSecret: env.PHOTON_PROJECT_SECRET?.trim() ?? "",
+    whatsappNumber: env.PHOTON_WHATSAPP_NUMBER?.trim().replace(/^\+/, "") ?? "",
   };
 }
 
-const REJECTIONS: readonly PhotonRejection[] = ["not_imessage", "invalid_recipient", "provider_rejected", "provider_authentication"];
+const REJECTIONS: readonly PhotonRejection[] = [
+  "not_imessage",
+  "invalid_recipient",
+  "provider_rejected",
+  "provider_authentication",
+  "window_closed",
+  "undeliverable",
+  "template_unavailable",
+];
 
 function refusedBeforeSending(error: unknown) {
   const code = (error as { cause?: { code?: string } } | null)?.cause?.code;
   return code === "ECONNREFUSED" || code === "ENOTFOUND" || code === "EAI_AGAIN";
 }
 
-// The loopback stand-in: POST {apiUrl}/messages with the request as JSON and the
-// outbox ID as Idempotency-Key; 200 {messageId, spaceId} is accepted, a 4xx
+// The loopback stand-in: POST {apiUrl}/messages (iMessage) or
+// {apiUrl}/whatsapp/messages (WhatsApp) with the request as JSON and the outbox
+// ID as Idempotency-Key; 200 {messageId, spaceId} is accepted, a 4xx
 // {category} is rejected, a 5xx or a lost answer is uncertain, and a refused
 // connection is unavailable.
 export function standInTransport(apiUrl: string, secret: string, fetcher: typeof fetch = fetch): PhotonTransport {
@@ -84,7 +115,7 @@ export function standInTransport(apiUrl: string, secret: string, fetcher: typeof
       let response: Response;
 
       try {
-        response = await fetcher(`${endpoint}/messages`, {
+        response = await fetcher(`${endpoint}${request.channel === "whatsapp" ? "/whatsapp/messages" : "/messages"}`, {
           body: JSON.stringify({ content: request.content, recipient: request.recipient }),
           headers: {
             authorization: `Bearer ${secret || "photon_test"}`,
@@ -107,6 +138,8 @@ export function standInTransport(apiUrl: string, secret: string, fetcher: typeof
       }
 
       if (response.status === 401 || response.status === 403) return { category: "provider_authentication", status: "rejected" };
+      // A rate limit refused the send before anything went out (WhatsApp 130429, 131056).
+      if (response.status === 429) return { status: "unavailable" };
       if (response.status >= 400 && response.status < 500) {
         const category = REJECTIONS.find((known) => known === body?.category) ?? "provider_rejected";
         return { category, status: "rejected" };
@@ -133,6 +166,8 @@ export function spectrumTransport(config: Pick<PhotonConfig, "projectId" | "proj
     endpoint: SPECTRUM_ENDPOINT,
     async send(request) {
       if (!config.projectId || !config.projectSecret) return { status: "unavailable" };
+      if (request.channel === "whatsapp") return sendWhatsApp(config, request);
+      if (request.content.kind === "template") return { category: "provider_rejected", status: "rejected" };
 
       let app: Awaited<ReturnType<typeof import("@spectrum-ts/core").Spectrum>>;
       let platform: typeof import("@spectrum-ts/imessage").imessage;
@@ -179,6 +214,62 @@ export function spectrumTransport(config: Pick<PhotonConfig, "projectId" | "proj
       }
     },
   };
+}
+
+// WhatsApp Business through Spectrum's whatsapp_business provider in cloud mode
+// (design 1): Photon issues the line's Meta token from the project credentials.
+// The space is the contact ID itself (one-to-one only). Before the send, every
+// failure is unavailable; once it began, Meta's refusals map as design 9 says
+// and anything else is uncertain.
+async function sendWhatsApp(config: Pick<PhotonConfig, "projectId" | "projectSecret">, request: PhotonSendRequest): Promise<PhotonSendResult> {
+  if (request.content.kind === "contact_card") return { category: "provider_rejected", status: "rejected" };
+
+  let app: Awaited<ReturnType<typeof import("@spectrum-ts/core").Spectrum>>;
+  let provider: typeof import("@spectrum-ts/whatsapp-business");
+
+  try {
+    const [{ Spectrum }, loaded] = await Promise.all([import("@spectrum-ts/core"), import("@spectrum-ts/whatsapp-business")]);
+    provider = loaded;
+    app = await withTimeout(
+      Spectrum({
+        projectId: config.projectId,
+        projectSecret: config.projectSecret,
+        providers: [loaded.whatsappBusiness.config()],
+        telemetry: false,
+      }),
+      SEND_TIMEOUT_MS,
+    );
+  } catch {
+    return { status: "unavailable" };
+  }
+
+  try {
+    const instance = provider.whatsappBusiness(app);
+    let space: Awaited<ReturnType<typeof instance.space.create>>;
+
+    try {
+      space = await withTimeout(instance.space.create(await instance.user(request.recipient.address)), SEND_TIMEOUT_MS);
+    } catch {
+      return { status: "unavailable" };
+    }
+
+    try {
+      const content =
+        request.content.kind === "template"
+          ? provider.whatsappTemplate({
+              bodyParams: [...request.content.params],
+              languageCode: request.content.languageCode,
+              name: request.content.name,
+            })
+          : request.content.text;
+      const sent = await withTimeout(space.send(content), SEND_TIMEOUT_MS);
+      return { messageId: sent?.id ?? null, spaceId: space.id, status: "accepted" };
+    } catch (error) {
+      return whatsAppSendFailure(error);
+    }
+  } finally {
+    await app.stop().catch(() => undefined);
+  }
 }
 
 // The deployment's transport behind the messaging gate: Spectrum in production,

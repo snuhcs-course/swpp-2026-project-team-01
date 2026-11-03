@@ -1,4 +1,5 @@
 import type { HostRequestView } from "../contracts/host-request";
+import type { MessagingChannel } from "../contracts/messaging-channel";
 import type { RequestState } from "../contracts/request";
 import { SETUP_FIELD_NAMES, type SetupFieldName, TRAVEL_MODE_LABELS, type WeeklyWindow } from "../contracts/setup";
 import { approveCommand, declineCommand } from "./bookings";
@@ -29,17 +30,18 @@ import { dismissChangesCommand, shareChangesCommand } from "./shared-changes";
 // reply is one outbound message to the linked conversation.
 
 export type ParsedCommand =
-  | { readonly name: "help" | "requests" | "setup" | "review" | "changes" }
+  | { readonly name: "help" | "requests" | "setup" | "review" | "changes" | "stop" }
   | { readonly name: "request" | "share" | "dismiss" | "approve" | "decline" | "confirm"; readonly ref: string };
 
-const BARE = new Set(["help", "requests", "setup", "review", "changes"]);
+// "unlink" is the same as "stop" (host-whatsapp-channel design 8, D12).
+const BARE = new Set(["help", "requests", "setup", "review", "changes", "stop", "unlink"]);
 const WITH_REF = new Set(["request", "share", "dismiss", "approve", "decline", "confirm"]);
 
 export function parseCommand(text: string): ParsedCommand | null {
   const words = text.trim().split(/\s+/);
   const name = words[0]?.toLowerCase() ?? "";
 
-  if (words.length === 1 && BARE.has(name)) return { name } as ParsedCommand;
+  if (words.length === 1 && BARE.has(name)) return { name: name === "unlink" ? "stop" : name } as ParsedCommand;
   if (words.length === 2 && WITH_REF.has(name) && /^[0-9a-z-]{4,20}$/i.test(words[1]!)) {
     return { name, ref: words[1]!.toUpperCase() } as ParsedCommand;
   }
@@ -64,8 +66,14 @@ export const HELP_TEXT = [
   "changes: suggested changes to the selected request",
   "approve <ref> or decline <ref>: decide a proposal",
   "setup: continue setting up",
+  "stop: unlink this conversation from Find Me a Time",
   "Anything else goes to Thyme.",
 ].join("\n");
+
+export const STOP_TEXTS = {
+  imessage: "Unlinked. You won't get iMessages from Find Me a Time.",
+  whatsapp: "Unlinked. You won't get WhatsApp messages from Find Me a Time.",
+} as const;
 
 const CLOSED: readonly RequestState[] = ["booked", "declined", "withdrawn", "expired"];
 const STATE_WORDS: Readonly<Record<RequestState, string>> = {
@@ -442,6 +450,32 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
     case "help":
       result = { text: HELP_TEXT };
       break;
+    case "stop": {
+      // Ends the binding as Unlink does (D12); the confirmation is not host-private,
+      // so it still goes out after the binding ended, and nothing queued does.
+      const ended = await tx<{ id: string; channel: MessagingChannel }[]>`
+        update app.imessage_bindings set state = 'unlinked', ended_at = now(), sender_ciphertext = null, space_ciphertext = null
+        where id = ${message.bindingId} and state = 'active'
+        returning id, channel
+      `;
+      await tx`
+        update app.imessage_outbox
+        set state = 'suppressed', failure_category = 'unlinked', recipient_ciphertext = null, text_ciphertext = null,
+            completed_at = now(), updated_at = now()
+        where binding_id = ${message.bindingId} and state in ('waiting', 'queued')
+      `;
+      await recordOutbound(tx, {
+        channel: ended[0]?.channel ?? message.receipt.channel,
+        dedupeKey: `receipt:${message.receipt.id}`,
+        hostAccountId: message.hostAccountId,
+        kind: "command",
+        recipient: message.recipient,
+        recipientHash: message.receipt.senderHash,
+        text: message.receipt.channel === "whatsapp" ? STOP_TEXTS.whatsapp : STOP_TEXTS.imessage,
+        tokenKey: deps.tokenKey,
+      });
+      return "command" as const;
+    }
     case "requests": {
       const open = (await listHostRequests(deps.db, message.hostAccountId)).filter((item) => !CLOSED.includes(item.state)).slice(0, 10);
       result = {

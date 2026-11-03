@@ -2,6 +2,15 @@
 // 11), as GET /api/host/imessage answers it, and the browser-safe helpers the
 // card uses to open Messages (D4). Nothing here ever carries a fallback code the
 // service sent, and a sender is only ever shown masked.
+// The same card links WhatsApp (host-whatsapp-channel design 6): every state
+// names the numbers this deployment can link (channels), and an attempt or a
+// binding names its channel; lineNumber is that channel's number (digits for
+// WhatsApp), or the iMessage line in "none".
+
+import type { MessagingChannel } from "./messaging-channel";
+
+// The numbers a host can link to, null where a channel is not configured.
+export type LinkChannels = { readonly imessage: string | null; readonly whatsapp: string | null };
 
 export const IMESSAGE_OPERATIONS = [
   "imessage.link.create",
@@ -20,15 +29,20 @@ export type ImessageDeliveryState = "queued" | "sent" | "failed" | "uncertain";
 export type ImessageDelivery = {
   readonly state: "failed" | "uncertain";
   readonly at: string;
+  // Why a WhatsApp message was not sent (host-whatsapp-channel design 7 and 8):
+  // the host had not written for a day, or Meta refused the notice's template.
+  readonly reason: "window_closed" | "template_unavailable" | null;
 };
 
 export type ImessageStatus =
   // No line is configured for this deployment.
   | { readonly state: "unavailable" }
-  | { readonly state: "none"; readonly lineNumber: string }
-  // A link code to send from the host's iMessage, as shown.
+  | { readonly state: "none"; readonly lineNumber: string; readonly channels: LinkChannels }
+  // A link code to send from the host's iMessage or WhatsApp, as shown.
   | {
       readonly state: "pending";
+      readonly channel: MessagingChannel;
+      readonly channels: LinkChannels;
       readonly lineNumber: string;
       readonly code: string;
       readonly message: string;
@@ -37,7 +51,11 @@ export type ImessageStatus =
   // The code's message arrived; the host confirms the masked sender.
   | {
       readonly state: "received";
+      readonly channel: MessagingChannel;
+      readonly channels: LinkChannels;
       readonly lineNumber: string;
+      // The channel of a binding Confirm and link would replace (D5), if any.
+      readonly replaces: MessagingChannel | null;
       // The attempt Confirm and link names.
       readonly linkId: string;
       readonly sender: string;
@@ -46,6 +64,8 @@ export type ImessageStatus =
   // The fallback: a code sent to the entered number, typed back here.
   | {
       readonly state: "fallback";
+      readonly channel: "imessage";
+      readonly channels: LinkChannels;
       readonly lineNumber: string;
       readonly number: string;
       readonly send: ImessageDeliveryState;
@@ -55,6 +75,8 @@ export type ImessageStatus =
     }
   | {
       readonly state: "linked";
+      readonly channel: MessagingChannel;
+      readonly channels: LinkChannels;
       readonly lineNumber: string;
       readonly sender: string;
       readonly linkedAt: string;
@@ -69,15 +91,24 @@ export type ImessageStatus =
 // browser carries the attempt to the host's card, where Confirm and link binds it.
 export type ImessageStartStatus =
   | { readonly state: "unavailable" }
-  | { readonly state: "none"; readonly lineNumber: string }
+  | { readonly state: "none"; readonly lineNumber: string; readonly channels: LinkChannels }
   | {
       readonly state: "pending";
+      readonly channel: MessagingChannel;
+      readonly channels: LinkChannels;
       readonly lineNumber: string;
       readonly code: string;
       readonly message: string;
       readonly expiresAt: string;
     }
-  | { readonly state: "received"; readonly lineNumber: string; readonly sender: string; readonly confirmBy: string };
+  | {
+      readonly state: "received";
+      readonly channel: MessagingChannel;
+      readonly channels: LinkChannels;
+      readonly lineNumber: string;
+      readonly sender: string;
+      readonly confirmBy: string;
+    };
 
 export const LINK_MESSAGE_PREFIX = "Link my Find Me a Time account:";
 
@@ -89,7 +120,8 @@ export function linkMessage(code: string) {
 // first two and the last character of an Apple ID email's local part with the
 // domain, so two addresses that share a first letter still look different.
 export function maskSender(sender: string) {
-  if (sender.startsWith("+")) return `•••• ${sender.slice(-4)}`;
+  // An E.164 number, or a WhatsApp contact ID (digits without "+").
+  if (sender.startsWith("+") || /^\d+$/.test(sender)) return `•••• ${sender.slice(-4)}`;
   const at = sender.lastIndexOf("@");
   if (at <= 0) return "••••";
   const local = sender.slice(0, at);

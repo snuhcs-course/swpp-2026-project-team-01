@@ -1,11 +1,13 @@
 import type { MessageStreamEvent } from "eve/client";
+import type { MessagingChannel } from "../contracts/messaging-channel";
 import { agentUrlFromEnvironment, type ConversationRuntime, eveRuntime } from "./conversations";
 import { database, type Database, type Transaction } from "./database";
 import { turnReplyText } from "./email-replies";
 import { internalSigningKey, signInternalBearer } from "./internal-bearer";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
-import { type PhotonConfig, photonConfig, type PhotonRecipient, type PhotonTransport, photonTransport, SPECTRUM_ENDPOINT } from "./photon";
+import { type PhotonConfig, photonConfig, type PhotonContent, type PhotonRecipient, type PhotonTransport, photonTransport, SPECTRUM_ENDPOINT } from "./photon";
+import { requestRef } from "./request-ref";
 import { redactCredentials } from "./redaction";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -26,6 +28,18 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 //      never sent again. A row found dispatching by a later attempt means a send
 //      began and its answer was lost, so it becomes uncertain.
 // Every final state clears the sealed recipient and text.
+// Rows carry their channel (host-whatsapp-channel design 4 and 9): a row that
+// names a binding or a link attempt takes its channel unless the caller gives
+// one, and the transport sends it on that platform. A template row (WhatsApp
+// only) sends its template with the sealed text as the one body parameter.
+// WhatsApp's 24-hour window (design 7 and 8, D8, D9): free-form WhatsApp text is
+// dispatched only while the host's last message is at most 23 hours 50 minutes
+// old (a reply with no binding counts from when it was recorded, right after the
+// message it answers); otherwise, or when Meta refuses it as outside the window,
+// the row ends with category window_closed and is never sent as text. A closed
+// window's summary of a new request, a proposal awaiting approval or a booking
+// outcome queues one template instead, at most one per host per 12 hours and at
+// most the daily limit per line.
 
 export const IMESSAGE_SEND_JOB = "imessage_send";
 // A refusal before sending retries with backoff; five attempts span about five minutes.
@@ -37,6 +51,24 @@ export const TURN_REPLY_DELAY_SECONDS = 20;
 export const TURN_REPLY_WAIT_MINUTES = 30;
 export const MAX_TURN_REPLY_CHARS = 2_000;
 
+// The window a free-form WhatsApp message must fall in at dispatch (D8).
+export const WHATSAPP_WINDOW_MINUTES = 23 * 60 + 50;
+export const TEMPLATE_HOST_HOURS = 12;
+export const TEMPLATE_DAILY_LIMIT = 50;
+
+// The template for each summary the window closed on (design 8); other summaries get none.
+export const TEMPLATE_FOR_NOTICE: Readonly<Record<string, string>> = {
+  awaiting_approval: "fmat_proposal_waiting",
+  booking_confirmed: "fmat_booking_update",
+  booking_failed: "fmat_booking_update",
+  new_request: "fmat_request_received",
+};
+
+export function templateDailyLimit(env: Readonly<Record<string, string | undefined>> = process.env) {
+  const value = Number(env.PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT);
+  return Number.isInteger(value) && value >= 0 && env.PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT?.trim() ? value : TEMPLATE_DAILY_LIMIT;
+}
+
 export type OutboxKind =
   | "link_received"
   | "link_refused"
@@ -47,12 +79,17 @@ export type OutboxKind =
   | "command"
   | "turn"
   | "notice"
-  | "contact_card";
+  | "contact_card"
+  | "template";
 
 export type OutboxState = "waiting" | "queued" | "dispatching" | "accepted" | "failed" | "uncertain" | "suppressed";
 
 export type RecordOutbound = {
   readonly kind: OutboxKind;
+  // The platform; by default the binding's or the link attempt's, else iMessage.
+  readonly channel?: MessagingChannel;
+  // A template row's template (WhatsApp only).
+  readonly templateName?: string;
   // One message per (kind, dedupeKey): a retried recording returns the existing one.
   readonly dedupeKey: string;
   readonly recipient: PhotonRecipient;
@@ -93,14 +130,16 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
   const recipient = suppressed ? null : sealToken(message.tokenKey, JSON.stringify(message.recipient), context);
   const text = suppressed || message.text === undefined ? null : sealToken(message.tokenKey, message.text, context);
   const turn = message.kind === "turn";
+  const channel = message.channel ?? (await ownerChannel(tx, message));
 
   const [created] = await tx<{ id: string }[]>`
     insert into app.imessage_outbox
-      (id, kind, dedupe_key, host_account_id, binding_id, requester_binding_id, link_id, request_id, input_id, recipient_hash,
-       recipient_ciphertext, text_ciphertext, sealed_key_id, state, failure_category, completed_at)
+      (id, channel, kind, template_name, dedupe_key, host_account_id, binding_id, requester_binding_id, link_id, request_id, input_id,
+       recipient_hash, recipient_ciphertext, text_ciphertext, sealed_key_id, state, failure_category, completed_at)
     values
-      (${id}, ${message.kind}, ${message.dedupeKey}, ${message.hostAccountId ?? null}, ${message.bindingId ?? null},
-       ${message.requesterBindingId ?? null}, ${message.linkId ?? null}, ${message.requestId ?? null}, ${message.inputId ?? null}, ${message.recipientHash},
+      (${id}, ${channel}, ${message.kind}, ${message.templateName ?? null}, ${message.dedupeKey}, ${message.hostAccountId ?? null},
+       ${message.bindingId ?? null}, ${message.requesterBindingId ?? null}, ${message.linkId ?? null}, ${message.requestId ?? null},
+       ${message.inputId ?? null}, ${message.recipientHash},
        ${recipient?.ciphertext ?? null}, ${text?.ciphertext ?? null}, ${message.tokenKey.id},
        ${suppressed ? "suppressed" : turn ? "waiting" : "queued"}, ${suppressed},
        ${suppressed ? new Date() : null})
@@ -125,6 +164,18 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
     ...(turn ? { runAfter: new Date(Date.now() + TURN_REPLY_DELAY_SECONDS * 1000) } : {}),
   });
   return { created: true, id };
+}
+
+async function ownerChannel(tx: Transaction, message: RecordOutbound): Promise<MessagingChannel> {
+  if (message.bindingId) {
+    const [binding] = await tx<{ channel: MessagingChannel }[]>`select channel from app.imessage_bindings where id = ${message.bindingId}`;
+    if (binding) return binding.channel;
+  }
+  if (message.linkId) {
+    const [link] = await tx<{ channel: MessagingChannel }[]>`select channel from app.imessage_links where id = ${message.linkId}`;
+    if (link) return link.channel;
+  }
+  return "imessage";
 }
 
 // From the session-owner hook when a turn ends: the replies waiting on inputs
@@ -170,6 +221,8 @@ export type ImessageSendDependencies = {
   readonly origin: string;
   readonly env?: Readonly<Record<string, string | undefined>>;
   readonly transport?: PhotonTransport;
+  // Template notices per WhatsApp line per rolling 24 hours (PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT).
+  readonly templateDailyLimit?: number;
 };
 
 function sendDependenciesFromEnvironment(): ImessageSendDependencies {
@@ -179,13 +232,21 @@ function sendDependenciesFromEnvironment(): ImessageSendDependencies {
     origin: process.env.APP_ORIGIN?.trim() || "https://findmeatime.com",
     runtime: eveRuntime(agentUrlFromEnvironment()),
     signingKey: internalSigningKey(),
+    templateDailyLimit: templateDailyLimit(),
     tokenKeys: [tokenKeyFromEnvironment()],
   };
 }
 
 type OutboxRow = {
   readonly id: string;
+  readonly channel: MessagingChannel;
   readonly kind: OutboxKind;
+  readonly template_name: string | null;
+  readonly dedupe_key: string;
+  readonly host_account_id: string | null;
+  readonly request_id: string | null;
+  // Recorded within the WhatsApp window of now (a reply without a binding).
+  readonly fresh: boolean;
   readonly binding_id: string | null;
   readonly requester_binding_id: string | null;
   readonly input_id: string | null;
@@ -285,8 +346,10 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
     // A denied environment touches no outbound state.
     assertMessagingAdmitted(transport.endpoint, deps.env);
     const select = (q: Transaction | Database) => q<OutboxRow[]>`
-      select id, kind, binding_id, requester_binding_id, input_id, recipient_ciphertext, text_ciphertext, sealed_key_id, state,
-             created_at < now() - make_interval(mins => ${TURN_REPLY_WAIT_MINUTES}) as stale
+      select id, channel, kind, template_name, dedupe_key, host_account_id, request_id, binding_id, requester_binding_id, input_id,
+             recipient_ciphertext, text_ciphertext, sealed_key_id, state,
+             created_at < now() - make_interval(mins => ${TURN_REPLY_WAIT_MINUTES}) as stale,
+             created_at > now() - make_interval(mins => ${WHATSAPP_WINDOW_MINUTES}) as fresh
       from app.imessage_outbox where id = ${outboxId}
       for update
     `;
@@ -328,12 +391,25 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
       if (row.state !== "waiting" && row.state !== "queued") return { state: row.state };
 
+      let inWindow = row.fresh;
+
       if (row.binding_id) {
-        const [binding] = await claimTx<{ state: string }[]>`select state from app.imessage_bindings where id = ${row.binding_id}`;
+        const [binding] = await claimTx<{ state: string; in_window: boolean }[]>`
+          select state, coalesce(last_inbound_at > now() - make_interval(mins => ${WHATSAPP_WINDOW_MINUTES}), false) as in_window
+          from app.imessage_bindings where id = ${row.binding_id}
+        `;
         if (binding?.state !== "active") {
           await finish(claimTx, row.id, row.state, "suppressed", { category: "unlinked" });
           return { state: "suppressed" as const };
         }
+        inWindow = binding.in_window;
+      }
+
+      // Free-form WhatsApp text outside the window is never sent (D8).
+      if (row.channel === "whatsapp" && row.kind !== "template" && !inWindow) {
+        await finish(claimTx, row.id, row.state, "suppressed", { category: WINDOW_CLOSED });
+        await queueTemplate(claimTx, deps, row);
+        return { state: "suppressed" as const };
       }
 
       if (row.requester_binding_id) {
@@ -388,7 +464,8 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
     try {
       result = await transport.send({
-        content: claim.text === null ? { kind: "contact_card" } : { kind: "text", text: claim.text },
+        channel: claim.row.channel,
+        content: contentOf(claim.row, claim.text),
         idempotencyKey: claim.row.id,
         recipient: claim.recipient,
       });
@@ -403,6 +480,7 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
     if (result.status === "rejected") {
       await finish(tx, outboxId, "dispatching", "failed", { category: result.category });
+      if (result.category === WINDOW_CLOSED && claim.row.kind !== "template") await queueTemplate(tx, deps, claim.row);
       return { outboxId, state: "failed" };
     }
 
@@ -441,6 +519,67 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
   };
 
   return handler;
+}
+
+export const WINDOW_CLOSED = "window_closed";
+
+// The summary a closed window stopped becomes one template (design 8): only for
+// the events that have one, only to an active WhatsApp binding, and only within
+// the per-host and per-line limits. Its one parameter is the request reference;
+// it carries no meeting detail. Keyed by the summary, so a retry queues it once.
+async function queueTemplate(
+  q: Transaction | Database,
+  deps: ImessageSendDependencies,
+  row: Pick<OutboxRow, "kind" | "dedupe_key" | "binding_id" | "host_account_id" | "request_id">,
+) {
+  if (row.kind !== "notice" || !row.binding_id || !row.host_account_id || !row.request_id) return;
+  const event = row.dedupe_key.split(":")[1] ?? "";
+  const templateName = TEMPLATE_FOR_NOTICE[event];
+  if (!templateName) return;
+
+  const [binding] = await q<
+    { id: string; sender_hash: string; sender_ciphertext: string | null; space_ciphertext: string | null; sealed_key_id: string }[]
+  >`
+    select id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id from app.imessage_bindings
+    where id = ${row.binding_id} and state = 'active' and channel = 'whatsapp'
+  `;
+  if (!binding?.sender_ciphertext) return;
+
+  await q`select pg_advisory_xact_lock(hashtextextended('app.whatsapp_templates', 0))`;
+  const [counts] = await q<{ host: number; line: number }[]>`
+    select count(*) filter (where host_account_id = ${row.host_account_id} and created_at > now() - make_interval(hours => ${TEMPLATE_HOST_HOURS}))::int as host,
+           count(*)::int as line
+    from app.imessage_outbox where kind = 'template' and created_at > now() - interval '24 hours'
+  `;
+  if (counts!.host > 0 || counts!.line >= (deps.templateDailyLimit ?? TEMPLATE_DAILY_LIMIT)) return;
+
+  const open = (ciphertext: string) => openToken(deps.tokenKeys, { ciphertext, keyId: binding.sealed_key_id }, `imessage_binding:${binding.id}`);
+  const address = open(binding.sender_ciphertext);
+  const tokenKey = deps.tokenKeys.find((key) => key.id === binding.sealed_key_id) ?? deps.tokenKeys[0]!;
+
+  await recordOutbound(q as Transaction, {
+    bindingId: binding.id,
+    channel: "whatsapp",
+    dedupeKey: `template:${row.dedupe_key}`,
+    hostAccountId: row.host_account_id,
+    kind: "template",
+    recipient: { address, spaceId: binding.space_ciphertext ? open(binding.space_ciphertext) : address },
+    recipientHash: binding.sender_hash,
+    requestId: row.request_id,
+    templateName,
+    text: requestRef(row.request_id),
+    tokenKey,
+  });
+}
+
+// Templates are registered in en_US (design 8); the sealed text is the request reference.
+export const TEMPLATE_LANGUAGE = "en_US";
+
+function contentOf(row: Pick<OutboxRow, "kind" | "template_name">, text: string | null): PhotonContent {
+  if (row.kind === "template" && row.template_name) {
+    return { kind: "template", languageCode: TEMPLATE_LANGUAGE, name: row.template_name, params: text === null ? [] : [text] };
+  }
+  return text === null ? { kind: "contact_card" } : { kind: "text", text };
 }
 
 function keyOf(deps: ImessageSendDependencies, keyId: string) {

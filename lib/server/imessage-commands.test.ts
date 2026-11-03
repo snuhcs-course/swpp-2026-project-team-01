@@ -17,6 +17,12 @@ describe("parseCommand", () => {
     expect(parseCommand("confirm 1a2b3c4d")).toEqual({ name: "confirm", ref: "1A2B3C4D" });
   });
 
+  it("reads stop and unlink as stop (host-whatsapp-channel D12)", () => {
+    expect(parseCommand("STOP")).toEqual({ name: "stop" });
+    expect(parseCommand(" unlink ")).toEqual({ name: "stop" });
+    expect(parseCommand("stop sending me these")).toBeNull();
+  });
+
   it("leaves everything else to the assistant", () => {
     for (const text of ["yes", "Yes, approve it", "approve", "approve it please", "review the proposal", "ok", "approve K7Q2MX-3 now", "help me"]) {
       expect(parseCommand(text)).toBeNull();

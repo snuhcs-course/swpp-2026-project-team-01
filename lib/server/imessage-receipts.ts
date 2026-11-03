@@ -1,4 +1,5 @@
 import { getChatMessageLengthError } from "../contracts/chat-message";
+import type { MessagingChannel } from "../contracts/messaging-channel";
 import { type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { AdmissionLimitError } from "./conversation-admission";
 import {
@@ -89,6 +90,7 @@ function receiptDependenciesFromEnvironment(): ImessageReceiptDependencies {
 // Forwarded text is marked, so the shared transcript and the assistant know
 // where it came from (D11).
 export const IMESSAGE_PREFIX = "[iMessage] ";
+export const WHATSAPP_PREFIX = "[WhatsApp] ";
 
 export const FORWARD_TEXTS = {
   tooLong: "That message is too long for Thyme. Please send a shorter one.",
@@ -120,7 +122,7 @@ async function fixedReply(tx: Transaction, deps: ImessageReceiptDependencies, me
 // selected request's private review), keyed by the receipt so a retried job
 // finds the same input, and a reply waits for the turn that serves it.
 async function forward(tx: Transaction, deps: ImessageReceiptDependencies, message: BoundMessage): Promise<ReceiptOutcome> {
-  const text = `${IMESSAGE_PREFIX}${message.text}`;
+  const text = `${message.receipt.channel === "whatsapp" ? WHATSAPP_PREFIX : IMESSAGE_PREFIX}${message.text}`;
   if (getChatMessageLengthError(text)) {
     await fixedReply(tx, deps, message, "command", FORWARD_TEXTS.tooLong);
     return "replied";
@@ -202,6 +204,7 @@ export const channelProcessor: ChannelProcessor = async (tx, deps, message) => {
 
 type ReceiptRow = {
   readonly id: string;
+  readonly channel: MessagingChannel;
   readonly sender_hash: string;
   readonly space_hash: string;
   readonly space_type: "dm" | "group";
@@ -216,6 +219,7 @@ type ReceiptRow = {
 
 export type OpenedReceipt = {
   readonly id: string;
+  readonly channel: MessagingChannel;
   readonly senderHash: string;
   readonly spaceHash: string;
   readonly spaceType: "dm" | "group";
@@ -231,6 +235,7 @@ function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedReceipt 
 
   try {
     return {
+      channel: row.channel,
       contentType: row.content_type,
       id: row.id,
       sender: open(row.sender_ciphertext),
@@ -257,6 +262,7 @@ export const ORDER_WAITS = 600;
 
 export const CHANNEL_TEXTS = {
   unlinked: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect iMessage.",
+  unlinkedWhatsApp: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect WhatsApp.",
   textOnly: "I can read text messages only.",
 } as const;
 
@@ -544,6 +550,7 @@ export async function processReceipt(
 
   if (code) {
     return receiveLinkCode(tx, { origin: deps.origin, tokenKey: deps.tokenKey }, {
+      channel: receipt.channel,
       code,
       receiptId: receipt.id,
       sender: receipt.sender,
@@ -572,7 +579,9 @@ export async function processReceipt(
   if (guest) return channel ? guestMessage(tx, deps, receipt, guest) : "ignored";
 
   const recipient = { address: receipt.sender, spaceId: receipt.spaceId };
-  const binding = await lockActiveBindingOfSender(tx, receipt.senderHash);
+  // The hash namespaces keep channels apart; the channel check says so again.
+  const found = await lockActiveBindingOfSender(tx, receipt.senderHash);
+  const binding = found?.channel === receipt.channel ? found : null;
   const [host] = binding
     ? await tx<{ status: string; auth_user_id: string | null }[]>`
         select a.status, i.auth_user_id from app.host_accounts a
@@ -582,13 +591,14 @@ export async function processReceipt(
     : [];
 
   if (!binding || host?.status !== "active" || !host.auth_user_id) {
-    if (await refusalSentRecently(tx, receipt.senderHash)) return "ignored";
+    if (await refusalSentRecently(tx, receipt.senderHash, receipt.channel)) return "ignored";
     await recordOutbound(tx, {
+      channel: receipt.channel,
       dedupeKey: `receipt:${receipt.id}`,
       kind: "unlinked_sender",
       recipient,
       recipientHash: receipt.senderHash,
-      text: CHANNEL_TEXTS.unlinked,
+      text: receipt.channel === "whatsapp" ? CHANNEL_TEXTS.unlinkedWhatsApp : CHANNEL_TEXTS.unlinked,
       tokenKey: deps.tokenKey,
     });
     return "unlinked_reply";
@@ -663,7 +673,7 @@ export function createImessageReceiptHandler(load: () => ImessageReceiptDependen
     assertMessagingAdmitted(photonTransport(deps.config, deps.env).endpoint, deps.env);
 
     const [row] = await tx<ReceiptRow[]>`
-      select id, sender_hash, space_hash, space_type, content_type, text_ciphertext, sender_ciphertext, space_ciphertext,
+      select id, channel, sender_hash, space_hash, space_type, content_type, text_ciphertext, sender_ciphertext, space_ciphertext,
              sealed_key_id, outcome, received_at
       from app.imessage_receipts where id = ${receiptId}
       for update

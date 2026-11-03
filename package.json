@@ -39,6 +39,7 @@
     "@shikijs/engine-oniguruma": "4.3.1",
     "@spectrum-ts/core": "12.14.0",
     "@spectrum-ts/imessage": "12.14.0",
+    "@spectrum-ts/whatsapp-business": "12.14.0",
     "@streamdown/cjk": "1.0.3",
     "@streamdown/code": "1.1.1",
     "@streamdown/math": "1.0.2",
@@ -81,6 +82,9 @@
       "typescript": "$typescript"
     },
     "@spectrum-ts/imessage": {
+      "typescript": "$typescript"
+    },
+    "@spectrum-ts/whatsapp-business": {
       "typescript": "$typescript"
     }
   }

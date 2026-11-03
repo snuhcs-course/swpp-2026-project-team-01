@@ -404,20 +404,20 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **레인 A — 라우팅, 기록, 전송**
 
-- [ ] 검증된 Photon 이벤트를 플랫폼에 따라 라우팅: iMessage는 변경 없는 `inboundMessage`로, WhatsApp Business는 `inboundWhatsAppMessage`로 보내고, 라벨이 없거나 섞인 이벤트는 아무 곳으로도 보내지 않습니다.
-- [ ] 네 개의 `imessage_*` 테이블에 `channel` 열, 별도의 발신자 해시 네임스페이스, 발신함의 템플릿 필드를 pg-delta로 추가.
-- [ ] `lib/server/photon.ts`의 클라우드 모드 `@spectrum-ts/whatsapp-business`, Meta 오류 매핑, 대역의 WhatsApp 및 131047 분기.
+- [x] 검증된 Photon 이벤트를 플랫폼에 따라 라우팅: iMessage는 변경 없는 `inboundMessage`로, WhatsApp Business는 `inboundWhatsAppMessage`로 보내고, 라벨이 없거나 섞인 이벤트는 아무 곳으로도 보내지 않습니다.
+- [x] 네 개의 `imessage_*` 테이블에 `channel` 열, 별도의 발신자 해시 네임스페이스, 발신함의 템플릿 필드를 pg-delta로 추가.
+- [x] `lib/server/photon.ts`의 클라우드 모드 `@spectrum-ts/whatsapp-business`, Meta 오류 매핑, 대역의 WhatsApp 및 131047 분기.
 
 **레인 B — 브라우저에서의 연동**
 
-- [ ] `wa.me` 링크, QR 코드, **복사(Copy)**, 마스킹된 번호의 **확인 및 연결(Confirm and link)**을 갖춘 **WhatsApp 연결(Connect WhatsApp)**; 기기 규칙(Android는 WhatsApp, Apple 기기는 **대신 WhatsApp 사용(Use WhatsApp instead)**이 있는 iMessage, 그 밖의 컴퓨터는 질문); 교체 안내와 옵트인 문장; 로그인 뒤의 연동 단계와 `/?flow=whatsapp`.
-- [ ] 호스트당 채널 전체에서 활성 바인딩 하나, 확인 시 다른 채널의 바인딩 종료.
+- [x] `wa.me` 링크, QR 코드, **복사(Copy)**, 마스킹된 번호의 **확인 및 연결(Confirm and link)**을 갖춘 **WhatsApp 연결(Connect WhatsApp)**; 기기 규칙(Android는 WhatsApp, Apple 기기는 **대신 WhatsApp 사용(Use WhatsApp instead)**이 있는 iMessage, 그 밖의 컴퓨터는 질문); 교체 안내와 옵트인 문장; 로그인 뒤의 연동 단계와 `/?flow=whatsapp`.
+- [x] 호스트당 채널 전체에서 활성 바인딩 하나, 확인 시 다른 채널의 바인딩 종료.
 
 **레인 C — 창, 템플릿, 채널 동작**
 
-- [ ] 발송 시점의 24시간 창 확인, 억제, `window_closed`와 `template_unavailable`에 대한 `/app` 안내.
-- [ ] 호스트당 12시간, 회선당 일일 한도가 있는 유틸리티 템플릿 세 개.
-- [ ] `stop`, `[WhatsApp]` 대화 기록 접두사, 호스트 지침 조각, 채널별 연동되지 않은 발신자 한도; 명령, 요약, 설정, 접수는 6단계에서 재사용.
+- [x] 발송 시점의 24시간 창 확인, 억제, `window_closed`와 `template_unavailable`에 대한 `/app` 안내.
+- [x] 호스트당 12시간, 회선당 일일 한도가 있는 유틸리티 템플릿 세 개.
+- [x] `stop`, `[WhatsApp]` 대화 기록 접두사, 호스트 지침 조각, 채널별 연동되지 않은 발신자 한도; 명령, 요약, 설정, 접수는 6단계에서 재사용.
 
 **합류**
 
