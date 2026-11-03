@@ -184,11 +184,34 @@ A linked host SHALL be able to enter the shared setup discussion with `setup` an
 - **THEN** nothing is saved and the reply names the current review's reference
 
 ### Requirement: Optional contact card
-After linking, the host SHALL be able to request one native contact-card share in the linked conversation. The web SHALL show queued, accepted, failed or uncertain status, SHALL NOT report the card as delivered or saved, and SHALL offer no resend while uncertain. Saving the card SHALL grant nothing.
+After **Confirm and link** on iMessage, the service SHALL queue one native contact-card share in the linked conversation after the welcome, and the host SHALL be able to request another. The web SHALL show queued, accepted, failed or uncertain status, SHALL NOT report the card as delivered or saved, and SHALL offer no resend while uncertain. Saving the card SHALL grant nothing.
+
+#### Scenario: Card after linking
+- **WHEN** the host taps **Confirm and link** for an iMessage conversation
+- **THEN** one contact-card share is queued to arrive after the welcome
 
 #### Scenario: Contact card accepted
 - **WHEN** the provider accepts the contact-card share
 - **THEN** the card says to check iMessage and choose whether to save it
+
+### Requirement: Read marks, typing and a tapback for thanks
+For a linked host's text message on iMessage, the service SHALL mark the conversation read, and SHALL show typing while a reply that waits for a turn is prepared, as a best-effort signal that is never retried, never reported as a delivery, and that changes neither conversation routing nor delivery status. A message that is only thanks SHALL get a tapback instead of a reply and SHALL NOT start a turn; any other message, including "ok", "yes" and 👍, SHALL reach the conversation.
+
+#### Scenario: Host writes a question
+- **WHEN** a linked host sends a text message on iMessage that starts a turn
+- **THEN** the conversation is marked read and shows typing while Thyme prepares the reply
+
+#### Scenario: Host sends a command
+- **WHEN** a linked host sends an exact command whose reply is immediate
+- **THEN** the conversation is marked read, with no typing bubble
+
+#### Scenario: Host says thanks
+- **WHEN** a linked host sends only "thanks"
+- **THEN** the message gets a tapback, and no turn starts and no text reply is sent
+
+#### Scenario: Signal fails
+- **WHEN** Photon refuses or loses the read mark or typing signal
+- **THEN** the signal is final without retry, and the host's reply is sent as usual
 
 ### Requirement: iMessage record retention
 Receipt text SHALL be cleared when its receipt is processed and receipts deleted 30 days after receipt. Outbound text SHALL be cleared when its message reaches a final state. Link attempts and ended bindings SHALL be deleted 30 days after they end.

@@ -167,7 +167,7 @@ function Inbox({ onSelect }: { readonly onSelect: (requestId: string) => void })
 // One request
 
 // A linked iMessage or WhatsApp shares the private discussion; its messages
-// have their own tab (host-imessage-channel D20), shown once there are any.
+// have their own tab (host-imessage-channel D24), shown once there are any.
 type View = "private" | "messaging";
 
 type HostDiscussion = ReturnType<typeof useHostDiscussion>;

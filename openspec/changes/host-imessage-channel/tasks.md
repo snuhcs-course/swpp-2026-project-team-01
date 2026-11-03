@@ -51,6 +51,13 @@ Before each group, read the [Phase 6 reference repository files](../../../docume
 - [x] 8.2 Send the welcome by where the host stands, the Calendar link from the welcome, `setup` and the agent, and one "back from Google" message after signing in from it. Verify integration tests for the three welcomes, a plain reply reaching the setup discussion, and a replayed callback queuing one message.
 - [ ] 8.3 On a controlled iPhone with the line: the welcome after **Confirm and link**, a plain reply and the next setup question, the Calendar link from iMessage and its "back from Google" message. On 2026-10-23, through a local receiver with a temporary local override outside the repository, an earlier fixed welcome arrived and a reply brought the next setup question. Google sign-in from a phone needs a callback the phone can reach, which a local run does not have.
 
+## 9. Read marks, typing, tapbacks and the contact card after linking (D20–D22, #84)
+
+- [x] 9.1 Record a best-effort `signal` outbox row for a linked host's iMessage text once the channel has handled it (typing only for a turn), carry it through the transport, make any non-accepted answer final, and keep it out of guest routing and the card's status. Verify unit tests for the transport and integration tests for typing with a waiting turn, a command's read mark, the failure and routing.
+- [x] 9.2 Answer a message that is only thanks with a ❤️ tapback and no turn. Verify unit tests for `isOnlyThanks` and an integration test that no turn starts.
+- [x] 9.3 Queue the contact card on **Confirm and link**, once per iMessage binding, held 15 seconds behind the welcome. Verify integration tests for the card's hold and none on WhatsApp.
+- [ ] 9.4 On a controlled iPhone with the line: the read mark and typing bubble before a reply, the tapback for thanks, and the card after linking.
+
 ## 10. Approval in the host's own words (D23, #88)
 
 - [x] 10.1 Add `approve_proposal` to the host-review tools: the channel check on the session's current input, the current-version check and `approveCommand` with the read revision. Verify integration tests for approval from iMessage once, a web message, an outdated version and a closed request, and the host-review tool list.

@@ -7,7 +7,7 @@ import type { ChannelEntry } from "@/lib/chat/channels";
 
 // What the host and Thyme said in the host's linked iMessage or WhatsApp, on
 // its own tab of the discussion it shares with /app (host-imessage-channel
-// D20). It is read-only: the host replies in the app, and the composer on the
+// D24). It is read-only: the host replies in the app, and the composer on the
 // web tab writes to the same discussion.
 
 export function MessagingDiscussion({

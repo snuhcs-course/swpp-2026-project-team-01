@@ -31,7 +31,7 @@ afterAll(async () => {
 });
 
 async function pendingCode(hostAccountId: string) {
-  const created = await im.command(hostAccountId, "imessage.link.create");
+  const created = await im.command(hostAccountId, "imessage.link.create", { number: newSender() });
   expect(created.ok).toBe(true);
   const status = await im.status(hostAccountId);
   if (status.state !== "pending") throw new Error(`Expected a pending code, got ${status.state}.`);
@@ -51,6 +51,45 @@ async function linkedHost(existing?: string) {
   expect(confirmed.ok).toBe(true);
   return { hostAccountId, linkId, message, sender };
 }
+
+describe("registering the entered number first (imessage-number-registration)", () => {
+  it("registers the number with Photon and addresses the code to the number Photon assigned", async () => {
+    const hostAccountId = await newHostAccount(db);
+    const number = newSender();
+    photon.nextRegistration({ lineNumber: "+15550009999" });
+
+    expect((await im.command(hostAccountId, "imessage.link.create", { number: ` ${number.slice(0, 5)} ${number.slice(5)} ` })).ok).toBe(true);
+    expect(photon.registered.at(-1)).toBe(number);
+    expect(await im.status(hostAccountId)).toMatchObject({ channels: { imessage: "+15550001111" }, lineNumber: "+15550009999", state: "pending" });
+    const [row] = await db<{ line_number: string; phone_hash: string | null; phone_ciphertext: string | null }[]>`
+      select line_number, phone_hash, phone_ciphertext from app.imessage_links where host_account_id = ${hostAccountId} and state = 'pending'
+    `;
+    expect(row).toEqual({ line_number: "+15550009999", phone_hash: null, phone_ciphertext: null });
+  });
+
+  it("refuses an iMessage code without a number, and makes no attempt when Photon refuses the number", async () => {
+    const hostAccountId = await newHostAccount(db);
+    const before = photon.registered.length;
+    expect(await im.command(hostAccountId, "imessage.link.create", {})).toMatchObject({ error: { category: "invalid_input" }, ok: false });
+    expect(await im.command(hostAccountId, "imessage.link.create", { number: "010-1234" })).toMatchObject({ error: { category: "invalid_input" }, ok: false });
+    expect(photon.registered.length).toBe(before);
+
+    photon.nextRegistration(422);
+    expect(await im.command(hostAccountId, "imessage.link.create", { number: newSender() })).toMatchObject({
+      error: { category: "unavailable_configuration" },
+      ok: false,
+    });
+    expect(await im.status(hostAccountId)).toMatchObject({ state: "none" });
+  });
+
+  it("asks WhatsApp for no number and registers nothing", async () => {
+    const hostAccountId = await newHostAccount(db);
+    const before = photon.registered.length;
+    expect((await im.command(hostAccountId, "imessage.link.create", { channel: "whatsapp" })).ok).toBe(true);
+    expect(await im.command(hostAccountId, "imessage.link.create", { channel: "whatsapp", number: newSender() })).toMatchObject({ ok: false });
+    expect(photon.registered.length).toBe(before);
+  });
+});
 
 describe("linking by a host-sent code", () => {
   it("shows the code and the exact message, records the arriving sender, and binds only after confirmation", async () => {
@@ -76,7 +115,9 @@ describe("linking by a host-sent code", () => {
     const confirmed = await im.command(hostAccountId, "imessage.link.confirm", { linkId: link!.id });
     expect(confirmed.ok).toBe(true);
     expect(await im.bindingOf(hostAccountId)).toMatchObject({ sender_hash: imessageHash(testTokenKey, "sender", sender), state: "active" });
-    expect(await im.status(hostAccountId)).toMatchObject({ contactCard: null, delivery: null, sender: `•••• ${sender.slice(-4)}`, state: "linked" });
+    // Confirming also queues the line's contact card after the welcome (D22).
+    expect(await im.status(hostAccountId)).toMatchObject({ contactCard: { state: "queued" }, delivery: null, sender: `•••• ${sender.slice(-4)}`, state: "linked" });
+    expect(await im.outbox({ hostAccountId, kind: "contact_card" })).toHaveLength(1);
 
     const [linked] = await im.outbox({ hostAccountId, kind: "linked" });
     expect(textOf((await im.send(linked!.id)).sent)).toEqual([
@@ -166,13 +207,13 @@ describe("linking by a host-sent code", () => {
 
   it("limits codes to five an hour and replays an exact retry", async () => {
     const hostAccountId = await newHostAccount(db);
-    const first = await im.command(hostAccountId, "imessage.link.create", {}, "retry-1");
-    const replay = await im.command(hostAccountId, "imessage.link.create", {}, "retry-1");
+    const first = await im.command(hostAccountId, "imessage.link.create", { number: "+15557654321" }, "retry-1");
+    const replay = await im.command(hostAccountId, "imessage.link.create", { number: "+15557654321" }, "retry-1");
     expect(replay).toMatchObject({ ok: true, replayed: true });
     expect(first.ok && replay.ok && first.result).toEqual(replay.ok && replay.result);
 
-    for (let index = 0; index < 4; index += 1) expect((await im.command(hostAccountId, "imessage.link.create")).ok).toBe(true);
-    expect(await im.command(hostAccountId, "imessage.link.create")).toMatchObject({ error: { category: "rate_limited" }, ok: false });
+    for (let index = 0; index < 4; index += 1) expect((await im.command(hostAccountId, "imessage.link.create", { number: newSender() })).ok).toBe(true);
+    expect(await im.command(hostAccountId, "imessage.link.create", { number: newSender() })).toMatchObject({ error: { category: "rate_limited" }, ok: false });
   });
 });
 
@@ -275,11 +316,11 @@ describe("unlinking and the contact card", () => {
     expect(await im.status(hostAccountId)).toMatchObject({ state: "none" });
   });
 
-  it("queues one contact card and refuses another while it is on its way", async () => {
+  it("queues one contact card after linking and refuses another while it is on its way", async () => {
     const { hostAccountId } = await linkedHost();
-    expect((await im.command(hostAccountId, "imessage.contact_card.share")).ok).toBe(true);
-    expect(await im.command(hostAccountId, "imessage.contact_card.share")).toMatchObject({ error: { category: "rate_limited" } });
+    // Confirm and link queued the card after the welcome (D22); another waits for it.
     expect(await im.status(hostAccountId)).toMatchObject({ contactCard: { state: "queued" } });
+    expect(await im.command(hostAccountId, "imessage.contact_card.share")).toMatchObject({ error: { category: "rate_limited" } });
 
     const [card] = await im.outbox({ hostAccountId, kind: "contact_card" });
     expect(textOf((await im.send(card!.id)).sent)).toEqual(["[contact_card]"]);

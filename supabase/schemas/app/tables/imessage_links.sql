@@ -16,6 +16,9 @@
 -- A code attempt started from a guest's booking page belongs to that request
 -- (request_id; guest-flow-completion design 1); confirming it creates a
 -- requester_imessage_bindings row, which binding_id then names.
+-- line_number is the shared-pool number Photon assigned when an iMessage code
+-- attempt registered the entered number as a project user; the screens address
+-- it (imessage-number-registration design 2). The entered number is not stored.
 CREATE TABLE "app"."imessage_links" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "host_account_id" uuid REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
@@ -37,6 +40,7 @@ CREATE TABLE "app"."imessage_links" (
   "sends" integer NOT NULL DEFAULT 0 CHECK ("sends" >= 0),
   "last_sent_at" timestamptz,
   "wrong_entries" integer NOT NULL DEFAULT 0 CHECK ("wrong_entries" >= 0),
+  "line_number" text CHECK ("line_number" ~ '^\+[1-9][0-9]{6,14}$'),
   "sender_hash" text CHECK ("sender_hash" ~ '^[0-9a-f]{64}$'),
   "sender_ciphertext" text,
   "space_ciphertext" text,

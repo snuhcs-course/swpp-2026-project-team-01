@@ -1,3 +1,4 @@
+import { E164_NUMBER } from "../contracts/imessage";
 import type { MessagingChannel } from "../contracts/messaging-channel";
 import { deploymentEnvironment } from "./deployment";
 import { gateTransport, type MessagingTransport } from "./messaging";
@@ -36,6 +37,9 @@ export type PhotonRecipient = {
 export type PhotonContent =
   | { readonly kind: "text"; readonly text: string }
   | { readonly kind: "contact_card" }
+  // Best-effort iMessage signals about the host's message messageId: mark the
+  // conversation read, add a tapback, show typing. Never a message of its own.
+  | { readonly kind: "signal"; readonly messageId: string | null; readonly typing: boolean; readonly reaction: string | null }
   // A pre-approved WhatsApp template with positional body parameters.
   | { readonly kind: "template"; readonly name: string; readonly languageCode: string; readonly params: readonly string[] };
 
@@ -168,6 +172,8 @@ export function spectrumTransport(config: Pick<PhotonConfig, "projectId" | "proj
       if (!config.projectId || !config.projectSecret) return { status: "unavailable" };
       if (request.channel === "whatsapp") return sendWhatsApp(config, request);
       if (request.content.kind === "template") return { category: "provider_rejected", status: "rejected" };
+      // A signal belongs to a conversation the host already wrote in.
+      if (request.content.kind === "signal" && !request.recipient.spaceId) return { category: "invalid_recipient", status: "rejected" };
 
       let app: Awaited<ReturnType<typeof import("@spectrum-ts/core").Spectrum>>;
       let platform: typeof import("@spectrum-ts/imessage").imessage;
@@ -204,6 +210,16 @@ export function spectrumTransport(config: Pick<PhotonConfig, "projectId" | "proj
             return { messageId: null, spaceId: space.id, status: "accepted" };
           }
 
+          if (request.content.kind === "signal") {
+            const { messageId, reaction, typing } = request.content;
+            const message = messageId ? await withTimeout(space.getMessage(messageId), SEND_TIMEOUT_MS) : undefined;
+            // iMessage marks the whole conversation read; the tapback needs the message itself.
+            if (message) await withTimeout(space.read(message), SEND_TIMEOUT_MS);
+            if (message && reaction) await withTimeout(message.react(reaction), SEND_TIMEOUT_MS);
+            if (typing) await withTimeout(space.startTyping(), SEND_TIMEOUT_MS);
+            return { messageId: null, spaceId: space.id, status: "accepted" };
+          }
+
           const sent = await withTimeout(space.send(request.content.text), SEND_TIMEOUT_MS);
           return { messageId: sent?.id ?? null, spaceId: space.id, status: "accepted" };
         } catch {
@@ -222,7 +238,7 @@ export function spectrumTransport(config: Pick<PhotonConfig, "projectId" | "proj
 // failure is unavailable; once it began, Meta's refusals map as design 9 says
 // and anything else is uncertain.
 async function sendWhatsApp(config: Pick<PhotonConfig, "projectId" | "projectSecret">, request: PhotonSendRequest): Promise<PhotonSendResult> {
-  if (request.content.kind === "contact_card") return { category: "provider_rejected", status: "rejected" };
+  if (request.content.kind === "contact_card" || request.content.kind === "signal") return { category: "provider_rejected", status: "rejected" };
 
   let app: Awaited<ReturnType<typeof import("@spectrum-ts/core").Spectrum>>;
   let provider: typeof import("@spectrum-ts/whatsapp-business");
@@ -270,6 +286,63 @@ async function sendWhatsApp(config: Pick<PhotonConfig, "projectId" | "projectSec
   } finally {
     await app.stop().catch(() => undefined);
   }
+}
+
+// Registering a number as a user of the project (imessage-number-registration
+// design 1). On Photon's shared lines only registered users' messages reach the
+// project, so every iMessage link attempt registers the number entered first;
+// the answer names the shared-pool number assigned to that user, which the link
+// screens then address. Photon's create is idempotent on the number, so entering
+// it again returns the same user and number. Production calls Spectrum's REST
+// API with the project credentials; elsewhere the stand-in answers POST
+// {apiUrl}/users the same way. Outcomes:
+//   - registered: the user exists and texts lineNumber;
+//   - refused: Photon refused the number or the project (full, or a bad number);
+//   - unavailable: nothing could be asked or the answer was lost.
+export type PhotonRegistration =
+  | { readonly status: "registered"; readonly lineNumber: string }
+  | { readonly status: "refused" }
+  | { readonly status: "unavailable" };
+
+export type PhotonRegistrar = MessagingTransport<string, PhotonRegistration>;
+
+function registrar(endpoint: string, url: string, authorization: string, fetcher: typeof fetch): PhotonRegistrar {
+  return {
+    endpoint,
+    async send(number) {
+      let response: Response;
+
+      try {
+        response = await fetcher(url, {
+          body: JSON.stringify({ phoneNumber: number, type: "shared" }),
+          headers: { authorization, "content-type": "application/json" },
+          method: "POST",
+          signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+        });
+      } catch {
+        return { status: "unavailable" };
+      }
+
+      const body = (await response.json().catch(() => null)) as { data?: { assignedPhoneNumber?: unknown } } | null;
+      const assigned = body?.data?.assignedPhoneNumber;
+      if (response.ok && typeof assigned === "string" && E164_NUMBER.test(assigned)) return { lineNumber: assigned, status: "registered" };
+      if (response.status >= 400 && response.status < 500) return { status: "refused" };
+      return { status: "unavailable" };
+    },
+  };
+}
+
+export function photonRegistrar(config: PhotonConfig = photonConfig(), env: Environment = process.env, fetcher: typeof fetch = fetch): PhotonRegistrar {
+  const local = deploymentEnvironment(env) !== "production" && config.apiUrl;
+  const transport = local
+    ? registrar(config.apiUrl!.replace(/\/+$/, ""), `${config.apiUrl!.replace(/\/+$/, "")}/users`, `Bearer ${config.projectSecret || "photon_test"}`, fetcher)
+    : registrar(
+        SPECTRUM_ENDPOINT,
+        `${SPECTRUM_ENDPOINT}/projects/${encodeURIComponent(config.projectId)}/users/`,
+        `Basic ${Buffer.from(`${config.projectId}:${config.projectSecret}`).toString("base64")}`,
+        fetcher,
+      );
+  return gateTransport(transport, env);
 }
 
 // The deployment's transport behind the messaging gate: Spectrum in production,

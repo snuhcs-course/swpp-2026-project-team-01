@@ -15,6 +15,7 @@ import {
   resolveLocalTime,
   type RouteOutcome,
   travelQueries,
+  tripQueries,
 } from "./feasibility";
 import type { CalendarEvent } from "./google-calendar";
 
@@ -740,6 +741,128 @@ describe("travel legs", () => {
   it("checks nothing when no commitment is near that day", () => {
     const result = evaluateFeasibility(input({ request: { ...inPerson, ...only("12:00") } }));
     expect(result.candidates[0]!.basis).toContain("No commitment that day needs a trip checked.");
+  });
+});
+
+describe("same-day trips", () => {
+  // same-day-trips: the meeting place is 45 minutes from the preferred area.
+  // Monday's morning commitment is 10 minutes from it, Tuesday's is in the
+  // preferred area, and Wednesday has none.
+  const AREA = { key: hashed("Gangnam"), text: "Gangnam" };
+  const day = (date: string) => ({ end: kst(date, "15:00"), start: kst(date, "14:00") });
+  const inPerson = {
+    location: MEETING,
+    mode: "in_person" as const,
+    travelMode: "transit" as const,
+    windows: [day("2026-11-02"), day("2026-11-03"), day("2026-11-04")],
+  };
+  const hostBusy = [
+    busy(kst("2026-11-02", "09:00"), kst("2026-11-02", "10:00"), place("Seongsu office")),
+    busy(kst("2026-11-03", "09:00"), kst("2026-11-03", "10:00"), place("Gangnam studio")),
+  ];
+  const minutes = {
+    "Gangnam -> Cafe Onion, Seongsu": 45,
+    "Gangnam studio -> Cafe Onion, Seongsu": 50,
+    "Gangnam studio -> Gangnam": 5,
+    "Seongsu office -> Cafe Onion, Seongsu": 10,
+    "Seongsu office -> Gangnam": 40,
+  } as const;
+  const trips = ({
+    host,
+    request,
+    ...rest
+  }: Partial<Omit<FeasibilityInput, "host" | "request">> & {
+    host?: Partial<HostRules>;
+    request?: Partial<FeasibilityInput["request"]>;
+  } = {}) =>
+    input({
+      estimate: routes(minutes),
+      hostBusy,
+      ...rest,
+      host: { ...HOST, preferredArea: AREA, ...host },
+      request: { ...inPerson, ...request },
+    });
+  const days = (result: ReturnType<typeof evaluateFeasibility>) =>
+    [...new Set(result.candidates.map((candidate) => candidate.start.slice(0, 10)))];
+  const sorted = (result: ReturnType<typeof evaluateFeasibility>) => [...starts(result)].sort();
+
+  it("offers days already out that way first and days in the preferred area last, removing nothing", () => {
+    const ranked = evaluateFeasibility(trips());
+    const plain = evaluateFeasibility(trips({ host: { preferredArea: null } }));
+
+    expect(days(plain)).toEqual(["2026-11-02", "2026-11-03", "2026-11-04"]);
+    expect(days(ranked)).toEqual(["2026-11-02", "2026-11-04", "2026-11-03"]);
+    expect(sorted(ranked)).toEqual(sorted(plain));
+    expect(ranked.candidates.every((candidate) => candidate.status === "offered")).toBe(true);
+  });
+
+  it("moves a later day with a nearby commitment ahead of earlier days, and not without one", () => {
+    const wednesday = busy(kst("2026-11-04", "09:00"), kst("2026-11-04", "10:00"), place("Seongsu office"));
+    const withNearby = evaluateFeasibility(trips({ hostBusy: [hostBusy[1]!, wednesday] }));
+    const without = evaluateFeasibility(trips({ hostBusy: [hostBusy[1]!] }));
+
+    expect(days(withNearby)).toEqual(["2026-11-04", "2026-11-02", "2026-11-03"]);
+    expect(days(without)).toEqual(["2026-11-02", "2026-11-04", "2026-11-03"]);
+  });
+
+  it("explains the rank to the host in minutes, without naming an event or a place", () => {
+    const result = evaluateFeasibility(trips());
+    const basisOf = (date: string) => result.candidates.find((candidate) => candidate.start.startsWith(date))!.basis;
+
+    expect(basisOf("2026-11-02")).toContain(
+      "That day you are already 10 minutes from the meeting place, which is 45 minutes from your usual area, so days like it come first.",
+    );
+    expect(basisOf("2026-11-03")).toContain(
+      "That day you stay near your usual area, 45 minutes from the meeting place, so it comes after days you are already out that way.",
+    );
+    expect(basisOf("2026-11-04")).toContain(
+      "The meeting place is 45 minutes from your usual area, so days you are already out that way come first.",
+    );
+    expect(result.candidates.flatMap((candidate) => candidate.basis).join(" ")).not.toMatch(/Gangnam|Seongsu office/);
+  });
+
+  it("keeps the weekly limit ahead of the trip rank", () => {
+    const result = evaluateFeasibility(
+      trips({
+        bookedStarts: [kst("2026-11-02", "08:00").getTime()],
+        host: { weeklyLimit: 1 },
+        request: { windows: [...inPerson.windows, day("2026-11-09")] },
+      }),
+    );
+    expect(days(result)).toEqual(["2026-11-09", "2026-11-02", "2026-11-04", "2026-11-03"]);
+  });
+
+  it("leaves the order alone when the meeting place is near the preferred area", () => {
+    const near = evaluateFeasibility(trips({ estimate: routes({ ...minutes, "Gangnam -> Cafe Onion, Seongsu": 20 }) }));
+    expect(days(near)).toEqual(["2026-11-02", "2026-11-03", "2026-11-04"]);
+    expect(near.candidates[0]!.basis.join(" ")).not.toContain("usual area");
+  });
+
+  it("leaves the order alone without estimates, while naming the trips it needs", () => {
+    const unestimated = trips({ estimate: undefined });
+    expect(days(evaluateFeasibility(unestimated))).toEqual(["2026-11-02", "2026-11-03", "2026-11-04"]);
+    expect(tripQueries(unestimated).map((query) => `${query.origin} -> ${query.destination}`).sort()).toEqual(
+      Object.keys(minutes).sort(),
+    );
+  });
+
+  it("does nothing for an online meeting or a per-trip travel mode", () => {
+    const online = trips({ request: { location: null, mode: "online", travelMode: null } });
+    expect(tripQueries(online)).toEqual([]);
+    expect(days(evaluateFeasibility(online))).toEqual(["2026-11-02", "2026-11-03", "2026-11-04"]);
+
+    const depends = trips({ host: { travelMode: "depends" } });
+    expect(tripQueries(depends)).toEqual([]);
+    expect(days(evaluateFeasibility(depends))).toEqual(["2026-11-02", "2026-11-03", "2026-11-04"]);
+  });
+
+  it("shows the requester only the times", () => {
+    const result = evaluateFeasibility(trips());
+    const projection = requesterProjection(result.candidates, { displayTimezone: "Asia/Seoul", id: "e1", state: "completed" });
+    const text = JSON.stringify(projection);
+
+    expect(projection.candidates.map((candidate) => candidate.start)).toEqual(starts(result));
+    expect(text).not.toMatch(/Gangnam|Seongsu office|usual area|minutes/);
   });
 });
 

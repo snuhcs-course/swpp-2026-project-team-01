@@ -502,7 +502,7 @@ export function requesterCommands(
     registered(evaluateCommand),
     registered(allowTripCommand),
     registered(chooseCandidateCommand),
-    registered(agreeCommand),
+    registered(agreeCommand()),
     registered(changeAgreementCommand),
     registered(withdrawRequestCommand),
     registered(useGoogleEmailCommand),

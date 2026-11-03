@@ -113,9 +113,13 @@ Photon의 전달 가능성 안내에 따라 인바운드 우선이 기본값입�
 
 통제된 iPhone에서 요청 선택, 비공개 논의, 수정, 정확한 제안의 승인/거절을 검증합니다. 지원되지 않는 수신자와 그룹에는 비공개 상태를 보내서는 안 됩니다. 실제 디바이스/클라이언트 버전을 기록하며, 전송 성공만으로는 디바이스 수신이나 귀속을 증명할 수 없습니다.
 
+### 공유 회선과 등록된 사용자
+
+운영 프로젝트는 Photon의 Free 요금제이며, 이 요금제의 iMessage 회선은 공유 회선입니다. 공유 회선은 프로젝트에 등록된 사용자가 보낸 메시지만 전달하고, 등록된 사용자에게만 보냅니다([troubleshooting](https://photon.codes/docs/spectrum-ts/troubleshooting/imessage), 이슈 #94). 그래서 모든 iMessage 연결 시작은 먼저 상대의 번호를 묻고, 프로젝트 자격 증명으로 `POST https://spectrum.photon.codes/projects/{projectId}/users/`를 호출해 그 번호를 공유 사용자로 등록합니다. 코드는 Photon이 돌려준 `assignedPhoneNumber`로 보내도록 안내하며, 이 번호는 시도의 `imessage_links.line_number`에 보관됩니다([`imessage-number-registration`](../../openspec/changes/imessage-number-registration/proposal.md#decisions) D1, D2). `PHOTON_LINE_NUMBER`는 iMessage를 켜는 역할만 합니다. Free 요금제는 등록 사용자 10명, Pro는 100명까지이며([pricing](https://photon.codes/pricing)), 가득 찬 프로젝트는 새 번호를 거절합니다. 등록된 사용자는 `photon spectrum users ls --project <id>`로 확인합니다. 전용 회선(Business)에는 이런 목록이 없습니다.
+
 ### 표시 이름, 연락처 카드, 프로필 동기화
 
-검증된 비공개 대화 이후 호스트 동작으로서 선택적인 **연락처에 추가(Add to contacts)**를 제공하며, 연결된 카드는 Spectrum SDK를 통해 네이티브 연락처 카드 공유 하나를 대기열에 넣습니다([`host-imessage-channel` 설계 11](../../openspec/changes/host-imessage-channel/design.md#11-add-to-contacts)). 실제로 선택된 경로를 고정하고, 공급자의 수락/불확실성을 사실대로 보고합니다. 저장 여부는 수신자가 선택하며, 제품은 표시되는 이름을 약속하거나 연락처 카드로부터 신원/동의를 추론할 수 없습니다. 지원한다고 주장하기 전에 실제 계정 프로필과 실제 디바이스에서의 표시를 각각 독립적으로 검증합니다.
+Photon의 [전달 가능성 안내](https://photon.codes/docs/best-practices/imessage-deliverability.md)에 따라 **확인 및 연결(Confirm and link)** 직후 환영 메시지 뒤에 보류해 연락처 카드를 한 번 공유하고, 다시 공유할 수 있도록 호스트 동작으로서 선택적인 **연락처에 추가(Add to contacts)**를 제공합니다. 각각은 Spectrum SDK를 통해 네이티브 연락처 카드 공유 하나를 대기열에 넣습니다([`host-imessage-channel` 설계 11과 18](../../openspec/changes/host-imessage-channel/design.md#18-read-marks-typing-tapbacks-and-the-contact-card-after-linking-d20d22)). 읽음 표시, 입력 중 말풍선, 감사 탭백은 같은 SDK를 통해 최선 노력 방식의 발신함 신호(`space.read`, `space.startTyping`, `message.react`)로 전달됩니다. 실제로 선택된 경로를 고정하고, 공급자의 수락/불확실성을 사실대로 보고합니다. 저장 여부는 수신자가 선택하며, 제품은 표시되는 이름을 약속하거나 연락처 카드로부터 신원/동의를 추론할 수 없습니다. 지원한다고 주장하기 전에 실제 계정 프로필과 실제 디바이스에서의 표시를 각각 독립적으로 검증합니다.
 
 ### 참고 자료
 

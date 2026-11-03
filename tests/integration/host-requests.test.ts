@@ -132,7 +132,7 @@ describe("shared changes", () => {
       expectedRevision: await revisionOf(db, request.requestId),
     });
     expect(stale.ok).toBe(false);
-    const agreed = await asRequester(db, request.requestId, agreeCommand, { version: 2 }, { expectedRevision: await revisionOf(db, request.requestId) });
+    const agreed = await asRequester(db, request.requestId, agreeCommand(() => evaluationDeps(db, google)), { version: 2 }, { expectedRevision: await revisionOf(db, request.requestId) });
     expect(agreed.ok).toBe(true);
     const approved = await asHost(db, request.hostAccountId, request.requestId, approveCommand, { version: 2 }, {
       expectedRevision: await revisionOf(db, request.requestId),

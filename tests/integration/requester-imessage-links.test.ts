@@ -29,7 +29,7 @@ import { createTestRequest, testTokenKey } from "./support/requests";
 const db = testDatabase();
 let photon: FakePhoton;
 const im = imessageHarness(db, () => photon);
-const options = { lineNumber: TEST_LINE, tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
+const options = { lineNumber: TEST_LINE, registrar: im.registrar, tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
 const commands: Readonly<Record<string, CommandDefinition<unknown, unknown>>> = Object.fromEntries(
   [createRequesterImessageLinkCommand(options), confirmRequesterImessageLinkCommand(options), unlinkRequesterImessageCommand, shareRequesterContactCardCommand(options)].map(
     (command) => [command.operation, command as unknown as CommandDefinition<unknown, unknown>],
@@ -65,7 +65,7 @@ async function bindingOf(requestId: string) {
 }
 
 async function pendingCode(requestId: string) {
-  expect((await asGuest(requestId, REQUESTER_IMESSAGE_OPERATIONS.create)).ok).toBe(true);
+  expect((await asGuest(requestId, REQUESTER_IMESSAGE_OPERATIONS.create, { number: "+15557654321" })).ok).toBe(true);
   const pending = await status(requestId);
   if (pending.state !== "pending") throw new Error(`Expected a pending code, got ${pending.state}.`);
   return pending;
@@ -82,6 +82,16 @@ async function linkedGuest(sender: string = newSender()) {
 }
 
 describe("linking a guest's iMessage", () => {
+  it("registers the guest's number first and addresses the code to the number Photon assigned", async () => {
+    const request = await createTestRequest(db);
+    expect(await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.create)).toMatchObject({ error: { category: "invalid_input" }, ok: false });
+    const number = newSender();
+    photon.nextRegistration({ lineNumber: "+15550009999" });
+    expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.create, { number })).ok).toBe(true);
+    expect(photon.registered.at(-1)).toBe(number);
+    expect(await status(request.requestId)).toMatchObject({ lineNumber: "+15550009999", state: "pending" });
+  });
+
   it("sends a contact card only to the linked guest and prevents duplicate queued sends", async () => {
     const guest = await linkedGuest();
     expect((await asGuest(guest.requestId, REQUESTER_IMESSAGE_OPERATIONS.shareContactCard)).ok).toBe(true);
@@ -177,8 +187,8 @@ describe("linking a guest's iMessage", () => {
 
   it("refuses a sixth code in an hour", async () => {
     const request = await createTestRequest(db);
-    for (let index = 0; index < 5; index += 1) expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.create)).ok).toBe(true);
-    const sixth = await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.create);
+    for (let index = 0; index < 5; index += 1) expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.create, { number: "+15557654321" })).ok).toBe(true);
+    const sixth = await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.create, { number: "+15557654321" });
     expect(sixth.ok ? null : sixth.error.category).toBe("rate_limited");
   });
 });

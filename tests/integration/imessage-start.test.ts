@@ -25,7 +25,7 @@ import { testTokenKey } from "./support/requests";
 const db = testDatabase();
 let photon: FakePhoton;
 const im = imessageHarness(db, () => photon);
-const options: StartOptions = { lineNumber: TEST_LINE, tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
+const options: StartOptions = { lineNumber: TEST_LINE, registrar: im.registrar, tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
 
 beforeAll(async () => {
   photon = await startFakePhoton();
@@ -48,13 +48,23 @@ async function continuation(sender: string, origin = "http://localhost:3000") {
 }
 
 async function started(browser: string) {
-  await startImessageLink(db, options, browser, source());
+  await startImessageLink(db, options, browser, source(), "imessage", "+15557654321");
   const status = await readStartStatus(db, options, browser);
   if (status.state !== "pending") throw new Error(`Expected a pending code, got ${status.state}.`);
   return status;
 }
 
 describe("the iMessage start", () => {
+  it("registers the entered number first and addresses the code to the number Photon assigned", async () => {
+    const browser = secret();
+    await expect(startImessageLink(db, options, browser, source())).rejects.toMatchObject({ category: "invalid_input" });
+    const number = newSender();
+    photon.nextRegistration({ lineNumber: "+15550009999" });
+    await startImessageLink(db, options, browser, source(), "imessage", number);
+    expect(photon.registered.at(-1)).toBe(number);
+    expect(await readStartStatus(db, options, browser)).toMatchObject({ lineNumber: "+15550009999", state: "pending" });
+  });
+
   it("lets the sender sign in from Thyme's reply, for one host, until Confirm and link ends the attempt", async () => {
     const pending = await started(secret());
     const sender = newSender();
@@ -173,7 +183,7 @@ describe("the iMessage start", () => {
 
   it("carries a code not yet sent to the host, replacing the host's own open code", async () => {
     const hostAccountId = await newHostAccount(db);
-    expect((await im.command(hostAccountId, "imessage.link.create")).ok).toBe(true);
+    expect((await im.command(hostAccountId, "imessage.link.create", { number: newSender() })).ok).toBe(true);
     const browser = secret();
     const pending = await started(browser);
 
@@ -196,7 +206,7 @@ describe("the iMessage start", () => {
   it("refuses a sender another host holds at Confirm and link, not before", async () => {
     const holder = await newHostAccount(db);
     const sender = newSender();
-    const own = await im.command(holder, "imessage.link.create");
+    const own = await im.command(holder, "imessage.link.create", { number: newSender() });
     expect(own.ok).toBe(true);
     const holderCode = await im.status(holder);
     if (holderCode.state !== "pending") throw new Error("Expected a pending code.");
@@ -221,8 +231,8 @@ describe("the iMessage start", () => {
 
   it("bounds starts per source address", async () => {
     const address = source();
-    for (let index = 0; index < 5; index += 1) await startImessageLink(db, options, secret(), address);
-    await expect(startImessageLink(db, options, secret(), address)).rejects.toMatchObject({ category: "rate_limited" });
-    await expect(startImessageLink(db, options, secret(), address)).rejects.toBeInstanceOf(CommandError);
+    for (let index = 0; index < 5; index += 1) await startImessageLink(db, options, secret(), address, "imessage", "+15557654321");
+    await expect(startImessageLink(db, options, secret(), address, "imessage", "+15557654321")).rejects.toMatchObject({ category: "rate_limited" });
+    await expect(startImessageLink(db, options, secret(), address, "imessage", "+15557654321")).rejects.toBeInstanceOf(CommandError);
   });
 });

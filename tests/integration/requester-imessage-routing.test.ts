@@ -36,7 +36,7 @@ import { createTestRequest, jobFor, runJob, testNotices, testTokenKey } from "./
 const db = testDatabase();
 let photon: FakePhoton;
 const im = imessageHarness(db, () => photon);
-const options = { lineNumber: TEST_LINE, tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
+const options = { lineNumber: TEST_LINE, registrar: im.registrar, tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
 const commands: Readonly<Record<string, CommandDefinition<unknown, unknown>>> = Object.fromEntries(
   [createRequesterImessageLinkCommand(options), confirmRequesterImessageLinkCommand(options), unlinkRequesterImessageCommand].map(
     (command) => [command.operation, command as unknown as CommandDefinition<unknown, unknown>],
@@ -67,7 +67,7 @@ function asGuest(requestId: string, operation: string, input: unknown = {}) {
 
 // Links the sender as the request's guest, as the card and the guest's message do.
 async function linkGuest(sender: string, requestId: string) {
-  expect((await asGuest(requestId, REQUESTER_IMESSAGE_OPERATIONS.create)).ok).toBe(true);
+  expect((await asGuest(requestId, REQUESTER_IMESSAGE_OPERATIONS.create, { number: "+15557654321" })).ok).toBe(true);
   const pending = await readRequesterImessageStatus(db, [testTokenKey], requestId, TEST_LINE);
   if (pending.state !== "pending") throw new Error("Expected a pending code.");
   await im.deliver({ sender, text: pending.message });
@@ -292,7 +292,9 @@ describe("routing a guest's message", () => {
     // An exact command is the host's.
     const since = await outboxOf(sender);
     expect((await im.deliver({ sender, text: "help" })).outcome).toBe("command");
-    expect(await sentTo(sender, since)).toEqual([HELP_TEXT]);
+    // A command gets the read mark beside its reply, in no set order, and the
+    // mark moves no selection (D20).
+    expect((await sentTo(sender, since)).sort()).toEqual(["[signal]", HELP_TEXT].sort());
 
     // Select the host conversation before sending free text.
     const own = await createTestRequest(db, { hostAccountId: host.hostAccountId });
@@ -300,8 +302,9 @@ describe("routing a guest's message", () => {
     const job = await jobFor(db, IMESSAGE_NOTICE_JOB, `notice:new_request:${own.requestId}`);
     await runJob(db, job.id, noticeHandler);
     expect((await im.deliver({ sender, text: `request ${requestRef(own.requestId)}` })).outcome).toBe("command");
-    await im.deliver({ sender, text: "Thanks" });
-    expect(await hostInputs(host.hostAccountId)).toEqual(["[iMessage] Thanks"]);
+    // Not "Thanks", which gets a tapback and no turn (D21).
+    await im.deliver({ sender, text: "Mornings are best" });
+    expect(await hostInputs(host.hostAccountId)).toEqual(["[iMessage] Mornings are best"]);
     expect(await guestInputs(guest.requestId)).toHaveLength(1);
   });
 });

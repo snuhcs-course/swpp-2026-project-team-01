@@ -56,7 +56,7 @@ describe("changing an agreed request before approval", () => {
     expect(await db`select 1 from app.agreements a join app.proposals p on p.id = a.proposal_id where p.request_id = ${request.requestId}`).toHaveLength(1);
 
     // The agreed version cannot be agreed again.
-    const again = await asRequester(db, request.requestId, agreeCommand, { version: 1 }, { expectedRevision: before.revision + 1 });
+    const again = await asRequester(db, request.requestId, agreeCommand(() => evaluationDeps(db, google)), { version: 1 }, { expectedRevision: before.revision + 1 });
     expect(again.ok ? null : again.error.category).toBe("stale_revision");
 
     // Times found again, a time chosen: version 2, then agreed.
@@ -73,7 +73,7 @@ describe("changing an agreed request before approval", () => {
       { expectedRevision: revision },
     );
     expect(chosen).toMatchObject({ ok: true, result: { outcome: "proposed", version: 2 } });
-    const agreed = await asRequester(db, request.requestId, agreeCommand, { version: 2 }, { expectedRevision: revision });
+    const agreed = await asRequester(db, request.requestId, agreeCommand(() => evaluationDeps(db, google)), { version: 2 }, { expectedRevision: revision });
     expect(agreed).toMatchObject({ ok: true, result: { state: "awaiting_host_approval", version: 2 } });
   });
 
