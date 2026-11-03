@@ -1,5 +1,5 @@
 import { getChatMessageLengthError } from "../contracts/chat-message";
-import { CHANNEL_MARKERS, type MessagingChannel } from "../contracts/messaging-channel";
+import { IMESSAGE_PREFIX, type MessagingChannel, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
 import { type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { AdmissionLimitError } from "./conversation-admission";
 import {
@@ -88,9 +88,8 @@ function receiptDependenciesFromEnvironment(): ImessageReceiptDependencies {
 }
 
 // Forwarded text is marked, so the shared transcript and the assistant know
-// where it came from (D11).
-export const IMESSAGE_PREFIX = CHANNEL_MARKERS.imessage;
-export const WHATSAPP_PREFIX = CHANNEL_MARKERS.whatsapp;
+// where it came from (D11). The prefixes live in the browser-safe contract.
+export { IMESSAGE_PREFIX, WHATSAPP_PREFIX };
 
 export const FORWARD_TEXTS = {
   tooLong: "That message is too long for Thyme. Please send a shorter one.",

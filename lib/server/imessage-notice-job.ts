@@ -127,7 +127,7 @@ async function noticeText(q: Transaction, deps: NoticeJobDependencies, hostAccou
     }
     case "awaiting_approval":
       if (view.state !== "awaiting_host_approval" || view.proposal?.version !== notice.version) return null;
-      return `Ready for your approval.\n${requestSummary(view)}`;
+      return `Ready for your approval.\n${requestSummary(view)}\nMessages here now go to this request.`;
     default: {
       const [booking] = await q<{ start_at: Date; end_at: Date }[]>`
         select start_at, end_at from app.bookings where id = ${notice.bookingId} and request_id = ${requestId}
@@ -170,6 +170,11 @@ export function createImessageNoticeHandler(load: () => NoticeJobDependencies = 
       text,
       tokenKey: deps.tokenKey,
     });
+    // The host's next plain reply goes to this request, so "book it" reaches the
+    // discussion that can approve it (D23), as request <ref> would select it.
+    if ((notice as HostNotice).kind === "awaiting_approval") {
+      await tx`update app.imessage_bindings set selected_request_id = ${requestId} where id = ${binding.id} and state = 'active'`;
+    }
     return { queued: true };
   };
 }

@@ -601,7 +601,8 @@ export function EmailLinkLine({ context }: { readonly context: RequesterCardCont
 // **Get updates in iMessage**, a button in the waiting card (guest-flow-completion
 // design 1, U22): a one-time code the guest sends, as shown, from their
 // iMessage to the line; on a phone Messages opens at once with it written,
-// elsewhere a QR code opens it on an iPhone. The card polls until the message
+// elsewhere a QR code opens it on an iPhone, and a Mac also gets **Open
+// Messages on this Mac** (D17). The card polls until the message
 // arrives, then shows the masked sender with **Confirm and link**; only that
 // click binds. Linked, a line names the masked sender with **Unlink iMessage**.
 // Like email, it is never required; nothing shows when the deployment has no
@@ -647,6 +648,8 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
   const phone = platform === "ios" || platform === "android";
   const pending = status?.state === "pending" ? status : null;
   const link = pending && phone ? deepLinkFor(platform, pending.lineNumber, pending.message) : null;
+  // A Mac has Messages too, offered beside the QR code and Copy as on the host's link screens (D17).
+  const macLink = pending && platform === "mac" ? deepLinkFor("mac", pending.lineNumber, pending.message) : null;
   const qr = useMemo(() => (pending && !phone ? renderSVG(qrDeepLink(pending.lineNumber, pending.message), { border: 2 }) : null), [pending, phone]);
 
   if (!status || status.state === "unavailable") return null;
@@ -711,7 +714,13 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
 
   return (
     <InnerStep
-      description={link ? "Messages should open with the message written. Tap send there." : "Send this message from your iPhone's Messages."}
+      description={
+        link
+          ? "Messages should open with the message written. Tap send there."
+          : macLink
+            ? "Open Messages on this Mac, or send this message from your iPhone's Messages."
+            : "Send this message from your iPhone's Messages."
+      }
       title="Get updates in iMessage"
     >
       <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border px-3 py-2">
@@ -739,6 +748,11 @@ export function ImessageUpdates({ context, onlyLinked = false }: { readonly cont
         {link ? (
           <Button asChild>
             <a href={link}>Open Messages</a>
+          </Button>
+        ) : null}
+        {macLink ? (
+          <Button asChild>
+            <a href={macLink}>Open Messages on this Mac</a>
           </Button>
         ) : null}
         <Button disabled={busy} onClick={() => void command(REQUESTER_IMESSAGE_OPERATIONS.unlink, { pendingOnly: true })} type="button" variant="ghost">

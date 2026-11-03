@@ -114,7 +114,8 @@ export function requestSummary(view: HostRequestView) {
 
   if (view.state === "awaiting_host_approval" && view.proposal?.agreedAt) {
     const decision = reviewRef(view.requestId, view.proposal.version);
-    lines.push(`To approve, reply exactly: approve ${decision}`, `To decline: decline ${decision}`);
+    // Approval also works in the host's own words (D23); decline stays exact.
+    lines.push(`To approve, reply in your own words, such as "book it", or send: approve ${decision}`, `To decline, send exactly: decline ${decision}`);
   }
   return lines.join("\n");
 }
