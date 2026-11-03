@@ -1,0 +1,23 @@
+{
+  "branch": "feat/host-whatsapp-channel",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:de8a0e74-86f2-42cb-9c0d-846228f88d03": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 36,
+          "cache_read": 5910440,
+          "cache_write_5m": 0,
+          "cache_write_1h": 76664,
+          "output": 10346,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T14:28:21.072Z",
+      "last": "2026-11-03T14:32:15.297Z"
+    }
+  }
+}

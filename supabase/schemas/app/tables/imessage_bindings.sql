@@ -4,10 +4,14 @@
 -- binding until the host writes from it. A host has at most one active binding
 -- and a sender belongs to at most one host. selected_request_id is the request
 -- whose private discussion receives free text; null means setup. Unlinking ends
--- the binding at once.
+-- the binding at once. channel is the platform the sender writes from
+-- (host-whatsapp-channel design 4 and 5): a host has one active binding across
+-- iMessage and WhatsApp, and WhatsApp senders are hashed in their own namespace,
+-- so the two partial unique indexes below hold for both channels.
 CREATE TABLE "app"."imessage_bindings" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "host_account_id" uuid NOT NULL REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
+  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp')),
   "link_id" uuid REFERENCES "app"."imessage_links" ("id") ON DELETE SET NULL,
   "sender_hash" text NOT NULL CHECK ("sender_hash" ~ '^[0-9a-f]{64}$'),
   "sender_ciphertext" text,

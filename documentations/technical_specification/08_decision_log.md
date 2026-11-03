@@ -493,6 +493,7 @@ The [proposal](../../openspec/changes/host-whatsapp-channel/proposal.md#decision
 | D10 | Meta error mapping: 131047 to `window_closed`; 131026 to rejected; 132xxx to `template_unavailable`; 130429 and 131056 to unavailable and retried. Uncertain sends are never resent | Retrying every error | Proposal; design 9 | The error map in `lib/server/whatsapp.ts` |
 | D11 | Commands, references, forwarding (`[WhatsApp] …`), summaries, setup, admission, ordering and retention are as in Phase 6. No **Add to contacts** on WhatsApp | A WhatsApp-specific command set; interactive buttons for decisions | Proposal; design 10 | The Phase 6 modules, by channel |
 | D13 | Messaging only from the identified production deployment; the stand-in answers WhatsApp sends, templates and 131047 | — | Proposal; design 10 | `lib/server/messaging.ts`; the stand-in |
+| Template and fallback constraints (2.1) | The schema enforces the channel rules it can: a fallback attempt is iMessage only, a `template` outbox row is WhatsApp and names its template, and only a template row names one; existing rows default to `imessage` | Leaving them to application code | `supabase/schemas/app/tables/imessage_{links,outbox}.sql`; `supabase/tests/whatsapp_channel.test.sql` | Those files, then a new migration |
 
 ### Operational decisions
 
@@ -500,6 +501,7 @@ The [proposal](../../openspec/changes/host-whatsapp-channel/proposal.md#decision
 |---|---|---|---|---|
 | Sources without a line | The design read `@spectrum-ts/whatsapp-business` 12.14.0 from the npm tarball and Photon's documentation on 2026-11-02. No WhatsApp message was sent or received, so the platform spelling and sender format are confirmed only at the join | Sending a test message, which is blocked on the user | Design context | — |
 | Planning only | This pull request changes documents and the OpenSpec change only, with no code, schema or configuration | Implementing Lane A at once | Plan Phase 9 | — |
+| Supabase CLI | The migration was generated and the chain rebuilt with Supabase CLI 2.122.0, the version installed on this machine, not the 2.119.0 AGENTS.md names; the generated SQL only adds columns and constraints, and `supabase test db` passes on the rebuilt stack | Downgrading the CLI for one migration | This log | Regenerate with 2.119.0 if the team wants the pinned version to produce it |
 
 ### Blocked on the user
 

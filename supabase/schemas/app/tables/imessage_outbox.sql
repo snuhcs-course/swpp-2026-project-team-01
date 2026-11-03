@@ -7,12 +7,16 @@
 -- (binding_id set) is suppressed when its binding is no longer active.
 -- recipient_hash is the keyed hash of the recipient, for the unlinked-sender
 -- reply's daily limit. (kind, dedupe_key) makes a retried recording one message.
+-- channel picks the transport (host-whatsapp-channel design 4 and 9); a template
+-- row is a WhatsApp notice outside the 24-hour window, sent as template_name with
+-- the sealed text as its one parameter (design 8).
 CREATE TABLE "app"."imessage_outbox" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp')),
   "kind" text NOT NULL CHECK (
     "kind" IN (
       'link_received', 'link_refused', 'linked', 'fallback_code', 'unlinked_sender', 'text_only',
-      'command', 'turn', 'notice', 'contact_card'
+      'command', 'turn', 'notice', 'contact_card', 'template'
     )
   ),
   "dedupe_key" text NOT NULL CHECK (char_length("dedupe_key") BETWEEN 1 AND 300),
@@ -28,6 +32,7 @@ CREATE TABLE "app"."imessage_outbox" (
   "state" text NOT NULL DEFAULT 'queued' CHECK (
     "state" IN ('waiting', 'queued', 'dispatching', 'accepted', 'failed', 'uncertain', 'suppressed')
   ),
+  "template_name" text CHECK ("template_name" ~ '^[a-z0-9_]{1,100}$'),
   "failure_category" text CHECK (char_length("failure_category") BETWEEN 1 AND 60),
   "provider_message_id" text CHECK (char_length("provider_message_id") BETWEEN 1 AND 500),
   "created_at" timestamptz NOT NULL DEFAULT now(),
@@ -41,6 +46,7 @@ CREATE TABLE "app"."imessage_outbox" (
   CONSTRAINT "imessage_outbox_final_cleared" CHECK (
     "completed_at" IS NULL OR ("recipient_ciphertext" IS NULL AND "text_ciphertext" IS NULL)
   ),
+  CONSTRAINT "imessage_outbox_template" CHECK (("kind" = 'template') = ("template_name" IS NOT NULL) AND ("kind" <> 'template' OR "channel" = 'whatsapp')),
   CONSTRAINT "imessage_outbox_turn_input" CHECK ("kind" <> 'turn' OR "input_id" IS NOT NULL OR "completed_at" IS NOT NULL)
 );
 
