@@ -411,7 +411,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 **레인 B — 브라우저에서의 연동**
 
 - [ ] `wa.me` 링크, QR 코드, **복사(Copy)**, 마스킹된 번호의 **확인 및 연결(Confirm and link)**을 갖춘 **WhatsApp 연결(Connect WhatsApp)**; 기기 규칙(Android는 WhatsApp, Apple 기기는 **대신 WhatsApp 사용(Use WhatsApp instead)**이 있는 iMessage, 그 밖의 컴퓨터는 질문); 교체 안내와 옵트인 문장; 로그인 뒤의 연동 단계와 `/?flow=whatsapp`.
-- [ ] 호스트당 채널 전체에서 활성 바인딩 하나, 확인 시 다른 채널의 바인딩 종료.
+- [x] 호스트당 채널 전체에서 활성 바인딩 하나, 확인 시 다른 채널의 바인딩 종료.
 
 **레인 C — 창, 템플릿, 채널 동작**
 

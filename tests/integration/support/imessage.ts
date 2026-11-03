@@ -14,7 +14,18 @@ import { linkMessage } from "../../../lib/contracts/imessage";
 import { createGoogleUser } from "./auth";
 import { SIGNING_KEY } from "./guests";
 import type { FakePhoton } from "./fake-photon";
-import { type MessageFixture, messagesEvent, newSender, signedWebhook, TEST_LINE, TEST_WEBHOOK_ID, TEST_WEBHOOK_SECRET } from "./photon";
+import {
+  type MessageFixture,
+  messagesEvent,
+  newSender,
+  newWhatsAppSender,
+  signedWebhook,
+  TEST_LINE,
+  TEST_WEBHOOK_ID,
+  TEST_WEBHOOK_SECRET,
+  TEST_WHATSAPP_NUMBER,
+  whatsAppEvent,
+} from "./photon";
 import { runJob, testNotices, testTokenKey } from "./requests";
 
 // The iMessage suites' shared harness: delivers a message the way Photon would
@@ -29,7 +40,7 @@ export function imessageHarness(
   photon: () => FakePhoton,
   options: { readonly runtime?: ConversationRuntime; readonly receipt?: () => Partial<ImessageReceiptDependencies> } = {},
 ) {
-  const config = () => ({ ...photonConfig({}), apiUrl: photon().baseUrl, lineNumber: TEST_LINE });
+  const config = () => ({ ...photonConfig({}), apiUrl: photon().baseUrl, lineNumber: TEST_LINE, whatsappNumber: TEST_WHATSAPP_NUMBER });
   const receiptDeps = (): ImessageReceiptDependencies => ({
     config: config(),
     conversation: { admission: { serviceKey: admissionKey }, db, runtime, signingKey: SIGNING_KEY },
@@ -70,7 +81,7 @@ export function imessageHarness(
     tokenKeys: [testTokenKey],
   });
   const commands = (lineDayLimit = 1000) =>
-    imessageCommands({ lineDayLimit, lineNumber: TEST_LINE, origin: "http://localhost:3000", tokenKey: testTokenKey, tokenKeys: [testTokenKey] });
+    imessageCommands({ lineDayLimit, lineNumber: TEST_LINE, whatsappNumber: TEST_WHATSAPP_NUMBER, origin: "http://localhost:3000", tokenKey: testTokenKey, tokenKeys: [testTokenKey] });
 
   return {
     config,
@@ -128,10 +139,15 @@ export function imessageHarness(
       await db`update app.jobs set state = 'pending' where kind = ${IMESSAGE_RECEIPT_JOB} and dedupe_key = ${`receipt:${receiptId}`}`;
       return this.runReceipt(receiptId);
     },
-    // Delivers a message as Photon would and runs its receipt job once.
-    async deliver(fixture: MessageFixture & { readonly sender: string }, deps: ImessageReceiptDependencies = receiptDeps()) {
+    // Delivers a message as Photon would and runs its receipt job once; a
+    // WhatsApp fixture (channel "whatsapp") is a WhatsApp Business event.
+    async deliver(
+      fixture: MessageFixture & { readonly sender: string; readonly channel?: "imessage" | "whatsapp" },
+      deps: ImessageReceiptDependencies = receiptDeps(),
+    ) {
       const id = fixture.id ?? `msg_${randomUUID()}`;
-      const response = await receivePhotonWebhook(signedWebhook(messagesEvent({ ...fixture, id })), () => ({
+      const event = fixture.channel === "whatsapp" ? whatsAppEvent({ ...fixture, id }) : messagesEvent({ ...fixture, id });
+      const response = await receivePhotonWebhook(signedWebhook(event), () => ({
         config: { secret: TEST_WEBHOOK_SECRET, webhookId: TEST_WEBHOOK_ID },
         db,
         tokenKey: testTokenKey,
@@ -155,7 +171,7 @@ export function imessageHarness(
       );
     },
     status(hostAccountId: string) {
-      return readImessageStatus(db, [testTokenKey], hostAccountId, TEST_LINE);
+      return readImessageStatus(db, [testTokenKey], hostAccountId, { imessage: TEST_LINE, whatsapp: TEST_WHATSAPP_NUMBER });
     },
     async outbox(where: { readonly hostAccountId?: string; readonly kind?: string; readonly recipientHash?: string } = {}) {
       return db<{ id: string; kind: string; state: string; binding_id: string | null; request_id: string | null; created_at: Date }[]>`
@@ -175,11 +191,13 @@ export function imessageHarness(
       return { result, sent: photon().sends.slice(before) };
     },
     // Links a sender to the host the way the card and the host's message do.
-    async link(hostAccountId: string, sender: string = newSender()) {
-      await this.command(hostAccountId, "imessage.link.create");
+    // With channel "whatsapp", the sender is a WhatsApp contact ID.
+    async link(hostAccountId: string, sender?: string, channel: "imessage" | "whatsapp" = "imessage") {
+      sender ??= channel === "whatsapp" ? newWhatsAppSender() : newSender();
+      await this.command(hostAccountId, "imessage.link.create", channel === "whatsapp" ? { channel } : {});
       const pending = await this.status(hostAccountId);
       if (pending.state !== "pending") throw new Error(`Expected a pending code, got ${pending.state}.`);
-      await this.deliver({ sender, text: linkMessage(pending.code) });
+      await this.deliver({ channel, sender, text: linkMessage(pending.code) });
       const received = await this.status(hostAccountId);
       if (received.state !== "received") throw new Error(`Expected a received code, got ${received.state}.`);
       const confirmed = await this.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId });
@@ -187,8 +205,10 @@ export function imessageHarness(
       return { hostAccountId, message: linkMessage(pending.code), sender };
     },
     async bindingOf(hostAccountId: string) {
-      const [row] = await db<{ id: string; state: string; sender_hash: string; space_ciphertext: string | null; selected_request_id: string | null }[]>`
-        select id, state, sender_hash, space_ciphertext, selected_request_id from app.imessage_bindings
+      const [row] = await db<
+        { id: string; channel: string; state: string; sender_hash: string; space_ciphertext: string | null; selected_request_id: string | null }[]
+      >`
+        select id, channel, state, sender_hash, space_ciphertext, selected_request_id from app.imessage_bindings
         where host_account_id = ${hostAccountId} order by linked_at desc limit 1
       `;
       return row ?? null;

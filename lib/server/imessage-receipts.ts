@@ -208,6 +208,7 @@ type ReceiptRow = {
 
 export type OpenedReceipt = {
   readonly id: string;
+  readonly channel: MessagingChannel;
   readonly senderHash: string;
   readonly spaceHash: string;
   readonly spaceType: "dm" | "group";
@@ -223,6 +224,7 @@ function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedReceipt 
 
   try {
     return {
+      channel: row.channel,
       contentType: row.content_type,
       id: row.id,
       sender: open(row.sender_ciphertext),
@@ -249,6 +251,7 @@ export const ORDER_WAITS = 600;
 
 export const CHANNEL_TEXTS = {
   unlinked: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect iMessage.",
+  unlinkedWhatsApp: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect WhatsApp.",
   textOnly: "I can read text messages only.",
 } as const;
 
@@ -280,6 +283,7 @@ export async function processReceipt(
 
   if (code) {
     return receiveLinkCode(tx, { origin: deps.origin, tokenKey: deps.tokenKey }, {
+      channel: receipt.channel,
       code,
       receiptId: receipt.id,
       sender: receipt.sender,
@@ -292,7 +296,9 @@ export async function processReceipt(
   if (receipt.spaceType !== "dm" || ["reaction", "read", "typing"].includes(receipt.contentType)) return "ignored";
 
   const recipient = { address: receipt.sender, spaceId: receipt.spaceId };
-  const binding = await lockActiveBindingOfSender(tx, receipt.senderHash);
+  // The hash namespaces keep channels apart; the channel check says so again.
+  const found = await lockActiveBindingOfSender(tx, receipt.senderHash);
+  const binding = found?.channel === receipt.channel ? found : null;
   const [host] = binding
     ? await tx<{ status: string; auth_user_id: string | null }[]>`
         select a.status, i.auth_user_id from app.host_accounts a
@@ -302,13 +308,14 @@ export async function processReceipt(
     : [];
 
   if (!binding || host?.status !== "active" || !host.auth_user_id) {
-    if (await refusalSentRecently(tx, receipt.senderHash)) return "ignored";
+    if (await refusalSentRecently(tx, receipt.senderHash, receipt.channel)) return "ignored";
     await recordOutbound(tx, {
+      channel: receipt.channel,
       dedupeKey: `receipt:${receipt.id}`,
       kind: "unlinked_sender",
       recipient,
       recipientHash: receipt.senderHash,
-      text: CHANNEL_TEXTS.unlinked,
+      text: receipt.channel === "whatsapp" ? CHANNEL_TEXTS.unlinkedWhatsApp : CHANNEL_TEXTS.unlinked,
       tokenKey: deps.tokenKey,
     });
     return "unlinked_reply";
@@ -390,12 +397,6 @@ export function createImessageReceiptHandler(load: () => ImessageReceiptDependen
     `;
     if (!row) return { outcome: "missing", receiptId };
     if (row.outcome) return { outcome: row.outcome, receiptId };
-    // WhatsApp receipts are stored from task 2.2 on; until the channel can
-    // answer them (tasks 3.1 to 4.2) they are recorded and do nothing.
-    if (row.channel !== "imessage") {
-      await record(tx, row.id, "ignored");
-      return { outcome: "ignored", receiptId };
-    }
 
     const [earlier] = await tx<{ id: string }[]>`
       select id from app.imessage_receipts

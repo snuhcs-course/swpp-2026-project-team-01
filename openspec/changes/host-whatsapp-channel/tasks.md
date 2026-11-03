@@ -17,7 +17,7 @@ Before each group, read the [Phase 9 reference files](../../../documentations/te
 
 ## 3. Linking in the browser (Lane B)
 
-- [ ] 3.1 Take the channel in `imessage.link.create`, complete WhatsApp attempts only from WhatsApp receipts, and end the other channel's binding on confirmation ([design 5](design.md#5-one-channel-per-host), [design 6](design.md#6-linking)). Verify integration tests for a code bound only after confirmation, a code from the wrong channel, the replacement of an iMessage binding with suppression of its queued rows, and exact retries.
+- [x] 3.1 Take the channel in `imessage.link.create`, complete WhatsApp attempts only from WhatsApp receipts, and end the other channel's binding on confirmation ([design 5](design.md#5-one-channel-per-host), [design 6](design.md#6-linking)). Verify integration tests for a code bound only after confirmation, a code from the wrong channel, the replacement of an iMessage binding with suppression of its queued rows, and exact retries.
 - [ ] 3.2 Add the device rule in `lib/contracts/messaging-channel.ts`, the WhatsApp card states, **Use WhatsApp instead**, the app choice on other computers, the replacement notice and the opt-in sentence, in the card, the link step and `/?flow=whatsapp`. Verify unit tests for the rule and the `wa.me` link, and Playwright runs with Android, iPhone and Windows user agents.
 
 ## 4. Window, templates and channel behavior (Lane C)
