@@ -119,7 +119,7 @@ Big Shoulders is condensed, so headings are multiplied by a heading scale of **1
 | Role | Face | Size | Weight | Line height | Usage |
 | --- | --- | --- | --- | --- | --- |
 | Wordmark | Big Shoulders | `clamp(26px, 3.2cqi, 33px)`; × 0.78 on phones | 800 | 1 | Header brand |
-| Display | Big Shoulders | `clamp(32px, 4.6cqi, 56px)` × 1.19; 26px × 1.19 on phones | 800 | 1.04 | Landing headline |
+| Display | Big Shoulders | `clamp(32px, 4.6cqi, 50px)` × 1.19; 26px × 1.19 on phones | 800 | 1.04 | Landing headline |
 | Page heading | Big Shoulders | `clamp(30px, 4cqi, 42px)` × 1.19 | 800 | 1.08 | Link step and handoff screens |
 | Section heading | Big Shoulders | `clamp(21px, 2.4cqi, 27px)` × 1.19 | 800 | 1.2 | Landing sections |
 | Component title | Geist | 16–18px | 700 | 1.3–1.4 | Card titles, step titles |
