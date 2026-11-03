@@ -106,7 +106,7 @@ Receipts from one conversation SHALL be processed in arrival order. A receipt re
 - **THEN** it creates no runtime input now, is retried later, and the host's next message waits behind it
 
 ### Requirement: Exact commands before any model turn
-A linked host's whole-message commands SHALL be parsed and executed by the application before any model turn: listing and selecting requests, entering setup, reviewing, showing suggested changes, sharing or dismissing a suggestion, approving or declining a proposal, and confirming settings. Decisions SHALL name the exact current reference and run through the application command pipeline as the linked host with a retry identity derived from the receipt. A stale or unknown reference SHALL change nothing and return the current reference or a web link. Free text, including an unqualified "yes", SHALL NOT approve, decline, share or confirm anything.
+A linked host's whole-message commands SHALL be parsed and executed by the application before any model turn: listing and selecting requests, entering setup, reviewing, showing suggested changes, sharing or dismissing a suggestion, approving or declining a proposal, and confirming settings. Decisions SHALL name the exact current reference and run through the application command pipeline as the linked host with a retry identity derived from the receipt. A stale or unknown reference SHALL change nothing and return the current reference or a web link. Free text SHALL NOT decline, share or confirm anything, and SHALL approve only as the requirement on approval in the host's own words allows.
 
 #### Scenario: Approve the current proposal
 - **WHEN** the linked host sends `approve <ref>` naming the latest agreed proposal version
@@ -116,13 +116,28 @@ A linked host's whole-message commands SHALL be parsed and executed by the appli
 - **WHEN** the host sends `approve <ref>` naming a version that a newer proposal superseded
 - **THEN** nothing is approved and the reply names the current reference
 
-#### Scenario: Ambiguous yes
-- **WHEN** the host replies "yes" to a summary
+#### Scenario: Conditional yes
+- **WHEN** the host replies "yes, but can we do 11?" to a summary
 - **THEN** the text goes to the assistant as discussion and no decision is recorded
 
 #### Scenario: Replay after restart during a web action
 - **WHEN** the same approval receipt is processed again after a restart while the host also acts on the web
 - **THEN** at most one approval and one booking exist and both channels show the same decision
+
+### Requirement: Approval in the host's own words
+In a host's review of one request, the assistant SHALL be able to approve the current agreed proposal when the host clearly approves it in their own words in the linked iMessage or WhatsApp conversation, through the same application command as the web button and with the exact current version. It SHALL NOT approve for a message typed on the web, for a version that is no longer current, for a closed request, or when the reply asks for a change, adds a condition or asks a question. The awaiting-approval summary SHALL select its request so the host's next plain reply reaches it, and SHALL say the host may approve in their own words.
+
+#### Scenario: Clear approval from iMessage
+- **WHEN** a linked host replies "Looks good, book it" after the awaiting-approval summary
+- **THEN** the current version is approved once and the booking proceeds as from the web
+
+#### Scenario: Same words on the web
+- **WHEN** the host types "Looks good, book it" in the request's discussion in `/app`
+- **THEN** nothing is approved and the host is pointed to **Approve this proposal**
+
+#### Scenario: Outdated version
+- **WHEN** the assistant tries to approve a version that a newer proposal superseded
+- **THEN** nothing is approved and the assistant names the current version
 
 ### Requirement: Shared discussions and replies
 A linked host's free text SHALL become an accepted input of the discussion the host selected (setup by default, or the private review discussion of a selected request), marked as coming from iMessage, under the same redaction, admission, session index and model limits as web input; a retried receipt SHALL resolve to the same input. When that input's turn ends, the assistant's final text SHALL be sent to the linked conversation, and a turn that fails or yields no text SHALL send a fixed fallback pointing to the web.

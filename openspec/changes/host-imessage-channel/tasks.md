@@ -58,3 +58,10 @@ Before each group, read the [Phase 6 reference repository files](../../../docume
 - [x] 9.3 Queue the contact card on **Confirm and link**, once per iMessage binding, held 15 seconds behind the welcome. Verify integration tests for the card's hold and none on WhatsApp.
 - [ ] 9.4 On a controlled iPhone with the line: the read mark and typing bubble before a reply, the tapback for thanks, and the card after linking.
 
+## 10. Approval in the host's own words (D23, #88)
+
+- [x] 10.1 Add `approve_proposal` to the host-review tools: the channel check on the session's current input, the current-version check and `approveCommand` with the read revision. Verify integration tests for approval from iMessage once, a web message, an outdated version and a closed request, and the host-review tool list.
+- [x] 10.2 Let the awaiting-approval summary select its request and offer approval in words, and update the iMessage, WhatsApp and host-review instructions. Verify the notice test for the selection and the wording.
+- [ ] 10.3 With the live model, approval and non-approval replies in English and Korean ("book it", "yes, but at 11", "can it be shorter?", "화요일 좋아요"), recorded in the frozen evaluation set once it exists.
+- [ ] 10.4 On a controlled iPhone and an Android phone with WhatsApp: approve in words after a summary and see the booking confirmed.
+

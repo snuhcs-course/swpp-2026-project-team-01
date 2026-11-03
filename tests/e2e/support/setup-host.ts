@@ -72,6 +72,7 @@ export async function acceptSuggestions(db: Database, hostAccountId: string, ide
       (["monday", "tuesday", "wednesday", "thursday", "friday"] as const).map((weekday) => ({ end: "17:00", start: "10:00", weekday })),
     ],
     ["weeklyLimit", null],
+    ["weeklyLimitCounts", "bookings"],
     ["durationMinutes", 30],
     ["bufferBeforeMinutes", 10],
     ["bufferAfterMinutes", 10],

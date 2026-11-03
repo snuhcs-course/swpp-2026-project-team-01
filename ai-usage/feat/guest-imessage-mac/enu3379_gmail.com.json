@@ -1,0 +1,23 @@
+{
+  "branch": "feat/guest-imessage-mac",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:45801466-aef7-4698-a941-078a07473081": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 4,
+          "cache_read": 409440,
+          "cache_write_5m": 0,
+          "cache_write_1h": 935,
+          "output": 854,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T16:52:19.083Z",
+      "last": "2026-11-03T16:52:30.226Z"
+    }
+  }
+}

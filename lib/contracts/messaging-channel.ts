@@ -65,3 +65,13 @@ export function otherChannel(offer: ChannelOffer, channels: ChannelNumbers, curr
 export function channelName(channel: MessagingChannel) {
   return channel === "whatsapp" ? "WhatsApp" : "iMessage";
 }
+
+// Forwarded text is marked, so the shared transcript and the assistant know
+// where it came from (host-imessage-channel D11). A host's words approve a
+// proposal only in a message that carries one of these (D23).
+export const IMESSAGE_PREFIX = "[iMessage] ";
+export const WHATSAPP_PREFIX = "[WhatsApp] ";
+
+export function cameFromMessagingChannel(message: string) {
+  return message.startsWith(IMESSAGE_PREFIX) || message.startsWith(WHATSAPP_PREFIX);
+}

@@ -647,8 +647,15 @@ export async function chooseTimeForTool(db: Database, call: RequestToolCall, inp
 export const agreeToolInput = z.object({ version: z.number().int().min(1) });
 
 export async function agreeToProposalForTool(db: Database, call: RequestToolCall, input: z.infer<typeof agreeToolInput>): Promise<DecisionResult> {
-  const { outcome } = await decide(db, call, agreeCommand, { version: input.version });
+  const { outcome } = await decide(db, call, agreeCommand(), { version: input.version });
   if (!outcome.ok) return refused(outcome.error.category);
+  if (outcome.result.outcome === "time_unavailable") {
+    return {
+      message:
+        "Nothing was agreed: this time is no longer free on the host's calendar. Tell the guest, then call evaluate_candidates and offer the new times.",
+      recorded: false,
+    };
+  }
   return {
     message: "Agreed. The request now waits for the host's approval; nothing is booked yet.",
     recorded: true,

@@ -72,6 +72,9 @@ describe("host summaries", () => {
     expect(text).toMatch(/^Ready for your approval\./);
     expect(text).toContain(`approve ${reviewRef(request.requestId, 1)}`);
     expect(text).toContain(`decline ${reviewRef(request.requestId, 1)}`);
+    // Approval also works in words, so the summary says so and selects the request (D23).
+    expect(text).toContain("reply in your own words");
+    expect(await im.bindingOf(request.hostAccountId)).toMatchObject({ selected_request_id: request.requestId });
 
     await db.begin((tx) => enqueueHostNotice(tx, request.requestId, { kind: "awaiting_approval", version: 1 }));
     expect(await noticesSent(request.hostAccountId, request.requestId)).toEqual([]);
