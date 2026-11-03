@@ -113,9 +113,10 @@ export function imessageHarness(
       `;
     },
     // Stores a message as the receiver would, without running its job.
-    async store(fixture: MessageFixture & { readonly sender: string }) {
+    async store(fixture: MessageFixture & { readonly sender: string; readonly channel?: "imessage" | "whatsapp" }) {
       const id = fixture.id ?? `msg_${randomUUID()}`;
-      const response = await receivePhotonWebhook(signedWebhook(messagesEvent({ ...fixture, id })), () => ({
+      const event = fixture.channel === "whatsapp" ? whatsAppEvent({ ...fixture, id }) : messagesEvent({ ...fixture, id });
+      const response = await receivePhotonWebhook(signedWebhook(event), () => ({
         config: { secret: TEST_WEBHOOK_SECRET, webhookId: TEST_WEBHOOK_ID },
         db,
         tokenKey: testTokenKey,

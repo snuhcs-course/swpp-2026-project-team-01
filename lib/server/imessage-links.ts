@@ -602,9 +602,11 @@ export async function readImessageStatus(
     } catch {
       // Sealed under a key the service no longer holds: still linked.
     }
-    const [latest] = await db<{ state: string; updated_at: Date }[]>`
-      select state, updated_at from app.imessage_outbox
-      where binding_id = ${binding.id} and kind <> 'contact_card' and state in ('accepted', 'failed', 'uncertain')
+    // A WhatsApp message the window or Meta stopped counts as a failed delivery (design 7).
+    const [latest] = await db<{ state: string; updated_at: Date; failure_category: string | null }[]>`
+      select state, updated_at, failure_category from app.imessage_outbox
+      where binding_id = ${binding.id} and kind <> 'contact_card'
+        and (state in ('accepted', 'failed', 'uncertain') or failure_category in ('window_closed', 'template_unavailable'))
       order by updated_at desc limit 1
     `;
     const [card] = await db<{ state: string }[]>`
@@ -614,7 +616,15 @@ export async function readImessageStatus(
       channel: binding.channel,
       channels,
       contactCard: card ? { state: deliveryState(card.state) } : null,
-      delivery: latest && latest.state !== "accepted" ? { at: latest.updated_at.toISOString(), state: latest.state as "failed" | "uncertain" } : null,
+      delivery:
+        latest && latest.state !== "accepted"
+          ? {
+              at: latest.updated_at.toISOString(),
+              reason:
+                latest.failure_category === "window_closed" || latest.failure_category === "template_unavailable" ? latest.failure_category : null,
+              state: latest.state === "uncertain" ? "uncertain" : "failed",
+            }
+          : null,
       lineNumber: numberOf(channels, binding.channel),
       linkedAt: binding.linked_at.toISOString(),
       sender,

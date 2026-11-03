@@ -29,6 +29,9 @@ export type ImessageDeliveryState = "queued" | "sent" | "failed" | "uncertain";
 export type ImessageDelivery = {
   readonly state: "failed" | "uncertain";
   readonly at: string;
+  // Why a WhatsApp message was not sent (host-whatsapp-channel design 7 and 8):
+  // the host had not written for a day, or Meta refused the notice's template.
+  readonly reason: "window_closed" | "template_unavailable" | null;
 };
 
 export type ImessageStatus =

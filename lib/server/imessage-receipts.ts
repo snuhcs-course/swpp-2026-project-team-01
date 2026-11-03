@@ -80,6 +80,7 @@ function receiptDependenciesFromEnvironment(): ImessageReceiptDependencies {
 // Forwarded text is marked, so the shared transcript and the assistant know
 // where it came from (D11).
 export const IMESSAGE_PREFIX = "[iMessage] ";
+export const WHATSAPP_PREFIX = "[WhatsApp] ";
 
 export const FORWARD_TEXTS = {
   tooLong: "That message is too long for Thyme. Please send a shorter one.",
@@ -111,7 +112,7 @@ async function fixedReply(tx: Transaction, deps: ImessageReceiptDependencies, me
 // selected request's private review), keyed by the receipt so a retried job
 // finds the same input, and a reply waits for the turn that serves it.
 async function forward(tx: Transaction, deps: ImessageReceiptDependencies, message: BoundMessage): Promise<ReceiptOutcome> {
-  const text = `${IMESSAGE_PREFIX}${message.text}`;
+  const text = `${message.receipt.channel === "whatsapp" ? WHATSAPP_PREFIX : IMESSAGE_PREFIX}${message.text}`;
   if (getChatMessageLengthError(text)) {
     await fixedReply(tx, deps, message, "command", FORWARD_TEXTS.tooLong);
     return "replied";

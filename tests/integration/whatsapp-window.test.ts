@@ -115,6 +115,12 @@ describe("the WhatsApp window", () => {
     const [notice] = await rows(other.request.hostAccountId);
     await im.send(notice!.id, { ...im.sendDeps(), templateDailyLimit: 0 });
     expect((await rows(other.request.hostAccountId)).filter((row) => row.kind === "template")).toEqual([]);
+    // /app shows why: the host had not written for a day.
+    expect(await im.status(other.request.hostAccountId)).toMatchObject({
+      channel: "whatsapp",
+      delivery: { reason: "window_closed", state: "failed" },
+      state: "linked",
+    });
   });
 
   it("ends text Meta refuses as outside the window, and queues the template", async () => {
