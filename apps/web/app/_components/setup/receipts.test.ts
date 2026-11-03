@@ -120,8 +120,8 @@ describe("setup receipts", () => {
     const skipped = new Map([["limit", T(20)] as const]);
 
     expect(deriveReceipts(stateWith({}), skipped)).toMatchObject([{ kind: "skipped", label: "Weekly meeting limit", value: "Skipped" }]);
-    expect(deriveReceipts(stateWith({ weeklyLimit: accepted(5, T(30)) }), skipped)).toMatchObject([
-      { kind: "step", value: "At most 5 meetings a week" },
+    expect(deriveReceipts(stateWith({ weeklyLimit: accepted(5, T(30)), weeklyLimitCounts: accepted("bookings", T(30)) }), skipped)).toMatchObject([
+      { kind: "step", value: "At most 5 a week, counting Find Me a Time bookings" },
     ]);
   });
 

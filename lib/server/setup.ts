@@ -19,6 +19,7 @@ import {
   type SetupNextAction,
   STARTER_DEFAULTS,
   type ValueSource,
+  weeklyLimitCountsOf,
 } from "../contracts/setup";
 import {
   lockDraft,
@@ -322,6 +323,10 @@ export function buildSuggestions(input: SuggestionInput): { [F in SetupFieldName
     travelBufferMinutes:
       evidence.travelBufferMinutes ?? starter<"travelBufferMinutes">(STARTER_DEFAULTS.travelBufferMinutes, "A starter default."),
     weeklyLimit: evidence.weeklyLimit ?? starter<"weeklyLimit">(STARTER_DEFAULTS.weeklyLimit, "No limit unless you set one."),
+    weeklyLimitCounts: starter<"weeklyLimitCounts">(
+      STARTER_DEFAULTS.weeklyLimitCounts,
+      "Only meetings booked here count unless you choose all meetings.",
+    ),
     weeklyWindows:
       evidence.weeklyWindows ?? starter<"weeklyWindows">(STARTER_DEFAULTS.weeklyWindows, "A starter default: weekdays 10:00–17:00."),
   };
@@ -359,7 +364,7 @@ export function buildFieldViews(
         accepted: true,
         reason: null,
         sampleSize: null,
-        source: confirmed!.provenance[field] ?? "stated",
+        source: confirmed!.provenance[field] ?? (field in confirmed! ? "stated" : "starter_default"),
         value: saved as ProposedField["value"],
       };
     } else if (suggestion) {
@@ -373,6 +378,8 @@ export function buildFieldViews(
 }
 
 function confirmedValue(settings: ConfirmedSettings, field: SetupFieldName): unknown {
+  // A policy confirmed before the count choice existed counts bookings only.
+  if (field === "weeklyLimitCounts") return weeklyLimitCountsOf(settings);
   const value = (settings as unknown as Record<string, unknown>)[field];
   // In-person fields of an online-only policy are null: not a saved answer.
   return value === null && IN_PERSON_FIELDS.includes(field) ? undefined : value;

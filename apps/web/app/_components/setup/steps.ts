@@ -27,7 +27,7 @@ export type StepTarget = StepId | "review";
 export const STEP_FIELDS: Readonly<Record<StepId, readonly SetupFieldName[]>> = {
   duration: ["durationMinutes", "bufferBeforeMinutes", "bufferAfterMinutes"],
   identity: ["displayName", "handle"],
-  limit: ["weeklyLimit"],
+  limit: ["weeklyLimit", "weeklyLimitCounts"],
   location: ["location"],
   mode: ["meetingMode"],
   notes: ["noteExclusions"],

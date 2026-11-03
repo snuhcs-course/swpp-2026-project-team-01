@@ -1,7 +1,13 @@
 import type { HostRequestView } from "../contracts/host-request";
 import type { MessagingChannel } from "../contracts/messaging-channel";
 import type { RequestState } from "../contracts/request";
-import { SETUP_FIELD_NAMES, type SetupFieldName, TRAVEL_MODE_LABELS, type WeeklyWindow } from "../contracts/setup";
+import {
+  SETUP_FIELD_NAMES,
+  type SetupFieldName,
+  TRAVEL_MODE_LABELS,
+  WEEKLY_LIMIT_COUNT_LABELS,
+  type WeeklyWindow,
+} from "../contracts/setup";
 import { approveCommand, declineCommand } from "./bookings";
 import { type CommandDefinition, type CommandOutcome, runCommand } from "./commands";
 import type { Database, Transaction } from "./database";
@@ -130,6 +136,7 @@ const FIELD_LABELS: Readonly<Record<SetupFieldName, string>> = {
   travelBufferMinutes: "Extra travel time",
   travelMode: "How you travel",
   weeklyLimit: "Weekly meeting limit",
+  weeklyLimitCounts: "Counted toward the limit",
   weeklyWindows: "Meeting hours",
 };
 
@@ -144,6 +151,8 @@ function fieldText(field: SetupFieldName, value: unknown) {
       return `${value as number} minutes`;
     case "weeklyLimit":
       return value === null ? "none" : `${value as number} a week`;
+    case "weeklyLimitCounts":
+      return WEEKLY_LIMIT_COUNT_LABELS[value as keyof typeof WEEKLY_LIMIT_COUNT_LABELS] ?? String(value);
     case "travelMode":
       return TRAVEL_MODE_LABELS[value as keyof typeof TRAVEL_MODE_LABELS] ?? String(value);
     case "location": {
@@ -175,6 +184,7 @@ export async function settingsReview(db: Database, hostAccountId: string, origin
   for (const field of SETUP_FIELD_NAMES) {
     const entry = proposal.proposed[field];
     if (!entry) continue;
+    if (field === "weeklyLimitCounts" && proposal.proposed.weeklyLimit?.value == null) continue;
     const source = entry.source === "starter_default" ? " (starter default)" : entry.source === "inferred" ? " (suggested)" : "";
     lines.push(`${FIELD_LABELS[field]}: ${fieldText(field, entry.value)}${source}`);
   }
