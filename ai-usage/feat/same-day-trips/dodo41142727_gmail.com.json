@@ -1,0 +1,23 @@
+{
+  "branch": "feat/same-day-trips",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:dc6277ef-e1ca-412d-b949-644c3b8ac692": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 44,
+          "cache_read": 4140782,
+          "cache_write_5m": 0,
+          "cache_write_1h": 35880,
+          "output": 23395,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T17:59:23.556Z",
+      "last": "2026-11-03T18:05:44.227Z"
+    }
+  }
+}

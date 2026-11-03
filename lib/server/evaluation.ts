@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { generateText, type LanguageModel } from "ai";
 import type { RequesterEvaluationFailure, RequesterEvaluationView } from "../contracts/feasibility";
 import type { EvaluationState, RequestDetails } from "../contracts/request";
-import { type ConfirmedSettings, isValidTimeZone, WEEKDAYS, weeklyLimitCountsOf } from "../contracts/setup";
+import { type ConfirmedSettings, groupTripsOf, isValidTimeZone, WEEKDAYS, weeklyLimitCountsOf } from "../contracts/setup";
 import { CommandError } from "./commands";
 import { database, type Database, type Transaction } from "./database";
 import {
@@ -14,6 +14,7 @@ import {
   evaluateFeasibility,
   type Exclusion,
   type FeasibilityInput,
+  type LegQuery,
   legQueryKey,
   localParts,
   normalizeBusy,
@@ -22,6 +23,7 @@ import {
   startOfLocalDay,
   type TravelAllowance,
   travelQueries,
+  tripQueries,
 } from "./feasibility";
 import {
   CalendarAccessError,
@@ -41,7 +43,7 @@ import {
   requesterCalendarConfigFromEnvironment,
 } from "./requester-calendar";
 import { dropGuestHostCalendars, readGuestHostSource } from "./requester-host-profiles";
-import { endpointHasher, estimateTravel, type RoutesConfig, routesConfigFromEnvironment } from "./routes-client";
+import { endpointHasher, estimateTravel, type RouteEstimate, type RoutesConfig, routesConfigFromEnvironment } from "./routes-client";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // Evaluation runs as an application job (design decision 8). evaluate_candidates
@@ -545,6 +547,14 @@ function excludedBusy(details: RequestDetails): BusyInterval[] {
     }));
 }
 
+// The preferred area the same-day trip rank measures from (same-day-trips
+// design 1): the first named area, else the venue, when the host groups trips.
+function preferredArea(settings: ConfirmedSettings, hash: (text: string) => string) {
+  if (!groupTripsOf(settings) || settings.location?.kind !== "places") return null;
+  const text = settings.location.areas[0] ?? settings.location.venue;
+  return text ? { key: hash(text), text } : null;
+}
+
 // How an evaluation differs from the ordinary search over the requested windows
 // (host-review-and-booking design 4 and 6): a fixed interval checks exactly one
 // candidate (a shared change, or booking revalidation); extra busy time adds the
@@ -600,6 +610,7 @@ async function evaluate(
       bufferAfterMinutes: settings.bufferAfterMinutes,
       bufferBeforeMinutes: settings.bufferBeforeMinutes,
       meetingMode: settings.meetingMode,
+      preferredArea: preferredArea(settings, hash),
       timezone: settings.timezone,
       travelBufferMinutes: settings.travelBufferMinutes,
       travelMode: settings.travelMode,
@@ -749,14 +760,27 @@ async function evaluate(
     requesterBusy,
   };
 
-  const queries = travelQueries(input);
-  const estimates =
+  const estimate = (queries: readonly LegQuery[]) =>
     queries.length > 0
-      ? await deadline.run((signal) =>
+      ? deadline.run((signal) =>
           estimateTravel({ config: deps.routes, db: deps.db }, queries, { maxAgeHours: options.routeMaxAgeHours, now, signal }),
         )
-      : new Map();
-  const result = evaluateFeasibility({ ...input, estimate: (query) => estimates.get(legQueryKey(query)) });
+      : Promise.resolve(new Map<string, RouteEstimate>());
+
+  // The same-day trip rank's estimates first (same-day-trips design 4), so the
+  // candidates kept for the travel check are cut from the ranked order; a
+  // failure other than the deadline only leaves the days unranked.
+  let trips = new Map<string, RouteEstimate>();
+  try {
+    trips = await estimate(tripQueries(input));
+  } catch (error) {
+    if (error instanceof EvaluationDeadlineError) throw error;
+  }
+  const lookup = (estimates: ReadonlyMap<string, RouteEstimate>) => (query: LegQuery) =>
+    estimates.get(legQueryKey(query)) ?? trips.get(legQueryKey(query));
+  const ranked: FeasibilityInput = { ...input, estimate: lookup(new Map()) };
+  const estimates = await estimate(travelQueries(ranked).filter((query) => !trips.has(legQueryKey(query))));
+  const result = evaluateFeasibility({ ...input, estimate: lookup(estimates) });
 
   // Ranking may only reorder the first valid candidates; a failed or invalid
   // ranking keeps the deterministic order, and the deadline still applies.
