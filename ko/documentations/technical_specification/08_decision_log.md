@@ -505,7 +505,7 @@
 | 연결 시점의 창 시작(4.1) | 새 바인딩의 `last_inbound_at`은 연결 메시지가 도착한 시각이므로, 연결된 메시지와 환영 메시지는 그 메시지가 연 창 안에 들어갑니다 | 호스트가 다시 쓸 때까지 비워 두기(환영 메시지에서 창이 닫혔음) | `lib/server/imessage-links.ts`의 `bind` | 그 insert |
 | 바인딩 없는 답장(4.1) | 바인딩 없이 기록된 WhatsApp 답장(연결 답장이나 연동되지 않은 발신자에 대한 답장)은 23시간 50분 이내에 기록되었다면 창 안에 있는 것으로 셉니다. 답하려는 메시지를 처리할 때 함께 기록되기 때문입니다 | 답하려는 영수증을 조회 | `createImessageSendHandler` | select의 `fresh` 열 |
 | 템플릿 한도(4.1) | 호스트당 12시간 확인은 보냈든 아니든 모든 템플릿 행을 세고, 회선당 개수는 지난 24시간의 모든 템플릿을 포함합니다. 둘 다 하나의 어드바이저리 락 아래에서 읽으므로, 요약 두 건이 동시에 닫혀도 템플릿은 하나만 대기열에 들어갑니다 | 수락된 템플릿만 세기 | `lib/server/imessage-outbox.ts`의 `queueTemplate` | `TEMPLATE_HOST_HOURS`, `TEMPLATE_DAILY_LIMIT` |
-| 요청 참조(4.1) | `requestRef`는 `lib/server/imessage-refs.ts`로 옮겨졌고 명령 모듈이 다시 내보내므로, 발신함은 명령을 가져오지 않고도 템플릿에서 요청을 이름으로 가리킬 수 있습니다 | 요약을 기록할 때 참조 계산 | `lib/server/imessage-refs.ts` | — |
+| 요청 참조(4.1) | 발신함은 `main`에서 PR #75가 옮겨 둔 `lib/server/request-ref.ts`의 `requestRef`로 템플릿에서 요청을 이름으로 가리키며, 명령 모듈을 가져오지 않습니다(이 변경이 열려 있는 동안 옮겨졌고, 이 변경은 한동안 자체 사본을 두었습니다) | 요약을 기록할 때 참조 계산 | `lib/server/request-ref.ts` | — |
 | 두 채널의 `stop`(4.2) | `stop`과 `unlink`는 WhatsApp과 마찬가지로 iMessage에서도 정확한 명령이므로 파서는 하나로 유지됩니다. 이 명령은 영수증의 트랜잭션 안에서 바인딩을 끝내고, 그 바인딩 앞으로 대기열에 있던 것을 억제하며, 바인딩에 묶이지 않은 확인 메시지 하나를 대기열에 넣어 그대로 나가게 합니다 | WhatsApp 전용 명령; "stop"을 어시스턴트에 전달 | `lib/server/imessage-commands.ts`의 `executeCommand` | `parseCommand`와 그 case |
 | 지침(4.2) | 호스트 채널 조각은 두 접두사를 모두 다루고 WhatsApp 규칙 하나를 더합니다. 창이 닫힐 수 있으므로 나중에 호스트에게 먼저 쓰겠다고 약속하지 않습니다 | WhatsApp용 두 번째 지침 파일 | `agent/instructions/host-imessage.ts` | 그 파일 |
 | 상태의 전달 사유(4.2) | 연결된 카드의 `delivery`는 바인딩 앞으로 간 최근 메시지가 창이나 Meta에 의해 중단되었을 때 `reason`(`window_closed`, `template_unavailable`)을 명시하며, 억제된 그 행도 실패한 전달로 셉니다 | 실패로만 표시 | `readImessageStatus`; `ImessageDelivery` | 해당 항목, 그리고 카드 |
@@ -515,6 +515,7 @@
 | 전달 알림(3.2) | 연결된 카드는 `window_closed`에 "Not sent on WhatsApp: you haven't written for a day. Send Thyme any message to pick up here, or check your requests below."를, `template_unavailable`에 "A WhatsApp notice couldn't be sent. Your requests are all here in Find Me a Time."를 보여 주고, 다른 실패는 기존 문구를 유지하되 채널을 이름으로 가리킵니다 | 일반적인 실패 문구 하나 | `imessage-card.tsx`의 `deliveryNotice` | 그 함수 |
 | WhatsApp 색(3.2) | 잉크 화면은 iMessage 파랑 옆에서 WhatsApp을 아이콘과 초록 말풍선(`#008069`)으로 표시합니다 | Thyme 색만 사용 | `apps/web/app/_components/ink/ink.css`, `icons.tsx` | 해당 파일 |
 | iMessage e2e 사용자 에이전트(3.2) | iMessage 브라우저 여정은 Mac 사용자 에이전트로 실행합니다. WhatsApp이 구성되어 있으면 Playwright의 기본 Windows 에이전트가 앱 질문을 먼저 받기 때문입니다 | 그 스위트에서 WhatsApp 번호 해제 | `tests/e2e/imessage-link.test.ts` | 그 파일 |
+| 게스트 시도는 iMessage 유지(병합) | PR #75(게스트 iMessage)를 병합한 뒤, 요청(게스트의 요청)에 속한 연결 시도는 제약에 따라 iMessage여야 합니다. WhatsApp을 통한 요청자 메시징은 범위 밖이기 때문입니다. WhatsApp 해시는 자체 네임스페이스를 가지므로 게스트 바인딩은 WhatsApp 발신자와 일치하지 않습니다 | 애플리케이션 코드에 맡기기 | `supabase/schemas/app/tables/imessage_links.sql`의 `imessage_links_request_channel` | 요청자 WhatsApp을 추가하는 변경과 함께 그 제약 |
 
 ### 운영 결정
 
@@ -523,6 +524,8 @@
 | 회선 없는 출처 | 설계는 2026-11-02에 npm tarball의 `@spectrum-ts/whatsapp-business` 12.14.0과 Photon 문서를 읽었습니다. WhatsApp 메시지는 보내거나 받지 않았으므로, 플랫폼 철자와 발신자 형식은 합류 단계에서만 확인됩니다 | 사용자에게 막혀 있는 테스트 메시지 전송 | 설계 맥락 | — |
 | 계획만 | 이 풀 리퀘스트는 문서와 OpenSpec 변경만 바꾸며, 코드, 스키마, 구성은 없습니다 | 레인 A를 곧바로 구현 | 계획 9단계 | — |
 | Supabase CLI | 마이그레이션은 AGENTS.md가 명시한 2.119.0이 아니라 이 기기에 설치된 Supabase CLI 2.122.0으로 생성하고 체인을 다시 구성했습니다. 생성된 SQL은 열과 제약만 추가하며, 다시 구성한 스택에서 `supabase test db`가 통과합니다 | 마이그레이션 하나를 위해 CLI 낮추기 | 이 기록 | 팀이 고정된 버전으로 생성하기를 원하면 2.119.0으로 다시 생성 |
+| 한국어 미러 어긋남 | 네 개의 미러(`03_provider_setup`, `04_page_list`, `05_host_onboarding_flow`, `08_decision_log`)는 이 변경 이전에 이미 영어 원문과 몇 줄 어긋나 있었습니다. WhatsApp 줄은 내용에 따라 배치했고, 이전의 어긋남은 별도 작업으로 남깁니다 | 여기서 이전의 어긋남 바로잡기 | 이 기록 | 그 파일들에 대한 미러 작업 |
+| `main`과의 병합 | `origin/main`의 `fdd09ac6`(PR #75, 게스트 예약)을 이 브랜치에 일반 병합으로 합쳤습니다. iMessage 테이블, 발신함, 연결, 명령의 충돌은 양쪽을 모두 유지했고, 마이그레이션은 병합된 체인에 맞춰 `20261103150235_whatsapp_channel.sql`로 다시 생성했습니다. `main`의 모든 마이그레이션보다 늦으므로 단순한 `supabase db push`로 적용되며, 병합된 체인에서 `supabase db reset --local`과 `supabase test db`가 통과합니다 | 리베이스(작업 규칙이 배제함) | 이 기록 | — |
 
 ### 사용자 대기 항목
 

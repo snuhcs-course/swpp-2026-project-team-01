@@ -40,6 +40,9 @@ Compiled on 2026-10-23 by the [`operations-and-release`](../../openspec/changes/
 | AC-26 | `tests/integration/host-admission.test.ts`, `setup-tools.test.ts`, `entry-documents.test.ts`, `operator.test.ts` ([Phase 1](#phase-1--application-foundation), [Phase 2](#phase-2--host-onboarding)) | One real sign-in on `https://findmeatime.com` creating one host account (Phase 1) | Publishing attempts through MCP and the CLI before setup; suspension on production |
 | AC-27 | `tests/integration/requester-google.test.ts`; `evaluation.test.ts` "uses the requester's busy time without storing or showing their events" | — | Real requester consent, blocked while the Google app is in **Testing** |
 | AC-28 | [Phase 2](#phase-2--host-onboarding) evidence by item | — | Signed-in setup on production; Google app verification |
+| AC-29 | `tests/e2e/whatsapp-link.test.ts` (Android, iPhone and Windows agents), `tests/integration/whatsapp-links.test.ts`, `whatsapp-channel.test.ts` ([Phase 9](#phase-9--host-whatsapp-channel)) | — | The WhatsApp line, approved templates and a controlled Android phone |
+| AC-30 | `lib/server/whatsapp.test.ts`, `tests/integration/imessage-receiver.test.ts` (WhatsApp Business), `whatsapp-links.test.ts`, `whatsapp-channel.test.ts` | — | A controlled Android phone |
+| AC-31 | `tests/integration/whatsapp-window.test.ts`, `whatsapp-outbox.test.ts`, `whatsapp-channel.test.ts` | — | A controlled Android phone, a closed window and an approved template |
 
 Two earlier gaps changed since their phases were recorded: every migration through Phase 6 is now on the shared project (read on 2026-10-23), and the current production deployment (2026-10-23 07:02 KST) predates the Phase 6 merge, so Phases 6 to 8 are not deployed.
 
@@ -457,4 +460,38 @@ Run by the implementing session on 2026-10-23 (06:55 UTC) against the current **
 | `dev.findmeatime.com` | `curl` of `/` | 404: `findmeatime-dev` has no current deployment serving it, so staging is not live |
 | Latency (D4) | `npm run perf:check -- --origin https://findmeatime.com` and `--origin https://release.findmeatime.com`, 20 sequential samples per route from Seoul | All routes pass. `findmeatime.com`: `/` p50 155 ms, p95 267 ms; `/SKILL.md` 269 and 431 ms; `/llms.txt` 255 and 286 ms; `/eve/v1/health` 250 and 470 ms. `release.findmeatime.com`: 200 and 446; 262 and 287; 250 and 831; 273 and 321 ms. Approval-to-booking and first-reply times are not measured |
 | Release project | Read-only `supabase db query --linked --project-ref mriseqztcwmezvtawnbo` | Still the iteration-1 prototype ([provider setup](03_provider_setup.md#supabase-project)); not emptied |
+
+## Phase 9 — `host-whatsapp-channel`
+
+Change: [`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/tasks.md). Evidence list: [Phase 9](06_implementation_plan.md#phase-9--host-whatsapp-channel). Environments as in Phase 6: the default local stack and the loopback Photon stand-in (`tests/integration/support/fake-photon.ts`), which now answers WhatsApp at `/whatsapp/messages`, refuses free text for a closed window (131047) and can refuse every template.
+
+### Suite runs
+
+| Command | Date | Revision | Environment | Result |
+|---|---|---|---|---|
+| `supabase db reset --local`, `supabase test db` | 2026-11-04 | `a7abf566` (after merging `main` at `fdd09ac6`) | Local stack, Supabase CLI 2.122.0 | Chain rebuilt with `20261103150235_whatsapp_channel.sql`; 12 files, 151 pgTAP tests passed, including `whatsapp_channel.test.sql` |
+| `npm run check`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build` | 2026-11-04 | `a7abf566` | Local | Passed; 586 unit tests (60 files); 27 OpenSpec items; lint reports only warnings that predate this change |
+| `npm run test:integration` | 2026-11-04 | `a7abf566` | Local stack | 788 of 789 passed (83 files). The failure was this change's own `whatsapp-channel.test.ts`, whose lookup missed the `host-selection:` key PR #75 gave the setup reply; fixed in the next commit, then 4 of 4 passed |
+| `npm run test:e2e` | 2026-11-04 | `a7abf566` | Local stack | 63 of 68 passed, 2 did not run. The three failures (`first-reply`, `requester-google`, `requester-imessage` at 390 px) are outside this change and passed alone (6 of 6). `tests/e2e/whatsapp-link.test.ts` (6) and `imessage-link.test.ts` (7) passed |
+
+### Evidence by item
+
+Fixture and local-stack evidence only.
+
+| Item | Evidence |
+|---|---|
+| Routing and sender (D2, D3) | `lib/server/whatsapp.test.ts` (platform spellings, mixed and unlabelled events, contact IDs, groups, the hash namespace); `tests/integration/imessage-receiver.test.ts` "with WhatsApp Business" |
+| Records (D4) | `supabase/tests/whatsapp_channel.test.sql` |
+| Transport and outcomes (D1, D10) | `lib/server/photon.test.ts` "WhatsApp sends"; `lib/server/whatsapp.test.ts` "whatsAppSendFailure"; `tests/integration/whatsapp-outbox.test.ts` |
+| Linking and one channel per host (D5, D6) | `tests/integration/whatsapp-links.test.ts` |
+| Device rule and cards (D7, D12) | `lib/contracts/messaging-channel.test.ts`; `tests/e2e/whatsapp-link.test.ts` |
+| Window and templates (D8, D9) | `tests/integration/whatsapp-window.test.ts` |
+| Reused behavior and `stop` (D11) | `tests/integration/whatsapp-channel.test.ts`; `lib/server/imessage-commands.test.ts` |
+
+### Known gaps
+
+- **No real WhatsApp event or send.** The platform spelling, the contact ID format and where Photon carries Meta's error code come from the provider package and Photon's documentation; the one-event capture (task 5.1) is blocked on the user.
+- **Templates not registered.** The three templates of design 8 are not in WhatsApp Manager, so `template_unavailable` is what production would answer until they are approved.
+- **Refusals Meta reports after acceptance** (a 131047 in a status event) are not observed; the dispatch-time window check is the safeguard.
+- **No controlled Android run** of AC-29 to AC-31, and no production deploy or shared-project migration of this change.
 

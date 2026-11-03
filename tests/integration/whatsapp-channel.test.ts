@@ -36,7 +36,8 @@ afterAll(async () => {
 async function say(sender: string, text: string) {
   const delivered = await im.deliver({ channel: "whatsapp", sender, text });
   const rows = await db<{ id: string }[]>`
-    select id from app.imessage_outbox where dedupe_key = ${`receipt:${delivered.receiptId}`} and state = 'queued'
+    select id from app.imessage_outbox
+    where dedupe_key in (${`receipt:${delivered.receiptId}`}, ${`host-selection:${delivered.receiptId}`}) and state = 'queued'
   `;
   if (rows.length === 0) return { delivered, reply: null, sent: [] };
   const { sent } = await im.send(rows[0]!.id);
