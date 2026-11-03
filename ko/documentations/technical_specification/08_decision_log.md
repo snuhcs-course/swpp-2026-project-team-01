@@ -526,15 +526,16 @@
 | Supabase CLI | 마이그레이션은 AGENTS.md가 명시한 2.119.0이 아니라 이 기기에 설치된 Supabase CLI 2.122.0으로 생성하고 체인을 다시 구성했습니다. 생성된 SQL은 열과 제약만 추가하며, 다시 구성한 스택에서 `supabase test db`가 통과합니다 | 마이그레이션 하나를 위해 CLI 낮추기 | 이 기록 | 팀이 고정된 버전으로 생성하기를 원하면 2.119.0으로 다시 생성 |
 | 한국어 미러 어긋남 | 네 개의 미러(`03_provider_setup`, `04_page_list`, `05_host_onboarding_flow`, `08_decision_log`)는 이 변경 이전에 이미 영어 원문과 몇 줄 어긋나 있었습니다. WhatsApp 줄은 내용에 따라 배치했고, 이전의 어긋남은 별도 작업으로 남깁니다 | 여기서 이전의 어긋남 바로잡기 | 이 기록 | 그 파일들에 대한 미러 작업 |
 | `main`과의 병합 | `origin/main`의 `fdd09ac6`(PR #75, 게스트 예약)을 이 브랜치에 일반 병합으로 합쳤습니다. iMessage 테이블, 발신함, 연결, 명령의 충돌은 양쪽을 모두 유지했고, 마이그레이션은 병합된 체인에 맞춰 `20261103150235_whatsapp_channel.sql`로 다시 생성했습니다. `main`의 모든 마이그레이션보다 늦으므로 단순한 `supabase db push`로 적용되며, 병합된 체인에서 `supabase db reset --local`과 `supabase test db`가 통과합니다 | 리베이스(작업 규칙이 배제함) | 이 기록 | — |
+| WhatsApp 번호와 등급 | 사용자가 2026-11-04에 WhatsApp Business 번호는 +1 711-454-9153(`PHOTON_WHATSAPP_NUMBER=17114549153`)이고 메시징 한도는 24시간당 고객 250명이라고 알려 주었습니다. 템플릿이 유일한 비즈니스 발신 메시지이므로 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`는 그 한도보다 낮은 기본값 50을 유지합니다 | 템플릿 한도를 등급까지 올리기 | 제공자 설정, WhatsApp Business | Vercel Production의 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` |
 
 ### 사용자 대기 항목
 
 다음 단계는 제공자 콘솔을 바꾸거나, 사람에게 메시지를 보내거나, 공유 환경 또는 릴리스 환경을 바꾸기 때문에 수행하지 않았습니다:
 
-- **Meta WhatsApp Manager**: 설계 8의 템플릿 세 개를 제출하고 승인받습니다. 2026-11-02에 연결한 번호의 비즈니스 표시 이름, 비즈니스 검증, 회선의 메시징 등급을 확인합니다.
+- **Meta WhatsApp Manager**: 설계 8의 템플릿 세 개를 제출하고 승인받습니다. 비즈니스 표시 이름과 비즈니스 검증을 확인합니다. 사용자가 2026-11-04에 번호 +1 711-454-9153과 메시징 한도 24시간당 고객 250명을 알려 주었습니다.
 - **Photon 프로젝트**: 구성은 바꾸지 않았습니다. WhatsApp 회선, 그 등록, 공유 웹훅은 2026-11-02에 사용자가 둔 그대로입니다.
 - **모든 WhatsApp 메시지 전송**, 합류 단계의 이벤트 하나 수집과 Android 인수 실행을 포함합니다.
-- **Vercel 변수**: 코드가 반영된 뒤 Production의 `PHOTON_WHATSAPP_NUMBER`, 그리고 바뀐 경우 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`.
+- **Vercel 변수**: 코드가 반영된 뒤 Production의 `PHOTON_WHATSAPP_NUMBER=17114549153`, 그리고 바뀐 경우 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`.
 - 구현하는 풀 리퀘스트의 **마이그레이션과 배포**, 그리고 이 풀 리퀘스트의 병합을 포함한 모든 병합.
 - D1–D13과 설계의 미해결 질문에 대한 **팀원 검토**.
 

@@ -525,15 +525,16 @@ The [proposal](../../openspec/changes/host-whatsapp-channel/proposal.md#decision
 | Supabase CLI | The migration was generated and the chain rebuilt with Supabase CLI 2.122.0, the version installed on this machine, not the 2.119.0 AGENTS.md names; the generated SQL only adds columns and constraints, and `supabase test db` passes on the rebuilt stack | Downgrading the CLI for one migration | This log | Regenerate with 2.119.0 if the team wants the pinned version to produce it |
 | Korean mirror drift | Four mirrors (`03_provider_setup`, `04_page_list`, `05_host_onboarding_flow`, `08_decision_log`) were already a few lines out of step with their English source before this change; the WhatsApp lines were placed by content, and the older gaps are left for a separate pass | Fixing the older gaps here | This log | A mirror pass on those files |
 | Merge with `main` | `origin/main` at `fdd09ac6` (PR #75, guest booking) was merged into this branch with a normal merge; the conflicts in the iMessage tables, the outbox, links and commands kept both sides, and the migration was regenerated against the merged chain as `20261103150235_whatsapp_channel.sql`, later than every migration on `main`, so a plain `supabase db push` applies it; `supabase db reset --local` and `supabase test db` pass on the merged chain | Rebasing, which the working rules rule out | This log | — |
+| WhatsApp number and tier | The user reported on 2026-11-04 that the WhatsApp Business number is +1 711-454-9153 (`PHOTON_WHATSAPP_NUMBER=17114549153`) and its messaging limit is 250 customers per 24 hours. `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` keeps its default of 50, below that limit, since templates are the only business-initiated messages | Raising the template limit to the tier | Provider setup, WhatsApp Business | `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` on Vercel Production |
 
 ### Blocked on the user
 
 These steps were not taken because they change a provider console, message a person or change a shared or release environment:
 
-- **Meta WhatsApp Manager**: submit the three templates of design 8 and get them approved. Confirm the business display name, business verification and the line's messaging tier for the number linked on 2026-11-02.
+- **Meta WhatsApp Manager**: submit the three templates of design 8 and get them approved. Confirm the business display name and business verification. The user reported the number, +1 711-454-9153, and its messaging limit, 250 customers per 24 hours, on 2026-11-04.
 - **Photon project**: no configuration was changed. The WhatsApp line, its registration and the shared webhook are as the user left them on 2026-11-02.
 - **Sending any WhatsApp message**, including the one-event capture at the join and the Android acceptance run.
-- **Vercel variables**: `PHOTON_WHATSAPP_NUMBER` and, if changed, `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` on Production once the code lands.
+- **Vercel variables**: `PHOTON_WHATSAPP_NUMBER=17114549153` and, if changed, `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` on Production once the code lands.
 - **Migration and deploy** of the implementing pull requests, and every merge, including this pull request's.
 - **Teammate review** of D1–D13 and the design's open questions.
 
