@@ -187,7 +187,7 @@ export function ReviewCard({ pending = false }: { readonly pending?: boolean }) 
       ) : null}
 
       {/* The Confirmation pattern: one prompt to approve, kept in view. */}
-      <div className="sticky bottom-0 z-10 -mx-4 mt-auto bg-card px-4 pt-1 pb-3">
+      <div className="sticky bottom-0 z-10 -mx-5 mt-auto bg-card px-5 pt-1 pb-3">
         <Item className="gap-2 rounded-lg px-3 py-2" size="sm" variant="outline">
           <ItemMedia variant="icon">
             <ShieldCheckIcon />

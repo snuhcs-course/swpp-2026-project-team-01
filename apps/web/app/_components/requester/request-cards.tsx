@@ -642,7 +642,7 @@ function TripAllowance({
   const direction = candidate.unresolvedRequesterLeg === "inbound" ? "from your earlier event" : "to your next event";
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border p-3">
+    <li className="flex flex-col gap-2 rounded-xl bg-secondary p-3">
       <CandidateTime candidate={candidate} timeZone={context.timezone} />
       <p>We could not estimate your trip {direction}.</p>
       <div className="flex flex-wrap items-end gap-2">
@@ -783,7 +783,7 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
       {offered.length > 0 ? (
         <ul aria-label="Candidate times" className="flex flex-col gap-2">
           {offered.slice(page * TIMES_SHOWN, (page + 1) * TIMES_SHOWN).map((candidate) => (
-            <li className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card p-3" key={candidate.id}>
+            <li className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-secondary p-3" key={candidate.id}>
               <CandidateTime candidate={candidate} timeZone={context.timezone} />
               <Button
                 aria-label={`Choose this time: ${timeRange(candidate, context.timezone)}`}

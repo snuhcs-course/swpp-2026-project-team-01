@@ -59,7 +59,7 @@ export function WeeklyWindowsEditor({
   return (
     <EditorForm label="Edit weekly windows" onSubmit={submit}>
       <p className="text-sm text-muted-foreground">{preferences ? "These times are preferred for this request; other times can still be offered." : "Times are 24-hour, in your meeting time zone."}</p>
-      <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
+      <ul className="flex flex-col divide-y-2 divide-card overflow-hidden rounded-xl bg-secondary">
         {WEEKDAYS.map((weekday) => (
           <DayRow
             key={weekday}

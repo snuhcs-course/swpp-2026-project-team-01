@@ -11,7 +11,6 @@ import { Receipt } from "@/app/_components/booking-receipt";
 import { GuestCard, GuestCardActions } from "@/app/_components/guest/guest-card";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { HostSettingsDialog } from "@/app/_components/host-settings-dialog";
-import "@/app/_components/ink/ink.css";
 import { ChatComposer } from "@/components/chat/composer";
 import { ChatConversation, ChatConversationContent, ChatItem, ChatScrollButton } from "@/components/chat/conversation";
 import { AgentMessage, AgentThinking } from "@/components/chat/message";
@@ -66,7 +65,7 @@ function settling(view: HostRequestView | null) {
 function ErrorNotice({ message, onDismiss }: { readonly message: string; readonly onDismiss: () => void }) {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 pt-2 sm:px-6" role="alert">
-      <div className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-card p-3 text-sm">
+      <div className="flex items-start gap-3 rounded-2xl bg-[color-mix(in_srgb,var(--destructive)_8%,var(--surface))] p-4 text-sm">
         <AlertCircleIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
         <p className="min-w-0 flex-1">{message}</p>
         <Button aria-label="Dismiss" onClick={onDismiss} size="icon-sm" type="button" variant="ghost">
@@ -88,9 +87,9 @@ export function HostRequests({ onOpenSetup, request }: { readonly onOpenSetup: (
   }, [router]);
 
   return (
-    <div className="onboarding-ink flex h-dvh min-h-0 flex-col bg-background text-foreground">
-      <header className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 sm:px-6">
-        <h1 className="truncate font-display text-[clamp(26px,3vw,33px)] leading-none">Find Me a Time</h1>
+    <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
+      <header className="flex shrink-0 items-center justify-between gap-3 px-5 py-3 sm:px-8">
+        <h1 className="wordmark-lockup min-w-0">Find Me a Time</h1>
         <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectRequests={openInbox} onSelectSetup={onOpenSetup} /></div>
       </header>
       {notice ? <ErrorNotice message={notice} onDismiss={() => setNotice(null)} /> : null}
@@ -123,7 +122,7 @@ function Inbox({ onSelect }: { readonly onSelect: (requestId: string) => void })
   return (
     <main aria-labelledby="inbox-heading" className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-4 pb-8 sm:px-6">
-        <h2 className="pt-2 text-base font-semibold" id="inbox-heading">
+        <h2 className="pt-4 font-display text-[clamp(36px,5vw,52px)] leading-[1.05]" id="inbox-heading">
           Requests
         </h2>
         {error ? <p role="alert">{error}</p> : null}
@@ -139,7 +138,7 @@ function Inbox({ onSelect }: { readonly onSelect: (requestId: string) => void })
           {items?.map((item) => (
             <li key={item.requestId}>
               <button
-                className="flex w-full min-w-0 flex-col gap-0.5 rounded-xl border border-border bg-card px-4 py-3 text-left text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="flex w-full min-w-0 flex-col gap-0.5 rounded-2xl bg-card px-5 py-4 text-left text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 onClick={() => onSelect(item.requestId)}
                 type="button"
               >
@@ -233,7 +232,7 @@ function RequestView({ onBack, onUnavailable, requestId }: { readonly onBack: ()
           </Button>
         </div>
         <div className="flex min-w-0 flex-col">
-          <h2 className="truncate text-base font-semibold" id="request-heading">
+          <h2 className="truncate font-display text-[32px] leading-[1.1]" id="request-heading">
             {view ? view.requester.name : "Loading request..."}
           </h2>
           {view ? (
@@ -248,12 +247,12 @@ function RequestView({ onBack, onUnavailable, requestId }: { readonly onBack: ()
             </p>
           ) : null}
         </div>
-        <div aria-label="Discussion" className="flex gap-1 rounded-lg border border-border p-1" role="tablist">
+        <div aria-label="Discussion" className="flex gap-1 rounded-full bg-secondary p-1" role="tablist">
           {tabs.map((entry) => (
             <button
               aria-controls={`panel-${entry.id}`}
               aria-selected={tab === entry.id}
-              className="min-w-0 flex-1 truncate rounded-md px-3 py-1.5 text-sm aria-selected:bg-accent aria-selected:font-medium focus-visible:outline-2 focus-visible:outline-ring"
+              className="min-h-10 min-w-0 flex-1 truncate rounded-full px-4 py-1.5 text-sm font-medium text-muted-foreground aria-selected:bg-card aria-selected:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
               id={`tab-${entry.id}`}
               key={entry.id}
               onClick={() => setTab(entry.id)}
@@ -364,7 +363,7 @@ function PrivateDiscussion({
       {chat.error ? <ErrorNotice message={chat.error} onDismiss={() => chat.setError(null)} /> : null}
       {chat.failed ? (
         <div className="mx-auto w-full max-w-2xl px-4 sm:px-6" role="status">
-          <div className="flex flex-col gap-3 rounded-xl border border-input bg-card p-4 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-3 rounded-3xl bg-card p-5 sm:flex-row sm:items-center">
             <p className="min-w-0 flex-1 text-sm">Thyme stopped responding in this conversation. Your messages and history are kept.</p>
             <Button disabled={chat.phase === "recovering"} onClick={() => void chat.recover()} type="button">
               {chat.phase === "recovering" ? "Restarting..." : "Restart Thyme"}
