@@ -110,9 +110,13 @@ For a linked WhatsApp host, the service SHALL apply the iMessage channel's rules
 - **WHEN** a linked WhatsApp host sends the exact approve command for the current review reference
 - **THEN** the proposal is approved once, as from `/app`, and a replay of the same message after a restart changes nothing
 
-#### Scenario: Ambiguous yes
-- **WHEN** a linked WhatsApp host replies "yes" to a summary
-- **THEN** nothing is approved and the reply asks for the exact command or points to `/app`
+#### Scenario: Approve in words from WhatsApp
+- **WHEN** a linked WhatsApp host replies "book it" after the awaiting-approval summary
+- **THEN** the current version is approved once, as the iMessage channel's approval in the host's own words does
+
+#### Scenario: Conditional yes
+- **WHEN** a linked WhatsApp host replies "yes, but at 11" to a summary
+- **THEN** nothing is approved and the assistant asks about the change
 
 #### Scenario: Preview deployment
 - **WHEN** a preview deployment with copied Photon credentials would send a WhatsApp message
