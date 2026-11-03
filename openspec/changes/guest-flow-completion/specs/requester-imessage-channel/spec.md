@@ -23,15 +23,15 @@ A guest binding SHALL belong to one request and SHALL record the sender only as 
 - **THEN** later messages from that sender reach no requester discussion of that request and no further notice is sent there
 
 ### Requirement: Guest inbound routing
-After link codes, an inbound message SHALL route to the conversation of the last message the line sent to that sender: a guest notice's request, or the host path after a host notice or reply. A sender with no earlier message from the line SHALL route to their host binding, else to their only or most recently created guest binding, and a sender with no binding SHALL receive the existing unlinked reply. The sender MAY switch to another of their conversations. Routed guest text SHALL become one accepted input of the request's requester discussion under the same redaction, admission and model limits as web input, and an exact retry of the same receipt SHALL resolve to the same input.
+After link codes, a sender with one active binding SHALL route to it; a sender with no binding SHALL receive the existing unlinked reply. A sender with multiple active bindings SHALL explicitly select a conversation before free text is forwarded, and select again after an outbound message in another conversation or a new guest binding. Routed guest text SHALL become one accepted input of the request's requester discussion under the same redaction, admission and model limits as web input, and an exact retry of the same receipt SHALL resolve to the same input.
 
 #### Scenario: Two hosts, one guest
-- **WHEN** a sender holds guest bindings on requests to two hosts and was last notified about the second
-- **THEN** a plain message reaches the second request's discussion
+- **WHEN** a sender holds guest bindings on requests to two hosts and has not selected one
+- **THEN** a plain message is not forwarded and the sender is asked to select a request
 
 #### Scenario: Host who is also a guest
-- **WHEN** a sender with a host binding and a guest binding last received a decline notice for the guest request
-- **THEN** their next plain message reaches that request's requester discussion, and after a later host notice the next one reaches the host path
+- **WHEN** a sender with a host binding and a guest binding selects the guest request, and a later host notice is created
+- **THEN** their next plain message is not forwarded until they select a conversation again
 
 #### Scenario: Replayed receipt
 - **WHEN** the same Photon message is delivered twice

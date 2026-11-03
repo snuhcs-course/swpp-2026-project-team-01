@@ -195,10 +195,10 @@ export type CommandDependencies = ImessageReceiptDependencies;
 
 type Reply = { readonly text: string };
 
-function reply(tx: Transaction, deps: CommandDependencies, message: BoundMessage, text: string, requestId: string | null = null) {
+function reply(tx: Transaction, deps: CommandDependencies, message: BoundMessage, text: string, requestId: string | null = null, selectHost = false) {
   return recordOutbound(tx, {
     bindingId: message.bindingId,
-    dedupeKey: `receipt:${message.receipt.id}`,
+    dedupeKey: `${selectHost ? "host-selection" : "receipt"}:${message.receipt.id}`,
     hostAccountId: message.hostAccountId,
     kind: "command",
     recipient: message.recipient,
@@ -497,6 +497,6 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       break;
   }
 
-  await reply(tx, deps, message, result.text, result.requestId ?? null);
+  await reply(tx, deps, message, result.text, result.requestId ?? null, command.name === "setup" || (command.name === "request" && Boolean(result.requestId)));
   return "command" as const;
 }

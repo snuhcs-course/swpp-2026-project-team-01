@@ -23,10 +23,10 @@
 
 ## 4. Routing, replies and notices (design 3, 4)
 
-- [x] 4.1 `processReceipt`: route by the last message the line sent to the sender (D3); guest text as `[iMessage] …` into the requester discussion; replies through the outbox; switching through the host-side conversational selection once it lands, `request <ref>` until then.
+- [x] 4.1 `processReceipt`: require an explicit selection for multiple conversations (D3, #74); guest text as `[iMessage] …` into the requester discussion; replies through the outbox; `request <ref>` selects a guest request.
 - [x] 4.2 Guest notices: an iMessage branch in `enqueueStatusNotice` and `enqueueConfirmations`, frozen texts without the booking link (English and Korean, by the request's language), through `imessage_notice` and `imessage_outbox`; the booking confirmation ends the binding once queued.
 - [x] 4.3 `agent/instructions/requester.ts`: iMessage shows no cards; name the card and the booking page; never write a link.
-- [x] 4.4 Tests (`tests/integration/requester-imessage-routing.test.ts`): routing by the last sent message with two hosts and with a host who is also a guest; `request <ref>`; a replayed receipt; the declined, expired and booked notices, with no booking link; the closed notice once; an unlinked guest gets nothing. Guest messages use the shared outbox, whose uncertain sends `imessage-outbox.test.ts` already covers.
+- [x] 4.4 Tests (`tests/integration/requester-imessage-routing.test.ts`): explicit selection with two hosts and with a host who is also a guest; reselect after another conversation's notice; a replayed receipt; declined, expired and booked notices without booking links; and an unlinked guest gets nothing. Guest messages use the shared outbox, whose uncertain sends `imessage-outbox.test.ts` already covers.
 - [x] 4.5 (U18) After a booking, the email thread and the iMessage binding stay and reach the request's discussion read-only: a booked-request tool or `read_booking_status` gives the receipt, the requester session continues after booking, change or cancel gets "contact the host"; the binding no longer ends at booking; replace the closed-notice tests.
 
 ## 5. Revised requests (design 5)
@@ -51,7 +51,7 @@
 - [ ] 6.3 Moved to #61 (user, 2026-11-02: host-side). The iMessage item: notices to the host binding's conversation and `request <ref>` for that host's guest requests.
 - [x] 6.4 Basic details as a pending review.
 - [x] 6.5 Tests: subject match only; not the request's own host; partial opt-in; revoked grant pauses evaluation; nothing in the host projection or host model context; deletion at closure. Verified by CI on `e2e5d65a` (`tests/integration/requester-host-profiles.test.ts`, 11 tests).
-- [ ] 6.6 The host-profile card and its receipt in the booking page thread (two items: Calendars, Basic details). Built; not yet seen in a browser or covered by an e2e test.
+- [x] 6.6 The host-profile card and its receipt in the booking page thread (two items: Calendars, Basic details). Covered by the Google guest host-profile E2E, including the saved choice and drafted basic details.
 
 ## 7. Soft preferences (design 7)
 

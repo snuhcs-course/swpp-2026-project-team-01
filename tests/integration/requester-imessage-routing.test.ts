@@ -123,6 +123,101 @@ async function runGuestNotice(requestId: string, notice: Parameters<typeof guest
 }
 
 describe("routing a guest's message", () => {
+  it("does not forward ambiguous free text when a sender has multiple guest requests", async () => {
+    const sender = newSender();
+    const first = await linkedGuest(sender, "Ada Lovelace");
+    const second = await linkedGuest(sender, "Grace Hopper");
+    const before = await outboxOf(sender);
+
+    expect((await im.deliver({ sender, text: "Private meeting details" })).outcome).toBe("replied");
+    expect(await guestInputs(first.requestId)).toHaveLength(0);
+    expect(await guestInputs(second.requestId)).toHaveLength(0);
+    const texts = await sentTo(sender, before);
+    expect(texts.join("\n")).toContain(`request ${requestRef(first.requestId)}`);
+    expect(texts.join("\n")).toContain(`request ${requestRef(second.requestId)}`);
+  });
+
+  it("asks again after another request produces a notice", async () => {
+    const sender = newSender();
+    const first = await linkedGuest(sender, "Ada Lovelace");
+    const second = await linkedGuest(sender, "Grace Hopper");
+    await im.deliver({ sender, text: `request ${requestRef(second.requestId)}` });
+    await db.begin((tx) => enqueueStatusNotice(tx, testNotices, first.requestId, { kind: "status_declined" }).then(() => undefined));
+    await runGuestNotice(first.requestId, { kind: "status_declined" });
+
+    expect((await im.deliver({ sender, text: "Private meeting details" })).outcome).toBe("replied");
+    expect(await guestInputs(first.requestId)).toHaveLength(0);
+    expect(await guestInputs(second.requestId)).toHaveLength(0);
+  });
+
+  it("asks again when an older notice finishes after a different request was selected", async () => {
+    const sender = newSender();
+    const first = await linkedGuest(sender, "Ada Lovelace");
+    const second = await linkedGuest(sender, "Grace Hopper");
+    await db.begin((tx) => enqueueStatusNotice(tx, testNotices, first.requestId, { kind: "status_declined" }).then(() => undefined));
+    await runGuestNotice(first.requestId, { kind: "status_declined" });
+    await im.deliver({ sender, text: `request ${requestRef(second.requestId)}` });
+    await db`
+      update app.imessage_outbox set state = 'accepted', completed_at = now(), recipient_ciphertext = null, text_ciphertext = null
+      where request_id = ${first.requestId} and kind = 'notice'
+    `;
+
+    expect((await im.deliver({ sender, text: "Private meeting details" })).outcome).toBe("replied");
+    expect(await guestInputs(first.requestId)).toHaveLength(0);
+    expect(await guestInputs(second.requestId)).toHaveLength(0);
+  });
+
+  it("does not forward while another request's notice is being dispatched", async () => {
+    const sender = newSender();
+    const first = await linkedGuest(sender, "Ada Lovelace");
+    const second = await linkedGuest(sender, "Grace Hopper");
+    await db.begin((tx) => enqueueStatusNotice(tx, testNotices, first.requestId, { kind: "status_declined" }).then(() => undefined));
+    await runGuestNotice(first.requestId, { kind: "status_declined" });
+    await db`update app.imessage_outbox set state = 'dispatching', dispatched_at = now() where request_id = ${first.requestId} and kind = 'notice'`;
+    await im.deliver({ sender, text: `request ${requestRef(second.requestId)}` });
+
+    expect((await im.deliver({ sender, text: "Private meeting details" })).outcome).toBe("replied");
+    expect(await guestInputs(first.requestId)).toHaveLength(0);
+    expect(await guestInputs(second.requestId)).toHaveLength(0);
+  });
+
+  it("asks again when a different host request produces a notice", async () => {
+    const host = await hostWithUser(db);
+    await makeHostReady(db, host.hostAccountId, { displayName: "Dana Scully" });
+    const { sender } = await im.link(host.hostAccountId);
+    await linkedGuest(sender, "Fox Mulder");
+    const first = await createTestRequest(db, { hostAccountId: host.hostAccountId });
+    const second = await createTestRequest(db, { hostAccountId: host.hostAccountId });
+    expect((await im.deliver({ sender, text: `request ${requestRef(first.requestId)}` })).outcome).toBe("command");
+    await db.begin((tx) => enqueueHostNotice(tx, second.requestId, { kind: "new_request" }));
+    const job = await jobFor(db, IMESSAGE_NOTICE_JOB, `notice:new_request:${second.requestId}`);
+    await runJob(db, job.id, noticeHandler);
+
+    expect((await im.deliver({ sender, text: "Private meeting details" })).outcome).toBe("replied");
+    expect(await hostInputs(host.hostAccountId)).toEqual([]);
+  });
+
+  it.each(["waiting", "queued", "dispatching", "accepted", "failed", "uncertain", "suppressed"])(
+    "does not infer a conversation from an outbound message in state %s",
+    async (state) => {
+      const sender = newSender();
+      const first = await linkedGuest(sender, "Ada Lovelace");
+      const second = await linkedGuest(sender, "Grace Hopper");
+      await db.begin((tx) => enqueueStatusNotice(tx, testNotices, first.requestId, { kind: "status_declined" }).then(() => undefined));
+      await runGuestNotice(first.requestId, { kind: "status_declined" });
+      const final = ["accepted", "failed", "uncertain", "suppressed"].includes(state);
+      await db`
+        update app.imessage_outbox set state = ${state}, completed_at = ${final ? new Date() : null},
+          recipient_ciphertext = case when ${final} then null else recipient_ciphertext end,
+          text_ciphertext = case when ${final} then null else text_ciphertext end
+        where request_id = ${first.requestId} and kind = 'notice'
+      `;
+      expect((await im.deliver({ sender, text: "Private meeting details" })).outcome).toBe("replied");
+      expect(await guestInputs(first.requestId)).toHaveLength(0);
+      expect(await guestInputs(second.requestId)).toHaveLength(0);
+    },
+  );
+
   it("forwards text into the request's requester discussion and sends the turn's reply", async () => {
     const sender = newSender();
     const request = await linkedGuest(sender);
@@ -147,12 +242,13 @@ describe("routing a guest's message", () => {
     expect(await guestInputs(request.requestId)).toHaveLength(1);
   });
 
-  it("follows the last message the line sent between two hosts' requests, and switches with request <ref>", async () => {
+  it("switches between two hosts' requests with request <ref>", async () => {
     const sender = newSender();
     const first = await linkedGuest(sender, "Ada Lovelace");
     const second = await linkedGuest(sender, "Grace Hopper");
 
-    // The second welcome is the last message: the second request.
+    // The guest explicitly selects the second request.
+    await im.deliver({ sender, text: `request ${requestRef(second.requestId)}` });
     await im.deliver({ sender, text: "Hello there" });
     expect(await guestInputs(second.requestId)).toHaveLength(1);
     expect(await guestInputs(first.requestId)).toHaveLength(0);
@@ -163,7 +259,8 @@ describe("routing a guest's message", () => {
     const since = await outboxOf(sender);
     await runGuestNotice(first.requestId, { kind: "status_declined" });
     expect(await sentTo(sender, since)).toEqual([GUEST_NOTICE_TEXTS.en.status_declined("Ada Lovelace")]);
-    // The declined request's conversation continues as its revised request.
+    // Explicitly select the declined request before continuing it.
+    await im.deliver({ sender, text: `request ${requestRef(first.requestId)}` });
     expect((await im.deliver({ sender, text: "Why not?" })).outcome).toBe("forwarded");
     expect(await guestInputs(first.requestId)).toHaveLength(0);
     const [revised] = await db<{ id: string }[]>`select id from app.requests where revised_from_request_id = ${first.requestId}`;
@@ -186,7 +283,8 @@ describe("routing a guest's message", () => {
     await makeHostReady(db, other.hostAccountId, { displayName: "Fox Mulder" });
     const guest = await linkedGuest(sender, "Fox Mulder", other.hostAccountId);
 
-    // After the guest welcome, free text is the guest's.
+    // Select the guest request before sending free text.
+    await im.deliver({ sender, text: `request ${requestRef(guest.requestId)}` });
     await im.deliver({ sender, text: "Is Friday possible?" });
     expect((await guestInputs(guest.requestId)).map((input) => input.message)).toEqual(["[iMessage] Is Friday possible?"]);
     expect(await hostInputs(host.hostAccountId)).toEqual([]);
@@ -196,11 +294,12 @@ describe("routing a guest's message", () => {
     expect((await im.deliver({ sender, text: "help" })).outcome).toBe("command");
     expect(await sentTo(sender, since)).toEqual([HELP_TEXT]);
 
-    // After a host message, free text is the host's again.
+    // Select the host conversation before sending free text.
     const own = await createTestRequest(db, { hostAccountId: host.hostAccountId });
     await db.begin((tx) => enqueueHostNotice(tx, own.requestId, { kind: "new_request" }));
     const job = await jobFor(db, IMESSAGE_NOTICE_JOB, `notice:new_request:${own.requestId}`);
     await runJob(db, job.id, noticeHandler);
+    expect((await im.deliver({ sender, text: `request ${requestRef(own.requestId)}` })).outcome).toBe("command");
     await im.deliver({ sender, text: "Thanks" });
     expect(await hostInputs(host.hostAccountId)).toEqual(["[iMessage] Thanks"]);
     expect(await guestInputs(guest.requestId)).toHaveLength(1);

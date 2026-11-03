@@ -38,16 +38,9 @@ Rejected: a nullable `host_account_id` in `imessage_bindings`. That table's uniq
 
 ### 3. Inbound routing
 
-`processReceipt` keeps its first step: a link code goes to linking. After that, a message follows **the last message the line sent to that sender**:
+`processReceipt` first sends link codes to linking. A single active binding receives messages; no binding gets the existing unlinked reply. With multiple bindings, the sender selects a guest request with `request <ref>` or the host conversation with `setup` or a host request command. Until a selection is made, free text is not forwarded. A later outbound message in another conversation, or a new guest binding, requires another selection. Selection commands are recorded in the outbox, and expiry of those records returns the sender to the selection prompt.
 
-1. **After a guest notice** (the request confirmation, an approval, a decline, an expiry) it goes to that request's requester discussion.
-2. **After a host notice or reply** it keeps today's host path.
-3. **With no earlier message from the line**, it goes to the host binding if there is one, else to the only or most recently created guest binding.
-4. **With no binding**, the existing unlinked reply (host-imessage-channel D10).
-
-The "last message" is read from the outbox rows sent to the sender's hash, guest and host alike. Switching to another conversation uses the host iMessage channel's conversational selection (owned by the host-side iMessage work, not yet written; until it lands, `request <ref>`). A host's own guest requests are reachable from the host conversation only with a linked host profile with the iMessage item (section 6).
-
-A misroute stays inside one person's conversations, and approvals and declines need an explicit decision (`imessage-commands.ts`), so free text sent to the wrong side decides nothing.
+Photon API acceptance does not prove delivery, so outbox order alone cannot identify which conversation a reply concerns. The host-side conversational selection remains a separate future enhancement. A host's own guest requests are reachable from the host conversation only with a linked host profile with the iMessage item (section 6).
 
 Forwarded guest text is stored as `[iMessage] …` in the requester discussion (as host-imessage-channel D11), under the same redaction, admission and model limits as web and email input. The reply is the turn's final assistant text, sent through the outbox. Email text is marked the same way, as `[Email] …`, so the assistant knows a reply goes back as plain text. Neither channel shows cards, so the assistant takes the guest's decisions by conversation (U15), and both replies drop Markdown marks.
 

@@ -44,7 +44,8 @@ afterAll(async () => {
 async function say(sender: string, hostAccountId: string, text: string, id?: string) {
   const delivered = await im.deliver({ id, sender, text });
   const rows = await db<{ id: string }[]>`
-    select id from app.imessage_outbox where host_account_id = ${hostAccountId} and kind = 'command' and dedupe_key = ${`receipt:${delivered.receiptId}`}
+    select id from app.imessage_outbox where host_account_id = ${hostAccountId} and kind = 'command'
+      and dedupe_key in (${`receipt:${delivered.receiptId}`}, ${`host-selection:${delivered.receiptId}`})
   `;
   if (rows.length === 0) return { delivered, reply: null };
   const { sent } = await im.send(rows[0]!.id);

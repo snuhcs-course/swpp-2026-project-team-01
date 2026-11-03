@@ -293,63 +293,75 @@ type GuestBinding = {
   readonly sealed_key_id: string | null;
 };
 
-async function guestBindingById(tx: Transaction, id: string) {
-  const [row] = await tx<GuestBinding[]>`
-    select id, request_id, state, moved_to_request_id, sealed_key_id from app.requester_imessage_bindings where id = ${id}
-  `;
-  return row ?? null;
-}
-
 async function activeGuestBindings(tx: Transaction, senderHash: string) {
-  return tx<GuestBinding[]>`
-    select id, request_id, state, moved_to_request_id, sealed_key_id from app.requester_imessage_bindings
-    where sender_hash = ${senderHash} and state = 'active'
-    order by created_at desc
+  return tx<(GuestBinding & { host_name: string | null })[]>`
+    select b.id, b.request_id, b.state, b.moved_to_request_id, b.sealed_key_id, s.settings ->> 'displayName' as host_name
+    from app.requester_imessage_bindings b
+    join app.requests r on r.id = b.request_id
+    left join app.host_settings s on s.host_account_id = r.host_account_id
+    where b.sender_hash = ${senderHash} and b.state = 'active'
+    order by b.created_at desc
   `;
 }
 
-// Which guest binding, if any, a message from this sender is for:
-//   1. `request <ref>` naming one of the sender's guest requests switches to it
-//      (until the host side's conversational selection lands);
-//   2. any other exact command from a linked host is the host's;
-//   3. otherwise the last message the line sent this sender decides: a guest
-//      message's binding (following a move to the revised request), unless the
-//      guest unlinked it; a host message, the host path;
-//   4. with neither, the host binding if there is one, else the most recent
-//      guest binding; null means the host path, which answers a sender with no
-//      binding at all with the unlinked reply.
-async function guestRoute(tx: Transaction, receipt: OpenedReceipt): Promise<{ binding: GuestBinding; switched: boolean } | null> {
+// Multiple active conversations require an explicit selection. An outbound
+// message in another conversation invalidates it: API acceptance does not
+// establish which message reached the sender or in which order.
+async function guestRoute(tx: Transaction, receipt: OpenedReceipt): Promise<{ binding: GuestBinding; switched: boolean } | "ambiguous" | null> {
   const command = receipt.text ? parseCommand(receipt.text) : null;
   const guests = await activeGuestBindings(tx, receipt.senderHash);
+  const host = await activeBindingOfSender(tx, receipt.senderHash);
 
   if (command?.name === "request") {
-    const named = guests.find((binding) => requestRef(binding.request_id) === command.ref);
-    if (named) return { binding: named, switched: true };
+    const named = guests.filter((binding) => requestRef(binding.request_id) === command.ref);
+    if (named.length && host) {
+      const requests = await tx<{ id: string }[]>`select id from app.requests where host_account_id = ${host.host_account_id} and state <> 'draft'`;
+      if (requests.some((request) => requestRef(request.id) === command.ref)) return "ambiguous";
+    }
+    if (named.length === 1) return { binding: named[0]!, switched: true };
+    if (named.length > 1) return "ambiguous";
+    if (guests.length && !host) return "ambiguous";
   }
 
-  const host = await activeBindingOfSender(tx, receipt.senderHash);
   if (command && host) return null;
 
-  const [last] = await tx<{ binding_id: string | null; requester_binding_id: string | null }[]>`
-    select binding_id, requester_binding_id from app.imessage_outbox
-    where recipient_hash = ${receipt.senderHash} and (binding_id is not null or requester_binding_id is not null)
-    order by created_at desc, id desc
-    limit 1
-  `;
-
-  if (last?.requester_binding_id) {
-    let binding = await guestBindingById(tx, last.requester_binding_id);
-    for (let hops = 0; binding?.state === "moved" && binding.moved_to_request_id && hops < 10; hops += 1) {
-      const [next] = await tx<GuestBinding[]>`
-        select id, request_id, state, moved_to_request_id, sealed_key_id from app.requester_imessage_bindings
-        where request_id = ${binding.moved_to_request_id} and sender_hash = ${receipt.senderHash}
-        order by created_at desc limit 1
+  if (guests.length + Number(Boolean(host)) > 1) {
+    const [selection] = await tx<{ id: string; binding_id: string | null; requester_binding_id: string | null; request_id: string | null }[]>`
+      select id, binding_id, requester_binding_id, request_id from app.imessage_outbox
+      where recipient_hash = ${receipt.senderHash} and kind = 'command'
+        and (dedupe_key like 'guest-selection:%' or dedupe_key like 'host-selection:%')
+      order by created_at desc, id desc limit 1
+    `;
+    if (selection) {
+      const [changed] = await tx<{ found: boolean }[]>`
+        select exists (
+          select 1 from app.imessage_outbox
+          where recipient_hash = ${receipt.senderHash}
+            and (binding_id is not null or requester_binding_id is not null)
+            and (binding_id is distinct from ${selection.binding_id} or requester_binding_id is distinct from ${selection.requester_binding_id}
+              or (binding_id is not null and request_id is distinct from ${selection.request_id}))
+            and (state = 'dispatching'
+              or created_at > (select created_at from app.imessage_outbox where id = ${selection.id})
+              or dispatched_at > (select created_at from app.imessage_outbox where id = ${selection.id})
+              or completed_at > (select created_at from app.imessage_outbox where id = ${selection.id}))
+        ) or exists (
+          select 1 from app.requester_imessage_bindings
+          where sender_hash = ${receipt.senderHash} and state = 'active'
+            and created_at > (select created_at from app.imessage_outbox where id = ${selection.id})
+        ) or exists (
+          select 1 from app.imessage_bindings
+          where sender_hash = ${receipt.senderHash} and state = 'active'
+            and linked_at > (select created_at from app.imessage_outbox where id = ${selection.id})
+        ) as found
       `;
-      binding = next ?? null;
+      if (changed?.found) return "ambiguous";
     }
-    if (binding && binding.state !== "unlinked" && binding.state !== "moved") return { binding, switched: false };
-  } else if (last?.binding_id && host) {
-    return null;
+    if (selection?.requester_binding_id) {
+      const selected = guests.find((binding) => binding.id === selection.requester_binding_id);
+      if (selected) return { binding: selected, switched: false };
+    }
+    if (selection?.binding_id && host?.id === selection.binding_id) return null;
+    return "ambiguous";
   }
 
   if (host) return null;
@@ -420,7 +432,7 @@ async function guestMessage(
   }
 
   if (route.switched) {
-    await guestReply(tx, deps, receipt, binding, { dedupeKey: `receipt:${receipt.id}`, kind: "command", text: GUEST_TEXTS.switched(request?.host_name ?? "your host") });
+    await guestReply(tx, deps, receipt, binding, { dedupeKey: `guest-selection:${receipt.id}`, kind: "command", text: GUEST_TEXTS.switched(request?.host_name ?? "your host") });
     return "command";
   }
 
@@ -544,6 +556,19 @@ export async function processReceipt(
   if (receipt.spaceType !== "dm" || ["reaction", "read", "typing"].includes(receipt.contentType)) return "ignored";
 
   const guest = await guestRoute(tx, receipt);
+  if (guest === "ambiguous") {
+    const guests = await activeGuestBindings(tx, receipt.senderHash);
+    const host = await activeBindingOfSender(tx, receipt.senderHash);
+    await recordOutbound(tx, {
+      dedupeKey: `receipt:${receipt.id}`,
+      kind: "command",
+      recipient: { address: receipt.sender, spaceId: receipt.spaceId },
+      recipientHash: receipt.senderHash,
+      text: ["Choose a conversation before sending a message:", ...guests.map((binding) => `request ${requestRef(binding.request_id)}: ${binding.host_name ?? "your host"}`), ...(host ? ["For your host conversation, send setup."] : []), "If a reference is shared, use your booking page or the app."].join("\n"),
+      tokenKey: deps.tokenKey,
+    });
+    return "replied";
+  }
   if (guest) return channel ? guestMessage(tx, deps, receipt, guest) : "ignored";
 
   const recipient = { address: receipt.sender, spaceId: receipt.spaceId };

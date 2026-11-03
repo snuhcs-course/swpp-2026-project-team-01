@@ -25,6 +25,38 @@ async function nextConsent(consent: object) {
   if (!response.ok) throw new Error(`Setting the fake consent failed with ${response.status}.`);
 }
 
+test("a Google guest can reuse their host calendar and basic details", async ({ db, page }) => {
+  test.setTimeout(180_000);
+  const host = await readyRequestHost(db, "Ada Lovelace");
+  const guestHost = await readyRequestHost(db, "Grace Hopper");
+  const email = `host-guest-${randomUUID()}@example.test`;
+  const userId = randomUUID();
+  const subject = `e2e-${randomUUID()}`;
+  await db`insert into auth.users (id, email) values (${userId}, ${email})`;
+  await db`insert into app.google_identities (google_subject, host_account_id, auth_user_id, email) values (${subject}, ${guestHost.hostAccountId}, ${userId}, ${email})`;
+  await db`update app.host_settings set settings = jsonb_set(settings, '{timezone}', '"Europe/London"') where host_account_id = ${guestHost.hostAccountId}`;
+  await nextConsent({ decision: "approve", identity: { email, email_verified: true, name: "Grace Hopper", sub: subject }, scopes: ["openid", "email", "profile"] });
+
+  await page.goto(`/${host.handle}`);
+  await press(page, /^Continue with web$/);
+  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+  await press(page, /^Continue with Google$/);
+  await expect(page).toHaveURL(/\/booking\/[0-9a-f-]{36}$/);
+  await expect(page.getByRole("heading", { name: "Use your host settings for this request" })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: /Calendars/ })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /Basic details/ })).toBeChecked();
+  await press(page, /^Use these settings$/);
+  await expect(page.locator('[data-guest-card="host_profile"]')).toContainText("Using your calendars, your basic details");
+
+  const profile = async () => (await db<{ items: string[]; decided: boolean; settled: boolean; timezone: string }[]>`
+    select p.items, p.decided_at is not null as decided, r.calendar_settled_at is not null as settled,
+           (select patch ->> 'timezone' from app.request_reviews where request_id = r.id and state = 'pending' limit 1) as timezone
+    from app.requester_host_profiles p join app.requests r on r.id = p.request_id
+    where r.host_account_id = ${host.hostAccountId}
+  `)[0];
+  await expect.poll(profile).toEqual({ items: ["calendars", "details"], decided: true, settled: true, timezone: "Europe/London" });
+});
+
 // Moves focus with Tab until the focused control's accessible name matches,
 // then activates it with the key (Enter by default).
 async function press(page: Page, name: RegExp, key = "Enter") {
@@ -83,6 +115,7 @@ for (const viewport of [
     await press(page, /^Continue with Google$/);
     await expect(page).toHaveURL(new RegExp(`/${host.handle}$`));
     await expect(page.getByText("Google sign-in was cancelled.", { exact: false })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "How should the host reach you?" })).toBeVisible();
     const [draft] = await db<{ id: string; state: string }[]>`select id, state from app.requests where host_account_id = ${host.hostAccountId}`;
     expect(draft!.state).toBe("draft");
 
@@ -97,9 +130,12 @@ for (const viewport of [
 
     await expect(page).toHaveURL(/\/booking\/[0-9a-f-]{36}$/);
     await expect(page.getByText("Google filled in your name and email.")).toBeVisible();
-    await expect(page.locator('[data-guest-card="identity"]').getByText(`Grace Hopper · ${email}`)).toBeVisible();
-    const [identified] = await db<{ id: string; state: string }[]>`select id, state from app.requests where host_account_id = ${host.hostAccountId}`;
-    expect(identified).toEqual({ id: draft!.id, state: "gathering" });
+    await expect(page.locator('[data-guest-card="identity"]').getByText("Continued with Google")).toBeVisible();
+    await press(page, /^Request details$/);
+    await expect(page.getByRole("complementary", { name: "Request with Ada Lovelace" }).getByText(`Grace Hopper · ${email}`)).toBeVisible();
+    await press(page, /^Close details$/);
+    const [identified] = await db<{ id: string; state: string; requester_name: string; contact_email: string }[]>`select id, state, requester_name, contact_email from app.requests where host_account_id = ${host.hostAccountId}`;
+    expect(identified).toEqual({ id: draft!.id, state: "gathering", requester_name: "Grace Hopper", contact_email: email });
     await expect(page.locator('[data-guest-card="calendar"]').getByText("Skipped")).toBeVisible();
 
     // U13: the fixed question opens the composer; the assistant's drafted review

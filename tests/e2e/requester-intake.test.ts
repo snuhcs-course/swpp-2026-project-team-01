@@ -100,8 +100,8 @@ for (const viewport of [
     // U7, U8: the web start's two fixed messages and the identity card; no
     // request exists yet and no message went to the model.
     await press(page, /^Continue with web$/);
-    await expect(page.getByText("Hi, I'm Thyme, Ada Lovelace's scheduling assistant.", { exact: false })).toBeVisible();
-    await expect(page.getByText(/continue with your Google account and Calendar/)).toBeVisible();
+    await expect(page.locator('[data-authored-message="greeting"] p:not(:has(span)), [data-authored-message="greeting"] span[aria-hidden="true"]')).toContainText("Hi, I'm Thyme, Ada Lovelace's scheduling assistant.");
+    await expect(page.locator('[data-authored-message="google"] p:not(:has(span)), [data-authored-message="google"] span[aria-hidden="true"]')).toContainText("continue with your Google account and Calendar");
     await expect(page.getByRole("heading", { name: "How should the host reach you?" })).toBeVisible();
     await baseExpect(page.locator('[data-guest-card="guest-identity"]').getByRole("link", { name: "How we use your calendar" })).toHaveAttribute(
       "href",
