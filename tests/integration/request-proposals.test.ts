@@ -7,6 +7,7 @@ import { agreeCommand, allowTripCommand, chooseCandidateCommand } from "../../li
 import { createRequesterCommandHandler, createRequesterStateHandler } from "../../lib/server/requester-routes";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
+import { fakeGoogleConfig } from "./support/calendar-host";
 import { call, guestDependencies } from "./support/guests";
 import {
   asRequester,
@@ -212,6 +213,32 @@ describe("agreement guards", () => {
     expect((await view(r.bookingId)).proposal!.version).toBe(2);
   });
 
+  it("records no agreement and finds times again when the host's calendar no longer fits the time", async () => {
+    const r = await proposed();
+    const before = await view(r.bookingId);
+    const { end, start } = before.proposal!;
+    r.setCalendar({ events: { [r.calendarId]: [{ end: { dateTime: end }, id: "new-busy", start: { dateTime: start }, status: "confirmed" }] } });
+
+    const agreed = await asRequester(db, r.requestId, agreeCommand(() => evaluationDeps(db, google)), { version: 1 }, { expectedRevision: 1 });
+
+    expect(agreed).toMatchObject({ ok: true, result: { outcome: "time_unavailable", version: 1 } });
+    expect(await agreements(r.requestId)).toEqual([]);
+    const after = await view(r.bookingId);
+    expect(after.request).toMatchObject({ revision: 1, state: "negotiating" });
+    expect(after.evaluation).toMatchObject({ state: "pending" });
+    expect(after.evaluation!.id).not.toBe(before.evaluation!.id);
+  });
+
+  it("agrees when the host's calendar cannot be read, leaving the check to booking", async () => {
+    const r = await proposed();
+    const unreachable = evaluationDeps(db, google, { calendar: fakeGoogleConfig(google, { apiBaseUrl: "http://127.0.0.1:9/calendar/v3" }) });
+
+    const agreed = await asRequester(db, r.requestId, agreeCommand(() => unreachable), { version: 1 }, { expectedRevision: 1 });
+
+    expect(agreed).toMatchObject({ ok: true, result: { outcome: "agreed", state: "awaiting_host_approval", version: 1 } });
+    expect(await agreements(r.requestId)).toEqual([{ request_revision: 1, version: 1 }]);
+  });
+
   it("rejects agreement once the details changed after the proposal", async () => {
     const r = await proposed();
     await command(r.bookingId, "request.update_details", { details: { purpose: "A different meeting" }, timezone: "Asia/Seoul" }, 1);
@@ -259,7 +286,7 @@ describe("agreement guards", () => {
       await held;
     });
     await lockTaken;
-    const agreeing = asRequester(db, r.requestId, agreeCommand, { version: 1 }, { expectedRevision: 1 });
+    const agreeing = asRequester(db, r.requestId, agreeCommand(() => evaluationDeps(db, google)), { version: 1 }, { expectedRevision: 1 });
     await new Promise((resolve) => setTimeout(resolve, 3_000));
     release();
     await holder;

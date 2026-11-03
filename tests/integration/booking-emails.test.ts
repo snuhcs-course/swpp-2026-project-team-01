@@ -154,7 +154,7 @@ describe("status notifications", () => {
     if (!shared.ok) throw new Error("share failed");
     await runEvaluation(db, { ...evaluationDeps(db, google), notices: testNotices }, shared.result.evaluationId);
 
-    await asRequester(db, request.requestId, agreeCommand, { version: 2 }, { expectedRevision: await revisionOf(db, request.requestId) });
+    await asRequester(db, request.requestId, agreeCommand(() => evaluationDeps(db, google)), { version: 2 }, { expectedRevision: await revisionOf(db, request.requestId) });
     await deliverAll(request.requestId);
 
     expect(await states(request.requestId)).toEqual([{ kind: "status_new_version", recipients: [request.contactEmail], state: "suppressed" }]);
