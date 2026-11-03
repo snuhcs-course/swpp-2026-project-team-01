@@ -1,0 +1,23 @@
+{
+  "branch": "fix/landing-hero-overlap",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:5a06d6b0-2253-450e-ac16-834dbdadb826": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 219946,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 34,
+          "cache_read": 1487057,
+          "cache_write_5m": 0,
+          "cache_write_1h": 32517,
+          "output": 10020,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T16:37:06.911Z",
+      "last": "2026-11-03T16:41:30.242Z"
+    }
+  }
+}

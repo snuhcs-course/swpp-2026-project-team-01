@@ -201,7 +201,7 @@
 /* landing */
 .ink .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 384px); align-items: start; gap: 32px 24px; padding-left: var(--inset-l); padding-right: var(--inset-r); }
 .ink .pitch { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; min-width: 0; padding-top: clamp(8px, 2cqi + (100cqi - 960px) * 0.225, 100px); }
-.ink .hero h1 { letter-spacing: 0; font-size: calc(clamp(32px, 4.6cqi, 56px) * var(--hd-scale)); line-height: 1.04; }
+.ink .hero h1 { letter-spacing: 0; font-size: calc(clamp(32px, 4.6cqi, 50px) * var(--hd-scale)); line-height: 1.04; }
 .ink .hero h1 span { display: block; white-space: nowrap; }
 .ink .lede { color: var(--muted-ink); font-size: 18px; line-height: 1.6; max-width: 46ch; }
 .ink .start { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
