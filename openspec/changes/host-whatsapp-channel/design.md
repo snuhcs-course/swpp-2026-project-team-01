@@ -158,7 +158,7 @@ These are unchanged in shape and only take the channel:
 
 - **What an inbound message may do** (iMessage design 7): ordering per conversation, `FMAT-` handling first, the unlinked-sender reply (once per sender per 24 hours, at most 200 per line per day, counted per channel), the suspended host, "I can read text messages only." for other content (WhatsApp voice notes included), commands, then forwarding.
 - **Exact commands** (iMessage D8) with `stop` added (section 8).
-- **Forwarding and replies** (iMessage D11): the transcript prefix is `[WhatsApp] …`, and the host instructions name the channel and its lack of cards, as for iMessage.
+- **Forwarding and replies** (iMessage D11): the transcript prefix is `[WhatsApp] …`, and the host instructions name the channel and its lack of cards, as for iMessage. `/app` shows these messages on their own **WhatsApp** tab, as iMessage D20 does.
 - **Summaries** (iMessage D12) inside the window, and section 7 outside it.
 - **Setup over chat** with the welcome by host state and the Calendar link that returns to the conversation (iMessage D19). The return message is subject to the window.
 - **Admission limits and backpressure** from `chat-workspaces`, with the same deferral and ordering waits.

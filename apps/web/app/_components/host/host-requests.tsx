@@ -6,7 +6,7 @@ import type { RequestState } from "@lib/contracts/request";
 import { displayTime } from "@lib/contracts/timezone";
 import { AlertCircleIcon, ArrowLeftIcon, XIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Receipt } from "@/app/_components/booking-receipt";
 import { GuestCard, GuestCardActions } from "@/app/_components/guest/guest-card";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
@@ -15,8 +15,10 @@ import "@/app/_components/ink/ink.css";
 import { ChatComposer } from "@/components/chat/composer";
 import { ChatConversation, ChatConversationContent, ChatItem, ChatScrollButton } from "@/components/chat/conversation";
 import { AgentMessage, AgentThinking } from "@/components/chat/message";
+import { ChatTabs } from "@/components/chat/tabs";
 import { Button } from "@/components/ui/button";
 import { postHostCommand, readHostRequest, readHostRequests, readSharedEvents } from "@/lib/chat/host-requests";
+import { type ChannelEntry, type MessageChannel, messagingChannels, messagingLabel, splitByChannel } from "@/lib/chat/channels";
 import { errorMessage, project, useHostDiscussion } from "@/lib/chat/use-host-discussion";
 import {
   BookingCard,
@@ -27,6 +29,7 @@ import {
   SuggestionCard,
   SuggestionEditor,
 } from "./host-request-cards";
+import { MessagingDiscussion } from "./messaging-discussion";
 
 // The host's requests in /app (host-review-and-booking design 2 and 3;
 // chat-workspaces: host request inbox and discussion switch). With no request
@@ -166,7 +169,11 @@ function Inbox({ onSelect }: { readonly onSelect: (requestId: string) => void })
 // ---------------------------------------------------------------------------
 // One request
 
-type View = "private" | "shared";
+// A linked iMessage or WhatsApp shares the private discussion; its messages
+// have their own tab (host-imessage-channel D20), shown once there are any.
+type View = "private" | "messaging" | "shared";
+
+type HostDiscussion = ReturnType<typeof useHostDiscussion>;
 
 function RequestView({ onBack, onUnavailable, requestId }: { readonly onBack: () => void; readonly onUnavailable: () => void; readonly requestId: string }) {
   const [view, setView] = useState<HostRequestView | null>(null);
@@ -210,18 +217,21 @@ function RequestView({ onBack, onUnavailable, requestId }: { readonly onBack: ()
     [requestId, view?.revision],
   );
 
+  // The discussion stays loaded while the host switches tabs.
+  const settled = useCallback(() => void reload(), [reload]);
+  const chat = useHostDiscussion({ onSettled: settled, request: requestId });
+  const entries = useMemo(() => splitByChannel(chat.messages), [chat.messages]);
+  const channels = messagingChannels(entries);
+  const channelLabel = messagingLabel(channels);
+  // The open turn answers the channel of the latest host message.
+  const turnChannel = chat.pendingText !== null ? "web" : (entries.at(-1)?.channel ?? "web");
+  const streamingIndex = chat.phase === "streaming" ? chat.messages.length - 1 : null;
+
   const tabs: readonly { readonly id: View; readonly label: string }[] = [
     { id: "private", label: "Private with Thyme" },
+    ...(channels.length > 0 ? [{ id: "messaging" as const, label: `In ${channelLabel}` }] : []),
     { id: "shared", label: view ? `Shared with ${view.requester.name}` : "Shared" },
   ];
-
-  function onTabKey(event: KeyboardEvent<HTMLButtonElement>) {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-    event.preventDefault();
-    const next: View = tab === "private" ? "shared" : "private";
-    setTab(next);
-    document.getElementById(`tab-${next}`)?.focus();
-  }
 
   return (
     <main aria-labelledby="request-heading" className="flex min-h-0 flex-1 flex-col">
@@ -248,33 +258,32 @@ function RequestView({ onBack, onUnavailable, requestId }: { readonly onBack: ()
             </p>
           ) : null}
         </div>
-        <div aria-label="Discussion" className="flex gap-1 rounded-lg border border-border p-1" role="tablist">
-          {tabs.map((entry) => (
-            <button
-              aria-controls={`panel-${entry.id}`}
-              aria-selected={tab === entry.id}
-              className="min-w-0 flex-1 truncate rounded-md px-3 py-1.5 text-sm aria-selected:bg-accent aria-selected:font-medium focus-visible:outline-2 focus-visible:outline-ring"
-              id={`tab-${entry.id}`}
-              key={entry.id}
-              onClick={() => setTab(entry.id)}
-              onKeyDown={onTabKey}
-              role="tab"
-              tabIndex={tab === entry.id ? 0 : -1}
-              type="button"
-            >
-              {entry.label}
-            </button>
-          ))}
-        </div>
+        <ChatTabs label="Discussion" onSelect={setTab} selected={tab} tabs={tabs} />
       </div>
       {tab === "private" ? (
         <div aria-labelledby="tab-private" className="flex min-h-0 flex-1 flex-col" id="panel-private" role="tabpanel">
           <PrivateDiscussion
+            chat={chat}
             context={view ? { run, view } : null}
             editing={editing}
-            onReload={reload}
-            requestId={requestId}
+            entries={entries}
             setEditing={setEditing}
+            streamingIndex={streamingIndex}
+            thinking={chat.thinking && turnChannel === "web"}
+            turnChannel={turnChannel}
+            channelLabel={channelLabel}
+          />
+        </div>
+      ) : tab === "messaging" ? (
+        <div aria-labelledby="tab-messaging" className="flex min-h-0 flex-1 flex-col" id="panel-messaging" role="tabpanel">
+          <MessagingDiscussion
+            busy={chat.phase !== "ready"}
+            entries={entries.filter((entry) => entry.channel !== "web")}
+            label={channelLabel}
+            note={`Reply about this request in ${channelLabel}, or write to Thyme here on the Private with Thyme tab.`}
+            streamingIndex={streamingIndex}
+            thinking={chat.thinking && turnChannel !== "web"}
+            turnFailed={chat.turnFailed && !chat.failed && chat.phase === "ready" && turnChannel !== "web"}
           />
         </div>
       ) : (
@@ -343,21 +352,28 @@ function FindCard({ context, onRequestChanges }: { readonly context: HostCardCon
 }
 
 function PrivateDiscussion({
+  channelLabel,
+  chat,
   context,
   editing,
-  onReload,
-  requestId,
+  entries,
   setEditing,
+  streamingIndex,
+  thinking,
+  turnChannel,
 }: {
+  readonly channelLabel: string;
+  readonly chat: HostDiscussion;
   readonly context: HostCardContext | null;
   readonly editing: boolean;
-  readonly onReload: () => Promise<void>;
-  readonly requestId: string;
+  readonly entries: readonly ChannelEntry[];
   readonly setEditing: (value: boolean) => void;
+  readonly streamingIndex: number | null;
+  readonly thinking: boolean;
+  readonly turnChannel: MessageChannel;
 }) {
-  const settled = useCallback(() => void onReload(), [onReload]);
-  const chat = useHostDiscussion({ onSettled: settled, request: requestId });
   const busy = chat.phase !== "ready";
+  const web = entries.filter((entry) => entry.channel === "web");
 
   return (
     <>
@@ -374,17 +390,17 @@ function PrivateDiscussion({
       ) : null}
       <ChatConversation>
         <ChatConversationContent aria-busy={busy} aria-label="Private messages">
-          {chat.messages.length === 0 && chat.phase === "ready" ? (
+          {web.length === 0 && chat.phase === "ready" ? (
             <p className="px-3 text-sm text-muted-foreground">
               Ask Thyme about this request: why a time works, or what to suggest instead. The requester never sees this conversation.
             </p>
           ) : null}
-          {chat.messages.map((message, index) => (
-            <ChatItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
+          {web.map((entry) => (
+            <ChatItem key={entry.message.id} messageId={entry.message.id} scrollAnchor={entry.message.role === "user"}>
               <AgentMessage
                 canRespond={false}
-                isStreaming={chat.phase === "streaming" && index === chat.messages.length - 1}
-                message={message}
+                isStreaming={entry.index === streamingIndex}
+                message={entry.message}
                 onInputResponses={() => {}}
               />
             </ChatItem>
@@ -399,14 +415,19 @@ function PrivateDiscussion({
               />
             </ChatItem>
           ) : null}
-          {chat.turnFailed && !chat.failed && chat.phase === "ready" ? (
+          {chat.turnFailed && !chat.failed && chat.phase === "ready" && turnChannel === "web" ? (
             <p className="px-3 text-sm text-muted-foreground" role="status">
               Thyme couldn&apos;t finish this reply. Your message is saved; try again in a little while.
             </p>
           ) : null}
-          {chat.thinking ? (
+          {chat.thinking && turnChannel !== "web" ? (
+            <p className="px-3 text-sm text-muted-foreground" role="status">
+              Thyme is replying in {channelLabel}.
+            </p>
+          ) : null}
+          {thinking ? (
             <ChatItem messageId="thinking">
-              <AgentThinking withHeader={chat.pendingText !== null || chat.lastMessage?.role !== "assistant"} />
+              <AgentThinking withHeader={chat.pendingText !== null || web.at(-1)?.message.role !== "assistant"} />
             </ChatItem>
           ) : null}
           {context ? (

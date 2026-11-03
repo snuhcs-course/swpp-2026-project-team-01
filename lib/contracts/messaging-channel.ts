@@ -10,6 +10,12 @@ export function isMessagingChannel(value: unknown): value is MessagingChannel {
   return value === "imessage" || value === "whatsapp";
 }
 
+export const CHANNEL_NAMES: Record<MessagingChannel, string> = { imessage: "iMessage", whatsapp: "WhatsApp" };
+
+// The marker a forwarded message is stored with in the host's discussion
+// (host-imessage-channel D11), which /app reads to show it on its own tab (D20).
+export const CHANNEL_MARKERS: Record<MessagingChannel, string> = { imessage: "[iMessage] ", whatsapp: "[WhatsApp] " };
+
 // What a device is offered (D7): Android has no iMessage, so it gets WhatsApp
 // alone; an iPhone, iPad or Mac gets iMessage with a way to use WhatsApp
 // instead; any other computer asks which app the host uses on their phone.
