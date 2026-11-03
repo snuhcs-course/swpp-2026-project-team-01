@@ -13,6 +13,8 @@ import { type SetupContextValue, SetupProvider, useSetupController } from "@/app
 import { focusCard } from "@/app/_components/setup/card";
 import { describeSetupTool } from "@/app/_components/setup/tool-labels";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
+import { HostSettingsDialog } from "@/app/_components/host-settings-dialog";
+import "@/app/_components/ink/ink.css";
 import { ChatComposer } from "@/components/chat/composer";
 import { ChatConversation, ChatConversationContent, ChatItem, ChatScrollButton } from "@/components/chat/conversation";
 import { AgentMessage, AgentThinking } from "@/components/chat/message";
@@ -121,10 +123,10 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
   }, [reveal.done, setupState]);
 
   return (
-    <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
+    <div className="onboarding-ink flex h-dvh min-h-0 flex-col bg-background text-foreground">
       <header className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 sm:px-6">
-        <h1 className="truncate font-display text-lg">Find Me a Time</h1>
-        <WorkspaceMenu onSelectImessage={openImessage} onSelectRequests={onOpenRequests} onSelectSetup={focusSetup} />
+        <h1 className="truncate font-display text-[clamp(26px,3vw,33px)] leading-none">Find Me a Time</h1>
+        <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectImessage={openImessage} onSelectRequests={onOpenRequests} onSelectSetup={focusSetup} /></div>
       </header>
 
       <main aria-label="Setup conversation with Thyme" className="flex min-h-0 flex-1 flex-col">

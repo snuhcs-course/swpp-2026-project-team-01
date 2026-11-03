@@ -19,7 +19,7 @@ async function sendMessage(page: Page, text: string) {
 test("signed out, /app offers Google sign-in and no conversation", async ({ page }) => {
   await page.goto("/app");
 
-  await expect(page.getByRole("link", { name: "Sign in with Google" })).toHaveAttribute("href", "/auth/sign-in");
+  await expect(page.getByRole("link", { name: "Continue with Google" })).toHaveAttribute("href", "/auth/sign-in");
   await expect(page.getByRole("textbox")).toHaveCount(0);
 });
 
@@ -77,7 +77,7 @@ test("the menu works by keyboard alone, closes on Escape and returns focus", asy
   await page.keyboard.press("Enter");
   await page.waitForURL((url) => url.pathname === "/");
   await page.goto("/app");
-  await expect(page.getByRole("link", { name: "Sign in with Google" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Continue with Google" })).toBeVisible();
 });
 
 test("at 200% zoom the workspace has no horizontal scroll", async ({ baseURL, context, db, page }) => {

@@ -34,12 +34,15 @@ Public visitors enter through `/` or a host's `/{handle}` link. The landing has 
 - Once ready, continue the host-agent conversation. Surface pending requests as selectable cards or a contextual picker with search/status filters, empty/loading states and delivery problems. Selecting a request loads its authorized discussion and current proposal in `/app`, addressable as `/app?request={requestId}`. The request opens with a labeled switch between **Private with Thyme**, the host-private discussion with its decision cards, and **Shared**, the requester conversation shown read-only with the current proposal and status and no composer ([`host-review-and-booking` design](../../openspec/changes/host-review-and-booking/design.md#2-host-discussions-and-the-switch)).
 - Review proposals, approve, request changes, decline and inspect private rule/travel explanations in context. Each action names its request and current proposal revision. Show one shared or private discussion at a time; changing the visible discussion never merges their histories.
 - Open labeled in-page dialogs for exact rules, calendars, timezone and personal-agent grants. Keep iMessage linking in inline conversation cards. Keep these controls usable during model failures and return focus to the conversation after closing.
+- The upper-right gear opens settings over the current setup or request conversation. It shows confirmed weekly availability and timezone, lets the host save window edits as a draft for explicit confirmation, offers a saved **Accept new meeting requests** switch, and includes sign-out. Closing with X or Escape preserves the conversation.
 
 Authentication and provider consent may use their dedicated routes, then return to `/app` and restore the server-authorized context. Notification entry and reload must recover the intended request only after checking ownership; the route itself grants no request access.
 
 ## Requester booking destination
 
 `/[handle]` is the public entry for starting a new request: the guest's first message there starts a draft and its conversation. Once the guest is identified, `/booking/[bookingId]` is the stable, protected destination for that same conversation and its eventual receipt. It reuses the conversation shell rather than introducing a separate management dashboard. Hosts review the selected request inside `/app`.
+
+When the host pauses new requests in settings, the public page and agent entry show the same neutral unavailable result as an unavailable host; email entry also declines new requests. Existing drafts and requests continue through their existing links. Turning intake back on still requires an active account and ready Calendar setup.
 
 Here, `bookingId` identifies the user-facing scheduling record from intake onward. It resolves server-side to the domain request; it is not the later calendar event ID or booking-attempt ID. Naming the page “booking” does not mean an event exists. Show the authoritative lifecycle explicitly: gathering/negotiating, awaiting host approval, booking pending or uncertain, confirmed, or another terminal state.
 

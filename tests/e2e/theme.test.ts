@@ -47,15 +47,15 @@ test("the paper layer is omitted in forced colors", async ({ page }) => {
   expect(await paperLayer(page)).toMatchObject({ backgroundImage: "none", content: "none" });
 });
 
-test("headings use Merriweather and body text Geist", async ({ page }) => {
-  // The landing uses the ink screens' own type (D18); the signed-out workspace keeps the Thyme theme.
+test("the signed-out workspace uses Big Shoulders headings and Geist body text", async ({ page }) => {
   await page.goto("/app");
+  await expect(page.getByRole("heading", { name: "Find Me a Time" })).toBeVisible();
 
   const fonts = await page.evaluate(() => ({
-    body: getComputedStyle(document.body).fontFamily,
+    body: getComputedStyle(document.querySelector("main")!).fontFamily,
     heading: getComputedStyle(document.querySelector("h1")!).fontFamily,
   }));
-  expect(fonts.heading).toMatch(/merriweather/i);
+  expect(fonts.heading).toMatch(/big.shoulders/i);
   expect(fonts.body).toMatch(/geist/i);
 });
 

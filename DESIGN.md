@@ -1,7 +1,7 @@
 ---
 title: Find Me a Time — Visual Design
 date: 2026-10-29
-status: Ink direction for the whole app; the landing and the iMessage link step implement it, the rest of the app still runs the Thyme theme
+status: Ink direction for the whole app; landing, iMessage, host and guest onboarding use scoped ink treatment while other screens retain Thyme globals
 colors:
   canvas: "#F6F7F9"
   surface: "#FFFFFF"
@@ -51,7 +51,7 @@ This document defines the visual direction taken from the approved landing proto
 
 For component structure, message and composer interactions and responsive polish, study the Vercel chatbot and the eve chat template listed in the [reference repositories](documentations/technical_specification/02_frontend_architecture.md#reference-repositories) and adapt their shapes to this palette.
 
-**Where it is implemented.** The public landing (`/` and `/?flow=imessage`) and the iMessage link step in `/app` use these tokens in `apps/web/app/_components/ink/ink.css`, scoped under `.ink` ([`host-imessage-channel` D18](openspec/changes/host-imessage-channel/proposal.md#decisions)). The rest of the app (`/app`'s conversation, host pages, booking, privacy) still uses the earlier Thyme tokens in `apps/web/app/globals.css` until it is migrated. See [Known gaps](#known-gaps).
+**Where it is implemented.** The public landing (`/` and `/?flow=imessage`) and the iMessage link step in `/app` use these tokens in `apps/web/app/_components/ink/ink.css`, scoped under `.ink` ([`host-imessage-channel` D18](openspec/changes/host-imessage-channel/proposal.md#decisions)). Host setup, its request workspace, the guest conversation and the settings dialog use scoped `.onboarding-ink` styles. Other app screens still use the earlier Thyme tokens in `apps/web/app/globals.css` until the shared migration. See [Known gaps](#known-gaps).
 
 ## Mood
 
@@ -209,7 +209,7 @@ Review a landing page, a conversation with long messages, a proposal awaiting ho
 
 ## Known gaps
 
-- Only the landing and the iMessage link step use this direction. `/app`'s conversation, host pages, booking and the privacy page still run the Thyme tokens in `apps/web/app/globals.css` (olive on warm ivory, Merriweather headings); `apps/web/app/theme.test.ts` and `tests/e2e/theme.test.ts` check those Thyme values until the migration replaces them.
+- The landing and iMessage link step use the full ink treatment. Host setup, the host request workspace, the guest conversation and the settings dialog now use scoped ink colors, Big Shoulders display text, control shapes and paper treatment through `apps/web/app/_components/ink/ink.css`; visual acceptance at phone width and zoom is still pending. Other host pages, booking chrome and privacy remain on the Thyme globals until the shared migration. `apps/web/app/theme.test.ts` still checks the global Thyme tokens.
 - The logo mask is shown at 10–20px with no simplified small-size version. The new calligraphic logo, SVG favicon and chat profile picture are in progress.
 - The example thread's shadow still uses the earlier olive ink color (`rgb(48 54 43)`); the menu and popup shadows use ink (`rgb(30 36 48)`). Align them when the shadows are tokenized.
 - The ink paper texture is not removed in forced-colors mode or for printing yet.

@@ -46,6 +46,7 @@ const EN: LegalDocument = {
         "Your name and email address, to send you the booking link and the meeting's status.",
         "The details of your request and your conversation with the assistant.",
         "If you choose Continue with Google: your Google name and email, and, only if you allow it, read-only access to your calendars and their events. We use your events only to find when you are free and to plan your own travel between places; they are never shown to the host or any agent.",
+        "If you upload a calendar screenshot: the image is sent to OpenAI to suggest visible free time ranges. We do not keep the image or extracted event text in the request; only the time windows you review and confirm are saved. Do not upload details you do not want processed.",
         "If you write by email: the messages in your email thread with the service.",
       ],
       paragraphs: ["When you ask a host for a meeting we collect:"],
@@ -72,7 +73,7 @@ const EN: LegalDocument = {
       id: "processors",
       items: [
         "Supabase (database and sign-in) and Vercel (hosting), in the United States.",
-        "OpenAI, which runs the assistant. We call it with storage turned off; under OpenAI's API terms the data is not used to train models, and OpenAI may keep it for up to 30 days to monitor abuse. We have no zero-retention agreement with OpenAI.",
+        "OpenAI, which runs the assistant and reads optional calendar screenshots. We call it with storage turned off; under OpenAI's API terms the data is not used to train models, and OpenAI may keep it for up to 30 days to monitor abuse. We have no zero-retention agreement with OpenAI.",
         "Google, for sign-in and Calendar.",
         "Cloudflare, which sends our transactional email from no-reply@findmeatime.com and runs our domain.",
         "AgentMail, which holds the email threads of requests made by email, and Photon, which carries a host's iMessage conversation.",
@@ -141,6 +142,7 @@ const KO: LegalDocument = {
         "예약 링크와 미팅 상태를 보내기 위한 이름과 이메일 주소.",
         "요청 내용과 어시스턴트와의 대화.",
         "Continue with Google을 선택한 경우: Google 이름과 이메일, 그리고 허용한 경우에만 캘린더와 그 일정에 대한 읽기 전용 접근. 일정은 비어 있는 시간을 찾고 본인의 이동을 계획하는 데만 쓰며, 호스트나 어떤 에이전트에게도 보여 주지 않습니다.",
+        "캘린더 스크린샷을 올린 경우: 이미지가 OpenAI로 전송되어 화면에 보이는 빈 시간대를 제안합니다. 이미지와 추출된 일정 내용은 요청에 저장하지 않으며, 직접 검토하고 확인한 시간대만 저장합니다. 처리되기를 원하지 않는 세부 정보는 올리지 마세요.",
         "이메일로 요청한 경우: 서비스와 주고받은 이메일 스레드의 메시지.",
       ],
       paragraphs: ["호스트에게 미팅을 요청하면 다음을 수집합니다."],
@@ -167,7 +169,7 @@ const KO: LegalDocument = {
       id: "processors",
       items: [
         "Supabase(데이터베이스와 로그인), Vercel(호스팅). 미국에 있습니다.",
-        "어시스턴트를 실행하는 OpenAI. 저장을 끈 상태로 호출하며, OpenAI API 약관에 따라 모델 학습에 쓰이지 않습니다. OpenAI는 남용 감시를 위해 최대 30일 보관할 수 있습니다. OpenAI와 무보관 계약은 맺지 않았습니다.",
+        "어시스턴트를 실행하고 선택적으로 올린 캘린더 스크린샷을 읽는 OpenAI. 저장을 끈 상태로 호출하며, OpenAI API 약관에 따라 모델 학습에 쓰이지 않습니다. OpenAI는 남용 감시를 위해 최대 30일 보관할 수 있습니다. OpenAI와 무보관 계약은 맺지 않았습니다.",
         "로그인과 캘린더를 위한 Google.",
         "no-reply@findmeatime.com에서 거래 이메일을 보내고 도메인을 운영하는 Cloudflare.",
         "이메일로 시작한 요청의 스레드를 보관하는 AgentMail, 호스트의 iMessage 대화를 전달하는 Photon.",

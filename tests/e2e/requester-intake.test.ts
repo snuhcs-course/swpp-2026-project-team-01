@@ -169,7 +169,9 @@ for (const viewport of [
     const identity = page.locator('[data-guest-card="guest-identity"]');
     await typeInto(page, identity.getByLabel("Your name"), "Grace Hopper");
     await typeInto(page, identity.getByLabel("Email address"), email);
-    await press(page, /^Continue without Google$/);
+    // Cover the reported Enter path at phone width and the button path on desktop.
+    if (viewport.width === 390) await page.keyboard.press("Enter");
+    else await press(page, /^Continue without Google$/);
 
     // The booking link replaces the address in place: no page load since the first message.
     await expect(page).toHaveURL(/\/booking\/[0-9a-f-]{36}$/);
@@ -197,6 +199,15 @@ for (const viewport of [
     // G4: no calendar connection for this guest.
     await expect(page.getByRole("heading", { name: "Check your Google Calendar for times?" })).toBeFocused();
     await openCardCount(page, 1);
+    if (viewport.width === 390) {
+      const screenshot = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC", "base64");
+      await page.getByLabel("Upload calendar screenshot (optional)").setInputFiles({ name: "calendar.png", mimeType: "image/png", buffer: screenshot });
+      await expect(page.getByAltText("Selected calendar screenshot")).toBeVisible();
+      await page.getByRole("button", { name: "Read screenshot" }).click();
+      await expect(page.getByText(/Automatic reading is unavailable/)).toBeVisible();
+      await page.getByRole("button", { name: "Remove image" }).click();
+      await expect(page.getByAltText("Selected calendar screenshot")).toHaveCount(0);
+    }
     await press(page, /^Skip for now$/);
 
     // G6: Find times, evaluated by the job.

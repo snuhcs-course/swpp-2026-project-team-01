@@ -3,8 +3,10 @@ import { type LanguageModel, type LanguageModelMiddleware, wrapLanguageModel } f
 import { database, type Database } from "./database";
 
 // The model limit middleware (design decision 6). Wrapping the agent's model with
-// limitModel puts every provider request through it, including eve's retries and
-// compaction calls, because they all use the same model. Per attempt, in order:
+// limitModel puts agent provider requests through it, including eve's retries
+// and compaction calls. Calendar screenshot OCR reserves through the same
+// allowance table with reserveCalendarOcr before its direct vision call.
+// Per agent attempt, in order:
 //   1. reject serialized input over 128 KiB, attachments and provider-executed
 //      tools;
 //   2. attribute the call: a conversation call by its prompt cache key (the
@@ -25,8 +27,8 @@ import { database, type Database } from "./database";
 //      published prices.
 // A denial throws ModelLimitError before any provider request. Only reported
 // usage settles a reservation, so a failed, aborted or usage-less attempt stays
-// charged at the full upper bound. No count of attempts limits a work item: only
-// the USD windows do.
+// charged at the full upper bound. Calendar OCR is limited to five attempts per
+// request; other model work is limited by the USD windows.
 
 // USD per million tokens on the standard tier, which every call selects. One home
 // for the models in use: `gpt-5.6-terra` serves the agent (agent/agent.ts) and
@@ -43,6 +45,7 @@ export const MODEL_PRICES: Readonly<Record<string, { readonly cachedInputUsd: st
 
 export const MODEL_LIMITS = {
   attemptReservationUsd: "0.60",
+  calendarOcrAttempts: 5,
   conversationOutputTokens: 4096,
   // A non-streamed call has no chunks to be idle between, so it gets one total
   // deadline instead, long enough for a full reasoning response.
@@ -67,6 +70,7 @@ export type ModelLimits = {
 export type ModelLimitCode =
   | "anonymous_allowance"
   | "attachment"
+  | "attempts_exhausted"
   | "authority_expired"
   | "deadline"
   | "input_too_large"
@@ -109,7 +113,7 @@ type InnerModel = Parameters<NonNullable<Middleware["wrapGenerate"]>>[0]["model"
 type Attribution = {
   readonly principal: Principal;
   readonly sessionId: string | null;
-  readonly work: { readonly kind: "conversation_input" | "ranking_check"; readonly id: string };
+  readonly work: { readonly kind: "conversation_input" | "ranking_check" | "calendar_ocr"; readonly id: string };
 };
 
 // Lock keys, taken in this order: work item, principal, anonymous (requests,
@@ -243,6 +247,17 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
       }
     }
 
+    if (work.kind === "calendar_ocr") {
+      const [attempts] = await tx<{ count: number }[]>`
+        select count(*)::int as count from app.model_reservations
+        where work_kind = 'calendar_ocr' and work_id = ${work.id}
+      `;
+
+      if (attempts!.count >= limits.calendarOcrAttempts) {
+        throw new ModelLimitError("attempts_exhausted");
+      }
+    }
+
     const principalCap = anonymous ? limits.anonymousPrincipalWindowUsd : limits.principalWindowUsd;
     const [usage] = await tx<
       { anonymous_over: boolean; principal_over: boolean; service_over: boolean; window_start: Date }[]
@@ -284,6 +299,17 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
 
     return reservation!.id;
   });
+}
+
+// A screenshot is an explicit request-scoped provider attempt. Reserve before
+// sending bytes so retries, failed calls and concurrent uploads share the same
+// principal, anonymous and service allowance as other model work.
+export async function reserveCalendarOcr(db: Database, requestId: string) {
+  await reserve(db, {
+    principal: { type: "requester_request", id: requestId },
+    sessionId: null,
+    work: { kind: "calendar_ocr", id: requestId },
+  }, MODEL_LIMITS);
 }
 
 type Usage = Awaited<ReturnType<InnerModel["doGenerate"]>>["usage"];
