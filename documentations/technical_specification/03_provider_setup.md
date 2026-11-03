@@ -111,9 +111,22 @@ Photon's deliverability guidance makes inbound-first the default: an authenticat
 
 Verify request selection, private discussion, revision and exact-proposal approval/decline on a controlled iPhone. Unsupported recipients/groups must not receive private state. Record actual device/client versions; transport send success alone cannot establish device receipt or attribution.
 
+### Shared lines and registered users
+
+The production project is on Photon's Free plan, whose iMessage lines are shared: a shared line delivers only messages from registered project users and sends only to them ([troubleshooting](https://photon.codes/docs/spectrum-ts/troubleshooting/imessage), issue #94). Every iMessage link start therefore asks for the person's number first and registers it as a shared user through `POST https://spectrum.photon.codes/projects/{projectId}/users/` with the project credentials. The code is then addressed to the `assignedPhoneNumber` Photon returns, kept on the attempt as `imessage_links.line_number` ([`imessage-number-registration`](../../openspec/changes/imessage-number-registration/proposal.md#decisions) D1, D2). `PHOTON_LINE_NUMBER` only turns iMessage on. The Free plan allows 10 registered users and Pro 100 ([pricing](https://photon.codes/pricing)); a full project refuses new numbers. Read the registered users with `photon spectrum users ls --project <id>`. A dedicated line (Business) has no such list.
+
 ### Display-name, contact cards and profile sync
 
-Offer optional **Add to contacts** as a host action after a verified private exchange; the connected card queues one native contact-card share through the Spectrum SDK ([`host-imessage-channel` design 11](../../openspec/changes/host-imessage-channel/design.md#11-add-to-contacts)). Freeze the actual selected route and report provider acceptance/uncertainty truthfully. The recipient chooses whether to save it; the product cannot promise the displayed name or infer identity/consent from a contact card. Verify the actual account profile and real-device presentation independently before claiming support.
+Share the contact card once after **Confirm and link**, held behind the welcome, as Photon's [deliverability guidance](https://photon.codes/docs/best-practices/imessage-deliverability.md) advises, and offer optional **Add to contacts** as a host action for another share; each queues one native contact-card share through the Spectrum SDK ([`host-imessage-channel` design 11 and 18](../../openspec/changes/host-imessage-channel/design.md#18-read-marks-typing-tapbacks-and-the-contact-card-after-linking-d20d22)). Read marks, the typing bubble and the thanks tapback go through the same SDK as best-effort outbox signals (`space.read`, `space.startTyping`, `message.react`). Freeze the actual selected route and report provider acceptance/uncertainty truthfully. The recipient chooses whether to save it; the product cannot promise the displayed name or infer identity/consent from a contact card. Verify the actual account profile and real-device presentation independently before claiming support.
+
+### References
+
+Photon and eve documentation for the iMessage channel. Phase 6 relied on the Spectrum SDK, eve's bundled adapter and Photon's webhook documentation and did not read the first three pages below; reviewing the channel against all five is [issue #80](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/80).
+
+- [Spectrum iMessage provider](https://photon.codes/docs/spectrum-ts/providers/imessage.md): the provider's message, space and sender model, lines and supported content.
+- [Chat SDK integration](https://photon.codes/docs/integrations/chat-sdk): Photon through the Chat SDK adapter, the alternative to an application-owned adapter.
+- [eve Photon channel](https://eve.dev/docs/channels/photon): eve's native `photonIMessageChannel`, which [`host-imessage-channel` design 1](../../openspec/changes/host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter) (D1) did not adopt.
+- [Photon documentation index](https://photon.codes/docs/llms.txt) and [Photon site index](https://photon.codes/llms.txt): machine-readable lists of every documentation page, including [webhook events](https://photon.codes/docs/webhooks/events.md) and [iMessage deliverability](https://photon.codes/docs/best-practices/imessage-deliverability).
 
 ## WhatsApp Business
 
@@ -127,8 +140,8 @@ Facts from Photon's documentation and the provider package, not yet seen on a re
 
 Operator steps, all blocked on the user until the implementing pull requests land:
 
-1. In WhatsApp Manager, for the business portfolio that owns the number, submit the three utility templates of [design 8](../../openspec/changes/host-whatsapp-channel/design.md#8-templates) in `en_US`, with their exact names and bodies, and wait for approval. Record each template's status and category. A reclassification to marketing goes back to the team.
-2. Confirm the display name "Find Me a Time" and business verification. The number is **+1 711-454-9153**, and its messaging limit is **250 customers per rolling 24 hours** (the user, 2026-11-04), Meta's tier before business verification. That limit counts business-initiated conversations, here only the template notices, so the default of 50 templates a day stays inside it.
+1. In WhatsApp Manager, for the business portfolio that owns the number, submit the three utility templates of [design 8](../../openspec/changes/host-whatsapp-channel/design.md#8-templates) in `en_US`, with their exact names and bodies, and wait for approval. Record each template's status and category. A reclassification to marketing goes back to the team. Submitted on 2026-11-04 and in review; each body uses `{{1}}` once, because Meta refuses a repeated variable.
+2. Confirm the display name "Find Me a Time" and business verification. On 2026-11-04 the number was connected in the portfolio "ASTIA - Something Great Inc" with the display name **Astia**; change it, or move the number to a Find Me a Time portfolio, before submitting the templates. The number is **+1 711-454-9153**, and its messaging limit is **250 customers per rolling 24 hours** (the user, 2026-11-04), Meta's tier before business verification. That limit counts business-initiated conversations, here only the template notices, so the default of 50 templates a day stays inside it.
 3. Set `PHOTON_WHATSAPP_NUMBER=17114549153` (digits, for the card and `https://wa.me/17114549153`) and, if the default of 50 is wrong, `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` on Vercel Production only. Previews and staging keep messaging denied.
 4. Send one message from a controlled Android phone to the number and confirm that the stored receipt has channel `whatsapp`. Record the exact `platform` spelling and sender format in the change and here. Then run AC-29 to AC-31.
 

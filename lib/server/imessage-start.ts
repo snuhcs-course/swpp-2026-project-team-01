@@ -6,7 +6,17 @@ import { CommandError } from "./commands";
 import type { Database, Queryable } from "./database";
 import { generateLinkCode, hashLinkCode } from "./email-links";
 import { readReceivedContinuation } from "./imessage-continuation";
-import { codeContext, endOpenAttempts, IMESSAGE_LINK_LIMITS, linkChannels, linkLockKey, lockHostLinking, senderContext } from "./imessage-links";
+import {
+  codeContext,
+  endOpenAttempts,
+  IMESSAGE_LINK_LIMITS,
+  linkChannels,
+  linkLockKey,
+  lockHostLinking,
+  registeredLineNumber,
+  senderContext,
+} from "./imessage-links";
+import type { PhotonRegistrar } from "./photon";
 import { imessageHash } from "./photon-receiver";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
 
@@ -36,6 +46,8 @@ export type StartOptions = {
   readonly lineNumber: string;
   readonly whatsappNumber?: string;
   readonly limits?: Partial<typeof IMESSAGE_START_LIMITS>;
+  // Registers the entered number with Photon; the deployment's by default.
+  readonly registrar?: PhotonRegistrar;
 };
 
 export function startCookie(value: string, origin: string, maxAge: number) {
@@ -63,13 +75,15 @@ function starterHash(key: TokenKey, secret: string) {
 }
 
 // Creates this browser's attempt, ending its earlier open one. The source and
-// service bounds count every start in the last hour, claimed or not.
+// service bounds count every start in the last hour, claimed or not. An
+// iMessage start registers the entered number first (imessage-number-registration D1).
 export async function startImessageLink(
   db: Database,
   options: StartOptions,
   secret: string,
   source: string,
   channel: MessagingChannel = "imessage",
+  number = "",
 ) {
   if (!linkChannels(options)[channel]) throw new CommandError("unavailable_configuration");
   const limits = { ...IMESSAGE_START_LIMITS, ...options.limits };
@@ -85,6 +99,8 @@ export async function startImessageLink(
     `;
     if (counts!.source >= limits.perSourceHour || counts!.service >= limits.serviceHour) throw new CommandError("rate_limited");
 
+    const lineNumber = channel === "imessage" ? await registeredLineNumber(options.registrar, number) : null;
+
     await tx`
       update app.imessage_links
       set state = 'voided', ended_at = now(), code_ciphertext = null, sender_ciphertext = null, space_ciphertext = null
@@ -95,8 +111,8 @@ export async function startImessageLink(
     const [row] = await tx<{ id: string }[]>`select gen_random_uuid() as id`;
     const sealed = sealToken(options.tokenKey, code, codeContext(row!.id));
     await tx`
-      insert into app.imessage_links (id, channel, method, starter_hash, source_hash, code_hash, code_ciphertext, sealed_key_id, expires_at)
-      values (${row!.id}, ${channel}, 'code', ${starter}, ${source}, ${hashLinkCode(code)}, ${sealed.ciphertext}, ${sealed.keyId},
+      insert into app.imessage_links (id, channel, method, starter_hash, source_hash, code_hash, code_ciphertext, sealed_key_id, line_number, expires_at)
+      values (${row!.id}, ${channel}, 'code', ${starter}, ${source}, ${hashLinkCode(code)}, ${sealed.ciphertext}, ${sealed.keyId}, ${lineNumber},
               now() + make_interval(mins => ${IMESSAGE_LINK_LIMITS.validMinutes}))
     `;
   });
@@ -120,15 +136,16 @@ export async function readStartStatus(db: Queryable, options: StartOptions, secr
       sender_key_id: string | null;
       expires_at: Date;
       confirm_by: Date | null;
+      line_number: string | null;
     }[]
   >`
-    select id, channel, state, code_ciphertext, sealed_key_id, sender_ciphertext, sender_key_id, expires_at, confirm_by
+    select id, channel, state, code_ciphertext, sealed_key_id, sender_ciphertext, sender_key_id, expires_at, confirm_by, line_number
     from app.imessage_links
     where starter_hash = ${starterHash(options.tokenKey, secret)} and host_account_id is null
       and ((state = 'pending' and expires_at > now()) or (state = 'received' and confirm_by > now()))
   `;
   if (!link) return none;
-  const shared = { channel: link.channel, channels, lineNumber: channels[link.channel] ?? "" };
+  const shared = { channel: link.channel, channels, lineNumber: link.line_number ?? channels[link.channel] ?? "" };
 
   try {
     if (link.state === "received") {

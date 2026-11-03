@@ -10,7 +10,14 @@ import type {
 } from "../contracts/request";
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
 import type { Queryable, Transaction } from "./database";
-import { publishEvaluation, readEvaluation, type StoredCandidate } from "./evaluation";
+import {
+  checkInterval,
+  type EvaluationDependencies,
+  evaluationDependenciesFromEnvironment,
+  publishEvaluation,
+  readEvaluation,
+  type StoredCandidate,
+} from "./evaluation";
 import { enqueueHostNotice } from "./imessage-notices";
 import { assertIdentified, lockOpenRequest } from "./request-guard";
 import { detailsComplete } from "./request-lifecycle";
@@ -29,7 +36,10 @@ import { detailsComplete } from "./request-lifecycle";
 // - request.agree (**Agree to this proposal**) records agreement to the exact
 //   current version while its start is still in the future after the lock and
 //   the request is open, and moves the request to awaiting host approval. An
-//   unconfirmed contact does not block it (D3).
+//   unconfirmed contact does not block it (D3). It first reads the host's
+//   calendars again for the proposed interval (agreement-calendar-recheck):
+//   a time that stopped fitting records no agreement and sends the host
+//   nothing.
 //
 // All four answer identity_required while the request is a draft: candidate
 // times wait until the guest gives a name and email (design decision 2).
@@ -82,12 +92,13 @@ type ProposalRow = {
   id: string;
   request_revision: number;
   start_at: Date;
+  end_at: Date;
   version: number;
 };
 
 async function latestProposal(db: Queryable, requestId: string) {
   const [row] = await db<ProposalRow[]>`
-    select p.id, p.version, p.details, p.start_at, e.request_revision as evaluation_revision, r.revision as request_revision,
+    select p.id, p.version, p.details, p.start_at, p.end_at, e.request_revision as evaluation_revision, r.revision as request_revision,
            a.agreed_at
     from app.proposals p
     join app.evaluations e on e.id = p.evaluation_id
@@ -286,38 +297,78 @@ export const chooseCandidateCommand: CommandDefinition<z.infer<typeof chooseInpu
 
 const agreeInput = z.object({ version: z.number().int().min(1) }).strict();
 
-export type AgreeResult = { readonly version: number; readonly revision: number; readonly state: RequestState };
+export type AgreeResult =
+  | { readonly outcome: "agreed"; readonly version: number; readonly revision: number; readonly state: RequestState }
+  // The host's calendars no longer fit the proposed interval: nothing was
+  // agreed, and a new evaluation (null when rate-limited) finds other times.
+  | { readonly outcome: "time_unavailable"; readonly version: number; readonly evaluationId: string | null };
 
-export const agreeCommand: CommandDefinition<z.infer<typeof agreeInput>, AgreeResult> = {
-  input: agreeInput,
-  operation: AGREE_OPERATION,
-  async run(tx, context) {
-    const request = await lockOpenRequest(tx, requester(context));
-    assertIdentified(request);
-    assertRevision(request.revision, context.expectedRevision);
+// The proposal's evaluation may be hours old, so agreement reads the host's
+// calendars again for its interval before the host is asked to approve
+// (agreement-calendar-recheck). Like booking revalidation it leaves out the
+// requester's calendar and ranking. A provider failure or the deadline does not
+// block agreement: booking revalidation still checks the interval before any
+// event is written.
+export function agreeCommand(
+  loadEvaluation: () => EvaluationDependencies = evaluationDependenciesFromEnvironment,
+): CommandDefinition<z.infer<typeof agreeInput>, AgreeResult> {
+  return {
+    input: agreeInput,
+    operation: AGREE_OPERATION,
+    async run(tx, context) {
+      const request = await lockOpenRequest(tx, requester(context));
+      assertIdentified(request);
+      assertRevision(request.revision, context.expectedRevision);
 
-    const latest = await latestProposal(tx, request.id);
+      const latest = await latestProposal(tx, request.id);
 
-    // Only the current version, made from an evaluation at the current details.
-    if (!latest || latest.version !== context.input.version || latest.evaluation_revision !== request.revision) {
-      throw new CommandError("stale_revision", { reason: "proposal_superseded" });
-    }
-    if (request.state !== "negotiating" || latest.agreed_at) throw new CommandError("stale_revision");
-    if (latest.start_at.getTime() <= (await clock(tx)).getTime()) throw new CommandError("invalid_input", { reason: "start_passed" });
+      // Only the current version, made from an evaluation at the current details.
+      if (!latest || latest.version !== context.input.version || latest.evaluation_revision !== request.revision) {
+        throw new CommandError("stale_revision", { reason: "proposal_superseded" });
+      }
+      if (request.state !== "negotiating" || latest.agreed_at) throw new CommandError("stale_revision");
+      if (latest.start_at.getTime() <= (await clock(tx)).getTime()) throw new CommandError("invalid_input", { reason: "start_passed" });
 
-    await tx`
-      insert into app.agreements (proposal_id, request_revision, retry_key)
-      values (${latest.id}, ${request.revision}, ${context.retryKey})
-    `;
-    await tx`
-      update app.requests set state = 'awaiting_host_approval', revision = revision + 1, updated_at = now()
-      where id = ${request.id}
-    `;
-    await enqueueHostNotice(tx, request.id, { kind: "awaiting_approval", version: latest.version });
+      const check = await checkInterval(
+        tx,
+        loadEvaluation(),
+        request.id,
+        { end: latest.end_at, start: latest.start_at },
+        { requesterCalendar: false },
+      );
 
-    return { revision: request.revision + 1, state: "awaiting_host_approval", version: latest.version };
-  },
-};
+      if (!check.ok && check.problem !== "unavailable") {
+        // A new evaluation at the same revision replaces the stale one as the
+        // current times, so the busy candidate cannot be chosen again.
+        const evaluationId = await publishEvaluation(tx, {
+          audience: "requester",
+          requestId: request.id,
+          retryKey: `agree:${context.retryKey}`,
+          reusePending: false,
+        }).then(
+          (published) => published.evaluationId,
+          (error: unknown) => {
+            if (error instanceof CommandError && error.category === "rate_limited") return null;
+            throw error;
+          },
+        );
+        return { evaluationId, outcome: "time_unavailable", version: latest.version };
+      }
+
+      await tx`
+        insert into app.agreements (proposal_id, request_revision, retry_key)
+        values (${latest.id}, ${request.revision}, ${context.retryKey})
+      `;
+      await tx`
+        update app.requests set state = 'awaiting_host_approval', revision = revision + 1, updated_at = now()
+        where id = ${request.id}
+      `;
+      await enqueueHostNotice(tx, request.id, { kind: "awaiting_approval", version: latest.version });
+
+      return { outcome: "agreed", revision: request.revision + 1, state: "awaiting_host_approval", version: latest.version };
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // request.change_agreement

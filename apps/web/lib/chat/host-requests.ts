@@ -1,12 +1,11 @@
 import type { CommandFailure } from "@lib/contracts/command-errors";
-import type { DiscussionEvent } from "@lib/contracts/discussion-events";
 import type { HostRequestItem, HostRequestOperation, HostRequestView } from "@lib/contracts/host-request";
-import { ChatRequestError, ndjsonLines } from "./discussion";
+import { ChatRequestError } from "./discussion";
 
 // Browser access to the host's requests in /app (host-review-and-booking
-// design 3): the inbox, one request's host projection, its card commands and
-// the shared requester conversation, read-only. The browser never sees a
-// booking link or calls /eve/v1.
+// design 3): the inbox, one request's host projection and its card commands.
+// The browser never sees a booking link, the requester's conversation or
+// /eve/v1.
 
 async function readJson<T>(response: Response): Promise<T> {
   const body = (await response.json().catch(() => ({}))) as { code?: string; error?: string };
@@ -58,10 +57,4 @@ export async function postHostCommand(
     ok: false,
     request: body.request ?? null,
   };
-}
-
-// The shared requester conversation's recorded events, from the start.
-export async function* readSharedEvents(requestId: string, signal?: AbortSignal): AsyncGenerator<DiscussionEvent> {
-  const response = await fetch(`/api/host/requests/${encodeURIComponent(requestId)}/shared`, { cache: "no-store", signal });
-  yield* ndjsonLines<DiscussionEvent>(response);
 }

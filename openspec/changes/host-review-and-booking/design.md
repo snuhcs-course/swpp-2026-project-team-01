@@ -14,7 +14,7 @@ Before designing each module, read the reference files the [plan names for Phase
 
 ## Goals / Non-Goals
 
-**Goals:** a host opens a request from the `/app` inbox, discusses it privately with the assistant, reads the shared conversation, reviews the exact proposal, resolves private rule and travel questions, approves, requests changes or declines; approval books the event in Google Calendar exactly once, even across retries, competing requests and lost responses; both parties receive a confirmation and see the receipt; the requester hears about new versions, decline, expiry and a booking that stays pending.
+**Goals:** a host opens a request from the `/app` inbox, discusses it privately with the assistant, reviews the exact proposal, resolves private rule and travel questions, approves, requests changes or declines; approval books the event in Google Calendar exactly once, even across retries, competing requests and lost responses; both parties receive a confirmation and see the receipt; the requester hears about new versions, decline, expiry and a booking that stays pending.
 
 **Non-goals:** post-booking rescheduling and cancellation (outside the first release); host decisions over iMessage (Phase 6), MCP or the CLI (Phase 5); requester email threads (Phase 7); reminder emails (D3).
 
@@ -39,7 +39,9 @@ A host selecting a request opens, on first use, a discussion `(host_account, hos
 
 `appAuth` admits a host principal for its setup discussion or for a `host_review` discussion whose request belongs to it, both for internal bearers and for the browser's cookie stream, and puts `requestId` in the session attributes. Admission counts host-review messages against the same host windows as setup.
 
-The request view in `/app` has a labeled two-option switch, **Private with Thyme** and **Shared with {requester}**. Private is the host-review conversation and its cards. **Shared** (D6) is the requester discussion's history, read through the application with an internal read bearer for that discussion, shown read-only, plus the current proposal and status; it has no composer. The switch never merges histories, and nothing from the private discussion is readable by the requester: the requester routes only ever resolve the requester discussion.
+The request view in `/app` shows the host-review conversation and its cards, and nothing else. The requester discussion is not readable by the host (D6, revised 2026-11-04): no host route, view or tool reads its history, and the host learns the request's state only from the host projection (details, proposal, agreement, status, receipt). In the other direction nothing from the private discussion is readable by the requester: the requester routes only ever resolve the requester discussion.
+
+Rejected: a **Shared with {requester}** tab beside **Private with Thyme** showing the requester history read-only, read through the application with an internal read bearer (the first D6, implemented and removed before archive). Requesters write to the assistant as a private exchange and were never told the host could read it.
 
 Rejected: a shared host composer that relays host text into the requester's assistant session (D6), which needs authorship labels in the requester's model context and its own injection review.
 
@@ -199,9 +201,9 @@ The receipt is built from the confirmed booking's evidence and frozen payload on
 | Layer | Covers |
 |---|---|
 | Unit (beside modules) | Event payload building, event ID derivation, the calendar part, confirmation and status templates in both languages, the weekly-limit hold, host projections |
-| Integration (`tests/integration/`) | Approval on the current, a superseded and an unagreed version; repeated approval with another retry key; revalidation finding a new busy event, a competing booking for the same host, expiry during revalidation and the deadline; withdrawal and decline before and after dispatch; insert success, `409`, rejection, revoked grant, timeout then found, timeout then absent; exhaustion and **Check booking status**; the pending notice; the confirmation for both recipients with and without `iCalUID`; status emails; shared changes that pass and fail; allowances and waivers; host-review sessions and their tool list; the host reading another host's request; the shared view's read-only history |
+| Integration (`tests/integration/`) | Approval on the current, a superseded and an unagreed version; repeated approval with another retry key; revalidation finding a new busy event, a competing booking for the same host, expiry during revalidation and the deadline; withdrawal and decline before and after dispatch; insert success, `409`, rejection, revoked grant, timeout then found, timeout then absent; exhaustion and **Check booking status**; the pending notice; the confirmation for both recipients with and without `iCalUID`; status emails; shared changes that pass and fail; allowances and waivers; host-review sessions and their tool list; the host reading another host's request |
 | Database (`supabase/tests/`) | `anon` and `authenticated` reach no new table |
-| Browser (`tests/e2e/`) | From a request awaiting approval: the host opens it from the inbox, switches views, approves, and both sides see the receipt, against fake Google, fake Cloudflare and the OpenAI stand-in; keyboard use at 390 and 1280 pixels |
+| Browser (`tests/e2e/`) | From a request awaiting approval: the host opens it from the inbox, finds no view of the requester's conversation, approves, and both sides see the receipt, against fake Google, fake Cloudflare and the OpenAI stand-in; keyboard use at 390 and 1280 pixels |
 
 ## Risks / Trade-offs
 

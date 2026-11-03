@@ -140,6 +140,27 @@
 /* the app question on the link step: two equal choices */
 .ink .choices { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
 .ink .choices > * { flex: 1 1 180px; min-height: 56px; }
+/* the number asked before an iMessage link (imessage-number-registration D3): one white field with the country
+   code on a soft tab, and the pill beside it; inputs stay at 16px or more so iOS doesn't zoom in */
+.ink .phone-form { display: flex; flex-direction: column; gap: 8px; width: 100%; padding-top: 4px; }
+.ink .phone-form label { font-size: 15px; font-weight: 600; }
+.ink .field-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.ink .phone-field {
+  flex: 1 1 220px; min-width: 0; display: flex; align-items: stretch; min-height: 52px; box-sizing: border-box;
+  background: var(--surface); border: 1px solid var(--botanical); border-radius: 9999px; overflow: hidden;
+}
+.ink .phone-field:focus-within { outline: 2px solid var(--primary); outline-offset: 3px; border-color: var(--primary); }
+.ink .phone-field:has(input[aria-invalid="true"]) { border-color: var(--destructive); }
+.ink .phone-field select {
+  flex: none; font: inherit; font-size: 16px; font-variant-numeric: tabular-nums; color: var(--ink);
+  background: var(--soft-surface); border: 0; padding: 0 10px 0 18px; cursor: pointer;
+}
+.ink .phone-field select:focus, .ink .phone-field input:focus { outline: none; }
+.ink .phone-field input {
+  flex: 1; min-width: 0; padding: 0 18px 0 14px; border: 0; background: transparent;
+  font: inherit; font-size: 17px; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: var(--ink);
+}
+.ink .phone-field input::placeholder { color: var(--muted-ink); opacity: 0.7; }
 .ink .field-help { font-size: 13px; color: var(--muted-ink); min-height: 20px; }
 .ink .field-help.error { color: var(--destructive); font-weight: 500; }
 .ink .fine { font-size: 13px; line-height: 1.55; color: var(--muted-ink); max-width: 56ch; }
@@ -237,6 +258,9 @@
   .ink .alt .link-btn { padding-block: 12px; }
   .ink .lang-btn, .ink .top .secondary-btn { min-height: 44px; height: 44px; }
   .ink .ways, .ink .ways.two { grid-template-columns: minmax(0, 1fr); }
+  /* the number gets the full width and the button sits under it */
+  .ink .phone-field { flex-basis: 100%; }
+  .ink .field-row .primary-btn { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ink .gbtn, .ink .primary-btn, .ink .secondary-btn, .ink .lang-btn, .ink .prompt-copy { transition: none; }

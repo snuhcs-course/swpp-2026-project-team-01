@@ -12,13 +12,16 @@
 -- channel picks the transport (host-whatsapp-channel design 4 and 9); a template
 -- row is a WhatsApp notice outside the 24-hour window, sent as template_name with
 -- the sealed text as its one parameter (design 8).
+-- A signal row (host-imessage-channel design 18) is a best-effort read mark,
+-- tapback or typing bubble about the host's message, sealed as JSON in
+-- text_ciphertext; it is never retried and never counts as a delivery.
 CREATE TABLE "app"."imessage_outbox" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp')),
   "kind" text NOT NULL CHECK (
     "kind" IN (
       'link_received', 'link_refused', 'linked', 'fallback_code', 'unlinked_sender', 'text_only',
-      'command', 'turn', 'notice', 'contact_card', 'template'
+      'command', 'turn', 'notice', 'contact_card', 'signal', 'template'
     )
   ),
   "dedupe_key" text NOT NULL CHECK (char_length("dedupe_key") BETWEEN 1 AND 300),

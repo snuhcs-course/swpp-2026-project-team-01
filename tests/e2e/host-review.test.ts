@@ -5,8 +5,9 @@ import { expect, signedInHost, test } from "./support/session";
 
 // The host's review of a request in /app (tasks 3.3, 3.4 and 6.1) against the
 // real web and agent services, the local Supabase stack, the fake Google and the
-// OpenAI stand-in: the inbox, the private and shared switch by keyboard, the
-// proposal review, approval, the booking job and the receipt on both sides.
+// OpenAI stand-in: the inbox, the private discussion with no view of the
+// requester's conversation, the proposal review, approval, the booking job and
+// the receipt on both sides.
 
 async function hasNoHorizontalScroll(page: Page) {
   return page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
@@ -30,22 +31,14 @@ for (const width of [390, 1280]) {
     await card.click();
     await page.waitForURL((url) => url.searchParams.get("request") === request.requestId);
 
-    // The private discussion with the proposal review card.
-    const privateTab = page.getByRole("tab", { name: "Private with Thyme" });
-    await expect(privateTab).toHaveAttribute("aria-selected", "true");
+    // The private discussion with the proposal review card, and no way to the
+    // requester's own conversation.
+    await expect(page.getByRole("log", { name: "Private messages" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Approve this meeting?" })).toBeVisible();
     await expect(page.getByRole("textbox", { name: "Message Thyme" })).toBeVisible();
+    await expect(page.getByRole("tab")).toHaveCount(0);
     expect(await hasNoHorizontalScroll(page)).toBe(true);
-
-    // The shared conversation, read-only, by keyboard.
-    await privateTab.focus();
-    await page.keyboard.press("ArrowRight");
-    const sharedTab = page.getByRole("tab", { name: "Shared with Grace Hopper" });
-    await expect(sharedTab).toHaveAttribute("aria-selected", "true");
-    await expect(sharedTab).toBeFocused();
-    await expect(page.getByRole("textbox")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Approve this proposal" })).toHaveCount(0);
-    await page.keyboard.press("ArrowLeft");
+    expect((await page.request.get(`/api/host/requests/${request.requestId}/shared`)).status()).toBe(404);
 
     // Approval reserves the booking; the job creates the event.
     const approve = page.getByRole("button", { name: "Approve this proposal" });

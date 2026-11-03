@@ -43,6 +43,7 @@
 | 리비전 | 시간 선택, 협상 중으로의 자동 전환, 신원 확인은 요청 리비전을 올리지 않으며, 대기 중인 검토는 신원 확인을 따라갑니다 | 모든 변경마다 올림 | 설계 4 및 12 | `lib/server/request-proposals.ts`, `lib/server/request-lifecycle.ts`, `lib/server/request-start.ts` |
 | 호스트 대기 중 세부 사항 | 요청자가 합의하면 잠깁니다 | 새로 합의하면 수정 가능 | 제품 결정 | `lib/server/request-reviews.ts` |
 | 주간 한도 | 후보의 순서만 정합니다. 모든 후보가 가득 찬 주에 있어도 모두 제시합니다 | 호스트가 한도를 면제할 때까지 보류(주 명세 "Only full weeks"), 이는 4단계가 필요 | 제품 결정 | `lib/server/feasibility.ts`; 보관 전에 주 명세와 맞춰 해결 |
+| 주간 미팅 수 | 기본적으로 한도에 반영되는 한 주의 수는 다른 요청에 대한 호스트의 Find Me a Time 예약(reserved, dispatching 또는 confirmed 상태)이며, 예약의 이벤트가 충돌 캘린더에 없어도 예약이 집계되도록 `app.bookings`에서 읽습니다. 설정 옵션 **All meetings with guests**(`weeklyLimitCounts: "all_meetings"`)는 충돌 캘린더의 집계된 미팅도 함께 셉니다. 집계 방식은 설정이 한도를 추론할 때와 같아서, 바쁨으로 표시되고 호스트 외에 거절하지 않은 참석자가 있는 시간 지정 이벤트이며 예약 자체의 이벤트는 제외합니다. 종일 이벤트, 시간표, 루틴, 작업, 집중 시간은 계속 시간을 막지만 한 주를 채우지는 않습니다. 이 옵션이 생기기 전에 확정된 정책은 예약만 셉니다. 사용자는 2026-11-02에, 설정이 미팅 28개로부터 주당 6개를 추론한 호스트가 모든 주를 "43"으로 보게 된 일을 계기로 집계된 미팅을 택했고, 2026-11-04에 예약만을 기본값으로, 모든 미팅을 옵션으로 바꿨습니다 | 메모성으로 제외되지 않은 모든 바쁜 이벤트, 주 명세가 말한 방식(주당 약 43개를 제안했을 것입니다); 모든 호스트에게 집계된 미팅, 2026-11-02의 규칙; 예약을 캘린더 이벤트로 세는 방식, 충돌 캘린더가 아닌 예약 캘린더를 놓칩니다 | 이슈 #73; `meeting-feasibility` 주 명세 | `lib/server/feasibility.ts`의 `plan()`과 `meetingGuests`(`lib/server/analysis.ts`가 공유); `lib/server/evaluation.ts`의 예약 쿼리 |
 | 신원 카드 트리거 | 요청자 도구 `ask_for_identity`가 신원을 요청한 시점을 기록합니다. 카드는 `identity_required`와 메시지 한도에서도 나타납니다 | `draft_request_review`의 플래그 | 설계 12 | `agent/tools/request.ts`, `lib/server/guest-thread.ts` |
 | 지금은 건너뛰기 | 요청에 저장됩니다(`calendar_settled_at`) | 탭별 | 설계 12 | `request.set_manual_availability` |
 | 가림 처리 | 게스트 입력에서 숫자나 구두점이 있는 8자 이상의 베어러 값, 연결 증명, 자격 증명 URL 매개변수, 예약 링크, 단독 UUID를 제거합니다 | 모든 베어러 단어 제거, 모든 곳에서 단독 UUID 제거 | 설계 14 | `lib/server/redaction.ts` |
@@ -88,7 +89,7 @@
 | D3 | 리마인더는 미룹니다. 서비스는 리마인더나 후속 이메일을 보내지 않으며, 이벤트는 캘린더의 기본 알림을 유지합니다 | 24시간 전 서비스 리마인더 이메일 | 제안서; PRD 10절 | 제안서, 그다음 새 작업과 템플릿 |
 | D4 | 이벤트 ID는 예약 ID에서 도출해 디스패치 전에 저장하므로, Google이 두 번째 삽입을 거부하고 재조정은 ID로 이벤트를 읽습니다 | Google이 부여하는 ID | 제안서 | 제안서와 이벤트 빌더 |
 | D5 | Google이 자체 초대장을 보냅니다(`sendUpdates=all`). 우리 확인 이메일은 그 뒤에 보냅니다 | `sendUpdates=none`에 우리 캘린더 파트만 사용 | 제안서 | 제안서와 이벤트 빌더 |
-| D6 | 호스트의 **공유됨(Shared)** 보기는 제안과 상태가 담긴 읽기 전용 요청자 대화이며, 호스트는 거기서 카드로만 행동합니다 | 호스트 메시지를 요청자 스레드로 전달 | 제안서 | 제안서와 호스트 요청 보기 |
+| D6 | 호스트는 요청자와 어시스턴트의 대화를 보지 못합니다(2026-11-04 개정). 호스트는 호스트용 투영을 통해 요청을 보고 카드로만 행동합니다 | 요청자 대화의 읽기 전용 **공유(Shared)** 보기(최초의 D6, 제거됨: 요청자는 호스트가 이를 읽을 수 있다는 안내를 받지 못했습니다); 호스트 메시지를 요청자 스레드로 전달 | 제안서 | 제안서, 호스트 요청 보기, `conversation-access` |
 | D7 | **변경 요청(Request changes)**과 `propose_shared_changes`는 대기 중인 제안 하나를 만들고, **수정된 내용 공유(Share revised details)**가 이를 적용하고 시간을 확인한 뒤 다음 제안 버전을 기록합니다 | 실현 가능성 확인 없이 공유 | 제안서 | 제안서와 공유 변경 모듈 |
 | D8 | 모든 후보가 가득 찬 주에 걸리면, 호스트가 해당 요청의 주간 한도를 면제하거나 요청자가 기간을 넓힐 때까지 아무것도 제시하지 않습니다(주 명세 "Only full weeks"). 3단계의 순서만 정하던 동작을 대체합니다 | 순서만 정하는 동작 유지 | 제안서 | 제안서와 평가 작업의 요청자 프로젝션 |
 | D9 | 디스패치가 시작되었을 수 있는 시점 이후에는 작업이 이벤트 ID로 재조정하고 고정된 페이로드를 같은 ID로 다시 삽입하기만 하며, 실현 가능성을 다시 검증하지 않습니다. 8번 시도한 뒤 **예약 진행 중(Booking in progress)**과 **예약 상태 확인(Check booking status)**을 표시합니다 | 재시도마다 다시 검증 | 제안서 | 제안서와 예약 작업 |
@@ -114,7 +115,7 @@
 | 호스트 검토 허용 한도 | 호스트 검토 메시지는 설정과 같은 호스트별 허용 구간에 함께 집계됩니다 | 요청마다 별도의 구간 | 설계 2 | `lib/server/conversations.ts`의 `recordInput` |
 | 호스트 모델 투영 | 요청자의 이름과 목적은 인용된 문자열로, 연락처 이메일은 `present`로, 시간은 호스트의 시간대로 모델에 전달됩니다 | 원본 값 | 설계 12 | `lib/server/host-review-tools.ts`의 `hostModelProjection` |
 | 요청 화면 이동 | 메뉴에 **요청(Requests)**이 추가됩니다. `/app?view=requests`는 받은 요청함, `/app?request={requestId}`는 개별 요청이며 모두 같은 `/app` 페이지 안에 있습니다. 알 수 없거나 다른 호스트의 요청은 "That request is not available." 안내와 함께 받은 요청함으로 돌아갑니다 | 별도의 `/app/requests` 경로 | 설계 3; 페이지 목록 | `apps/web/app/_components/host-workspace.tsx`의 `HostWorkspace` |
-| 논의 전환 | 탭 두 개, **Thyme과 비공개(Private with Thyme)**와 **{requester}와 공유(Shared with {requester})**를 화살표 키로 전환합니다. 공유 탭은 기록된 이벤트에서 읽은 요청자 대화 내역이며 실시간으로 따라가지 않습니다 | 실시간으로 따라가는 공유 화면 | 설계 2 | `apps/web/app/_components/host/host-requests.tsx`의 `RequestView`와 `SharedConversation` |
+| 요청 보기 | 열려 있는 카드 하나가 있는 비공개 논의이며, 요청자 대화로 가는 탭이나 경로는 없습니다(D6, 2026-11-04 개정) | 탭 두 개, **Thyme과 비공개(Private with Thyme)**와 **{requester}와 공유(Shared with {requester})**, 요청자 대화 내역은 읽기 전용(제거됨) | 설계 2 | `apps/web/app/_components/host/host-requests.tsx`의 `RequestView` |
 | 열린 카드 순서 | 실행할 수 있는 카드는 하나만 보입니다. 대기 중이거나 확인 중인 제안이 먼저이고, 그다음 진행 중인 예약이나 재시도할 수 있는 실패, 그다음 보류가 있거나 해결되지 않은 이동이 있는 동안의 규칙 및 이동 검토, 마지막으로 제안서 검토입니다 | 모든 카드를 한꺼번에 보여주기 | 설계 3 | `apps/web/app/_components/host/host-request-cards.tsx`의 `nextHostStep` |
 | 제안 편집기 | 시간은 호스트의 시간대로 입력하고, 길이는 15분에서 480분까지 5분 단위입니다. 존재하지 않는 현지 시간은 브라우저에서 거부하고, 두 번 나타나는 시간은 더 이른 시점을 씁니다 | 자유 입력 시간 | 설계 4 | `SuggestionEditor`; `lib/contracts/timezone.ts`의 `instantFromLocal`; `lib/server/shared-changes.ts`의 `sharedChangesSchema` |
 | 정산 폴링 | 예약, 제안 확인, 평가가 대기 중인 동안 요청 화면은 3초마다 폴링합니다 | 푸시 업데이트 | 설계 3 | `host-requests.tsx`의 `SETTLING_POLL_MS` |
@@ -254,6 +255,10 @@
 | D17 | 터치 포인트가 없는 Macintosh 사용자 에이전트는 `mac`입니다. 연결 화면은 QR 코드와 **복사** 옆에 **이 Mac의 메시지 앱 열기**(iOS 딥링크 형식)를 제공하고, #35 카드는 그곳에서도 QR 코드를 유지합니다. Mac에서 미리 채운 본문은 2026-10-23에 사용자의 Mac에서 검증되었습니다 | Mac을 다른 데스크톱과 같이 취급 | 제안서; 설계 14 | `lib/contracts/imessage.ts`의 `messagesPlatform`과 `deepLinkFor` |
 | D18 | (사용자, 2026-10-23.) 랜딩(두 시작 모두)과 연결 단계는 `.ink` 범위로 묶인 랜딩 재설계의 잉크 팔레트, Big Shoulders, Geist를 `lang` 쿠키에 따른 영어와 한국어로 사용합니다. 캘린더 체크박스를 해제하면 신원만으로 로그인합니다(`/auth/sign-in?calendar=0`). 에이전트 프롬프트가 보이는 에이전트 섹션이며 `/SKILL.md`로 연결됩니다. 앱의 나머지는 옮겨질 때까지 Thyme 테마를 유지하며, 2026-10-29 사용자가 잉크를 앱 전체에 대한 DESIGN.md의 방향으로 정했습니다 | 이 화면들에 Thyme 테마; 앱 전체에 잉크 디자인 | 제안서; 설계 14; DESIGN.md | `apps/web/app/_components/ink/`; `createGoogleSignInHandler` |
 | D19 | (사용자, 2026-10-23.) iMessage 시작에서 온 코드에 대한 Thyme의 답장에는 `/imessage/continue?token={attempt}.{HMAC}`이 담기며, 시도가 확인을 기다리는 동안 어느 브라우저에서든 쓸 수 있습니다. 이 링크는 캘린더를 포함한 Google 로그인을 시작하고, 콜백은 다른 호스트가 쥐고 있지 않으면 그 시도를 해당 호스트에게 넘기며 확인 기한을 다시 시작합니다. **확인 및 연결**은 준비 상태와 캘린더에 따라 환영 메시지를 보냅니다. 준비된 호스트에게는 PR35의 문구를, 그렇지 않으면 캘린더 링크 `/auth/sign-in?consent=calendar&return=imessage` 또는 "How long should a typical meeting be?"를 보냅니다. 그 링크로 로그인하면 사용된 코드로 키를 매긴 "back from Google" 메시지가 하나 대기열에 들어갑니다. 2026-10-23의 기기 확인은 저장소 밖의 로컬 우회를 사용했습니다 | 메시지 게이트에서 지정한 수신자 한 명에 한해 로컬 실행의 Spectrum을 허용; 모든 호스트에게 같은 환영 메시지 | 제안서; 설계 17 | `lib/server/imessage-continuation.ts`; `claimContinuedLink`; `lib/server/imessage-links.ts`의 `linkedText`와 `resumeImessageOnboarding` |
+| D20 | (사용자, 2026-11-04, 이슈 #84, #80의 검토에서.) 연동된 호스트의 iMessage 문자는 채널이 처리한 뒤 최선 노력 방식의 발신함 `signal` 하나로 읽음 표시되며, 입력 중 표시는 그 문자가 턴을 시작한 경우에만 보냅니다. 수락됨 외의 모든 응답은 최종이며 재시도하지 않고, 전달 문제로 보지 않으며, 게스트 라우팅과 카드의 상태에서도 무시합니다 | 모든 메시지에 입력 중 표시(명령의 즉시 답장 뒤에 따라붙어 멈춰 있을 수 있음); 웹훅 수신기에서 읽음 표시; 발신함과 별도로 둔 신호 | 제안서; 설계 18; `host-imessage-channel` 델타 | `lib/server/imessage-receipts.ts`의 `processReceipt`와 `recordSignal`; `lib/server/photon.ts`와 `lib/server/imessage-outbox.ts`의 `signal` 분기 |
+| D21 | (사용자, 2026-11-04, 이슈 #84.) 영어 또는 한국어로 감사 인사만 담은 메시지에는 ❤️ 탭백을 보내고 턴을 시작하지 않으며, "ok", "yes", 👍는 여전히 대화에 전달됩니다 | 에이전트 도구를 통한 모델 선택 탭백(나중에); 승인으로서의 탭백 | 제안서; 설계 18 | `lib/server/imessage-receipts.ts`의 `isOnlyThanks`와 `THANKS_TAPBACK` |
+| D22 | (사용자, 2026-11-04, 이슈 #84.) **확인 및 연결**은 iMessage에서 연락처 카드를 대기열에 넣고, 발신함의 새 `delaySeconds`로 환영 메시지 뒤에 15초 보류합니다. **연락처에 추가**는 그대로 유지합니다 | 요청이 있을 때만 카드 전송(처음 결정된 D13) | 제안서; 설계 18과 11 | `lib/server/imessage-links.ts`의 `bind`와 `CARD_AFTER_WELCOME_SECONDS` |
+| D23 | (팀, 2026-11-04, 이슈 #88.) 연결된 호스트는 iMessage나 WhatsApp에서 자기 말로 현재 합의된 제안을 승인할 수 있습니다. 어시스턴트의 `approve_proposal` 도구는 해당 턴이 `[iMessage] ` 또는 `[WhatsApp] `가 붙은 메시지에 답하는 중일 때만, 그 도구가 지목한 현재 버전에 한해, 버튼과 같은 `approveCommand`로 승인합니다. 승인 대기 요약은 해당 요청을 선택하고 말로 하는 승인을 안내하며, 거절, 공유, 확인은 정확한 명령으로 남습니다 | 승인 전 다시 읽어 주는 확인; 고정된 긍정 단어; 정확한 명령만 유지(이전 규칙) | 제안서; 설계 19; `host-imessage-channel` 델타; PRD FR-27, AC-17, 10절 | `lib/server/host-review-tools.ts`의 `approveProposalForTool`; `agent/tools/request.ts`의 도구; `agent/instructions/host-imessage.ts`; `requestSummary`와 알림 작업 |
 
 ### 구현 결정
 
@@ -493,6 +498,7 @@
 | D10 | Meta 오류 매핑: 131047은 `window_closed`; 131026은 거부됨; 132xxx는 `template_unavailable`; 130429와 131056은 사용 불가로 보고 재시도. 불확실한 전송은 다시 보내지 않습니다 | 모든 오류 재시도 | 제안서; 설계 9 | `lib/server/whatsapp.ts`의 오류 맵 |
 | D11 | 명령, 참조, 전달(`[WhatsApp] …`), 요약, 설정, 접수, 순서, 보존은 6단계와 같습니다. WhatsApp에는 **연락처에 추가(Add to contacts)**가 없습니다 | WhatsApp 전용 명령 집합; 결정을 위한 대화형 버튼 | 제안서; 설계 10 | 채널별 6단계 모듈 |
 | D13 | 식별된 프로덕션 배포에서만 메시징합니다. 대역이 WhatsApp 전송, 템플릿, 131047에 응답합니다 | — | 제안서; 설계 10 | `lib/server/messaging.ts`; 대역 |
+| D14 | (팀, 2026-11-04, 이슈 #88.) 호스트가 자기 말로 하는 승인은 iMessage와 같이 WhatsApp에서도 작동합니다(6단계 D23) | WhatsApp에서는 정확한 명령만 | 제안서; `host-whatsapp-channel` 델타 | 6단계 D23 |
 | 템플릿과 대체 제약(2.1) | 스키마는 강제할 수 있는 채널 규칙을 강제합니다. 대체 시도는 iMessage 전용이고, `template` 발신함 행은 WhatsApp 전용이며 템플릿 이름을 가져야 하고, 템플릿 행만 이름을 가집니다. 기존 행은 `imessage`가 기본값입니다 | 애플리케이션 코드에 맡기기 | `supabase/schemas/app/tables/imessage_{links,outbox}.sql`; `supabase/tests/whatsapp_channel.test.sql` | 해당 파일, 그다음 새 마이그레이션 |
 | 수신기의 WhatsApp 그룹(2.2) | 대화가 그룹이거나 발신자와 같지 않은 WhatsApp 이벤트는 수신기가 영수증 없이 버립니다. iMessage 그룹 메시지는 저장되므로 거기에 올린 코드는 해당 시도를 무효로 합니다. WhatsApp 공급자는 일대일 대화만 지원하므로 그런 이벤트에는 답장할 대화가 없습니다 | iMessage처럼 그룹 영수증으로 저장 | `lib/server/whatsapp.ts`의 `inboundWhatsAppMessage` | 그 함수와 설계 3 |
 | 채널이 답하기 전의 저장(2.2) | 작업 2.2부터 수신기는 WhatsApp 영수증을 저장합니다. 채널이 완성되기 전까지 영수증 작업은 이를 `ignored`로 기록하므로 WhatsApp 메시지는 iMessage 경로에 도달하지 않습니다 | 채널이 생기기 전에 라우팅; 끝날 때까지 아무것도 저장하지 않기 | `createImessageReceiptHandler` | WhatsApp 영수증을 처리하는 커밋에서 제거 |
@@ -527,16 +533,18 @@
 | 한국어 미러 어긋남 | 네 개의 미러(`03_provider_setup`, `04_page_list`, `05_host_onboarding_flow`, `08_decision_log`)는 이 변경 이전에 이미 영어 원문과 몇 줄 어긋나 있었습니다. WhatsApp 줄은 내용에 따라 배치했고, 이전의 어긋남은 별도 작업으로 남깁니다 | 여기서 이전의 어긋남 바로잡기 | 이 기록 | 그 파일들에 대한 미러 작업 |
 | `main`과의 병합 | `origin/main`의 `fdd09ac6`(PR #75, 게스트 예약)을 이 브랜치에 일반 병합으로 합쳤습니다. iMessage 테이블, 발신함, 연결, 명령의 충돌은 양쪽을 모두 유지했고, 마이그레이션은 병합된 체인에 맞춰 `20261103150235_whatsapp_channel.sql`로 다시 생성했습니다. `main`의 모든 마이그레이션보다 늦으므로 단순한 `supabase db push`로 적용되며, 병합된 체인에서 `supabase db reset --local`과 `supabase test db`가 통과합니다 | 리베이스(작업 규칙이 배제함) | 이 기록 | — |
 | WhatsApp 번호와 등급 | 사용자가 2026-11-04에 WhatsApp Business 번호는 +1 711-454-9153(`PHOTON_WHATSAPP_NUMBER=17114549153`)이고 메시징 한도는 24시간당 고객 250명이라고 알려 주었습니다. 템플릿이 유일한 비즈니스 발신 메시지이므로 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`는 그 한도보다 낮은 기본값 50을 유지합니다 | 템플릿 한도를 등급까지 올리기 | 제공자 설정, WhatsApp Business | Vercel Production의 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` |
+| 템플릿 문구 (2026-11-04) | 각 템플릿 본문은 참조를 한 번만 언급합니다("Reply request {{1}} …"). WhatsApp Manager는 변수가 반복되는 본문을 제출받지 않기 때문입니다. 코드는 매개변수 하나를 보내므로 그대로입니다 | 같은 값의 매개변수 두 개, 전송 코드가 바뀌게 됩니다 | 설계 8 | 설계 8과 WhatsApp Manager, 매개변수가 바뀌면 `lib/server/imessage-outbox.ts`의 `contentOf` |
+| 두 번째 WhatsApp 회선 제거 (2026-11-04) | 사용자가 Photon 프로젝트에 연결해 두었던 +1 555-701-1140을 사용자의 요청에 따라 `photon spectrum lines rm`으로 제거했으므로, 설계 1이 요구하는 대로 제공자에는 발신할 회선이 하나뿐입니다 | 둘 다 유지하기, 다른 번호로 답장이 나갈 수 있게 됩니다 | 설계 1 | — |
 
 ### 사용자 대기 항목
 
 다음 단계는 제공자 콘솔을 바꾸거나, 사람에게 메시지를 보내거나, 공유 환경 또는 릴리스 환경을 바꾸기 때문에 수행하지 않았습니다:
 
-- **Meta WhatsApp Manager**: 설계 8의 템플릿 세 개를 제출하고 승인받습니다. 비즈니스 표시 이름과 비즈니스 검증을 확인합니다. 사용자가 2026-11-04에 번호 +1 711-454-9153과 메시징 한도 24시간당 고객 250명을 알려 주었습니다.
-- **Photon 프로젝트**: 구성은 바꾸지 않았습니다. WhatsApp 회선, 그 등록, 공유 웹훅은 2026-11-02에 사용자가 둔 그대로입니다.
+- **Meta WhatsApp Manager**: 설계 8의 템플릿 세 개는 2026-11-04에 사용자의 요청으로 영어(미국)의 유틸리티로, 샘플 `K7Q2MX`와 함께 제출되었으며 **검토 중**입니다. Meta가 `{{1}}`을 반복하는 본문을 거부했으므로 각 본문은 이를 한 번만 사용합니다(설계 8). 번호에는 아직 표시 이름 **Astia**가 표시됩니다. Meta는 2026-11-03 16:21 UTC에 "Find Me a Time"을 승인했지만 적용하려면 번호를 다시 등록해야 하며, 사용자가 Photon에 이를 요청했습니다. 비즈니스 검증도 아직 남아 있습니다.
 - **모든 WhatsApp 메시지 전송**, 합류 단계의 이벤트 하나 수집과 Android 인수 실행을 포함합니다.
-- **Vercel 변수**: 코드가 반영된 뒤 Production의 `PHOTON_WHATSAPP_NUMBER=17114549153`, 그리고 바뀐 경우 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`.
-- 구현하는 풀 리퀘스트의 **마이그레이션과 배포**, 그리고 이 풀 리퀘스트의 병합을 포함한 모든 병합.
+- **Android에서의 프로덕션 점검**(AC-29부터 AC-31), AC-31에는 템플릿이 필요합니다.
+- **2026-11-04에 사용자의 요청으로 완료:** 병합 시 `Deploy shared Supabase` 워크플로가 `20261103150235_whatsapp_channel.sql`을 `anelszynxtvxoxqvzgqt`에 적용했고(`44c71257`, 성공), `findmeatime-release` Production에 `PHOTON_WHATSAPP_NUMBER=17114549153`을 추가했으며, `44c71257`의 `main`을 깨끗한 분리 체크아웃에서 `vercel deploy --prod`로 배포해 `https://findmeatime.com`에 별칭을 연결했습니다. 이후 읽기 전용 점검: `/`와 `/?flow=whatsapp`가 200으로 응답하고, `GET /api/imessage/start`가 두 채널을 모두 명시하며(`"whatsapp":"17114549153"`), 서명 없는 `POST /photon/webhook`은 거부됩니다. Photon 프로젝트는 읽기만 했고(`photon projects ls`: `imessage, whatsapp_business`) 아무것도 바꾸지 않았습니다.
+- **병합**: PR #79는 사용자의 요청으로 팀원 승인 없이 관리자 우회로 스쿼시 병합했습니다.
 - D1–D13과 설계의 미해결 질문에 대한 **팀원 검토**.
 
 ## `guest-flow-completion`
@@ -556,3 +564,14 @@
 | **Change**의 위치 | 승인 대기 중에는 합의된 시간의 영수증(제안 영수증)에 두고, 그 뒤 대기 줄은 다시 열렸다고 표시합니다 | 시간 영수증. 요청이 승인 대기에 들어가면 더 이상 현재 것이 아님 | 설계 10 | `apps/web/app/_components/guest/guest-workspace.tsx`의 `threadEntries` |
 | 요청 참조 | `requestRef`를 `lib/server/request-ref.ts`로 옮겨(`imessage-commands.ts`에서 다시 내보냄) 호스트 화면이 순환 import 없이 이전 요청을 지칭할 수 있게 합니다 | `imessage-commands.ts`에서 가져오기 | 작업 5.3 | `lib/server/request-ref.ts` |
 | 게스트의 긴 답장 | 호스트와 같이 잘라내되, `/app` 대신 "your booking page, linked in your email"을 가리킵니다 | 호스트의 `/app` 안내 | 설계 4 | `lib/server/imessage-outbox.ts`의 `imessageTurnText` |
+
+## `imessage-number-registration`
+
+[제안](../../openspec/changes/imessage-number-registration/proposal.md#decisions)은 D1–D3을 기록합니다. 이슈 #94에서 Photon의 공유 회선이 등록된 사용자의 메시지만 전달한다는 것이 확인된 뒤, 사용자가 2026-11-04에 정했습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | 모든 iMessage 연결 시작은 먼저 번호를 묻고 Photon 공유 사용자로 등록하며, 그 뒤 메시지를 보내고 확인하는 흐름이 이어집니다 | Business 요금제의 전용 회선; 수동으로 등록한 테스터에게만 iMessage 제공 | 제안; 설계 1 | `lib/server/imessage-links.ts`의 `registeredLineNumber`; `lib/server/photon.ts`의 `photonRegistrar` |
+| D2 | 코드는 Photon이 배정한 번호로 보내도록 안내하며, 이 번호는 `imessage_links.line_number`에 보관합니다 | 항상 `PHOTON_LINE_NUMBER` | 제안; 설계 2 | `imessage-links.ts`, `imessage-start.ts`, `requester-imessage-links.ts`의 상태 읽기 함수 |
+| D3 | 랜딩 리디자인의 전화번호 필드(d3ca3be8)를 ink 화면에서는 ink 모양으로, 카드에서는 PR #23의 카드 모양으로 씁니다 | 새 필드 | 제안; 설계 3 | `apps/web/app/_components/ink/number-form.tsx` |
+| 2026-10-20 실험 재해석 | `Target not allowed for this project`는 먼저 메시지를 보내지 않았다는 뜻만이 아니라 등록된 사용자가 아니라는 뜻이었습니다. 공유 회선에서 먼저 보내는 것은 필요하지만 충분하지 않습니다 | — | 이슈 #94 | — |

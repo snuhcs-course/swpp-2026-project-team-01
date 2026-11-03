@@ -4,8 +4,9 @@ import { guestLinkMessage, REQUESTER_IMESSAGE_OPERATIONS, type RequesterImessage
 import { type CommandDefinition, CommandError } from "./commands";
 import type { Queryable, Transaction } from "./database";
 import { generateLinkCode, hashLinkCode } from "./email-links";
-import { codeContext, deliveryState, IMESSAGE_LINK_LIMITS, linkLockKey, senderContext } from "./imessage-links";
+import { codeContext, deliveryState, IMESSAGE_LINK_LIMITS, linkLockKey, NUMBER_INPUT, registeredLineNumber, senderContext } from "./imessage-links";
 import { recordOutbound } from "./imessage-outbox";
+import type { PhotonRegistrar } from "./photon";
 import { activeRequesterBinding, bindRequester, endRequesterBindings, requesterBindingRecipient } from "./requester-imessage-bindings";
 import { assertIdentified, lockOpenRequest } from "./request-guard";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
@@ -30,6 +31,8 @@ export type RequesterLinkOptions = {
   // The line's number; linking is unavailable without one.
   readonly lineNumber: string;
   readonly linkLimits?: Partial<typeof IMESSAGE_LINK_LIMITS>;
+  // Registers the entered number with Photon; the deployment's by default.
+  readonly registrar?: PhotonRegistrar;
 };
 
 function assertRequest(context: { actor: { kind: string; id: string }; resourceId: string }) {
@@ -53,11 +56,12 @@ async function endOpenAttempts(tx: Transaction, requestId: string, state: "voide
 
 const noInput = z.object({}).strict() as unknown as z.ZodType<Record<string, never>>;
 
-export function createRequesterImessageLinkCommand(options: RequesterLinkOptions): CommandDefinition<Record<string, never>, { linkId: string }> {
+export function createRequesterImessageLinkCommand(options: RequesterLinkOptions): CommandDefinition<{ number: string }, { linkId: string }> {
   const limits = { ...IMESSAGE_LINK_LIMITS, ...options.linkLimits };
 
   return {
-    input: noInput,
+    // The guest's number first (imessage-number-registration D1).
+    input: z.object({ number: NUMBER_INPUT }).strict(),
     operation: REQUESTER_IMESSAGE_OPERATIONS.create,
     async run(tx, context) {
       const requestId = assertRequest(context);
@@ -70,14 +74,15 @@ export function createRequesterImessageLinkCommand(options: RequesterLinkOptions
       `;
       if (recent!.count >= limits.perHostHour) throw new CommandError("rate_limited");
 
+      const lineNumber = await registeredLineNumber(options.registrar, context.input.number);
       await endOpenAttempts(tx, requestId, "voided");
 
       const code = generateLinkCode();
       const [row] = await tx<{ id: string }[]>`select gen_random_uuid() as id`;
       const sealed = sealToken(options.tokenKey, code, codeContext(row!.id));
       await tx`
-        insert into app.imessage_links (id, request_id, method, code_hash, code_ciphertext, sealed_key_id, expires_at)
-        values (${row!.id}, ${requestId}, 'code', ${hashLinkCode(code)}, ${sealed.ciphertext}, ${sealed.keyId},
+        insert into app.imessage_links (id, request_id, method, code_hash, code_ciphertext, sealed_key_id, line_number, expires_at)
+        values (${row!.id}, ${requestId}, 'code', ${hashLinkCode(code)}, ${sealed.ciphertext}, ${sealed.keyId}, ${lineNumber},
                 now() + make_interval(mins => ${limits.validMinutes}))
       `;
       return { linkId: row!.id };
@@ -197,9 +202,10 @@ export async function readRequesterImessageStatus(
       sender_key_id: string | null;
       expires_at: Date;
       confirm_by: Date | null;
+      line_number: string | null;
     }[]
   >`
-    select id, state, code_ciphertext, sealed_key_id, sender_ciphertext, sender_key_id, expires_at, confirm_by
+    select id, state, code_ciphertext, sealed_key_id, sender_ciphertext, sender_key_id, expires_at, confirm_by, line_number
     from app.imessage_links
     where request_id = ${requestId}
       and ((state = 'pending' and expires_at > now()) or (state = 'received' and confirm_by > now()))
@@ -212,7 +218,7 @@ export async function readRequesterImessageStatus(
     }
     if (link?.state === "pending") {
       const code = openToken(keys, { ciphertext: link.code_ciphertext!, keyId: link.sealed_key_id! }, codeContext(link.id));
-      return { code, expiresAt: link.expires_at.toISOString(), lineNumber, message: guestLinkMessage(code), state: "pending" };
+      return { code, expiresAt: link.expires_at.toISOString(), lineNumber: link.line_number ?? lineNumber, message: guestLinkMessage(code), state: "pending" };
     }
   } catch {
     // Sealed under a key the service no longer holds: start again.

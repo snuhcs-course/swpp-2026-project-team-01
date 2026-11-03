@@ -1,9 +1,8 @@
 import { z } from "zod";
 import { COMMAND_ERROR_MESSAGES, type CommandErrorCategory } from "../contracts/command-errors";
 import { HOST_REQUEST_OPERATIONS } from "../contracts/host-request";
-import { type ChatRouteDependencies, chatDependenciesFromEnvironment, json, ndjsonResponse } from "./chat-routes";
+import { type ChatRouteDependencies, chatDependenciesFromEnvironment, json } from "./chat-routes";
 import { runCommand } from "./commands";
-import { guestDiscussionEvents } from "./guest-conversations";
 import { readHostStanding } from "./host-eligibility";
 import { hostRequestCommands, listHostRequests, readHostRequest } from "./host-requests";
 import { crossSiteRefusal } from "./same-origin";
@@ -13,13 +12,9 @@ import { verifiedUserId } from "./supabase-auth";
 //   GET  /api/host/requests                          the inbox
 //   GET  /api/host/requests/{requestId}               the host projection
 //   POST /api/host/requests/{requestId}/commands      a card's command
-//   GET  /api/host/requests/{requestId}/shared        the shared requester
-//                                                     conversation, read-only
 // Each authenticates the Supabase session and the host's eligibility itself;
-// another host's request, a draft and an unknown ID answer the same 404. The
-// shared conversation is read through the application with an internal read
-// bearer for the requester discussion, and only ever read: nothing here writes
-// to it.
+// another host's request, a draft and an unknown ID answer the same 404. No
+// route reads the requester's conversation: it is theirs alone (D6).
 
 type Context = { readonly params: Promise<{ readonly requestId: string }> };
 
@@ -112,41 +107,5 @@ export function createHostRequestCommandHandler(load: () => ChatRouteDependencie
     return outcome.ok
       ? json({ request: view, result: outcome.result }, outcome.replayed ? 200 : 201)
       : json({ error: outcome.error, request: view }, COMMAND_STATUS[outcome.error.category]);
-  };
-}
-
-export function createHostSharedEventsHandler(load: () => ChatRouteDependencies = chatDependenciesFromEnvironment) {
-  return async (request: Request, context: Context) => {
-    const deps = load();
-    const host = await hostOf(deps, request);
-    if (!host.hostAccountId) return host.refusal!;
-
-    const id = requestIdSchema.safeParse((await context.params).requestId);
-    const [owned] = id.success
-      ? await deps.db<{ id: string }[]>`
-          select id from app.requests where id = ${id.data} and host_account_id = ${host.hostAccountId} and state <> 'draft'
-        `
-      : [];
-    if (!owned) return unavailable();
-
-    const url = new URL(request.url);
-    const cursor = Number(url.searchParams.get("cursor") ?? "0");
-    if (!Number.isInteger(cursor) || cursor < 0) return json({ code: "invalid_cursor", error: "The cursor is not valid." }, 400);
-
-    const events = guestDiscussionEvents(deps, { id: owned.id, type: "requester_request" }, cursor, {
-      follow: false,
-      signal: request.signal,
-    });
-    let first: IteratorResult<unknown>;
-
-    try {
-      first = await events.next();
-    } catch {
-      // The requester conversation is readable only while the request is open;
-      // a closed request shows its status and receipt instead.
-      return json({ code: "shared_unavailable", error: "The shared conversation is not available for this request now." }, 409);
-    }
-
-    return ndjsonResponse(first, events);
   };
 }

@@ -113,9 +113,22 @@ Photon의 전달 가능성 안내에 따라 인바운드 우선이 기본값입�
 
 통제된 iPhone에서 요청 선택, 비공개 논의, 수정, 정확한 제안의 승인/거절을 검증합니다. 지원되지 않는 수신자와 그룹에는 비공개 상태를 보내서는 안 됩니다. 실제 디바이스/클라이언트 버전을 기록하며, 전송 성공만으로는 디바이스 수신이나 귀속을 증명할 수 없습니다.
 
+### 공유 회선과 등록된 사용자
+
+운영 프로젝트는 Photon의 Free 요금제이며, 이 요금제의 iMessage 회선은 공유 회선입니다. 공유 회선은 프로젝트에 등록된 사용자가 보낸 메시지만 전달하고, 등록된 사용자에게만 보냅니다([troubleshooting](https://photon.codes/docs/spectrum-ts/troubleshooting/imessage), 이슈 #94). 그래서 모든 iMessage 연결 시작은 먼저 상대의 번호를 묻고, 프로젝트 자격 증명으로 `POST https://spectrum.photon.codes/projects/{projectId}/users/`를 호출해 그 번호를 공유 사용자로 등록합니다. 코드는 Photon이 돌려준 `assignedPhoneNumber`로 보내도록 안내하며, 이 번호는 시도의 `imessage_links.line_number`에 보관됩니다([`imessage-number-registration`](../../openspec/changes/imessage-number-registration/proposal.md#decisions) D1, D2). `PHOTON_LINE_NUMBER`는 iMessage를 켜는 역할만 합니다. Free 요금제는 등록 사용자 10명, Pro는 100명까지이며([pricing](https://photon.codes/pricing)), 가득 찬 프로젝트는 새 번호를 거절합니다. 등록된 사용자는 `photon spectrum users ls --project <id>`로 확인합니다. 전용 회선(Business)에는 이런 목록이 없습니다.
+
 ### 표시 이름, 연락처 카드, 프로필 동기화
 
-검증된 비공개 대화 이후 호스트 동작으로서 선택적인 **연락처에 추가(Add to contacts)**를 제공하며, 연결된 카드는 Spectrum SDK를 통해 네이티브 연락처 카드 공유 하나를 대기열에 넣습니다([`host-imessage-channel` 설계 11](../../openspec/changes/host-imessage-channel/design.md#11-add-to-contacts)). 실제로 선택된 경로를 고정하고, 공급자의 수락/불확실성을 사실대로 보고합니다. 저장 여부는 수신자가 선택하며, 제품은 표시되는 이름을 약속하거나 연락처 카드로부터 신원/동의를 추론할 수 없습니다. 지원한다고 주장하기 전에 실제 계정 프로필과 실제 디바이스에서의 표시를 각각 독립적으로 검증합니다.
+Photon의 [전달 가능성 안내](https://photon.codes/docs/best-practices/imessage-deliverability.md)에 따라 **확인 및 연결(Confirm and link)** 직후 환영 메시지 뒤에 보류해 연락처 카드를 한 번 공유하고, 다시 공유할 수 있도록 호스트 동작으로서 선택적인 **연락처에 추가(Add to contacts)**를 제공합니다. 각각은 Spectrum SDK를 통해 네이티브 연락처 카드 공유 하나를 대기열에 넣습니다([`host-imessage-channel` 설계 11과 18](../../openspec/changes/host-imessage-channel/design.md#18-read-marks-typing-tapbacks-and-the-contact-card-after-linking-d20d22)). 읽음 표시, 입력 중 말풍선, 감사 탭백은 같은 SDK를 통해 최선 노력 방식의 발신함 신호(`space.read`, `space.startTyping`, `message.react`)로 전달됩니다. 실제로 선택된 경로를 고정하고, 공급자의 수락/불확실성을 사실대로 보고합니다. 저장 여부는 수신자가 선택하며, 제품은 표시되는 이름을 약속하거나 연락처 카드로부터 신원/동의를 추론할 수 없습니다. 지원한다고 주장하기 전에 실제 계정 프로필과 실제 디바이스에서의 표시를 각각 독립적으로 검증합니다.
+
+### 참고 자료
+
+iMessage 채널에 관한 Photon과 eve 문서입니다. 6단계는 Spectrum SDK, eve에 포함된 어댑터, Photon의 웹훅 문서를 기준으로 삼았으며 아래 처음 세 페이지는 읽지 않았습니다. 다섯 가지 모두를 기준으로 채널을 검토하는 일이 [issue #80](https://github.com/snuhcs-course/swpp-2026-project-team-01/issues/80)입니다.
+
+- [Spectrum iMessage provider](https://photon.codes/docs/spectrum-ts/providers/imessage.md): 공급자의 메시지, 스페이스, 발신자 모델과 회선, 지원하는 콘텐츠.
+- [Chat SDK integration](https://photon.codes/docs/integrations/chat-sdk): 애플리케이션 자체 어댑터의 대안인 Chat SDK 어댑터를 통한 Photon.
+- [eve Photon channel](https://eve.dev/docs/channels/photon): eve의 네이티브 `photonIMessageChannel`로, [`host-imessage-channel` 설계 1](../../openspec/changes/host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter)(D1)은 이를 채택하지 않았습니다.
+- [Photon documentation index](https://photon.codes/docs/llms.txt)와 [Photon site index](https://photon.codes/llms.txt): [webhook events](https://photon.codes/docs/webhooks/events.md)와 [iMessage deliverability](https://photon.codes/docs/best-practices/imessage-deliverability)를 포함해 모든 문서 페이지를 기계가 읽을 수 있게 나열한 목록.
 
 ## WhatsApp Business
 
@@ -129,8 +142,8 @@ Photon의 문서와 공급자 패키지에서 확인한 사실이며, 아직 실
 
 운영자 단계이며, 구현하는 풀 리퀘스트가 반영될 때까지 모두 사용자에게 막혀 있습니다:
 
-1. 번호를 소유한 비즈니스 포트폴리오의 WhatsApp Manager에서 [설계 8](../../openspec/changes/host-whatsapp-channel/design.md#8-templates)의 유틸리티 템플릿 세 개를 정확한 이름과 본문 그대로 `en_US`로 제출하고 승인을 기다립니다. 각 템플릿의 상태와 카테고리를 기록합니다. 마케팅으로 재분류되면 팀에 돌려보냅니다.
-2. 표시 이름 "Find Me a Time"과 비즈니스 검증을 확인합니다. 번호는 **+1 711-454-9153**이며, 메시징 한도는 **롤링 24시간당 고객 250명**(사용자, 2026-11-04)으로, 비즈니스 검증 전 Meta의 등급입니다. 이 한도는 비즈니스 발신 대화, 여기서는 템플릿 알림만 집계하므로, 하루 템플릿 50건이라는 기본값은 한도 안에 머뭅니다.
+1. 번호를 소유한 비즈니스 포트폴리오의 WhatsApp Manager에서 [설계 8](../../openspec/changes/host-whatsapp-channel/design.md#8-templates)의 유틸리티 템플릿 세 개를 정확한 이름과 본문 그대로 `en_US`로 제출하고 승인을 기다립니다. 각 템플릿의 상태와 카테고리를 기록합니다. 마케팅으로 재분류되면 팀에 돌려보냅니다. 2026-11-04에 제출되어 검토 중이며, Meta가 반복된 변수를 거부하므로 각 본문은 `{{1}}`을 한 번만 사용합니다.
+2. 표시 이름 "Find Me a Time"과 비즈니스 검증을 확인합니다. 2026-11-04에 이 번호는 "ASTIA - Something Great Inc" 포트폴리오에 표시 이름 **Astia**로 연결되어 있었으며, 템플릿을 제출하기 전에 이를 변경하거나 번호를 Find Me a Time 포트폴리오로 옮깁니다. 번호는 **+1 711-454-9153**이며, 메시징 한도는 **롤링 24시간당 고객 250명**(사용자, 2026-11-04)으로, 비즈니스 검증 전 Meta의 등급입니다. 이 한도는 비즈니스 발신 대화, 여기서는 템플릿 알림만 집계하므로, 하루 템플릿 50건이라는 기본값은 한도 안에 머뭅니다.
 3. `PHOTON_WHATSAPP_NUMBER=17114549153`(카드와 `https://wa.me/17114549153`용 숫자)를, 그리고 기본값 50이 맞지 않으면 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`를 Vercel Production에만 설정합니다. 프리뷰와 스테이징은 메시징을 계속 거부합니다.
 4. 통제된 Android 폰에서 번호로 메시지 하나를 보내 저장된 수신 기록의 채널이 `whatsapp`인지 확인합니다. 정확한 `platform` 철자와 발신자 형식을 변경과 여기에 기록합니다. 그다음 AC-29–AC-31을 실행합니다.
 

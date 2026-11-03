@@ -48,6 +48,16 @@ export const TRAVEL_MODE_LABELS: Readonly<Record<TravelMode, string>> = {
   depends: "Depends on the trip",
 };
 
+// What fills a week toward the weekly limit: the meetings Find Me a Time booked,
+// or those plus every other meeting with guests on the conflict calendars.
+export const WEEKLY_LIMIT_COUNTS = ["bookings", "all_meetings"] as const;
+export type WeeklyLimitCount = (typeof WEEKLY_LIMIT_COUNTS)[number];
+
+export const WEEKLY_LIMIT_COUNT_LABELS: Readonly<Record<WeeklyLimitCount, string>> = {
+  bookings: "Find Me a Time bookings only",
+  all_meetings: "All meetings with guests",
+};
+
 export const locationAnswerSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("places"),
@@ -89,6 +99,7 @@ export const SETUP_FIELD_SCHEMAS = {
   timezone: z.string().refine(isValidTimeZone, "Choose an IANA timezone such as Asia/Seoul."),
   weeklyWindows: z.array(weeklyWindowSchema).min(1).max(21),
   weeklyLimit: z.number().int().min(1).max(50).nullable(),
+  weeklyLimitCounts: z.enum(WEEKLY_LIMIT_COUNTS),
   noteExclusions: z.array(noteExclusionSchema).max(200),
   durationMinutes: z.number().int().min(15).max(240).multipleOf(5),
   bufferBeforeMinutes: z.number().int().min(0).max(120),
@@ -110,7 +121,7 @@ export const HOST_ANSWER_FIELDS: readonly SetupFieldName[] = ["meetingMode", "lo
 
 export const IN_PERSON_FIELDS: readonly SetupFieldName[] = ["location", "travelMode", "travelBufferMinutes"];
 
-export const OPTIONAL_FIELDS: readonly SetupFieldName[] = ["weeklyLimit", "noteExclusions"];
+export const OPTIONAL_FIELDS: readonly SetupFieldName[] = ["weeklyLimit", "weeklyLimitCounts", "noteExclusions"];
 
 // A value the host accepted earlier and has since replaced, kept so the setup
 // conversation can show the earlier answer's receipt as changed.
@@ -147,6 +158,7 @@ export const STARTER_DEFAULTS = {
     end: "17:00",
   })),
   weeklyLimit: null,
+  weeklyLimitCounts: "bookings",
   noteExclusions: [],
   durationMinutes: 30,
   bufferBeforeMinutes: 10,
@@ -204,6 +216,12 @@ export type ConfirmedSettings = {
   readonly timezone: string;
   readonly weeklyWindows: readonly WeeklyWindow[];
   readonly weeklyLimit: number | null;
+  // Absent on a policy confirmed before the choice existed, which counts bookings
+  // only (weeklyLimitCountsOf).
+  readonly weeklyLimitCounts?: WeeklyLimitCount;
+  // Whether in-person candidates are ordered to share trips by day
+  // (same-day-trips); absent reads as off (groupTripsOf).
+  readonly groupTrips?: boolean;
   readonly noteExclusions: readonly z.infer<typeof noteExclusionSchema>[];
   readonly durationMinutes: number;
   readonly bufferBeforeMinutes: number;
@@ -219,3 +237,11 @@ export type ConfirmedSettings = {
   // Where each confirmed value came from, kept after the evidence expires.
   readonly provenance: { readonly [F in SetupFieldName]?: ValueSource };
 };
+
+export function groupTripsOf(settings: Pick<ConfirmedSettings, "groupTrips">): boolean {
+  return settings.groupTrips ?? false;
+}
+
+export function weeklyLimitCountsOf(settings: Pick<ConfirmedSettings, "weeklyLimitCounts">): WeeklyLimitCount {
+  return settings.weeklyLimitCounts ?? STARTER_DEFAULTS.weeklyLimitCounts;
+}

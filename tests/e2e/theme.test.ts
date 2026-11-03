@@ -34,6 +34,9 @@ test("Korean headings use Hahmlet", async ({ page }) => {
 
 test("keyboard focus shows a 2px outline with a 3px offset", async ({ page }) => {
   await page.goto("/");
+  // The landing streams in; until it does, the first Tab can land on the body
+  // or on the dev tools' portal instead of the page's first link.
+  await expect(page.getByRole("link", { name: "Home" })).toBeVisible();
   await page.keyboard.press("Tab");
 
   const outline = await page.evaluate(() => {

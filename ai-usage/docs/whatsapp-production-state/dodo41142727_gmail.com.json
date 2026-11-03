@@ -1,0 +1,74 @@
+{
+  "branch": "docs/whatsapp-production-state",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:95202761-81e6-493b-9d22-2f0f935a4444": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 148,
+          "cache_read": 36810173,
+          "cache_write_5m": 0,
+          "cache_write_1h": 653930,
+          "output": 26754,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T15:56:53.937Z",
+      "last": "2026-11-03T16:35:59.401Z"
+    },
+    "claude:95202761-81e6-493b-9d22-2f0f935a4444/agent-ac0a76c430fe5954e": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 10,
+          "cache_read": 353811,
+          "cache_write_5m": 97348,
+          "cache_write_1h": 0,
+          "output": 3605,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T15:57:20.899Z",
+      "last": "2026-11-03T15:57:46.686Z"
+    },
+    "claude:de8a0e74-86f2-42cb-9c0d-846228f88d03": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 126,
+          "cache_read": 42762319,
+          "cache_write_5m": 0,
+          "cache_write_1h": 75222,
+          "output": 16984,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T16:35:44.526Z",
+      "last": "2026-11-03T16:44:43.501Z"
+    },
+    "claude:de8a0e74-86f2-42cb-9c0d-846228f88d03/agent-a2e368fa82f7ec382": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 8,
+          "cache_read": 257914,
+          "cache_write_5m": 92869,
+          "cache_write_1h": 0,
+          "output": 2197,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T16:44:19.572Z",
+      "last": "2026-11-03T16:44:37.479Z"
+    }
+  }
+}

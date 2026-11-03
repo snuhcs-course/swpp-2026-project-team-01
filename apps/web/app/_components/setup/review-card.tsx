@@ -109,7 +109,7 @@ export function ReviewCard({ pending = false }: { readonly pending?: boolean }) 
             : null}
         </Row>
         <Row label={FIELD_LABELS.weeklyLimit} step="limit">
-          {describeLimit(fields.weeklyLimit.proposed?.value ?? null)}
+          {describeLimit(fields.weeklyLimit.proposed?.value ?? null, fields.weeklyLimitCounts.proposed?.value)}
         </Row>
         <Row label="Meeting length" step="duration">
           {duration === undefined ? null : (

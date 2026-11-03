@@ -6,6 +6,7 @@ import {
   SETUP_FIELD_NAMES,
   SETUP_FIELD_SCHEMAS,
   type SetupFieldName,
+  STARTER_DEFAULTS,
   type ValueSource,
 } from "../contracts/setup";
 import { lockActiveHost, lockCalendarRoles, lockDraft, writeDraft } from "./analysis";
@@ -190,6 +191,7 @@ export function confirmSettingsCommand(
         travelBufferMinutes: parsed.travelBufferMinutes ?? null,
         travelMode: parsed.travelMode ?? null,
         weeklyLimit: parsed.weeklyLimit ?? null,
+        weeklyLimitCounts: parsed.weeklyLimitCounts ?? STARTER_DEFAULTS.weeklyLimitCounts,
         weeklyWindows: parsed.weeklyWindows,
       } as unknown as ConfirmedSettings;
 

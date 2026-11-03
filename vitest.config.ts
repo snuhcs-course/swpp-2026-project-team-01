@@ -29,6 +29,17 @@ export default defineConfig({
           fileParallelism: false,
           testTimeout: 60_000,
           include: ["tests/integration/**/*.test.ts"],
+          // Commands that read Google with the environment's configuration
+          // (agreement's calendar recheck) load it against the local stack and
+          // reach a closed port, never Google, so they go ahead as when Google
+          // is unavailable; suites that need Calendar answers pass the fake
+          // Google explicitly. Nothing in the suites is sealed with this key.
+          env: {
+            DATABASE_URL: process.env.TEST_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+            GOOGLE_CALENDAR_API_URL: "http://127.0.0.1:9/calendar/v3",
+            GOOGLE_OAUTH_TOKEN_URL: "http://127.0.0.1:9/token",
+            TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+          },
         },
       },
     ],

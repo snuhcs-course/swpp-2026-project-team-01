@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { generateText, type LanguageModel } from "ai";
 import type { RequesterEvaluationFailure, RequesterEvaluationView } from "../contracts/feasibility";
 import type { EvaluationState, RequestDetails } from "../contracts/request";
-import { type ConfirmedSettings, isValidTimeZone, WEEKDAYS } from "../contracts/setup";
+import { type ConfirmedSettings, groupTripsOf, isValidTimeZone, WEEKDAYS, weeklyLimitCountsOf } from "../contracts/setup";
 import { CommandError } from "./commands";
 import { database, type Database, type Transaction } from "./database";
 import {
@@ -14,6 +14,7 @@ import {
   evaluateFeasibility,
   type Exclusion,
   type FeasibilityInput,
+  type LegQuery,
   legQueryKey,
   localParts,
   normalizeBusy,
@@ -22,6 +23,7 @@ import {
   startOfLocalDay,
   type TravelAllowance,
   travelQueries,
+  tripQueries,
 } from "./feasibility";
 import {
   CalendarAccessError,
@@ -41,7 +43,7 @@ import {
   requesterCalendarConfigFromEnvironment,
 } from "./requester-calendar";
 import { dropGuestHostCalendars, readGuestHostSource } from "./requester-host-profiles";
-import { endpointHasher, estimateTravel, type RoutesConfig, routesConfigFromEnvironment } from "./routes-client";
+import { endpointHasher, estimateTravel, type RouteEstimate, type RoutesConfig, routesConfigFromEnvironment } from "./routes-client";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // Evaluation runs as an application job (design decision 8). evaluate_candidates
@@ -532,12 +534,25 @@ function windowsOf(details: RequestDetails) {
 }
 
 // The times a host declined or named as no longer working (guest-flow-completion
-// U17), as blocked time that anchors no trip.
+// U17), as blocked time that anchors no trip and fills no week.
 function excludedBusy(details: RequestDetails): BusyInterval[] {
   return (details.excludedTimes ?? [])
     .map((entry) => ({ end: Date.parse(entry.end), start: Date.parse(entry.start) }))
     .filter((entry) => !Number.isNaN(entry.start) && entry.end > entry.start)
-    .map((entry) => ({ ...entry, allDay: true, endpoint: { kind: "unknown" as const, reason: "no_location" as const } }));
+    .map((entry) => ({
+      ...entry,
+      allDay: true,
+      endpoint: { kind: "unknown" as const, reason: "no_location" as const },
+      meeting: false,
+    }));
+}
+
+// The preferred area the same-day trip rank measures from (same-day-trips
+// design 1): the first named area, else the venue, when the host groups trips.
+function preferredArea(settings: ConfirmedSettings, hash: (text: string) => string) {
+  if (!groupTripsOf(settings) || settings.location?.kind !== "places") return null;
+  const text = settings.location.areas[0] ?? settings.location.venue;
+  return text ? { key: hash(text), text } : null;
 }
 
 // How an evaluation differs from the ordinary search over the requested windows
@@ -595,10 +610,12 @@ async function evaluate(
       bufferAfterMinutes: settings.bufferAfterMinutes,
       bufferBeforeMinutes: settings.bufferBeforeMinutes,
       meetingMode: settings.meetingMode,
+      preferredArea: preferredArea(settings, hash),
       timezone: settings.timezone,
       travelBufferMinutes: settings.travelBufferMinutes,
       travelMode: settings.travelMode,
       weeklyLimit: settings.weeklyLimit,
+      weeklyLimitCounts: weeklyLimitCountsOf(settings),
       weeklyWindows: settings.weeklyWindows,
     },
     hostBusy: [],
@@ -688,6 +705,16 @@ async function evaluate(
     }
   }
 
+  // The host's live bookings for other requests, which fill their weeks toward
+  // the weekly limit whether or not their events are on a conflict calendar.
+  const bookings = await tx<{ event_id: string; start_at: Date }[]>`
+    select event_id, start_at
+    from app.bookings
+    where host_account_id = ${loaded.request.hostAccountId} and request_id <> ${evaluation.requestId}
+      and state in ('reserved', 'dispatching', 'confirmed')
+      and end_at > ${range.start} and start_at < ${range.end}
+  `;
+
   const allowances = await tx<
     {
       candidate_end: Date;
@@ -717,8 +744,10 @@ async function evaluate(
       originKey: row.origin_hash,
       party: row.party,
     })),
+    bookedStarts: bookings.map((row) => row.start_at.getTime()),
     hostBusy: [
       ...normalizeBusy(hostEvents, {
+        bookedEventIds: new Set(bookings.map((row) => row.event_id)),
         endpointKey: hash,
         noteExclusions: settings.noteExclusions,
         selfEmail: loaded.hostEmail,
@@ -731,14 +760,27 @@ async function evaluate(
     requesterBusy,
   };
 
-  const queries = travelQueries(input);
-  const estimates =
+  const estimate = (queries: readonly LegQuery[]) =>
     queries.length > 0
-      ? await deadline.run((signal) =>
+      ? deadline.run((signal) =>
           estimateTravel({ config: deps.routes, db: deps.db }, queries, { maxAgeHours: options.routeMaxAgeHours, now, signal }),
         )
-      : new Map();
-  const result = evaluateFeasibility({ ...input, estimate: (query) => estimates.get(legQueryKey(query)) });
+      : Promise.resolve(new Map<string, RouteEstimate>());
+
+  // The same-day trip rank's estimates first (same-day-trips design 4), so the
+  // candidates kept for the travel check are cut from the ranked order; a
+  // failure other than the deadline only leaves the days unranked.
+  let trips = new Map<string, RouteEstimate>();
+  try {
+    trips = await estimate(tripQueries(input));
+  } catch (error) {
+    if (error instanceof EvaluationDeadlineError) throw error;
+  }
+  const lookup = (estimates: ReadonlyMap<string, RouteEstimate>) => (query: LegQuery) =>
+    estimates.get(legQueryKey(query)) ?? trips.get(legQueryKey(query));
+  const ranked: FeasibilityInput = { ...input, estimate: lookup(new Map()) };
+  const estimates = await estimate(travelQueries(ranked).filter((query) => !trips.has(legQueryKey(query))));
+  const result = evaluateFeasibility({ ...input, estimate: lookup(estimates) });
 
   // Ranking may only reorder the first valid candidates; a failed or invalid
   // ranking keeps the deterministic order, and the deadline still applies.

@@ -431,7 +431,8 @@ async function cancelForClosure(tx: Transaction, booking: JobBooking, failure: "
 }
 
 // The host's other dispatching and confirmed bookings, as busy time with their
-// buffers, near this one.
+// buffers, near this one. Evaluation counts bookings toward the weekly limit
+// itself, so these are no other meetings.
 async function otherBookingsBusy(tx: Transaction, booking: JobBooking, hash: (text: string) => string): Promise<BusyInterval[]> {
   const rows = await tx<{ details: LatestProposal["details"]; reserved_end: Date; reserved_start: Date }[]>`
     select b.reserved_start, b.reserved_end, p.details
@@ -449,6 +450,7 @@ async function otherBookingsBusy(tx: Transaction, booking: JobBooking, hash: (te
       row.details.mode === "in_person" && row.details.location
         ? { key: hash(row.details.location), kind: "place" as const, text: row.details.location }
         : { kind: "unknown" as const, reason: row.details.mode === "online" ? ("conference_only" as const) : ("no_location" as const) },
+    meeting: false,
     start: row.reserved_start.getTime(),
   }));
 }

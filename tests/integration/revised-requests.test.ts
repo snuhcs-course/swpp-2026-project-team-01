@@ -39,7 +39,7 @@ const im = imessageHarness(db, () => photon, {
   receipt: () => ({ creationLimits: { perSourceDay: 1000, perSourceHour: 1000, serviceDay: 100000 } }),
 });
 const email = emailHarness(db, () => agentmail);
-const options = { lineNumber: TEST_LINE, tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
+const options = { lineNumber: TEST_LINE, registrar: im.registrar, tokenKey: testTokenKey, tokenKeys: [testTokenKey] };
 const commands: Readonly<Record<string, CommandDefinition<unknown, unknown>>> = Object.fromEntries(
   [createRequesterImessageLinkCommand(options), confirmRequesterImessageLinkCommand(options)].map((command) => [
     command.operation,
@@ -88,7 +88,7 @@ async function closedGuestRequest(sender: string, state: "declined" | "expired" 
   const host = await readyHost(db);
   const request = await createTestRequest(db, { confirmed: true, hostAccountId: host.hostAccountId });
   await db`update app.requests set details = ${db.json(DETAILS)} where id = ${request.requestId}`;
-  expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.create)).ok).toBe(true);
+  expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.create, { number: "+15557654321" })).ok).toBe(true);
   const pending = await readRequesterImessageStatus(db, [testTokenKey], request.requestId, TEST_LINE);
   if (pending.state !== "pending") throw new Error("Expected a pending code.");
   await im.deliver({ sender, text: pending.message });
