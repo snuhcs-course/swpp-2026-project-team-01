@@ -1,0 +1,40 @@
+{
+  "branch": "test/requester-defense-evals",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:1b1d6270-228f-4502-89d0-e0eb2b8ea85d": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 24,
+          "cache_read": 3243503,
+          "cache_write_5m": 0,
+          "cache_write_1h": 239293,
+          "output": 6917,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T16:20:41.172Z",
+      "last": "2026-11-03T16:28:38.608Z"
+    },
+    "claude:2826a6df-cce6-46f3-980b-d5575a6b16ec": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 114,
+          "cache_read": 37564595,
+          "cache_write_5m": 0,
+          "cache_write_1h": 83470,
+          "output": 56421,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T15:06:07.595Z",
+      "last": "2026-11-03T16:35:00.399Z"
+    }
+  }
+}
