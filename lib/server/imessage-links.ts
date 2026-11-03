@@ -8,7 +8,7 @@ import {
   maskSender,
   normalizeNumber,
 } from "../contracts/imessage";
-import { MESSAGING_CHANNELS, type MessagingChannel } from "../contracts/messaging-channel";
+import type { MessagingChannel } from "../contracts/messaging-channel";
 import { lockActiveHost } from "./analysis";
 import { type CommandDefinition, CommandError } from "./commands";
 import type { Database, Queryable, Transaction } from "./database";
@@ -16,6 +16,7 @@ import { generateLinkCode, hashLinkCode } from "./email-links";
 import { recordOutbound } from "./imessage-outbox";
 import { REQUESTER_LINK_TEXTS } from "./requester-imessage-bindings";
 import { imessageContinuationUrl } from "./imessage-continuation";
+import { photonRegistrar, type PhotonRegistrar } from "./photon";
 import { channelHash, imessageHash } from "./photon-receiver";
 import { calendarUsable, readReadiness } from "./readiness";
 import { openToken, sealToken, type TokenKey } from "./token-encryption";
@@ -73,7 +74,25 @@ export type LinkOptions = {
   readonly origin: string;
   readonly fallbackLimits?: Partial<typeof IMESSAGE_FALLBACK_LIMITS>;
   readonly linkLimits?: Partial<typeof IMESSAGE_LINK_LIMITS>;
+  // Registers the entered number with Photon; the deployment's by default.
+  readonly registrar?: PhotonRegistrar;
 };
+
+// The entered number for an iMessage code attempt (imessage-number-registration
+// design 1 and 2): it is registered as a Photon user, and the attempt keeps the
+// shared-pool number Photon assigned, which the screens address. The number
+// itself is not stored. A refused number or a full project is invalid input or
+// unavailable configuration; a lost answer is unavailable configuration too, so
+// the person can try again.
+export const NUMBER_INPUT = z.string().trim().min(1).max(40);
+
+export async function registeredLineNumber(registrar: PhotonRegistrar | undefined, entered: string) {
+  const number = normalizeNumber(entered);
+  if (!number) throw new CommandError("invalid_input");
+  const registration = await (registrar ?? photonRegistrar()).send(number);
+  if (registration.status !== "registered") throw new CommandError("unavailable_configuration");
+  return registration.lineNumber;
+}
 
 export function fallbackDailyLimit(env: Readonly<Record<string, string | undefined>> = process.env) {
   const value = Number(env.PHOTON_FALLBACK_DAILY_LIMIT);
@@ -316,12 +335,18 @@ async function linkedText(tx: Transaction, hostAccountId: string, origin: string
 
 const noInput = z.object({}).strict() as unknown as z.ZodType<Record<string, never>>;
 
-export function createImessageLinkCommand(options: LinkOptions): CommandDefinition<{ channel?: MessagingChannel }, { linkId: string }> {
+export function createImessageLinkCommand(
+  options: LinkOptions,
+): CommandDefinition<{ channel?: MessagingChannel; number?: string }, { linkId: string }> {
   const limits = { ...IMESSAGE_LINK_LIMITS, ...options.linkLimits };
 
   return {
-    // iMessage unless the card asks for WhatsApp (D6).
-    input: z.object({ channel: z.enum(MESSAGING_CHANNELS).optional() }).strict(),
+    // iMessage unless the card asks for WhatsApp (D6); iMessage needs the host's
+    // number first (imessage-number-registration D1), WhatsApp takes none.
+    input: z.union([
+      z.object({ channel: z.literal("imessage").optional(), number: NUMBER_INPUT }).strict(),
+      z.object({ channel: z.literal("whatsapp") }).strict(),
+    ]),
     operation: "imessage.link.create",
     async run(tx, context) {
       const hostAccountId = assertSelf(context);
@@ -335,14 +360,16 @@ export function createImessageLinkCommand(options: LinkOptions): CommandDefiniti
       `;
       if (recent!.count >= limits.perHostHour) throw new CommandError("rate_limited");
 
+      const lineNumber = channel === "imessage" ? await registeredLineNumber(options.registrar, context.input.number ?? "") : null;
+
       await endOpenAttempts(tx, hostAccountId, "voided");
 
       const code = generateLinkCode();
       const [row] = await tx<{ id: string }[]>`select gen_random_uuid() as id`;
       const sealed = sealToken(options.tokenKey, code, codeContext(row!.id));
       await tx`
-        insert into app.imessage_links (id, channel, host_account_id, method, code_hash, code_ciphertext, sealed_key_id, expires_at)
-        values (${row!.id}, ${channel}, ${hostAccountId}, 'code', ${hashLinkCode(code)}, ${sealed.ciphertext}, ${sealed.keyId},
+        insert into app.imessage_links (id, channel, host_account_id, method, code_hash, code_ciphertext, sealed_key_id, line_number, expires_at)
+        values (${row!.id}, ${channel}, ${hostAccountId}, 'code', ${hashLinkCode(code)}, ${sealed.ciphertext}, ${sealed.keyId}, ${lineNumber},
                 now() + make_interval(mins => ${limits.validMinutes}))
       `;
       return { linkId: row!.id };
@@ -685,17 +712,19 @@ async function openAttemptStatus(
       fallback_expires_at: Date | null;
       last_sent_at: Date | null;
       sends: number;
+      line_number: string | null;
     }[]
   >`
     select id, channel, method, state, code_ciphertext, phone_ciphertext, sealed_key_id, sender_ciphertext, sender_key_id, expires_at,
-           confirm_by, fallback_expires_at, last_sent_at, sends
+           confirm_by, fallback_expires_at, last_sent_at, sends, line_number
     from app.imessage_links
     where host_account_id = ${hostAccountId}
       and ((state = 'pending' and expires_at > now()) or (state = 'received' and confirm_by > now()))
   `;
 
   if (!link) return null;
-  const lineNumber = numberOf(channels, link.channel);
+  // The number Photon assigned when the attempt registered the host (imessage-number-registration design 2).
+  const lineNumber = link.line_number ?? numberOf(channels, link.channel);
   const shared = { channel: link.channel, channels, lineNumber };
 
   try {

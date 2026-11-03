@@ -12,6 +12,9 @@ import type { PhotonContent, PhotonRecipient } from "../../../lib/server/photon"
 // free-form text to a contact whose window was closed is refused as Meta's
 // 131047 (422 window_closed); a template is accepted unless templates were made
 // unavailable (422 template_unavailable).
+// Registering a user (imessage-number-registration design 1) goes to POST
+// /users and answers the shared-pool number assigned, the line number given,
+// unless the next registration was told to answer a status.
 
 export type FakeSend = {
   readonly channel: "imessage" | "whatsapp";
@@ -31,6 +34,10 @@ export type FakePhoton = {
   closeWindow(address: string): void;
   // Meta refuses every template (132001).
   templatesUnavailable(value?: boolean): void;
+  // Numbers registered as users, in order.
+  readonly registered: string[];
+  // The next registration answers this status instead, or assigns this number.
+  nextRegistration(behavior: number | { readonly lineNumber: string }): void;
   close(): Promise<void>;
 };
 
@@ -39,8 +46,10 @@ function json(response: ServerResponse, status: number, body: unknown) {
   response.end(JSON.stringify(body));
 }
 
-export async function startFakePhoton(options: { readonly port?: number } = {}): Promise<FakePhoton> {
+export async function startFakePhoton(options: { readonly port?: number; readonly lineNumber?: string } = {}): Promise<FakePhoton> {
   const sends: FakeSend[] = [];
+  const registered: string[] = [];
+  const registrations: (number | { lineNumber: string })[] = [];
   const behaviors: ("drop" | { status: number; category?: string })[] = [];
   let counter = 0;
   const closed = new Set<string>();
@@ -59,6 +68,19 @@ export async function startFakePhoton(options: { readonly port?: number } = {}):
     // Test control from another process (the browser journey).
     if (request.method === "GET" && url.pathname === "/__sends") {
       json(response, 200, sends);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/users") {
+      const registration = registrations.shift();
+      if (typeof registration === "number") {
+        json(response, registration, { succeed: false });
+        return;
+      }
+      const { phoneNumber } = JSON.parse(raw) as { phoneNumber: string };
+      registered.push(phoneNumber);
+      const assignedPhoneNumber = registration?.lineNumber ?? options.lineNumber ?? "+15550001111";
+      json(response, 200, { data: { assignedPhoneNumber, phoneNumber, type: "shared" }, succeed: true });
       return;
     }
 
@@ -119,7 +141,9 @@ export async function startFakePhoton(options: { readonly port?: number } = {}):
     templatesUnavailable: (value = true) => {
       templatesOff = value;
     },
+    nextRegistration: (behavior) => registrations.push(behavior),
     nextSend: (behavior) => behaviors.push(behavior),
+    registered,
     sends,
     sentTo: (address) => sends.filter((send) => send.recipient.address === address),
   };

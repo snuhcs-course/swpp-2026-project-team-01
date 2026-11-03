@@ -100,8 +100,13 @@ describe("Google sign-in", () => {
   it("gives this browser's iMessage start to the host who signs in, and clears its cookie (D15)", async () => {
     const { code, flow, user } = await signedInFlow();
     const secret = randomBytes(32).toString("base64url");
-    const options = { lineNumber: "+15550001111", tokenKey: deps.tokenKey, tokenKeys: [deps.tokenKey] };
-    await startImessageLink(db, options, secret, randomBytes(32).toString("hex"));
+    const options = {
+      lineNumber: "+15550001111",
+      registrar: { endpoint: "stub", send: async () => ({ lineNumber: "+15550001111", status: "registered" as const }) },
+      tokenKey: deps.tokenKey,
+      tokenKeys: [deps.tokenKey],
+    };
+    await startImessageLink(db, options, secret, randomBytes(32).toString("hex"), "imessage", "+15557654321");
 
     const response = await callback(
       new Request(`${origin}/auth/callback?code=${code}`, { headers: { cookie: `${flow.cookie}; ${START_COOKIE}=${secret}` } }),

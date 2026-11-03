@@ -21,6 +21,7 @@ import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 // and opens nothing; the host's message shows the masked sender, and only
 // Confirm and link binds it; unlinking returns to the start; the fallback's code
 // is typed back and never shown; a phone's card carries the platform's deep link.
+// Every iMessage start asks for the host's number first (imessage-number-registration D1).
 
 const tokenKey = parseTokenKey(E2E_TOKEN_ENCRYPTION_KEY);
 const LINE = "+15550001111";
@@ -108,6 +109,16 @@ async function press(page: Page, name: string) {
   await page.keyboard.press("Enter");
 }
 
+// The number asked before an iMessage code (imessage-number-registration D1): typed by keyboard, sent with Enter.
+async function enterNumber(page: Page) {
+  const field = page.getByRole("textbox", { name: "Mobile number" });
+  await expect(field).toBeVisible({ timeout: 45_000 });
+  await field.focus();
+  await page.keyboard.type("10-1234-5678");
+  await expect(field).toHaveValue("10-1234-5678");
+  await page.keyboard.press("Enter");
+}
+
 async function hasNoHorizontalScroll(page: Page) {
   return page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
 }
@@ -121,7 +132,7 @@ for (const width of [390, 1280]) {
     await expect(card.getByRole("heading", { name: "Use Find Me a Time from iMessage" })).toBeVisible();
     // The line can only answer a host's first message, so no code is texted first (D16).
     await expect(card.getByRole("button", { name: "Send me a code instead" })).toHaveCount(0);
-    await press(page, "Connect iMessage");
+    await enterNumber(page);
 
     // A desktop browser opens nothing: the number, the message, Copy and the QR code.
     // The first command compiles its route under next dev, slow while other suites run.
@@ -174,7 +185,9 @@ test("at 1280px the link step after sign-in links by the sent message, then open
   const host = await signedInHost(db, context, baseURL!, { imessageStep: true });
   await page.goto("/app");
 
-  // The step opens with a code already made: the message, the QR code and how long it works.
+  // The step asks for the number first, then shows the code: the message, the QR code and how long it works.
+  await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for iMessage?" })).toBeVisible({ timeout: 45_000 });
+  await enterNumber(page);
   await expect(page.getByRole("heading", { level: 1, name: "Connect Thyme to your iMessage" })).toBeVisible({ timeout: 45_000 });
   const message = (await page.getByTestId("imessage-link-message").textContent())!.trim();
   expect(message).toMatch(/^Link my Find Me a Time account: FMAT-[0-9A-HJKMNP-TV-Z]{10}$/);
@@ -212,6 +225,8 @@ test("the landing's iMessage start opens the send popup, and the arriving messag
   await page.goto("/?flow=imessage");
 
   await page.getByRole("button", { name: "Onboard with iMessage" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for iMessage?" })).toBeVisible();
+  await enterNumber(page);
   const popup = page.getByRole("dialog", { name: "Send Thyme one message" });
   await expect(popup).toBeVisible({ timeout: 45_000 });
   const message = (await popup.getByTestId("imessage-link-message").textContent())!.trim();
@@ -235,7 +250,7 @@ test.describe("on an iPhone", () => {
   test("the card carries the iOS deep link with the exact message and no QR code", async ({ baseURL, context, db, page }) => {
     await signedInHost(db, context, baseURL!);
     const card = await openCard(page);
-    await press(page, "Connect iMessage");
+    await enterNumber(page);
     const link = card.getByRole("link", { name: "Open Messages" });
     await expect(link).toBeVisible({ timeout: 10_000 });
     const message = (await card.getByTestId("imessage-link-message").textContent())!.trim();
@@ -246,6 +261,7 @@ test.describe("on an iPhone", () => {
   test("the link step's Open Messages carries the deep link, with no QR code", async ({ baseURL, context, db, page }) => {
     await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
+    await enterNumber(page);
 
     const link = page.getByRole("link", { name: "Open Messages" });
     await expect(link).toBeVisible({ timeout: 45_000 });

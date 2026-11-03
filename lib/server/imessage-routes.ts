@@ -154,11 +154,12 @@ export function createImessageStartHandler(load: () => ImessageRouteDependencies
     if (!origin) return unknownHost();
 
     // iMessage unless the page asks for WhatsApp (/?flow=whatsapp, host-whatsapp-channel D7).
-    const body = (await request.json().catch(() => null)) as { channel?: unknown } | null;
+    const body = (await request.json().catch(() => null)) as { channel?: unknown; number?: unknown } | null;
     const channel = body?.channel === "whatsapp" ? "whatsapp" : "imessage";
+    const number = typeof body?.number === "string" ? body.number.slice(0, 40) : "";
     const cookie = startCookieFor(origin, startSecretOf(request));
     try {
-      await startImessageLink(deps.db, deps, cookie.secret, sourceHash(deps.tokenKey, request), channel);
+      await startImessageLink(deps.db, deps, cookie.secret, sourceHash(deps.tokenKey, request), channel, number);
     } catch (error) {
       if (!(error instanceof CommandError)) throw error;
       return json({ error: { category: error.category, message: COMMAND_ERROR_MESSAGES[error.category] } }, COMMAND_STATUS[error.category]);

@@ -18,7 +18,7 @@ import { type EveServer, startEve } from "./support/eve-server";
 import { type FakeOpenAI, startFakeOpenAI } from "./support/fake-openai";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
 import { hostWithUser, imessageHarness, textOf } from "./support/imessage";
-import { messagesEvent, signedWebhook, TEST_WEBHOOK_ID, TEST_WEBHOOK_SECRET } from "./support/photon";
+import { messagesEvent, newSender, signedWebhook, TEST_WEBHOOK_ID, TEST_WEBHOOK_SECRET } from "./support/photon";
 
 // The Phase 6 join (task 5.1) against a real `eve dev` whose model is the local
 // OpenAI stand-in, the local stack, the fake Google and the Photon stand-in.
@@ -152,7 +152,7 @@ describe("the Phase 6 join", () => {
     const request = await agreedRequest(db, google, {
       beforeAgree: async (seeded) => {
         // The card makes a code; the host sends it to the agent service's channel.
-        await im.command(seeded.hostAccountId, "imessage.link.create");
+        await im.command(seeded.hostAccountId, "imessage.link.create", { number: newSender() });
         const pending = await im.status(seeded.hostAccountId);
         if (pending.state !== "pending") throw new Error("Expected a pending code.");
         sender = `+1555${String(Math.floor(Math.random() * 1e7)).padStart(7, "0")}`;

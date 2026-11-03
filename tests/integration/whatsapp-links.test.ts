@@ -75,7 +75,7 @@ describe("linking WhatsApp", () => {
     expect(textOf((await im.send(refusal!.id)).sent)).toEqual([LINK_TEXTS.refused]);
 
     const imessageHost = await newHostAccount(db);
-    await im.command(imessageHost, "imessage.link.create");
+    await im.command(imessageHost, "imessage.link.create", { number: newSender() });
     const code = await im.status(imessageHost);
     if (code.state !== "pending") throw new Error("Expected pending.");
     const whatsappSender = newWhatsAppSender();

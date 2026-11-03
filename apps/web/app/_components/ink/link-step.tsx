@@ -14,6 +14,7 @@ import { appLinkFor, readStatus, rememberedLater, rememberLater, sendCommand } f
 import { Brand, InkStage, LanguageSelect } from "./chrome";
 import { channelCopy, COPY, type Locale } from "./copy";
 import { AppGlyph, ExternalIcon, MessagesGlyph, StatusMark, WhatsAppGlyph } from "./icons";
+import { NumberForm } from "./number-form";
 import { clock, isPhone, MessagePreview, type SendCode, SendPanel, shownNumber, useNow, usePlatform } from "./send";
 
 // The /app link step (H11, D15, D16): right after Google sign-in, in place of the phone number the landing
@@ -30,6 +31,9 @@ import { clock, isPhone, MessagePreview, type SendCode, SendPanel, shownNumber, 
 // computer first asks which app the host uses on their phone. A code or a sender already there keeps its own
 // channel. Confirming a WhatsApp sender first says what Thyme will send there, and confirming either says
 // which earlier link it replaces.
+// An iMessage code needs the host's number first (imessage-number-registration D1, D3): Photon's shared lines
+// read only registered numbers, so the step asks for it, the server registers it, and the code it makes is
+// addressed to the number Photon assigned. The number is kept for this visit, so a new code needs no new entry.
 
 const POLL_MS = 2000;
 
@@ -48,6 +52,9 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
   const [offer, setOffer] = useState<ChannelOffer>("ask");
   const [asking, setAsking] = useState(false);
   const [wanted, setWanted] = useState<MessagingChannel | null>(null);
+  // The number entered for iMessage on this visit, and whether the step is asking for it.
+  const [number, setNumber] = useState<string | null>(null);
+  const [askingNumber, setAskingNumber] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const now = useNow(shown === "step");
 
@@ -71,14 +78,47 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
     [base, take],
   );
 
-  // A code for the channel; the app question closes once it is made.
+  // A code for the channel; the app question closes once it is made. iMessage asks for the number first.
   const newCode = useCallback(
-    async (channel: MessagingChannel) => {
+    async (channel: MessagingChannel, entered: string | null = number) => {
       setOpened(false);
       setWanted(channel);
-      if (await command("imessage.link.create", { channel })) setAsking(false);
+      if (channel === "imessage" && !entered) {
+        setAsking(false);
+        setAskingNumber(true);
+        return;
+      }
+      if (await command("imessage.link.create", channel === "imessage" ? { channel, number: entered } : { channel })) {
+        setAsking(false);
+        setAskingNumber(false);
+      }
     },
-    [command],
+    [command, number],
+  );
+
+  // The number form's submit: a refused number shows under the field, anything else as the step's notice.
+  const submitNumber = useCallback(
+    async (e164: string) => {
+      setBusy("imessage.link.create");
+      setError("");
+      const outcome = await sendCommand({ input: { channel: "imessage", number: e164 }, operation: "imessage.link.create", retryKey: crypto.randomUUID() });
+      setBusy(null);
+      take(outcome.status);
+      if (!outcome.lost && !outcome.error) {
+        setNumber(e164);
+        setAskingNumber(false);
+        setAsking(false);
+        setOpened(false);
+        return null;
+      }
+      if (!outcome.lost && outcome.error?.category === "invalid_input") return "invalid" as const;
+      if (!outcome.lost && outcome.error?.category === "rate_limited") {
+        setError(base.send.limited);
+        return null;
+      }
+      return "other" as const;
+    },
+    [base, take],
   );
 
   // The first read decides whether the step shows, and makes the code when it does. It runs once, so a
@@ -122,7 +162,9 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
         ? "connected"
         : asking
           ? "ask"
-          : !code
+          : askingNumber
+            ? "number"
+            : !code
             ? "nocode"
             : expired && phone
               ? "expired"
@@ -148,7 +190,12 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
   // The channel on screen: the sender's or binding's, else the code's, else the one asked for.
   const channel: MessagingChannel = status.state === "received" || status.state === "linked" ? status.channel : (code?.channel ?? wanted ?? "imessage");
   const c = channelCopy(base, channel);
-  const other = code && (screen === "panel" || screen === "send" || screen === "waiting") ? otherChannel(offer, status.channels, code.channel) : null;
+  const other =
+    screen === "number"
+      ? otherChannel(offer, status.channels, "imessage")
+      : code && (screen === "panel" || screen === "send" || screen === "waiting")
+        ? otherChannel(offer, status.channels, code.channel)
+        : null;
 
   const toChat = (later: boolean) => {
     if (later) rememberLater();
@@ -239,6 +286,22 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
           </div>
           {notice}
           <p className="alt">{skip(c.link.altDesktop)}</p>
+        </main>
+      );
+      break;
+
+    case "number":
+      body = (
+        <main className="handoff">
+          <h1 ref={heading} tabIndex={-1}>
+            {base.number.heading}
+          </h1>
+          <p className="lede small">{base.number.lede}</p>
+          <NumberForm id="link-number" look="ink" onSubmit={submitNumber} t={base.number} />
+          {notice}
+          <p className="fine">{base.number.fine}</p>
+          {switcher ? <p className="opens">{switcher}</p> : null}
+          <p className="alt">{skip(phone ? c.link.altPhone : c.link.altDesktop)}</p>
         </main>
       );
       break;

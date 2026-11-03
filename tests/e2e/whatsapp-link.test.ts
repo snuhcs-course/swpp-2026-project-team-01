@@ -144,8 +144,8 @@ test.describe("on an iPhone", () => {
     await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
 
-    await expect(page.getByRole("heading", { level: 1, name: "Connect Thyme to your iMessage" })).toBeVisible({ timeout: 45_000 });
-    await expect(page.getByRole("link", { name: "Open Messages" })).toHaveAttribute("href", new RegExp(`^sms:\\${LINE}&body=`));
+    // iMessage asks for the number first (imessage-number-registration D1); WhatsApp needs none.
+    await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for iMessage?" })).toBeVisible({ timeout: 45_000 });
 
     await page.getByRole("button", { name: "Use WhatsApp instead" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Connect Thyme to your WhatsApp" })).toBeVisible({ timeout: 45_000 });

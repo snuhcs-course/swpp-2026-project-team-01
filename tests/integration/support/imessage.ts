@@ -7,7 +7,7 @@ import { imessageCommands, readImessageStatus } from "../../../lib/server/imessa
 import { createImessageSendHandler, IMESSAGE_SEND_JOB, type ImessageSendDependencies, wakeImessageReplies } from "../../../lib/server/imessage-outbox";
 import { recordInputReceived, recordTurnEnded } from "../../../lib/server/session-owner";
 import { createImessageReceiptHandler, type ImessageReceiptDependencies } from "../../../lib/server/imessage-receipts";
-import { photonConfig } from "../../../lib/server/photon";
+import { photonConfig, photonRegistrar, type PhotonRegistrar } from "../../../lib/server/photon";
 import type { SetupDependencies } from "../../../lib/server/setup";
 import { IMESSAGE_RECEIPT_JOB, receivePhotonWebhook } from "../../../lib/server/photon-receiver";
 import { linkMessage } from "../../../lib/contracts/imessage";
@@ -41,6 +41,9 @@ export function imessageHarness(
   options: { readonly runtime?: ConversationRuntime; readonly receipt?: () => Partial<ImessageReceiptDependencies> } = {},
 ) {
   const config = () => ({ ...photonConfig({}), apiUrl: photon().baseUrl, lineNumber: TEST_LINE, whatsappNumber: TEST_WHATSAPP_NUMBER });
+  // Registers entered numbers with the stand-in (imessage-number-registration design 1), resolved per call so
+  // options built before the stand-in starts can hold it.
+  const registrar: PhotonRegistrar = { endpoint: "stand-in", send: (number) => photonRegistrar(config(), {}).send(number) };
   const receiptDeps = (): ImessageReceiptDependencies => ({
     config: config(),
     conversation: { admission: { serviceKey: admissionKey }, db, runtime, signingKey: SIGNING_KEY },
@@ -81,10 +84,19 @@ export function imessageHarness(
     tokenKeys: [testTokenKey],
   });
   const commands = (lineDayLimit = 1000) =>
-    imessageCommands({ lineDayLimit, lineNumber: TEST_LINE, whatsappNumber: TEST_WHATSAPP_NUMBER, origin: "http://localhost:3000", tokenKey: testTokenKey, tokenKeys: [testTokenKey] });
+    imessageCommands({
+      lineDayLimit,
+      lineNumber: TEST_LINE,
+      origin: "http://localhost:3000",
+      registrar,
+      tokenKey: testTokenKey,
+      tokenKeys: [testTokenKey],
+      whatsappNumber: TEST_WHATSAPP_NUMBER,
+    });
 
   return {
     config,
+    registrar,
     receiptDeps,
     runtime,
     sendDeps,
@@ -195,7 +207,7 @@ export function imessageHarness(
     // With channel "whatsapp", the sender is a WhatsApp contact ID.
     async link(hostAccountId: string, sender?: string, channel: "imessage" | "whatsapp" = "imessage") {
       sender ??= channel === "whatsapp" ? newWhatsAppSender() : newSender();
-      await this.command(hostAccountId, "imessage.link.create", channel === "whatsapp" ? { channel } : {});
+      await this.command(hostAccountId, "imessage.link.create", channel === "whatsapp" ? { channel } : { number: sender.startsWith("+") ? sender : newSender() });
       const pending = await this.status(hostAccountId);
       if (pending.state !== "pending") throw new Error(`Expected a pending code, got ${pending.state}.`);
       await this.deliver({ channel, sender, text: linkMessage(pending.code) });
