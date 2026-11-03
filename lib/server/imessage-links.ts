@@ -285,8 +285,26 @@ async function bind(
     text: await linkedText(tx, hostAccountId, options.origin),
     tokenKey: options.tokenKey,
   });
+  // Photon's deliverability guidance: once the host saves the line's contact
+  // card, iMessage stops offering Report Junk. It follows the welcome, once
+  // per binding (D22, design 18); WhatsApp shows the verified business name instead.
+  if (channel === "imessage") {
+    await recordOutbound(tx, {
+      bindingId,
+      dedupeKey: `binding:${bindingId}:card:linked`,
+      delaySeconds: CARD_AFTER_WELCOME_SECONDS,
+      hostAccountId,
+      kind: "contact_card",
+      recipient: { address: sender, spaceId },
+      recipientHash: senderHash,
+      tokenKey: options.tokenKey,
+    });
+  }
   return bindingId;
 }
+
+// The card's send waits this long, so it arrives after the welcome.
+export const CARD_AFTER_WELCOME_SECONDS = 15;
 
 // Undispatched host-private messages of ended bindings go no further.
 async function suppressQueued(tx: Transaction, bindingIds: readonly string[], category: string) {
@@ -640,7 +658,7 @@ export async function readImessageStatus(
     // A WhatsApp message the window or Meta stopped counts as a failed delivery (design 7).
     const [latest] = await db<{ state: string; updated_at: Date; failure_category: string | null }[]>`
       select state, updated_at, failure_category from app.imessage_outbox
-      where binding_id = ${binding.id} and kind <> 'contact_card'
+      where binding_id = ${binding.id} and kind not in ('contact_card', 'signal')
         and (state in ('accepted', 'failed', 'uncertain') or failure_category in ('window_closed', 'template_unavailable'))
       order by updated_at desc limit 1
     `;

@@ -164,6 +164,12 @@ for (const width of [390, 1280]) {
     await expect(again.getByRole("heading", { name: "iMessage is linked" })).toBeVisible();
     expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(1);
 
+    // Confirm and link queued the contact card behind the welcome (D22), so no
+    // Add to contacts while it is on its way; once sent, it can be shared again.
+    await expect(again).toContainText("Sending your contact card");
+    await expect(again.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
+    expect(await sendQueued(db, host.hostAccountId, "contact_card")).toHaveLength(1);
+    await expect(again).toContainText("Contact card sent", { timeout: 10_000 });
     await press(page, "Add to contacts");
     await expect(again).toContainText("Sending your contact card");
 

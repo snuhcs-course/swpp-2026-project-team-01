@@ -117,7 +117,7 @@ The production project is on Photon's Free plan, whose iMessage lines are shared
 
 ### Display-name, contact cards and profile sync
 
-Offer optional **Add to contacts** as a host action after a verified private exchange; the connected card queues one native contact-card share through the Spectrum SDK ([`host-imessage-channel` design 11](../../openspec/changes/host-imessage-channel/design.md#11-add-to-contacts)). Freeze the actual selected route and report provider acceptance/uncertainty truthfully. The recipient chooses whether to save it; the product cannot promise the displayed name or infer identity/consent from a contact card. Verify the actual account profile and real-device presentation independently before claiming support.
+Share the contact card once after **Confirm and link**, held behind the welcome, as Photon's [deliverability guidance](https://photon.codes/docs/best-practices/imessage-deliverability.md) advises, and offer optional **Add to contacts** as a host action for another share; each queues one native contact-card share through the Spectrum SDK ([`host-imessage-channel` design 11 and 18](../../openspec/changes/host-imessage-channel/design.md#18-read-marks-typing-tapbacks-and-the-contact-card-after-linking-d20d22)). Read marks, the typing bubble and the thanks tapback go through the same SDK as best-effort outbox signals (`space.read`, `space.startTyping`, `message.react`). Freeze the actual selected route and report provider acceptance/uncertainty truthfully. The recipient chooses whether to save it; the product cannot promise the displayed name or infer identity/consent from a contact card. Verify the actual account profile and real-device presentation independently before claiming support.
 
 ### References
 

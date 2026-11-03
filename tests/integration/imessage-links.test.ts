@@ -115,7 +115,9 @@ describe("linking by a host-sent code", () => {
     const confirmed = await im.command(hostAccountId, "imessage.link.confirm", { linkId: link!.id });
     expect(confirmed.ok).toBe(true);
     expect(await im.bindingOf(hostAccountId)).toMatchObject({ sender_hash: imessageHash(testTokenKey, "sender", sender), state: "active" });
-    expect(await im.status(hostAccountId)).toMatchObject({ contactCard: null, delivery: null, sender: `•••• ${sender.slice(-4)}`, state: "linked" });
+    // Confirming also queues the line's contact card after the welcome (D22).
+    expect(await im.status(hostAccountId)).toMatchObject({ contactCard: { state: "queued" }, delivery: null, sender: `•••• ${sender.slice(-4)}`, state: "linked" });
+    expect(await im.outbox({ hostAccountId, kind: "contact_card" })).toHaveLength(1);
 
     const [linked] = await im.outbox({ hostAccountId, kind: "linked" });
     expect(textOf((await im.send(linked!.id)).sent)).toEqual([
@@ -314,11 +316,11 @@ describe("unlinking and the contact card", () => {
     expect(await im.status(hostAccountId)).toMatchObject({ state: "none" });
   });
 
-  it("queues one contact card and refuses another while it is on its way", async () => {
+  it("queues one contact card after linking and refuses another while it is on its way", async () => {
     const { hostAccountId } = await linkedHost();
-    expect((await im.command(hostAccountId, "imessage.contact_card.share")).ok).toBe(true);
-    expect(await im.command(hostAccountId, "imessage.contact_card.share")).toMatchObject({ error: { category: "rate_limited" } });
+    // Confirm and link queued the card after the welcome (D22); another waits for it.
     expect(await im.status(hostAccountId)).toMatchObject({ contactCard: { state: "queued" } });
+    expect(await im.command(hostAccountId, "imessage.contact_card.share")).toMatchObject({ error: { category: "rate_limited" } });
 
     const [card] = await im.outbox({ hostAccountId, kind: "contact_card" });
     expect(textOf((await im.send(card!.id)).sent)).toEqual(["[contact_card]"]);

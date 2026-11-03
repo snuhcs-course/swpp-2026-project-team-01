@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { photonConfig, photonRegistrar, photonTransport, SPECTRUM_ENDPOINT, standInTransport } from "./photon";
+import { photonConfig, photonRegistrar, photonTransport, SPECTRUM_ENDPOINT, spectrumTransport, standInTransport } from "./photon";
 
 // The transport's outcome classification and the messaging gate
 // (host-imessage-channel design 3): a stand-in answer maps to accepted,
@@ -62,6 +62,27 @@ describe("photonTransport", () => {
 });
 
 // host-whatsapp-channel task 2.3: WhatsApp's path, Meta's refusals and the gate.
+describe("signals", () => {
+  const signal = {
+    ...request,
+    content: { kind: "signal" as const, messageId: "m-host-1", reaction: "❤️", typing: false },
+    recipient: { address: "+15551234567", spaceId: "any;-;+15551234567" },
+  };
+
+  it("carries the signal to the stand-in as it is", async () => {
+    const fetcher = answering(200, {});
+    expect(await standInTransport("http://127.0.0.1:9", "s", fetcher).send(signal)).toMatchObject({ status: "accepted" });
+    const [, init] = (fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls[0]! as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toMatchObject({ content: signal.content });
+  });
+
+  it("refuses a signal with no conversation, and on WhatsApp, before any network access", async () => {
+    const spectrum = spectrumTransport({ projectId: "p", projectSecret: "s" });
+    expect(await spectrum.send({ ...signal, recipient: { ...signal.recipient, spaceId: null } })).toEqual({ category: "invalid_recipient", status: "rejected" });
+    expect(await spectrum.send({ ...signal, channel: "whatsapp" })).toEqual({ category: "provider_rejected", status: "rejected" });
+  });
+});
+
 describe("WhatsApp sends", () => {
   const whatsapp = { ...request, channel: "whatsapp" as const, recipient: { address: "15551234567", spaceId: "15551234567" } };
   const template = { ...whatsapp, content: { kind: "template" as const, languageCode: "en_US", name: "fmat_proposal_waiting", params: ["K7Q2MX"] } };

@@ -178,6 +178,8 @@ Dots, Muse, Instinct, ChatGPT, Codex, Claude, Claude Code는 PRD의 필수 호�
 
 ## 선택적 iMessage 연락처 카드
 
-연동이 검증된 후 **연락처에 추가(Add to contacts)**는 연결된 카드의 선택적 동작이며, 호스트가 연결 메시지를 보냈기 때문에 대화는 이미 존재하고 카드는 답장으로 도착합니다. 이 동작 전에, 이것이 연동된 대화에서 카드를 요청하는 것이며 수신자가 저장할지 선택한다는 점을 설명합니다. 이 선택을 하지 않아도 설정과 웹 채팅은 계속 사용할 수 있습니다.
+**확인 및 연결(Confirm and link)** 직후, 환영 메시지 몇 초 뒤에 Thyme이 연락처 카드를 한 번 공유하며, **연락처에 추가(Add to contacts)**는 카드를 다시 공유하는 연결된 카드의 선택적 동작으로 남습니다. 호스트가 연결 메시지를 보냈기 때문에 대화는 이미 존재하고 카드는 답장으로 도착합니다. 이 동작 전에, 이것이 연동된 대화에서 카드를 요청하는 것이며 수신자가 저장할지 선택한다는 점을 설명합니다. 이 선택을 하지 않아도 설정과 웹 채팅은 계속 사용할 수 있습니다.
 
 대기 중(queued), 공급자 수락(provider-accepted), 실패(failed), 철회(revoked), 불확실(uncertain) 상태를 표시합니다. 수락된 경우에는 호스트에게 iMessage를 확인하고 저장할지 선택하도록 안내하며, 전달이나 저장이 확인되었다고 보고하지 않습니다. 불확실한 경우에는 기존 대화를 확인하도록 안내하고 재전송 버튼 없이 **연락처 상태 확인(Check contact status)**을 제공합니다. 상태 읽기에 실패하면 상태를 확인할 수 있을 때까지 **연락처에 추가(Add to contacts)**를 숨깁니다. 새로고침하면 영속화된 요청이 복원되고, 새로 검증된 연동은 자체 상태로 시작합니다. 연동을 해제해도 이미 보낸 카드가 회수되지는 않습니다. 실제 디바이스에서의 표시와 프로필 이름 동작은 [공급자 인수 검증](../technical_specification/03_provider_setup.md#display-name-contact-cards-and-profile-sync)의 대상으로 남습니다.
+
+연동된 대화에서 Thyme은 호스트의 메시지를 읽음으로 표시하며, 생각이 필요한 답장을 준비하는 동안에는 답장이 도착할 때까지 입력 중 말풍선이 표시됩니다. 감사 인사만 담긴 메시지에는 답장 대신 ❤️ 탭백을 보냅니다. 이들은 메시지가 아닌 신호이므로 전달됨이나 실패로 보고되지 않으며, "ok", "yes" 또는 👍에는 여전히 답장합니다([`host-imessage-channel` 설계 18](../../openspec/changes/host-imessage-channel/design.md#18-read-marks-typing-tapbacks-and-the-contact-card-after-linking-d20d22)).

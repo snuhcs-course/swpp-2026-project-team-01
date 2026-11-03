@@ -119,7 +119,7 @@ Photon의 전달 가능성 안내에 따라 인바운드 우선이 기본값입�
 
 ### 표시 이름, 연락처 카드, 프로필 동기화
 
-검증된 비공개 대화 이후 호스트 동작으로서 선택적인 **연락처에 추가(Add to contacts)**를 제공하며, 연결된 카드는 Spectrum SDK를 통해 네이티브 연락처 카드 공유 하나를 대기열에 넣습니다([`host-imessage-channel` 설계 11](../../openspec/changes/host-imessage-channel/design.md#11-add-to-contacts)). 실제로 선택된 경로를 고정하고, 공급자의 수락/불확실성을 사실대로 보고합니다. 저장 여부는 수신자가 선택하며, 제품은 표시되는 이름을 약속하거나 연락처 카드로부터 신원/동의를 추론할 수 없습니다. 지원한다고 주장하기 전에 실제 계정 프로필과 실제 디바이스에서의 표시를 각각 독립적으로 검증합니다.
+Photon의 [전달 가능성 안내](https://photon.codes/docs/best-practices/imessage-deliverability.md)에 따라 **확인 및 연결(Confirm and link)** 직후 환영 메시지 뒤에 보류해 연락처 카드를 한 번 공유하고, 다시 공유할 수 있도록 호스트 동작으로서 선택적인 **연락처에 추가(Add to contacts)**를 제공합니다. 각각은 Spectrum SDK를 통해 네이티브 연락처 카드 공유 하나를 대기열에 넣습니다([`host-imessage-channel` 설계 11과 18](../../openspec/changes/host-imessage-channel/design.md#18-read-marks-typing-tapbacks-and-the-contact-card-after-linking-d20d22)). 읽음 표시, 입력 중 말풍선, 감사 탭백은 같은 SDK를 통해 최선 노력 방식의 발신함 신호(`space.read`, `space.startTyping`, `message.react`)로 전달됩니다. 실제로 선택된 경로를 고정하고, 공급자의 수락/불확실성을 사실대로 보고합니다. 저장 여부는 수신자가 선택하며, 제품은 표시되는 이름을 약속하거나 연락처 카드로부터 신원/동의를 추론할 수 없습니다. 지원한다고 주장하기 전에 실제 계정 프로필과 실제 디바이스에서의 표시를 각각 독립적으로 검증합니다.
 
 ### 참고 자료
 

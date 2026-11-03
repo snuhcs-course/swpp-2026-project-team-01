@@ -292,7 +292,9 @@ describe("routing a guest's message", () => {
     // An exact command is the host's.
     const since = await outboxOf(sender);
     expect((await im.deliver({ sender, text: "help" })).outcome).toBe("command");
-    expect(await sentTo(sender, since)).toEqual([HELP_TEXT]);
+    // A command gets the read mark beside its reply, in no set order, and the
+    // mark moves no selection (D20).
+    expect((await sentTo(sender, since)).sort()).toEqual(["[signal]", HELP_TEXT].sort());
 
     // Select the host conversation before sending free text.
     const own = await createTestRequest(db, { hostAccountId: host.hostAccountId });
@@ -300,8 +302,9 @@ describe("routing a guest's message", () => {
     const job = await jobFor(db, IMESSAGE_NOTICE_JOB, `notice:new_request:${own.requestId}`);
     await runJob(db, job.id, noticeHandler);
     expect((await im.deliver({ sender, text: `request ${requestRef(own.requestId)}` })).outcome).toBe("command");
-    await im.deliver({ sender, text: "Thanks" });
-    expect(await hostInputs(host.hostAccountId)).toEqual(["[iMessage] Thanks"]);
+    // Not "Thanks", which gets a tapback and no turn (D21).
+    await im.deliver({ sender, text: "Mornings are best" });
+    expect(await hostInputs(host.hostAccountId)).toEqual(["[iMessage] Mornings are best"]);
     expect(await guestInputs(guest.requestId)).toHaveLength(1);
   });
 });

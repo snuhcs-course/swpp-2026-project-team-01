@@ -718,9 +718,6 @@ export function ContactCardLine({
   readonly state: "queued" | "sent" | "failed" | "uncertain" | null;
 }) {
   if (state === "queued") return <p className="text-sm text-muted-foreground" role="status">Sending your contact card...</p>;
-  if (state === "sent") {
-    return <p className="text-sm text-muted-foreground">Contact card sent. Check iMessage and choose whether to save it.</p>;
-  }
   if (state === "uncertain") {
     return (
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -731,8 +728,11 @@ export function ContactCardLine({
       </div>
     );
   }
+  // A sent card can be shared again: linking already sends one (D22), and the
+  // host may not have saved it.
   return (
     <div className="flex flex-col gap-1">
+      {state === "sent" ? <p className="text-sm text-muted-foreground">Contact card sent. Check iMessage and choose whether to save it.</p> : null}
       {state === "failed" ? <p className="text-sm text-muted-foreground">The contact card couldn&apos;t be sent.</p> : null}
       <p className="text-xs text-muted-foreground">
         Optional: we send our contact card in your conversation; you choose whether to save it.
