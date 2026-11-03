@@ -9,6 +9,7 @@ import { Brand, LanguageSelect } from "./chrome";
 import { channelCopy, COPY, type Locale } from "./copy";
 import { AppGlyph, ExternalIcon, StatusMark } from "./icons";
 import { GoogleStart } from "./landing-parts";
+import { NumberForm } from "./number-form";
 import { clock, isPhone, SendPanel, shownNumber, useNow, usePlatform } from "./send";
 
 // The landing that starts from iMessage (/?flow=imessage, host-imessage-channel D15). Onboard with iMessage
@@ -21,27 +22,29 @@ import { clock, isPhone, SendPanel, shownNumber, useNow, usePlatform } from "./s
 // /?flow=whatsapp starts the same way from WhatsApp (host-whatsapp-channel D7): the start asks for a WhatsApp
 // code ({"channel":"whatsapp"}), a phone opens wa.me, and the popup shows the WhatsApp number, its QR code
 // and Open WhatsApp. An attempt this browser already has keeps its own channel.
+// An iMessage start asks for the number first (imessage-number-registration D1, D3): the server registers it
+// with Photon and addresses the code to the number Photon assigned. The number is kept for this visit.
 
 const POLL_MS = 2000;
 
 type Start = { readonly begin: () => void; readonly busy: boolean; readonly channel: MessagingChannel; readonly error: string };
 const StartContext = createContext<Start | null>(null);
 
-type Answer = { readonly status: ImessageStartStatus | null; readonly error: string };
+type Answer = { readonly status: ImessageStartStatus | null; readonly error: string; readonly category?: string };
 
 async function readStart(): Promise<ImessageStartStatus | null> {
   const response = await fetch("/api/imessage/start", { cache: "no-store" }).catch(() => null);
   return response?.ok ? ((await response.json()) as ImessageStartStatus) : null;
 }
 
-async function postStart(locale: Locale, channel: MessagingChannel): Promise<Answer> {
+async function postStart(locale: Locale, channel: MessagingChannel, number: string | null): Promise<Answer> {
   const t = channelCopy(COPY[locale], channel).send;
-  const body = JSON.stringify(channel === "whatsapp" ? { channel } : {});
+  const body = JSON.stringify(channel === "whatsapp" ? { channel } : { number });
   const response = await fetch("/api/imessage/start", { body, headers: { "content-type": "application/json" }, method: "POST" }).catch(() => null);
   const answer = (await response?.json().catch(() => null)) as ImessageStartStatus | { error?: { category: string } } | null;
   if (response?.ok && answer && "state" in answer) return { error: "", status: answer };
   const category = answer && "error" in answer ? answer.error?.category : undefined;
-  return { error: category === "rate_limited" ? t.limited : category === "unavailable_configuration" ? t.unavailable : t.error, status: null };
+  return { category, error: category === "rate_limited" ? t.limited : category === "unavailable_configuration" ? t.unavailable : t.error, status: null };
 }
 
 export function ImessageStart({
@@ -57,7 +60,9 @@ export function ImessageStart({
   const platform = usePlatform();
   const phone = isPhone(platform);
   const [status, setStatus] = useState<ImessageStartStatus | null>(null);
-  const [phase, setPhase] = useState<"idle" | "popup" | "waiting">("idle");
+  const [phase, setPhase] = useState<"idle" | "number" | "popup" | "waiting">("idle");
+  // The number entered for iMessage on this visit.
+  const [number, setNumber] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const heading = useRef<HTMLHeadingElement>(null);
@@ -100,9 +105,13 @@ export function ImessageStart({
   );
 
   const fresh = useCallback(async () => {
+    if (flow === "imessage" && !number) {
+      setPhase("number");
+      return null;
+    }
     setBusy(true);
     setError("");
-    const answer = await postStart(locale, flow);
+    const answer = await postStart(locale, flow, number);
     setBusy(false);
     if (!answer.status) {
       setError(answer.error);
@@ -110,7 +119,31 @@ export function ImessageStart({
     }
     setStatus(answer.status);
     return answer.status.state === "pending" ? answer.status : null;
-  }, [flow, locale]);
+  }, [flow, locale, number]);
+
+  // The number form's submit: a refused number shows under the field, a limit as the screen's notice.
+  const submitNumber = useCallback(
+    async (e164: string) => {
+      setBusy(true);
+      setError("");
+      const answer = await postStart(locale, "imessage", e164);
+      setBusy(false);
+      if (answer.status) {
+        setNumber(e164);
+        setStatus(answer.status);
+        setPhase("idle");
+        if (answer.status.state === "pending") open(answer.status);
+        return null;
+      }
+      if (answer.category === "invalid_input") return "invalid" as const;
+      if (answer.category === "rate_limited") {
+        setError(answer.error);
+        return null;
+      }
+      return "other" as const;
+    },
+    [locale, open],
+  );
 
   const begin = useCallback(async () => {
     if (busy) return;
@@ -120,7 +153,7 @@ export function ImessageStart({
   }, [busy, fresh, open, pending]);
 
   const received = status?.state === "received" ? status : null;
-  const takeover = received ? "received" : phase === "waiting" && pending ? "waiting" : null;
+  const takeover = received ? "received" : phase === "number" ? "number" : phase === "waiting" && pending ? "waiting" : null;
 
   // The heading moves with the screen, so a screen reader hears each change.
   useEffect(() => heading.current?.focus({ preventScroll: true }), [takeover, phase]);
@@ -132,6 +165,37 @@ export function ImessageStart({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [phase]);
+
+  if (takeover === "number") {
+    const n = COPY[locale].number;
+    return (
+      <div className="inner" data-screen="imessage-number">
+        <header className="top">
+          <Brand />
+          <LanguageSelect locale={locale} />
+        </header>
+        <main className="handoff">
+          <h1 ref={heading} tabIndex={-1}>
+            {n.heading}
+          </h1>
+          <p className="lede small">{n.lede}</p>
+          <NumberForm id="start-number" look="ink" onSubmit={submitNumber} t={n} />
+          {error ? (
+            <p className="field-help error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <p className="fine">{n.fine}</p>
+          <p className="alt">
+            {t.landing.noImessage}{" "}
+            <a className="link-btn" href="/auth/sign-in">
+              {t.landing.google}
+            </a>
+          </p>
+        </main>
+      </div>
+    );
+  }
 
   if (takeover) {
     const expired = pending ? Date.parse(pending.expiresAt) <= now : false;

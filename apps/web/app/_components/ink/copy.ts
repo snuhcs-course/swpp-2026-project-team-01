@@ -140,6 +140,20 @@ const en = {
     lost: "The answer was lost. Try again; it won't be repeated.",
   },
   // The /app link step after Google sign-in.
+  // The number asked before an iMessage link code (imessage-number-registration D3), from the landing
+  // redesign's phone screen.
+  number: {
+    heading: "Which number do you use for iMessage?",
+    lede: "Thyme only reads messages from numbers it knows. Enter yours, then send Thyme one message from it.",
+    label: "Mobile number",
+    country: "Country code",
+    help: "Hyphens are added for you.",
+    errorKr: "Enter a mobile number like 10-1234-5678.",
+    errorOther: "Check the number. It looks incomplete.",
+    errorServer: "Couldn't register this number. Try again in a moment.",
+    submit: "Next",
+    fine: "Thyme uses this number only to recognize your messages. iMessage only for now.",
+  },
   link: {
     heading: "Connect Thyme to your iMessage",
     lede: "Send Thyme one message from the iMessage you use. It's already written, and sending it links this account.",
@@ -320,6 +334,18 @@ const ko: Copy = {
     error: "Thyme에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.",
     limited: "시도가 너무 많아요. 잠시 후 다시 해 주세요.",
     lost: "응답을 받지 못했어요. 다시 시도해도 두 번 처리되지 않아요.",
+  },
+  number: {
+    heading: "iMessage 번호를 알려 주세요",
+    lede: "Thyme은 알고 있는 번호의 메시지만 읽어요. 번호를 입력한 뒤, 그 번호로 Thyme에게 메시지 하나를 보내 주세요.",
+    label: "휴대폰 번호",
+    country: "국가 번호",
+    help: "하이픈은 자동으로 들어가요.",
+    errorKr: "10-1234-5678 같은 휴대폰 번호를 입력해 주세요.",
+    errorOther: "번호를 확인해 주세요. 덜 입력된 것 같아요.",
+    errorServer: "번호를 등록하지 못했어요. 잠시 후 다시 시도해 주세요.",
+    submit: "다음",
+    fine: "이 번호는 내 메시지를 알아보는 데만 써요. 지금은 iMessage만 지원해요.",
   },
   link: {
     heading: "Thyme을 iMessage에 연결해요",

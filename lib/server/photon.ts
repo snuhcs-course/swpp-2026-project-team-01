@@ -1,3 +1,4 @@
+import { E164_NUMBER } from "../contracts/imessage";
 import type { MessagingChannel } from "../contracts/messaging-channel";
 import { deploymentEnvironment } from "./deployment";
 import { gateTransport, type MessagingTransport } from "./messaging";
@@ -270,6 +271,63 @@ async function sendWhatsApp(config: Pick<PhotonConfig, "projectId" | "projectSec
   } finally {
     await app.stop().catch(() => undefined);
   }
+}
+
+// Registering a number as a user of the project (imessage-number-registration
+// design 1). On Photon's shared lines only registered users' messages reach the
+// project, so every iMessage link attempt registers the number entered first;
+// the answer names the shared-pool number assigned to that user, which the link
+// screens then address. Photon's create is idempotent on the number, so entering
+// it again returns the same user and number. Production calls Spectrum's REST
+// API with the project credentials; elsewhere the stand-in answers POST
+// {apiUrl}/users the same way. Outcomes:
+//   - registered: the user exists and texts lineNumber;
+//   - refused: Photon refused the number or the project (full, or a bad number);
+//   - unavailable: nothing could be asked or the answer was lost.
+export type PhotonRegistration =
+  | { readonly status: "registered"; readonly lineNumber: string }
+  | { readonly status: "refused" }
+  | { readonly status: "unavailable" };
+
+export type PhotonRegistrar = MessagingTransport<string, PhotonRegistration>;
+
+function registrar(endpoint: string, url: string, authorization: string, fetcher: typeof fetch): PhotonRegistrar {
+  return {
+    endpoint,
+    async send(number) {
+      let response: Response;
+
+      try {
+        response = await fetcher(url, {
+          body: JSON.stringify({ phoneNumber: number, type: "shared" }),
+          headers: { authorization, "content-type": "application/json" },
+          method: "POST",
+          signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+        });
+      } catch {
+        return { status: "unavailable" };
+      }
+
+      const body = (await response.json().catch(() => null)) as { data?: { assignedPhoneNumber?: unknown } } | null;
+      const assigned = body?.data?.assignedPhoneNumber;
+      if (response.ok && typeof assigned === "string" && E164_NUMBER.test(assigned)) return { lineNumber: assigned, status: "registered" };
+      if (response.status >= 400 && response.status < 500) return { status: "refused" };
+      return { status: "unavailable" };
+    },
+  };
+}
+
+export function photonRegistrar(config: PhotonConfig = photonConfig(), env: Environment = process.env, fetcher: typeof fetch = fetch): PhotonRegistrar {
+  const local = deploymentEnvironment(env) !== "production" && config.apiUrl;
+  const transport = local
+    ? registrar(config.apiUrl!.replace(/\/+$/, ""), `${config.apiUrl!.replace(/\/+$/, "")}/users`, `Bearer ${config.projectSecret || "photon_test"}`, fetcher)
+    : registrar(
+        SPECTRUM_ENDPOINT,
+        `${SPECTRUM_ENDPOINT}/projects/${encodeURIComponent(config.projectId)}/users/`,
+        `Basic ${Buffer.from(`${config.projectId}:${config.projectSecret}`).toString("base64")}`,
+        fetcher,
+      );
+  return gateTransport(transport, env);
 }
 
 // The deployment's transport behind the messaging gate: Spectrum in production,

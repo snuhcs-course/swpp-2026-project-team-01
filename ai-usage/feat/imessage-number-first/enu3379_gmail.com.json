@@ -1,0 +1,23 @@
+{
+  "branch": "feat/imessage-number-first",
+  "user": "enu3379@gmail.com",
+  "sessions": {
+    "claude:ade7c22e-cf86-4aa1-a5b4-e2ea1507af07": {
+      "agent": "claude-code",
+      "client": "cli",
+      "agent_ms": 1173948,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 222,
+          "cache_read": 27131133,
+          "cache_write_5m": 0,
+          "cache_write_1h": 231471,
+          "output": 78126,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T17:15:27.086Z",
+      "last": "2026-11-03T17:39:53.756Z"
+    }
+  }
+}
