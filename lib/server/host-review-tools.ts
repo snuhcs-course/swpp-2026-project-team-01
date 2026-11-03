@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { BOOKING_STATUS_TEXT } from "../contracts/booking";
+import { cameFromMessagingChannel } from "../contracts/messaging-channel";
 import type { HostRequestView } from "../contracts/host-request";
 import { displayTime } from "../contracts/timezone";
-import { readBookingStatus } from "./bookings";
+import { approveCommand, readBookingStatus } from "./bookings";
 import { type Actor, runCommand } from "./commands";
 import type { Database, Queryable } from "./database";
 import { encodeDisplayName } from "./entry-documents";
@@ -18,9 +19,12 @@ import { sharedChangesSchema, suggestChangesCommand } from "./shared-changes";
 // discussions: they exist only in a host's private review session of one
 // request. Every call first checks the fence: an active host, a request it hosts
 // that is not a draft and is the session's own `requestId`, and the session is
-// its review discussion's current, active generation. Approval, decline, sharing
-// changes and exceptions are not tools: the model can read, evaluate and
-// suggest, and the host decides on the cards. Results carry the host's private
+// its review discussion's current, active generation. Decline, sharing changes
+// and exceptions are not tools: the model can read, evaluate and suggest, and
+// the host decides on the cards or with an exact command. The one decision that
+// is a tool is approval in the host's own words from their linked iMessage or
+// WhatsApp (host-imessage-channel D23): approve_proposal approves only the
+// current version, and only while the message being answered came from there. Results carry the host's private
 // context with contact fields as presence indicators, and the requester's own
 // words as quoted data.
 
@@ -253,6 +257,65 @@ export async function proposeSharedChangesForTool(
       "The suggestion is on the Review proposed shared changes card. Nothing is shared until the host presses Share revised details there.",
     recorded: true as const,
   };
+}
+
+export const approveProposalToolInput = z
+  .object({
+    version: z.number().int().positive().describe("The current proposal's version, as read_request returns it."),
+  })
+  .strict();
+
+// Approval in the host's own words (host-imessage-channel D23, design 19): only
+// for a message from the linked iMessage or WhatsApp, the turn's input, which
+// carries its channel prefix; the web keeps its Approve button and external
+// agents keep request_host_decision. The command is the one the button and
+// `approve <ref>` run, so the version must still be current and agreed, and
+// the revision read here must not have moved.
+export async function approveProposalForTool(db: Database, call: HostReviewToolCall, input: z.infer<typeof approveProposalToolInput>) {
+  const { hostAccountId, requestId } = await authorizeHostReviewTool(db, call);
+
+  // The message this turn answers is the session's current input.
+  const [turn] = await db<{ message: string }[]>`
+    select i.message from app.agent_sessions s
+    join app.conversation_inputs i on i.id = s.current_input_id
+    where s.session_id = ${call.sessionId}
+  `;
+  if (!turn || !cameFromMessagingChannel(turn.message)) {
+    return { approved: false as const, problem: "Approval in words works only from the host's linked iMessage or WhatsApp. On the web, the host presses Approve this proposal." };
+  }
+
+  const view = await readHostRequest(db, hostAccountId, requestId);
+  if (!view?.proposal) return { approved: false as const, problem: "There is no proposal to approve yet." };
+  if (view.proposal.version !== input.version) {
+    return { approved: false as const, problem: `That is not the current proposal; the current one is version ${view.proposal.version}. Read the request again and ask the host about it.` };
+  }
+
+  const outcome = await runCommand({ authenticate: async () => hostActor(hostAccountId), db }, approveCommand, {
+    expectedRevision: view.revision,
+    input: { version: input.version },
+    resourceId: requestId,
+    retryKey: `tool:${call.callId}`,
+  });
+
+  if (outcome.ok) {
+    return {
+      approved: true as const,
+      message: outcome.result.repeated
+        ? "That proposal was already approved; the booking is under way."
+        : "Approved. The booking is being added to Google Calendar; tell the host it is approved, and do not call it booked until read_booking_status says it is confirmed.",
+    };
+  }
+
+  switch (outcome.error.category) {
+    case "request_closed":
+      return { approved: false as const, problem: "The request is closed; nothing was approved." };
+    case "booking_pending":
+      return { approved: false as const, problem: "A booking for this request is already under way." };
+    case "invalid_input":
+      return { approved: false as const, problem: "The proposed time has already started; nothing was approved." };
+    default:
+      return { approved: false as const, problem: "The proposal changed or still needs the requester's agreement; nothing was approved. Read the request again." };
+  }
 }
 
 export async function readBookingStatusForHostTool(db: Database, call: HostReviewToolCall) {

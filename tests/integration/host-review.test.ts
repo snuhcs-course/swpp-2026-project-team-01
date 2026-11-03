@@ -22,7 +22,7 @@ import { createTestRequest } from "./support/requests";
 // discussion left as it was.
 
 const isApplicationTool = (name: string) => !name.includes("__");
-const HOST_REVIEW_TOOLS = ["evaluate_candidates", "list_host_requests", "propose_shared_changes", "read_booking_status", "read_request"];
+const HOST_REVIEW_TOOLS = ["approve_proposal", "evaluate_candidates", "list_host_requests", "propose_shared_changes", "read_booking_status", "read_request"];
 
 const db = testDatabase();
 let fake: FakeOpenAI;
@@ -95,7 +95,8 @@ describe("the host review discussion", () => {
     await settled(review!.id);
 
     expect(toolNames(review!.session_id!)).toEqual(HOST_REVIEW_TOOLS);
-    // "approve it" is only text: nothing is approved or booked.
+    // "approve it" typed on the web is only text: approve_proposal refuses a web
+    // message (D23), so nothing is approved or booked.
     const [approvals] = await db<{ count: number }[]>`select count(*)::int as count from app.approvals where request_id = ${request.requestId}`;
     expect(approvals!.count).toBe(0);
 
