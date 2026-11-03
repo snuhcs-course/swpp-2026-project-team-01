@@ -532,12 +532,17 @@ function windowsOf(details: RequestDetails) {
 }
 
 // The times a host declined or named as no longer working (guest-flow-completion
-// U17), as blocked time that anchors no trip.
+// U17), as blocked time that anchors no trip and fills no week.
 function excludedBusy(details: RequestDetails): BusyInterval[] {
   return (details.excludedTimes ?? [])
     .map((entry) => ({ end: Date.parse(entry.end), start: Date.parse(entry.start) }))
     .filter((entry) => !Number.isNaN(entry.start) && entry.end > entry.start)
-    .map((entry) => ({ ...entry, allDay: true, endpoint: { kind: "unknown" as const, reason: "no_location" as const } }));
+    .map((entry) => ({
+      ...entry,
+      allDay: true,
+      endpoint: { kind: "unknown" as const, reason: "no_location" as const },
+      meeting: false,
+    }));
 }
 
 // How an evaluation differs from the ordinary search over the requested windows

@@ -169,7 +169,7 @@ The job runs the deterministic engine in `lib/server/feasibility.ts` with one `A
 4. Build candidate intervals from the host's weekly windows (overnight windows owned by their starting weekday, ambiguous or nonexistent boundaries yielding no candidate), intersected with the requester's windows, the requested duration and the 15-minute start grid.
 5. Remove candidates overlapping busy or focus intervals after applying buffers before and after.
 6. For in-person candidates, check both host travel legs and, with a requester grant, both requester legs (decision 9). Unresolved legs exclude the candidate from requester output and are recorded for the host.
-7. Order by the weekly limit preference: weeks below the limit first. A week's count is its counted meetings, the same ones setup infers the limit from ([host-onboarding design 8](../host-onboarding/design.md#8-analysis)): busy, timed events with an attendee besides the host who has not declined. All-day events, timetables, routines and focus blocks block time in step 5 without filling a week (issue #73).
+7. Order by the weekly limit preference: weeks below the limit first.
 8. Rank the first 20 valid candidates with the model (2,048 output tokens, two attempts, the remaining deadline). The ranking may only reorder IDs it was given; an unknown or duplicated ID discards the ranking and keeps the deterministic order.
 9. Under the request lock, recheck that the request and settings revisions are unchanged and the deadline has not passed, then publish. Otherwise the evaluation becomes `incomplete` and publishes nothing.
 

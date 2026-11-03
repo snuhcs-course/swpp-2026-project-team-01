@@ -319,7 +319,7 @@ describe("weekly limit", () => {
   it("prioritizes the host's weekly limit over the guest's preferred time", () => {
     const thisWeek = { end: kst("2026-11-02", "11:00"), start: kst("2026-11-02", "10:00") };
     const nextWeek = { end: kst("2026-11-09", "11:00"), start: kst("2026-11-09", "10:00") };
-    const result = evaluateFeasibility(input({ host: { ...HOST, weeklyLimit: 1 }, hostBusy: [busy(kst("2026-11-03", "15:00"), kst("2026-11-03", "15:30"))], request: { windows: [thisWeek, nextWeek], preferredWindows: [thisWeek] } }));
+    const result = evaluateFeasibility(input({ host: { ...HOST, weeklyLimit: 1 }, hostBusy: [{ ...busy(kst("2026-11-03", "15:00"), kst("2026-11-03", "15:30")), meeting: true }], request: { windows: [thisWeek, nextWeek], preferredWindows: [thisWeek] } }));
     expect(starts(result)[0]).toBe(nextWeek.start.toISOString());
     expect(starts(result)).toContain(thisWeek.start.toISOString());
   });
