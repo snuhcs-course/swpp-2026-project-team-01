@@ -84,6 +84,19 @@ const EN: LegalDocument = {
       title: "Who processes your data",
     },
     {
+      id: "protection",
+      items: [
+        "Every connection to the service uses HTTPS (TLS), and browsers are told never to connect without it.",
+        "Google sign-in and Calendar tokens are encrypted with AES-256-GCM before they are stored, with a key kept outside the database.",
+        "Booking links and link codes are stored only as one-way hashes, so the database never holds the links themselves.",
+        "Your data sits in a database schema the public database API does not expose. Only our server reads and writes it, and it checks who is asking before every action; each host and each requester can reach only their own records.",
+        "Our database and hosting providers encrypt stored data at rest. Access to production is limited to the team members who run the service, and every recovery or deletion an operator runs is recorded.",
+        "Before any text reaches the AI assistant, booking links and codes are removed, and the assistant sees only what the person it is talking to may see.",
+      ],
+      paragraphs: ["We protect your data, including Google user data, with these measures:"],
+      title: "How we protect your data",
+    },
+    {
       id: "retention",
       items: [
         "A closed request (booked, declined, withdrawn or expired) and everything under it, including the conversation: deleted 90 days after it closed.",
@@ -111,7 +124,7 @@ const EN: LegalDocument = {
     },
   ],
   title: "Privacy and your data",
-  updated: "Last updated 2026-11-02",
+  updated: "Last updated 2026-11-03",
 };
 
 const KO: LegalDocument = {
@@ -178,6 +191,19 @@ const KO: LegalDocument = {
       title: "데이터를 처리하는 곳",
     },
     {
+      id: "protection",
+      items: [
+        "서비스와의 모든 연결은 HTTPS(TLS)를 쓰며, 브라우저가 암호화 없이 접속하지 않도록 지시합니다.",
+        "Google 로그인과 캘린더 토큰은 저장 전에 AES-256-GCM으로 암호화하며, 키는 데이터베이스 밖에 둡니다.",
+        "예약 링크와 링크 코드는 단방향 해시로만 저장하므로, 데이터베이스에는 링크 자체가 남지 않습니다.",
+        "데이터는 공개 데이터베이스 API가 노출하지 않는 스키마에 있습니다. 저희 서버만 읽고 쓰며, 모든 동작 전에 요청한 사람을 확인합니다. 호스트와 요청자는 각자 자신의 기록에만 접근할 수 있습니다.",
+        "데이터베이스와 호스팅 업체는 저장된 데이터를 암호화합니다. 운영 환경 접근은 서비스를 운영하는 팀원으로 제한하며, 운영자가 실행한 복구와 삭제는 모두 기록합니다.",
+        "AI 어시스턴트에 텍스트를 보내기 전에 예약 링크와 코드를 지우며, 어시스턴트는 대화 상대가 볼 수 있는 내용만 봅니다.",
+      ],
+      paragraphs: ["Google 사용자 데이터를 포함한 데이터를 다음과 같이 보호합니다."],
+      title: "데이터 보호",
+    },
+    {
       id: "retention",
       items: [
         "닫힌 요청(확정, 거절, 철회, 만료)과 대화를 포함한 그 아래 모든 기록: 닫힌 뒤 90일이 지나면 삭제합니다.",
@@ -205,7 +231,7 @@ const KO: LegalDocument = {
     },
   ],
   title: "개인정보와 데이터",
-  updated: "최종 수정 2026-11-02",
+  updated: "최종 수정 2026-11-03",
 };
 
 export default function Page({ searchParams }: { readonly searchParams: LegalSearchParams }) {
