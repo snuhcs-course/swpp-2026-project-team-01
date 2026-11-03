@@ -17,7 +17,7 @@ import { acceptGuestMessage, DraftMessageLimitError } from "./guest-conversation
 import { HostIneligibleError } from "./host-eligibility";
 import { internalSigningKey } from "./internal-bearer";
 import { activeBindingOfSender, bindingContext, lockActiveBindingOfSender, receiveLinkCode, refusalSentRecently } from "./imessage-links";
-import { recordOutbound } from "./imessage-outbox";
+import { type ImessageSignal, recordOutbound, signalText } from "./imessage-outbox";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
 import { executeCommand, parseCommand, requestRef } from "./imessage-commands";
@@ -204,6 +204,7 @@ export const channelProcessor: ChannelProcessor = async (tx, deps, message) => {
 
 type ReceiptRow = {
   readonly id: string;
+  readonly message_id: string;
   readonly channel: MessagingChannel;
   readonly sender_hash: string;
   readonly space_hash: string;
@@ -219,6 +220,8 @@ type ReceiptRow = {
 
 export type OpenedReceipt = {
   readonly id: string;
+  // Photon's ID of the host's message, unsealed in the receipt; a signal reads and reacts to it.
+  readonly messageId: string;
   readonly channel: MessagingChannel;
   readonly senderHash: string;
   readonly spaceHash: string;
@@ -238,6 +241,7 @@ function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedReceipt 
       channel: row.channel,
       contentType: row.content_type,
       id: row.id,
+      messageId: row.message_id,
       sender: open(row.sender_ciphertext),
       senderHash: row.sender_hash,
       spaceHash: row.space_hash,
@@ -344,6 +348,8 @@ async function guestRoute(tx: Transaction, receipt: OpenedReceipt): Promise<{ bi
           select 1 from app.imessage_outbox
           where recipient_hash = ${receipt.senderHash}
             and (binding_id is not null or requester_binding_id is not null)
+            -- A read mark or typing bubble is not a message and moves no selection.
+            and kind <> 'signal'
             and (binding_id is distinct from ${selection.binding_id} or requester_binding_id is distinct from ${selection.requester_binding_id}
               or (binding_id is not null and request_id is distinct from ${selection.request_id}))
             and (state = 'dispatching'
@@ -628,7 +634,14 @@ export async function processReceipt(
 
   if (!channel) return "ignored";
 
-  return channel(tx, deps, {
+  // A message that only says thanks is marked read and gets a tapback, and
+  // starts no turn (D21, design 18).
+  if (receipt.channel === "imessage" && isOnlyThanks(receipt.text)) {
+    await recordSignal(tx, deps, receipt, binding, recipient, { messageId: receipt.messageId, reaction: THANKS_TAPBACK, typing: false });
+    return "replied";
+  }
+
+  const outcome = await channel(tx, deps, {
     authUserId: host.auth_user_id,
     bindingId: binding.id,
     hostAccountId: binding.host_account_id,
@@ -637,6 +650,51 @@ export async function processReceipt(
     selectedRequestId: binding.selected_request_id,
     text: receipt.text.trim(),
   });
+
+  // Every other message is marked read, and shows typing when it started a
+  // turn, whose reply comes later; a command's reply is immediate, and rows of
+  // one transaction have no order, so it gets the read mark only (D20).
+  if (receipt.channel === "imessage") {
+    await recordSignal(tx, deps, receipt, binding, recipient, { messageId: receipt.messageId, reaction: null, typing: outcome === "forwarded" });
+  }
+  return outcome;
+}
+
+// One best-effort signal about the host's message (D20, design 18).
+async function recordSignal(
+  tx: Transaction,
+  deps: ImessageReceiptDependencies,
+  receipt: OpenedReceipt,
+  binding: { readonly id: string; readonly host_account_id: string },
+  recipient: { readonly address: string; readonly spaceId: string },
+  signal: ImessageSignal,
+) {
+  await recordOutbound(tx, {
+    bindingId: binding.id,
+    dedupeKey: `receipt:${receipt.id}:signal`,
+    hostAccountId: binding.host_account_id,
+    kind: "signal",
+    recipient,
+    recipientHash: receipt.senderHash,
+    text: signalText(signal),
+    tokenKey: deps.tokenKey,
+  });
+}
+
+// The native "love" tapback (Spectrum's Emoji.love).
+export const THANKS_TAPBACK = "❤️";
+
+// A message that is nothing but thanks, in English or Korean, with any
+// punctuation or emoji around it. "ok", "yes" and 👍 are not thanks: they can
+// answer a question Thyme asked, so they still reach the conversation.
+export function isOnlyThanks(text: string | null) {
+  if (!text) return false;
+  const words = text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return /^(?:(?:many )?thanks?(?: (?:a lot|so much|again|very much))?|thank (?:you|u)(?: (?:so much|very much|again))?|thx|ty|tysm|고마워요?|고맙습니다|감사(?:해요|합니다|해)?|땡큐)$/u.test(words);
 }
 
 function keyFor(deps: ImessageReceiptDependencies, keyId: string) {
@@ -673,7 +731,7 @@ export function createImessageReceiptHandler(load: () => ImessageReceiptDependen
     assertMessagingAdmitted(photonTransport(deps.config, deps.env).endpoint, deps.env);
 
     const [row] = await tx<ReceiptRow[]>`
-      select id, channel, sender_hash, space_hash, space_type, content_type, text_ciphertext, sender_ciphertext, space_ciphertext,
+      select id, message_id, channel, sender_hash, space_hash, space_type, content_type, text_ciphertext, sender_ciphertext, space_ciphertext,
              sealed_key_id, outcome, received_at
       from app.imessage_receipts where id = ${receiptId}
       for update

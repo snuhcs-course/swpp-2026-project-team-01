@@ -80,6 +80,7 @@ export type OutboxKind =
   | "turn"
   | "notice"
   | "contact_card"
+  | "signal"
   | "template";
 
 export type OutboxState = "waiting" | "queued" | "dispatching" | "accepted" | "failed" | "uncertain" | "suppressed";
@@ -111,6 +112,9 @@ export type RecordOutbound = {
   // Records the message as already suppressed with this category, sending
   // nothing, so it still counts toward the send limits.
   readonly suppressedAs?: string;
+  // Holds the send this long. Rows of one transaction have no order of their
+  // own, so a message that must follow another waits (the card after linking).
+  readonly delaySeconds?: number;
 };
 
 export function outboxSealContext(outboxId: string) {
@@ -161,7 +165,11 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
     kind: IMESSAGE_SEND_JOB,
     maxAttempts: turn ? TURN_REPLY_ATTEMPTS : SEND_ATTEMPTS,
     payload: { outboxId: id },
-    ...(turn ? { runAfter: new Date(Date.now() + TURN_REPLY_DELAY_SECONDS * 1000) } : {}),
+    ...(turn
+      ? { runAfter: new Date(Date.now() + TURN_REPLY_DELAY_SECONDS * 1000) }
+      : message.delaySeconds
+        ? { runAfter: new Date(Date.now() + message.delaySeconds * 1000) }
+        : {}),
   });
   return { created: true, id };
 }
@@ -473,6 +481,13 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
       result = { status: "uncertain" as const };
     }
 
+    // A signal is best-effort: it is never retried or reported as a delivery
+    // problem, so a missed read mark or typing bubble never holds a reply back.
+    if (claim.row.kind === "signal" && result.status !== "accepted") {
+      await finish(tx, outboxId, "dispatching", "failed", { category: result.status === "rejected" ? result.category : result.status });
+      return { outboxId, state: "failed" };
+    }
+
     if (result.status === "accepted") {
       await finish(tx, outboxId, "dispatching", "accepted", { providerMessageId: result.messageId });
       return { outboxId, state: "accepted" };
@@ -579,7 +594,19 @@ function contentOf(row: Pick<OutboxRow, "kind" | "template_name">, text: string 
   if (row.kind === "template" && row.template_name) {
     return { kind: "template", languageCode: TEMPLATE_LANGUAGE, name: row.template_name, params: text === null ? [] : [text] };
   }
+  if (row.kind === "signal") {
+    const signal = JSON.parse(text ?? "{}") as Partial<ImessageSignal>;
+    return { kind: "signal", messageId: signal.messageId ?? null, reaction: signal.reaction ?? null, typing: signal.typing === true };
+  }
   return text === null ? { kind: "contact_card" } : { kind: "text", text };
+}
+
+// What a signal row asks for (host-imessage-channel design 18): read the host's
+// message, react to it, show typing. Sealed as JSON in text_ciphertext.
+export type ImessageSignal = { readonly messageId: string | null; readonly typing: boolean; readonly reaction: string | null };
+
+export function signalText(signal: ImessageSignal) {
+  return JSON.stringify(signal);
 }
 
 function keyOf(deps: ImessageSendDependencies, keyId: string) {

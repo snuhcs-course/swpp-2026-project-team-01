@@ -154,7 +154,7 @@ Each is keyed by the event (`notice:{kind}:{request}:{version or booking}`), so 
 
 ### 11. Add to contacts
 
-After linking, the connected card offers **Add to contacts** (D13): `imessage.contact_card.share` queues one outbox row of kind `contact_card` for the binding; the transport calls `space.shareContactCard()`. The card shows queued, accepted ("Check iMessage and choose whether to save it"), failed or uncertain ("Check your conversation"), with **Check contact status** and no resend while uncertain. A failed status read hides the action. Unlinking does not recall a card already sent.
+After linking, Thyme shares the contact card once after the welcome (D22, design 18), and the connected card offers **Add to contacts** (D13) for another share: `imessage.contact_card.share` queues one outbox row of kind `contact_card` for the binding; the transport calls `space.shareContactCard()`. The card shows queued, accepted ("Check iMessage and choose whether to save it"), failed or uncertain ("Check your conversation"), with **Check contact status** and no resend while uncertain. A failed status read hides the action. Unlinking does not recall a card already sent.
 
 ### 12. Setup over iMessage
 
@@ -198,6 +198,16 @@ Both entries end in the same iMessage conversation, which carries on setup (user
 - **The Calendar link.** `/auth/sign-in?consent=calendar&return=imessage`, sent by the welcome, by `setup` while Calendar is the next step, and by the agent. Sign-in records `imessage` in the return cookie. After sign-in the callback queues "You're back from Google…" to the host's active binding, keyed by an HMAC of the redeemed authorization code so a replayed callback queues nothing twice, and still returns to /app. The message does not claim that Calendar was granted. A failed claim or message is logged and sign-in still succeeds.
 
 Messaging stays production-only (design decision 13, `messaging-environments`). The 2026-10-23 device check (tasks 8.3) used a temporary local override outside the repository. Rejected: admitting Spectrum from a local run for one named recipient through the gate, which relaxes that contract for a test; signing in inside iMessage itself, since Google consent is a browser step; a link in the reply to a code from the /app step, whose browser is already signed in.
+
+### 18. Read marks, typing, tapbacks and the contact card after linking (D20–D22)
+
+Decided on 2026-11-04 from the review of Photon's documentation in #80 (issue #84): [deliverability](https://photon.codes/docs/best-practices/imessage-deliverability.md) advises sharing the contact card early, and the [iMessage provider](https://photon.codes/docs/spectrum-ts/providers/imessage.md) supports read marks, typing and tapbacks on cloud lines, shared or dedicated.
+
+- **Signals.** `processReceipt` records one outbox row of kind `signal` for a linked host's text message on iMessage, once the channel (commands and forwarding) has handled it. Its sealed text is JSON: `{ messageId, typing, reaction }`, where `messageId` is Photon's ID of the host's message from the receipt. `typing` is set only when the message was forwarded to a turn, whose reply row waits for the turn and its 20-second hold, so the bubble shows while Thyme works and the reply ends it. The outbox has no order between rows of one transaction, so a command, whose reply is sent at once, gets the read mark only: a bubble after its reply would hang. The transport opens the known conversation, fetches the message (`space.getMessage`), marks the conversation read (`space.read`; iMessage marks the whole chat), adds the tapback (`message.react`) and starts typing (`space.startTyping`). A signal needs the conversation's ID and is refused on WhatsApp.
+- **Best-effort.** At dispatch, a signal whose answer is anything but accepted is final (`failed`, with the answer as its category): it is never re-queued, never `uncertain`, and does not count for the card's delivery status (`kind not in ('contact_card', 'signal')`). Guest routing's "conversation changed" check ignores signals, since a host signal carries no request.
+- **Thanks.** A message that is only thanks (`isOnlyThanks`: thanks, thank you, thx, ty, many thanks, 고마워, 고맙습니다, 감사합니다, 땡큐 and the like, with punctuation or emoji around them) gets a signal with the ❤️ tapback and no typing, and the receipt ends as `replied` with no turn. Anything else, "ok", "yes" and 👍 included, goes on to the channel.
+- **Contact card.** `bind` queues a `contact_card` row beside the `linked` welcome on iMessage, with the dedupe key `binding:{id}:card:linked`, and its send job waits `CARD_AFTER_WELCOME_SECONDS` (15) through the outbox's new `delaySeconds`, so it arrives after the welcome; the card's existing status and **Add to contacts** (design 11) cover it, and the no-resend-while-on-its-way rule applies to it too.
+- **Not covered.** Whether the shared Free-plan line delivers these to hosts who are not registered Photon users (#80), and how a real iPhone shows them: both wait for the controlled device run (task 9.4).
 
 ## Risks / Trade-offs
 

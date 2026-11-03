@@ -36,6 +36,9 @@ export type PhotonRecipient = {
 export type PhotonContent =
   | { readonly kind: "text"; readonly text: string }
   | { readonly kind: "contact_card" }
+  // Best-effort iMessage signals about the host's message messageId: mark the
+  // conversation read, add a tapback, show typing. Never a message of its own.
+  | { readonly kind: "signal"; readonly messageId: string | null; readonly typing: boolean; readonly reaction: string | null }
   // A pre-approved WhatsApp template with positional body parameters.
   | { readonly kind: "template"; readonly name: string; readonly languageCode: string; readonly params: readonly string[] };
 
@@ -168,6 +171,8 @@ export function spectrumTransport(config: Pick<PhotonConfig, "projectId" | "proj
       if (!config.projectId || !config.projectSecret) return { status: "unavailable" };
       if (request.channel === "whatsapp") return sendWhatsApp(config, request);
       if (request.content.kind === "template") return { category: "provider_rejected", status: "rejected" };
+      // A signal belongs to a conversation the host already wrote in.
+      if (request.content.kind === "signal" && !request.recipient.spaceId) return { category: "invalid_recipient", status: "rejected" };
 
       let app: Awaited<ReturnType<typeof import("@spectrum-ts/core").Spectrum>>;
       let platform: typeof import("@spectrum-ts/imessage").imessage;
@@ -204,6 +209,16 @@ export function spectrumTransport(config: Pick<PhotonConfig, "projectId" | "proj
             return { messageId: null, spaceId: space.id, status: "accepted" };
           }
 
+          if (request.content.kind === "signal") {
+            const { messageId, reaction, typing } = request.content;
+            const message = messageId ? await withTimeout(space.getMessage(messageId), SEND_TIMEOUT_MS) : undefined;
+            // iMessage marks the whole conversation read; the tapback needs the message itself.
+            if (message) await withTimeout(space.read(message), SEND_TIMEOUT_MS);
+            if (message && reaction) await withTimeout(message.react(reaction), SEND_TIMEOUT_MS);
+            if (typing) await withTimeout(space.startTyping(), SEND_TIMEOUT_MS);
+            return { messageId: null, spaceId: space.id, status: "accepted" };
+          }
+
           const sent = await withTimeout(space.send(request.content.text), SEND_TIMEOUT_MS);
           return { messageId: sent?.id ?? null, spaceId: space.id, status: "accepted" };
         } catch {
@@ -222,7 +237,7 @@ export function spectrumTransport(config: Pick<PhotonConfig, "projectId" | "proj
 // failure is unavailable; once it began, Meta's refusals map as design 9 says
 // and anything else is uncertain.
 async function sendWhatsApp(config: Pick<PhotonConfig, "projectId" | "projectSecret">, request: PhotonSendRequest): Promise<PhotonSendResult> {
-  if (request.content.kind === "contact_card") return { category: "provider_rejected", status: "rejected" };
+  if (request.content.kind === "contact_card" || request.content.kind === "signal") return { category: "provider_rejected", status: "rejected" };
 
   let app: Awaited<ReturnType<typeof import("@spectrum-ts/core").Spectrum>>;
   let provider: typeof import("@spectrum-ts/whatsapp-business");
