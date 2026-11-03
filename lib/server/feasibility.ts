@@ -884,11 +884,14 @@ function basisFor(input: FeasibilityInput, entry: Planned, mode: "online" | "in_
   if (input.requesterBusy) sentences.push("Free on the requester's connected calendar.");
 
   if (host.weeklyLimit !== null) {
-    const counted = host.weeklyLimitCounts === "bookings" ? "Find Me a Time bookings" : "meetings";
+    const counted = (count: number) =>
+      host.weeklyLimitCounts === "bookings"
+        ? `Find Me a Time booking${count === 1 ? "" : "s"}`
+        : `meeting${count === 1 ? "" : "s"}`;
     sentences.push(
       entry.belowLimit
-        ? `That week has ${entry.weekCount} of your ${host.weeklyLimit} weekly ${counted}.`
-        : `That week already has ${entry.weekCount} ${counted}, at or over your limit of ${host.weeklyLimit}, so it comes after weeks below the limit.`,
+        ? `That week has ${entry.weekCount} of your ${host.weeklyLimit} weekly ${counted(host.weeklyLimit)}.`
+        : `That week already has ${entry.weekCount} ${counted(entry.weekCount)}, at or over your limit of ${host.weeklyLimit}, so it comes after weeks below the limit.`,
     );
   }
 

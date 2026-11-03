@@ -7,7 +7,7 @@ import { agreeCommand, readCurrentEvaluation } from "../../lib/server/request-pr
 import { allowHostTripCommand, hostEvaluateCommand, waiveWeeklyLimitCommand } from "../../lib/server/request-exceptions";
 import { dismissChangesCommand, shareChangesCommand, suggestChangesCommand } from "../../lib/server/shared-changes";
 import { localAuthConfig, signInHost } from "./support/auth";
-import { agreedRequest, asHost, deliveriesOf, requestState } from "./support/booking";
+import { agreedRequest, asHost, bookingDeps, bookingOf, deliveriesOf, requestState, runBooking } from "./support/booking";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
 import { createTestRequest, testNotices } from "./support/requests";
@@ -182,23 +182,42 @@ describe("the rule and travel review", () => {
     status: "confirmed",
   });
 
-  it("fills a week with the host's Find Me a Time bookings only by default (Week at the limit)", async () => {
+  it("fills a week with Find Me a Time bookings by default, and counts a booking once with every meeting (Meetings set up outside Find Me a Time, A booking on a conflict calendar)", async () => {
     // The host's own meeting that week leaves room under a limit of one.
     const booked = await agreedRequest(db, google, { events: [ownMeeting()], settings: { weeklyLimit: 1 } });
     const approval = await asHost(db, booked.hostAccountId, booked.requestId, approveCommand, { version: 1 }, {
       expectedRevision: await revisionOf(db, booked.requestId),
     });
     if (!approval.ok) throw new Error("approve failed");
+    // The booking's event is now on the host's conflict calendar too.
+    await runBooking(db, bookingDeps(db, google), approval.result.bookingId);
+    expect((await bookingOf(db, approval.result.bookingId)).state).toBe("confirmed");
 
-    // Its booking fills the week for the host's next request.
+    // The booking fills the week for the host's next request.
     const next = await createTestRequest(db, { hostAccountId: booked.hostAccountId });
     await db`update app.requests set details = ${db.json(COMPLETE_DETAILS as never)} where id = ${next.requestId}`;
-    const found = await asHost(db, next.hostAccountId, next.requestId, hostEvaluateCommand(), {}, { retryKey: "find" });
-    if (!found.ok) throw new Error("evaluate failed");
-    await runEvaluation(db, deps(), found.result.evaluationId);
+    const evaluate = async (retryKey: string) => {
+      const found = await asHost(db, next.hostAccountId, next.requestId, hostEvaluateCommand(), {}, { retryKey });
+      if (!found.ok) throw new Error("evaluate failed");
+      await runEvaluation(db, deps(), found.result.evaluationId);
+      return (await readHostRequest(db, next.hostAccountId, next.requestId))?.evaluation;
+    };
 
-    expect((await readCurrentEvaluation(db, next.requestId))?.candidates).toEqual([]);
-    expect((await readHostRequest(db, next.hostAccountId, next.requestId))?.evaluation?.weeklyLimitHold).toBe(true);
+    const bookingsOnly = await evaluate("bookings");
+    expect(bookingsOnly?.weeklyLimitHold).toBe(true);
+    expect(bookingsOnly?.candidates[0]?.basis).toContain(
+      "That week already has 1 Find Me a Time booking, at or over your limit of 1, so it comes after weeks below the limit.",
+    );
+
+    // Counting every meeting: the host's own meeting and the booking, once.
+    await db`
+      update app.host_settings
+      set settings = settings || ${db.json({ weeklyLimit: 3, weeklyLimitCounts: "all_meetings" })}
+      where host_account_id = ${next.hostAccountId}
+    `;
+    const everyMeeting = await evaluate("every-meeting");
+    expect(everyMeeting?.weeklyLimitHold).toBe(false);
+    expect(everyMeeting?.candidates[0]?.basis).toContain("That week has 2 of your 3 weekly meetings.");
   });
 
   it("holds every candidate in a full week until the host waives the limit (Only full weeks)", async () => {

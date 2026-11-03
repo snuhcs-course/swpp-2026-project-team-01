@@ -184,6 +184,7 @@ export async function settingsReview(db: Database, hostAccountId: string, origin
   for (const field of SETUP_FIELD_NAMES) {
     const entry = proposal.proposed[field];
     if (!entry) continue;
+    if (field === "weeklyLimitCounts" && proposal.proposed.weeklyLimit?.value == null) continue;
     const source = entry.source === "starter_default" ? " (starter default)" : entry.source === "inferred" ? " (suggested)" : "";
     lines.push(`${FIELD_LABELS[field]}: ${fieldText(field, entry.value)}${source}`);
   }

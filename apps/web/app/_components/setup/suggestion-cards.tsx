@@ -293,7 +293,7 @@ export function WeeklyLimitStep() {
       editor={({ mode, onCancel, onSave, saving }) => (
         <LimitEditor
           initial={mode === "adjust" ? (limit?.value ?? null) : undefined}
-          initialCounts={mode === "adjust" ? counts : STARTER_DEFAULTS.weeklyLimitCounts}
+          initialCounts={counts}
           onCancel={onCancel}
           onSave={onSave}
           saving={saving}
