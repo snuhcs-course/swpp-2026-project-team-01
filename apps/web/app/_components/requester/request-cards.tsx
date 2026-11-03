@@ -689,6 +689,7 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
   const { act, busy, error } = useAction(context);
   const [notice, setNotice] = useState<string | null>(null);
   const [page, setPage] = useState(0);
+  const [tripRevealed, setTripRevealed] = useState<{ evaluationId: string; count: number } | null>(null);
   const missing = missingLabels(context);
   const lang = language(context);
 
@@ -749,6 +750,8 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
 
   const offered = evaluation.candidates.filter((candidate) => !candidate.unresolvedRequesterLeg);
   const trips = evaluation.candidates.filter((candidate) => candidate.unresolvedRequesterLeg);
+  const tripVisibleCount = tripRevealed?.evaluationId === evaluation.id ? tripRevealed.count : Math.max(0, 5 - Math.min(offered.length, 5));
+  const remainingTrips = Math.max(0, trips.length - tripVisibleCount);
   // An online time with neither a Google Meet plan nor the requester's own link
   // cannot become a proposal (design decision 11).
   const linkMissing = (candidate: RequesterCandidate) =>
@@ -797,11 +800,12 @@ export function CandidatesCard({ context }: { readonly context: RequesterCardCon
       ) : null}
       {trips.length > 0 ? (
         <ul aria-label="Times that depend on your trip" className="flex flex-col gap-2">
-          {trips.map((candidate) => (
+          {trips.slice(0, tripVisibleCount).map((candidate) => (
             <TripAllowance candidate={candidate} context={context} evaluationId={evaluation.id} key={candidate.id} />
           ))}
         </ul>
       ) : null}
+      {remainingTrips > 0 ? <Button className="min-h-11 self-start" onClick={() => setTripRevealed({ evaluationId: evaluation.id, count: tripVisibleCount + 5 })} type="button" variant="outline">Show {Math.min(5, remainingTrips)} more trip-dependent times ({remainingTrips} remaining)</Button> : null}
       <GuestCardActions>
         {findButton("Find other times")}
         <DetailsButton context={context} label={needsLink ? "Add a meeting link" : "Edit details"} />

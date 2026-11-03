@@ -52,14 +52,23 @@ export function assertIdentified(request: Pick<LockedRequest, "state">) {
   if (request.state === "draft") throw new CommandError("identity_required");
 }
 
-// Whether the host can take requests now, with its account row share-locked so
-// a suspension waits for the caller's transaction: an active account whose
-// setup is ready. Starting a draft and identifying it both check it.
-export async function hostAcceptsRequests(tx: Transaction, hostAccountId: string) {
+// Lock account standing while the request operation checks readiness. A paused
+// host can still finish a request that was already started.
+export async function hostCanContinueRequests(tx: Transaction, hostAccountId: string) {
   const [account] = await tx<{ status: string }[]>`
     select status from app.host_accounts where id = ${hostAccountId} for share
   `;
 
   if (account?.status !== "active") return false;
+  return (await readReadiness(tx, hostAccountId)).ready;
+}
+
+// New requests also require the host's intake preference. The shared row lock
+// serializes creation with a concurrent settings update.
+export async function hostAcceptsRequests(tx: Transaction, hostAccountId: string) {
+  const [account] = await tx<{ status: string; accepting_requests: boolean }[]>`
+    select status, accepting_requests from app.host_accounts where id = ${hostAccountId} for share
+  `;
+  if (account?.status !== "active" || !account.accepting_requests) return false;
   return (await readReadiness(tx, hostAccountId)).ready;
 }

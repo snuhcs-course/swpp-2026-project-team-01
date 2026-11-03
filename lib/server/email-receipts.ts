@@ -28,7 +28,7 @@ import { internalSigningKey } from "./internal-bearer";
 import type { JobHandler } from "./jobs";
 import { findReadyHostByHandle } from "./readiness";
 import { assertMessagingAdmitted } from "./messaging";
-import { lockOpenRequest } from "./request-guard";
+import { hostAcceptsRequests, lockOpenRequest } from "./request-guard";
 import { admitCreation, CREATION_LIMITS, type CreationLimits, identifyDraft, insertDraftRequest } from "./request-start";
 import { isRevisable, readRevisedSummary, reviseClosedRequest } from "./revised-requests";
 import { appOriginsFromEnvironment } from "./same-origin";
@@ -331,6 +331,8 @@ async function start(
       await tx`select pg_advisory_xact_lock(hashtextextended(${`app.email_thread:${receipt.inbox_id}:${receipt.thread_id}`}, 0))`;
       const existing = await activeBinding(tx, receipt.inbox_id, receipt.thread_id);
       if (existing) return existing.bound_by_receipt_id === receipt.id ? existing : null;
+
+      if (!(await hostAcceptsRequests(tx, host!.hostAccountId))) throw new CommandError("forbidden");
 
       await admitCreation(tx, emailSourceHash(deps.tokenKey, address), { ...CREATION_LIMITS, ...deps.creationLimits });
 

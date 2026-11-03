@@ -6,7 +6,7 @@ import { HostWorkspace } from "@/app/_components/host-workspace";
 import { LOCALE_COOKIE, localeOf } from "@/app/_components/ink/copy";
 import { LinkStep } from "@/app/_components/ink/link-step";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
-import { SignInCard } from "@/app/_components/sign-in-card";
+import { SignInCard, WorkspaceLoading } from "@/app/_components/sign-in-card";
 
 // The single host page. Signed out, it offers Google sign-in; a suspended
 // account sees why it cannot continue; an active host gets the conversation,
@@ -16,7 +16,7 @@ type SearchParams = Promise<{ sign_in?: string }>;
 
 export default function Page({ searchParams }: { readonly searchParams: SearchParams }) {
   return (
-    <Suspense fallback={<p className="sr-only" role="status">Loading your workspace...</p>}>
+    <Suspense fallback={<WorkspaceLoading />}>
       <Workspace searchParams={searchParams} />
     </Suspense>
   );

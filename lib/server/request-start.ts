@@ -7,7 +7,7 @@ import { type CommandDefinition, CommandError } from "./commands";
 import { issueContactConfirmation } from "./contact-confirmation";
 import type { Queryable, Transaction } from "./database";
 import { enqueueHostNotice } from "./imessage-notices";
-import { hostAcceptsRequests, type LockedRequest, lockOpenRequest } from "./request-guard";
+import { hostAcceptsRequests, hostCanContinueRequests, type LockedRequest, lockOpenRequest } from "./request-guard";
 import { requestExpiresAt } from "./request-lifecycle";
 import { recordRequesterGrants, type RequesterGoogleIdentity } from "./requester-grants";
 import type { TokenKey } from "./token-encryption";
@@ -213,7 +213,7 @@ export async function identifyDraft(
   options: IdentifyOptions,
 ): Promise<IdentifyResult> {
   if (request.state !== "draft") throw new CommandError("invalid_input");
-  if (!(await hostAcceptsRequests(tx, request.host_account_id))) throw new CommandError("forbidden");
+  if (!(await hostCanContinueRequests(tx, request.host_account_id))) throw new CommandError("forbidden");
 
   const verified = Boolean(
     identity.google?.emailVerified && identity.google.email?.toLowerCase() === identity.email.toLowerCase(),

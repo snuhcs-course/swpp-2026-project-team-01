@@ -1,5 +1,6 @@
 "use client";
 
+import { MAX_CALENDAR_IMAGE_BYTES, type ScreenshotMark } from "@lib/contracts/calendar-screenshot";
 import { EMAIL_LINK_CREATE_OPERATION, EMAIL_LINK_UNLINK_OPERATION, type EmailLinkStatus } from "@lib/contracts/email-link";
 import { deepLinkFor, qrDeepLink } from "@lib/contracts/imessage";
 import { REQUESTER_IMESSAGE_OPERATIONS, type RequesterImessageStatus } from "@lib/contracts/requester-imessage";
@@ -80,11 +81,14 @@ export function useRequesterCards(
           method: "POST",
         });
         const body = (await response.json().catch(() => null)) as CommandOutcome | null;
-        keys.current.delete(identity);
+        // Keep the retry identity when a response cannot be read. The command
+        // may have committed, and the next attempt must replay that operation.
+        if (body) keys.current.delete(identity);
         await refresh();
         return body ?? { error: { category: "internal", message: "Something went wrong. Try again later." }, ok: false };
       } catch {
-        return { error: { category: "internal", message: "That did not go through. Try again." }, ok: false };
+        await refresh();
+        return { error: { category: "internal", message: "We could not confirm whether that was saved. Check the request, then try again." }, ok: false };
       }
     },
     [bookingId, refresh],
@@ -118,6 +122,57 @@ function ErrorLine({ message }: { readonly message: string | null }) {
 // **Connect Google Calendar** and **Skip for now**: the request-bound consent
 // round trip, which returns to this page.
 export function ConnectCalendarCard({ context }: { readonly context: RequesterCardContext }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [marks, setMarks] = useState<readonly ScreenshotMark[] | null>(null);
+  const [reading, setReading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!file) { setPreview(null); return; }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  function choose(image: File | undefined) {
+    setError(null);
+    setMarks(null);
+    if (!image) { setFile(null); return; }
+    if (!["image/png", "image/jpeg", "image/webp"].includes(image.type) || image.size > MAX_CALENDAR_IMAGE_BYTES) {
+      setFile(null);
+      if (inputRef.current) inputRef.current.value = "";
+      setError("Choose a PNG, JPEG or WebP image under 10 MB.");
+      return;
+    }
+    setFile(image);
+  }
+
+  async function readScreenshot() {
+    if (!file) return;
+    setReading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.set("image", file);
+      form.set("timezone", context.timezone);
+      const response = await fetch(`/api/requests/${context.bookingId}/calendar-screenshot`, { method: "POST", body: form });
+      const body = await response.json() as { marks?: ScreenshotMark[]; error?: string };
+      if (!response.ok) throw new Error(body.error ?? "The screenshot could not be read.");
+      if (!body.marks?.length) throw new Error("No usable times were found. Enter your free times manually.");
+      setMarks(body.marks);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The screenshot could not be read. Enter your free times manually.");
+    } finally { setReading(false); }
+  }
+
+  async function manual() {
+    const outcome = await context.run("request.set_manual_availability", { manual: true });
+    if (outcome.ok) context.openDetails();
+    else setError(outcome.error.message);
+  }
+
   return (
     <GuestCard
       description="Your busy times then count automatically. Access is read-only, used only for this request, and event details are never shown to the host or the assistant."
@@ -134,18 +189,56 @@ export function ConnectCalendarCard({ context }: { readonly context: RequesterCa
           <Button className="min-h-11" type="submit">
             Connect Google Calendar
           </Button>
-          <Button
-            className="min-h-11"
-            onClick={() => void context.run("request.set_manual_availability", { manual: true })}
-            type="button"
-            variant="outline"
-          >
-            Skip for now
-          </Button>
+          <Button className="min-h-11" onClick={() => void context.run("request.set_manual_availability", { manual: true })} type="button" variant="outline">Skip for now</Button>
         </GuestCardActions>
       </form>
+      <div className="flex flex-col gap-2 border-t border-border pt-3">
+        <label className="font-medium" htmlFor="calendar-screenshot">Upload calendar screenshot (optional)</label>
+        <input accept="image/png,image/jpeg,image/webp" className="min-h-11 max-w-full text-sm file:mr-3 file:rounded-md file:border file:border-border file:bg-background file:px-3 file:py-2" id="calendar-screenshot" onChange={(event) => choose(event.target.files?.[0])} ref={inputRef} type="file" />
+        <p className="text-muted-foreground">Use a day or week view with visible date and hour labels. PNG, JPEG or WebP, up to 10 MB. The image is sent to OpenAI for reading and is not saved here. Remove private event details before uploading. Review suggested free times before saving any availability.</p>
+        {preview ? <img alt="Selected calendar screenshot" className="max-h-48 max-w-full rounded-lg border border-border object-contain" src={preview} /> : null}
+        {file ? <p className="break-all">Selected: {file.name}</p> : null}
+        {file ? <GuestCardActions><Button disabled={reading} onClick={() => void readScreenshot()} type="button">{reading ? "Reading screenshot..." : "Read screenshot"}</Button><Button onClick={() => { setFile(null); setMarks(null); setError(null); if (inputRef.current) inputRef.current.value = ""; }} type="button" variant="outline">Remove image</Button></GuestCardActions> : null}
+        {marks ? <ScreenshotReview context={context} marks={marks} onError={setError} /> : null}
+        {error ? <p className="text-destructive" role="status">{error}</p> : null}
+        {error ? <Button className="self-start" onClick={() => void manual()} type="button" variant="outline">Enter times manually</Button> : null}
+      </div>
     </GuestCard>
   );
+}
+
+function ScreenshotReview({ context, marks, onError }: { readonly context: RequesterCardContext; readonly marks: readonly ScreenshotMark[]; readonly onError: (message: string) => void }) {
+  const [rows, setRows] = useState(() => marks.map((mark) => ({ ...mark, free: mark.interpretation === "free" })));
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setRows(marks.map((mark) => ({ ...mark, free: mark.interpretation === "free" }))), [marks]);
+  function change(index: number, patch: Partial<(typeof rows)[number]>) {
+    setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row));
+  }
+  async function apply() {
+    const windows = rows.filter((row) => row.free).map(({ date, start, end }) => ({ date, start, end }));
+    if (windows.length === 0) { onError("Choose at least one time you are free, or enter times manually."); return; }
+    setBusy(true);
+    const saved = await context.run("request.update_details", { details: { windows }, timezone: context.timezone }, context.view.request.revision);
+    if (!saved.ok) { onError(saved.error.message); setBusy(false); return; }
+    const settled = await context.run("request.set_manual_availability", { manual: true });
+    if (!settled.ok) onError(settled.error.message);
+    setBusy(false);
+  }
+  return <fieldset className="flex flex-col gap-2 rounded-lg border border-border p-3">
+    <legend className="font-medium">Review the screenshot in {context.timezone}</legend>
+    <p>Suggested free times are preselected. Check every date and time, remove any that are not free, then confirm. Nothing is applied automatically.</p>
+    {rows.map((row, index) => <div className="grid min-w-0 grid-cols-2 gap-2 rounded-md border border-border p-2" key={index}>
+      <label className="col-span-2 flex flex-col gap-1">Interpretation
+        <select className="min-h-11 rounded-md border border-input bg-background px-2" onChange={(event) => change(index, { free: event.target.value === "free" })} value={row.free ? "free" : "ignore"}>
+          <option value="ignore">Ignore this mark ({row.interpretation})</option><option value="free">I am free at this time</option>
+        </select>
+      </label>
+      <label className="col-span-2 flex flex-col gap-1">Date<input className="min-h-11 min-w-0 rounded-md border border-input bg-background px-2" onChange={(event) => change(index, { date: event.target.value })} type="date" value={row.date} /></label>
+      <label className="flex min-w-0 flex-col gap-1">From<input className="min-h-11 min-w-0 rounded-md border border-input bg-background px-2" onChange={(event) => change(index, { start: event.target.value })} type="time" value={row.start} /></label>
+      <label className="flex min-w-0 flex-col gap-1">Until<input className="min-h-11 min-w-0 rounded-md border border-input bg-background px-2" onChange={(event) => change(index, { end: event.target.value })} type="time" value={row.end} /></label>
+    </div>)}
+    <Button className="self-start" disabled={busy} onClick={() => void apply()} type="button">Confirm selected free times</Button>
+  </fieldset>;
 }
 
 type CalendarOption = { readonly id: string; readonly summary: string; readonly primary: boolean; readonly selected: boolean };

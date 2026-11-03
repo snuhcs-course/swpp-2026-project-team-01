@@ -42,6 +42,8 @@ stateDiagram-v2
 
 The server derives the state from durable records on every load; the browser never carries it. **Ready** is the only state with a public profile and `/{handle}/SKILL.md`. Every state before it resumes at `/app` with the next action first, as the [workspace contract](../../openspec/specs/chat-workspaces/spec.md#requirement-conversation-first-entry) requires.
 
+In `/app`, the upper-right gear opens settings above the current conversation. Weekly availability edits update the setup draft; the previously confirmed windows stay public until the host confirms the review. The intake switch controls whether a ready host accepts new requests and is independent of setup readiness and operator suspension. It defaults on, can be paused and resumed, and leaves existing requests in place. Settings also offers sign-out.
+
 ## Steps
 
 | Step | Surface | Host sees and does | Server check and record | Leaves the step when | If it fails or stops |

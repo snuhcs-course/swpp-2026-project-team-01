@@ -1,9 +1,10 @@
-/* The ink screens: the public landing (/ and /?flow=imessage) and the iMessage link step in /app.
+/* The ink screens: the public landing (/ and /?flow=imessage), the iMessage link step,
+   and the scoped host and guest onboarding workspaces.
    Ported from the landing redesign (feat/web-language-switch d3ca3be8, apps/web/src/app/(site)/globals.css):
    Ink palette, Big Shoulders for the wordmark and headings, Geist for body text; plus the send-a-message
    panel and popup, the way cards and the Messages-green glyph from the "iMessage 연결 화면 시안" canvas.
-   Every rule is scoped under .ink, so the olive app theme (globals.css) is untouched elsewhere. */
-.ink {
+   Rules are scoped under .ink or .onboarding-ink, so the olive app theme (globals.css) is untouched elsewhere. */
+:is(.ink, .onboarding-ink) {
   color-scheme: light;
   --canvas: #F6F7F9;
   --surface: #FFFFFF;
@@ -18,6 +19,119 @@
   --hairline: #D4D9E2;
   --logo: #4A5E85;
   --destructive: #9B3F35;
+}
+.onboarding-ink {
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary-foreground: var(--on-primary);
+  --secondary: var(--soft-surface);
+  --secondary-foreground: var(--ink);
+  --muted: var(--soft-surface);
+  --muted-foreground: var(--muted-ink);
+  --accent: var(--soft-surface);
+  --accent-foreground: var(--ink);
+  --border: var(--hairline);
+  --input: var(--botanical);
+  --ring: var(--primary);
+  --warning: #77591F;
+  --success: #3F6142;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  font-family: var(--font-geist-sans), "Geist", system-ui, sans-serif;
+}
+/* Tailwind's inline font-display utility resolves the global Merriweather face,
+   so the scoped heading rule must set the actual font-family too. */
+.onboarding-ink .font-display,
+.onboarding-ink[data-slot="dialog-content"] [data-slot="dialog-title"] {
+  font-family: var(--font-big-shoulders), system-ui, sans-serif;
+  font-weight: 800;
+  font-variation-settings: "opsz" 72;
+}
+.onboarding-ink[data-slot="dialog-content"] {
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgb(30 36 48 / 0.22);
+}
+.onboarding-ink[data-slot="dialog-content"] [data-slot="dialog-title"] {
+  font-size: calc(30px * 1.19);
+  line-height: 1.08;
+}
+.onboarding-ink[data-slot="dialog-content"] [data-slot="dialog-header"] { padding-right: 36px; }
+.onboarding-ink[data-slot="dialog-content"] [data-slot="dialog-close"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  top: 8px;
+  right: 8px;
+  border-radius: 10px;
+}
+.onboarding-ink [data-slot="dropdown-menu-content"] {
+  box-shadow: 0 12px 32px rgb(30 36 48 / 0.14);
+}
+.onboarding-ink [data-slot="button"][data-size="default"] {
+  border-radius: 10px;
+}
+.onboarding-ink [data-slot="button"][data-size="default"][data-variant="default"] {
+  min-height: 48px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.onboarding-ink [data-slot="button"][data-size="default"][data-variant="outline"] {
+  min-height: 44px;
+  color: var(--primary);
+  font-weight: 600;
+}
+.onboarding-ink .intake-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  border: 1px solid var(--input);
+  border-radius: 9999px;
+  background: var(--soft-surface);
+  vertical-align: middle;
+  transition: background-color 150ms;
+}
+.onboarding-ink .intake-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(30 36 48 / 0.2);
+  transition: transform 150ms;
+}
+.onboarding-ink .intake-toggle input:checked + .intake-switch { background: var(--primary); border-color: var(--primary); }
+.onboarding-ink .intake-toggle input:checked + .intake-switch::after { transform: translateX(20px); }
+.onboarding-ink .intake-toggle input:focus-visible + .intake-switch { outline: 2px solid var(--ring); outline-offset: 3px; }
+.onboarding-ink .intake-toggle input:disabled + .intake-switch { opacity: 0.5; }
+.onboarding-ink input:not([type="checkbox"]):not([type="hidden"]):not([type="file"]),
+.onboarding-ink textarea,
+.onboarding-ink select {
+  border-radius: 10px;
+  font-size: 16px;
+}
+.onboarding-ink:not([data-slot="dialog-content"]) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .19 0 0 0 0 .21 0 0 0 0 .17 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' opacity='.03' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+@media print, (forced-colors: active) {
+  .onboarding-ink:not([data-slot="dialog-content"]) { background-image: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-ink .intake-switch,
+  .onboarding-ink .intake-switch::after { transition: none; }
+}
+.ink {
   --font-body: var(--font-geist-sans), "Geist", system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
   --wm-family: var(--font-big-shoulders), system-ui, sans-serif;

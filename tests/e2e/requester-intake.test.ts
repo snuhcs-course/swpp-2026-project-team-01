@@ -115,7 +115,9 @@ for (const viewport of [
     const identity = page.locator('[data-guest-card="guest-identity"]');
     await typeInto(page, identity.getByLabel("Your name"), "Grace Hopper");
     await typeInto(page, identity.getByLabel("Email address"), email);
-    await press(page, /^Continue without Google$/);
+    // Cover the reported Enter path at phone width and the button path on desktop.
+    if (viewport.width === 390) await page.keyboard.press("Enter");
+    else await press(page, /^Continue without Google$/);
 
     // The booking page, identified, with the creation email on its way.
     await expect(page).toHaveURL(/\/booking\/[0-9a-f-]{36}$/);

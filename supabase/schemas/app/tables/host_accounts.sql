@@ -5,6 +5,8 @@
 CREATE TABLE "app"."host_accounts" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "status" text NOT NULL DEFAULT 'active' CHECK ("status" IN ('active', 'suspended')),
+  "accepting_requests" boolean NOT NULL DEFAULT true,
+  "intake_revision" integer NOT NULL DEFAULT 0,
   "display_name" text CHECK (char_length("display_name") <= 200),
   "created_at" timestamptz NOT NULL DEFAULT now(),
   "updated_at" timestamptz NOT NULL DEFAULT now(),

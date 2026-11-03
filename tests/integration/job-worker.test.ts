@@ -254,12 +254,13 @@ describe("jobs:dev", () => {
   });
 
   it("exits with an error before connecting when pointed at the shared project", async () => {
-    const run = promisify(execFile)("npm", ["run", "--silent", "jobs:dev"], {
+    const run = promisify(execFile)(process.execPath, ["--import", "tsx", "scripts/jobs-dev.ts"], {
       env: {
         ...process.env,
         DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:1/postgres",
         SUPABASE_PROJECT_REF: "anelszynxtvxoxqvzgqt",
       },
+      timeout: 10_000,
     });
 
     await expect(run).rejects.toMatchObject({
