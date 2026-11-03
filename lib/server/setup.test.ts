@@ -332,6 +332,16 @@ describe("suggestions and field precedence", () => {
     expect(differsFromConfirmed(untouched, roles, settings)).toBe(false);
     expect(differsFromConfirmed(edited, roles, settings)).toBe(true);
     expect(differsFromConfirmed(untouched, { ...roles, bookingCalendar: { ...roles.bookingCalendar, id: "new" } }, settings)).toBe(true);
+
+    // Confirmed before the weekly limit had a count choice: bookings only, as a
+    // starter default rather than something the host stated.
+    expect(untouched.weeklyLimitCounts).toMatchObject({ accepted: true, source: "starter_default", value: "bookings" });
+
+    const every = { ...settings, provenance: { ...settings.provenance, weeklyLimitCounts: "stated" as const }, weeklyLimitCounts: "all_meetings" as const };
+    const chosen = proposedOf(buildFieldViews({}, every, suggestions));
+    expect(chosen.weeklyLimitCounts).toMatchObject({ accepted: true, source: "stated", value: "all_meetings" });
+    expect(differsFromConfirmed(chosen, roles, every)).toBe(false);
+    expect(differsFromConfirmed(untouched, roles, every)).toBe(true);
   });
 });
 

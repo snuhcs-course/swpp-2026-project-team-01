@@ -38,6 +38,7 @@ const HOST: HostRules = {
   travelBufferMinutes: 15,
   travelMode: "transit",
   weeklyLimit: null,
+  weeklyLimitCounts: "bookings",
   weeklyWindows: weekdays("10:00", "17:00"),
 };
 
@@ -319,7 +320,7 @@ describe("weekly limit", () => {
   it("prioritizes the host's weekly limit over the guest's preferred time", () => {
     const thisWeek = { end: kst("2026-11-02", "11:00"), start: kst("2026-11-02", "10:00") };
     const nextWeek = { end: kst("2026-11-09", "11:00"), start: kst("2026-11-09", "10:00") };
-    const result = evaluateFeasibility(input({ host: { ...HOST, weeklyLimit: 1 }, hostBusy: [{ ...busy(kst("2026-11-03", "15:00"), kst("2026-11-03", "15:30")), meeting: true }], request: { windows: [thisWeek, nextWeek], preferredWindows: [thisWeek] } }));
+    const result = evaluateFeasibility(input({ bookedStarts: [kst("2026-11-03", "15:00").getTime()], host: { ...HOST, weeklyLimit: 1 }, request: { windows: [thisWeek, nextWeek], preferredWindows: [thisWeek] } }));
     expect(starts(result)[0]).toBe(nextWeek.start.toISOString());
     expect(starts(result)).toContain(thisWeek.start.toISOString());
   });
@@ -335,14 +336,16 @@ describe("weekly limit", () => {
   it("offers weeks below the limit first without explaining the limit to the requester", () => {
     const thisWeek = { end: kst("2026-11-02", "11:00"), start: kst("2026-11-02", "10:00") };
     const nextWeek = { end: kst("2026-11-09", "11:00"), start: kst("2026-11-09", "10:00") };
-    const meetings = [3, 4].map((day) => ({ ...busy(kst(`2026-11-0${day}`, "15:00"), kst(`2026-11-0${day}`, "15:30")), meeting: true }));
+    const bookedStarts = [3, 4].map((day) => kst(`2026-11-0${day}`, "15:00").getTime());
     const result = evaluateFeasibility(
-      input({ host: { ...HOST, weeklyLimit: 2 }, hostBusy: meetings, request: { windows: [thisWeek, nextWeek] } }),
+      input({ bookedStarts, host: { ...HOST, weeklyLimit: 2 }, request: { windows: [thisWeek, nextWeek] } }),
     );
 
     expect(starts(result)[0]).toBe(nextWeek.start.toISOString());
     expect(result.candidates.at(-1)!.belowWeeklyLimit).toBe(false);
-    expect(result.candidates.at(-1)!.basis.join(" ")).toContain("at or over your limit of 2");
+    expect(result.candidates.at(-1)!.basis).toContain(
+      "That week already has 2 Find Me a Time bookings, at or over your limit of 2, so it comes after weeks below the limit.",
+    );
 
     const projected = requesterProjection(result.candidates, { displayTimezone: "Asia/Seoul", id: "e", state: "completed" });
     expect(projected.candidates[0]!.start).toBe(nextWeek.start.toISOString());
@@ -391,21 +394,59 @@ describe("weekly limit", () => {
     }),
   ];
   const mondayMorning = { end: kst("2026-11-02", "11:00"), start: kst("2026-11-02", "10:00") };
+  const everyMeeting = { ...HOST, weeklyLimitCounts: "all_meetings" as const };
 
-  it("fills a week with its meetings only, never with all-day events, classes, focus blocks or routines", () => {
+  it("by default fills a week with Find Me a Time bookings only, not the host's other meetings", () => {
+    const hostBusy = normalizeBusy(mixedWeek, { endpointKey: hashed, selfEmail: hostEmail, timezone: "Asia/Seoul" });
+    const result = evaluateFeasibility(
+      input({
+        bookedStarts: [kst("2026-11-04", "15:00").getTime()],
+        host: { ...HOST, weeklyLimit: 2 },
+        hostBusy,
+        request: { windows: [mondayMorning] },
+      }),
+    );
+
+    expect(result.candidates[0]).toMatchObject({ belowWeeklyLimit: true, weekCount: 1, weekStart: "2026-11-02" });
+    expect(result.candidates[0]!.basis).toContain("That week has 1 of your 2 weekly Find Me a Time bookings.");
+  });
+
+  it("when every meeting counts, fills a week with its meetings only, never with all-day events, classes, focus blocks or routines", () => {
     const hostBusy = normalizeBusy(mixedWeek, { endpointKey: hashed, selfEmail: hostEmail, timezone: "Asia/Seoul" });
     expect(hostBusy).toHaveLength(9);
     expect(hostBusy.filter((interval) => interval.meeting)).toHaveLength(3);
 
     const result = evaluateFeasibility(
-      input({ host: { ...HOST, weeklyLimit: 4 }, hostBusy, request: { windows: [mondayMorning] } }),
+      input({ host: { ...everyMeeting, weeklyLimit: 4 }, hostBusy, request: { windows: [mondayMorning] } }),
     );
 
     expect(result.candidates[0]).toMatchObject({ belowWeeklyLimit: true, weekCount: 3, weekStart: "2026-11-02" });
     expect(result.candidates[0]!.basis).toContain("That week has 3 of your 4 weekly meetings.");
   });
 
-  it("counts the same meetings that setup inferred the limit from", () => {
+  it("counts a booking once when its event is also on a conflict calendar", () => {
+    const booked = event({ attendees: [hostSelf, guest("accepted")], end: "2026-11-04T06:30:00Z", id: "fmatbooking1", start: "2026-11-04T06:00:00Z" });
+    const hostBusy = normalizeBusy([...mixedWeek, booked], {
+      bookedEventIds: new Set(["fmatbooking1"]),
+      endpointKey: hashed,
+      selfEmail: hostEmail,
+      timezone: "Asia/Seoul",
+    });
+    expect(hostBusy.filter((interval) => interval.meeting)).toHaveLength(3);
+
+    const bookedStarts = [Date.parse("2026-11-04T06:00:00Z")];
+    const every = evaluateFeasibility(
+      input({ bookedStarts, host: { ...everyMeeting, weeklyLimit: 5 }, hostBusy, request: { windows: [mondayMorning] } }),
+    );
+    const bookingsOnly = evaluateFeasibility(
+      input({ bookedStarts, host: { ...HOST, weeklyLimit: 5 }, hostBusy, request: { windows: [mondayMorning] } }),
+    );
+
+    expect(every.candidates[0]!.weekCount).toBe(4);
+    expect(bookingsOnly.candidates[0]!.weekCount).toBe(1);
+  });
+
+  it("counts the same meetings that setup inferred the limit from when every meeting counts", () => {
     const evidence = computeEvidence(mixedWeek, {
       calendars: [{ id: "primary", ok: true, summary: "Me" }],
       hostEmail,
@@ -413,7 +454,7 @@ describe("weekly limit", () => {
     });
     const hostBusy = normalizeBusy(mixedWeek, { endpointKey: hashed, selfEmail: hostEmail, timezone: "Asia/Seoul" });
     const result = evaluateFeasibility(
-      input({ host: { ...HOST, weeklyLimit: 3 }, hostBusy, request: { windows: [mondayMorning] } }),
+      input({ host: { ...everyMeeting, weeklyLimit: 3 }, hostBusy, request: { windows: [mondayMorning] } }),
     );
     const [week] = evidence.meetingLoad.weeks;
 

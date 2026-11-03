@@ -1,4 +1,4 @@
-import type { SetupFieldName, ValueSource } from "@lib/contracts/setup";
+import type { SetupFieldName, ValueSource, WeeklyLimitCount } from "@lib/contracts/setup";
 import type { SetupState } from "@/lib/setup/client";
 import {
   describeLimit,
@@ -54,7 +54,9 @@ export function stepValueText(step: StepId, values: FieldValues): string {
       return groups.length > 0 ? groups.map((group) => `${group.days} ${group.ranges}`).join("; ") : "No windows";
     }
     case "limit":
-      return has("weeklyLimit") ? describeLimit((values.weeklyLimit as number | null) ?? null) : "";
+      return has("weeklyLimit")
+        ? describeLimit((values.weeklyLimit as number | null) ?? null, values.weeklyLimitCounts as WeeklyLimitCount | undefined)
+        : "";
     case "duration": {
       const parts = [
         has("durationMinutes") ? formatMinutes(values.durationMinutes as number) : null,

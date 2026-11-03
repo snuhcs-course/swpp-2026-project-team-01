@@ -11,7 +11,17 @@ import { agreedRequest, asHost, deliveriesOf, requestState } from "./support/boo
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
 import { createTestRequest, testNotices } from "./support/requests";
-import { asRequester, busy, evaluationDeps, MONDAY, revisionOf, runEvaluation, seedSchedulingRequest, seoul } from "./support/scheduling";
+import {
+  asRequester,
+  busy,
+  COMPLETE_DETAILS,
+  evaluationDeps,
+  MONDAY,
+  revisionOf,
+  runEvaluation,
+  seedSchedulingRequest,
+  seoul,
+} from "./support/scheduling";
 
 // The host's side of a request (tasks 3.3 to 3.5; design 3, 4 and 8): the inbox
 // and projection limited to the host's own requests and never a draft or a
@@ -162,20 +172,41 @@ describe("shared changes", () => {
 });
 
 describe("the rule and travel review", () => {
+  const tuesday = new Date(Date.parse(`${MONDAY}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  // A meeting with a guest the host set up outside Find Me a Time.
+  const ownMeeting = () => ({
+    attendees: [{ email: "client@example.test", responseStatus: "accepted" }],
+    end: { dateTime: seoul("11:00", tuesday) },
+    id: `event-${randomUUID()}`,
+    start: { dateTime: seoul("10:00", tuesday) },
+    status: "confirmed",
+  });
+
+  it("fills a week with the host's Find Me a Time bookings only by default (Week at the limit)", async () => {
+    // The host's own meeting that week leaves room under a limit of one.
+    const booked = await agreedRequest(db, google, { events: [ownMeeting()], settings: { weeklyLimit: 1 } });
+    const approval = await asHost(db, booked.hostAccountId, booked.requestId, approveCommand, { version: 1 }, {
+      expectedRevision: await revisionOf(db, booked.requestId),
+    });
+    if (!approval.ok) throw new Error("approve failed");
+
+    // Its booking fills the week for the host's next request.
+    const next = await createTestRequest(db, { hostAccountId: booked.hostAccountId });
+    await db`update app.requests set details = ${db.json(COMPLETE_DETAILS as never)} where id = ${next.requestId}`;
+    const found = await asHost(db, next.hostAccountId, next.requestId, hostEvaluateCommand(), {}, { retryKey: "find" });
+    if (!found.ok) throw new Error("evaluate failed");
+    await runEvaluation(db, deps(), found.result.evaluationId);
+
+    expect((await readCurrentEvaluation(db, next.requestId))?.candidates).toEqual([]);
+    expect((await readHostRequest(db, next.hostAccountId, next.requestId))?.evaluation?.weeklyLimitHold).toBe(true);
+  });
+
   it("holds every candidate in a full week until the host waives the limit (Only full weeks)", async () => {
-    const tuesday = new Date(Date.parse(`${MONDAY}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
     const request = await seedSchedulingRequest(db, google, {
-      // A meeting with a guest fills the week; busy time without one would not.
-      events: [
-        {
-          attendees: [{ email: "client@example.test", responseStatus: "accepted" }],
-          end: { dateTime: seoul("11:00", tuesday) },
-          id: `event-${randomUUID()}`,
-          start: { dateTime: seoul("10:00", tuesday) },
-          status: "confirmed",
-        },
-      ],
-      settings: { weeklyLimit: 1 },
+      // Counting every meeting, one with a guest fills the week; busy time
+      // without one would not.
+      events: [ownMeeting()],
+      settings: { weeklyLimit: 1, weeklyLimitCounts: "all_meetings" },
     });
     const found = await asHost(db, request.hostAccountId, request.requestId, hostEvaluateCommand(), {}, { retryKey: "find" });
     if (!found.ok) throw new Error("evaluate failed");

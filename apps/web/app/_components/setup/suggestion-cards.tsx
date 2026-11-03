@@ -1,7 +1,15 @@
 "use client";
 
 import type { AnalysisEvidence } from "@lib/contracts/analysis";
-import type { SetupFieldName, SetupFieldValue, WeeklyWindow } from "@lib/contracts/setup";
+import {
+  type SetupFieldName,
+  type SetupFieldValue,
+  STARTER_DEFAULTS,
+  WEEKLY_LIMIT_COUNT_LABELS,
+  WEEKLY_LIMIT_COUNTS,
+  type WeeklyLimitCount,
+  type WeeklyWindow,
+} from "@lib/contracts/setup";
 import { SearchIcon } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -278,18 +286,20 @@ export function WeeklyWindowsStep() {
 export function WeeklyLimitStep() {
   const { state } = useSetup();
   const limit = state.fields.weeklyLimit.proposed;
+  const counts = state.fields.weeklyLimitCounts.proposed?.value ?? STARTER_DEFAULTS.weeklyLimitCounts;
 
   return (
     <SuggestionStep
       editor={({ mode, onCancel, onSave, saving }) => (
         <LimitEditor
           initial={mode === "adjust" ? (limit?.value ?? null) : undefined}
+          initialCounts={mode === "adjust" ? counts : STARTER_DEFAULTS.weeklyLimitCounts}
           onCancel={onCancel}
-          onSave={(weeklyLimit) => onSave({ weeklyLimit })}
+          onSave={onSave}
           saving={saving}
         />
       )}
-      fields={["weeklyLimit"]}
+      fields={["weeklyLimit", "weeklyLimitCounts"]}
       quick={[
         { label: "No limit", values: { weeklyLimit: null } },
         { label: "5 a week", values: { weeklyLimit: 5 } },
@@ -300,7 +310,7 @@ export function WeeklyLimitStep() {
       title="How many meetings a week, at most?"
       value={
         <div className="flex flex-col gap-1.5">
-          <ValueText>{limit ? describeLimit(limit.value) : "Not set"}</ValueText>
+          <ValueText>{limit ? describeLimit(limit.value, counts) : "Not set"}</ValueText>
           <Provenance field="weeklyLimit" />
         </div>
       }
@@ -603,25 +613,30 @@ function DurationEditor({
   );
 }
 
-// `initial` undefined opens the editor neutral (Choose my own).
+// The limit and what fills a week toward it: Find Me a Time bookings by
+// default, or every meeting with guests on the conflict calendars. `initial`
+// undefined opens the editor neutral (Choose my own).
 function LimitEditor({
   initial,
+  initialCounts,
   onCancel,
   onSave,
   saving,
 }: {
   readonly initial: number | null | undefined;
+  readonly initialCounts: WeeklyLimitCount;
   readonly onCancel: () => void;
-  readonly onSave: (limit: number | null) => void;
+  readonly onSave: (values: { weeklyLimit: number | null; weeklyLimitCounts: WeeklyLimitCount }) => void;
   readonly saving: boolean;
 }) {
   const [noLimit, setNoLimit] = useState(initial === null);
   const [raw, setRaw] = useState(typeof initial === "number" ? String(initial) : "");
+  const [counts, setCounts] = useState(initialCounts);
   const id = useId();
   const limit = parseMinutes(raw, 1, 50);
   const valid = noLimit || limit !== null;
   const submit = () => {
-    if (valid) onSave(noLimit ? null : limit);
+    if (valid) onSave({ weeklyLimit: noLimit ? null : limit, weeklyLimitCounts: counts });
   };
 
   return (
@@ -652,6 +667,26 @@ function LimitEditor({
             value={raw}
           />
         </div>
+      ) : null}
+      {!noLimit ? (
+        <fieldset className="flex flex-col">
+          <legend className="mb-1 text-sm font-medium">What counts toward it</legend>
+          {WEEKLY_LIMIT_COUNTS.map((option) => (
+            <label className="flex min-h-11 items-center gap-3" htmlFor={`${id}-${option}`} key={option}>
+              <input
+                checked={counts === option}
+                className="size-5 accent-primary"
+                id={`${id}-${option}`}
+                name={`${id}-counts`}
+                onChange={() => setCounts(option)}
+                type="radio"
+                value={option}
+              />
+              {WEEKLY_LIMIT_COUNT_LABELS[option]}
+            </label>
+          ))}
+          <p className="text-sm text-muted-foreground">All meetings also counts meetings with guests that you set up yourself.</p>
+        </fieldset>
       ) : null}
       <EditorActions disabled={!valid} onCancel={onCancel} onSubmit={submit} saving={saving} submit="Save limit" />
     </EditorForm>

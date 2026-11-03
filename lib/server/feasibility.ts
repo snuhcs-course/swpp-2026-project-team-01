@@ -5,6 +5,7 @@ import {
   type noteExclusionSchema,
   type TravelMode,
   WEEKDAYS,
+  type WeeklyLimitCount,
   type WeeklyWindow,
   type Weekday,
 } from "../contracts/setup";
@@ -22,7 +23,8 @@ import type { CalendarEvent } from "./google-calendar";
 //   3. removes candidates overlapping host busy intervals widened by the buffers,
 //      and requester busy intervals as they are;
 //   4. orders weeks below the weekly limit first (a preference, never a filter),
-//      counting only the meetings in each week;
+//      counting the host's Find Me a Time bookings in each week, and other
+//      meetings with guests too when the host chose to count every meeting;
 //   5. for in-person candidates, checks both host travel legs and, with a
 //      requester calendar, both requester legs (design decision 9).
 // Every explanation is a sentence computed here from the candidate's basis
@@ -159,7 +161,9 @@ export type BusyInterval = {
   readonly end: number;
   // All-day events block time but never anchor travel.
   readonly allDay: boolean;
-  // A counted meeting, which fills its week toward the weekly limit.
+  // A meeting with guests that Find Me a Time did not book. It fills its week
+  // toward the weekly limit only when the host counts every meeting; bookings
+  // count through FeasibilityInput.bookedStarts instead.
   readonly meeting: boolean;
   readonly endpoint: Endpoint;
 };
@@ -171,6 +175,9 @@ export type NormalizeOptions = {
   // The calendar owner's address, for declined invitations when Google omits `self`.
   readonly selfEmail: string | null;
   readonly noteExclusions?: readonly NoteExclusion[];
+  // The provider event IDs of Find Me a Time bookings, whose calendar copies are
+  // busy time but not other meetings.
+  readonly bookedEventIds?: ReadonlySet<string>;
   // The keyed hash of a location text.
   readonly endpointKey: (text: string) => string;
 };
@@ -183,9 +190,9 @@ function identity(event: CalendarEvent) {
 
 // The attendees besides the calendar owner who did not decline. A busy, timed
 // event with any is a counted meeting (host-onboarding design 8): setup infers
-// the weekly limit from counted meetings and evaluation fills each week with the
-// same ones, so all-day events, timetables, routines and focus blocks block time
-// without filling a week.
+// the weekly limit from counted meetings, and a host who counts every meeting
+// fills each week with the same ones, so all-day events, timetables, routines
+// and focus blocks block time without filling a week.
 export function meetingGuests(event: CalendarEvent, ownerEmail: string | null) {
   const owner = ownerEmail?.trim().toLowerCase() ?? null;
   return event.attendees.filter(
@@ -204,7 +211,7 @@ function endpointOf(event: CalendarEvent, endpointKey: (text: string) => string)
 // event on several calendars merged by provider identity; note-like entries the
 // host excluded (with an unchanged fingerprint) removed; all-day events blocking
 // their local dates in the given zone; timed events with a guest who did not
-// decline marked as meetings.
+// decline, other than the host's bookings, marked as meetings.
 export function normalizeBusy(events: readonly CalendarEvent[], options: NormalizeOptions): BusyInterval[] {
   const self = options.selfEmail?.trim().toLowerCase() ?? null;
   const excluded = new Set(
@@ -236,7 +243,7 @@ export function normalizeBusy(events: readonly CalendarEvent[], options: Normali
         allDay: false,
         end,
         endpoint: endpointOf(event, options.endpointKey),
-        meeting: meetingGuests(event, self).length > 0,
+        meeting: !options.bookedEventIds?.has(event.id) && meetingGuests(event, self).length > 0,
         start,
       });
     } else if (event.start.date && event.end.date) {
@@ -259,6 +266,7 @@ export type HostRules = {
   readonly bufferBeforeMinutes: number;
   readonly bufferAfterMinutes: number;
   readonly weeklyLimit: number | null;
+  readonly weeklyLimitCounts: WeeklyLimitCount;
   readonly meetingMode: MeetingMode;
   readonly travelMode: TravelMode | null;
   readonly travelBufferMinutes: number | null;
@@ -312,6 +320,9 @@ export type FeasibilityInput = {
   readonly now: Date;
   readonly host: HostRules;
   readonly hostBusy: readonly BusyInterval[];
+  // The starts of the host's live Find Me a Time bookings for other requests;
+  // each fills its week toward the weekly limit.
+  readonly bookedStarts?: readonly number[];
   readonly request: RequestTerms;
   // Null when the requester connected no calendar: no requester busy time or leg.
   readonly requesterBusy: readonly BusyInterval[] | null;
@@ -606,11 +617,17 @@ function plan(input: FeasibilityInput): Plan {
 
   intervals.sort((a, b) => a.start - b.start);
 
-  // Each week's load counts its meetings only, as setup counted them.
+  // Each week's load: the host's bookings, plus the other meetings with guests
+  // when the host counts every meeting.
+  const counted = [
+    ...(input.bookedStarts ?? []),
+    ...(host.weeklyLimitCounts === "all_meetings"
+      ? input.hostBusy.filter((interval) => interval.meeting).map((interval) => interval.start)
+      : []),
+  ];
   const weekCounts = new Map<string, number>();
-  for (const interval of input.hostBusy) {
-    if (!interval.meeting) continue;
-    const week = weekOf(interval.start, host.timezone);
+  for (const start of counted) {
+    const week = weekOf(start, host.timezone);
     weekCounts.set(week, (weekCounts.get(week) ?? 0) + 1);
   }
 
@@ -867,10 +884,11 @@ function basisFor(input: FeasibilityInput, entry: Planned, mode: "online" | "in_
   if (input.requesterBusy) sentences.push("Free on the requester's connected calendar.");
 
   if (host.weeklyLimit !== null) {
+    const counted = host.weeklyLimitCounts === "bookings" ? "Find Me a Time bookings" : "meetings";
     sentences.push(
       entry.belowLimit
-        ? `That week has ${entry.weekCount} of your ${host.weeklyLimit} weekly meetings.`
-        : `That week already has ${entry.weekCount} meetings, at or over your limit of ${host.weeklyLimit}, so it comes after weeks below the limit.`,
+        ? `That week has ${entry.weekCount} of your ${host.weeklyLimit} weekly ${counted}.`
+        : `That week already has ${entry.weekCount} ${counted}, at or over your limit of ${host.weeklyLimit}, so it comes after weeks below the limit.`,
     );
   }
 

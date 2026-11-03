@@ -11,6 +11,7 @@ import {
   type ValueSource,
   WEEKDAYS,
   type Weekday,
+  type WeeklyLimitCount,
   type WeeklyWindow,
 } from "@lib/contracts/setup";
 import type { HandleAvailability } from "@lib/server/handles";
@@ -207,8 +208,15 @@ export function describeTravelMode(mode: TravelMode) {
   return TRAVEL_MODE_LABELS[mode];
 }
 
-export function describeLimit(limit: number | null) {
-  return limit === null ? "No weekly limit" : `At most ${limit} meeting${limit === 1 ? "" : "s"} a week`;
+const COUNTED_WORDS: Readonly<Record<WeeklyLimitCount, string>> = {
+  all_meetings: "counting all meetings with guests",
+  bookings: "counting Find Me a Time bookings",
+};
+
+// The limit, and what fills a week toward it when that is known.
+export function describeLimit(limit: number | null, counts?: WeeklyLimitCount) {
+  if (limit === null) return "No weekly limit";
+  return counts ? `At most ${limit} a week, ${COUNTED_WORDS[counts]}` : `At most ${limit} meeting${limit === 1 ? "" : "s"} a week`;
 }
 
 export function handleMessage(availability: HandleAvailability | null) {
@@ -254,6 +262,7 @@ export const FIELD_LABELS: Readonly<Record<SetupFieldName, string>> = {
   travelBufferMinutes: "Travel buffer",
   travelMode: "How you travel",
   weeklyLimit: "Weekly meeting limit",
+  weeklyLimitCounts: "What counts toward the limit",
   weeklyWindows: "Weekly windows",
 };
 
