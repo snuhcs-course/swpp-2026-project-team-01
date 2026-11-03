@@ -6,7 +6,7 @@ import { photonConfig, photonTransport, SPECTRUM_ENDPOINT, standInTransport } fr
 // rejected or uncertain, a refused connection to unavailable, and the gate
 // refuses previews and non-loopback local sends before any network access.
 
-const request = { content: { kind: "text" as const, text: "Hi" }, idempotencyKey: "o1", recipient: { address: "+15551234567", spaceId: null } };
+const request = { channel: "imessage" as const, content: { kind: "text" as const, text: "Hi" }, idempotencyKey: "o1", recipient: { address: "+15551234567", spaceId: null } };
 
 function answering(status: number, body: unknown = {}) {
   return vi.fn(async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
@@ -58,5 +58,40 @@ describe("photonTransport", () => {
     const preview = { PHOTON_API_URL: "http://127.0.0.1:4100", VERCEL: "1", VERCEL_ENV: "preview", VERCEL_TARGET_ENV: "preview" };
     await expect(photonTransport(photonConfig(preview), preview).send(request)).rejects.toMatchObject({ category: "unavailable_configuration" });
     await expect(photonTransport(photonConfig({}), {}).send(request)).rejects.toMatchObject({ category: "unavailable_configuration" });
+  });
+});
+
+// host-whatsapp-channel task 2.3: WhatsApp's path, Meta's refusals and the gate.
+describe("WhatsApp sends", () => {
+  const whatsapp = { ...request, channel: "whatsapp" as const, recipient: { address: "15551234567", spaceId: "15551234567" } };
+  const template = { ...whatsapp, content: { kind: "template" as const, languageCode: "en_US", name: "fmat_proposal_waiting", params: ["K7Q2MX"] } };
+
+  it("posts WhatsApp to the stand-in's WhatsApp path with the template", async () => {
+    const fetcher = answering(200, { messageId: "wamid.1", spaceId: "15551234567" });
+    expect(await standInTransport("http://127.0.0.1:9", "s", fetcher).send(template)).toMatchObject({ status: "accepted" });
+    const [url, init] = (fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls[0]! as [string, RequestInit];
+    expect(url).toBe("http://127.0.0.1:9/whatsapp/messages");
+    expect(JSON.parse(String(init.body))).toMatchObject({ content: template.content, recipient: whatsapp.recipient });
+  });
+
+  it("maps the stand-in's window, template and rate-limit answers", async () => {
+    expect(await standInTransport("http://127.0.0.1:9", "s", answering(422, { category: "window_closed" })).send(whatsapp)).toEqual({
+      category: "window_closed",
+      status: "rejected",
+    });
+    expect(await standInTransport("http://127.0.0.1:9", "s", answering(422, { category: "template_unavailable" })).send(template)).toEqual({
+      category: "template_unavailable",
+      status: "rejected",
+    });
+    expect(await standInTransport("http://127.0.0.1:9", "s", answering(429)).send(whatsapp)).toEqual({ status: "unavailable" });
+  });
+
+  it("refuses WhatsApp in a preview before any network access", async () => {
+    const preview = { PHOTON_API_URL: "http://127.0.0.1:4100", VERCEL: "1", VERCEL_ENV: "preview", VERCEL_TARGET_ENV: "preview" };
+    await expect(photonTransport(photonConfig(preview), preview).send(whatsapp)).rejects.toMatchObject({ category: "unavailable_configuration" });
+  });
+
+  it("reads the WhatsApp number as digits", () => {
+    expect(photonConfig({ PHOTON_WHATSAPP_NUMBER: " +15550002222 " }).whatsappNumber).toBe("15550002222");
   });
 });

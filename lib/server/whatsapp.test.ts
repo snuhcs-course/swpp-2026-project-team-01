@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { channelHash, imessageHash, inboundMessage } from "./photon-receiver";
-import { inboundWhatsAppMessage, isWhatsAppEvent, normalizeWhatsAppSender } from "./whatsapp";
+import { inboundWhatsAppMessage, isWhatsAppEvent, metaErrorCode, normalizeWhatsAppSender, whatsAppSendFailure } from "./whatsapp";
 
 // WhatsApp Business on the shared webhook (host-whatsapp-channel design 2 and 3):
 // the platform check, the contact ID and the separate hash namespace.
@@ -112,5 +112,25 @@ describe("channelHash", () => {
     expect(channelHash(key, "imessage", "sender", "+15551234567")).toBe(imessageHash(key, "sender", "+15551234567"));
     expect(channelHash(key, "whatsapp", "sender", "15551234567")).not.toBe(imessageHash(key, "sender", "15551234567"));
     expect(channelHash(key, "whatsapp", "sender", "15551234567")).not.toBe(channelHash(key, "imessage", "sender", "+15551234567"));
+  });
+});
+
+describe("whatsAppSendFailure", () => {
+  it("maps Meta's codes wherever the error carries them", () => {
+    expect(whatsAppSendFailure(new Error("(#131047) Re-engagement message"))).toEqual({ category: "window_closed", status: "rejected" });
+    expect(whatsAppSendFailure(Object.assign(new Error("failed"), { context: { metaCode: "131026" } }))).toEqual({ category: "undeliverable", status: "rejected" });
+    expect(whatsAppSendFailure(new Error("send failed", { cause: { code: 132001, message: "Template name does not exist" } }))).toEqual({
+      category: "template_unavailable",
+      status: "rejected",
+    });
+    expect(whatsAppSendFailure(new Error("(#130429) Rate limit hit"))).toEqual({ status: "unavailable" });
+    expect(whatsAppSendFailure(new Error("(#131056) Pair rate limit"))).toEqual({ status: "unavailable" });
+  });
+
+  it("maps the SDK's error classes and leaves anything else uncertain", () => {
+    expect(whatsAppSendFailure(Object.assign(new Error("slow down"), { name: "RateLimitError" }))).toEqual({ status: "unavailable" });
+    expect(whatsAppSendFailure(Object.assign(new Error("no"), { name: "AuthenticationError" }))).toEqual({ category: "provider_authentication", status: "rejected" });
+    expect(whatsAppSendFailure(new Error("socket hang up"))).toEqual({ status: "uncertain" });
+    expect(metaErrorCode(new Error("status 500"))).toBeNull();
   });
 });

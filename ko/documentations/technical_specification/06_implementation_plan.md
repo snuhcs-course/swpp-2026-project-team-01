@@ -406,7 +406,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 - [x] 검증된 Photon 이벤트를 플랫폼에 따라 라우팅: iMessage는 변경 없는 `inboundMessage`로, WhatsApp Business는 `inboundWhatsAppMessage`로 보내고, 라벨이 없거나 섞인 이벤트는 아무 곳으로도 보내지 않습니다.
 - [x] 네 개의 `imessage_*` 테이블에 `channel` 열, 별도의 발신자 해시 네임스페이스, 발신함의 템플릿 필드를 pg-delta로 추가.
-- [ ] `lib/server/photon.ts`의 클라우드 모드 `@spectrum-ts/whatsapp-business`, Meta 오류 매핑, 대역의 WhatsApp 및 131047 분기.
+- [x] `lib/server/photon.ts`의 클라우드 모드 `@spectrum-ts/whatsapp-business`, Meta 오류 매핑, 대역의 WhatsApp 및 131047 분기.
 
 **레인 B — 브라우저에서의 연동**
 

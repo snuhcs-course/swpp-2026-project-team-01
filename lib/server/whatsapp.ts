@@ -77,3 +77,48 @@ export function inboundWhatsAppMessage(payload: unknown): InboundMessage | null 
 
   return { channel: "whatsapp", contentType, messageId, sender, sentAt, spaceId, spaceType: "dm", text: body };
 }
+
+// ---------------------------------------------------------------------------
+// Meta's refusals (design 9, D10)
+
+export type WhatsAppSendFailure =
+  | { readonly status: "rejected"; readonly category: "window_closed" | "undeliverable" | "template_unavailable" | "provider_authentication" }
+  | { readonly status: "unavailable" }
+  | { readonly status: "uncertain" };
+
+// The Meta error code a failed send carries, wherever the SDK put it: its
+// context, its message or its cause. Photon's gRPC errors relay Meta's code in
+// their details; which field holds it is checked on a real failure at the join.
+export function metaErrorCode(error: unknown): number | null {
+  const seen = new Set<unknown>();
+  const texts: string[] = [];
+
+  for (let current = error; current && typeof current === "object" && !seen.has(current); current = (current as { cause?: unknown }).cause) {
+    seen.add(current);
+    const value = current as { code?: unknown; message?: unknown; context?: unknown; details?: unknown };
+    if (typeof value.code === "number") texts.push(String(value.code));
+    for (const part of [value.message, value.details]) if (typeof part === "string") texts.push(part);
+    if (value.context && typeof value.context === "object") texts.push(...Object.values(value.context as Record<string, unknown>).map(String));
+  }
+
+  for (const text of texts) {
+    const match = /\b(13[0-2]\d{3})\b/.exec(text);
+    if (match) return Number(match[1]);
+  }
+  return null;
+}
+
+// A failure once the send began: Meta's refusals are final, its rate limits
+// mean nothing was sent, and anything else may have gone out.
+export function whatsAppSendFailure(error: unknown): WhatsAppSendFailure {
+  const code = metaErrorCode(error);
+  if (code === 131047) return { category: "window_closed", status: "rejected" };
+  if (code === 131026) return { category: "undeliverable", status: "rejected" };
+  if (code !== null && code >= 132000 && code <= 132999) return { category: "template_unavailable", status: "rejected" };
+  if (code === 130429 || code === 131056) return { status: "unavailable" };
+
+  const name = (error as { name?: unknown } | null)?.name;
+  if (name === "RateLimitError") return { status: "unavailable" };
+  if (name === "AuthenticationError") return { category: "provider_authentication", status: "rejected" };
+  return { status: "uncertain" };
+}

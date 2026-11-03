@@ -404,7 +404,7 @@ Scope. Prerequisite: Phase 6, whose receiver, tables, commands, outbox and cards
 
 - [x] Route verified Photon events by platform: iMessage to the unchanged `inboundMessage`, WhatsApp Business to `inboundWhatsAppMessage`, anything unlabelled or mixed to nothing.
 - [x] `channel` column on the four `imessage_*` tables, the separate sender-hash namespace, and the outbox's template fields, through pg-delta.
-- [ ] `@spectrum-ts/whatsapp-business` in cloud mode in `lib/server/photon.ts`, Meta error mapping, and the stand-in's WhatsApp and 131047 branches.
+- [x] `@spectrum-ts/whatsapp-business` in cloud mode in `lib/server/photon.ts`, Meta error mapping, and the stand-in's WhatsApp and 131047 branches.
 
 **Lane B — linking in the browser**
 

@@ -1,11 +1,12 @@
 import type { MessageStreamEvent } from "eve/client";
+import type { MessagingChannel } from "../contracts/messaging-channel";
 import { agentUrlFromEnvironment, type ConversationRuntime, eveRuntime } from "./conversations";
 import { database, type Database, type Transaction } from "./database";
 import { turnReplyText } from "./email-replies";
 import { internalSigningKey, signInternalBearer } from "./internal-bearer";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
-import { type PhotonConfig, photonConfig, type PhotonRecipient, type PhotonTransport, photonTransport, SPECTRUM_ENDPOINT } from "./photon";
+import { type PhotonConfig, photonConfig, type PhotonContent, type PhotonRecipient, type PhotonTransport, photonTransport, SPECTRUM_ENDPOINT } from "./photon";
 import { redactCredentials } from "./redaction";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
@@ -25,6 +26,10 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 //      never sent again. A row found dispatching by a later attempt means a send
 //      began and its answer was lost, so it becomes uncertain.
 // Every final state clears the sealed recipient and text.
+// Rows carry their channel (host-whatsapp-channel design 4 and 9): a row that
+// names a binding or a link attempt takes its channel unless the caller gives
+// one, and the transport sends it on that platform. A template row (WhatsApp
+// only) sends its template with the sealed text as the one body parameter.
 
 export const IMESSAGE_SEND_JOB = "imessage_send";
 // A refusal before sending retries with backoff; five attempts span about five minutes.
@@ -46,12 +51,17 @@ export type OutboxKind =
   | "command"
   | "turn"
   | "notice"
-  | "contact_card";
+  | "contact_card"
+  | "template";
 
 export type OutboxState = "waiting" | "queued" | "dispatching" | "accepted" | "failed" | "uncertain" | "suppressed";
 
 export type RecordOutbound = {
   readonly kind: OutboxKind;
+  // The platform; by default the binding's or the link attempt's, else iMessage.
+  readonly channel?: MessagingChannel;
+  // A template row's template (WhatsApp only).
+  readonly templateName?: string;
   // One message per (kind, dedupeKey): a retried recording returns the existing one.
   readonly dedupeKey: string;
   readonly recipient: PhotonRecipient;
@@ -89,13 +99,14 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
   const recipient = suppressed ? null : sealToken(message.tokenKey, JSON.stringify(message.recipient), context);
   const text = suppressed || message.text === undefined ? null : sealToken(message.tokenKey, message.text, context);
   const turn = message.kind === "turn";
+  const channel = message.channel ?? (await ownerChannel(tx, message));
 
   const [created] = await tx<{ id: string }[]>`
     insert into app.imessage_outbox
-      (id, kind, dedupe_key, host_account_id, binding_id, link_id, request_id, input_id, recipient_hash,
+      (id, channel, kind, template_name, dedupe_key, host_account_id, binding_id, link_id, request_id, input_id, recipient_hash,
        recipient_ciphertext, text_ciphertext, sealed_key_id, state, failure_category, completed_at)
     values
-      (${id}, ${message.kind}, ${message.dedupeKey}, ${message.hostAccountId ?? null}, ${message.bindingId ?? null},
+      (${id}, ${channel}, ${message.kind}, ${message.templateName ?? null}, ${message.dedupeKey}, ${message.hostAccountId ?? null}, ${message.bindingId ?? null},
        ${message.linkId ?? null}, ${message.requestId ?? null}, ${message.inputId ?? null}, ${message.recipientHash},
        ${recipient?.ciphertext ?? null}, ${text?.ciphertext ?? null}, ${message.tokenKey.id},
        ${suppressed ? "suppressed" : turn ? "waiting" : "queued"}, ${suppressed},
@@ -121,6 +132,18 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
     ...(turn ? { runAfter: new Date(Date.now() + TURN_REPLY_DELAY_SECONDS * 1000) } : {}),
   });
   return { created: true, id };
+}
+
+async function ownerChannel(tx: Transaction, message: RecordOutbound): Promise<MessagingChannel> {
+  if (message.bindingId) {
+    const [binding] = await tx<{ channel: MessagingChannel }[]>`select channel from app.imessage_bindings where id = ${message.bindingId}`;
+    if (binding) return binding.channel;
+  }
+  if (message.linkId) {
+    const [link] = await tx<{ channel: MessagingChannel }[]>`select channel from app.imessage_links where id = ${message.linkId}`;
+    if (link) return link.channel;
+  }
+  return "imessage";
 }
 
 // From the session-owner hook when a turn ends: the replies waiting on inputs
@@ -179,7 +202,9 @@ function sendDependenciesFromEnvironment(): ImessageSendDependencies {
 
 type OutboxRow = {
   readonly id: string;
+  readonly channel: MessagingChannel;
   readonly kind: OutboxKind;
+  readonly template_name: string | null;
   readonly binding_id: string | null;
   readonly input_id: string | null;
   readonly recipient_ciphertext: string | null;
@@ -278,7 +303,7 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
     // A denied environment touches no outbound state.
     assertMessagingAdmitted(transport.endpoint, deps.env);
     const select = (q: Transaction | Database) => q<OutboxRow[]>`
-      select id, kind, binding_id, input_id, recipient_ciphertext, text_ciphertext, sealed_key_id, state,
+      select id, channel, kind, template_name, binding_id, input_id, recipient_ciphertext, text_ciphertext, sealed_key_id, state,
              created_at < now() - make_interval(mins => ${TURN_REPLY_WAIT_MINUTES}) as stale
       from app.imessage_outbox where id = ${outboxId}
       for update
@@ -371,7 +396,8 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
     try {
       result = await transport.send({
-        content: claim.text === null ? { kind: "contact_card" } : { kind: "text", text: claim.text },
+        channel: claim.row.channel,
+        content: contentOf(claim.row, claim.text),
         idempotencyKey: claim.row.id,
         recipient: claim.recipient,
       });
@@ -424,6 +450,16 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
   };
 
   return handler;
+}
+
+// Templates are registered in en_US (design 8); the sealed text is the request reference.
+export const TEMPLATE_LANGUAGE = "en_US";
+
+function contentOf(row: Pick<OutboxRow, "kind" | "template_name">, text: string | null): PhotonContent {
+  if (row.kind === "template" && row.template_name) {
+    return { kind: "template", languageCode: TEMPLATE_LANGUAGE, name: row.template_name, params: text === null ? [] : [text] };
+  }
+  return text === null ? { kind: "contact_card" } : { kind: "text", text };
 }
 
 function keyOf(deps: ImessageSendDependencies, keyId: string) {
