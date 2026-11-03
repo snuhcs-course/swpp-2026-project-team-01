@@ -84,7 +84,7 @@ A host SHALL have at most one active iMessage binding and a sender SHALL be boun
 - **THEN** the binding ends at once and later messages from that sender expose nothing private and act on nothing
 
 ### Requirement: No session for unlinked or group senders
-Only a direct message from the sender of an active binding whose host may host SHALL reach a discussion or a command. A direct message from any other sender SHALL receive at most one fixed reply per sender per day that points to the authenticated web workspace and reveals no host state. Group conversations, outbound echoes and reactions SHALL receive nothing.
+Only a direct message from the sender of an active binding whose host may host SHALL reach a discussion or a command. A direct message from any other sender SHALL receive at most one fixed reply per sender per day that points to the authenticated web workspace and reveals no host state. Group conversations, outbound echoes, reactions and messages from any platform other than iMessage SHALL receive nothing.
 
 #### Scenario: Unlinked sender asks for details
 - **WHEN** an unlinked sender asks for a host's requests
@@ -93,6 +93,10 @@ Only a direct message from the sender of an active binding whose host may host S
 #### Scenario: Group conversation
 - **WHEN** a linked host's sender writes in a group conversation that includes the line
 - **THEN** nothing is processed and nothing is sent
+
+#### Scenario: Message from another platform
+- **WHEN** a message arrives through another platform enabled on the same Photon project, such as WhatsApp Business, even from a linked host's number
+- **THEN** it is acknowledged, nothing is stored or processed and nothing is sent
 
 ### Requirement: Ordered receipts under backpressure
 Receipts from one conversation SHALL be processed in arrival order. A receipt refused by an admission budget SHALL stay unprocessed and retry no earlier than one minute later, and no later receipt in that conversation SHALL overtake it. A retried receipt whose binding ended or whose host was suspended meanwhile SHALL reach the unlinked outcome without model work.

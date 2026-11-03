@@ -236,7 +236,7 @@
 | # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
 | D1 | 애플리케이션이 소유하는 어댑터: `agent/channels/photon.ts`는 `200` 이전에 수신 기록과 작업을 저장하는 서명된 수신기만 호스팅하고, 애플리케이션이 발신자를 호스트가 선택한 논의로 매핑하며, 발신 텍스트는 하나의 전송 모듈(프로덕션은 Spectrum SDK, 그 밖에는 루프백 대역)과 발신함을 거칩니다 | eve의 네이티브 `photonIMessageChannel`: 아무것도 저장하지 않고 프로세스 내 디스패치 뒤에 확인 응답하며, iMessage 스레드마다 세션 색인 밖의 eve 세션 하나를 두고, 접수 한도 아래에서 메시지를 보류할 수 없고, 발신함이나 불확실 발송 기록이 없음 | 제안서; 설계 1; 에이전트 구성; 제공자 설정 | 제안서와 설계 1, 이어서 `agent/channels/photon.ts`와 `lib/server/photon.ts` |
-| D2 | 발신자는 Photon의 `message.sender.id`입니다: E.164(`+15551234567`) 또는 소문자로 바꾼 Apple ID 이메일이며, 키 해시로 저장하고 봉인하고, `space.type = "dm"`만 인정하며, 텍스트나 스페이스 ID에서 파싱하지 않습니다 | 스페이스 ID로 매칭; 채팅 GUID에서 번호 파싱 | 제안서; 설계 1; 제공자 설정 | `lib/server/photon-receiver.ts`의 `normalizeSender` |
+| D2 | 발신자는 Photon의 `message.sender.id`입니다: E.164(`+15551234567`) 또는 소문자로 바꾼 Apple ID 이메일이며, 키 해시로 저장하고 봉인하고, `space.type = "dm"`만 인정하고 iMessage 이벤트만 인정하며(2026-11-02 추가, 이슈 #62: 같은 Photon 프로젝트의 WhatsApp Business도 같은 웹훅에 도착함), 텍스트나 스페이스 ID에서 파싱하지 않습니다 | 스페이스 ID로 매칭; 채팅 GUID에서 번호 파싱; 발신자 형식만 믿고 다른 플랫폼을 걸러내기 | 제안서; 설계 1; 제공자 설정 | `lib/server/photon-receiver.ts`의 `normalizeSender`와 `inboundMessage` |
 | D3 | (사용자, 2026-10-23.) PRD의 범위: 호스트가 보내는 일회용 코드이므로 Thyme의 첫 메시지는 답장이며, 인증된 브라우저에서 마스킹된 발신자의 **확인 및 연결(Confirm and link)**을 거친 뒤에만 바인딩되고, 대체 경로는 **코드를 대신 보내 주세요(Send me a code instead)**이며, 호스트 계정을 만들거나 들어가는 유일한 방법은 계속 Google입니다 | PR #23의 발신 우선 문자 및 답장 확인; 전화번호 계정; iMessage 우선 계정 생성 | PRD 10절; 제안서; 설계 4 | PRD 먼저, 이어서 제안서 |
 | D4 | (사용자, 2026-10-23.) **iMessage 연결(Connect iMessage)**은 코드를 받아 곧바로 메시지 앱을 엽니다: iOS와 iPadOS는 `sms:<number>&body=<text>`, Android는 `sms:<number>?body=<text>`이고 텍스트는 퍼센트 인코딩하며, 데스크톱과 그 밖의 브라우저는 번호, 코드, **복사(Copy)**, iOS 딥링크의 QR 코드가 있는 인라인 카드를 받고, 메시지 앱을 여는 것은 연결로 간주되지 않습니다 | 펼친 카드의 두 번째 탭으로서의 **메시지 앱 열기(Open Messages)**(이전 문서); `SMSTO:` QR 페이로드 | PRD 10절; 페이지 목록; 인터페이스; 호스트 온보딩 H11; 프론트엔드 아키텍처; 제공자 설정; 설계 5 | `lib/contracts/imessage.ts`의 `deepLinkFor`와 `messagesPlatform` |
 | D5 | 연결 코드는 `FMAT-`에 크록포드 base32 문자 열 개(이미 모든 곳에서 마스킹되는 이메일 계열)를 붙인 형태이며, 메시지는 `Link my Find Me a Time account: FMAT-…`이고, 15분간 유효하며, 해시하고 봉인하며, 호스트당 시간당 최대 5개이고, 도착 뒤 확인까지 15분입니다 | 짧은 숫자 코드(유효 기간 안에 추측 가능); 별도의 마스킹이 필요한 코드 계열 | 제안서; 설계 4 | `lib/server/imessage-links.ts`의 `IMESSAGE_LINK_LIMITS` |
@@ -465,20 +465,50 @@
 15. `findmeatime-release`의 **오래된 프로토타입 변수 제거**.
 16. **프로덕션 인수**: [personal-agent 클라이언트](09_agent_clients.md)의 명명된 클라이언트 점검, 통제된 iPhone 실행, 실제 받은편지함 전달, 손님의 받은편지함 확인, 로그인한 설정을 [릴리스 요약](07_acceptance_record.md#release-summary)에 맞춰 기록하고, 이어서 `openspec archive operations-and-release`.
 
-## `guest-flow-completion`
+## 9단계 — `host-whatsapp-channel`
 
-[제안서](../../openspec/changes/guest-flow-completion/proposal.md#decisions)는 사용자와 팀이 2026-10-29과 2026-10-30에 합의한 U1–U5와 D1–D10을 기록하며, [설계](../../openspec/changes/guest-flow-completion/design.md)가 그 근거를 기록합니다. 아래 결정은 2026-10-30에 풀 리퀘스트 1(작업 그룹 1–5a)을 구현하면서 내렸으며, 아직 팀원 검토를 거치지 않았습니다.
+[제안서](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 팀은 WhatsApp Business를 프로덕션 Photon 프로젝트에 연결한 뒤인 2026-11-02에, 이제부터 WhatsApp을 통해 Android 호스트를 지원하기로 결정했습니다. 이 변경을 작성한 세션은 같은 날 그 결정에 따라 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안이며, 아직 이를 구현하는 코드는 없습니다. 추적 이슈: #66.
+
+**이전 경위.** 2026-11-02에 이슈 #62와 PR #63이 iMessage 수신기가 플랫폼이 iMessage가 아닌 모든 이벤트를 버리도록 만들었습니다. 이 변경이 구현되기 전까지 회선으로 오는 WhatsApp 메시지는 확인 응답한 뒤 무시됩니다.
+
+### 제품 결정
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| — | (팀, 2026-11-02.) 옵트인 WhatsApp 채널로 Android 호스트를 지원합니다. 호스트의 채널만 다루며, 요청자는 웹과 이메일을 유지합니다. SMS, RCS, KakaoTalk, 개인 WhatsApp, WhatsApp 그룹, 요청자 메시징은 범위 밖으로 유지합니다 | Android를 계속 보류(2026-10-07 결정); Photon을 통한 SMS 또는 RCS; 한국 호스트를 위한 KakaoTalk | PRD 1, 3, 6, 9, 10절 | PRD를 먼저, 그다음 제안서 |
+| D5 | iMessage와 WhatsApp을 가로질러 호스트당 활성 메시징 바인딩 하나. 다른 채널을 확인하면 카드의 안내 뒤에 이전 바인딩을 대체합니다 | 두 채널 동시 사용, 요약이 두 배가 되고 두 대화가 하나의 결정을 두고 경합할 수 있음 | 제안서; 설계 5; PRD FR-37 | PRD의 FR-37을 먼저, 그다음 `imessage_bindings_active_host_key`와 `confirmImessageLinkCommand` |
+| D7 | Android는 WhatsApp만 받습니다. iPhone, iPad, Mac은 **대신 WhatsApp 사용(Use WhatsApp instead)**이 있는 iMessage를 받습니다. 그 밖의 컴퓨터는 호스트가 어떤 앱을 쓰는지 묻습니다 | 모든 호스트에게 묻기; 두 가지를 나란히 제공(한 번에 두 가지를 생각하게 되어 디자인 원칙에 어긋남) | 제안서; 설계 6 | `lib/contracts/messaging-channel.ts` |
+| D9 | 창 밖에서는 `en_US` 유틸리티 템플릿 세 개를 사용합니다. 유일한 매개변수는 요청 참조이며, 요청자 이름, 시간, 장소는 없습니다. 호스트당 12시간에 최대 하나, 회선당 하루 최대 50개 | 모든 세부 정보를 담은 요약별 템플릿(비공개 텍스트가 Meta의 검토와 알림을 거침); 범용 템플릿 하나; 알림 없음(조용한 유실) | 제안서; 설계 8 | 설계 8, 그다음 `lib/server/whatsapp.ts`의 템플릿 이름과 WhatsApp Manager |
+| D12 | 호스트 자신의 메시지와 카드의 문장이 있는 **확인 및 연결(Confirm and link)**이 옵트인입니다. `stop`은 연결을 해제합니다 | 별도의 옵트인 체크박스 | 제안서; 설계 8 | 설계 8과 카드의 문구 |
 
 ### 구현 결정
 
 | 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
-| 게스트 바인딩이 끝나는 방식 | 네 상태: `active`, `unlinked`(게스트의 **Unlink iMessage**, 게스트에게 아직 발송되지 않은 메시지를 막음), `ended`(`closeRequest`의 철회; 예약 확정 알림이 큐에 들어간 뒤의 예약 완료; 정리 작업의 30일) 그리고 `moved`(수정된 요청으로). 발송 시점에는 `unlinked`만 막으므로 예약된 요청의 마지막 알림은 그대로 나갑니다 | `closeRequest` 안에서 예약 완료 시 끝내기. 알림 작업이 수신자를 고정하기 전에 수신자를 지웠음 | 설계 2; `requester_imessage_bindings` 스키마 | `lib/server/requester-imessage-bindings.ts`의 `endRequesterBindings` |
-| 라우팅이 읽는 것 | `imessage_outbox.requester_binding_id`가 게스트 메시지를 표시하고, 어느 바인딩이든 그 발신자에게 간 마지막 발신 행이 경로를 정합니다 | 별도의 라우팅 테이블 | 설계 3; `imessage_outbox` 스키마 | `lib/server/imessage-receipts.ts`의 `guestRoute` |
-| 연동된 호스트의 명령 | 호스트 바인딩이 있는 발신자의 정확한 명령은 마지막 메시지가 게스트 것이어도 호스트 경로를 탑니다. 단, 자신의 게스트 요청을 지정하는 `request <ref>`는 예외입니다 | 게스트 알림 뒤의 모든 메시지를 게스트의 어시스턴트로 보내기 | 설계 3 | `lib/server/imessage-receipts.ts`의 `guestRoute` |
-| 카드 엔드포인트 | 상태는 `GET /api/requests/{bookingId}/imessage`, `request.imessage_link.*` 명령은 **Continue by email**처럼 요청자 명령 경로에 둡니다 | 별도의 `POST` 경로 | 작업 3.2 | `lib/server/requester-routes.ts` |
-| 이메일 스레드 옮기기 | 활성 `email_threads` 행을 제자리에서 다시 바인딩(`request_id`가 바뀜)하므로, 활성 스레드 고유성이 유지되고 재시도된 수신이 `bound_by_receipt_id`로 이를 알아봅니다 | 행을 끝내고 새 행 삽입 | 설계 5 | `lib/server/revised-requests.ts`의 `moveChannel` |
-| 수정된 요청의 요약 | 수정된 논의의 첫 입력으로, 수정된 요청의 ID를 키로 하고 `REVISED_SUMMARY_PREFIX`로 시작하며 게스트 스레드는 이를 조용한 메모로 보여 줍니다. 게스트의 메시지가 다음 입력이므로 어시스턴트는 두 턴을 진행합니다 | 요약을 게스트의 메시지에 합치기. 게스트의 말이 메모 뒤에 숨게 됨 | 설계 5(D6) | `lib/server/revised-requests.ts`의 `revisedSummary` |
-| **Change**의 위치 | 승인 대기 중에는 합의된 시간의 영수증(제안 영수증)에 두고, 그 뒤 대기 줄은 다시 열렸다고 표시합니다 | 시간 영수증. 요청이 승인 대기에 들어가면 더 이상 현재 것이 아님 | 설계 10 | `apps/web/app/_components/guest/guest-workspace.tsx`의 `threadEntries` |
-| 요청 참조 | `requestRef`를 `lib/server/request-ref.ts`로 옮겨(`imessage-commands.ts`에서 다시 내보냄) 호스트 화면이 순환 import 없이 이전 요청을 지칭할 수 있게 합니다 | `imessage-commands.ts`에서 가져오기 | 작업 5.3 | `lib/server/request-ref.ts` |
-| 게스트의 긴 답장 | 호스트와 같이 잘라내되, `/app` 대신 "your booking page, linked in your email"을 가리킵니다 | 호스트의 `/app` 안내 | 설계 4 | `lib/server/imessage-outbox.ts`의 `imessageTurnText` |
+| D1 | 클라우드 모드의 Spectrum `whatsapp_business` 공급자(`@spectrum-ts/whatsapp-business` 12.14.0, MIT)를 기존 `PHOTON_PROJECT_ID`와 `PHOTON_PROJECT_SECRET`으로 사용하며, WhatsApp 회선 하나를 `PHOTON_WHATSAPP_NUMBER`에 둡니다 | 우리 환경에 Meta 토큰을 두는 직접 모드; 네이티브 eve 채널(없으며, iMessage D1의 이유가 적용됨) | 제안서; 설계 1; 제공자 설정 | `lib/server/photon.ts` |
+| D2 | 웹훅 하나와 서명 확인 한 번 뒤에 플랫폼에 따라 라우팅합니다. `inboundMessage`는 iMessage 전용으로 유지되고, `inboundWhatsAppMessage`는 모든 플랫폼 필드가 `whatsappbusiness`로 정규화되어야 합니다 | iMessage 확인을 넓히기; WhatsApp용 두 번째 웹훅(Photon은 등록된 모든 웹훅에 모든 플랫폼을 보냄) | 제안서; 설계 2 | `receivePhotonWebhook`과 `inboundWhatsAppMessage` |
+| D3 | 발신자는 `message.sender.id`이며 `+` 없는 숫자입니다(8–15자리, 앞에 0 없음). 스페이스 ID는 이와 같아야 하고, `space.type`은 없거나 `dm`이어야 합니다. 해시는 `whatsapp:<digits>`이며 iMessage와 별도의 네임스페이스입니다 | iMessage 해시 재사용, 한 번호의 iMessage 바인딩이 WhatsApp 메시지와 일치하게 됨; `+` 형식을 별개의 발신자로 인정 | 제안서; 설계 3 | `normalizeWhatsAppSender` |
+| D4 | 네 개의 `imessage_*` 테이블에 `channel` 열; 이름은 유지하고 이름 변경은 미룹니다 | `whatsapp_*` 테이블 네 개; pg-delta로 지금 이름 변경(프로덕션 테이블의 삭제와 생성) | 제안서; 설계 4 | `supabase/schemas/app/tables/imessage_*.sql` |
+| D6 | 채널을 기록한 `FMAT-` 코드; `https://wa.me/<digits>?text=<message>`. 다른 채널의 코드는 시도를 무효로 하며, 서비스가 보내는 대체 코드는 제공하지 않습니다 | WhatsApp 전용 코드 계열; `api.whatsapp.com/send` 링크; 인증 템플릿을 통한 대체 경로 | 제안서; 설계 6 | `imessage.link.create`; `whatsAppLinkFor` |
+| D8 | 발송 시점에 호스트의 마지막 메시지가 23시간 50분 이하일 때만 자유 형식 텍스트를 보냅니다. 그렇지 않을 때와 Meta 오류 131047에서는 행이 `window_closed`로 최종 상태가 되고 `/app`에 표시됩니다 | 보내고 Meta가 거부하게 두기; 호스트가 다시 쓸 때까지 메시지 보류 | 제안서; 설계 7 | `createImessageSendHandler`의 창 확인 |
+| D10 | Meta 오류 매핑: 131047은 `window_closed`; 131026은 거부됨; 132xxx는 `template_unavailable`; 130429와 131056은 사용 불가로 보고 재시도. 불확실한 전송은 다시 보내지 않습니다 | 모든 오류 재시도 | 제안서; 설계 9 | `lib/server/whatsapp.ts`의 오류 맵 |
+| D11 | 명령, 참조, 전달(`[WhatsApp] …`), 요약, 설정, 접수, 순서, 보존은 6단계와 같습니다. WhatsApp에는 **연락처에 추가(Add to contacts)**가 없습니다 | WhatsApp 전용 명령 집합; 결정을 위한 대화형 버튼 | 제안서; 설계 10 | 채널별 6단계 모듈 |
+| D13 | 식별된 프로덕션 배포에서만 메시징합니다. 대역이 WhatsApp 전송, 템플릿, 131047에 응답합니다 | — | 제안서; 설계 10 | `lib/server/messaging.ts`; 대역 |
+
+### 운영 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 회선 없는 출처 | 설계는 2026-11-02에 npm tarball의 `@spectrum-ts/whatsapp-business` 12.14.0과 Photon 문서를 읽었습니다. WhatsApp 메시지는 보내거나 받지 않았으므로, 플랫폼 철자와 발신자 형식은 합류 단계에서만 확인됩니다 | 사용자에게 막혀 있는 테스트 메시지 전송 | 설계 맥락 | — |
+| 계획만 | 이 풀 리퀘스트는 문서와 OpenSpec 변경만 바꾸며, 코드, 스키마, 구성은 없습니다 | 레인 A를 곧바로 구현 | 계획 9단계 | — |
+
+### 사용자 대기 항목
+
+다음 단계는 제공자 콘솔을 바꾸거나, 사람에게 메시지를 보내거나, 공유 환경 또는 릴리스 환경을 바꾸기 때문에 수행하지 않았습니다:
+
+- **Meta WhatsApp Manager**: 설계 8의 템플릿 세 개를 제출하고 승인받습니다. 2026-11-02에 연결한 번호의 비즈니스 표시 이름, 비즈니스 검증, 회선의 메시징 등급을 확인합니다.
+- **Photon 프로젝트**: 구성은 바꾸지 않았습니다. WhatsApp 회선, 그 등록, 공유 웹훅은 2026-11-02에 사용자가 둔 그대로입니다.
+- **모든 WhatsApp 메시지 전송**, 합류 단계의 이벤트 하나 수집과 Android 인수 실행을 포함합니다.
+- **Vercel 변수**: 코드가 반영된 뒤 Production의 `PHOTON_WHATSAPP_NUMBER`, 그리고 바뀐 경우 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`.
+- 구현하는 풀 리퀘스트의 **마이그레이션과 배포**, 그리고 이 풀 리퀘스트의 병합을 포함한 모든 병합.
+- D1–D13과 설계의 미해결 질문에 대한 **팀원 검토**.

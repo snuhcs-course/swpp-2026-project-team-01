@@ -105,7 +105,7 @@ MVP는 Supabase Auth를 통한 Google 전용 호스트 로그인을 요구합니
 
 ## Photon
 
-Photon Spectrum이 iMessage 전송 수단입니다. 6단계 스파이크는 내구성 있는 수신, 확인 응답, 정확한 발신자 신원, 복구를 기준으로 eve의 네이티브 `photonIMessageChannel` 대신 애플리케이션 자체 어댑터를 선택했습니다 ([`host-imessage-channel` 설계 1](../../openspec/changes/host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter), D1). 네이티브 채널은 프로세스 내 디스패치 이후에 웹훅에 응답하며 아무것도 저장하지 않고, iMessage 스레드마다 eve 세션 하나를 유지하며, 발신함이 없습니다. `{origin}/photon/webhook`의 수신기(에이전트 서비스로 라우팅)는 `X-Spectrum-Webhook-Id`를 `PHOTON_WEBHOOK_ID`와, `X-Spectrum-Signature`(`v0=`와 `PHOTON_WEBHOOK_SECRET` 아래 `v0:{X-Spectrum-Timestamp}:{raw body}`의 16진수 HMAC-SHA256, 300초 이내)를 검사하고, `200`으로 응답하기 전에 영수증을 저장합니다. 발신 메시지는 `PHOTON_PROJECT_ID`와 `PHOTON_PROJECT_SECRET`으로 Spectrum SDK(`@spectrum-ts/core`와 `@spectrum-ts/imessage` 12.14.0)를 사용하며, 테스트와 로컬 실행은 `PHOTON_API_URL`을 루프백 대역으로 지정합니다. 프로젝트 하나에 회선 하나입니다(D7). 그 번호는 `PHOTON_LINE_NUMBER`이며, `PHOTON_FALLBACK_DAILY_LIMIT`(기본값 20)가 대체 코드로 시작되는 회선당 하루(롤링) 신규 대화 수를 제한합니다. 발신자 식별자(D2)는 Photon의 `message.sender.id`로, E.164 번호 또는 Apple ID 이메일이며, 정확히 일치 비교하고 해시 및 봉인해서만 저장합니다. 직접 대화(`space.type = "dm"`)만 인정됩니다. 이 사실들은 Photon의 문서, SDK, eve에 포함된 어댑터에서 얻은 것이며, 회선 프로비저닝, 웹훅 등록, 실제 iPhone에서의 식별자 확인은 아직 열려 있는 운영자 단계입니다.
+Photon Spectrum이 iMessage 전송 수단입니다. 6단계 스파이크는 내구성 있는 수신, 확인 응답, 정확한 발신자 신원, 복구를 기준으로 eve의 네이티브 `photonIMessageChannel` 대신 애플리케이션 자체 어댑터를 선택했습니다 ([`host-imessage-channel` 설계 1](../../openspec/changes/host-imessage-channel/design.md#1-the-transport-spike-and-the-adapter), D1). 네이티브 채널은 프로세스 내 디스패치 이후에 웹훅에 응답하며 아무것도 저장하지 않고, iMessage 스레드마다 eve 세션 하나를 유지하며, 발신함이 없습니다. `{origin}/photon/webhook`의 수신기(에이전트 서비스로 라우팅)는 `X-Spectrum-Webhook-Id`를 `PHOTON_WEBHOOK_ID`와, `X-Spectrum-Signature`(`v0=`와 `PHOTON_WEBHOOK_SECRET` 아래 `v0:{X-Spectrum-Timestamp}:{raw body}`의 16진수 HMAC-SHA256, 300초 이내)를 검사하고, `200`으로 응답하기 전에 영수증을 저장합니다. 발신 메시지는 `PHOTON_PROJECT_ID`와 `PHOTON_PROJECT_SECRET`으로 Spectrum SDK(`@spectrum-ts/core`와 `@spectrum-ts/imessage` 12.14.0)를 사용하며, 테스트와 로컬 실행은 `PHOTON_API_URL`을 루프백 대역으로 지정합니다. 프로젝트 하나에 회선 하나입니다(D7). 그 번호는 `PHOTON_LINE_NUMBER`이며, `PHOTON_FALLBACK_DAILY_LIMIT`(기본값 20)가 대체 코드로 시작되는 회선당 하루(롤링) 신규 대화 수를 제한합니다. 발신자 식별자(D2)는 Photon의 `message.sender.id`로, E.164 번호 또는 Apple ID 이메일이며, 정확히 일치 비교하고 해시 및 봉인해서만 저장합니다. iMessage의 직접 대화(`space.type = "dm"`)만 인정됩니다. Photon은 프로젝트에서 활성화된 모든 플랫폼(WhatsApp Business 포함)의 이벤트를 하나의 웹훅으로 전달하며, 수신기는 `platform`이 iMessage가 아닌 이벤트를 확인 응답만 하고 무시합니다. 이 사실들은 Photon의 문서, SDK, eve에 포함된 어댑터에서 얻은 것이며, 회선 프로비저닝, 웹훅 등록, 실제 iPhone에서의 식별자 확인은 아직 열려 있는 운영자 단계입니다.
 
 ### 첫 메시지와 호스트 온보딩
 
@@ -116,6 +116,25 @@ Photon의 전달 가능성 안내에 따라 인바운드 우선이 기본값입�
 ### 표시 이름, 연락처 카드, 프로필 동기화
 
 검증된 비공개 대화 이후 호스트 동작으로서 선택적인 **연락처에 추가(Add to contacts)**를 제공하며, 연결된 카드는 Spectrum SDK를 통해 네이티브 연락처 카드 공유 하나를 대기열에 넣습니다([`host-imessage-channel` 설계 11](../../openspec/changes/host-imessage-channel/design.md#11-add-to-contacts)). 실제로 선택된 경로를 고정하고, 공급자의 수락/불확실성을 사실대로 보고합니다. 저장 여부는 수신자가 선택하며, 제품은 표시되는 이름을 약속하거나 연락처 카드로부터 신원/동의를 추론할 수 없습니다. 지원한다고 주장하기 전에 실제 계정 프로필과 실제 디바이스에서의 표시를 각각 독립적으로 검증합니다.
+
+## WhatsApp Business
+
+WhatsApp Business는 호스트 WhatsApp 채널의 전송 수단입니다. 2026-11-02에 [`host-whatsapp-channel` 변경](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)에서 제안되었으며 아직 구현되지 않았습니다. 사용자가 2026-11-02에 활성화한, iMessage와 같은 Photon 프로젝트(`findmeatime`)의 Photon Spectrum `whatsapp_business` 플랫폼을 통해 동작합니다. Photon은 WhatsApp 이벤트를 같은 서명이 붙은 같은 웹훅 `https://findmeatime.com/photon/webhook`으로 전달합니다. 수신기는 서명을 한 번 확인하고 플랫폼에 따라 라우팅합니다(D2). 변경이 반영되기 전까지 iMessage 수신기는 이를 확인 응답하고 무시합니다(이슈 #62, PR #63). 발신 메시지는 기존 `PHOTON_PROJECT_ID`와 `PHOTON_PROJECT_SECRET`을 사용해 클라우드 모드의 `@spectrum-ts/whatsapp-business` 12.14.0으로 보내므로, Meta 자격 증명은 Photon이 보관합니다(D1). 발신자는 WhatsApp 연락처 ID, 즉 `+` 없이 숫자만 적은 국제 전화번호입니다(D3).
+
+Photon의 문서와 공급자 패키지에서 확인한 사실이며, 아직 실제 이벤트에서는 확인하지 못했습니다:
+
+- Photon은 WhatsApp Business용으로 Photon SMS 번호를 등록합니다. Photon의 iMessage 번호는 자격이 없으므로, WhatsApp 번호는 iMessage 회선이 아닙니다. Photon은 번호에 2단계 인증 PIN을 설정하며, Photon에서 번호 연결을 끊어도 번호는 Meta의 WhatsApp Business 계정에 남습니다.
+- 자유 형식 메시지는 사용자의 마지막 메시지로부터 24시간 이내에만 수락됩니다. 그 창 밖에서는 Meta가 오류 131047로 이를 거부하며, 승인된 템플릿만 수락됩니다. 템플릿은 Meta의 WhatsApp Manager에서 만들고 승인받습니다.
+- 공급자는 일대일 대화만 지원하며, 대화 ID는 연락처 ID입니다.
+
+운영자 단계이며, 구현하는 풀 리퀘스트가 반영될 때까지 모두 사용자에게 막혀 있습니다:
+
+1. 번호를 소유한 비즈니스 포트폴리오의 WhatsApp Manager에서 [설계 8](../../openspec/changes/host-whatsapp-channel/design.md#8-templates)의 유틸리티 템플릿 세 개를 정확한 이름과 본문 그대로 `en_US`로 제출하고 승인을 기다립니다. 각 템플릿의 상태와 카테고리를 기록합니다. 마케팅으로 재분류되면 팀에 돌려보냅니다.
+2. 표시 이름 "Find Me a Time", 비즈니스 검증, 번호의 메시징 등급을 확인합니다. 검증 전에는 Meta가 하루 고유 사용자 250명에게만 비즈니스 발신 메시지를 허용합니다.
+3. `PHOTON_WHATSAPP_NUMBER`(카드와 `https://wa.me/<number>`용 숫자)를, 그리고 기본값 50이 맞지 않으면 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`를 Vercel Production에만 설정합니다. 프리뷰와 스테이징은 메시징을 계속 거부합니다.
+4. 통제된 Android 폰에서 번호로 메시지 하나를 보내 저장된 수신 기록의 채널이 `whatsapp`인지 확인합니다. 정확한 `platform` 철자와 발신자 형식을 변경과 여기에 기록합니다. 그다음 AC-29–AC-31을 실행합니다.
+
+사용자의 승인 없이는 에이전트 세션에서 Photon 프로젝트의 플랫폼, 회선, 웹훅을 바꾸거나, 템플릿을 등록하거나, WhatsApp 메시지를 보내서는 안 됩니다.
 
 ## 모델 접근과 런타임
 

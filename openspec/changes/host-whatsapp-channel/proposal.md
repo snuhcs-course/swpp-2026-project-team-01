@@ -1,0 +1,75 @@
+# Proposal
+
+Tracking issue: #66
+
+## Why
+
+The PRD's 2026-10-07 audience decision targeted iPhone hosts, deferred Android and ruled out WhatsApp as an Android substitute. Phase 6 ([`host-imessage-channel`](../host-imessage-channel/proposal.md)) gives iPhone hosts a private iMessage conversation: summaries, discussion, revision, decisions and setup. An Android host has only `/app` in the browser.
+
+On 2026-11-02 the team linked WhatsApp Business to the production Photon project (`findmeatime`, `3244ea18-…`) and decided to support Android hosts through WhatsApp from now on. The PRD now records that decision ([Android audience decision](../../../documentations/02_product_requirements.md#target-users), [FR-37 to FR-39](../../../documentations/02_product_requirements.md#host-whatsapp-channel), AC-29 to AC-31). On the same day, issue #62 / PR #63 made the iMessage receiver ignore events from other platforms. WhatsApp events reaching the shared webhook are now acknowledged and dropped, so WhatsApp needs its own channel. This change specifies it.
+
+## What Changes
+
+- **Receiver routing.** `POST /photon/webhook` keeps one signature check and routes each verified event by its platform. iMessage events go to the existing iMessage handling, which PR #63 restricts to iMessage. WhatsApp Business events go to a new parser and the same durable receipt and job, marked with their channel. Events that name no platform, mix platforms or name another platform create no work.
+- **Records.** The four `imessage_*` tables gain a `channel` column (`imessage` or `whatsapp`) instead of being copied. WhatsApp senders are hashed in their own namespace. The existing "one active binding per host" index therefore also gives the rule "one messaging channel per host".
+- **Linking.** **Connect WhatsApp** gets the same `FMAT-` link code and opens `https://wa.me/<number>?text=<message>` with the message written. The host sends it, and the authenticated browser confirms the masked number with **Confirm and link**. Android gets WhatsApp. iPhone, iPad and Mac get iMessage, with **Use WhatsApp instead**. Other computers ask which app the host uses. The service never writes first, and no service-sent fallback code is offered.
+- **Messaging window.** Replies and summaries go out as free-form text while Meta's 24-hour customer-service window is open. When it is closed, only a pre-approved utility template is sent, at most one every 12 hours per host. It carries only the request reference and the event kind. Everything that could not be sent is shown in `/app`.
+- **Reused behavior.** The rest works as on iMessage: exact commands and references, decisions bound to the current proposal, forwarding into the shared discussions, summaries, setup over chat, admission limits, ordered receipts, the outbox with uncertain sends, retention, and messaging only in production.
+
+## Decisions
+
+The session that wrote this change took these decisions on 2026-11-02, under the team's decision of the same day to support Android hosts through WhatsApp. They have had no teammate review yet; the plan's **Teammate review** box covers them. The [design](design.md) records the reasoning and the rejected options; the [decision log](../../../documentations/technical_specification/08_decision_log.md#phase-9--host-whatsapp-channel) lists them with how to change each.
+
+| # | Decision | Choice |
+|---|---|---|
+| D1 | Transport ([design 1](design.md#1-transport)) | Photon Spectrum's `whatsapp_business` platform in cloud mode on the existing project. `@spectrum-ts/whatsapp-business` 12.14.0 (MIT) beside `@spectrum-ts/imessage`, with the same `PHOTON_PROJECT_ID` and `PHOTON_PROJECT_SECRET`, loaded only by the production transport. One WhatsApp line, whose number goes in `PHOTON_WHATSAPP_NUMBER`. The application-owned adapter of iMessage D1 is kept; no eve-native WhatsApp channel is used |
+| D2 | Receiver routing ([design 2](design.md#2-receiver-routing)) | One webhook, one signature check, routing by platform. `inboundMessage` stays iMessage-only (PR #63). A new `inboundWhatsAppMessage` accepts an event only when every platform field it names (`message.platform`, `space.platform`, `message.space.platform`, `message.sender.platform`) normalizes to `whatsappbusiness` (lower-cased, letters and digits only) and at least one is present. Rejected: widening the iMessage check |
+| D3 | Sender identifier ([design 3](design.md#3-sender-identity)) | `message.sender.id`, the WhatsApp contact ID: the international number as digits without `+` (`15551234567`). A leading `+` is stripped, and 8–15 digits not starting with `0` are required. The message counts only when `space.id` equals the sender and `space.type` is absent or `dm`. The ID is hashed as `whatsapp:<digits>` under the existing key and sealed for replies and the masked display. Exact webhook spelling is confirmed from a real event at the join |
+| D4 | Records ([design 4](design.md#4-records)) | A `channel` column (`imessage` default, `whatsapp`) on `imessage_receipts`, `imessage_links`, `imessage_bindings` and `imessage_outbox`. The table names stay; a rename to neutral names is deferred to a maintenance change with a hand-written migration. Rejected: four `whatsapp_*` copies, which would duplicate the cleanup function and code paths and could not enforce one channel per host in an index |
+| D5 | One channel per host ([design 5](design.md#5-one-channel-per-host)) | A host has at most one active messaging binding across both channels. **Confirm and link** on a sender of the other channel ends the earlier binding, and the card says so before the tap. Unsent host-private messages of the ended binding are suppressed. Rejected: both channels at once, which doubles every summary and lets two conversations race on one decision |
+| D6 | Link code and deep link ([design 6](design.md#6-linking)) | Each link attempt records its channel. The `FMAT-` code, its message, its limits and the confirmation window are as in iMessage D5. A code that arrives from the other channel is treated as invalid. The one-tap link is `https://wa.me/<digits>?text=<percent-encoded message>`, opened in the same tab. Desktops get the number, the code, **Copy** and a QR code of that link. The service-sent fallback code (iMessage D6) is not offered, since a first message from the service needs an approved authentication template |
+| D7 | Which device gets which channel ([design 6](design.md#6-linking)) | Android user agents get **Connect WhatsApp** only. iOS, iPadOS and Mac get **Connect iMessage** with **Use WhatsApp instead**. Other computers first ask "Which app do you use on your phone?" with **iMessage** and **WhatsApp**. The link step after sign-in (iMessage D16) and the landing's start before sign-in (D15, `/?flow=whatsapp`) follow the same rule |
+| D8 | Messaging window ([design 7](design.md#7-the-24-hour-window)) | The binding's `last_inbound_at` opens the window. A free-form message is dispatched only if the host's last message is at most 23 hours 50 minutes old at dispatch. Otherwise it is `suppressed` with category `window_closed`. A provider refusal with Meta error 131047 is final, with the same category, and is never retried as free text |
+| D9 | Templates outside the window ([design 8](design.md#8-templates)) | Three utility templates in `en_US`: `fmat_request_received`, `fmat_proposal_waiting` and `fmat_booking_update`. Each has one body parameter, the six-character request reference, and says to reply `request <reference>` or open `findmeatime.com/app`. No requester name, time or place appears. The service sends at most one template per host per 12 hours and at most `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` (default 50) per line per rolling day. A template Meta has not approved ends `failed` with category `template_unavailable`. Registering them in WhatsApp Manager is an operator step |
+| D10 | Delivery outcomes ([design 9](design.md#9-transport-and-outbox)) | The outbox states and the never-resend rule for uncertain sends follow iMessage D9. Meta errors map as follows: 131047 to a final failure with category `window_closed`; 131026 (undeliverable) and 132xxx (template) to `rejected`; 130429 and 131056 (rate limits) to `unavailable`, retried with backoff. Read receipts and typing signals are neither sent nor treated as anything |
+| D11 | Reused behavior ([design 10](design.md#10-reused-behavior)) | The following work as in iMessage: exact commands and references (D8), unlinked-sender replies (D10, counted per channel), forwarding with a `[WhatsApp] …` transcript prefix (D11), the five summaries (D12) inside the window, setup over chat with the welcome and Calendar link (D19), admission and ordering, retention (D14) and production-only messaging. **Add to contacts** (D13) is not offered on WhatsApp, which shows the business's verified name |
+| D12 | Opt-in and Meta policy ([design 8](design.md#8-templates)) | The host's own message and **Confirm and link** are the opt-in. Before the tap, the card says Thyme will message the host on WhatsApp about their requests, including a short notice when they have not written for a day. Unlinking, or sending `stop`, ends the binding and with it every template |
+| D13 | Environments ([design 10](design.md#10-reused-behavior)) | WhatsApp is a messaging transport under the messaging gate. Only the identified production deployment sends. Local runs and tests use the loopback stand-in at `PHOTON_API_URL`, which now also answers WhatsApp sends, template sends and the 131047 refusal |
+
+## Conflicts resolved here
+
+| Conflict | Resolution |
+|---|---|
+| **PRD audience and non-goals.** Section 1 deferred Android, and section 3 forbade WhatsApp as an Android substitute | The PRD records the 2026-11-02 decision, which this change carries out. SMS, RCS, KakaoTalk, personal WhatsApp, WhatsApp groups and requester messaging stay out of scope |
+| **iMessage receiver ignores WhatsApp (PR #63).** The receiver drops every non-iMessage event | Kept as it is. Routing happens before `inboundMessage`, which stays iMessage-only (D2) |
+| **"One binding per host" in `host-imessage-channel`.** That change says a host has one active iMessage binding | Still true. D4 and D5 widen the same index to one active binding across both channels, so linking one channel ends the other after confirmation |
+| **The one-tap deep link (iMessage D4) on Android.** It gives Android an `sms:` link to the iMessage line | Android now gets WhatsApp instead (D7). The `sms:` Android form is no longer offered from the card or the link step |
+
+## Capabilities
+
+### New Capabilities
+
+- `host-whatsapp-channel`: platform routing on the shared webhook, WhatsApp sender identity, linking by a host-sent code through `wa.me` with browser confirmation, one channel per host, the 24-hour window and its templates, delivery outcomes, and the behavior reused from the iMessage channel.
+
+### Modified Capabilities
+
+None in `openspec/specs/`. `host-imessage-channel` is not archived yet, so this change cannot modify it. D5 is specified here, and the iMessage requirement "one binding per host and sender" stays true as written.
+
+| Specification | Closed in this change | Deferred, and where |
+|---|---|---|
+| [`chat-workspaces`](../../specs/chat-workspaces/spec.md) | "Messaging backpressure" and "Authority expires during delay" for WhatsApp; redaction of `FMAT-` link codes in WhatsApp text | None |
+| [`messaging-environments`](../../specs/messaging-environments/spec.md) | "Preview with copied provider credentials", "Preview wakeup against a configured database" and "Direct provider adapter invocation" for WhatsApp | None |
+| [`durable-jobs`](../../specs/durable-jobs/spec.md) | Receipt and send jobs for WhatsApp under the existing fencing | None |
+
+## Archive order
+
+This change depends on `host-imessage-channel` (its tables, modules and spec) and archives after it.
+
+## Impact
+
+- **New code:** `lib/server/whatsapp.ts` (parser, sender normalization, deep link, error mapping); `lib/contracts/messaging-channel.ts` (the channel type and the device rule); WhatsApp branches in the existing receiver, outbox, links, receipts and notices modules; the WhatsApp card states in `/app` and the link step.
+- **Changed code:** `lib/server/photon-receiver.ts` routes by platform; `lib/server/photon.ts` gains the WhatsApp provider and template sends; the stand-in answers WhatsApp; host instructions name WhatsApp's limits.
+- **Schema:** a `channel` column with checks on the four `imessage_*` tables. The binding indexes stay per host and per sender hash. Generated through pg-delta.
+- **Dependencies:** `@spectrum-ts/whatsapp-business` 12.14.0 (MIT) and its `@photon-ai/whatsapp-business` dependency.
+- **Systems:** Photon Spectrum WhatsApp Business and Meta WhatsApp Manager. Template registration, display name and business verification, the production variables, sending any WhatsApp message, the shared-project migration and the deploy are left to the user (decision log, "Blocked on the user").
+- **Documents:** the [PRD](../../../documentations/02_product_requirements.md) (this change's pull request), the [implementation plan](../../../documentations/technical_specification/06_implementation_plan.md#phase-9--host-whatsapp-channel), the [decision log](../../../documentations/technical_specification/08_decision_log.md#phase-9--host-whatsapp-channel), the [provider setup](../../../documentations/technical_specification/03_provider_setup.md#whatsapp-business), with Korean mirrors. These documents are updated during implementation: the page list's *Channel link*, the interfaces, the host onboarding flow, the user journeys, the frontend architecture and the agent configuration.
