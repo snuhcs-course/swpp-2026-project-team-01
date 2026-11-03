@@ -531,11 +531,11 @@ The [proposal](../../openspec/changes/host-whatsapp-channel/proposal.md#decision
 
 These steps were not taken because they change a provider console, message a person or change a shared or release environment:
 
-- **Meta WhatsApp Manager**: submit the three templates of design 8 and get them approved. Confirm the business display name and business verification. The user reported the number, +1 711-454-9153, and its messaging limit, 250 customers per 24 hours, on 2026-11-04.
-- **Photon project**: no configuration was changed. The WhatsApp line, its registration and the shared webhook are as the user left them on 2026-11-02.
+- **Meta WhatsApp Manager**: submit the three templates of design 8 and get them approved. Not submitted (2026-11-04): +1 711-454-9153 is connected in the business portfolio "ASTIA - Something Great Inc" under the display name **Astia**, so hosts would see Astia as the sender and Meta might reject templates that name Find Me a Time. The user chose to fix the display name, or move the number to a Find Me a Time portfolio, first; business verification is also open.
 - **Sending any WhatsApp message**, including the one-event capture at the join and the Android acceptance run.
-- **Vercel variables**: `PHOTON_WHATSAPP_NUMBER=17114549153` and, if changed, `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` on Production once the code lands.
-- **Migration and deploy** of the implementing pull requests, and every merge, including this pull request's.
+- **Production checks on Android** (AC-29 to AC-31), which need the templates for AC-31.
+- **Done on 2026-11-04, at the user's request:** the `Deploy shared Supabase` workflow applied `20261103150235_whatsapp_channel.sql` to `anelszynxtvxoxqvzgqt` on the merge (`44c71257`, success); `PHOTON_WHATSAPP_NUMBER=17114549153` was added to `findmeatime-release` Production; `main` at `44c71257` was deployed from a clean detached checkout with `vercel deploy --prod` and aliased to `https://findmeatime.com`. Read-only checks afterwards: `/` and `/?flow=whatsapp` answer 200, `GET /api/imessage/start` names both channels (`"whatsapp":"17114549153"`), and an unsigned `POST /photon/webhook` is refused. The Photon project was only read (`photon projects ls`: `imessage, whatsapp_business`); nothing in it was changed.
+- **Merges**: PR #79 was squash merged with the administrator bypass, at the user's request, without teammate approval.
 - **Teammate review** of D1–D13 and the design's open questions.
 
 ## `guest-flow-completion`

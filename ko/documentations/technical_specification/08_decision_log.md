@@ -532,11 +532,11 @@
 
 다음 단계는 제공자 콘솔을 바꾸거나, 사람에게 메시지를 보내거나, 공유 환경 또는 릴리스 환경을 바꾸기 때문에 수행하지 않았습니다:
 
-- **Meta WhatsApp Manager**: 설계 8의 템플릿 세 개를 제출하고 승인받습니다. 비즈니스 표시 이름과 비즈니스 검증을 확인합니다. 사용자가 2026-11-04에 번호 +1 711-454-9153과 메시징 한도 24시간당 고객 250명을 알려 주었습니다.
-- **Photon 프로젝트**: 구성은 바꾸지 않았습니다. WhatsApp 회선, 그 등록, 공유 웹훅은 2026-11-02에 사용자가 둔 그대로입니다.
+- **Meta WhatsApp Manager**: 설계 8의 템플릿 세 개를 제출하고 승인받습니다. 제출하지 않았습니다(2026-11-04): +1 711-454-9153은 비즈니스 포트폴리오 "ASTIA - Something Great Inc"에 표시 이름 **Astia**로 연결되어 있어, 호스트에게는 발신자가 Astia로 보이고 Meta가 Find Me a Time을 언급하는 템플릿을 거부할 수 있습니다. 사용자는 표시 이름을 먼저 고치거나 번호를 Find Me a Time 포트폴리오로 옮기기로 했으며, 비즈니스 검증도 아직 남아 있습니다.
 - **모든 WhatsApp 메시지 전송**, 합류 단계의 이벤트 하나 수집과 Android 인수 실행을 포함합니다.
-- **Vercel 변수**: 코드가 반영된 뒤 Production의 `PHOTON_WHATSAPP_NUMBER=17114549153`, 그리고 바뀐 경우 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`.
-- 구현하는 풀 리퀘스트의 **마이그레이션과 배포**, 그리고 이 풀 리퀘스트의 병합을 포함한 모든 병합.
+- **Android에서의 프로덕션 점검**(AC-29부터 AC-31), AC-31에는 템플릿이 필요합니다.
+- **2026-11-04에 사용자의 요청으로 완료:** 병합 시 `Deploy shared Supabase` 워크플로가 `20261103150235_whatsapp_channel.sql`을 `anelszynxtvxoxqvzgqt`에 적용했고(`44c71257`, 성공), `findmeatime-release` Production에 `PHOTON_WHATSAPP_NUMBER=17114549153`을 추가했으며, `44c71257`의 `main`을 깨끗한 분리 체크아웃에서 `vercel deploy --prod`로 배포해 `https://findmeatime.com`에 별칭을 연결했습니다. 이후 읽기 전용 점검: `/`와 `/?flow=whatsapp`가 200으로 응답하고, `GET /api/imessage/start`가 두 채널을 모두 명시하며(`"whatsapp":"17114549153"`), 서명 없는 `POST /photon/webhook`은 거부됩니다. Photon 프로젝트는 읽기만 했고(`photon projects ls`: `imessage, whatsapp_business`) 아무것도 바꾸지 않았습니다.
+- **병합**: PR #79는 사용자의 요청으로 팀원 승인 없이 관리자 우회로 스쿼시 병합했습니다.
 - D1–D13과 설계의 미해결 질문에 대한 **팀원 검토**.
 
 ## `guest-flow-completion`

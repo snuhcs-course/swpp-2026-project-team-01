@@ -490,10 +490,19 @@
 | 창과 템플릿(D8, D9) | `tests/integration/whatsapp-window.test.ts` |
 | 재사용된 동작과 `stop`(D11) | `tests/integration/whatsapp-channel.test.ts`; `lib/server/imessage-commands.test.ts` |
 
+### 프로덕션 배포
+
+| 단계 | 날짜 | 리비전 | 결과 |
+|---|---|---|---|
+| 공유 프로젝트 마이그레이션 | 2026-11-04 | `44c71257` | 병합 시 `Deploy shared Supabase` 워크플로가 `20261103150235_whatsapp_channel.sql`을 적용했습니다(성공) |
+| `PHOTON_WHATSAPP_NUMBER` | 2026-11-04 | — | `findmeatime-release` Production에 `17114549153`으로 설정했습니다 |
+| 깨끗한 체크아웃에서 `vercel deploy --prod` | 2026-11-04 | `44c71257` | Ready 상태이며 `https://findmeatime.com`에 별칭이 연결되었습니다 |
+| 읽기 전용 점검 | 2026-11-04 | `44c71257` | `/`와 `/?flow=whatsapp`가 200으로 응답하고, `GET /api/imessage/start`가 WhatsApp 번호와 함께 두 채널을 명시하며, 서명 없는 `POST /photon/webhook`은 거부됩니다 |
+
 ### 알려진 공백
 
 - **실제 WhatsApp 이벤트나 전송 없음.** 플랫폼 표기, 연락처 ID 형식, Photon이 Meta의 오류 코드를 싣는 위치는 공급자 패키지와 Photon의 문서에서 가져왔으며, 이벤트 한 건의 캡처(작업 5.1)는 사용자 대기 중입니다.
 - **등록되지 않은 템플릿.** 설계 8의 템플릿 세 개가 WhatsApp Manager에 없으므로, 승인되기 전까지 프로덕션은 `template_unavailable`로 응답하게 됩니다.
 - **수락 이후 Meta가 보고하는 거부**(상태 이벤트의 131047)는 관찰되지 않았으며, 전송 시점의 창 확인이 안전장치입니다.
-- **통제된 Android 실행 없음**(AC-29부터 AC-31), 이 변경의 프로덕션 배포나 공유 프로젝트 마이그레이션도 없습니다.
+- **통제된 Android 실행 없음**(AC-29부터 AC-31). 이 변경은 배포와 마이그레이션이 끝났지만(위 참조), WhatsApp Manager에서 이 번호의 표시 이름이 Find Me a Time이 아니라 Astia이므로 템플릿은 등록되지 않았습니다.
 

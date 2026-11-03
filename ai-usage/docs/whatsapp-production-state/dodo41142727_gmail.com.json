@@ -1,0 +1,40 @@
+{
+  "branch": "docs/whatsapp-production-state",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:de8a0e74-86f2-42cb-9c0d-846228f88d03": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 12,
+          "cache_read": 2963749,
+          "cache_write_5m": 0,
+          "cache_write_1h": 6053,
+          "output": 3937,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T15:56:53.937Z",
+      "last": "2026-11-03T15:58:00.384Z"
+    },
+    "claude:de8a0e74-86f2-42cb-9c0d-846228f88d03/agent-ac0a76c430fe5954e": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 10,
+          "cache_read": 353811,
+          "cache_write_5m": 97348,
+          "cache_write_1h": 0,
+          "output": 3605,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T15:57:20.899Z",
+      "last": "2026-11-03T15:57:46.686Z"
+    }
+  }
+}
