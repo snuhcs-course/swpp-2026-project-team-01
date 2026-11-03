@@ -1,0 +1,23 @@
+{
+  "branch": "fix/host-requester-conversation-privacy",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:5dd3c9b1-14fe-4f80-b457-0dac7191eea8": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 8,
+          "cache_read": 908753,
+          "cache_write_5m": 0,
+          "cache_write_1h": 4182,
+          "output": 2712,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T17:14:42.427Z",
+      "last": "2026-11-03T17:15:25.637Z"
+    }
+  }
+}
