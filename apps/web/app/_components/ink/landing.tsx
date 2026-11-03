@@ -1,12 +1,13 @@
+import type { MessagingChannel } from "@lib/contracts/messaging-channel";
 import { Brand, InkStage, LanguageSelect } from "./chrome";
 import { COPY, type Locale } from "./copy";
 import { ImessageStart, ImessageStartBlock } from "./imessage-start";
 import { AgentPrompt, ExampleCards, GoogleStart } from "./landing-parts";
 
 // The public landing (from the landing redesign's app/(site)/page.tsx). Two starts: Google first (/), and
-// iMessage first (/?flow=imessage), where the visitor sends Thyme the link message before signing in. Both
-// offer the agent prompt underneath.
-export function Landing({ imessage, locale }: { readonly imessage: boolean; readonly locale: Locale }) {
+// a messaging app first (/?flow=imessage or /?flow=whatsapp), where the visitor sends Thyme the link message
+// before signing in. Both offer the agent prompt underneath.
+export function Landing({ flow, locale }: { readonly flow: MessagingChannel | null; readonly locale: Locale }) {
   const t = COPY[locale].landing;
   const page = (
     <div className="inner" data-screen="landing">
@@ -29,7 +30,7 @@ export function Landing({ imessage, locale }: { readonly imessage: boolean; read
           </h1>
           <p className="lede">{t.lede}</p>
           <div className="start">
-            {imessage ? <ImessageStartBlock locale={locale} /> : <GoogleStart locale={locale} />}
+            {flow ? <ImessageStartBlock locale={locale} /> : <GoogleStart locale={locale} />}
             <AgentPrompt locale={locale} />
           </div>
         </div>
@@ -59,5 +60,15 @@ export function Landing({ imessage, locale }: { readonly imessage: boolean; read
     </div>
   );
 
-  return <InkStage locale={locale}>{imessage ? <ImessageStart locale={locale}>{page}</ImessageStart> : page}</InkStage>;
+  return (
+    <InkStage locale={locale}>
+      {flow ? (
+        <ImessageStart channel={flow} locale={locale}>
+          {page}
+        </ImessageStart>
+      ) : (
+        page
+      )}
+    </InkStage>
+  );
 }

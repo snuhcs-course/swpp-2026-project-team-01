@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { channelOffer, displayWhatsAppNumber, whatsAppLinkFor } from "./messaging-channel";
+import { channelName, channelOffer, displayWhatsAppNumber, otherChannel, shownChannel, whatsAppLinkFor } from "./messaging-channel";
 
 // Which channel a device is offered (host-whatsapp-channel D7) and the wa.me link (D6).
 
@@ -35,5 +35,43 @@ describe("whatsAppLinkFor", () => {
 
   it("shows the number with a plus", () => {
     expect(displayWhatsAppNumber("15550001111")).toBe("+15550001111");
+  });
+});
+
+describe("shownChannel", () => {
+  const both = { imessage: "+15550001111", whatsapp: "15550002222" };
+
+  it("follows the device, and asks on other computers until the host chooses", () => {
+    expect(shownChannel("whatsapp", both)).toBe("whatsapp");
+    expect(shownChannel("imessage", both)).toBe("imessage");
+    expect(shownChannel("ask", both)).toBeNull();
+    expect(shownChannel("ask", both, "whatsapp")).toBe("whatsapp");
+    expect(shownChannel("imessage", both, "whatsapp")).toBe("whatsapp");
+  });
+
+  it("goes straight to the only configured channel", () => {
+    expect(shownChannel("ask", { imessage: null, whatsapp: "15550002222" })).toBe("whatsapp");
+    expect(shownChannel("whatsapp", { imessage: "+15550001111", whatsapp: null })).toBe("imessage");
+    expect(shownChannel("imessage", { imessage: "+15550001111", whatsapp: null }, "whatsapp")).toBe("imessage");
+    expect(shownChannel("ask", { imessage: null, whatsapp: null })).toBeNull();
+  });
+});
+
+describe("otherChannel", () => {
+  const both = { imessage: "+15550001111", whatsapp: "15550002222" };
+
+  it("offers the other configured channel, never on Android", () => {
+    expect(otherChannel("imessage", both, "imessage")).toBe("whatsapp");
+    expect(otherChannel("imessage", both, "whatsapp")).toBe("imessage");
+    expect(otherChannel("ask", both, "whatsapp")).toBe("imessage");
+    expect(otherChannel("whatsapp", both, "whatsapp")).toBeNull();
+    expect(otherChannel("imessage", { imessage: "+15550001111", whatsapp: null }, "imessage")).toBeNull();
+  });
+});
+
+describe("channelName", () => {
+  it("names each channel", () => {
+    expect(channelName("imessage")).toBe("iMessage");
+    expect(channelName("whatsapp")).toBe("WhatsApp");
   });
 });

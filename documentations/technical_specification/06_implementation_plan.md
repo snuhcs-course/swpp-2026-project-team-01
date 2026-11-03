@@ -408,12 +408,12 @@ Scope. Prerequisite: Phase 6, whose receiver, tables, commands, outbox and cards
 
 **Lane B — linking in the browser**
 
-- [ ] **Connect WhatsApp** with the `wa.me` link, QR code, **Copy** and masked-number **Confirm and link**; the device rule (Android WhatsApp, Apple devices iMessage with **Use WhatsApp instead**, other computers ask); the replacement notice and the opt-in sentence; the link step after sign-in and `/?flow=whatsapp`.
+- [x] **Connect WhatsApp** with the `wa.me` link, QR code, **Copy** and masked-number **Confirm and link**; the device rule (Android WhatsApp, Apple devices iMessage with **Use WhatsApp instead**, other computers ask); the replacement notice and the opt-in sentence; the link step after sign-in and `/?flow=whatsapp`.
 - [x] One active binding per host across channels, ending the other channel's binding on confirmation.
 
 **Lane C — window, templates and channel behavior**
 
-- [ ] The 24-hour window check at dispatch, suppression and the `/app` notices for `window_closed` and `template_unavailable`.
+- [x] The 24-hour window check at dispatch, suppression and the `/app` notices for `window_closed` and `template_unavailable`.
 - [x] The three utility templates with the 12-hour per-host and daily per-line limits.
 - [x] `stop`, the `[WhatsApp]` transcript prefix, the host instructions fragment and per-channel unlinked-sender limits; commands, summaries, setup and admission reused from Phase 6.
 

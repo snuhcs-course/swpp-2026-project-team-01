@@ -87,6 +87,23 @@ export function MessagesGlyph() {
   );
 }
 
+// A phone in a speech bubble on WhatsApp's green: the control opens WhatsApp.
+export function WhatsAppGlyph() {
+  return (
+    <span aria-hidden="true" className="im-glyph wa-glyph">
+      <svg height="14" viewBox="0 0 14 14" width="14">
+        <path d="M7 1.5a5.5 5.5 0 0 0-4.8 8.2L1.5 12.5l2.9-.7A5.5 5.5 0 1 0 7 1.5z" fill="none" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.3" />
+        <path d="M5.2 4.6c.2-.2.5-.2.6 0l.5 1c.1.2 0 .4-.1.5l-.3.3c.3.7.9 1.3 1.6 1.6l.3-.3c.1-.1.3-.2.5-.1l1 .5c.2.1.2.4 0 .6-.4.5-1 .7-1.6.5A4.3 4.3 0 0 1 4.7 6.2c-.2-.6 0-1.2.5-1.6z" fill="currentColor" />
+      </svg>
+    </span>
+  );
+}
+
+// The glyph of the app a control opens.
+export function AppGlyph({ channel }: { readonly channel: "imessage" | "whatsapp" }) {
+  return channel === "whatsapp" ? <WhatsAppGlyph /> : <MessagesGlyph />;
+}
+
 // A ring that spins while waiting, then closes into a filled circle and draws a check or a cross. Decorative:
 // the heading next to it says what happened.
 export function StatusMark({ state }: { readonly state: "busy" | "done" | "failed" }) {

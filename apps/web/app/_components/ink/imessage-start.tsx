@@ -1,13 +1,15 @@
 "use client";
 
-import { deepLinkFor, type ImessageStartStatus, messagesPlatform } from "@lib/contracts/imessage";
+import { type ImessageStartStatus, messagesPlatform } from "@lib/contracts/imessage";
+import type { MessagingChannel } from "@lib/contracts/messaging-channel";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { appLinkFor } from "@/app/_components/imessage/imessage-card";
 import { Brand, LanguageSelect } from "./chrome";
-import { COPY, type Locale } from "./copy";
-import { ExternalIcon, MessagesGlyph, StatusMark } from "./icons";
+import { channelCopy, COPY, type Locale } from "./copy";
+import { AppGlyph, ExternalIcon, StatusMark } from "./icons";
 import { GoogleStart } from "./landing-parts";
-import { clock, isPhone, SendPanel, useNow, usePlatform } from "./send";
+import { clock, isPhone, SendPanel, shownNumber, useNow, usePlatform } from "./send";
 
 // The landing that starts from iMessage (/?flow=imessage, host-imessage-channel D15). Onboard with iMessage
 // gets a one-time link code for this browser (POST /api/imessage/start). On a phone it opens Messages with the
@@ -16,10 +18,13 @@ import { clock, isPhone, SendPanel, useNow, usePlatform } from "./send";
 // callback carries the attempt to /app, where Confirm and link binds it. Nothing is linked on this page.
 // Like the landing redesign's ImessageStart, this wraps the server-rendered landing and takes the page over
 // once the start has begun.
+// /?flow=whatsapp starts the same way from WhatsApp (host-whatsapp-channel D7): the start asks for a WhatsApp
+// code ({"channel":"whatsapp"}), a phone opens wa.me, and the popup shows the WhatsApp number, its QR code
+// and Open WhatsApp. An attempt this browser already has keeps its own channel.
 
 const POLL_MS = 2000;
 
-type Start = { readonly begin: () => void; readonly busy: boolean; readonly error: string };
+type Start = { readonly begin: () => void; readonly busy: boolean; readonly channel: MessagingChannel; readonly error: string };
 const StartContext = createContext<Start | null>(null);
 
 type Answer = { readonly status: ImessageStartStatus | null; readonly error: string };
@@ -29,17 +34,26 @@ async function readStart(): Promise<ImessageStartStatus | null> {
   return response?.ok ? ((await response.json()) as ImessageStartStatus) : null;
 }
 
-async function postStart(locale: Locale): Promise<Answer> {
-  const t = COPY[locale].send;
-  const response = await fetch("/api/imessage/start", { body: "{}", headers: { "content-type": "application/json" }, method: "POST" }).catch(() => null);
-  const body = (await response?.json().catch(() => null)) as ImessageStartStatus | { error?: { category: string } } | null;
-  if (response?.ok && body && "state" in body) return { error: "", status: body };
-  const category = body && "error" in body ? body.error?.category : undefined;
+async function postStart(locale: Locale, channel: MessagingChannel): Promise<Answer> {
+  const t = channelCopy(COPY[locale], channel).send;
+  const body = JSON.stringify(channel === "whatsapp" ? { channel } : {});
+  const response = await fetch("/api/imessage/start", { body, headers: { "content-type": "application/json" }, method: "POST" }).catch(() => null);
+  const answer = (await response?.json().catch(() => null)) as ImessageStartStatus | { error?: { category: string } } | null;
+  if (response?.ok && answer && "state" in answer) return { error: "", status: answer };
+  const category = answer && "error" in answer ? answer.error?.category : undefined;
   return { error: category === "rate_limited" ? t.limited : category === "unavailable_configuration" ? t.unavailable : t.error, status: null };
 }
 
-export function ImessageStart({ children, locale }: { readonly children: ReactNode; readonly locale: Locale }) {
-  const t = COPY[locale];
+export function ImessageStart({
+  channel: flow = "imessage",
+  children,
+  locale,
+}: {
+  // The channel the page's link names; an attempt this browser already has names its own.
+  readonly channel?: MessagingChannel;
+  readonly children: ReactNode;
+  readonly locale: Locale;
+}) {
   const platform = usePlatform();
   const phone = isPhone(platform);
   const [status, setStatus] = useState<ImessageStartStatus | null>(null);
@@ -48,6 +62,8 @@ export function ImessageStart({ children, locale }: { readonly children: ReactNo
   const [error, setError] = useState("");
   const heading = useRef<HTMLHeadingElement>(null);
   const pending = status?.state === "pending" ? status : null;
+  const channel = status?.state === "pending" || status?.state === "received" ? status.channel : flow;
+  const t = channelCopy(COPY[locale], channel);
   const now = useNow(phase !== "idle" || status?.state === "received");
 
   // A reload finds this browser's attempt where it was.
@@ -71,13 +87,13 @@ export function ImessageStart({ children, locale }: { readonly children: ReactNo
   }, [polling]);
 
   const open = useCallback(
-    (code: { lineNumber: string; message: string }) => {
+    (code: { channel: MessagingChannel; lineNumber: string; message: string }) => {
       if (!phone) {
         setPhase("popup");
         return;
       }
       setPhase("waiting");
-      const link = deepLinkFor(platform, code.lineNumber, code.message);
+      const link = appLinkFor(code.channel, platform, code.lineNumber, code.message);
       if (link) window.location.assign(link);
     },
     [phone, platform],
@@ -86,7 +102,7 @@ export function ImessageStart({ children, locale }: { readonly children: ReactNo
   const fresh = useCallback(async () => {
     setBusy(true);
     setError("");
-    const answer = await postStart(locale);
+    const answer = await postStart(locale, flow);
     setBusy(false);
     if (!answer.status) {
       setError(answer.error);
@@ -94,7 +110,7 @@ export function ImessageStart({ children, locale }: { readonly children: ReactNo
     }
     setStatus(answer.status);
     return answer.status.state === "pending" ? answer.status : null;
-  }, [locale]);
+  }, [flow, locale]);
 
   const begin = useCallback(async () => {
     if (busy) return;
@@ -165,11 +181,11 @@ export function ImessageStart({ children, locale }: { readonly children: ReactNo
               </h1>
               <p className="lede">{t.send.waitingStartLede}</p>
               <p className="sent-to">
-                {t.send.to} <b>Thyme · {pending!.lineNumber}</b>
+                {t.send.to} <b>Thyme · {shownNumber(pending!)}</b>
               </p>
               <span className="code-left">{t.send.left(clock(Date.parse(pending!.expiresAt) - now))}</span>
               <div className="verify-help">
-                <a className="link-btn" href={deepLinkFor(platform, pending!.lineNumber, pending!.message) ?? "#"}>
+                <a className="link-btn" href={appLinkFor(pending!.channel, platform, pending!.lineNumber, pending!.message) ?? "#"}>
                   {t.send.reopen}
                 </a>
                 <span>
@@ -237,24 +253,24 @@ export function ImessageStart({ children, locale }: { readonly children: ReactNo
     ) : null;
 
   return (
-    <StartContext.Provider value={{ begin: () => void begin(), busy, error }}>
+    <StartContext.Provider value={{ begin: () => void begin(), busy, channel, error }}>
       {children}
       {popup ? createPortal(popup, document.body) : null}
     </StartContext.Provider>
   );
 }
 
-// The landing's start block on /?flow=imessage: Onboard with iMessage and what it opens, with Google for
-// people without iMessage. It sits where the Google start sits on /.
+// The landing's start block on /?flow=imessage (or /?flow=whatsapp): Onboard with iMessage (or WhatsApp) and
+// what it opens, with Google for people without it. It sits where the Google start sits on /.
 export function ImessageStartBlock({ locale }: { readonly locale: Locale }) {
-  const t = COPY[locale];
   const start = useContext(StartContext);
   const platform = usePlatform();
   if (!start) throw new Error("ImessageStartBlock belongs inside ImessageStart");
+  const t = channelCopy(COPY[locale], start.channel);
   return (
     <>
       <button aria-disabled={start.busy} className={isPhone(platform) ? "primary-btn wide" : "primary-btn"} onClick={start.begin} type="button">
-        <MessagesGlyph />
+        <AppGlyph channel={start.channel} />
         {t.send.start}
       </button>
       <p className="opens">

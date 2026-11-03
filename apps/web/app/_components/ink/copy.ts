@@ -2,6 +2,10 @@
 // default) and Korean. The landing copy is the landing redesign's (feat/web-language-switch d3ca3be8,
 // components/thyme/copy.ts); the link copy follows the "iMessage 연결 화면 시안" canvas. The choice lives in
 // the `lang` cookie, so the server-rendered landing and the client screens agree.
+// WhatsApp (host-whatsapp-channel D6, D7, D12) reuses the same screens: `wa` holds the words that differ, and
+// channelCopy lays them over the iMessage words for a WhatsApp code or binding.
+
+import type { MessagingChannel } from "@lib/contracts/messaging-channel";
 
 export type Locale = "en" | "ko";
 export const LOCALE_COOKIE = "lang";
@@ -158,6 +162,45 @@ const en = {
     expired: "Time's up.",
     expiredLede: "The note ran out before your message came in. A new one takes a tap.",
     again: "Write a new message",
+    askTitle: "Which app do you use on your phone?",
+    askLede: "Thyme links to that app, and you approve meetings from there.",
+    switchTo: (name: string) => `Use ${name} instead`,
+    replacesImessage: "This replaces your iMessage link.",
+    replacesWhatsapp: "This replaces your WhatsApp link.",
+    optIn: "Thyme will message you on WhatsApp about your requests. If you have not written for a day, it sends a short notice instead.",
+  },
+  // The words that differ for WhatsApp, laid over the ones above by channelCopy.
+  wa: {
+    landing: { noImessage: "No WhatsApp?" },
+    send: {
+      start: "Onboard with WhatsApp",
+      startOpensPhone: "WhatsApp opens with a note to Thyme already written. Tap send, then come back here.",
+      startOpensDesktop: "Opens WhatsApp with a note to Thyme already written: on this computer, or through a QR code for your phone.",
+      fine: "By sending, you agree to get WhatsApp messages from Thyme about your meetings. Reply STOP to stop anytime.",
+      open: "Open WhatsApp",
+      opensNote: "WhatsApp opens with this note written. Tap send, then come back here.",
+      qrTag: "PHONE",
+      qrTitle: "Scan with your phone",
+      qrBody: "WhatsApp opens with the note written. Tap send.",
+      qrAlt: "QR code that opens WhatsApp on your phone with the note to Thyme written",
+      macTag: "THIS COMPUTER",
+      macTitle: "Open WhatsApp here",
+      macBody: "Opens WhatsApp Web or the WhatsApp app on this computer.",
+      popupLede: "It's already written. Send it from the WhatsApp you use, and this page moves on by itself.",
+      waitingLede: "Tap send in WhatsApp. This page moves on as soon as it arrives.",
+      waitingStartLede: "Tap send in WhatsApp, then come back here. Next, you sign in with Google once.",
+      reopen: "WhatsApp didn't open, or the note is gone? Open it again",
+      unavailable: "Starting from WhatsApp isn't available yet.",
+    },
+    link: {
+      heading: "Connect Thyme to your WhatsApp",
+      lede: "Send Thyme one message from the WhatsApp you use. It's already written, and sending it links this account.",
+      altDesktop: "Rather not now?",
+      altPhone: "Rather not now?",
+      confirmLede: "We got your message. Link it only if it came from your WhatsApp.",
+      connected: "Your WhatsApp is connected.",
+      connectedLede: "You can onboard with Thyme in WhatsApp. Thyme just sent you a hello there.",
+    },
   },
 };
 
@@ -300,7 +343,51 @@ const ko: Copy = {
     expired: "시간이 지났어요.",
     expiredLede: "메시지가 오기 전에 유효 시간이 끝났어요. 한 번만 누르면 새로 만들어요.",
     again: "새 메시지 만들기",
+    askTitle: "휴대폰에서 어떤 앱을 쓰나요?",
+    askLede: "그 앱에 Thyme을 연결하고, 미팅 승인도 거기서 해요.",
+    switchTo: (name: string) => `대신 ${name} 쓰기`,
+    replacesImessage: "기존 iMessage 연결을 대신해요.",
+    replacesWhatsapp: "기존 WhatsApp 연결을 대신해요.",
+    optIn: "Thyme이 요청에 관해 WhatsApp으로 메시지를 보내요. 하루 동안 메시지를 보내지 않으면 대신 짧은 알림을 보내요.",
+  },
+  wa: {
+    landing: { noImessage: "WhatsApp이 없나요?" },
+    send: {
+      start: "WhatsApp으로 시작하기",
+      startOpensPhone: "Thyme에게 보낼 메시지가 미리 적힌 채로 WhatsApp이 열려요. 보내기를 누른 뒤 여기로 돌아오세요.",
+      startOpensDesktop: "Thyme에게 보낼 메시지가 미리 적힌 채로 WhatsApp이 열려요. 이 컴퓨터에서 바로 열거나, 휴대폰으로 찍을 QR 코드를 보여 드려요.",
+      fine: "메시지를 보내면 미팅에 관한 Thyme의 WhatsApp 메시지를 받는 데 동의하게 돼요. 언제든 STOP으로 답하면 멈춰요.",
+      open: "WhatsApp 열기",
+      opensNote: "이 내용이 적힌 채로 WhatsApp이 열려요. 보내기를 누른 뒤 여기로 돌아오세요.",
+      qrTag: "휴대폰",
+      qrTitle: "휴대폰으로 찍기",
+      qrBody: "WhatsApp이 내용이 적힌 채로 열려요. 보내기만 누르세요.",
+      qrAlt: "휴대폰에서 Thyme에게 보낼 메시지가 적힌 WhatsApp을 여는 QR 코드",
+      macTag: "이 컴퓨터",
+      macTitle: "여기서 WhatsApp 열기",
+      macBody: "이 컴퓨터의 WhatsApp Web이나 WhatsApp 앱이 열려요.",
+      popupLede: "내용은 미리 적어 두었어요. 쓰고 있는 WhatsApp으로 보내면 이 화면이 알아서 넘어가요.",
+      waitingLede: "WhatsApp에서 보내기를 눌러 주세요. 도착하면 이 화면이 바로 넘어가요.",
+      waitingStartLede: "WhatsApp에서 보내기를 누른 뒤 여기로 돌아오세요. 다음으로 Google 로그인을 한 번만 하면 돼요.",
+      reopen: "WhatsApp이 안 열렸거나 내용이 지워졌나요? 다시 열기",
+      unavailable: "지금은 WhatsApp으로 시작할 수 없어요.",
+    },
+    link: {
+      heading: "Thyme을 WhatsApp에 연결해요",
+      lede: "쓰고 있는 WhatsApp으로 Thyme에게 메시지 하나만 보내 주세요. 내용은 미리 적어 두었고, 보내면 이 계정에 연결돼요.",
+      altDesktop: "지금은 하고 싶지 않나요?",
+      altPhone: "지금은 하고 싶지 않나요?",
+      confirmLede: "메시지를 받았어요. 내 WhatsApp에서 보낸 게 맞을 때만 연결해 주세요.",
+      connected: "WhatsApp이 연결됐어요.",
+      connectedLede: "이제 WhatsApp에서 Thyme과 설정을 이어 갈 수 있어요. Thyme이 방금 인사를 보냈어요.",
+    },
   },
 };
 
 export const COPY: Record<Locale, Copy> = { en, ko };
+
+// The words for a channel's screens: WhatsApp's laid over the iMessage ones.
+export function channelCopy(t: Copy, channel: MessagingChannel): Copy {
+  if (channel !== "whatsapp") return t;
+  return { ...t, landing: { ...t.landing, ...t.wa.landing }, link: { ...t.link, ...t.wa.link }, send: { ...t.send, ...t.wa.send } };
+}
