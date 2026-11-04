@@ -50,7 +50,7 @@ const markSchema = z.object({
   interpretation: z.enum(["busy", "free", "unknown"]),
 }).strict().refine((mark) => mark.start < mark.end);
 
-async function boundedFormData(request: Request) {
+export async function boundedFormData(request: Request) {
   const reader = request.body?.getReader();
   if (!reader) return null;
   const chunks: Uint8Array[] = [];

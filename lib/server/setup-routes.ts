@@ -10,7 +10,7 @@ import { checkHandle } from "./handles";
 import { HostIneligibleError, readHostStanding } from "./host-eligibility";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal } from "./same-origin";
 import { readSetupState, type SetupDependencies, setupDependenciesFromEnvironment } from "./setup";
-import { confirmSettingsCommand, updateDraftCommand } from "./setup-commands";
+import { confirmSettingsCommand, suggestImageWindowsCommand, updateDraftCommand } from "./setup-commands";
 import { type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment } from "./supabase-auth";
 
 // Web routes for the setup cards (design decision 11), shaped like the chat
@@ -32,7 +32,7 @@ function unauthenticated() {
 }
 
 // The signed-in host's actor, or the response refusing the request.
-async function eligibleHost(request: Request, deps: SetupRouteDependencies): Promise<Actor | Response> {
+export async function eligibleHost(request: Request, deps: SetupRouteDependencies): Promise<Actor | Response> {
   const userId = await authenticatedUserId(request, deps.auth);
 
   if (!userId) return unauthenticated();
@@ -121,6 +121,9 @@ export function createSetupCommandHandler(load: () => SetupRouteDependencies = s
 
     try {
       switch (body.data.operation) {
+        case "setup.suggest_image_windows":
+          outcome = await run(suggestImageWindowsCommand);
+          break;
         case "setup.save_calendar_roles":
           outcome = await run(saveCalendarRolesCommand(await liveCalendars(deps, actor.id)));
           break;

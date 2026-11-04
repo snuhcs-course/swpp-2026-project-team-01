@@ -34,6 +34,7 @@ const EN: LegalDocument = {
       items: [
         "Your Google identity (name, email address and Google account ID) to sign you in.",
         "Access to the Google calendars you select, to suggest your scheduling rules, find free times and create the booked event in your calendar. We read event times, busy status and locations of the calendars you choose; the analysis behind suggestions is deleted after 24 hours.",
+        "If you upload a weekly schedule image, it is sent to OpenAI to suggest visible free hours. We do not keep the image or extracted private text. Suggested hours are held in your setup draft; only hours you review and confirm become booking settings. Google Calendar remains connected so confirmed bookings can be added to your chosen calendar.",
         "The settings you confirm, your public handle, the requests made to you and your conversations with the assistant.",
         "If you link them: the iMessage address you link, and the personal agents you connect.",
       ],
@@ -124,7 +125,7 @@ const EN: LegalDocument = {
     },
   ],
   title: "Privacy and your data",
-  updated: "Last updated 2026-11-03",
+  updated: "Last updated 2026-11-04",
 };
 
 const KO: LegalDocument = {
@@ -143,6 +144,7 @@ const KO: LegalDocument = {
       items: [
         "로그인을 위한 Google 신원(이름, 이메일 주소, Google 계정 ID).",
         "선택한 Google 캘린더에 대한 접근 권한. 일정 규칙을 제안하고, 빈 시간을 찾고, 확정된 일정을 캘린더에 만드는 데 씁니다. 선택한 캘린더의 일정 시간, 바쁨 여부, 장소를 읽으며, 제안에 쓴 분석은 24시간 뒤 삭제합니다.",
+        "주간 시간표 이미지를 올리면 OpenAI로 전송하여 화면에 보이는 빈 시간을 제안합니다. 이미지와 추출된 비공개 내용은 저장하지 않습니다. 제안된 시간은 설정 초안에 보관되며, 직접 검토·확인한 시간만 예약 설정이 됩니다. Google 캘린더 연결은 유지하며, 확정된 예약은 선택한 캘린더에 추가됩니다.",
         "확인한 설정, 공개 핸들, 받은 요청, 어시스턴트와의 대화.",
         "연결한 경우: 연결한 iMessage 주소와 연결한 개인 에이전트.",
       ],
@@ -231,7 +233,7 @@ const KO: LegalDocument = {
     },
   ],
   title: "개인정보와 데이터",
-  updated: "최종 수정 2026-11-03",
+  updated: "최종 수정 2026-11-04",
 };
 
 export default function Page({ searchParams }: { readonly searchParams: LegalSearchParams }) {

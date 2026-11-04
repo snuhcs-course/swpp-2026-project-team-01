@@ -149,6 +149,7 @@ const BADGE_TONE: Readonly<Record<ValueSource, string>> = {
   inferred: "border-input bg-card text-foreground",
   starter_default: "border-border bg-muted text-muted-foreground",
   stated: "border-success/50 bg-card text-success",
+  schedule_image: "border-input bg-card text-foreground",
 };
 
 export function SourceBadge({ sampleSize, source }: { readonly source: ValueSource; readonly sampleSize?: number | null }) {

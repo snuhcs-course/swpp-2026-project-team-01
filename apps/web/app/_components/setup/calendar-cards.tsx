@@ -1,7 +1,9 @@
 "use client";
 
 import { ExternalLinkIcon, RefreshCwIcon } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { MAX_CALENDAR_IMAGE_BYTES } from "@lib/contracts/calendar-screenshot";
+import type { WeeklyWindow } from "@lib/contracts/setup";
 import { Button } from "@/components/ui/button";
 import { Field, FieldContent, FieldDescription, FieldLabel, FieldLegend, FieldSet, FieldTitle } from "@/components/ui/field";
 import { CardActions, QuietButton, SetupCard } from "./card";
@@ -19,7 +21,68 @@ export const CONSENT_HREF = "/auth/sign-in?consent=calendar";
 const GOOGLE_CONNECTIONS = "https://myaccount.google.com/connections";
 
 export function ConnectCalendarCard({ onSetOtherPreferences }: { readonly onSetOtherPreferences?: () => void }) {
-  const { state } = useSetup();
+  const { busy, run, state } = useSetup();
+  const [imageOpen, setImageOpen] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [windows, setWindows] = useState<WeeklyWindow[] | null>(null);
+  const [reading, setReading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!file) { setPreview(null); return; }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  function choose(next: File | undefined) {
+    setWindows(null);
+    setError(null);
+    setSaved(false);
+    if (!next) { setFile(null); return; }
+    if (!["image/png", "image/jpeg", "image/webp"].includes(next.type) || next.size > MAX_CALENDAR_IMAGE_BYTES) {
+      setFile(null);
+      if (input.current) input.current.value = "";
+      setError("Choose a PNG, JPEG or WebP image under 10 MB.");
+      return;
+    }
+    setFile(next);
+  }
+
+  async function readImage() {
+    if (!file) return;
+    setReading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.set("image", file);
+      const response = await fetch("/api/setup/schedule-image", { method: "POST", body: form });
+      const body = await response.json() as { windows?: WeeklyWindow[]; error?: string };
+      if (!response.ok) throw new Error(body.error ?? "The image could not be read.");
+      if (!body.windows?.length) throw new Error("No clear weekly hours were found. Enter them manually instead.");
+      setWindows(body.windows);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The image could not be read. Enter weekly hours manually.");
+    } finally { setReading(false); }
+  }
+
+  async function saveSuggestion(weeklyWindows: WeeklyWindow[]) {
+    const success = await run(CONNECT_CARD_ID, [{
+      operation: "setup.suggest_image_windows",
+      expectedRevision: state.draft.revision,
+      input: { weeklyWindows },
+    }]);
+    if (success) {
+      setSaved(true);
+      setImageOpen(false);
+      setWindows(null);
+      setFile(null);
+      if (input.current) input.current.value = "";
+    }
+  }
 
   return (
     <SetupCard
@@ -30,6 +93,7 @@ export function ConnectCalendarCard({ onSetOtherPreferences }: { readonly onSetO
       }
       id={CONNECT_CARD_ID}
       label="Google Calendar"
+      scroll={imageOpen}
       title="Connect Google Calendar"
     >
       <p>One Google screen asks to read the calendars you choose and add bookings to one of them.</p>
@@ -39,6 +103,24 @@ export function ConnectCalendarCard({ onSetOtherPreferences }: { readonly onSetO
         </Button>
         {onSetOtherPreferences ? <QuietButton onClick={onSetOtherPreferences}>Set other preferences now</QuietButton> : null}
       </CardActions>
+      <div className="border-t border-border pt-3">
+        <Button aria-expanded={imageOpen} className="min-h-11 whitespace-normal text-left" onClick={() => setImageOpen((open) => !open)} type="button" variant="outline">
+          Don’t keep your regular schedule in Google Calendar? Upload a timetable
+        </Button>
+        {imageOpen ? (
+          <div className="mt-3 flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground">Upload a weekly timetable with visible day and hour labels. We’ll find your free hours, then show them in the weekly hours question for review. Connect Google Calendar to add confirmed bookings there.</p>
+            <label className="font-medium" htmlFor="host-schedule-image">Choose a schedule image</label>
+            <input accept="image/png,image/jpeg,image/webp" className="min-h-11 max-w-full text-sm" id="host-schedule-image" onChange={(event) => choose(event.target.files?.[0])} ref={input} type="file" />
+            <p className="text-xs text-muted-foreground">PNG, JPEG or WebP, up to 10 MB. The image is sent to OpenAI for reading and is not saved here. Remove private details before uploading.</p>
+            {preview ? <img alt="Selected schedule image" className="max-h-48 max-w-full rounded-md border border-border object-contain" src={preview} /> : null}
+            {file && !windows ? <Button className="self-start" disabled={reading} onClick={() => void readImage()} type="button">{reading ? "Reading image..." : "Read schedule image"}</Button> : null}
+            {windows ? <div className="flex flex-col gap-2"><p className="font-medium">Detected free hours</p><ul className="list-inside list-disc text-sm tabular-nums">{windows.map((window, index) => <li key={`${window.weekday}-${window.start}-${window.end}-${index}`}>{window.weekday} {window.start}–{window.end}</li>)}</ul><Button className="self-start" disabled={busy !== null} onClick={() => void saveSuggestion(windows)} type="button">{busy === CONNECT_CARD_ID ? "Saving..." : "Use these in setup"}</Button></div> : null}
+            {error ? <p className="text-destructive" role="status">{error}</p> : null}
+          </div>
+        ) : null}
+      </div>
+      {saved || state.fields.weeklyWindows.proposed?.source === "schedule_image" ? <p className="text-sm text-success" role="status">Timetable added. Connect Google Calendar, then review these hours in the weekly hours question.</p> : null}
       {state.account.googleEmail ? (
         <p className="text-xs text-muted-foreground">
           Signed in as <span className="break-all text-foreground">{state.account.googleEmail}</span>

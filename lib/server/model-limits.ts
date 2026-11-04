@@ -251,6 +251,7 @@ async function reserve(db: Database, attribution: Attribution, limits: ModelLimi
       const [attempts] = await tx<{ count: number }[]>`
         select count(*)::int as count from app.model_reservations
         where work_kind = 'calendar_ocr' and work_id = ${work.id}
+          and (${principal.type} <> 'host_account' or created_at >= now() - interval '24 hours')
       `;
 
       if (attempts!.count >= limits.calendarOcrAttempts) {
@@ -309,6 +310,14 @@ export async function reserveCalendarOcr(db: Database, requestId: string) {
     principal: { type: "requester_request", id: requestId },
     sessionId: null,
     work: { kind: "calendar_ocr", id: requestId },
+  }, MODEL_LIMITS);
+}
+
+export async function reserveHostCalendarOcr(db: Database, hostAccountId: string) {
+  await reserve(db, {
+    principal: { type: "host_account", id: hostAccountId },
+    sessionId: null,
+    work: { kind: "calendar_ocr", id: hostAccountId },
   }, MODEL_LIMITS);
 }
 
