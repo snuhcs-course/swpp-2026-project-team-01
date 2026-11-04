@@ -122,7 +122,7 @@ describe("linking a guest's iMessage", () => {
 
     expect((await im.deliver({ sender, text: pending.message })).outcome).toBe("link_received");
     const received = await status(request.requestId);
-    expect(received).toMatchObject({ sender: `•••• ${sender.slice(-4)}`, state: "received" });
+    expect(received).toMatchObject({ sender: sender, state: "received" });
     expect(await bindingOf(request.requestId)).toBeNull();
 
     const senderHash = imessageHash(testTokenKey, "sender", sender);
@@ -132,7 +132,7 @@ describe("linking a guest's iMessage", () => {
     if (received.state !== "received") throw new Error("Expected a received code.");
     expect((await asGuest(request.requestId, REQUESTER_IMESSAGE_OPERATIONS.confirm, { linkId: received.linkId })).ok).toBe(true);
     expect(await bindingOf(request.requestId)).toMatchObject({ sender_hash: senderHash, state: "active" });
-    expect(await status(request.requestId)).toMatchObject({ sender: `•••• ${sender.slice(-4)}`, state: "linked" });
+    expect(await status(request.requestId)).toMatchObject({ sender: sender, state: "linked" });
 
     // The welcome is a reply in that conversation and names no booking link.
     const [welcome] = await im.outbox({ kind: "linked", recipientHash: senderHash });
@@ -166,7 +166,7 @@ describe("linking a guest's iMessage", () => {
     const stranger = newSender();
     await im.deliver({ sender: stranger, text: pending.message });
     const received = await status(request.requestId);
-    expect(received).toMatchObject({ sender: `•••• ${stranger.slice(-4)}`, state: "received" });
+    expect(received).toMatchObject({ sender: stranger, state: "received" });
     if (received.state !== "received") throw new Error("Expected a received code.");
 
     // Another request's booking link cannot confirm it.

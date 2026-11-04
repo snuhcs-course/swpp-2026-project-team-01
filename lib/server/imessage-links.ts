@@ -1,11 +1,11 @@
 import { createHmac, randomInt } from "node:crypto";
 import { z } from "zod";
 import {
+  displaySender,
   type ImessageDeliveryState,
   type ImessageStatus,
   type LinkChannels,
   linkMessage,
-  maskSender,
   normalizeNumber,
 } from "../contracts/imessage";
 import { configuredChannels, type MessagingChannel } from "../contracts/messaging-channel";
@@ -790,7 +790,7 @@ async function openAttemptStatus(
       channels,
       expiresAt: link.fallback_expires_at?.toISOString() ?? null,
       lineNumber,
-      number: maskSender(number),
+      number: displaySender(number),
       resendAt:
         sendsLeft > 0 && link.last_sent_at ? new Date(link.last_sent_at.getTime() + limits.spacingSeconds * 1000).toISOString() : null,
       send: send?.failure_category === FOREIGN_BINDING ? "sent" : deliveryState(send?.state ?? "queued"),
@@ -810,14 +810,14 @@ export function attemptMessage(channel: MessagingChannel, code: string) {
 }
 
 // A sender as the card shows it: a Telegram sender by their sealed name, any
-// other masked.
+// other as displaySender shows it.
 export function shownSender(
   keys: readonly TokenKey[],
   row: { readonly channel: MessagingChannel; readonly sender_name_ciphertext: string | null; readonly sealed_key_id: string },
   context: string,
   sender: string,
 ) {
-  if (row.channel !== "telegram") return maskSender(sender);
+  if (row.channel !== "telegram") return displaySender(sender);
   const name = row.sender_name_ciphertext ? openToken(keys, { ciphertext: row.sender_name_ciphertext, keyId: row.sealed_key_id }, context) : null;
   return name ?? telegramDisplayName(null, null);
 }
