@@ -54,7 +54,7 @@ The provider maps each inbound WhatsApp message to `sender: { id: msg.from }` an
 - requires `space.id` to normalize to the same value, and `space.type` to be absent or `dm`, so a group or a mismatched space never counts;
 - never parses a number from the message text.
 
-The hash is the existing keyed hash over `whatsapp:<digits>`; iMessage hashes stay over the bare sender, so no stored hash changes. One phone number in both apps therefore gives two unrelated hashes. The sealed sender (context `imessage_binding:{id}`, unchanged) is what replies use. The masked display is the last four digits.
+The hash is the existing keyed hash over `whatsapp:<digits>`; iMessage hashes stay over the bare sender, so no stored hash changes. One phone number in both apps therefore gives two unrelated hashes. The sealed sender (context `imessage_binding:{id}`, unchanged) is what replies use. The card shows the whole number with its plus (#118; the last four digits until then).
 
 ### 4. Records
 
