@@ -526,6 +526,14 @@
 | WhatsApp 색(3.2) | 잉크 화면은 iMessage 파랑 옆에서 WhatsApp을 아이콘과 초록 말풍선(`#008069`)으로 표시합니다 | Thyme 색만 사용 | `apps/web/app/_components/ink/ink.css`, `icons.tsx` | 해당 파일 |
 | iMessage e2e 사용자 에이전트(3.2) | iMessage 브라우저 여정은 Mac 사용자 에이전트로 실행합니다. WhatsApp이 구성되어 있으면 Playwright의 기본 Windows 에이전트가 앱 질문을 먼저 받기 때문입니다 | 그 스위트에서 WhatsApp 번호 해제 | `tests/e2e/imessage-link.test.ts` | 그 파일 |
 | 게스트 시도는 iMessage 유지(병합) | PR #75(게스트 iMessage)를 병합한 뒤, 요청(게스트의 요청)에 속한 연결 시도는 제약에 따라 iMessage여야 합니다. WhatsApp을 통한 요청자 메시징은 범위 밖이기 때문입니다. WhatsApp 해시는 자체 네임스페이스를 가지므로 게스트 바인딩은 WhatsApp 발신자와 일치하지 않습니다 | 애플리케이션 코드에 맡기기 | `supabase/schemas/app/tables/imessage_links.sql`의 `imessage_links_request_channel` | 요청자 WhatsApp을 추가하는 변경과 함께 그 제약 |
+| WhatsApp 회선 클라이언트(7.3) | 읽음 표시, 입력 중 표시, 반응, 답장 버튼은 `@photon-ai/whatsapp-business` 0.3.2를 직접 사용하며, 이제 정확한 버전으로 고정한 직접 의존성입니다. Spectrum 공급자가 클라우드 모드에서 만드는 방식 그대로, `@spectrum-ts/core`의 `cloud.issueWhatsappBusinessTokens`를 호출한 뒤 첫 회선의 토큰으로 `createClient`(`appSecret: ""`)를 만들고, `lib/server/photon.ts`에서만 동적 import로 불러와 전송마다 닫습니다. TypeScript 피어 의존성이 없으므로 `overrides` 항목은 두지 않습니다. 텍스트와 템플릿은 계속 Spectrum을 거칩니다 | Spectrum 인스턴스를 통해 공급자 클라이언트에 접근(노출하지 않음); 대상으로 가져온 메시지 객체가 필요한 Spectrum `reaction` 콘텐츠 | `package.json`; `lib/server/photon.ts`의 `whatsAppLine`과 `sendWhatsAppDirect` | 위 항목들, Spectrum이 입력 중 플래그와 함께 `markRead`를 노출하기 시작하면 |
+| WhatsApp signal 응답(7.3) | 읽음 표시와 반응은 하나의 signal 행입니다. `markRead(messageId, { typingIndicator })`를 호출한 뒤 감사 인사에는 ❤️ 반응을 보냅니다. 둘 중 하나가 실패하면 `whatsAppSendFailure`로 매핑하며, iMessage와 마찬가지로 수락 외의 응답은 모두 최종입니다. 호스트의 메시지 ID가 없는 WhatsApp signal은 네트워크에 접근하기 전에 거부합니다 | 두 행(읽음, 반응) | `sendWhatsAppDirect`; `processReceipt` | 위 항목들 |
+| 양쪽 채널의 감사 인사(7.3) | `isOnlyThanks`가 이제 iMessage와 같이 WhatsApp에도 적용되므로, WhatsApp에서 "Thank you!"는 Thyme에 닿지 않고 ❤️를 받으며 턴이 열리지 않습니다 | — | `processReceipt` | D16 |
+| 버튼 저장 위치(7.4) | 마이그레이션은 없습니다. WhatsApp의 알림 또는 명령 행은 텍스트와 버튼을 하나의 JSON 봉투(`{"fmat_buttons_v1":true,…}`)로 함께 봉인해 `text_ciphertext`에 저장합니다. 그 종류만 봉투로 열고, 그 밖의 채널이나 종류는 평문 텍스트를 유지합니다. 발송 시 버튼은 `WHATSAPP_BUTTONS=1`일 때만 보내고, 아니면 텍스트만 나갑니다 | pg-delta로 만드는 `buttons` 열; 발송 시 버튼을 다시 계산 | `lib/server/imessage-outbox.ts`의 `recordOutbound`, `openedWithButtons`, `contentOf` | 위 함수들, 발신함 밖에서 버튼을 읽어야 하면 열 |
+| 버튼이 붙는 요약(7.4) | 합의된 제안이 승인을 기다린다고 보여 주는 모든 응답에 붙습니다. "Ready for your approval" 알림, `review`와 `request <ref>`(그리고 `request <ref>`를 실행하는 **Show details**), 오래된 탭에 대한 응답입니다. 설정 검토는 확정 명령을 보여 줄 때 **Confirm settings**를 담습니다. 긴 요약의 질문은 "Decide on request {ref}?"이고, 설정은 "Save these settings?"입니다 | 알림에만 버튼 | `lib/server/imessage-commands.ts`의 `decisionButtons`, `settingsButtons`; `noticeText` | 위 항목들 |
+| 분할과 그 응답(7.4) | 1,024 UTF-16 코드 단위(Meta의 문자 수를 보수적으로 센 값)를 넘는 본문은 텍스트를 먼저, 이어서 대화형 질문을 별도 전송으로 보냅니다. 스탠드인에는 별도 POST(두 번째는 Idempotency-Key `{outboxId}:1`), 프로덕션에는 별도 `messages.send` 호출입니다. 행은 대화형 메시지의 ID를 갖고, 버튼이 실패하면 텍스트의 ID를 갖습니다 | 코드 포인트로 세기 | `lib/server/photon.ts`의 `whatsAppButtonParts`, `sendInParts` | 위 항목들 |
+| 버튼 페이로드 형태(7.4) | `inboundWhatsAppMessage`는 탭의 ID를 Spectrum의 커스텀 콘텐츠(`interactive` `button_reply`의 `raw.reply.id`, `button`의 `raw.payload`)에서 읽거나, `content` 자체, `content.interactive` 또는 `content.button`의 `id`, `reply.id`, `button_reply.id`, `payload`에서 읽습니다. 목록과 플로 응답은 탭이 아닙니다. 수신 기록의 `content_type`은 `button`이고 텍스트는 그 ID가 가리키는 명령입니다. 우리가 설정하지 않은 ID는 텍스트를 남기지 않으므로 텍스트 전용 응답을 받고 Thyme에 닿지 않습니다 | 실제 페이로드를 알 때까지 파싱하지 않기 | `lib/server/whatsapp.ts`의 `tappedButtonId`, `buttonCommand` | 위 항목들, 작업 7.5가 실제 형태를 보여 준 뒤 |
+| 오래된 탭(7.4) | 버전이 최신이 아닌 탭에는 "This proposal has changed."와 현재 요약, 그 버튼으로 응답합니다. 입력으로 보낸 오래된 참조는 기존 응답을 유지합니다 | 둘 다 입력 응답으로 처리 | `lib/server/imessage-commands.ts`의 `decide` | 그 함수 |
 
 ### 운영 결정
 
@@ -549,6 +557,55 @@
 - **Android에서의 프로덕션 점검**(AC-29부터 AC-31), AC-31에는 템플릿이 필요합니다.
 - **2026-11-04에 사용자의 요청으로 완료:** 병합 시 `Deploy shared Supabase` 워크플로가 `20261103150235_whatsapp_channel.sql`을 `anelszynxtvxoxqvzgqt`에 적용했고(`44c71257`, 성공), `findmeatime-release` Production에 `PHOTON_WHATSAPP_NUMBER=17114549153`을 추가했으며, `44c71257`의 `main`을 깨끗한 분리 체크아웃에서 `vercel deploy --prod`로 배포해 `https://findmeatime.com`에 별칭을 연결했습니다. 이후 읽기 전용 점검: `/`와 `/?flow=whatsapp`가 200으로 응답하고, `GET /api/imessage/start`가 두 채널을 모두 명시하며(`"whatsapp":"17114549153"`), 서명 없는 `POST /photon/webhook`은 거부됩니다. Photon 프로젝트는 읽기만 했고(`photon projects ls`: `imessage, whatsapp_business`) 아무것도 바꾸지 않았습니다.
 - **병합**: PR #79는 사용자의 요청으로 팀원 승인 없이 관리자 우회로 스쿼시 병합했습니다.
+- D1–D13과 설계의 미해결 질문에 대한 **팀원 검토**.
+
+## 10단계 — `host-telegram-channel`
+
+[제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 2026-11-04에 사용자가 봇 `@findmeatime_bot`을 만들고 호스트 채널을 Telegram에 구성해 달라고 요청했습니다. 이 변경을 작성한 세션은 같은 날 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안이며, 아직 이를 구현하는 코드는 없습니다. 추적 이슈: #111.
+
+**이전 경위.** 2026-11-03에 Meta가 9단계의 WhatsApp Business 계정을 "허용되는 사용 정책 위반"을 이유로 메시지를 한 건도 보내기 전에 비활성화했고, 2026-11-04에 사용자의 요청으로 프로덕션에서 `PHOTON_WHATSAPP_NUMBER`를 제거했으므로 카드는 iMessage만 제공합니다([제공자 설정](03_provider_setup.md#whatsapp-business), PR #110).
+
+### 제품 결정
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| — | (사용자, 2026-11-04.) 모든 기기의 호스트를 위한 호스트 채널로, 봇과의 옵트인 Telegram 대화를 추가합니다. 호스트의 채널만 다루며, 요청자는 웹과 이메일을 유지합니다. 그룹, 채널, Mini App, Telegram 로그인, 결제는 범위 밖으로 유지합니다 | Meta의 검토를 기다리기; 새 WhatsApp 포트폴리오(제재 회피) | PRD 1, 3, 10절 | PRD 1절 |
+| D5 | 9단계 D5처럼 iMessage, WhatsApp, Telegram을 가로질러 호스트당 활성 메시징 바인딩 하나 | 여러 채널 동시 사용 | 제안서; 설계 5 | 바인딩 인덱스 |
+| D7 | 모든 기기에서 Telegram: Android는 구성되어 있으면 **대신 Telegram 사용(Use Telegram instead)**이 있는 WhatsApp, 아니면 Telegram을 받고, Apple 기기는 **대신 Telegram 사용(Use Telegram instead)**이 있는 iMessage를 받으며, 그 밖의 컴퓨터는 구성된 채널 중에서 묻습니다 | Android에서만 Telegram; 모든 곳에서 Telegram 우선 | 제안서; 설계 6 | `lib/contracts/messaging-channel.ts` |
+| D8 | `callback_data`가 요청과 제안 버전을 명시하는 **Approve**, **Decline**, **Show details** 인라인 버튼. 탭은 정확한 명령이며 바인딩된 발신자의 것만 받아들이고, 오래된 버전은 아무것도 결정하지 않습니다 | 입력한 명령만; 요청은 명시하되 버전은 명시하지 않는 버튼 | 제안서; 설계 7; PRD 10절 | 설계 7 |
+| D10 | 명령 메뉴, 입력 중 표시, 아무것도 필요 없는 알림의 무음 전달, 일반 텍스트를 사용합니다. 사용하지 않음: Mini App, Telegram 로그인, 그룹, 연락처 요청, 결제, `protect_content` | Markdown 또는 HTML 서식; 결정을 위한 Mini App | 제안서; 설계 8 | 설계 8 |
+| D13 | **확인 및 연결(Confirm and link)** 전에 카드가 Telegram이 봇 대화를 자사 서버에 보관한다고 안내하며, 개인정보 처리방침이 Telegram을 명시합니다 | 안내 없음 | 제안서; 설계 11 | 카드의 문구; `/privacy` |
+
+### 구현 결정
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| D1 | `lib/server/telegram.ts`에서 `fetch`로 쓰는 Bot API, 대역용 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_API_URL`; SDK는 쓰지 않음 | Vercel Function이 유지할 수 없는 지속적인 Fusor WebSocket(`wss://fusor-ws.spectrum.photon.codes/v1/subscribe`)으로 업데이트가 도착하는 `@spectrum-ts/telegram` 12.14.0; 오래 실행되는 워커 | 제안서; 설계 1 | 설계 1 |
+| D2 | 에이전트 서비스의 `POST /telegram/webhook`; `X-Telegram-Bot-Api-Secret-Token`이 `TELEGRAM_WEBHOOK_SECRET`과 같아야 함; `200` 전에 `update_id`를 키로 하는 영수증; `message`, `callback_query`, 차단을 뜻하는 `my_chat_member`만; `npm run telegram:webhook`이 이를 등록 | Telegram을 Photon 웹훅으로 라우팅; 시크릿 없음 | 제안서; 설계 2 | `agent/channels/telegram.ts` |
+| D3 | 발신자는 `from.id`; 대화 ID가 발신자와 같은 비공개 대화만, 봇은 제외; `telegram:<id>`로 해시; 확인용으로 이름과 `@username`을 표시; 전화번호는 받지 않음 | `request_contact`로 전화번호 요청 | 제안서; 설계 3 | `lib/server/telegram.ts` |
+| D4 | 네 개의 `channel` 검사에 `telegram` 추가; 영수증 메시지 ID는 `update:<update_id>`; 테이블 이름은 유지 | `telegram_*` 테이블 | 제안서; 설계 4 | 스키마 파일 |
+| D6 | `https://t.me/findmeatime_bot?start=<code>`; `/start <code>` 또는 코드만 보내면 Telegram 시도가 완료됨; `/start`만 보내면 연동되지 않은 발신자 응답을 받음; 컴퓨터에는 QR과 **복사(Copy)** | 봇이 먼저 보내는 코드 | 제안서; 설계 6 | `lib/contracts/messaging-channel.ts` |
+| D9 | 결정되었거나 철회되었거나 대체된 제안의 버튼은 Telegram의 48시간 편집 제한 안에서 `editMessageReplyMarkup`으로 제거하고 텍스트는 유지 | 텍스트 편집; 버튼을 그대로 두기 | 제안서; 설계 7 | 발신함 |
+| D11 | Bot API 결과: `403`은 `blocked`로 거부되며 바인딩 종료; `400`은 거부; `429`는 `retry_after` 뒤에 사용 불가; `5xx`나 쓰기 후 타임아웃은 불확실이며 다시 보내지 않음; 한 대화에는 전송 사이 1초 간격; 4,096자를 넘는 텍스트는 분할 | 모든 오류 재시도 | 제안서; 설계 9 | 전송 |
+| D12 | 명령, 참조, 호스트 자신의 말로 하는 승인, 전달(`[Telegram] …`), 요약, 설정, 접수, 순서, 보존은 6단계와 같음; 창도 템플릿도 없음 | Telegram 전용 명령 집합 | 제안서; 설계 10 | 6단계 D8–D14 |
+
+### 운영 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 봇 업데이트 없는 출처 | 설계는 2026-11-04에 Photon의 Telegram 문서, npm의 `@spectrum-ts/telegram` 12.14.0과 `@spectrum-ts/core` 12.14.0, Telegram Bot API 레퍼런스를 읽었습니다. 서비스에 도착한 업데이트가 없으므로 픽스처는 합류 단계에서 확인됩니다 | 실제 업데이트를 기다리기 | 설계 맥락 | 작업 5.1 |
+| 봇 자격 증명 | 사용자가 2026-11-04에 메인 체크아웃의 `.env`에 `TELEGRAM_BOT_TOKEN`과 `TELEGRAM_BOT_USERNAME`(`findmeatime_bot`)을 넣었습니다. 에이전트 세션은 토큰을 읽거나 출력하거나 복사하지 않으며, 사용자가 Vercel Production에 설정합니다 | 에이전트가 설정 | 제공자 설정 | — |
+| 계획만 | 이 풀 리퀘스트는 문서와 OpenSpec 변경만 바꾸며, 코드, 스키마, 구성은 없습니다 | 레인 A를 곧바로 구현 | 계획 10단계 | — |
+
+### 사용자 대기 항목
+
+다음 단계는 제공자 콘솔을 바꾸거나, 사람에게 메시지를 보내거나, 공유 환경 또는 릴리스 환경을 바꾸기 때문에 수행하지 않았습니다:
+
+- **@BotFather**: 봇의 이름, 설명, 소개 문구, 사진.
+- **Vercel Production**: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, 새 `TELEGRAM_WEBHOOK_SECRET`.
+- 배포 뒤 프로덕션을 대상으로 `npm run telegram:webhook`으로 **웹훅 등록**.
+- 검토 뒤 **공유 프로젝트 마이그레이션과 배포**.
+- 업데이트 하나 수집과 AC-32부터 AC-34까지의 실행을 포함한 **모든 Telegram 메시지 전송**.
 - D1–D13과 설계의 미해결 질문에 대한 **팀원 검토**.
 
 ## `guest-flow-completion`

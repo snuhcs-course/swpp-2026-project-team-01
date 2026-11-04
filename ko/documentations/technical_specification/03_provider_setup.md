@@ -146,8 +146,21 @@ Photon의 문서와 공급자 패키지에서 확인한 사실이며, 아직 실
 2. 표시 이름 "Find Me a Time"과 비즈니스 검증을 확인합니다. 2026-11-04에 이 번호는 "ASTIA - Something Great Inc" 포트폴리오에 표시 이름 **Astia**로 연결되어 있었으며, 템플릿을 제출하기 전에 이를 변경하거나 번호를 Find Me a Time 포트폴리오로 옮깁니다. 번호는 **+1 711-454-9153**이며, 메시징 한도는 **롤링 24시간당 고객 250명**(사용자, 2026-11-04)으로, 비즈니스 검증 전 Meta의 등급입니다. 이 한도는 비즈니스 발신 대화, 여기서는 템플릿 알림만 집계하므로, 하루 템플릿 50건이라는 기본값은 한도 안에 머뭅니다.
 3. `PHOTON_WHATSAPP_NUMBER=17114549153`(카드와 `https://wa.me/17114549153`용 숫자)를, 그리고 기본값 50이 맞지 않으면 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`를 Vercel Production에만 설정합니다. 프리뷰와 스테이징은 메시징을 계속 거부합니다.
 4. 통제된 Android 폰에서 번호로 메시지 하나를 보내 저장된 수신 기록의 채널이 `whatsapp`인지 확인합니다. 정확한 `platform` 철자와 발신자 형식을 변경과 여기에 기록합니다. 그다음 AC-29–AC-31을 실행합니다.
+5. 답장 버튼 페이로드를 확인합니다([설계 11](../../openspec/changes/host-whatsapp-channel/design.md#11-read-marks-typing-reactions-and-decision-buttons-d15d17), 작업 7.5). 통제된 실행을 위해 Vercel Production에 `WHATSAPP_BUTTONS=1`을 설정하고, 통제된 폰에서 **Approve**를 탭한 뒤 저장된 수신 기록을 확인합니다. `content_type`이 `button`이고 승인이 기록되면 페이로드가 버튼의 ID를 담고 있다는 뜻이므로 스위치를 켜 둡니다. 그 밖의 콘텐츠 유형이면 담고 있지 않다는 뜻이므로 `WHATSAPP_BUTTONS`를 해제하고 페이로드 형태를 기록합니다.
 
 사용자의 승인 없이는 에이전트 세션에서 Photon 프로젝트의 플랫폼, 회선, 웹훅을 바꾸거나, 템플릿을 등록하거나, WhatsApp 메시지를 보내서는 안 됩니다.
+
+## Telegram
+
+Telegram은 2026-11-04에 [`host-telegram-channel` 변경](../../openspec/changes/host-telegram-channel/proposal.md#decisions)에서 제안된 호스트 Telegram 채널의 전송 수단이며 아직 구현되지 않았습니다. Photon이 아니라 Telegram Bot API를 직접 사용합니다(D1). Photon의 Telegram 공급자인 `@spectrum-ts/telegram` 12.14.0은 봇의 웹훅을 Photon의 릴레이에 등록하고 지속적인 WebSocket(`wss://fusor-ws.spectrum.photon.codes/v1/subscribe`)으로 애플리케이션에 업데이트를 전달하는데, Vercel Function은 이를 유지할 수 없습니다.
+
+- **봇.** `@findmeatime_bot`, 사용자가 2026-11-04에 [@BotFather](https://t.me/BotFather)로 만들었습니다. 토큰이 봇의 유일한 자격 증명이며, @BotFather의 `/revoke`로 교체합니다.
+- **변수.** 메시징 게이트 아래 Vercel Production에만 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`(`findmeatime_bot`), `TELEGRAM_WEBHOOK_SECRET`(무작위 URL 안전 문자 32자 이상)을 둡니다. 테스트는 `TELEGRAM_API_URL`을 루프백 대역으로 지정합니다. 사용자는 로컬 실행을 위해 토큰과 사용자 이름을 메인 체크아웃의 `.env`에 보관합니다.
+- **웹훅.** `https://findmeatime.com/telegram/webhook`, `npm run telegram:webhook`이 `setWebhook`(`secret_token`, `allowed_updates`는 `message`, `callback_query`, `my_chat_member`, `max_connections` 10)과 `setMyCommands`로 등록합니다. Telegram은 `X-Telegram-Bot-Api-Secret-Token`으로 시크릿을 보내며 그 밖에는 아무것도 서명하지 않습니다. 응답하지 않은 업데이트는 최대 24시간 동안 다시 보냅니다.
+- **한도.** 한 대화에는 초당 약 1건, 전체적으로는 초당 30건; 메시지당 4,096자; `callback_data`는 64바이트; 메시지는 48시간 동안 편집할 수 있습니다. 봇은 사용자가 시작한 뒤에만 사용자에게 메시지를 보낼 수 있고, 사용자가 차단하면 `403`을 받습니다.
+- **프라이버시.** 봇 대화는 종단 간 암호화되지 않으며 Telegram의 서버에 남습니다. 카드와 개인정보 처리방침이 이를 안내합니다.
+
+사용자의 승인 없이는 에이전트 세션에서 봇의 토큰을 설정하거나, 웹훅을 등록하거나, Telegram 메시지를 보내서는 안 됩니다.
 
 ## 모델 접근과 런타임
 

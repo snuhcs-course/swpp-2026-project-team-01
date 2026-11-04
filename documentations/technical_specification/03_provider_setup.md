@@ -144,8 +144,21 @@ Operator steps, all blocked on the user until the implementing pull requests lan
 2. Confirm the display name "Find Me a Time" and business verification. On 2026-11-04 the number was connected in the portfolio "ASTIA - Something Great Inc" with the display name **Astia**; change it, or move the number to a Find Me a Time portfolio, before submitting the templates. The number is **+1 711-454-9153**, and its messaging limit is **250 customers per rolling 24 hours** (the user, 2026-11-04), Meta's tier before business verification. That limit counts business-initiated conversations, here only the template notices, so the default of 50 templates a day stays inside it.
 3. Set `PHOTON_WHATSAPP_NUMBER=17114549153` (digits, for the card and `https://wa.me/17114549153`) and, if the default of 50 is wrong, `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` on Vercel Production only. Previews and staging keep messaging denied.
 4. Send one message from a controlled Android phone to the number and confirm that the stored receipt has channel `whatsapp`. Record the exact `platform` spelling and sender format in the change and here. Then run AC-29 to AC-31.
+5. Confirm the reply-button payload ([design 11](../../openspec/changes/host-whatsapp-channel/design.md#11-read-marks-typing-reactions-and-decision-buttons-d15d17), task 7.5): with `WHATSAPP_BUTTONS=1` set on Vercel Production for a controlled run, tap **Approve** on a controlled phone and check the stored receipt. `content_type` `button` and an approval mean the payload carries the button's ID, and the switch stays on; any other content type means it does not, so unset `WHATSAPP_BUTTONS` and record the payload shape.
 
 Never change the Photon project's platforms, lines or webhook, register templates or send a WhatsApp message from an agent session without the user's approval.
+
+## Telegram
+
+Telegram is the transport of the host Telegram channel, proposed on 2026-11-04 in the [`host-telegram-channel` change](../../openspec/changes/host-telegram-channel/proposal.md#decisions) and not implemented yet. It uses the Telegram Bot API directly, not Photon (D1). Photon's Telegram provider, `@spectrum-ts/telegram` 12.14.0, registers the bot's webhook at Photon's relay and delivers updates to the application over a persistent WebSocket (`wss://fusor-ws.spectrum.photon.codes/v1/subscribe`), which a Vercel Function cannot hold.
+
+- **Bot.** `@findmeatime_bot`, created by the user with [@BotFather](https://t.me/BotFather) on 2026-11-04. The token is the bot's only credential; `/revoke` in @BotFather replaces it.
+- **Variables.** `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` (`findmeatime_bot`) and `TELEGRAM_WEBHOOK_SECRET` (32 or more random URL-safe characters) on Vercel Production only, under the messaging gate; tests point `TELEGRAM_API_URL` at a loopback stand-in. The user keeps the token and username in the main checkout's `.env` for local runs.
+- **Webhook.** `https://findmeatime.com/telegram/webhook`, registered by `npm run telegram:webhook` with `setWebhook` (`secret_token`, `allowed_updates` `message`, `callback_query` and `my_chat_member`, `max_connections` 10) and `setMyCommands`. Telegram sends the secret in `X-Telegram-Bot-Api-Secret-Token` and signs nothing else. It retries an unanswered update for up to 24 hours.
+- **Limits.** About one message per second to one chat and 30 per second overall; 4,096 characters per message; 64 bytes of `callback_data`; messages can be edited for 48 hours. A bot can message a user only after the user started it, and gets `403` once the user blocks it.
+- **Privacy.** Bot chats are not end-to-end encrypted and stay on Telegram's servers; the card and the privacy policy say so.
+
+Never set the bot's token, register its webhook or send a Telegram message from an agent session without the user's approval.
 
 ## Model access and runtime
 

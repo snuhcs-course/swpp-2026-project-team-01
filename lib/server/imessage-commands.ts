@@ -16,7 +16,9 @@ import { CalendarAccessError, openHostCalendar } from "./google-calendar";
 import { listHostRequests, readHostRequest } from "./host-requests";
 import { calendarConnectUrl } from "./imessage-links";
 import { recordOutbound } from "./imessage-outbox";
+import type { WhatsAppButtons } from "./photon";
 import { requestRef } from "./request-ref";
+import { WHATSAPP_BUTTON_CONTENT } from "./whatsapp";
 import type { BoundMessage, ImessageReceiptDependencies } from "./imessage-receipts";
 import { computeSetupProposal, readSetupState } from "./setup";
 import { confirmSettingsCommand } from "./setup-commands";
@@ -120,6 +122,29 @@ export function requestSummary(view: HostRequestView) {
   return lines.join("\n");
 }
 
+// The reply buttons under a summary that asks for a decision (host-whatsapp-
+// channel design 11, D17): only on WhatsApp (the outbox drops them elsewhere),
+// with IDs that name the exact request and version.
+export const BUTTON_TITLES = { approve: "Approve", confirm: "Confirm settings", decline: "Decline", details: "Show details" } as const;
+
+export function decisionButtons(view: HostRequestView): WhatsAppButtons | undefined {
+  if (view.state !== "awaiting_host_approval" || !view.proposal?.agreedAt) return undefined;
+  const ref = requestRef(view.requestId);
+  const decision = reviewRef(view.requestId, view.proposal.version);
+  return {
+    items: [
+      { id: `a:${decision}`, title: BUTTON_TITLES.approve },
+      { id: `d:${decision}`, title: BUTTON_TITLES.decline },
+      { id: `s:${ref}`, title: BUTTON_TITLES.details },
+    ],
+    prompt: `Decide on request ${ref}?`,
+  };
+}
+
+export function settingsButtons(proposalHash: string): WhatsAppButtons {
+  return { items: [{ id: `c:${settingsRef(proposalHash)}`, title: BUTTON_TITLES.confirm }], prompt: "Save these settings?" };
+}
+
 function windowsText(windows: readonly WeeklyWindow[]) {
   return windows.map((window) => `${window.weekday.slice(0, 3)} ${window.start}–${window.end}`).join(", ");
 }
@@ -171,9 +196,9 @@ export const MAX_REVIEW_CHARS = 1_500;
 
 // The authored settings review: every proposed value with its source, the
 // calendars, what is still missing, and the exact confirm command.
-export async function settingsReview(db: Database, hostAccountId: string, origin: string) {
+export async function settingsReview(db: Database, hostAccountId: string, origin: string): Promise<Reply> {
   const proposal = await computeSetupProposal(db, hostAccountId);
-  if (!proposal) return `Open ${origin}/app to set up.`;
+  if (!proposal) return { text: `Open ${origin}/app to set up.` };
 
   const lines = ["Your settings for review:"];
   if (proposal.roles) {
@@ -190,7 +215,8 @@ export async function settingsReview(db: Database, hostAccountId: string, origin
     lines.push(`${FIELD_LABELS[field]}: ${fieldText(field, entry.value)}${source}`);
   }
 
-  if (!proposal.roles || proposal.missingFields.length > 0) {
+  const ready = Boolean(proposal.roles) && proposal.missingFields.length === 0;
+  if (!ready) {
     const missing = proposal.missingFields.map((field) => FIELD_LABELS[field].toLowerCase());
     lines.push(`Still needed: ${proposal.roles ? missing.join(", ") : "your calendars"}. Answer here, or open ${origin}/app.`);
   } else {
@@ -198,7 +224,8 @@ export async function settingsReview(db: Database, hostAccountId: string, origin
   }
 
   const text = lines.join("\n");
-  return text.length > MAX_REVIEW_CHARS ? `Your settings review is too long for a message. Review and confirm it at ${origin}/app.` : text;
+  if (text.length > MAX_REVIEW_CHARS) return { text: `Your settings review is too long for a message. Review and confirm it at ${origin}/app.` };
+  return ready ? { buttons: settingsButtons(proposal.proposalHash), text } : { text };
 }
 
 const NEXT_STEP_TEXT: Readonly<Record<string, string>> = {
@@ -212,11 +239,20 @@ const NEXT_STEP_TEXT: Readonly<Record<string, string>> = {
 
 export type CommandDependencies = ImessageReceiptDependencies;
 
-type Reply = { readonly text: string };
+type Reply = { readonly text: string; readonly buttons?: WhatsAppButtons };
 
-function reply(tx: Transaction, deps: CommandDependencies, message: BoundMessage, text: string, requestId: string | null = null, selectHost = false) {
+function reply(
+  tx: Transaction,
+  deps: CommandDependencies,
+  message: BoundMessage,
+  text: string,
+  requestId: string | null = null,
+  selectHost = false,
+  buttons?: WhatsAppButtons,
+) {
   return recordOutbound(tx, {
     bindingId: message.bindingId,
+    buttons,
     dedupeKey: `${selectHost ? "host-selection" : "receipt"}:${message.receipt.id}`,
     hostAccountId: message.hostAccountId,
     kind: "command",
@@ -291,6 +327,11 @@ async function decide(
 
   if (CLOSED.includes(view.state)) return { requestId: view.requestId, text: `This request is ${STATE_WORDS[view.state]}; nothing changed.` };
   if (!view.proposal || view.proposal.version !== version) {
+    // A stale tap shows the current proposal, since WhatsApp cannot take the
+    // old buttons back (D17).
+    if (message.receipt.contentType === WHATSAPP_BUTTON_CONTENT) {
+      return { buttons: decisionButtons(view), requestId: view.requestId, text: `This proposal has changed.\n${requestSummary(view)}` };
+    }
     return {
       requestId: view.requestId,
       text: current ? `That proposal is no longer current. The current one is ${current}; send review to see it.` : "There's no proposal to decide yet.",
@@ -505,7 +546,11 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       }
       await tx`update app.imessage_bindings set selected_request_id = ${found.requestId} where id = ${message.bindingId} and state = 'active'`;
       const view = await readHostRequest(deps.db, message.hostAccountId, found.requestId);
-      result = { requestId: found.requestId, text: `${view ? requestSummary(view) : ""}\nMessages here now go to this request.`.trim() };
+      result = {
+        buttons: view ? decisionButtons(view) : undefined,
+        requestId: found.requestId,
+        text: `${view ? requestSummary(view) : ""}\nMessages here now go to this request.`.trim(),
+      };
       break;
     }
     case "setup": {
@@ -520,9 +565,11 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
     case "review": {
       if (message.selectedRequestId) {
         const view = await readHostRequest(deps.db, message.hostAccountId, message.selectedRequestId);
-        result = view ? { requestId: view.requestId, text: requestSummary(view) } : { text: "That request isn't available any more. Send requests." };
+        result = view
+          ? { buttons: decisionButtons(view), requestId: view.requestId, text: requestSummary(view) }
+          : { text: "That request isn't available any more. Send requests." };
       } else {
-        result = { text: await settingsReview(deps.db, message.hostAccountId, deps.origin) };
+        result = await settingsReview(deps.db, message.hostAccountId, deps.origin);
       }
       break;
     }
@@ -542,6 +589,14 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       break;
   }
 
-  await reply(tx, deps, message, result.text, result.requestId ?? null, command.name === "setup" || (command.name === "request" && Boolean(result.requestId)));
+  await reply(
+    tx,
+    deps,
+    message,
+    result.text,
+    result.requestId ?? null,
+    command.name === "setup" || (command.name === "request" && Boolean(result.requestId)),
+    result.buttons,
+  );
   return "command" as const;
 }
