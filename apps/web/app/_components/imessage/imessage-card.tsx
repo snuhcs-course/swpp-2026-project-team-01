@@ -44,8 +44,9 @@ import { cn } from "@/lib/utils";
 //   - received: the masked sender with Confirm and link and This isn't me.
 //   - fallback: the masked number, the send's state and a protected code field,
 //     for an attempt the server already holds.
-//   - linked: the masked sender, the latest failed or uncertain message, Add to
-//     contacts and Unlink behind an inline confirmation.
+//   - linked: a small status pill naming the channel and the masked sender; it
+//     opens to the latest failed or uncertain message, Add to contacts and Unlink
+//     behind an inline confirmation, and starts open while a message failed.
 // A command whose answer was lost offers Try again with the same retry key.
 // The same card links WhatsApp (host-whatsapp-channel design 5 and 6, D5 to D7,
 // D12): which channel "none" offers follows the device (Android gets WhatsApp
@@ -148,6 +149,8 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [lost, setLost] = useState<Pending | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
+  // A linked channel shows as a small status pill until the host opens it.
+  const [expanded, setExpanded] = useState(false);
   const platform = useMessagesPlatform();
   const device = useDeviceKind();
   // The channel the host chose with the app question or Use ... instead.
@@ -418,6 +421,25 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
 
     case "linked": {
       const name = channelName(status.channel);
+      if (!expanded && !status.delivery && !error) {
+        return (
+          <section aria-labelledby={cardHeadingId(IMESSAGE_CARD_ID)} className="flex min-w-0" data-imessage-card id={IMESSAGE_CARD_ID}>
+            <button
+              aria-expanded={false}
+              className="inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-card px-3 text-xs text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              id={cardHeadingId(IMESSAGE_CARD_ID)}
+              onClick={() => setExpanded(true)}
+              type="button"
+            >
+              <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
+              <span className="truncate">
+                {`${name} linked `}
+                <span className="tabular-nums">{status.sender}</span>
+              </span>
+            </button>
+          </section>
+        );
+      }
       return (
         <CardShell label={name} title={`${name} is linked`}>
           {notice}
@@ -447,6 +469,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
                 onClick={async () => {
                   await command("imessage.unlink");
                   setConfirmUnlink(false);
+                  setExpanded(false);
                 }}
                 type="button"
                 variant="destructive"
@@ -458,6 +481,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
           ) : (
             <CardActions>
               <QuietButton onClick={() => setConfirmUnlink(true)}>{`Unlink ${name}`}</QuietButton>
+              <QuietButton onClick={() => setExpanded(false)}>Hide</QuietButton>
             </CardActions>
           )}
         </CardShell>

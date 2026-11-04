@@ -121,7 +121,7 @@ A switch reads "Use Telegram instead". The question lists only configured channe
 
 ### 7. Inline buttons
 
-A summary that asks the host to decide carries an inline keyboard. These are the summaries "proposal waiting" and "agreed proposal", and the setup review.
+A summary that asks the host to decide carries an inline keyboard. These are the summaries "proposal waiting" and "agreed proposal", and the setup review. As implemented, the reply to `request <ref>`, `review` or **Show details** carries the same keyboard while that request has an agreed proposal awaiting approval, and the settings review carries **Confirm settings** only when it ends with its confirm command.
 
 | Button | `callback_data` | Command it names |
 |---|---|---|
@@ -149,6 +149,7 @@ Approval in the host's own words (iMessage D23) also works on Telegram. Buttons 
 
 - **Command menu.** `setMyCommands` registers `requests`, `review`, `help` and `stop` with short descriptions. The parser accepts every command with or without a leading `/` and an optional `@findmeatime_bot` suffix, so a menu tap and typed text both work. `help` lists the same text as `HELP_TEXT`, with Telegram's buttons mentioned.
 - **Typing.** While a receipt's agent turn runs, the dispatcher sends `sendChatAction` `typing` once at the start and every 5 seconds until the reply is queued, at most 12 times. A failure is ignored.
+- **Reaction.** A message that only says thanks gets a 👍 `setMessageReaction` and starts no turn, as an iMessage thanks gets a tapback. A bot cannot mark a message read, so no other message gets a signal.
 - **Silent delivery.** The outbox sends with `disable_notification: true` for notices that need nothing from the host: a requester's reply that needs no decision, a booking confirmation and setup progress. Summaries that need a decision, and every reply to the host's own message, notify normally.
 - **Plain text.** Messages are sent without `parse_mode`, so text from requesters can never inject formatting or links. References stay readable as plain words.
 - **Not used:** Mini Apps (`/app` already serves this), Telegram Login (Google stays the identity), groups and channels, `request_contact`, payments, and `protect_content`, since a host may want to forward a summary to themself.

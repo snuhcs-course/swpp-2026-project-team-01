@@ -21,6 +21,8 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 // notice (guest-flow-completion design 4) goes to the request's active guest
 // binding instead, in the request's language, and never carries the booking
 // link; the booking confirmation is the last one, so the binding then ends.
+// On Telegram the awaiting-approval summary carries the proposal's decision
+// buttons (host-telegram-channel design 7, D8); other channels ignore them.
 
 export type NoticeJobDependencies = {
   readonly db: Database;

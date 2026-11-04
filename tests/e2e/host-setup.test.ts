@@ -251,8 +251,7 @@ test("a new host completes setup one card at a time, from the authored messages 
     await expectOnlyCard(page, "You're ready.");
   const links = card(page, "You're ready.");
   await expect(links.getByRole("heading", { name: "You're ready." })).toBeFocused();
-  await expect(links.getByText(`${baseURL}/${handle}`, { exact: true })).toBeVisible();
-  await expect(links.getByText(`${baseURL}/${handle}/SKILL.md`, { exact: true })).toBeVisible();
+  await expect(links.getByText(`${new URL(baseURL!).host}/${handle}`, { exact: true })).toBeVisible();
   await expect(receipt(page, "confirmed")).toContainText("Settings confirmed");
   await expectCardLast(page);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
@@ -465,7 +464,7 @@ test("the identity step and the review work by keyboard alone", async ({ baseURL
   await page.keyboard.press("Enter");
   const links = card(page, "You're ready.");
   await expect(links.getByRole("heading", { name: "You're ready." })).toBeFocused();
-  await expect(links.getByText(`${baseURL}/${handle}`, { exact: true })).toBeVisible();
+  await expect(links.getByText(`${new URL(baseURL!).host}/${handle}`, { exact: true })).toBeVisible();
 });
 
 for (const width of [390, 1280]) {

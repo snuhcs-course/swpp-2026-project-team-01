@@ -1,13 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { calendarConnectUrl, LINK_TEXTS } from "../../lib/server/imessage-links";
 import { outboxSealContext } from "../../lib/server/imessage-outbox";
+import { TELEGRAM_HELP_TEXT } from "../../lib/server/imessage-commands";
 import { CHANNEL_TEXTS } from "../../lib/server/imessage-receipts";
 import { channelHash } from "../../lib/server/photon-receiver";
 import { receiveTelegramWebhook } from "../../lib/server/telegram-receiver";
 import { openToken } from "../../lib/server/token-encryption";
 import { testDatabase } from "./support/database";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
-import { imessageHarness, TEST_TELEGRAM_BOT } from "./support/imessage";
+import { hostWithUser, imessageHarness, TEST_TELEGRAM_BOT } from "./support/imessage";
 import { newSender } from "./support/photon";
 import { newHostAccount } from "./support/ready-host";
 import { testTokenKey } from "./support/requests";
@@ -115,16 +116,19 @@ describe("linking Telegram", () => {
     const [bound] = await db<{ count: number }[]>`select count(*)::int as count from app.imessage_bindings where sender_hash = ${telegramHash(userId)}`;
     expect(bound!.count).toBe(0);
 
-    // A linked host's /start is not linking and gets no unlinked-sender reply.
-    const hostAccountId = await newHostAccount(db);
+    // A linked host's /start is not linking: it gets help (Lane C), never the unlinked-sender reply.
+    const { hostAccountId } = await hostWithUser(db);
     const host = newTelegramUser();
     const pending = await pendingTelegram(hostAccountId);
     await im.deliverTelegram(telegramMessage({ text: `/start ${pending.code}`, userId: host }));
     const received = await im.status(hostAccountId);
     if (received.state !== "received") throw new Error("Expected received.");
     await im.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId });
-    expect((await im.deliverTelegram(telegramMessage({ text: "/start", userId: host })))?.outcome).toBe("ignored");
-    expect((await sentTo(telegramHash(host))).map((row) => row.kind)).toEqual(["linked"]);
+    expect((await im.deliverTelegram(telegramMessage({ text: "/start", userId: host })))?.outcome).toBe("command");
+    expect((await sentTo(telegramHash(host))).map((row) => [row.kind, row.kind === "command" ? row.text : null])).toEqual([
+      ["linked", null],
+      ["command", TELEGRAM_HELP_TEXT],
+    ]);
   });
 
   it("voids an attempt whose code arrives on another channel", async () => {

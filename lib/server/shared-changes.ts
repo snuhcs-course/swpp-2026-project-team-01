@@ -4,6 +4,7 @@ import { MEETING_MODES } from "../contracts/setup";
 import { latestProposalOf, lockHostRequest } from "./bookings";
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
 import { publishEvaluation } from "./evaluation";
+import { enqueueButtonRetirement } from "./imessage-notices";
 import { invalidateExceptions } from "./request-exceptions";
 
 // Suggested changes to the shared details (host-review-and-booking design 4,
@@ -120,6 +121,7 @@ export const shareChangesCommand: CommandDefinition<z.infer<typeof suggestionInp
       where id = ${request.id}
     `;
     await invalidateExceptions(tx, request.id);
+    await enqueueButtonRetirement(tx, request.id);
     await tx`update app.shared_change_drafts set state = 'checking' where id = ${suggestion.id}`;
 
     const end = new Date(startAt.getTime() + duration * 60_000);
