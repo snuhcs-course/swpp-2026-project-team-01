@@ -212,6 +212,8 @@ Before discussing a request, the host asks for their request list and sends its 
 
 The same journey runs in WhatsApp for a host who linked it ([`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)). One step differs: when the host has not written for a day, step 1's summary arrives as a short template notice with the request reference, and the host replies `request <reference>` to see it. `stop` unlinks from either app.
 
+It also runs in a private Telegram chat with the bot `@findmeatime_bot` for a host who linked it ([`host-telegram-channel`](../../openspec/changes/host-telegram-channel/proposal.md#decisions)), on any device and with no messaging window. Step 3 can be a tap: the summary awaiting approval carries **Approve**, **Decline** and **Show details**, bound to that proposal's version. A tap is the exact command it names and is answered; a tap under an older proposal decides nothing and shows the current one; and once the proposal is decided, withdrawn or superseded, its buttons disappear while the text stays. Commands also work from the bot's menu with a leading `/`. `stop`, `/stop` or blocking the bot unlinks.
+
 Photon Spectrum is the selected transport direction described in the [PRD dependencies section](../02_product_requirements.md#10-dependencies-and-open-decisions). The product journey does not depend on an agent framework; an adapter's message rendering alone does not establish host approval.
 
 **PRD references:** FR-08, FR-16, FR-17, FR-26, FR-27, FR-28; AC-16, AC-17, AC-18.

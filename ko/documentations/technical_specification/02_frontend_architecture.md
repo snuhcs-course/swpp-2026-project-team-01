@@ -106,6 +106,8 @@ supabase/tests/             grants, invariants and concurrency tests
 
 iMessage 연결 카드는 인라인으로 유지하며, 같은 카드가 WhatsApp도 연결합니다([`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions), 설계 6). `lib/contracts/messaging-channel.ts`의 `channelOffer`가 사용자 에이전트(user agent)에서 채널을 고르고, **WhatsApp 연결(Connect WhatsApp)**은 `whatsAppLinkFor`가 만든 `wa.me` 링크로 이동합니다. **iMessage 연결(Connect iMessage)**을 누르면 일회용 연결 코드를 가져온 뒤 플랫폼에 맞는 `sms:` 딥링크(iOS와 iPadOS는 `&body=`, Android는 `?body=`)로 이동해, 메시지 앱이 회선 번호와 연결 메시지가 이미 입력된 상태로 열립니다. 데스크톱과 그 밖의 브라우저에서는 이동하지 않고 회선 번호, **코드 복사(Copy)**가 붙은 코드, 클라이언트에서 렌더링한 iOS 딥링크 QR 코드를 보여 줍니다. 이어서 전체 번호 또는 Apple ID 이메일을 보여 주는 발신자 확인(#118), 전화번호 입력과 6자리 증명을 담은 **대신 코드 받기(Send me a code instead)** 대체 경로, 연결 요약, 선택적 건너뛰기가 나옵니다. 브라우저 로그인과 Google 동의는 보호된 핸드오프를 사용하며, 돌아오면 같은 초안이 복원됩니다. 코드 입력 필드는 대화 기록과 모델 컨텍스트 밖에서 보호된 서버로 직접 제출합니다. 비공개 채널의 설정 확인에는 별도로 검토되는 델타와 만료되는 현재 검토 컨텍스트가 필요합니다.
 
+같은 카드가 Telegram도 연결합니다([`host-telegram-channel`](../../openspec/changes/host-telegram-channel/proposal.md#decisions), 설계 6). **Telegram 연결(Connect Telegram)**은 코드를 만든 뒤 `https://t.me/<TELEGRAM_BOT_USERNAME>?start=<code>`로 이동합니다. 컴퓨터에서는 같은 링크를 QR 코드와 **복사(Copy)**로도 제공하고, 확인 화면은 Telegram 이름과 함께 Telegram이 봇 대화를 자기 서버에 보관한다는 문장을 보여 줍니다. Telegram 대화의 버튼은 웹 컴포넌트가 아닙니다. 서버가 Bot API 인라인 키보드로 보내며(설계 7), 버튼을 누르면 웹 앱이 아니라 에이전트 서비스의 `POST /telegram/webhook`으로 전달됩니다.
+
 ## 명령, 아티팩트, 사람의 결정
 
 카드는 현재 리비전과 허용된 동작을 가진, 타입이 지정된 허용 목록(allowlist) 기반 투영입니다. 후보 선택, 요청자 합의, 호스트 승인, 예약 디스패치, 확정된 영수증을 구분합니다. 확인은 현재의 제안/설정 검토를 식별해야 하며, 모델의 문장, OAuth 권한 부여, 전달 영수증으로는 충분하지 않습니다.

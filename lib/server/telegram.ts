@@ -1,7 +1,7 @@
 import { deploymentEnvironment } from "./deployment";
 import type { ParsedCommand } from "./imessage-commands";
 import { gateTransport, type MessagingTransport } from "./messaging";
-import type { PhotonSendRequest, PhotonSendResult, PhotonTransport } from "./photon";
+import type { PhotonSendRequest, PhotonSendResult, PhotonTransport, WhatsAppButtons } from "./photon";
 import type { InboundMessage } from "./photon-receiver";
 
 // The Telegram Bot API, called directly (host-telegram-channel design 1 to 3,
@@ -30,6 +30,8 @@ export type TelegramDetails = {
   // A callback's ID, which answerCallbackQuery names, and the bot message the tapped button was on.
   readonly callbackId: string | null;
   readonly callbackMessageId: string | null;
+  // The host's own message, which setMessageReaction names (host-telegram-channel task 4.2).
+  readonly messageId: string | null;
 };
 
 type User = { id?: unknown; is_bot?: unknown; first_name?: unknown; username?: unknown };
@@ -68,7 +70,7 @@ const MEDIA = ["photo", "video", "voice", "audio", "document", "sticker", "anima
 
 function message(updateId: number, value: unknown): InboundMessage | null {
   if (!value || typeof value !== "object") return null;
-  const item = value as { from?: unknown; chat?: unknown; date?: unknown; text?: unknown };
+  const item = value as { from?: unknown; chat?: unknown; date?: unknown; text?: unknown; message_id?: unknown };
   const sender = normalizeTelegramSender(item.from);
   if (!sender || !isPrivateChatOf(item.chat, sender)) return null;
 
@@ -84,7 +86,12 @@ function message(updateId: number, value: unknown): InboundMessage | null {
     sentAt,
     spaceId: sender,
     spaceType: "dm",
-    telegram: { ...profile(item.from), callbackId: null, callbackMessageId: null },
+    telegram: {
+      ...profile(item.from),
+      callbackId: null,
+      callbackMessageId: null,
+      messageId: typeof item.message_id === "number" && Number.isSafeInteger(item.message_id) ? String(item.message_id) : null,
+    },
     text,
   };
 }
@@ -112,6 +119,7 @@ function callback(updateId: number, value: unknown): InboundMessage | null {
       ...profile(query.from),
       callbackId: query.id,
       callbackMessageId: typeof messageId === "number" && Number.isSafeInteger(messageId) ? String(messageId) : null,
+      messageId: null,
     },
     text: data,
   };
@@ -133,7 +141,7 @@ function blocked(updateId: number, value: unknown): InboundMessage | null {
     sentAt: typeof update.date === "number" && update.date > 0 ? new Date(update.date * 1000) : null,
     spaceId: sender,
     spaceType: "dm",
-    telegram: { ...profile(update.from), callbackId: null, callbackMessageId: null },
+    telegram: { ...profile(update.from), callbackId: null, callbackMessageId: null, messageId: null },
     text: null,
   };
 }
@@ -174,6 +182,7 @@ export function openTelegramText(sealed: string): { readonly text: string | null
       callbackId: field("callbackId"),
       callbackMessageId: field("callbackMessageId"),
       firstName: field("firstName"),
+      messageId: field("messageId"),
       username: field("username"),
     },
     text: field("text"),
@@ -355,30 +364,102 @@ export function splitTelegramText(text: string, limit: number = TELEGRAM_TEXT_LI
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// The inline keyboard an outbox row was sent with (design 7, D8): the decision a
+// proposal summary asks for, or the settings review's confirmation. Stored on
+// the row, so a later edit can remove it once the proposal is no longer current.
+export type TelegramButtons =
+  | { readonly kind: "decision"; readonly ref: string; readonly version: number }
+  | { readonly kind: "settings"; readonly ref: string };
+
+export const BUTTON_LABELS = { approve: "Approve", confirm: "Confirm settings", decline: "Decline", details: "Show details" } as const;
+
+// The keyboard a summary's buttons make on Telegram. The commands build one set
+// of buttons for every channel, whose IDs are this change's callback data
+// (host-whatsapp-channel D17 took the format from here); Telegram keeps only
+// what they decide, so retirement can find the version.
+export function telegramButtonsOf(buttons: WhatsAppButtons): TelegramButtons | null {
+  for (const item of buttons.items) {
+    const command = parseCallbackData(item.id);
+    if (command?.name === "approve") {
+      const dash = command.ref.lastIndexOf("-");
+      return { kind: "decision", ref: command.ref.slice(0, dash), version: Number(command.ref.slice(dash + 1)) };
+    }
+    if (command?.name === "confirm") return { kind: "settings", ref: command.ref };
+  }
+  return null;
+}
+
+// The reply_markup for the buttons; every callback_data is one parseCallbackData reads back.
+export function inlineKeyboard(buttons: TelegramButtons) {
+  if (buttons.kind === "settings") return { inline_keyboard: [[{ callback_data: `c:${buttons.ref}`, text: BUTTON_LABELS.confirm }]] };
+  const decision = `${buttons.ref}-${buttons.version}`;
+  return {
+    inline_keyboard: [
+      [
+        { callback_data: `a:${decision}`, text: BUTTON_LABELS.approve },
+        { callback_data: `d:${decision}`, text: BUTTON_LABELS.decline },
+      ],
+      [{ callback_data: `s:${buttons.ref}`, text: BUTTON_LABELS.details }],
+    ],
+  };
+}
+
+// Messages may be edited for 48 hours (D9); an edit is never tried after that.
+export const TELEGRAM_EDIT_HOURS = 48;
+
+// The reaction that answers a message that only says thanks, as iMessage's tapback does.
+export const THANKS_REACTION = "👍";
+
 // Telegram as a messaging transport for the outbox (design 9): text goes out
 // with sendMessage in plain text (no parse_mode, D10), split into ordered parts
-// one second apart; a typing signal is sendChatAction; anything else is not a
-// Telegram message. The recipient address is the chat ID. Once one part was
-// accepted, a later failure is uncertain, since resending would repeat parts.
+// one second apart; the last part carries the row's buttons, and a notice that
+// needs nothing is sent with disable_notification. A signal is setMessageReaction
+// on the host's message and sendChatAction typing. An edit removes a sent
+// message's buttons, and a callback answer stops a tapped button's spinner.
+// Anything else is not a Telegram message. The recipient address is the chat ID.
+// Once one part was accepted, a later failure is uncertain, since resending
+// would repeat parts.
 export function telegramTransport(client: TelegramClient, wait: (ms: number) => Promise<unknown> = sleep): PhotonTransport {
   return {
     endpoint: client.endpoint,
     async send(request: PhotonSendRequest): Promise<PhotonSendResult> {
       const chatId = request.recipient.address;
       if (!/^[1-9]\d{0,19}$/.test(chatId)) return { category: "invalid_recipient", status: "rejected" };
+      const content = request.content;
 
-      if (request.content.kind === "signal") {
-        if (!request.content.typing) return { messageId: null, spaceId: chatId, status: "accepted" };
+      if (content.kind === "signal") {
+        if (content.reaction && content.messageId) {
+          const reacted = await client.send({
+            method: "setMessageReaction",
+            params: { chat_id: chatId, message_id: Number(content.messageId), reaction: [{ emoji: content.reaction, type: "emoji" }] },
+          });
+          if (reacted.status !== "accepted" || !content.typing) return fromTelegram(reacted, chatId, null);
+        }
+        if (!content.typing) return { messageId: null, spaceId: chatId, status: "accepted" };
         return fromTelegram(await client.send({ method: "sendChatAction", params: { action: "typing", chat_id: chatId } }), chatId, null);
       }
-      if (request.content.kind !== "text") return { category: "provider_rejected", status: "rejected" };
+      if (content.kind === "edit_markup") {
+        const params = { chat_id: chatId, message_id: Number(content.messageId), reply_markup: { inline_keyboard: [] } };
+        return fromTelegram(await client.send({ method: "editMessageReplyMarkup", params }), chatId, content.messageId);
+      }
+      if (content.kind === "callback_answer") {
+        const params = { callback_query_id: content.callbackId, ...(content.answer ? { text: content.answer } : {}) };
+        return fromTelegram(await client.send({ method: "answerCallbackQuery", params }), chatId, null);
+      }
+      if (content.kind !== "text") return { category: "provider_rejected", status: "rejected" };
 
-      const parts = splitTelegramText(request.content.text);
+      const parts = splitTelegramText(content.text);
       let last: string | null = null;
 
       for (const [index, part] of parts.entries()) {
         if (index > 0) await wait(TELEGRAM_CHAT_SPACING_MS);
-        const result = await client.send({ method: "sendMessage", params: { chat_id: chatId, text: part } });
+        const params = {
+          chat_id: chatId,
+          text: part,
+          ...(content.silent ? { disable_notification: true } : {}),
+          ...(content.keyboard && index === parts.length - 1 ? { reply_markup: inlineKeyboard(content.keyboard) } : {}),
+        };
+        const result = await client.send({ method: "sendMessage", params });
         if (result.status !== "accepted") return index > 0 ? { status: "uncertain" } : fromTelegram(result, chatId, null);
         last = messageIdOf(result.result);
       }

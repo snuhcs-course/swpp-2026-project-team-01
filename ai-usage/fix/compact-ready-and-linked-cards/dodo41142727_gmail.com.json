@@ -1,0 +1,74 @@
+{
+  "branch": "fix/compact-ready-and-linked-cards",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:0f3b0046-0d04-47ca-9894-90010d18549c": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 14,
+          "cache_read": 1225856,
+          "cache_write_5m": 0,
+          "cache_write_1h": 4822,
+          "output": 2901,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T05:51:31.970Z",
+      "last": "2026-11-04T05:52:20.802Z"
+    },
+    "claude:c053a760-c3a8-4552-bd1b-5e36b7ae2f51": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 4,
+          "cache_read": 1681345,
+          "cache_write_5m": 0,
+          "cache_write_1h": 1194,
+          "output": 1791,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T05:52:15.231Z",
+      "last": "2026-11-04T05:52:23.631Z"
+    },
+    "claude:ca741aea-d2e8-4f6f-9a29-1cec3d8cade9": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 10,
+          "cache_read": 3393239,
+          "cache_write_5m": 0,
+          "cache_write_1h": 1557,
+          "output": 1331,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T05:51:32.764Z",
+      "last": "2026-11-04T05:51:46.447Z"
+    },
+    "claude:ca741aea-d2e8-4f6f-9a29-1cec3d8cade9/agent-a0397e75d1a56ca6e": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 18,
+          "cache_read": 1029701,
+          "cache_write_5m": 25787,
+          "cache_write_1h": 0,
+          "output": 9351,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T05:51:30.308Z",
+      "last": "2026-11-04T05:52:36.213Z"
+    }
+  }
+}

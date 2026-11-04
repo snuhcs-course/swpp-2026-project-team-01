@@ -1,5 +1,5 @@
 import type { HostRequestView } from "../contracts/host-request";
-import type { MessagingChannel } from "../contracts/messaging-channel";
+import type { StoredChannel } from "../contracts/messaging-channel";
 import type { RequestState } from "../contracts/request";
 import {
   SETUP_FIELD_NAMES,
@@ -15,14 +15,16 @@ import { recordDestinationAccess } from "./calendar-roles";
 import { CalendarAccessError, openHostCalendar } from "./google-calendar";
 import { listHostRequests, readHostRequest } from "./host-requests";
 import { calendarConnectUrl } from "./imessage-links";
-import { recordOutbound } from "./imessage-outbox";
+import { callbackAnswerText, recordOutbound } from "./imessage-outbox";
 import type { WhatsAppButtons } from "./photon";
 import { requestRef } from "./request-ref";
 import { WHATSAPP_BUTTON_CONTENT } from "./whatsapp";
-import type { BoundMessage, ImessageReceiptDependencies } from "./imessage-receipts";
+import type { BoundMessage, ImessageReceiptDependencies, OpenedReceipt } from "./imessage-receipts";
 import { computeSetupProposal, readSetupState } from "./setup";
 import { confirmSettingsCommand } from "./setup-commands";
 import { dismissChangesCommand, shareChangesCommand } from "./shared-changes";
+import { enqueueSettingsButtonRetirement } from "./telegram-jobs";
+import type { TokenKey } from "./token-encryption";
 
 // Exact iMessage commands (host-imessage-channel design 8, D8). A command is
 // the whole message, trimmed and compared case-insensitively; anything else is
@@ -36,6 +38,13 @@ import { dismissChangesCommand, shareChangesCommand } from "./shared-changes";
 // key imessage:{receiptId}, so a replayed message replays the saved outcome. A
 // stale reference changes nothing and the reply names the current one. Every
 // reply is one outbound message to the linked conversation.
+// On Telegram (host-telegram-channel design 7 and 8, D8, D10) a command may start
+// with "/" and end with the bot's @username, as the command menu sends it, and
+// "/start" from a linked host is help. A summary that asks for a decision, and
+// the settings review, carry inline buttons; a button tap arrives as a callback
+// receipt whose data names one of these commands, runs here exactly like the
+// typed command, and is answered: empty when it ran, with the current proposal
+// when it named an older version.
 
 export type ParsedCommand =
   | { readonly name: "help" | "requests" | "setup" | "review" | "changes" | "stop" }
@@ -45,10 +54,15 @@ export type ParsedCommand =
 const BARE = new Set(["help", "requests", "setup", "review", "changes", "stop", "unlink"]);
 const WITH_REF = new Set(["request", "share", "dismiss", "approve", "decline", "confirm"]);
 
+// A Telegram command word: "/name", optionally "@<bot username>" (every bot's ends in "bot").
+const SLASHED = /^\/([a-z]+)(?:@[a-z][a-z0-9_]{1,28}bot)?$/i;
+
 export function parseCommand(text: string): ParsedCommand | null {
   const words = text.trim().split(/\s+/);
-  const name = words[0]?.toLowerCase() ?? "";
+  const slashed = SLASHED.exec(words[0] ?? "");
+  const name = (slashed ? slashed[1]! : (words[0] ?? "")).toLowerCase();
 
+  if (slashed && name === "start" && words.length === 1) return { name: "help" };
   if (words.length === 1 && BARE.has(name)) return { name: name === "unlink" ? "stop" : name } as ParsedCommand;
   if (words.length === 2 && WITH_REF.has(name) && /^[0-9a-z-]{4,20}$/i.test(words[1]!)) {
     return { name, ref: words[1]!.toUpperCase() } as ParsedCommand;
@@ -78,10 +92,44 @@ export const HELP_TEXT = [
   "Anything else goes to Thyme.",
 ].join("\n");
 
+// Telegram's help names its buttons too (design 8).
+export const TELEGRAM_HELP_TEXT = HELP_TEXT.replace(
+  "Anything else goes to Thyme.",
+  "Or tap Approve, Decline or Show details under a proposal.\nAnything else goes to Thyme.",
+);
+
 export const STOP_TEXTS = {
   imessage: "Unlinked. You won't get iMessages from Find Me a Time.",
   whatsapp: "Unlinked. You won't get WhatsApp messages from Find Me a Time.",
+  telegram: "Unlinked. You won't get Telegram messages from Find Me a Time.",
 } as const;
+
+// What a button tap's spinner is answered with (design 7). Success answers with nothing.
+export const CALLBACK_TEXTS = {
+  stale: "This proposal has changed. Here is the current one.",
+  notLinked: "Not linked",
+} as const;
+
+// Answers a button tap once, keyed by its receipt; nothing for any other receipt.
+export async function answerCallback(
+  tx: Transaction,
+  tokenKey: TokenKey,
+  receipt: OpenedReceipt,
+  recipient: { readonly address: string; readonly spaceId: string },
+  text: string | null,
+) {
+  const callbackId = receipt.telegram?.callbackId;
+  if (receipt.contentType !== "callback" || !callbackId) return;
+  await recordOutbound(tx, {
+    channel: "telegram",
+    dedupeKey: `receipt:${receipt.id}:answer`,
+    kind: "callback_answer",
+    recipient,
+    recipientHash: receipt.senderHash,
+    text: callbackAnswerText({ callbackId, text }),
+    tokenKey,
+  });
+}
 
 const CLOSED: readonly RequestState[] = ["booked", "declined", "withdrawn", "expired"];
 const STATE_WORDS: Readonly<Record<RequestState, string>> = {
@@ -122,9 +170,10 @@ export function requestSummary(view: HostRequestView) {
   return lines.join("\n");
 }
 
-// The reply buttons under a summary that asks for a decision (host-whatsapp-
-// channel design 11, D17): only on WhatsApp (the outbox drops them elsewhere),
-// with IDs that name the exact request and version.
+// The buttons under a summary that asks for a decision (host-whatsapp-channel
+// design 11, D17; host-telegram-channel design 7, D8): WhatsApp reply buttons
+// and Telegram's inline keyboard (the outbox drops them on iMessage), with IDs
+// that name the exact request and version.
 export const BUTTON_TITLES = { approve: "Approve", confirm: "Confirm settings", decline: "Decline", details: "Show details" } as const;
 
 export function decisionButtons(view: HostRequestView): WhatsAppButtons | undefined {
@@ -239,7 +288,12 @@ const NEXT_STEP_TEXT: Readonly<Record<string, string>> = {
 
 export type CommandDependencies = ImessageReceiptDependencies;
 
-type Reply = { readonly text: string; readonly buttons?: WhatsAppButtons };
+type Reply = {
+  readonly text: string;
+  readonly buttons?: WhatsAppButtons;
+  // The answer to the Telegram button tap that asked for this reply.
+  readonly answer?: string | null;
+};
 
 function reply(
   tx: Transaction,
@@ -328,9 +382,12 @@ async function decide(
   if (CLOSED.includes(view.state)) return { requestId: view.requestId, text: `This request is ${STATE_WORDS[view.state]}; nothing changed.` };
   if (!view.proposal || view.proposal.version !== version) {
     // A stale tap shows the current proposal, since WhatsApp cannot take the
-    // old buttons back (D17).
+    // old buttons back (D17). On Telegram the tap's answer says it changed (D8).
     if (message.receipt.contentType === WHATSAPP_BUTTON_CONTENT) {
       return { buttons: decisionButtons(view), requestId: view.requestId, text: `This proposal has changed.\n${requestSummary(view)}` };
+    }
+    if (message.receipt.contentType === "callback") {
+      return { answer: CALLBACK_TEXTS.stale, buttons: decisionButtons(view), requestId: view.requestId, text: requestSummary(view) };
     }
     return {
       requestId: view.requestId,
@@ -427,7 +484,7 @@ async function changes(deps: CommandDependencies, message: BoundMessage, kind: "
   };
 }
 
-async function confirmSettings(deps: CommandDependencies, message: BoundMessage, ref: string): Promise<Reply> {
+async function confirmSettings(deps: CommandDependencies, message: BoundMessage, ref: string): Promise<Reply & { saved?: boolean }> {
   const proposal = await computeSetupProposal(deps.db, message.hostAccountId);
   if (!proposal || settingsRef(proposal.proposalHash) !== ref) {
     return {
@@ -444,7 +501,7 @@ async function confirmSettings(deps: CommandDependencies, message: BoundMessage,
   }
 
   const outcome = await run(deps, message, confirmSettingsCommand(live, deps.setup.appOrigin), message.hostAccountId, { proposalHash: proposal.proposalHash }, proposal.records.draftRevision);
-  if (outcome.ok) return { text: `Saved. Your booking link is ${outcome.result.links.booking}` };
+  if (outcome.ok) return { saved: true, text: `Saved. Your booking link is ${outcome.result.links.booking}` };
   if (outcome.error.reason === "destination_not_writable") {
     await recordDestinationAccess(deps.db, message.hostAccountId, live);
     return { text: `Bookings can't be added to that calendar any more. Choose another at ${deps.origin}/app.` };
@@ -491,21 +548,23 @@ const DECISIONS = new Set(["approve", "decline", "share", "dismiss", "confirm"])
 // Runs a parsed command for a bound host and queues its reply.
 export async function executeCommand(tx: Transaction, deps: CommandDependencies, message: BoundMessage, command: ParsedCommand) {
   let result: Reply & { requestId?: string | null };
+  const telegram = message.receipt.channel === "telegram";
 
   const replayed = DECISIONS.has(command.name) ? await savedDecisionReply(deps, message) : null;
   if (replayed) {
     await reply(tx, deps, message, replayed.text, replayed.requestId);
+    await answerCallback(tx, deps.tokenKey, message.receipt, message.recipient, null);
     return "command" as const;
   }
 
   switch (command.name) {
     case "help":
-      result = { text: HELP_TEXT };
+      result = { text: telegram ? TELEGRAM_HELP_TEXT : HELP_TEXT };
       break;
     case "stop": {
       // Ends the binding as Unlink does (D12); the confirmation is not host-private,
       // so it still goes out after the binding ended, and nothing queued does.
-      const ended = await tx<{ id: string; channel: MessagingChannel }[]>`
+      const ended = await tx<{ id: string; channel: StoredChannel }[]>`
         update app.imessage_bindings set state = 'unlinked', ended_at = now(), sender_ciphertext = null, space_ciphertext = null
         where id = ${message.bindingId} and state = 'active'
         returning id, channel
@@ -523,9 +582,10 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
         kind: "command",
         recipient: message.recipient,
         recipientHash: message.receipt.senderHash,
-        text: message.receipt.channel === "whatsapp" ? STOP_TEXTS.whatsapp : STOP_TEXTS.imessage,
+        text: STOP_TEXTS[message.receipt.channel],
         tokenKey: deps.tokenKey,
       });
+      await answerCallback(tx, deps.tokenKey, message.receipt, message.recipient, null);
       return "command" as const;
     }
     case "requests": {
@@ -584,9 +644,12 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
     case "decline":
       result = await decide(deps, message, command.name, command.ref);
       break;
-    case "confirm":
-      result = await confirmSettings(deps, message, command.ref);
+    case "confirm": {
+      const confirmed = await confirmSettings(deps, message, command.ref);
+      if (confirmed.saved) await enqueueSettingsButtonRetirement(tx, message.hostAccountId, `imessage:${message.receipt.id}`);
+      result = confirmed;
       break;
+    }
   }
 
   await reply(
@@ -598,5 +661,6 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
     command.name === "setup" || (command.name === "request" && Boolean(result.requestId)),
     result.buttons,
   );
+  await answerCallback(tx, deps.tokenKey, message.receipt, message.recipient, result.answer ?? null);
   return "command" as const;
 }
