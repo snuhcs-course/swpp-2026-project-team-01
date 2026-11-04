@@ -145,6 +145,7 @@ Template registration happens in Meta's WhatsApp Manager for the business portfo
 | 131026 | Message undeliverable (no WhatsApp account, old app, blocked) | `rejected` |
 | 132000–132999 | Template missing, paused, parameter mismatch | `rejected`, category `template_unavailable` |
 | 130429, 131056 | Throughput or pair rate limit | `unavailable`, retried with backoff (five attempts) |
+| 131031, 131037, 131042, 131045 | The business account cannot send: locked, display name awaiting approval, payment failed, wrong certificate. An operator fixes it in WhatsApp Manager | `rejected`, category `provider_rejected` |
 | A thrown error before the request left, token issuance failure | Not sent | `unavailable` |
 | A lost answer or a 20-second timeout after the request left | Unknown | `uncertain`, never resent |
 
