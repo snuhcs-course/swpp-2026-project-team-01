@@ -1,10 +1,10 @@
 ## ADDED Requirements
 
 ### Requirement: Inbound-first guest linking
-A guest SHALL link iMessage to a request only by sending a request-owned one-time link code from their own iMessage to the service's line and then confirming the arrived masked sender on that request's booking page. The service SHALL NOT send the first message to a guest. A code SHALL be valid for 15 minutes, stored only as a keyed hash and a sealed copy, limited to 5 per request per hour, and replaced by a newer code; nothing SHALL be bound before **Confirm and link**.
+A guest SHALL link iMessage to a request only by sending a request-owned one-time link code from their own iMessage to the service's line and then confirming the arrived sender on that request's booking page. The service SHALL NOT send the first message to a guest. A code SHALL be valid for 15 minutes, stored only as a keyed hash and a sealed copy, limited to 5 per request per hour, and replaced by a newer code; nothing SHALL be bound before **Confirm and link**.
 
 #### Scenario: Link from the booking page
-- **WHEN** the guest presses **Get updates in iMessage**, sends the prefilled message, and presses **Confirm and link** on the masked sender
+- **WHEN** the guest presses **Get updates in iMessage**, sends the prefilled message, and presses **Confirm and link** on the sender
 - **THEN** the request has one active guest binding and the line replies once in that conversation
 
 #### Scenario: Forwarded code

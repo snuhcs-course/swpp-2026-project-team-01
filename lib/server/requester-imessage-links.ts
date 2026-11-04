@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { maskSender } from "../contracts/imessage";
+import { displaySender } from "../contracts/imessage";
 import { guestLinkMessage, REQUESTER_IMESSAGE_OPERATIONS, type RequesterImessageStatus } from "../contracts/requester-imessage";
 import { type CommandDefinition, CommandError } from "./commands";
 import type { Queryable, Transaction } from "./database";
@@ -214,7 +214,7 @@ export async function readRequesterImessageStatus(
   try {
     if (link?.state === "received") {
       const sender = openToken(keys, { ciphertext: link.sender_ciphertext!, keyId: link.sender_key_id! }, senderContext(link.id));
-      return { confirmBy: link.confirm_by!.toISOString(), lineNumber, linkId: link.id, sender: maskSender(sender), state: "received" };
+      return { confirmBy: link.confirm_by!.toISOString(), lineNumber, linkId: link.id, sender: displaySender(sender), state: "received" };
     }
     if (link?.state === "pending") {
       const code = openToken(keys, { ciphertext: link.code_ciphertext!, keyId: link.sealed_key_id! }, codeContext(link.id));
@@ -229,7 +229,7 @@ export async function readRequesterImessageStatus(
 
   let sender = "••••";
   try {
-    sender = maskSender(requesterBindingRecipient(keys, binding).address);
+    sender = displaySender(requesterBindingRecipient(keys, binding).address);
   } catch {
     // Sealed under a key the service no longer holds: still linked.
   }

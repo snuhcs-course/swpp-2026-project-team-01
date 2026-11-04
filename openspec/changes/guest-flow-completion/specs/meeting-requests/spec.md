@@ -41,12 +41,12 @@ While a request awaits the host's approval and has no booking, the requester SHA
 ### Requirement: Host sees the revised request's origin
 The host's view and iMessage summary of a revised request SHALL state that it follows their earlier decline, the earlier request's expiry or the guest's withdrawal, with the earlier request's reference.
 
-#### Scenario: New request summary
-- **WHEN** a revised request is created for a linked host
-- **THEN** the host's new-request summary names the earlier request's reference and its outcome
+#### Scenario: Revised request summary
+- **WHEN** the guest agrees to a time on a revised request of a linked host
+- **THEN** the host's awaiting-approval summary names the earlier request's reference and its outcome (`host-imessage-channel` D25)
 
 ### Requirement: Booking page iMessage controls
-The booking page SHALL offer **Get updates in iMessage** while the request is open, SHALL show the arrived masked sender with **Confirm and link**, and SHALL offer **Unlink iMessage** while a guest binding is active, each as one card in the thread, with keyboard access and at phone width.
+The booking page SHALL offer **Get updates in iMessage** while the request is open, SHALL show the arrived sender with **Confirm and link**, and SHALL offer **Unlink iMessage** while a guest binding is active, each as one card in the thread, with keyboard access and at phone width.
 
 #### Scenario: Keyboard linking
 - **WHEN** a keyboard-only guest at 390 px links iMessage with the loopback stand-in

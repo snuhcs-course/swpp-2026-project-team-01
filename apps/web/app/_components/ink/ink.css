@@ -24,6 +24,8 @@
 .ink:lang(ko) { --serif: var(--font-hahmlet), "Hahmlet", serif; }
 .ink h1, .ink h2, .ink h3, .ink p, .ink ol, .ink figure { margin: 0; }
 .ink :focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+/* The chat input shows focus by its caret alone: no outline on the textarea (#119). */
+.ink [data-chat-composer] :focus-visible { outline: none; }
 .ink .inner {
   position: relative; max-width: 1120px; margin-inline: auto;
   --gutter: clamp(20px, 5cqi, 56px);

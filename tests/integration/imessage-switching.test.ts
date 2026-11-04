@@ -8,7 +8,7 @@ import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
 import { hostWithUser, imessageHarness } from "./support/imessage";
 import { createTestRequest } from "./support/requests";
 
-// Switching the linked conversation in words (host-imessage-channel D25, #125):
+// Switching the linked conversation in words (host-imessage-channel D26, #125):
 // from a message in the linked iMessage, the assistant's switch_conversation
 // selects a request named by reference or requester name, or setup, so the
 // host's next plain message reaches that discussion; an ambiguous or unknown

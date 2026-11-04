@@ -22,7 +22,7 @@ Non-goals: host control over revised requests (U19); SMS for guests; a guest acc
 
 The booking page shows **Get updates in iMessage** inside the host-approval waiting card (U22). Pressing it asks the server for a link code owned by the request (a third owner kind on `imessage_links`, beside the host account and the iMessage-start browser) and at once opens Messages with `Get Find Me a Time updates: FMAT-…` addressed to the line, using the host's deep-link forms (`deepLinkFor`, `messagesPlatform` in `lib/contracts/imessage.ts`) and the QR code fallback on desktops; a Mac also gets **Open Messages on this Mac** with the same `&body=` link, as on the host's link screens (host-imessage-channel D17), and pressing **Get updates in iMessage** there opens nothing by itself. The code family, lifetime and limits follow host-imessage-channel D5 (`FMAT-` plus ten Crockford characters, 15 minutes, hashed and sealed, at most 5 per request per hour), so the existing redaction already removes it everywhere.
 
-When the message arrives, `receiveLinkCode` records the masked sender on the attempt; the booking page polls the attempt and shows the masked sender with **Confirm and link**. Only that click, by the holder of the booking link, binds. Then the line sends a fixed welcome as a reply in that conversation.
+When the message arrives, `receiveLinkCode` records the sender on the attempt; the booking page polls the attempt and shows the sender in full (since #118) with **Confirm and link**. Only that click, by the holder of the booking link, binds. Then the line sends a fixed welcome as a reply in that conversation.
 
 A code from a sender who already has an active host binding still links. The guest binding is separate (section 2), so a host can receive their guest notices in the same conversation.
 
@@ -67,7 +67,7 @@ The text is short: what happened, the time with its named timezone, and what to 
 
 **Context (D6).** The revised discussion starts with an authored application message, shown as a quiet note like the pre-D13 intake summary. It gives the earlier request's purpose and details and lists the times proposed before and says whether "the host declined" (with the declined time), "the request expired" or "you withdrew it". It never includes the host's notes, rules, exception reasons or private discussion. The guest's message follows as the first input, so the assistant asks for new times.
 
-**Host view.** `/app` and the host's iMessage summary for the new request say that it follows their earlier decline, the earlier request's expiry or the guest's withdrawal, with the earlier request's reference.
+**Host view.** `/app` and the host's iMessage summary (since 2026-11-04 the awaiting-approval summary, `host-imessage-channel` D25) say that it follows their earlier decline, the earlier request's expiry or the guest's withdrawal, with the earlier request's reference.
 
 Rejected: reopening the closed request (breaks the closure guard and replay safety). Copying the earlier times (they failed or lapsed). One revised request per first request (a guest could not try again after a second decline). A per-minute limit (the predecessor's closure already paces creation).
 

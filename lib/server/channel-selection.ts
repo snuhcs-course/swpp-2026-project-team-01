@@ -6,7 +6,7 @@ import { listHostRequests } from "./host-requests";
 import { requestRef } from "./request-ref";
 import type { SessionPrincipal } from "./setup-tools";
 
-// Switching the linked conversation in words (host-imessage-channel D25,
+// Switching the linked conversation in words (host-imessage-channel D26,
 // issue #125). The binding's selected request decides where the host's free
 // text goes: a request's private review, or setup when none is selected. The
 // exact commands `request <ref>` and `setup` change it; this tool lets the
