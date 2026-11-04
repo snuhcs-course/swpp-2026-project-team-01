@@ -45,7 +45,9 @@ export function ChatComposer({
 }) {
   const composerId = useId();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const textareaDisabled = disabled || isBusy || isPreparing;
+  // While Thyme answers, the host or guest may type the next message; sending
+  // waits for the turn to end (#119).
+  const textareaDisabled = disabled || isPreparing;
   const trimmedValue = value.trim();
   const isOverMaxLength = getChatMessageLength(trimmedValue) > maxLength;
 
@@ -96,7 +98,7 @@ export function ChatComposer({
         Message Thyme
       </label>
       <InputGroup
-        className="rounded-xl bg-card shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0"
+        className="rounded-xl bg-card shadow-none has-[[data-slot=input-group-control]:focus-visible]:border-input has-[[data-slot=input-group-control]:focus-visible]:ring-0"
         data-chat-composer
         data-disabled={textareaDisabled || undefined}
       >
