@@ -496,9 +496,11 @@ Fixture and local-stack evidence only.
 | `PHOTON_WHATSAPP_NUMBER` | 2026-11-04 | — | Set to `17114549153` on `findmeatime-release` Production |
 | `vercel deploy --prod` from a clean checkout | 2026-11-04 | `44c71257` | Ready and aliased to `https://findmeatime.com` |
 | Read-only checks | 2026-11-04 | `44c71257` | `/` and `/?flow=whatsapp` answer 200; `GET /api/imessage/start` names both channels with the WhatsApp number; an unsigned `POST /photon/webhook` is refused |
+| Link attempt from a phone | 2026-11-04 | `db1e4e67` | Failed: four link codes were created between 04:27 and 04:33 UTC, but `/photon/webhook` received no delivery. Photon reports the line `BANNED`; Meta disabled the WhatsApp Business Account on 2026-11-03 at 18:41 UTC ([provider setup](03_provider_setup.md#whatsapp-business)) |
 
 ### Known gaps
 
+- **WhatsApp Business Account disabled.** Meta disabled the account on 2026-11-03 for a "breach of terms of acceptable use", and the line is `BANNED`. Every real-device check below waits for Meta's review.
 - **No real WhatsApp event or send.** The platform spelling, the contact ID format and where Photon carries Meta's error code come from the provider package and Photon's documentation; the one-event capture (task 5.1) is blocked on the user.
 - **Templates not registered.** The three templates of design 8 are not in WhatsApp Manager, so `template_unavailable` is what production would answer until they are approved.
 - **Refusals Meta reports after acceptance** (a 131047 in a status event) are not observed; the dispatch-time window check is the safeguard.
