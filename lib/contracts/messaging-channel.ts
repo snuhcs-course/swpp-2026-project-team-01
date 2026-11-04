@@ -6,6 +6,11 @@ export const MESSAGING_CHANNELS = ["imessage", "whatsapp"] as const;
 
 export type MessagingChannel = (typeof MESSAGING_CHANNELS)[number];
 
+// The channels the receipts, links, bindings and outbox can record. Telegram
+// (host-telegram-channel D4) is stored from Lane A on; the device rule, the
+// screens and linking offer it from Lane B on, when it joins MESSAGING_CHANNELS.
+export type StoredChannel = MessagingChannel | "telegram";
+
 export function isMessagingChannel(value: unknown): value is MessagingChannel {
   return value === "imessage" || value === "whatsapp";
 }

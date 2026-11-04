@@ -17,7 +17,7 @@
 -- text_ciphertext; it is never retried and never counts as a delivery.
 CREATE TABLE "app"."imessage_outbox" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp')),
+  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp', 'telegram')),
   "kind" text NOT NULL CHECK (
     "kind" IN (
       'link_received', 'link_refused', 'linked', 'fallback_code', 'unlinked_sender', 'text_only',

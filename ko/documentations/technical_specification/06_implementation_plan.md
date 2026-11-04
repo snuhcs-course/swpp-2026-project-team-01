@@ -284,7 +284,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **레인 B — 웹 워크스페이스의 연동 카드**
 
-- [x] **iMessage 연결(Connect iMessage)**은 서버에서 일회용 연결 코드를 받아 곧바로 메시지 앱을 엽니다. 수신자는 회선 번호이고 입력란에는 정확한 연결 메시지가 들어갑니다(iOS는 `sms:<number>&body=<text>`, Android는 `sms:<number>?body=<text>`); 메시지 앱을 열 수 없는 곳에서는 인라인 카드가 번호, 코드, **복사(Copy)**, 같은 딥링크의 QR 코드를 보여 줍니다. 이어서 발신자에 대한 **확인 및 연결(Confirm and link)**, 서비스 발송 6자리 대체 경로(**코드를 대신 보내 주세요(Send me a code instead)**)와 보호된 코드 입력란, 만료 및 재전송 한도, 연결 해제, **나중에(Maybe later)**. 메시지 앱을 여는 것은 연결로 간주되지 않습니다.
+- [x] **iMessage 연결(Connect iMessage)**은 서버에서 일회용 연결 코드를 받아 곧바로 메시지 앱을 엽니다. 수신자는 회선 번호이고 입력란에는 정확한 연결 메시지가 들어갑니다(iOS는 `sms:<number>&body=<text>`, Android는 `sms:<number>?body=<text>`); 메시지 앱을 열 수 없는 곳에서는 인라인 카드가 번호, 코드, **복사(Copy)**, 같은 딥링크의 QR 코드를 보여 줍니다. 이어서 마스킹된 발신자의 **확인 및 연결(Confirm and link)**, 서비스 발송 6자리 대체 경로(**코드를 대신 보내 주세요(Send me a code instead)**)와 보호된 코드 입력란, 만료 및 재전송 한도, 연결 해제, **나중에(Maybe later)**. 메시지 앱을 여는 것은 연결로 간주되지 않습니다.
 - [x] 큐에 있음, 수락됨, 실패, 불확실의 상태를 사실대로 보여 주는 선택 사항인 **연락처에 추가(Add to contacts)** 카드.
 
 **레인 C — 채널과 명령**
@@ -410,7 +410,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **레인 B — 브라우저에서의 연동**
 
-- [x] `wa.me` 링크, QR 코드, **복사(Copy)**, 번호에 대한 **확인 및 연결(Confirm and link)**을 갖춘 **WhatsApp 연결(Connect WhatsApp)**; 기기 규칙(Android는 WhatsApp, Apple 기기는 **대신 WhatsApp 사용(Use WhatsApp instead)**이 있는 iMessage, 그 밖의 컴퓨터는 질문); 교체 안내와 옵트인 문장; 로그인 뒤의 연동 단계와 `/?flow=whatsapp`.
+- [x] `wa.me` 링크, QR 코드, **복사(Copy)**, 마스킹된 번호의 **확인 및 연결(Confirm and link)**을 갖춘 **WhatsApp 연결(Connect WhatsApp)**; 기기 규칙(Android는 WhatsApp, Apple 기기는 **대신 WhatsApp 사용(Use WhatsApp instead)**이 있는 iMessage, 그 밖의 컴퓨터는 질문); 교체 안내와 옵트인 문장; 로그인 뒤의 연동 단계와 `/?flow=whatsapp`.
 - [x] 호스트당 채널 전체에서 활성 바인딩 하나, 확인 시 다른 채널의 바인딩 종료.
 
 **레인 C — 창, 템플릿, 채널 동작**
@@ -423,8 +423,8 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 - [x] 제안서, 설계 11, 델타 명세, 결정 기록의 D15–D17.
 - [ ] D15–D17에 대한 팀원 검토.
-- [x] WhatsApp `signal` 행: 입력 중 표시와 함께 읽음, 감사 인사에는 ❤️.
-- [x] 창 안의 결정 요약에 붙는 답장 버튼, 버튼 답장 파싱, `WHATSAPP_BUTTONS` 스위치. 미해결: `WHATSAPP_BUTTONS=1`을 설정하기 전에 프로덕션 회선에서 버튼 답장 페이로드를 확인합니다(작업 7.5).
+- [ ] WhatsApp `signal` 행: 입력 중 표시와 함께 읽음, 감사 인사에는 ❤️.
+- [ ] 창 안의 결정 요약에 붙는 답장 버튼, 버튼 답장 파싱, `WHATSAPP_BUTTONS` 스위치.
 
 **합류**
 
@@ -453,9 +453,9 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **레인 A — 웹훅, 기록, 전송**
 
-- [ ] 네 개의 `imessage_*` 테이블의 `channel` 검사에 `telegram`을 pg-delta로 추가.
-- [ ] 시크릿 헤더가 있는 `POST /telegram/webhook`, 업데이트와 콜백 파서, `telegram:` 발신자 네임스페이스.
-- [ ] Bot API 클라이언트, 오류 매핑, 대화 간격 조정과 분할, 대역의 Telegram 분기, `npm run telegram:webhook`.
+- [x] 네 개의 `imessage_*` 테이블의 `channel` 검사에 `telegram`을 pg-delta로 추가.
+- [x] 시크릿 헤더가 있는 `POST /telegram/webhook`, 업데이트와 콜백 파서, `telegram:` 발신자 네임스페이스.
+- [x] Bot API 클라이언트, 오류 매핑, 대화 간격 조정과 분할, 대역의 Telegram 분기, `npm run telegram:webhook`.
 
 **레인 B — 브라우저에서의 연동**
 

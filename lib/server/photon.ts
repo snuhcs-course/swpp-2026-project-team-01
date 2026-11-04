@@ -1,5 +1,5 @@
 import { E164_NUMBER } from "../contracts/imessage";
-import type { MessagingChannel } from "../contracts/messaging-channel";
+import type { StoredChannel } from "../contracts/messaging-channel";
 import { deploymentEnvironment } from "./deployment";
 import { gateTransport, type MessagingTransport } from "./messaging";
 import { whatsAppSendFailure } from "./whatsapp";
@@ -59,7 +59,7 @@ export type PhotonContent =
   | { readonly kind: "template"; readonly name: string; readonly languageCode: string; readonly params: readonly string[] };
 
 export type PhotonSendRequest = {
-  readonly channel: MessagingChannel;
+  readonly channel: StoredChannel;
   readonly recipient: PhotonRecipient;
   readonly content: PhotonContent;
   // The outbox row's ID; the stand-in records it, Spectrum has no field for it.
@@ -74,12 +74,15 @@ export type PhotonRejection =
   // WhatsApp (D10): outside the 24-hour window; no WhatsApp account or not deliverable; a template Meta has not approved.
   | "window_closed"
   | "undeliverable"
-  | "template_unavailable";
+  | "template_unavailable"
+  // Telegram (host-telegram-channel D11): the user blocked or deleted the bot.
+  | "blocked";
 
 export type PhotonSendResult =
   | { readonly status: "accepted"; readonly messageId: string | null; readonly spaceId: string | null }
   | { readonly status: "rejected"; readonly category: PhotonRejection }
-  | { readonly status: "unavailable" }
+  // Telegram's 429 names how long to wait before trying again.
+  | { readonly status: "unavailable"; readonly retryAfterSeconds?: number | null }
   | { readonly status: "uncertain" };
 
 export type PhotonTransport = MessagingTransport<PhotonSendRequest, PhotonSendResult>;
