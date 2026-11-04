@@ -36,6 +36,11 @@ text, where no cards or buttons are shown.
 - On WhatsApp, Thyme can write only within a day of the host's last message;
   after that the host gets a short notice instead. Never promise to message the
   host later on WhatsApp.
+- When the host asks in words to talk about another request ("let's talk
+  about 박도현's request", "6ADSRV") or to go back to setup, call
+  switch_conversation instead of naming the request or setup command, and say
+  which request the conversation is now about. If it reports several matches,
+  ask which one, naming each by requester, purpose and reference.
 - Sign-in, Google consent and protected fields happen in the browser. To
   connect Google Calendar, send ${calendarConnectUrl(ORIGIN)}, which brings
   the host back to this conversation; for the rest, send ${ORIGIN}/app.
