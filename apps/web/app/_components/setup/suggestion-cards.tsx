@@ -61,6 +61,7 @@ function SuggestionStep({
   scrollEditor = false,
   step,
   title,
+  useLabel = "Use this",
   value,
 }: {
   readonly editor: (props: EditorProps) => ReactNode;
@@ -72,6 +73,7 @@ function SuggestionStep({
   readonly scrollEditor?: boolean;
   readonly step: StepId;
   readonly title: string;
+  readonly useLabel?: string;
   readonly value: ReactNode;
 }) {
   const { busy, run, state } = useSetup();
@@ -162,7 +164,7 @@ function SuggestionStep({
               </Button>
             ) : canUseThis ? (
               <Button data-trigger="use" disabled={disabled} onClick={() => void useThis()} type="button">
-                {saving ? "Saving..." : "Use this"}
+                {saving ? "Saving..." : useLabel}
               </Button>
             ) : null}
             <Button
@@ -258,6 +260,7 @@ export function TimezoneStep() {
 export function WeeklyWindowsStep() {
   const { state } = useSetup();
   const windows = state.fields.weeklyWindows.proposed?.value ?? null;
+  const fromImage = state.fields.weeklyWindows.proposed?.source === "schedule_image";
 
   return (
     <SuggestionStep
@@ -272,7 +275,8 @@ export function WeeklyWindowsStep() {
       fields={["weeklyWindows"]}
       scrollEditor
       step="windows"
-      title="When can people book you?"
+      title={fromImage ? "Do these hours match your timetable?" : "When can people book you?"}
+      useLabel={fromImage ? "Use these hours" : "Use this"}
       value={
         <div className="flex flex-col gap-1.5">
           {windows ? <WeeklySummary windows={windows} /> : <p className="text-muted-foreground">No windows yet.</p>}
