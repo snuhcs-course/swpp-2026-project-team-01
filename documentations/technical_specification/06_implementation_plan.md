@@ -421,8 +421,8 @@ Scope. Prerequisite: Phase 6, whose receiver, tables, commands, outbox and cards
 
 - [x] D15–D17 in the proposal, design 11, the delta spec and the decision log.
 - [ ] Teammate review of D15–D17.
-- [ ] WhatsApp `signal` rows: read with typing, ❤️ for thanks.
-- [ ] Reply buttons on decision summaries inside the window, button-reply parsing and the `WHATSAPP_BUTTONS` switch.
+- [x] WhatsApp `signal` rows: read with typing, ❤️ for thanks.
+- [x] Reply buttons on decision summaries inside the window, button-reply parsing and the `WHATSAPP_BUTTONS` switch. Open: the button-reply payload is confirmed on the production line (task 7.5) before `WHATSAPP_BUTTONS=1` is set.
 
 **Join**
 

@@ -146,6 +146,7 @@ Photon의 문서와 공급자 패키지에서 확인한 사실이며, 아직 실
 2. 표시 이름 "Find Me a Time"과 비즈니스 검증을 확인합니다. 2026-11-04에 이 번호는 "ASTIA - Something Great Inc" 포트폴리오에 표시 이름 **Astia**로 연결되어 있었으며, 템플릿을 제출하기 전에 이를 변경하거나 번호를 Find Me a Time 포트폴리오로 옮깁니다. 번호는 **+1 711-454-9153**이며, 메시징 한도는 **롤링 24시간당 고객 250명**(사용자, 2026-11-04)으로, 비즈니스 검증 전 Meta의 등급입니다. 이 한도는 비즈니스 발신 대화, 여기서는 템플릿 알림만 집계하므로, 하루 템플릿 50건이라는 기본값은 한도 안에 머뭅니다.
 3. `PHOTON_WHATSAPP_NUMBER=17114549153`(카드와 `https://wa.me/17114549153`용 숫자)를, 그리고 기본값 50이 맞지 않으면 `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT`를 Vercel Production에만 설정합니다. 프리뷰와 스테이징은 메시징을 계속 거부합니다.
 4. 통제된 Android 폰에서 번호로 메시지 하나를 보내 저장된 수신 기록의 채널이 `whatsapp`인지 확인합니다. 정확한 `platform` 철자와 발신자 형식을 변경과 여기에 기록합니다. 그다음 AC-29–AC-31을 실행합니다.
+5. 답장 버튼 페이로드를 확인합니다([설계 11](../../openspec/changes/host-whatsapp-channel/design.md#11-read-marks-typing-reactions-and-decision-buttons-d15d17), 작업 7.5). 통제된 실행을 위해 Vercel Production에 `WHATSAPP_BUTTONS=1`을 설정하고, 통제된 폰에서 **Approve**를 탭한 뒤 저장된 수신 기록을 확인합니다. `content_type`이 `button`이고 승인이 기록되면 페이로드가 버튼의 ID를 담고 있다는 뜻이므로 스위치를 켜 둡니다. 그 밖의 콘텐츠 유형이면 담고 있지 않다는 뜻이므로 `WHATSAPP_BUTTONS`를 해제하고 페이로드 형태를 기록합니다.
 
 사용자의 승인 없이는 에이전트 세션에서 Photon 프로젝트의 플랫폼, 회선, 웹훅을 바꾸거나, 템플릿을 등록하거나, WhatsApp 메시지를 보내서는 안 됩니다.
 

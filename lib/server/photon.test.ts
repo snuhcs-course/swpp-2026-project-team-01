@@ -1,5 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { photonConfig, photonRegistrar, photonTransport, SPECTRUM_ENDPOINT, spectrumTransport, standInTransport } from "./photon";
+import {
+  MAX_INTERACTIVE_BODY,
+  photonConfig,
+  photonRegistrar,
+  photonTransport,
+  sendInParts,
+  SPECTRUM_ENDPOINT,
+  spectrumTransport,
+  standInTransport,
+  whatsAppButtonParts,
+} from "./photon";
 
 // The transport's outcome classification and the messaging gate
 // (host-imessage-channel design 3): a stand-in answer maps to accepted,
@@ -76,10 +86,14 @@ describe("signals", () => {
     expect(JSON.parse(String(init.body))).toMatchObject({ content: signal.content });
   });
 
-  it("refuses a signal with no conversation, and on WhatsApp, before any network access", async () => {
+  it("refuses a signal with no conversation, and on WhatsApp one with no message, before any network access", async () => {
     const spectrum = spectrumTransport({ projectId: "p", projectSecret: "s" });
     expect(await spectrum.send({ ...signal, recipient: { ...signal.recipient, spaceId: null } })).toEqual({ category: "invalid_recipient", status: "rejected" });
-    expect(await spectrum.send({ ...signal, channel: "whatsapp" })).toEqual({ category: "provider_rejected", status: "rejected" });
+    expect(await spectrum.send({ ...signal, channel: "whatsapp", content: { ...signal.content, messageId: null } })).toEqual({
+      category: "invalid_recipient",
+      status: "rejected",
+    });
+    expect(await spectrum.send({ ...signal, channel: "whatsapp", content: { kind: "contact_card" } })).toEqual({ category: "provider_rejected", status: "rejected" });
   });
 });
 
@@ -110,6 +124,41 @@ describe("WhatsApp sends", () => {
   it("refuses WhatsApp in a preview before any network access", async () => {
     const preview = { PHOTON_API_URL: "http://127.0.0.1:4100", VERCEL: "1", VERCEL_ENV: "preview", VERCEL_TARGET_ENV: "preview" };
     await expect(photonTransport(photonConfig(preview), preview).send(whatsapp)).rejects.toMatchObject({ category: "unavailable_configuration" });
+  });
+
+  it("sends a short summary with buttons as one interactive message", async () => {
+    const fetcher = answering(200, { messageId: "wamid.2" });
+    const content = { buttons: { items: [{ id: "a:K7Q2MX-1", title: "Approve" }], prompt: "Decide on request K7Q2MX?" }, kind: "text" as const, text: "Ready." };
+    expect(await standInTransport("http://127.0.0.1:9", "s", fetcher).send({ ...whatsapp, content })).toMatchObject({ messageId: "wamid.2", status: "accepted" });
+    const calls = (fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls as [string, RequestInit][];
+    expect(calls.map(([, init]) => JSON.parse(String(init.body)).content)).toEqual([{ body: "Ready.", buttons: content.buttons.items, kind: "interactive" }]);
+  });
+
+  it("splits a long summary into the text and a short question with the buttons, keeping the text when the buttons fail", async () => {
+    const long = "x".repeat(MAX_INTERACTIVE_BODY + 1);
+    const buttons = { items: [{ id: "a:K7Q2MX-1", title: "Approve" }], prompt: "Decide on request K7Q2MX?" };
+    expect(whatsAppButtonParts(long, buttons)).toEqual([
+      { kind: "text", text: long },
+      { body: "Decide on request K7Q2MX?", buttons: buttons.items, kind: "interactive" },
+    ]);
+    expect(whatsAppButtonParts("x".repeat(MAX_INTERACTIVE_BODY), buttons)).toHaveLength(1);
+
+    let call = 0;
+    const answers = [{ messageId: "wamid.text" }, { messageId: "wamid.buttons" }];
+    const both = vi.fn(async () => new Response(JSON.stringify(answers[call++]), { status: 200 })) as unknown as typeof fetch;
+    expect(await standInTransport("http://127.0.0.1:9", "s", both).send({ ...whatsapp, content: { buttons, kind: "text", text: long } })).toMatchObject({
+      messageId: "wamid.buttons",
+      status: "accepted",
+    });
+    const keys = ((both as unknown as ReturnType<typeof vi.fn>).mock.calls as [string, RequestInit][]).map(([, init]) => (init.headers as Record<string, string>)["idempotency-key"]);
+    expect(keys).toEqual(["o1", "o1:1"]);
+
+    expect(await sendInParts(["text", "buttons"], async (part) => (part === "text" ? { messageId: "wamid.text", spaceId: null, status: "accepted" } : { status: "uncertain" }))).toEqual({
+      messageId: "wamid.text",
+      spaceId: null,
+      status: "accepted",
+    });
+    expect(await sendInParts(["text", "buttons"], async () => ({ category: "window_closed", status: "rejected" }))).toEqual({ category: "window_closed", status: "rejected" });
   });
 
   it("reads the WhatsApp number as digits", () => {
