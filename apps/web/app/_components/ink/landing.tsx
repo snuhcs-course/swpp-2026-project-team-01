@@ -1,52 +1,23 @@
 import type { MessagingChannel } from "@lib/contracts/messaging-channel";
-import { Brand, InkStage, LanguageSelect } from "./chrome";
+import { InkStage } from "./chrome";
 import { COPY, type Locale } from "./copy";
 import { ImessageStart, ImessageStartBlock } from "./imessage-start";
 import { Features } from "./landing-features";
-import { AgentSection, GoogleStart, LiveThread } from "./landing-parts";
+import { FloatHero } from "./landing-float";
+import { AgentSection, GoogleStart } from "./landing-parts";
 import "./landing.css";
 
-// The public landing. The first screen is a spread: the headline and the way in on paper, and Thyme's example
-// conversations playing on the ink-blue page beside it, each named for what it shows. Then what the service does,
-// the three steps, the agent way in and the footer.
+// The public landing. The first screen is the headline and the way in over a faint week of calendar, with glass cards
+// of what Thyme does around them (landing-float.tsx), then Thyme's example conversations on an ink-blue band, each
+// named for what it shows. Then what the service does, the three steps, the agent way in and the footer.
 // Two starts: Google first (/), and a messaging app first (/?flow=imessage or /?flow=whatsapp), where the visitor
 // sends Thyme the link message before signing in.
 export function Landing({ flow, locale }: { readonly flow: MessagingChannel | null; readonly locale: Locale }) {
   const t = COPY[locale].landing;
-  const start = flow ? <ImessageStartBlock locale={locale} /> : <GoogleStart locale={locale} />;
+  const start = flow ? <ImessageStartBlock locale={locale} /> : <GoogleStart choice={false} locale={locale} />;
   const page = (
     <div className="ld" data-screen="landing">
-      <div className="ld-spread">
-        <div className="ld-paper">
-          <header className="ld-top">
-            <Brand />
-            <div className="ld-actions">
-              <LanguageSelect locale={locale} />
-              <a className="ld-signin" href="/auth/sign-in">
-                {t.signIn}
-              </a>
-            </div>
-          </header>
-
-          <main className="ld-pitch">
-            <h1>
-              {t.headline.map((line) => (
-                <span key={line}>{line}</span>
-              ))}
-            </h1>
-            <p className="ld-lede">{t.lede}</p>
-            <div className="start ld-start">{start}</div>
-            <a className="ld-to-agent" href="#agent">
-              {t.agentOr}
-              <span aria-hidden="true"> ↓</span>
-            </a>
-          </main>
-        </div>
-
-        <div className="ld-page">
-          <LiveThread locale={locale} />
-        </div>
-      </div>
+      <FloatHero locale={locale} start={start} />
 
       <Features locale={locale} />
 

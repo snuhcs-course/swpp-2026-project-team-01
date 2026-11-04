@@ -10,8 +10,9 @@ import { GoogleLogo } from "./icons";
 
 // Sign-in always returns to /app. With the Calendar box checked, the same Google consent also grants Calendar
 // access (main's default); unchecked, it asks for identity only, and Calendar is connected later in setup.
-// The iMessage start's handoff screen reuses it.
-export function GoogleStart({ locale }: { readonly locale: Locale }) {
+// The iMessage start's handoff screen reuses it. Without `choice` (the landing's own start) there is no box, and
+// sign-in always asks for Calendar too.
+export function GoogleStart({ choice = true, locale }: { readonly choice?: boolean; readonly locale: Locale }) {
   const t = COPY[locale].landing;
   const [calendar, setCalendar] = useState(true);
   return (
@@ -20,13 +21,15 @@ export function GoogleStart({ locale }: { readonly locale: Locale }) {
         <GoogleLogo />
         <span>{t.google}</span>
       </a>
-      <label className="check" htmlFor="cal">
-        <input checked={calendar} id="cal" onChange={(event) => setCalendar(event.target.checked)} type="checkbox" />
-        <span>
-          {t.calendar}
-          <small>{t.calendarNote}</small>
-        </span>
-      </label>
+      {choice ? (
+        <label className="check" htmlFor="cal">
+          <input checked={calendar} id="cal" onChange={(event) => setCalendar(event.target.checked)} type="checkbox" />
+          <span>
+            {t.calendar}
+            <small>{t.calendarNote}</small>
+          </span>
+        </label>
+      ) : null}
     </>
   );
 }

@@ -29,7 +29,7 @@ const en = {
   landing: {
     signIn: "Sign in",
     headline: ["The assistant that", "negotiates your meetings."],
-    lede: "Setting up a meeting is tiring, isn't it? Send anyone your link without showing your calendar. Thyme works out the time with them and texts you the plan. You just reply back.",
+    lede: "Share your link. Thyme settles the time and books it once you say OK.",
     google: "Continue with Google",
     calendar: "Connect my Google Calendar too",
     calendarNote: "Thyme reads when you're busy. Nothing is booked until you say OK.",
@@ -265,7 +265,7 @@ const ko: Copy = {
   landing: {
     signIn: "로그인",
     headline: ["미팅 시간을", "대신 협상하는 비서."],
-    lede: "미팅 시간 잡기, 번거롭죠? 캘린더를 보여 주지 않고도 누구에게나 링크를 보내세요. Thyme이 상대와 시간을 맞추고 계획을 문자로 알려 드려요. 답장만 하면 돼요.",
+    lede: "링크만 보내세요. 시간은 Thyme이 맞추고, 당신이 OK하면 예약해요.",
     google: "Google로 계속하기",
     calendar: "Google Calendar도 함께 연결",
     calendarNote: "Thyme은 바쁜 시간만 읽어요. 확인하기 전에는 아무것도 예약하지 않아요.",

@@ -1,7 +1,7 @@
 ---
 title: Find Me a Time — Visual Design
 date: 2026-11-04
-status: Serif-spread ink design ("D") for every screen; awaiting review by the design owner
+status: Serif ink design ("D") for every screen, with the landing's first screen from "G"; awaiting review by the design owner
 colors:
   canvas: "#F6F7F9"
   surface: "#FFFFFF"
@@ -55,15 +55,15 @@ material:
 
 ## Scope and ownership
 
-This document defines the look of every screen: the landing, the iMessage and WhatsApp start and link step, the `/app` host workspace and setup, the host's requests, the settings dialog, the guest's booking-link landing (`/[handle]`) and booking page (`/booking/…`), sign-in, the legal pages and the unavailable page. It describes the direction called "D", a serif spread with a live conversation, which replaced the condensed Big Shoulders landing in November 2026.
+This document defines the look of every screen: the landing, the iMessage and WhatsApp start and link step, the `/app` host workspace and setup, the host's requests, the settings dialog, the guest's booking-link landing (`/[handle]`) and booking page (`/booking/…`), sign-in, the legal pages and the unavailable page. It describes the direction called "D", a serif spread with a live conversation, which replaced the condensed Big Shoulders landing in November 2026. On 2026-11-04 the landing's first screen moved from the spread to "G": the headline centred over a faint week of calendar, with glass cards of what Thyme does in two columns around it. Sign-in keeps the spread.
 
-The 2026-10-12 kickoff gave the design system and UX flow to 은우, who chose on 2026-10-29 to make the ink palette the direction for every screen. D keeps that palette and changes everything else: type, shapes, surfaces and the landing's layout. **This change needs 은우's review as design owner before it is treated as settled.**
+The 2026-10-12 kickoff gave the design system and UX flow to 은우, who chose on 2026-10-29 to make the ink palette the direction for every screen. D and G keep that palette and change everything else: type, shapes, surfaces and the landing's layout. **This change needs 은우's review as design owner before it is treated as settled.**
 
 **Find Me a Time** is the product; **Thyme** is its scheduling assistant. The [design principles](documentations/03_design_principles.md) own interaction direction. The [one-pager](documentations/01_one_pager.md), [PRD](documentations/02_product_requirements.md), and [capability specifications](openspec/specs/) own product scope and behavior. Visual styling must preserve their consent, privacy, and booking rules.
 
-The serif spread followed [orchid.ai](https://orchid.ai), [gradient-labs.ai](https://gradient-labs.ai) and editorial pages collected on A1 Gallery. For component structure, message and composer interactions, study the Vercel chatbot and the eve chat template listed in the [reference repositories](documentations/technical_specification/02_frontend_architecture.md#reference-repositories) and adapt their shapes to this document.
+The serif spread followed [orchid.ai](https://orchid.ai), [gradient-labs.ai](https://gradient-labs.ai) and editorial pages collected on A1 Gallery; the landing's floating cards followed Daisy AI and Superpower on [supahero.io](https://supahero.io). For component structure, message and composer interactions, study the Vercel chatbot and the eve chat template listed in the [reference repositories](documentations/technical_specification/02_frontend_architecture.md#reference-repositories) and adapt their shapes to this document.
 
-**Where it is implemented.** The tokens live on `:root` in `apps/web/app/globals.css`, mapped onto the shadcn roles, so every Tailwind screen takes them. The shared recipes (pill buttons, chat bubbles, dialogs, menus, the wordmark lockup and the switch) are in the same file and in `apps/web/components/ui/`. The ink screens' own parts (link step, send panel, guest booking-link landing and web chat frame) are in `apps/web/app/_components/ink/ink.css` under `.ink`; the landing and the sign-in spread are in `landing.css`.
+**Where it is implemented.** The tokens live on `:root` in `apps/web/app/globals.css`, mapped onto the shadcn roles, so every Tailwind screen takes them. The shared recipes (pill buttons, chat bubbles, dialogs, menus, the wordmark lockup and the switch) are in the same file and in `apps/web/components/ui/`. The ink screens' own parts (link step, send panel, guest booking-link landing and web chat frame) are in `apps/web/app/_components/ink/ink.css` under `.ink`; the landing and the sign-in spread are in `landing.css`, and the landing's first screen in `landing-float.css`.
 
 ## Mood
 
@@ -98,7 +98,7 @@ A new logo is in progress (2026-10-14 meeting): a calligraphic mark, an SVG favi
 | Focus | `focus` | `#2C3E63` | Keyboard focus outlines |
 | Logo | `logo` | `#4A5E85` | Kept for printed and single-colour uses; the mark on screen is `primary` |
 | Error / attention / success | `destructive`, `warning`, `success` | `#9B3F35`, `#77591F`, `#3F6142` | Status text and tinted notices |
-| Ink-blue page | `panel` | `#2C3E63` | The landing's and sign-in's conversation page |
+| Ink-blue page | `panel` | `#2C3E63` | The landing's conversation band and sign-in's conversation page |
 | On the page | `panel-bubble`, `panel-me`, `panel-mist` | `#3A4D74`, `#DCE3F1`, `#C3CEE4` | Thyme's bubble, the person's bubble, quiet text |
 | Ink night | `night` | `#1E2430` | The agent section and every agent prompt |
 | On the night | `night-raise`, `night-muted`, `night-accent` | `#283041`, `#A9B3C5`, `#93A9D6` | Raised block, quiet text, links |
@@ -121,14 +121,14 @@ The paper is flat. There is no grain or texture layer, and nothing at rest casts
 - **Rows inside a white card** take `soft-surface`, separated by gaps or 2px white dividers instead of hairlines.
 - **The ink-blue page** (`panel`) carries a live conversation; **the ink night** (`night`) carries agent prompts and the agent section.
 
-Floating menus, the popup and dialogs are the only surfaces with a shadow (`--float-shadow`, `0 24px 60px rgb(30 36 48 / 0.18)`).
+Floating menus, the popup and dialogs are the only surfaces with a shadow (`--float-shadow`, `0 24px 60px rgb(30 36 48 / 0.18)`). The one exception is the landing's first screen: its cards are glass over the calendar week, blurring and tinting what passes under them (`backdrop-filter: blur(18px) saturate(180%)`, a white gradient fill, a bright inner top edge) with a soft `0 12px 36px` shadow, and solid white where `backdrop-filter` is not supported.
 
 ## Typography
 
 | Role | Face | Size | Weight | Line height | Usage |
 | --- | --- | --- | --- | --- | --- |
-| Display | Instrument Serif | `clamp(44px, 5.9cqi, 104px)`; 11.6cqi on phones | 400 | 0.96 | Landing headline, sign-in title |
-| Display, Korean | Hahmlet | `clamp(34px, 4.2cqi, 72px)`; 8.2cqi on phones | 500 | 1.2 | Same, in Korean |
+| Display | Instrument Serif | `clamp(44px, 5.9cqi, 104px)` (the landing's centred headline `clamp(44px, 5.6cqi, 92px)`); 11.6cqi on phones | 400 | 0.96–0.98 | Landing headline, sign-in title |
+| Display, Korean | Hahmlet | `clamp(34px, 4.2cqi, 72px)` (landing `clamp(36px, 4.4cqi, 72px)`); 8.2–8.6cqi on phones | 500 | 1.2 | Same, in Korean |
 | Page heading | Instrument Serif | `clamp(36px, 5vw, 60px)` | 400 | 1.02–1.05 | Link step, handoffs, booking, legal and unavailable pages |
 | Section heading (h2) | Instrument Serif | `clamp(30px, 4cqi, 60px)` | 400 | 1.04–1.1 | Landing sections, legal sections, dialog titles (36px) |
 | Card question | Instrument Serif | 26px | 400 | 1.15 | The one question on a conversation card |
@@ -149,9 +149,11 @@ Use a 4px spacing foundation with the frontmatter scale. Gutters are `clamp(20px
 
 Layout responds to the width of the page container (container queries) on the ink screens and to the viewport on Tailwind screens:
 
-- **Above 900px:** the landing and sign-in are a spread, paper 3fr and the ink-blue page 2fr. Feature rows alternate text and picture.
+- **Above 1180px:** the landing's first screen holds the headline in the middle and its cards in two 272px columns at the sides.
+- **1180px and below:** the landing's cards gather in a centred row under the way in.
+- **Above 900px:** sign-in is a spread, paper 3fr and the ink-blue page 2fr. Feature rows alternate text and picture.
 - **900px and below:** the spread stacks: the pitch, then the ink-blue page. Feature rows, the steps and the agent section become one column.
-- **600px and below:** phone sizes: the Google button and handoff buttons are full width, the headline wraps, controls are at least 44px.
+- **600px and below:** phone sizes: the Google button and handoff buttons are full width, the headline wraps, controls are at least 44px. The landing's first screen is pinned for 360px of scrolling: the cards lie in a heap on one day's calendar, scatter as the page scrolls, and the headline rises into their place.
 
 The host conversation keeps the current exchange and composer easy to reach. Give scheduling proposals a clear order: meeting context, proposed date and timezone, duration, location, current state, and permitted next actions. Styling does not change which details or actions each actor may access.
 
@@ -164,7 +166,7 @@ The host conversation keeps the current exchange and composer easy to reach. Giv
 - **Menus** are 16px with 10px, 44px-high rows.
 - Avatars, badges and counters are round.
 
-Do not add hairline lists, glossy highlights, glass effects, simulated paper, or resting shadows.
+Do not add hairline lists, glossy highlights, glass effects, simulated paper, or resting shadows; the landing's glass cards are the one exception.
 
 ## Component recipes
 
@@ -191,7 +193,7 @@ Prefer the shared variants (`Button`, `Bubble`'s `me` variant, `SetupCard`, `Gue
 
 ## Screens
 
-- **Landing (`/`, `/?flow=imessage`, `/?flow=whatsapp`).** A spread: on paper, the wordmark, the language pill and **Sign in**, then the headline "The assistant that / *negotiates your meetings.*" (ko "미팅 시간을 / 대신 협상하는 비서."), the lede, the Google start (or the messaging start) and the link down to the agent section. On the ink-blue page, Thyme's example conversations play one line at a time under a serif caption naming the feature each shows, with progress ticks below. Then "Thyme handles the back-and-forth": five feature rows (negotiation, travel context, privacy, account-free guests, approval), each beside a made-up picture built from the product's own parts on a soft board; three steps beside large italic numerals; the agent section on the ink night; and a footer under a page-wide serif wordmark. All names in the pictures are made up.
+- **Landing (`/`, `/?flow=imessage`, `/?flow=whatsapp`).** The wordmark, the language pill and **Sign in** over a faint week of calendar (day columns, hour rows, pale meeting blocks and the "now" line, at 55% and faded out behind the headline). Centred on it, the headline "The assistant that / *negotiates your meetings.*" (ko "미팅 시간을 / 대신 협상하는 비서."), a one-sentence lede, the Google start with no Calendar box (or the messaging start) and the link down to the agent section. Glass cards stand in two columns at the sides: on the left a guest's question, Thyme's reply, a meeting with its travel time and the host's OK; on the right the times the guest sees, a proposal awaiting approval and "No account". Below, on an ink-blue band, Thyme's example conversations play one line at a time under a serif caption naming the feature each shows, with progress ticks below. Then "Thyme handles the back-and-forth": five feature rows (negotiation, travel context, privacy, account-free guests, approval), each beside a made-up picture built from the product's own parts on a soft board; three steps beside large italic numerals; the agent section on the ink night; and a footer under a page-wide serif wordmark. All names in the pictures are made up.
 - **Sign-in (`/app` signed out).** The same spread: "Your workspace", the serif title, one line, any notice, and **Continue with Google**, beside the live conversation.
 - **Link step and messaging start.** A centred handoff column on paper: serif heading, lede, two pill choices (iMessage, WhatsApp) or the send panel, the status mark while waiting, the received code in serif numerals.
 - **Host workspace (`/app`).** The wordmark lockup and icon buttons in a quiet top bar, the conversation in a 720px column with white Thyme bubbles and `panel-me` replies, one conversation card at a time, and the composer at the bottom. Requests and a request's private and shared discussions use the same parts.
@@ -209,7 +211,7 @@ The other screens at 1440px (landing, sign-in, link step, request review, settin
 
 Use direct, warm copy: "Send Thyme one message," "Set up here in web chat," or "Your calendar is connected." Show Thyme as the assistant identity and Find Me a Time as the product identity. Describe pending, proposed, approved and booked states accurately; only report success once the service confirms it.
 
-Use 150ms colour transitions on controls. On the ink-blue page bubbles pop in over 320ms after a typing mark and captions fade in over 400ms; cards rise 4px over 160ms; the received code slides in over 320ms and the status mark draws once. The live conversation holds still while hovered, focused or off screen. Under `prefers-reduced-motion` every thread shows whole and transitions and animations stop.
+Use 150ms colour transitions on controls. On a phone the landing's cards scatter with scroll position, not on a timer. On the ink-blue page bubbles pop in over 320ms after a typing mark and captions fade in over 400ms; cards rise 4px over 160ms; the received code slides in over 320ms and the status mark draws once. The live conversation holds still while hovered, focused or off screen. Under `prefers-reduced-motion` every thread shows whole, transitions and animations stop, and the phone landing shows the card heap and then the headline, nothing pinned or scattered.
 
 ## Responsive and accessible behavior
 
@@ -225,7 +227,7 @@ Use 150ms colour transitions on controls. On the ink-blue page bubbles pop in ov
 
 **Do:** set headings in the serif, keep running text in Geist at 17px, let the conversation carry the page, separate surfaces by tone, use pill buttons, and state scheduling status explicitly.
 
-**Don't:** bring back Big Shoulders or paper grain, draw hairline lists, add resting shadows, set dense controls or long paragraphs in the serif, use the slate line for small text, or substitute visual calm for clear confirmation.
+**Don't:** bring back Big Shoulders or paper grain, draw hairline lists, add resting shadows outside the landing's glass cards, set dense controls or long paragraphs in the serif, use the slate line for small text, or substitute visual calm for clear confirmation.
 
 ## Implementation mapping
 
@@ -237,7 +239,7 @@ Review a landing page, a conversation with long messages, a proposal awaiting ho
 
 ## Known gaps
 
-- 은우 has not yet reviewed D as design owner.
+- 은우 has not yet reviewed D or the landing's G first screen as design owner.
 - The logo mask is shown at 18–22px with no simplified small-size version. The new calligraphic logo, SVG favicon and chat profile picture are in progress.
 - Host and guest app screens are English only; their Korean headings are styled but untranslated.
 - `warning` and `success` are carried over from the olive palette; recheck them when status badges are built out.

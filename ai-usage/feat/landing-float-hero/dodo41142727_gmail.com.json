@@ -1,0 +1,40 @@
+{
+  "branch": "feat/landing-float-hero",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:7f8eb084-f321-4f84-aee8-80f5f9e9c1cb": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 94,
+          "cache_read": 11228766,
+          "cache_write_5m": 0,
+          "cache_write_1h": 77499,
+          "output": 24937,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T04:52:30.129Z",
+      "last": "2026-11-04T05:06:34.279Z"
+    },
+    "claude:7f8eb084-f321-4f84-aee8-80f5f9e9c1cb/agent-a35784e9346b89b16": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 8,
+          "cache_read": 299338,
+          "cache_write_5m": 123146,
+          "cache_write_1h": 0,
+          "output": 7309,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T04:56:45.626Z",
+      "last": "2026-11-04T05:02:58.488Z"
+    }
+  }
+}
