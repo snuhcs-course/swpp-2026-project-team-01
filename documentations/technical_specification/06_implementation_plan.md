@@ -454,7 +454,7 @@ Scope. Prerequisites: Phases 6 and 9, whose receipts, tables with their `channel
 
 **Lane C — buttons, extras and channel behavior**
 
-- [ ] **Approve**, **Decline** and **Show details** buttons bound to the proposal version, callback answers and button retirement.
+- [x] **Approve**, **Decline** and **Show details** buttons bound to the proposal version, callback answers and button retirement.
 - [ ] Commands with a leading `/`, the command menu, typing, silent delivery, the `[Telegram]` prefix and the host instructions fragment; commands, summaries, setup and admission reused from Phase 6.
 
 **Join**

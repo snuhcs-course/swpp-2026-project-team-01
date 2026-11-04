@@ -549,7 +549,7 @@
 
 ## 10단계 — `host-telegram-channel`
 
-[제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 2026-11-04에 사용자가 봇 `@findmeatime_bot`을 만들고 호스트 채널을 Telegram에 구성해 달라고 요청했습니다. 이 변경을 작성한 세션은 같은 날 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안입니다. 레인 A(작업 2.1–2.4)는 그 검토에 앞서 사용자의 요청으로 웹훅, 레코드, Bot API 전송을 구현하며, 연결과 채널의 동작(레인 B와 C)은 아직 구현되지 않았습니다. 추적 이슈: #111.
+[제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 2026-11-04에 사용자가 봇 `@findmeatime_bot`을 만들고 호스트 채널을 Telegram에 구성해 달라고 요청했습니다. 이 변경을 작성한 세션은 같은 날 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안입니다. 레인 A(작업 2.1–2.4)는 그 검토에 앞서 사용자의 요청으로 웹훅, 레코드, Bot API 전송을 구현하고, 레인 C(작업 4.1–4.3)는 버튼, Telegram 부가 기능, 채널의 동작을 구현합니다. 연결(레인 B)은 별도로 구현됩니다. 추적 이슈: #111.
 
 **이전 경위.** 2026-11-03에 Meta가 9단계의 WhatsApp Business 계정을 "허용되는 사용 정책 위반"을 이유로 메시지를 한 건도 보내기 전에 비활성화했고, 2026-11-04에 사용자의 요청으로 프로덕션에서 `PHOTON_WHATSAPP_NUMBER`를 제거했으므로 카드는 iMessage만 제공합니다([제공자 설정](03_provider_setup.md#whatsapp-business), PR #110).
 
@@ -603,6 +603,19 @@
 | 차단된 전송(작업 2.3) | `403`은 행을 `blocked`로 실패시키고, 그 연결을 끝내며(`unlinked`, 봉인된 값 삭제), 그 연결의 대기 및 큐 행을 `blocked` 범주로 억제합니다. 사용자가 봇을 차단했으므로 확인 메시지는 보내지 않습니다. `my_chat_member` kicked 수신 기록은 레인 C부터 연결을 끝냅니다 | 중지 확인 메시지 보내기 | `lib/server/imessage-outbox.ts`의 `endBlockedBinding` | 작업 4.2 |
 | 대역(작업 2.3) | 형제 파일 `tests/integration/support/fake-telegram.ts`가 `/bot<token>/<method>`에서 일곱 가지 메서드에 답하고, 각 호출을 토큰과 함께 기록하며, `403`(호출별 또는 차단된 대화별), `retry_after`가 있는 `429`, `400`, `5xx`, 끊긴 응답을 위한 스위치를 갖습니다 | `fake-photon.ts`의 Telegram 분기 | `tests/integration/support/fake-telegram.ts` | 그 파일 |
 | 웹훅 스크립트(작업 2.4) | `scripts/telegram-webhook.mjs`(`npm run telegram:webhook`, `npm run admin`처럼 `.env`에 이어 `.env.local`을 읽음)는 아무것도 호출하기 전에 `https://findmeatime.com` 이외의 출처, `A–Z a–z 0–9 _ -` 32~256자를 벗어난 시크릿, 없는 토큰, 루프백이 아닌 `TELEGRAM_API_URL`을 거부합니다. `getWebhookInfo`의 URL, 업데이트 유형, 연결 수, 대기 건수, 마지막 오류를 출력하고 모든 메시지에서 토큰을 지웁니다 | 다른 호스트를 위한 `--force`; CI에서 등록 | `scripts/telegram-webhook.mjs` | 그 파일 |
+
+### 레인 C 구현 결정
+
+2026-11-04에 작업 4.1–4.3을 구현하면서, D1–D13에 대한 팀원 검토에 앞서 사용자의 요청으로 내린 결정입니다. 아직 팀원 검토를 받지 않았습니다. 레인 B는 동시에 진행되었으며, 레인 C가 레인 B가 넓히는 유형에서 Telegram을 필요로 한 곳은 호출 지점에서 형변환하고 유형은 레인 B에 맡겼습니다.
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 버튼을 보관하는 곳(작업 4.1) | `imessage_outbox`의 `buttons` 열이 Telegram 행을 보낼 때 쓴 키보드를 가리킵니다: `{"kind":"decision","ref","version"}` 또는 `{"kind":"settings","ref"}`. 요청 참조와 버전이라 비밀이 아니며, 행이 최종 상태가 된 뒤에도 남아 있으므로 제거할 때 행의 Telegram `message_id`를 찾을 수 있습니다. 새 종류가 둘 있습니다. `edit_markup`(중복 방지 키 `edit:<row>`가 메시지의 행을 가리키고, 봉인된 텍스트가 메시지 ID)과 `callback_answer`(봉인된 텍스트가 콜백 ID와 답)이며, 둘 다 Telegram 전용입니다. 마이그레이션 `20261104054627_telegram_buttons` | 키보드를 텍스트와 함께 봉인(최종 상태에서 지워짐); 보낸 키보드의 별도 테이블 | `supabase/schemas/app/tables/imessage_outbox.sql` | 새 마이그레이션 |
+| 버튼이 붙는 메시지(작업 4.1) | **Approve**, **Decline**, **Show details**는 승인 대기 요약 아래에 붙고, 그 요청에 승인을 기다리는 합의된 제안이 있는 동안에는 `request <ref>`, `review`, **Show details**에 대한 답 아래에도 붙습니다. **Confirm settings**는 확인 명령으로 끝나는 설정 검토 아래에 붙습니다. 텍스트가 여전히 정확한 명령을 밝히므로 버튼이 없어도 똑같이 읽힙니다 | 승인 대기 요약에만 버튼 | `lib/server/imessage-commands.ts`의 `decisionButtons`; `lib/server/imessage-notice-job.ts` | `decisionButtons` |
+| 탭 받아들이기(작업 4.1) | 콜백 수신 기록은 메시지처럼 연결 및 게스트 검사를 통과한 뒤, 보낸 사람의 활성 Telegram 연결이 있어야 합니다. 그 데이터는 `parseCallbackData`가 정확한 명령으로 해석하여 수신 기록을 재시도 키로 삼아 `executeCommand`로 실행합니다. 어떤 명령도 가리키지 않는 데이터는 답만 하고 아무것도 하지 않습니다. 다른 보낸 사람의 탭은 "Not linked"로 답하고 연결되지 않은 보낸 사람 메시지는 보내지 않으므로, 하루 거부 한도에 포함되지 않습니다 | 탭에도 연결되지 않은 보낸 사람 텍스트 보내기; 알 수 없는 데이터를 조용히 버리기 | `lib/server/imessage-receipts.ts`의 `processReceipt` | 그 함수 |
+| 탭에 답하기(작업 4.1) | 모든 탭은 `receipt:<id>:answer` 키의 `callback_answer` 행 하나를 받습니다. 명령이 실행되었거나 거부되었거나 재현된 경우에는 빈 답이고, 승인 또는 거절이 현재가 아닌 버전을 가리킨 경우에는 "This proposal has changed. Here is the current one."이며 이어서 버튼이 붙은 현재 요약이 옵니다. 이 행은 신호처럼 최선 노력 방식입니다. 대화의 1초 간격 슬롯을 차지하지 않고, Telegram이 늦은 답을 어차피 거부하므로 거부된 뒤 재시도하지 않습니다 | 수신 기록 작업의 트랜잭션 안에서 직접 API 호출로 답하기(롤백된 작업이 이를 반복함) | `lib/server/imessage-commands.ts`의 `answerCallback`과 `CALLBACK_TEXTS`; `lib/server/imessage-outbox.ts` | 그 파일들 |
+| 버튼을 제거하는 시점(작업 4.1) | `enqueueButtonRetirement(tx, requestId)`는 버튼이 가리키는 것을 끝내거나 바꾸는 각 변경의 트랜잭션에서 실행됩니다. 승인(요청이 `booking`이 됨), `closeRequest`(거절, 철회, 만료), 요청자의 **Change**, 공유된 변경, 새로 합의된 버전이 그 경우입니다. 요청에 버튼이 붙은 Telegram 행이 있을 때만 `telegram_buttons` 작업 하나를 게시합니다. 이 작업은 결정 버튼이 지금 승인을 기다리는 버전이 아닌 버전을 가리키는, 수락된 모든 메시지마다 `edit_markup` 행을 큐에 넣습니다. 설정을 저장하면 같은 방식으로 호스트의 **Confirm settings** 버튼을 제거합니다 | `app.requests`에서 SQL로 작업을 게시하는 트리거(채팅 ID를 봉인할 수 없고 생산자 환경이 없음); 호스트 알림에서만 제거(웹 거절, 철회, **Change**를 놓침) | `lib/server/imessage-notices.ts`, `lib/server/telegram-jobs.ts` | 그 파일들 |
+| 수정 제한(작업 4.1) | `edit_markup` 행은 메시지가 수락된 지 48시간이 넘은 뒤에 확보되면 `edit_expired`로 억제되며, 제거 작업은 그런 메시지에 대해서는 행을 큐에 넣지 않습니다. 수정은 메시지를 보낸 연결이 활성인 동안 그 연결에만 갑니다. 메시지 텍스트는 절대 수정하지 않습니다 | Telegram이 거부할 때까지 재시도 | `lib/server/imessage-outbox.ts`의 `createImessageSendHandler` | `lib/server/telegram.ts`의 `TELEGRAM_EDIT_HOURS` |
 
 ### 사용자 대기 항목
 

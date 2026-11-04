@@ -1,7 +1,7 @@
 import { hostRequestUrl } from "./booking-notices";
 import { database, type Database, type Transaction } from "./database";
 import { readHostRequest } from "./host-requests";
-import { requestRef, requestSummary } from "./imessage-commands";
+import { decisionButtons, requestRef, requestSummary } from "./imessage-commands";
 import { activeBindingOfHost, bindingRecipient } from "./imessage-links";
 import { type GuestNotice, guestNoticeKey, type HostNotice, noticeKey } from "./imessage-notices";
 import { recordOutbound } from "./imessage-outbox";
@@ -19,6 +19,8 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 // notice (guest-flow-completion design 4) goes to the request's active guest
 // binding instead, in the request's language, and never carries the booking
 // link; the booking confirmation is the last one, so the binding then ends.
+// On Telegram the awaiting-approval summary carries the proposal's decision
+// buttons (host-telegram-channel design 7, D8); other channels ignore them.
 
 export type NoticeJobDependencies = {
   readonly db: Database;
@@ -127,7 +129,7 @@ async function noticeText(q: Transaction, deps: NoticeJobDependencies, hostAccou
     }
     case "awaiting_approval":
       if (view.state !== "awaiting_host_approval" || view.proposal?.version !== notice.version) return null;
-      return `Ready for your approval.\n${requestSummary(view)}\nMessages here now go to this request.`;
+      return { buttons: decisionButtons(view), text: `Ready for your approval.\n${requestSummary(view)}\nMessages here now go to this request.` };
     default: {
       const [booking] = await q<{ start_at: Date; end_at: Date }[]>`
         select start_at, end_at from app.bookings where id = ${notice.bookingId} and request_id = ${requestId}
@@ -156,11 +158,13 @@ export function createImessageNoticeHandler(load: () => NoticeJobDependencies = 
     const binding = await activeBindingOfHost(tx, request.host_account_id);
     if (!binding) return { queued: false };
 
-    const text = await noticeText(tx, deps, request.host_account_id, requestId, notice as HostNotice);
-    if (!text) return { queued: false };
+    const noticed = await noticeText(tx, deps, request.host_account_id, requestId, notice as HostNotice);
+    if (!noticed) return { queued: false };
+    const { buttons, text } = typeof noticed === "string" ? { buttons: null, text: noticed } : noticed;
 
     await recordOutbound(tx, {
       bindingId: binding.id,
+      buttons,
       dedupeKey: noticeKey(requestId, notice as HostNotice),
       hostAccountId: request.host_account_id,
       kind: "notice",

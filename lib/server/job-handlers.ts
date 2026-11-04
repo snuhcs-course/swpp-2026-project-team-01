@@ -7,12 +7,13 @@ import { createEmailReplyHandler, EMAIL_REPLY_JOB } from "./email-replies";
 import { createEvaluationHandler, EVALUATION_JOB } from "./evaluation";
 import { createImessageSendHandler, IMESSAGE_SEND_JOB } from "./imessage-outbox";
 import { createImessageNoticeHandler } from "./imessage-notice-job";
-import { IMESSAGE_NOTICE_JOB } from "./imessage-notices";
+import { IMESSAGE_NOTICE_JOB, TELEGRAM_BUTTONS_JOB } from "./imessage-notices";
 import { createImessageReceiptHandler } from "./imessage-receipts";
 import type { JobHandler } from "./jobs";
 import { createLinkResendHandler, LINK_RESEND_JOB } from "./link-resend";
 import { IMESSAGE_RECEIPT_JOB } from "./photon-receiver";
 import { createRequestExpiryHandler, REQUEST_EXPIRY_JOB } from "./request-lifecycle";
+import { createTelegramButtonsHandler, createTelegramTypingHandler, TELEGRAM_TYPING_JOB } from "./telegram-jobs";
 
 // Handlers by job kind. The worker claims only kinds registered here, so a job
 // whose handler is not deployed yet stays pending and visible.
@@ -29,6 +30,8 @@ export const JOB_HANDLERS: Readonly<Record<string, JobHandler>> = {
   [IMESSAGE_SEND_JOB]: createImessageSendHandler(),
   [LINK_RESEND_JOB]: createLinkResendHandler(),
   [REQUEST_EXPIRY_JOB]: createRequestExpiryHandler(),
+  [TELEGRAM_BUTTONS_JOB]: createTelegramButtonsHandler(),
+  [TELEGRAM_TYPING_JOB]: createTelegramTypingHandler(),
 };
 
 // The most jobs of a kind one worker batch claims; kinds not listed share the

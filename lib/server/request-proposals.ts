@@ -18,7 +18,7 @@ import {
   readEvaluation,
   type StoredCandidate,
 } from "./evaluation";
-import { enqueueHostNotice } from "./imessage-notices";
+import { enqueueButtonRetirement, enqueueHostNotice } from "./imessage-notices";
 import { assertIdentified, lockOpenRequest } from "./request-guard";
 import { detailsComplete } from "./request-lifecycle";
 
@@ -364,6 +364,7 @@ export function agreeCommand(
         where id = ${request.id}
       `;
       await enqueueHostNotice(tx, request.id, { kind: "awaiting_approval", version: latest.version });
+      await enqueueButtonRetirement(tx, request.id);
 
       return { outcome: "agreed", revision: request.revision + 1, state: "awaiting_host_approval", version: latest.version };
     },
@@ -395,6 +396,7 @@ export const changeAgreementCommand: CommandDefinition<Record<string, never>, Ch
       update app.requests set state = 'negotiating', revision = revision + 1, updated_at = now()
       where id = ${request.id}
     `;
+    await enqueueButtonRetirement(tx, request.id);
     return { revision: request.revision + 1, state: "negotiating" };
   },
 };

@@ -2,6 +2,7 @@ import { E164_NUMBER } from "../contracts/imessage";
 import type { StoredChannel } from "../contracts/messaging-channel";
 import { deploymentEnvironment } from "./deployment";
 import { gateTransport, type MessagingTransport } from "./messaging";
+import type { TelegramButtons } from "./telegram";
 import { whatsAppSendFailure } from "./whatsapp";
 
 // The one module that sends iMessages (host-imessage-channel design 1 and 3, D1,
@@ -35,13 +36,18 @@ export type PhotonRecipient = {
 };
 
 export type PhotonContent =
-  | { readonly kind: "text"; readonly text: string }
+  // Telegram only (host-telegram-channel design 7 and 8): the row's inline
+  // buttons, and silent delivery for a notice that needs nothing.
+  | { readonly kind: "text"; readonly text: string; readonly buttons?: TelegramButtons | null; readonly silent?: boolean }
   | { readonly kind: "contact_card" }
   // Best-effort iMessage signals about the host's message messageId: mark the
   // conversation read, add a tapback, show typing. Never a message of its own.
   | { readonly kind: "signal"; readonly messageId: string | null; readonly typing: boolean; readonly reaction: string | null }
   // A pre-approved WhatsApp template with positional body parameters.
-  | { readonly kind: "template"; readonly name: string; readonly languageCode: string; readonly params: readonly string[] };
+  | { readonly kind: "template"; readonly name: string; readonly languageCode: string; readonly params: readonly string[] }
+  // Telegram only: remove a sent message's buttons, or answer a button tap.
+  | { readonly kind: "edit_markup"; readonly messageId: string }
+  | { readonly kind: "callback_answer"; readonly callbackId: string; readonly answer: string | null };
 
 export type PhotonSendRequest = {
   readonly channel: StoredChannel;
@@ -174,7 +180,9 @@ export function spectrumTransport(config: Pick<PhotonConfig, "projectId" | "proj
     async send(request) {
       if (!config.projectId || !config.projectSecret) return { status: "unavailable" };
       if (request.channel === "whatsapp") return sendWhatsApp(config, request);
-      if (request.content.kind === "template") return { category: "provider_rejected", status: "rejected" };
+      if (request.content.kind === "template" || request.content.kind === "edit_markup" || request.content.kind === "callback_answer") {
+        return { category: "provider_rejected", status: "rejected" };
+      }
       // A signal belongs to a conversation the host already wrote in.
       if (request.content.kind === "signal" && !request.recipient.spaceId) return { category: "invalid_recipient", status: "rejected" };
 
@@ -241,7 +249,10 @@ export function spectrumTransport(config: Pick<PhotonConfig, "projectId" | "proj
 // failure is unavailable; once it began, Meta's refusals map as design 9 says
 // and anything else is uncertain.
 async function sendWhatsApp(config: Pick<PhotonConfig, "projectId" | "projectSecret">, request: PhotonSendRequest): Promise<PhotonSendResult> {
-  if (request.content.kind === "contact_card" || request.content.kind === "signal") return { category: "provider_rejected", status: "rejected" };
+  const content = request.content;
+  if (content.kind === "contact_card" || content.kind === "signal" || content.kind === "edit_markup" || content.kind === "callback_answer") {
+    return { category: "provider_rejected", status: "rejected" };
+  }
 
   let app: Awaited<ReturnType<typeof import("@spectrum-ts/core").Spectrum>>;
   let provider: typeof import("@spectrum-ts/whatsapp-business");
@@ -273,15 +284,15 @@ async function sendWhatsApp(config: Pick<PhotonConfig, "projectId" | "projectSec
     }
 
     try {
-      const content =
-        request.content.kind === "template"
+      const message =
+        content.kind === "template"
           ? provider.whatsappTemplate({
-              bodyParams: [...request.content.params],
-              languageCode: request.content.languageCode,
-              name: request.content.name,
+              bodyParams: [...content.params],
+              languageCode: content.languageCode,
+              name: content.name,
             })
-          : request.content.text;
-      const sent = await withTimeout(space.send(content), SEND_TIMEOUT_MS);
+          : content.text;
+      const sent = await withTimeout(space.send(message), SEND_TIMEOUT_MS);
       return { messageId: sent?.id ?? null, spaceId: space.id, status: "accepted" };
     } catch (error) {
       return whatsAppSendFailure(error);
