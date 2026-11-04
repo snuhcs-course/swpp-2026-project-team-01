@@ -140,6 +140,7 @@ test.describe("on Android", () => {
 
     await page.getByRole("button", { name: "Go to Home" }).click();
     const card = await openCard(page);
+    await card.getByRole("button", { name: "Telegram linked Dohyeon (@dohyeon)" }).click();
     await expect(card.getByRole("heading", { name: "Telegram is linked" })).toBeVisible();
     await expect(card).toContainText("Linked on Telegram Dohyeon (@dohyeon)");
     await expect(card.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
@@ -270,6 +271,7 @@ test.describe("on a Windows computer", () => {
     await expect(card.getByText("This replaces your iMessage link.")).toBeVisible();
     await expect(card.getByText(PRIVACY)).toBeVisible();
     await card.getByRole("button", { name: "Confirm and link" }).click();
+    await card.getByRole("button", { name: "Telegram linked Dohyeon (@dohyeon)" }).click();
     await expect(card.getByRole("heading", { name: "Telegram is linked" })).toBeVisible({ timeout: 10_000 });
     expect(await activeChannel(db, host.hostAccountId)).toEqual([{ channel: "telegram" }]);
   });
