@@ -154,7 +154,7 @@ for (const width of [390, 1280]) {
     const sender = newSender();
     await hostSends(db, sender, message);
     await expect(again.getByRole("heading", { name: "Is this you?" })).toBeVisible({ timeout: 10_000 });
-    await expect(again).toContainText(`•••• ${sender.slice(-4)}`);
+    await expect(again).toContainText(sender);
     expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(0);
     expect(await sendQueued(db, host.hostAccountId, "link_received")).toEqual([
       "Got it. Go back to Find Me a Time in your browser and tap Confirm and link to finish.",
@@ -162,8 +162,8 @@ for (const width of [390, 1280]) {
 
     await press(page, "Confirm and link");
     // Linked, the card folds into a small status pill that opens the full card.
-    await expect(again.getByRole("button", { name: `iMessage linked •••• ${sender.slice(-4)}` })).toBeVisible();
-    await press(page, `iMessage linked •••• ${sender.slice(-4)}`);
+    await expect(again.getByRole("button", { name: `iMessage linked ${sender}` })).toBeVisible();
+    await press(page, `iMessage linked ${sender}`);
     await expect(again.getByRole("heading", { name: "iMessage is linked" })).toBeVisible();
     expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(1);
 
@@ -201,7 +201,7 @@ test("at 1280px the link step after sign-in links by the sent message, then open
   const sender = newSender();
   await hostSends(db, sender, message);
   await expect(page.getByRole("heading", { name: "Is this you?" })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(`•••• ${sender.slice(-4)}`)).toBeVisible();
+  await expect(page.getByText(sender)).toBeVisible();
   expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(0);
 
   await page.getByRole("button", { name: "Confirm and link" }).click();
@@ -239,7 +239,7 @@ test("the landing's iMessage start opens the send popup, and the arriving messag
   const sender = newSender();
   await hostSends(db, sender, message);
   await expect(page.getByRole("heading", { name: "Got your message." })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(`•••• ${sender.slice(-4)}`)).toBeVisible();
+  await expect(page.getByText(sender)).toBeVisible();
   await expect(page.getByRole("link", { name: "Continue with Google" })).toHaveAttribute("href", "/auth/sign-in");
 });
 

@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { parseCookieHeader } from "@supabase/ssr";
-import { type ImessageStartStatus, linkMessage, maskSender } from "../contracts/imessage";
+import { displaySender, type ImessageStartStatus, linkMessage } from "../contracts/imessage";
 import type { MessagingChannel } from "../contracts/messaging-channel";
 import { CommandError } from "./commands";
 import type { Database, Queryable } from "./database";
@@ -150,7 +150,7 @@ export async function readStartStatus(db: Queryable, options: StartOptions, secr
   try {
     if (link.state === "received") {
       const sender = openToken(options.tokenKeys, { ciphertext: link.sender_ciphertext!, keyId: link.sender_key_id! }, senderContext(link.id));
-      return { ...shared, confirmBy: link.confirm_by!.toISOString(), sender: maskSender(sender), state: "received" };
+      return { ...shared, confirmBy: link.confirm_by!.toISOString(), sender: displaySender(sender), state: "received" };
     }
     const code = openToken(options.tokenKeys, { ciphertext: link.code_ciphertext!, keyId: link.sealed_key_id! }, codeContext(link.id));
     return { ...shared, code, expiresAt: link.expires_at.toISOString(), message: linkMessage(code), state: "pending" };

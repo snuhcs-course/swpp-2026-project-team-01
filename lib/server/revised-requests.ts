@@ -4,7 +4,6 @@ import { issueContactConfirmation } from "./contact-confirmation";
 import { displayTime, isValidTimeZone } from "../contracts/timezone";
 import type { Queryable, Transaction } from "./database";
 import { requestRef } from "./request-ref";
-import { enqueueHostNotice } from "./imessage-notices";
 import { hostAcceptsRequests } from "./request-guard";
 import { requestExpiresAt } from "./request-lifecycle";
 import { admitCreation, CREATION_LIMITS, type CreationLimits, insertDraftRequest } from "./request-start";
@@ -253,7 +252,8 @@ export async function reviseClosedRequest(
   `;
 
   await issueContactConfirmation(tx, { origin: options.origin, requestId, tokenKey: options.tokenKey });
-  await enqueueHostNotice(tx, requestId, { kind: "new_request" });
+  // As for a new request, the host hears at approval, where the summary names
+  // the request this one follows (#122).
 
   return { bindingId: await moveChannel(tx, options, channel, closed.id, requestId), kind: "created", requestId };
 }

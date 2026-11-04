@@ -1,11 +1,11 @@
 import { createHmac, randomInt } from "node:crypto";
 import { z } from "zod";
 import {
+  displaySender,
   type ImessageDeliveryState,
   type ImessageStatus,
   type LinkChannels,
   linkMessage,
-  maskSender,
   normalizeNumber,
 } from "../contracts/imessage";
 import type { MessagingChannel } from "../contracts/messaging-channel";
@@ -651,7 +651,7 @@ export async function readImessageStatus(
   if (binding) {
     let sender = "••••";
     try {
-      sender = maskSender(bindingRecipient(keys, binding).address);
+      sender = displaySender(bindingRecipient(keys, binding).address);
     } catch {
       // Sealed under a key the service no longer holds: still linked.
     }
@@ -735,7 +735,7 @@ async function openAttemptStatus(
         confirmBy: link.confirm_by!.toISOString(),
         linkId: link.id,
         replaces: linkedChannel && linkedChannel !== link.channel ? linkedChannel : null,
-        sender: maskSender(sender),
+        sender: displaySender(sender),
         state: "received",
       };
     }
@@ -755,7 +755,7 @@ async function openAttemptStatus(
       channels,
       expiresAt: link.fallback_expires_at?.toISOString() ?? null,
       lineNumber,
-      number: maskSender(number),
+      number: displaySender(number),
       resendAt:
         sendsLeft > 0 && link.last_sent_at ? new Date(link.last_sent_at.getTime() + limits.spacingSeconds * 1000).toISOString() : null,
       send: send?.failure_category === FOREIGN_BINDING ? "sent" : deliveryState(send?.state ?? "queued"),
