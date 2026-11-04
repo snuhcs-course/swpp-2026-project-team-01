@@ -85,7 +85,7 @@ export function ConnectedAgentsDialog({
         {grants && grants.length > 0 ? (
           <ul aria-label="Connected agents" className="flex flex-col gap-3">
             {grants.map((grant) => (
-              <li className="rounded-lg border border-border p-3" key={grant.id}>
+              <li className="rounded-xl bg-secondary p-3" key={grant.id}>
                 <p className="font-medium">{grant.clientName}</p>
                 <p className="text-muted-foreground text-sm">
                   Returns to {grant.redirectHost}. Can {grant.scopes.map((scope) => PERMISSION_WORDS[scope] ?? scope).join(", ")}.

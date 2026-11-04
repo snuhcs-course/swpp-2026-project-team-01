@@ -417,6 +417,13 @@ Scope. Prerequisite: Phase 6, whose receiver, tables, commands, outbox and cards
 - [x] The three utility templates with the 12-hour per-host and daily per-line limits.
 - [x] `stop`, the `[WhatsApp]` transcript prefix, the host instructions fragment and per-channel unlinked-sender limits; commands, summaries, setup and admission reused from Phase 6.
 
+**Lane D — read marks, typing, reactions and buttons (added 2026-11-04)**
+
+- [x] D15–D17 in the proposal, design 11, the delta spec and the decision log.
+- [ ] Teammate review of D15–D17.
+- [ ] WhatsApp `signal` rows: read with typing, ❤️ for thanks.
+- [ ] Reply buttons on decision summaries inside the window, button-reply parsing and the `WHATSAPP_BUTTONS` switch.
+
 **Join**
 
 - [ ] Capture a real WhatsApp event to confirm the platform spelling and sender format; then on a controlled Android phone link, select a request, revise, approve, let the window close and receive a template; run the Phase 9 evidence list.

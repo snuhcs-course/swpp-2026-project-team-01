@@ -1,0 +1,23 @@
+{
+  "branch": "fix/landing-drop-calendar-box",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:4d4fe62e-bbd7-4702-9cdd-f4ad221e9844": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 44,
+          "cache_read": 2458856,
+          "cache_write_5m": 0,
+          "cache_write_1h": 73408,
+          "output": 7754,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T18:03:17.566Z",
+      "last": "2026-11-03T18:08:11.463Z"
+    }
+  }
+}
