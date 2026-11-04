@@ -1,0 +1,40 @@
+{
+  "branch": "test/host-approval-evals",
+  "user": "haisung.choi@gmail.com",
+  "sessions": {
+    "claude:1b1d6270-228f-4502-89d0-e0eb2b8ea85d": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 196,
+          "cache_read": 28474501,
+          "cache_write_5m": 0,
+          "cache_write_1h": 249618,
+          "output": 74233,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T17:35:10.983Z",
+      "last": "2026-11-04T01:38:07.190Z"
+    },
+    "claude:95f0be0c-1385-47b9-9ef5-3a775fbf55cb": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 60,
+          "cache_read": 5117260,
+          "cache_write_5m": 0,
+          "cache_write_1h": 200808,
+          "output": 65447,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T17:38:02.754Z",
+      "last": "2026-11-03T18:18:21.319Z"
+    }
+  }
+}
