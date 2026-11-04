@@ -1,12 +1,13 @@
 import { makeHostReady, newHostAccount } from "../integration/support/ready-host";
 import { expect, test } from "./support/session";
 
-test("home offers Google sign-in with Calendar", async ({ page }) => {
+test("home offers Google sign-in with Calendar and no Calendar box", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.getByRole("heading", { level: 1 })).toContainText("The assistant that");
-  await expect(page.getByRole("link", { name: "Continue with Google" })).toHaveAttribute("href", "/auth/sign-in");
-  await expect(page.getByLabel(/Connect my Google Calendar too/)).toHaveCount(0);
+  const google = page.getByRole("link", { name: "Continue with Google" });
+  await expect(google).toHaveAttribute("href", "/auth/sign-in");
+  await expect(page.getByRole("checkbox")).toHaveCount(0);
 });
 
 test("the iMessage start offers Messages instead of Google first", async ({ page }) => {

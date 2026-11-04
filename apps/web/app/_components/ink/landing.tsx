@@ -14,7 +14,7 @@ import "./landing.css";
 // sends Thyme the link message before signing in.
 export function Landing({ flow, locale }: { readonly flow: MessagingChannel | null; readonly locale: Locale }) {
   const t = COPY[locale].landing;
-  const start = flow ? <ImessageStartBlock locale={locale} /> : <GoogleStart choice={false} locale={locale} />;
+  const start = flow ? <ImessageStartBlock locale={locale} /> : <GoogleStart locale={locale} />;
   const page = (
     <div className="ld" data-screen="landing">
       <FloatHero locale={locale} start={start} />
