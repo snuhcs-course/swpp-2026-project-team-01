@@ -47,6 +47,7 @@ iMessage를 사용하는 호스트에게는 연동된 비공개 대화를 요청
 | 호스트 이메일 — 제안된 확장 | 호스트 | 요약을 받고, 비공개로 논의하고, 수정을 요청하거나 거절하고, 결과를 받습니다. | 검증된 호스트 대화가 필요하며, 최종 미팅 승인은 인증된 웹 링크를 사용합니다. |
 | iMessage | 호스트 | 선택 가입(opt-in) 방식의 비공개 요약, 질문, 수정, 승인, 거절, 결과를 다룹니다. | 연동된 호스트 신원과 정확한 제안 컨텍스트가 필요하며, 이를 성립시킬 수 없으면 웹을 사용합니다. |
 | WhatsApp | 호스트(Android 호스트, 또는 WhatsApp을 선호하는 호스트) | WhatsApp Business를 통해 iMessage와 같은 일을 합니다([`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)). 호스트는 둘 중 하나만 한 번에 연결합니다. | iMessage와 같으며, Meta의 24시간 창 밖에서는 요청 참조 번호가 담긴 템플릿 알림만 보내고 `/app`에서 보내지 않은 내용을 보여 줍니다. |
+| Telegram | 호스트(모든 기기) | 봇 `@findmeatime_bot`과의 비공개 대화에서 iMessage와 같은 일을 합니다([`host-telegram-channel`](../../openspec/changes/host-telegram-channel/proposal.md#decisions)). 결정을 요청하는 요약에는 **승인(Approve)**, **거절(Decline)**, **자세히 보기(Show details)**가 붙고, 설정 검토에는 **설정 확인(Confirm settings)**이 붙습니다. 호스트는 한 번에 한 채널만 연결합니다. | iMessage와 같으며, 버튼은 연결된 계정에서 온 것이고 버튼이 가리키는 버전과 일치할 때만 받아들입니다. 봇 대화는 Telegram 서버에 보관되며, 연결 카드가 **확인 및 연결(Confirm and link)** 전에 이를 알립니다. |
 | 개인 에이전트 클라이언트 | 요청자 또는 호스트 | 사용자가 이미 쓰고 있는 에이전트를 통해 조율할 수 있게 합니다. | 역할별 MCP 또는 CLI 접근이 필요하며, 호스트의 결정에는 사람의 명시적 확인이 필요합니다. |
 | 원격 MCP 서버 | 호환되는 개인 에이전트 클라이언트 | 스케줄링 작업을 발견하고 호출합니다. | 보호된 호스트 접근에는 OAuth를 사용하고, 요청자 접근은 계정이 필요 없는 요청 범위입니다. |
 | CLI | 터미널 기반 에이전트와 스크립트 | 구조화된 JSON 결과로 동일한 스케줄링 작업을 수행합니다. | 동등한 역할 권한이 적용되며, CLI 로그인 설계는 아직 열려 있습니다. |

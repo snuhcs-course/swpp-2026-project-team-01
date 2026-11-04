@@ -78,3 +78,26 @@ export async function enqueueGuestNotice(tx: Transaction, requestId: string, not
     payload: { audience: "requester", notice, requestId },
   });
 }
+
+// Telegram decision buttons (host-telegram-channel design 7, D9): a path that
+// moves a request out of awaiting approval, or to a new agreed version, calls
+// this in its own transaction. When some Telegram message of the request carries
+// buttons, it records one telegram_buttons job for the request's new state; the
+// job (telegram-jobs.ts) removes the buttons that no longer name the current
+// proposal.
+export const TELEGRAM_BUTTONS_JOB = "telegram_buttons";
+
+export async function enqueueButtonRetirement(tx: Transaction, requestId: string) {
+  const [request] = await tx<{ revision: number; state: string }[]>`
+    select r.revision, r.state from app.requests r
+    where r.id = ${requestId}
+      and exists (select 1 from app.imessage_outbox o where o.request_id = r.id and o.buttons is not null and o.state = 'accepted')
+  `;
+  if (!request) return;
+
+  await publishJob(tx, {
+    dedupeKey: `request:${requestId}:r${request.revision}:${request.state}`,
+    kind: TELEGRAM_BUTTONS_JOB,
+    payload: { requestId },
+  });
+}

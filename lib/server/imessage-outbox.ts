@@ -18,7 +18,16 @@ import {
 } from "./photon";
 import { requestRef } from "./request-ref";
 import { redactCredentials } from "./redaction";
-import { TELEGRAM_CHAT_SPACING_MS, type TelegramConfig, telegramClient, telegramConfig, telegramTransport } from "./telegram";
+import {
+  TELEGRAM_CHAT_SPACING_MS,
+  TELEGRAM_EDIT_HOURS,
+  type TelegramButtons,
+  telegramButtonsOf,
+  type TelegramConfig,
+  telegramClient,
+  telegramConfig,
+  telegramTransport,
+} from "./telegram";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // Every message the iMessage line sends (host-imessage-channel design 3 and 9,
@@ -57,6 +66,13 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 // delay Telegram names, spending no attempt. A 403 (the user blocked or deleted
 // the bot) fails the row as blocked and ends its binding as stop does, with
 // whatever was still queued for it suppressed.
+// A Telegram row may carry inline buttons (design 7, D8), sent on its last part
+// and kept on the row with Telegram's message ID; an edit_markup row removes
+// them again within Telegram's 48-hour edit limit (D9), and a callback_answer row
+// answers a tap. A booking confirmation or a booking still in progress needs
+// nothing from the host, so it goes out silently (D10). Signals, callback
+// answers and failed edits are best-effort and take no slot in the chat's
+// one-second spacing, since none is a message.
 
 export const IMESSAGE_SEND_JOB = "imessage_send";
 // A refusal before sending retries with backoff; five attempts span about five minutes.
@@ -98,7 +114,9 @@ export type OutboxKind =
   | "notice"
   | "contact_card"
   | "signal"
-  | "template";
+  | "template"
+  | "edit_markup"
+  | "callback_answer";
 
 export type OutboxState = "waiting" | "queued" | "dispatching" | "accepted" | "failed" | "uncertain" | "suppressed";
 
@@ -126,8 +144,9 @@ export type RecordOutbound = {
   readonly inputId?: string;
   // The frozen text; none for a turn reply or a contact card.
   readonly text?: string;
-  // A WhatsApp decision summary's reply buttons (host-whatsapp-channel design
-  // 11, D17), sealed with the text; dropped on any other channel or kind.
+  // A decision summary's buttons: on WhatsApp, reply buttons sealed with the
+  // text (host-whatsapp-channel design 11, D17); on Telegram, an inline
+  // keyboard kept on the row (host-telegram-channel design 7). Dropped on iMessage.
   readonly buttons?: WhatsAppButtons;
   // Records the message as already suppressed with this category, sending
   // nothing, so it still counts toward the send limits.
@@ -157,13 +176,16 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
   const buttons = channel === "whatsapp" && BUTTON_KINDS.has(message.kind) && message.buttons?.items.length ? message.buttons : null;
   const text =
     suppressed || message.text === undefined ? null : sealToken(message.tokenKey, buttons ? sealedWithButtons(message.text, buttons) : message.text, context);
+  // Telegram keeps its keyboard on the row (design 7, D9), where button retirement finds it.
+  const keyboard = channel === "telegram" && message.buttons ? telegramButtonsOf(message.buttons) : null;
+  const keyboardJson = keyboard ? tx.json(keyboard as unknown as Parameters<typeof tx.json>[0]) : null;
 
   const [created] = await tx<{ id: string }[]>`
     insert into app.imessage_outbox
-      (id, channel, kind, template_name, dedupe_key, host_account_id, binding_id, requester_binding_id, link_id, request_id, input_id,
+      (id, channel, kind, template_name, buttons, dedupe_key, host_account_id, binding_id, requester_binding_id, link_id, request_id, input_id,
        recipient_hash, recipient_ciphertext, text_ciphertext, sealed_key_id, state, failure_category, completed_at)
     values
-      (${id}, ${channel}, ${message.kind}, ${message.templateName ?? null}, ${message.dedupeKey}, ${message.hostAccountId ?? null},
+      (${id}, ${channel}, ${message.kind}, ${message.templateName ?? null}, ${keyboardJson}, ${message.dedupeKey}, ${message.hostAccountId ?? null},
        ${message.bindingId ?? null}, ${message.requesterBindingId ?? null}, ${message.linkId ?? null}, ${message.requestId ?? null},
        ${message.inputId ?? null}, ${message.recipientHash},
        ${recipient?.ciphertext ?? null}, ${text?.ciphertext ?? null}, ${message.tokenKey.id},
@@ -276,6 +298,7 @@ type OutboxRow = {
   readonly recipient_hash: string;
   readonly kind: OutboxKind;
   readonly template_name: string | null;
+  readonly buttons: TelegramButtons | null;
   readonly dedupe_key: string;
   readonly host_account_id: string | null;
   readonly request_id: string | null;
@@ -381,7 +404,7 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
     // A denied environment touches no outbound state.
     assertMessagingAdmitted(transport.endpoint, deps.env);
     const select = (q: Transaction | Database) => q<OutboxRow[]>`
-      select id, channel, recipient_hash, kind, template_name, dedupe_key, host_account_id, request_id, binding_id, requester_binding_id, input_id,
+      select id, channel, recipient_hash, kind, template_name, buttons, dedupe_key, host_account_id, request_id, binding_id, requester_binding_id, input_id,
              recipient_ciphertext, text_ciphertext, sealed_key_id, state,
              created_at < now() - make_interval(mins => ${TURN_REPLY_WAIT_MINUTES}) as stale,
              created_at > now() - make_interval(mins => ${WHATSAPP_WINDOW_MINUTES}) as fresh
@@ -447,6 +470,18 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
         return { state: "suppressed" as const };
       }
 
+      // An edit past Telegram's limit would only fail; a stale tap is refused anyway (D9).
+      if (row.kind === "edit_markup") {
+        const [edited] = await claimTx<{ editable: boolean }[]>`
+          select completed_at > now() - make_interval(hours => ${TELEGRAM_EDIT_HOURS}) as editable
+          from app.imessage_outbox where id::text = ${row.dedupe_key.slice("edit:".length)} and state = 'accepted'
+        `;
+        if (!edited?.editable) {
+          await finish(claimTx, row.id, row.state, "suppressed", { category: "edit_expired" });
+          return { state: "suppressed" as const };
+        }
+      }
+
       if (row.requester_binding_id) {
         const [binding] = await claimTx<{ state: string }[]>`
           select state from app.requester_imessage_bindings where id = ${row.requester_binding_id}
@@ -485,7 +520,7 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
       const context = outboxSealContext(row.id);
       const frozen = text === null ? null : sealToken({ id: row.sealed_key_id!, key: keyOf(deps, row.sealed_key_id!) }, text, context);
-      const waitMs = row.channel === "telegram" ? await telegramSlot(claimTx, row.recipient_hash) : 0;
+      const waitMs = row.channel === "telegram" && !UNSPACED.has(row.kind) ? await telegramSlot(claimTx, row.recipient_hash) : 0;
       await claimTx`
         update app.imessage_outbox
         set state = 'dispatching', text_ciphertext = coalesce(${frozen?.ciphertext ?? null}, text_ciphertext),
@@ -513,7 +548,8 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
     // A signal is best-effort: it is never retried or reported as a delivery
     // problem, so a missed read mark or typing bubble never holds a reply back.
-    if (claim.row.kind === "signal" && result.status !== "accepted") {
+    // A callback answer is too: a late one is refused by Telegram anyway.
+    if ((claim.row.kind === "signal" || claim.row.kind === "callback_answer") && result.status !== "accepted") {
       await finish(tx, outboxId, "dispatching", "failed", { category: result.status === "rejected" ? result.category : result.status });
       return { outboxId, state: "failed" };
     }
@@ -591,6 +627,9 @@ export const WINDOW_CLOSED = "window_closed";
 // Rate limits a Telegram row waits out before an ordinary failed attempt.
 export const RATE_LIMIT_RETRIES = 10;
 
+// Telegram rows that are not messages, and so take no slot in the chat's spacing.
+const UNSPACED: ReadonlySet<OutboxKind> = new Set(["signal", "callback_answer"]);
+
 // The wait before the next send to a Telegram chat may start, reserved under a
 // per-chat lock: the row claimed here dispatches at least a second after the
 // last one claimed for the same chat.
@@ -606,7 +645,7 @@ async function telegramSlot(tx: Transaction, recipientHash: string) {
 
 // The user blocked or deleted the bot (D11): the binding ends as stop ends it,
 // and nothing still queued for it goes out.
-async function endBlockedBinding(tx: Transaction, bindingId: string) {
+export async function endBlockedBinding(tx: Transaction, bindingId: string) {
   await tx`
     update app.imessage_bindings set state = 'unlinked', ended_at = now(), sender_ciphertext = null, space_ciphertext = null
     where id = ${bindingId} and state = 'active'
@@ -698,10 +737,26 @@ export function whatsAppButtonsEnabled(env: Readonly<Record<string, string | und
 // Templates are registered in en_US (design 8); the sealed text is the request reference.
 export const TEMPLATE_LANGUAGE = "en_US";
 
+// Host notices that need nothing from the host go out silently on Telegram (D10).
+const SILENT_NOTICES = ["notice:booking_confirmed:", "notice:booking_pending:"];
+
 // A row reaches contentOf only inside the WhatsApp window (outside it, it was
 // suppressed and a template queued), so buttons need only the switch; a template
-// never carries them.
-function contentOf(row: Pick<OutboxRow, "kind" | "template_name" | "channel">, text: string | null, buttonsOn: boolean): PhotonContent {
+// never carries them. A Telegram row carries its keyboard from the row itself.
+function contentOf(
+  row: Pick<OutboxRow, "kind" | "template_name" | "channel" | "buttons" | "dedupe_key">,
+  text: string | null,
+  buttonsOn: boolean,
+): PhotonContent {
+  if (row.kind === "edit_markup") return { kind: "edit_markup", messageId: text ?? "" };
+  if (row.kind === "callback_answer") {
+    const answer = JSON.parse(text ?? "{}") as Partial<CallbackAnswer>;
+    return { answer: answer.text ?? null, callbackId: answer.callbackId ?? "", kind: "callback_answer" };
+  }
+  if (row.channel === "telegram" && text !== null && row.kind !== "signal") {
+    const silent = row.kind === "notice" && SILENT_NOTICES.some((prefix) => row.dedupe_key.startsWith(prefix));
+    return { kind: "text", text, ...(row.buttons ? { keyboard: row.buttons } : {}), ...(silent ? { silent } : {}) };
+  }
   if (row.kind === "template" && row.template_name) {
     return { kind: "template", languageCode: TEMPLATE_LANGUAGE, name: row.template_name, params: text === null ? [] : [text] };
   }
@@ -723,6 +778,14 @@ export type ImessageSignal = { readonly messageId: string | null; readonly typin
 
 export function signalText(signal: ImessageSignal) {
   return JSON.stringify(signal);
+}
+
+// What a callback_answer row sends (design 7): the tap's callback ID and the
+// answer Telegram shows, if any. Sealed as JSON in text_ciphertext.
+export type CallbackAnswer = { readonly callbackId: string; readonly text: string | null };
+
+export function callbackAnswerText(answer: CallbackAnswer) {
+  return JSON.stringify(answer);
 }
 
 function keyOf(deps: ImessageSendDependencies, keyId: string) {
