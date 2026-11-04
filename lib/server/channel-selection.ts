@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { IMESSAGE_PREFIX, type MessagingChannel, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
+import { IMESSAGE_PREFIX, type MessagingChannel, TELEGRAM_PREFIX, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
 import type { Database } from "./database";
 import { HOST_REVIEW_AUDIENCE, HOST_SETUP_AUDIENCE } from "./eve-auth";
 import { listHostRequests } from "./host-requests";
@@ -12,8 +12,8 @@ import type { SessionPrincipal } from "./setup-tools";
 // exact commands `request <ref>` and `setup` change it; this tool lets the
 // assistant do the same when the host names a request ("박도현's request",
 // "6ADSRV") or setup in words. It works only while the turn answers a message
-// from the linked iMessage or WhatsApp, the session's current input with its
-// channel prefix; on the web the host opens a request from the inbox.
+// from the linked iMessage, WhatsApp or Telegram, the session's current input
+// with its channel prefix; on the web the host opens a request from the inbox.
 
 export const switchConversationToolInput = z
   .object({
@@ -39,10 +39,26 @@ type Switched =
 const uuid = z.uuid();
 const OPEN_STATES = new Set(["gathering", "negotiating", "awaiting_host_approval", "booking"]);
 
-function channelOf(message: string): MessagingChannel | null {
+export function channelOf(message: string): MessagingChannel | null {
   if (message.startsWith(IMESSAGE_PREFIX)) return "imessage";
   if (message.startsWith(WHATSAPP_PREFIX)) return "whatsapp";
+  if (message.startsWith(TELEGRAM_PREFIX)) return "telegram";
   return null;
+}
+
+// The channel of the message the host's session is answering: its current
+// input, with the prefix the receipt job added. Null for a message typed on the
+// web, or when the session is not the host's own live one. Every action the
+// assistant takes in the host's words checks this first
+// (channel-actions-in-words D1).
+export async function channelOfTurn(db: Database, sessionId: string, hostAccountId: string): Promise<MessagingChannel | null> {
+  const [turn] = await db<{ message: string | null }[]>`
+    select i.message from app.agent_sessions s
+    left join app.conversation_inputs i on i.id = s.current_input_id
+    where s.session_id = ${sessionId} and s.principal_type = 'host_account'
+      and s.principal_id = ${hostAccountId} and s.state = 'active'
+  `;
+  return turn?.message ? channelOf(turn.message) : null;
 }
 
 function normalize(value: string) {
@@ -68,7 +84,7 @@ export async function switchConversationForTool(db: Database, call: SwitchConver
 
   const channel = turn.message ? channelOf(turn.message) : null;
   if (!channel) {
-    return { problem: "Switching applies to the host's linked iMessage or WhatsApp. On the web, the host opens the request from the inbox.", switched: false };
+    return { problem: "Switching applies to the host's linked iMessage, WhatsApp or Telegram. On the web, the host opens the request from the inbox.", switched: false };
   }
 
   const [binding] = await db<{ id: string }[]>`

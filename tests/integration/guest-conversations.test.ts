@@ -33,7 +33,7 @@ let fake: FakeOpenAI;
 let server: EveServer;
 let deps: RequesterRouteDependencies;
 
-const HOST_TOOLS = ["read_setup_state", "draft_settings", "switch_conversation"];
+const HOST_TOOLS = ["read_setup_state", "draft_settings", "list_host_requests", "confirm_settings", "switch_conversation"];
 // The retired public intake's tools, registered for no session any more.
 const INTAKE_TOOLS = ["read_intake", "draft_intake"];
 // The guest's decisions in words (guest-flow-completion U15) are requester tools too.

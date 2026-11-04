@@ -66,14 +66,15 @@ async function linkedAgreed() {
 }
 
 describe("host summaries", () => {
-  it("summarizes a proposal awaiting approval once, with its exact commands", async () => {
+  it("summarizes a proposal awaiting approval once, asking for no command", async () => {
     const { request } = await linkedAgreed();
     const [text] = await noticesSent(request.hostAccountId, request.requestId);
     expect(text).toMatch(/^Ready for your approval\./);
-    expect(text).toContain(`approve ${reviewRef(request.requestId, 1)}`);
-    expect(text).toContain(`decline ${reviewRef(request.requestId, 1)}`);
-    // Approval also works in words, so the summary says so and selects the request (D23).
-    expect(text).toContain("reply in your own words");
+    // Deciding works in words, so the summary says so, names no command and
+    // selects the request (D23; channel-actions-in-words D3).
+    expect(text).toContain('To approve, tell me so, such as "book it".');
+    expect(text).not.toContain(`approve ${reviewRef(request.requestId, 1)}`);
+    expect(text).not.toContain(`decline ${reviewRef(request.requestId, 1)}`);
     expect(await im.bindingOf(request.hostAccountId)).toMatchObject({ selected_request_id: request.requestId });
 
     await db.begin((tx) => enqueueHostNotice(tx, request.requestId, { kind: "awaiting_approval", version: 1 }));

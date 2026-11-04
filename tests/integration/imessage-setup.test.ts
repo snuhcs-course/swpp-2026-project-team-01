@@ -47,7 +47,7 @@ describe("setup over iMessage", () => {
     const { sender } = await im.link(host.hostAccountId);
 
     const entered = await im.deliver({ sender, text: "setup" });
-    expect(await reply(host.hostAccountId, entered.receiptId)).toContain("Setup selected.");
+    expect(await reply(host.hostAccountId, entered.receiptId)).toContain("We're now talking about your setup.");
 
     await im.deliver({ sender, text: "Thirty-minute meetings, please" });
     const [input] = await im.inputsOf(host.hostAccountId);
@@ -80,7 +80,7 @@ describe("setup over iMessage", () => {
     expect(after).not.toBe(before);
 
     const stale = await im.deliver({ sender, text: `confirm ${before}` });
-    expect(await reply(host.hostAccountId, stale.receiptId)).toContain(`The current one is ${after}`);
+    expect(await reply(host.hostAccountId, stale.receiptId)).toContain(`the current one is ${after}`);
     expect(await db`select 1 from app.host_settings where host_account_id = ${host.hostAccountId}`).toHaveLength(0);
   });
 });

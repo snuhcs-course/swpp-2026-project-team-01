@@ -64,17 +64,18 @@ describe("request commands", () => {
     const { sender } = await im.link(request.hostAccountId);
     const ref = requestRef(request.requestId);
 
-    expect((await say(sender, request.hostAccountId, "help")).reply).toContain("approve <ref> or decline <ref>");
+    expect((await say(sender, request.hostAccountId, "help")).reply).toContain('"Show me the proposal" or "book it"');
     expect((await say(sender, request.hostAccountId, "requests")).reply).toContain(`${ref}: Grace Hopper, awaiting your approval`);
 
     const selected = await say(sender, request.hostAccountId, `request ${ref.toLowerCase()}`);
     expect(selected.delivered.outcome).toBe("command");
-    expect(selected.reply).toContain(`approve ${reviewRef(request.requestId, 1)}`);
+    expect(selected.reply).toContain("To approve, tell me so");
+    expect(selected.reply).not.toContain(`approve ${reviewRef(request.requestId, 1)}`);
     expect((await im.bindingOf(request.hostAccountId))?.selected_request_id).toBe(request.requestId);
 
     const review = await say(sender, request.hostAccountId, "Review");
     expect(review.reply).toContain(`Request ${ref} from Grace Hopper`);
-    expect(review.reply).toContain(`decline ${reviewRef(request.requestId, 1)}`);
+    expect(review.reply).toContain("To decline, tell me to decline it.");
   });
 
   it("changes nothing for an outdated or unknown reference, or a plain yes", async () => {
@@ -82,7 +83,7 @@ describe("request commands", () => {
     const { sender } = await im.link(request.hostAccountId);
     const ref = requestRef(request.requestId);
 
-    expect((await say(sender, request.hostAccountId, `approve ${ref}-7`)).reply).toContain(`The current one is ${ref}-1`);
+    expect((await say(sender, request.hostAccountId, `approve ${ref}-7`)).reply).toContain(`the current one is ${ref}-1`);
     expect((await say(sender, request.hostAccountId, "approve ZZZZZZ-1")).reply).toContain("I don't recognize that reference");
     expect((await say(sender, request.hostAccountId, "yes")).delivered.outcome).not.toBe("command");
     expect(await approvalsOf(request.requestId)).toHaveLength(0);
@@ -153,15 +154,16 @@ describe("request commands", () => {
     const request = await agreedRequest(db, google);
     const { sender } = await im.link(request.hostAccountId);
     const ref = requestRef(request.requestId);
-    expect((await say(sender, request.hostAccountId, "changes")).reply).toBe("Choose a request first: send requests, then request <ref>.");
+    expect((await say(sender, request.hostAccountId, "changes")).reply).toBe("Tell me which request you mean first.");
     await say(sender, request.hostAccountId, `request ${ref}`);
     expect((await say(sender, request.hostAccountId, "changes")).reply).toContain("There are no suggested changes");
 
     const later = new Date(new Date(request.start).getTime() + 60 * 60_000).toISOString();
     await asHost(db, request.hostAccountId, request.requestId, suggestChangesCommand("assistant"), { changes: { start: later } });
     const shown = await say(sender, request.hostAccountId, "changes");
-    expect(shown.reply).toContain(`share ${ref}-S1`);
-    expect((await say(sender, request.hostAccountId, `dismiss ${ref}-S2`)).reply).toContain(`The current ones are ${ref}-S1`);
+    expect(shown.reply).toContain(`Suggested changes ${ref}-S1`);
+    expect(shown.reply).toContain("Tell me to send them to the requester, or to drop them.");
+    expect((await say(sender, request.hostAccountId, `dismiss ${ref}-S2`)).reply).toContain(`the current ones are ${ref}-S1`);
 
     const shared = await say(sender, request.hostAccountId, `share ${ref}-S1`);
     expect(shared.reply).toContain("Shared.");
@@ -175,14 +177,17 @@ describe("settings commands", () => {
     await prepareReviewableHost(db, host);
     const { sender } = await im.link(host.hostAccountId);
 
-    expect((await say(sender, host.hostAccountId, "setup")).reply).toContain("Setup selected.");
+    expect((await say(sender, host.hostAccountId, "setup")).reply).toContain("We're now talking about your setup.");
     const proposal = await computeSetupProposal(db, host.hostAccountId);
     const ref = settingsRef(proposal!.proposalHash);
     const review = await say(sender, host.hostAccountId, "review");
     expect(review.reply).toContain("Your settings for review:");
-    expect(review.reply).toContain(`confirm ${ref}`);
+    // The review asks for words, not a command (channel-actions-in-words D3);
+    // the exact command still works (D2).
+    expect(review.reply).toContain("If these look right, tell me to save them.");
+    expect(review.reply).not.toContain(`confirm ${ref}`);
 
-    expect((await say(sender, host.hostAccountId, "confirm 00000000")).reply).toContain(`The current one is ${ref}`);
+    expect((await say(sender, host.hostAccountId, "confirm 00000000")).reply).toContain(`the current one is ${ref}`);
     expect(await db`select 1 from app.host_settings where host_account_id = ${host.hostAccountId}`).toHaveLength(0);
 
     const saved = await say(sender, host.hostAccountId, `confirm ${ref}`);

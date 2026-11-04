@@ -117,7 +117,7 @@ The diagram shows authority, not transport details. Browser steps (sign-in, clie
 
 ## Setup over iMessage
 
-A host who has linked iMessage (H11) can run or resume every conversational step there. The channel maps the verified sender to the host principal and to the same setup session that `/app` uses, so progress, the draft and the next action are shared: a question answered in iMessage is not asked again on web, and the reverse. The `setup` command enters or returns to onboarding; `review` shows the current settings review.
+A host who has linked iMessage (H11) can run or resume every conversational step there. The channel maps the verified sender to the host principal and to the same setup session that `/app` uses, so progress, the draft and the next action are shared: a question answered in iMessage is not asked again on web, and the reverse. Asking to go back to setup enters or returns to onboarding, and asking for the settings shows the current review; the `setup` and `review` commands still work, but no reply asks for them, and fixed replies follow the conversation's language, English or Korean ([`channel-actions-in-words`](../../openspec/changes/channel-actions-in-words/proposal.md#decisions)).
 
 | Step | In iMessage | Why |
 |---|---|---|
@@ -125,10 +125,10 @@ A host who has linked iMessage (H11) can run or resume every conversational step
 | H4 calendar roles | The agent lists the host's calendars with recommended roles; the host answers in text (“check personal and class, book on personal”); the agent echoes the parsed selection and saves it on the host's confirmation | The same calendar metadata checks as the web card |
 | H5 analysis, H6 suggestions, H7 mode, location and transport | Each question arrives as one message with its evidence and a suggested answer; a plain reply (“yes”, “1 pm is fine”, “in person, Yeoksam”) updates the draft after the agent echoes what it understood | Draft changes are reversible; an ambiguous reply gets one clarifying question |
 | H8 handle | Offered as a suggestion; the reply is validated like the web field | Reserved, taken or rate-limited handles are explained in the reply |
-| H9 final review and confirmation | The agent sends the complete authored review with a review reference; the host confirms with the exact authored command for that reference, or opens the web review link | A confirmation must name the exact review; a shortened summary or “ok” cannot save policy, and a review that does not fit one message goes to the browser |
+| H9 final review and confirmation | The agent goes through the complete review; the host says to save it ("looks right, save it"), taps **Confirm settings** on Telegram or WhatsApp, or opens the web review link | The save names the exact review the host was shown; a question, a condition or a change saves nothing, and a review that does not fit one message goes to the browser |
 | H10 links | Returned in the conversation once the server confirms readiness | The same readiness check |
 
-Answers given in iMessage are draft changes, never confirmed policy, until the H9 confirmation. Later changes work the same way: the host writes what to change, the agent echoes the resulting draft, and the exact command confirms it. The iMessage settings confirmation is specified in the [`host-imessage-channel` change](../../openspec/changes/host-imessage-channel/design.md#12-setup-over-imessage): `confirm <reference>` on the current review.
+Answers given in iMessage are draft changes, never confirmed policy, until the H9 confirmation. Later changes work the same way: the host writes what to change, the agent echoes the resulting draft, and the host's words save it. The settings confirmation is specified in the [`host-imessage-channel` change](../../openspec/changes/host-imessage-channel/design.md#12-setup-over-imessage) and, in words, in [`channel-actions-in-words` design 1](../../openspec/changes/channel-actions-in-words/design.md#1-tools-for-the-remaining-actions).
 
 ## Interruption, resume and failure
 

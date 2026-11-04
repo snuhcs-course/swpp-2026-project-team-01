@@ -26,7 +26,7 @@ describe("setup capabilities resolve per audience", () => {
   it("gives a host setup session the setup tools and switching in words", async () => {
     const tools = await setupTools.events["session.started"]!({}, resolveContext(hostSetup));
 
-    expect(Object.keys(tools ?? {}).sort()).toEqual(["draft_settings", "read_setup_state", "switch_conversation"]);
+    expect(Object.keys(tools ?? {}).sort()).toEqual(["confirm_settings", "draft_settings", "list_host_requests", "read_setup_state", "switch_conversation"]);
   });
 
   it("leaves the tools absent for any other audience or no principal", async () => {
