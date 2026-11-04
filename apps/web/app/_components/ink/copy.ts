@@ -3,7 +3,8 @@
 // components/thyme/copy.ts); the link copy follows the "iMessage 연결 화면 시안" canvas. The choice lives in
 // the `lang` cookie, so the server-rendered landing and the client screens agree.
 // WhatsApp (host-whatsapp-channel D6, D7, D12) reuses the same screens: `wa` holds the words that differ, and
-// channelCopy lays them over the iMessage words for a WhatsApp code or binding.
+// channelCopy lays them over the iMessage words for a WhatsApp code or binding. Telegram (host-telegram-channel
+// D6, D7, D13) does the same with `tg`: the host opens the bot and taps Start instead of sending a written note.
 
 import type { MessagingChannel } from "@lib/contracts/messaging-channel";
 
@@ -218,7 +219,9 @@ const en = {
     switchTo: (name: string) => `Use ${name} instead`,
     replacesImessage: "This replaces your iMessage link.",
     replacesWhatsapp: "This replaces your WhatsApp link.",
+    replacesTelegram: "This replaces your Telegram link.",
     optIn: "Thyme will message you on WhatsApp about your requests. If you have not written for a day, it sends a short notice instead.",
+    privacyTelegram: "Telegram keeps bot chats on its servers. Find Me a Time sends your request summaries here.",
   },
   // The words that differ for WhatsApp, laid over the ones above by channelCopy.
   wa: {
@@ -251,6 +254,42 @@ const en = {
       confirmLede: "We got your message. Link it only if it came from your WhatsApp.",
       connected: "Your WhatsApp is connected.",
       connectedLede: "You can onboard with Thyme in WhatsApp. Thyme just sent you a hello there.",
+    },
+  },
+  // The words that differ for Telegram, laid over the iMessage ones by channelCopy.
+  tg: {
+    landing: { noImessage: "No Telegram?" },
+    send: {
+      start: "Onboard with Telegram",
+      startOpensPhone: "Telegram opens at Thyme's bot. Tap Start, then come back here.",
+      startOpensDesktop: "Opens Thyme's bot in Telegram: on this computer, or through a QR code for your phone.",
+      fine: "By tapping Start, you agree to get Telegram messages from Thyme about your meetings. Send /stop to stop anytime.",
+      open: "Open Telegram",
+      opensNote: "Telegram opens at Thyme's bot. Tap Start, then come back here.",
+      qrTag: "PHONE",
+      qrTitle: "Scan with your phone",
+      qrBody: "Telegram opens at Thyme's bot. Tap Start.",
+      qrAlt: "QR code that opens Thyme's bot in Telegram on your phone",
+      macTag: "THIS COMPUTER",
+      macTitle: "Open Telegram here",
+      macBody: "Opens Telegram Desktop or Telegram Web on this computer.",
+      copyBody: "Open this link in Telegram, or send the code to the bot.",
+      popupTitle: "Start Thyme's bot in Telegram",
+      popupLede: "Open Thyme's bot in the Telegram you use and tap Start. This page moves on by itself.",
+      waitingLede: "Tap Start in Telegram. This page moves on as soon as it arrives.",
+      waitingStartLede: "Tap Start in Telegram, then come back here. Next, you sign in with Google once.",
+      reopen: "Telegram didn't open? Open it again",
+      unavailable: "Starting from Telegram isn't available yet.",
+    },
+    link: {
+      heading: "Connect Thyme to your Telegram",
+      lede: "Open Thyme's bot in the Telegram you use and tap Start. That links this account.",
+      ledePhone: "Open Thyme's bot in Telegram and tap Start. That links this account.",
+      altDesktop: "Rather not now?",
+      altPhone: "Rather not now?",
+      confirmLede: "We got your Start. Link it only if it came from your Telegram.",
+      connected: "Your Telegram is connected.",
+      connectedLede: "You can onboard with Thyme in Telegram. Thyme just sent you a hello there.",
     },
   },
 };
@@ -445,7 +484,9 @@ const ko: Copy = {
     switchTo: (name: string) => `대신 ${name} 쓰기`,
     replacesImessage: "기존 iMessage 연결을 대신해요.",
     replacesWhatsapp: "기존 WhatsApp 연결을 대신해요.",
+    replacesTelegram: "기존 Telegram 연결을 대신해요.",
     optIn: "Thyme이 요청에 관해 WhatsApp으로 메시지를 보내요. 하루 동안 메시지를 보내지 않으면 대신 짧은 알림을 보내요.",
+    privacyTelegram: "Telegram은 봇 대화를 자기 서버에 보관해요. Find Me a Time은 요청 요약을 이 대화로 보내요.",
   },
   wa: {
     landing: { noImessage: "WhatsApp이 없나요?" },
@@ -479,12 +520,55 @@ const ko: Copy = {
       connectedLede: "이제 WhatsApp에서 Thyme과 설정을 이어 갈 수 있어요. Thyme이 방금 인사를 보냈어요.",
     },
   },
+  tg: {
+    landing: { noImessage: "Telegram이 없나요?" },
+    send: {
+      start: "Telegram으로 시작하기",
+      startOpensPhone: "Telegram에서 Thyme 봇이 열려요. 시작을 누른 뒤 여기로 돌아오세요.",
+      startOpensDesktop: "Telegram에서 Thyme 봇이 열려요. 이 컴퓨터에서 바로 열거나, 휴대폰으로 찍을 QR 코드를 보여 드려요.",
+      fine: "시작을 누르면 미팅에 관한 Thyme의 Telegram 메시지를 받는 데 동의하게 돼요. 언제든 /stop을 보내면 멈춰요.",
+      open: "Telegram 열기",
+      opensNote: "Telegram에서 Thyme 봇이 열려요. 시작을 누른 뒤 여기로 돌아오세요.",
+      qrTag: "휴대폰",
+      qrTitle: "휴대폰으로 찍기",
+      qrBody: "Telegram에서 Thyme 봇이 열려요. 시작만 누르세요.",
+      qrAlt: "휴대폰의 Telegram에서 Thyme 봇을 여는 QR 코드",
+      macTag: "이 컴퓨터",
+      macTitle: "여기서 Telegram 열기",
+      macBody: "이 컴퓨터의 Telegram 앱이나 Telegram Web이 열려요.",
+      copyBody: "이 링크를 Telegram에서 열거나, 코드를 봇에게 보내세요.",
+      popupTitle: "Telegram에서 Thyme 봇 시작하기",
+      popupLede: "쓰고 있는 Telegram에서 Thyme 봇을 열고 시작을 누르세요. 이 화면이 알아서 넘어가요.",
+      waitingLede: "Telegram에서 시작을 눌러 주세요. 도착하면 이 화면이 바로 넘어가요.",
+      waitingStartLede: "Telegram에서 시작을 누른 뒤 여기로 돌아오세요. 다음으로 Google 로그인을 한 번만 하면 돼요.",
+      reopen: "Telegram이 안 열렸나요? 다시 열기",
+      unavailable: "지금은 Telegram으로 시작할 수 없어요.",
+    },
+    link: {
+      heading: "Thyme을 Telegram에 연결해요",
+      lede: "쓰고 있는 Telegram에서 Thyme 봇을 열고 시작을 누르세요. 그러면 이 계정에 연결돼요.",
+      ledePhone: "Telegram에서 Thyme 봇을 열고 시작을 누르세요. 그러면 이 계정에 연결돼요.",
+      altDesktop: "지금은 하고 싶지 않나요?",
+      altPhone: "지금은 하고 싶지 않나요?",
+      confirmLede: "시작을 받았어요. 내 Telegram에서 누른 게 맞을 때만 연결해 주세요.",
+      connected: "Telegram이 연결됐어요.",
+      connectedLede: "이제 Telegram에서 Thyme과 설정을 이어 갈 수 있어요. Thyme이 방금 인사를 보냈어요.",
+    },
+  },
 };
 
 export const COPY: Record<Locale, Copy> = { en, ko };
 
-// The words for a channel's screens: WhatsApp's laid over the iMessage ones.
+// The words for a channel's screens: WhatsApp's or Telegram's laid over the iMessage ones.
 export function channelCopy(t: Copy, channel: MessagingChannel): Copy {
-  if (channel !== "whatsapp") return t;
-  return { ...t, landing: { ...t.landing, ...t.wa.landing }, link: { ...t.link, ...t.wa.link }, send: { ...t.send, ...t.wa.send } };
+  if (channel === "imessage") return t;
+  const over = channel === "whatsapp" ? t.wa : t.tg;
+  return { ...t, landing: { ...t.landing, ...over.landing }, link: { ...t.link, ...over.link }, send: { ...t.send, ...over.send } };
+}
+
+// "This replaces your … link." for the channel a confirmation would replace (D5).
+export function replacesText(t: Copy, channel: MessagingChannel) {
+  if (channel === "whatsapp") return t.link.replacesWhatsapp;
+  if (channel === "telegram") return t.link.replacesTelegram;
+  return t.link.replacesImessage;
 }

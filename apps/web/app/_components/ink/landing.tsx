@@ -10,8 +10,8 @@ import "./landing.css";
 // The public landing. The first screen is the headline and the way in over a faint week of calendar, with glass cards
 // of what Thyme does around them (landing-float.tsx), then Thyme's example conversations on an ink-blue band, each
 // named for what it shows. Then what the service does, the three steps, the agent way in and the footer.
-// Two starts: Google first (/), and a messaging app first (/?flow=imessage or /?flow=whatsapp), where the visitor
-// sends Thyme the link message before signing in.
+// Two starts: Google first (/), and a messaging app first (/?flow=imessage, /?flow=whatsapp or /?flow=telegram),
+// where the visitor sends Thyme the link message (or starts the Telegram bot) before signing in.
 export function Landing({ flow, locale }: { readonly flow: MessagingChannel | null; readonly locale: Locale }) {
   const t = COPY[locale].landing;
   const start = flow ? <ImessageStartBlock locale={locale} /> : <GoogleStart locale={locale} />;

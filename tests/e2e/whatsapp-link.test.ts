@@ -14,7 +14,7 @@ import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 
 // Linking WhatsApp from the browser (host-whatsapp-channel design 5, 6 and 8; D5 to D7, D12; task 3.2),
 // against the real web and agent services, the local stack and the Photon stand-in. The channel follows the
-// device: Android gets WhatsApp only, an iPhone gets iMessage with Use WhatsApp instead, and another computer
+// device: Android gets WhatsApp (with Use Telegram instead since host-telegram-channel D7), an iPhone gets iMessage with Use WhatsApp instead, and another computer
 // first asks which app the host uses. The host's WhatsApp message is driven through the real receiver and the
 // receipt job as a WhatsApp Business event; Confirm and link, after the opt-in sentence, binds it.
 
@@ -98,7 +98,9 @@ test.describe("on Android", () => {
     await expect(page.getByRole("link", { name: "Open WhatsApp" })).toHaveAttribute("href", waLink(message));
     await expect(page.getByText(`Thyme · +${WHATSAPP}`)).toBeVisible();
     await expect(page.getByRole("link", { name: "Open Messages" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /instead/ })).toHaveCount(0);
+    // Android never switches to iMessage; Telegram is the other choice (host-telegram-channel D7).
+    await expect(page.getByRole("button", { name: "Use iMessage instead" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Use Telegram instead" })).toBeVisible();
 
     const sender = newWhatsAppSender();
     await hostSendsOnWhatsApp(db, sender, message);
@@ -114,6 +116,7 @@ test.describe("on Android", () => {
     // The in-chat card names the channel and offers no Add to contacts.
     await page.getByRole("button", { name: "Go to Home" }).click();
     const card = await openCard(page);
+    await card.getByRole("button", { name: `WhatsApp linked +${sender}` }).click();
     await expect(card.getByRole("heading", { name: "WhatsApp is linked" })).toBeVisible();
     await expect(card).toContainText(`Linked on WhatsApp +${sender}`);
     await expect(card.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
@@ -128,7 +131,8 @@ test.describe("on Android", () => {
 
     await expect(card.getByRole("heading", { name: "Use Find Me a Time from WhatsApp" })).toBeVisible({ timeout: 45_000 });
     await expect(card.getByRole("button", { name: "Connect iMessage" })).toHaveCount(0);
-    await expect(card.getByRole("button", { name: /instead/ })).toHaveCount(0);
+    await expect(card.getByRole("button", { name: "Use iMessage instead" })).toHaveCount(0);
+    await expect(card.getByRole("button", { name: "Use Telegram instead" })).toBeVisible();
     await card.getByRole("button", { name: "Connect WhatsApp" }).click();
     await page.waitForURL(/^https:\/\/wa\.me\//, { timeout: 45_000 });
     const url = new URL(page.url());

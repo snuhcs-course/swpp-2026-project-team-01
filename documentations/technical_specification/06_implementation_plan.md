@@ -282,7 +282,7 @@ Scope. Prerequisite: Phase 2 for setup over iMessage and Phase 4 for decisions. 
 
 **Lane B — linking card in the web workspace**
 
-- [x] **Connect iMessage** gets a one-time link code from the server and at once opens Messages with the line's number as the recipient and the exact link message in the input (`sms:<number>&body=<text>` on iOS, `sms:<number>?body=<text>` on Android); where Messages cannot open, the inline card shows the number, the code, **Copy** and a QR code of the same deep link. Then the masked-sender **Confirm and link**, the service-sent six-digit fallback (**Send me a code instead**) with a protected code field, expiry and resend limits, unlink, **Maybe later**. Opening Messages never counts as linking.
+- [x] **Connect iMessage** gets a one-time link code from the server and at once opens Messages with the line's number as the recipient and the exact link message in the input (`sms:<number>&body=<text>` on iOS, `sms:<number>?body=<text>` on Android); where Messages cannot open, the inline card shows the number, the code, **Copy** and a QR code of the same deep link. Then **Confirm and link** on the sender, the service-sent six-digit fallback (**Send me a code instead**) with a protected code field, expiry and resend limits, unlink, **Maybe later**. Opening Messages never counts as linking.
 - [x] Optional **Add to contacts** card with truthful queued, accepted, failed and uncertain states.
 
 **Lane C — channel and commands**
@@ -408,7 +408,7 @@ Scope. Prerequisite: Phase 6, whose receiver, tables, commands, outbox and cards
 
 **Lane B — linking in the browser**
 
-- [x] **Connect WhatsApp** with the `wa.me` link, QR code, **Copy** and masked-number **Confirm and link**; the device rule (Android WhatsApp, Apple devices iMessage with **Use WhatsApp instead**, other computers ask); the replacement notice and the opt-in sentence; the link step after sign-in and `/?flow=whatsapp`.
+- [x] **Connect WhatsApp** with the `wa.me` link, QR code, **Copy** and **Confirm and link** on the number; the device rule (Android WhatsApp, Apple devices iMessage with **Use WhatsApp instead**, other computers ask); the replacement notice and the opt-in sentence; the link step after sign-in and `/?flow=whatsapp`.
 - [x] One active binding per host across channels, ending the other channel's binding on confirmation.
 
 **Lane C — window, templates and channel behavior**
@@ -457,7 +457,7 @@ Scope. Prerequisites: Phases 6 and 9, whose receipts, tables with their `channel
 
 **Lane B — linking in the browser**
 
-- [ ] **Connect Telegram** with the `t.me` start link, QR code, **Copy**, the Telegram name and **Confirm and link**; the device rule across three channels; the replacement notice and the privacy sentence; the link step after sign-in and `/?flow=telegram`.
+- [x] **Connect Telegram** with the `t.me` start link, QR code, **Copy**, the Telegram name and **Confirm and link**; the device rule across three channels; the replacement notice and the privacy sentence; the link step after sign-in and `/?flow=telegram`.
 
 **Lane C — buttons, extras and channel behavior**
 
