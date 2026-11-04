@@ -447,7 +447,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 **레인 A — 웹훅, 기록, 전송**
 
 - [x] 네 개의 `imessage_*` 테이블의 `channel` 검사에 `telegram`을 pg-delta로 추가.
-- [ ] 시크릿 헤더가 있는 `POST /telegram/webhook`, 업데이트와 콜백 파서, `telegram:` 발신자 네임스페이스.
+- [x] 시크릿 헤더가 있는 `POST /telegram/webhook`, 업데이트와 콜백 파서, `telegram:` 발신자 네임스페이스.
 - [ ] Bot API 클라이언트, 오류 매핑, 대화 간격 조정과 분할, 대역의 Telegram 분기, `npm run telegram:webhook`.
 
 **레인 B — 브라우저에서의 연동**
