@@ -7,6 +7,8 @@ body:
         A task is either a piece of work for one branch and pull request, or the tracking issue of an OpenSpec change. A small fix that keeps existing behavior needs only this task.
 
         For an OpenSpec change, open one tracking issue, not one per `tasks.md` item. Name the change in Source, put this issue's number in the change's `proposal.md`, and keep the requirements in the change. Pull requests that implement part of it say `Part of #N`; the pull request that archives the change says `Closes #N`.
+
+        When this task is one piece of a larger goal that other pull requests share, open it as a sub-issue of that goal's epic (the Epic form).
   - type: dropdown
     id: type
     attributes:
