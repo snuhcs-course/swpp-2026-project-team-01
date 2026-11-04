@@ -16,7 +16,14 @@ import { findLinkCode } from "./email-links";
 import { acceptGuestMessage, DraftMessageLimitError } from "./guest-conversations";
 import { HostIneligibleError } from "./host-eligibility";
 import { internalSigningKey } from "./internal-bearer";
-import { activeBindingOfSender, bindingContext, lockActiveBindingOfSender, receiveLinkCode, refusalSentRecently } from "./imessage-links";
+import {
+  activeBindingOfSender,
+  bindingContext,
+  lockActiveBindingOfSender,
+  receiveLinkCode,
+  refusalSentRecently,
+  telegramDisplayName,
+} from "./imessage-links";
 import { type ImessageSignal, recordOutbound, signalText } from "./imessage-outbox";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
@@ -29,6 +36,7 @@ import { requesterBindingContext } from "./requester-imessage-bindings";
 import { type CreationLimits } from "./request-start";
 import { isRevisable, readRevisedSummary, reviseClosedRequest } from "./revised-requests";
 import { type SetupDependencies, setupDependenciesFromEnvironment } from "./setup";
+import { openTelegramText, type TelegramDetails } from "./telegram";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // The imessage_receipt job (host-imessage-channel design 7): what one stored
@@ -47,6 +55,7 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 //     button, which carries the exact command its ID names;
 //   - otherwise the bound host's message goes on to the channel (commands and
 //     forwarding).
+// A Telegram receipt (host-telegram-channel) is linking first (telegramLinking).
 // The outcome is recorded with the sealed values cleared in the same write. An
 // admission limit fails the attempt, so the receipt waits and retries no earlier
 // than the job's backoff, and the ordering check keeps later messages behind it.
@@ -233,9 +242,12 @@ export type OpenedReceipt = {
   readonly text: string | null;
   readonly sender: string;
   readonly spaceId: string;
+  // Telegram only: the sender's profile and a callback's locators, from the
+  // sealed envelope (host-telegram-channel design 3); null on other channels.
+  readonly telegram: TelegramDetails | null;
 };
 
-function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedReceipt | null {
+export function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedReceipt | null {
   if (!row.sender_ciphertext || !row.space_ciphertext || !row.sealed_key_id) return null;
   const open = (ciphertext: string) => openToken(keys, { ciphertext, keyId: row.sealed_key_id! }, receiptSealContext(row.id));
 
@@ -243,6 +255,10 @@ function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedReceipt 
   if (row.channel === "telegram") return null;
 
   try {
+    const sealed = row.text_ciphertext ? open(row.text_ciphertext) : null;
+    // A Telegram receipt seals its text with the update's details as one envelope.
+    const envelope = row.channel === "telegram" && sealed !== null ? openTelegramText(sealed) : null;
+    if (row.channel === "telegram" && sealed !== null && !envelope) return null;
     return {
       channel: row.channel,
       contentType: row.content_type,
@@ -253,7 +269,8 @@ function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedReceipt 
       spaceHash: row.space_hash,
       spaceId: open(row.space_ciphertext),
       spaceType: row.space_type,
-      text: row.text_ciphertext ? open(row.text_ciphertext) : null,
+      telegram: envelope?.details ?? null,
+      text: envelope ? envelope.text : sealed,
     };
   } catch {
     return null;
@@ -273,6 +290,7 @@ export const ORDER_WAITS = 600;
 export const CHANNEL_TEXTS = {
   unlinked: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect iMessage.",
   unlinkedWhatsApp: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect WhatsApp.",
+  unlinkedTelegram: "This Telegram account isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect Telegram.",
   textOnly: "I can read text messages only.",
 } as const;
 
@@ -550,12 +568,71 @@ async function forwardGuest(
   return "forwarded";
 }
 
+// ---------------------------------------------------------------------------
+// Telegram (host-telegram-channel design 6)
+
+// /start, as the bot's Start button or a typed command sends it, optionally
+// addressed to the bot (/start@findmeatime_bot), with its payload if any.
+const START_COMMAND = /^\/start(?:@[A-Za-z0-9_]+)?(?:\s+(\S+))?\s*$/;
+
+// Linking over Telegram, or null when the receipt is not about linking:
+//   - a message carrying an FMAT- code (/start <code> from the t.me link, or the
+//     code typed as text) goes to receiveLinkCode with the sender's display
+//     name; only a Telegram attempt is completed by it, and any other attempt
+//     it names is voided;
+//   - /start without a code (or with a payload that is not one) from a sender
+//     with no active Telegram binding gets the unlinked-sender reply, at most
+//     once a day per sender and counted per channel. A linked host's /start is
+//     not linking.
+// A button tap or a blocking update is never linking.
+export async function telegramLinking(tx: Transaction, deps: ImessageReceiptDependencies, receipt: OpenedReceipt): Promise<ReceiptOutcome | null> {
+  if (receipt.contentType !== "text" && receipt.contentType !== "command") return null;
+  const text = receipt.text?.trim() ?? "";
+  const code = findLinkCode(text);
+
+  if (code) {
+    return receiveLinkCode(tx, { origin: deps.origin, tokenKey: deps.tokenKey }, {
+      channel: "telegram",
+      code,
+      receiptId: receipt.id,
+      sender: receipt.sender,
+      senderHash: receipt.senderHash,
+      senderName: telegramDisplayName(receipt.telegram?.firstName ?? null, receipt.telegram?.username ?? null),
+      spaceId: receipt.spaceId,
+      spaceType: receipt.spaceType,
+    });
+  }
+
+  if (!START_COMMAND.test(text)) return null;
+  const binding = await activeBindingOfSender(tx, receipt.senderHash);
+  if (binding?.channel === "telegram") return null;
+  if (await refusalSentRecently(tx, receipt.senderHash, "telegram")) return "ignored";
+  await recordOutbound(tx, {
+    channel: "telegram",
+    dedupeKey: `receipt:${receipt.id}`,
+    kind: "unlinked_sender",
+    recipient: { address: receipt.sender, spaceId: receipt.spaceId },
+    recipientHash: receipt.senderHash,
+    text: CHANNEL_TEXTS.unlinkedTelegram,
+    tokenKey: deps.tokenKey,
+  });
+  return "unlinked_reply";
+}
+
 export async function processReceipt(
   tx: Transaction,
   deps: ImessageReceiptDependencies,
   receipt: OpenedReceipt,
   channel: ChannelProcessor | null = channelProcessor,
 ): Promise<ReceiptOutcome> {
+  if (receipt.channel === "telegram") {
+    const linking = await telegramLinking(tx, deps, receipt);
+    if (linking) return linking;
+    // Everything else on Telegram (button taps, a blocked bot, commands and the
+    // bound host's text) arrives with tasks 4.1 and 4.2; until then it is ignored.
+    return "ignored";
+  }
+
   // A code is linking wherever it appears: from a group conversation it voids
   // the attempt it names, with no reply into the group.
   const code = receipt.text ? findLinkCode(receipt.text) : null;

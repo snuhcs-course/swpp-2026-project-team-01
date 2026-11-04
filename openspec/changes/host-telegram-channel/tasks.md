@@ -18,8 +18,8 @@ Before each group, read the [Phase 10 reference files](../../../documentations/t
 
 ## 3. Linking in the browser (Lane B)
 
-- [ ] 3.1 Take channel `telegram` in `imessage.link.create`, complete Telegram attempts only from Telegram receipts with `/start <code>` or the code, keep the display name for confirmation, and end any other binding on confirmation ([design 5](design.md#5-one-channel-per-host), [design 6](design.md#6-linking)). Verify integration tests for a code bound only after confirmation, `/start` without a code, a code from the wrong channel, the replacement of an iMessage binding and exact retries.
-- [ ] 3.2 Extend the device rule in `lib/contracts/messaging-channel.ts` to three configured channels, and add the Telegram card states, **Use Telegram instead**, the QR code, the replacement notice and the privacy sentence in the card, the link step and `/?flow=telegram`. Verify unit tests for the rule and the `t.me` link, and Playwright runs with Android, iPhone and Windows user agents, with and without WhatsApp configured.
+- [x] 3.1 Take channel `telegram` in `imessage.link.create`, complete Telegram attempts only from Telegram receipts with `/start <code>` or the code, keep the display name for confirmation, and end any other binding on confirmation ([design 5](design.md#5-one-channel-per-host), [design 6](design.md#6-linking)). Verify integration tests for a code bound only after confirmation, `/start` without a code, a code from the wrong channel, the replacement of an iMessage binding and exact retries.
+- [x] 3.2 Extend the device rule in `lib/contracts/messaging-channel.ts` to three configured channels, and add the Telegram card states, **Use Telegram instead**, the QR code, the replacement notice and the privacy sentence in the card, the link step and `/?flow=telegram`. Verify unit tests for the rule and the `t.me` link, and Playwright runs with Android, iPhone and Windows user agents, with and without WhatsApp configured.
 
 ## 4. Buttons, extras and channel behavior (Lane C)
 
