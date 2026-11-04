@@ -19,7 +19,7 @@ export type GrantSource = {
 };
 
 const PERMISSION_WORDS: Readonly<Record<string, string>> = {
-  "host:decide": "prepare decisions",
+  "host:decide": "approve and decline",
   "host:read": "read",
   "host:write": "change",
   "request:decide": "agree and withdraw",

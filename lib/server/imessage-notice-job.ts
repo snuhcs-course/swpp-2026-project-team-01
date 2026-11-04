@@ -1,4 +1,6 @@
 import { hostRequestUrl } from "./booking-notices";
+import { type ChannelLanguage, hostConversationLanguage } from "./channel-language";
+import { channelReplies, locale } from "./channel-texts";
 import { database, type Database, type Transaction } from "./database";
 import { readHostRequest } from "./host-requests";
 import { decisionButtons, requestRef, requestSummary } from "./imessage-commands";
@@ -23,6 +25,8 @@ import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 // link; the booking confirmation is the last one, so the binding then ends.
 // On Telegram the awaiting-approval summary carries the proposal's decision
 // buttons (host-telegram-channel design 7, D8); other channels ignore them.
+// A host notice follows the language of the host's conversation and asks for
+// no command (channel-actions-in-words D3, D4).
 
 export type NoticeJobDependencies = {
   readonly db: Database;
@@ -113,11 +117,10 @@ async function recordGuestNotice(tx: Transaction, deps: NoticeJobDependencies, r
 }
 
 // A revised request names the earlier one (guest-flow-completion design 5).
-function followsText(view: HostRequestView) {
+function followsText(view: HostRequestView, language: ChannelLanguage) {
   if (!view.revisedFrom) return "";
-  return view.revisedFrom.outcome === "declined"
-    ? ` It follows your decline of request ${view.revisedFrom.ref}.`
-    : ` It follows request ${view.revisedFrom.ref}, which expired.`;
+  const texts = channelReplies(language);
+  return view.revisedFrom.outcome === "declined" ? texts.followsDecline(view.revisedFrom.ref) : texts.followsExpired(view.revisedFrom.ref);
 }
 
 // The notice's text, with the decision buttons a WhatsApp summary of a proposal
@@ -132,29 +135,34 @@ async function noticeText(
 ): Promise<{ text: string; buttons?: WhatsAppButtons } | null> {
   const view = await readHostRequest(q, hostAccountId, requestId);
   if (!view) return null;
+  const language = await hostConversationLanguage(q, hostAccountId);
+  const texts = channelReplies(language);
   const ref = requestRef(requestId);
   const link = hostRequestUrl(deps.origin, requestId);
+  const follows = followsText(view, language);
 
   switch (notice.kind) {
     // No longer queued (#122); kept so a notice queued before the change still reads.
     case "new_request":
-      return { text: `New request ${ref} from ${view.requester.name}${view.details.purpose ? `: ${view.details.purpose}` : ""}.${followsText(view)} Send request ${ref} to discuss it here.` };
+      return { text: texts.newRequest([texts.request(ref, view.requester.name, view.details.purpose), follows].filter(Boolean).join(" ")) };
     // The host's first message about a request (#122): the guest has picked and
     // agreed to a time, so the summary names the request and what it follows.
     case "awaiting_approval": {
       if (view.state !== "awaiting_host_approval" || view.proposal?.version !== notice.version) return null;
-      const follows = followsText(view).trim();
-      return { buttons: decisionButtons(view), text: `Ready for your approval.\n${requestSummary(view)}${follows ? `\n${follows}` : ""}\nMessages here now go to this request.` };
+      return {
+        buttons: decisionButtons(view, language),
+        text: [texts.readyForApproval, requestSummary(view, language), follows, texts.selectedRequest].filter(Boolean).join("\n"),
+      };
     }
     default: {
       const [booking] = await q<{ start_at: Date; end_at: Date }[]>`
         select start_at, end_at from app.bookings where id = ${notice.bookingId} and request_id = ${requestId}
       `;
       if (!booking) return null;
-      const when = meetingTime(booking.start_at, booking.end_at, view.hostTimezone);
-      if (notice.kind === "booking_confirmed") return { text: `Booked with ${view.requester.name}: ${when}. It's on your calendar.` };
-      if (notice.kind === "booking_failed") return { text: `The booking for request ${ref} (${when}) wasn't confirmed. Check it in Find Me a Time: ${link}` };
-      return { text: `The booking for request ${ref} (${when}) is taking longer than usual to confirm. Check it in Find Me a Time: ${link}` };
+      const when = meetingTime(booking.start_at, booking.end_at, view.hostTimezone, locale(language));
+      if (notice.kind === "booking_confirmed") return { text: texts.booked(view.requester.name, when) };
+      if (notice.kind === "booking_failed") return { text: texts.bookingFailed(ref, when, link) };
+      return { text: texts.bookingSlow(ref, when, link) };
     }
   }
 }

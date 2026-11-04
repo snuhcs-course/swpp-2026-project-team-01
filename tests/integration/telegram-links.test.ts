@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { calendarConnectUrl, LINK_TEXTS } from "../../lib/server/imessage-links";
 import { outboxSealContext } from "../../lib/server/imessage-outbox";
-import { TELEGRAM_HELP_TEXT } from "../../lib/server/imessage-commands";
+import { helpText } from "../../lib/server/imessage-commands";
 import { CHANNEL_TEXTS } from "../../lib/server/imessage-receipts";
 import { channelHash } from "../../lib/server/photon-receiver";
 import { receiveTelegramWebhook } from "../../lib/server/telegram-receiver";
@@ -127,7 +127,7 @@ describe("linking Telegram", () => {
     expect((await im.deliverTelegram(telegramMessage({ text: "/start", userId: host })))?.outcome).toBe("command");
     expect((await sentTo(telegramHash(host))).map((row) => [row.kind, row.kind === "command" ? row.text : null])).toEqual([
       ["linked", null],
-      ["command", TELEGRAM_HELP_TEXT],
+      ["command", helpText("http://localhost:3000", "en", true)],
     ]);
   });
 

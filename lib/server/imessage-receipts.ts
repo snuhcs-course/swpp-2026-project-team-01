@@ -1,5 +1,5 @@
 import { getChatMessageLengthError } from "../contracts/chat-message";
-import { IMESSAGE_PREFIX, type MessagingChannel, type StoredChannel, TELEGRAM_PREFIX, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
+import { IMESSAGE_PREFIX, type StoredChannel, TELEGRAM_PREFIX, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
 import { type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { AdmissionLimitError } from "./conversation-admission";
 import {
@@ -27,6 +27,8 @@ import {
 import { endBlockedBinding, type ImessageSignal, recordOutbound, signalText } from "./imessage-outbox";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
+import { type ChannelLanguage, hostConversationLanguage, textLanguage } from "./channel-language";
+import { channelReplies } from "./channel-texts";
 import { answerCallback, CALLBACK_TEXTS, executeCommand, parseCommand, requestRef } from "./imessage-commands";
 import { photonConfig, type PhotonConfig, photonTransport, SPECTRUM_ENDPOINT } from "./photon";
 import { WHATSAPP_BUTTON_CONTENT } from "./whatsapp";
@@ -111,10 +113,18 @@ export { IMESSAGE_PREFIX, TELEGRAM_PREFIX, WHATSAPP_PREFIX };
 
 const PREFIXES: Readonly<Record<StoredChannel, string>> = { imessage: IMESSAGE_PREFIX, telegram: TELEGRAM_PREFIX, whatsapp: WHATSAPP_PREFIX };
 
+// The fixed replies are in English and Korean (channel-actions-in-words D4);
+// these are the English ones.
 export const FORWARD_TEXTS = {
-  tooLong: "That message is too long for Thyme. Please send a shorter one.",
-  requestGone: "That request isn't available any more, so this went to your setup conversation. Send requests to choose another.",
+  tooLong: channelReplies("en").tooLong,
+  requestGone: channelReplies("en").requestGone,
 } as const;
+
+// The language of a reply to a bound host's message: the message's own, else
+// the host's conversation.
+async function hostReplyLanguage(deps: ImessageReceiptDependencies, hostAccountId: string, text: string | null): Promise<ChannelLanguage> {
+  return textLanguage(text) ?? (await hostConversationLanguage(deps.db, hostAccountId));
+}
 
 // An admission budget refused the message: the receipt waits at least a minute.
 export class AdmissionDeferredError extends Error {
@@ -143,7 +153,7 @@ async function fixedReply(tx: Transaction, deps: ImessageReceiptDependencies, me
 async function forward(tx: Transaction, deps: ImessageReceiptDependencies, message: BoundMessage): Promise<ReceiptOutcome> {
   const text = `${PREFIXES[message.receipt.channel]}${message.text}`;
   if (getChatMessageLengthError(text)) {
-    await fixedReply(tx, deps, message, "command", FORWARD_TEXTS.tooLong);
+    await fixedReply(tx, deps, message, "command", channelReplies(await hostReplyLanguage(deps, message.hostAccountId, message.text)).tooLong);
     return "replied";
   }
 
@@ -194,7 +204,7 @@ async function forward(tx: Transaction, deps: ImessageReceiptDependencies, messa
       kind: "command",
       recipient: message.recipient,
       recipientHash: message.receipt.senderHash,
-      text: FORWARD_TEXTS.requestGone,
+      text: channelReplies(await hostReplyLanguage(deps, message.hostAccountId, message.text)).requestGone,
       tokenKey: deps.tokenKey,
     });
   }
@@ -293,19 +303,15 @@ export const ADMISSION_DEFERRALS = 240;
 export const ORDER_RETRY_SECONDS = 30;
 export const ORDER_WAITS = 600;
 
+// The English fixed replies to senders; each has a Korean counterpart in
+// channel-texts.ts, chosen by the message's language.
 export const CHANNEL_TEXTS = {
-  unlinked: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect iMessage.",
-  unlinkedWhatsApp: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect WhatsApp.",
-  unlinkedTelegram: "This Telegram account isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect Telegram.",
-  textOnly: "I can read text messages only.",
-  textOnlyTelegram: "I can read text messages only. Photos, stickers and voice messages don't reach Thyme.",
+  unlinked: channelReplies("en").unlinked.imessage,
+  unlinkedWhatsApp: channelReplies("en").unlinked.whatsapp,
+  unlinkedTelegram: channelReplies("en").unlinked.telegram,
+  textOnly: channelReplies("en").textOnly,
+  textOnlyTelegram: channelReplies("en").textOnlyTelegram,
 } as const;
-
-const UNLINKED_TEXTS: Readonly<Record<StoredChannel, string>> = {
-  imessage: CHANNEL_TEXTS.unlinked,
-  telegram: CHANNEL_TEXTS.unlinkedTelegram,
-  whatsapp: CHANNEL_TEXTS.unlinkedWhatsApp,
-};
 
 // A bound host's message, with what the channel needs to act as that host.
 export type BoundMessage = {
@@ -327,10 +333,14 @@ export type ChannelProcessor = (tx: Transaction, deps: ImessageReceiptDependenci
 // A guest's message (guest-flow-completion design 3)
 
 export const GUEST_TEXTS = {
-  closed: "This request is closed, so messages here no longer reach Thyme.",
-  switched: (host: string) => `Now talking about your request with ${host}.`,
-  tooLong: "That message is too long for Thyme. Please send a shorter one.",
+  closed: channelReplies("en").guestClosed,
+  switched: channelReplies("en").guestSwitched,
+  tooLong: channelReplies("en").tooLong,
 } as const;
+
+function senderLanguage(receipt: OpenedReceipt): ChannelLanguage {
+  return textLanguage(receipt.text) ?? "en";
+}
 
 type GuestBinding = {
   readonly id: string;
@@ -354,7 +364,50 @@ async function activeGuestBindings(tx: Transaction, senderHash: string) {
 // Multiple active conversations require an explicit selection. An outbound
 // message in another conversation invalidates it: API acceptance does not
 // establish which message reached the sender or in which order.
-async function guestRoute(tx: Transaction, receipt: OpenedReceipt): Promise<{ binding: GuestBinding; switched: boolean } | "ambiguous" | null> {
+// Which of a sender's conversations a message names in words (#137), or null
+// when it names none or more than one. A host says they are the host ("호스트인데
+// 나", "I'm the host") or answers with a role word alone ("host", "설정"); a
+// mention of the other side ("ask the host", "호스트님께") names nothing, since
+// each role talks about the other. A guest request is named by its reference,
+// by a word of its host's name, or by a Korean full name, or given name with
+// 님 or 씨 (이은우, 은우님); a role word alone names the only guest request.
+const HOST_SELF =
+  /(?:나|저)\s*(?:는|가)?\s*호스트|호스트(?:인데|야|예요|에요|이에요|입니다|로서|로)(?![가-힣])|\bi(?:'m| am) (?:the |a )?host\b|\bas (?:the |a )?host\b|^\s*(?:host|setup|settings|호스트|설정|셋업)\s*[.!?]*\s*$/i;
+const GUEST_ALONE = /^\s*(?:guest|게스트|예약\s*요청|요청)\s*(?:으로|로)?\s*[.!?]*\s*$/i;
+
+function namesHost(text: string, name: string) {
+  const normalized = name.normalize("NFKC").trim();
+  if (!normalized) return false;
+  if (/^[가-힣]{2,4}$/.test(normalized)) {
+    if (text.includes(normalized)) return true;
+    // The given name of a three-syllable name, only as an address (은우님).
+    return normalized.length === 3 && new RegExp(`${normalized.slice(1)}(?:님|씨)`).test(text);
+  }
+  const words = new Set(text.normalize("NFKC").toLowerCase().split(/[^\p{L}\p{N}]+/u));
+  return normalized
+    .toLowerCase()
+    .split(/\s+/)
+    .some((part) => part.length >= 2 && words.has(part));
+}
+
+export function namedConversation<Binding extends { readonly request_id: string; readonly host_name: string | null }>(
+  text: string,
+  guests: readonly Binding[],
+  host: boolean,
+): "host" | Binding | null {
+  const upper = text.toUpperCase();
+  const byName = guests.filter((binding) => new RegExp(`\\b${requestRef(binding.request_id)}\\b`).test(upper) || namesHost(text, binding.host_name ?? ""));
+  const named = byName.length ? byName : guests.length === 1 && GUEST_ALONE.test(text) ? guests : [];
+  const hostNamed = host && HOST_SELF.test(text);
+
+  if (hostNamed && named.length === 0) return "host";
+  if (!hostNamed && named.length === 1) return named[0]!;
+  return null;
+}
+
+type GuestRoute = { readonly binding: GuestBinding; readonly switched: boolean; readonly forward?: boolean };
+
+async function guestRoute(tx: Transaction, receipt: OpenedReceipt): Promise<GuestRoute | "ambiguous" | null> {
   const command = receipt.text ? parseCommand(receipt.text) : null;
   const guests = await activeGuestBindings(tx, receipt.senderHash);
   const host = await activeBindingOfSender(tx, receipt.senderHash);
@@ -447,7 +500,7 @@ async function guestMessage(
   tx: Transaction,
   deps: ImessageReceiptDependencies,
   receipt: OpenedReceipt,
-  route: { binding: GuestBinding; switched: boolean },
+  route: GuestRoute,
 ): Promise<ReceiptOutcome> {
   // A booked request stays reachable for questions about its meeting (U18).
   const [request] = await tx<{ open: boolean; state: string; host_name: string | null }[]>`
@@ -460,7 +513,12 @@ async function guestMessage(
 
   // Revising moves the binding in its own transaction, so this one locks
   // nothing of the binding's first.
-  if (!route.switched && text && request && !request.open && isRevisable(request.state) && route.binding.state === "active") {
+  if ((!route.switched || route.forward) && text && request && !request.open && isRevisable(request.state) && route.binding.state === "active") {
+    // A message that chose this request in words records the choice, then revises (#137).
+    if (route.forward) {
+      const texts = channelReplies(senderLanguage(receipt));
+      await guestReply(tx, deps, receipt, route.binding, { dedupeKey: `guest-selection:${receipt.id}`, kind: "command", text: texts.guestSwitched(request.host_name ?? texts.yourHost) });
+    }
     return revise(tx, deps, receipt, route.binding, text);
   }
 
@@ -480,13 +538,15 @@ async function guestMessage(
     `;
   }
 
+  const texts = channelReplies(senderLanguage(receipt));
   if (route.switched) {
-    await guestReply(tx, deps, receipt, binding, { dedupeKey: `guest-selection:${receipt.id}`, kind: "command", text: GUEST_TEXTS.switched(request?.host_name ?? "your host") });
-    return "command";
+    await guestReply(tx, deps, receipt, binding, { dedupeKey: `guest-selection:${receipt.id}`, kind: "command", text: texts.guestSwitched(request?.host_name ?? texts.yourHost) });
+    // A message that named its conversation in words also goes on (#137).
+    if (!route.forward) return "command";
   }
 
   if (!text) {
-    await guestReply(tx, deps, receipt, binding, { dedupeKey: `receipt:${receipt.id}`, kind: "text_only", text: CHANNEL_TEXTS.textOnly });
+    await guestReply(tx, deps, receipt, binding, { dedupeKey: `receipt:${receipt.id}`, kind: "text_only", text: texts.textOnly });
     return "replied";
   }
 
@@ -499,7 +559,7 @@ async function closedNotice(tx: Transaction, deps: ImessageReceiptDependencies, 
   const { created } = await guestReply(tx, deps, receipt, binding, {
     dedupeKey: `requester-binding:${binding.id}:closed`,
     kind: "command",
-    text: GUEST_TEXTS.closed,
+    text: channelReplies(senderLanguage(receipt)).guestClosed,
   });
   return created ? ("replied" as const) : ("ignored" as const);
 }
@@ -545,7 +605,7 @@ async function forwardGuest(
   // The guest's channel marks the text, as a host's does (guest-whatsapp-link design 1).
   const text = `${PREFIXES[receipt.channel]}${message}`;
   if (getChatMessageLengthError(text)) {
-    await guestReply(tx, deps, receipt, binding, { dedupeKey: `receipt:${receipt.id}`, kind: "command", text: GUEST_TEXTS.tooLong });
+    await guestReply(tx, deps, receipt, binding, { dedupeKey: `receipt:${receipt.id}`, kind: "command", text: channelReplies(senderLanguage(receipt)).tooLong });
     return "replied";
   }
 
@@ -627,7 +687,7 @@ export async function telegramLinking(tx: Transaction, deps: ImessageReceiptDepe
     kind: "unlinked_sender",
     recipient: { address: receipt.sender, spaceId: receipt.spaceId },
     recipientHash: receipt.senderHash,
-    text: CHANNEL_TEXTS.unlinkedTelegram,
+    text: channelReplies(senderLanguage(receipt)).unlinked.telegram,
     tokenKey: deps.tokenKey,
   });
   return "unlinked_reply";
@@ -664,20 +724,37 @@ export async function processReceipt(
 
   // Guests write from iMessage or WhatsApp (guest-whatsapp-link); a Telegram
   // sender is a host or no one.
-  const guest = receipt.channel === "telegram" ? null : await guestRoute(tx, receipt);
+  let guest = receipt.channel === "telegram" ? null : await guestRoute(tx, receipt);
+  // A sender with several conversations and no current choice (#137): a
+  // message that names one in words goes there; otherwise the choice is asked
+  // in the message's language, answerable in words.
+  let hostByWords = false;
   if (guest === "ambiguous") {
     const guests = await activeGuestBindings(tx, receipt.senderHash);
     const host = await activeBindingOfSender(tx, receipt.senderHash);
-    await recordOutbound(tx, {
-      channel: receipt.channel,
-      dedupeKey: `receipt:${receipt.id}`,
-      kind: "command",
-      recipient: { address: receipt.sender, spaceId: receipt.spaceId },
-      recipientHash: receipt.senderHash,
-      text: ["Choose a conversation before sending a message:", ...guests.map((binding) => `request ${requestRef(binding.request_id)}: ${binding.host_name ?? "your host"}`), ...(host ? ["For your host conversation, send setup."] : []), "If a reference is shared, use your booking page or the app."].join("\n"),
-      tokenKey: deps.tokenKey,
-    });
-    return "replied";
+    const named = receipt.text && !parseCommand(receipt.text) ? namedConversation(receipt.text, guests, Boolean(host)) : null;
+    if (named === "host") {
+      guest = null;
+      hostByWords = true;
+    } else if (named) {
+      guest = { binding: named, forward: true, switched: true };
+    } else {
+      const language = textLanguage(receipt.text) ?? (host ? await hostConversationLanguage(deps.db, host.host_account_id) : "en");
+      const texts = channelReplies(language);
+      await recordOutbound(tx, {
+        channel: receipt.channel,
+        dedupeKey: `receipt:${receipt.id}`,
+        kind: "command",
+        recipient: { address: receipt.sender, spaceId: receipt.spaceId },
+        recipientHash: receipt.senderHash,
+        text: texts.picker(
+          guests.map((binding) => ({ name: binding.host_name ?? texts.yourHost, ref: requestRef(binding.request_id) })),
+          Boolean(host),
+        ),
+        tokenKey: deps.tokenKey,
+      });
+      return "replied";
+    }
   }
   if (guest) return channel ? guestMessage(tx, deps, receipt, guest) : "ignored";
 
@@ -708,7 +785,7 @@ export async function processReceipt(
       kind: "unlinked_sender",
       recipient,
       recipientHash: receipt.senderHash,
-      text: UNLINKED_TEXTS[receipt.channel],
+      text: channelReplies(senderLanguage(receipt)).unlinked[receipt.channel],
       tokenKey: deps.tokenKey,
     });
     return "unlinked_reply";
@@ -761,7 +838,7 @@ export async function processReceipt(
       kind: "text_only",
       recipient,
       recipientHash: receipt.senderHash,
-      text: receipt.channel === "telegram" ? CHANNEL_TEXTS.textOnlyTelegram : CHANNEL_TEXTS.textOnly,
+      text: channelReplies(await hostConversationLanguage(deps.db, binding.host_account_id))[receipt.channel === "telegram" ? "textOnlyTelegram" : "textOnly"],
       tokenKey: deps.tokenKey,
     });
     return "replied";
@@ -779,6 +856,24 @@ export async function processReceipt(
   if (receipt.channel === "telegram" && isOnlyThanks(receipt.text) && receipt.telegram?.messageId) {
     await recordSignal(tx, deps, receipt, binding, recipient, { messageId: receipt.telegram.messageId, reaction: THANKS_REACTION, typing: false });
     return "replied";
+  }
+
+  // The host named their own account in words (#137): setup is selected, as
+  // `setup` selects it, and the message goes on to Thyme there.
+  if (hostByWords) {
+    await tx`update app.imessage_bindings set selected_request_id = null where id = ${binding.id} and state = 'active'`;
+    bound.selectedRequestId = null;
+    await recordOutbound(tx, {
+      bindingId: binding.id,
+      dedupeKey: `host-selection:${receipt.id}`,
+      hostAccountId: binding.host_account_id,
+      kind: "command",
+      recipient,
+      recipientHash: receipt.senderHash,
+      requestId: null,
+      text: channelReplies(await hostReplyLanguage(deps, binding.host_account_id, receipt.text)).hostSelected,
+      tokenKey: deps.tokenKey,
+    });
   }
 
   const outcome = await channel(tx, deps, { ...bound, text: receipt.text.trim() });

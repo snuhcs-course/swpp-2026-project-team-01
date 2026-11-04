@@ -165,9 +165,10 @@ describe("the Phase 6 join", () => {
     const host = request.hostAccountId;
     const ref = requestRef(request.requestId);
 
-    // The awaiting-approval summary arrives with its exact commands.
+    // The awaiting-approval summary arrives, asking for words, not commands.
     const [summary] = await summaries(host, request.requestId);
-    expect(summary).toContain(`approve ${reviewRef(request.requestId, 1)}`);
+    expect(summary).toContain("Proposal 1:");
+    expect(summary).toContain('To approve, tell me so, such as "book it".');
 
     // Select the request and ask a private question; the turn runs in eve.
     expect((await arrive(sender, `request ${ref}`)).outcome).toBe("command");
@@ -181,17 +182,17 @@ describe("the Phase 6 join", () => {
     // shares it by its exact reference, and the requester agrees to version 2.
     await asHost(db, host, request.requestId, suggestChangesCommand("assistant"), { changes: { start: seoul("10:30") } });
     expect((await arrive(sender, "changes")).outcome).toBe("command");
-    expect((await sendCommandReplies(host)).join("\n")).toContain(`share ${ref}-S1`);
+    expect((await sendCommandReplies(host)).join("\n")).toContain(`Suggested changes ${ref}-S1`);
     expect((await arrive(sender, `share ${ref}-S1`)).outcome).toBe("command");
     const [evaluation] = await db<{ id: string }[]>`select id from app.evaluations where request_id = ${request.requestId} order by created_at desc limit 1`;
     await runEvaluation(db, { ...evaluationDeps(db, google), notices: testNotices }, evaluation!.id);
     const agreed = await asRequester(db, request.requestId, agreeCommand(() => evaluationDeps(db, google)), { version: 2 }, { expectedRevision: await revisionOf(db, request.requestId) });
     expect(agreed.ok).toBe(true);
-    expect((await summaries(host, request.requestId))[0]).toContain(`approve ${reviewRef(request.requestId, 2)}`);
+    expect((await summaries(host, request.requestId))[0]).toContain("Proposal 2:");
 
     // The old version cannot be approved; a plain yes decides nothing.
     expect((await arrive(sender, `approve ${reviewRef(request.requestId, 1)}`)).outcome).toBe("command");
-    expect((await sendCommandReplies(host)).join("\n")).toContain(`The current one is ${reviewRef(request.requestId, 2)}`);
+    expect((await sendCommandReplies(host)).join("\n")).toContain(`the current one is ${reviewRef(request.requestId, 2)}`);
     fake.rules.push({ includes: "[iMessage] yes", reply: { kind: "text", text: "To approve, send the exact approve command from the summary." } });
     expect((await arrive(sender, "yes")).outcome).toBe("forwarded");
     await answer(host);

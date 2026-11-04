@@ -22,7 +22,7 @@ import { createTestRequest } from "./support/requests";
 // discussion left as it was.
 
 const isApplicationTool = (name: string) => !name.includes("__");
-const HOST_REVIEW_TOOLS = ["approve_proposal", "evaluate_candidates", "list_host_requests", "propose_shared_changes", "read_booking_status", "read_request", "switch_conversation"];
+const HOST_REVIEW_TOOLS = ["approve_proposal", "decline_request", "dismiss_changes", "evaluate_candidates", "list_host_requests", "propose_shared_changes", "read_booking_status", "read_request", "share_changes", "switch_conversation"];
 
 const db = testDatabase();
 let fake: FakeOpenAI;

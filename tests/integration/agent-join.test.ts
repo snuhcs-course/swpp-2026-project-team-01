@@ -7,10 +7,9 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createMcpHandler } from "../../lib/server/agent-mcp";
 import { createAuthorizationServerMetadataHandler, createTokenHandler } from "../../lib/server/agent-oauth-routes";
-import { approveCommand } from "../../lib/server/bookings";
 import { assignHandle } from "../../lib/server/handles";
 import { agentDependencies, issueToken, type Tokens } from "./support/agents";
-import { asHost, bookingDeps, runBooking } from "./support/booking";
+import { bookingDeps, runBooking } from "./support/booking";
 import { fakeGoogleConfig } from "./support/calendar-host";
 import { testDatabase } from "./support/database";
 import { type FakeGoogle, startFakeGoogle } from "./support/fake-google";
@@ -18,9 +17,8 @@ import { calendarKey, evaluationDeps, runEvaluation, seedSchedulingRequest } fro
 
 // The Phase 5 join, locally (agent-access task 6.1): a scripted requester MCP
 // client and the CLI acting for the host work on the same request. Both see the
-// same state and proposal version, retried actions replay, the agent's
-// decision tool books nothing, the host's own approval books exactly one event
-// even when repeated, the requester's agent reads the booked receipt, and
+// same state and proposal version, retried actions replay, the approval the
+// host asks their CLI agent for books exactly one event even when repeated, the requester's agent reads the booked receipt, and
 // revocation stops each of them.
 
 const db = testDatabase();
@@ -175,24 +173,24 @@ describe("MCP and the CLI on one request", () => {
     const again = await rq("agree_to_proposal", agree);
     expect(again.structuredContent!.outcome).toEqual(agreed.structuredContent!.outcome);
 
-    // The host's CLI sees the same state and version, and its decision tool books nothing.
+    // The host's CLI sees the same state and version.
     const hostView = await fmat(["call", "get_request", "--input", JSON.stringify({ requestId: request.requestId })]);
     expect(hostView.code).toBe(0);
     expect(hostView.json.result).toMatchObject({ proposal: { version }, state: "awaiting_host_approval" });
     const requesterView = await rq("get_request");
     expect(requesterView.structuredContent).toMatchObject({ proposal: { version }, state: "awaiting_host_approval" });
 
-    const prepared = await fmat(["call", "request_host_decision", "--input", JSON.stringify({ decision: "approve", requestId: request.requestId, version })]);
-    expect(prepared.json.result).toMatchObject({ reviewUrl: `${origin}/app?request=${request.requestId}`, status: "confirmation_required" });
+    // The host tells their CLI agent to approve; the approval, repeated with its
+    // printed retry key, makes one booking and one event.
+    const hostRevision = (hostView.json.result as { revision: number }).revision;
+    const decision = JSON.stringify({ expectedRevision: hostRevision, hostInstruction: "Approve it.", requestId: request.requestId, version });
+    const first = await fmat(["call", "approve_proposal", "--input", decision]);
+    expect(first.code).toBe(0);
     expect(google.createdEvents(request.calendarId)).toHaveLength(0);
-
-    // The host's own approval, twice, makes one booking and one event.
-    const current = await db<{ revision: number }[]>`select revision from app.requests where id = ${request.requestId}`;
-    const first = await asHost(db, request.hostAccountId, request.requestId, approveCommand, { version }, { expectedRevision: current[0]!.revision });
-    const second = await asHost(db, request.hostAccountId, request.requestId, approveCommand, { version }, { expectedRevision: current[0]!.revision });
-    expect(first.ok && second.ok).toBe(true);
-    const bookingId = (first as { result: { bookingId: string } }).result.bookingId;
-    expect((second as { result: { bookingId: string } }).result.bookingId).toBe(bookingId);
+    const second = await fmat(["call", "approve_proposal", "--input", decision, "--retry-key", first.json.retryKey as string]);
+    expect(second.code).toBe(0);
+    const bookingId = (first.json.result as { outcome: { bookingId: string } }).outcome.bookingId;
+    expect((second.json.result as { outcome: { bookingId: string } }).outcome.bookingId).toBe(bookingId);
     await runBooking(db, bookingDeps(db, google), bookingId);
     expect(google.createdEvents(request.calendarId)).toHaveLength(1);
 

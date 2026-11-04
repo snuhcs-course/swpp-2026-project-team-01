@@ -10,7 +10,7 @@
 
 ## 3단계 — `requester-intake-and-feasibility`
 
-[제안서](../../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)가 D1–D13을 기록하고, [설계](../../openspec/changes/requester-intake-and-feasibility/design.md)가 그 근거를 기록하며, [제품 결정](../../openspec/changes/requester-intake-and-feasibility/product_decisions.md)은 검토 체크리스트입니다. Dohyeon Park이 팀원 검토 전인 2026-10-21과 2026-10-22에 D1–D13을 결정했습니다.
+[제안서](../../openspec/changes/archive/2026-11-02-requester-intake-and-feasibility/proposal.md#decisions)가 D1–D13을 기록하고, [설계](../../openspec/changes/archive/2026-11-02-requester-intake-and-feasibility/design.md)가 그 근거를 기록하며, [제품 결정](../../openspec/changes/archive/2026-11-02-requester-intake-and-feasibility/product_decisions.md)은 검토 체크리스트입니다. Dohyeon Park이 팀원 검토 전인 2026-10-21과 2026-10-22에 D1–D13을 결정했습니다.
 
 ### 제품 결정
 
@@ -35,6 +35,7 @@
 | 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
 | 익명 모델 지출 | 확인된 연락처도 Google 신원도 없는 요청은 초안 요청을 포함해 24시간당 USD 3를 받고 USD 50의 익명 풀에 합산됩니다 | 모든 요청에 전체 USD 30 | 설계 2; `meeting-requests` 델타 | `lib/server/model-limits.ts`의 `MODEL_LIMITS`(`anonymousPrincipalWindowUsd`, `anonymousWindowUsd`) |
+| 모델 한도 회계 | 호출은 잠금 아래에서 상한으로 USD 0.60을 예약한 뒤, 제공자가 사용량을 보고하면 실제 비용(캐시되지 않은 입력, 캐시된 입력, 출력 토큰을 공개된 `gpt-5.6-terra` 가격으로 계산)으로 정산하며, 단위는 백만분의 1달러(`numeric(12, 6)`)이고 올림합니다. 실패하거나 중단되었거나 사용량이 없는 시도, 그리고 가격이 등재되지 않은 모델은 예약 전액을 유지합니다. 시도 횟수 상한은 없습니다. 지출은 USD 창만 제한하므로 입력당 8회와 순위 점검당 2회의 옛 한도는 사라지고, 측정된 지출이 달리 말해 주기 전까지 USD 상한은 그대로입니다 | 시도마다 USD 0.60 고정액을 계속 유지하는 방식. 지출이 아니라 시도 횟수를 센 것이어서(신원 미확인 게스트의 USD 3로는 메시지 약 두 개만 가능) 제외. USD 상한 옆에 시도 횟수 상한을 두는 방식 | 이슈 #54; 설계 6; `model-execution` 주 명세 | `lib/server/model-limits.ts`의 `MODEL_PRICES`와 `MODEL_LIMITS`; 모델이 바뀌면 가격을 다시 확인 |
 | 초안 메시지 한도 | 신원을 밝히기 전 30개 메시지 | 한도 없음, 모델 지출 한도만 | 설계 2 | `lib/server/request-start.ts`의 `DRAFT_LIMITS` |
 | 평가 한도 | 같은 리비전에서 실행 중인 평가는 재사용합니다. 요청당 시간당 새 평가는 최대 10건, 이동은 최대 40개 후보까지 확인, 순위는 처음 20개까지 매깁니다 | 무제한 | 설계 8; `meeting-feasibility` 델타 "Bounded evaluations per request" | `lib/server/evaluation.ts`의 `EVALUATIONS_PER_HOUR`와 `RANKING_LIMIT`; `lib/server/feasibility.ts`의 `CANDIDATE_LIMIT` |
 | 공유 기한 | 토큰 갱신, Calendar, Routes, 순위 매기기를 합쳐 18초 | — (주 명세가 정함) | `meeting-feasibility` 주 명세 | 명세를 바꾼 뒤 `lib/server/evaluation.ts`의 `EVALUATION_DEADLINE_MS` |
@@ -56,7 +57,7 @@
 
 | 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
-| 검토 우회 | PR #26, #27, #28은 사용자의 요청으로 팀원 승인 없이 `--admin`으로 squash 병합했습니다 | 승인을 기다림 | squash 커밋 메시지 | 팀원이 나중에 [제품 결정](../../openspec/changes/requester-intake-and-feasibility/product_decisions.md)을 사용해 검토 |
+| 검토 우회 | PR #26, #27, #28은 사용자의 요청으로 팀원 승인 없이 `--admin`으로 squash 병합했습니다 | 승인을 기다림 | squash 커밋 메시지 | 팀원이 나중에 [제품 결정](../../openspec/changes/archive/2026-11-02-requester-intake-and-feasibility/product_decisions.md)을 사용해 검토 |
 | 마이그레이션 경로 | 3단계 마이그레이션 다섯 개를 `anelszynxtvxoxqvzgqt`에 `supabase db push --linked`로 푸시했으며, 매번 드라이 런 후 사용자의 승인을 받아 해당 프로젝트에 연결된 워크트리에서 실행했습니다. PR #26 뒤인 2026-10-22에 세 개, PR #28 뒤인 2026-10-22에 `guest_draft_requests`와 `guest_calendar_step`입니다. 메인 체크아웃은 예약된 `mriseqztcwmezvtawnbo`에 연결된 채로 두었고 사용하지 않았습니다 | 시크릿이 설정되지 않아 실패하는 `Deploy shared Supabase` 워크플로 | 이 기록; [인수 기록](07_acceptance_record.md#production-deployment-2) | 이후 마이그레이션이 CI를 거치도록 워크플로의 저장소 시크릿을 설정 |
 | 프로덕션 배포 | PR #26, #27, #28 각각을 병합한 뒤 `origin/main`의 깨끗한 체크아웃에서 `findmeatime-release`에 연결해 `vercel deploy --prod`; 게스트 스레드 코드는 마이그레이션이 적용된 뒤에야 라이브가 되었습니다 | Git 연동 배포(구성되지 않음) | 이 기록; [인수 기록](07_acceptance_record.md#production-deployment-2) | 자동 배포를 원하면 Vercel 프로젝트를 저장소에 연결; 그때까지는 마이그레이션이 필요한 변경을 배포하기 전에 마이그레이션을 먼저 푸시 |
 
@@ -158,7 +159,7 @@
 | D6 | Ed25519 JWT 액세스 토큰 10분; 사용 시 회전하는 불투명 리프레시 토큰 30일; 코드 60초; 키 `AGENT_TOKEN_SIGNING_KEY` | 불투명 액세스 토큰; RS256 | 제안서; 설계 5 | 제안서와 토큰 모듈의 토큰 수명 |
 | D7 | 동의 화면에서 시작한 로그인은 트랜잭션을 HTTP 전용 쿠키에 보관하며, 콜백은 살아 있는 트랜잭션일 때만 그곳으로 돌아가고 아니면 `/app`으로 갑니다 | `next` 쿼리 매개변수 | 제안서; 설계 7; `chat-workspaces` 델타 | 델타와 `google-sign-in.ts` |
 | D8 | `/connect/authorize`는 프로토콜 라우트이고 페이지는 `/connect/consent`입니다 | 라우트 핸들러가 HTML을 렌더링하는 단일 URL | 제안서; 설계 7; 페이지 목록 | 제안서와 라우트 |
-| D9 | 호스트의 승인과 거절에는 항상 `/app`에서의 호스트 클릭이 필요하며, 에이전트의 결정 도구는 검토 링크를 반환합니다 | 클라이언트의 엘리싯테이션으로 승인 | 제안서; 설계 4; `agent-interfaces` 델타 | 제안서와 호스트 결정 도구 |
+| D9 | 호스트의 승인과 거절에는 항상 `/app`에서의 호스트 클릭이 필요하며, 에이전트의 결정 도구는 검토 링크를 반환합니다. 2026-11-04에 [`agent-decisions-in-words`](#agent-decisions-in-words) D1–D2가 뒤집었습니다: 호스트의 에이전트가 호스트의 말에 따라 승인하고 거절합니다 | 클라이언트의 엘리싯테이션으로 승인 | 제안서; 설계 4; `agent-interfaces` 델타 | 제안서와 호스트 결정 도구 |
 | D10 | `request:decide`를 가진 요청자의 에이전트는 동의와 철회를 할 수 있습니다 | 동의는 요청자의 브라우저에서 | 제안서; 설계 4 | 제안서와 요청자 도구 |
 | D11 | 종료된 요청의 허가는 종료 상태와 영수증만 읽을 수 있고, 예약 링크의 종료 후 접근 수명이 끝날 때까지 그 용도로만 갱신됩니다 | 주 명세대로 종료 시 모든 접근 거부 | 제안서; 설계 5; `agent-client-authorization` 델타 | 델타와 허가 검사 |
 | D12 | 부트스트랩 허가는 24시간 유지됩니다. `create_request`는 요청 하나를 만들고 식별하며, 예약 링크를 이메일로 보내고, 같은 재시도 키에는 같은 요청을 반환하고 다른 키는 거부합니다. 생성은 동의한 브라우저의 출처 한도에 포함됩니다 | 동의 시점에 바인딩 | 제안서; 설계 8; `agent-client-authorization` 델타 "One future request grant" | 델타와 생성 모듈 |
@@ -659,11 +660,28 @@
 
 [제안서](../../openspec/changes/guest-flow-completion/proposal.md#decisions)는 사용자와 팀이 2026-10-29과 2026-10-30에 합의한 U1–U5와 D1–D10을 기록하며, [설계](../../openspec/changes/guest-flow-completion/design.md)가 그 근거를 기록합니다. 아래 결정은 2026-10-30에 풀 리퀘스트 1(작업 그룹 1–5a)을 구현하면서 내렸으며, 아직 팀원 검토를 거치지 않았습니다.
 
+### 제품 결정(사용자 검토, 2026-11-01)
+
+사용자가 2026-11-01에 D1–D10과 O1–O4를 하나씩 검토했습니다(작업 0.1).
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| D1–D3, D7–D9 | 작성된 대로 승인 | — | 제안서 | — |
+| 요청 Calendar가 있는 게스트 호스트 캘린더(D8) | 게스트 호스트의 충돌 캘린더와 요청에 연결된 Calendar의 바쁜 시간을 합칩니다(사용자, 2026-11-02) | 요청에 묶인 권한이 호스트 캘린더를 대체하는 방식. Calendar와 함께한 Google 동의 뒤에도 해당 항목이 쓰이지 않은 채 남았음 | 제안서 D8; 설계 6 | `lib/server/requester-host-profiles.ts`의 `readGuestHostSource`, `lib/server/evaluation.ts`의 요청자 바쁜 시간 읽기 |
+| 호스트 측 분리(U2, U16, U17, D9) | 호스트 측 코드는 이번 변경에 포함하지 않습니다(사용자, 2026-11-02): **Decline** 옆의 호스트 요일(#58), 호스트 화면의 철회된 출처(#59), 엔진 순서의 소프트 선호(#60), 호스트 프로필 iMessage 항목(#61)은 이슈로 둡니다 | 여기서 호스트 화면, 호스트 iMessage 명령, 엔진의 순서를 바꾸기 | 제안서 U2, U17, D9 | — |
+| U15(D4, O2) | 게스트는 iMessage, 이메일, 웹 채팅에서 말로 결정합니다: 세부 사항 적용, 시간 선택, 동의, **Change**, 철회; 호스트가 승인한 뒤에는 호스트에게 연락합니다. 상태 알림에는 예약 링크가 없고, 모두 제품 받은편지함에서 요청의 스레드 또는 요청에 묶인 새 스레드로 나갑니다(iMessage 부분은 2026-10-30 팀 결정) | 결정을 예약 페이지의 카드에서만 받기; 회신 불가 알림에 링크 유지 | 제안서 U15; `meeting-requests`와 `email-delivery` 델타 | `lib/server/request-tools.ts`, `agent/instructions/requester.ts`, `lib/server/booking-notices.ts`, `lib/server/email-replies.ts` |
+| U16(O4) | 철회된 요청은 거절되거나 만료된 요청처럼 수정된 요청으로 이어집니다 | 철회 뒤에는 수정 불가 | 제안서 U16; 설계 5 | `lib/server/revised-requests.ts`의 `isRevisable` |
+| U17(D5, D6) | 수정된 요청은 아직 남은 게스트의 시간 창과 제외된 시간을 가져옵니다: 거절된 시간과 닫힌 요청 자체의 제외된 시간이며, 사유는 가져오지 않습니다. 시작 요약에는 앞서 제안한 시간을 나열합니다. 호스트가 거절하며 지정한 요일은 호스트 측이므로 #58에 맡깁니다 | 시간을 가져오지 않기 | 제안서 U17; `meeting-requests` 델타 | `lib/server/evaluation.ts`의 `excludedBusy`, `lib/server/revised-requests.ts`, `lib/server/request-reviews.ts`의 `excludedWindowProblem`(전적으로 그 안에 들어가는 초안 시간은 사유 없이 거부) |
+| U18(O1) | 예약 뒤에도 대화는 미팅에 관한 질문을 위해 읽기 전용으로 열려 있습니다 | 종료 알림 | 제안서 U18 | `lib/server/request-tools.ts`의 `fenced`, `lib/server/conversations.ts`의 `withPrincipalAuthority` |
+| U19(O3) | 수정된 요청에는 호스트 차단이 없습니다. 10개의 체인과 생성 한도는 그대로입니다 | 호스트의 "이 게스트 더 이상 받지 않기" | 제안서 U19 | `REVISED_CHAIN_LIMIT` |
+
 ### 구현 결정
 
 | 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
-| 게스트 바인딩이 끝나는 방식 | 네 상태: `active`, `unlinked`(게스트의 **Unlink iMessage**, 게스트에게 아직 발송되지 않은 메시지를 막음), `ended`(`closeRequest`의 철회; 예약 확정 알림이 큐에 들어간 뒤의 예약 완료; 정리 작업의 30일) 그리고 `moved`(수정된 요청으로). 발송 시점에는 `unlinked`만 막으므로 예약된 요청의 마지막 알림은 그대로 나갑니다 | `closeRequest` 안에서 예약 완료 시 끝내기. 알림 작업이 수신자를 고정하기 전에 수신자를 지웠음 | 설계 2; `requester_imessage_bindings` 스키마 | `lib/server/requester-imessage-bindings.ts`의 `endRequesterBindings` |
+| 제외된 시간 | `requests.details.excludedTimes`이며, 구간은 모든 평가에서 종일 호스트 바쁜 시간으로 더해집니다 | 마이그레이션이 필요한 새 테이블이나 열 | 제안서 U17 | `lib/server/evaluation.ts`의 `excludedBusy` |
+| 알림용 스레드 | `email_replies.reply_to_message_id`가 null이면 AgentMail의 `messages/send`로 새 메시지를 보내며, 수락되면 스레드가 수신 영수증 없이 `email_threads.origin = 'notified'`로 바인딩됩니다. 발송 전에 스레드가 생긴 요청은 대신 그 스레드에 회신을 받습니다 | 스레드가 없는 요청에는 회신 불가 이메일 유지 | 제안서 U15; 마이그레이션 `20261101120000_notified_email_threads` | `lib/server/email-replies.ts` |
+| 게스트 바인딩이 끝나는 방식 | 네 상태: `active`, `unlinked`(게스트의 **Unlink iMessage**, 게스트에게 아직 발송되지 않은 메시지를 막음), `ended`(정리 작업의 30일) 그리고 `moved`(수정된 요청으로). 2026-11-01부터 요청을 닫아도 끝나지 않습니다. 철회된 요청은 수정된 요청으로 이어지고(U16) 예약된 요청은 질문에 답합니다(U18). 발송 시점에는 `unlinked`만 막습니다 | 철회와 예약 시점에 끝내기(풀 리퀘스트 1의 동작) | 설계 2; `requester_imessage_bindings` 스키마 | `lib/server/request-lifecycle.ts`의 `closeRequest`; `lib/server/imessage-notice-job.ts` |
 | 라우팅이 읽는 것 | `imessage_outbox.requester_binding_id`가 게스트 메시지를 표시하고, 어느 바인딩이든 그 발신자에게 간 마지막 발신 행이 경로를 정합니다 | 별도의 라우팅 테이블 | 설계 3; `imessage_outbox` 스키마 | `lib/server/imessage-receipts.ts`의 `guestRoute` |
 | 연동된 호스트의 명령 | 호스트 바인딩이 있는 발신자의 정확한 명령은 마지막 메시지가 게스트 것이어도 호스트 경로를 탑니다. 단, 자신의 게스트 요청을 지정하는 `request <ref>`는 예외입니다 | 게스트 알림 뒤의 모든 메시지를 게스트의 어시스턴트로 보내기 | 설계 3 | `lib/server/imessage-receipts.ts`의 `guestRoute` |
 | 카드 엔드포인트 | 상태는 `GET /api/requests/{bookingId}/imessage`, `request.imessage_link.*` 명령은 **Continue by email**처럼 요청자 명령 경로에 둡니다 | 별도의 `POST` 경로 | 작업 3.2 | `lib/server/requester-routes.ts` |
@@ -702,3 +720,26 @@
 | 게스트 창의 시작 | 확인하면 호스트 바인딩처럼 바인딩의 `last_inbound_at`을 연결 메시지의 수신 시각으로 설정합니다. 수정된 요청으로 옮겨진 바인딩은 채널을 유지하고 이동 시점에 창을 시작하며, 이는 게스트의 메시지가 일으킵니다 | 게스트가 다시 쓸 때까지 null로 두기: 환영 메시지가 보류됨 | 설계 3 | `lib/server/requester-imessage-bindings.ts`의 `bindRequester`; `lib/server/revised-requests.ts`의 `moveChannel` |
 | 채널별로 보관하는 번호 | 연결 단계와 Connect 카드는 방문 동안 입력한 번호를 채널별로 보관하므로, 채널을 바꾸면 다시 묻습니다 | 두 채널에 번호 하나 | 설계 4 | `apps/web/app/_components/ink/link-step.tsx`, `imessage/imessage-card.tsx` |
 | 모호한 발신자 답장 | 여러 대화를 가진 발신자에게 선택을 요청하는 답장은 수신 기록의 채널로 나갑니다 | 기본 iMessage 채널: WhatsApp 발신자는 결코 받지 못함 | 설계 1 | `lib/server/imessage-receipts.ts`의 `processReceipt` |
+
+## `channel-actions-in-words`
+
+[제안서](../../openspec/changes/channel-actions-in-words/proposal.md#decisions)는 D1–D5를 기록하며, 이는 모든 것이 어디서나 자연어로 되어야 한다는 사용자의 결정(이슈 #148, #137과 #138을 포함)에서 비롯되어 변경을 작성한 세션에서 2026-11-04에 내렸습니다. 이들은 `host-imessage-channel` D23(말로 승인)과 D26(말로 전환)을 확장하며, 아직 팀원 검토를 거치지 않았습니다.
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| D1 | `decline_request`, `share_changes`, `dismiss_changes`, `confirm_settings`는 각각 입력이 채널 수신 기록에서 왔고 그 접두어가 붙은 턴에서만, 현재 버전·대기 중인 제안·설정 검토에 대해서만, 열린 요청에 대해서만, 한 번만 동작합니다. `list_host_requests`는 설정에서, 웹에서도 쓸 수 있습니다 | 결정마다 되읽기 확인을 두는 방식. D23이 승인에 대해 거부함 | 제안서; 설계 1 | `lib/server/host-review-tools.ts`, `lib/server/setup-channel-tools.ts`, `agent/tools/request.ts`와 `setup.ts`, `agent/instructions/host-imessage.ts` |
+| D2 | 정확한 명령은 모델 턴 이전에 그대로 동작하며, 안내하지 않습니다 | 입력된 명령어를 Thyme에 전달하는 방식. 답장 버튼, Telegram 메뉴, `setup`과 `request <ref>`가 기록하는 선택이 깨짐 | 제안서; 설계 2 | `lib/server/imessage-commands.ts`의 `parseCommand`와 `executeCommand` |
+| D3 | 고정된 답장, 도움말, 요약, 설정 검토 어디에도 명령을 적지 않습니다. 각각 Thyme에게 무엇을 말할지 알려 주거나 브라우저로 안내하며, 연동 해제는 `/app`의 **Unlink**를 가리키되 `stop`은 계속 동작합니다 | 답장에서 말과 함께 명령도 유지하기 | 제안서; 설계 3 | `lib/server/channel-texts.ts` |
+| D4 | 고정된 답장, 호스트 알림, 버튼 제목은 영어와 한국어로 제공합니다: 한글이면 한국어, 그 밖의 글자면 영어이며, 명령·탭·알림은 호스트가 Thyme에게 보낸 가장 최근 메시지를 따릅니다 | 고정된 답장을 모두 Thyme에게 넘기는 방식. 탭마다 모델 턴이 필요하고 버튼을 실을 수 없음 | 제안서; 설계 4 | `lib/server/channel-language.ts`, `channel-texts.ts` |
+| D5 | 대화가 여러 개이고 현재 선택이 없는 발신자는 말이 가리키는 대화(자신이 호스트라고 말하는 경우, 또는 게스트 요청의 참조나 호스트 이름이 하나의 단어로 쓰인 경우)로 연결됩니다. 지나가듯 언급된 역할은 아무것도 가리키지 않습니다. 그렇지 않으면 질문이 메시지의 언어로 각 대화를 지칭합니다 | 기본적으로 호스트 자신의 대화로 전달하기; 라우팅 전에 모델 호출로 메시지를 분류하기 | 제안서; 설계 5 | `lib/server/imessage-receipts.ts`의 `namedConversation`과 `processReceipt` |
+
+## `agent-decisions-in-words`
+
+[제안](../../openspec/changes/agent-decisions-in-words/proposal.md#decisions)은 D1–D4를 기록합니다. 자연어는 에이전트를 포함해 어디서나 통한다는 사용자의 결정(이슈 #149)에 따라 변경을 작성한 세션에서 2026-11-04에 정했습니다. 이는 `agent-access` D9를 뒤집고 `host:decide`에 대한 D3의 문구를 고칩니다. 아직 팀원의 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | `approve_proposal`과 `decline_request`가 `request_host_decision`을 대체하며, 웹 버튼의 `request.approve`와 `request.decline`을 명령의 가드(현재 합의된 버전, 열린 요청, 예상 개정, 승인된 버전당 예약 한 건)와 함께 `runAsGrant`로 실행합니다 | `request_host_decision`을 함께 유지; `decision` 필드가 있는 단일 `decide` 도구 | 제안; 설계 1; `agent-interfaces` 델타 "Host decisions in the host's words" | `lib/server/agent-host-tools.ts`의 `HOST_TOOLS` |
+| D2 | 필수인 `hostInstruction`(다듬은 뒤 1–500자, 저장하지 않음)이 호스트의 말을 전달하며, 두 도구 모두 `expectedRevision`이 필수입니다. 설명, 서버 지침, `/SKILL.md`는 호스트가 분명히 말할 때만, 에이전트의 판단이나 요청자의 말로는 결코, 조건을 붙여서도 결코 하지 말라고 안내합니다 | MCP 엘리싯테이션; 말을 저장; 불리언 `confirmed` | 제안; 설계 2 | `agent-host-tools.ts`의 `hostInstructionSchema`; `lib/server/agent-mcp.ts`의 `INSTRUCTIONS`; `lib/server/entry-documents.ts`의 `hostEntryDocument` |
+| D3 | `host:decide`가 두 도구를 허용하며, 동의 문구는 "에이전트에게 말할 때 요청을 승인하고 거절합니다"가 됩니다. 이 권한이 있는 기존 부여도 두 도구를 얻습니다 | 새 권한; 변경 이후에 만든 부여만 | 제안; 설계 3; `agent-client-authorization` 델타 "Role-bound permission scopes" | `lib/contracts/agent-access.ts`의 `SCOPE_DESCRIPTIONS`, 동의 페이지, `connected-agents.tsx` |
+| D4 | CLI는 `fmat call approve_proposal`과 `fmat call decline_request`로 이들에 닿으며, 새 하위 명령은 없습니다 | `fmat approve`와 `fmat decline` | 제안; 설계 4 | `cli/src/app.ts` |
