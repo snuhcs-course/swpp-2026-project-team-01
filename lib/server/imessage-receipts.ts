@@ -251,9 +251,6 @@ export function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedR
   if (!row.sender_ciphertext || !row.space_ciphertext || !row.sealed_key_id) return null;
   const open = (ciphertext: string) => openToken(keys, { ciphertext, keyId: row.sealed_key_id! }, receiptSealContext(row.id));
 
-  // Telegram receipts are opened from Lane B on (openTelegramText reads their envelope).
-  if (row.channel === "telegram") return null;
-
   try {
     const sealed = row.text_ciphertext ? open(row.text_ciphertext) : null;
     // A Telegram receipt seals its text with the update's details as one envelope.
@@ -822,13 +819,6 @@ export function createImessageReceiptHandler(load: () => ImessageReceiptDependen
     `;
     if (!row) return { outcome: "missing", receiptId };
     if (row.outcome) return { outcome: row.outcome, receiptId };
-    // Telegram receipts are stored from Lane A on and acted on from Lane B and C
-    // (host-telegram-channel tasks 3.1 and 4.1); until then they are recorded as
-    // ignored, their sealed values cleared, as Phase 9 did for WhatsApp first.
-    if (row.channel === "telegram") {
-      await record(tx, row.id, "ignored");
-      return { outcome: "ignored", receiptId };
-    }
 
     const [earlier] = await tx<{ id: string }[]>`
       select id from app.imessage_receipts
