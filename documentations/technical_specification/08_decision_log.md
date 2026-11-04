@@ -558,6 +558,55 @@ These steps were not taken because they change a provider console, message a per
 - **Merges**: PR #79 was squash merged with the administrator bypass, at the user's request, without teammate approval.
 - **Teammate review** of D1–D13 and the design's open questions.
 
+## Phase 10 — `host-telegram-channel`
+
+The [proposal](../../openspec/changes/host-telegram-channel/proposal.md#decisions) records D1–D13. On 2026-11-04 the user created the bot `@findmeatime_bot` and asked for the host channel to be set up on Telegram. The session that wrote the change took D1–D13 the same day. They are proposals awaiting teammate review, and no code implements them yet. Tracking issue: #111.
+
+**What came before.** On 2026-11-03 Meta disabled the WhatsApp Business Account of Phase 9 for a "breach of terms of acceptable use", before it sent any message; on 2026-11-04 `PHOTON_WHATSAPP_NUMBER` was removed from production at the user's request, so the card offers iMessage only ([provider setup](03_provider_setup.md#whatsapp-business), PR #110).
+
+### Product decisions
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| — | (User, 2026-11-04.) Add an opt-in Telegram chat with the bot as a host channel on every device. It covers the host's channel only; requesters keep web and email. Groups, channels, Mini Apps, Telegram Login and payments stay out | Waiting for Meta's review; a new WhatsApp portfolio (ban evasion) | PRD sections 1, 3 and 10 | PRD section 1 |
+| D5 | One active messaging binding per host across iMessage, WhatsApp and Telegram, as Phase 9 D5 | Several channels at once | Proposal; design 5 | The binding index |
+| D7 | Telegram on every device: Android gets WhatsApp when configured with **Use Telegram instead**, else Telegram; Apple devices get iMessage with **Use Telegram instead**; other computers ask among configured channels | Telegram only on Android; Telegram first everywhere | Proposal; design 6 | `lib/contracts/messaging-channel.ts` |
+| D8 | **Approve**, **Decline** and **Show details** inline buttons whose `callback_data` names the request and proposal version; a tap is the exact command, accepted only from the bound sender; a stale version decides nothing | Typed commands only; buttons that name the request but not the version | Proposal; design 7; PRD section 10 | Design 7 |
+| D10 | Use the command menu, typing indicator, silent delivery for notices that need nothing, and plain text. Not used: Mini Apps, Telegram Login, groups, contact requests, payments, `protect_content` | Markdown or HTML formatting; a Mini App for decisions | Proposal; design 8 | Design 8 |
+| D13 | The card says Telegram keeps bot chats on its servers before **Confirm and link**; the privacy policy names Telegram | No notice | Proposal; design 11 | The card's copy; `/privacy` |
+
+### Implementation decisions
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | The Bot API over `fetch` in `lib/server/telegram.ts`, with `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_API_URL` for the stand-in; no SDK | `@spectrum-ts/telegram` 12.14.0, whose updates arrive over a persistent Fusor WebSocket (`wss://fusor-ws.spectrum.photon.codes/v1/subscribe`) a Vercel Function cannot hold; a long-lived worker | Proposal; design 1 | Design 1 |
+| D2 | `POST /telegram/webhook` on the agent service; `X-Telegram-Bot-Api-Secret-Token` must equal `TELEGRAM_WEBHOOK_SECRET`; a receipt keyed by `update_id` before `200`; `message`, `callback_query` and blocking `my_chat_member` only; `npm run telegram:webhook` registers it | Routing Telegram through the Photon webhook; no secret | Proposal; design 2 | `agent/channels/telegram.ts` |
+| D3 | The sender is `from.id`; only private chats whose ID equals the sender, not bots; hashed as `telegram:<id>`; first name and `@username` shown for confirmation; no phone number | Asking for the phone with `request_contact` | Proposal; design 3 | `lib/server/telegram.ts` |
+| D4 | `telegram` added to the four `channel` checks; receipt message ID `update:<update_id>`; table names kept | `telegram_*` tables | Proposal; design 4 | The schema files |
+| D6 | `https://t.me/findmeatime_bot?start=<code>`; `/start <code>` or the bare code completes a Telegram attempt; `/start` alone gets the unlinked-sender reply; QR and **Copy** on computers | A code the bot sends first | Proposal; design 6 | `lib/contracts/messaging-channel.ts` |
+| D9 | Buttons of a decided, withdrawn or superseded proposal are removed with `editMessageReplyMarkup` within Telegram's 48-hour edit limit; the text is kept | Editing the text; leaving buttons | Proposal; design 7 | The outbox |
+| D11 | Bot API results: `403` to rejected `blocked` and the binding ends; `400` to rejected; `429` to unavailable after `retry_after`; `5xx` or a timeout after writing to uncertain, never resent; one second between sends to one chat; text over 4,096 characters split | Retrying every error | Proposal; design 9 | The transport |
+| D12 | Commands, references, approval in the host's own words, forwarding (`[Telegram] …`), summaries, setup, admission, ordering and retention as in Phase 6; no window and no templates | A Telegram-specific command set | Proposal; design 10 | Phase 6 D8 to D14 |
+
+### Operational decisions
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Sources without a bot update | The design read Photon's Telegram pages, `@spectrum-ts/telegram` 12.14.0 and `@spectrum-ts/core` 12.14.0 from npm and the Telegram Bot API reference on 2026-11-04. No update has reached the service, so the fixture is confirmed at the join | Waiting for a live update | Design context | Task 5.1 |
+| Bot credentials | The user put `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_USERNAME` (`findmeatime_bot`) in the main checkout's `.env` on 2026-11-04. Agent sessions never read, print or copy the token; the user sets it on Vercel Production | An agent setting it | Provider setup | — |
+| Planning only | This pull request changes documents and the OpenSpec change only, with no code, schema or configuration | Implementing Lane A at once | Plan Phase 10 | — |
+
+### Blocked on the user
+
+These steps were not taken because they change a provider console, message a person or change a shared or release environment:
+
+- **@BotFather**: the bot's name, description, about text and picture.
+- **Vercel Production**: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and a new `TELEGRAM_WEBHOOK_SECRET`.
+- **Registering the webhook** with `npm run telegram:webhook` against production, after the deploy.
+- **The shared-project migration and the deploy**, after review.
+- **Sending any Telegram message**, including the one-update capture and the AC-32 to AC-34 runs.
+- **Teammate review** of D1–D13 and the design's open questions.
+
 ## `guest-flow-completion`
 
 The [proposal](../../openspec/changes/guest-flow-completion/proposal.md#decisions) records U1–U5 and D1–D10, which the user and the team agreed on 2026-10-29 and 2026-10-30; the [design](../../openspec/changes/guest-flow-completion/design.md) records the reasoning. The decisions below were taken while implementing pull request 1 (task groups 1–5a) on 2026-10-30; none has had teammate review yet.

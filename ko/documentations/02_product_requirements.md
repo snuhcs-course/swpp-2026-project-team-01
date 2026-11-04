@@ -30,6 +30,8 @@ MVP 대상 사용자 결정(2026-10-07): iPhone/iMessage 호스트를 대상으�
 
 Android 대상 사용자 결정(2026-11-02, 위의 보류를 대체): 팀은 이제부터 옵트인 비공개 WhatsApp 대화를 통해 Android 호스트를 지원합니다. 이 채널은 iMessage가 호스트에게 하는 일, 즉 알림, 논의, 수정, 결정, 설정을 똑같이 합니다. 같은 Photon 프로젝트에 있는 Photon Spectrum의 WhatsApp Business 플랫폼 위에서 동작합니다. 이 결정은 호스트의 채널만 다루며, 요청자는 계속 웹과 이메일을 사용합니다. SMS, RCS, KakaoTalk, (Business가 아닌) 개인 WhatsApp, 요청자 메시징은 범위 밖으로 유지합니다. 호스트는 한 번에 하나의 메시징 채널, 즉 iMessage 또는 WhatsApp만 사용하며, 어느 쪽도 쓰지 않아도 웹은 계속 이용할 수 있습니다. [`host-whatsapp-channel` 변경](../openspec/changes/host-whatsapp-channel/proposal.md)이 이 채널을 명세합니다(추적 이슈 #66).
 
+Telegram 결정(2026-11-04): Meta가 WhatsApp Business 계정을 메시지를 한 건도 보내기 전인 2026-11-03에 비활성화했고, 2026-11-04에 프로덕션에서 WhatsApp을 숨겼습니다. 팀은 모든 기기에서 iMessage, WhatsApp과 나란히 쓸 수 있는 호스트 채널로, Find Me a Time 봇과의 옵트인 비공개 Telegram 대화를 추가합니다. 이 채널은 iMessage가 호스트에게 하는 일을 똑같이 하며, 정확한 제안에 묶인 결정 버튼을 더합니다. 호스트의 채널만 다루며, 요청자는 계속 웹과 이메일을 사용합니다. 호스트는 여전히 한 번에 하나의 메시징 채널만 사용합니다. [`host-telegram-channel` 변경](../openspec/changes/host-telegram-channel/proposal.md)이 이 채널을 명세합니다(추적 이슈 #111).
+
 내부 팀 일정 조율과 그룹 미팅은 제품의 초기 범위에서 제외됩니다.
 
 ## 2. 목표와 성공 지표
@@ -64,12 +66,13 @@ Android 대상 사용자 결정(2026-11-02, 위의 보류를 대체): 팀은 이
 - 호스트의 검토, 수정, 승인, 거절을 위한 휴대폰 친화적 웹 경험.
 - 선택된 Photon Spectrum 전송 방식을 사용하는, 호스트 알림, 비공개 논의, 수정, 승인, 거절을 위한 옵트인 iMessage 채널. 모바일 웹은 설정과 대체 검토 수단으로 계속 이용할 수 있습니다.
 - 동일한 호스트 알림, 비공개 논의, 수정, 승인, 거절, 설정을 제공하며 Photon Spectrum의 WhatsApp Business 플랫폼을 사용하는, Android 호스트를 위한 옵트인 WhatsApp 채널(2026-11-02 추가). 호스트는 iMessage와 WhatsApp 중 하나만 연결하며, 둘을 동시에 연결하지 않습니다.
+- Telegram Bot API를 통해, 동일한 호스트 알림, 비공개 논의, 수정, 승인, 거절, 설정을 제공하는, 모든 기기의 호스트를 위한 옵트인 Telegram 채널(2026-11-04 추가). 호스트는 iMessage, WhatsApp, Telegram 중 하나만 연결합니다.
 - 요청별 접근 통제를 갖춘, 계정 없는 요청자 접근.
 - 현재 제안에 대한 명시적 승인, 예약 전 재검증, 재시도와 불확실한 예약 결과로부터의 복구.
 
 ### 초기 릴리스 제외
 
-- iMessage와 WhatsApp Business 외의 호스트 메시징 채널: SMS, RCS, KakaoTalk, 개인 WhatsApp 계정, 호스트 제안 알림 이메일. WhatsApp 또는 그 밖의 모든 채팅 앱을 통한 요청자 메시징. WhatsApp 그룹 대화. 2026-11-02까지 이 목록은 모든 Android 채널을 보류했습니다. [Android 대상 사용자 결정](#target-users)이 이제 호스트에 한해 WhatsApp을 추가합니다. 기존의 Auth, 복구, 예약 이메일은 각자 정의된 목적을 유지합니다.
+- iMessage, WhatsApp Business, Telegram 외의 호스트 메시징 채널: SMS, RCS, KakaoTalk, 개인 WhatsApp 계정, 호스트 제안 알림 이메일. WhatsApp 또는 그 밖의 모든 채팅 앱을 통한 요청자 메시징. WhatsApp 그룹 대화. 2026-11-02까지 이 목록은 모든 Android 채널을 보류했습니다. [Android 대상 사용자 결정](#target-users)이 이제 호스트에 한해 WhatsApp을 추가하고, [Telegram 결정](#target-users)이 호스트에 한해, 그룹이나 채널 없이 Telegram을 추가합니다. 기존의 Auth, 복구, 예약 이메일은 각자 정의된 목적을 유지합니다.
 - 그룹 일정 조율, 내부 팀 조율, 라운드 로빈 배정, 호스트 가용 시간 풀링.
 - Google Calendar 이외의 캘린더 공급자.
 - 호스트 승인 없는 자동 예약. AI의 판단에 승인을 위임하는 것도 포함합니다.
@@ -192,6 +195,10 @@ AI 에이전트는 접근/로그인, Google 연결, 캘린더 선택, 선호 조
 
 iMessage 대신 WhatsApp을 연결한 호스트는 승인, 모호한 답장, 오래된 답장에 대해 같은 규칙으로 비공개 WhatsApp 대화에서 같은 상호작용을 얻습니다. WhatsApp에만 해당하는 규칙이 하나 있습니다. Meta는 기업이 호스트의 마지막 메시지로부터 24시간 이내에만 자유 형식 메시지를 보내도록 허용합니다. 그 창이 닫혀 있으면 호스트는 전체 요약이 아니라, 무언가 대기 중이라는 사실과 확인 방법을 알리는 사전 승인된 짧은 알림을 받습니다. 세부 내용은 호스트가 다시 메시지를 보낸 뒤 대화에서, 그리고 언제든 `/app`에서 확인할 수 있습니다.
 
+### Telegram을 통한 호스트 상호작용
+
+Telegram을 연결한 호스트는 승인, 모호한 답장, 오래된 답장에 대해 같은 규칙으로 Find Me a Time 봇과의 비공개 대화에서 같은 상호작용을 얻습니다. Telegram에는 메시징 창이 없으므로, 소식이 있을 때마다 전체 요약이 도착합니다. 결정을 요청하는 요약에는 정확한 제안을 가리키는 **Approve**, **Decline**, **Show details** 버튼이 표시되며, 그 사이 바뀐 제안의 버튼을 누르면 아무것도 결정되지 않고 현재 제안이 표시됩니다. Telegram은 봇 대화를 자사 서버에 보관하며, 호스트는 연결하기 전에 이를 안내받습니다.
+
 ## 6. 기능 요구사항
 
 ### 호스트 설정과 캘린더 접근
@@ -274,6 +281,16 @@ FR-12에 대해, 후보를 제시하기 전에 호스트가 제안된 미팅 장
 | FR-37 | 호스트가 검증된 비공개 WhatsApp 대화를 옵트인할 수 있게 합니다. | 인증된 호스트는 자신의 WhatsApp에서 일회용 코드를 보내고 브라우저에서 번호를 확인하는 방식으로 WhatsApp 번호를 연결하고 연결 해제할 수 있습니다. 비공개 요청 요약은 연결된 대화로만 전달됩니다. 연결되지 않은 발신자, 그룹 대화, 다른 플랫폼의 이벤트는 호스트 전용 세부 정보를 가져오거나 호스트로 행동할 수 없습니다. WhatsApp을 연결하면 호스트가 확인한 뒤 iMessage 연결이 종료되며, 그 반대도 같습니다. 연결을 해제하면 해당 번호를 통한 알림과 이후의 호스트 동작이 중단됩니다. |
 | FR-38 | WhatsApp을 통한 호스트의 검토, 논의, 수정, 승인, 거절, 설정을 지원합니다. | FR-27과 같은 정확한 명령과 승인 규칙이 적용됩니다. 승인에는 정확한 현재 제안에 묶인 명시적 호스트 의도가 필요하고, 모호한 답장은 명확화를 요청하며, 오래된 답장은 더 새로운 제안을 승인할 수 없습니다. 설정 답변은 `/app`과 같은 초안을 갱신합니다. |
 | FR-39 | 공유 요청 상태와 전달의 일관성을 유지하면서 WhatsApp의 메시징 창을 지킵니다. | 호스트의 마지막 메시지로부터 24시간 이내에는 답장과 요약이 자유 형식 텍스트로 전송됩니다. 그 밖에는 사전 승인된 템플릿 알림만 전송됩니다. 이 알림에는 비공개 미팅 세부 정보가 없고 호스트에게 요청을 안내합니다. 창이 닫혀 거부된 경우를 포함해 전송할 수 없는 메시지는 `/app`에서 볼 수 있습니다. 재생, 재시작, 동시에 일어나는 웹 또는 에이전트 동작이 결정이나 예약을 중복시키지 않으며, 전달 확인이나 읽음 확인은 결코 승인이 아닙니다. |
+
+### 호스트 Telegram 채널
+
+이 요구사항은 2026-11-04에 추가되었으며 다음 빈 번호를 사용하므로, 기존 FR 참조의 의미는 그대로 유지됩니다.
+
+| ID | 요구사항 | 수용 기준 |
+|---|---|---|
+| FR-40 | 호스트가 검증된 비공개 Telegram 대화를 옵트인할 수 있게 합니다. | 인증된 호스트는 자신의 Telegram에서 일회용 코드로 봇을 시작하고 브라우저에서 자신의 Telegram 이름을 확인하는 방식으로 Telegram 계정을 연결하고 연결 해제할 수 있습니다. 비공개 요청 요약은 연결된 대화로만 전달됩니다. 연결되지 않은 사용자, 그룹, 채널, 다른 봇, 웹훅 시크릿이 없는 요청은 호스트 전용 세부 정보를 가져오거나 호스트로 행동할 수 없습니다. Telegram을 연결하면 호스트가 확인한 뒤 iMessage 또는 WhatsApp 연결이 종료되며, 그 반대도 같습니다. 연결 해제, `stop`, 봇 차단은 해당 계정을 통한 알림과 이후의 호스트 동작을 중단시킵니다. |
+| FR-41 | Telegram을 통한 호스트의 검토, 논의, 수정, 승인, 거절, 설정을 지원합니다. | 앞에 `/`가 있든 없든 FR-27과 같은 정확한 명령과 승인 규칙이 적용됩니다. 결정 버튼은 하나의 요청과 제안 버전을 가리키고, 연결된 계정에서 온 것만 받아들이며, 직접 입력한 것과 같은 명령을 실행하고, 제안이 바뀌었으면 아무것도 결정하지 않습니다. 설정 답변은 `/app`과 같은 초안을 갱신합니다. |
+| FR-42 | 공유 요청 상태와 Telegram 전달의 일관성을 유지합니다. | 재생된 업데이트, 반복된 버튼 탭, 재시작, 동시에 일어나는 웹 또는 에이전트 동작이 결정이나 예약을 중복시키지 않습니다. 차단되었거나 불확실한 전송은 `/app`에서 볼 수 있으며 중복으로 재전송되지 않고, 결정되었거나 대체된 제안의 버튼은 제거됩니다. |
 
 ### MCP, CLI, 인가
 
@@ -360,12 +377,15 @@ FR-12에 대해, 후보를 제시하기 전에 호스트가 제안된 미팅 장
 | AC-29 | Android 휴대폰에서 호스트가 `/app`에서 WhatsApp을 연결하고, 요청 요약을 받고, 비공개 질문을 하고, 시간을 수정하고, 현재 제안을 승인합니다. 이미 iMessage를 연결한 호스트로 연결을 반복합니다. | 번호는 **확인 및 연결(Confirm and link)** 이후에만 바인딩됩니다. 논의는 호스트 전용으로 유지되고, 바뀐 세부 정보에는 요청자의 동의와 새로운 호스트 승인이 필요합니다. 결정은 웹과 에이전트 클라이언트에서 일관되게 나타나며, 거절 사례는 이벤트를 만들지 않습니다. WhatsApp을 연결하면 이전의 iMessage 연결이 종료되고, 두 채널 모두로 요약이 가지 않습니다. |
 | AC-30 | 연결되지 않은 WhatsApp 발신자, 다른 플랫폼을 가리키는 WhatsApp 이벤트, 연결된 호스트의 모호하거나 조건부인 답장 또는 오래된 제안에 대한 답장. | 권한 없는 발신자는 비공개 데이터를 노출하지 않고 승인할 수 없습니다. iMessage 이벤트는 WhatsApp 채널에 도달하지 않으며 그 반대도 같습니다. 모호한 답장은 명확화를 요청하고, 오래된 답장은 더 새로운 제안을 인가하지 않습니다. 연결을 해제한 뒤에는 그 번호가 더 이상 호스트로 행동할 수 없습니다. |
 | AC-31 | 호스트의 마지막 WhatsApp 메시지로부터 24시간이 넘은 뒤에도 제안이 승인을 기다립니다. 이어서 서비스 재시작 뒤에 웹 동작이 일어나는 동안 WhatsApp 승인을 재생하고, 전송 실패를 모의합니다. | 호스트는 비공개 미팅 세부 정보가 없는 승인된 템플릿 알림 하나를 받고 WhatsApp 또는 `/app`에서 계속할 수 있습니다. 요청은 일관된 결정 이력과 함께 최대 한 건의 예약만 만듭니다. 거부되거나 불확실한 전송은 `/app`에 표시되며 중복으로 재시도되지 않습니다. |
+| AC-32 | Android 휴대폰과 iPhone에서 호스트가 `/app`에서 Telegram을 연결하고, 요청 요약을 받고, 비공개 질문을 하고, 시간을 수정하고, 버튼으로 현재 제안을 승인합니다. 이미 iMessage를 연결한 호스트로 연결을 반복합니다. | Telegram 계정은 **Confirm and link** 뒤에만 연결됩니다. 논의는 호스트 전용으로 유지되고, 바뀐 세부 정보는 요청자의 동의와 새로운 호스트 승인이 필요합니다. 결정은 웹과 에이전트 클라이언트에 일관되게 나타나고, 버튼은 사라지며, 거절 사례는 이벤트를 만들지 않습니다. Telegram을 연결하면 이전 iMessage 연결이 종료되고, 요약이 두 채널 모두로 가지 않습니다. |
+| AC-33 | 연결되지 않은 Telegram 사용자, 그룹 메시지, 시크릿이 없는 웹훅 요청, 다른 사용자가 누른 전달된 버튼, 연결된 호스트의 모호한 답장 또는 오래된 제안의 버튼 탭. | 권한 없는 사용자와 요청은 비공개 데이터를 노출하지 않으며 승인할 수 없습니다. 모호한 답장은 명확화를 요청하고, 오래된 탭이나 답장은 더 새로운 제안을 승인할 수 없습니다. 연결을 해제하거나 봇을 차단한 뒤에는 해당 계정이 더 이상 호스트로 행동할 수 없습니다. |
+| AC-34 | 서비스 재시작 뒤에 웹 동작이 일어나는 동안 Telegram 버튼 승인을 재생한 다음, 속도 제한, 전송 뒤 연결 끊김, 봇을 차단한 호스트를 모의합니다. | 요청은 일관된 결정 이력과 함께 최대 한 건의 예약만 만듭니다. 속도 제한된 메시지는 한 번만 전송되고, 불확실한 전송은 `/app`에 표시되며 재전송되지 않습니다. 봇을 차단한 호스트의 연결은 종료되고 `/app`에 표시됩니다. |
 
 해당하는 시나리오를 지원되는 각 채널에서 채널 간 전환을 포함하여 실행합니다. 승인, 인가, 프라이버시, 중복 방지 확인은 눈에 보이는 컨트롤뿐 아니라 그 기반이 되는 동작에서도 수행해야 합니다.
 
 ## 10. 의존성과 미결정 사항
 
-제품은 Google Calendar 접근, 이메일 전송, AI 서비스, 인증된 에이전트 연동, iMessage와 WhatsApp 전송에 의존합니다. 이들의 실패는 위에 명시된 동작을 따라야 합니다. Supabase는 선택된 데이터베이스이자 호스트 신원 인프라입니다. [기술 명세](04_technical_specification.md#backend-decision)는 인프라 방향을 기록하며, [프런트엔드 아키텍처](technical_specification/02_frontend_architecture.md)는 웹 경계를 정의합니다.
+제품은 Google Calendar 접근, 이메일 전송, AI 서비스, 인증된 에이전트 연동, iMessage, WhatsApp, Telegram 전송에 의존합니다. 이들의 실패는 위에 명시된 동작을 따라야 합니다. Supabase는 선택된 데이터베이스이자 호스트 신원 인프라입니다. [기술 명세](04_technical_specification.md#backend-decision)는 인프라 방향을 기록하며, [프런트엔드 아키텍처](technical_specification/02_frontend_architecture.md)는 웹 경계를 정의합니다.
 
 의도된 대화 런타임은 Next.js와 함께 사용하는 eve이며, 범위가 한정된 빌드, 인가, 재연결, 재시작 확인을 전제로 합니다. eve는 대화 실행을 관리할 수 있지만, 신원, 세션 소유권, 제안 개정, 명시적 결정, 멱등성(idempotency), 예약 정합에 대해서는 애플리케이션이 계속 권위를 갖습니다. 확인 결과 런타임 선택이 바뀐다면, 두 번째 에이전트 엔진을 조용히 도입하지 말고 아키텍처를 명시적으로 갱신합니다.
 
@@ -385,7 +405,9 @@ iMessage 전송에는 **Photon Spectrum**을 사용합니다. eve 네이티브 P
 
 호스트 WhatsApp 채널에는 Photon Spectrum의 **WhatsApp Business** 플랫폼(`whatsapp_business`)을 사용합니다. iMessage와 같은 Photon 프로젝트에서 동작하며 같은 웹훅에 도달하고, 수신기는 각 이벤트를 플랫폼에 따라 라우팅합니다. WhatsApp Business는 Photon을 통해 등록한 Photon SMS 번호를 사용하므로, 그 번호는 iMessage 회선과 다릅니다. 연결은 iMessage 설계를 유지합니다. **WhatsApp 연결(Connect WhatsApp)**을 누르면 일회용 연결 코드를 받고, 메시지가 미리 작성된 `https://wa.me/<number>?text=<message>`를 엽니다. 호스트가 이를 보내면 브라우저가 **확인 및 연결(Confirm and link)**을 위한 번호를 전체로 보여 줍니다. 서비스는 WhatsApp에서도 먼저 메시지를 보내지 않으므로, 서비스가 보내는 대체 코드는 제공하지 않습니다. Meta는 호스트의 마지막 메시지로부터 24시간 이내에만 자유 형식 메시지를 허용합니다. 그 창 밖에서는 서비스가 Meta가 승인한 템플릿, 즉 비공개 미팅 세부 정보가 없는 짧은 유틸리티 알림만 보낼 수 있습니다. [`host-whatsapp-channel` 변경](../openspec/changes/host-whatsapp-channel/proposal.md#decisions)이 이 결정들을 기록합니다. 템플릿 등록, Meta의 표시 이름 및 비즈니스 검증, Android 휴대폰에서의 AC-29–AC-31 실제 검증은 계속 열려 있습니다.
 
-전송 또는 런타임의 승인 메커니즘이 제품의 제안별 호스트 승인 요건을 대체하지 않습니다. 렌더링된 버튼 레이블이나 일반 채팅 응답이 예약을 승인한다고 가정해서는 안 됩니다. 다만 2026-11-04에 결정한 예외가 하나 있습니다. 연결된 iMessage 또는 WhatsApp 대화에서 호스트가 자기 말로 한 분명한 승인은 어시스턴트의 승인 도구를 통해 현재 합의된 제안을 승인하며, 이 도구는 채널과 정확한 버전을 확인한 뒤 웹 버튼과 같은 명령을 실행합니다([`host-imessage-channel` D23 및 설계 19](../openspec/changes/host-imessage-channel/design.md#19-approval-in-the-hosts-own-words-d23)). 거절, 변경 사항 공유, 설정 확인은 계속 정확한 명령이나 버튼으로 합니다. 결정 요약에 붙는 WhatsApp 답장 버튼은 ID에 정확한 요청과 제안 버전을 담고, 연결된 번호에서 온 것만 받아들이며, 제목으로는 절대 읽지 않으므로 이것도 정확한 명령입니다([`host-whatsapp-channel` D17](../openspec/changes/host-whatsapp-channel/proposal.md#decisions)). 릴리스 전에 종단 간 호스트 검토 및 예약 테스트로 Spectrum 연동을 확인합니다.
+Telegram 호스트 채널에는 Photon이 아니라 **Telegram Bot API**를 직접 사용합니다. Photon의 Telegram 제공자는 서버리스 런타임이 유지할 수 없는 지속적인 WebSocket으로 업데이트를 전달하기 때문입니다. 업데이트는 `/telegram/webhook`으로 도착하며 Telegram이 되돌려 보내는 시크릿으로 검사하고, 답장은 Bot API로 나갑니다. 연결은 iMessage 설계를 유지합니다. **Connect Telegram**을 누르면 일회용 연결 코드를 받고 `https://t.me/findmeatime_bot?start=<code>`를 엽니다. 호스트가 **Start**를 누르면 브라우저가 **Confirm and link**를 위해 호스트의 Telegram 이름을 보여 줍니다. 봇은 먼저 메시지를 보내지 않습니다. [`host-telegram-channel` 변경](../openspec/changes/host-telegram-channel/proposal.md#decisions)이 이 결정들을 기록합니다. 봇의 프로덕션 설정, 웹훅 등록, AC-32–AC-34의 실제 검증은 계속 열려 있습니다.
+
+전송 또는 런타임의 승인 메커니즘이 제품의 제안별 호스트 승인 요건을 대체하지 않습니다. 렌더링된 버튼 레이블이나 일반 채팅 응답이 예약을 승인한다고 가정해서는 안 됩니다. 다만 2026-11-04에 결정한 예외가 하나 있습니다. 연결된 iMessage 또는 WhatsApp 대화에서 호스트가 자기 말로 한 분명한 승인은 어시스턴트의 승인 도구를 통해 현재 합의된 제안을 승인하며, 이 도구는 채널과 정확한 버전을 확인한 뒤 웹 버튼과 같은 명령을 실행합니다([`host-imessage-channel` D23 및 설계 19](../openspec/changes/host-imessage-channel/design.md#19-approval-in-the-hosts-own-words-d23)). 거절, 변경 사항 공유, 설정 확인은 계속 정확한 명령이나 버튼으로 합니다. 결정 요약에 붙는 WhatsApp 답장 버튼은 ID에 정확한 요청과 제안 버전을 담고, 연결된 번호에서 온 것만 받아들이며, 제목으로는 절대 읽지 않으므로 이것도 정확한 명령입니다([`host-whatsapp-channel` D17](../openspec/changes/host-whatsapp-channel/proposal.md#decisions)). Telegram 결정 버튼은 모델이 읽는 렌더링된 레이블이 아닙니다. 정확한 요청과 제안 버전을 담고 있으며 연결된 계정에서 온 것만 받아들이므로, 웹 버튼처럼 확인되는 정확한 명령입니다([`host-telegram-channel` D8](../openspec/changes/host-telegram-channel/proposal.md#decisions)). 릴리스 전에 종단 간 호스트 검토 및 예약 테스트로 Spectrum 연동을 확인합니다. 릴리스 전에 종단 간 호스트 검토 및 예약 테스트로 Spectrum 연동을 확인합니다.
 
 팀은 해당 기능을 릴리스 준비 완료로 취급하기 전에 다음 결정을 해결해야 합니다.
 
@@ -400,6 +422,7 @@ iMessage 전송에는 **Photon Spectrum**을 사용합니다. eve 네이티브 P
 | 개인 에이전트를 통한 호스트 확인 | 명시적인 사람의 확인을 현재 제안에 귀속시키는 방법과 권한을 폐기하는 방법. |
 | iMessage 연동과 호스트 신원 | 채널 계약과의 Photon Spectrum 브리지 호환성, 지원 버전, 호스팅과 회선 프로비저닝, 검증된 호스트 연결/폐기, 제안별 답장 처리, 전달 복구. 어댑터, 발신자 식별자, 연결 코드, 대체 경로 한도, 정확한 명령, 전달 방식, 원탭 딥링크는 [`host-imessage-channel` 변경](../openspec/changes/host-imessage-channel/proposal.md#decisions)(D1–D14, 2026-10-23)에서 결정되었으며, 회선 프로비저닝, 웹훅 등록, 통제된 iPhone에서의 AC-16–AC-18 검증은 계속 열려 있습니다. |
 | WhatsApp 연동과 Meta 템플릿 | 2026-11-02에 [`host-whatsapp-channel` 변경](../openspec/changes/host-whatsapp-channel/proposal.md#decisions)에서 제안되어 팀 검토를 기다리고 있음: 공유 웹훅에서의 플랫폼 라우팅, WhatsApp 발신자 형식, 호스트당 하나의 메시징 채널, `wa.me` 링크, 24시간 창 안팎에서 보내는 내용. 여전히 열려 있음: Meta가 승인하는 정확한 템플릿 문구와 언어, 비즈니스 표시 이름과 검증, 회선의 메시징 등급, 템플릿 비용, 통제된 Android 휴대폰에서의 AC-29–AC-31. |
+| Telegram 연동 | 2026-11-04에 [`host-telegram-channel` 변경](../openspec/changes/host-telegram-channel/proposal.md#decisions)에서 제안되어 팀 검토를 기다리고 있음: 직접 Bot API 전송과 웹훅 시크릿, Telegram 발신자 신원, `t.me` 시작 링크, 세 채널의 기기 규칙, 결정 버튼. 여전히 열려 있음: iPhone 호스트에게 Telegram을 제안할지 여부, 봇의 프로필, 통제된 휴대폰에서의 AC-32–AC-34. |
 | 이메일과 이어가기 접근 | Cloudflare Email Service를 구성하고 통제된 트랜잭션 전달을 검증하며, 도메인 온보딩, 토큰 권한, 전달 증거는 [`requester-intake-and-feasibility` 변경](../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)에서 결정되었습니다(D4). Google 전용 호스트 로그인은 Auth 이메일 로그인을 비활성화된 상태로 유지하며, 유지되는 SMTP는 추가적인 로그인 요건이 아닙니다. AgentMail 받은편지함 할당, 발신자 검증, 요청/스레드 매핑, 전달된 링크의 처리, 보관, 복구는 [`requester-email-channel` 변경](../openspec/changes/requester-email-channel/proposal.md#decisions)에서 결정되었습니다(D1–D11). `findmeatime@agentmail.to` 생성과 웹훅 등록은 아직 남아 있습니다. |
 | 규칙 설정 | 온보딩에 대해서는 2026-10-19에 [`host-onboarding` 설계](../openspec/changes/host-onboarding/design.md#5-starter-defaults-and-suggestions)에서 결정했습니다. 시작 기본값은 호스트 시간대 기준 월~금 10:00–17:00, 30분 미팅, 앞뒤 10분 여유 시간, 주간 상한 없음, 15분 추가 이동 여유 시간이며, 근거가 없거나 미팅 5건 미만일 때만 사용합니다. 지원하는 이동 수단은 **Driving(운전)**, **Public transit(대중교통)**, **Walking(도보)**와 **Depends on the trip(이동에 따라 다름)**입니다. 아직 열려 있는 것: 주간 상한 외의 하드 제약과 선호 조건의 분류, 예외 컨트롤, 여유 시간의 세분화 수준. 지원 지역, 추정치의 최신성, 수동 이동 허용 시간(한 후보의 한 구간 단위)은 2026-10-21에 [`requester-intake-and-feasibility` 변경](../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)에서 결정되었습니다(D1, D2). |
 | 온라인 미팅 세부 정보 | 호스트가 링크를 제공하는지 지원되는 연동이 이를 생성하는지, 그리고 생성 전에 호스트가 무엇을 승인하는지. 4단계에서 3단계로 옮겼으며, 3단계의 요청자 동의가 링크 계획을 다루기 때문입니다. 2026-10-21에 [`requester-intake-and-feasibility` 변경](../openspec/changes/requester-intake-and-feasibility/proposal.md#decisions)(D6)에서 결정되었습니다. 예약 대상이 지원하는 경우 이벤트와 함께 생성되는 Google Meet 회의, 그렇지 않으면 요청자가 제공하는 링크입니다. |
