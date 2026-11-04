@@ -1,18 +1,28 @@
-// The host's messaging channels (host-whatsapp-channel D5 to D7): a host links
-// one of them at a time. Browser-safe: the card and the link step pick the
-// channel a device is offered here, and build WhatsApp's one-tap link.
+// The host's messaging channels (host-whatsapp-channel D5 to D7,
+// host-telegram-channel D5 to D7): a host links one of them at a time.
+// Browser-safe: the card and the link step pick the channel a device is offered
+// here, and build WhatsApp's one-tap link.
 
-export const MESSAGING_CHANNELS = ["imessage", "whatsapp"] as const;
+export const MESSAGING_CHANNELS = ["imessage", "whatsapp", "telegram"] as const;
 
 export type MessagingChannel = (typeof MESSAGING_CHANNELS)[number];
 
-// The channels the receipts, links, bindings and outbox can record. Telegram
-// (host-telegram-channel D4) is stored from Lane A on; the device rule, the
-// screens and linking offer it from Lane B on, when it joins MESSAGING_CHANNELS.
-export type StoredChannel = MessagingChannel | "telegram";
+// The channels the receipts, links, bindings and outbox can record: since Lane B
+// of host-telegram-channel, every channel the screens offer.
+export type StoredChannel = MessagingChannel;
 
 export function isMessagingChannel(value: unknown): value is MessagingChannel {
-  return value === "imessage" || value === "whatsapp";
+  return (MESSAGING_CHANNELS as readonly unknown[]).includes(value);
+}
+
+// What a deployment can link to, null where a channel is not configured: the
+// iMessage line's number, the WhatsApp number as digits and the Telegram bot's
+// username (TELEGRAM_BOT_USERNAME).
+export type ConfiguredChannels = { readonly [Channel in MessagingChannel]: string | null };
+
+// The configured channels in the order the screens list them.
+export function configuredChannels(channels: ConfiguredChannels): MessagingChannel[] {
+  return MESSAGING_CHANNELS.filter((channel) => Boolean(channels[channel]));
 }
 
 // What a device is offered (D7): Android has no iMessage, so it gets WhatsApp
@@ -68,7 +78,9 @@ export function otherChannel(offer: ChannelOffer, channels: ChannelNumbers, curr
 
 // The channel's name as the screens show it.
 export function channelName(channel: MessagingChannel) {
-  return channel === "whatsapp" ? "WhatsApp" : "iMessage";
+  if (channel === "whatsapp") return "WhatsApp";
+  if (channel === "telegram") return "Telegram";
+  return "iMessage";
 }
 
 // Forwarded text is marked, so the shared transcript and the assistant know

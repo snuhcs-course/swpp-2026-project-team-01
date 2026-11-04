@@ -1,6 +1,8 @@
 // Small inline icons for the ink screens (from the landing redesign's components/thyme/icons.tsx). All are
 // decorative: the control around them carries the label.
 
+import type { MessagingChannel } from "@lib/contracts/messaging-channel";
+
 export function GoogleLogo() {
   return (
     <svg aria-hidden="true" height="18" viewBox="0 0 48 48" width="18">
@@ -100,7 +102,7 @@ export function WhatsAppGlyph() {
 }
 
 // The glyph of the app a control opens.
-export function AppGlyph({ channel }: { readonly channel: "imessage" | "whatsapp" }) {
+export function AppGlyph({ channel }: { readonly channel: MessagingChannel }) {
   return channel === "whatsapp" ? <WhatsAppGlyph /> : <MessagesGlyph />;
 }
 

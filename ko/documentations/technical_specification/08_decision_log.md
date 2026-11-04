@@ -549,7 +549,7 @@
 
 ## 10단계 — `host-telegram-channel`
 
-[제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 2026-11-04에 사용자가 봇 `@findmeatime_bot`을 만들고 호스트 채널을 Telegram에 구성해 달라고 요청했습니다. 이 변경을 작성한 세션은 같은 날 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안입니다. 레인 A(작업 2.1–2.4)는 그 검토에 앞서 사용자의 요청으로 웹훅, 레코드, Bot API 전송을 구현하며, 연결과 채널의 동작(레인 B와 C)은 아직 구현되지 않았습니다. 추적 이슈: #111.
+[제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 2026-11-04에 사용자가 봇 `@findmeatime_bot`을 만들고 호스트 채널을 Telegram에 구성해 달라고 요청했습니다. 이 변경을 작성한 세션은 같은 날 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안입니다. 레인 A(작업 2.1–2.4)는 그 검토에 앞서 사용자의 요청으로 웹훅, 레코드, Bot API 전송을 구현하고, 레인 B(작업 3.1)는 Telegram 보낸 사람을 연결합니다. 연결 화면(작업 3.2)과 채널의 동작(레인 C)은 아직 구현되지 않았습니다. 추적 이슈: #111.
 
 **이전 경위.** 2026-11-03에 Meta가 9단계의 WhatsApp Business 계정을 "허용되는 사용 정책 위반"을 이유로 메시지를 한 건도 보내기 전에 비활성화했고, 2026-11-04에 사용자의 요청으로 프로덕션에서 `PHOTON_WHATSAPP_NUMBER`를 제거했으므로 카드는 iMessage만 제공합니다([제공자 설정](03_provider_setup.md#whatsapp-business), PR #110).
 
@@ -603,6 +603,20 @@
 | 차단된 전송(작업 2.3) | `403`은 행을 `blocked`로 실패시키고, 그 연결을 끝내며(`unlinked`, 봉인된 값 삭제), 그 연결의 대기 및 큐 행을 `blocked` 범주로 억제합니다. 사용자가 봇을 차단했으므로 확인 메시지는 보내지 않습니다. `my_chat_member` kicked 수신 기록은 레인 C부터 연결을 끝냅니다 | 중지 확인 메시지 보내기 | `lib/server/imessage-outbox.ts`의 `endBlockedBinding` | 작업 4.2 |
 | 대역(작업 2.3) | 형제 파일 `tests/integration/support/fake-telegram.ts`가 `/bot<token>/<method>`에서 일곱 가지 메서드에 답하고, 각 호출을 토큰과 함께 기록하며, `403`(호출별 또는 차단된 대화별), `retry_after`가 있는 `429`, `400`, `5xx`, 끊긴 응답을 위한 스위치를 갖습니다 | `fake-photon.ts`의 Telegram 분기 | `tests/integration/support/fake-telegram.ts` | 그 파일 |
 | 웹훅 스크립트(작업 2.4) | `scripts/telegram-webhook.mjs`(`npm run telegram:webhook`, `npm run admin`처럼 `.env`에 이어 `.env.local`을 읽음)는 아무것도 호출하기 전에 `https://findmeatime.com` 이외의 출처, `A–Z a–z 0–9 _ -` 32~256자를 벗어난 시크릿, 없는 토큰, 루프백이 아닌 `TELEGRAM_API_URL`을 거부합니다. `getWebhookInfo`의 URL, 업데이트 유형, 연결 수, 대기 건수, 마지막 오류를 출력하고 모든 메시지에서 토큰을 지웁니다 | 다른 호스트를 위한 `--force`; CI에서 등록 | `scripts/telegram-webhook.mjs` | 그 파일 |
+
+### 레인 B 구현 결정
+
+2026-11-04에 작업 3.1을 구현하면서, D1–D13에 대한 팀원 검토에 앞서 사용자의 요청으로 내린 결정입니다. 아직 팀원 검토를 받은 것은 없습니다.
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| Telegram 이름이 있는 곳(작업 3.1) | `imessage_links`와 `imessage_bindings`의 널 허용 `sender_ciphertext` 옆에 `sender_name_ciphertext`를 두고, 보낸 사람과 같은 컨텍스트로 봉인해 **Confirm and link**와 연결된 카드에 쓸 "First (@username)"을 담습니다. `BEFORE INSERT OR UPDATE` 트리거(`app.clear_sender_name`)가 `sender_ciphertext`가 지워질 때마다 이름도 지우고, 검사가 보낸 사람 없는 이름을 거부하므로 종료, 연결 해제, `stop`, 차단된 봇, 정리는 바꿀 필요가 없습니다 | 발신함이 대화 ID로 읽는 봉인된 보낸 사람 안에 이름 넣기; 답장이 읽는 `space_ciphertext`에 이름 넣기; 바인딩에 이름을 두지 않아 연결된 카드가 사용자 ID의 네 자리를 보여주기 | `supabase/migrations/20261104054324_telegram_sender_name.sql`, `supabase/tests/telegram_sender_name.test.sql` | 새 마이그레이션 |
+| Telegram으로 연결되는 것(작업 3.1) | iMessage처럼 텍스트나 명령 메시지의 어디에 있든 `FMAT-` 코드: 시작 링크의 `/start <code>`, `/start@bot <code>`, 코드만 입력한 경우. 코드는 Telegram 시도만 완료하며 그 코드가 가리키는 다른 시도는 무효로 만듭니다. 버튼 탭이나 차단 업데이트는 연결이 아닙니다 | 정확한 `/start <code>`만 | `lib/server/imessage-receipts.ts`의 `telegramLinking` | 그 함수 |
+| 코드 없는 `/start`(작업 3.1) | 활성 Telegram 바인딩이 없는 보낸 사람이 페이로드 없이 또는 코드가 아닌 페이로드로 `/start`를 보내면, 보낸 사람당 하루 최대 한 번 `CHANNEL_TEXTS.unlinkedTelegram`(findmeatime.com/app을 안내)으로 답하며 이는 Telegram의 다른 거부와 함께 셉니다. 연결된 호스트의 `/start`는 레인 C에 맡깁니다 | 모든 `/start`에 답하기; 침묵 | `telegramLinking` | 그 함수 |
+| 코드가 도착해도 답하지 않음(작업 3.1) | 보낸 사람을 기록하는 Telegram 코드는 아무것도 큐에 넣지 않으며, `/?flow=telegram` 시작에서 온 시도도 마찬가지입니다. **Confirm and link** 뒤의 환영 메시지가 봇의 첫 메시지입니다(설계 6, 명세의 "Link from a phone"). 시작 페이지와 카드가 폴링하므로 iMessage 시작에서 답장에 넣던 로그인 링크는 필요 없습니다. 거부된 코드에는 `LINK_TEXTS.refusedTelegram`으로 답합니다 | iMessage의 "Got it" 답장 | `lib/server/imessage-links.ts`의 `receiveLinkCode` | 그 함수 |
+| 상태에 나타나는 Telegram 시도(작업 3.1) | `lineNumber`는 봇의 사용자 이름이고 `message`는 코드 그 자체이며, 화면이 여기서 `t.me` 링크를 만듭니다. 보낸 사람은 Telegram 이름이며, Telegram이 이름도 사용자 이름도 주지 않으면 "your Telegram account"입니다. `LinkChannels`에 `telegram`(`TELEGRAM_BOT_USERNAME`의 사용자 이름)이 추가됩니다 | 별도의 Telegram 상태 형태 | `lib/contracts/imessage.ts`, `imessage-links.ts`의 `attemptMessage`와 `shownSender` | 그 파일들 |
+| 레인 C를 위한 라우팅 훅(작업 3.1) | `processReceipt`는 Telegram 수신 기록을 먼저 `telegramLinking`으로 보내고, 그 밖의 것은 레인 C가 그 줄을 대체할 때까지 `ignored`로 기록합니다. `openReceipt`는 Telegram 봉투를 `text`와 `OpenedReceipt.telegram`으로 엽니다. `MessagingChannel`에 `telegram`이 포함되고 `StoredChannel`은 그 별칭으로 남습니다 | 별도의 Telegram 수신 기록 작업 | `lib/server/imessage-receipts.ts`, `lib/contracts/messaging-channel.ts` | 작업 4.1과 4.2 |
+| 마이그레이션 생성(작업 3.1) | 레인 A처럼 Supabase CLI 2.122.0; 결과물은 열 두 개, 함수 하나, 트리거 두 개, 검사 두 개를 추가합니다 | 손으로 쓴 마이그레이션 | 그 마이그레이션 | — |
 
 ### 사용자 대기 항목
 

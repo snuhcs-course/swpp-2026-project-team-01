@@ -23,7 +23,8 @@ import {
 // 200; a redelivery or a concurrent duplicate reuses them; a wrong secret, a
 // group, a bot and another update type store nothing; the sender is hashed in
 // the telegram namespace and kept only sealed with its profile; and until Lane C
-// the receipt job records a Telegram receipt as ignored and replies nothing.
+// the receipt job records a Telegram receipt that is not linking as ignored and
+// replies nothing.
 
 const db = testDatabase();
 let photon: FakePhoton;

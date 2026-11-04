@@ -27,6 +27,11 @@ import {
   whatsAppEvent,
 } from "./photon";
 import { runJob, testNotices, testTokenKey } from "./requests";
+import { receiveTelegramWebhook } from "../../../lib/server/telegram-receiver";
+import { telegramDelivery, TEST_TELEGRAM_SECRET } from "./telegram";
+
+// The Telegram bot's username the harness links to (host-telegram-channel design 6).
+export const TEST_TELEGRAM_BOT = "findmeatime_test_bot";
 
 // The iMessage suites' shared harness: delivers a message the way Photon would
 // (signed to the receiver, then the receipt job run), runs the card's commands
@@ -90,6 +95,7 @@ export function imessageHarness(
       origin: "http://localhost:3000",
       registrar,
       tokenKey: testTokenKey,
+      telegramUsername: TEST_TELEGRAM_BOT,
       tokenKeys: [testTokenKey],
       whatsappNumber: TEST_WHATSAPP_NUMBER,
     });
@@ -171,6 +177,18 @@ export function imessageHarness(
       const [after] = await db<{ outcome: string | null }[]>`select outcome from app.imessage_receipts where id = ${receipt!.id}`;
       return { messageId: id, outcome: after!.outcome, receiptId: receipt!.id, result };
     },
+    // Delivers a Telegram update (a body from ./telegram) to the webhook as
+    // Telegram would and runs its receipt job once; null when nothing was stored.
+    async deliverTelegram(body: string, deps: ImessageReceiptDependencies = receiptDeps()) {
+      const response = await receiveTelegramWebhook(telegramDelivery(body), () => ({ config: { secret: TEST_TELEGRAM_SECRET }, db, tokenKey: testTokenKey }));
+      if (response.status !== 200) throw new Error(`The Telegram webhook answered ${response.status}.`);
+      const messageId = `update:${(JSON.parse(body) as { update_id: number }).update_id}`;
+      const [receipt] = await db<{ id: string }[]>`select id from app.imessage_receipts where message_id = ${messageId} and channel = 'telegram'`;
+      if (!receipt) return null;
+      const result = await this.runReceipt(receipt.id, deps);
+      const [after] = await db<{ outcome: string | null }[]>`select outcome from app.imessage_receipts where id = ${receipt.id}`;
+      return { outcome: after!.outcome, receiptId: receipt.id, result };
+    },
     async runReceipt(receiptId: string, deps: ImessageReceiptDependencies = receiptDeps()) {
       const [job] = await db<{ id: string }[]>`select id from app.jobs where kind = ${IMESSAGE_RECEIPT_JOB} and dedupe_key = ${`receipt:${receiptId}`}`;
       await db`update app.jobs set run_after = now() where id = ${job!.id} and state = 'pending'`;
@@ -184,7 +202,7 @@ export function imessageHarness(
       );
     },
     status(hostAccountId: string) {
-      return readImessageStatus(db, [testTokenKey], hostAccountId, { imessage: TEST_LINE, whatsapp: TEST_WHATSAPP_NUMBER });
+      return readImessageStatus(db, [testTokenKey], hostAccountId, { imessage: TEST_LINE, telegram: TEST_TELEGRAM_BOT, whatsapp: TEST_WHATSAPP_NUMBER });
     },
     async outbox(where: { readonly hostAccountId?: string; readonly kind?: string; readonly recipientHash?: string } = {}) {
       return db<{ id: string; kind: string; state: string; binding_id: string | null; request_id: string | null; created_at: Date }[]>`
