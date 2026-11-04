@@ -584,6 +584,14 @@ The [proposal](../../openspec/changes/host-telegram-channel/proposal.md#decision
 | Bot credentials | The user put `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_USERNAME` (`findmeatime_bot`) in the main checkout's `.env` on 2026-11-04. Agent sessions never read, print or copy the token; the user sets it on Vercel Production | An agent setting it | Provider setup | — |
 | Planning only | This pull request changes documents and the OpenSpec change only, with no code, schema or configuration | Implementing Lane A at once | Plan Phase 10 | — |
 
+### Lane A implementation decisions
+
+Taken on 2026-11-04 while implementing tasks 2.1 to 2.4, before the teammate review of D1–D13, at the user's request. None has had teammate review yet.
+
+| Decision | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| Schema change (task 2.1) | Only the four `channel` checks change; pg-delta drops and re-adds each check, and no table, column or row is touched. `edit_markup` and other Lane C outbox kinds wait for Lane C. Generated with Supabase CLI 2.122.0, which the local machine has (the repository names 2.119.0); the output is plain constraint SQL | Adding the Lane C outbox kinds now; a hand-written migration | `supabase/migrations/20261104050046_telegram_channel.sql`, `supabase/tests/telegram_channel.test.sql` | A new migration |
+
 ### Blocked on the user
 
 These steps were not taken because they change a provider console, message a person or change a shared or release environment:

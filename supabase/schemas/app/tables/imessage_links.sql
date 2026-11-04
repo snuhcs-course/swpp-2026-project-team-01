@@ -23,7 +23,7 @@ CREATE TABLE "app"."imessage_links" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "host_account_id" uuid REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
   "request_id" uuid REFERENCES "app"."requests" ("id") ON DELETE CASCADE,
-  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp')),
+  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp', 'telegram')),
   "method" text NOT NULL CHECK ("method" IN ('code', 'fallback')),
   "starter_hash" text CHECK ("starter_hash" ~ '^[0-9a-f]{64}$'),
   "source_hash" text CHECK ("source_hash" ~ '^[0-9a-f]{64}$'),

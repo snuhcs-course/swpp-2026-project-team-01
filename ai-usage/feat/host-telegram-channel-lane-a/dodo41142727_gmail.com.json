@@ -1,0 +1,23 @@
+{
+  "branch": "feat/host-telegram-channel-lane-a",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:793ca11c-2d4f-44b9-afa1-cb9b512d9c6d": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 32,
+          "cache_read": 2472991,
+          "cache_write_5m": 0,
+          "cache_write_1h": 71147,
+          "output": 8491,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T05:00:13.027Z",
+      "last": "2026-11-04T05:02:23.216Z"
+    }
+  }
+}

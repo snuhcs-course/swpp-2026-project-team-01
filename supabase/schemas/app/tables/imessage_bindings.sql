@@ -11,7 +11,7 @@
 CREATE TABLE "app"."imessage_bindings" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "host_account_id" uuid NOT NULL REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
-  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp')),
+  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp', 'telegram')),
   "link_id" uuid REFERENCES "app"."imessage_links" ("id") ON DELETE SET NULL,
   "sender_hash" text NOT NULL CHECK ("sender_hash" ~ '^[0-9a-f]{64}$'),
   "sender_ciphertext" text,
