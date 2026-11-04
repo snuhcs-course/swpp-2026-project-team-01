@@ -1,8 +1,9 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import type { MessagingChannel } from "../contracts/messaging-channel";
+import type { StoredChannel } from "../contracts/messaging-channel";
 import { database, type Database } from "./database";
 import { publishJob } from "./jobs";
 import { sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
+import { sealedTelegramText, type TelegramDetails } from "./telegram";
 import { inboundWhatsAppMessage } from "./whatsapp";
 
 // The Photon webhook receiver (host-imessage-channel design 2, D1, D7).
@@ -84,10 +85,11 @@ export function imessageHash(key: TokenKey, kind: "sender" | "space" | "phone" |
 }
 
 // The keyed hash of a channel's sender or conversation. WhatsApp values are
-// hashed as "whatsapp:<digits>" (host-whatsapp-channel D3), so one number on
-// both platforms gives two unrelated hashes and no iMessage hash changes.
-export function channelHash(key: TokenKey, channel: MessagingChannel, kind: "sender" | "space", value: string) {
-  return imessageHash(key, kind, channel === "whatsapp" ? `whatsapp:${value}` : value);
+// hashed as "whatsapp:<digits>" (host-whatsapp-channel D3) and Telegram user IDs
+// as "telegram:<id>" (host-telegram-channel D3), so one person on two platforms
+// gives unrelated hashes and no iMessage hash changes.
+export function channelHash(key: TokenKey, channel: StoredChannel, kind: "sender" | "space", value: string) {
+  return imessageHash(key, kind, channel === "imessage" ? value : `${channel}:${value}`);
 }
 
 export function receiptSealContext(receiptId: string) {
@@ -95,7 +97,7 @@ export function receiptSealContext(receiptId: string) {
 }
 
 export type InboundMessage = {
-  readonly channel: MessagingChannel;
+  readonly channel: StoredChannel;
   readonly messageId: string;
   readonly sender: string;
   readonly spaceId: string;
@@ -104,6 +106,9 @@ export type InboundMessage = {
   // The text of a text message; null for every other content type.
   readonly text: string | null;
   readonly sentAt: Date | null;
+  // Telegram only: the sender's profile and a callback's locators, sealed with
+  // the text (host-telegram-channel design 3).
+  readonly telegram?: TelegramDetails;
 };
 
 function text(value: unknown, max: number) {
@@ -231,7 +236,11 @@ export async function storeReceipt(
     const sealed = {
       sender: sealToken(tokenKey, message.sender, context),
       space: sealToken(tokenKey, message.spaceId, context),
-      text: message.text === null ? null : sealToken(tokenKey, message.text, context),
+      text: message.telegram
+        ? sealToken(tokenKey, sealedTelegramText(message.text, message.telegram), context)
+        : message.text === null
+          ? null
+          : sealToken(tokenKey, message.text, context),
     };
 
     const [created] = await tx<{ id: string }[]>`

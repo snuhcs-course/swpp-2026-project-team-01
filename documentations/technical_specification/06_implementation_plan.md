@@ -282,7 +282,7 @@ Scope. Prerequisite: Phase 2 for setup over iMessage and Phase 4 for decisions. 
 
 **Lane B — linking card in the web workspace**
 
-- [x] **Connect iMessage** gets a one-time link code from the server and at once opens Messages with the line's number as the recipient and the exact link message in the input (`sms:<number>&body=<text>` on iOS, `sms:<number>?body=<text>` on Android); where Messages cannot open, the inline card shows the number, the code, **Copy** and a QR code of the same deep link. Then the masked-sender **Confirm and link**, the service-sent six-digit fallback (**Send me a code instead**) with a protected code field, expiry and resend limits, unlink, **Maybe later**. Opening Messages never counts as linking.
+- [x] **Connect iMessage** gets a one-time link code from the server and at once opens Messages with the line's number as the recipient and the exact link message in the input (`sms:<number>&body=<text>` on iOS, `sms:<number>?body=<text>` on Android); where Messages cannot open, the inline card shows the number, the code, **Copy** and a QR code of the same deep link. Then **Confirm and link** on the sender, the service-sent six-digit fallback (**Send me a code instead**) with a protected code field, expiry and resend limits, unlink, **Maybe later**. Opening Messages never counts as linking.
 - [x] Optional **Add to contacts** card with truthful queued, accepted, failed and uncertain states.
 
 **Lane C — channel and commands**
@@ -408,7 +408,7 @@ Scope. Prerequisite: Phase 6, whose receiver, tables, commands, outbox and cards
 
 **Lane B — linking in the browser**
 
-- [x] **Connect WhatsApp** with the `wa.me` link, QR code, **Copy** and masked-number **Confirm and link**; the device rule (Android WhatsApp, Apple devices iMessage with **Use WhatsApp instead**, other computers ask); the replacement notice and the opt-in sentence; the link step after sign-in and `/?flow=whatsapp`.
+- [x] **Connect WhatsApp** with the `wa.me` link, QR code, **Copy** and **Confirm and link** on the number; the device rule (Android WhatsApp, Apple devices iMessage with **Use WhatsApp instead**, other computers ask); the replacement notice and the opt-in sentence; the link step after sign-in and `/?flow=whatsapp`.
 - [x] One active binding per host across channels, ending the other channel's binding on confirmation.
 
 **Lane C — window, templates and channel behavior**
@@ -434,6 +434,46 @@ Decisions settled here: platform routing and the WhatsApp sender format; records
 
 Evidence: AC-29, AC-30, AC-31 on a controlled Android phone against the production deployment, including a template outside the window, replay after restart and simulated delivery failure; recorded device, WhatsApp and browser versions.
 
+### Phase 10 — `host-telegram-channel`
+
+Goal: a linked host on any device handles everyday scheduling in a private Telegram chat with the Find Me a Time bot, as an iPhone host does in iMessage. Added on 2026-11-04, after Meta disabled the WhatsApp Business account and WhatsApp was hidden on production ([PRD Telegram decision](../02_product_requirements.md#target-users), issue #111).
+
+Scope. Prerequisites: Phases 6 and 9, whose receipts, tables with their `channel` column, commands, outbox, cards and device rule this phase extends. Every lane waits for the proposal below to be reviewed. Lanes B and C build on Lane A's channel value and parser but not on the live bot.
+
+**Proposal (serial, first)**
+
+- [x] Proposal for [`host-telegram-channel`](../../openspec/changes/host-telegram-channel/proposal.md) with decisions D1–D13 and the coverage table.
+- [x] [Design](../../openspec/changes/host-telegram-channel/design.md).
+- [x] Delta spec under [`specs/`](../../openspec/changes/host-telegram-channel/specs/), the new `host-telegram-channel` capability.
+- [x] [Tasks](../../openspec/changes/host-telegram-channel/tasks.md).
+- [x] PRD update (Telegram decision, scope, FR-40 to FR-42, AC-32 to AC-34), provider setup and Korean mirrors.
+- [ ] Teammate review, including the open questions on iPhone hosts and the buttons.
+
+**Lane A — webhook, records and transport**
+
+- [x] `telegram` in the `channel` checks of the four `imessage_*` tables, through pg-delta.
+- [x] `POST /telegram/webhook` with the secret header, the update and callback parser, and the `telegram:` sender namespace.
+- [x] The Bot API client, error mapping, chat spacing and splitting, the stand-in's Telegram branch, and `npm run telegram:webhook`.
+
+**Lane B — linking in the browser**
+
+- [x] **Connect Telegram** with the `t.me` start link, QR code, **Copy**, the Telegram name and **Confirm and link**; the device rule across three channels; the replacement notice and the privacy sentence; the link step after sign-in and `/?flow=telegram`.
+
+**Lane C — buttons, extras and channel behavior**
+
+- [ ] **Approve**, **Decline** and **Show details** buttons bound to the proposal version, callback answers and button retirement.
+- [ ] Commands with a leading `/`, the command menu, typing, silent delivery, the `[Telegram]` prefix and the host instructions fragment; commands, summaries, setup and admission reused from Phase 6.
+
+**Join**
+
+- [ ] Register the webhook, capture a real update and confirm the fixture; then on a controlled Android phone and an iPhone link, select a request, revise, approve with a button, tap a stale button and block the bot; run the Phase 10 evidence list.
+
+Specs: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md), [messaging-environments](../../openspec/specs/messaging-environments/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), plus the new `host-telegram-channel` delta and, until they are archived, `host-imessage-channel` and `host-whatsapp-channel`.
+
+Decisions settled here: the direct Bot API transport and its webhook secret; the Telegram sender identity; the start link; the device rule across three channels; the decision buttons and their retirement. Proposed as D1–D13 of the [`host-telegram-channel` proposal](../../openspec/changes/host-telegram-channel/proposal.md#decisions) on 2026-11-04, awaiting teammate review.
+
+Evidence: AC-32, AC-33, AC-34 on a controlled Android phone and an iPhone against the production deployment, including a button approval, a stale tap, replay after restart, a rate limit and a blocked bot; recorded device, Telegram and browser versions.
+
 ### Guest flow completion — `guest-flow-completion`
 
 Goal: the guest side runs end to end: Google from the guest's forms, updates and replies in iMessage, a revised request after a decline or an expiry, changes until the host approves, and a guest who is a host reusing their settings. Prerequisite: Phases 3, 4, 6 and 7. Delivered as two pull requests, each a whole feature ([proposal](../../openspec/changes/guest-flow-completion/proposal.md#impact)).
@@ -455,6 +495,7 @@ Goal: the guest side runs end to end: Google from the guest's forms, updates and
 | 7 Requester email channel | 3, 4 | 5, 6 |
 | 8 Operations and release | all | diagnostics can start after 4 |
 | 9 Host WhatsApp channel | 6, and the iMessage-only receiver fix (PR #63) | Phase 8 release steps; its lanes overlap after Lane A's column lands |
+| 10 Host Telegram channel | 6, 9 | Phase 9's Android checks; its lanes overlap after Lane A's channel value lands |
 
 The first demonstrable milestone is the end of Phase 4: web-only booking through a real Google Calendar. Phases 5, 6 and 7 can then run as three parallel branches, each with its own named-client, device or inbox acceptance.
 
@@ -507,6 +548,7 @@ Read in this order for any phase:
 | 7 Requester email channel | eve memory template: `agent/lib/integrations/slack/{channel,identity}.ts` with their tests and `agent/lib/testing/slack.ts` (custom channel with identity resolution and test helpers). eve chat template: `agent/channels/slack.ts` (minimal channel). OpenInstinct: `agent/lib/google-workspace/gmail.ts` only for the client shape if the Chat SDK Gmail adapter is evaluated | Custom-channel structure, identity resolution kept out of the model turn, channel test helpers | Slack itself, Gmail as a tool, any sender claim as identity |
 | 8 Operations and release | OpenInstinct: `agent/instrumentation/{otel,evlog}.ts`, `agent/hooks/evlog.ts`. eve chat template: `scripts/setup.sh`, `docs/setup-and-deploy.md`, `apps/web/lib/setup.ts`. personal-agent template: `.github/workflows/ci.yml`, `docs/ENVIRONMENT.md` | Instrumentation without private text, setup and readiness scripts, CI layout, environment documentation structure | Their hosting assumptions and provider list |
 | 9 Host WhatsApp channel | This repository's Phase 6 modules (`lib/server/photon-receiver.ts`, `photon.ts`, `imessage-{links,receipts,commands,notices,outbox}.ts` and their tests) and `@spectrum-ts/whatsapp-business` 12.14.0 (`dist/index.js`: cloud-mode line discovery, `space.create`, `whatsappTemplate`, the 131047 note) | The Phase 6 shapes, extended by a channel instead of copied; the provider's template helper | A second receiver, duplicated tables, interactive buttons |
+| 10 Host Telegram channel | This repository's Phase 6 and Phase 9 modules (`lib/server/photon-receiver.ts`, `whatsapp.ts`, `imessage-{links,receipts,commands,outbox}.ts`, `lib/contracts/messaging-channel.ts` and their tests), `@spectrum-ts/telegram` 12.14.0 (`dist/index.js`, for the update mapping only) and the Telegram Bot API reference | The Phase 6 and 9 shapes, extended by a third channel value instead of copied; the provider's update-to-message mapping | Spectrum's Telegram provider at runtime (a persistent WebSocket), a second set of tables, Mini Apps |
 
 Design references follow the same rule. [DESIGN.md](../../DESIGN.md) owns tokens, type, spacing and component recipes. Message and composer interaction follows the Vercel chatbot and the AI Elements skill. Iteration 1's [design system](../transplant/en/design-system.md) contributes signature patterns only, adapted to the Thyme palette: the week chart with work and meeting-window tracks, chips that show their source, the one-line candidate, the sticky action bar on long editors, the right-side detail sheet with focus return, and inline delete confirmation. Its cool-teal tokens and Pretendard are not adopted.
 
@@ -547,6 +589,7 @@ Not carried: the travel-table heuristic (replaced by Google Routes with buffers)
 | AgentMail adapter and retention | Phase 7 proposal (D1–D11 decided 2026-10-22) | Provider setup |
 | Measurement targets, retention and deletion, support ownership | Phase 8 proposal (D1–D14 decided 2026-10-23) | PRD sections 2 and 10 |
 | WhatsApp routing, sender format, one channel per host, window margin, templates | Phase 9 proposal (D1–D13 proposed 2026-11-02) | PRD sections 1, 3 and 10, provider setup, new WhatsApp change |
+| Telegram transport, webhook secret, sender identity, start link, device rule, decision buttons | Phase 10 proposal (D1–D13 proposed 2026-11-04) | PRD sections 1, 3 and 10, provider setup, new Telegram change |
 
 ## 8. Risks
 
@@ -556,6 +599,7 @@ Not carried: the travel-table heuristic (replaced by Google Routes with buffers)
 | Google app verification for Calendar scopes is slow | Test-user cap blocks external hosts | Submit during Phase 2; keep the release split before the first external host |
 | Photon deliverability or channel ambiguity (SMS/RCS fallback) | iMessage acceptance cannot close | Inbound-first link code; record fallback use; stop at the rollout gate rather than claiming an iMessage pass |
 | Meta rejects or reclassifies the WhatsApp templates, or the business stays unverified | Android hosts get no notice outside the 24-hour window; a 250-user daily cap | Neutral utility wording with only a reference; `template_unavailable` shown truthfully in `/app`; submit templates and verification before the Phase 9 join |
+| The Telegram bot token leaks, or a host taps **Approve** by mistake | Someone sends as the bot; an unintended approval of the shown version | Token only in Vercel Production and the operator's `.env`, rotated with @BotFather `/revoke`; a separate webhook secret; buttons approve only the version shown and are removed after a decision |
 | Seven named clients with different discovery and MCP support | AC-14, AC-15, AC-23, AC-24 stay open | Per-client test environment decided in Phase 5; explicit `/SKILL.md` paste path as the fallback; no universal-compatibility claim |
 | Uncertain Calendar writes or provider timeouts | Duplicate or phantom bookings | Reservation and frozen payload before dispatch, reconciliation before any retry, pending status shown truthfully |
 | Teammates lacking Docker | Migrations cannot be generated | One Docker-equipped teammate generates the migration inside the same pull request |

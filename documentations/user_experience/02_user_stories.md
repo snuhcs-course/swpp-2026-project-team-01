@@ -123,7 +123,7 @@ As a host, I want to opt into a verified private iMessage conversation and unlin
 
 J-01, J-06; FR-26; AC-17.
 
-The selected linking flow shows a one-time link code in the authenticated browser, has the host send it from their own iMessage and confirms the masked sender in that browser; a service-sent six-digit code is the fallback. Implementation and live Google/iPhone acceptance are pending before main-spec promotion.
+The selected linking flow shows a one-time link code in the authenticated browser, has the host send it from their own iMessage and confirms the sender in that browser; a service-sent six-digit code is the fallback. Implementation and live Google/iPhone acceptance are pending before main-spec promotion.
 
 ### US-19 — Decide through iMessage
 

@@ -6,11 +6,15 @@
 // names the numbers this deployment can link (channels), and an attempt or a
 // binding names its channel; lineNumber is that channel's number (digits for
 // WhatsApp), or the iMessage line in "none".
+// It links Telegram too (host-telegram-channel design 6): channels.telegram is
+// the bot's username; a Telegram attempt's lineNumber is that username and its
+// message the bare code, which the card turns into the t.me start link; a
+// Telegram sender is shown by name ("Dohyeon (@dohyeon)"), never by user ID.
 
-import type { MessagingChannel } from "./messaging-channel";
+import type { ConfiguredChannels, MessagingChannel } from "./messaging-channel";
 
-// The numbers a host can link to, null where a channel is not configured.
-export type LinkChannels = { readonly imessage: string | null; readonly whatsapp: string | null };
+// What a host can link to, null where a channel is not configured.
+export type LinkChannels = ConfiguredChannels;
 
 export const IMESSAGE_OPERATIONS = [
   "imessage.link.create",
@@ -116,16 +120,11 @@ export function linkMessage(code: string) {
   return `${LINK_MESSAGE_PREFIX} ${code}`;
 }
 
-// The masked sender the card shows: the last four digits of a number, or the
-// first two and the last character of an Apple ID email's local part with the
-// domain, so two addresses that share a first letter still look different.
-export function maskSender(sender: string) {
-  // An E.164 number, or a WhatsApp contact ID (digits without "+").
-  if (sender.startsWith("+") || /^\d+$/.test(sender)) return `•••• ${sender.slice(-4)}`;
-  const at = sender.lastIndexOf("@");
-  if (at <= 0) return "••••";
-  const local = sender.slice(0, at);
-  return local.length <= 3 ? `${local[0]}•••${sender.slice(at)}` : `${local.slice(0, 2)}•••${local.slice(-1)}${sender.slice(at)}`;
+// The sender the card shows, in full so the host or guest recognizes it before
+// Confirm and link (#118): an E.164 number as it is, a WhatsApp contact ID
+// (digits without "+") with its plus, or the whole Apple ID email.
+export function displaySender(sender: string) {
+  return /^\d+$/.test(sender) ? `+${sender}` : sender;
 }
 
 export type MessagesPlatform = "ios" | "android" | "mac" | "other";

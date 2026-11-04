@@ -1,14 +1,14 @@
 import { createHmac, randomInt } from "node:crypto";
 import { z } from "zod";
 import {
+  displaySender,
   type ImessageDeliveryState,
   type ImessageStatus,
   type LinkChannels,
   linkMessage,
-  maskSender,
   normalizeNumber,
 } from "../contracts/imessage";
-import type { MessagingChannel } from "../contracts/messaging-channel";
+import { configuredChannels, type MessagingChannel } from "../contracts/messaging-channel";
 import { lockActiveHost } from "./analysis";
 import { type CommandDefinition, CommandError } from "./commands";
 import type { Database, Queryable, Transaction } from "./database";
@@ -44,6 +44,12 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 // the one active binding a host has may be on either channel, so confirming a
 // sender of one channel ends the binding on the other and suppresses what was
 // still queued for it. The fallback code and the contact card are iMessage only.
+// Telegram links the same way (host-telegram-channel design 5 and 6, D5, D6): the
+// card opens t.me/<bot>?start=<code>, and /start <code> (or the code as text)
+// from the host's private chat with the bot completes a Telegram attempt. No
+// reply goes out then, so the bot's first message is the welcome after Confirm
+// and link. The sender's first name and @username are sealed beside the sender
+// (sender_name_ciphertext) and shown for confirmation instead of a user ID.
 
 export const IMESSAGE_LINK_LIMITS = {
   // Link codes a host may create per hour.
@@ -70,6 +76,8 @@ export type LinkOptions = {
   readonly lineNumber: string;
   // The WhatsApp number as digits; WhatsApp linking is unavailable without one.
   readonly whatsappNumber?: string;
+  // The Telegram bot's username without "@"; Telegram linking is unavailable without one.
+  readonly telegramUsername?: string;
   // The canonical origin (APP_ORIGIN) that links in Thyme's messages point to.
   readonly origin: string;
   readonly fallbackLimits?: Partial<typeof IMESSAGE_FALLBACK_LIMITS>;
@@ -107,6 +115,7 @@ export const LINK_TEXTS = {
     `Got it. To finish, sign in with Google and connect your calendar: ${url}\nThen tap Confirm and link on the page.`,
   refused: "That link code is not valid any more. Start again from Connect iMessage in Find Me a Time.",
   refusedWhatsApp: "That link code is not valid any more. Start again from Connect WhatsApp in Find Me a Time.",
+  refusedTelegram: "That link code is not valid any more. Start again from Connect Telegram in Find Me a Time.",
   // A ready host gets this; one still setting up gets a welcome into setup here (D19).
   linked: "Linked. Send help for what I can do here.",
   welcomeCalendar: (url: string) =>
@@ -124,9 +133,24 @@ export const FOREIGN_BINDING = "foreign_binding";
 // send many first messages.
 export const LINE_REFUSALS_PER_DAY = 200;
 
-// The numbers a deployment can link to (the card's channels).
-export function linkChannels(options: Pick<LinkOptions, "lineNumber" | "whatsappNumber">): LinkChannels {
-  return { imessage: options.lineNumber || null, whatsapp: options.whatsappNumber || null };
+// What a deployment can link to (the card's channels).
+export function linkChannels(options: Pick<LinkOptions, "lineNumber" | "whatsappNumber" | "telegramUsername">): LinkChannels {
+  return { imessage: options.lineNumber || null, telegram: options.telegramUsername || null, whatsapp: options.whatsappNumber || null };
+}
+
+function refusedText(channel: MessagingChannel) {
+  if (channel === "whatsapp") return LINK_TEXTS.refusedWhatsApp;
+  if (channel === "telegram") return LINK_TEXTS.refusedTelegram;
+  return LINK_TEXTS.refused;
+}
+
+// A Telegram sender as the browser shows it (design 3): "Dohyeon (@dohyeon)",
+// either part alone, or a plain word when the profile gave neither.
+export function telegramDisplayName(firstName: string | null, username: string | null) {
+  if (firstName && username) return `${firstName} (@${username})`;
+  if (firstName) return firstName;
+  if (username) return `@${username}`;
+  return "your Telegram account";
 }
 
 function numberOf(channels: LinkChannels, channel: MessagingChannel) {
@@ -172,7 +196,8 @@ export async function lockHostLinking(tx: Transaction, hostAccountId: string) {
   await tx`select pg_advisory_xact_lock(hashtextextended(${`app.imessage_link:${hostAccountId}`}, 0))`;
 }
 
-// Open attempts end with every sealed value cleared.
+// Open attempts end with every sealed value cleared (the sender's name with the
+// sender, by trigger).
 export async function endOpenAttempts(tx: Transaction, hostAccountId: string, state: "voided" | "cancelled") {
   await tx`
     update app.imessage_links
@@ -188,6 +213,7 @@ type ActiveBinding = {
   readonly host_account_id: string;
   readonly sender_hash: string;
   readonly sender_ciphertext: string;
+  readonly sender_name_ciphertext: string | null;
   readonly space_ciphertext: string | null;
   readonly sealed_key_id: string;
   readonly selected_request_id: string | null;
@@ -196,7 +222,8 @@ type ActiveBinding = {
 
 export async function activeBindingOfHost(q: Queryable, hostAccountId: string) {
   const [row] = await q<ActiveBinding[]>`
-    select id, channel, host_account_id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, selected_request_id, linked_at
+    select id, channel, host_account_id, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sealed_key_id,
+           selected_request_id, linked_at
     from app.imessage_bindings where host_account_id = ${hostAccountId} and state = 'active'
   `;
   return row ?? null;
@@ -204,7 +231,8 @@ export async function activeBindingOfHost(q: Queryable, hostAccountId: string) {
 
 export async function activeBindingOfSender(q: Queryable, senderHash: string) {
   const [row] = await q<ActiveBinding[]>`
-    select id, channel, host_account_id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, selected_request_id, linked_at
+    select id, channel, host_account_id, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sealed_key_id,
+           selected_request_id, linked_at
     from app.imessage_bindings where sender_hash = ${senderHash} and state = 'active'
   `;
   return row ?? null;
@@ -214,7 +242,8 @@ export async function activeBindingOfSender(q: Queryable, senderHash: string) {
 // unlink waits for a message already being processed instead of racing it.
 export async function lockActiveBindingOfSender(tx: Transaction, senderHash: string) {
   const [row] = await tx<ActiveBinding[]>`
-    select id, channel, host_account_id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, selected_request_id, linked_at
+    select id, channel, host_account_id, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sealed_key_id,
+           selected_request_id, linked_at
     from app.imessage_bindings where sender_hash = ${senderHash} and state = 'active'
     for update
   `;
@@ -228,7 +257,8 @@ export function bindingRecipient(keys: readonly TokenKey[], binding: Pick<Active
 }
 
 // Binds a sender to the host, ending the host's earlier binding, and queues the
-// linked message. The caller holds the host's link lock.
+// linked message. The caller holds the host's link lock. A Telegram sender's
+// display name is sealed with it.
 async function bind(
   tx: Transaction,
   options: LinkOptions,
@@ -237,6 +267,7 @@ async function bind(
   sender: string,
   spaceId: string | null,
   channel: MessagingChannel = "imessage",
+  senderName: string | null = null,
 ) {
   const senderHash = channelHash(options.tokenKey, channel, "sender", sender);
   // A receipt being processed holds its binding row while it waits on other
@@ -247,7 +278,7 @@ async function bind(
   const owner = await activeBindingOfSender(tx, senderHash);
   if (owner && owner.host_account_id !== hostAccountId) throw new CommandError("invalid_input");
 
-  // The host's earlier binding ends, on either channel (D5), and nothing still
+  // The host's earlier binding ends, on any channel (D5), and nothing still
   // queued for it goes out.
   const ended = await tx<{ id: string }[]>`
     update app.imessage_bindings set state = 'unlinked', ended_at = now(), sender_ciphertext = null, space_ciphertext = null
@@ -260,11 +291,12 @@ async function bind(
   const context = bindingContext(bindingId);
   const sealedSender = sealToken(options.tokenKey, sender, context);
   const sealedSpace = spaceId === null ? null : sealToken(options.tokenKey, spaceId, context);
+  const sealedName = senderName === null ? null : sealToken(options.tokenKey, senderName, context);
   await tx`
     insert into app.imessage_bindings
-      (id, channel, host_account_id, link_id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, last_inbound_at)
-    values (${bindingId}, ${channel}, ${hostAccountId}, ${linkId}, ${senderHash}, ${sealedSender.ciphertext}, ${sealedSpace?.ciphertext ?? null},
-            ${options.tokenKey.id},
+      (id, channel, host_account_id, link_id, sender_hash, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sealed_key_id, last_inbound_at)
+    values (${bindingId}, ${channel}, ${hostAccountId}, ${linkId}, ${senderHash}, ${sealedSender.ciphertext}, ${sealedName?.ciphertext ?? null},
+            ${sealedSpace?.ciphertext ?? null}, ${options.tokenKey.id},
             -- The link message is the host's last message so far; WhatsApp's window starts there (design 7).
             (select r.received_at from app.imessage_links l join app.imessage_receipts r on r.id = l.received_by_receipt_id where l.id = ${linkId}))
   `;
@@ -341,11 +373,11 @@ export function createImessageLinkCommand(
   const limits = { ...IMESSAGE_LINK_LIMITS, ...options.linkLimits };
 
   return {
-    // iMessage unless the card asks for WhatsApp (D6); iMessage needs the host's
-    // number first (imessage-number-registration D1), WhatsApp takes none.
+    // iMessage unless the card asks for WhatsApp or Telegram (D6); iMessage needs
+    // the host's number first (imessage-number-registration D1), the others take none.
     input: z.union([
       z.object({ channel: z.literal("imessage").optional(), number: NUMBER_INPUT }).strict(),
-      z.object({ channel: z.literal("whatsapp") }).strict(),
+      z.object({ channel: z.enum(["whatsapp", "telegram"]) }).strict(),
     ]),
     operation: "imessage.link.create",
     async run(tx, context) {
@@ -392,11 +424,12 @@ export function confirmImessageLinkCommand(options: LinkOptions): CommandDefinit
           state: string;
           open: boolean;
           sender_ciphertext: string | null;
+          sender_name_ciphertext: string | null;
           space_ciphertext: string | null;
           sender_key_id: string | null;
         }[]
       >`
-        select id, channel, state, confirm_by > now() as open, sender_ciphertext, space_ciphertext, sender_key_id
+        select id, channel, state, confirm_by > now() as open, sender_ciphertext, sender_name_ciphertext, space_ciphertext, sender_key_id
         from app.imessage_links where id = ${context.input.linkId} and host_account_id = ${hostAccountId}
         for update
       `;
@@ -407,8 +440,9 @@ export function confirmImessageLinkCommand(options: LinkOptions): CommandDefinit
       const sealed = (ciphertext: string) => openToken(options.tokenKeys, { ciphertext, keyId: link.sender_key_id! }, senderContext(link.id));
       const sender = sealed(link.sender_ciphertext);
       const spaceId = link.space_ciphertext ? sealed(link.space_ciphertext) : null;
+      const senderName = link.sender_name_ciphertext ? sealed(link.sender_name_ciphertext) : null;
 
-      return { bindingId: await bind(tx, options, hostAccountId, link.id, sender, spaceId, link.channel) };
+      return { bindingId: await bind(tx, options, hostAccountId, link.id, sender, spaceId, link.channel, senderName) };
     },
   };
 }
@@ -639,7 +673,7 @@ export async function readImessageStatus(
   channels: LinkChannels,
   limits: typeof IMESSAGE_FALLBACK_LIMITS = IMESSAGE_FALLBACK_LIMITS,
 ): Promise<ImessageStatus> {
-  if (!channels.imessage && !channels.whatsapp) return { state: "unavailable" };
+  if (configuredChannels(channels).length === 0) return { state: "unavailable" };
 
   const binding = await activeBindingOfHost(db, hostAccountId);
 
@@ -649,9 +683,9 @@ export async function readImessageStatus(
   if (open) return open;
 
   if (binding) {
-    let sender = "••••";
+    let sender = binding.channel === "telegram" ? telegramDisplayName(null, null) : "••••";
     try {
-      sender = maskSender(bindingRecipient(keys, binding).address);
+      sender = shownSender(keys, binding, bindingContext(binding.id), bindingRecipient(keys, binding).address);
     } catch {
       // Sealed under a key the service no longer holds: still linked.
     }
@@ -706,6 +740,7 @@ async function openAttemptStatus(
       phone_ciphertext: string | null;
       sealed_key_id: string | null;
       sender_ciphertext: string | null;
+      sender_name_ciphertext: string | null;
       sender_key_id: string | null;
       expires_at: Date;
       confirm_by: Date | null;
@@ -715,8 +750,8 @@ async function openAttemptStatus(
       line_number: string | null;
     }[]
   >`
-    select id, channel, method, state, code_ciphertext, phone_ciphertext, sealed_key_id, sender_ciphertext, sender_key_id, expires_at,
-           confirm_by, fallback_expires_at, last_sent_at, sends, line_number
+    select id, channel, method, state, code_ciphertext, phone_ciphertext, sealed_key_id, sender_ciphertext, sender_name_ciphertext,
+           sender_key_id, expires_at, confirm_by, fallback_expires_at, last_sent_at, sends, line_number
     from app.imessage_links
     where host_account_id = ${hostAccountId}
       and ((state = 'pending' and expires_at > now()) or (state = 'received' and confirm_by > now()))
@@ -735,14 +770,14 @@ async function openAttemptStatus(
         confirmBy: link.confirm_by!.toISOString(),
         linkId: link.id,
         replaces: linkedChannel && linkedChannel !== link.channel ? linkedChannel : null,
-        sender: maskSender(sender),
+        sender: shownSender(keys, { ...link, sealed_key_id: link.sender_key_id! }, senderContext(link.id), sender),
         state: "received",
       };
     }
 
     if (link.method === "code") {
       const code = openToken(keys, { ciphertext: link.code_ciphertext!, keyId: link.sealed_key_id! }, codeContext(link.id));
-      return { ...shared, code, expiresAt: link.expires_at.toISOString(), message: linkMessage(code), state: "pending" };
+      return { ...shared, code, expiresAt: link.expires_at.toISOString(), message: attemptMessage(link.channel, code), state: "pending" };
     }
 
     const number = openToken(keys, { ciphertext: link.phone_ciphertext!, keyId: link.sealed_key_id! }, codeContext(link.id));
@@ -755,7 +790,7 @@ async function openAttemptStatus(
       channels,
       expiresAt: link.fallback_expires_at?.toISOString() ?? null,
       lineNumber,
-      number: maskSender(number),
+      number: displaySender(number),
       resendAt:
         sendsLeft > 0 && link.last_sent_at ? new Date(link.last_sent_at.getTime() + limits.spacingSeconds * 1000).toISOString() : null,
       send: send?.failure_category === FOREIGN_BINDING ? "sent" : deliveryState(send?.state ?? "queued"),
@@ -766,6 +801,25 @@ async function openAttemptStatus(
     // Sealed under a key the service no longer holds: start again.
     return null;
   }
+}
+
+// The message an attempt asks the host to send: the link message, or for
+// Telegram the bare code, which the t.me start link carries (design 6).
+export function attemptMessage(channel: MessagingChannel, code: string) {
+  return channel === "telegram" ? code : linkMessage(code);
+}
+
+// A sender as the card shows it: a Telegram sender by their sealed name, any
+// other as displaySender shows it.
+export function shownSender(
+  keys: readonly TokenKey[],
+  row: { readonly channel: MessagingChannel; readonly sender_name_ciphertext: string | null; readonly sealed_key_id: string },
+  context: string,
+  sender: string,
+) {
+  if (row.channel !== "telegram") return displaySender(sender);
+  const name = row.sender_name_ciphertext ? openToken(keys, { ciphertext: row.sender_name_ciphertext, keyId: row.sealed_key_id }, context) : null;
+  return name ?? telegramDisplayName(null, null);
 }
 
 // ---------------------------------------------------------------------------
@@ -779,6 +833,8 @@ export type LinkArrival = {
   readonly senderHash: string;
   readonly spaceId: string;
   readonly spaceType: "dm" | "group";
+  // A Telegram sender's display name (design 3), sealed for Confirm and link.
+  readonly senderName?: string | null;
 };
 
 export type LinkArrivalOutcome = "link_received" | "link_refused";
@@ -845,13 +901,18 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
       const context = senderContext(link.id);
       const sender = sealToken(options.tokenKey, arrival.sender, context);
       const space = sealToken(options.tokenKey, arrival.spaceId, context);
+      const name = arrival.senderName ? sealToken(options.tokenKey, arrival.senderName, context) : null;
       await tx`
         update app.imessage_links
         set state = 'received', sender_hash = ${arrival.senderHash}, sender_ciphertext = ${sender.ciphertext},
-            space_ciphertext = ${space.ciphertext}, sender_key_id = ${options.tokenKey.id}, code_ciphertext = null,
+            sender_name_ciphertext = ${name?.ciphertext ?? null}, space_ciphertext = ${space.ciphertext},
+            sender_key_id = ${options.tokenKey.id}, code_ciphertext = null,
             received_by_receipt_id = ${arrival.receiptId}, confirm_by = now() + make_interval(mins => ${limits.confirmMinutes})
         where id = ${link.id}
       `;
+      // Telegram gets no reply here: the bot's first message is the welcome
+      // after Confirm and link (design 6).
+      if (arrival.channel === "telegram") return "link_received";
       await recordOutbound(tx, {
         channel: arrival.channel,
         dedupeKey: `receipt:${arrival.receiptId}`,
@@ -887,7 +948,7 @@ export async function receiveLinkCode(tx: Transaction, options: Pick<LinkOptions
       kind: "link_refused",
       recipient: { address: arrival.sender, spaceId: arrival.spaceId },
       recipientHash: arrival.senderHash,
-      text: arrival.channel === "whatsapp" ? LINK_TEXTS.refusedWhatsApp : LINK_TEXTS.refused,
+      text: refusedText(arrival.channel),
       tokenKey: options.tokenKey,
     });
   }

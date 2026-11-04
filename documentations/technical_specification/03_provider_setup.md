@@ -147,6 +147,18 @@ Operator steps, all blocked on the user until the implementing pull requests lan
 
 Never change the Photon project's platforms, lines or webhook, register templates or send a WhatsApp message from an agent session without the user's approval.
 
+## Telegram
+
+Telegram is the transport of the host Telegram channel, proposed on 2026-11-04 in the [`host-telegram-channel` change](../../openspec/changes/host-telegram-channel/proposal.md#decisions). Its webhook, records and Bot API transport (Lane A) are implemented; linking and the channel's behavior (Lanes B and C) are not, so a Telegram update is stored and then ignored. It uses the Telegram Bot API directly, not Photon (D1). Photon's Telegram provider, `@spectrum-ts/telegram` 12.14.0, registers the bot's webhook at Photon's relay and delivers updates to the application over a persistent WebSocket (`wss://fusor-ws.spectrum.photon.codes/v1/subscribe`), which a Vercel Function cannot hold.
+
+- **Bot.** `@findmeatime_bot`, created by the user with [@BotFather](https://t.me/BotFather) on 2026-11-04. The token is the bot's only credential; `/revoke` in @BotFather replaces it.
+- **Variables.** `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` (`findmeatime_bot`) and `TELEGRAM_WEBHOOK_SECRET` (32 or more random URL-safe characters) on Vercel Production only, under the messaging gate; tests point `TELEGRAM_API_URL` at a loopback stand-in. The user keeps the token and username in the main checkout's `.env` for local runs.
+- **Webhook.** `https://findmeatime.com/telegram/webhook`, registered by `npm run telegram:webhook` with `setWebhook` (`secret_token`, `allowed_updates` `message`, `callback_query` and `my_chat_member`, `max_connections` 10) and `setMyCommands`, then checked with `getWebhookInfo`, printed without the token. The script reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` from the environment or the root env files, and refuses any origin but `https://findmeatime.com` and any `TELEGRAM_API_URL` that is not a loopback stand-in. Telegram sends the secret in `X-Telegram-Bot-Api-Secret-Token` and signs nothing else. It retries an unanswered update for up to 24 hours.
+- **Limits.** About one message per second to one chat and 30 per second overall; 4,096 characters per message; 64 bytes of `callback_data`; messages can be edited for 48 hours. A bot can message a user only after the user started it, and gets `403` once the user blocks it.
+- **Privacy.** Bot chats are not end-to-end encrypted and stay on Telegram's servers; the card and the privacy policy say so.
+
+Never set the bot's token, register its webhook or send a Telegram message from an agent session without the user's approval.
+
 ## Model access and runtime
 
 Keep model configuration server-side and call OpenAI directly with the team's own API key; the AI Gateway is not used. The model is `gpt-5.6-terra`, decided 2026-10-19 and recorded in the [foundation design](../../openspec/changes/application-foundation/design.md#5-model-route-and-model). Confirm the model ID, price and tool support against the team's key in the foundation change, while enforcing the agreed [model limits](../../openspec/specs/model-execution/spec.md). Test invalid/refused outputs, provider deadlines, rate/credit failures, durable usage accounting and private-data filtering using synthetic context. A model failure never advances scheduling state or creates approval.

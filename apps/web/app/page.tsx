@@ -5,8 +5,8 @@ import { Suspense } from "react";
 import { LOCALE_COOKIE, localeOf } from "@/app/_components/ink/copy";
 import { Landing } from "@/app/_components/ink/landing";
 
-// The public entry page: what the product is, the Google start (or, with `?flow=imessage` or `?flow=whatsapp`,
-// the iMessage or WhatsApp start, iMessage D15 and WhatsApp D7), the agent prompt, and where agents find the host instructions (also declared as the Markdown
+// The public entry page: what the product is, the Google start (or, with `?flow=imessage`, `?flow=whatsapp` or
+// `?flow=telegram`, the iMessage, WhatsApp or Telegram start: iMessage D15, WhatsApp D7, Telegram D7), the agent prompt, and where agents find the host instructions (also declared as the Markdown
 // alternate). Its words follow the `lang` cookie.
 export const metadata: Metadata = {
   alternates: { types: { "text/markdown": "/SKILL.md" } },

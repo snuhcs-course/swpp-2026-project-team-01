@@ -47,7 +47,7 @@ describe("linking WhatsApp", () => {
 
     expect((await im.deliver({ channel: "whatsapp", sender, text: pending.message })).outcome).toBe("link_received");
     const received = await im.status(hostAccountId);
-    expect(received).toMatchObject({ channel: "whatsapp", replaces: null, sender: `•••• ${sender.slice(-4)}`, state: "received" });
+    expect(received).toMatchObject({ channel: "whatsapp", replaces: null, sender: `+${sender}`, state: "received" });
     expect(await im.bindingOf(hostAccountId)).toBeNull();
 
     const [reply] = await im.outbox({ hostAccountId, kind: "link_received" });
