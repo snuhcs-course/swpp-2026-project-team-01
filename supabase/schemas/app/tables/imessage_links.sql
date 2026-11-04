@@ -15,10 +15,13 @@
 -- (host-whatsapp-channel design 6); a fallback attempt is iMessage only.
 -- A code attempt started from a guest's booking page belongs to that request
 -- (request_id; guest-flow-completion design 1); confirming it creates a
--- requester_imessage_bindings row, which binding_id then names.
+-- requester_imessage_bindings row, which binding_id then names. A guest may link
+-- iMessage or WhatsApp, never Telegram (guest-whatsapp-link design 1).
 -- line_number is the shared-pool number Photon assigned when an iMessage code
 -- attempt registered the entered number as a project user; the screens address
 -- it (imessage-number-registration design 2). The entered number is not stored.
+-- A WhatsApp attempt registers the number too but keeps no line_number: its
+-- screens address PHOTON_WHATSAPP_NUMBER (guest-whatsapp-link design 4).
 -- sender_name_ciphertext is a Telegram sender's first name and @username, sealed
 -- with the sender, for Confirm and link (host-telegram-channel design 3); the
 -- trigger imessage_links_clear_sender_name clears it with the sender.
@@ -71,8 +74,9 @@ CREATE TABLE "app"."imessage_links" (
     OR ("host_account_id" IS NULL AND "request_id" IS NULL AND "method" = 'code' AND "starter_hash" IS NOT NULL AND "source_hash" IS NOT NULL)
   ),
   CONSTRAINT "imessage_links_fallback_channel" CHECK ("method" <> 'fallback' OR "channel" = 'imessage'),
-  -- Requester messaging over WhatsApp is out of scope (host-whatsapp-channel non-goals).
-  CONSTRAINT "imessage_links_request_channel" CHECK ("request_id" IS NULL OR "channel" = 'imessage'),
+  -- Guests link iMessage or WhatsApp (guest-whatsapp-link D1).
+  CONSTRAINT "imessage_links_request_channel" CHECK ("request_id" IS NULL OR "channel" IN ('imessage', 'whatsapp')),
+  CONSTRAINT "imessage_links_line_number_channel" CHECK ("line_number" IS NULL OR "channel" = 'imessage'),
   CONSTRAINT "imessage_links_sender_name" CHECK ("sender_name_ciphertext" IS NULL OR "sender_ciphertext" IS NOT NULL),
   CONSTRAINT "imessage_links_received" CHECK ("state" <> 'received' OR ("sender_hash" IS NOT NULL AND "confirm_by" IS NOT NULL))
 );
