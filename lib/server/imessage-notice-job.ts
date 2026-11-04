@@ -5,6 +5,7 @@ import { decisionButtons, requestRef, requestSummary } from "./imessage-commands
 import { activeBindingOfHost, bindingRecipient } from "./imessage-links";
 import { type GuestNotice, guestNoticeKey, type HostNotice, noticeKey } from "./imessage-notices";
 import { recordOutbound } from "./imessage-outbox";
+import type { WhatsAppButtons } from "./photon";
 import { activeRequesterBinding, requesterBindingRecipient } from "./requester-imessage-bindings";
 import type { JobHandler } from "./jobs";
 import type { HostRequestView } from "../contracts/host-request";
@@ -119,8 +120,16 @@ function followsText(view: HostRequestView) {
     : ` It follows request ${view.revisedFrom.ref}, which expired.`;
 }
 
-// The notice's text, or null when it no longer applies.
-async function noticeText(q: Transaction, deps: NoticeJobDependencies, hostAccountId: string, requestId: string, notice: HostNotice) {
+// The notice's text, with the decision buttons a WhatsApp summary of a proposal
+// awaiting approval carries (host-whatsapp-channel D17), or null when it no
+// longer applies.
+async function noticeText(
+  q: Transaction,
+  deps: NoticeJobDependencies,
+  hostAccountId: string,
+  requestId: string,
+  notice: HostNotice,
+): Promise<{ text: string; buttons?: WhatsAppButtons } | null> {
   const view = await readHostRequest(q, hostAccountId, requestId);
   if (!view) return null;
   const ref = requestRef(requestId);
@@ -129,16 +138,13 @@ async function noticeText(q: Transaction, deps: NoticeJobDependencies, hostAccou
   switch (notice.kind) {
     // No longer queued (#122); kept so a notice queued before the change still reads.
     case "new_request":
-      return `New request ${ref} from ${view.requester.name}${view.details.purpose ? `: ${view.details.purpose}` : ""}.${followsText(view)} Send request ${ref} to discuss it here.`;
+      return { text: `New request ${ref} from ${view.requester.name}${view.details.purpose ? `: ${view.details.purpose}` : ""}.${followsText(view)} Send request ${ref} to discuss it here.` };
     // The host's first message about a request (#122): the guest has picked and
     // agreed to a time, so the summary names the request and what it follows.
     case "awaiting_approval": {
       if (view.state !== "awaiting_host_approval" || view.proposal?.version !== notice.version) return null;
       const follows = followsText(view).trim();
-      return {
-        buttons: decisionButtons(view),
-        text: `Ready for your approval.\n${requestSummary(view)}${follows ? `\n${follows}` : ""}\nMessages here now go to this request.`,
-      };
+      return { buttons: decisionButtons(view), text: `Ready for your approval.\n${requestSummary(view)}${follows ? `\n${follows}` : ""}\nMessages here now go to this request.` };
     }
     default: {
       const [booking] = await q<{ start_at: Date; end_at: Date }[]>`
@@ -146,9 +152,9 @@ async function noticeText(q: Transaction, deps: NoticeJobDependencies, hostAccou
       `;
       if (!booking) return null;
       const when = meetingTime(booking.start_at, booking.end_at, view.hostTimezone);
-      if (notice.kind === "booking_confirmed") return `Booked with ${view.requester.name}: ${when}. It's on your calendar.`;
-      if (notice.kind === "booking_failed") return `The booking for request ${ref} (${when}) wasn't confirmed. Check it in Find Me a Time: ${link}`;
-      return `The booking for request ${ref} (${when}) is taking longer than usual to confirm. Check it in Find Me a Time: ${link}`;
+      if (notice.kind === "booking_confirmed") return { text: `Booked with ${view.requester.name}: ${when}. It's on your calendar.` };
+      if (notice.kind === "booking_failed") return { text: `The booking for request ${ref} (${when}) wasn't confirmed. Check it in Find Me a Time: ${link}` };
+      return { text: `The booking for request ${ref} (${when}) is taking longer than usual to confirm. Check it in Find Me a Time: ${link}` };
     }
   }
 }
@@ -168,20 +174,19 @@ export function createImessageNoticeHandler(load: () => NoticeJobDependencies = 
     const binding = await activeBindingOfHost(tx, request.host_account_id);
     if (!binding) return { queued: false };
 
-    const noticed = await noticeText(tx, deps, request.host_account_id, requestId, notice as HostNotice);
-    if (!noticed) return { queued: false };
-    const { buttons, text } = typeof noticed === "string" ? { buttons: null, text: noticed } : noticed;
+    const summary = await noticeText(tx, deps, request.host_account_id, requestId, notice as HostNotice);
+    if (!summary) return { queued: false };
 
     await recordOutbound(tx, {
       bindingId: binding.id,
-      buttons,
+      buttons: summary.buttons,
       dedupeKey: noticeKey(requestId, notice as HostNotice),
       hostAccountId: request.host_account_id,
       kind: "notice",
       recipient: bindingRecipient(deps.tokenKeys, binding),
       recipientHash: binding.sender_hash,
       requestId,
-      text,
+      text: summary.text,
       tokenKey: deps.tokenKey,
     });
     // The host's next plain reply goes to this request, so "book it" reaches the

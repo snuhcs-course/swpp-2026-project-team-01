@@ -294,7 +294,7 @@ describe("telegramTransport", () => {
     const client = { endpoint: "x", send: async (call: { method: string; params: Record<string, unknown> }) => (sent.push(call), { result: { message_id: ++id }, status: "accepted" as const }) };
     const buttons = { kind: "decision" as const, ref: "K7Q2MX", version: 2 };
     const text = `${"a".repeat(4096)} b`;
-    await telegramTransport(client, async () => undefined).send({ ...request(text), content: { buttons, kind: "text", silent: true, text } });
+    await telegramTransport(client, async () => undefined).send({ ...request(text), content: { keyboard: buttons, kind: "text", silent: true, text } });
 
     expect(sent.map((call) => call.params)).toEqual([
       { chat_id: "42", disable_notification: true, text: "a".repeat(4096) },

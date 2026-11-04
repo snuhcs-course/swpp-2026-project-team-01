@@ -22,6 +22,7 @@ import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
 import { answerCallback, CALLBACK_TEXTS, executeCommand, parseCommand, requestRef } from "./imessage-commands";
 import { photonConfig, type PhotonConfig, photonTransport, SPECTRUM_ENDPOINT } from "./photon";
+import { WHATSAPP_BUTTON_CONTENT } from "./whatsapp";
 import { IMESSAGE_RECEIPT_JOB, receiptSealContext } from "./photon-receiver";
 import { emailSourceHash } from "./email-receipts";
 import { requesterBindingContext } from "./requester-imessage-bindings";
@@ -44,7 +45,8 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 //     (guest-flow-completion design 3; guestRoute below says which);
 //   - a sender with no active binding, or whose host may no longer host, gets
 //     one fixed reply a day pointing to /app and no session (D10);
-//   - content other than text gets one fixed reply;
+//   - content other than text gets one fixed reply, except a WhatsApp reply
+//     button, which carries the exact command its ID names;
 //   - otherwise the bound host's message goes on to the channel (commands and
 //     forwarding).
 // A Telegram receipt (host-telegram-channel design 7 to 10) follows the same
@@ -208,6 +210,8 @@ async function forward(tx: Transaction, deps: ImessageReceiptDependencies, messa
 export const channelProcessor: ChannelProcessor = async (tx, deps, message) => {
   const command = parseCommand(message.text);
   if (command) return executeCommand(tx, deps, message, command);
+  // A button never reaches the model: one whose ID named no command does nothing.
+  if (message.receipt.contentType === WHATSAPP_BUTTON_CONTENT) return "ignored";
   return forward(tx, deps, message);
 };
 
@@ -678,8 +682,10 @@ export async function processReceipt(
     return executeCommand(tx, deps, { ...bound, text: receipt.text! }, command);
   }
 
-  // A Telegram "/" command is text like any other.
-  const textual = receipt.contentType === "text" || (receipt.channel === "telegram" && receipt.contentType === "command");
+  // A WhatsApp reply button arrives as the exact command its ID names (D17); a
+  // Telegram "/" command is text like any other.
+  const button = receipt.channel === "whatsapp" && receipt.contentType === WHATSAPP_BUTTON_CONTENT;
+  const textual = receipt.contentType === "text" || button || (receipt.channel === "telegram" && receipt.contentType === "command");
   if (!textual || !receipt.text?.trim()) {
     await recordOutbound(tx, {
       bindingId: binding.id,
@@ -697,8 +703,8 @@ export async function processReceipt(
   if (!channel) return "ignored";
 
   // A message that only says thanks is marked read and gets a tapback, and
-  // starts no turn (D21, design 18).
-  if (receipt.channel === "imessage" && isOnlyThanks(receipt.text)) {
+  // starts no turn (D21, design 18; on WhatsApp a ❤️ reaction, D16).
+  if (!button && receipt.channel !== "telegram" && isOnlyThanks(receipt.text)) {
     await recordSignal(tx, deps, receipt, binding, recipient, { messageId: receipt.messageId, reaction: THANKS_TAPBACK, typing: false });
     return "replied";
   }
@@ -722,13 +728,13 @@ export async function processReceipt(
     `;
     if (turn) await startTypingRepeats(tx, receipt.id, turn.id);
   }
+  if (receipt.channel === "telegram") return outcome;
 
   // Every other message is marked read, and shows typing when it started a
   // turn, whose reply comes later; a command's reply is immediate, and rows of
-  // one transaction have no order, so it gets the read mark only (D20).
-  if (receipt.channel === "imessage") {
-    await recordSignal(tx, deps, receipt, binding, recipient, { messageId: receipt.messageId, reaction: null, typing: outcome === "forwarded" });
-  }
+  // one transaction have no order, so it gets the read mark only (D20; on
+  // WhatsApp D15, where Meta ends the indicator when the reply arrives).
+  await recordSignal(tx, deps, receipt, binding, recipient, { messageId: receipt.messageId, reaction: null, typing: outcome === "forwarded" });
   return outcome;
 }
 
@@ -753,7 +759,7 @@ async function recordSignal(
   });
 }
 
-// The native "love" tapback (Spectrum's Emoji.love).
+// The native "love" tapback (Spectrum's Emoji.love), and WhatsApp's ❤️ reaction.
 export const THANKS_TAPBACK = "❤️";
 
 // A message that is nothing but thanks, in English or Korean, with any

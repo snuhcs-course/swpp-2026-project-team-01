@@ -6,13 +6,23 @@ import { turnReplyText } from "./email-replies";
 import { internalSigningKey, signInternalBearer } from "./internal-bearer";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
-import { type PhotonConfig, photonConfig, type PhotonContent, type PhotonRecipient, type PhotonTransport, photonTransport, SPECTRUM_ENDPOINT } from "./photon";
+import {
+  type PhotonConfig,
+  photonConfig,
+  type PhotonContent,
+  type PhotonRecipient,
+  type PhotonTransport,
+  photonTransport,
+  SPECTRUM_ENDPOINT,
+  type WhatsAppButtons,
+} from "./photon";
 import { requestRef } from "./request-ref";
 import { redactCredentials } from "./redaction";
 import {
   TELEGRAM_CHAT_SPACING_MS,
   TELEGRAM_EDIT_HOURS,
   type TelegramButtons,
+  telegramButtonsOf,
   type TelegramConfig,
   telegramClient,
   telegramConfig,
@@ -116,8 +126,6 @@ export type RecordOutbound = {
   readonly channel?: StoredChannel;
   // A template row's template (WhatsApp only).
   readonly templateName?: string;
-  // The inline buttons a Telegram row carries (design 7); ignored on other channels.
-  readonly buttons?: TelegramButtons | null;
   // One message per (kind, dedupeKey): a retried recording returns the existing one.
   readonly dedupeKey: string;
   readonly recipient: PhotonRecipient;
@@ -136,6 +144,10 @@ export type RecordOutbound = {
   readonly inputId?: string;
   // The frozen text; none for a turn reply or a contact card.
   readonly text?: string;
+  // A decision summary's buttons: on WhatsApp, reply buttons sealed with the
+  // text (host-whatsapp-channel design 11, D17); on Telegram, an inline
+  // keyboard kept on the row (host-telegram-channel design 7). Dropped on iMessage.
+  readonly buttons?: WhatsAppButtons;
   // Records the message as already suppressed with this category, sending
   // nothing, so it still counts toward the send limits.
   readonly suppressedAs?: string;
@@ -159,17 +171,21 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
   const context = outboxSealContext(id);
   const suppressed = message.suppressedAs ?? null;
   const recipient = suppressed ? null : sealToken(message.tokenKey, JSON.stringify(message.recipient), context);
-  const text = suppressed || message.text === undefined ? null : sealToken(message.tokenKey, message.text, context);
   const turn = message.kind === "turn";
   const channel = message.channel ?? (await ownerChannel(tx, message));
-  const buttons = channel === "telegram" && message.buttons ? tx.json(message.buttons as unknown as Parameters<typeof tx.json>[0]) : null;
+  const buttons = channel === "whatsapp" && BUTTON_KINDS.has(message.kind) && message.buttons?.items.length ? message.buttons : null;
+  const text =
+    suppressed || message.text === undefined ? null : sealToken(message.tokenKey, buttons ? sealedWithButtons(message.text, buttons) : message.text, context);
+  // Telegram keeps its keyboard on the row (design 7, D9), where button retirement finds it.
+  const keyboard = channel === "telegram" && message.buttons ? telegramButtonsOf(message.buttons) : null;
+  const keyboardJson = keyboard ? tx.json(keyboard as unknown as Parameters<typeof tx.json>[0]) : null;
 
   const [created] = await tx<{ id: string }[]>`
     insert into app.imessage_outbox
       (id, channel, kind, template_name, buttons, dedupe_key, host_account_id, binding_id, requester_binding_id, link_id, request_id, input_id,
        recipient_hash, recipient_ciphertext, text_ciphertext, sealed_key_id, state, failure_category, completed_at)
     values
-      (${id}, ${channel}, ${message.kind}, ${message.templateName ?? null}, ${buttons}, ${message.dedupeKey}, ${message.hostAccountId ?? null},
+      (${id}, ${channel}, ${message.kind}, ${message.templateName ?? null}, ${keyboardJson}, ${message.dedupeKey}, ${message.hostAccountId ?? null},
        ${message.bindingId ?? null}, ${message.requesterBindingId ?? null}, ${message.linkId ?? null}, ${message.requestId ?? null},
        ${message.inputId ?? null}, ${message.recipientHash},
        ${recipient?.ciphertext ?? null}, ${text?.ciphertext ?? null}, ${message.tokenKey.id},
@@ -522,7 +538,7 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
     try {
       result = await claim.transport.send({
         channel: claim.row.channel,
-        content: contentOf(claim.row, claim.text),
+        content: contentOf(claim.row, claim.text, whatsAppButtonsEnabled(deps.env)),
         idempotencyKey: claim.row.id,
         recipient: claim.recipient,
       });
@@ -691,13 +707,47 @@ async function queueTemplate(
   });
 }
 
+// A summary's buttons are sealed with its text as one JSON envelope, so the
+// outbox needs no column of its own; only notice and command rows on WhatsApp
+// carry one, and only their sealed text is read as an envelope.
+const BUTTON_KINDS: ReadonlySet<OutboxKind> = new Set(["notice", "command"]);
+const BUTTONS_ENVELOPE = "fmat_buttons_v1";
+
+function sealedWithButtons(text: string, buttons: WhatsAppButtons) {
+  return JSON.stringify({ [BUTTONS_ENVELOPE]: true, buttons, text });
+}
+
+export function openedWithButtons(kind: OutboxKind, sealed: string): { text: string; buttons: WhatsAppButtons | null } {
+  if (!BUTTON_KINDS.has(kind) || !sealed.startsWith(`{"${BUTTONS_ENVELOPE}":true,`)) return { buttons: null, text: sealed };
+  try {
+    const value = JSON.parse(sealed) as { buttons?: WhatsAppButtons; text?: unknown };
+    if (typeof value.text !== "string") return { buttons: null, text: sealed };
+    return { buttons: value.buttons ?? null, text: value.text };
+  } catch {
+    return { buttons: null, text: sealed };
+  }
+}
+
+// Buttons are offered only once a real button reply has shown that Photon's
+// webhook carries the button's ID (design 11): WHATSAPP_BUTTONS=1 turns them on.
+export function whatsAppButtonsEnabled(env: Readonly<Record<string, string | undefined>> = process.env) {
+  return env.WHATSAPP_BUTTONS?.trim() === "1";
+}
+
 // Templates are registered in en_US (design 8); the sealed text is the request reference.
 export const TEMPLATE_LANGUAGE = "en_US";
 
 // Host notices that need nothing from the host go out silently on Telegram (D10).
 const SILENT_NOTICES = ["notice:booking_confirmed:", "notice:booking_pending:"];
 
-function contentOf(row: Pick<OutboxRow, "kind" | "template_name" | "channel" | "buttons" | "dedupe_key">, text: string | null): PhotonContent {
+// A row reaches contentOf only inside the WhatsApp window (outside it, it was
+// suppressed and a template queued), so buttons need only the switch; a template
+// never carries them. A Telegram row carries its keyboard from the row itself.
+function contentOf(
+  row: Pick<OutboxRow, "kind" | "template_name" | "channel" | "buttons" | "dedupe_key">,
+  text: string | null,
+  buttonsOn: boolean,
+): PhotonContent {
   if (row.kind === "edit_markup") return { kind: "edit_markup", messageId: text ?? "" };
   if (row.kind === "callback_answer") {
     const answer = JSON.parse(text ?? "{}") as Partial<CallbackAnswer>;
@@ -705,7 +755,7 @@ function contentOf(row: Pick<OutboxRow, "kind" | "template_name" | "channel" | "
   }
   if (row.channel === "telegram" && text !== null && row.kind !== "signal") {
     const silent = row.kind === "notice" && SILENT_NOTICES.some((prefix) => row.dedupe_key.startsWith(prefix));
-    return { kind: "text", text, ...(row.buttons ? { buttons: row.buttons } : {}), ...(silent ? { silent } : {}) };
+    return { kind: "text", text, ...(row.buttons ? { keyboard: row.buttons } : {}), ...(silent ? { silent } : {}) };
   }
   if (row.kind === "template" && row.template_name) {
     return { kind: "template", languageCode: TEMPLATE_LANGUAGE, name: row.template_name, params: text === null ? [] : [text] };
@@ -714,11 +764,16 @@ function contentOf(row: Pick<OutboxRow, "kind" | "template_name" | "channel" | "
     const signal = JSON.parse(text ?? "{}") as Partial<ImessageSignal>;
     return { kind: "signal", messageId: signal.messageId ?? null, reaction: signal.reaction ?? null, typing: signal.typing === true };
   }
-  return text === null ? { kind: "contact_card" } : { kind: "text", text };
+  if (text === null) return { kind: "contact_card" };
+  const opened = openedWithButtons(row.kind, text);
+  return opened.buttons && buttonsOn && row.channel === "whatsapp"
+    ? { buttons: opened.buttons, kind: "text", text: opened.text }
+    : { kind: "text", text: opened.text };
 }
 
-// What a signal row asks for (host-imessage-channel design 18): read the host's
-// message, react to it, show typing. Sealed as JSON in text_ciphertext.
+// What a signal row asks for (host-imessage-channel design 18, and on WhatsApp
+// host-whatsapp-channel design 11): read the host's message, react to it, show
+// typing. Sealed as JSON in text_ciphertext.
 export type ImessageSignal = { readonly messageId: string | null; readonly typing: boolean; readonly reaction: string | null };
 
 export function signalText(signal: ImessageSignal) {

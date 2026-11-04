@@ -1,7 +1,7 @@
 import { deploymentEnvironment } from "./deployment";
 import type { ParsedCommand } from "./imessage-commands";
 import { gateTransport, type MessagingTransport } from "./messaging";
-import type { PhotonSendRequest, PhotonSendResult, PhotonTransport } from "./photon";
+import type { PhotonSendRequest, PhotonSendResult, PhotonTransport, WhatsAppButtons } from "./photon";
 import type { InboundMessage } from "./photon-receiver";
 
 // The Telegram Bot API, called directly (host-telegram-channel design 1 to 3,
@@ -373,6 +373,22 @@ export type TelegramButtons =
 
 export const BUTTON_LABELS = { approve: "Approve", confirm: "Confirm settings", decline: "Decline", details: "Show details" } as const;
 
+// The keyboard a summary's buttons make on Telegram. The commands build one set
+// of buttons for every channel, whose IDs are this change's callback data
+// (host-whatsapp-channel D17 took the format from here); Telegram keeps only
+// what they decide, so retirement can find the version.
+export function telegramButtonsOf(buttons: WhatsAppButtons): TelegramButtons | null {
+  for (const item of buttons.items) {
+    const command = parseCallbackData(item.id);
+    if (command?.name === "approve") {
+      const dash = command.ref.lastIndexOf("-");
+      return { kind: "decision", ref: command.ref.slice(0, dash), version: Number(command.ref.slice(dash + 1)) };
+    }
+    if (command?.name === "confirm") return { kind: "settings", ref: command.ref };
+  }
+  return null;
+}
+
 // The reply_markup for the buttons; every callback_data is one parseCallbackData reads back.
 export function inlineKeyboard(buttons: TelegramButtons) {
   if (buttons.kind === "settings") return { inline_keyboard: [[{ callback_data: `c:${buttons.ref}`, text: BUTTON_LABELS.confirm }]] };
@@ -441,7 +457,7 @@ export function telegramTransport(client: TelegramClient, wait: (ms: number) => 
           chat_id: chatId,
           text: part,
           ...(content.silent ? { disable_notification: true } : {}),
-          ...(content.buttons && index === parts.length - 1 ? { reply_markup: inlineKeyboard(content.buttons) } : {}),
+          ...(content.keyboard && index === parts.length - 1 ? { reply_markup: inlineKeyboard(content.keyboard) } : {}),
         };
         const result = await client.send({ method: "sendMessage", params });
         if (result.status !== "accepted") return index > 0 ? { status: "uncertain" } : fromTelegram(result, chatId, null);

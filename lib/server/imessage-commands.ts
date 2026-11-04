@@ -16,12 +16,13 @@ import { CalendarAccessError, openHostCalendar } from "./google-calendar";
 import { listHostRequests, readHostRequest } from "./host-requests";
 import { calendarConnectUrl } from "./imessage-links";
 import { callbackAnswerText, recordOutbound } from "./imessage-outbox";
+import type { WhatsAppButtons } from "./photon";
 import { requestRef } from "./request-ref";
+import { WHATSAPP_BUTTON_CONTENT } from "./whatsapp";
 import type { BoundMessage, ImessageReceiptDependencies, OpenedReceipt } from "./imessage-receipts";
 import { computeSetupProposal, readSetupState } from "./setup";
 import { confirmSettingsCommand } from "./setup-commands";
 import { dismissChangesCommand, shareChangesCommand } from "./shared-changes";
-import type { TelegramButtons } from "./telegram";
 import { enqueueSettingsButtonRetirement } from "./telegram-jobs";
 import type { TokenKey } from "./token-encryption";
 
@@ -109,13 +110,6 @@ export const CALLBACK_TEXTS = {
   notLinked: "Not linked",
 } as const;
 
-// The decision buttons a summary of this request carries on Telegram: only an
-// agreed proposal awaiting the host's approval has them.
-export function decisionButtons(view: HostRequestView): TelegramButtons | null {
-  if (view.state !== "awaiting_host_approval" || !view.proposal?.agreedAt) return null;
-  return { kind: "decision", ref: requestRef(view.requestId), version: view.proposal.version };
-}
-
 // Answers a button tap once, keyed by its receipt; nothing for any other receipt.
 export async function answerCallback(
   tx: Transaction,
@@ -176,6 +170,30 @@ export function requestSummary(view: HostRequestView) {
   return lines.join("\n");
 }
 
+// The buttons under a summary that asks for a decision (host-whatsapp-channel
+// design 11, D17; host-telegram-channel design 7, D8): WhatsApp reply buttons
+// and Telegram's inline keyboard (the outbox drops them on iMessage), with IDs
+// that name the exact request and version.
+export const BUTTON_TITLES = { approve: "Approve", confirm: "Confirm settings", decline: "Decline", details: "Show details" } as const;
+
+export function decisionButtons(view: HostRequestView): WhatsAppButtons | undefined {
+  if (view.state !== "awaiting_host_approval" || !view.proposal?.agreedAt) return undefined;
+  const ref = requestRef(view.requestId);
+  const decision = reviewRef(view.requestId, view.proposal.version);
+  return {
+    items: [
+      { id: `a:${decision}`, title: BUTTON_TITLES.approve },
+      { id: `d:${decision}`, title: BUTTON_TITLES.decline },
+      { id: `s:${ref}`, title: BUTTON_TITLES.details },
+    ],
+    prompt: `Decide on request ${ref}?`,
+  };
+}
+
+export function settingsButtons(proposalHash: string): WhatsAppButtons {
+  return { items: [{ id: `c:${settingsRef(proposalHash)}`, title: BUTTON_TITLES.confirm }], prompt: "Save these settings?" };
+}
+
 function windowsText(windows: readonly WeeklyWindow[]) {
   return windows.map((window) => `${window.weekday.slice(0, 3)} ${window.start}–${window.end}`).join(", ");
 }
@@ -227,15 +245,9 @@ export const MAX_REVIEW_CHARS = 1_500;
 
 // The authored settings review: every proposed value with its source, the
 // calendars, what is still missing, and the exact confirm command.
-export async function settingsReview(db: Database, hostAccountId: string, origin: string) {
-  return (await settingsReviewWithRef(db, hostAccountId, origin)).text;
-}
-
-// The review and the settings reference its confirm command names, if it has one.
-async function settingsReviewWithRef(db: Database, hostAccountId: string, origin: string): Promise<{ text: string; confirmRef: string | null }> {
+export async function settingsReview(db: Database, hostAccountId: string, origin: string): Promise<Reply> {
   const proposal = await computeSetupProposal(db, hostAccountId);
-  if (!proposal) return { confirmRef: null, text: `Open ${origin}/app to set up.` };
-  let confirmRef: string | null = null;
+  if (!proposal) return { text: `Open ${origin}/app to set up.` };
 
   const lines = ["Your settings for review:"];
   if (proposal.roles) {
@@ -252,18 +264,17 @@ async function settingsReviewWithRef(db: Database, hostAccountId: string, origin
     lines.push(`${FIELD_LABELS[field]}: ${fieldText(field, entry.value)}${source}`);
   }
 
-  if (!proposal.roles || proposal.missingFields.length > 0) {
+  const ready = Boolean(proposal.roles) && proposal.missingFields.length === 0;
+  if (!ready) {
     const missing = proposal.missingFields.map((field) => FIELD_LABELS[field].toLowerCase());
     lines.push(`Still needed: ${proposal.roles ? missing.join(", ") : "your calendars"}. Answer here, or open ${origin}/app.`);
   } else {
-    confirmRef = settingsRef(proposal.proposalHash);
-    lines.push(`To save these settings, reply exactly: confirm ${confirmRef}`);
+    lines.push(`To save these settings, reply exactly: confirm ${settingsRef(proposal.proposalHash)}`);
   }
 
   const text = lines.join("\n");
-  return text.length > MAX_REVIEW_CHARS
-    ? { confirmRef: null, text: `Your settings review is too long for a message. Review and confirm it at ${origin}/app.` }
-    : { confirmRef, text };
+  if (text.length > MAX_REVIEW_CHARS) return { text: `Your settings review is too long for a message. Review and confirm it at ${origin}/app.` };
+  return ready ? { buttons: settingsButtons(proposal.proposalHash), text } : { text };
 }
 
 const NEXT_STEP_TEXT: Readonly<Record<string, string>> = {
@@ -279,8 +290,8 @@ export type CommandDependencies = ImessageReceiptDependencies;
 
 type Reply = {
   readonly text: string;
-  // Telegram's inline buttons for the reply, and the answer to the tap that asked for it.
-  readonly buttons?: TelegramButtons | null;
+  readonly buttons?: WhatsAppButtons;
+  // The answer to the Telegram button tap that asked for this reply.
   readonly answer?: string | null;
 };
 
@@ -291,7 +302,7 @@ function reply(
   text: string,
   requestId: string | null = null,
   selectHost = false,
-  buttons: TelegramButtons | null = null,
+  buttons?: WhatsAppButtons,
 ) {
   return recordOutbound(tx, {
     bindingId: message.bindingId,
@@ -358,7 +369,7 @@ async function decide(
   message: BoundMessage,
   kind: "approve" | "decline",
   ref: string,
-): Promise<Reply & { requestId?: string; stale?: HostRequestView }> {
+): Promise<Reply & { requestId?: string }> {
   const parts = splitRef(ref);
   const version = parts ? Number(parts.suffix) : Number.NaN;
   const found = parts && Number.isInteger(version) && version > 0 ? await requestByRef(deps, message.hostAccountId, parts.request) : null;
@@ -370,9 +381,16 @@ async function decide(
 
   if (CLOSED.includes(view.state)) return { requestId: view.requestId, text: `This request is ${STATE_WORDS[view.state]}; nothing changed.` };
   if (!view.proposal || view.proposal.version !== version) {
+    // A stale tap shows the current proposal, since WhatsApp cannot take the
+    // old buttons back (D17). On Telegram the tap's answer says it changed (D8).
+    if (message.receipt.contentType === WHATSAPP_BUTTON_CONTENT) {
+      return { buttons: decisionButtons(view), requestId: view.requestId, text: `This proposal has changed.\n${requestSummary(view)}` };
+    }
+    if (message.receipt.contentType === "callback") {
+      return { answer: CALLBACK_TEXTS.stale, buttons: decisionButtons(view), requestId: view.requestId, text: requestSummary(view) };
+    }
     return {
       requestId: view.requestId,
-      stale: view,
       text: current ? `That proposal is no longer current. The current one is ${current}; send review to see it.` : "There's no proposal to decide yet.",
     };
   }
@@ -531,7 +549,6 @@ const DECISIONS = new Set(["approve", "decline", "share", "dismiss", "confirm"])
 export async function executeCommand(tx: Transaction, deps: CommandDependencies, message: BoundMessage, command: ParsedCommand) {
   let result: Reply & { requestId?: string | null };
   const telegram = message.receipt.channel === "telegram";
-  const tapped = message.receipt.contentType === "callback";
 
   const replayed = DECISIONS.has(command.name) ? await savedDecisionReply(deps, message) : null;
   if (replayed) {
@@ -590,7 +607,7 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       await tx`update app.imessage_bindings set selected_request_id = ${found.requestId} where id = ${message.bindingId} and state = 'active'`;
       const view = await readHostRequest(deps.db, message.hostAccountId, found.requestId);
       result = {
-        buttons: view ? decisionButtons(view) : null,
+        buttons: view ? decisionButtons(view) : undefined,
         requestId: found.requestId,
         text: `${view ? requestSummary(view) : ""}\nMessages here now go to this request.`.trim(),
       };
@@ -612,8 +629,7 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
           ? { buttons: decisionButtons(view), requestId: view.requestId, text: requestSummary(view) }
           : { text: "That request isn't available any more. Send requests." };
       } else {
-        const review = await settingsReviewWithRef(deps.db, message.hostAccountId, deps.origin);
-        result = { buttons: review.confirmRef ? { kind: "settings", ref: review.confirmRef } : null, text: review.text };
+        result = await settingsReview(deps.db, message.hostAccountId, deps.origin);
       }
       break;
     }
@@ -625,15 +641,9 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
       result = await changes(deps, message, command.name, command.ref);
       break;
     case "approve":
-    case "decline": {
-      const decided = await decide(deps, message, command.name, command.ref);
-      // A tap on an older proposal's button shows the current one instead.
-      result =
-        tapped && decided.stale
-          ? { answer: CALLBACK_TEXTS.stale, buttons: decisionButtons(decided.stale), requestId: decided.requestId, text: requestSummary(decided.stale) }
-          : decided;
+    case "decline":
+      result = await decide(deps, message, command.name, command.ref);
       break;
-    }
     case "confirm": {
       const confirmed = await confirmSettings(deps, message, command.ref);
       if (confirmed.saved) await enqueueSettingsButtonRetirement(tx, message.hostAccountId, `imessage:${message.receipt.id}`);
@@ -649,7 +659,7 @@ export async function executeCommand(tx: Transaction, deps: CommandDependencies,
     result.text,
     result.requestId ?? null,
     command.name === "setup" || (command.name === "request" && Boolean(result.requestId)),
-    result.buttons ?? null,
+    result.buttons,
   );
   await answerCallback(tx, deps.tokenKey, message.receipt, message.recipient, result.answer ?? null);
   return "command" as const;

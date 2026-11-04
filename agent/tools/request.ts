@@ -1,5 +1,6 @@
 import { defineDynamic, defineTool } from "eve/tools";
 import { z } from "zod";
+import { switchConversationForTool, switchConversationToolInput } from "../../lib/server/channel-selection";
 import { database } from "../../lib/server/database";
 import {
   agreeToolInput,
@@ -142,6 +143,12 @@ function hostReviewTools() {
         "Approve the current proposal because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly approves it in their own words, such as \"looks good, book it\", \"yes\" right after the proposal, or \"화요일 좋아요\". Never call it when the host asks for a change, adds a condition (\"yes, but at 11\"), asks a question, approves only part, or means another proposal; and never for a message typed on the web, where the host presses Approve this proposal. Call read_request first and pass the current proposal's version. It approves exactly that version or nothing, and booking then continues on its own.",
       inputSchema: approveProposalToolInput,
       execute: (input, toolCtx) => approveProposalForTool(database(), call(toolCtx), input),
+    }),
+    switch_conversation: defineTool({
+      description:
+        "Switch the host's linked iMessage or WhatsApp conversation to another request, or back to setup, when the host asks in words (\"let's talk about 박도현's request\", \"6ADSRV\", \"back to setup\"). Pass setup, the request reference, or the requester's name as the host wrote it. From the host's next message, their text goes to that discussion. It works only for a message from the linked conversation; on the web, the host opens the request from the inbox.",
+      inputSchema: switchConversationToolInput,
+      execute: (input, toolCtx) => switchConversationForTool(database(), { auth: toolCtx.session.auth.current, sessionId: toolCtx.session.id }, input),
     }),
     read_booking_status: defineTool({
       description:
