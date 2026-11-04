@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { messagingChannels, messagingLabel, splitByChannel } from "./channels";
 
 // A forwarded message and the reply to it go to the messaging tab without the
-// marker; everything else stays on the web tab (host-imessage-channel D25).
+// marker; everything else stays on the web tab (host-imessage-channel D27).
 
 let next = 0;
 const text = (role: "user" | "assistant", value: string) =>

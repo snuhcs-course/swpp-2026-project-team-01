@@ -1,15 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+  askChannels,
   channelName,
-  channelOffer,
+  deviceKind,
   displayWhatsAppNumber,
-  otherChannel,
+  isMessagingChannel,
   shownChannel,
+  switchChannels,
+  telegramLinkFor,
   whatsAppLinkFor,
   withoutForwardingMarkers,
 } from "./messaging-channel";
 
-// Which channel a device is offered (host-whatsapp-channel D7) and the wa.me link (D6).
+// Which channel a device is offered across iMessage, WhatsApp and Telegram (host-whatsapp-channel D7,
+// host-telegram-channel D7), the wa.me link (WhatsApp D6) and the t.me start link (Telegram D6).
 
 const agents = {
   android: "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Mobile Safari/537.36",
@@ -19,13 +23,24 @@ const agents = {
   windows: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36",
 };
 
-describe("channelOffer", () => {
-  it("offers WhatsApp on Android, iMessage on Apple devices and asks elsewhere", () => {
-    expect(channelOffer(agents.android)).toBe("whatsapp");
-    expect(channelOffer(agents.iphone)).toBe("imessage");
-    expect(channelOffer(agents.ipad)).toBe("imessage");
-    expect(channelOffer(agents.windows)).toBe("ask");
-    expect(channelOffer(agents.linux)).toBe("ask");
+const all = { imessage: "+15550001111", telegram: "findmeatime_bot", whatsapp: "15550002222" };
+const noWhatsApp = { ...all, whatsapp: null };
+
+describe("deviceKind", () => {
+  it("tells Android, Apple devices and other computers apart", () => {
+    expect(deviceKind(agents.android)).toBe("android");
+    expect(deviceKind(agents.iphone)).toBe("apple");
+    expect(deviceKind(agents.ipad)).toBe("apple");
+    expect(deviceKind(agents.windows)).toBe("other");
+    expect(deviceKind(agents.linux)).toBe("other");
+  });
+});
+
+describe("isMessagingChannel", () => {
+  it("accepts the three channels and nothing else", () => {
+    expect(["imessage", "whatsapp", "telegram"].every(isMessagingChannel)).toBe(true);
+    expect(isMessagingChannel("sms")).toBe(false);
+    expect(isMessagingChannel(null)).toBe(false);
   });
 });
 
@@ -46,34 +61,67 @@ describe("whatsAppLinkFor", () => {
   });
 });
 
-describe("shownChannel", () => {
-  const both = { imessage: "+15550001111", whatsapp: "15550002222" };
-
-  it("follows the device, and asks on other computers until the host chooses", () => {
-    expect(shownChannel("whatsapp", both)).toBe("whatsapp");
-    expect(shownChannel("imessage", both)).toBe("imessage");
-    expect(shownChannel("ask", both)).toBeNull();
-    expect(shownChannel("ask", both, "whatsapp")).toBe("whatsapp");
-    expect(shownChannel("imessage", both, "whatsapp")).toBe("whatsapp");
+describe("telegramLinkFor", () => {
+  it("builds the bot's start link with the code as its payload", () => {
+    expect(telegramLinkFor("findmeatime_bot", "FMAT-ABCDEFGHJK")).toBe("https://t.me/findmeatime_bot?start=FMAT-ABCDEFGHJK");
+    expect(telegramLinkFor("@findmeatime_bot", "FMAT-ABCDEFGHJK")).toBe("https://t.me/findmeatime_bot?start=FMAT-ABCDEFGHJK");
   });
 
-  it("goes straight to the only configured channel", () => {
-    expect(shownChannel("ask", { imessage: null, whatsapp: "15550002222" })).toBe("whatsapp");
-    expect(shownChannel("whatsapp", { imessage: "+15550001111", whatsapp: null })).toBe("imessage");
-    expect(shownChannel("imessage", { imessage: "+15550001111", whatsapp: null }, "whatsapp")).toBe("imessage");
-    expect(shownChannel("ask", { imessage: null, whatsapp: null })).toBeNull();
+  it("refuses a username or a payload Telegram would not take", () => {
+    expect(telegramLinkFor("", "FMAT-ABCDEFGHJK")).toBeNull();
+    expect(telegramLinkFor("bot", "FMAT-ABCDEFGHJK")).toBeNull();
+    expect(telegramLinkFor("findmeatime_bot", "FMAT ABC")).toBeNull();
+    expect(telegramLinkFor("findmeatime_bot", "x".repeat(65))).toBeNull();
+    expect(telegramLinkFor("findmeatime_bot", "")).toBeNull();
   });
 });
 
-describe("otherChannel", () => {
-  const both = { imessage: "+15550001111", whatsapp: "15550002222" };
+describe("shownChannel", () => {
+  it("gives Android WhatsApp when configured and Telegram otherwise", () => {
+    expect(shownChannel("android", all)).toBe("whatsapp");
+    expect(shownChannel("android", noWhatsApp)).toBe("telegram");
+  });
 
-  it("offers the other configured channel, never on Android", () => {
-    expect(otherChannel("imessage", both, "imessage")).toBe("whatsapp");
-    expect(otherChannel("imessage", both, "whatsapp")).toBe("imessage");
-    expect(otherChannel("ask", both, "whatsapp")).toBe("imessage");
-    expect(otherChannel("whatsapp", both, "whatsapp")).toBeNull();
-    expect(otherChannel("imessage", { imessage: "+15550001111", whatsapp: null }, "imessage")).toBeNull();
+  it("gives Apple devices iMessage, and asks on other computers until the host chooses", () => {
+    expect(shownChannel("apple", all)).toBe("imessage");
+    expect(shownChannel("other", all)).toBeNull();
+    expect(shownChannel("other", all, "telegram")).toBe("telegram");
+    expect(shownChannel("apple", all, "telegram")).toBe("telegram");
+  });
+
+  it("goes straight to the only configured channel, and never to one that is not configured", () => {
+    expect(shownChannel("other", { imessage: null, telegram: "findmeatime_bot", whatsapp: null })).toBe("telegram");
+    expect(shownChannel("apple", { imessage: null, telegram: "findmeatime_bot", whatsapp: null })).toBe("telegram");
+    expect(shownChannel("android", { imessage: "+15550001111", telegram: null, whatsapp: null })).toBe("imessage");
+    expect(shownChannel("apple", { imessage: "+15550001111", telegram: null, whatsapp: null }, "whatsapp")).toBe("imessage");
+    expect(shownChannel("other", { imessage: null, telegram: null, whatsapp: null })).toBeNull();
+  });
+});
+
+describe("switchChannels", () => {
+  it("offers Android the other of WhatsApp and Telegram, never iMessage", () => {
+    expect(switchChannels("android", all, "whatsapp")).toEqual(["telegram"]);
+    expect(switchChannels("android", all, "telegram")).toEqual(["whatsapp"]);
+    expect(switchChannels("android", noWhatsApp, "telegram")).toEqual([]);
+  });
+
+  it("offers Apple devices Telegram, then WhatsApp, each if configured", () => {
+    expect(switchChannels("apple", all, "imessage")).toEqual(["telegram", "whatsapp"]);
+    expect(switchChannels("apple", noWhatsApp, "imessage")).toEqual(["telegram"]);
+    expect(switchChannels("apple", { ...all, telegram: null }, "imessage")).toEqual(["whatsapp"]);
+    expect(switchChannels("apple", all, "telegram")).toEqual(["imessage", "whatsapp"]);
+  });
+
+  it("offers other computers every other configured channel", () => {
+    expect(switchChannels("other", all, "whatsapp")).toEqual(["imessage", "telegram"]);
+    expect(switchChannels("other", noWhatsApp, "imessage")).toEqual(["telegram"]);
+  });
+});
+
+describe("askChannels", () => {
+  it("lists only the configured channels", () => {
+    expect(askChannels(all)).toEqual(["imessage", "whatsapp", "telegram"]);
+    expect(askChannels(noWhatsApp)).toEqual(["imessage", "telegram"]);
   });
 });
 
@@ -81,14 +129,16 @@ describe("channelName", () => {
   it("names each channel", () => {
     expect(channelName("imessage")).toBe("iMessage");
     expect(channelName("whatsapp")).toBe("WhatsApp");
+    expect(channelName("telegram")).toBe("Telegram");
   });
 });
 
-// Web input never carries a forwarding marker (host-imessage-channel D26).
+// Web input never carries a forwarding marker (host-imessage-channel D28).
 describe("withoutForwardingMarkers", () => {
   it("drops every marker the message starts with, in any letter case", () => {
     expect(withoutForwardingMarkers("[iMessage] 30 minutes")).toBe("30 minutes");
     expect(withoutForwardingMarkers("  [whatsapp][EMAIL] hi")).toBe("hi");
+    expect(withoutForwardingMarkers("[Telegram] hello")).toBe("hello");
     expect(withoutForwardingMarkers("[iMessage]")).toBe("");
   });
 

@@ -22,6 +22,9 @@ import { clock, isPhone, SendPanel, shownNumber, useNow, usePlatform } from "./s
 // /?flow=whatsapp starts the same way from WhatsApp (host-whatsapp-channel D7): the start asks for a WhatsApp
 // code ({"channel":"whatsapp"}), a phone opens wa.me, and the popup shows the WhatsApp number, its QR code
 // and Open WhatsApp. An attempt this browser already has keeps its own channel.
+// /?flow=telegram starts from Telegram (host-telegram-channel D7): a Telegram code, the bot's t.me start link on a
+// phone, and on a computer the popup with the link's QR code, Open Telegram and Copy. The received screen shows
+// the sender's Telegram name.
 // An iMessage start asks for the number first (imessage-number-registration D1, D3): the server registers it
 // with Photon and addresses the code to the number Photon assigned. The number is kept for this visit.
 
@@ -39,7 +42,7 @@ async function readStart(): Promise<ImessageStartStatus | null> {
 
 async function postStart(locale: Locale, channel: MessagingChannel, number: string | null): Promise<Answer> {
   const t = channelCopy(COPY[locale], channel).send;
-  const body = JSON.stringify(channel === "whatsapp" ? { channel } : { number });
+  const body = JSON.stringify(channel === "imessage" ? { number } : { channel });
   const response = await fetch("/api/imessage/start", { body, headers: { "content-type": "application/json" }, method: "POST" }).catch(() => null);
   const answer = (await response?.json().catch(() => null)) as ImessageStartStatus | { error?: { category: string } } | null;
   if (response?.ok && answer && "state" in answer) return { error: "", status: answer };

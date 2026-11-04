@@ -10,7 +10,7 @@
 -- hashed in their own namespace.
 CREATE TABLE "app"."imessage_receipts" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp')),
+  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp', 'telegram')),
   "message_id" text NOT NULL CHECK (char_length("message_id") BETWEEN 1 AND 500),
   "webhook_id" text NOT NULL CHECK (char_length("webhook_id") BETWEEN 1 AND 200),
   "sender_hash" text NOT NULL CHECK ("sender_hash" ~ '^[0-9a-f]{64}$'),

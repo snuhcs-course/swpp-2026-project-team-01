@@ -91,7 +91,7 @@ describe("message route and session index", () => {
   });
 
   // Only forwarding adds a channel marker, so a web message cannot pass for one
-  // from iMessage (host-imessage-channel D26).
+  // from iMessage (host-imessage-channel D28).
   it("drops a forwarding marker a web message starts with, and refuses one that is only a marker", async () => {
     const host = await signInHost(db);
     const response = await message(host.cookie, "[iMessage] Thirty minutes, please.");

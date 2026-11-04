@@ -19,11 +19,14 @@
 -- line_number is the shared-pool number Photon assigned when an iMessage code
 -- attempt registered the entered number as a project user; the screens address
 -- it (imessage-number-registration design 2). The entered number is not stored.
+-- sender_name_ciphertext is a Telegram sender's first name and @username, sealed
+-- with the sender, for Confirm and link (host-telegram-channel design 3); the
+-- trigger imessage_links_clear_sender_name clears it with the sender.
 CREATE TABLE "app"."imessage_links" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "host_account_id" uuid REFERENCES "app"."host_accounts" ("id") ON DELETE CASCADE,
   "request_id" uuid REFERENCES "app"."requests" ("id") ON DELETE CASCADE,
-  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp')),
+  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp', 'telegram')),
   "method" text NOT NULL CHECK ("method" IN ('code', 'fallback')),
   "starter_hash" text CHECK ("starter_hash" ~ '^[0-9a-f]{64}$'),
   "source_hash" text CHECK ("source_hash" ~ '^[0-9a-f]{64}$'),
@@ -43,6 +46,7 @@ CREATE TABLE "app"."imessage_links" (
   "line_number" text CHECK ("line_number" ~ '^\+[1-9][0-9]{6,14}$'),
   "sender_hash" text CHECK ("sender_hash" ~ '^[0-9a-f]{64}$'),
   "sender_ciphertext" text,
+  "sender_name_ciphertext" text,
   "space_ciphertext" text,
   "sender_key_id" text,
   "received_by_receipt_id" uuid,
@@ -69,6 +73,7 @@ CREATE TABLE "app"."imessage_links" (
   CONSTRAINT "imessage_links_fallback_channel" CHECK ("method" <> 'fallback' OR "channel" = 'imessage'),
   -- Requester messaging over WhatsApp is out of scope (host-whatsapp-channel non-goals).
   CONSTRAINT "imessage_links_request_channel" CHECK ("request_id" IS NULL OR "channel" = 'imessage'),
+  CONSTRAINT "imessage_links_sender_name" CHECK ("sender_name_ciphertext" IS NULL OR "sender_ciphertext" IS NOT NULL),
   CONSTRAINT "imessage_links_received" CHECK ("state" <> 'received' OR ("sender_hash" IS NOT NULL AND "confirm_by" IS NOT NULL))
 );
 

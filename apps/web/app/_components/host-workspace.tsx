@@ -40,7 +40,7 @@ const ANALYSIS_POLL_MS = 4000;
 // menu's iMessage item opens it at any step.
 
 // Messages from a linked iMessage or WhatsApp, which shares this discussion,
-// have their own tab, shown once there are any (host-imessage-channel D25).
+// have their own tab, shown once there are any (host-imessage-channel D27).
 type View = "web" | "messaging";
 
 export function HostWorkspace() {

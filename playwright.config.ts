@@ -77,6 +77,8 @@ const shared = {
   PHOTON_LINE_NUMBER: "+15550001111",
   // The WhatsApp line (host-whatsapp-channel D1), as digits, so the card and the link step offer both.
   PHOTON_WHATSAPP_NUMBER: "15550002222",
+  // The Telegram bot (host-telegram-channel D1), so the screens offer Telegram too; nothing reaches Telegram.
+  TELEGRAM_BOT_USERNAME: "findmeatime_e2e_bot",
   // The product inbox Continue by email names; nothing reaches AgentMail.
   AGENTMAIL_INBOX_ID: "findmeatime@agentmail.test",
   // One key per run, shared with the tests so they can seal a Calendar grant.

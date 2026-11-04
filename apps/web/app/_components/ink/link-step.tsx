@@ -2,18 +2,19 @@
 
 import type { ImessageOperation, ImessageStatus } from "@lib/contracts/imessage";
 import {
+  askChannels,
   channelName,
-  channelOffer,
-  type ChannelOffer,
+  deviceKind,
+  type DeviceKind,
   type MessagingChannel,
-  otherChannel,
   shownChannel,
+  switchChannels,
 } from "@lib/contracts/messaging-channel";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { appLinkFor, readStatus, rememberedLater, rememberLater, sendCommand } from "@/app/_components/imessage/imessage-card";
 import { Brand, InkStage, LanguageSelect } from "./chrome";
-import { channelCopy, COPY, type Locale } from "./copy";
-import { AppGlyph, ExternalIcon, MessagesGlyph, StatusMark, WhatsAppGlyph } from "./icons";
+import { channelCopy, COPY, type Locale, replacesText } from "./copy";
+import { AppGlyph, ExternalIcon, StatusMark } from "./icons";
 import { NumberForm } from "./number-form";
 import { clock, isPhone, MessagePreview, type SendCode, SendPanel, shownNumber, useNow, usePlatform } from "./send";
 
@@ -31,6 +32,10 @@ import { clock, isPhone, MessagePreview, type SendCode, SendPanel, shownNumber, 
 // computer first asks which app the host uses on their phone. A code or a sender already there keeps its own
 // channel. Confirming a WhatsApp sender first says what Thyme will send there, and confirming either says
 // which earlier link it replaces.
+// Telegram (host-telegram-channel D6, D7, D13) uses it too: Android gets Telegram where WhatsApp is not configured
+// and Use Telegram instead where it is, Apple devices get Use Telegram instead beside iMessage, the app question
+// lists every configured channel, a Telegram code opens the bot's start link, and confirming a Telegram sender
+// shows their Telegram name and says where Telegram keeps the chat.
 // An iMessage code needs the host's number first (imessage-number-registration D1, D3): Photon's shared lines
 // read only registered numbers, so the step asks for it, the server registers it, and the code it makes is
 // addressed to the number Photon assigned. The number is kept for this visit, so a new code needs no new entry.
@@ -49,7 +54,7 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
   const [busy, setBusy] = useState<ImessageOperation | null>(null);
   const [error, setError] = useState("");
   // What this device is offered, the app question while it is open, and the channel last asked for.
-  const [offer, setOffer] = useState<ChannelOffer>("ask");
+  const [device, setDevice] = useState<DeviceKind>("other");
   const [asking, setAsking] = useState(false);
   const [wanted, setWanted] = useState<MessagingChannel | null>(null);
   // The number entered for iMessage on this visit, and whether the step is asking for it.
@@ -129,8 +134,8 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
     started.current = true;
     void (async () => {
       const first = await readStatus();
-      const device = channelOffer(navigator.userAgent);
-      setOffer(device);
+      const kind = deviceKind(navigator.userAgent);
+      setDevice(kind);
       const later = rememberedLater();
       const show =
         first?.state === "received" || (!later && (first?.state === "pending" || (first?.state === "none" && !ready)));
@@ -141,7 +146,7 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
       take(first);
       setShown("step");
       if (first.state !== "none") return;
-      const channel = shownChannel(device, first.channels);
+      const channel = shownChannel(kind, first.channels);
       if (channel) await newCode(channel);
       else setAsking(true);
     })();
@@ -190,12 +195,12 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
   // The channel on screen: the sender's or binding's, else the code's, else the one asked for.
   const channel: MessagingChannel = status.state === "received" || status.state === "linked" ? status.channel : (code?.channel ?? wanted ?? "imessage");
   const c = channelCopy(base, channel);
-  const other =
+  const others =
     screen === "number"
-      ? otherChannel(offer, status.channels, "imessage")
+      ? switchChannels(device, status.channels, "imessage")
       : code && (screen === "panel" || screen === "send" || screen === "waiting")
-        ? otherChannel(offer, status.channels, code.channel)
-        : null;
+        ? switchChannels(device, status.channels, code.channel)
+        : [];
 
   const toChat = (later: boolean) => {
     if (later) rememberLater();
@@ -211,12 +216,15 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
       </button>
     </span>
   );
-  // Use WhatsApp instead (or iMessage): a code on the other channel, which ends this one.
-  const switcher = other ? (
-    <button className="link-btn" disabled={busy !== null} onClick={() => void newCode(other)} type="button">
-      {c.link.switchTo(channelName(other))}
-    </button>
-  ) : null;
+  // Use Telegram instead (or another channel): a code on that channel, which ends this one.
+  const switcher =
+    others.length > 0
+      ? others.map((other) => (
+          <button className="link-btn" disabled={busy !== null} key={other} onClick={() => void newCode(other)} type="button">
+            {c.link.switchTo(channelName(other))}
+          </button>
+        ))
+      : null;
   const notice = error ? (
     <p className="field-help error" role="alert">
       {error}
@@ -275,14 +283,18 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
           </h1>
           <p className="lede small">{c.link.askLede}</p>
           <div className="choices">
-            <button aria-disabled={busy !== null} className="secondary-btn" onClick={() => busy === null && void newCode("imessage")} type="button">
-              <MessagesGlyph />
-              iMessage
-            </button>
-            <button aria-disabled={busy !== null} className="secondary-btn" onClick={() => busy === null && void newCode("whatsapp")} type="button">
-              <WhatsAppGlyph />
-              WhatsApp
-            </button>
+            {askChannels(status.channels).map((option) => (
+              <button
+                aria-disabled={busy !== null}
+                className="secondary-btn"
+                key={option}
+                onClick={() => busy === null && void newCode(option)}
+                type="button"
+              >
+                <AppGlyph channel={option} />
+                {channelName(option)}
+              </button>
+            ))}
           </div>
           {notice}
           <p className="alt">{skip(c.link.altDesktop)}</p>
@@ -392,9 +404,10 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
             <span className="code-left">{c.link.confirmWithin(clock(Date.parse(received.confirmBy) - now))}</span>
           </div>
           {received.replaces ? (
-            <p className="lede small">{received.replaces === "whatsapp" ? c.link.replacesWhatsapp : c.link.replacesImessage}</p>
+            <p className="lede small">{replacesText(c, received.replaces)}</p>
           ) : null}
           {received.channel === "whatsapp" ? <p className="lede small">{c.link.optIn}</p> : null}
+          {received.channel === "telegram" ? <p className="lede small">{c.link.privacyTelegram}</p> : null}
           <div className="verify-actions">
             <button
               aria-disabled={busy !== null}
