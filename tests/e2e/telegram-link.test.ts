@@ -115,7 +115,8 @@ test.describe("on Android", () => {
     const host = await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
 
-    await expect(page.getByRole("heading", { level: 1, name: "Connect Thyme to your WhatsApp" })).toBeVisible({ timeout: 45_000 });
+    // WhatsApp asks for the number first (guest-whatsapp-link D3); Telegram needs none.
+    await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for WhatsApp?" })).toBeVisible({ timeout: 45_000 });
     await expect(page.getByRole("button", { name: "Use iMessage instead" })).toHaveCount(0);
     await page.getByRole("button", { name: "Use Telegram instead" }).click();
 
