@@ -266,7 +266,7 @@ export const approveProposalToolInput = z
   .strict();
 
 // Approval in the host's own words (host-imessage-channel D23, design 19): only
-// for a message from the linked iMessage or WhatsApp, the turn's input, which
+// for a message from the linked iMessage, WhatsApp or Telegram, the turn's input, which
 // carries its channel prefix; the web keeps its Approve button and external
 // agents keep request_host_decision. The command is the one the button and
 // `approve <ref>` run, so the version must still be current and agreed, and
@@ -281,7 +281,7 @@ export async function approveProposalForTool(db: Database, call: HostReviewToolC
     where s.session_id = ${call.sessionId}
   `;
   if (!turn || !cameFromMessagingChannel(turn.message)) {
-    return { approved: false as const, problem: "Approval in words works only from the host's linked iMessage or WhatsApp. On the web, the host presses Approve this proposal." };
+    return { approved: false as const, problem: "Approval in words works only from the host's linked iMessage, WhatsApp or Telegram. On the web, the host presses Approve this proposal." };
   }
 
   const view = await readHostRequest(db, hostAccountId, requestId);

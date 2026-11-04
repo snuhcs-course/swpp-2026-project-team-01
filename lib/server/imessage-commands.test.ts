@@ -23,6 +23,19 @@ describe("parseCommand", () => {
     expect(parseCommand("stop sending me these")).toBeNull();
   });
 
+  it("accepts Telegram's leading slash and bot mention (host-telegram-channel design 8)", () => {
+    expect(parseCommand("/requests")).toEqual({ name: "requests" });
+    expect(parseCommand("/Review@findmeatime_bot")).toEqual({ name: "review" });
+    expect(parseCommand("/approve@findmeatime_bot k7q2mx-3")).toEqual({ name: "approve", ref: "K7Q2MX-3" });
+    expect(parseCommand("/stop")).toEqual({ name: "stop" });
+    // A linked host tapping Start again gets help; /start <code> is linking, read before commands.
+    expect(parseCommand("/start")).toEqual({ name: "help" });
+    expect(parseCommand("start")).toBeNull();
+    for (const text of ["/approve", "/yes", "requests@findmeatime_bot", "/requests@someone", "/requests @findmeatime_bot", "//requests"]) {
+      expect(parseCommand(text)).toBeNull();
+    }
+  });
+
   it("leaves everything else to the assistant", () => {
     for (const text of ["yes", "Yes, approve it", "approve", "approve it please", "review the proposal", "ok", "approve K7Q2MX-3 now", "help me"]) {
       expect(parseCommand(text)).toBeNull();

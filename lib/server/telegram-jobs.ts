@@ -129,11 +129,16 @@ export function createTelegramTypingHandler(load: () => TelegramJobDependencies 
     const count = typeof job.payload.count === "number" ? job.payload.count : TYPING_MAX + 1;
     if (!receiptId || !turnOutboxId || count > TYPING_MAX) return { typing: false };
 
-    // The reply is no longer waiting once its turn ended: it is queued or sent.
-    const [turn] = await tx<{ state: string; binding_id: string | null; host_account_id: string | null }[]>`
-      select state, binding_id, host_account_id from app.imessage_outbox where id = ${turnOutboxId}
+    // The reply is ready once its turn ended (or its session failed), even
+    // before the send job freezes it.
+    const [turn] = await tx<{ state: string; turn_over: boolean; binding_id: string | null; host_account_id: string | null }[]>`
+      select o.state, coalesce(i.state = 'completed' or s.state = 'failed', true) as turn_over, o.binding_id, o.host_account_id
+      from app.imessage_outbox o
+      left join app.conversation_inputs i on i.id = o.input_id
+      left join app.agent_sessions s on s.session_id = i.session_id
+      where o.id = ${turnOutboxId}
     `;
-    if (turn?.state !== "waiting" || !turn.binding_id || !turn.host_account_id) return { typing: false };
+    if (turn?.state !== "waiting" || turn.turn_over || !turn.binding_id || !turn.host_account_id) return { typing: false };
 
     const deps = load();
     const binding = await activeBindingOfHost(tx, turn.host_account_id);

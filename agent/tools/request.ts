@@ -39,7 +39,7 @@ import type { SessionPrincipal } from "../../lib/server/setup-tools";
 // nothing from here, a requester session gets no host tool, and no audience gets
 // a tool that declines, shares or waives. The host-review set's one decision is
 // approve_proposal, which approves the current proposal only for a message from
-// the host's linked iMessage or WhatsApp (host-imessage-channel D23). Each
+// the host's linked iMessage, WhatsApp or Telegram (host-imessage-channel D23). Each
 // execute rechecks the fence before it reads or writes.
 // Callbacks are inline and use only module-level imports, so eve can replay them.
 
@@ -139,7 +139,7 @@ function hostReviewTools() {
     }),
     approve_proposal: defineTool({
       description:
-        "Approve the current proposal because the host, writing from their linked iMessage or WhatsApp, clearly approves it in their own words, such as \"looks good, book it\", \"yes\" right after the proposal, or \"화요일 좋아요\". Never call it when the host asks for a change, adds a condition (\"yes, but at 11\"), asks a question, approves only part, or means another proposal; and never for a message typed on the web, where the host presses Approve this proposal. Call read_request first and pass the current proposal's version. It approves exactly that version or nothing, and booking then continues on its own.",
+        "Approve the current proposal because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly approves it in their own words, such as \"looks good, book it\", \"yes\" right after the proposal, or \"화요일 좋아요\". Never call it when the host asks for a change, adds a condition (\"yes, but at 11\"), asks a question, approves only part, or means another proposal; and never for a message typed on the web, where the host presses Approve this proposal. Call read_request first and pass the current proposal's version. It approves exactly that version or nothing, and booking then continues on its own.",
       inputSchema: approveProposalToolInput,
       execute: (input, toolCtx) => approveProposalForTool(database(), call(toolCtx), input),
     }),
