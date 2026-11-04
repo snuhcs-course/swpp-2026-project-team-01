@@ -65,3 +65,8 @@ Before each group, read the [Phase 6 reference repository files](../../../docume
 - [ ] 10.3 With the live model, approval and non-approval replies in English and Korean ("book it", "yes, but at 11", "can it be shorter?", "화요일 좋아요"), recorded in the frozen evaluation set once it exists.
 - [ ] 10.4 On a controlled iPhone and an Android phone with WhatsApp: approve in words after a summary and see the booking confirmed.
 
+## 11. The host hears once a time is agreed (D25, #122)
+
+- [x] 11.1 Stop queueing the new-request notice on identification and revision, and add the earlier-request sentence to the awaiting-approval summary. Verify the notice integration test that identification sends nothing, and the notice, revision and guest suites.
+- [ ] 11.2 On a controlled iPhone: start a request as a guest, see no message, agree to a time, and get the approval summary.
+
