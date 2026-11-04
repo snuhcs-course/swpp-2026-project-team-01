@@ -84,7 +84,7 @@ describe("channelName", () => {
   });
 });
 
-// Web input never carries a forwarding marker (host-imessage-channel D25).
+// Web input never carries a forwarding marker (host-imessage-channel D26).
 describe("withoutForwardingMarkers", () => {
   it("drops every marker the message starts with, in any letter case", () => {
     expect(withoutForwardingMarkers("[iMessage] 30 minutes")).toBe("30 minutes");

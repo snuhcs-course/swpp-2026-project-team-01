@@ -1,53 +1,19 @@
-import type { Page } from "@playwright/test";
 import { expect, signedInHost, test } from "./support/session";
 
-// The rendered Thyme theme (task 4.7): the paper layer, its omission in print and
-// forced colors, fonts, focus outlines and reduced motion.
+// The rendered ink theme (DESIGN.md): flat paper with no texture layer, the
+// display and body faces, focus outlines and reduced motion.
 
-function paperLayer(page: Page) {
-  return page.evaluate(() => {
-    const style = getComputedStyle(document.body, "::before");
-    return {
-      backgroundImage: style.backgroundImage,
-      content: style.content,
-      opacity: style.opacity,
-      pointerEvents: style.pointerEvents,
-      position: style.position,
-      zIndex: style.zIndex,
-    };
-  });
-}
-
-test("the paper layer sits behind the content, faint and inert", async ({ page, request }) => {
+test("the paper is flat: the ink canvas and no texture layer", async ({ page }) => {
   await page.goto("/");
 
-  expect(await paperLayer(page)).toMatchObject({
-    backgroundImage: expect.stringContaining("/paper-grain.svg"),
-    opacity: "0.025",
-    pointerEvents: "none",
-    position: "fixed",
-    zIndex: "-1",
-  });
-  expect((await request.get("/paper-grain.svg")).status()).toBe(200);
-  // Content sits on the solid canvas and smooth paper, not on the texture.
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(250, 248, 242)");
+  const paper = await page.evaluate(() => ({
+    background: getComputedStyle(document.body).backgroundColor,
+    layer: getComputedStyle(document.body, "::before").content,
+  }));
+  expect(paper).toEqual({ background: "rgb(246, 247, 249)", layer: "none" });
 });
 
-test("the paper layer is omitted in print", async ({ page }) => {
-  await page.emulateMedia({ media: "print" });
-  await page.goto("/");
-
-  expect(await paperLayer(page)).toMatchObject({ backgroundImage: "none", content: "none" });
-});
-
-test("the paper layer is omitted in forced colors", async ({ page }) => {
-  await page.emulateMedia({ forcedColors: "active" });
-  await page.goto("/");
-
-  expect(await paperLayer(page)).toMatchObject({ backgroundImage: "none", content: "none" });
-});
-
-test("the signed-out workspace uses Big Shoulders headings and Geist body text", async ({ page }) => {
+test("the signed-out workspace uses Instrument Serif headings and Geist body text", async ({ page }) => {
   await page.goto("/app");
   await expect(page.getByRole("heading", { name: "Find Me a Time" })).toBeVisible();
 
@@ -55,12 +21,22 @@ test("the signed-out workspace uses Big Shoulders headings and Geist body text",
     body: getComputedStyle(document.querySelector("main")!).fontFamily,
     heading: getComputedStyle(document.querySelector("h1")!).fontFamily,
   }));
-  expect(fonts.heading).toMatch(/big.shoulders/i);
+  expect(fonts.heading).toMatch(/instrument.serif/i);
   expect(fonts.body).toMatch(/geist/i);
+});
+
+test("Korean headings use Hahmlet", async ({ page }) => {
+  await page.goto("/privacy?lang=ko");
+
+  const heading = await page.evaluate(() => getComputedStyle(document.querySelector("h1")!).fontFamily);
+  expect(heading).toMatch(/hahmlet/i);
 });
 
 test("keyboard focus shows a 2px outline with a 3px offset", async ({ page }) => {
   await page.goto("/");
+  // The landing streams in; until it does, the first Tab can land on the body
+  // or on the dev tools' portal instead of the page's first link.
+  await expect(page.getByRole("link", { name: "Home" })).toBeVisible();
   await page.keyboard.press("Tab");
 
   const outline = await page.evaluate(() => {

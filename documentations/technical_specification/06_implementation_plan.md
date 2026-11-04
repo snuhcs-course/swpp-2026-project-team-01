@@ -282,7 +282,7 @@ Scope. Prerequisite: Phase 2 for setup over iMessage and Phase 4 for decisions. 
 
 **Lane B — linking card in the web workspace**
 
-- [x] **Connect iMessage** gets a one-time link code from the server and at once opens Messages with the line's number as the recipient and the exact link message in the input (`sms:<number>&body=<text>` on iOS, `sms:<number>?body=<text>` on Android); where Messages cannot open, the inline card shows the number, the code, **Copy** and a QR code of the same deep link. Then the masked-sender **Confirm and link**, the service-sent six-digit fallback (**Send me a code instead**) with a protected code field, expiry and resend limits, unlink, **Maybe later**. Opening Messages never counts as linking.
+- [x] **Connect iMessage** gets a one-time link code from the server and at once opens Messages with the line's number as the recipient and the exact link message in the input (`sms:<number>&body=<text>` on iOS, `sms:<number>?body=<text>` on Android); where Messages cannot open, the inline card shows the number, the code, **Copy** and a QR code of the same deep link. Then **Confirm and link** on the sender, the service-sent six-digit fallback (**Send me a code instead**) with a protected code field, expiry and resend limits, unlink, **Maybe later**. Opening Messages never counts as linking.
 - [x] Optional **Add to contacts** card with truthful queued, accepted, failed and uncertain states.
 
 **Lane C — channel and commands**
@@ -408,7 +408,7 @@ Scope. Prerequisite: Phase 6, whose receiver, tables, commands, outbox and cards
 
 **Lane B — linking in the browser**
 
-- [x] **Connect WhatsApp** with the `wa.me` link, QR code, **Copy** and masked-number **Confirm and link**; the device rule (Android WhatsApp, Apple devices iMessage with **Use WhatsApp instead**, other computers ask); the replacement notice and the opt-in sentence; the link step after sign-in and `/?flow=whatsapp`.
+- [x] **Connect WhatsApp** with the `wa.me` link, QR code, **Copy** and **Confirm and link** on the number; the device rule (Android WhatsApp, Apple devices iMessage with **Use WhatsApp instead**, other computers ask); the replacement notice and the opt-in sentence; the link step after sign-in and `/?flow=whatsapp`.
 - [x] One active binding per host across channels, ending the other channel's binding on confirmation.
 
 **Lane C — window, templates and channel behavior**
@@ -416,6 +416,13 @@ Scope. Prerequisite: Phase 6, whose receiver, tables, commands, outbox and cards
 - [x] The 24-hour window check at dispatch, suppression and the `/app` notices for `window_closed` and `template_unavailable`.
 - [x] The three utility templates with the 12-hour per-host and daily per-line limits.
 - [x] `stop`, the `[WhatsApp]` transcript prefix, the host instructions fragment and per-channel unlinked-sender limits; commands, summaries, setup and admission reused from Phase 6.
+
+**Lane D — read marks, typing, reactions and buttons (added 2026-11-04)**
+
+- [x] D15–D17 in the proposal, design 11, the delta spec and the decision log.
+- [ ] Teammate review of D15–D17.
+- [ ] WhatsApp `signal` rows: read with typing, ❤️ for thanks.
+- [ ] Reply buttons on decision summaries inside the window, button-reply parsing and the `WHATSAPP_BUTTONS` switch.
 
 **Join**
 

@@ -4,7 +4,7 @@ import type { EveMessage } from "eve/react";
 // Which channel each message of a host discussion came through. A linked
 // iMessage or WhatsApp shares the discussion with /app, and its forwarded text
 // is stored with a marker (host-imessage-channel D11); /app shows those
-// messages on their own tab (D24). A reply belongs to the channel of the host
+// messages on their own tab (D25). A reply belongs to the channel of the host
 // message it answers.
 
 export type MessageChannel = "web" | MessagingChannel;

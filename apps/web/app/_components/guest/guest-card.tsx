@@ -4,11 +4,11 @@ import { Message, MessageContent } from "@/components/ui/message";
 import { cn } from "@/lib/utils";
 
 // The guest thread's conversation card (DESIGN.md: conversation card): placed in
-// the thread after the message that calls for it, one question as a 16px
-// heading, a short reason, then actions, in 16px by 12px padding. It is the
+// the thread after the message that calls for it, one question as a serif
+// heading, a short reason, then actions, on a white 24px board. It is the
 // setup card's shell without the host setup controller.
 
-export const GUEST_CARD_SURFACE = "mx-auto my-3 w-[94%] max-w-xl rounded-[22px] border border-primary/25 bg-[color-mix(in_srgb,var(--card)_94%,var(--primary)_6%)] px-4 py-4 text-sm text-card-foreground shadow-[0_8px_24px_rgba(44,62,99,0.12)] sm:px-5";
+export const GUEST_CARD_SURFACE = "mx-auto my-3 w-[94%] max-w-xl rounded-3xl bg-card px-5 py-5 text-sm text-card-foreground sm:px-6";
 
 export function guestCardHeadingId(id: string) {
   return `${id}-heading`;
@@ -41,7 +41,7 @@ export function GuestCard({
     >
       <div className="flex flex-col gap-0.5">
         {label ? <p className="min-h-6 text-xs leading-6 font-semibold text-primary">{label}</p> : null}
-        <h3 className="text-base leading-snug font-semibold text-foreground outline-none" id={guestCardHeadingId(id)} tabIndex={-1}>
+        <h3 className="font-display text-[26px] leading-[1.15] text-foreground outline-none" id={guestCardHeadingId(id)} tabIndex={-1}>
           {title}
         </h3>
         {description ? <div className="text-sm text-muted-foreground">{description}</div> : null}
@@ -73,8 +73,8 @@ export function GuestReceipt({
     <Message align="end">
       <MessageContent>
         <p className="sr-only">You</p>
-        <Bubble align="end" className="max-w-[85%]" variant="muted">
-          <BubbleContent className="rounded-xl text-base leading-[1.65]">
+        <Bubble align="end" className="max-w-[85%]" variant="me">
+          <BubbleContent className="rounded-2xl rounded-br-[6px] px-4 text-base leading-[1.55]">
             <div
               className="flex min-w-0 flex-col"
               data-guest-card={id}

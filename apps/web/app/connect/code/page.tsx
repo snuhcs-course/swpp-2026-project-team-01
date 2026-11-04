@@ -30,15 +30,15 @@ async function Code({ searchParams }: { readonly searchParams: SearchParams }) {
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-4 px-4">
       {valid ? (
         <>
-          <h1 className="font-display text-3xl">Paste this into the CLI</h1>
+          <h1 className="font-display text-[clamp(36px,5vw,52px)] leading-[1.05]">Paste this into the CLI</h1>
           <p className="text-muted-foreground">Copy the whole value and paste it where `fmat login` is waiting. It works once, for one minute.</p>
-          <output className="block break-all rounded-lg border border-border bg-muted p-3 font-mono text-sm select-all">
+          <output className="block break-all rounded-2xl bg-night p-4 font-mono text-sm text-background select-all">
             {`${state}.${code}`}
           </output>
         </>
       ) : (
         <>
-          <h1 className="font-display text-3xl">Nothing to paste</h1>
+          <h1 className="font-display text-[clamp(36px,5vw,52px)] leading-[1.05]">Nothing to paste</h1>
           <p className="text-muted-foreground">
             {error === "access_denied" ? "You denied the connection. The CLI is not signed in." : "This page has no sign-in code. Run fmat login again."}
           </p>

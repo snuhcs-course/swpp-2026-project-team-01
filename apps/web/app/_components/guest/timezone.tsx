@@ -66,7 +66,7 @@ export function TimezoneLine({
 
   if (editing) {
     return (
-      <section aria-labelledby={`${id}-heading`} className="rounded-xl border border-border bg-card px-4 py-3 text-sm">
+      <section aria-labelledby={`${id}-heading`} className="rounded-3xl bg-card px-5 py-4 text-sm">
         <h2 className="pb-2 text-base font-semibold" id={`${id}-heading`}>
           Your time zone
         </h2>

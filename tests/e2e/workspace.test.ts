@@ -182,8 +182,8 @@ test("the workspace runs under the security headers with no policy violation", a
 });
 
 // A linked iMessage shares the setup discussion, and /app shows its messages on
-// their own tab (host-imessage-channel D24). The web route drops a marker typed
-// in the composer (D25), so the history the browser reads is given the marker
+// their own tab (host-imessage-channel D25). The web route drops a marker typed
+// in the composer (D26), so the history the browser reads is given the marker
 // that forwarding stores; tests/integration/imessage-forwarding.test.ts covers
 // the forwarding itself.
 test("messages from iMessage are on their own tab, apart from the web chat", async ({ baseURL, context, db, page }) => {

@@ -11,7 +11,7 @@ export function isMessagingChannel(value: unknown): value is MessagingChannel {
 }
 
 // The marker a forwarded message is stored with in the host's discussion
-// (host-imessage-channel D11), which /app reads to show it on its own tab (D24).
+// (host-imessage-channel D11), which /app reads to show it on its own tab (D25).
 export const CHANNEL_MARKERS: Record<MessagingChannel, string> = { imessage: "[iMessage] ", whatsapp: "[WhatsApp] " };
 
 // A requester's email reply is marked the same way (requester-email-channel).
@@ -19,7 +19,7 @@ export const EMAIL_MARKER = "[Email] ";
 
 // Only the forwarding paths add a marker, so a message typed on the web loses
 // any it starts with, in any letter case: otherwise the assistant and /app would
-// take it for a forwarded message (host-imessage-channel D25).
+// take it for a forwarded message (host-imessage-channel D26).
 const LEADING_MARKERS = /^(?:\s*\[(?:iMessage|WhatsApp|Email)\])+\s*/i;
 
 export function withoutForwardingMarkers(text: string) {

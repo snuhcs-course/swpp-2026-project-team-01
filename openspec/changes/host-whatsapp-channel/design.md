@@ -54,7 +54,7 @@ The provider maps each inbound WhatsApp message to `sender: { id: msg.from }` an
 - requires `space.id` to normalize to the same value, and `space.type` to be absent or `dm`, so a group or a mismatched space never counts;
 - never parses a number from the message text.
 
-The hash is the existing keyed hash over `whatsapp:<digits>`; iMessage hashes stay over the bare sender, so no stored hash changes. One phone number in both apps therefore gives two unrelated hashes. The sealed sender (context `imessage_binding:{id}`, unchanged) is what replies use. The masked display is the last four digits.
+The hash is the existing keyed hash over `whatsapp:<digits>`; iMessage hashes stay over the bare sender, so no stored hash changes. One phone number in both apps therefore gives two unrelated hashes. The sealed sender (context `imessage_binding:{id}`, unchanged) is what replies use. The card shows the whole number with its plus (#118; the last four digits until then).
 
 ### 4. Records
 
@@ -158,7 +158,7 @@ These are unchanged in shape and only take the channel:
 
 - **What an inbound message may do** (iMessage design 7): ordering per conversation, `FMAT-` handling first, the unlinked-sender reply (once per sender per 24 hours, at most 200 per line per day, counted per channel), the suspended host, "I can read text messages only." for other content (WhatsApp voice notes included), commands, then forwarding.
 - **Exact commands** (iMessage D8) with `stop` added (section 8).
-- **Forwarding and replies** (iMessage D11): the transcript prefix is `[WhatsApp] …`, and the host instructions name the channel and its lack of cards, as for iMessage. `/app` shows these messages on their own **WhatsApp** tab, as iMessage D24 does.
+- **Forwarding and replies** (iMessage D11): the transcript prefix is `[WhatsApp] …`, and the host instructions name the channel and its lack of cards, as for iMessage. `/app` shows these messages on their own **WhatsApp** tab, as iMessage D25 does.
 - **Summaries** (iMessage D12) inside the window, and section 7 outside it.
 - **Setup over chat** with the welcome by host state and the Calendar link that returns to the conversation (iMessage D19). The return message is subject to the window.
 - **Admission limits and backpressure** from `chat-workspaces`, with the same deferral and ordering waits.
@@ -166,6 +166,46 @@ These are unchanged in shape and only take the channel:
 - **Messaging environments**: the WhatsApp transport passes the same gate as iMessage. Only the identified production deployment reaches Photon, and everything else reaches the loopback stand-in or nothing.
 
 **Add to contacts** is not offered on WhatsApp. WhatsApp shows the business's verified display name, and contact sharing would add nothing.
+
+### 11. Read marks, typing, reactions and decision buttons (D15–D17)
+
+Added on 2026-11-04 at the user's request, after the first real WhatsApp messages reached production. The sources are `@spectrum-ts/whatsapp-business` 12.14.0 and `@photon-ai/whatsapp-business` 0.3.2 (its dependency) from `node_modules`:
+- **Read and typing.** Spectrum's `send` drops `typing` content (`if (content.type === "typing") return;`). Its `read` content calls `messages.markRead(messageId)` without the typing flag. The client's `markRead(messageId, { typingIndicator })` sets both: Meta marks the message read, shows "typing…" until the next message from the business or for 25 seconds, and accepts no separate typing call.
+- **Reactions.** `reaction` content sends a WhatsApp reaction to a message ID.
+- **Buttons.** `poll` content becomes an interactive message with up to three reply buttons, or a list. Spectrum names them `opt_0`…`opt_2` and keeps the poll in an in-process cache, which a serverless function loses between requests. The client's `buttons(body, ...button(id, title))` takes our own IDs.
+
+**Signals (D15, D16).** `processReceipt` already records one `signal` row for a linked host's text message on iMessage (iMessage D20). It now does so on WhatsApp too, with the same JSON: `{ messageId, typing, reaction }`. `messageId` is the WhatsApp message ID (`wamid…`) from the receipt.
+
+The WhatsApp transport sends a signal in two steps:
+1. It calls the client's `markRead(messageId, { typingIndicator: typing })` with the line's Photon-issued token (`cloud.issueWhatsappBusinessTokens`, as the provider does).
+2. When `reaction` is set, it sends Spectrum `reaction` content.
+
+`typing` is set only when the message started a turn, exactly as on iMessage, so a command gets the read mark alone. A thanks-only message gets ❤️ and no turn.
+
+Signals are free-form traffic answering a message the host has just sent, so the window is always open. They stay best-effort: any answer but accepted is final, never retried, and never counted in the card's delivery status.
+
+**Buttons (D17).** These summaries carry buttons:
+- the "proposal waiting" and "agreed proposal" summaries;
+- the setup review, as one **Confirm settings** button, `c:<settingsRef>`.
+
+A summary row records its buttons as `{ id, title }` pairs, at most three. Each ID is under WhatsApp's 256-character limit, and each title is under its 20-character limit.
+
+At dispatch, inside the window:
+- **A summary of at most 1,024 characters,** the limit for an interactive body, goes out as one interactive message with the buttons.
+- **A longer summary** goes out as text, followed in the same dispatch by a short interactive message: "Decide on request {ref}?", with the buttons.
+
+The row's provider message ID is the interactive message's. If the button message fails after the text was accepted, the row is still `accepted`, since the host can type the command. Outside the window, the template notice (design 8) carries no buttons.
+
+**Taps.** `inboundWhatsAppMessage` accepts a reply-button event. It takes the button's ID, and the text becomes the exact command that ID names. The title is never read. The receipt's `content_type` is `button`.
+
+The receipt then follows the same path as a typed command:
+- it is admitted only from the bound sender;
+- it is checked against the request, the version and the proposal's current state;
+- a stale version gets "This proposal has changed" and the current summary.
+
+WhatsApp has no way to remove buttons from a sent message. A stale tap is refused instead.
+
+**Unconfirmed.** Photon's native webhook payload for a WhatsApp button reply has not been seen. If, at the join, it does not carry the button's ID, `WHATSAPP_BUTTONS` stays off. Summaries then remain text, and nothing else changes.
 
 ## Risks / Trade-offs
 
@@ -176,6 +216,8 @@ These are unchanged in shape and only take the channel:
 - **Cost.** Each template is billed by Meta. The daily limit and the 12-hour coalescing bound it, and diagnostics count templates per day.
 
 ## Open Questions
+
+- Should a reaction other than thanks (for example 👍 on a summary) mean anything? Today it is ignored (D16).
 
 - Template language: English only, or also Korean (`ko`) chosen from the host's language?
 - One notice per 12 hours, or one per event, when the window is closed?

@@ -395,7 +395,7 @@ export function GuestConversation({
 function ErrorNotice({ message, onDismiss }: { readonly message: string; readonly onDismiss: () => void }) {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 pt-2 sm:px-6" role="alert">
-      <div className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-card p-3 text-sm">
+      <div className="flex items-start gap-3 rounded-2xl bg-[color-mix(in_srgb,var(--destructive)_8%,var(--surface))] p-4 text-sm">
         <AlertCircleIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
         <p className="min-w-0 flex-1">{message}</p>
         <Button aria-label="Dismiss" onClick={onDismiss} size="icon-sm" type="button" variant="ghost">

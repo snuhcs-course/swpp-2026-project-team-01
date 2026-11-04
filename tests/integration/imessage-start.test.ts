@@ -80,7 +80,7 @@ describe("the iMessage start", () => {
     expect(await claimContinuedLink(db, testTokenKey, host, token)).toBe(true);
     expect(await claimContinuedLink(db, testTokenKey, host, token)).toBe(true);
     expect(await claimContinuedLink(db, testTokenKey, await newHostAccount(db), token)).toBe(false);
-    expect(await im.status(host)).toMatchObject({ sender: `•••• ${sender.slice(-4)}`, state: "received" });
+    expect(await im.status(host)).toMatchObject({ sender: sender, state: "received" });
     expect(await im.bindingOf(host)).toBeNull();
 
     expect((await im.command(host, "imessage.link.confirm", { linkId })).ok).toBe(true);
@@ -157,7 +157,7 @@ describe("the iMessage start", () => {
     expect(await readStartStatus(db, options, secret())).toEqual({ channels: { imessage: TEST_LINE, whatsapp: null }, lineNumber: TEST_LINE, state: "none" });
 
     expect((await im.deliver({ sender, text: pending.message })).outcome).toBe("link_received");
-    expect(await readStartStatus(db, options, browser)).toMatchObject({ sender: `•••• ${sender.slice(-4)}`, state: "received" });
+    expect(await readStartStatus(db, options, browser)).toMatchObject({ sender: sender, state: "received" });
 
     const [ack] = await db<{ id: string }[]>`
       select o.id from app.imessage_outbox o join app.imessage_links l on l.id = o.link_id
@@ -174,7 +174,7 @@ describe("the iMessage start", () => {
 
     const received = await im.status(hostAccountId);
     if (received.state !== "received") throw new Error(`Expected a received code, got ${received.state}.`);
-    expect(received.sender).toBe(`•••• ${sender.slice(-4)}`);
+    expect(received.sender).toBe(sender);
     expect(await im.bindingOf(hostAccountId)).toBeNull();
 
     expect((await im.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId })).ok).toBe(true);

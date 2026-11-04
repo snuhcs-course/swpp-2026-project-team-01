@@ -263,7 +263,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
   }
 
   const notice = error ? (
-    <div className="flex items-start gap-2 rounded-lg border border-destructive/40 px-3 py-2 text-sm" role="alert">
+    <div className="flex items-start gap-2 rounded-xl bg-[color-mix(in_srgb,var(--destructive)_8%,var(--surface))] px-3 py-2 text-sm" role="alert">
       <AlertCircleIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
       <p className="min-w-0 flex-1">{error}</p>
       {lost ? (
@@ -412,7 +412,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
             you can do.
           </p>
           {status.delivery ? (
-            <p className="rounded-lg border border-destructive/40 px-3 py-2 text-sm" role="status">
+            <p className="rounded-xl bg-[color-mix(in_srgb,var(--destructive)_8%,var(--surface))] px-3 py-2 text-sm" role="status">
               {deliveryNotice(status.delivery, name)}
             </p>
           ) : null}
@@ -485,7 +485,7 @@ function CardShell({
   return (
     <section
       aria-labelledby={cardHeadingId(IMESSAGE_CARD_ID)}
-      className="setup-card-enter relative flex min-w-0 scroll-mt-4 scroll-mb-4 flex-col overflow-hidden rounded-xl border border-border bg-card px-4 py-3 text-sm text-card-foreground"
+      className="setup-card-enter relative flex min-w-0 scroll-mt-4 scroll-mb-4 flex-col overflow-hidden rounded-3xl bg-card px-5 py-4 text-sm text-card-foreground"
       data-imessage-card
       id={IMESSAGE_CARD_ID}
     >
@@ -571,7 +571,7 @@ function PendingCode({
   return (
     <CardShell description={description} label={channelName(status.channel)} title={`Send the message from your ${channelName(status.channel)}`}>
       {notice}
-      <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border px-3 py-2">
+      <div className="flex min-w-0 flex-col gap-1 rounded-xl bg-secondary px-3 py-2">
         <p className="text-xs font-medium text-muted-foreground">To</p>
         <p className="font-mono text-sm tabular-nums">{whatsapp ? displayWhatsAppNumber(status.lineNumber) : status.lineNumber}</p>
         <p className="pt-1 text-xs font-medium text-muted-foreground">Message</p>
