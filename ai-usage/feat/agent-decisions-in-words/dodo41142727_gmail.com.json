@@ -25,16 +25,16 @@
       "agent_ms": 0,
       "models": {
         "claude-sonnet-5-5": {
-          "input": 6,
-          "cache_read": 204558,
-          "cache_write_5m": 58949,
+          "input": 8,
+          "cache_read": 299579,
+          "cache_write_5m": 59572,
           "cache_write_1h": 0,
-          "output": 737,
+          "output": 3031,
           "reasoning": 0
         }
       },
       "first": "2026-11-04T09:39:02.907Z",
-      "last": "2026-11-04T09:39:08.214Z"
+      "last": "2026-11-04T09:39:10.781Z"
     }
   }
 }

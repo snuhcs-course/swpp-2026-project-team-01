@@ -22,7 +22,7 @@ export function isAgentScope(value: string): value is AgentScope {
 export const SCOPE_DESCRIPTIONS: Readonly<Record<AgentScope, string>> = {
   "host:read": "See your setup, your requests and their booking status",
   "host:write": "Change your setup draft, check times, suggest and share changes, and allow exceptions",
-  "host:decide": "Prepare approvals and declines for you to confirm in Find Me a Time",
+  "host:decide": "Approve and decline requests when you tell the agent to",
   "request:read": "See the host's public profile and your request",
   "request:write": "Create your request, change its details, find and choose times",
   "request:decide": "Agree to the proposed time and withdraw the request for you",
