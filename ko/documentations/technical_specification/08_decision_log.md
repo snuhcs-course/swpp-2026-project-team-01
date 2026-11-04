@@ -547,6 +547,55 @@
 - **병합**: PR #79는 사용자의 요청으로 팀원 승인 없이 관리자 우회로 스쿼시 병합했습니다.
 - D1–D13과 설계의 미해결 질문에 대한 **팀원 검토**.
 
+## 10단계 — `host-telegram-channel`
+
+[제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 2026-11-04에 사용자가 봇 `@findmeatime_bot`을 만들고 호스트 채널을 Telegram에 구성해 달라고 요청했습니다. 이 변경을 작성한 세션은 같은 날 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안이며, 아직 이를 구현하는 코드는 없습니다. 추적 이슈: #111.
+
+**이전 경위.** 2026-11-03에 Meta가 9단계의 WhatsApp Business 계정을 "허용되는 사용 정책 위반"을 이유로 메시지를 한 건도 보내기 전에 비활성화했고, 2026-11-04에 사용자의 요청으로 프로덕션에서 `PHOTON_WHATSAPP_NUMBER`를 제거했으므로 카드는 iMessage만 제공합니다([제공자 설정](03_provider_setup.md#whatsapp-business), PR #110).
+
+### 제품 결정
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| — | (사용자, 2026-11-04.) 모든 기기의 호스트를 위한 호스트 채널로, 봇과의 옵트인 Telegram 대화를 추가합니다. 호스트의 채널만 다루며, 요청자는 웹과 이메일을 유지합니다. 그룹, 채널, Mini App, Telegram 로그인, 결제는 범위 밖으로 유지합니다 | Meta의 검토를 기다리기; 새 WhatsApp 포트폴리오(제재 회피) | PRD 1, 3, 10절 | PRD 1절 |
+| D5 | 9단계 D5처럼 iMessage, WhatsApp, Telegram을 가로질러 호스트당 활성 메시징 바인딩 하나 | 여러 채널 동시 사용 | 제안서; 설계 5 | 바인딩 인덱스 |
+| D7 | 모든 기기에서 Telegram: Android는 구성되어 있으면 **대신 Telegram 사용(Use Telegram instead)**이 있는 WhatsApp, 아니면 Telegram을 받고, Apple 기기는 **대신 Telegram 사용(Use Telegram instead)**이 있는 iMessage를 받으며, 그 밖의 컴퓨터는 구성된 채널 중에서 묻습니다 | Android에서만 Telegram; 모든 곳에서 Telegram 우선 | 제안서; 설계 6 | `lib/contracts/messaging-channel.ts` |
+| D8 | `callback_data`가 요청과 제안 버전을 명시하는 **Approve**, **Decline**, **Show details** 인라인 버튼. 탭은 정확한 명령이며 바인딩된 발신자의 것만 받아들이고, 오래된 버전은 아무것도 결정하지 않습니다 | 입력한 명령만; 요청은 명시하되 버전은 명시하지 않는 버튼 | 제안서; 설계 7; PRD 10절 | 설계 7 |
+| D10 | 명령 메뉴, 입력 중 표시, 아무것도 필요 없는 알림의 무음 전달, 일반 텍스트를 사용합니다. 사용하지 않음: Mini App, Telegram 로그인, 그룹, 연락처 요청, 결제, `protect_content` | Markdown 또는 HTML 서식; 결정을 위한 Mini App | 제안서; 설계 8 | 설계 8 |
+| D13 | **확인 및 연결(Confirm and link)** 전에 카드가 Telegram이 봇 대화를 자사 서버에 보관한다고 안내하며, 개인정보 처리방침이 Telegram을 명시합니다 | 안내 없음 | 제안서; 설계 11 | 카드의 문구; `/privacy` |
+
+### 구현 결정
+
+| # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| D1 | `lib/server/telegram.ts`에서 `fetch`로 쓰는 Bot API, 대역용 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_API_URL`; SDK는 쓰지 않음 | Vercel Function이 유지할 수 없는 지속적인 Fusor WebSocket(`wss://fusor-ws.spectrum.photon.codes/v1/subscribe`)으로 업데이트가 도착하는 `@spectrum-ts/telegram` 12.14.0; 오래 실행되는 워커 | 제안서; 설계 1 | 설계 1 |
+| D2 | 에이전트 서비스의 `POST /telegram/webhook`; `X-Telegram-Bot-Api-Secret-Token`이 `TELEGRAM_WEBHOOK_SECRET`과 같아야 함; `200` 전에 `update_id`를 키로 하는 영수증; `message`, `callback_query`, 차단을 뜻하는 `my_chat_member`만; `npm run telegram:webhook`이 이를 등록 | Telegram을 Photon 웹훅으로 라우팅; 시크릿 없음 | 제안서; 설계 2 | `agent/channels/telegram.ts` |
+| D3 | 발신자는 `from.id`; 대화 ID가 발신자와 같은 비공개 대화만, 봇은 제외; `telegram:<id>`로 해시; 확인용으로 이름과 `@username`을 표시; 전화번호는 받지 않음 | `request_contact`로 전화번호 요청 | 제안서; 설계 3 | `lib/server/telegram.ts` |
+| D4 | 네 개의 `channel` 검사에 `telegram` 추가; 영수증 메시지 ID는 `update:<update_id>`; 테이블 이름은 유지 | `telegram_*` 테이블 | 제안서; 설계 4 | 스키마 파일 |
+| D6 | `https://t.me/findmeatime_bot?start=<code>`; `/start <code>` 또는 코드만 보내면 Telegram 시도가 완료됨; `/start`만 보내면 연동되지 않은 발신자 응답을 받음; 컴퓨터에는 QR과 **복사(Copy)** | 봇이 먼저 보내는 코드 | 제안서; 설계 6 | `lib/contracts/messaging-channel.ts` |
+| D9 | 결정되었거나 철회되었거나 대체된 제안의 버튼은 Telegram의 48시간 편집 제한 안에서 `editMessageReplyMarkup`으로 제거하고 텍스트는 유지 | 텍스트 편집; 버튼을 그대로 두기 | 제안서; 설계 7 | 발신함 |
+| D11 | Bot API 결과: `403`은 `blocked`로 거부되며 바인딩 종료; `400`은 거부; `429`는 `retry_after` 뒤에 사용 불가; `5xx`나 쓰기 후 타임아웃은 불확실이며 다시 보내지 않음; 한 대화에는 전송 사이 1초 간격; 4,096자를 넘는 텍스트는 분할 | 모든 오류 재시도 | 제안서; 설계 9 | 전송 |
+| D12 | 명령, 참조, 호스트 자신의 말로 하는 승인, 전달(`[Telegram] …`), 요약, 설정, 접수, 순서, 보존은 6단계와 같음; 창도 템플릿도 없음 | Telegram 전용 명령 집합 | 제안서; 설계 10 | 6단계 D8–D14 |
+
+### 운영 결정
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 봇 업데이트 없는 출처 | 설계는 2026-11-04에 Photon의 Telegram 문서, npm의 `@spectrum-ts/telegram` 12.14.0과 `@spectrum-ts/core` 12.14.0, Telegram Bot API 레퍼런스를 읽었습니다. 서비스에 도착한 업데이트가 없으므로 픽스처는 합류 단계에서 확인됩니다 | 실제 업데이트를 기다리기 | 설계 맥락 | 작업 5.1 |
+| 봇 자격 증명 | 사용자가 2026-11-04에 메인 체크아웃의 `.env`에 `TELEGRAM_BOT_TOKEN`과 `TELEGRAM_BOT_USERNAME`(`findmeatime_bot`)을 넣었습니다. 에이전트 세션은 토큰을 읽거나 출력하거나 복사하지 않으며, 사용자가 Vercel Production에 설정합니다 | 에이전트가 설정 | 제공자 설정 | — |
+| 계획만 | 이 풀 리퀘스트는 문서와 OpenSpec 변경만 바꾸며, 코드, 스키마, 구성은 없습니다 | 레인 A를 곧바로 구현 | 계획 10단계 | — |
+
+### 사용자 대기 항목
+
+다음 단계는 제공자 콘솔을 바꾸거나, 사람에게 메시지를 보내거나, 공유 환경 또는 릴리스 환경을 바꾸기 때문에 수행하지 않았습니다:
+
+- **@BotFather**: 봇의 이름, 설명, 소개 문구, 사진.
+- **Vercel Production**: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, 새 `TELEGRAM_WEBHOOK_SECRET`.
+- 배포 뒤 프로덕션을 대상으로 `npm run telegram:webhook`으로 **웹훅 등록**.
+- 검토 뒤 **공유 프로젝트 마이그레이션과 배포**.
+- 업데이트 하나 수집과 AC-32부터 AC-34까지의 실행을 포함한 **모든 Telegram 메시지 전송**.
+- D1–D13과 설계의 미해결 질문에 대한 **팀원 검토**.
+
 ## `guest-flow-completion`
 
 [제안서](../../openspec/changes/guest-flow-completion/proposal.md#decisions)는 사용자와 팀이 2026-10-29과 2026-10-30에 합의한 U1–U5와 D1–D10을 기록하며, [설계](../../openspec/changes/guest-flow-completion/design.md)가 그 근거를 기록합니다. 아래 결정은 2026-10-30에 풀 리퀘스트 1(작업 그룹 1–5a)을 구현하면서 내렸으며, 아직 팀원 검토를 거치지 않았습니다.
