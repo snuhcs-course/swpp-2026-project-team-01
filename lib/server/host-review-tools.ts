@@ -277,7 +277,7 @@ export const approveProposalToolInput = z
 // Approval in the host's own words (host-imessage-channel D23, design 19): only
 // for a message from the linked iMessage, WhatsApp or Telegram, the turn's input, which
 // carries its channel prefix; the web keeps its Approve button and external
-// agents keep request_host_decision. The command is the one the button and
+// agents use approve_proposal. The command is the one the button and
 // `approve <ref>` run, so the version must still be current and agreed, and
 // the revision read here must not have moved.
 export async function approveProposalForTool(db: Database, call: HostReviewToolCall, input: z.infer<typeof approveProposalToolInput>) {
