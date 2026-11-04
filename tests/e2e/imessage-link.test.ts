@@ -161,6 +161,9 @@ for (const width of [390, 1280]) {
     ]);
 
     await press(page, "Confirm and link");
+    // Linked, the card folds into a small status pill that opens the full card.
+    await expect(again.getByRole("button", { name: `iMessage linked •••• ${sender.slice(-4)}` })).toBeVisible();
+    await press(page, `iMessage linked •••• ${sender.slice(-4)}`);
     await expect(again.getByRole("heading", { name: "iMessage is linked" })).toBeVisible();
     expect(await db`select 1 from app.imessage_bindings where host_account_id = ${host.hostAccountId} and state = 'active'`).toHaveLength(1);
 

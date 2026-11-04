@@ -114,6 +114,7 @@ test.describe("on Android", () => {
     // The in-chat card names the channel and offers no Add to contacts.
     await page.getByRole("button", { name: "Go to Home" }).click();
     const card = await openCard(page);
+    await card.getByRole("button", { name: `WhatsApp linked •••• ${sender.slice(-4)}` }).click();
     await expect(card.getByRole("heading", { name: "WhatsApp is linked" })).toBeVisible();
     await expect(card).toContainText(`Linked on WhatsApp •••• ${sender.slice(-4)}`);
     await expect(card.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
