@@ -10,7 +10,7 @@ function strings(value: unknown): string[] {
   if (typeof value === "function") {
     const call = value as (...args: unknown[]) => unknown;
     // The picker takes the names of the conversations; every other reply takes strings or numbers.
-    return strings(call.length === 2 && call.toString().includes("guests") ? call(["Ada Lovelace"], true) : call("K7Q2MX", "Ada Lovelace", "Coffee", "Thu 10:00"));
+    return strings(call.length === 2 && call.toString().includes("guests") ? call([{ name: "Ada Lovelace", ref: "K7Q2MX" }], true) : call("K7Q2MX", "Ada Lovelace", "Coffee", "Thu 10:00"));
   }
   if (Array.isArray(value)) return value.flatMap(strings);
   if (value && typeof value === "object") return Object.values(value).flatMap(strings);
@@ -29,7 +29,7 @@ describe("channel replies", () => {
   });
 
   it("writes the Korean replies in Korean", () => {
-    expect(CHANNEL_REPLIES.ko.picker(["Ada Lovelace"], true)).toMatch(/[가-힣]/);
+    expect(CHANNEL_REPLIES.ko.picker([{ name: "Ada Lovelace", ref: "K7Q2MX" }], true)).toMatch(/[가-힣]/);
     expect(CHANNEL_REPLIES.ko.nextStep.ready).toMatch(/[가-힣]/);
   });
 });

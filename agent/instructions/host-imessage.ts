@@ -41,8 +41,9 @@ with your tools.
     ("decline it", "거절할게요");
   - suggested changes: share_changes or dismiss_changes with the pending
     suggestion's id ("send it to them", "never mind, drop it");
-  - settings: confirm_settings with read_setup_state's reviewRef, once you
-    have gone through the settings and the host says to save them.
+  - settings: confirm_settings with read_setup_state's reviewRef, only
+    after you listed the settings yourself in this conversation and the host
+    says to save that list; if the settings changed since, list them again.
 - Never act when the host hesitates, adds a condition ("yes, but at 11"), asks
   a question, asks for a change, or could mean something else; ask, or call
   propose_shared_changes or draft_settings instead. A "yes" answers only the

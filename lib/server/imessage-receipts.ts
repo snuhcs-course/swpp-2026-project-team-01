@@ -365,18 +365,29 @@ async function activeGuestBindings(tx: Transaction, senderHash: string) {
 // message in another conversation invalidates it: API acceptance does not
 // establish which message reached the sender or in which order.
 // Which of a sender's conversations a message names in words (#137), or null
-// when it names none or more than one: "host", for a message about their own
-// account as a host (호스트, host, setup, settings, 설정), or the guest binding
-// whose request reference, host or role ("guest", "예약 요청") it names.
-const HOST_WORDS = /호스트|설정|셋업|\bhost\b|\bsetup\b|\bsettings\b/i;
-const GUEST_WORDS = /게스트|예약\s*요청|요청자|\bguest\b|\brequester\b/i;
+// when it names none or more than one. A host says they are the host ("호스트인데
+// 나", "I'm the host") or answers with a role word alone ("host", "설정"); a
+// mention of the other side ("ask the host", "호스트님께") names nothing, since
+// each role talks about the other. A guest request is named by its reference,
+// by a word of its host's name, or by a Korean full name, or given name with
+// 님 or 씨 (이은우, 은우님); a role word alone names the only guest request.
+const HOST_SELF =
+  /(?:나|저)\s*(?:는|가)?\s*호스트|호스트(?:인데|야|예요|에요|이에요|입니다|로서|로)(?![가-힣])|\bi(?:'m| am) (?:the |a )?host\b|\bas (?:the |a )?host\b|^\s*(?:host|setup|settings|호스트|설정|셋업)\s*[.!?]*\s*$/i;
+const GUEST_ALONE = /^\s*(?:guest|게스트|예약\s*요청|요청)\s*(?:으로|로)?\s*[.!?]*\s*$/i;
 
-function nameParts(name: string) {
-  const normalized = name.normalize("NFKC").toLowerCase().trim();
-  const parts = new Set([normalized, ...normalized.split(/\s+/)]);
-  // A Korean name without spaces also goes by its given name (이은우, 은우).
-  if (/^[가-힣]{3,4}$/.test(normalized)) parts.add(normalized.slice(1));
-  return [...parts].filter((part) => part.length >= 2);
+function namesHost(text: string, name: string) {
+  const normalized = name.normalize("NFKC").trim();
+  if (!normalized) return false;
+  if (/^[가-힣]{2,4}$/.test(normalized)) {
+    if (text.includes(normalized)) return true;
+    // The given name of a three-syllable name, only as an address (은우님).
+    return normalized.length === 3 && new RegExp(`${normalized.slice(1)}(?:님|씨)`).test(text);
+  }
+  const words = new Set(text.normalize("NFKC").toLowerCase().split(/[^\p{L}\p{N}]+/u));
+  return normalized
+    .toLowerCase()
+    .split(/\s+/)
+    .some((part) => part.length >= 2 && words.has(part));
 }
 
 export function namedConversation<Binding extends { readonly request_id: string; readonly host_name: string | null }>(
@@ -384,13 +395,10 @@ export function namedConversation<Binding extends { readonly request_id: string;
   guests: readonly Binding[],
   host: boolean,
 ): "host" | Binding | null {
-  const lower = text.normalize("NFKC").toLowerCase();
   const upper = text.toUpperCase();
-  const byName = guests.filter(
-    (binding) => new RegExp(`\\b${requestRef(binding.request_id)}\\b`).test(upper) || nameParts(binding.host_name ?? "").some((part) => lower.includes(part)),
-  );
-  const named = byName.length ? byName : guests.length === 1 && GUEST_WORDS.test(text) ? guests : [];
-  const hostNamed = host && HOST_WORDS.test(text);
+  const byName = guests.filter((binding) => new RegExp(`\\b${requestRef(binding.request_id)}\\b`).test(upper) || namesHost(text, binding.host_name ?? ""));
+  const named = byName.length ? byName : guests.length === 1 && GUEST_ALONE.test(text) ? guests : [];
+  const hostNamed = host && HOST_SELF.test(text);
 
   if (hostNamed && named.length === 0) return "host";
   if (!hostNamed && named.length === 1) return named[0]!;
@@ -505,7 +513,12 @@ async function guestMessage(
 
   // Revising moves the binding in its own transaction, so this one locks
   // nothing of the binding's first.
-  if (!route.switched && text && request && !request.open && isRevisable(request.state) && route.binding.state === "active") {
+  if ((!route.switched || route.forward) && text && request && !request.open && isRevisable(request.state) && route.binding.state === "active") {
+    // A message that chose this request in words records the choice, then revises (#137).
+    if (route.forward) {
+      const texts = channelReplies(senderLanguage(receipt));
+      await guestReply(tx, deps, receipt, route.binding, { dedupeKey: `guest-selection:${receipt.id}`, kind: "command", text: texts.guestSwitched(request.host_name ?? texts.yourHost) });
+    }
     return revise(tx, deps, receipt, route.binding, text);
   }
 
@@ -735,7 +748,7 @@ export async function processReceipt(
         recipient: { address: receipt.sender, spaceId: receipt.spaceId },
         recipientHash: receipt.senderHash,
         text: texts.picker(
-          guests.map((binding) => binding.host_name ?? texts.yourHost),
+          guests.map((binding) => ({ name: binding.host_name ?? texts.yourHost, ref: requestRef(binding.request_id) })),
           Boolean(host),
         ),
         tokenKey: deps.tokenKey,
@@ -845,9 +858,11 @@ export async function processReceipt(
     return "replied";
   }
 
-  // The host named their own conversation in words (#137): it is selected, as
-  // setup would select it, and the message goes on to Thyme.
+  // The host named their own account in words (#137): setup is selected, as
+  // `setup` selects it, and the message goes on to Thyme there.
   if (hostByWords) {
+    await tx`update app.imessage_bindings set selected_request_id = null where id = ${binding.id} and state = 'active'`;
+    bound.selectedRequestId = null;
     await recordOutbound(tx, {
       bindingId: binding.id,
       dedupeKey: `host-selection:${receipt.id}`,
@@ -855,7 +870,7 @@ export async function processReceipt(
       kind: "command",
       recipient,
       recipientHash: receipt.senderHash,
-      requestId: binding.selected_request_id,
+      requestId: null,
       text: channelReplies(await hostReplyLanguage(deps, binding.host_account_id, receipt.text)).hostSelected,
       tokenKey: deps.tokenKey,
     });

@@ -124,6 +124,15 @@ describe("declining in words", () => {
     expect(await stateOf(request.requestId)).toBe("awaiting_host_approval");
   });
 
+  it("declines nothing for a web message that starts with a channel prefix", async () => {
+    const { call, inputId, request } = await reviewerWrote("Decline it");
+    // Typed in /app: no receipt carries this input.
+    await db`update app.conversation_inputs set message = '[iMessage] Decline it', client_input_id = ${randomUUID()} where id = ${inputId}`;
+
+    expect(await declineRequestForTool(db, call, { version: 1 }, notices)).toMatchObject({ declined: false });
+    expect(await stateOf(request.requestId)).toBe("awaiting_host_approval");
+  });
+
   it("declines nothing for a version that is not the current proposal", async () => {
     const { call, request } = await reviewerWrote("Decline it");
 

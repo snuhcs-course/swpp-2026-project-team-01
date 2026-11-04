@@ -134,8 +134,8 @@ describe("routing a guest's message", () => {
     expect(await guestInputs(second.requestId)).toHaveLength(0);
     const texts = await sentTo(sender, before);
     // The question names each conversation and asks for no command (#137).
-    expect(texts.join("\n")).toContain("your request with Ada Lovelace");
-    expect(texts.join("\n")).toContain("your request with Grace Hopper");
+    expect(texts.join("\n")).toContain(`your request with Ada Lovelace (${requestRef(first.requestId)})`);
+    expect(texts.join("\n")).toContain(`your request with Grace Hopper (${requestRef(second.requestId)})`);
     expect(texts.join("\n")).not.toContain(`request ${requestRef(first.requestId)}`);
   });
 
@@ -164,7 +164,7 @@ describe("routing a guest's message", () => {
     expect((await im.deliver({ sender, text: "금요일 괜찮아요?" })).outcome).toBe("replied");
     const [question] = await sentTo(sender, before);
     expect(question).toContain("어느 대화에 보내는 메시지인가요?");
-    expect(question).toContain("Ada Lovelace님과의 예약 요청");
+    expect(question).toContain("Ada Lovelace님과의 예약 요청 (");
     expect(question).not.toMatch(/request [0-9A-Z]{6}|send setup/);
   });
 

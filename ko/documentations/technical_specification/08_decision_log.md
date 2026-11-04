@@ -727,8 +727,8 @@
 
 | # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
-| D1 | `decline_request`, `share_changes`, `dismiss_changes`, `confirm_settings`는 각각 입력에 채널 접두어가 붙은 턴에서만, 현재 버전·대기 중인 제안·설정 검토에 대해서만, 열린 요청에 대해서만, 한 번만 동작합니다. `list_host_requests`는 설정에서, 웹에서도 쓸 수 있습니다 | 결정마다 되읽기 확인을 두는 방식. D23이 승인에 대해 거부함 | 제안서; 설계 1 | `lib/server/host-review-tools.ts`, `lib/server/setup-channel-tools.ts`, `agent/tools/request.ts`와 `setup.ts`, `agent/instructions/host-imessage.ts` |
+| D1 | `decline_request`, `share_changes`, `dismiss_changes`, `confirm_settings`는 각각 입력이 채널 수신 기록에서 왔고 그 접두어가 붙은 턴에서만, 현재 버전·대기 중인 제안·설정 검토에 대해서만, 열린 요청에 대해서만, 한 번만 동작합니다. `list_host_requests`는 설정에서, 웹에서도 쓸 수 있습니다 | 결정마다 되읽기 확인을 두는 방식. D23이 승인에 대해 거부함 | 제안서; 설계 1 | `lib/server/host-review-tools.ts`, `lib/server/setup-channel-tools.ts`, `agent/tools/request.ts`와 `setup.ts`, `agent/instructions/host-imessage.ts` |
 | D2 | 정확한 명령은 모델 턴 이전에 그대로 동작하며, 안내하지 않습니다 | 입력된 명령어를 Thyme에 전달하는 방식. 답장 버튼, Telegram 메뉴, `setup`과 `request <ref>`가 기록하는 선택이 깨짐 | 제안서; 설계 2 | `lib/server/imessage-commands.ts`의 `parseCommand`와 `executeCommand` |
 | D3 | 고정된 답장, 도움말, 요약, 설정 검토 어디에도 명령을 적지 않습니다. 각각 Thyme에게 무엇을 말할지 알려 주거나 브라우저로 안내하며, 연동 해제는 `/app`의 **Unlink**를 가리키되 `stop`은 계속 동작합니다 | 답장에서 말과 함께 명령도 유지하기 | 제안서; 설계 3 | `lib/server/channel-texts.ts` |
 | D4 | 고정된 답장, 호스트 알림, 버튼 제목은 영어와 한국어로 제공합니다: 한글이면 한국어, 그 밖의 글자면 영어이며, 명령·탭·알림은 호스트가 Thyme에게 보낸 가장 최근 메시지를 따릅니다 | 고정된 답장을 모두 Thyme에게 넘기는 방식. 탭마다 모델 턴이 필요하고 버튼을 실을 수 없음 | 제안서; 설계 4 | `lib/server/channel-language.ts`, `channel-texts.ts` |
-| D5 | 대화가 여러 개이고 현재 선택이 없는 발신자는 말이 가리키는 대화(호스트 이름, 게스트 요청의 호스트나 참조)로 연결됩니다. 그렇지 않으면 질문이 메시지의 언어로 각 대화를 지칭합니다 | 기본적으로 호스트 자신의 대화로 전달하기; 라우팅 전에 모델 호출로 메시지를 분류하기 | 제안서; 설계 5 | `lib/server/imessage-receipts.ts`의 `namedConversation`과 `processReceipt` |
+| D5 | 대화가 여러 개이고 현재 선택이 없는 발신자는 말이 가리키는 대화(자신이 호스트라고 말하는 경우, 또는 게스트 요청의 참조나 호스트 이름이 하나의 단어로 쓰인 경우)로 연결됩니다. 지나가듯 언급된 역할은 아무것도 가리키지 않습니다. 그렇지 않으면 질문이 메시지의 언어로 각 대화를 지칭합니다 | 기본적으로 호스트 자신의 대화로 전달하기; 라우팅 전에 모델 호출로 메시지를 분류하기 | 제안서; 설계 5 | `lib/server/imessage-receipts.ts`의 `namedConversation`과 `processReceipt` |

@@ -57,7 +57,7 @@ export default defineDynamic({
             }),
             confirm_settings: defineTool({
               description:
-                "Save the reviewed settings because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly says to save them after you went through them, such as \"save it\", \"looks right, confirm\" or \"저장해 주세요\". Never call it when the host still changes something, adds a condition or asks a question, and never for a message typed on the web, where the host presses Confirm and save proposed settings. Call read_setup_state first and pass its reviewRef. It saves exactly that review or nothing, and returns the booking links to repeat.",
+                "Save the reviewed settings because the host, writing from their linked iMessage, WhatsApp or Telegram, clearly says to save them after you went through them, such as \"save it\", \"looks right, confirm\" or \"저장해 주세요\". Never call it when the host still changes something, adds a condition or asks a question, and never for a message typed on the web, where the host presses Confirm and save proposed settings. Call it only after you listed these settings to the host yourself in this conversation and they answered that list; if they refer to a review the service sent, call read_setup_state, list the settings and ask again. Pass read_setup_state's reviewRef. It saves exactly that review or nothing, and returns the booking links to repeat.",
               inputSchema: confirmSettingsToolInput,
               execute: (input, toolCtx) =>
                 confirmSettingsForTool(

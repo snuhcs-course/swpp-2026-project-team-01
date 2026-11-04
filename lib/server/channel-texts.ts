@@ -198,12 +198,12 @@ export const CHANNEL_REPLIES = {
     guestSwitched: (host: string) => `Now talking about your request with ${host}.`,
     yourHost: "your host",
     hostSelected: "Now talking about your own Find Me a Time account as a host.",
-    picker: (guests: readonly string[], host: boolean) =>
+    picker: (guests: readonly { readonly name: string; readonly ref: string }[], host: boolean) =>
       [
         "Which conversation is this message for?",
-        ...guests.map((guest) => `- your request with ${guest}`),
+        ...guests.map((guest) => `- your request with ${guest.name} (${guest.ref})`),
         ...(host ? ["- your own account as a host"] : []),
-        "Tell me which one, for example by the person's name or \"as a host\".",
+        "Tell me which one, for example by the person's name, or say \"I'm the host\".",
       ].join("\n"),
     readyForApproval: "Ready for your approval.",
     followsDecline: (ref: string) => `It follows your decline of request ${ref}.`,
@@ -319,14 +319,14 @@ export const CHANNEL_REPLIES = {
     textOnlyTelegram: "텍스트 메시지만 읽을 수 있어요. 사진, 스티커, 음성 메시지는 Thyme에게 전달되지 않아요.",
     guestClosed: "이 요청은 종료되어 이제 여기 메시지는 Thyme에게 전달되지 않아요.",
     guestSwitched: (host: string) => `이제 ${host}님과의 요청에 대해 이야기해요.`,
-    yourHost: "호스트",
+    yourHost: "상대 호스트",
     hostSelected: "이제 호스트로서 내 Find Me a Time 계정에 대해 이야기해요.",
-    picker: (guests: readonly string[], host: boolean) =>
+    picker: (guests: readonly { readonly name: string; readonly ref: string }[], host: boolean) =>
       [
         "어느 대화에 보내는 메시지인가요?",
-        ...guests.map((guest) => `- ${guest}님과의 예약 요청`),
+        ...guests.map((guest) => `- ${guest.name}님과의 예약 요청 (${guest.ref})`),
         ...(host ? ["- 호스트로서 내 계정"] : []),
-        "상대방 이름이나 \"호스트로\"처럼 말씀해 주세요.",
+        "상대방 이름으로 말씀하시거나, \"호스트예요\"라고 말씀해 주세요.",
       ].join("\n"),
     readyForApproval: "승인을 기다리고 있어요.",
     followsDecline: (ref: string) => `거절하신 요청 ${ref}에 이어진 요청이에요.`,
