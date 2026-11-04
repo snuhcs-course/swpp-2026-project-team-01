@@ -1,0 +1,23 @@
+{
+  "branch": "test/requester-imessage-mac-number",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:91d4ad25-3122-46a2-a251-2bb3733ed334": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 16,
+          "cache_read": 962526,
+          "cache_write_5m": 0,
+          "cache_write_1h": 5232,
+          "output": 2393,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T18:31:36.962Z",
+      "last": "2026-11-03T18:32:54.684Z"
+    }
+  }
+}
