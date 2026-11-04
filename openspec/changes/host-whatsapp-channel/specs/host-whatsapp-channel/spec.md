@@ -121,3 +121,34 @@ For a linked WhatsApp host, the service SHALL apply the iMessage channel's rules
 #### Scenario: Preview deployment
 - **WHEN** a preview deployment with copied Photon credentials would send a WhatsApp message
 - **THEN** the messaging gate refuses it and Photon is not called
+
+### Requirement: WhatsApp read marks, typing and thanks
+For a linked host's WhatsApp text message, the service SHALL mark the message read, and SHALL show the typing indicator only when the message starts an assistant turn. A message that is only thanks SHALL be marked read and get a ❤️ reaction with no turn. These signals SHALL be best-effort: a failed signal SHALL never be retried, never be shown as a delivery problem and never change request state. A host's reaction to the service's messages SHALL decide nothing.
+
+#### Scenario: Message that starts a turn
+- **WHEN** a linked host sends a question on WhatsApp
+- **THEN** the message shows as read, the typing indicator shows until Thyme's reply arrives, and the reply follows
+
+#### Scenario: Command
+- **WHEN** a linked host sends `requests` on WhatsApp
+- **THEN** the message is marked read with no typing indicator and the list is sent
+
+#### Scenario: Thanks
+- **WHEN** a linked host sends only "thank you" on WhatsApp
+- **THEN** the message is marked read, gets a ❤️ reaction and starts no turn
+
+### Requirement: WhatsApp decision buttons bound to a proposal
+Inside the 24-hour window, a WhatsApp summary that asks the host to decide SHALL carry at most three reply buttons whose IDs name one request and proposal version. A tap SHALL be admitted only from the bound sender, SHALL be parsed from the button's ID and never its title, and SHALL run through the same command path as the typed command. A tap naming a version that is not current SHALL decide nothing and SHALL show the current proposal. Template notices SHALL carry no buttons. When the webhook does not carry a button's ID, buttons SHALL NOT be offered.
+
+#### Scenario: Approve from a WhatsApp button
+- **WHEN** the bound host taps **Approve** under the current agreed proposal within the window
+- **THEN** that version is approved once, exactly as `approve <ref>-<version>`
+
+#### Scenario: Stale WhatsApp button
+- **WHEN** the host taps **Approve** under a proposal that has since been revised
+- **THEN** nothing is approved and the current proposal is shown
+
+#### Scenario: Long summary
+- **WHEN** a summary that asks for a decision is longer than an interactive message allows
+- **THEN** it is sent as text followed by a short message with the buttons
+

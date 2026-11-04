@@ -36,3 +36,12 @@ Before each group, read the [Phase 9 reference files](../../../documentations/te
 - [ ] 6.1 Register the three templates in WhatsApp Manager and wait for approval; confirm the business display name and the line's messaging tier.
 - [ ] 6.2 Set `PHOTON_WHATSAPP_NUMBER` and, if changed, `PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT` on Vercel Production; apply the migration through the shared-project workflow; deploy.
 - [ ] 6.3 Archive the change after `host-imessage-channel` with `openspec archive host-whatsapp-channel`, closing #66.
+
+## 7. Read marks, typing, reactions and buttons (added 2026-11-04)
+
+- [x] 7.1 Record D15–D17 in the proposal, [design 11](design.md#11-read-marks-typing-reactions-and-decision-buttons-d15d17), the delta spec and the decision log; verify `openspec validate host-whatsapp-channel --strict` and `npm run check`.
+- [ ] 7.2 Teammate review of D15–D17.
+- [ ] 7.3 Record WhatsApp `signal` rows in `processReceipt` and send them with `markRead(messageId, { typingIndicator })` and a ❤️ reaction for thanks. Verify integration tests for a turn, a command and thanks against the stand-in, and that a failed signal is final and hidden from the card.
+- [ ] 7.4 Add buttons to decision summaries inside the window, the long-summary split, button-reply parsing in `inboundWhatsAppMessage` and the `WHATSAPP_BUTTONS` switch. Verify tests for an approval from a button, a stale tap, a tap from another sender, a template with no buttons and the switch off.
+- [ ] 7.5 On the production line, capture one button reply to confirm the payload carries the button ID, then run AC-29 with a button approval on a controlled Android phone.
+
