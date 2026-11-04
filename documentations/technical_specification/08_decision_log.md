@@ -719,6 +719,18 @@ The [proposal](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions)
 | Numbers kept per channel | The link step and the Connect card keep the entered number per channel for the visit, so switching channels asks again | One number for both channels | Design 4 | `apps/web/app/_components/ink/link-step.tsx`, `imessage/imessage-card.tsx` |
 | Ambiguous-sender reply | The reply asking a sender with several conversations to choose goes out on the receipt's channel | The default iMessage channel, which a WhatsApp sender would never receive | Design 1 | `processReceipt` in `lib/server/imessage-receipts.ts` |
 
+## `channel-actions-in-words`
+
+The [proposal](../../openspec/changes/channel-actions-in-words/proposal.md#decisions) records D1–D5, taken on 2026-11-04 in the session that wrote the change, from the user's decision that natural language should work for everything, everywhere (issue #148, folding in #137 and #138). They extend `host-imessage-channel` D23 (approval in words) and D26 (switching in words) and have had no teammate review yet.
+
+| # | Choice | Alternatives | Recorded in | To change it |
+|---|---|---|---|---|
+| D1 | `decline_request`, `share_changes`, `dismiss_changes` and `confirm_settings`, each acting only for a turn whose input came from a channel receipt and carries its prefix, only on the current version, pending suggestion or settings review, only on an open request, and once; `list_host_requests` in setup, on the web too | A read-back confirmation before each decision, which D23 rejected for approval | Proposal; design 1 | `lib/server/host-review-tools.ts`, `lib/server/setup-channel-tools.ts`, `agent/tools/request.ts` and `setup.ts`, `agent/instructions/host-imessage.ts` |
+| D2 | Exact commands keep working before any model turn, unadvertised | Forwarding typed command words to Thyme, which would break reply buttons, the Telegram menu and the selection `setup` and `request <ref>` record | Proposal; design 2 | `parseCommand` and `executeCommand` in `lib/server/imessage-commands.ts` |
+| D3 | No fixed reply, help, summary or settings review names a command; each says what to tell Thyme or points to the browser, and unlinking points to **Unlink** in `/app` while `stop` still works | Keeping the commands in the replies beside the words | Proposal; design 3 | `lib/server/channel-texts.ts` |
+| D4 | Fixed replies, host notices and button titles in English and Korean: Hangul is Korean, other letters English, and a command, tap or notice follows the host's latest message to Thyme | Handing every fixed reply to Thyme, a model turn per tap that cannot carry buttons | Proposal; design 4 | `lib/server/channel-language.ts`, `channel-texts.ts` |
+| D5 | A sender with several conversations and no current choice reaches the one their words name (saying they are the host, or a guest request's reference or host's name as a whole word); a role mentioned in passing names nothing; otherwise the question names each conversation, in the message's language | Forwarding to the host's own conversation by default; a model call to classify the message before routing | Proposal; design 5 | `namedConversation` and `processReceipt` in `lib/server/imessage-receipts.ts` |
+
 ## `agent-decisions-in-words`
 
 The [proposal](../../openspec/changes/agent-decisions-in-words/proposal.md#decisions) records D1–D4, taken on 2026-11-04 in the session that wrote the change, from the user's decision that natural language works everywhere, agents included (issue #149). They reverse `agent-access` D9 and amend the wording of its D3 for `host:decide`. They have had no teammate review yet.

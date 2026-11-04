@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { HELP_TEXT, requestRef, settingsRef, STOP_TEXTS, TELEGRAM_HELP_TEXT } from "../../lib/server/imessage-commands";
+import { helpText, requestRef, settingsRef, STOP_TEXTS } from "../../lib/server/imessage-commands";
 import { CHANNEL_TEXTS } from "../../lib/server/imessage-receipts";
 import { recordOutbound } from "../../lib/server/imessage-outbox";
 import { computeSetupProposal } from "../../lib/server/setup";
@@ -69,9 +69,9 @@ describe("commands on Telegram", () => {
 
     await tg.deliver(telegramMessage({ text: "/help", userId }));
     const [help] = sentTexts(await tg.flush(userId));
-    expect(help).toBe(TELEGRAM_HELP_TEXT);
-    expect(help).toContain("Or tap Approve, Decline or Show details under a proposal.");
-    expect(help).not.toBe(HELP_TEXT);
+    expect(help).toBe(helpText("http://localhost:3000", "en", true));
+    expect(help).toContain("You can also tap Approve, Decline or Show details under a proposal.");
+    expect(help).not.toBe(helpText("http://localhost:3000", "en"));
   });
 
   it("ends the binding on stop and on /stop, suppressing what was queued", async () => {
@@ -155,7 +155,7 @@ describe("setup over Telegram", () => {
     const { userId } = host;
 
     await tg.deliver(telegramMessage({ text: "/setup", userId }));
-    expect(sentTexts(await tg.flush(userId))[0]).toContain("Setup selected.");
+    expect(sentTexts(await tg.flush(userId))[0]).toContain("We're now talking about your setup.");
 
     expect((await tg.deliver(telegramMessage({ text: "Thirty-minute meetings, please", userId }))).outcome).toBe("forwarded");
     const [input] = await im.inputsOf(host.hostAccountId);
@@ -196,7 +196,7 @@ describe("setup over Telegram", () => {
 
     await tg.deliver(telegramMessage({ text: "/review", userId: host.userId }));
     const [review] = (await tg.flush(host.userId)).filter((call) => call.method === "sendMessage");
-    expect(review!.params.text).toContain(`confirm ${ref}`);
+    expect(review!.params.text).toContain("If these look right, tell me to save them.");
     expect(review!.params.reply_markup).toEqual({ inline_keyboard: [[{ callback_data: `c:${ref}`, text: "Confirm settings" }]] });
 
     expect((await tg.deliver(telegramCallback({ data: `c:${ref}`, userId: host.userId }))).outcome).toBe("command");
