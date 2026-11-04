@@ -67,7 +67,7 @@ The text is short: what happened, the time with its named timezone, and what to 
 
 **Context (D6).** The revised discussion starts with an authored application message, shown as a quiet note like the pre-D13 intake summary. It gives the earlier request's purpose and details and lists the times proposed before and says whether "the host declined" (with the declined time), "the request expired" or "you withdrew it". It never includes the host's notes, rules, exception reasons or private discussion. The guest's message follows as the first input, so the assistant asks for new times.
 
-**Host view.** `/app` and the host's iMessage summary for the new request say that it follows their earlier decline, the earlier request's expiry or the guest's withdrawal, with the earlier request's reference.
+**Host view.** `/app` and the host's iMessage summary (since 2026-11-04 the awaiting-approval summary, `host-imessage-channel` D24) say that it follows their earlier decline, the earlier request's expiry or the guest's withdrawal, with the earlier request's reference.
 
 Rejected: reopening the closed request (breaks the closure guard and replay safety). Copying the earlier times (they failed or lapsed). One revised request per first request (a guest could not try again after a second decline). A per-minute limit (the predecessor's closure already paces creation).
 

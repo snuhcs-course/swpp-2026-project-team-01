@@ -220,6 +220,10 @@ Decided by the team on 2026-11-04 (issue #88), replacing the rule that free text
 - **Instructions.** The iMessage and WhatsApp fragment tells the assistant to read the request, approve only clear approval, never a change, a condition, a question or anything that could mean another proposal, and to say what was approved; the host-review fragment keeps the web rule.
 - **Risk accepted.** The team chose this over a read-back confirmation. A misread approves the current proposal, the booking starts at once and Google Calendar receives the event; there is no undo besides cancelling the event. Evaluating misreads needs the frozen AI evaluation set (Iteration 3).
 
+### 20. The host hears once a time is agreed (D24)
+
+Decided by the user on 2026-11-04 (issue #122). `identifyDraft` (`lib/server/request-start.ts`) and the revised-request path (`lib/server/revised-requests.ts`) no longer queue a `new_request` host notice. The guest gathers details and is offered candidate times by the assistant as before; when the guest agrees to one, the existing `awaiting_approval` notice is the host's first message about the request. Its text adds the sentence the arrival notice used to carry when the request follows an earlier one ("It follows your decline of request …" or "… which expired"), and it selects the request as design 19 describes. `/app` still lists every request as it arrives. The `new_request` case stays in the notice job so a notice queued before the deploy still reads.
+
 ## Risks / Trade-offs
 
 - **Device behavior partly verified.** On 2026-10-23, on the user's iPhone and Mac with the `fmat-spike` line and a local receiver (tasks 7.3 and 8.3): Messages opened with the line and the body filled in from the landing on iOS Safari and on the Mac, the sent code turned the page to received, and the welcome and the next setup question arrived after a reply. Still verified only against documentation and a stand-in: the QR code on an iPhone camera, Google sign-in from a phone (a local run has no callback the phone can reach) and any production run. The join's device steps must pass before any claim of an iMessage pass.
