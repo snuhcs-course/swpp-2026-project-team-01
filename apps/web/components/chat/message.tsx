@@ -76,8 +76,8 @@ export function AgentMessage({
         <Message align="end">
           <MessageContent>
             <p className="sr-only">You</p>
-            <Bubble align="end" className="max-w-[85%]" variant="muted">
-              <BubbleContent className="rounded-xl text-base leading-[1.65]">{parts}</BubbleContent>
+            <Bubble align="end" className="max-w-[85%]" variant="me">
+              <BubbleContent className="rounded-2xl rounded-br-[6px] px-4 text-base leading-[1.55]">{parts}</BubbleContent>
             </Bubble>
           </MessageContent>
         </Message>
@@ -621,7 +621,7 @@ function InputRequestActions({
 
   if (inputResponse) {
     return (
-      <div className="rounded-md border border-border bg-background px-3 py-2 text-sm">
+      <div className="rounded-xl bg-secondary px-3 py-2 text-sm">
         <span className="text-muted-foreground">Responded: </span>
         <span className="font-medium">
           {selectedOption?.label ?? inputResponse.text ?? inputResponse.optionId}
@@ -640,7 +640,7 @@ function InputRequestActions({
   };
 
   return (
-    <div className="space-y-3 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+    <div className="space-y-3 rounded-xl bg-[color-mix(in_srgb,var(--warning)_8%,var(--surface))] p-3">
       <p className="text-sm text-muted-foreground">{inputRequest.prompt}</p>
       {inputRequest.options?.length ? (
         <div className="flex flex-wrap gap-2">

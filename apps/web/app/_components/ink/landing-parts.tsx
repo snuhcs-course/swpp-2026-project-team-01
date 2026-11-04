@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { CopyButton } from "./chrome";
 import { COPY, type ExampleRow, type Locale } from "./copy";
-import { Avatar, Chevron, GoogleLogo } from "./icons";
+import { GoogleLogo } from "./icons";
 
-// The landing's interactive parts, from the landing redesign's components/thyme: the Google start, the agent
-// prompt and the example threads.
+// The landing's interactive parts: the Google start, the agent section and the live example conversation.
 
-// Sign-in always returns to /app, and the same Google consent also grants Calendar access (main's default).
+// Sign-in always returns to /app, and the same Google consent also grants Calendar access (main's default). The
+// iMessage start's handoff screen reuses it.
 export function GoogleStart({ locale }: { readonly locale: Locale }) {
   const t = COPY[locale].landing;
   return (
@@ -19,136 +19,170 @@ export function GoogleStart({ locale }: { readonly locale: Locale }) {
   );
 }
 
-// Second way in: one line the host pastes into the AI agent they already use. It reads like a code block and
-// scrolls inside its box once it passes about eight lines. It is also the landing's visible agent section,
-// linking /SKILL.md (public-agent-entry: entry discovery).
-export function AgentPrompt({ locale }: { readonly locale: Locale }) {
+// Second way in: one line the host pastes into the AI agent they already use. It is also the landing's visible
+// agent section, linking /SKILL.md (public-agent-entry: entry discovery).
+export function AgentSection({ locale }: { readonly locale: Locale }) {
   const t = COPY[locale];
-  const body = useRef<HTMLPreElement>(null);
+  const body = useRef<HTMLElement>(null);
   return (
-    <section aria-label={t.landing.agentRegion} className="agent-start">
-      <p className="or">{t.landing.agentOr}</p>
-      <div className="prompt">
-        <div className="prompt-head">
-          <span className="prompt-label">prompt</span>
-          <CopyButton className="prompt-copy" fallbackTarget={body} labels={t.copy} text={t.landing.agentPrompt} />
+    <section aria-label={t.landing.agentRegion} className="ld-agent" id="agent">
+      <div className="ld-agent-inner">
+        <div className="ld-agent-say">
+          <h2>{t.landing.agentOr}</h2>
+          <p>{t.landing.agentNote}</p>
         </div>
-        <pre aria-label={t.landing.agentLabel} className="prompt-body" ref={body} tabIndex={0}>
-          {t.landing.agentPrompt}
-        </pre>
+        <div className="ld-agent-do">
+          <div className="ld-prompt">
+            <code aria-label={t.landing.agentLabel} ref={body} tabIndex={0}>
+              {t.landing.agentPrompt}
+            </code>
+            <CopyButton className="ld-copy" fallbackTarget={body} labels={t.copy} text={t.landing.agentPrompt} />
+          </div>
+          <p className="ld-agent-doc">
+            {t.landing.agentDoc}{" "}
+            <a href="/SKILL.md">
+              <code>/SKILL.md</code>
+            </a>
+          </p>
+        </div>
       </div>
-      <p className="agent-note">
-        {t.landing.agentNote} {t.landing.agentDoc} <a href="/SKILL.md">/SKILL.md</a>
-      </p>
     </section>
   );
 }
 
-// A tap in the right strip of the row (where the next card peeks in) goes forward, the left strip goes back.
-const EDGE = 0.15;
+// How long a line stays before the next one arrives: enough to read it.
+function readTime(rows: readonly ExampleRow[]) {
+  const length = rows.reduce((sum, row) => sum + (typeof row === "string" ? row.length : row.name.length + row.rest.length), 0);
+  return Math.min(2600, 700 + length * 22);
+}
 
-// Example conversations with Thyme. All names, companies and numbers are made up. PC shows the last thread
-// only; at phone width every thread is a card that swipes sideways.
-export function ExampleCards({ locale }: { readonly locale: Locale }) {
-  const copy = COPY[locale].examples;
-  const threads = copy.threads;
-  const cards = useRef<HTMLDivElement>(null);
-  const [current, setCurrent] = useState(0);
-  const last = threads.length - 1;
-
-  function slideLeft(i: number) {
-    const row = cards.current!;
-    const slide = row.children[i] as HTMLElement;
-    return slide.offsetLeft - parseFloat(getComputedStyle(row).paddingLeft);
-  }
-  function show(i: number) {
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    cards.current!.scrollTo({ behavior: reduced ? "auto" : "smooth", left: slideLeft(i) });
-  }
+// Example conversations with Thyme, each under a line naming what it shows, played one line at a time: Thyme's lines come after a typing mark, the host's
+// after a pause, and the next thread follows a few seconds after the last line. It holds still while hovered,
+// focused or off screen; with reduced motion every thread shows whole and only the marks below change it. The
+// server renders each thread's first line. All names, companies and numbers are made up.
+export function LiveThread({ locale }: { readonly locale: Locale }) {
+  const ex = COPY[locale].examples;
+  const threads = ex.threads;
+  const box = useRef<HTMLElement>(null);
+  const [at, setAt] = useState(0);
+  const [shown, setShown] = useState(1);
+  const [typing, setTyping] = useState(false);
+  const [held, setHeld] = useState(false);
+  const [away, setAway] = useState(false);
+  const [still, setStill] = useState(false);
+  const thread = threads[at]!;
 
   useEffect(() => {
-    const row = cards.current!;
-    let frame = 0;
-    function mark() {
-      let nearest = 0;
-      for (let i = 1; i <= last; i += 1) {
-        if (Math.abs(slideLeft(i) - row.scrollLeft) < Math.abs(slideLeft(nearest) - row.scrollLeft)) nearest = i;
-      }
-      // The last card can't reach the left edge, so the end of the scroll counts as the last card.
-      if (row.scrollLeft >= row.scrollWidth - row.clientWidth - 2) nearest = last;
-      setCurrent(nearest);
-    }
-    function onScroll() {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(mark);
-    }
-    row.addEventListener("scroll", onScroll);
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setStill(query.matches);
+    update();
+    query.addEventListener("change", update);
+    const seen = new IntersectionObserver(([entry]) => setAway(!entry!.isIntersecting));
+    seen.observe(box.current!);
     return () => {
-      row.removeEventListener("scroll", onScroll);
-      cancelAnimationFrame(frame);
+      query.removeEventListener("change", update);
+      seen.disconnect();
     };
-  }, [last]);
+  }, []);
 
-  // A swipe makes no click, so this only reacts to taps.
-  function onRowClick(event: React.MouseEvent<HTMLDivElement>) {
-    const box = event.currentTarget.getBoundingClientRect();
-    const x = (event.clientX - box.left) / box.width;
-    if (x > 1 - EDGE && current < last) show(current + 1);
-    else if (x < EDGE && current > 0) show(current - 1);
+  useEffect(() => {
+    if (still || held || away) return;
+    const lines = thread.lines;
+    let typed: ReturnType<typeof setTimeout> | undefined;
+    const wait = setTimeout(
+      () => {
+        if (shown >= lines.length) {
+          // the next thread opens on its first line, so the page is never empty
+          setAt((a) => (a + 1) % threads.length);
+          setShown(1);
+        } else if (lines[shown]!.who === "thyme") {
+          setTyping(true);
+          typed = setTimeout(() => {
+            setTyping(false);
+            setShown((s) => s + 1);
+          }, 1100);
+        } else {
+          setShown((s) => s + 1);
+        }
+      },
+      shown >= lines.length ? 4200 : readTime(lines[shown - 1]!.rows),
+    );
+    return () => {
+      clearTimeout(wait);
+      clearTimeout(typed);
+      setTyping(false);
+    };
+  }, [at, shown, still, held, away, thread, threads.length]);
+
+  function jump(i: number) {
+    setAt(i);
+    setShown(threads[i]!.lines.length);
   }
 
+  const visible = still ? thread.lines.length : shown;
   return (
-    <figure className="scene">
-      <div className="cards-wrap">
-        {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- edge taps are a shortcut; the dots below are the keyboard way */}
-        <div aria-label={copy.label} aria-roledescription="carousel" className="cards" onClick={onRowClick} ref={cards} role="region" tabIndex={0}>
-          {threads.map((thread, i) => (
-            <div aria-label={copy.slide(i + 1, threads.length)} aria-roledescription="slide" className={thread.alt ? "thread alt" : "thread"} key={i} role="group">
-              <div className="thread-head">
-                <Avatar />
-                <div>
-                  <strong>Thyme</strong>
-                  <span className="sub">{copy.channel}</span>
-                </div>
-                {thread.tag ? <span className="thread-tag">{thread.tag}</span> : null}
-              </div>
-              <ol className="msgs">
-                <li className="stamp">{thread.stamp}</li>
-                {thread.lines.map((line, j) => (
-                  <li className={`bubble ${line.who}${line.more ? " more" : ""}`} key={j}>
-                    {line.rows.length === 1 ? (
-                      <Row row={line.rows[0]!} />
-                    ) : (
-                      line.rows.map((row, k) => (
-                        <span className="row" key={k}>
-                          <Row row={row} />
-                        </span>
-                      ))
-                    )}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          ))}
-        </div>
-        {/* bare marks only; they take no taps, so a swipe that starts on them still scrolls the row */}
-        <span aria-hidden="true" className="card-arrow prev" hidden={current === 0}>
-          <Chevron direction="prev" />
+    <figure
+      aria-label={ex.label}
+      className="ld-live"
+      onBlur={() => setHeld(false)}
+      onFocus={() => setHeld(true)}
+      onMouseEnter={() => setHeld(true)}
+      onMouseLeave={() => setHeld(false)}
+      ref={box}
+    >
+      <figcaption className="ld-caption" key={`caption-${at}`}>
+        {ex.captions[at]}
+      </figcaption>
+      <div className="ld-live-head">
+        <span aria-hidden="true" className="ld-avatar">
+          T
         </span>
-        <span aria-hidden="true" className="card-arrow next" hidden={current === last}>
-          <Chevron direction="next" />
+        <span className="ld-who">
+          <strong>Thyme</strong>
+          <span>{ex.channel}</span>
         </span>
+        {thread.tag ? <span className="ld-live-tag">{thread.tag}</span> : null}
       </div>
-      <div aria-label={copy.choose} className="card-dots" role="group">
+      <ol className="ld-msgs" key={at}>
+        <li className="ld-stamp">{thread.stamp}</li>
+        {thread.lines.slice(0, visible).map((line, j) => (
+          <li className={`ld-b ${line.who}`} key={j}>
+            <Lines rows={line.rows} />
+          </li>
+        ))}
+        {typing ? (
+          <li aria-hidden="true" className="ld-b thyme ld-typing">
+            <span />
+            <span />
+            <span />
+          </li>
+        ) : null}
+      </ol>
+      <div aria-label={ex.choose} className="ld-ticks" role="group">
         {threads.map((_, i) => (
-          <button aria-current={i === current ? "true" : undefined} aria-label={copy.dot(i + 1, threads.length)} key={i} onClick={() => show(i)} type="button" />
+          <button aria-current={i === at ? "true" : undefined} aria-label={ex.dot(i + 1, threads.length)} key={i} onClick={() => jump(i)} type="button">
+            <span />
+          </button>
         ))}
       </div>
     </figure>
   );
 }
 
-// A plain line, or a bulleted line that starts with a bold name.
+// A bubble's rows: one plain line, or several, some a bulleted line that starts with a bold name.
+function Lines({ rows }: { readonly rows: readonly ExampleRow[] }) {
+  if (rows.length === 1) return <Row row={rows[0]!} />;
+  return (
+    <>
+      {rows.map((row, k) => (
+        <span className="ld-row" key={k}>
+          <Row row={row} />
+        </span>
+      ))}
+    </>
+  );
+}
+
 function Row({ row }: { readonly row: ExampleRow }) {
   return typeof row === "string" ? (
     <>{row}</>

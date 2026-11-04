@@ -77,7 +77,7 @@ export function SetupCard({
     <section
       aria-labelledby={cardHeadingId(id)}
       className={cn(
-        "setup-card-enter relative flex min-w-0 scroll-mt-4 scroll-mb-4 flex-col overflow-hidden rounded-xl border border-border bg-card px-4 py-3 text-sm text-card-foreground",
+        "setup-card-enter relative flex min-w-0 scroll-mt-4 scroll-mb-4 flex-col overflow-hidden rounded-3xl bg-card px-5 py-4 text-sm text-card-foreground",
         scroll && "max-h-[var(--setup-card-room,calc(100dvh-16rem))] pb-0",
         className,
       )}
@@ -92,7 +92,7 @@ export function SetupCard({
         </h3>
         {description ? <div className="text-sm text-muted-foreground">{description}</div> : null}
       </div>
-      <div className={cn("flex min-w-0 flex-col gap-3 pt-2.5", scroll && "-mx-4 min-h-0 overflow-y-auto px-4")}>
+      <div className={cn("flex min-w-0 flex-col gap-3 pt-2.5", scroll && "-mx-5 min-h-0 overflow-y-auto px-5")}>
         <CardNotice anchor={id} />
         {children}
       </div>
@@ -100,7 +100,7 @@ export function SetupCard({
   );
 }
 
-export const HEADING_CLASS = "text-base leading-snug font-semibold text-foreground outline-none";
+export const HEADING_CLASS = "font-display text-[26px] leading-[1.15] text-foreground outline-none";
 
 // How far along setup this card is, as a hairline across its top edge. The
 // step label carries the same information as text.
@@ -179,7 +179,7 @@ export function CardActions({
     <div
       className={cn(
         "flex flex-wrap items-center gap-2",
-        sticky && "sticky bottom-0 z-10 -mx-4 mt-auto border-t border-border bg-card px-4 py-3",
+        sticky && "sticky bottom-0 z-10 -mx-5 mt-auto bg-card px-5 py-3",
         className,
       )}
     >
