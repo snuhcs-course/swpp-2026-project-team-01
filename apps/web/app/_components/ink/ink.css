@@ -291,7 +291,9 @@
 .ink .im-glyph svg { display: block; }
 /* WhatsApp's green, for controls that open WhatsApp and the message as WhatsApp shows it */
 .ink .wa-glyph { background: linear-gradient(180deg, #5FFC7B 0%, #28D146 100%); }
+.ink .tg-glyph { background: linear-gradient(180deg, #37AEE2 0%, #1E96C8 100%); }
 .ink .blue.wa { background: #008069; }
+.ink .blue.tg { background: #2AABEE; }
 /* the app question on the link step: two equal choices */
 .ink .choices { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
 .ink .choices > * { flex: 1 1 160px; min-height: 48px; }

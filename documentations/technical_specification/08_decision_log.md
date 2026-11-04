@@ -548,7 +548,7 @@ These steps were not taken because they change a provider console, message a per
 
 ## Phase 10 — `host-telegram-channel`
 
-The [proposal](../../openspec/changes/host-telegram-channel/proposal.md#decisions) records D1–D13. On 2026-11-04 the user created the bot `@findmeatime_bot` and asked for the host channel to be set up on Telegram. The session that wrote the change took D1–D13 the same day. They are proposals awaiting teammate review. Lane A (tasks 2.1 to 2.4) implements the webhook, the records and the Bot API transport at the user's request before that review, and Lane B (task 3.1) links a Telegram sender; the linking screens (task 3.2) and the channel's behavior (Lane C) are not implemented yet. Tracking issue: #111.
+The [proposal](../../openspec/changes/host-telegram-channel/proposal.md#decisions) records D1–D13. On 2026-11-04 the user created the bot `@findmeatime_bot` and asked for the host channel to be set up on Telegram. The session that wrote the change took D1–D13 the same day. They are proposals awaiting teammate review. Lane A (tasks 2.1 to 2.4) implements the webhook, the records and the Bot API transport at the user's request before that review, and Lane B (tasks 3.1 and 3.2) links a Telegram sender from the card, the link step and `/?flow=telegram`; the channel's behavior (Lane C) is not implemented yet. Tracking issue: #111.
 
 **What came before.** On 2026-11-03 Meta disabled the WhatsApp Business Account of Phase 9 for a "breach of terms of acceptable use", before it sent any message; on 2026-11-04 `PHOTON_WHATSAPP_NUMBER` was removed from production at the user's request, so the card offers iMessage only ([provider setup](03_provider_setup.md#whatsapp-business), PR #110).
 
@@ -605,7 +605,7 @@ Taken on 2026-11-04 while implementing tasks 2.1 to 2.4, before the teammate rev
 
 ### Lane B implementation decisions
 
-Taken on 2026-11-04 while implementing task 3.1, before the teammate review of D1–D13, at the user's request. None has had teammate review yet.
+Taken on 2026-11-04 while implementing tasks 3.1 and 3.2, before the teammate review of D1–D13, at the user's request. None has had teammate review yet.
 
 | Decision | Choice | Alternatives | Recorded in | To change it |
 |---|---|---|---|---|
@@ -616,6 +616,10 @@ Taken on 2026-11-04 while implementing task 3.1, before the teammate review of D
 | A Telegram attempt in the status (task 3.1) | `lineNumber` is the bot's username and `message` the bare code, from which the screens build the `t.me` link; the sender is the Telegram name, or "your Telegram account" when Telegram gave neither name nor username. `LinkChannels` gains `telegram` (the username, from `TELEGRAM_BOT_USERNAME`) | A separate Telegram status shape | `lib/contracts/imessage.ts`, `attemptMessage` and `shownSender` in `imessage-links.ts` | Those files |
 | The routing hook for Lane C (task 3.1) | `processReceipt` sends a Telegram receipt to `telegramLinking` first and records anything else as `ignored` until Lane C replaces that line. `openReceipt` opens the Telegram envelope into `text` and `OpenedReceipt.telegram`. `MessagingChannel` includes `telegram`, and `StoredChannel` stays as its alias | A separate Telegram receipt job | `lib/server/imessage-receipts.ts`, `lib/contracts/messaging-channel.ts` | Tasks 4.1 and 4.2 |
 | Generating the migration (task 3.1) | Supabase CLI 2.122.0, as for Lane A; the output adds two columns, one function, two triggers and two checks | A hand-written migration | The migration | — |
+| The device rule's shape (task 3.2) | `deviceKind` (`android`, `apple`, `other`) replaces `channelOffer`; `shownChannel` takes the configured channels and the host's choice; `switchChannels` returns every switch a device may make, so an iPhone shows **Use Telegram instead** and **Use WhatsApp instead** side by side as quiet actions; `askChannels` lists the configured channels for the question. A deployment whose only channel a device would not be offered still shows it, as before | Keeping one "other channel" per device, which cannot offer two switches | `lib/contracts/messaging-channel.ts` | That file |
+| The Telegram code on the screens (task 3.2) | The card has its own Telegram state: the bot, the code, **Open Telegram** on every device (Telegram Desktop or Telegram Web on a computer), **Copy** of the `t.me` link and, on a computer, its QR code. The ink panel's preview shows the `/start <code>` that **Start** sends, its copy rows hold the link and the code, and its middle way opens Telegram on every computer | Copying only the code, which needs the host to find the bot first | `imessage-card.tsx`, `ink/send.tsx` | Those files |
+| Words (task 3.2) | A `tg` overlay in `ink/copy.ts` beside `wa`, in English and Korean, with the privacy sentence of design 11 and "This replaces your Telegram link." in the base words; a Telegram glyph on Telegram's blue | Reusing the WhatsApp words | `apps/web/app/_components/ink/copy.ts`, `icons.tsx` | Those files |
+| Testing "without WhatsApp" (task 3.2) | Playwright sets `TELEGRAM_BOT_USERNAME`; the runs without WhatsApp hide the WhatsApp number in the statuses the browser reads (a route that rewrites `channels.whatsapp`), since one web service serves the whole run. The WhatsApp suite now expects **Use Telegram instead** on Android | A second web service without `PHOTON_WHATSAPP_NUMBER` | `tests/e2e/telegram-link.test.ts`, `playwright.config.ts` | Those files |
 
 ### Blocked on the user
 

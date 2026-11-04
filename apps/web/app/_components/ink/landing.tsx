@@ -5,7 +5,7 @@ import { ImessageStart, ImessageStartBlock } from "./imessage-start";
 import { AgentPrompt, ExampleCards, GoogleStart } from "./landing-parts";
 
 // The public landing (from the landing redesign's app/(site)/page.tsx). Two starts: Google first (/), and
-// a messaging app first (/?flow=imessage or /?flow=whatsapp), where the visitor sends Thyme the link message
+// a messaging app first (/?flow=imessage, /?flow=whatsapp or /?flow=telegram), where the visitor sends Thyme the link message
 // before signing in. Both offer the agent prompt underneath.
 export function Landing({ flow, locale }: { readonly flow: MessagingChannel | null; readonly locale: Locale }) {
   const t = COPY[locale].landing;

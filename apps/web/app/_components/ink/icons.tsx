@@ -101,9 +101,22 @@ export function WhatsAppGlyph() {
   );
 }
 
+// A paper plane on Telegram's blue: the control opens Telegram.
+export function TelegramGlyph() {
+  return (
+    <span aria-hidden="true" className="im-glyph tg-glyph">
+      <svg height="14" viewBox="0 0 14 14" width="14">
+        <path d="M1.6 6.6 11.9 2.4c.5-.2.9.1.8.7l-1.8 8.2c-.1.5-.6.7-1 .4L7.2 9.8 5.9 11c-.2.2-.5.1-.5-.2V8.9l4.3-4.1L4.3 8.2 1.7 7.4c-.5-.2-.5-.6-.1-.8z" fill="currentColor" />
+      </svg>
+    </span>
+  );
+}
+
 // The glyph of the app a control opens.
 export function AppGlyph({ channel }: { readonly channel: MessagingChannel }) {
-  return channel === "whatsapp" ? <WhatsAppGlyph /> : <MessagesGlyph />;
+  if (channel === "whatsapp") return <WhatsAppGlyph />;
+  if (channel === "telegram") return <TelegramGlyph />;
+  return <MessagesGlyph />;
 }
 
 // A ring that spins while waiting, then closes into a filled circle and draws a check or a cross. Decorative:

@@ -549,7 +549,7 @@
 
 ## 10단계 — `host-telegram-channel`
 
-[제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 2026-11-04에 사용자가 봇 `@findmeatime_bot`을 만들고 호스트 채널을 Telegram에 구성해 달라고 요청했습니다. 이 변경을 작성한 세션은 같은 날 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안입니다. 레인 A(작업 2.1–2.4)는 그 검토에 앞서 사용자의 요청으로 웹훅, 레코드, Bot API 전송을 구현하고, 레인 B(작업 3.1)는 Telegram 보낸 사람을 연결합니다. 연결 화면(작업 3.2)과 채널의 동작(레인 C)은 아직 구현되지 않았습니다. 추적 이슈: #111.
+[제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 2026-11-04에 사용자가 봇 `@findmeatime_bot`을 만들고 호스트 채널을 Telegram에 구성해 달라고 요청했습니다. 이 변경을 작성한 세션은 같은 날 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안입니다. 레인 A(작업 2.1–2.4)는 그 검토에 앞서 사용자의 요청으로 웹훅, 레코드, Bot API 전송을 구현하고, 레인 B(작업 3.1과 3.2)는 카드, 연동 단계, `/?flow=telegram`에서 Telegram 보낸 사람을 연결합니다. 채널의 동작(레인 C)은 아직 구현되지 않았습니다. 추적 이슈: #111.
 
 **이전 경위.** 2026-11-03에 Meta가 9단계의 WhatsApp Business 계정을 "허용되는 사용 정책 위반"을 이유로 메시지를 한 건도 보내기 전에 비활성화했고, 2026-11-04에 사용자의 요청으로 프로덕션에서 `PHOTON_WHATSAPP_NUMBER`를 제거했으므로 카드는 iMessage만 제공합니다([제공자 설정](03_provider_setup.md#whatsapp-business), PR #110).
 
@@ -606,7 +606,7 @@
 
 ### 레인 B 구현 결정
 
-2026-11-04에 작업 3.1을 구현하면서, D1–D13에 대한 팀원 검토에 앞서 사용자의 요청으로 내린 결정입니다. 아직 팀원 검토를 받은 것은 없습니다.
+2026-11-04에 작업 3.1과 3.2를 구현하면서, D1–D13에 대한 팀원 검토에 앞서 사용자의 요청으로 내린 결정입니다. 아직 팀원 검토를 받은 것은 없습니다.
 
 | 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
@@ -617,6 +617,10 @@
 | 상태에 나타나는 Telegram 시도(작업 3.1) | `lineNumber`는 봇의 사용자 이름이고 `message`는 코드 그 자체이며, 화면이 여기서 `t.me` 링크를 만듭니다. 보낸 사람은 Telegram 이름이며, Telegram이 이름도 사용자 이름도 주지 않으면 "your Telegram account"입니다. `LinkChannels`에 `telegram`(`TELEGRAM_BOT_USERNAME`의 사용자 이름)이 추가됩니다 | 별도의 Telegram 상태 형태 | `lib/contracts/imessage.ts`, `imessage-links.ts`의 `attemptMessage`와 `shownSender` | 그 파일들 |
 | 레인 C를 위한 라우팅 훅(작업 3.1) | `processReceipt`는 Telegram 수신 기록을 먼저 `telegramLinking`으로 보내고, 그 밖의 것은 레인 C가 그 줄을 대체할 때까지 `ignored`로 기록합니다. `openReceipt`는 Telegram 봉투를 `text`와 `OpenedReceipt.telegram`으로 엽니다. `MessagingChannel`에 `telegram`이 포함되고 `StoredChannel`은 그 별칭으로 남습니다 | 별도의 Telegram 수신 기록 작업 | `lib/server/imessage-receipts.ts`, `lib/contracts/messaging-channel.ts` | 작업 4.1과 4.2 |
 | 마이그레이션 생성(작업 3.1) | 레인 A처럼 Supabase CLI 2.122.0; 결과물은 열 두 개, 함수 하나, 트리거 두 개, 검사 두 개를 추가합니다 | 손으로 쓴 마이그레이션 | 그 마이그레이션 | — |
+| 기기 규칙의 형태(작업 3.2) | `deviceKind`(`android`, `apple`, `other`)가 `channelOffer`를 대체합니다. `shownChannel`은 구성된 채널과 호스트의 선택을 받고, `switchChannels`는 기기가 할 수 있는 모든 전환을 반환하므로 iPhone은 **Use Telegram instead**와 **Use WhatsApp instead**를 조용한 동작으로 나란히 보여줍니다. `askChannels`는 질문에 쓸 구성된 채널을 나열합니다. 기기에 제안되지 않을 채널만 구성된 배포에서도 그 채널은 전과 같이 보입니다 | 기기마다 "다른 채널" 하나만 두기(전환 두 개를 제안할 수 없음) | `lib/contracts/messaging-channel.ts` | 그 파일 |
+| 화면의 Telegram 코드(작업 3.2) | 카드에는 자체 Telegram 상태가 있습니다. 봇, 코드, 모든 기기의 **Open Telegram**(컴퓨터에서는 Telegram Desktop 또는 Telegram Web), `t.me` 링크의 **Copy**, 컴퓨터에서는 그 QR 코드입니다. 잉크 패널의 미리보기는 **Start**가 보내는 `/start <code>`를 보여주고, 복사 행에는 링크와 코드가 들어가며, 가운데 방법은 모든 컴퓨터에서 Telegram을 엽니다 | 코드만 복사하기(호스트가 먼저 봇을 찾아야 함) | `imessage-card.tsx`, `ink/send.tsx` | 그 파일들 |
+| 문구(작업 3.2) | `ink/copy.ts`에 `wa` 옆으로 영어와 한국어의 `tg` 오버레이를 두고, 기본 문구에 설계 11의 프라이버시 문장과 "This replaces your Telegram link."를 넣습니다. Telegram의 파란색으로 된 Telegram 글리프를 씁니다 | WhatsApp 문구 재사용 | `apps/web/app/_components/ink/copy.ts`, `icons.tsx` | 그 파일들 |
+| "WhatsApp 없이" 테스트(작업 3.2) | Playwright가 `TELEGRAM_BOT_USERNAME`을 설정합니다. 웹 서비스 하나가 실행 전체를 담당하므로, WhatsApp 없는 실행은 브라우저가 읽는 상태에서 WhatsApp 번호를 숨깁니다(`channels.whatsapp`을 다시 쓰는 라우트). WhatsApp 테스트 묶음은 이제 Android에서 **Use Telegram instead**를 기대합니다 | `PHOTON_WHATSAPP_NUMBER`가 없는 두 번째 웹 서비스 | `tests/e2e/telegram-link.test.ts`, `playwright.config.ts` | 그 파일들 |
 
 ### 사용자 대기 항목
 

@@ -452,7 +452,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **레인 B — 브라우저에서의 연동**
 
-- [ ] `t.me` 시작 링크, QR 코드, **복사(Copy)**, Telegram 이름, **확인 및 연결(Confirm and link)**을 갖춘 **Telegram 연결(Connect Telegram)**; 세 채널에 걸친 기기 규칙; 교체 안내와 프라이버시 문장; 로그인 뒤의 연동 단계와 `/?flow=telegram`.
+- [x] `t.me` 시작 링크, QR 코드, **복사(Copy)**, Telegram 이름, **확인 및 연결(Confirm and link)**을 갖춘 **Telegram 연결(Connect Telegram)**; 세 채널에 걸친 기기 규칙; 교체 안내와 프라이버시 문장; 로그인 뒤의 연동 단계와 `/?flow=telegram`.
 
 **레인 C — 버튼, 부가 기능, 채널 동작**
 
