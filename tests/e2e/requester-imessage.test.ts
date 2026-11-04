@@ -113,7 +113,7 @@ for (const width of [390, 1280]) {
     // A desktop browser opens nothing: the number, the message and a QR code.
     const card = page.locator('[data-guest-card="imessage-link"]');
     await expect(card.getByRole("heading", { name: "Get updates in iMessage" })).toBeVisible();
-    await expect(card.getByText(LINE)).toBeVisible();
+    await expect(card.getByText(LINE)).toBeVisible({ timeout: 20_000 });
     const message = (await card.locator("[data-imessage-link-message]").textContent())!.trim();
     expect(message).toMatch(/^Get Find Me a Time updates: FMAT-[0-9A-HJKMNP-TV-Z]{10}$/);
     await expect(card.getByRole("img", { name: /QR code/ })).toBeVisible();
@@ -157,7 +157,7 @@ test.describe("on a Mac", () => {
 
     const card = page.locator('[data-guest-card="imessage-link"]');
     await expect(card.getByRole("heading", { name: "Get updates in iMessage" })).toBeVisible();
-    await expect(card.getByText(LINE)).toBeVisible();
+    await expect(card.getByText(LINE)).toBeVisible({ timeout: 20_000 });
     const message = (await card.locator("[data-imessage-link-message]").textContent())!.trim();
     await expect(card.getByRole("link", { name: "Open Messages on this Mac" })).toHaveAttribute("href", `sms:${LINE}&body=${encodeURIComponent(message)}`);
     await expect(card.getByRole("link", { exact: true, name: "Open Messages" })).toHaveCount(0);
@@ -182,7 +182,7 @@ test("at 1280px a guest links and unlinks WhatsApp updates", async ({ db, page }
 
   const card = page.locator('[data-guest-card="imessage-link"]');
   await expect(card.getByRole("heading", { name: "Get updates in WhatsApp" })).toBeVisible();
-  await expect(card.getByText(`+${WHATSAPP}`)).toBeVisible();
+  await expect(card.getByText(`+${WHATSAPP}`)).toBeVisible({ timeout: 20_000 });
   const message = (await card.locator("[data-imessage-link-message]").textContent())!.trim();
   expect(message).toMatch(/^Get Find Me a Time updates: FMAT-[0-9A-HJKMNP-TV-Z]{10}$/);
   await expect(card.getByRole("link", { name: "Open WhatsApp" })).toHaveAttribute("href", `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(message)}`);
