@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { approveCommand, BOOKING_PENDING_JOB, createBookingPendingHandler } from "../../lib/server/bookings";
-import { requestRef, reviewRef } from "../../lib/server/imessage-commands";
+import { reviewRef } from "../../lib/server/imessage-commands";
 import { createImessageNoticeHandler } from "../../lib/server/imessage-notice-job";
 import { enqueueHostNotice, IMESSAGE_NOTICE_JOB } from "../../lib/server/imessage-notices";
 import { publishJob } from "../../lib/server/jobs";
@@ -124,7 +124,7 @@ describe("host summaries", () => {
     expect((await noticesSent(request.hostAccountId, request.requestId))[0]).toContain("wasn't confirmed");
   });
 
-  it("announces a new request when the requester is identified", async () => {
+  it("tells the host nothing when the requester is identified, only once a time is agreed", async () => {
     const { hostAccountId } = await hostWithUser(db);
     await makeHostReady(db, hostAccountId);
     await im.link(hostAccountId);
@@ -134,8 +134,9 @@ describe("host summaries", () => {
       await identifyDraft(tx, request, { email: "grace@example.test", name: "Grace Hopper", timezone: "Asia/Seoul" }, { origin: "http://localhost:3000", tokenKey: testTokenKey });
       return id;
     });
-    const [text] = await noticesSent(hostAccountId, requestId);
-    expect(text).toBe(`New request ${requestRef(requestId)} from Grace Hopper. Send request ${requestRef(requestId)} to discuss it here.`);
+    // The guest is offered times first; the host hears at approval (#122).
+    expect(await db`select 1 from app.jobs where kind = ${IMESSAGE_NOTICE_JOB} and payload ->> 'requestId' = ${requestId}`).toHaveLength(0);
+    expect(await noticesSent(hostAccountId, requestId)).toEqual([]);
   });
 
   it("shows a failed summary on the web and leaves the request as it was", async () => {
