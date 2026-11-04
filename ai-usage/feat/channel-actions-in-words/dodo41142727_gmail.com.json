@@ -8,16 +8,16 @@
       "agent_ms": 0,
       "models": {
         "claude-opus-5-5": {
-          "input": 220,
-          "cache_read": 29360410,
+          "input": 240,
+          "cache_read": 32086010,
           "cache_write_5m": 0,
-          "cache_write_1h": 275070,
-          "output": 116666,
+          "cache_write_1h": 282458,
+          "output": 118424,
           "reasoning": 0
         }
       },
       "first": "2026-11-04T09:16:49.262Z",
-      "last": "2026-11-04T09:39:04.046Z"
+      "last": "2026-11-04T09:42:21.335Z"
     },
     "claude:05d89299-db84-4837-9c62-750fdca0457b/agent-a096b7fc4ffb08b5a": {
       "agent": "claude-code",
@@ -25,16 +25,16 @@
       "agent_ms": 0,
       "models": {
         "claude-sonnet-5-5": {
-          "input": 10,
-          "cache_read": 364006,
-          "cache_write_5m": 101212,
+          "input": 20,
+          "cache_read": 991544,
+          "cache_write_5m": 144896,
           "cache_write_1h": 0,
-          "output": 2001,
+          "output": 13568,
           "reasoning": 0
         }
       },
       "first": "2026-11-04T09:38:28.767Z",
-      "last": "2026-11-04T09:38:53.120Z"
+      "last": "2026-11-04T09:42:05.059Z"
     },
     "claude:05d89299-db84-4837-9c62-750fdca0457b/agent-a10d91e9f2dad7a91": {
       "agent": "claude-code",
@@ -76,16 +76,33 @@
       "agent_ms": 0,
       "models": {
         "claude-sonnet-5-5": {
-          "input": 10,
-          "cache_read": 394214,
-          "cache_write_5m": 63368,
+          "input": 22,
+          "cache_read": 1033688,
+          "cache_write_5m": 75758,
           "cache_write_1h": 0,
-          "output": 2162,
+          "output": 10841,
           "reasoning": 0
         }
       },
       "first": "2026-11-04T09:38:20.934Z",
-      "last": "2026-11-04T09:38:45.446Z"
+      "last": "2026-11-04T09:39:48.920Z"
+    },
+    "claude:05d89299-db84-4837-9c62-750fdca0457b/agent-aada2079f11a9cc4b": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 28,
+          "cache_read": 1710365,
+          "cache_write_5m": 156852,
+          "cache_write_1h": 0,
+          "output": 7600,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T09:39:42.733Z",
+      "last": "2026-11-04T09:41:59.437Z"
     }
   }
 }
