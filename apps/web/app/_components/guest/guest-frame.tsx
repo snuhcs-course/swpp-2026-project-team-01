@@ -39,12 +39,12 @@ export function RequestPanel({
     <div className="flex flex-col gap-4">
       <section className="flex flex-col gap-1">
         <p className="font-medium text-muted-foreground text-sm">Meeting request with</p>
-        <h2 className="break-words font-display text-[32px] leading-tight">{host.displayName}</h2>
+        <h2 className="break-words font-display text-[40px] leading-[1.05]">{host.displayName}</h2>
         {host.handle ? <p className="font-mono text-muted-foreground text-sm">@{host.handle}</p> : null}
       </section>
       {timezone}
-      {children ? <div className="flex flex-col gap-1 border-border border-t pt-3">{children}</div> : null}
-      <p className="border-border border-t pt-3 text-muted-foreground text-xs">{note}</p>
+      {children ? <div className="flex flex-col gap-1 rounded-2xl bg-card p-4">{children}</div> : null}
+      <p className="px-1 text-muted-foreground text-xs">{note}</p>
     </div>
   );
 }
@@ -82,7 +82,7 @@ export function GuestFrame({
           {aside && open ? (
             <aside
               aria-label={asideLabel}
-              className="absolute inset-y-0 right-0 z-20 w-full overflow-y-auto border-border bg-background px-5 pt-2 pb-6 shadow-lg sm:w-96 sm:border-l"
+              className="absolute inset-y-0 right-0 z-20 w-full overflow-y-auto bg-secondary px-5 pt-4 pb-6 shadow-[var(--float-shadow)] sm:w-96 sm:rounded-l-3xl"
               id="request-panel"
             >
               {aside}

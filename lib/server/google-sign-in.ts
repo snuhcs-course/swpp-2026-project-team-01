@@ -128,7 +128,7 @@ function recordedReturn(request: Request) {
 // `?consent=calendar` (Connect Google Calendar) asks Google to show the consent
 // screen again and keep earlier grants, so declined Calendar scopes can be granted
 // and a fresh refresh token comes back; any other value is ignored. `?calendar=0`
-// (the landing's Calendar box left unchecked, D18) asks for identity only;
+// asks for identity only (D18's landing Calendar box, removed on 2026-11-04);
 // setup's Connect Google Calendar card asks for Calendar later.
 export function createGoogleSignInHandler(load: () => GoogleSignInDependencies = dependenciesFromEnvironment) {
   return async (request: Request) => {

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 // instruction document here; the copy says that reading it grants nothing.
 export function AgentSection({ href, children }: { readonly href: string; readonly children: ReactNode }) {
   return (
-    <section aria-labelledby="agent-section-heading" className="rounded-xl border border-border bg-card p-6">
+    <section aria-labelledby="agent-section-heading" className="rounded-3xl bg-card p-6">
       <h2 className="font-semibold text-lg" id="agent-section-heading">
         For AI agents
       </h2>
