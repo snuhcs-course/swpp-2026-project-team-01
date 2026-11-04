@@ -149,7 +149,7 @@ function Open({ problem, view }: { readonly problem: string | null; readonly vie
 
       <p className="text-sm text-muted-foreground">
         {view.role === "host"
-          ? "Approving or declining a meeting always needs your own click in Find Me a Time. You can revoke this connection under Connected agents."
+          ? "The agent approves or declines a meeting only when you tell it to. You can revoke this connection under Connected agents."
           : "The host still has to approve the meeting. You can revoke this connection from your booking page."}
       </p>
 
