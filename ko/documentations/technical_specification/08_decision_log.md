@@ -158,7 +158,7 @@
 | D6 | Ed25519 JWT 액세스 토큰 10분; 사용 시 회전하는 불투명 리프레시 토큰 30일; 코드 60초; 키 `AGENT_TOKEN_SIGNING_KEY` | 불투명 액세스 토큰; RS256 | 제안서; 설계 5 | 제안서와 토큰 모듈의 토큰 수명 |
 | D7 | 동의 화면에서 시작한 로그인은 트랜잭션을 HTTP 전용 쿠키에 보관하며, 콜백은 살아 있는 트랜잭션일 때만 그곳으로 돌아가고 아니면 `/app`으로 갑니다 | `next` 쿼리 매개변수 | 제안서; 설계 7; `chat-workspaces` 델타 | 델타와 `google-sign-in.ts` |
 | D8 | `/connect/authorize`는 프로토콜 라우트이고 페이지는 `/connect/consent`입니다 | 라우트 핸들러가 HTML을 렌더링하는 단일 URL | 제안서; 설계 7; 페이지 목록 | 제안서와 라우트 |
-| D9 | 호스트의 승인과 거절에는 항상 `/app`에서의 호스트 클릭이 필요하며, 에이전트의 결정 도구는 검토 링크를 반환합니다 | 클라이언트의 엘리싯테이션으로 승인 | 제안서; 설계 4; `agent-interfaces` 델타 | 제안서와 호스트 결정 도구 |
+| D9 | 호스트의 승인과 거절에는 항상 `/app`에서의 호스트 클릭이 필요하며, 에이전트의 결정 도구는 검토 링크를 반환합니다. 2026-11-04에 [`agent-decisions-in-words`](#agent-decisions-in-words) D1–D2가 뒤집었습니다: 호스트의 에이전트가 호스트의 말에 따라 승인하고 거절합니다 | 클라이언트의 엘리싯테이션으로 승인 | 제안서; 설계 4; `agent-interfaces` 델타 | 제안서와 호스트 결정 도구 |
 | D10 | `request:decide`를 가진 요청자의 에이전트는 동의와 철회를 할 수 있습니다 | 동의는 요청자의 브라우저에서 | 제안서; 설계 4 | 제안서와 요청자 도구 |
 | D11 | 종료된 요청의 허가는 종료 상태와 영수증만 읽을 수 있고, 예약 링크의 종료 후 접근 수명이 끝날 때까지 그 용도로만 갱신됩니다 | 주 명세대로 종료 시 모든 접근 거부 | 제안서; 설계 5; `agent-client-authorization` 델타 | 델타와 허가 검사 |
 | D12 | 부트스트랩 허가는 24시간 유지됩니다. `create_request`는 요청 하나를 만들고 식별하며, 예약 링크를 이메일로 보내고, 같은 재시도 키에는 같은 요청을 반환하고 다른 키는 거부합니다. 생성은 동의한 브라우저의 출처 한도에 포함됩니다 | 동의 시점에 바인딩 | 제안서; 설계 8; `agent-client-authorization` 델타 "One future request grant" | 델타와 생성 모듈 |
@@ -702,3 +702,14 @@
 | 게스트 창의 시작 | 확인하면 호스트 바인딩처럼 바인딩의 `last_inbound_at`을 연결 메시지의 수신 시각으로 설정합니다. 수정된 요청으로 옮겨진 바인딩은 채널을 유지하고 이동 시점에 창을 시작하며, 이는 게스트의 메시지가 일으킵니다 | 게스트가 다시 쓸 때까지 null로 두기: 환영 메시지가 보류됨 | 설계 3 | `lib/server/requester-imessage-bindings.ts`의 `bindRequester`; `lib/server/revised-requests.ts`의 `moveChannel` |
 | 채널별로 보관하는 번호 | 연결 단계와 Connect 카드는 방문 동안 입력한 번호를 채널별로 보관하므로, 채널을 바꾸면 다시 묻습니다 | 두 채널에 번호 하나 | 설계 4 | `apps/web/app/_components/ink/link-step.tsx`, `imessage/imessage-card.tsx` |
 | 모호한 발신자 답장 | 여러 대화를 가진 발신자에게 선택을 요청하는 답장은 수신 기록의 채널로 나갑니다 | 기본 iMessage 채널: WhatsApp 발신자는 결코 받지 못함 | 설계 1 | `lib/server/imessage-receipts.ts`의 `processReceipt` |
+
+## `agent-decisions-in-words`
+
+[제안](../../openspec/changes/agent-decisions-in-words/proposal.md#decisions)은 D1–D4를 기록합니다. 자연어는 에이전트를 포함해 어디서나 통한다는 사용자의 결정(이슈 #149)에 따라 변경을 작성한 세션에서 2026-11-04에 정했습니다. 이는 `agent-access` D9를 뒤집고 `host:decide`에 대한 D3의 문구를 고칩니다. 아직 팀원의 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | `approve_proposal`과 `decline_request`가 `request_host_decision`을 대체하며, 웹 버튼의 `request.approve`와 `request.decline`을 명령의 가드(현재 합의된 버전, 열린 요청, 예상 개정, 승인된 버전당 예약 한 건)와 함께 `runAsGrant`로 실행합니다 | `request_host_decision`을 함께 유지; `decision` 필드가 있는 단일 `decide` 도구 | 제안; 설계 1; `agent-interfaces` 델타 "Host decisions in the host's words" | `lib/server/agent-host-tools.ts`의 `HOST_TOOLS` |
+| D2 | 필수인 `hostInstruction`(다듬은 뒤 1–500자, 저장하지 않음)이 호스트의 말을 전달하며, 두 도구 모두 `expectedRevision`이 필수입니다. 설명, 서버 지침, `/SKILL.md`는 호스트가 분명히 말할 때만, 에이전트의 판단이나 요청자의 말로는 결코, 조건을 붙여서도 결코 하지 말라고 안내합니다 | MCP 엘리싯테이션; 말을 저장; 불리언 `confirmed` | 제안; 설계 2 | `agent-host-tools.ts`의 `hostInstructionSchema`; `lib/server/agent-mcp.ts`의 `INSTRUCTIONS`; `lib/server/entry-documents.ts`의 `hostEntryDocument` |
+| D3 | `host:decide`가 두 도구를 허용하며, 동의 문구는 "에이전트에게 말할 때 요청을 승인하고 거절합니다"가 됩니다. 이 권한이 있는 기존 부여도 두 도구를 얻습니다 | 새 권한; 변경 이후에 만든 부여만 | 제안; 설계 3; `agent-client-authorization` 델타 "Role-bound permission scopes" | `lib/contracts/agent-access.ts`의 `SCOPE_DESCRIPTIONS`, 동의 페이지, `connected-agents.tsx` |
+| D4 | CLI는 `fmat call approve_proposal`과 `fmat call decline_request`로 이들에 닿으며, 새 하위 명령은 없습니다 | `fmat approve`와 `fmat decline` | 제안; 설계 4 | `cli/src/app.ts` |
