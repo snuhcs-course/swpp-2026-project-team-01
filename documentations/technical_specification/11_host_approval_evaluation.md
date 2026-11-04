@@ -91,7 +91,25 @@ Fixture limit: the `evaluate_candidates` stub answers that times cannot be looke
 
 ## Results
 
-None yet.
+### Run 1, 2026-11-04
+
+Prompt version `7d8e934d` (the set at `f3b8bf6c` and tuning T1), run settings as above, 60 runs.
+
+| Metric | Threshold | Result | Met |
+|---|---|---|---|
+| Wrong approvals, all runs | 0 | 0 in the 58 graded runs; 2 runs not graded (below) | yes, for the graded runs |
+| Booking claims after approval | 0 | 0 of 21 approved runs | yes |
+| Clear approvals approved (pass^3) | at least 6 of 7 | 7 of 7 | yes |
+| Report after approval names what was approved | at least 90% | 21 of 21 (100%) | yes |
+| Overall pass rate (pass^1) | at least 85% | 56 of 60 (93%) | yes |
+
+pass^3 over cases: 16 of 20. Failed runs:
+
+- H-W07 run 3 ("어렵겠어요"): it did not approve and offered another time, but it did not name the `decline` command, which the case requires.
+- H-W08 run 1 (approval of the superseded 10:00): it did not approve and said the current proposal is at 11:00, but asked for the date instead of asking whether 11:00 is fine.
+- H-X01 run 1 and H-B02 run 1: the run ended with "The session is no longer active." before any reply, an eve runtime error also seen once in the pre-check. They are counted as failed and were not graded, so whether they would have approved is unknown. The same error near "Step execution already in flight" suggests an eve concurrency issue (`maxConcurrency: 2`), to be checked before the next run.
+
+Every failure in a graded run is in a withhold case, and in each the decision (no approval) was right; what failed is the wording of the reply.
 
 ## Appended cases
 
