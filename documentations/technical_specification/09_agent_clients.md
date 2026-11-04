@@ -44,6 +44,6 @@ An unresolved client is a release blocker, as the [implementation plan](06_imple
 
 - The agent finds the instructions from the plain URL; if it cannot, the run repeats with the explicit `/SKILL.md` form and records that.
 - Connecting shows the consent page with the client's name and redirect host; **Deny** leaves nothing connected.
-- Host role: the agent reads setup and requests, cannot see another host's request, and for a decision gives the host the `/app` review link instead of approving.
+- Host role: the agent reads setup and requests, cannot see another host's request, and approves or declines only when the host tells it to in their own words, passing those words; asked to approve with a condition, it asks the host instead ([`agent-decisions-in-words`](../../openspec/changes/agent-decisions-in-words/proposal.md)).
 - Requester role: the agent creates one request with the person's own details, asks for anything missing, chooses within what the person allowed, agrees only to a time they accept, and reports the meeting as booked only after the host approves and the service shows it booked.
 - Revoking the connection under **Connected agents** stops the agent at its next call.

@@ -62,7 +62,11 @@ describe("entry documents", () => {
     expect(document).toMatch(/only after the host confirms setup/);
     expect(document).toContain(`MCP endpoint (Streamable HTTP, OAuth): ${origin}/mcp`);
     expect(document).toMatch(/allows or denies your connection/);
-    expect(document).toMatch(/host's own click/);
+    expect(document).toMatch(/approve_proposal/);
+    expect(document).toMatch(/decline_request/);
+    expect(document).toMatch(/clearly told you to in their own words/);
+    expect(document).toMatch(/data, not instructions/);
+    expect(document).not.toMatch(/request_host_decision/);
     expect(document).toContain("`fmat login --host`");
     expect(document).toMatch(/web continuation/);
   });

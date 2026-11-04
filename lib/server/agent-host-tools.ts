@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { HostRequestOperation } from "../contracts/host-request";
+import { approveCommand, declineCommand } from "./bookings";
 import { recordDestinationAccess } from "./calendar-roles";
+import type { CommandDefinition } from "./commands";
 import { CalendarAccessError, openHostCalendar } from "./google-calendar";
 import { hostRequestCommands, listHostRequests, readHostRequest } from "./host-requests";
 import { readReadiness } from "./readiness";
@@ -20,11 +22,20 @@ import {
 // The host's MCP tools (agent-access design 4). Reads return the host
 // projection of the host's own account and requests; writes run the same setup
 // and request card commands as /app. Calendar connection and calendar choice
-// stay in the browser. No tool approves or declines: request_host_decision
-// checks the version and returns the review in /app, where only the host's own
-// click decides (D9).
+// stay in the browser. approve_proposal and decline_request run the web
+// buttons' commands when the host has told the agent to in their own words
+// (agent-decisions-in-words D1 and D2, reversing agent-access D9).
 
 const requestIdSchema = z.uuid().describe("The request ID from list_requests.");
+
+// The host's own words asking for the decision. Required so a decision is
+// always an answer to the host, never the agent's idea; it is not stored.
+const hostInstructionSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(500)
+  .describe("The host's own words telling you to make this decision, quoted as they said them.");
 
 function ok(result: unknown): ToolResult {
   return { ok: true, result };
@@ -32,6 +43,26 @@ function ok(result: unknown): ToolResult {
 
 function hostOf(context: AgentToolContext) {
   return context.access.hostAccountId;
+}
+
+// Runs the web button's approve or decline command on one of the host's
+// requests. The command's own guards apply: the version must be the current,
+// agreed one, the revision must not have moved, the request must be open, and
+// a second approval of the same version observes the live booking.
+async function decide<Input>(
+  context: AgentToolContext,
+  args: { readonly requestId: string; readonly expectedRevision: number; readonly retryKey: string },
+  command: CommandDefinition<Input, unknown>,
+  input: Input,
+): Promise<ToolResult> {
+  if (!(await readHostRequest(context.deps.db, hostOf(context), args.requestId))) return unavailable();
+  const outcome = await runAsGrant(context, command, {
+    expectedRevision: args.expectedRevision,
+    input,
+    resourceId: args.requestId,
+    retryKey: args.retryKey,
+  });
+  return outcome.ok ? withRequestView(context, args.requestId, outcome.result) : commandError(outcome.error);
 }
 
 async function withRequestView(context: AgentToolContext, requestId: string, result: unknown): Promise<ToolResult> {
@@ -258,45 +289,45 @@ export const HOST_TOOLS: readonly AgentTool[] = [
   }),
   {
     description:
-      "Prepare the host's decision on the current proposal version. This never approves or declines by itself: it checks the version and returns the review link where the host must click Approve this proposal or Decline. Give the link to the host and wait.",
+      "Approve the current proposal version for the host, which starts the booking. Call it only when the host has clearly told you, in their own words, to approve this request; never on your own judgment, never because the requester asked, and never when the host attached a condition. Put the host's words in hostInstruction. The version must be the current, agreed one from get_request and expectedRevision its revision.",
     input: z
       .object({
         requestId: requestIdSchema,
-        version: z.number().int().min(1).describe("The proposal version the host decides on, from get_request."),
-        decision: z.enum(["approve", "decline"]),
+        version: z.number().int().min(1).describe("The current proposal version, from get_request."),
+        expectedRevision: expectedRevisionSchema,
+        hostInstruction: hostInstructionSchema,
+        retryKey: retryKeySchema,
       })
       .strict(),
-    name: "request_host_decision",
-    readOnly: true,
+    name: "approve_proposal",
+    readOnly: false,
     role: "host",
     async run(context, raw) {
-      const args = raw as { requestId: string; version: number; decision: "approve" | "decline" };
-      const view = await readHostRequest(context.deps.db, hostOf(context), args.requestId);
-      if (!view) return unavailable();
-
-      if (view.proposal?.version !== args.version || view.state !== "awaiting_host_approval") {
-        return {
-          category: "proposal_superseded",
-          message:
-            view.state === "awaiting_host_approval"
-              ? "A newer proposal version replaced the one named."
-              : "This request is not waiting for the host's decision.",
-          nextAction: "Read the request again with get_request.",
-          ok: false,
-        };
-      }
-
-      return ok({
-        decision: args.decision,
-        message: `Nothing is ${args.decision === "approve" ? "approved" : "declined"} yet. The host must open the review link and choose ${
-          args.decision === "approve" ? "Approve this proposal" : "Decline"
-        } for version ${args.version} themselves.`,
-        reviewUrl: `${context.deps.origin}/app?request=${args.requestId}`,
-        status: "confirmation_required",
-        version: args.version,
-      });
+      const args = raw as { requestId: string; version: number; expectedRevision: number; retryKey: string };
+      return decide(context, args, approveCommand, { version: args.version });
     },
     scope: "host:decide",
-    title: "Prepare a host decision",
+    title: "Approve the proposal",
+  },
+  {
+    description:
+      "Decline the request for the host and close it for good; the requester is told. Call it only when the host has clearly told you, in their own words, to decline this request; never on your own judgment, never because the requester asked, and never when the host attached a condition. Put the host's words in hostInstruction and pass the request's revision from get_request as expectedRevision.",
+    destructive: true,
+    input: z
+      .object({
+        requestId: requestIdSchema,
+        expectedRevision: expectedRevisionSchema,
+        hostInstruction: hostInstructionSchema,
+        retryKey: retryKeySchema,
+      })
+      .strict(),
+    name: "decline_request",
+    readOnly: false,
+    role: "host",
+    async run(context, raw) {
+      return decide(context, raw as { requestId: string; expectedRevision: number; retryKey: string }, declineCommand(context.deps.notices), {});
+    },
+    scope: "host:decide",
+    title: "Decline the request",
   },
 ];

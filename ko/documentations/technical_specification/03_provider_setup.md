@@ -142,6 +142,21 @@ Photon의 문서와 공급자 패키지에서 확인한 사실이며, 아직 실
 - 자유 형식 메시지는 사용자의 마지막 메시지로부터 24시간 이내에만 수락됩니다. 그 창 밖에서는 Meta가 오류 131047로 이를 거부하며, 승인된 템플릿만 수락됩니다. 템플릿은 Meta의 WhatsApp Manager에서 만들고 승인받습니다.
 - 공급자는 일대일 대화만 지원하며, 대화 ID는 연락처 ID입니다.
 
+Photon의 Beta 문서 [WhatsApp](https://photon.codes/docs/beta/messaging/whatsapp.md)과 [WhatsApp Business](https://photon.codes/docs/beta/messaging/whatsapp-business.md)(2026-11-04에 확인)에는 다음 내용이 추가로 있습니다:
+
+- **두 개의 별도 채널.** Photon의 `whatsapp` 채널은 개인 WhatsApp 계정용이며, 2026-10-22 기준 내부 테스트 중이고 출시되지 않았습니다. Photon은 프로덕션에서 이에 의존하지 말라고 합니다. 이 변경이 사용하는 것은 `whatsapp_business`입니다. 하나를 연결해도 다른 하나가 활성화되지는 않습니다.
+- **iMessage 번호는 개인 WhatsApp용으로 예약되어 있습니다.** Photon iMessage 번호는 Photon이나 다른 공급자를 통해 WhatsApp Business에 등록할 수 없으며, 이 예약이 개인 WhatsApp의 조기 이용을 보장하지는 않습니다. 또한 Photon은 개인 WhatsApp 회선의 일회용 코드를 걸러냅니다.
+- **Photon SMS 번호는 Photon에 묶여 있습니다.** Photon SMS 번호는 Photon을 통해서만, 프로젝트의 **WhatsApp Business** 페이지에서 **Use a Photon SMS number**로 WhatsApp Business에 등록할 수 있습니다. 새 WhatsApp Business 계정에는 Photon이 설정 패널에 Meta의 SMS 코드를 보여 주고, 이미 Photon에 연결된 계정에 번호를 추가하는 경우에는 Photon이 자동으로 인증하고 등록합니다. 이 코드는 SMS 기록, 기록 API, 수신 SMS 이벤트 어디에도 나타나지 않습니다. 비즈니스가 독자적으로 소유한 번호는 Photon으로 가져오거나 다른 공급자와 함께 쓸 수 있습니다.
+- **연결 해제.** 대시보드에서 **Disconnect**를 누르거나 프로젝트를 삭제하면 Photon이 그 번호로 보내고 받는 것은 멈추지만, 번호는 WhatsApp Business 계정에 남으며 WhatsApp Manager에서 포트폴리오 관리자만 삭제할 수 있습니다. 다른 공급자는 Photon SMS 번호를 쓸 수 없으므로 해당 번호는 WhatsApp Manager에서 삭제해야 합니다. 다른 공급자나 WhatsApp Manager가 Photon의 2단계 인증 PIN을 요구할 수 있습니다. 그 경우 **Account tools** > **Phone numbers** > 해당 번호 > **Two-step verification**에서 2단계 인증을 끈 뒤, Meta가 포트폴리오 주소로 보내는 이메일을 따르십시오. 유료 메시지를 보낸 번호는 마지막 전송 후 30일이 지나야 삭제할 수 있습니다.
+
+계정 상태: 2026-11-03 18:41 UTC에 Meta는 회선이 메시지를 하나도 보내기 전에 WhatsApp Business 계정 "ASTIA - Something Gr..."(`1070240012733983`)를 "허용 가능한 사용 약관 위반"을 이유로 비활성화했습니다. 비활성화된 계정은 메시지를 받거나, 답하거나, 대화를 시작할 수 없으며 번호도 추가할 수 없습니다. 2026-11-04에 `photon spectrum lines ls`는 이 회선(+1 711-454-9153, WABA `1666920005146243`)을 `BANNED`로 보고했고, 호스트가 연결 코드를 보냈을 때 웹훅에는 아무것도 도착하지 않았습니다. 포트폴리오 관리자는 WhatsApp Manager의 해당 번호 아래에서 Meta의 검토를 요청할 수 있습니다(보통 24시간). 계정이 복구될 때까지 프로덕션에서는 WhatsApp이 작동하지 않습니다. 같은 소유자의 새 비즈니스 포트폴리오, 계정, 번호로 이 차단을 우회하지 마십시오. 약관은 비즈니스가 이전에 정지된 적이 없을 것을 요구하며, Meta는 그런 계정들을 서로 연결해 봅니다. Photon이 자체 비즈니스 계정을 제공한다면 그 아래의 회선이 문의할 수 있는 유일한 대안입니다.
+
+2026-11-04에 복구되어 켜짐: Meta의 검토로 계정 `1070240012733983`이 04:47 UTC에 복구되었습니다. 이 계정에는 사용자가 Photon에서 다시 연결한 **+1 555-701-1140**(표시 이름 **FindMeATime**, 전화번호 ID `1391507790715888`)이 있습니다. Photon이 이를 `CONNECTED`로 보고한 뒤 사용자의 요청에 따라:
+- **+1 711-454-9153 회선을 `photon spectrum lines rm`으로 Photon 프로젝트에서 제거했습니다.** 이 회선도 다시 `CONNECTED`였지만 공급자는 Photon이 나열하는 첫 회선에서 보내므로, 프로젝트에는 회선을 하나만 둡니다.
+- **프로덕션을 새 번호로 전환했습니다.** Vercel Production의 `PHOTON_WHATSAPP_NUMBER`를 `15557011140`으로 설정하고 프로덕션을 다시 배포했습니다.
+
+세 템플릿은 다른 계정(`1666920005146243`) 아래에서 제출되었으므로, 24시간 창 밖으로 알림을 보내기 전에 `1070240012733983` 아래에서 다시 제출해야 합니다.
+
 게스트도 WhatsApp을 연결할 수 있습니다([`guest-whatsapp-link`](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions), 이슈 #117). 같은 번호, 웹훅, 창을 쓰며 창의 시작은 게스트 바인딩의 `last_inbound_at`입니다. 게스트용 템플릿은 등록하지 않습니다. 창 밖에서는 게스트의 WhatsApp 알림이나 답장이 `window_closed`로 보류되고 예약 이메일이 업데이트를 담습니다. 위의 템플릿 한도는 호스트 템플릿만 집계합니다.
 
 운영자 단계이며, 구현하는 풀 리퀘스트가 반영될 때까지 모두 사용자에게 막혀 있습니다:

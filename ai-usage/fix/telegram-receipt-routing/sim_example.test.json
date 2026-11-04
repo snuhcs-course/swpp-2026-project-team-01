@@ -1,0 +1,23 @@
+{
+  "branch": "fix/telegram-receipt-routing",
+  "user": "sim@example.test",
+  "sessions": {
+    "claude:58bba6d0-963a-4764-9830-670b4fc0f097": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 2,
+          "cache_read": 460929,
+          "cache_write_5m": 0,
+          "cache_write_1h": 1151,
+          "output": 1374,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T06:35:17.064Z",
+      "last": "2026-11-04T06:35:17.064Z"
+    }
+  }
+}
