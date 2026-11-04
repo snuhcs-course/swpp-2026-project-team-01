@@ -66,6 +66,10 @@ describe("agent service surface", () => {
     // deployment naming no webhook, it stores nothing and starts no work.
     ["POST", "/photon/webhook"],
     ["GET", "/photon/webhook"],
+    // The Telegram webhook (host-telegram-channel design 2): without its secret
+    // header it stores nothing and starts no work.
+    ["POST", "/telegram/webhook"],
+    ["GET", "/telegram/webhook"],
   ])("refuses %s %s without starting work or leaking internals", async (method, path) => {
     const requests = fake.requests.length;
     const response = await fetch(`${server.url}${path}`, {

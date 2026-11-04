@@ -14,7 +14,7 @@ Before each group, read the [Phase 10 reference files](../../../documentations/t
 - [x] 2.1 Add `telegram` to the `channel` checks of the four `imessage_*` tables ([design 4](design.md#4-records)); generate the migration with `supabase db schema declarative sync --no-apply`, and verify `supabase db reset --local`, the pgTAP tests and that existing rows are unchanged.
 - [x] 2.2 Add the update parser, sender normalization and callback parser in `lib/server/telegram.ts`, and `POST /telegram/webhook` in `agent/channels/telegram.ts` ([design 2](design.md#2-webhook), [design 3](design.md#3-sender-identity)). Verify unit tests for the secret check, each update type, groups, bots, a mismatched chat, duplicates and the separate hash namespace, and keep the Photon receiver tests passing unchanged.
 - [x] 2.3 Add the Bot API client, the error mapping, chat spacing and splitting to the transport, and the stand-in's Telegram branch ([design 1](design.md#1-transport), [design 9](design.md#9-transport-and-outbox)). Verify tests for accepted, `403` with the binding ended, `400`, `429` with `retry_after`, unavailable and uncertain sends, and the messaging gate in a preview.
-- [ ] 2.4 Add `scripts/telegram-webhook.mjs` (`npm run telegram:webhook`) with its production-host guard; verify it against the stand-in.
+- [x] 2.4 Add `scripts/telegram-webhook.mjs` (`npm run telegram:webhook`) with its production-host guard; verify it against the stand-in.
 
 ## 3. Linking in the browser (Lane B)
 

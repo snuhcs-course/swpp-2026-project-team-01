@@ -446,7 +446,7 @@ Scope. Prerequisites: Phases 6 and 9, whose receipts, tables with their `channel
 
 - [x] `telegram` in the `channel` checks of the four `imessage_*` tables, through pg-delta.
 - [x] `POST /telegram/webhook` with the secret header, the update and callback parser, and the `telegram:` sender namespace.
-- [ ] The Bot API client, error mapping, chat spacing and splitting, the stand-in's Telegram branch, and `npm run telegram:webhook`.
+- [x] The Bot API client, error mapping, chat spacing and splitting, the stand-in's Telegram branch, and `npm run telegram:webhook`.
 
 **Lane B — linking in the browser**
 

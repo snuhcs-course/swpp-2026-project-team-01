@@ -549,7 +549,7 @@
 
 ## 10단계 — `host-telegram-channel`
 
-[제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 2026-11-04에 사용자가 봇 `@findmeatime_bot`을 만들고 호스트 채널을 Telegram에 구성해 달라고 요청했습니다. 이 변경을 작성한 세션은 같은 날 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안이며, 아직 이를 구현하는 코드는 없습니다. 추적 이슈: #111.
+[제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 2026-11-04에 사용자가 봇 `@findmeatime_bot`을 만들고 호스트 채널을 Telegram에 구성해 달라고 요청했습니다. 이 변경을 작성한 세션은 같은 날 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안입니다. 레인 A(작업 2.1–2.4)는 그 검토에 앞서 사용자의 요청으로 웹훅, 레코드, Bot API 전송을 구현하며, 연결과 채널의 동작(레인 B와 C)은 아직 구현되지 않았습니다. 추적 이슈: #111.
 
 **이전 경위.** 2026-11-03에 Meta가 9단계의 WhatsApp Business 계정을 "허용되는 사용 정책 위반"을 이유로 메시지를 한 건도 보내기 전에 비활성화했고, 2026-11-04에 사용자의 요청으로 프로덕션에서 `PHOTON_WHATSAPP_NUMBER`를 제거했으므로 카드는 iMessage만 제공합니다([제공자 설정](03_provider_setup.md#whatsapp-business), PR #110).
 
@@ -584,6 +584,25 @@
 | 봇 업데이트 없는 출처 | 설계는 2026-11-04에 Photon의 Telegram 문서, npm의 `@spectrum-ts/telegram` 12.14.0과 `@spectrum-ts/core` 12.14.0, Telegram Bot API 레퍼런스를 읽었습니다. 서비스에 도착한 업데이트가 없으므로 픽스처는 합류 단계에서 확인됩니다 | 실제 업데이트를 기다리기 | 설계 맥락 | 작업 5.1 |
 | 봇 자격 증명 | 사용자가 2026-11-04에 메인 체크아웃의 `.env`에 `TELEGRAM_BOT_TOKEN`과 `TELEGRAM_BOT_USERNAME`(`findmeatime_bot`)을 넣었습니다. 에이전트 세션은 토큰을 읽거나 출력하거나 복사하지 않으며, 사용자가 Vercel Production에 설정합니다 | 에이전트가 설정 | 제공자 설정 | — |
 | 계획만 | 이 풀 리퀘스트는 문서와 OpenSpec 변경만 바꾸며, 코드, 스키마, 구성은 없습니다 | 레인 A를 곧바로 구현 | 계획 10단계 | — |
+
+### 레인 A 구현 결정
+
+2026-11-04에 작업 2.1–2.4를 구현하면서, D1–D13에 대한 팀원 검토에 앞서 사용자의 요청으로 내린 결정입니다. 아직 팀원 검토를 받지 않았습니다.
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 스키마 변경(작업 2.1) | 네 개의 `channel` 검사만 바뀝니다. pg-delta가 각 검사를 삭제하고 다시 추가하며, 테이블, 열, 행은 건드리지 않습니다. `edit_markup`과 그 밖의 레인 C 발신함 종류는 레인 C를 기다립니다. 로컬 머신에 있는 Supabase CLI 2.122.0(저장소는 2.119.0을 지정)으로 생성했으며, 결과물은 평범한 제약 조건 SQL입니다 | 레인 C 발신함 종류를 지금 추가; 손으로 쓴 마이그레이션 | `supabase/migrations/20261104050046_telegram_channel.sql`, `supabase/tests/telegram_channel.test.sql` | 새 마이그레이션 |
+| 업데이트 세부 정보가 있는 곳(작업 2.2) | Telegram 수신 기록은 `text_ciphertext`에 JSON 봉투 하나를 봉인합니다: 텍스트(또는 콜백 데이터), 보낸 사람의 이름과 `@username`, 그리고 `answerCallbackQuery`와 버튼 제거에 필요한 콜백의 ID와 메시지 ID입니다. `openTelegramText`가 이를 다시 읽습니다 | `imessage_receipts`에 봉인된 열을 새로 추가; 텍스트만 남기고 콜백 ID를 잃기 | `lib/server/telegram.ts` | `sealedTelegramText`와 마이그레이션 |
+| 콘텐츠 유형(작업 2.2) | `text`, `command`(앞의 `/`), `callback`, `blocked`(`my_chat_member` kicked), `attachment`(미디어), `other`(둘 다 아닌 메시지) | 텍스트가 아닌 메시지를 웹훅에서 버리기 | `lib/server/telegram.ts` | `inboundTelegramUpdate` |
+| 수신 모듈과 응답(작업 2.2) | `photon-receiver.ts` 옆의 `lib/server/telegram-receiver.ts`가 웹훅 ID `telegram`으로 `storeReceipt`를 공유합니다. 시크릿이 설정되지 않으면 틀린 시크릿과 마찬가지로 `401`로 답합니다. 256 KB를 넘는 본문, JSON이 아닌 본문, 숫자 `update_id`가 없는 본문은 `400`으로 답합니다. 다시 전달된 `update_id`는 페이로드와 관계없이 `200`으로 답하며(`409`는 Telegram이 하루 동안 다시 보내게 하므로), 새로 저장하는 것은 없습니다. 저장 실패는 `500`으로 답합니다 | Photon처럼 구성되지 않았을 때 `404`; 페이로드가 바뀌면 `409` | `lib/server/telegram-receiver.ts` | 그 파일 |
+| 채널 유형(작업 2.2) | 수신 기록과 해시를 위한 `StoredChannel` 유형(`MessagingChannel`에 `telegram`을 더한 것). `MessagingChannel`, `isMessagingChannel`, 기기 규칙은 레인 B가 Telegram을 제공할 때까지 iMessage와 WhatsApp에 머물러, 레인 A에서는 화면이 바뀌지 않습니다 | 지금 `MessagingChannel`을 넓히기(연결 화면과 `imessage.link.create`에 영향) | `lib/contracts/messaging-channel.ts` | 레인 B(작업 3.2) |
+| 레인 B와 C 이전의 수신 기록(작업 2.2) | 수신 기록 작업은 Telegram 수신 기록을 `ignored`로 기록하고 비우며 아무 답도 보내지 않습니다. 9단계가 작업 2.2에서 WhatsApp에 한 것과 같습니다 | Telegram 텍스트를 곧바로 iMessage 경로로 처리 | `lib/server/imessage-receipts.ts` | 작업 3.1과 4.1 |
+| 클라이언트와 전송(작업 2.3) | `botApiClient`는 메시징 게이트 아래에서 10초 제한 시간으로 `{endpoint}/bot{token}/{method}`에 게시합니다. `TELEGRAM_API_URL`은 `PHOTON_API_URL`처럼 프로덕션 밖에서만 적용됩니다. `telegramTransport`는 발신함의 기존 전송 인터페이스를 따르므로 Telegram 행도 같은 확보, 동결, 네 가지 결과를 거치며, 발신함이 행의 채널로 이를 고릅니다. 401 또는 404(잘못된 토큰)는 `provider_authentication`으로, 그 밖의 4xx는 `provider_rejected`로 거부됩니다 | Telegram 전용 발신함; 프로덕션에서 대역 URL 적용 | `lib/server/telegram.ts`, `lib/server/imessage-outbox.ts` | 그 파일들 |
+| 긴 텍스트 나누기(작업 2.3) | 4,096자를 넘는 텍스트는 발신함 행 하나 안에서 문단 나눔, 줄 바꿈, 공백 순으로 나누어 1초 간격의 순서 있는 `sendMessage` 호출로 보냅니다. 한 부분이 수락된 뒤의 실패는 `uncertain`이므로 어떤 부분도 반복되지 않습니다. 설계 9는 "순서 있는 행으로"라고 했지만, 행 하나가 행 사이 순서 지정 없이 순서를 지키며 턴 응답은 어차피 2,000자로 제한됩니다 | 부분마다 행 하나; 별도 작업이 순서를 어겨 보낼 수 있음 | `splitTelegramText`, `telegramTransport` | 설계 9 |
+| 대화 간격과 속도 제한(작업 2.3) | 확보 단계에서 대화별 권고 잠금을 잡고 마지막 전송으로부터 최소 1초 뒤인 대화의 다음 슬롯을 `dispatched_at`에 예약하며, 작업은 보내기 전에 그때까지 기다립니다. `429`는 행을 `queued`(`rate_limited`)로 되돌리고 `retry_after` 뒤에 실행될 새 작업을 게시하며, 시도 횟수는 쓰지 않고, 최대 10번까지만 허용된 뒤에는 일반 실패 시도가 됩니다 | 예약 없이 잠자기(동시 작업 둘이 모두 건너뜀); 작업 자체의 백오프(`retry_after`를 무시함) | `lib/server/imessage-outbox.ts` | `telegramSlot`, `RATE_LIMIT_RETRIES` |
+| 차단된 전송(작업 2.3) | `403`은 행을 `blocked`로 실패시키고, 그 연결을 끝내며(`unlinked`, 봉인된 값 삭제), 그 연결의 대기 및 큐 행을 `blocked` 범주로 억제합니다. 사용자가 봇을 차단했으므로 확인 메시지는 보내지 않습니다. `my_chat_member` kicked 수신 기록은 레인 C부터 연결을 끝냅니다 | 중지 확인 메시지 보내기 | `lib/server/imessage-outbox.ts`의 `endBlockedBinding` | 작업 4.2 |
+| 대역(작업 2.3) | 형제 파일 `tests/integration/support/fake-telegram.ts`가 `/bot<token>/<method>`에서 일곱 가지 메서드에 답하고, 각 호출을 토큰과 함께 기록하며, `403`(호출별 또는 차단된 대화별), `retry_after`가 있는 `429`, `400`, `5xx`, 끊긴 응답을 위한 스위치를 갖습니다 | `fake-photon.ts`의 Telegram 분기 | `tests/integration/support/fake-telegram.ts` | 그 파일 |
+| 웹훅 스크립트(작업 2.4) | `scripts/telegram-webhook.mjs`(`npm run telegram:webhook`, `npm run admin`처럼 `.env`에 이어 `.env.local`을 읽음)는 아무것도 호출하기 전에 `https://findmeatime.com` 이외의 출처, `A–Z a–z 0–9 _ -` 32~256자를 벗어난 시크릿, 없는 토큰, 루프백이 아닌 `TELEGRAM_API_URL`을 거부합니다. `getWebhookInfo`의 URL, 업데이트 유형, 연결 수, 대기 건수, 마지막 오류를 출력하고 모든 메시지에서 토큰을 지웁니다 | 다른 호스트를 위한 `--force`; CI에서 등록 | `scripts/telegram-webhook.mjs` | 그 파일 |
 
 ### 사용자 대기 항목
 
