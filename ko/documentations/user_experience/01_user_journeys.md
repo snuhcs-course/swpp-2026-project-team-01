@@ -214,6 +214,8 @@ flowchart TD
 
 같은 여정이 WhatsApp을 연결한 호스트에게도 WhatsApp에서 이어집니다([`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)). 한 단계만 다릅니다. 호스트가 하루 동안 메시지를 보내지 않았다면 1단계의 요약이 요청 참조 번호가 담긴 짧은 템플릿 알림으로 도착하고, 호스트가 `request <reference>`라고 답하면 요청을 볼 수 있습니다. `stop`은 어느 앱에서든 연결을 해제합니다.
 
+같은 여정은 Telegram을 연결한 호스트에게도 `@findmeatime_bot`과의 비공개 Telegram 대화에서 이어지며([`host-telegram-channel`](../../openspec/changes/host-telegram-channel/proposal.md#decisions)), 기기에 관계없이 메시지 앱 창 없이도 쓸 수 있습니다. 3단계는 버튼 하나로 끝날 수 있습니다. 승인을 기다리는 요약에 해당 제안의 버전에 묶인 **승인(Approve)**, **거절(Decline)**, **자세히 보기(Show details)**가 붙기 때문입니다. 버튼을 누르는 것은 그 버튼이 가리키는 명령을 그대로 실행하는 것이며 응답이 돌아옵니다. 이전 제안에 붙은 버튼을 누르면 아무것도 결정되지 않고 현재 제안이 표시됩니다. 제안이 결정되거나 철회되거나 새 제안으로 대체되면 버튼은 사라지고 텍스트만 남습니다. 명령은 봇 메뉴에서 앞에 `/`를 붙여도 쓸 수 있습니다. `stop`, `/stop`을 보내거나 봇을 차단하면 연결이 해제됩니다.
+
 Photon Spectrum은 [PRD 의존성 절](../02_product_requirements.md#10-dependencies-and-open-decisions)에 설명된 선택된 전송 방향입니다. 제품 여정은 에이전트 프레임워크에 의존하지 않으며, 어댑터가 메시지를 렌더링한다는 사실만으로는 호스트 승인이 성립하지 않습니다.
 
 **PRD 참조:** FR-08, FR-16, FR-17, FR-26, FR-27, FR-28; AC-16, AC-17, AC-18.

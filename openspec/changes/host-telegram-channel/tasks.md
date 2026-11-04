@@ -25,7 +25,7 @@ Before each group, read the [Phase 10 reference files](../../../documentations/t
 
 - [x] 4.1 Add the decision buttons, callback admission and answers, and button retirement ([design 7](design.md#7-inline-buttons)). Verify integration tests for an approval from a button, a decline, a stale tap, a tap from another user, a replayed callback after restart and the keyboard removed after a decision.
 - [x] 4.2 Add the leading `/` and bot mention to the command parser, `setMyCommands`, the typing indicator, silent delivery, the `[Telegram]` transcript prefix and the host instructions' Telegram fragment ([design 8](design.md#8-telegram-extras), [design 10](design.md#10-reused-behavior)). Verify integration tests for setup over Telegram, `stop` and `/stop`, a blocking update and literal requester markup.
-- [ ] 4.3 Update the page list, the interfaces, the host onboarding flow, the user journeys, the frontend architecture, the agent configuration and the privacy policy, with their Korean mirrors.
+- [x] 4.3 Update the page list, the interfaces, the host onboarding flow, the user journeys, the frontend architecture, the agent configuration and the privacy policy, with their Korean mirrors.
 
 ## 5. Join
 
