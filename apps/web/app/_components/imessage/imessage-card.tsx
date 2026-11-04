@@ -24,7 +24,7 @@ import {
 import { AlertCircleIcon, CheckIcon, CopyIcon, MessageCircleIcon, RotateCcwIcon } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useId, useMemo, useState } from "react";
 import { renderSVG } from "uqr";
-import { COPY } from "@/app/_components/ink/copy";
+import { channelCopy, COPY } from "@/app/_components/ink/copy";
 import { NumberForm } from "@/app/_components/ink/number-form";
 import { CardActions, cardHeadingId, HEADING_CLASS, QuietButton } from "@/app/_components/setup/card";
 import { Button } from "@/components/ui/button";
@@ -44,8 +44,9 @@ import { cn } from "@/lib/utils";
 //   - received: the masked sender with Confirm and link and This isn't me.
 //   - fallback: the masked number, the send's state and a protected code field,
 //     for an attempt the server already holds.
-//   - linked: the masked sender, the latest failed or uncertain message, Add to
-//     contacts and Unlink behind an inline confirmation.
+//   - linked: a small status pill naming the channel and the masked sender; it
+//     opens to the latest failed or uncertain message, Add to contacts and Unlink
+//     behind an inline confirmation, and starts open while a message failed.
 // A command whose answer was lost offers Try again with the same retry key.
 // The same card links WhatsApp (host-whatsapp-channel design 5 and 6, D5 to D7,
 // D12): which channel "none" offers follows the device (Android gets WhatsApp
@@ -62,6 +63,8 @@ import { cn } from "@/lib/utils";
 // iMessage asks for the host's number first (imessage-number-registration D1, D3): Photon's shared lines read
 // only registered numbers, so "none" on iMessage is the number field, the server registers the number, and the
 // code is addressed to the number Photon assigned. The number is kept while the card is open.
+// WhatsApp asks for the number the same way (guest-whatsapp-link D3): it is registered, and the code stays
+// addressed to the WhatsApp number. Each channel's number is kept apart.
 
 export const IMESSAGE_CARD_ID = "imessage-card";
 
@@ -148,13 +151,16 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [lost, setLost] = useState<Pending | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
+  // A linked channel shows as a small status pill until the host opens it.
+  const [expanded, setExpanded] = useState(false);
   const platform = useMessagesPlatform();
   const device = useDeviceKind();
   // The channel the host chose with the app question or Use ... instead.
   const [chosen, setChosen] = useState<MessagingChannel | null>(null);
-  // The number entered for iMessage while the card is open, and whether the card is asking for it.
-  const [number, setNumber] = useState<string | null>(null);
-  const [askNumber, setAskNumber] = useState(false);
+  // The numbers entered for iMessage and WhatsApp while the card is open, and the channel whose number the
+  // card is asking for.
+  const [numbers, setNumbers] = useState<Partial<Record<MessagingChannel, string>>>({});
+  const [askNumber, setAskNumber] = useState<MessagingChannel | null>(null);
 
   const reload = useCallback(async () => {
     const next = await readStatus();
@@ -219,30 +225,31 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
     }
   };
 
-  // Connect iMessage or Connect WhatsApp: the code first, then the app at once on a phone. iMessage without a
-  // number asks for it.
+  // Connect iMessage or Connect WhatsApp: the code first, then the app at once on a phone. iMessage or
+  // WhatsApp without a number asks for it.
   const connect = async (channel: MessagingChannel) => {
     setChosen(channel);
-    if (channel === "imessage" && !number) {
-      setAskNumber(true);
+    const number = numbers[channel];
+    if (needsNumber(channel) && !number) {
+      setAskNumber(channel);
       return;
     }
-    setAskNumber(false);
-    const outcome = await command("imessage.link.create", channel === "imessage" ? { channel, number } : { channel });
+    setAskNumber(null);
+    const outcome = await command("imessage.link.create", needsNumber(channel) ? { channel, number } : { channel });
     openOnPhone(outcome?.status);
   };
 
   // The number field's submit: a refused number shows under the field, anything else as the card's notice.
-  const submitNumber = async (e164: string) => {
+  const submitNumber = async (channel: MessagingChannel, e164: string) => {
     setBusy("imessage.link.create");
     setError(null);
     setLost(null);
-    const outcome = await sendCommand({ input: { channel: "imessage", number: e164 }, operation: "imessage.link.create", retryKey: crypto.randomUUID() });
+    const outcome = await sendCommand({ input: { channel, number: e164 }, operation: "imessage.link.create", retryKey: crypto.randomUUID() });
     setBusy(null);
     if (outcome.status) setStatus(outcome.status);
     if (!outcome.lost && !outcome.error) {
-      setNumber(e164);
-      setAskNumber(false);
+      setNumbers((entered) => ({ ...entered, [channel]: e164 }));
+      setAskNumber(null);
       openOnPhone(outcome.status);
       return null;
     }
@@ -290,17 +297,23 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
       <QuietButton disabled={disabled} key={other} onClick={() => onSwitch(other)}>{`Use ${channelName(other)} instead`}</QuietButton>
     ));
 
-  const numberCard = (others: readonly MessagingChannel[]) => (
+  const numberCard = (channel: MessagingChannel, others: readonly MessagingChannel[]) => (
     <CardShell
-      description="Find Me a Time reads messages only from numbers it knows. Enter the number your iMessage uses, then send one message from it to link it."
-      label="iMessage"
-      title="Use Find Me a Time from iMessage"
+      description={`Find Me a Time reads messages only from numbers it knows. Enter the number your ${channelName(channel)} uses, then send one message from it to link it.`}
+      label={channelName(channel)}
+      title={`Use Find Me a Time from ${channelName(channel)}`}
     >
       {notice}
-      <NumberForm id="card-number" look="card" onSubmit={submitNumber} t={{ ...COPY.en.number, submit: "Connect iMessage" }} />
+      <NumberForm
+        id="card-number"
+        key={channel}
+        look="card"
+        onSubmit={(e164) => submitNumber(channel, e164)}
+        t={{ ...channelCopy(COPY.en, channel).number, submit: `Connect ${channelName(channel)}` }}
+      />
       <CardActions>
         {switchers(others, (other) => {
-          setAskNumber(false);
+          setAskNumber(null);
           setChosen(other);
         })}
         {onLater ? <QuietButton onClick={onLater}>Maybe later</QuietButton> : null}
@@ -309,7 +322,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
   );
 
   if (askNumber && (status.state === "none" || status.state === "pending")) {
-    return numberCard(device ? switchChannels(device, status.channels, "imessage") : []);
+    return numberCard(askNumber, device ? switchChannels(device, status.channels, askNumber) : []);
   }
 
   switch (status.state) {
@@ -343,7 +356,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
       }
       const name = channelName(channel);
       const others = switchChannels(device!, status.channels, channel);
-      if (channel === "imessage" && !number) return numberCard(others);
+      if (needsNumber(channel) && !numbers[channel]) return numberCard(channel, others);
       return (
         <CardShell
           description={
@@ -418,6 +431,25 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
 
     case "linked": {
       const name = channelName(status.channel);
+      if (!expanded && !status.delivery && !error) {
+        return (
+          <section aria-labelledby={cardHeadingId(IMESSAGE_CARD_ID)} className="flex min-w-0" data-imessage-card id={IMESSAGE_CARD_ID}>
+            <button
+              aria-expanded={false}
+              className="inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-card px-3 text-xs text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              id={cardHeadingId(IMESSAGE_CARD_ID)}
+              onClick={() => setExpanded(true)}
+              type="button"
+            >
+              <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
+              <span className="truncate">
+                {`${name} linked `}
+                <span className="tabular-nums">{status.sender}</span>
+              </span>
+            </button>
+          </section>
+        );
+      }
       return (
         <CardShell label={name} title={`${name} is linked`}>
           {notice}
@@ -447,6 +479,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
                 onClick={async () => {
                   await command("imessage.unlink");
                   setConfirmUnlink(false);
+                  setExpanded(false);
                 }}
                 type="button"
                 variant="destructive"
@@ -458,6 +491,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
           ) : (
             <CardActions>
               <QuietButton onClick={() => setConfirmUnlink(true)}>{`Unlink ${name}`}</QuietButton>
+              <QuietButton onClick={() => setExpanded(false)}>Hide</QuietButton>
             </CardActions>
           )}
         </CardShell>
@@ -832,4 +866,9 @@ export function ContactCardLine({
       </CardActions>
     </div>
   );
+}
+
+// The channels whose link code needs the host's number first (imessage-number-registration D1, guest-whatsapp-link D3).
+function needsNumber(channel: MessagingChannel) {
+  return channel === "imessage" || channel === "whatsapp";
 }

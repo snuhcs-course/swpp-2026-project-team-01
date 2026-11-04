@@ -39,6 +39,8 @@ import { clock, isPhone, MessagePreview, type SendCode, SendPanel, shownNumber, 
 // An iMessage code needs the host's number first (imessage-number-registration D1, D3): Photon's shared lines
 // read only registered numbers, so the step asks for it, the server registers it, and the code it makes is
 // addressed to the number Photon assigned. The number is kept for this visit, so a new code needs no new entry.
+// A WhatsApp code asks for the number the same way (guest-whatsapp-link D3); it is registered, and the code
+// stays addressed to the WhatsApp number. Each channel's number is kept apart.
 
 const POLL_MS = 2000;
 
@@ -57,8 +59,9 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
   const [device, setDevice] = useState<DeviceKind>("other");
   const [asking, setAsking] = useState(false);
   const [wanted, setWanted] = useState<MessagingChannel | null>(null);
-  // The number entered for iMessage on this visit, and whether the step is asking for it.
-  const [number, setNumber] = useState<string | null>(null);
+  // The numbers entered for iMessage and WhatsApp on this visit, and whether the step is asking for the
+  // wanted channel's.
+  const [numbers, setNumbers] = useState<Partial<Record<MessagingChannel, string>>>({});
   const [askingNumber, setAskingNumber] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const now = useNow(shown === "step");
@@ -83,34 +86,37 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
     [base, take],
   );
 
-  // A code for the channel; the app question closes once it is made. iMessage asks for the number first.
+  // A code for the channel; the app question closes once it is made. iMessage and WhatsApp ask for the
+  // number first.
   const newCode = useCallback(
-    async (channel: MessagingChannel, entered: string | null = number) => {
+    async (channel: MessagingChannel) => {
       setOpened(false);
       setWanted(channel);
-      if (channel === "imessage" && !entered) {
+      const entered = numbers[channel];
+      if (needsNumber(channel) && !entered) {
         setAsking(false);
         setAskingNumber(true);
         return;
       }
-      if (await command("imessage.link.create", channel === "imessage" ? { channel, number: entered } : { channel })) {
+      if (await command("imessage.link.create", needsNumber(channel) ? { channel, number: entered } : { channel })) {
         setAsking(false);
         setAskingNumber(false);
       }
     },
-    [command, number],
+    [command, numbers],
   );
 
   // The number form's submit: a refused number shows under the field, anything else as the step's notice.
   const submitNumber = useCallback(
     async (e164: string) => {
+      const channel = wanted ?? "imessage";
       setBusy("imessage.link.create");
       setError("");
-      const outcome = await sendCommand({ input: { channel: "imessage", number: e164 }, operation: "imessage.link.create", retryKey: crypto.randomUUID() });
+      const outcome = await sendCommand({ input: { channel, number: e164 }, operation: "imessage.link.create", retryKey: crypto.randomUUID() });
       setBusy(null);
       take(outcome.status);
       if (!outcome.lost && !outcome.error) {
-        setNumber(e164);
+        setNumbers((entered) => ({ ...entered, [channel]: e164 }));
         setAskingNumber(false);
         setAsking(false);
         setOpened(false);
@@ -123,7 +129,7 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
       }
       return "other" as const;
     },
-    [base, take],
+    [base, take, wanted],
   );
 
   // The first read decides whether the step shows, and makes the code when it does. It runs once, so a
@@ -192,12 +198,18 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
   }
   if (status.state === "unavailable" || status.state === "fallback") return <>{children}</>;
 
-  // The channel on screen: the sender's or binding's, else the code's, else the one asked for.
-  const channel: MessagingChannel = status.state === "received" || status.state === "linked" ? status.channel : (code?.channel ?? wanted ?? "imessage");
+  // The channel on screen: the sender's or binding's, the one whose number is asked, else the code's, else
+  // the one asked for.
+  const channel: MessagingChannel =
+    status.state === "received" || status.state === "linked"
+      ? status.channel
+      : screen === "number"
+        ? (wanted ?? "imessage")
+        : (code?.channel ?? wanted ?? "imessage");
   const c = channelCopy(base, channel);
   const others =
     screen === "number"
-      ? switchChannels(device, status.channels, "imessage")
+      ? switchChannels(device, status.channels, channel)
       : code && (screen === "panel" || screen === "send" || screen === "waiting")
         ? switchChannels(device, status.channels, code.channel)
         : [];
@@ -306,12 +318,12 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
       body = (
         <main className="handoff">
           <h1 ref={heading} tabIndex={-1}>
-            {base.number.heading}
+            {c.number.heading}
           </h1>
-          <p className="lede small">{base.number.lede}</p>
-          <NumberForm id="link-number" look="ink" onSubmit={submitNumber} t={base.number} />
+          <p className="lede small">{c.number.lede}</p>
+          <NumberForm id="link-number" key={channel} look="ink" onSubmit={submitNumber} t={c.number} />
           {notice}
-          <p className="fine">{base.number.fine}</p>
+          <p className="fine">{c.number.fine}</p>
           {switcher ? <p className="opens">{switcher}</p> : null}
           <p className="alt">{skip(phone ? c.link.altPhone : c.link.altDesktop)}</p>
         </main>
@@ -488,4 +500,9 @@ export function LinkStep({ children, locale, ready }: { readonly children: React
       </div>
     </InkStage>
   );
+}
+
+// The channels whose link code needs the person's number first (imessage-number-registration D1, guest-whatsapp-link D3).
+function needsNumber(channel: MessagingChannel) {
+  return channel === "imessage" || channel === "whatsapp";
 }

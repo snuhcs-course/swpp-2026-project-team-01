@@ -92,7 +92,18 @@ export type LinkOptions = {
 // itself is not stored. A refused number or a full project is invalid input or
 // unavailable configuration; a lost answer is unavailable configuration too, so
 // the person can try again.
+// A WhatsApp attempt registers the number the same way (guest-whatsapp-link D3)
+// but keeps no assigned number: Photon's is an iMessage pool number, and the
+// WhatsApp screens address PHOTON_WHATSAPP_NUMBER. Telegram takes no number.
 export const NUMBER_INPUT = z.string().trim().min(1).max(40);
+
+// The line_number an attempt on the channel keeps, after registering the number;
+// null for WhatsApp, and nothing registered for Telegram.
+export async function attemptLineNumber(registrar: PhotonRegistrar | undefined, channel: MessagingChannel, entered: string) {
+  if (channel === "telegram") return null;
+  const assigned = await registeredLineNumber(registrar, entered);
+  return channel === "imessage" ? assigned : null;
+}
 
 export async function registeredLineNumber(registrar: PhotonRegistrar | undefined, entered: string) {
   const number = normalizeNumber(entered);
@@ -373,11 +384,12 @@ export function createImessageLinkCommand(
   const limits = { ...IMESSAGE_LINK_LIMITS, ...options.linkLimits };
 
   return {
-    // iMessage unless the card asks for WhatsApp or Telegram (D6); iMessage needs
-    // the host's number first (imessage-number-registration D1), the others take none.
+    // iMessage unless the card asks for WhatsApp or Telegram (D6); iMessage and
+    // WhatsApp need the host's number first (imessage-number-registration D1,
+    // guest-whatsapp-link D3), Telegram takes none.
     input: z.union([
-      z.object({ channel: z.literal("imessage").optional(), number: NUMBER_INPUT }).strict(),
-      z.object({ channel: z.enum(["whatsapp", "telegram"]) }).strict(),
+      z.object({ channel: z.enum(["imessage", "whatsapp"]).optional(), number: NUMBER_INPUT }).strict(),
+      z.object({ channel: z.literal("telegram") }).strict(),
     ]),
     operation: "imessage.link.create",
     async run(tx, context) {
@@ -392,7 +404,7 @@ export function createImessageLinkCommand(
       `;
       if (recent!.count >= limits.perHostHour) throw new CommandError("rate_limited");
 
-      const lineNumber = channel === "imessage" ? await registeredLineNumber(options.registrar, context.input.number ?? "") : null;
+      const lineNumber = await attemptLineNumber(options.registrar, channel, context.input.number ?? "");
 
       await endOpenAttempts(tx, hostAccountId, "voided");
 

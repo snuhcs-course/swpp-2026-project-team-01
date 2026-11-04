@@ -120,7 +120,9 @@ export function channelName(channel: MessagingChannel) {
 // proposal only in a message that carries one of these (D23).
 export const IMESSAGE_PREFIX = "[iMessage] ";
 export const WHATSAPP_PREFIX = "[WhatsApp] ";
+// A linked Telegram chat (host-telegram-channel D12).
+export const TELEGRAM_PREFIX = "[Telegram] ";
 
 export function cameFromMessagingChannel(message: string) {
-  return message.startsWith(IMESSAGE_PREFIX) || message.startsWith(WHATSAPP_PREFIX);
+  return message.startsWith(IMESSAGE_PREFIX) || message.startsWith(WHATSAPP_PREFIX) || message.startsWith(TELEGRAM_PREFIX);
 }

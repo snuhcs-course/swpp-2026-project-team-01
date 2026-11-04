@@ -17,7 +17,7 @@ import {
   type HostCalendar,
   openHostCalendar,
 } from "./google-calendar";
-import { enqueueHostNotice } from "./imessage-notices";
+import { enqueueButtonRetirement, enqueueHostNotice } from "./imessage-notices";
 import { type ClaimedJob, type JobHandler, publishJob } from "./jobs";
 import { cancelReservedBooking, closeRequest } from "./request-lifecycle";
 import { endpointHasher } from "./routes-client";
@@ -205,6 +205,7 @@ export const approveCommand: CommandDefinition<z.infer<typeof approveInput>, App
       update app.requests set state = 'booking', revision = revision + 1, updated_at = now()
       where id = ${request.id}
     `;
+    await enqueueButtonRetirement(tx, request.id);
     await publishJob(tx, {
       dedupeKey: `booking:${bookingId}`,
       kind: BOOKING_JOB,

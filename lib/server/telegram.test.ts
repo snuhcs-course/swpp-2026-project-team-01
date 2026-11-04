@@ -13,6 +13,8 @@ import {
   telegramConfig,
   telegramOutcome,
   telegramTransport,
+  inlineKeyboard,
+  THANKS_REACTION,
   telegramUpdateId,
 } from "./telegram";
 import type { TokenKey } from "./token-encryption";
@@ -53,7 +55,7 @@ describe("inboundTelegramUpdate", () => {
       sentAt: new Date(1_793_000_000 * 1000),
       spaceId: "123456789",
       spaceType: "dm",
-      telegram: { callbackId: null, callbackMessageId: null, firstName: "Dohyeon", username: "dohyeon" },
+      telegram: { callbackId: null, callbackMessageId: null, firstName: "Dohyeon", messageId: "7", username: "dohyeon" },
       text: "requests",
     });
   });
@@ -122,7 +124,7 @@ describe("channelHash", () => {
 
 describe("the sealed envelope", () => {
   it("round-trips the text and the details", () => {
-    const details = { callbackId: "cb", callbackMessageId: "9", firstName: "Dohyeon", username: null };
+    const details = { callbackId: "cb", callbackMessageId: "9", firstName: "Dohyeon", messageId: null, username: null };
     expect(openTelegramText(sealedTelegramText("hello", details))).toEqual({ details, text: "hello" });
     expect(openTelegramText(sealedTelegramText(null, details))?.text).toBeNull();
     expect(openTelegramText("not json")).toBeNull();
@@ -284,5 +286,55 @@ describe("telegramTransport", () => {
     });
     expect(await telegramTransport(client).send({ ...request("hi"), content: { kind: "contact_card" } })).toEqual({ category: "provider_rejected", status: "rejected" });
     expect(client.send).not.toHaveBeenCalled();
+  });
+
+  it("puts the buttons on the last part and sends a notice that needs nothing silently", async () => {
+    const sent: { method: string; params: Record<string, unknown> }[] = [];
+    let id = 0;
+    const client = { endpoint: "x", send: async (call: { method: string; params: Record<string, unknown> }) => (sent.push(call), { result: { message_id: ++id }, status: "accepted" as const }) };
+    const buttons = { kind: "decision" as const, ref: "K7Q2MX", version: 2 };
+    const text = `${"a".repeat(4096)} b`;
+    await telegramTransport(client, async () => undefined).send({ ...request(text), content: { keyboard: buttons, kind: "text", silent: true, text } });
+
+    expect(sent.map((call) => call.params)).toEqual([
+      { chat_id: "42", disable_notification: true, text: "a".repeat(4096) },
+      { chat_id: "42", disable_notification: true, reply_markup: inlineKeyboard(buttons), text: "b" },
+    ]);
+  });
+
+  it("removes a message's buttons, answers a tap and reacts to the host's message", async () => {
+    const sent: unknown[] = [];
+    const client = { endpoint: "x", send: async (call: unknown) => (sent.push(call), { result: true, status: "accepted" as const }) };
+    const transport = telegramTransport(client);
+
+    expect(await transport.send({ ...request(""), content: { kind: "edit_markup", messageId: "77" } })).toEqual({ messageId: "77", spaceId: "42", status: "accepted" });
+    await transport.send({ ...request(""), content: { answer: null, callbackId: "cb", kind: "callback_answer" } });
+    await transport.send({ ...request(""), content: { answer: "Not linked", callbackId: "cb2", kind: "callback_answer" } });
+    await transport.send({ ...request(""), content: { kind: "signal", messageId: "9", reaction: THANKS_REACTION, typing: false } });
+    await transport.send({ ...request(""), content: { kind: "signal", messageId: null, reaction: null, typing: true } });
+
+    expect(sent).toEqual([
+      { method: "editMessageReplyMarkup", params: { chat_id: "42", message_id: 77, reply_markup: { inline_keyboard: [] } } },
+      { method: "answerCallbackQuery", params: { callback_query_id: "cb" } },
+      { method: "answerCallbackQuery", params: { callback_query_id: "cb2", text: "Not linked" } },
+      { method: "setMessageReaction", params: { chat_id: "42", message_id: 9, reaction: [{ emoji: "👍", type: "emoji" }] } },
+      { method: "sendChatAction", params: { action: "typing", chat_id: "42" } },
+    ]);
+  });
+});
+
+describe("inlineKeyboard", () => {
+  it("names exactly the commands parseCallbackData reads back, each within 64 bytes", () => {
+    const decision = inlineKeyboard({ kind: "decision", ref: "K7Q2MX", version: 12 });
+    expect(decision.inline_keyboard.flat().map((button) => [button.text, parseCallbackData(button.callback_data)])).toEqual([
+      ["Approve", { name: "approve", ref: "K7Q2MX-12" }],
+      ["Decline", { name: "decline", ref: "K7Q2MX-12" }],
+      ["Show details", { name: "request", ref: "K7Q2MX" }],
+    ]);
+    const settings = inlineKeyboard({ kind: "settings", ref: "0A1B2C3D" });
+    expect(settings.inline_keyboard.flat().map((button) => [button.text, parseCallbackData(button.callback_data)])).toEqual([["Confirm settings", { name: "confirm", ref: "0A1B2C3D" }]]);
+    for (const button of [...decision.inline_keyboard.flat(), ...settings.inline_keyboard.flat()]) {
+      expect(Buffer.byteLength(button.callback_data)).toBeLessThanOrEqual(64);
+    }
   });
 });

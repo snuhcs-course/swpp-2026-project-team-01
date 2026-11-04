@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 // A loopback stand-in for the Telegram Bot API (host-telegram-channel design 9),
 // so tests and local runs drive the real client, transport and outbox with
 // TELEGRAM_API_URL pointed here. It answers POST /bot<token>/<method> for
-// sendMessage, editMessageReplyMarkup, answerCallbackQuery, sendChatAction,
+// sendMessage, editMessageReplyMarkup, answerCallbackQuery, sendChatAction, setMessageReaction,
 // setWebhook, setMyCommands and getWebhookInfo as the Bot API does, records
 // every call with the token it named, and keeps the webhook and commands set.
 // The next call can be told to answer 403 (blocked), 429 with retry_after, 400,
@@ -35,7 +35,7 @@ export type FakeTelegram = {
   close(): Promise<void>;
 };
 
-const METHODS = new Set(["sendMessage", "editMessageReplyMarkup", "answerCallbackQuery", "sendChatAction", "setWebhook", "setMyCommands", "getWebhookInfo"]);
+const METHODS = new Set(["sendMessage", "editMessageReplyMarkup", "answerCallbackQuery", "sendChatAction", "setMessageReaction", "setWebhook", "setMyCommands", "getWebhookInfo"]);
 
 function json(response: ServerResponse, status: number, body: unknown) {
   response.writeHead(status, { "content-type": "application/json" });

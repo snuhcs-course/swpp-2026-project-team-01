@@ -22,9 +22,9 @@ import {
 // receipt (channel telegram, message ID update:<update_id>) and one job before
 // 200; a redelivery or a concurrent duplicate reuses them; a wrong secret, a
 // group, a bot and another update type store nothing; the sender is hashed in
-// the telegram namespace and kept only sealed with its profile; and until Lane C
-// the receipt job records a Telegram receipt that is not linking as ignored and
-// replies nothing.
+// the telegram namespace and kept only sealed with its profile; and the receipt
+// job answers a sender with no binding with the Telegram unlinked-sender text,
+// clearing the receipt (Lane C, task 4.2).
 
 const db = testDatabase();
 let photon: FakePhoton;
@@ -93,7 +93,7 @@ describe("receiveTelegramWebhook", () => {
     expect(receipt!.text_ciphertext).not.toContain("next week");
     expect(receipt!.text_ciphertext).not.toContain("Dohyeon");
     expect(opened(receipt!)).toEqual({
-      details: { callbackId: null, callbackMessageId: null, firstName: "Dohyeon", username: "dohyeon" },
+      details: { callbackId: null, callbackMessageId: null, firstName: "Dohyeon", messageId: "10", username: "dohyeon" },
       text: "Make it next week",
     });
     expect(openToken([testTokenKey], { ciphertext: receipt!.sender_ciphertext!, keyId: receipt!.sealed_key_id! }, receiptSealContext(receipt!.id))).toBe(String(userId));
@@ -153,8 +153,8 @@ describe("receiveTelegramWebhook", () => {
   });
 });
 
-describe("the receipt job before Lane C", () => {
-  it("records a Telegram receipt as ignored, clears it and sends nothing", async () => {
+describe("the receipt job", () => {
+  it("answers an unlinked Telegram sender on Telegram and clears the receipt", async () => {
     const updateId = newTelegramUpdateId();
     await receiveTelegramWebhook(telegramDelivery(telegramMessage({ text: "requests", updateId, userId: newTelegramUser() })), load);
     const [receipt] = await receiptOf(updateId);
@@ -163,8 +163,10 @@ describe("the receipt job before Lane C", () => {
     await im.runReceipt(receipt!.id);
 
     const [after] = await receiptOf(updateId);
-    expect(after).toMatchObject({ outcome: "ignored", sender_ciphertext: null, text_ciphertext: null });
-    expect(await db`select 1 from app.imessage_outbox where dedupe_key = ${`receipt:${receipt!.id}`}`).toHaveLength(0);
+    expect(after).toMatchObject({ outcome: "unlinked_reply", sender_ciphertext: null, text_ciphertext: null });
+    expect(await db`select channel, kind from app.imessage_outbox where dedupe_key = ${`receipt:${receipt!.id}`}`).toEqual([
+      { channel: "telegram", kind: "unlinked_sender" },
+    ]);
     expect(photon.sends.length).toBe(before);
   });
 });

@@ -480,7 +480,7 @@
 
 | # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
-| — | (팀, 2026-11-02.) 옵트인 WhatsApp 채널로 Android 호스트를 지원합니다. 호스트의 채널만 다루며, 요청자는 웹과 이메일을 유지합니다. SMS, RCS, KakaoTalk, 개인 WhatsApp, WhatsApp 그룹, 요청자 메시징은 범위 밖으로 유지합니다 | Android를 계속 보류(2026-10-07 결정); Photon을 통한 SMS 또는 RCS; 한국 호스트를 위한 KakaoTalk | PRD 1, 3, 6, 9, 10절 | PRD를 먼저, 그다음 제안서 |
+| — | (팀, 2026-11-02.) 옵트인 WhatsApp 채널로 Android 호스트를 지원합니다. 호스트의 채널만 다루며, 요청자는 웹과 이메일을 유지합니다. SMS, RCS, KakaoTalk, 개인 WhatsApp, WhatsApp 그룹, 요청자 메시징은 범위 밖으로 유지합니다 | Android를 계속 보류(2026-10-07 결정); Photon을 통한 SMS 또는 RCS; 한국 호스트를 위한 KakaoTalk | PRD 1, 3, 6, 9, 10절 | PRD를 먼저, 그다음 제안서. WhatsApp을 통한 요청자 메시징은 2026-11-04에 [`guest-whatsapp-link`](#guest-whatsapp-link)와 함께 들어왔습니다 |
 | D5 | iMessage와 WhatsApp을 가로질러 호스트당 활성 메시징 바인딩 하나. 다른 채널을 확인하면 카드의 안내 뒤에 이전 바인딩을 대체합니다 | 두 채널 동시 사용, 요약이 두 배가 되고 두 대화가 하나의 결정을 두고 경합할 수 있음 | 제안서; 설계 5; PRD FR-37 | PRD의 FR-37을 먼저, 그다음 `imessage_bindings_active_host_key`와 `confirmImessageLinkCommand` |
 | D7 | Android는 WhatsApp만 받습니다. iPhone, iPad, Mac은 **대신 WhatsApp 사용(Use WhatsApp instead)**이 있는 iMessage를 받습니다. 그 밖의 컴퓨터는 호스트가 어떤 앱을 쓰는지 묻습니다 | 모든 호스트에게 묻기; 두 가지를 나란히 제공(한 번에 두 가지를 생각하게 되어 디자인 원칙에 어긋남) | 제안서; 설계 6 | `lib/contracts/messaging-channel.ts` |
 | D9 | 창 밖에서는 `en_US` 유틸리티 템플릿 세 개를 사용합니다. 유일한 매개변수는 요청 참조이며, 요청자 이름, 시간, 장소는 없습니다. 호스트당 12시간에 최대 하나, 회선당 하루 최대 50개 | 모든 세부 정보를 담은 요약별 템플릿(비공개 텍스트가 Meta의 검토와 알림을 거침); 범용 템플릿 하나; 알림 없음(조용한 유실) | 제안서; 설계 8 | 설계 8, 그다음 `lib/server/whatsapp.ts`의 템플릿 이름과 WhatsApp Manager |
@@ -523,7 +523,7 @@
 | 전달 알림(3.2) | 연결된 카드는 `window_closed`에 "Not sent on WhatsApp: you haven't written for a day. Send Thyme any message to pick up here, or check your requests below."를, `template_unavailable`에 "A WhatsApp notice couldn't be sent. Your requests are all here in Find Me a Time."를 보여 주고, 다른 실패는 기존 문구를 유지하되 채널을 이름으로 가리킵니다 | 일반적인 실패 문구 하나 | `imessage-card.tsx`의 `deliveryNotice` | 그 함수 |
 | WhatsApp 색(3.2) | 잉크 화면은 iMessage 파랑 옆에서 WhatsApp을 아이콘과 초록 말풍선(`#008069`)으로 표시합니다 | Thyme 색만 사용 | `apps/web/app/_components/ink/ink.css`, `icons.tsx` | 해당 파일 |
 | iMessage e2e 사용자 에이전트(3.2) | iMessage 브라우저 여정은 Mac 사용자 에이전트로 실행합니다. WhatsApp이 구성되어 있으면 Playwright의 기본 Windows 에이전트가 앱 질문을 먼저 받기 때문입니다 | 그 스위트에서 WhatsApp 번호 해제 | `tests/e2e/imessage-link.test.ts` | 그 파일 |
-| 게스트 시도는 iMessage 유지(병합) | PR #75(게스트 iMessage)를 병합한 뒤, 요청(게스트의 요청)에 속한 연결 시도는 제약에 따라 iMessage여야 합니다. WhatsApp을 통한 요청자 메시징은 범위 밖이기 때문입니다. WhatsApp 해시는 자체 네임스페이스를 가지므로 게스트 바인딩은 WhatsApp 발신자와 일치하지 않습니다 | 애플리케이션 코드에 맡기기 | `supabase/schemas/app/tables/imessage_links.sql`의 `imessage_links_request_channel` | 요청자 WhatsApp을 추가하는 변경과 함께 그 제약 |
+| 게스트 시도는 iMessage 유지(병합) | PR #75(게스트 iMessage)를 병합한 뒤, 요청(게스트의 요청)에 속한 연결 시도는 제약에 따라 iMessage여야 합니다. WhatsApp을 통한 요청자 메시징은 범위 밖이기 때문입니다. WhatsApp 해시는 자체 네임스페이스를 가지므로 게스트 바인딩은 WhatsApp 발신자와 일치하지 않습니다 | 애플리케이션 코드에 맡기기 | `supabase/schemas/app/tables/imessage_links.sql`의 `imessage_links_request_channel` | 요청자 WhatsApp을 추가하는 변경과 함께 그 제약. 2026-11-04에 [`guest-whatsapp-link`](#guest-whatsapp-link) D1이 대체했으며, 이는 게스트의 시도에 `whatsapp`을 허용합니다 |
 
 ### 운영 결정
 
@@ -551,7 +551,7 @@
 
 ## 10단계 — `host-telegram-channel`
 
-[제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 2026-11-04에 사용자가 봇 `@findmeatime_bot`을 만들고 호스트 채널을 Telegram에 구성해 달라고 요청했습니다. 이 변경을 작성한 세션은 같은 날 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안입니다. 레인 A(작업 2.1–2.4)는 그 검토에 앞서 사용자의 요청으로 웹훅, 레코드, Bot API 전송을 구현하고, 레인 B(작업 3.1과 3.2)는 카드, 연동 단계, `/?flow=telegram`에서 Telegram 보낸 사람을 연결합니다. 채널의 동작(레인 C)은 아직 구현되지 않았습니다. 추적 이슈: #111.
+[제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)는 D1–D13을 기록합니다. 2026-11-04에 사용자가 봇 `@findmeatime_bot`을 만들고 호스트 채널을 Telegram에 구성해 달라고 요청했습니다. 이 변경을 작성한 세션은 같은 날 D1–D13을 채택했습니다. 이들은 팀원 검토를 기다리는 제안입니다. 레인 A(작업 2.1–2.4)는 그 검토에 앞서 사용자의 요청으로 웹훅, 레코드, Bot API 전송을 구현하고, 레인 B(작업 3.1과 3.2)는 카드, 연동 단계, `/?flow=telegram`에서 Telegram 보낸 사람을 연결합니다. 레인 C(작업 4.1–4.3)는 버튼, Telegram 부가 기능, 채널의 동작을 구현합니다. 추적 이슈: #111.
 
 **이전 경위.** 2026-11-03에 Meta가 9단계의 WhatsApp Business 계정을 "허용되는 사용 정책 위반"을 이유로 메시지를 한 건도 보내기 전에 비활성화했고, 2026-11-04에 사용자의 요청으로 프로덕션에서 `PHOTON_WHATSAPP_NUMBER`를 제거했으므로 카드는 iMessage만 제공합니다([제공자 설정](03_provider_setup.md#whatsapp-business), PR #110).
 
@@ -624,6 +624,26 @@
 | 문구(작업 3.2) | `ink/copy.ts`에 `wa` 옆으로 영어와 한국어의 `tg` 오버레이를 두고, 기본 문구에 설계 11의 프라이버시 문장과 "This replaces your Telegram link."를 넣습니다. Telegram의 파란색으로 된 Telegram 글리프를 씁니다 | WhatsApp 문구 재사용 | `apps/web/app/_components/ink/copy.ts`, `icons.tsx` | 그 파일들 |
 | "WhatsApp 없이" 테스트(작업 3.2) | Playwright가 `TELEGRAM_BOT_USERNAME`을 설정합니다. 웹 서비스 하나가 실행 전체를 담당하므로, WhatsApp 없는 실행은 브라우저가 읽는 상태에서 WhatsApp 번호를 숨깁니다(`channels.whatsapp`을 다시 쓰는 라우트). WhatsApp 테스트 묶음은 이제 Android에서 **Use Telegram instead**를 기대합니다 | `PHOTON_WHATSAPP_NUMBER`가 없는 두 번째 웹 서비스 | `tests/e2e/telegram-link.test.ts`, `playwright.config.ts` | 그 파일들 |
 
+### 레인 C 구현 결정
+
+2026-11-04에 작업 4.1–4.3을 구현하면서, D1–D13에 대한 팀원 검토에 앞서 사용자의 요청으로 내린 결정입니다. 아직 팀원 검토를 받지 않았습니다. 레인 B는 동시에 진행되었으며, 레인 C가 레인 B가 넓히는 유형에서 Telegram을 필요로 한 곳은 호출 지점에서 형변환하고 유형은 레인 B에 맡겼습니다. 레인 B(#127)를 병합하면서 그 형변환과, 다른 Telegram 수신 기록을 `ignored`로 기록하던 레인 B의 임시 줄을 지웠으므로, 연결이 아닌 Telegram 수신 기록은 레인 C의 분기로 갑니다.
+
+| 결정 | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
+|---|---|---|---|---|
+| 버튼을 보관하는 곳(작업 4.1) | `imessage_outbox`의 `buttons` 열이 Telegram 행을 보낼 때 쓴 키보드를 가리킵니다: `{"kind":"decision","ref","version"}` 또는 `{"kind":"settings","ref"}`. 요청 참조와 버전이라 비밀이 아니며, 행이 최종 상태가 된 뒤에도 남아 있으므로 제거할 때 행의 Telegram `message_id`를 찾을 수 있습니다. 새 종류가 둘 있습니다. `edit_markup`(중복 방지 키 `edit:<row>`가 메시지의 행을 가리키고, 봉인된 텍스트가 메시지 ID)과 `callback_answer`(봉인된 텍스트가 콜백 ID와 답)이며, 둘 다 Telegram 전용입니다. 마이그레이션 `20261104054627_telegram_buttons` | 키보드를 텍스트와 함께 봉인(최종 상태에서 지워짐); 보낸 키보드의 별도 테이블 | `supabase/schemas/app/tables/imessage_outbox.sql` | 새 마이그레이션 |
+| 버튼이 붙는 메시지(작업 4.1) | **Approve**, **Decline**, **Show details**는 승인 대기 요약 아래에 붙고, 그 요청에 승인을 기다리는 합의된 제안이 있는 동안에는 `request <ref>`, `review`, **Show details**에 대한 답 아래에도 붙습니다. **Confirm settings**는 확인 명령으로 끝나는 설정 검토 아래에 붙습니다. 텍스트가 여전히 정확한 명령을 밝히므로 버튼이 없어도 똑같이 읽힙니다 WhatsApp 버튼(#126) 이후로 명령은 두 채널에 공통인 버튼 한 벌(`decisionButtons`, `settingsButtons`)을 만들며, 그 ID가 곧 이 변경의 콜백 데이터입니다. 아웃박스는 `telegramButtonsOf`로 이 버튼에서 Telegram 키보드를 만들고, 공통 읽음 표시와 ❤️ 탭백은 Telegram에 보내지 않습니다. | 승인 대기 요약에만 버튼 | `lib/server/imessage-commands.ts`의 `decisionButtons`; `lib/server/imessage-notice-job.ts` | `decisionButtons` |
+| 탭 받아들이기(작업 4.1) | 콜백 수신 기록은 메시지처럼 연결 및 게스트 검사를 통과한 뒤, 보낸 사람의 활성 Telegram 연결이 있어야 합니다. 그 데이터는 `parseCallbackData`가 정확한 명령으로 해석하여 수신 기록을 재시도 키로 삼아 `executeCommand`로 실행합니다. 어떤 명령도 가리키지 않는 데이터는 답만 하고 아무것도 하지 않습니다. 다른 보낸 사람의 탭은 "Not linked"로 답하고 연결되지 않은 보낸 사람 메시지는 보내지 않으므로, 하루 거부 한도에 포함되지 않습니다 | 탭에도 연결되지 않은 보낸 사람 텍스트 보내기; 알 수 없는 데이터를 조용히 버리기 | `lib/server/imessage-receipts.ts`의 `processReceipt` | 그 함수 |
+| 탭에 답하기(작업 4.1) | 모든 탭은 `receipt:<id>:answer` 키의 `callback_answer` 행 하나를 받습니다. 명령이 실행되었거나 거부되었거나 재현된 경우에는 빈 답이고, 승인 또는 거절이 현재가 아닌 버전을 가리킨 경우에는 "This proposal has changed. Here is the current one."이며 이어서 버튼이 붙은 현재 요약이 옵니다. 이 행은 신호처럼 최선 노력 방식입니다. 대화의 1초 간격 슬롯을 차지하지 않고, Telegram이 늦은 답을 어차피 거부하므로 거부된 뒤 재시도하지 않습니다 | 수신 기록 작업의 트랜잭션 안에서 직접 API 호출로 답하기(롤백된 작업이 이를 반복함) | `lib/server/imessage-commands.ts`의 `answerCallback`과 `CALLBACK_TEXTS`; `lib/server/imessage-outbox.ts` | 그 파일들 |
+| 버튼을 제거하는 시점(작업 4.1) | `enqueueButtonRetirement(tx, requestId)`는 버튼이 가리키는 것을 끝내거나 바꾸는 각 변경의 트랜잭션에서 실행됩니다. 승인(요청이 `booking`이 됨), `closeRequest`(거절, 철회, 만료), 요청자의 **Change**, 공유된 변경, 새로 합의된 버전이 그 경우입니다. 요청에 버튼이 붙은 Telegram 행이 있을 때만 `telegram_buttons` 작업 하나를 게시합니다. 이 작업은 결정 버튼이 지금 승인을 기다리는 버전이 아닌 버전을 가리키는, 수락된 모든 메시지마다 `edit_markup` 행을 큐에 넣습니다. 설정을 저장하면 같은 방식으로 호스트의 **Confirm settings** 버튼을 제거합니다 | `app.requests`에서 SQL로 작업을 게시하는 트리거(채팅 ID를 봉인할 수 없고 생산자 환경이 없음); 호스트 알림에서만 제거(웹 거절, 철회, **Change**를 놓침) | `lib/server/imessage-notices.ts`, `lib/server/telegram-jobs.ts` | 그 파일들 |
+| 수정 제한(작업 4.1) | `edit_markup` 행은 메시지가 수락된 지 48시간이 넘은 뒤에 확보되면 `edit_expired`로 억제되며, 제거 작업은 그런 메시지에 대해서는 행을 큐에 넣지 않습니다. 수정은 메시지를 보낸 연결이 활성인 동안 그 연결에만 갑니다. 메시지 텍스트는 절대 수정하지 않습니다 | Telegram이 거부할 때까지 재시도 | `lib/server/imessage-outbox.ts`의 `createImessageSendHandler` | `lib/server/telegram.ts`의 `TELEGRAM_EDIT_HOURS` |
+| 메뉴의 명령(작업 4.2) | 첫 단어는 `/name` 또는 `/name@<bot>`일 수 있으며, 멘션은 모든 봇 사용자 이름처럼 `bot`으로 끝나야 합니다. 멘션이 붙은 단어만으로는 명령이 아닙니다. 연결된 호스트가 보낸 `/start`만 있는 메시지는 `help`이고, `/start <code>`는 연결이며 어떤 명령보다 먼저 읽습니다. 명령 메뉴 자체는 `npm run telegram:webhook`(레인 A)이 설정합니다 | 모든 `@mention` 받아들이기; 멘션을 `TELEGRAM_BOT_USERNAME`과 대조하기(파서에 이 값을 넘겨야 함) | `lib/server/imessage-commands.ts`의 `parseCommand` | 그 함수 |
+| Thyme이 작업하는 동안의 입력 표시(작업 4.2) | 전달된 Telegram 메시지는 입력 신호를 즉시 하나 기록하고 `telegram_typing` 작업을 시작합니다. 이 작업은 턴이 끝나지 않은 동안 5초마다 신호를 하나씩 더 기록하며, 모두 합쳐 최대 12개입니다. 턴의 입력이 완료되거나 세션이 실패하면, 답이 전송되기 전이라도 멈춥니다. 각 신호는 최선 노력 방식의 신호 행이므로 대화의 간격 슬롯을 차지하지 않습니다 | 수신 기록 작업 안의 반복문; iMessage처럼 턴마다 신호 하나(Telegram은 5초 뒤에 숨김) | `lib/server/telegram-jobs.ts`의 `startTypingRepeats`와 `createTelegramTypingHandler` | `TYPING_INTERVAL_SECONDS`, `TYPING_MAX` |
+| 반응(작업 4.2) | iMessage 탭백에 해당하는 Telegram의 기능은 감사 인사만 담은 메시지에 다는 👍 `setMessageReaction`이며, 이 메시지는 턴을 시작하지 않고 같은 신호 행을 거칩니다. 다른 메시지에는 반응을 달지 않습니다. 봇은 메시지를 읽음으로 표시할 수 없고, 모든 메시지에 반응을 달면 잡음이 되기 때문입니다. ❤️ 대신 👍를 쓴 것은 Telegram의 기본 반응 집합에 있기 때문입니다 | 읽음 표시로 모든 메시지에 👍; 반응 없음 | `lib/server/imessage-receipts.ts`의 `processReceipt`, `telegramTransport` | `lib/server/telegram.ts`의 `THANKS_REACTION` |
+| 무음 전달(작업 4.2) | 예약 확정과 진행 중인 예약은 `disable_notification`으로 나갑니다. 새 요청, 승인 대기 요약, 실패한 예약, 호스트 본인의 메시지에 대한 모든 답은 알림을 울립니다 | 새 요청도 무음으로 보내기 | `lib/server/imessage-outbox.ts`의 `contentOf` | `SILENT_NOTICES` |
+| Telegram 전용 문구(작업 4.2) | 연결 안 됨: "This Telegram account isn't linked …, choose Connect Telegram." 중지: "Unlinked. You won't get Telegram messages from Find Me a Time." 텍스트만 가능: 사진, 스티커, 음성 메시지를 이름으로 짚어 알립니다. 도움말에는 "Or tap Approve, Decline or Show details under a proposal."가 덧붙습니다. 연결되지 않은 계정의 탭에는 "Not linked" 답만 갑니다 | 번호와 iMessage를 언급하는 iMessage 문구 | `CHANNEL_TEXTS`, `STOP_TEXTS`, `TELEGRAM_HELP_TEXT` | 그 상수들 |
+| 차단과 게스트(작업 4.2) | 연결된 호스트의 `blocked` 수신 기록은 `403`이 쓰는 것과 같은 `endBlockedBinding`으로 연결을 끝내며, 결과는 `command`이고 답은 없습니다. 다른 사람의 것이면 `ignored`로 처리하고 아무것도 보내지 않습니다. 게스트는 iMessage로만 쓰므로 Telegram 보낸 사람은 게스트 경로를 건너뜁니다 | 중지 확인 메시지 보내기(Telegram이 거부함) | `processReceipt` | 그 함수 |
+| 대화 기록 접두사와 지침(작업 4.2) | `[Telegram] `이 `lib/contracts/messaging-channel.ts`의 두 접두사에 더해져, `cameFromMessagingChannel`이 호스트가 Telegram에서도 말로 승인하게 해 줍니다. 호스트 채널 조각은 Telegram을 언급하고, 그 요약에는 서비스가 붙이는 버튼이 달리지만 답에는 결코 달리지 않는다고 알려 줍니다 | Telegram 전용 조각 | `agent/instructions/host-imessage.ts`, `agent/instructions/host-review.ts`, `agent/tools/request.ts` | 그 파일들 |
+
 ### 사용자 대기 항목
 
 다음 단계는 제공자 콘솔을 바꾸거나, 사람에게 메시지를 보내거나, 공유 환경 또는 릴리스 환경을 바꾸기 때문에 수행하지 않았습니다:
@@ -663,3 +683,22 @@
 | D2 | 코드는 Photon이 배정한 번호로 보내도록 안내하며, 이 번호는 `imessage_links.line_number`에 보관합니다 | 항상 `PHOTON_LINE_NUMBER` | 제안; 설계 2 | `imessage-links.ts`, `imessage-start.ts`, `requester-imessage-links.ts`의 상태 읽기 함수 |
 | D3 | 랜딩 리디자인의 전화번호 필드(d3ca3be8)를 ink 화면에서는 ink 모양으로, 카드에서는 PR #23의 카드 모양으로 씁니다 | 새 필드 | 제안; 설계 3 | `apps/web/app/_components/ink/number-form.tsx` |
 | 2026-10-20 실험 재해석 | `Target not allowed for this project`는 먼저 메시지를 보내지 않았다는 뜻만이 아니라 등록된 사용자가 아니라는 뜻이었습니다. 공유 회선에서 먼저 보내는 것은 필요하지만 충분하지 않습니다 | — | 이슈 #94 | — |
+
+## `guest-whatsapp-link`
+
+[제안](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions)은 D1–D4를 기록합니다. 이슈 #117에 대한 사용자의 요청에 따라 변경을 작성한 세션에서 2026-11-04에 정했습니다. 이는 `host-whatsapp-channel`이 제외했던(그 비목표와 위의 2026-11-02 Android 결정) WhatsApp을 통한 요청자 메시징을 범위에 들이고, `imessage-number-registration` 설계 1의 "WhatsApp 시도는 번호를 받지 않는다"를 뒤집습니다. 아직 팀원의 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | `requester_imessage_bindings`에 `channel` 열(`imessage` 기본값, `whatsapp`)을 두고, `imessage_links_request_channel`은 게스트의 시도에 `whatsapp`을 허용하며, `imessage_links_line_number_channel`은 `line_number`를 iMessage 시도에만 둡니다 | `requester_whatsapp_bindings` 테이블: 라우팅, 연동 해제, 수정된 요청으로의 이동, 정리를 중복하게 됨 | 제안; 설계 1 | `supabase/schemas/app/tables/requester_imessage_bindings.sql`, `imessage_links.sql`; `lib/server/imessage-outbox.ts`의 `ownerChannel` |
+| D2 | 게스트의 WhatsApp 행은 게스트의 마지막 메시지(연결 메시지 포함)로부터 23시간 50분 이내에만 일반 텍스트로 보내며, 그 밖에서는 `window_closed`로 보류하고 다른 것은 보내지 않습니다. 게스트 템플릿도 답장 버튼도 없습니다 | 게스트 템플릿: Meta 검토가 필요하고 예약 이메일이 이미 담는 내용을 반복함 | 제안; 설계 3 | `lib/server/imessage-outbox.ts`의 `createImessageSendHandler`에 있는 요청자 바인딩 창 검사 |
+| D3 | 모든 WhatsApp 연결 시작(호스트 연결 단계, Connect WhatsApp 카드, `/?flow=whatsapp`, 게스트 카드)은 번호를 묻고 `photonRegistrar`로 등록하며, 배정된 번호는 저장하지 않고 코드는 `PHOTON_WHATSAPP_NUMBER`로 보내도록 안내합니다 | `imessage-number-registration` D1이 남겨 둔 번호 없는 WhatsApp | 제안; 설계 4 | `lib/server/imessage-links.ts`의 `attemptLineNumber` |
+| D4 | **Get updates in iMessage**와 **Get updates in WhatsApp**이 각각 설정된 곳에 나타나는 게스트 카드 하나. 요청당 한 번에 하나의 연동. WhatsApp에는 연락처 카드 없음. Telegram은 호스트 전용으로 유지 | 호스트 카드가 다른 컴퓨터에서 묻듯 채널 질문을 먼저 함 | 제안; 설계 2 | `apps/web/app/_components/requester/cards.tsx`의 `ImessageUpdates` |
+
+### 구현 결정
+
+| 결정 | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| 게스트 창의 시작 | 확인하면 호스트 바인딩처럼 바인딩의 `last_inbound_at`을 연결 메시지의 수신 시각으로 설정합니다. 수정된 요청으로 옮겨진 바인딩은 채널을 유지하고 이동 시점에 창을 시작하며, 이는 게스트의 메시지가 일으킵니다 | 게스트가 다시 쓸 때까지 null로 두기: 환영 메시지가 보류됨 | 설계 3 | `lib/server/requester-imessage-bindings.ts`의 `bindRequester`; `lib/server/revised-requests.ts`의 `moveChannel` |
+| 채널별로 보관하는 번호 | 연결 단계와 Connect 카드는 방문 동안 입력한 번호를 채널별로 보관하므로, 채널을 바꾸면 다시 묻습니다 | 두 채널에 번호 하나 | 설계 4 | `apps/web/app/_components/ink/link-step.tsx`, `imessage/imessage-card.tsx` |
+| 모호한 발신자 답장 | 여러 대화를 가진 발신자에게 선택을 요청하는 답장은 수신 기록의 채널로 나갑니다 | 기본 iMessage 채널: WhatsApp 발신자는 결코 받지 못함 | 설계 1 | `lib/server/imessage-receipts.ts`의 `processReceipt` |

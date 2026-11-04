@@ -54,7 +54,7 @@ flowchart LR
     B -->|Pending or confirmed outcome| S
 ```
 
-화살표는 통신을 나타낼 뿐 동일한 권한을 뜻하지 않습니다. 요청자 인터페이스는 호스트 승인을 부여하거나 호스트 전용 정보를 읽을 수 없습니다. 이번 릴리스에서 iMessage는 호스트 채널입니다. 이메일은 요청자 협상 채널로 표시되어 있으며, 이 여정에서 호스트 승인 수단이 아닙니다. MVP는 iPhone/iMessage 호스트를 대상으로 하며, 일상적인 일정 조율에는 iMessage를 권장합니다. 에이전트 연결과 iMessage 연동은 계속 선택 사항이며, 호스트는 두 채널 중 어느 쪽에서든 온보딩을 시작할 수 있고 웹은 전 과정에서 사용할 수 있습니다. iMessage 비공개 진입은 호스트 상태에 접근하기 전에 검증된 브라우저 인계를 거칩니다. Android 호스트는 대신 WhatsApp을 연결합니다(2026-11-02, [`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)). 같은 여정이 비공개 WhatsApp 대화에서 이어지며 J-06도 포함됩니다. 요청자 링크는 계정 없이 사용할 수 있고 기기 기반 차단은 하지 않습니다. Photon Spectrum은 선택된 iMessage 전송 방향이며, 브리지와 애플리케이션 신원 매핑은 계약에 맞추어 구현하고 검증해야 합니다.
+화살표는 통신을 나타낼 뿐 동일한 권한을 뜻하지 않습니다. 요청자 인터페이스는 호스트 승인을 부여하거나 호스트 전용 정보를 읽을 수 없습니다. 이번 릴리스에서 iMessage는 호스트 채널입니다. 이메일은 요청자 협상 채널로 표시되어 있으며, 이 여정에서 호스트 승인 수단이 아닙니다. MVP는 iPhone/iMessage 호스트를 대상으로 하며, 일상적인 일정 조율에는 iMessage를 권장합니다. 에이전트 연결과 iMessage 연동은 계속 선택 사항이며, 호스트는 두 채널 중 어느 쪽에서든 온보딩을 시작할 수 있고 웹은 전 과정에서 사용할 수 있습니다. iMessage 비공개 진입은 호스트 상태에 접근하기 전에 검증된 브라우저 인계를 거칩니다. Android 호스트는 대신 WhatsApp을 연결합니다(2026-11-02, [`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)). 같은 여정이 비공개 WhatsApp 대화에서 이어지며 J-06도 포함됩니다. 요청자 링크는 계정 없이 사용할 수 있고 기기 기반 차단은 하지 않습니다. 요청자도 예약 페이지에서 iMessage나 WhatsApp으로 업데이트를 받을 수 있습니다([`guest-whatsapp-link`](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions)). Photon Spectrum은 선택된 iMessage 전송 방향이며, 브리지와 애플리케이션 신원 매핑은 계약에 맞추어 구현하고 검증해야 합니다.
 
 원격 MCP가 주된 에이전트 인터페이스이고, CLI는 터미널 접근이 가능한 클라이언트를 위한 것입니다. 둘 다 공유 스케줄링 API를 사용합니다. 호스트의 MCP 접근은 OAuth를 사용하며, 요청자의 접근은 계정 없이 요청 범위로 제한됩니다. 이 다이어그램은 의도한 경로를 보여 줄 뿐, 이름이 나열된 모든 클라이언트에서 두 인터페이스가 검증되어 지원된다는 뜻은 아닙니다. OAuth 연결과 해지는 J-09에서 다룹니다.
 
@@ -213,6 +213,8 @@ flowchart TD
 **결과:** iMessage는 웹 및 에이전트 클라이언트와 동일한 요청에 대해 동작합니다. 전달/읽음 확인은 승인이 아니며, 연동되지 않은 발신자와 그룹 대화는 호스트 전용 정보를 조회하거나 호스트로서 행동할 수 없습니다.
 
 같은 여정이 WhatsApp을 연결한 호스트에게도 WhatsApp에서 이어집니다([`host-whatsapp-channel`](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)). 한 단계만 다릅니다. 호스트가 하루 동안 메시지를 보내지 않았다면 1단계의 요약이 요청 참조 번호가 담긴 짧은 템플릿 알림으로 도착하고, 호스트가 `request <reference>`라고 답하면 요청을 볼 수 있습니다. `stop`은 어느 앱에서든 연결을 해제합니다.
+
+같은 여정은 Telegram을 연결한 호스트에게도 `@findmeatime_bot`과의 비공개 Telegram 대화에서 이어지며([`host-telegram-channel`](../../openspec/changes/host-telegram-channel/proposal.md#decisions)), 기기에 관계없이 메시지 앱 창 없이도 쓸 수 있습니다. 3단계는 버튼 하나로 끝날 수 있습니다. 승인을 기다리는 요약에 해당 제안의 버전에 묶인 **승인(Approve)**, **거절(Decline)**, **자세히 보기(Show details)**가 붙기 때문입니다. 버튼을 누르는 것은 그 버튼이 가리키는 명령을 그대로 실행하는 것이며 응답이 돌아옵니다. 이전 제안에 붙은 버튼을 누르면 아무것도 결정되지 않고 현재 제안이 표시됩니다. 제안이 결정되거나 철회되거나 새 제안으로 대체되면 버튼은 사라지고 텍스트만 남습니다. 명령은 봇 메뉴에서 앞에 `/`를 붙여도 쓸 수 있습니다. `stop`, `/stop`을 보내거나 봇을 차단하면 연결이 해제됩니다.
 
 Photon Spectrum은 [PRD 의존성 절](../02_product_requirements.md#10-dependencies-and-open-decisions)에 설명된 선택된 전송 방향입니다. 제품 여정은 에이전트 프레임워크에 의존하지 않으며, 어댑터가 메시지를 렌더링한다는 사실만으로는 호스트 승인이 성립하지 않습니다.
 
