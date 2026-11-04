@@ -147,6 +147,12 @@ Photon's Beta pages [WhatsApp](https://photon.codes/docs/beta/messaging/whatsapp
 
 Account status: on 2026-11-03 at 18:41 UTC Meta disabled the WhatsApp Business Account "ASTIA - Something Gr..." (`1070240012733983`) for a "breach of terms of acceptable use", before the line had sent any message. A disabled account cannot receive, reply or start conversations, and no number can be added to it. On 2026-11-04 `photon spectrum lines ls` reported the line (+1 711-454-9153, WABA `1666920005146243`) as `BANNED`, and the webhook received nothing when a host sent a link code. A portfolio admin can request Meta's review (usually 24 hours) under the number in WhatsApp Manager. Until the account is restored, WhatsApp does not work in production. Do not work around the ban with a new business portfolio, account or number from the same owner: the terms require that the business has not been suspended before, and Meta links such accounts. A line under Photon's own business account, if Photon offers one, is the only alternative to ask about.
 
+Restored and switched on 2026-11-04: Meta's review restored account `1070240012733983` at 04:47 UTC. That account holds **+1 555-701-1140** (display name **FindMeATime**, phone number ID `1391507790715888`), which the user had reconnected in Photon. Once Photon reported it `CONNECTED`, at the user's request:
+- **The +1 711-454-9153 line was removed from the Photon project** with `photon spectrum lines rm`. It was also `CONNECTED` again, but the provider sends from the first line Photon lists, so the project keeps one line.
+- **Production was switched to the new number:** `PHOTON_WHATSAPP_NUMBER` was set to `15557011140` on Vercel Production and production was redeployed.
+
+The three templates were submitted under the other account (`1666920005146243`), so they must be submitted again under `1070240012733983` before any notice goes out outside the 24-hour window.
+
 Operator steps, all blocked on the user until the implementing pull requests land:
 
 1. In WhatsApp Manager, for the business portfolio that owns the number, submit the three utility templates of [design 8](../../openspec/changes/host-whatsapp-channel/design.md#8-templates) in `en_US`, with their exact names and bodies, and wait for approval. Record each template's status and category. A reclassification to marketing goes back to the team. Submitted on 2026-11-04 and in review; each body uses `{{1}}` once, because Meta refuses a repeated variable.
