@@ -1,5 +1,5 @@
 import type { MessageStreamEvent } from "eve/client";
-import type { MessagingChannel } from "../contracts/messaging-channel";
+import type { StoredChannel } from "../contracts/messaging-channel";
 import { agentUrlFromEnvironment, type ConversationRuntime, eveRuntime } from "./conversations";
 import { database, type Database, type Transaction } from "./database";
 import { turnReplyText } from "./email-replies";
@@ -9,6 +9,7 @@ import { assertMessagingAdmitted } from "./messaging";
 import { type PhotonConfig, photonConfig, type PhotonContent, type PhotonRecipient, type PhotonTransport, photonTransport, SPECTRUM_ENDPOINT } from "./photon";
 import { requestRef } from "./request-ref";
 import { redactCredentials } from "./redaction";
+import { TELEGRAM_CHAT_SPACING_MS, type TelegramConfig, telegramClient, telegramConfig, telegramTransport } from "./telegram";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // Every message the iMessage line sends (host-imessage-channel design 3 and 9,
@@ -40,6 +41,13 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 // window's summary of a new request, a proposal awaiting approval or a booking
 // outcome queues one template instead, at most one per host per 12 hours and at
 // most the daily limit per line.
+// Telegram rows (host-telegram-channel design 9, D11) go through the Bot API
+// transport instead of Photon's. Consecutive sends to one chat are at least a
+// second apart: the claim reserves the chat's next slot under a lock and the
+// send waits for it. A 429 puts the row back and a new job sends it after the
+// delay Telegram names, spending no attempt. A 403 (the user blocked or deleted
+// the bot) fails the row as blocked and ends its binding as stop does, with
+// whatever was still queued for it suppressed.
 
 export const IMESSAGE_SEND_JOB = "imessage_send";
 // A refusal before sending retries with backoff; five attempts span about five minutes.
@@ -88,7 +96,7 @@ export type OutboxState = "waiting" | "queued" | "dispatching" | "accepted" | "f
 export type RecordOutbound = {
   readonly kind: OutboxKind;
   // The platform; by default the binding's or the link attempt's, else iMessage.
-  readonly channel?: MessagingChannel;
+  readonly channel?: StoredChannel;
   // A template row's template (WhatsApp only).
   readonly templateName?: string;
   // One message per (kind, dedupeKey): a retried recording returns the existing one.
@@ -174,13 +182,13 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
   return { created: true, id };
 }
 
-async function ownerChannel(tx: Transaction, message: RecordOutbound): Promise<MessagingChannel> {
+async function ownerChannel(tx: Transaction, message: RecordOutbound): Promise<StoredChannel> {
   if (message.bindingId) {
-    const [binding] = await tx<{ channel: MessagingChannel }[]>`select channel from app.imessage_bindings where id = ${message.bindingId}`;
+    const [binding] = await tx<{ channel: StoredChannel }[]>`select channel from app.imessage_bindings where id = ${message.bindingId}`;
     if (binding) return binding.channel;
   }
   if (message.linkId) {
-    const [link] = await tx<{ channel: MessagingChannel }[]>`select channel from app.imessage_links where id = ${message.linkId}`;
+    const [link] = await tx<{ channel: StoredChannel }[]>`select channel from app.imessage_links where id = ${message.linkId}`;
     if (link) return link.channel;
   }
   return "imessage";
@@ -229,6 +237,9 @@ export type ImessageSendDependencies = {
   readonly origin: string;
   readonly env?: Readonly<Record<string, string | undefined>>;
   readonly transport?: PhotonTransport;
+  // The Telegram bot (TELEGRAM_BOT_TOKEN, TELEGRAM_API_URL) and, in tests, its transport.
+  readonly telegram?: TelegramConfig;
+  readonly telegramTransport?: PhotonTransport;
   // Template notices per WhatsApp line per rolling 24 hours (PHOTON_WHATSAPP_TEMPLATE_DAILY_LIMIT).
   readonly templateDailyLimit?: number;
 };
@@ -247,7 +258,8 @@ function sendDependenciesFromEnvironment(): ImessageSendDependencies {
 
 type OutboxRow = {
   readonly id: string;
-  readonly channel: MessagingChannel;
+  readonly channel: StoredChannel;
+  readonly recipient_hash: string;
   readonly kind: OutboxKind;
   readonly template_name: string | null;
   readonly dedupe_key: string;
@@ -351,10 +363,11 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
     const deps = load();
     const transport = deps.transport ?? photonTransport(deps.config, deps.env);
+    const telegram = () => deps.telegramTransport ?? telegramTransport(telegramClient(deps.telegram ?? telegramConfig(deps.env ?? process.env), deps.env));
     // A denied environment touches no outbound state.
     assertMessagingAdmitted(transport.endpoint, deps.env);
     const select = (q: Transaction | Database) => q<OutboxRow[]>`
-      select id, channel, kind, template_name, dedupe_key, host_account_id, request_id, binding_id, requester_binding_id, input_id,
+      select id, channel, recipient_hash, kind, template_name, dedupe_key, host_account_id, request_id, binding_id, requester_binding_id, input_id,
              recipient_ciphertext, text_ciphertext, sealed_key_id, state,
              created_at < now() - make_interval(mins => ${TURN_REPLY_WAIT_MINUTES}) as stale,
              created_at > now() - make_interval(mins => ${WHATSAPP_WINDOW_MINUTES}) as fresh
@@ -432,7 +445,8 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
       // Denied environments fail the attempt before dispatching; nothing is
       // marked and nothing falls back.
-      assertMessagingAdmitted(transport.endpoint, deps.env);
+      const rowTransport = row.channel === "telegram" ? telegram() : transport;
+      assertMessagingAdmitted(rowTransport.endpoint, deps.env);
 
       const recipientJson = open(deps, row, row.recipient_ciphertext);
       if (!recipientJson) {
@@ -457,21 +471,23 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
       const context = outboxSealContext(row.id);
       const frozen = text === null ? null : sealToken({ id: row.sealed_key_id!, key: keyOf(deps, row.sealed_key_id!) }, text, context);
+      const waitMs = row.channel === "telegram" ? await telegramSlot(claimTx, row.recipient_hash) : 0;
       await claimTx`
         update app.imessage_outbox
         set state = 'dispatching', text_ciphertext = coalesce(${frozen?.ciphertext ?? null}, text_ciphertext),
-            dispatched_at = now(), updated_at = now()
+            dispatched_at = now() + make_interval(secs => ${waitMs / 1000}), updated_at = now()
         where id = ${row.id}
       `;
-      return { recipient: JSON.parse(recipientJson) as PhotonRecipient, row, state: "dispatching" as const, text };
+      return { recipient: JSON.parse(recipientJson) as PhotonRecipient, row, state: "dispatching" as const, text, transport: rowTransport, waitMs };
     });
 
     if (claim.state !== "dispatching") return { outboxId, state: claim.state };
+    if (claim.waitMs > 0) await new Promise((resolve) => setTimeout(resolve, claim.waitMs));
 
     let result;
 
     try {
-      result = await transport.send({
+      result = await claim.transport.send({
         channel: claim.row.channel,
         content: contentOf(claim.row, claim.text),
         idempotencyKey: claim.row.id,
@@ -495,8 +511,28 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 
     if (result.status === "rejected") {
       await finish(tx, outboxId, "dispatching", "failed", { category: result.category });
+      if (result.category === "blocked" && claim.row.binding_id) await endBlockedBinding(tx, claim.row.binding_id);
       if (result.category === WINDOW_CLOSED && claim.row.kind !== "template") await queueTemplate(tx, deps, claim.row);
       return { outboxId, state: "failed" };
+    }
+
+    const rateLimits = typeof job.payload.rateLimits === "number" ? job.payload.rateLimits : 0;
+
+    if (result.status === "unavailable" && typeof result.retryAfterSeconds === "number" && rateLimits < RATE_LIMIT_RETRIES) {
+      // Rate limited: nothing was sent. A new job sends the row once the delay
+      // Telegram named has passed, so the limit spends no attempt.
+      await tx`
+        update app.imessage_outbox set state = 'queued', failure_category = 'rate_limited', updated_at = now()
+        where id = ${outboxId} and state = 'dispatching'
+      `;
+      await publishJob(tx, {
+        dedupeKey: `outbox:${outboxId}:rate:${rateLimits + 1}`,
+        kind: IMESSAGE_SEND_JOB,
+        maxAttempts: job.maxAttempts,
+        payload: { ...job.payload, outboxId, rateLimits: rateLimits + 1 },
+        runAfter: new Date(Date.now() + Math.max(result.retryAfterSeconds, 1) * 1000),
+      });
+      return { outboxId, state: "queued" };
     }
 
     if (result.status === "unavailable") {
@@ -537,6 +573,37 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
 }
 
 export const WINDOW_CLOSED = "window_closed";
+
+// Rate limits a Telegram row waits out before an ordinary failed attempt.
+export const RATE_LIMIT_RETRIES = 10;
+
+// The wait before the next send to a Telegram chat may start, reserved under a
+// per-chat lock: the row claimed here dispatches at least a second after the
+// last one claimed for the same chat.
+async function telegramSlot(tx: Transaction, recipientHash: string) {
+  await tx`select pg_advisory_xact_lock(hashtextextended(${`app.telegram_chat:${recipientHash}`}, 0))`;
+  const [slot] = await tx<{ wait_ms: number }[]>`
+    select greatest(0, ceil(extract(epoch from (max(dispatched_at) + make_interval(secs => ${TELEGRAM_CHAT_SPACING_MS / 1000}) - now())) * 1000))::int as wait_ms
+    from app.imessage_outbox
+    where channel = 'telegram' and recipient_hash = ${recipientHash} and dispatched_at is not null
+  `;
+  return slot?.wait_ms ?? 0;
+}
+
+// The user blocked or deleted the bot (D11): the binding ends as stop ends it,
+// and nothing still queued for it goes out.
+async function endBlockedBinding(tx: Transaction, bindingId: string) {
+  await tx`
+    update app.imessage_bindings set state = 'unlinked', ended_at = now(), sender_ciphertext = null, space_ciphertext = null
+    where id = ${bindingId} and state = 'active'
+  `;
+  await tx`
+    update app.imessage_outbox
+    set state = 'suppressed', failure_category = 'blocked', recipient_ciphertext = null, text_ciphertext = null,
+        completed_at = now(), updated_at = now()
+    where binding_id = ${bindingId} and state in ('waiting', 'queued')
+  `;
+}
 
 // The summary a closed window stopped becomes one template (design 8): only for
 // the events that have one, only to an active WhatsApp binding, and only within

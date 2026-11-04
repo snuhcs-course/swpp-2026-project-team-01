@@ -1,12 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { channelHash } from "./photon-receiver";
 import {
+  botApiClient,
   callbackDataFor,
   inboundTelegramUpdate,
   normalizeTelegramSender,
   openTelegramText,
   parseCallbackData,
   sealedTelegramText,
+  splitTelegramText,
+  telegramClient,
+  telegramConfig,
+  telegramOutcome,
+  telegramTransport,
   telegramUpdateId,
 } from "./telegram";
 import type { TokenKey } from "./token-encryption";
@@ -143,5 +149,140 @@ describe("parseCallbackData", () => {
     expect(callbackDataFor({ name: "request", ref: "K7Q2MX" })).toBe("s:K7Q2MX");
     expect(callbackDataFor({ name: "share", ref: "K7Q2MX" })).toBeNull();
     expect(callbackDataFor({ name: "help" })).toBeNull();
+  });
+});
+
+describe("telegramOutcome", () => {
+  it("maps the Bot API's answers onto the four outcomes (D11)", () => {
+    expect(telegramOutcome(200, { ok: true, result: { message_id: 5 } })).toEqual({ result: { message_id: 5 }, status: "accepted" });
+    expect(telegramOutcome(403, { description: "Forbidden: bot was blocked by the user", error_code: 403, ok: false })).toEqual({
+      category: "blocked",
+      status: "rejected",
+    });
+    expect(telegramOutcome(400, { description: "Bad Request: chat not found", error_code: 400, ok: false })).toEqual({
+      category: "provider_rejected",
+      status: "rejected",
+    });
+    expect(telegramOutcome(401, { error_code: 401, ok: false })).toEqual({ category: "provider_authentication", status: "rejected" });
+    expect(telegramOutcome(429, { error_code: 429, ok: false, parameters: { retry_after: 7 } })).toEqual({ retryAfterSeconds: 7, status: "unavailable" });
+    expect(telegramOutcome(429, { error_code: 429, ok: false })).toEqual({ retryAfterSeconds: null, status: "unavailable" });
+    expect(telegramOutcome(502, null)).toEqual({ status: "uncertain" });
+    expect(telegramOutcome(200, { ok: false })).toEqual({ status: "uncertain" });
+  });
+});
+
+describe("botApiClient", () => {
+  const token = "123456:test_token_value";
+
+  it("posts JSON to /bot<token>/<method> and reads the answer", async () => {
+    const fetcher = vi.fn(async () => Response.json({ ok: true, result: { message_id: 9 } }));
+    const result = await botApiClient("http://127.0.0.1:9/", token, fetcher as unknown as typeof fetch).send({
+      method: "sendMessage",
+      params: { chat_id: "1", text: "hi" },
+    });
+
+    expect(result).toEqual({ result: { message_id: 9 }, status: "accepted" });
+    expect(fetcher).toHaveBeenCalledWith("http://127.0.0.1:9/bot123456:test_token_value/sendMessage", expect.objectContaining({ body: '{"chat_id":"1","text":"hi"}', method: "POST" }));
+  });
+
+  it("is unavailable without a token or when the connection is refused, and uncertain when the answer is lost", async () => {
+    const never = vi.fn();
+    expect(await botApiClient("http://127.0.0.1:9", "", never as unknown as typeof fetch).send({ method: "sendMessage", params: {} })).toEqual({
+      retryAfterSeconds: null,
+      status: "unavailable",
+    });
+    expect(never).not.toHaveBeenCalled();
+
+    const refused = async () => Promise.reject(Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } }));
+    expect(await botApiClient("http://127.0.0.1:9", token, refused as unknown as typeof fetch).send({ method: "sendMessage", params: {} })).toMatchObject({
+      status: "unavailable",
+    });
+
+    const reset = async () => Promise.reject(Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } }));
+    expect(await botApiClient("http://127.0.0.1:9", token, reset as unknown as typeof fetch).send({ method: "sendMessage", params: {} })).toEqual({
+      status: "uncertain",
+    });
+  });
+});
+
+describe("telegramClient", () => {
+  const fetcher = vi.fn(async () => Response.json({ ok: true, result: true }));
+
+  it("refuses a preview and a local call toward the real Bot API before any network access", async () => {
+    const preview = { TELEGRAM_API_URL: "http://127.0.0.1:4200", TELEGRAM_BOT_TOKEN: "1:x", VERCEL: "1", VERCEL_ENV: "preview", VERCEL_TARGET_ENV: "preview" };
+    await expect(telegramClient(telegramConfig(preview), preview, fetcher as unknown as typeof fetch).send({ method: "getMe", params: {} })).rejects.toMatchObject({
+      category: "unavailable_configuration",
+    });
+    const local = { TELEGRAM_BOT_TOKEN: "1:x" };
+    await expect(telegramClient(telegramConfig(local), local, fetcher as unknown as typeof fetch).send({ method: "getMe", params: {} })).rejects.toMatchObject({
+      category: "unavailable_configuration",
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("calls the stand-in locally and the Bot API in production, ignoring TELEGRAM_API_URL there", () => {
+    expect(telegramClient(telegramConfig({ TELEGRAM_API_URL: "http://127.0.0.1:4200" }), {}).endpoint).toBe("http://127.0.0.1:4200");
+    const production = { TELEGRAM_API_URL: "http://127.0.0.1:4200", VERCEL: "1", VERCEL_ENV: "production" };
+    expect(telegramClient(telegramConfig(production), production).endpoint).toBe("https://api.telegram.org");
+  });
+});
+
+describe("splitTelegramText", () => {
+  it("keeps text within the limit whole", () => {
+    expect(splitTelegramText("short")).toEqual(["short"]);
+    expect(splitTelegramText("x".repeat(4096))).toHaveLength(1);
+  });
+
+  it("splits longer text at paragraph breaks, then lines, then spaces, in order", () => {
+    expect(splitTelegramText("aaaa\n\nbbbb\ncccc", 12)).toEqual(["aaaa", "bbbb\ncccc"]);
+    expect(splitTelegramText("aaaa bbbb cccc", 9)).toEqual(["aaaa bbbb", "cccc"]);
+    expect(splitTelegramText("x".repeat(10), 4)).toEqual(["xxxx", "xxxx", "xx"]);
+    const parts = splitTelegramText(`${"word ".repeat(1000)}\n\n${"next ".repeat(1000)}`);
+    expect(parts.every((part) => part.length <= 4096)).toBe(true);
+    expect(parts.join(" ").replace(/\s+/g, " ").trim()).toBe(`${"word ".repeat(1000)}${"next ".repeat(1000)}`.trim());
+  });
+});
+
+describe("telegramTransport", () => {
+  const request = (text: string) => ({ channel: "telegram" as const, content: { kind: "text" as const, text }, idempotencyKey: "o1", recipient: { address: "42", spaceId: "42" } });
+
+  it("sends plain text with no parse_mode, split into parts a second apart", async () => {
+    const sent: unknown[] = [];
+    const waits: number[] = [];
+    let id = 0;
+    const client = { endpoint: "x", send: async (call: unknown) => (sent.push(call), { result: { message_id: ++id }, status: "accepted" as const }) };
+    const result = await telegramTransport(client, async (ms) => waits.push(ms)).send(request(`${"a".repeat(4000)}\n\n${"b".repeat(200)}`));
+
+    expect(result).toEqual({ messageId: "2", spaceId: "42", status: "accepted" });
+    expect(sent).toEqual([
+      { method: "sendMessage", params: { chat_id: "42", text: "a".repeat(4000) } },
+      { method: "sendMessage", params: { chat_id: "42", text: "b".repeat(200) } },
+    ]);
+    expect(waits).toEqual([1000]);
+  });
+
+  it("passes on a first refusal and is uncertain once a part went out", async () => {
+    const refusing = { endpoint: "x", send: async () => ({ category: "blocked" as const, status: "rejected" as const }) };
+    expect(await telegramTransport(refusing).send(request("hi"))).toEqual({ category: "blocked", status: "rejected" });
+
+    const limited = { endpoint: "x", send: async () => ({ retryAfterSeconds: 3, status: "unavailable" as const }) };
+    expect(await telegramTransport(limited).send(request("hi"))).toEqual({ retryAfterSeconds: 3, status: "unavailable" });
+
+    let calls = 0;
+    const partly = {
+      endpoint: "x",
+      send: async () => (++calls === 1 ? { result: { message_id: 1 }, status: "accepted" as const } : { retryAfterSeconds: 3, status: "unavailable" as const }),
+    };
+    expect(await telegramTransport(partly, async () => undefined).send(request(`${"a".repeat(4096)} b`))).toEqual({ status: "uncertain" });
+  });
+
+  it("refuses a recipient that is not a chat ID and content Telegram does not carry", async () => {
+    const client = { endpoint: "x", send: vi.fn() };
+    expect(await telegramTransport(client).send({ ...request("hi"), recipient: { address: "+15551234567", spaceId: null } })).toEqual({
+      category: "invalid_recipient",
+      status: "rejected",
+    });
+    expect(await telegramTransport(client).send({ ...request("hi"), content: { kind: "contact_card" } })).toEqual({ category: "provider_rejected", status: "rejected" });
+    expect(client.send).not.toHaveBeenCalled();
   });
 });

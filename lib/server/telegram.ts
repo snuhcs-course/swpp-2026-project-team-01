@@ -1,5 +1,8 @@
-import type { InboundMessage } from "./photon-receiver";
+import { deploymentEnvironment } from "./deployment";
 import type { ParsedCommand } from "./imessage-commands";
+import { gateTransport, type MessagingTransport } from "./messaging";
+import type { PhotonSendRequest, PhotonSendResult, PhotonTransport } from "./photon";
+import type { InboundMessage } from "./photon-receiver";
 
 // The Telegram Bot API, called directly (host-telegram-channel design 1 to 3,
 // D1 to D3). Photon's Telegram provider receives updates only over a persistent
@@ -213,4 +216,185 @@ export function callbackDataFor(command: ParsedCommand): string | null {
   if (!prefix) return null;
   const data = `${prefix}:${command.ref}`;
   return parseCallbackData(data) ? data : null;
+}
+
+// ---------------------------------------------------------------------------
+// The Bot API client (design 1 and 9, D1, D11)
+
+type Environment = Readonly<Record<string, string | undefined>>;
+
+export const TELEGRAM_API = "https://api.telegram.org";
+export const TELEGRAM_TIMEOUT_MS = 10_000;
+// Telegram allows about one message per second in one chat.
+export const TELEGRAM_CHAT_SPACING_MS = 1_000;
+
+export type TelegramConfig = {
+  // The bot's token (TELEGRAM_BOT_TOKEN). Never logged, printed or returned.
+  readonly token: string;
+  // The bot's username without "@" (TELEGRAM_BOT_USERNAME), for the t.me link.
+  readonly username: string;
+  // The stand-in's base URL (TELEGRAM_API_URL), honored outside production only.
+  readonly apiUrl: string | null;
+};
+
+export function telegramConfig(env: Environment = process.env): TelegramConfig {
+  return {
+    apiUrl: env.TELEGRAM_API_URL?.trim() || null,
+    token: env.TELEGRAM_BOT_TOKEN?.trim() ?? "",
+    username: env.TELEGRAM_BOT_USERNAME?.trim().replace(/^@/, "") ?? "",
+  };
+}
+
+// One Bot API method call with its JSON parameters.
+export type TelegramCall = { readonly method: string; readonly params: Readonly<Record<string, unknown>> };
+
+export type TelegramRejection = "blocked" | "provider_rejected" | "provider_authentication";
+
+// The four outcomes of the messaging transports (design 9):
+//   - accepted: ok, with the method's result;
+//   - rejected: a definitive refusal; a 403 means the user blocked or deleted
+//     the bot (blocked), a 401 or 404 a bad token, any other 4xx a bad request;
+//   - unavailable: nothing was sent; a 429 names how long to wait;
+//   - uncertain: the request was written and its answer was lost, timed out or
+//     was a 5xx, so it may have gone out.
+export type TelegramResult =
+  | { readonly status: "accepted"; readonly result: unknown }
+  | { readonly status: "rejected"; readonly category: TelegramRejection }
+  | { readonly status: "unavailable"; readonly retryAfterSeconds: number | null }
+  | { readonly status: "uncertain" };
+
+export type TelegramClient = MessagingTransport<TelegramCall, TelegramResult>;
+
+function refusedBeforeSending(error: unknown) {
+  const code = (error as { cause?: { code?: string } } | null)?.cause?.code;
+  return code === "ECONNREFUSED" || code === "ENOTFOUND" || code === "EAI_AGAIN";
+}
+
+// The answer's HTTP status and Telegram's error_code, description and
+// parameters.retry_after mapped onto the four outcomes.
+export function telegramOutcome(status: number, body: unknown): TelegramResult {
+  const answer = (body && typeof body === "object" ? body : {}) as {
+    ok?: unknown;
+    result?: unknown;
+    error_code?: unknown;
+    parameters?: { retry_after?: unknown } | null;
+  };
+  if (status >= 200 && status < 300 && answer.ok === true) return { result: answer.result ?? null, status: "accepted" };
+
+  const code = typeof answer.error_code === "number" ? answer.error_code : status;
+  if (code === 429) {
+    const after = answer.parameters?.retry_after;
+    return { retryAfterSeconds: typeof after === "number" && after >= 0 ? Math.ceil(after) : null, status: "unavailable" };
+  }
+  if (code === 403) return { category: "blocked", status: "rejected" };
+  if (code === 401 || code === 404) return { category: "provider_authentication", status: "rejected" };
+  if (code >= 400 && code < 500) return { category: "provider_rejected", status: "rejected" };
+  return { status: "uncertain" };
+}
+
+// The raw client, POST {endpoint}/bot{token}/{method} with a JSON body and a
+// ten-second timeout. The token is only ever part of the request URL.
+export function botApiClient(endpoint: string, token: string, fetcher: typeof fetch = fetch): TelegramClient {
+  const base = endpoint.replace(/\/+$/, "");
+
+  return {
+    endpoint: base,
+    async send(call) {
+      if (!token || !/^[A-Za-z0-9_]+$/.test(call.method)) return { retryAfterSeconds: null, status: "unavailable" };
+      let response: Response;
+
+      try {
+        response = await fetcher(`${base}/bot${token}/${call.method}`, {
+          body: JSON.stringify(call.params),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+          signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
+        });
+      } catch (error) {
+        return refusedBeforeSending(error) ? { retryAfterSeconds: null, status: "unavailable" } : { status: "uncertain" };
+      }
+
+      let body: unknown = null;
+      try {
+        body = await response.json();
+      } catch {
+        // A lost or unreadable answer to an accepted request may have gone out.
+        if (response.ok) return { status: "uncertain" };
+      }
+      return telegramOutcome(response.status, body);
+    },
+  };
+}
+
+// The deployment's client behind the messaging gate: the Bot API in production,
+// the stand-in where TELEGRAM_API_URL is set elsewhere, else the Bot API (which
+// the gate refuses outside production).
+export function telegramClient(config: TelegramConfig = telegramConfig(), env: Environment = process.env, fetcher: typeof fetch = fetch): TelegramClient {
+  const endpoint = deploymentEnvironment(env) !== "production" && config.apiUrl ? config.apiUrl : TELEGRAM_API;
+  return gateTransport(botApiClient(endpoint, config.token, fetcher), env);
+}
+
+// Text over Telegram's limit split into ordered parts: at the last paragraph
+// break that fits, else the last line break, else the last space, else hard.
+export function splitTelegramText(text: string, limit: number = TELEGRAM_TEXT_LIMIT) {
+  const parts: string[] = [];
+  let rest = text;
+
+  while (Array.from(rest).length > limit) {
+    const window = Array.from(rest).slice(0, limit).join("");
+    // A window that ends where a break follows is a whole part already.
+    const cut = /^\s/.test(rest.slice(window.length))
+      ? window.length
+      : ([window.lastIndexOf("\n\n"), window.lastIndexOf("\n"), window.lastIndexOf(" ")].find((index) => index > 0) ?? window.length);
+    parts.push(window.slice(0, cut).trimEnd());
+    rest = rest.slice(cut).replace(/^\s+/, "");
+  }
+  if (rest.length > 0 || parts.length === 0) parts.push(rest);
+  return parts;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Telegram as a messaging transport for the outbox (design 9): text goes out
+// with sendMessage in plain text (no parse_mode, D10), split into ordered parts
+// one second apart; a typing signal is sendChatAction; anything else is not a
+// Telegram message. The recipient address is the chat ID. Once one part was
+// accepted, a later failure is uncertain, since resending would repeat parts.
+export function telegramTransport(client: TelegramClient, wait: (ms: number) => Promise<unknown> = sleep): PhotonTransport {
+  return {
+    endpoint: client.endpoint,
+    async send(request: PhotonSendRequest): Promise<PhotonSendResult> {
+      const chatId = request.recipient.address;
+      if (!/^[1-9]\d{0,19}$/.test(chatId)) return { category: "invalid_recipient", status: "rejected" };
+
+      if (request.content.kind === "signal") {
+        if (!request.content.typing) return { messageId: null, spaceId: chatId, status: "accepted" };
+        return fromTelegram(await client.send({ method: "sendChatAction", params: { action: "typing", chat_id: chatId } }), chatId, null);
+      }
+      if (request.content.kind !== "text") return { category: "provider_rejected", status: "rejected" };
+
+      const parts = splitTelegramText(request.content.text);
+      let last: string | null = null;
+
+      for (const [index, part] of parts.entries()) {
+        if (index > 0) await wait(TELEGRAM_CHAT_SPACING_MS);
+        const result = await client.send({ method: "sendMessage", params: { chat_id: chatId, text: part } });
+        if (result.status !== "accepted") return index > 0 ? { status: "uncertain" } : fromTelegram(result, chatId, null);
+        last = messageIdOf(result.result);
+      }
+      return { messageId: last, spaceId: chatId, status: "accepted" };
+    },
+  };
+}
+
+function messageIdOf(result: unknown) {
+  const id = (result as { message_id?: unknown } | null)?.message_id;
+  return typeof id === "number" ? String(id) : null;
+}
+
+function fromTelegram(result: TelegramResult, chatId: string, messageId: string | null): PhotonSendResult {
+  if (result.status === "accepted") return { messageId, spaceId: chatId, status: "accepted" };
+  if (result.status === "rejected") return { category: result.category, status: "rejected" };
+  if (result.status === "unavailable") return { retryAfterSeconds: result.retryAfterSeconds, status: "unavailable" };
+  return { status: "uncertain" };
 }
