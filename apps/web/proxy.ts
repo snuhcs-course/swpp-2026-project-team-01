@@ -10,6 +10,6 @@ export const config = {
   // the public entry documents and the agent protocol endpoints (discovery,
   // OAuth and MCP), which never touch the session.
   matcher: [
-    "/((?!_next/static|_next/image|eve/|icon.svg|apple-icon|eve.svg|paper-grain.svg|SKILL\\.md$|llms\\.txt$|[^/]+/SKILL\\.md$|\\.well-known/|oauth/|mcp$|[^/]+/mcp$).*)",
+    "/((?!_next/static|_next/image|eve/|icon.svg|apple-icon|eve.svg|SKILL\\.md$|llms\\.txt$|[^/]+/SKILL\\.md$|\\.well-known/|oauth/|mcp$|[^/]+/mcp$).*)",
   ],
 };

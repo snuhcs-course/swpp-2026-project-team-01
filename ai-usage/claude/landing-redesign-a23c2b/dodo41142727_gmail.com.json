@@ -1,0 +1,40 @@
+{
+  "branch": "claude/landing-redesign-a23c2b",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:7f8eb084-f321-4f84-aee8-80f5f9e9c1cb": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 442,
+          "cache_read": 95730548,
+          "cache_write_5m": 0,
+          "cache_write_1h": 678861,
+          "output": 305429,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T16:48:25.562Z",
+      "last": "2026-11-03T18:24:43.681Z"
+    },
+    "claude:d21244b8-a832-48b3-9e6a-8791b1fab2be": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 4,
+          "cache_read": 1291603,
+          "cache_write_5m": 0,
+          "cache_write_1h": 6641,
+          "output": 2137,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T18:02:39.714Z",
+      "last": "2026-11-03T18:03:26.251Z"
+    }
+  }
+}

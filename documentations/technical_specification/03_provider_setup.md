@@ -115,6 +115,8 @@ Verify request selection, private discussion, revision and exact-proposal approv
 
 The production project is on Photon's Free plan, whose iMessage lines are shared: a shared line delivers only messages from registered project users and sends only to them ([troubleshooting](https://photon.codes/docs/spectrum-ts/troubleshooting/imessage), issue #94). Every iMessage link start therefore asks for the person's number first and registers it as a shared user through `POST https://spectrum.photon.codes/projects/{projectId}/users/` with the project credentials. The code is then addressed to the `assignedPhoneNumber` Photon returns, kept on the attempt as `imessage_links.line_number` ([`imessage-number-registration`](../../openspec/changes/imessage-number-registration/proposal.md#decisions) D1, D2). `PHOTON_LINE_NUMBER` only turns iMessage on. The Free plan allows 10 registered users and Pro 100 ([pricing](https://photon.codes/pricing)); a full project refuses new numbers. Read the registered users with `photon spectrum users ls --project <id>`. A dedicated line (Business) has no such list.
 
+Every WhatsApp link start (the host's link step and Connect WhatsApp card, `/?flow=whatsapp` and the guest's **Get updates in WhatsApp**) registers the entered number the same way since 2026-11-04 ([`guest-whatsapp-link`](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions) D3), so each WhatsApp start also spends a project user. The `assignedPhoneNumber` in the answer is an iMessage pool number and is discarded: a WhatsApp attempt keeps no `line_number` (a check enforces it), and its code is addressed to `PHOTON_WHATSAPP_NUMBER`. Whether Photon requires, accepts or ignores this registration for WhatsApp Business senders on the Free plan has not been verified.
+
 ### Display-name, contact cards and profile sync
 
 Share the contact card once after **Confirm and link**, held behind the welcome, as Photon's [deliverability guidance](https://photon.codes/docs/best-practices/imessage-deliverability.md) advises, and offer optional **Add to contacts** as a host action for another share; each queues one native contact-card share through the Spectrum SDK ([`host-imessage-channel` design 11 and 18](../../openspec/changes/host-imessage-channel/design.md#18-read-marks-typing-tapbacks-and-the-contact-card-after-linking-d20d22)). Read marks, the typing bubble and the thanks tapback go through the same SDK as best-effort outbox signals (`space.read`, `space.startTyping`, `message.react`). Freeze the actual selected route and report provider acceptance/uncertainty truthfully. The recipient chooses whether to save it; the product cannot promise the displayed name or infer identity/consent from a contact card. Verify the actual account profile and real-device presentation independently before claiming support.
@@ -153,6 +155,8 @@ Restored and switched on 2026-11-04: Meta's review restored account `10702400127
 
 The three templates were submitted under the other account (`1666920005146243`), so they must be submitted again under `1070240012733983` before any notice goes out outside the 24-hour window.
 
+Guests can link WhatsApp too ([`guest-whatsapp-link`](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions), issue #117): the same number, webhook and window, with the guest binding's `last_inbound_at` as the window's start. No template is registered for guests: outside the window a guest's WhatsApp notice or reply is suppressed with `window_closed`, and the booking email carries the update. The template limits above count only host templates.
+
 Operator steps, all blocked on the user until the implementing pull requests land:
 
 1. In WhatsApp Manager, for the business portfolio that owns the number, submit the three utility templates of [design 8](../../openspec/changes/host-whatsapp-channel/design.md#8-templates) in `en_US`, with their exact names and bodies, and wait for approval. Record each template's status and category. A reclassification to marketing goes back to the team. Submitted on 2026-11-04 and in review; each body uses `{{1}}` once, because Meta refuses a repeated variable.
@@ -161,6 +165,18 @@ Operator steps, all blocked on the user until the implementing pull requests lan
 4. Send one message from a controlled Android phone to the number and confirm that the stored receipt has channel `whatsapp`. Record the exact `platform` spelling and sender format in the change and here. Then run AC-29 to AC-31.
 
 Never change the Photon project's platforms, lines or webhook, register templates or send a WhatsApp message from an agent session without the user's approval.
+
+## Telegram
+
+Telegram is the transport of the host Telegram channel, proposed on 2026-11-04 in the [`host-telegram-channel` change](../../openspec/changes/host-telegram-channel/proposal.md#decisions). Its webhook, records and Bot API transport (Lane A) are implemented; linking and the channel's behavior (Lanes B and C) are not, so a Telegram update is stored and then ignored. It uses the Telegram Bot API directly, not Photon (D1). Photon's Telegram provider, `@spectrum-ts/telegram` 12.14.0, registers the bot's webhook at Photon's relay and delivers updates to the application over a persistent WebSocket (`wss://fusor-ws.spectrum.photon.codes/v1/subscribe`), which a Vercel Function cannot hold.
+
+- **Bot.** `@findmeatime_bot`, created by the user with [@BotFather](https://t.me/BotFather) on 2026-11-04. The token is the bot's only credential; `/revoke` in @BotFather replaces it.
+- **Variables.** `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` (`findmeatime_bot`) and `TELEGRAM_WEBHOOK_SECRET` (32 or more random URL-safe characters) on Vercel Production only, under the messaging gate; tests point `TELEGRAM_API_URL` at a loopback stand-in. The user keeps the token and username in the main checkout's `.env` for local runs.
+- **Webhook.** `https://findmeatime.com/telegram/webhook`, registered by `npm run telegram:webhook` with `setWebhook` (`secret_token`, `allowed_updates` `message`, `callback_query` and `my_chat_member`, `max_connections` 10) and `setMyCommands`, then checked with `getWebhookInfo`, printed without the token. The script reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` from the environment or the root env files, and refuses any origin but `https://findmeatime.com` and any `TELEGRAM_API_URL` that is not a loopback stand-in. Telegram sends the secret in `X-Telegram-Bot-Api-Secret-Token` and signs nothing else. It retries an unanswered update for up to 24 hours.
+- **Limits.** About one message per second to one chat and 30 per second overall; 4,096 characters per message; 64 bytes of `callback_data`; messages can be edited for 48 hours. A bot can message a user only after the user started it, and gets `403` once the user blocks it.
+- **Privacy.** Bot chats are not end-to-end encrypted and stay on Telegram's servers; the card and the privacy policy say so.
+
+Never set the bot's token, register its webhook or send a Telegram message from an agent session without the user's approval.
 
 ## Model access and runtime
 

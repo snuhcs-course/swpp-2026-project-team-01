@@ -3,7 +3,9 @@
 // components/thyme/copy.ts); the link copy follows the "iMessage 연결 화면 시안" canvas. The choice lives in
 // the `lang` cookie, so the server-rendered landing and the client screens agree.
 // WhatsApp (host-whatsapp-channel D6, D7, D12) reuses the same screens: `wa` holds the words that differ, and
-// channelCopy lays them over the iMessage words for a WhatsApp code or binding.
+// channelCopy lays them over the iMessage words for a WhatsApp code or binding. Telegram (host-telegram-channel
+// D6, D7, D13) does the same with `tg`: the host opens the bot and taps Start instead of sending a written note.
+// A WhatsApp start asks for the number as iMessage does (guest-whatsapp-link D3), under `wa.number`'s heading.
 
 import type { MessagingChannel } from "@lib/contracts/messaging-channel";
 
@@ -28,11 +30,9 @@ const en = {
   copy: { idle: "Copy", done: "Copied", fallback: "Select the text" },
   landing: {
     signIn: "Sign in",
-    headline: ["Send one link.", "Thyme finds the time.", "All you need is to chat."],
-    lede: "Setting up a meeting is tiring, isn't it? Send anyone your link without showing your calendar. Thyme works out the time with them and texts you the plan. You just reply back.",
+    headline: ["The assistant that", "negotiates your meetings."],
+    lede: "Share your link. Thyme settles the time and books it once you say OK.",
     google: "Continue with Google",
-    calendar: "Connect my Google Calendar too",
-    calendarNote: "Thyme reads when you're busy. Nothing is booked until you say OK.",
     noImessage: "No iMessage?",
     agentOr: "Or start from the AI agent you already use",
     agentPrompt: "Let me use findmeatime.com/SKILL.md for my scheduling",
@@ -46,6 +46,43 @@ const en = {
       ["Link your phone", "Thyme texts you from then on."],
       ["Share your link", "Anyone can ask for a time. They need no account."],
     ],
+    // What the service does, each beside a made-up example of it (product requirements: core rules 1 to 4,
+    // FR-09, FR-10, FR-12 and FR-14).
+    featuresTitle: "Thyme handles the back-and-forth.",
+    features: [
+      ["It negotiates for you.", "Thyme talks it through with the other person. It asks for what's missing, offers other times when theirs don't work, and asks you privately when nothing fits."],
+      ["It knows where you'll be.", "Thyme reads where each meeting is, how you get around and the slack you want, and checks the trip there and the trip after. It never offers a time you can't make."],
+      ["Your calendar stays yours.", "People see only the times Thyme offers. Your events, your rules and what you tell Thyme stay private."],
+      ["No account for your guests.", "They answer on your booking page, by email or through their own AI agent, and see every time in their own timezone."],
+      ["You approve every booking.", "Thyme shows you the exact proposal. Your OK puts it on your Google Calendar, and any change asks you again."],
+    ],
+    frag: {
+      yourCalendar: "Your calendar",
+      theySee: "What they see",
+      negotiation: [
+        { who: "guest", text: "Could we meet next Friday afternoon?" },
+        { who: "thyme", text: "Friday afternoon is taken. Would Thursday at 4:00 PM or 4:30 PM work?" },
+        { who: "guest", text: "Thursday at 4:00 PM, please." },
+        { who: "thyme", text: "Done. I'll confirm as soon as it's approved." },
+      ],
+      coffee: "Coffee, Yeoksam",
+      travel: (minutes: number) => `${minutes} min by transit`,
+      buffer: (minutes: number) => `+${minutes} min slack`,
+      place: "Seongsu",
+      fits: "Fits",
+      tooTight: "No time to get there",
+      bookingPage: "Booking page",
+      email: "Email",
+      agent: "Their AI agent",
+      noAccount: "No account",
+      seoul: "Seoul",
+      london: "London",
+      proposal: "Proposal",
+      minutes: (minutes: number) => `${minutes} min`,
+      online: "Online",
+      approve: "Approve",
+      decline: "Decline",
+    },
     tagline: "Thoughtful scheduling. One meeting at a time.",
     rights: "All rights reserved.",
     privacy: "Privacy and your data",
@@ -58,6 +95,8 @@ const en = {
     slide: (i: number, n: number) => `${i} of ${n}`,
     choose: "Choose an example",
     dot: (i: number, n: number) => `Example ${i} of ${n}`,
+    // What each thread shows, in thread order, over the conversation on the landing.
+    captions: ["Learns your week from your calendar.", "Suggests the rules. You decide.", "Text it like you'd text an assistant.", "Nothing is booked until you say OK."],
     threads: [
       {
         tag: "During setup", stamp: "Today 9:02 AM", alt: true,
@@ -181,11 +220,18 @@ const en = {
     switchTo: (name: string) => `Use ${name} instead`,
     replacesImessage: "This replaces your iMessage link.",
     replacesWhatsapp: "This replaces your WhatsApp link.",
+    replacesTelegram: "This replaces your Telegram link.",
     optIn: "Thyme will message you on WhatsApp about your requests. If you have not written for a day, it sends a short notice instead.",
+    privacyTelegram: "Telegram keeps bot chats on its servers. Find Me a Time sends your request summaries here.",
   },
   // The words that differ for WhatsApp, laid over the ones above by channelCopy.
   wa: {
     landing: { noImessage: "No WhatsApp?" },
+    // The number asked before a WhatsApp link code too (guest-whatsapp-link D3).
+    number: {
+      heading: "Which number do you use for WhatsApp?",
+      fine: "Thyme uses this number only to recognize your messages.",
+    },
     send: {
       start: "Onboard with WhatsApp",
       startOpensPhone: "WhatsApp opens with a note to Thyme already written. Tap send, then come back here.",
@@ -216,6 +262,42 @@ const en = {
       connectedLede: "You can onboard with Thyme in WhatsApp. Thyme just sent you a hello there.",
     },
   },
+  // The words that differ for Telegram, laid over the iMessage ones by channelCopy.
+  tg: {
+    landing: { noImessage: "No Telegram?" },
+    send: {
+      start: "Onboard with Telegram",
+      startOpensPhone: "Telegram opens at Thyme's bot. Tap Start, then come back here.",
+      startOpensDesktop: "Opens Thyme's bot in Telegram: on this computer, or through a QR code for your phone.",
+      fine: "By tapping Start, you agree to get Telegram messages from Thyme about your meetings. Send /stop to stop anytime.",
+      open: "Open Telegram",
+      opensNote: "Telegram opens at Thyme's bot. Tap Start, then come back here.",
+      qrTag: "PHONE",
+      qrTitle: "Scan with your phone",
+      qrBody: "Telegram opens at Thyme's bot. Tap Start.",
+      qrAlt: "QR code that opens Thyme's bot in Telegram on your phone",
+      macTag: "THIS COMPUTER",
+      macTitle: "Open Telegram here",
+      macBody: "Opens Telegram Desktop or Telegram Web on this computer.",
+      copyBody: "Open this link in Telegram, or send the code to the bot.",
+      popupTitle: "Start Thyme's bot in Telegram",
+      popupLede: "Open Thyme's bot in the Telegram you use and tap Start. This page moves on by itself.",
+      waitingLede: "Tap Start in Telegram. This page moves on as soon as it arrives.",
+      waitingStartLede: "Tap Start in Telegram, then come back here. Next, you sign in with Google once.",
+      reopen: "Telegram didn't open? Open it again",
+      unavailable: "Starting from Telegram isn't available yet.",
+    },
+    link: {
+      heading: "Connect Thyme to your Telegram",
+      lede: "Open Thyme's bot in the Telegram you use and tap Start. That links this account.",
+      ledePhone: "Open Thyme's bot in Telegram and tap Start. That links this account.",
+      altDesktop: "Rather not now?",
+      altPhone: "Rather not now?",
+      confirmLede: "We got your Start. Link it only if it came from your Telegram.",
+      connected: "Your Telegram is connected.",
+      connectedLede: "You can onboard with Thyme in Telegram. Thyme just sent you a hello there.",
+    },
+  },
 };
 
 export type Copy = typeof en;
@@ -225,42 +307,76 @@ const ko: Copy = {
   copy: { idle: "복사", done: "복사했어요", fallback: "직접 선택해 복사하세요" },
   landing: {
     signIn: "로그인",
-    headline: ["링크 하나만 보내세요.", "시간은 Thyme이 찾아요.", "당신은 대화만 하면 돼요."],
-    lede: "미팅 시간 잡기, 번거롭죠? 캘린더를 보여 주지 않고도 누구에게나 링크를 보내세요. Thyme이 상대와 시간을 맞추고 계획을 문자로 알려 드려요. 답장만 하면 돼요.",
+    headline: ["미팅 시간을", "대신 협상하는 비서."],
+    lede: "링크만 보내세요. 시간은 Thyme이 맞추고, 승인하면 예약해요.",
     google: "Google로 계속하기",
-    calendar: "Google Calendar도 함께 연결",
-    calendarNote: "Thyme은 바쁜 시간만 읽어요. 확인하기 전에는 아무것도 예약하지 않아요.",
     noImessage: "iMessage가 없나요?",
     agentOr: "또는 이미 쓰는 AI 에이전트에서 시작하기",
-    agentPrompt: "내 일정 조율에 findmeatime.com/SKILL.md를 써 줘",
+    agentPrompt: "findmeatime.com/SKILL.md로 내 일정을 조율해 줘",
     agentLabel: "에이전트에 넣을 프롬프트",
-    agentNote: "에이전트에 붙여 넣으면 같은 설정을 안내해요.",
+    agentNote: "에이전트에 붙여 넣으면 같은 설정 과정을 안내해요.",
     agentRegion: "AI 에이전트용",
     agentDoc: "에이전트용 안내:",
-    stepsTitle: "세 단계면, 나머지는 메시지로 진행돼요.",
+    stepsTitle: "세 단계만 거치면 나머지는 메시지로 진행돼요.",
     steps: [
       ["Google로 시작", "로그인하고 캘린더까지 한 번에 연결해요."],
       ["휴대폰 연결", "그다음부터 Thyme이 문자로 연락해요."],
       ["링크 공유", "누구나 시간을 요청할 수 있어요. 계정이 없어도 돼요."],
     ],
-    tagline: "신중한 일정 조율. 한 번에 한 미팅씩.",
+    featuresTitle: "오가는 연락은 Thyme이 맡아요.",
+    features: [
+      ["협상은 Thyme이 대신해요.", "상대와 직접 대화해요. 빠진 정보는 묻고, 상대가 원하는 시간이 안 되면 다른 시간을 제안하고, 맞는 시간이 없으면 상대 모르게 따로 물어봐요."],
+      ["어디에 있을지까지 고려해요.", "일정마다 장소와 이동 수단, 원하는 여유 시간을 보고 그곳까지 가는 길과 다음 일정으로 가는 길을 모두 확인해요. 갈 수 없는 시간은 제안하지 않아요."],
+      ["내 캘린더는 나만 봐요.", "상대는 Thyme이 제안한 시간만 봐요. 일정과 규칙, Thyme에게 한 말은 공개되지 않아요."],
+      ["상대는 계정이 필요 없어요.", "예약 페이지나 이메일, 평소 쓰는 AI 에이전트로 답하면 되고, 시간은 모두 자기 시간대로 보여요."],
+      ["예약은 직접 승인해요.", "Thyme이 제안 내용을 그대로 보여 드려요. 승인하면 Google Calendar에 등록되고, 하나라도 바뀌면 다시 물어봐요."],
+    ],
+    frag: {
+      yourCalendar: "내 캘린더",
+      theySee: "상대가 보는 화면",
+      negotiation: [
+        { who: "guest", text: "다음 주 금요일 오후에 뵐 수 있을까요?" },
+        { who: "thyme", text: "금요일 오후는 어려워요. 목요일 오후 4시나 4시 반은 어떠세요?" },
+        { who: "guest", text: "목요일 오후 4시로 할게요." },
+        { who: "thyme", text: "좋아요. 승인되는 대로 확정해 드릴게요." },
+      ],
+      coffee: "커피, 역삼",
+      travel: (minutes: number) => `대중교통 ${minutes}분`,
+      buffer: (minutes: number) => `여유 ${minutes}분`,
+      place: "성수",
+      fits: "가능",
+      tooTight: "이동 시간이 부족해요",
+      bookingPage: "예약 페이지",
+      email: "이메일",
+      agent: "상대의 AI 에이전트",
+      noAccount: "계정 없이",
+      seoul: "서울",
+      london: "런던",
+      proposal: "제안",
+      minutes: (minutes: number) => `${minutes}분`,
+      online: "온라인",
+      approve: "승인",
+      decline: "거절",
+    },
+    tagline: "일정은 신중하게, 미팅은 한 번에 하나씩.",
     rights: "모든 권리 보유.",
     privacy: "개인정보와 데이터",
     terms: "이용약관",
     legal: "개인정보와 약관",
   },
   examples: {
-    label: "Thyme과의 대화 예시",
+    label: "Thyme과 나누는 대화 예시",
     channel: "문자 메시지",
     slide: (i: number, n: number) => `${n}개 중 ${i}번째`,
     choose: "예시 고르기",
     dot: (i: number, n: number) => `예시 ${i} / ${n}`,
+    captions: ["캘린더를 읽고 한 주의 흐름을 익혀요.", "규칙은 제안만 해요. 결정은 직접 해요.", "비서에게 문자하듯 말하면 돼요.", "확인하기 전에는 아무것도 예약하지 않아요."],
     threads: [
       {
         tag: "설정 중", stamp: "오늘 오전 9:02", alt: true,
         lines: [
           { who: "thyme", rows: ["지난 8주 캘린더를 읽었어요.", "• 미팅은 화–목 오후 1–5시에 몰려 있어요", "• 오전은 비어 있어요", "• 금요일은 오후 3시 전에 끝나요"] },
-          { who: "thyme", rows: ["사람들에게 이 시간대를 제안할게요. 괜찮을까요?"] },
+          { who: "thyme", rows: ["앞으로 상대에게는 이 시간대를 제안할게요. 괜찮을까요?"] },
           { who: "me", rows: ["좋아요."] },
         ],
       },
@@ -268,9 +384,9 @@ const ko: Copy = {
         tag: "설정 중", stamp: "오늘 오전 9:04", alt: true,
         lines: [
           { who: "thyme", rows: ["수요일은 미팅이 연달아 있어요. 최근 6번 중 5번은 오후 2시 이후 쉬는 시간이 없었어요."] },
-          { who: "thyme", rows: ["미팅 사이에 15분을 비워 둘까요?"] },
+          { who: "thyme", rows: ["미팅 사이에 15분씩 비워 둘까요?"] },
           { who: "me", rows: ["네, 그렇게 해 주세요."] },
-          { who: "thyme", rows: ["완료했어요. 수요일에 숨 돌릴 틈이 생겼어요."] },
+          { who: "thyme", rows: ["반영했어요. 이제 수요일에도 숨 돌릴 틈이 있어요."] },
         ],
       },
       {
@@ -285,9 +401,9 @@ const ko: Copy = {
       {
         stamp: "오늘 오전 8:30", alt: false,
         lines: [
-          { who: "thyme", rows: ["두 요청이 목요일 오후 3시를 원해요.", { name: "김지수", rest: ", 투자자 → 목 오후 3:00" }, { name: "박민호", rest: ", 커피챗 → 금 오전 10:00" }, "투자자를 먼저 잡을게요. 괜찮을까요?"] },
+          { who: "thyme", rows: ["목요일 오후 3시에 요청 두 건이 겹쳤어요.", { name: "김지수", rest: ", 투자자 → 목 오후 3:00" }, { name: "박민호", rest: ", 커피챗 → 금 오전 10:00" }, "투자자 미팅을 먼저 잡을게요. 괜찮을까요?"] },
           { who: "me", rows: ["민호가 누구였지?"], more: true },
-          { who: "thyme", rows: ["로봇 스타트업 PM이에요. 5월 데모데이에서 만났고, 채용 조언을 원해요."], more: true },
+          { who: "thyme", rows: ["로봇 스타트업 PM이에요. 5월 데모데이에서 만났고, 채용 조언을 구하고 있어요."], more: true },
           { who: "me", rows: ["좋아, 진행해."] },
           { who: "thyme", rows: ["지수 님 일정은 확정했어요. 민호 님이 시간을 고르면 문자로 알려 드릴게요."] },
         ],
@@ -374,10 +490,16 @@ const ko: Copy = {
     switchTo: (name: string) => `대신 ${name} 쓰기`,
     replacesImessage: "기존 iMessage 연결을 대신해요.",
     replacesWhatsapp: "기존 WhatsApp 연결을 대신해요.",
+    replacesTelegram: "기존 Telegram 연결을 대신해요.",
     optIn: "Thyme이 요청에 관해 WhatsApp으로 메시지를 보내요. 하루 동안 메시지를 보내지 않으면 대신 짧은 알림을 보내요.",
+    privacyTelegram: "Telegram은 봇 대화를 자기 서버에 보관해요. Find Me a Time은 요청 요약을 이 대화로 보내요.",
   },
   wa: {
     landing: { noImessage: "WhatsApp이 없나요?" },
+    number: {
+      heading: "WhatsApp 번호를 알려 주세요",
+      fine: "이 번호는 내 메시지를 알아보는 데만 써요.",
+    },
     send: {
       start: "WhatsApp으로 시작하기",
       startOpensPhone: "Thyme에게 보낼 메시지가 미리 적힌 채로 WhatsApp이 열려요. 보내기를 누른 뒤 여기로 돌아오세요.",
@@ -408,12 +530,56 @@ const ko: Copy = {
       connectedLede: "이제 WhatsApp에서 Thyme과 설정을 이어 갈 수 있어요. Thyme이 방금 인사를 보냈어요.",
     },
   },
+  tg: {
+    landing: { noImessage: "Telegram이 없나요?" },
+    send: {
+      start: "Telegram으로 시작하기",
+      startOpensPhone: "Telegram에서 Thyme 봇이 열려요. 시작을 누른 뒤 여기로 돌아오세요.",
+      startOpensDesktop: "Telegram에서 Thyme 봇이 열려요. 이 컴퓨터에서 바로 열거나, 휴대폰으로 찍을 QR 코드를 보여 드려요.",
+      fine: "시작을 누르면 미팅에 관한 Thyme의 Telegram 메시지를 받는 데 동의하게 돼요. 언제든 /stop을 보내면 멈춰요.",
+      open: "Telegram 열기",
+      opensNote: "Telegram에서 Thyme 봇이 열려요. 시작을 누른 뒤 여기로 돌아오세요.",
+      qrTag: "휴대폰",
+      qrTitle: "휴대폰으로 찍기",
+      qrBody: "Telegram에서 Thyme 봇이 열려요. 시작만 누르세요.",
+      qrAlt: "휴대폰의 Telegram에서 Thyme 봇을 여는 QR 코드",
+      macTag: "이 컴퓨터",
+      macTitle: "여기서 Telegram 열기",
+      macBody: "이 컴퓨터의 Telegram 앱이나 Telegram Web이 열려요.",
+      copyBody: "이 링크를 Telegram에서 열거나, 코드를 봇에게 보내세요.",
+      popupTitle: "Telegram에서 Thyme 봇 시작하기",
+      popupLede: "쓰고 있는 Telegram에서 Thyme 봇을 열고 시작을 누르세요. 이 화면이 알아서 넘어가요.",
+      waitingLede: "Telegram에서 시작을 눌러 주세요. 도착하면 이 화면이 바로 넘어가요.",
+      waitingStartLede: "Telegram에서 시작을 누른 뒤 여기로 돌아오세요. 다음으로 Google 로그인을 한 번만 하면 돼요.",
+      reopen: "Telegram이 안 열렸나요? 다시 열기",
+      unavailable: "지금은 Telegram으로 시작할 수 없어요.",
+    },
+    link: {
+      heading: "Thyme을 Telegram에 연결해요",
+      lede: "쓰고 있는 Telegram에서 Thyme 봇을 열고 시작을 누르세요. 그러면 이 계정에 연결돼요.",
+      ledePhone: "Telegram에서 Thyme 봇을 열고 시작을 누르세요. 그러면 이 계정에 연결돼요.",
+      altDesktop: "지금은 하고 싶지 않나요?",
+      altPhone: "지금은 하고 싶지 않나요?",
+      confirmLede: "시작을 받았어요. 내 Telegram에서 누른 게 맞을 때만 연결해 주세요.",
+      connected: "Telegram이 연결됐어요.",
+      connectedLede: "이제 Telegram에서 Thyme과 설정을 이어 갈 수 있어요. Thyme이 방금 인사를 보냈어요.",
+    },
+  },
 };
 
 export const COPY: Record<Locale, Copy> = { en, ko };
 
-// The words for a channel's screens: WhatsApp's laid over the iMessage ones.
+// The words for a channel's screens: WhatsApp's or Telegram's laid over the iMessage ones.
 export function channelCopy(t: Copy, channel: MessagingChannel): Copy {
-  if (channel !== "whatsapp") return t;
-  return { ...t, landing: { ...t.landing, ...t.wa.landing }, link: { ...t.link, ...t.wa.link }, send: { ...t.send, ...t.wa.send } };
+  if (channel === "imessage") return t;
+  const over = channel === "whatsapp" ? t.wa : t.tg;
+  const number = channel === "whatsapp" ? { ...t.number, ...t.wa.number } : t.number;
+  return { ...t, landing: { ...t.landing, ...over.landing }, link: { ...t.link, ...over.link }, number, send: { ...t.send, ...over.send } };
+}
+
+// "This replaces your … link." for the channel a confirmation would replace (D5).
+export function replacesText(t: Copy, channel: MessagingChannel) {
+  if (channel === "whatsapp") return t.link.replacesWhatsapp;
+  if (channel === "telegram") return t.link.replacesTelegram;
+  return t.link.replacesImessage;
 }

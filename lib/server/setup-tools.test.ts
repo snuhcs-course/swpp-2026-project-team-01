@@ -23,10 +23,10 @@ function resolveContext(current: SessionPrincipal): DynamicResolveContext {
 const hostSetup = principal({ audience: "host_setup", discussionId: "d", generation: "1" });
 
 describe("setup capabilities resolve per audience", () => {
-  it("gives a host setup session both setup tools", async () => {
+  it("gives a host setup session the setup tools and switching in words", async () => {
     const tools = await setupTools.events["session.started"]!({}, resolveContext(hostSetup));
 
-    expect(Object.keys(tools ?? {}).sort()).toEqual(["draft_settings", "read_setup_state"]);
+    expect(Object.keys(tools ?? {}).sort()).toEqual(["draft_settings", "read_setup_state", "switch_conversation"]);
   });
 
   it("leaves the tools absent for any other audience or no principal", async () => {

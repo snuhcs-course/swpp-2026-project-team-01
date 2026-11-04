@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { channelHash, imessageHash, inboundMessage } from "./photon-receiver";
-import { inboundWhatsAppMessage, isWhatsAppEvent, metaErrorCode, normalizeWhatsAppSender, whatsAppSendFailure } from "./whatsapp";
+import { buttonCommand, inboundWhatsAppMessage, isWhatsAppEvent, metaErrorCode, normalizeWhatsAppSender, whatsAppSendFailure } from "./whatsapp";
 
 // WhatsApp Business on the shared webhook (host-whatsapp-channel design 2 and 3):
 // the platform check, the contact ID and the separate hash namespace.
@@ -107,6 +107,51 @@ describe("inboundWhatsAppMessage", () => {
   });
 });
 
+// host-whatsapp-channel design 11, D17: a tap is read from its ID, never its title.
+describe("buttonCommand", () => {
+  it("turns each ID into the exact command it names", () => {
+    expect(buttonCommand("a:K7Q2MX-2")).toBe("approve K7Q2MX-2");
+    expect(buttonCommand("d:k7q2mx-2")).toBe("decline K7Q2MX-2");
+    expect(buttonCommand("s:K7Q2MX")).toBe("request K7Q2MX");
+    expect(buttonCommand("c:0a1b2c3d")).toBe("confirm 0A1B2C3D");
+  });
+
+  it("names nothing for an ID without its version, another format or a title", () => {
+    expect(buttonCommand("a:K7Q2MX")).toBeNull();
+    expect(buttonCommand("s:K7Q2MX-2")).toBeNull();
+    expect(buttonCommand("c:K7Q2MX")).toBeNull();
+    expect(buttonCommand("opt_0")).toBeNull();
+    expect(buttonCommand("Approve")).toBeNull();
+    expect(buttonCommand("a:K7Q2MX-2 extra")).toBeNull();
+    expect(buttonCommand(3)).toBeNull();
+  });
+});
+
+describe("inboundWhatsAppMessage with a reply button", () => {
+  const tap = (content: Record<string, unknown>) => inboundWhatsAppMessage({ ...event, message: { ...event.message, content } });
+
+  it.each([
+    ["Spectrum's custom content", { raw: { reply: { id: "a:K7Q2MX-2", title: "Decline" }, type: "button_reply", whatsapp_type: "interactive" }, type: "custom" }],
+    ["an interactive with reply.id", { interactive: { reply: { id: "a:K7Q2MX-2", title: "Approve" }, type: "button_reply" }, type: "interactive" }],
+    ["Meta's button_reply", { interactive: { button_reply: { id: "a:K7Q2MX-2", title: "Approve" }, type: "button_reply" }, type: "interactive" }],
+    ["a button with an id", { id: "a:K7Q2MX-2", title: "Approve", type: "button" }],
+    ["a button with a payload", { button: { payload: "a:K7Q2MX-2", text: "Approve" }, type: "button" }],
+  ])("reads %s as the command its ID names", (_shape, content) => {
+    expect(tap(content)).toMatchObject({ channel: "whatsapp", contentType: "button", text: "approve K7Q2MX-2" });
+  });
+
+  it("never reads the title, and names no command for an ID we did not set", () => {
+    expect(tap({ interactive: { reply: { id: "opt_0", title: "approve K7Q2MX-2" }, type: "button_reply" }, type: "interactive" })).toMatchObject({
+      contentType: "button",
+      text: null,
+    });
+  });
+
+  it("leaves other custom content alone", () => {
+    expect(tap({ raw: { latitude: 1, longitude: 2, whatsapp_type: "location" }, type: "custom" })).toMatchObject({ contentType: "custom", text: null });
+  });
+});
+
 describe("channelHash", () => {
   it("hashes WhatsApp in its own namespace and leaves iMessage hashes as they were", () => {
     expect(channelHash(key, "imessage", "sender", "+15551234567")).toBe(imessageHash(key, "sender", "+15551234567"));
@@ -123,6 +168,10 @@ describe("whatsAppSendFailure", () => {
       category: "template_unavailable",
       status: "rejected",
     });
+    expect(
+      whatsAppSendFailure(Object.assign(new Error("(#131037) WhatsApp provided number needs display name approval before message can be sent."), { code: "internalError" })),
+    ).toEqual({ category: "provider_rejected", status: "rejected" });
+    expect(whatsAppSendFailure(new Error("(#131031) Business account has been locked"))).toEqual({ category: "provider_rejected", status: "rejected" });
     expect(whatsAppSendFailure(new Error("(#130429) Rate limit hit"))).toEqual({ status: "unavailable" });
     expect(whatsAppSendFailure(new Error("(#131056) Pair rate limit"))).toEqual({ status: "unavailable" });
   });

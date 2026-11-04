@@ -37,24 +37,27 @@ async function DocumentPage({ en, ko, searchParams }: { readonly en: LegalDocume
   const content = lang === "ko" ? ko : en;
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-10 px-4 py-16 sm:px-8" lang={content.lang}>
-      <header className="flex flex-col gap-3">
-        <p className="text-sm">
-          <a className="underline underline-offset-4" href="/">
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-12 px-5 pt-6 pb-24 sm:px-8" lang={content.lang}>
+      <header className="flex flex-col gap-5">
+        <p className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <a className="wordmark-lockup" href="/">
             Find Me a Time
           </a>
-          {" · "}
-          <a className="underline underline-offset-4" href={content.other.href} hrefLang={content.lang === "en" ? "ko" : "en"}>
+          <a
+            className="inline-flex min-h-10 items-center rounded-full px-4 font-semibold shadow-[inset_0_0_0_1px_var(--hairline)] hover:shadow-[inset_0_0_0_1px_var(--primary)]"
+            href={content.other.href}
+            hrefLang={content.lang === "en" ? "ko" : "en"}
+          >
             {content.other.label}
           </a>
         </p>
-        <h1 className="font-display text-[clamp(32px,5vw,48px)] leading-tight">{content.title}</h1>
+        <h1 className="mt-10 font-display text-[clamp(44px,7vw,72px)] leading-[1.02]">{content.title}</h1>
         <p className="text-muted-foreground text-sm">{content.updated}</p>
-        <p className="text-lg">{content.intro}</p>
+        <p className="text-lg text-body">{content.intro}</p>
       </header>
       {content.sections.map((section) => (
-        <section aria-labelledby={`${section.id}-heading`} className="flex scroll-mt-8 flex-col gap-3" id={section.id} key={section.id}>
-          <h2 className="font-display text-2xl" id={`${section.id}-heading`}>
+        <section aria-labelledby={`${section.id}-heading`} className="flex scroll-mt-8 flex-col gap-3 text-body" id={section.id} key={section.id}>
+          <h2 className="font-display text-[clamp(30px,4vw,40px)] leading-[1.1] text-foreground" id={`${section.id}-heading`}>
             {section.title}
           </h2>
           {section.paragraphs.map((paragraph) => (
@@ -71,7 +74,7 @@ async function DocumentPage({ en, ko, searchParams }: { readonly en: LegalDocume
             <ul className="flex flex-col gap-1">
               {section.links.map((link) => (
                 <li key={link.href}>
-                  <a className="underline underline-offset-4" href={link.href}>
+                  <a className="text-primary underline underline-offset-4" href={link.href}>
                     {link.label}
                   </a>
                 </li>

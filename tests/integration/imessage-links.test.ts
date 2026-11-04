@@ -82,11 +82,12 @@ describe("registering the entered number first (imessage-number-registration)", 
     expect(await im.status(hostAccountId)).toMatchObject({ state: "none" });
   });
 
-  it("asks WhatsApp for no number and registers nothing", async () => {
+  // WhatsApp registers the number too, but Telegram takes none (guest-whatsapp-link D3).
+  it("asks Telegram for no number and registers nothing", async () => {
     const hostAccountId = await newHostAccount(db);
     const before = photon.registered.length;
-    expect((await im.command(hostAccountId, "imessage.link.create", { channel: "whatsapp" })).ok).toBe(true);
-    expect(await im.command(hostAccountId, "imessage.link.create", { channel: "whatsapp", number: newSender() })).toMatchObject({ ok: false });
+    expect((await im.command(hostAccountId, "imessage.link.create", { channel: "telegram" })).ok).toBe(true);
+    expect(await im.command(hostAccountId, "imessage.link.create", { channel: "telegram", number: newSender() })).toMatchObject({ ok: false });
     expect(photon.registered.length).toBe(before);
   });
 });
@@ -103,7 +104,7 @@ describe("linking by a host-sent code", () => {
     const arrival = await im.deliver({ sender, text: pending.message });
     expect(arrival.outcome).toBe("link_received");
     const received = await im.status(hostAccountId);
-    expect(received).toMatchObject({ sender: `•••• ${sender.slice(-4)}`, state: "received" });
+    expect(received).toMatchObject({ sender: sender, state: "received" });
     expect(await im.bindingOf(hostAccountId)).toBeNull();
 
     const [ack] = await im.outbox({ hostAccountId, kind: "link_received" });
@@ -116,7 +117,7 @@ describe("linking by a host-sent code", () => {
     expect(confirmed.ok).toBe(true);
     expect(await im.bindingOf(hostAccountId)).toMatchObject({ sender_hash: imessageHash(testTokenKey, "sender", sender), state: "active" });
     // Confirming also queues the line's contact card after the welcome (D22).
-    expect(await im.status(hostAccountId)).toMatchObject({ contactCard: { state: "queued" }, delivery: null, sender: `•••• ${sender.slice(-4)}`, state: "linked" });
+    expect(await im.status(hostAccountId)).toMatchObject({ contactCard: { state: "queued" }, delivery: null, sender: sender, state: "linked" });
     expect(await im.outbox({ hostAccountId, kind: "contact_card" })).toHaveLength(1);
 
     const [linked] = await im.outbox({ hostAccountId, kind: "linked" });
@@ -233,7 +234,7 @@ describe("the fallback code", () => {
 
     const code = await codeSentTo(hostAccountId, number);
     const status = await im.status(hostAccountId);
-    expect(status).toMatchObject({ number: `•••• ${number.slice(-4)}`, send: "sent", sendsLeft: 2, state: "fallback" });
+    expect(status).toMatchObject({ number: number, send: "sent", sendsLeft: 2, state: "fallback" });
     expect(JSON.stringify(status)).not.toContain(code);
 
     const verified = await im.command(hostAccountId, "imessage.link.verify_code", { code });

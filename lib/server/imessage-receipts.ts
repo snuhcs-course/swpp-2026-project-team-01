@@ -1,5 +1,5 @@
 import { getChatMessageLengthError } from "../contracts/chat-message";
-import { IMESSAGE_PREFIX, type MessagingChannel, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
+import { IMESSAGE_PREFIX, type MessagingChannel, type StoredChannel, TELEGRAM_PREFIX, WHATSAPP_PREFIX } from "../contracts/messaging-channel";
 import { type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { AdmissionLimitError } from "./conversation-admission";
 import {
@@ -16,18 +16,28 @@ import { findLinkCode } from "./email-links";
 import { acceptGuestMessage, DraftMessageLimitError } from "./guest-conversations";
 import { HostIneligibleError } from "./host-eligibility";
 import { internalSigningKey } from "./internal-bearer";
-import { activeBindingOfSender, bindingContext, lockActiveBindingOfSender, receiveLinkCode, refusalSentRecently } from "./imessage-links";
-import { type ImessageSignal, recordOutbound, signalText } from "./imessage-outbox";
+import {
+  activeBindingOfSender,
+  bindingContext,
+  lockActiveBindingOfSender,
+  receiveLinkCode,
+  refusalSentRecently,
+  telegramDisplayName,
+} from "./imessage-links";
+import { endBlockedBinding, type ImessageSignal, recordOutbound, signalText } from "./imessage-outbox";
 import { type JobHandler, publishJob } from "./jobs";
 import { assertMessagingAdmitted } from "./messaging";
-import { executeCommand, parseCommand, requestRef } from "./imessage-commands";
+import { answerCallback, CALLBACK_TEXTS, executeCommand, parseCommand, requestRef } from "./imessage-commands";
 import { photonConfig, type PhotonConfig, photonTransport, SPECTRUM_ENDPOINT } from "./photon";
+import { WHATSAPP_BUTTON_CONTENT } from "./whatsapp";
 import { IMESSAGE_RECEIPT_JOB, receiptSealContext } from "./photon-receiver";
 import { emailSourceHash } from "./email-receipts";
 import { requesterBindingContext } from "./requester-imessage-bindings";
 import { type CreationLimits } from "./request-start";
 import { isRevisable, readRevisedSummary, reviseClosedRequest } from "./revised-requests";
 import { type SetupDependencies, setupDependenciesFromEnvironment } from "./setup";
+import { openTelegramText, parseCallbackData, type TelegramDetails, THANKS_REACTION } from "./telegram";
+import { startTypingRepeats } from "./telegram-jobs";
 import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
 
 // The imessage_receipt job (host-imessage-channel design 7): what one stored
@@ -42,9 +52,17 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 //     (guest-flow-completion design 3; guestRoute below says which);
 //   - a sender with no active binding, or whose host may no longer host, gets
 //     one fixed reply a day pointing to /app and no session (D10);
-//   - content other than text gets one fixed reply;
+//   - content other than text gets one fixed reply, except a WhatsApp reply
+//     button, which carries the exact command its ID names;
 //   - otherwise the bound host's message goes on to the channel (commands and
 //     forwarding).
+// A Telegram receipt (host-telegram-channel) is linking first (telegramLinking),
+// then follows the same steps, with three more kinds (design 7 to 10): a button
+// tap (callback) is admitted only from the bound sender and runs the exact
+// command its data names, and is answered either way; a blocking update ends
+// the binding as stop does, with no reply; a "/" command is text. Telegram has
+// no read mark: a forwarded message shows typing until its reply is queued, and
+// a message that only says thanks gets 👍.
 // The outcome is recorded with the sealed values cleared in the same write. An
 // admission limit fails the attempt, so the receipt waits and retries no earlier
 // than the job's backoff, and the ordering check keeps later messages behind it.
@@ -89,7 +107,9 @@ function receiptDependenciesFromEnvironment(): ImessageReceiptDependencies {
 
 // Forwarded text is marked, so the shared transcript and the assistant know
 // where it came from (D11). The prefixes live in the browser-safe contract.
-export { IMESSAGE_PREFIX, WHATSAPP_PREFIX };
+export { IMESSAGE_PREFIX, TELEGRAM_PREFIX, WHATSAPP_PREFIX };
+
+const PREFIXES: Readonly<Record<StoredChannel, string>> = { imessage: IMESSAGE_PREFIX, telegram: TELEGRAM_PREFIX, whatsapp: WHATSAPP_PREFIX };
 
 export const FORWARD_TEXTS = {
   tooLong: "That message is too long for Thyme. Please send a shorter one.",
@@ -121,7 +141,7 @@ async function fixedReply(tx: Transaction, deps: ImessageReceiptDependencies, me
 // selected request's private review), keyed by the receipt so a retried job
 // finds the same input, and a reply waits for the turn that serves it.
 async function forward(tx: Transaction, deps: ImessageReceiptDependencies, message: BoundMessage): Promise<ReceiptOutcome> {
-  const text = `${message.receipt.channel === "whatsapp" ? WHATSAPP_PREFIX : IMESSAGE_PREFIX}${message.text}`;
+  const text = `${PREFIXES[message.receipt.channel]}${message.text}`;
   if (getChatMessageLengthError(text)) {
     await fixedReply(tx, deps, message, "command", FORWARD_TEXTS.tooLong);
     return "replied";
@@ -198,13 +218,15 @@ async function forward(tx: Transaction, deps: ImessageReceiptDependencies, messa
 export const channelProcessor: ChannelProcessor = async (tx, deps, message) => {
   const command = parseCommand(message.text);
   if (command) return executeCommand(tx, deps, message, command);
+  // A button never reaches the model: one whose ID named no command does nothing.
+  if (message.receipt.contentType === WHATSAPP_BUTTON_CONTENT) return "ignored";
   return forward(tx, deps, message);
 };
 
 type ReceiptRow = {
   readonly id: string;
   readonly message_id: string;
-  readonly channel: MessagingChannel;
+  readonly channel: StoredChannel;
   readonly sender_hash: string;
   readonly space_hash: string;
   readonly space_type: "dm" | "group";
@@ -221,7 +243,7 @@ export type OpenedReceipt = {
   readonly id: string;
   // Photon's ID of the host's message, unsealed in the receipt; a signal reads and reacts to it.
   readonly messageId: string;
-  readonly channel: MessagingChannel;
+  readonly channel: StoredChannel;
   readonly senderHash: string;
   readonly spaceHash: string;
   readonly spaceType: "dm" | "group";
@@ -229,13 +251,20 @@ export type OpenedReceipt = {
   readonly text: string | null;
   readonly sender: string;
   readonly spaceId: string;
+  // Telegram only: the sender's profile and a callback's locators, from the
+  // sealed envelope (host-telegram-channel design 3); null on other channels.
+  readonly telegram: TelegramDetails | null;
 };
 
-function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedReceipt | null {
+export function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedReceipt | null {
   if (!row.sender_ciphertext || !row.space_ciphertext || !row.sealed_key_id) return null;
   const open = (ciphertext: string) => openToken(keys, { ciphertext, keyId: row.sealed_key_id! }, receiptSealContext(row.id));
 
   try {
+    const sealed = row.text_ciphertext ? open(row.text_ciphertext) : null;
+    // A Telegram receipt seals its text with the update's details as one envelope.
+    const envelope = row.channel === "telegram" && sealed !== null ? openTelegramText(sealed) : null;
+    if (row.channel === "telegram" && sealed !== null && !envelope) return null;
     return {
       channel: row.channel,
       contentType: row.content_type,
@@ -246,7 +275,8 @@ function openReceipt(keys: readonly TokenKey[], row: ReceiptRow): OpenedReceipt 
       spaceHash: row.space_hash,
       spaceId: open(row.space_ciphertext),
       spaceType: row.space_type,
-      text: row.text_ciphertext ? open(row.text_ciphertext) : null,
+      telegram: envelope?.details ?? null,
+      text: envelope ? envelope.text : sealed,
     };
   } catch {
     return null;
@@ -266,8 +296,16 @@ export const ORDER_WAITS = 600;
 export const CHANNEL_TEXTS = {
   unlinked: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect iMessage.",
   unlinkedWhatsApp: "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect WhatsApp.",
+  unlinkedTelegram: "This Telegram account isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect Telegram.",
   textOnly: "I can read text messages only.",
+  textOnlyTelegram: "I can read text messages only. Photos, stickers and voice messages don't reach Thyme.",
 } as const;
+
+const UNLINKED_TEXTS: Readonly<Record<StoredChannel, string>> = {
+  imessage: CHANNEL_TEXTS.unlinked,
+  telegram: CHANNEL_TEXTS.unlinkedTelegram,
+  whatsapp: CHANNEL_TEXTS.unlinkedWhatsApp,
+};
 
 // A bound host's message, with what the channel needs to act as that host.
 export type BoundMessage = {
@@ -504,7 +542,8 @@ async function forwardGuest(
   binding: Pick<GuestBinding, "id" | "request_id">,
   message: string,
 ): Promise<ReceiptOutcome> {
-  const text = `${IMESSAGE_PREFIX}${message}`;
+  // The guest's channel marks the text, as a host's does (guest-whatsapp-link design 1).
+  const text = `${PREFIXES[receipt.channel]}${message}`;
   if (getChatMessageLengthError(text)) {
     await guestReply(tx, deps, receipt, binding, { dedupeKey: `receipt:${receipt.id}`, kind: "command", text: GUEST_TEXTS.tooLong });
     return "replied";
@@ -543,12 +582,68 @@ async function forwardGuest(
   return "forwarded";
 }
 
+// ---------------------------------------------------------------------------
+// Telegram (host-telegram-channel design 6)
+
+// /start, as the bot's Start button or a typed command sends it, optionally
+// addressed to the bot (/start@findmeatime_bot), with its payload if any.
+const START_COMMAND = /^\/start(?:@[A-Za-z0-9_]+)?(?:\s+(\S+))?\s*$/;
+
+// Linking over Telegram, or null when the receipt is not about linking:
+//   - a message carrying an FMAT- code (/start <code> from the t.me link, or the
+//     code typed as text) goes to receiveLinkCode with the sender's display
+//     name; only a Telegram attempt is completed by it, and any other attempt
+//     it names is voided;
+//   - /start without a code (or with a payload that is not one) from a sender
+//     with no active Telegram binding gets the unlinked-sender reply, at most
+//     once a day per sender and counted per channel. A linked host's /start is
+//     not linking.
+// A button tap or a blocking update is never linking.
+export async function telegramLinking(tx: Transaction, deps: ImessageReceiptDependencies, receipt: OpenedReceipt): Promise<ReceiptOutcome | null> {
+  if (receipt.contentType !== "text" && receipt.contentType !== "command") return null;
+  const text = receipt.text?.trim() ?? "";
+  const code = findLinkCode(text);
+
+  if (code) {
+    return receiveLinkCode(tx, { origin: deps.origin, tokenKey: deps.tokenKey }, {
+      channel: "telegram",
+      code,
+      receiptId: receipt.id,
+      sender: receipt.sender,
+      senderHash: receipt.senderHash,
+      senderName: telegramDisplayName(receipt.telegram?.firstName ?? null, receipt.telegram?.username ?? null),
+      spaceId: receipt.spaceId,
+      spaceType: receipt.spaceType,
+    });
+  }
+
+  if (!START_COMMAND.test(text)) return null;
+  const binding = await activeBindingOfSender(tx, receipt.senderHash);
+  if (binding?.channel === "telegram") return null;
+  if (await refusalSentRecently(tx, receipt.senderHash, "telegram")) return "ignored";
+  await recordOutbound(tx, {
+    channel: "telegram",
+    dedupeKey: `receipt:${receipt.id}`,
+    kind: "unlinked_sender",
+    recipient: { address: receipt.sender, spaceId: receipt.spaceId },
+    recipientHash: receipt.senderHash,
+    text: CHANNEL_TEXTS.unlinkedTelegram,
+    tokenKey: deps.tokenKey,
+  });
+  return "unlinked_reply";
+}
+
 export async function processReceipt(
   tx: Transaction,
   deps: ImessageReceiptDependencies,
   receipt: OpenedReceipt,
   channel: ChannelProcessor | null = channelProcessor,
 ): Promise<ReceiptOutcome> {
+  if (receipt.channel === "telegram") {
+    const linking = await telegramLinking(tx, deps, receipt);
+    if (linking) return linking;
+  }
+
   // A code is linking wherever it appears: from a group conversation it voids
   // the attempt it names, with no reply into the group.
   const code = receipt.text ? findLinkCode(receipt.text) : null;
@@ -567,11 +662,14 @@ export async function processReceipt(
 
   if (receipt.spaceType !== "dm" || ["reaction", "read", "typing"].includes(receipt.contentType)) return "ignored";
 
-  const guest = await guestRoute(tx, receipt);
+  // Guests write from iMessage or WhatsApp (guest-whatsapp-link); a Telegram
+  // sender is a host or no one.
+  const guest = receipt.channel === "telegram" ? null : await guestRoute(tx, receipt);
   if (guest === "ambiguous") {
     const guests = await activeGuestBindings(tx, receipt.senderHash);
     const host = await activeBindingOfSender(tx, receipt.senderHash);
     await recordOutbound(tx, {
+      channel: receipt.channel,
       dedupeKey: `receipt:${receipt.id}`,
       kind: "command",
       recipient: { address: receipt.sender, spaceId: receipt.spaceId },
@@ -596,6 +694,13 @@ export async function processReceipt(
     : [];
 
   if (!binding || host?.status !== "active" || !host.auth_user_id) {
+    // Someone who blocked the bot gets nothing; a tap from anyone else is
+    // answered, but never decides anything (D8).
+    if (receipt.contentType === "blocked") return "ignored";
+    if (receipt.contentType === "callback") {
+      await answerCallback(tx, deps.tokenKey, receipt, recipient, CALLBACK_TEXTS.notLinked);
+      return "unlinked_reply";
+    }
     if (await refusalSentRecently(tx, receipt.senderHash, receipt.channel)) return "ignored";
     await recordOutbound(tx, {
       channel: receipt.channel,
@@ -603,10 +708,17 @@ export async function processReceipt(
       kind: "unlinked_sender",
       recipient,
       recipientHash: receipt.senderHash,
-      text: receipt.channel === "whatsapp" ? CHANNEL_TEXTS.unlinkedWhatsApp : CHANNEL_TEXTS.unlinked,
+      text: UNLINKED_TEXTS[receipt.channel],
       tokenKey: deps.tokenKey,
     });
     return "unlinked_reply";
+  }
+
+  // The host blocked the bot (design 9): the binding ends as stop ends it, and
+  // nothing is sent, since Telegram would refuse it.
+  if (receipt.contentType === "blocked") {
+    await endBlockedBinding(tx, binding.id);
+    return "command";
   }
 
   // The conversation the host writes from is where replies go; a fallback
@@ -617,7 +729,31 @@ export async function processReceipt(
     where id = ${binding.id} and state = 'active'
   `;
 
-  if (receipt.contentType !== "text" || !receipt.text?.trim()) {
+  const bound = {
+    authUserId: host.auth_user_id,
+    bindingId: binding.id,
+    hostAccountId: binding.host_account_id,
+    receipt,
+    recipient,
+    selectedRequestId: binding.selected_request_id,
+  };
+
+  // A button tap runs the command its data names, never its label (D8); data
+  // that names none is answered and does nothing.
+  if (receipt.contentType === "callback") {
+    const command = parseCallbackData(receipt.text);
+    if (!command || !channel) {
+      await answerCallback(tx, deps.tokenKey, receipt, recipient, null);
+      return "ignored";
+    }
+    return executeCommand(tx, deps, { ...bound, text: receipt.text! }, command);
+  }
+
+  // A WhatsApp reply button arrives as the exact command its ID names (D17); a
+  // Telegram "/" command is text like any other.
+  const button = receipt.channel === "whatsapp" && receipt.contentType === WHATSAPP_BUTTON_CONTENT;
+  const textual = receipt.contentType === "text" || button || (receipt.channel === "telegram" && receipt.contentType === "command");
+  if (!textual || !receipt.text?.trim()) {
     await recordOutbound(tx, {
       bindingId: binding.id,
       dedupeKey: `receipt:${receipt.id}`,
@@ -625,7 +761,7 @@ export async function processReceipt(
       kind: "text_only",
       recipient,
       recipientHash: receipt.senderHash,
-      text: CHANNEL_TEXTS.textOnly,
+      text: receipt.channel === "telegram" ? CHANNEL_TEXTS.textOnlyTelegram : CHANNEL_TEXTS.textOnly,
       tokenKey: deps.tokenKey,
     });
     return "replied";
@@ -634,28 +770,38 @@ export async function processReceipt(
   if (!channel) return "ignored";
 
   // A message that only says thanks is marked read and gets a tapback, and
-  // starts no turn (D21, design 18).
-  if (receipt.channel === "imessage" && isOnlyThanks(receipt.text)) {
+  // starts no turn (D21, design 18; on WhatsApp a ❤️ reaction, D16).
+  if (!button && receipt.channel !== "telegram" && isOnlyThanks(receipt.text)) {
     await recordSignal(tx, deps, receipt, binding, recipient, { messageId: receipt.messageId, reaction: THANKS_TAPBACK, typing: false });
     return "replied";
   }
+  // Telegram's counterpart is a 👍 reaction on the host's message (task 4.2).
+  if (receipt.channel === "telegram" && isOnlyThanks(receipt.text) && receipt.telegram?.messageId) {
+    await recordSignal(tx, deps, receipt, binding, recipient, { messageId: receipt.telegram.messageId, reaction: THANKS_REACTION, typing: false });
+    return "replied";
+  }
 
-  const outcome = await channel(tx, deps, {
-    authUserId: host.auth_user_id,
-    bindingId: binding.id,
-    hostAccountId: binding.host_account_id,
-    receipt,
-    recipient,
-    selectedRequestId: binding.selected_request_id,
-    text: receipt.text.trim(),
-  });
+  const outcome = await channel(tx, deps, { ...bound, text: receipt.text.trim() });
+
+  // Telegram shows typing while the turn runs: once now and every few seconds
+  // until its reply is queued (design 8). A bot cannot mark a message read.
+  if (receipt.channel === "telegram" && outcome === "forwarded") {
+    await recordSignal(tx, deps, receipt, binding, recipient, { messageId: null, reaction: null, typing: true });
+    const [turn] = await tx<{ id: string }[]>`
+      select o.id from app.imessage_outbox o
+      join app.conversation_inputs i on o.kind = 'turn' and o.dedupe_key = 'input:' || i.id::text
+      join app.discussions d on d.id = i.discussion_id
+      where d.principal_type = 'host_account' and d.principal_id = ${binding.host_account_id} and i.client_input_id = ${receipt.id}
+    `;
+    if (turn) await startTypingRepeats(tx, receipt.id, turn.id);
+  }
+  if (receipt.channel === "telegram") return outcome;
 
   // Every other message is marked read, and shows typing when it started a
   // turn, whose reply comes later; a command's reply is immediate, and rows of
-  // one transaction have no order, so it gets the read mark only (D20).
-  if (receipt.channel === "imessage") {
-    await recordSignal(tx, deps, receipt, binding, recipient, { messageId: receipt.messageId, reaction: null, typing: outcome === "forwarded" });
-  }
+  // one transaction have no order, so it gets the read mark only (D20; on
+  // WhatsApp D15, where Meta ends the indicator when the reply arrives).
+  await recordSignal(tx, deps, receipt, binding, recipient, { messageId: receipt.messageId, reaction: null, typing: outcome === "forwarded" });
   return outcome;
 }
 
@@ -680,7 +826,7 @@ async function recordSignal(
   });
 }
 
-// The native "love" tapback (Spectrum's Emoji.love).
+// The native "love" tapback (Spectrum's Emoji.love), and WhatsApp's ❤️ reaction.
 export const THANKS_TAPBACK = "❤️";
 
 // A message that is nothing but thanks, in English or Korean, with any
@@ -737,7 +883,6 @@ export function createImessageReceiptHandler(load: () => ImessageReceiptDependen
     `;
     if (!row) return { outcome: "missing", receiptId };
     if (row.outcome) return { outcome: row.outcome, receiptId };
-
     const [earlier] = await tx<{ id: string }[]>`
       select id from app.imessage_receipts
       where space_hash = ${row.space_hash} and outcome is null and id <> ${row.id}

@@ -8,6 +8,7 @@ import {
 import { assertRevision, type CommandDefinition, CommandError } from "./commands";
 import { supersedeConfirmations } from "./contact-confirmation";
 import type { Transaction } from "./database";
+import { enqueueButtonRetirement } from "./imessage-notices";
 import { type JobHandler, publishJob } from "./jobs";
 import { enqueueStatusNotice, type NoticeDependencies, noticeDependenciesFromEnvironment } from "./booking-notices";
 import { lockOpenRequest } from "./request-guard";
@@ -69,6 +70,7 @@ export async function closeRequest(
 
   if (closed.count === 0) return false;
 
+  await enqueueButtonRetirement(tx, requestId);
   await revokeRequestGrants(tx, requestId);
   // A guest-host's choice of their host settings goes with the grants (design 6).
   await tx`delete from app.requester_host_profiles where request_id = ${requestId}`;

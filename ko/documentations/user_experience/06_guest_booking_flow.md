@@ -89,7 +89,7 @@ stateDiagram-v2
 
 요청자의 공식 알림 채널은 이메일입니다. 요청자에게는 계정도 등록된 전화번호도 없지만, 연락 이메일은 인증되어 있기 때문입니다. 모든 이메일 알림에는 현재 상태와 예약 링크가 담기며, 도메인 레코드에서 생성되고 확인 메일과 동일한 내구성 있는 Cloudflare 전달 방식을 사용합니다. 알림은 결정이 아니며 요청 상태를 바꾸지 않습니다.
 
-요청자는 예약 페이지에서 **Get updates in iMessage**를 누르고 표시된 일회용 코드를 자신의 iMessage에서 회선으로 보낼 수도 있습니다. 가려진 발신자가 표시된 뒤 페이지의 **Confirm and link**만 이를 바인딩합니다([설계 1과 2](../../openspec/changes/guest-flow-completion/design.md#1-guest-linking)). 그러면 같은 알림이 예약 링크 없는 짧은 텍스트로 그 대화에도 도착하고, 요청자는 그곳에서 답장해 어시스턴트와 계속 대화할 수 있으며, 어시스턴트는 카드를 보여 주는 대신 예약 페이지의 카드 이름을 말합니다. **Unlink iMessage**는 즉시 연동을 끝내며, 요청이 예약되거나 철회될 때와 30일 뒤에도 끝납니다. SMS는 제공하지 않습니다.
+요청자는 예약 페이지에서 **Get updates in iMessage**를 누르고 표시된 일회용 코드를 자신의 iMessage에서 회선으로 보낼 수도 있습니다. 발신자가 전체로 표시된 뒤 페이지의 **Confirm and link**만 이를 바인딩합니다([설계 1과 2](../../openspec/changes/guest-flow-completion/design.md#1-guest-linking)). 그러면 같은 알림이 예약 링크 없는 짧은 텍스트로 그 대화에도 도착하고, 요청자는 그곳에서 답장해 어시스턴트와 계속 대화할 수 있으며, 어시스턴트는 카드를 보여 주는 대신 예약 페이지의 카드 이름을 말합니다. **Unlink iMessage**는 즉시 연동을 끝내며, 요청이 예약되거나 철회될 때와 30일 뒤에도 끝납니다. WhatsApp이 설정된 곳에서는 **Get updates in WhatsApp**이 같은 방식으로 WhatsApp을 연결하며 한 번에 한 채널만 가능하고, 둘 다 먼저 요청자의 번호를 묻습니다([`guest-whatsapp-link`](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions)). WhatsApp에서는 알림과 답장이 요청자가 WhatsApp에서 마지막으로 보낸 메시지로부터 24시간 이내에만 도착하며, 그 뒤에는 요청자가 다시 메시지를 보내기 전까지 그곳으로 아무것도 보내지 않고 이메일이 모든 업데이트를 계속 담습니다. SMS는 제공하지 않습니다.
 
 | 이벤트 | 이메일 | 다른 곳에서 확인 |
 |---|---|---|

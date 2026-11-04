@@ -25,7 +25,7 @@ export type NumberCopy = {
 export type SubmitNumber = (e164: string) => Promise<"invalid" | "other" | null>;
 
 const CARD_FIELD =
-  "min-h-11 rounded-lg border border-input bg-card px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+  "min-h-11 rounded-md border border-input bg-card px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 export function NumberForm({
   id,
@@ -116,7 +116,7 @@ export function NumberForm({
       className={
         ink
           ? "primary-btn"
-          : "inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground aria-disabled:opacity-50 sm:w-auto"
+          : "inline-flex min-h-11 w-full items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-primary-hover aria-disabled:opacity-50 sm:w-auto"
       }
       type="submit"
     >

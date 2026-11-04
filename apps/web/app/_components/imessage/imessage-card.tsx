@@ -10,19 +10,21 @@ import {
   qrDeepLink,
 } from "@lib/contracts/imessage";
 import {
+  askChannels,
   channelName,
-  channelOffer,
-  type ChannelOffer,
+  deviceKind,
+  type DeviceKind,
   displayWhatsAppNumber,
   type MessagingChannel,
-  otherChannel,
   shownChannel,
+  switchChannels,
+  telegramLinkFor,
   whatsAppLinkFor,
 } from "@lib/contracts/messaging-channel";
 import { AlertCircleIcon, CheckIcon, CopyIcon, MessageCircleIcon, RotateCcwIcon } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useId, useMemo, useState } from "react";
 import { renderSVG } from "uqr";
-import { COPY } from "@/app/_components/ink/copy";
+import { channelCopy, COPY } from "@/app/_components/ink/copy";
 import { NumberForm } from "@/app/_components/ink/number-form";
 import { CardActions, cardHeadingId, HEADING_CLASS, QuietButton } from "@/app/_components/setup/card";
 import { Button } from "@/components/ui/button";
@@ -42,8 +44,9 @@ import { cn } from "@/lib/utils";
 //   - received: the masked sender with Confirm and link and This isn't me.
 //   - fallback: the masked number, the send's state and a protected code field,
 //     for an attempt the server already holds.
-//   - linked: the masked sender, the latest failed or uncertain message, Add to
-//     contacts and Unlink behind an inline confirmation.
+//   - linked: a small status pill naming the channel and the masked sender; it
+//     opens to the latest failed or uncertain message, Add to contacts and Unlink
+//     behind an inline confirmation, and starts open while a message failed.
 // A command whose answer was lost offers Try again with the same retry key.
 // The same card links WhatsApp (host-whatsapp-channel design 5 and 6, D5 to D7,
 // D12): which channel "none" offers follows the device (Android gets WhatsApp
@@ -52,9 +55,16 @@ import { cn } from "@/lib/utils";
 // its own channel, WhatsApp opens wa.me on a phone and shows its QR code on a
 // computer, Confirm and link says what it replaces and what Thyme will send on
 // WhatsApp, and a WhatsApp binding offers no Add to contacts or fallback code.
+// Telegram links the same way (host-telegram-channel design 6, D6, D7, D13): Connect Telegram makes the code and,
+// on a phone, opens t.me/<bot>?start=<code> at once, where Start sends /start <code>; on a computer the card shows
+// Open Telegram, the link's QR code and Copy. Every device can switch to Telegram (Use Telegram instead), the app
+// question lists each configured channel, the received sender is the Telegram name, and the card says where
+// Telegram keeps bot chats before Confirm and link.
 // iMessage asks for the host's number first (imessage-number-registration D1, D3): Photon's shared lines read
 // only registered numbers, so "none" on iMessage is the number field, the server registers the number, and the
 // code is addressed to the number Photon assigned. The number is kept while the card is open.
+// WhatsApp asks for the number the same way (guest-whatsapp-link D3): it is registered, and the code stays
+// addressed to the WhatsApp number. Each channel's number is kept apart.
 
 export const IMESSAGE_CARD_ID = "imessage-card";
 
@@ -118,17 +128,20 @@ export function useMessagesPlatform(): MessagesPlatform {
   return platform;
 }
 
-// What this device is offered (D7), known once the card runs in the browser.
-export function useChannelOffer(): ChannelOffer | null {
-  const [offer, setOffer] = useState<ChannelOffer | null>(null);
-  useEffect(() => setOffer(channelOffer(navigator.userAgent)), []);
-  return offer;
+// The kind of device the card runs on (D7), known once it runs in the browser.
+export function useDeviceKind(): DeviceKind | null {
+  const [device, setDevice] = useState<DeviceKind | null>(null);
+  useEffect(() => setDevice(deviceKind(navigator.userAgent)), []);
+  return device;
 }
 
 // The link that opens the channel's app with the message written: wa.me for
-// WhatsApp, the platform's sms: link for iMessage.
+// WhatsApp, the platform's sms: link for iMessage, and for Telegram the t.me
+// start link, whose message is the bare code.
 export function appLinkFor(channel: MessagingChannel, platform: MessagesPlatform, lineNumber: string, message: string) {
-  return channel === "whatsapp" ? whatsAppLinkFor(lineNumber, message) : deepLinkFor(platform, lineNumber, message);
+  if (channel === "whatsapp") return whatsAppLinkFor(lineNumber, message);
+  if (channel === "telegram") return telegramLinkFor(lineNumber, message);
+  return deepLinkFor(platform, lineNumber, message);
 }
 
 export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
@@ -138,13 +151,16 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [lost, setLost] = useState<Pending | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
+  // A linked channel shows as a small status pill until the host opens it.
+  const [expanded, setExpanded] = useState(false);
   const platform = useMessagesPlatform();
-  const offer = useChannelOffer();
+  const device = useDeviceKind();
   // The channel the host chose with the app question or Use ... instead.
   const [chosen, setChosen] = useState<MessagingChannel | null>(null);
-  // The number entered for iMessage while the card is open, and whether the card is asking for it.
-  const [number, setNumber] = useState<string | null>(null);
-  const [askNumber, setAskNumber] = useState(false);
+  // The numbers entered for iMessage and WhatsApp while the card is open, and the channel whose number the
+  // card is asking for.
+  const [numbers, setNumbers] = useState<Partial<Record<MessagingChannel, string>>>({});
+  const [askNumber, setAskNumber] = useState<MessagingChannel | null>(null);
 
   const reload = useCallback(async () => {
     const next = await readStatus();
@@ -209,30 +225,31 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
     }
   };
 
-  // Connect iMessage or Connect WhatsApp: the code first, then the app at once on a phone. iMessage without a
-  // number asks for it.
+  // Connect iMessage or Connect WhatsApp: the code first, then the app at once on a phone. iMessage or
+  // WhatsApp without a number asks for it.
   const connect = async (channel: MessagingChannel) => {
     setChosen(channel);
-    if (channel === "imessage" && !number) {
-      setAskNumber(true);
+    const number = numbers[channel];
+    if (needsNumber(channel) && !number) {
+      setAskNumber(channel);
       return;
     }
-    setAskNumber(false);
-    const outcome = await command("imessage.link.create", channel === "imessage" ? { channel, number } : { channel });
+    setAskNumber(null);
+    const outcome = await command("imessage.link.create", needsNumber(channel) ? { channel, number } : { channel });
     openOnPhone(outcome?.status);
   };
 
   // The number field's submit: a refused number shows under the field, anything else as the card's notice.
-  const submitNumber = async (e164: string) => {
+  const submitNumber = async (channel: MessagingChannel, e164: string) => {
     setBusy("imessage.link.create");
     setError(null);
     setLost(null);
-    const outcome = await sendCommand({ input: { channel: "imessage", number: e164 }, operation: "imessage.link.create", retryKey: crypto.randomUUID() });
+    const outcome = await sendCommand({ input: { channel, number: e164 }, operation: "imessage.link.create", retryKey: crypto.randomUUID() });
     setBusy(null);
     if (outcome.status) setStatus(outcome.status);
     if (!outcome.lost && !outcome.error) {
-      setNumber(e164);
-      setAskNumber(false);
+      setNumbers((entered) => ({ ...entered, [channel]: e164 }));
+      setAskNumber(null);
       openOnPhone(outcome.status);
       return null;
     }
@@ -244,7 +261,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
     return "other" as const;
   };
 
-  if (!status || (status.state === "none" && !offer)) {
+  if (!status || (status.state === "none" && !device)) {
     return (
       <CardShell title="Use Find Me a Time from iMessage">
         <p className="text-sm text-muted-foreground" role="status">
@@ -263,7 +280,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
   }
 
   const notice = error ? (
-    <div className="flex items-start gap-2 rounded-lg border border-destructive/40 px-3 py-2 text-sm" role="alert">
+    <div className="flex items-start gap-2 rounded-xl bg-[color-mix(in_srgb,var(--destructive)_8%,var(--surface))] px-3 py-2 text-sm" role="alert">
       <AlertCircleIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
       <p className="min-w-0 flex-1">{error}</p>
       {lost ? (
@@ -275,30 +292,37 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
     </div>
   ) : null;
 
-  const numberCard = (other: MessagingChannel | null) => (
+  const switchers = (others: readonly MessagingChannel[], onSwitch: (channel: MessagingChannel) => void, disabled = false) =>
+    others.map((other) => (
+      <QuietButton disabled={disabled} key={other} onClick={() => onSwitch(other)}>{`Use ${channelName(other)} instead`}</QuietButton>
+    ));
+
+  const numberCard = (channel: MessagingChannel, others: readonly MessagingChannel[]) => (
     <CardShell
-      description="Find Me a Time reads messages only from numbers it knows. Enter the number your iMessage uses, then send one message from it to link it."
-      label="iMessage"
-      title="Use Find Me a Time from iMessage"
+      description={`Find Me a Time reads messages only from numbers it knows. Enter the number your ${channelName(channel)} uses, then send one message from it to link it.`}
+      label={channelName(channel)}
+      title={`Use Find Me a Time from ${channelName(channel)}`}
     >
       {notice}
-      <NumberForm id="card-number" look="card" onSubmit={submitNumber} t={{ ...COPY.en.number, submit: "Connect iMessage" }} />
+      <NumberForm
+        id="card-number"
+        key={channel}
+        look="card"
+        onSubmit={(e164) => submitNumber(channel, e164)}
+        t={{ ...channelCopy(COPY.en, channel).number, submit: `Connect ${channelName(channel)}` }}
+      />
       <CardActions>
-        {other ? (
-          <QuietButton
-            onClick={() => {
-              setAskNumber(false);
-              setChosen(other);
-            }}
-          >{`Use ${channelName(other)} instead`}</QuietButton>
-        ) : null}
+        {switchers(others, (other) => {
+          setAskNumber(null);
+          setChosen(other);
+        })}
         {onLater ? <QuietButton onClick={onLater}>Maybe later</QuietButton> : null}
       </CardActions>
     </CardShell>
   );
 
   if (askNumber && (status.state === "none" || status.state === "pending")) {
-    return numberCard(offer ? otherChannel(offer, status.channels, "imessage") : null);
+    return numberCard(askNumber, device ? switchChannels(device, status.channels, askNumber) : []);
   }
 
   switch (status.state) {
@@ -310,9 +334,9 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
       );
 
     case "none": {
-      const channel = shownChannel(offer!, status.channels, chosen);
+      const channel = shownChannel(device!, status.channels, chosen);
       if (!channel) {
-        // Another computer: which app the host uses decides the card (D7).
+        // Another computer: which app the host uses decides the card (D7), among the configured channels.
         return (
           <CardShell
             description="Find Me a Time links to it, so you can get request summaries and approve meetings there."
@@ -320,23 +344,26 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
             title="Which app do you use on your phone?"
           >
             <CardActions>
-              <Button onClick={() => setChosen("imessage")} type="button" variant="outline">
-                iMessage
-              </Button>
-              <Button onClick={() => setChosen("whatsapp")} type="button" variant="outline">
-                WhatsApp
-              </Button>
+              {askChannels(status.channels).map((option) => (
+                <Button key={option} onClick={() => setChosen(option)} type="button" variant="outline">
+                  {channelName(option)}
+                </Button>
+              ))}
               {onLater ? <QuietButton onClick={onLater}>Maybe later</QuietButton> : null}
             </CardActions>
           </CardShell>
         );
       }
       const name = channelName(channel);
-      const other = otherChannel(offer!, status.channels, channel);
-      if (channel === "imessage" && !number) return numberCard(other);
+      const others = switchChannels(device!, status.channels, channel);
+      if (needsNumber(channel) && !numbers[channel]) return numberCard(channel, others);
       return (
         <CardShell
-          description={`Get request summaries and approve meetings from your own ${name}. You send one message to link it.`}
+          description={
+            channel === "telegram"
+              ? "Get request summaries and approve meetings from your own Telegram. You start Thyme's bot to link it."
+              : `Get request summaries and approve meetings from your own ${name}. You send one message to link it.`
+          }
           label={name}
           title={`Use Find Me a Time from ${name}`}
         >
@@ -346,7 +373,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
               <MessageCircleIcon aria-hidden />
               {busy === "imessage.link.create" ? "Getting your code..." : `Connect ${name}`}
             </Button>
-            {other ? <QuietButton onClick={() => setChosen(other)}>{`Use ${channelName(other)} instead`}</QuietButton> : null}
+            {switchers(others, setChosen)}
             {onLater ? <QuietButton onClick={onLater}>Maybe later</QuietButton> : null}
           </CardActions>
         </CardShell>
@@ -354,16 +381,15 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
     }
 
     case "pending": {
-      const other = offer ? otherChannel(offer, status.channels, status.channel) : null;
+      const others = device ? switchChannels(device, status.channels, status.channel) : [];
       return (
         <PendingCode
           busy={busy !== null}
           notice={notice}
           onCancel={() => void command("imessage.link.cancel")}
-          onSwitch={other ? () => void connect(other) : null}
-          other={other}
           platform={platform}
           status={status}
+          switchers={switchers(others, (other) => void connect(other), busy !== null)}
         />
       );
     }
@@ -377,6 +403,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
           </p>
           {status.replaces ? <p className="text-sm">This replaces your {channelName(status.replaces)} link.</p> : null}
           {status.channel === "whatsapp" ? <p className="text-sm text-muted-foreground">{WHATSAPP_OPT_IN}</p> : null}
+          {status.channel === "telegram" ? <p className="text-sm text-muted-foreground">{TELEGRAM_PRIVACY}</p> : null}
           <CardActions>
             <Button disabled={busy !== null} onClick={() => void command("imessage.link.confirm", { linkId: status.linkId })} type="button">
               <CheckIcon aria-hidden />
@@ -404,6 +431,25 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
 
     case "linked": {
       const name = channelName(status.channel);
+      if (!expanded && !status.delivery && !error) {
+        return (
+          <section aria-labelledby={cardHeadingId(IMESSAGE_CARD_ID)} className="flex min-w-0" data-imessage-card id={IMESSAGE_CARD_ID}>
+            <button
+              aria-expanded={false}
+              className="inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-card px-3 text-xs text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              id={cardHeadingId(IMESSAGE_CARD_ID)}
+              onClick={() => setExpanded(true)}
+              type="button"
+            >
+              <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
+              <span className="truncate">
+                {`${name} linked `}
+                <span className="tabular-nums">{status.sender}</span>
+              </span>
+            </button>
+          </section>
+        );
+      }
       return (
         <CardShell label={name} title={`${name} is linked`}>
           {notice}
@@ -412,7 +458,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
             you can do.
           </p>
           {status.delivery ? (
-            <p className="rounded-lg border border-destructive/40 px-3 py-2 text-sm" role="status">
+            <p className="rounded-xl bg-[color-mix(in_srgb,var(--destructive)_8%,var(--surface))] px-3 py-2 text-sm" role="status">
               {deliveryNotice(status.delivery, name)}
             </p>
           ) : null}
@@ -433,6 +479,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
                 onClick={async () => {
                   await command("imessage.unlink");
                   setConfirmUnlink(false);
+                  setExpanded(false);
                 }}
                 type="button"
                 variant="destructive"
@@ -444,6 +491,7 @@ export function ImessageCard({ onLater }: { readonly onLater?: () => void }) {
           ) : (
             <CardActions>
               <QuietButton onClick={() => setConfirmUnlink(true)}>{`Unlink ${name}`}</QuietButton>
+              <QuietButton onClick={() => setExpanded(false)}>Hide</QuietButton>
             </CardActions>
           )}
         </CardShell>
@@ -466,6 +514,9 @@ export function deliveryNotice(delivery: ImessageDelivery, name: string) {
   } Continue here; nothing about your requests changed.`;
 }
 
+// Where Telegram keeps the chat, said before Confirm and link (host-telegram-channel D13).
+export const TELEGRAM_PRIVACY = COPY.en.link.privacyTelegram;
+
 // What Thyme sends on WhatsApp, said before Confirm and link (D12).
 export const WHATSAPP_OPT_IN =
   "Thyme will message you on WhatsApp about your requests. If you have not written for a day, it sends a short notice instead.";
@@ -485,7 +536,7 @@ function CardShell({
   return (
     <section
       aria-labelledby={cardHeadingId(IMESSAGE_CARD_ID)}
-      className="setup-card-enter relative flex min-w-0 scroll-mt-4 scroll-mb-4 flex-col overflow-hidden rounded-xl border border-border bg-card px-4 py-3 text-sm text-card-foreground"
+      className="setup-card-enter relative flex min-w-0 scroll-mt-4 scroll-mb-4 flex-col overflow-hidden rounded-3xl bg-card px-5 py-4 text-sm text-card-foreground"
       data-imessage-card
       id={IMESSAGE_CARD_ID}
     >
@@ -537,20 +588,19 @@ function PendingCode({
   busy,
   notice,
   onCancel,
-  onSwitch,
-  other,
   platform,
   status,
+  switchers,
 }: {
   readonly busy: boolean;
   readonly notice: React.ReactNode;
   readonly onCancel: () => void;
-  // Use ... instead: a new attempt on the other channel, which ends this one.
-  readonly onSwitch: (() => void) | null;
-  readonly other: MessagingChannel | null;
   readonly platform: MessagesPlatform;
   readonly status: Extract<ImessageStatus, { state: "pending" }>;
+  // Use ... instead: a new attempt on another channel, which ends this one.
+  readonly switchers: React.ReactNode;
 }) {
+  if (status.channel === "telegram") return <PendingTelegram busy={busy} notice={notice} onCancel={onCancel} platform={platform} status={status} switchers={switchers} />;
   const whatsapp = status.channel === "whatsapp";
   const phone = platform === "ios" || platform === "android";
   // A Mac gets the QR code too (D17): only a phone opens Messages from this card. WhatsApp's link opens
@@ -571,7 +621,7 @@ function PendingCode({
   return (
     <CardShell description={description} label={channelName(status.channel)} title={`Send the message from your ${channelName(status.channel)}`}>
       {notice}
-      <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border px-3 py-2">
+      <div className="flex min-w-0 flex-col gap-1 rounded-xl bg-secondary px-3 py-2">
         <p className="text-xs font-medium text-muted-foreground">To</p>
         <p className="font-mono text-sm tabular-nums">{whatsapp ? displayWhatsAppNumber(status.lineNumber) : status.lineNumber}</p>
         <p className="pt-1 text-xs font-medium text-muted-foreground">Message</p>
@@ -609,11 +659,83 @@ function PendingCode({
         Waiting for your message. The code works until {when(status.expiresAt)}.
       </p>
       <CardActions>
-        {onSwitch && other ? (
-          <QuietButton disabled={busy} onClick={onSwitch}>
-            {`Use ${channelName(other)} instead`}
-          </QuietButton>
-        ) : null}
+        {switchers}
+        <QuietButton disabled={busy} onClick={onCancel}>
+          Cancel
+        </QuietButton>
+      </CardActions>
+    </CardShell>
+  );
+}
+
+// A Telegram code (host-telegram-channel design 6): the bot's start link, which a phone opened already; a
+// computer gets Open Telegram (Telegram Desktop or Telegram Web), the link's QR code and Copy. A host who opens
+// the bot another way can send the code itself.
+function PendingTelegram({
+  busy,
+  notice,
+  onCancel,
+  platform,
+  status,
+  switchers,
+}: {
+  readonly busy: boolean;
+  readonly notice: React.ReactNode;
+  readonly onCancel: () => void;
+  readonly platform: MessagesPlatform;
+  readonly status: Extract<ImessageStatus, { state: "pending" }>;
+  readonly switchers: React.ReactNode;
+}) {
+  const phone = platform === "ios" || platform === "android";
+  const link = telegramLinkFor(status.lineNumber, status.message);
+  const qr = useMemo(() => (phone || !link ? null : renderSVG(link, { border: 2 })), [link, phone]);
+
+  return (
+    <CardShell
+      description={
+        phone ? "Telegram should open at Thyme's bot. Tap Start there." : "Open Thyme's bot in Telegram on your phone or this computer, and tap Start."
+      }
+      label="Telegram"
+      title="Start Thyme's bot in Telegram"
+    >
+      {notice}
+      <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border px-3 py-2">
+        <p className="text-xs font-medium text-muted-foreground">Bot</p>
+        <p className="font-mono text-sm">@{status.lineNumber}</p>
+        <p className="pt-1 text-xs font-medium text-muted-foreground">Code</p>
+        <p className="font-mono text-sm break-all" data-testid="imessage-link-message">
+          {status.message}
+        </p>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          {link ? (
+            <Button asChild>
+              <a href={link}>
+                <MessageCircleIcon aria-hidden />
+                Open Telegram
+              </a>
+            </Button>
+          ) : null}
+          {link ? <CopyButton label="Copy the Telegram link" text={link} /> : null}
+        </div>
+      </div>
+      {qr ? (
+        <figure className="flex flex-col items-start gap-1">
+          <div
+            aria-label="QR code that opens Thyme's bot in Telegram on your phone"
+            className="size-40 rounded-lg bg-white p-1 [&_svg]:size-full"
+            data-testid="imessage-qr"
+            // The SVG is generated locally from the bot's start link.
+            dangerouslySetInnerHTML={{ __html: qr }}
+            role="img"
+          />
+          <figcaption className="text-xs text-muted-foreground">Scan with your phone&apos;s camera to open Telegram.</figcaption>
+        </figure>
+      ) : null}
+      <p className="text-sm text-muted-foreground" role="status">
+        Waiting for you to tap Start. The code works until {when(status.expiresAt)}.
+      </p>
+      <CardActions>
+        {switchers}
         <QuietButton disabled={busy} onClick={onCancel}>
           Cancel
         </QuietButton>
@@ -744,4 +866,9 @@ export function ContactCardLine({
       </CardActions>
     </div>
   );
+}
+
+// The channels whose link code needs the host's number first (imessage-number-registration D1, guest-whatsapp-link D3).
+function needsNumber(channel: MessagingChannel) {
+  return channel === "imessage" || channel === "whatsapp";
 }

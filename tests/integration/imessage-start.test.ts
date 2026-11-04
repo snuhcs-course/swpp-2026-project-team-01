@@ -11,7 +11,7 @@ import { completeGoogleLeg, createGoogleUser, localAuthConfig, startGoogleSignIn
 import { testDatabase } from "./support/database";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
 import { hostWithUser, imessageHarness, textOf } from "./support/imessage";
-import { newSender, TEST_LINE } from "./support/photon";
+import { newSender, TEST_LINE, TEST_WHATSAPP_NUMBER } from "./support/photon";
 import { newHostAccount } from "./support/ready-host";
 import { testTokenKey } from "./support/requests";
 
@@ -65,6 +65,18 @@ describe("the iMessage start", () => {
     expect(await readStartStatus(db, options, browser)).toMatchObject({ lineNumber: "+15550009999", state: "pending" });
   });
 
+  // /?flow=whatsapp registers the number too, and the code stays addressed to the WhatsApp number (guest-whatsapp-link D3).
+  it("registers the number on a WhatsApp start and keeps no assigned number", async () => {
+    const withWhatsApp: StartOptions = { ...options, whatsappNumber: TEST_WHATSAPP_NUMBER };
+    const browser = secret();
+    await expect(startImessageLink(db, withWhatsApp, browser, source(), "whatsapp")).rejects.toMatchObject({ category: "invalid_input" });
+    const number = newSender();
+    photon.nextRegistration({ lineNumber: "+15550009999" });
+    await startImessageLink(db, withWhatsApp, browser, source(), "whatsapp", number);
+    expect(photon.registered.at(-1)).toBe(number);
+    expect(await readStartStatus(db, withWhatsApp, browser)).toMatchObject({ channel: "whatsapp", lineNumber: TEST_WHATSAPP_NUMBER, state: "pending" });
+  });
+
   it("lets the sender sign in from Thyme's reply, for one host, until Confirm and link ends the attempt", async () => {
     const pending = await started(secret());
     const sender = newSender();
@@ -80,7 +92,7 @@ describe("the iMessage start", () => {
     expect(await claimContinuedLink(db, testTokenKey, host, token)).toBe(true);
     expect(await claimContinuedLink(db, testTokenKey, host, token)).toBe(true);
     expect(await claimContinuedLink(db, testTokenKey, await newHostAccount(db), token)).toBe(false);
-    expect(await im.status(host)).toMatchObject({ sender: `•••• ${sender.slice(-4)}`, state: "received" });
+    expect(await im.status(host)).toMatchObject({ sender: sender, state: "received" });
     expect(await im.bindingOf(host)).toBeNull();
 
     expect((await im.command(host, "imessage.link.confirm", { linkId })).ok).toBe(true);
@@ -154,10 +166,10 @@ describe("the iMessage start", () => {
     const sender = newSender();
     const pending = await started(browser);
     expect(pending.message).toBe(`Link my Find Me a Time account: ${pending.code}`);
-    expect(await readStartStatus(db, options, secret())).toEqual({ channels: { imessage: TEST_LINE, whatsapp: null }, lineNumber: TEST_LINE, state: "none" });
+    expect(await readStartStatus(db, options, secret())).toEqual({ channels: { imessage: TEST_LINE, telegram: null, whatsapp: null }, lineNumber: TEST_LINE, state: "none" });
 
     expect((await im.deliver({ sender, text: pending.message })).outcome).toBe("link_received");
-    expect(await readStartStatus(db, options, browser)).toMatchObject({ sender: `•••• ${sender.slice(-4)}`, state: "received" });
+    expect(await readStartStatus(db, options, browser)).toMatchObject({ sender: sender, state: "received" });
 
     const [ack] = await db<{ id: string }[]>`
       select o.id from app.imessage_outbox o join app.imessage_links l on l.id = o.link_id
@@ -170,11 +182,11 @@ describe("the iMessage start", () => {
     const hostAccountId = await newHostAccount(db);
     expect(await claimStartedLink(db, testTokenKey, hostAccountId, secret())).toBe(false);
     expect(await claimStartedLink(db, testTokenKey, hostAccountId, browser)).toBe(true);
-    expect(await readStartStatus(db, options, browser)).toEqual({ channels: { imessage: TEST_LINE, whatsapp: null }, lineNumber: TEST_LINE, state: "none" });
+    expect(await readStartStatus(db, options, browser)).toEqual({ channels: { imessage: TEST_LINE, telegram: null, whatsapp: null }, lineNumber: TEST_LINE, state: "none" });
 
     const received = await im.status(hostAccountId);
     if (received.state !== "received") throw new Error(`Expected a received code, got ${received.state}.`);
-    expect(received.sender).toBe(`•••• ${sender.slice(-4)}`);
+    expect(received.sender).toBe(sender);
     expect(await im.bindingOf(hostAccountId)).toBeNull();
 
     expect((await im.command(hostAccountId, "imessage.link.confirm", { linkId: received.linkId })).ok).toBe(true);
@@ -199,7 +211,7 @@ describe("the iMessage start", () => {
     expect((await im.deliver({ sender: newSender(), text: first.message })).outcome).toBe("link_refused");
 
     await db`update app.imessage_links set expires_at = now() - interval '1 second' where code_hash is not null and host_account_id is null and state = 'pending' and created_at > now() - interval '1 minute'`;
-    expect(await readStartStatus(db, options, browser)).toEqual({ channels: { imessage: TEST_LINE, whatsapp: null }, lineNumber: TEST_LINE, state: "none" });
+    expect(await readStartStatus(db, options, browser)).toEqual({ channels: { imessage: TEST_LINE, telegram: null, whatsapp: null }, lineNumber: TEST_LINE, state: "none" });
     expect(await claimStartedLink(db, testTokenKey, await newHostAccount(db), browser)).toBe(false);
   });
 

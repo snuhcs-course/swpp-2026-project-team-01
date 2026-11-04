@@ -9,6 +9,7 @@ import { fallbackDailyLimit, imessageCommands, linkChannels, readImessageStatus 
 import { readStartStatus, startCookieFor, startImessageLink, startSecretOf } from "./imessage-start";
 import { CONTINUATION_SECONDS, continuationCookie, readReceivedContinuation } from "./imessage-continuation";
 import { photonConfig } from "./photon";
+import { telegramConfig } from "./telegram";
 import { type AppOrigins, appOriginsFromEnvironment, crossSiteRefusal, requestAppOrigin, unknownHost } from "./same-origin";
 import { sourceHash } from "./signup-limits";
 import { type SupabaseAuthConfig, supabaseAuthConfigFromEnvironment, verifiedUserId } from "./supabase-auth";
@@ -33,6 +34,8 @@ export type ImessageRouteDependencies = AppOrigins & {
   readonly lineNumber: string;
   // The WhatsApp number as digits (host-whatsapp-channel D1), or "".
   readonly whatsappNumber?: string;
+  // The Telegram bot's username (host-telegram-channel D1), or "".
+  readonly telegramUsername?: string;
   readonly lineDayLimit: number;
 };
 
@@ -46,6 +49,7 @@ export function imessageRouteDependenciesFromEnvironment(): ImessageRouteDepende
     lineDayLimit: fallbackDailyLimit(),
     lineNumber: photon.lineNumber,
     whatsappNumber: photon.whatsappNumber,
+    telegramUsername: telegramConfig().username,
     tokenKey,
     tokenKeys: [tokenKey],
   };
@@ -118,6 +122,7 @@ export function createImessageCommandHandler(load: () => ImessageRouteDependenci
       lineNumber: deps.lineNumber,
       origin: deps.appOrigin,
       whatsappNumber: deps.whatsappNumber,
+      telegramUsername: deps.telegramUsername,
       tokenKey: deps.tokenKey,
       tokenKeys: deps.tokenKeys,
     });
@@ -143,7 +148,7 @@ export function createImessageStartStatusHandler(load: () => ImessageRouteDepend
 }
 
 // POST /api/imessage/start: a new link code for this browser (iMessage, or
-// WhatsApp with {"channel":"whatsapp"}), which keeps the
+// WhatsApp or Telegram with {"channel":"whatsapp"} or {"channel":"telegram"}), which keeps the
 // cookie it already has or gets one. Bounded per source address and service-wide.
 export function createImessageStartHandler(load: () => ImessageRouteDependencies = imessageRouteDependenciesFromEnvironment) {
   return async (request: Request) => {
@@ -153,9 +158,10 @@ export function createImessageStartHandler(load: () => ImessageRouteDependencies
     const origin = requestAppOrigin(request, deps);
     if (!origin) return unknownHost();
 
-    // iMessage unless the page asks for WhatsApp (/?flow=whatsapp, host-whatsapp-channel D7).
+    // iMessage unless the page asks for WhatsApp or Telegram (/?flow=whatsapp,
+    // /?flow=telegram; host-whatsapp-channel D7, host-telegram-channel D7).
     const body = (await request.json().catch(() => null)) as { channel?: unknown; number?: unknown } | null;
-    const channel = body?.channel === "whatsapp" ? "whatsapp" : "imessage";
+    const channel = body?.channel === "whatsapp" || body?.channel === "telegram" ? body.channel : "imessage";
     const number = typeof body?.number === "string" ? body.number.slice(0, 40) : "";
     const cookie = startCookieFor(origin, startSecretOf(request));
     try {

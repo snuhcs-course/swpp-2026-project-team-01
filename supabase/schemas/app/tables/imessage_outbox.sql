@@ -15,13 +15,22 @@
 -- A signal row (host-imessage-channel design 18) is a best-effort read mark,
 -- tapback or typing bubble about the host's message, sealed as JSON in
 -- text_ciphertext; it is never retried and never counts as a delivery.
+-- Telegram (host-telegram-channel design 7, D8 and D9): buttons names the inline
+-- keyboard a row was sent with, the decision a proposal summary asks for
+-- ({"kind":"decision","ref":…,"version":…}) or a settings review's confirmation
+-- ({"kind":"settings","ref":…}); it stays after the row is final, so the
+-- provider message ID of an accepted row can have its keyboard removed once the
+-- proposal is decided, withdrawn or superseded. An edit_markup row removes it
+-- (its dedupe key names the row it edits, its sealed text the message ID), and a
+-- callback_answer row answers a button tap (its sealed text the callback ID and
+-- answer). Neither is a message of its own.
 CREATE TABLE "app"."imessage_outbox" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp')),
+  "channel" text NOT NULL DEFAULT 'imessage' CHECK ("channel" IN ('imessage', 'whatsapp', 'telegram')),
   "kind" text NOT NULL CHECK (
     "kind" IN (
       'link_received', 'link_refused', 'linked', 'fallback_code', 'unlinked_sender', 'text_only',
-      'command', 'turn', 'notice', 'contact_card', 'signal', 'template'
+      'command', 'turn', 'notice', 'contact_card', 'signal', 'template', 'edit_markup', 'callback_answer'
     )
   ),
   "dedupe_key" text NOT NULL CHECK (char_length("dedupe_key") BETWEEN 1 AND 300),
@@ -38,6 +47,7 @@ CREATE TABLE "app"."imessage_outbox" (
   "state" text NOT NULL DEFAULT 'queued' CHECK (
     "state" IN ('waiting', 'queued', 'dispatching', 'accepted', 'failed', 'uncertain', 'suppressed')
   ),
+  "buttons" jsonb,
   "template_name" text CHECK ("template_name" ~ '^[a-z0-9_]{1,100}$'),
   "failure_category" text CHECK (char_length("failure_category") BETWEEN 1 AND 60),
   "provider_message_id" text CHECK (char_length("provider_message_id") BETWEEN 1 AND 500),
@@ -53,6 +63,10 @@ CREATE TABLE "app"."imessage_outbox" (
     "completed_at" IS NULL OR ("recipient_ciphertext" IS NULL AND "text_ciphertext" IS NULL)
   ),
   CONSTRAINT "imessage_outbox_template" CHECK (("kind" = 'template') = ("template_name" IS NOT NULL) AND ("kind" <> 'template' OR "channel" = 'whatsapp')),
+  CONSTRAINT "imessage_outbox_buttons" CHECK (
+    "buttons" IS NULL OR ("channel" = 'telegram' AND jsonb_typeof("buttons") = 'object' AND "buttons" ->> 'kind' IN ('decision', 'settings'))
+  ),
+  CONSTRAINT "imessage_outbox_telegram_kinds" CHECK ("kind" NOT IN ('edit_markup', 'callback_answer') OR "channel" = 'telegram'),
   CONSTRAINT "imessage_outbox_one_binding" CHECK ("binding_id" IS NULL OR "requester_binding_id" IS NULL),
   CONSTRAINT "imessage_outbox_turn_input" CHECK ("kind" <> 'turn' OR "input_id" IS NOT NULL OR "completed_at" IS NOT NULL)
 );
@@ -65,6 +79,9 @@ CREATE INDEX "imessage_outbox_recipient_idx" ON "app"."imessage_outbox" ("recipi
 
 -- Inbound routing reads the last message the line sent to a sender.
 CREATE INDEX "imessage_outbox_recipient_last_idx" ON "app"."imessage_outbox" ("recipient_hash", "created_at" DESC);
+
+-- Button retirement reads the buttoned rows of a request.
+CREATE INDEX "imessage_outbox_buttons_idx" ON "app"."imessage_outbox" ("request_id") WHERE "buttons" IS NOT NULL;
 
 CREATE INDEX "imessage_outbox_created_idx" ON "app"."imessage_outbox" ("created_at");
 

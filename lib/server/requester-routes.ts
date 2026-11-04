@@ -117,6 +117,9 @@ export type RequesterRouteDependencies = ConversationDependencies &
     // The iMessage line Get updates in iMessage names (PHOTON_LINE_NUMBER);
     // empty when the line is off.
     readonly lineNumber?: string;
+    // The WhatsApp number Get updates in WhatsApp names (PHOTON_WHATSAPP_NUMBER,
+    // as digits); empty when WhatsApp is off (guest-whatsapp-link design 2).
+    readonly whatsappNumber?: string;
   };
 
 export function requesterRouteDependenciesFromEnvironment(): RequesterRouteDependencies {
@@ -126,6 +129,7 @@ export function requesterRouteDependenciesFromEnvironment(): RequesterRouteDepen
     runtime: eveRuntime(agentUrlFromEnvironment()),
     emailInbox: agentMailConfigFromEnvironment().inboxId,
     lineNumber: photonConfig().lineNumber,
+    whatsappNumber: photonConfig().whatsappNumber,
     signingKey: internalSigningKey(),
     tokenKey: tokenKeyFromEnvironment,
   };
@@ -488,10 +492,15 @@ function registered<Input, Result>(command: CommandDefinition<Input, Result>): [
 
 // The requester commands by operation.
 export function requesterCommands(
-  deps: Pick<RequesterRouteDependencies, "appOrigin" | "confirmationLimits" | "lineNumber" | "tokenKey">,
+  deps: Pick<RequesterRouteDependencies, "appOrigin" | "confirmationLimits" | "lineNumber" | "tokenKey" | "whatsappNumber">,
 ): Readonly<Record<string, RequesterCommand>> {
   const contact = { limits: deps.confirmationLimits, origin: deps.appOrigin, tokenKey: deps.tokenKey() };
-  const imessage = { lineNumber: deps.lineNumber ?? "", tokenKey: contact.tokenKey, tokenKeys: [contact.tokenKey] };
+  const imessage = {
+    lineNumber: deps.lineNumber ?? "",
+    tokenKey: contact.tokenKey,
+    tokenKeys: [contact.tokenKey],
+    whatsappNumber: deps.whatsappNumber ?? "",
+  };
 
   return Object.fromEntries([
     registered(identifyRequestCommand({ origin: contact.origin, tokenKey: contact.tokenKey })),
@@ -614,6 +623,6 @@ export function createRequesterImessageStatusHandler(load: () => RequesterRouteD
     const deps = load();
     const link = await findRequestByBookingId(deps.db, (await context.params).bookingId);
     if (!link || link.expired) return requestUnavailable();
-    return requesterJson(await readRequesterImessageStatus(deps.db, [deps.tokenKey()], link.requestId, deps.lineNumber ?? ""));
+    return requesterJson(await readRequesterImessageStatus(deps.db, [deps.tokenKey()], link.requestId, deps.lineNumber ?? "", deps.whatsappNumber ?? ""));
   };
 }

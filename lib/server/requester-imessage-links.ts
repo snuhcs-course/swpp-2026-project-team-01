@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { maskSender } from "../contracts/imessage";
-import { guestLinkMessage, REQUESTER_IMESSAGE_OPERATIONS, type RequesterImessageStatus } from "../contracts/requester-imessage";
+import { displaySender } from "../contracts/imessage";
+import { type GuestChannel, guestLinkMessage, REQUESTER_IMESSAGE_OPERATIONS, type RequesterImessageStatus } from "../contracts/requester-imessage";
 import { type CommandDefinition, CommandError } from "./commands";
 import type { Queryable, Transaction } from "./database";
 import { generateLinkCode, hashLinkCode } from "./email-links";
-import { codeContext, deliveryState, IMESSAGE_LINK_LIMITS, linkLockKey, NUMBER_INPUT, registeredLineNumber, senderContext } from "./imessage-links";
+import { attemptLineNumber, codeContext, deliveryState, IMESSAGE_LINK_LIMITS, linkLockKey, NUMBER_INPUT, senderContext } from "./imessage-links";
 import { recordOutbound } from "./imessage-outbox";
 import type { PhotonRegistrar } from "./photon";
 import { activeRequesterBinding, bindRequester, endRequesterBindings, requesterBindingRecipient } from "./requester-imessage-bindings";
@@ -24,12 +24,19 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 //     in the database only.
 // Lock order: the request row, then the request's advisory link lock, which
 // the receipt job takes alone.
+// WhatsApp links the same way (guest-whatsapp-link design 2 and 4): create takes
+// a channel, registers the number as for iMessage but keeps no assigned number,
+// and the card opens wa.me at whatsappNumber; only a WhatsApp message completes
+// the attempt, and confirming binds the sender on that channel. A request has
+// one open attempt and one active binding across both channels.
 
 export type RequesterLinkOptions = {
   readonly tokenKey: TokenKey;
   readonly tokenKeys: readonly TokenKey[];
-  // The line's number; linking is unavailable without one.
+  // The line's number; iMessage linking is unavailable without one.
   readonly lineNumber: string;
+  // The WhatsApp number as digits; WhatsApp linking is unavailable without one.
+  readonly whatsappNumber?: string;
   readonly linkLimits?: Partial<typeof IMESSAGE_LINK_LIMITS>;
   // Registers the entered number with Photon; the deployment's by default.
   readonly registrar?: PhotonRegistrar;
@@ -56,16 +63,20 @@ async function endOpenAttempts(tx: Transaction, requestId: string, state: "voide
 
 const noInput = z.object({}).strict() as unknown as z.ZodType<Record<string, never>>;
 
-export function createRequesterImessageLinkCommand(options: RequesterLinkOptions): CommandDefinition<{ number: string }, { linkId: string }> {
+export function createRequesterImessageLinkCommand(
+  options: RequesterLinkOptions,
+): CommandDefinition<{ channel?: GuestChannel; number: string }, { linkId: string }> {
   const limits = { ...IMESSAGE_LINK_LIMITS, ...options.linkLimits };
 
   return {
-    // The guest's number first (imessage-number-registration D1).
-    input: z.object({ number: NUMBER_INPUT }).strict(),
+    // The guest's number first, on either channel (imessage-number-registration
+    // D1, guest-whatsapp-link D3); iMessage unless the card asks for WhatsApp.
+    input: z.object({ channel: z.enum(["imessage", "whatsapp"]).optional(), number: NUMBER_INPUT }).strict(),
     operation: REQUESTER_IMESSAGE_OPERATIONS.create,
     async run(tx, context) {
       const requestId = assertRequest(context);
-      if (!options.lineNumber) throw new CommandError("unavailable_configuration");
+      const channel = context.input.channel ?? "imessage";
+      if (!(channel === "whatsapp" ? options.whatsappNumber : options.lineNumber)) throw new CommandError("unavailable_configuration");
       assertIdentified(await lockRequestLinking(tx, requestId));
 
       const [recent] = await tx<{ count: number }[]>`
@@ -74,15 +85,15 @@ export function createRequesterImessageLinkCommand(options: RequesterLinkOptions
       `;
       if (recent!.count >= limits.perHostHour) throw new CommandError("rate_limited");
 
-      const lineNumber = await registeredLineNumber(options.registrar, context.input.number);
+      const lineNumber = await attemptLineNumber(options.registrar, channel, context.input.number);
       await endOpenAttempts(tx, requestId, "voided");
 
       const code = generateLinkCode();
       const [row] = await tx<{ id: string }[]>`select gen_random_uuid() as id`;
       const sealed = sealToken(options.tokenKey, code, codeContext(row!.id));
       await tx`
-        insert into app.imessage_links (id, request_id, method, code_hash, code_ciphertext, sealed_key_id, line_number, expires_at)
-        values (${row!.id}, ${requestId}, 'code', ${hashLinkCode(code)}, ${sealed.ciphertext}, ${sealed.keyId}, ${lineNumber},
+        insert into app.imessage_links (id, request_id, channel, method, code_hash, code_ciphertext, sealed_key_id, line_number, expires_at)
+        values (${row!.id}, ${requestId}, ${channel}, 'code', ${hashLinkCode(code)}, ${sealed.ciphertext}, ${sealed.keyId}, ${lineNumber},
                 now() + make_interval(mins => ${limits.validMinutes}))
       `;
       return { linkId: row!.id };
@@ -101,6 +112,7 @@ export function confirmRequesterImessageLinkCommand(options: RequesterLinkOption
       const [link] = await tx<
         {
           id: string;
+          channel: GuestChannel;
           state: string;
           open: boolean;
           sender_hash: string | null;
@@ -109,7 +121,7 @@ export function confirmRequesterImessageLinkCommand(options: RequesterLinkOption
           sender_key_id: string | null;
         }[]
       >`
-        select id, state, confirm_by > now() as open, sender_hash, sender_ciphertext, space_ciphertext, sender_key_id
+        select id, channel, state, confirm_by > now() as open, sender_hash, sender_ciphertext, space_ciphertext, sender_key_id
         from app.imessage_links where id = ${context.input.linkId} and request_id = ${requestId}
         for update
       `;
@@ -122,6 +134,7 @@ export function confirmRequesterImessageLinkCommand(options: RequesterLinkOption
         select settings ->> 'displayName' as display_name from app.host_settings where host_account_id = ${request.host_account_id}
       `;
       const bindingId = await bindRequester(tx, options.tokenKey, {
+        channel: link.channel,
         hostName: host?.display_name ?? "your host",
         linkId: link.id,
         requestId,
@@ -165,7 +178,8 @@ export function shareRequesterContactCardCommand(options: RequesterLinkOptions):
       await tx`select id from app.requests where id = ${requestId} for update`;
       await tx`select pg_advisory_xact_lock(hashtextextended(${linkLockKey({ host_account_id: null, request_id: requestId, starter_hash: null })}, 0))`;
       const binding = await activeRequesterBinding(tx, requestId);
-      if (!binding) throw new CommandError("invalid_input");
+      // WhatsApp shows the business's verified name, so it has no contact card.
+      if (!binding || binding.channel !== "imessage") throw new CommandError("invalid_input");
       const [card] = await tx<{ state: string }[]>`select state from app.imessage_outbox where requester_binding_id = ${binding.id} and kind = 'contact_card' order by created_at desc limit 1`;
       if (card && ["queued", "dispatching", "uncertain"].includes(card.state)) throw new CommandError("rate_limited");
       const { id } = await recordOutbound(tx, {
@@ -189,12 +203,15 @@ export async function readRequesterImessageStatus(
   keys: readonly TokenKey[],
   requestId: string,
   lineNumber: string,
+  whatsappNumber = "",
 ): Promise<RequesterImessageStatus> {
-  if (!lineNumber) return { state: "unavailable" };
+  if (!lineNumber && !whatsappNumber) return { state: "unavailable" };
+  const numberOf = (channel: GuestChannel) => (channel === "whatsapp" ? whatsappNumber : lineNumber);
 
   const [link] = await db<
     {
       id: string;
+      channel: GuestChannel;
       state: "pending" | "received";
       code_ciphertext: string | null;
       sealed_key_id: string | null;
@@ -205,7 +222,7 @@ export async function readRequesterImessageStatus(
       line_number: string | null;
     }[]
   >`
-    select id, state, code_ciphertext, sealed_key_id, sender_ciphertext, sender_key_id, expires_at, confirm_by, line_number
+    select id, channel, state, code_ciphertext, sealed_key_id, sender_ciphertext, sender_key_id, expires_at, confirm_by, line_number
     from app.imessage_links
     where request_id = ${requestId}
       and ((state = 'pending' and expires_at > now()) or (state = 'received' and confirm_by > now()))
@@ -214,25 +231,46 @@ export async function readRequesterImessageStatus(
   try {
     if (link?.state === "received") {
       const sender = openToken(keys, { ciphertext: link.sender_ciphertext!, keyId: link.sender_key_id! }, senderContext(link.id));
-      return { confirmBy: link.confirm_by!.toISOString(), lineNumber, linkId: link.id, sender: maskSender(sender), state: "received" };
+      return {
+        channel: link.channel,
+        confirmBy: link.confirm_by!.toISOString(),
+        lineNumber: numberOf(link.channel),
+        linkId: link.id,
+        sender: displaySender(sender),
+        state: "received",
+      };
     }
     if (link?.state === "pending") {
       const code = openToken(keys, { ciphertext: link.code_ciphertext!, keyId: link.sealed_key_id! }, codeContext(link.id));
-      return { code, expiresAt: link.expires_at.toISOString(), lineNumber: link.line_number ?? lineNumber, message: guestLinkMessage(code), state: "pending" };
+      return {
+        channel: link.channel,
+        code,
+        expiresAt: link.expires_at.toISOString(),
+        lineNumber: link.line_number ?? numberOf(link.channel),
+        message: guestLinkMessage(code),
+        state: "pending",
+      };
     }
   } catch {
     // Sealed under a key the service no longer holds: start again.
   }
 
   const binding = await activeRequesterBinding(db, requestId);
-  if (!binding) return { lineNumber, state: "none" };
+  if (!binding) return { lineNumber, state: "none", whatsappNumber: whatsappNumber || null };
 
   let sender = "••••";
   try {
-    sender = maskSender(requesterBindingRecipient(keys, binding).address);
+    sender = displaySender(requesterBindingRecipient(keys, binding).address);
   } catch {
     // Sealed under a key the service no longer holds: still linked.
   }
   const [card] = await db<{ state: string }[]>`select state from app.imessage_outbox where requester_binding_id = ${binding.id} and kind = 'contact_card' order by created_at desc limit 1`;
-  return { contactCard: card ? { state: deliveryState(card.state) } : null, linkedAt: binding.created_at.toISOString(), lineNumber, sender, state: "linked" };
+  return {
+    channel: binding.channel,
+    contactCard: card ? { state: deliveryState(card.state) } : null,
+    linkedAt: binding.created_at.toISOString(),
+    lineNumber: numberOf(binding.channel),
+    sender,
+    state: "linked",
+  };
 }

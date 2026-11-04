@@ -284,7 +284,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **레인 B — 웹 워크스페이스의 연동 카드**
 
-- [x] **iMessage 연결(Connect iMessage)**은 서버에서 일회용 연결 코드를 받아 곧바로 메시지 앱을 엽니다. 수신자는 회선 번호이고 입력란에는 정확한 연결 메시지가 들어갑니다(iOS는 `sms:<number>&body=<text>`, Android는 `sms:<number>?body=<text>`); 메시지 앱을 열 수 없는 곳에서는 인라인 카드가 번호, 코드, **복사(Copy)**, 같은 딥링크의 QR 코드를 보여 줍니다. 이어서 마스킹된 발신자의 **확인 및 연결(Confirm and link)**, 서비스 발송 6자리 대체 경로(**코드를 대신 보내 주세요(Send me a code instead)**)와 보호된 코드 입력란, 만료 및 재전송 한도, 연결 해제, **나중에(Maybe later)**. 메시지 앱을 여는 것은 연결로 간주되지 않습니다.
+- [x] **iMessage 연결(Connect iMessage)**은 서버에서 일회용 연결 코드를 받아 곧바로 메시지 앱을 엽니다. 수신자는 회선 번호이고 입력란에는 정확한 연결 메시지가 들어갑니다(iOS는 `sms:<number>&body=<text>`, Android는 `sms:<number>?body=<text>`); 메시지 앱을 열 수 없는 곳에서는 인라인 카드가 번호, 코드, **복사(Copy)**, 같은 딥링크의 QR 코드를 보여 줍니다. 이어서 발신자에 대한 **확인 및 연결(Confirm and link)**, 서비스 발송 6자리 대체 경로(**코드를 대신 보내 주세요(Send me a code instead)**)와 보호된 코드 입력란, 만료 및 재전송 한도, 연결 해제, **나중에(Maybe later)**. 메시지 앱을 여는 것은 연결로 간주되지 않습니다.
 - [x] 큐에 있음, 수락됨, 실패, 불확실의 상태를 사실대로 보여 주는 선택 사항인 **연락처에 추가(Add to contacts)** 카드.
 
 **레인 C — 채널과 명령**
@@ -410,7 +410,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 
 **레인 B — 브라우저에서의 연동**
 
-- [x] `wa.me` 링크, QR 코드, **복사(Copy)**, 마스킹된 번호의 **확인 및 연결(Confirm and link)**을 갖춘 **WhatsApp 연결(Connect WhatsApp)**; 기기 규칙(Android는 WhatsApp, Apple 기기는 **대신 WhatsApp 사용(Use WhatsApp instead)**이 있는 iMessage, 그 밖의 컴퓨터는 질문); 교체 안내와 옵트인 문장; 로그인 뒤의 연동 단계와 `/?flow=whatsapp`.
+- [x] `wa.me` 링크, QR 코드, **복사(Copy)**, 번호에 대한 **확인 및 연결(Confirm and link)**을 갖춘 **WhatsApp 연결(Connect WhatsApp)**; 기기 규칙(Android는 WhatsApp, Apple 기기는 **대신 WhatsApp 사용(Use WhatsApp instead)**이 있는 iMessage, 그 밖의 컴퓨터는 질문); 교체 안내와 옵트인 문장; 로그인 뒤의 연동 단계와 `/?flow=whatsapp`.
 - [x] 호스트당 채널 전체에서 활성 바인딩 하나, 확인 시 다른 채널의 바인딩 종료.
 
 **레인 C — 창, 템플릿, 채널 동작**
@@ -418,6 +418,13 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 - [x] 발송 시점의 24시간 창 확인, 억제, `window_closed`와 `template_unavailable`에 대한 `/app` 안내.
 - [x] 호스트당 12시간, 회선당 일일 한도가 있는 유틸리티 템플릿 세 개.
 - [x] `stop`, `[WhatsApp]` 대화 기록 접두사, 호스트 지침 조각, 채널별 연동되지 않은 발신자 한도; 명령, 요약, 설정, 접수는 6단계에서 재사용.
+
+**레인 D — 읽음 표시, 입력 중 표시, 반응, 버튼 (2026-11-04 추가)**
+
+- [x] 제안서, 설계 11, 델타 명세, 결정 기록의 D15–D17.
+- [ ] D15–D17에 대한 팀원 검토.
+- [ ] WhatsApp `signal` 행: 입력 중 표시와 함께 읽음, 감사 인사에는 ❤️.
+- [ ] 창 안의 결정 요약에 붙는 답장 버튼, 버튼 답장 파싱, `WHATSAPP_BUTTONS` 스위치.
 
 **합류**
 
@@ -428,6 +435,46 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 여기서 확정할 결정: 플랫폼 라우팅과 WhatsApp 발신자 형식; `channel` 열을 통해 iMessage와 공유하는 기록; 호스트당 하나의 채널; 기기 규칙; 창 여유; 템플릿 이름, 매개변수, 한도. 2026-11-02에 [`host-whatsapp-channel` 제안서](../../openspec/changes/host-whatsapp-channel/proposal.md#decisions)의 D1–D13으로 제안되었으며 팀원 검토를 기다립니다. 템플릿 문구는 Meta가 승인해야 비로소 확정됩니다.
 
 증거: 프로덕션 배포를 대상으로 통제된 Android 폰에서 수행한 AC-29, AC-30, AC-31. 창 밖의 템플릿, 재시작 후 재생, 모의 전달 실패를 포함하며, 기기, WhatsApp, 브라우저 버전을 기록합니다.
+
+### 10단계 — `host-telegram-channel`
+
+목표: 연동된 호스트가 어떤 기기에서든 iPhone 호스트가 iMessage에서 하듯 일상적인 스케줄링을 Find Me a Time 봇과의 비공개 Telegram 대화에서 처리합니다. Meta가 WhatsApp Business 계정을 비활성화하고 프로덕션에서 WhatsApp이 숨겨진 뒤인 2026-11-04에 추가되었습니다([PRD Telegram 결정](../02_product_requirements.md#target-users), 이슈 #111).
+
+범위. 선행 조건: 6단계와 9단계. 이 단계는 이들의 수신, `channel` 열이 있는 테이블, 명령, 발신함, 카드, 기기 규칙을 확장합니다. 모든 레인은 아래 제안서가 검토될 때까지 기다립니다. 레인 B와 C는 레인 A의 채널 값과 파서에는 의존하지만 실제 봇에는 의존하지 않습니다.
+
+**제안서(직렬, 먼저)**
+
+- [x] D1–D13과 커버리지 표를 담은 [`host-telegram-channel`](../../openspec/changes/host-telegram-channel/proposal.md)의 제안서.
+- [x] [설계](../../openspec/changes/host-telegram-channel/design.md).
+- [x] [`specs/`](../../openspec/changes/host-telegram-channel/specs/) 아래의 델타 명세, 새로운 `host-telegram-channel` 기능.
+- [x] [작업](../../openspec/changes/host-telegram-channel/tasks.md).
+- [x] PRD 갱신(Telegram 결정, 범위, FR-40부터 FR-42까지, AC-32부터 AC-34까지), 제공자 설정, 한국어 미러.
+- [ ] iPhone 호스트와 버튼에 관한 미해결 질문을 포함한 팀원 검토.
+
+**레인 A — 웹훅, 기록, 전송**
+
+- [x] 네 개의 `imessage_*` 테이블의 `channel` 검사에 `telegram`을 pg-delta로 추가.
+- [x] 시크릿 헤더가 있는 `POST /telegram/webhook`, 업데이트와 콜백 파서, `telegram:` 발신자 네임스페이스.
+- [x] Bot API 클라이언트, 오류 매핑, 대화 간격 조정과 분할, 대역의 Telegram 분기, `npm run telegram:webhook`.
+
+**레인 B — 브라우저에서의 연동**
+
+- [x] `t.me` 시작 링크, QR 코드, **복사(Copy)**, Telegram 이름, **확인 및 연결(Confirm and link)**을 갖춘 **Telegram 연결(Connect Telegram)**; 세 채널에 걸친 기기 규칙; 교체 안내와 프라이버시 문장; 로그인 뒤의 연동 단계와 `/?flow=telegram`.
+
+**레인 C — 버튼, 부가 기능, 채널 동작**
+
+- [x] 제안 버전에 묶인 **Approve**, **Decline**, **Show details** 버튼, 콜백 응답, 버튼 회수.
+- [x] 앞에 `/`가 있는 명령, 명령 메뉴, 입력 중 표시, 무음 전달, `[Telegram]` 접두사, 호스트 지침 조각; 명령, 요약, 설정, 접수는 6단계에서 재사용.
+
+**합류**
+
+- [ ] 웹훅을 등록하고 실제 업데이트를 수집해 픽스처를 확인한 뒤, 통제된 Android 폰과 iPhone에서 연동하고, 요청을 선택하고, 수정하고, 버튼으로 승인하고, 오래된 버튼을 누르고, 봇을 차단해 보며, 10단계 증거 목록을 실행합니다.
+
+명세: [chat-workspaces](../../openspec/specs/chat-workspaces/spec.md), [messaging-environments](../../openspec/specs/messaging-environments/spec.md), [durable-jobs](../../openspec/specs/durable-jobs/spec.md), 그리고 새로운 `host-telegram-channel` 델타, 아카이브되기 전까지는 `host-imessage-channel`과 `host-whatsapp-channel`.
+
+여기서 확정할 결정: 직접 Bot API 전송과 웹훅 시크릿; Telegram 발신자 신원; 시작 링크; 세 채널에 걸친 기기 규칙; 결정 버튼과 그 회수. 2026-11-04에 [`host-telegram-channel` 제안서](../../openspec/changes/host-telegram-channel/proposal.md#decisions)의 D1–D13으로 제안되었으며 팀원 검토를 기다립니다.
+
+증거: 프로덕션 배포를 대상으로 통제된 Android 폰과 iPhone에서 수행한 AC-32, AC-33, AC-34. 버튼 승인, 오래된 탭, 재시작 후 재생, 속도 제한, 차단된 봇을 포함하며, 기기, Telegram, 브라우저 버전을 기록합니다.
 
 ### 게스트 흐름 완성 — `guest-flow-completion`
 
@@ -449,6 +496,7 @@ OpenSpec 변경은 필요하지 않습니다. 1단계를 막고 있는 유지보
 | 7 요청자 이메일 채널 | 3, 4 | 5, 6 |
 | 8 운영과 릴리스 | 전체 | 진단은 4 이후 시작 가능 |
 | 9 호스트 WhatsApp 채널 | 6, 그리고 iMessage 전용 수신기 수정(PR #63) | 8단계 릴리스 단계; 레인 A의 열이 반영된 뒤에는 레인이 겹침 |
+| 10 호스트 Telegram 채널 | 6, 9 | 9단계의 Android 점검; 레인 A의 채널 값이 반영된 뒤 레인이 겹침 |
 
 첫 번째 시연 가능한 마일스톤은 4단계의 끝입니다. 실제 Google Calendar를 통한 웹 전용 예약입니다. 그 이후 5, 6, 7단계는 각자 명명된 클라이언트, 기기, 받은편지함 인수를 갖는 세 개의 병렬 브랜치로 진행할 수 있습니다.
 
@@ -501,6 +549,7 @@ Docker를 갖춘 팀원이 그 주에 마이그레이션이 필요한 레인의 
 | 7 요청자 이메일 채널 | eve 메모리 템플릿: `agent/lib/integrations/slack/{channel,identity}.ts`와 그 테스트, `agent/lib/testing/slack.ts`(신원 확인과 테스트 도우미를 갖춘 사용자 정의 채널). eve 채팅 템플릿: `agent/channels/slack.ts`(최소 채널). OpenInstinct: Chat SDK Gmail 어댑터를 평가하는 경우에만 클라이언트 형태를 위한 `agent/lib/google-workspace/gmail.ts` | 사용자 정의 채널 구조, 모델 턴 밖에 두는 신원 확인, 채널 테스트 도우미 | Slack 자체, 도구로서의 Gmail, 신원으로 쓰이는 모든 발신자 주장 |
 | 8 운영과 릴리스 | OpenInstinct: `agent/instrumentation/{otel,evlog}.ts`, `agent/hooks/evlog.ts`. eve 채팅 템플릿: `scripts/setup.sh`, `docs/setup-and-deploy.md`, `apps/web/lib/setup.ts`. personal-agent 템플릿: `.github/workflows/ci.yml`, `docs/ENVIRONMENT.md` | 비공개 텍스트가 없는 계측, 설정 및 준비도 스크립트, CI 구성, 환경 문서 구조 | 그들의 호스팅 전제와 제공자 목록 |
 | 9 호스트 WhatsApp 채널 | 이 저장소의 6단계 모듈(`lib/server/photon-receiver.ts`, `photon.ts`, `imessage-{links,receipts,commands,notices,outbox}.ts`와 그 테스트)과 `@spectrum-ts/whatsapp-business` 12.14.0(`dist/index.js`: 클라우드 모드 회선 탐색, `space.create`, `whatsappTemplate`, 131047 주석) | 복사하지 않고 채널로 확장한 6단계의 형태, 공급자의 템플릿 헬퍼 | 두 번째 수신기, 중복된 테이블, 대화형 버튼 |
+| 10 호스트 Telegram 채널 | 이 저장소의 6단계와 9단계 모듈(`lib/server/photon-receiver.ts`, `whatsapp.ts`, `imessage-{links,receipts,commands,outbox}.ts`, `lib/contracts/messaging-channel.ts`와 그 테스트), `@spectrum-ts/telegram` 12.14.0(`dist/index.js`, 업데이트 매핑 용도로만)과 Telegram Bot API 레퍼런스 | 복사하지 않고 세 번째 채널 값으로 확장한 6단계와 9단계의 형태, 공급자의 업데이트-메시지 매핑 | 런타임의 Spectrum Telegram 공급자(지속적인 WebSocket), 두 번째 테이블 집합, Mini App |
 
 설계 참조도 같은 규칙을 따릅니다. [DESIGN.md](../../DESIGN.md)가 토큰, 타입, 간격, 컴포넌트 레시피를 소유합니다. 메시지와 작성기 상호작용은 Vercel chatbot과 AI Elements 스킬을 따릅니다. 1차 이터레이션의 [디자인 시스템](../transplant/en/design-system.md)은 Thyme 팔레트에 맞게 조정한 시그니처 패턴만 제공합니다. 업무 및 미팅 가능 시간대 트랙을 갖춘 주간 차트, 출처를 보여 주는 칩, 한 줄 후보, 긴 편집기의 고정 액션 바, 포커스가 복귀하는 오른쪽 상세 시트, 인라인 삭제 확인이 그것입니다. 차가운 청록 토큰과 Pretendard는 채택하지 않습니다.
 
@@ -541,6 +590,7 @@ Docker를 갖춘 팀원이 그 주에 마이그레이션이 필요한 레인의 
 | AgentMail 어댑터와 보존 | 7단계 제안서(D1–D11은 2026-10-22에 결정됨) | 제공자 설정 |
 | 측정 목표, 보존 및 삭제, 지원 담당 | 8단계 제안서(D1–D14는 2026-10-23에 결정) | PRD 2절과 10절 |
 | WhatsApp 라우팅, 발신자 형식, 호스트당 하나의 채널, 창 여유, 템플릿 | 9단계 제안서(D1–D13은 2026-11-02에 제안) | PRD 1절, 3절, 10절, 제공자 설정, 새 WhatsApp 변경 |
+| Telegram 전송, 웹훅 시크릿, 발신자 신원, 시작 링크, 기기 규칙, 결정 버튼 | 10단계 제안서(D1–D13은 2026-11-04에 제안) | PRD 1절, 3절, 10절, 제공자 설정, 새 Telegram 변경 |
 
 ## 8. 위험
 
@@ -550,6 +600,7 @@ Docker를 갖춘 팀원이 그 주에 마이그레이션이 필요한 레인의 
 | Calendar 스코프에 대한 Google 앱 검증이 느림 | 테스트 사용자 상한이 외부 호스트를 막음 | 2단계 중에 제출; 첫 외부 호스트 전에 릴리스 분리를 유지 |
 | Photon 전달 가능성 또는 채널 모호성(SMS/RCS 대체) | iMessage 인수를 닫을 수 없음 | 수신 우선 연결 코드; 대체 사용을 기록; iMessage 통과를 주장하는 대신 롤아웃 게이트에서 중단 |
 | Meta가 WhatsApp 템플릿을 거부하거나 재분류하거나 비즈니스가 검증되지 않은 채로 남음 | Android 호스트는 24시간 창 밖에서 알림을 받지 못하고, 하루 250명 한도가 적용됨 | 참조만 담은 중립적인 유틸리티 문구; `template_unavailable`을 `/app`에 사실대로 표시; 9단계 합류 전에 템플릿과 검증을 제출 |
+| Telegram 봇 토큰이 유출되거나 호스트가 실수로 **Approve**를 누름 | 누군가 봇으로 메시지를 보내거나, 표시된 버전이 의도치 않게 승인됨 | 토큰은 Vercel Production과 운영자의 `.env`에만 두고 @BotFather `/revoke`로 교체; 별도의 웹훅 시크릿; 버튼은 표시된 버전만 승인하며 결정 뒤에는 제거됨 |
 | 디스커버리와 MCP 지원이 서로 다른 일곱 개의 명명된 클라이언트 | AC-14, AC-15, AC-23, AC-24가 열린 채로 남음 | 5단계에서 정하는 클라이언트별 테스트 환경; 대체 수단으로 명시적인 `/SKILL.md` 붙여넣기 경로; 보편 호환성 주장은 하지 않음 |
 | 불확실한 Calendar 쓰기 또는 제공자 타임아웃 | 중복 또는 유령 예약 | 디스패치 전 예약과 고정된 페이로드, 재시도 전 조정, 보류 상태를 사실대로 표시 |
 | Docker가 없는 팀원 | 마이그레이션을 생성할 수 없음 | Docker를 갖춘 한 팀원이 같은 풀 리퀘스트 안에서 마이그레이션을 생성 |

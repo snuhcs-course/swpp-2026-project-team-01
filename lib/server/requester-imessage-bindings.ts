@@ -12,6 +12,9 @@ import { openToken, sealToken, type TokenKey } from "./token-encryption";
 // conversation. Closing never ends it: a declined, expired or withdrawn request
 // continues as a revised request (U16), and a booked one answers questions
 // about its meeting (U18).
+// A binding records its channel, iMessage or WhatsApp (guest-whatsapp-link
+// design 1): outbox rows naming it go out there, and on WhatsApp its
+// last_inbound_at starts the 24-hour window, from the link message on.
 
 export function requesterBindingContext(bindingId: string) {
   return `requester_imessage_binding:${bindingId}`;
@@ -20,6 +23,7 @@ export function requesterBindingContext(bindingId: string) {
 export type RequesterBinding = {
   readonly id: string;
   readonly request_id: string;
+  readonly channel: "imessage" | "whatsapp";
   readonly sender_hash: string;
   readonly sender_ciphertext: string;
   readonly space_ciphertext: string | null;
@@ -29,7 +33,7 @@ export type RequesterBinding = {
 
 export async function activeRequesterBinding(q: Queryable, requestId: string) {
   const [row] = await q<RequesterBinding[]>`
-    select id, request_id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, created_at
+    select id, request_id, channel, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, created_at
     from app.requester_imessage_bindings where request_id = ${requestId} and state = 'active'
   `;
   return row ?? null;
@@ -57,6 +61,7 @@ export async function bindRequester(
   tokenKey: TokenKey,
   binding: {
     readonly requestId: string;
+    readonly channel?: "imessage" | "whatsapp";
     // Null when the guest-host's own host conversation is bound (design 6).
     readonly linkId: string | null;
     readonly sender: string;
@@ -72,9 +77,13 @@ export async function bindRequester(
   const sealedSender = sealToken(tokenKey, binding.sender, context);
   const sealedSpace = binding.spaceId === null ? null : sealToken(tokenKey, binding.spaceId, context);
   await tx`
-    insert into app.requester_imessage_bindings (id, request_id, link_id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id)
-    values (${bindingId}, ${binding.requestId}, ${binding.linkId}, ${binding.senderHash}, ${sealedSender.ciphertext},
-            ${sealedSpace?.ciphertext ?? null}, ${tokenKey.id})
+    insert into app.requester_imessage_bindings
+      (id, request_id, channel, link_id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, last_inbound_at)
+    values (${bindingId}, ${binding.requestId}, ${binding.channel ?? "imessage"}, ${binding.linkId}, ${binding.senderHash}, ${sealedSender.ciphertext},
+            ${sealedSpace?.ciphertext ?? null}, ${tokenKey.id},
+            -- The link message is the guest's last message so far; WhatsApp's window starts there.
+            (select r.received_at from app.imessage_links l join app.imessage_receipts r on r.id = l.received_by_receipt_id
+             where l.id = ${binding.linkId}))
   `;
   await recordOutbound(tx, {
     dedupeKey: `requester-binding:${bindingId}`,

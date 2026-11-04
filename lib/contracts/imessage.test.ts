@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { deepLinkFor, linkMessage, maskSender, messagesPlatform, normalizeNumber, qrDeepLink } from "./imessage";
+import { deepLinkFor, linkMessage, displaySender, messagesPlatform, normalizeNumber, qrDeepLink } from "./imessage";
 
 // The one-tap deep link (host-imessage-channel design 5, D4): which platforms
-// open Messages, the body separator each expects, and the masked sender and
-// number the card shows.
+// open Messages, the body separator each expects, and the sender and number
+// the card shows in full.
 
 const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1";
 const IPAD_DESKTOP = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15";
@@ -39,11 +39,11 @@ describe("deepLinkFor", () => {
   });
 });
 
-describe("maskSender and normalizeNumber", () => {
-  it("shows the last four digits of a number and the first character and domain of an email", () => {
-    expect(maskSender("+15551234567")).toBe("•••• 4567");
-    expect(maskSender("host@icloud.com")).toBe("ho•••t@icloud.com");
-    expect(maskSender("jo@icloud.com")).toBe("j•••@icloud.com");
+describe("displaySender and normalizeNumber", () => {
+  it("shows the whole number, a WhatsApp contact ID with its plus, and the whole email", () => {
+    expect(displaySender("+15551234567")).toBe("+15551234567");
+    expect(displaySender("821025742625")).toBe("+821025742625");
+    expect(displaySender("host@icloud.com")).toBe("host@icloud.com");
   });
 
   it("accepts an E.164 number written with spaces or dashes and refuses anything else", () => {

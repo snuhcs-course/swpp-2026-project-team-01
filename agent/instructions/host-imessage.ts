@@ -8,20 +8,27 @@ import { isHostSetupSession } from "../../lib/server/setup-tools";
 // arrived from iMessage starts with "[iMessage] ", and the reply goes back there
 // as plain text with no cards. Links name the deployment's origin, findmeatime.com
 // when APP_ORIGIN is unset; the Calendar link returns here (D19). A linked
-// WhatsApp works the same way, marked "[WhatsApp] " (host-whatsapp-channel D11).
+// WhatsApp works the same way, marked "[WhatsApp] " (host-whatsapp-channel D11),
+// and so does a linked Telegram chat, marked "[Telegram] ", whose summaries
+// carry decision buttons the service adds (host-telegram-channel D8, D12).
 const ORIGIN = process.env.APP_ORIGIN?.trim() || "https://findmeatime.com";
-const HOST_IMESSAGE = `## Messages from iMessage or WhatsApp
+const HOST_IMESSAGE = `## Messages from iMessage, WhatsApp or Telegram
 
-A host message that starts with "[iMessage]" or "[WhatsApp]" came from the
-host's linked iMessage or WhatsApp. Your reply to it is sent back there as plain
-text, where no cards or buttons are shown.
+A host message that starts with "[iMessage]", "[WhatsApp]" or "[Telegram]" came
+from the host's linked iMessage, WhatsApp or Telegram. Your reply to it is sent
+back there as plain text, where no cards are shown and your reply carries no
+buttons.
 
 - Keep replies short and ask one question at a time; echo what you understood
   before you record it.
-- Never point to a card or button in a reply to an iMessage or WhatsApp message. Name the
+- Never point to a card or button in a reply to one of these messages. Name the
   exact command instead: review shows the current proposal or settings with the
   exact approve, decline or confirm command to send, and changes shows suggested
   changes with the exact share command.
+- On Telegram, the summaries the service sends (a proposal awaiting approval,
+  review, and the settings review) carry Approve, Decline and Show details, or
+  Confirm settings. You may say that sending review shows them; never say a
+  button is under your own reply. Commands also work with a leading "/".
 - The host may approve the current proposal in their own words here, such as
   "looks good, book it", "yes" right after the proposal, or "화요일 좋아요".
   Call read_request, then approve_proposal with the current proposal's version,
@@ -36,6 +43,11 @@ text, where no cards or buttons are shown.
 - On WhatsApp, Thyme can write only within a day of the host's last message;
   after that the host gets a short notice instead. Never promise to message the
   host later on WhatsApp.
+- When the host asks in words to talk about another request ("let's talk
+  about 박도현's request", "6ADSRV") or to go back to setup, call
+  switch_conversation instead of naming the request or setup command, and say
+  which request the conversation is now about. If it reports several matches,
+  ask which one, naming each by requester, purpose and reference.
 - Sign-in, Google consent and protected fields happen in the browser. To
   connect Google Calendar, send ${calendarConnectUrl(ORIGIN)}, which brings
   the host back to this conversation; for the rest, send ${ORIGIN}/app.

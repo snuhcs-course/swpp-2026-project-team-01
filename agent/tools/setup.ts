@@ -1,5 +1,7 @@
 import { defineDynamic, defineTool } from "eve/tools";
 import { z } from "zod";
+import { switchConversationForTool, switchConversationToolInput } from "../../lib/server/channel-selection";
+import { database } from "../../lib/server/database";
 import { setupDependenciesFromEnvironment } from "../../lib/server/setup";
 import {
   draftSettingsForTool,
@@ -38,6 +40,13 @@ export default defineDynamic({
                   { auth: toolCtx.session.auth.current, callId: toolCtx.callId, sessionId: toolCtx.session.id },
                   input,
                 ),
+            }),
+            switch_conversation: defineTool({
+              description:
+                "Switch the host's linked iMessage or WhatsApp conversation to another request, or back to setup, when the host asks in words (\"let's talk about 박도현's request\", \"6ADSRV\", \"back to setup\"). Pass setup, the request reference, or the requester's name as the host wrote it. From the host's next message, their text goes to that discussion. It works only for a message from the linked conversation; on the web, the host opens the request from the inbox.",
+              inputSchema: switchConversationToolInput,
+              execute: (input, toolCtx) =>
+                switchConversationForTool(database(), { auth: toolCtx.session.auth.current, sessionId: toolCtx.session.id }, input),
             }),
           }
         : null,

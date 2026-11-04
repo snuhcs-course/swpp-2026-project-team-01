@@ -12,6 +12,8 @@ export default await withEve({
     { src: "^/agentmail/(.*)$", destination: { type: "service", service: "eve" } },
     // So is the Photon webhook receiver (host-imessage-channel design 2).
     { src: "^/photon/(.*)$", destination: { type: "service", service: "eve" } },
+    // And the Telegram bot's webhook (host-telegram-channel design 2).
+    { src: "^/telegram/(.*)$", destination: { type: "service", service: "eve" } },
     { src: "^(.*)$", destination: { type: "service", service: "web" } },
   ],
 });

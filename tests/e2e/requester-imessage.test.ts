@@ -7,7 +7,15 @@ import { photonConfig } from "../../lib/server/photon";
 import { IMESSAGE_RECEIPT_JOB, receivePhotonWebhook } from "../../lib/server/photon-receiver";
 import { parseTokenKey } from "../../lib/server/token-encryption";
 import { unreachableSetup } from "../integration/support/imessage";
-import { messagesEvent, newSender, signedWebhook, TEST_WEBHOOK_ID, TEST_WEBHOOK_SECRET } from "../integration/support/photon";
+import {
+  messagesEvent,
+  newSender,
+  newWhatsAppSender,
+  signedWebhook,
+  TEST_WEBHOOK_ID,
+  TEST_WEBHOOK_SECRET,
+  whatsAppEvent,
+} from "../integration/support/photon";
 import { runJob } from "../integration/support/requests";
 import { agreedReviewRequest } from "./support/host-review";
 import { readyRequestHost } from "./support/requester";
@@ -21,12 +29,15 @@ import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 // guest's message is driven here through the real receiver and receipt job, as
 // Photon and the worker would: a desktop shows the number, the message and a QR
 // code; the arrived message shows the masked sender, and only **Confirm and
-// link** binds it; **Unlink iMessage** returns to the start.
+// link** binds it; **Unlink iMessage** returns to the start. **Get updates in
+// WhatsApp** (guest-whatsapp-link design 2) does the same with the WhatsApp
+// number and a wa.me link.
 
 const tokenKey = parseTokenKey(E2E_TOKEN_ENCRYPTION_KEY);
 const LINE = "+15550001111";
+const WHATSAPP = "15550002222";
 const PHOTON = `http://127.0.0.1:${process.env.FAKE_PHOTON_PORT ?? "3106"}`;
-const config = { ...photonConfig({}), apiUrl: PHOTON, lineNumber: LINE };
+const config = { ...photonConfig({}), apiUrl: PHOTON, lineNumber: LINE, whatsappNumber: WHATSAPP };
 const runtime: ConversationRuntime = {
   createSession: async () => "unused",
   readEvents: () => (async function* () {})(),
@@ -41,10 +52,12 @@ async function agreedRequest(db: Database) {
   return agreedReviewRequest(db, host.hostAccountId);
 }
 
-// The guest's message, signed to the receiver and processed by the receipt job.
-async function guestSends(db: Database, sender: string, text: string) {
+// The guest's message, signed to the receiver and processed by the receipt job;
+// with channel "whatsapp", a WhatsApp Business event from a contact ID.
+async function guestSends(db: Database, sender: string, text: string, channel: "imessage" | "whatsapp" = "imessage") {
   const id = `msg_${randomUUID()}`;
-  const response = await receivePhotonWebhook(signedWebhook(messagesEvent({ id, sender, text })), () => ({
+  const event = channel === "whatsapp" ? whatsAppEvent({ id, sender, text }) : messagesEvent({ id, sender, text });
+  const response = await receivePhotonWebhook(signedWebhook(event), () => ({
     config: { secret: TEST_WEBHOOK_SECRET, webhookId: TEST_WEBHOOK_ID },
     db,
     tokenKey,
@@ -76,6 +89,15 @@ async function pressByKeyboard(page: Page, name: string) {
   await page.keyboard.press("Enter");
 }
 
+// The guest's number first (imessage-number-registration D1), typed by keyboard and sent with Enter.
+async function entersNumber(page: Page) {
+  const field = page.getByRole("textbox", { name: "Mobile number" });
+  await expect(field).toBeVisible();
+  await field.focus();
+  await page.keyboard.type("10-1234-5678");
+  await page.keyboard.press("Enter");
+}
+
 for (const width of [390, 1280]) {
   test(`at ${width}px a guest links and unlinks iMessage updates by keyboard`, async ({ db, page }) => {
     await page.setViewportSize({ height: 800, width });
@@ -86,17 +108,12 @@ for (const width of [390, 1280]) {
     await expect(page.getByRole("button", { exact: true, name: "Get updates in iMessage" })).toBeVisible({ timeout: 20_000 });
     await pressByKeyboard(page, "Get updates in iMessage");
 
-    // The guest's number first (imessage-number-registration D1), typed by keyboard and sent with Enter.
-    const field = page.getByRole("textbox", { name: "Mobile number" });
-    await expect(field).toBeVisible();
-    await field.focus();
-    await page.keyboard.type("10-1234-5678");
-    await page.keyboard.press("Enter");
+    await entersNumber(page);
 
     // A desktop browser opens nothing: the number, the message and a QR code.
     const card = page.locator('[data-guest-card="imessage-link"]');
     await expect(card.getByRole("heading", { name: "Get updates in iMessage" })).toBeVisible();
-    await expect(card.getByText(LINE)).toBeVisible();
+    await expect(card.getByText(LINE)).toBeVisible({ timeout: 20_000 });
     const message = (await card.locator("[data-imessage-link-message]").textContent())!.trim();
     expect(message).toMatch(/^Get Find Me a Time updates: FMAT-[0-9A-HJKMNP-TV-Z]{10}$/);
     await expect(card.getByRole("img", { name: /QR code/ })).toBeVisible();
@@ -106,11 +123,11 @@ for (const width of [390, 1280]) {
     const sender = newSender();
     await guestSends(db, sender, message);
     await expect(page.getByRole("heading", { name: "Is this your iMessage?" })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(`•••• ${sender.slice(-4)}`)).toBeVisible();
+    await expect(page.getByText(sender)).toBeVisible();
     expect(await db`select 1 from app.requester_imessage_bindings where request_id = ${request.requestId}`).toHaveLength(0);
 
     await pressByKeyboard(page, "Confirm and link");
-    await expect(page.locator('[data-imessage-link="linked"]')).toContainText(`updates go to •••• ${sender.slice(-4)}`);
+    await expect(page.locator('[data-imessage-link="linked"]')).toContainText(`updates go to ${sender}`);
     const [binding] = await db<{ state: string }[]>`select state from app.requester_imessage_bindings where request_id = ${request.requestId}`;
     expect(binding!.state).toBe("active");
 
@@ -123,7 +140,8 @@ for (const width of [390, 1280]) {
 
 // A Mac also gets **Open Messages on this Mac** with the iOS form of the deep
 // link, beside the QR code and Copy, as on the host's link screens (D17);
-// pressing **Get updates in iMessage** still opens nothing by itself.
+// pressing **Get updates in iMessage** and sending the number still opens
+// nothing by itself.
 test.describe("on a Mac", () => {
   test.use({
     userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
@@ -135,13 +153,52 @@ test.describe("on a Mac", () => {
     await page.goto(`/booking/${request.bookingId}`);
     await expect(page.getByRole("button", { exact: true, name: "Get updates in iMessage" })).toBeVisible({ timeout: 20_000 });
     await pressByKeyboard(page, "Get updates in iMessage");
+    await entersNumber(page);
 
     const card = page.locator('[data-guest-card="imessage-link"]');
     await expect(card.getByRole("heading", { name: "Get updates in iMessage" })).toBeVisible();
+    await expect(card.getByText(LINE)).toBeVisible({ timeout: 20_000 });
     const message = (await card.locator("[data-imessage-link-message]").textContent())!.trim();
     await expect(card.getByRole("link", { name: "Open Messages on this Mac" })).toHaveAttribute("href", `sms:${LINE}&body=${encodeURIComponent(message)}`);
     await expect(card.getByRole("link", { exact: true, name: "Open Messages" })).toHaveCount(0);
     await expect(card.getByRole("img", { name: /QR code/ })).toBeVisible();
     expect(new URL(page.url()).pathname).toBe(`/booking/${request.bookingId}`);
   });
+});
+
+// **Get updates in WhatsApp** (guest-whatsapp-link design 2): the number first,
+// then on a computer the WhatsApp number, the message, a QR code and **Open
+// WhatsApp** with the wa.me link; the guest's WhatsApp message shows the sender,
+// and **Confirm and link** binds it on WhatsApp, with no contact card.
+test("at 1280px a guest links and unlinks WhatsApp updates", async ({ db, page }) => {
+  await page.setViewportSize({ height: 800, width: 1280 });
+  const request = await agreedRequest(db);
+  await page.goto(`/booking/${request.bookingId}`);
+
+  await expect(page.getByRole("button", { exact: true, name: "Get updates in WhatsApp" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { exact: true, name: "Get updates in iMessage" })).toBeVisible();
+  await pressByKeyboard(page, "Get updates in WhatsApp");
+  await entersNumber(page);
+
+  const card = page.locator('[data-guest-card="imessage-link"]');
+  await expect(card.getByRole("heading", { name: "Get updates in WhatsApp" })).toBeVisible();
+  await expect(card.getByText(`+${WHATSAPP}`)).toBeVisible({ timeout: 20_000 });
+  const message = (await card.locator("[data-imessage-link-message]").textContent())!.trim();
+  expect(message).toMatch(/^Get Find Me a Time updates: FMAT-[0-9A-HJKMNP-TV-Z]{10}$/);
+  await expect(card.getByRole("link", { name: "Open WhatsApp" })).toHaveAttribute("href", `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(message)}`);
+  await expect(card.getByRole("img", { name: /QR code/ })).toBeVisible();
+
+  const sender = newWhatsAppSender();
+  await guestSends(db, sender, message, "whatsapp");
+  await expect(page.getByRole("heading", { name: "Is this your WhatsApp?" })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(`+${sender}`)).toBeVisible();
+
+  await pressByKeyboard(page, "Confirm and link");
+  await expect(page.locator('[data-imessage-link="linked"]')).toContainText(`updates go to +${sender}`);
+  await expect(page.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
+  const [binding] = await db<{ channel: string; state: string }[]>`select channel, state from app.requester_imessage_bindings where request_id = ${request.requestId}`;
+  expect(binding).toEqual({ channel: "whatsapp", state: "active" });
+
+  await pressByKeyboard(page, "Unlink WhatsApp");
+  await expect(page.getByRole("button", { exact: true, name: "Get updates in WhatsApp" })).toBeVisible();
 });

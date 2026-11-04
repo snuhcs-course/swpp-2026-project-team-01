@@ -14,7 +14,7 @@ import { E2E_TOKEN_ENCRYPTION_KEY } from "./support/token-key";
 
 // Linking WhatsApp from the browser (host-whatsapp-channel design 5, 6 and 8; D5 to D7, D12; task 3.2),
 // against the real web and agent services, the local stack and the Photon stand-in. The channel follows the
-// device: Android gets WhatsApp only, an iPhone gets iMessage with Use WhatsApp instead, and another computer
+// device: Android gets WhatsApp (with Use Telegram instead since host-telegram-channel D7), an iPhone gets iMessage with Use WhatsApp instead, and another computer
 // first asks which app the host uses. The host's WhatsApp message is driven through the real receiver and the
 // receipt job as a WhatsApp Business event; Confirm and link, after the opt-in sentence, binds it.
 
@@ -69,6 +69,16 @@ async function hostSendsOnWhatsApp(db: Database, sender: string, text: string) {
   );
 }
 
+// The number asked before a WhatsApp code (guest-whatsapp-link D3): typed by keyboard, sent with Enter.
+async function enterNumber(page: Page) {
+  const field = page.getByRole("textbox", { name: "Mobile number" });
+  await expect(field).toBeVisible({ timeout: 45_000 });
+  await field.focus();
+  await page.keyboard.type("10-1234-5678");
+  await expect(field).toHaveValue("10-1234-5678");
+  await page.keyboard.press("Enter");
+}
+
 async function activeChannel(db: Database, hostAccountId: string) {
   return db<{ channel: string }[]>`select channel from app.imessage_bindings where host_account_id = ${hostAccountId} and state = 'active'`;
 }
@@ -92,18 +102,23 @@ test.describe("on Android", () => {
     const host = await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
 
+    // The number first (guest-whatsapp-link D3), registered with the stand-in.
+    await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for WhatsApp?" })).toBeVisible({ timeout: 45_000 });
+    await enterNumber(page);
     await expect(page.getByRole("heading", { level: 1, name: "Connect Thyme to your WhatsApp" })).toBeVisible({ timeout: 45_000 });
     const message = (await page.getByTestId("imessage-link-message").textContent())!.trim();
     expect(message).toMatch(MESSAGE);
     await expect(page.getByRole("link", { name: "Open WhatsApp" })).toHaveAttribute("href", waLink(message));
     await expect(page.getByText(`Thyme · +${WHATSAPP}`)).toBeVisible();
     await expect(page.getByRole("link", { name: "Open Messages" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /instead/ })).toHaveCount(0);
+    // Android never switches to iMessage; Telegram is the other choice (host-telegram-channel D7).
+    await expect(page.getByRole("button", { name: "Use iMessage instead" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Use Telegram instead" })).toBeVisible();
 
     const sender = newWhatsAppSender();
     await hostSendsOnWhatsApp(db, sender, message);
     await expect(page.getByRole("heading", { name: "Is this you?" })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(`•••• ${sender.slice(-4)}`)).toBeVisible();
+    await expect(page.getByText(`+${sender}`)).toBeVisible();
     await expect(page.getByText(OPT_IN)).toBeVisible();
     expect(await activeChannel(db, host.hostAccountId)).toHaveLength(0);
 
@@ -114,8 +129,9 @@ test.describe("on Android", () => {
     // The in-chat card names the channel and offers no Add to contacts.
     await page.getByRole("button", { name: "Go to Home" }).click();
     const card = await openCard(page);
+    await card.getByRole("button", { name: `WhatsApp linked +${sender}` }).click();
     await expect(card.getByRole("heading", { name: "WhatsApp is linked" })).toBeVisible();
-    await expect(card).toContainText(`Linked on WhatsApp •••• ${sender.slice(-4)}`);
+    await expect(card).toContainText(`Linked on WhatsApp +${sender}`);
     await expect(card.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
     await expect(card.getByRole("button", { name: "Unlink WhatsApp" })).toBeVisible();
   });
@@ -128,8 +144,10 @@ test.describe("on Android", () => {
 
     await expect(card.getByRole("heading", { name: "Use Find Me a Time from WhatsApp" })).toBeVisible({ timeout: 45_000 });
     await expect(card.getByRole("button", { name: "Connect iMessage" })).toHaveCount(0);
-    await expect(card.getByRole("button", { name: /instead/ })).toHaveCount(0);
-    await card.getByRole("button", { name: "Connect WhatsApp" }).click();
+    await expect(card.getByRole("button", { name: "Use iMessage instead" })).toHaveCount(0);
+    await expect(card.getByRole("button", { name: "Use Telegram instead" })).toBeVisible();
+    // The card's number field sends with Connect WhatsApp (guest-whatsapp-link D3).
+    await enterNumber(page);
     await page.waitForURL(/^https:\/\/wa\.me\//, { timeout: 45_000 });
     const url = new URL(page.url());
     expect(url.pathname).toBe(`/${WHATSAPP}`);
@@ -144,10 +162,13 @@ test.describe("on an iPhone", () => {
     await signedInHost(db, context, baseURL!, { imessageStep: true });
     await page.goto("/app");
 
-    // iMessage asks for the number first (imessage-number-registration D1); WhatsApp needs none.
+    // Both ask for the number first (imessage-number-registration D1, guest-whatsapp-link D3).
     await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for iMessage?" })).toBeVisible({ timeout: 45_000 });
 
     await page.getByRole("button", { name: "Use WhatsApp instead" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for WhatsApp?" })).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByRole("button", { name: "Use iMessage instead" })).toBeVisible();
+    await enterNumber(page);
     await expect(page.getByRole("heading", { level: 1, name: "Connect Thyme to your WhatsApp" })).toBeVisible({ timeout: 45_000 });
     const message = (await page.getByTestId("imessage-link-message").textContent())!.trim();
     await expect(page.getByRole("link", { name: "Open WhatsApp" })).toHaveAttribute("href", waLink(message));
@@ -166,6 +187,8 @@ test.describe("on a Windows computer", () => {
     await expect(page.getByTestId("imessage-link-message")).toHaveCount(0);
     await page.getByRole("button", { exact: true, name: "WhatsApp" }).click();
 
+    await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for WhatsApp?" })).toBeVisible({ timeout: 45_000 });
+    await enterNumber(page);
     await expect(page.getByRole("heading", { level: 1, name: "Connect Thyme to your WhatsApp" })).toBeVisible({ timeout: 45_000 });
     const message = (await page.getByTestId("imessage-link-message").textContent())!.trim();
     expect(message).toMatch(MESSAGE);
@@ -181,7 +204,8 @@ test.describe("on a Windows computer", () => {
     await expect(card.getByRole("heading", { name: "Which app do you use on your phone?" })).toBeVisible({ timeout: 45_000 });
     await card.getByRole("button", { exact: true, name: "WhatsApp" }).click();
     await expect(card.getByRole("heading", { name: "Use Find Me a Time from WhatsApp" })).toBeVisible();
-    await card.getByRole("button", { name: "Connect WhatsApp" }).click();
+    await expect(card.getByRole("button", { name: "Connect WhatsApp" })).toBeVisible();
+    await enterNumber(page);
     await expect(card.getByRole("heading", { name: "Send the message from your WhatsApp" })).toBeVisible({ timeout: 45_000 });
     const message = (await card.getByTestId("imessage-link-message").textContent())!.trim();
     await expect(card).toContainText(`+${WHATSAPP}`);
@@ -194,6 +218,8 @@ test.describe("on a Windows computer", () => {
     await page.goto("/?flow=whatsapp");
 
     await page.getByRole("button", { name: "Onboard with WhatsApp" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Which number do you use for WhatsApp?" })).toBeVisible({ timeout: 45_000 });
+    await enterNumber(page);
     const popup = page.getByRole("dialog", { name: "Send Thyme one message" });
     await expect(popup).toBeVisible({ timeout: 45_000 });
     const message = (await popup.getByTestId("imessage-link-message").textContent())!.trim();
@@ -204,7 +230,7 @@ test.describe("on a Windows computer", () => {
     const sender = newWhatsAppSender();
     await hostSendsOnWhatsApp(db, sender, message);
     await expect(page.getByRole("heading", { name: "Got your message." })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(`•••• ${sender.slice(-4)}`)).toBeVisible();
+    await expect(page.getByText(`+${sender}`)).toBeVisible();
     await expect(page.getByRole("link", { name: "Continue with Google" })).toHaveAttribute("href", "/auth/sign-in");
   });
 });

@@ -51,14 +51,16 @@ describe("the receipt job before the channel", () => {
 
   it("answers an unlinked sender once a day, with no session and no private data", async () => {
     const sender = newSender();
-    expect((await im.deliver({ sender, text: "Show me Ada's requests" })).outcome).toBe("unlinked_reply");
+    // A marker of this test's own, since other tests write "Ada" to the shared database.
+    const marker = `Ada ${crypto.randomUUID()}`;
+    expect((await im.deliver({ sender, text: `Show me ${marker}'s requests` })).outcome).toBe("unlinked_reply");
     expect((await im.deliver({ sender, text: "Hello?" })).outcome).toBe("ignored");
     const rows = await sentTo(sender);
     expect(rows).toHaveLength(1);
     expect(textOf((await im.send(rows[0]!.id)).sent)).toEqual([
       "This number isn't linked to a Find Me a Time host. Sign in at findmeatime.com/app and choose Connect iMessage.",
     ]);
-    expect(await db`select 1 from app.conversation_inputs where message like '%Ada%'`).toHaveLength(0);
+    expect(await db`select 1 from app.conversation_inputs where strpos(message, ${marker}) > 0`).toHaveLength(0);
   });
 
   it("treats a suspended host's sender as unlinked", async () => {

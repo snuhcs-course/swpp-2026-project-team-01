@@ -22,8 +22,13 @@ import { clock, isPhone, SendPanel, shownNumber, useNow, usePlatform } from "./s
 // /?flow=whatsapp starts the same way from WhatsApp (host-whatsapp-channel D7): the start asks for a WhatsApp
 // code ({"channel":"whatsapp"}), a phone opens wa.me, and the popup shows the WhatsApp number, its QR code
 // and Open WhatsApp. An attempt this browser already has keeps its own channel.
+// /?flow=telegram starts from Telegram (host-telegram-channel D7): a Telegram code, the bot's t.me start link on a
+// phone, and on a computer the popup with the link's QR code, Open Telegram and Copy. The received screen shows
+// the sender's Telegram name.
 // An iMessage start asks for the number first (imessage-number-registration D1, D3): the server registers it
 // with Photon and addresses the code to the number Photon assigned. The number is kept for this visit.
+// A WhatsApp start asks for it the same way (guest-whatsapp-link D3); the code stays addressed to the WhatsApp
+// number.
 
 const POLL_MS = 2000;
 
@@ -39,7 +44,7 @@ async function readStart(): Promise<ImessageStartStatus | null> {
 
 async function postStart(locale: Locale, channel: MessagingChannel, number: string | null): Promise<Answer> {
   const t = channelCopy(COPY[locale], channel).send;
-  const body = JSON.stringify(channel === "whatsapp" ? { channel } : { number });
+  const body = JSON.stringify(channel === "telegram" ? { channel } : { channel, number });
   const response = await fetch("/api/imessage/start", { body, headers: { "content-type": "application/json" }, method: "POST" }).catch(() => null);
   const answer = (await response?.json().catch(() => null)) as ImessageStartStatus | { error?: { category: string } } | null;
   if (response?.ok && answer && "state" in answer) return { error: "", status: answer };
@@ -61,7 +66,7 @@ export function ImessageStart({
   const phone = isPhone(platform);
   const [status, setStatus] = useState<ImessageStartStatus | null>(null);
   const [phase, setPhase] = useState<"idle" | "number" | "popup" | "waiting">("idle");
-  // The number entered for iMessage on this visit.
+  // The number entered for this page's channel (iMessage or WhatsApp) on this visit.
   const [number, setNumber] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -105,7 +110,7 @@ export function ImessageStart({
   );
 
   const fresh = useCallback(async () => {
-    if (flow === "imessage" && !number) {
+    if (flow !== "telegram" && !number) {
       setPhase("number");
       return null;
     }
@@ -126,7 +131,7 @@ export function ImessageStart({
     async (e164: string) => {
       setBusy(true);
       setError("");
-      const answer = await postStart(locale, "imessage", e164);
+      const answer = await postStart(locale, flow, e164);
       setBusy(false);
       if (answer.status) {
         setNumber(e164);
@@ -142,7 +147,7 @@ export function ImessageStart({
       }
       return "other" as const;
     },
-    [locale, open],
+    [flow, locale, open],
   );
 
   const begin = useCallback(async () => {
@@ -167,7 +172,7 @@ export function ImessageStart({
   }, [phase]);
 
   if (takeover === "number") {
-    const n = COPY[locale].number;
+    const n = channelCopy(COPY[locale], flow).number;
     return (
       <div className="inner" data-screen="imessage-number">
         <header className="top">
