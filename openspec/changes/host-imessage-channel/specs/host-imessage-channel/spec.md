@@ -139,6 +139,17 @@ In a host's review of one request, the assistant SHALL be able to approve the cu
 - **WHEN** the assistant tries to approve a version that a newer proposal superseded
 - **THEN** nothing is approved and the assistant names the current version
 
+### Requirement: Switching the conversation in words
+In the linked iMessage or WhatsApp conversation, the assistant SHALL be able to switch the conversation to a request the host names by reference or requester name, or back to setup, so the host's next plain message reaches that discussion, as `request <ref>` and `setup` do. A name that matches several requests or none SHALL switch nothing, and the assistant SHALL ask which request the host means. A message typed on the web SHALL switch nothing.
+
+#### Scenario: Host names a request
+- **WHEN** a linked host writes "let's talk about 박도현's request" and exactly one of their requests has that requester
+- **THEN** the conversation switches to that request and the host's next message reaches its discussion
+
+#### Scenario: Ambiguous name
+- **WHEN** the host names a requester who matches two requests
+- **THEN** nothing is switched and the assistant asks which one, naming each
+
 ### Requirement: Shared discussions and replies
 A linked host's free text SHALL become an accepted input of the discussion the host selected (setup by default, or the private review discussion of a selected request), marked as coming from iMessage, under the same redaction, admission, session index and model limits as web input; a retried receipt SHALL resolve to the same input. When that input's turn ends, the assistant's final text SHALL be sent to the linked conversation, and a turn that fails or yields no text SHALL send a fixed fallback pointing to the web.
 
@@ -147,7 +158,11 @@ A linked host's free text SHALL become an accepted input of the discussion the h
 - **THEN** the question appears in that request's private discussion in `/app` and the assistant's answer arrives in iMessage
 
 ### Requirement: Summaries and outcomes
-A host with an active binding SHALL receive in the linked conversation one summary per event when a request arrives, when a proposal awaits approval (with the exact approve and decline commands for its reference) and when a booking is confirmed, not confirmed or still pending. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
+A host with an active binding SHALL receive in the linked conversation one summary per event when a proposal awaits approval (with the exact approve and decline commands for its reference) and when a booking is confirmed, not confirmed or still pending. A request's arrival SHALL NOT be announced: the guest is offered times first, and the awaiting-approval summary, the host's first message about the request, SHALL name the requester, the purpose and any earlier request it follows. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
+
+#### Scenario: Guest starts a request
+- **WHEN** a guest of a host with an active binding starts or revises a request
+- **THEN** nothing is sent to the linked conversation until the guest agrees to a time
 
 #### Scenario: Proposal awaits approval
 - **WHEN** the requester agrees to a proposal of a host with an active binding
