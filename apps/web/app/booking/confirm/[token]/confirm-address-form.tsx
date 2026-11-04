@@ -34,7 +34,7 @@ export function ConfirmAddressForm({ token }: { readonly token: string }) {
   if (phase === "confirmed") {
     return (
       <section aria-labelledby="confirm-title" className="flex flex-col gap-2">
-        <h1 className="font-display text-3xl leading-tight" id="confirm-title" tabIndex={-1}>
+        <h1 className="font-display text-[clamp(36px,5vw,52px)] leading-[1.05]" id="confirm-title" tabIndex={-1}>
           Address confirmed
         </h1>
         <p role="status">Thanks. Your email address is confirmed for this meeting request. You can close this page.</p>
@@ -46,7 +46,7 @@ export function ConfirmAddressForm({ token }: { readonly token: string }) {
   if (phase === "unavailable") {
     return (
       <section aria-labelledby="confirm-title" className="flex flex-col gap-2">
-        <h1 className="font-display text-3xl leading-tight" id="confirm-title">
+        <h1 className="font-display text-[clamp(36px,5vw,52px)] leading-[1.05]" id="confirm-title">
           This confirmation link is not available
         </h1>
         <p role="status">
@@ -59,7 +59,7 @@ export function ConfirmAddressForm({ token }: { readonly token: string }) {
 
   return (
     <section aria-labelledby="confirm-title" className="flex flex-col gap-3">
-      <h1 className="font-display text-3xl leading-tight" id="confirm-title">
+      <h1 className="font-display text-[clamp(36px,5vw,52px)] leading-[1.05]" id="confirm-title">
         Confirm your address
       </h1>
       <p>Confirm that this email address belongs to you for this meeting request.</p>

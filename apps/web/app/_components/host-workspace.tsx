@@ -14,7 +14,6 @@ import { focusCard } from "@/app/_components/setup/card";
 import { describeSetupTool } from "@/app/_components/setup/tool-labels";
 import { WorkspaceMenu } from "@/app/_components/workspace-menu";
 import { HostSettingsDialog } from "@/app/_components/host-settings-dialog";
-import "@/app/_components/ink/ink.css";
 import { ChatComposer } from "@/components/chat/composer";
 import { ChatConversation, ChatConversationContent, ChatItem, ChatScrollButton } from "@/components/chat/conversation";
 import { AgentMessage, AgentThinking } from "@/components/chat/message";
@@ -123,9 +122,9 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
   }, [reveal.done, setupState]);
 
   return (
-    <div className="onboarding-ink flex h-dvh min-h-0 flex-col bg-background text-foreground">
-      <header className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 sm:px-6">
-        <h1 className="truncate font-display text-[clamp(26px,3vw,33px)] leading-none">Find Me a Time</h1>
+    <div className="flex h-dvh min-h-0 flex-col bg-background text-foreground">
+      <header className="flex shrink-0 items-center justify-between gap-3 px-5 py-3 sm:px-8">
+        <h1 className="wordmark-lockup min-w-0">Find Me a Time</h1>
         <div className="flex items-center"><HostSettingsDialog /><WorkspaceMenu onSelectImessage={openImessage} onSelectRequests={onOpenRequests} onSelectSetup={focusSetup} /></div>
       </header>
 
@@ -134,7 +133,7 @@ function SetupWorkspace({ onOpenRequests }: { readonly onOpenRequests: () => voi
 
         {failed ? (
           <div className="mx-auto w-full max-w-2xl px-4 sm:px-6" role="status">
-            <div className="flex flex-col gap-3 rounded-xl border border-input bg-card p-4 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-3 rounded-3xl bg-card p-5 sm:flex-row sm:items-center">
               <p className="min-w-0 flex-1 text-sm">
                 Thyme stopped responding in this conversation. Your messages and history are kept.
               </p>
@@ -254,7 +253,7 @@ function ConversationSetup({ children, value }: { readonly children: ReactNode; 
 function ErrorNotice({ message, onDismiss }: { readonly message: string; readonly onDismiss: () => void }) {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 pt-2 sm:px-6" role="alert">
-      <div className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-card p-3 text-sm">
+      <div className="flex items-start gap-3 rounded-2xl bg-[color-mix(in_srgb,var(--destructive)_8%,var(--surface))] p-4 text-sm">
         <AlertCircleIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
         <p className="min-w-0 flex-1">{message}</p>
         <Button aria-label="Dismiss" onClick={onDismiss} size="icon-sm" type="button" variant="ghost">

@@ -50,7 +50,7 @@ function ShareLink({ href, label }: { readonly href: string; readonly label: str
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border px-3 py-2">
+    <div className="flex min-w-0 flex-col gap-1 rounded-xl bg-secondary px-3 py-2">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="font-mono text-sm break-all text-foreground">{href}</p>
       <div className="flex flex-wrap items-center gap-2">

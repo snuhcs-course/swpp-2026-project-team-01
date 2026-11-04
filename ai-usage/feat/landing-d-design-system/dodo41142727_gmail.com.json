@@ -1,0 +1,57 @@
+{
+  "branch": "feat/landing-d-design-system",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:5db95cc8-d7c6-4418-b988-c7ce85c38efb": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 358,
+          "cache_read": 49960360,
+          "cache_write_5m": 0,
+          "cache_write_1h": 392956,
+          "output": 130315,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T18:27:19.238Z",
+      "last": "2026-11-04T05:24:03.450Z"
+    },
+    "claude:5db95cc8-d7c6-4418-b988-c7ce85c38efb/agent-a3cb023be0b4e9c07": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 10,
+          "cache_read": 398513,
+          "cache_write_5m": 112783,
+          "cache_write_1h": 0,
+          "output": 17516,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T05:20:25.777Z",
+      "last": "2026-11-04T05:22:35.761Z"
+    },
+    "claude:5db95cc8-d7c6-4418-b988-c7ce85c38efb/agent-ac60f835211af530a": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 6,
+          "cache_read": 187100,
+          "cache_write_5m": 121901,
+          "cache_write_1h": 0,
+          "output": 12901,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-03T18:47:37.323Z",
+      "last": "2026-11-03T18:52:42.419Z"
+    }
+  }
+}

@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
-import "@/app/_components/ink/ink.css";
+import { Brand, InkStage } from "@/app/_components/ink/chrome";
+import { GoogleLogo } from "@/app/_components/ink/icons";
+import { LiveThread } from "@/app/_components/ink/landing-parts";
+import "@/app/_components/ink/landing.css";
 
 export type SignInNotice = "failed" | "limited" | null;
 
@@ -8,25 +11,34 @@ const NOTICES: Readonly<Record<Exclude<SignInNotice, null>, string>> = {
   limited: "New sign-ups are temporarily limited. Try again later; existing hosts can still sign in.",
 };
 
+// The landing's spread at sign-in: the way in on paper, and Thyme's example
+// conversations on the ink-blue page beside it (DESIGN.md: landing).
 function SignInShell({ children }: { readonly children: ReactNode }) {
   return (
-    <main className="onboarding-ink min-h-dvh bg-background text-foreground">
-      <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-5 py-6 sm:px-8">
-        <header>
-          <a className="font-display text-[clamp(26px,3vw,33px)] leading-none text-foreground" href="/">Find Me a Time</a>
-        </header>
-        <div className="grid flex-1 place-items-center py-10">{children}</div>
+    <InkStage locale="en">
+      <div className="ld" data-screen="sign-in">
+        <div className="ld-spread">
+          <div className="ld-paper">
+            <header className="ld-top">
+              <Brand />
+            </header>
+            <main className="ld-pitch">{children}</main>
+          </div>
+          <div className="ld-page">
+            <LiveThread locale="en" />
+          </div>
+        </div>
       </div>
-    </main>
+    </InkStage>
   );
 }
 
 export function WorkspaceLoading() {
   return (
     <SignInShell>
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card px-7 py-9 shadow-[0_16px_44px_rgb(30_36_48/0.08)] sm:px-9" role="status">
-        <p className="font-display text-4xl leading-tight">Welcome to Thyme</p>
-        <p className="mt-3 text-muted-foreground">Loading your workspace…</p>
+      <div className="ld-sign" role="status">
+        <p className="ld-sign-title">Welcome to Thyme</p>
+        <p className="ld-lede">Loading your workspace…</p>
       </div>
     </SignInShell>
   );
@@ -45,20 +57,18 @@ export function SignInCard({
 
   return (
     <SignInShell>
-      <section className="w-full max-w-md rounded-2xl border border-border bg-card px-7 py-9 shadow-[0_16px_44px_rgb(30_36_48/0.08)] sm:px-9">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Your workspace</p>
-        <Heading className="font-display mt-2 text-4xl leading-tight">Find Me a Time</Heading>
-        <p className="mt-3 text-muted-foreground">Sign in to set up how people book time with you.</p>
+      <section className="ld-sign">
+        <p className="ld-eyebrow">Your workspace</p>
+        <Heading className="ld-sign-title">Find Me a Time</Heading>
+        <p className="ld-lede">Sign in to set up how people book time with you.</p>
         {notice ? (
-          <p className={`mt-5 rounded-lg bg-secondary px-4 py-3 text-sm ${notice === "limited" ? "text-warning" : "text-destructive"}`} role="alert">
+          <p className={`ld-notice ${notice === "limited" ? "warning" : "error"}`} role="alert">
             {NOTICES[notice]}
           </p>
         ) : null}
-        <a
-          className="mt-7 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-primary px-4 font-semibold text-primary-foreground transition-colors hover:bg-[var(--primary-hover)]"
-          href="/auth/sign-in"
-        >
-          Continue with Google
+        <a className="gbtn" href="/auth/sign-in">
+          <GoogleLogo />
+          <span>Continue with Google</span>
         </a>
       </section>
     </SignInShell>
