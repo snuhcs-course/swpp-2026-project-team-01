@@ -2,7 +2,6 @@
 
 import type { WeeklyWindow } from "@lib/contracts/setup";
 import { SettingsIcon } from "lucide-react";
-import "@/app/_components/ink/ink.css";
 import { useEffect, useState } from "react";
 import { summarizeWindows } from "@/app/_components/setup/format";
 import { WeeklyWindowsEditor } from "@/app/_components/setup/weekly-windows-editor";
@@ -92,14 +91,14 @@ export function HostSettingsDialog() {
       <DialogTrigger asChild>
         <Button aria-label="Open settings" size="icon" type="button" variant="ghost"><SettingsIcon aria-hidden className="size-5" /></Button>
       </DialogTrigger>
-      <DialogContent className="onboarding-ink max-h-[calc(100dvh-2rem)] overflow-y-auto border-border bg-card text-card-foreground sm:max-w-xl">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto bg-secondary text-card-foreground sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>Manage your available times and new meeting requests.</DialogDescription>
         </DialogHeader>
         {setup && intake ? (
-          <div className="flex flex-col gap-6">
-            <section className="space-y-3" aria-label="Weekly availability">
+          <div className="flex flex-col gap-3">
+            <section className="space-y-3 rounded-2xl bg-card p-5" aria-label="Weekly availability">
               <h3 className="font-semibold">Available times</h3>
               <p className="text-sm text-muted-foreground">Meeting time zone: {timezone.replaceAll("_", " ")}</p>
               {setup.pendingChanges ? <p className="text-sm text-warning">Changes are pending confirmation. Your previous schedule is still public.</p> : null}
@@ -112,7 +111,7 @@ export function HostSettingsDialog() {
               )}
               {setup.pendingChanges && !editing ? <Button disabled={busy || setup.missingFields.length > 0} onClick={() => void confirmWindows()} type="button">Review and confirm changes</Button> : null}
             </section>
-            <section className="space-y-2 border-t pt-4" aria-label="New requests">
+            <section className="space-y-2 rounded-2xl bg-card p-5" aria-label="New requests">
               <label className="intake-toggle flex min-h-11 items-center justify-between gap-4 font-medium">
                 Accept new meeting requests
                 <span className="shrink-0">

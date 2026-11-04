@@ -74,7 +74,7 @@ function YouSaid({ children, field, id }: { readonly children: ReactNode; readon
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-secondary/60 px-3 py-2">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-secondary px-3 py-2">
       <p className="min-w-0 flex-1 break-words">
         <span className="font-medium">You said:</span> {children}
       </p>

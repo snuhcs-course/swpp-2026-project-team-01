@@ -43,7 +43,7 @@ export function StepCard({
     <section
       aria-labelledby={cardHeadingId(id)}
       className={cn(
-        "setup-card-enter relative flex min-w-0 scroll-mt-4 scroll-mb-4 flex-col rounded-xl border border-border bg-card px-4 py-3 text-sm text-card-foreground",
+        "setup-card-enter relative flex min-w-0 scroll-mt-4 scroll-mb-4 flex-col rounded-3xl bg-card px-5 py-4 text-sm text-card-foreground",
         // A long editor scrolls the whole card (a fieldset does not shrink in a
         // flex column), with its save row sticky at the bottom.
         scroll ? "max-h-[var(--setup-card-room,calc(100dvh-16rem))] overflow-y-auto pb-0" : "overflow-hidden",

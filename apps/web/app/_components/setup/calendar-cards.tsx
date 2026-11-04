@@ -165,7 +165,7 @@ function RolesForm({ onClose }: { readonly onClose?: (saved: boolean) => void })
         <FieldLegend className="mb-1.5" variant="label">
           Check for conflicts
         </FieldLegend>
-        <div className="flex flex-col divide-y divide-border overflow-hidden rounded-lg border border-border">
+        <div className="flex flex-col divide-y-2 divide-card overflow-hidden rounded-xl bg-secondary">
         {calendars.map((calendar) => {
           const checkboxId = `${id}-conflict-${calendar.id}`;
           const reason = reasons.get(calendar.id);

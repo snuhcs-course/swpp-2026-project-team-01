@@ -68,7 +68,7 @@ function Unavailable() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center gap-6 px-4 py-16">
       <section aria-labelledby="unavailable-title" className="flex flex-col gap-2">
-        <h1 className="font-display text-3xl leading-tight" id="unavailable-title">
+        <h1 className="font-display text-[clamp(36px,5vw,52px)] leading-[1.05]" id="unavailable-title">
           This booking link is not available
         </h1>
         <p>Use the private request link from your email. If you lost it, we can send it again.</p>
@@ -104,13 +104,13 @@ function Closed({
     <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center gap-4 px-4 py-16">
       <div className="flex flex-col gap-2">
         <p className="font-medium text-muted-foreground text-sm">Meeting request with {hostName}</p>
-        <h1 className="font-display text-3xl leading-tight">{receipt ? "Your meeting is booked" : "This request is closed"}</h1>
+        <h1 className="font-display text-[clamp(36px,5vw,52px)] leading-[1.05]">{receipt ? "Your meeting is booked" : "This request is closed"}</h1>
         <p role="status">
           {receipt ? "It is in the calendar. Google Calendar sends the invitation." : (CLOSED_TEXT[state] ?? "This request is no longer active.")}
         </p>
       </div>
       {receipt ? (
-        <section aria-label="Booking" className="rounded-xl border border-border bg-card px-4 py-3 text-sm">
+        <section aria-label="Booking" className="rounded-3xl bg-card px-5 py-4 text-sm">
           <Receipt receipt={receipt} timeZone={timezone} />
         </section>
       ) : null}

@@ -144,6 +144,7 @@ test.describe("on a Mac", () => {
 
     const card = page.locator('[data-guest-card="imessage-link"]');
     await expect(card.getByRole("heading", { name: "Get updates in iMessage" })).toBeVisible();
+    await expect(card.getByText(LINE)).toBeVisible();
     const message = (await card.locator("[data-imessage-link-message]").textContent())!.trim();
     await expect(card.getByRole("link", { name: "Open Messages on this Mac" })).toHaveAttribute("href", `sms:${LINE}&body=${encodeURIComponent(message)}`);
     await expect(card.getByRole("link", { exact: true, name: "Open Messages" })).toHaveCount(0);
