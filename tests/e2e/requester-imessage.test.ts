@@ -110,11 +110,11 @@ for (const width of [390, 1280]) {
     const sender = newSender();
     await guestSends(db, sender, message);
     await expect(page.getByRole("heading", { name: "Is this your iMessage?" })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(`•••• ${sender.slice(-4)}`)).toBeVisible();
+    await expect(page.getByText(sender)).toBeVisible();
     expect(await db`select 1 from app.requester_imessage_bindings where request_id = ${request.requestId}`).toHaveLength(0);
 
     await pressByKeyboard(page, "Confirm and link");
-    await expect(page.locator('[data-imessage-link="linked"]')).toContainText(`updates go to •••• ${sender.slice(-4)}`);
+    await expect(page.locator('[data-imessage-link="linked"]')).toContainText(`updates go to ${sender}`);
     const [binding] = await db<{ state: string }[]>`select state from app.requester_imessage_bindings where request_id = ${request.requestId}`;
     expect(binding!.state).toBe("active");
 
