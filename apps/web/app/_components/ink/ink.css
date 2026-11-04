@@ -215,10 +215,6 @@
 .ink .gbtn:hover { background: #2B2B2D; }
 .ink .gbtn:active { background: #3A3A3C; }
 .ink .gbtn svg { display: block; flex: none; }
-.ink .check { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.5; text-align: left; word-break: keep-all; overflow-wrap: anywhere; text-wrap: pretty; cursor: pointer; }
-.ink .check > span { min-width: 0; }
-.ink .check input { width: 18px; height: 18px; margin: 3px 0 0; accent-color: var(--primary); flex: none; }
-.ink .check small { display: block; font-size: 14px; color: var(--muted-ink); }
 .ink .opens { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.5; color: var(--muted-ink); max-width: 46ch; }
 .ink .opens svg { flex: none; margin-top: 2px; }
 .ink .agent-start { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 540px; padding-top: 4px; }
