@@ -1,0 +1,40 @@
+{
+  "branch": "feat/agent-decisions-in-words",
+  "user": "dodo41142727@gmail.com",
+  "sessions": {
+    "claude:dce09031-48c7-49f1-98d1-19ee743d11c9": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-opus-5-5": {
+          "input": 90,
+          "cache_read": 7843329,
+          "cache_write_5m": 0,
+          "cache_write_1h": 103468,
+          "output": 33360,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T09:30:45.027Z",
+      "last": "2026-11-04T09:39:07.793Z"
+    },
+    "claude:dce09031-48c7-49f1-98d1-19ee743d11c9/agent-ac43ebf800638ec8c": {
+      "agent": "claude-code",
+      "client": "claude-desktop",
+      "agent_ms": 0,
+      "models": {
+        "claude-sonnet-5-5": {
+          "input": 6,
+          "cache_read": 204558,
+          "cache_write_5m": 58949,
+          "cache_write_1h": 0,
+          "output": 737,
+          "reasoning": 0
+        }
+      },
+      "first": "2026-11-04T09:39:02.907Z",
+      "last": "2026-11-04T09:39:08.214Z"
+    }
+  }
+}
