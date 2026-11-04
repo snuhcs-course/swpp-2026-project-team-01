@@ -16,10 +16,10 @@ The iMessage receiver SHALL accept a delivery only from the configured Photon we
 - **THEN** it is refused and the stored receipt is unchanged
 
 ### Requirement: Linking by a host-sent code
-An authenticated active host SHALL be able to create a one-time link code that the service shows with its iMessage line number and the exact message to send. **Connect iMessage** SHALL create the code and then open the Messages app addressed to the line with that message in the input where the platform supports it (`sms:<number>&body=<text>` on iOS and iPadOS, `sms:<number>?body=<text>` on Android); elsewhere it SHALL show the number, the code, a copy action and a QR code that opens the same deep link on a phone. Opening Messages SHALL NOT change linking state. A message carrying a pending, unexpired code from a direct conversation SHALL only record the sender for confirmation and receive a reply in that conversation; the sender SHALL be bound to the host only after the host confirms the masked sender in the authenticated browser within the confirmation window. A linking message SHALL never reach the model or the transcript.
+An authenticated active host SHALL be able to create a one-time link code that the service shows with its iMessage line number and the exact message to send. **Connect iMessage** SHALL create the code and then open the Messages app addressed to the line with that message in the input where the platform supports it (`sms:<number>&body=<text>` on iOS and iPadOS, `sms:<number>?body=<text>` on Android); elsewhere it SHALL show the number, the code, a copy action and a QR code that opens the same deep link on a phone. Opening Messages SHALL NOT change linking state. A message carrying a pending, unexpired code from a direct conversation SHALL only record the sender for confirmation and receive a reply in that conversation; the sender SHALL be bound to the host only after the host confirms the sender in the authenticated browser within the confirmation window. A linking message SHALL never reach the model or the transcript.
 
 #### Scenario: Link by code
-- **WHEN** the host taps **Connect iMessage**, sends the prefilled message and confirms the masked sender
+- **WHEN** the host taps **Connect iMessage**, sends the prefilled message and confirms the sender
 - **THEN** that sender is bound to the host and the line's first message to the host is a reply in the conversation the host started
 
 #### Scenario: Desktop without Messages
@@ -42,7 +42,7 @@ An authenticated active host SHALL be able to create a one-time link code that t
 Right after Google sign-in, before the conversation, `/app` SHALL show the link step to an active host with an open link attempt, or with no binding who is not ready and has not chosen to set up in web chat in that browser. The step SHALL open with a link code already made, show the message, the line and how long the code works, open Messages from a tap on a phone, and on a computer show a QR code of the deep link, **Copy**, and on a Mac **Open Messages**. A code that ran out SHALL be replaced only when the host asks. Choosing **Set up here in web chat** SHALL open the conversation and be remembered in that browser.
 
 #### Scenario: Link right after sign-in
-- **WHEN** a new host signs in, sends the shown message from their iMessage and confirms the masked sender
+- **WHEN** a new host signs in, sends the shown message from their iMessage and confirms the sender
 - **THEN** the sender is bound and the host continues to the conversation
 
 #### Scenario: Skip to the web chat
@@ -50,10 +50,10 @@ Right after Google sign-in, before the conversation, `/app` SHALL show the link 
 - **THEN** the conversation opens, nothing is bound, and the step does not open again in that browser
 
 ### Requirement: iMessage start before sign-in
-The landing's iMessage start SHALL create a link attempt owned only by the browser that started it, through an HttpOnly cookie whose secret the service stores only as a keyed hash; starts SHALL be bounded per source address and across the service. The attempt SHALL record an arriving sender like any attempt and SHALL bind nothing. Google sign-in in the same browser SHALL give the attempt to the signed-in active host, and the binding SHALL follow only that host's confirmation of the masked sender in `/app`. Thyme's reply to the arriving code SHALL carry a sign-in link bound to the attempt and the sender, usable in any browser only while the attempt awaits confirmation; Google sign-in from it SHALL give the attempt to that host unless another host holds it, and SHALL NOT bind anything by itself.
+The landing's iMessage start SHALL create a link attempt owned only by the browser that started it, through an HttpOnly cookie whose secret the service stores only as a keyed hash; starts SHALL be bounded per source address and across the service. The attempt SHALL record an arriving sender like any attempt and SHALL bind nothing. Google sign-in in the same browser SHALL give the attempt to the signed-in active host, and the binding SHALL follow only that host's confirmation of the sender in `/app`. Thyme's reply to the arriving code SHALL carry a sign-in link bound to the attempt and the sender, usable in any browser only while the attempt awaits confirmation; Google sign-in from it SHALL give the attempt to that host unless another host holds it, and SHALL NOT bind anything by itself.
 
 #### Scenario: Start, sign in, confirm
-- **WHEN** a visitor starts from iMessage, sends the message, signs in with Google and confirms the masked sender
+- **WHEN** a visitor starts from iMessage, sends the message, signs in with Google and confirms the sender
 - **THEN** the sender is bound to that host
 
 #### Scenario: Another browser
@@ -61,7 +61,7 @@ The landing's iMessage start SHALL create a link attempt owned only by the brows
 - **THEN** it sees and claims nothing of the first browser's attempt
 
 #### Scenario: Sign in from Thyme's reply
-- **WHEN** the sender opens the sign-in link from Thyme's reply, signs in with Google and confirms the masked sender
+- **WHEN** the sender opens the sign-in link from Thyme's reply, signs in with Google and confirms the sender
 - **THEN** the sender is bound to that host, and the link no longer works
 - **AND** a tampered, expired, cancelled or used link, or one another host holds, claims nothing and leads back to the iMessage start
 
@@ -147,7 +147,11 @@ A linked host's free text SHALL become an accepted input of the discussion the h
 - **THEN** the question appears in that request's private discussion in `/app` and the assistant's answer arrives in iMessage
 
 ### Requirement: Summaries and outcomes
-A host with an active binding SHALL receive in the linked conversation one summary per event when a request arrives, when a proposal awaits approval (with the exact approve and decline commands for its reference) and when a booking is confirmed, not confirmed or still pending. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
+A host with an active binding SHALL receive in the linked conversation one summary per event when a proposal awaits approval (with the exact approve and decline commands for its reference) and when a booking is confirmed, not confirmed or still pending. A request's arrival SHALL NOT be announced: the guest is offered times first, and the awaiting-approval summary, the host's first message about the request, SHALL name the requester, the purpose and any earlier request it follows. Each summary SHALL be recorded in the transaction of the change it reports and frozen from that event's own records; a summary for a proposal version that is no longer the latest SHALL NOT be sent.
+
+#### Scenario: Guest starts a request
+- **WHEN** a guest of a host with an active binding starts or revises a request
+- **THEN** nothing is sent to the linked conversation until the guest agrees to a time
 
 #### Scenario: Proposal awaits approval
 - **WHEN** the requester agrees to a proposal of a host with an active binding

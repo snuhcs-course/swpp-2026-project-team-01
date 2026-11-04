@@ -8,6 +8,7 @@ import { recordOutbound } from "./imessage-outbox";
 import type { WhatsAppButtons } from "./photon";
 import { activeRequesterBinding, requesterBindingRecipient } from "./requester-imessage-bindings";
 import type { JobHandler } from "./jobs";
+import type { HostRequestView } from "../contracts/host-request";
 import { isValidTimeZone } from "../contracts/timezone";
 import { appOriginsFromEnvironment } from "./same-origin";
 import { type TokenKey, tokenKeyFromEnvironment } from "./token-encryption";
@@ -109,6 +110,14 @@ async function recordGuestNotice(tx: Transaction, deps: NoticeJobDependencies, r
   return { queued: true };
 }
 
+// A revised request names the earlier one (guest-flow-completion design 5).
+function followsText(view: HostRequestView) {
+  if (!view.revisedFrom) return "";
+  return view.revisedFrom.outcome === "declined"
+    ? ` It follows your decline of request ${view.revisedFrom.ref}.`
+    : ` It follows request ${view.revisedFrom.ref}, which expired.`;
+}
+
 // The notice's text, with the decision buttons a WhatsApp summary of a proposal
 // awaiting approval carries (host-whatsapp-channel D17), or null when it no
 // longer applies.
@@ -125,18 +134,16 @@ async function noticeText(
   const link = hostRequestUrl(deps.origin, requestId);
 
   switch (notice.kind) {
-    case "new_request": {
-      // A revised request names the earlier one (guest-flow-completion design 5).
-      const follows = view.revisedFrom
-        ? view.revisedFrom.outcome === "declined"
-          ? ` It follows your decline of request ${view.revisedFrom.ref}.`
-          : ` It follows request ${view.revisedFrom.ref}, which expired.`
-        : "";
-      return { text: `New request ${ref} from ${view.requester.name}${view.details.purpose ? `: ${view.details.purpose}` : ""}.${follows} Send request ${ref} to discuss it here.` };
-    }
-    case "awaiting_approval":
+    // No longer queued (#122); kept so a notice queued before the change still reads.
+    case "new_request":
+      return { text: `New request ${ref} from ${view.requester.name}${view.details.purpose ? `: ${view.details.purpose}` : ""}.${followsText(view)} Send request ${ref} to discuss it here.` };
+    // The host's first message about a request (#122): the guest has picked and
+    // agreed to a time, so the summary names the request and what it follows.
+    case "awaiting_approval": {
       if (view.state !== "awaiting_host_approval" || view.proposal?.version !== notice.version) return null;
-      return { buttons: decisionButtons(view), text: `Ready for your approval.\n${requestSummary(view)}\nMessages here now go to this request.` };
+      const follows = followsText(view).trim();
+      return { buttons: decisionButtons(view), text: `Ready for your approval.\n${requestSummary(view)}${follows ? `\n${follows}` : ""}\nMessages here now go to this request.` };
+    }
     default: {
       const [booking] = await q<{ start_at: Date; end_at: Date }[]>`
         select start_at, end_at from app.bookings where id = ${notice.bookingId} and request_id = ${requestId}
