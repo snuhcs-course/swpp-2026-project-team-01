@@ -225,7 +225,12 @@ export function imessageHarness(
     // With channel "whatsapp", the sender is a WhatsApp contact ID.
     async link(hostAccountId: string, sender?: string, channel: "imessage" | "whatsapp" = "imessage") {
       sender ??= channel === "whatsapp" ? newWhatsAppSender() : newSender();
-      await this.command(hostAccountId, "imessage.link.create", channel === "whatsapp" ? { channel } : { number: sender.startsWith("+") ? sender : newSender() });
+      // Both channels register the number first (guest-whatsapp-link D3); a WhatsApp contact ID is the number's digits.
+      await this.command(
+        hostAccountId,
+        "imessage.link.create",
+        channel === "whatsapp" ? { channel, number: `+${sender}` } : { number: sender.startsWith("+") ? sender : newSender() },
+      );
       const pending = await this.status(hostAccountId);
       if (pending.state !== "pending") throw new Error(`Expected a pending code, got ${pending.state}.`);
       await this.deliver({ channel, sender, text: linkMessage(pending.code) });

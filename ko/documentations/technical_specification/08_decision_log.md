@@ -480,7 +480,7 @@
 
 | # | 선택 | 대안 | 기록된 위치 | 바꾸는 방법 |
 |---|---|---|---|---|
-| — | (팀, 2026-11-02.) 옵트인 WhatsApp 채널로 Android 호스트를 지원합니다. 호스트의 채널만 다루며, 요청자는 웹과 이메일을 유지합니다. SMS, RCS, KakaoTalk, 개인 WhatsApp, WhatsApp 그룹, 요청자 메시징은 범위 밖으로 유지합니다 | Android를 계속 보류(2026-10-07 결정); Photon을 통한 SMS 또는 RCS; 한국 호스트를 위한 KakaoTalk | PRD 1, 3, 6, 9, 10절 | PRD를 먼저, 그다음 제안서 |
+| — | (팀, 2026-11-02.) 옵트인 WhatsApp 채널로 Android 호스트를 지원합니다. 호스트의 채널만 다루며, 요청자는 웹과 이메일을 유지합니다. SMS, RCS, KakaoTalk, 개인 WhatsApp, WhatsApp 그룹, 요청자 메시징은 범위 밖으로 유지합니다 | Android를 계속 보류(2026-10-07 결정); Photon을 통한 SMS 또는 RCS; 한국 호스트를 위한 KakaoTalk | PRD 1, 3, 6, 9, 10절 | PRD를 먼저, 그다음 제안서. WhatsApp을 통한 요청자 메시징은 2026-11-04에 [`guest-whatsapp-link`](#guest-whatsapp-link)와 함께 들어왔습니다 |
 | D5 | iMessage와 WhatsApp을 가로질러 호스트당 활성 메시징 바인딩 하나. 다른 채널을 확인하면 카드의 안내 뒤에 이전 바인딩을 대체합니다 | 두 채널 동시 사용, 요약이 두 배가 되고 두 대화가 하나의 결정을 두고 경합할 수 있음 | 제안서; 설계 5; PRD FR-37 | PRD의 FR-37을 먼저, 그다음 `imessage_bindings_active_host_key`와 `confirmImessageLinkCommand` |
 | D7 | Android는 WhatsApp만 받습니다. iPhone, iPad, Mac은 **대신 WhatsApp 사용(Use WhatsApp instead)**이 있는 iMessage를 받습니다. 그 밖의 컴퓨터는 호스트가 어떤 앱을 쓰는지 묻습니다 | 모든 호스트에게 묻기; 두 가지를 나란히 제공(한 번에 두 가지를 생각하게 되어 디자인 원칙에 어긋남) | 제안서; 설계 6 | `lib/contracts/messaging-channel.ts` |
 | D9 | 창 밖에서는 `en_US` 유틸리티 템플릿 세 개를 사용합니다. 유일한 매개변수는 요청 참조이며, 요청자 이름, 시간, 장소는 없습니다. 호스트당 12시간에 최대 하나, 회선당 하루 최대 50개 | 모든 세부 정보를 담은 요약별 템플릿(비공개 텍스트가 Meta의 검토와 알림을 거침); 범용 템플릿 하나; 알림 없음(조용한 유실) | 제안서; 설계 8 | 설계 8, 그다음 `lib/server/whatsapp.ts`의 템플릿 이름과 WhatsApp Manager |
@@ -523,7 +523,7 @@
 | 전달 알림(3.2) | 연결된 카드는 `window_closed`에 "Not sent on WhatsApp: you haven't written for a day. Send Thyme any message to pick up here, or check your requests below."를, `template_unavailable`에 "A WhatsApp notice couldn't be sent. Your requests are all here in Find Me a Time."를 보여 주고, 다른 실패는 기존 문구를 유지하되 채널을 이름으로 가리킵니다 | 일반적인 실패 문구 하나 | `imessage-card.tsx`의 `deliveryNotice` | 그 함수 |
 | WhatsApp 색(3.2) | 잉크 화면은 iMessage 파랑 옆에서 WhatsApp을 아이콘과 초록 말풍선(`#008069`)으로 표시합니다 | Thyme 색만 사용 | `apps/web/app/_components/ink/ink.css`, `icons.tsx` | 해당 파일 |
 | iMessage e2e 사용자 에이전트(3.2) | iMessage 브라우저 여정은 Mac 사용자 에이전트로 실행합니다. WhatsApp이 구성되어 있으면 Playwright의 기본 Windows 에이전트가 앱 질문을 먼저 받기 때문입니다 | 그 스위트에서 WhatsApp 번호 해제 | `tests/e2e/imessage-link.test.ts` | 그 파일 |
-| 게스트 시도는 iMessage 유지(병합) | PR #75(게스트 iMessage)를 병합한 뒤, 요청(게스트의 요청)에 속한 연결 시도는 제약에 따라 iMessage여야 합니다. WhatsApp을 통한 요청자 메시징은 범위 밖이기 때문입니다. WhatsApp 해시는 자체 네임스페이스를 가지므로 게스트 바인딩은 WhatsApp 발신자와 일치하지 않습니다 | 애플리케이션 코드에 맡기기 | `supabase/schemas/app/tables/imessage_links.sql`의 `imessage_links_request_channel` | 요청자 WhatsApp을 추가하는 변경과 함께 그 제약 |
+| 게스트 시도는 iMessage 유지(병합) | PR #75(게스트 iMessage)를 병합한 뒤, 요청(게스트의 요청)에 속한 연결 시도는 제약에 따라 iMessage여야 합니다. WhatsApp을 통한 요청자 메시징은 범위 밖이기 때문입니다. WhatsApp 해시는 자체 네임스페이스를 가지므로 게스트 바인딩은 WhatsApp 발신자와 일치하지 않습니다 | 애플리케이션 코드에 맡기기 | `supabase/schemas/app/tables/imessage_links.sql`의 `imessage_links_request_channel` | 요청자 WhatsApp을 추가하는 변경과 함께 그 제약. 2026-11-04에 [`guest-whatsapp-link`](#guest-whatsapp-link) D1이 대체했으며, 이는 게스트의 시도에 `whatsapp`을 허용합니다 |
 
 ### 운영 결정
 
@@ -683,3 +683,22 @@
 | D2 | 코드는 Photon이 배정한 번호로 보내도록 안내하며, 이 번호는 `imessage_links.line_number`에 보관합니다 | 항상 `PHOTON_LINE_NUMBER` | 제안; 설계 2 | `imessage-links.ts`, `imessage-start.ts`, `requester-imessage-links.ts`의 상태 읽기 함수 |
 | D3 | 랜딩 리디자인의 전화번호 필드(d3ca3be8)를 ink 화면에서는 ink 모양으로, 카드에서는 PR #23의 카드 모양으로 씁니다 | 새 필드 | 제안; 설계 3 | `apps/web/app/_components/ink/number-form.tsx` |
 | 2026-10-20 실험 재해석 | `Target not allowed for this project`는 먼저 메시지를 보내지 않았다는 뜻만이 아니라 등록된 사용자가 아니라는 뜻이었습니다. 공유 회선에서 먼저 보내는 것은 필요하지만 충분하지 않습니다 | — | 이슈 #94 | — |
+
+## `guest-whatsapp-link`
+
+[제안](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions)은 D1–D4를 기록합니다. 이슈 #117에 대한 사용자의 요청에 따라 변경을 작성한 세션에서 2026-11-04에 정했습니다. 이는 `host-whatsapp-channel`이 제외했던(그 비목표와 위의 2026-11-02 Android 결정) WhatsApp을 통한 요청자 메시징을 범위에 들이고, `imessage-number-registration` 설계 1의 "WhatsApp 시도는 번호를 받지 않는다"를 뒤집습니다. 아직 팀원의 검토를 받지 않았습니다.
+
+| # | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| D1 | `requester_imessage_bindings`에 `channel` 열(`imessage` 기본값, `whatsapp`)을 두고, `imessage_links_request_channel`은 게스트의 시도에 `whatsapp`을 허용하며, `imessage_links_line_number_channel`은 `line_number`를 iMessage 시도에만 둡니다 | `requester_whatsapp_bindings` 테이블: 라우팅, 연동 해제, 수정된 요청으로의 이동, 정리를 중복하게 됨 | 제안; 설계 1 | `supabase/schemas/app/tables/requester_imessage_bindings.sql`, `imessage_links.sql`; `lib/server/imessage-outbox.ts`의 `ownerChannel` |
+| D2 | 게스트의 WhatsApp 행은 게스트의 마지막 메시지(연결 메시지 포함)로부터 23시간 50분 이내에만 일반 텍스트로 보내며, 그 밖에서는 `window_closed`로 보류하고 다른 것은 보내지 않습니다. 게스트 템플릿도 답장 버튼도 없습니다 | 게스트 템플릿: Meta 검토가 필요하고 예약 이메일이 이미 담는 내용을 반복함 | 제안; 설계 3 | `lib/server/imessage-outbox.ts`의 `createImessageSendHandler`에 있는 요청자 바인딩 창 검사 |
+| D3 | 모든 WhatsApp 연결 시작(호스트 연결 단계, Connect WhatsApp 카드, `/?flow=whatsapp`, 게스트 카드)은 번호를 묻고 `photonRegistrar`로 등록하며, 배정된 번호는 저장하지 않고 코드는 `PHOTON_WHATSAPP_NUMBER`로 보내도록 안내합니다 | `imessage-number-registration` D1이 남겨 둔 번호 없는 WhatsApp | 제안; 설계 4 | `lib/server/imessage-links.ts`의 `attemptLineNumber` |
+| D4 | **Get updates in iMessage**와 **Get updates in WhatsApp**이 각각 설정된 곳에 나타나는 게스트 카드 하나. 요청당 한 번에 하나의 연동. WhatsApp에는 연락처 카드 없음. Telegram은 호스트 전용으로 유지 | 호스트 카드가 다른 컴퓨터에서 묻듯 채널 질문을 먼저 함 | 제안; 설계 2 | `apps/web/app/_components/requester/cards.tsx`의 `ImessageUpdates` |
+
+### 구현 결정
+
+| 결정 | 선택 | 대안 | 기록 위치 | 바꾸려면 |
+|---|---|---|---|---|
+| 게스트 창의 시작 | 확인하면 호스트 바인딩처럼 바인딩의 `last_inbound_at`을 연결 메시지의 수신 시각으로 설정합니다. 수정된 요청으로 옮겨진 바인딩은 채널을 유지하고 이동 시점에 창을 시작하며, 이는 게스트의 메시지가 일으킵니다 | 게스트가 다시 쓸 때까지 null로 두기: 환영 메시지가 보류됨 | 설계 3 | `lib/server/requester-imessage-bindings.ts`의 `bindRequester`; `lib/server/revised-requests.ts`의 `moveChannel` |
+| 채널별로 보관하는 번호 | 연결 단계와 Connect 카드는 방문 동안 입력한 번호를 채널별로 보관하므로, 채널을 바꾸면 다시 묻습니다 | 두 채널에 번호 하나 | 설계 4 | `apps/web/app/_components/ink/link-step.tsx`, `imessage/imessage-card.tsx` |
+| 모호한 발신자 답장 | 여러 대화를 가진 발신자에게 선택을 요청하는 답장은 수신 기록의 채널로 나갑니다 | 기본 iMessage 채널: WhatsApp 발신자는 결코 받지 못함 | 설계 1 | `lib/server/imessage-receipts.ts`의 `processReceipt` |

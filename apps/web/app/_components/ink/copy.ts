@@ -5,6 +5,7 @@
 // WhatsApp (host-whatsapp-channel D6, D7, D12) reuses the same screens: `wa` holds the words that differ, and
 // channelCopy lays them over the iMessage words for a WhatsApp code or binding. Telegram (host-telegram-channel
 // D6, D7, D13) does the same with `tg`: the host opens the bot and taps Start instead of sending a written note.
+// A WhatsApp start asks for the number as iMessage does (guest-whatsapp-link D3), under `wa.number`'s heading.
 
 import type { MessagingChannel } from "@lib/contracts/messaging-channel";
 
@@ -226,6 +227,11 @@ const en = {
   // The words that differ for WhatsApp, laid over the ones above by channelCopy.
   wa: {
     landing: { noImessage: "No WhatsApp?" },
+    // The number asked before a WhatsApp link code too (guest-whatsapp-link D3).
+    number: {
+      heading: "Which number do you use for WhatsApp?",
+      fine: "Thyme uses this number only to recognize your messages.",
+    },
     send: {
       start: "Onboard with WhatsApp",
       startOpensPhone: "WhatsApp opens with a note to Thyme already written. Tap send, then come back here.",
@@ -490,6 +496,10 @@ const ko: Copy = {
   },
   wa: {
     landing: { noImessage: "WhatsApp이 없나요?" },
+    number: {
+      heading: "WhatsApp 번호를 알려 주세요",
+      fine: "이 번호는 내 메시지를 알아보는 데만 써요.",
+    },
     send: {
       start: "WhatsApp으로 시작하기",
       startOpensPhone: "Thyme에게 보낼 메시지가 미리 적힌 채로 WhatsApp이 열려요. 보내기를 누른 뒤 여기로 돌아오세요.",
@@ -563,7 +573,8 @@ export const COPY: Record<Locale, Copy> = { en, ko };
 export function channelCopy(t: Copy, channel: MessagingChannel): Copy {
   if (channel === "imessage") return t;
   const over = channel === "whatsapp" ? t.wa : t.tg;
-  return { ...t, landing: { ...t.landing, ...over.landing }, link: { ...t.link, ...over.link }, send: { ...t.send, ...over.send } };
+  const number = channel === "whatsapp" ? { ...t.number, ...t.wa.number } : t.number;
+  return { ...t, landing: { ...t.landing, ...over.landing }, link: { ...t.link, ...over.link }, number, send: { ...t.send, ...over.send } };
 }
 
 // "This replaces your … link." for the channel a confirmation would replace (D5).

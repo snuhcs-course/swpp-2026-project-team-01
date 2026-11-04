@@ -7,6 +7,7 @@ import type { Database, Queryable } from "./database";
 import { generateLinkCode, hashLinkCode } from "./email-links";
 import { readReceivedContinuation } from "./imessage-continuation";
 import {
+  attemptLineNumber,
   attemptMessage,
   codeContext,
   endOpenAttempts,
@@ -14,7 +15,6 @@ import {
   linkChannels,
   linkLockKey,
   lockHostLinking,
-  registeredLineNumber,
   senderContext,
   shownSender,
 } from "./imessage-links";
@@ -81,7 +81,8 @@ function starterHash(key: TokenKey, secret: string) {
 
 // Creates this browser's attempt, ending its earlier open one. The source and
 // service bounds count every start in the last hour, claimed or not. An
-// iMessage start registers the entered number first (imessage-number-registration D1).
+// iMessage or WhatsApp start registers the entered number first
+// (imessage-number-registration D1, guest-whatsapp-link D3).
 export async function startImessageLink(
   db: Database,
   options: StartOptions,
@@ -104,7 +105,7 @@ export async function startImessageLink(
     `;
     if (counts!.source >= limits.perSourceHour || counts!.service >= limits.serviceHour) throw new CommandError("rate_limited");
 
-    const lineNumber = channel === "imessage" ? await registeredLineNumber(options.registrar, number) : null;
+    const lineNumber = await attemptLineNumber(options.registrar, channel, number);
 
     await tx`
       update app.imessage_links
