@@ -117,6 +117,8 @@ Photon의 전달 가능성 안내에 따라 인바운드 우선이 기본값입�
 
 운영 프로젝트는 Photon의 Free 요금제이며, 이 요금제의 iMessage 회선은 공유 회선입니다. 공유 회선은 프로젝트에 등록된 사용자가 보낸 메시지만 전달하고, 등록된 사용자에게만 보냅니다([troubleshooting](https://photon.codes/docs/spectrum-ts/troubleshooting/imessage), 이슈 #94). 그래서 모든 iMessage 연결 시작은 먼저 상대의 번호를 묻고, 프로젝트 자격 증명으로 `POST https://spectrum.photon.codes/projects/{projectId}/users/`를 호출해 그 번호를 공유 사용자로 등록합니다. 코드는 Photon이 돌려준 `assignedPhoneNumber`로 보내도록 안내하며, 이 번호는 시도의 `imessage_links.line_number`에 보관됩니다([`imessage-number-registration`](../../openspec/changes/imessage-number-registration/proposal.md#decisions) D1, D2). `PHOTON_LINE_NUMBER`는 iMessage를 켜는 역할만 합니다. Free 요금제는 등록 사용자 10명, Pro는 100명까지이며([pricing](https://photon.codes/pricing)), 가득 찬 프로젝트는 새 번호를 거절합니다. 등록된 사용자는 `photon spectrum users ls --project <id>`로 확인합니다. 전용 회선(Business)에는 이런 목록이 없습니다.
 
+2026-11-04부터 모든 WhatsApp 연결 시작(호스트의 연결 단계와 Connect WhatsApp 카드, `/?flow=whatsapp`, 게스트의 **Get updates in WhatsApp**)은 입력한 번호를 같은 방식으로 등록하므로([`guest-whatsapp-link`](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions) D3), WhatsApp 시작도 프로젝트 사용자를 하나씩 소비합니다. 답에 담긴 `assignedPhoneNumber`는 iMessage 풀 번호이며 버립니다. WhatsApp 시도는 `line_number`를 보관하지 않고(검사로 강제), 코드는 `PHOTON_WHATSAPP_NUMBER`로 보내도록 안내합니다. Free 요금제에서 WhatsApp Business 발신자에 대해 Photon이 이 등록을 요구하는지, 받아들이는지, 무시하는지는 확인하지 못했습니다.
+
 ### 표시 이름, 연락처 카드, 프로필 동기화
 
 Photon의 [전달 가능성 안내](https://photon.codes/docs/best-practices/imessage-deliverability.md)에 따라 **확인 및 연결(Confirm and link)** 직후 환영 메시지 뒤에 보류해 연락처 카드를 한 번 공유하고, 다시 공유할 수 있도록 호스트 동작으로서 선택적인 **연락처에 추가(Add to contacts)**를 제공합니다. 각각은 Spectrum SDK를 통해 네이티브 연락처 카드 공유 하나를 대기열에 넣습니다([`host-imessage-channel` 설계 11과 18](../../openspec/changes/host-imessage-channel/design.md#18-read-marks-typing-tapbacks-and-the-contact-card-after-linking-d20d22)). 읽음 표시, 입력 중 말풍선, 감사 탭백은 같은 SDK를 통해 최선 노력 방식의 발신함 신호(`space.read`, `space.startTyping`, `message.react`)로 전달됩니다. 실제로 선택된 경로를 고정하고, 공급자의 수락/불확실성을 사실대로 보고합니다. 저장 여부는 수신자가 선택하며, 제품은 표시되는 이름을 약속하거나 연락처 카드로부터 신원/동의를 추론할 수 없습니다. 지원한다고 주장하기 전에 실제 계정 프로필과 실제 디바이스에서의 표시를 각각 독립적으로 검증합니다.
@@ -139,6 +141,8 @@ Photon의 문서와 공급자 패키지에서 확인한 사실이며, 아직 실
 - Photon은 WhatsApp Business용으로 Photon SMS 번호를 등록합니다. Photon의 iMessage 번호는 자격이 없으므로, WhatsApp 번호는 iMessage 회선이 아닙니다. Photon은 번호에 2단계 인증 PIN을 설정하며, Photon에서 번호 연결을 끊어도 번호는 Meta의 WhatsApp Business 계정에 남습니다.
 - 자유 형식 메시지는 사용자의 마지막 메시지로부터 24시간 이내에만 수락됩니다. 그 창 밖에서는 Meta가 오류 131047로 이를 거부하며, 승인된 템플릿만 수락됩니다. 템플릿은 Meta의 WhatsApp Manager에서 만들고 승인받습니다.
 - 공급자는 일대일 대화만 지원하며, 대화 ID는 연락처 ID입니다.
+
+게스트도 WhatsApp을 연결할 수 있습니다([`guest-whatsapp-link`](../../openspec/changes/guest-whatsapp-link/proposal.md#decisions), 이슈 #117). 같은 번호, 웹훅, 창을 쓰며 창의 시작은 게스트 바인딩의 `last_inbound_at`입니다. 게스트용 템플릿은 등록하지 않습니다. 창 밖에서는 게스트의 WhatsApp 알림이나 답장이 `window_closed`로 보류되고 예약 이메일이 업데이트를 담습니다. 위의 템플릿 한도는 호스트 템플릿만 집계합니다.
 
 운영자 단계이며, 구현하는 풀 리퀘스트가 반영될 때까지 모두 사용자에게 막혀 있습니다:
 
