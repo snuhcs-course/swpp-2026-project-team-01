@@ -103,7 +103,7 @@ test.describe("on Android", () => {
     const sender = newWhatsAppSender();
     await hostSendsOnWhatsApp(db, sender, message);
     await expect(page.getByRole("heading", { name: "Is this you?" })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(`•••• ${sender.slice(-4)}`)).toBeVisible();
+    await expect(page.getByText(`+${sender}`)).toBeVisible();
     await expect(page.getByText(OPT_IN)).toBeVisible();
     expect(await activeChannel(db, host.hostAccountId)).toHaveLength(0);
 
@@ -115,7 +115,7 @@ test.describe("on Android", () => {
     await page.getByRole("button", { name: "Go to Home" }).click();
     const card = await openCard(page);
     await expect(card.getByRole("heading", { name: "WhatsApp is linked" })).toBeVisible();
-    await expect(card).toContainText(`Linked on WhatsApp •••• ${sender.slice(-4)}`);
+    await expect(card).toContainText(`Linked on WhatsApp +${sender}`);
     await expect(card.getByRole("button", { name: "Add to contacts" })).toHaveCount(0);
     await expect(card.getByRole("button", { name: "Unlink WhatsApp" })).toBeVisible();
   });
@@ -204,7 +204,7 @@ test.describe("on a Windows computer", () => {
     const sender = newWhatsAppSender();
     await hostSendsOnWhatsApp(db, sender, message);
     await expect(page.getByRole("heading", { name: "Got your message." })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(`•••• ${sender.slice(-4)}`)).toBeVisible();
+    await expect(page.getByText(`+${sender}`)).toBeVisible();
     await expect(page.getByRole("link", { name: "Continue with Google" })).toHaveAttribute("href", "/auth/sign-in");
   });
 });
