@@ -20,7 +20,7 @@ export function createHostScheduleImageHandler(load: () => HostScheduleImageDepe
 }) {
   return async (request: Request) => {
     const deps = load();
-    const refused = crossSiteRefusal(request, deps, { json: true });
+    const refused = crossSiteRefusal(request, deps, { json: false });
     if (refused) return refused;
     const actor = await eligibleHost(request, deps);
     if (actor instanceof Response) return actor;
