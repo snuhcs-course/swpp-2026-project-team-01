@@ -139,6 +139,17 @@ In a host's review of one request, the assistant SHALL be able to approve the cu
 - **WHEN** the assistant tries to approve a version that a newer proposal superseded
 - **THEN** nothing is approved and the assistant names the current version
 
+### Requirement: Switching the conversation in words
+In the linked iMessage or WhatsApp conversation, the assistant SHALL be able to switch the conversation to a request the host names by reference or requester name, or back to setup, so the host's next plain message reaches that discussion, as `request <ref>` and `setup` do. A name that matches several requests or none SHALL switch nothing, and the assistant SHALL ask which request the host means. A message typed on the web SHALL switch nothing.
+
+#### Scenario: Host names a request
+- **WHEN** a linked host writes "let's talk about 박도현's request" and exactly one of their requests has that requester
+- **THEN** the conversation switches to that request and the host's next message reaches its discussion
+
+#### Scenario: Ambiguous name
+- **WHEN** the host names a requester who matches two requests
+- **THEN** nothing is switched and the assistant asks which one, naming each
+
 ### Requirement: Shared discussions and replies
 A linked host's free text SHALL become an accepted input of the discussion the host selected (setup by default, or the private review discussion of a selected request), marked as coming from iMessage, under the same redaction, admission, session index and model limits as web input; a retried receipt SHALL resolve to the same input. When that input's turn ends, the assistant's final text SHALL be sent to the linked conversation, and a turn that fails or yields no text SHALL send a fixed fallback pointing to the web.
 

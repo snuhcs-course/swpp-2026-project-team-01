@@ -259,6 +259,7 @@
 | D21 | (사용자, 2026-11-04, 이슈 #84.) 영어 또는 한국어로 감사 인사만 담은 메시지에는 ❤️ 탭백을 보내고 턴을 시작하지 않으며, "ok", "yes", 👍는 여전히 대화에 전달됩니다 | 에이전트 도구를 통한 모델 선택 탭백(나중에); 승인으로서의 탭백 | 제안서; 설계 18 | `lib/server/imessage-receipts.ts`의 `isOnlyThanks`와 `THANKS_TAPBACK` |
 | D22 | (사용자, 2026-11-04, 이슈 #84.) **확인 및 연결**은 iMessage에서 연락처 카드를 대기열에 넣고, 발신함의 새 `delaySeconds`로 환영 메시지 뒤에 15초 보류합니다. **연락처에 추가**는 그대로 유지합니다 | 요청이 있을 때만 카드 전송(처음 결정된 D13) | 제안서; 설계 18과 11 | `lib/server/imessage-links.ts`의 `bind`와 `CARD_AFTER_WELCOME_SECONDS` |
 | D23 | (팀, 2026-11-04, 이슈 #88.) 연결된 호스트는 iMessage나 WhatsApp에서 자기 말로 현재 합의된 제안을 승인할 수 있습니다. 어시스턴트의 `approve_proposal` 도구는 해당 턴이 `[iMessage] ` 또는 `[WhatsApp] `가 붙은 메시지에 답하는 중일 때만, 그 도구가 지목한 현재 버전에 한해, 버튼과 같은 `approveCommand`로 승인합니다. 승인 대기 요약은 해당 요청을 선택하고 말로 하는 승인을 안내하며, 거절, 공유, 확인은 정확한 명령으로 남습니다 | 승인 전 다시 읽어 주는 확인; 고정된 긍정 단어; 정확한 명령만 유지(이전 규칙) | 제안서; 설계 19; `host-imessage-channel` 델타; PRD FR-27, AC-17, 10절 | `lib/server/host-review-tools.ts`의 `approveProposalForTool`; `agent/tools/request.ts`의 도구; `agent/instructions/host-imessage.ts`; `requestSummary`와 알림 작업 |
+| D25 | (사용자, 2026-11-04, 이슈 #125.) 연결된 호스트는 iMessage나 WhatsApp 대화를 자기 말로 다른 요청으로, 또는 다시 설정으로 전환할 수 있습니다. Thyme의 `switch_conversation`은 참조 번호나 요청자 이름으로 지목한 요청을 선택하며, 연결된 대화에서 온 메시지에 한해서만 동작합니다. 모호하거나 모르는 이름은 아무것도 전환하지 않습니다 | 정확한 명령만 유지(`request <ref>`, `setup`); 웹에서 전환 | 제안서; 설계 21; `host-imessage-channel` 델타 | `lib/server/channel-selection.ts`의 `switchConversationForTool`; `agent/tools/setup.ts`, `agent/tools/request.ts`; `agent/instructions/host-imessage.ts` |
 
 ### 구현 결정
 
