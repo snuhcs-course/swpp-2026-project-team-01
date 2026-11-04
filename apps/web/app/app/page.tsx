@@ -40,7 +40,7 @@ async function Workspace({ searchParams }: { readonly searchParams: SearchParams
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-4 px-4">
         <div className="flex items-center justify-between">
-          <h1 className="font-display text-2xl">Find Me a Time</h1>
+          <h1 className="wordmark-lockup">Find Me a Time</h1>
           <WorkspaceMenu />
         </div>
         <p>This host account is suspended, so the workspace is unavailable. Contact support to restore it.</p>

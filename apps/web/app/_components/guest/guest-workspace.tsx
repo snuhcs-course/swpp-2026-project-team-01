@@ -554,7 +554,7 @@ function IntakeTranscript({ bookingId }: { readonly bookingId: string }) {
   if (!events || messages.length === 0) return null;
 
   return (
-    <details className="rounded-xl border border-border px-4 py-3 text-sm" open>
+    <details className="rounded-3xl bg-card px-5 py-4 text-sm" open>
       <summary className="cursor-pointer font-medium">Your conversation on the public page</summary>
       <div aria-label="Earlier conversation, read only" className="flex flex-col gap-2 pt-3" role="log">
         {messages.map((message) => (
