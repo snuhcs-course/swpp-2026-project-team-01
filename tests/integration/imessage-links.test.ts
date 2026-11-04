@@ -82,11 +82,12 @@ describe("registering the entered number first (imessage-number-registration)", 
     expect(await im.status(hostAccountId)).toMatchObject({ state: "none" });
   });
 
-  it("asks WhatsApp for no number and registers nothing", async () => {
+  // WhatsApp registers the number too, but Telegram takes none (guest-whatsapp-link D3).
+  it("asks Telegram for no number and registers nothing", async () => {
     const hostAccountId = await newHostAccount(db);
     const before = photon.registered.length;
-    expect((await im.command(hostAccountId, "imessage.link.create", { channel: "whatsapp" })).ok).toBe(true);
-    expect(await im.command(hostAccountId, "imessage.link.create", { channel: "whatsapp", number: newSender() })).toMatchObject({ ok: false });
+    expect((await im.command(hostAccountId, "imessage.link.create", { channel: "telegram" })).ok).toBe(true);
+    expect(await im.command(hostAccountId, "imessage.link.create", { channel: "telegram", number: newSender() })).toMatchObject({ ok: false });
     expect(photon.registered.length).toBe(before);
   });
 });

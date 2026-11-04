@@ -11,7 +11,7 @@ import { completeGoogleLeg, createGoogleUser, localAuthConfig, startGoogleSignIn
 import { testDatabase } from "./support/database";
 import { type FakePhoton, startFakePhoton } from "./support/fake-photon";
 import { hostWithUser, imessageHarness, textOf } from "./support/imessage";
-import { newSender, TEST_LINE } from "./support/photon";
+import { newSender, TEST_LINE, TEST_WHATSAPP_NUMBER } from "./support/photon";
 import { newHostAccount } from "./support/ready-host";
 import { testTokenKey } from "./support/requests";
 
@@ -63,6 +63,18 @@ describe("the iMessage start", () => {
     await startImessageLink(db, options, browser, source(), "imessage", number);
     expect(photon.registered.at(-1)).toBe(number);
     expect(await readStartStatus(db, options, browser)).toMatchObject({ lineNumber: "+15550009999", state: "pending" });
+  });
+
+  // /?flow=whatsapp registers the number too, and the code stays addressed to the WhatsApp number (guest-whatsapp-link D3).
+  it("registers the number on a WhatsApp start and keeps no assigned number", async () => {
+    const withWhatsApp: StartOptions = { ...options, whatsappNumber: TEST_WHATSAPP_NUMBER };
+    const browser = secret();
+    await expect(startImessageLink(db, withWhatsApp, browser, source(), "whatsapp")).rejects.toMatchObject({ category: "invalid_input" });
+    const number = newSender();
+    photon.nextRegistration({ lineNumber: "+15550009999" });
+    await startImessageLink(db, withWhatsApp, browser, source(), "whatsapp", number);
+    expect(photon.registered.at(-1)).toBe(number);
+    expect(await readStartStatus(db, withWhatsApp, browser)).toMatchObject({ channel: "whatsapp", lineNumber: TEST_WHATSAPP_NUMBER, state: "pending" });
   });
 
   it("lets the sender sign in from Thyme's reply, for one host, until Confirm and link ends the attempt", async () => {

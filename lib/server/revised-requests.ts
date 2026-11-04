@@ -146,8 +146,10 @@ async function moveChannel(tx: Transaction, options: RevisedOptions, channel: Re
     return null;
   }
 
-  const [old] = await tx<{ id: string; sender_hash: string; sender_ciphertext: string; space_ciphertext: string | null; sealed_key_id: string; link_id: string | null }[]>`
-    select id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, link_id from app.requester_imessage_bindings
+  const [old] = await tx<
+    { id: string; channel: string; sender_hash: string; sender_ciphertext: string; space_ciphertext: string | null; sealed_key_id: string; link_id: string | null }[]
+  >`
+    select id, channel, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, link_id from app.requester_imessage_bindings
     where id = ${channel.bindingId} and request_id = ${closedRequestId} and state = 'active'
     for update
   `;
@@ -164,9 +166,12 @@ async function moveChannel(tx: Transaction, options: RevisedOptions, channel: Re
   const [row] = await tx<{ id: string }[]>`select gen_random_uuid() as id`;
   const context = requesterBindingContext(row!.id);
   await tx`
-    insert into app.requester_imessage_bindings (id, request_id, link_id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id)
-    values (${row!.id}, ${requestId}, ${old.link_id}, ${old.sender_hash}, ${sealToken(options.tokenKey, sender, context).ciphertext},
-            ${space === null ? null : sealToken(options.tokenKey, space, context).ciphertext}, ${options.tokenKey.id})
+    -- The binding keeps its channel; the guest's message that moved it starts
+    -- WhatsApp's window (guest-whatsapp-link design 3).
+    insert into app.requester_imessage_bindings
+      (id, request_id, channel, link_id, sender_hash, sender_ciphertext, space_ciphertext, sealed_key_id, last_inbound_at)
+    values (${row!.id}, ${requestId}, ${old.channel}, ${old.link_id}, ${old.sender_hash}, ${sealToken(options.tokenKey, sender, context).ciphertext},
+            ${space === null ? null : sealToken(options.tokenKey, space, context).ciphertext}, ${options.tokenKey.id}, now())
   `;
   return row!.id;
 }

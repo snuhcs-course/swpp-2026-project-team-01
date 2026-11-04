@@ -59,6 +59,9 @@ import { openToken, sealToken, type TokenKey, tokenKeyFromEnvironment } from "./
 // window's summary of a new request, a proposal awaiting approval or a booking
 // outcome queues one template instead, at most one per host per 12 hours and at
 // most the daily limit per line.
+// A guest's rows (guest-whatsapp-link design 1 and 3) take the guest binding's
+// channel and its last_inbound_at as the window; outside it they are suppressed
+// with window_closed, and no template follows, since guests have none.
 // Telegram rows (host-telegram-channel design 9, D11) go through the Bot API
 // transport instead of Photon's. Consecutive sends to one chat are at least a
 // second apart: the claim reserves the chat's next slot under a lock and the
@@ -219,6 +222,12 @@ export async function recordOutbound(tx: Transaction, message: RecordOutbound): 
 }
 
 async function ownerChannel(tx: Transaction, message: RecordOutbound): Promise<StoredChannel> {
+  if (message.requesterBindingId) {
+    const [binding] = await tx<{ channel: StoredChannel }[]>`
+      select channel from app.requester_imessage_bindings where id = ${message.requesterBindingId}
+    `;
+    if (binding) return binding.channel;
+  }
   if (message.bindingId) {
     const [binding] = await tx<{ channel: StoredChannel }[]>`select channel from app.imessage_bindings where id = ${message.bindingId}`;
     if (binding) return binding.channel;
@@ -463,6 +472,20 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
         inWindow = binding.in_window;
       }
 
+      // A guest's window runs from their last message, the link message
+      // included (guest-whatsapp-link design 3); an unlinked guest gets nothing.
+      if (row.requester_binding_id) {
+        const [binding] = await claimTx<{ state: string; in_window: boolean }[]>`
+          select state, coalesce(last_inbound_at > now() - make_interval(mins => ${WHATSAPP_WINDOW_MINUTES}), false) as in_window
+          from app.requester_imessage_bindings where id = ${row.requester_binding_id}
+        `;
+        if (binding?.state === "unlinked") {
+          await finish(claimTx, row.id, row.state, "suppressed", { category: "unlinked" });
+          return { state: "suppressed" as const };
+        }
+        if (binding) inWindow = binding.in_window;
+      }
+
       // Free-form WhatsApp text outside the window is never sent (D8).
       if (row.channel === "whatsapp" && row.kind !== "template" && !inWindow) {
         await finish(claimTx, row.id, row.state, "suppressed", { category: WINDOW_CLOSED });
@@ -478,16 +501,6 @@ export function createImessageSendHandler(load: () => ImessageSendDependencies =
         `;
         if (!edited?.editable) {
           await finish(claimTx, row.id, row.state, "suppressed", { category: "edit_expired" });
-          return { state: "suppressed" as const };
-        }
-      }
-
-      if (row.requester_binding_id) {
-        const [binding] = await claimTx<{ state: string }[]>`
-          select state from app.requester_imessage_bindings where id = ${row.requester_binding_id}
-        `;
-        if (binding?.state === "unlinked") {
-          await finish(claimTx, row.id, row.state, "suppressed", { category: "unlinked" });
           return { state: "suppressed" as const };
         }
       }

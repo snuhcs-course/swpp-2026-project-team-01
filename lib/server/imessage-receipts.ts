@@ -542,7 +542,8 @@ async function forwardGuest(
   binding: Pick<GuestBinding, "id" | "request_id">,
   message: string,
 ): Promise<ReceiptOutcome> {
-  const text = `${IMESSAGE_PREFIX}${message}`;
+  // The guest's channel marks the text, as a host's does (guest-whatsapp-link design 1).
+  const text = `${PREFIXES[receipt.channel]}${message}`;
   if (getChatMessageLengthError(text)) {
     await guestReply(tx, deps, receipt, binding, { dedupeKey: `receipt:${receipt.id}`, kind: "command", text: GUEST_TEXTS.tooLong });
     return "replied";
@@ -661,12 +662,14 @@ export async function processReceipt(
 
   if (receipt.spaceType !== "dm" || ["reaction", "read", "typing"].includes(receipt.contentType)) return "ignored";
 
-  // Guests write from iMessage only; a Telegram sender is a host or no one.
+  // Guests write from iMessage or WhatsApp (guest-whatsapp-link); a Telegram
+  // sender is a host or no one.
   const guest = receipt.channel === "telegram" ? null : await guestRoute(tx, receipt);
   if (guest === "ambiguous") {
     const guests = await activeGuestBindings(tx, receipt.senderHash);
     const host = await activeBindingOfSender(tx, receipt.senderHash);
     await recordOutbound(tx, {
+      channel: receipt.channel,
       dedupeKey: `receipt:${receipt.id}`,
       kind: "command",
       recipient: { address: receipt.sender, spaceId: receipt.spaceId },
