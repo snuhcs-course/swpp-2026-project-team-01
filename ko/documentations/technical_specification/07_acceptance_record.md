@@ -498,9 +498,12 @@
 | `PHOTON_WHATSAPP_NUMBER` | 2026-11-04 | — | `findmeatime-release` Production에 `17114549153`으로 설정했습니다 |
 | 깨끗한 체크아웃에서 `vercel deploy --prod` | 2026-11-04 | `44c71257` | Ready 상태이며 `https://findmeatime.com`에 별칭이 연결되었습니다 |
 | 읽기 전용 점검 | 2026-11-04 | `44c71257` | `/`와 `/?flow=whatsapp`가 200으로 응답하고, `GET /api/imessage/start`가 WhatsApp 번호와 함께 두 채널을 명시하며, 서명 없는 `POST /photon/webhook`은 거부됩니다 |
+| 휴대폰에서 연결 시도 | 2026-11-04 | `db1e4e67` | 실패: 04:27부터 04:33 UTC 사이에 연결 코드 네 개가 만들어졌지만 `/photon/webhook`은 어떤 전달도 받지 못했습니다. Photon은 이 회선을 `BANNED`로 보고하며, Meta는 2026-11-03 18:41 UTC에 WhatsApp Business 계정을 비활성화했습니다([공급자 설정](03_provider_setup.md#whatsapp-business)) |
+| +1 555-701-1140으로 전환 | 2026-11-04 | `db1e4e67` | +1 711 회선을 Photon에서 제거했고, Production에 `PHOTON_WHATSAPP_NUMBER=15557011140`을 설정했으며, 다시 배포해 `https://findmeatime.com`에 별칭을 연결했습니다. `GET /api/imessage/start`는 WhatsApp `15557011140`을 알려 주고, `/`, `/app`, `/?flow=whatsapp`은 200으로 응답합니다 |
 
 ### 알려진 공백
 
+- **WhatsApp Business 계정 비활성화 후 복구.** Meta가 2026-11-03에 "허용 가능한 사용 약관 위반"을 이유로 계정을 비활성화했고 2026-11-04에 검토 후 복구했습니다. 프로덕션은 이제 +1 555-701-1140을 사용하며, 이 계정 아래에는 템플릿이 아직 제출되지 않았습니다.
 - **실제 WhatsApp 이벤트나 전송 없음.** 플랫폼 표기, 연락처 ID 형식, Photon이 Meta의 오류 코드를 싣는 위치는 공급자 패키지와 Photon의 문서에서 가져왔으며, 이벤트 한 건의 캡처(작업 5.1)는 사용자 대기 중입니다.
 - **등록되지 않은 템플릿.** 설계 8의 템플릿 세 개가 WhatsApp Manager에 없으므로, 승인되기 전까지 프로덕션은 `template_unavailable`로 응답하게 됩니다.
 - **수락 이후 Meta가 보고하는 거부**(상태 이벤트의 131047)는 관찰되지 않았으며, 전송 시점의 창 확인이 안전장치입니다.
